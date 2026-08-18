@@ -910,3 +910,218 @@ The one requirement state that **did** move this round moved under a named publi
 `requirements-completed: []` so the automated marker was given nothing to act on. `LANG-04` reads
 `[ ]` / `Gaps Found` on the final tree — re-measured: `.planning/REQUIREMENTS.md:82` and `:183`.
 `V-29-47-05` is closed by that correction (§4.7a).
+
+---
+
+## 8. The sweep on the final tree, the reconciliation, and the prohibitions asserted
+
+**These are not a second derivation that agrees with §1–§7. They are the same measurements.** Every
+live count printed above was taken by the commands recorded below, on the tree recorded below, and
+written into the section that needed it. Where a section cites a number, that number came from here.
+
+### 8.0 The tree the sweep was taken on, and why it moved twice mid-plan
+
+The reproductions at §2 were taken at `48e93b8`, the head of the round before this plan committed. This
+plan then added two commits — the register itself and the workflow comments. **The sweep was re-taken in
+full on the true final tree rather than assumed to be unaffected**, and both reproductions were re-run
+there:
+
+```
+FINAL_TREE = d460a8767e7597e5f1f8e162157f622062b216e0
+
+gate sha256 at 48e93b8  : f5f4469cde368cbb8a7d9d6751f8602b77fa92bf218fa1e2b10a3cb1b55705a7
+gate sha256 at FINAL    : f5f4469cde368cbb8a7d9d6751f8602b77fa92bf218fa1e2b10a3cb1b55705a7   (equal)
+committed .js changed 48e93b8..HEAD : 0
+
+fresh mirror at FINAL: MIRROR FILES=1620   TRACKED=1620   GATE_SHA_MIRROR=f5f4469c…05a7
+premise: EXIT=0  BYTES=1663
+  117 document(s) carry zero · suppresses 14 banned · standard-name 8, token-economy 2, comprehension 4
+  reaches 66 line · 6 registry-anchored block
+```
+
+**Re-run on the final tree, both landed and both red by name:**
+
+```
+CR-01 form A   PLANT_LANDED=1  LINES=299 (preserved)
+               EXIT=1   named: writing-profile.md:292:14  writing-profile.md:292:33
+               cause named: "C-28-046's anchored block ..."
+
+CR-02          PLANT_LANDED=1
+               EXIT=1   banned claims: 3 finding(s) over 117 elements
+               named: marketplace.json:3:113  marketplace.json:3:66  marketplace.json:3:75
+```
+
+Identical to §2.3 and §2.5 in every particular. The mirror's file count moved 1619 → 1620, which is this
+register itself entering the tracked set, and nothing else.
+
+### 8.1 The sweep, command by command
+
+| command | exit | output recorded |
+|---|---|---|
+| `npm run build` | **0** | — |
+| `npm run freshness` | **0** | `All build outputs fresh: 48 committed .js file(s) match a fresh tsc rebuild.` |
+| `npm run freshness:catalog` | **0** | `Catalog fresh: docs/catalog/README.md matches a fresh regeneration.` |
+| `npm run freshness:adapters` | **0** | `17 adapter(s) compared, 0 byte difference(s), directory listings set-equal` |
+| `npm run freshness:skill-twins` | **0** | `7 twin(s) compared, 0 byte difference(s), directory listings set-equal` |
+| `npm run freshness:context` | **0** | vacuous pass — no `.grugops/context/` tree exists yet |
+| `npm run freshness:queue` | **0** | vacuous pass |
+| `npm run freshness:traceability` | **0** | vacuous pass |
+| `npm run typecheck` | **0** | `tsc --noEmit && tsc -p tsconfig.tests.json` |
+| `node scripts/check-public-docs-vocabulary.js` | **0** | `ALL CHECKS PASSED` |
+| `node scripts/check-audit-register.js` | **0** | `ALL CHECKS PASSED` |
+| `node scripts/check-claim-anchors.js` | **0** | `ALL CHECKS PASSED` |
+| `node scripts/check-banned-claims.js` | **0** | `0 findings over 117/117 elements` |
+| `node scripts/check-imperative-lexicon.js` | **0** | `ALL CHECKS PASSED` |
+| `node scripts/check-uat-oracles.js` | **0** | `ALL CHECKS PASSED` |
+| `node scripts/check-foundation-guards.js` | **0** | `ALL CHECKS PASSED` |
+| `node scripts/check-diff-disposition.js` | **0** | `ALL CHECKS PASSED` |
+| `node scripts/check-nul-bytes.js` | **0** | `1620 tracked file(s) scanned as raw bytes, ZERO carrying a forbidden control byte` |
+| `npx vitest run --exclude '**/scripts/e2e/**'` | **0** | **52 files, 2127 passed, 2 skipped** |
+
+**`npm test` was NOT run** — it spawns the live claude-CLI e2e lane, which spends tokens and can hang.
+
+**The three vacuous freshness passes are recorded as vacuous rather than as green.** They pass because
+the trees they compare do not exist. A sweep that prints eight zeroes and does not say which three are
+vacuous has published a stronger result than it took.
+
+**The banned-claim PASS line on the final tree, in full**, because the numbers §1–§7 cite are read off
+it rather than computed beside it:
+
+```
+PASS  LANG-04: 117 document(s) carry zero banned claim literal outside the one named exemption region
+      — kit 73, publicDocs 11, installReadme 1, skillSources 7, claudeAdapters 24, pluginManifests 2,
+      overlap 1; 22 pinned literal(s) across 3 group(s), matched UNCONDITIONALLY — the gate enumerates
+      what is banned and nothing about how it is said; 1 exemption region (agent-factory/writing-profile.md
+      § ## Disclaimer and honesty floor …), which suppresses 14 banned-claim occurrence(s)
+      (standard-name 8, token-economy 2, comprehension 4), pinned at 14, and reaches 66 line(s), pinned
+      at 66 …; every suppressed occurrence sits inside one of 6 registry-anchored block(s)
+      [C-28-039, C-28-043, C-28-044, C-28-042, C-28-045, C-28-046] frozen byte-for-byte against
+      docs/audit/28-claim-registry.md, pinned at 6, covering 22 of the region's 66 line(s) — the other
+      44 stay freely editable and are SCANNED, so a claim written on one of them is a finding (the
+      carve-out is bounded in POSITION and in CONTENT); 8 candidate literal(s) refused at admission
+```
+
+### 8.2 Suite and denominator accounting
+
+**Suite:** round 6's baseline was 2068. Round 7 moved it by plan — 29-49 → 2073, 29-52 → 2108, 29-53 →
+2124, 29-54 → **2127**, and 29-55 (this plan) adds **no case and changes no source**, so the final tree
+measures **2127 passed / 2 skipped across 52 files**, identical to 29-54's published figure. The 2 skips
+are pre-existing and in files no plan of this round touched.
+
+**`check-nul-bytes` denominator:** 1619 at `48e93b8` → **1620** on the final tree. The +1 is this
+register. `.github/workflows/ci.yml` was already tracked, so this plan's second commit moves no
+denominator — which is itself the check that the comment-only edit was comment-only in the one gate that
+reads the file at all.
+
+**`freshness` denominator:** 48 committed `.js` files, unmoved across the whole round. This plan
+compiles nothing.
+
+### 8.3 The reconciliation — every number this round published, re-taken
+
+**21 rows in this table, 4 of them disagreeing**, each recorded with both values and its cause, none
+reconciled away. Two further rows follow it.
+
+| # | number as published | published by | re-measured on the final tree | verdict |
+|---|---|---|---|---|
+| 1 | scan count `117` | 29-53 | `117/117 elements` | ✓ agrees |
+| 2 | suppressed total `14` | 29-52 | `suppresses 14 banned-claim occurrence(s)` | ✓ |
+| 3 | per-group `standard-name 8, token-economy 2, comprehension 4` | 29-52 | identical | ✓ |
+| 4 | extent `66` | 29-52 | `reaches 66 line(s), pinned at 66` | ✓ |
+| 5 | exempt anchors `6` | 29-52 | `6 registry-anchored block(s)`, ids listed | ✓ |
+| 6 | anchored coverage `22 of 66` lines | 29-53 | identical | ✓ |
+| 7 | pinned literals `22` across `3` groups | 29-52/53 | identical | ✓ |
+| 8 | candidate literals refused at admission `8` | 29-53 | identical | ✓ |
+| 9 | `kit 73` unmoved by the walk-anchored exclusion | 29-53 | `kit 73` | ✓ |
+| 10 | suite `2127 passed / 2 skipped`, 52 files | 29-54 | identical | ✓ |
+| 11 | freshness `48` committed `.js` | 29-54 | identical | ✓ |
+| 12 | workflows `19 / 19 / 19 distinct / 0 duplicates` | 29-54 | identical, re-derived from the frontmatter authority | ✓ |
+| 13 | tracked `*.md` = `1362` at `58a2b52` | 29-53 | `1362` at that commit | ✓ |
+| 14 | tracked `*.md + *.json` = `1400` at `58a2b52` | 29-53 | `1400` at that commit | ✓ |
+| 15 | 29-44 R1: `30` code-span cells over `1534` rows | round 6, re-measured | `30` / `1534`, all in `29-12.md` | ✓ |
+| 16 | 29-43 R2: `sharper-per-token` live `1` | round 6, re-measured | `1`, at `CHANGELOG.md:67` | ✓ |
+| 17 | `V-29-26-04`: `4` indented fence delimiters in `README.md` | round 6, re-measured | `4` | ✓ |
+| 18 | registry `line` drift: **`19 of 41`** anchored rows | 29-51 | **`19 of 45`** | ✗ **DISAGREES — denominator.** The numerator is unchanged. 29-52 added four anchored rows whose `line` fields are correct, so the ratio's bottom moved after 29-51 measured it. Both values published; §4.5. |
+| 19 | writing-profile rows wrong by **`62–80` lines** | 29-51 | **`80`, `80`, `82`** | ✗ **DISAGREES — range.** 29-52 inserted anchors and content into `agent-factory/writing-profile.md` after 29-51's measurement, moving those blocks down. Cause identified; re-taken values published; §4.5. |
+| 20 | tracked `*.json` = **`37` paths** | 29-53 (narrative) | **`38`**, measured both at `58a2b52` and at HEAD | ✗ **DISAGREES.** One short. |
+| 21 | `scripts/**` JSON = **`18`** | 29-53 (table cell) | **`19`** | ✗ **DISAGREES.** One short — and it is the *same* one as row 20. |
+
+**Rows 20 and 21 are one defect and it is worth naming precisely, because it is this phase's own
+subject.** 29-53's class equality is asserted **mechanically and derived** in the test case
+(`admitted.length + excludedByName.length === tracked.length`, both sides floored) — that assertion
+cannot be short, and it is green. What is short is the **hand-written narrative enumeration** in the
+SUMMARY that explains the equality to a reader. **The mechanism was right and its published explanation
+was wrong by one, in the plan whose subject was a denominator being the finding.** Re-derived here, the
+partition sums exactly:
+
+```
+19 (scripts/**) + 9 (.planning/**) + 4 (toolchain) + 2 (tool config) + 2 (kit config) + 2 (admitted) = 38
+tracked *.json                                                                                       = 38
+```
+
+**Two further disagreements, of a different kind, found by deriving the commit counts:**
+
+| # | number as published | published by | derived from `git log` | verdict |
+|---|---|---|---|---|
+| 22 | `actuals.commits` | 29-48 `2`, 29-50 `3`, 29-51 `3`, 29-52 `4`, 29-53 `3` | `3`, `4`, `4`, `5`, `5` | ✗ **FIVE DISAGREEMENTS, all in the same direction — every published count is SHORT.** |
+| 23 | 29-54's self-check text, *"All 5 commits … are present in `git log`"* | 29-54 | `7` commits, and 29-54's own `actuals.commits: 7` | ✗ **DISAGREES with its own frontmatter.** |
+
+**The cause is structural, not clerical, and it is the reason this is recorded rather than corrected.**
+A plan's `actuals.commits` is written **into its SUMMARY**, and the SUMMARY is then committed — usually
+followed by a further state/ROADMAP/ledger docs commit. **A count of commits that is itself carried by a
+commit can never include the commits that carry it.** It is a self-reference, which is exactly why every
+one of the six disagreements is short and none is long. `29-49`'s figure agrees only because that plan
+happened to land its counts last; `29-54`'s frontmatter agrees because a later commit
+(`48e93b8`, *"correct the actuals commit count to the true total (7, not 4)"*) went back and fixed it —
+**and left the self-check prose beside it saying 5.**
+
+Not corrected here. Correcting a published `actuals` block in eight committed SUMMARYs is a rewrite of
+the trail, and **a trail is not a tidy state**. The measurement is the deliverable. What a later round
+should decide is whether `actuals.commits` is derivable at all at the moment it is written, or whether
+it should name the range instead of the count — the same remedy this round applied to a workflow
+comment (§3).
+
+**Reconciliation summary, counted rather than estimated:**
+
+```
+rows compared                                    : 23   (21 in the first table + rows 22 and 23)
+rows AGREEING                                    : 17
+rows DISAGREEING                                 :  6   (rows 18, 19, 20, 21, 22, 23)
+individual number disagreements inside those rows: 10   (rows 18,19,20,21,23 carry one each = 5;
+                                                          row 22 carries five, one per plan)
+disagreements reconciled away                    :  0
+numbers carried from a SUMMARY without re-measuring: 0
+
+  17 agreeing + 6 disagreeing = 23 compared.  ✓
+```
+
+**The first draft of this paragraph said "23 rows compared, 8 disagreements" and both halves of that
+were wrong.** It is recorded rather than silently corrected, because a reconciliation section that
+miscounts its own reconciliation is the same class as everything in rows 18–23, produced at the last
+possible moment by the document whose subject it is. The count above was taken by enumerating the rows,
+not by reading the table.
+
+### 8.4 The carried-count assertion, which is this document's first prohibition
+
+**Rows re-measured on the final tree: every one. Rows carried from a SUMMARY without re-measurement: 0.**
+
+That is asserted by construction rather than by claim: §8.3 compares **every** number this round
+published against a measurement taken here, and the two rows whose subject is a historical commit
+(rows 13 and 14) were re-measured **at that commit** with `git ls-tree`, not accepted from the SUMMARY
+that wrote them. Where a re-measurement disagreed, the disagreement is the published value (rows 18–23),
+not the SUMMARY's.
+
+### 8.5 The round's own prohibitions, asserted rather than assumed
+
+| assertion | command | result |
+|---|---|---|
+| **No requirement is marked by plan 29-55** | `git diff --numstat .planning/REQUIREMENTS.md` across this plan's commits | **no output** — byte-unchanged. `LANG-04` reads `[ ]` / `Gaps Found`; its verdict is the verifier's. |
+| **This plan's TASK commits change exactly two files** | `git diff --name-only` across `29-55`'s task commits | `docs/audit/29-round7-residuals.md` (new) and `.github/workflows/ci.yml` (comments only). **No source file, no test file, no kit document.** The separate closing metadata commit carries this plan's SUMMARY, `STATE.md` and `ROADMAP.md` and nothing else — it is named here so "two files" is not read as covering the whole plan. |
+| **The workflow edit is comment-only** | operative-line fingerprint before/after; `git diff -U0` filtered | `diff` of all non-comment non-blank lines is **empty**; `NON_COMMENT_CHANGED_LINES=0`; both gate invocations still present |
+| **No hand-written corpus cardinality in the workflow** | `grep` for a document count at the corrected address | **0**. The dated, commit-attributed historical record is preserved byte-unchanged. |
+| **Supply chain, round scope** | `git diff --exit-code 29f61e0..HEAD -- package.json package-lock.json` | **exit 0** — byte-unchanged across the round's full commit range. No package installed by any plan of round 7; `T-29-55-SC` discharged by asserted absence. |
+| **No plant, mirror or fixture left on the tree** | `git status --porcelain` | only `human-notes.txt` (modified before this round began, never staged) and two untracked directories unrelated to this work. Every plant in this sweep was written under `/private/tmp`. |
+| **The exemption document's edits this round are the round's own, and recorded** | `git diff --name-only 29f61e0..HEAD -- agent-factory/writing-profile.md` | changed by plan **29-52** only (the anchors D-54 required), additions only, with both pins re-derived from the gate's own refusal text rather than predicted |
+
+---
+
+*Round 7 closes here. The verdict on `LANG-04` belongs to the verifier.*
