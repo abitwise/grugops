@@ -263,6 +263,11 @@ catch {
     fail(`cannot read workflows directory: ${WORKFLOWS_DIR}`);
 }
 const workflows = [];
+// The declared order of each workflow, recorded against the FILENAME it was read from. The refusal
+// below names files, and the filename is carried here rather than recovered from `WorkflowEntry.link`
+// by stripping its directory prefix: a message assembled from a proxy for the thing it is reporting
+// is one refactor away from naming the wrong file, and the fact is free at the point it is read.
+const declaredOrders = [];
 for (const file of workflowFiles) {
     const path = join(WORKFLOWS_DIR, file);
     let text;
@@ -322,6 +327,7 @@ for (const file of workflowFiles) {
     // refusal would have broken D-09 at the only place it bites here. Held by a planted case.
     const rawCadence = cadences.length === 1 ? cadences[0].trim() : "";
     const cadence = rawCadence !== "" ? rawCadence : "UNKNOWN - verify";
+    declaredOrders.push({ file, order });
     workflows.push({
         name: h1[1].trim(),
         order,
@@ -330,6 +336,29 @@ for (const file of workflowFiles) {
         link: `agent-factory/workflows/${file}`,
     });
 }
+// ── No two workflows may declare the same `order` (round 6, IN-02 / residual 29-46 R2) ────────
+// THE GATE IS AT THE POINT OF EFFECT: the property the workflow sort below depends on is enforced
+// where the ordering is decided, not asserted in a comment beside it. `Array.prototype.sort` is
+// stable, so two workflows sharing an order would keep the relative position readdirSync happened to
+// hand them — making the published document depend on directory read order, differing between
+// machines for no visible reason, with every freshness gate on the machine that wrote it green.
+//
+// The buckets are walked in ASCENDING VALUE order rather than in insertion order, so the refusal a
+// given corpus produces is the same message on every machine — a fail-closed path whose wording
+// depends on directory read order would reintroduce, in the message, the defect it refuses.
+const orderBuckets = new Map();
+for (const { file, order } of declaredOrders) {
+    const bucket = orderBuckets.get(order);
+    if (bucket)
+        bucket.push(file);
+    else
+        orderBuckets.set(order, [file]);
+}
+for (const [value, files] of [...orderBuckets.entries()].sort((a, b) => a[0] - b[0])) {
+    if (files.length > 1) {
+        fail(`${files.join(", ")}: ${files.length} workflows declare \`order: ${value}\` — the workflows table is published in ascending order, so a shared value leaves their relative position decided by the directory read order and the generated document would differ between machines for no visible reason; give each workflow a distinct order`);
+    }
+}
 // ── Deterministic ordering (D-08, mandatory for the byte-diff) ─────────────────────────────────
 // Roles: core group first, then enterprise; alphabetical (by display name) within each group.
 roles.sort((a, b) => {
@@ -337,8 +366,16 @@ roles.sort((a, b) => {
         return a.tier === "core" ? -1 : 1;
     return a.name.localeCompare(b.name);
 });
-// Workflows: numeric `order` ascending (unique — no tie-break needed; the uniqueness claim was
-// re-verified in round 5, the range that used to be typed here had not been and was stale).
+// Workflows: numeric `order` ascending, and no tie-break is needed because the refusal above has
+// already rejected a corpus that would need one.
+//
+// WHAT STOOD HERE AND WAS REPLACED BY A MECHANISM RATHER THAN BY A FRESHER MEASUREMENT (round 6,
+// IN-02 — plan 29-54). A clause on this line asserted that the values were unique and cited a one-off
+// re-verification as the evidence. Nothing enforced it. That is a STANDING property resting on a
+// POINT-IN-TIME measurement, which is precisely the shape of the stale cardinality this module's
+// header says it deleted rather than corrected — and it was sitting one screen below that sentence.
+// A property named by the mechanism that holds it cannot go stale; a property asserted from a
+// measurement can do nothing else. The name above is the evidence now.
 workflows.sort((a, b) => a.order - b.order);
 // ── Emit the document: provenance header + intro + roles table + workflows table ──────────────
 const lines = [];
