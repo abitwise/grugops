@@ -186,6 +186,10 @@ const KIT_DIR = "agent-factory";
 const INSTALL_README = "install/README.md";
 const SKILLS_DIR = "skills";
 const CLAUDE_DIR = ".claude";
+// (Round 7, CR-02) The fourth class, and the first that is NOT markdown. Declared here with the
+// others for the same reason they are: a reader meets the whole reach of this gate in one place.
+const PLUGIN_MANIFEST_DIR = ".claude-plugin";
+const JSON_EXT = ".json";
 // ---------------------------------------------------------------------------
 // WHERE TWO HAND-AUTHORED VERB LISTS USED TO SIT, AND THE MEASUREMENTS THAT OUTLIVE THEM.
 //
@@ -572,9 +576,21 @@ export const BANNED_CLAIM_EXEMPT_REGION = {
 // text it exists to hold. The same argument covers .planning/, which is the planning record and is
 // archived at milestone close.
 //
-// This is recorded as a decision because the parts below simply never reach docs/: the kit part
-// walks agent-factory/ and the public-docs part is root markdown + examples/ + the kit README. The
-// exclusion is structural; the reason is here so a reader meets it rather than inferring it.
+// ── THE STRUCTURAL CLAIM THAT USED TO STAND HERE IS REPLACED, NOT QUALIFIED (round 7, WR-01) ──
+//
+// It read: the parts below simply never reach docs/, so the exclusion is structural. That was true
+// of the two-part corpus and STOPPED BEING TRUE the moment round 6 admitted .claude/ as a recursive
+// disk walk — the exclusions were prefix tests on a derived RELATIVE PATH, and a nested copy of an
+// excluded directory does not carry its prefix. The round-6 reviewer planted two files under
+// `.claude/worktrees/phase-30/` (a directory this project's own execution tooling creates, inside a
+// walked directory) and the gate reported findings on a claim-registry copy and on a planning
+// document — verbatim the harm the paragraph above says this exclusion prevents.
+//
+// WHAT IS TRUE NOW: the guarantee is ENFORCED AT THE POINT OF EFFECT — `walkFiles` refuses to
+// DESCEND into a directory whose own name is a SEGMENT-class entry of the list below, at any depth.
+// The prefix reading remains the COVERAGE question's rule. The two are projections of ONE list.
+// The transient checkout that made the old claim false is recorded here as a measured fact and is
+// NOT named as a permanent exemption: it is a local checkout, not a class this repository ships.
 //
 // scripts/ IS EXCLUDED FOR A DIFFERENT AND STRONGER REASON: this module declares every banned
 // literal, so scanning scripts/ would report the authority for holding the text it exists to hold.
@@ -610,39 +626,198 @@ export const BANNED_CLAIM_EXEMPT_REGION = {
 // .claude/ did in this round. Never as an ad hoc filename appended to somebody else's part.
 //
 // AND THE ENUMERATION IS HELD BY AN ASSERTION RATHER THAN BY THIS PARAGRAPH. A case in
-// scripts/check-banned-claims.test.ts derives tracked markdown, subtracts the scan, and requires
-// every remaining path to be covered by a prefix in this array. A class added tomorrow reds on the
-// day it lands instead of surfacing as a finding four rounds later — which is how this block came
-// to need rewriting.
+// scripts/check-banned-claims.test.ts derives the tracked TEXT SURFACE, subtracts the scan, and
+// requires every remaining path to be covered by an entry of this array. A class added tomorrow
+// reds on the day it lands instead of surfacing as a finding four rounds later — which is how this
+// block came to need rewriting.
+//
+// ══ THE CLASS BOUNDARY, DECLARED (round 7, CR-02) ════════════════════════════════════════════
+//
+// THE DENOMINATOR WAS THE FINDING. Round 6 dispositioned every unscanned class BY NAME — and its
+// coverage case's denominator was `git ls-files '*.md'`. So every class it could possibly surface
+// was a MARKDOWN class, and the markdown boundary itself was never a decision anybody made: it was
+// the SHAPE OF A DENOMINATOR. The module dispositioned exactly one non-markdown path
+// (.claude/settings.local.json, at its own derivation below) and said nothing about the boundary.
+// Meanwhile `.claude-plugin/marketplace.json`'s `description` is the exact string a user meets
+// running `/plugin marketplace add`, `.claude-plugin/plugin.json`'s is shown in the plugin manager,
+// and docs/audit's own register already names plugin.json as a claim-bearing file. Both shipped.
+// Neither was read by any gate. A three-finding string in any .md of the corpus exited 0, unnamed,
+// on all seven.
+//
+// WHAT THIS GATE SCANS, STATED AS A CLASS RATHER THAN LEFT AS A SHAPE: the kit's hand-authored and
+// generated MARKDOWN, plus the kit's SHIPPED JSON MANIFESTS. The rule that admits a surface is not
+// its extension — it is whether the bytes SHIP AND MAKE A CLAIM A READER MEETS.
+//
+// AND EVERY TRACKED NON-MARKDOWN SURFACE IS DISPOSITIONED BY NAME. Derived, not adopted:
+// `git ls-files '*.json'` minus the entries already covered above leaves exactly these, each named
+// here with its reason (the derivation and its output are recorded in 29-53-SUMMARY.md):
+//
+//   .claude-plugin/plugin.json        ADMITTED — the sixth part below. Shipped; carries a claim.
+//   .claude-plugin/marketplace.json   ADMITTED — the sixth part below. Shipped; carries a claim.
+//   package.json, package-lock.json   TOOLCHAIN MANIFESTS. Dependency and script data consumed by
+//   tsconfig.json, tsconfig.tests.json   npm and tsc. They ship to nobody and make no claim; their
+//                                     free-text fields are names and versions.
+//   .gemini/settings.json             TOOL CONFIGURATION. Adapter wiring for one host CLI.
+//   hooks/hooks.json                  TOOL CONFIGURATION. The Claude Code hook wiring.
+//   agent-factory/config/factory.config.json          KIT CONFIGURATION DATA. The dial. Keys and
+//   agent-factory/seed/.grugops/factory.config.json   enum values, not prose a reader meets.
+//   .planning/**, scripts/**          Already covered by the segment classes above.
+//
+// (.claude/settings.local.json is UNTRACKED and therefore outside the denominator entirely; the
+// paragraph at `claudeAdapterMarkdown` explains the ASD-STE100 string a grep finds inside it.)
+//
+// ── THE LIST'S RULE, STATED PLAINLY, AND ITS THREE KINDS ─────────────────────────────────────
+//
+// ONE LIST. An entry's SYNTAX declares how it is anchored, so a reader sees the anchoring in the
+// entry itself rather than having to find the predicate that consumes it:
+//
+//   `**/name/`   SEGMENT CLASS   — a directory called `name` is excluded AT ANY DEPTH. This is the
+//                                  projection applied at the WALK, and it is what closes WR-01.
+//   `name/`      ROOT DIRECTORY  — the root-relative directory `name/` and everything under it.
+//                                  NOT projected to a segment. See the paragraph below; this
+//                                  distinction is load-bearing and was nearly shipped wrong.
+//   `a/b.json`   EXACT PATH      — that one root-relative path.
+//
+// The three kinds PARTITION the list: every entry falls in exactly one, and their cardinalities are
+// asserted two-sided against the list's length, so an entry belonging to none could not sit here
+// contributing to neither the walk nor the coverage answer — which is the same silence this block
+// exists to prevent, moved somewhere new.
+//
+// ── WHY `memory-bank/` AND `plans/` ARE ROOT-ANCHORED AND NOT SEGMENT CLASSES ────────────────
+//
+// THE ROUND-6 REVIEW'S SUGGESTED FIX WAS A SET OF BARE SEGMENT NAMES INCLUDING `memory-bank` AND
+// `plans`, AND IT IS WRONG. Measured on this tree before the change: `agent-factory/seed/plans/`
+// and `agent-factory/seed/memory-bank/` hold 13 markdown files that are SCAN MEMBERS TODAY — the
+// board, metrics, nfr-catalog and traceability templates, and the nine memory-bank templates the
+// kit SHIPS for a host repo to copy. A segment projection over those two names would have deleted
+// thirteen shipped documents from a safety scan inside the fix for a fail-open.
+//
+// The names mean DIFFERENT THINGS at different depths, which is exactly why the anchoring has to be
+// per entry: at the ROOT, `plans/` and `memory-bank/` are grugops's own runtime dogfood state (the
+// OUTPUT of using grugops, per D-16's build-time/runtime split); inside the kit they are the
+// TEMPLATE grugops ships. `docs/`, `.planning/` and `scripts/` carry their reason wherever they
+// appear — a copy of the record directory is a record directory, and a copy of this module's own
+// source is still the authority that declares the literals — so those three, and only those three,
+// are segment classes. A permanent case asserts that no member of the live scan contains a
+// segment-class name below its root, so the day the kit ships an `agent-factory/**/docs/` this
+// reds rather than silently dropping it.
 // ---------------------------------------------------------------------------
 export const BANNED_CLAIM_EXCLUDED_LOCATIONS = [
-    "docs/",
-    ".planning/",
-    "scripts/",
+    // SEGMENT CLASSES — excluded at any depth, enforced at the walk.
+    "**/docs/",
+    "**/.planning/",
+    "**/scripts/",
+    // ROOT DIRECTORIES — excluded at the root only, for the reasons above.
+    ".gemini/",
     "memory-bank/",
     "plans/",
+    // EXACT PATHS — the tracked non-markdown surfaces dispositioned by name above.
+    "agent-factory/config/factory.config.json",
+    "agent-factory/seed/.grugops/factory.config.json",
+    "hooks/hooks.json",
+    "package-lock.json",
+    "package.json",
+    "tsconfig.json",
+    "tsconfig.tests.json",
 ];
+// The SEGMENT-class projection: entries written with the any-depth marker, reduced to the bare
+// directory name. This is the projection applied at the walk.
+export function bannedClaimExcludedSegments() {
+    return BANNED_CLAIM_EXCLUDED_LOCATIONS.filter((e) => e.startsWith("**/") && e.endsWith("/")).map((e) => e.slice(3, -1));
+}
+/** The ROOT-DIRECTORY projection: entries written `name/`, kept whole. Root-relative prefixes. */
+export function bannedClaimExcludedRootDirs() {
+    return BANNED_CLAIM_EXCLUDED_LOCATIONS.filter((e) => !e.startsWith("**/") && e.endsWith("/"));
+}
+/** The EXACT-PATH projection: entries with no trailing separator. */
+export function bannedClaimExcludedExactPaths() {
+    return BANNED_CLAIM_EXCLUDED_LOCATIONS.filter((e) => !e.endsWith("/"));
+}
+/**
+ * Is this root-relative path covered by an entry of the one list? The COVERAGE question's rule, and
+ * the only place the three projections are read together — so the coverage case and the walk cannot
+ * come to disagree about what an entry means.
+ */
+export function bannedClaimExcluded(rel) {
+    return BANNED_CLAIM_EXCLUDED_LOCATIONS.some((e) => bannedClaimExcludedBy(rel, e));
+}
+/**
+ * Does THIS ONE ENTRY cover this path? The per-entry form, and the ONE place an entry's syntax is
+ * interpreted — `bannedClaimExcluded` folds it, the walk asks its segment projection, and the
+ * dead-entry case asks it per entry. Three consumers, one grammar, so "covered" cannot come to mean
+ * one thing in the coverage answer and another in the case that checks the list for fiction.
+ *
+ * The SEGMENT question is asked only of a path's DIRECTORY components, so a FILE named `docs` is
+ * not silently excluded by a rule written about directories.
+ */
+export function bannedClaimExcludedBy(rel, entry) {
+    if (entry.startsWith("**/") && entry.endsWith("/")) {
+        return rel.split("/").slice(0, -1).includes(entry.slice(3, -1));
+    }
+    if (entry.endsWith("/"))
+        return rel.startsWith(entry);
+    return rel === entry;
+}
 // Refusals raised while DERIVING the scan set. Collected rather than thrown: this is a GATE, and a
 // gate's floor is to REPORT (the kit-model throw-versus-report split).
 const DERIVATION_REFUSALS = [];
+// ── ONE BUDGET FOR THE WHOLE GATE (round 7, IN-03) ──────────────────────────────────────────────
+//
+// This used to be a FRESHLY CONSTRUCTED zeroed tally per part, written inline at each call site —
+// described rather than quoted, per this repository's retired-construct convention, because the
+// permanent case below counts occurrences of that literal in this source and a quotation of a
+// deleted construct re-registers as a live site of it. The constant was single-sourced and the BUDGET
+// was not, so five parts meant five independent allowances and the gate's effective bound was
+// 5 x MAX_WALK_ENTRIES — and adding a sixth part would have made it larger still. One object,
+// created once, threaded through every in-module walk, so the bound limits THE GATE'S WORK.
+//
+// THE BOUNDARY THIS MODULE CANNOT THREAD, DECLARED RATHER THAN LEFT AS A GAP: the `publicDocs` part
+// is `publicDocsCorpus()`, derived inside scripts/check-public-docs-vocabulary.ts AT THAT MODULE'S
+// IMPORT TIME, and it carries its own budget because the walk belongs to that module's derivation
+// and happens before this object exists. So the gate's EFFECTIVE bound is 2 x MAX_WALK_ENTRIES:
+// this module's one, plus the imported derivation's one. A refusal raised on the other side is
+// reported through the imported channel `runAll()` drains (round 6, WR-05), so an overflow there is
+// diagnosed rather than lost. The number of budget objects IN THIS MODULE is pinned two-sided by a
+// permanent case, so a seventh part cannot quietly acquire a seventh allowance.
+const WALK_BUDGET = { examined: 0 };
 // Recursively enumerate every file under a scan entry. Directory entries are `.sort()`ed so two
 // runs over the same tree are byte-identical. The budget is ONE mutable tally threaded through the
 // whole walk, counting entries EXAMINED — so the bound limits WORK and is independent of the tree's
 // shape. A truncated scan set passes every guard exactly the way a vacuous one does, so an overflow
 // is a named refusal and never a short return.
+//
+// ── THE EXCLUSION IS ENFORCED HERE, AT THE POINT DESCENT IS DECIDED (round 7, WR-01) ───────────
+//
+// A prefix test on the derived relative path is TRUE of `.claude/worktrees/x/docs/…` for no entry
+// in the list, so a nested copy of an excluded directory carried none of its exclusion. The test
+// belongs where descent is decided, not where the path is later read. The segment set is a
+// PROJECTION of the one exclusion list — never a second array — and the entries that project are
+// exactly those written with the any-depth marker, for the reasons recorded at the list.
 function walkFiles(rel, budget, acc) {
     const a = abs(rel);
     if (!existsSync(a))
         return null;
     const st = statSync(a);
     if (st.isDirectory()) {
+        const segments = bannedClaimExcludedSegments();
         for (const entry of readdirSync(a).sort()) {
+            // The entry WAS examined, so it is charged to the budget BEFORE any decision about it. A skip
+            // that also skipped the tally would make the bound a function of what the tree happens to
+            // contain, which is the property the budget exists to be independent of.
             budget.examined += 1;
             if (budget.examined > MAX_WALK_ENTRIES) {
                 return (`the walk of ${rel} examined more than MAX_WALK_ENTRIES=${MAX_WALK_ENTRIES} directory ` +
                     `entries, reaching ${join(rel, entry)} — refusing to continue and refusing to report a ` +
                     `verdict over the members collected so far, because a truncated scan set passes every ` +
                     `guard exactly the way a vacuous one does`);
+            }
+            // Refuse to DESCEND. Asked of the entry's OWN NAME, so depth is irrelevant — which is the
+            // whole difference between this and the prefix reading it replaces. Guarded on being a
+            // DIRECTORY so the projection means the same thing here as it does in `bannedClaimExcluded`,
+            // where the segment question is asked only of a path's directory components.
+            if (segments.includes(entry) &&
+                statSync(join(a, entry)).isDirectory()) {
+                continue;
             }
             const refusal = walkFiles(join(rel, entry), budget, acc);
             if (refusal !== null)
@@ -658,7 +833,7 @@ function walkFiles(rel, budget, acc) {
 // by EXISTING, not by someone remembering to add it.
 function kitMarkdown() {
     const acc = [];
-    const refusal = walkFiles(KIT_DIR, { examined: 0 }, acc);
+    const refusal = walkFiles(KIT_DIR, WALK_BUDGET, acc);
     if (refusal !== null)
         DERIVATION_REFUSALS.push(refusal);
     return acc.filter((f) => f.endsWith(MARKDOWN_EXT)).sort();
@@ -703,7 +878,7 @@ function installReadmeMembers() {
 // nothing scans. Measured before admission: 0 live occurrences.
 function skillSourceMarkdown() {
     const acc = [];
-    const refusal = walkFiles(SKILLS_DIR, { examined: 0 }, acc);
+    const refusal = walkFiles(SKILLS_DIR, WALK_BUDGET, acc);
     if (refusal !== null)
         DERIVATION_REFUSALS.push(refusal);
     return acc.filter((f) => f.endsWith(MARKDOWN_EXT)).sort();
@@ -746,10 +921,120 @@ function skillSourceMarkdown() {
 // finds it does not mistake it for drift the gate missed.
 function claudeAdapterMarkdown() {
     const acc = [];
-    const refusal = walkFiles(CLAUDE_DIR, { examined: 0 }, acc);
+    const refusal = walkFiles(CLAUDE_DIR, WALK_BUDGET, acc);
     if (refusal !== null)
         DERIVATION_REFUSALS.push(refusal);
     return acc.filter((f) => f.endsWith(MARKDOWN_EXT)).sort();
+}
+// Part `pluginManifests`: the kit's SHIPPED JSON MANIFESTS under .claude-plugin/, walked.
+//
+// ── WHAT THESE FILES ARE, WHICH IS THE WHOLE ARGUMENT FOR ADMITTING THEM (round 7, CR-02) ──────
+//
+// `.claude-plugin/marketplace.json`'s `description` is the EXACT STRING A USER MEETS RUNNING
+// `/plugin marketplace add`. `.claude-plugin/plugin.json`'s is what the plugin manager shows, and
+// marketplace.json carries a SECOND description nested inside its own plugin entry. All three ship.
+// They are the claim surface furthest from this gate and closest to the reader — the sentences
+// somebody reads BEFORE they install anything — and until this commit no gate in this repository
+// read them. A string that is a three-finding red in any .md of the corpus exited 0, unnamed, on
+// all seven. Measured with this gate's own matcher BEFORE admission: 0 live occurrences in each
+// file and 0 across the group, so admitting them costs zero reds on correct text — this module's
+// own admission test, applied here exactly as it was applied to install/README.md and skills/.
+//
+// DERIVED AGAINST THE DISK, NOT A LITERAL PAIR. A two-element constant would be this repository's
+// SECOND documented systemic failure class — the hand-maintained set that rots while green, the one
+// that produced seven granted names and zero adapter files — authored inside the fix for a
+// fail-open. The directory is WALKED and filtered to the JSON extension, so a THIRD manifest enters
+// by EXISTING and moves the pin, exactly as a new kit document does. It is also the only shape that
+// can reach the per-part vacuity floor: a literal list is always its own length, so an absent
+// directory would be invisible to it.
+//
+// AN ABSENT DIRECTORY IS A NAMED REFUSAL AND AN EMPTY PART, both — the refusal says what is missing
+// and the empty list is what the floor below notices.
+function pluginManifestMembers() {
+    if (!existsSync(abs(PLUGIN_MANIFEST_DIR))) {
+        DERIVATION_REFUSALS.push(`${PLUGIN_MANIFEST_DIR}/ holds the kit's SHIPPED plugin manifests — the descriptions a user ` +
+            `meets in the plugin marketplace and the plugin manager — and does not exist at ` +
+            `${abs(PLUGIN_MANIFEST_DIR)}. Refusing to report a verdict over a part whose members could ` +
+            `not be derived. A missing manifest is not a clean one`);
+        return [];
+    }
+    const acc = [];
+    const refusal = walkFiles(PLUGIN_MANIFEST_DIR, WALK_BUDGET, acc);
+    if (refusal !== null)
+        DERIVATION_REFUSALS.push(refusal);
+    return acc.filter((f) => f.endsWith(JSON_EXT)).sort();
+}
+// ── THE `encoding` PROBE ROW, ANSWERED IN CODE (round 7, LANG-04) ──────────────────────────────
+//
+// THE QUESTION: whose definition of the text applies — raw bytes, or the values a JSON parse
+// decodes? It is live and concrete here, because a claim written into a JSON string as an escape is
+// INVISIBLE to a raw-byte line scan and visible to a decoded-value scan.
+//
+// THE DECISION: the scan reads RAW BYTES, line-oriented, exactly as it reads every other member.
+// One matcher, one input shape — a decoded-value scan would be a SECOND way of assembling the text
+// a matcher is asked about, which is this phase's most expensive recurring defect. A line scan also
+// reports file:line:column, which a human can check by hand; a value scan reports a field path,
+// which nothing else in this gate's output speaks. And it covers the WHOLE file — keys, values, and
+// the description nested inside the marketplace's plugin entry — so there is no claim-bearing field
+// list to maintain, and therefore none to rot.
+//
+// THE BRANCH NOT TAKEN IS CLOSED BY A REFUSAL, NOT LEFT AS A HOLE. Every decoded string value must
+// be BYTE-PRESENT in the raw text. A value written with any escape that changes its bytes — a
+// unicode escape, a tab, a newline, an escaped backslash — is not byte-present, and the gate refuses
+// BY NAME. Measured on today's manifests: neither file contains a backslash, so the assertion costs
+// zero refusals on correct text at admission.
+//
+// WHICH SET THIS PREDICATE ENUMERATES: every string value in the parsed document, at any depth,
+// keys included. WHAT DERIVES IT: the parse. WHAT ASSERTS ITS COUNT: nothing, and nothing should —
+// the document's shape belongs to its author, not to this gate. Pinning a value count here would be
+// a set literal over somebody else's data.
+//
+// A MANIFEST THAT DOES NOT PARSE IS REFUSED BY NAME AND STILL SCANNED. Parsing is what THIS
+// assertion needs; the line scan needs nothing. So a parse failure removes the canonical-form
+// GUARANTEE and says so, and never removes the scan.
+//
+// ASKED OF THE BYTES THE SCAN ACTUALLY READ, at the point the loop has them — never of a second
+// read of its own. That is this module's own ONE-READ lesson (round 7, WR-02) applied to a new
+// predicate on the day it lands: a canonical-form verdict measured over read #1 and a scan
+// performed over read #2 are two questions about two documents that happen to share a path.
+export function manifestCanonicalFormRefusals(rel, raw) {
+    const out = [];
+    let parsed;
+    try {
+        parsed = JSON.parse(raw);
+    }
+    catch (e) {
+        out.push(`${rel} is a SHIPPED plugin manifest and does not parse as JSON ` +
+            `(${e.message}). The canonical-form guarantee is UNAVAILABLE for this file: ` +
+            `the gate cannot check that its shipped strings are written literally. The line scan over ` +
+            `its raw bytes STILL RAN, and any banned claim on a line of it is still a finding — a ` +
+            `parse failure removes the guarantee, never the scan`);
+        return out;
+    }
+    for (const value of jsonStringValues(parsed)) {
+        if (!raw.includes(value)) {
+            out.push(`${rel} carries a string whose decoded value is NOT byte-present in the file: ` +
+                `${JSON.stringify(value)}. A shipped string written with an escape is invisible to a ` +
+                `line scan and fully visible to a reader, so this gate would publish a sentence about ` +
+                `bytes it never compared. The remedy is to write the string LITERALLY, so that what the ` +
+                `scan reads is what a user reads`);
+        }
+    }
+    return out;
+}
+/** Every string in a parsed JSON document, keys included, at any depth. */
+function jsonStringValues(node) {
+    if (typeof node === "string")
+        return [node];
+    if (Array.isArray(node))
+        return node.flatMap(jsonStringValues);
+    if (node !== null && typeof node === "object") {
+        return Object.entries(node).flatMap(([k, v]) => [
+            k,
+            ...jsonStringValues(v),
+        ]);
+    }
+    return [];
 }
 export const BANNED_CLAIM_SCAN_PARTS = [
     { name: "kit", members: kitMarkdown() },
@@ -757,6 +1042,7 @@ export const BANNED_CLAIM_SCAN_PARTS = [
     { name: "installReadme", members: installReadmeMembers() },
     { name: "skillSources", members: skillSourceMarkdown() },
     { name: "claudeAdapters", members: claudeAdapterMarkdown() },
+    { name: "pluginManifests", members: pluginManifestMembers() },
 ];
 /**
  * The DEDUPED union of the two parts, sorted.
@@ -832,8 +1118,32 @@ export function bannedClaimScanOverlap() {
  * zero reds on correct text. Each class's reason sits at its derivation function above;
  * `.claude/` in particular is admitted because its transitive-coverage argument was tested against
  * scripts/generate-role-adapters.ts and REFUTED.
+ *
+ * MOVED AGAIN 115 → 117 IN ROUND 7 (CR-02), AND THE TWO ENTRANTS ARE NAMED: the kit's SHIPPED JSON
+ * MANIFESTS, `.claude-plugin/plugin.json` and `.claude-plugin/marketplace.json`. THE FIRST NON-
+ * MARKDOWN MEMBERS THIS GATE HAS EVER HAD, which is why the class boundary is now declared in prose
+ * beside BANNED_CLAIM_EXCLUDED_LOCATIONS rather than left as the shape of a denominator.
+ *
+ * Read off this gate's own refusal on the intermediate build rather than computed by hand — the
+ * paragraph above exists precisely because typing a predicted number in place of a measured one is
+ * this module's own recorded failure. Verbatim:
+ *
+ *   FAIL  the banned-claim scan set derived 117 document(s), expected exactly 115
+ *         (kit 73, publicDocs 11, installReadme 1, skillSources 7, claudeAdapters 24,
+ *          pluginManifests 2, overlap 1)
+ *
+ * That run reported ZERO findings over 117/117 elements, which is the admission test: both entrants
+ * cost zero reds on correct text. Measured with this gate's own matcher BEFORE admission, per file
+ * and per group: plugin.json 0 (standard-name 0, token-economy 0, comprehension 0),
+ * marketplace.json 0 (standard-name 0, token-economy 0, comprehension 0), group total 0.
+ *
+ * AND `kit` STAYED AT 73 ACROSS THE SAME BUILD, which is the number that proves the round's OTHER
+ * change moved nothing: the walk now refuses to descend into a segment-class directory, and the
+ * thirteen kit documents under agent-factory/seed/plans/ and agent-factory/seed/memory-bank/ are
+ * still members. See the anchoring paragraph at BANNED_CLAIM_EXCLUDED_LOCATIONS for why those two
+ * names are root-anchored and not segment classes.
  */
-export const BANNED_CLAIM_SCAN_COUNT = 115;
+export const BANNED_CLAIM_SCAN_COUNT = 117;
 /**
  * Locate the region and report every way it can be wrong. Returns the region when exactly one
  * well-formed region exists, and null otherwise — the caller then scans the file WHOLE, which is
@@ -1637,6 +1947,12 @@ function runAll() {
     // shorter breakdown that still summed correctly, and a reader could not tell an absent group from
     // a group nobody counted.
     const suppressedByGroup = new Map(BANNED_CLAIM_LITERALS.map((l) => [l.group, 0]));
+    // Which members the canonical-form assertion applies to, DERIVED from the part rather than from
+    // the extension. `?? []` is fail-open by construction only if the part vanished — and a vanished
+    // part is already a named refusal and a vacuity red above, so the empty set here cannot be the
+    // only thing that noticed.
+    const manifestMembers = new Set(BANNED_CLAIM_SCAN_PARTS.find((p) => p.name === "pluginManifests")
+        ?.members ?? []);
     for (const file of scan) {
         let text;
         // The exempt member takes the text its region's indices were MEASURED over, and takes it only
@@ -1658,6 +1974,15 @@ function runAll() {
             }
         }
         visited += 1;
+        // ── THE CANONICAL-FORM ASSERTION, ON THE BYTES THE SCAN JUST READ (round 7, CR-02) ─────────
+        //
+        // The membership question is asked of the PARTS ARRAY rather than of the path's extension, so
+        // the predicate's input is the derived part and never a second rule about what a manifest is.
+        if (manifestMembers.has(file)) {
+            for (const refusal of manifestCanonicalFormRefusals(file, text)) {
+                fail(refusal);
+            }
+        }
         const lines = text.split("\n");
         const region = file === BANNED_CLAIM_EXEMPT_REGION.file ? exemptRegion : null;
         for (let i = 0; i < lines.length; i++) {

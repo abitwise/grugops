@@ -77,6 +77,8 @@ import {
   BANNED_CLAIM_EXEMPT_REGION,
   BANNED_CLAIM_EXCLUDED,
   BANNED_CLAIM_EXCLUDED_LOCATIONS,
+  bannedClaimExcluded,
+  bannedClaimExcludedBy,
   bannedClaimScan,
   bannedClaimScanOverlap,
   locateExemptRegion,
@@ -406,6 +408,21 @@ const DEFAULT_CLAUDE_ADAPTERS = [
   ".claude/agents/grugops-alpha.md",
   ".claude/skills/grugops-alpha/SKILL.md",
 ];
+// (Round 7, CR-02) The sixth part: the kit's SHIPPED JSON manifests. Written as JSON because the
+// gate now parses each member for the canonical-form assertion, and a mirror carrying the markdown
+// filler here would refuse for a parse reason that has nothing to do with the case.
+const PLUGIN_MANIFESTS = [
+  ".claude-plugin/marketplace.json",
+  ".claude-plugin/plugin.json",
+];
+const CLEAN_MANIFEST = JSON.stringify(
+  {
+    name: "grugops",
+    description: "the file-based agent factory for disciplined delivery.",
+  },
+  null,
+  2,
+);
 
 /**
  * (Plan 29-23) One sentence carrying EXACTLY ONE banned-claim occurrence, used to fill a mirror's
@@ -723,6 +740,8 @@ type MirrorSpec = {
   skillSources?: string[];
   /** (Round 6) Override the .claude/ part's members. `[]` empties the part. */
   claudeAdapters?: string[];
+  /** (Round 7, CR-02) Override the .claude-plugin/ part's members. `[]` empties the part. */
+  pluginManifests?: string[];
   /** Per-path content overrides, keyed by the same repo-relative path the gate reports. */
   plant?: Record<string, string>;
 };
@@ -745,6 +764,7 @@ const PUBLIC_DOCS =
 const INSTALL_README_COUNT = 1;
 const SKILL_SOURCES = DEFAULT_SKILL_SOURCES.length;
 const CLAUDE_ADAPTERS = DEFAULT_CLAUDE_ADAPTERS.length;
+const PLUGIN_MANIFEST_COUNT = PLUGIN_MANIFESTS.length;
 const OVERLAP = 1; // agent-factory/README.md is in both parts
 const FILLER_COUNT =
   BANNED_CLAIM_SCAN_COUNT -
@@ -752,7 +772,8 @@ const FILLER_COUNT =
     PUBLIC_DOCS +
     INSTALL_README_COUNT +
     SKILL_SOURCES +
-    CLAUDE_ADAPTERS -
+    CLAUDE_ADAPTERS +
+    PLUGIN_MANIFEST_COUNT -
     OVERLAP);
 
 function defaultFillers(): string[] {
@@ -807,6 +828,10 @@ function makeMirror(prefix: string, spec: MirrorSpec = {}): string {
   if (spec.omitInstallReadme !== true) write(INSTALL_README);
   for (const f of spec.skillSources ?? DEFAULT_SKILL_SOURCES) write(f);
   for (const f of spec.claudeAdapters ?? DEFAULT_CLAUDE_ADAPTERS) write(f);
+  // (Round 7, CR-02) The sixth part. `[]` empties it — and an EMPTY list leaves the DIRECTORY
+  // absent too, which is the shape the gate's own named refusal is about.
+  for (const f of spec.pluginManifests ?? PLUGIN_MANIFESTS)
+    write(f, CLEAN_MANIFEST);
   return mirror;
 }
 
@@ -2755,17 +2780,20 @@ describe("check-banned-claims — every tracked markdown path is scanned or excl
     expect(BANNED_CLAIM_EXCLUDED_LOCATIONS.length).toBeGreaterThan(0);
 
     // Assert on the UNCOVERED LIST rather than on a boolean, so a failure names the paths.
-    const uncovered = remainder.filter(
-      (p) => !BANNED_CLAIM_EXCLUDED_LOCATIONS.some((pre) => p.startsWith(pre)),
-    );
+    const uncovered = remainder.filter((p) => !bannedClaimExcluded(p));
     expect(uncovered).toEqual([]);
   });
 
   it("every excluded prefix still covers something, so a stale prefix cannot hide a live class", () => {
-    // The other direction. A prefix left behind after its directory was admitted or deleted looks
+    // The other direction. An entry left behind after its directory was admitted or deleted looks
     // like a decision and covers nothing — and the case above would go on passing while the array
     // drifted into fiction. Both directions, because one says nothing about the other.
-    const tracked = execFileSync("git", ["ls-files", "*.md"], {
+    //
+    // (Round 7, CR-02) The DENOMINATOR is markdown AND json, because the list now names exact JSON
+    // paths. Asking a markdown-only question of a list that names JSON would report every one of
+    // those entries as dead — the same denominator defect this round is closing, re-created inside
+    // the case that guards against it.
+    const tracked = execFileSync("git", ["ls-files", "*.md", "*.json"], {
       encoding: "utf8",
       cwd: ROOT,
     })
@@ -2774,7 +2802,7 @@ describe("check-banned-claims — every tracked markdown path is scanned or excl
       .filter((p) => p.length > 0);
     expect(tracked.length).toBeGreaterThan(0);
     const dead = BANNED_CLAIM_EXCLUDED_LOCATIONS.filter(
-      (pre) => !tracked.some((p) => p.startsWith(pre)),
+      (entry) => !tracked.some((p) => bannedClaimExcludedBy(p, entry)),
     );
     expect(dead).toEqual([]);
   });
@@ -2872,6 +2900,7 @@ describe("check-banned-claims — the derived pin against the live tree", () => 
       "installReadme",
       "skillSources",
       "claudeAdapters",
+      "pluginManifests",
     ]);
     for (const part of BANNED_CLAIM_SCAN_PARTS) {
       expect(part.members.length).toBeGreaterThan(0);
@@ -2886,10 +2915,12 @@ describe("check-banned-claims — the derived pin against the live tree", () => 
   it("the derivation never reaches an excluded location, so this gate cannot scan itself", () => {
     // The self-exclusion note in the module header, asserted rather than remembered: the authority
     // contains every literal it defines, so it would fail its own check.
+    // (Round 7, WR-01) Asked through the gate's OWN coverage predicate rather than through a
+    // `startsWith` written here. The prefix test this line used to perform is exactly the one the
+    // reviewer's nested plant walked through: it is TRUE of no entry for `.claude/worktrees/x/docs/`,
+    // so it stayed green while the guarantee it claims to hold stopped holding.
     for (const member of bannedClaimScan()) {
-      for (const excluded of BANNED_CLAIM_EXCLUDED_LOCATIONS) {
-        expect(member.startsWith(excluded)).toBe(false);
-      }
+      expect(bannedClaimExcluded(member), member).toBe(false);
     }
   });
 
