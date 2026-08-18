@@ -604,6 +604,60 @@ Each is a locked decision with the same standing as D-01 to D-33.
   same-group and **does not close CR-01**, so it ships with that limitation stated in the source
   beside it, precisely so nobody later reads it as the closure.
 
+### Round 8 (FINAL — LANG-04 closes by narrowing the published claim)
+
+- **D-55 — LANG-04 closes by NARROWING THE PUBLISHED CLAIM, not by completing the matcher.** Seven
+  rounds have failed one truth — "`guard_banned_claims`'s PASS-line claim holds mechanically, with no
+  fail-open route" — and each round closed its named axis and exposed the next (unlisted benefit verb →
+  unlisted conformance verb → hard-wrapped multi-word literal). That truth is **stronger than LANG-04's
+  own text**, which asks for a guard that "enforces exactly the profile's **decidable** subset … never
+  presented as enforcing ASD-STE100 conformance". The input-assembly axis is unbounded — a hard wrap,
+  then inline emphasis (`token **economy**`), then a table cell, then an HTML comment — so no matcher
+  over free prose can satisfy a totality claim, and every further round buys one axis and ships a new
+  residual. Therefore the gate's published sentence, the must_have truth, and the profile's own prose
+  are narrowed to **what the gate decides**: which corpus it scans, which literals it pins, matched
+  unconditionally, outside one content-bound exemption region — with the residual axes named. A
+  prohibition that publishes a wider scope than its mechanism is the exact defect LANG-04 exists to
+  prevent, currently committed by LANG-04's own guard; fixing that IS closing LANG-04, not conceding it.
+  — **Reversibility:** reversible — a later phase may complete the matcher and widen the sentence back.
+
+- **D-56 — the hard-wrap matcher fix is DELIBERATELY NOT DONE, and that is recorded, not dropped.**
+  The round-7 finding is real and independently reproduced: `lineHits()` matches each literal against
+  one physical line, 6 of the 7 `token-economy` members are multi-word, and an ordinary hard-wrapped
+  paragraph splits a banned claim across lines at exit 0. **Live count 0. Direction FAIL-OPEN.** It is
+  not fixed here because the fix adds a second input assembly — new surface, on a phase where round 6's
+  fix produced round 7's finding — to close an axis with no live instance, against a threat model that
+  is DRIFT, not an adversary: every finding that ever caught a LIVE claim was a corpus-SCOPE defect
+  (`CHANGELOG.md`, the shipped JSON manifests, both closed), and every matcher-completeness finding has
+  been at 0 live. So it gets a `V-` id with its live count, its direction, its reproduction and its
+  named remedy, and the in-source residual comment at `scripts/check-banned-claims.ts:60-65` is
+  corrected: it currently argues the bypass needs a wrap "mid-token" that "no reader would parse as a
+  claim", and the reproduction wraps **mid-PHRASE**, which markdown soft-joins into fully legible prose
+  — measured at 822 mid-sentence wraps over 2458 adjacent line pairs, i.e. the kit's own house style.
+  An accepted bound argued from a false premise is worse than an undisclosed one.
+
+- **D-57 — the CI build-parity gate is repaired, because it is load-bearing for every other mechanical claim.** `tsconfig.json` sets `outDir`/`rootDir` to `./`, so `npm run build` rewrites the tracked
+  `.js` in place; `.github/workflows/ci.yml` runs build at `:59` and every freshness check at `:87+`,
+  with zero `git diff` / `git status` / `git ls-files --modified` calls in the file. CI therefore
+  compares a fresh build against a fresh build and **cannot detect a committed `.js` that was
+  hand-edited or never rebuilt** — the guarantee `CLAUDE.md`'s Tech Stack section gives as the whole
+  reason the tooling layer ships as committed `.js`. Pre-existing since `539573d` (Phase 20) and named
+  by no LANG requirement, but round 7's own sweep used this exact ordering as its build-parity
+  evidence, so that evidence proves nothing about the artifact on `main`. Fix it
+  **ordering-independently**: `scripts/freshness.ts` reads the committed side via `git show HEAD:<path>`
+  rather than the working tree, so the gate cannot be repaired by a build step that ran before it; the
+  CI reorder plus a `git diff --exit-code -- '*.js'` assertion is the belt-and-braces half.
+  — **Reversibility:** reversible.
+
+- **D-58 — this is the FINAL round of Phase 29. The scope fence is explicit.** In scope: D-55's
+  narrowing, D-56's disclosure and comment correction, D-57's parity repair, and the round-8 disposition
+  record. Out of scope and NOT a reason to open a round 9: any new matcher-completeness axis at 0 live
+  (it is disclosed by D-56's `V-` id and belongs to a later phase if ever), and anything outside
+  LANG-01..08's text. A finding after this round becomes a **backlog item or a follow-up phase**, not
+  another gap-closure round. The phase has 55 plans and 7 verification rounds; Phase 29.1 and the
+  autonomy, UATX, DASH and CAP work are queued behind it, and CAP-01/CAP-03's live captured runs are
+  worth more than a 0-live matcher axis.
+
 ### Claude's Discretion
 
 - The exact caveman lexicon membership and the value of N in D-07, subject to it failing RED on all
