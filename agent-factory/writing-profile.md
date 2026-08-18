@@ -255,10 +255,11 @@ against the register, and nothing here asserts it.
 
 <!-- claim: C-28-042 -->
 **Conformance with ASD-STE100 is not claimed, not checked, and not implied. No token-economy win is
-claimed. No comprehension benefit is claimed.** `guard_banned_claims` holds all three prohibitions
-mechanically over the shipped kit and the public documents, and it was watched failing on a real
-claim in a real file before it was allowed to pass. A green run from it says what it measured, and
-says nothing about the standard.
+claimed. No comprehension benefit is claimed.** `guard_banned_claims` decides one question about
+those three: whether any of its pinned literals appears on any single physical line of the document
+set it derives, outside the registry-anchored blocks of one named exemption region. It was watched
+failing on a real claim in a real file before it was allowed to pass. A green run from it says what
+it measured, and says nothing about the standard.
 
 **What a green `guard_banned_claims` run does not prove — `UNKNOWN - verify`.** The gate matches
 pinned literals. A brand-new conformance claim written without any of them is not mechanically

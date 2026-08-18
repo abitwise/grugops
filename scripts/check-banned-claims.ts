@@ -1983,9 +1983,25 @@ export const BANNED_CLAIM_EXEMPT_COMPOSITION: readonly {
  * was 62 + 4; the run said `reaches 66 line(s), and BANNED_CLAIM_EXEMPT_EXTENT ... declares 62`, and
  * 66 is that measured number. `BANNED_CLAIM_EXEMPT_SUPPRESSED` did NOT fire in the same run, which
  * is the independent confirmation that an anchor line carries no banned literal.
+ *
+ * -- 66 -> 67 (plan 29-58, D-55). ONE LINE ENTERED, AND WHICH ONE. --------------------------------
+ *
+ * THE ENTRANT IS A WRAPPED LINE OF `C-28-042`'s OWN BLOCK, NOT A NEW SECTION. D-55 narrows the
+ * profile's mechanism sentence to the predicate this gate publishes -- one physical line, a derived
+ * document set, a pinned literal list, outside the registry-anchored blocks of this region -- and
+ * the narrower claim is a longer sentence, so the block wraps to 6 lines where it wrapped to 5.
+ * Nothing was added to the region and nothing was swallowed into it: the heading, the closing
+ * boundary and the other five anchored blocks are where they were.
+ *
+ * THE NUMBER IS AGAIN THE GATE'S, NOT ARITHMETIC. On the PAIRED tree -- profile block and registry
+ * verbatim moved together -- the run said `reaches 67 line(s), and BANNED_CLAIM_EXEMPT_EXTENT in
+ * scripts/check-banned-claims.ts declares 66`, and 67 is that measured number. In the SAME run
+ * `BANNED_CLAIM_EXEMPT_SUPPRESSED` and `BANNED_CLAIM_EXEMPT_COMPOSITION` did NOT fire, which is the
+ * independent confirmation that the replacement sentence introduces no pinned literal: a longer
+ * block that carried one would have moved the total and its per-group breakdown as well.
  * ---------------------------------------------------------------------------------------------
  */
-export const BANNED_CLAIM_EXEMPT_EXTENT = 66;
+export const BANNED_CLAIM_EXEMPT_EXTENT = 67;
 
 // ---------------------------------------------------------------------------
 // The scan.

@@ -685,18 +685,19 @@ against the build rather than against this sentence.
 ### C-28-042
 
 - file: agent-factory/writing-profile.md
-- line: 175-179
+- line: 257-262
 - kind: architecture
 - depends_on: —
 - status: true
-- mechanism: `node scripts/check-banned-claims.js` — exit 0 over 82 derived documents (73 kit markdown files + 10 public documents − 1 overlap), 20 pinned literals across 3 groups, one named exemption region asserted two-sided. The gate was watched FAILING first (D-44): exit 1 with 3 findings over 82 documents at commit 20982a0, exit 0 at commit 0fafbaf, with the gate itself byte-unchanged across the transition. Two of those three findings were NOT planted — the kit already claimed the caveman voice is a token economy applied to memory, which project measurement on 2026-07-28 disproved on this artifact. RECORDED RESIDUAL, carried in the gate's source and in the profile's own prose rather than claimed away: a brand-new conformance claim written without any pinned literal is not mechanically detectable (`UNKNOWN - verify`), and a pinned literal hard-wrapped across a line boundary is not matched — the answer to which is deliberately NOT to normalize whitespace before comparing.
+- mechanism: `node scripts/check-banned-claims.js` — exit 0 over 117 derived documents (kit 73, publicDocs 11, installReadme 1, skillSources 7, claudeAdapters 24, pluginManifests 2, minus 1 overlap), 22 pinned literals across 3 groups, one named exemption region asserted two-sided, and every suppressed occurrence inside one of 6 registry-anchored blocks frozen byte-for-byte against this file (D-54). THE CORPUS AND LITERAL FIGURES ARE RE-DERIVED, NOT RECOMPUTED: this row carried `82 derived documents` and `20 pinned literals` from Phase 28, both superseded by corpus growth; the values above are read off the gate's own second PASS line at plan 29-58, and the superseded values are recoverable from this file's history. WHAT THIS ROW CLAIMS IS THE PREDICATE THE GATE PUBLISHES (D-55, narrowed by plans 29-56 and 29-58): whether any of the 22 pinned literals appears on any single physical line of the 117 derived documents, outside the registry-anchored blocks of one named exemption region — NOT that three prohibitions hold over the shipped kit and the public documents, which is the wider sentence this row and its verbatim used to carry. The gate was watched FAILING first (D-44): exit 1 with 3 findings over 82 documents at commit 20982a0, exit 0 at commit 0fafbaf, with the gate itself byte-unchanged across the transition. Those D-44 figures are HISTORY, measured on the corpus of the day, and are deliberately NOT restated at today's size. Two of those three findings were NOT planted — the kit already claimed the caveman voice is a token economy applied to memory, which project measurement on 2026-07-28 disproved on this artifact. RECORDED RESIDUALS, TWO of them, carried in the gate's source and in the profile's own prose rather than claimed away, both `UNKNOWN - verify`: (1) a brand-new conformance claim written without any pinned literal is not mechanically detectable, because no grep recognizes an assertive sentence written in new words; (2) `V-29-57-01` — matching is decided one physical line at a time, so a pinned multi-word literal hard-wrapped across a line boundary is not matched. The second is OPEN and DIRECTED **FAIL-OPEN**, with its reach, its live count and its reproduction derived at `docs/audit/29-round8-residuals.md` §4; this row CITES those figures rather than restating them, so there is one place they are derived. Its named remedy is declined for this phase by `D-56`, and the standing refusal to normalize whitespace before comparing is kept with its own reason — a refusal is not a closure, which is why the axis carries an id.
 
 ```
 **Conformance with ASD-STE100 is not claimed, not checked, and not implied. No token-economy win is
-claimed. No comprehension benefit is claimed.** `guard_banned_claims` holds all three prohibitions
-mechanically over the shipped kit and the public documents, and it was watched failing on a real
-claim in a real file before it was allowed to pass. A green run from it says what it measured, and
-says nothing about the standard.
+claimed. No comprehension benefit is claimed.** `guard_banned_claims` decides one question about
+those three: whether any of its pinned literals appears on any single physical line of the document
+set it derives, outside the registry-anchored blocks of one named exemption region. It was watched
+failing on a real claim in a real file before it was allowed to pass. A green run from it says what
+it measured, and says nothing about the standard.
 ```
 
 ### C-28-043
