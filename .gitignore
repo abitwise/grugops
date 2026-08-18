@@ -10,3 +10,10 @@ node_modules/
 # verbose per-agent threads/ scratch is local-only. Scoped to */threads/ ONLY — never a
 # blanket .grugops/context/ ignore (that would drop the committed notes/ + index.*).
 **/.grugops/context/*/threads/
+
+# Hermetic clones built by scripts/freshness.test.ts. The build-output gate now reads git, so a
+# clone left inside the repository would change what the parent's own run sees; ignoring it keeps
+# `git status` and `git ls-files` unperturbed. The directory is named `.temp/` deliberately: it is
+# already in vitest's default exclude list, so a clone surviving a crashed run cannot have its own
+# .test.ts files collected by the next run.
+.temp/

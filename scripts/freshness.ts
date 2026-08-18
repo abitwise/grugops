@@ -57,11 +57,16 @@
 // is itself a refusal, because it means the arm selection lost a path.
 //
 // FAIL-CLOSED, AND CHECKABLE AS SUCH (D-02 / D-10 stale-artifact mitigation). A rebuild that does not
-// compile cleanly never reports fresh, as before. Beyond that, the word "fresh" appears in exactly
-// ONE line this module can print — the success line — so any non-zero run's stdout carries ZERO
-// case-insensitive occurrences of it. scripts/freshness.test.ts asserts that absence on every failing
-// case. A fail-closed gate that still prints a green-sounding line is the fabricated green this
-// repository has already paid for once.
+// compile cleanly never reports fresh, as before. Beyond that, the GREEN VERDICT LINE below is
+// printed on the success path and on no other, so no non-zero run of this module can carry it.
+// scripts/freshness.test.ts asserts that absence on every failing case.
+//
+// A WEAKER CLAIM THAN THE ONE FIRST WRITTEN HERE, AND THE MEASUREMENT THAT WEAKENED IT. This comment
+// first said the WORD "fresh" appears in exactly one printable line. The harness asserted that and
+// found it false on its first run: scripts/freshness.js is a path this gate legitimately names in a
+// finding, and the test clones live under .temp/freshness-clones/. The word was never the invariant.
+// The verdict line is, and it is the proposition worth holding: a fail-closed gate that still prints
+// a green verdict is the fabricated green this repository has already paid for once.
 
 import { spawnSync } from "node:child_process";
 import {
@@ -87,7 +92,8 @@ const OUTPUT_DIRS = ["install", "scripts", "hooks"];
 // makes spawnSync set `error`, which this module turns into a refusal — so the ceiling fails closed.
 const GIT_MAX_BUFFER = 64 * 1024 * 1024;
 
-// The ONE line that carries the word "fresh". See the fail-closed note in the header.
+// The GREEN VERDICT LINE, spelled once and printed on the success path only. scripts/freshness.test.ts
+// pins the same string. See the fail-closed note in the header for what it does and does not claim.
 const FRESH_LINE_PREFIX = "All build outputs fresh:";
 
 const toPosix = (p: string): string => p.split(sep).join("/");
