@@ -1,12 +1,17 @@
 // check-banned-claims.ts — Phase 29 LANG-04 conformance/benefit-claim gate (D-29, D-44).
 //
-// Asserts that the shipped kit and the public documents carry ZERO controlled-language conformance
-// claim, ZERO token-economy win claim and ZERO comprehension-benefit claim — anywhere except one
-// named exemption region, which is the disclaimer that has to be able to quote a claim in order to
-// deny it.
+// Decides ONE literal question, and the scope of this sentence is the scope of the mechanism
+// (round 8, D-55): whether any member of a pinned claim-literal list occurs on any SINGLE PHYSICAL
+// LINE of a DERIVED document set — outside the registry-anchored blocks of one named exemption
+// region, which is the disclaimer that has to be able to quote a claim in order to deny it. The
+// corpus size and the list size are PUBLISHED BY THE RUN rather than stated here, because a count
+// typed into prose goes stale and this phase has watched it do so at three addresses.
+//
+// What this gate does NOT decide is recorded below under RECORDED RESIDUAL, not implied away here.
 //
 //   node scripts/check-banned-claims.js
-// Exit 0 = every scanned document is free of the pinned claim literals; exit 1 = at least one FAIL.
+// Exit 0 = no pinned literal occurs on any single line of any scanned document, outside those
+// blocks; exit 1 = at least one FAIL.
 //
 // Strictly READ-ONLY. Node stdlib ONLY — node:fs + node:path. Zero npm dependencies.
 //

@@ -4046,3 +4046,170 @@ describe("check-banned-claims — three residual routes, subsumed by the content
     expect(status).toBe(0);
   });
 });
+
+// ══════════════════════════════════════════════════════════════════════════════════════════════
+// THE PUBLISHED SENTENCE IS THE ONE THE GATE DECIDES (round 8, plan 29-56 — D-55)
+//
+// Seven verification rounds each closed one axis between what this gate's first output line CLAIMED
+// and what its mechanism DECIDES, and each closure exposed the next: an unlisted benefit verb, then
+// an unlisted conformance verb, then a hard-wrapped multi-word literal. That distance is not a
+// defect with a fix, it is an unbounded class, so D-55 moved the SENTENCE to the mechanism instead.
+// These two cases are what stop it moving back — a narrowing held by nothing is a wording, and a
+// wording drifts.
+//
+// THE TWO SUPERSEDED NOUN PHRASES ARE DECLARED ONCE, HERE, AND WERE CAPTURED FROM THE FILE RATHER
+// THAN RETYPED. A phrase transcribed out of a planning document is a second copy of the thing being
+// policed, living in the file that polices it — this repository's set-literal drift class, landing
+// inside the fix for a claim-scope defect. Each constant occurs on exactly ONE line of this file,
+// asserted below, so `grep -c` over either phrase counts its declaration and nothing else.
+const SUPERSEDED_SUBJECT = "the shipped kit";
+const SUPERSEDED_OBJECT = "the public documents";
+
+/** Every 0-based line index at which `needle` occurs in `haystack`, so a failure can name WHERE. */
+function lineIndexesOf(haystack: string, needle: string): number[] {
+  const out: number[] = [];
+  haystack.split("\n").forEach((line, i) => {
+    if (line.includes(needle)) out.push(i);
+  });
+  return out;
+}
+
+describe("check-banned-claims — the published sentence states the predicate the gate decides (D-55)", () => {
+  it("BEHAVIOUR: the running gate's first line carries the DERIVED numbers, names the unit of decision, and neither superseded phrase", () => {
+    // THE LIVE TREE, not a mirror: the subject of the case is the sentence this repository
+    // publishes about itself, so the run that publishes it is the run that must be read.
+    const r = spawnSync("node", [GATE_JS], { encoding: "utf8" });
+    const stdout = `${r.stdout ?? ""}${r.stderr ?? ""}`;
+
+    // ASSERT THE HARNESS'S OWN PREMISE BEFORE READING ANY NUMBER OUT OF IT. A zero-byte or
+    // banner-less capture would make every `match` below return null and the case would then be
+    // asserting against its own failure to run — this phase has produced that false result in six
+    // separate instances across four consecutive rounds.
+    expect(stdout.length, "the gate produced NO output").toBeGreaterThan(500);
+    expect(r.status, `the live tree must be green; stdout:\n${stdout}`).toBe(0);
+    const header = stdout.split("\n").find((l) => l.includes("[guard_banned_claims]"));
+    expect(header, `the gate printed no bracketed header line; stdout:\n${stdout}`).toBeDefined();
+
+    // (1) NEITHER SUPERSEDED NOUN PHRASE. Both quantified over a surface much wider than the one
+    // the matcher reads, which is the defect LANG-04 exists to prevent.
+    expect(header!, "the superseded subject returned to the published sentence").not.toContain(
+      SUPERSEDED_SUBJECT,
+    );
+    expect(header!, "the superseded object returned to the published sentence").not.toContain(
+      SUPERSEDED_OBJECT,
+    );
+
+    // (2) THE UNIT OF DECISION IS NAMED. `lineHits()` reads ONE physical line at a time, so a
+    // literal hard-wrapped across a line boundary is not matched. Naming the unit is what keeps
+    // that residual visible instead of implied away by a sentence quantified over documents.
+    expect(header!, "the published sentence no longer names its unit of decision").toContain(
+      "single physical line",
+    );
+
+    // (3) AND (4) THE TWO NUMBERS, COMPARED AGAINST A SEPARATE IMPORT OF THE MODULE'S OWN
+    // DERIVATIONS. The expectation is produced by a different statement than the actual: the gate
+    // subprocess computed one, this process computes the other. A pin whose expected value is
+    // produced by the same statement as its actual value pins nothing — the argument this module's
+    // own comment at `countBannedClaimOccurrences` already makes.
+    const m =
+      /the (\d+) derived document\(s\)[\s\S]*?any of the (\d+) pinned claim literal\(s\)/.exec(
+        header!,
+      );
+    expect(m, `the published sentence did not parse:\n${header}`).not.toBeNull();
+    expect(Number(m![1]), "the published corpus size is not the derived one").toBe(
+      bannedClaimScan().length,
+    );
+    expect(Number(m![2]), "the published literal count is not the derived one").toBe(
+      BANNED_CLAIM_LITERALS.length,
+    );
+
+    // (5) THE EXEMPTION IS DESCRIBED AS THE ANCHORED BLOCKS, NOT AS THE REGION. Since D-54 the
+    // carve-out is bounded in CONTENT as well as in POSITION, and a sentence that names only the
+    // region publishes the pre-D-54 bound.
+    expect(header!, "the exemption is published as a region rather than as its anchored blocks")
+      .toContain("registry-anchored blocks of one named exemption region");
+  });
+
+  it("SOURCE SHAPE: neither superseded noun phrase returns to either narrowed address, and both addresses still STATE the predicate", () => {
+    // Read off the gate's SOURCE TEXT so the assertion cannot be satisfied by a runtime value, in
+    // the idiom the D-54 source-shape cases above already use.
+    const src = readFileSync(GATE_TS, "utf8");
+    expect(src.length, "the gate source was not read").toBeGreaterThan(1000);
+
+    // THE SUBJECT PHRASE IS KEPT NOWHERE, AND THE CASE SAYS SO. Its two occurrences — the module
+    // docblock's scope claim and the `runAll()` header write — were the two totality claims this
+    // round narrowed, and there is no third address that needs it.
+    const subjectAt = lineIndexesOf(src, SUPERSEDED_SUBJECT);
+    expect(
+      subjectAt.length,
+      `the superseded subject returned at line(s) ${subjectAt.map((i) => i + 1).join(", ")}`,
+    ).toBe(0);
+
+    // THE OBJECT PHRASE IS KEPT AT EXACTLY ONE ADDRESS, DECLARED HERE BY NAME RATHER THAN LEFT TO
+    // BE INFERRED: the refusal this gate prints when the corpus it CONSUMES — derived in
+    // scripts/check-public-docs-vocabulary.ts — refuses. That sentence names which module derived
+    // which set. It is not a claim about what the gate proves, and narrowing it would delete a
+    // correct diagnosis to satisfy a grep.
+    const objectAt = lineIndexesOf(src, SUPERSEDED_OBJECT);
+    expect(
+      objectAt.length,
+      `the superseded object occurs at line(s) ${objectAt.map((i) => i + 1).join(", ")}; exactly one carve-out is declared`,
+    ).toBe(1);
+    const keptLine = src.split("\n")[objectAt[0]!];
+    expect(keptLine, "the kept occurrence is not the imported-corpus refusal").toContain(
+      "while deriving",
+    );
+    expect(keptLine, "the kept occurrence is not the imported-corpus refusal").toContain(
+      "check-public-docs-vocabulary.ts",
+    );
+
+    // NARROWING IS NOT DELETION. Both addresses must still STATE the predicate, or "no superseded
+    // phrase" would be satisfiable by removing the sentences entirely — a gate that says nothing
+    // about its scope is not an improvement on one that overstates it.
+    const headerWrite =
+      /process\.stdout\.write\(\n(?:.*\n)*?\s*`\(LANG-04 \/ D-29, D-44\)\\n`,\n\s*\);/.exec(src);
+    expect(headerWrite, "the header write expression was not found").not.toBeNull();
+    expect(headerWrite![0]).toContain("single physical line");
+    expect(headerWrite![0]).toContain("${bannedClaimScan().length}");
+    expect(headerWrite![0]).toContain("${BANNED_CLAIM_LITERALS.length}");
+    // ...and no number is TYPED into it. The only digits the sentence is allowed to carry are the
+    // decision ids in its attribution, which are identifiers and not measurements.
+    const withoutAttribution = headerWrite![0].replace("(LANG-04 / D-29, D-44)", "");
+    expect(
+      withoutAttribution.match(/\d/g),
+      "a digit was typed into the published sentence",
+    ).toBeNull();
+
+    // The module docblock — the file's other statement of its own scope — states the same predicate
+    // rather than a differently-worded restatement of it.
+    //
+    // THE ONE NORMALIZATION IN THIS CASE, DECLARED RATHER THAN SLIPPED IN. The comment markers and
+    // the line breaks of a COMMENT BLOCK are collapsed before comparing, and the comparison is
+    // case-folded. A prose paragraph is hard-wrapped by whoever last edited it, so an exact match
+    // here would red on a rewrap that changed no meaning — and this phase has already spent a round
+    // on what a line boundary does to an exact comparison. This is emphatically NOT the argument
+    // for normalizing inside the MATCHER, which compares against a document a reader will read and
+    // where an inexact comparison admits shapes nobody measured; the assertion on the PUBLISHED
+    // header above stays byte-exact for exactly that reason.
+    const docblock = src
+      .split("\n")
+      .slice(0, 14)
+      .map((l) => l.replace(/^\/\/ ?/, ""))
+      .join(" ")
+      .replace(/\s+/g, " ")
+      .toLowerCase();
+    expect(docblock, "the module docblock no longer names the unit of decision").toContain(
+      "single physical line",
+    );
+    expect(docblock, "the module docblock no longer names its set as derived").toContain(
+      "derived document set",
+    );
+
+    // THE CONSTANTS THIS CASE POLICES WITH ARE DECLARED EXACTLY ONCE IN THIS FILE. Two copies of a
+    // policed phrase would make the `grep -c` evidence in the plan's acceptance criteria read a
+    // number that is not the number it names.
+    const self = readFileSync(new URL(import.meta.url), "utf8");
+    expect(lineIndexesOf(self, `"${SUPERSEDED_SUBJECT}"`).length).toBe(1);
+    expect(lineIndexesOf(self, `"${SUPERSEDED_OBJECT}"`).length).toBe(1);
+  });
+});
