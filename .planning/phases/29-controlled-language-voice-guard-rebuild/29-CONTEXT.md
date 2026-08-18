@@ -546,6 +546,64 @@ Each is a locked decision with the same standing as D-01 to D-33.
   so the round closes with an honest statement of what it does not claim rather than an implied
   totality.
 
+### Round 7 (gap closure — LANG-04 / CR-01, from `29-REVIEW-round6.md` / `29-VERIFICATION-round6.md`)
+
+- **D-54 — the sole exemption region stays POSITIONAL and its exempted BYTES become FROZEN against the claim registry. D-48's stated conclusion is AMENDED, not reversed.**
+  D-48 concluded, and D-53 extended, that *"every axis a bare term can be paired against is an open
+  class; the only bounded thing in this design is the one named exemption region, and a region is
+  POSITIONAL."* That sentence was right about the MATCHER and incomplete about the CARVE-OUT. Round
+  6's reviewer and round 6's verifier each reproduced, independently, on `git archive HEAD` mirrors
+  with sha256-verified gate binaries, that replacing one honest denial line inside the region with a
+  live disproven token-economy claim leaves `suppressed` at exactly 14 and `extent` at exactly 62,
+  and **all seven repository gates exit 0** — the kit would ship a disproven claim inside the section
+  whose stated purpose is to deny claims. The wholesale form is worse: replacing the whole 61-line
+  body with banned claims plus filler holds both pins too, and the only thing that reds is a verbatim
+  freeze on two paragraphs owned by a DIFFERENT gate. A region bounded only in POSITION has no bound
+  on WHAT IS WRITTEN INSIDE IT.
+
+  **What changes.** Inside `BANNED_CLAIM_EXEMPT_REGION`, a line lifts the prohibition only if it ALSO
+  sits inside a registry-anchored block of `docs/audit/28-claim-registry.md` whose bytes are
+  byte-identical to the row that names them. The carve-out is now bounded in position AND in content.
+
+  **What does NOT change, stated so a later reader cannot mistake this for a licence.** The matcher is
+  BYTE-IDENTICAL: no lexical axis returns, no verb list, no subject list, no co-occurrence window, no
+  conditional field on `BannedClaimLiteral`. D-48's three forbidden weakenings — no fenced-block skip,
+  no whole-word-only match, no below-a-marker skip — stay forbidden, and D-53's deletion of the
+  conditional mechanism is not partially undone to make a denial writable. The region is still a file,
+  a section and a reason; a line OUTSIDE the region is still never exempt. No digest is taken over the
+  whole exemption document — a frozen digest over a document authors legitimately edit is a false-red
+  generator rather than a pin, so the frozen surface is the union of registry-anchored blocks and
+  nothing else.
+
+  **Why it is reconcilable with D-48's anti-drift reasoning rather than a repeat of it.** D-48 refused
+  the subject pin because it would have been a THIRD HAND-AUTHORED LIST over an open class. The
+  exempt-anchor set here is not a list at all: it is DERIVED from the registry rows naming the
+  exemption document whose anchor index falls inside the located region, and its cardinality is
+  asserted TWO-SIDED so a row silently added or dropped reds by name. An empty derived set inside a
+  located region is a NAMED REFUSAL rather than a silently total or silently empty exemption. A grep
+  for a literal array of claim ids in the gate must return 0 — the set-literal drift this repository
+  names as its second systemic failure class must not appear inside the fix for the first one.
+  The requirement is also not new: **D-01(a)** already names the claim-registry verbatim anchors as one
+  of the three frozen sources and **D-04** already requires the same-commit companion edit for any
+  change intersecting them. This applies an existing locked decision at the one place D-48/D-53 left
+  unbound.
+
+  **The standing cost, accepted by the user with the decision.** After this lands, every edit to a
+  denial sentence inside the exemption region is a TWO-FILE change under D-04 — the prose and its
+  registry row, in the SAME commit, with no override tier and no record-it-later. Registry ids are
+  contiguity-checked, so the id space spent here is not freely reusable, and Phase 30's
+  claim-dropping voids by id. **Rated one-way**: the pre-freeze editing posture cannot be restored
+  without deciding again which sentences were frozen at the time each edit was judged.
+
+  **Recorded as its own numbered decision rather than folded under D-48/D-53 at the user's explicit
+  instruction**, because a mechanism change to a safety carve-out that is inferred from a
+  reconciliation argument is exactly the shape this phase has spent seven rounds learning to refuse.
+
+  The cheaper alternative on the table — pinning the suppressed count PER GROUP — is REFUSED as the
+  fix and ADMITTED as a secondary measure: it reduces the substitution class from any-group to
+  same-group and **does not close CR-01**, so it ships with that limitation stated in the source
+  beside it, precisely so nobody later reads it as the closure.
+
 ### Claude's Discretion
 
 - The exact caveman lexicon membership and the value of N in D-07, subject to it failing RED on all
