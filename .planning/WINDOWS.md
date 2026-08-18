@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 64
+open_count: 66
 waived_count: 0
 fixed_count: 1
-total_count: 65
-last_updated: 2026-08-18T09:46:49.753Z
+total_count: 67
+last_updated: 2026-08-18T15:35:03.866Z
 ---
 
 # Broken Windows Ledger
@@ -80,6 +80,8 @@ last_updated: 2026-08-18T09:46:49.753Z
 | 63 | 29 | deviation | docs/audit/29-round7-residuals.md |  | 29-55: nine V- markers (V-29-29-02..05, V-29-30-01..04, plus the never-opened V-29-42-05) exist in the tree and have NEVER been rolled up by any of three residual registers. Found by DERIVING the marker set by grep (35 found) instead of taking round 6's table (18 listed). Named, deliberately not adopted. | open |  | 2026-08-18T09:46:49.626Z |  |
 | 64 | 29 | unrun-verify | scripts/check-nul-bytes.ts |  | 29-55: check-nul-bytes is INDETERMINATE on a git archive mirror — its set is git ls-files, so it refuses identically on the clean control and on a tampered mirror. It must not be counted in a per-mirror sibling-gate tally; round 6's sweep did not make this distinction. | open |  | 2026-08-18T09:46:49.688Z |  |
 | 65 | 29 | deviation | .planning/phases/29-controlled-language-voice-guard-rebuild/29-53-SUMMARY.md |  | 29-55: 29-53's narrative class enumeration is one short in two cells (tracked *.json 37 vs 38; scripts/** 18 vs 19), measured at its own commit and at HEAD. The MECHANICAL equality is derived, floored two-sided and green — only the hand-written explanation is short. | open |  | 2026-08-18T09:46:49.753Z |  |
+| 66 | 29 | deviation | scripts/check-banned-claims.ts | 2120 | Plan 29-56 Rule 3: the in-source D-55 note named BANNED_CLAIM_SCAN_COUNT, moving the pin's grep -c from 6 to 7; reworded to identify the constant by role | open |  | 2026-08-18T15:35:03.799Z |  |
+| 67 | 29 | deviation | scripts/check-banned-claims.test.ts | 4160 | Plan 29-56 Rule 1: the SOURCE-SHAPE docblock assertion was defeated by a hard wrap; one declared comment-block normalization added, published-header assertion left byte-exact | open |  | 2026-08-18T15:35:03.866Z |  |
 
 ````json
 [
@@ -861,6 +863,30 @@ last_updated: 2026-08-18T09:46:49.753Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-08-18T09:46:49.753Z",
+    "resolved_at": null
+  },
+  {
+    "id": 66,
+    "kind": "deviation",
+    "phase": "29",
+    "file": "scripts/check-banned-claims.ts",
+    "line": 2120,
+    "description": "Plan 29-56 Rule 3: the in-source D-55 note named BANNED_CLAIM_SCAN_COUNT, moving the pin's grep -c from 6 to 7; reworded to identify the constant by role",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-08-18T15:35:03.799Z",
+    "resolved_at": null
+  },
+  {
+    "id": 67,
+    "kind": "deviation",
+    "phase": "29",
+    "file": "scripts/check-banned-claims.test.ts",
+    "line": 4160,
+    "description": "Plan 29-56 Rule 1: the SOURCE-SHAPE docblock assertion was defeated by a hard wrap; one declared comment-block normalization added, published-header assertion left byte-exact",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-08-18T15:35:03.866Z",
     "resolved_at": null
   }
 ]
