@@ -3688,7 +3688,13 @@ describe("check-banned-claims — the sole carve-out is bounded in CONTENT (D-54
     expect(status).toBe(1);
     // THE FINDINGS COME FROM THIS GATE. Asserted on the rendered lines, not on the exit code: the
     // point of the case is that `check-banned-claims` itself now speaks.
-    expect(stdout).toContain("[guard_banned_claims]");
+    //
+    // READ OFF THIS GATE'S OWN FINDINGS LINE, NOT ITS BANNER (D-59). The bracketed banner is
+    // withheld on a red run — it asserted that no line carries a pinned literal, which is false of
+    // exactly the runs this case builds. The findings line is a stronger identity marker anyway:
+    // it is emitted BY the failure rather than beside it, so it cannot be present on a run where
+    // this gate stayed silent.
+    expect(stdout).toContain("banned claims: ");
     expect(findingCount(stdout)).toBeGreaterThan(0);
     expect(stdout).toContain(`${PROFILE}:`);
   });
@@ -4166,15 +4172,19 @@ describe("check-banned-claims — the published sentence states the predicate th
     // NARROWING IS NOT DELETION. Both addresses must still STATE the predicate, or "no superseded
     // phrase" would be satisfiable by removing the sentences entirely — a gate that says nothing
     // about its scope is not an improvement on one that overstates it.
+    // THE LOCATOR FOLLOWS THE EXPRESSION, IT DOES NOT PIN ITS STATEMENT FORM (D-59). The sentence
+    // is now BUILT here and PUBLISHED on the success path, because written unconditionally it
+    // printed above the findings that contradicted it. What this case asserts is unchanged: the
+    // predicate is stated, both numbers are interpolated, and no digit is typed.
     const headerWrite =
-      /process\.stdout\.write\(\n(?:.*\n)*?\s*`\(LANG-04 \/ D-29, D-44\)\\n`,\n\s*\);/.exec(src);
+      /const publishedSentence =\n(?:.*\n)*?\s*`\(LANG-04 \/ D-59, D-44\)\\n`;/.exec(src);
     expect(headerWrite, "the header write expression was not found").not.toBeNull();
     expect(headerWrite![0]).toContain("single physical line");
     expect(headerWrite![0]).toContain("${bannedClaimScan().length}");
     expect(headerWrite![0]).toContain("${BANNED_CLAIM_LITERALS.length}");
     // ...and no number is TYPED into it. The only digits the sentence is allowed to carry are the
     // decision ids in its attribution, which are identifiers and not measurements.
-    const withoutAttribution = headerWrite![0].replace("(LANG-04 / D-29, D-44)", "");
+    const withoutAttribution = headerWrite![0].replace("(LANG-04 / D-59, D-44)", "");
     expect(
       withoutAttribution.match(/\d/g),
       "a digit was typed into the published sentence",
@@ -4213,6 +4223,62 @@ describe("check-banned-claims — the published sentence states the predicate th
     expect(lineIndexesOf(self, `"${SUPERSEDED_OBJECT}"`).length).toBe(1);
   });
 });
+
+// ══════════════════════════════════════════════════════════════════════════════════════════════
+// THE NARROWED SENTENCE IS NOT PUBLISHED ON A RED RUN (round 8 follow-up — D-59)
+//
+// D-55 narrowed WHAT the gate claims. It did not change WHEN the claim is printed, and the write
+// sat above the findings loop unconditionally — so a run that found banned literals still opened by
+// asserting that no line carries one, with the offending file:line printed underneath. The round-8
+// review reproduced it (CR-02) and the round-8 verifier reproduced it independently from a fresh
+// mirror. Neither of D-55's own two cases could observe it: the BEHAVIOUR case asserts `status === 0`
+// before it reads the header, so it only ever looks at trees where the sentence is true, and the
+// SOURCE SHAPE case reads bytes rather than a run.
+//
+// This case is the one that looks at a RED run. It is asserted in BOTH directions against the same
+// harness — the clean mirror must PRINT the sentence, the planted mirror must NOT — because a case
+// that only checks the absence passes just as well against a gate that stopped printing the sentence
+// altogether, which would be a different defect wearing this one's green.
+// ══════════════════════════════════════════════════════════════════════════════════════════════
+
+describe("check-banned-claims — the published sentence is withheld when the run does not support it (D-59)", () => {
+  /** The bracketed header is the whole published claim; its presence is read as one substring. */
+  const PUBLISHED = "[guard_banned_claims] no single physical line of the";
+
+  it("PREMISE + GREEN DIRECTION: a clean mirror is green AND does publish the sentence", () => {
+    const { status, stdout } = runGate(makeMirror("gops-banned-d59-clean-"));
+    // ASSERT THE HARNESS'S OWN PREMISE BEFORE READING THE PROPERTY. A mirror that failed to build,
+    // or a gate that produced nothing, would satisfy the RED case below for the wrong reason — this
+    // phase has shipped that false result in six separate instances across four consecutive rounds.
+    expect(stdout.length, `the gate produced NO output:\n${stdout}`).toBeGreaterThan(500);
+    expect(status, `the clean mirror must be green; stdout:\n${stdout}`).toBe(0);
+    expect(findingCount(stdout), `a clean mirror reported findings:\n${stdout}`).toBe(0);
+    expect(stdout, "a green run no longer publishes the narrowed sentence").toContain(PUBLISHED);
+  });
+
+  it("RED DIRECTION: a planted banned literal reds, and the sentence denying it is ABSENT", () => {
+    // One listed literal, unwrapped, on an ordinary scanned line of a scanned kit document — the
+    // simplest thing the gate is for, so a failure here cannot be blamed on an exotic plant.
+    const planted = `${CLEAN}\nControlled language ${COMPREHENSION_CLAIM.literal} for a language model.\n`;
+    const { status, stdout } = runGate(
+      makeMirror("gops-banned-d59-planted-", { plant: { [KIT_README]: planted } }),
+    );
+
+    // FIXTURE PREMISE: the plant actually landed as a finding. Without this the absence assertion
+    // below would pass on a mirror where nothing was ever detected.
+    expect(status, `the planted mirror must be red; stdout:\n${stdout}`).toBe(1);
+    expect(findingCount(stdout), `the plant produced no finding:\n${stdout}`).toBeGreaterThan(0);
+    expect(stdout, "the finding does not name the planted file").toContain(KIT_README);
+
+    // THE PROPERTY. A gate that names the lines carrying pinned literals must not, in the same
+    // output, assert that no line carries one.
+    expect(
+      stdout,
+      `the gate published its no-claim sentence on a run that reported findings:\n${stdout}`,
+    ).not.toContain(PUBLISHED);
+  });
+});
+
 
 // ══════════════════════════════════════════════════════════════════════════════════════════════
 // THE IN-SOURCE RESIDUAL RECORD DESCRIBES THE BYPASS THAT EXISTS (round 8, plan 29-57 — D-56)

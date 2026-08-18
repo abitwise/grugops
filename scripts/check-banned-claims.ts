@@ -2187,12 +2187,24 @@ function runAll(): void {
   // The superseded sentence is deliberately not quoted here — these gates scan source text without
   // stripping comments, and this repository's retired-construct convention is to describe a removed
   // construct rather than re-register a live copy of it.
-  process.stdout.write(
+  // COMPUTED HERE, PUBLISHED ONLY ON THE SUCCESS PATH (round 8 follow-up — D-59).
+  //
+  // The numbers are measured at THIS point in the run, where the corpus and the literal list are
+  // the ones the scan below actually consumed, so the sentence keeps the "interpolated from the
+  // run" property D-55 gave it. What changed is WHEN it is printed. Written unconditionally, it
+  // printed a sentence asserting that no line carries a pinned literal directly above the findings
+  // naming the lines that carry them — a false statement in the gate's own output, on the one
+  // surface LANG-04 exists to keep honest, reproduced on a planted mirror by both the round-8
+  // review (CR-02) and the round-8 verifier.
+  //
+  // It is withheld on ANY failure in this gate, not only a banned-claim finding. Under-claiming
+  // when some other check in this file refused is the conservative direction, and this phase has
+  // spent eight rounds establishing which direction to fail in.
+  const publishedSentence =
     `\n[guard_banned_claims] no single physical line of the ${bannedClaimScan().length} derived ` +
-      `document(s) this gate scans carries any of the ${BANNED_CLAIM_LITERALS.length} pinned claim ` +
-      `literal(s), outside the registry-anchored blocks of one named exemption region ` +
-      `(LANG-04 / D-29, D-44)\n`,
-  );
+    `document(s) this gate scans carries any of the ${BANNED_CLAIM_LITERALS.length} pinned claim ` +
+    `literal(s), outside the registry-anchored blocks of one named exemption region ` +
+    `(LANG-04 / D-59, D-44)\n`;
 
   for (const refusal of DERIVATION_REFUSALS) {
     fail(`banned-claim scan derivation refused: ${refusal}`);
@@ -2636,6 +2648,11 @@ function runAll(): void {
         `literal(s) refused at admission and recorded with their hit counts`,
     );
   }
+
+  // THE CLAIM IS PUBLISHED ONLY WHERE THE RUN SUPPORTS IT (D-59). A reader who never sees this
+  // sentence on a red run cannot be misled by it; a reader who sees it knows the run that printed
+  // it found nothing.
+  if (FAILS === 0) process.stdout.write(publishedSentence);
 
   process.stdout.write("\n== Result ==\n");
   if (FAILS === 0) {
