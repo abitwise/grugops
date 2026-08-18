@@ -810,6 +810,33 @@ export const BANNED_CLAIM_EXEMPT_REGION = {
 // are segment classes. A permanent case asserts that no member of the live scan contains a
 // segment-class name below its root, so the day the kit ships an `agent-factory/**/docs/` this
 // reds rather than silently dropping it.
+//
+// -- THE TRACKED-SET MEMBERSHIP RULE WAS CONSIDERED AND IS REJECTED, WITH ITS REASON ----------
+//
+// The round-6 review's second half asked for membership to be DERIVED FROM THE TRACKED SET rather
+// than from the disk -- `git ls-files` instead of a walk. Recorded here, where a reader meets the
+// walk and would reasonably wonder, rather than left for the next reviewer to re-propose.
+//
+// IT WOULD BREAK THE HARNESS THAT MAKES THIS GATE'S CLAIMS REPRODUCIBLE. Every behavioural case
+// this gate owns runs against a HERMETIC MIRROR -- a synthesized tree, or a `git archive HEAD`
+// export, driven through the committed .js via CHECK_ROOT. A mirror is NOT a git repository, so a
+// git-derived membership rule would return nothing there and every one of those cases would
+// evaporate into a vacuous pass. The only way to keep them is a FALLBACK to a walk when git is
+// unavailable -- and a fallback is a SECOND MEMBERSHIP RULE, which is the defect class this whole
+// phase has been unpicking. One rule, or two rules that will disagree; there is no third option.
+//
+// THE TRACKED QUESTION IS ASKED WHERE IT BELONGS: in the coverage case in
+// scripts/check-banned-claims.test.ts, which runs IN THE REPOSITORY and therefore can ask git. It
+// asks BOTH directions -- tracked minus scan is covered by an entry of this list (nothing this
+// repository versions is unaccounted for), and every scan member is tracked (nothing
+// unaccounted-for is being scanned as though it were). The second direction is what NAMES an
+// intruder, and it is the direction WR-01's nested plant walked straight through.
+//
+// AND THE SIBLING THAT DOES DERIVE FROM TRACKED PATHS IS CORRECT TO. scripts/check-nul-bytes.ts
+// takes `git ls-files` as its set, and the difference is not an inconsistency: its subject IS the
+// tracked set (no TRACKED file carries a forbidden control byte), it has no mirror harness, and it
+// guards a property of the REPOSITORY. This gate's subject is what the kit SHIPS, which is a
+// question about a tree and not about an index.
 // ---------------------------------------------------------------------------
 export const BANNED_CLAIM_EXCLUDED_LOCATIONS: readonly string[] = [
   // SEGMENT CLASSES — excluded at any depth, enforced at the walk.

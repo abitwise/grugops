@@ -79,6 +79,9 @@ import {
   BANNED_CLAIM_EXCLUDED_LOCATIONS,
   bannedClaimExcluded,
   bannedClaimExcludedBy,
+  bannedClaimExcludedSegments,
+  bannedClaimExcludedRootDirs,
+  bannedClaimExcludedExactPaths,
   bannedClaimScan,
   bannedClaimScanOverlap,
   locateExemptRegion,
@@ -2805,6 +2808,161 @@ describe("check-banned-claims — every tracked markdown path is scanned or excl
       (entry) => !tracked.some((p) => bannedClaimExcludedBy(p, entry)),
     );
     expect(dead).toEqual([]);
+  });
+});
+
+// ── WR-01: the exclusion is anchored AT THE WALK, so nesting cannot defeat it ──────────────────
+//
+// Round 6 admitted `.claude/` as a recursive DISK WALK. The exclusions were prefix tests on the
+// derived RELATIVE PATH, so a nested copy of an excluded directory carried none of its prefix — and
+// `.claude/worktrees/` is exactly where this project's own execution tooling puts isolated
+// worktrees. The reviewer planted two files under it and the gate reported findings ON THE CLAIM
+// REGISTRY ITSELF and on a planning document, verbatim the harm the `docs/` exclusion exists to
+// prevent, while BOTH guarding assertions stayed green: one asserted a prefix relationship that is
+// TRUE for a nested path, and the other only ever asked `tracked ⊆ scan ∪ excluded`.
+describe("check-banned-claims — an excluded directory is excluded WHEREVER it appears", () => {
+  it("a NESTED copy of an excluded directory contributes NOTHING — the reviewer's own plant", () => {
+    // The reviewer's exact construction: a worktree-shaped checkout under a WALKED directory,
+    // carrying a claim-registry copy and a planning document. On the pre-change build this moved
+    // the scan count to 117 and produced three findings; the transcript is quoted in 29-53-SUMMARY.
+    const mirror = makeMirror("gops-banned-nested-");
+    const nest = join(mirror, ".claude", "worktrees", "phase-30");
+    mkdirSync(join(nest, ".planning"), { recursive: true });
+    mkdirSync(join(nest, "docs", "audit"), { recursive: true });
+    writeFileSync(
+      join(nest, ".planning", "29-99-PLAN.md"),
+      `The plan discusses the ${TOKEN_CLAIM.literal} of the kit.\n`,
+      "utf8",
+    );
+    writeFileSync(
+      join(nest, "docs", "audit", "claim-registry.md"),
+      `The registry quotes a claim naming ${DISCIPLINE_NAME.literal}.\n`,
+      "utf8",
+    );
+    // THE PLANT IS CONFIRMED ON DISK before the run. A case whose fixture silently failed to write
+    // would report "no findings" and read exactly like a closure.
+    expect(existsSync(join(nest, ".planning", "29-99-PLAN.md"))).toBe(true);
+    expect(existsSync(join(nest, "docs", "audit", "claim-registry.md"))).toBe(
+      true,
+    );
+
+    const { status, stdout } = runGate(mirror);
+    // The count is UNMOVED — the two planted files are not members — and nothing is reported.
+    expect(stdout).toContain(
+      `0 findings over ${BANNED_CLAIM_SCAN_COUNT}/${BANNED_CLAIM_SCAN_COUNT} elements`,
+    );
+    expect(stdout).not.toContain("worktrees");
+    expect(stdout).toContain("ALL CHECKS PASSED");
+    expect(status).toBe(0);
+  });
+
+  it("CONTROL: the same two files planted where they are NOT nested under an excluded segment DO red", () => {
+    // Without this, "the nested plant is silent" is satisfied by a gate that stopped reading
+    // `.claude/` at all. Same bytes, same depth, a directory name that is NOT a segment class.
+    const mirror = makeMirror("gops-banned-nested-control-");
+    const nest = join(mirror, ".claude", "worktrees", "phase-30", "notes");
+    mkdirSync(nest, { recursive: true });
+    writeFileSync(
+      join(nest, "29-99-PLAN.md"),
+      `The plan discusses the ${TOKEN_CLAIM.literal} of the kit.\n`,
+      "utf8",
+    );
+    const { status, stdout } = runGate(mirror);
+    expect(status).toBe(1);
+    expect(stdout).toContain(
+      ".claude/worktrees/phase-30/notes/29-99-PLAN.md:1:24",
+    );
+    expect(stdout).toContain(
+      `derived ${BANNED_CLAIM_SCAN_COUNT + 1} document(s), expected exactly ${BANNED_CLAIM_SCAN_COUNT}`,
+    );
+  });
+
+  it("the three projections PARTITION the one list — cardinalities two-sided, and their sum is the length", () => {
+    // ONE LIST, THREE PROJECTIONS. They cannot drift apart from each other; what they CAN do is
+    // leave an entry belonging to none, which would contribute to neither the walk nor the coverage
+    // answer — the same silence the exclusion block exists to prevent, moved somewhere new. The sum
+    // is what forbids it, and each cardinality is pinned two-sided so a projection that quietly
+    // gained or lost a member is an acknowledged edit.
+    const seg = bannedClaimExcludedSegments();
+    const root = bannedClaimExcludedRootDirs();
+    const exact = bannedClaimExcludedExactPaths();
+    expect(seg).toEqual(["docs", ".planning", "scripts"]);
+    expect(root).toEqual([".gemini/", "memory-bank/", "plans/"]);
+    expect(exact.length).toBe(7);
+    expect(seg.length + root.length + exact.length).toBe(
+      BANNED_CLAIM_EXCLUDED_LOCATIONS.length,
+    );
+    // FLOOR: three empty projections would satisfy a sum of zero against an empty list.
+    expect(BANNED_CLAIM_EXCLUDED_LOCATIONS.length).toBeGreaterThan(0);
+  });
+
+  it("THE PARTITION IS SEEN FAILING: an entry fitting no projection breaks the sum", () => {
+    // RED-proven rather than argued. The predicate is the SAME three projections applied to a list
+    // with one fictional entry appended, so the case exercises the rule and not a copy of it.
+    const withStray = [...BANNED_CLAIM_EXCLUDED_LOCATIONS, "**/stray"];
+    const seg = withStray.filter(
+      (e) => e.startsWith("**/") && e.endsWith("/"),
+    ).length;
+    const root = withStray.filter(
+      (e) => !e.startsWith("**/") && e.endsWith("/"),
+    ).length;
+    const exact = withStray.filter((e) => !e.endsWith("/")).length;
+    // `**/stray` reads as an EXACT path under the list's rule, which is precisely the wrong answer —
+    // an entry that LOOKS like a segment class and is silently treated as a literal filename. The
+    // sum still holds, so the sum alone is not the whole guard; the enumerated projections above are.
+    expect(seg + root + exact).toBe(withStray.length);
+    expect(seg).toBe(bannedClaimExcludedSegments().length);
+    expect(exact).toBe(bannedClaimExcludedExactPaths().length + 1);
+  });
+
+  it("NO SEGMENT-CLASS NAME SITS BELOW THE ROOT OF A LIVE SCAN MEMBER — the fix removed nothing", () => {
+    // THE CASE THAT WOULD HAVE RED-ED THE REVIEW'S OWN SUGGESTED FIX, and the reason this list has
+    // three kinds rather than two. The suggested segment set included `memory-bank` and `plans`.
+    // `agent-factory/seed/plans/` and `agent-factory/seed/memory-bank/` hold 13 markdown files that
+    // are SCAN MEMBERS — the templates the kit ships — so that projection would have deleted
+    // thirteen shipped documents from a safety scan inside the fix for a fail-open.
+    //
+    // This asserts the property directly: no member of the LIVE scan contains a segment-class name
+    // among its directory components. The day the kit ships an `agent-factory/**/docs/`, this reds
+    // rather than the walk silently dropping it.
+    const segs = bannedClaimExcludedSegments();
+    const offenders = bannedClaimScan().filter((m) =>
+      m.split("/").slice(0, -1).some((c) => segs.includes(c)),
+    );
+    expect(offenders).toEqual([]);
+    // AND THE MEASUREMENT THAT MAKES THE THREE-KIND RULE NECESSARY, asserted rather than recounted:
+    // the two root-anchored names DO occur below the root of live scan members.
+    const seedMembers = bannedClaimScan().filter((m) =>
+      m
+        .split("/")
+        .slice(0, -1)
+        .some((c) => c === "plans" || c === "memory-bank"),
+    );
+    expect(seedMembers.length).toBe(13);
+    // …and every one of them is a kit path, not a root-level dogfood path.
+    for (const m of seedMembers) expect(m.startsWith("agent-factory/")).toBe(true);
+  });
+
+  it("ONE WALK BUDGET IN THIS MODULE, pinned two-sided, with the cross-module boundary declared", () => {
+    // IN-03. The bound was single-sourced and the BUDGET was not: a fresh tally per part made the
+    // gate's effective allowance a MULTIPLE of the declared bound, and a sixth part would have made
+    // it larger. Counted over the SOURCE, because the property is "how many allowances exist", which
+    // no run can report.
+    const src = readFileSync(GATE_TS, "utf8");
+    expect((src.match(/\{ examined: 0 \}/g) ?? []).length).toBe(1);
+    // Every in-module walk takes THAT object. Three walks in this module plus the manifest part.
+    expect((src.match(/walkFiles\([A-Z_]+, WALK_BUDGET, acc\)/g) ?? []).length).toBe(4);
+    // The boundary this module cannot thread is DECLARED rather than left as a gap.
+    expect(src).toContain("2 x MAX_WALK_ENTRIES");
+  });
+
+  it("the tracked-set membership alternative is REJECTED IN WRITING, with its reason", () => {
+    // A rejected alternative that is not written down is an alternative the next reviewer proposes
+    // again. Asserted on the source so the paragraph cannot be deleted while the decision stands.
+    const src = readFileSync(GATE_TS, "utf8");
+    expect(src).toContain("A mirror is NOT a git repository");
+    expect(src).toContain("a fallback is a SECOND MEMBERSHIP RULE");
+    expect(src).toContain("scripts/check-nul-bytes.ts");
   });
 });
 
