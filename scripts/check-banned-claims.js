@@ -62,12 +62,35 @@
 //   THIS GATE PROVES that no pinned literal appears outside the one named exemption region.
 //   IT DOES NOT PROVE that no conformance, token-economy or comprehension claim exists.
 //
-// A SECOND, NARROWER RESIDUAL, RECORDED FOR THE SAME REASON. Matching is line-oriented, so a
-// pinned literal HARD-WRAPPED ACROSS A LINE BOUNDARY is not matched. The answer is deliberately NOT
-// to normalize whitespace before comparing: that would make the comparison inexact for every
-// literal in order to reach one wrapping, and an inexact comparison is how a gate starts admitting
-// shapes nobody measured. The literals are short enough to sit on one line, and a reviewer who
-// wraps one mid-token has written something no reader would parse as a claim either.
+// A SECOND, NARROWER RESIDUAL, RECORDED FOR THE SAME REASON — and DIRECTED: FAIL-OPEN. Matching is
+// line-oriented, so a pinned literal HARD-WRAPPED ACROSS A LINE BOUNDARY is not matched. The answer
+// is deliberately NOT to normalize whitespace before comparing: that would make the comparison
+// inexact for every literal in order to reach one wrapping, and an inexact comparison is how a gate
+// starts admitting shapes nobody measured. That refusal stands, and it is not what changed here.
+//
+// WHAT CHANGED IS THE JUSTIFICATION, BECAUSE IT WAS FALSE. This paragraph used to argue that
+// reaching the bypass takes a wrap falling INSIDE a word, which no reader would parse as a claim.
+// It does not. Round 7's code review and round 7's verifier each independently reproduced it with a
+// wrap falling BETWEEN TWO WORDS of a multi-word member — the shape markdown soft-joins back into a
+// fully legible sentence, so a reader sees the claim this gate did not. Measured over this
+// repository's own prose: 757 mid-sentence hard wraps across 2612 adjacent non-blank line pairs in
+// 73 tracked agent-factory markdown files, roughly three pairs in ten. The stated definition of
+// that figure and the command that produced it are in docs/audit/29-round8-residuals.md §4.4. It is
+// the house style, not an exotic authoring act. An accepted bound argued from a false premise is
+// worse than an undisclosed one, so the premise is DELETED rather than softened at this address.
+//
+// THE REACH IS THE DERIVED ONE, NOT THE MULTI-WORD COUNT. 11 of the 22 pinned members are
+// wrap-reachable — 4 of 7 in standard-name, 6 of 7 in token-economy, 1 of 8 in comprehension. It is
+// not 16, which is the multi-word count under another name: a split leaving another pinned member
+// intact on one of the two lines is still matched, which is how the bare terms in this file's list
+// defend their own longer phrasings. LIVE COUNT: 0, measured over the derived corpus rather than
+// asserted. Both derivations are recorded, with their commands, at §4.2 and §4.3 of that record.
+//
+// OPEN, WITH AN ID: V-29-57-01. The named remedy — a SECOND, explicitly named wrap-joined input
+// assembly, asked only of the multi-word members and carrying a per-line index so a finding still
+// reports the ORIGINATING line — is NOT applied here. D-56 declines it for this round: it is new
+// matcher surface against an axis with no live instance, in a phase where each round's fix produced
+// the next round's finding. The axis stays visible and counted rather than closed by a heuristic.
 //
 // agent-factory/writing-profile.md states the same residual in its own prose, in the section this
 // gate exempts, rather than letting a green run imply otherwise.

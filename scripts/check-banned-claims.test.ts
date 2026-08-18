@@ -4213,3 +4213,102 @@ describe("check-banned-claims — the published sentence states the predicate th
     expect(lineIndexesOf(self, `"${SUPERSEDED_OBJECT}"`).length).toBe(1);
   });
 });
+
+// ══════════════════════════════════════════════════════════════════════════════════════════════
+// THE IN-SOURCE RESIDUAL RECORD DESCRIBES THE BYPASS THAT EXISTS (round 8, plan 29-57 — D-56)
+//
+// Round 7's code review and round 7's verifier each independently reproduced the same bypass:
+// `lineHits()` asks each pinned literal of ONE physical line, so a multi-word member split by an
+// ordinary hard wrap is not matched. The matcher is deliberately NOT fixed (D-56) — the axis is 0
+// live and the fix adds a second input assembly in a phase where each round's fix produced the next
+// round's finding. What IS fixed is the source's own justification for accepting the bound, which
+// argued the bypass needed a wrap falling INSIDE a word. The reproduction wraps BETWEEN words, which
+// markdown soft-joins into fully legible prose. An accepted bound argued from a false premise is
+// worse than an undisclosed one, so the false premise is DELETED rather than hedged at the same
+// address — this phase's established remedy for a stale claim.
+//
+// THE SUPERSEDED WRAP-SHAPE WORD IS DECLARED ONCE, HERE, AND WAS CAPTURED FROM THE PRE-EDIT FILE
+// RATHER THAN RETYPED — read out of `scripts/check-banned-claims.ts:65..:70` and independently out
+// of the round-7 review's bolded quotation of that same sentence, the two agreeing. A phrase
+// transcribed from a planning document is a second copy of the thing being policed, living in the
+// file that polices it. Its single-occurrence property in THIS file is asserted below, so a
+// `grep -c` over it counts its declaration and nothing else.
+const SUPERSEDED_WRAP_SHAPE = "mid-token";
+
+/** The residual register id this round opened for the axis; the source must point at it. */
+const HARD_WRAP_RESIDUAL_ID = "V-29-57-01";
+
+describe("check-banned-claims — the in-source residual record names the actual bypass (D-56)", () => {
+  it("SOURCE SHAPE: the residual cross-references the V- id, and the superseded wrap-shape word is gone", () => {
+    const src = readFileSync(GATE_TS, "utf8");
+    // ASSERT THE HARNESS'S OWN PREMISE FIRST. A zero-byte read makes every assertion below pass
+    // vacuously — `includes` on "" is false and a zero occurrence count is exactly what this case
+    // wants to see. This phase produced that false result in six separate instances across four
+    // consecutive rounds, so the premise is asserted rather than assumed.
+    expect(src.length, "the gate source was not read").toBeGreaterThan(1000);
+
+    // THE SECTION IS DERIVED, NOT SLICED AT A LINE NUMBER. The residual record runs from its own
+    // banner to the next docblock rule, and both are read out of the file. A hand-typed line range
+    // would drift silently the first time the paragraph above it grew — this repository's own
+    // set-literal drift class, landing inside a case written to hold a residual in place.
+    const srcLines = src.split("\n");
+    const start = srcLines.findIndex((l) => l.includes("RECORDED RESIDUAL, NOT CLAIMED AWAY"));
+    expect(start, "the residual record's banner is gone from the gate source").toBeGreaterThan(-1);
+    const rel = srcLines.slice(start + 1).findIndex((l) => /^\/\/ -{20,}$/.test(l));
+    expect(rel, "the residual record has no closing rule").toBeGreaterThan(-1);
+    const section = srcLines.slice(start, start + 1 + rel);
+    // THE PREMISE FLOOR IS A VACUITY CHECK AND NOTHING MORE, AND ITS VALUE IS DELIBERATE. A floor
+    // set near the section's actual length would red BEFORE the assertion under test whenever the
+    // section is legitimately shorter — which is exactly what a first draft of this case did against
+    // the pre-edit source, where the section is 20 lines: a "premise" tuned to a number that
+    // collides with the subject stops being a premise and becomes a second, accidental subject. So
+    // the floor only catches an extraction that returned nothing, and the real premise is stated as
+    // CONTENT: the section must contain the sub-residual this case is about.
+    expect(section.length, "the residual section extraction returned nothing").toBeGreaterThan(5);
+    expect(
+      section.join("\n"),
+      "the derived section is not the one carrying the hard-wrap residual",
+    ).toContain("A SECOND, NARROWER RESIDUAL");
+
+    // (1) THE CROSS-REFERENCE, INSIDE THE SECTION. An accepted bound with no id is indistinguishable
+    // from a silent drop to the next reader, which is the whole reason D-56 opened one — and an id
+    // parked elsewhere in the file would not be read by anyone editing this bound.
+    const idAt = lineIndexesOf(section.join("\n"), HARD_WRAP_RESIDUAL_ID);
+    expect(
+      idAt.length,
+      `the residual record does not cross-reference ${HARD_WRAP_RESIDUAL_ID}`,
+    ).toBeGreaterThanOrEqual(1);
+
+    // (2) THE FALSE PREMISE IS GONE, NOT SOFTENED. It described a wrap falling inside a word, which
+    // no reader would parse as a claim — a bound argued from a shape the reproduction does not use.
+    const supersededAt = lineIndexesOf(src, SUPERSEDED_WRAP_SHAPE);
+    expect(
+      supersededAt.length,
+      `the superseded wrap-shape word returned at line(s) ${supersededAt.map((i) => i + 1).join(", ")}`,
+    ).toBe(0);
+
+    // (3) DELETION IS NOT THE POINT EITHER. The residual itself must survive the correction, or
+    // "the false premise is gone" would be satisfiable by deleting the disclosure — a gate that
+    // stops recording what it cannot see is not an improvement on one that misdescribes it. The
+    // two load-bearing halves are the bound itself and the standing refusal of a global
+    // normalization, which is correct and must not be read as licence by a later editor.
+    const residual = section
+      .map((l) => l.replace(/^\/\/ ?/, ""))
+      .join(" ")
+      .replace(/\s+/g, " ")
+      .toLowerCase();
+    expect(residual, "the residual no longer states that matching is line-oriented").toContain(
+      "line-oriented",
+    );
+    expect(residual, "the standing refusal of a global normalization was dropped").toContain(
+      "normalize whitespace",
+    );
+    expect(residual, "the residual no longer names its direction").toContain("fail-open");
+
+    // (4) THE CONSTANTS THIS CASE POLICES WITH ARE DECLARED EXACTLY ONCE IN THIS FILE, so the
+    // `grep -c` evidence in the plan's acceptance criteria reads the number it names.
+    const self = readFileSync(new URL(import.meta.url), "utf8");
+    expect(lineIndexesOf(self, `"${SUPERSEDED_WRAP_SHAPE}"`).length).toBe(1);
+    expect(lineIndexesOf(self, `"${HARD_WRAP_RESIDUAL_ID}"`).length).toBe(1);
+  });
+});
