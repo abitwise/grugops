@@ -156,6 +156,23 @@ import {
   unfencedHeadingIndex,
   sectionEndIndex,
 } from "./frontmatter.js";
+// ── THE CONTENT BOUND ON THE ONE CARVE-OUT (plan 29-52, D-54 / round-6 CR-01) ───────────────────
+//
+// THE ANCHORED BLOCK IS ASKED OF THE AUTHORITY, NEVER RE-DERIVED HERE. Plan 29-51 moved the anchor
+// grammar, the line assembly and the extent-and-byte-identity function into audit-model so both
+// gates ask ONE question of ONE implementation. This gate declares no anchor grammar of its own and
+// performs no byte comparison of its own; it CONSUMES the verdict `anchoredBlockAt` returns. A copy
+// here would be the duplicate-grammar defect this milestone has closed three times.
+//
+// `readRegistry` THROWS on an unparseable registry and this gate is a GATE, so the call is wrapped
+// and the message REPORTED (the kit-model throw-versus-report split, and the WR-05 lesson about a
+// refusal raised in an imported module that neither runner reports).
+import {
+  readRegistry,
+  scanAnchoredDocument,
+  anchoredBlockAt,
+  type ClaimRow,
+} from "./audit-model.js";
 
 // CHECK_ROOT override is load-bearing: the Vitest harness builds a hermetic mirror and points
 // CHECK_ROOT at it, then spawns this committed .js against the mirror. When unset, resolve every
@@ -1139,6 +1156,255 @@ export function locateExemptRegion(
   return { headingAt, endBefore };
 }
 
+// ================================================================================================
+// THE CONTENT BOUND — plan 29-52, D-54, closing round-6 CR-01.
+//
+// WHAT WAS WRONG, MEASURED RATHER THAN ARGUED. `BANNED_CLAIM_EXEMPT_REGION` was pinned by two
+// CARDINALITIES and by nothing else: how many occurrences it lifts, and how far it reaches. Nothing
+// pinned what was WRITTEN inside it. Reproduced independently by the round-6 reviewer and the
+// round-6 verifier on `git archive HEAD` mirrors with sha256-verified gate binaries, and reproduced
+// a third time by this plan before a line of it was written: swapping the honest comprehension
+// denial for the live assertion — `There is no evidence that controlled language improves
+// comprehension...` for `Measurement shows that controlled language improves comprehension...` —
+// leaves `suppressed` at exactly 14 and `extent` at exactly 66, and the gate exits 0 with the
+// profile never named. The same holds for the token-economy denial. The wholesale form is worse:
+// replacing the region's entire body with banned claims plus filler ALSO holds both pins and exits
+// 0 here, and the only thing that reds is a verbatim freeze on two paragraphs owned by a DIFFERENT
+// gate. A carve-out whose only content bound lives in another gate is a carve-out this gate cannot
+// speak for.
+//
+// WHY A SEVENTH PIN WAS REFUSED. Four residuals stand on this axis — CR-01, `V-29-47-02` (the region
+// unbounded at the bottom), `V-29-47-03` (its position pinned by nothing) and `V-29-32-01` (a
+// closed-fence count-preserving swallow) — and all four exist because the carve-out is defined by
+// POSITION OVER A CARDINALITY. Six rounds of one-more-pin is what failed here. A CONTENT bound is
+// invariant under translation and needs no bottom boundary, so it SUBSUMES the other three rather
+// than adding a fifth beside them.
+//
+// WHAT DID NOT CHANGE, STATED SO THIS IS NOT READ AS A LICENCE. The matcher is byte-identical. No
+// lexical axis returns: no verb list, no subject list, no co-occurrence window, no conditional field
+// on `BannedClaimLiteral`. D-48's three forbidden weakenings — no fenced-block skip, no
+// whole-word-only match, no below-a-marker skip — stay forbidden, and D-53's deletion of the
+// conditional mechanism is not partially undone to make a denial writable. The region is STILL
+// positional; a line outside it is still never exempt. AND NO DIGEST IS TAKEN OVER THE WHOLE
+// DOCUMENT: this module has already reasoned that a frozen digest over a document authors
+// legitimately edit is a false-red generator rather than a pin, so the frozen surface is the union
+// of registry-anchored blocks and nothing else. The rest of the disclaimer stays freely editable.
+//
+// THE COST, ACCEPTED WITH D-54 RATHER THAN DISCOVERED LATER: editing a denial sentence inside the
+// region is now a TWO-FILE change under D-04 — the prose and its registry row, in the SAME commit,
+// with no override tier.
+// ================================================================================================
+
+/**
+ * How many registry-anchored blocks sit inside the one named exemption region. TWO-SIDED.
+ *
+ * WHAT MOVES IT: a registry row naming the exemption document whose anchor falls inside the region
+ * being ADDED or REMOVED, and nothing else. It is a function of exactly which rows anchor inside the
+ * region — not of the document's length, not of how many occurrences the region carries, and not of
+ * how many anchors the document carries in total (four of this document's eight sit ABOVE the
+ * region and are correctly excluded).
+ *
+ * MOVING IT IS HOW A DELIBERATE CHANGE IS ACKNOWLEDGED AND NEVER HOW A FAILURE IS CLEARED. A row
+ * dropped from the registry already reds LOUDLY through the conjunction below — its block's lines
+ * stop being exempt and their occurrences become findings at file:line:column. This pin is the OTHER
+ * direction: a row silently ADDED inside the region WIDENS the frozen-and-therefore-exempt surface,
+ * and a widened safety exemption that nothing counts is precisely the shape round 2 shipped when
+ * this region grew from four exempt lines to nine without anything noticing.
+ *
+ * WHY IT IS NOT A SET LITERAL. The BLOCKS are DERIVED — from the registry rows, through the
+ * authority, filtered by the region's own indices. This constant is a CARDINALITY over that
+ * derivation, which is the shape D-25 admits and the shape this repository's set-literal-drift class
+ * is not: a hand-listed array of exempt claim ids would rot while green, inside the fix for the
+ * other systemic failure. A case asserts that no such array exists in this file.
+ */
+export const BANNED_CLAIM_EXEMPT_ANCHORS = 6;
+
+/** The frozen, anchored, registry-backed line set inside the region, with the refusals it raised. */
+export interface ExemptBlockSet {
+  /** 0-based indices into the exemption document's line array. Exempt lines and nothing else. */
+  readonly lines: ReadonlySet<number>;
+  /** The ids of the blocks that were found inside the region, in document order. */
+  readonly ids: readonly string[];
+  /** The ids whose bytes DIVERGED from their registry row. Their lines are NOT in `lines`. */
+  readonly diverged: readonly string[];
+  /** Named refusals. Collected rather than thrown: this is a GATE, and a gate REPORTS. */
+  readonly refusals: readonly string[];
+}
+
+/**
+ * Which lines inside the region are FROZEN — anchored to a registry row whose bytes still match.
+ *
+ * THE DERIVATION, IN ONE SENTENCE: take the registry's rows that name the exemption document, ask
+ * the authority where each one's anchor sits and whether its bytes still match, keep the ones whose
+ * ANCHOR falls inside the located region, and return the union of the surviving blocks' extents.
+ * There is no step in that chain that a human types.
+ *
+ * THE INPUT'S BOUND, NAMED BECAUSE THIS PHASE HAS PAID FOR NOT NAMING IT. The indices this function
+ * returns are spent against the CALLER'S line array, and the authority assembles its own. The two
+ * rules differ by exactly one element — the authority POPS the empty element a terminating newline
+ * produces and `split("\n")` does not — so the premise is ASSERTED elementwise here rather than
+ * assumed from plan 29-51's measurement, which was a measurement of one tree on one day.
+ *
+ * THE FAIL DIRECTION IS CLOSED IN EVERY ARM. An unreadable registry, a sheared assembly, a diverged
+ * block and an anchor with no row all REMOVE lines from the exempt set, so the prohibition applies to
+ * MORE bytes and never to fewer. Nothing here can widen the carve-out by failing.
+ */
+export function deriveExemptBlocks(
+  root: string,
+  exemptText: string,
+  callerLines: readonly string[],
+  region: ExemptRegion,
+): ExemptBlockSet {
+  const refusals: string[] = [];
+  const empty = (): ExemptBlockSet => ({
+    lines: new Set<number>(),
+    ids: [],
+    diverged: [],
+    refusals,
+  });
+
+  let claims: readonly ClaimRow[];
+  try {
+    claims = readRegistry(root).claims;
+  } catch (e) {
+    refusals.push(
+      `the claim registry could not be parsed, so NO line inside the one named exemption region is ` +
+        `frozen and NO line inside it is exempt — every occurrence in the region is reported below. ` +
+        `That is the fail-CLOSED direction and it is deliberate: an unreadable registry is not an ` +
+        `empty one, and a carve-out whose content bound cannot be read is a carve-out with no ` +
+        `content bound. The parse said: ${(e as Error).message}`,
+    );
+    return empty();
+  }
+
+  const scan = scanAnchoredDocument(exemptText);
+
+  // ── THE COORDINATE PREMISE, ASSERTED ELEMENTWISE RATHER THAN INHERITED ──────────────────────
+  //
+  // The authority's assembly may legally be ONE element shorter than the caller's (the popped
+  // terminator) and must otherwise agree element for element. Anything else means the two arrays are
+  // not the same document, and every index traded between them would name a different line — the
+  // coordinate shear `locateExemptRegion`'s own length refusal exists to make unreachable, arriving
+  // one module over. Refused rather than reconciled: reconciling picks a winner between two
+  // assemblies of one document, which is a second grammar with extra steps.
+  if (
+    scan.lines.length !== callerLines.length &&
+    scan.lines.length !== callerLines.length - 1
+  ) {
+    refusals.push(
+      `the exemption document assembles into ${callerLines.length} line(s) for this gate and ` +
+        `${scan.lines.length} for the anchored-block authority. The two may differ by at most the ` +
+        `one empty element a terminating newline produces, and these differ by ` +
+        `${Math.abs(callerLines.length - scan.lines.length)}. Every block extent below is spent ` +
+        `against THIS gate's array, so the two must be the same array; refusing rather than ` +
+        `exempting lines measured in one coordinate system and applied in another`,
+    );
+    return empty();
+  }
+  for (let i = 0; i < scan.lines.length; i++) {
+    if (scan.lines[i] !== callerLines[i]) {
+      refusals.push(
+        `the exemption document's two assemblies first disagree at index ${i}: the authority reads ` +
+          `${JSON.stringify(scan.lines[i])} and this gate reads ` +
+          `${JSON.stringify(callerLines[i])}. A length that matches is not an array that matches, ` +
+          `and an index traded between two documents that merely have the same shape names a ` +
+          `different line in each. Refusing rather than exempting`,
+      );
+      return empty();
+    }
+  }
+
+  // The rows that name the exemption document, keyed by id. A row naming any OTHER file freezes
+  // bytes in that file and has no bearing on this region.
+  const rows = new Map<string, ClaimRow>();
+  for (const c of claims) {
+    if (c.file === BANNED_CLAIM_EXEMPT_REGION.file) rows.set(c.id, c);
+  }
+
+  const ids: string[] = [];
+  const diverged: string[] = [];
+  const lines = new Set<number>();
+  for (const anchor of scan.anchors) {
+    // OUTSIDE THE REGION IS NOT THIS FUNCTION'S SUBJECT. Four of this document's eight anchors sit
+    // above the region; they freeze bytes for check-claim-anchors and they exempt nothing here,
+    // because a line outside the region is never exempt however well frozen it is.
+    if (anchor.index < region.headingAt || anchor.index >= region.endBefore) {
+      continue;
+    }
+    const row = rows.get(anchor.id);
+    if (row === undefined) {
+      // AN ANCHOR WITH NO ROW FREEZES NOTHING, and saying so is not the same as ignoring it. The
+      // anchors gate refuses this shape by name (its bijection); here the consequence is simply
+      // that the bytes beneath it are NOT exempt, which is the fail-closed direction, and the
+      // cardinality assertion below reports the shortfall.
+      continue;
+    }
+    let block;
+    try {
+      block = anchoredBlockAt(scan, anchor, row.verbatim);
+    } catch (e) {
+      // A blank verbatim. `readRegistry` refuses it at parse time and strictly dominates this arm,
+      // so it is a CONTRACT GUARD with zero live call paths — kept because a stack trace is not a
+      // verdict and this gate has committed to producing one.
+      refusals.push(
+        `${anchor.id}'s anchored block could not be measured (${(e as Error).message}), so its ` +
+          `lines are NOT exempt and its occurrences are reported below`,
+      );
+      continue;
+    }
+    ids.push(block.id);
+    if (!block.matches) {
+      diverged.push(block.id);
+      continue;
+    }
+    for (let i = block.start; i < block.end; i++) lines.add(i);
+  }
+
+  // ── THE EMPTY CASE IS DECIDED, NOT DISCOVERED ───────────────────────────────────────────────
+  //
+  // A located region with ZERO anchored blocks inside it is neither a total exemption nor an empty
+  // one — it is a carve-out that READS as live and freezes nothing, and under the conjunction it
+  // would suppress nothing while both cardinality pins went on being satisfiable by a document that
+  // exempts no line at all. Named here rather than left to the cardinality assertion below, because
+  // "6 expected, 0 found" states an arithmetic disagreement and this states what is actually wrong.
+  //
+  // A VACUITY FLOOR CATCHES AN EMPTY SET AND NEVER A SILENTLY SHORT ONE. That is what the two-sided
+  // count below is for, and it is why both exist.
+  if (ids.length === 0) {
+    refusals.push(
+      `the one named exemption region \`${BANNED_CLAIM_EXEMPT_REGION.file}\` § ` +
+        `\`${BANNED_CLAIM_EXEMPT_REGION.heading}\` is LOCATED and contains ZERO registry-anchored ` +
+        `block(s). An exemption with no frozen block inside it exempts nothing while still reading ` +
+        `as a live carve-out, and both of this region's cardinality pins would then be satisfiable ` +
+        `by a document that suppresses nothing. Restore the anchors, or delete the exemption; do ` +
+        `not lower BANNED_CLAIM_EXEMPT_ANCHORS to ${ids.length}`,
+    );
+  } else if (ids.length !== BANNED_CLAIM_EXEMPT_ANCHORS) {
+    refusals.push(
+      `the one named exemption region contains ${ids.length} registry-anchored block(s) ` +
+        `[${ids.join(", ")}], and BANNED_CLAIM_EXEMPT_ANCHORS in scripts/check-banned-claims.ts ` +
+        `declares ${BANNED_CLAIM_EXEMPT_ANCHORS}. A block ADDED widens the frozen-and-therefore-` +
+        `exempt surface of a safety carve-out, and a block REMOVED narrows it — the second already ` +
+        `reds through the findings below, and this is what names the first. Say in the commit which ` +
+        `registry row entered or left the region, then move the constant; do not move the constant ` +
+        `to make this line go away`,
+    );
+  }
+
+  for (const id of diverged) {
+    refusals.push(
+      `${id}'s anchored block inside the one named exemption region no longer matches its registry ` +
+        `row in \`docs/audit/28-claim-registry.md\` byte for byte, so its lines are NOT exempt and ` +
+        `every banned-claim occurrence on them is reported below. The CAUSE and the SYMPTOM are ` +
+        `both here on purpose: a finding whose reason lives in another gate's output is a finding ` +
+        `the reader has to go looking for. If the prose change is correct, update ${id}'s verbatim ` +
+        `in the SAME commit (D-01(a) / D-04, no override tier); if it is not, restore the bytes`,
+    );
+  }
+
+  return { lines, ids, diverged, refusals };
+}
+
 /**
  * How many banned-claim occurrences the one named exemption region lifts the prohibition on, today.
  *
@@ -1220,6 +1486,35 @@ export function locateExemptRegion(
  * ------------------------------------------------------------------------------------------------
  */
 export const BANNED_CLAIM_EXEMPT_SUPPRESSED = 14;
+
+/**
+ * The SAME total, broken out by group. A SECONDARY MEASURE, and this paragraph says what it is not.
+ *
+ * WHAT IT DOES. `BANNED_CLAIM_EXEMPT_SUPPRESSED` is one integer, so any substitution that preserves
+ * the occurrence count passes it — including one that swaps a `comprehension` denial for a
+ * `token-economy` assertion. Pinning the COMPOSITION reduces the admissible substitution class from
+ * ANY-GROUP to SAME-GROUP.
+ *
+ * WHAT IT DOES NOT DO, STATED WITHOUT HEDGING BECAUSE THE ROUND-6 REVIEW SAYS SO EXPLICITLY: IT
+ * DOES NOT CLOSE CR-01. A same-group substitution — the honest comprehension denial replaced by a
+ * live comprehension claim, which is the exact plant both round-6 passes reproduced — moves neither
+ * this breakdown nor the total. What closes CR-01 is `deriveExemptBlocks` above and the frozen-block
+ * conjunction in `runAll`: a line lifts the prohibition only if its BYTES are frozen. This pin sits
+ * beside that fix and is not it. A secondary measure presented as the fix is how a round ships a
+ * heuristic wearing a structural fix's clothes.
+ *
+ * ITS VALUES ARE TAKEN FROM THE RUN, never from a plan document: the gate's own PASS line reported
+ * `standard-name 8, token-economy 2, comprehension 4` on the live tree, and the sum is asserted
+ * against `BANNED_CLAIM_EXEMPT_SUPPRESSED` so the two numbers cannot drift apart.
+ */
+export const BANNED_CLAIM_EXEMPT_COMPOSITION: readonly {
+  readonly group: BannedClaimGroup;
+  readonly count: number;
+}[] = [
+  { group: "standard-name", count: 8 },
+  { group: "token-economy", count: 2 },
+  { group: "comprehension", count: 4 },
+];
 
 /**
  * How far the one named exemption region REACHES, in lines — `endBefore - headingAt`.
@@ -1307,6 +1602,14 @@ interface Finding {
   readonly literal: string;
   readonly group: BannedClaimGroup;
   readonly text: string;
+  /**
+   * (Plan 29-52, D-54) An overriding remedy, for the one finding class whose default remedy is
+   * wrong. "Delete the claim" is right everywhere in the corpus except INSIDE the exemption region,
+   * where a denial sentence is the thing that is supposed to be there — what is wrong is that its
+   * bytes are not frozen. A remedy that tells an author to delete the disclaimer would be this
+   * gate's own advice defeating the reason the exemption exists.
+   */
+  readonly remedy?: string;
 }
 
 /**
@@ -1404,11 +1707,28 @@ function renderFinding(f: Finding): string {
   return (
     `        ${f.file}:${f.line}:${f.column} — banned ${f.group} literal "${f.literal}" — ` +
     `${JSON.stringify(f.text)}\n` +
-    `        Remedy: delete the claim. Do NOT add an exemption and do NOT narrow the scan set: ` +
-    `there is exactly one named exemption region and BANNED_CLAIM_SCAN_COUNT is two-sided pinned, ` +
-    `precisely so neither route to green is available`
+    `        Remedy: ${
+      f.remedy ??
+      `delete the claim. Do NOT add an exemption and do NOT narrow the scan set: ` +
+        `there is exactly one named exemption region and BANNED_CLAIM_SCAN_COUNT is two-sided ` +
+        `pinned, precisely so neither route to green is available`
+    }`
   );
 }
+
+/**
+ * The remedy for an occurrence INSIDE the region and OUTSIDE every frozen block (plan 29-52, D-54).
+ *
+ * THE FAIL-CLOSED DIRECTION, WRITTEN OUT RATHER THAN LEFT TO BE INFERRED. Under the conjunction, an
+ * unfrozen line inside the carve-out is REPORTED. That is deliberate and it is the safe direction:
+ * the alternative — exempting a line nothing freezes — is the hole this closes.
+ */
+const UNFROZEN_IN_REGION_REMEDY =
+  `this line is INSIDE the one named exemption region and OUTSIDE every registry-anchored block, ` +
+  `so it is not exempt. A denial belongs inside an anchored block with a row in ` +
+  `docs/audit/28-claim-registry.md, never in an unanchored line of the region: add the anchor and ` +
+  `its row in the SAME commit (D-01(a) / D-04), or delete the claim. Do NOT widen the region and do ` +
+  `NOT relax the freeze — a carve-out bounded only by POSITION is the defect this conjunction closes`;
 
 function runAll(): void {
   process.stdout.write(
@@ -1537,6 +1857,28 @@ function runAll(): void {
     }
   }
 
+  // ── THE CONTENT BOUND, DERIVED ONCE AND OVER THE SAME ASSEMBLY (plan 29-52, D-54) ──────────────
+  //
+  // Derived here rather than inside the loop for the same reason the region is: a derivation inside
+  // the loop could only run while the exempt file was a member of the scan, so a vanished document
+  // would skip every one of its refusals. It is derived over `exemptText.split("\n")` — the SAME
+  // array `locateExemptRegion` was handed and the SAME array the loop spends the indices against.
+  let exemptBlocks: ExemptBlockSet | null = null;
+  if (exemptReadOk && exemptRegion !== null) {
+    exemptBlocks = deriveExemptBlocks(
+      ROOT,
+      exemptText,
+      exemptText.split("\n"),
+      exemptRegion,
+    );
+    for (const r of exemptBlocks.refusals) fail(r);
+  }
+  // FAIL-CLOSED WHEN THE DERIVATION DID NOT HAPPEN. An empty set exempts nothing, so every
+  // occurrence inside the region is reported. There is no path on which a failure here widens the
+  // carve-out.
+  const exemptLineSet: ReadonlySet<number> =
+    exemptBlocks?.lines ?? new Set<number>();
+
   // The findings, in derived-sorted scan order, then by line, then by literal declaration order.
   const findings: Finding[] = [];
   let visited = 0;
@@ -1589,8 +1931,23 @@ function runAll(): void {
       // The matcher runs on EVERY line, including exempt ones. An exempt line that skipped it would
       // be an exemption whose reach nothing could measure, which is a hole with a comment on it.
       const hits = lineHits(lines[i]);
-      if (region !== null && i >= region.headingAt && i < region.endBefore) {
-        suppressed += hits.length; // inside the one named exemption region
+      // ── THE CARVE-OUT'S TWO HALVES, CONJOINED (plan 29-52, D-54) ───────────────────────────
+      //
+      // THE POSITIONAL HALF — `inRegion` — is what D-48 and D-53 decided, unchanged: the region is a
+      // file, a section and a reason, and a line outside it is never exempt.
+      //
+      // THE CONTENT HALF — `exemptLineSet.has(i)` — is what round-6 CR-01 showed the positional half
+      // lacks: the line's bytes must sit inside a registry-anchored block that still matches its row.
+      // Neither half is sufficient. The region says WHERE a denial may be written; the freeze says
+      // WHICH BYTES were reviewed when the exemption was granted.
+      //
+      // THE CONSEQUENCE, NAMED RATHER THAN LEFT TO BE INFERRED: an occurrence inside the region and
+      // outside every frozen block is REPORTED, with `UNFROZEN_IN_REGION_REMEDY`. That is the
+      // fail-closed direction — the alternative is exempting a line nothing froze, which is the hole.
+      const inRegion =
+        region !== null && i >= region.headingAt && i < region.endBefore;
+      if (inRegion && exemptLineSet.has(i)) {
+        suppressed += hits.length; // inside the region AND inside a frozen anchored block
         // The projection, off the SAME `hits` array — not a re-read of the line.
         for (const h of hits) {
           suppressedByGroup.set(
@@ -1608,6 +1965,7 @@ function runAll(): void {
           literal: h.member.literal,
           group: h.member.group,
           text: lines[i].trim(),
+          ...(inRegion ? { remedy: UNFROZEN_IN_REGION_REMEDY } : {}),
         });
       }
     }
@@ -1630,6 +1988,40 @@ function runAll(): void {
         `claim entered or left it, and then move the constant; do not move the constant to make ` +
         `this line go away`,
     );
+  }
+
+  // ── THE COMPOSITION PIN — A SECONDARY MEASURE, NOT THE FIX (plan 29-52, D-54) ────────────────
+  //
+  // Two-sided per group, and the SUM is asserted against the total so the two numbers cannot drift
+  // apart. Its limitation is written at its declaration and is repeated here in one line because a
+  // reader meets the assertion before the constant: this narrows the admissible substitution class
+  // from any-group to same-group, and the thing that closes CR-01 is the frozen-block conjunction in
+  // the loop above.
+  if (exemptRegion !== null) {
+    let declaredSum = 0;
+    for (const c of BANNED_CLAIM_EXEMPT_COMPOSITION) {
+      declaredSum += c.count;
+      const live = suppressedByGroup.get(c.group) ?? 0;
+      if (live !== c.count) {
+        fail(
+          `the one named exemption region suppressed ${live} \`${c.group}\` occurrence(s), and ` +
+            `BANNED_CLAIM_EXEMPT_COMPOSITION in scripts/check-banned-claims.ts declares ` +
+            `${c.count}. This pin is a SECONDARY measure: it reduces the substitution class from ` +
+            `any-group to same-group and does NOT close CR-01 — a same-group swap moves neither ` +
+            `this number nor the total, which is why the frozen-block conjunction exists. Say in ` +
+            `the commit which claim entered or left this group, then move the entry`,
+        );
+      }
+    }
+    if (declaredSum !== BANNED_CLAIM_EXEMPT_SUPPRESSED) {
+      fail(
+        `BANNED_CLAIM_EXEMPT_COMPOSITION sums to ${declaredSum} and ` +
+          `BANNED_CLAIM_EXEMPT_SUPPRESSED declares ${BANNED_CLAIM_EXEMPT_SUPPRESSED}. A breakdown ` +
+          `that loses a group takes that group's occurrences out of the measurement with it and ` +
+          `every remaining per-group equality still holds — the set-literal-drift class one level ` +
+          `up. Walk the groups before treating either number as the one to move`,
+      );
+    }
   }
 
   // ── THE REGION'S BOUNDARY MUST NOT HAVE BEEN DECIDED BY AN UNCLOSED FENCE ────────────────────
@@ -1753,6 +2145,16 @@ function runAll(): void {
         `${exemptExtent} line(s), pinned at ${BANNED_CLAIM_EXEMPT_EXTENT} (two numbers, two ` +
         `questions: how much prohibition the region lifts, and how far it reaches — a section ` +
         `swallowed into it moves only the second); ` +
+        // THE THIRD NUMBER, ANSWERING THE QUESTION NEITHER CARDINALITY ASKS (plan 29-52, D-54):
+        // WHICH BYTES. Published for the same reason the breakdown above is — a content bound
+        // nobody can see is a bound a reader has to trust — and it is what makes the sentence at
+        // the head of this run true of any tree it passes.
+        `every suppressed occurrence sits inside one of ${exemptBlocks?.ids.length ?? 0} ` +
+        `registry-anchored block(s) [${(exemptBlocks?.ids ?? []).join(", ")}] frozen byte-for-byte ` +
+        `against docs/audit/28-claim-registry.md, pinned at ${BANNED_CLAIM_EXEMPT_ANCHORS}, ` +
+        `covering ${exemptLineSet.size} of the region's ${exemptExtent} line(s) — the other ` +
+        `${exemptExtent - exemptLineSet.size} stay freely editable and are SCANNED, so a claim ` +
+        `written on one of them is a finding (the carve-out is bounded in POSITION and in CONTENT); ` +
         `${BANNED_CLAIM_EXCLUDED.length} candidate ` +
         `literal(s) refused at admission and recorded with their hit counts`,
     );

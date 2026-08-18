@@ -61,6 +61,15 @@ import {
   unfencedHeadingIndex,
   sectionEndIndex,
 } from "./frontmatter.js";
+// (Plan 29-52, D-54) The expected side of the composition case is assembled from the REGISTRY and
+// the anchored-block AUTHORITY — a route that shares no statement with the run's own loop. The case
+// it replaces folded the same counter over the same range the loop walks, so both sides moved
+// together and the equality could not fail.
+import {
+  readRegistry,
+  scanAnchoredDocument,
+  anchoredBlockAt,
+} from "./audit-model.js";
 import {
   BANNED_CLAIM_LITERALS,
   BANNED_CLAIM_SCAN_COUNT,
@@ -81,6 +90,10 @@ import {
   // second published number beside the reach, answering a question the reach cannot: a section
   // swallowed into the exemption carrying NO banned claim moves this and nothing else.
   BANNED_CLAIM_EXEMPT_EXTENT,
+  // (Plan 29-52, D-54) The CONTENT bound on the one carve-out: how many registry-anchored blocks
+  // sit inside the region, and the per-group composition of the total it suppresses.
+  BANNED_CLAIM_EXEMPT_ANCHORS,
+  BANNED_CLAIM_EXEMPT_COMPOSITION,
   countBannedClaimOccurrences,
   // (Round 6, plan 29-45 — WR-01) The per-group projection of the same measurement, and the named
   // value a `hits` field carries when the candidate was refused without a scan (IN-01).
@@ -403,6 +416,117 @@ const DEFAULT_CLAUDE_ADAPTERS = [
  */
 const REACH_FILLER = `The profile makes no ${TOKEN_CLAIM.literal} claim of any kind.`;
 
+// ── THE MIRROR'S CONTENT BOUND (plan 29-52, D-54) ─────────────────────────────────────────────
+//
+// WHY THE MIRROR GREW A CLAIM REGISTRY. D-54 conjoins the suppression with membership of a
+// registry-anchored, byte-frozen block, so a mirror carrying an exemption region and NO registry
+// exempts nothing — every one of this file's region-scoped cases would red for a reason that has
+// nothing to do with the case. The harness's own recorded principle applies: a fixture that cannot
+// express the live distribution cannot express the defect either.
+//
+// THE MIRROR'S REGISTRY IS DERIVED FROM THE DOCUMENT THE MIRROR ACTUALLY WRITES, so an ordinary
+// fixture is frozen-consistent by construction and a case that wants a DIVERGENCE asks for it by
+// name through `registryFrozenOn`. That parameter is the CR-01 reproduction's whole mechanism: the
+// registry freezes the clean bytes, the document carries the substituted ones.
+//
+// THE BLOCK GRAMMAR THE MIRROR USES, stated once so `mirrorRegistry` and `profileDoc` cannot come
+// to disagree: an anchor line is `<!-- claim: C-28-NNN -->`, and its block runs from the line below
+// it up to — and not including — the next anchor, the next BLANK line, or end of file. `profileDoc`
+// emits blocks that terminate that way on purpose.
+// ── THE REGION'S FILL IS NOW PER GROUP (plan 29-52, D-54) ─────────────────────────────────────
+//
+// `BANNED_CLAIM_EXEMPT_COMPOSITION` pins the suppressed total's BREAKDOWN two-sided, so a mirror
+// that reached the total with fourteen occurrences of ONE group would red on every case in this
+// file. One single-occurrence filler per group, and the "single occurrence" half is ASSERTED rather
+// than eyeballed: each filler is measured through the gate's own group tally at module load, so a
+// filler that silently gained a second occurrence — the bare `comprehension` term is a substring of
+// three enumerated ones — fails loudly here instead of shifting a distribution somewhere below.
+const GROUP_FILLER: Readonly<Record<string, string>> = {
+  "standard-name": `The profile denies conforming to ${DISCIPLINE_NAME.literal}.`,
+  "token-economy": REACH_FILLER,
+  comprehension: `The profile claims no ${BARE_COMPREHENSION.literal} win.`,
+};
+for (const [group, text] of Object.entries(GROUP_FILLER)) {
+  const tally = bannedClaimGroupTally([text], 0, 1);
+  const total = Object.values(tally).reduce((a, b) => a + b, 0);
+  if (total !== 1 || tally[group] !== 1) {
+    throw new Error(
+      `check-banned-claims.test.ts: the \`${group}\` region filler carries ${total} occurrence(s) ` +
+        `(${JSON.stringify(tally)}), expected exactly one and in its own group. Every per-group ` +
+        `arithmetic in this file counts these one at a time.`,
+    );
+  }
+}
+
+const MIRROR_ANCHOR_RE = /^<!-- claim: (C-28-\d{3}) -->$/;
+/** A line inside the region that carries no banned-claim occurrence. Pads the anchor count. */
+const MIRROR_NEUTRAL = "The profile records what it measured and nothing more.";
+/** The baseline row, so a registry always parses even for a mirror whose profile has no anchors. */
+const MIRROR_BASELINE_ID = "C-28-900";
+const MIRROR_BASELINE_VERBATIM = "A baseline claim outside the exemption document.";
+
+function mirrorAnchorId(n: number): string {
+  return `<!-- claim: C-28-${String(n).padStart(3, "0")} -->`;
+}
+
+/**
+ * Synthesize the mirror's claim registry from a profile document, freezing every anchored block.
+ *
+ * THE ROWS ARE DERIVED FROM THE DOCUMENT'S OWN ANCHORS — never listed — for the same reason the
+ * gate derives its exempt set: a hand-listed fixture registry would drift out of step with the
+ * fixture document the first time either moved, which is the set-literal-drift class landing inside
+ * the harness that polices it.
+ */
+function mirrorRegistry(profileText: string): string {
+  const lines = profileText.split("\n");
+  const rows: { id: string; verbatim: string }[] = [
+    { id: MIRROR_BASELINE_ID, verbatim: MIRROR_BASELINE_VERBATIM },
+  ];
+  for (let i = 0; i < lines.length; i++) {
+    const m = MIRROR_ANCHOR_RE.exec(lines[i]);
+    if (m === null) continue;
+    const block: string[] = [];
+    for (let j = i + 1; j < lines.length; j++) {
+      if (lines[j].trim() === "" || MIRROR_ANCHOR_RE.test(lines[j])) break;
+      block.push(lines[j]);
+    }
+    if (block.length === 0) {
+      throw new Error(
+        `check-banned-claims.test.ts: the mirror's anchor ${m[1]} is followed by no block line. A ` +
+          `registry row with a blank verbatim freezes nothing and readRegistry refuses it, so this ` +
+          `fixture would red for a reason that has nothing to do with its case.`,
+      );
+    }
+    if (block.some((l) => /^```/.test(l))) {
+      throw new Error(
+        `check-banned-claims.test.ts: the mirror's anchor ${m[1]} covers a fence delimiter line. ` +
+          `The registry's own fence-parity refusal counts delimiters over the WHOLE file, so a ` +
+          `verbatim carrying one makes the synthesized registry unparseable.`,
+      );
+    }
+    rows.push({ id: m[1], verbatim: block.join("\n") });
+  }
+  const out = ["# The mirror's claim registry", ""];
+  for (const r of rows) {
+    out.push(
+      `### ${r.id}`,
+      "",
+      `- file: ${r.id === MIRROR_BASELINE_ID ? "README.md" : PROFILE}`,
+      "- line: 1",
+      "- kind: architecture",
+      "- depends_on: —",
+      "- status: true",
+      "- mechanism: synthesized by the hermetic harness; frozen against the mirror's own bytes.",
+      "",
+      "```",
+      r.verbatim,
+      "```",
+      "",
+    );
+  }
+  return out.join("\n");
+}
+
 /**
  * The profile document the mirror ships, with its exemption region.
  *
@@ -430,6 +554,12 @@ function profileDoc(opts: {
    * whose whole subject is missing the extent by one asks for it explicitly.
    */
   extent?: number;
+  /**
+   * (Plan 29-52, D-54) Registry-anchored blocks to leave INSIDE the region. Defaults to the gate's
+   * declared pin, so every mirror sits on it; a case whose whole subject is missing it asks
+   * explicitly, and `0` is the empty-exempt-block-set construction.
+   */
+  anchors?: number;
 } = {}): string {
   const heading = BANNED_CLAIM_EXEMPT_REGION.heading;
   const out = [
@@ -450,11 +580,97 @@ function profileDoc(opts: {
     0,
     (opts.reach ?? BANNED_CLAIM_EXEMPT_SUPPRESSED) - already,
   );
+  // ── THE FILL, PROJECTED BY GROUP (plan 29-52, D-54) ──────────────────────────────────────────
+  //
+  // The composition pin is two-sided per group, so filling the region with fourteen occurrences of
+  // one group would red every case here. The per-group deficit is the DECLARED count minus whatever
+  // the caller's own body already carries, measured through the gate's own tally; a caller whose
+  // body overshoots a group is a fixture that cannot sit on the pin and says so rather than
+  // silently producing one.
+  //
+  // `reach` remains a TOTAL override. Its delta is spent on the token-economy group, which is what
+  // `REACH_FILLER` has always been, so the reach-up and reach-down cases keep their exact meaning —
+  // and they now trip the composition pin as well, which is honest: a region carrying one more
+  // occurrence than declared carries it in some group.
+  const alreadyByGroup = bannedClaimGroupTally(
+    body.split("\n"),
+    0,
+    Number.MAX_SAFE_INTEGER,
+  );
+  const reachDelta =
+    (opts.reach ?? BANNED_CLAIM_EXEMPT_SUPPRESSED) -
+    BANNED_CLAIM_EXEMPT_SUPPRESSED;
+  const groupNeed = BANNED_CLAIM_EXEMPT_COMPOSITION.map((c) => ({
+    group: c.group,
+    n:
+      c.count -
+      (alreadyByGroup[c.group] ?? 0) +
+      (c.group === "token-economy" ? reachDelta : 0),
+  }));
+  for (const g of groupNeed) {
+    // `need === 0` is the deliberately EMPTY region: no fill at all, so a negative per-group
+    // deficit there is arithmetic about a fill that never happens rather than a fixture defect.
+    if (need > 0 && g.n < 0) {
+      throw new Error(
+        `check-banned-claims.test.ts: a fixture's region body already carries ` +
+          `${alreadyByGroup[g.group] ?? 0} \`${g.group}\` occurrence(s), past the declared ` +
+          `composition. Filling cannot remove one, so this mirror would sit off the composition ` +
+          `pin and every case built on it would red for a reason that has nothing to do with it.`,
+      );
+    }
+  }
   const count = opts.headings ?? 1;
   const targetExtent = opts.extent ?? BANNED_CLAIM_EXEMPT_EXTENT;
+  // (Plan 29-52, D-54) The anchor id counter, running across the WHOLE document rather than per
+  // region: `headings: 2` emits the block twice, and two anchors sharing one id makes the registry
+  // refuse for a reason the duplicate-heading case is not about.
+  let anchorSeq = 0;
+  const anchorCount = opts.anchors ?? BANNED_CLAIM_EXEMPT_ANCHORS;
   for (let n = 0; n < count; n++) {
-    const block = [heading, "", body, ""];
-    for (let k = 0; k < need; k++) block.push(REACH_FILLER, "");
+    // ── THE REGION'S OCCURRENCES ARE PUT INSIDE ANCHORED BLOCKS (plan 29-52, D-54) ───────────
+    //
+    // Under the conjunction an occurrence inside the region and outside every frozen block is a
+    // FINDING, so a fixture that left one unanchored would red on every case built from it. Each
+    // claim-bearing line of `body` gets its own one-line block; the reach fillers share one block;
+    // and NEUTRAL blocks pad the count up to the gate's declared `BANNED_CLAIM_EXEMPT_ANCHORS`, so
+    // every mirror sits on that pin exactly as it already sits on the reach and the extent.
+    //
+    // Each block is terminated by a BLANK LINE, which is the grammar `mirrorRegistry` reads back.
+    const block = [heading, ""];
+    let anchors = 0;
+    for (const line of body.split("\n")) {
+      if (countBannedClaimOccurrences([line], 0, 1) > 0) {
+        block.push(mirrorAnchorId(++anchorSeq), line, "");
+        anchors += 1;
+      } else {
+        block.push(line);
+      }
+    }
+    block.push("");
+    // One anchored block per group that still needs occurrences, filled with that group's own
+    // single-occurrence filler. `need` is kept as the TOTAL guard: a caller that asked for zero
+    // reach gets no filler block at all.
+    if (need > 0) {
+      for (const g of groupNeed) {
+        if (g.n <= 0) continue;
+        block.push(mirrorAnchorId(++anchorSeq));
+        anchors += 1;
+        for (let k = 0; k < g.n; k++) block.push(GROUP_FILLER[g.group]);
+        block.push("");
+      }
+    }
+    const padAnchors = anchorCount - anchors;
+    if (padAnchors < 0) {
+      throw new Error(
+        `check-banned-claims.test.ts: a fixture's exemption region already needs ${anchors} ` +
+          `anchored block(s), past the declared BANNED_CLAIM_EXEMPT_ANCHORS of ${anchorCount}. ` +
+          `Padding cannot remove one, so this mirror would sit off the anchor pin and every case ` +
+          `built on it would red for a reason that has nothing to do with the case.`,
+      );
+    }
+    for (let k = 0; k < padAnchors; k++) {
+      block.push(mirrorAnchorId(++anchorSeq), MIRROR_NEUTRAL, "");
+    }
     // THE REGION IS PADDED TO THE GATE'S DECLARED EXTENT, AND THE PAD IS DERIVED FROM THE PIN
     // RATHER THAN TYPED — the same argument the `need` arithmetic above already makes for the
     // reach. Counted in LINES and not in array elements, because `body` may itself be multi-line
@@ -487,6 +703,13 @@ type MirrorSpec = {
   profile?: Parameters<typeof profileDoc>[0];
   /** Omit the profile document entirely — the vanished-exemption-file case. */
   omitProfile?: boolean;
+  /**
+   * (Plan 29-52, D-54) Freeze the mirror's registry on THESE bytes rather than on the ones written.
+   * The divergence knob, and the CR-01 reproduction's whole mechanism.
+   */
+  registryFrozenOn?: string;
+  /** (Plan 29-52, D-54) Write no registry at all — the unreadable-content-bound case. */
+  omitRegistry?: boolean;
   /** (Round 6) Omit install/README.md — the named-literal part's vanished-file case. */
   omitInstallReadme?: boolean;
   /**
@@ -561,6 +784,23 @@ function makeMirror(prefix: string, spec: MirrorSpec = {}): string {
   mkdirSync(join(mirror, "agent-factory"), { recursive: true });
   if (spec.omitKitReadme !== true) write(KIT_README);
   if (spec.omitProfile !== true) write(PROFILE, profileDoc(spec.profile));
+  // ── THE MIRROR'S CLAIM REGISTRY (plan 29-52, D-54) ──────────────────────────────────────────
+  //
+  // FROZEN ON THE BYTES THE MIRROR ACTUALLY WROTE, unless the case asks otherwise. `registryFrozenOn`
+  // is what makes the CR-01 reproduction expressible at all: the registry holds the CLEAN sentence
+  // and the document carries the SUBSTITUTED one, which is exactly the tree a reviewer would be
+  // handed after somebody edited a denial and did not touch its row.
+  //
+  // docs/ is outside every part of this gate's scan set by BANNED_CLAIM_EXCLUDED_LOCATIONS, so
+  // writing it moves no count in this file.
+  if (spec.omitRegistry !== true) {
+    const frozenOn =
+      spec.registryFrozenOn ??
+      (spec.omitProfile === true
+        ? ""
+        : (plant[PROFILE] ?? profileDoc(spec.profile)));
+    write("docs/audit/28-claim-registry.md", mirrorRegistry(frozenOn));
+  }
   for (const f of fillers) write(f);
   // (Round 6, WR-02) The three parts admitted this round. Each is written unless the caller is the
   // vacuity case that empties exactly that one, so every part's floor is reachable from here.
@@ -1231,9 +1471,10 @@ describe("check-banned-claims — the one named exemption region", () => {
   it("FAILS on an EMPTY exemption region — a heading with no disclaimer beneath it", () => {
     const { status, stdout } = runGate(
       // `reach: 0` because the region must stay genuinely EMPTY: filling it to the pin would be a
-      // fixture that contradicted the property the case exists to assert.
+      // fixture that contradicted the property the case exists to assert. `anchors: 0` for the same
+      // reason under D-54 — a padding anchored block is text, and a region carrying one is not empty.
       makeMirror("gops-banned-empty-region-", {
-        profile: { regionBody: "", reach: 0 },
+        profile: { regionBody: "", reach: 0, anchors: 0 },
       }),
     );
     expect(status).toBe(1);
@@ -2799,22 +3040,362 @@ describe("check-banned-claims — the exemption's suppressed count, published BY
     expect(total).toBe(pinned);
     expect(pinned).toBe(BANNED_CLAIM_EXEMPT_SUPPRESSED);
 
-    // (3) EACH GROUP'S VALUE, DERIVED INDEPENDENTLY over the live exemption region. One side is the
-    // gate's own in-loop accumulation, rendered; the other is `bannedClaimGroupTally` folded here.
-    // Two folds over the ONE matcher, exactly the arrangement the reach pin already uses between
-    // `runAll()`'s `suppressed` and `countBannedClaimOccurrences` — neither is a second grammar and
-    // neither can be satisfied by the other's arithmetic.
-    const lines = readFileSync(join(ROOT, PROFILE), "utf8").split("\n");
+    // ── (3) THE EXPECTED SIDE, DERIVED OFF THE RUN'S LOOP (plan 29-52, replacing a self-check) ──
+    //
+    // WHAT STOOD HERE UNTIL PLAN 29-52, AND WHY IT WAS REPLACED RATHER THAN EXTENDED. The old part
+    // (3) folded `bannedClaimGroupTally` over `[region.headingAt, region.endBefore)` — the SAME
+    // range, over the SAME live document, that the gate's own loop walks. Both sides therefore moved
+    // together under every edit to the region: substitute one denial for one live claim of the same
+    // group and the parsed side and the derived side change identically, so the equality holds and
+    // the case reports nothing. Its own sibling comment conceded the mirror's region was degenerate
+    // by construction; the live half was self-consistent by construction, which is worse, because it
+    // read as the strong half. That is the shape 29-REVIEW round 4 § WR-03 records, and it is why
+    // the CR-01 substitution shipped past a green suite.
+    //
+    // WHAT REPLACES IT: an expected side assembled by a route that shares NO STATEMENT with the
+    // run's loop — the REGISTRY's rows and the AUTHORITY's anchored blocks. The gate's loop knows
+    // where the region is and asks a Set for membership; this walks the registry, asks
+    // `anchoredBlockAt` for each row's extent and byte verdict, unions the surviving extents, and
+    // tallies only those lines. The two agree only when the frozen set really is what the gate
+    // suppressed over.
+    const profileText = readFileSync(join(ROOT, PROFILE), "utf8");
+    const lines = profileText.split("\n");
     const region = locateExemptRegion(lines);
     expect(region).not.toBeNull();
-    const derived = bannedClaimGroupTally(lines, region!.headingAt, region!.endBefore);
-    expect(derived).toEqual(Object.fromEntries(parsed));
-    // ...and the total that fold reports equals the total the OTHER exported counter reports over
-    // the same range, so a fold that dropped members would not agree with itself.
-    expect(Object.values(derived).reduce((a, b) => a + b, 0)).toBe(
-      countBannedClaimOccurrences(lines, region!.headingAt, region!.endBefore),
+
+    const registryRows = readRegistry(ROOT).claims.filter(
+      (c) => c.file === PROFILE,
     );
-    // The floor: the derived tally is not all zeros, so the equality above is not 0 === 0.
+    // FLOOR ON THE EXPECTED SIDE'S OWN INPUT. A registry that returned no row for this document
+    // would make every union below empty and the tally all zeros — a denominator that is short
+    // rather than empty is what the second floor after it catches.
+    expect(
+      registryRows.length,
+      "the registry names no row for the exemption document",
+    ).toBeGreaterThan(0);
+    const authorityScan = scanAnchoredDocument(profileText);
+    const byId = new Map(registryRows.map((c) => [c.id, c]));
+    const frozen = new Set<number>();
+    let blocksInRegion = 0;
+    for (const anchor of authorityScan.anchors) {
+      const row = byId.get(anchor.id);
+      if (row === undefined) continue;
+      if (
+        anchor.index < region!.headingAt ||
+        anchor.index >= region!.endBefore
+      ) {
+        continue;
+      }
+      const block = anchoredBlockAt(authorityScan, anchor, row.verbatim);
+      blocksInRegion += 1;
+      expect(
+        block.matches,
+        `${anchor.id}'s bytes diverged from its registry row`,
+      ).toBe(true);
+      for (let i = block.start; i < block.end; i++) frozen.add(i);
+    }
+    // TWO FLOORS, AND THE SECOND IS THE ONE A VACUITY CHECK CANNOT GIVE. The first says the block
+    // set is not EMPTY; the second says it is not SILENTLY SHORT, by holding it against the gate's
+    // own two-sided pin — derived here from the registry and the authority, never from the run.
+    expect(blocksInRegion, "no anchored block sits inside the region").toBeGreaterThan(0);
+    expect(blocksInRegion).toBe(BANNED_CLAIM_EXEMPT_ANCHORS);
+    expect(frozen.size, "the frozen line set is empty").toBeGreaterThan(0);
+
+    // The tally over the FROZEN lines only — one line at a time, because the frozen set is a union
+    // of extents and not a range.
+    const derived: Record<string, number> = {};
+    for (const g of declaredGroups) derived[g] = 0;
+    for (const i of [...frozen].sort((a, b) => a - b)) {
+      const t = bannedClaimGroupTally(lines, i, i + 1);
+      for (const [g, n] of Object.entries(t)) derived[g] = (derived[g] ?? 0) + n;
+    }
+    expect(derived).toEqual(Object.fromEntries(parsed));
+    // The floor on the DERIVED side too, so the equality above is never 0 === 0.
     expect(Object.values(derived).reduce((a, b) => a + b, 0)).toBeGreaterThan(0);
+    expect(Object.values(derived).reduce((a, b) => a + b, 0)).toBe(total);
+
+    // AND THE PROPERTY THAT MAKES THE CARVE-OUT CONTENT-BOUND, STATED AS AN EQUALITY: the whole
+    // region's tally equals the frozen subset's tally, i.e. there is NO occurrence inside the region
+    // that no registry row freezes. This is what "the uncovered list is empty" means as a build
+    // property rather than as a measurement in a SUMMARY.
+    expect(
+      countBannedClaimOccurrences(lines, region!.headingAt, region!.endBefore),
+    ).toBe(total);
+  });
+
+  it("the composition pin is DECLARED two-sided and sums to the reach pin", () => {
+    // The secondary measure's own arithmetic, held here so a group dropped from the declaration
+    // cannot take its occurrences out of the measurement with it.
+    expect(BANNED_CLAIM_EXEMPT_COMPOSITION.length).toBeGreaterThan(1);
+    expect(
+      BANNED_CLAIM_EXEMPT_COMPOSITION.reduce((a, c) => a + c.count, 0),
+    ).toBe(BANNED_CLAIM_EXEMPT_SUPPRESSED);
+    // Every declared literal group is represented, so a group cannot be silently omitted.
+    expect(BANNED_CLAIM_EXEMPT_COMPOSITION.map((c) => c.group).sort()).toEqual(
+      [...new Set(BANNED_CLAIM_LITERALS.map((l) => l.group))].sort(),
+    );
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════════════════════════
+// D-54: THE CARVE-OUT IS BOUNDED IN CONTENT AS WELL AS IN POSITION (round-6 CR-01, plan 29-52)
+//
+// EVERY CASE BELOW WAS RED-PROVEN AGAINST THE PRE-CHANGE COMMITTED BUILD BEFORE IT WAS WRITTEN, on
+// `git archive`-style hermetic mirrors with sha256-verified gate binaries, one plant per mirror,
+// with the clean mirror's premise asserted green first. At the pre-conjunction build all three
+// plants below exit 0 with the profile never named anywhere in the output. That transcript is this
+// section's acceptance evidence and it is quoted in 29-52-SUMMARY.md.
+//
+// The cases here drive the SAME committed `.js` against the SAME hermetic harness every other case
+// in this file uses, so the property is a property of the build rather than of a session.
+// ══════════════════════════════════════════════════════════════════════════════════════════════
+
+/**
+ * The CR-01 substitution: one honest denial inside a frozen block replaced by the live assertion,
+ * at an IDENTICAL occurrence count and an identical group.
+ *
+ * COUNT-PRESERVING ON PURPOSE, because that is the whole defect. A swap that moved the count reds on
+ * the reach pin, which is a pin round 2 already shipped; the class this closes is the one that moves
+ * NOTHING either cardinality can see.
+ */
+const DENIAL_LINE = `There is no evidence that controlled language ${COMPREHENSION_CLAIM.literal} for a language model.`;
+const ASSERTION_LINE = `Measurement shows that controlled language ${COMPREHENSION_CLAIM.literal} for a language model.`;
+
+describe("check-banned-claims — the sole carve-out is bounded in CONTENT (D-54, CR-01)", () => {
+  it("PREMISE: the substitution really is count-preserving and group-preserving", () => {
+    // Without this the case below could pass for the WRONG reason — a swap that happened to move
+    // the reach pin reds on a mechanism that already existed, and would prove nothing about D-54.
+    const before = bannedClaimGroupTally([DENIAL_LINE], 0, 1);
+    const after = bannedClaimGroupTally([ASSERTION_LINE], 0, 1);
+    expect(after).toEqual(before);
+    expect(Object.values(before).reduce((a, b) => a + b, 0)).toBeGreaterThan(0);
+    // ...and the two really are different bytes, so the plant is a plant.
+    expect(ASSERTION_LINE).not.toBe(DENIAL_LINE);
+  });
+
+  it("THE CR-01 SUBSTITUTION REDS BY NAME: a denial inside a frozen block swapped for the claim", () => {
+    // The registry freezes the CLEAN bytes; the document carries the SUBSTITUTED ones. That is
+    // exactly the tree a reviewer is handed after somebody edits a denial and does not touch its
+    // row — and under D-04 that edit was always supposed to be a two-file change.
+    const clean = profileDoc({ regionBody: DENIAL_LINE });
+    const tampered = clean.replace(DENIAL_LINE, ASSERTION_LINE);
+    // FIXTURE PREMISE: the substitution landed, and it landed exactly once.
+    expect(tampered).not.toBe(clean);
+    expect(tampered.split(ASSERTION_LINE).length - 1).toBe(1);
+
+    const { status, stdout } = runGate(
+      makeMirror("gops-banned-d54-substitution-", {
+        plant: { [PROFILE]: tampered },
+        registryFrozenOn: clean,
+      }),
+    );
+    expect(status).toBe(1);
+    // (1) THE CAUSE, named with the row id, in THIS gate's output rather than a sibling's.
+    expect(stdout).toContain("no longer matches its registry row");
+    // (2) THE SYMPTOM, at file:line:column. Derived from the fixture, never typed.
+    const plantedLine = tampered.split("\n").indexOf(ASSERTION_LINE) + 1;
+    expect(plantedLine).toBeGreaterThan(0);
+    expect(stdout).toContain(`${PROFILE}:${plantedLine}:`);
+    expect(findingCount(stdout)).toBeGreaterThan(0);
+  });
+
+  it("THE WHOLESALE REWRITE REDS INSIDE THIS GATE, not only in the sibling anchors gate", () => {
+    // The second form CR-01 records: the region's whole body replaced by banned claims plus filler.
+    // At the pre-conjunction build this exits 0 here and reds only on a verbatim freeze owned by
+    // check-claim-anchors — a carve-out whose only content bound lives in another gate.
+    const clean = profileDoc();
+    const heading = BANNED_CLAIM_EXEMPT_REGION.heading;
+    const cleanLines = clean.split("\n");
+    const at = cleanLines.indexOf(heading);
+    expect(at).toBeGreaterThan(-1);
+    const bodyLen = cleanLines.length - (at + 1);
+    // A body holding BOTH pins: the same line count, and the same occurrence total reached with the
+    // same group composition — built from the pinned members rather than retyped.
+    const rewritten: string[] = [];
+    for (const c of BANNED_CLAIM_EXEMPT_COMPOSITION) {
+      for (let k = 0; k < c.count; k++) rewritten.push(GROUP_FILLER[c.group]);
+    }
+    while (rewritten.length < bodyLen) rewritten.push("Filler line with no claim.");
+    rewritten.length = bodyLen;
+    const tampered = [...cleanLines.slice(0, at + 1), ...rewritten].join("\n");
+    // FIXTURE PREMISE: both cardinality pins really are unmoved by this rewrite, so the case cannot
+    // pass on a pin that already existed.
+    const tamperedLines = tampered.split("\n");
+    const region = locateExemptRegion(tamperedLines);
+    expect(region).not.toBeNull();
+    expect(region!.endBefore - region!.headingAt).toBe(BANNED_CLAIM_EXEMPT_EXTENT);
+    expect(
+      countBannedClaimOccurrences(tamperedLines, region!.headingAt, region!.endBefore),
+    ).toBe(BANNED_CLAIM_EXEMPT_SUPPRESSED);
+
+    const { status, stdout } = runGate(
+      makeMirror("gops-banned-d54-wholesale-", {
+        plant: { [PROFILE]: tampered },
+        registryFrozenOn: clean,
+      }),
+    );
+    expect(status).toBe(1);
+    // THE FINDINGS COME FROM THIS GATE. Asserted on the rendered lines, not on the exit code: the
+    // point of the case is that `check-banned-claims` itself now speaks.
+    expect(stdout).toContain("[guard_banned_claims]");
+    expect(findingCount(stdout)).toBeGreaterThan(0);
+    expect(stdout).toContain(`${PROFILE}:`);
+  });
+
+  it("an UNANCHORED line inside the region is a FINDING, with the remedy that says where a denial belongs", () => {
+    // The fail-closed direction. A claim written inside the carve-out on a line no registry row
+    // freezes is reported, and its remedy does NOT say "delete the disclaimer" — which is what the
+    // default remedy would have said, and would have been this gate advising against the reason the
+    // exemption exists.
+    const clean = profileDoc();
+    const heading = BANNED_CLAIM_EXEMPT_REGION.heading;
+    const lines = clean.split("\n");
+    const at = lines.indexOf(heading);
+    expect(at).toBeGreaterThan(-1);
+    // Overwrite a PADDING blank line inside the region — a line no anchor covers — keeping the line
+    // count identical so the extent pin is unmoved and the red is attributable to the conjunction.
+    let target = -1;
+    for (let i = lines.length - 1; i > at; i--) {
+      if (lines[i] === "") {
+        target = i;
+        break;
+      }
+    }
+    expect(target).toBeGreaterThan(at);
+    const tampered = [...lines];
+    tampered[target] = NAME_PLANT;
+    const doc = tampered.join("\n");
+    // FIXTURE PREMISE: the extent is unmoved, and the plant really sits inside the region.
+    const region = locateExemptRegion(tampered);
+    expect(region).not.toBeNull();
+    expect(region!.endBefore - region!.headingAt).toBe(BANNED_CLAIM_EXEMPT_EXTENT);
+    expect(target).toBeGreaterThanOrEqual(region!.headingAt);
+    expect(target).toBeLessThan(region!.endBefore);
+
+    const { status, stdout } = runGate(
+      makeMirror("gops-banned-d54-unanchored-", { plant: { [PROFILE]: doc } }),
+    );
+    expect(status).toBe(1);
+    expect(stdout).toContain(`${PROFILE}:${target + 1}:`);
+    expect(stdout).toContain(
+      "INSIDE the one named exemption region and OUTSIDE every registry-anchored block",
+    );
+    expect(stdout).toContain("A denial belongs inside an anchored block");
+    // ...and it does NOT tell the author to delete the claim, which is the default remedy.
+    expect(stdout).not.toContain("Remedy: delete the claim");
+  });
+
+  it("an EMPTY exempt block set inside a LOCATED region is a NAMED REFUSAL", () => {
+    // The `empty` probe row's answer, decided rather than discovered. A region with no frozen block
+    // exempts nothing while reading as a live carve-out, and both cardinality pins would then be
+    // satisfiable by a document that suppresses nothing.
+    const { status, stdout } = runGate(
+      // `reach: 0` as well as `anchors: 0`: the group fillers are themselves anchored blocks, so a
+      // region asked for zero anchors must also be asked for zero fill. The region is still
+      // NON-empty — the body line and the padding are there — so this is the zero-BLOCK case and
+      // not the zero-region one, which has its own refusal and its own case above.
+      makeMirror("gops-banned-d54-empty-anchors-", {
+        profile: { anchors: 0, reach: 0 },
+      }),
+    );
+    expect(status).toBe(1);
+    expect(stdout).toContain("contains ZERO registry-anchored block(s)");
+    expect(stdout).toContain("do not lower BANNED_CLAIM_EXEMPT_ANCHORS");
+  });
+
+  it("a SINGLE anchored block is admitted and FLOORED — the count pin catches the short set", () => {
+    // The single-element half of the same probe row. One block is not the empty case and must not be
+    // refused as one; it is refused by the CARDINALITY pin, with the entrant named — which is the
+    // difference between a vacuity floor and a two-sided count.
+    const { status, stdout } = runGate(
+      makeMirror("gops-banned-d54-one-anchor-", {
+        profile: { anchors: 1, reach: 0 },
+      }),
+    );
+    expect(status).toBe(1);
+    expect(stdout).not.toContain("contains ZERO registry-anchored block(s)");
+    expect(stdout).toContain("registry-anchored block(s) [C-28-");
+    expect(stdout).toContain("declares " + BANNED_CLAIM_EXEMPT_ANCHORS);
+  });
+
+  it("ONE registry row removed reds BY NAME — the exempt set is derived, not listed", () => {
+    // The set-literal-drift direction. The exempt blocks come from the registry, so dropping a row
+    // takes its block out of the frozen set: its lines stop being exempt and their occurrences
+    // become findings, AND the cardinality pin names the shortfall. Neither is a source edit.
+    const clean = profileDoc();
+    const fullRegistry = mirrorRegistry(clean);
+    // Remove the LAST row's block, derived from the registry text rather than typed.
+    const ids = [...fullRegistry.matchAll(/^### (C-28-\d{3})$/gm)].map((m) => m[1]);
+    expect(ids.length).toBeGreaterThan(2);
+    const dropped = ids[ids.length - 1];
+    const start = fullRegistry.indexOf(`### ${dropped}\n`);
+    expect(start).toBeGreaterThan(-1);
+    const shortRegistry = fullRegistry.slice(0, start);
+    // FIXTURE PREMISE: exactly one row left, and the registry still parses as a registry.
+    expect([...shortRegistry.matchAll(/^### (C-28-\d{3})$/gm)].length).toBe(ids.length - 1);
+
+    const { status, stdout } = runGate(
+      makeMirror("gops-banned-d54-row-removed-", {
+        plant: { [PROFILE]: clean, "docs/audit/28-claim-registry.md": shortRegistry },
+      }),
+    );
+    expect(status).toBe(1);
+    expect(stdout).toContain("registry-anchored block(s) [C-28-");
+    expect(stdout).toContain("declares " + BANNED_CLAIM_EXEMPT_ANCHORS);
+    // The entrant is NAMED: the rendered id list is the surviving set and does not carry the row
+    // that was dropped. Parsed out of the run rather than matched as a substring, so a coincidental
+    // occurrence of the id elsewhere in the output cannot satisfy it.
+    const rendered = /registry-anchored block\(s\) \[([^\]]*)\]/.exec(stdout);
+    expect(rendered, "the refusal did not render the block id list").not.toBeNull();
+    expect(rendered![1].split(", ")).not.toContain(dropped);
+    expect(rendered![1].split(", ").length).toBe(ids.length - 2);
+  });
+
+  it("an UNREADABLE content bound exempts NOTHING — the fail-closed direction, named", () => {
+    // A registry that cannot be parsed is not an empty one. Every occurrence inside the region is
+    // reported, which is the safe direction, and the cause is named rather than left as a pile of
+    // findings whose reason lives nowhere.
+    const { status, stdout } = runGate(
+      makeMirror("gops-banned-d54-no-registry-", { omitRegistry: true }),
+    );
+    expect(status).toBe(1);
+    expect(stdout).toContain("the claim registry could not be parsed");
+    expect(stdout).toContain("fail-CLOSED direction");
+    expect(findingCount(stdout)).toBe(BANNED_CLAIM_EXEMPT_SUPPRESSED);
+  });
+
+  it("SOURCE SHAPE: the exempt set is DERIVED — no literal array of claim ids exists in the gate", () => {
+    // The prohibition D-54 is reconcilable with D-48 BECAUSE of: a hand-listed set of exempt anchors
+    // would be this repository's second systemic failure class sitting inside the fix for the first.
+    // Read off the gate's SOURCE TEXT so the assertion cannot be satisfied by a runtime value.
+    const src = readFileSync(GATE_TS, "utf8");
+    expect(src.length, "the gate source was not read").toBeGreaterThan(1000);
+    // Any array literal carrying two or more C-28-NNN strings would be such a list.
+    const idArrays = src.match(/\[[^\]]*"C-28-\d{3}"[^\]]*\]/g) ?? [];
+    expect(idArrays.length).toBe(0);
+    // ...and not even a single quoted id is declared here: the ids come from the registry.
+    expect((src.match(/"C-28-\d{3}"/g) ?? []).length).toBe(0);
+    // The derivation is present, and it reads the registry rather than a list.
+    expect(src).toContain("readRegistry(root).claims");
+    expect(src).toContain("BANNED_CLAIM_EXEMPT_ANCHORS");
+  });
+
+  it("SOURCE SHAPE: the matcher, the literal list and the literal type are untouched by D-54", () => {
+    // D-54's bound from the other side. The three forbidden weakenings stay forbidden and no
+    // conditional field returns — asserted on the members' own KEYS, which a grep for a retired
+    // spelling would miss.
+    for (const m of BANNED_CLAIM_LITERALS) {
+      expect(Object.keys(m).sort()).toEqual(["group", "literal"]);
+    }
+    const src = readFileSync(GATE_TS, "utf8");
+    // The line matcher still lowercases and still substring-matches every member unconditionally.
+    expect(src).toContain("const lower = line.toLowerCase();");
+    expect(src).toContain("for (const member of BANNED_CLAIM_LITERALS)");
+    // No fenced-block skip, no whole-word boundary, no below-a-marker skip inside `lineHits`.
+    const lineHitsSrc = /function lineHits\(line: string\): LineHit\[\] \{[\s\S]*?\n\}/.exec(src);
+    expect(lineHitsSrc, "lineHits was not found in the gate source").not.toBeNull();
+    expect(lineHitsSrc![0]).not.toContain("fenced");
+    expect(lineHitsSrc![0]).not.toContain("\\b");
+    expect(lineHitsSrc![0]).not.toContain("marker");
   });
 });
