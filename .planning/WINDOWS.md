@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 66
+open_count: 67
 waived_count: 0
 fixed_count: 1
-total_count: 67
-last_updated: 2026-08-18T15:35:03.866Z
+total_count: 68
+last_updated: 2026-08-18T15:54:37.843Z
 ---
 
 # Broken Windows Ledger
@@ -82,6 +82,7 @@ last_updated: 2026-08-18T15:35:03.866Z
 | 65 | 29 | deviation | .planning/phases/29-controlled-language-voice-guard-rebuild/29-53-SUMMARY.md |  | 29-55: 29-53's narrative class enumeration is one short in two cells (tracked *.json 37 vs 38; scripts/** 18 vs 19), measured at its own commit and at HEAD. The MECHANICAL equality is derived, floored two-sided and green — only the hand-written explanation is short. | open |  | 2026-08-18T09:46:49.753Z |  |
 | 66 | 29 | deviation | scripts/check-banned-claims.ts | 2120 | Plan 29-56 Rule 3: the in-source D-55 note named BANNED_CLAIM_SCAN_COUNT, moving the pin's grep -c from 6 to 7; reworded to identify the constant by role | open |  | 2026-08-18T15:35:03.799Z |  |
 | 67 | 29 | deviation | scripts/check-banned-claims.test.ts | 4160 | Plan 29-56 Rule 1: the SOURCE-SHAPE docblock assertion was defeated by a hard wrap; one declared comment-block normalization added, published-header assertion left byte-exact | open |  | 2026-08-18T15:35:03.866Z |  |
+| 68 | 29 | unrun-verify | scripts/check-banned-claims.ts | 89 | V-29-57-01 — hard-wrap axis: a pinned multi-word literal split across a line boundary is not matched (FAIL-OPEN, 11 of 22 members reachable, 0 live). Remedy declined this round by D-56; disclosed in docs/audit/29-round8-residuals.md §4 | open |  | 2026-08-18T15:54:37.843Z |  |
 
 ````json
 [
@@ -887,6 +888,18 @@ last_updated: 2026-08-18T15:35:03.866Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-08-18T15:35:03.866Z",
+    "resolved_at": null
+  },
+  {
+    "id": 68,
+    "kind": "unrun-verify",
+    "phase": "29",
+    "file": "scripts/check-banned-claims.ts",
+    "line": 89,
+    "description": "V-29-57-01 — hard-wrap axis: a pinned multi-word literal split across a line boundary is not matched (FAIL-OPEN, 11 of 22 members reachable, 0 live). Remedy declined this round by D-56; disclosed in docs/audit/29-round8-residuals.md §4",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-08-18T15:54:37.843Z",
     "resolved_at": null
   }
 ]
