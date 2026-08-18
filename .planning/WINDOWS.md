@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 56
+open_count: 59
 waived_count: 0
 fixed_count: 1
-total_count: 57
-last_updated: 2026-08-17T22:22:11.344Z
+total_count: 60
+last_updated: 2026-08-18T08:46:53.959Z
 ---
 
 # Broken Windows Ledger
@@ -72,6 +72,9 @@ last_updated: 2026-08-17T22:22:11.344Z
 | 55 | 29 | unrun-verify | scripts/check-nul-bytes.test.ts |  | V-29-50-02 the EISDIR gitlink arm is exercised through an ordinary directory, not through a real initialised submodule fixture; the errno is identical but the submodule path itself is unwitnessed | open |  | 2026-08-17T21:42:53.564Z |  |
 | 56 | 29 | deviation | scripts/check-foundation-guards.test.ts |  | V-29-51-01: the LANG-07 owner classifier's alias closure is module-wide, scope-blind and matches \\bNAME\\b as TEXT against a declaration's right-hand side, so a local named 'a' matches inside [a-z_] in an unrelated regex literal and drags that regex into the derived heading-recogniser set. Measured: the derived name set for audit-model.ts went 26 -> 44 and CLAIM_META_RE became a false applied site. Worked around by renaming the local; the classifier is unfixed. | open |  | 2026-08-17T22:22:11.284Z |  |
 | 57 | 29 | unmet-truth | docs/audit/28-claim-registry.md |  | V-29-51-02: the registry's advisory 'line' field disagrees with the anchor's measured position on 19 of 41 anchored rows, by up to 80 lines; three of the four agent-factory/writing-profile.md rows are wrong. Measured through the anchored-block authority, not corrected — the field is documented as advisory and unenforced. | open |  | 2026-08-17T22:22:11.344Z |  |
+| 58 | 29 | deviation | scripts/check-banned-claims.ts |  | V-29-53-01: the canonical-form assertion fires on any decoded string whose bytes differ from the raw text, including a legitimately escaped non-ASCII character (0 live refusals today) | open |  | 2026-08-18T08:46:53.835Z |  |
+| 59 | 29 | deviation | scripts/check-banned-claims.ts |  | V-29-53-02: the gate's effective walk bound is 2x MAX_WALK_ENTRIES because the imported public-docs corpus derivation carries its own budget at import time | open |  | 2026-08-18T08:46:53.898Z |  |
+| 60 | 29 | deviation | .claude/settings.local.json |  | V-29-53-03: untracked, so the widened coverage denominator does not reach it; carries asd-ste100.org inside a WebFetch permission | open |  | 2026-08-18T08:46:53.959Z |  |
 
 ````json
 [
@@ -757,6 +760,42 @@ last_updated: 2026-08-17T22:22:11.344Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-08-17T22:22:11.344Z",
+    "resolved_at": null
+  },
+  {
+    "id": 58,
+    "kind": "deviation",
+    "phase": "29",
+    "file": "scripts/check-banned-claims.ts",
+    "line": null,
+    "description": "V-29-53-01: the canonical-form assertion fires on any decoded string whose bytes differ from the raw text, including a legitimately escaped non-ASCII character (0 live refusals today)",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-08-18T08:46:53.835Z",
+    "resolved_at": null
+  },
+  {
+    "id": 59,
+    "kind": "deviation",
+    "phase": "29",
+    "file": "scripts/check-banned-claims.ts",
+    "line": null,
+    "description": "V-29-53-02: the gate's effective walk bound is 2x MAX_WALK_ENTRIES because the imported public-docs corpus derivation carries its own budget at import time",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-08-18T08:46:53.898Z",
+    "resolved_at": null
+  },
+  {
+    "id": 60,
+    "kind": "deviation",
+    "phase": "29",
+    "file": ".claude/settings.local.json",
+    "line": null,
+    "description": "V-29-53-03: untracked, so the widened coverage denominator does not reach it; carries asd-ste100.org inside a WebFetch permission",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-08-18T08:46:53.959Z",
     "resolved_at": null
   }
 ]
