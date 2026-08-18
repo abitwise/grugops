@@ -298,6 +298,90 @@ describe("generate-catalog.js (DOCS-01)", () => {
     expect(readFileSync(outPath, "utf8")).toBe(sentinel);
   });
 
+  // (round 6, IN-02 / residual 29-46 R2 — plan 29-54) A DUPLICATE WORKFLOW ORDER STOPS THE GENERATOR.
+  //
+  // WHAT THIS HOLDS AND WHY IT IS HERE RATHER THAN IN PROSE. The workflows table is published in
+  // ascending `order`. A comment beside that sort used to ASSERT the values were unique and cite a
+  // one-off re-verification as the evidence; nothing in the repository enforced it, so a standing
+  // property rested on a point-in-time measurement — the same shape as the stale cardinality plan
+  // 29-46 deleted from this generator's header, one screen above. If two workflows ever declared one
+  // order, `Array.prototype.sort` is stable, so their relative position would fall through to the
+  // order readdirSync returned them in, and the generated document would differ between machines for
+  // no visible reason while every freshness gate on the machine that wrote it stayed green.
+  //
+  // THE GATE IS AT THE POINT OF EFFECT, NOT ONLY HERE. This case proves the GENERATOR refuses; it is
+  // not itself the thing that notices. Delete this case and the property still holds; delete the
+  // refusal and this case reds.
+  it("fail-closed: two workflows declaring the same `order` → exit 1 naming both files, no partial write", () => {
+    const m = mkdtempSync(join(tmpdir(), "grugops-catalog-dup-order-"));
+    tmpDirs.push(m);
+    mkdirSync(join(m, "scripts"), { recursive: true });
+    mkdirSync(join(m, "docs", "catalog"), { recursive: true });
+    cpSync(GEN_JS, join(m, "scripts", "generate-catalog.js"));
+    // NOT VACUOUS — same attribution the H1 case above makes: an empty closure would leave the mirror
+    // a module short and this case would exit 1 on ERR_MODULE_NOT_FOUND while claiming a refusal.
+    expect(
+      GEN_MODULES,
+      "the generator's import closure came back empty — the mirror would be one module short and this case would go green on ERR_MODULE_NOT_FOUND",
+    ).toContain("frontmatter.js");
+    for (const mod of GEN_MODULES) {
+      cpSync(join(ROOT, "scripts", mod), join(m, "scripts", mod));
+    }
+    cpSync(join(ROOT, "agent-factory", "roles"), join(m, "agent-factory", "roles"), {
+      recursive: true,
+    });
+    cpSync(
+      join(ROOT, "agent-factory", "workflows"),
+      join(m, "agent-factory", "workflows"),
+      { recursive: true },
+    );
+
+    // Tamper: give a second workflow an order another one already declares. The DONOR's value is read
+    // off the mirrored corpus rather than typed here, so this fixture cannot go stale against a kit
+    // whose numbering changed — and the collision is constructed from the corpus's own facts.
+    const donorFile = "00-bootstrap-greenfield.md";
+    const victimFile = "01-bootstrap-brownfield.md";
+    const donorOrder = readFileSync(join(m, "agent-factory", "workflows", donorFile), "utf8").match(
+      /^order: (\d+)$/m,
+    );
+    expect(
+      donorOrder,
+      `${donorFile}: no \`order:\` line to copy — the fixture's premise is gone, not its subject`,
+    ).not.toBeNull();
+    const victimPath = join(m, "agent-factory", "workflows", victimFile);
+    const victimBefore = readFileSync(victimPath, "utf8");
+    const victimOrder = victimBefore.match(/^order: (\d+)$/m);
+    expect(victimOrder, `${victimFile}: no \`order:\` line to overwrite`).not.toBeNull();
+    // PREMISE ASSERTED: the two must DISAGREE before the tamper, or the fixture would be testing a
+    // collision the corpus already had and this case would pass without the tamper doing anything.
+    expect(
+      victimOrder![1],
+      "the donor and victim already declare the same order — the tamper would be a no-op",
+    ).not.toBe(donorOrder![1]);
+    writeFileSync(victimPath, victimBefore.replace(/^order: \d+$/m, `order: ${donorOrder![1]}`));
+
+    // Plant a sentinel the generator must NOT overwrite on the fail-closed path.
+    const sentinel = "SENTINEL — must not be overwritten on a duplicate-order run.\n";
+    const outPath = join(m, "docs", "catalog", "README.md");
+    writeFileSync(outPath, sentinel);
+
+    const r = spawnSync("node", [join(m, "scripts", "generate-catalog.js")], {
+      encoding: "utf8",
+    });
+    const out = `${r.stdout}${r.stderr}`;
+    expect(r.status, out).toBe(1);
+    // ATTRIBUTED, NOT MERELY OBSERVED: the refusal must name BOTH colliding files and the shared
+    // value, and the run must not have died on module resolution.
+    expect(out).not.toContain("ERR_MODULE_NOT_FOUND");
+    expect(out).toContain(donorFile);
+    expect(out).toContain(victimFile);
+    expect(out).toContain(`order: ${donorOrder![1]}`);
+    // No partial write: the sentinel survives unchanged, so the catalog is never emitted from an
+    // ambiguous ordering.
+    expect(existsSync(outPath)).toBe(true);
+    expect(readFileSync(outPath, "utf8")).toBe(sentinel);
+  });
+
   // (5) no fabrication: workflows 12 (Release) and 13 (Incident) carry no `cadence` frontmatter, so
   // their cadence cell must read `UNKNOWN - verify` — never a fabricated `cadence: both` or bare
   // `both`. Also assert no `..` (double-period) anywhere (the incident-responder single-sentence
