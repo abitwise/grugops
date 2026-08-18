@@ -1031,7 +1031,7 @@ describe("kit-model plugin-manifest component schema (D-46: derived, counted two
     // assertion, which is the self-defeating shape this repository has already paid for once.
     //
     // The token is deliberately QUOTED on both sides, so `"SKILL.md"`, `".frontmatter.md"`,
-    // `".template.md"` and the workflow regex `/^\d{2}-.+\.md$/` are OUTSIDE this set. Those are
+    // `".template.md"` and isNumberedWorkflowFile's expression are OUTSIDE this set. Those are
     // different facts — a file name, two template suffixes and a shape rule — and folding them into
     // this constant would be one statement of four facts, the mirror image of the defect IN-01
     // names.
@@ -1068,6 +1068,72 @@ describe("kit-model plugin-manifest component schema (D-46: derived, counted two
     // Non-vacuity: the derivation really does find occurrences of this token in this file, so a
     // typo in `LITERAL` cannot make the assertion pass by finding nothing anywhere.
     expect(src.split(LITERAL).length - 1).toBeGreaterThan(0);
+  });
+
+  // ── (round 6, IN-01 / plan 29-54) THE WORKFLOW MEMBERSHIP RULE HAS ONE STATEMENT ─────────────
+
+  it("IN-01 — the numbered-workflow expression appears EXACTLY ONCE across scripts/*.ts, in isNumberedWorkflowFile", () => {
+    // WHAT THIS ENUMERATES, so the number is checkable rather than authoritative-sounding: the
+    // occurrences of the exact expression text `/^\d{2}-.+\.md$/` across EVERY `.ts` file in
+    // scripts/, with comment lines removed. Comments are excluded for the reason the MARKDOWN_EXT
+    // case above gives: a comment narrating the rule would otherwise invalidate its own assertion.
+    //
+    // WHY THE SCAN IS REPOSITORY-WIDE AND NOT MODULE-LOCAL. The finding IN-01 names is not "this
+    // module states the rule twice" — it is that THREE files stated it, and each copy was in a
+    // different file, so a module-local count would have reported one occurrence in each and been
+    // green in all three. The unit of the property is the SCRIPTS TREE, so that is the unit scanned.
+    //
+    // THE SCAN SET IS DERIVED, AND ITS SIZE IS FLOORED. Reading the directory rather than listing
+    // filenames is the point: a fourth copy typed into a NEW script is the case this exists to
+    // catch, and a hand-listed set would not scan the file it arrived in. The floor is the guard
+    // against the empty-denominator green — a readdir that returned nothing would otherwise report
+    // zero occurrences and pass the wrong assertion for the right-looking reason.
+    const scriptsDir = import.meta.dirname;
+    const tsFiles = readdirSync(scriptsDir)
+      .filter((f) => f.endsWith(".ts"))
+      .sort();
+    expect(
+      tsFiles.length,
+      "the scripts directory yielded no .ts files at all — the scan set is empty",
+    ).toBeGreaterThan(10);
+
+    const EXPRESSION = "/^\\d{2}-.+\\.md$/";
+    const hits: string[] = [];
+    for (const f of tsFiles) {
+      const code = readFileSync(join(scriptsDir, f), "utf8")
+        .split("\n")
+        .filter((l) => !l.trimStart().startsWith("//"))
+        .join("\n");
+      const n = code.split(EXPRESSION).length - 1;
+      for (let i = 0; i < n; i += 1) hits.push(f);
+    }
+    // TWO-SIDED, AND THAT IS THE POINT. `toEqual([...])` fails when a second copy appears anywhere in
+    // the tree AND when the declaration itself is renamed or deleted — a one-sided "at most one"
+    // would go green on the tree that had lost the rule entirely.
+    expect(
+      hits,
+      "the numbered-workflow expression must be written exactly once, in isNumberedWorkflowFile in scripts/kit-model.ts, and every consumer must reach it through that predicate",
+    ).toEqual(["kit-model.ts"]);
+    // …and that one occurrence is the declaration itself, not some other site that happens to be alone.
+    const modelCode = readFileSync(join(scriptsDir, "kit-model.ts"), "utf8");
+    expect(modelCode).toContain(
+      "export function isNumberedWorkflowFile(filename: string): boolean {",
+    );
+    // The three consumers each reach it through the predicate, so the declaration's comment
+    // enumerates a checked set rather than a remembered one.
+    for (const [file, site] of [
+      ["kit-model.ts", ".filter(isNumberedWorkflowFile)"],
+      ["generate-catalog.ts", "readdirSync(WORKFLOWS_DIR).filter(isNumberedWorkflowFile).sort()"],
+      [
+        "generate-catalog.test.ts",
+        "readdirSync(join(ROOT, WORKFLOWS_SUBPATH)).filter(isNumberedWorkflowFile)",
+      ],
+    ] as const) {
+      expect(readFileSync(join(scriptsDir, file), "utf8"), `${file}: ${site}`).toContain(site);
+    }
+    // Non-vacuity: the expression really is found somewhere by this spelling, so a typo in
+    // `EXPRESSION` cannot make the assertion pass by finding nothing anywhere.
+    expect(modelCode.split(EXPRESSION).length - 1).toBeGreaterThan(0);
   });
 
   it("the live schema and the live claims partition cleanly — three empty arms", () => {

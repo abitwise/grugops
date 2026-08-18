@@ -34,7 +34,12 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { ROLE_COUNT, WORKFLOW_COUNT, WORKFLOWS_SUBPATH } from "./kit-model.js";
+import {
+  ROLE_COUNT,
+  WORKFLOW_COUNT,
+  WORKFLOWS_SUBPATH,
+  isNumberedWorkflowFile,
+} from "./kit-model.js";
 
 const ROOT = join(import.meta.dirname, "..");
 const GEN_JS = join(ROOT, "scripts", "generate-catalog.js");
@@ -206,12 +211,17 @@ describe("generate-catalog.js (DOCS-01)", () => {
   // a mechanism already holds is a second declaration with nothing behind it — which is the drift
   // WR-03 found, rotted silently, and green the whole time.
   it("the workflow corpus the generator walks is exactly WORKFLOW_COUNT, and the fixtures agree", () => {
-    // DERIVED INDEPENDENTLY OF THE LOOP THAT CONSUMES IT. The directory is read with the generator's
-    // OWN range-free contract regex, never by counting WORKFLOW_NAMES — so "the directory gained a
-    // file" and "the fixture lost a name" are two different reds here rather than one shared silence.
-    const onDisk = readdirSync(join(ROOT, WORKFLOWS_SUBPATH)).filter((f) =>
-      /^\d{2}-.+\.md$/.test(f),
-    );
+    // DERIVED INDEPENDENTLY OF THE LOOP THAT CONSUMES IT. The directory is read through the SAME
+    // membership rule the generator asks — isNumberedWorkflowFile in scripts/kit-model.js — never by
+    // counting WORKFLOW_NAMES, so "the directory gained a file" and "the fixture lost a name" are two
+    // different reds here rather than one shared silence.
+    //
+    // AND THE RULE IS ASKED, NOT RETYPED (round 6, IN-01 — plan 29-54). A hand-copied duplicate of the
+    // generator's expression stood on this line. It was the drift class this very case exists to
+    // catch, reappearing one level down inside its own remedy: widen the generator's pattern and this
+    // case would keep the OLD contract and stay green for as long as the file set happened not to
+    // change. There is now one declaration and three consumers, and widening it moves all three.
+    const onDisk = readdirSync(join(ROOT, WORKFLOWS_SUBPATH)).filter(isNumberedWorkflowFile);
     // TWO FLOORS, NOT ONE. A floor on the derived set alone still passes vacuously when the CONSTANT
     // is the side that went to zero, and an equality between two empty sets is the emptiest possible
     // green. Both sides are floored ABOVE the equality, so neither can satisfy it by being absent.

@@ -92,6 +92,10 @@ import {
   sectionEndIndex,
   unfencedHeadingIndex,
 } from "./frontmatter.js";
+// The rule that decides which files in the workflow directory are corpus members. It is DECLARED in
+// scripts/kit-model.ts beside WORKFLOW_COUNT and asked here; this module states no shape rule of its
+// own. See that declaration for why it is range-free and why it cannot live in either consumer.
+import { isNumberedWorkflowFile } from "./kit-model.js";
 
 // ── Fixed literal paths (read/write-only by construction — never argv/env/content-derived) ───
 const ROOT = join(import.meta.dirname, "..");
@@ -269,18 +273,18 @@ for (const file of roleFiles) {
   });
 }
 
-// ── Read + parse workflows (every numbered file the regex below matches) ──────────────────────
+// ── Read + parse workflows (every corpus member isNumberedWorkflowFile admits) ────────────────
 let workflowFiles!: string[];
 try {
-  // Match the documented contract: numbered workflow files only (`NN-*.md`). The regex IS the
-  // contract and it is RANGE-FREE — no upper number is written beside it, because a range in this
-  // prose would be a second declaration of a set the regex already decides, and only the prose copy
-  // can rot (round 6, plan 29-46 — WR-03). A stray README.md/_draft.md/note.md dropped into the dir
-  // is ignored rather than picked up and hard-failed on the `# Workflow:` H1 check — mirrors the
-  // roles loop's `_`-prefix guard (WR-04, D-03).
-  workflowFiles = readdirSync(WORKFLOWS_DIR)
-    .filter((f) => /^\d{2}-.+\.md$/.test(f))
-    .sort();
+  // ASK THE CONTRACT, DO NOT RESTATE IT (round 6, IN-01 — plan 29-54). The membership rule lives in
+  // scripts/kit-model.ts beside WORKFLOW_COUNT, and this generator, the kit model's own lister and
+  // this generator's oracle all ask that ONE declaration. A copy of the expression stood HERE and a
+  // second copy stood in the oracle's corpus-cardinality case; widening one and leaving the others is
+  // a disagreement that stays green for as long as the file set happens not to change, which is
+  // exactly the drift class this module's header says it will not commit. A stray
+  // README.md/_draft.md/note.md dropped into the dir is ignored rather than picked up and hard-failed
+  // on the `# Workflow:` H1 check — mirrors the roles loop's `_`-prefix guard (WR-04, D-03).
+  workflowFiles = readdirSync(WORKFLOWS_DIR).filter(isNumberedWorkflowFile).sort();
 } catch {
   fail(`cannot read workflows directory: ${WORKFLOWS_DIR}`);
 }

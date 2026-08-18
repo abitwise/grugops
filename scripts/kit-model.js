@@ -98,6 +98,33 @@ import { join } from "node:path";
 // author to walk every derived consumer first — that walk is the whole point of the constant.
 export const ROLE_COUNT = 17;
 export const WORKFLOW_COUNT = 19;
+// ── THE RULE THAT DECIDES THE WORKFLOW CORPUS (round 6, IN-01 — plan 29-54) ────────────────────
+//
+// This is the rule that decides which files in agent-factory/workflows are part of the corpus: a
+// two-digit prefix, a hyphen, at least one more character, and a `.md` suffix. It is RANGE-FREE on
+// purpose — no upper number is expressed anywhere, because a range would be a second declaration of
+// a set this expression already decides, and only the second copy can rot. It sits beside
+// WORKFLOW_COUNT so a reader meets the corpus's two constraints together: this decides WHICH files
+// are members, and WORKFLOW_COUNT pins HOW MANY there are.
+//
+// IT LIVES HERE BECAUSE THREE CONSUMERS ASK IT, AND A RULE ASKED BY THREE CONSUMERS MUST BE DECLARED
+// BY NONE OF THEM. Until this plan the expression was TYPED OUT THREE TIMES — in listWorkflows
+// below, in scripts/generate-catalog.ts's directory read, and in scripts/generate-catalog.test.ts's
+// corpus-cardinality case. The generator is top-level script code that writes a file the moment it is
+// imported and exports nothing, so its copy could not be imported and the other two could only be
+// retyped. Three hand-maintained copies of one rule is this repository's named second systemic
+// failure class — a literal that rots while the suite stays green — and the third copy was sitting
+// INSIDE the case plan 29-46 added as the remedy for the first two. Widening one copy and leaving
+// the others is a silent disagreement that stays green for as long as the file set happens not to
+// change.
+//
+// A PREDICATE RATHER THAN AN EXPORTED REGEX, deliberately. A shared mutable RegExp object is a
+// shared object; a function that answers one question can only be asked. The name states the
+// decision, so a call site reads as the question it is asking rather than as a pattern match whose
+// intent the reader has to reconstruct.
+export function isNumberedWorkflowFile(filename) {
+    return /^\d{2}-.+\.md$/.test(filename);
+}
 // The exact expected number of SKILL adapters. It sits beside the other two cardinalities because it
 // is the same kind of fact; see the module header for why the skill half earns a count and the agent
 // half deliberately does not.
@@ -206,8 +233,8 @@ const PLUGIN_SKILLS_SUBPATH = "skills";
 // assertion that makes it true.
 //
 // DELIBERATELY NOT WIDENED TO EVERY `.md` SUBSTRING IN THE FILE. `"SKILL.md"`, `".frontmatter.md"`
-// and `".template.md"` are DIFFERENT facts — a file NAME and two template suffixes — and the regex
-// `/^\d{2}-.+\.md$/` states the workflow shape in one expression. Collapsing those into this
+// and `".template.md"` are DIFFERENT facts — a file NAME and two template suffixes — and
+// isNumberedWorkflowFile above states the workflow shape in one expression. Collapsing those into this
 // constant would be one statement of four facts, which is the mirror image of the defect above.
 const MARKDOWN_EXT = ".md";
 // ---------------------------------------------------------------------------
@@ -460,11 +487,12 @@ export function listRoles(kitRoot = DEFAULT_KIT_ROOT) {
         .sort();
     return refuseEmpty(files, dir, "role");
 }
-// The workflow corpus: `NN-*.md`, sorted. 19 files today (00..18).
+// The workflow corpus: the members isNumberedWorkflowFile admits, sorted. The membership rule is
+// declared once, above beside WORKFLOW_COUNT, and this lister asks it rather than restating it.
 export function listWorkflows(kitRoot = DEFAULT_KIT_ROOT) {
     const dir = join(kitRoot, WORKFLOWS_SUBPATH);
     const files = readDirOrThrow(dir)
-        .filter((f) => /^\d{2}-.+\.md$/.test(f))
+        .filter(isNumberedWorkflowFile)
         .sort();
     return refuseEmpty(files, dir, "workflow");
 }

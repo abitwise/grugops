@@ -44,7 +44,7 @@ function cleanup() {
     rmSync(tmp, { recursive: true, force: true });
 }
 // ── Mirror-spawn regeneration ────────────────────────────────────────────────────
-// Lay out <tmp>/scripts/{generate-catalog,frontmatter}.js + <tmp>/agent-factory/
+// Lay out <tmp>/scripts/{generate-catalog,frontmatter,kit-model}.js + <tmp>/agent-factory/
 // {roles,workflows} + <tmp>/docs/catalog, copy the generator, its import closure and
 // its kit sources in, then run the mirrored generator so it writes to
 // <tmp>/docs/catalog/README.md (OUT, a fixed literal joined to import.meta.dirname's
@@ -52,7 +52,11 @@ function cleanup() {
 //
 // THE TWIN LIST IS THE GENERATOR'S IMPORT CLOSURE AND MUST TRACK IT. `frontmatter.js`
 // joined it in plan 29-35, when the generator's private section-extent grammar was
-// deleted and the question moved onto the one authority (LANG-07 / WR-08). The list is
+// deleted and the question moved onto the one authority (LANG-07 / WR-08). `kit-model.js`
+// joined it in plan 29-54, when the generator's hand-copied copy of the workflow
+// membership rule was deleted and that question moved onto the kit authority (IN-01).
+// Both entries arrived by the same route, and it is the route this list must keep
+// tracking: deleting a private grammar from the generator ADDS a file here. The list is
 // hand-written rather than derived, matching the recorded trade in
 // scripts/adapters-freshness.ts: deriving it would mean writing a grammar for "what does
 // this module import" inside a build-safety gate, which is a second grammar of exactly
@@ -65,6 +69,7 @@ mkdirSync(join(tmp, "scripts"), { recursive: true });
 mkdirSync(join(tmp, "docs", "catalog"), { recursive: true });
 cpSync(join(ROOT, "scripts", "generate-catalog.js"), join(tmp, "scripts", "generate-catalog.js"));
 cpSync(join(ROOT, "scripts", "frontmatter.js"), join(tmp, "scripts", "frontmatter.js"));
+cpSync(join(ROOT, "scripts", "kit-model.js"), join(tmp, "scripts", "kit-model.js"));
 cpSync(join(ROOT, "agent-factory", "roles"), join(tmp, "agent-factory", "roles"), { recursive: true });
 cpSync(join(ROOT, "agent-factory", "workflows"), join(tmp, "agent-factory", "workflows"), { recursive: true });
 const r = spawnSync("node", [join(tmp, "scripts", "generate-catalog.js")], { encoding: "utf8" });
