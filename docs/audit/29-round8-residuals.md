@@ -142,6 +142,370 @@ Recorded separately so they are not lost inside a table cell.
 
 ---
 
-*Sections 2 through 8 are written by the remaining plans of this round: §4 by `29-57` (the hard-wrap
-axis, `D-56`), the profile and registry evidence by `29-58` (`D-55`), the build-parity repair by
-`29-59` (`D-57`), and §3, §6, §7 and §8 by `29-60` (`D-58`).*
+## 4. `V-29-57-01` — the hard-wrap axis: measured three ways, directed, and LEFT OPEN
+
+Written by plan `29-57` under `D-56`. **Nothing in this section is fixed by this plan.** That is the
+point of it: the difference between a decision and a silent drop is a written id carrying a live
+count, a direction, a reproduction and a named remedy, and this round is where the one axis Phase 29
+does not close gets that record instead of an implication.
+
+**Every number below is DERIVED by the command printed beside it, re-taken on the tree at
+`b90712b3ba65af70dc5aafa13789de687a3e0c62` (`HEAD` at the time of writing).** Numbers carried from a
+review's prose or from a prior register: **0**. Where a derived value disagrees with a published one,
+both are printed and the disagreement is named as a disagreement — never reconciled.
+
+### 4.1 `V-29-57-01` — a pinned multi-word literal hard-wrapped across a line boundary is not matched
+
+- **OPENED THIS ROUND** (plan `29-57`, `D-56`). **Direction: FAIL-OPEN.**
+- **Statement.** `lineHits()` (`scripts/check-banned-claims.ts:2023`) asks each pinned literal of ONE
+  physical line. The input the predicate is assembled from is therefore a single line, and a member
+  whose spelling contains a space is invisible whenever an ordinary hard wrap falls between its
+  words. The words ARE on the pinned list; what defeats the gate is the assembly of its input, which
+  is a choice the gate makes and could change.
+- **This is NOT `V-29-47-04`.** That residual is the open-enumeration limit — *a claim in words the
+  list does not contain* — which no matcher over free prose can close. This is the opposite case: the
+  words are pinned, the document is in the corpus, and the gate still says nothing.
+- **LIVE COUNT: 0** (§4.3, measured over the gate's own derived corpus, not asserted).
+- **REACH: 11 of the 22 pinned members are wrap-reachable** (§4.2, derived from the literal list) —
+  **not** the 16 multi-word members, which is a different quantity (§4.2a).
+- **REMEDY, named rather than gestured at:** a SECOND, explicitly named wrap-joined input assembly —
+  consecutive non-blank prose lines joined with a single space, carrying a per-line index so a
+  finding still reports the ORIGINATING line — asked ONLY of the multi-word members, since the
+  single-token members already see every line. **Never a global whitespace normalization**: that
+  would make the comparison inexact for every literal in order to reach one wrapping, and an inexact
+  comparison is how a gate starts admitting shapes nobody measured. The source is right to refuse it
+  and that refusal is kept.
+- **WHY THE REMEDY IS NOT APPLIED THIS ROUND — a decision, quoted by id.** `D-56`: *"It is not fixed
+  here because the fix adds a second input assembly — new surface, on a phase where round 6's fix
+  produced round 7's finding — to close an axis with no live instance, against a threat model that is
+  DRIFT, not an adversary: every finding that ever caught a LIVE claim was a corpus-SCOPE defect
+  (`CHANGELOG.md`, the shipped JSON manifests, both closed), and every matcher-completeness finding
+  has been at 0 live."* `D-58` fences round 8 and states that a new matcher-completeness axis at 0
+  live is disclosed by this id and belongs to a later phase if ever. **The axis stays open and
+  visible. It is not closed by a fourth heuristic.**
+
+### 4.2 Measurement one — wrap-REACHABILITY, derived from the literal list itself
+
+**Definition, stated before the command rather than inferred from its output.** A multi-word member
+is WRAP-REACHABLE only if SOME inter-word split of it leaves neither of the two resulting fragments
+containing any OTHER pinned member as a case-insensitive substring. A member whose every split leaves
+another pinned member intact on one of the two lines is NOT reachable, because the line-oriented
+matcher still hits that surviving member and the finding is still reported.
+
+```sh
+node --input-type=module <<'EOF'
+const { BANNED_CLAIM_LITERALS } = await import("./scripts/check-banned-claims.js");
+const all = BANNED_CLAIM_LITERALS.map((m) => m.literal.toLowerCase());
+const multi = BANNED_CLAIM_LITERALS.filter((m) => m.literal.trim().split(/\s+/).length > 1);
+const reachable = [];
+for (const m of BANNED_CLAIM_LITERALS) {
+  const t = m.literal.trim().split(/\s+/);
+  if (t.length < 2) continue;
+  let ok = false;
+  const splits = [];
+  for (let i = 1; i < t.length; i++) {
+    const L = t.slice(0, i).join(" ").toLowerCase();
+    const R = t.slice(i).join(" ").toLowerCase();
+    const survivor = all.find((o) => o !== m.literal.toLowerCase() && (L.includes(o) || R.includes(o)));
+    splits.push({ at: i, L, R, survivor: survivor ?? null });
+    if (!survivor) ok = true;
+  }
+  if (ok) reachable.push({ group: m.group, literal: m.literal });
+  else console.log(`NOT reachable: ${JSON.stringify(m.literal)} — every split leaves a pinned member intact:`, JSON.stringify(splits));
+}
+console.log("total members            =", BANNED_CLAIM_LITERALS.length);
+console.log("multi-word members       =", multi.length);
+console.log("wrap-reachable members   =", reachable.length);
+console.log("--- reachable, by group and spelling ---");
+for (const g of [...new Set(BANNED_CLAIM_LITERALS.map((m) => m.group))]) {
+  const inG = BANNED_CLAIM_LITERALS.filter((m) => m.group === g);
+  const rG = reachable.filter((r) => r.group === g);
+  console.log(`${g}: ${rG.length} reachable of ${inG.length} member(s) — ${JSON.stringify(rG.map((r) => r.literal))}`);
+}
+EOF
+```
+
+Output, verbatim:
+
+```
+NOT reachable: "improves comprehension" — every split leaves a pinned member intact: [{"at":1,"L":"improves","R":"comprehension","survivor":"comprehension"}]
+NOT reachable: "improve comprehension" — every split leaves a pinned member intact: [{"at":1,"L":"improve","R":"comprehension","survivor":"comprehension"}]
+NOT reachable: "comprehension benefit" — every split leaves a pinned member intact: [{"at":1,"L":"comprehension","R":"benefit","survivor":"comprehension"}]
+NOT reachable: "easier for the model to understand" — every split leaves a pinned member intact: [{"at":1,"L":"easier","R":"for the model to understand","survivor":"understand"},{"at":2,"L":"easier for","R":"the model to understand","survivor":"understand"},{"at":3,"L":"easier for the","R":"model to understand","survivor":"understand"},{"at":4,"L":"easier for the model","R":"to understand","survivor":"understand"},{"at":5,"L":"easier for the model to","R":"understand","survivor":"understand"}]
+NOT reachable: "easier for a language model to understand" — every split leaves a pinned member intact: [{"at":1,"L":"easier","R":"for a language model to understand","survivor":"understand"},{"at":2,"L":"easier for","R":"a language model to understand","survivor":"understand"},{"at":3,"L":"easier for a","R":"language model to understand","survivor":"understand"},{"at":4,"L":"easier for a language","R":"model to understand","survivor":"understand"},{"at":5,"L":"easier for a language model","R":"to understand","survivor":"understand"},{"at":6,"L":"easier for a language model to","R":"understand","survivor":"understand"}]
+total members            = 22
+multi-word members       = 16
+wrap-reachable members   = 11
+--- reachable, by group and spelling ---
+standard-name: 4 reachable of 7 member(s) — ["ASD-STE 100","ASD STE100","ASD STE 100","Simplified Technical English"]
+token-economy: 6 reachable of 7 member(s) — ["token economy","fewer tokens","token savings","saves tokens","reduces token count","lowers token count"]
+comprehension: 1 reachable of 8 member(s) — ["better understood by the model"]
+```
+
+| quantity | derived value | how |
+|---|---|---|
+| total pinned members | **22** | `BANNED_CLAIM_LITERALS.length` — equal to the count the gate's own PASS line publishes |
+| multi-word members | **16** | members whose spelling contains whitespace |
+| **wrap-reachable members** | **11** | the definition above, applied to every inter-word split |
+| of the `token-economy` group | **6 reachable of 7 members** | the hyphenated `token-economy` is a single token and sees every line |
+
+#### 4.2a `multi-word` and `wrap-reachable` are DIFFERENT quantities, and the round-7 review takes the first for the second
+
+**One sentence, because this is the correction and not a footnote: a member being multi-word does not
+make it wrap-reachable, because a split that leaves another pinned member intact on one of the two
+lines is still matched — so 16 multi-word members yield 11 reachable ones, and the five-member
+difference is exactly the `comprehension` group, which pins the bare terms `comprehension` and
+`understand` and therefore survives every split of its own longer phrasings.**
+
+| source | figure for the reach | derived here |
+|---|---|---|
+| `.planning/phases/29-controlled-language-voice-guard-rebuild/29-REVIEW.md:225-226` — *"its live count (**16 of 22 literals reachable**; 6 of the 7 `token-economy` members; 0 live occurrences; 3 demonstrated plants)"* | **16 of 22** | **11 of 22** |
+
+**This register carries 11**, because 11 is what the definition above returns when it is run against
+`BANNED_CLAIM_LITERALS` on the tree at `HEAD`, and because the review's 16 is the multi-word count
+under a different name. The review's `6 of the 7 token-economy members` is independently
+**re-derived and CONFIRMED** by the same command. This correction is filed here rather than by
+editing the review: a prior round's record is history and is never rewritten.
+
+**This is this phase's own `WR-01` defect — a published number with no recorded derivation — caught
+in the round that could have carried it.** It is the second such catch in round 8: `29-56` derived
+the claim-site set rather than accepting the plan's four-site floor list and found thirteen.
+
+### 4.3 Measurement two — the LIVE count, over the gate's own derived corpus
+
+**Not a hand-picked set.** The measurement imports `bannedClaimScan()` — the same derivation the gate
+runs — walks every adjacent non-blank line pair of every scanned document, joins each pair with a
+single space, and counts occurrences of the **11 reachable** members that appear in the joined
+projection and in **NEITHER** of the two source lines. That difference is exactly what the shipped
+matcher cannot see. The scanned-document denominator is printed beside the hit count so the
+denominator is visible rather than assumed.
+
+**This measurement is a one-off recorded command. It is NOT added to any shipped script**, because
+adding it IS the remedy `D-56` declines.
+
+```sh
+node --input-type=module <<'EOF'
+import { readFileSync } from "node:fs";
+const { BANNED_CLAIM_LITERALS, bannedClaimScan } = await import("./scripts/check-banned-claims.js");
+const all = BANNED_CLAIM_LITERALS.map((m) => m.literal.toLowerCase());
+const reachable = BANNED_CLAIM_LITERALS.filter((m) => {
+  const t = m.literal.trim().split(/\s+/);
+  if (t.length < 2) return false;
+  for (let i = 1; i < t.length; i++) {
+    const L = t.slice(0, i).join(" ").toLowerCase();
+    const R = t.slice(i).join(" ").toLowerCase();
+    if (!all.some((o) => o !== m.literal.toLowerCase() && (L.includes(o) || R.includes(o)))) return true;
+  }
+  return false;
+});
+const docs = bannedClaimScan();
+let hits = 0, pairs = 0;
+for (const rel of docs) {
+  const lines = readFileSync(rel, "utf8").split("\n");
+  for (let i = 0; i + 1 < lines.length; i++) {
+    const a = lines[i], b = lines[i + 1];
+    if (a.trim() === "" || b.trim() === "") continue;
+    pairs++;
+    const joined = `${a} ${b}`.toLowerCase();
+    const la = a.toLowerCase(), lb = b.toLowerCase();
+    for (const m of reachable) {
+      const lit = m.literal.toLowerCase();
+      if (joined.includes(lit) && !la.includes(lit) && !lb.includes(lit)) {
+        hits++;
+        console.log(`WRAP-ONLY HIT ${rel}:${i + 1} — ${JSON.stringify(m.literal)}`);
+      }
+    }
+  }
+}
+console.log("scanned documents (denominator) =", docs.length);
+console.log("adjacent non-blank line pairs   =", pairs);
+console.log("reachable members asked         =", reachable.length);
+console.log("WRAP-ONLY LIVE HITS             =", hits);
+EOF
+```
+
+Output, verbatim:
+
+```
+scanned documents (denominator) = 117
+adjacent non-blank line pairs   = 4126
+reachable members asked         = 11
+WRAP-ONLY LIVE HITS             = 0
+```
+
+**LIVE COUNT: 0**, over a denominator of **117 documents** and **4126 adjacent non-blank line pairs**,
+asking **11** reachable members. Zero lines were printed, which is why the hit list above is empty
+rather than omitted. Had this returned non-zero, plan `29-57` was required to HALT and report rather
+than record an accepted bound over live instances; it returned zero, so the bound is accepted with
+its number shown.
+
+### 4.4 Measurement three — the house-style wrap figure, with its definition STATED
+
+The round-7 review reports **822 mid-sentence hard wraps over 2458 adjacent non-blank line pairs in
+60 tracked `agent-factory/**/*.md` files** (`29-REVIEW.md:197-199`). **It does not state the predicate
+that produced those numbers**, so they cannot be reproduced, and this register does not carry them.
+A definition is stated here instead, and the figure is re-derived under it at `HEAD`.
+
+**DEFINITION.** A *house-style mid-sentence hard wrap* is an adjacent pair of non-blank lines where
+(a) the first line's last non-whitespace character is not one of `.` `!` `?`, and (b) the second
+line's first non-whitespace character is a lower-case ASCII letter.
+
+```sh
+node --input-type=module <<'EOF'
+import { readFileSync } from "node:fs";
+import { execSync } from "node:child_process";
+// DEFINITION, stated rather than assumed: a HOUSE-STYLE MID-SENTENCE WRAP is an adjacent pair of
+// non-blank lines where (a) the first line's last non-whitespace character is not one of . ! ?
+// and (b) the second line's first non-whitespace character is a lower-case ASCII letter.
+const files = execSync("git ls-files -- 'agent-factory/**/*.md' 'agent-factory/*.md'", { encoding: "utf8" })
+  .split("\n").filter(Boolean);
+let pairs = 0, wraps = 0;
+for (const rel of files) {
+  const lines = readFileSync(rel, "utf8").split("\n");
+  for (let i = 0; i + 1 < lines.length; i++) {
+    const a = lines[i].trimEnd(), b = lines[i + 1];
+    if (a.trim() === "" || b.trim() === "") continue;
+    pairs++;
+    const last = a.slice(-1);
+    const first = b.trimStart().slice(0, 1);
+    if (!".!?".includes(last) && first >= "a" && first <= "z") wraps++;
+  }
+}
+console.log("agent-factory markdown files (tracked) =", files.length);
+console.log("adjacent non-blank line pairs          =", pairs);
+console.log("mid-sentence hard wraps                =", wraps);
+console.log("wrap rate                              =", ((wraps / pairs) * 100).toFixed(1) + "%");
+EOF
+```
+
+Output, verbatim:
+
+```
+agent-factory markdown files (tracked) = 73
+adjacent non-blank line pairs          = 2612
+mid-sentence hard wraps                = 757
+wrap rate                              = 29.0%
+```
+
+| source | files | adjacent pairs | mid-sentence wraps | definition recorded? |
+|---|---|---|---|---|
+| `29-REVIEW.md:197-199` (round 7) | 60 | 2458 | **822** | **no** — the predicate is unstated |
+| derived here, at `HEAD` | **73** | **2612** | **757** | yes, printed above the command |
+
+**The two are NOT reconciled, and that is deliberate.** Three of the four numbers disagree, and
+without the review's predicate there is no way to attribute the disagreement to the file set, to the
+wrap test, or to both — inventing an attribution would be exactly the fabricated reconciliation this
+phase forbids. **This register carries 757 over 2612 pairs across 73 files, because that is the
+figure whose definition is written down.** Neither figure is load-bearing beyond one fact, and both
+establish it: **roughly three in ten adjacent non-blank line pairs in the kit's own prose are
+mid-sentence wraps.** Mid-phrase wrapping is this kit's house style, not an exotic authoring act — so
+a bound accepted on the argument that the wrap shape is unusual is accepted on a false premise.
+
+### 4.5 The reproduction — round 7's, quoted; and this round's, re-run independently at `HEAD`
+
+**Round 7's, quoted from `29-VERIFICATION.md:104-113`:** appended to
+`agent-factory/workflows/13-incident.md` on a fresh mirror —
+
+```
+The caveman blocks are a token
+economy: they mean the model reads fewer
+tokens on every run, and this profile saves
+tokens too.
+```
+
+— *"three separately-pinned `token-economy` claims, hard-wrapped exactly as the kit's own house style
+wraps prose. Result: `PASS banned claims: 0 findings over 117/117 elements`, `ALL CHECKS PASSED`. The
+planted file is never named."*
+
+**Re-run independently by plan `29-57` at `HEAD`.** Three mirrors were extracted with
+`git archive HEAD | tar -x -C <dir>`, **one plant per mirror, none reused and none reset** — an
+archive extract is not a git repository and `git checkout --` silently does nothing there.
+
+```
+repo gate sha256: 9e6253aa4e15326a5258b1ed885e20d59ce0971f20c71f91137b9fb9eb0324ac
+M1   gate sha256: 9e6253aa4e15326a5258b1ed885e20d59ce0971f20c71f91137b9fb9eb0324ac   IDENTICAL
+M2   gate sha256: 9e6253aa4e15326a5258b1ed885e20d59ce0971f20c71f91137b9fb9eb0324ac   IDENTICAL
+M3   gate sha256: 9e6253aa4e15326a5258b1ed885e20d59ce0971f20c71f91137b9fb9eb0324ac   IDENTICAL
+```
+
+**M1 — the WRAPPED plant** (the four lines above, appended verbatim):
+
+```
+M1 exit=0
+  PASS  banned claims: 0 findings over 117/117 elements
+== Result ==
+ALL CHECKS PASSED
+
+grep -c "13-incident" <M1 output>  →  0
+```
+
+**M2 — the clean control, a SEPARATELY re-extracted mirror:**
+
+```
+M2 exit=0
+  PASS  banned claims: 0 findings over 117/117 elements
+== Result ==
+ALL CHECKS PASSED
+```
+
+Same element count, `117/117`, as M1 — so M1's green is not the green of a scan that shrank.
+
+**M3 — the DISCRIMINATION control, a third separately re-extracted mirror.** The same claim, the same
+three pinned members, the same file, on ONE line instead of four:
+
+```
+M3 exit=1
+  FAIL  banned claims: 3 finding(s) over 117 elements
+        agent-factory/workflows/13-incident.md:46:26 — banned token-economy literal "token economy" — …
+        agent-factory/workflows/13-incident.md:46:67 — banned token-economy literal "fewer tokens" — …
+        agent-factory/workflows/13-incident.md:46:111 — banned token-economy literal "saves tokens" — …
+1 CHECK(S) FAILED
+```
+
+**M3 is what makes M1 a finding rather than a coincidence.** Identical mirror provenance, identical
+gate binary, identical file, identical members, identical words — the ONLY difference is where the
+newlines fall. Unwrapped: exit 1, three findings named at `file:line:column`. Wrapped: exit 0, the
+planted file never named anywhere in the output. **The wrap is the whole mechanism.**
+
+### 4.6 What this entry supersedes, and what it does not
+
+`docs/audit/29-round7-residuals.md:561` files:
+
+> `V-29-42-01` | a claim split across a hard wrap escapes the co-occurrence window | **closed by
+> construction in round 6** | 0, no subject | `29-round6-residuals.md` §3.7
+
+**That row is ACCURATE about its own subject and is not corrected here.** The co-occurrence window it
+names was deleted by `D-48`/`D-53`; a mechanism that no longer exists genuinely has no live subject,
+and recording it as closed by construction is right.
+
+**What this entry supersedes is a READING of that row, not the row.** A reader of the round-7 register
+would reasonably conclude that the hard-wrap AXIS is closed with no subject. It is not. The wider
+axis — a pinned literal the list demonstrably contains, split by an ordinary wrap, in a document the
+corpus demonstrably reads — stands, with the reproduction in §4.5 and the reach in §4.2. Round 7's
+§7.2 enumeration of what that round does not claim omits it. `V-29-57-01` is where it is counted and
+directed.
+
+**`docs/audit/29-round7-residuals.md` is NOT edited by this plan** (`git diff --numstat` over it
+reports no change). A prior round's record is history and is never rewritten — this phase's own trail
+rule, restated in this file's header. Where this round disagrees with a predecessor, both values are
+printed here and the disagreement is a finding here.
+
+### 4.7 What `V-29-57-01` does NOT claim
+
+- It does **not** claim the axis is closed. It is open, and `D-58` states it may stay open past this
+  phase.
+- It does **not** claim the reach is bounded at 11 forever. **11 is a property of the current
+  22-member list**: admitting one more single-token member can make a currently-unreachable member
+  reachable, and admitting a multi-word member can raise it. The derivation in §4.2 is the authority,
+  not the number it returned today.
+- It does **not** claim `0 live` is stable. It is a measurement over the corpus at `HEAD`. Any prose
+  edit can move it, and nothing in the shipped tree would report the move — which is precisely the
+  direction, FAIL-OPEN, and precisely why the id exists.
+- It does **not** claim the remedy is free. A second input assembly is new matcher surface, and this
+  phase's own history is that each round's fix produced the next round's finding.
+
+---
+
+*§1 was written by `29-56` and §4 by `29-57`. The remaining sections are written by the remaining
+plans of this round: the profile and registry evidence by `29-58` (`D-55`), the build-parity repair
+by `29-59` (`D-57`), and §2, §3, §5, §6, §7 and §8 by `29-60` (`D-58`).*
