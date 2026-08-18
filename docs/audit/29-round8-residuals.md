@@ -142,6 +142,69 @@ Recorded separately so they are not lost inside a table cell.
 
 ---
 
+## 2. What an edit to `agent-factory/writing-profile.md` owes — derived from each watching gate
+
+Written by plan `29-58`. **Every row below was produced by RUNNING the gate's own derivation, not by
+reading the gate's name and not by inferring from the file's directory.** House rule 10: establish
+what a kit document owes rather than assuming it. The failure this guards against is the quiet one —
+a gate that turns out not to watch this path and a gate nobody asked look identical afterwards, so an
+absence is recorded here WITH the derivation that produced it.
+
+The subject is one edit: narrowing the `C-28-042` mechanism sentence inside
+`## Disclaimer and honesty floor` (plan `29-58` task 2) and extending the residual paragraph beneath
+it (task 3).
+
+### 2.1 The obligations table
+
+| # | watching gate | derivation run | derived answer | what the edit therefore owes | satisfied by |
+|---|---|---|---|---|---|
+| 1 | `check-diff-disposition.js` — the D-04 same-commit disposition rule | `node --input-type=module -e 'import {listRoles,listWorkflows,ROLE_COUNT,WORKFLOW_COUNT} from "./scripts/kit-model.js"; const d=[...listRoles(".").map(f=>"agent-factory/roles/"+f),...listWorkflows(".").map(f=>"agent-factory/workflows/"+f)]; console.log(d.length, ROLE_COUNT+WORKFLOW_COUNT, d.includes("agent-factory/writing-profile.md"))'` → prints `36 36 false` | watched corpus cardinality **36** (`WATCHED_CORPUS_MIN` = `ROLE_COUNT` 17 + `WORKFLOW_COUNT` 19); membership of this path **false** | **NOTHING.** No D-04 disposition row is owed. Recorded as an absence BY DERIVATION: `listRoles()`/`listWorkflows()` walk `agent-factory/roles/` and `agent-factory/workflows/`, and this file sits at `agent-factory/` root, so it is out of set structurally rather than by omission | — (nothing owed) |
+| 2 | `check-foundation-guards.js` / `guard_role_size` — the per-file byte ceiling (D-07) | `node --input-type=module -e 'import {listRoles} from "./scripts/kit-model.js"; const R=listRoles(".").map(f=>"agent-factory/roles/"+f); console.log(R.length, R.includes("agent-factory/writing-profile.md"))'` → prints `17 false` | ceiling-set cardinality **17**; membership of this path **false** | **NOTHING.** No byte ceiling applies, so adding lines to the residual paragraph cannot trip one. `roleCeiling()` is only ever asked about members of `ROLE_FILES`, and this path is not one | — (nothing owed) |
+| 3 | `check-audit-register.js` — the four equalities over `docs/audit/28-claim-registry.md` | `grep -c '^### C-28-' docs/audit/28-claim-registry.md` → `46`; `grep -o '^- kind: .*' docs/audit/28-claim-registry.md \| sort \| uniq -c` → `32 architecture / 8 install / 6 safety` | **46** rows; kind distribution **architecture 32, install 8, safety 6** (sums to 46); the 36 COUNTED rows (equalities one and three) are the derived kit files, and this path is not among them | **DO NOT ADD OR REMOVE A REGISTRY ROW.** Editing a row's `mechanism:` field and its fenced verbatim moves no cardinality: the row count, the per-kind counts and both set equalities are untouched by a within-row edit | task 2 — row count and kind distribution re-derived after the edit and shown equal |
+| 4 | `check-claim-anchors.js` — the anchor/row bijection and the byte-identical verbatim comparison | `grep -c '<!-- claim: ' agent-factory/writing-profile.md` → `8`; `grep -c '^- file: agent-factory/writing-profile.md' docs/audit/28-claim-registry.md` → `8` | **8** anchors in the profile, **8** registry rows naming it — a bijection; 46 verbatim comparisons performed repo-wide, all byte-identical | **THE COMPANION IS MANDATORY AND MUST LAND IN THE SAME COMMIT.** `C-28-042`'s block in the profile and its fenced verbatim in the registry are byte-compared live. Editing one without the other is a red. This is the freeze's standing cost (D-53/D-54), and it is the single companion obligation this edit carries | task 2 — one commit touching both paths |
+| 5 | `check-banned-claims.js` — the pinned-literal scan and its exemption arithmetic | `node --input-type=module -e 'const m=await import("./scripts/check-banned-claims.js"); const s=m.bannedClaimScan(); console.log(s.length, s.includes("agent-factory/writing-profile.md"))'` → prints `117 true` | scan-set cardinality **117**; membership of this path **true** | **THE FULL EXEMPTION ARITHMETIC APPLIES** — see §2.2 for the complete enumeration of numbers this edit can move, each with its baseline read off the gate's own second PASS line | tasks 2 and 3 — every movable number re-checked, every movement re-derived from the refusal text |
+| 6 | `check-kit-refs.js` — the retired-path / resolver-slot scan | a walk of the gate's explicit `SCAN` list — `node --input-type=module -e 'import {readdirSync,statSync,existsSync} from "node:fs"; import {join} from "node:path"; const S=["agent-factory/roles","agent-factory/workflows","agent-factory/checklists","agent-factory/packaging","agent-factory/_commit-convention.md",".claude/skills",".claude/agents","skills","AGENTS.md"]; const w=p=>!existsSync(p)?[]:statSync(p).isFile()?[p]:readdirSync(p).flatMap(e=>w(join(p,e))); const f=S.flatMap(w); console.log(f.length, f.includes("agent-factory/writing-profile.md"))'` → prints `91 false` | walked cardinality **91**; membership of this path **false** | **NOTHING.** The `SCAN` list is explicit and names no `agent-factory/` root file other than `_commit-convention.md` | — (nothing owed) |
+| 7 | `check-public-docs-vocabulary.js` — the public-document vocabulary gate | `node --input-type=module -e 'const m=await import("./scripts/check-public-docs-vocabulary.js"); const s=m.publicDocsScan(); console.log(s.length, s.includes("agent-factory/writing-profile.md"))'` → prints `10 false` | `publicDocsScan()` cardinality **10**; membership of this path **false** | **NOTHING.** This file is kit prose, not a public document | — (nothing owed) |
+| 8 | `check-imperative-lexicon.js` — `guard_sentence_form` and the governed corpus | `node --input-type=module -e 'const m=await import("./scripts/check-imperative-lexicon.js"); const g=m.governedCorpus(); console.log(g.length, m.GOVERNED_CORPUS_COUNT, g.includes("agent-factory/writing-profile.md"))'` → prints `47 47 false` | `governedCorpus()` cardinality **47**, `GOVERNED_CORPUS_COUNT` **47**, membership of this path **false** | **NOTHING** — and this absence is the load-bearing one. The profile is the CONTRACT the gate implements, not a document the gate governs; its own `## Governed surfaces` section states that exclusion in prose, and the derivation confirms the mechanism agrees. So the new prose is under no sentence-length or step-verb obligation | — (nothing owed) |
+| 9 | `check-nul-bytes.js` — the control-byte gate | `node --input-type=module -e 'const m=await import("./scripts/check-nul-bytes.js"); const t=m.trackedPaths(); console.log(t.length, t.includes("agent-factory/writing-profile.md"))'` → prints `1629 true` | tracked-path cardinality **1629**; membership of this path **true** | **THE EDIT INTRODUCES NO FORBIDDEN CONTROL BYTE.** Plain ASCII prose satisfies it; it is recorded because a membership that holds must be reported as loudly as one that does not | task 3 — the gate is re-run on the final tree |
+
+**Companion artifacts created because a gate requires one: 1** (`C-28-042`'s registry row, row 4).
+**Companion artifacts created because they seemed likely: 0.** No disposition row, no ceiling
+re-check and no regenerated list is created, because rows 1, 2 and 6 derived that none is owed.
+
+### 2.2 Every number an in-region edit can move, with its baseline
+
+Read off `node scripts/check-banned-claims.js`'s second PASS line before any edit of this plan. This
+is the enumeration that turns a red into a re-derivation rather than a discovery.
+
+| pin / value | baseline | may it move? | if it moves |
+|---|---|---|---|
+| `BANNED_CLAIM_EXEMPT_ANCHORS` | **6** — `[C-28-039, C-28-043, C-28-044, C-28-042, C-28-045, C-28-046]` | **NO.** This edit adds and removes no anchored block | a block was added or deleted — halt |
+| `BANNED_CLAIM_EXEMPT_SUPPRESSED` | **14** | yes, if the replacement prose adds or drops a pinned-literal occurrence inside a frozen block | re-derive from the refusal text; name the entrant or leaver |
+| `BANNED_CLAIM_EXEMPT_COMPOSITION` | **standard-name 8, token-economy 2, comprehension 4** (sums to 14, asserted against the total) | yes, same condition, per group | re-derive; the sum equality is asserted separately, so both move together |
+| `BANNED_CLAIM_EXEMPT_EXTENT` | **66** lines (`endBefore - headingAt`) | yes, if the edit changes the region's line count — task 3 adds lines to a paragraph INSIDE the region | re-derive from `reaches N line(s)` in the refusal text |
+| frozen-line coverage | **22** of the region's 66 lines; the other **44** are scanned | yes, if a frozen block's line count changes | DERIVED and PRINTED, not pinned — no red, so it is reported explicitly or it moves silently |
+| `BANNED_CLAIM_SCAN_COUNT` | **117** (kit 73, publicDocs 11, installReadme 1, skillSources 7, claudeAdapters 24, pluginManifests 2, overlap 1) | **NO.** No document is added or removed | halt |
+| `BANNED_CLAIM_LITERALS` length | **22** across 3 groups | **NO.** D-56 forbids a matcher change | halt |
+| registry row count / kind distribution | **46**; architecture 32, install 8, safety 6 | **NO.** A within-row edit moves neither | halt |
+| the advisory `line:` field of `C-28-042` | **175-179** | yes — it is advisory and unasserted, but a knowingly wrong value is a silent drop | correct it to the block's live position |
+
+### 2.3 Baseline: every watching gate green before any edit
+
+`node scripts/check-banned-claims.js`, `check-claim-anchors.js`, `check-audit-register.js`,
+`check-diff-disposition.js`, `check-foundation-guards.js`, `check-kit-refs.js`,
+`check-public-docs-vocabulary.js`, `check-imperative-lexicon.js` and `check-nul-bytes.js` each
+**exit 0** on the tree at `6a83b31` before this plan's first edit. Tasks 2 and 3 compare against
+these transcripts rather than against a remembered value; the transcripts are quoted in full in
+`29-58-SUMMARY.md`.
+
+`git diff --numstat .planning/REQUIREMENTS.md` and
+`git diff --numstat docs/audit/29-round7-residuals.md` both report **no change** — asserted at the
+close of every task in this plan, because a prior round's record is history and this plan flips no
+requirement row.
+
+---
+
 ## 4. `V-29-57-01` — the hard-wrap axis: measured three ways, directed, and LEFT OPEN
 
 Written by plan `29-57` under `D-56`. **Nothing in this section is fixed by this plan.** That is the
