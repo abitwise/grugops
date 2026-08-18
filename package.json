@@ -11,6 +11,7 @@
     "test": "vitest run",
     "test:e2e": "vitest run scripts/e2e",
     "freshness": "tsc --outDir .tmp-build && node scripts/freshness.js",
+    "check:build-parity": "npm run build && git diff --exit-code --name-only -- '*.js' && echo 'Build parity: no tracked build output moved when tsc ran.' || node -e \"console.error('BUILD PARITY FAILED: either the build did not complete, or it moved one of the tracked build outputs named above - meaning a committed .js on this tree is not a build of its .ts. Remedy: run npm run build and commit the result.'); process.exit(1)\"",
     "check:public-docs": "tsc --outDir .tmp-build && node scripts/check-public-docs-vocabulary.js",
     "check:audit-register": "tsc --outDir .tmp-build && node scripts/check-audit-register.js",
     "check:claim-anchors": "tsc --outDir .tmp-build && node scripts/check-claim-anchors.js",

@@ -655,8 +655,113 @@ printed here and the disagreement is a finding here.
 - It does **not** claim the remedy is free. A second input assembly is new matcher surface, and this
   phase's own history is that each round's fix produced the next round's finding.
 
+## 5. The build-parity repair — the coverage the subject change MOVED, recorded with owners
+
+Written by plan `29-59` under `D-57`. **The repair itself is not a residual and is not recorded here
+as one**: `scripts/freshness.ts` now reads its committed side with `git show HEAD:<path>` and derives
+its compared set from `git ls-tree -r -l HEAD`, and the discrimination pair in
+`scripts/freshness.test.ts` shows the same planted drift green on the pre-fix tree and red on the
+post-fix tree. What this section records is the two pieces of coverage that MOVED when the gate's
+subject moved, each with a question, an owner, a direction, a live count and a wiring — because the
+difference between a decision and a silent drop is exactly those five fields.
+
+**Every number below is DERIVED by the command printed beside it, taken on the tree this plan
+produced.** Numbers carried from a review's prose or from a prior register: **0**.
+
+### 5.1 `V-29-59-01` — a hand-edited but UNCOMMITTED working `.js` is no longer this gate's finding
+
+- **OPENED THIS ROUND** (plan `29-59`, `D-57`). **Direction: FAIL-OPEN, and only inside the
+  uncommitted window.**
+- **The question that moved.** Before this plan the gate compared, for every build output, the file in
+  the WORKING TREE against a rebuild. So it answered: *is the `.js` sitting on this disk right now a
+  build of the `.ts` sitting beside it?* After this plan the gate answers a different question: *is
+  the `.js` committed at `HEAD` a build of the `.ts` committed beside it?* A `.js` that a person edited
+  by hand and has NOT committed, whose `.ts` is unchanged, takes the HEAD arm — so its working bytes
+  are not read at all, and the gate is silent about them.
+- **Its new owner is a BOUNDARY, not another gate, and saying otherwise would be the silent drop.**
+  Two mechanisms stand where the old comparison stood, and neither is a gate over the working file:
+  1. `git status` reports the modified `.js` to the person who edited it, before anything else runs.
+  2. The freshness gate reds the moment that edit is **committed**, because `HEAD` then carries a
+     `.js` that is not a build of its `.ts`. That is the case the discrimination pair proves.
+  `npm run check:build-parity` does **NOT** cover this case and is not claimed to: it runs the build
+  first, and the build overwrites the hand edit with a faithful output, after which `git diff` is
+  clean. Naming it as the owner would be a claim this plan can disprove in one command, so it is
+  named here as a NON-owner instead. **MEASURED, not reasoned** — a byte appended to
+  `hooks/guard.js` in the working tree with `hooks/guard.ts` untouched and nothing committed:
+
+  ```
+  $ git status --porcelain -- hooks scripts install
+   M hooks/guard.js                       <- the only mechanism that saw it
+
+  $ node scripts/freshness.js | tail -1
+  All build outputs fresh: 48 committed .js file(s) match a rebuild of their sources.
+  gate exit=0                             <- silent, correctly: HEAD is intact
+
+  $ npm run check:build-parity | tail -1
+  Build parity: no tracked build output moved when tsc ran.
+  parity exit=0                           <- silent, because its own build overwrote the edit
+
+  $ git status --porcelain -- hooks scripts install
+  (empty)                                 <- the build restored the faithful output
+  ```
+- **LIVE COUNT ON THIS TREE: 0.** Derived, not asserted:
+  ```
+  for f in $(git status --porcelain -- install scripts hooks | awk '{print $2}' | grep '\.js$'); do
+    ts="${f%.js}.ts"
+    git diff --quiet -- "$ts" && [ -z "$(git status --porcelain -- "$ts")" ] && echo "$f"
+  done | wc -l        # → 0
+  ```
+- **CONTINUOUS INTEGRATION HAS NO SUBJECT FOR THIS ID, AND THAT IS THE POINT.** A fresh checkout's
+  working tree equals `HEAD` by construction, so the uncommitted window cannot exist on a runner. This
+  is a local-development concern only, and its remedy is the one every developer already has: read
+  `git status` before committing, or run `npm run check:build-parity`, which rebuilds and shows what
+  moved.
+- **WHY THE MOVE IS ACCEPTED RATHER THAN COMPENSATED.** The contract `CLAUDE.md` states is about the
+  artifact host machines run with bare Node, and that artifact is what is COMMITTED. The old question
+  was strictly weaker where it mattered — it could not see `HEAD` at all, which is how a stale
+  committed `.js` cleared every gate in this repository for nine phases. Restoring the old comparison
+  as a third arm would re-introduce a working-tree read into a gate whose whole repair is that it has
+  none.
+
+### 5.2 `V-29-59-02` — the working-tree parity assertion has no Windows leg
+
+- **OPENED THIS ROUND** (plan `29-59`, `D-57`). **Direction: FAIL-OPEN on the unscoped legs.**
+- **Statement.** `npm run check:build-parity` is invoked by `.github/workflows/ci.yml` under
+  `if: matrix.os == 'ubuntu-latest'`. The `windows-latest` leg compiles and does not assert that the
+  tracked outputs stayed put.
+- **LIVE COUNT: 1 of 2 matrix legs unasserted.** Derived from `.github/workflows/ci.yml:34`
+  (`os: [ubuntu-latest, windows-latest]`) against the one `if:` on the parity step.
+- **WHY IT IS SCOPED, STATED RATHER THAN LEFT TO DEFAULT.** Two reasons, both about the ORACLE rather
+  than about the code. A raw diff over emitted files on a Windows checkout is an unreliable oracle for
+  line-ending reasons — the same family the later freshness block was already scoped for. And the
+  script's `'*.js'` pathspec is a POSIX-shell construct that `cmd.exe` passes through with its quotes
+  intact, which would make the pathspec match nothing and the assertion pass vacuously. **A vacuous
+  green is worse than an absent check**, which is the whole finding this plan exists to repair; adding
+  one on a second platform to make a matrix look symmetric would repeat it.
+- **REMEDY, named rather than gestured at.** Move the assertion into a Node module with no shell
+  surface, so the pathspec is an argument vector rather than a quoted word, and scope the line-ending
+  question with `core.autocrlf=false` on the runner. Not done here: `D-58` fences round 8, and this
+  is new tooling surface on a phase whose recorded history is that each round's fix produced the next
+  round's finding.
+- **WHAT REMAINS ASSERTED ON EVERY LEG.** The vitest step runs on both, and
+  `scripts/freshness.test.ts` — the discrimination pair, the arm cases, the set-equality cases and the
+  refusal cases — runs inside it. The gate's own behaviour is therefore exercised on Windows; it is
+  the WORKING-TREE assertion, and only that, which is ubuntu-scoped.
+
+### 5.3 What §5 does NOT claim
+
+- It does **not** claim either id is closed. Both are open and both carry a direction and a live
+  count.
+- It does **not** claim `0 live` is stable for `V-29-59-01`. It is a measurement of one working tree
+  at one moment, and a working tree changes by definition.
+- It does **not** claim the repair needs these two ids to be closed to be sound. The repair's evidence
+  is the discrimination pair, and it stands on its own.
+- It does **not** re-open, re-word or re-count anything in §1, §2 or §4. `git diff --numstat` over
+  this file across this plan's commits shows additions in §5 only.
+
 ---
 
-*§1 was written by `29-56` and §4 by `29-57`. The remaining sections are written by the remaining
-plans of this round: the profile and registry evidence by `29-58` (`D-55`), the build-parity repair
-by `29-59` (`D-57`), and §2, §3, §5, §6, §7 and §8 by `29-60` (`D-58`).*
+*§1 was written by `29-56`, §4 by `29-57` and §5 by `29-59` (`D-57`). The line above previously
+assigned §5 to `29-60`; the build-parity repair is what §5 records, so it is written by the plan that
+made it. The remaining sections are written by the remaining plans of this round: the profile and
+registry evidence by `29-58` (`D-55`), and §2, §3, §6, §7 and §8 by `29-60` (`D-58`).*

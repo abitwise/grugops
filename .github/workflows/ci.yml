@@ -55,7 +55,54 @@ jobs:
       - name: Install (dev deps only — typescript/vitest/@types/node)
         run: npm ci
 
-      - name: Build (tsc → committed .js parity surface)
+      # ── D-57: the build-output gate runs BEFORE anything can rewrite its subject. ─────────────
+      #
+      # WHAT THIS STEP IS, AND WHAT IT IS NOT. It is the SECOND, INDEPENDENT mechanism. It is NOT
+      # the reason the gate works. scripts/freshness.ts reads its committed side with
+      # `git show HEAD:<path>` and derives its compared set from `git ls-tree -r HEAD`, so a build
+      # step running earlier in the same job rewrites the working tree — which is not that gate's
+      # subject — and has nothing to repair. The gate is ordering-independent by construction.
+      #
+      # WHY THE ORDERING IS PINNED ANYWAY. Until plan 29-59 the gate read the working tree, and
+      # `tsconfig.json` sets outDir/rootDir to "./", so `npm run build` rewrote the tracked .js in
+      # place. Running the build first therefore made the gate compare a rebuild against a rebuild:
+      # it could not detect a committed .js that was hand-edited or never rebuilt, which is the
+      # exact guarantee CLAUDE.md's tech-stack section gives as the whole reason the tooling layer
+      # ships as committed .js. That state lasted from Phase 20 to Phase 29 while every run was
+      # green. Pinning the order costs seconds and removes a whole class of future reordering risk.
+      #
+      # Ubuntu-scoped for the same reason as the later freshness block: path-separator and
+      # line-ending surface, with Windows kept to the SC-2 atomicity proof.
+      - name: Freshness gate before any build (ubuntu only)
+        if: matrix.os == 'ubuntu-latest'
+        run: npm run freshness
+
+      # ── THREE DIFFERENT THINGS HOLD THE COMMITTED-.js CONTRACT. THEY ARE NOT INTERCHANGEABLE. ──
+      #
+      #   the freshness gate   holds that the .js committed AT HEAD is a build of the .ts committed
+      #                        beside it. Its subject is HEAD; no step here can repair it.
+      #   the parity script    holds that the WORKING TREE does not move when tsc runs. Its subject
+      #                        is this checkout. `npm run check:build-parity` in package.json is the
+      #                        ONE authority for that assertion; this workflow CALLS it and never
+      #                        restates it, because a copy of an assertion in a workflow is a second
+      #                        authority over one predicate.
+      #   the build            compiles. That is all it does. This step used to be named for the
+      #                        parity claim, which is why the claim went unheld for nine phases.
+      #
+      # THE OS-SCOPING DECISION, STATED RATHER THAN LEFT TO DEFAULT. The parity assertion runs on
+      # ubuntu ONLY. Two reasons, both about the oracle rather than about the code: a raw diff over
+      # emitted files on a Windows checkout is an unreliable oracle for line-ending reasons (the
+      # same family the later freshness block is scoped for), and the script's pathspec is a
+      # POSIX-shell construct that cmd.exe would pass through unquoted, which would make the
+      # assertion silently match nothing. A vacuous green is worse than an absent check, so the
+      # Windows leg compiles and says so, and this comment is where a reader learns which legs
+      # assert parity and why.
+      - name: Build and working-tree parity assertion (ubuntu)
+        if: matrix.os == 'ubuntu-latest'
+        run: npm run check:build-parity
+
+      - name: Build (every other leg — a compile; parity is asserted on ubuntu, see above)
+        if: matrix.os != 'ubuntu-latest'
         run: npm run build
 
       # (27-60 / WR-04) WIRED HONESTLY, AND THE FINDING IS THAT IT WAS NOT WIRED AT ALL.
