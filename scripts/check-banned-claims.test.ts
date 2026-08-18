@@ -3399,3 +3399,199 @@ describe("check-banned-claims — the sole carve-out is bounded in CONTENT (D-54
     expect(lineHitsSrc![0]).not.toContain("marker");
   });
 });
+
+// ══════════════════════════════════════════════════════════════════════════════════════════════
+// THE THREE SUBSUMED RESIDUALS, ONE CASE PER ROUTE (plan 29-52 task 3)
+//
+// `V-29-47-02` (the region unbounded at the bottom), `V-29-47-03` (its position pinned by nothing)
+// and `V-29-32-01` (a closed-fence, count-preserving swallow) are one defect in three coats: all
+// three describe BYTES THAT ENTER THE CARVE-OUT WITHOUT REVIEW. A content bound is invariant under
+// translation and needs no bottom boundary, so it SUBSUMES them rather than adding a fourth pin.
+//
+// EACH CASE WALKS ITS RESIDUAL'S OWN ROUTE and asserts the gate names the claim planted on the bytes
+// that route admits. Measured first on hermetic sha256-verified mirrors under THE RE-PIN PROTOCOL —
+// every cardinality the gate complained about moved to the value the gate itself reported, which is
+// the residuals' own stated reachability condition. At the pre-conjunction build all three exit 0
+// with the profile never named even after every pin is re-pinned; at HEAD each reds at
+// file:line:column. Those transcripts are quoted in 29-52-SUMMARY.md.
+//
+// WHAT THESE CASES DO NOT CLAIM, said here rather than left to be inferred: a swallow, an append or
+// a translation carrying NO banned claim still moves nothing this gate can see, because this gate
+// decides BANNED CLAIMS and not section membership. Each residual is NARROWED to that shape, not
+// closed to nothing, and the register carries the narrowed statement.
+// ══════════════════════════════════════════════════════════════════════════════════════════════
+
+const ROUTE_CLAIM = `The kit ${CONFORMANCE_VERB}s to ${DISCIPLINE_NAME.literal}.`;
+
+describe("check-banned-claims — three residual routes, subsumed by the content bound", () => {
+  it("V-29-47-02 (unbounded at the bottom): a claim APPENDED at EOF lands in the region and REDS", () => {
+    const clean = profileDoc();
+    const lines = clean.split("\n");
+    // FIXTURE PREMISE: the region really is unbounded at the bottom — this is the residual's own
+    // address, and a fixture whose region ended earlier would be testing a different document.
+    const region = locateExemptRegion(lines);
+    expect(region).not.toBeNull();
+    expect(region!.endBefore).toBe(lines.length);
+
+    const appended = [...lines, "", ROUTE_CLAIM, ""];
+    const doc = appended.join("\n");
+    const at = appended.indexOf(ROUTE_CLAIM);
+    // ...and the appended claim really does land INSIDE the carve-out.
+    const after = locateExemptRegion(appended);
+    expect(after).not.toBeNull();
+    expect(at).toBeGreaterThanOrEqual(after!.headingAt);
+    expect(at).toBeLessThan(after!.endBefore);
+
+    const { status, stdout } = runGate(
+      makeMirror("gops-banned-v294702-", { plant: { [PROFILE]: doc } }),
+    );
+    expect(status).toBe(1);
+    expect(stdout).toContain(`${PROFILE}:${at + 1}:`);
+    expect(stdout).toContain(
+      "INSIDE the one named exemption region and OUTSIDE every registry-anchored block",
+    );
+  });
+
+  it("V-29-47-03 (position pinned by nothing): the region TRANSLATED, then a claim inside it, REDS", () => {
+    const clean = profileDoc();
+    const lines = clean.split("\n");
+    const at = lines.indexOf(BANNED_CLAIM_EXEMPT_REGION.heading);
+    expect(at).toBeGreaterThan(-1);
+    // A rigid translation: a whole section inserted ABOVE the carve-out, moving it bodily down.
+    const moved = [
+      ...lines.slice(0, at),
+      "## An inserted section above the carve-out",
+      "",
+      "Neutral prose with no claim.",
+      "",
+      ...lines.slice(at),
+    ];
+    // FIXTURE PREMISE: the region really moved, and its EXTENT is unmoved — so the translation is
+    // rigid and the case cannot pass on the extent pin.
+    const before = locateExemptRegion(lines);
+    const after = locateExemptRegion(moved);
+    expect(before).not.toBeNull();
+    expect(after).not.toBeNull();
+    expect(after!.headingAt).toBeGreaterThan(before!.headingAt);
+    expect(after!.endBefore - after!.headingAt).toBe(
+      before!.endBefore - before!.headingAt,
+    );
+
+    // The substitution, on a line no anchor covers, keeping the line count identical.
+    let target = -1;
+    for (let i = after!.endBefore - 1; i > after!.headingAt; i--) {
+      if (moved[i] === "") {
+        target = i;
+        break;
+      }
+    }
+    expect(target).toBeGreaterThan(after!.headingAt);
+    moved[target] = ROUTE_CLAIM;
+    // ...and the extent is STILL unmoved after the substitution.
+    const finalRegion = locateExemptRegion(moved);
+    expect(finalRegion!.endBefore - finalRegion!.headingAt).toBe(
+      BANNED_CLAIM_EXEMPT_EXTENT,
+    );
+
+    const { status, stdout } = runGate(
+      makeMirror("gops-banned-v294703-", { plant: { [PROFILE]: moved.join("\n") } }),
+    );
+    expect(status).toBe(1);
+    expect(stdout).toContain(`${PROFILE}:${target + 1}:`);
+    expect(stdout).toContain("A denial belongs inside an anchored block");
+  });
+
+  it("V-29-32-01 (closed-fence count-preserving swallow): the swallowed claim REDS", () => {
+    const clean = profileDoc();
+    const lines = clean.split("\n");
+    const at = lines.indexOf(BANNED_CLAIM_EXEMPT_REGION.heading);
+    expect(at).toBeGreaterThan(-1);
+    // The heading that WOULD have ended the region, hidden inside a CLOSED fenced example, with the
+    // claim in the section it therefore fails to end. The UNCLOSED form is caught by the
+    // region-ends-inside-a-fence refusal and is a different shape.
+    const added = [
+      "",
+      "```",
+      "## A real later section that would have ended the region",
+      "```",
+      "",
+      ROUTE_CLAIM,
+      "",
+    ];
+    const swallowed = [...lines, ...added];
+    // The compensating deletion: as many blank lines removed from inside the region as were added,
+    // so the EXTENT is held still — which is precisely what makes this residual invisible to a
+    // cardinality.
+    let toDrop = added.length;
+    for (let i = at + 1; i < swallowed.length && toDrop > 0; i++) {
+      if (swallowed[i] === "") {
+        swallowed.splice(i, 1);
+        toDrop -= 1;
+        i -= 1;
+      }
+    }
+    // FIXTURE PREMISE: the fenced heading really is fenced, the region really did NOT end at it,
+    // the region does NOT end inside a fence (that is the other shape), and the extent really is
+    // unmoved. Four premises, because a swallow fixture that failed any of them would be measuring
+    // something else.
+    const flags = fencedLineFlags(swallowed.join("\n"));
+    const fencedHeading = swallowed.indexOf(
+      "## A real later section that would have ended the region",
+    );
+    expect(fencedHeading).toBeGreaterThan(-1);
+    expect(flags[fencedHeading]).toBe(true);
+    const region = locateExemptRegion(swallowed);
+    expect(region).not.toBeNull();
+    expect(flags[region!.endBefore - 1]).toBe(false);
+    const claimAt = swallowed.indexOf(ROUTE_CLAIM);
+    expect(claimAt).toBeGreaterThan(fencedHeading);
+    expect(claimAt).toBeLessThan(region!.endBefore);
+    expect(region!.endBefore - region!.headingAt).toBe(BANNED_CLAIM_EXEMPT_EXTENT);
+
+    const { status, stdout } = runGate(
+      makeMirror("gops-banned-v292301-", {
+        plant: { [PROFILE]: swallowed.join("\n") },
+      }),
+    );
+    expect(status).toBe(1);
+    expect(stdout).toContain(`${PROFILE}:${claimAt + 1}:`);
+    expect(stdout).toContain("A denial belongs inside an anchored block");
+    // The extent pin is NOT what reported it — that is the whole point of the residual.
+    expect(stdout).not.toContain("and BANNED_CLAIM_EXEMPT_EXTENT in");
+  });
+
+  it("THE NARROWED REMAINDER, stated as a case: a swallow carrying NO claim still moves nothing here", () => {
+    // The other half, measured rather than absorbed into the closure. This gate decides BANNED
+    // CLAIMS; section membership is not its subject and never was. A reader who took the three cases
+    // above as "the residuals are gone" would be reading a closure wider than the measurement.
+    const clean = profileDoc();
+    const lines = clean.split("\n");
+    const at = lines.indexOf(BANNED_CLAIM_EXEMPT_REGION.heading);
+    const added = [
+      "",
+      "```",
+      "## A real later section that would have ended the region",
+      "```",
+      "",
+      "Neutral prose carrying no banned claim at all.",
+      "",
+    ];
+    const swallowed = [...lines, ...added];
+    let toDrop = added.length;
+    for (let i = at + 1; i < swallowed.length && toDrop > 0; i++) {
+      if (swallowed[i] === "") {
+        swallowed.splice(i, 1);
+        toDrop -= 1;
+        i -= 1;
+      }
+    }
+    const { status, stdout } = runGate(
+      makeMirror("gops-banned-narrowed-", {
+        plant: { [PROFILE]: swallowed.join("\n") },
+      }),
+    );
+    // GREEN — and that is the honest statement of what is left, not a defect this plan hid.
+    expect(stdout).toContain("ALL CHECKS PASSED");
+    expect(status).toBe(0);
+  });
+});

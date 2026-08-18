@@ -1548,30 +1548,39 @@ export const BANNED_CLAIM_EXEMPT_COMPOSITION: readonly {
  *
  * WHAT THIS PIN STILL CANNOT SEE, NAMED WITH ITS LIVE COUNTS RATHER THAN LEFT IMPLIED:
  *
- *   1. V-29-32-01 — A COUNT-PRESERVING COMPENSATING EDIT paired with a CLOSED fence. A swallow of
- *      K lines matched by a deletion of K neutral lines from the disclaimer holds this number
- *      still, for the same reason 29-30 recorded when a count-preserving rehome kept every
- *      cardinality identical. Reproduced against this plan's own build: the UNCLOSED-fence form of
- *      it is caught at the point of effect by the region-ends-inside-a-fence refusal in `runAll`,
- *      but the CLOSED-fence form — a real `## ` section hidden inside a properly closed fenced
- *      example, with prose after it — is not, and deliberately so. That shape is INDISTINGUISHABLE
- *      from the legitimate case plan 29-18 established on purpose (a `## ` line QUOTED inside a
- *      closed example is documentation and does not end the region), so refusing it would revert a
- *      decision this plan does not own. It is not free either: the deleted K lines must also carry
- *      zero banned-claim occurrences or the reach pin above reds, so the residual is exactly that
- *      intersection — a deliberate two-part edit, never an accident. Live instances: 0, and the
- *      live exemption document carries zero fenced lines inside the region at all. Closing it would
- *      need a CONTENT pin, and this module has already reasoned that a frozen digest over a
- *      document authors legitimately edit is a false-red generator rather than a pin.
- *   2. A SETEXT BOUNDARY (V-29-26-01). The shared authority recognises ATX headings only, so a
+ *   1. A SETEXT BOUNDARY (V-29-26-01). The shared authority recognises ATX headings only, so a
  *      `Heading` / `-------` pair does not end the region. Re-measured on the live exemption
  *      document: 0 setext level-two underlines in its body.
- *   3. AN INDENTED BOUNDARY (V-29-26-04). The delimiter class and the heading test are both
+ *   2. AN INDENTED BOUNDARY (V-29-26-04). The delimiter class and the heading test are both
  *      column-zero anchored. Re-measured live: 0 indented fence delimiters against 4 column-zero
  *      ones in the exemption document.
  *
- * 2 and 3 are tree-wide floors of the shared authority, answered here exactly as they are answered
- * for every other consumer, and deliberately not repaired in the plan that measures them.
+ * Both are tree-wide floors of the SHARED AUTHORITY, answered here exactly as they are answered for
+ * every other consumer, and deliberately not repaired in the plan that measures them.
+ *
+ * ── WHAT LEFT THIS LIST IN ROUND 7 (plan 29-52, D-54), AND WHAT REPLACED IT ─────────────────────
+ *
+ * `V-29-32-01` — a CLOSED-fence, count-preserving swallow — used to head this list, and the entry
+ * ended by saying that closing it "would need a CONTENT pin". Round 7 built one. `deriveExemptBlocks`
+ * conjoins the suppression with membership of a registry-anchored, byte-frozen block, so bytes that
+ * arrive in the region by ANY route — a swallow, an append past a bottom the region never had, or a
+ * rigid translation — are not inside a frozen block, and a banned claim written on them is a finding.
+ * That entry, `V-29-47-02` and `V-29-47-03` are SUBSUMED rather than pinned, and each was closed by
+ * walking its own route on a hermetic mirror under the re-pin protocol.
+ *
+ * WHAT IS LEFT OF ALL THREE, STATED WITHOUT OVERSTATING THE CLOSURE: a swallow, an append or a
+ * translation carrying NO BANNED CLAIM still moves nothing this gate can see, because this gate
+ * decides banned claims and not section membership. That is a smaller and differently-shaped
+ * residual than the one recorded — it can no longer switch the prohibition off over reviewed-looking
+ * bytes, only enlarge a region whose extra bytes are scanned anyway — and it is carried in the
+ * round-7 register with that narrowed wording. A permanent case in
+ * scripts/check-banned-claims.test.ts asserts the narrowed half stays GREEN, so the remainder is a
+ * measured property rather than a paragraph.
+ *
+ * The DIGEST objection is unchanged and is why the fix is a union of anchored blocks rather than a
+ * whole-file hash: a frozen digest over a document authors legitimately edit is a false-red
+ * generator, not a pin. 22 of the region's 66 lines are frozen; the other 44 stay freely editable
+ * and are SCANNED.
  *
  * ── 62 -> 66 (plan 29-52, D-54). WHICH LINES ENTERED THE REGION, AND WHY. ────────────────────────
  *
