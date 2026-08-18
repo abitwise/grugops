@@ -1,505 +1,472 @@
 ---
 phase: 29-controlled-language-voice-guard-rebuild
-reviewed: 2026-08-16T04:55:00Z
+reviewed: 2026-08-18T13:20:00Z
 depth: standard
-round: 4
-diff_base: 3c40d0e
-files_reviewed: 21
+round: 7
+diff_base: 29f61e0
+files_reviewed: 17
 files_reviewed_list:
+  - .github/workflows/ci.yml
   - agent-factory/writing-profile.md
-  - docs/audit/29-locator-unification.md
+  - docs/audit/28-claim-registry.md
   - scripts/audit-model.ts
   - scripts/audit-model.test.ts
+  - scripts/catalog-freshness.ts
   - scripts/check-audit-register.ts
   - scripts/check-audit-register.test.ts
   - scripts/check-banned-claims.ts
   - scripts/check-banned-claims.test.ts
   - scripts/check-claim-anchors.ts
-  - scripts/check-diff-disposition.ts
-  - scripts/check-diff-disposition.test.ts
-  - scripts/check-foundation-guards.ts
-  - scripts/check-foundation-guards.test.ts
-  - scripts/check-imperative-lexicon.ts
-  - scripts/check-imperative-lexicon.test.ts
-  - scripts/frontmatter.ts
-  - scripts/frontmatter.test.ts
-  - scripts/generate-safety-surface.test.ts
-  - scripts/section-locator-oracle.test.ts
-  - scripts/voice-model.ts
-  - scripts/voice-model.test.ts
+  - scripts/check-claim-anchors.test.ts
+  - scripts/check-nul-bytes.ts
+  - scripts/check-nul-bytes.test.ts
+  - scripts/check-public-docs-vocabulary.ts
+  - scripts/generate-catalog.ts
+  - scripts/generate-catalog.test.ts
+  - scripts/kit-model.ts
+  - scripts/kit-model.test.ts
 findings:
-  critical: 1
-  warning: 8
-  info: 4
-  total: 13
-status: issues_found
+  critical: 2
+  warning: 3
+  info: 1
+  total: 6
+status: issues-found
 ---
 
-# Phase 29 (gap-closure round 3): Code Review Report
+# Phase 29 round 7: Code Review Report
 
-**Reviewed:** 2026-08-16T04:55:00Z
-**Depth:** standard
-**Diff range:** `3c40d0e..HEAD` (plans 29-27 … 29-32)
-**Status:** issues_found
+**Reviewed:** 2026-08-18T13:20:00Z
+**Depth:** standard (per-file, with live adversarial reproduction on `git archive HEAD` mirrors)
+**Diff range:** `29f61e0..HEAD` (33 commits, plans 29-48 .. 29-55)
+**Status:** issues-found — 2 critical, 3 warning, 1 info
 
 ## Summary
 
-**Round 3's eight findings are genuinely closed, and I verified each one against the committed
-build rather than against the summaries.** CR-01's document now returns `{ok:false,
-reason:"unterminated"}`; a `kind: safety` claim planted inside a fenced example is excluded from the
-registry parse (42 claims, `headingShapedFenced: 1`); the unclosed-fence swallow of the banned-claim
-exemption is caught at the point of effect while the extent pin stays silent (which is exactly the
-argument 29-32 makes for why two numbers are needed); a rehomed safety claim reds equality four by
-name; the last-match locator now breaks I5 alone; the WP-11 two-artifact pin reds on all four drift
-routes. Build is fresh (48 committed `.js`), the whole non-e2e suite is green (52 files, 1987
-passed), and all seven gates exit 0.
+**D-54's central change holds.** I reproduced round-6 CR-01 on a hermetic mirror in both forms and
+both now red by name: the single-line count-and-group-preserving substitution of the comprehension
+denial (`agent-factory/writing-profile.md:292`) produces two findings at `file:line:column`, plus a
+named divergence refusal for `C-28-046`, plus the suppressed pin at 12/14, plus the composition pin
+at 2/4. An unreadable registry produces 20 refusals and 14 findings — fail-closed. A deleted
+registry row reds by name with the surviving id list rendered. A zero-block region is a named
+refusal. The conjunction's four arms (`inRegion` x `frozen`) were each walked and the union is
+correct: only `inRegion && frozen` suppresses, and a frozen block whose lines fall outside the
+region still yields findings.
 
-**One thing shipped that is worse than what it replaced, and I reproduced it end to end.**
+**Build-twin hygiene is clean.** Every changed `.ts` in this range has its `.js` twin in the same
+commit (checked mechanically over all 33 commits, zero misses), `npm run freshness` reports 48/48
+fresh, `npm run typecheck` exits 0, and `npx vitest run --exclude '**/scripts/e2e/**'` is
+52 files / 2127 passed / 2 skipped. `docs/audit/29-round7-residuals.md` is unusually honest — §7.2
+states eight things the round does not claim, and §2.7 demonstrates its own surviving fail-open.
 
-Plan 29-27 added `SEC_VOICE_FILE_COUNT = 2` beside `SEC_VOICE_FILES` and wrote, at the declaration,
-that the remedy for a hand-maintained set is "the one already used for the role half: DECLARE the
-number, then compare the DERIVED set against it." There is no derived set for this half — it is the
-one part of the voice corpus with no lister — so what actually ships is a **cardinality plus a
-prefix/suffix shape filter**, and a *substitution* moves neither. Replacing
-`agent-factory/workflows/15-security-audit.md` with any other existing `agent-factory/**.md` path
-leaves `SEC_VOICE_FILE_COUNT` at 2, `visited` at 19, `expected` at 19, and the source-level pin
-(`secVoicePinMismatch`, which compares two lengths) silent. I planted a caveman marker into
-`15-security-audit.md` on a mirror: the shipped guard reds; the one-token-substituted guard prints
-`PASS voice: 0 findings over 19/19 elements` and the whole gate exits 0. That is a
-count-preserving membership change in a safety scan set — the phase's own third named failure
-class — introduced by the plan that claimed to close it for this set.
-
-Eight warnings follow. The three sharpest are structural rather than cosmetic:
-
-* **the corrected reach counter measures 5× wider than the invariant it was written to make
-  reachable.** `REACH.I5` requires two *raw* occurrences of the heading; I5 can only fire on two
-  *unfenced* ones with the answer above zero. Measured over the shipped 21600-cell corpus:
-  reach floor **1800**, cells that could actually violate I5 **360**. WR-03 was "an invariant
-  asserted 7200 times without once being evaluated against a document that could break it"; the
-  number published as the closure condition overstates the exercise by 1440 cells.
-* **the `-1` contract classifier accepts an inert comparison.** `if (at === -1) { }` followed by
-  `at + 1` is classified GUARDED (reproduced against the shipped classifier on a planted module).
-  The block's disclosed blind-spot list names five shapes and not this one, while the case is titled
-  "the UNGUARDED set over the live tree is EMPTY."
-* **`readRegistry`'s new "three numbers must agree" refusal cannot fail.** Both expressions consume
-  the same `CLAIM_HEADING_RE` and the same `fencedLineFlags(text)`, so
-  `|unfenced ∧ re| = |re| − |fenced ∧ re|` holds by set algebra. Its own comment claims it is *not*
-  "one expression and a subtraction of its own output, which is 29-REVIEW § WR-03's shape one layer
-  down" — it is exactly that shape.
-
-Also of note: `V-29-29-01` (the duplicated `sectionBody` helper) is escalated as *fence-blind*; it is
-also **level-blind** — its terminator is `(?=\n## |…)`, so a level-one heading does not close the
-section. That is the same level half-fix that cost this phase plans 29-14 and 29-20, surviving in the
-two generators that produce the Claude Code adapters.
+**What it still misses.** Two critical items. First, the CI job's own step ordering makes the
+build-parity gate — the mechanism `CLAUDE.md` names as the reason committed `.js` cannot drift —
+unable to fail, and the round's own sweep (`29-round7-residuals.md` §8.1) reproduces that ordering,
+so the round's build-parity evidence is vacuous. Second, a live fail-open on the banned-claim
+matcher's own **listed** literals: a multi-word literal split across a hard wrap is invisible, the
+in-source justification for that residual is false against this corpus, and the residual register
+records the hard-wrap axis as *closed by construction, 0, no subject*.
 
 ---
 
 ## Critical Issues
 
-### CR-01: `SEC_VOICE_FILES` is pinned by CARDINALITY where MEMBERSHIP is meant — a security surface can be substituted out of `guard_voice` with the gate green
+### CR-01: the build-parity gate cannot fail in CI — `npm run build` runs before `npm run freshness` and `tsc` emits over the committed `.js`
 
-**Files:** `scripts/check-foundation-guards.ts:1985-2008` (the set, the count, the denominator);
-pin at `scripts/check-foundation-guards.test.ts:6144-6222`
-**Severity:** BLOCKER — fail-open in a safety guard's scan set; not disclosed; reproduced end to end
+**Files:** `.github/workflows/ci.yml:58-59` and `:86-87`; `tsconfig.json:5` (`"outDir": "./"`);
+`scripts/freshness.ts:93-101`
+**Status:** CONFIRMED (traced + measured)
 
-**Issue.**
-`SEC_VOICE_FILES` is the non-derived half of `VOICE_FILES`. Plan 29-27 added:
+**Mechanism.**
+- `tsconfig.json` sets `"outDir": "./"` and `"rootDir": "./"`, so `npm run build` (`tsc`) writes its
+  output **over the tracked, committed `.js` files in the working tree**.
+- `scripts/freshness.ts:93-100` reads each committed output from the **working tree**
+  (`join(ROOT, rel)`) and compares it to a rebuild in a temp dir. It has no notion of git.
+- `.github/workflows/ci.yml` runs `- name: Build (tsc → committed .js parity surface) / run: npm run build`
+  at line 58-59, and `npm run freshness` at line 87 — after it. By then every committed `.js` in the
+  runner's checkout has already been regenerated from the current `.ts`.
+
+Therefore CI compares a fresh build against a fresh build. There is no `git diff --exit-code`,
+`git status`, or dirty-tree assertion anywhere in `ci.yml` (grepped: zero hits).
+
+**Scenario.** A developer edits `scripts/check-banned-claims.ts` and commits without running
+`npm run build`. The repository now ships a committed `check-banned-claims.js` that is not a build of
+its `.ts`. On push: `npm run build` silently repairs the runner's copy; every subsequent gate step
+(`node scripts/check-banned-claims.js`, etc.) runs the **repaired** binary, not the committed one;
+`npm run freshness` prints `All build outputs fresh: 48 committed .js file(s) match a fresh tsc
+rebuild.` and exits 0. CI is green, and the artifact on `main` — the one host machines run with bare
+Node under the zero-runtime-dependency contract — is stale. This is precisely the
+`CLAUDE.md` constraint *"compiled with `tsc` to committed `.js`, and freshness-checked so the
+committed output cannot drift from its source"* being unenforced.
+
+**Measured.** `stat` on `scripts/check-banned-claims.js` before and after `npm run build`:
+`2026-08-18 12:40:54` → `2026-08-18 12:59:19`. The tracked file is rewritten in place. (HEAD itself
+is *not* drifted — `git status` stays clean after the rebuild — so there is no live stale artifact;
+the defect is that nothing could tell you if there were.)
+
+**Why it is in scope for round 7 even though the ordering predates it** (introduced with `ci.yml` in
+`539573d`, phase 20): this round shipped nine `.ts`/`.js` pairs, and its own verification record
+reproduces the self-nullifying order verbatim —
+`docs/audit/29-round7-residuals.md:961-962` lists `npm run build` → exit 0 immediately followed by
+`npm run freshness` → exit 0 with the `48 committed .js file(s)` output quoted as evidence. That row
+proves nothing about the committed artifact. The same ordering appears in every
+`<automated>` verification command in this phase's plans (e.g. `29-01-PLAN.md:464`,
+`29-03-PLAN.md:345`, `29-13-PLAN.md:250`), so no plan in Phase 29 has ever actually exercised the
+freshness gate. This is the prompt's failure class #8 — a verification satisfiable by a stale binary
+— and it is currently satisfied by construction.
+
+**Fix.** Two independent changes; do both.
+
+1. Make the CI build non-destructive and assert the tree stays clean:
+
+```yaml
+      - name: Freshness (committed .js is a faithful build) — BEFORE any build
+        run: npm run freshness
+
+      - name: Build parity assertion (the tree must not move)
+        run: |
+          npm run build
+          git diff --exit-code -- '*.js' \
+            || { echo "committed .js drifted from its .ts — run npm run build and commit"; exit 1; }
+```
+
+   Running `freshness` **before** `build` restores the gate's subject; the `git diff --exit-code`
+   makes the assertion two-sided and independent of step ordering surviving a future edit.
+
+2. Make the gate ordering-independent so a future reorder cannot re-open this. In
+   `scripts/freshness.ts`, read the committed side from git rather than the working tree:
 
 ```ts
-const SEC_VOICE_FILE_COUNT = 2;                              // :2002
-const VOICE_FILES = [...ROLE_FILES, ...SEC_VOICE_FILES];
-const VOICE_FILE_COUNT = ROLE_COUNT + SEC_VOICE_FILE_COUNT;  // :2008
+  // The committed output, not the working-tree output. A build step earlier in the same job
+  // rewrites the working tree in place (tsconfig outDir is "./"), which would make this
+  // comparison compare a fresh build against itself.
+  const a = execFileSync("git", ["show", `HEAD:${toPosix(rel)}`], {
+    cwd: ROOT, maxBuffer: 1 << 28, encoding: "buffer",
+  });
 ```
 
-with the declaration stating the remedy is "the one already used for the role half: DECLARE the
-number, then compare the DERIVED set against it." The role half really is derived (`listRoles`).
-**This half is not derivable and no derivation is compared against it.** Every mechanism that exists
-is blind to a substitution:
+   and add a permanent case asserting that a hand-mutated `HEAD:` blob reds even after
+   `npm run build` has run.
 
-| mechanism | what it decides | sees a substitution? |
-|---|---|---|
-| `reportMeasured` `visited` vs `expected` | 19 vs 19 | no — both counts unchanged |
-| `secVoicePinMismatch` (`:6171`) | `members.length === declared` | no — lengths unchanged |
-| the shape assertion (`:6185`) | every member `startsWith("agent-factory/") && endsWith(".md")` | no, for any such path |
-| `fileExists(f)` branch | the substituted path exists | no — it does |
-| `EXPECTS_CAVEMAN_FENCE` | derived from `ROLE_FILES` only | no — sec surfaces are not members |
+---
 
-**Reproduction** (against the committed `.js`, no repo file modified):
+### CR-02: a banned literal hard-wrapped across a line boundary passes at exit 0 — on literals the list DOES contain — while the register records that axis as closed
+
+**Files:** `scripts/check-banned-claims.ts:2018-2028` (`lineHits`), `:60-65` (the residual's stated
+justification), `:382-399` (the multi-word members);
+`docs/audit/29-round7-residuals.md:561` (`V-29-42-01` row)
+**Status:** CONFIRMED (reproduced on a `git archive HEAD` mirror)
+
+**Mechanism.** `lineHits(line)` matches each pinned literal against **one physical line**. 16 of the
+22 pinned literals are multi-word. The `token-economy` group has 7 members and exactly **one**
+single-token member (`token-economy`); the other six (`token economy`, `fewer tokens`,
+`token savings`, `saves tokens`, `reduces token count`, `lowers token count`) are all defeated by a
+newline falling between their words. The kit's prose is hard-wrapped at ~100 columns, so where a
+wrap falls is decided by column arithmetic, not by the author.
+
+**Reproduction.** Mirror of `HEAD` at `/tmp/gm3`, appended to
+`agent-factory/workflows/13-incident.md`:
 
 ```
-$ cp scripts/*.js /tmp/sub2/
-$ sed -i '' 's|"agent-factory/workflows/15-security-audit.md"|"agent-factory/checklists/definition-of-ready.md"|' \
-      /tmp/sub2/check-foundation-guards.js          # ONE token, count unchanged
+The caveman blocks are a token
+economy: they mean the model reads fewer
+tokens on every run, and this profile saves
+tokens too.
+```
 
-# a caveman marker planted into the security-audit workflow on a mirror
-$ CHECK_ROOT=/tmp/mir node scripts/check-foundation-guards.js       | grep voice
-  FAIL  voice: 1 finding(s) over 19 elements
-$ CHECK_ROOT=/tmp/mir node /tmp/sub2/check-foundation-guards.js     | grep voice
-  PASS  voice: 0 findings over 19/19 elements
+Three occurrences of three separately pinned `token-economy` literals. Result:
 
-$ CHECK_ROOT=<repo> node /tmp/sub2/check-foundation-guards.js ; echo $?
+```
+PASS  banned claims: 0 findings over 117/117 elements
+== Result ==
 ALL CHECKS PASSED
-0
 ```
 
-**Failure scenario.** The realistic route is not sabotage, it is maintenance: `15-security-audit.md`
-is split into two workflows, or a red is "cleared" by repointing the entry, and the security-audit
-workflow leaves the caveman-marker scan while every published number holds still. `guard_voice` is
-the guard whose whole job is that a safety surface is not reworded into caveman voice; the security
-audit workflow and the security-NFR checklist are the two surfaces it covers that no role derivation
-reaches.
+Exit 0, planted file never named, `suppresses 14` / `reaches 66` unmoved.
 
-This is the shape 29-30 itself found one module over ("a count-preserving REHOME keeps every
-cardinality identical while a file leaves the list") and closed with a ROSTER. The same remedy was
-not applied here.
+**Why this is not `V-29-47-04`.** `V-29-47-04` is *"a claim in words the list does not contain"* —
+an enumeration limit that cannot be derived away. This is different: the words ARE in the list. What
+defeats the gate is what the predicate's **input is assembled from** (a physical line), which is a
+choice the gate makes and could change.
 
-**Fix.** Pin the MEMBERS, not the count — the roster shape `SAFETY_CLAIM_HOMES` already uses:
+**Why the recorded justification does not hold.** `scripts/check-banned-claims.ts:60-65` discloses
+the residual and then argues: *"The literals are short enough to sit on one line, and a reviewer who
+wraps one **mid-token** has written something no reader would parse as a claim either."* The plant
+above wraps mid-**phrase**, not mid-token, and markdown soft-joins the lines, so a reader sees
+exactly `The caveman blocks are a token economy: they mean the model reads fewer tokens on every run`
+— a fully legible restatement of the claim this gate's founding D-44 transcript calls
+*"the drift this gate exists for."* Measured over the kit's own corpus (60 tracked
+`agent-factory/**/*.md` files, 2458 adjacent non-blank line pairs): **822 mid-sentence hard wraps**.
+Mid-sentence wrapping is the house style, not an exotic authoring act.
+
+**Why it is critical rather than merely disclosed.** `docs/audit/29-round7-residuals.md:561` records
+`V-29-42-01` — *"a claim split across a hard wrap escapes the co-occurrence window"* — as
+**closed by construction in round 6**, live count **`0, no subject`**. That row is accurate about the
+co-occurrence window (which D-48/D-53 deleted) and misleading about the axis: a reader of the
+register concludes the hard-wrap axis is closed with no subject, while the wider version of it
+stands with three reproducible instances. Under this round's own WR-05/D-49 standard — *"it must
+carry a `V-` id with its live count and its reach"* — this axis is unregistered and uncounted. The
+register's §7.2 enumeration of what the round does not claim omits it.
+
+**Fix.** Do not normalise whitespace globally (the source is right to refuse that — it would make
+every comparison inexact). Instead give the matcher a **second, explicitly named input assembly**
+for the multi-word members only, so the exactness argument survives:
 
 ```ts
-// scripts/check-foundation-guards.test.ts — replace the length comparison
-const SEC_VOICE_MEMBERS = [
-  "agent-factory/checklists/security-nfr-checklist.md",
-  "agent-factory/workflows/15-security-audit.md",
-] as const;                       // sorted, two-sided
-expect(parseSecVoiceMembers(GUARD_TS_SRC).slice().sort())
-  .toEqual([...SEC_VOICE_MEMBERS].sort());
+/**
+ * The WRAP-JOINED projection of the document: consecutive non-blank prose lines joined with a
+ * single space, carrying a per-line index so a finding still reports the ORIGINATING line.
+ * Asked ONLY of the multi-word members — the single-token members already see every line.
+ * This is a SECOND ASSEMBLY, named, with its own case, not a relaxation of the comparison.
+ */
+function wrapJoinedHits(lines: readonly string[]): { at: number; member: BannedClaimLiteral }[] { … }
 ```
 
-and add the substitution direction to the falsifiability probe beside the existing add/remove arms
-(a member REPLACED, not only added or removed). Then correct the declaration comment at
-`check-foundation-guards.ts:1990-2001`: there is no derived set for this half, and saying there is
-is the claim-wider-than-its-assertion class inside the pin built to prevent it.
+and, whichever way it is answered, either:
+- open `V-29-55-01` in `docs/audit/29-round7-residuals.md` §4 with its live count (**16 of 22
+  literals reachable; 6 of the 7 `token-economy` members; 0 live occurrences; 3 demonstrated
+  plants**), its direction (**fail-OPEN**) and its reach, and add it to §7.2's list; and
+- correct `scripts/check-banned-claims.ts:60-65` so the justification names *mid-phrase* wrapping and
+  cites the 822 measured wraps, rather than asserting a shape no reader would parse.
 
 ---
 
 ## Warnings
 
-### WR-01: the `-1` contract classifier accepts a comparison that does nothing
+### WR-01: the `BANNED_CLAIM_EXEMPT_ANCHORS` pin is one-sided against anchors, and the source comment claims otherwise
 
-**Files:** `scripts/frontmatter.test.ts:15228-15294` (the classifier), `:15388-15403` (the claim);
-contract prose at `scripts/frontmatter.ts:512-546`
+**File:** `scripts/check-banned-claims.ts:1693-1699`
+**Status:** CONFIRMED (reproduced)
 
-**Issue.** `contractSitesIn` marks a site GUARDED as soon as `guardRe(bound)` matches any line in the
-window before the identifier's first use. It never checks that the comparison *does* anything.
-
-Reproduced against the shipped classifier on a planted module:
+**Mechanism.** In `deriveExemptBlocks`, an anchor found inside the located region whose id has no
+row naming the exemption file is silently skipped:
 
 ```ts
-const at = unfencedHeadingIndex(text, heading);
-if (at === -1) {
-  // noted, but not acted on
+    const row = rows.get(anchor.id);
+    if (row === undefined) {
+      // …the cardinality assertion below reports the shortfall.
+      continue;
+    }
+```
+
+`ids` is not pushed to, so `ids.length` is unchanged and `BANNED_CLAIM_EXEMPT_ANCHORS` does not
+move. The quoted comment is false for this branch: the cardinality assertion detects a **row**
+removed, never an **anchor** added.
+
+**Scenario.** Mirror of `HEAD` at `/tmp/gm5`. Replaced the blank line at
+`agent-factory/writing-profile.md:236` (inside the region, line count preserved) with
+`<!-- claim: C-28-950 -->` — an anchor id present in no registry row. Result:
+
+```
+$ CHECK_ROOT=/tmp/gm5 node scripts/check-banned-claims.js
+== Result ==
+ALL CHECKS PASSED
+```
+
+`check-claim-anchors` reds (1 failure, the bijection). So the compensating check for this shape
+lives **entirely in a different gate** — which is the exact argument this module makes against its
+own predecessor at `check-banned-claims.ts:1519-1522`: *"A carve-out whose only content bound lives
+in another gate is a carve-out this gate cannot speak for."*
+
+It is not a widening today (an unregistered anchor freezes nothing, so no line becomes newly exempt;
+the direction is fail-closed). It is a false in-source claim about a mechanism plus a
+half-derived cardinality.
+
+**Fix.** Count the anchors inside the region as the denominator, and the rows-with-anchors as the
+numerator, so both directions have an owner in this gate:
+
+```ts
+  let anchorsInRegion = 0;
+  for (const anchor of scan.anchors) {
+    if (anchor.index < region.headingAt || anchor.index >= region.endBefore) continue;
+    anchorsInRegion += 1;
+    const row = rows.get(anchor.id);
+    if (row === undefined) {
+      refusals.push(
+        `${anchor.id} is anchored INSIDE the one named exemption region and names no row in ` +
+          `docs/audit/28-claim-registry.md. An anchor with no row freezes nothing while reading ` +
+          `as a frozen block; add its row in the SAME commit (D-01(a) / D-04) or delete the anchor`,
+      );
+      continue;
+    }
+    …
+  }
+```
+
+and correct the comment at `:1695` so it does not assert a shortfall report that does not exist.
+
+---
+
+### WR-02: `deriveExemptBlocks` reports an OVERRUN as a byte divergence — a cause that is not there
+
+**File:** `scripts/check-banned-claims.ts:1751-1763`
+**Status:** CONFIRMED (reproduced, and contrasted with the sibling consumer of the same authority)
+
+**Mechanism.** `anchoredBlockAt` (`scripts/audit-model.ts:1745-1762`) returns
+`{ overruns: true, matches: false, text: "", documentBytes: 0 }` when a block needs a line the
+document does not have. `deriveExemptBlocks` reads only `block.matches`, so an overrun lands in
+`diverged` and is reported with:
+
+> `<id>'s anchored block inside the one named exemption region no longer matches its registry row in
+> docs/audit/28-claim-registry.md **byte for byte** … If the prose change is correct, update `<id>`'s
+> verbatim in the SAME commit; if it is not, restore the bytes`
+
+**Scenario.** Mirror at `/tmp/gm4`, `agent-factory/writing-profile.md` truncated after line 292 so
+`C-28-046`'s two-line verbatim needs line 293 that no longer exists.
+`check-banned-claims` says *"no longer matches its registry row … byte for byte"* and sends the
+author to compare bytes. `check-claim-anchors` — the other consumer of the same authority — says the
+truth for the same condition:
+
+> `the anchor for C-28-046 sits at line 291 and its claim needs 2 line(s) below it, but the file ends
+> at line 292`
+
+Two consumers of one authority give two diagnoses for one condition. This is the same defect shape
+plan 29-50 fixed elsewhere **in this round** when it split `EISDIR` out of `unreadable` in
+`check-nul-bytes.ts` precisely because the old message named *"a cause that is not there"*.
+
+**Fix.** In `deriveExemptBlocks`, branch on `block.overruns` before `block.matches` and reuse the
+sibling's wording:
+
+```ts
+    if (block.overruns) {
+      diverged.push(block.id);
+      refusals.push(
+        `${block.id}'s anchor sits at line ${block.anchorIndex + 1} inside the one named exemption ` +
+          `region and its registry verbatim needs ${block.verbatimLineCount} line(s) below it, but ` +
+          `the document ends at line ${scan.contentLineCount}. No comparison was performed, so its ` +
+          `lines are NOT exempt. The remedy is to restore the truncated lines, never to shorten the row`,
+      );
+      continue;
+    }
+    if (!block.matches) { … }
+```
+
+---
+
+### WR-03: a SECOND anchor grammar (and a third block-extent rule) live in the D-54 harness, in the round whose stated principle is one grammar per concept
+
+**File:** `scripts/check-banned-claims.test.ts:481`, `:492-529`
+**Status:** CONFIRMED (traced)
+
+**Mechanism.** Plan 29-51's entire justification for moving the anchor grammar into `audit-model` is
+recorded at `scripts/check-claim-anchors.ts:64-73`: *"Copying it into a second gate instead would
+give this repository a SECOND GRAMMAR OVER THE SAME BYTES, which is the LANG-07 defect this
+milestone has now closed three times at eight rounds each."* Plan 29-52's harness — the file that
+holds the fix built on that authority — then declares:
+
+```ts
+const MIRROR_ANCHOR_RE = /^<!-- claim: (C-28-\d{3}) -->$/;
+```
+
+a byte-copy of the exported `CLAIM_ANCHOR_RE` (`scripts/audit-model.ts:1579`), which it could simply
+import. `mirrorRegistry()` additionally invents a **third** block-extent rule — terminate at a blank
+line or at the next anchor (`:507-511`) — where the authority's rule is *run for exactly as many
+lines as the registry verbatim has* (`audit-model.ts:1727-1735`). The two agree only because the
+harness generates the verbatim from its own extent rule, so no case in this file ever compares an
+independently derived extent against the authority's.
+
+**Scenario.** Widen `CLAIM_ANCHOR_RE` (say, to admit a four-digit id, or to tolerate a leading
+space). Every D-54 case in `check-banned-claims.test.ts` continues to construct fixtures under the
+old grammar, so the widened form is exercised by nothing, the fixtures still pass, and the harness
+cannot witness the divergence it exists to police. The file's own `describe` at `:3818` asserts
+*"no literal array of claim ids exists in the gate"*; nothing asserts *"no second anchor grammar
+exists in the harness"*.
+
+**Fix.** Import the authority and derive the extent from the row the harness is about to write:
+
+```ts
+import { CLAIM_ANCHOR_RE, scanAnchoredDocument } from "./audit-model.js";
+…
+function mirrorRegistry(profileText: string): string {
+  const scan = scanAnchoredDocument(profileText);
+  for (const anchor of scan.anchors) { … }   // no local regex, no local extent rule
 }
-const end = sectionEndIndex(text, at + 1, 2);   // <- the defect, unchanged
-```
-```
-site line 3 bound at guarded true
 ```
 
-The authority's own contract (`frontmatter.ts:517-521`) says the value "MUST [be checked] BEFORE THE
-RETURNED VALUE IS USED as an index, as a slice bound, or as an argument to `sectionEndIndex`" and
-names defaulting-to-zero as the forbidden repair. A comparison whose consequent falls through *is*
-defaulting to zero, spelled differently. The block's disclosed blind-spot list (items 1–5,
-`:15166-15181`) names a helper-expressed guard, an unbound call, a `.js` file, the non-recursive
-read and the window — not this.
-
-**Fix.** Require the guarded branch to leave the scope: after a `guardRe` hit, look on that line or
-in its consequent for `return`, `throw`, `continue`, or a `fail(` call, and classify a comparison
-with no exit as UNGUARDED. Then add a third plant (`guarded-but-inert-plant.ts`) beside the two
-existing ones so the new arm is proven able to fire.
-
-### WR-02: `readRegistry`'s "three numbers must agree" refusal is a tautology
-
-**File:** `scripts/audit-model.ts:1046-1078`
-
-**Issue.** The block declares two tallies and asserts
+and add a source-shape case beside the existing one:
 
 ```ts
-if (headingIdx.length !== headingShapedLines - headingShapedFenced) { refuse(...); }   // :1066
+  it("SOURCE SHAPE: the harness declares no anchor grammar of its own", () => {
+    const src = readFileSync(HARNESS_TS, "utf8");
+    expect(src.match(/\/\^<!--\s*claim/g) ?? []).toHaveLength(0);
+    expect(src).toContain("CLAIM_ANCHOR_RE");
+  });
 ```
-
-`headingIdx = unfencedMatchIndices(text, CLAIM_HEADING_RE)`, which is
-`{ i : !fencedLineFlags(text)[i] && CLAIM_HEADING_RE.test(lines[i]) }`. `headingShapedLines` is
-`|{ re }|` and `headingShapedFenced` is `|{ re ∧ flags }|` over the *same* `text`, the *same*
-`fencedLineFlags`, and the *same* non-global `RegExp` object. The identity
-`|re ∧ ¬flags| = |re| − |re ∧ flags|` holds unconditionally. **No input can make this refusal fire.**
-
-The comment at `:1052-1057` asserts the opposite: "TWO SEPARATE EXPRESSIONS over the same text, never
-by one expression and a subtraction of its own output. A harness that counts with the loop it is
-auditing is this repository's newest recorded failure (29-REVIEW § WR-03), and this is the same shape
-one layer down." It is the same shape, on the wrong side of the sentence.
-
-Contrast the version this round got right: `frontmatter.test.ts:15373-15385` counts *occurrences*
-with a `g`-flagged `match` against a classifier that counts *lines* — two answers of different kinds,
-which can genuinely disagree.
-
-**Fix.** Either delete the assertion and say the denominator is a projection with no independent
-witness, or give it one that differs in kind — e.g. count claim ids parsed out of `claims` and
-compare against a `grep`-style occurrence count of `/^###\s+C-28-\d{3}\s*$/` over the raw bytes, so a
-recogniser that drifted (`\S+` admitting a non-canonical id) is visible.
-
-### WR-03: I5's reach predicate is 5× wider than the invariant, so `REACH_FLOORS.I5` does not measure what 29-29 exists to have measured
-
-**File:** `scripts/section-locator-oracle.test.ts:605` (the predicate), `:627-634` (the floor),
-`:642` (`TWO_UNFENCED_CELLS`)
-
-**Issue.**
-```ts
-I5: (c) => occurrencesOf(c) >= 2 && unfencedHeadingIndex(c.text, c.heading) > 0,
-```
-`occurrencesOf` (`:582`) counts every line whose `trimEnd()` equals the heading — **fenced or not**.
-I5's loop body (`:498-503`) only reports when an earlier line is *unfenced* AND equals the heading.
-So the whole `fenced-before` arm of axis 8 counts toward the reach floor while being structurally
-incapable of violating I5.
-
-Measured over the shipped corpus by re-running the axis cross-product:
-
-```
-cells 21600   I5 reach (shipped predicate) 1800   I5 breakable (>= 2 UNFENCED occurrences) 360
-```
-
-`REACH_FLOORS.I5 = 1800` is therefore 1440 cells wider than the property, and the case's own message
-— "invariant I5 is … EXERCISED by 1800 cell(s) — a zero here means it has never been evaluated
-against a document that could break it" — is untrue of 1440 of them. The same over-count applies in
-kind to `TWO_UNFENCED_CELLS = 720`, which does not carry I5's `at > 0` half.
-
-The *closure* still holds: `headLastUnfenced` really does break I5 and nothing else, and that probe
-is the load-bearing evidence. What is wrong is the number published as the plan's closure condition
-— the exact defect (a count standing in for the predicate it claims to measure) that WR-03 was
-raised about.
-
-**Fix.** State I5's precondition from I5's own predicate:
-
-```ts
-I5: (c) => {
-  const flags = fencedLineFlags(c.text);
-  const lines = c.text.split("\n");
-  const at = unfencedHeadingIndex(c.text, c.heading);
-  return at > 0 && lines.some((l, i) => i < at || (!flags[i] && l.trimEnd() === c.heading))
-      && lines.filter((l, i) => !flags[i] && l.trimEnd() === c.heading).length >= 2;
-},
-```
-then re-derive `REACH_FLOORS.I5` (expect 360) and re-derive `TWO_UNFENCED_CELLS` against the same
-rule. Keep `occurrencesOf` for the corpus-shape case, where raw occurrences are what is being
-promised.
-
-### WR-04: guard_voice's element floor carries a dead condition, and its paired test assertion cannot fail
-
-**Files:** `scripts/check-foundation-guards.ts:2174-2183`; `scripts/voice-model.test.ts:486-493`
-
-**Issue, two halves of one mistake — `"".split("\n")` is `[""]`, never `[]`.**
-
-1. **The guard.** `if (bodyLines.length === 0 || body.trim() === "")`. `bodyLines = body.split("\n")`
-   has length ≥ 1 for every string, so the first disjunct is unreachable-false. Only the second ever
-   fires, and the finding then reports `collapsed to 1 line(s) with no content`. The module header
-   (`:2100-2101`) states the floor as "a scanned line count of ZERO on any voice file is a finding" —
-   which is not the condition shipped, and a scanned line count of zero cannot occur.
-
-2. **The test.** `expect(v.outside.split("\n").length, "…must leave a NON-ZERO clear-voice remainder
-   — … zero means the fence swallowed the document").toBeGreaterThan(0)` is true for every possible
-   value. Its comment explicitly chooses the line count over a length: "A LINE COUNT rather than a
-   length, because that is the number guard_voice now publishes per file, so the two cannot drift
-   apart." The half chosen for the drift argument is the vacuous half; only the following
-   `outside.trim().length > 0` does any work.
-
-**Fix.** In the guard, drop the dead disjunct and word the floor as what it is (`body.trim() === ""`
-→ "the clear-voice remainder carries no content"), and correct `:2100-2101`. In the test, assert the
-non-blank line count — `v.outside.split("\n").filter(l => l.trim() !== "").length` — which is both
-non-vacuous and closer to the number the guard publishes.
-
-### WR-05: guard_voice publishes a per-file scanned line count and pins nothing about it
-
-**File:** `scripts/check-foundation-guards.ts:2165-2183`
-
-**Issue.** Round-3 CR-01's second remedy was: "publish and two-side-pin what `guard_voice` actually
-scanned — `outside` line count per file — so a remainder that collapses is a red, not a silent
-pass." What shipped publishes the number and pins only its **zero-content** case. The denominator
-that exists (`visited`/`expected`) is at the FILE level, not the LINE level, so a remainder driven
-from 45 lines to one non-blank line prints `scanned 1 clear-voice line(s)` and passes.
-
-This is the project's own recorded lesson — "a vacuity floor catches an EMPTY denominator but never
-a SILENTLY SHORT one" — applied to the guard that lesson was written for. Reachability is now bounded
-by the delimiter-neutralised bound (the swallow cannot cross a level ≤ 2 heading), which is why this
-is a warning and not a blocker; but the bound is the only thing holding it, and nothing measures the
-bound's effect per file.
-
-**Fix.** Add a per-file floor derived from the file's own size rather than a magic constant, e.g.
-refuse when `bodyLines.length < totalLines - cavemanSectionLines`, or publish and pin the *ratio*
-`outside lines / document lines` with a two-sided corpus-measured floor the way `roleCeiling()`
-handles its table. At minimum, record the residual by name at the declaration so a later reader meets
-it as a decision rather than inferring it from a printed number.
-
-### WR-06: `WP-04`'s published row was narrowed to `## Steps` but is not held by the two-artifact pin
-
-**Files:** `agent-factory/writing-profile.md:47` and `:91-102`;
-`scripts/check-imperative-lexicon.test.ts:1247-1300`
-
-**Issue.** Plan 29-31 narrowed **two** rows and titled the new profile section "The heading spelling
-`WP-11` and `WP-04` decide, and the floor beneath it", asserting both "name the literal heading
-`## Steps` … because that is the spelling the gate decides." The mechanism built beside it
-(`wp11Pin`, four members, four mutations) holds `WP-11`'s two sentences only. `WP-04`'s row carries
-no constant in the gate, no membership in `wp11Pin`, and no assertion anywhere
-(`grep -n "WP-04" scripts/*.test.ts` returns two comment lines and one unrelated case name).
-
-So `WP-04` can drift back to "a bullet under a steps heading is procedural" — the level-agnostic
-wording 29-31 removed as *fail-open* — with no red, in the same document and the same commit shape
-that WR-05 was raised for. A published claim about two rules held by an assertion about one is the
-class this plan exists to remove.
-
-**Fix.** Add `WP-04`'s decidable half as a fifth and sixth pin member (`gate/wp04`,
-`profile/wp04`) keyed on the sentence "A bullet under a `## Steps` heading is procedural.", spell it
-as a constant in `check-imperative-lexicon.ts` beside `STEPS_SECTION_RULE`, and emit it in the
-sentence-form refusal that already cites WP-04 at `:1236`. Extend the four-mutation probe to six.
-
-### WR-07: six exact-equality census pins over the whole test corpus red on every unrelated test edit
-
-**File:** `scripts/check-foundation-guards.test.ts:7700-7706`, asserted at `:7854-7873`
-
-**Issue.**
-```ts
-const TRIPWIRE_MODULES = 47;
-const TRIPWIRE_EXPECT_OCCURRENCES = 5353;
-const TRIPWIRE_CLASSIFIED_LINES = 5281;
-const TRIPWIRE_MULTILINE_STATEMENTS = 1069;
-const TRIPWIRE_MULTILINE_STATEMENTS_QUOTE_AWARE = 1063;
-const TRIPWIRE_COUNTER_DISAGREEMENTS = 14;
-const TRIPWIRE_MULTILINE_SUBJECTS = 577;
-```
-Every one is `toBe`, over *all 47 test modules*. Adding a single `expect(` anywhere in the repository
-moves three of them. The property being defended — "no test module carries two adjacent
-byte-identical assertions" — does not depend on any of these values; they are denominators.
-
-The consequence is behavioural rather than logical: the only way to clear the resulting red is to
-bump the number, which is precisely the reflex this same round writes refusals against ("Do NOT widen
-the pin until it stops firing", `check-banned-claims.ts:1027`; "LOWERING a count or NARROWING the arm
-are the two ways to clear this finding by deleting what it measures",
-`check-audit-register.ts:411`). A pin that fires on every unrelated commit trains the maintainer to
-clear it without reading it, and no cost paragraph at the declaration says so.
-
-**Fix.** Keep `TRIPWIRE_MODULES` and `census.barren` as equalities (they are the vacuity floor).
-Convert the four volume counters to *relationships* that are invariant under adding assertions — the
-file already asserts three of them at `:7876-7891` (`occurrences ≥ classified`,
-`multiLineStatements ≥ multiLineSubjects`, `|naive − quoteAware| ≤ disagreements`) — plus a
-lower-bound floor (`classified > 1000`). If an exact snapshot is wanted, put it behind the round-3
-premise case, which already reproduces a fixed commit and cannot drift.
-
-### WR-08: V-29-29-01's escalation understates the finding — the duplicated `sectionBody` is level-blind as well as fence-blind, and it feeds the generated adapters
-
-**File:** `docs/audit/29-locator-unification.md:592-622` (§9.3);
-subject at `scripts/generate-catalog.ts:86-90` and `scripts/generate-role-adapters.ts:126-130`
-
-**Issue.** §9.3 escalates the helper as "a **third grammar** … and it is **fence-blind**". Both
-statements are correct and neither is the whole finding:
-
-```ts
-const re = new RegExp(`^## ${heading}\\n([\\s\\S]*?)(?=\\n## |$(?![\\s\\S]))`, "m");
-```
-
-The terminator is `\n## ` — **level two only**. A level-ONE heading after the section does not close
-it, so the capture runs on into the next top-level section. That is byte-for-byte the defect
-`voice-model.ts`'s `SECTION_END = /^## /` was, which cost this phase plan 29-14 (the half-fix) and
-plan 29-20 (the correction), and whose argument is written out at `frontmatter.ts:450-470` as the
-reason the level axis is pinned two-sided. The escalation does not name it, so a reader who acts on
-§9.3 will fix fence-awareness and leave the level axis exactly as it was.
-
-The consequence is also unstated. `sectionBody` is not a reporting helper: its output becomes
-`description` / `Use when` / `One job` in the **generated Claude Code role adapters**
-(`generate-role-adapters.ts:274, 280`) and the catalogue rows (`generate-catalog.ts:133, 177`). A
-truncated or over-long capture silently changes an adapter's routing text, and `npm run
-freshness:adapters` would then require the truncated output to be committed.
-
-Live reachability re-measured: **0** fenced `## ` lines and 0 post-section level-one headings across
-the 17 roles + 19 workflows, so this is latent on today's tree — the same posture as
-V-29-26-01/-03/-04.
-
-**Fix.** Amend §9.3 to name both axes and the consumer, and record the level axis in the escalation
-so the follow-up plan's acceptance covers it. The repair itself is one call each to
-`unfencedHeadingIndex` + `sectionEndIndex(text, at + 1, 2)`, which deletes the third grammar rather
-than widening the owner classifier's definition to swallow it.
 
 ---
 
 ## Info
 
-### IN-01: the scan-scope shortfall case asserts an identity, not a shortfall
+### IN-01: the PASS line's coverage arithmetic can over-report, and can go negative, if a frozen block ever extends past the region's end
 
-**File:** `scripts/frontmatter.test.ts:15496-15517`
+**File:** `scripts/check-banned-claims.ts:2542-2544`
+**Status:** CONFIRMED by trace; **0 live subjects** on this tree
 
-`expect(unread.length).toBe(tracked.length - read.length)` follows from
-`read.every(p => tracked.includes(p))` asserted three lines above, for any duplicate-free `read`.
-Nothing about the shortfall is pinned — not its size, not its membership — so a consumer of the
-locator appearing in `hooks/`, `install/` or `scripts/runnable-ref/` changes no assertion here. The
-case name ("THE DISCLOSED SCAN-SCOPE SHORTFALL … IS RE-MEASURED") promises more than the assertion
-delivers. Pin `unread` against a declared sorted list, or pin `unread.length` against a declared
-number, so a new unread module is a red rather than a longer failure message.
-
-### IN-02: the new swallow refusal fires on any one-word `### ` line inside a claim's verbatim
-
-**File:** `scripts/audit-model.ts:1288-1303`
-
-`CLAIM_HEADING_RE = /^###\s+(\S+)\s*$/` matches `### Steps`, `### Attribution`, `### Notes` — every
-single-token level-three heading, not only a canonical `C-28-NNN` id. A claim whose verbatim quotes
-such a heading (a plausible thing for an `architecture` claim about the writing profile to do) is now
-refused as "SWALLOWED n claim heading(s)". Fail-closed and 0 live, but the module discloses only the
-parity blind spot, not this false-red shape. Either test the *canonical* id form here (the same
-`C-28-\d{3}` shape `parseClaimBlock` validates ten lines later) or record the shape as a named
-residual beside the refusal.
-
-### IN-03: the pass line computes the registry residue a third way
-
-**File:** `scripts/check-diff-disposition.ts:1703-1713`
-
-`registryResidueSize = residue.filter(f => f !== PROTOCOL_FILE).length` is a third expression for a
-quantity `registryResidue` (`:1595`) already holds. They agree only because the `unvouched` and
-`PROTOCOL_FILE`-present arms returned early. If `PROTOCOL_FILE` ever also hosted a `kind: safety`
-claim, the published identity `derivedKit + registryResidueSize + 1 = watched.length` would be off by
-one while every assertion passed — a printed sum that is a description again, which is the sentence
-this block replaced. Reuse `registryResidue.length`.
-
-### IN-04: `headingShapedFenced` is published but never asserted; the fence-hidden-claim signal lives one gate away
-
-**Files:** `scripts/audit-model.ts:1052-1064`; `scripts/check-claim-anchors.ts:412-421`
-
-Hiding one real claim heading inside a fence is a silently shorter claim list:
+`exemptLineSet` holds `[block.start, block.end)` for every block whose **anchor** sits inside the
+region (`:1687-1690`). A block whose anchor is near `endBefore` and whose verbatim runs past it
+contributes indices outside the region. Those lines are correctly **not** exempt (the loop's
+`inRegion` conjunct rejects them at `:2336`), so there is no fail-open. But the PASS line reports:
 
 ```
-$ node -e '…readRegistry(mirror)…'
-claims: 41 shaped: 42 fenced: 1
+covering ${exemptLineSet.size} of the region's ${exemptExtent} line(s) — the other
+${exemptExtent - exemptLineSet.size} stay freely editable and are SCANNED
 ```
 
-`check-claim-anchors` prints both numbers and asserts neither; `readRegistry`'s own equality is
-vacuous (WR-02). The only thing that reds is `CLAIM_KIND_CARDINALITY`'s sum in
-`check-audit-register` — a different gate, a hand-declared number, and a message about kind
-distribution rather than about a fenced heading. Consider asserting `headingShapedFenced === 0` in
-`check-claim-anchors` with a named refusal (a claim heading inside a fenced example is documentation
-the registry has no use for), so the signal sits where the number is published.
+which would over-state coverage and can render a negative remainder. Today all six blocks fit
+(22 of 66), so there is nothing to see; the number is simply computed from a set that is not the
+quantity the sentence names.
+
+**Fix.** Project the set through the region before publishing it:
+
+```ts
+  const frozenInRegion =
+    exemptRegion === null
+      ? 0
+      : [...exemptLineSet].filter(
+          (i) => i >= exemptRegion.headingAt && i < exemptRegion.endBefore,
+        ).length;
+```
+
+and report `frozenInRegion` in both clauses.
 
 ---
 
-## Confirmed closed — round 3's findings, re-verified against the build
+## What I checked and found sound (recorded so a later round does not re-derive it)
 
-| round-3 id | status at HEAD | evidence |
-|---|---|---|
-| CR-01 (caveman fence swallows later sections) | **closed** | CR-01's exact document → `{ok:false,reason:"unterminated"}`; `# `/`## ` interior both refuse; `### ` interior still returns whole; `outside` non-empty on all 17 roles |
-| CR-02 (`readRegistry` is a sixth, fence-blind locator) | **closed** | fenced phantom `C-28-999 kind: safety` excluded — `claims 42, shaped 43, fenced 1`; parity refusal + point-of-effect swallow refusal added |
-| WR-01 (reader header asserts deleted behaviour) | **closed** | `voice-model.ts:123-167` rewritten with the shipped direction, the circularity, and the measured 0-live cost |
-| WR-02 (two fence recognisers in `audit-model.ts`) | **closed** | `parseClaimBlock` now tests `FENCE_DELIMITER_LINE`; the both-directions behaviour change is disclosed with its 0-claim live effect |
-| WR-03 (I5 unreachable) | **closed** (see WR-03 above for the reach *number*) | eighth axis; `headLastUnfenced` breaks I5 alone; the round-3 sub-corpus reproduces reach 0 over 7200 cells |
-| WR-04 (`locateExemptRegion` unchecked `-1`) | **closed** | one array under both traversals + a named refusal + a tree-wide class scan (see WR-01 above for the classifier's strength) |
-| WR-05 (WP-11 published wider than enforced) | **closed for WP-11**, open for WP-04 (WR-06) | rows narrowed; four-member pin with a four-mutation probe; undecided-level tally refuses above zero |
-| WR-06 (only the register arm of the D-18 union pinned) | **closed** | equality four (roster + cardinality + vouching, two-sided) and `RESIDUE_FROM_REGISTRY_COUNT`; rehome of `C-28-001` reds by name |
-| IN-01 (dead `end >= 0` conjunct) | **closed** | moved into I1 and exercised by `endAlwaysNegative` |
-| IN-03 (tripwire blind to ~9% of assertions) | **closed** (see WR-07 for the pin shape) | census publishes four numbers plus its own measurement error; the multi-line miss is an asserted intended verdict |
-
-## Carried residuals, re-confirmed and NOT counted above
-
-`V-29-26-01` (setext invisible), `V-29-26-02` (non-recursive reads — narrowed by 29-29 for the owner
-scan, still live for the `-1` contract scan and `nonTestScripts()`), `V-29-26-03` (prefix fence
-test), `V-29-26-04` (indented delimiters, 4 live lines in `README.md`), `V-29-32-01` (closed-fence
-count-preserving swallow of the exemption region), `V-29-29-01` (the duplicated `sectionBody` — see
-WR-08 for the axis its escalation omits). All were re-checked and hold as recorded.
+- **`.ts`/`.js` twin co-commit:** all 33 commits in `29f61e0..HEAD` walked mechanically; every
+  non-test `.ts` change carries its `.js` twin in the same commit. Zero misses.
+- **D-54 conjunction, all four arms:** `inRegion && frozen` → suppressed; `inRegion && !frozen` →
+  finding carrying `UNFROZEN_IN_REGION_REMEDY`; `!inRegion && frozen` → finding;
+  `!inRegion && !frozen` → finding. The union is fail-closed in every arm.
+- **Fail-closed on every derivation failure I could construct:** empty root (12 refusals), deleted
+  registry (20 refusals, 14 findings, `fail-CLOSED direction` named), zero anchored blocks in a
+  located region (named refusal), unreadable exemption document (named refusal), missing exemption
+  document (named refusal).
+- **Coordinate-shear premise:** `deriveExemptBlocks`'s elementwise assertion against
+  `scan.lines` / `callerLines` is correct, including the legal one-element difference the terminating
+  newline produces, and refuses rather than reconciles.
+- **`kit-model.isNumberedWorkflowFile` unification:** the three copies are now one; `kit-model.js`'s
+  import closure is stdlib-only, so `catalog-freshness.ts`'s hand-maintained twin list is complete
+  (verified by `grep '^import' scripts/kit-model.js`), and `freshness:catalog` is green.
+- **`generate-catalog` duplicate-`order` refusal:** `order` genuinely comes from frontmatter (not the
+  filename prefix), so collisions are representable; the refusal fires before the sort, `fail` is
+  `never`/`process.exit(1)`, and buckets are walked in ascending value order so the message is
+  machine-independent.
+- **`check-audit-register` 28 → 32:** independently confirmed —
+  `grep -c '^- kind: architecture' docs/audit/28-claim-registry.md` → 32, total rows 46, total
+  `kind:` lines 46.
+- **The four new registry rows' `line` fields:** `C-28-043` 247-250, `-044` 253-254, `-045` 281-282,
+  `-046` 292-293 — all four verified correct against the anchors at 246/252/280/291.
+- **`check-nul-bytes` round-7 refactor:** `nulOffsets` genuinely deleted (no second predicate
+  survives); the NUL sub-class is projected from `bytes` at the single cross-check site; the
+  reporting loop performs no filesystem read; `locate()` arithmetic unchanged; both cross-check arms
+  remain correctly asymmetric.
+- **Live gate run:** `check-public-docs`, `check-audit-register`, `check-claim-anchors`,
+  `check-banned-claims`, `check-imperative-lexicon`, `check-nul-bytes`, `freshness`,
+  `freshness:catalog`, `typecheck` — all exit 0; vitest 52 files / 2127 passed / 2 skipped.
 
 ---
 
-_Reviewed: 2026-08-16T04:55:00Z_
+_Reviewed: 2026-08-18T13:20:00Z_
 _Reviewer: Claude (gsd-code-reviewer)_
 _Depth: standard_
+_Note: this file previously held the round-4 review; that version is preserved in git at `97e4928`._
