@@ -286,12 +286,18 @@ entire commit range and no package was installed.
 ## Self-Check: PASSED
 
 ```
-FOUND: docs/audit/29-round8-residuals.md            (2109 lines; §3, §5.4, §6, §7, §8, §9 present)
+FOUND: docs/audit/29-round8-residuals.md            (2121 lines; §3, §5.4, §6, §7, §8, §9 present)
 FOUND: .planning/phases/29-controlled-language-voice-guard-rebuild/29-60-SUMMARY.md
 FOUND: 41b116e   docs(29-60): the round-7 findings disposed and every marker reconciled
 FOUND: 8a7d0e3   docs(29-60): the phase close, and the requirement rows recommended but not moved
 FOUND: cea6a1c   docs(29-60): the sweep on the final tree, every number re-taken
 ```
+
+**One number in this block was published stale and is corrected here rather than left.** The line count
+first read `2109`, taken before the §6.5 correction that added rows 5 and 6 to the false-harness table.
+Re-taken: `wc -l` → **2121**. It is the seventh false result this plan caught, and it is the same shape
+as §6.5 rows 4 and 6 — a figure written from an earlier state of the artifact it describes. Recorded so
+this SUMMARY holds itself to the rule it spent three tasks asserting.
 
 **The commit count in `actuals` is 4 and the range is `0b6e1f6..HEAD`.** Three task commits are listed
 above; the fourth is the metadata commit carrying this file, `STATE.md` and `ROADMAP.md`. The range is
