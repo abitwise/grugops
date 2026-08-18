@@ -382,6 +382,105 @@ describe("generate-catalog.js (DOCS-01)", () => {
     expect(readFileSync(outPath, "utf8")).toBe(sentinel);
   });
 
+  // (LANG-07 / D-22, D-23, D-24 — plan 29-54) THIS MODULE DECLARES NO FRONTMATTER GRAMMAR.
+  //
+  // WHY THIS CASE EXISTS. LANG-07's closure deleted this generator's private `key: value` parser and
+  // moved the question onto the ONE authority in scripts/frontmatter.ts. Round 5 verified that, round
+  // 6 regression-checked it, and both did so with `grep -c "function parseFrontmatter"` — a check
+  // against a SPELLING. A second grammar named `readFm` would satisfy that grep and defeat the
+  // decision. The property is that this module declares no leading-metadata grammar AT ALL, so the
+  // property is what is asserted here, and it is asserted by a mechanism that outlives the round that
+  // took it by hand.
+  //
+  // ITS COVERAGE BOUND, STATED PLAINLY BECAUSE A PREDICATE THAT DOES NOT STATE ITS BOUND IS HOW THIS
+  // PHASE HAS REPEATEDLY SHIPPED A GREEN GATE OVER AN UNHELD FACT:
+  //
+  //   • IT HOLDS scripts/generate-catalog.{ts,js} AND NOTHING ELSE. The authority has other
+  //     consumers; this case says nothing whatever about them.
+  //   • IT ENUMERATES FOUR MARKERS, NOT EVERY POSSIBLE GRAMMAR. A parser written with no
+  //     frontmatter-named binding, no fence token, no string-keyed map read and a fresh import would
+  //     pass. The markers are chosen to catch the shape that was actually deleted here — an anchored
+  //     `---` fence match feeding a `key: value` scan — because that shape is the one this module has
+  //     already grown once.
+  it("LANG-07 — the generator declares no frontmatter grammar; every leading-metadata fact comes from the one authority", () => {
+    const stripComments = (t: string) =>
+      t
+        .split("\n")
+        .filter((l) => !l.trimStart().startsWith("//"))
+        .join("\n");
+    const SOURCES = ["generate-catalog.ts", "generate-catalog.js"] as const;
+
+    for (const name of SOURCES) {
+      const raw = readFileSync(join(ROOT, "scripts", name), "utf8");
+      // NON-VACUITY: an unreadable or empty module would satisfy every marker below by having no text
+      // to fail on, which is the emptiest possible green.
+      expect(raw.length, `${name}: read back empty`).toBeGreaterThan(1000);
+      const code = stripComments(raw);
+
+      // MARKER 1 — the authority is IMPORTED, and the import is DERIVED from the module's own import
+      // statement rather than asserted as a string this file happens to know. If the generator ever
+      // stops importing the authority, the question is being answered somewhere else.
+      const importBlock = code.match(
+        /import\s*\{([^}]*)\}\s*from\s*"\.\/frontmatter\.js"/,
+      );
+      expect(
+        importBlock,
+        `${name}: no import from "./frontmatter.js" — the one authority is not being asked at all`,
+      ).not.toBeNull();
+      const imported = importBlock![1]
+        .split(",")
+        .map((n) => n.trim())
+        .filter(Boolean);
+      expect(imported, `${name}: the authority import names`).toContain("parseFrontmatter");
+
+      // MARKER 2 — NO BINDING IN THIS MODULE IS NAMED AFTER FRONTMATTER. This is the widening of the
+      // round-5/round-6 grep: it catches `parseFrontmatter`, `readFrontmatter`, `frontmatterOf` and
+      // every other declaration carrying the word, rather than one exact function name.
+      const localBindings = [
+        ...code.matchAll(
+          /(?:function|const|let|var|class)\s+([A-Za-z0-9_$]*[Ff]rontmatter[A-Za-z0-9_$]*)/g,
+        ),
+      ].map((m) => m[1]);
+      expect(
+        localBindings,
+        `${name}: declares a frontmatter-named binding — the authority is scripts/frontmatter.ts and this module must only ask it`,
+      ).toEqual([]);
+
+      // MARKER 3 — NO LEADING-FENCE TOKEN. The deleted grammar opened with a `---` fence match
+      // anchored at byte 0. The three-hyphen run is checked only in the forms a PARSER would use — a
+      // bare string literal and a regex anchor — so the markdown table separators this module emits
+      // (`| --- | --- |`) are outside the marker by construction rather than by exemption.
+      for (const token of ['"---"', "'---'", "`---`", "/^---", "\\n---", "^---$"]) {
+        expect(code, `${name}: carries the fence-parsing token ${token}`).not.toContain(token);
+      }
+
+      // MARKER 4 — EVERY STRING-KEYED MAP READ COMES OFF A `parseFrontmatter` RESULT. The receivers
+      // are DERIVED: the names bound from a `parseFrontmatter(...)` call are read out of the module,
+      // and every `.get("<key>")` in the module must be reached through one of them. A local parser
+      // returning its own map would be read through a receiver that is not on that list.
+      const authorityResults = [
+        ...code.matchAll(/const\s+([A-Za-z0-9_$]+)\s*=\s*parseFrontmatter\(/g),
+      ].map((m) => `${m[1]}.value`);
+      expect(
+        authorityResults.length,
+        `${name}: no \`const x = parseFrontmatter(\` call site — the authority is imported but never asked`,
+      ).toBeGreaterThan(0);
+      const stringKeyedReceivers = [...code.matchAll(/([A-Za-z0-9_$.]+)\.get\("/g)].map(
+        (m) => m[1],
+      );
+      expect(
+        stringKeyedReceivers.length,
+        `${name}: no string-keyed map read found at all — the derivation is looking at the wrong text`,
+      ).toBeGreaterThan(0);
+      for (const receiver of stringKeyedReceivers) {
+        expect(
+          authorityResults,
+          `${name}: \`${receiver}.get("...")\` reads a string-keyed map that did not come from the one authority`,
+        ).toContain(receiver);
+      }
+    }
+  });
+
   // (5) no fabrication: workflows 12 (Release) and 13 (Incident) carry no `cadence` frontmatter, so
   // their cadence cell must read `UNKNOWN - verify` — never a fabricated `cadence: both` or bare
   // `both`. Also assert no `..` (double-period) anywhere (the incident-responder single-sentence
