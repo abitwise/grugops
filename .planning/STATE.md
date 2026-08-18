@@ -5,8 +5,8 @@ milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live
 current_phase: 29
 current_phase_name: controlled-language-voice-guard-rebuild
 status: ready_to_execute
-stopped_at: Completed 29-53-PLAN.md
-last_updated: "2026-08-18T08:46:37.067Z"
+stopped_at: Completed 29-54-PLAN.md
+last_updated: "2026-08-18T09:08:11.708Z"
 progress:
   total_phases: 8
   completed_phases: 2
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-07-28 — after v2.0 milestone)
 ## Current Position
 
 Phase: 29 (controlled-language-voice-guard-rebuild) — EXECUTING
-Plan: 53 of 55
+Plan: 54 of 55
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 
@@ -380,6 +380,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 29 P51 | ~40m | 3 tasks | 6 files |
 | Phase 29 P52 | ~65 minutes | 3 tasks | 9 files |
 | Phase 29 P53 | 118min | 3 tasks | 3 files |
+| Phase 29 P54 | 25m | 3 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -1003,6 +1004,9 @@ Recent decisions affecting current work:
 - [Phase ?]: 29-53: the exclusion list carries THREE syntactic kinds (any-depth segment / root directory / exact path), not two — the round-6 review's bare-segment fix would have deleted 13 shipped kit documents from the scan (RED-proven: 117 -> 104, kit 73 -> 60)
 - [Phase ?]: 29-53: guard_banned_claims reads JSON members as RAW BYTES like every other member; the branch not taken is closed by a named refusal requiring every decoded string value to be byte-present, asked of the bytes the scan already read
 - [Phase ?]: 29-53: the tracked-set membership rule is REJECTED for this gate in writing — hermetic mirrors are not git repositories, so a git-derived rule needs a fallback, and a fallback is a second membership rule; the tracked question is asked in the coverage case instead
+- [Phase ?]: 29-54: the numbered-workflow membership rule is declared once as isNumberedWorkflowFile in scripts/kit-model.ts beside WORKFLOW_COUNT; the generator, the kit model's own lister and the generator's oracle all ask it (round 6, IN-01)
+- [Phase ?]: 29-54: a duplicate workflow `order` is refused by the generator before the sort, naming both files and the shared value — the ordering property is held at the point of effect rather than asserted in a comment (round 6, IN-02 / residual 29-46 R2)
+- [Phase ?]: 29-54: LANG-07's regression check is widened from the function-name spelling `grep -c "function parseFrontmatter"` to a four-marker derived property over both generate-catalog.ts and its committed .js; the old grep was proven inadequate in session (returns 0 with the deleted grammar replanted as parseFm)
 
 ### Pending Todos
 
@@ -1117,8 +1121,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-08-18T08:46:37.029Z
-Stopped at: Completed 29-53-PLAN.md
+Last session: 2026-08-18T09:07:50.056Z
+Stopped at: Completed 29-54-PLAN.md
 Resume file: None
 
 ## Operator Next Steps

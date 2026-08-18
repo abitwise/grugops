@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 59
+open_count: 60
 waived_count: 0
 fixed_count: 1
-total_count: 60
-last_updated: 2026-08-18T08:46:53.959Z
+total_count: 61
+last_updated: 2026-08-18T09:08:11.774Z
 ---
 
 # Broken Windows Ledger
@@ -75,6 +75,7 @@ last_updated: 2026-08-18T08:46:53.959Z
 | 58 | 29 | deviation | scripts/check-banned-claims.ts |  | V-29-53-01: the canonical-form assertion fires on any decoded string whose bytes differ from the raw text, including a legitimately escaped non-ASCII character (0 live refusals today) | open |  | 2026-08-18T08:46:53.835Z |  |
 | 59 | 29 | deviation | scripts/check-banned-claims.ts |  | V-29-53-02: the gate's effective walk bound is 2x MAX_WALK_ENTRIES because the imported public-docs corpus derivation carries its own budget at import time | open |  | 2026-08-18T08:46:53.898Z |  |
 | 60 | 29 | deviation | .claude/settings.local.json |  | V-29-53-03: untracked, so the widened coverage denominator does not reach it; carries asd-ste100.org inside a WebFetch permission | open |  | 2026-08-18T08:46:53.959Z |  |
+| 61 | 29 | deviation | scripts/catalog-freshness.ts |  | 29-54 Rule 3: importing kit-model.js into the catalog generator rotted catalog-freshness.ts's hand-listed mirror import closure; the entry was added and proven load-bearing (removal -> ERR_MODULE_NOT_FOUND, exit 1). The list remains hand-maintained by a recorded trade. | open |  | 2026-08-18T09:08:11.774Z |  |
 
 ````json
 [
@@ -796,6 +797,18 @@ last_updated: 2026-08-18T08:46:53.959Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-08-18T08:46:53.959Z",
+    "resolved_at": null
+  },
+  {
+    "id": 61,
+    "kind": "deviation",
+    "phase": "29",
+    "file": "scripts/catalog-freshness.ts",
+    "line": null,
+    "description": "29-54 Rule 3: importing kit-model.js into the catalog generator rotted catalog-freshness.ts's hand-listed mirror import closure; the entry was added and proven load-bearing (removal -> ERR_MODULE_NOT_FOUND, exit 1). The list remains hand-maintained by a recorded trade.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-08-18T09:08:11.774Z",
     "resolved_at": null
   }
 ]
