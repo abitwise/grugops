@@ -2,10 +2,14 @@
 phase: 29-controlled-language-voice-guard-rebuild
 round: 8
 verified: 2026-08-18T22:40:00Z
-status: gaps_found
+status: passed
+status_note: "OVERRIDE, not a re-verification. Was `gaps_found`; moved to `passed` on 2026-08-18 by named user decision so Phase 29 could close. NOTHING BELOW WAS RE-MEASURED INTO A PASS and every gap body is left exactly as this round wrote it. What changed is the requirement, not the measurement: `D-59` (reversing `D-29`) rewrites `LANG-04` so the conformance prohibition is held as CONTENT — the claim registry and the honesty floor — with `guard_banned_claims` a disclosed drift backstop rather than the mechanism that makes a totality true. This verification was run against `LANG-04`'s PREVIOUS text. Of its two blocking defects, CR-02 was FIXED (commit 4c6a76a, watched failing against the pre-fix build, asserted in both directions) and CR-01 was reclassified OUT of `LANG-04`'s scope and carried as `V-29-59-03` — plan 29-59 itself recorded that gate as pre-existing since Phase 20 and named by no LANG requirement. Full disposition: docs/audit/29-round8-residuals.md section 10. This verifier's own text states that closing a requirement on a narrowed, honestly-disclosed claim is legitimate and that `D-55` would, on its own, be enough to mark LANG-04 closed on that axis."
+overridden_from: gaps_found
+overridden_at: 2026-08-18
+overridden_by: user
 score: 6/8 LANG must-haves verified (LANG-01, LANG-02, LANG-03, LANG-05, LANG-06, LANG-07 independently re-confirmed live; LANG-08 PASSED via standing override; LANG-04 FAILED — reproduced live, on TWO axes, neither of which is the axis this round debated)
 behavior_unverified: 0
-overrides_applied: 1
+overrides_applied: 2
 overrides:
   - must_have: "LANG-08 — byte ceilings re-baselined exactly once at end of phase, every file <= previous, delta recorded, never raised mid-phase"
     reason: "Deliberate human decision at plan 29-13's blocking checkpoint (hold-rebaseline), accepted 2026-08-15 and carried unchanged through rounds 1-8. Re-checked this round: `guard_role_size` runs live at HEAD (8510db6): 16 roles PASS within ceiling, 1 WARN approaching ceiling (security-nfr.md, 4931B >= 4830B), 0 FAIL. No round-8 plan touched `agent-factory/roles/` (0 of 19 changed paths per the round's own §8.4 accounting)."

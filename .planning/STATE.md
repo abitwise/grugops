@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v2.1
 milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live Board
-current_phase: 29
-current_phase_name: controlled-language-voice-guard-rebuild
+current_phase: 29.1
+current_phase_name: Per-Role Model Assignment
 status: phase_complete
-stopped_at: Phase 29 closed (D-59)
-last_updated: "2026-08-18T17:46:06.125Z"
+stopped_at: Completed 29-60-PLAN.md
+last_updated: "2026-08-18T20:09:11.910Z"
 progress:
   total_phases: 8
-  completed_phases: 4
+  completed_phases: 3
   total_plans: 134
   completed_plans: 134
   percent: 38
@@ -29,8 +29,8 @@ See: .planning/PROJECT.md (updated 2026-07-28 — after v2.0 milestone)
 
 ## Current Position
 
-Phase: 29 (controlled-language-voice-guard-rebuild) — COMPLETE (closed by user decision, D-59)
-Plan: 60 of 60
+Phase: 29.1 — Per-Role Model Assignment
+Plan: Not started
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 
@@ -99,7 +99,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 
 **Velocity:**
 
-- Total plans completed: 183
+- Total plans completed: 243
 - Average duration: -
 - Total execution time: 0 hours
 
@@ -132,6 +132,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | 26 | 6 | - | - |
 | 27 | 66 | - | - |
 | 28 | 8 | - | - |
+| 29 | 60 | - | - |
 
 **Recent Trend:**
 
