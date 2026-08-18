@@ -218,14 +218,28 @@ jobs:
           # pattern away from being un-gated. A gate that runs only because some other step happens
           # to run it is not wired; it is borrowed.
           #
-          # WHAT IT HOLDS, AND WHAT A RED MEANS. It asserts that the 82 scanned documents — every
-          # markdown file under agent-factory/ plus the ten public documents, deduped — carry ZERO
-          # controlled-language conformance claim, ZERO token-economy win claim and ZERO
-          # comprehension-benefit claim, outside ONE named exemption region: the
-          # `## Disclaimer and honesty floor` section of agent-factory/writing-profile.md, which has
-          # to be able to name a claim in order to deny it. A red means a document asserts something
-          # this project has no evidence for, or claims conformance with a standard that publishes
-          # outright that it endorses and certifies no tool.
+          # WHAT IT HOLDS, AND WHAT A RED MEANS. It asserts that the kit's scanned text surface —
+          # the kit's markdown documents PLUS the kit's shipped plugin manifests, derived in six
+          # named parts, deduped, and pinned two-sided — carries ZERO controlled-language
+          # conformance claim, ZERO token-economy win claim and ZERO comprehension-benefit claim,
+          # outside ONE named exemption region: the `## Disclaimer and honesty floor` section of
+          # agent-factory/writing-profile.md, which has to be able to name a claim in order to deny
+          # it. That region is bounded in POSITION and in CONTENT (round 7, D-54): a line inside it
+          # is exempt only while it also sits inside a registry-anchored block whose bytes are
+          # byte-identical to the row naming them in docs/audit/28-claim-registry.md, so a claim
+          # substituted for a denial inside the carve-out is a finding rather than a silent swap.
+          # A red means a document asserts something this project has no evidence for, or claims
+          # conformance with a standard that publishes outright that it endorses and certifies no
+          # tool.
+          #
+          # NO DOCUMENT COUNT IS STATED HERE, DELIBERATELY. This comment carried a corpus size, and
+          # it was stale on BOTH of the two occasions a plan widened the scan — so a third value
+          # typed at this address would be the construct being wrong rather than the value, and it
+          # would be stale again on the next widening. The count lives in BANNED_CLAIM_SCAN_COUNT in
+          # scripts/check-banned-claims.ts, where it is pinned two-sided and reds the moment the
+          # derivation disagrees with it. A name does not rot; it points at a value something else
+          # already asserts in both directions. The dated, commit-attributed record below is a
+          # different thing and stays: it reports what one named commit measured, in the past tense.
           #
           # FIX THE DOCUMENT. Delete the claim. Do NOT add an exemption — there is exactly one and
           # it is asserted two-sided, so a duplicated region is itself a red — and do NOT narrow the
@@ -318,8 +332,15 @@ jobs:
           # This step needs the job's `fetch-depth: 0` checkout. See the comment on that setting.
           node scripts/check-diff-disposition.js
 
-          # WHAT IT HOLDS, AND WHAT A RED MEANS. It asserts that ZERO tracked files carry a NUL
-          # (0x00) byte. The scanned set is every path `git ls-files` reports — no exemption list,
+          # WHAT IT HOLDS, AND WHAT A RED MEANS. It asserts that NO tracked file contains a control
+          # byte other than TAB (0x09) or LINE FEED (0x0a) — that is, none of C0 (0x00-0x1f) outside
+          # those two, and not DELETE (0x7f). The class is wider than the one byte the gate is named
+          # for: the module was widened to the whole forbidden control-byte class in round 6 (plan
+          # 29-45, WR-04) and the module name and package script were deliberately NOT renamed,
+          # because renaming a script referenced from here and from package.json would be a second,
+          # unrelated change riding on that one. What states the scope instead is the module header
+          # and the PASS line, and this comment now agrees with both rather than describing the
+          # gate's name. The scanned set is every path `git ls-files` reports — no exemption list,
           # nothing filtered — so a red names a real file and cannot be cleared by narrowing the
           # scan. Fix the FILE.
           #
