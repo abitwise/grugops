@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 60
+open_count: 64
 waived_count: 0
 fixed_count: 1
-total_count: 61
-last_updated: 2026-08-18T09:08:11.774Z
+total_count: 65
+last_updated: 2026-08-18T09:46:49.753Z
 ---
 
 # Broken Windows Ledger
@@ -76,6 +76,10 @@ last_updated: 2026-08-18T09:08:11.774Z
 | 59 | 29 | deviation | scripts/check-banned-claims.ts |  | V-29-53-02: the gate's effective walk bound is 2x MAX_WALK_ENTRIES because the imported public-docs corpus derivation carries its own budget at import time | open |  | 2026-08-18T08:46:53.898Z |  |
 | 60 | 29 | deviation | .claude/settings.local.json |  | V-29-53-03: untracked, so the widened coverage denominator does not reach it; carries asd-ste100.org inside a WebFetch permission | open |  | 2026-08-18T08:46:53.959Z |  |
 | 61 | 29 | deviation | scripts/catalog-freshness.ts |  | 29-54 Rule 3: importing kit-model.js into the catalog generator rotted catalog-freshness.ts's hand-listed mirror import closure; the entry was added and proven load-bearing (removal -> ERR_MODULE_NOT_FOUND, exit 1). The list remains hand-maintained by a recorded trade. | open |  | 2026-08-18T09:08:11.774Z |  |
+| 62 | 29 | deviation | .planning/phases/29-controlled-language-voice-guard-rebuild |  | 29-55: five plans' published actuals.commits are SHORT (29-48 2 vs 3, 29-50 3 vs 4, 29-51 3 vs 4, 29-52 4 vs 5, 29-53 3 vs 5) and 29-54's self-check prose says 5 against its own frontmatter's 7. Cause is structural: a count of commits written INTO a SUMMARY that is then committed can never include the commits that carry it. Measured, not corrected. | open |  | 2026-08-18T09:46:49.565Z |  |
+| 63 | 29 | deviation | docs/audit/29-round7-residuals.md |  | 29-55: nine V- markers (V-29-29-02..05, V-29-30-01..04, plus the never-opened V-29-42-05) exist in the tree and have NEVER been rolled up by any of three residual registers. Found by DERIVING the marker set by grep (35 found) instead of taking round 6's table (18 listed). Named, deliberately not adopted. | open |  | 2026-08-18T09:46:49.626Z |  |
+| 64 | 29 | unrun-verify | scripts/check-nul-bytes.ts |  | 29-55: check-nul-bytes is INDETERMINATE on a git archive mirror — its set is git ls-files, so it refuses identically on the clean control and on a tampered mirror. It must not be counted in a per-mirror sibling-gate tally; round 6's sweep did not make this distinction. | open |  | 2026-08-18T09:46:49.688Z |  |
+| 65 | 29 | deviation | .planning/phases/29-controlled-language-voice-guard-rebuild/29-53-SUMMARY.md |  | 29-55: 29-53's narrative class enumeration is one short in two cells (tracked *.json 37 vs 38; scripts/** 18 vs 19), measured at its own commit and at HEAD. The MECHANICAL equality is derived, floored two-sided and green — only the hand-written explanation is short. | open |  | 2026-08-18T09:46:49.753Z |  |
 
 ````json
 [
@@ -809,6 +813,54 @@ last_updated: 2026-08-18T09:08:11.774Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-08-18T09:08:11.774Z",
+    "resolved_at": null
+  },
+  {
+    "id": 62,
+    "kind": "deviation",
+    "phase": "29",
+    "file": ".planning/phases/29-controlled-language-voice-guard-rebuild",
+    "line": null,
+    "description": "29-55: five plans' published actuals.commits are SHORT (29-48 2 vs 3, 29-50 3 vs 4, 29-51 3 vs 4, 29-52 4 vs 5, 29-53 3 vs 5) and 29-54's self-check prose says 5 against its own frontmatter's 7. Cause is structural: a count of commits written INTO a SUMMARY that is then committed can never include the commits that carry it. Measured, not corrected.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-08-18T09:46:49.565Z",
+    "resolved_at": null
+  },
+  {
+    "id": 63,
+    "kind": "deviation",
+    "phase": "29",
+    "file": "docs/audit/29-round7-residuals.md",
+    "line": null,
+    "description": "29-55: nine V- markers (V-29-29-02..05, V-29-30-01..04, plus the never-opened V-29-42-05) exist in the tree and have NEVER been rolled up by any of three residual registers. Found by DERIVING the marker set by grep (35 found) instead of taking round 6's table (18 listed). Named, deliberately not adopted.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-08-18T09:46:49.626Z",
+    "resolved_at": null
+  },
+  {
+    "id": 64,
+    "kind": "unrun-verify",
+    "phase": "29",
+    "file": "scripts/check-nul-bytes.ts",
+    "line": null,
+    "description": "29-55: check-nul-bytes is INDETERMINATE on a git archive mirror — its set is git ls-files, so it refuses identically on the clean control and on a tampered mirror. It must not be counted in a per-mirror sibling-gate tally; round 6's sweep did not make this distinction.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-08-18T09:46:49.688Z",
+    "resolved_at": null
+  },
+  {
+    "id": 65,
+    "kind": "deviation",
+    "phase": "29",
+    "file": ".planning/phases/29-controlled-language-voice-guard-rebuild/29-53-SUMMARY.md",
+    "line": null,
+    "description": "29-55: 29-53's narrative class enumeration is one short in two cells (tracked *.json 37 vs 38; scripts/** 18 vs 19), measured at its own commit and at HEAD. The MECHANICAL equality is derived, floored two-sided and green — only the hand-written explanation is short.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-08-18T09:46:49.753Z",
     "resolved_at": null
   }
 ]
