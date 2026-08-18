@@ -243,11 +243,13 @@ neither body endorses or certifies any software tool. **No part of the ASD-STE10
 is reproduced here, in whole or in part, and no part of its controlled dictionary is included,
 vendored or redistributed.** The rules above are grugops's own, written for this kit.
 
+<!-- claim: C-28-043 -->
 ASD-STE100 Issue 9 comprises 53 writing rules in nine sections and was published in January 2025.
 That is a widely published fact about the standard, cited as such; it is not an extract from it. No
 technical protection measure on any distribution of the specification was bypassed to write this
 document.
 
+<!-- claim: C-28-044 -->
 A third party reports that ASD-STE100 is a registered EU trademark. That report is `UNKNOWN - verify`
 against the register, and nothing here asserts it.
 
@@ -275,6 +277,7 @@ direction, and the one quantitative source found is a vendor page whose figure r
 project's own earlier assumption and whose studies are unidentified. It is not cited as support for
 anything.
 
+<!-- claim: C-28-045 -->
 Caveman-as-token-economy is **disproven on this artifact by measurement** and must not be restated.
 The measured finding stands: the fenced blocks restate rather than compress.
 
@@ -285,6 +288,7 @@ articles there to restore.
 The growth this phase produces is measured and recorded rather than assumed. A later phase reasons
 from that measurement, not from an estimate written before it.
 
+<!-- claim: C-28-046 -->
 There is no evidence that controlled language improves comprehension for a language model. The kit
 does not ship that claim, and this profile does not make it.
 

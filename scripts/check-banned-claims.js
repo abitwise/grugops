@@ -1123,9 +1123,24 @@ export const BANNED_CLAIM_EXEMPT_SUPPRESSED = 14;
  *
  * 2 and 3 are tree-wide floors of the shared authority, answered here exactly as they are answered
  * for every other consumer, and deliberately not repaired in the plan that measures them.
+ *
+ * ── 62 -> 66 (plan 29-52, D-54). WHICH LINES ENTERED THE REGION, AND WHY. ────────────────────────
+ *
+ * FOUR ANCHOR LINES ENTERED AND NOTHING LEFT. `<!-- claim: C-28-043 -->` .. `<!-- claim: C-28-046 -->`
+ * were inserted above the four paragraphs inside this region that carried a banned-claim occurrence
+ * and sat inside NO registry-anchored block: the ASD-STE100 Issue 9 citation, the `UNKNOWN - verify`
+ * trademark report, the caveman-as-token-economy disproof, and the comprehension-evidence denial.
+ * That is the whole of the change to the document — `git diff` reports 0 modified lines and 4 added
+ * ones — and it is what makes D-54's frozen-block conjunction below cover every suppressed
+ * occurrence rather than nine of fourteen.
+ *
+ * THE NUMBER WAS TAKEN FROM THE GATE'S OWN REFUSAL, NOT PREDICTED INTO THIS LINE. The expectation
+ * was 62 + 4; the run said `reaches 66 line(s), and BANNED_CLAIM_EXEMPT_EXTENT ... declares 62`, and
+ * 66 is that measured number. `BANNED_CLAIM_EXEMPT_SUPPRESSED` did NOT fire in the same run, which
+ * is the independent confirmation that an anchor line carries no banned literal.
  * ---------------------------------------------------------------------------------------------
  */
-export const BANNED_CLAIM_EXEMPT_EXTENT = 62;
+export const BANNED_CLAIM_EXEMPT_EXTENT = 66;
 /**
  * Every occurrence, not every line. Two banned literals sitting adjacently on one line produce TWO
  * findings, and the same literal twice on one line produces two — the hit count is arithmetic over

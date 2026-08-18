@@ -699,6 +699,64 @@ claim in a real file before it was allowed to pass. A green run from it says wha
 says nothing about the standard.
 ```
 
+### C-28-043
+
+- file: agent-factory/writing-profile.md
+- line: 247-250
+- kind: architecture
+- depends_on: —
+- status: true
+- mechanism: A CITATION AND A DENIAL, measured as two separate facts. (1) The 53-rules / nine-sections / Issue 9 / January 2025 figures are a widely published fact ABOUT the standard, taken from the rights holder's own public page (asd-ste100.org/about_STE.html) and cited as such; they are not an extract from the specification text, which is what makes the sentence a citation rather than a reproduction. (2) The no-bypass half denies rather than asserts, and its evidence is first-hand and negative: `pdftotext -f 1 -l 14` against the official Issue 9 distribution returns `Permission Error: Copying of text from this document is not allowed.` and NO attempt was made to defeat that bit (29-RESEARCH §C-2, command output 2026-08-13). THE MECHANISM THAT NOW HOLDS THESE BYTES is `scripts/check-claim-anchors.js`, which byte-compares this block against the document live, and `scripts/check-banned-claims.js`, which as of D-54 suppresses a banned-claim occurrence inside the one named exemption region ONLY on a line inside a registry-anchored block whose bytes still match this row. This block carries one `standard-name` occurrence; before D-54 those bytes were exempt by POSITION alone and any sentence could be substituted for them at equal count.
+
+```
+ASD-STE100 Issue 9 comprises 53 writing rules in nine sections and was published in January 2025.
+That is a widely published fact about the standard, cited as such; it is not an extract from it. No
+technical protection measure on any distribution of the specification was bypassed to write this
+document.
+```
+
+### C-28-044
+
+- file: agent-factory/writing-profile.md
+- line: 253-254
+- kind: architecture
+- depends_on: —
+- status: true
+- mechanism: A REPORT MARKED `UNKNOWN - verify` AND EXPLICITLY NOT ADOPTED. The sentence attributes a trademark-registration report to a third party, marks it unverified against the register, and then states that nothing here asserts it — so the measurement is that the row's own text refuses to make the claim it names, which is the honest form for a fact this project has not checked. No EU trademark register lookup was performed and the row does not claim one was. THE MECHANISM THAT NOW HOLDS THESE BYTES is `scripts/check-claim-anchors.js`'s live byte comparison plus D-54's frozen-block conjunction in `scripts/check-banned-claims.js`: this block carries one `standard-name` occurrence, and without the freeze the `UNKNOWN - verify` hedge could be replaced by a live assertion at the same occurrence count.
+
+```
+A third party reports that ASD-STE100 is a registered EU trademark. That report is `UNKNOWN - verify`
+against the register, and nothing here asserts it.
+```
+
+### C-28-045
+
+- file: agent-factory/writing-profile.md
+- line: 281-282
+- kind: architecture
+- depends_on: —
+- status: true
+- mechanism: A DISPROOF RECORDED AS A DISPROOF, which is the strongest reason these particular bytes needed freezing. Project measurement on 2026-07-28 found the fenced caveman blocks RESTATE rather than compress — measured 58 bytes LONGER than the line each duplicates, at roughly 6% of role bytes — so the token-economy rationale this project once held is disproven ON THIS ARTIFACT and the sentence records that rather than restating it. THE MECHANISM THAT NOW HOLDS THESE BYTES is `scripts/check-claim-anchors.js`'s live byte comparison plus D-54's frozen-block conjunction in `scripts/check-banned-claims.js`. This block carries one `token-economy` occurrence, and it is the exact shape round 6's CR-01 reproduced: a denial of the token-economy claim, sitting inside the region, exchangeable before D-54 for a live assertion of that claim with `suppressed` unmoved at 14 and all seven gates green.
+
+```
+Caveman-as-token-economy is **disproven on this artifact by measurement** and must not be restated.
+The measured finding stands: the fenced blocks restate rather than compress.
+```
+
+### C-28-046
+
+- file: agent-factory/writing-profile.md
+- line: 292-293
+- kind: architecture
+- depends_on: —
+- status: true
+- mechanism: AN ABSENCE-OF-EVIDENCE STATEMENT, measured as an absence rather than asserted as a negative result. No published study either supporting or refuting a comprehension benefit of controlled language for a language model was located (29-RESEARCH §A), so the kit ships neither direction and this sentence says so. The claim it makes is about GRUGOPS — that the kit does not ship the claim — which is checkable against the kit, and `scripts/check-banned-claims.js` is what checks it. THE MECHANISM THAT NOW HOLDS THESE BYTES is that same gate's D-54 frozen-block conjunction plus `scripts/check-claim-anchors.js`'s live byte comparison. This block carries two `comprehension` occurrences and is the second half of round 6's CR-01 reproduction: the comprehension denial was, before D-54, substitutable for a live comprehension claim at the same occurrence count inside the section whose stated purpose is to deny it.
+
+```
+There is no evidence that controlled language improves comprehension for a language model. The kit
+does not ship that claim, and this profile does not make it.
+```
+
 ## The unanchorable claim — `.claude-plugin/plugin.json`
 
 C-28-038 above is registered like every other row and is **excluded from the D-16 bijection by

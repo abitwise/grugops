@@ -241,7 +241,14 @@ export const CLAIM_KIND_CARDINALITY: readonly {
   // arm; a second literal here would be two opinions about one number, which is the shape this
   // phase's record has now had to correct four times.
   { kind: "safety", count: SAFETY_CLAIM_HOMES.length },
-  { kind: "architecture", count: 28 },
+  // 28 -> 32 (plan 29-52, D-54). FOUR ROWS ADDED, NONE RECLASSIFIED. `C-28-043` .. `C-28-046` freeze
+  // the four paragraphs inside `check-banned-claims`'s one named exemption region that carried a
+  // banned-claim occurrence and sat inside no registry-anchored block. They are `architecture` for
+  // the same reason `C-28-039` .. `C-28-042` are: each states grugops's own posture about what the
+  // kit does and does not claim, and none of them depends on a safety floor. This gate refused until
+  // the number moved, which is the companion edit D-04 requires arriving as one act; the number was
+  // taken from that refusal's own text ("architecture declares 28 but the registry carries 32").
+  { kind: "architecture", count: 32 },
   { kind: "install", count: 8 },
 ];
 

@@ -54,7 +54,12 @@ import {
 // moves, so every perturbation probe below would plant a mutation and measure nothing. The two
 // numbers are tied together instead by an explicit case ("the mirror's distribution equals the
 // declared map"), which makes drift loud rather than silent.
-const MIRROR_ARCHITECTURE_CLAIMS = 28;
+// 28 -> 32 (plan 29-52, D-54): `C-28-043` .. `C-28-046` entered the live registry as `architecture`
+// rows freezing the four unanchored claim-bearing paragraphs of check-banned-claims's one named
+// exemption region. This literal is deliberately NOT derived from the gate's map — it is moved by
+// hand here, and the "mirror's distribution equals the declared map" case below is what made the
+// drift loud rather than silent. That case firing is this mechanism working.
+const MIRROR_ARCHITECTURE_CLAIMS = 32;
 const MIRROR_INSTALL_CLAIMS = 8;
 
 /**
