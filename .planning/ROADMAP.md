@@ -95,6 +95,7 @@ Full phase details + milestone summary: `milestones/v2.0-ROADMAP.md` · requirem
 - [x] **Phase 28: Kit Consistency Audit** — a real correctness-and-strangeness pass over 17 roles + 19 workflows (17, not 18: `kit-model.listRoles()` drops the `_`-prefixed `_role-switch-protocol.md` by derivation — it is read once and recorded as an explicitly uncounted 37th register row), the `CLAUDE.md` v2.0 drift reconciled, and every public safety claim given an id (completed 2026-08-12)
 - [x] **Phase 29: Controlled Language & Voice Guard Rebuild** — an ASD-STE100-derived writing profile for procedural/agent-written surfaces, a de-duplicated role skeleton, and a voice guard that measures voice instead of sentence shape
 - [ ] **Phase 29.1: Per-Role Model Assignment** *(INSERTED)* — a stronger model where judgment lives and a cheaper one for execution, set on the config dial and emitted into every generated adapter, with zero-config byte-identical to today's
+- [ ] **Phase 29.2: Model Assignment Delivery Path** *(INSERTED — split out of 29.1 by D-17)* — how a per-repo `models` block actually reaches an installed target's adapters; until it lands, the block is **inert for an installed repo** and 29.1 says so
 - [ ] **Phase 30: Per-Checkpoint Autonomy Matrix** — every human stop enumerated and dialable, the four safety floors lowerable only behind two keys, with mechanical claim-dropping
 - [ ] **Phase 31: Autonomous Manual Testing** — browser-driven UAT where the committed Playwright spec is the evidence and the agent's narration never is
 - [ ] **Phase 32: Board Projector & CLI Dashboard** — one board-grammar authority emitting a typed snapshot, rendered live by a read-only terminal dashboard
@@ -744,6 +745,24 @@ Plans:
 - [ ] TBD (run /gsd-plan-phase 29.1 to break down)
 
 **Honesty floor for this phase:** the motivation is quota and cost relief, but grugops has never shipped an unmeasured cost claim — v2.0's ~50% figure stayed `UNKNOWN - verify` rather than borrowing DeLM's benchmark. A model-tier split is a *plausible* saving, not a measured one, and must be described that way until `measure-cost.ts` says otherwise. Assigning a cheaper model to a role is also a **quality** decision, not only a cost one; the preset's rationale is recorded per role so a later reader can dispute the assignment on merit.
+
+**Scope amendment 2026-08-19 (D-17, user-ruled at plan time):** the **install delivery path leaves this phase** and becomes Phase 29.2. 29.1 keeps all seven requirements MODEL-01 … MODEL-07 — none of them mandates the install path — and drops CONTEXT.md's D-01/D-02/D-03. **Disclosed limitation of the 29.1 increment:** until 29.2 lands, a per-repo `models` block is **inert for an installed target**; the mechanism resolves and emits correctly in-kit, but an installed repo's adapters are whatever the kit shipped. This is stated in the kit, not left to be discovered. Two further user rulings apply: **D-15** — the new `guard_model_assignment` reads through `scripts/canonical-frontmatter.ts`'s `admit()`, not `scripts/frontmatter.ts` (D-12's intent, one authority per predicate, over its letter); **D-16** — MODEL-07's prohibition is held as **content** in `docs/audit/28-claim-registry.md` with its **fail-open** direction disclosed, per the D-59 precedent, rather than adding a fourth `cost` literal group. See `.planning/phases/29.1-per-role-model-assignment/29.1-CONTEXT.md` §"Amendments after research".
+
+### Phase 29.2: Model Assignment Delivery Path (INSERTED — split out of 29.1 by D-17)
+
+**Goal**: A `models` block written into a target repo actually changes the adapters that repo's Claude Code session loads — closing the disclosed gap 29.1 ships with.
+
+**Depends on**: Phase 29.1 (the resolver, the tier table, the alias contract and `guard_model_assignment` must exist and be gated before anything tries to deliver their output into a target)
+
+**Requirements**: *(none new — this phase completes the delivery half of MODEL-01 … MODEL-05 for installed targets; no MODEL row is re-opened)*
+
+**Status**: **NOT DISCUSSED.** CONTEXT.md's D-01/D-02/D-03 moved here and **all three must be re-decided from scratch** against these facts, each verified against the tree on 2026-08-19:
+
+  1. **D-01 reverses an explicit decoupling.** `install/kit-source.ts:29` states *"This module deliberately does NOT import scripts/kit-model.ts"*, with D-18's separation-of-duty rationale spelled out around it. Install-time generation reverses that; the reversal needs its own decision, not an inherited one.
+  2. **D-01 lands on an ordering conflict.** The adapter loop runs at `install/install.ts:1451`/`:1472`, but `seedState()` — which creates the target's config — runs at `:1555`. At adapter time there is no target config to resolve against.
+  3. **D-03's premise is already true and its divergence does not exist.** All **17 of 17** adapters carry `MAT_SLOT` and route through `materializeAdapter()` (a `writeFileSync`), so adapters are copies under `--symlink` **today** and `INSTALL_MODE` never reaches an agent adapter on any path. D-03 was written to resolve a conflict that is not there.
+
+**Plans**: TBD — run `/gsd-discuss-phase 29.2` first; do **not** plan straight from 29.1's superseded D-01/D-02/D-03.
 
 ### Phase 30: Per-Checkpoint Autonomy Matrix
 
