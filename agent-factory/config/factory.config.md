@@ -25,6 +25,7 @@ This document is the human-readable twin of the JSON. Each top-level field has o
 | `security` | object | see below | Security-audit settings anchored to OWASP ASVS (keys: `asvs_level`, `block_on`). |
 | `context` | object | see below | Shared-context memory settings (key: `compaction`). |
 | `queue` | object | see below | Parallel-execution queue settings (keys: `wip_limit`, `claim_cap`, `stale_ttl_minutes`). Distinct from `wip_limits` — see below. |
+| `models` | object | absent | Per-role model assignment for the generated Claude Code sub-agent adapters. Keys: `preset`, `roles` — see below. The allowed sets are closed: `preset` is exactly `none` or `tiered`, and an alias is exactly `inherit`, `opus`, `sonnet` or `haiku`. The lean default is the whole block absent, which resolves every role to `inherit` — the session-inheriting value, so a zero-config repository keeps the user's session model choice. This dial governs the `model` field of the generated role adapters and nothing else: it does not change which roles exist, which tools a role holds, the coordinator's spawn grant, or any gate, quality or security setting. |
 | `compliance_regime` | array of strings | `[]` (empty) | Active compliance regimes, e.g. `["GDPR","SOC2"]`. Empty = trigger-only via sensitive-data rules. |
 | `environments` | array of strings | `["dev","staging","prod"]` | Deployment environments the factory recognizes. |
 | `production_requires_human_confirmation` | boolean | `true` | Must stay `true`: agents never deploy to production alone; a named human always confirms. |
@@ -116,6 +117,23 @@ A queue `wip_limit` of 3 and a board `In Development` `wip_limits` of 3 are unre
 - `compaction` governs the **verbosity of the note bodies** promoted into the shared verified context — how much of the raw local trajectory reaches the shared tier (`aggressive` / `balanced` / `retain-raw`).
 
 `audit_retention: retained` is **not** a duplicate of `compaction: retain-raw`: the former keeps the *governance record* durable (who admitted/disposed what, and when), while the latter keeps the *note bodies* verbose. Turning either dial never changes the other, and the un-dialable carve-out behind `compaction` (the durable note set + load-bearing provenance fields, D-05) is untouched by `audit_retention`.
+
+### `models` sub-fields
+
+The `models` object assigns one model alias to each generated Claude Code sub-agent adapter. The whole block is absent in the lean default, and an absent block resolves every role to `inherit`.
+
+| Key | Default | Meaning |
+|-----|---------|---------|
+| `preset` | `none` | The base assignment applied to every role. Allowed: exactly `none`, `tiered`. `none` gives every role `inherit` — the lean default, and the same answer an absent block gives. `tiered` gives each role the alias recorded for it in the tier table in `scripts/model-tiers.ts`, where every row carries a written rationale beside it. A third preset name is a source change with its rationale table, never a value a configuration file can invent. |
+| `roles` | absent | A **sparse** override map keyed on the role filename stem (for example `software-engineer`), never a full map. Allowed values: exactly `inherit`, `opus`, `sonnet`, `haiku`. A stem the map does not name keeps the preset's answer. |
+
+**Precedence.** A `roles` override wins over `preset` for the role it names; `preset` answers for every other role.
+
+**Refusals.** Three inputs are refused by name, each quoting the legal set back to you: a `preset` outside the two legal names, a `roles` key that is not a role filename stem in this kit, and an alias outside the four legal values. Alias membership is exact string equality, so a full model id is refused as well. A refusal writes nothing — the adapter generator exits naming the offending value and emits no adapter — and it never falls back to a pinned tier. A `models` block that is present but degenerate (`null`, an array, a string, a number) is refused rather than read as absent, because a user who wrote it meant something by it.
+
+**Host-CLI scope.** Per-subagent model selection exists on one host CLI only. The single authority for that statement is `agent-factory/packaging/subagent.frontmatter.md`, section "Host-CLI scope of the model dial" — read the scope there. This reference deliberately does not restate it, so the two documents cannot come to say different things about the same capability.
+
+**Disclosed limitation — an installed repository (closed by Phase 29.2, Model Assignment Delivery Path).** The model dial is resolved when the kit generates its adapters. Until Phase 29.2 lands, a `models` block written into an installed repository does not change the adapters that repository's session loads: the installer places the adapters the kit shipped, and those carry `model: inherit`. The mechanism itself resolves and emits correctly in-kit — a kit build carrying a `models` block produces adapters holding the resolved aliases — but that resolution does not yet reach an installed target. This is a disclosed limitation of the increment shipped in Phase 29.1, stated here rather than left for a user to discover; it is not a defect.
 
 ## Config-dial contract (lean → enterprise)
 
