@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v2.1
 milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live Board
 current_phase: 29.1
-current_phase_name: Per-Role Model Assignment
+current_phase_name: per-role-model-assignment
 status: planned
-stopped_at: Phase 29.1 planned — 6 plans, ready to execute
-last_updated: "2026-08-19T01:06:08.311Z"
+stopped_at: "Completed 29.1-01-PLAN.md (tracer) — zero-config model resolution wired end to end, 17 adapters byte-identical to the frozen 6f8411e baseline. ONE flagged deviation: the ROLE_COUNT floor moved out of resolveModels (coverage item D5, human_judgment: true)."
+last_updated: "2026-08-19T08:14:54.173Z"
 progress:
   total_phases: 9
   completed_phases: 3
-  total_plans: 141
-  completed_plans: 134
+  total_plans: 140
+  completed_plans: 135
   percent: 33
 last_activity: 2026-08-19
 last_activity_desc: "Phase 29 CLOSED by user decision (D-59, reversing D-29): LANG-04's conformance prohibition is held as CONTENT — the claim registry and the honesty floor — with guard_banned_claims a disclosed drift backstop, not the mechanism that makes a totality true. Eight verification rounds established that a totality over an open set of phrasings is not a decidable predicate; D-55 had already ended at a per-line predicate, so the totality was already content-held on the tree while LANG-04's text still said a mechanism held it. Round-8 review CR-02 (the narrowed sentence printed above the findings contradicting it) FIXED at 4c6a76a, watched failing against the pre-fix build and asserted in both directions; two existing cases whose premise the change invalidated were repaired, not weakened. CR-01 (freshness.ts working-tree arm fail-opens, reproduced) carried as V-29-59-03 — a build-parity defect plan 29-59 itself recorded as named by no LANG requirement. CR-03/04/05 carried with owners in docs/audit/29-round8-residuals.md section 10. The round-8 verifier's gaps_found verdict is left standing and annotated rather than rewritten: it verified LANG-04's previous text. All 8 LANG requirements Complete. 15 repo gates green, 52 files / 2140 passed / 2 skipped. Next: Phase 29.1 (per-role model assignment)."
@@ -25,12 +25,12 @@ prior_activity_desc: "Gap-closure round 8 wave 3 EXECUTED — 27-45 closed WR-02
 See: .planning/PROJECT.md (updated 2026-07-28 — after v2.0 milestone)
 
 **Core value:** A user installs grugops on top of the coding-agent CLI they already run, types `/grug`, and gets a disciplined delivery team — a visible board, a shared context where nothing is written until it is *verified*, and an auditable requirement→code→test→release trail — entirely as readable markdown, with humans always holding merge and deploy. The v2.0 differentiator: **"verified" means passed the §14 behavior gate**, recorded as a `verified_by` stamp the writing agent cannot forge or self-set.
-**Current focus:** Phase 29 complete — next: Phase 29.1 (per-role model assignment)
+**Current focus:** Phase 29.1 — per-role-model-assignment
 
 ## Current Position
 
-Phase: 29.1 — Per-Role Model Assignment
-Plan: Not started
+Phase: 29.1 (per-role-model-assignment) — EXECUTING
+Plan: 2 of 6
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 
@@ -388,6 +388,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 29 P58 | 32min | 3 tasks | 5 files |
 | Phase 29 P59 | 26min | 3 tasks | 7 files |
 | Phase 29 P60 | 2h20m | 3 tasks | 1 files |
+| Phase 29.1 P01 | 26min | 3 tasks | 10 files |
 
 ## Accumulated Context
 
@@ -1032,6 +1033,9 @@ Recent decisions affecting current work:
 - [Phase ?]: The working-tree parity question has one authority, npm run check:build-parity, called by ci.yml rather than restated in it; it is ubuntu-scoped and V-29-59-02 counts the unasserted leg
 - [Phase ?]: Round 8 closes Phase 29's gap-closure rounds (D-58): V-29-60-05 records one surviving address where guard_banned_claims' second PASS line still states a per-DOCUMENT quantifier over a per-LINE mechanism — reproduced, not fixed, and recommended as the follow-up's first item
 - [Phase ?]: No requirement row was flipped by any round-8 plan; requirements.mark-complete was deliberately NOT run for LANG-04 despite plan 29-60's requirements: field, and REQUIREMENTS.md is byte-unchanged across all five plans
+- [Phase ?]: 29.1-01: the ROLE_COUNT cardinality equality is NOT a floor inside resolveModels — it is a separate named predicate (roleCorpusCardinalityRefusal) asked by consumers judging the LIVE corpus. The resolver sits on the adapter generator's hot path and that generator runs over hermetic mirrors holding a SUBSET of the corpus (its own suite mirrors six roles); the floor as the plan specified it refused those valid runs and turned 22 committed cases red. It was also a SECOND authority — listRoles itself refuses only an EMPTY corpus and guard_kit_counts owns the two-sided count over the live tree. D-05 is still satisfied because resolveModels assigns a value to EVERY stem it is handed, and from 29.1-02 the binding check becomes the strictly stronger 'every stem has a preset row'.
+- [Phase ?]: 29.1-01: ModelAlias is DERIVED from the MODEL_ALIASES tuple rather than declared twice, so the closed alias set has exactly one declaration and the union cannot accept a member the membership check refuses.
+- [Phase ?]: 29.1-01: render() is observed by mirror-spawning the generator with a SUBSTITUTED model-tiers twin — generate-role-adapters.js is top-level script code that writes 17 files and exits on import, so it cannot be imported by a test. Byte-identity alone cannot show the emit reads a field; a generator still holding its literal passes every zero-config assertion.
 
 ### Pending Todos
 
@@ -1146,9 +1150,9 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-08-18T21:59:57.747Z
-Stopped at: Phase 29.1 context gathered
-Resume file: .planning/phases/29.1-per-role-model-assignment/29.1-CONTEXT.md
+Last session: 2026-08-19T08:14:54.143Z
+Stopped at: Completed 29.1-01-PLAN.md (tracer) — zero-config model resolution wired end to end, 17 adapters byte-identical to the frozen 6f8411e baseline. ONE flagged deviation: the ROLE_COUNT floor moved out of resolveModels (coverage item D5, human_judgment: true).
+Resume file: None
 
 ## Operator Next Steps
 
