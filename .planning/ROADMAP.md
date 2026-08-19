@@ -738,7 +738,7 @@ loop terminating only by an unstated argument).
   4. The Claude-Code-only scope is **stated in the kit and in `CLAUDE.md`**, whose "What NOT to Use" entry against non-`inherit` wrappers is amended to name this mechanism as the documented reason — the other four host CLIs have no per-subagent model concept and no claim says otherwise. (MODEL-06)
   5. Any cost or limit-savings claim is **measured** with `scripts/measure-cost.ts`, or carries `UNKNOWN - verify`. A tier assignment is not evidence of a saving. (MODEL-07)
 
-**Plans**: 3/6 plans executed — **waves are strictly sequential (1→6)**. Four `.ts` files need their committed `.js` rebuilt (`model-tiers`, `generate-role-adapters`, `check-foundation-guards`, `adapters-freshness`), and two plans rebuilding a committed `.js` concurrently tears the output (the phase-27 round-5 precedent). Plan `29.1-02` is **not autonomous**: it opens with a blocking `checkpoint:decision` on D-05's one-way config key shape.
+**Plans**: 4/6 plans executed — **waves are strictly sequential (1→6)**. Four `.ts` files need their committed `.js` rebuilt (`model-tiers`, `generate-role-adapters`, `check-foundation-guards`, `adapters-freshness`), and two plans rebuilding a committed `.js` concurrently tears the output (the phase-27 round-5 precedent). Plan `29.1-02` is **not autonomous**: it opens with a blocking `checkpoint:decision` on D-05's one-way config key shape.
 
 Plans:
 
@@ -756,7 +756,7 @@ Plans:
 
 **Wave 4** *(blocked on 29.1-03)*
 
-- [ ] 29.1-04-PLAN.md — `guard_model_assignment`: committed adapter bytes read through `admit()` (D-15), expectation recomputed never hand-listed, absence/cardinality/emptiness/mismatch as four distinct findings, with eight planted mutations plus a control proven RED by name [MODEL-03, MODEL-05]
+- [x] 29.1-04-PLAN.md — `guard_model_assignment`: committed adapter bytes read through `admit()` (D-15), expectation recomputed never hand-listed, absence/cardinality/emptiness/mismatch as four distinct findings, with eight planted mutations plus a control proven RED by name [MODEL-03, MODEL-05]
 
 **Wave 5** *(blocked on 29.1-04)*
 
