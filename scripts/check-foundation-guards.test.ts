@@ -37,7 +37,7 @@ import { join, dirname, basename } from "node:path";
 // which rows are graftable with the same admission reader the gate now uses — so the module-level
 // replay and the gate-level replay cannot disagree about which bytes were tested.
 import { CORPUS, CORPUS_COUNT, rowById } from "./canonical-corpus.js";
-import { admit } from "./canonical-frontmatter.js";
+import { admit, admittedValuesFor } from "./canonical-frontmatter.js";
 // (Plan 29-20) The per-line fence toggle, taken so the CR-02 plant's PREMISE is measured through the
 // same authority the reader composes rather than through a second opinion written in the harness.
 // The harness's own premise produced a false result in six instances across four straight rounds, so
@@ -9227,5 +9227,94 @@ describe("the harness asserts no less than its names claim (plan 29-25, WR-05 / 
     expect(duplicateAssertionPairsIn(PLANTED_DUPLICATE_SOURCE)).toEqual([
       `2 :: ${EXPECT_CALL}`,
     ]);
+  });
+});
+
+// ---------------------------------------------------------------------------------------------
+// (Plan 29.1-04) guard_model_assignment — the SECOND OPINION ON THE EMITTED MODEL VALUE.
+//
+// `npm run freshness:adapters` regenerates and byte-compares, so both of its sides come from one
+// generator over one tree: it proves DETERMINISM. A generator that emitted a pinned tier for all 17
+// roles, with the committed adapters updated in the same commit, passes it. This guard's independence
+// is its INPUT — the committed adapter bytes on disk, which the generator's run does not touch — so
+// every case below plants into those bytes (or into the derivation the expectation is recomputed
+// from) and never into the generator.
+//
+// Every case asserts ITS PLANT'S OWN PREMISE through `admit()`, the same authority the guard reads,
+// before asserting the guard's verdict. This repository's harness produced a false result in six
+// instances across four straight rounds; a case whose plant did not take is a green that proves
+// nothing.
+// ---------------------------------------------------------------------------------------------
+
+/** The `model` line of a mirrored adapter, replaced with the given text (which may be several lines). */
+function plantAdapterModel(
+  root: string,
+  adapterFile: string,
+  replacement: string[],
+): string {
+  const file = join(root, ".claude/agents", adapterFile);
+  const lines = readFileSync(file, "utf8").split("\n");
+  const at = lines.findIndex((l) => l.startsWith("model:"));
+  if (at === -1) {
+    throw new Error(
+      `plantAdapterModel: ${adapterFile} carries no \`model:\` line, so the plant matched nothing — ` +
+        "a case 'proven' against an unmodified fixture is proven against nothing",
+    );
+  }
+  lines.splice(at, 1, ...replacement);
+  writeFileSync(file, lines.join("\n"), "utf8");
+  return file;
+}
+
+/** Every `model` value an adapter's frontmatter declares, read through the guard's OWN authority. */
+function admittedModelValues(file: string): string[] | { refused: string } {
+  const parsed = admit(readFileSync(file, "utf8"));
+  if (!parsed.ok) return { refused: parsed.code };
+  return parsed.value.has("model")
+    ? admittedValuesFor(parsed.value, "model")
+    : [];
+}
+
+/** The `guard_model_assignment` section of a run's output, joined for substring assertions. */
+function modelSection(o: string): string {
+  return guardSection(o, "guard_model_assignment").join("\n");
+}
+
+describe("guard_model_assignment (Phase 29.1, MODEL-03/MODEL-05)", () => {
+  it("passes on the REAL tree and publishes the DERIVATION SUMMARY, not a bare acknowledgement", () => {
+    const r = runIn(ROOT);
+    expect(r.status).toBe(0);
+    const section = modelSection(out(r));
+    expect(section, "the guard must emit a banner and a section").not.toBe("");
+    expect(section).toContain(
+      `${ROLE_COUNT} committed adapter(s) under .claude/agents compared against a resolution recomputed for ${ROLE_COUNT} derived role stem(s)`,
+    );
+    expect(section).toContain('preset "none"');
+    expect(section).toContain("distinct aliases resolved: inherit");
+  });
+
+  it("two consecutive runs over the same tree produce BYTE-IDENTICAL stdout", () => {
+    const first = runIn(ROOT).stdout;
+    const second = runIn(ROOT).stdout;
+    expect(first).toBe(second);
+  });
+
+  it("(a) MISMATCH — the finding names the adapter, the value FOUND and the value RESOLVED", () => {
+    const m = mirror();
+    const file = plantAdapterModel(m, "grugops-orchestrator.md", [
+      "model: opus",
+    ]);
+
+    // THE PLANT'S OWN PREMISE, through the guard's own reader: the document really declares exactly
+    // one `model` value and that value really is `opus`.
+    expect(admittedModelValues(file)).toEqual(["opus"]);
+
+    const r = runIn(m);
+    expect(r.status).not.toBe(0);
+    const section = modelSection(out(r));
+    expect(section).toContain(".claude/agents/grugops-orchestrator.md");
+    expect(section).toContain("declares `model: opus`");
+    expect(section).toContain("the configuration resolves `inherit`");
+    expect(section).toContain('role stem "orchestrator"');
   });
 });
