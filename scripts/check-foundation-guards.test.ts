@@ -8833,13 +8833,19 @@ const censusRelationshipFindings = (c: TripwireCensus): string[] => {
  *
  * 47 → 49 (plan 29.1-01). Phase 29.1 added TWO test modules — `adapter-byte-baseline.test.ts` (the
  * commit-pinned MODEL-01 byte baseline) and `model-tiers.test.ts` (the model resolver's oracle).
- * Re-derived rather than incremented: `ls scripts/*.test.ts | wc -l` reports 49 on this tree, which
+ * Re-derived rather than incremented: `ls scripts/*.test.ts | wc -l` reported 49 on that tree, which
  * is the same number the live census produces, so the two independent counts agree.
+ *
+ * 49 → 50 (plan 29.1-05). ONE test module added — `model-dial-consistency.test.ts`, the cross-surface
+ * oracle for the model dial's prose (D-13/MODEL-06). Re-derived the same way rather than incremented:
+ * `ls scripts/*.test.ts | wc -l` reports 50 on this tree, agreeing with the live census. This pin
+ * firing is the tripwire working as designed — a module joining the scan is a structural event, and
+ * the number moves in the SAME commit that adds the module rather than in a later repair.
  *
  * The FROZEN `PLAN_29_39_TRIPWIRE.modules` below stays at 47 and must not be touched — it describes
  * the tree at `b76a65e`, which cannot change.
  */
-const TRIPWIRE_MODULES = 49;
+const TRIPWIRE_MODULES = 50;
 /**
  * Corpus-derived floors, expressed as RATES so the floor grows with the corpus it floors.
  * Each is set well below its measured live value: the point is to catch a measurement that

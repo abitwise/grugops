@@ -25,7 +25,7 @@ This document is the human-readable twin of the JSON. Each top-level field has o
 | `security` | object | see below | Security-audit settings anchored to OWASP ASVS (keys: `asvs_level`, `block_on`). |
 | `context` | object | see below | Shared-context memory settings (key: `compaction`). |
 | `queue` | object | see below | Parallel-execution queue settings (keys: `wip_limit`, `claim_cap`, `stale_ttl_minutes`). Distinct from `wip_limits` — see below. |
-| `models` | object | absent | Per-role model assignment for the generated Claude Code sub-agent adapters. Keys: `preset`, `roles` — see below. The allowed sets are closed: `preset` is exactly `none` or `tiered`, and an alias is exactly `inherit`, `opus`, `sonnet` or `haiku`. The lean default is the whole block absent, which resolves every role to `inherit` — the session-inheriting value, so a zero-config repository keeps the user's session model choice. This dial governs the `model` field of the generated role adapters and nothing else: it does not change which roles exist, which tools a role holds, the coordinator's spawn grant, or any gate, quality or security setting. |
+| `models` | object | absent | Per-role model assignment for the generated Claude Code sub-agent adapters. Keys: `preset`, `roles` — see below. The allowed sets are closed — preset allowed set: `none`, `tiered`; alias allowed set: `inherit`, `opus`, `sonnet`, `haiku`. The lean default is the whole block absent, which resolves every role to `inherit` — the session-inheriting value, so a zero-config repository keeps the user's session model choice. This dial governs the `model` field of the generated role adapters and nothing else: it does not change which roles exist, which tools a role holds, the coordinator's spawn grant, or any gate, quality or security setting. |
 | `compliance_regime` | array of strings | `[]` (empty) | Active compliance regimes, e.g. `["GDPR","SOC2"]`. Empty = trigger-only via sensitive-data rules. |
 | `environments` | array of strings | `["dev","staging","prod"]` | Deployment environments the factory recognizes. |
 | `production_requires_human_confirmation` | boolean | `true` | Must stay `true`: agents never deploy to production alone; a named human always confirms. |
@@ -124,8 +124,8 @@ The `models` object assigns one model alias to each generated Claude Code sub-ag
 
 | Key | Default | Meaning |
 |-----|---------|---------|
-| `preset` | `none` | The base assignment applied to every role. Allowed: exactly `none`, `tiered`. `none` gives every role `inherit` — the lean default, and the same answer an absent block gives. `tiered` gives each role the alias recorded for it in the tier table in `scripts/model-tiers.ts`, where every row carries a written rationale beside it. A third preset name is a source change with its rationale table, never a value a configuration file can invent. |
-| `roles` | absent | A **sparse** override map keyed on the role filename stem (for example `software-engineer`), never a full map. Allowed values: exactly `inherit`, `opus`, `sonnet`, `haiku`. A stem the map does not name keeps the preset's answer. |
+| `preset` | `none` | The base assignment applied to every role. Closed preset allowed set: `none`, `tiered`. `none` gives every role `inherit` — the lean default, and the same answer an absent block gives. `tiered` gives each role the alias recorded for it in the tier table in `scripts/model-tiers.ts`, where every row carries a written rationale beside it. A third preset name is a source change with its rationale table, never a value a configuration file can invent. |
+| `roles` | absent | A **sparse** override map keyed on the role filename stem (for example `software-engineer`), never a full map. Closed alias allowed set: `inherit`, `opus`, `sonnet`, `haiku`. A stem the map does not name keeps the preset's answer. |
 
 **Precedence.** A `roles` override wins over `preset` for the role it names; `preset` answers for every other role.
 
