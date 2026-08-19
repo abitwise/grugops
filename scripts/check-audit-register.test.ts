@@ -59,7 +59,12 @@ import {
 // exemption region. This literal is deliberately NOT derived from the gate's map — it is moved by
 // hand here, and the "mirror's distribution equals the declared map" case below is what made the
 // drift loud rather than silent. That case firing is this mechanism working.
-const MIRROR_ARCHITECTURE_CLAIMS = 32;
+// 32 -> 33 (plan 29.1-06, D-16): `C-28-047` entered the live registry as an `architecture` row —
+// the model dial's cost denial, MODEL-07's totality half held as CONTENT under the D-59 precedent
+// rather than as a fourth literal group in check-banned-claims. Moved BY HAND for the same reason
+// the line above records, and the "mirror's distribution equals the declared map" case is what made
+// this drift loud: it fired on the live regression lane the moment CLAIM_KIND_CARDINALITY moved.
+const MIRROR_ARCHITECTURE_CLAIMS = 33;
 const MIRROR_INSTALL_CLAIMS = 8;
 
 /**
