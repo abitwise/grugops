@@ -92,7 +92,7 @@ Each requirement maps to exactly one roadmap phase (27–33). REQ-IDs continue g
 - [x] **MODEL-03**: A named opt-in preset assigns a stronger tier to the judgment roles (orchestration, architecture, security/NFR) and a cheaper tier to the execution roles (engineering, QE/E2E, UAT), selectable with one config key; the role→tier map is **derived against `kit-model.listRoles()` with an asserted count**, so a new role cannot arrive silently unassigned.
 - [x] **MODEL-04**: Only the aliases `inherit` / `opus` / `sonnet` / `haiku` are legal values. Full model ids are refused: they rot into the hand-maintained stale literal this milestone exists to eliminate, and an alias degrades gracefully for a user whose account lacks the stronger tier.
 - [x] **MODEL-05**: An unknown, malformed, or absent model value is **fail-closed to `inherit`** — never to a pinned tier — and a guard asserts the emitted model of all 17 adapters equals the resolved config, derived rather than compared against a hand-listed expectation.
-- [x] **MODEL-06**: The Claude-Code-only scope is stated rather than implied: per-subagent model selection exists on Claude Code alone, the other four host CLIs are unaffected, and `CLAUDE.md`'s "What NOT to Use" entry against non-`inherit` wrappers is amended to name this mechanism as the documented reason rather than being left to contradict it.
+- [ ] **MODEL-06**: The Claude-Code-only scope is stated rather than implied: per-subagent model selection exists on Claude Code alone, the other four host CLIs are unaffected, and `CLAUDE.md`'s "What NOT to Use" entry against non-`inherit` wrappers is amended to name this mechanism as the documented reason rather than being left to contradict it.
 - [x] **MODEL-07**: No cost or limit-savings claim ships unmeasured — it is measured with `scripts/measure-cost.ts` or carries `UNKNOWN - verify`. A tier assignment is not evidence of a saving, and the per-role rationale is recorded so the assignment can be disputed on quality grounds, not only cost.
 
 ### AUTO — Per-Checkpoint Autonomy Matrix
@@ -190,7 +190,7 @@ _Filled by the roadmapper 2026-07-28. Every requirement maps to exactly one phas
 | MODEL-03 | Phase 29.1 | Complete |
 | MODEL-04 | Phase 29.1 | Complete |
 | MODEL-05 | Phase 29.1 | Complete |
-| MODEL-06 | Phase 29.1 | Complete |
+| MODEL-06 | Phase 29.1 | Gaps Found |
 | MODEL-07 | Phase 29.1 | Complete |
 | AUTO-01 | Phase 30 | Pending |
 | AUTO-02 | Phase 30 | Pending |
