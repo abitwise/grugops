@@ -738,7 +738,7 @@ loop terminating only by an unstated argument).
   4. The Claude-Code-only scope is **stated in the kit and in `CLAUDE.md`**, whose "What NOT to Use" entry against non-`inherit` wrappers is amended to name this mechanism as the documented reason — the other four host CLIs have no per-subagent model concept and no claim says otherwise. (MODEL-06)
   5. Any cost or limit-savings claim is **measured** with `scripts/measure-cost.ts`, or carries `UNKNOWN - verify`. A tier assignment is not evidence of a saving. (MODEL-07)
 
-**Plans**: 6/6 plans executed — **waves are strictly sequential (1→6)**. Four `.ts` files need their committed `.js` rebuilt (`model-tiers`, `generate-role-adapters`, `check-foundation-guards`, `adapters-freshness`), and two plans rebuilding a committed `.js` concurrently tears the output (the phase-27 round-5 precedent). Plan `29.1-02` is **not autonomous**: it opens with a blocking `checkpoint:decision` on D-05's one-way config key shape.
+**Plans**: 11 plans — 6/6 executed, then 5 gap-closure plans (29.1-07 … 29.1-11) planned 2026-08-20 after verification returned `gaps_found`. **Waves are strictly sequential (1→11)**. Four `.ts` files need their committed `.js` rebuilt (`model-tiers`, `generate-role-adapters`, `check-foundation-guards`, `adapters-freshness`), and two plans rebuilding a committed `.js` concurrently tears the output (the phase-27 round-5 precedent). Plan `29.1-02` is **not autonomous**: it opens with a blocking `checkpoint:decision` on D-05's one-way config key shape.
 
 Plans:
 
@@ -765,6 +765,28 @@ Plans:
 **Wave 6** *(blocked on 29.1-05)*
 
 - [x] 29.1-06-PLAN.md — MODEL-07 held as anchored CONTENT with its fail-open direction disclosed in a derived claim-registry row (D-16, no fourth literal group, `measure-cost.ts` untouched), then the fourteen-command phase gate block, build parity and the regression lane [MODEL-07]
+
+**Gap-closure round 1 — PLANNED 2026-08-20.** Verification returned `gaps_found` at 3/5 success criteria plus one plan-declared must-have FAILED; a standard code review returned 1 critical / 8 warnings / 6 info. The user ruled **all fifteen findings in scope, none deferred**, and ruled MODEL-06 to "research all four and cite" — that research landed in `29.1-RESEARCH.md` §"Host-CLI per-agent model support" and its verdict is that **the shipped scope sentence is FALSE**: all four non-Claude host CLIs do carry a per-agent `model` field. The dial does not reach them because grugops emits no agent definition for any of them — a fact about this kit, provable locally, needing no citation. Gap sources: `29.1-VERIFICATION.md` and `29.1-REVIEW.md`. **Waves stay strictly sequential (7→11)** for the reason recorded above: four `.ts` files with committed `.js` twins are in scope and two plans rebuilding a committed `.js` concurrently tears the output.
+
+**Wave 1 (round 2)**
+
+- [ ] 29.1-07-PLAN.md — CR-01 + WR-03 + WR-04 + the missing discrimination case: announce the WHOLE resolution (member count, override count, distinct aliases) rather than one of `resolveModels`' two inputs, anchor every announcement reader at position 0 on a prefix its emitter owns, delete the third hand-spelled marker site, and plant a `roles` block with no `preset` key into the freshness mirror so the half of the D-04 hole that had no case turns RED [MODEL-01, MODEL-04]
+
+**Wave 2 (round 2)** *(blocked on 29.1-07)*
+
+- [ ] 29.1-08-PLAN.md — WR-01 + WR-02: close the `models` block's own key set by name with `MODELS_KEYS` before any legal key is read, so the partial-application shape that applied a preset while silently dropping overrides is refused (D-06's principle, one level up), and validate the preset before defaulting it so an explicit null is refused rather than coerced — with the configuration file's legitimately open top-level key set disclosed rather than implied [MODEL-04, MODEL-05]
+
+**Wave 3 (round 2)** *(blocked on 29.1-08)*
+
+- [ ] 29.1-09-PLAN.md — WR-07 (both halves) + WR-08 + IN-01 + IN-02 + IN-04 + IN-05: promote both degraded guard branches from advisory to blocking, add `npm run generate:adapters` plus an adapter diff to the ubuntu CI gate block and pin that wiring at both ends, stop the verdict claiming a configuration came from nowhere while one exists and was refused, give `tieredCorpusRefusals` a production consumer that runs on the zero-config tree, and render the source repo-relative [MODEL-03, MODEL-05]
+
+**Wave 4 (round 2)** *(blocked on 29.1-09)*
+
+- [ ] 29.1-10-PLAN.md — WR-06: replace the refuted authority sentence with the researched one plus four vendor citations and three `UNKNOWN - verify` residuals, move the oracle's pinned literal with it, repair the case a second marker would have silently re-targeted, and correct the two planning surfaces that restate the refuted premise — `REQUIREMENTS.md`'s MODEL-06 text and `ROADMAP.md`'s SC-4, which as written is unsatisfiable by any true sentence [MODEL-06, MODEL-07]
+
+**Wave 5 (round 2)** *(blocked on 29.1-10)*
+
+- [ ] 29.1-11-PLAN.md — WR-05 + the hand-listed roster + IN-03 + IN-06 + `COVERAGE.md`: declare the two configuration locations once and document the whole-file precedence and its shadowing consequence where a configuring reader meets it, pin the surface roster against a run-time derivation rather than against its own hand-list, pin the full 40-character baseline SHA, and close the round with the full gate set on the final tree [MODEL-01, MODEL-02, MODEL-06, MODEL-07]
 
 **Honesty floor for this phase:** the motivation is quota and cost relief, but grugops has never shipped an unmeasured cost claim — v2.0's ~50% figure stayed `UNKNOWN - verify` rather than borrowing DeLM's benchmark. A model-tier split is a *plausible* saving, not a measured one, and must be described that way until `measure-cost.ts` says otherwise. Assigning a cheaper model to a role is also a **quality** decision, not only a cost one; the preset's rationale is recorded per role so a later reader can dispute the assignment on merit.
 
