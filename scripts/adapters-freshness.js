@@ -63,6 +63,35 @@
 // number of byte differences found, so a run that compared zero adapters is visible as the anomaly
 // it is rather than reading as success.
 //
+// THE MIRRORED RUN'S RESOLUTION IS ASSERTED FROM ITS OWN STDOUT, NEVER INFERRED FROM THE TWIN LIST
+// (plan 29.1-03, D-04, T-29.1-09). This is the FIFTH property of this gate, and it is recorded here
+// beside the other four because it is the one that is easiest to delete by accident.
+//
+// Until this plan the gate met D-04 — "the committed adapters are the ZERO-CONFIG output" — by pure
+// ABSENCE: the twin list below copies agent-factory/roles and agent-factory/packaging into the
+// regeneration mirror and no configuration directory, so a config-reading generator inside that
+// mirror finds nothing to read. That is the right answer for the wrong reason, because it is a
+// property of what was NOT COPIED rather than of the run. The comment above the twin list already
+// justifies mirroring `packaging` although the generator does not open it, so adding a configuration
+// directory beside it is a plausible, well-intentioned edit — and the day it lands, this gate
+// silently begins comparing a CONFIGURED regeneration against the committed zero-config adapters
+// while every case in the repository stays green. Absence is not a pin.
+//
+// So the generator ANNOUNCES the preset it resolved and this gate ASSERTS that it reads `none`,
+// through the one grammar both sites share in scripts/model-tiers.ts. Three outcomes, three
+// findings: the line is ABSENT (a failure, never an agreement — a gate that reads a missing line as
+// consent is the shape this repository has paid for repeatedly), the line NAMES SOMETHING ELSE (the
+// comparison is then about a different artifact than the one the committed adapters claim to be), or
+// the line names `none` and the gate proceeds. A stream carrying MORE THAN ONE line is ambiguous and
+// is refused too: two announcements that disagree cannot both be the resolution this run used.
+//
+// THIS PHASE INTRODUCES NO ENVIRONMENT VARIABLE, and the pin deliberately does not use one. If a
+// future revision ever adds a variable able to override the resolution — an "assume zero config"
+// switch, a config-path override, anything of that shape — IT MUST BE `delete`d FROM `childEnv` BY
+// NAME ALONGSIDE `CHECK_ROOT`, for the reason already recorded at that deletion: an inherited
+// override would point the fresh regeneration back at the very tree it is meant to be compared
+// against, and the gate would compare a tree with itself and always pass.
+//
 // Node stdlib ONLY — node:child_process, node:fs, node:os, node:path. Zero npm dependencies.
 //
 // Findings are written in CLEAR PROFESSIONAL VOICE (CLAUDE.md hard rule — this is a build-safety
@@ -72,6 +101,7 @@ import { mkdtempSync, mkdirSync, cpSync, rmSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { listAgentAdapters } from "./kit-model.js";
+import { resolvedPresetsIn } from "./model-tiers.js";
 // TWO ROOTS, deliberately separated (Phase 27 / SPAWN-02). They were implicitly one before, which
 // is what made this gate impossible to point at a hermetic mirror.
 //
@@ -171,6 +201,33 @@ if (r.status !== 0) {
         process.stderr.write(r.stderr);
     die("Adapter freshness check FAILED: the generator did not run cleanly — refusing to report the adapters as fresh.");
 }
+// ── The D-04 pin: the mirrored run must say it resolved `none`, and be believed only then ────────
+// Read out of the SAME stdout the fail-closed branch above already captures — an assertion added to
+// an existing capture, not a new channel. Placed BEFORE the listing and the byte comparison on
+// purpose: a configured regeneration also moves bytes, so a gate that let this fall through to the
+// drift report would produce a finding that looks like ordinary staleness and says nothing about
+// which resolution it compared.
+const ZERO_CONFIG_PRESET = "none";
+const WHY_ZERO_CONFIG = "This gate's comparison is a statement about the ZERO-CONFIG output: the committed adapters are " +
+    "the adapters the generator produces when nothing is configured (D-04). A mirrored run that " +
+    "resolved anything else is comparing a different artifact than the one the committed adapters " +
+    "claim to be, so its verdict — pass or fail — would carry no information about freshness.";
+const announced = resolvedPresetsIn(r.stdout ?? "");
+if (announced.length === 0) {
+    die(`Adapter freshness check FAILED: the mirrored regeneration printed NO resolved-preset line, so this gate cannot tell which model resolution it compared. It requires "${ZERO_CONFIG_PRESET}".\n` +
+        "An absent line is a FAILURE here and never an agreement: reading silence as consent would " +
+        "make this pin stop working precisely when the generator stops announcing.\n" +
+        `${WHY_ZERO_CONFIG}\nRun \`${REGEN_CMD}\` and confirm the generator still announces its resolved preset.`);
+}
+if (announced.length > 1) {
+    die(`Adapter freshness check FAILED: the mirrored regeneration printed ${announced.length} resolved-preset lines (${announced.map((p) => `"${p}"`).join(", ")}) — an ambiguous answer, refused rather than resolved by taking one of them. This gate requires exactly one, naming "${ZERO_CONFIG_PRESET}".\n${WHY_ZERO_CONFIG}`);
+}
+if (announced[0] !== ZERO_CONFIG_PRESET) {
+    die(`Adapter freshness check FAILED: the mirrored regeneration resolved the model preset as "${announced[0]}", and this gate requires "${ZERO_CONFIG_PRESET}".\n` +
+        `${WHY_ZERO_CONFIG}\n` +
+        "The likely cause is a configuration file reaching the regeneration mirror — check the twin " +
+        "list in this script, and check the tree under judgement for a `models` block.");
+}
 // ── List both sides through the ONE adapter authority ────────────────────────────
 // listAgentAdapters() is asked twice with two explicit roots: the tree under judgement, and the
 // fresh regeneration. It THROWS rather than returning an empty array on a missing, unreadable or
@@ -235,5 +292,13 @@ if (differing.length > 0) {
     console.log(`STALE: ${differing.length} of ${committedNames.length} committed adapter(s) differ from a fresh regeneration: ${differing.join(", ")}\nRun \`${REGEN_CMD}\` and commit the result.`);
     process.exit(1);
 }
-console.log(`Adapters fresh: ${committedNames.length} adapter(s) compared in ${ADAPTER_DIR}, 0 byte difference(s), directory listings set-equal.`);
+// The verdict states the RESOLUTION it compared beside what it compared. `announced[0]` is the value
+// this run read off the child's stdout and asserted above — the same value, not a restatement of the
+// requirement — so the line cannot claim a resolution the gate did not actually observe.
+//
+// THE SECOND LINE ENDS WITHOUT A FULL STOP, DELIBERATELY. It carries the same marker the generator
+// emits, so a reader of THIS gate's output can parse it with the same grammar; trailing punctuation
+// would become part of the parsed value and turn `none` into `none.`. Measured, not assumed — that
+// is exactly how the first draft of this line failed its own case.
+console.log(`Adapters fresh: ${committedNames.length} adapter(s) compared in ${ADAPTER_DIR}, 0 byte difference(s), directory listings set-equal.\nMirrored generator resolved model preset: ${announced[0]}`);
 process.exit(0);
