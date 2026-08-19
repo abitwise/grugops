@@ -5,13 +5,13 @@ milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live
 current_phase: 29.1
 current_phase_name: per-role-model-assignment
 status: planned
-stopped_at: "Completed 29.1-01-PLAN.md (tracer) — zero-config model resolution wired end to end, 17 adapters byte-identical to the frozen 6f8411e baseline. ONE flagged deviation: the ROLE_COUNT floor moved out of resolveModels (coverage item D5, human_judgment: true)."
-last_updated: "2026-08-19T08:14:54.173Z"
+stopped_at: Completed 29.1-02-PLAN.md
+last_updated: "2026-08-19T09:21:12.563Z"
 progress:
   total_phases: 9
   completed_phases: 3
   total_plans: 140
-  completed_plans: 135
+  completed_plans: 136
   percent: 33
 last_activity: 2026-08-19
 last_activity_desc: "Phase 29 CLOSED by user decision (D-59, reversing D-29): LANG-04's conformance prohibition is held as CONTENT — the claim registry and the honesty floor — with guard_banned_claims a disclosed drift backstop, not the mechanism that makes a totality true. Eight verification rounds established that a totality over an open set of phrasings is not a decidable predicate; D-55 had already ended at a per-line predicate, so the totality was already content-held on the tree while LANG-04's text still said a mechanism held it. Round-8 review CR-02 (the narrowed sentence printed above the findings contradicting it) FIXED at 4c6a76a, watched failing against the pre-fix build and asserted in both directions; two existing cases whose premise the change invalidated were repaired, not weakened. CR-01 (freshness.ts working-tree arm fail-opens, reproduced) carried as V-29-59-03 — a build-parity defect plan 29-59 itself recorded as named by no LANG requirement. CR-03/04/05 carried with owners in docs/audit/29-round8-residuals.md section 10. The round-8 verifier's gaps_found verdict is left standing and annotated rather than rewritten: it verified LANG-04's previous text. All 8 LANG requirements Complete. 15 repo gates green, 52 files / 2140 passed / 2 skipped. Next: Phase 29.1 (per-role model assignment)."
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-07-28 — after v2.0 milestone)
 ## Current Position
 
 Phase: 29.1 (per-role-model-assignment) — EXECUTING
-Plan: 2 of 6
+Plan: 3 of 6
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 
@@ -389,6 +389,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 29 P59 | 26min | 3 tasks | 7 files |
 | Phase 29 P60 | 2h20m | 3 tasks | 1 files |
 | Phase 29.1 P01 | 26min | 3 tasks | 10 files |
+| Phase 29.1 P02 | 22min | 3 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -1036,6 +1037,9 @@ Recent decisions affecting current work:
 - [Phase ?]: 29.1-01: the ROLE_COUNT cardinality equality is NOT a floor inside resolveModels — it is a separate named predicate (roleCorpusCardinalityRefusal) asked by consumers judging the LIVE corpus. The resolver sits on the adapter generator's hot path and that generator runs over hermetic mirrors holding a SUBSET of the corpus (its own suite mirrors six roles); the floor as the plan specified it refused those valid runs and turned 22 committed cases red. It was also a SECOND authority — listRoles itself refuses only an EMPTY corpus and guard_kit_counts owns the two-sided count over the live tree. D-05 is still satisfied because resolveModels assigns a value to EVERY stem it is handed, and from 29.1-02 the binding check becomes the strictly stronger 'every stem has a preset row'.
 - [Phase ?]: 29.1-01: ModelAlias is DERIVED from the MODEL_ALIASES tuple rather than declared twice, so the closed alias set has exactly one declaration and the union cannot accept a member the membership check refuses.
 - [Phase ?]: 29.1-01: render() is observed by mirror-spawning the generator with a SUBSTITUTED model-tiers twin — generate-role-adapters.js is top-level script code that writes 17 files and exits on import, so it cannot be imported by a test. Byte-identity alone cannot show the emit reads a field; a generator still holding its literal passes every zero-config assertion.
+- [Phase ?]: 29.1-02: the models config key shape and the closed preset-name set ratified as-specified by Olger Oeselg (2026-08-19); assumption A1 ships as a recorded UNKNOWN - verify naming CLAUDE.md:84 as its only source
+- [Phase ?]: 29.1-02: the corpus-relative cardinality and both-direction set equality live in tieredCorpusRefusals, not inside resolveModels — honouring 29.1-01's coverage item D5; the resolver carries the strictly stronger per-stem check that names the unassigned stem
+- [Phase ?]: 29.1-02: MODEL-04 is closed by exact string equality in readModelsConfig and NOT by the canonical admission reader, which would accept a full model id as a legal plain scalar
 
 ### Pending Todos
 
@@ -1150,8 +1154,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-08-19T08:14:54.143Z
-Stopped at: Completed 29.1-01-PLAN.md (tracer) — zero-config model resolution wired end to end, 17 adapters byte-identical to the frozen 6f8411e baseline. ONE flagged deviation: the ROLE_COUNT floor moved out of resolveModels (coverage item D5, human_judgment: true).
+Last session: 2026-08-19T09:21:02.717Z
+Stopped at: Completed 29.1-02-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
