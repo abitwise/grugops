@@ -1059,3 +1059,152 @@ describe("generate-role-adapters.js (SPAWN-01 adapter generator)", () => {
     }
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// THE `model:` EMIT (MODEL-01 / MODEL-02, phase 29.1 plan 29.1-01)
+//
+// The generator used to push the string `model: inherit` as a LITERAL. It now pushes the value
+// `scripts/model-tiers.js` resolved for that role. Two facts have to hold at once, and only one of
+// them is what a byte comparison against the committed adapters can see:
+//
+//   (1) THE ZERO-CONFIG BYTES DID NOT MOVE — with nothing configured the resolver answers
+//       `inherit`, so the emitted line is the same seven bytes in the same slot. This is MODEL-01,
+//       and scripts/adapter-byte-baseline.test.ts decides it against a frozen pre-phase commit.
+//   (2) THE EMIT READS THE FIELD RATHER THAN A CONSTANT — which byte-identity CANNOT show, because
+//       a generator that ignored the resolver entirely and kept its literal would satisfy (1)
+//       perfectly. That is what the SUBSTITUTED-TWIN cases below are for: the mirror carries a
+//       model-tiers twin that answers something other than `inherit`, and the emitted bytes have to
+//       follow it.
+//
+// WHY A SUBSTITUTED TWIN RATHER THAN CALLING `render()` DIRECTLY. generate-role-adapters.js is
+// top-level script code — importing it WRITES SEVENTEEN FILES and then calls process.exit — so
+// `render` cannot be imported by a test at all. The mirror-spawn is the only way to observe its
+// output, and it observes the SHIPPED path end to end rather than an exported fragment of it.
+// Nothing here touches the live tree: the substitution is written into the scratch mirror's own
+// scripts directory, over the copy `scratch()` placed there.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+/** Overwrite the mirror's model-tiers twin with a stub whose resolution the case controls. */
+function substituteResolver(m: string, body: string): void {
+  writeFileSync(join(m, "scripts", "model-tiers.js"), body, "utf8");
+}
+
+/** A stub that RESOLVES every stem to one alias. */
+const resolverAnswering = (alias: string): string =>
+  [
+    'export const MODEL_ALIASES = ["inherit", "opus", "sonnet", "haiku"];',
+    "export function isModelAlias(v) {",
+    '  return typeof v === "string" && MODEL_ALIASES.some((a) => a === v);',
+    "}",
+    "export function resolveModels(stems) {",
+    "  const value = new Map();",
+    "  for (const s of [...stems].sort()) value.set(s, " + JSON.stringify(alias) + ");",
+    "  return { ok: true, value };",
+    "}",
+    "",
+  ].join("\n");
+
+/** A stub that REFUSES, so the generator's fail-closed posture can be observed. */
+const resolverRefusing = (reason: string): string =>
+  [
+    'export const MODEL_ALIASES = ["inherit", "opus", "sonnet", "haiku"];',
+    "export function isModelAlias(v) {",
+    '  return typeof v === "string" && MODEL_ALIASES.some((a) => a === v);',
+    "}",
+    "export function resolveModels() {",
+    "  return { ok: false, reason: " + JSON.stringify(reason) + " };",
+    "}",
+    "",
+  ].join("\n");
+
+/** Every line of the file that IS a top-level `model:` frontmatter key, counted over the whole file. */
+const modelLines = (text: string): string[] =>
+  text.split("\n").filter((l) => l.startsWith("model: "));
+
+describe("generate-role-adapters.js — the resolved `model:` emit (plan 29.1-01)", () => {
+  it("emits EXACTLY ONE `model:` line per adapter, after `tools:` and immediately before the closing fence", () => {
+    const m = scratch(SAMPLE_ROLES);
+    const r = runIn(m);
+    expect(r.status, out(r)).toBe(0);
+
+    const snap = snapshot(agentsDir(m));
+    const names = Object.keys(snap);
+    // The premise: the run really produced the adapters this case is about to judge.
+    expect(names, "the generator wrote nothing, so the slot assertion below would be vacuous").toHaveLength(
+      SAMPLE_ROLES.length,
+    );
+
+    const findings: string[] = [];
+    for (const name of names) {
+      const text = snap[name];
+      const found = modelLines(text);
+      if (found.length !== 1) {
+        findings.push(`${name} — ${String(found.length)} \`model:\` line(s), expected exactly 1`);
+        continue;
+      }
+      // THE SLOT, not merely the presence. The byte layout is what MODEL-01 pins, so the line has to
+      // sit where the literal sat: last inside the frontmatter, directly beneath `tools:`.
+      const fm = frontmatter(text).split("\n");
+      if (!fm[fm.length - 1].startsWith("model: ")) {
+        findings.push(`${name} — the \`model:\` line is not the last frontmatter line`);
+      }
+      if (!fm[fm.length - 2].startsWith("tools: ")) {
+        findings.push(`${name} — the line above \`model:\` is not \`tools:\``);
+      }
+    }
+    expect(findings, "the emitted `model:` line moved out of the slot the literal occupied").toEqual([]);
+  });
+
+  it("ZERO-CONFIG: every emitted adapter carries `model: inherit` — the bytes the literal produced", () => {
+    const m = scratch(SAMPLE_ROLES);
+    const r = runIn(m);
+    expect(r.status, out(r)).toBe(0);
+
+    const snap = snapshot(agentsDir(m));
+    expect(Object.keys(snap)).toHaveLength(SAMPLE_ROLES.length);
+    for (const [name, text] of Object.entries(snap)) {
+      expect(modelLines(text), `${name}`).toEqual(["model: inherit"]);
+      expect(fmValue(text, "model"), `${name}`).toBe("inherit");
+    }
+  });
+
+  it("THE EMIT READS THE RESOLVED FIELD, not a constant — a twin answering `opus` moves the bytes", () => {
+    // This is the case byte-identity cannot decide. A generator still holding its literal passes
+    // every zero-config assertion above and fails here.
+    const m = scratch(SAMPLE_ROLES);
+    substituteResolver(m, resolverAnswering("opus"));
+    const r = runIn(m);
+    expect(r.status, out(r)).toBe(0);
+
+    const snap = snapshot(agentsDir(m));
+    expect(
+      Object.keys(snap),
+      "the substituted-resolver run produced no adapters, so nothing below was actually observed",
+    ).toHaveLength(SAMPLE_ROLES.length);
+    for (const [name, text] of Object.entries(snap)) {
+      // EXACTLY `model: opus`, on its own line, exactly once — not merely "contains opus".
+      expect(modelLines(text), `${name}`).toEqual(["model: opus"]);
+      // …and still in its slot, so following the field cannot have cost the layout.
+      const fm = frontmatter(text).split("\n");
+      expect(fm[fm.length - 1], `${name}`).toBe("model: opus");
+      expect(fm[fm.length - 2].startsWith("tools: "), `${name}`).toBe(true);
+    }
+  });
+
+  it("A REFUSED resolution exits 1 carrying the reason and writes NOTHING (T-27-32)", () => {
+    // The resolution is taken BEFORE the build-everything loop precisely so a refusal cannot leave a
+    // partial adapter directory behind. That is the property this case pins.
+    const m = scratch(SAMPLE_ROLES);
+    const reason = "model-tiers: a deliberately planted refusal for the fail-closed case";
+    substituteResolver(m, resolverRefusing(reason));
+
+    const before = snapshot(agentsDir(m));
+    expect(Object.keys(before), "the fixture must start with an EMPTY output directory").toEqual([]);
+
+    const r = runIn(m);
+    expect(r.status, out(r)).toBe(1);
+    expect(out(r)).toContain(reason);
+    // Byte-for-byte unchanged: no partial artifact, not even one file.
+    expect(snapshot(agentsDir(m))).toEqual(before);
+  });
+});
