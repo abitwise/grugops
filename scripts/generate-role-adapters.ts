@@ -84,6 +84,28 @@
 //      scripts/adapter-byte-baseline.test.ts, because this file's own freshness gate regenerates
 //      both sides from this same generator and therefore cannot decide that question.
 //
+// THE `models` CONFIGURATION IS READ AGAINST THE SAME FIXED ROOT, AND NO CONFIG VALUE EVER REACHES A
+// PATH (plan 29.1-03, ASVS V12, T-29.1-01). `readModelsConfig` is handed the same `ROOT` constant
+// below — `join(import.meta.dirname, "..")`, with no argv override and no environment override — so
+// a run inside a hermetic mirror reads that mirror's configuration and nothing else. The block it
+// returns is a preset NAME compared by exact equality against a closed two-member set, and a sparse
+// map of role stems to aliases whose every KEY is compared against the stem set derived from the
+// role-set authority BEFORE it is used anywhere. Nothing read from that file is joined onto a path,
+// interpolated into a path, or used to select one. `OUT_DIR` remains a fixed literal joined to
+// `ROOT`, this script still accepts NO output flag, and the emitted alias can only ever be one of
+// the four members of the closed vocabulary — which is what keeps a YAML-significant byte out of
+// the frontmatter this generator writes.
+//
+// EVERY SUCCESSFUL RUN ANNOUNCES THE PRESET IT RESOLVED, on stdout, using the shared grammar in
+// scripts/model-tiers.ts (`resolvedPresetLine`). The line exists so that a CALLER can OBSERVE which
+// resolution a run used rather than infer it from the tree afterwards. Its first consumer is
+// scripts/adapters-freshness.ts, which regenerates the adapters inside a temp mirror and must know
+// that the mirrored run resolved `none`: that gate's D-04 zero-config claim rested until now on the
+// mere ABSENCE of a configuration directory from its hand-written twin list, and absence is not a
+// pin — an added directory would have made the gate config-dependent while everything stayed green.
+// The marker is NOT spelled here: emitter and reader share one declaration, because a hand-copied
+// marker rots apart silently and a reader that stops finding the line is the failure mode itself.
+//
 // Node stdlib ONLY — node:fs + node:path, plus the in-repo kit-model, frontmatter and model-tiers
 // modules. The claim still holds after WR-03 and after this phase: `frontmatter.ts` has no imports
 // at all, `kit-model.ts` imports only node:fs + node:path, and `model-tiers.ts` imports only
@@ -100,7 +122,12 @@ import {
   sectionEndIndex,
   unfencedHeadingIndex,
 } from "./frontmatter.js";
-import { resolveModels, type ModelAlias } from "./model-tiers.js";
+import {
+  readModelsConfig,
+  resolveModels,
+  resolvedPresetLine,
+  type ModelAlias,
+} from "./model-tiers.js";
 
 // ── Fixed literal paths (never argv/env/content-derived — ASVS V12) ───────────────────────────
 const ROOT = join(import.meta.dirname, "..");
@@ -252,7 +279,23 @@ roleFiles = roleFiles!.slice().sort(); // explicit sort before emit (kit-model a
 // and in the build loop below. Two expressions for "the role's stem" is one expression too many:
 // the map is keyed by one of them and read by the other, so a disagreement would surface as a
 // lookup that quietly found nothing rather than as an error.
-const resolution = resolveModels(roleFiles.map(stemOf));
+//
+// TWO REFUSALS, IN ORDER, BOTH ABOVE THE LOOP. `readModelsConfig` decides whether the user's file is
+// legal at all — an unknown preset name, an unknown role key, an alias outside the closed set, a
+// degenerate `models` value — and `resolveModels` decides whether the legal block can be applied to
+// this tree's stems. Each returns a VERDICT rather than throwing, and each verdict travels straight
+// to `fail`, so a refusal from either is exit 1 with nothing written and no output directory
+// created. Neither reaches `render()`, and neither can leave a partial adapter directory.
+const stems = roleFiles.map(stemOf);
+
+const config = readModelsConfig(ROOT, stems);
+if (!config.ok) fail(config.reason);
+const modelsConfig = config.value;
+
+const resolution = resolveModels(stems, {
+  preset: modelsConfig.preset,
+  overrides: modelsConfig.overrides,
+});
 if (!resolution.ok) fail(resolution.reason);
 const models = resolution.value;
 
@@ -492,4 +535,10 @@ for (const r of rendered) {
 console.log(
   `generate-role-adapters: wrote ${rendered.length} adapters to ${OUT_DIR} (coordinator ${coordinator.name} grants ${grant.length} names)`,
 );
+
+// The announced resolution, on its OWN line and AFTER the summary above, whose text is deliberately
+// unchanged so nothing keying on it moves. `modelsConfig.preset` is the value handed to
+// `resolveModels` a few lines up — the same object, not a second derivation — so the announcement
+// cannot describe a resolution other than the one this run performed.
+console.log(`generate-role-adapters: ${resolvedPresetLine(modelsConfig.preset)}`);
 process.exit(0);
