@@ -41,6 +41,24 @@
 // none, and records no benchmark. scripts/measure-cost.ts holds the repository's standing
 // `UNKNOWN - verify` on the usage schema and is untouched by this phase.
 //
+// UNKNOWN - verify: THE ALIAS VOCABULARY ITSELF (assumption A1, recorded confidence LOW).
+// Claude Code's `model:` frontmatter accepts the bare aliases `opus` / `sonnet` / `haiku` in a
+// sub-agent adapter, with the same meaning as in the CLI. THE ONLY SOURCE FOR THIS IS CLAUDE.md:84
+// (`sonnet | opus | haiku | full model id | inherit (the default)`), which is this repository's own
+// recorded research; it was NOT re-verified against vendor documentation during phase 29.1's
+// research, and no other source is named here.
+//
+// WHAT IS AT RISK, AND WHAT IS NOT. If the platform rejects a bare alias, every adapter emitted under
+// the `tiered` preset fails to load; the remedy is a one-line change to MODEL_ALIASES below plus a
+// regeneration. The ZERO-CONFIG path is unaffected in every case, because it emits `inherit`, which
+// is the documented default under the same source.
+//
+// RATIFIED 2026-08-19 by Olger Oeselg (plan 29.1-02 Task 1, option `ratify-as-specified`). The
+// `models` config key shape and the closed preset-name set ship as D-05 and D-07 wrote them, and A1
+// ships as this recorded note rather than as an unstated fact. The ratifying session cross-checked
+// the vocabulary and agreed with CLAUDE.md:84 — that agreement is a SESSION-LEVEL CROSS-CHECK, NOT a
+// fetched vendor-documentation citation, and it does not upgrade this note or add a source to it.
+//
 // THIS TASK'S SCOPE. Plan 29.1-01 delivers the ZERO-CONFIG arm only: `resolveModels` takes the stems
 // its caller derived and answers `inherit` for all of them. The preset table (TIERED), the two-
 // location config read (readModelsConfig) and the preset-name pin (resolvedPresetName) arrive in
