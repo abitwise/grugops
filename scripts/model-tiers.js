@@ -59,25 +59,59 @@
 // the vocabulary and agreed with CLAUDE.md:84 — that agreement is a SESSION-LEVEL CROSS-CHECK, NOT a
 // fetched vendor-documentation citation, and it does not upgrade this note or add a source to it.
 //
-// THIS TASK'S SCOPE. Plan 29.1-01 delivers the ZERO-CONFIG arm only: `resolveModels` takes the stems
-// its caller derived and answers `inherit` for all of them. The preset table (TIERED), the two-
-// location config read (readModelsConfig) and the preset-name pin (resolvedPresetName) arrive in
-// plan 29.1-02. `RoleTier` ships now because the tier table's SHAPE — in particular its required
-// rationale field — is the mechanism D-10 rests on, and a shape agreed before there are entries is
-// a shape no entry can quietly bend.
+// SCOPE, AS OF PLAN 29.1-02. The module is complete: the closed alias vocabulary, the closed preset
+// vocabulary, the shipped `tiered` table with a rationale required by the type, the two-location
+// config read with every illegal input refused by name, and the sparse-override contract. What is
+// NOT here, deliberately: the exact live-tree cardinality (adjudicated in `guard_model_assignment`,
+// plan 29.1-04) and the install-time delivery of a per-repo `models` block (moved to phase 29.2 by
+// D-17). Until 29.2 lands, a per-repo `models` block is INERT FOR AN INSTALLED TARGET — the
+// mechanism resolves and emits correctly in-kit, but the adapters an installed repo loads are
+// whatever the kit shipped. That is a disclosed limitation of this increment, not a defect.
 //
-// DELIBERATELY NOT IMPORTED: `listRoles`. This module performs NO I/O — it resolves over stems its
-// caller already derived, which is what makes it a pure function two different callers can share.
-// The role-set authority is still the only source of those stems (the generator derives them through
-// `listRoles`, and scripts/model-tiers.test.ts derives its corpus the same way); what this module
-// takes from kit-model is the pinned CARDINALITY it checks that derivation against. There is no
-// private readdir here or anywhere downstream of here. `noUnusedLocals` is on in tsconfig.json, so
-// importing a symbol this module does not call would not compile in any case.
+// DELIBERATELY NOT IMPORTED: `listRoles`. The role-set authority is still the only source of stems,
+// but this module never derives them itself — `resolveModels` and `readModelsConfig` both TAKE the
+// stems their caller already derived (the generator derives them through `listRoles`, and
+// scripts/model-tiers.test.ts derives its corpus the same way). What this module takes from
+// kit-model is the pinned CARDINALITY. There is no private readdir here or anywhere downstream of
+// here. `noUnusedLocals` is on in tsconfig.json, so importing a symbol this module does not call
+// would not compile in any case.
 //
-// Node stdlib not required — this module opens no file and touches no path. Zero npm dependencies.
+// WHAT TOUCHES THE FILESYSTEM AND WHAT DOES NOT. `resolveModels` is PURE — it opens no file, reads
+// no environment variable and joins no path, which is what lets the generator and the doctor share
+// it. `readModelsConfig` is the module's ONLY I/O, and it opens exactly two paths, both built from
+// the repo root its caller handed it. Zero npm dependencies either way.
+//
+// WHERE MODEL-04 IS ENFORCED, STATED HERE BECAUSE THE OBVIOUS GUESS IS WRONG. It is enforced in
+// `readModelsConfig` below, by exact string equality against the four `MODEL_ALIASES` constants, and
+// it is NOT enforced by the canonical admission reader. `scripts/canonical-frontmatter.ts` already
+// carries `model` in `CANONICAL_SCHEMA`, and a full model id such as `claude-3-5-sonnet-20241022` is
+// a perfectly legal PLAIN SCALAR under `PLAIN_SCALAR_ALPHABET` — `admit()` would accept it without
+// complaint, because admission decides what is a canonical YAML shape and not what is a legal model.
+// A reader who assumes the admission layer closes MODEL-04 would find the hole only in production.
+//
+// THE ASVS V12 CONTROL, ALSO STATED RATHER THAN IMPLIED. A `roles` key is a user-authored string. It
+// is compared against the caller's DERIVED stem set BEFORE it is used anywhere, and it is NEVER
+// joined onto a path, passed to a filesystem call, or used to build one. An unknown key is a refusal
+// naming the key and the valid set (D-06), so a key shaped like a traversal never reaches a syscall
+// to be defended against.
+//
+// THE TIE-BREAKING RULE, WHICH IS A CONTRACT AND NOT AN INSERTION ORDER. `preset` resolves first and
+// produces a BASE assignment for every stem; `roles` is a SPARSE override applied on top of it. When
+// a stem appears in both, THE OVERRIDE WINS — deliberately, because a user who names a role
+// explicitly means that name more than they mean the preset they also selected. This is stated here
+// so that the precedence is a property of the design rather than of which loop happened to run last.
+//
+// NO THIRD CONFIG READER. `readModelsConfig` IMITATES the candidate order and the shape discipline
+// of `readGovernanceConfig` in scripts/context-io.ts; it does not import it, does not wrap it and
+// does not extend it. It also deliberately does NOT copy that reader's verdict: `readGovernanceConfig`
+// records an explicit fail-OPEN contract and returns a present value VERBATIM without validating it,
+// which is correct for a governance dial whose consumer decides, and fatal here — a verbatim
+// unvalidated value is exactly the full model id MODEL-04 exists to refuse.
 //
 // Findings are written in CLEAR PROFESSIONAL VOICE. A model tier is a money topic, and CLAUDE.md's
 // voice discipline makes clear voice mandatory for money, security and compliance — never caveman.
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { ROLE_COUNT } from "./kit-model.js";
 // ── The closed alias vocabulary ───────────────────────────────────────────────────────────────
 //
@@ -502,13 +536,238 @@ export function resolveModels(stems, options) {
                     "partial preset is a tier the user believes they set and did not.",
             };
         }
-        return { ok: true, value };
     }
-    for (const stem of sorted) {
-        // The zero-config answer, and the `none` preset's answer, which are the same answer by design.
-        value.set(stem, "inherit");
+    else {
+        // The zero-config answer and the `none` preset's answer, which are the same answer by design —
+        // built through the ONE helper the degrading consumers also use, so "what does `inherit`
+        // everywhere look like" has a single implementation in this module rather than three.
+        for (const [stem, alias] of inheritForEveryStem(sorted))
+            value.set(stem, alias);
+    }
+    // ── Floor 4 and the OVERRIDE application, in that order. ────────────────────────────────────
+    //
+    // The override wins over the preset — the tie-breaking contract stated in the module header. It is
+    // applied by OVERWRITING an existing key, which leaves the map's insertion order untouched, so the
+    // determinism the sort buys is not spent here.
+    //
+    // AN OVERRIDE FOR A STEM THIS RESOLUTION DOES NOT COVER IS SKIPPED, not refused, and the reason is
+    // the mirror argument again: a caller resolving a six-role mirror legitimately holds overrides for
+    // roles outside it. The question "is this key a real role" belongs to `readModelsConfig`, which
+    // asks it against the DERIVED corpus and refuses a typo by name (D-06). One authority, asked where
+    // the user's mistake actually is.
+    for (const [stem, alias] of options?.overrides ?? []) {
+        if (!isModelAlias(alias)) {
+            return {
+                ok: false,
+                reason: `model-tiers: the override for role "${stem}" is ${String(JSON.stringify(alias))}, which ` +
+                    `is not a legal model alias. The legal set is exactly: ` +
+                    `${MODEL_ALIASES.map((a) => `"${a}"`).join(", ")}. This floor exists because the resolved ` +
+                    "value is written straight into emitted frontmatter, and the closed allow-list is the only " +
+                    "thing keeping a YAML-significant byte out of it.",
+            };
+        }
+        if (!value.has(stem))
+            continue;
+        value.set(stem, alias);
     }
     return { ok: true, value };
+}
+/**
+ * `inherit` for every stem — THE DEGRADING POLICY, in one implementation the degrading consumers share.
+ *
+ * D-11 splits by consumer: the GENERATOR turns a refusal into exit 1 writing nothing, and EVERY OTHER
+ * consumer — the installer's `--check` doctor, any future runtime reader — degrades to `inherit` and
+ * NEVER to a pinned tier. This is that degradation, exported so the two do not each write their own.
+ *
+ * WHY `inherit` AND NOT THE PRESET'S GUESS. Silently upgrading a user to a model their account may
+ * not carry is a worse failure than reading the session default: the first fails at load time on a
+ * value nobody chose, the second is the documented default behaviour.
+ *
+ * Sorted for the same reason `resolveModels` sorts — an ordering a caller's argument controls is an
+ * ordering nothing in an emit path controls.
+ */
+export function inheritForEveryStem(stems) {
+    const value = new Map();
+    for (const stem of [...stems].sort())
+        value.set(stem, "inherit");
+    return value;
+}
+/** The zero-config answer, named once so the four arms that reach it cannot drift apart. */
+function zeroConfigModels(source) {
+    return { ok: true, value: { preset: "none", overrides: new Map(), source } };
+}
+/** A JSON value's shape, in words, so a refusal can name what it found rather than what it wanted. */
+function describeShape(value) {
+    if (value === null)
+        return "null";
+    if (Array.isArray(value))
+        return "an array";
+    return `a ${typeof value}`;
+}
+/** A value quoted back to the user exactly as they typed it, including a non-JSON-serialisable one. */
+function quoteValue(value) {
+    return String(JSON.stringify(value));
+}
+/**
+ * Read and validate a `models` block that has already been established to be a JSON object.
+ *
+ * Split out so the FILE-shaped refusals (absent, unparseable, not an object, no `models` key) and the
+ * BLOCK-shaped refusals (illegal preset, unknown role key, illegal alias) are two readable halves
+ * rather than one function with seven early returns at two levels of nesting.
+ */
+function readModelsBlock(models, path, stems) {
+    // ── `preset`, by EXACT EQUALITY against the closed set (D-07). ───────────────────────────────
+    let preset = "none";
+    const rawPreset = models.preset;
+    if (rawPreset !== undefined) {
+        if (!isPresetName(rawPreset)) {
+            return {
+                ok: false,
+                reason: `model-tiers: ${path} sets \`models.preset\` to ${quoteValue(rawPreset)}, which is not a ` +
+                    `legal preset name. The legal set is exactly: ` +
+                    `${PRESET_NAMES.map((n) => `"${n}"`).join(", ")}. Remedy: use one of those names. Adding ` +
+                    "a third preset is a source change in scripts/model-tiers.ts with a rationale table " +
+                    "beside it, not a value a configuration file can invent.",
+            };
+        }
+        preset = rawPreset;
+    }
+    // ── `roles`, a SPARSE override map. ─────────────────────────────────────────────────────────
+    const overrides = new Map();
+    const rawRoles = models.roles;
+    if (rawRoles === undefined)
+        return { ok: true, value: { preset, overrides, source: path } };
+    if (rawRoles === null || typeof rawRoles !== "object" || Array.isArray(rawRoles)) {
+        return {
+            ok: false,
+            reason: `model-tiers: the \`models.roles\` key in ${path} is ${describeShape(rawRoles)} rather than ` +
+                "a JSON object of role-stem-to-alias pairs. Remedy: write it as an object, or remove it " +
+                "entirely — an absent `roles` key is legal and means the preset's answer stands unmodified.",
+        };
+    }
+    const rolesObject = rawRoles;
+    const validStems = new Set(stems);
+    const validStemList = [...stems].sort().join(", ");
+    // EVERY KEY IS VALIDATED BEFORE ANY VALUE IS READ, and before any key is used anywhere. This is
+    // the ASVS V12 control recorded in the module header: a config-derived string is compared against
+    // a derived set and never joined onto a path.
+    for (const key of Object.keys(rolesObject).sort()) {
+        if (validStems.has(key))
+            continue;
+        return {
+            ok: false,
+            reason: `model-tiers: ${path} sets \`models.roles\` for "${key}", which is NOT one of the role ` +
+                `stems derived from the role-set authority. The valid set on this tree is: ` +
+                `${validStemList}. Remedy: correct the key. A silently ignored override is a tier the user ` +
+                "believes they set and did not (D-06), so an unknown key is refused rather than skipped.",
+        };
+    }
+    for (const key of Object.keys(rolesObject).sort()) {
+        const value = rolesObject[key];
+        if (!isModelAlias(value)) {
+            return {
+                ok: false,
+                reason: `model-tiers: ${path} assigns role "${key}" the value ${quoteValue(value)}, which is not ` +
+                    `a legal model alias. The legal set is exactly: ` +
+                    `${MODEL_ALIASES.map((a) => `"${a}"`).join(", ")}. Membership is EXACT STRING EQUALITY ` +
+                    "against those four constants and never a pattern, which is what keeps a YAML-significant " +
+                    "byte out of the emitted frontmatter. A full model id is refused deliberately (MODEL-04): " +
+                    "it is the hand-maintained stale literal this milestone exists to eliminate, and an alias " +
+                    "degrades gracefully for a user whose account does not carry the stronger tier.",
+            };
+        }
+        overrides.set(key, value);
+    }
+    return { ok: true, value: { preset, overrides, source: path } };
+}
+/**
+ * Resolve the `models` block from the two standard config locations, or state why it cannot be.
+ *
+ * FOUR DISTINCT OUTCOMES ON THE FILE ITSELF, each with its own branch and its own sentence:
+ *   1. GENUINELY ABSENT at both locations                     → ok, the zero-config answer.
+ *   2. PRESENT but UNPARSEABLE                                → refusal naming the file AND the error.
+ *   3. PRESENT and parsed but NOT a JSON object               → refusal naming the file.
+ *   4. PRESENT, an object, carrying NO `models` key           → ok, the zero-config answer.
+ *
+ * AND ONE MORE ON THE SUB-OBJECT, which Pitfall 2 exists to keep separate from (1): a `models` value
+ * that is PRESENT but degenerate — null, an array, a string, a number — is a refusal naming the file
+ * and the shape found. It is NOT folded into the absent case. Folding it there is the failure this
+ * distinction prevents: a user who wrote `"models": null` meaning "off" would silently get the lean
+ * default, which is the same answer they would get for a typo'd key name, and neither would tell
+ * them anything. An EMPTY `models` object, by contrast, IS the zero-config answer, and legitimately.
+ *
+ * The stems are taken as an argument for the same reason `resolveModels` takes them — the caller's
+ * derivation through the kit authority stays the one place the role set is decided.
+ */
+export function readModelsConfig(repoRoot, stems) {
+    // The vacuity floor, before any file is opened. Validating a role key against an EMPTY valid set
+    // refuses every key for the wrong reason; validating it against no set at all accepts every key.
+    // Both are the vacuous pass, and neither tells the reader that the corpus derivation is what broke.
+    if (stems.length === 0) {
+        return {
+            ok: false,
+            reason: "model-tiers: the derived stem set handed to readModelsConfig is EMPTY — refusing to " +
+                "validate role overrides against nobody. A key checked against an empty valid set is " +
+                "refused for the wrong reason and a key checked against no set at all is accepted for no " +
+                "reason; either way the answer is a vacuous one that hides a broken corpus derivation.",
+        };
+    }
+    const candidates = [
+        join(repoRoot, ".grugops", "factory.config.json"),
+        join(repoRoot, "agent-factory", "config", "factory.config.json"),
+    ];
+    for (const path of candidates) {
+        // Outcome 1, per candidate: this location holds nothing, so try the next one. The genuinely
+        // absent answer is returned after the loop, once BOTH locations have been found empty.
+        if (!existsSync(path))
+            continue;
+        let parsed;
+        try {
+            parsed = JSON.parse(readFileSync(path, "utf8"));
+        }
+        catch (error) {
+            // Outcome 2. The parse error travels with the refusal: "could not be read" tells the user
+            // nothing they can act on, and the message JSON.parse produces names the offending position.
+            return {
+                ok: false,
+                reason: `model-tiers: ${path} is present but could not be parsed as JSON — ` +
+                    `${error instanceof Error ? error.message : String(error)}. Remedy: fix the file. A ` +
+                    "present-but-unreadable configuration is NOT treated as an absent one, because a user who " +
+                    "edited that file meant something by it.",
+            };
+        }
+        // Outcome 3.
+        if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
+            return {
+                ok: false,
+                reason: `model-tiers: ${path} parses, but the configuration file as a whole is ` +
+                    `${describeShape(parsed)} rather than a JSON object. This is a distinct fact from a ` +
+                    "degenerate `models` sub-object — the whole file is the wrong shape, so no key in it can " +
+                    "be read. Remedy: make the file a JSON object.",
+            };
+        }
+        const models = parsed.models;
+        // Outcome 4. A valid configuration with models simply unconfigured — the zero-config contract,
+        // and indistinguishable from outcome 1 by design.
+        if (models === undefined)
+            return zeroConfigModels(path);
+        // Pitfall 2: PRESENT but degenerate. Refused by name, never folded into the absent case.
+        if (models === null || typeof models !== "object" || Array.isArray(models)) {
+            return {
+                ok: false,
+                reason: `model-tiers: the \`models\` key in ${path} is ${describeShape(models)} rather than a ` +
+                    "JSON object. A present-but-degenerate `models` is refused rather than read as an absent " +
+                    'one: "off" and "I typed something that cannot mean anything" are different statements, ' +
+                    "and collapsing them leaves the user with the lean default and no indication why. " +
+                    'Remedy: write `"models": {}` for the zero-config answer, or remove the key entirely.',
+            };
+        }
+        // An EMPTY object reaches readModelsBlock and comes back as the zero-config answer with no
+        // special case, because an empty block genuinely has nothing illegal in it.
+        return readModelsBlock(models, path, stems);
+    }
+    // Outcome 1: no configuration file at either standard location. Zero-config runs lean.
+    return zeroConfigModels(null);
 }
 /**
  * The ROLE_COUNT relationship, asked BY THE CONSUMERS THAT ARE JUDGING THE LIVE ROLE CORPUS.
