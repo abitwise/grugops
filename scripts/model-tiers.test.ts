@@ -37,12 +37,15 @@ import {
   MODEL_ALIASES,
   MODEL_TIERS_COUNT,
   PRESET_NAMES,
+  RESOLVED_PRESET_PREFIX,
   TIERED,
   inheritForEveryStem,
   isModelAlias,
   isPresetName,
   readModelsConfig,
   resolveModels,
+  resolvedPresetLine,
+  resolvedPresetsIn,
   roleCorpusCardinalityRefusal,
   tieredCorpusRefusals,
   tieredTableRefusals,
@@ -813,5 +816,78 @@ describe("model-tiers: the consumer split — the reader takes no policy (plan 2
     // reason, and validating it against nothing would accept every key. Both are the vacuous pass.
     const reason = refusalOrFail(rootWithConfig({ models: { preset: "tiered" } }), []);
     expect(reason).toMatch(/EMPTY|vacuous/);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// THE RESOLVED-PRESET LINE (plan 29.1-03, RESEARCH.md Pitfall 3 option (c))
+//
+// scripts/adapters-freshness.ts satisfies D-04 today by pure ABSENCE: its mirror copies
+// agent-factory/roles and agent-factory/packaging and nothing else, so a config-reading generator
+// running inside it resolves nothing. Absence is not a pin — the day someone adds a configuration
+// directory to that twin list the gate silently becomes config-dependent while staying green.
+//
+// The remedy is that the generator PRINTS the preset its run resolved and the gate ASSERTS that
+// line. That makes the emitter and the reader two consumers of ONE grammar, which is why both live
+// here rather than one literal in the generator and a second, hand-copied one inside the gate. A
+// hand-copied marker is this repository's named second systemic failure class: the two copies rot
+// apart while the gate stays green, which is exactly the outcome the pin exists to prevent.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+describe("model-tiers: the resolved-preset line grammar (plan 29.1-03)", () => {
+  it("emits one line per legal preset name, and the reader reads back EXACTLY that name", () => {
+    // Derived from PRESET_NAMES rather than written out, so a third preset cannot ship with a line
+    // grammar nobody exercised.
+    expect(PRESET_NAMES.length, "the preset vocabulary must be non-empty or this case is vacuous")
+      .toBeGreaterThan(0);
+    for (const preset of PRESET_NAMES) {
+      const line = resolvedPresetLine(preset);
+      expect(line, `the line for "${preset}" must carry the shared prefix`).toContain(
+        RESOLVED_PRESET_PREFIX,
+      );
+      // The round trip is the whole contract: whatever the emitter writes, the reader reads back.
+      expect(resolvedPresetsIn(line)).toEqual([preset]);
+    }
+  });
+
+  it("the reader finds the line INSIDE a multi-line stream and ignores every other line", () => {
+    const stream = [
+      "generate-role-adapters: some earlier line",
+      `generate-role-adapters: ${resolvedPresetLine("none")}`,
+      "generate-role-adapters: wrote 17 adapters to /somewhere",
+      "",
+    ].join("\n");
+    expect(resolvedPresetsIn(stream)).toEqual(["none"]);
+  });
+
+  it("an ABSENT line reads back as an EMPTY list — never as a default, and never as agreement", () => {
+    // The load-bearing direction. A reader that answered "none" for a stream carrying no line at
+    // all would let a gate treat silence as consent, which is the shape this repository has paid
+    // for repeatedly. The empty list forces the caller to have an explicit absent branch.
+    expect(resolvedPresetsIn("")).toEqual([]);
+    expect(resolvedPresetsIn("generate-role-adapters: wrote 17 adapters\n")).toEqual([]);
+  });
+
+  it("reports EVERY matching line rather than the first — an ambiguous stream stays ambiguous", () => {
+    // A caller cannot fail closed on "two runs disagreed" if the reader silently discards one of
+    // them. Returning the list keeps the ambiguity visible at the call site.
+    const stream = [
+      `${resolvedPresetLine("none")}`,
+      `${resolvedPresetLine("tiered")}`,
+      "",
+    ].join("\n");
+    expect(resolvedPresetsIn(stream)).toEqual(["none", "tiered"]);
+  });
+
+  it("survives CRLF — a Windows child's stdout must not read back with a trailing carriage return", () => {
+    // grugops ships to Windows, and the gate reads a spawned child's stdout. `"none\r"` is not
+    // `"none"`, and the difference would be an equality failure with an invisible cause.
+    const stream = `generate-role-adapters: ${resolvedPresetLine("none")}\r\ngenerate-role-adapters: wrote 17\r\n`;
+    expect(resolvedPresetsIn(stream)).toEqual(["none"]);
+  });
+
+  it("the prefix is not a legal preset name — the marker can never be mistaken for its value", () => {
+    expect(isPresetName(RESOLVED_PRESET_PREFIX)).toBe(false);
+    expect(RESOLVED_PRESET_PREFIX.length).toBeGreaterThan(0);
   });
 });
