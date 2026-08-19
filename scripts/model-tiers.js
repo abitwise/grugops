@@ -172,6 +172,65 @@ export function isPresetName(value) {
         return false;
     return PRESET_NAMES.some((name) => name === value);
 }
+// ── The RESOLVED-PRESET LINE — ONE grammar, asked in both directions (plan 29.1-03) ────────────
+//
+// WHY THIS LIVES HERE RATHER THAN AS A LITERAL IN THE GENERATOR. The adapter generator PRINTS the
+// preset its run resolved, and scripts/adapters-freshness.ts READS that line back out of the
+// mirrored child's stdout and refuses anything but `none`. Those are two consumers of one grammar.
+// Written as a literal at each site they would be a hand-maintained pair — this repository's named
+// second systemic failure class — and the rot direction is silent in the worst possible way: the
+// gate stops finding the line, and an implementation that read a missing line as agreement would go
+// green on exactly the configuration drift the line exists to catch. So the emitter and the reader
+// are declared together, and neither site spells the marker.
+//
+// WHY THE PIN EXISTS AT ALL (RESEARCH.md Pitfall 3, option (c)). The freshness gate satisfies D-04
+// today by ABSENCE: its mirror copies agent-factory/roles and agent-factory/packaging and no
+// configuration directory, so a config-reading generator inside it resolves nothing. Absence is not
+// a pin. The day a configuration directory joins that twin list — a plausible edit, since the
+// comment above the list already justifies mirroring a directory the generator does not open — the
+// gate becomes config-dependent and D-04 evaporates while everything stays green. Printing the
+// resolution makes it an observable property OF THE RUN rather than of what was not copied.
+/**
+ * The stable, greppable marker a resolved-preset line carries.
+ *
+ * Deliberately NOT itself a legal preset name, so a reader can never mistake the marker for the
+ * value it introduces.
+ */
+export const RESOLVED_PRESET_PREFIX = "resolved model preset: ";
+/**
+ * The line a run emits to declare which preset it resolved. The EMITTING half of the grammar.
+ *
+ * Takes a `PresetName` rather than a string, so the only thing that can be announced is a member of
+ * the closed set — an announcement is never how an unvalidated value reaches an observer.
+ */
+export function resolvedPresetLine(preset) {
+    return `${RESOLVED_PRESET_PREFIX}${preset}`;
+}
+/**
+ * Every preset named on a resolved-preset line in an output stream. The READING half.
+ *
+ * RETURNS A LIST, INCLUDING THE EMPTY ONE, AND NEVER A DEFAULT. Two properties are load-bearing:
+ *
+ *   • AN ABSENT LINE COMES BACK EMPTY. A reader that answered `"none"` for a stream carrying no line
+ *     at all would let a caller read SILENCE AS CONSENT, which is precisely the failure the pin
+ *     exists to prevent. The empty list forces the caller to write an explicit absent branch.
+ *   • AN AMBIGUOUS STREAM STAYS AMBIGUOUS. Every matching line is reported rather than the first, so
+ *     a caller can fail closed on "two runs disagreed" instead of silently believing one of them.
+ *
+ * The trailing carriage return of a Windows child's stdout is trimmed off the captured value: `none`
+ * and `none\r` are different strings, and the difference would be an equality failure with an
+ * invisible cause on the one platform this kit cannot test interactively.
+ */
+export function resolvedPresetsIn(output) {
+    const found = [];
+    for (const line of output.split("\n")) {
+        const at = line.indexOf(RESOLVED_PRESET_PREFIX);
+        if (at === -1)
+            continue;
+        found.push(line.slice(at + RESOLVED_PRESET_PREFIX.length).trim());
+    }
+    return found;
+}
 // ── TIERED — the one shipped preset, one row per role, each row carrying its reason ───────────
 //
 // D-09 assigns `opus` to four roles and `sonnet` to the other thirteen. NO ROLE IS ASSIGNED `haiku`,
