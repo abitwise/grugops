@@ -738,7 +738,7 @@ loop terminating only by an unstated argument).
   4. The Claude-Code-only scope is **stated in the kit and in `CLAUDE.md`**, whose "What NOT to Use" entry against non-`inherit` wrappers is amended to name this mechanism as the documented reason — the other four host CLIs have no per-subagent model concept and no claim says otherwise. (MODEL-06)
   5. Any cost or limit-savings claim is **measured** with `scripts/measure-cost.ts`, or carries `UNKNOWN - verify`. A tier assignment is not evidence of a saving. (MODEL-07)
 
-**Plans**: 5/6 plans executed — **waves are strictly sequential (1→6)**. Four `.ts` files need their committed `.js` rebuilt (`model-tiers`, `generate-role-adapters`, `check-foundation-guards`, `adapters-freshness`), and two plans rebuilding a committed `.js` concurrently tears the output (the phase-27 round-5 precedent). Plan `29.1-02` is **not autonomous**: it opens with a blocking `checkpoint:decision` on D-05's one-way config key shape.
+**Plans**: 6/6 plans executed — **waves are strictly sequential (1→6)**. Four `.ts` files need their committed `.js` rebuilt (`model-tiers`, `generate-role-adapters`, `check-foundation-guards`, `adapters-freshness`), and two plans rebuilding a committed `.js` concurrently tears the output (the phase-27 round-5 precedent). Plan `29.1-02` is **not autonomous**: it opens with a blocking `checkpoint:decision` on D-05's one-way config key shape.
 
 Plans:
 
@@ -764,7 +764,7 @@ Plans:
 
 **Wave 6** *(blocked on 29.1-05)*
 
-- [ ] 29.1-06-PLAN.md — MODEL-07 held as anchored CONTENT with its fail-open direction disclosed in a derived claim-registry row (D-16, no fourth literal group, `measure-cost.ts` untouched), then the fourteen-command phase gate block, build parity and the regression lane [MODEL-07]
+- [x] 29.1-06-PLAN.md — MODEL-07 held as anchored CONTENT with its fail-open direction disclosed in a derived claim-registry row (D-16, no fourth literal group, `measure-cost.ts` untouched), then the fourteen-command phase gate block, build parity and the regression lane [MODEL-07]
 
 **Honesty floor for this phase:** the motivation is quota and cost relief, but grugops has never shipped an unmeasured cost claim — v2.0's ~50% figure stayed `UNKNOWN - verify` rather than borrowing DeLM's benchmark. A model-tier split is a *plausible* saving, not a measured one, and must be described that way until `measure-cost.ts` says otherwise. Assigning a cheaper model to a role is also a **quality** decision, not only a cost one; the preset's rationale is recorded per role so a later reader can dispute the assignment on merit.
 
