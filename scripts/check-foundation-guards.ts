@@ -350,6 +350,21 @@ import {
   GRANT_KEYS,
   type AdmittedDocument,
 } from "./canonical-frontmatter.js";
+// Phase 29.1 (MODEL-03/MODEL-05, plan 29.1-04): THE MODEL AUTHORITY, imported and never restated.
+//
+// `guard_model_assignment` below recomputes its expectation from these rather than comparing against
+// a hand-listed one, so the alias vocabulary, the preset table and the resolution rule have exactly
+// one declaration in this tree and this gate is one of their consumers. NOTHING is imported from
+// scripts/generate-role-adapters.js: this guard must never re-run the generator, because a check
+// that regenerates moves both of its sides together and proves determinism rather than correctness.
+import {
+  readModelsConfig,
+  resolveModels,
+  inheritForEveryStem,
+  TIERED,
+  MODEL_TIERS_COUNT,
+  type ModelAlias,
+} from "./model-tiers.js";
 
 // The .sh hard-coded repo-relative paths and assumed cwd == repo root. The TS port resolves
 // every path against the script-relative repo root, but ALSO honors a CHECK_ROOT override so the
@@ -1784,6 +1799,264 @@ function guardKitCounts(): void {
 }
 
 // ---------------------------------------------------------------------------
+// guard_model_assignment — the committed adapter's declared model alias equals the value the
+// configuration resolves for its role (Phase 29.1, MODEL-03 / MODEL-05).
+//
+// WHY THIS EXISTS BESIDE `adapters-freshness`, AND WHY NEITHER SUBSTITUTES FOR THE OTHER.
+// `scripts/adapters-freshness.ts` regenerates every adapter into a mirror and byte-compares the
+// result against the committed tree. BOTH of its sides come from the same generator over the same
+// tree, so what it proves is DETERMINISM: a generator that emitted a pinned tier for all seventeen
+// roles, with the committed adapters updated in the same commit, passes it while nothing anywhere
+// says the emitted value is the value the user configured. That is structurally the CR-01 defect
+// this milestone has already paid for — a check that parses components out of a run and compares
+// them against a tally over the same live document — and D-12 forbids reproducing it here. So this
+// guard NEVER regenerates and NEVER byte-compares: `adapters-freshness` proves the committed bytes
+// are a faithful regeneration, this guard proves the regeneration's VALUE is the configuration's,
+// and a tree needs both statements.
+//
+// THE INDEPENDENCE IS THE GUARD'S INPUT, NOT ITS ALGORITHM. It reads the COMMITTED adapter bytes on
+// disk — which the generator's run does not touch — and compares each declared value against a
+// resolution recomputed here from the configuration and the derived role set. Importing the same
+// resolver the generator imports is therefore correct rather than circular: a shared resolver over
+// two DIFFERENT inputs is two opinions, while a shared input under two different algorithms is one.
+// The failure this catches is a hand-edited adapter, a stale commit or a regeneration nobody ran,
+// and every one of those moves the bytes without moving the configuration.
+//
+// THE READER IS `admit()`, NOT `scripts/frontmatter.ts` (D-15, and it follows D-12's INTENT rather
+// than its letter). D-12 named `scripts/frontmatter.ts` "the one authority", which was true of the
+// tree it was written against; plan 27-65 moved the adapter verdict onto
+// `scripts/canonical-frontmatter.ts`, `guardReferentialIntegrity` reads through `admit()` today, and
+// that module's own header states that the eleven-round parser's reach must NOT be inherited onto a
+// new safety surface. D-15 therefore changes only WHICH module the one authority is — there is still
+// exactly one, this guard imports nothing from `frontmatter.ts`, and no regular expression anywhere
+// below reads a `model:` line.
+//
+// AND HERE IS THE LOAD-BEARING LIMIT OF THAT READER, recorded so a later maintainer does not mistake
+// admission for validation. `model` is in `CANONICAL_SCHEMA` and is NOT in `DOUBLE_QUOTED_KEYS`, so
+// its value admits as a PLAIN SCALAR — and `PLAIN_SCALAR_ALPHABET` carries every ASCII letter, every
+// ASCII digit and the hyphen, so `admit()` accepts `claude-3-5-sonnet-20241022` as a perfectly legal
+// document. Measured, not assumed. The admission layer therefore does NOT enforce MODEL-04; exact
+// string equality against the four `MODEL_ALIASES` constants in `scripts/model-tiers.ts` does, and
+// the comparison below inherits that enforcement by comparing against a RESOLVED alias rather than
+// against a pattern.
+//
+// WHAT THE ADMISSION GRAMMAR MAKES UNREACHABLE, MEASURED RATHER THAN ASSUMED (plan 29.1-04). Two of
+// the four value-shape defects below are refused one layer EARLIER than the comparison loop, and
+// saying so here is the difference between a floor and a decoration:
+//
+//   spelling planted                      admit() verdict
+//   ────────────────────────────────────  ──────────────────────────────────────────────────────
+//   model: opus                           admitted, one value
+//   model: opus  +  model: sonnet         REFUSED  [duplicate-key]
+//   model:\n  - opus\n  - sonnet          admitted, TWO values      <- the reachable cardinality
+//   model:                                REFUSED  [dangling-empty-key]
+//   model: ""                             REFUSED  [quoted-on-plain-only-key]
+//   model:<space><space>                  REFUSED  [scalar-padding]
+//   model:\n  - <nothing>                 REFUSED  [unrecognized-line]
+//
+// So a DUPLICATED KEY and an EMPTY VALUE both arrive as named admission refusals, and the cardinality
+// arm below is reached by the BLOCK-SEQUENCE spelling instead. Both arms are kept anyway, for the
+// same reason `guardKitCounts`'s `unclaimed` arm is kept: they are the floor that survives a later
+// widening of the admission grammar, and a reader who deletes them because "admission already
+// refuses that" would be removing the only thing standing between a widened alphabet and a silent
+// pass. Their reachability is stated here rather than implied by their presence.
+//
+// ORDERING. Registered immediately after `guardKitCounts()` and before `guardDistributionPair()` —
+// after the count guard because a broken kit derivation must be NAMED before a guard reports on the
+// sets it produced, and among the adapter guards because this is a statement about adapter
+// frontmatter. Findings accumulate into a local string rather than early-returning, so several
+// defects produce several findings, and every list is emitted in SORTED adapter-filename order so
+// two runs over the same tree produce byte-identical output.
+//
+// VOICE. Clear professional English. A model tier is a money topic and the CLAUDE.md rule is hard.
+// No finding and no comment here asserts a saving, a price or a limit, because none was measured.
+// ---------------------------------------------------------------------------
+function guardModelAssignment(): void {
+  process.stdout.write(
+    "\n[guard_model_assignment] every committed adapter declares the model alias the configuration resolves for its role (MODEL-03/MODEL-05)\n",
+  );
+  let modelFail = "";
+
+  // THE ROLE STEMS COME FROM THE MODULE'S ONE DERIVATION, NOT FROM A SECOND `listRoles(ROOT)` CALL.
+  //
+  // ROLE_FILES above is already `listRoles(ROOT)` and its THROW is handled at module scope, where an
+  // unreadable or empty roles directory prints `kit derivation failed` and EXITS before any guard
+  // runs. A `try` around a second call here would therefore carry a branch that cannot be reached
+  // and cannot be proven by a case — dead code wearing a floor's clothes — and the second call would
+  // be a second derivation of a predicate this module already derives once, which is the failure
+  // class this milestone exists to delete. One derivation, asked twice.
+  const stems = ROLE_FILES.map((p) => stem(basename(p))).sort();
+
+  // The adapter set, from the SAME authority-derived member list the other adapter guards consume.
+  const adapterRels = [...AGENT_ADAPTER_RELS].sort();
+
+  // A committed adapter's role stem: its filename stem with the agent namespace removed. Declared
+  // once and asked at both of the loops below, so the key the expectation is READ with cannot come
+  // apart from the key the membership set is BUILT with.
+  const roleStemOf = (rel: string): string => {
+    const s = stem(basename(rel));
+    return s.startsWith(AGENT_PREFIX) ? s.slice(AGENT_PREFIX.length) : s;
+  };
+
+  // ── Floor 1: vacuity, before any verdict. ───────────────────────────────────────────────────
+  // A run that compared zero adapters is the anomaly, never "nothing to check, therefore fine".
+  // The per-adapter and per-stem loops are skipped in this state deliberately: with no adapters at
+  // all, every stem is unbacked and the per-stem loop would print seventeen sentences restating the
+  // one fact this sentence already names, so the stems are named HERE instead.
+  if (adapterRels.length === 0) {
+    modelFail += `\nmodel assignment: the adapter derivation returned NO committed adapters under ${ADAPTER_DIR}, so this run compared zero model values — an empty adapter set is NEVER "nothing to compare, therefore fine", it is the state in which every configured tier is assigned to nothing on disk. All ${stems.length} role stem(s) are unbacked: ${stems.join(", ")}${ADAPTER_DERIVATION_ERRORS.length === 0 ? "" : `\n${ADAPTER_DERIVATION_ERRORS.join("\n")}`}`;
+  }
+
+  // ── Floor 2: the element count, DERIVED INDEPENDENTLY of the loop that consumes it. ─────────
+  // A vacuity floor catches an EMPTY set but never a SILENTLY SHORT one. Both cardinalities are read
+  // off their own derivations rather than off the comparison loop, so a set that lost one member is
+  // named with both numbers instead of producing one fewer green line.
+  if (adapterRels.length > 0 && adapterRels.length !== stems.length) {
+    modelFail += `\nmodel assignment: ${adapterRels.length} committed adapter(s) under ${ADAPTER_DIR} against ${stems.length} role stem(s) derived from the role-set authority. The two sets must be the same size before any value comparison means anything: a SHORT adapter set leaves a configured role with nothing on disk to carry its tier, and a LONG one carries a tier for something the role corpus does not know about. Both directions are named below by stem and by filename.`;
+  }
+
+  // ── Floor 3: the preset table's cardinality, adjudicated HERE, where a wrong number stops a
+  // release (MODEL-03). ───────────────────────────────────────────────────────────────────────
+  //
+  // Same split every sibling count in this gate uses: `scripts/model-tiers.ts` throws only on the
+  // VACUOUS table (its own tier-1 floor), and the exact cardinality is asserted in the gate. Strict
+  // integer equality, so the pin is TWO-SIDED — sixteen rows fails and eighteen rows fails, and only
+  // seventeen passes.
+  //
+  // ONE ARM, THREE NUMBERS, AND THE REASON IT IS NOT TWO ARMS. `MODEL_TIERS_COUNT` is TODAY declared
+  // as `export const MODEL_TIERS_COUNT = ROLE_COUNT` (scripts/model-tiers.ts). A second arm comparing
+  // `MODEL_TIERS_COUNT` against `ROLE_COUNT` would therefore be `ROLE_COUNT !== ROLE_COUNT` — a
+  // branch no input can reach, and a gate that prints two sentences for one fact is a gate whose
+  // reader cannot tell how many things went wrong. So the relationship is asserted ONCE and the
+  // message names all three numbers, which keeps the assertion honest on the day that constant
+  // becomes an independent literal.
+  if (TIERED.length !== MODEL_TIERS_COUNT) {
+    modelFail += `\nmodel assignment: the TIERED preset table holds ${TIERED.length} row(s) against MODEL_TIERS_COUNT of ${MODEL_TIERS_COUNT} and the kit authority's ROLE_COUNT of ${ROLE_COUNT}. The pin is TWO-SIDED — a shorter table leaves a role with no tier and a longer one assigns a tier to something that is not a role — and it is adjudicated here rather than in the library because continuing is safe there while a wrong number must stop a release. Walk every consumer before changing either constant: the TIERED table itself, resolveModels' per-stem coverage check, tieredCorpusRefusals, roleCorpusCardinalityRefusal, listRoles and this guard.`;
+  }
+
+  // ── The EXPECTATION, recomputed on every run from the configuration and the derived stems. ──
+  //
+  // There is NO hand-listed expectation anywhere in this guard — no array of aliases, no map of stem
+  // to tier, not even a seventeen-element list of `inherit`. That is the whole of MODEL-05's
+  // "derived rather than compared against a hand-listed expectation", and it is what makes an
+  // eighteenth role fire this guard: a hand-listed expectation cannot mention a stem no author typed.
+  //
+  // THE DEGRADING POLICY IS D-11's, AND IT IS REPORTED RATHER THAN SILENT. A configuration this guard
+  // cannot read degrades the WHOLE expectation to `inherit` for every stem — never to a pinned tier,
+  // because silently upgrading a tree to a model nobody chose is the worse failure — through the one
+  // shared `inheritForEveryStem`. The degradation is announced as a warning naming the refusal, so a
+  // reader sees that the comparison below ran against a fallback rather than against their file.
+  let resolved: ReadonlyMap<string, ModelAlias> = new Map();
+  let presetLabel = "none";
+  let sourceLabel = "neither standard location";
+  const config = readModelsConfig(ROOT, stems);
+  if (!config.ok) {
+    warn(
+      `model assignment: the \`models\` configuration could not be read, so the expectation DEGRADES to \`inherit\` for every role stem (D-11) rather than to any pinned tier, and the comparison below runs against that fallback — ${config.reason}`,
+    );
+    resolved = inheritForEveryStem(stems);
+    presetLabel = "none (degraded — the configuration was refused)";
+  } else {
+    presetLabel = config.value.preset;
+    sourceLabel = config.value.source ?? "neither standard location";
+    const resolution = resolveModels(stems, {
+      preset: config.value.preset,
+      overrides: config.value.overrides,
+    });
+    if (!resolution.ok) {
+      warn(
+        `model assignment: the \`models\` configuration read cleanly but could not be RESOLVED against this tree's role stems, so the expectation DEGRADES to \`inherit\` for every stem (D-11) rather than to any pinned tier — ${resolution.reason}`,
+      );
+      resolved = inheritForEveryStem(stems);
+      presetLabel = `${config.value.preset} (degraded — the resolution was refused)`;
+    } else {
+      resolved = resolution.value;
+    }
+  }
+
+  // ── The admission read, and the refusals reported BEFORE any value comparison. ──────────────
+  //
+  // `guardReferentialIntegrity`'s posture, for its reason: an adapter whose frontmatter cannot be
+  // read is NEVER an adapter that agrees with the configuration and NEVER an adapter carrying no
+  // `model` key. Refused files are named with their enumerated code and then EXCLUDED from the
+  // comparison loop, so no verdict is rendered over bytes nothing could read.
+  const admitted = new Map<string, AdmittedDocument>();
+  const admissionRefusals: string[] = [];
+  for (const rel of adapterRels) {
+    const parsed = admit(readText(`${ADAPTER_DIR}/${rel}`));
+    if (!parsed.ok) {
+      admissionRefusals.push(
+        `${ADAPTER_DIR}/${rel}: [${parsed.code}] ${parsed.reason}`,
+      );
+      continue;
+    }
+    admitted.set(rel, parsed.value);
+  }
+  if (admissionRefusals.length > 0) {
+    modelFail += `\nmodel assignment: ${admissionRefusals.length} adapter(s) whose frontmatter is NOT in the canonical form — the declared model value cannot be compared over a file that cannot be read, and an unreadable adapter is never an adapter that agrees with the configuration:\n    ${admissionRefusals.sort().join("\n    ")}`;
+  }
+
+  // ── The four value-shape defects, four distinct sentences, none folded into another. ────────
+  for (const rel of adapterRels) {
+    const doc = admitted.get(rel);
+    if (doc === undefined) continue; // refused above, and already named there.
+    const roleStem = roleStemOf(rel);
+    const expected = resolved.get(roleStem);
+    if (expected === undefined) {
+      modelFail += `\n${ADAPTER_DIR}/${rel}: the resolution assigns NOTHING to role stem "${roleStem}" — this adapter's filename corresponds to no role the role-set authority derived, so whatever model value it declares was chosen by nobody and is compared against nothing.`;
+      continue;
+    }
+    const declared = doc.has("model")
+      ? admittedValuesFor(doc, "model")
+      : undefined;
+    if (declared === undefined) {
+      modelFail += `\n${ADAPTER_DIR}/${rel}: carries NO \`model\` key at all — absence is its OWN fact and never a value mismatch. The platform falls back to its session default for an adapter that declares nothing, while the configuration resolves \`${expected}\` for role stem "${roleStem}", so the tier the user set is not the tier that loads and no value anywhere disagrees with anything.`;
+      continue;
+    }
+    if (declared.length !== 1) {
+      modelFail += `\n${ADAPTER_DIR}/${rel}: declares ${declared.length} \`model\` values (${declared.map((v) => `\`${v}\``).join(", ")}) — a model pin has ONE authority and must have ONE answer. Reading the first would let a matching decoy hide the value the platform actually loads, which is the defect recorded at this gate's \`name\`-key precedent, where a duplicate key whose first value matched once made the whole gate pass over a document declaring two identities.`;
+      continue;
+    }
+    const value = declared[0] ?? "";
+    if (value === "") {
+      modelFail += `\n${ADAPTER_DIR}/${rel}: \`model\` key present with an EMPTY value — emptiness is its OWN fact and never a mismatch, because an empty pin is not a value that disagrees, it is a key that says nothing. The configuration resolves \`${expected}\` for role stem "${roleStem}".`;
+      continue;
+    }
+    if (value !== expected) {
+      modelFail += `\n${ADAPTER_DIR}/${rel}: declares \`model: ${value}\`, and the configuration resolves \`${expected}\` for role stem "${roleStem}". The committed bytes are what the platform loads; regenerating them would move BOTH sides of the freshness comparison and settle nothing, so this divergence is reported against the recomputed resolution rather than against another run of the generator.`;
+    }
+  }
+
+  // ── The other direction: a resolved stem with no committed adapter. ─────────────────────────
+  //
+  // ITERATED OVER THE RESOLUTION, which is what makes the derivation load-bearing rather than
+  // decorative: an eighteenth role reaches this loop only because the expectation was RECOMPUTED
+  // over the derived stems. A hand-listed expectation could never name a stem no author typed, and
+  // the case that proves this replaces the resolver with exactly such a list and watches this
+  // finding disappear.
+  if (adapterRels.length > 0) {
+    const backedStems = new Set(adapterRels.map(roleStemOf));
+    for (const roleStem of [...resolved.keys()].sort()) {
+      if (backedStems.has(roleStem)) continue;
+      modelFail += `\nrole stem "${roleStem}" resolves to \`${resolved.get(roleStem) ?? ""}\` and has NO committed adapter under ${ADAPTER_DIR} — the configuration assigned a tier to a role nothing on disk carries, so that assignment is a value the platform will never load. MODEL-03 exists so that a newly arrived role cannot be silently unassigned; generate its adapter, or remove the role.`;
+    }
+  }
+
+  if (modelFail === "") {
+    // REPORT THE SHAPE OF THE ANSWER, never a bare acknowledgement. The per-adapter comparisons say
+    // nothing about the set they were drawn from or the resolution they were compared against, so a
+    // run over a shrunken directory under a degraded expectation would read as an equally green
+    // silence. These four facts make it visible instead.
+    const aliases = [...new Set(resolved.values())].sort();
+    pass(
+      `model assignment: ${adapterRels.length} committed adapter(s) under ${ADAPTER_DIR} compared against a resolution recomputed for ${stems.length} derived role stem(s); preset "${presetLabel}" from ${sourceLabel}; distinct aliases resolved: ${aliases.join(", ")}`,
+    );
+  } else {
+    fail(`model-assignment violation:${modelFail}`);
+  }
+}
+
+// ---------------------------------------------------------------------------
 // guard_distribution_pair — the two distribution forms of one skill are byte-identical modulo the
 // `name` value (Phase 27 / plan 27-34, D-40 point 3).
 //
@@ -3174,6 +3447,11 @@ guardAdapterSize();
 // KIT-01: run the count guard AHEAD of the four role guards. A broken derivation is then named
 // before four downstream guards report on a scan set they should never have received.
 guardKitCounts();
+// MODEL-03/MODEL-05 (plan 29.1-04): the committed adapter's model value against a resolution
+// recomputed from the configuration. Runs immediately after the count guard because it depends on
+// ROLE_COUNT holding and a broken derivation must be named first, and among the adapter guards
+// because it is a statement about adapter frontmatter.
+guardModelAssignment();
 // D-40 (plan 27-34): the two distribution forms of one skill. Runs after the count guard so a plugin
 // tree that failed to derive is NAMED there before this guard reports zero pairs over it.
 guardDistributionPair();
