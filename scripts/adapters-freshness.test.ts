@@ -33,6 +33,8 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
+import { listRoles } from "./kit-model.js";
+import { readModelsConfig, resolvedPresetsIn } from "./model-tiers.js";
 
 const ROOT = join(import.meta.dirname, "..");
 const GATE_JS = join(ROOT, "scripts", "adapters-freshness.js");
@@ -222,5 +224,200 @@ describe("adapters-freshness.js (SPAWN-02 adapter drift gate)", () => {
     } finally {
       rmSync(sentinel, { recursive: true, force: true });
     }
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// THE D-04 ZERO-CONFIG PIN, MADE OBSERVABLE (plan 29.1-03, RESEARCH.md Pitfall 3)
+//
+// Until this plan the gate satisfied D-04 by ABSENCE. Its twin list copies agent-factory/roles and
+// agent-factory/packaging into the regeneration mirror and no configuration directory, so a
+// config-reading generator running inside that mirror resolves nothing and answers `inherit`. That
+// is the right answer for the wrong reason: it is a property of what was NOT copied.
+//
+// Absence is not a pin. The comment above that twin list already justifies mirroring `packaging`
+// "although the generator does not currently OPEN it", so adding a configuration directory beside it
+// is a plausible, well-intentioned edit — and the day it lands the gate silently begins comparing a
+// CONFIGURED regeneration against the committed zero-config adapters while every case stays green.
+//
+// The remedy is that the mirrored run ANNOUNCES the preset it resolved and the gate ASSERTS it reads
+// `none`. The cases below drive that from both ends, and the load-bearing one performs exactly the
+// future edit described above — it adds the configuration directory to a COPY of the gate's twin
+// list and plants a non-default `models` block — so the pin is proven to hold against the change it
+// exists to survive, rather than against the tree as it happens to stand today.
+//
+// EVERY MUTATION LANDS IN A SCRIPT-ROOT MIRROR, never in the committed tree. The gate takes its
+// twins from its OWN script-relative root, so a case that needs a different generator or a different
+// twin list must run a COPY of the gate from a scratch scripts directory. That copy is derived —
+// every compiled .js under scripts/ is mirrored — rather than hand-listed, because a hand-listed
+// twin set inside a test for a hand-listed twin list is the same rot with one more copy of it.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+/**
+ * A scratch SCRIPT root: every compiled `scripts/*.js`, plus the kit inputs the gate judges.
+ *
+ * Running the gate from here makes BOTH of its roots the mirror, so a case may substitute the
+ * generator twin or the gate's own twin list without touching the repository.
+ */
+function scriptRootMirror(): string {
+  const m = mkdtempSync(join(tmpdir(), "grugops-adapters-scriptroot-"));
+  tmpDirs.push(m);
+  mkdirSync(join(m, "scripts"), { recursive: true });
+  const compiled = readdirSync(join(ROOT, "scripts")).filter((n) => n.endsWith(".js"));
+  if (compiled.length === 0) {
+    throw new Error(
+      "PREMISE: no compiled .js under scripts/ — the mirror would carry no gate at all and every case below would be measuring a module-resolution error",
+    );
+  }
+  for (const f of compiled) cpSync(join(ROOT, "scripts", f), join(m, "scripts", f));
+  for (const rel of KIT_INPUTS) cpSync(join(ROOT, rel), join(m, rel), { recursive: true });
+  return m;
+}
+
+/** Run the gate that lives INSIDE a script-root mirror, with CHECK_ROOT explicitly absent. */
+function runMirroredGate(m: string) {
+  const env = { ...process.env };
+  delete env.CHECK_ROOT;
+  return spawnSync("node", [join(m, "scripts", "adapters-freshness.js")], {
+    cwd: ROOT,
+    encoding: "utf8",
+    env,
+  });
+}
+
+/** Delete the mirrored generator's announcement, so its stdout carries no resolved-preset line. */
+function stripAnnouncement(m: string): void {
+  const p = join(m, "scripts", "generate-role-adapters.js");
+  const lines = readFileSync(p, "utf8").split("\n");
+  const at = lines
+    .map((l, i) => [l, i] as const)
+    .filter(([l]) => l.includes("resolvedPresetLine(") && l.includes("console.log"));
+  if (at.length !== 1) {
+    throw new Error(
+      `PREMISE: expected exactly one announcement line in the mirrored generator, found ${String(at.length)} — this case would otherwise be deleting the wrong line, or nothing`,
+    );
+  }
+  lines.splice(at[0][1], 1);
+  writeFileSync(p, lines.join("\n"), "utf8");
+}
+
+/**
+ * Perform THE FUTURE EDIT: add a configuration directory to the mirrored gate's twin list.
+ *
+ * Anchored on the `childEnv` declaration, which is the line immediately after the twin list and is
+ * itself pinned by a case below. The anchor count is asserted, so a rename cannot make this helper
+ * silently insert nothing and leave the case passing for the wrong reason.
+ */
+function mirrorConfigDirectoryIntoTheTwinList(m: string): void {
+  const p = join(m, "scripts", "adapters-freshness.js");
+  const text = readFileSync(p, "utf8");
+  const anchor = "const childEnv = { ...process.env };";
+  const hits = text.split(anchor).length - 1;
+  if (hits !== 1) {
+    throw new Error(
+      `PREMISE: expected exactly one \`${anchor}\` to anchor the twin-list insertion on, found ${String(hits)}`,
+    );
+  }
+  const inserted =
+    'cpSync(join(KIT_ROOT, "agent-factory", "config"), join(tmp, "agent-factory", "config"), { recursive: true });\n';
+  writeFileSync(p, text.replace(anchor, `${inserted}${anchor}`), "utf8");
+}
+
+/** Plant a `models` block at the in-kit configuration location of a mirror. */
+function plantModelsConfig(m: string, models: unknown): void {
+  const dir = join(m, "agent-factory", "config");
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(
+    join(dir, "factory.config.json"),
+    `${JSON.stringify({ models }, null, 2)}\n`,
+    "utf8",
+  );
+}
+
+describe("adapters-freshness.js — the D-04 zero-config pin is asserted, not inherited (plan 29.1-03)", () => {
+  it("Case 7 (green): the verdict states that the mirrored generator resolved the preset as `none`", () => {
+    const r = runGate();
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    expect(r.stdout).toContain(FRESH_MARKER);
+    expect(r.stdout).toContain("0 byte difference(s)");
+    // The pin itself: the run says which resolution it compared, rather than leaving a reader to
+    // deduce it from a directory listing the gate happens not to have copied.
+    expect(resolvedPresetsIn(r.stdout)).toEqual(["none"]);
+  });
+
+  it("Case 8 (PREMISE): the script-root mirror harness itself runs the gate GREEN before anything is mutated", () => {
+    // Without this, every RED below could be caused by the harness rather than by its mutation.
+    const m = scriptRootMirror();
+    const r = runMirroredGate(m);
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    expect(r.stdout).toContain(FRESH_MARKER);
+    expect(resolvedPresetsIn(r.stdout)).toEqual(["none"]);
+  });
+
+  it("Case 9 (RED, absent line): a child that announces NOTHING fails the gate closed, naming the absence", () => {
+    // An absent line is a FAILURE, never an agreement. A gate that read silence as consent would go
+    // green the moment the generator stopped announcing — which is the one change that makes the pin
+    // stop working at all.
+    const m = scriptRootMirror();
+    stripAnnouncement(m);
+
+    const r = runMirroredGate(m);
+    expect(r.status, r.stdout + r.stderr).not.toBe(0);
+    expect(r.stdout).not.toContain(FRESH_MARKER);
+    expect(r.stdout).toMatch(/no resolved-preset line|printed NO resolved-preset/i);
+    // The finding must state the requirement, so the reader knows what the gate wanted.
+    expect(r.stdout).toContain('"none"');
+  });
+
+  it("Case 10 (RED, the FUTURE EDIT): a configuration mirrored into the regeneration makes the gate name the preset it found", () => {
+    const m = scriptRootMirror();
+    plantModelsConfig(m, { preset: "tiered" });
+
+    // ── THE PLANT'S OWN PREMISE, asserted through the reader the generator uses. A typo in the
+    // fixture would otherwise leave the mirrored run resolving `none` and this case passing for a
+    // reason that has nothing to do with what it claims.
+    const stems = listRoles(m).map((f) => f.slice(0, -".md".length));
+    expect(stems.length, "the mirror must carry a role corpus to validate the plant against")
+      .toBeGreaterThan(0);
+    const planted = readModelsConfig(m, stems);
+    expect(planted.ok, planted.ok ? "" : planted.reason).toBe(true);
+    if (!planted.ok) return;
+    expect(
+      planted.value.preset,
+      "PREMISE: the planted configuration must really resolve to a NON-DEFAULT preset",
+    ).toBe("tiered");
+
+    // The future edit itself: the configuration directory joins the twin list.
+    mirrorConfigDirectoryIntoTheTwinList(m);
+
+    const r = runMirroredGate(m);
+    expect(r.status, r.stdout + r.stderr).not.toBe(0);
+    expect(r.stdout).not.toContain(FRESH_MARKER);
+    // NAMING both sides: what the run resolved, and what this gate requires.
+    expect(r.stdout).toContain('"tiered"');
+    expect(r.stdout).toContain('"none"');
+    // …and it must be the PRESET finding, not a byte-difference count. A configured regeneration
+    // also moves bytes, so a gate that only reported drift would look correct while proving nothing
+    // about which resolution it compared.
+    expect(
+      r.stdout,
+      "the preset assertion must fire BEFORE the byte comparison — otherwise the pin is indistinguishable from ordinary drift",
+    ).not.toContain("STALE:");
+  });
+
+  it("Case 11 (source pin): the committed gate still DELETES CHECK_ROOT from the child environment", () => {
+    // T-29.1-04. If a future revision of the generator ever learned the same override, an inherited
+    // CHECK_ROOT would point the "fresh regeneration" back at the tree it is compared against and
+    // the gate would compare a tree with itself and always pass. The strip is asserted by a case
+    // rather than by reading, so it cannot be removed silently.
+    const src = readFileSync(GATE_JS, "utf8");
+    expect(src).toContain("delete childEnv.CHECK_ROOT");
+    const spawnAt = src.indexOf("spawnSync(");
+    const deleteAt = src.indexOf("delete childEnv.CHECK_ROOT");
+    expect(deleteAt, "the strip must be present").toBeGreaterThan(-1);
+    expect(
+      deleteAt,
+      "the strip must happen BEFORE the child is spawned — a deletion afterwards strips nothing",
+    ).toBeLessThan(spawnAt);
   });
 });
