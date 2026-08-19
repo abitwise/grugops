@@ -5,13 +5,13 @@ milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live
 current_phase: 29.1
 current_phase_name: per-role-model-assignment
 status: planned
-stopped_at: Completed 29.1-02-PLAN.md
-last_updated: "2026-08-19T09:21:12.563Z"
+stopped_at: Completed 29.1-03-PLAN.md
+last_updated: "2026-08-19T09:43:23.860Z"
 progress:
   total_phases: 9
   completed_phases: 3
   total_plans: 140
-  completed_plans: 136
+  completed_plans: 137
   percent: 33
 last_activity: 2026-08-19
 last_activity_desc: "Phase 29 CLOSED by user decision (D-59, reversing D-29): LANG-04's conformance prohibition is held as CONTENT — the claim registry and the honesty floor — with guard_banned_claims a disclosed drift backstop, not the mechanism that makes a totality true. Eight verification rounds established that a totality over an open set of phrasings is not a decidable predicate; D-55 had already ended at a per-line predicate, so the totality was already content-held on the tree while LANG-04's text still said a mechanism held it. Round-8 review CR-02 (the narrowed sentence printed above the findings contradicting it) FIXED at 4c6a76a, watched failing against the pre-fix build and asserted in both directions; two existing cases whose premise the change invalidated were repaired, not weakened. CR-01 (freshness.ts working-tree arm fail-opens, reproduced) carried as V-29-59-03 — a build-parity defect plan 29-59 itself recorded as named by no LANG requirement. CR-03/04/05 carried with owners in docs/audit/29-round8-residuals.md section 10. The round-8 verifier's gaps_found verdict is left standing and annotated rather than rewritten: it verified LANG-04's previous text. All 8 LANG requirements Complete. 15 repo gates green, 52 files / 2140 passed / 2 skipped. Next: Phase 29.1 (per-role model assignment)."
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-07-28 — after v2.0 milestone)
 ## Current Position
 
 Phase: 29.1 (per-role-model-assignment) — EXECUTING
-Plan: 3 of 6
+Plan: 4 of 6
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 
@@ -390,6 +390,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 29 P60 | 2h20m | 3 tasks | 1 files |
 | Phase 29.1 P01 | 26min | 3 tasks | 10 files |
 | Phase 29.1 P02 | 22min | 3 tasks | 3 files |
+| Phase 29.1 P03 | 17min | 2 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -1040,6 +1041,9 @@ Recent decisions affecting current work:
 - [Phase ?]: 29.1-02: the models config key shape and the closed preset-name set ratified as-specified by Olger Oeselg (2026-08-19); assumption A1 ships as a recorded UNKNOWN - verify naming CLAUDE.md:84 as its only source
 - [Phase ?]: 29.1-02: the corpus-relative cardinality and both-direction set equality live in tieredCorpusRefusals, not inside resolveModels — honouring 29.1-01's coverage item D5; the resolver carries the strictly stronger per-stem check that names the unassigned stem
 - [Phase ?]: 29.1-02: MODEL-04 is closed by exact string equality in readModelsConfig and NOT by the canonical admission reader, which would accept a full model id as a legal plain scalar
+- [Phase ?]: The resolved-preset LINE grammar lives in model-tiers.ts (prefix + emitter + reader), not as a literal at the generator and a second one in the freshness gate
+- [Phase ?]: The freshness gate asserts the mirrored run's preset BEFORE the byte comparison, so a configured regeneration is named as such rather than reported as ordinary drift
+- [Phase ?]: The plan's render() discrimination RED does not occur (adapters.map materializes before the write loop); the equivalent proof was taken in the WRITE loop instead — flagged as coverage item D17
 
 ### Pending Todos
 
@@ -1154,8 +1158,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-08-19T09:21:02.717Z
-Stopped at: Completed 29.1-02-PLAN.md
+Last session: 2026-08-19T09:43:14.350Z
+Stopped at: Completed 29.1-03-PLAN.md
 Resume file: None
 
 ## Operator Next Steps

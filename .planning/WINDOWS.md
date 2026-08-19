@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 69
+open_count: 70
 waived_count: 0
 fixed_count: 1
-total_count: 70
-last_updated: 2026-08-19T08:15:05.155Z
+total_count: 71
+last_updated: 2026-08-19T09:43:42.160Z
 ---
 
 # Broken Windows Ledger
@@ -85,6 +85,7 @@ last_updated: 2026-08-19T08:15:05.155Z
 | 68 | 29 | unrun-verify | scripts/check-banned-claims.ts | 89 | V-29-57-01 — hard-wrap axis: a pinned multi-word literal split across a line boundary is not matched (FAIL-OPEN, 11 of 22 members reachable, 0 live). Remedy declined this round by D-56; disclosed in docs/audit/29-round8-residuals.md §4 | open |  | 2026-08-18T15:54:37.843Z |  |
 | 69 | 29 | unrun-verify | agent-factory/writing-profile.md | 264 | V-29-58-01 — enumeration axis: a conformance claim written without any of the 22 pinned literals is not matched (FAIL-OPEN; live count UNKNOWN - verify BY CONSTRUCTION, not 0). No mechanical remedy exists; compensating control is the per-round hand disposition of all 13 derived claim sites. Id opened by plan 29-58 in docs/audit/29-round8-residuals.md §2.4 after deriving that no register had ever assigned one | open |  | 2026-08-18T16:22:40.100Z |  |
 | 70 | 29.1 | deviation | scripts/model-tiers.ts |  | ROLE_COUNT cardinality check relocated out of resolveModels into roleCorpusCardinalityRefusal — deviates from plan 29.1-01 Task 2's written behavior block; needs reviewer sign-off (SUMMARY coverage item D5) | open |  | 2026-08-19T08:15:05.155Z |  |
+| 71 | 29.1 | deviation | scripts/generate-role-adapters.ts |  | Plan 29.1-03 acceptance criterion predicts a filesystem RED when the resolution moves into render(); measured GREEN (adapters.map materializes before the write loop). Equivalent proof taken in the WRITE loop instead — reviewer to confirm the substitution discharges the criterion (coverage item D17) | open |  | 2026-08-19T09:43:42.160Z |  |
 
 ````json
 [
@@ -926,6 +927,18 @@ last_updated: 2026-08-19T08:15:05.155Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-08-19T08:15:05.155Z",
+    "resolved_at": null
+  },
+  {
+    "id": 71,
+    "kind": "deviation",
+    "phase": "29.1",
+    "file": "scripts/generate-role-adapters.ts",
+    "line": null,
+    "description": "Plan 29.1-03 acceptance criterion predicts a filesystem RED when the resolution moves into render(); measured GREEN (adapters.map materializes before the write loop). Equivalent proof taken in the WRITE loop instead — reviewer to confirm the substitution discharges the criterion (coverage item D17)",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-08-19T09:43:42.160Z",
     "resolved_at": null
   }
 ]
