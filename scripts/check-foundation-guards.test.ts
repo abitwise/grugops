@@ -1679,8 +1679,19 @@ const PLANTED_EVASION_SOURCE = [
  */
 const SECTION_EXTENT_OWNERS = ["scripts/frontmatter.ts"];
 const SECTION_EXTENT_OWNER_COUNT = 1;
-/** The recursive enumeration's own size, pinned so a walk that silently stopped early is loud. */
-const NON_TEST_MODULE_COUNT = 49;
+/**
+ * The recursive enumeration's own size, pinned so a walk that silently stopped early is loud.
+ *
+ * 49 → 50 (plan 29.1-01). Phase 29.1 added ONE non-test module, `scripts/model-tiers.ts`. Derived
+ * independently rather than incremented: `find install scripts hooks -name '*.ts' ! -name
+ * '*.test.ts'` reports 49 and the recursive walk reports 50, and the difference is `vitest.config.ts`
+ * at the repository root, which the walk sees and that command's roots do not. The delta between the
+ * two enumerations is unchanged at 1, so the walk did not quietly widen — exactly one module arrived.
+ *
+ * The owner answer is unchanged by the addition: `model-tiers.ts` decides no section extent and
+ * declares no frontmatter parser, so SECTION_EXTENT_OWNERS stays at the one authority.
+ */
+const NON_TEST_MODULE_COUNT = 50;
 
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 // (Plan 29-40, gap G-29-1 of 29-UAT.md, closing V-29-35-01) THE FRONTMATTER-PARSER NAME OWNER SET.
@@ -2173,7 +2184,9 @@ describe("LANG-07: exactly ONE module owns the section-extent predicate (plan 29
     // second import grammar landing unnoticed beside the first is exactly the class this phase
     // exists to delete, so the two are compared on the whole overlap rather than trusted to agree.
     const flat = nonTestScripts();
-    expect(flat.length, "the `scripts/`-scoped reader's own corpus").toBe(41);
+    // 41 → 42 (plan 29.1-01): `scripts/model-tiers.ts`. Derived independently — `ls scripts/*.ts`
+    // minus the `.test.ts` members reports 42 on this tree.
+    expect(flat.length, "the `scripts/`-scoped reader's own corpus").toBe(42);
     let compared = 0;
     for (const n of flat) {
       for (const spec of ["frontmatter", "canonical-frontmatter", "audit-model"]) {
@@ -2184,7 +2197,10 @@ describe("LANG-07: exactly ONE module owns the section-extent predicate (plan 29
         compared += 1;
       }
     }
-    expect(compared, "the comparison must really have run over the whole corpus").toBe(41 * 3);
+    // 41 * 3 → 42 * 3 (plan 29.1-01), tracking the one module added above. Kept as a LITERAL times
+    // the spec count rather than `flat.length * 3`: deriving it from the loop's own input would make
+    // the assertion true by construction and blind to a corpus that silently shrank.
+    expect(compared, "the comparison must really have run over the whole corpus").toBe(42 * 3);
     // NON-VACUITY: the comparison would be clean over two readers that both return nothing, so at
     // least one module must have produced a non-empty answer through the NEW reader.
     expect(
@@ -2347,10 +2363,13 @@ describe("LANG-07: exactly ONE module owns the section-extent predicate (plan 29
     ]) {
       expect(walked, `the recursive set must contain ${outside}`).toContain(outside);
     }
+    // 41 → 42 (plan 29.1-01): `scripts/model-tiers.ts`, the same one module the flat reader gained.
+    // Both pins move together on purpose — they are two enumerations of one corpus, and a change
+    // that moved only one of them would be the disagreement this pair exists to surface.
     expect(
       walked.filter((n) => n.startsWith("scripts/") && !n.slice(8).includes("/")).length,
       "…and the old non-recursive answer is a strict subset, stated as the number this widening moved off",
-    ).toBe(41);
+    ).toBe(42);
 
     // THE ELEMENT COUNT, DERIVED INDEPENDENTLY OF THE WALK THAT PRODUCES IT. A vacuity floor catches
     // an EMPTY denominator and has never caught a SILENTLY SHORT one, so the set is compared against
@@ -8802,8 +8821,18 @@ const censusRelationshipFindings = (c: TripwireCensus): string[] => {
 // the hazard they warn about no longer has a live pin to damage.
 // ═════════════════════════════════════════════════════════════════════════════════════════════
 
-/** THE VACUITY FLOOR, and the one exact volume equality left over the LIVE tree. */
-const TRIPWIRE_MODULES = 47;
+/**
+ * THE VACUITY FLOOR, and the one exact volume equality left over the LIVE tree.
+ *
+ * 47 → 49 (plan 29.1-01). Phase 29.1 added TWO test modules — `adapter-byte-baseline.test.ts` (the
+ * commit-pinned MODEL-01 byte baseline) and `model-tiers.test.ts` (the model resolver's oracle).
+ * Re-derived rather than incremented: `ls scripts/*.test.ts | wc -l` reports 49 on this tree, which
+ * is the same number the live census produces, so the two independent counts agree.
+ *
+ * The FROZEN `PLAN_29_39_TRIPWIRE.modules` below stays at 47 and must not be touched — it describes
+ * the tree at `b76a65e`, which cannot change.
+ */
+const TRIPWIRE_MODULES = 49;
 /**
  * Corpus-derived floors, expressed as RATES so the floor grows with the corpus it floors.
  * Each is set well below its measured live value: the point is to catch a measurement that

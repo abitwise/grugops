@@ -136,12 +136,13 @@ export type ModelResolution =
  * argument, so the caller's derivation (through the kit authority) stays the one place the role set
  * is decided.
  *
- * THE THREE FLOORS RUN BEFORE THE MAP IS BUILT, in this order, and each states a DIFFERENT fact:
+ * THE TWO FLOORS RUN BEFORE THE MAP IS BUILT, and each states a DIFFERENT fact:
  *   1. EMPTY     — a resolution over nobody is the vacuous pass, not a small clean run.
- *   2. WRONG SIZE— a set that is not the role corpus is not the role corpus, however plausible.
- *   3. DUPLICATE — a repeated stem would otherwise be silently resolved last-wins.
- * Order matters only between 1 and 2: an empty set is also the wrong size, and "empty" is the more
- * specific and more actionable of the two facts, so it is reported first.
+ *   2. DUPLICATE — a repeated stem would otherwise be silently resolved last-wins.
+ *
+ * THE ROLE_COUNT RELATIONSHIP IS DELIBERATELY NOT CHECKED HERE — see `roleCorpusCardinalityRefusal`
+ * below for where it went and why. In short: this function runs on hermetic MIRRORS holding a
+ * subset of the corpus, where a smaller set is correct rather than broken.
  */
 export function resolveModels(stems: readonly string[]): ModelResolution {
   // ── Floor 1: the vacuity floor. ─────────────────────────────────────────────────────────────
@@ -156,20 +157,7 @@ export function resolveModels(stems: readonly string[]): ModelResolution {
     };
   }
 
-  // ── Floor 2: the SHORT (or long) set, which is a different fact from an empty one. ──────────
-  if (stems.length !== ROLE_COUNT) {
-    return {
-      ok: false,
-      reason:
-        `model-tiers: the stem set holds ${String(stems.length)} stem(s) against the kit ` +
-        `authority's ROLE_COUNT of ${String(ROLE_COUNT)} — refusing to resolve a set that is not ` +
-        "the role corpus, because a resolution one stem short assigns nothing to that role while " +
-        "reporting success. If the role corpus genuinely changed, walk every derived consumer " +
-        "before changing ROLE_COUNT: listRoles, the TIERED preset table, and guard_model_assignment.",
-    };
-  }
-
-  // ── Floor 3: a duplicated stem, reported by NAME and by COUNT rather than resolved last-wins. ─
+  // ── Floor 2: a duplicated stem, reported by NAME and by COUNT rather than resolved last-wins. ─
   // Counted over the whole set first, then reported in SORTED stem order, so which duplicate is
   // named is a property of the set rather than of the caller's argument order.
   const occurrences = new Map<string, number>();
@@ -198,4 +186,41 @@ export function resolveModels(stems: readonly string[]): ModelResolution {
     value.set(stem, "inherit");
   }
   return { ok: true, value };
+}
+
+/**
+ * The ROLE_COUNT relationship, asked BY THE CONSUMERS THAT ARE JUDGING THE LIVE ROLE CORPUS.
+ * Returns the refusal reason, or `null` when the set really is the corpus.
+ *
+ * WHY THIS IS NOT A FLOOR INSIDE `resolveModels`, which is where plan 29.1-01 first put it and where
+ * it was measurably wrong. `resolveModels` sits on the adapter generator's hot path, and that
+ * generator RUNS OVER HERMETIC MIRRORS holding a SUBSET of the role corpus — its own committed suite
+ * mirrors six roles, and scripts/adapters-freshness.ts and the foundation-guard harnesses mirror
+ * whatever tree they are judging. Measured: with the equality inside the resolver, a six-role mirror
+ * was refused and 22 committed cases went red. A smaller set is CORRECT there, not broken, so a
+ * cardinality equality on that path refuses valid runs.
+ *
+ * IT IS ALSO A SECOND AUTHORITY FOR A PREDICATE THAT ALREADY HAS ONE, which is the deeper reason.
+ * `listRoles` itself does NOT assert ROLE_COUNT — it refuses only an EMPTY corpus — and the two-sided
+ * cardinality is asserted by `guard_kit_counts` over the LIVE tree. Duplicating that assertion inside
+ * a shared resolver would make the weaker copy fire where the stronger one correctly does not, and
+ * "delete the second authority rather than teach it a case" is this repository's own rule.
+ *
+ * WHAT STILL SATISFIES D-05, so nothing is lost by the move. D-05's requirement is that "role #18
+ * cannot arrive unassigned". `resolveModels` assigns a value to EVERY stem it is handed, so on any
+ * tree — live or mirrored — an eighteenth role is assigned rather than skipped. From plan 29.1-02,
+ * when the TIERED preset carries per-role rows, the binding check becomes the strictly STRONGER
+ * "every stem has a row", which names the unassigned stem instead of reporting a number that
+ * disagrees, and which is correct on a mirror as well. This function remains the place a consumer
+ * that genuinely means "is this the whole live corpus" asks that question out loud.
+ */
+export function roleCorpusCardinalityRefusal(stems: readonly string[]): string | null {
+  if (stems.length === ROLE_COUNT) return null;
+  return (
+    `model-tiers: the stem set holds ${String(stems.length)} stem(s) against the kit authority's ` +
+    `ROLE_COUNT of ${String(ROLE_COUNT)} — this consumer declared it was judging the whole live ` +
+    "role corpus, and a set that is not the corpus assigns nothing to the remainder while " +
+    "reporting success. If the role corpus genuinely changed, walk every derived consumer before " +
+    "changing ROLE_COUNT: listRoles, the TIERED preset table, and guard_model_assignment."
+  );
 }

@@ -35,6 +35,7 @@ import {
   MODEL_ALIASES,
   isModelAlias,
   resolveModels,
+  roleCorpusCardinalityRefusal,
   type ModelAlias,
 } from "./model-tiers.js";
 
@@ -110,19 +111,38 @@ describe("model-tiers: the refusals, each by its own name (plan 29.1-01)", () =>
     expect(r.reason).toMatch(/vacuous/);
   });
 
-  it("REFUSES a SHORT stem set naming BOTH numbers — a distinct fact from an empty one", () => {
+  it("the ROLE_COUNT relationship REFUSES a SHORT set naming BOTH numbers — a distinct fact from an empty one", () => {
     const stems = kitStems();
     const short = stems.slice(0, stems.length - 1);
-    const r = resolveModels(short);
-    expect(r.ok, "a stem set that is not the role corpus must be refused").toBe(false);
-    if (r.ok) return;
+    const reason = roleCorpusCardinalityRefusal(short);
+    expect(reason, "a set that is not the live role corpus must be refused by name").not.toBeNull();
     // Both numbers, so the reader is told what was derived AND what was expected.
-    expect(r.reason).toContain(String(short.length));
-    expect(r.reason).toContain(String(ROLE_COUNT));
+    expect(reason).toContain(String(short.length));
+    expect(reason).toContain(String(ROLE_COUNT));
     // …and it must NOT be the empty-set sentence. A short set and an empty set are different facts.
-    expect(r.reason).not.toMatch(/vacuous/);
+    expect(reason).not.toMatch(/vacuous/);
     // The refusal names the walk an author owes before changing the pinned count.
-    expect(r.reason).toMatch(/ROLE_COUNT/);
+    expect(reason).toMatch(/ROLE_COUNT/);
+  });
+
+  it("the ROLE_COUNT relationship ACCEPTS the live corpus, so the predicate is not simply always-refusing", () => {
+    expect(roleCorpusCardinalityRefusal(kitStems())).toBeNull();
+  });
+
+  it("resolveModels ACCEPTS a MIRROR-SIZED subset — the cardinality is the consumer's question, not its own", () => {
+    // This is the direction the first draft of this module got wrong, and the reason the cardinality
+    // check is a separate named predicate. The adapter generator runs over hermetic mirrors carrying
+    // a SUBSET of the role corpus — its own suite mirrors six roles — where a smaller set is correct
+    // rather than broken. A cardinality equality inside the resolver refused those valid runs.
+    const stems = kitStems();
+    const mirror = stems.slice(0, 6);
+    const r = resolveModels(mirror);
+    expect(r.ok, "a mirror-sized subset must resolve rather than be refused").toBe(true);
+    if (!r.ok) return;
+    expect(r.value.size).toBe(mirror.length);
+    // Every member of the subset still got an assignment — which is the property D-05 actually
+    // needs ("role #18 cannot arrive unassigned"), and it holds on a mirror as well as on the corpus.
+    for (const stem of mirror) expect(r.value.get(stem)).toBe("inherit");
   });
 
   it("REFUSES a DUPLICATED stem naming the stem and its occurrence count — never last-wins", () => {

@@ -138,7 +138,10 @@ function die(message: string): never {
 // an unmirrored import makes the mirrored generator fail to resolve it and exit non-zero, which the
 // fail-closed branch below reports as "did not run cleanly" and the gate goes red. It can never pass
 // while one file short. `frontmatter.js` joined the list in plan 27-23, when WR-03 moved the
-// generator's frontmatter read onto the shared authority.
+// generator's frontmatter read onto the shared authority. `model-tiers.js` joined it in plan
+// 29.1-01, when the generator stopped emitting `model: inherit` as a literal and began asking that
+// module for each role's resolved alias — it is in the list for exactly one reason, that the
+// generator now imports it, and the same reason is recorded in the generator's own import block.
 //
 // agent-factory/packaging is mirrored although the generator does not currently OPEN it: it is the
 // declared upstream source for both adapter body shapes and for the capability vocabulary, so a
@@ -161,6 +164,10 @@ cpSync(
 cpSync(
   join(SCRIPT_ROOT, "scripts", "frontmatter.js"),
   join(tmp, "scripts", "frontmatter.js"),
+);
+cpSync(
+  join(SCRIPT_ROOT, "scripts", "model-tiers.js"),
+  join(tmp, "scripts", "model-tiers.js"),
 );
 cpSync(join(KIT_ROOT, "agent-factory", "roles"), join(tmp, "agent-factory", "roles"), {
   recursive: true,

@@ -66,10 +66,31 @@
 // other adapter simply OMITS the spawn tool from its `tools` line, which is the vendor-documented
 // path-independent way to stop a sub-agent from spawning.
 //
-// Node stdlib ONLY — node:fs + node:path, plus the in-repo kit-model and frontmatter modules. The
-// claim still holds after WR-03: `frontmatter.ts` has no imports at all, and `kit-model.ts` imports
-// only node:fs + node:path, so reading through the authority adds no dependency, no new file and no
-// npm package. Zero npm dependencies.
+// THE EMITTED `model:` VALUE COMES FROM scripts/model-tiers.ts, NOT FROM A LITERAL HERE (MODEL-01 /
+// MODEL-02, phase 29.1). Three things about that are load-bearing:
+//
+//   1. THE RESOLUTION HAPPENS ONCE, AT TOP LEVEL, BEFORE the build-everything loop — never inside
+//      render(). render() runs INSIDE that loop, so a refusal raised there would abort partway
+//      through building and leave the writes that had already been decided, which is exactly the
+//      partial-artifact failure T-27-32 exists to prevent. Resolving first keeps the all-or-nothing
+//      posture: a refusal reaches `fail` before a single byte is written.
+//   2. THE REFUSAL GOES THROUGH `fail`, not through a bare process.exit. `fail`'s variable-level
+//      `(m: string) => never` annotation is what lets TypeScript narrow the control flow afterwards,
+//      which is the same reason the frontmatter parse branch below reads the success arm without a
+//      cast.
+//   3. THE ZERO-CONFIG ANSWER IS THE SAME SEVEN BYTES THE LITERAL PRODUCED. With no configuration
+//      anywhere the resolver returns `inherit` for every role, so the emitted line and its position
+//      are byte-identical to the pre-phase tree — asserted against a FROZEN commit by
+//      scripts/adapter-byte-baseline.test.ts, because this file's own freshness gate regenerates
+//      both sides from this same generator and therefore cannot decide that question.
+//
+// Node stdlib ONLY — node:fs + node:path, plus the in-repo kit-model, frontmatter and model-tiers
+// modules. The claim still holds after WR-03 and after this phase: `frontmatter.ts` has no imports
+// at all, `kit-model.ts` imports only node:fs + node:path, and `model-tiers.ts` imports only
+// `kit-model.ts` — so reading through the authorities adds no dependency and no npm package. Zero
+// npm dependencies. NOTE for anyone editing this import list: scripts/adapters-freshness.ts mirrors
+// this module's import CLOSURE by hand, and a new import must be added to that list in the same
+// change or its mirrored generator cannot resolve it.
 
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
@@ -79,6 +100,7 @@ import {
   sectionEndIndex,
   unfencedHeadingIndex,
 } from "./frontmatter.js";
+import { resolveModels, type ModelAlias } from "./model-tiers.js";
 
 // ── Fixed literal paths (never argv/env/content-derived — ASVS V12) ───────────────────────────
 const ROOT = join(import.meta.dirname, "..");
@@ -200,7 +222,13 @@ interface Adapter {
   description: string;
   tools: string[];
   isCoordinator: boolean;
+  readonly model: ModelAlias; // the resolved alias, emitted verbatim — never a literal in render()
 }
+
+// THE ONE RULE FOR "what is this role file's stem". Asked by the model resolution below and by the
+// build loop; declared here so the key a map is built with and the key it is read with cannot come
+// apart. A role filename is `.md` by listRoles' own filter, so the suffix is always present.
+const stemOf = (file: string): string => file.replace(/\.md$/, "");
 
 // ── Read the role corpus through the SHARED authority (never a private readdir) ────────────────
 let roleFiles: string[];
@@ -210,6 +238,23 @@ try {
   fail(`${(e as Error).message}`);
 }
 roleFiles = roleFiles!.slice().sort(); // explicit sort before emit (kit-model already sorts)
+
+// ── Resolve every role's model alias ONCE, here, BEFORE anything is built ──────────────────────
+// Placed at top level rather than inside render() for the T-27-32 reason recorded in the module
+// header: render() runs inside the build-everything loop, so a refusal raised there would abort
+// partway through and could leave a partial adapter directory. Refusing here writes nothing at all.
+//
+// THIS INTRODUCES NO NEW ORDERING AUTHORITY. `roleFiles.slice().sort()` above remains the only sort
+// before emit; the resolved map is consumed by STEM LOOKUP below, never by iteration, so its own
+// insertion order cannot reach an emitted file.
+//
+// AND NO SECOND STEM RULE. `stemOf` is declared once and asked twice — here, to key the resolution,
+// and in the build loop below. Two expressions for "the role's stem" is one expression too many:
+// the map is keyed by one of them and read by the other, so a disagreement would surface as a
+// lookup that quietly found nothing rather than as an error.
+const resolution = resolveModels(roleFiles.map(stemOf));
+if (!resolution.ok) fail(resolution.reason);
+const models = resolution.value;
 
 const adapters: Adapter[] = [];
 // Adapter name FOLDED TO LOWER CASE -> the role file that claimed it. The fold is the whole point:
@@ -239,7 +284,7 @@ for (const file of roleFiles) {
     fail(`cannot read role file: ${path}`);
   }
 
-  const stem = file.replace(/\.md$/, "");
+  const stem = stemOf(file);
   const name = `${AGENT_PREFIX}${stem}`;
   const folded = name.toLowerCase();
   const claimed = seenNames.get(folded);
@@ -319,6 +364,17 @@ for (const file of roleFiles) {
   }
   const description = `${firstSentence(job!)} Use when: ${firstSentence(act!)}`;
 
+  // The resolved alias, by STEM LOOKUP rather than by iterating the map — the map's own order is
+  // then irrelevant to the emitted bytes. A miss is impossible by construction (the resolution was
+  // taken over the very set this loop walks) and is still refused BY NAME rather than emitted as an
+  // `undefined` that would reach the frontmatter as the four bytes of a broken adapter.
+  const model = models.get(stem);
+  if (model === undefined) {
+    fail(
+      `${file}: no model alias resolved for the role stem "${stem}" — the resolution was taken over the same role set this loop walks, so a miss means the two derivations have come apart`,
+    );
+  }
+
   adapters.push({
     file,
     stem,
@@ -326,6 +382,7 @@ for (const file of roleFiles) {
     description,
     tools,
     isCoordinator: stem === COORDINATOR_ROLE,
+    model,
   });
 }
 
@@ -407,7 +464,10 @@ function render(a: Adapter): string {
     ? `Agent(${grant.join(", ")}), ${a.tools.join(", ")}`
     : a.tools.join(", ");
   lines.push(`tools: ${toolLine}`);
-  lines.push("model: inherit");
+  // The RESOLVED alias, read off the field. Same slot the literal occupied — directly after `tools:`
+  // and immediately before the closing delimiter — so the byte layout is untouched, and no
+  // normalization, trimming or String() of a boxed value sits between the resolution and the bytes.
+  lines.push(`model: ${a.model}`);
   lines.push("---");
   lines.push(...(a.isCoordinator ? coordinatorBody(a) : specialistBody(a)));
   lines.push(""); // trailing element → exactly one final "\n"
