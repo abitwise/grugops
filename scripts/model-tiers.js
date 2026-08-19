@@ -110,26 +110,334 @@ export function isModelAlias(value) {
         return false;
     return MODEL_ALIASES.some((alias) => alias === value);
 }
+// ── PRESET_NAMES — the closed preset vocabulary (D-07, D-08) ──────────────────────────────────
+//
+// THE SET IS CLOSED AND EXACTLY ONE PRESET SHIPS BESIDE THE DEFAULT. `none` is the zero-config
+// position — every role `inherit` — and `tiered` is the one shipped opinion. Any other value is a
+// refusal naming the value and this set (D-07). Adding a second preset later is therefore a VISIBLE
+// SOURCE CHANGE that an author makes here, with a rationale table beside it, rather than a
+// config-side surprise a user discovers by typing a name that happens to resolve.
+//
+// WHY THE NAME IS `tiered` AND NOT `cost` (D-08). `"preset": "cost"` is itself a cost claim, and
+// MODEL-07 forbids shipping an unmeasured one. No measurement is taken in this phase, so the name
+// states the MECHANISM — roles sit at different tiers — and asserts nothing about spend.
+//
+// The TUPLE is the declaration and the union is derived from it, for the same reason MODEL_ALIASES
+// is written that way: two hand-written copies of one closed set is the drift class this repository
+// names as its second systemic failure mode.
+export const PRESET_NAMES = ["none", "tiered"];
+/**
+ * Preset-name membership, decided by EXACT STRING EQUALITY against the two constants.
+ *
+ * Takes `unknown` for the same reason `isModelAlias` does: the value may arrive from user-authored
+ * JSON as a number, a null or an object, and each must be refused rather than coerced. No regular
+ * expression decides this, here or anywhere downstream.
+ */
+export function isPresetName(value) {
+    if (typeof value !== "string")
+        return false;
+    return PRESET_NAMES.some((name) => name === value);
+}
+// ── TIERED — the one shipped preset, one row per role, each row carrying its reason ───────────
+//
+// D-09 assigns `opus` to four roles and `sonnet` to the other thirteen. NO ROLE IS ASSIGNED `haiku`,
+// and that is the load-bearing shape decision rather than an oversight: every role in this kit either
+// writes into the shared verified context or produces an artifact a human signs off on, and the
+// behavior gate catches CORRECTNESS, not JUDGMENT. A thin-model ticket, test plan or UAT pack
+// degrades PAST the one mechanism that would have caught it rather than into it. `haiku` stays a
+// legal alias a user may set per role; the shipped preset simply does not reach for it.
+//
+// The literal MODEL-03 reading — `opus` on three, `haiku` on three, `sonnet` on eleven — was
+// considered and rejected in D-09: it exercises all three aliases but puts the thinnest tier exactly
+// where quality degradation is least visible.
+//
+// EVERY ROW CARRIES A RATIONALE BECAUSE THE TYPE REQUIRES ONE (D-10). The reason is not a comment
+// beside the assignment and not a prose document elsewhere in the tree; it is the same object, so it
+// cannot drift away from what it explains, and a row written without one does not compile.
+//
+// THE ONE DELIBERATELY ARGUABLE ROW IS `incident-responder`, and D-09 records it as such: an
+// incident is where time pressure and blast radius coincide, the role was considered for the
+// stronger tier, and it was left on `sonnet` because it is procedural and hands to a named human.
+// Its rationale says so in its own words rather than by citing D-09, because a decision identifier
+// carries a digit and no rationale may carry one — see the paragraph immediately below.
+//
+// NO ROW ARGUES SPEND (D-14 / MODEL-07). Each rationale argues QUALITY: what a thinner model would
+// degrade past rather than into, and — for the four strong roles — the specific harm D-09 records.
+// No rationale asserts a saving, names a price, or contains a digit; scripts/model-tiers.test.ts
+// asserts the digit half of that mechanically, so a percentage cannot be introduced without a red.
+export const TIERED = [
+    {
+        stem: "agents-md-scribe",
+        alias: "sonnet",
+        rationale: "Writes the AGENTS.md substrate every host CLI reads. The work is transcription against a " +
+            "stated shape rather than open judgment, and a malformed substrate is refused by the structure " +
+            "validator before any agent loads it.",
+    },
+    {
+        stem: "architect-design",
+        alias: "opus",
+        rationale: "Architectural boundaries are expensive to reverse. A boundary drawn in the wrong place is " +
+            "caught by no behavior gate — the code that honours it passes every test — and the mistake is " +
+            "paid for by every later change that has to route around it.",
+    },
+    {
+        stem: "ba-pm",
+        alias: "sonnet",
+        rationale: "Turns a request into scoped epics against a stated template. The judgment is bounded by the " +
+            "requirement trail, which a human reads and signs, so a weaker reading surfaces at that review " +
+            "rather than silently downstream.",
+    },
+    {
+        stem: "brownfield-mapper",
+        alias: "sonnet",
+        rationale: "Surveys an existing repository and records what it finds. The output is observation against " +
+            "the tree, and a wrong observation is contradicted by the tree itself the moment a later role " +
+            "reads it.",
+    },
+    {
+        stem: "compliance-officer",
+        alias: "opus",
+        rationale: "A misclassified regulated-data field is real-world harm rather than rework. No gate in this " +
+            "kit decides whether a field is regulated, so this classification is the only thing standing " +
+            "between the user and a disclosure nobody authorised.",
+    },
+    {
+        stem: "factory-coach",
+        alias: "sonnet",
+        rationale: "Explains the kit to the person using it. A weaker explanation is corrected by that person in " +
+            "the same conversation, which is the shortest correction loop any role in this kit has.",
+    },
+    {
+        stem: "frontend-ui",
+        alias: "sonnet",
+        rationale: "Implements interface work behind the same behavior gate as every other engineering role, and " +
+            "its output is judged visually by a human before it merges — two independent catches on a " +
+            "surface where a defect is immediately apparent.",
+    },
+    {
+        stem: "greenfield-mapper",
+        alias: "sonnet",
+        rationale: "Scaffolds a new repository from a stated stack. The shape is prescribed by the kit rather " +
+            "than invented, and the structure validator refuses a scaffold that does not match it.",
+    },
+    {
+        stem: "incident-responder",
+        alias: "sonnet",
+        rationale: "Procedural: it follows a stated runbook and hands to a named human, so the judgment that " +
+            "decides an incident is the human's rather than the model's. THIS IS THE DELIBERATELY ARGUABLE " +
+            "ASSIGNMENT — an incident is where time pressure and blast radius coincide, this role " +
+            "was considered for the stronger tier, and it was left here. A later reader who disputes the " +
+            "call has the reasoning in front of them, which is exactly what this field exists for.",
+    },
+    {
+        stem: "installer",
+        alias: "sonnet",
+        rationale: "Runs an install that is idempotent, additive and reversible by construction, with a dry-run " +
+            "and a doctor that inspect it. A mistake is visible before it is applied rather than after.",
+    },
+    {
+        stem: "orchestrator",
+        alias: "opus",
+        rationale: "Decomposition quality determines every downstream task. A subtask framed wrongly is executed " +
+            "faithfully by every role after it, and nothing downstream asks whether the decomposition " +
+            "itself was right — so this is the one place a weaker reading propagates instead of being " +
+            "caught.",
+    },
+    {
+        stem: "qe-e2e",
+        alias: "sonnet",
+        rationale: "Writes tests against acceptance criteria a human already signed. The criteria bound the " +
+            "judgment, and a test that fails to discriminate is caught by the red-first discipline the " +
+            "gate already enforces.",
+    },
+    {
+        stem: "release-manager",
+        alias: "sonnet",
+        rationale: "Assembles a changelog and a release from artifacts that already exist. The human holds the " +
+            "merge and the deploy mechanically, so this role proposes and never decides.",
+    },
+    {
+        stem: "security-nfr",
+        alias: "opus",
+        rationale: "A missed vulnerability is real-world harm rather than rework. The behavior gate catches a " +
+            "broken test and never an absent threat, so nothing downstream asks the question this role " +
+            "failed to ask.",
+    },
+    {
+        stem: "software-engineer",
+        alias: "sonnet",
+        rationale: "Implements a ready ticket behind the behavior gate, which is the mechanism this kit relies on " +
+            "most and which judges this role's output directly. A weaker implementation degrades INTO that " +
+            "gate rather than past it.",
+    },
+    {
+        stem: "system-analyst",
+        alias: "sonnet",
+        rationale: "Turns an epic into a ready ticket against a stated checklist, and that ticket is read by a " +
+            "human before any implementation starts — a review step sitting between this role and any " +
+            "code it influences.",
+    },
+    {
+        stem: "uat-planner",
+        alias: "sonnet",
+        rationale: "Assembles the acceptance scenarios a human then runs by hand. A thin scenario is felt by the " +
+            "person executing it rather than accepted silently, which is the strongest form of review any " +
+            "artifact in this kit receives.",
+    },
+];
+// The tier table's exact cardinality, pinned beside the table it describes.
+//
+// PROMOTE TRIGGER: A NEW ROLE FILE ARRIVING under agent-factory/roles/. That is the ONLY event that
+// legitimately moves this number, and it obliges the author to add a row to TIERED with a rationale
+// in the same change — the whole point of MODEL-03 is that role eighteen cannot arrive unassigned.
+//
+// EVERY CONSUMER AN EDITOR MUST WALK BEFORE CHANGING IT: `listRoles` (scripts/kit-model.ts — the
+// role-set authority this number mirrors), `resolveModels` below (which reads TIERED under the
+// `tiered` preset), `guard_model_assignment` (plan 29.1-04 — where a wrong number stops a release),
+// and the adapter generator's resolution call (scripts/generate-role-adapters.ts, which hands this
+// resolver the stems it derived).
+//
+// WHERE THE EXACT CARDINALITY IS ADJUDICATED, and why it is not adjudicated here. THIS LIBRARY
+// THROWS ONLY ON THE VACUOUS SET. `guard_model_assignment` owns the two-sided count over the LIVE
+// tree, exactly as `guard_kit_counts` owns it for the kit sets, because this resolver sits on the
+// adapter generator's hot path and that generator runs over hermetic MIRRORS holding a SUBSET of the
+// role corpus — a corpus-cardinality equality on this path refuses valid runs. The same argument, in
+// full, is recorded on `roleCorpusCardinalityRefusal` below. What this library enforces instead is
+// the strictly STRONGER per-stem check: every stem handed to the resolver has a row, and an
+// unassigned stem is NAMED rather than reported as a number that disagrees.
+export const MODEL_TIERS_COUNT = ROLE_COUNT;
+// The ONE vacuity sentence, declared once and returned by both table predicates below. An empty
+// table and a SHORT table are different facts and must not share a sentence; an empty table and an
+// empty table must not have two.
+const TIERED_VACUITY_REFUSAL = "model-tiers: the TIERED preset table is EMPTY — refusing to resolve a preset from a table with " +
+    "no entries. A coverage comparison against an empty table passes without comparing anything, " +
+    "which is the vacuous pass this floor exists to make impossible.";
+/**
+ * The tier table's OWN integrity, decidable WITHOUT knowing which roles exist on the tree.
+ *
+ * These are properties of the table alone — vacuity, a repeated stem, a blank reason — so they are
+ * correct on a hermetic mirror as well as on the live tree, and `resolveModels` runs them on every
+ * `tiered` resolution. Each finding is its OWN sentence rather than a clause of a merged one, so
+ * three different mutations give three readable answers instead of one paragraph.
+ *
+ * Takes the table as a parameter defaulting to the shipped one, so an oracle can drive an
+ * adversarial table without mutating module state and without typing a stem out.
+ */
+export function tieredTableRefusals(table = TIERED) {
+    if (table.length === 0)
+        return [TIERED_VACUITY_REFUSAL];
+    const findings = [];
+    // A repeated stem, reported by NAME and by COUNT rather than resolved last-wins. Counted over the
+    // whole table first, then reported in SORTED stem order, so which duplicate is named is a property
+    // of the table rather than of its authoring order.
+    const occurrences = new Map();
+    for (const row of table)
+        occurrences.set(row.stem, (occurrences.get(row.stem) ?? 0) + 1);
+    for (const stem of [...occurrences.keys()].sort()) {
+        const count = occurrences.get(stem) ?? 0;
+        if (count > 1) {
+            findings.push(`model-tiers: the stem "${stem}" appears ${String(count)} times in the TIERED preset ` +
+                "table — refusing a duplicated entry rather than letting the last occurrence win, because " +
+                "the losing entry's assignment and its argument would both vanish with no error anywhere. " +
+                "Remedy: delete the duplicate; do NOT rely on the surviving one being the intended one.");
+        }
+    }
+    // A blank reason, which D-10 makes a defect rather than a style note.
+    for (const row of [...table].sort((a, b) => a.stem.localeCompare(b.stem))) {
+        if (row.rationale.trim().length === 0) {
+            findings.push(`model-tiers: the TIERED entry for "${row.stem}" carries an EMPTY rationale — D-10 makes the ` +
+                "rationale a REQUIRED field precisely so a later reader can dispute the tier, and an " +
+                "assignment nobody argued for is an assignment nobody can challenge. Remedy: write the " +
+                "quality argument for this role's tier; do NOT delete the field.");
+        }
+    }
+    return findings;
+}
+/**
+ * The tier table's relationship to a role corpus, asked BY A CONSUMER THAT IS JUDGING THAT CORPUS.
+ * Returns every finding, or an empty array when the table and the corpus agree.
+ *
+ * THIS IS THE BOTH-DIRECTIONS SET EQUALITY, and both directions are separate findings on purpose. A
+ * count identity passes while one stem is claimed by the table and missing from the corpus and
+ * another is claimed by the corpus and missing from the table — the exact defect shape recorded in
+ * scripts/check-foundation-guards.ts's set-membership-over-count-identity rule. A misspelled stem
+ * moves NEITHER number, so a count-only check reads green on it.
+ *
+ * THE ROW COUNT IS DERIVED INDEPENDENTLY of the membership loops that follow, so a SILENTLY SHORT
+ * table is caught as well as an EMPTY one: the length is read off the table itself rather than off
+ * the loop that consumes it.
+ *
+ * WHY `resolveModels` DOES NOT CALL THIS. This predicate compares the table against A WHOLE CORPUS,
+ * and the resolver runs over hermetic mirrors holding a subset of it — see MODEL_TIERS_COUNT's block
+ * above and `roleCorpusCardinalityRefusal` below. The consumers that genuinely mean "is this the
+ * whole live corpus" ask this out loud.
+ */
+export function tieredCorpusRefusals(stems, table = TIERED) {
+    if (table.length === 0)
+        return [TIERED_VACUITY_REFUSAL];
+    const findings = [];
+    const rowCount = table.length;
+    const stemCount = stems.length;
+    if (rowCount !== stemCount) {
+        findings.push(`model-tiers: the TIERED preset table holds ${String(rowCount)} row(s) against the ` +
+            `${String(stemCount)} role stem(s) derived from the role-set authority. The pin is ` +
+            "TWO-SIDED: a table shorter than the corpus leaves roles unassigned, and a table longer " +
+            "than it assigns a tier to something that is not a role. Remedy: reconcile the table with " +
+            "agent-factory/roles/ and walk every consumer named on MODEL_TIERS_COUNT.");
+    }
+    const tableStems = new Set(table.map((r) => r.stem));
+    const corpusStems = new Set(stems);
+    for (const stem of [...tableStems].sort()) {
+        if (!corpusStems.has(stem)) {
+            findings.push(`model-tiers: the TIERED preset table assigns a tier to "${stem}", which is NOT one of the ` +
+                "role stems derived from the role-set authority — direction TABLE → CORPUS. Legal stems " +
+                "are whatever listRoles() returns on this tree; a stem here that is not one of them is a " +
+                "typo or a role that was renamed or deleted without the table following it.");
+        }
+    }
+    for (const stem of [...corpusStems].sort()) {
+        if (!tableStems.has(stem)) {
+            findings.push(`model-tiers: the role stem "${stem}" has NO entry in the TIERED preset table — direction ` +
+                "CORPUS → TABLE. MODEL-03 exists so that a newly arrived role cannot be silently " +
+                "unassigned; add an entry for this stem with the quality argument for its tier.");
+        }
+    }
+    return findings;
+}
 /**
  * Resolve a model alias for every role stem the caller derived.
- *
- * ZERO-CONFIG ARM ONLY in plan 29.1-01: no configuration is read, so every stem resolves to
- * `inherit` — the exact value the generator emitted as a literal before this phase, which is what
- * makes MODEL-01's byte-identity claim reachable at all.
  *
  * PURE. It opens no file, reads no environment variable and joins no path. The stems come in as an
  * argument, so the caller's derivation (through the kit authority) stays the one place the role set
  * is decided.
  *
- * THE TWO FLOORS RUN BEFORE THE MAP IS BUILT, and each states a DIFFERENT fact:
- *   1. EMPTY     — a resolution over nobody is the vacuous pass, not a small clean run.
- *   2. DUPLICATE — a repeated stem would otherwise be silently resolved last-wins.
+ * THE FLOORS RUN BEFORE THE MAP IS BUILT, and each states a DIFFERENT fact:
+ *   0. ILLEGAL PRESET — a name outside the closed set, refused naming the value and the legal set.
+ *   1. EMPTY          — a resolution over nobody is the vacuous pass, not a small clean run.
+ *   2. DUPLICATE      — a repeated stem would otherwise be silently resolved last-wins.
+ *   3. Under `tiered` only: the table's own integrity, and then the per-stem coverage check.
+ *
+ * THE `tiered` COVERAGE CHECK IS THE STRICTLY STRONGER FORM OF MODEL-03'S GUARANTEE. Rather than
+ * comparing two numbers, it asks whether EVERY stem handed to this resolver has an entry, and NAMES
+ * the ones that do not. That is correct on a hermetic mirror carrying a subset of the corpus, where
+ * a cardinality equality is not — and it tells the reader WHICH role arrived unassigned instead of
+ * telling them that two numbers disagreed.
  *
  * THE ROLE_COUNT RELATIONSHIP IS DELIBERATELY NOT CHECKED HERE — see `roleCorpusCardinalityRefusal`
- * below for where it went and why. In short: this function runs on hermetic MIRRORS holding a
- * subset of the corpus, where a smaller set is correct rather than broken.
+ * below for where it went and why.
  */
-export function resolveModels(stems) {
+export function resolveModels(stems, options) {
+    // ── Floor 0: the preset name, by EXACT EQUALITY against the closed set. ─────────────────────
+    const preset = options?.preset ?? "none";
+    if (!isPresetName(preset)) {
+        return {
+            ok: false,
+            reason: `model-tiers: ${JSON.stringify(preset)} is not a legal preset name. The legal set is ` +
+                `exactly: ${PRESET_NAMES.map((n) => `"${n}"`).join(", ")}. Remedy: use one of those two ` +
+                "names; adding a third preset is a source change in scripts/model-tiers.ts, not a value a " +
+                "configuration file can invent.",
+        };
+    }
     // ── Floor 1: the vacuity floor. ─────────────────────────────────────────────────────────────
     if (stems.length === 0) {
         return {
@@ -161,10 +469,43 @@ export function resolveModels(stems) {
     // SORTED BEFORE INSERTION so the map's own iteration order is a property of this expression
     // rather than of the caller's argument order. The generator writes bytes from this map, and an
     // ordering that followed the argument would be an ordering nothing in the emit path controls.
+    const sorted = [...stems].sort();
     const value = new Map();
-    for (const stem of [...stems].sort()) {
-        // The zero-config answer. This single site is what plan 29.1-02 widens to consult a preset and
-        // a sparse per-role override; until then it is the literal the generator used to emit itself.
+    if (preset === "tiered") {
+        // ── Floor 3a: the table's own integrity, before a single stem is looked up in it. ─────────
+        const tableRefusals = tieredTableRefusals();
+        if (tableRefusals.length > 0) {
+            // Joined with a newline rather than merged into one sentence: each refusal keeps its own
+            // wording, so a reader sees how many distinct defects the table has rather than one blur.
+            return { ok: false, reason: tableRefusals.join("\n") };
+        }
+        // ── Floor 3b: per-stem coverage, in ONE loop that both builds the map and collects the
+        // stems it could not build. Two passes would be two authorities for one predicate. ─────────
+        const byStem = new Map(TIERED.map((row) => [row.stem, row.alias]));
+        const unassigned = [];
+        for (const stem of sorted) {
+            const alias = byStem.get(stem);
+            if (alias === undefined) {
+                unassigned.push(stem);
+                continue;
+            }
+            value.set(stem, alias);
+        }
+        if (unassigned.length > 0) {
+            return {
+                ok: false,
+                reason: `model-tiers: the "tiered" preset assigns nothing to ${String(unassigned.length)} of the ` +
+                    `${String(sorted.length)} stem(s) handed to this resolver: ` +
+                    `${unassigned.map((s) => `"${s}"`).join(", ")}. MODEL-03 exists so that a role cannot ` +
+                    "arrive unassigned; add an entry to TIERED for each stem named here, with the quality " +
+                    "argument for its tier. Remedy: do NOT fall back to `inherit` for the remainder — a " +
+                    "partial preset is a tier the user believes they set and did not.",
+            };
+        }
+        return { ok: true, value };
+    }
+    for (const stem of sorted) {
+        // The zero-config answer, and the `none` preset's answer, which are the same answer by design.
         value.set(stem, "inherit");
     }
     return { ok: true, value };
