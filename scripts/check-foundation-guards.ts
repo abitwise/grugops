@@ -2042,6 +2042,43 @@ function guardModelAssignment(): void {
     }
   }
 
+  // ── THE BOUND ON THE PREDICATE'S INPUT, ASSERTED RATHER THAN DISCLOSED. ─────────────────────
+  //
+  // Every arm above enumerates the AGENT ADAPTER set, because that is where the generator emits a
+  // `model` value and where a resolution has a role stem to be keyed by. The question a set-scoped
+  // predicate must always be asked is what BOUNDS its input, and the answer here is that this kit
+  // ships two more frontmatter surfaces the platform loads — the standalone skills under
+  // `.claude/skills` and their plugin-form twins under `skills/` — and Claude Code honours a `model`
+  // key on both. Measured on the tree today: zero of them declare one.
+  //
+  // So the bound is ASSERTED rather than written down in a comment. A `model` key on a skill would be
+  // a pin with no role stem behind it: outside every resolution this guard computes, outside the
+  // generator that writes the agent adapters, and therefore a tier that arrives with nobody having
+  // adjudicated it. It is named here with its file and every value it declares.
+  //
+  // AN UNADMITTABLE SKILL IS DELIBERATELY NOT RE-REPORTED BY THIS ARM. guard_wr05 already names it by
+  // file and by enumerated code and the gate fails closed on that finding, so the soundness of this
+  // arm rests on the EXIT CODE rather than on silence — and a second sentence for one fact is the
+  // duplication this gate's own conventions refuse.
+  const nonAgentSurfaces = [
+    ...SKILL_ADAPTERS,
+    ...PLUGIN_SKILL_RELS.map((rel) => `skills/${rel}`),
+  ].sort();
+  const strayPins: string[] = [];
+  for (const rel of nonAgentSurfaces) {
+    const parsed = admit(readText(rel));
+    if (!parsed.ok) continue;
+    if (!parsed.value.has("model")) continue;
+    strayPins.push(
+      `${rel}: ${admittedValuesFor(parsed.value, "model")
+        .map((v) => `\`${v}\``)
+        .join(", ")}`,
+    );
+  }
+  if (strayPins.length > 0) {
+    modelFail += `\nmodel assignment: ${strayPins.length} of the ${nonAgentSurfaces.length} non-agent adapter surface(s) this kit ships declare a \`model\` key. A skill has no role stem, so no resolution this guard computes says anything about its value and the adapter generator never writes one — a pin here is a tier nobody adjudicated, on a file the platform loads:\n    ${strayPins.join("\n    ")}`;
+  }
+
   if (modelFail === "") {
     // REPORT THE SHAPE OF THE ANSWER, never a bare acknowledgement. The per-adapter comparisons say
     // nothing about the set they were drawn from or the resolution they were compared against, so a
@@ -2049,7 +2086,7 @@ function guardModelAssignment(): void {
     // silence. These four facts make it visible instead.
     const aliases = [...new Set(resolved.values())].sort();
     pass(
-      `model assignment: ${adapterRels.length} committed adapter(s) under ${ADAPTER_DIR} compared against a resolution recomputed for ${stems.length} derived role stem(s); preset "${presetLabel}" from ${sourceLabel}; distinct aliases resolved: ${aliases.join(", ")}`,
+      `model assignment: ${adapterRels.length} committed adapter(s) under ${ADAPTER_DIR} compared against a resolution recomputed for ${stems.length} derived role stem(s); preset "${presetLabel}" from ${sourceLabel}; distinct aliases resolved: ${aliases.join(", ")}; ${nonAgentSurfaces.length} non-agent adapter surface(s) checked for a stray pin, none found`,
     );
   } else {
     fail(`model-assignment violation:${modelFail}`);

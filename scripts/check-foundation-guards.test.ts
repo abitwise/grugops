@@ -78,6 +78,13 @@ import {
 // question this function already answers.
 import { safetySurfaceUnion } from "./generate-safety-surface.js";
 
+// (Plan 29.1-04) The model authority, imported so the guard_model_assignment cases assert their
+// plants' premises through the SAME functions the guard resolves with — never through a second
+// opinion written in the harness. This repository's own harness produced a false result in six
+// instances across four straight rounds; a premise measured with a different rule than the guard
+// applies is that failure one step earlier.
+import { readModelsConfig, resolveModels } from "./model-tiers.js";
+
 const ROOT = join(import.meta.dirname, "..");
 const GUARD_JS = join(ROOT, "scripts", "check-foundation-guards.js");
 
@@ -9316,5 +9323,474 @@ describe("guard_model_assignment (Phase 29.1, MODEL-03/MODEL-05)", () => {
     expect(section).toContain("declares `model: opus`");
     expect(section).toContain("the configuration resolves `inherit`");
     expect(section).toContain('role stem "orchestrator"');
+  });
+
+  // ── THE FOUR VALUE-SHAPE WORDINGS, NAMED ONCE AND ASSERTED PAIRWISE DISTINCT. ───────────────
+  //
+  // Folding two of these findings into one sentence would be a silent regression: a later reader
+  // could not tell WHICH defect fired, and the "one silence for two facts" mistake is the shape this
+  // gate's own `name`-key precedent was written to avoid. So the distinctness is asserted directly
+  // rather than left to the four cases below to imply.
+  const MISMATCH_ANCHOR = "declares `model: ";
+  const ABSENCE_ANCHOR = "carries NO `model` key at all";
+  const CARDINALITY_ANCHOR = "a model pin has ONE authority and must have ONE answer";
+  const EMPTINESS_ANCHOR = "`model` key present with an EMPTY value";
+  const VALUE_SHAPE_ANCHORS = [
+    MISMATCH_ANCHOR,
+    ABSENCE_ANCHOR,
+    CARDINALITY_ANCHOR,
+    EMPTINESS_ANCHOR,
+  ];
+
+  it("the four value-shape findings are FOUR textually distinct sentences, none a substring of another", () => {
+    expect(new Set(VALUE_SHAPE_ANCHORS).size).toBe(VALUE_SHAPE_ANCHORS.length);
+    for (const a of VALUE_SHAPE_ANCHORS) {
+      for (const b of VALUE_SHAPE_ANCHORS) {
+        if (a === b) continue;
+        expect(a.includes(b), `"${a}" must not contain "${b}"`).toBe(false);
+      }
+    }
+    // …and all four really are present in the shipped guard, so a wording renamed in the source
+    // without being renamed here fails LOUDLY instead of leaving four cases asserting dead strings.
+    // The backtick escapes a template literal needs are removed first: the guard PRINTS a bare
+    // backtick, and comparing against the escaped source would be comparing against a spelling no
+    // reader of the output ever sees.
+    const guardSrc = readFileSync(GUARD_JS, "utf8").split("\\`").join("`");
+    for (const a of VALUE_SHAPE_ANCHORS) {
+      expect(guardSrc, `the guard must still emit "${a}"`).toContain(a);
+    }
+  });
+
+  it("(b) ABSENCE — the finding names absence as its OWN fact and is NOT the mismatch wording", () => {
+    const m = mirror();
+    const file = plantAdapterModel(m, "grugops-installer.md", []);
+
+    // PREMISE, through the guard's own reader: the document still admits, and it declares NO
+    // `model` value at all. A plant that made the file unreadable would red for a different reason.
+    expect(admittedModelValues(file)).toEqual([]);
+
+    const r = runIn(m);
+    expect(r.status).not.toBe(0);
+    const section = modelSection(out(r));
+    expect(section).toContain(".claude/agents/grugops-installer.md");
+    expect(section).toContain(ABSENCE_ANCHOR);
+    expect(section).not.toContain(MISMATCH_ANCHOR);
+    expect(section).not.toContain(CARDINALITY_ANCHOR);
+    expect(section).not.toContain(EMPTINESS_ANCHOR);
+  });
+
+  // ── (c) CARDINALITY, IN ITS TWO REACHABLE SPELLINGS. ────────────────────────────────────────
+  //
+  // MEASURED, not assumed: a genuinely DUPLICATED `model:` key does not reach the guard's
+  // cardinality arm at all — `admit()` refuses the whole document under `duplicate-key` one layer
+  // earlier, because the canonical form refuses a duplicate rather than merging it or resolving it
+  // last-wins. The spelling that DOES reach the arm is the block sequence, which admits as one key
+  // carrying two values. Both are proven, because the property under test is the same one either
+  // way: the guard must never resolve two answers by reading the first.
+  it("(c1) DUPLICATE KEY — refused at admission by name, and the first value is NOT read as the answer", () => {
+    const m = mirror();
+    const file = plantAdapterModel(m, "grugops-qe-e2e.md", [
+      "model: inherit",
+      "model: opus",
+    ]);
+
+    // PREMISE: the plant really does make the document unadmittable, under `duplicate-key`
+    // specifically — and note the FIRST value is the CORRECT one, so a guard that read the first
+    // would see agreement and print a pass over a document declaring two tiers.
+    expect(admittedModelValues(file)).toEqual({ refused: "duplicate-key" });
+
+    const r = runIn(m);
+    expect(r.status).not.toBe(0);
+    const section = modelSection(out(r));
+    expect(section).toContain(".claude/agents/grugops-qe-e2e.md");
+    expect(section).toContain("[duplicate-key]");
+    expect(section).toContain("whose frontmatter is NOT in the canonical form");
+    // The decoy did not work: no value comparison was rendered over this file.
+    expect(section).not.toContain(MISMATCH_ANCHOR);
+  });
+
+  it("(c2) TWO VALUES — the finding names the COUNT and every value found, and does not read the first", () => {
+    const m = mirror();
+    const file = plantAdapterModel(m, "grugops-qe-e2e.md", [
+      "model:",
+      "  - inherit",
+      "  - opus",
+    ]);
+
+    // PREMISE: this spelling really does admit, and it really does carry TWO values, the first of
+    // which matches the resolution. Anything less and the case would be pinning a refusal.
+    expect(admittedModelValues(file)).toEqual(["inherit", "opus"]);
+
+    const r = runIn(m);
+    expect(r.status).not.toBe(0);
+    const section = modelSection(out(r));
+    expect(section).toContain(".claude/agents/grugops-qe-e2e.md");
+    expect(section).toContain("declares 2 `model` values (`inherit`, `opus`)");
+    expect(section).toContain(CARDINALITY_ANCHOR);
+    expect(section).not.toContain(MISMATCH_ANCHOR);
+    expect(section).not.toContain(ABSENCE_ANCHOR);
+    expect(section).not.toContain(EMPTINESS_ANCHOR);
+  });
+
+  // ── (d) EMPTINESS, IN BOTH OF ITS LAYERS. ───────────────────────────────────────────────────
+  //
+  // (d1) is what happens on the tree as it stands: an emptied `model` value is refused at ADMISSION
+  // under `dangling-empty-key`, so the defect is caught and named one layer above the comparison.
+  // (d2) is why the guard's own emptiness sentence is kept anyway rather than deleted as dead: a
+  // scratch build that WIDENS the admission grammar to admit an empty scalar — the exact future edit
+  // the guard's header warns about — lets the value through, and the floor fires by name. A floor
+  // proven only by the layer above it is a floor nobody has tested.
+  it("(d1) EMPTY VALUE — refused at admission by name, and NOT reported as absence or as a mismatch", () => {
+    const m = mirror();
+    const file = plantAdapterModel(m, "grugops-release-manager.md", ["model:"]);
+
+    expect(admittedModelValues(file)).toEqual({ refused: "dangling-empty-key" });
+
+    const r = runIn(m);
+    expect(r.status).not.toBe(0);
+    const section = modelSection(out(r));
+    expect(section).toContain(".claude/agents/grugops-release-manager.md");
+    expect(section).toContain("[dangling-empty-key]");
+    expect(section).not.toContain(ABSENCE_ANCHOR);
+    expect(section).not.toContain(MISMATCH_ANCHOR);
+  });
+
+  it("(d2) EMPTY VALUE, admission WIDENED in a scratch build — the guard's own emptiness floor fires by name", () => {
+    // The mutation is the widening itself: both `dangling-empty-key` refusals become an admitted
+    // empty scalar. Nothing in the repository changes; the widened grammar lives in a temp dir.
+    const widenEmptyValue = (src: string): string =>
+      src
+        .split("\n")
+        .map((l) =>
+          l.includes('return refuse("dangling-empty-key"')
+            ? l.replace(
+                /return refuse\("dangling-empty-key".*$/,
+                'pendingItems = [""]; pendingQuoted = [false];',
+              )
+            : l,
+        )
+        .join("\n");
+    const guardJs = scratchGuardFiles({
+      "canonical-frontmatter.js": widenEmptyValue,
+    });
+
+    const m = mirror();
+    plantAdapterModel(m, "grugops-release-manager.md", ["model:"]);
+
+    const r = runScratch(guardJs, m);
+    expect(r.status).not.toBe(0);
+    const section = modelSection(out(r));
+    expect(section).toContain(".claude/agents/grugops-release-manager.md");
+    expect(section).toContain(EMPTINESS_ANCHOR);
+    expect(section).not.toContain(ABSENCE_ANCHOR);
+    expect(section).not.toContain(MISMATCH_ANCHOR);
+    // …and the widening really did take: the file no longer produces an admission refusal.
+    expect(section).not.toContain("[dangling-empty-key]");
+  });
+
+  // ── (e) THE EIGHTEENTH ROLE, AND THE PROOF THAT THE DERIVATION IS WHAT FIRES IT. ────────────
+  //
+  // Half one: an eighteenth role arrives with no adapter, and the guard NAMES the stem. Half two:
+  // the SAME plant, against a scratch build whose `resolveModels` returns a HAND-LISTED constant map
+  // of exactly the seventeen committed stems — and the stem finding disappears, because a hand-listed
+  // expectation can never mention a stem no author typed. That pair is the evidence for MODEL-05's
+  // "derived rather than compared against a hand-listed expectation": the wording alone would be
+  // satisfied by either build.
+  //
+  // BOTH HALVES ASSERT ON THE FINDING, NEVER ON THE EXIT CODE. An eighteenth role legitimately reds
+  // guard_kit_counts and guard_referential_integrity in the same run, in both builds, so the exit
+  // code cannot discriminate anything here — the same reasoning the `planted 18th role reaches
+  // guard_role_size` case above records.
+  const PLANTED_18TH = "zz-planted-model-role.md";
+  const PLANTED_18TH_STEM = "zz-planted-model-role";
+
+  it("(e1) an 18th role with no adapter — the guard NAMES the unassigned stem", () => {
+    const m = mirror();
+    cpSync(rolePath(ROOT, "installer.md"), rolePath(m, PLANTED_18TH));
+
+    // PREMISE: the mirror's derived role set really grew by exactly this stem, and the live tree's
+    // did not — the harness's own derivation is asserted, never assumed.
+    expect(roleNamesIn(m)).toContain(PLANTED_18TH);
+    expect(roleNamesIn(ROOT)).not.toContain(PLANTED_18TH);
+    expect(roleNamesIn(m).length).toBe(ROLE_COUNT + 1);
+
+    const section = modelSection(out(runIn(m)));
+    expect(section).toContain(`role stem "${PLANTED_18TH_STEM}"`);
+    expect(section).toContain("has NO committed adapter under .claude/agents");
+    expect(section).toContain(
+      `${ROLE_COUNT} committed adapter(s) under .claude/agents against ${ROLE_COUNT + 1} role stem(s)`,
+    );
+  });
+
+  it("(e2) the SAME plant against a HAND-LISTED expectation — the stem finding does NOT fire", () => {
+    // The hand-list is built from the live derivation rather than typed out, so this fixture cannot
+    // rot into a stale seventeen-name literal. Its cardinality is asserted, because a silently short
+    // list would make the case pass for the wrong reason.
+    const committedStems = listRoles(ROOT).map((f) => f.replace(/\.md$/, ""));
+    expect(committedStems).toHaveLength(ROLE_COUNT);
+    expect(committedStems).not.toContain(PLANTED_18TH_STEM);
+    const handListed = `new Map([${committedStems
+      .map((s) => `["${s}", "inherit"]`)
+      .join(", ")}])`;
+
+    const guardJs = scratchGuardFiles({
+      "model-tiers.js": (src) =>
+        src.replace(
+          "export function resolveModels(stems, options) {",
+          `export function resolveModels(stems, options) {\n    return { ok: true, value: ${handListed} };`,
+        ),
+    });
+
+    const m = mirror();
+    cpSync(rolePath(ROOT, "installer.md"), rolePath(m, PLANTED_18TH));
+
+    const section = modelSection(out(runScratch(guardJs, m)));
+    // The count floor still fires — it reads the role derivation, which the mutation did not touch —
+    // so the section is NOT silent, and the discrimination is precisely the stem-naming finding.
+    expect(section).toContain(
+      `${ROLE_COUNT} committed adapter(s) under .claude/agents against ${ROLE_COUNT + 1} role stem(s)`,
+    );
+    expect(
+      section,
+      "a hand-listed expectation cannot name a stem no author typed — which is exactly why the guard must not have one",
+    ).not.toContain(`role stem "${PLANTED_18TH_STEM}"`);
+  });
+
+  it("(f) VACUITY — an emptied adapter directory FAILS with its own sentence rather than passing", () => {
+    const m = mirror();
+    const dir = join(m, ".claude/agents");
+    for (const f of readdirSync(dir)) rmSync(join(dir, f), { force: true });
+    expect(readdirSync(dir)).toHaveLength(0);
+
+    const r = runIn(m);
+    expect(r.status).not.toBe(0);
+    const section = modelSection(out(r));
+    expect(section).toContain(
+      "the adapter derivation returned NO committed adapters under .claude/agents",
+    );
+    expect(section).toContain("this run compared zero model values");
+    expect(section).not.toContain("PASS");
+  });
+
+  it("(g) SHORT SET — one adapter removed, its role file kept: both numbers AND the stem are named", () => {
+    const m = mirror();
+    rmSync(join(m, ".claude/agents/grugops-factory-coach.md"), { force: true });
+    // PREMISE: the adapter is gone and the role file is NOT — a plant that removed both would move
+    // the two numbers together and prove nothing about a SILENTLY SHORT set.
+    expect(existsSync(join(m, ".claude/agents/grugops-factory-coach.md"))).toBe(false);
+    expect(roleNamesIn(m)).toContain("factory-coach.md");
+
+    const r = runIn(m);
+    expect(r.status).not.toBe(0);
+    const section = modelSection(out(r));
+    expect(section).toContain(
+      `${ROLE_COUNT - 1} committed adapter(s) under .claude/agents against ${ROLE_COUNT} role stem(s)`,
+    );
+    expect(section).toContain('role stem "factory-coach"');
+    expect(section).toContain("has NO committed adapter under .claude/agents");
+  });
+
+  it("(h) UNREADABLE ADAPTER — named with its admission code, and NO value comparison over it", () => {
+    const m = mirror();
+    const file = plantAdapterModel(m, "grugops-security-nfr.md", [
+      "model: !opus",
+    ]);
+
+    // PREMISE: the plant really is unadmittable, under a NAMED code.
+    const verdict = admittedModelValues(file);
+    expect(Array.isArray(verdict)).toBe(false);
+    expect(verdict).toEqual({ refused: "node-property" });
+
+    const r = runIn(m);
+    expect(r.status).not.toBe(0);
+    const section = modelSection(out(r));
+    expect(section).toContain(
+      ".claude/agents/grugops-security-nfr.md: [node-property]",
+    );
+    expect(section).toContain("whose frontmatter is NOT in the canonical form");
+    expect(section).toContain(
+      "the declared model value cannot be compared over a file that cannot be read",
+    );
+    // No verdict of any shape was rendered over the unreadable file.
+    for (const anchor of VALUE_SHAPE_ANCHORS) {
+      expect(section).not.toContain(anchor);
+    }
+  });
+
+  // ── (i)/(j) THE EXPECTATION FOLLOWS THE CONFIGURATION, IN BOTH ITS DIRECTIONS. ──────────────
+  //
+  // These are the cases a byte-comparison structurally cannot have. (j) is the strongest single
+  // statement in this block: with `"preset": "tiered"` planted in a mirror, seventeen adapters that
+  // are byte-identical to the committed tree — and therefore perfectly FRESH — go red, because the
+  // configuration now resolves a different value for every one of them.
+  it("(i) a DEGENERATE `models` block WARNS and degrades the whole expectation to `inherit` (D-11)", () => {
+    const m = mirror();
+    mkdirSync(join(m, ".grugops"), { recursive: true });
+    writeFileSync(
+      join(m, ".grugops/factory.config.json"),
+      JSON.stringify({ models: null }),
+      "utf8",
+    );
+
+    const r = runIn(m);
+    const section = modelSection(out(r));
+    expect(section).toContain("DEGRADES to `inherit` for every role stem (D-11)");
+    expect(section).toContain("rather than to any pinned tier");
+    // The degradation is announced on the PASS line too, so a reader cannot mistake a fallback run
+    // for a run against their file.
+    expect(section).toContain("degraded — the configuration was refused");
+    // …and the comparison still ran against every adapter rather than being skipped.
+    expect(section).toContain(
+      `${ROLE_COUNT} committed adapter(s) under .claude/agents compared against a resolution recomputed for ${ROLE_COUNT} derived role stem(s)`,
+    );
+  });
+
+  it("(j) `preset: tiered` reds SEVENTEEN byte-FRESH adapters — the expectation is the config's, not the generator's", () => {
+    const m = mirror();
+    mkdirSync(join(m, ".grugops"), { recursive: true });
+    writeFileSync(
+      join(m, ".grugops/factory.config.json"),
+      JSON.stringify({ models: { preset: "tiered" } }),
+      "utf8",
+    );
+
+    // PREMISE, through the same reader the guard uses: the planted file really resolves `tiered`,
+    // and the resolution it produces really disagrees with the committed `inherit` on every role.
+    const stems = listRoles(m).map((f) => f.replace(/\.md$/, ""));
+    const cfg = readModelsConfig(m, stems);
+    expect(cfg.ok).toBe(true);
+    if (!cfg.ok) throw new Error("unreachable");
+    expect(cfg.value.preset).toBe("tiered");
+    const resolution = resolveModels(stems, { preset: cfg.value.preset });
+    expect(resolution.ok).toBe(true);
+    if (!resolution.ok) throw new Error("unreachable");
+    expect([...resolution.value.values()].every((a) => a !== "inherit")).toBe(true);
+
+    // NOT ONE ADAPTER BYTE WAS TOUCHED — every one is exactly what the generator committed, so
+    // `adapters-freshness` would report this mirror as perfectly fresh.
+    for (const rel of listAgentAdapters(m)) {
+      expect(
+        readFileSync(join(m, ".claude/agents", rel), "utf8"),
+        `${rel} must be byte-identical to the committed adapter`,
+      ).toBe(readFileSync(join(ROOT, ".claude/agents", rel), "utf8"));
+    }
+
+    const r = runIn(m);
+    expect(r.status).not.toBe(0);
+    const section = modelSection(out(r));
+    const mismatches = section
+      .split("\n")
+      .filter((l) => l.includes(MISMATCH_ANCHOR));
+    expect(mismatches).toHaveLength(ROLE_COUNT);
+    expect(section).toContain(
+      "declares `model: inherit`, and the configuration resolves `opus` for role stem \"orchestrator\"",
+    );
+    expect(section).toContain(
+      "declares `model: inherit`, and the configuration resolves `sonnet` for role stem \"qe-e2e\"",
+    );
+  });
+
+  // ── The TIERED cardinality, adjudicated HERE and proven TWO-SIDED. ──────────────────────────
+  const shortTable = (src: string): string =>
+    src.replace(
+      /\n    \{\n        stem: "uat-planner",[\s\S]*?\n    \},\n\];/,
+      "\n];",
+    );
+  const longTable = (src: string): string =>
+    src.replace(
+      "export const TIERED = [",
+      'export const TIERED = [\n    { stem: "zz-scratch-row", alias: "sonnet", rationale: "scratch row planted by a discrimination case" },',
+    );
+
+  it("(k-low) a TIERED table one row SHORT is named with all three numbers", () => {
+    const guardJs = scratchGuardFiles({ "model-tiers.js": shortTable });
+    const r = runScratch(guardJs, mirror());
+    expect(r.status).not.toBe(0);
+    expect(modelSection(out(r))).toContain(
+      `the TIERED preset table holds ${ROLE_COUNT - 1} row(s) against MODEL_TIERS_COUNT of ${ROLE_COUNT} and the kit authority's ROLE_COUNT of ${ROLE_COUNT}`,
+    );
+  });
+
+  it("(k-high) a TIERED table one row LONG is named with all three numbers", () => {
+    const guardJs = scratchGuardFiles({ "model-tiers.js": longTable });
+    const r = runScratch(guardJs, mirror());
+    expect(r.status).not.toBe(0);
+    expect(modelSection(out(r))).toContain(
+      `the TIERED preset table holds ${ROLE_COUNT + 1} row(s) against MODEL_TIERS_COUNT of ${ROLE_COUNT} and the kit authority's ROLE_COUNT of ${ROLE_COUNT}`,
+    );
+  });
+
+
+  // ── THE BOUND ON THE SCAN SET, PROVEN TO FIRE. ─────────────────────────────────────────────
+  //
+  // Found by red-teaming the guard rather than named by the plan: every arm above enumerates the
+  // AGENT adapter set, and this kit ships fourteen more frontmatter surfaces the platform loads on
+  // which Claude Code honours a `model` key. A guard whose soundness claim is "every committed model
+  // pin is the configuration's" is FALSE without this arm, and the arm is worthless without a case
+  // that watches it fire.
+  //
+  // The plant goes on BOTH distribution forms of one skill, for the reason
+  // `plantSkillWithoutToolsKey` records: planting on one side alone is a real divergence that reds
+  // guard_distribution_pair for a reason having nothing to do with the arm under test.
+  it("(l) a stray `model` pin on a SKILL — both distribution forms — is named by file and by value", () => {
+    const m = mirror();
+    const standalone = join(m, ".claude/skills/grugops-gate/SKILL.md");
+    const plugin = join(m, "skills/gate/SKILL.md");
+    for (const file of [standalone, plugin]) {
+      const lines = readFileSync(file, "utf8").split("\n");
+      const at = lines.findIndex((l) => l.startsWith("description:"));
+      if (at === -1) {
+        throw new Error(
+          `the stray-pin plant matched nothing in ${file} — a case proven against an unmodified fixture is proven against nothing`,
+        );
+      }
+      lines.splice(at + 1, 0, "model: opus");
+      writeFileSync(file, lines.join("\n"), "utf8");
+    }
+
+    // PREMISE, through the guard's own reader: both files still ADMIT (so the arm is reached rather
+    // than short-circuited by an admission refusal) and both really declare `opus`.
+    expect(admittedModelValues(standalone)).toEqual(["opus"]);
+    expect(admittedModelValues(plugin)).toEqual(["opus"]);
+
+    const r = runIn(m);
+    expect(r.status).not.toBe(0);
+    const section = modelSection(out(r));
+    expect(section).toContain(
+      "2 of the 14 non-agent adapter surface(s) this kit ships declare a `model` key",
+    );
+    expect(section).toContain(".claude/skills/grugops-gate/SKILL.md: `opus`");
+    expect(section).toContain("skills/gate/SKILL.md: `opus`");
+    expect(section).toContain("a pin here is a tier nobody adjudicated");
+    // It is NOT reported as one of the four agent-adapter value-shape defects.
+    for (const anchor of VALUE_SHAPE_ANCHORS) {
+      expect(section).not.toContain(anchor);
+    }
+  });
+
+  it("the non-agent surface denominator is DERIVED from the two skill authorities, not a literal", () => {
+    // The PASS line publishes a denominator, and a denominator nobody derives independently is the
+    // silently-short set this repository has already paid for. Derived here from the same two
+    // authorities the guard composes, and asserted non-vacuous in both parts.
+    const standalone = listSkillAdapters(ROOT);
+    const pluginForm = listPluginSkillAdapters(ROOT);
+    expect(standalone.length).toBeGreaterThan(0);
+    expect(pluginForm.length).toBeGreaterThan(0);
+    const section = modelSection(out(runIn(ROOT)));
+    expect(section).toContain(
+      `${standalone.length + pluginForm.length} non-agent adapter surface(s) checked for a stray pin, none found`,
+    );
+  });
+
+  it("CONTROL — an UNMUTATED mirror exits 0 with guard_model_assignment passing", () => {
+    const r = runIn(mirror());
+    expect(r.status).toBe(0);
+    const section = modelSection(out(r));
+    expect(section).toContain("PASS  model assignment:");
+    expect(section).toContain(
+      `${ROLE_COUNT} committed adapter(s) under .claude/agents compared against a resolution recomputed for ${ROLE_COUNT} derived role stem(s)`,
+    );
+    expect(section).toContain('preset "none" from neither standard location');
+    expect(section).toContain("distinct aliases resolved: inherit");
   });
 });
