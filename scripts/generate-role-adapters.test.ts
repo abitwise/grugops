@@ -38,8 +38,13 @@ import {
   existsSync,
   statSync,
 } from "node:fs";
+import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+// The resolved-preset LINE grammar, imported rather than restated. This file asserts that the
+// generator announces its resolution; spelling the marker here would make the assertion a second
+// copy of the thing under test, and the copy would go on passing after the generator's own moved.
+import { RESOLVED_PRESET_PREFIX, resolvedPresetsIn } from "./model-tiers.js";
 
 const ROOT = join(import.meta.dirname, "..");
 const GEN_JS = join(ROOT, "scripts", "generate-role-adapters.js");
@@ -1084,18 +1089,27 @@ describe("generate-role-adapters.js (SPAWN-01 adapter generator)", () => {
 // scripts directory, over the copy `scratch()` placed there.
 // ═══════════════════════════════════════════════════════════════════════════════════════════════
 
-/** Overwrite the mirror's model-tiers twin with a stub whose resolution the case controls. */
+/**
+ * Overwrite the mirror's model-tiers twin with a stub whose resolution the case controls.
+ *
+ * THE REAL MODULE IS PRESERVED BESIDE IT AND RE-EXPORTED, and the stub overrides only the names it
+ * means to control. Writing a whole hand-authored twin — which is what this helper did in plan
+ * 29.1-01 — makes the stub a HAND-MAINTAINED COPY of the generator's import surface: the day the
+ * generator imports one more name from model-tiers, every substituted-twin case dies at link time
+ * with a module-resolution error that says nothing about what actually changed. An `export *` of the
+ * preserved copy tracks that surface automatically, and an explicitly exported local name shadows
+ * the star export, so the override still wins.
+ */
 function substituteResolver(m: string, body: string): void {
-  writeFileSync(join(m, "scripts", "model-tiers.js"), body, "utf8");
+  const twin = join(m, "scripts", "model-tiers.js");
+  const preserved = join(m, "scripts", "model-tiers.real.js");
+  cpSync(twin, preserved);
+  writeFileSync(twin, `export * from "./model-tiers.real.js";\n${body}`, "utf8");
 }
 
 /** A stub that RESOLVES every stem to one alias. */
 const resolverAnswering = (alias: string): string =>
   [
-    'export const MODEL_ALIASES = ["inherit", "opus", "sonnet", "haiku"];',
-    "export function isModelAlias(v) {",
-    '  return typeof v === "string" && MODEL_ALIASES.some((a) => a === v);',
-    "}",
     "export function resolveModels(stems) {",
     "  const value = new Map();",
     "  for (const s of [...stems].sort()) value.set(s, " + JSON.stringify(alias) + ");",
@@ -1107,10 +1121,6 @@ const resolverAnswering = (alias: string): string =>
 /** A stub that REFUSES, so the generator's fail-closed posture can be observed. */
 const resolverRefusing = (reason: string): string =>
   [
-    'export const MODEL_ALIASES = ["inherit", "opus", "sonnet", "haiku"];',
-    "export function isModelAlias(v) {",
-    '  return typeof v === "string" && MODEL_ALIASES.some((a) => a === v);',
-    "}",
     "export function resolveModels() {",
     "  return { ok: false, reason: " + JSON.stringify(reason) + " };",
     "}",
@@ -1206,5 +1216,242 @@ describe("generate-role-adapters.js — the resolved `model:` emit (plan 29.1-01
     expect(out(r)).toContain(reason);
     // Byte-for-byte unchanged: no partial artifact, not even one file.
     expect(snapshot(agentsDir(m))).toEqual(before);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// THE CONFIGURATION IS RESOLVED ONCE, ABOVE THE BUILD LOOP (plan 29.1-03, T-27-32 / MODEL-04)
+//
+// The generator's posture is ALL-OR-NOTHING: a structural miss prints a finding and exits 1 having
+// written nothing, so a partial or garbled adapter directory never ships. Reading a user-authored
+// `models` block is a new way for a run to be refused, and where that refusal is RAISED is the whole
+// question. `render()` runs inside `adapters.map()`, so a refusal raised there breaks the posture.
+//
+// THE PROOF IS THE FILESYSTEM, NOT THE EXIT CODE. An exit code says the process failed; it says
+// nothing about what the process left behind. Every refusal case below captures a map of filename to
+// sha256 BEFORE the refused run and compares it after, and it asserts its own premise first — a
+// pre-run map that is empty makes "nothing changed" a vacuous pass, so the case throws rather than
+// passing.
+//
+// THE RESOLVED PRESET IS ANNOUNCED. Every successful run prints the preset it resolved, so the
+// resolution is an observable property of the RUN rather than an inference from the tree. That line
+// is what scripts/adapters-freshness.ts asserts to hold D-04; both sites read the grammar out of
+// scripts/model-tiers.js, which is why this file imports it rather than spelling it.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+/** Write a `models` block into the mirror's in-kit configuration location. */
+function writeModelsConfig(m: string, models: unknown): void {
+  const dir = join(m, "agent-factory", "config");
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(
+    join(dir, "factory.config.json"),
+    `${JSON.stringify({ models }, null, 2)}\n`,
+    "utf8",
+  );
+}
+
+/**
+ * Filename → sha256 of its bytes, over an output directory that may not exist.
+ *
+ * A DIGEST rather than the file text, because this map is the evidence for "nothing was written":
+ * a hash names a changed file without the diff of a 1.5 KB adapter drowning the finding, and an
+ * ABSENT directory is a legal input that answers with the empty map rather than throwing.
+ */
+function digestMap(dir: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  if (!existsSync(dir)) return out;
+  for (const rel of readdirSync(dir, { recursive: true, encoding: "utf8" }).sort()) {
+    const p = join(dir, rel);
+    if (!statSync(p).isFile()) continue;
+    out[rel] = createHash("sha256").update(readFileSync(p)).digest("hex");
+  }
+  return out;
+}
+
+/**
+ * Plant a `models` block into a POPULATED mirror, run, and assert all three facts at once: a
+ * non-zero exit, the refusal text naming the offending member, and an output directory whose every
+ * file is byte-unchanged.
+ *
+ * THE PREMISE IS ASSERTED BEFORE THE CLAIM. "Nothing changed in an empty directory" is true of every
+ * implementation, correct or catastrophic, so an empty pre-run map THROWS here rather than passing.
+ */
+function expectConfigRefusal(models: unknown, needle: string): void {
+  const m = scratch(SAMPLE_ROLES);
+  const first = runIn(m);
+  expect(first.status, out(first)).toBe(0);
+
+  writeModelsConfig(m, models);
+
+  const before = digestMap(agentsDir(m));
+  if (Object.keys(before).length === 0) {
+    throw new Error(
+      "PREMISE: the pre-run digest map is EMPTY — a byte-unchanged assertion over an empty directory passes without observing anything",
+    );
+  }
+  expect(
+    Object.keys(before),
+    "the populating run must have written one adapter per mirrored role",
+  ).toHaveLength(SAMPLE_ROLES.length);
+
+  const r = runIn(m);
+  expect(r.status, out(r)).not.toBe(0);
+  expect(out(r)).toContain(needle);
+  expect(
+    digestMap(agentsDir(m)),
+    "T-27-32: the resolution is taken ABOVE the build loop, so a refused run must leave every adapter byte-for-byte unchanged",
+  ).toEqual(before);
+}
+
+describe("generate-role-adapters.js — the `models` configuration is resolved above the build loop (plan 29.1-03)", () => {
+  // ── The six refusal shapes. Each names a DIFFERENT member and prints a DIFFERENT sentence. ────
+  it("refuses an ILLEGAL ALIAS for one role, naming the role, the value and the legal set", () => {
+    expectConfigRefusal({ roles: { "qe-e2e": "gpt-4" } }, 'assigns role "qe-e2e" the value "gpt-4"');
+  });
+
+  it("refuses an UNKNOWN PRESET NAME, naming the value and the legal set", () => {
+    expectConfigRefusal({ preset: "cost" }, "sets `models.preset` to \"cost\"");
+  });
+
+  it("refuses an UNKNOWN `roles` KEY, naming the key and the valid stem set", () => {
+    expectConfigRefusal(
+      { roles: { "qe-e2eee": "opus" } },
+      "sets `models.roles` for \"qe-e2eee\"",
+    );
+  });
+
+  it("refuses a NON-STRING alias, quoting the value it found rather than coercing it", () => {
+    expectConfigRefusal({ roles: { "qe-e2e": 3 } }, 'assigns role "qe-e2e" the value 3');
+  });
+
+  it("refuses the EMPTY STRING as an alias — a blank is not a legal member of the closed set", () => {
+    expectConfigRefusal({ roles: { "qe-e2e": "" } }, 'assigns role "qe-e2e" the value ""');
+  });
+
+  it("refuses `null` as an alias — distinct from an absent key, and never folded into it", () => {
+    expectConfigRefusal({ roles: { "qe-e2e": null } }, 'assigns role "qe-e2e" the value null');
+  });
+
+  // ── Each of the six prints its OWN sentence: a shared blur would name no offender. ────────────
+  it("the six refusals are six DISTINCT sentences, not one message with six causes", () => {
+    const shapes: unknown[] = [
+      { roles: { "qe-e2e": "gpt-4" } },
+      { preset: "cost" },
+      { roles: { "qe-e2eee": "opus" } },
+      { roles: { "qe-e2e": 3 } },
+      { roles: { "qe-e2e": "" } },
+      { roles: { "qe-e2e": null } },
+    ];
+    const messages = shapes.map((models) => {
+      const m = scratch(SAMPLE_ROLES);
+      writeModelsConfig(m, models);
+      const r = runIn(m);
+      expect(r.status, out(r)).not.toBe(0);
+      return out(r).trim();
+    });
+    expect(messages, "the premise: six shapes were actually run").toHaveLength(shapes.length);
+    expect(
+      new Set(messages).size,
+      "each refusal must state its own fact — a shared sentence tells the author to go looking",
+    ).toBe(shapes.length);
+  });
+
+  // ── The refusal happens before the directory is even created. ─────────────────────────────────
+  it("a refused run does not CREATE the output directory that did not exist before it", () => {
+    // The strongest form of "writes nothing": not merely unchanged files, but no directory at all.
+    // Its premise is a CONTROL run — with nothing planted, the same removal is recreated — so
+    // "absent afterwards" cannot pass for the trivial reason that the generator never gets that far.
+    const control = scratch(SAMPLE_ROLES);
+    rmSync(agentsDir(control), { recursive: true, force: true });
+    const c = runIn(control);
+    expect(c.status, out(c)).toBe(0);
+    expect(
+      existsSync(agentsDir(control)),
+      "PREMISE: a clean run must RECREATE the removed output directory, or its later absence proves nothing",
+    ).toBe(true);
+
+    const m = scratch(SAMPLE_ROLES);
+    rmSync(agentsDir(m), { recursive: true, force: true });
+    writeModelsConfig(m, { preset: "cost" });
+    const r = runIn(m);
+    expect(r.status, out(r)).not.toBe(0);
+    expect(existsSync(agentsDir(m))).toBe(false);
+  });
+
+  // ── The announced resolution. ─────────────────────────────────────────────────────────────────
+  it("ZERO-CONFIG: exits 0, writes every adapter, and ANNOUNCES the resolved preset as `none`", () => {
+    const m = scratch(SAMPLE_ROLES);
+    const r = runIn(m);
+    expect(r.status, out(r)).toBe(0);
+    expect(Object.keys(digestMap(agentsDir(m)))).toHaveLength(SAMPLE_ROLES.length);
+    expect(
+      resolvedPresetsIn(r.stdout ?? ""),
+      `the run must print exactly one "${RESOLVED_PRESET_PREFIX}" line — the D-04 pin scripts/adapters-freshness.ts asserts`,
+    ).toEqual(["none"]);
+  });
+
+  it("A CONFIGURED PRESET: announces the preset it was given, and the emitted aliases follow it", () => {
+    const m = scratch(SAMPLE_ROLES);
+    writeModelsConfig(m, { preset: "tiered" });
+    const r = runIn(m);
+    expect(r.status, out(r)).toBe(0);
+    expect(resolvedPresetsIn(r.stdout ?? "")).toEqual(["tiered"]);
+
+    // The announcement is not decoration: the bytes moved with it. The coordinator sits on the
+    // strong tier under `tiered`, and NOTHING may still read `inherit` under a non-`none` preset.
+    const snap = snapshot(agentsDir(m));
+    expect(Object.keys(snap)).toHaveLength(SAMPLE_ROLES.length);
+    expect(fmValue(snap["grugops-orchestrator.md"], "model")).toBe("opus");
+    const inherited = Object.entries(snap)
+      .filter(([, text]) => fmValue(text, "model") === "inherit")
+      .map(([name]) => name);
+    expect(
+      inherited,
+      "under a configured preset no adapter may still carry the zero-config answer",
+    ).toEqual([]);
+  });
+
+  it("the announcement follows the CONFIG, not a constant — `none` and `tiered` disagree", () => {
+    // A generator that printed a hard-coded `none` would satisfy the zero-config case above and
+    // every assertion the freshness gate makes. This is the pair that tells the two apart.
+    const zero = scratch(SAMPLE_ROLES);
+    const tiered = scratch(SAMPLE_ROLES);
+    writeModelsConfig(tiered, { preset: "tiered" });
+    const a = resolvedPresetsIn(runIn(zero).stdout ?? "");
+    const b = resolvedPresetsIn(runIn(tiered).stdout ?? "");
+    expect(a).toEqual(["none"]);
+    expect(b).toEqual(["tiered"]);
+    expect(a).not.toEqual(b);
+  });
+
+  it("a legal per-role OVERRIDE resolves, is announced as `none`, and moves only its own adapter", () => {
+    // The success path through the same reader the six refusals travel: a valid block must not be
+    // refused, or the refusals above would be passing for the wrong reason.
+    const m = scratch(SAMPLE_ROLES);
+    writeModelsConfig(m, { roles: { "qe-e2e": "haiku" } });
+    const r = runIn(m);
+    expect(r.status, out(r)).toBe(0);
+    expect(resolvedPresetsIn(r.stdout ?? "")).toEqual(["none"]);
+
+    const snap = snapshot(agentsDir(m));
+    expect(fmValue(snap["grugops-qe-e2e.md"], "model")).toBe("haiku");
+    for (const [name, text] of Object.entries(snap)) {
+      if (name === "grugops-qe-e2e.md") continue;
+      expect(fmValue(text, "model"), name).toBe("inherit");
+    }
+  });
+
+  it("the generator's own OUT_DIR is still a fixed literal — no argv and no env on that path", () => {
+    // T-29.1-01 / T-27-28, asserted on the COMMITTED source rather than by reading it once. The
+    // config reader introduced a new untrusted input; the path surface must not have moved with it.
+    const src = readFileSync(GEN_JS, "utf8");
+    const outDirLines = src.split("\n").filter((l) => l.includes("const OUT_DIR"));
+    expect(outDirLines, "OUT_DIR must be assigned exactly once").toHaveLength(1);
+    expect(outDirLines[0]).toContain("join(ROOT,");
+    expect(outDirLines[0]).not.toContain("process.argv");
+    expect(outDirLines[0]).not.toContain("process.env");
+    // And the whole module takes no output flag and reads no environment variable at all.
+    expect(src).not.toContain("process.argv");
+    expect(src).not.toContain("process.env");
   });
 });
