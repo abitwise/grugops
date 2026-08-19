@@ -14,8 +14,10 @@ below, then emits one adapter per role. Nothing here is copied by hand, and no a
 is authored anywhere else. Fix one shape, fix every adapter.
 
 Adapters are **pointer-text only**: each tells the agent to read the frozen role file and act
-as that role. None copies the role body. The adapter sets `model: inherit` so it keeps the
-user's session model choice.
+as that role. None copies the role body. The adapter's `model` field carries the value the
+factory's model dial resolved for that role. With no model dial configured — the lean default —
+the dial resolves `inherit` for every role, so such a repository keeps the user's session model
+choice exactly as before.
 
 There are exactly two shapes: a **specialist** adapter (16 of them) and the **coordinator**
 adapter (one — the orchestrator). Only the coordinator carries the `coordinator: true` marker
@@ -27,7 +29,8 @@ every path.
 
 Frontmatter (`<role>` is the role filename stem; `description` derives from the role's
 `## One job` first sentence plus its `## Activates when` line; `tools` derives from the
-role's `capabilities:` key through the mapping table below):
+role's `capabilities:` key through the mapping table below). The `model` value shown is the
+zero-config resolution; a configured model dial changes it:
 
 ```markdown
 ---
@@ -74,7 +77,8 @@ alone and is deliberately not duplicated into sixteen adapters.
 
 Exactly one adapter — the orchestrator's — is the coordinator. It carries the
 `coordinator: true` marker plus an enumerated, least-privilege spawn grant naming only the
-specialist adapters it may schedule (never a broad unparenthesized grant). Its frontmatter:
+specialist adapters it may schedule (never a broad unparenthesized grant). Its frontmatter, again
+with the `model` value shown at its zero-config resolution and changed by a configured model dial:
 
 ```markdown
 ---
@@ -195,8 +199,12 @@ failure lands in CI rather than on a user's machine.
   `tools` omits `Agent` entirely, which is the documented way to stop a sub-agent from spawning
   and holds identically on the main-thread and sub-agent paths. The spawn grant belongs to the
   coordinator adapter alone.
-- **`model: inherit`** — the documented default; keeps the user's session model rather than
-  pinning cost or capability.
+- **`model`** — the value the factory's model dial resolved for that role. `scripts/model-tiers.ts`
+  is the single resolver: it reads the `models` block from the repository's
+  `.grugops/factory.config.json` and answers one alias per role, and the generator emits that
+  answer. With no `models` block the dial answers `inherit` for every role — the documented
+  platform default — so a zero-config adapter keeps the user's session model choice rather than
+  pinning a capability the user never selected.
 - **Body** — repo-relative pointer text. It cites one frozen role file and acts as that role.
   It echoes the hard limit in clear professional English, not caveman voice — safety lines are
   always plain. It contains **no copied role instructions**.
@@ -225,5 +233,20 @@ failure lands in CI rather than on a user's machine.
   so the coordinator there is always in the degraded tier: it drains the same queue at
   concurrency one via `agent-factory/roles/_role-switch-protocol.md`. The grant is a
   Claude-Code-only capability, and the on-disk result is the same either way.
+
+## Host-CLI scope of the model dial
+
+This section is the kit's single authority for the model dial's host-CLI scope. The configuration
+field reference points here rather than restating it, so the two documents cannot come to say
+different things about the same capability.
+
+Per-subagent model selection is a Claude Code capability: the other four host coding-agent CLIs grugops supports — Codex CLI, Gemini CLI, OpenCode and GitHub Copilot CLI — have no per-subagent model concept, so the model dial does not reach them and a repository targeting only those four gains nothing by configuring it.
+
+**`UNKNOWN - verify` — the alias vocabulary (assumption A1, recorded confidence low).** The four
+aliases the dial accepts (`inherit`, `opus`, `sonnet`, `haiku`) are sourced from this repository's
+own recorded research at `CLAUDE.md` line 84, and were not re-verified against vendor
+documentation during the phase that shipped the dial. No other source is named here. The
+zero-config path is unaffected either way, because it resolves `inherit` for every role, which is
+the platform's own documented default under that same source.
 
 Reference: `code.claude.com/docs/en/sub-agents`.
