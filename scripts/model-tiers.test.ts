@@ -27,7 +27,9 @@
 // Drives the COMMITTED compiled scripts/model-tiers.js (never the .ts) — the repo idiom, and the
 // artifact every consumer actually imports.
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, afterAll } from "vitest";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { listRoles, ROLE_COUNT } from "./kit-model.js";
@@ -36,8 +38,10 @@ import {
   MODEL_TIERS_COUNT,
   PRESET_NAMES,
   TIERED,
+  inheritForEveryStem,
   isModelAlias,
   isPresetName,
+  readModelsConfig,
   resolveModels,
   roleCorpusCardinalityRefusal,
   tieredCorpusRefusals,
@@ -497,5 +501,317 @@ describe("model-tiers: resolving UNDER a preset (plan 29.1-02)", () => {
     expect(r.ok).toBe(true);
     if (!r.ok) return;
     for (const alias of r.value.values()) expect(isModelAlias(alias)).toBe(true);
+  });
+});
+
+// ── Plan 29.1-02 Task 3: the two-location config read ────────────────────────────────────────────
+//
+// Every fixture config is written into a FRESH mkdtemp directory and nothing outside it is touched.
+// The role stems these fixtures are validated against are still derived from the kit authority at
+// run time; the only literals here are the deliberately ILLEGAL values, which is the one place a
+// literal is the point of the case.
+
+const scratchRoots: string[] = [];
+
+afterAll(() => {
+  for (const dir of scratchRoots) rmSync(dir, { recursive: true, force: true });
+});
+
+const REPO_DROPPED = [".grugops", "factory.config.json"] as const;
+const IN_KIT = ["agent-factory", "config", "factory.config.json"] as const;
+
+/** A fresh scratch repo root, registered for cleanup. */
+const scratchRoot = (): string => {
+  const dir = mkdtempSync(join(tmpdir(), "grugops-model-config-"));
+  scratchRoots.push(dir);
+  return dir;
+};
+
+/** Write a config file at one of the two candidate locations inside a scratch root. */
+const writeConfigAt = (root: string, rel: readonly string[], body: string): void => {
+  const parts = [...rel];
+  const file = parts.pop() as string;
+  const dir = parts.length > 0 ? join(root, ...parts) : root;
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, file), body, "utf8");
+};
+
+/** A scratch root carrying one repo-dropped config with the given raw body. */
+const rootWithRawConfig = (body: string): string => {
+  const root = scratchRoot();
+  writeConfigAt(root, REPO_DROPPED, body);
+  return root;
+};
+
+/** A scratch root carrying one repo-dropped config holding the given JSON value. */
+const rootWithConfig = (value: unknown): string => rootWithRawConfig(JSON.stringify(value, null, 2));
+
+/** The reader's refusal reason, or a failure that names the unexpected success. */
+const refusalOrFail = (root: string, stems: readonly string[]): string => {
+  const r = readModelsConfig(root, stems);
+  if (r.ok) throw new Error(`expected a refusal, got a resolution: preset "${r.value.preset}"`);
+  return r.reason;
+};
+
+describe("model-tiers: readModelsConfig — the zero-config arms (plan 29.1-02, D-05)", () => {
+  it("resolves an ABSENT config at BOTH locations to `none` with no overrides", () => {
+    const stems = kitStems();
+    const r = readModelsConfig(scratchRoot(), stems);
+    expect(r.ok, "zero-config must never be an error — an absent block means `inherit` everywhere").toBe(
+      true,
+    );
+    if (!r.ok) return;
+    expect(r.value.preset).toBe("none");
+    expect(r.value.overrides.size).toBe(0);
+    // …and the resolution it implies is byte-identical to the zero-config answer.
+    const resolved = resolveModels(stems, { preset: r.value.preset, overrides: r.value.overrides });
+    expect(resolved.ok).toBe(true);
+    if (!resolved.ok) return;
+    expect(stringifyMap(resolved.value)).toBe(stringifyMap(resolvedOrFail(stems)));
+  });
+
+  it("a config present with NO `models` key is INDISTINGUISHABLE from an absent one", () => {
+    const stems = kitStems();
+    const present = readModelsConfig(rootWithConfig({ quality: { tdd: true } }), stems);
+    const absent = readModelsConfig(scratchRoot(), stems);
+    expect(present.ok).toBe(true);
+    expect(absent.ok).toBe(true);
+    if (!present.ok || !absent.ok) return;
+    expect(present.value.preset).toBe(absent.value.preset);
+    expect(present.value.overrides.size).toBe(absent.value.overrides.size);
+  });
+
+  it("a `models` set to an EMPTY OBJECT is the zero-config answer, not a degenerate shape", () => {
+    const stems = kitStems();
+    const r = readModelsConfig(rootWithConfig({ models: {} }), stems);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.value.preset).toBe("none");
+    expect(r.value.overrides.size).toBe(0);
+  });
+});
+
+describe("model-tiers: readModelsConfig — the degenerate shapes (plan 29.1-02, Pitfall 2)", () => {
+  for (const [label, models] of [
+    ["null", null],
+    ["an array", []],
+    ["a string", "tiered"],
+    ["a number", 3],
+  ] as const) {
+    it(`REFUSES a \`models\` that is ${label} — a PRESENT-but-degenerate shape, never folded into absent`, () => {
+      const stems = kitStems();
+      const root = rootWithConfig({ models });
+      const reason = refusalOrFail(root, stems);
+      // The file is named, so the reader knows WHICH of the two candidate locations was read.
+      expect(reason).toContain("factory.config.json");
+      // The shape found is named, so the remedy is obvious rather than guessed at.
+      expect(reason).toMatch(/models/);
+
+      // …and the refusal is TEXTUALLY DISTINCT from the absent path, which is not a refusal at all.
+      const absent = readModelsConfig(scratchRoot(), stems);
+      expect(
+        absent.ok,
+        "if the degenerate shape were folded into the absent case this assertion would be the one that failed",
+      ).toBe(true);
+    });
+  }
+
+  it("REFUSES a whole config that PARSES but is not a JSON object — a branch of its own", () => {
+    const stems = kitStems();
+    const reason = refusalOrFail(rootWithConfig(["not", "an", "object"]), stems);
+    expect(reason).toContain("factory.config.json");
+    // Distinct from the degenerate-`models` sentence: this one is about the FILE, not the sub-object.
+    const degenerate = refusalOrFail(rootWithConfig({ models: null }), stems);
+    expect(reason).not.toBe(degenerate);
+  });
+
+  it("REFUSES an UNPARSEABLE config naming the file AND the parse error", () => {
+    const stems = kitStems();
+    const reason = refusalOrFail(rootWithRawConfig("{ this is not json"), stems);
+    expect(reason).toContain("factory.config.json");
+    expect(
+      reason.length,
+      "the parse error itself must reach the reader — a bare 'could not read' hides which byte was wrong",
+    ).toBeGreaterThan("factory.config.json".length);
+    expect(reason).toMatch(/JSON|parse/i);
+  });
+
+  it("REFUSES a `roles` that is present but not an object", () => {
+    const stems = kitStems();
+    const reason = refusalOrFail(rootWithConfig({ models: { roles: ["orchestrator"] } }), stems);
+    expect(reason).toMatch(/roles/);
+  });
+});
+
+describe("model-tiers: readModelsConfig — every illegal input by name (plan 29.1-02, D-06/D-07/D-11)", () => {
+  it("REFUSES a preset outside the closed set naming the offending value and the legal set", () => {
+    const stems = kitStems();
+    const reason = refusalOrFail(rootWithConfig({ models: { preset: "cost" } }), stems);
+    expect(reason).toContain("cost");
+    for (const name of PRESET_NAMES) expect(reason).toContain(name);
+  });
+
+  it("REFUSES a NON-STRING preset — membership is exact equality, so a boolean is not coerced", () => {
+    const stems = kitStems();
+    const reason = refusalOrFail(rootWithConfig({ models: { preset: true } }), stems);
+    for (const name of PRESET_NAMES) expect(reason).toContain(name);
+  });
+
+  it("REFUSES an unknown `roles` KEY naming the key and the valid set — the ASVS V12 control (D-06)", () => {
+    const stems = kitStems();
+    const reason = refusalOrFail(
+      rootWithConfig({ models: { roles: { "orchestrater": "opus" } } }),
+      stems,
+    );
+    expect(reason).toContain("orchestrater");
+    // The valid set is DERIVED and stated, so the user can see the name they meant.
+    expect(reason).toContain("orchestrator");
+    // A config-derived string is compared against a derived set and never joined onto a path.
+    expect(reason).not.toMatch(/ENOENT|no such file/);
+  });
+
+  it("REFUSES a `roles` key that is a PATH rather than a stem — it never reaches the filesystem", () => {
+    const stems = kitStems();
+    const reason = refusalOrFail(
+      rootWithConfig({ models: { roles: { "../../etc/passwd": "opus" } } }),
+      stems,
+    );
+    expect(reason).toContain("../../etc/passwd");
+    expect(reason).not.toMatch(/ENOENT|no such file/);
+  });
+
+  // FIVE separate illegal-alias cases, each asserting its OWN reason text. Written as a loop over a
+  // literal table because the ILLEGAL VALUES are exactly what these cases are about — this is the one
+  // place in this file where a literal is the subject rather than a stale copy of something derived.
+  for (const [label, bad] of [
+    ["a full model id", "claude-3-5-sonnet-20241022"],
+    ["a case fold", "Opus"],
+    ["a number", 3],
+    ["the empty string", ""],
+    ["null", null],
+  ] as const) {
+    it(`REFUSES ${label} as a \`roles\` VALUE, naming the role, the value and the legal set`, () => {
+      const stems = kitStems();
+      const victim = stems[0];
+      const reason = refusalOrFail(
+        rootWithConfig({ models: { roles: { [victim]: bad } } }),
+        stems,
+      );
+      expect(reason, "the refusal must name WHICH role carried the illegal value").toContain(victim);
+      expect(
+        reason,
+        "the refusal must QUOTE the offending value back, so the user sees what they typed",
+      ).toContain(JSON.stringify(bad));
+      for (const alias of MODEL_ALIASES) {
+        expect(reason, `the legal set must be stated in full — "${alias}" is missing`).toContain(alias);
+      }
+    });
+  }
+
+  it("the full-model-id refusal is MODEL-04's enforcement point, not the admission reader's", () => {
+    // canonical-frontmatter.ts's admit() would accept `claude-3-5-sonnet-20241022` as a legal plain
+    // scalar — it is exactly the alphabet a plain scalar is allowed to use. MODEL-04 is closed HERE,
+    // by exact equality against four constants, and nowhere downstream.
+    const stems = kitStems();
+    const reason = refusalOrFail(
+      rootWithConfig({ models: { roles: { [stems[0]]: "claude-3-5-sonnet-20241022" } } }),
+      stems,
+    );
+    expect(reason).toContain("claude-3-5-sonnet-20241022");
+    expect(MODEL_ALIASES).not.toContain("claude-3-5-sonnet-20241022");
+  });
+});
+
+describe("model-tiers: candidate precedence and the override contract (plan 29.1-02)", () => {
+  it("`.grugops/factory.config.json` WINS over the in-kit config when BOTH exist", () => {
+    const stems = kitStems();
+    const root = scratchRoot();
+    writeConfigAt(root, REPO_DROPPED, JSON.stringify({ models: { preset: "tiered" } }));
+    writeConfigAt(root, IN_KIT, JSON.stringify({ models: { preset: "none" } }));
+    const r = readModelsConfig(root, stems);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.value.preset, "the repo-dropped location is the more specific one and resolves first").toBe(
+      "tiered",
+    );
+  });
+
+  it("reads the IN-KIT config when the repo-dropped one is absent — both candidates are live", () => {
+    const stems = kitStems();
+    const root = scratchRoot();
+    writeConfigAt(root, IN_KIT, JSON.stringify({ models: { preset: "tiered" } }));
+    const r = readModelsConfig(root, stems);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.value.preset).toBe("tiered");
+  });
+
+  it("an OVERRIDE WINS over a preset assignment on the same stem — a stated contract, not an order", () => {
+    const stems = kitStems();
+    // Derived, not typed: pick a stem the preset assigns `sonnet` and override it to `opus`.
+    const victim = TIERED.find((r) => r.alias === "sonnet")?.stem;
+    expect(victim, "the fixture premise — the preset must assign `sonnet` to someone").toBeDefined();
+    if (victim === undefined) return;
+
+    const root = rootWithConfig({ models: { preset: "tiered", roles: { [victim]: "opus" } } });
+    const cfg = readModelsConfig(root, stems);
+    expect(cfg.ok).toBe(true);
+    if (!cfg.ok) return;
+
+    const r = resolveModels(stems, { preset: cfg.value.preset, overrides: cfg.value.overrides });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.value.get(victim), "the override is the deliberate winner").toBe("opus");
+    // Every OTHER stem still carries the preset's answer, so the override is SPARSE, not a full map.
+    for (const row of TIERED) {
+      if (row.stem === victim) continue;
+      expect(r.value.get(row.stem)).toBe(row.alias);
+    }
+  });
+
+  it("an override applies on top of `none` as well — the sparse map is not preset-specific", () => {
+    const stems = kitStems();
+    const victim = stems[0];
+    const cfg = readModelsConfig(rootWithConfig({ models: { roles: { [victim]: "haiku" } } }), stems);
+    expect(cfg.ok).toBe(true);
+    if (!cfg.ok) return;
+    const r = resolveModels(stems, { preset: cfg.value.preset, overrides: cfg.value.overrides });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.value.get(victim)).toBe("haiku");
+    for (const stem of stems.filter((s) => s !== victim)) expect(r.value.get(stem)).toBe("inherit");
+  });
+});
+
+describe("model-tiers: the consumer split — the reader takes no policy (plan 29.1-02, D-11)", () => {
+  it("inheritForEveryStem gives EVERY stem `inherit` and NEVER a pinned tier", () => {
+    const stems = kitStems();
+    const degraded = inheritForEveryStem(stems);
+    expect(degraded.size).toBe(stems.length);
+    expect([...new Set(degraded.values())]).toEqual(["inherit"]);
+    // The direction that matters: degrading must never land on a tier the user's account may lack.
+    for (const alias of degraded.values()) {
+      expect(["opus", "sonnet", "haiku"]).not.toContain(alias);
+    }
+  });
+
+  it("a refusal is a VERDICT the caller acts on — the reader itself substitutes nothing", () => {
+    const stems = kitStems();
+    const r = readModelsConfig(rootWithConfig({ models: { preset: "cost" } }), stems);
+    expect(r.ok).toBe(false);
+    if (r.ok) return;
+    // The refusal carries a reason and NOT a map — a reader that returned a degraded map here would
+    // have taken the doctor's policy on the generator's behalf.
+    expect(Object.prototype.hasOwnProperty.call(r, "value")).toBe(false);
+    expect(typeof r.reason).toBe("string");
+    // The degrading consumer builds its own answer from the SAME shared helper.
+    expect([...new Set(inheritForEveryStem(stems).values())]).toEqual(["inherit"]);
+  });
+
+  it("REFUSES an EMPTY derived stem set rather than validating role keys against nobody", () => {
+    // Validating a `roles` key against an empty valid set would refuse every key for the wrong
+    // reason, and validating it against nothing would accept every key. Both are the vacuous pass.
+    const reason = refusalOrFail(rootWithConfig({ models: { preset: "tiered" } }), []);
+    expect(reason).toMatch(/EMPTY|vacuous/);
   });
 });
