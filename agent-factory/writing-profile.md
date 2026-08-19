@@ -232,6 +232,19 @@ silence.
 - **The fenced caveman blocks** are excluded. They are a voice surface with their own guard; this
   profile never applies a sentence-form rule to them.
 
+## What the kit does not claim about cost
+
+<!-- claim: C-28-047 -->
+grugops ships a per-role model dial, and every tier it assigns is a quality decision about what a
+thinner model would degrade past for that role. The kit makes no claim that any tier assignment
+reduces cost, lowers spend, or extends a usage limit. No such saving has been measured here, and no
+figure for one is published anywhere in this kit. Any future statement of one carries
+`UNKNOWN - verify` until `scripts/measure-cost.ts` produces a real capture.
+
+How strongly the sentence above is held, and in which direction it fails open, is recorded in
+`docs/audit/28-claim-registry.md` § `C-28-047`. It is disclosed there rather than restated here, so
+a reader finds the measurement in one place instead of two.
+
 ## Disclaimer and honesty floor
 
 <!-- claim: C-28-039 -->

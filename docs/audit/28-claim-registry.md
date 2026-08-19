@@ -9,6 +9,18 @@ profile's own four falsifiable claims about what it achieves. The id band is unc
 a second registry is the defect D-15 refused, and a document that asserts what it achieves is
 exactly the class this registry exists to hold, whichever phase authored it.
 
+**Annotation, plan 29.1-06 — the derived current count, ADDED rather than substituted.** The dated
+sentence above is a historical statement scoped to plan 29-02 and is left standing. As committed by
+this plan the registry carries **47 rows**: the 42 that sentence records, plus `C-28-043`..`C-28-046`
+from plan 29-52, plus `C-28-047`, the model dial's cost denial. The number was DERIVED from
+`readRegistry().claims.length` at this plan's commit rather than incremented by hand, and
+`scripts/audit-model.test.ts` re-derives it on every run against an independently written
+unfenced-heading count. This plan also inserted a section into `agent-factory/writing-profile.md`
+ABOVE `## Disclaimer and honesty floor`, so the advisory `line` values earlier plans recorded for the
+writing-profile rows beneath that heading now name an earlier tree. That is what `line` being
+advisory and not asserted means in practice — the gate compares text AT ANCHORS and never a line
+number.
+
 **This is a MAPPING, not a list (D-13).** The question a row answers is not *what is a claim* but
 *which public sentences become false if floor F is lowered* — the join Phase 30's AUTO-01 closed
 checkpoint set consumes. Phase 30's claim-dropping filters to `kind: safety`; the `architecture` and
@@ -756,6 +768,23 @@ The measured finding stands: the fenced blocks restate rather than compress.
 ```
 There is no evidence that controlled language improves comprehension for a language model. The kit
 does not ship that claim, and this profile does not make it.
+```
+
+### C-28-047
+
+- file: agent-factory/writing-profile.md
+- line: 238-242
+- kind: architecture
+- depends_on: —
+- status: true
+- mechanism: THE MECHANISM THAT HOLDS THESE BYTES is `scripts/check-claim-anchors.js`'s live byte comparison at the anchor. It holds THE SENTENCE and it does not hold THE TOTALITY: it proves this block has not moved and its text has not changed, and it proves nothing whatever about any other sentence in the kit. THE DIRECTION IS FAIL-OPEN, AND IT IS DERIVED HERE RATHER THAN INHERITED FROM RESEARCH. `BannedClaimGroup` in `scripts/check-banned-claims.ts` was read at this plan's commit and holds EXACTLY THREE members — `standard-name`, `token-economy` and `comprehension` — across 22 pinned literals. THERE IS NO COST GROUP AND NO COST LITERAL. So a sentence asserting that a tier assignment saves money, lowers spend or extends a usage limit passes every gate in this repository today: green, with the file that carries it never named. That is the fail-open direction, and it is DISCLOSED rather than implied by the presence of a registry row. THE DECLINING DECISION IS `D-16`, AND ITS REASON IS ON THE RECORD RATHER THAN LEFT AS TASTE. A fourth group was considered and refused. `scripts/check-banned-claims.ts`'s own header demands an ADMISSION MEASUREMENT before any literal is added — candidate literals run over the derived document corpus with per-file hits recorded, and any literal striking live correct text refused — and the measurements that module keeps are why the answer was no: a six-stem conformance list was defeated by four ordinary English verbs (`follows`, `meets`, `adheres to`, `is written in`, each ZERO findings with the planted file never named), and the seven-stem verb list that replaced six comprehension substrings was defeated by five phrasings in the next round. Phase 29's eight-round record is that a literal list over free prose buys ONE AXIS PER ROUND and ships a new residual each time, and `D-59` settled the shape: an open-set totality is not a decidable predicate, so it is held as CONTENT with a disclosed backstop rather than as one more widening of a matcher. WHAT REMAINS MECHANICAL, stated so the split is legible: MODEL-07 has two halves and only the totality half is content-held. The DISPUTABILITY half is a type and a check — `D-10` makes `rationale` a REQUIRED field on every `TIERED` row in `scripts/model-tiers.ts`, a row written without one does not compile (TS2741, demonstrated in plan 29.1-01), and a row whose reason is BLANKED fails generation, proven RED BY STEM NAME in plan 29.1-02's discrimination proof (c). The PRECISION half is that `scripts/measure-cost.ts` and its committed `.js` are BYTE-UNCHANGED across this phase — its standing `UNKNOWN - verify` remains the honest answer and no measurement was taken (`D-14`) — and that every `TIERED` rationale is asserted at run time to carry no digit, so a price or a percentage cannot enter that field without a red case. WHERE THIS CLAIM SITS, AND WHY THAT IS THE STRONGER PLACE: the block is OUTSIDE `check-banned-claims`'s one named exemption region, so its bytes are SCANNED by that gate rather than exempted from it. It earns no carve-out because it needs to name no banned topic to make its denial. THE RESIDUAL, NAMED: a refusal is not a closure. This axis carries an id because the fail-open direction above is OPEN, not because anything closed it.
+
+```
+grugops ships a per-role model dial, and every tier it assigns is a quality decision about what a
+thinner model would degrade past for that role. The kit makes no claim that any tier assignment
+reduces cost, lowers spend, or extends a usage limit. No such saving has been measured here, and no
+figure for one is published anywhere in this kit. Any future statement of one carries
+`UNKNOWN - verify` until `scripts/measure-cost.ts` produces a real capture.
 ```
 
 ## The unanchorable claim — `.claude-plugin/plugin.json`

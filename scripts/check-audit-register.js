@@ -218,7 +218,15 @@ export const CLAIM_KIND_CARDINALITY = [
     // kit does and does not claim, and none of them depends on a safety floor. This gate refused until
     // the number moved, which is the companion edit D-04 requires arriving as one act; the number was
     // taken from that refusal's own text ("architecture declares 28 but the registry carries 32").
-    { kind: "architecture", count: 32 },
+    // 32 -> 33 (plan 29.1-06, D-16). ONE ROW ADDED, NONE RECLASSIFIED. `C-28-047` is the model dial's
+    // cost denial: the kit ships a per-role model dial and claims no saving from any tier assignment,
+    // and MODEL-07's totality half is held as CONTENT under the D-59 precedent rather than as a fourth
+    // literal group in check-banned-claims. It is `architecture` for the same reason `C-28-039` ..
+    // `C-28-046` are: it states grugops's own posture about what the kit does and does not claim, and
+    // it depends on no safety floor. This gate refused until the number moved, which is the companion
+    // edit D-04 requires arriving as one act; the number was taken from that refusal's own text
+    // ("architecture declares 32 but the registry carries 33").
+    { kind: "architecture", count: 33 },
     { kind: "install", count: 8 },
 ];
 /**
