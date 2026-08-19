@@ -738,7 +738,7 @@ loop terminating only by an unstated argument).
   4. The Claude-Code-only scope is **stated in the kit and in `CLAUDE.md`**, whose "What NOT to Use" entry against non-`inherit` wrappers is amended to name this mechanism as the documented reason — the other four host CLIs have no per-subagent model concept and no claim says otherwise. (MODEL-06)
   5. Any cost or limit-savings claim is **measured** with `scripts/measure-cost.ts`, or carries `UNKNOWN - verify`. A tier assignment is not evidence of a saving. (MODEL-07)
 
-**Plans**: 4/6 plans executed — **waves are strictly sequential (1→6)**. Four `.ts` files need their committed `.js` rebuilt (`model-tiers`, `generate-role-adapters`, `check-foundation-guards`, `adapters-freshness`), and two plans rebuilding a committed `.js` concurrently tears the output (the phase-27 round-5 precedent). Plan `29.1-02` is **not autonomous**: it opens with a blocking `checkpoint:decision` on D-05's one-way config key shape.
+**Plans**: 5/6 plans executed — **waves are strictly sequential (1→6)**. Four `.ts` files need their committed `.js` rebuilt (`model-tiers`, `generate-role-adapters`, `check-foundation-guards`, `adapters-freshness`), and two plans rebuilding a committed `.js` concurrently tears the output (the phase-27 round-5 precedent). Plan `29.1-02` is **not autonomous**: it opens with a blocking `checkpoint:decision` on D-05's one-way config key shape.
 
 Plans:
 
@@ -760,7 +760,7 @@ Plans:
 
 **Wave 5** *(blocked on 29.1-04)*
 
-- [ ] 29.1-05-PLAN.md — one authority for the Claude-Code-only scope statement in `subagent.frontmatter.md`, `factory.config.md` pointing at it by path plus the D-17 disclosed limitation in clear voice, the `CLAUDE.md` row amended, and a cross-surface oracle that asserts the pointer rather than the prose [MODEL-02, MODEL-06]
+- [x] 29.1-05-PLAN.md — one authority for the Claude-Code-only scope statement in `subagent.frontmatter.md`, `factory.config.md` pointing at it by path plus the D-17 disclosed limitation in clear voice, the `CLAUDE.md` row amended, and a cross-surface oracle that asserts the pointer rather than the prose [MODEL-02, MODEL-06]
 
 **Wave 6** *(blocked on 29.1-05)*
 

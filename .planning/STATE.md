@@ -5,13 +5,13 @@ milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live
 current_phase: 29.1
 current_phase_name: per-role-model-assignment
 status: planned
-stopped_at: Completed 29.1-04-PLAN.md
-last_updated: "2026-08-19T10:10:06.023Z"
+stopped_at: Completed 29.1-05-PLAN.md
+last_updated: "2026-08-19T10:34:00.669Z"
 progress:
   total_phases: 9
   completed_phases: 3
   total_plans: 140
-  completed_plans: 138
+  completed_plans: 139
   percent: 33
 last_activity: 2026-08-19
 last_activity_desc: "Phase 29 CLOSED by user decision (D-59, reversing D-29): LANG-04's conformance prohibition is held as CONTENT — the claim registry and the honesty floor — with guard_banned_claims a disclosed drift backstop, not the mechanism that makes a totality true. Eight verification rounds established that a totality over an open set of phrasings is not a decidable predicate; D-55 had already ended at a per-line predicate, so the totality was already content-held on the tree while LANG-04's text still said a mechanism held it. Round-8 review CR-02 (the narrowed sentence printed above the findings contradicting it) FIXED at 4c6a76a, watched failing against the pre-fix build and asserted in both directions; two existing cases whose premise the change invalidated were repaired, not weakened. CR-01 (freshness.ts working-tree arm fail-opens, reproduced) carried as V-29-59-03 — a build-parity defect plan 29-59 itself recorded as named by no LANG requirement. CR-03/04/05 carried with owners in docs/audit/29-round8-residuals.md section 10. The round-8 verifier's gaps_found verdict is left standing and annotated rather than rewritten: it verified LANG-04's previous text. All 8 LANG requirements Complete. 15 repo gates green, 52 files / 2140 passed / 2 skipped. Next: Phase 29.1 (per-role model assignment)."
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-07-28 — after v2.0 milestone)
 ## Current Position
 
 Phase: 29.1 (per-role-model-assignment) — EXECUTING
-Plan: 5 of 6
+Plan: 6 of 6
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 
@@ -392,6 +392,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 29.1 P02 | 22min | 3 tasks | 3 files |
 | Phase 29.1 P03 | 17min | 2 tasks | 9 files |
 | Phase 29.1 P04 | 22min | 2 tasks | 3 files |
+| Phase 29.1 P05 | 42min | 3 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -1048,6 +1049,10 @@ Recent decisions affecting current work:
 - [Phase ?]: 29.1-04: guard_model_assignment's independence is its INPUT (the committed adapter bytes) rather than its algorithm — importing the generator's own resolver over a different input is two opinions, while regenerating and byte-comparing is one
 - [Phase ?]: 29.1-04: MEASURED — a duplicated `model` key is refused by admit() at [duplicate-key] and every empty-value spelling at [dangling-empty-key]/[quoted-on-plain-only-key]/[scalar-padding]/[unrecognized-line], so the guard's cardinality arm is reached only by the BLOCK-SEQUENCE spelling and its emptiness arm only under a widened grammar (coverage D22, human_judgment true)
 - [Phase ?]: 29.1-04: the guard's scan-set BOUND is asserted rather than disclosed — a stray `model` pin on either distribution form of a skill is a named finding, because the platform honours `model` on 14 surfaces outside the agent-adapter set and the soundness claim was false without it
+- [Phase ?]: D-13 shape shipped: the Claude-Code-only scope statement has ONE authority in agent-factory/packaging/subagent.frontmatter.md; factory.config.md and CLAUDE.md point at it, and the oracle asserts the POINTER rather than the prose
+- [Phase ?]: D-17 disclosed in the kit: until Phase 29.2, a models block in an installed repo does not move that repo's adapters — stated in clear voice in factory.config.md, naming the follow-on phase
+- [Phase ?]: The counted 'nine keys' sentence in factory.config.md deliberately NOT extended with models (A4); no test pins that count, so the decision is recorded rather than left implicit
+- [Phase ?]: A derived roster's cardinality must be adjudicated at MODULE LOAD: the first vacuity mutation killed collection one layer above the case meant to catch it, and the oracle reported 'no tests' rather than naming its premise
 
 ### Pending Todos
 
@@ -1162,8 +1167,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-08-19T10:10:05.996Z
-Stopped at: Completed 29.1-04-PLAN.md
+Last session: 2026-08-19T10:33:49.788Z
+Stopped at: Completed 29.1-05-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
