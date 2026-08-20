@@ -32,33 +32,164 @@
 // Drives the COMMITTED documents on disk (no .ts build). Vitest globals:false → import explicitly.
 
 import { describe, it, expect } from "vitest";
-import { existsSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { join, relative, sep } from "node:path";
 import { MODEL_ALIASES, MODELS_CONFIG_CANDIDATE_RELS, PRESET_NAMES } from "./model-tiers.js";
+import { listPackagingTemplates } from "./kit-model.js";
+import { REGISTRY_PATH } from "./audit-model.js";
 
 const ROOT = join(import.meta.dirname, "..");
 
 // ── The surface roster, keyed by the ROLE each surface plays in D-13's shape. ──────────────────
-// Keyed rather than listed so the count below is derived from the roster's own entries and a fourth
-// surface cannot be added without moving the pinned cardinality in the same edit.
+// Keyed rather than listed so each surface is named by the JOB it does, and so a case that wants
+// "the authority" asks for it by role rather than by position.
 const SURFACE_ROLES = {
   authority: "agent-factory/packaging/subagent.frontmatter.md",
   pointer: "agent-factory/config/factory.config.md",
   hostGuidance: "CLAUDE.md",
 } as const;
 
+// ── THE RUN-TIME DERIVATION THE ROSTER IS CHECKED AGAINST (finding IN/WR — the two-sided pin) ───
+//
+// WHAT WAS WRONG BEFORE, STATED PLAINLY BECAUSE IT IS THIS REPOSITORY'S NAMED SECOND SYSTEMIC
+// FAILURE CLASS. `SURFACE_COUNT` used to be the literal `3`, typed twelve lines under a
+// three-entry object, and the "derived" surface list was derived FROM THAT OBJECT. Both sides of
+// the two-sided pin were therefore supplied by one hand-written list, edited together by
+// construction: deleting a surface and moving the literal in the same commit left every case
+// green, and the vacuity floor could not fire because the denominator moved with the numerator.
+// A pin whose two sides move together certifies nothing, and plan 05's claim that this oracle
+// derives its surface list was true only of a derivation from itself.
+//
+// WHAT REPLACES IT. The roster is now cross-checked against a set DERIVED AT RUN TIME by scanning
+// the documents this repository ships for a marker, with the expected count taken from that
+// derivation instead of from a literal. The roster object stays — a case still needs to ask for
+// "the authority" by role — but it no longer supplies its own denominator.
+//
+// THE MARKER, AND THE MEASUREMENT THAT CHOSE IT (recorded before the design was fixed). A document
+// that speaks about the model dial names the RESOLVER BY PATH. Measured over the corpus below:
+//   "model dial"             → 2 hits; missed CLAUDE.md, whose row names the mechanism instead
+//   "`models` block"         → 2 hits; missed CLAUDE.md for the same reason
+//   "scripts/model-tiers.ts" → 3 hits, set-equal to the roster with no residual either way
+// The third was chosen on that measurement, not on taste. Measured again over a broader corpus of
+// 78 shipped markdown files, it still returns exactly those three.
+const DIAL_SURFACE_MARKER = "scripts/model-tiers.ts";
+
 /**
- * THE VACUITY FLOOR. Pinned two-sided against the roster's own entry count.
- *
- * An oracle that iterated an EMPTY surface list would report agreement over nothing and pass; one
- * that iterated a SHORT list would report agreement over a subset and also pass. Neither failure is
- * visible in a green run, which is why the cardinality is adjudicated BEFORE any content assertion
- * rather than left to be implied by the assertions that follow.
- *
- * PROMOTE TRIGGER: a fourth prose surface joining D-13's shape moves this number in the same commit
- * that adds it, and the reader of that diff is told what the fourth surface is for.
+ * Every `.md` file under `dir`, repo-relative and POSIX-spelled, recursively. Dot-directories are
+ * skipped: `.planning/` is planning material rather than shipped prose, and `.git/` is not text.
  */
-const SURFACE_COUNT = 3;
+function markdownUnder(dir: string): string[] {
+  const out: string[] = [];
+  const walk = (at: string): void => {
+    for (const entry of readdirSync(at, { withFileTypes: true })) {
+      if (entry.name.startsWith(".")) continue;
+      const abs = join(at, entry.name);
+      if (entry.isDirectory()) walk(abs);
+      else if (entry.name.endsWith(".md")) out.push(relative(ROOT, abs).split(sep).join("/"));
+    }
+  };
+  walk(dir);
+  return out.sort();
+}
+
+/**
+ * THE CANDIDATE CORPUS — every markdown document this repository SHIPS as prose.
+ *
+ * Three families, each derived rather than listed: the kit's own documents, the published `docs/`
+ * tree, and the repo-root entry files a host CLI reads. `.planning/` is deliberately outside it —
+ * those are planning artefacts, not documents a user of the kit is handed — and that exclusion is
+ * a disclosed residual below rather than a silent one.
+ */
+function dialCandidateCorpus(): string[] {
+  const rootLevel = readdirSync(ROOT, { withFileTypes: true })
+    .filter((e) => e.isFile() && e.name.endsWith(".md"))
+    .map((e) => e.name)
+    .sort();
+  return [
+    ...markdownUnder(join(ROOT, "agent-factory")),
+    ...markdownUnder(join(ROOT, "docs")),
+    ...rootLevel,
+  ].sort();
+}
+
+/**
+ * THE CORPUS'S OWN PREMISE, asserted against an authority that did not produce it.
+ *
+ * A vacuity floor catches an EMPTY denominator and never a SILENTLY SHORT one. If the walk above
+ * lost a directory — a swallowed readdir, a filter typo, a rename — the derived surface set would
+ * quietly shrink and the roster comparison would still be a comparison, just over less. So the
+ * corpus is checked for containment of a set the KIT AUTHORITY produces independently: every
+ * packaging template `listPackagingTemplates` reports must appear in the walk. That lister has its
+ * own non-empty floor and its own directory, and it shares no code with the walk.
+ *
+ * Returns the packaging templates the walk MISSED — empty when the premise holds.
+ */
+function corpusPremiseGaps(corpus: readonly string[]): string[] {
+  const expected = listPackagingTemplates(ROOT).map((f) => `agent-factory/packaging/${f}`);
+  return expected.filter((rel) => !corpus.includes(rel));
+}
+
+/**
+ * The corpus members that carry the marker, PARTITIONED into prose surfaces and claim registers.
+ *
+ * THE REGISTER ARM EXISTS BECAUSE ONE MEASURED HIT IS NOT A PROSE SURFACE, and it is subtracted by
+ * IDENTITY AGAINST THE AUDIT AUTHORITY'S OWN CONSTANT rather than by a path typed here.
+ * `REGISTRY_PATH` is `scripts/audit-model.ts`'s declaration of this repository's claim register:
+ * a document whose rows QUOTE claims made elsewhere, held byte-for-byte by `check-audit-register`
+ * and `check-banned-claims`. A register that quotes a claim is not a surface that makes one, and
+ * counting it as a fourth D-13 prose surface would be circular.
+ *
+ * THIS IS A PARTITION, NOT A FILTER, and the distinction is the whole point. Exactly one file — the
+ * one another authority names as the register — can land in the register arm. Every OTHER document
+ * that starts naming the resolver lands in the prose arm and turns the roster comparison red, which
+ * is the direction the old hand-typed count structurally could not fail on.
+ */
+function derivedDialSurfaces(): { prose: string[]; registers: string[] } {
+  const corpus = dialCandidateCorpus();
+  const gaps = corpusPremiseGaps(corpus);
+  if (gaps.length > 0) {
+    throw new Error(
+      "model-dial oracle: CORPUS PREMISE VIOLATED — the markdown walk did not reach " +
+        `${String(gaps.length)} packaging template(s) the kit authority ships: ${gaps.join(", ")}. ` +
+        "Refusing to derive a surface set from a corpus that is silently short: a shortened corpus " +
+        "makes the roster comparison pass over less rather than fail, which is the failure this " +
+        "premise exists to make loud. Remedy: fix the walk, or move it in the same commit that " +
+        "moves what the kit ships.",
+    );
+  }
+  const hits = corpus.filter((rel) => readFileSync(join(ROOT, rel), "utf8").includes(DIAL_SURFACE_MARKER));
+  return {
+    prose: hits.filter((rel) => rel !== REGISTRY_PATH),
+    registers: hits.filter((rel) => rel === REGISTRY_PATH),
+  };
+}
+
+/**
+ * THE VACUITY FLOOR'S EXPECTED NUMBER — DERIVED, never typed.
+ *
+ * This is the number the roster is adjudicated against, and it comes from the run-time scan rather
+ * than from the object the scan is compared to. That is the entire repair: deleting a roster entry
+ * can no longer be made green by moving a literal, because there is no literal to move.
+ *
+ * WHAT IS DERIVED AND WHAT IS NAMED, so no part of this is left to be inferred:
+ *   - DERIVED — that there are exactly this many dial-discussing prose surfaces, and which files
+ *     they are. Both come from the scan.
+ *   - NAMED — which ROLE each of those files plays in D-13's shape (authority / pointer /
+ *     host-guidance). No scan can decide that; it is a design fact and it stays in SURFACE_ROLES.
+ *
+ * DISCLOSED RESIDUALS, with their directions:
+ *   R-a  `.planning/**` is outside the corpus. A planning document that restates the dial's rules
+ *        is not caught here. Direction: planning artefacts are not shipped to a user, so a
+ *        disagreement there misleads this project rather than its users — and phase verification
+ *        reads those documents directly.
+ *   R-b  Only `.md` files are scanned. Dial prose living in a JSON, or fenced inside a `.ts`, is
+ *        invisible to this derivation. Direction: it would go UNDETECTED, not falsely detected.
+ *   R-c  The marker is the resolver's path. A document discussing the dial WITHOUT naming that
+ *        path is not caught — measured above: `"model dial"` alone missed CLAUDE.md. Direction:
+ *        again undetected rather than falsely detected, so this floor is a lower bound on the
+ *        surfaces in play, never an over-count.
+ */
+const SURFACE_COUNT = derivedDialSurfaces().prose.length;
 
 /**
  * The number of sites in the config field reference that DECLARE a closed set. Two per set today —
@@ -191,13 +322,25 @@ const surfaces = Object.entries(SURFACE_ROLES).map(([role, rel]) => ({
 function assertRosterPremise(): void {
   const roles = Object.keys(SURFACE_ROLES);
   if (roles.length !== SURFACE_COUNT || surfaces.length !== SURFACE_COUNT) {
+    // NAMES THE SURFACES, not only the counts. A count tells the reader that something moved; the
+    // two difference lists tell them WHICH file, and in WHICH direction — a roster entry the scan
+    // did not find, or a document the scan found that the roster does not carry.
+    const derived = derivedDialSurfaces().prose;
+    const rostered = Object.values(SURFACE_ROLES) as readonly string[];
+    const missingFromRoster = derived.filter((rel) => !rostered.includes(rel));
+    const missingFromDerivation = rostered.filter((rel) => !derived.includes(rel));
     throw new Error(
-      `model-dial oracle: PREMISE VIOLATED — the surface roster derived ${roles.length} surface(s) ` +
-        `[${roles.join(", ")}] and ${surfaces.length} derived entr(ies), but this oracle's premise is ` +
-        `EXACTLY ${SURFACE_COUNT}: one authority, one pointer, one host-guidance row. Refusing to ` +
-        "report agreement across a roster of the wrong size — a SHORT roster agrees over a subset " +
-        "and an EMPTY one agrees over nothing, and both of those are green runs. Remedy: restore the " +
-        "missing surface, or move SURFACE_COUNT in the same commit that changes what D-13's shape is.",
+      `model-dial oracle: PREMISE VIOLATED — the surface roster names ${String(roles.length)} ` +
+        `surface(s) [${roles.join(", ")}] and produced ${String(surfaces.length)} derived entr(ies), ` +
+        `but the RUN-TIME SCAN found ${String(SURFACE_COUNT)} dial-discussing prose surface(s): ` +
+        `[${derived.join(", ")}]. Derived but NOT in the roster: ` +
+        `[${missingFromRoster.join(", ") || "none"}]. In the roster but NOT derived: ` +
+        `[${missingFromDerivation.join(", ") || "none"}]. Refusing to report agreement across a ` +
+        "roster of the wrong size — a SHORT roster agrees over a subset and an EMPTY one agrees " +
+        "over nothing, and both of those are green runs. THE EXPECTED NUMBER IS NO LONGER A " +
+        "LITERAL: it comes from the scan, so this cannot be silenced by moving a constant. Remedy: " +
+        "restore the missing surface, or add the new one to SURFACE_ROLES under the role it plays " +
+        "in D-13's shape.",
     );
   }
 }
@@ -289,13 +432,48 @@ function declaredSets(text: string, marker: string): string[][] {
 }
 
 describe("model dial — the surface roster is adjudicated BEFORE any content assertion (MODEL-06)", () => {
-  it("derives EXACTLY three surfaces, pinned two-sided against SURFACE_COUNT — the vacuity floor", () => {
-    // Stated as a pair on purpose: the roster's own entry count and the derived array's length are
-    // two readings of the same premise, and a mutation that drops a surface must break both.
+  it("derives EXACTLY the scanned number of surfaces, pinned two-sided — the vacuity floor", () => {
+    // TWO ASSERTIONS, AND THEY ARE NOT A DUPLICATE PAIR — recorded because finding IN-03 was about
+    // exactly this line. `Object.keys(SURFACE_ROLES)` reads the ROSTER OBJECT; `surfaces` reads the
+    // ARRAY BUILT FROM IT by the `Object.entries(...).map` above. Those are two different
+    // derivations, and a mutation to either one alone must break this case, so both are stated.
+    //
+    // THE TWO BOUNDS ASSERTIONS THAT USED TO SIT HERE ARE GONE (IN-03). A lower-bound and an
+    // upper-bound assertion on the same number were STRICTLY IMPLIED by the `toHaveLength`
+    // immediately above them: they could not fail on any input that assertion accepted, so they
+    // added no discrimination and cost a reader four assertions to find two facts. Their matcher
+    // names are deliberately not spelled here, so a grep for a surviving bounds assertion in this
+    // file returns zero rather than returning this comment.
+    //
+    // AND SURFACE_COUNT IS NO LONGER A LITERAL. It is the length of the run-time scan, so this
+    // floor now compares the hand roster against something that is not the hand roster.
     expect(Object.keys(SURFACE_ROLES)).toHaveLength(SURFACE_COUNT);
     expect(surfaces).toHaveLength(SURFACE_COUNT);
-    expect(surfaces.length).toBeGreaterThanOrEqual(SURFACE_COUNT);
-    expect(surfaces.length).toBeLessThanOrEqual(SURFACE_COUNT);
+  });
+
+  it("the surface roster equals the set derived from the kit authority at run time", () => {
+    // BOTH DIRECTIONS, REPORTED SEPARATELY, because they are two different mistakes with two
+    // different remedies. A roster entry the scan did not find means a surface stopped discussing
+    // the dial (or was renamed); a scanned file the roster does not carry means a fourth document
+    // started discussing the resolver without joining D-13's shape. The second is the direction the
+    // pre-fix hand-typed count structurally could not fail on.
+    const { prose, registers } = derivedDialSurfaces();
+    const rostered = [...(Object.values(SURFACE_ROLES) as readonly string[])].sort();
+
+    // The floor first: a scan that found nothing would make both difference lists empty and this
+    // case would agree over nothing. The corpus premise is asserted for the same reason one level
+    // down — a SHORT corpus is invisible in a green run.
+    expect(prose.length, "the run-time scan must find at least one dial surface").toBeGreaterThan(0);
+    expect(corpusPremiseGaps(dialCandidateCorpus()), "the corpus must cover what the kit ships").toEqual(
+      [],
+    );
+
+    expect(prose.filter((rel) => !rostered.includes(rel)), "derived but NOT in the roster").toEqual([]);
+    expect(rostered.filter((rel) => !prose.includes(rel)), "in the roster but NOT derived").toEqual([]);
+
+    // The register arm is asserted too, so the partition cannot quietly grow into a filter: only
+    // the file the audit authority itself names may sit outside the prose set.
+    expect(registers.filter((rel) => rel !== REGISTRY_PATH)).toEqual([]);
   });
 
   it("every derived surface exists on disk, naming any that does not", () => {
@@ -499,29 +677,64 @@ describe("model dial — the documented closed sets equal the module's own, in B
 
 // ── The configuration LOCATIONS, and where their precedence rule is allowed to live (WR-05) ────
 //
-// The anchor is the precedence RULE's own sentence fragment, not the paths. The paths are a FACT
-// and both documents are required to carry them; the RULE is a rule, and D-13's shape says exactly
-// one document holds a rule while the other points at it. Asserting the rule's anchor in both
-// directions is what keeps a well-meaning later edit from restating the precedence in the packaging
-// authority, which is how a second authority is born.
+// THE PLAN'S ORIGINAL SHAPE WAS UNACHIEVABLE, AND THE REASON IS ITSELF AN INVARIANT. Plan 29.1-11
+// required BOTH shipped documents to name BOTH configuration locations by path. Attempting it
+// turned `scripts/check-kit-refs.js` RED: Assertion 1 (D-08.1, SHOME-03/SC5) holds ZERO
+// `agent-factory/config/` references across the kit scan set — which includes this authority's own
+// directory — because the shared-install rewrite moved per-repository state to `.grugops/` and no
+// kit document may point a reader at a path inside the kit to edit. That gate is twenty-two phases
+// older than this dial and admits no exemption list.
+//
+// SO THE OBLIGATION IS SPLIT BY AUDIENCE, WHICH IS WHAT THE TWO DOCUMENTS ALREADY ARE. The config
+// field reference is the developer-facing authority and lives outside the scan set; it names BOTH
+// locations by path and holds the precedence rule. The packaging authority is shipped kit prose; it
+// names the location a user configures, states that there are exactly as many locations as the
+// resolver declares, and points at the rule's home. The kit-internal path is absent from it BY
+// DESIGN, and that absence is asserted POSITIVELY below rather than left as an omission — so a
+// later editor who "helpfully" adds the path is told by this oracle as well as by the gate.
+//
+// The anchor is the precedence RULE's own sentence fragment, not a path. D-13's shape says exactly
+// one document holds a rule while the other points at it, and asserting the anchor in both
+// directions is what keeps a well-meaning edit from growing a second authority.
 const PRECEDENCE_RULE_ANCHOR = "The first of those two files that EXISTS wins WHOLE";
 
-describe("model dial — both configuration locations are documented, and the rule has ONE home (WR-05)", () => {
-  it("every declared configuration location appears in BOTH shipped documents", () => {
+/** The path prefix D-08.1 forbids in kit prose, taken from the resolver's own kit-internal member. */
+const KIT_INTERNAL_CONFIG_DIR = "agent-factory/config/";
+
+describe("model dial — the configuration locations are documented, and the rule has ONE home (WR-05)", () => {
+  it("every declared configuration location appears in the config field reference", () => {
     // DERIVED FROM THE RESOLVER'S OWN CONSTANT, never hand-listed here. The module builds its
     // candidate list from exactly this tuple, so a third location added to the code without being
-    // documented turns this case red, and a location dropped from either document does the same.
-    // That is the whole content of WR-05: the code read two locations and the shipped prose named
-    // one, and nothing mechanical noticed.
+    // documented turns this case red, and a location dropped from the reference does the same.
+    // That is WR-05's actual content: the code read two locations and the shipped prose named one.
     expect(MODELS_CONFIG_CANDIDATE_RELS.length).toBeGreaterThan(0);
-    const authority = readSurface("authority");
     const pointer = readSurface("pointer");
-    const undocumented: string[] = [];
-    for (const rel of MODELS_CONFIG_CANDIDATE_RELS) {
-      if (occurrences(authority, rel) < 1) undocumented.push(`${SURFACE_ROLES.authority} → ${rel}`);
-      if (occurrences(pointer, rel) < 1) undocumented.push(`${SURFACE_ROLES.pointer} → ${rel}`);
-    }
+    const undocumented = MODELS_CONFIG_CANDIDATE_RELS.filter((rel) => occurrences(pointer, rel) < 1);
     expect(undocumented).toEqual([]);
+  });
+
+  it("the packaging authority names the location a user configures, and states the location COUNT", () => {
+    // The FIRST candidate is the one a user owns, so it is the one shipped kit prose may name. The
+    // COUNT is asserted as a word rather than the second path, so a third candidate appearing in
+    // the resolver still moves this document — the drift WR-05 reported is closed on both surfaces,
+    // by a path on one and by a cardinality on the other.
+    const authority = readSurface("authority");
+    expect(occurrences(authority, MODELS_CONFIG_CANDIDATE_RELS[0])).toBeGreaterThan(0);
+    const asWord: Record<number, string> = { 2: "TWO", 3: "THREE", 4: "FOUR" };
+    const word = asWord[MODELS_CONFIG_CANDIDATE_RELS.length];
+    expect(word, "PREMISE: the declared location count must have a word this case can look for").toBeDefined();
+    expect(occurrences(authority, `first of ${String(word)} configuration`)).toBe(1);
+  });
+
+  it("the packaging authority spells NO kit-internal config path — D-08.1, asserted here too", () => {
+    // A POSITIVE assertion of a deliberate absence. `check-kit-refs` already holds this for the whole
+    // kit scan set; stating it here as well means the reason it is absent travels with the dial's own
+    // oracle, so the next reader of THIS file learns why the second path is missing instead of
+    // reading the omission as an oversight and closing it.
+    expect(occurrences(readSurface("authority"), KIT_INTERNAL_CONFIG_DIR)).toBe(0);
+    // …and the member it refers to really is the kit-internal one, so this case cannot go stale by
+    // the resolver renaming its second candidate.
+    expect(MODELS_CONFIG_CANDIDATE_RELS[1].startsWith(KIT_INTERNAL_CONFIG_DIR)).toBe(true);
   });
 
   it("EXACTLY ONE document states the whole-file precedence rule — the config reference, not the authority", () => {
