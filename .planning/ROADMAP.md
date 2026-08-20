@@ -738,7 +738,7 @@ loop terminating only by an unstated argument).
   4. The Claude-Code-only scope is **stated in the kit and in `CLAUDE.md`**, whose "What NOT to Use" entry against non-`inherit` wrappers is amended to name this mechanism as the documented reason — the other four host CLIs have no per-subagent model concept and no claim says otherwise. (MODEL-06)
   5. Any cost or limit-savings claim is **measured** with `scripts/measure-cost.ts`, or carries `UNKNOWN - verify`. A tier assignment is not evidence of a saving. (MODEL-07)
 
-**Plans**: 11 plans — 6/6 executed, then 5 gap-closure plans (29.1-07 … 29.1-11) planned 2026-08-20 after verification returned `gaps_found`. **Waves are strictly sequential (1→11)**. Four `.ts` files need their committed `.js` rebuilt (`model-tiers`, `generate-role-adapters`, `check-foundation-guards`, `adapters-freshness`), and two plans rebuilding a committed `.js` concurrently tears the output (the phase-27 round-5 precedent). Plan `29.1-02` is **not autonomous**: it opens with a blocking `checkpoint:decision` on D-05's one-way config key shape.
+**Plans**: 7/11 plans executed — 6/6 executed, then 5 gap-closure plans (29.1-07 … 29.1-11) planned 2026-08-20 after verification returned `gaps_found`. **Waves are strictly sequential (1→11)**. Four `.ts` files need their committed `.js` rebuilt (`model-tiers`, `generate-role-adapters`, `check-foundation-guards`, `adapters-freshness`), and two plans rebuilding a committed `.js` concurrently tears the output (the phase-27 round-5 precedent). Plan `29.1-02` is **not autonomous**: it opens with a blocking `checkpoint:decision` on D-05's one-way config key shape.
 
 Plans:
 
@@ -770,7 +770,7 @@ Plans:
 
 **Wave 1 (round 2)**
 
-- [ ] 29.1-07-PLAN.md — CR-01 + WR-03 + WR-04 + the missing discrimination case: announce the WHOLE resolution (member count, override count, distinct aliases) rather than one of `resolveModels`' two inputs, anchor every announcement reader at position 0 on a prefix its emitter owns, delete the third hand-spelled marker site, and plant a `roles` block with no `preset` key into the freshness mirror so the half of the D-04 hole that had no case turns RED [MODEL-01, MODEL-04]
+- [x] 29.1-07-PLAN.md — CR-01 + WR-03 + WR-04 + the missing discrimination case: announce the WHOLE resolution (member count, override count, distinct aliases) rather than one of `resolveModels`' two inputs, anchor every announcement reader at position 0 on a prefix its emitter owns, delete the third hand-spelled marker site, and plant a `roles` block with no `preset` key into the freshness mirror so the half of the D-04 hole that had no case turns RED [MODEL-01, MODEL-04]
 
 **Wave 2 (round 2)** *(blocked on 29.1-07)*
 
