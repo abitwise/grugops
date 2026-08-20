@@ -10820,13 +10820,48 @@ describe("guard_model_assignment (Phase 29.1, MODEL-03/MODEL-05)", () => {
     return readFileSync(join(ROOT, ".github", "workflows", "ci.yml"), "utf8");
   }
 
+  // (Plan 29.1-19, R3-WR-01) THE SYNTHETIC FOLLOWING STEP THE RIGHT BOUND IS PROVEN AGAINST.
+  //
+  // The committed workflow's ubuntu block is its LAST step, so the search for a following step
+  // marker returns -1 on this tree and BOTH branches of the bounded reader return the same bytes.
+  // Measured this session: next marker index -1, bounded and unbounded byte-identical, both command
+  // lists 20 entries; and this file run with the reader's right bound deleted came back
+  // 263 passed (263). A bound the committed tree cannot exercise is proven on an input that carries
+  // what the tree lacks — a following step — assembled in memory. .github/workflows/ci.yml is never
+  // written to, not even temporarily.
+  //
+  // THE COMMAND IS ONE THE BLOCK ALREADY RUNS, ON PURPOSE. A novel string asserted absent from the
+  // bounded block would also be absent from the empty string, so a reader returning "" would satisfy
+  // it. A command that already occurs INSIDE the block turns the assertion into a COUNT: the bounded
+  // read returns exactly the occurrences the committed block carries, and the unbounded read returns
+  // one more.
+  const APPENDED_STEP_NAME = "A step appended after the ubuntu gate block (synthetic, plan 29.1-19)";
+  const APPENDED_STEP_COMMAND = "npm run generate:adapters";
+
+  /**
+   * The committed workflow text plus ONE synthetic following step, in memory only.
+   *
+   * The step is spelled with `STEP_MARKER` itself rather than with a hand-typed `- name:` line, so
+   * the input this case proves the bound against and the bound's own needle cannot drift apart.
+   */
+  function withAppendedStep(ci: string): string {
+    return `${ci}${STEP_MARKER}${APPENDED_STEP_NAME}\n        run: |\n          ${APPENDED_STEP_COMMAND}\n`;
+  }
+
   /**
    * The ubuntu gate block: from its step name to the NEXT step marker, or to end of file.
    *
    * BOUNDED ON THE RIGHT ON PURPOSE, AND THE FALLBACK IS NOT THE GUARANTEE. The block is the LAST
-   * step in the workflow today, so the bound lands on end-of-file either way — which is exactly why
-   * it is written now rather than when it first matters. `(r-bound)` asserts the sliced block carries
-   * no second step marker, so the "accidentally correct today" state becomes an asserted property.
+   * step in the workflow today, so on the committed file the bound lands on end-of-file either way —
+   * which is exactly why it is written now rather than when it first matters.
+   *
+   * WHAT PROVES IT, AND WHAT DOES NOT. (Plan 29.1-19, R3-WR-01) This docstring previously claimed
+   * `(r-bound)` asserted the boundedness as a property. It did not: the assertion it pointed at
+   * probed the RETURNED slice for a step marker, which neither branch of the return below can ever
+   * contain, so its failure message was unreachable on every possible input and the file stayed
+   * green with the bound deleted. The property is proven instead by
+   * `(r-bound-synthetic)`, over a workflow that HAS a following step, with a bounded-versus-unbounded
+   * control on the same bytes that reds on every run if this bound is removed.
    *
    * Shape follows scripts/model-dial-consistency.test.ts `scopeSection()`, this repository's existing
    * worked example of a section reader bounded on the right, rather than inventing a second one.
@@ -10859,7 +10894,12 @@ describe("guard_model_assignment (Phase 29.1, MODEL-03/MODEL-05)", () => {
       .filter((l) => l.length > 0 && !l.startsWith("#"));
   }
 
-  it("(r-bound) the ubuntu gate block is bounded at both ends and carries no second step marker", () => {
+  // (Plan 29.1-19, R3-WR-01) THE TITLE NAMES WHAT THE CASE ASSERTS, WHICH IS NOW LESS THAN IT SAID.
+  // It read "is bounded at both ends and carries no second step marker" while the only assertion
+  // making that claim was unreachable. What survives here are the reader's PREMISES on the committed
+  // workflow — a locator that is unambiguous and a right-bound needle that matches something. The
+  // bound's effect is `(r-bound-synthetic)`'s.
+  it("(r-bound) the ubuntu gate block's locator is unambiguous and its right-bound needle matches real text", () => {
     const ci = ciWorkflow();
 
     // PREMISE 1 — the step name occurs exactly once, so the locator cannot land on a second
@@ -10881,16 +10921,13 @@ describe("guard_model_assignment (Phase 29.1, MODEL-03/MODEL-05)", () => {
       `the workflow must carry step markers spelled ${JSON.stringify(STEP_MARKER)} — a right bound that matches nothing is not a bound`,
     ).toBeGreaterThan(0);
 
-    const block = ubuntuBlock(ci);
-
-    // THE PROPERTY. Asserted rather than inherited from the coincidence that this block happens to
-    // be the last step today: a section reader that searches to end of file is not reading a
-    // section, it adopts every later block appended after it, and the day someone appends one,
-    // assertions written about THIS block start passing on someone else's text.
-    expect(
-      block.includes(STEP_MARKER),
-      "the sliced ubuntu gate block must contain no second step marker — if it does, the slice has swallowed a following step and every assertion below is being made about someone else's text",
-    ).toBe(false);
+    // THE CONTAINMENT ASSERTION THAT STOOD HERE IS DELETED. (Plan 29.1-19, R3-WR-01) It probed the
+    // returned slice for a second step marker, which is guaranteed by the reader's own construction:
+    // the bounded branch cuts immediately before the first occurrence and the fallback branch is
+    // taken only when there is none, so no input could print its failure message. Leaving it beside
+    // a working proof is a second claim that the property is tested twice. The property under test
+    // is the bound's EFFECT, and it is proven by `(r-bound-synthetic)` below on a workflow that has
+    // a following step, with a bounded-versus-unbounded control on the same bytes.
 
     // VACUITY FLOOR. An empty command list would make every membership assertion in (r-commands)
     // fail loudly, but an empty BLOCK caused by a bad bound reds pointing at the wrong thing — the
@@ -10904,6 +10941,83 @@ describe("guard_model_assignment (Phase 29.1, MODEL-03/MODEL-05)", () => {
       commands,
       "the slice must really be the gate block, proven by a command already known to live in it",
     ).toContain("npm run freshness:adapters");
+  });
+
+  // (Plan 29.1-19, R3-WR-01) THE BOUND, PROVEN ON AN INPUT THAT CAN SEE IT.
+  //
+  // Round 3 deleted this reader's right bound outright and ran the file: 263 passed (263). Nothing
+  // in the committed tree could tell the bounded reader from the unbounded one, because the block is
+  // the workflow's last step. The remedy is not another assertion over the committed file — it is an
+  // input carrying what the committed file lacks, plus a control that keeps the proof alive on every
+  // future run rather than only in the session where someone thinks to try the mutation.
+  it("(r-bound-synthetic) the reader stops at the next step, proven on a workflow that HAS one", () => {
+    const ci = ciWorkflow();
+    const withAppended = withAppendedStep(ci);
+
+    // PREMISE OF THE SYNTHETIC INPUT ITSELF, asserted before anything is read from it. A synthetic
+    // text that failed to introduce a following step would make every assertion below pass for the
+    // OLD reason — the coincidence this case exists to remove — and the case would degrade silently
+    // into the tautology it replaces.
+    expect(
+      withAppended
+        .slice(withAppended.indexOf(UBUNTU_BLOCK_STEP_NAME) + UBUNTU_BLOCK_STEP_NAME.length)
+        .indexOf(STEP_MARKER),
+      "PREMISE: the synthetic workflow must carry a step marker AFTER the ubuntu block's step name — without one this case proves nothing the committed workflow did not already prove",
+    ).toBeGreaterThan(-1);
+
+    // …AND THE FINDING ITSELF, RE-MEASURED RATHER THAN QUOTED. The committed workflow carries no
+    // step marker after this block, which is precisely why the bound needs a synthetic input to be
+    // visible at all. The day a step is appended to ci.yml this assertion reds, and the correct
+    // response is to delete it — the tree would then be exercising the bound on its own.
+    expect(
+      ci
+        .slice(ci.indexOf(UBUNTU_BLOCK_STEP_NAME) + UBUNTU_BLOCK_STEP_NAME.length)
+        .indexOf(STEP_MARKER),
+      "PREMISE (the finding, re-measured): the COMMITTED workflow must carry NO step marker after the ubuntu block — if it now does, this case's synthetic input is no longer the only thing exercising the bound and this premise should be retired",
+    ).toBe(-1);
+
+    const block = ubuntuBlock(withAppended);
+
+    // THE BOUND'S EFFECT.
+    expect(
+      block,
+      `the bounded block must stop before the appended step "${APPENDED_STEP_NAME}" — a reader that searches to end of file is not reading a section, it adopts every later block, and assertions written about THIS block start being made about someone else's text`,
+    ).not.toContain(APPENDED_STEP_NAME);
+
+    // …AND THE APPENDED OCCURRENCE IS NOT ADOPTED INTO THE COMMAND LIST. The expected number is
+    // COUNTED from the committed block rather than assumed to be one, so it moves with the workflow
+    // instead of pinning a guess about it.
+    const occurrencesInCommittedBlock = ubuntuBlockCommands(ci).filter(
+      (c) => c === APPENDED_STEP_COMMAND,
+    ).length;
+    expect(
+      occurrencesInCommittedBlock,
+      `PREMISE: "${APPENDED_STEP_COMMAND}" must already occur inside the committed block — an appended copy is only a duplicate worth counting when the original is there. A command absent from the block would make the count assertion below satisfiable by a reader returning the empty string.`,
+    ).toBeGreaterThan(0);
+    expect(
+      ubuntuBlockCommands(withAppended).filter((c) => c === APPENDED_STEP_COMMAND).length,
+      `the bounded read of the synthetic workflow must return ${occurrencesInCommittedBlock} occurrence(s) of "${APPENDED_STEP_COMMAND}" — the number the committed block carries. One more means the appended step's command was adopted into the list this file's wiring assertions are made over.`,
+    ).toBe(occurrencesInCommittedBlock);
+
+    // ── NEGATIVE CONTROL, PERMANENT AND DELIBERATE ─────────────────────────────────────────────
+    //
+    // This is NOT a second reader of the block, and nothing outside this case may call it. It is the
+    // SAME slice with the right bound removed, applied to the SAME bytes, so the only difference
+    // between it and `ubuntuBlock` above is the bound and nothing else. Asserting the two DIFFER is
+    // what makes this proof fail on EVERY run in a tree where the bound has been deleted, rather
+    // than only in a session where someone thought to delete it — which is the state round 3 found
+    // and the direct application of this round's own lesson about asserting a harness's premise.
+    const unboundedUbuntuSlice = withAppended.slice(
+      withAppended.indexOf(UBUNTU_BLOCK_STEP_NAME) + UBUNTU_BLOCK_STEP_NAME.length,
+    );
+    expect(
+      unboundedUbuntuSlice,
+      "CONTROL: the UNBOUNDED slice must contain the appended step, or the control is not exercising the difference it exists to measure and the comparison below is vacuous",
+    ).toContain(APPENDED_STEP_NAME);
+    expect(
+      block === unboundedUbuntuSlice,
+      "CONTROL: the bounded and the unbounded read of the SAME synthetic workflow must DIFFER. They came back byte-identical, which means the reader is not bounding anything.",
+    ).toBe(false);
   });
 
   it("(r-commands) the wiring pin probes COMMAND lines — a comment quoting a command does not satisfy it", () => {
