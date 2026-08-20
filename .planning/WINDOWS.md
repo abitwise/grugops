@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 87
+open_count: 85
 waived_count: 0
-fixed_count: 1
+fixed_count: 3
 total_count: 88
-last_updated: 2026-08-20T20:44:40.187Z
+last_updated: 2026-08-20T20:48:00.429Z
 ---
 
 # Broken Windows Ledger
@@ -92,8 +92,8 @@ last_updated: 2026-08-20T20:44:40.187Z
 | 75 | 29.1 | deviation | scripts/model-tiers.ts |  | 29.1-15 deviation 3: the deleted symbol roleCorpusCardinalityRefusal is deliberately NOT named in the docstring that records its deletion, to satisfy the plan's zero-grep criterion. Residual: a reader who meets the symbol on an older host's committed twin and greps this tree finds nothing in source; the name is in git history and the 29.1-15 SUMMARY. | open |  | 2026-08-20T15:12:08.712Z |  |
 | 76 | 29.1 | deviation | scripts/model-dial-consistency.test.ts |  | 29.1-16 acceptance criterion NOT satisfied as written: the plan's basename-only paraphrase cannot red the derived case, because the second candidate's basename is a substring of the first candidate. Partitioned by discrimination instead; measurement recorded in 29.1-16-SUMMARY.md Deviation 1. | open |  | 2026-08-20T15:30:14.125Z |  |
 | 77 | 29.1 | deviation | scripts/check-kit-refs.test.ts |  | 29.1-17 acceptance criterion NOT satisfied as written: grep -c 'const SCAN' scripts/check-kit-refs.test.ts measures 1, not 0. The surviving hit is the extractor's locator string, which must spell the gate's declaration verbatim to find it; splitting the literal to make the grep return zero was rejected. Anchored substitutes recorded: grep -cE '^const SCAN = ' -> 0 and grep -c '"agent-factory/checklists"' -> 0. See 29.1-17-SUMMARY.md Deviation 1. | open |  | 2026-08-20T15:54:27.892Z |  |
-| 78 | 29.1 | deviation | .planning/REQUIREMENTS.md |  | 29.1-17: the requirements verb flipped MODEL-05 from Gaps Found to Complete via the shared-ID gate; the flip was REVERTED because MODEL-05 is the requirement round-2 verification regressed and no verification has run since. The row awaits round-3 verification. See 29.1-17-SUMMARY.md Deviation 5. | open |  | 2026-08-20T15:54:27.962Z |  |
-| 79 | 29.1 | deviation | scripts/check-public-docs-vocabulary.ts | 32 | 29.1-17: a fourth record adjacent to the scan widening reads 'that set is byte-unchanged' about check-kit-refs's SCAN. In context it is scoped to that gate's own Phase-27 change and remains true; out of context it could be read as a standing claim, and SCAN is now one member wider. Deliberately NOT edited (outside this plan's declared files). See 29.1-17-SUMMARY.md Deviation 4. | open |  | 2026-08-20T15:54:28.031Z |  |
+| 78 | 29.1 | deviation | .planning/REQUIREMENTS.md |  | 29.1-17: the requirements verb flipped MODEL-05 from Gaps Found to Complete via the shared-ID gate; the flip was REVERTED because MODEL-05 is the requirement round-2 verification regressed and no verification has run since. The row awaits round-3 verification. See 29.1-17-SUMMARY.md Deviation 5. | fixed |  | 2026-08-20T15:54:27.962Z | 2026-08-20T20:47:15.691Z |
+| 79 | 29.1 | deviation | scripts/check-public-docs-vocabulary.ts | 32 | 29.1-17: a fourth record adjacent to the scan widening reads 'that set is byte-unchanged' about check-kit-refs's SCAN. In context it is scoped to that gate's own Phase-27 change and remains true; out of context it could be read as a standing claim, and SCAN is now one member wider. Deliberately NOT edited (outside this plan's declared files). See 29.1-17-SUMMARY.md Deviation 4. | fixed |  | 2026-08-20T15:54:28.031Z | 2026-08-20T20:48:00.429Z |
 | 80 | 29.1 | deviation | scripts/check-foundation-guards.test.ts |  | 29.1-19: (r-class-prefix) compares CANONICAL SOURCE SPELLINGS across a derived member set — it does not run the members' readers or compare their outputs. A member spelling both the right-bound marker and the slice base canonically while computing something else (a second slice under another variable, canonical literals in a dead branch) satisfies every assertion in it. Direction: FAIL-OPEN. Bounded for today's two members by their own synthetic-input bound proofs, (r-bound-synthetic) and Case 8b. | open |  | 2026-08-20T19:55:57.940Z |  |
 | 81 | 29.1 | deviation | scripts/check-foundation-guards.test.ts |  | 29.1-19: (o-one-consumer)'s assembled-pattern arm recognises ONE SPELLING of the regex-escape idiom — the bytes this tree writes verbatim in audit-prepass.ts, check-foundation-guards.ts and voice-model.ts — and asks it of a single comment-stripped LINE. A differently spelled escape, or an assembly split across lines, is still not counted and therefore not disclosed by the residual set the case publishes. Direction: FAIL-OPEN. | open |  | 2026-08-20T20:00:49.350Z |  |
 | 82 | 29.1 | deviation | scripts/model-dial-consistency.test.ts |  | 29.1-19: the third tautology site was closed OUTSIDE the plan's declared files_modified list. The plan's must_haves require three deleted tautologies and three discriminating bound proofs, and only two sites existed in the two declared test files; R3-WR-01 names this file as the third. Recorded so the scope expansion is visible rather than inferred from the diff. | open |  | 2026-08-20T20:03:39.929Z |  |
@@ -1037,10 +1037,10 @@ last_updated: 2026-08-20T20:44:40.187Z
     "file": ".planning/REQUIREMENTS.md",
     "line": null,
     "description": "29.1-17: the requirements verb flipped MODEL-05 from Gaps Found to Complete via the shared-ID gate; the flip was REVERTED because MODEL-05 is the requirement round-2 verification regressed and no verification has run since. The row awaits round-3 verification. See 29.1-17-SUMMARY.md Deviation 5.",
-    "status": "open",
-    "reason": "",
+    "status": "fixed",
+    "reason": "29.1-21: stated condition MET and MEASURED, not assumed. The condition was that a verification round run on MODEL-05. Round 3 ran, and its requirement_determinations block reads: MODEL-05: \"Gaps Found -> COMPLETE. The regression round 2 recorded (R2-CR-01) is closed, and the fix DISCRIMINATES ... Every clause of MODEL-05 own text was additionally re-proven behaviourally (four planted mutations, all RED by name).\" The flip is COMMITTED at d821e19, and both lines were read from `git show HEAD:.planning/REQUIREMENTS.md` BEFORE this row was closed: line 94 reads \"- [x] **MODEL-05**: An unknown, malformed, or absent model value is **fail-closed to `inherit`** - never to a pinned tier - and a guard asserts the emitted model of all 17 adapters equals the resolved config, derived rather than compared against a hand-listed expectation.\" and traceability line 194 reads \"| MODEL-05 | Phase 29.1 | Complete |\".",
     "recorded_at": "2026-08-20T15:54:27.962Z",
-    "resolved_at": null
+    "resolved_at": "2026-08-20T20:47:15.691Z"
   },
   {
     "id": 79,
@@ -1049,10 +1049,10 @@ last_updated: 2026-08-20T20:44:40.187Z
     "file": "scripts/check-public-docs-vocabulary.ts",
     "line": 32,
     "description": "29.1-17: a fourth record adjacent to the scan widening reads 'that set is byte-unchanged' about check-kit-refs's SCAN. In context it is scoped to that gate's own Phase-27 change and remains true; out of context it could be read as a standing claim, and SCAN is now one member wider. Deliberately NOT edited (outside this plan's declared files). See 29.1-17-SUMMARY.md Deviation 4.",
-    "status": "open",
-    "reason": "",
+    "status": "fixed",
+    "reason": "29.1-21: stated condition MET. The condition was a RULING on whether the clause at scripts/check-public-docs-vocabulary.ts:32 is a standing claim needing correction. The ruling, from the user orchestrator and recorded verbatim in 29.1-21-PLAN.md: \"The ruling is in: it is in scope and it is fixed here.\" The clause is now scoped to what this gate own Phase-27 change did, with the ruling and its source named in the note itself; the superseded wording is DESCRIBED rather than reproduced, so `grep -c` for it over that file returns 0, and `node scripts/check-public-docs-vocabulary.js` exits 0. The D-08 contract half of the sentence was left alone because it is still true: the widening added a shipped-kit directory, not a repo-wide grep.",
     "recorded_at": "2026-08-20T15:54:28.031Z",
-    "resolved_at": null
+    "resolved_at": "2026-08-20T20:48:00.429Z"
   },
   {
     "id": 80,

@@ -29,8 +29,28 @@
 //    for the PROSE forms, which check-kit-refs never checks anywhere. The path-form overlap is the
 //    price of deriving root membership from readdirSync instead of hand-listing four names, and it
 //    is cheap: two gates agreeing on zero hits costs one extra read and removes a remembering step.
-//    What this gate does NOT do is widen check-kit-refs's SCAN — that set is byte-unchanged, and
-//    the Phase 27 D-08 "shipped kit + adapters + AGENTS.md, NEVER a repo-wide grep" contract holds.
+//    What this gate does NOT do is widen check-kit-refs's SCAN: ADDING THIS GATE IN PHASE 27 LEFT
+//    THAT SET UNTOUCHED, and the Phase 27 D-08 "shipped kit + adapters + AGENTS.md, NEVER a
+//    repo-wide grep" contract holds.
+//
+//    THE SENTENCE ABOVE IS SCOPED TO THIS GATE'S OWN CHANGE, DELIBERATELY AND AFTER A RULING. It
+//    used to end with a bare present-tense assertion that SCAN itself had not changed — a STANDING
+//    claim about that set rather than a statement about what Phase 27 did here. The superseded
+//    wording is DESCRIBED rather than reproduced, so a grep for it over this tree returns nothing;
+//    quoting a falsified claim beside its correction is how the false form survives its own fix.
+//    Plan 29.1-17 then widened SCAN by one member (`agent-factory/config`, for the D6
+//    disposition), and the standing reading became
+//    false the day it landed. That executor disclosed the clause, declined to edit a file outside
+//    its plan's declared scope, and asked for a ruling; round-3 verification listed it as gap 5 and
+//    as its third human item, and `.planning/WINDOWS.md` row 79 logged it open. THE RULING, from the
+//    user's orchestrator: it is in scope and it is corrected here. Only the falsified half moved —
+//    the D-08 contract half is left alone because it is still true, since the widening added a
+//    shipped-kit directory rather than a repo-wide grep.
+//
+//    A RECORD THAT NAMES ANOTHER MODULE'S CONSTANT MUST SAY WHICH TENSE IT IS IN. That is the
+//    general lesson and the reason this correction is written out rather than applied silently: a
+//    standing claim about a set this module does not own is green in the world where it is true and
+//    green in the world where it is false, because nothing reads a comment.
 //
 // 3. THE D-24 RED TRANSCRIPT — this guard was watched FAILING against the real tree before a single
 //    word of drift was fixed, because a guard that passes the moment it appears has never been
