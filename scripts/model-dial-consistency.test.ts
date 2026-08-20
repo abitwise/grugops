@@ -76,12 +76,102 @@ const CLAUDE_ROW_KEY = "**`model:` other than `inherit` in role wrappers without
  * The D-13 scope sentence, verbatim. It lives on ONE physical line in the authority document so this
  * literal needs no wrap handling; a hard wrap introduced there is a RED on the presence direction,
  * which is the correct outcome — the sentence is quoted by an oracle and its shape is load-bearing.
+ *
+ * THE SENTENCE CHANGED IN THE 29.1 GAP-CLOSURE ROUND (WR-06), AND THE REASON IS WHY THIS ORACLE NOW
+ * ASSERTS MORE THAN PRESENCE. The previous wording asserted a capability absolute about four
+ * third-party products with no source behind it. Gap-closure research refuted its premise —
+ * `.planning/phases/29.1-per-role-model-assignment/29.1-RESEARCH.md` §"Host-CLI per-agent model
+ * support", where the superseded sentence is recorded verbatim, this repository annotating rather
+ * than rewriting; all four of those CLIs document a per-agent `model` field. The CONCLUSION — that
+ * the dial does not reach them — survived, but for a different reason, one that is a fact about THIS
+ * repository and is provable here: grugops generates per-agent adapters at `.claude/agents/` alone.
+ * The retired wording is deliberately NOT quoted anywhere in this module. An oracle that pins a
+ * sentence propagates it, and the round that had to delete this one found that the pin was the
+ * mechanism by which an unsourced claim reached every other surface. So the cases below assert the
+ * ATTRIBUTION instead: every host CLI the sentence NAMES must carry a citation line beside it.
+ *
+ * WHAT THAT STILL DOES NOT CATCH, stated rather than implied: a SECOND sentence contradicting this
+ * one, added elsewhere in the authority, leaves every case here green. The presence direction pins
+ * one sentence, not the absence of a competing one. The compensating control is the negative grep
+ * recorded in `.planning/phases/29.1-per-role-model-assignment/29.1-10-SUMMARY.md`, run over the
+ * whole shipped tree at plan close, and phase verification re-runs it.
  */
 const SCOPE_SENTENCE =
-  "Per-subagent model selection is a Claude Code capability: the other four host coding-agent " +
-  "CLIs grugops supports — Codex CLI, Gemini CLI, OpenCode and GitHub Copilot CLI — have no " +
-  "per-subagent model concept, so the model dial does not reach them and a repository targeting " +
-  "only those four gains nothing by configuring it.";
+  "The model dial reaches Claude Code only, and that is a fact about this kit rather than about the " +
+  "other four host CLIs: grugops generates per-agent adapters at `.claude/agents/` alone, so " +
+  "although Codex CLI, Gemini CLI, OpenCode and GitHub Copilot CLI each accept a per-agent `model` " +
+  "field in their own agent-definition formats, this kit emits no agent definition for any of them " +
+  "and there is nothing there for the dial to write into.";
+
+/** The heading that opens the authority's scope section — the left bound of every section-scoped read. */
+const SCOPE_SECTION_HEADING = "## Host-CLI scope of the model dial";
+
+/** The line that opens the citation block, and the left bound of the citation-line extraction. */
+const CITATION_BLOCK_HEADING = "References for the per-agent `model` field in each of the other four";
+
+/**
+ * The assumption-A1 block's OWN anchor.
+ *
+ * REPAIRED IN THE SAME EDIT THAT ADDED RESIDUALS R1-R3. The A1 case used to locate its block with
+ * `indexOf("UNKNOWN - verify")` — the FIRST marker in the file — which was sound only while the
+ * authority carried exactly one. That premise is now false: it carries four. A case that anchors on
+ * "the first of a kind" silently re-targets the moment a second one lands above it, and the failure
+ * is not visible in a green run. It anchors on its own block instead.
+ */
+const A1_ANCHOR = "the alias vocabulary (assumption A1, recorded confidence low)";
+
+/**
+ * The disclosed residuals in the authority, each pinned by its OWN anchor rather than by position.
+ *
+ * PROMOTE TRIGGER: a fourth residual is added to this array in the same commit that writes it into
+ * the document, and moves UNKNOWN_VERIFY_MARKER_COUNT with it.
+ */
+const RESIDUAL_ANCHORS = [
+  "R1, the vendor findings are point-in-time reads",
+  "R2, Copilot CLI's `model` property at run time",
+  "R3, whether grugops should emit for the other four",
+] as const;
+
+/**
+ * Every `UNKNOWN - verify` marker in the authority document, pinned as a NUMBER.
+ *
+ * Four today: assumption A1, plus residuals R1, R2 and R3. This number exists so a fifth marker
+ * cannot arrive silently — the previous shape of the A1 case measured "whichever marker comes
+ * first", so a new one landing above A1 would have changed what an existing case measured without
+ * changing any assertion. Now the count moves in the commit that adds the marker, and the reader of
+ * that diff is told a residual was disclosed.
+ *
+ * PROMOTE TRIGGER: a new `UNKNOWN - verify` in agent-factory/packaging/subagent.frontmatter.md.
+ */
+const UNKNOWN_VERIFY_MARKER_COUNT = 1 + RESIDUAL_ANCHORS.length;
+
+/**
+ * The host CLIs the scope sentence names OTHER THAN Claude Code — DERIVED FROM THE SENTENCE ITSELF,
+ * never hand-listed. The set the citation block must cover is exactly the set the sentence makes a
+ * claim about, so the two cannot drift: naming a fifth CLI in the sentence without citing it, or
+ * dropping one from the citation block, both go red.
+ */
+const OTHER_HOST_CLI_COUNT = 4;
+
+function namedOtherHostClis(): string[] {
+  const open = "although ";
+  const close = " each accept a per-agent";
+  const from = SCOPE_SENTENCE.indexOf(open);
+  const to = SCOPE_SENTENCE.indexOf(close);
+  if (from === -1 || to === -1 || to <= from) {
+    throw new Error(
+      "model-dial oracle: PREMISE VIOLATED — the scope sentence no longer carries the clause that " +
+        "ENUMERATES the other host CLIs, so the set the citation block must cover cannot be derived " +
+        "from it. Refusing to fall back to a hand-list: a hand-list is exactly how the citation " +
+        "block and the sentence come to disagree. Remedy: keep the enumerating clause, or move this " +
+        "derivation in the same commit that changes the sentence's shape.",
+    );
+  }
+  return SCOPE_SENTENCE.slice(from + open.length, to)
+    .split(/,\s*|\s+and\s+/)
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
+}
 
 const surfaces = Object.entries(SURFACE_ROLES).map(([role, rel]) => ({
   role,
@@ -124,6 +214,52 @@ function readSurface(role: keyof typeof SURFACE_ROLES): string {
   if (entry === undefined) throw new Error(`model-dial oracle: no surface registered under the role "${role}"`);
   if (!existsSync(entry.abs)) throw new Error(`model-dial oracle: surface "${role}" is missing at ${entry.rel}`);
   return readFileSync(entry.abs, "utf8");
+}
+
+/**
+ * The authority's scope section: from its heading to the NEXT top-level heading, or to end of file.
+ *
+ * BOUNDED ON THE RIGHT ON PURPOSE. The section is the LAST one in the document today, so the bound
+ * lands on end-of-file either way — which is exactly why the bound is written now rather than when
+ * it first matters. A section reader that searches to EOF is not reading a section; it adopts every
+ * later block that happens to be appended after it, and the day someone appends one, assertions
+ * written about THIS section start passing on someone else's text.
+ */
+function scopeSection(): string {
+  const authority = readSurface("authority");
+  const at = authority.indexOf(SCOPE_SECTION_HEADING);
+  if (at === -1) {
+    throw new Error(
+      `model-dial oracle: the authority ${SURFACE_ROLES.authority} does not carry the section ` +
+        `heading "${SCOPE_SECTION_HEADING}" — refusing to read a section that is not there`,
+    );
+  }
+  const rest = authority.slice(at + SCOPE_SECTION_HEADING.length);
+  const next = rest.indexOf("\n## ");
+  return next === -1 ? rest : rest.slice(0, next);
+}
+
+/**
+ * The citation lines beneath the citation block's heading — the run of non-blank lines that follows
+ * it, stopping at the first blank line. Derived rather than counted from a literal, so a citation
+ * dropped from the document shortens this array instead of leaving a stale number standing.
+ */
+function citationLines(): string[] {
+  const section = scopeSection();
+  const at = section.indexOf(CITATION_BLOCK_HEADING);
+  if (at === -1) {
+    throw new Error(
+      "model-dial oracle: the scope section does not carry the citation block heading " +
+        `"${CITATION_BLOCK_HEADING}" — the sentence makes claims about four third-party products ` +
+        "and this repository's hard rule is that such a claim ships with a named source",
+    );
+  }
+  const out: string[] = [];
+  for (const line of section.slice(at).split("\n").slice(1)) {
+    if (line.trim().length === 0) break;
+    out.push(line);
+  }
+  return out;
 }
 
 /**
@@ -196,10 +332,55 @@ describe("model dial — one authority for the Claude-Code-only scope statement 
   it("the authority carries assumption A1 as an explicit `UNKNOWN - verify` naming CLAUDE.md", () => {
     const authority = readSurface("authority");
     expect(authority).toContain("UNKNOWN - verify");
-    const at = authority.indexOf("UNKNOWN - verify");
+    // ANCHORED ON A1's OWN BLOCK, not on the first marker in the file. The file carries four markers
+    // now; "the first one" stopped being a description of A1 the moment residual R1 was written, and
+    // a case that keeps measuring "the first one" measures a different block without saying so.
+    expect(occurrences(authority, A1_ANCHOR)).toBe(1);
+    const at = authority.indexOf(A1_ANCHOR);
     // The source has to travel WITH the marker, not merely exist somewhere else in the file.
     expect(authority.slice(at, at + 600)).toContain("`CLAUDE.md` line 84");
   });
+
+  it("the authority's `UNKNOWN - verify` markers are pinned at the disclosed count", () => {
+    // A NUMBER, so a fifth marker moves this line in the commit that writes it rather than silently
+    // changing what a positional case measures. Two-sided: a marker DELETED is as red as one added.
+    expect(occurrences(readSurface("authority"), "UNKNOWN - verify")).toBe(UNKNOWN_VERIFY_MARKER_COUNT);
+    expect(UNKNOWN_VERIFY_MARKER_COUNT).toBeGreaterThan(RESIDUAL_ANCHORS.length);
+  });
+
+  it("each disclosed residual is present by its OWN anchor, exactly once, and sits AFTER A1", () => {
+    const authority = readSurface("authority");
+    const a1At = authority.indexOf(A1_ANCHOR);
+    expect(a1At).toBeGreaterThan(-1);
+    expect(RESIDUAL_ANCHORS).toHaveLength(3);
+    const wrong = RESIDUAL_ANCHORS.filter(
+      (a) => occurrences(authority, a) !== 1 || authority.indexOf(a) < a1At,
+    );
+    // Position is asserted because the ordering is load-bearing rather than aesthetic: A1 is the
+    // block the CLAUDE.md-source case measures, and it is measured by anchor precisely so that this
+    // ordering is a documented convention rather than a hidden dependency.
+    expect(wrong).toEqual([]);
+  });
+
+  it("every host CLI the sentence NAMES carries a citation line — attribution, not bare assertion", () => {
+    const named = namedOtherHostClis();
+    // The vacuity floor first: an EMPTY derived set would make the coverage check below pass over
+    // nothing, which is the failure mode that green runs never show.
+    expect(named).toHaveLength(OTHER_HOST_CLI_COUNT);
+    const block = citationLines().join("\n");
+    const uncited = named.filter((cli) => !block.includes(cli));
+    expect(uncited).toEqual([]);
+  });
+
+  it("the citation block carries one dated, URL-bearing line per named CLI", () => {
+    const lines = citationLines();
+    expect(lines).toHaveLength(OTHER_HOST_CLI_COUNT);
+    // A citation without a source is a citation in shape only. Each line must name a host.
+    const sourceless = lines.filter((l) => !/[a-z0-9-]+\.(com|ai|dev|org|io)\//.test(l));
+    expect(sourceless).toEqual([]);
+    expect(scopeSection()).toContain("(retrieved 2026-08-20)");
+  });
+
 });
 
 describe("model dial — CLAUDE.md's row names this mechanism as its documented reason (MODEL-06)", () => {
