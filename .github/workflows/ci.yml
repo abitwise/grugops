@@ -147,7 +147,7 @@ jobs:
           # was un-wired for a whole phase and that was this phase's most expensive omission.
           npm run freshness:skill-twins
           # MODEL-03 / MODEL-05 (plan 29.1-09, WR-07) — THE REFUSALS THIS PHASE BUILT WERE UNREACHABLE
-          # FROM THE BUILD, and these two lines are the half of the fix no source edit can hold.
+          # FROM THE BUILD, and the three lines below are the half of the fix no source edit can hold.
           #
           # Three facts composed into a fail-open, and the composition was reproduced end to end: an
           # illegal `models` block committed to a mirror cleared BOTH gates in this block at exit 0.
@@ -158,16 +158,30 @@ jobs:
           # process that refuses an illegal `models` block, and this workflow ran it nowhere:
           # `generate:adapters` was defined in package.json and invoked by no step here.
           #
-          # THE DIFF BUYS A SECOND PROPERTY, and it is not obvious from the command. Beyond letting the
-          # generator's refusal fail the build, it proves the COMMITTED adapters match the LIVE
-          # configuration — so a hand-edited or stale adapter is caught here too, on the configuration
-          # axis rather than the byte-mirror axis freshness:adapters covers.
+          # THE CLEANLINESS PAIR BUYS A SECOND PROPERTY, and it is not obvious from the commands.
+          # Beyond letting the generator's refusal fail the build, it asserts the adapter directory is
+          # clean against the INDEX **and** against the FILESYSTEM after the generator has run — so a
+          # generated adapter that was never committed is caught here as well as a hand-edited or stale
+          # one, on the configuration axis rather than the byte-mirror axis freshness:adapters covers.
+          #
+          # THE PAIR REPLACES A `git diff --exit-code` OVER THIS PATHSPEC (R2-IN-05, plan 29.1-14).
+          # That command could not see an UNTRACKED adapter: git diff ignores untracked files, so an
+          # adapter the generator creates that was never committed left it empty at exit 0. Measured on
+          # this tree with one throwaway file planted in the directory — the replaced command printed
+          # nothing and exited 0; the pair below prints `?? .claude/agents/<file>` and exits 1. The
+          # replaced command's literal is deliberately NOT written out anywhere in this file, so a
+          # grep for it reports zero and the pin below cannot be satisfied by this paragraph.
+          #
+          # TWO LINES RATHER THAN ONE, ON PURPOSE. The first PRINTS the offending entries and the
+          # second ASSERTS there are none. A bare emptiness assertion fails with no output, which is a
+          # gate the failing operator cannot act on.
           #
           # Wired HERE and in scripts/check-foundation-guards.test.ts, deliberately at both ends. This
           # block's own comment above already records that freshness:adapters sat un-invoked for a whole
           # phase; this is the second time that lesson is applied to this same block.
           npm run generate:adapters
-          git diff --exit-code -- .claude/agents/
+          git status --porcelain -- .claude/agents/
+          test -z "$(git status --porcelain -- .claude/agents/)"
           node scripts/check-foundation-guards.js
           # IN-02 (plan 27-23) — WIRED AT BOTH ENDS. Until this line, check-kit-refs and
           # validate-agent-factory ran in continuous integration solely as a SIDE EFFECT of their

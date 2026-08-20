@@ -10920,11 +10920,12 @@ describe("guard_model_assignment (Phase 29.1, MODEL-03/MODEL-05)", () => {
 
     for (const command of [
       "npm run generate:adapters",
-      "git diff --exit-code -- .claude/agents/",
+      "git status --porcelain -- .claude/agents/",
+      'test -z "$(git status --porcelain -- .claude/agents/)"',
     ]) {
       expect(
         commands,
-        `${command} must run inside the ubuntu gate block as a COMMAND line — the generator is the ONE process that refuses an illegal \`models\` configuration, and the diff behind it additionally proves the committed adapters match the live configuration. Membership is exact line equality, so a comment quoting this text does not satisfy it. Commands found: ${JSON.stringify(commands)}`,
+        `${command} must run inside the ubuntu gate block as a COMMAND line — the generator is the ONE process that refuses an illegal \`models\` configuration, and the cleanliness pair behind it is what proves the committed adapters match the live configuration, including an adapter that exists on disk and was never committed (R2-IN-05). Membership is exact line equality, so a comment quoting this text does not satisfy it. Commands found: ${JSON.stringify(commands)}`,
       ).toContain(command);
     }
 
@@ -10935,11 +10936,21 @@ describe("guard_model_assignment (Phase 29.1, MODEL-03/MODEL-05)", () => {
       commands.indexOf("npm run generate:adapters"),
       "the generator must run BEFORE the foundation guard, so a configuration defect is named by the process that refuses it before the guard renders a verdict over the same tree",
     ).toBeLessThan(commands.indexOf("node scripts/check-foundation-guards.js"));
-    // The adapter-cleanliness assertion runs after the generator it is checking, not before it.
+    // The adapter-cleanliness pair runs after the generator whose output it is checking, not
+    // before it.
     expect(
       commands.indexOf("npm run generate:adapters"),
-      "the adapter-cleanliness assertion must run after the generator whose output it checks",
-    ).toBeLessThan(commands.indexOf("git diff --exit-code -- .claude/agents/"));
+      "the adapter-cleanliness pair must run after the generator whose output it checks",
+    ).toBeLessThan(commands.indexOf("git status --porcelain -- .claude/agents/"));
+    // …and the line that ASSERTS comes after the line that PRINTS. (Plan 29.1-14, R2-IN-05) A bare
+    // emptiness assertion fails with no output; the printing line is what makes a red actionable,
+    // so its position is part of the guarantee rather than a formatting preference.
+    expect(
+      commands.indexOf("git status --porcelain -- .claude/agents/"),
+      "the printing line must precede the asserting line, or a red names no offending entry",
+    ).toBeLessThan(
+      commands.indexOf('test -z "$(git status --porcelain -- .claude/agents/)"'),
+    );
 
     // NO STEP RUNS THE LIVE e2e LANE. `npm test` spends tokens against an authed box and is not a
     // gate; the workflow's regression command is the excluded form. THESE TWO ARE ABOUT THE WHOLE
