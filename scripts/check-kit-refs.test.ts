@@ -38,24 +38,80 @@ import { join, dirname } from "node:path";
 const ROOT = join(import.meta.dirname, "..");
 const GATE_JS = join(ROOT, "scripts", "check-kit-refs.js");
 
-// The SCAN set the gate walks. The mirror copies these from the real, already-rewired tree so a
-// baseline mirror is GREEN; a planted ref then drives it RED.
+// ── The scan set the mirror is built from — DERIVED from the gate, no longer copied ────────────
 //
-// (Phase 27 / KIT-02, D-16) `.claude/agents` is the DIRECTORY here, tracking the gate's own change
-// from one hand-named adapter file. Copying the directory is what lets the plant-an-extra-adapter
-// cases below exist at all: under the old file entry, a second adapter in the mirror was simply
-// invisible to the gate.
-const SCAN = [
+// WHAT USED TO BE HERE, AND WHY IT IS GONE. This file carried its own hand-written copy of the
+// gate's scan-set array, kept in sync by remembering. Plan 29.1-17 added one member to the gate
+// (`agent-factory/config`, finding R2-WR-05) and that copy would have been a member behind the set
+// the gate walks — a mirror missing a directory the gate then judges, which is the set-literal
+// drift class this round is closing elsewhere in the same commit. The copy is deleted rather than
+// re-synced.
+//
+// WHAT THE DERIVATION BUYS THAT THE COPY COULD NOT: a member added to the gate's declaration enters
+// this mirror in the SAME commit, with no edit here and nothing to remember.
+//
+// ITS RESIDUAL, STATED: this reads the gate's SOURCE TEXT. It is bounded at both ends and throws by
+// name on either missing bound, and its member count is asserted below — but a change to the
+// DECLARATION'S SHAPE (a renamed binding, a computed member, a member spelled with single quotes)
+// would need this extractor updated. That failure is loud, not silent: the extractor throws or the
+// cardinality assertion reds naming both numbers.
+//
+// ONE MEASURED NOTE FOR ANYONE GREPPING THIS FILE FOR A SECOND SCAN SET. `grep -c 'const SCAN'`
+// here returns 1, not 0: the surviving hit is the LOCATOR STRING below, which must spell the gate's
+// declaration verbatim to find it. It is not a second copy of the set, and splitting the literal to
+// make a grep return zero is the move this repository has rejected twice (plan 29.1-11, deviation
+// 3). The honest predicates are `grep -cE '^const SCAN = '` → 0 (this file declares no scan set of
+// its own) and `grep -c '"agent-factory/checklists"'` → 0 (no member spelling survives here).
+const GATE_TS = join(ROOT, "scripts", "check-kit-refs.ts");
+const GATE_SCAN_DECL_OPEN = "const SCAN = [";
+const GATE_SCAN_DECL_CLOSE = "\n];";
+/** The member count measured against the gate's declaration in this session (plan 29.1-17). */
+const GATE_SCAN_MEMBERS = 10;
+/** Members the pre-existing cases in this file plant into; the derivation must still yield them. */
+const GATE_SCAN_REQUIRED = [
   "agent-factory/roles",
   "agent-factory/workflows",
-  "agent-factory/checklists",
-  "agent-factory/packaging",
-  "agent-factory/_commit-convention.md",
-  ".claude/skills",
   ".claude/agents",
-  "skills",
-  "AGENTS.md",
+  "agent-factory/config",
 ];
+
+/**
+ * Read the members of the gate's own `SCAN` declaration.
+ *
+ * Bounded at BOTH ends — from the declaration to its closing bracket — following the right-bound
+ * discipline `scopeSection()` in scripts/model-dial-consistency.test.ts records: a reader that runs
+ * to end of file is not reading a declaration, it adopts every later array in the module. Either
+ * bound missing THROWS by name rather than returning a partial list, because a short list builds a
+ * mirror that is missing directories the gate then judges — and every green case here would pass
+ * over the wrong tree.
+ */
+function gateScanSet(source: string = readFileSync(GATE_TS, "utf8")): string[] {
+  const at = source.indexOf(GATE_SCAN_DECL_OPEN);
+  if (at === -1) {
+    throw new Error(
+      `check-kit-refs mirror: ${GATE_TS} carries no "${GATE_SCAN_DECL_OPEN}" declaration — refusing to ` +
+        "build a mirror from a scan set that could not be located",
+    );
+  }
+  const rest = source.slice(at + GATE_SCAN_DECL_OPEN.length);
+  const end = rest.indexOf(GATE_SCAN_DECL_CLOSE);
+  if (end === -1) {
+    throw new Error(
+      `check-kit-refs mirror: the "${GATE_SCAN_DECL_OPEN}" declaration in ${GATE_TS} has no closing ` +
+        "bracket — refusing to read to end of file, which would adopt every later array in the module",
+    );
+  }
+  const members = [...rest.slice(0, end).matchAll(/"([^"]+)"/g)].map((m) => m[1]);
+  if (members.length === 0) {
+    throw new Error(
+      `check-kit-refs mirror: the "${GATE_SCAN_DECL_OPEN}" declaration in ${GATE_TS} yielded no members ` +
+        "— an empty mirror is green for every absence assertion in this file",
+    );
+  }
+  return members;
+}
+
+const GATE_SCAN = gateScanSet();
 
 const tmpDirs: string[] = [];
 function freshTmp(prefix: string): string {
@@ -72,7 +128,7 @@ afterAll(() => {
 // mirror is clean — the GREEN case. Tests then plant a stray to drive RED.
 function makeMirror(prefix: string): string {
   const mirror = freshTmp(prefix);
-  for (const rel of SCAN) {
+  for (const rel of GATE_SCAN) {
     const src = join(ROOT, rel);
     if (!existsSync(src)) continue; // mirror the gate's silent-skip-on-absent shape
     const dst = join(mirror, rel);
@@ -94,6 +150,160 @@ function runGate(checkRoot: string): { status: number; stdout: string } {
 function aRoleFile(mirror: string): string {
   return join(mirror, "agent-factory", "roles", "orchestrator.md");
 }
+
+// ── The Assertion 1 exemption's fixtures (plan 29.1-17, finding R2-WR-05) ───────────────────────
+/** The shipped config field reference in the mirror — the one file the exemption is scoped to. */
+function configFieldReference(mirror: string): string {
+  return join(mirror, "agent-factory", "config", "factory.config.md");
+}
+/** The kit-internal prefix D-08.1 forbids, and the sibling a legal self-reference names. */
+const CONFIG_REF_NEEDLE = "agent-factory/config/";
+const CONFIG_SIBLING = "agent-factory/config/factory.config.json";
+/**
+ * The number of LINES carrying the needle — the unit the gate counts.
+ *
+ * MEASURED, NOT ASSUMED (plan 29.1-17). `grepSubstring` emits one `path:lineno:line` hit per LINE,
+ * so a line naming the kit-internal path twice is ONE hit. The field reference's line 138 does
+ * exactly that, so the file carries THREE substring occurrences and TWO hits. A premise written in
+ * substring occurrences would disagree with the gate's own cardinality for a reason a reader of the
+ * red could not attribute.
+ */
+function linesContaining(haystack: string, needle: string): number {
+  return haystack.split("\n").filter((l) => l.includes(needle)).length;
+}
+
+// The derivation is asserted BEFORE any mirror is built, because every green case below is built on
+// the set it returns: a derivation that silently returned fewer members would build a partial mirror
+// that passes for the wrong reason. This is this repository's stated remedy for a derived set —
+// assert its cardinality — applied to a derivation over source text.
+describe("check-kit-refs mirror — the scan set is derived from the gate, not copied (plan 29.1-17)", () => {
+  it("the mirror's scan set is DERIVED from the gate's own declaration, with its cardinality asserted", () => {
+    expect(
+      GATE_SCAN.length,
+      "PREMISE: the derivation must be non-empty — an empty mirror is green for every absence assertion here",
+    ).toBeGreaterThan(0);
+    // The number, two-sided. Remove a member from the gate's declaration and this reds naming both.
+    expect(GATE_SCAN).toHaveLength(GATE_SCAN_MEMBERS);
+    // …and the members the pre-existing cases in this file plant into are actually among them, so a
+    // derivation that returned the right COUNT of the wrong strings still reds.
+    for (const required of GATE_SCAN_REQUIRED) {
+      expect(GATE_SCAN, `the derived scan set must contain ${required}`).toContain(required);
+    }
+  });
+
+  it("gateScanSet throws by NAME when the closing bracket is missing, rather than reading to end of file", () => {
+    const source = readFileSync(GATE_TS, "utf8");
+    const at = source.indexOf(GATE_SCAN_DECL_OPEN);
+    expect(at, "PREMISE: the declaration must be locatable before its bound can be removed").toBeGreaterThan(-1);
+    // Scratch copy in memory only — the committed gate source is never touched.
+    const unbounded = source.slice(0, at + GATE_SCAN_DECL_OPEN.length) + '\n  "agent-factory/roles",\n';
+    expect(() => gateScanSet(unbounded)).toThrow(/has no closing\s+bracket/);
+    expect(() => gateScanSet("// a module with no scan declaration at all\n")).toThrow(
+      /carries no ".*" declaration/,
+    );
+  });
+});
+
+describe("check-kit-refs Assertion 1 exemption — the config self-references, pinned on both sides", () => {
+  it("Assertion 1 GREEN: the config field reference's self-references are exempt, and the verdict says so", () => {
+    const mirror = makeMirror("ckr-cfg-green-");
+    const ref = configFieldReference(mirror);
+    expect(existsSync(ref), "PREMISE: the derived mirror must carry the config field reference").toBe(true);
+    expect(
+      linesContaining(readFileSync(ref, "utf8"), CONFIG_REF_NEEDLE),
+      "PREMISE: the reference must carry exactly the two mentions the exemption is declared for",
+    ).toBe(2);
+
+    const r = runGate(mirror);
+    expect(r.status).toBe(0);
+    // Asserting only the exit code would pass over an exemption that silently swallowed everything.
+    // The verdict must PUBLISH what it exempted and where.
+    expect(r.stdout).toContain("2 counted self-reference(s) exempt, in agent-factory/config/factory.config.md");
+    expect(r.stdout).toContain("the config self-reference exemption is exactly 2 hit(s) in 1 file(s), as declared");
+  });
+
+  it("Assertion 1 RED: a THIRD kit-internal mention in the config field reference fails, naming both counts", () => {
+    const mirror = makeMirror("ckr-cfg-third-");
+    const ref = configFieldReference(mirror);
+    expect(
+      linesContaining(readFileSync(ref, "utf8"), CONFIG_REF_NEEDLE),
+      "PREMISE: the plant must take the mention count from two to three",
+    ).toBe(2);
+    appendFileSync(ref, `\nSee \`${CONFIG_SIBLING}\` for the bundled copy.\n`);
+
+    const r = runGate(mirror);
+    expect(r.status).toBe(1);
+    expect(r.stdout).toContain("exempt HITS: found 3, required exactly 2");
+    expect(r.stdout).toContain("a new mention must be argued and counted, never absorbed");
+    // The HIT count moved and the FILE count did not — a third mention in the SAME file.
+    expect(r.stdout).not.toContain("exempting FILES:");
+  });
+
+  it("Assertion 1 RED: a kit-internal mention in a SECOND file under the config directory fails", () => {
+    const mirror = makeMirror("ckr-cfg-second-file-");
+    const second = join(mirror, "agent-factory", "config", "NOTES.md");
+    expect(existsSync(second), "PREMISE: the second file must not already exist in the mirror").toBe(false);
+    expect(
+      existsSync(join(mirror, "agent-factory", "config", "factory.config.json")),
+      "PREMISE: the sibling the plant names must exist, so the plant is a SELF-reference and not a stray",
+    ).toBe(true);
+    writeFileSync(second, `The bundled copy lives at \`${CONFIG_SIBLING}\`.\n`, "utf8");
+
+    const r = runGate(mirror);
+    expect(r.status).toBe(1);
+    // The exemption is scoped to ONE file, not to the directory — this is the clause that says so.
+    expect(r.stdout).toContain("exempting FILES: found 2, required exactly 1");
+    expect(r.stdout).toContain(join("agent-factory", "config", "NOTES.md"));
+  });
+
+  it("Assertion 1 RED: a kit-internal mention naming a path that does not exist is a stray, not a self-reference", () => {
+    const mirror = makeMirror("ckr-cfg-ghost-");
+    const ghost = "agent-factory/config/nowhere.json";
+    expect(
+      existsSync(join(mirror, "agent-factory", "config", "nowhere.json")),
+      "PREMISE: the named path must NOT exist, or this would be a legal self-reference",
+    ).toBe(false);
+    appendFileSync(configFieldReference(mirror), `\nSee \`${ghost}\` for the bundled copy.\n`);
+
+    const r = runGate(mirror);
+    expect(r.status).toBe(1);
+    // Fails through the STRAY arm with the pre-existing wording — a self-reference means a reference
+    // to something that is actually there, so this never reaches the cardinality clause.
+    expect(r.stdout).toContain("stray agent-factory/config/ ref(s)");
+    expect(r.stdout).toContain(ghost);
+    expect(r.stdout).toContain("the config self-reference exemption is exactly 2 hit(s) in 1 file(s), as declared");
+  });
+
+  it("Assertion 1 RED: a kit-internal mention outside the config directory still fails as it always did", () => {
+    const mirror = makeMirror("ckr-cfg-outside-");
+    const target = aRoleFile(mirror);
+    expect(
+      target.includes(join("agent-factory", "config")),
+      "PREMISE: the target must be OUTSIDE the configuration directory",
+    ).toBe(false);
+    appendFileSync(target, `\nEdit ${CONFIG_SIBLING} to configure.\n`);
+
+    const r = runGate(mirror);
+    expect(r.status).toBe(1);
+    // The pre-existing wording, unchanged: widening the scan by one directory did not widen the
+    // exemption for the rest of the scan set.
+    expect(r.stdout).toContain("stray agent-factory/config/ ref(s) — config must be .grugops/factory.config.json");
+    expect(r.stdout).toMatch(/agent-factory[\\/]roles[\\/]orchestrator\.md/);
+  });
+
+  it("Assertion 1 vacuity floor: a tree with no configuration directory is a named finding", () => {
+    const mirror = makeMirror("ckr-cfg-vacuous-");
+    const dir = join(mirror, "agent-factory", "config");
+    expect(existsSync(dir), "PREMISE: the mirror must carry the directory before it is removed").toBe(true);
+    rmSync(dir, { recursive: true, force: true });
+
+    const r = runGate(mirror);
+    expect(r.status).toBe(1);
+    // A NAMED finding, not an unattributable "found 0, required 1" cardinality disagreement.
+    expect(r.stdout).toContain("no agent-factory/config/ directory found");
+    expect(r.stdout).toContain("refusing to adjudicate its exemption");
+  });
+});
 
 describe("check-kit-refs flipped gate — D-15 both-direction adversarial proof vs the committed .js", () => {
   it("GREEN: a clean rewired mirror (zero agent-factory/handoffs/ refs) → exit 0", () => {
