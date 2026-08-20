@@ -1015,10 +1015,43 @@ describe("model-tiers: the resolved-preset line grammar (plan 29.1-03)", () => {
   });
 
   it("resolvedPresetsIn accepts the emitter's own line and strips a trailing CR", () => {
-    // The carriage return is trimmed off THE LINE before the prefix test rather than off the
-    // captured value, so a value carrying internal spacing stays visible as wrong rather than being
-    // normalised into shape.
+    // The carriage return is trimmed off THE LINE before the prefix test — and therefore off the
+    // tail of the captured value too, because the line is trimmed before the value is sliced out of
+    // it (finding R3-IN-04). This comment RESTATED the source docstring's false half and was
+    // corrected with it: one claim must not survive in two versions. The three cases immediately
+    // below pin both halves of the corrected claim.
     expect(resolvedPresetsIn(`${resolvedPresetLine("none")}\r`)).toEqual(["none"]);
+  });
+
+  it("the anchored reader trims the value's TAIL — the docstring's first half, measured", () => {
+    // A trailing run is removed from the captured value, because the LINE is trimmed before the
+    // value is sliced out of it. The docstring said the opposite until plan 29.1-21; the mechanism
+    // never did. Asserted here so the claim is decided rather than trusted.
+    expect(resolvedPresetsIn(`${resolvedPresetLine("none")}   `)).toEqual(["none"]);
+    expect(resolvedPresetsIn(`${resolvedPresetLine("none")}\t`)).toEqual(["none"]);
+    // The SIBLING grammar is built on the same helper, so the claim holds for it too or the two
+    // readers disagree about one mechanism. Both readers, one assertion of the same property.
+    expect(mirroredResolvedPresetsIn(`${mirroredResolvedPresetLine("tiered")}  `)).toEqual([
+      "tiered",
+    ]);
+  });
+
+  it("the anchored reader preserves the value's HEAD and interior — the docstring's second half", () => {
+    // Leading and internal spacing survives, so a malformed value stays visible AS malformed rather
+    // than being normalised into a shape a consumer would then accept. This is the half of the
+    // claim that was always true, and it is pinned beside the corrected half so a future edit
+    // cannot repair one by breaking the other.
+    expect(resolvedPresetsIn(`${RESOLVED_PRESET_PREFIX} none`)).toEqual([" none"]);
+    expect(resolvedPresetsIn(`${RESOLVED_PRESET_PREFIX}no ne`)).toEqual(["no ne"]);
+  });
+
+  it("the tail trim does not weaken the ANCHOR — an indented line is refused, trailing run or not", () => {
+    // THE ORDERING CLAIM, which is what makes the other two safe: the line is trimmed at its END
+    // and the prefix is required at BYTE 0 of the result, so trimming can never move a line INTO
+    // acceptance. The leading-whitespace case above pins the plain indented line; this one pins the
+    // interaction, which is the shape a reader would reach for if the trim were widened to `trim()`.
+    expect(resolvedPresetsIn(`  ${resolvedPresetLine("none")}   `)).toEqual([]);
+    expect(resolvedPresetsIn(`\t${resolvedPresetLine("none")}\r`)).toEqual([]);
   });
 
   it("the emitter owns the WHOLE prefix — no caller may prepend the generator's name to it", () => {
@@ -1796,5 +1829,44 @@ describe("model-tiers: the refusal path RETURNS on every input (plan 29.1-21, R3
     expect(source).not.toContain("String(JSON.stringify(");
     // The surviving authority is the ONLY place the operation sits inside a `try`.
     expect((source.match(/try \{\n\s*rendered = JSON\.stringify\(/g) ?? []).length).toBe(1);
+  });
+});
+
+describe("model-tiers: an override for an uncovered stem is REFUSED (plan 29.1-21, R3 anti-pattern)", () => {
+  /** Two stems, derived from the kit authority rather than typed. */
+  const twoStems = (): readonly string[] => [...kitStems()].sort().slice(0, 2);
+
+  it("resolveModels REFUSES an override naming a stem this resolution does not cover", () => {
+    // WAS A SILENT `continue` UNTIL PLAN 29.1-21, on an argued mirror case that the measurement
+    // could not find a single instance of. Replacing the skip with a refusal left the WHOLE suite
+    // green (55 files, 2381 passed) and all three live gates at exit 0 with adapter bytes unchanged,
+    // and both production call sites hand `readModelsConfig` and `resolveModels` the SAME stems —
+    // so an uncovered stem cannot arrive from either. The disposition is DECIDED here rather than
+    // carried into a fourth round.
+    const stems = twoStems();
+    const r = resolveModels(stems, {
+      preset: "none",
+      overrides: new Map([["definitely-not-a-role", "opus"]]),
+    } as unknown as ResolveModelsOptions);
+    expect(r.ok, "an override this resolver would drop is a tier the caller believes they set").toBe(
+      false,
+    );
+    if (r.ok) return;
+    // The STEM is named, so a caller holding several overrides can tell which one was rejected.
+    expect(r.reason).toContain('"definitely-not-a-role"');
+    // And the set it is not a member of is named too, derived from the stems handed over.
+    for (const stem of stems) expect(r.reason).toContain(`"${stem}"`);
+  });
+
+  it("a COVERED stem still applies — the refusal did not close the override contract", () => {
+    // THE GREEN CONTROL. A refusal that also refused the legitimate case would be indistinguishable
+    // from the one above on its own, and the override winning over the preset is the module header's
+    // stated tie-breaking contract.
+    const stems = twoStems();
+    const r = resolveModels(stems, { preset: "none", overrides: new Map([[stems[0], "opus"]]) });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.value.get(stems[0])).toBe("opus");
+    expect(r.value.get(stems[1])).toBe("inherit");
   });
 });

@@ -369,11 +369,23 @@ export function resolvedPresetLine(preset: PresetName): string {
  *     line, so a warning, a shell echo, a comment or an indented log line that merely contains the
  *     phrase comes back empty (finding WR-03).
  *
- * The trailing carriage return of a Windows child's stdout is trimmed off THE LINE, before the
- * prefix test, and never off the captured value: `none` and `none\r` are different strings, and the
- * difference would be an equality failure with an invisible cause on the one platform this kit
- * cannot test interactively. The captured value is NOT itself trimmed, so a value carrying internal
- * or leading spacing stays visible as wrong rather than being normalised into shape.
+ * TRAILING WHITESPACE — INCLUDING A WINDOWS CHILD'S CARRIAGE RETURN — IS TRIMMED OFF THE LINE
+ * BEFORE THE PREFIX TEST, AND THEREFORE OFF THE TAIL OF THE CAPTURED VALUE. The carriage return is
+ * why the trim exists at all: `none` and `none\r` are different strings, and the difference would be
+ * an equality failure with an invisible cause on the one platform this kit cannot test
+ * interactively. The line is trimmed BEFORE the value is sliced out of it, so the same trim reaches
+ * the value's tail. Measured: `resolvedPresetsIn(RESOLVED_PRESET_PREFIX + "none   ")` is `["none"]`.
+ *
+ * LEADING AND INTERNAL SPACING IS PRESERVED, so a value carrying either stays visible as wrong
+ * rather than being normalised into shape. Measured: `RESOLVED_PRESET_PREFIX + " none"` reads back
+ * as `[" none"]`, and `RESOLVED_PRESET_PREFIX + "no ne"` as `["no ne"]`.
+ *
+ * THIS DOCSTRING PREVIOUSLY CLAIMED THE TAIL WAS PRESERVED TOO (finding R3-IN-04), which the
+ * mechanism never did. The CLAIM was corrected rather than the mechanism: the trim is load-bearing
+ * for the carriage return, and the values this grammar carries are members of a closed set, so the
+ * practical effect of the tail trim is benign. What is not benign is a published claim wider than
+ * its mechanism — this module's own named defect — so both halves above are now decided by cases
+ * rather than left as prose a reader has to trust.
  */
 export function resolvedPresetsIn(output: string): string[] {
   return anchoredValuesIn(output, RESOLVED_PRESET_PREFIX);
@@ -1159,11 +1171,29 @@ export function resolveModels(
   // applied by OVERWRITING an existing key, which leaves the map's insertion order untouched, so the
   // determinism the sort buys is not spent here.
   //
-  // AN OVERRIDE FOR A STEM THIS RESOLUTION DOES NOT COVER IS SKIPPED, not refused, and the reason is
-  // the mirror argument again: a caller resolving a six-role mirror legitimately holds overrides for
-  // roles outside it. The question "is this key a real role" belongs to `readModelsConfig`, which
-  // asks it against the DERIVED corpus and refuses a typo by name (D-06). One authority, asked where
-  // the user's mistake actually is.
+  // AN OVERRIDE FOR A STEM THIS RESOLUTION DOES NOT COVER IS REFUSED BY NAME. It used to be SKIPPED
+  // — a silent `continue` — on the mirror argument: that a caller resolving a six-role mirror
+  // legitimately holds overrides for roles outside it, and that "is this key a real role" belongs to
+  // `readModelsConfig` alone (D-06). THAT ARGUMENT WAS REVERSED IN PLAN 29.1-21, ON TWO
+  // MEASUREMENTS RATHER THAN ON A SECOND OPINION:
+  //
+  //   1. NOTHING DEPENDS ON THE DISCARD. The skip was replaced with a refusal and the whole suite
+  //      run: 55 files, 2381 passed, 2 skipped, exit 0 — plus `check-foundation-guards`,
+  //      `generate:adapters` and `freshness:adapters` all exit 0 with the adapter bytes unchanged.
+  //      No case anywhere in this repository hands this loop a stem the resolution does not cover.
+  //   2. NO CALLER CAN LEGITIMATELY HOLD ONE. Both production call sites —
+  //      scripts/generate-role-adapters.ts:305 and scripts/check-foundation-guards.ts:2107 — pass
+  //      the SAME `stems` to `readModelsConfig` and to this function, and `readModelsConfig` already
+  //      refuses a `models.roles` key outside the stems it was handed, by name. The only way to
+  //      arrive here with an uncovered stem is to read the configuration against a WIDER corpus than
+  //      you resolve, which is a caller asking two different questions with two different sets.
+  //
+  // AND THE SKIP CONTRADICTED THIS MODULE'S OWN STANDING SENTENCE. Floor 0b's refusal reads "a value
+  // that is present but not a Map is a caller whose overrides would be silently discarded, which is
+  // a tier the caller believes they set and did not", and `readModelsConfig`'s unknown-key refusal
+  // says the same thing in the same words. A resolver that refuses a whole discarded MAP and then
+  // silently discards an individual ENTRY gives two answers to one question. The two doors into this
+  // resolver now give one, which is what D-06's "one authority" was always for.
   //
   // ITERATES THE LOCAL FLOOR 0b VALIDATED, never `options?.overrides ?? []` again (R2-WR-01). The
   // coalesce this replaces was the whole defect: it made this loop the place a missing value was
@@ -1186,7 +1216,19 @@ export function resolveModels(
           "thing keeping a YAML-significant byte out of it.",
       };
     }
-    if (!value.has(stem)) continue;
+    if (!value.has(stem)) {
+      return {
+        ok: false,
+        reason:
+          `model-tiers: the override names the role stem "${stem}", which is not one of the ` +
+          `${String(sorted.length)} stem(s) this resolution covers: ` +
+          `${sorted.map((s) => `"${s}"`).join(", ")}. An override this resolver drops is a tier the ` +
+          "caller believes they set and did not, which is the same fact Floor 0b refuses a discarded " +
+          "overrides MAP for — so a discarded ENTRY is refused on the same grounds. Remedy: correct " +
+          "the stem, or resolve against the corpus the overrides were read for; `readModelsConfig` " +
+          "refuses an unknown role key by name against the stems it is handed (D-06).",
+      };
+    }
     value.set(stem, alias);
   }
 

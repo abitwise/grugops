@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 84
+open_count: 87
 waived_count: 0
 fixed_count: 1
-total_count: 85
-last_updated: 2026-08-20T20:24:49.921Z
+total_count: 88
+last_updated: 2026-08-20T20:44:40.187Z
 ---
 
 # Broken Windows Ledger
@@ -100,6 +100,9 @@ last_updated: 2026-08-20T20:24:49.921Z
 | 83 | 29.1 | deviation | scripts/model-dial-consistency.test.ts |  | 29.1-20: sectionCitationsIn recognises ONE citation grammar — an inline code span whose content opens with the third-level heading marker. A cross-document section citation written as bare prose without inline code delimiters, or one naming a heading at any level other than third, is not derived, so it is neither pinned by the membership assertion nor counted by the two-sided cardinality pin. Direction: FAIL-OPEN — such a citation ships unpinned and its target may be renamed silently. | open |  | 2026-08-20T20:24:49.779Z |  |
 | 84 | 29.1 | deviation | scripts/model-dial-consistency.test.ts |  | 29.1-20: the synthetic bound case's INPUT is derived from the reader under test — the truncation calls modelBulletRegion() so that the appended bullet is the only candidate right bound. A mutation to the reader therefore changes the input as well as the subject. Measured: dropping the reader's bullet arm reds this case on its own input PREMISE (expected 6 to be 1) rather than on the bound-effect assertion; the bound-effect assertion itself is measured red only by the wholesale bound deletion. Direction: FAIL-CLOSED — the case refuses to measure on an input it cannot vouch for rather than measuring wrongly — but the premise, not the effect, is what catches an arm-level mutation. | open |  | 2026-08-20T20:24:49.851Z |  |
 | 85 | 29.1 | deviation | scripts/model-dial-consistency.test.ts |  | 29.1-20: this plan's Task 2 declared the deletion of two containment assertions that plan 29.1-19 had ALREADY deleted as its Rule-2 scope addition (ledger row 82). The plan's prescribed pre-fix reproduction — delete the right bound and observe MEASURED GREEN — is therefore not reproducible on this tree: measured this session it REDS, 1 failed / 36 passed of 37. Recorded so a later reader does not read the absent green as an unrun step. | open |  | 2026-08-20T20:24:49.921Z |  |
+| 86 | 29.1 | deviation | scripts/model-tiers.ts |  | 29.1-21: the unknown-stem override REFUSAL reverses a documented design decision — the module argued the skip was correct for a caller resolving a mirror narrower than the corpus its overrides were read for. Measured that no such caller exists (both production sites hand readModelsConfig and resolveModels the SAME stems; the whole suite and all three live gates are green with the refusal), but the reversal is a contract change, not a bug fix. Direction: FAIL-CLOSED — a future caller that legitimately reads a wider corpus than it resolves is now refused by name rather than silently mis-resolved, which is loud and recoverable, but it IS refused. | open |  | 2026-08-20T20:44:28.465Z |  |
+| 87 | 29.1 | deviation | scripts/model-tiers.ts |  | 29.1-21: the three cases pinning the corrected anchored-reader docstring do NOT share one reddening mutation. Removing the line trim reds only the TAIL half (plus two pre-existing CR cases); the HEAD-preserve and ANCHOR cases stay green under it by construction, because they assert what the trim does NOT do. The second half of the claim is therefore pinned by the reader's behaviour rather than by a mutation of the mechanism it describes. Direction: FAIL-OPEN — a change that started trimming the value's HEAD (a widening to trim()) would red the head case, but no single mutation exercises all three, so the three are not one proof. | open |  | 2026-08-20T20:44:40.110Z |  |
+| 88 | 29.1 | unrun-verify | scripts/model-tiers.test.ts |  | 29.1-21: the shape corpus proving quoteValue total derives its denominator from typeof's eight-result codomain, which is a cover of PRIMITIVE shapes only. The two object sub-shapes that actually throw (a circular graph, a getter that throws mid-serialisation) are hand-added beyond that cover and are NOT counted by any derived denominator — typeof cannot distinguish them from a plain object. Direction: FAIL-OPEN — a third throwing object sub-shape nobody thought of is invisible to the cardinality assertion, which can only prove the corpus covers every typeof, never that it covers every way JSON.stringify can throw. | open |  | 2026-08-20T20:44:40.187Z |  |
 
 ````json
 [
@@ -1121,6 +1124,42 @@ last_updated: 2026-08-20T20:24:49.921Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-08-20T20:24:49.921Z",
+    "resolved_at": null
+  },
+  {
+    "id": 86,
+    "kind": "deviation",
+    "phase": "29.1",
+    "file": "scripts/model-tiers.ts",
+    "line": null,
+    "description": "29.1-21: the unknown-stem override REFUSAL reverses a documented design decision — the module argued the skip was correct for a caller resolving a mirror narrower than the corpus its overrides were read for. Measured that no such caller exists (both production sites hand readModelsConfig and resolveModels the SAME stems; the whole suite and all three live gates are green with the refusal), but the reversal is a contract change, not a bug fix. Direction: FAIL-CLOSED — a future caller that legitimately reads a wider corpus than it resolves is now refused by name rather than silently mis-resolved, which is loud and recoverable, but it IS refused.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-08-20T20:44:28.465Z",
+    "resolved_at": null
+  },
+  {
+    "id": 87,
+    "kind": "deviation",
+    "phase": "29.1",
+    "file": "scripts/model-tiers.ts",
+    "line": null,
+    "description": "29.1-21: the three cases pinning the corrected anchored-reader docstring do NOT share one reddening mutation. Removing the line trim reds only the TAIL half (plus two pre-existing CR cases); the HEAD-preserve and ANCHOR cases stay green under it by construction, because they assert what the trim does NOT do. The second half of the claim is therefore pinned by the reader's behaviour rather than by a mutation of the mechanism it describes. Direction: FAIL-OPEN — a change that started trimming the value's HEAD (a widening to trim()) would red the head case, but no single mutation exercises all three, so the three are not one proof.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-08-20T20:44:40.110Z",
+    "resolved_at": null
+  },
+  {
+    "id": 88,
+    "kind": "unrun-verify",
+    "phase": "29.1",
+    "file": "scripts/model-tiers.test.ts",
+    "line": null,
+    "description": "29.1-21: the shape corpus proving quoteValue total derives its denominator from typeof's eight-result codomain, which is a cover of PRIMITIVE shapes only. The two object sub-shapes that actually throw (a circular graph, a getter that throws mid-serialisation) are hand-added beyond that cover and are NOT counted by any derived denominator — typeof cannot distinguish them from a plain object. Direction: FAIL-OPEN — a third throwing object sub-shape nobody thought of is invisible to the cardinality assertion, which can only prove the corpus covers every typeof, never that it covers every way JSON.stringify can throw.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-08-20T20:44:40.187Z",
     "resolved_at": null
   }
 ]
