@@ -200,19 +200,17 @@ failure lands in CI rather than on a user's machine.
   and holds identically on the main-thread and sub-agent paths. The spawn grant belongs to the
   coordinator adapter alone.
 - **`model`** — the value the factory's model dial resolved for that role. `scripts/model-tiers.ts`
-  is the single resolver. It reads the `models` block from the **first of TWO configuration
-  locations that exists** — the repository's `.grugops/factory.config.json`, which is the one you
-  configure, and, only when that file is absent entirely, a bundled default inside the kit itself.
-  It answers one alias per role, and the generator emits that answer. Which file wins when both
-  exist, and the shadowing that follows from it, is stated in the `### models sub-fields` section
-  of `factory.config.md`, the config field reference, which is the single authority for that rule;
-  this bullet names the shape and deliberately does not restate the rule. The kit-internal
-  location is named here as a fact and **not spelled as a path on purpose**: under D-08.1 no kit
-  document points a reader at a path inside the kit to edit, because per-repository state lives at
-  `.grugops/` — `scripts/check-kit-refs.js` holds that as a zero-tolerance assertion. With no
-  `models` block the dial answers `inherit` for every role — the documented platform default — so a
-  zero-config adapter keeps the user's session model choice rather than pinning a capability the
-  user never selected.
+  is the single resolver. It reads the `models` block from one of **TWO configuration locations**;
+  the repository's `.grugops/factory.config.json` is the one you configure. It answers one alias per
+  role, and the generator emits that answer. Which of the two locations wins, and the shadowing that
+  follows from it, is stated in the `### models sub-fields` section of `factory.config.md`, the
+  config field reference — that section is the single authority for the rule and the only place this
+  kit states it. The second location is acknowledged here as a fact and **not spelled as a path on
+  purpose**: under D-08.1 no kit document points a reader at a path inside the kit to edit, because
+  per-repository state lives at `.grugops/` — `scripts/check-kit-refs.js` holds that as a
+  zero-tolerance assertion. With no `models` block the dial answers `inherit` for every role — the
+  documented platform default — so a zero-config adapter keeps the user's session model choice
+  rather than pinning a capability the user never selected.
 - **Body** — repo-relative pointer text. It cites one frozen role file and acts as that role.
   It echoes the hard limit in clear professional English, not caveman voice — safety lines are
   always plain. It contains **no copied role instructions**.
