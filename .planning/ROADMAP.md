@@ -738,7 +738,7 @@ loop terminating only by an unstated argument).
   4. The dial's Claude-Code-only reach is **stated in the kit and in `CLAUDE.md`**, whose "What NOT to Use" entry against non-`inherit` wrappers is amended to name this mechanism as the documented reason. The kit's single authority states that reach as a **property of what grugops emits** — per-agent adapters at `.claude/agents/` alone — and every clause it carries about the other four host CLIs travels with a named vendor source. (MODEL-06)
   5. Any cost or limit-savings claim is **measured** with `scripts/measure-cost.ts`, or carries `UNKNOWN - verify`. A tier assignment is not evidence of a saving. (MODEL-07)
 
-**Plans**: 17 plans — 11 executed (6 original, then gap-closure round 1's `29.1-07` … `29.1-11`), plus **gap-closure round 2 (`29.1-12` … `29.1-17`) planned 2026-08-20** after round-2 verification returned `gaps_found` at 4/5 with MODEL-05 REGRESSED. **Waves are strictly sequential throughout (1→11, then 1→6 for round 3's plans)**. Four `.ts` files need their committed `.js` rebuilt (`model-tiers`, `generate-role-adapters`, `check-foundation-guards`, `adapters-freshness`), and two plans rebuilding a committed `.js` concurrently tears the output (the phase-27 round-5 precedent). Plan `29.1-02` is **not autonomous**: it opens with a blocking `checkpoint:decision` on D-05's one-way config key shape.
+**Plans**: 12/17 plans executed — 11 executed (6 original, then gap-closure round 1's `29.1-07` … `29.1-11`), plus **gap-closure round 2 (`29.1-12` … `29.1-17`) planned 2026-08-20** after round-2 verification returned `gaps_found` at 4/5 with MODEL-05 REGRESSED. **Waves are strictly sequential throughout (1→11, then 1→6 for round 3's plans)**. Four `.ts` files need their committed `.js` rebuilt (`model-tiers`, `generate-role-adapters`, `check-foundation-guards`, `adapters-freshness`), and two plans rebuilding a committed `.js` concurrently tears the output (the phase-27 round-5 precedent). Plan `29.1-02` is **not autonomous**: it opens with a blocking `checkpoint:decision` on D-05's one-way config key shape.
 
 Plans:
 
@@ -792,7 +792,7 @@ Plans:
 
 **Wave 1 (round 3)**
 
-- [ ] 29.1-12-PLAN.md — TRACER: R2-CR-01, the round's only blocker. Normalise `CHECK_ROOT` before anything is compiled from it AND require a path boundary after the matched root, from one declaration rather than two hand-kept copies, so the rewrite is a path-prefix match; proven by a byte-identity of two live CLI runs that is RED pre-fix and GREEN post-fix, with each half mutation-proven separately, plus cases for a relative root, a relative-root refusal reason, a prefix-sibling root, and a derived count-asserted residual over the other thirteen `CHECK_ROOT` gates [MODEL-01, MODEL-03, MODEL-05]
+- [x] 29.1-12-PLAN.md — TRACER: R2-CR-01, the round's only blocker. Normalise `CHECK_ROOT` before anything is compiled from it AND require a path boundary after the matched root, from one declaration rather than two hand-kept copies, so the rewrite is a path-prefix match; proven by a byte-identity of two live CLI runs that is RED pre-fix and GREEN post-fix, with each half mutation-proven separately, plus cases for a relative root, a relative-root refusal reason, a prefix-sibling root, and a derived count-asserted residual over the other thirteen `CHECK_ROOT` gates [MODEL-01, MODEL-03, MODEL-05]
 
 **Wave 2 (round 3)** *(blocked on 29.1-12)*
 
