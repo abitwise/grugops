@@ -1602,3 +1602,199 @@ describe("model-tiers: resolveModels Floor 0b validates the overrides SHAPE (pla
     for (const alias of MODEL_ALIASES) expect(illegal.reason).toContain(`"${alias}"`);
   });
 });
+
+describe("model-tiers: the refusal path RETURNS on every input (plan 29.1-21, R3-WR-02)", () => {
+  /** Two stems, derived from the kit authority rather than typed, in the shape both floors need. */
+  const twoStems = (): readonly string[] => [...kitStems()].sort().slice(0, 2);
+
+  /**
+   * THE FOUR SHAPES THE ROUND-3 VERIFIER REPRODUCED AS THROWS, built rather than stored.
+   *
+   * A circular object cannot be a module-level constant shared between cases, because the same
+   * object graph handed to two calls would let one case's mutation reach the other. Each entry is a
+   * FACTORY for that reason, and for the second one that matters here: a getter that throws is only
+   * a throwing getter while it is being read, so the value has to be fresh at the call site.
+   */
+  const circular = (): unknown => {
+    const o: Record<string, unknown> = {};
+    o.self = o;
+    return o;
+  };
+
+  /**
+   * THE SHAPE CORPUS THIS AUTHORITY MUST BE TOTAL OVER, and the DERIVED denominator under it.
+   *
+   * Totality is a claim about EVERY input, and a hand-listed four-case table is exactly the
+   * set-literal drift this repository names as its second systemic failure class — it proves the
+   * four shapes somebody thought of on the day. So the corpus is measured against a denominator
+   * that is not this file's to choose: `typeof`'s codomain is fixed by the language at EIGHT
+   * results, and the case below asserts the corpus covers all eight in BOTH directions rather than
+   * counting itself. An input shape that `typeof` can name and this corpus does not carry is a hole
+   * the assertion prints; a ninth entry invented here that `typeof` cannot name is one it prints too.
+   *
+   * The four object-typed entries beyond the `typeof` cover are the sub-shapes that make totality a
+   * question at all: `JSON.stringify` throws on two of them (a circular graph, a getter that throws
+   * mid-serialisation) and silently returns a non-string for three more of the corpus (`undefined`,
+   * a function, a symbol). Both failure modes are the reason `quoteValue` wraps the call rather than
+   * trusting it.
+   */
+  const SHAPE_CORPUS: readonly (readonly [label: string, make: () => unknown])[] = [
+    ["undefined", () => undefined],
+    ["null", () => null],
+    ["a boolean", () => false],
+    ["a number", () => Number.NaN],
+    ["a BigInt", () => 1n],
+    ["a string", () => "not-an-alias"],
+    ["a symbol", () => Symbol("nope")],
+    ["a function", () => () => "nope"],
+    ["an array", () => ["opus"]],
+    ["a plain object", () => ({ tier: "opus" })],
+    ["a circular object", circular],
+    ["an object whose getter throws", () => ({ get boom(): never { throw new Error("getter"); } })],
+  ];
+
+  /** The complete codomain of `typeof`, fixed by the language rather than by this file. */
+  const TYPEOF_RESULTS = [
+    "undefined",
+    "object",
+    "boolean",
+    "number",
+    "bigint",
+    "string",
+    "symbol",
+    "function",
+  ] as const;
+
+  it("the shape corpus covers every result `typeof` can produce, in both directions", () => {
+    // THE DENOMINATOR IS DERIVED, NOT TYPED. A cardinality assertion against a hand-typed number
+    // would move the day someone added an entry and re-typed the number to match, which is the
+    // failure mode it exists to catch. This compares two SETS instead: the shapes the corpus
+    // actually produces, and the closed vocabulary the language can name.
+    const covered = new Set(SHAPE_CORPUS.map(([, make]) => typeof make()));
+    expect([...covered].sort()).toEqual([...TYPEOF_RESULTS].sort());
+    expect(covered.size).toBe(TYPEOF_RESULTS.length);
+    // And the corpus is strictly wider than its cover, because the object sub-shapes that THROW are
+    // indistinguishable from a plain object under `typeof` and are the whole reason for the guard.
+    expect(SHAPE_CORPUS.length).toBeGreaterThan(TYPEOF_RESULTS.length);
+  });
+
+  it("the override refusal RETURNS for every shape in the corpus, never throwing out of itself", () => {
+    // THE ASSERTION IS THAT THE CALL RETURNS. If the authority regressed, this case would not fail
+    // an expectation — the resolver would throw, which is the defect itself, so the call is wrapped
+    // and the throw is reported as the failure it is rather than as a suite error with no name.
+    const stems = twoStems();
+    for (const [label, make] of SHAPE_CORPUS) {
+      let outcome: ReturnType<typeof resolveModels>;
+      try {
+        outcome = resolveModels(stems, {
+          preset: "none",
+          overrides: new Map([[stems[0], make()]]),
+        } as unknown as ResolveModelsOptions);
+      } catch (e) {
+        throw new Error(
+          `the refusal path THREW for ${label} instead of returning: ${String(e)}`,
+        );
+      }
+      expect(outcome.ok, `${label} is not a legal alias, so it must be REFUSED`).toBe(false);
+      if (outcome.ok) continue;
+      // The role stem travels with the shape, so a caller holding several overrides can tell WHICH
+      // one was rejected rather than only that something was.
+      expect(outcome.reason, label).toContain(`the override for role "${stems[0]}"`);
+      for (const alias of MODEL_ALIASES) expect(outcome.reason, label).toContain(`"${alias}"`);
+    }
+  });
+
+  it("Floor 0 returns a refusal for a preset that cannot be serialised, rather than throwing", () => {
+    const r = resolveModels(twoStems(), { preset: circular() } as unknown as ResolveModelsOptions);
+    expect(r.ok, "a circular preset is not a legal preset name — it is a refusal, not a crash").toBe(
+      false,
+    );
+    if (r.ok) return;
+    // The DESCRIPTION, not a rendering — angle brackets are how a reader tells the two apart.
+    expect(r.reason).toContain("<an object that cannot be serialised>");
+    expect(r.reason).toContain("is not a legal preset name");
+    for (const name of PRESET_NAMES) expect(r.reason).toContain(`"${name}"`);
+  });
+
+  it("Floor 0 returns a refusal for a BigInt preset, rather than throwing", () => {
+    const r = resolveModels(twoStems(), { preset: 1n } as unknown as ResolveModelsOptions);
+    expect(r.ok, "a BigInt preset is a value that cannot mean anything, not a crash").toBe(false);
+    if (r.ok) return;
+    expect(r.reason).toContain("<a bigint that cannot be serialised>");
+    for (const name of PRESET_NAMES) expect(r.reason).toContain(`"${name}"`);
+  });
+
+  it("the override refusal returns for an alias that cannot be serialised, rather than throwing", () => {
+    const stems = twoStems();
+    const r = resolveModels(stems, {
+      preset: "none",
+      overrides: new Map([[stems[0], circular()]]),
+    } as unknown as ResolveModelsOptions);
+    expect(r.ok).toBe(false);
+    if (r.ok) return;
+    expect(r.reason).toContain(`the override for role "${stems[0]}"`);
+    expect(r.reason).toContain("<an object that cannot be serialised>");
+  });
+
+  it("the override refusal returns for a BigInt alias, rather than throwing", () => {
+    const stems = twoStems();
+    const r = resolveModels(stems, {
+      preset: "none",
+      overrides: new Map([[stems[0], 1n]]),
+    } as unknown as ResolveModelsOptions);
+    expect(r.ok).toBe(false);
+    if (r.ok) return;
+    expect(r.reason).toContain(`the override for role "${stems[0]}"`);
+    expect(r.reason).toContain("<a bigint that cannot be serialised>");
+  });
+
+  it("a SERIALISABLE value renders byte-identically through the authority — no refusal wording moved", () => {
+    // THE REGRESSION CONTROL FOR THE WHOLE CHANGE. A total function that altered the rendering of an
+    // ordinary value would be a silent wording change across a safety surface, and every one of
+    // these strings is what a user reads when their configuration is rejected. The expected text is
+    // built here the way the pre-fix code built it, so the two renderings are compared rather than
+    // one of them being restated.
+    const stems = twoStems();
+    for (const value of ["cheap", 7, true, null, ["tiered"], { preset: "tiered" }] as const) {
+      const r = resolveModels(stems, { preset: value } as unknown as ResolveModelsOptions);
+      expect(r.ok, `${String(JSON.stringify(value))} is not a preset name`).toBe(false);
+      if (r.ok) continue;
+      expect(r.reason).toContain(`model-tiers: ${String(JSON.stringify(value))} is not a legal`);
+    }
+    for (const value of ["gpt-5", 7, true, null, ["opus"]] as const) {
+      const r = resolveModels(stems, {
+        preset: "none",
+        overrides: new Map([[stems[0], value]]),
+      } as unknown as ResolveModelsOptions);
+      expect(r.ok).toBe(false);
+      if (r.ok) continue;
+      expect(r.reason).toContain(
+        `the override for role "${stems[0]}" is ${String(JSON.stringify(value))}, which `,
+      );
+    }
+  });
+
+  it("the quoting operation has ONE spelling in this module, and no refusal builds its own", () => {
+    // THE SET IS DERIVED FROM THE SOURCE, AND ITS CARDINALITY PINNED TWO-SIDED. Comments are
+    // stripped first, because this module's own docstrings quote the operation while describing it —
+    // a scan that counted those would be counting prose. Two sites survive by design and both are
+    // named below; a third is a plan violation, and so is a second spelling of the wrapped form.
+    const source = readFileSync(join(ROOT, "scripts", "model-tiers.ts"), "utf8")
+      .split("\n")
+      .filter((line) => !/^\s*[/*]/.test(line))
+      .join("\n");
+    const sites = source.match(/JSON\.stringify\(/g) ?? [];
+    expect(
+      sites.length,
+      "exactly two: `quoteValue`'s guarded call — the one authority — and " +
+        "`resolvedAssignmentLine`'s payload emitter, which SERIALISES AN ANNOUNCEMENT rather than " +
+        "building a refusal, and whose input is a locally constructed ResolvedAssignment",
+    ).toBe(2);
+    // The wrapped second spelling the override refusal carried is GONE, not relocated — and the
+    // authority does not satisfy this scan itself, because it assigns the render to a local rather
+    // than composing the two calls. A predicate a subject can satisfy on its own is not a predicate.
+    expect(source).not.toContain("String(JSON.stringify(");
+    // The surviving authority is the ONLY place the operation sits inside a `try`.
+    expect((source.match(/try \{\n\s*rendered = JSON\.stringify\(/g) ?? []).length).toBe(1);
+  });
+});

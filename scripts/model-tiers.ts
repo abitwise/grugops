@@ -1000,13 +1000,18 @@ export function resolveModels(
   // paragraph, one function below, argues exactly this for a degenerate `models` block — '"off" and
   // "I typed something that cannot mean anything" are different statements' — and the two places
   // must agree, because they are the same claim about two doors into the same resolver.
+  //
+  // THE REJECTED VALUE IS RENDERED BY `quoteValue` AND NOWHERE ELSE (finding R3-WR-02). This site
+  // used to spell `JSON.stringify` itself, which threw on the two shapes it could not serialise —
+  // so the value that reached this refusal was the value that stopped the refusal being returned.
+  // One authority, and it is total; see its docstring for the four reproduced pre-fix throws.
   const rawPreset: unknown = options?.preset;
   const preset: unknown = rawPreset === undefined ? "none" : rawPreset;
   if (!isPresetName(preset)) {
     return {
       ok: false,
       reason:
-        `model-tiers: ${JSON.stringify(preset)} is not a legal preset name. The legal set is ` +
+        `model-tiers: ${quoteValue(preset)} is not a legal preset name. The legal set is ` +
         `exactly: ${PRESET_NAMES.map((n) => `"${n}"`).join(", ")}. Remedy: use one of those two ` +
         "names; adding a third preset is a source change in scripts/model-tiers.ts, not a value a " +
         "configuration file can invent.",
@@ -1164,12 +1169,17 @@ export function resolveModels(
   // coalesce this replaces was the whole defect: it made this loop the place a missing value was
   // decided, so a value that could not mean anything reached the same empty iteration an absent one
   // does, and a non-iterable one reached a throw instead of a refusal.
+  //
+  // THIS REFUSAL ALSO RENDERS THROUGH `quoteValue` (finding R3-WR-02). It carried the SECOND
+  // spelling of that operation — `String(JSON.stringify(alias))` — and the second spelling is
+  // deleted rather than made total beside the first, because a module whose header forbids a second
+  // implementation of one predicate does not keep two.
   for (const [stem, alias] of overrides) {
     if (!isModelAlias(alias)) {
       return {
         ok: false,
         reason:
-          `model-tiers: the override for role "${stem}" is ${String(JSON.stringify(alias))}, which ` +
+          `model-tiers: the override for role "${stem}" is ${quoteValue(alias)}, which ` +
           `is not a legal model alias. The legal set is exactly: ` +
           `${MODEL_ALIASES.map((a) => `"${a}"`).join(", ")}. This floor exists because the resolved ` +
           "value is written straight into emitted frontmatter, and the closed allow-list is the only " +
@@ -1247,9 +1257,54 @@ function describeShape(value: unknown): string {
   return `${"aeiou".includes(shape[0]) ? "an" : "a"} ${shape}`;
 }
 
-/** A value quoted back to the user exactly as they typed it, including a non-JSON-serialisable one. */
+/**
+ * A value quoted back to the user exactly as they typed it, including a non-JSON-serialisable one.
+ *
+ * THE ONE AUTHORITY FOR QUOTING A VALUE INTO A REFUSAL, AND IT IS TOTAL (finding R3-WR-02). Until
+ * this guard was written the docstring line above was FALSE: `JSON.stringify` throws on a circular
+ * object and on a BigInt, so a non-serialisable value was the one shape this function could not
+ * quote. Worse, two other sites spelled the same operation themselves — Floor 0's preset refusal and
+ * the override-alias refusal below — which is a second implementation of one predicate in a module
+ * whose header argues against exactly that. Both now ask here, and this is the only place the
+ * operation is written.
+ *
+ * REPRODUCED AGAINST THE COMMITTED .js AT 2f6098c BEFORE THIS GUARD EXISTED. Four shapes, four
+ * throws out of a refusal path whose module header promises a returned result:
+ *
+ *   resolveModels(stems, {preset: circular})                   -> TypeError: Converting circular structure to JSON
+ *   resolveModels(stems, {preset: 1n})                         -> TypeError: Do not know how to serialize a BigInt
+ *   resolveModels(stems, {overrides: Map(stem -> circular)})   -> TypeError: Converting circular structure to JSON
+ *   resolveModels(stems, {overrides: Map(stem -> 1n)})         -> TypeError: Do not know how to serialize a BigInt
+ *
+ * The value that reached the refusal was the value that prevented the refusal from being RETURNED.
+ *
+ * WHY IT DESCRIBES RATHER THAN DIES, AND WHY THE REFUSAL IS NOT SHORTENED INSTEAD. A value JSON
+ * cannot render is still a value the user handed over, and the refusal is the ONLY channel telling
+ * them it was rejected; a generic message would leave them holding a rejection with no way to tell
+ * which of their values caused it. So the fallback is built from `describeShape` — this module's
+ * existing English-correct shape describer — rather than from a third rendering invented here, and
+ * it is wrapped in angle brackets so a reader can tell a DESCRIPTION from a rendered value at a
+ * glance. The catch is deliberately unconditional: it is not only `TypeError` that can arrive here,
+ * because a getter that throws inside the object under serialisation surfaces its own error.
+ *
+ * `String(...)` IS LOAD-BEARING AND PREDATES THIS CHANGE. `JSON.stringify` RETURNS `undefined` —
+ * not a string, and without throwing — for `undefined`, a function and a symbol, so the conversion
+ * is what keeps a non-string out of the template literals that consume this. A serialisable value
+ * therefore renders byte-identically before and after this change.
+ *
+ * THE RENDER IS ASSIGNED TO A LOCAL RATHER THAN RETURNED FROM INSIDE THE `try`, so the composed
+ * spelling `String(JSON.stringify(` — the one the deleted second site used — exists NOWHERE in this
+ * module. That makes a scan for it a real predicate rather than one this function would satisfy
+ * itself, and keeps the `try` around the single expression that can actually throw.
+ */
 function quoteValue(value: unknown): string {
-  return String(JSON.stringify(value));
+  let rendered: string | undefined;
+  try {
+    rendered = JSON.stringify(value);
+  } catch {
+    return `<${describeShape(value)} that cannot be serialised>`;
+  }
+  return String(rendered);
 }
 
 /**
