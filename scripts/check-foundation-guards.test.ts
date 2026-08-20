@@ -10142,4 +10142,60 @@ describe("guard_model_assignment (Phase 29.1, MODEL-03/MODEL-05)", () => {
     expect(section).toContain('preset "none" from neither standard location');
     expect(section).toContain("distinct aliases resolved: inherit");
   });
+
+  // ── (r) THE GENERATOR IS WIRED INTO CI, ASSERTED AT BOTH ENDS. (Plan 29.1-09, WR-07) ─────────
+  //
+  // The other half of this round's fail-open, and the half no source edit can hold. Every named
+  // refusal this phase built lives in the adapter generator, and `.github/workflows/ci.yml` ran the
+  // generator nowhere: `generate:adapters` was defined in package.json and invoked by no step. The
+  // freshness mirror copies the role and packaging trees and NO configuration, so the mirrored
+  // generator never opened the offending file either. An illegal `models` block committed to a mirror
+  // cleared both continuous-integration gates at exit 0.
+  //
+  // WIRED AT BOTH ENDS, DELIBERATELY. This repository's own comment in that same block already records
+  // that `freshness:adapters` sat un-invoked for a whole phase, and that a gate running only as a side
+  // effect of another step is borrowed rather than wired. This is the second time that lesson is being
+  // applied to this block, so the wiring is pinned here as well as written there — a step present in
+  // the workflow and asserted by nothing is one edit away from being gone.
+  //
+  // Shape follows scripts/skill-twins-freshness.test.ts Case 8, which is this repository's existing
+  // convention for the assertion, rather than inventing a third.
+  it("(r) CI wiring: the ubuntu gate block runs the adapter generator and diffs the adapter directory", () => {
+    const ci = readFileSync(
+      join(ROOT, ".github", "workflows", "ci.yml"),
+      "utf8",
+    );
+    // The BLOCK, not the file. A hit anywhere else in the workflow — a comment, another job, a
+    // different OS leg — does not put the command on the gated path.
+    const at = ci.indexOf("Freshness gates + repo gates (ubuntu only)");
+    expect(at, "the ubuntu-only gate block must be locatable by its step name").toBeGreaterThan(-1);
+    const block = ci.slice(at);
+    // PREMISE: the slice really is the gate block, proven by a command already known to live in it.
+    expect(block).toContain("npm run freshness:adapters");
+
+    for (const command of [
+      "npm run generate:adapters",
+      "git diff --exit-code -- .claude/agents/",
+    ]) {
+      expect(
+        block,
+        `${command} must run inside the ubuntu gate block — the generator is the ONE process that refuses an illegal \`models\` configuration, and the diff behind it additionally proves the committed adapters match the live configuration`,
+      ).toContain(command);
+    }
+
+    // …and the generator runs BEFORE the foundation guard, so a configuration defect is named by the
+    // process that refuses it before the guard renders a verdict over the same tree.
+    expect(block.indexOf("npm run generate:adapters")).toBeLessThan(
+      block.indexOf("node scripts/check-foundation-guards.js"),
+    );
+    // The diff runs after the generator it is checking, not before it.
+    expect(block.indexOf("npm run generate:adapters")).toBeLessThan(
+      block.indexOf("git diff --exit-code -- .claude/agents/"),
+    );
+
+    // NO STEP RUNS THE LIVE e2e LANE. `npm test` spends tokens against an authed box and is not a
+    // gate; the workflow's regression command is the excluded form.
+    expect(ci).not.toContain("run: npm test");
+    expect(ci).toContain("npx vitest run --exclude '**/scripts/e2e/**'");
+  });
 });

@@ -146,6 +146,28 @@ jobs:
           # scripts/skill-twins-freshness.test.ts, deliberately at both ends — freshness:adapters
           # was un-wired for a whole phase and that was this phase's most expensive omission.
           npm run freshness:skill-twins
+          # MODEL-03 / MODEL-05 (plan 29.1-09, WR-07) — THE REFUSALS THIS PHASE BUILT WERE UNREACHABLE
+          # FROM THE BUILD, and these two lines are the half of the fix no source edit can hold.
+          #
+          # Three facts composed into a fail-open, and the composition was reproduced end to end: an
+          # illegal `models` block committed to a mirror cleared BOTH gates in this block at exit 0.
+          # (1) guard_model_assignment reported a refused configuration through the ADVISORY channel,
+          # which does not fail a build — closed in the guard itself by the same plan. (2) the
+          # adapters-freshness mirror copies the role and packaging trees and NO configuration, so the
+          # mirrored generator never opened the offending file. (3) the adapter generator is the ONE
+          # process that refuses an illegal `models` block, and this workflow ran it nowhere:
+          # `generate:adapters` was defined in package.json and invoked by no step here.
+          #
+          # THE DIFF BUYS A SECOND PROPERTY, and it is not obvious from the command. Beyond letting the
+          # generator's refusal fail the build, it proves the COMMITTED adapters match the LIVE
+          # configuration — so a hand-edited or stale adapter is caught here too, on the configuration
+          # axis rather than the byte-mirror axis freshness:adapters covers.
+          #
+          # Wired HERE and in scripts/check-foundation-guards.test.ts, deliberately at both ends. This
+          # block's own comment above already records that freshness:adapters sat un-invoked for a whole
+          # phase; this is the second time that lesson is applied to this same block.
+          npm run generate:adapters
+          git diff --exit-code -- .claude/agents/
           node scripts/check-foundation-guards.js
           # IN-02 (plan 27-23) — WIRED AT BOTH ENDS. Until this line, check-kit-refs and
           # validate-agent-factory ran in continuous integration solely as a SIDE EFFECT of their
