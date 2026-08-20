@@ -200,11 +200,14 @@ failure lands in CI rather than on a user's machine.
   and holds identically on the main-thread and sub-agent paths. The spawn grant belongs to the
   coordinator adapter alone.
 - **`model`** — the value the factory's model dial resolved for that role. `scripts/model-tiers.ts`
-  is the single resolver: it reads the `models` block from the repository's
-  `.grugops/factory.config.json` and answers one alias per role, and the generator emits that
-  answer. With no `models` block the dial answers `inherit` for every role — the documented
-  platform default — so a zero-config adapter keeps the user's session model choice rather than
-  pinning a capability the user never selected.
+  is the single resolver: it reads the `models` block from one of two configuration locations —
+  `.grugops/factory.config.json` and `agent-factory/config/factory.config.json` — and answers one
+  alias per role, and the generator emits that answer. Which of the two is read, and what happens
+  when both exist, is stated in `agent-factory/config/factory.config.md`'s `### models sub-fields`
+  section, which is the single authority for that rule; this bullet names the locations and
+  deliberately does not restate the rule. With no `models` block the dial answers `inherit` for
+  every role — the documented platform default — so a zero-config adapter keeps the user's session
+  model choice rather than pinning a capability the user never selected.
 - **Body** — repo-relative pointer text. It cites one frozen role file and acts as that role.
   It echoes the hard limit in clear professional English, not caveman voice — safety lines are
   always plain. It contains **no copied role instructions**.

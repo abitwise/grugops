@@ -191,6 +191,42 @@ export function isPresetName(value) {
 // — which is verbatim what this module's own `unassigned` refusal calls a tier the user believes
 // they set and did not.
 export const MODELS_KEYS = ["preset", "roles"];
+// ── MODELS_CONFIG_CANDIDATE_RELS — the two configuration LOCATIONS, declared once (WR-05) ───────
+//
+// THE FOURTH CLOSED VOCABULARY OF THIS MODULE, declared beside the other three for the same reason.
+// MODEL_ALIASES closes what a role may be assigned, PRESET_NAMES what a preset may be called,
+// MODELS_KEYS what the `models` block may contain, and this closes WHERE the block may be written.
+//
+// WHY IT IS A CONSTANT RATHER THAN AN INLINE ARRAY IN `readModelsConfig`. Finding WR-05 of the
+// 29.1 gap-closure round reported that the shipped documentation named ONE of these two locations
+// and the resolver read both. Two spellings of one fact — one in prose, one inline in a loop —
+// are this repository's named second systemic failure class, and the drift was already live. The
+// list is declared here so `scripts/model-dial-consistency.test.ts` can assert that EVERY member
+// appears in BOTH shipped documents, which makes the prose and the code unable to name different
+// files without an oracle going red.
+//
+// REPO-RELATIVE, POSIX-SPELLED. `readModelsConfig` splits each member on "/" and joins the segments
+// against the repository root its caller handed it, so the constant stays a literal a `grep` and a
+// markdown document can both carry verbatim while the path built from it is still platform-correct.
+//
+// THE ORDER IS THE PRECEDENCE, AND THE PRECEDENCE IS WHOLE-FILE. The reader tries these in the
+// order written and returns on the FIRST one that EXISTS — regardless of whether that file carries
+// a `models` key. This matches `readGovernanceConfig` in scripts/context-io.ts, which uses the same
+// two locations in the same order; the two readers agree deliberately, and this is a convention
+// rather than an oversight.
+//
+// THE CONSEQUENCE, STATED HERE BECAUSE IT IS NOT OBVIOUS FROM THE LOOP. A file present at the
+// FIRST location and carrying NO `models` key SHADOWS a `models` block at the second: the first
+// file wins whole, `models` is undefined in it, and the reader returns the zero-config answer
+// naming that first file as its source. Under D-04 the shipped seed IS exactly such a file, so
+// this is the standard installed shape rather than a contrived one. The behaviour is deliberate
+// and unchanged; what WR-05 found missing was any shipped document SAYING it. That statement now
+// lives in agent-factory/config/factory.config.md's `### models sub-fields` section, which is its
+// single authority — this comment records the mechanism, not a second rule.
+export const MODELS_CONFIG_CANDIDATE_RELS = [
+    ".grugops/factory.config.json",
+    "agent-factory/config/factory.config.json",
+];
 // ── The RESOLVED-PRESET LINE — ONE grammar, asked in both directions (plan 29.1-03) ────────────
 //
 // WHY THIS LIVES HERE RATHER THAN AS A LITERAL IN THE GENERATOR. The adapter generator PRINTS the
@@ -1040,10 +1076,10 @@ export function readModelsConfig(repoRoot, stems) {
                 "reason; either way the answer is a vacuous one that hides a broken corpus derivation.",
         };
     }
-    const candidates = [
-        join(repoRoot, ".grugops", "factory.config.json"),
-        join(repoRoot, "agent-factory", "config", "factory.config.json"),
-    ];
+    // Built from the ONE declaration of these two locations rather than spelled inline. See
+    // MODELS_CONFIG_CANDIDATE_RELS above for why: the inline array this replaces was the second
+    // spelling of a fact the shipped documentation spelled differently, which is finding WR-05.
+    const candidates = MODELS_CONFIG_CANDIDATE_RELS.map((rel) => join(repoRoot, ...rel.split("/")));
     for (const path of candidates) {
         // Outcome 1, per candidate: this location holds nothing, so try the next one. The genuinely
         // absent answer is returned after the loop, once BOTH locations have been found empty.

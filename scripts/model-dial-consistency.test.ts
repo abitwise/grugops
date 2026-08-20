@@ -34,7 +34,7 @@
 import { describe, it, expect } from "vitest";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { MODEL_ALIASES, PRESET_NAMES } from "./model-tiers.js";
+import { MODEL_ALIASES, MODELS_CONFIG_CANDIDATE_RELS, PRESET_NAMES } from "./model-tiers.js";
 
 const ROOT = join(import.meta.dirname, "..");
 
@@ -494,6 +494,41 @@ describe("model dial — the documented closed sets equal the module's own, in B
     // Only the second direction actually catches that today; this case says so out loud.
     expect(presetSites.every((s) => s.length > 0)).toBe(true);
     expect(aliasSites.every((s) => s.length > 0)).toBe(true);
+  });
+});
+
+// ── The configuration LOCATIONS, and where their precedence rule is allowed to live (WR-05) ────
+//
+// The anchor is the precedence RULE's own sentence fragment, not the paths. The paths are a FACT
+// and both documents are required to carry them; the RULE is a rule, and D-13's shape says exactly
+// one document holds a rule while the other points at it. Asserting the rule's anchor in both
+// directions is what keeps a well-meaning later edit from restating the precedence in the packaging
+// authority, which is how a second authority is born.
+const PRECEDENCE_RULE_ANCHOR = "The first of those two files that EXISTS wins WHOLE";
+
+describe("model dial — both configuration locations are documented, and the rule has ONE home (WR-05)", () => {
+  it("every declared configuration location appears in BOTH shipped documents", () => {
+    // DERIVED FROM THE RESOLVER'S OWN CONSTANT, never hand-listed here. The module builds its
+    // candidate list from exactly this tuple, so a third location added to the code without being
+    // documented turns this case red, and a location dropped from either document does the same.
+    // That is the whole content of WR-05: the code read two locations and the shipped prose named
+    // one, and nothing mechanical noticed.
+    expect(MODELS_CONFIG_CANDIDATE_RELS.length).toBeGreaterThan(0);
+    const authority = readSurface("authority");
+    const pointer = readSurface("pointer");
+    const undocumented: string[] = [];
+    for (const rel of MODELS_CONFIG_CANDIDATE_RELS) {
+      if (occurrences(authority, rel) < 1) undocumented.push(`${SURFACE_ROLES.authority} → ${rel}`);
+      if (occurrences(pointer, rel) < 1) undocumented.push(`${SURFACE_ROLES.pointer} → ${rel}`);
+    }
+    expect(undocumented).toEqual([]);
+  });
+
+  it("EXACTLY ONE document states the whole-file precedence rule — the config reference, not the authority", () => {
+    // Two-sided, as D-13's shape always is here: present in the document that owns the rule, and
+    // ABSENT from the one that points at it.
+    expect(occurrences(readSurface("pointer"), PRECEDENCE_RULE_ANCHOR)).toBe(1);
+    expect(occurrences(readSurface("authority"), PRECEDENCE_RULE_ANCHOR)).toBe(0);
   });
 });
 

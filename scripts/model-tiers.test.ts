@@ -28,7 +28,7 @@
 // artifact every consumer actually imports.
 
 import { describe, it, expect, afterAll } from "vitest";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -36,6 +36,7 @@ import { listRoles, ROLE_COUNT } from "./kit-model.js";
 import {
   MODEL_ALIASES,
   MODEL_TIERS_COUNT,
+  MODELS_CONFIG_CANDIDATE_RELS,
   MODELS_KEYS,
   PRESET_NAMES,
   RESOLVED_PRESET_PREFIX,
@@ -754,6 +755,87 @@ describe("model-tiers: candidate precedence and the override contract (plan 29.1
     expect(r.ok).toBe(true);
     if (!r.ok) return;
     expect(r.value.preset).toBe("tiered");
+  });
+
+  it("SHADOWING: a present-but-models-less first candidate wins WHOLE over a models-carrying second", () => {
+    // FINDING WR-05, PINNED. The reader returns on the FIRST candidate that EXISTS, whether or not
+    // that file carries a `models` key. So a `.grugops/factory.config.json` holding only unrelated
+    // dials SHADOWS a `models` block in the in-kit config: the answer is the zero-config one and
+    // the source names the shadowing file. Under D-04 the shipped seed IS such a file, which makes
+    // this the standard installed shape rather than a contrived one.
+    //
+    // WHY THIS IS A NEW SHAPE AND NOT A RESTATEMENT. The two precedence cases above plant a
+    // `models` block in BOTH files; neither of them can distinguish "the first file wins" from
+    // "the first file WITH A BLOCK wins". This one does, and it is the shape the shipped
+    // documentation did not state until this plan.
+    //
+    // THE PATHS AND THE EXPECTED SOURCE ARE THIS FILE'S OWN LITERALS, deliberately not derived
+    // from MODELS_CONFIG_CANDIDATE_RELS. A fixture that planted its files THROUGH the constant and
+    // then asserted the source AGAINST the constant would move both sides together under a
+    // reversal and could never go red — which is the two-sided-pin failure class this round exists
+    // to close. Reversing the constant's declared order was observed to turn this case RED.
+    const stems = kitStems();
+    const root = scratchRoot();
+    writeConfigAt(root, REPO_DROPPED, JSON.stringify({ quality: { tdd: true } }));
+    writeConfigAt(root, IN_KIT, JSON.stringify({ models: { preset: "tiered" } }));
+
+    // THE FIXTURE'S OWN PREMISE, read back off disk before anything is asserted about the
+    // resolution: a typo in either literal above would otherwise make this case pass for the
+    // wrong reason — there is more than one way to reach `preset: "none"`.
+    const firstAbs = join(root, ...REPO_DROPPED);
+    const secondAbs = join(root, ...IN_KIT);
+    expect(existsSync(firstAbs), "PREMISE: the shadowing file must exist").toBe(true);
+    const firstJson = JSON.parse(readFileSync(firstAbs, "utf8")) as Record<string, unknown>;
+    const secondJson = JSON.parse(readFileSync(secondAbs, "utf8")) as Record<string, unknown>;
+    expect(
+      Object.prototype.hasOwnProperty.call(firstJson, "models"),
+      "PREMISE: the FIRST candidate must carry NO `models` key — that is the whole shape",
+    ).toBe(false);
+    expect(
+      Object.prototype.hasOwnProperty.call(secondJson, "models"),
+      "PREMISE: the SECOND candidate must carry a `models` key for it to have something to shadow",
+    ).toBe(true);
+
+    const r = readModelsConfig(root, stems);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.value.preset, "the second file's `tiered` is shadowed — this is the zero-config answer").toBe(
+      "none",
+    );
+    expect(r.value.overrides.size).toBe(0);
+    expect(r.value.source, "and the SOURCE names the shadowing file, not the one that was skipped").toBe(
+      firstAbs,
+    );
+    expect(r.value.source).not.toBe(secondAbs);
+  });
+
+  it("the candidate list is built from the exported location constant, in declared order", () => {
+    const stems = kitStems();
+
+    // Direction one: the constant says what this file's independently written fixture tuples say.
+    // Two hand-written spellings pinned against each other is only worth something because they
+    // were written by different plans for different purposes; the load-bearing independence check
+    // is in scripts/model-dial-consistency.test.ts, which asserts every member of this constant
+    // appears in both SHIPPED documents.
+    expect(MODELS_CONFIG_CANDIDATE_RELS).toHaveLength(2);
+    expect(MODELS_CONFIG_CANDIDATE_RELS[0]).toBe(REPO_DROPPED.join("/"));
+    expect(MODELS_CONFIG_CANDIDATE_RELS[1]).toBe(IN_KIT.join("/"));
+
+    // Direction two: EVERY declared member is a LIVE candidate. A member that the reader never
+    // opens would make the constant a decorative list — the exact defect of a documented location
+    // the code does not read. Each is planted ALONE in a fresh root, so nothing else can answer.
+    for (const rel of MODELS_CONFIG_CANDIDATE_RELS) {
+      const root = scratchRoot();
+      const segments = rel.split("/");
+      writeConfigAt(root, segments, JSON.stringify({ models: { preset: "tiered" } }));
+      const r = readModelsConfig(root, stems);
+      expect(r.ok, `the declared location ${rel} must be read`).toBe(true);
+      if (!r.ok) return;
+      expect(r.value.preset, `${rel} is a live candidate, not a documented-only location`).toBe("tiered");
+      expect(r.value.source, `and the reader names ${rel} as the file it read`).toBe(
+        join(root, ...segments),
+      );
+    }
   });
 
   it("an OVERRIDE WINS over a preset assignment on the same stem — a stated contract, not an order", () => {
