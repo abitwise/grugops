@@ -34,7 +34,7 @@
 //   node scripts/check-kit-refs.js
 // Exit 0 = all checks PASS; exit 1 = at least one FAIL.
 import { readFileSync, existsSync, readdirSync, statSync } from "node:fs";
-import { join } from "node:path";
+import { join, sep } from "node:path";
 // Phase 27 (SPAWN-05 / D-24): the retired-vocabulary literals are single-source. This gate takes the
 // PATH form; guard_adapter_body in check-foundation-guards.ts takes the PROSE forms. Two different
 // predicates over two different inputs, one list.
@@ -59,11 +59,40 @@ const ROOT = process.env.CHECK_ROOT
 // stale by sixteen the moment plan 27-07 generates one adapter per role. walk() below already
 // recurses a directory entry, so naming the directory makes this membership self-deriving with no
 // import at all. Every OTHER entry is unchanged: widening the scan is NOT what this change is for.
+//
+// (Phase 29.1 round 3 / finding R2-WR-05, plan 29.1-17) `agent-factory/config` JOINS this set, and
+// the four facts that justify it are written here rather than left to be reconstructed:
+//
+//   1. THE INSTALLER SHIPS THIS DIRECTORY. install/install.ts:1065 is
+//      `cpSync(join(GRUGOPS_SRC, "agent-factory"), tmp, { recursive: true })` inside copyKit — the
+//      WHOLE agent-factory/ tree, config/ included, lands at $GRUGOPS_HOME/agent-factory on every
+//      install. agent-factory/config/factory.config.md is therefore delivered to every installed
+//      user, which is exactly the audience D-08.1 protects.
+//   2. ITS ABSENCE WAS AN OMISSION, NOT AN AUDIENCE JUDGMENT — the record is corrected here.
+//      29.1-11-SUMMARY.md recorded the WR-05 disposition as split by audience, calling the config
+//      field reference the "developer-facing" authority that "lives outside the scan set". "Outside
+//      this SCAN set" and "not shipped kit prose" are two different facts, and that rationale used
+//      the first to establish the second. The header above says the exclusions are BY NOT LISTING;
+//      this directory was simply never listed, since before the config dial existed.
+//   3. THE FIELD REFERENCE MUST NAME BOTH CONFIGURATION LOCATIONS. It is where a user learns what
+//      the resolver reads, and the resolver reads two files in a declared order — so the document
+//      necessarily spells the kit-internal one. scripts/model-dial-consistency.test.ts asserts this
+//      ("every declared configuration location appears in the config field reference"), which is
+//      the WR-05 closure itself: deleting the mentions to satisfy this gate would reopen WR-05.
+//   4. SO THE MENTIONS ARE EXEMPTED BY A COUNTED PREDICATE, NOT BY LEAVING THE DIRECTORY UNSCANNED.
+//      The exemption below is derived (a self-reference to an existing sibling), its cardinality is
+//      asserted on both sides, and it is published in the pass line. Every other kit-internal
+//      mention in this directory — a third one, one in a second file, one naming a path that is not
+//      there — fails exactly as it always has.
+//
+// The header's warning still stands and this change is not the thing it forbids: SCAN gains exactly
+// ONE entry, and seed/, examples/, install/, docs/, .planning/ and the root documents stay omitted.
 const SCAN = [
     "agent-factory/roles",
     "agent-factory/workflows",
     "agent-factory/checklists",
     "agent-factory/packaging",
+    "agent-factory/config",
     "agent-factory/_commit-convention.md",
     ".claude/skills",
     ".claude/agents",
@@ -110,6 +139,38 @@ const ADAPTER_DIRS = [AGENT_ADAPTER_DIR, SKILL_ADAPTER_DIR];
 const MARKER_NAMED_SITES = ["AGENTS.md", "agent-factory/roles/orchestrator.md"];
 // A stable, unique substring of the invariant blockquote (byte-identical at every site).
 const MARKER = "If the kit dir is absent, STOP — do not hunt.";
+// ---------------------------------------------------------------------------
+// Assertion 1's ONE exemption (Phase 29.1 round 3 / R2-WR-05, plan 29.1-17).
+//
+// The SCAN entry above brings the shipped configuration directory inside D-08.1's zero-tolerance
+// scan. That directory's field reference owes its reader BOTH configuration locations by path, and
+// the second location is inside the kit — so those mentions are exempted, and the exemption is
+// written as a predicate with an asserted cardinality rather than as a list.
+//
+// WHY A COUNT AND NOT JUST A PREDICATE. A hand-listed or uncounted exemption is this repository's
+// named set-literal-drift class (grugops MEMORY): the next mention arrives silently and the gate
+// stays green. Both cardinalities below are asserted two-sided, so a THIRD hit or a SECOND
+// exempting file is red, naming the count found and the count required.
+// ---------------------------------------------------------------------------
+// The configuration directory the exemption is scoped to. Taken from the SCAN member, not respelt.
+const CONFIG_SELF_REF_DIR = "agent-factory/config";
+// The substring Assertion 1 greps for, and the prefix a self-reference names a sibling through.
+const CONFIG_REF_NEEDLE = "agent-factory/config/";
+// Exactly ONE file in that directory may carry exempt mentions: the field reference. The count is a
+// number rather than a name on purpose — a name would be satisfied by a rename, a count is not.
+const CONFIG_SELF_REF_FILES = 1;
+// Exactly TWO exempt mentions. Measured 2026-08-20 on this tree: factory.config.md:3 (the companion
+// sentence, naming the sibling JSON beside the reference) and factory.config.md:138 (the resolver's
+// second candidate, inside the whole-file precedence paragraph). Neither can be deleted without
+// reopening WR-05, which scripts/model-dial-consistency.test.ts asserts.
+const CONFIG_SELF_REF_HITS = 2;
+// The `path:lineno:line` shape grepSubstring produces, split back into its three parts. The path is
+// matched non-greedily up to the first `:<digits>:` so a colon inside the LINE cannot shift it.
+const HIT_SHAPE = /^(.*?):(\d+):(.*)$/s;
+// Every kit-internal path a line NAMES, as `agent-factory/config/<basename>`. Extracting the named
+// paths — rather than testing the whole line — is what makes a sentence that mentions the directory
+// and a fabricated filename a stray rather than a self-reference.
+const CONFIG_NAMED_PATH = /agent-factory\/config\/([A-Za-z0-9._-]+)/g;
 let FAILS = 0;
 const pass = (m) => {
     process.stdout.write(`  PASS  ${m}\n`);
@@ -165,6 +226,40 @@ function grepFilesWithMatch(scan, needle) {
 }
 function readText(rel) {
     return readFileSync(abs(rel), "utf8");
+}
+// Partition Assertion 1's hits into EXEMPT self-references and STRAYS, by a predicate over each
+// hit — never by a list of line numbers, hit strings or file names.
+//
+// A hit is exempt when BOTH hold:
+//   (a) the file carrying it is itself inside the configuration directory, and
+//   (b) the line names at least one kit-internal path, and EVERY path it names resolves to a file
+//       that exists in that directory on the tree under judgement.
+//
+// (b)'s "at least one" is load-bearing: a line that mentioned the directory prefix and named no
+// file at all would otherwise satisfy "every named path exists" vacuously and be exempted for
+// having said nothing. A self-reference means a reference to something that is actually there.
+function exemptConfigSelfRefs(hits) {
+    const dirPrefix = join(CONFIG_SELF_REF_DIR) + sep;
+    const exempt = [];
+    const strays = [];
+    const files = new Set();
+    for (const hit of hits) {
+        const m = HIT_SHAPE.exec(hit);
+        const file = m ? m[1] : "";
+        const line = m ? m[3] : hit;
+        const named = [...line.matchAll(CONFIG_NAMED_PATH)].map((n) => n[1]);
+        const inConfigDir = file.startsWith(dirPrefix);
+        const allResolve = named.length > 0 &&
+            named.every((base) => existsSync(abs(join(CONFIG_SELF_REF_DIR, base))));
+        if (inConfigDir && allResolve) {
+            exempt.push(hit);
+            files.add(file);
+        }
+        else {
+            strays.push(hit);
+        }
+    }
+    return { exempt, strays, files: [...files].sort() };
 }
 // ---------------------------------------------------------------------------
 // Derived adapter set (Phase 27 / KIT-02, D-27). Every `.md` under .claude/agents plus every
@@ -240,15 +335,46 @@ else {
     pass(`${ADAPTER_FILES.length} adapter file(s) derived`);
 }
 // ---------------------------------------------------------------------------
-// Assertion 1 (D-08.1): ZERO agent-factory/config/ refs in the scan set.
+// Assertion 1 (D-08.1): ZERO agent-factory/config/ refs in the scan set, EXCEPT the counted
+// self-references the shipped field reference owes its reader (Phase 29.1 round 3 / R2-WR-05).
+//
+// The predicate is unchanged for the whole scan set bar one directory: a kit-internal path in a
+// role, a workflow, a checklist, the packaging authority, an adapter or AGENTS.md fails exactly as
+// it always has, with the same wording. Inside the configuration directory the hits are partitioned
+// first, and the exemption is then pinned by two cardinalities and published in the verdict.
 // ---------------------------------------------------------------------------
 process.stdout.write("\n[Assertion 1] no agent-factory/config/ refs remain (config now .grugops/factory.config.json)\n");
-const cfg = grepSubstring(SCAN, "agent-factory/config/").join("\n");
-if (cfg === "") {
-    pass("no agent-factory/config/ refs remain");
+// VACUITY FLOOR, before the cardinality assertion — same discipline as the adapter floor above.
+// A tree under judgement that carries no configuration directory at all would make the counts below
+// disagree for a reason nobody could attribute (0 files where 1 is required), or, had the counts
+// been written as upper bounds, pass over nothing. Naming the absence is the honest verdict.
+const configDirPresent = existsSync(abs(CONFIG_SELF_REF_DIR));
+if (!configDirPresent) {
+    fail(`no ${CONFIG_SELF_REF_DIR}/ directory found — refusing to adjudicate its exemption against a tree that does not carry it (the counted self-references below would be absent for an unattributable reason)`);
+}
+const { exempt, strays, files: exemptFiles } = exemptConfigSelfRefs(grepSubstring(SCAN, CONFIG_REF_NEEDLE));
+// The strays half — byte-identical wording to the pre-exemption gate.
+if (strays.length === 0) {
+    pass(`no agent-factory/config/ refs remain (${exempt.length} counted self-reference(s) exempt, in ${exemptFiles.join(", ") || "no file"})`);
 }
 else {
-    fail(`stray agent-factory/config/ ref(s) — config must be .grugops/factory.config.json:\n${cfg}`);
+    fail(`stray agent-factory/config/ ref(s) — config must be .grugops/factory.config.json:\n${strays.join("\n")}`);
+}
+// The exemption's cardinality, asserted TWO-SIDED and only where it can mean anything.
+if (configDirPresent) {
+    let drift = "";
+    if (exemptFiles.length !== CONFIG_SELF_REF_FILES) {
+        drift += `\n  exempting FILES: found ${exemptFiles.length}, required exactly ${CONFIG_SELF_REF_FILES} (${exemptFiles.join(", ") || "none"})`;
+    }
+    if (exempt.length !== CONFIG_SELF_REF_HITS) {
+        drift += `\n  exempt HITS: found ${exempt.length}, required exactly ${CONFIG_SELF_REF_HITS}:\n${exempt.join("\n") || "  (none)"}`;
+    }
+    if (drift === "") {
+        pass(`the config self-reference exemption is exactly ${CONFIG_SELF_REF_HITS} hit(s) in ${CONFIG_SELF_REF_FILES} file(s), as declared`);
+    }
+    else {
+        fail(`the agent-factory/config/ self-reference exemption has drifted — it is ${CONFIG_SELF_REF_HITS} hit(s) in ${CONFIG_SELF_REF_FILES} file(s) BY DECLARATION, and a new mention must be argued and counted, never absorbed:${drift}`);
+    }
 }
 // ---------------------------------------------------------------------------
 // Assertion 2 (D-13, FLIPPED in Phase 24): ZERO refs to the deleted handoff-template DIRECTORY
