@@ -876,6 +876,20 @@ export interface ResolveModelsOptions {
    * preset's base assignment, and the OVERRIDE WINS — see the tie-breaking contract in the module
    * header. `readModelsConfig` is what produces a validated map; the resolver keeps a last-line
    * alias floor anyway, because this value is written straight into emitted frontmatter.
+   *
+   * THE LAST-LINE ALIAS FLOOR IS NOW REACHED FOR EVERY VALUE THIS ARGUMENT CAN CARRY (finding
+   * R2-WR-01). It was not when written: the override loop read `options?.overrides ?? []`, a
+   * coalesce BEFORE any shape check, so a `null` map was silently discarded into the zero-config
+   * answer and a plain object threw an uncaught `TypeError` out of a module whose header argues
+   * that returning a result rather than throwing is what lets one reader serve the generator, the
+   * installer doctor and any future runtime reader. The claim above was FIXED rather than DELETED
+   * for the reason plan 29.1-08 recorded for `preset` and which applies here verbatim: the tooling
+   * layer ships as committed `.js` with no type checking on hosts, so the declared type above is
+   * advisory at run time, and a floor that holds only under `tsc` is not a floor. Floor 0b is where
+   * the shape is now decided; the oracle asserts it directly rather than leaving it as prose — see
+   * model-tiers.test.ts, "resolveModels REFUSES a null overrides map by name instead of silently
+   * discarding it" and "resolveModels REFUSES a plain-object overrides map by name instead of
+   * throwing".
    */
   readonly overrides?: ReadonlyMap<string, ModelAlias>;
 }
@@ -888,10 +902,11 @@ export interface ResolveModelsOptions {
  * is decided.
  *
  * THE FLOORS RUN BEFORE THE MAP IS BUILT, and each states a DIFFERENT fact:
- *   0. ILLEGAL PRESET — a name outside the closed set, refused naming the value and the legal set.
- *   1. EMPTY          — a resolution over nobody is the vacuous pass, not a small clean run.
- *   2. DUPLICATE      — a repeated stem would otherwise be silently resolved last-wins.
- *   3. Under `tiered` only: the table's own integrity, and then the per-stem coverage check.
+ *   0.  ILLEGAL PRESET   — a name outside the closed set, refused naming the value and the legal set.
+ *   0b. OVERRIDES SHAPE  — a present-but-non-Map overrides argument, refused naming the shape found.
+ *   1.  EMPTY            — a resolution over nobody is the vacuous pass, not a small clean run.
+ *   2.  DUPLICATE        — a repeated stem would otherwise be silently resolved last-wins.
+ *   3.  Under `tiered` only: the table's own integrity, and then the per-stem coverage check.
  *
  * THE `tiered` COVERAGE CHECK IS THE STRICTLY STRONGER FORM OF MODEL-03'S GUARANTEE. Rather than
  * comparing two numbers, it asks whether EVERY stem handed to this resolver has an entry, and NAMES
@@ -931,6 +946,64 @@ export function resolveModels(
         `exactly: ${PRESET_NAMES.map((n) => `"${n}"`).join(", ")}. Remedy: use one of those two ` +
         "names; adding a third preset is a source change in scripts/model-tiers.ts, not a value a " +
         "configuration file can invent.",
+    };
+  }
+
+  // ── Floor 0b: the overrides argument's SHAPE, by the same rule Floor 0 applies to the preset. ─
+  //
+  // (FINDING R2-WR-01) THE SAME COERCION, IN THE SAME FUNCTION, LEFT OPEN ON THE OTHER ARGUMENT.
+  // Plan 29.1-08 closed `preset` and left `overrides` reading `options?.overrides ?? []` at the
+  // application floor below. Reproduced against the committed `.js` before this arm was written:
+  //
+  //   resolveModels(['a','b'], {preset:'none', overrides: null})
+  //     => {"ok":true,"value":[["a","inherit"],["b","inherit"]]}   <- silently discarded
+  //   resolveModels(['a','b'], {preset:'none', overrides: {a:'opus'}})
+  //     => TypeError: object is not iterable (cannot read property Symbol(Symbol.iterator))
+  //
+  // The first outcome is exactly the fact Floor 0 exists to distinguish. The second is a THROW out
+  // of a module whose header argues that returning a result rather than throwing is what lets one
+  // reader serve the generator, the installer doctor and any future runtime reader — a plain object
+  // being the natural shape for a caller that read `models.roles` out of JSON without building a
+  // Map, so the crashing case is the likely one rather than the exotic one.
+  //
+  // ABSENT AND PRESENT-BUT-WRONG ARE DIFFERENT STATEMENTS, the same argument Floor 0 makes. ONLY a
+  // strictly `undefined` value takes the zero-config default here; every other value is refused by
+  // name. Plan 29.1-08's recorded reason for fixing the code rather than deleting the docstring is
+  // quoted rather than re-derived: the tooling layer ships as committed `.js` with no type checking
+  // on hosts, so "the declared type above is advisory at run time … A floor that holds only under
+  // `tsc` is not a floor."
+  //
+  // ORDER MEASURED, NOT CHOSEN, AND THE WEAKER TRUE CLAIM REPORTED. This arm was run both BEFORE and
+  // AFTER Floor 0 and the whole oracle was executed under each: NO existing case moved under either
+  // order — every case carrying a bad preset hands over no overrides and every case carrying
+  // overrides hands over a legal preset, so the two floors are disjoint over the suite as it stands.
+  // The measured result is therefore that placement is unobservable to the current cases, and the
+  // order below is chosen for the ONE input that can tell them apart: a caller with BOTH a bad
+  // preset and a bad overrides value receives the PRESET finding, because the preset decides which
+  // base map is built and an overrides map is applied on top of that base — reporting the topping
+  // before the base would name the second mistake first. This is recorded rather than asserted as a
+  // guarantee: it is a statement about which of two refusals is returned, not about either floor's
+  // reach, and this plan exists partly because a validator published a guarantee wider than its
+  // mechanism.
+  //
+  // THE VALIDATED LOCAL IS WHAT THE APPLICATION FLOOR ITERATES, so there is ONE place the value is
+  // decided rather than a check here and a coalesce there.
+  const rawOverrides: unknown = options?.overrides;
+  const overrides: ReadonlyMap<string, ModelAlias> | null =
+    rawOverrides === undefined
+      ? new Map<string, ModelAlias>()
+      : rawOverrides instanceof Map
+        ? (rawOverrides as ReadonlyMap<string, ModelAlias>)
+        : null;
+  if (overrides === null) {
+    return {
+      ok: false,
+      reason:
+        `model-tiers: the overrides argument is ${describeShape(rawOverrides)} rather than a Map ` +
+        "of role stem to alias. An ABSENT overrides map is the zero-config contract; a value that " +
+        "is present but not a Map is a caller whose overrides would be silently discarded, which " +
+        "is a tier the caller believes they set and did not. Remedy: hand over a Map — " +
+        "`readModelsConfig` is what produces a validated one — or omit the argument entirely.",
     };
   }
 
@@ -1022,7 +1095,12 @@ export function resolveModels(
   // roles outside it. The question "is this key a real role" belongs to `readModelsConfig`, which
   // asks it against the DERIVED corpus and refuses a typo by name (D-06). One authority, asked where
   // the user's mistake actually is.
-  for (const [stem, alias] of options?.overrides ?? []) {
+  //
+  // ITERATES THE LOCAL FLOOR 0b VALIDATED, never `options?.overrides ?? []` again (R2-WR-01). The
+  // coalesce this replaces was the whole defect: it made this loop the place a missing value was
+  // decided, so a value that could not mean anything reached the same empty iteration an absent one
+  // does, and a non-iterable one reached a throw instead of a refusal.
+  for (const [stem, alias] of overrides) {
     if (!isModelAlias(alias)) {
       return {
         ok: false,
@@ -1086,11 +1164,23 @@ function zeroConfigModels(source: string | null): ModelsConfigResult {
   return { ok: true, value: { preset: "none", overrides: new Map(), source } };
 }
 
-/** A JSON value's shape, in words, so a refusal can name what it found rather than what it wanted. */
+/**
+ * A JSON value's shape, in words, so a refusal can name what it found rather than what it wanted.
+ *
+ * THE ARTICLE AGREES WITH THE WORD IT PRECEDES. `typeof` yields two vowel-initial results —
+ * `"object"` and `"undefined"` — and the fixed `a` this replaces rendered them as "a object" and
+ * "a undefined". Both were reachable before this change (an `aliases` key set to an object or left
+ * out reaches this helper through `readAssignmentPayload`) and finding R2-WR-01's new Floor 0b makes
+ * the object case the LIKELY one: a plain object is the natural shape for a caller that read
+ * `models.roles` out of JSON without building a Map. A refusal is a safety surface and the only
+ * channel telling a caller their value was rejected, so it is written in correct English. Decided by
+ * a first-character lookup rather than a pattern, like every other decision in this module.
+ */
 function describeShape(value: unknown): string {
   if (value === null) return "null";
   if (Array.isArray(value)) return "an array";
-  return `a ${typeof value}`;
+  const shape = typeof value;
+  return `${"aeiou".includes(shape[0]) ? "an" : "a"} ${shape}`;
 }
 
 /** A value quoted back to the user exactly as they typed it, including a non-JSON-serialisable one. */

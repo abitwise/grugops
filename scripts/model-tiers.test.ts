@@ -58,6 +58,7 @@ import {
   tieredCorpusRefusals,
   tieredTableRefusals,
   type ModelAlias,
+  type ResolveModelsOptions,
   type RoleTier,
 } from "./model-tiers.js";
 
@@ -1392,5 +1393,119 @@ describe("model-tiers: resolveModels Floor 0 validates BEFORE it defaults (plan 
         "scripts/model-tiers.ts, not a value a configuration file can invent.",
     );
     expect(r.reason.length, "the captured pre-fix length").toBe(241);
+  });
+});
+
+// ── FLOOR 0b VALIDATES THE OTHER ARGUMENT'S SHAPE (plan 29.1-15, finding R2-WR-01) ─────────────
+//
+// WR-02 WAS CLOSED ON `preset` AND LEFT OPEN ON `overrides` — the same nullish coercion, in the same
+// function, defended by the same docstring. The override application floor read
+// `options?.overrides ?? []`, a coalesce before any shape check, while the docstring twelve lines
+// above claimed the resolver "keeps a last-line alias floor anyway, because this value is written
+// straight into emitted frontmatter". That floor was not reached at all for a value that is not
+// iterable.
+//
+// Reproduced against the committed .js before this block was written:
+//
+//   resolveModels(['a','b'], {preset:'none', overrides: null})
+//     => {"ok":true,"value":[["a","inherit"],["b","inherit"]]}     <- silently discarded
+//   resolveModels(['a','b'], {preset:'none', overrides: {a:'opus'}})
+//     => TypeError: object is not iterable (cannot read property Symbol(Symbol.iterator))
+//        at resolveModels (scripts/model-tiers.js:854:40)
+//
+// The second is the worse of the two and the likelier: a plain object is the natural shape for a
+// caller that read `models.roles` out of JSON without building a Map, and a THROW leaves the module
+// header's contract — return a result so a degrading consumer can branch on it — unavailable to the
+// installer doctor and any future runtime reader, who would each have to write a catch, and a catch
+// is where a refusal quietly becomes a default nobody chose.
+//
+// WHY THE CODE IS FIXED RATHER THAN THE DOCSTRING DELETED is plan 29.1-08's own recorded argument for
+// `preset`, quoted rather than re-derived: the tooling layer ships as committed .js with NO TYPE
+// CHECKING ON HOSTS, so the declared option type is advisory at run time, and "a floor that holds
+// only under `tsc` is not a floor".
+describe("model-tiers: resolveModels Floor 0b validates the overrides SHAPE (plan 29.1-15, R2-WR-01)", () => {
+  /** Two stems, derived from the kit authority rather than typed, in the shape Floor 0b needs. */
+  const twoStems = (): readonly string[] => [...kitStems()].sort().slice(0, 2);
+
+  /** The refusal reason for an overrides value the declared type does not admit, or a failure. */
+  const overridesRefusal = (bad: unknown): string => {
+    // THE CAST IS THE POINT OF THESE CASES, not an inconvenience worked around — the same reason the
+    // null-preset case above carries one. The declared option type does not admit these values, so
+    // under `tsc` these calls are unwritable, which is precisely why the defect survived a green
+    // suite. The cast stands in for the untyped JavaScript caller the module header names: the
+    // committed .js runs on hosts with no type checking, so this floor is the only thing between a
+    // present-but-wrong value and a tier the caller believes they set.
+    const r = resolveModels(twoStems(), {
+      preset: "none",
+      overrides: bad,
+    } as unknown as ResolveModelsOptions);
+    if (r.ok) {
+      throw new Error(
+        `expected a refusal for ${JSON.stringify(bad)}, got a resolution: ${stringifyMap(r.value)}`,
+      );
+    }
+    return r.reason;
+  };
+
+  it("resolveModels REFUSES a null overrides map by name instead of silently discarding it", () => {
+    const reason = overridesRefusal(null);
+    // The SHAPE RECEIVED, named back to the caller through the module's own shape helper.
+    expect(reason).toContain("the overrides argument is null");
+    // …and the SHAPE REQUIRED, so the caller is told what to hand over rather than only what failed.
+    expect(reason).toContain("rather than a Map of role stem to alias");
+    // The contract stated in the same terms Floor 0 states it: absent is the zero-config answer, and
+    // present-but-wrong is a tier the caller believes they set.
+    expect(reason).toContain("An ABSENT overrides map is the zero-config contract");
+    expect(reason).toContain("a tier the caller believes they set and did not");
+  });
+
+  it("resolveModels REFUSES a plain-object overrides map by name instead of throwing", () => {
+    // The RETURNED refusal is the assertion. If the floor regressed this call would not fail an
+    // expectation — it would throw a TypeError out of the resolver, which is the defect itself.
+    const reason = overridesRefusal({ [twoStems()[0]]: "opus" });
+    expect(reason).toContain("the overrides argument is an object");
+    expect(reason).toContain("rather than a Map of role stem to alias");
+  });
+
+  it("resolveModels still treats an ABSENT overrides map as the zero-config answer", () => {
+    // THE GREEN CONTROLS, compared against the same stringified map the preset controls use. Three
+    // spellings of "I did not hand over overrides", all of which must still resolve `inherit` for
+    // every stem — the fix must not close the zero-config path MODEL-01 pins the bytes of.
+    const stems = twoStems();
+    const zero = stringifyMap(resolvedOrFail(stems));
+    for (const [label, r] of [
+      ["absent options", resolveModels(stems)],
+      ["absent overrides key", resolveModels(stems, { preset: "none" })],
+      ["explicitly undefined overrides", resolveModels(stems, { preset: "none", overrides: undefined })],
+    ] as const) {
+      expect(r.ok, `${label} must resolve — the fix must not close the zero-config path`).toBe(true);
+      if (!r.ok) continue;
+      expect(stringifyMap(r.value), label).toBe(zero);
+    }
+  });
+
+  it("a LEGITIMATE Map still applies, and an illegal alias inside it is still refused per entry", () => {
+    // The floor added above must not have moved the floor below it. A real Map still reaches the
+    // per-entry alias check, so the green path and the pre-existing refusal are both exercised.
+    const stems = twoStems();
+    const applied = resolveModels(stems, {
+      preset: "none",
+      overrides: new Map([[stems[0], "opus"]]),
+    });
+    expect(applied.ok, "a Map of stem to alias is the shape this argument is for").toBe(true);
+    if (!applied.ok) return;
+    expect(applied.value.get(stems[0])).toBe("opus");
+    expect(applied.value.get(stems[1])).toBe("inherit");
+
+    const illegal = resolveModels(stems, {
+      preset: "none",
+      overrides: new Map([[stems[0], "gpt-5"]]) as unknown as ReadonlyMap<string, ModelAlias>,
+    });
+    expect(illegal.ok, "an illegal alias inside a legitimate Map is still the per-entry floor's").toBe(
+      false,
+    );
+    if (illegal.ok) return;
+    expect(illegal.reason).toContain(`the override for role "${stems[0]}"`);
+    for (const alias of MODEL_ALIASES) expect(illegal.reason).toContain(`"${alias}"`);
   });
 });
