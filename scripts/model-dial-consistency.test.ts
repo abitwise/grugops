@@ -693,10 +693,102 @@ describe("model dial — the documented closed sets equal the module's own, in B
 // DESIGN, and that absence is asserted POSITIVELY below rather than left as an omission — so a
 // later editor who "helpfully" adds the path is told by this oracle as well as by the gate.
 //
-// The anchor is the precedence RULE's own sentence fragment, not a path. D-13's shape says exactly
-// one document holds a rule while the other points at it, and asserting the anchor in both
-// directions is what keeps a well-meaning edit from growing a second authority.
-const PRECEDENCE_RULE_ANCHOR = "The first of those two files that EXISTS wins WHOLE";
+// WHAT THIS CONSTANT PINS, RENAMED TO SAY SO (finding R2-WR-04). It was named for the RULE, and the
+// name claimed more than the mechanism delivers: what it holds is one WORDING of the precedence rule
+// — the rule's own sentence fragment as the config field reference spells it today — not the rule.
+// D-13's shape says exactly one document holds a rule while the other points at it, and asserting
+// this wording in both directions is what keeps a well-meaning edit from growing a second authority
+// IN THAT WORDING. A paraphrase is a different question, answered below by
+// `RETIRED_PRECEDENCE_PHRASINGS` for the exact regrowth this round deleted and by the
+// derived-spelling case for the identification, and disclosed as a residual for everything else.
+const PRECEDENCE_RULE_WORDING = "The first of those two files that EXISTS wins WHOLE";
+
+// ── The phrasings plan 29.1-16 DELETED from the authority, pinned absent ────────────────────────
+//
+// Finding R2-WR-04 reported that the authority's `model` bullet stated the precedence rule twice in
+// weaker words — once as an ordinal over the two locations, once as an absence condition on the
+// first — inside the same paragraph that asserted it did not restate the rule. Both clauses were
+// deleted and the self-assessing sentence with them.
+//
+// WHAT PINNING THEM BUYS, AND WHAT IT DOES NOT. It makes the EXACT reported regrowth loud: an editor
+// restoring either clause verbatim, or reverting the bullet, is told by name. It is a list of
+// WORDINGS, not a decision procedure over the rule — a fresh paraphrase carrying the same meaning in
+// new words is not in this list and is not caught by it. That is the disclosed residual, stated with
+// its direction on the wording case below.
+//
+// Each fragment is chosen to sit inside ONE source line of the authority as it was written, because
+// every comparison in this file is an exact substring match over the raw file and a fragment that
+// spanned the document's line wrap would be absent for the wrong reason.
+const RETIRED_PRECEDENCE_PHRASINGS = [
+  "first of TWO configuration",
+  "only when that file is absent entirely",
+] as const;
+
+/** The `model` bullet's own marker — the literal the region reader locates the bullet by. */
+const MODEL_BULLET_MARKER = "- **`model`**";
+
+/**
+ * The `model` bullet, bounded at BOTH ends: from its own marker to the NEXT top-level bullet marker,
+ * falling back to the next heading when no further bullet exists.
+ *
+ * THE RIGHT BOUND IS WRITTEN NOW RATHER THAN WHEN IT FIRST MATTERS, for the reason `scopeSection()`
+ * above already records against its own right bound: a reader that runs to the end of the document
+ * is not reading a bullet, it adopts every later bullet, and assertions written about THIS bullet
+ * then start passing — or failing — on someone else's text. The `model` bullet is followed today by
+ * `- **Body**`, so the bound lands on a real bullet; the heading fallback exists so a future
+ * reordering degrades to a bounded section rather than to the whole file.
+ *
+ * BOTH BOUNDS ARE ASSERTED FOUND BEFORE ANY CONTENT IS RETURNED, and a missing bound THROWS by name
+ * rather than yielding "" — an empty region satisfies every absence assertion in this file, which is
+ * the vacuous green this reader exists to refuse.
+ */
+function modelBulletRegion(): string {
+  const authority = readSurface("authority");
+  const at = authority.indexOf(MODEL_BULLET_MARKER);
+  if (at === -1) {
+    throw new Error(
+      `model-dial oracle: the authority ${SURFACE_ROLES.authority} does not carry the bullet marker ` +
+        `"${MODEL_BULLET_MARKER}" — refusing to read a bullet that is not there, because an empty ` +
+        "region satisfies every absence assertion written about it",
+    );
+  }
+  const rest = authority.slice(at + MODEL_BULLET_MARKER.length);
+  const nextBullet = rest.indexOf("\n- ");
+  const nextHeading = rest.indexOf("\n## ");
+  const ends = [nextBullet, nextHeading].filter((i) => i !== -1);
+  if (ends.length === 0) {
+    throw new Error(
+      `model-dial oracle: the bullet "${MODEL_BULLET_MARKER}" in ${SURFACE_ROLES.authority} has no ` +
+        "RIGHT bound — neither a following top-level bullet nor a following heading was found, so " +
+        "the region would run to end of file and adopt whatever is appended there",
+    );
+  }
+  return rest.slice(0, Math.min(...ends));
+}
+
+/**
+ * Every spelling of the SECOND configuration location derived from the resolver's own constant,
+ * partitioned by whether the spelling actually IDENTIFIES that location.
+ *
+ * WHY A PARTITION AND NOT A FLAT LIST — MEASURED, NOT ASSUMED. Plan 29.1-16 called for the full
+ * relative path, the directory prefix and the basename, all three asserted absent from the bullet.
+ * Measured against the constant as it stands, the basename `factory.config.json` is a substring of
+ * the FIRST candidate `.grugops/factory.config.json` too, so it identifies neither location:
+ * asserting it absent would forbid the bullet from naming the location a user configures, which the
+ * case below asserts it MUST name, and the two halves would contradict each other. A spelling shared
+ * with another candidate is therefore classified AMBIGUOUS and excluded from the absence assertion —
+ * excluded by a derivation over the constant, with the exclusion COUNTED and asserted, rather than by
+ * a hand edit that a later rename would not move.
+ */
+function secondLocationSpellings(): { all: string[]; identifying: string[]; ambiguous: string[] } {
+  const second = MODELS_CONFIG_CANDIDATE_RELS[1];
+  const cut = second.lastIndexOf("/");
+  const all = [second, second.slice(0, cut + 1), second.slice(cut + 1)];
+  const others = MODELS_CONFIG_CANDIDATE_RELS.filter((rel) => rel !== second);
+  const ambiguous = all.filter((sp) => others.some((rel) => rel.includes(sp)));
+  const identifying = all.filter((sp) => !ambiguous.includes(sp));
+  return { all, identifying, ambiguous };
+}
 
 /** The path prefix D-08.1 forbids in kit prose, taken from the resolver's own kit-internal member. */
 const KIT_INTERNAL_CONFIG_DIR = "agent-factory/config/";
@@ -723,7 +815,12 @@ describe("model dial — the configuration locations are documented, and the rul
     const asWord: Record<number, string> = { 2: "TWO", 3: "THREE", 4: "FOUR" };
     const word = asWord[MODELS_CONFIG_CANDIDATE_RELS.length];
     expect(word, "PREMISE: the declared location count must have a word this case can look for").toBeDefined();
-    expect(occurrences(authority, `first of ${String(word)} configuration`)).toBe(1);
+    // REPAIRED IN LOCKSTEP WITH PLAN 29.1-16's EDIT (finding R2-WR-04). The phrase used to be
+    // `first of ${word} configuration` — an ORDINAL, which was itself a statement of the precedence
+    // rule and was deleted from the authority for that reason. What survives is the CARDINALITY
+    // alone, still derived from `MODELS_CONFIG_CANDIDATE_RELS.length` through the table above, so a
+    // third location added to the resolver still moves this document.
+    expect(occurrences(authority, `${String(word)} configuration locations`)).toBe(1);
   });
 
   it("the packaging authority spells NO kit-internal config path — D-08.1, asserted here too", () => {
@@ -737,11 +834,107 @@ describe("model dial — the configuration locations are documented, and the rul
     expect(MODELS_CONFIG_CANDIDATE_RELS[1].startsWith(KIT_INTERNAL_CONFIG_DIR)).toBe(true);
   });
 
-  it("EXACTLY ONE document states the whole-file precedence rule — the config reference, not the authority", () => {
+  it("EXACTLY ONE document states the precedence rule IN THIS WORDING — the config reference, not the authority", () => {
     // Two-sided, as D-13's shape always is here: present in the document that owns the rule, and
     // ABSENT from the one that points at it.
-    expect(occurrences(readSurface("pointer"), PRECEDENCE_RULE_ANCHOR)).toBe(1);
-    expect(occurrences(readSurface("authority"), PRECEDENCE_RULE_ANCHOR)).toBe(0);
+    expect(occurrences(readSurface("pointer"), PRECEDENCE_RULE_WORDING)).toBe(1);
+    expect(occurrences(readSurface("authority"), PRECEDENCE_RULE_WORDING)).toBe(0);
+
+    // ── THE RESIDUAL, WITH ITS DIRECTION STATED (finding R2-WR-04) ────────────────────────────
+    //
+    // This case is named for a WORDING now, because a wording is what it decides. Its title used to
+    // read "states the whole-file precedence rule" while the mechanism compared one exact literal,
+    // and the gap between those two sentences IS the finding: a paraphrase of the rule planted into
+    // the authority clears this assertion completely.
+    //
+    // WHAT IS COVERED BESIDE IT. `RETIRED_PRECEDENCE_PHRASINGS` catches the exact regrowth this
+    // round deleted. The derived-spelling case below catches any restatement that IDENTIFIES the
+    // second configuration location by a path spelling the resolver declares. Between them the two
+    // known regrowth routes are closed.
+    //
+    // WHAT REMAINS OPEN, AND WHICH WAY IT FAILS. A FRESH paraphrase — new words, no retired
+    // fragment, the second location described rather than spelled, e.g. "a default that ships with
+    // the kit is consulted when the repository has no configuration file" — is caught by nothing in
+    // this file. The direction is FAIL-OPEN: such a sentence ships unreported, and this oracle stays
+    // green while the authority carries a second statement of the rule.
+    //
+    // WHY IT IS DISCLOSED RATHER THAN CLOSED. Deciding "no sentence anywhere in this document
+    // restates this rule" is a totality over an OPEN SET of free prose, and that is not a decidable
+    // predicate in this repository. D-59 settled the shape — a totality claim is held as CONTENT
+    // with a disclosed backstop rather than asserted as a mechanism — and D-16 applies the same
+    // ruling to MODEL-07's prohibition one requirement over. The backstop is the one D-59 names:
+    // human reading at phase close. Widening this matcher once more would be another heuristic, not
+    // a proof.
+  });
+
+  it("the model bullet is bounded at both ends and is not the rest of the document", () => {
+    // THE PREMISE OF EVERY REGION ASSERTION BELOW, ASSERTED BEFORE ANY OF THEM READS THE REGION.
+    // A region reader that silently ran to end of file would make the absence assertions below look
+    // stronger and be weaker; a reader that silently returned "" would make them vacuous. Neither
+    // failure is visible in a green run, so the bounds are asserted here by name.
+    const region = modelBulletRegion();
+    const authority = readSurface("authority");
+    expect(region.length, "PREMISE: the bullet region must not be empty").toBeGreaterThan(0);
+    expect(
+      region.length,
+      "PREMISE: the bullet region must be a PROPER part of the document, not the rest of it",
+    ).toBeLessThan(authority.length);
+    // The bound is a real one: the region carries no top-level bullet marker and no heading of its
+    // own, so it stopped at the first of either rather than swallowing them.
+    expect(occurrences(region, "\n- ")).toBe(0);
+    expect(occurrences(region, "\n## ")).toBe(0);
+    // …and it really is the `model` bullet: the field it documents is named in it.
+    expect(region).toContain("the value the factory's model dial resolved for that role");
+  });
+
+  it("the retired precedence phrasings do not return to the authority", () => {
+    // WHAT THIS BUYS: the EXACT regrowth finding R2-WR-04 reported — either deleted clause restored
+    // verbatim, or the bullet reverted wholesale — is loud, and named. WHAT IT DOES NOT BUY: it is a
+    // list of wordings, not a decision procedure over the rule. See the residual disclosed on the
+    // wording case above for the class it cannot reach and the direction that class fails in.
+    const authority = readSurface("authority");
+    expect(RETIRED_PRECEDENCE_PHRASINGS.length, "PREMISE: the retired list must not be empty")
+      .toBeGreaterThan(0);
+    const returned = RETIRED_PRECEDENCE_PHRASINGS.filter((frag) => occurrences(authority, frag) > 0);
+    expect(returned).toEqual([]);
+  });
+
+  it("the model bullet identifies the second configuration location in NO derived spelling", () => {
+    // THE HALF A LITERAL CANNOT COVER. The two literal pins above compare fixed strings; this one
+    // asks a question DERIVED from the resolver's own constant — does the bullet identify the second
+    // configuration location at all? — so renaming that candidate moves this assertion with it
+    // rather than leaving a stale literal standing.
+    const { all, identifying, ambiguous } = secondLocationSpellings();
+
+    // CARDINALITIES ASSERTED, so a fourth spelling cannot be added without moving this line, and so
+    // the AMBIGUITY structure measured in the helper cannot change silently. Measured against
+    // MODELS_CONFIG_CANDIDATE_RELS as it stands: three spellings derived, ONE of them ambiguous —
+    // the basename `factory.config.json`, which is also a substring of the first candidate and so
+    // identifies neither location — and two of them identifying.
+    expect(all.length).toBe(3);
+    expect(ambiguous.length).toBe(1);
+    expect(identifying.length).toBe(2);
+    // No member is blank — a derivation that produced empty strings would make every `occurrences`
+    // call below meaningless rather than red.
+    expect(all.filter((sp) => sp.length === 0)).toEqual([]);
+
+    const region = modelBulletRegion();
+    const named = identifying.filter((sp) => occurrences(region, sp) > 0);
+    expect(named).toEqual([]);
+
+    // …and the case is not passing over a bullet that names NO location at all, which would be a
+    // different defect wearing the same green: the FIRST candidate — the one a user configures — is
+    // present exactly where the shape sentence needs it.
+    expect(occurrences(region, MODELS_CONFIG_CANDIDATE_RELS[0])).toBeGreaterThan(0);
+
+    // OVERLAP WITH THE D-08.1 CASE, STATED RATHER THAN LEFT FOR A READER TO REDISCOVER. Both
+    // identifying spellings begin with `agent-factory/config/`, which the D-08.1 case above already
+    // asserts absent from the WHOLE authority, so on today's constant this case overlaps that one
+    // almost entirely. Its independent content is the DERIVATION and the BOUND: D-08.1's case
+    // compares a hand-written prefix over the whole file, this one compares whatever the resolver
+    // declares, inside the bullet. A second candidate moved out from under that prefix would leave
+    // D-08.1's case answering about a path nobody reads any more; this case would still be asking
+    // about the real one.
   });
 });
 
