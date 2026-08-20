@@ -9629,7 +9629,16 @@ describe("guard_model_assignment (Phase 29.1, MODEL-03/MODEL-05)", () => {
   // statement in this block: with `"preset": "tiered"` planted in a mirror, seventeen adapters that
   // are byte-identical to the committed tree — and therefore perfectly FRESH — go red, because the
   // configuration now resolves a different value for every one of them.
-  it("(i) a DEGENERATE `models` block WARNS and degrades the whole expectation to `inherit` (D-11)", () => {
+  // (Plan 29.1-09, WR-07) THIS CASE USED TO PIN THE OPPOSITE OUTCOME. Until this plan it asserted
+  // that a refused `models` block produced a WARN and let the build survive — and that advisory
+  // channel was one of the three facts composing the round's fail-open: the guard advised, the
+  // freshness mirror carried no configuration so the mirrored generator never saw the file, and the
+  // workflow ran neither of the two processes that refuse. An illegal `models` block committed to a
+  // mirror cleared BOTH continuous-integration gates at exit 0. The case is REPAIRED rather than
+  // deleted, because its second half — that the expectation degraded to the lean default and not to
+  // a pinned tier — is still true and is what proves the promotion did not change the degradation
+  // TARGET (D-11).
+  it("(i) a DEGENERATE `models` block FAILS the build and still degrades the expectation to `inherit` (D-11, WR-07)", () => {
     const m = mirror();
     mkdirSync(join(m, ".grugops"), { recursive: true });
     writeFileSync(
@@ -9639,16 +9648,202 @@ describe("guard_model_assignment (Phase 29.1, MODEL-03/MODEL-05)", () => {
     );
 
     const r = runIn(m);
+    // THE PROMOTION: a refused configuration is a build failure, not an advisory line.
+    expect(r.status).not.toBe(0);
     const section = modelSection(out(r));
+    expect(section).toContain("could not be READ");
     expect(section).toContain("DEGRADES to `inherit` for every role stem (D-11)");
     expect(section).toContain("rather than to any pinned tier");
-    // The degradation is announced on the PASS line too, so a reader cannot mistake a fallback run
+    // The refusal itself is carried, by name, rather than collapsed into "something went wrong".
+    expect(section).toContain(
+      "is null rather than a JSON object",
+    );
+    // ASSERTED ON THE ABSENCE OF THE PASS MARKER, not on the exit code alone: a guard printing a
+    // FAIL line beside a PASS line for the same subject is a verdict a reader cannot act on, and the
+    // exit code cannot tell the two arrangements apart.
+    expect(section).not.toContain("  PASS  model assignment");
+    // The degradation is announced in the run summary, so a reader cannot mistake a fallback run
     // for a run against their file.
     expect(section).toContain("degraded — the configuration was refused");
     // …and the comparison still ran against every adapter rather than being skipped.
     expect(section).toContain(
       `${ROLE_COUNT} committed adapter(s) under .claude/agents compared against a resolution recomputed for ${ROLE_COUNT} derived role stem(s)`,
     );
+    // The degradation TARGET is unchanged: `inherit` for every stem, never a pinned tier.
+    expect(section).toContain("distinct aliases resolved: inherit");
+  });
+
+  // (Plan 29.1-09, WR-07) THE COMPANION ARM. `guard_model_assignment` degrades on TWO branches — a
+  // configuration it cannot READ, and one that reads cleanly and cannot be RESOLVED — and they are
+  // mutually exclusive by construction, so no single input reaches both. That is exactly why they are
+  // pinned as a PAIR: an arm-pair where one arm blocks and the other advises is the composition hole
+  // this repository has spent rounds on, and a single-arm case cannot see it. The structural union
+  // proof sits below as case (m).
+  it("(i-resolve) a `models` block that READS cleanly but cannot be RESOLVED also FAILS the build (WR-07)", () => {
+    const m = mirror();
+    // An eighteenth role with no TIERED row, under `preset: tiered`: readModelsConfig succeeds
+    // (`preset` is a legal name and there is no `roles` key to validate), and resolveModels refuses
+    // at its per-stem coverage floor.
+    writeFileSync(
+      join(m, "agent-factory/roles/zz-planted-role.md"),
+      readFileSync(join(m, "agent-factory/roles/orchestrator.md"), "utf8"),
+      "utf8",
+    );
+    mkdirSync(join(m, ".grugops"), { recursive: true });
+    writeFileSync(
+      join(m, ".grugops/factory.config.json"),
+      JSON.stringify({ models: { preset: "tiered" } }),
+      "utf8",
+    );
+
+    // PREMISE, through the guard's own authorities: the configuration really READS, and the
+    // resolution really REFUSES. Without this the case could pass off the read-refusal arm.
+    const stems = listRoles(m).map((f) => f.replace(/\.md$/, ""));
+    const cfg = readModelsConfig(m, stems);
+    expect(cfg.ok, "the planted configuration must READ cleanly").toBe(true);
+    if (!cfg.ok) throw new Error("unreachable");
+    expect(resolveModels(stems, { preset: cfg.value.preset }).ok).toBe(false);
+
+    const r = runIn(m);
+    expect(r.status).not.toBe(0);
+    const section = modelSection(out(r));
+    expect(section).toContain(
+      "read cleanly but could not be RESOLVED against this tree's role stems",
+    );
+    expect(section).toContain("DEGRADES to `inherit` for every stem (D-11)");
+    expect(section).toContain("rather than to any pinned tier");
+    expect(section).toContain('the "tiered" preset assigns nothing to');
+    expect(section).not.toContain("  PASS  model assignment");
+    // …and this arm's degradation target is the lean default too, not the `tiered` table it failed
+    // to apply. A promotion that changed what the expectation degrades TO would show up here.
+    expect(section).toContain("distinct aliases resolved: inherit");
+  });
+
+  // (Plan 29.1-09, WR-07) THE UNION, PROVEN STRUCTURALLY BECAUSE NO INPUT CAN REACH BOTH ARMS.
+  //
+  // The two degraded branches are the arms of one `if`/`else`, so "a mirror that produces both" does
+  // not exist and the arm-pair cannot be tested by composing inputs. What CAN be tested is the
+  // property a single-arm promotion would break: that this guard reaches for the advisory channel
+  // nowhere at all. The assertion is DERIVED from the function's own text in both the source and the
+  // committed twin that actually runs, rather than from a list of branches a later edit would not be
+  // added to.
+  it("(m) neither degraded branch reports through the advisory channel — guard_model_assignment makes NO warn() call", () => {
+    const slice = (src: string, decl: string): string => {
+      const start = src.indexOf(decl);
+      expect(start, `${decl} must be present`).toBeGreaterThan(-1);
+      const rest = src.indexOf("\nfunction ", start + decl.length);
+      return src.slice(start, rest === -1 ? src.length : rest);
+    };
+    // The prose in this function DISCUSSES `warn()` at length — that is the record of why the
+    // promotion happened — so the probe is run over the CODE lines only. Whole-line comments are
+    // dropped and the premise below proves the drop did not eat the body.
+    const codeOf = (body: string): string =>
+      body
+        .split("\n")
+        .filter((l) => !l.trimStart().startsWith("//"))
+        .join("\n");
+    for (const [rel, decl] of [
+      ["check-foundation-guards.ts", "function guardModelAssignment(): void {"],
+      ["check-foundation-guards.js", "function guardModelAssignment() {"],
+    ] as const) {
+      const code = codeOf(
+        slice(readFileSync(join(ROOT, "scripts", rel), "utf8"), decl),
+      );
+      // PREMISE: the slice really is the guard's body, the comment strip left the code behind, and
+      // the probe is capable of seeing a call at all — it finds the guard's own closing `fail(`.
+      expect(code, `${rel}: the sliced body must reach the stray-pin arm`).toContain(
+        "nonAgentSurfaces",
+      );
+      expect(code, `${rel}: the probe must be able to see a call`).toContain(
+        "fail(",
+      );
+      expect(
+        code.includes("warn("),
+        `${rel}: guard_model_assignment must make no warn() call — warn() is documented advisory and does NOT increment FAILS, so a degraded branch reported through it is a refusal that cannot fail a build`,
+      ).toBe(false);
+    }
+  });
+
+  // (Plan 29.1-09, WR-08) THE VERDICT DESCRIBES THE RUN IT PERFORMED.
+  //
+  // `sourceLabel` used to be initialised to "neither standard location" and reassigned only inside
+  // the success branch, so a degraded run whose configuration file EXISTS printed the phrase meaning
+  // "there is no configuration anywhere". That is the conflation this module's own reader spends a
+  // paragraph forbidding one level down — '"off" and "I typed something that cannot mean anything"
+  // are different statements' — reproduced in the line that reports the outcome.
+  it("(n) a degraded verdict never claims the configuration came from neither standard location", () => {
+    const m = mirror();
+    mkdirSync(join(m, ".grugops"), { recursive: true });
+    writeFileSync(
+      join(m, ".grugops/factory.config.json"),
+      JSON.stringify({ models: null }),
+      "utf8",
+    );
+
+    // PREMISE: the configuration file really is there, and the guard really did refuse it.
+    expect(existsSync(join(m, ".grugops/factory.config.json"))).toBe(true);
+    const section = modelSection(out(runIn(m)));
+    expect(section).toContain("could not be READ");
+
+    expect(
+      section,
+      "a run that refused a configuration file that exists must not report that there is no configuration anywhere",
+    ).not.toContain("neither standard location");
+  });
+
+  // (Plan 29.1-09, IN-02) THE VERDICT LEAKS NO ABSOLUTE PATH.
+  //
+  // This guard's own header commits to byte-identical output for a given tree, which an absolute
+  // path breaks across machines, and a developer home directory in a published continuous-integration
+  // log is a disclosure this guard has no reason to make. Asserted by checking the verdict does not
+  // contain the ROOT STRING — not by pattern-matching a path shape, which would pass on a root the
+  // pattern happened not to describe.
+  it("(o) the verdict names the configuration source relative to the repository root, never absolutely", () => {
+    const m = mirror();
+    mkdirSync(join(m, ".grugops"), { recursive: true });
+    writeFileSync(
+      join(m, ".grugops/factory.config.json"),
+      JSON.stringify({ models: { preset: "none" } }),
+      "utf8",
+    );
+
+    const r = runIn(m);
+    expect(r.status).toBe(0);
+    const section = modelSection(out(r));
+    // PREMISE: the run really did read that file, so the assertion below is about a source the
+    // verdict actually names rather than about a line it never printed.
+    expect(section).toContain("from .grugops/factory.config.json");
+    expect(
+      section,
+      "the model-assignment verdict must not contain the absolute repository root",
+    ).not.toContain(m);
+
+    // The same property on THIS repository, whose own configuration lives at the second standard
+    // location — the run a contributor and continuous integration actually publish.
+    const live = modelSection(out(runIn(ROOT)));
+    expect(live).toContain(
+      "from agent-factory/config/factory.config.json",
+    );
+    expect(live).not.toContain(ROOT);
+  });
+
+  // (Plan 29.1-09, IN-02) A REFUSAL REASON CARRIES NO ABSOLUTE PATH EITHER. The reasons are minted
+  // one module down, where they interpolate the path they opened; promoting them from WARN to FAIL
+  // moved them into the failing verdict, so the same commitment has to hold over them.
+  it("(o-reason) a refusal reason reaches the finding with its path rendered repo-relative", () => {
+    const m = mirror();
+    mkdirSync(join(m, ".grugops"), { recursive: true });
+    writeFileSync(
+      join(m, ".grugops/factory.config.json"),
+      JSON.stringify({ models: null }),
+      "utf8",
+    );
+
+    const section = modelSection(out(runIn(m)));
+    expect(section).toContain(
+      "the `models` key in .grugops/factory.config.json is null",
+    );
+    expect(section).not.toContain(m);
   });
 
   it("(j) `preset: tiered` reds SEVENTEEN byte-FRESH adapters — the expectation is the config's, not the generator's", () => {

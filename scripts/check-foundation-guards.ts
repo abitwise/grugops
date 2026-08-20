@@ -1898,6 +1898,31 @@ function guardModelAssignment(): void {
     return s.startsWith(AGENT_PREFIX) ? s.slice(AGENT_PREFIX.length) : s;
   };
 
+  // (PLAN 29.1-09, IN-02) EVERY ABSOLUTE PATH UNDER `ROOT`, RENDERED REPOSITORY-RELATIVE WITH POSIX
+  // SEPARATORS — ONE HELPER, APPLIED WHEREVER THIS GUARD INTERPOLATES SOMETHING THAT CARRIES A PATH.
+  //
+  // Two reasons, and neither is cosmetic. This guard's own header commits to output that is
+  // BYTE-IDENTICAL for a given tree, and an absolute path makes the same tree print differently from
+  // two checkouts — the commitment fails on a property of the machine rather than of the repository.
+  // And the verdict is published to a continuous-integration log a third party can read, so a
+  // developer home directory in it is a disclosure this guard has no reason to make.
+  //
+  // IT TAKES TEXT, NOT A PATH, ON PURPOSE. The configuration source is a bare path, but the refusal
+  // reasons are minted one module down and interpolate the path they opened INTO a sentence. Promoting
+  // those reasons from a WARN to a finding moved them into the failing verdict, so the same commitment
+  // has to hold over them, and a path-only helper would have left the larger of the two leaks open.
+  // The match runs to the first whitespace or quoting byte and normalises the separator only inside
+  // what it matched, so nothing outside a path is rewritten.
+  const ROOT_PATH_RE = new RegExp(
+    `${ROOT.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}([^\\s'"\`]*)`,
+    "g",
+  );
+  const relativeToRoot = (text: string): string =>
+    text.replace(ROOT_PATH_RE, (_match: string, tail: string) => {
+      const rel = tail.replace(/^[\\/]/, "").split("\\").join("/");
+      return rel === "" ? "." : rel;
+    });
+
   // ── Floor 1: vacuity, before any verdict. ───────────────────────────────────────────────────
   // A run that compared zero adapters is the anomaly, never "nothing to check, therefore fine".
   // The per-adapter and per-stem loops are skipped in this state deliberately: with no adapters at
@@ -1944,29 +1969,71 @@ function guardModelAssignment(): void {
   // THE DEGRADING POLICY IS D-11's, AND IT IS REPORTED RATHER THAN SILENT. A configuration this guard
   // cannot read degrades the WHOLE expectation to `inherit` for every stem — never to a pinned tier,
   // because silently upgrading a tree to a model nobody chose is the worse failure — through the one
-  // shared `inheritForEveryStem`. The degradation is announced as a warning naming the refusal, so a
-  // reader sees that the comparison below ran against a fallback rather than against their file.
+  // shared `inheritForEveryStem`.
+  //
+  // (PLAN 29.1-09, WR-07) BOTH DEGRADED BRANCHES BLOCK. THEY USED TO ADVISE, AND THAT WAS A FAIL-OPEN.
+  //
+  // The degradation used to be announced through `warn()`, which is documented above as advisory and
+  // explicitly does NOT increment FAILS. Composed with two other facts — `adapters-freshness` mirrors
+  // the role and packaging trees and NO configuration, so the mirrored generator never opens the
+  // broken file, and `.github/workflows/ci.yml` ran neither the generator nor anything else that
+  // refuses — an illegal `models` block committed to a mirror cleared BOTH continuous-integration
+  // gates at exit 0. Every named refusal this phase built was unreachable from the build.
+  //
+  // BOTH BRANCHES ARE PROMOTED TOGETHER, and the reason is recorded here rather than left to a reader
+  // to reconstruct: an arm pair where one arm blocks and the other advises is a composition hole, and
+  // this repository has spent whole rounds on exactly that shape. The two branches are mutually
+  // exclusive by construction — a configuration that cannot be READ never reaches the resolver — so no
+  // input can exercise them together and the pair is pinned structurally instead, by a case asserting
+  // this function reaches for the advisory channel nowhere at all.
+  //
+  // WHAT DID NOT CHANGE IS THE DEGRADATION TARGET. D-11 splits by consumer and this guard is a
+  // degrading consumer; promoting the REPORT from advisory to blocking says nothing about what the
+  // expectation degrades TO, which is still `inherit` for every stem and never a pinned tier. A
+  // configuration that cannot be read is a different fact from a configuration that says the lean
+  // default, and both branches word it that way.
+  //
+  // `warn()`'s own contract is untouched for every other caller in this file. What changed is which
+  // helper THIS guard reaches for, never what a WARN means.
+  //
+  // (IN-05) THE TWO LABEL LOCALS ARE DECLARED WITHOUT INITIALISERS. Both are `let x: string` with no
+  // value, so TypeScript's definite-assignment analysis makes every reachable path assign them and a
+  // future fourth path is a COMPILE ERROR rather than a silent inheritance of whichever plausible
+  // default happened to be typed at the declaration. That silent inheritance is precisely how WR-08
+  // arose: `sourceLabel` was initialised to the phrase meaning "there is no configuration anywhere"
+  // and reassigned only inside the success branch, so a degraded run whose configuration file EXISTS
+  // reported that no configuration existed.
   let resolved: ReadonlyMap<string, ModelAlias> = new Map();
-  let presetLabel = "none";
-  let sourceLabel = "neither standard location";
+  let presetLabel: string;
+  let sourceLabel: string;
   const config = readModelsConfig(ROOT, stems);
   if (!config.ok) {
-    warn(
-      `model assignment: the \`models\` configuration could not be read, so the expectation DEGRADES to \`inherit\` for every role stem (D-11) rather than to any pinned tier, and the comparison below runs against that fallback — ${config.reason}`,
-    );
+    modelFail += `\nmodel assignment: the \`models\` configuration could not be READ, so the expectation DEGRADES to \`inherit\` for every role stem (D-11) rather than to any pinned tier, and the comparison below ran against that fallback — ${relativeToRoot(config.reason)}`;
     resolved = inheritForEveryStem(stems);
     presetLabel = "none (degraded — the configuration was refused)";
+    // NOT "neither standard location", and NOT a claim that a file exists either. The reader returns
+    // a refusal and no source, so the only honest statement here is that no source was established;
+    // the refusal above names whatever it opened. Stating either of the two facts this branch does
+    // not know would be the WR-08 defect written the other way round.
+    sourceLabel =
+      "no source established — the configuration read was REFUSED, and the refusal is named in the finding above";
   } else {
     presetLabel = config.value.preset;
-    sourceLabel = config.value.source ?? "neither standard location";
+    // Assigned ONCE for both of the branches below, so the success path and the resolve-refusal path
+    // cannot come apart about how a source is rendered. (IN-02) Rendered relative to the repository
+    // root: this guard's header commits to byte-identical output for a given tree, which an absolute
+    // path breaks across machines, and a developer home directory in a published continuous-integration
+    // log is a disclosure this guard has no reason to make.
+    sourceLabel =
+      config.value.source === null
+        ? "neither standard location"
+        : relativeToRoot(config.value.source);
     const resolution = resolveModels(stems, {
       preset: config.value.preset,
       overrides: config.value.overrides,
     });
     if (!resolution.ok) {
-      warn(
-        `model assignment: the \`models\` configuration read cleanly but could not be RESOLVED against this tree's role stems, so the expectation DEGRADES to \`inherit\` for every stem (D-11) rather than to any pinned tier — ${resolution.reason}`,
-      );
+      modelFail += `\nmodel assignment: the \`models\` configuration read cleanly but could not be RESOLVED against this tree's role stems, so the expectation DEGRADES to \`inherit\` for every stem (D-11) rather than to any pinned tier — ${relativeToRoot(resolution.reason)}`;
       resolved = inheritForEveryStem(stems);
       presetLabel = `${config.value.preset} (degraded — the resolution was refused)`;
     } else {
@@ -2079,17 +2146,28 @@ function guardModelAssignment(): void {
     modelFail += `\nmodel assignment: ${strayPins.length} of the ${nonAgentSurfaces.length} non-agent adapter surface(s) this kit ships declare a \`model\` key. A skill has no role stem, so no resolution this guard computes says anything about its value and the adapter generator never writes one — a pin here is a tier nobody adjudicated, on a file the platform loads:\n    ${strayPins.join("\n    ")}`;
   }
 
+  // REPORT THE SHAPE OF THE ANSWER, never a bare acknowledgement. The per-adapter comparisons say
+  // nothing about the set they were drawn from or the resolution they were compared against, so a
+  // run over a shrunken directory under a degraded expectation would read as an equally green
+  // silence. These four facts make it visible instead.
+  //
+  // (PLAN 29.1-09) RENDERED ON BOTH OUTCOMES, not only on the passing one. The two degraded branches
+  // now produce a FAILING verdict, and a failing verdict that omitted the run summary would have
+  // dropped the very fact those branches exist to publish — that the comparison ran against a
+  // fallback rather than against the reader's file. It also keeps `presetLabel` and `sourceLabel`
+  // load-bearing on every path, which is what makes the WR-08 assertion something an input can
+  // falsify rather than a phrase that is absent because nothing was printed.
+  const aliases = [...new Set(resolved.values())].sort();
+  const runSummary = `model assignment: ${adapterRels.length} committed adapter(s) under ${ADAPTER_DIR} compared against a resolution recomputed for ${stems.length} derived role stem(s); preset "${presetLabel}" from ${sourceLabel}; distinct aliases resolved: ${aliases.join(", ")}; ${nonAgentSurfaces.length} non-agent adapter surface(s) checked for a stray pin, ${strayPins.length === 0 ? "none found" : `${strayPins.length} found and named above`}`;
+
   if (modelFail === "") {
-    // REPORT THE SHAPE OF THE ANSWER, never a bare acknowledgement. The per-adapter comparisons say
-    // nothing about the set they were drawn from or the resolution they were compared against, so a
-    // run over a shrunken directory under a degraded expectation would read as an equally green
-    // silence. These four facts make it visible instead.
-    const aliases = [...new Set(resolved.values())].sort();
-    pass(
-      `model assignment: ${adapterRels.length} committed adapter(s) under ${ADAPTER_DIR} compared against a resolution recomputed for ${stems.length} derived role stem(s); preset "${presetLabel}" from ${sourceLabel}; distinct aliases resolved: ${aliases.join(", ")}; ${nonAgentSurfaces.length} non-agent adapter surface(s) checked for a stray pin, none found`,
-    );
+    pass(runSummary);
   } else {
-    fail(`model-assignment violation:${modelFail}`);
+    // ONE VERDICT, through the guard's single closing `fail()`. Every finding above — including the
+    // two degraded branches — accumulates into `modelFail` rather than calling `fail()` where it is
+    // raised, so a run with several defects prints one attributable block instead of a FAIL line
+    // beside a PASS line for the same subject.
+    fail(`model-assignment violation:${modelFail}\n\n  The run that produced these findings: ${runSummary}`);
   }
 }
 
