@@ -3020,6 +3020,24 @@ function runIn(checkRoot: string): SpawnSyncReturns<string> {
   });
 }
 
+// (Plan 29.1-12, R2-CR-01) THE SAME RUN, REACHED THROUGH A *RELATIVE* OVERRIDE.
+//
+// `runIn` above sets the override and never the working directory, which is precisely why no case in
+// this repository could see R2-CR-01: a relative override is only meaningful relative to something,
+// and every mirror root the suite plants is absolute. THE WORKING DIRECTORY IS THE INPUT A RELATIVE
+// OVERRIDE IS RESOLVED AGAINST, so this helper takes the directory to run from rather than inheriting
+// the suite's, and passes the override spelling separately.
+function runInRelative(
+  cwd: string,
+  checkRoot: string,
+): SpawnSyncReturns<string> {
+  return spawnSync("node", [GUARD_JS], {
+    encoding: "utf8",
+    cwd,
+    env: { ...process.env, CHECK_ROOT: checkRoot },
+  });
+}
+
 // The combined stdout+stderr of a guard run (findings print to stdout).
 function out(r: SpawnSyncReturns<string>): string {
   return `${r.stdout ?? ""}${r.stderr ?? ""}`;
@@ -9936,6 +9954,233 @@ describe("guard_model_assignment (Phase 29.1, MODEL-03/MODEL-05)", () => {
       out(rel),
       "a relative CHECK_ROOT must produce output byte-identical to the default root — anything else is a verdict that describes the shape of the override string rather than the repository",
     ).toBe(out(dflt));
+  });
+
+  // (Plan 29.1-12, R2-CR-01) THE RED PATH IS RENDERED WITH THE SAME FIDELITY AS THE GREEN ONE.
+  //
+  // `relativeToRoot` is applied to `config.reason` and `resolution.reason` as well as to the verdict's
+  // source label, so a corrupted refusal sends an operator to a file that was never opened — a worse
+  // outcome than a corrupted PASS line, because the operator ACTS on it. The green-path case above
+  // cannot see this: on this repository the configuration reads cleanly and no reason is minted.
+  it("(o-rel-reason) a refusal reason under a RELATIVE CHECK_ROOT names the file it actually opened", () => {
+    const m = mirror();
+    mkdirSync(join(m, ".grugops"), { recursive: true });
+    const planted = join(m, ".grugops/factory.config.json");
+    writeFileSync(planted, JSON.stringify({ models: null }), "utf8");
+
+    // PREMISE: the file the refusal will name really is on disk inside the mirror, and the run really
+    // did REFUSE rather than pass. A case that asserted only the absence of a corrupted spelling would
+    // report a run that printed nothing as a pass.
+    expect(existsSync(planted)).toBe(true);
+    const section = modelSection(out(runInRelative(m, ".")));
+    expect(section, "the relative-root run must emit a section").not.toBe("");
+    expect(section).toContain("could not be READ");
+
+    // THE PROPERTY: the same repository-relative spelling case `(o-reason)` pins on the absolute-root
+    // run, reached here through the invocation shape that used to corrupt it.
+    expect(section).toContain(
+      "the `models` key in .grugops/factory.config.json is null",
+    );
+    // THE DISCLOSURE, asserted against the mirror directory STRING rather than against a path-shaped
+    // pattern — case `(o)`'s own argument for why a pattern would pass on a root it did not describe.
+    expect(section).not.toContain(m);
+  });
+
+  // (Plan 29.1-12, R2-CR-01) THE ROOT IS NORMALISED, AND THIS IS THE CASE THAT CAN SEE IT.
+  //
+  // MEASURED DEVIATION, recorded here because the next reader will otherwise repeat the mistake this
+  // case corrects. The fix has two halves — the root is `resolve()`d, and the match must end on a path
+  // boundary — and the byte-identity case above discriminates only the SECOND. With `CHECK_ROOT=.` the
+  // escaped pattern is `\.`, and every period inside `factory.config.json` is followed by a letter, so
+  // the boundary alone already refuses that match. Reverting the normalisation while leaving the
+  // boundary in place leaves `(o-rel)` GREEN. Measured, not reasoned: the two live runs are
+  // byte-identical under that mutation.
+  //
+  // What the normalisation actually buys is that the root cannot be a BARE TOKEN. A relative override
+  // is any string the caller typed, and a short one collides with ordinary prose in the very sentences
+  // this helper rewrites: a mirror reached as `CHECK_ROOT=key` compiles to a pattern matching the word
+  // "key" in "the `models` key in ...", which the boundary happily accepts because a space follows it.
+  // The whole word is then replaced by ".". So the fixture below names the mirror directory after a
+  // word the refusal sentence already contains, which is the only shape that can tell the two halves
+  // apart.
+  it("(o-rel-word) a relative root that is also an ordinary WORD does not rewrite the prose around the path", () => {
+    const parent = mkdtempSync(join(tmpdir(), "grugops-fg-word-"));
+    tmpDirs.push(parent);
+    const collidingName = "key";
+    const m = join(parent, collidingName);
+    cpSync(mirror(), m, { recursive: true });
+    mkdirSync(join(m, ".grugops"), { recursive: true });
+    writeFileSync(
+      join(m, ".grugops/factory.config.json"),
+      JSON.stringify({ models: null }),
+      "utf8",
+    );
+
+    // PREMISE 1 — the run refuses, through the ordinary ABSOLUTE-root invocation, so the reference
+    // text below is a real rendering rather than an assumption about one.
+    const reference = modelSection(out(runIn(m)));
+    expect(reference, "the reference run must emit a section").not.toBe("");
+    expect(reference).toContain("could not be READ");
+
+    // PREMISE 2 — THE COLLISION IS REAL. The directory name occurs in the rendered sentence at a
+    // position that is NOT the path prefix, followed by a byte the path boundary admits. Without this,
+    // the case would exercise nothing and pass for the wrong reason.
+    expect(
+      reference,
+      `the fixture is only discriminating if "${collidingName}" appears in the rendered prose followed by whitespace`,
+    ).toContain(`\` ${collidingName} in `);
+
+    // THE PROPERTY: reached with the directory name as a RELATIVE override, the sentence is unchanged.
+    const section = modelSection(out(runInRelative(parent, collidingName)));
+    expect(section, "the relative-root run must emit a section").not.toBe("");
+    expect(
+      section,
+      "a relative override that is also an ordinary word must not rewrite that word out of the refusal sentence — an unnormalised root compiles the caller's typing into the pattern, so the verdict describes the override rather than the repository",
+    ).toContain("the `models` key in .grugops/factory.config.json is null");
+    expect(section).not.toContain(m);
+  });
+
+  // (Plan 29.1-12, R2-CR-01) THE MATCH IS A PATH PREFIX, NOT A SUBSTRING.
+  //
+  // The review named this variant as unreachable-today-but-unenforced: every path the guard renders is
+  // built FROM the root, so a sibling that merely shares a string prefix does not arise on the paths
+  // the guard constructs. It DOES arise on the path the guard ECHOES — an illegal `models.preset` is
+  // quoted back verbatim into the refusal, and that value is an arbitrary caller string. This case
+  // reaches the rewrite on the BEHAVIOUR axis through that echo rather than asserting against the
+  // guard's source text, so it observes what the pattern does rather than what it is spelled as.
+  it("(o-prefix) a root that is a string PREFIX of a sibling path rewrites nothing", () => {
+    const parent = mkdtempSync(join(tmpdir(), "grugops-fg-prefix-"));
+    tmpDirs.push(parent);
+    const m = join(parent, "mir");
+    cpSync(mirror(), m, { recursive: true });
+    const siblingDeep = join(parent, "mirXTRA", "deep");
+    mkdirSync(siblingDeep, { recursive: true });
+
+    // PREMISE 1 — THE FIXTURE IS WHAT IT CLAIMS. The sibling path really does begin with the mirror
+    // root as a string, and really is not under it, and both really exist.
+    expect(
+      siblingDeep.startsWith(m),
+      `${siblingDeep} must begin with ${m} for this case to exercise a prefix match at all`,
+    ).toBe(true);
+    expect(siblingDeep.startsWith(`${m}/`)).toBe(false);
+    expect(existsSync(m) && existsSync(siblingDeep)).toBe(true);
+
+    mkdirSync(join(m, ".grugops"), { recursive: true });
+    writeFileSync(
+      join(m, ".grugops/factory.config.json"),
+      JSON.stringify({ models: { preset: siblingDeep } }),
+      "utf8",
+    );
+
+    // PREMISE 2 — the run reached the refusal that echoes the value, so the rewrite was ASKED over
+    // text containing the sibling path.
+    const section = modelSection(out(runIn(m)));
+    expect(section, "the run must emit a section").not.toBe("");
+    expect(section).toContain("not a legal preset name");
+
+    // THE PROPERTY: the echoed sibling path survives whole. Under a substring match its leading
+    // characters are deleted and it becomes `mirXTRA/deep` — a path that does not exist.
+    expect(
+      section,
+      "a root that is a string prefix of a sibling path must not be rewritten out of the sibling — the match has to end on a path boundary or it is a substring match wearing a path's name",
+    ).toContain(siblingDeep);
+    expect(section).not.toContain(
+      `"${siblingDeep.slice(m.length)}"`,
+    );
+  });
+
+  // (Plan 29.1-12, R2-CR-01) TODAY'S MEANING OF AN ABSENT OVERRIDE IS PINNED, NOT INFERRED.
+  //
+  // The normalisation left the falsy check alone on purpose, so both spellings of "no override" still
+  // mean the script-relative repository root. That is a behaviour a future edit could change without
+  // noticing, because nothing else in the suite ever runs the guard with an EMPTY override.
+  it("(o-empty) an unset and an empty CHECK_ROOT both mean the script-relative repository root", () => {
+    const noOverride = { ...process.env };
+    delete noOverride.CHECK_ROOT;
+    const runs = [
+      ["unset", noOverride] as const,
+      ["empty", { ...noOverride, CHECK_ROOT: "" }] as const,
+    ].map(
+      ([label, env]) =>
+        [
+          label,
+          spawnSync("node", [GUARD_JS], { encoding: "utf8", cwd: ROOT, env }),
+        ] as const,
+    );
+
+    // PREMISE: each run produced a model-assignment section, so the equality below is over text that
+    // exercised the rendering rather than over two empty strings.
+    for (const [label, r] of runs) {
+      expect(modelSection(out(r)), `the ${label} run must emit a section`).not.toBe("");
+      expect(r.status, `the ${label} run must exit 0`).toBe(0);
+    }
+    expect(
+      out(runs[1][1]),
+      "an empty CHECK_ROOT must keep meaning the script-relative repository root",
+    ).toBe(out(runs[0][1]));
+  });
+
+  // (Plan 29.1-12, R2-CR-01) THE RESIDUAL, DERIVED AND COUNTED — NOT ASSERTED IN PROSE.
+  //
+  // The un-normalised `process.env.CHECK_ROOT` idiom is shared by every gate in this tree, and this
+  // plan edits exactly one of them. What makes that a defensible blast radius rather than an untested
+  // assumption is the measured fact that only ONE gate compiles its root into a pattern — every other
+  // reader joins it to a path, where an unresolved root is merely relative and not corrupting.
+  //
+  // Derived from the filesystem at run time so a gate added tomorrow enters the denominator with no
+  // edit here. Whole-line comments are stripped first, following case `(m)`: several of these files
+  // DISCUSS the override and the pattern at length, and prose about a defect must not be counted as
+  // the defect.
+  it("(o-one-consumer) exactly ONE gate in this tree compiles its CHECK_ROOT into a RegExp", () => {
+    const dir = join(ROOT, "scripts");
+    const codeOf = (src: string): string =>
+      src
+        .split("\n")
+        .filter((l) => !l.trimStart().startsWith("//"))
+        .join("\n");
+
+    const readsRoot: string[] = [];
+    const buildsAnyRegExp: string[] = [];
+    const compilesRootIntoRegExp: string[] = [];
+    for (const f of readdirSync(dir).sort()) {
+      if (!f.endsWith(".ts") || f.endsWith(".test.ts")) continue;
+      const code = codeOf(readFileSync(join(dir, f), "utf8"));
+      if (!code.includes("process.env.CHECK_ROOT")) continue;
+      readsRoot.push(f);
+      let at = code.indexOf("new RegExp(");
+      let any = false;
+      let fromRoot = false;
+      while (at !== -1) {
+        any = true;
+        if (/\bROOT\b/.test(code.slice(at, at + 300))) fromRoot = true;
+        at = code.indexOf("new RegExp(", at + 1);
+      }
+      if (any) buildsAnyRegExp.push(f);
+      if (fromRoot) compilesRootIntoRegExp.push(f);
+    }
+
+    const census = `read CHECK_ROOT: ${readsRoot.length} (${readsRoot.join(", ")}); build any RegExp: ${buildsAnyRegExp.length} (${buildsAnyRegExp.join(", ")}); compile the root INTO a RegExp: ${compilesRootIntoRegExp.length} (${compilesRootIntoRegExp.join(", ")})`;
+
+    // VACUITY FLOOR on the denominator: an empty outer set would make every assertion below pass over
+    // nothing at all.
+    expect(
+      readsRoot.length,
+      `no gate in scripts/ reads process.env.CHECK_ROOT — the scan found nothing to measure. ${census}`,
+    ).toBeGreaterThan(0);
+
+    // DISCRIMINATION FLOOR: at least one gate builds a RegExp that is NOT built from the root, so
+    // "exactly one" below is a property of the inner predicate rather than of RegExp being rare.
+    expect(
+      buildsAnyRegExp.length,
+      `the inner predicate is only meaningful if some gate builds a RegExp WITHOUT the root — otherwise the count below is true for a reason that has nothing to do with this defect. ${census}`,
+    ).toBeGreaterThan(compilesRootIntoRegExp.length);
+
+    // THE RESIDUAL: one gate carries this defect class, and it is the one this plan fixed. The other
+    // readers join their root to a path, where an unresolved root is relative and not corrupting.
+    expect(
+      compilesRootIntoRegExp,
+      `a SECOND gate now compiles its CHECK_ROOT into a regular expression, which is the R2-CR-01 defect class acquiring a new site. ${census}`,
+    ).toEqual(["check-foundation-guards.ts"]);
   });
 
   it("(j) `preset: tiered` reds SEVENTEEN byte-FRESH adapters — the expectation is the config's, not the generator's", () => {
