@@ -738,7 +738,7 @@ loop terminating only by an unstated argument).
   4. The dial's Claude-Code-only reach is **stated in the kit and in `CLAUDE.md`**, whose "What NOT to Use" entry against non-`inherit` wrappers is amended to name this mechanism as the documented reason. The kit's single authority states that reach as a **property of what grugops emits** — per-agent adapters at `.claude/agents/` alone — and every clause it carries about the other four host CLIs travels with a named vendor source. (MODEL-06)
   5. Any cost or limit-savings claim is **measured** with `scripts/measure-cost.ts`, or carries `UNKNOWN - verify`. A tier assignment is not evidence of a saving. (MODEL-07)
 
-**Plans**: 10/11 plans executed — 6/6 executed, then 5 gap-closure plans (29.1-07 … 29.1-11) planned 2026-08-20 after verification returned `gaps_found`. **Waves are strictly sequential (1→11)**. Four `.ts` files need their committed `.js` rebuilt (`model-tiers`, `generate-role-adapters`, `check-foundation-guards`, `adapters-freshness`), and two plans rebuilding a committed `.js` concurrently tears the output (the phase-27 round-5 precedent). Plan `29.1-02` is **not autonomous**: it opens with a blocking `checkpoint:decision` on D-05's one-way config key shape.
+**Plans**: 11/11 plans executed — 6/6 executed, then 5 gap-closure plans (29.1-07 … 29.1-11) planned 2026-08-20 after verification returned `gaps_found`. **Waves are strictly sequential (1→11)**. Four `.ts` files need their committed `.js` rebuilt (`model-tiers`, `generate-role-adapters`, `check-foundation-guards`, `adapters-freshness`), and two plans rebuilding a committed `.js` concurrently tears the output (the phase-27 round-5 precedent). Plan `29.1-02` is **not autonomous**: it opens with a blocking `checkpoint:decision` on D-05's one-way config key shape.
 
 Plans:
 
@@ -786,7 +786,7 @@ Plans:
 
 **Wave 5 (round 2)** *(blocked on 29.1-10)*
 
-- [ ] 29.1-11-PLAN.md — WR-05 + the hand-listed roster + IN-03 + IN-06 + `COVERAGE.md`: declare the two configuration locations once and document the whole-file precedence and its shadowing consequence where a configuring reader meets it, pin the surface roster against a run-time derivation rather than against its own hand-list, pin the full 40-character baseline SHA, and close the round with the full gate set on the final tree [MODEL-01, MODEL-02, MODEL-06, MODEL-07]
+- [x] 29.1-11-PLAN.md — WR-05 + the hand-listed roster + IN-03 + IN-06 + `COVERAGE.md`: declare the two configuration locations once and document the whole-file precedence and its shadowing consequence where a configuring reader meets it, pin the surface roster against a run-time derivation rather than against its own hand-list, pin the full 40-character baseline SHA, and close the round with the full gate set on the final tree [MODEL-01, MODEL-02, MODEL-06, MODEL-07]
 
 **Honesty floor for this phase:** the motivation is quota and cost relief, but grugops has never shipped an unmeasured cost claim — v2.0's ~50% figure stayed `UNKNOWN - verify` rather than borrowing DeLM's benchmark. A model-tier split is a *plausible* saving, not a measured one, and must be described that way until `measure-cost.ts` says otherwise. Assigning a cheaper model to a role is also a **quality** decision, not only a cost one; the preset's rationale is recorded per role so a later reader can dispute the assignment on merit.
 

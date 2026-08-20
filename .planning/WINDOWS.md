@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 71
+open_count: 72
 waived_count: 0
 fixed_count: 1
-total_count: 72
-last_updated: 2026-08-20T09:01:51.475Z
+total_count: 73
+last_updated: 2026-08-20T09:31:47.536Z
 ---
 
 # Broken Windows Ledger
@@ -87,6 +87,7 @@ last_updated: 2026-08-20T09:01:51.475Z
 | 70 | 29.1 | deviation | scripts/model-tiers.ts |  | ROLE_COUNT cardinality check relocated out of resolveModels into roleCorpusCardinalityRefusal — deviates from plan 29.1-01 Task 2's written behavior block; needs reviewer sign-off (SUMMARY coverage item D5) | open |  | 2026-08-19T08:15:05.155Z |  |
 | 71 | 29.1 | deviation | scripts/generate-role-adapters.ts |  | Plan 29.1-03 acceptance criterion predicts a filesystem RED when the resolution moves into render(); measured GREEN (adapters.map materializes before the write loop). Equivalent proof taken in the WRITE loop instead — reviewer to confirm the substitution discharges the criterion (coverage item D17) | open |  | 2026-08-19T09:43:42.160Z |  |
 | 72 | 29.1 | deviation | scripts/model-dial-consistency.test.ts |  | 29.1-10: the oracle pins ONE authority sentence but does not forbid a SECOND, contradicting sentence added elsewhere in the same document; compensating control is the negative grep recorded in 29.1-10-SUMMARY.md | open |  | 2026-08-20T09:01:51.475Z |  |
+| 73 | 29.1 | deviation | agent-factory/packaging/subagent.frontmatter.md |  | Plan 29.1-11 must-have 'both shipped documents name both configuration locations' is NOT met as written: check-kit-refs Assertion 1 (D-08.1) forbids agent-factory/config/ refs in kit prose, so the packaging authority names the user-facing location plus the location COUNT and points at the config reference for the rule | open |  | 2026-08-20T09:31:47.536Z |  |
 
 ````json
 [
@@ -952,6 +953,18 @@ last_updated: 2026-08-20T09:01:51.475Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-08-20T09:01:51.475Z",
+    "resolved_at": null
+  },
+  {
+    "id": 73,
+    "kind": "deviation",
+    "phase": "29.1",
+    "file": "agent-factory/packaging/subagent.frontmatter.md",
+    "line": null,
+    "description": "Plan 29.1-11 must-have 'both shipped documents name both configuration locations' is NOT met as written: check-kit-refs Assertion 1 (D-08.1) forbids agent-factory/config/ refs in kit prose, so the packaging authority names the user-facing location plus the location COUNT and points at the config reference for the rule",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-08-20T09:31:47.536Z",
     "resolved_at": null
   }
 ]
