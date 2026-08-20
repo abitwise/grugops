@@ -91,7 +91,7 @@ Each requirement maps to exactly one roadmap phase (27–33). REQ-IDs continue g
 - [x] **MODEL-02**: `scripts/generate-role-adapters.ts` emits the **resolved** per-role model in place of its hard-coded `model: inherit`, and `agent-factory/packaging/subagent.frontmatter.md` — the single upstream source, whose prose currently documents the `inherit` choice — is updated in the same change, never left to disagree with the generator.
 - [x] **MODEL-03**: A named opt-in preset assigns a stronger tier to the judgment roles (orchestration, architecture, security/NFR) and a cheaper tier to the execution roles (engineering, QE/E2E, UAT), selectable with one config key; the role→tier map is **derived against `kit-model.listRoles()` with an asserted count**, so a new role cannot arrive silently unassigned.
 - [x] **MODEL-04**: Only the aliases `inherit` / `opus` / `sonnet` / `haiku` are legal values. Full model ids are refused: they rot into the hand-maintained stale literal this milestone exists to eliminate, and an alias degrades gracefully for a user whose account lacks the stronger tier.
-- [ ] **MODEL-05**: An unknown, malformed, or absent model value is **fail-closed to `inherit`** — never to a pinned tier — and a guard asserts the emitted model of all 17 adapters equals the resolved config, derived rather than compared against a hand-listed expectation.
+- [x] **MODEL-05**: An unknown, malformed, or absent model value is **fail-closed to `inherit`** — never to a pinned tier — and a guard asserts the emitted model of all 17 adapters equals the resolved config, derived rather than compared against a hand-listed expectation.
 - [x] **MODEL-06**: The dial's Claude-Code-only reach is stated rather than implied, and stated as a property of what this kit emits: grugops generates per-agent adapters for Claude Code alone, so the dial has nowhere to write on the other four host CLIs and they are unaffected — with every clause the kit ships about those four carrying a named source. `CLAUDE.md`'s "What NOT to Use" entry against non-`inherit` wrappers is amended to name this mechanism as the documented reason rather than being left to contradict it.
 - [x] **MODEL-07**: No cost or limit-savings claim ships unmeasured — it is measured with `scripts/measure-cost.ts` or carries `UNKNOWN - verify`. A tier assignment is not evidence of a saving, and the per-role rationale is recorded so the assignment can be disputed on quality grounds, not only cost.
 
@@ -191,7 +191,7 @@ _Filled by the roadmapper 2026-07-28. Every requirement maps to exactly one phas
 | MODEL-02 | Phase 29.1 | Complete |
 | MODEL-03 | Phase 29.1 | Complete |
 | MODEL-04 | Phase 29.1 | Complete |
-| MODEL-05 | Phase 29.1 | Gaps Found |
+| MODEL-05 | Phase 29.1 | Complete |
 | MODEL-06 | Phase 29.1 | Complete |
 | MODEL-07 | Phase 29.1 | Complete |
 | AUTO-01 | Phase 30 | Pending |
