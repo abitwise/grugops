@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 70
+open_count: 71
 waived_count: 0
 fixed_count: 1
-total_count: 71
-last_updated: 2026-08-19T09:43:42.160Z
+total_count: 72
+last_updated: 2026-08-20T09:01:51.475Z
 ---
 
 # Broken Windows Ledger
@@ -86,6 +86,7 @@ last_updated: 2026-08-19T09:43:42.160Z
 | 69 | 29 | unrun-verify | agent-factory/writing-profile.md | 264 | V-29-58-01 — enumeration axis: a conformance claim written without any of the 22 pinned literals is not matched (FAIL-OPEN; live count UNKNOWN - verify BY CONSTRUCTION, not 0). No mechanical remedy exists; compensating control is the per-round hand disposition of all 13 derived claim sites. Id opened by plan 29-58 in docs/audit/29-round8-residuals.md §2.4 after deriving that no register had ever assigned one | open |  | 2026-08-18T16:22:40.100Z |  |
 | 70 | 29.1 | deviation | scripts/model-tiers.ts |  | ROLE_COUNT cardinality check relocated out of resolveModels into roleCorpusCardinalityRefusal — deviates from plan 29.1-01 Task 2's written behavior block; needs reviewer sign-off (SUMMARY coverage item D5) | open |  | 2026-08-19T08:15:05.155Z |  |
 | 71 | 29.1 | deviation | scripts/generate-role-adapters.ts |  | Plan 29.1-03 acceptance criterion predicts a filesystem RED when the resolution moves into render(); measured GREEN (adapters.map materializes before the write loop). Equivalent proof taken in the WRITE loop instead — reviewer to confirm the substitution discharges the criterion (coverage item D17) | open |  | 2026-08-19T09:43:42.160Z |  |
+| 72 | 29.1 | deviation | scripts/model-dial-consistency.test.ts |  | 29.1-10: the oracle pins ONE authority sentence but does not forbid a SECOND, contradicting sentence added elsewhere in the same document; compensating control is the negative grep recorded in 29.1-10-SUMMARY.md | open |  | 2026-08-20T09:01:51.475Z |  |
 
 ````json
 [
@@ -939,6 +940,18 @@ last_updated: 2026-08-19T09:43:42.160Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-08-19T09:43:42.160Z",
+    "resolved_at": null
+  },
+  {
+    "id": 72,
+    "kind": "deviation",
+    "phase": "29.1",
+    "file": "scripts/model-dial-consistency.test.ts",
+    "line": null,
+    "description": "29.1-10: the oracle pins ONE authority sentence but does not forbid a SECOND, contradicting sentence added elsewhere in the same document; compensating control is the negative grep recorded in 29.1-10-SUMMARY.md",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-08-20T09:01:51.475Z",
     "resolved_at": null
   }
 ]

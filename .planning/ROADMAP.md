@@ -738,7 +738,7 @@ loop terminating only by an unstated argument).
   4. The dial's Claude-Code-only reach is **stated in the kit and in `CLAUDE.md`**, whose "What NOT to Use" entry against non-`inherit` wrappers is amended to name this mechanism as the documented reason. The kit's single authority states that reach as a **property of what grugops emits** — per-agent adapters at `.claude/agents/` alone — and every clause it carries about the other four host CLIs travels with a named vendor source. (MODEL-06)
   5. Any cost or limit-savings claim is **measured** with `scripts/measure-cost.ts`, or carries `UNKNOWN - verify`. A tier assignment is not evidence of a saving. (MODEL-07)
 
-**Plans**: 9/11 plans executed — 6/6 executed, then 5 gap-closure plans (29.1-07 … 29.1-11) planned 2026-08-20 after verification returned `gaps_found`. **Waves are strictly sequential (1→11)**. Four `.ts` files need their committed `.js` rebuilt (`model-tiers`, `generate-role-adapters`, `check-foundation-guards`, `adapters-freshness`), and two plans rebuilding a committed `.js` concurrently tears the output (the phase-27 round-5 precedent). Plan `29.1-02` is **not autonomous**: it opens with a blocking `checkpoint:decision` on D-05's one-way config key shape.
+**Plans**: 10/11 plans executed — 6/6 executed, then 5 gap-closure plans (29.1-07 … 29.1-11) planned 2026-08-20 after verification returned `gaps_found`. **Waves are strictly sequential (1→11)**. Four `.ts` files need their committed `.js` rebuilt (`model-tiers`, `generate-role-adapters`, `check-foundation-guards`, `adapters-freshness`), and two plans rebuilding a committed `.js` concurrently tears the output (the phase-27 round-5 precedent). Plan `29.1-02` is **not autonomous**: it opens with a blocking `checkpoint:decision` on D-05's one-way config key shape.
 
 Plans:
 
@@ -782,7 +782,7 @@ Plans:
 
 **Wave 4 (round 2)** *(blocked on 29.1-09)*
 
-- [ ] 29.1-10-PLAN.md — WR-06: replace the refuted authority sentence with the researched one plus four vendor citations and three `UNKNOWN - verify` residuals, move the oracle's pinned literal with it, repair the case a second marker would have silently re-targeted, and correct the two planning surfaces that restate the refuted premise — `REQUIREMENTS.md`'s MODEL-06 text and `ROADMAP.md`'s SC-4, which as written is unsatisfiable by any true sentence [MODEL-06, MODEL-07]
+- [x] 29.1-10-PLAN.md — WR-06: replace the refuted authority sentence with the researched one plus four vendor citations and three `UNKNOWN - verify` residuals, move the oracle's pinned literal with it, repair the case a second marker would have silently re-targeted, and correct the two planning surfaces that restate the refuted premise — `REQUIREMENTS.md`'s MODEL-06 text and `ROADMAP.md`'s SC-4, which as written is unsatisfiable by any true sentence [MODEL-06, MODEL-07]
 
 **Wave 5 (round 2)** *(blocked on 29.1-10)*
 
