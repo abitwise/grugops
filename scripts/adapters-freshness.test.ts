@@ -526,8 +526,22 @@ describe("adapters-freshness.js — the D-04 zero-config pin is asserted, not in
     // The finding must be about the OVERRIDE COUNT, naming what it found and what it requires. A
     // preset finding would be wrong here: the preset genuinely is `none`, which is exactly why the
     // preset pin alone certified this run.
+    //
+    // ASSERT THE SENTENCE, NOT THE DIGIT (finding R2-IN-03). This used to read
+    // `expect(r.stdout).toContain("2")`, and a multi-paragraph refusal satisfies a single-digit
+    // substring almost unconditionally — a temp path, a line number, an unrelated count — so it told
+    // a reader nothing about WHICH refusal fired, and the case's whole discrimination was carried by
+    // the `/override/i` match below it. The fragment now carries the count in the POSITION the gate
+    // interpolates it and the required value the gate names beside it, so what is asserted is the
+    // override refusal rather than a number that appeared somewhere. The count is still DERIVED —
+    // it is the same run-time `planted.value.overrides.size` this case asserted as its premise
+    // above — because replacing a derived number with a literal to gain specificity would trade this
+    // finding for this repository's named first failure class.
+    expect(r.stdout).toContain(
+      `applied ${String(planted.value.overrides.size)} per-role model override(s), and this gate requires 0`,
+    );
+    // Kept as a second, weaker assertion. It is not wrong — it was only carrying the whole case.
     expect(r.stdout).toMatch(/override/i);
-    expect(r.stdout).toContain("2");
     // …and it must fire BEFORE the byte comparison, or the pin is indistinguishable from ordinary
     // staleness.
     expect(
@@ -546,12 +560,27 @@ describe("adapters-freshness.js — the D-04 zero-config pin is asserted, not in
     const r = runMirroredGate(m);
     expect(r.status, r.stdout + r.stderr).not.toBe(0);
     expect(r.stdout).not.toContain(FRESH_MARKER);
-    // BOTH numbers must be named, or the reader cannot tell which side is wrong.
+    // BOTH numbers must be named, or the reader cannot tell which side is wrong — and they must be
+    // named IN THE SENTENCE THAT REPORTS THEM (finding R2-IN-03). This used to be two bare
+    // `toContain(String(n))` calls, which a multi-paragraph refusal satisfies for reasons that have
+    // nothing to do with the disagreement being reported: either number could have come from a temp
+    // path, a line number or the alias listing. The assertion below is the gate's own
+    // member-count refusal with all three cardinalities in the positions the gate writes them, so it
+    // identifies the refusal rather than finding digits in it.
+    //
+    // NO LITERAL IS INTRODUCED. Both numbers still come from the SAME directory listing this case
+    // already read: the announced count is one short by construction — `shortenAnnouncedMemberCount`
+    // drops the first member of the resolved map — and the derived and committed counts are the full
+    // listing.
     const committed = readdirSync(join(ROOT, ".claude/agents")).filter((n) => n.endsWith(".md"));
     expect(committed.length, "PREMISE: the committed adapter set must be non-empty")
       .toBeGreaterThan(0);
-    expect(r.stdout).toContain(String(committed.length));
-    expect(r.stdout).toContain(String(committed.length - 1));
+    expect(r.stdout).toContain(
+      `announced a resolution covering ${String(committed.length - 1)} role(s), while this gate ` +
+        `derived ${String(committed.length)} regenerated adapter(s) through the shared adapter ` +
+        `authority (set-equal to the ${String(committed.length)} committed adapter(s) by the check ` +
+        "above). The two numbers must agree.",
+    );
   });
 
   it("Case 14 (RED): a mirrored run that announces NO assignment line at all fails closed", () => {
