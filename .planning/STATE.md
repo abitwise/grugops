@@ -5,13 +5,13 @@ milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live
 current_phase: 29.1
 current_phase_name: per-role-model-assignment
 status: planned
-stopped_at: Completed 29.1-07-PLAN.md
-last_updated: "2026-08-20T07:46:47.495Z"
+stopped_at: Completed 29.1-08-PLAN.md
+last_updated: "2026-08-20T08:04:15.611Z"
 progress:
   total_phases: 9
   completed_phases: 3
   total_plans: 145
-  completed_plans: 141
+  completed_plans: 142
   percent: 33
 last_activity: 2026-08-19
 last_activity_desc: "Phase 29 CLOSED by user decision (D-59, reversing D-29): LANG-04's conformance prohibition is held as CONTENT — the claim registry and the honesty floor — with guard_banned_claims a disclosed drift backstop, not the mechanism that makes a totality true. Eight verification rounds established that a totality over an open set of phrasings is not a decidable predicate; D-55 had already ended at a per-line predicate, so the totality was already content-held on the tree while LANG-04's text still said a mechanism held it. Round-8 review CR-02 (the narrowed sentence printed above the findings contradicting it) FIXED at 4c6a76a, watched failing against the pre-fix build and asserted in both directions; two existing cases whose premise the change invalidated were repaired, not weakened. CR-01 (freshness.ts working-tree arm fail-opens, reproduced) carried as V-29-59-03 — a build-parity defect plan 29-59 itself recorded as named by no LANG requirement. CR-03/04/05 carried with owners in docs/audit/29-round8-residuals.md section 10. The round-8 verifier's gaps_found verdict is left standing and annotated rather than rewritten: it verified LANG-04's previous text. All 8 LANG requirements Complete. 15 repo gates green, 52 files / 2140 passed / 2 skipped. Next: Phase 29.1 (per-role model assignment)."
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-07-28 — after v2.0 milestone)
 ## Current Position
 
 Phase: 29.1 (per-role-model-assignment) — EXECUTING
-Plan: 8 of 11
+Plan: 9 of 11
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 
@@ -395,6 +395,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 29.1 P05 | 42min | 3 tasks | 5 files |
 | Phase 29.1 P06 | 22min | 2 tasks | 5 files |
 | Phase 29.1 P07 | 47min | 3 tasks | 9 files |
+| Phase 29.1 P08 | 25min | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -1057,6 +1058,10 @@ Recent decisions affecting current work:
 - [Phase ?]: A derived roster's cardinality must be adjudicated at MODULE LOAD: the first vacuity mutation killed collection one layer above the case meant to catch it, and the oracle reported 'no tests' rather than naming its premise
 - [Phase ?]: D-16 held as CONTENT under the D-59 precedent: MODEL-07's totality half ships as anchored claim C-28-047 with its FAIL-OPEN direction disclosed from a derived BannedClaimGroup list; no fourth literal group added
 - [Phase ?]: C-28-047 placed ABOVE check-banned-claims' exemption region, not inside it — derived from locateExemptRegion: inside moves EXTENT (75) and ANCHORS (6), both pinned in the one file D-16 keeps untouched; outside the block is SCANNED rather than exempted
+- [Phase ?]: 29.1-08: WR-01 closed — the `models` block's key set is closed by name (MODELS_KEYS), adjudicated as readModelsBlock's FIRST act, extending D-06 one level up. The partial-application shape {"preset":"tiered","role":{...}} — preset applied, overrides silently dropped, green run, no message — is refused.
+- [Phase ?]: 29.1-08: The plan's placement-mutation expectation was INVERTED by the mechanism and the source comment was corrected rather than the claim shipped. Moving the check below the preset read leaves the partial-application case GREEN (a refusal short-circuits either way); PRESENCE closes it (deletion → 5 RED), PLACEMENT only decides which finding the author is handed (relocation → 1 RED, the ordering case). Second mutation added because the plan's single mutation did not discriminate the property the plan attributed to it.
+- [Phase ?]: 29.1-08: WR-02 closed — Floor 0 validates before it defaults; only a strictly undefined preset takes the zero-config answer. The illegal-string refusal is byte-identical (sha256 418b2f4b…, 241 bytes), compared not eyeballed. The ResolveModelsOptions.preset docstring claim was fixed-into-truth rather than deleted, because the committed .js runs untyped on hosts.
+- [Phase ?]: 29.1-08: T-29.1-17 ACCEPTED — the configuration FILE's top-level key set stays open by design (closing it needs a registry of every reader, which does not exist). Disclosed in source, pinned by a case titled DISCLOSED RESIDUAL, and stated in factory.config.md's new 'What is closed, and what is not' paragraph.
 
 ### Pending Todos
 
@@ -1171,8 +1176,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-08-20T07:46:47.467Z
-Stopped at: Completed 29.1-07-PLAN.md
+Last session: 2026-08-20T08:04:02.640Z
+Stopped at: Completed 29.1-08-PLAN.md
 Resume file: None
 
 ## Operator Next Steps

@@ -738,7 +738,7 @@ loop terminating only by an unstated argument).
   4. The Claude-Code-only scope is **stated in the kit and in `CLAUDE.md`**, whose "What NOT to Use" entry against non-`inherit` wrappers is amended to name this mechanism as the documented reason — the other four host CLIs have no per-subagent model concept and no claim says otherwise. (MODEL-06)
   5. Any cost or limit-savings claim is **measured** with `scripts/measure-cost.ts`, or carries `UNKNOWN - verify`. A tier assignment is not evidence of a saving. (MODEL-07)
 
-**Plans**: 7/11 plans executed — 6/6 executed, then 5 gap-closure plans (29.1-07 … 29.1-11) planned 2026-08-20 after verification returned `gaps_found`. **Waves are strictly sequential (1→11)**. Four `.ts` files need their committed `.js` rebuilt (`model-tiers`, `generate-role-adapters`, `check-foundation-guards`, `adapters-freshness`), and two plans rebuilding a committed `.js` concurrently tears the output (the phase-27 round-5 precedent). Plan `29.1-02` is **not autonomous**: it opens with a blocking `checkpoint:decision` on D-05's one-way config key shape.
+**Plans**: 8/11 plans executed — 6/6 executed, then 5 gap-closure plans (29.1-07 … 29.1-11) planned 2026-08-20 after verification returned `gaps_found`. **Waves are strictly sequential (1→11)**. Four `.ts` files need their committed `.js` rebuilt (`model-tiers`, `generate-role-adapters`, `check-foundation-guards`, `adapters-freshness`), and two plans rebuilding a committed `.js` concurrently tears the output (the phase-27 round-5 precedent). Plan `29.1-02` is **not autonomous**: it opens with a blocking `checkpoint:decision` on D-05's one-way config key shape.
 
 Plans:
 
@@ -774,7 +774,7 @@ Plans:
 
 **Wave 2 (round 2)** *(blocked on 29.1-07)*
 
-- [ ] 29.1-08-PLAN.md — WR-01 + WR-02: close the `models` block's own key set by name with `MODELS_KEYS` before any legal key is read, so the partial-application shape that applied a preset while silently dropping overrides is refused (D-06's principle, one level up), and validate the preset before defaulting it so an explicit null is refused rather than coerced — with the configuration file's legitimately open top-level key set disclosed rather than implied [MODEL-04, MODEL-05]
+- [x] 29.1-08-PLAN.md — WR-01 + WR-02: close the `models` block's own key set by name with `MODELS_KEYS` before any legal key is read, so the partial-application shape that applied a preset while silently dropping overrides is refused (D-06's principle, one level up), and validate the preset before defaulting it so an explicit null is refused rather than coerced — with the configuration file's legitimately open top-level key set disclosed rather than implied [MODEL-04, MODEL-05]
 
 **Wave 3 (round 2)** *(blocked on 29.1-08)*
 
