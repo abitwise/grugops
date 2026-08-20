@@ -171,6 +171,38 @@ const CONFIG_SIBLING = "agent-factory/config/factory.config.json";
 function linesContaining(haystack: string, needle: string): number {
   return haystack.split("\n").filter((l) => l.includes(needle)).length;
 }
+/**
+ * The number of MENTIONS of the needle — every occurrence, including a second one on a line that
+ * already carries it. This is `grep -o … | wc -l` where `linesContaining` is `grep -c`.
+ *
+ * WHY BOTH EXIST (plan 29.1-18, finding R3-CR-01). The two units differ on this tree — three
+ * mentions on two lines — and the gate used to count the LINE unit and publish it as the MENTION
+ * unit. The consequence was a live bypass: the exemption predicate is asked once per line, so a
+ * second mention appended to an already-exempt line was absorbed and no cardinality moved. A
+ * premise written in one unit and asserted in the other is how that came to be declared, so the two
+ * helpers now sit together and each names the unit it counts.
+ */
+function mentionsIn(haystack: string, needle: string): number {
+  return haystack.split(needle).length - 1;
+}
+/**
+ * Append text to the FIRST line of `file` that already carries `needle`, and return that line's
+ * 1-based number. The line is found by SEARCHING for the needle rather than by a pinned line
+ * number, so the case does not rot when the shipped document is edited.
+ */
+function plantOnExemptLine(file: string, needle: string, text: string): number {
+  const lines = readFileSync(file, "utf8").split("\n");
+  const at = lines.findIndex((l) => l.includes(needle));
+  if (at === -1) {
+    throw new Error(
+      `plantOnExemptLine: no line of ${file} carries "${needle}" — there is no already-exempt line ` +
+        "to append to, and a plant on a NEW line would be testing the shape the gate already caught",
+    );
+  }
+  lines[at] = lines[at] + text;
+  writeFileSync(file, lines.join("\n"), "utf8");
+  return at + 1;
+}
 
 // The derivation is asserted BEFORE any mirror is built, because every green case below is built on
 // the set it returns: a derivation that silently returned fewer members would build a partial mirror
@@ -218,8 +250,12 @@ describe("check-kit-refs Assertion 1 exemption — the config self-references, p
     expect(r.status).toBe(0);
     // Asserting only the exit code would pass over an exemption that silently swallowed everything.
     // The verdict must PUBLISH what it exempted and where.
-    expect(r.stdout).toContain("2 counted self-reference(s) exempt, in agent-factory/config/factory.config.md");
-    expect(r.stdout).toContain("the config self-reference exemption is exactly 2 hit(s) in 1 file(s), as declared");
+    expect(r.stdout).toContain(
+      "3 counted self-reference mention(s) on 2 line(s) exempt, in agent-factory/config/factory.config.md",
+    );
+    expect(r.stdout).toContain(
+      "the config self-reference exemption is exactly 3 mention(s) on 2 line(s) in 1 file(s), as declared",
+    );
   });
 
   it("Assertion 1 RED: a THIRD kit-internal mention in the config field reference fails, naming both counts", () => {
@@ -233,9 +269,104 @@ describe("check-kit-refs Assertion 1 exemption — the config self-references, p
 
     const r = runGate(mirror);
     expect(r.status).toBe(1);
-    expect(r.stdout).toContain("exempt HITS: found 3, required exactly 2");
+    expect(r.stdout).toContain("exempt LINES: found 3, required exactly 2");
+    // The same plant now moves TWO numbers rather than one: a new line is also a new mention.
+    expect(r.stdout).toContain("exempt MENTIONS: found 4, required exactly 3");
     expect(r.stdout).toContain("a new mention must be argued and counted, never absorbed");
-    // The HIT count moved and the FILE count did not — a third mention in the SAME file.
+    // The LINE and MENTION counts moved and the FILE count did not — a third line in the SAME file.
+    expect(r.stdout).not.toContain("exempting FILES:");
+  });
+
+  it("Assertion 1 GREEN: the verdict publishes mentions, lines and files — all three units it declares", () => {
+    // The half of R3-CR-01 a reader could have caught without running anything: the gate published
+    // ONE of the three numbers and called it the declaration, in a unit it did not count.
+    const mirror = makeMirror("ckr-cfg-units-");
+    const body = readFileSync(configFieldReference(mirror), "utf8");
+    expect(
+      mentionsIn(body, CONFIG_REF_NEEDLE),
+      "PREMISE: this tree carries THREE mentions — grep -o, the unit the exemption claims",
+    ).toBe(3);
+    expect(
+      linesContaining(body, CONFIG_REF_NEEDLE),
+      "PREMISE: …distributed over TWO lines — grep -c, the unit the gate's hit list counts",
+    ).toBe(2);
+
+    const r = runGate(mirror);
+    expect(r.status).toBe(0);
+    // A green run must tell its reader what was exempted at the granularity the claim is made in.
+    expect(r.stdout).toContain(
+      "3 counted self-reference mention(s) on 2 line(s) exempt, in agent-factory/config/factory.config.md",
+    );
+    expect(r.stdout).toContain(
+      "the config self-reference exemption is exactly 3 mention(s) on 2 line(s) in 1 file(s), as declared",
+    );
+  });
+
+  it("Assertion 1 RED: a SECOND mention appended to an ALREADY-EXEMPT line fails, naming the mention count", () => {
+    // THE R3-CR-01 BYPASS. Measured GREEN (exit 0, "exactly 2 hit(s) in 1 file(s), as declared")
+    // against the committed scripts/check-kit-refs.js at ea76f9c, with the SAME sentence planted on
+    // a NEW line failing exit 1 at that same commit. The predicate was asked once per LINE, so a
+    // line that was already exempt absorbed unbounded further mentions unasked.
+    const mirror = makeMirror("ckr-cfg-same-line-");
+    const ref = configFieldReference(mirror);
+    const before = readFileSync(ref, "utf8");
+    expect(
+      mentionsIn(before, CONFIG_REF_NEEDLE),
+      "PREMISE: the tree under judgement carries the three declared mentions before the plant",
+    ).toBe(3);
+
+    const planted = plantOnExemptLine(
+      ref,
+      CONFIG_REF_NEEDLE,
+      ` Also see \`${CONFIG_SIBLING}\` for the bundled copy.`,
+    );
+    const after = readFileSync(ref, "utf8");
+    expect(planted, "PREMISE: the plant must land on a line that already carried a mention").toBeGreaterThan(0);
+    expect(
+      mentionsIn(after, CONFIG_REF_NEEDLE),
+      "PREMISE: the plant must RAISE the mention count",
+    ).toBe(4);
+    expect(
+      linesContaining(after, CONFIG_REF_NEEDLE),
+      "PREMISE: …and must LEAVE THE LINE COUNT WHERE IT WAS — this is the shape the line unit cannot see",
+    ).toBe(2);
+
+    const r = runGate(mirror);
+    expect(r.status).toBe(1);
+    expect(r.stdout).toContain("exempt MENTIONS: found 4, required exactly 3");
+    expect(r.stdout).toContain("a new mention must be argued and counted, never absorbed");
+    // ONLY the mention number moved. That is precisely why the pre-fix gate exited 0 here: the two
+    // cardinalities it did assert are both still exactly as declared.
+    expect(r.stdout).not.toContain("exempt LINES:");
+    expect(r.stdout).not.toContain("exempting FILES:");
+  });
+
+  it("Assertion 1 RED (two-sided): DELETING a mention from an exempt line fails, naming the mention count", () => {
+    // The mention cardinality is asserted in BOTH directions, so a future change that reinstates the
+    // line-granularity answer reds whether it adds a mention or removes one.
+    const mirror = makeMirror("ckr-cfg-mention-deleted-");
+    const ref = configFieldReference(mirror);
+    const lines = readFileSync(ref, "utf8").split("\n");
+    const at = lines.findIndex((l) => mentionsIn(l, CONFIG_REF_NEEDLE) === 2);
+    expect(
+      at,
+      "PREMISE: some line must carry TWO mentions — that line is why the two units differ at all",
+    ).toBeGreaterThan(-1);
+    // String.replace with a string replaces the FIRST occurrence only: one mention leaves, the line
+    // itself stays exempt, so the LINE count cannot move and only the MENTION count can.
+    lines[at] = lines[at].replace(CONFIG_REF_NEEDLE, ".grugops/");
+    writeFileSync(ref, lines.join("\n"), "utf8");
+    const after = readFileSync(ref, "utf8");
+    expect(mentionsIn(after, CONFIG_REF_NEEDLE), "PREMISE: the mention count must FALL").toBe(2);
+    expect(
+      linesContaining(after, CONFIG_REF_NEEDLE),
+      "PREMISE: …with the line count unmoved",
+    ).toBe(2);
+
+    const r = runGate(mirror);
+    expect(r.status).toBe(1);
+    expect(r.stdout).toContain("exempt MENTIONS: found 2, required exactly 3");
+    expect(r.stdout).not.toContain("exempt LINES:");
     expect(r.stdout).not.toContain("exempting FILES:");
   });
 
@@ -271,7 +402,9 @@ describe("check-kit-refs Assertion 1 exemption — the config self-references, p
     // to something that is actually there, so this never reaches the cardinality clause.
     expect(r.stdout).toContain("stray agent-factory/config/ ref(s)");
     expect(r.stdout).toContain(ghost);
-    expect(r.stdout).toContain("the config self-reference exemption is exactly 2 hit(s) in 1 file(s), as declared");
+    expect(r.stdout).toContain(
+      "the config self-reference exemption is exactly 3 mention(s) on 2 line(s) in 1 file(s), as declared",
+    );
   });
 
   it("Assertion 1 RED: a kit-internal mention outside the config directory still fails as it always did", () => {

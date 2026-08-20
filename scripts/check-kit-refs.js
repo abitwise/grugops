@@ -149,8 +149,16 @@ const MARKER = "If the kit dir is absent, STOP — do not hunt.";
 //
 // WHY A COUNT AND NOT JUST A PREDICATE. A hand-listed or uncounted exemption is this repository's
 // named set-literal-drift class (grugops MEMORY): the next mention arrives silently and the gate
-// stays green. Both cardinalities below are asserted two-sided, so a THIRD hit or a SECOND
-// exempting file is red, naming the count found and the count required.
+// stays green. All THREE cardinalities below are asserted two-sided — files, lines and mentions —
+// so a further mention is red whether it arrives on a new line, on a line that is already exempt,
+// or in a second file, each naming the count found and the count required.
+//
+// WHY THREE UNITS AND NOT ONE (round 3 / R3-CR-01). Two of them were already here and the third was
+// not, and the missing one was the unit the claim was written in: the exemption predicate is asked
+// once per LINE, so a mention appended to an already-exempt line was absorbed without the predicate
+// ever being asked about it, while a number counted in lines was published as a count of mentions.
+// A gate that publishes a number in a unit it does not count tells its reader something false at
+// exit 0, so every unit this exemption is about is now both counted and published.
 // ---------------------------------------------------------------------------
 // The configuration directory the exemption is scoped to. Taken from the SCAN member, not respelt.
 const CONFIG_SELF_REF_DIR = "agent-factory/config";
@@ -159,11 +167,25 @@ const CONFIG_REF_NEEDLE = "agent-factory/config/";
 // Exactly ONE file in that directory may carry exempt mentions: the field reference. The count is a
 // number rather than a name on purpose — a name would be satisfied by a rename, a count is not.
 const CONFIG_SELF_REF_FILES = 1;
-// Exactly TWO exempt mentions. Measured 2026-08-20 on this tree: factory.config.md:3 (the companion
-// sentence, naming the sibling JSON beside the reference) and factory.config.md:138 (the resolver's
-// second candidate, inside the whole-file precedence paragraph). Neither can be deleted without
-// reopening WR-05, which scripts/model-dial-consistency.test.ts asserts.
+// Exactly TWO exempt LINES. `grepSubstring` emits one `path:lineno:line` hit per LINE, so this
+// constant, and the `exempt` array it is compared against, are both counted in LINES.
 const CONFIG_SELF_REF_HITS = 2;
+// Exactly THREE exempt MENTIONS. Measured 2026-08-20 on this tree by
+// `grep -o 'agent-factory/config/' agent-factory/config/factory.config.md | wc -l` = 3, against
+// `grep -c` = 2: THREE mentions distributed over TWO lines in ONE file. factory.config.md:3 carries
+// ONE (the companion sentence, naming the sibling JSON beside the reference) and
+// factory.config.md:138 carries TWO (the resolver's second candidate, then the same path again in
+// the sentence that says a `.grugops/` file shadows it). None can be deleted without reopening
+// WR-05, which scripts/model-dial-consistency.test.ts asserts.
+//
+// THE RECORD THIS CORRECTS (round 3 / R3-CR-01). The comment that stood here read "Exactly TWO
+// exempt mentions" and named the two LINES as though they were the two mentions. It named the
+// MENTION granularity while the constant beside it measured the LINE granularity, and the declared
+// number therefore never described this tree. The consequence was the finding: the exemption
+// predicate is asked once per LINE, so a second mention appended to an ALREADY-EXEMPT line was
+// never asked about at all and no cardinality moved. Each constant now states its own unit, the
+// mention count is derived from the same extraction the predicate runs, and all three are asserted.
+const CONFIG_SELF_REF_MENTIONS = 3;
 // The `path:lineno:line` shape grepSubstring produces, split back into its three parts. The path is
 // matched non-greedily up to the first `:<digits>:` so a colon inside the LINE cannot shift it.
 const HIT_SHAPE = /^(.*?):(\d+):(.*)$/s;
@@ -243,6 +265,7 @@ function exemptConfigSelfRefs(hits) {
     const exempt = [];
     const strays = [];
     const files = new Set();
+    let exemptMentions = 0;
     for (const hit of hits) {
         const m = HIT_SHAPE.exec(hit);
         const file = m ? m[1] : "";
@@ -253,13 +276,18 @@ function exemptConfigSelfRefs(hits) {
             named.every((base) => existsSync(abs(join(CONFIG_SELF_REF_DIR, base))));
         if (inConfigDir && allResolve) {
             exempt.push(hit);
+            // The MENTION count comes from the SAME `named` array the predicate one line above decided
+            // on. One extraction, read once, feeding both the decision and the number the gate publishes
+            // about it — a second extraction could disagree with the first, and the reader of the verdict
+            // would have no way to tell which of the two the exemption was actually granted from.
+            exemptMentions += named.length;
             files.add(file);
         }
         else {
             strays.push(hit);
         }
     }
-    return { exempt, strays, files: [...files].sort() };
+    return { exempt, exemptMentions, strays, files: [...files].sort() };
 }
 // ---------------------------------------------------------------------------
 // Derived adapter set (Phase 27 / KIT-02, D-27). Every `.md` under .claude/agents plus every
@@ -352,10 +380,10 @@ const configDirPresent = existsSync(abs(CONFIG_SELF_REF_DIR));
 if (!configDirPresent) {
     fail(`no ${CONFIG_SELF_REF_DIR}/ directory found — refusing to adjudicate its exemption against a tree that does not carry it (the counted self-references below would be absent for an unattributable reason)`);
 }
-const { exempt, strays, files: exemptFiles } = exemptConfigSelfRefs(grepSubstring(SCAN, CONFIG_REF_NEEDLE));
+const { exempt, exemptMentions, strays, files: exemptFiles, } = exemptConfigSelfRefs(grepSubstring(SCAN, CONFIG_REF_NEEDLE));
 // The strays half — byte-identical wording to the pre-exemption gate.
 if (strays.length === 0) {
-    pass(`no agent-factory/config/ refs remain (${exempt.length} counted self-reference(s) exempt, in ${exemptFiles.join(", ") || "no file"})`);
+    pass(`no agent-factory/config/ refs remain (${exemptMentions} counted self-reference mention(s) on ${exempt.length} line(s) exempt, in ${exemptFiles.join(", ") || "no file"})`);
 }
 else {
     fail(`stray agent-factory/config/ ref(s) — config must be .grugops/factory.config.json:\n${strays.join("\n")}`);
@@ -367,13 +395,16 @@ if (configDirPresent) {
         drift += `\n  exempting FILES: found ${exemptFiles.length}, required exactly ${CONFIG_SELF_REF_FILES} (${exemptFiles.join(", ") || "none"})`;
     }
     if (exempt.length !== CONFIG_SELF_REF_HITS) {
-        drift += `\n  exempt HITS: found ${exempt.length}, required exactly ${CONFIG_SELF_REF_HITS}:\n${exempt.join("\n") || "  (none)"}`;
+        drift += `\n  exempt LINES: found ${exempt.length}, required exactly ${CONFIG_SELF_REF_HITS} (one grep hit per line, so this number is in LINES):\n${exempt.join("\n") || "  (none)"}`;
+    }
+    if (exemptMentions !== CONFIG_SELF_REF_MENTIONS) {
+        drift += `\n  exempt MENTIONS: found ${exemptMentions}, required exactly ${CONFIG_SELF_REF_MENTIONS} (a single line naming the kit-internal path twice carries TWO mentions, which is why this number is not the LINE count above)`;
     }
     if (drift === "") {
-        pass(`the config self-reference exemption is exactly ${CONFIG_SELF_REF_HITS} hit(s) in ${CONFIG_SELF_REF_FILES} file(s), as declared`);
+        pass(`the config self-reference exemption is exactly ${CONFIG_SELF_REF_MENTIONS} mention(s) on ${CONFIG_SELF_REF_HITS} line(s) in ${CONFIG_SELF_REF_FILES} file(s), as declared`);
     }
     else {
-        fail(`the agent-factory/config/ self-reference exemption has drifted — it is ${CONFIG_SELF_REF_HITS} hit(s) in ${CONFIG_SELF_REF_FILES} file(s) BY DECLARATION, and a new mention must be argued and counted, never absorbed:${drift}`);
+        fail(`the agent-factory/config/ self-reference exemption has drifted — it is ${CONFIG_SELF_REF_MENTIONS} mention(s) on ${CONFIG_SELF_REF_HITS} line(s) in ${CONFIG_SELF_REF_FILES} file(s) BY DECLARATION, and a new mention must be argued and counted, never absorbed:${drift}`);
     }
 }
 // ---------------------------------------------------------------------------
