@@ -59,8 +59,17 @@ const ADAPTER_DIR = ".claude/agents";
  *
  * RESIDUAL: this case depends on this commit remaining reachable in this repository. If it is ever
  * dropped by a history rewrite, both cases below throw naming the revision — they do not pass.
+ *
+ * THE FULL FORTY-CHARACTER OBJECT NAME IS PINNED, NOT AN ABBREVIATION (finding IN-06). It was
+ * `6f8411e`, a seven-character prefix. An abbreviation is unique only until history grows one that
+ * collides with it, and the failure that follows is worse than loud — it is MISLEADING: `git
+ * ls-tree` errors on an ambiguous name, and the throw immediately below would report it as "the
+ * pinned baseline tree could not be read", sending a reader to look for a lost commit rather than
+ * for an ambiguous prefix. The full name was RESOLVED in this repository rather than copied:
+ * `git rev-parse 6f8411e` → `6f8411effe80b3f22d0d668e1fa40fa78e3a8088`. A case below asserts this
+ * constant's length and character class so an abbreviation cannot return through a later edit.
  */
-const PRE_PHASE_ADAPTER_BASELINE = "6f8411e";
+const PRE_PHASE_ADAPTER_BASELINE = "6f8411effe80b3f22d0d668e1fa40fa78e3a8088";
 
 /**
  * Derive the adapter filenames present at a revision, out of the git object store.
@@ -114,6 +123,16 @@ const baselineBytes = (rev: string, name: string): Buffer => {
 };
 
 describe("MODEL-01: the adapters are byte-identical to the pre-phase baseline (plan 29.1-01)", () => {
+  it("the pinned baseline is a full 40-character object name, never an abbreviation", () => {
+    // FINDING IN-06, PINNED SO IT CANNOT COME BACK. This case is about the SHAPE of the pin, not
+    // about which commit it is: an abbreviation is unique only until it collides, and the throw a
+    // collision produces misdescribes the failure as an unreachable tree. Asserting the length and
+    // the character class separately means "someone shortened it" and "someone pasted something
+    // that is not an object name" are two different reds with two different remedies.
+    expect(PRE_PHASE_ADAPTER_BASELINE).toHaveLength(40);
+    expect(/^[0-9a-f]{40}$/.test(PRE_PHASE_ADAPTER_BASELINE)).toBe(true);
+  });
+
   it("every adapter frozen at the pinned commit matches the working tree BYTE for BYTE", () => {
     // ── THE PREMISE, BEFORE THE CLAIM. ───────────────────────────────────────────────────────
     const names = baselineAdapterNames(PRE_PHASE_ADAPTER_BASELINE);
