@@ -431,6 +431,128 @@ function declaredSets(text: string, marker: string): string[][] {
   return found;
 }
 
+// ── THE CROSS-DOCUMENT SECTION CITATION, AND THE ONE FORM BOTH SIDES ARE COMPARED IN ────────────
+//
+// WHAT WAS WRONG, MEASURED RATHER THAN QUOTED (round-3 gap 4). The packaging authority's `model`
+// bullet defers the whole-file precedence rule to a NAMED SECTION of the config field reference —
+// "that section is the single authority for the rule and the only place this kit states it". It is
+// the only pointer to that rule the kit ships. Nothing asserted the section was there. Measured this
+// session on the tree as plan 29.1-19 left it: renaming `### `models` sub-fields` in
+// `agent-factory/config/factory.config.md` to `### `models` field sub-keys` left this file at
+// **34 passed (34)**. The round-3 verifier measured the same silence at 33 passed on the pre-19
+// tree. A pointer to a fact that is not there is the defect class this module's own prose names.
+//
+// THE MEASUREMENT THAT CHOSE THE DESIGN, TAKEN BEFORE THE PREDICATE WAS WRITTEN. The two spellings
+// are NOT byte-equal on a correct tree:
+//   citation, `subagent.frontmatter.md` line 206 : `### models sub-fields`   (field name BARE)
+//   heading,  `factory.config.md`      line 121 : ### `models` sub-fields    (field name in BACKTICKS)
+// The heading carries the inline code delimiters the citing sentence omits. A byte-equality
+// predicate would therefore be RED on a tree where nothing is wrong. So the comparison runs through
+// a DECLARED CANONICAL FORM — `citableForm` below — applied by one function to BOTH sides. Two
+// independent normalisations, one per side, would be the second grammar this repository has ratified
+// against: define what a value may BE, once, and compare against that.
+
+/** The marker a third-level heading opens with, shared by the heading reader and the citation's own text. */
+const SECTION_HEADING_MARKER = "### ";
+
+/** The opening delimiter of a section citation: an inline code span whose content is a `### ` heading. */
+const SECTION_CITATION_OPEN = "`" + SECTION_HEADING_MARKER;
+
+/** The delimiter that closes an inline code span. */
+const SECTION_CITATION_CLOSE = "`";
+
+/**
+ * THE CITABLE FORM OF A HEADING — one declared canonical form, and the only normalisation in this
+ * file. Both a heading line and a citation of that heading go through THIS function; neither side
+ * has a normalisation of its own.
+ *
+ * THIS IS A DECLARED FORM, NOT A PARSER. It strips inline code delimiters and normalises trailing
+ * whitespace, and it does nothing else — no case folding, no Unicode normalisation, no punctuation
+ * classes. A form that tried to be a markdown parser would be a second grammar competing with the
+ * one the documents are written in, and a second grammar in this file is the failure mode this
+ * repository has repeatedly paid for. If a future citation cannot be brought under this form, the
+ * remedy is to change the citation's SPELLING, not to widen the form.
+ *
+ * ITS RISK IS COLLISION, AND THAT RISK IS ASSERTED, NOT ARGUED. Any normalisation can map two
+ * distinct headings onto one form, which would land a citation on the WRONG section while reporting
+ * a match. The injectivity floor below asserts the cited surface's citable forms are as many as its
+ * headings, so a collision is a named finding rather than a silent mislanding.
+ */
+function citableForm(line: string): string {
+  return line.replace(/`/g, "").trimEnd();
+}
+
+/** The third-level headings `text` carries, as whole lines — the citable surface of a document. */
+function sectionHeadingsIn(text: string): string[] {
+  return text.split("\n").filter((line) => line.startsWith(SECTION_HEADING_MARKER));
+}
+
+/**
+ * Every cross-document section name `text` CITES, bounded at both ends.
+ *
+ * BOUNDED THE WAY `scopeSection()` ABOVE IS BOUNDED, and for the same recorded reason: a reader that
+ * runs to end of file when its close is missing is not reading a citation, it adopts the remainder of
+ * the document and then reports whatever that remainder happens to contain. An unclosed span THROWS
+ * BY NAME here rather than returning a citation nobody wrote.
+ */
+function sectionCitationsIn(text: string): string[] {
+  const out: string[] = [];
+  let from = 0;
+  for (;;) {
+    const at = text.indexOf(SECTION_CITATION_OPEN, from);
+    if (at === -1) break;
+    const contentAt = at + SECTION_CITATION_CLOSE.length;
+    const close = text.indexOf(SECTION_CITATION_CLOSE, contentAt);
+    if (close === -1) {
+      throw new Error(
+        "model-dial oracle: UNCLOSED SECTION CITATION — an inline code span opening " +
+          `${JSON.stringify(SECTION_CITATION_OPEN)} at offset ${String(at)} is never closed by ` +
+          `${JSON.stringify(SECTION_CITATION_CLOSE)}. Refusing to read to end of file: an unbounded ` +
+          "citation adopts the rest of the document and then matches, or fails to match, on text " +
+          "nobody wrote as a citation. Remedy: close the span.",
+      );
+    }
+    out.push(text.slice(contentAt, close));
+    from = close + SECTION_CITATION_CLOSE.length;
+  }
+  return out;
+}
+
+/**
+ * The number of cross-document section citations the packaging authority carries — ONE today, the
+ * deferral of the whole-file precedence rule to the config field reference.
+ *
+ * PINNED TWO-SIDED so a SECOND citation must be argued rather than absorbed. A set that grows
+ * silently is this repository's named second systemic failure class; the remedy it has ratified is
+ * to derive the set and assert its cardinality, which is what the case below does.
+ *
+ * PROMOTE TRIGGER: a second citation moves this number in the commit that writes it.
+ */
+const AUTHORITY_SECTION_CITATIONS = 1;
+
+/**
+ * The citations in `authorityText` whose citable form is NOT a citable heading form of
+ * `citedSurfaceText` — empty when every citation lands.
+ *
+ * ONE PREDICATE, USED BY BOTH THE LIVE CASE AND THE SYNTHETIC ONE, so the synthetic proof is a proof
+ * about the predicate the live tree is judged by rather than about a second copy of it.
+ */
+function unlandedCitations(authorityText: string, citedSurfaceText: string): string[] {
+  const forms = new Set(sectionHeadingsIn(citedSurfaceText).map(citableForm));
+  return sectionCitationsIn(authorityText).filter((cited) => !forms.has(citableForm(cited)));
+}
+
+/** The failure text a citation that did not land prints: the citation, then the headings that DO exist. */
+function unlandedCitationReport(unlanded: readonly string[], citedSurfaceText: string): string {
+  return (
+    `${String(unlanded.length)} section citation(s) do not land: [${unlanded.join(" | ")}]. ` +
+    `The cited surface carries these headings: [${sectionHeadingsIn(citedSurfaceText).join(" | ")}]. ` +
+    "A pointer to a section that is not there sends every reader of the kit's only statement of the " +
+    "precedence rule nowhere. Remedy: restore the heading, or move the citation in the same commit " +
+    "that renames it."
+  );
+}
+
 describe("model dial — the surface roster is adjudicated BEFORE any content assertion (MODEL-06)", () => {
   it("derives EXACTLY the scanned number of surfaces, pinned two-sided — the vacuity floor", () => {
     // TWO ASSERTIONS, AND THEY ARE NOT A DUPLICATE PAIR — recorded because finding IN-03 was about
@@ -505,6 +627,115 @@ describe("model dial — one authority for the Claude-Code-only scope statement 
   it("the authority names its own section, so the pointer's reader lands somewhere", () => {
     expect(readSurface("authority")).toContain("## Host-CLI scope of the model dial");
     expect(readSurface("pointer")).toContain("Host-CLI scope of the model dial");
+  });
+
+  // (Plan 29.1-20, round-3 gap 4) THE OTHER DIRECTION OF THE SAME OBLIGATION. The case above asserts
+  // the POINTING document's reader lands: the pointer names a section the authority carries. This
+  // one asserts the AUTHORITY'S reader lands: the authority cites a section of the config field
+  // reference, and until now nothing said that section existed. Measured: renaming it left this file
+  // green at 34 passed. These are two different pointers in two different directions and neither
+  // case duplicates the other.
+  it("every section this authority cites by name exists as a heading in the surface it cites", () => {
+    const authority = readSurface("authority");
+    const citedSurface = readSurface("pointer");
+
+    // THE CITED SURFACE IS DERIVED FROM THE CITING SENTENCE, NOT ASSUMED. The region that carries the
+    // citation must NAME the document being cited, by the basename of the roster's `pointer` entry
+    // rather than by a path typed here. If the authority ever cites a DIFFERENT document, this line
+    // reds instead of the oracle silently going on checking the wrong file.
+    const citingRegion = modelBulletRegion();
+    const citedBasename = SURFACE_ROLES.pointer.slice(SURFACE_ROLES.pointer.lastIndexOf("/") + 1);
+    expect(
+      citingRegion,
+      `the region carrying the section citation must NAME the document it cites (${citedBasename}), so this oracle reads the surface the sentence actually points at`,
+    ).toContain(citedBasename);
+
+    // THE CITATION SET, DERIVED AND PINNED TWO-SIDED. A second cross-document section citation is a
+    // red that must be argued, not a member absorbed into a growing hand-list.
+    const citations = sectionCitationsIn(authority);
+    expect(citations.length, "PREMISE: the authority must carry at least one section citation — an empty citation set lands vacuously").toBeGreaterThan(0);
+    expect(
+      citations.length,
+      `the authority carries ${String(citations.length)} cross-document section citation(s) [${citations.join(" | ")}] and AUTHORITY_SECTION_CITATIONS pins ${String(AUTHORITY_SECTION_CITATIONS)}`,
+    ).toBe(AUTHORITY_SECTION_CITATIONS);
+    // …and every one of them sits inside the region that names the cited document, so the derivation
+    // above is not naming one document while a citation elsewhere points at another.
+    expect(
+      sectionCitationsIn(citingRegion),
+      "every section citation the authority carries must sit in the region that names the cited document",
+    ).toEqual(citations);
+
+    // MEMBERSHIP, THROUGH THE ONE CANONICAL FORM. Both sides go through `citableForm`; neither has a
+    // normalisation of its own.
+    const unlanded = unlandedCitations(authority, citedSurface);
+    expect(unlanded, unlandedCitationReport(unlanded, citedSurface)).toEqual([]);
+  });
+
+  // (Plan 29.1-20) THE COLLISION FLOOR, ASSERTED BEFORE THE FORM IS TRUSTED. A canonical form that
+  // merged two distinct headings would land a citation on the WRONG section while reporting a match,
+  // and a green run would say nothing about which section the reader was sent to.
+  it("the citable form cannot merge two distinct sections of the cited surface", () => {
+    const citedSurface = readSurface("pointer");
+    const headings = sectionHeadingsIn(citedSurface);
+    expect(
+      headings.length,
+      "PREMISE: the cited surface must carry third-level headings — an empty heading set makes the injectivity floor vacuous",
+    ).toBeGreaterThan(0);
+    const forms = new Set(headings.map(citableForm));
+    expect(
+      forms.size,
+      `the citable form merged two headings: ${String(headings.length)} heading(s) produced only ${String(forms.size)} distinct citable form(s). A merged form lands a citation on a section its author did not name. Headings: [${headings.join(" | ")}]`,
+    ).toBe(headings.length);
+    // No form is blank — a form that emptied its input would collide with every other empty one and
+    // would make every membership test below trivially true.
+    expect([...forms].filter((f) => f.trim().length === 0)).toEqual([]);
+  });
+
+  // (Plan 29.1-20) THE PIN PROVEN ON DOCUMENTS THE READER HAS NEVER SEEN. This case never opens the
+  // tree: it is the whole proof on its own, and it stays true in a repository where both shipped
+  // documents have been rewritten.
+  it("a citation naming a heading the cited surface does not carry is RED — proven on synthetic documents", () => {
+    const synthSurface = ["# A surface", "", "### `alpha` sub-fields", "", "### `beta` sub-fields", ""].join("\n");
+    const synthAuthorityLands = "…is stated in the `### alpha sub-fields` section of that document.";
+    const synthAuthorityOrphan = "…is stated in the `### gamma sub-fields` section of that document.";
+
+    // THE DISCRIMINATION, BOTH DIRECTIONS ON THE SAME PREDICATE. A citation whose heading exists
+    // lands; one whose heading does not is reported by name. Without the first assertion the second
+    // would also pass for a predicate that called everything unlanded.
+    expect(
+      unlandedCitations(synthAuthorityLands, synthSurface),
+      "a citation whose heading EXISTS must land — this arm is what stops the predicate from calling everything unlanded",
+    ).toEqual([]);
+    expect(unlandedCitations(synthAuthorityOrphan, synthSurface)).toEqual(["### gamma sub-fields"]);
+
+    // …and the report a red prints names the citation AND lists what the surface does carry, so the
+    // failure is actionable without opening either document.
+    const report = unlandedCitationReport(
+      unlandedCitations(synthAuthorityOrphan, synthSurface),
+      synthSurface,
+    );
+    expect(report).toContain("### gamma sub-fields");
+    expect(report).toContain("### `alpha` sub-fields");
+
+    // THE CANONICAL FORM IS LOAD-BEARING, not decoration: the delimiter difference this plan measured
+    // on the live tree is reproduced here, and the citation still lands.
+    expect(
+      unlandedCitations("`### alpha sub-fields`", "### `alpha` sub-fields"),
+      "a citation and a heading differing ONLY in the inline code delimiters must match — this is the measured live shape",
+    ).toEqual([]);
+
+    // THE CITATION READER'S BOUND, PROVEN BY ITS NAMED THROW. An unclosed span must refuse rather
+    // than run to end of file.
+    expect(() => sectionCitationsIn("…the `### unclosed sub-fields section of that document.")).toThrow(
+      /UNCLOSED SECTION CITATION/,
+    );
+
+    // THE CARDINALITY PIN IS LOAD-BEARING TOO: a second citation moves the derived number away from
+    // AUTHORITY_SECTION_CITATIONS, which is what makes the two-sided assertion above red.
+    expect(
+      sectionCitationsIn("`### alpha sub-fields` and also `### beta sub-fields`").length,
+      "CONTROL: a text carrying two citations must derive two — otherwise the two-sided pin above could not see a second citation arriving",
+    ).toBe(AUTHORITY_SECTION_CITATIONS + 1);
   });
 
   it("the authority carries assumption A1 as an explicit `UNKNOWN - verify` naming CLAUDE.md", () => {
