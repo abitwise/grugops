@@ -37,7 +37,11 @@ import { join, dirname, basename } from "node:path";
 // which rows are graftable with the same admission reader the gate now uses — so the module-level
 // replay and the gate-level replay cannot disagree about which bytes were tested.
 import { CORPUS, CORPUS_COUNT, rowById } from "./canonical-corpus.js";
-import { admit, admittedValuesFor } from "./canonical-frontmatter.js";
+import {
+  admit,
+  admittedValuesFor,
+  CANONICAL_SCHEMA,
+} from "./canonical-frontmatter.js";
 // (Plan 29-20) The per-line fence toggle, taken so the CR-02 plant's PREMISE is measured through the
 // same authority the reader composes rather than through a second opinion written in the harness.
 // The harness's own premise produced a false result in six instances across four straight rounds, so
@@ -10388,6 +10392,226 @@ describe("guard_model_assignment (Phase 29.1, MODEL-03/MODEL-05)", () => {
     }
   });
 
+  // ── THE THREE ARMS OF THE STRAY-PIN LOOP, PROVEN AS A UNION. ───────────────────────────────
+  //
+  // (Plan 29.1-13, R2-WR-03) THE MEASUREMENT THE GUARD'S SOUNDNESS ARGUMENT RESTS ON, PINNED.
+  //
+  // The paragraph above the stray-pin loop used to offer the two packaging templates as proof that
+  // the ADMISSION arm is exercised: "they carry a `kind:`/`tier:` frontmatter the canonical adapter
+  // schema does not admit, so they reach this arm and are skipped by it". Measured through the
+  // guard's own reader, that is false. `kind` and `tier` are BOTH members of `CANONICAL_SCHEMA`, so
+  // both templates ADMIT, and both are skipped one line later by the no-`model`-key arm. The comment
+  // named the wrong mechanism, which left the admission arm unexercised and its soundness a claim.
+  //
+  // This case pins the corrected claim so a later edit cannot quietly restore the false one. It
+  // asserts through the same `admit()` the guard calls that both templates admit, that the two keys
+  // admitting them really are schema members, and that neither declares a `model` key — which is
+  // exactly the arm the corrected paragraph names.
+  it("(s) the packaging templates are ADMITTED and skipped by the no-model-key arm — the measured mechanism, pinned", () => {
+    const packaging = spawnGrantScan(ROOT).filter((f) =>
+      f.startsWith(spawnGrantScanPrefix("packaging")),
+    );
+    expect(
+      packaging.length,
+      "the packaging family must be non-empty, or this case pins nothing",
+    ).toBeGreaterThan(0);
+
+    for (const rel of packaging) {
+      const parsed = admit(readFileSync(join(ROOT, rel), "utf8"));
+      expect(
+        parsed.ok,
+        `${rel}: the corrected paragraph claims this template ADMITS — a refusal here means the comment is wrong again, in the other direction`,
+      ).toBe(true);
+      if (!parsed.ok) throw new Error("unreachable");
+      // THE KEY LIST IS ASSERTED WHOLE, not probed for membership: the false claim was about which
+      // keys these files carry, so the correction is only pinned if the whole list is.
+      expect(
+        [...parsed.value.keys()].sort(),
+        `${rel}: the admitted key list is the measurement the corrected paragraph records`,
+      ).toEqual(["kind", "tier"]);
+      // …and THIS is the arm they take: no `model` key, so the loop's second `continue`, never its
+      // first.
+      expect(
+        parsed.value.has("model"),
+        `${rel}: a packaging template that grew a \`model\` key would take the stray-pin arm instead, and the corrected paragraph would be stale`,
+      ).toBe(false);
+    }
+
+    // The two keys that admit them are schema members — the fact the false comment denied.
+    for (const key of ["kind", "tier"]) {
+      expect(
+        CANONICAL_SCHEMA,
+        `\`${key}\` must be a CANONICAL_SCHEMA member, or the packaging templates could not admit and the corrected paragraph would be false`,
+      ).toContain(key);
+    }
+  });
+
+  // (Plan 29.1-13, R2-WR-03) THE ARM'S SILENCE IS AN ASSERTION NOW, NOT A CLAIM RESTING ON AN EXAMPLE
+  // THAT NEVER TAKES IT.
+  //
+  // The stray-pin loop skips an unadmittable surface with NO finding of its own, and the recorded
+  // reason is that guard_wr05 already names it by file and by enumerated code and fails the gate
+  // closed. Nothing this tree ships reaches that arm, so until this case the coverage was an
+  // untested assumption. The arm is reached by PLANTING a refusal, and the plant's own premise is
+  // measured through the same `admit()` the guard calls before anything about the verdict is
+  // asserted.
+  it("(s-unadmittable) an unadmittable non-agent surface is excluded from the probed count and named by guard_wr05", () => {
+    const m = mirror();
+    const rel = "agent-factory/packaging/slash-command.template.md";
+    const file = join(m, rel);
+    const before = readFileSync(file, "utf8");
+    const planted = before.replace(
+      "tier: core\n",
+      "tier: core\nstray-unknown-key: planted\n",
+    );
+    expect(
+      planted,
+      `the plant matched nothing in ${rel} — a case proven against an unmodified fixture is proven against nothing`,
+    ).not.toBe(before);
+    writeFileSync(file, planted, "utf8");
+
+    // PREMISE 1 — THE PLANT REALLY IS UNADMITTABLE, AND UNDER WHICH ENUMERATED CODE. Read through the
+    // guard's own authority, never through a second opinion written here.
+    const parsed = admit(planted);
+    expect(
+      parsed.ok,
+      `${rel}: the plant must be REFUSED, or this case exercises the no-model-key arm and reports it as the admission arm`,
+    ).toBe(false);
+    if (parsed.ok) throw new Error("unreachable");
+    expect(parsed.code).toBe("unknown-key");
+
+    // PREMISE 2 — THE PLANTED FILE REALLY IS IN THE NON-AGENT PARTITION the stray-pin loop walks,
+    // derived the same way the guard partitions it.
+    const scan = spawnGrantScan(m);
+    expect(scan, `${rel} must be a member of the spawn-grant scan`).toContain(
+      rel,
+    );
+    expect(
+      rel.startsWith(spawnGrantScanPrefix("agent")),
+      `${rel} must be OUTSIDE the agent prefix, or it is not in the partition this arm walks`,
+    ).toBe(false);
+
+    const r = runIn(m);
+    expect(r.status).not.toBe(0);
+
+    // THE COVERAGE THE ARM'S SILENCE RESTS ON, OBSERVED: guard_wr05 names the file with its code.
+    const wr05 = guardSection(out(r), "guard_wr05").join("\n");
+    expect(
+      wr05,
+      "guard_wr05 is the finding the stray-pin arm's silence defers to — if it does not name the file, the silence covers nothing",
+    ).toContain(`${rel}: frontmatter is NOT in the canonical form [unknown-key]`);
+
+    // …AND THE DENOMINATOR IS HONEST: one fewer probed than derived, and the excluded member named
+    // with its code. Before this plan the same plant printed a count of every member as "checked".
+    const section = modelSection(out(r));
+    expect(
+      section,
+      "a run that could not read a surface must not publish a count that includes it",
+    ).toContain(
+      `${NON_AGENT_SURFACE_COUNT - 1} of ${NON_AGENT_SURFACE_COUNT} non-agent adapter surface(s) probed for a stray pin`,
+    );
+    expect(section).toContain(`${rel}: [unknown-key]`);
+    expect(section).toContain("reported by guard_wr05");
+    // The arm does NOT re-report guard_wr05's sentence — the excluded COUNT and the file's identity
+    // are this arm's facts; the reason is guard_wr05's.
+    expect(section).not.toContain("is not one of the 10 keys");
+  });
+
+  // (Plan 29.1-13, R2-WR-03) THE ARMS TESTED AS A UNION, WHICH IS WHAT LET THE OLD JUSTIFICATION
+  // STAND.
+  //
+  // Each arm passing on its own fixture is what every previous round already had; a predicate split
+  // into arms is only proven when their UNION is exercised, because the composition is where a count
+  // and a message can disagree. One mirror carries all three states at once — an admitted surface
+  // with a `model` key, an admitted surface without one, and an unadmittable surface — and ONE
+  // verdict is asserted to carry all three facts.
+  it("(s-union) one mirror carrying a stray pin, a clean surface and an unadmittable surface reports all three facts", () => {
+    const m = mirror();
+
+    // ARM 1 — AN ADMITTED SURFACE CARRYING A `model` KEY. Planted on BOTH distribution forms for the
+    // reason case (l) records: one side alone is a real divergence that reds guard_distribution_pair
+    // for a reason having nothing to do with the arm under test.
+    const pinned = [
+      ".claude/skills/grugops-gate/SKILL.md",
+      "skills/gate/SKILL.md",
+    ];
+    for (const rel of pinned) {
+      const f = join(m, rel);
+      const lines = readFileSync(f, "utf8").split("\n");
+      const at = lines.findIndex((l) => l.startsWith("description:"));
+      if (at === -1) {
+        throw new Error(
+          `the stray-pin plant matched nothing in ${rel} — a case proven against an unmodified fixture is proven against nothing`,
+        );
+      }
+      lines.splice(at + 1, 0, "model: opus");
+      writeFileSync(f, lines.join("\n"), "utf8");
+    }
+
+    // ARM 3 — AN UNADMITTABLE SURFACE.
+    const refused = "agent-factory/packaging/slash-command.template.md";
+    const refusedFile = join(m, refused);
+    const refusedBefore = readFileSync(refusedFile, "utf8");
+    const refusedText = refusedBefore.replace(
+      "tier: core\n",
+      "tier: core\nstray-unknown-key: planted\n",
+    );
+    expect(refusedText, `the plant matched nothing in ${refused}`).not.toBe(
+      refusedBefore,
+    );
+    writeFileSync(refusedFile, refusedText, "utf8");
+
+    // ARM 2 — AN ADMITTED SURFACE CARRYING NO `model` KEY, left untouched.
+    const clean = "agent-factory/packaging/subagent.frontmatter.md";
+
+    // EVERY ARM'S PREMISE, THROUGH THE GUARD'S OWN READER, BEFORE ANY VERDICT IS ASSERTED.
+    for (const rel of pinned) {
+      expect(admittedModelValues(join(m, rel)), `${rel}: arm 1`).toEqual([
+        "opus",
+      ]);
+    }
+    expect(admittedModelValues(join(m, clean)), `${clean}: arm 2`).toEqual([]);
+    const refusedParse = admit(refusedText);
+    expect(refusedParse.ok, `${refused}: arm 3 must be REFUSED`).toBe(false);
+    if (refusedParse.ok) throw new Error("unreachable");
+    expect(refusedParse.code).toBe("unknown-key");
+
+    // …and all three really are in the non-agent partition.
+    const agentPrefix = spawnGrantScanPrefix("agent");
+    const nonAgent = spawnGrantScan(m).filter((f) => !f.startsWith(agentPrefix));
+    for (const rel of [...pinned, clean, refused]) {
+      expect(nonAgent, `${rel} must be in the non-agent partition`).toContain(
+        rel,
+      );
+    }
+    expect(nonAgent.length).toBe(NON_AGENT_SURFACE_COUNT);
+
+    const r = runIn(m);
+    expect(r.status).not.toBe(0);
+    const section = modelSection(out(r));
+
+    // FACT 1 — the stray pin, named by file and by value.
+    expect(section).toContain(
+      `2 of the ${NON_AGENT_SURFACE_COUNT} non-agent adapter surface(s) this kit ships declare a \`model\` key`,
+    );
+    for (const rel of pinned) {
+      expect(section).toContain(`${rel}: \`opus\``);
+    }
+
+    // FACT 2 — probed is exactly one below derived. The clean surface is PROBED and counted; the
+    // unadmittable one is not.
+    expect(
+      section,
+      "the probed count must differ from the derived count by exactly the one member that could not be read",
+    ).toContain(
+      `${NON_AGENT_SURFACE_COUNT - 1} of ${NON_AGENT_SURFACE_COUNT} non-agent adapter surface(s) probed for a stray pin`,
+    );
+
+    // FACT 3 — the excluded member, named with its code.
+    expect(section).toContain(`${refused}: [unknown-key]`);
+    expect(section).toContain("reported by guard_wr05");
+  });
+
   // (Plan 29.1-09, IN-04) THE DENOMINATOR IS DERIVED FROM THE KIT AUTHORITY, AND THE MEASUREMENT THAT
   // DECIDED IT IS RECORDED IN THE CASE.
   //
@@ -10430,10 +10654,21 @@ describe("guard_model_assignment (Phase 29.1, MODEL-03/MODEL-05)", () => {
       "agent-factory/packaging/slash-command.template.md",
     );
 
+    // (Plan 29.1-13, R2-WR-03) THE CLAUSE THIS CASE MATCHES CHANGED, ITS PREMISE DID NOT. The run
+    // summary used to publish ONE number — every derived member, reported as "checked" whether or not
+    // it was read. It now publishes PROBED of DERIVED. On an unmutated tree nothing is excluded, so
+    // the two numbers are equal and the clause reads as one clean fact; the equality is the assertion,
+    // not a coincidence the old wording could not have expressed.
     const section = modelSection(out(runIn(ROOT)));
     expect(section).toContain(
-      `${expected.length} non-agent adapter surface(s) checked for a stray pin, none found`,
+      `${expected.length} of ${expected.length} non-agent adapter surface(s) probed for a stray pin, none found`,
     );
+    // …and NOTHING was excluded, which is the other half of "the denominator is honest": the excluded
+    // clause is absent entirely rather than present with a zero.
+    expect(
+      section,
+      "an unmutated tree excludes no surface, so the run summary must carry no exclusion clause at all",
+    ).not.toContain("reported by guard_wr05");
   });
 
   it("CONTROL — an UNMUTATED mirror exits 0 with guard_model_assignment passing", () => {

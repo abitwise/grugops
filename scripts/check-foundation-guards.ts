@@ -2231,16 +2231,43 @@ function guardModelAssignment(): void {
   // AN UNADMITTABLE SURFACE IS DELIBERATELY NOT RE-REPORTED BY THIS ARM. guard_wr05 already names it by
   // file and by enumerated code and the gate fails closed on that finding, so the soundness of this
   // arm rests on the EXIT CODE rather than on silence — and a second sentence for one fact is the
-  // duplication this gate's own conventions refuse. The packaging templates are the reason this
-  // paragraph is load-bearing rather than defensive: they carry a `kind:`/`tier:` frontmatter the
-  // canonical adapter schema does not admit, so they reach this arm and are skipped by it.
+  // duplication this gate's own conventions refuse. That half of the argument was always true and is
+  // unchanged; what changed is that it is now a DEMONSTRATED fact rather than an assumption. A planted
+  // unadmittable non-agent surface reds guard_wr05 by name, and the case that plants it asserts the
+  // finding line rather than taking it on trust.
+  //
+  // (PLAN 29.1-13, R2-WR-03) THE EXAMPLE THIS PARAGRAPH USED TO OFFER WAS MEASURABLY FALSE, AND THE
+  // CORRECTION IS RECORDED RATHER THAN QUIETLY SWAPPED. It read: "The packaging templates are the
+  // reason this paragraph is load-bearing rather than defensive: they carry a `kind:`/`tier:`
+  // frontmatter the canonical adapter schema does not admit, so they reach this arm and are skipped
+  // by it." Measured this session against the committed `scripts/canonical-frontmatter.js`:
+  //
+  //   agent-factory/packaging/slash-command.template.md => ADMITTED   keys: [ 'kind', 'tier' ]
+  //   agent-factory/packaging/subagent.frontmatter.md   => ADMITTED   keys: [ 'kind', 'tier' ]
+  //
+  // `kind` and `tier` are BOTH members of CANONICAL_SCHEMA, so both templates ADMIT. The arm they take
+  // is the NO-`model`-KEY arm one line further down, never the admission arm — neither declares a
+  // `model` key. NO SURFACE THIS TREE SHIPS REACHES THE ADMISSION ARM AT ALL, which is exactly why its
+  // silence is now backed by a PLANTED case rather than by an example that never takes it. An example
+  // that never takes the branch it is cited for is an unexercised branch wearing a proof's clothes.
+  //
+  // AND THE SKIP IS RECORDED RATHER THAN DISCARDED. What was excluded is collected with its enumerated
+  // refusal code, in the same shape the adapter loop above already uses, so this file has ONE way of
+  // saying "this could not be read". The reason itself is NOT restated here: guard_wr05 owns that
+  // sentence. The published pair below is the consequence — how many surfaces were PROBED against how
+  // many were DERIVED — because a count of members "checked" that silently included members never read
+  // is a verdict a reader cannot tell apart from a complete run.
   const nonAgentSurfaces = SPAWN_GRANT_SCAN.filter(
     (f) => !f.startsWith(spawnGrantScanPrefix("agent")),
   );
   const strayPins: string[] = [];
+  const strayPinSkipped: string[] = [];
   for (const rel of nonAgentSurfaces) {
     const parsed = admit(readText(rel));
-    if (!parsed.ok) continue;
+    if (!parsed.ok) {
+      strayPinSkipped.push(`${rel}: [${parsed.code}]`);
+      continue;
+    }
     if (!parsed.value.has("model")) continue;
     strayPins.push(
       `${rel}: ${admittedValuesFor(parsed.value, "model")
@@ -2264,7 +2291,7 @@ function guardModelAssignment(): void {
   // load-bearing on every path, which is what makes the WR-08 assertion something an input can
   // falsify rather than a phrase that is absent because nothing was printed.
   const aliases = [...new Set(resolved.values())].sort();
-  const runSummary = `model assignment: ${adapterRels.length} committed adapter(s) under ${ADAPTER_DIR} compared against a resolution recomputed for ${stems.length} derived role stem(s); preset "${presetLabel}" from ${sourceLabel}; distinct aliases resolved: ${aliases.join(", ")}; ${nonAgentSurfaces.length} non-agent adapter surface(s) checked for a stray pin, ${strayPins.length === 0 ? "none found" : `${strayPins.length} found and named above`}`;
+  const runSummary = `model assignment: ${adapterRels.length} committed adapter(s) under ${ADAPTER_DIR} compared against a resolution recomputed for ${stems.length} derived role stem(s); preset "${presetLabel}" from ${sourceLabel}; distinct aliases resolved: ${aliases.join(", ")}; ${nonAgentSurfaces.length - strayPinSkipped.length} of ${nonAgentSurfaces.length} non-agent adapter surface(s) probed for a stray pin, ${strayPins.length === 0 ? "none found" : `${strayPins.length} found and named above`}${strayPinSkipped.length === 0 ? "" : `; ${strayPinSkipped.length} excluded from the probed count as UNADMITTABLE and reported by guard_wr05, not here: ${[...strayPinSkipped].sort().join(", ")}`}`;
 
   if (modelFail === "") {
     pass(runSummary);
