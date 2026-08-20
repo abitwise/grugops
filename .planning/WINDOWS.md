@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 78
+open_count: 79
 waived_count: 0
 fixed_count: 1
-total_count: 79
-last_updated: 2026-08-20T15:54:28.031Z
+total_count: 80
+last_updated: 2026-08-20T19:55:57.940Z
 ---
 
 # Broken Windows Ledger
@@ -94,6 +94,7 @@ last_updated: 2026-08-20T15:54:28.031Z
 | 77 | 29.1 | deviation | scripts/check-kit-refs.test.ts |  | 29.1-17 acceptance criterion NOT satisfied as written: grep -c 'const SCAN' scripts/check-kit-refs.test.ts measures 1, not 0. The surviving hit is the extractor's locator string, which must spell the gate's declaration verbatim to find it; splitting the literal to make the grep return zero was rejected. Anchored substitutes recorded: grep -cE '^const SCAN = ' -> 0 and grep -c '"agent-factory/checklists"' -> 0. See 29.1-17-SUMMARY.md Deviation 1. | open |  | 2026-08-20T15:54:27.892Z |  |
 | 78 | 29.1 | deviation | .planning/REQUIREMENTS.md |  | 29.1-17: the requirements verb flipped MODEL-05 from Gaps Found to Complete via the shared-ID gate; the flip was REVERTED because MODEL-05 is the requirement round-2 verification regressed and no verification has run since. The row awaits round-3 verification. See 29.1-17-SUMMARY.md Deviation 5. | open |  | 2026-08-20T15:54:27.962Z |  |
 | 79 | 29.1 | deviation | scripts/check-public-docs-vocabulary.ts | 32 | 29.1-17: a fourth record adjacent to the scan widening reads 'that set is byte-unchanged' about check-kit-refs's SCAN. In context it is scoped to that gate's own Phase-27 change and remains true; out of context it could be read as a standing claim, and SCAN is now one member wider. Deliberately NOT edited (outside this plan's declared files). See 29.1-17-SUMMARY.md Deviation 4. | open |  | 2026-08-20T15:54:28.031Z |  |
+| 80 | 29.1 | deviation | scripts/check-foundation-guards.test.ts |  | 29.1-19: (r-class-prefix) compares CANONICAL SOURCE SPELLINGS across a derived member set — it does not run the members' readers or compare their outputs. A member spelling both the right-bound marker and the slice base canonically while computing something else (a second slice under another variable, canonical literals in a dead branch) satisfies every assertion in it. Direction: FAIL-OPEN. Bounded for today's two members by their own synthetic-input bound proofs, (r-bound-synthetic) and Case 8b. | open |  | 2026-08-20T19:55:57.940Z |  |
 
 ````json
 [
@@ -1043,6 +1044,18 @@ last_updated: 2026-08-20T15:54:28.031Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-08-20T15:54:28.031Z",
+    "resolved_at": null
+  },
+  {
+    "id": 80,
+    "kind": "deviation",
+    "phase": "29.1",
+    "file": "scripts/check-foundation-guards.test.ts",
+    "line": null,
+    "description": "29.1-19: (r-class-prefix) compares CANONICAL SOURCE SPELLINGS across a derived member set — it does not run the members' readers or compare their outputs. A member spelling both the right-bound marker and the slice base canonically while computing something else (a second slice under another variable, canonical literals in a dead branch) satisfies every assertion in it. Direction: FAIL-OPEN. Bounded for today's two members by their own synthetic-input bound proofs, (r-bound-synthetic) and Case 8b.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-08-20T19:55:57.940Z",
     "resolved_at": null
   }
 ]

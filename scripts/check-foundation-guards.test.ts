@@ -10810,9 +10810,33 @@ describe("guard_model_assignment (Phase 29.1, MODEL-03/MODEL-05)", () => {
   const UBUNTU_BLOCK_STEP_NAME = "Freshness gates + repo gates (ubuntu only)";
   const STEP_MARKER = "\n      - name: ";
 
+  // (Plan 29.1-19, R3-IN-03) THE PREFIX `(r-class-prefix)` DECIDES MEMBERSHIP BY, DERIVED RATHER THAN TYPED.
+  //
+  // Membership used to be the FULL step name including its `(ubuntu only)` qualifier, so a future
+  // reader locating this block by the shorter spelling was not a member, was never required to carry
+  // the bound, and did not move `UBUNTU_BLOCK_READER_COUNT` — an invisible non-member rather than a
+  // red. The prefix is cut from the full name at its qualifier, so the two are derived from one
+  // another and cannot drift apart; `(r-class-prefix)` asserts both that derivation and that exactly one
+  // step in the committed workflow begins with it, so widening has not made the locator ambiguous.
+  const UBUNTU_BLOCK_STEP_PREFIX = UBUNTU_BLOCK_STEP_NAME.slice(
+    0,
+    UBUNTU_BLOCK_STEP_NAME.indexOf(" ("),
+  );
+
+  // (Plan 29.1-19, R3-IN-03) THE SLICE BASE, IN ITS CANONICAL SOURCE SPELLING.
+  //
+  // The two readers of this block did not read the same region. This file sliced from
+  // `at + UBUNTU_BLOCK_STEP_NAME.length`; scripts/skill-twins-freshness.test.ts sliced from a bare
+  // `at`. Measured on the committed workflow (plan 29.1-19): 20 command entries against 21, the
+  // extra entry being the step name itself — the region's own heading. `(r-class-prefix)`'s predecessor `(r-class)` certified two
+  // readers of one class while they were reading different regions. The base below is the one that
+  // returns a region rather than a region plus its heading, and every member must now spell it this
+  // way, alongside the right-bound marker.
+  const UBUNTU_BLOCK_SLICE_BASE_SOURCE = ".slice(at + UBUNTU_BLOCK_STEP_NAME.length)";
+
   // The number of `.test.ts` files in scripts/ that locate the ubuntu block by its step name,
   // MEASURED in this session (plan 29.1-14) rather than assumed: check-foundation-guards.test.ts and
-  // skill-twins-freshness.test.ts. Pinned two-sided by `(r-class)` so a third reader arriving is a
+  // skill-twins-freshness.test.ts. Pinned two-sided by `(r-class-prefix)` so a third reader arriving is a
   // red rather than a silent pass.
   const UBUNTU_BLOCK_READER_COUNT = 2;
 
@@ -11082,40 +11106,121 @@ describe("guard_model_assignment (Phase 29.1, MODEL-03/MODEL-05)", () => {
   // it into a production module that only tests consume, which is a shipped surface added for a test
   // and is the same trade in the other direction. So each file bounds its own slice, and the CLASS
   // is closed HERE instead: this case derives the set of readers from the filesystem and requires
-  // every one of them to carry the right bound. The authority over "is this class bounded" is one
-  // assertion, even though the slicing is written twice.
+  // every one of them to carry the right bound AND the same slice base. The authority over "is this
+  // class bounded, and does it read one region" is one assertion, even though the slicing is written
+  // twice. (Plan 29.1-19 reconciles the slice base; the disposition above is unchanged — this round
+  // reconciles the slice, not the ownership.)
   //
-  // The bound is required in its CANONICAL SOURCE SPELLING — the bytes `JSON.stringify(STEP_MARKER)`
-  // produces. That is a declared canonical form, not a parser: an equivalent bound written some
-  // other way reds here and the remedy is to spell it the one way, which is the point.
-  it("(r-class) every test file locating the ubuntu block by step name bounds it on the right", () => {
+  // Both requirements are stated in a CANONICAL SOURCE SPELLING — for the bound, the bytes
+  // `JSON.stringify(STEP_MARKER)` produces; for the base, `UBUNTU_BLOCK_SLICE_BASE_SOURCE`. Those are
+  // declared canonical forms, not parsers: an equivalent spelling written some other way reds here
+  // and the remedy is to spell it the one way, which is the point.
+  //
+  // (Plan 29.1-19, R3-IN-03) WHAT THIS CASE COMPARES, AND WHAT IT THEREFORE CANNOT SEE — DISCLOSED.
+  //
+  // It compares CANONICAL SOURCE SPELLINGS across a derived member set. It does not run the members'
+  // readers and does not compare their outputs. A member that spells both the right-bound marker and
+  // the slice base canonically while computing something else entirely — a second slice under a
+  // different variable, a reader whose canonical literals sit in a dead branch — satisfies every
+  // assertion here. That direction is FAIL-OPEN and it is recorded as a WINDOWS ledger row rather
+  // than left for a later round to rediscover. What closes it for the two members that exist today
+  // is that each carries its OWN synthetic-input bound proof with a bounded-versus-unbounded control:
+  // `(r-bound-synthetic)` here and `Case 8b` in scripts/skill-twins-freshness.test.ts.
+  it("(r-class-prefix) the reader set is derived from the step-name prefix, and the widening is measured", () => {
+    // PREMISE 1 — THE PREFIX IS DERIVED FROM THE FULL NAME, not typed beside it. Two hand-kept
+    // spellings of one thing is how a second grammar arrives, and a second grammar that disagrees
+    // with the first is this project's most-repeated defect class.
+    expect(
+      UBUNTU_BLOCK_STEP_PREFIX.length,
+      "PREMISE: the derived step-name prefix must be non-empty — an empty prefix makes every file a member and the count assertion below meaningless",
+    ).toBeGreaterThan(0);
+    expect(
+      UBUNTU_BLOCK_STEP_NAME.startsWith(UBUNTU_BLOCK_STEP_PREFIX),
+      `PREMISE: the full step name "${UBUNTU_BLOCK_STEP_NAME}" must start with the derived prefix "${UBUNTU_BLOCK_STEP_PREFIX}", or the two name different blocks`,
+    ).toBe(true);
+    expect(
+      UBUNTU_BLOCK_STEP_PREFIX.length,
+      "PREMISE: the prefix must be strictly SHORTER than the full name, or the widening is not a widening",
+    ).toBeLessThan(UBUNTU_BLOCK_STEP_NAME.length);
+
+    // PREMISE 2 — THE PREFIX IS STILL UNAMBIGUOUS IN THE WORKFLOW. Widening a locator can make it
+    // match a second step; the derived `- name:` values are the denominator that answers it.
+    const stepNames = ciWorkflow()
+      .split("\n")
+      .map((l) => l.trim())
+      .filter((l) => l.startsWith("- name: "))
+      .map((l) => l.slice("- name: ".length));
+    expect(
+      stepNames.length,
+      "PREMISE: the workflow must yield some step names — an empty list makes the uniqueness assertion below vacuous",
+    ).toBeGreaterThan(0);
+    const beginningWithPrefix = stepNames.filter((n) => n.startsWith(UBUNTU_BLOCK_STEP_PREFIX));
+    expect(
+      beginningWithPrefix,
+      `exactly one step in .github/workflows/ci.yml may begin with "${UBUNTU_BLOCK_STEP_PREFIX}"; ${stepNames.length} step name(s) were scanned and ${beginningWithPrefix.length} matched: ${JSON.stringify(beginningWithPrefix)}. A second match means the widened locator is ambiguous.`,
+    ).toEqual([UBUNTU_BLOCK_STEP_NAME]);
+
+    // THE WIDENING, MEASURED RATHER THAN ARGUED. Both predicates are applied to ONE synthetic source
+    // string that locates the block by the SHORTER spelling — the exact shape R3-IN-03 named. The
+    // string is assembled from the prefix constant itself, so it cannot drift away from the predicate
+    // it is measuring. A widened predicate with no case showing what it newly sees is the shape this
+    // round is deleting elsewhere.
+    const syntheticReaderSource = [
+      "const ci = readFileSync(CI, 'utf8');",
+      `const at = ci.indexOf(${JSON.stringify(UBUNTU_BLOCK_STEP_PREFIX)});`,
+      `const rest = ci.slice(at + ${JSON.stringify(UBUNTU_BLOCK_STEP_PREFIX)}.length);`,
+    ].join("\n");
+    const oldMembership = (src: string) => src.includes(UBUNTU_BLOCK_STEP_NAME);
+    const newMembership = (src: string) => src.includes(UBUNTU_BLOCK_STEP_PREFIX);
+    expect(
+      oldMembership(syntheticReaderSource),
+      "the OLD exact-name predicate must MISS a reader that locates the block by the shorter spelling — if it does not, this widening had nothing to fix and the case is measuring the wrong thing",
+    ).toBe(false);
+    expect(
+      newMembership(syntheticReaderSource),
+      "the NEW prefix predicate must COUNT that same reader — this is the widening, applied to the same string the old predicate was just measured blind to",
+    ).toBe(true);
+
+    // THE DERIVED MEMBER SET, now decided by the prefix.
     const scriptsDir = join(ROOT, "scripts");
     const testFiles = readdirSync(scriptsDir)
       .filter((f) => f.endsWith(".test.ts"))
       .sort();
     const textOf = (f: string) => readFileSync(join(scriptsDir, f), "utf8");
-    const members = testFiles.filter((f) => textOf(f).includes(UBUNTU_BLOCK_STEP_NAME));
+    const members = testFiles.filter((f) => newMembership(textOf(f)));
 
     // VACUITY FLOOR ON THE DENOMINATOR. A derived set that silently came back empty would make the
-    // per-member assertion below pass over nothing — the shape that lets a scan report a clean
+    // per-member assertions below pass over nothing — the shape that lets a scan report a clean
     // result about a corpus it never read.
     expect(
       members.length,
-      `the derived reader set must be non-empty — ${testFiles.length} .test.ts file(s) were scanned in ${scriptsDir} and none carried the step name "${UBUNTU_BLOCK_STEP_NAME}", which means the scan, not the tree, is broken`,
+      `the derived reader set must be non-empty — ${testFiles.length} .test.ts file(s) were scanned in ${scriptsDir} and none carried the step-name prefix "${UBUNTU_BLOCK_STEP_PREFIX}", which means the scan, not the tree, is broken`,
     ).toBeGreaterThan(0);
 
+    // REQUIREMENT 1 — THE RIGHT BOUND, in its canonical source spelling: the bytes
+    // `JSON.stringify(STEP_MARKER)` produces. A declared canonical form, not a parser: an equivalent
+    // bound written some other way reds here and the remedy is to spell it the one way.
     const boundMarkerSource = JSON.stringify(STEP_MARKER).slice(1, -1);
     const unbounded = members.filter((f) => !textOf(f).includes(boundMarkerSource));
     expect(
       unbounded,
-      `every test file that locates the ubuntu gate block by its step name must bound the slice on the right with the source spelling \`${boundMarkerSource}\` (the bytes JSON.stringify(STEP_MARKER) produces). Members found (${members.length}): ${JSON.stringify(members)}. Members missing the bound (${unbounded.length}): ${JSON.stringify(unbounded)}. Expected member count: ${UBUNTU_BLOCK_READER_COUNT}.`,
+      `every test file that locates the ubuntu gate block by its step-name prefix must bound the slice on the right with the source spelling \`${boundMarkerSource}\` (the bytes JSON.stringify(STEP_MARKER) produces). Members found (${members.length}): ${JSON.stringify(members)}. Members missing the bound (${unbounded.length}): ${JSON.stringify(unbounded)}. Expected member count: ${UBUNTU_BLOCK_READER_COUNT}.`,
+    ).toEqual([]);
+
+    // REQUIREMENT 2 — THE SLICE BASE, likewise canonical. (Plan 29.1-19, R3-IN-03) Requiring only the
+    // bound certified two readers of one class that were reading two different regions: one from the
+    // step name's start, one from its end, differing by the step name itself as a command entry.
+    const wrongBase = members.filter((f) => !textOf(f).includes(UBUNTU_BLOCK_SLICE_BASE_SOURCE));
+    expect(
+      wrongBase,
+      `every member must slice from the SAME base, spelled \`${UBUNTU_BLOCK_SLICE_BASE_SOURCE}\`, so the class reads one region rather than two. Members found (${members.length}): ${JSON.stringify(members)}. Members not spelling the base (${wrongBase.length}): ${JSON.stringify(wrongBase)}.`,
     ).toEqual([]);
 
     // TWO-SIDED. A third reader joining the class is a red here even when it happens to be bounded,
     // because the pinned number is what makes a new member visible at all.
     expect(
       members.length,
-      `the number of test files locating the ubuntu gate block by step name is pinned at ${UBUNTU_BLOCK_READER_COUNT}; found ${members.length}: ${JSON.stringify(members)}. A new reader is not a failure — bound it, then update the pin in the same commit.`,
+      `the number of test files locating the ubuntu gate block by its step-name prefix is pinned at ${UBUNTU_BLOCK_READER_COUNT}; found ${members.length}: ${JSON.stringify(members)}. A new reader is not a failure — bound it, slice it from the same base, then update the pin in the same commit.`,
     ).toBe(UBUNTU_BLOCK_READER_COUNT);
   });
 });

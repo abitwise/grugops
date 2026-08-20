@@ -254,53 +254,162 @@ describe("skill-twins-freshness.js (D-64 Part B skill-twin drift gate)", () => {
     }
   });
 
+  // ── THE UBUNTU GATE BLOCK, READ THE SAME WAY THE SIBLING FILE READS IT ──────────────────────────
+  //
+  // (Plan 29.1-14, R2-WR-02) BOUNDED ON THE RIGHT, AND PROBED OVER COMMANDS. Case 8 previously sliced
+  // from the step name to END OF FILE and probed the raw slice. The block is the last step in the
+  // workflow today, so that slice was accidentally correct — until a step is appended after it, at
+  // which point a `npm run freshness:skill-twins` occurring THERE satisfies a case written about THIS
+  // block. The block is also roughly four-fifths comment, so a comment quoting a command satisfied a
+  // substring probe with the command deleted.
+  //
+  // (Plan 29.1-19, R3-IN-03) THE SLICE BASE IS RECONCILED WITH THE SIBLING, AND THE MEASUREMENT IS
+  // RECORDED. This reader sliced from `at` while scripts/check-foundation-guards.test.ts sliced from
+  // `at + UBUNTU_BLOCK_STEP_NAME.length`. `(r-class)`, now `(r-class-prefix)`, certified both as members of one class while
+  // they were reading DIFFERENT regions. Measured on the committed workflow this session: the
+  // `at + name.length` base yields 20 command entries whose first is
+  // `if: matrix.os == 'ubuntu-latest'`; the bare `at` base yields 21, whose first is the step name
+  // itself — the heading of the region rather than anything the region runs. The `at + name.length`
+  // base is the one that returns a region rather than a region plus its own heading, so it is the
+  // base that survives, and this file now spells it that way.
+  //
+  // THE SHARED-HELPER DISPOSITION IS UNCHANGED. scripts/check-foundation-guards.test.ts carries the
+  // same reader and the two are NOT sharing a helper. Sharing would mean either copying it — two
+  // authorities over one predicate — or promoting it into a production module that only tests
+  // consume, which is a shipped surface added for a test. So each file bounds its own slice, and the
+  // CLASS is closed by `(r-class-prefix)` in scripts/check-foundation-guards.test.ts: that case derives from
+  // the filesystem the set of test files locating this block by its step-name PREFIX, requires every
+  // member to carry the right-bound marker AND the slice base in their canonical spellings, and pins
+  // the member count two-sided. The two literals below are written in exactly those spellings for
+  // that reason; changing either here without changing it there is a red.
+  const UBUNTU_BLOCK_STEP_NAME = "Freshness gates + repo gates (ubuntu only)";
+  const STEP_MARKER = "\n      - name: ";
+
+  /** The committed workflow text. */
+  function ciWorkflow(): string {
+    return readFileSync(join(ROOT, ".github/workflows/ci.yml"), "utf8");
+  }
+
+  /** The ubuntu gate block: from the end of its step name to the NEXT step marker, or to end of file. */
+  function ubuntuBlock(ci: string): string {
+    const at = ci.indexOf(UBUNTU_BLOCK_STEP_NAME);
+    if (at === -1) {
+      throw new Error(
+        "skill-twins wiring oracle: .github/workflows/ci.yml does not carry the step name " +
+          `"${UBUNTU_BLOCK_STEP_NAME}" — refusing to read a block that is not there`,
+      );
+    }
+    const rest = ci.slice(at + UBUNTU_BLOCK_STEP_NAME.length);
+    const next = rest.indexOf(STEP_MARKER);
+    return next === -1 ? rest : rest.slice(0, next);
+  }
+
+  /** The block's COMMAND lines: trimmed, non-empty, comment lines dropped. */
+  function ubuntuBlockCommands(ci: string): string[] {
+    return ubuntuBlock(ci)
+      .split("\n")
+      .map((l) => l.trim())
+      .filter((l) => l.length > 0 && !l.startsWith("#"));
+  }
+
+  // (Plan 29.1-19, R3-WR-01) THE SYNTHETIC FOLLOWING STEP, mirrored from the sibling file rather than
+  // imported from it. The committed block is the workflow's LAST step, so on this tree the bound
+  // lands on end-of-file either way and nothing here can tell the bounded reader from an unbounded
+  // one. Case 8b supplies the input the tree lacks. `.github/workflows/ci.yml` is never written to.
+  const APPENDED_STEP_NAME = "A step appended after the ubuntu gate block (synthetic, plan 29.1-19)";
+  const APPENDED_STEP_COMMAND = "npm run freshness:skill-twins";
+
+  function withAppendedStep(ci: string): string {
+    return `${ci}${STEP_MARKER}${APPENDED_STEP_NAME}\n        run: |\n          ${APPENDED_STEP_COMMAND}\n`;
+  }
+
   it("Case 8 (wired at both ends): the gate is named in package.json AND in the ubuntu block of the CI workflow", () => {
     // The omission this whole file exists to prevent, asserted rather than remembered. A gate present
     // in package.json but absent from the workflow is the exact state freshness:adapters was in for a
     // whole phase.
     const pkg = readFileSync(join(ROOT, "package.json"), "utf8");
     expect(pkg).toContain('"freshness:skill-twins"');
-    const ci = readFileSync(join(ROOT, ".github/workflows/ci.yml"), "utf8");
+    const ci = ciWorkflow();
     expect(ci).toContain("npm run freshness:skill-twins");
 
     // ...and it sits inside the ubuntu-only gate block, beside the sibling it was modelled on,
     // rather than in some unreachable job.
-    //
-    // (Plan 29.1-14, R2-WR-02) BOUNDED ON THE RIGHT, AND PROBED OVER COMMANDS. This case previously
-    // sliced from the step name to END OF FILE and probed the raw slice. The block is the last step
-    // in the workflow today, so that slice was accidentally correct — until a step is appended after
-    // it, at which point a `npm run freshness:skill-twins` occurring THERE satisfies a case written
-    // about THIS block. The block is also roughly four-fifths comment, so a comment quoting a command
-    // satisfied a substring probe with the command deleted.
-    //
-    // THE SHARED-HELPER DISPOSITION. scripts/check-foundation-guards.test.ts carries the same reader
-    // and the two are NOT sharing a helper. Sharing would mean either copying it — two authorities
-    // over one predicate — or promoting it into a production module that only tests consume, which is
-    // a shipped surface added for a test. So each file bounds its own slice, and the CLASS is closed
-    // by `(r-class)` in scripts/check-foundation-guards.test.ts: that case derives from the
-    // filesystem the set of test files locating this block by step name, requires every member to
-    // carry the right-bound marker in its canonical spelling, and pins the member count two-sided.
-    // The marker below is written in exactly that spelling for that reason; changing it here without
-    // changing it there is a red.
-    const STEP_MARKER = "\n      - name: ";
-    const at = ci.indexOf("Freshness gates + repo gates (ubuntu only)");
+    const at = ci.indexOf(UBUNTU_BLOCK_STEP_NAME);
     expect(at, "the ubuntu-only gate block must be locatable by its step name").toBeGreaterThan(-1);
-    const rest = ci.slice(at);
-    const next = rest.indexOf(STEP_MARKER);
-    const block = next === -1 ? rest : rest.slice(0, next);
-    expect(
-      block.includes(STEP_MARKER),
-      "the sliced ubuntu gate block must carry no second step marker — a section reader that searches to end of file adopts every later block appended after it",
-    ).toBe(false);
 
-    const commands = block
-      .split("\n")
-      .map((l) => l.trim())
-      .filter((l) => l.length > 0 && !l.startsWith("#"));
+    // THE CONTAINMENT ASSERTION THAT STOOD HERE IS DELETED. (Plan 29.1-19, R3-WR-01) It probed the
+    // returned slice for a second step marker, which the reader's own construction guarantees: the
+    // bounded branch cuts immediately before the first occurrence and the fallback branch is taken
+    // only when there is none. No input could print its failure message, and the file stayed green
+    // with the bound removed. The bound's EFFECT is proven by Case 8b below.
+
+    const commands = ubuntuBlockCommands(ci);
     // Vacuity floor: an empty command list would satisfy nothing below for the wrong reason.
     expect(commands.length, "the bounded block must carry commands after comment stripping").toBeGreaterThan(0);
     expect(commands).toContain("npm run freshness:adapters");
     expect(commands).toContain("npm run freshness:skill-twins");
+  });
+
+  it("Case 8b: the ubuntu block reader stops at a following step, proven on a synthetic workflow", () => {
+    const ci = ciWorkflow();
+    const withAppended = withAppendedStep(ci);
+
+    // PREMISE OF THE SYNTHETIC INPUT ITSELF, asserted before anything is read from it. A synthetic
+    // text that failed to introduce a following step would make every assertion below pass for the
+    // OLD reason — the coincidence this case exists to remove.
+    expect(
+      withAppended
+        .slice(withAppended.indexOf(UBUNTU_BLOCK_STEP_NAME) + UBUNTU_BLOCK_STEP_NAME.length)
+        .indexOf(STEP_MARKER),
+      "PREMISE: the synthetic workflow must carry a step marker AFTER the ubuntu block's step name — without one this case proves nothing the committed workflow did not already prove",
+    ).toBeGreaterThan(-1);
+    expect(
+      ci
+        .slice(ci.indexOf(UBUNTU_BLOCK_STEP_NAME) + UBUNTU_BLOCK_STEP_NAME.length)
+        .indexOf(STEP_MARKER),
+      "PREMISE (the finding, re-measured): the COMMITTED workflow must carry NO step marker after the ubuntu block — if it now does, the synthetic input is no longer the only thing exercising the bound and this premise should be retired",
+    ).toBe(-1);
+
+    const block = ubuntuBlock(withAppended);
+    expect(
+      block,
+      `the bounded block must stop before the appended step "${APPENDED_STEP_NAME}" — a reader that searches to end of file adopts every later block, and assertions written about THIS block start being made about someone else's text`,
+    ).not.toContain(APPENDED_STEP_NAME);
+
+    // THE APPENDED OCCURRENCE IS NOT ADOPTED. The expected number is COUNTED from the committed
+    // block, not assumed to be one. The command is deliberately one the block ALREADY runs: a novel
+    // string asserted absent would also be absent from the empty string, so a reader returning ""
+    // would satisfy it.
+    const occurrencesInCommittedBlock = ubuntuBlockCommands(ci).filter(
+      (c) => c === APPENDED_STEP_COMMAND,
+    ).length;
+    expect(
+      occurrencesInCommittedBlock,
+      `PREMISE: "${APPENDED_STEP_COMMAND}" must already occur inside the committed block — an appended copy is only a duplicate worth counting when the original is there`,
+    ).toBeGreaterThan(0);
+    expect(
+      ubuntuBlockCommands(withAppended).filter((c) => c === APPENDED_STEP_COMMAND).length,
+      `the bounded read of the synthetic workflow must return ${occurrencesInCommittedBlock} occurrence(s) of "${APPENDED_STEP_COMMAND}" — the number the committed block carries. One more means the appended step's command was adopted into the list Case 8 makes its wiring assertion over.`,
+    ).toBe(occurrencesInCommittedBlock);
+
+    // ── NEGATIVE CONTROL, PERMANENT AND DELIBERATE ─────────────────────────────────────────────
+    //
+    // This is NOT a second reader of the block and nothing outside this case may call it. It is the
+    // SAME slice with the right bound removed, over the SAME bytes, so the only difference between it
+    // and `ubuntuBlock` is the bound. Asserting the two DIFFER is what makes this proof fail on EVERY
+    // run in a tree where the bound has been deleted, rather than only in a session where someone
+    // thought to delete it.
+    const unboundedUbuntuSlice = withAppended.slice(
+      withAppended.indexOf(UBUNTU_BLOCK_STEP_NAME) + UBUNTU_BLOCK_STEP_NAME.length,
+    );
+    expect(
+      unboundedUbuntuSlice,
+      "CONTROL: the UNBOUNDED slice must contain the appended step, or the control is not exercising the difference it exists to measure",
+    ).toContain(APPENDED_STEP_NAME);
+    expect(
+      block === unboundedUbuntuSlice,
+      "CONTROL: the bounded and the unbounded read of the SAME synthetic workflow must DIFFER. They came back byte-identical, which means this reader is not bounding anything.",
+    ).toBe(false);
   });
 });
 
