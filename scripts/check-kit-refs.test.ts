@@ -186,6 +186,29 @@ function mentionsIn(haystack: string, needle: string): number {
   return haystack.split(needle).length - 1;
 }
 /**
+ * Replace the FIRST kit-internal path the config field reference names with a different spelling of
+ * one, leaving the MENTION count where it was — so the only thing that can move the verdict is what
+ * the basename IS, not how many there are.
+ */
+function respellFirstNamedPath(file: string, spelling: string): void {
+  const body = readFileSync(file, "utf8");
+  const at = body.indexOf(CONFIG_SIBLING);
+  if (at === -1) {
+    throw new Error(
+      `respellFirstNamedPath: ${file} names no ${CONFIG_SIBLING} — the case cannot swap a spelling ` +
+        "it cannot find, and a plant appended instead would move the mention count as well",
+    );
+  }
+  writeFileSync(file, body.replace(CONFIG_SIBLING, spelling), "utf8");
+}
+/** Create a subdirectory carrying one file under the mirror's configuration directory. */
+function configSubdir(mirror: string, name: string, file: string): string {
+  const dir = join(mirror, "agent-factory", "config", name);
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, file), "planted for the depth case\n", "utf8");
+  return `agent-factory/config/${name}/${file}`;
+}
+/**
  * Append text to the FIRST line of `file` that already carries `needle`, and return that line's
  * 1-based number. The line is found by SEARCHING for the needle rather than by a pinned line
  * number, so the case does not rot when the shipped document is edited.
@@ -405,6 +428,88 @@ describe("check-kit-refs Assertion 1 exemption — the config self-references, p
     expect(r.stdout).toContain(
       "the config self-reference exemption is exactly 3 mention(s) on 2 line(s) in 1 file(s), as declared",
     );
+  });
+
+  it("Assertion 1 RED: a parent-traversal basename is a stray, not a self-reference", () => {
+    // THE R3-CR-02 BYPASS. Measured GREEN (exit 0, counted as exempt) against the committed
+    // scripts/check-kit-refs.js at ea76f9c AND at 85a1179 — `CONFIG_NAMED_PATH` captures `..` and
+    // `existsSync` is true for the parent directory, so a path that climbs two levels out of the
+    // configuration directory and lands in install/ was certified as a reference inside it.
+    const mirror = makeMirror("ckr-cfg-traversal-");
+    const ref = configFieldReference(mirror);
+    const spelling = "agent-factory/config/../../install/README.md";
+    expect(
+      existsSync(join(mirror, "agent-factory", "config", "..")),
+      "PREMISE: the traversal target must EXIST — that existence is what the pre-fix probe accepted",
+    ).toBe(true);
+    respellFirstNamedPath(ref, spelling);
+    expect(
+      mentionsIn(readFileSync(ref, "utf8"), CONFIG_REF_NEEDLE),
+      "PREMISE: the swap must leave the mention count at its declared value, so only the BASENAME can move the verdict",
+    ).toBe(3);
+
+    const r = runGate(mirror);
+    expect(r.status).toBe(1);
+    expect(r.stdout).toContain("stray agent-factory/config/ ref(s)");
+    expect(r.stdout).toContain(spelling);
+  });
+
+  it("Assertion 1 RED: a current-directory basename is a stray, not a self-reference", () => {
+    // Measured GREEN against the committed .js at ea76f9c AND at 85a1179: `.` is pure `[._-]`, so
+    // the capture class admitted it and the directory itself resolved.
+    const mirror = makeMirror("ckr-cfg-curdir-");
+    const ref = configFieldReference(mirror);
+    const spelling = "agent-factory/config/./factory.config.json";
+    respellFirstNamedPath(ref, spelling);
+    expect(
+      mentionsIn(readFileSync(ref, "utf8"), CONFIG_REF_NEEDLE),
+      "PREMISE: the mention count is unchanged — the basename is the only thing under test",
+    ).toBe(3);
+
+    const r = runGate(mirror);
+    expect(r.status).toBe(1);
+    expect(r.stdout).toContain("stray agent-factory/config/ ref(s)");
+    expect(r.stdout).toContain(spelling);
+  });
+
+  it("Assertion 1 RED: a mention naming a path under a SUBDIRECTORY of the config directory is a stray", () => {
+    // The depth residual the round-3 report filed as Info ("a future agent-factory/config/sub/ would
+    // be wholesale exemptable"), closed by the same rule rather than deferred to when it first
+    // matters. Measured GREEN against the committed .js at ea76f9c AND at 85a1179 with the same
+    // subdirectory planted.
+    const mirror = makeMirror("ckr-cfg-subdir-");
+    const spelling = configSubdir(mirror, "sub", "thing.md");
+    expect(
+      existsSync(join(mirror, "agent-factory", "config", "sub", "thing.md")),
+      "PREMISE: the planted path must EXIST, so the refusal is about DEPTH and not about absence",
+    ).toBe(true);
+    respellFirstNamedPath(configFieldReference(mirror), spelling);
+
+    const r = runGate(mirror);
+    expect(r.status).toBe(1);
+    // The captured basename is `sub`, a directory — not a member of a set that holds regular files.
+    expect(r.stdout).toContain("stray agent-factory/config/ ref(s)");
+    expect(r.stdout).toContain(spelling);
+  });
+
+  it("Assertion 1 sibling-set vacuity floor: a config directory carrying no regular file is a named finding", () => {
+    // The membership test acquires a DENOMINATOR, and an empty one makes every mention a stray for a
+    // reason having nothing to do with the mention. An empty denominator is named, not inferred.
+    const mirror = makeMirror("ckr-cfg-no-siblings-");
+    const dir = join(mirror, "agent-factory", "config");
+    rmSync(dir, { recursive: true, force: true });
+    mkdirSync(dir, { recursive: true });
+    expect(
+      existsSync(dir),
+      "PREMISE: the directory must be PRESENT — otherwise the absent-directory floor fires instead",
+    ).toBe(true);
+
+    const r = runGate(mirror);
+    expect(r.status).toBe(1);
+    expect(r.stdout).toContain("carries no regular file at its top level");
+    expect(r.stdout).toContain("refusing to adjudicate its exemption against an empty sibling set");
+    // Distinct from the ABSENT-directory finding, which diagnoses a different fault.
+    expect(r.stdout).not.toContain("no agent-factory/config/ directory found");
   });
 
   it("Assertion 1 RED: a kit-internal mention outside the config directory still fails as it always did", () => {

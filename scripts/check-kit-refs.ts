@@ -205,6 +205,14 @@ const HIT_SHAPE = /^(.*?):(\d+):(.*)$/s;
 // Every kit-internal path a line NAMES, as `agent-factory/config/<basename>`. Extracting the named
 // paths — rather than testing the whole line — is what makes a sentence that mentions the directory
 // and a fabricated filename a stray rather than a self-reference.
+//
+// WHAT THIS PATTERN DOES NOT DECIDE (round 3 / R3-CR-02). The comment that stood here claimed the
+// extraction was what made a mention a stray. That was true of a fabricated filename and false of
+// `.` and `..`, which this character class admits and which every directory resolves. A capture is
+// only a candidate; whether a captured basename is a SELF-REFERENCE is decided downstream by
+// membership in the derived sibling set, never by this pattern and never by an existence probe.
+// Widening or narrowing the class here is therefore not the lever — it selects what is asked about,
+// not what is admitted.
 const CONFIG_NAMED_PATH = /agent-factory\/config\/([A-Za-z0-9._-]+)/g;
 
 let FAILS = 0;
@@ -233,6 +241,45 @@ function walk(rel: string, acc: string[]): string[] {
     acc.push(rel);
   }
   return acc;
+}
+
+// ---------------------------------------------------------------------------
+// The set a captured basename must be a MEMBER of to be a self-reference (Phase 29.1 round 3 /
+// R3-CR-02, plan 29.1-18): the DEPTH-1 REGULAR FILES the configuration directory carries on the
+// tree under judgement.
+//
+// Derived through walk(), the function this gate already uses to answer "what files are here", so
+// the file-versus-directory question is answered ONCE by the authority that already answers it —
+// walk() pushes an entry only under `st.isFile()`. A second readdirSync or a second statSync at the
+// call site would be a second answer for the first one to drift away from. Depth 1 is enforced by
+// requiring the remainder after the directory prefix to carry no further separator, so a file
+// nested inside a subdirectory contributes its subdirectory to nothing.
+// ---------------------------------------------------------------------------
+function configSiblingFiles(): string[] {
+  const dirPrefix = join(CONFIG_SELF_REF_DIR) + sep;
+  return walk(CONFIG_SELF_REF_DIR, [])
+    .filter((rel) => rel.startsWith(dirPrefix))
+    .map((rel) => rel.slice(dirPrefix.length))
+    .filter((base) => !base.includes(sep))
+    .sort();
+}
+
+// A captured basename is a self-reference when — and ONLY when — it is a member of that set. This
+// is a statement of what a basename may BE, not a list of spellings it may not be, and the four
+// consequences are all consequences of the one rule:
+//
+//   `..`      is not a member: a directory listing does not contain it. The traversal that climbed
+//             out of the configuration directory and was certified as a reference inside it (the
+//             R3-CR-02 bypass) is refused because nothing named `..` is carried here.
+//   `.`       is not a member, for the same reason.
+//   a SUBDIR  is not a member: the set holds regular files only, so a path under a future
+//             `agent-factory/config/<subdir>/` captures the subdirectory name and is a stray. The
+//             exemption is bounded in depth as well as in count.
+//   a GHOST   is not a member: a fabricated filename was never carried here. This is the
+//             pre-existing behaviour, preserved — the rule is narrower than the probe it replaces
+//             and admits nothing the probe refused.
+function isConfigSibling(siblings: ReadonlySet<string>, base: string): boolean {
+  return siblings.has(base);
 }
 
 // grep -rn over a SCAN set for a fixed substring: return `path:lineno:line` hits (1-based).
@@ -270,13 +317,23 @@ function readText(rel: string): string {
 //
 // A hit is exempt when BOTH hold:
 //   (a) the file carrying it is itself inside the configuration directory, and
-//   (b) the line names at least one kit-internal path, and EVERY path it names resolves to a file
-//       that exists in that directory on the tree under judgement.
+//   (b) the line names at least one kit-internal path, and EVERY basename it names is a MEMBER of
+//       `siblings` — the depth-1 regular files that directory carries on the tree under judgement.
 //
 // (b)'s "at least one" is load-bearing: a line that mentioned the directory prefix and named no
-// file at all would otherwise satisfy "every named path exists" vacuously and be exempted for
+// file at all would otherwise satisfy "every named path is a member" vacuously and be exempted for
 // having said nothing. A self-reference means a reference to something that is actually there.
-function exemptConfigSelfRefs(hits: string[]): {
+//
+// (b) IS MEMBERSHIP, NOT RESOLUTION (round 3 / R3-CR-02). It read "resolves to a file that exists in
+// that directory" and was implemented as `existsSync(join(dir, base))`, which is true for `.`, for
+// `..` and for any subdirectory — so the documented predicate was false on both halves and a path
+// leaving the directory was certified as a reference inside it. Membership in a set derived from
+// what the directory actually carries is the same sentence made checkable: the set cannot contain a
+// name the directory does not carry, so no spelling has to be anticipated.
+function exemptConfigSelfRefs(
+  hits: string[],
+  siblings: ReadonlySet<string>,
+): {
   exempt: string[];
   exemptMentions: number;
   strays: string[];
@@ -295,7 +352,7 @@ function exemptConfigSelfRefs(hits: string[]): {
     const inConfigDir = file.startsWith(dirPrefix);
     const allResolve =
       named.length > 0 &&
-      named.every((base) => existsSync(abs(join(CONFIG_SELF_REF_DIR, base))));
+      named.every((base) => isConfigSibling(siblings, base));
     if (inConfigDir && allResolve) {
       exempt.push(hit);
       // The MENTION count comes from the SAME `named` array the predicate one line above decided
@@ -415,12 +472,23 @@ if (!configDirPresent) {
     `no ${CONFIG_SELF_REF_DIR}/ directory found — refusing to adjudicate its exemption against a tree that does not carry it (the counted self-references below would be absent for an unattributable reason)`,
   );
 }
+// SECOND VACUITY FLOOR, for the DERIVED SIBLING SET, asserted before the membership test is
+// believed rather than after. The directory can be present and still carry no regular file at its
+// top level, and then every mention becomes a stray for a reason having nothing to do with the
+// mention — a red nobody could attribute to the thing that caused it. Same discipline, same wording
+// style, as the absent-directory finding above: name the absence.
+const configSiblings = new Set(configSiblingFiles());
+if (configDirPresent && configSiblings.size === 0) {
+  fail(
+    `${CONFIG_SELF_REF_DIR}/ carries no regular file at its top level — refusing to adjudicate its exemption against an empty sibling set (every named path would be a stray for a reason having nothing to do with the mention)`,
+  );
+}
 const {
   exempt,
   exemptMentions,
   strays,
   files: exemptFiles,
-} = exemptConfigSelfRefs(grepSubstring(SCAN, CONFIG_REF_NEEDLE));
+} = exemptConfigSelfRefs(grepSubstring(SCAN, CONFIG_REF_NEEDLE), configSiblings);
 // The strays half — byte-identical wording to the pre-exemption gate.
 if (strays.length === 0) {
   pass(
