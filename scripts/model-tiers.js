@@ -190,13 +190,45 @@ export function isPresetName(value) {
 // comment above the list already justifies mirroring a directory the generator does not open — the
 // gate becomes config-dependent and D-04 evaporates while everything stays green. Printing the
 // resolution makes it an observable property OF THE RUN rather than of what was not copied.
+//
+// THREE GRAMMARS LIVE IN THIS BLOCK, NOT ONE (plan 29.1-07, findings CR-01, WR-03, WR-04):
+//
+//   1. the RESOLVED-PRESET line   — what preset the generator's run resolved (one of two INPUTS);
+//   2. the RESOLVED-ASSIGNMENT line — what the resolution actually PRODUCED (the OUTPUT);
+//   3. the MIRRORED-RESOLVED-PRESET line — the freshness gate's own verdict, a DIFFERENT grammar
+//      from (1) because it is a different speaker making a different claim.
+//
+// EVERY READER IN THIS BLOCK IS ANCHORED AT POSITION 0 (finding WR-03). The first reader here asked
+// `indexOf`, so any line that MENTIONED the phrase satisfied it. Three shapes were reproduced
+// against the committed .js: `WARN could not read resolved model preset: none` read back as
+// `["none"]`, `echo "resolved model preset: tiered" >> log` read back as `["tiered\" >> log"]`, and
+// a `# TODO:` comment mentioning it read back as `["none"]`. A gate whose "the line is present"
+// branch can be satisfied by a warning ABOUT A FAILED READ is a gate that reads a diagnostic as
+// consent. So each reader `trimEnd()`s the candidate line and requires the owning prefix at byte 0,
+// and each EMITTER owns its full prefix end to end — no call site may prepend anything, because a
+// prefixed line is a line the matching reader refuses.
+//
+// WHY GRAMMAR (3) EXISTS AT ALL (finding WR-04). scripts/adapters-freshness.ts used to hand-spell
+// its own verdict marker, in the same file that argues this grammar must never be hand-spelled —
+// and it was load-bearing rather than cosmetic, because that gate's oracle parses the gate's own
+// stdout, so the success cases were reading a hand-written literal instead of anything the
+// generator emits. Declaring the gate's line here with its own reader beside it means the marker
+// has ONE owner per grammar and neither consumer spells it.
+//
+// WHY THE MEMBER COUNT TRAVELS INSIDE GRAMMAR (2). A vacuity floor catches an EMPTY resolution and
+// never a silently SHORT one — the same discipline `tieredCorpusRefusals` records for the row count
+// it derives independently of the loop that consumes it. So the announcement carries how many roles
+// the resolution covered, and its consumer cross-checks that number against a count IT derived
+// itself. An announcement that only agreed with itself would prove nothing about shortness.
 /**
  * The stable, greppable marker a resolved-preset line carries.
  *
- * Deliberately NOT itself a legal preset name, so a reader can never mistake the marker for the
- * value it introduces.
+ * OWNS THE GENERATOR'S NAME. The prefix begins with the emitting script's own name so the marker
+ * cannot be satisfied by a line the generator did not write, and so the emitter — not its caller —
+ * owns every byte before the value. Deliberately NOT itself a legal preset name, so a reader can
+ * never mistake the marker for the value it introduces.
  */
-export const RESOLVED_PRESET_PREFIX = "resolved model preset: ";
+export const RESOLVED_PRESET_PREFIX = "generate-role-adapters: resolved model preset: ";
 /**
  * The line a run emits to declare which preset it resolved. The EMITTING half of the grammar.
  *
@@ -217,19 +249,145 @@ export function resolvedPresetLine(preset) {
  *   • AN AMBIGUOUS STREAM STAYS AMBIGUOUS. Every matching line is reported rather than the first, so
  *     a caller can fail closed on "two runs disagreed" instead of silently believing one of them.
  *
- * The trailing carriage return of a Windows child's stdout is trimmed off the captured value: `none`
- * and `none\r` are different strings, and the difference would be an equality failure with an
- * invisible cause on the one platform this kit cannot test interactively.
+ *   • AN INCIDENTAL MENTION IS NOT AN ANNOUNCEMENT. The prefix is required at BYTE 0 of the trimmed
+ *     line, so a warning, a shell echo, a comment or an indented log line that merely contains the
+ *     phrase comes back empty (finding WR-03).
+ *
+ * The trailing carriage return of a Windows child's stdout is trimmed off THE LINE, before the
+ * prefix test, and never off the captured value: `none` and `none\r` are different strings, and the
+ * difference would be an equality failure with an invisible cause on the one platform this kit
+ * cannot test interactively. The captured value is NOT itself trimmed, so a value carrying internal
+ * or leading spacing stays visible as wrong rather than being normalised into shape.
  */
 export function resolvedPresetsIn(output) {
+    return anchoredValuesIn(output, RESOLVED_PRESET_PREFIX);
+}
+/**
+ * The one anchored line reader every grammar in this block is built from.
+ *
+ * Declared once rather than written three times for the reason the block header states: a
+ * hand-copied predicate is this repository's named second systemic failure class, and an anchor
+ * that rotted in one of three copies would fail silently in exactly the direction the anchor exists
+ * to close.
+ */
+function anchoredValuesIn(output, prefix) {
     const found = [];
     for (const line of output.split("\n")) {
-        const at = line.indexOf(RESOLVED_PRESET_PREFIX);
-        if (at === -1)
+        const trimmed = line.trimEnd();
+        if (!trimmed.startsWith(prefix))
             continue;
-        found.push(line.slice(at + RESOLVED_PRESET_PREFIX.length).trim());
+        found.push(trimmed.slice(prefix.length));
     }
     return found;
+}
+// ── The MIRRORED-RESOLVED-PRESET LINE — the freshness gate's own verdict (finding WR-04) ──────────
+/**
+ * The marker scripts/adapters-freshness.ts's success verdict carries.
+ *
+ * A SECOND GRAMMAR RATHER THAN A REUSE OF THE FIRST, because it is a different speaker making a
+ * different claim: the generator says "this is what I resolved", the gate says "this is what the
+ * run I mirrored resolved". Conflating them is what let a hand-written literal in the gate stand in
+ * for the generator's announcement while the gate's own oracle reported it as a round trip.
+ */
+export const MIRRORED_RESOLVED_PRESET_PREFIX = "Mirrored generator resolved model preset: ";
+/**
+ * The freshness gate's verdict line. The EMITTING half.
+ *
+ * NO TRAILING PUNCTUATION, deliberately: the line is parsed by the reader below, and a full stop
+ * would become part of the parsed value and turn `none` into `none.`. Measured, not assumed — that
+ * is exactly how the first draft of this line failed its own case.
+ */
+export function mirroredResolvedPresetLine(preset) {
+    return `${MIRRORED_RESOLVED_PRESET_PREFIX}${preset}`;
+}
+/** Every preset named on a mirrored-verdict line. The READING half, anchored the same way. */
+export function mirroredResolvedPresetsIn(output) {
+    return anchoredValuesIn(output, MIRRORED_RESOLVED_PRESET_PREFIX);
+}
+/** The marker a resolved-assignment line carries. Owns the generator's name, like its sibling. */
+export const RESOLVED_ASSIGNMENT_PREFIX = "generate-role-adapters: resolved model assignment: ";
+/** The legal key set of the announced payload, closed BY NAME like every other vocabulary here. */
+const RESOLVED_ASSIGNMENT_KEYS = ["roles", "overrides", "aliases"];
+/**
+ * The line a run emits to declare what its resolution produced. The EMITTING half.
+ *
+ * The payload is COMPACT JSON rather than prose, so no regular expression decides this — the same
+ * posture the alias and preset vocabularies already take. `JSON.parse` on the reading side either
+ * yields a structure or throws, and a structure of the wrong shape is refused BY NAME rather than
+ * pattern-matched into one.
+ *
+ * Takes the resolved map itself rather than three numbers, so the member count and the alias set
+ * are DERIVED from the object the generator is about to write bytes from, not restated beside it.
+ */
+export function resolvedAssignmentLine(resolution, overrideCount) {
+    const payload = {
+        roles: resolution.size,
+        overrides: overrideCount,
+        aliases: [...new Set(resolution.values())].sort(),
+    };
+    return `${RESOLVED_ASSIGNMENT_PREFIX}${JSON.stringify(payload)}`;
+}
+/**
+ * One discriminated result per anchored assignment line. The READING half.
+ *
+ * A MALFORMED PAYLOAD IS A NAMED REFUSAL, NEVER A DROPPED LINE. Dropping it would collapse into the
+ * absent case, and the absent case's consumer says "the run announced nothing" — a different fact
+ * with a different remedy. The list-of-results shape keeps the ambiguity of a stream carrying two
+ * announcements visible at the call site, exactly as `resolvedPresetsIn` does.
+ */
+export function resolvedAssignmentsIn(output) {
+    return anchoredValuesIn(output, RESOLVED_ASSIGNMENT_PREFIX).map(readAssignmentPayload);
+}
+/** Validate one announced payload against the declared shape, refusing anything else by name. */
+function readAssignmentPayload(payload) {
+    const refuse = (what) => ({
+        ok: false,
+        reason: `model-tiers: the resolved model assignment payload ${quoteValue(payload)} ${what}. The ` +
+            'declared shape is {"roles":<non-negative integer>,"overrides":<non-negative integer>,' +
+            '"aliases":[<alias>,...]}. A payload that cannot be read is REFUSED BY NAME rather than ' +
+            "dropped: a dropped line collapses into the absent case, and a consumer's absent branch " +
+            "reports a run that announced nothing, which is a different fact with a different remedy.",
+    });
+    let parsed;
+    try {
+        parsed = JSON.parse(payload);
+    }
+    catch {
+        return refuse("is not parseable JSON");
+    }
+    if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
+        return refuse(`is ${describeShape(parsed)} rather than a JSON object`);
+    }
+    const object = parsed;
+    const unknownKeys = Object.keys(object)
+        .filter((k) => !RESOLVED_ASSIGNMENT_KEYS.some((legal) => legal === k))
+        .sort();
+    if (unknownKeys.length > 0) {
+        return refuse(`carries the unexpected key(s) ${unknownKeys.map((k) => `"${k}"`).join(", ")}`);
+    }
+    for (const key of ["roles", "overrides"]) {
+        const value = object[key];
+        if (typeof value !== "number" || !Number.isInteger(value) || value < 0) {
+            return refuse(`sets "${key}" to ${quoteValue(value)} rather than a non-negative integer`);
+        }
+    }
+    const aliases = object.aliases;
+    if (!Array.isArray(aliases)) {
+        return refuse(`sets "aliases" to ${describeShape(aliases)} rather than an array`);
+    }
+    for (const alias of aliases) {
+        if (typeof alias !== "string") {
+            return refuse(`lists the non-string alias ${quoteValue(alias)}`);
+        }
+    }
+    return {
+        ok: true,
+        value: {
+            roles: object.roles,
+            overrides: object.overrides,
+            aliases: aliases,
+        },
+    };
 }
 // ── TIERED — the one shipped preset, one row per role, each row carrying its reason ───────────
 //

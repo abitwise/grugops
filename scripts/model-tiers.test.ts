@@ -42,8 +42,14 @@ import {
   inheritForEveryStem,
   isModelAlias,
   isPresetName,
+  MIRRORED_RESOLVED_PRESET_PREFIX,
+  RESOLVED_ASSIGNMENT_PREFIX,
+  mirroredResolvedPresetLine,
+  mirroredResolvedPresetsIn,
   readModelsConfig,
   resolveModels,
+  resolvedAssignmentLine,
+  resolvedAssignmentsIn,
   resolvedPresetLine,
   resolvedPresetsIn,
   roleCorpusCardinalityRefusal,
@@ -853,7 +859,7 @@ describe("model-tiers: the resolved-preset line grammar (plan 29.1-03)", () => {
   it("the reader finds the line INSIDE a multi-line stream and ignores every other line", () => {
     const stream = [
       "generate-role-adapters: some earlier line",
-      `generate-role-adapters: ${resolvedPresetLine("none")}`,
+      resolvedPresetLine("none"),
       "generate-role-adapters: wrote 17 adapters to /somewhere",
       "",
     ].join("\n");
@@ -882,12 +888,192 @@ describe("model-tiers: the resolved-preset line grammar (plan 29.1-03)", () => {
   it("survives CRLF — a Windows child's stdout must not read back with a trailing carriage return", () => {
     // grugops ships to Windows, and the gate reads a spawned child's stdout. `"none\r"` is not
     // `"none"`, and the difference would be an equality failure with an invisible cause.
-    const stream = `generate-role-adapters: ${resolvedPresetLine("none")}\r\ngenerate-role-adapters: wrote 17\r\n`;
+    const stream = `${resolvedPresetLine("none")}\r\ngenerate-role-adapters: wrote 17\r\n`;
     expect(resolvedPresetsIn(stream)).toEqual(["none"]);
   });
 
   it("the prefix is not a legal preset name — the marker can never be mistaken for its value", () => {
     expect(isPresetName(RESOLVED_PRESET_PREFIX)).toBe(false);
     expect(RESOLVED_PRESET_PREFIX.length).toBeGreaterThan(0);
+  });
+
+  // ── The ANCHOR (finding WR-03). ───────────────────────────────────────────────────────────────
+  // The reader used to ask `indexOf`, so ANY line mentioning the phrase was read as an announcement.
+  // The three shapes below are the ones reproduced in 29.1-REVIEW.md § WR-03 against the pre-fix
+  // committed .js; each returned a value there and each must return the empty list here. The fourth
+  // is the leading-whitespace shape the review does not name, which the anchor must also refuse: a
+  // line an indenting log wrapper touched is not a line the emitter wrote.
+
+  it("resolvedPresetsIn refuses an incidental mention in a warning line", () => {
+    // Pre-fix: `["none"]`. A diagnostic that MENTIONS the phrase would have satisfied the gate's
+    // "the line is present" branch, so the gate would read a warning about a failed read as consent.
+    //
+    // TWO SHAPES, and the SECOND is the one that still discriminates. The review's verbatim string
+    // is refused by the owning prefix alone, so it would stay green if the anchor were reverted; the
+    // variant carrying the WHOLE owning prefix mid-line is refused only by the anchor. Asserting
+    // just the first would let the anchor rot while this case reported it held.
+    expect(resolvedPresetsIn("WARN could not read resolved model preset: none")).toEqual([]);
+    expect(resolvedPresetsIn(`WARN could not read ${resolvedPresetLine("none")}`)).toEqual([]);
+  });
+
+  it("resolvedPresetsIn refuses an incidental mention inside a shell echo", () => {
+    // Pre-fix: `["tiered\" >> log"]` — a captured value carrying shell syntax, which is visible
+    // proof that the reader was not reading an announcement at all. The second shape carries the
+    // whole owning prefix, so it is refused by the ANCHOR rather than by the prefix change.
+    expect(resolvedPresetsIn('echo "resolved model preset: tiered" >> log')).toEqual([]);
+    expect(resolvedPresetsIn(`echo "${resolvedPresetLine("tiered")}" >> log`)).toEqual([]);
+  });
+
+  it("resolvedPresetsIn refuses an incidental mention inside a comment", () => {
+    // Pre-fix: `["none"]`. Again in two shapes: the review's verbatim one, and the one carrying the
+    // whole owning prefix, which only the anchor can refuse.
+    expect(resolvedPresetsIn("# TODO: fix resolved model preset: none")).toEqual([]);
+    expect(resolvedPresetsIn(`# TODO: fix ${resolvedPresetLine("none")}`)).toEqual([]);
+  });
+
+  it("resolvedPresetsIn refuses a leading-whitespace line", () => {
+    // THE PAIR IS THE DISCRIMINATION. The indented form must come back empty and the un-indented
+    // form must come back with the value; asserting only the first would pass for a reader that
+    // refused everything.
+    expect(resolvedPresetsIn(`  ${resolvedPresetLine("none")}`)).toEqual([]);
+    expect(resolvedPresetsIn(resolvedPresetLine("none"))).toEqual(["none"]);
+  });
+
+  it("resolvedPresetsIn accepts the emitter's own line and strips a trailing CR", () => {
+    // The carriage return is trimmed off THE LINE before the prefix test rather than off the
+    // captured value, so a value carrying internal spacing stays visible as wrong rather than being
+    // normalised into shape.
+    expect(resolvedPresetsIn(`${resolvedPresetLine("none")}\r`)).toEqual(["none"]);
+  });
+
+  it("the emitter owns the WHOLE prefix — no caller may prepend the generator's name to it", () => {
+    // The anchor only holds if the emitted line begins with the marker at byte 0. A caller that
+    // prefixed the line with anything at all would produce a line its own reader refuses, which is
+    // the loud failure direction this pair pins.
+    expect(resolvedPresetLine("none").startsWith(RESOLVED_PRESET_PREFIX)).toBe(true);
+    expect(resolvedPresetsIn(`generate-role-adapters: ${resolvedPresetLine("none")}`)).toEqual([]);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// THE RESOLVED-ASSIGNMENT AND MIRRORED-VERDICT GRAMMARS (plan 29.1-07, findings CR-01 and WR-04)
+//
+// CR-01: `resolveModels` has TWO inputs — a preset and a sparse override map — and the preset line
+// announces only the first. A run carrying `{"models":{"roles":{...}}}` and NO `preset` key
+// announced `none`, which is the zero-config answer, while emitting adapters that were not the
+// zero-config output. Reproduced end to end: the freshness gate exited 0 with two committed
+// adapters carrying `model: opus`. The remedy is a grammar that announces what the resolution
+// PRODUCED — its member count, its override count and the distinct aliases it actually emitted.
+//
+// WR-04: the freshness gate hand-spelled its own verdict marker inside the file that argues the
+// marker must never be hand-spelled, and it was load-bearing because that gate's oracle parses the
+// gate's own stdout — so the "round trip" cases were reading a literal, not an announcement. The
+// gate's verdict is therefore its OWN declared grammar here, with its own reader beside it.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+describe("model-tiers: the resolved-assignment line grammar (plan 29.1-07, CR-01)", () => {
+  it("resolvedAssignmentLine and resolvedAssignmentsIn are inverse over the zero-config resolution", () => {
+    // Built through the module's OWN zero-config helper over the LIVE role corpus rather than a
+    // hand-written map, so the member count under test is the one the generator would announce.
+    const stems = listRoles(ROOT).map((f) => f.slice(0, -".md".length));
+    expect(stems.length, "the live role corpus must be non-empty or this case is vacuous")
+      .toBeGreaterThan(0);
+    const resolution = inheritForEveryStem(stems);
+    expect(
+      resolution.size,
+      "PREMISE: the zero-config resolution must cover the whole derived corpus",
+    ).toBe(ROLE_COUNT);
+
+    const results = resolvedAssignmentsIn(resolvedAssignmentLine(resolution, 0));
+    expect(results).toHaveLength(1);
+    expect(results[0].ok, results[0].ok ? "" : results[0].reason).toBe(true);
+    if (!results[0].ok) return;
+    expect(results[0].value.roles).toBe(ROLE_COUNT);
+    expect(results[0].value.overrides).toBe(0);
+    expect(results[0].value.aliases).toEqual(["inherit"]);
+  });
+
+  it("the announced alias set is DISTINCT and SORTED, and the override count travels unmodified", () => {
+    // The line must describe a MIXED resolution too, or the zero-config case above would be
+    // satisfied by an emitter that hard-coded the zero-config answer.
+    const mixed = new Map<string, ModelAlias>([
+      ["c-role", "inherit"],
+      ["a-role", "opus"],
+      ["b-role", "opus"],
+    ]);
+    const results = resolvedAssignmentsIn(resolvedAssignmentLine(mixed, 2));
+    expect(results).toHaveLength(1);
+    expect(results[0].ok).toBe(true);
+    if (!results[0].ok) return;
+    expect(results[0].value.roles).toBe(3);
+    expect(results[0].value.overrides).toBe(2);
+    expect(results[0].value.aliases).toEqual(["inherit", "opus"]);
+  });
+
+  it("resolvedAssignmentsIn REFUSES a malformed payload by name rather than dropping the line", () => {
+    // A dropped line collapses into the ABSENT case, and a consumer's absent branch reports a run
+    // that announced nothing — a different fact with a different remedy. So each shape below must
+    // come back as exactly one refusal whose reason QUOTES what it could not read.
+    const shapes = [
+      '{"roles":"seventeen"}',
+      "not json at all",
+      "[1,2,3]",
+      "null",
+      '{"roles":17,"overrides":0,"aliases":"inherit"}',
+      '{"roles":17,"overrides":0,"aliases":[7]}',
+      '{"roles":-1,"overrides":0,"aliases":["inherit"]}',
+      '{"roles":17,"overrides":0,"aliases":["inherit"],"digest":"abc"}',
+    ];
+    for (const payload of shapes) {
+      const results = resolvedAssignmentsIn(RESOLVED_ASSIGNMENT_PREFIX + payload);
+      expect(results, `"${payload}" must produce exactly one result`).toHaveLength(1);
+      expect(results[0].ok, `"${payload}" must be REFUSED, not accepted`).toBe(false);
+      if (results[0].ok) continue;
+      // QUOTED, not interpolated raw. The payload arrives from a spawned child's stdout, so it is
+      // untrusted text; embedding it unescaped would let a payload forge the surrounding sentence.
+      // `JSON.stringify` is the same quoting the module's other refusals use on user-supplied values.
+      expect(
+        results[0].reason,
+        "the refusal must quote the payload it could not read",
+      ).toContain(JSON.stringify(payload));
+    }
+  });
+
+  it("an ABSENT assignment line reads back as an EMPTY list — silence is never consent here either", () => {
+    expect(resolvedAssignmentsIn("")).toEqual([]);
+    expect(resolvedAssignmentsIn("generate-role-adapters: wrote 17 adapters\n")).toEqual([]);
+  });
+
+  it("the assignment reader is anchored too — an incidental mention is not an announcement", () => {
+    const line = resolvedAssignmentLine(new Map<string, ModelAlias>([["a", "inherit"]]), 0);
+    expect(resolvedAssignmentsIn(line)).toHaveLength(1);
+    expect(resolvedAssignmentsIn(`WARN could not read ${line}`)).toEqual([]);
+    expect(resolvedAssignmentsIn(`  ${line}`)).toEqual([]);
+  });
+
+  it("mirroredResolvedPresetLine and mirroredResolvedPresetsIn are inverse, and neither grammar reads the other's line", () => {
+    // THE CROSS-GRAMMAR ISOLATION. Three declared grammars in one block is three chances for a
+    // reader to accept a line a different speaker wrote, and the gate's verdict is precisely the
+    // line whose conflation with the generator's announcement finding WR-04 named.
+    for (const preset of PRESET_NAMES) {
+      expect(mirroredResolvedPresetsIn(mirroredResolvedPresetLine(preset))).toEqual([preset]);
+    }
+    expect(resolvedPresetsIn(mirroredResolvedPresetLine("none"))).toEqual([]);
+    expect(mirroredResolvedPresetsIn(resolvedPresetLine("none"))).toEqual([]);
+
+    // …and neither preset grammar may read an ASSIGNMENT line.
+    const assignment = resolvedAssignmentLine(new Map<string, ModelAlias>([["a", "inherit"]]), 0);
+    expect(resolvedPresetsIn(assignment)).toEqual([]);
+    expect(mirroredResolvedPresetsIn(assignment)).toEqual([]);
+    expect(resolvedAssignmentsIn(resolvedPresetLine("none"))).toEqual([]);
+  });
+
+  it("the mirrored verdict line carries NO trailing punctuation — it is parsed, not read", () => {
+    // A full stop would become part of the parsed value and turn `none` into `none.`. Asserted
+    // rather than trusted: that is exactly how the first draft of this line failed its own case.
+    const line = mirroredResolvedPresetLine("none");
+    expect(line.startsWith(MIRRORED_RESOLVED_PRESET_PREFIX)).toBe(true);
+    expect(line.endsWith("none")).toBe(true);
+    expect(mirroredResolvedPresetsIn(line)).toEqual(["none"]);
   });
 });
