@@ -9878,6 +9878,66 @@ describe("guard_model_assignment (Phase 29.1, MODEL-03/MODEL-05)", () => {
     expect(section).not.toContain(m);
   });
 
+  // (Plan 29.1-12, R2-CR-01) THE VERDICT DESCRIBES THE RUN IT PERFORMED UNDER *EVERY* DOCUMENTED
+  // INVOCATION SHAPE — NOT ONLY UNDER THE ONE THE SUITE HAPPENED TO PLANT.
+  //
+  // `relativeToRoot` compiled `ROOT` into a regex straight from the environment. With a RELATIVE
+  // override the escaped pattern became "any period followed by non-whitespace, anywhere", so the
+  // helper written to keep absolute paths OUT of a published verdict instead deleted bytes from a
+  // real, correctly-resolved path: this gate exited 0 while its green PASS line named
+  // `agent-factory/config/factoryconfig.json`, a file that has never existed.
+  //
+  // Asserted as a BYTE-IDENTITY of two live runs rather than as a search for the corrupted spelling.
+  // A case that hunted one known-bad string would pass over the next corruption; equality is the
+  // property the guard's own header commits to, and it fails on any rewrite in either direction.
+  it("(o-rel) a RELATIVE CHECK_ROOT renders the same verdict as the default root — byte for byte", () => {
+    const noOverride = { ...process.env };
+    delete noOverride.CHECK_ROOT;
+    const dflt = spawnSync("node", [GUARD_JS], {
+      encoding: "utf8",
+      cwd: ROOT,
+      env: noOverride,
+    });
+    const rel = spawnSync("node", [GUARD_JS], {
+      encoding: "utf8",
+      cwd: ROOT,
+      env: { ...noOverride, CHECK_ROOT: "." },
+    });
+
+    // PREMISE 1 — the rewrite was even ASKED. Two runs that both printed nothing are equal, and a
+    // case asserting only equality would report that as a pass. Both outputs must carry the
+    // model-assignment section before their equality means anything.
+    const dfltSection = modelSection(out(dflt));
+    const relSection = modelSection(out(rel));
+    expect(
+      dfltSection,
+      "the default run must emit a model-assignment section",
+    ).not.toBe("");
+    expect(
+      relSection,
+      "the relative-override run must emit a model-assignment section",
+    ).not.toBe("");
+
+    // PREMISE 2 — the section names a configuration source that is ASSEMBLED from a real file. The
+    // pre-fix build printed a plausible-looking path here; what makes it a defect is that the path
+    // does not exist, so the case asserts existence rather than shape.
+    const named = /preset "[^"]*" from ([^;]+);/.exec(dfltSection);
+    expect(named, "the verdict must name a configuration source").not.toBe(null);
+    const source = named![1];
+    expect(
+      existsSync(join(ROOT, source)),
+      `the verdict names ${source}, which must exist under the repository root`,
+    ).toBe(true);
+
+    // THE PROPERTY.
+    expect(dflt.status, "the default run must exit 0 on this repository").toBe(0);
+    expect(rel.status, "the relative-override run must exit 0 too").toBe(0);
+    expect(
+      out(rel),
+      "a relative CHECK_ROOT must produce output byte-identical to the default root — anything else is a verdict that describes the shape of the override string rather than the repository",
+    ).toBe(out(dflt));
+  });
+
   it("(j) `preset: tiered` reds SEVENTEEN byte-FRESH adapters — the expectation is the config's, not the generator's", () => {
     const m = mirror();
     mkdirSync(join(m, ".grugops"), { recursive: true });

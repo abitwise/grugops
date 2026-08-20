@@ -242,7 +242,7 @@
 // ---------------------------------------------------------------------------
 
 import { readFileSync, existsSync, statSync } from "node:fs";
-import { join, basename } from "node:path";
+import { join, basename, resolve } from "node:path";
 // Phase 19 (UAT-AUTO-05 / BLOCKER 1 / LOCKED CONTEXT.md decision / ROADMAP SC3): the run-all block
 // invokes the three Tier-1 auto-UAT oracles so this aggregator fails closed when any one fails. The
 // oracle BODIES live single-source in check-uat-oracles.ts — here we only INVOKE them and fold their
@@ -371,9 +371,49 @@ import {
 // every path against the script-relative repo root, but ALSO honors a CHECK_ROOT override so the
 // Vitest harness can point the guard at a hermetic mirror dir (mirrors how the .test.sh harness
 // runs the guard FROM inside the mirror so its relative paths resolve to the mutated copy).
+//
+// (PLAN 29.1-12, R2-CR-01) THE OVERRIDE IS NORMALISED, AND IT IS NORMALISED HERE — BEFORE ANYTHING
+// IS DERIVED FROM IT. `resolve()` makes `ROOT` an absolute path whatever shape the caller typed, so
+// every consumer below — `abs`, and the rendering regex built from `ROOT` one function down — is a
+// property of the REPOSITORY rather than of the caller's typing. Taken verbatim, a relative override
+// reached a `new RegExp` and turned `.` into "any period followed by non-whitespace", which rewrote
+// a correctly-resolved path inside a published PASS line into a filename that does not exist.
+//
+// DECISION, and its reason: the override is NORMALISED rather than REFUSED. Pointing the gate at a
+// hermetic mirror with a relative value is a legitimate, documented invocation shape — the sibling
+// gate `scripts/check-kit-refs.ts` (lines 11-12) documents `CHECK_ROOT` as a general "point the gate
+// at a hermetic mirror" override and attaches no absoluteness contract — so refusing it would close
+// a working invocation to fix a RENDERING defect, which the path-boundary requirement in
+// `ROOT_PATH_RE` closes at its actual root cause.
+//
+// WHAT NORMALISING COSTS, stated rather than left to be discovered: `resolve()` is taken against the
+// PROCESS WORKING DIRECTORY, so the same override string names two different roots from two
+// different directories. That is a property the caller already owns; it is what every relative path
+// in every shell already means, and it is not introduced here.
+//
+// The falsy check is UNCHANGED on purpose: an unset override and an empty-string override both still
+// mean the script-relative repository root, which is today's meaning and stays today's meaning.
 const ROOT = process.env.CHECK_ROOT
-  ? process.env.CHECK_ROOT
+  ? resolve(process.env.CHECK_ROOT)
   : join(import.meta.dirname, "..");
+
+// (PLAN 29.1-12, R2-CR-01) WHAT MAY LEGALLY FOLLOW A MATCHED ROOT — DECLARED ONCE, FOR THE ONE
+// PATTERN THAT NEEDS IT.
+//
+// A path separator in either direction, a whitespace or quoting byte of the same class the rendering
+// pattern's capture group already uses, or end of input. Written as a zero-width lookahead so the
+// boundary byte itself stays OUTSIDE the match and remains available to the capture group, which is
+// what keeps the replacer's existing leading-separator strip and separator normalisation unchanged.
+//
+// This is what turns the rendering rewrite from a SUBSTRING match into a PATH-PREFIX match: a root
+// that is merely a string prefix of a longer sibling name (`/a/b` against `/a/bc/d`) no longer
+// matches, so nothing that is not actually under the root is rewritten.
+//
+// IT IS ONE DECLARATION READ ONCE, NOT A RULE SPELLED TWICE. A boundary rule that exists in two
+// hand-kept copies is how a second grammar arrives, and a second grammar that disagrees with the
+// first is this project's most-repeated defect class. If a future site needs this boundary, it reads
+// this const; it does not restate the alternation.
+const ROOT_PATH_BOUNDARY = "(?=[\\\\/]|[\\s'\"`]|$)";
 
 const abs = (rel: string): string => join(ROOT, rel);
 const fileExists = (rel: string): boolean => existsSync(abs(rel));
@@ -1912,10 +1952,28 @@ function guardModelAssignment(): void {
   // reasons are minted one module down and interpolate the path they opened INTO a sentence. Promoting
   // those reasons from a WARN to a finding moved them into the failing verdict, so the same commitment
   // has to hold over them, and a path-only helper would have left the larger of the two leaks open.
-  // The match runs to the first whitespace or quoting byte and normalises the separator only inside
-  // what it matched, so nothing outside a path is rewritten.
+  //
+  // (PLAN 29.1-12, R2-CR-01) AND WHAT IT COULD PUT IN. The paragraph above argues only about what this
+  // helper keeps OUT of the verdict, and that half-argument is how the helper shipped able to corrupt
+  // the verdict it was written to protect. A root compiled into an UNANCHORED pattern rewrites text
+  // that is not a path at all: taken verbatim from the environment, `CHECK_ROOT=.` escaped to `\.` and
+  // matched ANY period followed by non-whitespace, so this guard published a green PASS line naming
+  // `agent-factory/config/factoryconfig.json` — a file that has never existed — while exiting 0. That
+  // is the WR-08 defect class, a verdict misdescribing the run it performed, reintroduced by the fix
+  // that closed WR-08. It survived because every mirror root planted in the suite is absolute, so no
+  // case in the repository could see it.
+  //
+  // TWO PROPERTIES NOW HOLD, AND THEY ARE ONE CONSTRUCTION RATHER THAN TWO HAND-KEPT COPIES. The root
+  // is NORMALISED at its declaration, so what is compiled here is an absolute repository path whatever
+  // the caller typed. And the match must END ON A PATH BOUNDARY, taken from the single module-scope
+  // declaration of that boundary rather than restated here, so this is a path-PREFIX rewrite and not
+  // an arbitrary substring rewrite. Two copies of a boundary rule is how a second grammar arrives.
+  //
+  // Everything downstream of the match is unchanged: the capture group runs to the first whitespace or
+  // quoting byte, and the replacer's leading-separator strip and backslash normalisation apply only
+  // inside what was matched, so nothing outside a path is rewritten.
   const ROOT_PATH_RE = new RegExp(
-    `${ROOT.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}([^\\s'"\`]*)`,
+    `${ROOT.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}${ROOT_PATH_BOUNDARY}([^\\s'"\`]*)`,
     "g",
   );
   const relativeToRoot = (text: string): string =>
