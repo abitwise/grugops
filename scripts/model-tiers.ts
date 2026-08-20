@@ -813,6 +813,15 @@ export interface ResolveModelsOptions {
    * The ALREADY-RESOLVED preset name. The resolver validates it by exact equality anyway — a JS
    * caller can hand over anything — but it does not read configuration to obtain it. Absent means
    * `none`, which is the zero-config contract.
+   *
+   * THAT CLAIM IS NOW TRUE OF THE CODE AND IS EXERCISED BY A CASE (finding WR-02). It was false when
+   * written: Floor 0 coalesced before it validated, so `null` reached the zero-config answer instead
+   * of the refusal. The claim was FIXED rather than DELETED because the tooling layer ships as
+   * committed `.js` with no type checking on hosts, which is this claim's own stated purpose — the
+   * declared type above is advisory at run time, and the module header names the installer doctor
+   * and any future runtime reader as consumers. A floor that holds only under `tsc` is not a floor.
+   * The oracle asserts the claim directly rather than leaving it as prose; see model-tiers.test.ts,
+   * "resolveModels REFUSES a null preset by name instead of coercing it".
    */
   readonly preset?: PresetName;
 
@@ -852,7 +861,22 @@ export function resolveModels(
   options?: ResolveModelsOptions,
 ): ModelResolution {
   // ── Floor 0: the preset name, by EXACT EQUALITY against the closed set. ─────────────────────
-  const preset: PresetName = options?.preset ?? "none";
+  //
+  // VALIDATED BEFORE IT IS DEFAULTED, and ONLY a strictly `undefined` preset takes the default
+  // (finding WR-02). Written as `options?.preset ?? "none"` the coalesce ran first, so `null` — and
+  // any other nullish value an untyped caller can hand over — was silently converted into the
+  // zero-config answer and never reached this refusal at all.
+  //
+  // ABSENT AND NULL ARE DIFFERENT STATEMENTS, and the distinction is the whole reason for the split.
+  // An ABSENT preset is the zero-config contract: the caller asked for the lean default and gets it.
+  // A NULL preset is a caller who typed something that cannot mean anything, and answering it with
+  // the lean default leaves them holding the same map they would have had for a correct request,
+  // with nothing anywhere telling them their value was discarded. `readModelsConfig`'s Pitfall 2
+  // paragraph, one function below, argues exactly this for a degenerate `models` block — '"off" and
+  // "I typed something that cannot mean anything" are different statements' — and the two places
+  // must agree, because they are the same claim about two doors into the same resolver.
+  const rawPreset: unknown = options?.preset;
+  const preset: unknown = rawPreset === undefined ? "none" : rawPreset;
   if (!isPresetName(preset)) {
     return {
       ok: false,

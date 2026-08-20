@@ -698,7 +698,22 @@ export function tieredCorpusRefusals(stems, table = TIERED) {
  */
 export function resolveModels(stems, options) {
     // ── Floor 0: the preset name, by EXACT EQUALITY against the closed set. ─────────────────────
-    const preset = options?.preset ?? "none";
+    //
+    // VALIDATED BEFORE IT IS DEFAULTED, and ONLY a strictly `undefined` preset takes the default
+    // (finding WR-02). Written as `options?.preset ?? "none"` the coalesce ran first, so `null` — and
+    // any other nullish value an untyped caller can hand over — was silently converted into the
+    // zero-config answer and never reached this refusal at all.
+    //
+    // ABSENT AND NULL ARE DIFFERENT STATEMENTS, and the distinction is the whole reason for the split.
+    // An ABSENT preset is the zero-config contract: the caller asked for the lean default and gets it.
+    // A NULL preset is a caller who typed something that cannot mean anything, and answering it with
+    // the lean default leaves them holding the same map they would have had for a correct request,
+    // with nothing anywhere telling them their value was discarded. `readModelsConfig`'s Pitfall 2
+    // paragraph, one function below, argues exactly this for a degenerate `models` block — '"off" and
+    // "I typed something that cannot mean anything" are different statements' — and the two places
+    // must agree, because they are the same claim about two doors into the same resolver.
+    const rawPreset = options?.preset;
+    const preset = rawPreset === undefined ? "none" : rawPreset;
     if (!isPresetName(preset)) {
         return {
             ok: false,

@@ -1224,3 +1224,91 @@ describe("model-tiers: the `models` block's key set is CLOSED BY NAME (plan 29.1
     );
   });
 });
+
+// ── FLOOR 0 VALIDATES BEFORE IT DEFAULTS (plan 29.1-08, finding WR-02) ─────────────────────────
+//
+// `resolveModels` opened with `const preset: PresetName = options?.preset ?? "none";` — the coalesce
+// ran BEFORE `isPresetName`, so `null` and `undefined` were both coerced past the floor. The
+// docstring on `ResolveModelsOptions.preset` directly above it claims the resolver "validates it by
+// exact equality anyway — a JS caller can hand over anything". It did not.
+//
+// Reproduced against the committed .js before this block was written:
+//
+//   resolveModels(['a','b'], {preset: null})      => ok:true  [["a","inherit"],["b","inherit"]]
+//   resolveModels(['a','b'], {preset: undefined}) => ok:true  [["a","inherit"],["b","inherit"]]
+//
+// WHY THE CODE IS FIXED RATHER THAN THE DOCSTRING DELETED. `readModelsConfig` cannot emit a null
+// preset today, so this is latent rather than live. But the tooling layer ships as committed .js
+// with NO TYPE CHECKING ON HOSTS, and that is the docstring's own stated reason for existing: the
+// declared option type is advisory at run time, and the module header names the installer doctor and
+// "any future runtime reader" as consumers. A floor that holds only under `tsc` is not a floor.
+//
+// ABSENT AND NULL ARE DIFFERENT STATEMENTS. An ABSENT preset is the zero-config contract — the
+// caller asked for the lean default. A NULL preset is a caller who typed something that cannot mean
+// anything. This module spends a paragraph on exactly that distinction at Pitfall 2 one function
+// away ('"off" and "I typed something that cannot mean anything" are different statements'), and
+// collapsing them here would leave a caller with the lean default and no indication why.
+describe("model-tiers: resolveModels Floor 0 validates BEFORE it defaults (plan 29.1-08, WR-02)", () => {
+  /** Two stems, derived from the kit authority rather than typed, in the shape Floor 0 needs. */
+  const twoStems = (): readonly string[] => [...kitStems()].sort().slice(0, 2);
+
+  it("resolveModels REFUSES a null preset by name instead of coercing it", () => {
+    // THE CAST IS THE POINT OF THIS CASE, not an inconvenience worked around. The declared option
+    // type does not admit `null`, so under `tsc` this call is unwritable — which is precisely why
+    // the defect was invisible. The cast stands in for the untyped JavaScript caller the docstring
+    // names: the committed .js runs on hosts with no type checking, so the only thing standing
+    // between a null and the zero-config answer is this floor.
+    const r = resolveModels(twoStems(), { preset: null } as unknown as { preset: undefined });
+    expect(r.ok, "a null preset is a value that cannot mean anything, not a request for the default").toBe(
+      false,
+    );
+    if (r.ok) return;
+    // Quoted back exactly as it arrived, and the legal set named.
+    expect(r.reason).toContain("null");
+    for (const name of PRESET_NAMES) expect(r.reason).toContain(`"${name}"`);
+  });
+
+  it("resolveModels still treats an ABSENT preset as the zero-config answer", () => {
+    // THE GREEN CONTROLS. Three spellings of "I did not ask for a preset", all of which must still
+    // resolve `inherit` for every stem — the zero-config contract MODEL-01 pins the bytes of.
+    const stems = twoStems();
+    const zero = stringifyMap(resolvedOrFail(stems));
+    for (const [label, r] of [
+      ["absent options", resolveModels(stems)],
+      ["absent preset key", resolveModels(stems, {})],
+      ["explicitly undefined preset", resolveModels(stems, { preset: undefined })],
+    ] as const) {
+      expect(r.ok, `${label} must resolve — the fix must not close the zero-config path`).toBe(true);
+      if (!r.ok) continue;
+      expect(stringifyMap(r.value), label).toBe(zero);
+    }
+  });
+
+  it("the three shapes are DISTINGUISHABLE — absent and undefined resolve, null and any other non-member refuse", () => {
+    const stems = twoStems();
+    const resolves = (o?: { preset?: unknown }): boolean =>
+      resolveModels(stems, o as { preset?: undefined }).ok;
+    expect(resolves(undefined)).toBe(true);
+    expect(resolves({})).toBe(true);
+    expect(resolves({ preset: undefined })).toBe(true);
+    // Everything else — including every nullish and non-string shape user-authored JSON can carry.
+    for (const bad of [null, 0, false, "", "bogus", "None", [], {}]) {
+      expect(resolves({ preset: bad }), `${JSON.stringify(bad)} must be refused`).toBe(false);
+    }
+  });
+
+  it("the pre-existing ILLEGAL-STRING refusal text is unchanged — compared, not eyeballed", () => {
+    // The bytes of this refusal were captured from the PRE-FIX committed .js and are asserted here
+    // rather than read: a fix to the floor's ORDERING must not move the floor's WORDING, and "it
+    // looks the same" is not a comparison.
+    const r = resolveModels(twoStems(), { preset: "bogus" } as unknown as { preset: undefined });
+    expect(r.ok).toBe(false);
+    if (r.ok) return;
+    expect(r.reason).toBe(
+      'model-tiers: "bogus" is not a legal preset name. The legal set is exactly: "none", ' +
+        '"tiered". Remedy: use one of those two names; adding a third preset is a source change in ' +
+        "scripts/model-tiers.ts, not a value a configuration file can invent.",
+    );
+    expect(r.reason.length, "the captured pre-fix length").toBe(241);
+  });
+});
