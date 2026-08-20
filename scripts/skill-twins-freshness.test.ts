@@ -262,11 +262,45 @@ describe("skill-twins-freshness.js (D-64 Part B skill-twin drift gate)", () => {
     expect(pkg).toContain('"freshness:skill-twins"');
     const ci = readFileSync(join(ROOT, ".github/workflows/ci.yml"), "utf8");
     expect(ci).toContain("npm run freshness:skill-twins");
+
     // ...and it sits inside the ubuntu-only gate block, beside the sibling it was modelled on,
     // rather than in some unreachable job.
-    const block = ci.slice(ci.indexOf("Freshness gates + repo gates (ubuntu only)"));
-    expect(block).toContain("npm run freshness:adapters");
-    expect(block).toContain("npm run freshness:skill-twins");
+    //
+    // (Plan 29.1-14, R2-WR-02) BOUNDED ON THE RIGHT, AND PROBED OVER COMMANDS. This case previously
+    // sliced from the step name to END OF FILE and probed the raw slice. The block is the last step
+    // in the workflow today, so that slice was accidentally correct — until a step is appended after
+    // it, at which point a `npm run freshness:skill-twins` occurring THERE satisfies a case written
+    // about THIS block. The block is also roughly four-fifths comment, so a comment quoting a command
+    // satisfied a substring probe with the command deleted.
+    //
+    // THE SHARED-HELPER DISPOSITION. scripts/check-foundation-guards.test.ts carries the same reader
+    // and the two are NOT sharing a helper. Sharing would mean either copying it — two authorities
+    // over one predicate — or promoting it into a production module that only tests consume, which is
+    // a shipped surface added for a test. So each file bounds its own slice, and the CLASS is closed
+    // by `(r-class)` in scripts/check-foundation-guards.test.ts: that case derives from the
+    // filesystem the set of test files locating this block by step name, requires every member to
+    // carry the right-bound marker in its canonical spelling, and pins the member count two-sided.
+    // The marker below is written in exactly that spelling for that reason; changing it here without
+    // changing it there is a red.
+    const STEP_MARKER = "\n      - name: ";
+    const at = ci.indexOf("Freshness gates + repo gates (ubuntu only)");
+    expect(at, "the ubuntu-only gate block must be locatable by its step name").toBeGreaterThan(-1);
+    const rest = ci.slice(at);
+    const next = rest.indexOf(STEP_MARKER);
+    const block = next === -1 ? rest : rest.slice(0, next);
+    expect(
+      block.includes(STEP_MARKER),
+      "the sliced ubuntu gate block must carry no second step marker — a section reader that searches to end of file adopts every later block appended after it",
+    ).toBe(false);
+
+    const commands = block
+      .split("\n")
+      .map((l) => l.trim())
+      .filter((l) => l.length > 0 && !l.startsWith("#"));
+    // Vacuity floor: an empty command list would satisfy nothing below for the wrong reason.
+    expect(commands.length, "the bounded block must carry commands after comment stripping").toBeGreaterThan(0);
+    expect(commands).toContain("npm run freshness:adapters");
+    expect(commands).toContain("npm run freshness:skill-twins");
   });
 });
 

@@ -10775,7 +10775,7 @@ describe("guard_model_assignment (Phase 29.1, MODEL-03/MODEL-05)", () => {
 
   // ── (r) THE GENERATOR IS WIRED INTO CI, ASSERTED AT BOTH ENDS. (Plan 29.1-09, WR-07) ─────────
   //
-  // The other half of this round's fail-open, and the half no source edit can hold. Every named
+  // The other half of that round's fail-open, and the half no source edit can hold. Every named
   // refusal this phase built lives in the adapter generator, and `.github/workflows/ci.yml` ran the
   // generator nowhere: `generate:adapters` was defined in package.json and invoked by no step. The
   // freshness mirror copies the role and packaging trees and NO configuration, so the mirrored
@@ -10788,44 +10788,209 @@ describe("guard_model_assignment (Phase 29.1, MODEL-03/MODEL-05)", () => {
   // applied to this block, so the wiring is pinned here as well as written there — a step present in
   // the workflow and asserted by nothing is one edit away from being gone.
   //
-  // Shape follows scripts/skill-twins-freshness.test.ts Case 8, which is this repository's existing
-  // convention for the assertion, rather than inventing a third.
-  it("(r) CI wiring: the ubuntu gate block runs the adapter generator and diffs the adapter directory", () => {
-    const ci = readFileSync(
-      join(ROOT, ".github", "workflows", "ci.yml"),
-      "utf8",
-    );
-    // The BLOCK, not the file. A hit anywhere else in the workflow — a comment, another job, a
-    // different OS leg — does not put the command on the gated path.
-    const at = ci.indexOf("Freshness gates + repo gates (ubuntu only)");
-    expect(at, "the ubuntu-only gate block must be locatable by its step name").toBeGreaterThan(-1);
-    const block = ci.slice(at);
-    // PREMISE: the slice really is the gate block, proven by a command already known to live in it.
-    expect(block).toContain("npm run freshness:adapters");
+  // ── THE PIN ITSELF WAS OPEN AT ONE END. (Plan 29.1-14, R2-WR-02) ──────────────────────────────
+  //
+  // The pin as first written located the block by its step name and then took everything to END OF
+  // FILE, and probed that slice with substring containment. Both halves fail in the direction that
+  // keeps the pin green while the gate is gone. A step appended after this block puts a
+  // `npm run generate:adapters` occurring THERE inside the slice, satisfying a case written about
+  // THIS block. And the block is roughly four-fifths comment, so a future comment quoting a command
+  // satisfies a substring probe with the command deleted. The case's own header asserted the
+  // stronger property — that a hit anywhere else in the workflow does not put the command on the
+  // gated path — which was false of the code beneath it.
+  //
+  // The rebuild below is bounded at the next step, asserts that boundedness as a PROPERTY rather
+  // than inheriting it from the coincidence that this block is last today, and decides membership by
+  // exact equality against comment-stripped COMMAND lines.
+
+  // The step name and the step-boundary marker are each spelled ONCE, here. The marker's bytes — a
+  // newline, the workflow's six-space step indentation, and the step key — were read out of
+  // .github/workflows/ci.yml rather than remembered; `(r-bound)` asserts the workflow really does
+  // carry markers spelled this way, because a right bound that matches nothing is not a bound.
+  const UBUNTU_BLOCK_STEP_NAME = "Freshness gates + repo gates (ubuntu only)";
+  const STEP_MARKER = "\n      - name: ";
+
+  // The number of `.test.ts` files in scripts/ that locate the ubuntu block by its step name,
+  // MEASURED in this session (plan 29.1-14) rather than assumed: check-foundation-guards.test.ts and
+  // skill-twins-freshness.test.ts. Pinned two-sided by `(r-class)` so a third reader arriving is a
+  // red rather than a silent pass.
+  const UBUNTU_BLOCK_READER_COUNT = 2;
+
+  function ciWorkflow(): string {
+    return readFileSync(join(ROOT, ".github", "workflows", "ci.yml"), "utf8");
+  }
+
+  /**
+   * The ubuntu gate block: from its step name to the NEXT step marker, or to end of file.
+   *
+   * BOUNDED ON THE RIGHT ON PURPOSE, AND THE FALLBACK IS NOT THE GUARANTEE. The block is the LAST
+   * step in the workflow today, so the bound lands on end-of-file either way — which is exactly why
+   * it is written now rather than when it first matters. `(r-bound)` asserts the sliced block carries
+   * no second step marker, so the "accidentally correct today" state becomes an asserted property.
+   *
+   * Shape follows scripts/model-dial-consistency.test.ts `scopeSection()`, this repository's existing
+   * worked example of a section reader bounded on the right, rather than inventing a second one.
+   */
+  function ubuntuBlock(ci: string): string {
+    const at = ci.indexOf(UBUNTU_BLOCK_STEP_NAME);
+    if (at === -1) {
+      throw new Error(
+        "CI wiring oracle: .github/workflows/ci.yml does not carry the step name " +
+          `"${UBUNTU_BLOCK_STEP_NAME}" — refusing to read a block that is not there`,
+      );
+    }
+    const rest = ci.slice(at + UBUNTU_BLOCK_STEP_NAME.length);
+    const next = rest.indexOf(STEP_MARKER);
+    return next === -1 ? rest : rest.slice(0, next);
+  }
+
+  /**
+   * The block's COMMAND lines: trimmed, non-empty, and with comment lines dropped.
+   *
+   * The block is roughly four-fifths comment, so a probe over its raw text is a probe over prose. A
+   * comment reading `# we used to run npm run generate:adapters here` satisfies a substring match
+   * with the command itself deleted. Membership and ordering are decided over THIS list, by exact
+   * line equality.
+   */
+  function ubuntuBlockCommands(ci: string): string[] {
+    return ubuntuBlock(ci)
+      .split("\n")
+      .map((l) => l.trim())
+      .filter((l) => l.length > 0 && !l.startsWith("#"));
+  }
+
+  it("(r-bound) the ubuntu gate block is bounded at both ends and carries no second step marker", () => {
+    const ci = ciWorkflow();
+
+    // PREMISE 1 — the step name occurs exactly once, so the locator cannot land on a second
+    // occurrence and read a different block while reporting this one.
+    expect(
+      ci.indexOf(UBUNTU_BLOCK_STEP_NAME),
+      "the ubuntu-only gate block must be locatable by its step name",
+    ).toBeGreaterThan(-1);
+    expect(
+      ci.indexOf(UBUNTU_BLOCK_STEP_NAME),
+      "the ubuntu gate block's step name must occur exactly once in the workflow, or the locator is ambiguous",
+    ).toBe(ci.lastIndexOf(UBUNTU_BLOCK_STEP_NAME));
+
+    // PREMISE 2 — the workflow really does spell its step markers the way STEP_MARKER does. A right
+    // bound whose needle matches nothing is not a bound; it is the unbounded read wearing a bound's
+    // name, and it would pass this case silently.
+    expect(
+      ci.split(STEP_MARKER).length - 1,
+      `the workflow must carry step markers spelled ${JSON.stringify(STEP_MARKER)} — a right bound that matches nothing is not a bound`,
+    ).toBeGreaterThan(0);
+
+    const block = ubuntuBlock(ci);
+
+    // THE PROPERTY. Asserted rather than inherited from the coincidence that this block happens to
+    // be the last step today: a section reader that searches to end of file is not reading a
+    // section, it adopts every later block appended after it, and the day someone appends one,
+    // assertions written about THIS block start passing on someone else's text.
+    expect(
+      block.includes(STEP_MARKER),
+      "the sliced ubuntu gate block must contain no second step marker — if it does, the slice has swallowed a following step and every assertion below is being made about someone else's text",
+    ).toBe(false);
+
+    // VACUITY FLOOR. An empty command list would make every membership assertion in (r-commands)
+    // fail loudly, but an empty BLOCK caused by a bad bound reds pointing at the wrong thing — the
+    // reader would chase a missing command rather than a broken bound.
+    const commands = ubuntuBlockCommands(ci);
+    expect(
+      commands.length,
+      "the bounded block must still carry commands after comment stripping — an empty block is a bound defect, not a wiring defect",
+    ).toBeGreaterThan(0);
+    expect(
+      commands,
+      "the slice must really be the gate block, proven by a command already known to live in it",
+    ).toContain("npm run freshness:adapters");
+  });
+
+  it("(r-commands) the wiring pin probes COMMAND lines — a comment quoting a command does not satisfy it", () => {
+    const ci = ciWorkflow();
+    const commands = ubuntuBlockCommands(ci);
+
+    // PREMISE — the list is non-empty and really is the gate block's, proven by a command already
+    // known to live in it. Both hold BEFORE any membership assertion below is believed.
+    expect(commands.length, "the comment-stripped command list must be non-empty").toBeGreaterThan(0);
+    expect(
+      commands,
+      "the slice must really be the gate block, proven by a command already known to live in it",
+    ).toContain("npm run freshness:adapters");
 
     for (const command of [
       "npm run generate:adapters",
       "git diff --exit-code -- .claude/agents/",
     ]) {
       expect(
-        block,
-        `${command} must run inside the ubuntu gate block — the generator is the ONE process that refuses an illegal \`models\` configuration, and the diff behind it additionally proves the committed adapters match the live configuration`,
+        commands,
+        `${command} must run inside the ubuntu gate block as a COMMAND line — the generator is the ONE process that refuses an illegal \`models\` configuration, and the diff behind it additionally proves the committed adapters match the live configuration. Membership is exact line equality, so a comment quoting this text does not satisfy it. Commands found: ${JSON.stringify(commands)}`,
       ).toContain(command);
     }
 
-    // …and the generator runs BEFORE the foundation guard, so a configuration defect is named by the
-    // process that refuses it before the guard renders a verdict over the same tree.
-    expect(block.indexOf("npm run generate:adapters")).toBeLessThan(
-      block.indexOf("node scripts/check-foundation-guards.js"),
-    );
-    // The diff runs after the generator it is checking, not before it.
-    expect(block.indexOf("npm run generate:adapters")).toBeLessThan(
-      block.indexOf("git diff --exit-code -- .claude/agents/"),
-    );
+    // ORDERING OVER THE COMMAND LIST, NOT OVER RAW BYTE OFFSETS. An index into raw text is an index
+    // into prose, and this block is mostly prose: a comment mentioning a command ahead of where the
+    // command runs inverts a byte-offset comparison while changing nothing about what runs.
+    expect(
+      commands.indexOf("npm run generate:adapters"),
+      "the generator must run BEFORE the foundation guard, so a configuration defect is named by the process that refuses it before the guard renders a verdict over the same tree",
+    ).toBeLessThan(commands.indexOf("node scripts/check-foundation-guards.js"));
+    // The adapter-cleanliness assertion runs after the generator it is checking, not before it.
+    expect(
+      commands.indexOf("npm run generate:adapters"),
+      "the adapter-cleanliness assertion must run after the generator whose output it checks",
+    ).toBeLessThan(commands.indexOf("git diff --exit-code -- .claude/agents/"));
 
     // NO STEP RUNS THE LIVE e2e LANE. `npm test` spends tokens against an authed box and is not a
-    // gate; the workflow's regression command is the excluded form.
+    // gate; the workflow's regression command is the excluded form. THESE TWO ARE ABOUT THE WHOLE
+    // FILE BY DESIGN and are deliberately NOT scoped to the block: a `npm test` in any step, in any
+    // job, in any OS leg is the thing being forbidden.
     expect(ci).not.toContain("run: npm test");
     expect(ci).toContain("npx vitest run --exclude '**/scripts/e2e/**'");
+  });
+
+  // (Plan 29.1-14, R2-WR-02) THE CLASS, NOT ONLY THE INSTANCE.
+  //
+  // THE SHARED-HELPER DISPOSITION, STATED RATHER THAN LEFT TO INFERENCE. `ubuntuBlock` is NOT shared
+  // with scripts/skill-twins-freshness.test.ts. Sharing it would mean either copying the helper —
+  // two authorities over one predicate, the defect this round is deleting elsewhere — or promoting
+  // it into a production module that only tests consume, which is a shipped surface added for a test
+  // and is the same trade in the other direction. So each file bounds its own slice, and the CLASS
+  // is closed HERE instead: this case derives the set of readers from the filesystem and requires
+  // every one of them to carry the right bound. The authority over "is this class bounded" is one
+  // assertion, even though the slicing is written twice.
+  //
+  // The bound is required in its CANONICAL SOURCE SPELLING — the bytes `JSON.stringify(STEP_MARKER)`
+  // produces. That is a declared canonical form, not a parser: an equivalent bound written some
+  // other way reds here and the remedy is to spell it the one way, which is the point.
+  it("(r-class) every test file locating the ubuntu block by step name bounds it on the right", () => {
+    const scriptsDir = join(ROOT, "scripts");
+    const testFiles = readdirSync(scriptsDir)
+      .filter((f) => f.endsWith(".test.ts"))
+      .sort();
+    const textOf = (f: string) => readFileSync(join(scriptsDir, f), "utf8");
+    const members = testFiles.filter((f) => textOf(f).includes(UBUNTU_BLOCK_STEP_NAME));
+
+    // VACUITY FLOOR ON THE DENOMINATOR. A derived set that silently came back empty would make the
+    // per-member assertion below pass over nothing — the shape that lets a scan report a clean
+    // result about a corpus it never read.
+    expect(
+      members.length,
+      `the derived reader set must be non-empty — ${testFiles.length} .test.ts file(s) were scanned in ${scriptsDir} and none carried the step name "${UBUNTU_BLOCK_STEP_NAME}", which means the scan, not the tree, is broken`,
+    ).toBeGreaterThan(0);
+
+    const boundMarkerSource = JSON.stringify(STEP_MARKER).slice(1, -1);
+    const unbounded = members.filter((f) => !textOf(f).includes(boundMarkerSource));
+    expect(
+      unbounded,
+      `every test file that locates the ubuntu gate block by its step name must bound the slice on the right with the source spelling \`${boundMarkerSource}\` (the bytes JSON.stringify(STEP_MARKER) produces). Members found (${members.length}): ${JSON.stringify(members)}. Members missing the bound (${unbounded.length}): ${JSON.stringify(unbounded)}. Expected member count: ${UBUNTU_BLOCK_READER_COUNT}.`,
+    ).toEqual([]);
+
+    // TWO-SIDED. A third reader joining the class is a red here even when it happens to be bounded,
+    // because the pinned number is what makes a new member visible at all.
+    expect(
+      members.length,
+      `the number of test files locating the ubuntu gate block by step name is pinned at ${UBUNTU_BLOCK_READER_COUNT}; found ${members.length}: ${JSON.stringify(members)}. A new reader is not a failure — bound it, then update the pin in the same commit.`,
+    ).toBe(UBUNTU_BLOCK_READER_COUNT);
   });
 });
