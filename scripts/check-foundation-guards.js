@@ -1861,7 +1861,7 @@ function guardModelAssignment() {
     // message names all three numbers, which keeps the assertion honest on the day that constant
     // becomes an independent literal.
     if (TIERED.length !== MODEL_TIERS_COUNT) {
-        modelFail += `\nmodel assignment: the TIERED preset table holds ${TIERED.length} row(s) against MODEL_TIERS_COUNT of ${MODEL_TIERS_COUNT} and the kit authority's ROLE_COUNT of ${ROLE_COUNT}. The pin is TWO-SIDED — a shorter table leaves a role with no tier and a longer one assigns a tier to something that is not a role — and it is adjudicated here rather than in the library because continuing is safe there while a wrong number must stop a release. Walk every consumer before changing either constant: the TIERED table itself, resolveModels' per-stem coverage check, tieredCorpusRefusals, roleCorpusCardinalityRefusal, listRoles and this guard.`;
+        modelFail += `\nmodel assignment: the TIERED preset table holds ${TIERED.length} row(s) against MODEL_TIERS_COUNT of ${MODEL_TIERS_COUNT} and the kit authority's ROLE_COUNT of ${ROLE_COUNT}. The pin is TWO-SIDED — a shorter table leaves a role with no tier and a longer one assigns a tier to something that is not a role — and it is adjudicated here rather than in the library because continuing is safe there while a wrong number must stop a release. Walk every consumer before changing either constant: the TIERED table itself, resolveModels' per-stem coverage check, tieredCorpusRefusals, listRoles and this guard.`;
     }
     // ── The EXPECTATION, recomputed on every run from the configuration and the derived stems. ──
     //
@@ -1952,9 +1952,14 @@ function guardModelAssignment() {
     //
     // When the D5 cardinality floor was moved out of `resolveModels` — correctly, because the resolver
     // runs over hermetic mirrors holding a legitimate SUBSET of the corpus — the accepted rationale was
-    // that it now lived in `roleCorpusCardinalityRefusal` and `tieredCorpusRefusals`. It lived in their
-    // TESTS. Neither had a caller outside its own oracle, so the floor was reachable from the suite and
-    // from nothing a build runs. This is that caller.
+    // that it now lived in the library. It lived in the library's TESTS: the floor was reachable from
+    // the suite and from nothing a build runs. This is that caller.
+    //
+    // (PLAN 29.1-15, R2-IN-02) THE WEAKER TWIN THAT NEVER ACQUIRED ONE IS GONE. That rationale named
+    // two predicates. The count-only one still had no production caller a round later and was DELETED
+    // rather than given one — "delete the second authority rather than teach it a case" — with its
+    // argument relocated into `tieredCorpusRefusals`'s docstring. This call site is unchanged by that
+    // deletion: it always called the SET-equality predicate, which is the stronger of the two.
     //
     // CALLED UNCONDITIONALLY, NOT ON THE TIERED PATH, and the reason is the defect itself. This
     // repository's own tree resolves the ZERO-CONFIG preset, so a call guarded behind `preset ===

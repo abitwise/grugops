@@ -534,9 +534,31 @@ function readAssignmentPayload(payload: string): ResolvedAssignmentResult {
   if (!Array.isArray(aliases)) {
     return refuse(`sets "aliases" to ${describeShape(aliases)} rather than an array`);
   }
+  // ── THE MEMBER CHECK ENFORCES THE GRAMMAR THE REFUSAL ABOVE QUOTES (finding R2-IN-04). ────────
+  //
+  // This loop used to check the TYPE and stop, while the declared shape it quotes back names
+  // `<alias>` — so `["not-a-model"]` read back `ok:true` against a message promising an alias. No
+  // live consumer was affected, because `adapters-freshness` compares the announced set against the
+  // degrading-policy authority's, but the parser was enforcing a looser grammar than it published.
+  //
+  // THE DISPOSITION IS THE CODE CATCHING UP TO THE MESSAGE, NOT THE MESSAGE RETREATING TO THE CODE.
+  // The rejected alternative was rewording the declared shape to `[<string>,…]`, which would also
+  // have made the two agree. It was rejected because the stricter grammar is the CORRECT one for
+  // this field: the announced aliases are what a gate compares against the resolved alias set, and a
+  // reader that admits a value no resolution can produce hands its consumer a set difference to
+  // explain rather than a payload to refuse.
+  //
+  // ONE AUTHORITY. Membership is decided by `isModelAlias` — the module's existing closed-set
+  // predicate — rather than by a second membership test written here.
   for (const alias of aliases) {
     if (typeof alias !== "string") {
       return refuse(`lists the non-string alias ${quoteValue(alias)}`);
+    }
+    if (!isModelAlias(alias)) {
+      return refuse(
+        `lists ${quoteValue(alias)}, which is not a legal model alias — the legal set is exactly: ` +
+          MODEL_ALIASES.map((a) => `"${a}"`).join(", "),
+      );
     }
   }
 
@@ -732,9 +754,10 @@ export const TIERED: readonly RoleTier[] = [
 // tree, exactly as `guard_kit_counts` owns it for the kit sets, because this resolver sits on the
 // adapter generator's hot path and that generator runs over hermetic MIRRORS holding a SUBSET of the
 // role corpus — a corpus-cardinality equality on this path refuses valid runs. The same argument, in
-// full, is recorded on `roleCorpusCardinalityRefusal` below. What this library enforces instead is
-// the strictly STRONGER per-stem check: every stem handed to the resolver has a row, and an
-// unassigned stem is NAMED rather than reported as a number that disagrees.
+// full, is recorded on `tieredCorpusRefusals` below, together with the reason a consumer holding only
+// two counts should still derive the sets. What this library enforces instead is the strictly
+// STRONGER per-stem check: every stem handed to the resolver has a row, and an unassigned stem is
+// NAMED rather than reported as a number that disagrees.
 export const MODEL_TIERS_COUNT = ROLE_COUNT;
 
 // The ONE vacuity sentence, declared once and returned by both table predicates below. An empty
@@ -809,8 +832,33 @@ export function tieredTableRefusals(table: readonly RoleTier[] = TIERED): string
  *
  * WHY `resolveModels` DOES NOT CALL THIS. This predicate compares the table against A WHOLE CORPUS,
  * and the resolver runs over hermetic mirrors holding a subset of it — see MODEL_TIERS_COUNT's block
- * above and `roleCorpusCardinalityRefusal` below. The consumers that genuinely mean "is this the
- * whole live corpus" ask this out loud.
+ * above. The resolver sits on the adapter generator's hot path and that generator RUNS OVER HERMETIC
+ * MIRRORS holding a SUBSET of the role corpus — its own committed suite mirrors six roles, and
+ * scripts/adapters-freshness.ts and the foundation-guard harnesses mirror whatever tree they are
+ * judging. Measured when plan 29.1-01 first put a cardinality equality inside the resolver: a
+ * six-role mirror was refused and 22 committed cases went red. A smaller set is CORRECT there, not
+ * broken. The consumers that genuinely mean "is this the whole live corpus" ask this out loud.
+ *
+ * WHEN A CONSUMER WOULD GENUINELY WANT A CARDINALITY ANSWER, and why it should still call this
+ * (plan 29.1-15, finding R2-IN-02). A consumer holding ONLY two counts — the derived stem total and
+ * the kit authority's `ROLE_COUNT` — can compare them and report that two numbers disagree. That is
+ * the WEAKER question, and it is weaker in the way this module refuses everywhere else: a misspelled
+ * stem moves neither number, so the count-only form reads green on the exact defect a set comparison
+ * NAMES. A consumer that can compare sets should compare sets; a consumer that cannot should derive
+ * the sets rather than settle for the counts.
+ *
+ * A WEAKER UNCONSUMED TWIN OF THAT ARGUMENT EXISTED AND WAS DELETED. The count-only comparison used
+ * to be its own exported predicate — ~30 lines of production code beside this one. It was found to
+ * have NO production caller for a second consecutive review round, its only consumer being its own
+ * oracle, and it was DELETED rather than given a caller, because "delete the second authority rather
+ * than teach it a case" is this repository's own rule and a second authority for a predicate that
+ * already has a stronger one is how the weaker copy comes to fire where the stronger correctly does
+ * not. Nothing was lost: D-05's requirement is that role #18 cannot arrive unassigned, and
+ * `resolveModels` assigns a value to EVERY stem it is handed on any tree, live or mirrored, while
+ * the binding check under `tiered` is the strictly stronger "every stem has a row". The deleted
+ * symbol is NOT NAMED anywhere in this tree on purpose: a shipped comment naming a symbol that does
+ * not exist sends a reader to a fact that is not there, which is the defect class this change is
+ * closing. Its name is recorded in the planning artefacts for 29.1-15 and in the git history.
  *
  * ITS PRODUCTION CONSUMER, NAMED (plan 29.1-09, finding IN-01). `guard_model_assignment` in
  * scripts/check-foundation-guards.ts calls this on EVERY run and appends every finding to its
@@ -929,8 +977,9 @@ export interface ResolveModelsOptions {
  * a cardinality equality is not — and it tells the reader WHICH role arrived unassigned instead of
  * telling them that two numbers disagreed.
  *
- * THE ROLE_COUNT RELATIONSHIP IS DELIBERATELY NOT CHECKED HERE — see `roleCorpusCardinalityRefusal`
- * below for where it went and why.
+ * THE ROLE_COUNT RELATIONSHIP IS DELIBERATELY NOT CHECKED HERE — see `tieredCorpusRefusals` above
+ * for where it went and why, and `guard_model_assignment` in scripts/check-foundation-guards.ts for
+ * the consumer that adjudicates it over the LIVE tree.
  */
 export function resolveModels(
   stems: readonly string[],
@@ -1460,54 +1509,4 @@ export function readModelsConfig(
 
   // Outcome 1: no configuration file at either standard location. Zero-config runs lean.
   return zeroConfigModels(null);
-}
-
-/**
- * The ROLE_COUNT relationship, asked BY THE CONSUMERS THAT ARE JUDGING THE LIVE ROLE CORPUS.
- * Returns the refusal reason, or `null` when the set really is the corpus.
- *
- * WHY THIS IS NOT A FLOOR INSIDE `resolveModels`, which is where plan 29.1-01 first put it and where
- * it was measurably wrong. `resolveModels` sits on the adapter generator's hot path, and that
- * generator RUNS OVER HERMETIC MIRRORS holding a SUBSET of the role corpus — its own committed suite
- * mirrors six roles, and scripts/adapters-freshness.ts and the foundation-guard harnesses mirror
- * whatever tree they are judging. Measured: with the equality inside the resolver, a six-role mirror
- * was refused and 22 committed cases went red. A smaller set is CORRECT there, not broken, so a
- * cardinality equality on that path refuses valid runs.
- *
- * IT IS ALSO A SECOND AUTHORITY FOR A PREDICATE THAT ALREADY HAS ONE, which is the deeper reason.
- * `listRoles` itself does NOT assert ROLE_COUNT — it refuses only an EMPTY corpus — and the two-sided
- * cardinality is asserted by `guard_kit_counts` over the LIVE tree. Duplicating that assertion inside
- * a shared resolver would make the weaker copy fire where the stronger one correctly does not, and
- * "delete the second authority rather than teach it a case" is this repository's own rule.
- *
- * WHAT STILL SATISFIES D-05, so nothing is lost by the move. D-05's requirement is that "role #18
- * cannot arrive unassigned". `resolveModels` assigns a value to EVERY stem it is handed, so on any
- * tree — live or mirrored — an eighteenth role is assigned rather than skipped. From plan 29.1-02,
- * when the TIERED preset carries per-role rows, the binding check becomes the strictly STRONGER
- * "every stem has a row", which names the unassigned stem instead of reporting a number that
- * disagrees, and which is correct on a mirror as well.
- *
- * WHO CALLS THIS TODAY, STATED PLAINLY (plan 29.1-09, finding IN-01). NOBODY IN PRODUCTION. Its only
- * consumer is its oracle in scripts/model-tiers.test.ts. That is an accurate description of a
- * deliberately available predicate with no caller yet, and it is written down because the sentence it
- * replaces implied otherwise: this paragraph used to end by calling itself "the place a consumer that
- * genuinely means 'is this the whole live corpus' asks that question out loud", which reads as a
- * report of consumers that did not exist. An accurate statement of a design with one test-only export
- * is honest; a stale claim that it lives in production is not.
- *
- * THE SISTER PREDICATE DOES HAVE ONE, AND THE SPLIT IS NOT AN OVERSIGHT. `tieredCorpusRefusals` above
- * is called by `guard_model_assignment` on every run. It is the stronger of the two — SET equality in
- * both directions, which names the drifted stem — so a guard that wanted a cardinality answer would
- * be taking the weaker one. This function stays exported and unconsumed for a caller that genuinely
- * has only a count to compare; a consumer that can compare sets should call the sister instead.
- */
-export function roleCorpusCardinalityRefusal(stems: readonly string[]): string | null {
-  if (stems.length === ROLE_COUNT) return null;
-  return (
-    `model-tiers: the stem set holds ${String(stems.length)} stem(s) against the kit authority's ` +
-    `ROLE_COUNT of ${String(ROLE_COUNT)} — this consumer declared it was judging the whole live ` +
-    "role corpus, and a set that is not the corpus assigns nothing to the remainder while " +
-    "reporting success. If the role corpus genuinely changed, walk every derived consumer before " +
-    "changing ROLE_COUNT: listRoles, the TIERED preset table, and guard_model_assignment."
-  );
 }

@@ -54,7 +54,6 @@ import {
   resolvedAssignmentsIn,
   resolvedPresetLine,
   resolvedPresetsIn,
-  roleCorpusCardinalityRefusal,
   tieredCorpusRefusals,
   tieredTableRefusals,
   type ModelAlias,
@@ -135,23 +134,14 @@ describe("model-tiers: the refusals, each by its own name (plan 29.1-01)", () =>
     expect(r.reason).toMatch(/vacuous/);
   });
 
-  it("the ROLE_COUNT relationship REFUSES a SHORT set naming BOTH numbers — a distinct fact from an empty one", () => {
-    const stems = kitStems();
-    const short = stems.slice(0, stems.length - 1);
-    const reason = roleCorpusCardinalityRefusal(short);
-    expect(reason, "a set that is not the live role corpus must be refused by name").not.toBeNull();
-    // Both numbers, so the reader is told what was derived AND what was expected.
-    expect(reason).toContain(String(short.length));
-    expect(reason).toContain(String(ROLE_COUNT));
-    // …and it must NOT be the empty-set sentence. A short set and an empty set are different facts.
-    expect(reason).not.toMatch(/vacuous/);
-    // The refusal names the walk an author owes before changing the pinned count.
-    expect(reason).toMatch(/ROLE_COUNT/);
-  });
-
-  it("the ROLE_COUNT relationship ACCEPTS the live corpus, so the predicate is not simply always-refusing", () => {
-    expect(roleCorpusCardinalityRefusal(kitStems())).toBeNull();
-  });
+  // (PLAN 29.1-15, R2-IN-02) THE TWO COUNT-ONLY CARDINALITY CASES THAT SAT HERE ARE GONE WITH THE
+  // PREDICATE THEY DROVE. It was ~30 lines of exported production code whose only consumer was these
+  // two cases, for a second consecutive review round, and it was deleted rather than given a caller.
+  // The cases went with it deliberately rather than being retargeted at the sister: the sister has
+  // its own oracle below, and keeping these would have been a second set of cases for one predicate
+  // — the same duplication at the oracle level that the deletion removes at the source level. The
+  // ROLE_COUNT relationship over the LIVE tree is adjudicated by `guard_model_assignment`, whose own
+  // cases live in scripts/check-foundation-guards.test.ts.
 
   it("resolveModels ACCEPTS a MIRROR-SIZED subset — the cardinality is the consumer's question, not its own", () => {
     // This is the direction the first draft of this module got wrong, and the reason the cardinality
@@ -1122,6 +1112,36 @@ describe("model-tiers: the resolved-assignment line grammar (plan 29.1-07, CR-01
         "the refusal must quote the payload it could not read",
       ).toContain(JSON.stringify(payload));
     }
+  });
+
+  it("resolvedAssignmentsIn REFUSES an announced alias outside the closed set", () => {
+    // (FINDING R2-IN-04) THE PARSER USED TO CHECK THE ALIAS TYPE AND STOP, while the refusal it
+    // quotes back declares the shape as `"aliases":[<alias>,…]` — so `["not-a-model"]` read back
+    // ok:true against a message promising an alias. The message stated a stricter grammar than the
+    // parser enforced, which is the class this round is otherwise closing.
+    const illegal = "not-a-model";
+
+    // THE CASE'S OWN PREMISE, ASSERTED FIRST: the envelope is otherwise WELL-FORMED, so a refusal
+    // below is attributable to the alias and not to a malformed payload. Proven by reading back the
+    // identical envelope with a LEGAL alias in the same slot and requiring it to succeed.
+    expect(isModelAlias(illegal), "the probe value must really be outside the closed set").toBe(false);
+    const wellFormed = `{"roles":2,"overrides":0,"aliases":["inherit"]}`;
+    const control = resolvedAssignmentsIn(RESOLVED_ASSIGNMENT_PREFIX + wellFormed);
+    expect(control).toHaveLength(1);
+    expect(control[0].ok, "the envelope itself must read back cleanly, or the red below is the envelope's").toBe(
+      true,
+    );
+
+    const payload = `{"roles":2,"overrides":0,"aliases":["${illegal}"]}`;
+    const results = resolvedAssignmentsIn(RESOLVED_ASSIGNMENT_PREFIX + payload);
+    expect(results).toHaveLength(1);
+    expect(results[0].ok, "an alias outside the closed set must be REFUSED, not read back").toBe(false);
+    if (results[0].ok) return;
+    // The OFFENDING VALUE, quoted, and the LEGAL SET, named — how every other alias refusal in this
+    // module words it.
+    expect(results[0].reason).toContain(JSON.stringify(illegal));
+    expect(results[0].reason).toContain("not a legal model alias");
+    for (const alias of MODEL_ALIASES) expect(results[0].reason).toContain(`"${alias}"`);
   });
 
   it("an ABSENT assignment line reads back as an EMPTY list — silence is never consent here either", () => {
