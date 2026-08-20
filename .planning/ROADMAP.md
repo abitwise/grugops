@@ -738,7 +738,7 @@ loop terminating only by an unstated argument).
   4. The Claude-Code-only scope is **stated in the kit and in `CLAUDE.md`**, whose "What NOT to Use" entry against non-`inherit` wrappers is amended to name this mechanism as the documented reason — the other four host CLIs have no per-subagent model concept and no claim says otherwise. (MODEL-06)
   5. Any cost or limit-savings claim is **measured** with `scripts/measure-cost.ts`, or carries `UNKNOWN - verify`. A tier assignment is not evidence of a saving. (MODEL-07)
 
-**Plans**: 8/11 plans executed — 6/6 executed, then 5 gap-closure plans (29.1-07 … 29.1-11) planned 2026-08-20 after verification returned `gaps_found`. **Waves are strictly sequential (1→11)**. Four `.ts` files need their committed `.js` rebuilt (`model-tiers`, `generate-role-adapters`, `check-foundation-guards`, `adapters-freshness`), and two plans rebuilding a committed `.js` concurrently tears the output (the phase-27 round-5 precedent). Plan `29.1-02` is **not autonomous**: it opens with a blocking `checkpoint:decision` on D-05's one-way config key shape.
+**Plans**: 9/11 plans executed — 6/6 executed, then 5 gap-closure plans (29.1-07 … 29.1-11) planned 2026-08-20 after verification returned `gaps_found`. **Waves are strictly sequential (1→11)**. Four `.ts` files need their committed `.js` rebuilt (`model-tiers`, `generate-role-adapters`, `check-foundation-guards`, `adapters-freshness`), and two plans rebuilding a committed `.js` concurrently tears the output (the phase-27 round-5 precedent). Plan `29.1-02` is **not autonomous**: it opens with a blocking `checkpoint:decision` on D-05's one-way config key shape.
 
 Plans:
 
@@ -778,7 +778,7 @@ Plans:
 
 **Wave 3 (round 2)** *(blocked on 29.1-08)*
 
-- [ ] 29.1-09-PLAN.md — WR-07 (both halves) + WR-08 + IN-01 + IN-02 + IN-04 + IN-05: promote both degraded guard branches from advisory to blocking, add `npm run generate:adapters` plus an adapter diff to the ubuntu CI gate block and pin that wiring at both ends, stop the verdict claiming a configuration came from nowhere while one exists and was refused, give `tieredCorpusRefusals` a production consumer that runs on the zero-config tree, and render the source repo-relative [MODEL-03, MODEL-05]
+- [x] 29.1-09-PLAN.md — WR-07 (both halves) + WR-08 + IN-01 + IN-02 + IN-04 + IN-05: promote both degraded guard branches from advisory to blocking, add `npm run generate:adapters` plus an adapter diff to the ubuntu CI gate block and pin that wiring at both ends, stop the verdict claiming a configuration came from nowhere while one exists and was refused, give `tieredCorpusRefusals` a production consumer that runs on the zero-config tree, and render the source repo-relative [MODEL-03, MODEL-05]
 
 **Wave 4 (round 2)** *(blocked on 29.1-09)*
 
