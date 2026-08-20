@@ -9773,35 +9773,85 @@ describe("guard_model_assignment (Phase 29.1, MODEL-03/MODEL-05)", () => {
     expect(section).toContain("distinct aliases resolved: inherit");
   });
 
+  // (Plan 29.1-13, R2-IN-01) THE SLICER, HOISTED OUT OF CASE (m) SO BOTH PROPERTIES READ ONE BODY.
+  //
+  // Case `(m)` pins the advisory HELPER and case `(m-channel)` pins the advisory CHANNEL. They are
+  // two properties of the SAME region of text, and a second slicer written for the second property
+  // would be a second authority on "where does this function begin and end" — the duplicate-grammar
+  // shape this repository has corrected repeatedly. So the slicer moves up here unchanged and both
+  // cases call it.
+  const sliceGuardBody = (src: string, decl: string): string => {
+    const start = src.indexOf(decl);
+    expect(start, `${decl} must be present`).toBeGreaterThan(-1);
+    const rest = src.indexOf("\nfunction ", start + decl.length);
+    return src.slice(start, rest === -1 ? src.length : rest);
+  };
+  // The prose in this function DISCUSSES `warn()` and the advisory write at length — that is the
+  // record of why the promotion happened — so both probes run over the CODE lines only. Whole-line
+  // comments are dropped and each case's premise proves the drop did not eat the body.
+  const codeOfGuardBody = (body: string): string =>
+    body
+      .split("\n")
+      .filter((l) => !l.trimStart().startsWith("//"))
+      .join("\n");
+
+  // BOTH TEXTS OF ONE FUNCTION: the source a human edits, and the committed twin that actually runs
+  // on every host. A property asserted only of the `.ts` is a property of a file no host executes.
+  const MODEL_GUARD_BODIES = [
+    ["check-foundation-guards.ts", "function guardModelAssignment(): void {"],
+    ["check-foundation-guards.js", "function guardModelAssignment() {"],
+  ] as const;
+
+  // (Plan 29.1-13, R2-IN-01) THE GUARD'S ADVISORY CHANNEL, SPELLED AS THE CHANNEL RATHER THAN AS ONE
+  // OF ITS CALLERS. `warn()` at scripts/check-foundation-guards.ts:433 is a three-line wrapper around
+  // this write; the write is what puts an advisory line on stdout without touching FAILS.
+  const ADVISORY_WRITE = "process.stdout.write";
+  // A fragment of the text the guard's own section header prints — stable across a reformat, and
+  // NOT a line number, which moves on every edit above it.
+  const MODEL_GUARD_HEADER_FRAGMENT = "[guard_model_assignment]";
+
+  /**
+   * Every advisory-channel write inside a sliced, comment-stripped guard body: the line that carries
+   * it (so a failure can QUOTE the offender rather than print a bare count) and the 200 bytes that
+   * follow it (so a multi-line call whose text sits on the next line can still be identified).
+   */
+  const MODEL_GUARD_WRITE_SITES = (
+    code: string,
+  ): { line: string; window: string }[] => {
+    const sites: { line: string; window: string }[] = [];
+    let at = code.indexOf(ADVISORY_WRITE);
+    while (at !== -1) {
+      const lineStart = code.lastIndexOf("\n", at) + 1;
+      const lineEnd = code.indexOf("\n", at);
+      sites.push({
+        line: code
+          .slice(lineStart, lineEnd === -1 ? code.length : lineEnd)
+          .trim(),
+        window: code.slice(at, at + 200),
+      });
+      at = code.indexOf(ADVISORY_WRITE, at + 1);
+    }
+    return sites;
+  };
+
   // (Plan 29.1-09, WR-07) THE UNION, PROVEN STRUCTURALLY BECAUSE NO INPUT CAN REACH BOTH ARMS.
   //
   // The two degraded branches are the arms of one `if`/`else`, so "a mirror that produces both" does
   // not exist and the arm-pair cannot be tested by composing inputs. What CAN be tested is the
-  // property a single-arm promotion would break: that this guard reaches for the advisory channel
-  // nowhere at all. The assertion is DERIVED from the function's own text in both the source and the
+  // property a single-arm promotion would break: that this guard makes no call to the advisory
+  // HELPER `warn()`. The assertion is DERIVED from the function's own text in both the source and the
   // committed twin that actually runs, rather than from a list of branches a later edit would not be
   // added to.
-  it("(m) neither degraded branch reports through the advisory channel — guard_model_assignment makes NO warn() call", () => {
-    const slice = (src: string, decl: string): string => {
-      const start = src.indexOf(decl);
-      expect(start, `${decl} must be present`).toBeGreaterThan(-1);
-      const rest = src.indexOf("\nfunction ", start + decl.length);
-      return src.slice(start, rest === -1 ? src.length : rest);
-    };
-    // The prose in this function DISCUSSES `warn()` at length — that is the record of why the
-    // promotion happened — so the probe is run over the CODE lines only. Whole-line comments are
-    // dropped and the premise below proves the drop did not eat the body.
-    const codeOf = (body: string): string =>
-      body
-        .split("\n")
-        .filter((l) => !l.trimStart().startsWith("//"))
-        .join("\n");
-    for (const [rel, decl] of [
-      ["check-foundation-guards.ts", "function guardModelAssignment(): void {"],
-      ["check-foundation-guards.js", "function guardModelAssignment() {"],
-    ] as const) {
-      const code = codeOf(
-        slice(readFileSync(join(ROOT, "scripts", rel), "utf8"), decl),
+  //
+  // (Plan 29.1-13, R2-IN-01) WHAT THIS CASE CLAIMS IS NARROWED TO WHAT IT PINS. It used to be recorded
+  // as "this guard reaches for the advisory channel nowhere at all", which is wider than a probe for
+  // `warn(`: the channel is `process.stdout.write`, and `warn()` is one SPELLING of it. Case
+  // `(m-channel)` below forbids the channel; this case forbids the helper. Together they close the
+  // property; this one alone forbade an identifier.
+  it("(m) neither degraded branch reports through the advisory HELPER — guard_model_assignment makes NO warn() call", () => {
+    for (const [rel, decl] of MODEL_GUARD_BODIES) {
+      const code = codeOfGuardBody(
+        sliceGuardBody(readFileSync(join(ROOT, "scripts", rel), "utf8"), decl),
       );
       // PREMISE: the slice really is the guard's body, the comment strip left the code behind, and
       // the probe is capable of seeing a call at all — it finds the guard's own closing `fail(`.
@@ -9813,8 +9863,48 @@ describe("guard_model_assignment (Phase 29.1, MODEL-03/MODEL-05)", () => {
       );
       expect(
         code.includes("warn("),
-        `${rel}: guard_model_assignment must make no warn() call — warn() is documented advisory and does NOT increment FAILS, so a degraded branch reported through it is a refusal that cannot fail a build`,
+        `${rel}: guard_model_assignment must make no warn() HELPER call — warn() is documented advisory and does NOT increment FAILS, so a degraded branch reported through it is a refusal that cannot fail a build. This case pins the HELPER, which is ONE SPELLING of the advisory channel; the channel itself is pinned by (m-channel)`,
       ).toBe(false);
+    }
+  });
+
+  // (Plan 29.1-13, R2-IN-01) THE CHANNEL, NOT ONE SPELLING OF IT.
+  //
+  // WHAT THIS CASE BUYS OVER CASE (m). The guard's advisory channel is the direct
+  // `process.stdout.write`; `warn()` is a three-line wrapper around it and therefore one spelling of
+  // the channel, not the channel. `guardModelAssignment` ALREADY calls the channel directly, for its
+  // section header — so a degraded branch rewritten as `process.stdout.write("  WARN  …")` would have
+  // cleared case (m)'s `warn(` probe untouched while restoring exactly the fail-open plan 29.1-09
+  // spent a task closing: an advisory line on stdout that never increments FAILS. The two cases
+  // together forbid the channel; case (m) alone forbade an identifier.
+  //
+  // The write sites are DERIVED from the same sliced, comment-stripped body case (m) reads, in both
+  // the source and the committed twin, and the ONE legitimate site is identified by a fragment of the
+  // header text the guard prints — never by a line number, which moves on every edit above it.
+  it("(m-channel) guard_model_assignment's ONLY advisory-channel write is its section header", () => {
+    for (const [rel, decl] of MODEL_GUARD_BODIES) {
+      const code = codeOfGuardBody(
+        sliceGuardBody(readFileSync(join(ROOT, "scripts", rel), "utf8"), decl),
+      );
+      // PREMISE: the same three facts case (m) establishes — the slice is the guard's body, the
+      // comment strip left the code behind, and the probe can see a call at all.
+      expect(
+        code,
+        `${rel}: the sliced body must reach the stray-pin arm`,
+      ).toContain("nonAgentSurfaces");
+      expect(code, `${rel}: the probe must be able to see a call`).toContain(
+        "fail(",
+      );
+
+      const sites = MODEL_GUARD_WRITE_SITES(code);
+      expect(
+        sites.length,
+        `${rel}: guard_model_assignment must contain EXACTLY 1 ${ADVISORY_WRITE} call and this body contains ${sites.length}. The one legitimate write is the section header; every other write on this channel puts a line on stdout WITHOUT incrementing FAILS, which is a refusal that cannot fail a build. Offending lines:\n    ${sites.map((w) => w.line).join("\n    ")}`,
+      ).toBe(1);
+      expect(
+        sites[0]?.window ?? "",
+        `${rel}: the single ${ADVISORY_WRITE} call must be the section header — identified by the header fragment "${MODEL_GUARD_HEADER_FRAGMENT}" the guard prints, not by a line number. Found instead: ${sites[0]?.line ?? "<no site>"}`,
+      ).toContain(MODEL_GUARD_HEADER_FRAGMENT);
     }
   });
 
