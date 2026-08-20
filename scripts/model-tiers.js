@@ -641,6 +641,15 @@ export function tieredTableRefusals(table = TIERED) {
  * and the resolver runs over hermetic mirrors holding a subset of it — see MODEL_TIERS_COUNT's block
  * above and `roleCorpusCardinalityRefusal` below. The consumers that genuinely mean "is this the
  * whole live corpus" ask this out loud.
+ *
+ * ITS PRODUCTION CONSUMER, NAMED (plan 29.1-09, finding IN-01). `guard_model_assignment` in
+ * scripts/check-foundation-guards.ts calls this on EVERY run and appends every finding to its
+ * verdict. Until that plan this function had NO caller outside its own oracle, while the accepted
+ * rationale for moving the D5 cardinality floor out of `resolveModels` was that the floor now lived
+ * HERE — so the floor was reachable from the suite and from nothing a build runs. The guard calls it
+ * UNCONDITIONALLY rather than on the tiered path, because this repository's own tree resolves the
+ * zero-config preset and a tiered-only call would never execute in continuous integration. Do not
+ * narrow that call to the tiered path; the reasoning is recorded at the call site.
  */
 export function tieredCorpusRefusals(stems, table = TIERED) {
     if (table.length === 0)
@@ -1111,8 +1120,21 @@ export function readModelsConfig(repoRoot, stems) {
  * tree — live or mirrored — an eighteenth role is assigned rather than skipped. From plan 29.1-02,
  * when the TIERED preset carries per-role rows, the binding check becomes the strictly STRONGER
  * "every stem has a row", which names the unassigned stem instead of reporting a number that
- * disagrees, and which is correct on a mirror as well. This function remains the place a consumer
- * that genuinely means "is this the whole live corpus" asks that question out loud.
+ * disagrees, and which is correct on a mirror as well.
+ *
+ * WHO CALLS THIS TODAY, STATED PLAINLY (plan 29.1-09, finding IN-01). NOBODY IN PRODUCTION. Its only
+ * consumer is its oracle in scripts/model-tiers.test.ts. That is an accurate description of a
+ * deliberately available predicate with no caller yet, and it is written down because the sentence it
+ * replaces implied otherwise: this paragraph used to end by calling itself "the place a consumer that
+ * genuinely means 'is this the whole live corpus' asks that question out loud", which reads as a
+ * report of consumers that did not exist. An accurate statement of a design with one test-only export
+ * is honest; a stale claim that it lives in production is not.
+ *
+ * THE SISTER PREDICATE DOES HAVE ONE, AND THE SPLIT IS NOT AN OVERSIGHT. `tieredCorpusRefusals` above
+ * is called by `guard_model_assignment` on every run. It is the stronger of the two — SET equality in
+ * both directions, which names the drifted stem — so a guard that wanted a cardinality answer would
+ * be taking the weaker one. This function stays exported and unconsumed for a caller that genuinely
+ * has only a count to compare; a consumer that can compare sets should call the sister instead.
  */
 export function roleCorpusCardinalityRefusal(stems) {
     if (stems.length === ROLE_COUNT)

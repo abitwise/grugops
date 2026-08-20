@@ -66,6 +66,8 @@ import {
   listPluginExemptComponentFiles,
   pluginForbiddenComponentSubpaths,
   spawnGrantScan,
+  spawnGrantScanPrefix,
+  SPAWN_GRANT_SCAN_PARTS,
   ROLE_COUNT,
   PLUGIN_SKILL_ADAPTER_COUNT,
   PLUGIN_MANIFEST_COMPONENT_COUNT,
@@ -83,10 +85,22 @@ import { safetySurfaceUnion } from "./generate-safety-surface.js";
 // opinion written in the harness. This repository's own harness produced a false result in six
 // instances across four straight rounds; a premise measured with a different rule than the guard
 // applies is that failure one step earlier.
-import { readModelsConfig, resolveModels } from "./model-tiers.js";
+import {
+  readModelsConfig,
+  resolveModels,
+  tieredCorpusRefusals,
+} from "./model-tiers.js";
 
 const ROOT = join(import.meta.dirname, "..");
 const GUARD_JS = join(ROOT, "scripts", "check-foundation-guards.js");
+
+// (Plan 29.1-09, IN-04) The stray-pin arm's denominator, DERIVED HERE THE SAME WAY THE GUARD DERIVES
+// IT — by partitioning the one spawn-grant scan composition on the `agent` prefix — rather than typed
+// as a literal that must agree with another literal. The case below asserts the partition's parts
+// against their listers, so this constant cannot be short without something going red.
+const NON_AGENT_SURFACE_COUNT = spawnGrantScan(ROOT).filter(
+  (f) => !f.startsWith(spawnGrantScanPrefix("agent")),
+).length;
 
 // ---------------------------------------------------------------------------
 // (Plan 29-05) THE TWO VOICE-GUARD COUNTS, DERIVED FROM THE LIVE TREE.
@@ -9556,10 +9570,28 @@ describe("guard_model_assignment (Phase 29.1, MODEL-03/MODEL-05)", () => {
     expect(section).toContain(
       `${ROLE_COUNT} committed adapter(s) under .claude/agents against ${ROLE_COUNT + 1} role stem(s)`,
     );
+    // (Plan 29.1-09) NARROWED FROM "the stem is never mentioned" TO "the RESOLUTION-DERIVED finding
+    // does not fire", and the narrowing is a repair rather than a weakening.
+    //
+    // This case's claim has always been about ONE arm: the loop that iterates the RESOLUTION, which is
+    // what makes the derivation load-bearing. The old assertion expressed that claim as "the planted
+    // stem appears nowhere in the section", which was true only for as long as the resolution was the
+    // sole arm capable of naming a stem. Plan 29.1-09 gave `tieredCorpusRefusals` a production
+    // consumer, and that arm compares the tier table against the ROLE CORPUS — an authority the
+    // `resolveModels` mutation does not touch — so it names the planted stem regardless. Asserting the
+    // stem's total absence would now be asserting that the second arm is missing, which is a different
+    // and unwanted claim. The assertion below therefore names the resolution arm's own sentence.
     expect(
       section,
       "a hand-listed expectation cannot name a stem no author typed — which is exactly why the guard must not have one",
-    ).not.toContain(`role stem "${PLANTED_18TH_STEM}"`);
+    ).not.toContain(
+      `role stem "${PLANTED_18TH_STEM}" resolves to`,
+    );
+    // …and the SECOND arm is asserted PRESENT on the same run, so the narrowing above cannot quietly
+    // become a case that would pass over a guard with no stem-naming arm at all.
+    expect(section).toContain(
+      `the role stem "${PLANTED_18TH_STEM}" has NO entry in the TIERED preset table`,
+    );
   });
 
   it("(f) VACUITY — an emptied adapter directory FAILS with its own sentence rather than passing", () => {
@@ -9921,6 +9953,88 @@ describe("guard_model_assignment (Phase 29.1, MODEL-03/MODEL-05)", () => {
     );
   });
 
+  // ── (p)/(q) THE TIER TABLE AGREES WITH THE ROLE CORPUS, ON EVERY RUN. (Plan 29.1-09, IN-01) ──
+  //
+  // `tieredCorpusRefusals` was accepted as the place the D5 cardinality floor went when it was moved
+  // out of `resolveModels`, and until this plan it had NO production consumer at all: the whole of its
+  // reachability was its own oracle. It has one now, and it is called UNCONDITIONALLY rather than on
+  // the tiered path — because this repository's own tree resolves the ZERO-CONFIG preset, so a
+  // tiered-path-only call would never execute in continuous integration, which is precisely the
+  // no-production-consumer defect IN-01 reports, reproduced inside the fix for it.
+
+  // A plant that a length comparison structurally cannot see: one table row RENAMED to a valid-looking
+  // stem the corpus does not carry. The row count does not move, the corpus count does not move, and
+  // both directions of the set equality are wrong.
+  const RENAME_VICTIM = "uat-planner";
+  const renamedTableStem = (src: string): string =>
+    src.replace(`stem: "${RENAME_VICTIM}"`, `stem: "${RENAME_VICTIM}-typo"`);
+
+  it("(p) a role stem with no TIERED row is named by the guard under the ZERO-CONFIG preset too", () => {
+    const m = mirror();
+    // NO configuration file of any kind — the state this repository itself is in.
+    expect(existsSync(join(m, ".grugops/factory.config.json"))).toBe(false);
+    writeFileSync(
+      join(m, "agent-factory/roles/zz-planted-role.md"),
+      readFileSync(join(m, "agent-factory/roles/orchestrator.md"), "utf8"),
+      "utf8",
+    );
+
+    const r = runIn(m);
+    expect(r.status).not.toBe(0);
+    const section = modelSection(out(r));
+    expect(section).toContain(
+      'the role stem "zz-planted-role" has NO entry in the TIERED preset table — direction CORPUS → TABLE',
+    );
+    // …and the run really did resolve the zero-config preset, so the finding above is not an artifact
+    // of some tiered configuration having been planted.
+    expect(section).toContain('preset "none"');
+
+    // THE DISCRIMINATION THAT MAKES THE UNCONDITIONAL WIRING LOAD-BEARING. The same mirror, against a
+    // build whose call is guarded behind the tiered preset: the finding VANISHES. The exit code does
+    // NOT discriminate here — an eighteenth role also reds the adapter/stem count floor — so the
+    // property is asserted on the finding, which is the thing that would have been lost.
+    const guarded = scratchGuardFiles({
+      "check-foundation-guards.js": (src) =>
+        src.replace(
+          "for (const finding of tieredCorpusRefusals(stems))",
+          'for (const finding of (config.ok && config.value.preset === "tiered" ? tieredCorpusRefusals(stems) : []))',
+        ),
+    });
+    const gated = modelSection(out(runScratch(guarded, m)));
+    expect(
+      gated,
+      "a tiered-path-only wiring is unreachable on a zero-config tree — which is the defect IN-01 reports",
+    ).not.toContain("direction CORPUS → TABLE");
+  });
+
+  it("(q) a RENAMED tier-table row is named in BOTH directions although neither count moved", () => {
+    const guardJs = scratchGuardFiles({ "model-tiers.js": renamedTableStem });
+    const r = runScratch(guardJs, mirror());
+    expect(r.status).not.toBe(0);
+    const section = modelSection(out(r));
+    expect(section).toContain(
+      `the TIERED preset table assigns a tier to "${RENAME_VICTIM}-typo", which is NOT one of the role stems derived from the role-set authority — direction TABLE → CORPUS`,
+    );
+    expect(section).toContain(
+      `the role stem "${RENAME_VICTIM}" has NO entry in the TIERED preset table — direction CORPUS → TABLE`,
+    );
+
+    // AND THE DECLARED-CONSTANT CHECK STAYS GREEN ON THIS SAME MUTATION, which is exactly why it does
+    // not replace this one and this one does not replace it. Seventeen rows against MODEL_TIERS_COUNT
+    // of seventeen is an identity a rename cannot disturb; the two are different axes.
+    expect(
+      section,
+      "the MODEL_TIERS_COUNT arm must not fire on a rename — a count identity is blind to it",
+    ).not.toContain("against MODEL_TIERS_COUNT of");
+  });
+
+  it("(q-green) the tier table and the role corpus agree on THIS repository, and the arm is not vacuous", () => {
+    // The production consumer exists and runs: on the live tree it produces no finding, and the
+    // mutation case above proves the same call can produce one.
+    expect(tieredCorpusRefusals(listRoles(ROOT).map((f) => f.replace(/\.md$/, "")))).toEqual([]);
+    expect(runIn(ROOT).status).toBe(0);
+  });
+
 
   // ── THE BOUND ON THE SCAN SET, PROVEN TO FIRE. ─────────────────────────────────────────────
   //
@@ -9958,7 +10072,7 @@ describe("guard_model_assignment (Phase 29.1, MODEL-03/MODEL-05)", () => {
     expect(r.status).not.toBe(0);
     const section = modelSection(out(r));
     expect(section).toContain(
-      "2 of the 14 non-agent adapter surface(s) this kit ships declare a `model` key",
+      `2 of the ${NON_AGENT_SURFACE_COUNT} non-agent adapter surface(s) this kit ships declare a \`model\` key`,
     );
     expect(section).toContain(".claude/skills/grugops-gate/SKILL.md: `opus`");
     expect(section).toContain("skills/gate/SKILL.md: `opus`");
@@ -9969,17 +10083,51 @@ describe("guard_model_assignment (Phase 29.1, MODEL-03/MODEL-05)", () => {
     }
   });
 
-  it("the non-agent surface denominator is DERIVED from the two skill authorities, not a literal", () => {
-    // The PASS line publishes a denominator, and a denominator nobody derives independently is the
-    // silently-short set this repository has already paid for. Derived here from the same two
-    // authorities the guard composes, and asserted non-vacuous in both parts.
-    const standalone = listSkillAdapters(ROOT);
-    const pluginForm = listPluginSkillAdapters(ROOT);
-    expect(standalone.length).toBeGreaterThan(0);
-    expect(pluginForm.length).toBeGreaterThan(0);
+  // (Plan 29.1-09, IN-04) THE DENOMINATOR IS DERIVED FROM THE KIT AUTHORITY, AND THE MEASUREMENT THAT
+  // DECIDED IT IS RECORDED IN THE CASE.
+  //
+  // It used to be composed from TWO hand-named families — the standalone skills and their plugin-form
+  // twins — while `SPAWN_GRANT_SCAN_PARTS` enumerates FOUR. The missing family is `packaging`, and it
+  // is not an academic gap: `agent-factory/packaging/slash-command.template.md` IS the slash-command
+  // surface, and CLAUDE.md's own format table records `model` as legal frontmatter on a slash command.
+  // The family IN-04 named as its promote trigger was the very one sitting outside the arm.
+  //
+  // So no promote trigger is recorded and no count is hand-pinned: the list is PARTITIONED out of the
+  // one composition every other scan in this file reads, on the same prefix the composition was built
+  // from. A fifth family added to `SPAWN_GRANT_SCAN_PARTS` enters this arm in the commit that adds it.
+  it("the non-agent surface denominator is DERIVED by partitioning the ONE kit composition, not hand-listed", () => {
+    // Derived here the way a consumer would, and asserted non-vacuous in every part — a partition
+    // whose parts are empty publishes a denominator that agrees with nothing.
+    const agentPrefix = spawnGrantScanPrefix("agent");
+    const scan = spawnGrantScan(ROOT);
+    const expected = scan.filter((f) => !f.startsWith(agentPrefix));
+    expect(scan.length).toBeGreaterThan(expected.length);
+    expect(expected.length).toBe(NON_AGENT_SURFACE_COUNT);
+
+    // THE MEASUREMENT: every family the kit authority enumerates, agent excluded, is represented.
+    const families = SPAWN_GRANT_SCAN_PARTS.filter((p) => p.name !== "agent");
+    expect(families.map((p) => p.name)).toEqual([
+      "skill",
+      "plugin-skill",
+      "packaging",
+    ]);
+    for (const part of families) {
+      const members = expected.filter((f) => f.startsWith(part.prefix));
+      expect(
+        members.length,
+        `the ${part.name} family must be inside the stray-pin arm`,
+      ).toBe(part.list(ROOT).length);
+      expect(members.length).toBeGreaterThan(0);
+    }
+
+    // …and the family CLAUDE.md names as carrying a legal `model` key is one of them, by file.
+    expect(expected).toContain(
+      "agent-factory/packaging/slash-command.template.md",
+    );
+
     const section = modelSection(out(runIn(ROOT)));
     expect(section).toContain(
-      `${standalone.length + pluginForm.length} non-agent adapter surface(s) checked for a stray pin, none found`,
+      `${expected.length} non-agent adapter surface(s) checked for a stray pin, none found`,
     );
   });
 

@@ -361,6 +361,7 @@ import {
   readModelsConfig,
   resolveModels,
   inheritForEveryStem,
+  tieredCorpusRefusals,
   TIERED,
   MODEL_TIERS_COUNT,
   type ModelAlias,
@@ -2041,6 +2042,35 @@ function guardModelAssignment(): void {
     }
   }
 
+  // ── Floor 4: the tier table's SET agreement with the role corpus, in both directions. ────────
+  //
+  // (PLAN 29.1-09, IN-01) THE PRODUCTION CONSUMER `tieredCorpusRefusals` DID NOT HAVE.
+  //
+  // When the D5 cardinality floor was moved out of `resolveModels` — correctly, because the resolver
+  // runs over hermetic mirrors holding a legitimate SUBSET of the corpus — the accepted rationale was
+  // that it now lived in `roleCorpusCardinalityRefusal` and `tieredCorpusRefusals`. It lived in their
+  // TESTS. Neither had a caller outside its own oracle, so the floor was reachable from the suite and
+  // from nothing a build runs. This is that caller.
+  //
+  // CALLED UNCONDITIONALLY, NOT ON THE TIERED PATH, and the reason is the defect itself. This
+  // repository's own tree resolves the ZERO-CONFIG preset, so a call guarded behind `preset ===
+  // "tiered"` would never execute in continuous integration — the no-production-consumer shape IN-01
+  // reports, reproduced inside the fix for it. The tier table is a committed artifact of this kit and
+  // its agreement with the role corpus is a property of the TREE, not of a user's dial setting; a user
+  // who flips the dial tomorrow must not be the one who discovers the drift.
+  //
+  // A DIFFERENT AXIS FROM FLOOR 3, AND NEITHER REPLACES THE OTHER. Floor 3 pins `MODEL_TIERS_COUNT`
+  // against the table's row count — an arithmetic identity. This is SET equality between the table's
+  // stems and the corpus's, in both directions. A row RENAMED to a valid-looking stem moves neither
+  // count and passes Floor 3 while failing here; a row silently dropped moves both and is named by
+  // both. The relationship is recorded on both arms rather than left for a reader to reconstruct.
+  //
+  // Placed AFTER the configuration block so the finding order reads the way the run happened — what
+  // the configuration said, then what the tree says about the table it may point at.
+  for (const finding of tieredCorpusRefusals(stems)) {
+    modelFail += `\n${finding}`;
+  }
+
   // ── The admission read, and the refusals reported BEFORE any value comparison. ──────────────
   //
   // `guardReferentialIntegrity`'s posture, for its reason: an adapter whose frontmatter cannot be
@@ -2113,24 +2143,42 @@ function guardModelAssignment(): void {
   //
   // Every arm above enumerates the AGENT ADAPTER set, because that is where the generator emits a
   // `model` value and where a resolution has a role stem to be keyed by. The question a set-scoped
-  // predicate must always be asked is what BOUNDS its input, and the answer here is that this kit
-  // ships two more frontmatter surfaces the platform loads — the standalone skills under
-  // `.claude/skills` and their plugin-form twins under `skills/` — and Claude Code honours a `model`
-  // key on both. Measured on the tree today: zero of them declare one.
+  // predicate must always be asked is what BOUNDS its input, and the answer is every OTHER frontmatter
+  // surface this kit ships, on which Claude Code honours a `model` key. Measured on the tree today:
+  // zero of them declare one.
   //
-  // So the bound is ASSERTED rather than written down in a comment. A `model` key on a skill would be
-  // a pin with no role stem behind it: outside every resolution this guard computes, outside the
+  // So the bound is ASSERTED rather than written down in a comment. A `model` key on one of these is a
+  // pin with no role stem behind it: outside every resolution this guard computes, outside the
   // generator that writes the agent adapters, and therefore a tier that arrives with nobody having
   // adjudicated it. It is named here with its file and every value it declares.
   //
-  // AN UNADMITTABLE SKILL IS DELIBERATELY NOT RE-REPORTED BY THIS ARM. guard_wr05 already names it by
+  // (PLAN 29.1-09, IN-04) THE FAMILY LIST IS DERIVED, AND THE MEASUREMENT THAT DECIDED IT IS RECORDED.
+  //
+  // It used to be composed from TWO families named by hand — the standalone skills and their
+  // plugin-form twins — and the question IN-04 asked was whether the kit authority could answer
+  // "every shipped surface family, agent adapters excluded" instead. It can, and the measurement is
+  // the reason this is a derivation rather than a promote trigger: `SPAWN_GRANT_SCAN_PARTS` enumerates
+  // FOUR families (agent, skill, plugin-skill, packaging), and the two hand-named ones were three
+  // short of it by one whole family. That missing family is `packaging` — which is where
+  // `agent-factory/packaging/slash-command.template.md` lives, and CLAUDE.md's own format table
+  // records `model` as legal frontmatter on a slash command. The surface IN-04 named as its promote
+  // trigger was the very one sitting outside the arm, so promoting later was never going to be soon
+  // enough.
+  //
+  // PARTITIONED OUT OF THE ONE COMPOSITION, on the same prefix the composition was built from, exactly
+  // as `PACKAGING_TEMPLATES` above does for the WR-05 pass line. No second read of any directory, no
+  // hand-maintained family list to rot beside it, and a fifth family added to the composition enters
+  // this arm in the commit that adds it. The derived count is published in the run summary below.
+  //
+  // AN UNADMITTABLE SURFACE IS DELIBERATELY NOT RE-REPORTED BY THIS ARM. guard_wr05 already names it by
   // file and by enumerated code and the gate fails closed on that finding, so the soundness of this
   // arm rests on the EXIT CODE rather than on silence — and a second sentence for one fact is the
-  // duplication this gate's own conventions refuse.
-  const nonAgentSurfaces = [
-    ...SKILL_ADAPTERS,
-    ...PLUGIN_SKILL_RELS.map((rel) => `skills/${rel}`),
-  ].sort();
+  // duplication this gate's own conventions refuse. The packaging templates are the reason this
+  // paragraph is load-bearing rather than defensive: they carry a `kind:`/`tier:` frontmatter the
+  // canonical adapter schema does not admit, so they reach this arm and are skipped by it.
+  const nonAgentSurfaces = SPAWN_GRANT_SCAN.filter(
+    (f) => !f.startsWith(spawnGrantScanPrefix("agent")),
+  );
   const strayPins: string[] = [];
   for (const rel of nonAgentSurfaces) {
     const parsed = admit(readText(rel));
