@@ -34,7 +34,13 @@ import {
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import { listRoles } from "./kit-model.js";
-import { readModelsConfig, resolvedPresetsIn } from "./model-tiers.js";
+import {
+  MIRRORED_RESOLVED_PRESET_PREFIX,
+  mirroredResolvedPresetLine,
+  mirroredResolvedPresetsIn,
+  readModelsConfig,
+  resolvedPresetsIn,
+} from "./model-tiers.js";
 
 const ROOT = join(import.meta.dirname, "..");
 const GATE_JS = join(ROOT, "scripts", "adapters-freshness.js");
@@ -323,6 +329,51 @@ function mirrorConfigDirectoryIntoTheTwinList(m: string): void {
   writeFileSync(p, text.replace(anchor, `${inserted}${anchor}`), "utf8");
 }
 
+/**
+ * Delete the mirrored generator's ASSIGNMENT announcement, leaving its preset line intact.
+ *
+ * A separate helper from `stripAnnouncement` on purpose: "the run announced no preset" and "the run
+ * announced no assignment" are different facts with different findings, and a helper that removed
+ * both would make one case unable to tell which branch it exercised.
+ */
+function stripAssignmentAnnouncement(m: string): void {
+  const p = join(m, "scripts", "generate-role-adapters.js");
+  const lines = readFileSync(p, "utf8").split("\n");
+  const at = lines
+    .map((l, i) => [l, i] as const)
+    .filter(([l]) => l.includes("resolvedAssignmentLine(") && l.includes("console.log"));
+  if (at.length !== 1) {
+    throw new Error(
+      `PREMISE: expected exactly one assignment announcement in the mirrored generator, found ${String(at.length)} — this case would otherwise be deleting the wrong line, or nothing`,
+    );
+  }
+  lines.splice(at[0][1], 1);
+  writeFileSync(p, lines.join("\n"), "utf8");
+}
+
+/**
+ * Make the mirrored generator announce a member count ONE SHORT of the map it actually resolved.
+ *
+ * The whole point of the member count is that a vacuity floor catches an EMPTY resolution and never
+ * a silently SHORT one, so the shortness must be planted into the ANNOUNCEMENT while the emitted
+ * adapters stay complete — otherwise the set/byte halves would catch it and the cross-check would
+ * be passing on someone else's work.
+ */
+function shortenAnnouncedMemberCount(m: string): void {
+  const p = join(m, "scripts", "generate-role-adapters.js");
+  const text = readFileSync(p, "utf8");
+  const anchor = "resolvedAssignmentLine(models, modelsConfig.overrides.size)";
+  const hits = text.split(anchor).length - 1;
+  if (hits !== 1) {
+    throw new Error(
+      `PREMISE: expected exactly one \`${anchor}\` call to shorten, found ${String(hits)}`,
+    );
+  }
+  const shortened =
+    "resolvedAssignmentLine(new Map([...models].slice(1)), modelsConfig.overrides.size)";
+  writeFileSync(p, text.replace(anchor, shortened), "utf8");
+}
+
 /** Plant a `models` block at the in-kit configuration location of a mirror. */
 function plantModelsConfig(m: string, models: unknown): void {
   const dir = join(m, "agent-factory", "config");
@@ -342,7 +393,17 @@ describe("adapters-freshness.js — the D-04 zero-config pin is asserted, not in
     expect(r.stdout).toContain("0 byte difference(s)");
     // The pin itself: the run says which resolution it compared, rather than leaving a reader to
     // deduce it from a directory listing the gate happens not to have copied.
-    expect(resolvedPresetsIn(r.stdout)).toEqual(["none"]);
+    //
+    // PARSED THROUGH THE MIRRORED GRAMMAR'S OWN READER, not the generator's (finding WR-04). This
+    // is THIS GATE'S verdict — a different speaker making a different claim — and on the success
+    // path the child's stdout is not forwarded, so this line is all there is. Reading it with the
+    // generator's reader is what let a HAND-WRITTEN LITERAL in the gate stand in for the
+    // generator's announcement while this case reported a round trip.
+    expect(mirroredResolvedPresetsIn(r.stdout)).toEqual(["none"]);
+    expect(
+      resolvedPresetsIn(r.stdout),
+      "the two grammars must not be conflated: this stdout carries no GENERATOR announcement",
+    ).toEqual([]);
   });
 
   it("Case 8 (PREMISE): the script-root mirror harness itself runs the gate GREEN before anything is mutated", () => {
@@ -351,7 +412,7 @@ describe("adapters-freshness.js — the D-04 zero-config pin is asserted, not in
     const r = runMirroredGate(m);
     expect(r.status, r.stdout + r.stderr).toBe(0);
     expect(r.stdout).toContain(FRESH_MARKER);
-    expect(resolvedPresetsIn(r.stdout)).toEqual(["none"]);
+    expect(mirroredResolvedPresetsIn(r.stdout)).toEqual(["none"]);
   });
 
   it("Case 9 (RED, absent line): a child that announces NOTHING fails the gate closed, naming the absence", () => {
@@ -419,5 +480,116 @@ describe("adapters-freshness.js — the D-04 zero-config pin is asserted, not in
       deleteAt,
       "the strip must happen BEFORE the child is spawned — a deletion afterwards strips nothing",
     ).toBeLessThan(spawnAt);
+  });
+
+  // ═════════════════════════════════════════════════════════════════════════════════════════════
+  // THE `roles` HALF OF THE SAME HOLE (plan 29.1-07, finding CR-01)
+  //
+  // Case 10 above performs the future edit with a `preset` key and the gate goes red. The `roles`
+  // half had NO case, and that is not a coverage gap in the abstract: the verifier performed
+  // exactly this edit against the committed .js and watched the gate print the zero-config answer
+  // and exit 0 while two committed adapters carried `model: opus`. `resolveModels` takes two inputs
+  // and the pin observed one of them.
+  //
+  // The cases below are numbered from 12 because Case 11 is already taken by the CHECK_ROOT source
+  // pin above; renumbering a committed case to match a plan's numbering would move a name other
+  // work keys on for no behavioural gain.
+  // ═════════════════════════════════════════════════════════════════════════════════════════════
+
+  it("Case 12 (RED, the roles HALF of the future edit): a mirrored roles block with NO preset key makes the gate name the override count", () => {
+    const m = scriptRootMirror();
+    plantModelsConfig(m, { roles: { orchestrator: "opus", "security-nfr": "opus" } });
+
+    // ── THE PLANT'S OWN PREMISE, asserted through the reader the generator uses. A typo in the
+    // fixture would leave the mirrored run resolving zero overrides and this case passing for a
+    // reason that has nothing to do with what it claims. BOTH halves are asserted: two overrides,
+    // and the DEFAULT preset — because a plant that accidentally set a preset would be re-running
+    // Case 10 under a new name.
+    const stems = listRoles(m).map((f) => f.slice(0, -".md".length));
+    expect(stems.length, "the mirror must carry a role corpus to validate the plant against")
+      .toBeGreaterThan(0);
+    const planted = readModelsConfig(m, stems);
+    expect(planted.ok, planted.ok ? "" : planted.reason).toBe(true);
+    if (!planted.ok) return;
+    expect(
+      planted.value.preset,
+      "PREMISE: the plant must carry NO preset key — that is what makes this the `roles` half",
+    ).toBe("none");
+    expect(planted.value.overrides.size, "PREMISE: exactly two overrides were planted").toBe(2);
+
+    // The future edit itself: the configuration directory joins the twin list.
+    mirrorConfigDirectoryIntoTheTwinList(m);
+
+    const r = runMirroredGate(m);
+    expect(r.status, r.stdout + r.stderr).not.toBe(0);
+    expect(r.stdout).not.toContain(FRESH_MARKER);
+    // The finding must be about the OVERRIDE COUNT, naming what it found and what it requires. A
+    // preset finding would be wrong here: the preset genuinely is `none`, which is exactly why the
+    // preset pin alone certified this run.
+    expect(r.stdout).toMatch(/override/i);
+    expect(r.stdout).toContain("2");
+    // …and it must fire BEFORE the byte comparison, or the pin is indistinguishable from ordinary
+    // staleness.
+    expect(
+      r.stdout,
+      "the assignment assertion must precede the byte comparison",
+    ).not.toContain("STALE:");
+  });
+
+  it("Case 13 (RED): a mirrored run whose announced member count disagrees with the derived adapter count fails closed", () => {
+    // A VACUITY FLOOR CATCHES AN EMPTY RESOLUTION AND NEVER A SILENTLY SHORT ONE. The announced
+    // member count is therefore cross-checked against a count THIS GATE derived itself through
+    // listAgentAdapters(); an announcement that only agreed with itself would prove nothing.
+    const m = scriptRootMirror();
+    shortenAnnouncedMemberCount(m);
+
+    const r = runMirroredGate(m);
+    expect(r.status, r.stdout + r.stderr).not.toBe(0);
+    expect(r.stdout).not.toContain(FRESH_MARKER);
+    // BOTH numbers must be named, or the reader cannot tell which side is wrong.
+    const committed = readdirSync(join(ROOT, ".claude/agents")).filter((n) => n.endsWith(".md"));
+    expect(committed.length, "PREMISE: the committed adapter set must be non-empty")
+      .toBeGreaterThan(0);
+    expect(r.stdout).toContain(String(committed.length));
+    expect(r.stdout).toContain(String(committed.length - 1));
+  });
+
+  it("Case 14 (RED): a mirrored run that announces NO assignment line at all fails closed", () => {
+    // Silence is not consent here either — the same direction Case 9 pins for the preset line. The
+    // preset line is left INTACT so this case cannot pass through the preset-absent branch.
+    const m = scriptRootMirror();
+    stripAssignmentAnnouncement(m);
+
+    const r = runMirroredGate(m);
+    expect(r.status, r.stdout + r.stderr).not.toBe(0);
+    expect(r.stdout).not.toContain(FRESH_MARKER);
+    expect(r.stdout).toMatch(/assignment/i);
+  });
+
+  it("Case 15 (PREMISE): the gate's own verdict line is parsed through the mirrored grammar's reader, not a hand-written literal", () => {
+    // FINDING WR-04. This gate used to spell its own verdict marker, inside the file that argues the
+    // marker must never be hand-spelled — and it was load-bearing rather than cosmetic, because
+    // Cases 7 and 8 parse THIS gate's stdout, so they were reading that literal rather than
+    // anything the generator emits.
+    const src = readFileSync(GATE_JS, "utf8");
+    expect(
+      src.includes(MIRRORED_RESOLVED_PRESET_PREFIX),
+      "the gate must SPELL no announcement marker of its own",
+    ).toBe(false);
+    expect(
+      src.includes("mirroredResolvedPresetLine"),
+      "the gate must produce its verdict through the exported emitter",
+    ).toBe(true);
+
+    // COMPARED, NOT EYEBALLED: the live verdict line must be byte-identical to what the emitter
+    // produces for the preset this gate requires.
+    const r = runGate();
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    const verdict = r.stdout
+      .split("\n")
+      .map((l) => l.trimEnd())
+      .filter((l) => l.startsWith(MIRRORED_RESOLVED_PRESET_PREFIX));
+    expect(verdict).toHaveLength(1);
+    expect(verdict[0]).toBe(mirroredResolvedPresetLine("none"));
   });
 });

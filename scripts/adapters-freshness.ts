@@ -77,15 +77,38 @@
 // silently begins comparing a CONFIGURED regeneration against the committed zero-config adapters
 // while every case in the repository stays green. Absence is not a pin.
 //
-// So the generator ANNOUNCES the preset it resolved and this gate ASSERTS that it reads `none`,
-// through the one grammar both sites share in scripts/model-tiers.ts. Three outcomes, three
-// findings: the line is ABSENT (a failure, never an agreement — a gate that reads a missing line as
-// consent is the shape this repository has paid for repeatedly), the line NAMES SOMETHING ELSE (the
-// comparison is then about a different artifact than the one the committed adapters claim to be), or
-// the line names `none` and the gate proceeds. A stream carrying MORE THAN ONE line is ambiguous and
-// is refused too: two announcements that disagree cannot both be the resolution this run used.
+// So the generator ANNOUNCES what it resolved and this gate ASSERTS it, through the grammars both
+// sites share in scripts/model-tiers.ts. Three outcomes, three findings: the line is ABSENT (a
+// failure, never an agreement — a gate that reads a missing line as consent is the shape this
+// repository has paid for repeatedly), the line NAMES SOMETHING ELSE (the comparison is then about a
+// different artifact than the one the committed adapters claim to be), or the line agrees and the
+// gate proceeds. A stream carrying MORE THAN ONE line is ambiguous and is refused too: two
+// announcements that disagree cannot both be the resolution this run used.
 //
-// THIS PHASE INTRODUCES NO ENVIRONMENT VARIABLE, and the pin deliberately does not use one. If a
+// THIS GATE NOW ASSERTS THE RESOLUTION, NOT ONE OF ITS INPUTS (finding CR-01, plan 29.1-07). The
+// first version of this property asserted the PRESET alone, and `resolveModels` takes two inputs — a
+// preset AND a sparse override map. A mirrored run under `{"models":{"roles":{...}}}` with no
+// `preset` key truthfully announces `none`, so the pin built to stop "a configured regeneration
+// certified as the zero-config output" certified exactly that: reproduced end to end, this gate
+// printed its zero-config verdict and exited 0 while two adapters carried `model: opus`. Four facts
+// are therefore asserted, each its own finding:
+//
+//   • the announced PRESET is `none`                        — the original assertion, unchanged;
+//   • the announced OVERRIDE COUNT is 0                     — the half the preset line cannot see;
+//   • the announced DISTINCT ALIAS SET is the zero-config   — derived from the degrading-policy
+//     alias and nothing else                                  authority, never spelled here;
+//   • the announced MEMBER COUNT equals the adapter count THIS GATE derived through
+//     listAgentAdapters() — because a vacuity floor catches an EMPTY resolution and never a
+//     silently SHORT one, and an announcement checked only against itself is that same floor. This
+//     one is asserted AFTER the set half, which names WHICH member is extra or missing and is the
+//     better finding for the defect that also moves this number.
+//
+// A payload this gate cannot READ is its own fourth outcome, refused by name rather than folded
+// into the absent case: "the run announced nothing" and "the run announced something unreadable"
+// have different remedies.
+//
+// THIS PHASE INTRODUCES NO ENVIRONMENT VARIABLE, and the pin deliberately does not use one. The
+// existing `CHECK_ROOT` deletion below stands unchanged and is the only environment rule here. If a
 // future revision ever adds a variable able to override the resolution — an "assume zero config"
 // switch, a config-path override, anything of that shape — IT MUST BE `delete`d FROM `childEnv` BY
 // NAME ALONGSIDE `CHECK_ROOT`, for the reason already recorded at that deletion: an inherited
@@ -102,7 +125,13 @@ import { mkdtempSync, mkdirSync, cpSync, rmSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { listAgentAdapters } from "./kit-model.js";
-import { resolvedPresetsIn } from "./model-tiers.js";
+import {
+  inheritForEveryStem,
+  mirroredResolvedPresetLine,
+  resolvedAssignmentsIn,
+  resolvedPresetsIn,
+  type PresetName,
+} from "./model-tiers.js";
 
 // TWO ROOTS, deliberately separated (Phase 27 / SPAWN-02). They were implicitly one before, which
 // is what made this gate impossible to point at a hermetic mirror.
@@ -236,7 +265,7 @@ if (r.status !== 0) {
 // purpose: a configured regeneration also moves bytes, so a gate that let this fall through to the
 // drift report would produce a finding that looks like ordinary staleness and says nothing about
 // which resolution it compared.
-const ZERO_CONFIG_PRESET = "none";
+const ZERO_CONFIG_PRESET: PresetName = "none";
 const WHY_ZERO_CONFIG =
   "This gate's comparison is a statement about the ZERO-CONFIG output: the committed adapters are " +
   "the adapters the generator produces when nothing is configured (D-04). A mirrored run that " +
@@ -257,12 +286,85 @@ if (announced.length > 1) {
     `Adapter freshness check FAILED: the mirrored regeneration printed ${announced.length} resolved-preset lines (${announced.map((p) => `"${p}"`).join(", ")}) — an ambiguous answer, refused rather than resolved by taking one of them. This gate requires exactly one, naming "${ZERO_CONFIG_PRESET}".\n${WHY_ZERO_CONFIG}`,
   );
 }
-if (announced[0] !== ZERO_CONFIG_PRESET) {
+const announcedPreset = announced[0];
+if (announcedPreset !== ZERO_CONFIG_PRESET) {
   die(
-    `Adapter freshness check FAILED: the mirrored regeneration resolved the model preset as "${announced[0]}", and this gate requires "${ZERO_CONFIG_PRESET}".\n` +
+    `Adapter freshness check FAILED: the mirrored regeneration resolved the model preset as "${announcedPreset}", and this gate requires "${ZERO_CONFIG_PRESET}".\n` +
       `${WHY_ZERO_CONFIG}\n` +
       "The likely cause is a configuration file reaching the regeneration mirror — check the twin " +
       "list in this script, and check the tree under judgement for a `models` block.",
+  );
+}
+
+// ── The SECOND half of the same pin: the RESOLUTION, not one of its two inputs (CR-01) ───────────
+//
+// The preset assertion above observes ONE of `resolveModels`'s two inputs. A mirrored run under
+// `{"models":{"roles":{...}}}` with no `preset` key truthfully announces `none` — the zero-config
+// answer — while emitting adapters that are not the zero-config output. That was reproduced end to
+// end against the committed .js: this gate printed the zero-config verdict and exited 0 with two
+// adapters carrying `model: opus`, and `guard_model_assignment` passed green beside it. Every gate
+// in the repository agreed while D-04 was false.
+//
+// So the same three-outcome discipline the preset pin uses is applied to the assignment line, and
+// extended to a FOURTH outcome the preset grammar does not have: the reader returns no result, more
+// than one result, or a single REFUSED result — each its own finding — and only then is the payload
+// read. A refused payload is deliberately not folded into the absent case: "the run announced
+// nothing" and "the run announced something this gate cannot read" have different remedies.
+//
+// THE REQUIRED ALIAS SET IS DERIVED FROM THE DEGRADING-POLICY AUTHORITY, never spelled here.
+// `inheritForEveryStem` is the one implementation of "what does `inherit` everywhere look like" in
+// this tree, so the alias this gate requires moves with that authority rather than beside it.
+const ZERO_CONFIG_ALIASES = [...new Set(inheritForEveryStem(["any-stem"]).values())].sort();
+if (ZERO_CONFIG_ALIASES.length !== 1) {
+  die(
+    `Adapter freshness check FAILED: the zero-config alias set derived from the degrading-policy authority holds ${ZERO_CONFIG_ALIASES.length} member(s) rather than exactly one, so this gate has no single alias to require. This is a defect in scripts/model-tiers.ts, not in the adapters.`,
+  );
+}
+
+const assignments = resolvedAssignmentsIn(r.stdout ?? "");
+if (assignments.length === 0) {
+  die(
+    `Adapter freshness check FAILED: the mirrored regeneration printed NO resolved-assignment line, so this gate can see which PRESET the run was handed but not what the run RESOLVED. Announcing the preset alone is the half-blind pin finding CR-01 named.\n` +
+      "An absent line is a FAILURE here and never an agreement, for the same reason the absent " +
+      "preset line is.\n" +
+      `${WHY_ZERO_CONFIG}\nRun \`${REGEN_CMD}\` and confirm the generator still announces its resolved assignment.`,
+  );
+}
+if (assignments.length > 1) {
+  die(
+    `Adapter freshness check FAILED: the mirrored regeneration printed ${assignments.length} resolved-assignment lines — an ambiguous answer, refused rather than resolved by taking one of them. This gate requires exactly one.\n${WHY_ZERO_CONFIG}`,
+  );
+}
+const assignment = assignments[0];
+if (!assignment.ok) {
+  die(
+    `Adapter freshness check FAILED: the mirrored regeneration's resolved-assignment line could not be read.\n${assignment.reason}\n${WHY_ZERO_CONFIG}`,
+  );
+}
+
+if (assignment.value.overrides !== 0) {
+  die(
+    `Adapter freshness check FAILED: the mirrored regeneration applied ${assignment.value.overrides} per-role model override(s), and this gate requires 0.\n` +
+      `${WHY_ZERO_CONFIG}\n` +
+      "THIS IS THE HALF THE PRESET ASSERTION ABOVE CANNOT SEE (finding CR-01): a `models.roles` " +
+      "block with no `preset` key resolves the preset as \"none\" while overriding individual roles, " +
+      "so the preset line reads exactly as it does under zero configuration.\n" +
+      "The likely cause is a configuration file reaching the regeneration mirror — check the twin " +
+      "list in this script, and check the tree under judgement for a `models.roles` block.",
+  );
+}
+
+const announcedAliases = [...assignment.value.aliases].sort();
+if (
+  announcedAliases.length !== ZERO_CONFIG_ALIASES.length ||
+  announcedAliases.some((a, i) => a !== ZERO_CONFIG_ALIASES[i])
+) {
+  die(
+    `Adapter freshness check FAILED: the mirrored regeneration emitted the model alias(es) ${announcedAliases.map((a) => `"${a}"`).join(", ")}, and this gate requires exactly ${ZERO_CONFIG_ALIASES.map((a) => `"${a}"`).join(", ")}.\n` +
+      `${WHY_ZERO_CONFIG}\n` +
+      "The alias set is asserted BESIDE the counts because it is the one that survives a resolution " +
+      "reached by a route this gate did not anticipate: whatever produced them, an adapter carrying " +
+      "anything other than the zero-config alias is not the zero-config output.",
   );
 }
 
@@ -315,6 +417,33 @@ if (extra.length > 0 || missing.length > 0) {
   die(`${why}\nRun \`${REGEN_CMD}\` and commit the result.`);
 }
 
+// ── The MEMBER-COUNT cross-check, against a listing THIS GATE derived itself ──────
+//
+// PLACED AFTER THE SET HALF, DELIBERATELY. An orphan or a missing adapter also moves this number,
+// and the set half names WHICH member is extra or missing — a strictly better finding for the same
+// defect. A cross-check placed above it would preempt that finding and report an arithmetic
+// disagreement instead. By this line the two listings are provably set-equal, so the number below
+// is the one the announcing run actually produced.
+//
+// Still BEFORE the byte comparison, so a short resolution is never reported as ordinary staleness.
+//
+// WHY IT IS CHECKED AGAINST A DERIVATION OF THIS GATE'S OWN. A vacuity floor catches an EMPTY
+// resolution and never a silently SHORT one, and an announcement cross-checked against nothing but
+// itself is exactly that vacuity floor with more arithmetic. The expected number is therefore read
+// off `listAgentAdapters()` — the one authority in this tree for what an adapter is — rather than
+// off a constant or off the announcement. The same discipline is recorded on `tieredCorpusRefusals`
+// in scripts/model-tiers.ts, which derives its row count independently of the loop that consumes it.
+if (assignment.value.roles !== rebuiltNames.length) {
+  die(
+    `Adapter freshness check FAILED: the mirrored regeneration announced a resolution covering ${assignment.value.roles} role(s), while this gate derived ${rebuiltNames.length} regenerated adapter(s) through the shared adapter authority (set-equal to the ${committedNames.length} committed adapter(s) by the check above). The two numbers must agree.\n` +
+      `${WHY_ZERO_CONFIG}\n` +
+      "The count is cross-checked against a derivation this gate made itself precisely because an " +
+      "announcement that only agreed with itself would catch an EMPTY resolution and never a " +
+      "silently SHORT one.\n" +
+      `Run \`${REGEN_CMD}\` and commit the result.`,
+  );
+}
+
 // ── Half two: BYTE comparison over the (now provably equal) member set ───────────
 // Both sides are read by the SAME relative path, so a nested member is byte-compared at its own
 // depth rather than by basename.
@@ -342,15 +471,22 @@ if (differing.length > 0) {
   process.exit(1);
 }
 
-// The verdict states the RESOLUTION it compared beside what it compared. `announced[0]` is the value
-// this run read off the child's stdout and asserted above — the same value, not a restatement of the
-// requirement — so the line cannot claim a resolution the gate did not actually observe.
+// The verdict states the RESOLUTION it compared beside what it compared. `announcedPreset` is the
+// value this run read off the child's stdout and asserted above — the same value, not a restatement
+// of the requirement — so the line cannot claim a resolution the gate did not actually observe.
 //
-// THE SECOND LINE ENDS WITHOUT A FULL STOP, DELIBERATELY. It carries the same marker the generator
-// emits, so a reader of THIS gate's output can parse it with the same grammar; trailing punctuation
-// would become part of the parsed value and turn `none` into `none.`. Measured, not assumed — that
-// is exactly how the first draft of this line failed its own case.
+// THE SECOND LINE IS EMITTED, NOT SPELLED (finding WR-04). This file used to hand-write that
+// marker, in the same file whose header argues the marker must never be hand-written, and it was
+// load-bearing rather than cosmetic: on the success path the child's stdout is not forwarded, so
+// this gate's own oracle was parsing that literal instead of anything the generator emits. The line
+// now comes from `mirroredResolvedPresetLine`, declared in scripts/model-tiers.ts beside the reader
+// that parses it, so the marker has ONE owner and neither consumer spells it.
+//
+// The reason the line ends without a full stop SURVIVES that change, because the line is still
+// parsed: trailing punctuation would become part of the parsed value and turn `none` into `none.`.
+// Measured, not assumed — that is exactly how the first draft of this line failed its own case. It
+// is enforced at the emitter now rather than here.
 console.log(
-  `Adapters fresh: ${committedNames.length} adapter(s) compared in ${ADAPTER_DIR}, 0 byte difference(s), directory listings set-equal.\nMirrored generator resolved model preset: ${announced[0]}`,
+  `Adapters fresh: ${committedNames.length} adapter(s) compared in ${ADAPTER_DIR}, 0 byte difference(s), directory listings set-equal.\n${mirroredResolvedPresetLine(announcedPreset)}`,
 );
 process.exit(0);
