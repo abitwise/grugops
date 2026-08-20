@@ -135,9 +135,26 @@
 //    6  ROLES                    validate-agent-factory.ts       DERIVED (was 16, missing
 //                                                                frontend-ui). Plan 27-04.
 //    7  SCAN                     check-kit-refs.ts               PARTIALLY derived — the file entry
-//                                                                becomes a directory entry; the
+//                                                                becomes a directory entry.
+//                                                                Plan 27-04. AMENDED in plan
+//                                                                29.1-17 (finding R2-WR-05): this
+//                                                                row used to end "the
 //                                                                deliberately-omitted directories
-//                                                                stay omitted. Plan 27-04.
+//                                                                stay omitted", which is now one
+//                                                                member less true.
+//                                                                agent-factory/config JOINED the
+//                                                                set, because install.ts:1065
+//                                                                ships it to every installed user
+//                                                                and its absence was an omission,
+//                                                                not a judgment. It carries ONE
+//                                                                exemption — a self-reference to
+//                                                                an existing sibling — derived by
+//                                                                predicate, counted two-sided
+//                                                                (2 hits, 1 file) and published in
+//                                                                the verdict. Every REMAINING
+//                                                                omission (seed/, examples/,
+//                                                                install/, docs/, .planning/, the
+//                                                                root documents) is unchanged.
 //    8  GH_SCAN                  check-kit-refs.ts               Negative scan; scoped, not derived.
 //                                                                Plan 27-04.
 //    9  SKILLS / AGENT_REL       install/kit-source.ts           DERIVED via readdirSync self-

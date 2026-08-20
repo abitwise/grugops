@@ -683,15 +683,33 @@ describe("model dial — the documented closed sets equal the module's own, in B
 // `agent-factory/config/` references across the kit scan set — which includes this authority's own
 // directory — because the shared-install rewrite moved per-repository state to `.grugops/` and no
 // kit document may point a reader at a path inside the kit to edit. That gate is twenty-two phases
-// older than this dial and admits no exemption list.
+// older than this dial.
 //
-// SO THE OBLIGATION IS SPLIT BY AUDIENCE, WHICH IS WHAT THE TWO DOCUMENTS ALREADY ARE. The config
-// field reference is the developer-facing authority and lives outside the scan set; it names BOTH
-// locations by path and holds the precedence rule. The packaging authority is shipped kit prose; it
-// names the location a user configures, states that there are exactly as many locations as the
-// resolver declares, and points at the rule's home. The kit-internal path is absent from it BY
-// DESIGN, and that absence is asserted POSITIVELY below rather than left as an omission — so a
-// later editor who "helpfully" adds the path is told by this oracle as well as by the gate.
+// CORRECTED 2026-08-20 (finding R2-WR-05, plan 29.1-17). Three sentences that stood here are now
+// false and are replaced rather than left to be believed. They said the gate admitted no exemption
+// of any kind, that the config field reference lived outside the gate's scan set, and that the
+// obligation was therefore split by AUDIENCE. What is true today:
+//
+//   - THE CONFIGURATION DIRECTORY IS INSIDE THE SCAN SET. `agent-factory/config` joined
+//     `check-kit-refs`'s `SCAN` in round 3. Its earlier absence was an omission, not an audience
+//     judgment: `install/install.ts:1065` recursively copies the WHOLE `agent-factory/` tree,
+//     `config/` included, to every installed user, so the field reference is shipped kit prose by
+//     the same measure the packaging authority is.
+//   - THE GATE CARRIES ONE ARGUED, DERIVED, COUNT-ASSERTED EXEMPTION. A mention inside that
+//     directory naming an existing sibling is exempt; the exemption is exactly two hits in one
+//     file, asserted two-sided in the gate and published in its pass line. Everything else in that
+//     directory fails as it always has.
+//   - THE OBLIGATION IS NO LONGER SPLIT BY AUDIENCE. Both documents are under one scan, and the
+//     obligation is discharged by their two ROLES: the field reference names both locations and
+//     holds the precedence rule; the packaging authority names the location a user configures,
+//     states that there are exactly as many locations as the resolver declares, and points at the
+//     rule's home. That second half is unchanged and is still the shape D-13 asks for.
+//
+// The kit-internal path is absent from the packaging authority BY DESIGN, and that absence is
+// asserted POSITIVELY below rather than left as an omission — so a later editor who "helpfully"
+// adds the path is told by this oracle as well as by the gate. That assertion is unaffected by the
+// correction above: the exemption is scoped to the configuration directory, and the packaging
+// authority is not in it.
 //
 // WHAT THIS CONSTANT PINS, RENAMED TO SAY SO (finding R2-WR-04). It was named for the RULE, and the
 // name claimed more than the mechanism delivers: what it holds is one WORDING of the precedence rule
