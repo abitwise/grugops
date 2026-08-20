@@ -738,7 +738,7 @@ loop terminating only by an unstated argument).
   4. The dial's Claude-Code-only reach is **stated in the kit and in `CLAUDE.md`**, whose "What NOT to Use" entry against non-`inherit` wrappers is amended to name this mechanism as the documented reason. The kit's single authority states that reach as a **property of what grugops emits** — per-agent adapters at `.claude/agents/` alone — and every clause it carries about the other four host CLIs travels with a named vendor source. (MODEL-06)
   5. Any cost or limit-savings claim is **measured** with `scripts/measure-cost.ts`, or carries `UNKNOWN - verify`. A tier assignment is not evidence of a saving. (MODEL-07)
 
-**Plans**: 13/17 plans executed — 11 executed (6 original, then gap-closure round 1's `29.1-07` … `29.1-11`), plus **gap-closure round 2 (`29.1-12` … `29.1-17`) planned 2026-08-20** after round-2 verification returned `gaps_found` at 4/5 with MODEL-05 REGRESSED. **Waves are strictly sequential throughout (1→11, then 1→6 for round 3's plans)**. Four `.ts` files need their committed `.js` rebuilt (`model-tiers`, `generate-role-adapters`, `check-foundation-guards`, `adapters-freshness`), and two plans rebuilding a committed `.js` concurrently tears the output (the phase-27 round-5 precedent). Plan `29.1-02` is **not autonomous**: it opens with a blocking `checkpoint:decision` on D-05's one-way config key shape.
+**Plans**: 14/17 plans executed — 11 executed (6 original, then gap-closure round 1's `29.1-07` … `29.1-11`), plus **gap-closure round 2 (`29.1-12` … `29.1-17`) planned 2026-08-20** after round-2 verification returned `gaps_found` at 4/5 with MODEL-05 REGRESSED. **Waves are strictly sequential throughout (1→11, then 1→6 for round 3's plans)**. Four `.ts` files need their committed `.js` rebuilt (`model-tiers`, `generate-role-adapters`, `check-foundation-guards`, `adapters-freshness`), and two plans rebuilding a committed `.js` concurrently tears the output (the phase-27 round-5 precedent). Plan `29.1-02` is **not autonomous**: it opens with a blocking `checkpoint:decision` on D-05's one-way config key shape.
 
 Plans:
 
@@ -800,7 +800,7 @@ Plans:
 
 **Wave 3 (round 3)** *(blocked on 29.1-13)*
 
-- [ ] 29.1-14-PLAN.md — R2-WR-02 + R2-IN-05: bound the CI-wiring pin at the next step and probe comment-stripped COMMAND lines by exact equality, assert the block's boundedness rather than relying on today's coincidence, apply the same discipline to the sibling unbounded reader and COUNT the class, and replace the adapter-cleanliness command with a form that can see an untracked adapter — every change proven by mutations the old pin could not see, with the old shape demonstrated green on the same input [MODEL-01, MODEL-05]
+- [x] 29.1-14-PLAN.md — R2-WR-02 + R2-IN-05: bound the CI-wiring pin at the next step and probe comment-stripped COMMAND lines by exact equality, assert the block's boundedness rather than relying on today's coincidence, apply the same discipline to the sibling unbounded reader and COUNT the class, and replace the adapter-cleanliness command with a form that can see an untracked adapter — every change proven by mutations the old pin could not see, with the old shape demonstrated green on the same input [MODEL-01, MODEL-05]
 
 **Wave 4 (round 3)** *(blocked on 29.1-14)*
 
