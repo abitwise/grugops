@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 81
+open_count: 84
 waived_count: 0
 fixed_count: 1
-total_count: 82
-last_updated: 2026-08-20T20:03:39.929Z
+total_count: 85
+last_updated: 2026-08-20T20:24:49.921Z
 ---
 
 # Broken Windows Ledger
@@ -97,6 +97,9 @@ last_updated: 2026-08-20T20:03:39.929Z
 | 80 | 29.1 | deviation | scripts/check-foundation-guards.test.ts |  | 29.1-19: (r-class-prefix) compares CANONICAL SOURCE SPELLINGS across a derived member set — it does not run the members' readers or compare their outputs. A member spelling both the right-bound marker and the slice base canonically while computing something else (a second slice under another variable, canonical literals in a dead branch) satisfies every assertion in it. Direction: FAIL-OPEN. Bounded for today's two members by their own synthetic-input bound proofs, (r-bound-synthetic) and Case 8b. | open |  | 2026-08-20T19:55:57.940Z |  |
 | 81 | 29.1 | deviation | scripts/check-foundation-guards.test.ts |  | 29.1-19: (o-one-consumer)'s assembled-pattern arm recognises ONE SPELLING of the regex-escape idiom — the bytes this tree writes verbatim in audit-prepass.ts, check-foundation-guards.ts and voice-model.ts — and asks it of a single comment-stripped LINE. A differently spelled escape, or an assembly split across lines, is still not counted and therefore not disclosed by the residual set the case publishes. Direction: FAIL-OPEN. | open |  | 2026-08-20T20:00:49.350Z |  |
 | 82 | 29.1 | deviation | scripts/model-dial-consistency.test.ts |  | 29.1-19: the third tautology site was closed OUTSIDE the plan's declared files_modified list. The plan's must_haves require three deleted tautologies and three discriminating bound proofs, and only two sites existed in the two declared test files; R3-WR-01 names this file as the third. Recorded so the scope expansion is visible rather than inferred from the diff. | open |  | 2026-08-20T20:03:39.929Z |  |
+| 83 | 29.1 | deviation | scripts/model-dial-consistency.test.ts |  | 29.1-20: sectionCitationsIn recognises ONE citation grammar — an inline code span whose content opens with the third-level heading marker. A cross-document section citation written as bare prose without inline code delimiters, or one naming a heading at any level other than third, is not derived, so it is neither pinned by the membership assertion nor counted by the two-sided cardinality pin. Direction: FAIL-OPEN — such a citation ships unpinned and its target may be renamed silently. | open |  | 2026-08-20T20:24:49.779Z |  |
+| 84 | 29.1 | deviation | scripts/model-dial-consistency.test.ts |  | 29.1-20: the synthetic bound case's INPUT is derived from the reader under test — the truncation calls modelBulletRegion() so that the appended bullet is the only candidate right bound. A mutation to the reader therefore changes the input as well as the subject. Measured: dropping the reader's bullet arm reds this case on its own input PREMISE (expected 6 to be 1) rather than on the bound-effect assertion; the bound-effect assertion itself is measured red only by the wholesale bound deletion. Direction: FAIL-CLOSED — the case refuses to measure on an input it cannot vouch for rather than measuring wrongly — but the premise, not the effect, is what catches an arm-level mutation. | open |  | 2026-08-20T20:24:49.851Z |  |
+| 85 | 29.1 | deviation | scripts/model-dial-consistency.test.ts |  | 29.1-20: this plan's Task 2 declared the deletion of two containment assertions that plan 29.1-19 had ALREADY deleted as its Rule-2 scope addition (ledger row 82). The plan's prescribed pre-fix reproduction — delete the right bound and observe MEASURED GREEN — is therefore not reproducible on this tree: measured this session it REDS, 1 failed / 36 passed of 37. Recorded so a later reader does not read the absent green as an unrun step. | open |  | 2026-08-20T20:24:49.921Z |  |
 
 ````json
 [
@@ -1082,6 +1085,42 @@ last_updated: 2026-08-20T20:03:39.929Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-08-20T20:03:39.929Z",
+    "resolved_at": null
+  },
+  {
+    "id": 83,
+    "kind": "deviation",
+    "phase": "29.1",
+    "file": "scripts/model-dial-consistency.test.ts",
+    "line": null,
+    "description": "29.1-20: sectionCitationsIn recognises ONE citation grammar — an inline code span whose content opens with the third-level heading marker. A cross-document section citation written as bare prose without inline code delimiters, or one naming a heading at any level other than third, is not derived, so it is neither pinned by the membership assertion nor counted by the two-sided cardinality pin. Direction: FAIL-OPEN — such a citation ships unpinned and its target may be renamed silently.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-08-20T20:24:49.779Z",
+    "resolved_at": null
+  },
+  {
+    "id": 84,
+    "kind": "deviation",
+    "phase": "29.1",
+    "file": "scripts/model-dial-consistency.test.ts",
+    "line": null,
+    "description": "29.1-20: the synthetic bound case's INPUT is derived from the reader under test — the truncation calls modelBulletRegion() so that the appended bullet is the only candidate right bound. A mutation to the reader therefore changes the input as well as the subject. Measured: dropping the reader's bullet arm reds this case on its own input PREMISE (expected 6 to be 1) rather than on the bound-effect assertion; the bound-effect assertion itself is measured red only by the wholesale bound deletion. Direction: FAIL-CLOSED — the case refuses to measure on an input it cannot vouch for rather than measuring wrongly — but the premise, not the effect, is what catches an arm-level mutation.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-08-20T20:24:49.851Z",
+    "resolved_at": null
+  },
+  {
+    "id": 85,
+    "kind": "deviation",
+    "phase": "29.1",
+    "file": "scripts/model-dial-consistency.test.ts",
+    "line": null,
+    "description": "29.1-20: this plan's Task 2 declared the deletion of two containment assertions that plan 29.1-19 had ALREADY deleted as its Rule-2 scope addition (ledger row 82). The plan's prescribed pre-fix reproduction — delete the right bound and observe MEASURED GREEN — is therefore not reproducible on this tree: measured this session it REDS, 1 failed / 36 passed of 37. Recorded so a later reader does not read the absent green as an unrun step.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-08-20T20:24:49.921Z",
     "resolved_at": null
   }
 ]

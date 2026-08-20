@@ -977,6 +977,30 @@ const RETIRED_PRECEDENCE_PHRASINGS = [
 const MODEL_BULLET_MARKER = "- **`model`**";
 
 /**
+ * The right-bound needle the region reader stops at — the start of the NEXT top-level bullet.
+ *
+ * HOISTED OUT OF THE READER (plan 29.1-20) so the synthetic input below is BUILT FROM THE SAME BYTES
+ * THE BOUND SEARCHES FOR. A hand-typed `- ` in the test input and a hand-typed `"\n- "` in the reader
+ * are two spellings of one fact, and the day one of them moves the synthetic case goes quietly
+ * vacuous — the appended bullet stops being a bullet the reader can see, and the assertion that the
+ * region excludes it starts passing for the wrong reason.
+ */
+const MODEL_BULLET_RIGHT_BOUND = "\n- ";
+
+/** The distinctive phrase the synthetic appended bullet carries — the needle the bound must exclude. */
+const APPENDED_BULLET_PHRASE = "a bullet appended after the model bullet by the synthetic-input case";
+
+/**
+ * The synthetic top-level bullet appended after everything the authority carries, so the region
+ * reader's right bound can be exercised on TEXT APPENDED AFTER THE REGION — the exact threat its own
+ * docstring names and the one thing the committed document cannot supply.
+ *
+ * Its bullet marker is derived from `MODEL_BULLET_RIGHT_BOUND` rather than typed, so the input and
+ * the predicate measuring it cannot drift apart.
+ */
+const APPENDED_BULLET = `${MODEL_BULLET_RIGHT_BOUND.slice(1)}**appended** — ${APPENDED_BULLET_PHRASE}.`;
+
+/**
  * The `model` bullet, bounded at BOTH ends: from its own marker to the NEXT top-level bullet marker,
  * falling back to the next heading when no further bullet exists.
  *
@@ -990,9 +1014,16 @@ const MODEL_BULLET_MARKER = "- **`model`**";
  * BOTH BOUNDS ARE ASSERTED FOUND BEFORE ANY CONTENT IS RETURNED, and a missing bound THROWS by name
  * rather than yielding "" — an empty region satisfies every absence assertion in this file, which is
  * the vacuous green this reader exists to refuse.
+ *
+ * THE ARGUMENT IS OPTIONAL AND THE DEFAULT IS WHAT PRODUCTION READS. (Plan 29.1-20, R3-WR-01) Every
+ * case in this file that asks about the SHIPPED bullet calls this with no argument and gets the live
+ * authority, exactly as before — no call site moved. The argument exists so the RIGHT BOUND can be
+ * exercised on text the reader has never seen, without a second reader being written to do it. A
+ * second reader would be a second implementation of the bound, and the case proving one of them
+ * would say nothing about the other.
  */
-function modelBulletRegion(): string {
-  const authority = readSurface("authority");
+function modelBulletRegion(text?: string): string {
+  const authority = text ?? readSurface("authority");
   const at = authority.indexOf(MODEL_BULLET_MARKER);
   if (at === -1) {
     throw new Error(
@@ -1002,7 +1033,7 @@ function modelBulletRegion(): string {
     );
   }
   const rest = authority.slice(at + MODEL_BULLET_MARKER.length);
-  const nextBullet = rest.indexOf("\n- ");
+  const nextBullet = rest.indexOf(MODEL_BULLET_RIGHT_BOUND);
   const nextHeading = rest.indexOf("\n## ");
   const ends = [nextBullet, nextHeading].filter((i) => i !== -1);
   if (ends.length === 0) {
@@ -1195,6 +1226,79 @@ describe("model dial — the configuration locations are documented, and the rul
     expect(
       region === unboundedRegion,
       `CONTROL: the bounded and the unbounded read of the same authority must DIFFER. They came back byte-identical (${region.length} bytes), which means the reader is not bounding anything.`,
+    ).toBe(false);
+  });
+
+  // (Plan 29.1-20, R3-WR-01) THE SAME BOUND, ON TEXT THE READER HAS NEVER SEEN.
+  //
+  // WHY A SECOND CASE RATHER THAN A WIDER FIRST ONE. The case above measures the bound against the
+  // COMMITTED document, whose `model` bullet happens to be followed by `- **Body**`. That is a fact
+  // about today's document, not about the reader: reorder the document so the `model` bullet is last
+  // and the case above starts measuring the heading fallback instead, silently. The threat the
+  // reader's own docstring names is TEXT APPENDED AFTER THE REGION, and the committed tree cannot
+  // supply that. So the case below assembles it in memory — the live authority plus one extra
+  // top-level bullet appended after everything — and asks the reader, through its optional argument,
+  // to read text it has never seen. `agent-factory/` is byte-unchanged by this case.
+  it("the model bullet's right bound stops at a following bullet, proven on a synthetic authority", () => {
+    const authority = readSurface("authority");
+
+    // THE INPUT IS TRUNCATED AT THE REGION'S OWN END BEFORE THE BULLET IS APPENDED, and that is what
+    // gives this case discrimination the live case above does not have. Measured: with the input
+    // built by appending to the WHOLE document, dropping the reader's bullet arm left this case
+    // GREEN — the heading arm still supplied a bound and the appended bullet was never the thing
+    // being stopped at. Truncating first removes every other candidate bound, so the appended bullet
+    // is the ONLY one, and the bullet arm becomes load-bearing here. The truncation uses the reader
+    // itself rather than a second bound implementation; the premises below assert the result.
+    const liveMarkerAt = authority.indexOf(MODEL_BULLET_MARKER);
+    expect(liveMarkerAt, "PREMISE: the live authority must carry the model bullet's marker").toBeGreaterThan(-1);
+    const truncated = authority.slice(
+      0,
+      liveMarkerAt + MODEL_BULLET_MARKER.length + modelBulletRegion().length,
+    );
+    const withAppendedBullet = `${truncated}\n${APPENDED_BULLET}\n`;
+
+    // THE SYNTHETIC INPUT'S OWN PREMISES, ASSERTED BEFORE ANYTHING IS READ FROM IT. An input that did
+    // not actually carry the appended bullet, or carried it BEFORE the marker, would make every
+    // assertion below pass for a reason that has nothing to do with the bound.
+    const markerAt = withAppendedBullet.indexOf(MODEL_BULLET_MARKER);
+    const appendedAt = withAppendedBullet.indexOf(APPENDED_BULLET_PHRASE);
+    expect(markerAt, "PREMISE: the synthetic authority must carry the model bullet's marker").toBeGreaterThan(-1);
+    expect(appendedAt, "PREMISE: the synthetic authority must carry the appended bullet's phrase").toBeGreaterThan(-1);
+    expect(
+      appendedAt,
+      "PREMISE: the appended bullet must FOLLOW the model bullet's marker — an appended bullet sitting before it is not the text this case exists to measure",
+    ).toBeGreaterThan(markerAt);
+
+    const afterMarker = withAppendedBullet.slice(markerAt + MODEL_BULLET_MARKER.length);
+    expect(
+      occurrences(afterMarker, MODEL_BULLET_RIGHT_BOUND),
+      "PREMISE: the appended bullet must be the ONLY top-level bullet following the marker — a second one would mean the reader could be stopping somewhere else and this case would not know",
+    ).toBe(1);
+    expect(
+      occurrences(afterMarker, "\n## "),
+      "PREMISE: no heading may follow the marker in this input — with one present the heading arm could supply the bound and the BULLET arm would not be under test",
+    ).toBe(0);
+
+    // THE BOUND'S EFFECT, on text the reader has never seen.
+    const bounded = modelBulletRegion(withAppendedBullet);
+    expect(
+      bounded,
+      `the bounded region must stop before the appended bullet — it must not contain ${JSON.stringify(APPENDED_BULLET_PHRASE)}, or the reader is adopting text appended after the region it names`,
+    ).not.toContain(APPENDED_BULLET_PHRASE);
+
+    // CONTROL — the IDENTICAL bytes read without the bound: `afterMarker`, the same slice base the
+    // reader uses, with no right bound applied. A deliberate negative control and not a second
+    // reader; nothing outside this case may treat it as one. It is what makes this proof RED on every
+    // run in a tree where the bound has been removed, rather than only in the session where someone
+    // thinks to remove it.
+    const unbounded = afterMarker;
+    expect(
+      unbounded,
+      "CONTROL: the UNBOUNDED read of the same bytes must contain the appended bullet's phrase, or this control is not exercising the difference it exists to measure",
+    ).toContain(APPENDED_BULLET_PHRASE);
+    expect(
+      bounded === unbounded,
+      `CONTROL: the bounded and the unbounded read of the same synthetic authority must DIFFER. They came back byte-identical (${String(bounded.length)} bytes), which means the reader is not bounding anything.`,
     ).toBe(false);
   });
 
