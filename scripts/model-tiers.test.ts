@@ -58,6 +58,7 @@ import {
   tieredCorpusRefusals,
   tieredTableRefusals,
   type ModelAlias,
+  type ModelsKey,
   type ResolveModelsOptions,
   type RoleTier,
 } from "./model-tiers.js";
@@ -1297,14 +1298,86 @@ describe("model-tiers: the `models` block's key set is CLOSED BY NAME (plan 29.1
     expect(r.value.overrides.size).toBe(0);
   });
 
-  it("MODELS_KEYS is the closed set itself — exactly the two keys `readModelsBlock` reads", () => {
-    // The set is DERIVED-ADJACENT rather than a second hand-maintained list: the refusal filters
-    // against this tuple and the cases above quote it back, so a third legal key can only arrive by
-    // editing the tuple, which moves the mechanism and the message together.
+  it("MODELS_KEYS is the closed set itself — exactly the two keys `readModelsBlock` PERMITS", () => {
+    // THIS LITERAL IS A SECOND HAND-WRITTEN LIST, said plainly (finding R2-WR-06). The comment this
+    // replaces called it "DERIVED-ADJACENT rather than a second hand-maintained list" and claimed a
+    // third legal key "can only arrive by editing the tuple, which moves the mechanism and the
+    // message together". Both halves were wrong in the same direction: this IS the second list, and
+    // editing the tuple moves the MESSAGE — the refusal quotes MODELS_KEYS — while moving no
+    // mechanism at all, because no reader is added and nothing asserts one was.
+    //
+    // WHAT IT IS ACTUALLY WORTH, which is not nothing: it makes an addition to the tuple VISIBLE IN
+    // A DIFF. A reviewer reading a one-line tuple change sees this case change beside it. That is
+    // the whole of its value, and it is the reason the case is kept rather than deleted as the
+    // second authority.
+    //
+    // WHAT MAKES AN UNREAD ADDITION FAIL is the case below, "every member of MODELS_KEYS is CONSUMED
+    // by the reader, not merely permitted", which drives each member through `readModelsConfig` and
+    // requires the answer to move. Presence and consumption are two assertions over one tuple here,
+    // rather than one assertion pretending to be two.
     expect([...MODELS_KEYS].sort()).toEqual(["preset", "roles"]);
     expect(new Set(MODELS_KEYS).size, "a repeated member would be a set literal pretending to be a set").toBe(
       MODELS_KEYS.length,
     );
+  });
+
+  it("every member of MODELS_KEYS is CONSUMED by the reader, not merely permitted", () => {
+    // (FINDING R2-WR-06) THE PRESENCE CLOSURE ABOVE IS WR-01 RESTORED ONE LEVEL UP WITHOUT THIS CASE.
+    // `readModelsBlock` refuses any key outside the tuple, then reads `models.preset` and
+    // `models.roles` and nothing else. Nothing tied the tuple's membership to the keys the reader
+    // actually consumes, so adding a member with no reader admitted the block carrying it, ignored
+    // it, and reported the zero-config answer with no message of any kind — verbatim the defect the
+    // tuple exists to close, one level up.
+    const stems = kitStems();
+
+    // Each probe is a value that, set ALONE in a `models` block, must visibly move the reader's
+    // answer. The role stem is DERIVED from the kit authority rather than typed, like every other
+    // corpus reference in this file.
+    const probes: Record<ModelsKey, unknown> = {
+      preset: "tiered",
+      roles: { [[...stems].sort()[0]]: "opus" },
+    };
+
+    // THE PREMISE, BEFORE THE LOOP THAT SPENDS IT, AND IN BOTH DIRECTIONS. A key added to
+    // MODELS_KEYS with no probe is a key nobody proved is read, and a loop over the probe table
+    // alone would pass over exactly that omission — the table would shrink to fit the coverage it
+    // had rather than fail on the coverage it lacked. This is the round's "derive the set, assert
+    // the count" rule applied to a probe table rather than to a scan set: the ELEMENTS are compared,
+    // not the cardinality, because two lists of equal length can still disagree about a member.
+    expect(
+      Object.keys(probes).sort(),
+      "the probe table must cover every member of MODELS_KEYS — an unprobed key is an unproven key",
+    ).toEqual([...MODELS_KEYS].sort());
+    expect(
+      [...MODELS_KEYS].sort(),
+      "the probe table must carry no key MODELS_KEYS does not — a probe for a non-key proves nothing",
+    ).toEqual(Object.keys(probes).sort());
+
+    // The two facts the reader returns, as one stable serialisation. `source` is deliberately NOT
+    // included: it is the fixture's own temp path and would differ between every pair of reads, so a
+    // comparison carrying it would pass on the path rather than on the answer.
+    const answer = (root: string): string => {
+      const r = readModelsConfig(root, stems);
+      if (!r.ok) throw new Error(`expected a resolution, got a refusal: ${r.reason}`);
+      return JSON.stringify([r.value.preset, [...r.value.overrides].sort()]);
+    };
+
+    // THE BASELINE'S OWN PREMISE, asserted before anything is compared against it. A baseline that
+    // was a refusal would make every comparison below differ for the wrong reason and the case would
+    // report success over a broken read.
+    const baselineRead = readModelsConfig(rootWithConfig({ models: {} }), stems);
+    expect(baselineRead.ok, "the empty-block baseline must be a successful read, not a refusal").toBe(
+      true,
+    );
+    const baseline = answer(rootWithConfig({ models: {} }));
+
+    for (const key of MODELS_KEYS) {
+      const withKey = answer(rootWithConfig({ models: { [key]: probes[key] } }));
+      expect(
+        withKey,
+        `setting \`models.${key}\` alone changed nothing the reader returns — the key is PERMITTED by MODELS_KEYS and CONSUMED by nobody, which is a dial the user believes they set and did not`,
+      ).not.toBe(baseline);
+    }
   });
 });
 

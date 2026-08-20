@@ -228,6 +228,21 @@ export function isPresetName(value: unknown): value is PresetName {
 // silently do not. The user gets a PARTIALLY wrong tier map, a green run and no message of any kind
 // — which is verbatim what this module's own `unassigned` refusal calls a tier the user believes
 // they set and did not.
+//
+// WHAT THIS TUPLE BUYS, AND WHAT IT DOES NOT (plan 29.1-15, finding R2-WR-06). It closes PRESENCE:
+// a key outside it is refused by name against the tuple, and a third legal key can only arrive by
+// editing this line, which moves the MESSAGE — the refusal quotes these constants. It does NOT close
+// CONSUMPTION. Adding a member here adds no reader, so `{"models":{"tiers":{…}}}` under a widened
+// tuple would be admitted, ignored, and reported as the zero-config answer with no message: verbatim
+// the WR-01 defect this constant exists to close, one level up. The weaker claim is the true one and
+// is the one stated here.
+//
+// CONSUMPTION IS CLOSED BY A CASE, NAMED SO A READER CAN FIND IT rather than infer it: see
+// scripts/model-tiers.test.ts, "every member of MODELS_KEYS is CONSUMED by the reader, not merely
+// permitted". It drives each member through `readModelsConfig` alone and requires the answer to
+// move, with the probe table's coverage of this tuple asserted in BOTH directions before the loop
+// that spends it — a member added here with no probe fails that assertion rather than passing over
+// its own omission.
 export const MODELS_KEYS = ["preset", "roles"] as const;
 
 /** The closed set of legal `models` block keys, derived from the tuple so the two cannot disagree. */
