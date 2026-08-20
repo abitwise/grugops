@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 73
+open_count: 74
 waived_count: 0
 fixed_count: 1
-total_count: 74
-last_updated: 2026-08-20T14:46:20.977Z
+total_count: 75
+last_updated: 2026-08-20T15:12:08.712Z
 ---
 
 # Broken Windows Ledger
@@ -89,6 +89,7 @@ last_updated: 2026-08-20T14:46:20.977Z
 | 72 | 29.1 | deviation | scripts/model-dial-consistency.test.ts |  | 29.1-10: the oracle pins ONE authority sentence but does not forbid a SECOND, contradicting sentence added elsewhere in the same document; compensating control is the negative grep recorded in 29.1-10-SUMMARY.md | open |  | 2026-08-20T09:01:51.475Z |  |
 | 73 | 29.1 | deviation | agent-factory/packaging/subagent.frontmatter.md |  | Plan 29.1-11 must-have 'both shipped documents name both configuration locations' is NOT met as written: check-kit-refs Assertion 1 (D-08.1) forbids agent-factory/config/ refs in kit prose, so the packaging authority names the user-facing location plus the location COUNT and points at the config reference for the rule | open |  | 2026-08-20T09:31:47.536Z |  |
 | 74 | 29.1 | deviation | .planning/phases/29.1-per-role-model-assignment/29.1-14-SUMMARY.md |  | Plan 29.1-14 acceptance criterion 4 narrowed to what was measured: on the appended-step mutation the OLD pin reds on its byte-offset ordering half (membership half stayed green). Composite mutation 3b constructed where the old pin is green on all four assertions. | open |  | 2026-08-20T14:46:20.977Z |  |
+| 75 | 29.1 | deviation | scripts/model-tiers.ts |  | 29.1-15 deviation 3: the deleted symbol roleCorpusCardinalityRefusal is deliberately NOT named in the docstring that records its deletion, to satisfy the plan's zero-grep criterion. Residual: a reader who meets the symbol on an older host's committed twin and greps this tree finds nothing in source; the name is in git history and the 29.1-15 SUMMARY. | open |  | 2026-08-20T15:12:08.712Z |  |
 
 ````json
 [
@@ -978,6 +979,18 @@ last_updated: 2026-08-20T14:46:20.977Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-08-20T14:46:20.977Z",
+    "resolved_at": null
+  },
+  {
+    "id": 75,
+    "kind": "deviation",
+    "phase": "29.1",
+    "file": "scripts/model-tiers.ts",
+    "line": null,
+    "description": "29.1-15 deviation 3: the deleted symbol roleCorpusCardinalityRefusal is deliberately NOT named in the docstring that records its deletion, to satisfy the plan's zero-grep criterion. Residual: a reader who meets the symbol on an older host's committed twin and greps this tree finds nothing in source; the name is in git history and the 29.1-15 SUMMARY.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-08-20T15:12:08.712Z",
     "resolved_at": null
   }
 ]
