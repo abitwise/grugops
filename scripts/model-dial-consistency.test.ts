@@ -897,12 +897,74 @@ describe("model dial — the configuration locations are documented, and the rul
       region.length,
       "PREMISE: the bullet region must be a PROPER part of the document, not the rest of it",
     ).toBeLessThan(authority.length);
-    // The bound is a real one: the region carries no top-level bullet marker and no heading of its
-    // own, so it stopped at the first of either rather than swallowing them.
-    expect(occurrences(region, "\n- ")).toBe(0);
-    expect(occurrences(region, "\n## ")).toBe(0);
+    // THE TWO CONTAINMENT ASSERTIONS THAT STOOD HERE ARE DELETED. (Plan 29.1-19, R3-WR-01) They read
+    // `occurrences(region, "\n- ")` and `occurrences(region, "\n## ")` must both be 0, and both are
+    // guaranteed by the reader's own construction: it returns `rest.slice(0, Math.min(...ends))`,
+    // which cuts immediately before the first of either. No input could print their failure messages,
+    // so they claimed the bound was tested while testing nothing. The bound's EFFECT is proven by the
+    // case below, against the unbounded read of the same document.
+
     // …and it really is the `model` bullet: the field it documents is named in it.
     expect(region).toContain("the value the factory's model dial resolved for that role");
+  });
+
+  // (Plan 29.1-19, R3-WR-01) THE BOUND'S EFFECT, WITH A CONTROL THAT FAILS ON EVERY RUN WITHOUT IT.
+  //
+  // Unlike the ubuntu-block reader this round also repaired, this bound IS exercised by the committed
+  // document — measured this session: the following bullet sits 1127 bytes past the marker, the
+  // bounded region is 1127 bytes and the unbounded remainder is 7382. So no synthetic input is
+  // needed; what was missing was an assertion that could see the difference. The control below reads
+  // the SAME bytes with the bound removed and asserts the two results DIFFER, so a tree in which the
+  // reader is reverted to an unbounded slice reds here on every run rather than only in the session
+  // where someone thinks to try it.
+  it("the model bullet region STOPS at the following bullet, measured against the unbounded read", () => {
+    const authority = readSurface("authority");
+    const at = authority.indexOf(MODEL_BULLET_MARKER);
+    expect(
+      at,
+      `PREMISE: the authority ${SURFACE_ROLES.authority} must carry the bullet marker "${MODEL_BULLET_MARKER}"`,
+    ).toBeGreaterThan(-1);
+
+    // THE UNBOUNDED READ — the same slice base with the right bound removed. A deliberate negative
+    // control, not a second reader; nothing outside this case may call it.
+    const unboundedRegion = authority.slice(at + MODEL_BULLET_MARKER.length);
+
+    // PREMISE: a following bullet exists, so the bound is exercised at all. Without one the reader
+    // would fall through to the heading, and a case written about the bullet boundary would be
+    // proving something else.
+    const nextBulletAt = unboundedRegion.indexOf("\n- ");
+    expect(
+      nextBulletAt,
+      "PREMISE: a top-level bullet must follow the `model` bullet in the authority — without one this case is not measuring the boundary it names",
+    ).toBeGreaterThan(-1);
+
+    // The following bullet's own first line, derived from the document rather than typed here, so a
+    // rename of that bullet moves this case instead of silently emptying it.
+    const followingBulletLine = unboundedRegion
+      .slice(nextBulletAt + 1)
+      .split("\n")[0];
+    expect(
+      followingBulletLine.length,
+      "PREMISE: the following bullet's first line must be non-empty — an empty needle is contained by every string and would make both assertions below vacuous",
+    ).toBeGreaterThan(0);
+
+    const region = modelBulletRegion();
+
+    // THE BOUND'S EFFECT.
+    expect(
+      region,
+      `the bounded region must stop before the following bullet — it must not contain that bullet's own first line, or assertions written about the \`model\` bullet are being made about ${JSON.stringify(followingBulletLine.slice(0, 40))}`,
+    ).not.toContain(followingBulletLine);
+
+    // CONTROL — the same bytes, read without the bound.
+    expect(
+      unboundedRegion,
+      "CONTROL: the UNBOUNDED read must contain the following bullet's first line, or this control is not exercising the difference it exists to measure",
+    ).toContain(followingBulletLine);
+    expect(
+      region === unboundedRegion,
+      `CONTROL: the bounded and the unbounded read of the same authority must DIFFER. They came back byte-identical (${region.length} bytes), which means the reader is not bounding anything.`,
+    ).toBe(false);
   });
 
   it("the retired precedence phrasings do not return to the authority", () => {

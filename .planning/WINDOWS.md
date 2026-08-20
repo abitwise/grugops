@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 80
+open_count: 81
 waived_count: 0
 fixed_count: 1
-total_count: 81
-last_updated: 2026-08-20T20:00:49.350Z
+total_count: 82
+last_updated: 2026-08-20T20:03:39.929Z
 ---
 
 # Broken Windows Ledger
@@ -96,6 +96,7 @@ last_updated: 2026-08-20T20:00:49.350Z
 | 79 | 29.1 | deviation | scripts/check-public-docs-vocabulary.ts | 32 | 29.1-17: a fourth record adjacent to the scan widening reads 'that set is byte-unchanged' about check-kit-refs's SCAN. In context it is scoped to that gate's own Phase-27 change and remains true; out of context it could be read as a standing claim, and SCAN is now one member wider. Deliberately NOT edited (outside this plan's declared files). See 29.1-17-SUMMARY.md Deviation 4. | open |  | 2026-08-20T15:54:28.031Z |  |
 | 80 | 29.1 | deviation | scripts/check-foundation-guards.test.ts |  | 29.1-19: (r-class-prefix) compares CANONICAL SOURCE SPELLINGS across a derived member set — it does not run the members' readers or compare their outputs. A member spelling both the right-bound marker and the slice base canonically while computing something else (a second slice under another variable, canonical literals in a dead branch) satisfies every assertion in it. Direction: FAIL-OPEN. Bounded for today's two members by their own synthetic-input bound proofs, (r-bound-synthetic) and Case 8b. | open |  | 2026-08-20T19:55:57.940Z |  |
 | 81 | 29.1 | deviation | scripts/check-foundation-guards.test.ts |  | 29.1-19: (o-one-consumer)'s assembled-pattern arm recognises ONE SPELLING of the regex-escape idiom — the bytes this tree writes verbatim in audit-prepass.ts, check-foundation-guards.ts and voice-model.ts — and asks it of a single comment-stripped LINE. A differently spelled escape, or an assembly split across lines, is still not counted and therefore not disclosed by the residual set the case publishes. Direction: FAIL-OPEN. | open |  | 2026-08-20T20:00:49.350Z |  |
+| 82 | 29.1 | deviation | scripts/model-dial-consistency.test.ts |  | 29.1-19: the third tautology site was closed OUTSIDE the plan's declared files_modified list. The plan's must_haves require three deleted tautologies and three discriminating bound proofs, and only two sites existed in the two declared test files; R3-WR-01 names this file as the third. Recorded so the scope expansion is visible rather than inferred from the diff. | open |  | 2026-08-20T20:03:39.929Z |  |
 
 ````json
 [
@@ -1069,6 +1070,18 @@ last_updated: 2026-08-20T20:00:49.350Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-08-20T20:00:49.350Z",
+    "resolved_at": null
+  },
+  {
+    "id": 82,
+    "kind": "deviation",
+    "phase": "29.1",
+    "file": "scripts/model-dial-consistency.test.ts",
+    "line": null,
+    "description": "29.1-19: the third tautology site was closed OUTSIDE the plan's declared files_modified list. The plan's must_haves require three deleted tautologies and three discriminating bound proofs, and only two sites existed in the two declared test files; R3-WR-01 names this file as the third. Recorded so the scope expansion is visible rather than inferred from the diff.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-08-20T20:03:39.929Z",
     "resolved_at": null
   }
 ]
