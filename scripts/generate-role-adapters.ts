@@ -96,15 +96,24 @@
 // the four members of the closed vocabulary — which is what keeps a YAML-significant byte out of
 // the frontmatter this generator writes.
 //
-// EVERY SUCCESSFUL RUN ANNOUNCES THE PRESET IT RESOLVED, on stdout, using the shared grammar in
-// scripts/model-tiers.ts (`resolvedPresetLine`). The line exists so that a CALLER can OBSERVE which
-// resolution a run used rather than infer it from the tree afterwards. Its first consumer is
-// scripts/adapters-freshness.ts, which regenerates the adapters inside a temp mirror and must know
-// that the mirrored run resolved `none`: that gate's D-04 zero-config claim rested until now on the
-// mere ABSENCE of a configuration directory from its hand-written twin list, and absence is not a
-// pin — an added directory would have made the gate config-dependent while everything stayed green.
-// The marker is NOT spelled here: emitter and reader share one declaration, because a hand-copied
-// marker rots apart silently and a reader that stops finding the line is the failure mode itself.
+// EVERY SUCCESSFUL RUN ANNOUNCES BOTH ITS PRESET INPUT AND ITS RESOLUTION OUTPUT, on stdout, using
+// the shared grammars in scripts/model-tiers.ts (`resolvedPresetLine` and `resolvedAssignmentLine`).
+// The lines exist so that a CALLER can OBSERVE which resolution a run used rather than infer it from
+// the tree afterwards. Their first consumer is scripts/adapters-freshness.ts, which regenerates the
+// adapters inside a temp mirror and must know that the mirrored run resolved the zero-config answer:
+// that gate's D-04 claim rested until plan 29.1-03 on the mere ABSENCE of a configuration directory
+// from its hand-written twin list, and absence is not a pin — an added directory would have made the
+// gate config-dependent while everything stayed green.
+//
+// ANNOUNCING THE PRESET ALONE WAS HALF THE ANSWER (finding CR-01, plan 29.1-07). `resolveModels`
+// takes TWO inputs, a preset AND a sparse override map, so a run under a `models.roles` block with
+// no `preset` key truthfully announced `none` while emitting adapters that were not the zero-config
+// output — and the freshness gate certified it and exited 0. The second line therefore describes
+// what the resolution PRODUCED: its member count, its override count and its distinct aliases.
+//
+// Neither marker is spelled here: each emitter and its reader share one declaration, because a
+// hand-copied marker rots apart silently and a reader that stops finding the line is the failure
+// mode itself.
 //
 // Node stdlib ONLY — node:fs + node:path, plus the in-repo kit-model, frontmatter and model-tiers
 // modules. The claim still holds after WR-03 and after this phase: `frontmatter.ts` has no imports
@@ -125,6 +134,7 @@ import {
 import {
   readModelsConfig,
   resolveModels,
+  resolvedAssignmentLine,
   resolvedPresetLine,
   type ModelAlias,
 } from "./model-tiers.js";
@@ -536,9 +546,28 @@ console.log(
   `generate-role-adapters: wrote ${rendered.length} adapters to ${OUT_DIR} (coordinator ${coordinator.name} grants ${grant.length} names)`,
 );
 
-// The announced resolution, on its OWN line and AFTER the summary above, whose text is deliberately
-// unchanged so nothing keying on it moves. `modelsConfig.preset` is the value handed to
-// `resolveModels` a few lines up — the same object, not a second derivation — so the announcement
-// cannot describe a resolution other than the one this run performed.
-console.log(`generate-role-adapters: ${resolvedPresetLine(modelsConfig.preset)}`);
+// ── The announced resolution: TWO lines, describing two different things (finding CR-01) ─────────
+//
+// Both sit on the success path AFTER the summary above, whose text is deliberately unchanged so
+// nothing keying on it moves. Each emitter owns its whole prefix — no caller prepends this script's
+// name, because a prefixed line is a line the matching reader refuses (finding WR-03).
+//
+// WHAT EACH LINE DESCRIBES, and why one was not enough. THE PRESET LINE DESCRIBES AN INPUT: the
+// preset `resolveModels` was handed a few lines up. THE ASSIGNMENT LINE DESCRIBES THE OUTPUT: how
+// many roles the resolution covered, how many of them were set by an OVERRIDE rather than by the
+// preset, and which distinct aliases this run actually produced.
+//
+// The comment that stood here claimed the preset announcement "cannot describe a resolution other
+// than the one this run performed". That was true of the OBJECT it named and false of the
+// RESOLUTION: `resolveModels` takes two inputs — a preset AND a sparse override map — and only the
+// first was announced. Finding CR-01 reproduced the consequence end to end: a run under
+// `{"models":{"roles":{"orchestrator":"opus","security-nfr":"opus"}}}` and NO `preset` key announced
+// `none`, which is the zero-config answer, while emitting two adapters carrying `model: opus` — and
+// scripts/adapters-freshness.ts certified that regeneration as the zero-config output and exited 0.
+//
+// Both values come from the objects this run resolved from — `modelsConfig.overrides` is the map
+// handed to `resolveModels`, and `models` is the map the adapters above were rendered from — so
+// neither line can be a restatement of what the run intended rather than of what it did.
+console.log(resolvedPresetLine(modelsConfig.preset));
+console.log(resolvedAssignmentLine(models, modelsConfig.overrides.size));
 process.exit(0);

@@ -44,7 +44,13 @@ import { join } from "node:path";
 // The resolved-preset LINE grammar, imported rather than restated. This file asserts that the
 // generator announces its resolution; spelling the marker here would make the assertion a second
 // copy of the thing under test, and the copy would go on passing after the generator's own moved.
-import { RESOLVED_PRESET_PREFIX, resolvedPresetsIn } from "./model-tiers.js";
+import {
+  RESOLVED_PRESET_PREFIX,
+  readModelsConfig,
+  resolvedAssignmentsIn,
+  resolvedPresetsIn,
+  type ResolvedAssignment,
+} from "./model-tiers.js";
 
 const ROOT = join(import.meta.dirname, "..");
 const GEN_JS = join(ROOT, "scripts", "generate-role-adapters.js");
@@ -124,6 +130,24 @@ function runIn(m: string): SpawnSyncReturns<string> {
 }
 
 const agentsDir = (m: string): string => join(m, ".claude", "agents");
+
+/**
+ * The ONE assignment the run announced, or a throw naming why there is not exactly one.
+ *
+ * Reads through the grammar's own reader (finding CR-01/WR-04: neither site spells the marker), and
+ * refuses zero, two, or a refused payload rather than reaching for `[0]` — a case that silently read
+ * the first of two disagreeing announcements would be asserting against an arbitrary one.
+ */
+function announcedAssignment(r: SpawnSyncReturns<string>): ResolvedAssignment {
+  const results = resolvedAssignmentsIn(r.stdout ?? "");
+  if (results.length !== 1) {
+    throw new Error(
+      `expected exactly ONE resolved-assignment line, found ${String(results.length)} in:\n${out(r)}`,
+    );
+  }
+  if (!results[0].ok) throw new Error(results[0].reason);
+  return results[0].value;
+}
 
 // A stable fingerprint of an output directory: every filename mapped to its exact bytes.
 function snapshot(dir: string): Record<string, string> {
@@ -1424,14 +1448,36 @@ describe("generate-role-adapters.js — the `models` configuration is resolved a
     expect(a).not.toEqual(b);
   });
 
-  it("a legal per-role OVERRIDE resolves, is announced as `none`, and moves only its own adapter", () => {
-    // The success path through the same reader the six refusals travel: a valid block must not be
-    // refused, or the refusals above would be passing for the wrong reason.
+  it("a per-role OVERRIDE announces preset none AND an override count of 1 with two distinct aliases", () => {
+    // THIS CASE USED TO CERTIFY THE BLIND SPOT (finding CR-01). Its former title was "…is announced
+    // as `none`…", and its only announcement assertion was that the preset line read `none` while
+    // `grugops-qe-e2e.md` emitted `haiku`. Both halves were true, and together they recorded
+    // announcement-versus-emission divergence AS EXPECTED BEHAVIOUR — which is exactly the state
+    // that let a configured regeneration be certified as the zero-config output.
+    //
+    // The preset assertion STAYS: the preset genuinely is `none` on this run, and the preset line
+    // was never the line that was supposed to catch this. What is added is the assertion on the
+    // line that IS: the resolution's own output.
     const m = scratch(SAMPLE_ROLES);
     writeModelsConfig(m, { roles: { "qe-e2e": "haiku" } });
+
+    // ── THE FIXTURE'S OWN PREMISE, read back through the reader the generator uses. A typo in the
+    // planted block would otherwise leave the run resolving zero overrides and this case passing
+    // for a reason that has nothing to do with what it claims.
+    const planted = readModelsConfig(m, SAMPLE_ROLES.map((f) => f.slice(0, -".md".length)));
+    expect(planted.ok, planted.ok ? "" : planted.reason).toBe(true);
+    if (!planted.ok) return;
+    expect(planted.value.preset, "PREMISE: no preset key was planted").toBe("none");
+    expect(planted.value.overrides.size, "PREMISE: exactly one override was planted").toBe(1);
+
     const r = runIn(m);
     expect(r.status, out(r)).toBe(0);
     expect(resolvedPresetsIn(r.stdout ?? "")).toEqual(["none"]);
+    expect(announcedAssignment(r), "one override, two distinct aliases").toEqual({
+      roles: SAMPLE_ROLES.length,
+      overrides: 1,
+      aliases: ["haiku", "inherit"],
+    });
 
     const snap = snapshot(agentsDir(m));
     expect(fmValue(snap["grugops-qe-e2e.md"], "model")).toBe("haiku");
@@ -1439,6 +1485,87 @@ describe("generate-role-adapters.js — the `models` configuration is resolved a
       if (name === "grugops-qe-e2e.md") continue;
       expect(fmValue(text, "model"), name).toBe("inherit");
     }
+  });
+
+  it("TWO per-role OVERRIDES with NO preset key: the preset line says `none` and the assignment line says 2", () => {
+    // THE CR-01 SHAPE ITSELF. This is the configuration the verifier planted into the freshness
+    // gate's mirror: a `roles` block naming two roles and no `preset` key. The preset line
+    // truthfully reads `none` — the zero-config answer — while the run emits two `opus` adapters.
+    // The two lines DISAGREE, and that disagreement is what makes the defect visible to a gate.
+    const m = scratch(SAMPLE_ROLES);
+    writeModelsConfig(m, { roles: { orchestrator: "opus", "security-nfr": "opus" } });
+
+    const planted = readModelsConfig(m, SAMPLE_ROLES.map((f) => f.slice(0, -".md".length)));
+    expect(planted.ok, planted.ok ? "" : planted.reason).toBe(true);
+    if (!planted.ok) return;
+    expect(planted.value.preset, "PREMISE: no preset key was planted").toBe("none");
+    expect(planted.value.overrides.size, "PREMISE: exactly two overrides were planted").toBe(2);
+
+    const r = runIn(m);
+    expect(r.status, out(r)).toBe(0);
+    expect(
+      resolvedPresetsIn(r.stdout ?? ""),
+      "the preset input genuinely IS `none` — which is why announcing it alone was half-blind",
+    ).toEqual(["none"]);
+    expect(announcedAssignment(r)).toEqual({
+      roles: SAMPLE_ROLES.length,
+      overrides: 2,
+      aliases: ["inherit", "opus"],
+    });
+
+    // The announcement is not decoration: the bytes moved with it.
+    const snap = snapshot(agentsDir(m));
+    expect(fmValue(snap["grugops-orchestrator.md"], "model")).toBe("opus");
+    expect(fmValue(snap["grugops-security-nfr.md"], "model")).toBe("opus");
+  });
+
+  it("ZERO-CONFIG: the assignment line announces the whole corpus, 0 overrides and only `inherit`", () => {
+    // The shape the freshness gate asserts. Every number here is DERIVED from the run rather than
+    // restated: the member count is the corpus the mirror carries, and the alias list is what the
+    // adapters actually got.
+    const m = scratch(SAMPLE_ROLES);
+    const r = runIn(m);
+    expect(r.status, out(r)).toBe(0);
+    expect(announcedAssignment(r)).toEqual({
+      roles: SAMPLE_ROLES.length,
+      overrides: 0,
+      aliases: ["inherit"],
+    });
+
+    const snap = snapshot(agentsDir(m));
+    for (const [name, text] of Object.entries(snap)) {
+      expect(fmValue(text, "model"), name).toBe("inherit");
+    }
+  });
+
+  it("THE SHIPPED PRESET: 0 overrides, and the distinct-alias list carries the preset's two aliases", () => {
+    // The third arm. A run under `tiered` sets no override at all — the tiers come from the table —
+    // so an implementation that announced `overrides` as "how many adapters are not `inherit`"
+    // would go red here rather than passing the two override cases above for the wrong reason.
+    const m = scratch(SAMPLE_ROLES);
+    writeModelsConfig(m, { preset: "tiered" });
+
+    const planted = readModelsConfig(m, SAMPLE_ROLES.map((f) => f.slice(0, -".md".length)));
+    expect(planted.ok, planted.ok ? "" : planted.reason).toBe(true);
+    if (!planted.ok) return;
+    expect(planted.value.preset, "PREMISE: the tiered preset was planted").toBe("tiered");
+    expect(planted.value.overrides.size, "PREMISE: no override was planted").toBe(0);
+
+    const r = runIn(m);
+    expect(r.status, out(r)).toBe(0);
+    expect(resolvedPresetsIn(r.stdout ?? "")).toEqual(["tiered"]);
+    const announced = announcedAssignment(r);
+    expect(announced.roles).toBe(SAMPLE_ROLES.length);
+    expect(announced.overrides).toBe(0);
+    // Derived from the EMITTED bytes rather than written out, so the case cannot pin a tier map it
+    // did not observe. `tiered` reaches for two of the three aliases (D-09 assigns no `haiku`).
+    const snap = snapshot(agentsDir(m));
+    const emitted = [
+      ...new Set(Object.values(snap).map((t) => fmValue(t, "model") ?? "")),
+    ].sort();
+    expect(announced.aliases).toEqual(emitted);
+    expect(announced.aliases, "the shipped preset reaches for two aliases").toHaveLength(2);
+    expect(announced.aliases).not.toContain("inherit");
   });
 
   it("the generator's own OUT_DIR is still a fixed literal — no argv and no env on that path", () => {
