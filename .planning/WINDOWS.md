@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 72
+open_count: 73
 waived_count: 0
 fixed_count: 1
-total_count: 73
-last_updated: 2026-08-20T09:31:47.536Z
+total_count: 74
+last_updated: 2026-08-20T14:46:20.977Z
 ---
 
 # Broken Windows Ledger
@@ -88,6 +88,7 @@ last_updated: 2026-08-20T09:31:47.536Z
 | 71 | 29.1 | deviation | scripts/generate-role-adapters.ts |  | Plan 29.1-03 acceptance criterion predicts a filesystem RED when the resolution moves into render(); measured GREEN (adapters.map materializes before the write loop). Equivalent proof taken in the WRITE loop instead — reviewer to confirm the substitution discharges the criterion (coverage item D17) | open |  | 2026-08-19T09:43:42.160Z |  |
 | 72 | 29.1 | deviation | scripts/model-dial-consistency.test.ts |  | 29.1-10: the oracle pins ONE authority sentence but does not forbid a SECOND, contradicting sentence added elsewhere in the same document; compensating control is the negative grep recorded in 29.1-10-SUMMARY.md | open |  | 2026-08-20T09:01:51.475Z |  |
 | 73 | 29.1 | deviation | agent-factory/packaging/subagent.frontmatter.md |  | Plan 29.1-11 must-have 'both shipped documents name both configuration locations' is NOT met as written: check-kit-refs Assertion 1 (D-08.1) forbids agent-factory/config/ refs in kit prose, so the packaging authority names the user-facing location plus the location COUNT and points at the config reference for the rule | open |  | 2026-08-20T09:31:47.536Z |  |
+| 74 | 29.1 | deviation | .planning/phases/29.1-per-role-model-assignment/29.1-14-SUMMARY.md |  | Plan 29.1-14 acceptance criterion 4 narrowed to what was measured: on the appended-step mutation the OLD pin reds on its byte-offset ordering half (membership half stayed green). Composite mutation 3b constructed where the old pin is green on all four assertions. | open |  | 2026-08-20T14:46:20.977Z |  |
 
 ````json
 [
@@ -965,6 +966,18 @@ last_updated: 2026-08-20T09:31:47.536Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-08-20T09:31:47.536Z",
+    "resolved_at": null
+  },
+  {
+    "id": 74,
+    "kind": "deviation",
+    "phase": "29.1",
+    "file": ".planning/phases/29.1-per-role-model-assignment/29.1-14-SUMMARY.md",
+    "line": null,
+    "description": "Plan 29.1-14 acceptance criterion 4 narrowed to what was measured: on the appended-step mutation the OLD pin reds on its byte-offset ordering half (membership half stayed green). Composite mutation 3b constructed where the old pin is green on all four assertions.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-08-20T14:46:20.977Z",
     "resolved_at": null
   }
 ]
