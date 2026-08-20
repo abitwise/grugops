@@ -36,6 +36,7 @@ import { listRoles, ROLE_COUNT } from "./kit-model.js";
 import {
   MODEL_ALIASES,
   MODEL_TIERS_COUNT,
+  MODELS_KEYS,
   PRESET_NAMES,
   RESOLVED_PRESET_PREFIX,
   TIERED,
@@ -1075,5 +1076,151 @@ describe("model-tiers: the resolved-assignment line grammar (plan 29.1-07, CR-01
     expect(line.startsWith(MIRRORED_RESOLVED_PRESET_PREFIX)).toBe(true);
     expect(line.endsWith("none")).toBe(true);
     expect(mirroredResolvedPresetsIn(line)).toEqual(["none"]);
+  });
+});
+
+// ── The `models` BLOCK'S OWN KEY SET (plan 29.1-08, finding WR-01) ─────────────────────────────
+//
+// D-06 closes the key set of `models.roles`: an unknown role stem is refused naming the key and the
+// valid set, because "a silently ignored override is a tier the user believes they set and did not".
+// The block CONTAINING that map was open. `readModelsBlock` read `models.preset` and `models.roles`
+// and enumerated nothing, so every other key was silently discarded.
+//
+// FOUR SHAPES WERE REPRODUCED against the committed .js before this block was written, and all four
+// were accepted in silence:
+//
+//   {"models":{"presets":"tiered"}}                             => OK  preset=none   overrides=0
+//   {"models":{"Preset":"tiered"}}                              => OK  preset=none   overrides=0
+//   {"models":{"preset":"tiered","role":{"orchestrator":"opus"}}} => OK preset=tiered overrides=0
+//   {"model":{"preset":"tiered"}}                               => OK  preset=none   overrides=0
+//
+// THE THIRD IS THE WORST AND IT IS NOT THE TYPO. A legal `preset` sits beside a near-miss overrides
+// key: the preset APPLIES and the overrides silently do not, so the user gets a PARTIALLY wrong tier
+// map with a green run and no message of any kind. That is verbatim what this module's own
+// `unassigned` refusal calls "a tier the user believes they set and did not".
+//
+// THE FOURTH IS A DISCLOSED RESIDUAL AND IS PINNED AS ONE. The configuration FILE's top-level key
+// set is legitimately OPEN — the same file carries the governance, quality, queue and compaction
+// dials — so a closed-set mechanism there would refuse valid keys. Its case below asserts the
+// zero-config answer and says in its own title that it is a residual, not a success.
+describe("model-tiers: the `models` block's key set is CLOSED BY NAME (plan 29.1-08, WR-01)", () => {
+  it("an unknown key inside the models block is REFUSED naming the key and the legal set", () => {
+    const stems = kitStems();
+    const reason = refusalOrFail(rootWithConfig({ models: { presets: "tiered" } }), stems);
+    expect(reason).toContain("`models.presets`");
+    // ONE offending key takes the singular clause.
+    expect(reason).toContain("which is not a key of");
+    // The legal set is QUOTED BACK, derived from the same tuple the check reads.
+    for (const key of MODELS_KEYS) expect(reason).toContain(`"${key}"`);
+    // The reason the user can act on, in D-06's own words, one level up.
+    expect(reason).toMatch(/believes they set and did not/);
+  });
+
+  it("a case-varied preset key is refused as an unknown key rather than read", () => {
+    const stems = kitStems();
+    const reason = refusalOrFail(rootWithConfig({ models: { Preset: "tiered" } }), stems);
+    // Membership is EXACT STRING EQUALITY, never a case fold — the same rule the alias and preset
+    // vocabularies already follow. A case fold here would silently accept `Preset` as `preset`.
+    expect(reason).toContain("`models.Preset`");
+    for (const key of MODELS_KEYS) expect(reason).toContain(`"${key}"`);
+  });
+
+  it("the PARTIAL-APPLICATION shape is refused before the preset is applied", () => {
+    const stems = kitStems();
+    const reason = refusalOrFail(
+      rootWithConfig({ models: { preset: "tiered", role: { orchestrator: "opus" } } }),
+      stems,
+    );
+    // The refusal names the OVERRIDES key that was about to be dropped…
+    expect(reason).toContain("`models.role`");
+    // …and it is NOT the preset refusal: `tiered` is a legal preset and is never the complaint.
+    expect(reason).not.toContain("is not a legal preset name");
+    // WHAT DISCRIMINATES WHAT. This case is closed by the check's PRESENCE — deleting the check was
+    // observed to turn it RED. It is NOT the case that discriminates the check's PLACEMENT: moving
+    // the check below the preset read leaves this case GREEN, because a refusal short-circuits the
+    // function either way and reading a legal preset into a local applies nothing. The case
+    // immediately below is the one that moves on placement, and it moves on the refusal TEXT.
+  });
+
+  it("the unknown-key refusal fires before the preset refusal on a block carrying both defects", () => {
+    const stems = kitStems();
+    // THE PLACEMENT PROOF, and the only case in this block that moves when the check is relocated.
+    // Asserted on the TEXT rather than on the boolean, because both placements refuse — they differ
+    // only in WHICH FINDING the author is handed. Pre-fix, and again under the relocation mutation,
+    // this shape refused for the illegal preset VALUE, having already read `models.preset`. That
+    // sends the author to fix `"bogus"` inside a key they have to delete regardless, and only then
+    // tells them about the key. The block's SHAPE is adjudicated before any of its values.
+    const reason = refusalOrFail(
+      rootWithConfig({ models: { presets: "tiered", preset: "bogus" } }),
+      stems,
+    );
+    expect(reason).toContain("`models.presets`");
+    expect(reason).not.toContain("is not a legal preset name");
+    expect(reason).not.toContain('"bogus"');
+  });
+
+  it("EVERY offending key is named, in sorted order, in ONE refusal", () => {
+    const stems = kitStems();
+    // A user with two typos is told about two typos. Reporting only the first would send them round
+    // the loop once per mistake, and the sort makes WHICH key is named first a property of the set
+    // rather than of JSON key order.
+    const reason = refusalOrFail(rootWithConfig({ models: { presets: "x", rolez: {} } }), stems);
+    expect(reason).toContain("`models.presets`");
+    expect(reason).toContain("`models.rolez`");
+    expect(reason.indexOf("`models.presets`")).toBeLessThan(reason.indexOf("`models.rolez`"));
+    // The clause agrees in number with the list it follows. "which is not a key" after a two-item
+    // list reads as though one of the two were legal, and this text is the only channel telling the
+    // user their configuration did not do what they meant.
+    expect(reason).toContain("none of which is a key");
+    expect(reason).not.toContain("which is not a key of");
+  });
+
+  it("a legal block carrying both preset and roles is still accepted", () => {
+    const stems = kitStems();
+    const victim = [...stems].sort()[0] as string;
+    const r = readModelsConfig(
+      rootWithConfig({ models: { preset: "tiered", roles: { [victim]: "opus" } } }),
+      stems,
+    );
+    expect(r.ok, "the closed set must admit its own two members").toBe(true);
+    if (!r.ok) return;
+    expect(r.value.preset).toBe("tiered");
+    expect(r.value.overrides.size).toBe(1);
+    expect(r.value.overrides.get(victim)).toBe("opus");
+  });
+
+  it("an EMPTY models block is still the zero-config answer", () => {
+    const stems = kitStems();
+    // An empty key set has no member outside the legal set, so the new check must be silent on it.
+    const r = readModelsConfig(rootWithConfig({ models: {} }), stems);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.value.preset).toBe("none");
+    expect(r.value.overrides.size).toBe(0);
+  });
+
+  it("DISCLOSED RESIDUAL: a singular model key at file level is the zero-config answer, and the file's top-level key set is open by design", () => {
+    const stems = kitStems();
+    // NOT A SUCCESS. This case pins WHAT THE CODE DOES so the boundary of the guarantee is a
+    // property nobody has to infer from silence. The FILE's top-level key set is open — it carries
+    // `governance`, `quality`, `queue`, `context` and more — so closing it would need a registry of
+    // every reader of this file, which does not exist in this tree. The direction of the residual is
+    // recorded beside the check in source: the user gets the lean default and cannot tell it from a
+    // typo. Closing it is out of scope for this plan and is NOT reported as closed anywhere.
+    const r = readModelsConfig(rootWithConfig({ model: { preset: "tiered" } }), stems);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.value.preset).toBe("none");
+    expect(r.value.overrides.size).toBe(0);
+  });
+
+  it("MODELS_KEYS is the closed set itself — exactly the two keys `readModelsBlock` reads", () => {
+    // The set is DERIVED-ADJACENT rather than a second hand-maintained list: the refusal filters
+    // against this tuple and the cases above quote it back, so a third legal key can only arrive by
+    // editing the tuple, which moves the mechanism and the message together.
+    expect([...MODELS_KEYS].sort()).toEqual(["preset", "roles"]);
+    expect(new Set(MODELS_KEYS).size, "a repeated member would be a set literal pretending to be a set").toBe(
+      MODELS_KEYS.length,
+    );
   });
 });

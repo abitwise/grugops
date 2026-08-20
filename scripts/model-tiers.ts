@@ -210,6 +210,29 @@ export function isPresetName(value: unknown): value is PresetName {
   return PRESET_NAMES.some((name) => name === value);
 }
 
+// ── MODELS_KEYS — the `models` BLOCK'S OWN closed key set (plan 29.1-08, finding WR-01) ────────
+//
+// THE THIRD CLOSED VOCABULARY OF THIS MODULE, declared beside the other two on purpose. MODEL_ALIASES
+// closes what a role may be assigned, PRESET_NAMES closes what a preset may be called, and this
+// closes what the `models` block may CONTAIN. All three are decided by exact string equality against
+// a tuple, never by a pattern and never by a denylist of near-miss spellings.
+//
+// WHY IT EXISTS. D-06 closes the key set of `models.roles` — an unknown role stem is refused naming
+// the key and the valid set, because "a silently ignored override is a tier the user believes they
+// set and did not". The block CONTAINING that map was open: `readModelsBlock` read `models.preset`
+// and `models.roles` and enumerated nothing, so every other key was discarded in silence. The
+// principle was enforced one level down and not for the level above it.
+//
+// THE SHAPE THAT MADE IT LOAD-BEARING is not the typo. It is `{"preset":"tiered","role":{…}}`, where
+// a legal preset sits beside a near-miss overrides key: the preset APPLIES and the overrides
+// silently do not. The user gets a PARTIALLY wrong tier map, a green run and no message of any kind
+// — which is verbatim what this module's own `unassigned` refusal calls a tier the user believes
+// they set and did not.
+export const MODELS_KEYS = ["preset", "roles"] as const;
+
+/** The closed set of legal `models` block keys, derived from the tuple so the two cannot disagree. */
+export type ModelsKey = (typeof MODELS_KEYS)[number];
+
 // ── The RESOLVED-PRESET LINE — ONE grammar, asked in both directions (plan 29.1-03) ────────────
 //
 // WHY THIS LIVES HERE RATHER THAN AS A LITERAL IN THE GENERATOR. The adapter generator PRINTS the
@@ -1017,6 +1040,77 @@ function readModelsBlock(
   path: string,
   stems: readonly string[],
 ): ModelsConfigResult {
+  // ── The BLOCK'S OWN KEY SET, adjudicated BEFORE a single value is read (WR-01, extending D-06). ─
+  //
+  // WHAT PRESENCE CLOSES, AND WHAT PLACEMENT DECIDES — measured by mutation, not assumed.
+  //
+  // PRESENCE closes the partial application. Against the pre-fix committed .js,
+  // `{"preset":"tiered","role":{"orchestrator":"opus"}}` resolved `tiered` with zero overrides and
+  // no message: the preset applied and the overrides silently did not. Deleting this check was
+  // observed to turn that case and four others RED.
+  //
+  // PLACEMENT decides WHICH FINDING the user is handed, and nothing more. Moving this check below
+  // the preset read was ALSO measured, and the partial-application case stayed GREEN — a refusal
+  // short-circuits the function either way, so reading a legal preset into a local applies nothing.
+  // The one case that moved was the ordering case: `{"presets":"tiered","preset":"bogus"}` reported
+  // the illegal preset VALUE instead of the unknown KEY, sending the author to fix `"bogus"` inside
+  // a key that has to be deleted regardless, and only then telling them about the key. The block's
+  // SHAPE is adjudicated before any of its values because the shape is the more basic fact, not
+  // because a later placement would let half a block through. Stating the weaker true claim here is
+  // the point: this plan exists to close a validator that published a guarantee wider than its
+  // mechanism, and repeating that habit in the fix would be the same defect wearing a patch.
+  //
+  // EVERY offending key is reported, sorted, in ONE refusal: a user with two typos should be told
+  // about two typos rather than sent round the loop once per mistake, and the sort makes which key
+  // is named first a property of the set rather than of JSON key order.
+  const unknownKeys = Object.keys(models)
+    .filter((key) => !MODELS_KEYS.some((legal) => legal === key))
+    .sort();
+  if (unknownKeys.length > 0) {
+    // The clause agrees in number with the list it follows. A refusal is a safety surface and the
+    // only channel telling a user their configuration did not do what they meant; "which is not a
+    // key" after a two-item list reads as though one of the two were legal.
+    const notAKey = unknownKeys.length === 1 ? "which is not a key" : "none of which is a key";
+    return {
+      ok: false,
+      reason:
+        `model-tiers: ${path} sets ` +
+        `${unknownKeys.map((key) => `\`models.${key}\``).join(", ")}, ${notAKey} of the ` +
+        `\`models\` block. The legal set is exactly: ` +
+        `${MODELS_KEYS.map((key) => `"${key}"`).join(", ")}. Membership is EXACT STRING EQUALITY ` +
+        "against those constants, so a case-varied spelling is an unknown key rather than a match. " +
+        "Remedy: correct the key. A silently ignored key is a tier the user believes they set and " +
+        "did not (D-06), so it is refused rather than skipped — and it is refused BEFORE any legal " +
+        "key beside it is read, because a preset applying while its overrides are dropped is a " +
+        "partially wrong tier map delivered by a green run.",
+    };
+  }
+
+  // ── WHAT THIS CLOSES, AND WHAT IT DOES NOT — the disclosed residual (WR-01, T-29.1-17). ────────
+  //
+  // CLOSED: the `models` block's key set, immediately above, and the `models.roles` key set below.
+  // Both are decided against an allow-list by exact string equality, and both name every offending
+  // member.
+  //
+  // NOT CLOSED: the configuration FILE's own top-level key set. That file legitimately carries the
+  // other dials this repository documents — `governance`, `quality`, `queue`, `context`, `bdd`,
+  // `wip_limits` and more — and each is read by a different consumer. A near-miss key at FILE level,
+  // `{"model":{"preset":"tiered"}}` singular being the reproduced example, therefore reaches outcome
+  // 4 of `readModelsConfig` and yields the zero-config answer with no message.
+  //
+  // THE DIRECTION OF THAT RESIDUAL, stated rather than left to be inferred from silence: the user
+  // gets the lean default — every role `inherit` — and cannot distinguish it from a dial that did
+  // nothing. That is the same conflation this module refuses everywhere else, and it is ACCEPTED
+  // here rather than fixed.
+  //
+  // WHY CLOSING IT IS NOT ATTEMPTED: enumerating the file's legal top-level keys would require a
+  // registry of every reader that consumes that file, and no such registry exists in this tree.
+  // Building one from a hand-written list would be this repository's named second systemic failure
+  // class — a set literal that rots while the suite stays green — installed at the exact surface
+  // whose whole purpose is refusing silently dropped configuration. The residual is pinned by a case
+  // whose title states it is a residual, and stated in agent-factory/config/factory.config.md, so no
+  // shipped sentence publishes a guarantee wider than the mechanism behind it.
+
   // ── `preset`, by EXACT EQUALITY against the closed set (D-07). ───────────────────────────────
   let preset: PresetName = "none";
   const rawPreset = models.preset;
