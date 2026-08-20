@@ -10225,6 +10225,45 @@ describe("guard_model_assignment (Phase 29.1, MODEL-03/MODEL-05)", () => {
   // edit here. Whole-line comments are stripped first, following case `(m)`: several of these files
   // DISCUSS the override and the pattern at length, and prose about a defect must not be counted as
   // the defect.
+  // (Plan 29.1-19, R3-IN-01) THE SECOND CONSUMER SHAPE, WHICH A FIXED BYTE WINDOW CANNOT SEE.
+  //
+  // The inner predicate used to be a 300-byte window read FORWARD from `new RegExp(`, asking whether
+  // the root was named inside it. A gate written as
+  //
+  //     const escaped = ROOT.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  //     …
+  //     const re = new RegExp(escaped + BOUNDARY, "g");
+  //
+  // acquires the R2-CR-01 defect class and is invisible to that window: what follows `new RegExp(`
+  // is `escaped`, not `ROOT`. It is the INDIRECTION that defeats the window, not merely the distance
+  // — no window size fixes it, because the assembling declaration may sit anywhere in the file,
+  // including BEHIND the call the window reads forward from. (The review named distance; the measured
+  // cause is the indirection, and distance only makes it worse.)
+  //
+  // The second arm is therefore file-scoped and IDIOM-shaped rather than window-shaped: a
+  // comment-stripped LINE that applies this tree's regex-escape idiom to a root-bearing receiver is
+  // an assembly of a root-bearing pattern, and a file doing that AND compiling some RegExp is counted.
+  //
+  // THE RESIDUAL, DISCLOSED WITH ITS DIRECTION. The arm recognises ONE SPELLING of the escape idiom —
+  // the bytes this tree actually writes, measured across scripts/*.ts (three files carry it verbatim:
+  // audit-prepass.ts, check-foundation-guards.ts, voice-model.ts). A differently spelled escape, or
+  // an assembly split across lines, is still invisible. That direction is FAIL-OPEN and is recorded
+  // as a WINDOWS ledger row. This case's whole purpose is bounding a blast radius, and a bound whose
+  // limits are undisclosed is the finding one level up from this one.
+  //
+  // THE FLOORS, RE-MEASURED AFTER THE WIDENING (plan 29.1-19): read CHECK_ROOT 15, build any RegExp
+  // 2 (audit-prepass.ts, check-foundation-guards.ts), compile the root into a RegExp 1
+  // (check-foundation-guards.ts). Both floors survive — the denominator is non-empty and the
+  // discrimination floor still has its counter-example, audit-prepass.ts, which builds a RegExp and
+  // escapes a receiver that is not the root. A widening that had swallowed that counter-example
+  // would leave the residual assertion true for a reason having nothing to do with the defect.
+  // The published residual set is unchanged by the widening: 1 before, 1 after, same member.
+  const REGEX_ESCAPE_IDIOM_SOURCE = '.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\\\$&")';
+  const rootBearingPatternAssembly = (code: string): boolean =>
+    code
+      .split("\n")
+      .some((l) => l.includes(REGEX_ESCAPE_IDIOM_SOURCE) && /\bROOT\b/.test(l));
+
   it("(o-one-consumer) exactly ONE gate in this tree compiles its CHECK_ROOT into a RegExp", () => {
     const dir = join(ROOT, "scripts");
     const codeOf = (src: string): string =>
@@ -10232,6 +10271,43 @@ describe("guard_model_assignment (Phase 29.1, MODEL-03/MODEL-05)", () => {
         .split("\n")
         .filter((l) => !l.trimStart().startsWith("//"))
         .join("\n");
+
+    // THE PREDICATE THIS ROUND REPLACES, KEPT AS A NAMED CONTROL rather than described in prose. It
+    // is applied to the synthetic string below beside its replacement, so the widening is a measured
+    // difference between two predicates over one input rather than a claim about one.
+    const oldFixedWindowArm = (code: string): boolean => {
+      let at = code.indexOf("new RegExp(");
+      while (at !== -1) {
+        if (/\bROOT\b/.test(code.slice(at, at + 300))) return true;
+        at = code.indexOf("new RegExp(", at + 1);
+      }
+      return false;
+    };
+
+    // ── THE WIDENING, MEASURED OVER ONE SYNTHETIC SOURCE STRING ────────────────────────────────
+    //
+    // The string carries exactly the shape R3-IN-01 named: the root escaped into a local, unrelated
+    // code between, and the local handed to the compiler far below. The escape is written from the
+    // idiom constant itself, so the input and the predicate measuring it cannot drift apart.
+    const assembledConsumerSource = [
+      'const ROOT = process.env.CHECK_ROOT ? resolve(process.env.CHECK_ROOT) : join(import.meta.dirname, "..");',
+      `const escaped = ROOT${REGEX_ESCAPE_IDIOM_SOURCE};`,
+      `const filler = ${JSON.stringify("x".repeat(400))};`,
+      "const pattern = escaped + ROOT_PATH_BOUNDARY;",
+      'const re = new RegExp(pattern, "g");',
+    ].join("\n");
+    expect(
+      assembledConsumerSource.includes("new RegExp("),
+      "PREMISE: the synthetic consumer must actually compile a RegExp, or neither predicate is being asked the question this case is about",
+    ).toBe(true);
+    expect(
+      oldFixedWindowArm(assembledConsumerSource),
+      "the OLD fixed-window arm must be BLIND to the assembled shape — if it already saw it, this widening had nothing to fix and the case is measuring the wrong thing",
+    ).toBe(false);
+    expect(
+      rootBearingPatternAssembly(assembledConsumerSource),
+      "the NEW assembled-pattern arm must COUNT that same string — this is the widening, applied to the input the old arm was just measured blind to",
+    ).toBe(true);
 
     const readsRoot: string[] = [];
     const buildsAnyRegExp: string[] = [];
@@ -10250,7 +10326,11 @@ describe("guard_model_assignment (Phase 29.1, MODEL-03/MODEL-05)", () => {
         at = code.indexOf("new RegExp(", at + 1);
       }
       if (any) buildsAnyRegExp.push(f);
-      if (fromRoot) compilesRootIntoRegExp.push(f);
+      // THE UNION OF THE TWO ARMS. A file counts when the root reaches the compiler directly inside
+      // the call OR through a local assembled from a root-bearing escape first. The assembly arm is
+      // only asked of files that compile something — an escape with no `new RegExp(` anywhere is not
+      // a consumer of this defect class.
+      if (fromRoot || (any && rootBearingPatternAssembly(code))) compilesRootIntoRegExp.push(f);
     }
 
     const census = `read CHECK_ROOT: ${readsRoot.length} (${readsRoot.join(", ")}); build any RegExp: ${buildsAnyRegExp.length} (${buildsAnyRegExp.join(", ")}); compile the root INTO a RegExp: ${compilesRootIntoRegExp.length} (${compilesRootIntoRegExp.join(", ")})`;
@@ -10591,6 +10671,23 @@ describe("guard_model_assignment (Phase 29.1, MODEL-03/MODEL-05)", () => {
       "guard_wr05 is the finding the stray-pin arm's silence defers to — if it does not name the file, the silence covers nothing",
     ).toContain(`${rel}: frontmatter is NOT in the canonical form [unknown-key]`);
 
+    // (Plan 29.1-19, R3-IN-02) THE NEGATIVE ASSERTION'S OWN PREMISE, ASSERTED IN THE SAME RUN.
+    //
+    // Below, the model section is required NOT to carry guard_wr05's refusal sentence. A negative is
+    // only a confinement proof when the thing being confined was PRODUCED — otherwise it passes over
+    // a run that never printed the sentence anywhere, and the property it claims to pin is untested.
+    // So the sentence is required PRESENT here first, in the section that owns it.
+    //
+    // ITS CARDINALITY IS DERIVED, NOT TYPED. The number is the canonical schema's own length, read
+    // through the constant already imported by this file. Typed by hand into a negative, an eleventh
+    // schema key would change the guard's sentence to "11 keys", leave the hand-typed "10" matching
+    // nothing, and make the assertion vacuously true forever.
+    const refusalCardinalityPhrase = `is not one of the ${CANONICAL_SCHEMA.length} keys`;
+    expect(
+      wr05,
+      `PREMISE of the negative below: guard_wr05 must actually PRINT "${refusalCardinalityPhrase}" — a sentence no section produced cannot be proven confined to one of them`,
+    ).toContain(refusalCardinalityPhrase);
+
     // …AND THE DENOMINATOR IS HONEST: one fewer probed than derived, and the excluded member named
     // with its code. Before this plan the same plant printed a count of every member as "checked".
     const section = modelSection(out(r));
@@ -10603,8 +10700,12 @@ describe("guard_model_assignment (Phase 29.1, MODEL-03/MODEL-05)", () => {
     expect(section).toContain(`${rel}: [unknown-key]`);
     expect(section).toContain("reported by guard_wr05");
     // The arm does NOT re-report guard_wr05's sentence — the excluded COUNT and the file's identity
-    // are this arm's facts; the reason is guard_wr05's.
-    expect(section).not.toContain("is not one of the 10 keys");
+    // are this arm's facts; the reason is guard_wr05's. The phrase is the SAME value just asserted
+    // present above, so the pair reads "produced there, and only there".
+    expect(
+      section,
+      `the stray-pin arm must not re-report guard_wr05's reason. The phrase "${refusalCardinalityPhrase}" was asserted PRESENT in guard_wr05's section above, so this negative is a confinement proof rather than a claim about text no run produced.`,
+    ).not.toContain(refusalCardinalityPhrase);
   });
 
   // (Plan 29.1-13, R2-WR-03) THE ARMS TESTED AS A UNION, WHICH IS WHAT LET THE OLD JUSTIFICATION
