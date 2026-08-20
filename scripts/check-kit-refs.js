@@ -438,6 +438,11 @@ if (!configDirPresent) {
 // mention — a red nobody could attribute to the thing that caused it. Same discipline, same wording
 // style, as the absent-directory finding above: name the absence.
 const configSiblings = new Set(configSiblingFiles());
+// The denominator is PUBLISHED, not merely used. A membership rule is only as trustworthy as the
+// set it decides against, and a reader of a green run — or a harness asserting this gate's premise —
+// cannot otherwise see what that set was. Same discipline as the adapter derivation line above and
+// as the marker-site count: report what was compared, never a bare verdict.
+process.stdout.write(`  [derivation] exemption sibling set: ${configSiblings.size} depth-1 regular file(s) in ${CONFIG_SELF_REF_DIR}/ [${[...configSiblings].join(", ")}]\n`);
 if (configDirPresent && configSiblings.size === 0) {
     fail(`${CONFIG_SELF_REF_DIR}/ carries no regular file at its top level — refusing to adjudicate its exemption against an empty sibling set (every named path would be a stray for a reason having nothing to do with the mention)`);
 }

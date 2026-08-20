@@ -160,13 +160,20 @@ function configFieldReference(mirror: string): string {
 const CONFIG_REF_NEEDLE = "agent-factory/config/";
 const CONFIG_SIBLING = "agent-factory/config/factory.config.json";
 /**
- * The number of LINES carrying the needle — the unit the gate counts.
+ * The number of LINES carrying the needle — one per line, however many times the line says it.
+ * This is `grep -c`, and it is the unit the gate's HIT LIST is counted in.
  *
  * MEASURED, NOT ASSUMED (plan 29.1-17). `grepSubstring` emits one `path:lineno:line` hit per LINE,
  * so a line naming the kit-internal path twice is ONE hit. The field reference's line 138 does
  * exactly that, so the file carries THREE substring occurrences and TWO hits. A premise written in
  * substring occurrences would disagree with the gate's own cardinality for a reason a reader of the
  * red could not attribute.
+ *
+ * IT IS NO LONGER THE ONLY UNIT THE GATE COUNTS (plan 29.1-18). This docstring said "the unit the
+ * gate counts" while the gate published that number as a count of MENTIONS — the knowledge of the
+ * distinction was in this file and the claim was in the other one. Use `mentionsIn` below for the
+ * mention unit; the two are asserted side by side so no premise can be written in one and checked
+ * in the other again.
  */
 function linesContaining(haystack: string, needle: string): number {
   return haystack.split("\n").filter((l) => l.includes(needle)).length;
@@ -227,6 +234,31 @@ function plantOnExemptLine(file: string, needle: string, text: string): number {
   return at + 1;
 }
 
+/**
+ * The exemption's DERIVED denominator, as the gate itself reports it: the depth-1 regular files the
+ * configuration directory carries on the tree under judgement. Reading the gate's published set
+ * (rather than re-deriving it here) is the same discipline `reportedMarkerSites` below applies to
+ * the marker sites — a second implementation of the rule is a second thing for the first to drift
+ * away from, and this file's whole scan-set derivation exists because of that class.
+ */
+function reportedSiblingSet(stdout: string): { count: number; names: string[] } {
+  const m = stdout.match(
+    /exemption sibling set: (\d+) depth-1 regular file\(s\) in [^[]*\[([^\]]*)\]/,
+  );
+  if (!m) {
+    throw new Error(
+      "reportedSiblingSet: the gate published no sibling-set derivation line — refusing to assert a " +
+        "membership premise against a denominator the gate never disclosed",
+    );
+  }
+  return {
+    count: Number(m[1]),
+    names: m[2] === "" ? [] : m[2].split(", "),
+  };
+}
+/** The sibling-set cardinality measured this session: .gitkeep, factory.config.json, factory.config.md. */
+const CONFIG_SIBLING_FILES = 3;
+
 // The derivation is asserted BEFORE any mirror is built, because every green case below is built on
 // the set it returns: a derivation that silently returned fewer members would build a partial mirror
 // that passes for the wrong reason. This is this repository's stated remedy for a derived set —
@@ -264,9 +296,17 @@ describe("check-kit-refs Assertion 1 exemption — the config self-references, p
     const mirror = makeMirror("ckr-cfg-green-");
     const ref = configFieldReference(mirror);
     expect(existsSync(ref), "PREMISE: the derived mirror must carry the config field reference").toBe(true);
+    const greenBody = readFileSync(ref, "utf8");
+    // BOTH units, before the gate is run. A premise pinned in ONE unit is exactly how the exemption
+    // came to be declared in a unit it did not count (R3-CR-01) — this is the assertion that would
+    // have caught it, so it is written in both.
     expect(
-      linesContaining(readFileSync(ref, "utf8"), CONFIG_REF_NEEDLE),
-      "PREMISE: the reference must carry exactly the two mentions the exemption is declared for",
+      mentionsIn(greenBody, CONFIG_REF_NEEDLE),
+      "PREMISE: the reference must carry exactly the three MENTIONS the exemption is declared for",
+    ).toBe(3);
+    expect(
+      linesContaining(greenBody, CONFIG_REF_NEEDLE),
+      "PREMISE: …distributed over exactly the two LINES the gate's hit list is counted in",
     ).toBe(2);
 
     const r = runGate(mirror);
@@ -510,6 +550,45 @@ describe("check-kit-refs Assertion 1 exemption — the config self-references, p
     expect(r.stdout).toContain("refusing to adjudicate its exemption against an empty sibling set");
     // Distinct from the ABSENT-directory finding, which diagnoses a different fault.
     expect(r.stdout).not.toContain("no agent-factory/config/ directory found");
+  });
+
+  it("the sibling set is DERIVED from the tree under judgement, with its cardinality asserted", () => {
+    // The membership rule acquired a DENOMINATOR, so the denominator gets the same treatment this
+    // file already gives the derived scan set: non-empty, cardinality two-sided, and required to
+    // contain the name the legal mentions actually use — so a derivation returning the right COUNT
+    // of the wrong strings is still red.
+    const mirror = makeMirror("ckr-cfg-siblings-");
+    const before = runGate(mirror);
+    expect(before.status).toBe(0);
+    const set = reportedSiblingSet(before.stdout);
+    expect(
+      set.count,
+      "PREMISE: the denominator must be non-empty — an empty set makes every mention a stray for a reason having nothing to do with the mention",
+    ).toBeGreaterThan(0);
+    expect(set.count).toBe(CONFIG_SIBLING_FILES);
+    // The published NUMBER must describe the published LIST — a count derived apart from the set it
+    // reports is the shape this plan exists to close.
+    expect(set.names).toHaveLength(CONFIG_SIBLING_FILES);
+    expect(set.names, "the derived set must carry the basename the exemption's legal mentions name").toContain(
+      "factory.config.json",
+    );
+
+    // DISCRIMINATION: remove that regular file and the membership decision for a mention naming it
+    // must change. A derivation that ignored the tree would keep exempting a name nothing carries.
+    const target = join(mirror, "agent-factory", "config", "factory.config.json");
+    rmSync(target);
+    const removed = runGate(mirror);
+    expect(removed.status).toBe(1);
+    expect(reportedSiblingSet(removed.stdout).names).not.toContain("factory.config.json");
+    expect(reportedSiblingSet(removed.stdout).count).toBe(CONFIG_SIBLING_FILES - 1);
+    expect(removed.stdout).toContain("stray agent-factory/config/ ref(s)");
+
+    // …and restoring it restores the decision, so the case is a property of the tree and not of the
+    // order the assertions ran in. The live tree is never touched: this is the mirror throughout.
+    cpSync(join(ROOT, "agent-factory", "config", "factory.config.json"), target);
+    const restored = runGate(mirror);
+    expect(restored.status).toBe(0);
+    expect(reportedSiblingSet(restored.stdout).names).toContain("factory.config.json");
   });
 
   it("Assertion 1 RED: a kit-internal mention outside the config directory still fails as it always did", () => {
