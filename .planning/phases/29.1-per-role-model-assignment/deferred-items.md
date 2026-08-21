@@ -55,3 +55,57 @@ catch, and the control **is** catching it.
    change to its escape scanner is a Rule 4 architectural decision, not an inline auto-fix.
 
 **Owner:** unassigned. Needs a plan of its own. Also recorded as `.planning/WINDOWS.md` row 91.
+
+---
+
+## D-29.1-23-01 — `scripts/model-tiers.ts`: `resolveModels` still throws on four input classes, so the module's totality claim is false
+
+**Found during:** plan 29.1-23, closing adversarial self-verification (not required by the plan; run
+because a green suite is not proof for a safety surface).
+**Caused by this plan:** No. Three of the four throw at `e9907f5`, the build that predates the whole
+round-3/round-4 sequence. The fourth (a revoked Proxy at the KEY position) returned `{ok:true}` at
+`e9907f5` under the silent skip, began throwing at `ad033f0`, and **still throws at this plan's
+HEAD** — so this plan reduced the key axis's throwing set but did not empty it.
+
+**Measured across four committed builds, one script, identical inputs:**
+
+| Input | `e9907f5` | `ad033f0` | `a58036b` | HEAD (`dfc6ab8`) |
+|---|---|---|---|---|
+| a revoked Proxy at the VALUE position | THREW | THREW | THREW | **THREW** |
+| a revoked Proxy at the KEY position | ok:true | THREW | THREW | **THREW** |
+| a Map subclass whose iterator yields a non-array entry | THREW | THREW | THREW | **THREW** |
+| a Map subclass whose iterator throws | THREW | THREW | THREW | **THREW** |
+
+**Two distinct root causes, neither inside this plan's declared surface.**
+
+1. **`quoteValue` is not total, though its docstring says "IT IS TOTAL".** The `describeShape(value)`
+   call sits INSIDE the `catch` block, i.e. outside the `try`. `Array.isArray` is not a total
+   function: on a revoked Proxy it throws `TypeError: Cannot perform 'IsArray' on a proxy that has
+   been revoked`. So the authority's own fallback path can throw, on both axes.
+2. **The override loop's `for (const [stem, alias] of overrides)` destructures before any floor
+   runs.** Floor 0b establishes `instanceof Map` and nothing more; a Map SUBCLASS may override
+   `Symbol.iterator`, and a non-array entry or a throwing iterator escapes before a refusal exists to
+   be returned.
+
+**Direction:** FAIL-CLOSED in every row — a throw is loud, and no tier is silently applied. It is
+nonetheless the exact class this phase exists to close, because the module header promises a
+returned result specifically so a degrading consumer need not write a catch.
+
+**Why it was not fixed here.** Deliberate, and the reason is the phase's own recorded lesson rather
+than scope timidity. Only root cause 1 is reachable by a small edit; root cause 2 needs defensive
+iteration, which is a structural change to the loop this plan was closing a wording defect in.
+Fixing one of the two would leave the totality claim looking closed while remaining false — the
+"one more spelling" incrementalism this project's memory names as its repeated failure across
+twelve rounds on `frontmatter.ts`. The established remedy for an open-set totality in this
+repository is **D-59**: hold the claim as CONTENT with a disclosed backstop, not as a mechanism that
+does not exist. That is what this record is.
+
+**Consequence for this plan's own stated truth.** `29.1-23-PLAN.md` truth 1 reads "`resolveModels`
+returns a result rather than throwing on every input, on the KEY axis as well as the VALUE axis."
+That is **NOT achieved**. What IS achieved and measured: all 13 corpus shapes return at the KEY
+position, all 169 KEY-by-VALUE cells return, and both shapes the round-4 verifier reproduced return.
+"Every input" remains false, and the four counterexamples above are named rather than left for a
+sixth round to find.
+
+**Owner:** unassigned. Needs a plan of its own, and that plan should rule on whether the totality is
+held as a mechanism at all. Also recorded as `.planning/WINDOWS.md` row 95.
