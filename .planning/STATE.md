@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v2.1
 milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live Board
 current_phase: 29.1
-current_phase_name: Per-Role Model Assignment (INSERTED)
+current_phase_name: per-role-model-assignment
 status: planned
 stopped_at: Completed 29.1-21-PLAN.md — gap-closure round 4 complete
-last_updated: "2026-08-20T20:58:43.604Z"
-state_head: fe70e3a8633f2aae23e7370962ed7ddeb3097636
+last_updated: "2026-08-21T13:36:15.504Z"
+state_head: 8d93d75611ce3bdfa3d3d9f95a5e97fcb07d5577
 progress:
   total_phases: 9
   completed_phases: 3
-  total_plans: 155
+  total_plans: 159
   completed_plans: 155
   percent: 33
 last_activity: 2026-08-19
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-07-28 — after v2.0 milestone)
 
 ## Current Position
 
-Phase: 29.1 (Per-Role Model Assignment (INSERTED)) — EXECUTING
+Phase: 29.1 (per-role-model-assignment) — READY TO EXECUTE
 Plan: 21 of 21
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
