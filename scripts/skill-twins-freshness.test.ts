@@ -36,6 +36,19 @@ import {
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 
+// THE ONE AUTHORITY over "where is the ubuntu gate block and what does it run" (plan 29.1-24). This
+// file locates that block through NOTHING else — no local step-name literal, no local slice, no
+// second grammar. See the disposition note above Case 8 for what reversed the previous decision to
+// keep a private copy here.
+import {
+  UBUNTU_BLOCK_STEP_NAME,
+  STEP_MARKER,
+  ciWorkflow,
+  ubuntuBlock,
+  ubuntuBlockCommands,
+  withAppendedStep,
+} from "./ci-workflow.testkit.js";
+
 const ROOT = join(import.meta.dirname, "..");
 const GATE_JS = join(ROOT, "scripts", "skill-twins-freshness.js");
 
@@ -254,7 +267,7 @@ describe("skill-twins-freshness.js (D-64 Part B skill-twin drift gate)", () => {
     }
   });
 
-  // ── THE UBUNTU GATE BLOCK, READ THE SAME WAY THE SIBLING FILE READS IT ──────────────────────────
+  // ── THE UBUNTU GATE BLOCK, READ THROUGH THE ONE AUTHORITY ───────────────────────────────────────
   //
   // (Plan 29.1-14, R2-WR-02) BOUNDED ON THE RIGHT, AND PROBED OVER COMMANDS. Case 8 previously sliced
   // from the step name to END OF FILE and probed the raw slice. The block is the last step in the
@@ -263,65 +276,52 @@ describe("skill-twins-freshness.js (D-64 Part B skill-twin drift gate)", () => {
   // block. The block is also roughly four-fifths comment, so a comment quoting a command satisfied a
   // substring probe with the command deleted.
   //
-  // (Plan 29.1-19, R3-IN-03) THE SLICE BASE IS RECONCILED WITH THE SIBLING, AND THE MEASUREMENT IS
-  // RECORDED. This reader sliced from `at` while scripts/check-foundation-guards.test.ts sliced from
-  // `at + UBUNTU_BLOCK_STEP_NAME.length`. `(r-class)`, now `(r-class-prefix)`, certified both as members of one class while
-  // they were reading DIFFERENT regions. Measured on the committed workflow this session: the
-  // `at + name.length` base yields 20 command entries whose first is
-  // `if: matrix.os == 'ubuntu-latest'`; the bare `at` base yields 21, whose first is the step name
-  // itself — the heading of the region rather than anything the region runs. The `at + name.length`
-  // base is the one that returns a region rather than a region plus its own heading, so it is the
-  // base that survives, and this file now spells it that way.
+  // (Plan 29.1-19, R3-IN-03) THE SLICE BASE WAS RECONCILED WITH THE SIBLING, AND THE MEASUREMENT IS
+  // RECORDED. This reader sliced from the locator index while scripts/check-foundation-guards.test.ts
+  // sliced from the END of the step name. `(r-class)`, then `(r-class-prefix)`, certified both as
+  // members of one class while they were reading DIFFERENT regions. Measured on the committed
+  // workflow: the end-of-name base yields 20 command entries whose first is
+  // `if: matrix.os == 'ubuntu-latest'`; the bare locator base yields 21, whose first is the step name
+  // itself — the heading of the region rather than anything the region runs.
   //
-  // THE SHARED-HELPER DISPOSITION IS UNCHANGED. scripts/check-foundation-guards.test.ts carries the
-  // same reader and the two are NOT sharing a helper. Sharing would mean either copying it — two
-  // authorities over one predicate — or promoting it into a production module that only tests
-  // consume, which is a shipped surface added for a test. So each file bounds its own slice, and the
-  // CLASS is closed by `(r-class-prefix)` in scripts/check-foundation-guards.test.ts: that case derives from
-  // the filesystem the set of test files locating this block by its step-name PREFIX, requires every
-  // member to carry the right-bound marker AND the slice base in their canonical spellings, and pins
-  // the member count two-sided. The two literals below are written in exactly those spellings for
-  // that reason; changing either here without changing it there is a red.
-  const UBUNTU_BLOCK_STEP_NAME = "Freshness gates + repo gates (ubuntu only)";
-  const STEP_MARKER = "\n      - name: ";
+  // ── THE NOT-SHARING-A-HELPER DISPOSITION IS REVERSED. (Plan 29.1-24, closing R3-IN-03) ──────────
+  //
+  // THE SUPERSEDED REASONING, DESCRIBED RATHER THAN DELETED. This file used to carry a paragraph
+  // arguing that this reader was deliberately NOT shared with scripts/check-foundation-guards.test.ts:
+  // sharing would mean either copying the helper — two authorities over one predicate — or promoting
+  // it into a production module that only tests consume, which is a shipped surface added for a test.
+  // The argument concluded that each file should bound its own slice, and that the CLASS was closed
+  // instead by `(r-class-prefix)`, a scan requiring every derived member to carry the right-bound
+  // marker AND the slice base in their canonical source spellings.
+  //
+  // WHAT REVERSED IT, MEASURED. Round 4 of this phase applied the exact divergence R3-IN-03 named to
+  // the sibling's reader and ran the file: the failure set came back BYTE-FOR-BYTE identical to the
+  // unmutated baseline (4 failed | 260 passed of 264 on a hermetic mirror, both before and after the
+  // mutation). The scan the disposition bought was structurally incapable of failing for either of
+  // its two members, because the constants that STATE its canonical spellings are declared in the
+  // very files it searches. Round 4's suggested cheap repair — strip `const NAME =` declaration
+  // lines before the containment tests — was then measured against this tree and REDS A CORRECT
+  // TREE: after stripping, the right-bound marker's canonical spelling occurs ZERO times in BOTH
+  // members, because the only place either file spells those bytes IS the declaration.
+  //
+  // The original argument's first horn was what the tree already had. Its second horn is answered by
+  // scripts/ci-workflow.testkit.ts, a module NO production script imports — and
+  // `(r-class-authority)` in scripts/check-foundation-guards.test.ts asserts that by a derived scan
+  // rather than by this sentence. So the class is now closed by CONSTRUCTION: there is ONE
+  // implementation of where this block is and what it runs, both readers consume it, and membership
+  // is derived from the IMPORT rather than from a phrase a comment could also contain. Nothing in
+  // this file re-types the step-name literal; every reference is to the imported constant.
 
-  /** The committed workflow text. */
-  function ciWorkflow(): string {
-    return readFileSync(join(ROOT, ".github/workflows/ci.yml"), "utf8");
-  }
-
-  /** The ubuntu gate block: from the end of its step name to the NEXT step marker, or to end of file. */
-  function ubuntuBlock(ci: string): string {
-    const at = ci.indexOf(UBUNTU_BLOCK_STEP_NAME);
-    if (at === -1) {
-      throw new Error(
-        "skill-twins wiring oracle: .github/workflows/ci.yml does not carry the step name " +
-          `"${UBUNTU_BLOCK_STEP_NAME}" — refusing to read a block that is not there`,
-      );
-    }
-    const rest = ci.slice(at + UBUNTU_BLOCK_STEP_NAME.length);
-    const next = rest.indexOf(STEP_MARKER);
-    return next === -1 ? rest : rest.slice(0, next);
-  }
-
-  /** The block's COMMAND lines: trimmed, non-empty, comment lines dropped. */
-  function ubuntuBlockCommands(ci: string): string[] {
-    return ubuntuBlock(ci)
-      .split("\n")
-      .map((l) => l.trim())
-      .filter((l) => l.length > 0 && !l.startsWith("#"));
-  }
-
-  // (Plan 29.1-19, R3-WR-01) THE SYNTHETIC FOLLOWING STEP, mirrored from the sibling file rather than
-  // imported from it. The committed block is the workflow's LAST step, so on this tree the bound
-  // lands on end-of-file either way and nothing here can tell the bounded reader from an unbounded
-  // one. Case 8b supplies the input the tree lacks. `.github/workflows/ci.yml` is never written to.
+  // (Plan 29.1-19, R3-WR-01) THE SYNTHETIC FOLLOWING STEP. The committed block is the workflow's LAST
+  // step, so on this tree the bound lands on end-of-file either way and nothing here can tell the
+  // bounded reader from an unbounded one. Case 8b supplies the input the tree lacks, built by the
+  // authority's shared builder. `.github/workflows/ci.yml` is never written to.
+  //
+  // The name and the command stay LOCAL because they are this file's INPUTS rather than shared
+  // grammar: this member deliberately appends a command of its own — the gate this file exists to
+  // prove wired — so the count assertion below is about the command that matters here.
   const APPENDED_STEP_NAME = "A step appended after the ubuntu gate block (synthetic, plan 29.1-19)";
   const APPENDED_STEP_COMMAND = "npm run freshness:skill-twins";
-
-  function withAppendedStep(ci: string): string {
-    return `${ci}${STEP_MARKER}${APPENDED_STEP_NAME}\n        run: |\n          ${APPENDED_STEP_COMMAND}\n`;
-  }
 
   it("Case 8 (wired at both ends): the gate is named in package.json AND in the ubuntu block of the CI workflow", () => {
     // The omission this whole file exists to prevent, asserted rather than remembered. A gate present
@@ -352,7 +352,7 @@ describe("skill-twins-freshness.js (D-64 Part B skill-twin drift gate)", () => {
 
   it("Case 8b: the ubuntu block reader stops at a following step, proven on a synthetic workflow", () => {
     const ci = ciWorkflow();
-    const withAppended = withAppendedStep(ci);
+    const withAppended = withAppendedStep(ci, APPENDED_STEP_NAME, APPENDED_STEP_COMMAND);
 
     // PREMISE OF THE SYNTHETIC INPUT ITSELF, asserted before anything is read from it. A synthetic
     // text that failed to introduce a following step would make every assertion below pass for the

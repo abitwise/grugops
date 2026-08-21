@@ -37,6 +37,19 @@ import { join, dirname, basename } from "node:path";
 // which rows are graftable with the same admission reader the gate now uses — so the module-level
 // replay and the gate-level replay cannot disagree about which bytes were tested.
 import { CORPUS, CORPUS_COUNT, rowById } from "./canonical-corpus.js";
+
+// (Plan 29.1-24, closing R3-IN-03) THE ONE AUTHORITY over "where is the ubuntu gate block and what
+// does it run". This file locates that block through NOTHING else. See the disposition note above
+// `(r-bound)` for the measurements that reversed the previous decision to keep a private copy here.
+import {
+  UBUNTU_BLOCK_STEP_NAME,
+  UBUNTU_BLOCK_STEP_PREFIX,
+  STEP_MARKER,
+  ciWorkflow,
+  ubuntuBlock,
+  ubuntuBlockCommands,
+  withAppendedStep,
+} from "./ci-workflow.testkit.js";
 import {
   admit,
   admittedValuesFor,
@@ -1707,16 +1720,24 @@ const SECTION_EXTENT_OWNER_COUNT = 1;
 /**
  * The recursive enumeration's own size, pinned so a walk that silently stopped early is loud.
  *
- * 49 → 50 (plan 29.1-01). Phase 29.1 added ONE non-test module, `scripts/model-tiers.ts`. Derived
- * independently rather than incremented: `find install scripts hooks -name '*.ts' ! -name
- * '*.test.ts'` reports 49 and the recursive walk reports 50, and the difference is `vitest.config.ts`
- * at the repository root, which the walk sees and that command's roots do not. The delta between the
- * two enumerations is unchanged at 1, so the walk did not quietly widen — exactly one module arrived.
+ * 49 → 50 (plan 29.1-01), 50 → 51 (plan 29.1-24). Each step added ONE non-test module —
+ * `scripts/model-tiers.ts`, then `scripts/ci-workflow.testkit.ts`. Derived independently rather than
+ * incremented: `find install scripts hooks -name '*.ts' ! -name '*.test.ts'` reports 50 and the
+ * recursive walk reports 51, and the difference is `vitest.config.ts` at the repository root, which
+ * the walk sees and that command's roots do not. The delta between the two enumerations is unchanged
+ * at 1, so the walk did not quietly widen — exactly one module arrived.
  *
- * The owner answer is unchanged by the addition: `model-tiers.ts` decides no section extent and
- * declares no frontmatter parser, so SECTION_EXTENT_OWNERS stays at the one authority.
+ * This pin firing is the tripwire working as designed, and its number moves in the SAME commit that
+ * adds the module rather than in a later repair.
+ *
+ * The owner answer is unchanged by either addition: neither module decides a section extent nor
+ * declares a frontmatter parser, so SECTION_EXTENT_OWNERS stays at the one authority.
+ * `ci-workflow.testkit.ts` is a TEST-ONLY module that no production script imports — a property
+ * `(r-class-authority)` asserts by a derived scan — but it is a non-test `.ts` under `scripts/` and
+ * so it is genuinely a member of THIS corpus, which is enumerated by file shape rather than by
+ * consumer.
  */
-const NON_TEST_MODULE_COUNT = 50;
+const NON_TEST_MODULE_COUNT = 51;
 
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 // (Plan 29-40, gap G-29-1 of 29-UAT.md, closing V-29-35-01) THE FRONTMATTER-PARSER NAME OWNER SET.
@@ -2209,9 +2230,10 @@ describe("LANG-07: exactly ONE module owns the section-extent predicate (plan 29
     // second import grammar landing unnoticed beside the first is exactly the class this phase
     // exists to delete, so the two are compared on the whole overlap rather than trusted to agree.
     const flat = nonTestScripts();
-    // 41 → 42 (plan 29.1-01): `scripts/model-tiers.ts`. Derived independently — `ls scripts/*.ts`
-    // minus the `.test.ts` members reports 42 on this tree.
-    expect(flat.length, "the `scripts/`-scoped reader's own corpus").toBe(42);
+    // 41 → 42 (plan 29.1-01): `scripts/model-tiers.ts`. 42 → 43 (plan 29.1-24):
+    // `scripts/ci-workflow.testkit.ts`. Derived independently — `ls scripts/*.ts` minus the
+    // `.test.ts` members reports 43 on this tree.
+    expect(flat.length, "the `scripts/`-scoped reader's own corpus").toBe(43);
     let compared = 0;
     for (const n of flat) {
       for (const spec of ["frontmatter", "canonical-frontmatter", "audit-model"]) {
@@ -2222,10 +2244,11 @@ describe("LANG-07: exactly ONE module owns the section-extent predicate (plan 29
         compared += 1;
       }
     }
-    // 41 * 3 → 42 * 3 (plan 29.1-01), tracking the one module added above. Kept as a LITERAL times
+    // 41 * 3 → 42 * 3 (plan 29.1-01) → 43 * 3 (plan 29.1-24), tracking the one module added above
+    // each time. Kept as a LITERAL times
     // the spec count rather than `flat.length * 3`: deriving it from the loop's own input would make
     // the assertion true by construction and blind to a corpus that silently shrank.
-    expect(compared, "the comparison must really have run over the whole corpus").toBe(42 * 3);
+    expect(compared, "the comparison must really have run over the whole corpus").toBe(43 * 3);
     // NON-VACUITY: the comparison would be clean over two readers that both return nothing, so at
     // least one module must have produced a non-empty answer through the NEW reader.
     expect(
@@ -2388,13 +2411,14 @@ describe("LANG-07: exactly ONE module owns the section-extent predicate (plan 29
     ]) {
       expect(walked, `the recursive set must contain ${outside}`).toContain(outside);
     }
-    // 41 → 42 (plan 29.1-01): `scripts/model-tiers.ts`, the same one module the flat reader gained.
-    // Both pins move together on purpose — they are two enumerations of one corpus, and a change
-    // that moved only one of them would be the disagreement this pair exists to surface.
+    // 41 → 42 (plan 29.1-01): `scripts/model-tiers.ts`. 42 → 43 (plan 29.1-24):
+    // `scripts/ci-workflow.testkit.ts`. Each is the same one module the flat reader gained. Both pins
+    // move together on purpose — they are two enumerations of one corpus, and a change that moved
+    // only one of them would be the disagreement this pair exists to surface.
     expect(
       walked.filter((n) => n.startsWith("scripts/") && !n.slice(8).includes("/")).length,
       "…and the old non-recursive answer is a strict subset, stated as the number this widening moved off",
-    ).toBe(42);
+    ).toBe(43);
 
     // THE ELEMENT COUNT, DERIVED INDEPENDENTLY OF THE WALK THAT PRODUCES IT. A vacuity floor catches
     // an EMPTY denominator and has never caught a SILENTLY SHORT one, so the set is compared against
@@ -10904,120 +10928,68 @@ describe("guard_model_assignment (Phase 29.1, MODEL-03/MODEL-05)", () => {
   // than inheriting it from the coincidence that this block is last today, and decides membership by
   // exact equality against comment-stripped COMMAND lines.
 
-  // The step name and the step-boundary marker are each spelled ONCE, here. The marker's bytes — a
-  // newline, the workflow's six-space step indentation, and the step key — were read out of
-  // .github/workflows/ci.yml rather than remembered; `(r-bound)` asserts the workflow really does
-  // carry markers spelled this way, because a right bound that matches nothing is not a bound.
-  const UBUNTU_BLOCK_STEP_NAME = "Freshness gates + repo gates (ubuntu only)";
-  const STEP_MARKER = "\n      - name: ";
-
-  // (Plan 29.1-19, R3-IN-03) THE PREFIX `(r-class-prefix)` DECIDES MEMBERSHIP BY, DERIVED RATHER THAN TYPED.
+  // ── ONE IMPLEMENTATION OF THE REGION, AND WHY IT MOVED. (Plan 29.1-24, closing R3-IN-03) ────────
   //
-  // Membership used to be the FULL step name including its `(ubuntu only)` qualifier, so a future
-  // reader locating this block by the shorter spelling was not a member, was never required to carry
-  // the bound, and did not move `UBUNTU_BLOCK_READER_COUNT` — an invisible non-member rather than a
-  // red. The prefix is cut from the full name at its qualifier, so the two are derived from one
-  // another and cannot drift apart; `(r-class-prefix)` asserts both that derivation and that exactly one
-  // step in the committed workflow begins with it, so widening has not made the locator ambiguous.
-  const UBUNTU_BLOCK_STEP_PREFIX = UBUNTU_BLOCK_STEP_NAME.slice(
-    0,
-    UBUNTU_BLOCK_STEP_NAME.indexOf(" ("),
-  );
-
-  // (Plan 29.1-19, R3-IN-03) THE SLICE BASE, IN ITS CANONICAL SOURCE SPELLING.
+  // The step name, the step-boundary marker, the derived prefix, the workflow path, the region reader
+  // and its command reader all live in scripts/ci-workflow.testkit.ts and are IMPORTED at the top of
+  // this file. Nothing below re-types the step-name literal; every reference is to the imported
+  // constant.
   //
-  // The two readers of this block did not read the same region. This file sliced from
-  // `at + UBUNTU_BLOCK_STEP_NAME.length`; scripts/skill-twins-freshness.test.ts sliced from a bare
-  // `at`. Measured on the committed workflow (plan 29.1-19): 20 command entries against 21, the
-  // extra entry being the step name itself — the region's own heading. `(r-class-prefix)`'s predecessor `(r-class)` certified two
-  // readers of one class while they were reading different regions. The base below is the one that
-  // returns a region rather than a region plus its heading, and every member must now spell it this
-  // way, alongside the right-bound marker.
-  const UBUNTU_BLOCK_SLICE_BASE_SOURCE = ".slice(at + UBUNTU_BLOCK_STEP_NAME.length)";
+  // THE SUPERSEDED REASONING, DESCRIBED RATHER THAN DELETED. A paragraph here used to argue that
+  // `ubuntuBlock` was deliberately NOT shared with scripts/skill-twins-freshness.test.ts, because
+  // sharing would mean either copying the helper — two authorities over one predicate — or promoting
+  // it into a production module that only tests consume, which is a shipped surface added for a test.
+  // It concluded that each file should bound its own slice and that the CLASS was closed instead by
+  // `(r-class-prefix)`, a scan requiring every derived member to carry the right-bound marker AND the
+  // slice base in their CANONICAL SOURCE SPELLINGS.
+  //
+  // WHAT REVERSED IT, MEASURED TWICE. Round 4 applied the exact divergence R3-IN-03 named — slicing
+  // from the locator index rather than from the END of the step name — to this file's reader on a
+  // hermetic mirror and ran the file: 4 failed | 260 passed (264), BYTE-FOR-BYTE the unmutated
+  // mirror's failure set, the four being git-dependent cases the mirror cannot run either way. The
+  // scan the disposition bought was structurally incapable of failing for either member, because the
+  // constants that STATE its canonical spellings are declared in the very files it searches. Round
+  // 4's suggested cheap repair — strip `const NAME =` declaration lines before the containment tests
+  // — was then measured against this tree and REDS A CORRECT TREE: after stripping, the right-bound
+  // marker's canonical spelling occurs ZERO times in BOTH members, because the only place either file
+  // spells those bytes IS the declaration.
+  //
+  // So the fix is the STRUCTURAL one this project's record names as the terminal remedy: delete the
+  // second grammar rather than widen the first. The original argument's first horn was what the tree
+  // already had; its second horn is answered by a module NO production script imports, and
+  // `(r-class-authority)` asserts that by a derived scan rather than by this paragraph. "This class
+  // reads one region" is now true by CONSTRUCTION, and what the class case certifies is the
+  // construction: membership derived from the IMPORT, pinned two-sided, closed by a negative over
+  // every non-member. The region's correctness is proven by BEHAVIOUR in `(r-base-discriminating)`,
+  // which computes two regions and compares them rather than comparing source text.
 
-  // The number of `.test.ts` files in scripts/ that locate the ubuntu block by its step name,
-  // MEASURED in this session (plan 29.1-14) rather than assumed: check-foundation-guards.test.ts and
-  // skill-twins-freshness.test.ts. Pinned two-sided by `(r-class-prefix)` so a third reader arriving is a
-  // red rather than a silent pass.
+  // The number of `scripts/*.test.ts` files that read the ubuntu block THROUGH THE AUTHORITY,
+  // MEASURED in this session (plan 29.1-24) rather than assumed: check-foundation-guards.test.ts and
+  // skill-twins-freshness.test.ts. Pinned two-sided by `(r-class-authority)` so a third reader
+  // arriving is a red rather than a silent pass.
   const UBUNTU_BLOCK_READER_COUNT = 2;
-
-  function ciWorkflow(): string {
-    return readFileSync(join(ROOT, ".github", "workflows", "ci.yml"), "utf8");
-  }
 
   // (Plan 29.1-19, R3-WR-01) THE SYNTHETIC FOLLOWING STEP THE RIGHT BOUND IS PROVEN AGAINST.
   //
   // The committed workflow's ubuntu block is its LAST step, so the search for a following step
   // marker returns -1 on this tree and BOTH branches of the bounded reader return the same bytes.
-  // Measured this session: next marker index -1, bounded and unbounded byte-identical, both command
-  // lists 20 entries; and this file run with the reader's right bound deleted came back
-  // 263 passed (263). A bound the committed tree cannot exercise is proven on an input that carries
-  // what the tree lacks — a following step — assembled in memory. .github/workflows/ci.yml is never
-  // written to, not even temporarily.
+  // Measured: next marker index -1, bounded and unbounded byte-identical, both command lists 20
+  // entries; and this file run with the reader's right bound deleted came back 263 passed (263). A
+  // bound the committed tree cannot exercise is proven on an input that carries what the tree
+  // lacks — a following step — assembled in memory by the authority's builder.
+  // .github/workflows/ci.yml is never written to, not even temporarily.
   //
   // THE COMMAND IS ONE THE BLOCK ALREADY RUNS, ON PURPOSE. A novel string asserted absent from the
   // bounded block would also be absent from the empty string, so a reader returning "" would satisfy
   // it. A command that already occurs INSIDE the block turns the assertion into a COUNT: the bounded
   // read returns exactly the occurrences the committed block carries, and the unbounded read returns
   // one more.
+  //
+  // The name and the command stay LOCAL because they are this file's INPUTS rather than shared
+  // grammar; the two members deliberately append different commands, and each choice belongs beside
+  // the case that reasons about it.
   const APPENDED_STEP_NAME = "A step appended after the ubuntu gate block (synthetic, plan 29.1-19)";
   const APPENDED_STEP_COMMAND = "npm run generate:adapters";
-
-  /**
-   * The committed workflow text plus ONE synthetic following step, in memory only.
-   *
-   * The step is spelled with `STEP_MARKER` itself rather than with a hand-typed `- name:` line, so
-   * the input this case proves the bound against and the bound's own needle cannot drift apart.
-   */
-  function withAppendedStep(ci: string): string {
-    return `${ci}${STEP_MARKER}${APPENDED_STEP_NAME}\n        run: |\n          ${APPENDED_STEP_COMMAND}\n`;
-  }
-
-  /**
-   * The ubuntu gate block: from its step name to the NEXT step marker, or to end of file.
-   *
-   * BOUNDED ON THE RIGHT ON PURPOSE, AND THE FALLBACK IS NOT THE GUARANTEE. The block is the LAST
-   * step in the workflow today, so on the committed file the bound lands on end-of-file either way —
-   * which is exactly why it is written now rather than when it first matters.
-   *
-   * WHAT PROVES IT, AND WHAT DOES NOT. (Plan 29.1-19, R3-WR-01) This docstring previously claimed
-   * `(r-bound)` asserted the boundedness as a property. It did not: the assertion it pointed at
-   * probed the RETURNED slice for a step marker, which neither branch of the return below can ever
-   * contain, so its failure message was unreachable on every possible input and the file stayed
-   * green with the bound deleted. The property is proven instead by
-   * `(r-bound-synthetic)`, over a workflow that HAS a following step, with a bounded-versus-unbounded
-   * control on the same bytes that reds on every run if this bound is removed.
-   *
-   * Shape follows scripts/model-dial-consistency.test.ts `scopeSection()`, this repository's existing
-   * worked example of a section reader bounded on the right, rather than inventing a second one.
-   */
-  function ubuntuBlock(ci: string): string {
-    const at = ci.indexOf(UBUNTU_BLOCK_STEP_NAME);
-    if (at === -1) {
-      throw new Error(
-        "CI wiring oracle: .github/workflows/ci.yml does not carry the step name " +
-          `"${UBUNTU_BLOCK_STEP_NAME}" — refusing to read a block that is not there`,
-      );
-    }
-    const rest = ci.slice(at + UBUNTU_BLOCK_STEP_NAME.length);
-    const next = rest.indexOf(STEP_MARKER);
-    return next === -1 ? rest : rest.slice(0, next);
-  }
-
-  /**
-   * The block's COMMAND lines: trimmed, non-empty, and with comment lines dropped.
-   *
-   * The block is roughly four-fifths comment, so a probe over its raw text is a probe over prose. A
-   * comment reading `# we used to run npm run generate:adapters here` satisfies a substring match
-   * with the command itself deleted. Membership and ordering are decided over THIS list, by exact
-   * line equality.
-   */
-  function ubuntuBlockCommands(ci: string): string[] {
-    return ubuntuBlock(ci)
-      .split("\n")
-      .map((l) => l.trim())
-      .filter((l) => l.length > 0 && !l.startsWith("#"));
-  }
 
   // (Plan 29.1-19, R3-WR-01) THE TITLE NAMES WHAT THE CASE ASSERTS, WHICH IS NOW LESS THAN IT SAID.
   // It read "is bounded at both ends and carries no second step marker" while the only assertion
@@ -11077,7 +11049,7 @@ describe("guard_model_assignment (Phase 29.1, MODEL-03/MODEL-05)", () => {
   // future run rather than only in the session where someone thinks to try the mutation.
   it("(r-bound-synthetic) the reader stops at the next step, proven on a workflow that HAS one", () => {
     const ci = ciWorkflow();
-    const withAppended = withAppendedStep(ci);
+    const withAppended = withAppendedStep(ci, APPENDED_STEP_NAME, APPENDED_STEP_COMMAND);
 
     // PREMISE OF THE SYNTHETIC INPUT ITSELF, asserted before anything is read from it. A synthetic
     // text that failed to introduce a following step would make every assertion below pass for the
@@ -11199,41 +11171,56 @@ describe("guard_model_assignment (Phase 29.1, MODEL-03/MODEL-05)", () => {
     expect(ci).toContain("npx vitest run --exclude '**/scripts/e2e/**'");
   });
 
-  // (Plan 29.1-14, R2-WR-02) THE CLASS, NOT ONLY THE INSTANCE.
+  // (Plan 29.1-24, closing R3-IN-03) THE CLASS, CERTIFIED AS A CONSTRUCTION RATHER THAN AS A TEXT
+  // COMPARISON.
   //
-  // THE SHARED-HELPER DISPOSITION, STATED RATHER THAN LEFT TO INFERENCE. `ubuntuBlock` is NOT shared
-  // with scripts/skill-twins-freshness.test.ts. Sharing it would mean either copying the helper —
-  // two authorities over one predicate, the defect this round is deleting elsewhere — or promoting
-  // it into a production module that only tests consume, which is a shipped surface added for a test
-  // and is the same trade in the other direction. So each file bounds its own slice, and the CLASS
-  // is closed HERE instead: this case derives the set of readers from the filesystem and requires
-  // every one of them to carry the right bound AND the same slice base. The authority over "is this
-  // class bounded, and does it read one region" is one assertion, even though the slicing is written
-  // twice. (Plan 29.1-19 reconciles the slice base; the disposition above is unchanged — this round
-  // reconciles the slice, not the ownership.)
+  // WHAT STOOD HERE, AND WHY IT IS DELETED RATHER THAN REPAIRED. `(r-class-prefix)` derived a member
+  // set by scanning `scripts/*.test.ts` for the step-name PREFIX, then imposed two requirements on
+  // every member: that its source carry the right-bound marker in a canonical source spelling, and
+  // that it carry the slice base in one. Round 4 measured that BOTH requirements were structurally
+  // incapable of failing. Each member satisfied requirement 1 through its own
+  // `const STEP_MARKER = ...;` declaration and requirement 2 through its own
+  // `const UBUNTU_BLOCK_SLICE_BASE_SOURCE = ...;` declaration — the constant that STATED the
+  // requirement was the text the requirement searched for, declared in the file being searched.
+  // Applying the exact divergence R3-IN-03 named produced a failure set byte-for-byte identical to
+  // the unmutated baseline.
   //
-  // Both requirements are stated in a CANONICAL SOURCE SPELLING — for the bound, the bytes
-  // `JSON.stringify(STEP_MARKER)` produces; for the base, `UBUNTU_BLOCK_SLICE_BASE_SOURCE`. Those are
-  // declared canonical forms, not parsers: an equivalent spelling written some other way reds here
-  // and the remedy is to spell it the one way, which is the point.
+  // THE CHEAP REPAIR WAS MEASURED AND REFUSED. Round 4's `missing` list proposed stripping
+  // `const <NAME> = ...` declaration lines before the containment tests. Measured against this tree
+  // during plan 29.1-24: after stripping, the right-bound marker's canonical spelling occurs ZERO
+  // times in BOTH members, because the only place either file spelled those bytes WAS the
+  // declaration. Requirement 1 would therefore RED A CORRECT TREE. Round 4's own `missing` list is
+  // input, not gospel, and this is the measurement that refused it.
   //
-  // (Plan 29.1-19, R3-IN-03) WHAT THIS CASE COMPARES, AND WHAT IT THEREFORE CANNOT SEE — DISCLOSED.
+  // SO THE FIX IS THE STRUCTURAL ONE ROUND 4 ITSELF CALLED BETTER: delete the second grammar rather
+  // than widen the first. There is now ONE implementation of "where is the ubuntu gate block and what
+  // does it run" — scripts/ci-workflow.testkit.ts — and both readers import it. "This class reads one
+  // region" is true BY CONSTRUCTION, so this case no longer has to certify it by comparing source
+  // spellings a member's own declaration can supply. What it certifies instead is the construction:
+  // membership DERIVED FROM THE IMPORT rather than from a phrase a comment can also contain, pinned
+  // two-sided, and closed by a negative over every non-member. The region's correctness is a
+  // separate, BEHAVIOURAL question, and it is proven by `(r-base-discriminating)`.
   //
-  // It compares CANONICAL SOURCE SPELLINGS across a derived member set. It does not run the members'
-  // readers and does not compare their outputs. A member that spells both the right-bound marker and
-  // the slice base canonically while computing something else entirely — a second slice under a
-  // different variable, a reader whose canonical literals sit in a dead branch — satisfies every
-  // assertion here. That direction is FAIL-OPEN and it is recorded as a WINDOWS ledger row rather
-  // than left for a later round to rediscover. What closes it for the two members that exist today
-  // is that each carries its OWN synthetic-input bound proof with a bounded-versus-unbounded control:
-  // `(r-bound-synthetic)` here and `Case 8b` in scripts/skill-twins-freshness.test.ts.
-  it("(r-class-prefix) the reader set is derived from the step-name prefix, and the widening is measured", () => {
+  // (Plan 29.1-19, R3-IN-03) The uniqueness premise over the workflow's step names and the vacuity
+  // floor on the derived denominator are KEPT — they were never the part that could not fail.
+
+  /**
+   * The import specifier every member of this class carries, spelled once.
+   *
+   * Membership is a MECHANISM, not a phrase. The previous predicate asked whether a file's source
+   * CONTAINED the step name; a comment mentioning the block satisfied that, and a reader that had
+   * quietly stopped locating the block still satisfied it. Importing the authority is something a
+   * comment cannot do and a non-reader has no reason to do.
+   */
+  const AUTHORITY_SPECIFIER = "./ci-workflow.testkit.js";
+
+  it("(r-class-authority) every reader of the ubuntu gate block imports the one authority, and nothing outside that set locates the block", () => {
     // PREMISE 1 — THE PREFIX IS DERIVED FROM THE FULL NAME, not typed beside it. Two hand-kept
     // spellings of one thing is how a second grammar arrives, and a second grammar that disagrees
     // with the first is this project's most-repeated defect class.
     expect(
       UBUNTU_BLOCK_STEP_PREFIX.length,
-      "PREMISE: the derived step-name prefix must be non-empty — an empty prefix makes every file a member and the count assertion below meaningless",
+      "PREMISE: the derived step-name prefix must be non-empty — an empty prefix makes every file a member of the negative below and that scan meaningless",
     ).toBeGreaterThan(0);
     expect(
       UBUNTU_BLOCK_STEP_NAME.startsWith(UBUNTU_BLOCK_STEP_PREFIX),
@@ -11261,67 +11248,95 @@ describe("guard_model_assignment (Phase 29.1, MODEL-03/MODEL-05)", () => {
       `exactly one step in .github/workflows/ci.yml may begin with "${UBUNTU_BLOCK_STEP_PREFIX}"; ${stepNames.length} step name(s) were scanned and ${beginningWithPrefix.length} matched: ${JSON.stringify(beginningWithPrefix)}. A second match means the widened locator is ambiguous.`,
     ).toEqual([UBUNTU_BLOCK_STEP_NAME]);
 
-    // THE WIDENING, MEASURED RATHER THAN ARGUED. Both predicates are applied to ONE synthetic source
-    // string that locates the block by the SHORTER spelling — the exact shape R3-IN-03 named. The
-    // string is assembled from the prefix constant itself, so it cannot drift away from the predicate
-    // it is measuring. A widened predicate with no case showing what it newly sees is the shape this
-    // round is deleting elsewhere.
-    const syntheticReaderSource = [
-      "const ci = readFileSync(CI, 'utf8');",
-      `const at = ci.indexOf(${JSON.stringify(UBUNTU_BLOCK_STEP_PREFIX)});`,
-      `const rest = ci.slice(at + ${JSON.stringify(UBUNTU_BLOCK_STEP_PREFIX)}.length);`,
-    ].join("\n");
-    const oldMembership = (src: string) => src.includes(UBUNTU_BLOCK_STEP_NAME);
-    const newMembership = (src: string) => src.includes(UBUNTU_BLOCK_STEP_PREFIX);
-    expect(
-      oldMembership(syntheticReaderSource),
-      "the OLD exact-name predicate must MISS a reader that locates the block by the shorter spelling — if it does not, this widening had nothing to fix and the case is measuring the wrong thing",
-    ).toBe(false);
-    expect(
-      newMembership(syntheticReaderSource),
-      "the NEW prefix predicate must COUNT that same reader — this is the widening, applied to the same string the old predicate was just measured blind to",
-    ).toBe(true);
-
-    // THE DERIVED MEMBER SET, now decided by the prefix.
+    // ── THE MEMBER SET, DERIVED FROM THE IMPORT ────────────────────────────────────────────────
     const scriptsDir = join(ROOT, "scripts");
     const testFiles = readdirSync(scriptsDir)
       .filter((f) => f.endsWith(".test.ts"))
       .sort();
     const textOf = (f: string) => readFileSync(join(scriptsDir, f), "utf8");
-    const members = testFiles.filter((f) => newMembership(textOf(f)));
+    const importsAuthority = (src: string) => src.includes(AUTHORITY_SPECIFIER);
+    const members = testFiles.filter((f) => importsAuthority(textOf(f)));
 
-    // VACUITY FLOOR ON THE DENOMINATOR. A derived set that silently came back empty would make the
-    // per-member assertions below pass over nothing — the shape that lets a scan report a clean
-    // result about a corpus it never read.
+    // VACUITY FLOOR ON THE DENOMINATOR THE MEMBER SET IS CUT FROM. A derived set that silently came
+    // back empty would make every per-member claim below true over nothing — the shape that lets a
+    // scan report a clean result about a corpus it never read. The ELEMENT count is floored, not
+    // only the member count, because a floor over an empty denominator has never caught a silently
+    // SHORT one.
+    expect(
+      testFiles.length,
+      `the .test.ts enumeration of ${scriptsDir} came back empty — the scan, not the tree, is broken`,
+    ).toBeGreaterThan(0);
     expect(
       members.length,
-      `the derived reader set must be non-empty — ${testFiles.length} .test.ts file(s) were scanned in ${scriptsDir} and none carried the step-name prefix "${UBUNTU_BLOCK_STEP_PREFIX}", which means the scan, not the tree, is broken`,
+      `no test file imports ${AUTHORITY_SPECIFIER}; ${testFiles.length} .test.ts file(s) were scanned in ${scriptsDir}. An empty member set means the authority is consumed by nobody and every assertion in this case is vacuous.`,
     ).toBeGreaterThan(0);
 
-    // REQUIREMENT 1 — THE RIGHT BOUND, in its canonical source spelling: the bytes
-    // `JSON.stringify(STEP_MARKER)` produces. A declared canonical form, not a parser: an equivalent
-    // bound written some other way reds here and the remedy is to spell it the one way.
-    const boundMarkerSource = JSON.stringify(STEP_MARKER).slice(1, -1);
-    const unbounded = members.filter((f) => !textOf(f).includes(boundMarkerSource));
-    expect(
-      unbounded,
-      `every test file that locates the ubuntu gate block by its step-name prefix must bound the slice on the right with the source spelling \`${boundMarkerSource}\` (the bytes JSON.stringify(STEP_MARKER) produces). Members found (${members.length}): ${JSON.stringify(members)}. Members missing the bound (${unbounded.length}): ${JSON.stringify(unbounded)}. Expected member count: ${UBUNTU_BLOCK_READER_COUNT}.`,
-    ).toEqual([]);
-
-    // REQUIREMENT 2 — THE SLICE BASE, likewise canonical. (Plan 29.1-19, R3-IN-03) Requiring only the
-    // bound certified two readers of one class that were reading two different regions: one from the
-    // step name's start, one from its end, differing by the step name itself as a command entry.
-    const wrongBase = members.filter((f) => !textOf(f).includes(UBUNTU_BLOCK_SLICE_BASE_SOURCE));
-    expect(
-      wrongBase,
-      `every member must slice from the SAME base, spelled \`${UBUNTU_BLOCK_SLICE_BASE_SOURCE}\`, so the class reads one region rather than two. Members found (${members.length}): ${JSON.stringify(members)}. Members not spelling the base (${wrongBase.length}): ${JSON.stringify(wrongBase)}.`,
-    ).toEqual([]);
-
-    // TWO-SIDED. A third reader joining the class is a red here even when it happens to be bounded,
+    // TWO-SIDED. A third reader joining the class is a red here even when it imports correctly,
     // because the pinned number is what makes a new member visible at all.
     expect(
       members.length,
-      `the number of test files locating the ubuntu gate block by its step-name prefix is pinned at ${UBUNTU_BLOCK_READER_COUNT}; found ${members.length}: ${JSON.stringify(members)}. A new reader is not a failure — bound it, slice it from the same base, then update the pin in the same commit.`,
+      `the number of test files importing the ubuntu-block authority is pinned at ${UBUNTU_BLOCK_READER_COUNT}; found ${members.length}: ${JSON.stringify(members)}. A new reader is not a failure — import the authority, then update the pin in the same commit.`,
     ).toBe(UBUNTU_BLOCK_READER_COUNT);
+
+    // THE CONSTRUCTION ITSELF, ASSERTED RATHER THAN ASSUMED. This file is a member, so a member set
+    // that somehow excluded it would be measuring something other than the class it names.
+    expect(
+      members,
+      "this file reads the ubuntu block and must therefore be a member of the class it certifies",
+    ).toContain("check-foundation-guards.test.ts");
+
+    // ── THE NEGATIVE THAT CLOSES THE CLASS ─────────────────────────────────────────────────────
+    //
+    // A third reader arriving with its own locator and its own base is exactly what
+    // `(r-class-prefix)` could not see: it decided membership BY that locator, so a file bringing one
+    // simply joined the set and then satisfied both requirements through its own declarations. Here
+    // membership is the import, so a file carrying a locator WITHOUT the import is not a member — and
+    // that is precisely the shape this negative refuses.
+    //
+    // THE NEEDLE IS BUILT FROM THE IMPORTED CONSTANT rather than typed, so this file does not carry
+    // the phrase it scans for and cannot exempt itself by accident.
+    const nonMembers = testFiles.filter((f) => !members.includes(f));
+    const offenders = nonMembers.filter((f) => textOf(f).includes(UBUNTU_BLOCK_STEP_PREFIX));
+    expect(
+      offenders,
+      `these test files locate the ubuntu gate block by their own copy of its step name without importing ${AUTHORITY_SPECIFIER}: ${JSON.stringify(offenders)}. ${nonMembers.length} non-member(s) were scanned. A second locator is a second grammar over one fact, which is the defect this class exists to delete — import the authority, do not bring a locator of your own.`,
+    ).toEqual([]);
+
+    // ── NO PRODUCTION SCRIPT IMPORTS THE AUTHORITY ─────────────────────────────────────────────
+    //
+    // The disposition this plan reversed argued that sharing the reader would mean promoting it into
+    // a production module that only tests consume — a shipped surface added for a test. The answer is
+    // that nothing shipped imports it, and that answer is DERIVED here rather than claimed in the
+    // module header. The scan covers the whole compiled surface, `.ts` and committed `.js` alike, and
+    // excludes only the authority's own two files.
+    const authorityStem = "ci-workflow.testkit";
+    const consumerRoots = ["scripts", "install", "hooks"];
+    const sourceFiles: string[] = [];
+    for (const root of consumerRoots) {
+      const dir = join(ROOT, root);
+      if (!existsSync(dir)) continue;
+      for (const f of readdirSync(dir).sort()) {
+        if (!f.endsWith(".ts") && !f.endsWith(".js")) continue;
+        if (f === `${authorityStem}.ts` || f === `${authorityStem}.js`) continue;
+        sourceFiles.push(`${root}/${f}`);
+      }
+    }
+    expect(
+      sourceFiles.length,
+      "the production-consumer scan enumerated no files — a negative over nothing proves nothing",
+    ).toBeGreaterThan(0);
+    const consumers = sourceFiles.filter((rel) =>
+      readFileSync(join(ROOT, rel), "utf8").includes(authorityStem),
+    );
+    const shippedConsumers = consumers.filter((rel) => !rel.endsWith(".test.ts"));
+    expect(
+      shippedConsumers,
+      `scripts/ci-workflow.testkit.ts is a TESTKIT: it is consumed by tests only, which is what answers the objection that sharing this reader would add a shipped surface for a test's benefit. These non-test files import or name it: ${JSON.stringify(shippedConsumers)}. ${sourceFiles.length} file(s) were scanned across ${JSON.stringify(consumerRoots)}. If a production script genuinely needs this reader, it stops being a testkit and both the module header and the reversed disposition in .planning/WINDOWS.md must be re-argued.`,
+    ).toEqual([]);
+    // …and the scan really can see a consumer, proven by the members it did find.
+    expect(
+      consumers.sort(),
+      "the production-consumer scan must find the KNOWN test consumers, or its empty non-test answer is an artifact of a scan that reads nothing",
+    ).toEqual(members.map((f) => `scripts/${f}`).sort());
   });
 });
