@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 86
+open_count: 88
 waived_count: 0
 fixed_count: 3
-total_count: 89
-last_updated: 2026-08-21T14:08:27.374Z
+total_count: 91
+last_updated: 2026-08-21T14:13:13.562Z
 ---
 
 # Broken Windows Ledger
@@ -104,6 +104,8 @@ last_updated: 2026-08-21T14:08:27.374Z
 | 87 | 29.1 | deviation | scripts/model-tiers.ts |  | 29.1-21: the three cases pinning the corrected anchored-reader docstring do NOT share one reddening mutation. Removing the line trim reds only the TAIL half (plus two pre-existing CR cases); the HEAD-preserve and ANCHOR cases stay green under it by construction, because they assert what the trim does NOT do. The second half of the claim is therefore pinned by the reader's behaviour rather than by a mutation of the mechanism it describes. Direction: FAIL-OPEN — a change that started trimming the value's HEAD (a widening to trim()) would red the head case, but no single mutation exercises all three, so the three are not one proof. | open |  | 2026-08-20T20:44:40.110Z |  |
 | 88 | 29.1 | unrun-verify | scripts/model-tiers.test.ts |  | 29.1-21: the shape corpus proving quoteValue total derives its denominator from typeof's eight-result codomain, which is a cover of PRIMITIVE shapes only. The two object sub-shapes that actually throw (a circular graph, a getter that throws mid-serialisation) are hand-added beyond that cover and are NOT counted by any derived denominator — typeof cannot distinguish them from a plain object. Direction: FAIL-OPEN — a third throwing object sub-shape nobody thought of is invisible to the cardinality assertion, which can only prove the corpus covers every typeof, never that it covers every way JSON.stringify can throw. | open |  | 2026-08-20T20:44:40.187Z |  |
 | 89 | 29.1 | unrun-verify | scripts/check-kit-refs.ts | 323 | WR-01 (round 4): the packaging-template literal entered ghLegal raw and walk()'s FILE branch pushed its scan entry raw, while both were compared against join()-spelled walk output. Closed in plan 29.1-22 by relKey(), the one path-spelling authority, applied at both sites. The PLATFORM half is corroborated, NOT executed: measured under path.win32 (raw literal agent-factory/packaging/subagent.frontmatter.md vs walk-shaped agent-factory\\packaging\\subagent.frontmatter.md) and pinned by a two-directional path.win32 unit case. No windows-latest CI leg exists in this repository yet (CAP-02, Phase 33), so nothing here has run on Windows. | open |  | 2026-08-21T14:08:27.374Z |  |
+| 90 | 29.1 | deviation | scripts/check-kit-refs.ts | 239 | 29.1-22 terminator residual: CONFIG_REF_TERMINATOR declares where a named path ENDS, and the sentence-ending period is NOT a terminator. A legitimate future self-reference written WITHOUT surrounding delimiters and ending a sentence captures the trailing byte, yields the record factory.config.json. rather than factory.config.json, and is judged a stray. Direction: FAIL-CLOSED — such a mention is refused loudly and must be argued and counted, which the exemption's pinned cardinality already requires of any new mention. Every mention shipped today is backtick-delimited, so nothing on this tree is affected. | open |  | 2026-08-21T14:13:13.493Z |  |
+| 91 | 29.1 | deviation | scripts/frontmatter.ts |  | PRE-EXISTING, found by plan 29.1-22, NOT caused by it and NOT fixed by it (outside this plan's declared scope). The double-quoted-scalar escape scanner produces a FALSE REFUSAL that is ORDER-DEPENDENT: within one double-quoted scalar, an escaped double quote occurring BEFORE an escaped backslash makes the later, valid escaped-backslash pair refuse by name, though both sequences are on the module's own allowlist and libyaml accepts the document. Reordering the same two sequences passes. Reproduced at pristine HEAD b08b25c in a clean worktree with a 20-byte synthetic item; the exact byte sequences are quoted in 29.1-22-SUMMARY.md, which renders them in a code fence rather than in a ledger cell. Live effect: scripts/frontmatter.test.ts 'D-49 false-red control' FAILS on this tree (1 failed, 2382 passed, 2 skipped, over 55 files), because .planning/phases/29.1-per-role-model-assignment/29.1-VERIFICATION-round4.md line 51 carries such a scalar in its gaps block. Direction: FAIL-CLOSED (a false red, never a bypass). Owner: unassigned, needs a plan of its own; the round-4 report was deliberately NOT rewritten, since annotating rather than rewriting a verifier's record is this repository's rule. | open |  | 2026-08-21T14:13:13.562Z |  |
 
 ````json
 [
@@ -1173,6 +1175,30 @@ last_updated: 2026-08-21T14:08:27.374Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-08-21T14:08:27.374Z",
+    "resolved_at": null
+  },
+  {
+    "id": 90,
+    "kind": "deviation",
+    "phase": "29.1",
+    "file": "scripts/check-kit-refs.ts",
+    "line": 239,
+    "description": "29.1-22 terminator residual: CONFIG_REF_TERMINATOR declares where a named path ENDS, and the sentence-ending period is NOT a terminator. A legitimate future self-reference written WITHOUT surrounding delimiters and ending a sentence captures the trailing byte, yields the record factory.config.json. rather than factory.config.json, and is judged a stray. Direction: FAIL-CLOSED — such a mention is refused loudly and must be argued and counted, which the exemption's pinned cardinality already requires of any new mention. Every mention shipped today is backtick-delimited, so nothing on this tree is affected.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-08-21T14:13:13.493Z",
+    "resolved_at": null
+  },
+  {
+    "id": 91,
+    "kind": "deviation",
+    "phase": "29.1",
+    "file": "scripts/frontmatter.ts",
+    "line": null,
+    "description": "PRE-EXISTING, found by plan 29.1-22, NOT caused by it and NOT fixed by it (outside this plan's declared scope). The double-quoted-scalar escape scanner produces a FALSE REFUSAL that is ORDER-DEPENDENT: within one double-quoted scalar, an escaped double quote occurring BEFORE an escaped backslash makes the later, valid escaped-backslash pair refuse by name, though both sequences are on the module's own allowlist and libyaml accepts the document. Reordering the same two sequences passes. Reproduced at pristine HEAD b08b25c in a clean worktree with a 20-byte synthetic item; the exact byte sequences are quoted in 29.1-22-SUMMARY.md, which renders them in a code fence rather than in a ledger cell. Live effect: scripts/frontmatter.test.ts 'D-49 false-red control' FAILS on this tree (1 failed, 2382 passed, 2 skipped, over 55 files), because .planning/phases/29.1-per-role-model-assignment/29.1-VERIFICATION-round4.md line 51 carries such a scalar in its gaps block. Direction: FAIL-CLOSED (a false red, never a bypass). Owner: unassigned, needs a plan of its own; the round-4 report was deliberately NOT rewritten, since annotating rather than rewriting a verifier's record is this repository's rule.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-08-21T14:13:13.562Z",
     "resolved_at": null
   }
 ]

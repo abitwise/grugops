@@ -193,6 +193,38 @@ function mentionsIn(haystack: string, needle: string): number {
   return haystack.split(needle).length - 1;
 }
 /**
+ * The RECORD unit — the paths a line NAMES, one per occurrence of the needle, each the maximal run
+ * of non-terminator bytes following it. This is the unit the gate's membership predicate is asked
+ * in, and since plan 29.1-22 it is the unit the gate PUBLISHES in as well.
+ *
+ * WHY A SECOND IMPLEMENTATION IS DELIBERATE HERE (round 4). Every premise in this file used to be
+ * written in the NEEDLE unit alone, so the corpus carried only inputs on which the gate's unit and
+ * the oracle's unit agreed — and the three live bypasses all lived in the difference. A premise
+ * asserted in one unit and checked in the other is exactly how R3-CR-01 came to be declared. So the
+ * two units are now computed side by side, in the TEST, and every new case below states what its
+ * plant did in BOTH. The gate's own number is never used as a premise about the gate.
+ *
+ * ITS RESIDUAL, STATED: the terminator class below is a second copy of the gate's
+ * `CONFIG_REF_TERMINATOR`. That is bounded rather than silent — this helper's whole job is to agree
+ * with the gate about one number, so a drift between the two classes reds the premise assertions
+ * that use it, naming both counts.
+ */
+const RECORD_TERMINATOR = /[\s`'"()[\],;]/;
+function recordsIn(haystack: string, needle: string): string[] {
+  const out: string[] = [];
+  let at = 0;
+  for (;;) {
+    const found = haystack.indexOf(needle, at);
+    if (found === -1) break;
+    const from = found + needle.length;
+    let end = from;
+    while (end < haystack.length && !RECORD_TERMINATOR.test(haystack[end])) end += 1;
+    out.push(haystack.slice(from, end));
+    at = from;
+  }
+  return out;
+}
+/**
  * Replace the FIRST kit-internal path the config field reference names with a different spelling of
  * one, leaving the MENTION count where it was — so the only thing that can move the verdict is what
  * the basename IS, not how many there are.
@@ -370,6 +402,14 @@ describe("check-kit-refs Assertion 1 exemption — the config self-references, p
     // against the committed scripts/check-kit-refs.js at ea76f9c, with the SAME sentence planted on
     // a NEW line failing exit 1 at that same commit. The predicate was asked once per LINE, so a
     // line that was already exempt absorbed unbounded further mentions unasked.
+    //
+    // WHAT THIS CASE CANNOT SEE, RECORDED RATHER THAN DELETED (round 4). The understanding above is
+    // superseded, not wrong: the plant here is the ONE same-line spelling on which the needle unit
+    // and the second grammar's capture unit COINCIDE — a backticked, admissible sibling name. So the
+    // mention count moves, the case reds, and it stayed green through three LIVE bypasses that also
+    // sat on an already-exempt line. Its premises were asserted in the needle unit alone, which is
+    // why the input it carries is one on which the two units agree. The four cases below sit at the
+    // positions where they do not, and every one of them states its premises in BOTH units.
     const mirror = makeMirror("ckr-cfg-same-line-");
     const ref = configFieldReference(mirror);
     const before = readFileSync(ref, "utf8");
@@ -402,6 +442,190 @@ describe("check-kit-refs Assertion 1 exemption — the config self-references, p
     // cardinalities it did assert are both still exactly as declared.
     expect(r.stdout).not.toContain("exempt LINES:");
     expect(r.stdout).not.toContain("exempting FILES:");
+  });
+
+  // ── The three same-line positions the corpus could not see, plus their union (round 4) ─────────
+  //
+  // Each of the three was REPRODUCED against the committed build at b08b25c on a hermetic
+  // `git archive HEAD` mirror before it was written here: gate GREEN (TRUE exit 0, all three
+  // published cardinalities exactly as declared) with the plant applied, and gate RED (TRUE exit 1,
+  // named stray) against the rebuilt build. The byte delta and an independently re-measured
+  // occurrence count were printed before either run was believed — this phase has produced a false
+  // verification result from a silently unapplied mutation in six instances.
+  //
+  // The stray finding text every one of them asserts is the pre-existing wording, unchanged: the
+  // fix made these lines VISIBLE to the predicate, it did not give the gate a new thing to say.
+  const STRAY_FINDING =
+    "stray agent-factory/config/ ref(s) — config must be .grugops/factory.config.json";
+  /** The bare-directory plant: a needle occurrence with nothing admissible after it. */
+  const PLANT_BARE = " The legacy directory agent-factory/config/ is retired.";
+  /** The no-capture plant: two occurrences whose first post-needle byte cannot start a path.
+   *  INERT BY CONSTRUCTION — the round-4 reproduction used an actionable instruction naming a
+   *  private-key path, and a fixture is a thing that gets quoted out of context. The POSITION is
+   *  what this case is about; the payload is deliberately meaningless. */
+  const PLANT_NO_CAPTURE =
+    " Also read agent-factory/config/~/inert-placeholder-a and agent-factory/config/%INERT_PLACEHOLDER_B%/b.";
+  /** The suffix-traversal plant: an admissible sibling name followed by further path segments. */
+  const SUFFIX_TRAVERSAL = "/../../../../etc/passwd";
+
+  it("Assertion 1 RED: the BARE DIRECTORY named on an already-exempt line is a stray, in the unit the gate publishes", () => {
+    // R3-CR-02 as the round-4 verifier reproduced it. Under the deleted second grammar this
+    // occurrence yielded NO capture, so `named` saw only the line's two legitimate mentions,
+    // `allResolve` was vacuously true for them, and the whole line was exempted — mention count
+    // unmoved at 3 while the file carried 4 occurrences.
+    const mirror = makeMirror("ckr-cfg-bare-dir-");
+    const ref = configFieldReference(mirror);
+    const before = readFileSync(ref, "utf8");
+    expect(mentionsIn(before, CONFIG_REF_NEEDLE), "PREMISE (needle unit): three before").toBe(3);
+    expect(recordsIn(before, CONFIG_REF_NEEDLE), "PREMISE (record unit): three before").toHaveLength(3);
+
+    plantOnExemptLine(ref, CONFIG_REF_NEEDLE, PLANT_BARE);
+    const after = readFileSync(ref, "utf8");
+    expect(after, "PREMISE: the plant must have LANDED").not.toBe(before);
+    expect(mentionsIn(after, CONFIG_REF_NEEDLE), "PREMISE (needle unit): the plant RAISES it to four").toBe(4);
+    expect(recordsIn(after, CONFIG_REF_NEEDLE), "PREMISE (record unit): …and raises it to four too").toHaveLength(4);
+    // The new record is the EMPTY STRING — the position the old grammar could not represent at all.
+    expect(recordsIn(after, CONFIG_REF_NEEDLE)).toContain("");
+    expect(
+      linesContaining(after, CONFIG_REF_NEEDLE),
+      "PREMISE: …and LEAVES THE LINE COUNT WHERE IT WAS",
+    ).toBe(2);
+
+    const r = runGate(mirror);
+    expect(r.status).toBe(1);
+    expect(r.stdout).toContain(STRAY_FINDING);
+    expect(r.stdout).toMatch(/agent-factory[\\/]config[\\/]factory\.config\.md:\d+:/);
+  });
+
+  it("Assertion 1 RED: a path leaving the directory by SUFFIX on an already-exempt line is a stray", () => {
+    // R3-CR-03. This is the spelling that moves NO cardinality at all — which is exactly why it
+    // survived. The old grammar's class stopped at the first `/`, so the predicate judged the path's
+    // FIRST SEGMENT, and a member's name with four levels of traversal appended read as that member.
+    const mirror = makeMirror("ckr-cfg-suffix-");
+    const ref = configFieldReference(mirror);
+    const before = readFileSync(ref, "utf8");
+    expect(mentionsIn(before, CONFIG_REF_NEEDLE), "PREMISE (needle unit): three before").toBe(3);
+    expect(recordsIn(before, CONFIG_REF_NEEDLE), "PREMISE (record unit): three before").toHaveLength(3);
+
+    respellFirstNamedPath(ref, CONFIG_SIBLING + SUFFIX_TRAVERSAL);
+    const after = readFileSync(ref, "utf8");
+    // THE MUTATION LANDED — asserted by an INDEPENDENT grep for the appended segment, because this
+    // plant moves no count, so no cardinality can testify that it applied.
+    expect(after.includes(SUFFIX_TRAVERSAL), "PREMISE: the appended segment must be present").toBe(true);
+    expect(
+      mentionsIn(after, CONFIG_REF_NEEDLE),
+      "PREMISE (needle unit): the plant must move NOTHING — this is why it survived",
+    ).toBe(3);
+    expect(
+      recordsIn(after, CONFIG_REF_NEEDLE),
+      "PREMISE (record unit): …and nothing here either",
+    ).toHaveLength(3);
+    // What DID change is the record's VALUE, which is the only thing membership can now see.
+    expect(recordsIn(after, CONFIG_REF_NEEDLE)).toContain(
+      "factory.config.json" + SUFFIX_TRAVERSAL,
+    );
+    expect(linesContaining(after, CONFIG_REF_NEEDLE), "PREMISE: line count unmoved").toBe(2);
+
+    const r = runGate(mirror);
+    expect(r.status).toBe(1);
+    expect(r.stdout).toContain(STRAY_FINDING);
+    expect(r.stdout).toContain(SUFFIX_TRAVERSAL);
+  });
+
+  it("Assertion 1 RED: a needle occurrence whose next byte cannot start a path is a stray, not an absence", () => {
+    // The spelling the round-4 REVIEW did not report and the round-4 VERIFIER found — strictly worse
+    // than the bare-directory one, because the absorbed text can be an actionable instruction. Two
+    // occurrences enter, neither yields a capture under the old grammar, and the line is exempted on
+    // the strength of the two legitimate mentions beside them.
+    const mirror = makeMirror("ckr-cfg-no-capture-");
+    const ref = configFieldReference(mirror);
+    const before = readFileSync(ref, "utf8");
+    expect(mentionsIn(before, CONFIG_REF_NEEDLE), "PREMISE (needle unit): three before").toBe(3);
+    expect(recordsIn(before, CONFIG_REF_NEEDLE), "PREMISE (record unit): three before").toHaveLength(3);
+
+    plantOnExemptLine(ref, CONFIG_REF_NEEDLE, PLANT_NO_CAPTURE);
+    const after = readFileSync(ref, "utf8");
+    expect(after, "PREMISE: the plant must have LANDED").not.toBe(before);
+    expect(mentionsIn(after, CONFIG_REF_NEEDLE), "PREMISE (needle unit): the plant RAISES it by TWO").toBe(5);
+    expect(recordsIn(after, CONFIG_REF_NEEDLE), "PREMISE (record unit): …by two here as well").toHaveLength(5);
+    expect(linesContaining(after, CONFIG_REF_NEEDLE), "PREMISE: line count unmoved").toBe(2);
+
+    const r = runGate(mirror);
+    expect(r.status).toBe(1);
+    expect(r.stdout).toContain(STRAY_FINDING);
+  });
+
+  it("Assertion 1 RED (union): all three same-line spellings on ONE line are refused together, and the mention count names the total", () => {
+    // Rule 4 of this round: arms are tested as a UNION. Three arms verified separately are three
+    // statements about three inputs, and a predicate that handles each alone can still mishandle the
+    // line that carries all of them — the records interleave with the legitimate mentions there.
+    const mirror = makeMirror("ckr-cfg-union-");
+    const ref = configFieldReference(mirror);
+    const before = readFileSync(ref, "utf8");
+    const needleBefore = mentionsIn(before, CONFIG_REF_NEEDLE);
+    expect(needleBefore, "PREMISE (needle unit): three before").toBe(3);
+    expect(recordsIn(before, CONFIG_REF_NEEDLE), "PREMISE (record unit): three before").toHaveLength(3);
+
+    respellFirstNamedPath(ref, CONFIG_SIBLING + SUFFIX_TRAVERSAL); // +0 occurrences
+    plantOnExemptLine(ref, CONFIG_REF_NEEDLE, PLANT_BARE); //           +1 occurrence
+    plantOnExemptLine(ref, CONFIG_REF_NEEDLE, PLANT_NO_CAPTURE); //     +2 occurrences
+    const after = readFileSync(ref, "utf8");
+
+    // THE UNION'S ARITHMETIC, stated as a sum of the three plants rather than as a remembered total.
+    const plantedOccurrences =
+      mentionsIn(SUFFIX_TRAVERSAL, CONFIG_REF_NEEDLE) +
+      mentionsIn(PLANT_BARE, CONFIG_REF_NEEDLE) +
+      mentionsIn(PLANT_NO_CAPTURE, CONFIG_REF_NEEDLE);
+    expect(plantedOccurrences, "PREMISE: the three plants contribute 0 + 1 + 2").toBe(3);
+    expect(after.includes(SUFFIX_TRAVERSAL), "PREMISE: the suffix arm must have landed").toBe(true);
+    expect(
+      mentionsIn(after, CONFIG_REF_NEEDLE),
+      "PREMISE (needle unit): before + the sum of the three plants",
+    ).toBe(needleBefore + plantedOccurrences);
+    expect(
+      recordsIn(after, CONFIG_REF_NEEDLE),
+      "PREMISE (record unit): the same total, derived the other way",
+    ).toHaveLength(needleBefore + plantedOccurrences);
+    expect(
+      linesContaining(after, CONFIG_REF_NEEDLE),
+      "PREMISE: all three arms are on ONE already-exempt line, so the line count still does not move",
+    ).toBe(2);
+
+    const r = runGate(mirror);
+    expect(r.status).toBe(1);
+    expect(r.stdout).toContain(STRAY_FINDING);
+  });
+
+  it("Assertion 1 PREMISE: the gate's record count and its needle-occurrence count are the same number on every exempt line", () => {
+    // The case that needed no plant at all. R3-CR-01 was a disagreement between the number the gate
+    // COUNTED and the number it PUBLISHED, and nothing in the tree ever compared the two — not the
+    // gate, and not this file. It is compared here, against a clean tree, in two derivations neither
+    // of which is the gate's own.
+    //
+    // ITS LIMIT, STATED PLAINLY: this case has no pre-fix RED and cannot have one. On a CLEAN tree
+    // the two units happen to agree at 3 under the deleted grammar as well, which is precisely how
+    // the mismatch stayed invisible for two rounds. It is a PREMISE PIN, not a discriminator — the
+    // discrimination lives in the four plant cases above and in the gate's own run-time premise
+    // floor. Calling it a proof of the fix would be the wider-than-mechanism class this phase exists
+    // to close.
+    const mirror = makeMirror("ckr-cfg-premise-");
+    const body = readFileSync(configFieldReference(mirror), "utf8");
+
+    const needleCount = mentionsIn(body, CONFIG_REF_NEEDLE);
+    const recordCount = recordsIn(body, CONFIG_REF_NEEDLE).length;
+    expect(needleCount, "derivation A: split on the needle").toBe(3);
+    expect(recordCount, "derivation B: one record per occurrence, scanned").toBe(3);
+    expect(recordCount, "the two derivations must agree BEFORE the gate is asked anything").toBe(
+      needleCount,
+    );
+
+    const r = runGate(mirror);
+    expect(r.status).toBe(0);
+    // …and the number the gate PUBLISHES is that same number, in that same unit.
+    expect(r.stdout).toContain(`${needleCount} counted self-reference mention(s) on 2 line(s) exempt`);
+    expect(r.stdout).toContain(
+      `the config self-reference exemption is exactly ${recordCount} mention(s) on 2 line(s) in 1 file(s), as declared`,
+    );
   });
 
   it("Assertion 1 RED (two-sided): DELETING a mention from an exempt line fails, naming the mention count", () => {
