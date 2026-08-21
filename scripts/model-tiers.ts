@@ -965,6 +965,18 @@ export interface ResolveModelsOptions {
    * model-tiers.test.ts, "resolveModels REFUSES a null overrides map by name instead of silently
    * discarding it" and "resolveModels REFUSES a plain-object overrides map by name instead of
    * throwing".
+   *
+   * AN ENTRY WHOSE KEY NAMES A STEM OUTSIDE THE RESOLVED SET IS REFUSED BY NAME (plan 29.1-21,
+   * reversing D-06's skip). This paragraph is added rather than replacing the ones above it,
+   * because the contract those paragraphs describe is still the contract for the MAP and only the
+   * per-ENTRY disposition moved. Until plan 29.1-21 such an entry was silently dropped; it is now a
+   * refusal naming the stem and the covered set, on the same grounds Floor 0b refuses a discarded
+   * MAP — a dropped entry is a tier the caller believes they set and did not. A public export whose
+   * documented contract changed must not keep carrying the documentation of the contract it had.
+   * The behaviour is pinned by model-tiers.test.ts, "resolveModels REFUSES an override naming a
+   * stem this resolution does not cover", with its green control beside it; the stem is rendered
+   * through the same quoting authority as the alias, so a key of any shape is described rather than
+   * thrown on.
    */
   readonly overrides?: ReadonlyMap<string, ModelAlias>;
 }
@@ -1204,12 +1216,38 @@ export function resolveModels(
   // spelling of that operation — `String(JSON.stringify(alias))` — and the second spelling is
   // deleted rather than made total beside the first, because a module whose header forbids a second
   // implementation of one predicate does not keep two.
+  //
+  // ONE AUTHORITY OVER ONE OPERATION, ON THE KEY AXIS AS WELL AS THE VALUE AXIS (round-4 BLOCKER 2).
+  // Both sentences below used to route their ALIAS through `quoteValue` and interpolate their STEM
+  // raw inside hand-written quotation marks. Two positions in ONE sentence disagreeing about who
+  // quotes is precisely the shape the round-4 verifier named: the guarded position proves nothing
+  // about the sentence, because the un-guarded one beside it kills the same message. A Map key can
+  // be any value at all — the type above is advisory at run time, which is this module's own
+  // standing reason for every floor it has — so a Symbol key, or a key whose string conversion
+  // throws, killed the refusal that existed to reject it. Both positions in both sentences now come
+  // from the one function, and the literal quotation marks are gone because the authority supplies
+  // them for a string.
+  //
+  // MEASURED ACROSS THREE COMMITTED BUILDS BEFORE THE CHANGE, not inherited from the report that
+  // found it. A Symbol key with a LEGAL alias and a throwing-conversion key with a legal alias both
+  // returned `{ok:true}` at `e9907f5` and both THREW at `ad033f0` — the reversal of the silent skip
+  // above routed keys that never reached a template before into one that could not render them. A
+  // Symbol key with an ILLEGAL alias threw at BOTH, because the alias sentence's raw stem position
+  // predates the reversal; that third input is why this is a fix at two sites and not one.
+  //
+  // EVERY LEGAL KEY'S WORDING IS UNMOVED, and that is a property of the authority rather than a
+  // hope: `quoteValue` renders through `JSON.stringify` and returns `String(...)` of the result, so
+  // an ordinary stem still arrives carrying its own quotation marks and nothing else in either
+  // sentence moves. Only the shapes that THREW change behaviour, and they change from a throw to a
+  // description. Proven by diffing pre-change against post-change reasons rather than by reading
+  // them; see model-tiers.test.ts, "a Symbol key is REFUSED and NAMED rather than crashing the
+  // sentence that rejects it" and the byte-identity regression control beside it.
   for (const [stem, alias] of overrides) {
     if (!isModelAlias(alias)) {
       return {
         ok: false,
         reason:
-          `model-tiers: the override for role "${stem}" is ${quoteValue(alias)}, which ` +
+          `model-tiers: the override for role ${quoteValue(stem)} is ${quoteValue(alias)}, which ` +
           `is not a legal model alias. The legal set is exactly: ` +
           `${MODEL_ALIASES.map((a) => `"${a}"`).join(", ")}. This floor exists because the resolved ` +
           "value is written straight into emitted frontmatter, and the closed allow-list is the only " +
@@ -1220,9 +1258,9 @@ export function resolveModels(
       return {
         ok: false,
         reason:
-          `model-tiers: the override names the role stem "${stem}", which is not one of the ` +
-          `${String(sorted.length)} stem(s) this resolution covers: ` +
-          `${sorted.map((s) => `"${s}"`).join(", ")}. An override this resolver drops is a tier the ` +
+          `model-tiers: the override names the role stem ${quoteValue(stem)}, which is not one of ` +
+          `the ${String(sorted.length)} stem(s) this resolution covers: ` +
+          `${sorted.map((s) => quoteValue(s)).join(", ")}. An override this resolver drops is a tier the ` +
           "caller believes they set and did not, which is the same fact Floor 0b refuses a discarded " +
           "overrides MAP for — so a discarded ENTRY is refused on the same grounds. Remedy: correct " +
           "the stem, or resolve against the corpus the overrides were read for; `readModelsConfig` " +
