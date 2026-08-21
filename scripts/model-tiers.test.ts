@@ -1670,6 +1670,21 @@ describe("model-tiers: the refusal path RETURNS on every input (plan 29.1-21, R3
    * mid-serialisation) and silently returns a non-string for three more of the corpus (`undefined`,
    * a function, a symbol). Both failure modes are the reason `quoteValue` wraps the call rather than
    * trusting it.
+   *
+   * THE FIFTH OBJECT ENTRY WAS ADDED BY PLAN 29.1-23, BECAUSE THE TWO AXES FAIL UNDER DIFFERENT
+   * OPERATORS AND THIS CORPUS ONLY EVER MEASURED ONE OF THEM. Every shape here was chosen against
+   * `JSON.stringify`, which is what renders a rejected VALUE. A rejected KEY used to be rendered by
+   * TEMPLATE-LITERAL CONVERSION instead, which throws on a different set — measured, both
+   * directions, before this entry was written:
+   *
+   *   an object whose getter throws            JSON.stringify: THREW   template literal: "[object Object]"
+   *   an object whose string conversion throws JSON.stringify: "{}"    template literal: THREW
+   *
+   * The two shapes are exactly complementary, and the corpus carried only the first. Driven at the
+   * KEY position against the pre-fix build it therefore caught ONE of the two regressions the
+   * round-4 verifier reproduced and would have reported the other as safe. A corpus derived for one
+   * operator is not a corpus for a claim about every input; the entry below is what makes the KEY
+   * axis's own throwing shape visible to a case rather than only to a report.
    */
   const SHAPE_CORPUS: readonly (readonly [label: string, make: () => unknown])[] = [
     ["undefined", () => undefined],
@@ -1684,6 +1699,10 @@ describe("model-tiers: the refusal path RETURNS on every input (plan 29.1-21, R3
     ["a plain object", () => ({ tier: "opus" })],
     ["a circular object", circular],
     ["an object whose getter throws", () => ({ get boom(): never { throw new Error("getter"); } })],
+    [
+      "an object whose string conversion throws",
+      () => ({ toString(): never { throw new Error("to-string"); } }),
+    ],
   ];
 
   /** The complete codomain of `typeof`, fixed by the language rather than by this file. */
@@ -1711,10 +1730,50 @@ describe("model-tiers: the refusal path RETURNS on every input (plan 29.1-21, R3
     expect(SHAPE_CORPUS.length).toBeGreaterThan(TYPEOF_RESULTS.length);
   });
 
+  it("the shape corpus and the language codomain are both observable numbers, pinned two-sided", () => {
+    // WHY BOTH PINS EXIST, WHICH IS FINDING WR-04 OF ROUND 4 (recorded there as WR-02 of the review).
+    // The case above argues that its denominator "is not this file's to choose" — and then this file
+    // types it, eight strings, three lines under the argument. That is not a lie, but it is not
+    // checkable either: a reader who does not already believe the claim has nothing to check it
+    // against, and a co-edit that deletes one corpus entry TOGETHER WITH its matching codomain
+    // string leaves the set-equality above perfectly green over a corpus that no longer covers the
+    // language. The two numbers below are what make the argument observable.
+    //
+    // EIGHT IS THE LANGUAGE'S NUMBER, NOT THIS FILE'S. `typeof` has exactly eight possible results:
+    // ECMA-262, the `typeof` Operator Results table (13.5.3 / Table 41) — "undefined", "object" (for
+    // both `null` and any non-callable object), "boolean", "number", "string", "symbol", "bigint",
+    // "function". A ninth result cannot be invented by an author of this file, so this pin fails
+    // exactly when someone edits the local list away from the table it claims to copy.
+    expect(
+      TYPEOF_RESULTS.length,
+      "the `typeof` codomain is EIGHT results, fixed by ECMA-262's `typeof` Operator Results " +
+        "table — if this number moved, the local list stopped being a copy of the language table " +
+        "the case above claims it is",
+    ).toBe(8);
+    // THE CORPUS SIZE IS PINNED FOR THE OTHER HALF OF THE SAME CO-EDIT. Deleting an entry AND its
+    // codomain string in one edit keeps the sets equal and reds HERE instead. Thirteen: eight for
+    // the `typeof` cover plus five object sub-shapes (an array, a plain object, a circular graph,
+    // a throwing getter, a throwing string conversion) that `typeof` cannot tell apart.
+    expect(
+      SHAPE_CORPUS.length,
+      "the corpus is EIGHT typeof-cover shapes plus FIVE object sub-shapes typeof cannot " +
+        "distinguish; a change here is a change to the denominator every totality claim in this " +
+        "describe block rests on, and must be argued rather than re-typed",
+    ).toBe(13);
+    // And every label is distinct, so the two numbers above count shapes rather than repetitions.
+    expect(new Set(SHAPE_CORPUS.map(([label]) => label)).size).toBe(SHAPE_CORPUS.length);
+  });
+
   it("the override refusal RETURNS for every shape in the corpus, never throwing out of itself", () => {
     // THE ASSERTION IS THAT THE CALL RETURNS. If the authority regressed, this case would not fail
     // an expectation — the resolver would throw, which is the defect itself, so the call is wrapped
     // and the throw is reported as the failure it is rather than as a suite error with no name.
+    //
+    // THIS IS THE **VALUE** ARM, and saying so is the point of the two cases that follow it. Every
+    // entry below puts a corpus shape at the VALUE position and a real stem at the KEY position, so
+    // on its own it supports a claim about rejected values — not the claim its describe block makes
+    // about every input. The KEY arm and the arm's union are asserted separately, because two arms
+    // verified apart are two statements about two inputs.
     const stems = twoStems();
     for (const [label, make] of SHAPE_CORPUS) {
       let outcome: ReturnType<typeof resolveModels>;
@@ -1735,6 +1794,128 @@ describe("model-tiers: the refusal path RETURNS on every input (plan 29.1-21, R3
       expect(outcome.reason, label).toContain(`the override for role "${stems[0]}"`);
       for (const alias of MODEL_ALIASES) expect(outcome.reason, label).toContain(`"${alias}"`);
     }
+  });
+
+  it("the override refusal RETURNS for every shape in the corpus at the KEY position, never throwing out of itself", () => {
+    // THE ARM THE CORPUS NEVER MEASURED, AND THE ONE THE ROUND-4 REGRESSION LIVED ON. A Map key is
+    // typed `string` and is ANY VALUE at run time — the declared type is advisory on hosts, which is
+    // this module's own standing reason for every floor it has. Both refusal sentences interpolated
+    // that key raw inside hand-written quotation marks while routing their alias through the
+    // authority, so the guarded position proved nothing: the un-guarded one beside it killed the
+    // same message.
+    //
+    // WATCHED FAILING FIRST, against the committed `.js` at a58036b (the build before plan 29.1-23
+    // task 1), driven from one script with this exact corpus: "a symbol" THREW
+    // `TypeError: Cannot convert a Symbol value to a string`, and the newly added
+    // "an object whose string conversion throws" THREW `Error: to-string`. The other eleven shapes
+    // RETURNED — which is why the corpus needed the thirteenth entry before this case could see both
+    // reproduced regressions rather than one of them.
+    //
+    // A LEGAL ALIAS AT THE VALUE POSITION IS DELIBERATE. It makes the alias floor pass, so every
+    // iteration reaches the SECOND refusal — the uncovered-stem one. That is the sentence plan
+    // 29.1-21 created by reversing a silent skip, and the sentence the regression was reachable
+    // through; the value arm above can never reach it.
+    const stems = twoStems();
+    for (const [label, make] of SHAPE_CORPUS) {
+      let outcome: ReturnType<typeof resolveModels>;
+      try {
+        outcome = resolveModels(stems, {
+          preset: "none",
+          overrides: new Map([[make(), "opus"]]),
+        } as unknown as ResolveModelsOptions);
+      } catch (e) {
+        throw new Error(
+          `the refusal path THREW for ${label} at the KEY position instead of returning: ${String(e)}`,
+        );
+      }
+      expect(
+        outcome.ok,
+        `${label} is not a stem this resolution covers, so it must be REFUSED`,
+      ).toBe(false);
+      if (outcome.ok) continue;
+      // The SENTENCE that names the stem position survives every key shape, which is the whole
+      // point: the refusal exists to tell the caller their override was dropped, and a key that
+      // kills that sentence takes the message with it.
+      expect(outcome.reason, label).toContain("the override names the role stem ");
+      // And the covered set is still named, derived from the stems handed over rather than typed.
+      for (const stem of stems) expect(outcome.reason, label).toContain(`"${stem}"`);
+    }
+  });
+
+  it("the override refusal RETURNS for every KEY-by-VALUE cell in the corpus, and the cell count is derived from both axes", () => {
+    // THE UNION OF THE TWO ARMS, WHICH IS NOT EITHER ARM. Verified apart, the arms above are two
+    // statements about two inputs; the cell that exercises BOTH un-guarded interpolations inside ONE
+    // sentence is the one where the key AND the value are each un-renderable, and it appears in
+    // neither. It appears here.
+    //
+    // THE CELL COUNT IS DERIVED FROM THE CORPUS ON BOTH AXES, never typed beside it, because a typed
+    // product is a number that moves when someone re-types it to match — the same set-literal drift
+    // the corpus itself is built to avoid.
+    const stems = twoStems();
+    const expectedCells = SHAPE_CORPUS.length * SHAPE_CORPUS.length;
+    let cells = 0;
+    for (const [keyLabel, makeKey] of SHAPE_CORPUS) {
+      for (const [valueLabel, makeValue] of SHAPE_CORPUS) {
+        const cell = `key=${keyLabel} / value=${valueLabel}`;
+        let outcome: ReturnType<typeof resolveModels>;
+        try {
+          outcome = resolveModels(stems, {
+            preset: "none",
+            overrides: new Map([[makeKey(), makeValue()]]),
+          } as unknown as ResolveModelsOptions);
+        } catch (e) {
+          throw new Error(`the refusal path THREW for ${cell} instead of returning: ${String(e)}`);
+        }
+        expect(outcome.ok, `${cell} carries no legal alias, so it must be REFUSED`).toBe(false);
+        if (!outcome.ok) expect(outcome.reason, cell).toContain("model-tiers: the override ");
+        cells += 1;
+      }
+    }
+    // THE IN-LOOP COUNTER IS ASSERTED AGAINST THE DERIVED PRODUCT. Asserting the product alone would
+    // pass over a loop that ran short — an early `continue`, a corpus entry whose factory returned
+    // nothing, a nested loop rewritten to iterate one axis. The number of cells this run ACTUALLY
+    // executed is counted where they execute, and compared with the number the corpus says there
+    // are, so a smaller success is a failure.
+    expect(
+      cells,
+      `the cross product must exercise every cell: ${String(SHAPE_CORPUS.length)} key shapes × ` +
+        `${String(SHAPE_CORPUS.length)} value shapes = ${String(expectedCells)}`,
+    ).toBe(expectedCells);
+  });
+
+  it("a Symbol key is REFUSED and NAMED rather than crashing the sentence that rejects it", () => {
+    // THE RENDERING IS PINNED, NOT ASSUMED. A Symbol key reaches the ONE quoting authority, and that
+    // authority renders a Symbol the way it has always rendered a Symbol VALUE: `JSON.stringify`
+    // RETURNS `undefined` for a symbol — without throwing — and the authority's `String(...)` is
+    // what keeps a non-string out of the template. So the key reads as a bare `undefined`.
+    //
+    // WHETHER THAT IS THE BEST RENDERING FOR A READER IS A WORDING JUDGEMENT, NOT A PREDICATE, and
+    // it is disclosed in .planning/WINDOWS.md rather than argued away here. What this case buys is
+    // that it cannot drift silently. The mitigating fact is asserted below rather than claimed: a
+    // legitimate STRING key spelled "undefined" renders WITH its quotation marks, so the two are
+    // distinguishable in the message a caller actually reads.
+    const stems = twoStems();
+    const r = resolveModels(stems, {
+      preset: "none",
+      overrides: new Map([[Symbol("nope"), "opus"]]),
+    } as unknown as ResolveModelsOptions);
+    expect(r.ok, "a Symbol is not a stem this resolution covers — a refusal, not a crash").toBe(
+      false,
+    );
+    if (r.ok) return;
+    expect(r.reason).toContain("model-tiers: the override names the role stem undefined, which is ");
+    expect(r.reason).not.toContain('the role stem "undefined"');
+
+    // THE DISCRIMINATOR. The same sentence for the STRING "undefined" carries the quotation marks
+    // the authority supplies for a string, so a reader can tell a rendered value from a dropped one.
+    const asString = resolveModels(stems, {
+      preset: "none",
+      overrides: new Map([["undefined", "opus"]]),
+    } as unknown as ResolveModelsOptions);
+    expect(asString.ok).toBe(false);
+    if (asString.ok) return;
+    expect(asString.reason).toContain('model-tiers: the override names the role stem "undefined", ');
+    expect(asString.reason).not.toBe(r.reason);
   });
 
   it("Floor 0 returns a refusal for a preset that cannot be serialised, rather than throwing", () => {
