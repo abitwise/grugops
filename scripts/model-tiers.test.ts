@@ -1988,28 +1988,60 @@ describe("model-tiers: the refusal path RETURNS on every input (plan 29.1-21, R3
     }
   });
 
-  it("the quoting operation has ONE spelling in this module, and no refusal builds its own", () => {
+  it("the quoting operation has ONE spelling in the module that ships as well as the one that compiles", () => {
     // THE SET IS DERIVED FROM THE SOURCE, AND ITS CARDINALITY PINNED TWO-SIDED. Comments are
     // stripped first, because this module's own docstrings quote the operation while describing it —
     // a scan that counted those would be counting prose. Two sites survive by design and both are
     // named below; a third is a plan violation, and so is a second spelling of the wrapped form.
-    const source = readFileSync(join(ROOT, "scripts", "model-tiers.ts"), "utf8")
-      .split("\n")
-      .filter((line) => !/^\s*[/*]/.test(line))
-      .join("\n");
-    const sites = source.match(/JSON\.stringify\(/g) ?? [];
-    expect(
-      sites.length,
-      "exactly two: `quoteValue`'s guarded call — the one authority — and " +
-        "`resolvedAssignmentLine`'s payload emitter, which SERIALISES AN ANNOUNCEMENT rather than " +
-        "building a refusal, and whose input is a locally constructed ResolvedAssignment",
-    ).toBe(2);
-    // The wrapped second spelling the override refusal carried is GONE, not relocated — and the
-    // authority does not satisfy this scan itself, because it assigns the render to a local rather
-    // than composing the two calls. A predicate a subject can satisfy on its own is not a predicate.
-    expect(source).not.toContain("String(JSON.stringify(");
-    // The surviving authority is the ONLY place the operation sits inside a `try`.
-    expect((source.match(/try \{\n\s*rendered = JSON\.stringify\(/g) ?? []).length).toBe(1);
+    //
+    // IT READS BOTH ARTIFACTS AS OF PLAN 29.1-23, WHICH IS FINDING WR-04 OF ROUND 4. The claim this
+    // case makes is about THIS MODULE, and the module hosts actually execute is the committed
+    // `scripts/model-tiers.js` — a tooling layer that ships as compiled output with no type checking
+    // on the host, which is this module's own standing reason for every run-time floor it has. A
+    // scan that reads only the `.ts` proves a property of the file that COMPILES, not of the file
+    // that SHIPS. Build parity is enforced elsewhere and would probably catch a divergence, but
+    // "another gate would probably have caught it" is not the claim written above, and this case is
+    // the one that makes the claim. Both counts were MEASURED before this widening rather than
+    // assumed equal: 2 sites over the `.ts` and 2 over the `.js`, guarded-`try` 1 and 1, wrapped
+    // spelling absent from both. They agree, which is the expected result and not a proven one until
+    // it is read.
+    const SUBJECTS = ["model-tiers.ts", "model-tiers.js"] as const;
+    // THE COMMENT STRIP'S LIMITS, STATED WHERE THE CLAIM IS MADE. The filter drops a line whose
+    // FIRST non-space byte opens a comment, and nothing else. A trailing comment on a code line is
+    // NOT dropped, and neither is a block comment sharing a line with code — the text of both is
+    // scanned as if it were code. The strip is therefore one-directional: it can produce a FALSE RED
+    // (a spelling written in a trailing comment counted as a site) and it cannot produce a false
+    // green from executable code, because the only text it removes is text on a line that is
+    // entirely a comment, and a comment does not execute.
+    const STRIP_LIMITS =
+      "the comment strip drops ONLY a line whose first non-space byte opens a comment; a trailing " +
+      "comment on a code line and a block comment sharing a line with code are BOTH scanned as " +
+      "code, so this count can be too HIGH and never too low";
+    for (const file of SUBJECTS) {
+      const source = readFileSync(join(ROOT, "scripts", file), "utf8")
+        .split("\n")
+        .filter((line) => !/^\s*[/*]/.test(line))
+        .join("\n");
+      const sites = source.match(/JSON\.stringify\(/g) ?? [];
+      expect(
+        sites.length,
+        `${file}: exactly two — \`quoteValue\`'s guarded call, the one authority, and ` +
+          "`resolvedAssignmentLine`'s payload emitter, which SERIALISES AN ANNOUNCEMENT rather " +
+          `than building a refusal, and whose input is a locally constructed ResolvedAssignment. ${STRIP_LIMITS}`,
+      ).toBe(2);
+      // The wrapped second spelling the override refusal carried is GONE, not relocated — and the
+      // authority does not satisfy this scan itself, because it assigns the render to a local rather
+      // than composing the two calls. A predicate a subject can satisfy on its own is not a predicate.
+      expect(
+        source.includes("String(JSON.stringify("),
+        `${file}: carries the composed second spelling the deleted override site used. ${STRIP_LIMITS}`,
+      ).toBe(false);
+      // The surviving authority is the ONLY place the operation sits inside a `try`.
+      expect(
+        (source.match(/try \{\n\s*rendered = JSON\.stringify\(/g) ?? []).length,
+        `${file}: the guarded call is the ONE authority and must appear exactly once. ${STRIP_LIMITS}`,
+      ).toBe(1);
+    }
   });
 });
 

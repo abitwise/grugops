@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 90
+open_count: 91
 waived_count: 0
 fixed_count: 3
-total_count: 93
-last_updated: 2026-08-21T14:39:18.078Z
+total_count: 94
+last_updated: 2026-08-21T14:48:01.557Z
 ---
 
 # Broken Windows Ledger
@@ -108,6 +108,7 @@ last_updated: 2026-08-21T14:39:18.078Z
 | 91 | 29.1 | deviation | scripts/frontmatter.ts |  | PRE-EXISTING, found by plan 29.1-22, NOT caused by it and NOT fixed by it (outside this plan's declared scope). The double-quoted-scalar escape scanner produces a FALSE REFUSAL that is ORDER-DEPENDENT: within one double-quoted scalar, an escaped double quote occurring BEFORE an escaped backslash makes the later, valid escaped-backslash pair refuse by name, though both sequences are on the module's own allowlist and libyaml accepts the document. Reordering the same two sequences passes. Reproduced at pristine HEAD b08b25c in a clean worktree with a 20-byte synthetic item; the exact byte sequences are quoted in 29.1-22-SUMMARY.md, which renders them in a code fence rather than in a ledger cell. Live effect: scripts/frontmatter.test.ts 'D-49 false-red control' FAILS on this tree (1 failed, 2382 passed, 2 skipped, over 55 files), because .planning/phases/29.1-per-role-model-assignment/29.1-VERIFICATION-round4.md line 51 carries such a scalar in its gaps block. Direction: FAIL-CLOSED (a false red, never a bypass). Owner: unassigned, needs a plan of its own; the round-4 report was deliberately NOT rewritten, since annotating rather than rewriting a verifier's record is this repository's rule. | open |  | 2026-08-21T14:13:13.562Z |  |
 | 92 | 29.1 | deviation | scripts/model-tiers.ts |  | 29.1-23 KEY-rendering residual: a Map key that is not representable reaches the ONE quoting authority and is rendered the way that authority has always rendered a non-representable VALUE, because there is one authority and its handling of the three shapes JSON.stringify drops without throwing is deliberate and predates this plan. Measured at 9ae707e: a Symbol key renders as a bare undefined, a function key as a bare undefined, an object whose toString throws and a plain object both render as an empty brace pair. So a refusal for a non-representable key names the stem POSITION and the covered set but does not identify the key, and two such keys can produce the same sentence. Direction: FAIL-CLOSED and strictly better than the alternative it replaced, which was a THROW out of the refusal path. Mitigating fact, asserted rather than claimed by the case a Symbol key is REFUSED and NAMED rather than crashing the sentence that rejects it: a legitimate STRING key spelled undefined renders WITH its quotation marks, so a rendered value and a dropped one are distinguishable in the message a caller reads. Whether the bare rendering is the best one for a reader is a wording judgement, not a predicate; it is pinned by that case so it cannot drift silently, and it is disclosed here rather than argued away. | open |  | 2026-08-21T14:39:05.652Z |  |
 | 93 | 29.1 | deviation | scripts/model-tiers.ts |  | 29.1-23 correction to this plan's own stated truth, recorded because the measurement contradicts it. The plan asserted that only the shapes which previously THREW change behaviour. Measured over the 13-shape corpus driven at the KEY position against the committed .js at a58036b and at 9ae707e: only 2 of 13 shapes threw; the other 11 RETURNED a refusal whose key rendering has CHANGED, because the key used to be rendered by template-literal conversion inside hand-written quotation marks and is now rendered by the serialiser. Every LEGAL key is unaffected and that half is proven, 127 refusal renderings diffed pre and post with an empty diff. The changed renderings are all ILLEGAL keys, all refused in both builds: a number key NaN moved from quote NaN quote to null, a BigInt key 1n from quote 1 quote to an angle-bracket description, an array key from quote opus quote to a bracketed JSON array, a plain object from quote object Object quote to its serialised form, a function key from its source text to a bare undefined. Direction: FAIL-CLOSED in every row, and the discrimination IMPROVED for the common shapes, since a number key 5 and the string key quote 5 quote used to render identically and no longer do. The two rows that read WORSE are the function key and the NaN key. No caller can reach any of these through readModelsConfig, which refuses a non-string role key before the resolver is called. | open |  | 2026-08-21T14:39:18.078Z |  |
+| 94 | 29.1 | deviation | scripts/model-tiers.test.ts |  | 29.1-23 one-spelling scan residual (WR-04 closed with its bound stated rather than left implicit). The scan now reads scripts/model-tiers.ts AND the committed scripts/model-tiers.js, derives a count for each and names the file in every failure message; proven to discriminate on the compiled side by planting a second spelling in the committed .js only, with the source untouched - the widened case reds naming model-tiers.js, and the NARROW case at 5ec040d passes the identical plant. The residual is the comment strip: it drops ONLY a line whose first non-space byte opens a comment, so a trailing comment on a code line and a block comment sharing a line with code are both scanned AS code. Direction: FAIL-CLOSED and one-directional - the count can be too HIGH and never too low, because the only text removed is text on a line that is entirely a comment, and a comment does not execute. A documented second spelling written in a trailing comment would therefore produce a FALSE RED. That bound is now stated in the assertion message itself rather than known only to the author. | open |  | 2026-08-21T14:48:01.557Z |  |
 
 ````json
 [
@@ -1225,6 +1226,18 @@ last_updated: 2026-08-21T14:39:18.078Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-08-21T14:39:18.078Z",
+    "resolved_at": null
+  },
+  {
+    "id": 94,
+    "kind": "deviation",
+    "phase": "29.1",
+    "file": "scripts/model-tiers.test.ts",
+    "line": null,
+    "description": "29.1-23 one-spelling scan residual (WR-04 closed with its bound stated rather than left implicit). The scan now reads scripts/model-tiers.ts AND the committed scripts/model-tiers.js, derives a count for each and names the file in every failure message; proven to discriminate on the compiled side by planting a second spelling in the committed .js only, with the source untouched - the widened case reds naming model-tiers.js, and the NARROW case at 5ec040d passes the identical plant. The residual is the comment strip: it drops ONLY a line whose first non-space byte opens a comment, so a trailing comment on a code line and a block comment sharing a line with code are both scanned AS code. Direction: FAIL-CLOSED and one-directional - the count can be too HIGH and never too low, because the only text removed is text on a line that is entirely a comment, and a comment does not execute. A documented second spelling written in a trailing comment would therefore produce a FALSE RED. That bound is now stated in the assertion message itself rather than known only to the author.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-08-21T14:48:01.557Z",
     "resolved_at": null
   }
 ]
