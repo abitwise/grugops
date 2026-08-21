@@ -284,9 +284,33 @@ const fail = (m: string): void => {
 
 const abs = (rel: string): string => join(ROOT, rel);
 
+// THE ONE PATH-SPELLING AUTHORITY (Phase 29.1 round 4 / WR-01). A repo-relative path, spelled by
+// the platform's own separator, so two sets built by two routes can be compared for equality.
+//
+// The reasoning is NOT new — it is the one already written above `derive()` below: `join()` (not a
+// `/` template) keeps a path byte-identical to what `walk()` produces on Windows as well as Unix,
+// and Assertion 3 compares two such sets directly, so a separator mismatch would break it. That
+// reasoning was right and its APPLICATION was incomplete: two paths entered a compared set without
+// passing through it — the packaging template, added to the legal set as a raw forward-slash
+// literal, and a single-FILE scan entry, pushed by the walk exactly as written. On a platform whose
+// separator is not the forward slash, Assertion 3 would then fail RED on a correct tree and print
+// "its self-heal is gone — this adapter cannot find the kit" about a file that is fine.
+//
+// It is deliberately the WHOLE authority rather than a second normalisation beside `derive()`:
+// `derive()` already composes with `join`, so it is left alone. Every path that enters a set this
+// gate compares passes through here, or through a `join` that is already this same call.
+const relKey = (rel: string): string => join(rel);
+
 // Recursively enumerate every file under a SCAN entry (a dir → walk; a file → itself). Missing
 // entries are silently skipped (mirrors `grep -rn` on an absent path printing nothing). Returns
 // repo-relative paths so the `path:lineno:line` lines match the .sh `grep -rn` output shape.
+//
+// (WR-01) The file branch pushes `relKey(rel)` rather than `rel`. The directory branch always
+// composed with `join` and so was never wrong; the file branch pushed a SCAN entry exactly as
+// declared, which on Windows put a forward-slash spelling into a set compared against separator-
+// spelled paths. The asymmetry was the defect, and applying the one authority at both branches is
+// what removes it — `relKey` is idempotent, so a path the directory branch already spelled is
+// unchanged by passing through it again.
 function walk(rel: string, acc: string[]): string[] {
   const a = abs(rel);
   if (!existsSync(a)) return acc;
@@ -296,7 +320,7 @@ function walk(rel: string, acc: string[]): string[] {
       walk(join(rel, entry), acc);
     }
   } else if (st.isFile()) {
-    acc.push(rel);
+    acc.push(relKey(rel));
   }
   return acc;
 }
@@ -707,7 +731,10 @@ if (gh === "") {
 const ghLegal = new Set<string>(
   ADAPTER_FILES.filter((rel) => readText(rel).includes(RESOLVER_SLOT)),
 );
-if (existsSync(abs(PACKAGING_TEMPLATE))) ghLegal.add(PACKAGING_TEMPLATE);
+// (WR-01) The template enters the legal set through the ONE spelling authority, because the set it
+// is about to be compared against is spelled by `walk()`. The `existsSync` probe keeps taking the
+// literal through `abs()`, which is the same `join` and needs no second normalisation.
+if (existsSync(abs(PACKAGING_TEMPLATE))) ghLegal.add(relKey(PACKAGING_TEMPLATE));
 const ghActual = new Set<string>(grepFilesWithMatch(SCAN, KIT_ROOT_ENV));
 const ghIllegal = [...ghActual].filter((f) => !ghLegal.has(f)).sort();
 const ghSilent = [...ghLegal].filter((f) => !ghActual.has(f)).sort();

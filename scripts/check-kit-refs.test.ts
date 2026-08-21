@@ -33,7 +33,7 @@ import {
   rmSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, dirname } from "node:path";
+import { join, dirname, win32, posix } from "node:path";
 
 const ROOT = join(import.meta.dirname, "..");
 const GATE_JS = join(ROOT, "scripts", "check-kit-refs.js");
@@ -619,6 +619,69 @@ describe("check-kit-refs Assertion 1 exemption — the config self-references, p
     // A NAMED finding, not an unattributable "found 0, required 1" cardinality disagreement.
     expect(r.stdout).toContain("no agent-factory/config/ directory found");
     expect(r.stdout).toContain("refusing to adjudicate its exemption");
+  });
+});
+
+// ── Assertion 3's two compared sets, and the one spelling that must build both (WR-01) ──────────
+//
+// The defect this case pins is NOT reproducible on this platform: on POSIX the raw literal and the
+// walk-shaped path are byte-identical, so the gate is green here either way. It is corroborated
+// under `path.win32` semantics and by reading the gate, NOT executed on Windows — this repository
+// has no `windows-latest` CI leg yet (CAP-02, Phase 33), and .planning/WINDOWS.md carries the row
+// that says so. Stating that limit here is the point: a case that quietly implied it had run on
+// Windows would be the wider-than-mechanism class this phase exists to close.
+const PACKAGING_TEMPLATE_LITERAL = "agent-factory/packaging/subagent.frontmatter.md";
+/** The two spellings the gate carried BEFORE the fix — asserted ABSENT, so reverting either reds. */
+const WR01_DEFECT_SPELLINGS = ["ghLegal.add(PACKAGING_TEMPLATE)", "acc.push(rel)"];
+/** …and the two the fix carries, asserted PRESENT. */
+const WR01_FIXED_SPELLINGS = ["ghLegal.add(relKey(PACKAGING_TEMPLATE))", "acc.push(relKey(rel))"];
+
+describe("check-kit-refs Assertion 3 — one path-spelling authority for both compared sets (WR-01)", () => {
+  it("Assertion 3 (win32): every path entering either compared set is spelled by one authority", () => {
+    // The walk-shaped path, built the way walk() builds it: compose the scan entry, then the entry.
+    const walkShaped = win32.join(
+      win32.join("agent-factory/packaging"),
+      "subagent.frontmatter.md",
+    );
+
+    // DIRECTION 1 — THE NEGATIVE CONTROL, and the reason direction 2 means anything. Under win32
+    // semantics the RAW literal and the walk-shaped path for the SAME file are NOT equal. A case
+    // asserting only the fixed behaviour would pass just as happily on a tree where the defect never
+    // existed, and would therefore be measuring nothing.
+    expect(
+      PACKAGING_TEMPLATE_LITERAL,
+      "the raw literal and the walk-shaped path must DISAGREE under win32 — this is the defect",
+    ).not.toBe(walkShaped);
+
+    // DIRECTION 2 — the normalised literal and that same walk-shaped path ARE equal.
+    expect(
+      win32.join(PACKAGING_TEMPLATE_LITERAL),
+      "…and passing the literal through the one authority must make them agree",
+    ).toBe(walkShaped);
+
+    // THE POSIX CONTROL: on this platform the authority is a no-op, which is why the gate's output
+    // does not move and why the win32 half had to be reasoned rather than watched.
+    expect(posix.join(PACKAGING_TEMPLATE_LITERAL)).toBe(PACKAGING_TEMPLATE_LITERAL);
+    expect(posix.join(PACKAGING_TEMPLATE_LITERAL)).toBe(
+      posix.join(posix.join("agent-factory/packaging"), "subagent.frontmatter.md"),
+    );
+
+    // …and the GATE actually routes both set-entry points through it. The subject of these greps is
+    // the gate, never this file, so no declaration here can satisfy them. Both polarities are
+    // asserted: the defect spellings ABSENT and the fixed spellings PRESENT, so reverting either
+    // call site reds this case rather than only removing a string it never looked for.
+    const source = readFileSync(GATE_TS, "utf8");
+    for (const defect of WR01_DEFECT_SPELLINGS) {
+      expect(
+        source.split(defect).length - 1,
+        `the gate must carry NO un-normalised set entry — found \`${defect}\``,
+      ).toBe(0);
+    }
+    for (const fixed of WR01_FIXED_SPELLINGS) {
+      expect(source, `the gate must spell its set entries through relKey — \`${fixed}\``).toContain(
+        fixed,
+      );
+    }
   });
 });
 
