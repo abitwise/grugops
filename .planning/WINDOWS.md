@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 96
+open_count: 100
 waived_count: 0
 fixed_count: 4
-total_count: 100
-last_updated: 2026-08-21T19:10:12.664Z
+total_count: 104
+last_updated: 2026-08-21T19:12:07.516Z
 ---
 
 # Broken Windows Ledger
@@ -115,6 +115,10 @@ last_updated: 2026-08-21T19:10:12.664Z
 | 98 | 29.1 | deviation | .planning/phases/29.1-per-role-model-assignment/29.1-24-PLAN.md |  | 29.1-24 plan deviations, recorded so the diff does not have to be read to find them. ONE: the plan splits the cutover (task 1) from the class-case replacement (task 2), but (r-class-prefix) derives its member set by scanning for the step-name PREFIX and the cutover removes that phrase from both members, so its vacuity floor fires the instant the second grammar is deleted (measured: expected 0 to be greater than 0, 50 .test.ts files scanned, none carrying the prefix). The case cannot survive the cutover in any form, and task 1 verify requires a green file, so (r-class-authority) landed in task 1 commit 56653ca rather than task 2. Only the commit boundary moved; every acceptance criterion of both tasks is satisfied. TWO: the case comment as written from the plan wording claimed assertions 3, 4 and 5 are the same fact measured three ways. Per-arm measurement under the base shift found arm 3 GREEN — it asserts a property of the CONTROL, which the mutation does not touch — so the comment was corrected to name four discriminating arms and to state arm 3 as a premise. Left uncorrected that would have been the wider-than-mechanism claim class this phase exists to close, inside the case written to close it. Direction: both are closed self-corrections, not open holes. | open |  | 2026-08-21T15:40:24.243Z |  |
 | 99 | 29.1 | deviation | .planning/phases/29.1-per-role-model-assignment/29.1-CONTEXT.md |  | 29.1-25: WR-03 was ruled record-decision-only (Olger Oeselg, 2026-08-21), so the reversal of D-06's unknown-key disposition is recorded as decision D-29.1-18 and NO CHANGELOG entry ships. The CHANGELOG half is OWED ON FIRST REACHABLE CHANGE, not closed: today the refusal branch is unreachable from production, so a consumer who reads only CHANGELOG.md does not meet this contract change. Direction: FAIL-OPEN for changelog consumers — nothing mechanical will remind anyone to add the entry when the branch first becomes reachable, because no gate reads reachability. Owner: whoever makes that branch reachable. | open |  | 2026-08-21T19:10:12.591Z |  |
 | 100 | 29.1 | unrun-verify | .planning/WINDOWS.md |  | 29.1-25: the four prose gates this plan ran (check-public-docs, check-banned-claims, check-claim-anchors, check-audit-register) plus check-kit-refs do NOT reach either surface this plan wrote. Measured, not assumed: BANNED_CLAIM_EXCLUDED_LOCATIONS in scripts/check-banned-claims.ts carries the segment class '**/.planning/' enforced at the walk, and check-kit-refs.ts states .planning/ intentionally absent from its scan. Direction: FAIL-OPEN — a banned claim, a cost sentence or caveman voice written into any .planning/ surface passes every gate in this repository green. Compensating measurement taken this plan: the gate's own 22 pinned literals were extracted and run directly over this plan's added text, 0 hits. That is a one-off reading, not a gate. | open |  | 2026-08-21T19:10:12.664Z |  |
+| 101 | 29.1 | deviation | scripts/model-tiers.ts |  | 29.1-25 reconciliation: round-4 review IN-01 is UNDISPOSITIONED — no plan in this round claimed it and no ledger row carried it until now. describeShape(null) renders the null-overrides refusal as 'an object rather than a Map', which is the worst possible rendering of the exact case Floor 0b exists to reject. Found by the derived reconciliation, not by a plan. Owner: unassigned. | open |  | 2026-08-21T19:12:07.311Z |  |
+| 102 | 29.1 | deviation | scripts/check-kit-refs.ts |  | 29.1-25 reconciliation: round-4 review IN-02 is UNDISPOSITIONED — join(CONFIG_SELF_REF_DIR) + sep is computed in two places (round-4 review cites :259 and :342), a second spelling for the first to drift from. Note plan 29.1-22 rewrote this module for CR-02/CR-03, so the cited line numbers may have moved and the finding needs re-locating before it is fixed. Owner: unassigned. | open |  | 2026-08-21T19:12:07.380Z |  |
+| 103 | 29.1 | deviation | scripts/check-kit-refs.ts |  | 29.1-25 reconciliation: round-4 review IN-03 is UNDISPOSITIONED — walk() follows symlinks with no cycle guard and admits them to the exemption's sibling set. Direction: a symlink can join the set the D-08.1 exemption is counted over. Distinct from round-3's R3-IN-03, which WAS closed by plan 29.1-24; the id collision across rounds is why this one was easy to miss. Owner: unassigned. | open |  | 2026-08-21T19:12:07.447Z |  |
+| 104 | 29.1 | deviation | scripts/model-dial-consistency.test.ts |  | 29.1-25 reconciliation: round-4 review IN-04 is UNDISPOSITIONED — sectionCitationsIn throws on a lone backtick-### sequence anywhere in the authority, an unbounded scope on an otherwise right default. Distinct from ledger row 83, which records the ONE-citation-grammar narrowness of the same function from plan 29.1-20. Owner: unassigned. | open |  | 2026-08-21T19:12:07.516Z |  |
 
 ````json
 [
@@ -1316,6 +1320,54 @@ last_updated: 2026-08-21T19:10:12.664Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-08-21T19:10:12.664Z",
+    "resolved_at": null
+  },
+  {
+    "id": 101,
+    "kind": "deviation",
+    "phase": "29.1",
+    "file": "scripts/model-tiers.ts",
+    "line": null,
+    "description": "29.1-25 reconciliation: round-4 review IN-01 is UNDISPOSITIONED — no plan in this round claimed it and no ledger row carried it until now. describeShape(null) renders the null-overrides refusal as 'an object rather than a Map', which is the worst possible rendering of the exact case Floor 0b exists to reject. Found by the derived reconciliation, not by a plan. Owner: unassigned.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-08-21T19:12:07.311Z",
+    "resolved_at": null
+  },
+  {
+    "id": 102,
+    "kind": "deviation",
+    "phase": "29.1",
+    "file": "scripts/check-kit-refs.ts",
+    "line": null,
+    "description": "29.1-25 reconciliation: round-4 review IN-02 is UNDISPOSITIONED — join(CONFIG_SELF_REF_DIR) + sep is computed in two places (round-4 review cites :259 and :342), a second spelling for the first to drift from. Note plan 29.1-22 rewrote this module for CR-02/CR-03, so the cited line numbers may have moved and the finding needs re-locating before it is fixed. Owner: unassigned.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-08-21T19:12:07.380Z",
+    "resolved_at": null
+  },
+  {
+    "id": 103,
+    "kind": "deviation",
+    "phase": "29.1",
+    "file": "scripts/check-kit-refs.ts",
+    "line": null,
+    "description": "29.1-25 reconciliation: round-4 review IN-03 is UNDISPOSITIONED — walk() follows symlinks with no cycle guard and admits them to the exemption's sibling set. Direction: a symlink can join the set the D-08.1 exemption is counted over. Distinct from round-3's R3-IN-03, which WAS closed by plan 29.1-24; the id collision across rounds is why this one was easy to miss. Owner: unassigned.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-08-21T19:12:07.447Z",
+    "resolved_at": null
+  },
+  {
+    "id": 104,
+    "kind": "deviation",
+    "phase": "29.1",
+    "file": "scripts/model-dial-consistency.test.ts",
+    "line": null,
+    "description": "29.1-25 reconciliation: round-4 review IN-04 is UNDISPOSITIONED — sectionCitationsIn throws on a lone backtick-### sequence anywhere in the authority, an unbounded scope on an otherwise right default. Distinct from ledger row 83, which records the ONE-citation-grammar narrowness of the same function from plan 29.1-20. Owner: unassigned.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-08-21T19:12:07.516Z",
     "resolved_at": null
   }
 ]
