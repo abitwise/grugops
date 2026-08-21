@@ -202,18 +202,76 @@ const CONFIG_SELF_REF_MENTIONS = 3;
 // The `path:lineno:line` shape grepSubstring produces, split back into its three parts. The path is
 // matched non-greedily up to the first `:<digits>:` so a colon inside the LINE cannot shift it.
 const HIT_SHAPE = /^(.*?):(\d+):(.*)$/s;
-// Every kit-internal path a line NAMES, as `agent-factory/config/<basename>`. Extracting the named
-// paths — rather than testing the whole line — is what makes a sentence that mentions the directory
-// and a fabricated filename a stray rather than a self-reference.
+// ---------------------------------------------------------------------------
+// THE ONE EXTRACTION (Phase 29.1 round 4 / R3-CR-01, R3-CR-02 and the round-4 no-capture spelling).
 //
-// WHAT THIS PATTERN DOES NOT DECIDE (round 3 / R3-CR-02). The comment that stood here claimed the
-// extraction was what made a mention a stray. That was true of a fabricated filename and false of
-// `.` and `..`, which this character class admits and which every directory resolves. A capture is
-// only a candidate; whether a captured basename is a SELF-REFERENCE is decided downstream by
-// membership in the derived sibling set, never by this pattern and never by an existence probe.
-// Widening or narrowing the class here is therefore not the lever — it selects what is asked about,
-// not what is admitted.
-const CONFIG_NAMED_PATH = /agent-factory\/config\/([A-Za-z0-9._-]+)/g;
+// THE SECOND GRAMMAR IS DELETED, NOT WIDENED. What stood here was
+// `const CONFIG_NAMED_PATH = /agent-factory\/config\/([A-Za-z0-9._-]+)/g;` — a SECOND grammar over
+// the same question `grepSubstring` already answers with a plain substring. The two counted
+// different things: the regex counted CAPTURES, the grep counted OCCURRENCES, and
+// `exemptMentions += named.length` published the first number under the second number's name. Any
+// occurrence yielding no capture, or whose capture was a PREFIX of a longer path, was absorbed into
+// an already-exempt line without the membership predicate ever being asked about it. Round 4
+// reproduced three spellings of that against the committed build on a hermetic mirror, all three at
+// exit 0 with all three published cardinalities exactly as declared. A wider character class would
+// have been the same heuristic wearing a bigger alphabet; this repository's recorded lesson is ONE
+// format-aware authority per predicate and the DELETION of the second grammar, so the regex is gone
+// rather than kept beside what replaces it.
+//
+// WHAT THE EXTRACTION STILL DOES NOT DECIDE (round 3 / R3-CR-02, preserved). Extraction selects what
+// is ASKED ABOUT; it does not decide what is ADMITTED. Whether a named path is a SELF-REFERENCE is
+// decided downstream by membership in the derived sibling set, never here and never by an existence
+// probe — which is why `.` and `..` need no anticipating.
+// ---------------------------------------------------------------------------
+// The ONE declared byte class that ENDS a named path: the delimiters this repository's prose puts
+// around a path — whitespace, the backtick, the apostrophe, the double quote, the two paren bytes,
+// the two square-bracket bytes, the comma and the semicolon.
+//
+// This is a declaration of what ENDS a record, NOT a denylist of what a path may not be. Widening or
+// narrowing it moves where a record STOPS and never what is admissible, so it cannot be the lever a
+// future bypass reaches for: a record that stops in the wrong place is simply a different string,
+// and a different string is still put to the same membership rule.
+const CONFIG_REF_TERMINATOR = /[\s`'"()[\],;]/;
+
+/**
+ * Given a line, return ONE record per OCCURRENCE of `CONFIG_REF_NEEDLE` — the same substring
+ * `grepSubstring` greps — each record being the maximal run of non-terminator bytes immediately
+ * following that occurrence. The record is the EMPTY STRING when the next byte is already a
+ * terminator or the line ends there; an empty string is not a member of any sibling set, so an
+ * occurrence that names the directory and nothing admissible is a stray rather than an absence.
+ *
+ * WHY THIS EXISTS. The set the membership predicate is asked about and the set the gate greps must
+ * be the SAME set. The previous arrangement had two of them, and every occurrence that fell in the
+ * difference shipped unadjudicated under a verdict that said otherwise. One record per occurrence
+ * makes "an occurrence the predicate was never asked about" unrepresentable rather than merely
+ * unobserved, and makes the published mention count the occurrence count BY CONSTRUCTION.
+ *
+ * The scan advances past the NEEDLE rather than past the RECORD, so an occurrence spelled inside a
+ * longer record is still its own record and cannot be swallowed by the record before it.
+ */
+function configReferencesIn(line: string): string[] {
+  const refs: string[] = [];
+  let at = 0;
+  for (;;) {
+    const found = line.indexOf(CONFIG_REF_NEEDLE, at);
+    if (found === -1) break;
+    const from = found + CONFIG_REF_NEEDLE.length;
+    let end = from;
+    while (end < line.length && !CONFIG_REF_TERMINATOR.test(line[end])) end += 1;
+    refs.push(line.slice(from, end));
+    at = from;
+  }
+  return refs;
+}
+
+/**
+ * The needle-occurrence count for a line, computed WITHOUT the extraction above — a split on the
+ * needle rather than a scan for it. Two derivations of one number, so the premise floor below
+ * compares two things rather than a thing with itself.
+ */
+function configRefOccurrences(line: string): number {
+  return line.split(CONFIG_REF_NEEDLE).length - 1;
+}
 
 let FAILS = 0;
 const pass = (m: string): void => {
@@ -244,9 +302,9 @@ function walk(rel: string, acc: string[]): string[] {
 }
 
 // ---------------------------------------------------------------------------
-// The set a captured basename must be a MEMBER of to be a self-reference (Phase 29.1 round 3 /
-// R3-CR-02, plan 29.1-18): the DEPTH-1 REGULAR FILES the configuration directory carries on the
-// tree under judgement.
+// The set a NAMED PATH must be a MEMBER of to be a self-reference (Phase 29.1 round 3 / R3-CR-02,
+// plan 29.1-18): the DEPTH-1 REGULAR FILES the configuration directory carries on the tree under
+// judgement.
 //
 // Derived through walk(), the function this gate already uses to answer "what files are here", so
 // the file-versus-directory question is answered ONCE by the authority that already answers it —
@@ -264,8 +322,8 @@ function configSiblingFiles(): string[] {
     .sort();
 }
 
-// A captured basename is a self-reference when — and ONLY when — it is a member of that set. This
-// is a statement of what a basename may BE, not a list of spellings it may not be, and the four
+// A named path is a self-reference when — and ONLY when — it is a member of that set. This is a
+// statement of what a named path may BE, not a list of spellings it may not be, and the six
 // consequences are all consequences of the one rule:
 //
 //   `..`      is not a member: a directory listing does not contain it. The traversal that climbed
@@ -273,13 +331,21 @@ function configSiblingFiles(): string[] {
 //             R3-CR-02 bypass) is refused because nothing named `..` is carried here.
 //   `.`       is not a member, for the same reason.
 //   a SUBDIR  is not a member: the set holds regular files only, so a path under a future
-//             `agent-factory/config/<subdir>/` captures the subdirectory name and is a stray. The
+//             `agent-factory/config/<subdir>/` names the subdirectory first and is a stray. The
 //             exemption is bounded in depth as well as in count.
 //   a GHOST   is not a member: a fabricated filename was never carried here. This is the
 //             pre-existing behaviour, preserved — the rule is narrower than the probe it replaces
 //             and admits nothing the probe refused.
-function isConfigSibling(siblings: ReadonlySet<string>, base: string): boolean {
-  return siblings.has(base);
+//   a SUFFIX  is not a member: `factory.config.json/../../../../etc/passwd` is a different string
+//             from `factory.config.json`, so it is not in the set. This is new only in the value
+//             handed here (round 4): the rule was always membership over a whole path, and it used
+//             to be handed the path's FIRST SEGMENT, which is why a member's name with anything at
+//             all appended read as that member.
+//   the EMPTY is not a member: a directory listing does not carry a nameless entry, so an
+//   STRING    occurrence naming the directory with nothing admissible after it is refused as a
+//             stray rather than passing as an absence.
+function isConfigSibling(siblings: ReadonlySet<string>, named: string): boolean {
+  return siblings.has(named);
 }
 
 // grep -rn over a SCAN set for a fixed substring: return `path:lineno:line` hits (1-based).
@@ -317,7 +383,7 @@ function readText(rel: string): string {
 //
 // A hit is exempt when BOTH hold:
 //   (a) the file carrying it is itself inside the configuration directory, and
-//   (b) the line names at least one kit-internal path, and EVERY basename it names is a MEMBER of
+//   (b) the line names at least one kit-internal path, and EVERY path it names is a MEMBER of
 //       `siblings` — the depth-1 regular files that directory carries on the tree under judgement.
 //
 // (b)'s "at least one" is load-bearing: a line that mentioned the directory prefix and named no
@@ -330,6 +396,13 @@ function readText(rel: string): string {
 // leaving the directory was certified as a reference inside it. Membership in a set derived from
 // what the directory actually carries is the same sentence made checkable: the set cannot contain a
 // name the directory does not carry, so no spelling has to be anticipated.
+//
+// (b) IS ASKED OF EVERY OCCURRENCE (round 4 / R3-CR-01, R3-CR-02 and the no-capture spelling). It
+// used to be asked of every CAPTURE of a second grammar, and the gate greps OCCURRENCES of a
+// substring — so an occurrence that produced no capture, or whose capture was a prefix of a longer
+// path, was never put to (b) at all while the line around it carried a legitimate mention that was.
+// `configReferencesIn` emits one record per occurrence, so "every path it names" is now every
+// occurrence of the needle, and the number published below is that same count by construction.
 function exemptConfigSelfRefs(
   hits: string[],
   siblings: ReadonlySet<string>,
@@ -338,34 +411,58 @@ function exemptConfigSelfRefs(
   exemptMentions: number;
   strays: string[];
   files: string[];
+  unitMismatches: string[];
 } {
   const dirPrefix = join(CONFIG_SELF_REF_DIR) + sep;
   const exempt: string[] = [];
   const strays: string[] = [];
   const files = new Set<string>();
+  const unitMismatches: string[] = [];
   let exemptMentions = 0;
   for (const hit of hits) {
     const m = HIT_SHAPE.exec(hit);
     const file = m ? m[1] : "";
     const line = m ? m[3] : hit;
-    const named = [...line.matchAll(CONFIG_NAMED_PATH)].map((n) => n[1]);
+    const named = configReferencesIn(line);
+    // THE RUN-TIME PREMISE FLOOR. The whole finding this rewrite closes was a disagreement between
+    // two numbers that nothing ever compared: the count the extraction produced, and the count of
+    // needle occurrences the gate greps in. They are identical BY CONSTRUCTION today, computed two
+    // different ways, so this can NOT fire on this tree — and that is the point of writing it. It is
+    // the assertion that would have named R3-CR-01 the day the two units first parted company, and
+    // it is the assertion that names the next refactor that parts them again. A floor is worth
+    // nothing on the day it is written; it is worth everything on the day someone changes the
+    // extraction and does not notice which number the verdict publishes.
+    const occurrences = configRefOccurrences(line);
+    if (named.length !== occurrences) {
+      unitMismatches.push(
+        `${m ? `${file}:${m[2]}` : "(unparsed hit)"}: the extraction produced ${named.length} record(s) where the line carries ${occurrences} occurrence(s) of ${CONFIG_REF_NEEDLE}:\n${line}`,
+      );
+    }
     const inConfigDir = file.startsWith(dirPrefix);
     const allResolve =
       named.length > 0 &&
-      named.every((base) => isConfigSibling(siblings, base));
+      named.every((path) => isConfigSibling(siblings, path));
     if (inConfigDir && allResolve) {
       exempt.push(hit);
       // The MENTION count comes from the SAME `named` array the predicate one line above decided
       // on. One extraction, read once, feeding both the decision and the number the gate publishes
       // about it — a second extraction could disagree with the first, and the reader of the verdict
-      // would have no way to tell which of the two the exemption was actually granted from.
+      // would have no way to tell which of the two the exemption was actually granted from. Since
+      // round 4 that array holds one record per needle occurrence, so this number is the mention
+      // count in the unit the gate greps rather than in a second grammar's unit.
       exemptMentions += named.length;
       files.add(file);
     } else {
       strays.push(hit);
     }
   }
-  return { exempt, exemptMentions, strays, files: [...files].sort() };
+  return {
+    exempt,
+    exemptMentions,
+    strays,
+    files: [...files].sort(),
+    unitMismatches,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -495,6 +592,7 @@ const {
   exemptMentions,
   strays,
   files: exemptFiles,
+  unitMismatches,
 } = exemptConfigSelfRefs(grepSubstring(SCAN, CONFIG_REF_NEEDLE), configSiblings);
 // The strays half — byte-identical wording to the pre-exemption gate.
 if (strays.length === 0) {
@@ -527,6 +625,16 @@ if (configDirPresent) {
       `the agent-factory/config/ self-reference exemption has drifted — it is ${CONFIG_SELF_REF_MENTIONS} mention(s) on ${CONFIG_SELF_REF_HITS} line(s) in ${CONFIG_SELF_REF_FILES} file(s) BY DECLARATION, and a new mention must be argued and counted, never absorbed:${drift}`,
     );
   }
+}
+// The FOURTH named finding, beside FILES, LINES and MENTIONS: the gate's own premise, asserted at
+// run time rather than assumed. It is deliberately NOT gated on the configuration directory being
+// present — the claim is about this gate's arithmetic over whatever hits it was handed, not about
+// the tree carrying anything in particular. It publishes nothing when it holds, because a green run
+// must stay byte-identical to the one this rewrite replaced; the silence is the assertion passing.
+if (unitMismatches.length > 0) {
+  fail(
+    `the exemption's two units disagree — the extraction produced a different number of records than the line carries occurrences of ${CONFIG_REF_NEEDLE}, so a mention exists that the membership predicate was never asked about:\n${unitMismatches.join("\n")}`,
+  );
 }
 
 // ---------------------------------------------------------------------------
