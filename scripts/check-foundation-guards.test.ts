@@ -11171,6 +11171,123 @@ describe("guard_model_assignment (Phase 29.1, MODEL-03/MODEL-05)", () => {
     expect(ci).toContain("npx vitest run --exclude '**/scripts/e2e/**'");
   });
 
+  // (Plan 29.1-24, closing R3-IN-03) THE SLICE BASE, PROVEN BY BEHAVIOUR RATHER THAN BY SOURCE TEXT.
+  //
+  // WHAT THIS REPLACES. `(r-class-prefix)` requirement 2 asserted that every member's SOURCE spelled
+  // the slice base a canonical way. Round 4 applied the exact divergence R3-IN-03 named — slicing
+  // from the locator index rather than from the END of the step name — and the failure set came back
+  // byte-for-byte identical to the unmutated baseline, because the constant that stated the
+  // requirement was declared in the file the requirement searched. A predicate whose subject supplies
+  // the text it looks for is a green light wired to nothing.
+  //
+  // WHAT THIS CASE DOES INSTEAD. It computes TWO REGIONS from the same bytes — the authority's, and a
+  // control built from the bare locator index with the SAME right bound — and compares them. Nothing
+  // here reads source text, so a change to what the reader COMPUTES moves the assertion rather than
+  // the source it happens to contain. The control is written inline, in this case, and nothing
+  // outside it may call it: it is a control, not a second authority.
+  //
+  // `(r-bound-synthetic)` DOES NOT COVER THIS, MEASURED. Round 4 recorded why: that case's negative
+  // control builds its own inline slice from the same base as the reader, and its effect assertion
+  // (`.not.toContain(APPENDED_STEP_NAME)`) is still satisfied by a base-shifted read. The two cases
+  // are about two different properties — one about the RIGHT bound, one about the LEFT base — and
+  // neither substitutes for the other.
+  it("(r-base-discriminating) the region begins after the step name, proven by two computed regions rather than by source text", () => {
+    const ci = ciWorkflow();
+
+    // THE AUTHORITY'S REGION, and a CONTROL region built from the bare locator index with the SAME
+    // right bound. The only difference between the two is the base, which is the thing under test.
+    const at = ci.indexOf(UBUNTU_BLOCK_STEP_NAME);
+    expect(
+      at,
+      "PREMISE: the workflow must carry the ubuntu block's step name, or neither region below exists",
+    ).toBeGreaterThan(-1);
+    const controlRest = ci.slice(at);
+    const controlNext = controlRest.indexOf(STEP_MARKER);
+    const controlRegion = controlNext === -1 ? controlRest : controlRest.slice(0, controlNext);
+    const authorityRegion = ubuntuBlock(ci);
+
+    const asCommands = (region: string): string[] =>
+      region
+        .split("\n")
+        .map((l) => l.trim())
+        .filter((l) => l.length > 0 && !l.startsWith("#"));
+    const authorityCommands = ubuntuBlockCommands(ci);
+    const controlCommands = asCommands(controlRegion);
+
+    // 1. VACUITY FLOOR ON BOTH SIDES. Nothing below means anything over an empty list, and a floor
+    //    that catches an EMPTY denominator has never caught a silently SHORT one — so the authority's
+    //    list is additionally compared against a count derived from its own region, independently of
+    //    the reader that produced it.
+    expect(
+      authorityCommands.length,
+      "the authority's command list must be non-empty, or every comparison below is vacuous",
+    ).toBeGreaterThan(0);
+    expect(
+      controlCommands.length,
+      "the control's command list must be non-empty, or the control is not exercising the difference it exists to measure",
+    ).toBeGreaterThan(0);
+    expect(
+      authorityCommands,
+      "the authority's command list must be the list its own region yields — a reader and a re-derivation disagreeing about one region is the defect this whole class exists to delete",
+    ).toEqual(asCommands(authorityRegion));
+
+    // 2. THE TWO BASES GENUINELY DIFFER ON THIS WORKFLOW. This is the premise that makes every
+    //    assertion below a measurement rather than a coincidence. If a future workflow made the two
+    //    bases agree, this case would be proving nothing and says so here rather than passing quietly.
+    expect(
+      authorityRegion === controlRegion,
+      "PREMISE: the two bases must produce DIFFERENT regions on the committed workflow. They came back byte-identical, which means this case is no longer measuring a base at all.",
+    ).toBe(false);
+    expect(
+      authorityCommands,
+      "PREMISE: the two bases must produce different COMMAND LISTS, not merely different bytes — the command list is what every wiring assertion in this file is made over",
+    ).not.toEqual(controlCommands);
+
+    // 3. THE CONTROL ADOPTS THE REGION'S OWN HEADING. Slicing from the locator index puts the step
+    //    name itself into the region, so the first thing the control calls a command is the heading
+    //    rather than anything the block runs.
+    expect(
+      controlCommands[0],
+      "CONTROL: a region sliced from the locator index must begin with the step name itself — if it does not, the control is not the divergence R3-IN-03 named and the contrast below is against the wrong thing",
+    ).toBe(UBUNTU_BLOCK_STEP_NAME);
+
+    // 4. THE SAME FACT FROM THE OTHER SIDE: the authority's region carries the step name NOWHERE, in
+    //    its raw bytes or in its command list.
+    expect(
+      authorityCommands,
+      `the authority's command list must not contain the step name — a region that carries its own heading as a command is a region plus its heading, and membership and ordering assertions made over it are made over one entry that never runs. Commands found: ${JSON.stringify(authorityCommands)}`,
+    ).not.toContain(UBUNTU_BLOCK_STEP_NAME);
+    expect(
+      authorityRegion,
+      "the authority's REGION must not carry the step name in its raw bytes either — the command-list assertion above would survive a base shift that kept the name on a line the comment strip removes",
+    ).not.toContain(UBUNTU_BLOCK_STEP_NAME);
+
+    // 5. AND THE DIFFERENCE IS EXACTLY ONE ENTRY, the heading — not two, not an arbitrary shift.
+    expect(
+      controlCommands.length,
+      `the base-shifted region must yield exactly ONE command entry more than the authority's — the step name itself. Authority: ${authorityCommands.length}. Control: ${controlCommands.length}.`,
+    ).toBe(authorityCommands.length + 1);
+    expect(
+      controlCommands.slice(1),
+      "…and the two lists must agree on everything after that one entry, or the difference is not the heading alone and this case is naming the wrong cause",
+    ).toEqual(authorityCommands);
+
+    // WHICH ARMS ACTUALLY DISCRIMINATE, MEASURED RATHER THAN CLAIMED. Under the exact divergence
+    // R3-IN-03 named — the authority slicing from the bare locator index — FOUR arms red
+    // independently: the two region-and-list inequality premises in step 2, the "authority carries
+    // the step name nowhere" pair in step 4, and the exactly-one-more count in step 5. All are kept
+    // on purpose, because a single assertion is one refactor away from being the only thing standing
+    // between this class and the divergence it exists to catch, and this phase has now recorded six
+    // occasions on which a sole surviving predicate turned out to be satisfiable by the thing it was
+    // meant to refuse.
+    //
+    // ARM 3 IS A PREMISE, NOT A DISCRIMINATOR, and is written as one. It asserts a property of the
+    // CONTROL, which the mutation does not touch, so it stays green under the base shift by
+    // construction. Its job is to prove the control really is the divergent shape this case is
+    // contrasting against; counting it among the discriminators would be the wider-than-mechanism
+    // claim this phase exists to delete.
+  });
+
   // (Plan 29.1-24, closing R3-IN-03) THE CLASS, CERTIFIED AS A CONSTRUCTION RATHER THAN AS A TEXT
   // COMPARISON.
   //

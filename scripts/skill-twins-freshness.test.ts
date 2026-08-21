@@ -311,6 +311,14 @@ describe("skill-twins-freshness.js (D-64 Part B skill-twin drift gate)", () => {
   // implementation of where this block is and what it runs, both readers consume it, and membership
   // is derived from the IMPORT rather than from a phrase a comment could also contain. Nothing in
   // this file re-types the step-name literal; every reference is to the imported constant.
+  //
+  // WHERE EACH PROPERTY IS NOW PROVEN, so this file points at cases that exist rather than at the
+  // identifier it used to name. The CLASS — that every reader imports the one authority and that no
+  // other test file brings a locator of its own — is `(r-class-authority)`. The slice BASE is
+  // `(r-base-discriminating)`, which computes the authority region beside a control region built
+  // from the bare locator index and compares them; it replaces the source-spelling requirement that
+  // round 4 measured incapable of failing. The right BOUND is Case 8b below, on this file's own
+  // synthetic input.
 
   // (Plan 29.1-19, R3-WR-01) THE SYNTHETIC FOLLOWING STEP. The committed block is the workflow's LAST
   // step, so on this tree the bound lands on end-of-file either way and nothing here can tell the
