@@ -5,9 +5,9 @@ milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live
 current_phase: 29.1
 current_phase_name: Per-Role Model Assignment (INSERTED)
 status: phase-complete
-stopped_at: Completed 29.1-25-PLAN.md
-last_updated: "2026-09-03T16:15:52.035Z"
-state_head: 52e2c6d0d18a0a887a590ef79839408b1df27528
+stopped_at: Phase 29.2 context gathered
+last_updated: "2026-09-03T20:25:25.269Z"
+state_head: 60eccb8ed2cf3ace2886645c9f9f52036c31280a
 progress:
   total_phases: 9
   completed_phases: 3
@@ -1232,9 +1232,9 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-08-21T19:18:35.651Z
-Stopped at: Completed 29.1-25-PLAN.md
-Resume file: None
+Last session: 2026-09-03T20:25:24.904Z
+Stopped at: Phase 29.2 context gathered
+Resume file: .planning/phases/29.2-model-assignment-delivery-path-inserted-split-out-of-29-1-by/29.2-CONTEXT.md
 
 ## Operator Next Steps
 
