@@ -94,7 +94,7 @@ Full phase details + milestone summary: `milestones/v2.0-ROADMAP.md` · requirem
 - [x] **Phase 27: Spawn Correctness & Kit-Set Authority** — derive every guard/validator scan set from the filesystem, then generate all 17 role adapters and wire the coordinator where the runtime honors its allowlist (completed 2026-08-11)
 - [x] **Phase 28: Kit Consistency Audit** — a real correctness-and-strangeness pass over 17 roles + 19 workflows (17, not 18: `kit-model.listRoles()` drops the `_`-prefixed `_role-switch-protocol.md` by derivation — it is read once and recorded as an explicitly uncounted 37th register row), the `CLAUDE.md` v2.0 drift reconciled, and every public safety claim given an id (completed 2026-08-12)
 - [x] **Phase 29: Controlled Language & Voice Guard Rebuild** — an ASD-STE100-derived writing profile for procedural/agent-written surfaces, a de-duplicated role skeleton, and a voice guard that measures voice instead of sentence shape
-- [ ] **Phase 29.1: Per-Role Model Assignment** *(INSERTED)* — a stronger model where judgment lives and a cheaper one for execution, set on the config dial and emitted into every generated adapter, with zero-config byte-identical to today's
+- [x] **Phase 29.1: Per-Role Model Assignment** *(INSERTED — CLOSED 2026-09-03 by user override D-29.1-19; round-5 verification stands at `gaps_found`, three blockers ACCEPTED OPEN as ledger rows 105-107)* — a stronger model where judgment lives and a cheaper one for execution, set on the config dial and emitted into every generated adapter, with zero-config byte-identical to today's
 - [ ] **Phase 29.2: Model Assignment Delivery Path** *(INSERTED — split out of 29.1 by D-17)* — how a per-repo `models` block actually reaches an installed target's adapters; until it lands, the block is **inert for an installed repo** and 29.1 says so
 - [ ] **Phase 30: Per-Checkpoint Autonomy Matrix** — every human stop enumerated and dialable, the four safety floors lowerable only behind two keys, with mechanical claim-dropping
 - [ ] **Phase 31: Autonomous Manual Testing** — browser-driven UAT where the committed Playwright spec is the evidence and the agent's narration never is
@@ -723,6 +723,17 @@ loop terminating only by an unstated argument).
 **Honesty floor for this phase:** the profile is justified on determinism and one-term-per-concept grounds. Its effect on token count is **`UNKNOWN - verify`** in both directions and no study was located in either direction. Caveman-as-token-economy is **disproven on this artifact by measurement** and must not be restated. The profile does not govern the fenced caveman blocks, whose article density is already below the governed corpus's, so no article-restoration cost applies to them. The growth this phase produces is measured and recorded (D-28), and a later phase reasons from that measurement rather than from an estimate written before it. There is no evidence that controlled language improves comprehension for a language model, and the kit does not ship that claim.
 
 ### Phase 29.1: Per-Role Model Assignment (INSERTED)
+
+> **CLOSED 2026-09-03 BY USER OVERRIDE — not by a passing verification.** `29.1-VERIFICATION-round5.md`
+> returned `gaps_found` and that verdict is left standing, unedited. It verified **5/5 success
+> criteria** and determined all seven requirements (MODEL-01…07) **Complete on behavioural
+> re-derivation**; the three blockers are hardening defects in the *gates*, not failures of the
+> delivery. Olger Oeselg accepted them open under **D-29.1-19** (`29.1-CONTEXT.md`). They are carried
+> as Broken Windows rows **105** (kit-ref record truncation, FAIL-OPEN), **106** (`(r-class-authority)`
+> non-recursive denominator, FAIL-OPEN) and **107** (`resolveModels` throws on `stems` — the defect of
+> record is the false completeness claim in row 95). Deliberately **not waived**: `open_count` still
+> carries them and `/gsd-ship` still blocks. `gsd-tools phase complete 29.1` refused this transition,
+> correctly; the checkbox above was set by hand and this note is why.
 
 **Goal**: A project can spend its model budget where judgment actually lives — a stronger model for orchestration, architecture and security review, a cheaper one for implementation, QE and UAT — set once on the config dial and emitted into every generated adapter, with zero-config behaviour byte-identical to today's.
 

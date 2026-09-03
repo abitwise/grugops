@@ -4,10 +4,10 @@ milestone: v2.1
 milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live Board
 current_phase: 29.1
 current_phase_name: Per-Role Model Assignment (INSERTED)
-status: planned
+status: phase-complete
 stopped_at: Completed 29.1-25-PLAN.md
-last_updated: "2026-08-21T19:18:35.924Z"
-state_head: 7ce9f21a91afc44c90b64bbf44991aa32efc6cc9
+last_updated: "2026-09-03T16:15:52.035Z"
+state_head: 52e2c6d0d18a0a887a590ef79839408b1df27528
 progress:
   total_phases: 9
   completed_phases: 3
