@@ -685,8 +685,18 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     // here). D-37 goes further: the plant is now DERIVED from the imported SOURCE_MARKERS set, so
     // it cannot go stale against the guard the way the literal did. The marker half itself gets its
     // own cases below, on targets that are NOT the source root.
+    //
+    // D-16 (29.2): THIS CASE IS ALSO THE PIN FOR "THE KIT'S OWN COMMITTED ADAPTERS STAY `inherit`".
+    // Phase 29.1 D-04 fixed the kit's seventeen committed adapters at `model: inherit`, and phase
+    // 29.2 gave the installer a render that resolves a TARGET's models block into the adapters it
+    // lays down. The thing that keeps those two facts from colliding is THIS guard: install refuses
+    // a source-shaped target BEFORE any render happens, so a models block in a target configuration
+    // can never be rendered into the kit's own committed adapters through this path. The fixture
+    // below therefore carries a models block as well as the source markers.
     const fake = mkTmp();
     plantSourceMarkers(fake, "fake");
+    mkdirSync(join(fake, ".grugops"), { recursive: true });
+    writeFileSync(join(fake, ".grugops", "factory.config.json"), '{"models":{"preset":"tiered"}}\n');
     const home = mkTmp();
 
     // (a) refuse by default — installing INTO the clone must exit nonzero and name --allow-self.
@@ -696,6 +706,15 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     });
     expect(refused.status).not.toBe(0);
     expect(refused.stderr).toContain("--allow-self");
+    // D-16: the refusal fired BEFORE any render — nothing was written into the source-shaped target
+    // and the run never reached the adapter class at all.
+    expect(`the refused run rendered adapters: ${refused.stdout?.includes("-- adapters --") ?? false}`).toBe(
+      "the refused run rendered adapters: false",
+    );
+    expect(`the refused run materialized anything: ${(refused.stdout ?? "").includes("materialized")}`).toBe(
+      "the refused run materialized anything: false",
+    );
+    expect(existsSync(join(fake, ".claude", "agents"))).toBe(false);
 
     // (b) --allow-self overrides — the same invocation PROCEEDS PAST THE GUARD.
     const allowed = spawnSync("node", [INSTALL_JS, "--yes", "--allow-self"], {
@@ -712,6 +731,16 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     //   - no --allow-self hint on stderr → the refusal message was not printed,
     //   - the banner tail was reached → the run got all the way through the install classes.
     // The fixture is left exactly as written; only the assertion is made honest about it.
+    //
+    // D-16'S FLAGGED ITEM, RECORDED RATHER THAN FABRICATED (R-4, 29.2). `--allow-self` is a
+    // deliberate reach-around: it bypasses the guard by design. `--allow-self --target <the real
+    // checkout>` is a USER ACTION outside any test's reach — this suite never points a binary at
+    // REPO_ROOT, and a case that pretended to prove the arm safe would be a false claim in the file
+    // whose job is true ones. So NO assertion below claims that arm is proven. What actually
+    // catches a moved committed adapter is the CI backstop, and it is named here so a future reader
+    // does not have to reconstruct it: `npm run freshness:adapters` (pinned to the zero-config
+    // resolution by 29.1 D-04, so a committed adapter that stopped saying `inherit` reds it) together
+    // with the `guard_model_assignment` foundation guard. Neither is weakened by this phase.
     expect(allowed.status).toBe(3);
     expect(allowed.status).not.toBe(1);
     expect(allowed.stderr ?? "").not.toContain("--allow-self");
@@ -2050,6 +2079,180 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     // agent-factory/config is DELIBERATELY ABSENT: its absence inside the mirror is what makes D-06
     // true by construction, so a member naming it would be the decision being reversed in silence.
     expect(kitSources.filter((s) => s.includes("config"))).toEqual([]);
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────────────────────────
+  // THE STRUCTURAL PINS (29.2 plan 02, task 3). Each derives its set rather than listing it, and
+  // each asserts its own premise before its effect.
+  // ─────────────────────────────────────────────────────────────────────────────────────────────
+
+  // parseTwinCopies — recover the generator-module copy calls out of scripts/adapters-freshness.ts's
+  // SOURCE TEXT, with the declared-versus-parsed floor parseMappingBody established.
+  //
+  // "Declared" is the count of NON-COMMENT lines that name SCRIPT_ROOT together with the scripts
+  // directory. That is the shape-INDEPENDENT count of copy sources the author wrote: a committed
+  // twin can only be named by joining that root with that directory, whatever quoting or call shape
+  // the line uses. Counting those lines rather than trusting the full matcher is what makes this a
+  // floor the matcher cannot slip under — an entry written as an expression, or with the path
+  // segments joined differently, fails LOUDLY by name instead of shrinking the set while every
+  // integer beside it still passes.
+  //
+  // WHAT IT DOES NOT BOUND, stated rather than implied: a future copy that reaches the committed
+  // twins WITHOUT naming SCRIPT_ROOT at all (a different root constant, say) is invisible to both
+  // halves. What catches that is the set equality below — the install side would have gained a
+  // member the freshness side did not, and the two sets would not be equal.
+  //
+  // Takes the text rather than reading it, so the refusal itself is testable against a synthetic
+  // string without touching the real source.
+  function parseTwinCopies(file: string, text: string): string[] {
+    const parsed = [
+      ...text.matchAll(/cpSync\(\s*join\(SCRIPT_ROOT,\s*["'`]scripts["'`],\s*["'`]([^"'`]+)["'`]\s*\)/g),
+    ].map((m) => `scripts/${m[1]}`);
+    const declared = text
+      .split("\n")
+      .filter((l) => !/^\s*\/\//.test(l) && l.includes("SCRIPT_ROOT") && l.includes("scripts")).length;
+    if (parsed.length !== declared) {
+      throw new Error(
+        `${file}: the twin copy block declares ${declared} source(s) but only ${parsed.length} were parsed — ` +
+          "an entry is in a shape this test cannot read, so the set derived here would cover less " +
+          "than the source does while every count beside it still passed",
+      );
+    }
+    return parsed;
+  }
+
+  it("model delivery: the install-side twin list and the freshness harness's twin list are the SAME four modules (29.2 plan 02)", () => {
+    // WHAT THIS EXISTS FOR. Two hand-maintained mirrors of one fact — the generator's import
+    // closure — sit in two files that nothing else relates. A fifth generator import that reached
+    // only one of them would leave the other's mirrored generator failing to resolve it in exactly
+    // the situations neither file's own tests cover. This is the pairing the RUNNABLES /
+    // RUNNABLES_MIRROR case established, applied to the second such pair on this tree.
+    const installSide = parseStringList("install.ts", "GENERATOR_TWINS");
+    const freshnessSrc = readFileSync(join(REPO_ROOT, "scripts", "adapters-freshness.ts"), "utf8");
+    const freshnessSide = parseTwinCopies("scripts/adapters-freshness.ts", freshnessSrc);
+
+    expect([...freshnessSide].sort()).toEqual([...installSide].sort());
+    // BOTH integers, so a pair that shrinks together still fails.
+    expect(`install-side twins: ${installSide.length}`).toBe("install-side twins: 4");
+    expect(`freshness-side twins: ${freshnessSide.length}`).toBe("freshness-side twins: 4");
+  });
+
+  it("model delivery: the twin-copy parser FAILS LOUDLY on a shape it cannot read, it does not shrink the set (WR-04 idiom)", () => {
+    // Proven in the suite, against in-memory text — neither real source is touched by this case.
+    const readable =
+      '  cpSync(join(SCRIPT_ROOT, "scripts", "one.js"), join(tmp, "scripts", "one.js"));\n' +
+      "  cpSync(join(SCRIPT_ROOT, 'scripts', 'two.js'), join(tmp, 'scripts', 'two.js'));\n";
+    // Control: without this arm the refusal below would be vacuous.
+    expect(parseTwinCopies("synthetic.ts", readable)).toEqual(["scripts/one.js", "scripts/two.js"]);
+
+    // The refusal: a third source built from an EXPRESSION rather than a literal — a shape no amount
+    // of quote-widening reaches, which is why the floor counts lines instead of trusting the matcher.
+    const unreadable = readable + '  cpSync(join(SCRIPT_ROOT, "scripts", NAME + ".js"), join(tmp, "scripts", "three.js"));\n';
+    let msg = "";
+    try {
+      parseTwinCopies("synthetic.ts", unreadable);
+    } catch (e) {
+      msg = (e as Error).message;
+    }
+    // The message must NAME things, or a future reader gets a count with no way to act on it.
+    expect(msg).toContain("synthetic.ts"); // the file
+    expect(msg).toContain("declares 3 source(s)"); // declared
+    expect(msg).toContain("only 2 were parsed"); // parsed
+    expect(msg).toContain("a shape this test cannot read"); // the cause
+  });
+
+  it("model delivery: the banner literal install.ts recognises is BYTE-EQUAL to the generator's own declaration (D-14)", () => {
+    // The generator module cannot be imported — it writes seventeen files at load, which is the same
+    // reason scripts/coordinator-resolution-precheck.ts restates its own copy of the materialization
+    // sentinels. So the authority is read as SOURCE TEXT.
+    const provenance = provenanceLiteral();
+    const installSrc = readFileSync(join(import.meta.dirname, "install.ts"), "utf8");
+    const m = /const KIT_BANNER\s*=\s*\n?\s*"([^"]+)";/.exec(installSrc);
+    expect(`install.ts declares KIT_BANNER: ${m !== null}`).toBe("install.ts declares KIT_BANNER: true");
+    // Byte equality, em dash included. A drift here is SILENT in the dangerous direction: the
+    // installer's recogniser would stop matching and every target would keep a banner naming a
+    // command it cannot run, with nothing going red.
+    expect(m![1]).toBe(provenance);
+
+    // ...AND ANCHORED TO THE REAL EMITTED BYTES, not only to two source spellings. Two spellings can
+    // agree with each other while both have drifted away from what the generator actually writes.
+    // The adapter set is DERIVED from the directory listing, never named.
+    const adapters = listAgentAdapters(REPO_ROOT);
+    expect(`committed adapters: ${adapters.length}`).toBe("committed adapters: 17");
+    for (const rel of adapters) {
+      const lines = readFileSync(join(REPO_ROOT, ".claude", "agents", rel), "utf8").split("\n");
+      expect(`${rel}: carries the literal ${lines.filter((l) => l === provenance).length} time(s)`).toBe(
+        `${rel}: carries the literal 1 time(s)`,
+      );
+    }
+  });
+
+  it("model delivery: the run reports its classes in the pinned order — kit, then adapters, then state seed (D-05)", () => {
+    // D-05 says the four-step sequence is NOT reordered, and this phase leaned on that: a fresh
+    // install has no non-inherit answer to miss BECAUSE the seed carries no models key and is
+    // written after the adapters. THE ORDERING WAS TREATED AS PINNED BEFORE THIS PHASE AND WAS NOT
+    // — no assertion on the sequence or on report ordering existed anywhere in this file. It does
+    // now, over a real run's stdout.
+    const target = makeFixture();
+    const home = mkTmp();
+    const r = runInstall(target, home);
+    expect(r.status).toBe(0);
+
+    const kit = r.stdout.indexOf("-- kit --");
+    const adapters = r.stdout.indexOf("-- adapters --");
+    const seed = r.stdout.indexOf("-- state seed --");
+    // Present first — an index comparison over two -1s would "pass" vacuously.
+    expect(`kit/adapters/state-seed headings present: ${kit >= 0}/${adapters >= 0}/${seed >= 0}`).toBe(
+      "kit/adapters/state-seed headings present: true/true/true",
+    );
+    expect(`kit before adapters: ${kit < adapters}`).toBe("kit before adapters: true");
+    expect(`adapters before state seed: ${adapters < seed}`).toBe("adapters before state seed: true");
+  });
+
+  it("model delivery: the shipped seed carries NO `models` key, so a freshly seeded target resolves `inherit` everywhere (D-08)", () => {
+    const raw = readFileSync(join(REPO_ROOT, "agent-factory", "seed", ".grugops", "factory.config.json"), "utf8");
+    const parsed: unknown = JSON.parse(raw);
+    // PREMISE: it parses to a real object...
+    expect(`the seed parses to an object: ${parsed !== null && typeof parsed === "object" && !Array.isArray(parsed)}`).toBe(
+      "the seed parses to an object: true",
+    );
+    // ...and a NON-EMPTY one, so this case cannot pass vacuously over an unreadable or empty file.
+    const keys = Object.keys(parsed as Record<string, unknown>);
+    expect(`the seed carries ${keys.length > 0 ? "some" : "no"} keys`).toBe("the seed carries some keys");
+    // The claim: absent resolves to `inherit`, which is the same answer an absent file gives — and
+    // that identity is what makes the unchanged four-step ordering above safe.
+    expect(`the seed declares a models block: ${keys.includes("models")}`).toBe(
+      "the seed declares a models block: false",
+    );
+  });
+
+  it("model delivery: a target installed with a NON-DEFAULT preset is still fully removed by the uninstaller", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    writeTargetConfig(target, '{"models":{"preset":"tiered"}}\n');
+    expect(runInstall(target, home).status).toBe(0);
+
+    // PREMISE: the adapters really did render with a NON-DEFAULT alias — otherwise this is the
+    // ordinary uninstall case wearing a different name.
+    const aliases = [...new Set(targetModelLines(target))].sort();
+    expect(`the rendered aliases are the zero-config answer: ${aliases.join(",") === "inherit"}`).toBe(
+      "the rendered aliases are the zero-config answer: false",
+    );
+    for (const a of aliases) expect(MODEL_ALIASES).toContain(a);
+    const installed = installedAdapters(target);
+    expect(installed.length).toBe(17);
+
+    expect(runUninstall(target, home).status).toBe(0);
+    // WHY THIS HOLDS, AND WHY IT IS WORTH ASSERTING: removal is by DERIVED NAME over
+    // srcAdapterFiles($GRUGOPS_SRC), never by content, so a per-target RENDERED adapter is still
+    // inside the removal set even though its bytes were never in the kit. The failure this guards
+    // against is the reversibility gap where install places a file uninstall cannot see.
+    for (const rel of installed) {
+      expect(`${rel} survives uninstall: ${existsSync(join(target, ".claude", "agents", rel))}`).toBe(
+        `${rel} survives uninstall: false`,
+      );
+    }
+    expect(existsSync(join(target, ".claude", "agents"))).toBe(false);
   });
 
   it("model delivery: the mirror declares its module type, so a bare `.js` twin cannot fail to parse on Node 22.0-22.11", () => {
