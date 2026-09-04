@@ -795,10 +795,15 @@ function doctor() {
                 // file is emphatically not missing. See adapterDestHazard() — the SAME predicate the write
                 // path calls, so install and --check cannot disagree about one destination.
                 const hazardous = [];
-                // ...and the reason each one carries, taken VERBATIM from the predicate rather than
-                // reworded here, so the sentence a reader meets on --check is the sentence they meet on the
-                // install that refused. Two wordings for one fact is two authorities for one fact.
-                const hazardReasons = [];
+                // ...and the reason the FIRST of them carries, taken VERBATIM from the predicate rather
+                // than reworded here, so the sentence a reader meets on --check is the sentence they meet
+                // on the install that refused. Two wordings for one fact is two authorities for one fact.
+                //
+                // ONE WORKED EXAMPLE, NOT SEVENTEEN. The per-file reasons differ only in the paths they
+                // name, and those paths are already in the name list above; concatenating all of them
+                // produced a single five-kilobyte line that buried the file list it was supposed to
+                // explain. The line below says plainly that it is showing one of them.
+                let hazardReason = "";
                 // unreadable: present, but not readable as a file (IN-03). Its own list for the same reason
                 // `hazardous` has one — `absent` must keep meaning genuinely absent.
                 const unreadable = [];
@@ -815,7 +820,8 @@ function doctor() {
                     const destHazard = adapterDestHazard(destPath);
                     if (destHazard !== null) {
                         hazardous.push(name);
-                        hazardReasons.push(`${name} — ${destHazard}`);
+                        if (hazardReason === "")
+                            hazardReason = `${name} — ${destHazard}`;
                         continue;
                     }
                     let actual = null;
@@ -853,8 +859,9 @@ function doctor() {
                         `VERDICT on adapter staleness was produced for them. Nothing under ` +
                         `${join(TARGET, ".claude", "agents")} was compared for those names: a verdict taken ` +
                         `by reading through a symbolic link would describe a file that is not the adapter, ` +
-                        `and calling that result stale or absent would name the wrong remedy. ` +
-                        `${hazardReasons.join(" ")}`);
+                        `and calling that result stale or absent would name the wrong remedy.\n` +
+                        `                 The first of them, as an example — each of the others was refused ` +
+                        `the same way for its own path: ${hazardReason}`);
                 }
                 if (unrendered.length > 0) {
                     docWarn(`adapter staleness: the fresh render produced no file for ${unrendered.length} member(s) ` +
@@ -2338,10 +2345,25 @@ else {
             const src = join(render.value.dir, ".claude", "agents", f);
             const dest = join(TARGET, ".claude", "agents", f);
             const label = `.claude/agents/${f}`;
-            if (srcCarriesSlot(src))
-                materializeAdapter(src, dest, label, aliasOf.get(f));
-            else
-                linkOrCopy(src, dest, label);
+            // WR-04 — A HARD REFUSAL WHERE A FALLTHROUGH USED TO BE. This arm is UNREACHABLE: the
+            // routing floor above refuses every slot-less render before the first write, so nothing can
+            // arrive here without the slot line. It is kept as a STRUCTURAL BACKSTOP against a future
+            // edit to that floor, not as a live branch.
+            //
+            // WHY IT IS A REFUSAL AND NOT `linkOrCopy`. `src` points INSIDE THE TEMP RENDER MIRROR that
+            // this helper's own `finally` deletes moments later. Under INSTALL_MODE !== "copy" the
+            // fallthrough's SUCCESS outcome was therefore seventeen dangling links in the user's target,
+            // reported as `linked`, at exit 0 — the reviewer's R2 reproduction. Raw mirror bytes are
+            // never copied or linked into a target; the only way an adapter reaches a target is
+            // materializeAdapter, which transforms, bounds its destination and reports by name.
+            if (!srcCarriesSlot(src)) {
+                verify(`.claude/agents/ — ${label} reached the write loop without the kit slot line, so this ` +
+                    `run refuses to copy or link raw mirror bytes into the target. The rendered file lives ` +
+                    `in a temporary mirror this run deletes, and linking a target at it would leave a ` +
+                    `dangling adapter reported as installed. No adapter was installed for this name.`);
+                continue;
+            }
+            materializeAdapter(src, dest, label, aliasOf.get(f));
         }
     });
 }

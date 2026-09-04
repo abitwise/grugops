@@ -2262,6 +2262,45 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     );
   });
 
+  it("write bound: the agents write loop refuses a slot-less render rather than copying or linking raw mirror bytes (WR-04)", () => {
+    // THIS IS A STRUCTURAL PIN OVER A DELIBERATELY UNREACHABLE ARM, AND NOT A BEHAVIOURAL PROOF.
+    // Read it as exactly that. The routing floor above the loop refuses every slot-less render
+    // before the first write, so no fixture can honestly drive a slot-less file into this loop —
+    // manufacturing that state would mean patching the floor out, and the case would then be
+    // asserting something about a build nobody ships. What IS worth freezing is that the arm the
+    // floor guards is a REFUSAL rather than a `linkOrCopy` fallthrough, because `src` there points
+    // inside a temp mirror the run deletes: the fallthrough's success outcome was seventeen
+    // dangling links reported as `linked` at exit 0 (the reviewer's R2 reproduction).
+    const src = readFileSync(join(import.meta.dirname, "install.ts"), "utf8");
+
+    // The agents write loop is the LAST `for (const f of SRC_ADAPTERS) {` — the earlier one is the
+    // read-side pass. Bounded from there to the end of that block, derived rather than numbered.
+    const loopStart = src.lastIndexOf("for (const f of SRC_ADAPTERS) {");
+    expect(`the agents write loop was found: ${loopStart >= 0}`).toBe("the agents write loop was found: true");
+    const loopEnd = src.indexOf("\n    }\n", loopStart);
+    expect(`the agents write loop is bounded: ${loopEnd > loopStart}`).toBe(
+      "the agents write loop is bounded: true",
+    );
+    const loop = src.slice(loopStart, loopEnd);
+
+    // PREMISE: the bounded region really is the loop that writes adapters, not some other block.
+    expect(loop).toContain('const dest = join(TARGET, ".claude", "agents", f);');
+
+    // NO PATH OUT OF THIS LOOP COPIES OR LINKS RAW MIRROR BYTES. Comment lines are filtered the
+    // way the D-09 structural case filters them: the arm's own comment must NAME the call it
+    // replaced in order to explain why, and prose about a call is not a call.
+    const loopCode = loop.split("\n").filter((l) => !/^\s*\/\//.test(l));
+    expect(loopCode.filter((l) => /\blinkOrCopy\s*\(/.test(l))).toEqual([]);
+    // ...the one way an adapter reaches a target is the bounded, transforming writer...
+    expect(loop).toContain("materializeAdapter(");
+    // ...and the slot-less arm is a finding, reached when srcCarriesSlot is false.
+    expect(loop).toContain("if (!srcCarriesSlot(src)) {");
+    const refusalAt = loop.indexOf("if (!srcCarriesSlot(src)) {");
+    expect(`the slot-less arm calls verify(): ${loop.indexOf("verify(", refusalAt) > refusalAt}`).toBe(
+      "the slot-less arm calls verify(): true",
+    );
+  });
+
   // ── THE THREE CROSS-CHECKS, DRIVEN BY A PATCHED GENERATOR TWIN ────────────────────────────────
   //
   // These are BEHAVIOURAL cases, not scratch-build mutations. The installer copies the generator's
