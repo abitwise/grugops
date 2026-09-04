@@ -39,6 +39,7 @@ import {
   renameSync,
   existsSync,
   lstatSync,
+  statSync,
   chmodSync,
   symlinkSync,
   cpSync,
@@ -1143,6 +1144,302 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     expect([...new Set(targetModelLines(target))].sort()).toEqual(["opus", "sonnet"]);
   });
 
+  // ─────────────────────────────────────────────────────────────────────────────────────────────
+  // THE IDEMPOTENT WRITE, THE TARGET-TRUE BANNER AND KIT OWNERSHIP (29.2 plan 02, D-11/D-13/D-14).
+  //
+  // A re-run must be a VISIBLE NO-OP and a refresh a VISIBLE CHANGE: before this plan every re-run
+  // rewrote all seventeen adapters and reported `materialized` for each, so a run that changed a
+  // model line and a run that changed nothing produced the same output and the same mtimes. The
+  // comparison that fixes it is taken over the FINAL bytes — after both slots are materialized —
+  // because a comparison taken between the SOURCE and the DESTINATION reports every re-run as a
+  // rewrite (the destination carries an injected kit block the source never did), and one taken
+  // against the wrong side reports a genuinely stale file as identical.
+  // ─────────────────────────────────────────────────────────────────────────────────────────────
+
+  // The banner block sentinels install.ts wraps its replacement in. Spelled here for the same reason
+  // MAT_SLOT is spelled above: this file PINS the installer's sentinel rather than deriving it, so
+  // an installer that changed the pair without changing these cases fails the strip cases below.
+  const BAN_OPEN = "<!-- grugops:target-banner -->";
+  const BAN_CLOSE = "<!-- /grugops:target-banner -->";
+
+  // provenanceLiteral — the banner the GENERATOR emits, read out of its SOURCE TEXT. The module
+  // cannot be imported: it writes seventeen files at load. Every banner assertion below is anchored
+  // to this one reading, so no case spells the kit banner and then asserts against its own spelling.
+  function provenanceLiteral(): string {
+    const genSrc = readFileSync(join(REPO_ROOT, "scripts", "generate-role-adapters.ts"), "utf8");
+    const m = /const PROVENANCE\s*=\s*\n?\s*"([^"]+)";/.exec(genSrc);
+    if (!m) throw new Error("scripts/generate-role-adapters.ts: could not find the PROVENANCE literal");
+    return m[1];
+  }
+
+  // bannerHead — the leading token of that literal, up to and including its em dash. A locator
+  // DERIVED from the generator's own text rather than a second spelling, used to count how many
+  // banner lines a file carries whatever the rest of the line says.
+  function bannerHead(): string {
+    const p = provenanceLiteral();
+    const i = p.indexOf("—");
+    expect(`the generator banner carries an em dash: ${i > 0}`).toBe("the generator banner carries an em dash: true");
+    return p.slice(0, i + 1);
+  }
+
+  // identicalCopyVerbs — every report label install.ts prints beside the identical-copy note, read
+  // out of the installer's own source. D-11 adopts "the identical wording linkOrCopy already uses",
+  // so this file asserts the two sites agree rather than authoring a third spelling of the word.
+  function identicalCopyVerbs(): string[] {
+    const src = readFileSync(join(import.meta.dirname, "install.ts"), "utf8");
+    return [...src.matchAll(/report\("([^"]+)",\s*`\$\{label\} \(identical copy present\)`\)/g)].map((m) => m[1]);
+  }
+
+  // adapterMtimes — nanosecond mtimes of every installed adapter, DERIVED from the target listing.
+  // A content snapshot proves the BYTES did not move; only an mtime proves no file was WRITTEN,
+  // which is the actual D-11 claim.
+  function adapterMtimes(target: string): string[] {
+    return installedAdapters(target).map(
+      (rel) => `${rel} ${statSync(join(target, ".claude", "agents", rel), { bigint: true }).mtimeNs}`,
+    );
+  }
+
+  it("model delivery: a SECOND install over an unchanged target WRITES NOTHING and reports the identical-copy wording for every adapter (D-11)", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    writeTargetConfig(target, '{"models":{"preset":"tiered"}}\n');
+
+    const first = runInstall(target, home);
+    expect(first.status).toBe(0);
+    // PREMISE: the first run really did write every adapter, so the second run has something to
+    // skip. Without this the case could pass over a target that was never installed at all.
+    const count = installedAdapters(target).length;
+    expect(count).toBe(17);
+    expect(adapterReportLines(first.stdout, "materialized").length).toBe(count);
+    const beforeBytes = snapshot(join(target, ".claude", "agents"));
+    const beforeMtimes = adapterMtimes(target);
+
+    const second = runInstall(target, home);
+    expect(second.status).toBe(0);
+    // Nothing was written — bytes AND mtimes.
+    expect(snapshot(join(target, ".claude", "agents"))).toBe(beforeBytes);
+    expect(adapterMtimes(target)).toEqual(beforeMtimes);
+
+    // ...and the run SAYS so, in the word linkOrCopy already uses for an identical copy.
+    const verbs = identicalCopyVerbs();
+    expect(`identical-copy report sites in install.ts: ${verbs.length}`).toBe(
+      "identical-copy report sites in install.ts: 2",
+    );
+    expect([...new Set(verbs)].length).toBe(1);
+    const skipped = adapterReportLines(second.stdout, verbs[0]).filter((l) =>
+      l.includes("(identical copy present)"),
+    );
+    expect(`identical-copy adapter lines: ${skipped.length}`).toBe(`identical-copy adapter lines: ${count}`);
+    expect(adapterReportLines(second.stdout, "materialized")).toEqual([]);
+  });
+
+  it("model delivery: a models edit between two installs REWRITES every changed adapter and names each with its new alias (D-11, D-13)", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    // PREMISE: the first install has no configuration to read, so every adapter resolves `inherit`.
+    expect(existsSync(targetConfigPath(target))).toBe(false);
+    expect(runInstall(target, home).status).toBe(0);
+    expect([...new Set(targetModelLines(target))]).toEqual(["inherit"]);
+
+    // PREMISE: the edit actually landed at the path the installer reads.
+    const configPath = writeTargetConfig(target, '{"models":{"preset":"tiered"}}\n');
+    expect(existsSync(configPath)).toBe(true);
+
+    const second = runInstall(target, home);
+    expect(second.status).toBe(0);
+    const rels = installedAdapters(target);
+    const lines = adapterReportLines(second.stdout, "materialized");
+    expect(`rewritten adapter lines: ${lines.length}`).toBe(`rewritten adapter lines: ${rels.length}`);
+    // Every rewrite is NAMED, with the alias the file now carries — read off the bytes rather than
+    // assumed from the preset, so the report and the file are required to agree.
+    for (const rel of rels) {
+      const alias = readFileSync(join(target, ".claude", "agents", rel), "utf8")
+        .split("\n")
+        .filter((l) => l.startsWith("model: "))[0]
+        .slice("model: ".length);
+      const named = lines.filter(
+        (l) => l.includes(`.claude/agents/${rel}`) && l.includes(`model=${alias}`),
+      );
+      expect(`${rel}: named with model=${alias}: ${named.length}`).toBe(
+        `${rel}: named with model=${alias}: 1`,
+      );
+    }
+    expect([...new Set(targetModelLines(target))].sort()).toEqual(["opus", "sonnet"]);
+  });
+
+  it("model delivery: every target adapter carries a TARGET-TRUE banner exactly once and names no command the target cannot run (D-14)", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    expect(runInstall(target, home).status).toBe(0);
+
+    const provenance = provenanceLiteral();
+    const head = bannerHead();
+    const rels = installedAdapters(target);
+    expect(rels.length).toBe(17);
+
+    for (const rel of rels) {
+      // PREMISE, read from the COMMITTED kit adapter rather than spelled: the kit's own copy carries
+      // the generator banner exactly once. Without this the target-side assertions below would be
+      // about a line that never existed.
+      const kitLines = readFileSync(join(REPO_ROOT, ".claude", "agents", rel), "utf8").split("\n");
+      expect(`kit ${rel}: generator banner lines = ${kitLines.filter((l) => l === provenance).length}`).toBe(
+        `kit ${rel}: generator banner lines = 1`,
+      );
+
+      const text = readFileSync(join(target, ".claude", "agents", rel), "utf8");
+      const lines = text.split("\n");
+      // EXACTLY ONE banner line, located by the generator's own leading token.
+      const banners = lines.filter((l) => l.startsWith(head));
+      expect(`${rel}: banner lines = ${banners.length}`).toBe(`${rel}: banner lines = 1`);
+      // ...and it is NOT the line the kit adapter carries — asserted by reading both, never by
+      // spelling either.
+      expect(`${rel}: target banner equals the kit banner: ${banners[0] === provenance}`).toBe(
+        `${rel}: target banner equals the kit banner: false`,
+      );
+      // It names the model source...
+      expect(`${rel}: names the model source: ${banners[0].includes(".grugops/factory.config.json")}`).toBe(
+        `${rel}: names the model source: true`,
+      );
+      // ...and nowhere in the file is the generator command a target cannot run. The command is the
+      // first member of the twin list, so this asserts against a path already derived elsewhere.
+      expect(`${rel}: names the generator command: ${text.includes(SYNTH_GENERATOR_TWINS[0])}`).toBe(
+        `${rel}: names the generator command: false`,
+      );
+      // The replacement is wrapped in its own sentinel pair, balanced.
+      expect(`${rel}: banner sentinels = ${lines.filter((l) => l === BAN_OPEN).length}/${lines.filter((l) => l === BAN_CLOSE).length}`).toBe(
+        `${rel}: banner sentinels = 1/1`,
+      );
+    }
+  });
+
+  it("model delivery: three installs produce the same bytes as one, with exactly one banner block per adapter (D-14)", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    writeTargetConfig(target, '{"models":{"preset":"tiered"}}\n');
+    expect(runInstall(target, home).status).toBe(0);
+    const once = snapshot(join(target, ".claude", "agents"));
+    expect(installedAdapters(target).length).toBe(17);
+
+    for (let i = 0; i < 2; i++) expect(runInstall(target, home).status).toBe(0);
+    expect(snapshot(join(target, ".claude", "agents"))).toBe(once);
+
+    const head = bannerHead();
+    for (const rel of installedAdapters(target)) {
+      const lines = readFileSync(join(target, ".claude", "agents", rel), "utf8").split("\n");
+      expect(`${rel}: banner blocks = ${lines.filter((l) => l === BAN_OPEN).length}`).toBe(
+        `${rel}: banner blocks = 1`,
+      );
+      expect(`${rel}: banner lines = ${lines.filter((l) => l.startsWith(head)).length}`).toBe(
+        `${rel}: banner lines = 1`,
+      );
+    }
+  });
+
+  // THE BANNER SLOT CARRIES THE SAME BOUNDED-REMOVAL CONTRACT AS THE KIT SLOT (CR-01, T-29.2-11).
+  //
+  // AND IT IS PLANTED IN THE RESOLVER SKILL, FOR THE REASON THE `migrate: bounded marker-strip` case
+  // records above its own plant: an agent adapter's bytes now come from the install-time mirror
+  // render, which emits exactly one generator banner and no prior block, so a block planted in a
+  // source AGENT adapter is read by nothing. The resolver SKILL is still materialized straight from
+  // $GRUGOPS_SRC, so it is the surface that carries source bytes into the transform — which is one
+  // state machine over both slots, so what it guarantees for one it guarantees for the other.
+  it("model delivery: a prior TARGET-BANNER block in a materialized source is stripped, and an UNTERMINATED one is restored (CR-01, D-14)", () => {
+    // (a) a terminated prior block is dropped.
+    const srcA = makeSyntheticSrc();
+    writeFileSync(
+      join(srcA, ".claude", "skills", "grugops", "SKILL.md"),
+      `${BAN_OPEN}\n` +
+        "STALE-BANNER-TEXT-MUST-NOT-SURVIVE\n" +
+        `${BAN_CLOSE}\n` +
+        "BODY-LINE-ONE\n" +
+        `${MAT_SLOT}\n`,
+    );
+    const targetA = mkTmp();
+    expect(runInstallFrom(srcA, targetA, mkTmp()).status).toBe(0);
+    const afterA = readFileSync(join(targetA, ".claude", "skills", "grugops", "SKILL.md"), "utf8");
+    expect(`stale banner survived: ${afterA.includes("STALE-BANNER-TEXT-MUST-NOT-SURVIVE")}`).toBe(
+      "stale banner survived: false",
+    );
+    expect(afterA).toContain("BODY-LINE-ONE");
+    expect(afterA).toContain(MAT_SLOT);
+
+    // (b) an UNTERMINATED prior block at end of file restores every line it buffered, in order —
+    // the guarantee is "lose nothing", not "keep the one line this case happens to name".
+    const srcB = makeSyntheticSrc();
+    writeFileSync(
+      join(srcB, ".claude", "skills", "grugops", "SKILL.md"),
+      `${BAN_OPEN}\n` +
+        "BUFFERED-LINE-ONE\n" +
+        "BUFFERED-LINE-TWO\n" +
+        `${MAT_SLOT}\n`,
+    );
+    const targetB = mkTmp();
+    expect(runInstallFrom(srcB, targetB, mkTmp()).status).toBe(0);
+    const afterB = readFileSync(join(targetB, ".claude", "skills", "grugops", "SKILL.md"), "utf8");
+    expect(afterB.split("\n").filter((l) => l !== "")).toEqual([
+      "BUFFERED-LINE-ONE",
+      "BUFFERED-LINE-TWO",
+      MAT_SLOT,
+    ]);
+  });
+
+  it("model delivery: a HAND-EDITED target adapter is rewritten and named, and its untouched siblings are not (D-13)", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    expect(runInstall(target, home).status).toBe(0);
+    const rels = installedAdapters(target);
+    expect(rels.length).toBe(17);
+
+    // A user hand-edits ONE adapter's model line. D-13: an installed agent adapter is a kit-owned
+    // derived artifact, so the edit is lost on the next run — deliberately, because the
+    // configuration file is the one place to set it — and the rewrite is REPORTED BY NAME.
+    const edited = rels[0];
+    const editedPath = join(target, ".claude", "agents", edited);
+    const original = readFileSync(editedPath, "utf8");
+    const tampered = original.replace("model: inherit", "model: opus");
+    // PREMISE: the edit actually changed the bytes, so the run below has something to notice.
+    expect(`the hand edit changed the file: ${tampered !== original}`).toBe(
+      "the hand edit changed the file: true",
+    );
+    writeFileSync(editedPath, tampered);
+
+    const second = runInstall(target, home);
+    expect(second.status).toBe(0);
+    // The edited file is back to what the kit renders...
+    expect(readFileSync(editedPath, "utf8")).toBe(original);
+    // ...it is named as a rewrite...
+    const rewritten = adapterReportLines(second.stdout, "materialized");
+    expect(rewritten.length).toBe(1);
+    expect(rewritten[0]).toContain(`.claude/agents/${edited}`);
+    // ...and every sibling is left alone rather than swept up with it.
+    const verbs = identicalCopyVerbs();
+    const skipped = adapterReportLines(second.stdout, verbs[0]).filter((l) =>
+      l.includes("(identical copy present)"),
+    );
+    expect(`untouched siblings skipped: ${skipped.length}`).toBe(
+      `untouched siblings skipped: ${rels.length - 1}`,
+    );
+  });
+
+  it("model delivery: the slot-carrying SKILL installs, carries NO banner block, and is reported like any other materialized file", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    expect(runInstall(target, home).status).toBe(0);
+    const skill = join(target, ".claude", "skills", "grugops", "SKILL.md");
+    expect(existsSync(skill)).toBe(true);
+    const lines = readFileSync(skill, "utf8").split("\n");
+    // PREMISE: it really is the slot-carrying file — that is what routes it through the transform.
+    expect(`the skill carries the resolver slot: ${lines.includes(MAT_SLOT)}`).toBe(
+      "the skill carries the resolver slot: true",
+    );
+    // The banner count floor is asserted at the AGENTS call site only, and this is why: a skill
+    // legitimately carries zero banner lines, so a blanket assertion inside the transform would be
+    // wrong. Nothing was injected here.
+    const head = bannerHead();
+    expect(lines.filter((l) => l.startsWith(head))).toEqual([]);
+    expect(lines.filter((l) => l === BAN_OPEN)).toEqual([]);
+  });
+
   it("model delivery: an install set that DIVERGES from the render installs NOTHING and names every differing member, in BOTH directions (D-01)", () => {
     // WHY THIS IS THE LOAD-BEARING CROSS-CHECK. The install SET stays srcAdapterFiles($GRUGOPS_SRC)
     // — the same derivation install/uninstall.ts removes by — and the mirror is only the per-member
@@ -1429,6 +1726,41 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     );
     expect(r.stdout).toContain("install INCOMPLETE");
     expect(installedAdapters(target)).toEqual([]);
+  });
+
+  // THE COUNT FLOOR THE BANNER RECOGNISER RESTS ON (D-14, Pitfall 2). Driven BEHAVIOURALLY through
+  // a patched generator twin rather than only by a scratch-build mutation: the fixture makes the
+  // mirrored generator emit a banner the installer does not recognise (the silent-drift shape) and
+  // then emit two of them (the ambiguous shape), and the installer must refuse both by name.
+  it("model delivery: a rendered adapter carrying ZERO or TWO recognised banner lines installs NOTHING and names the file (D-14)", () => {
+    const provenance = provenanceLiteral();
+    // The compiled twin declares the literal on one line, so the anchor is DERIVED from the source
+    // reading above rather than spelled again here. patchSyntheticGenerator throws if it is absent,
+    // which is this case's premise assertion: an unpatched fixture would assert nothing.
+    const anchor = `const PROVENANCE = ${JSON.stringify(provenance)};`;
+
+    for (const [why, replacement] of [
+      // ZERO — the generator's wording moved and the installer's recogniser matches nothing. This
+      // is the direction that is otherwise SILENT: every target would keep a banner naming a
+      // command it cannot run, and the suite would stay green.
+      ["zero", `const PROVENANCE = ${JSON.stringify("<!-- GENERATED (reworded) — recognised by nothing -->")};`],
+      // TWO — the rendered file is not the shape the installer knows how to rewrite. Taking "the
+      // first match" would hide this one.
+      ["two", `const PROVENANCE = ${JSON.stringify(`${provenance}\n${provenance}`)};`],
+    ] as Array<[string, string]>) {
+      const src = makeSyntheticSrc();
+      const target = mkTmp();
+      writeFileSync(join(target, "CLAUDE.md"), "# User Project\n");
+      patchSyntheticGenerator(src, anchor, replacement);
+
+      const r = runInstallFrom(src, target, mkTmp());
+      const named = `${why}: status=${r.status} names ${SYNTH_ADAPTERS[0]}: ${r.stdout.includes(SYNTH_ADAPTERS[0])}`;
+      expect(named).toBe(`${why}: status=3 names ${SYNTH_ADAPTERS[0]}: true`);
+      expect(r.stdout).toContain("recognised provenance");
+      expect(r.stdout).toContain("install INCOMPLETE");
+      // All-or-nothing: the floor is checked before the first write.
+      expect(installedAdapters(target)).toEqual([]);
+    }
   });
 
   it("model delivery: an announced alias SET that disagrees with the rendered bytes installs NOTHING and prints both sets", () => {

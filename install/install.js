@@ -180,6 +180,47 @@ const TARGET = resolveTarget();
 const MAT_OPEN = "# <!-- grugops:materialized-kit -->";
 const MAT_CLOSE = "# <!-- /grugops:materialized-kit -->";
 const MAT_SLOT = "# 1. (installed) the absolute kit path the installer wrote above this line.";
+// --- The SECOND materialization slot: the provenance banner (D-14) -------------------------------
+//
+// WHAT IS WRONG WITHOUT IT. Every rendered agent adapter opens its body with a banner naming
+// `node scripts/generate-role-adapters.js`. That command exists in a grugops CHECKOUT and in no
+// installed repository, so a target's own copy of the file tells its reader to run something the
+// repository does not contain, and says nothing about where the model line actually comes from.
+// Nothing in a target may name a command the target cannot run.
+//
+// KIT_BANNER IS THE GENERATOR'S OWN LINE, BYTE-EQUAL BY CONSTRUCTION. It is the value of
+// `PROVENANCE` in scripts/generate-role-adapters.ts, em dash included. It is restated here rather
+// than imported for the reason install/ restates every cross-boundary literal it needs: this module
+// imports nothing from scripts/ (D-18/D-28), and the generator module cannot be imported by anything
+// at all — it writes seventeen files at load. The restatement is a hand-synced literal, which is
+// this repository's named second systemic failure class, so it carries TWO mechanical guards:
+//   - a case in install/install.test.ts reads the generator's SOURCE TEXT and asserts byte equality
+//     with this constant, and asserts the same literal appears exactly once in each committed kit
+//     adapter, so the pin is anchored to the emitted bytes and not only to two source spellings;
+//   - the agents loop below asserts EXACTLY ONE recognised banner per rendered adapter and refuses
+//     by name on zero or on two or more, so a generator rewording that stops matching is loud
+//     rather than silent. The silent direction — match nothing, leave every target naming a command
+//     it cannot run, stay green — is the one this floor exists for.
+// The sentinel is NOT added to the generator's output: scripts/adapter-byte-baseline.test.ts freezes
+// the committed adapter bytes against a pinned commit, so moving them is a different decision from
+// this one. It is not declared in agent-factory/packaging/subagent.frontmatter.md either: that file
+// carries no such string today, nothing reads markdown at install time, and a declaration with no
+// mechanical reader would be a sixth hand-synced copy rather than an authority.
+const KIT_BANNER = "<!-- GENERATED — do not hand-edit. Re-run: node scripts/generate-role-adapters.js -->";
+// The injected block's sentinel pair, in the same style as MAT_OPEN/MAT_CLOSE and handled by the
+// same one state machine, so the strip-then-inject contract and its CR-01 bounded removal cover
+// both slots identically. These are bare HTML comments because the banner sits in the document
+// body, not inside the shell fence the kit block lives in.
+const BAN_OPEN = "<!-- grugops:target-banner -->";
+const BAN_CLOSE = "<!-- /grugops:target-banner -->";
+// The replacement text, written to be TRUE IN A TARGET. It names the install re-run and states
+// where that command is run from, and it names the configuration file the model line comes from.
+// It names NO preset and NO alias (D-12: no provenance block is added to a target adapter, and the
+// model line stays the only per-target byte the dial contributes), and it makes no claim about what
+// any model costs.
+const TARGET_BANNER = "<!-- GENERATED — do not hand-edit. This file is written by the grugops installer. To refresh " +
+    "it, re-run `node install/install.js --target <this repository>` from the grugops checkout. The " +
+    "model line comes from .grugops/factory.config.json in this repository — set it there, not here. -->";
 // ---------------------------------------------------------------------------
 // Kit-set derivation (KIT-02 / D-18, AMENDED BY D-28). The installer SELF-DERIVES the adapter and
 // skill sets by reading $GRUGOPS_SRC at run time; it carries NO hand-listed adapter or skill name.
@@ -1321,10 +1362,84 @@ function readRenderedAlias(text, label) {
     }
     return { ok: true, value: found[0].slice(RENDERED_MODEL_KEY.length) };
 }
-// materializeAdapter: lay an adapter down from $GRUGOPS_SRC and inject the resolved KIT line
-// above the slot, stripping any prior grugops:materialized-kit block first (strip-then-inject,
-// content-idempotent — Pitfall 1). Preserves the blockquote (SC2) and self-heal line (gate
-// Assertion 3).
+// transformAdapter: the PURE half of materialization. Takes a source file's text and returns the
+// final text plus the recognised banner count. It writes nothing, reads nothing off disk and
+// depends on no argument but its input and KIT_ROOT, which is what lets THREE callers share one
+// authority: the writer below, the agents loop's pre-write banner floor, and the --check doctor's
+// like-for-like staleness comparison. A second implementation of this transform anywhere would be
+// two grammars over the same bytes, which is the failure class this milestone exists to delete.
+//
+// ONE STATE MACHINE OVER BOTH SLOTS, whole-line equality throughout and never a pattern — the same
+// test srcCarriesSlot uses to ROUTE a file here, so routing and injection cannot disagree:
+//   - a line equal to either open sentinel starts a buffered block; the matching close drops the
+//     buffer; anything else inside is buffered;
+//   - a line equal to the kit slot line injects the kit block above it and keeps the slot line;
+//   - a line equal to the generator banner is REPLACED by the banner block, and counted;
+//   - CR-01 (bounded removal): an UNTERMINATED block at end of file restores its buffered lines
+//     verbatim, so no content is ever swallowed — the guarantee is "lose nothing", and it now
+//     covers the second slot because there is only one loop to give it.
+function transformAdapter(srcText) {
+    const out = [];
+    let close = null;
+    let buf = [];
+    let banners = 0;
+    for (const line of srcText.split("\n")) {
+        if (close === null && (line === MAT_OPEN || line === BAN_OPEN)) {
+            close = line === MAT_OPEN ? MAT_CLOSE : BAN_CLOSE;
+            buf = [];
+            continue;
+        }
+        if (close !== null) {
+            if (line === close) {
+                close = null; // terminated block → drop the buffer
+            }
+            else {
+                buf.push(line); // buffer until we know it terminates
+            }
+            continue;
+        }
+        if (line === MAT_SLOT) {
+            out.push(MAT_OPEN);
+            out.push(`KIT="${KIT_ROOT}"`);
+            out.push(MAT_CLOSE);
+            out.push(line);
+            continue;
+        }
+        if (line === KIT_BANNER) {
+            out.push(BAN_OPEN);
+            out.push(TARGET_BANNER);
+            out.push(BAN_CLOSE);
+            banners += 1;
+            continue;
+        }
+        out.push(line);
+    }
+    // Unterminated open at EOF: the block never closed → restore what we buffered (lose nothing).
+    if (close !== null && buf.length > 0) {
+        for (const line of buf)
+            out.push(line);
+    }
+    return { text: out.join("\n"), banners };
+}
+// materializeAdapter: lay a file down through transformAdapter, writing ONLY when the final bytes
+// differ from what the destination already holds (D-11). Preserves the blockquote (SC2) and
+// self-heal line (gate Assertion 3).
+//
+// THE COMPARISON IS TAKEN OVER THE FINAL BYTES, ON BOTH SIDES. Not between the source file and the
+// destination file: the destination carries an injected kit block and a replaced banner that the
+// source never did, so a source-versus-destination comparison reports every re-run as a rewrite;
+// and a comparison taken against the wrong side reports a genuinely stale file as identical. Build,
+// then compare, then write. The doctor's staleness verdict compares the same two things the same
+// way, which is what makes "would a re-run change this file?" one question with one answer.
+//
+// OWNERSHIP (D-13). A target's `.claude/agents/grugops-*.md` files are KIT-OWNED DERIVED ARTIFACTS.
+// A differing one is rewritten on re-run and reported by name, and a hand-edited model line is lost
+// DELIBERATELY, because the configuration file is the one place to set it. This is NOT the
+// never-overwrite contract materializeRunnable holds for user-editable files, and the difference is
+// not an oversight: under never-overwrite a models edit could never reach an adapter someone had
+// once touched, the file would stay wrong forever, and the doctor would warn about it forever.
+// CLAUDE.md's never-overwrite rule protects USER content; a generated file whose own banner says
+// "do not hand-edit" is not that.
 //
 // `alias` is OPTIONAL and reporting-only (D-04). An agent adapter is laid down from bytes this run
 // rendered, so its report line names the model it was rendered with; a skill is laid down from the
@@ -1340,45 +1455,22 @@ function materializeAdapter(src, dest, label, alias) {
         report("would-materialize", `${label} ${suffix}`);
         return;
     }
+    const final = transformAdapter(readFileSync(src, "utf8")).text;
+    let current = null;
+    try {
+        current = readFileSync(dest, "utf8");
+    }
+    catch {
+        current = null; // absent or unreadable → a write, never a silent skip
+    }
+    if (current === final) {
+        // The identical wording linkOrCopy already prints for an identical copy — one sentence for one
+        // fact, so a reader meeting either line reads the same thing.
+        report("skipped", `${label} (identical copy present)`);
+        return;
+    }
     mkdirp(dirname(dest));
-    const lines = readFileSync(src, "utf8").split("\n");
-    const out = [];
-    let inblk = false;
-    // CR-01 (bounded removal): an UNTERMINATED prior block (close marker missing) must NOT swallow
-    // every following line. Buffer the block and only drop it once a matching close is seen; if
-    // still inblk at EOF, the block never closed, so restore the buffered lines verbatim (lose
-    // nothing).
-    let buf = [];
-    for (const line of lines) {
-        if (line === MAT_OPEN) {
-            inblk = true;
-            buf = [];
-            continue;
-        }
-        if (inblk) {
-            if (line === MAT_CLOSE) {
-                inblk = false; // terminated block → drop the buffer
-            }
-            else {
-                buf.push(line); // buffer until we know it terminates
-            }
-            continue;
-        }
-        if (line === MAT_SLOT) {
-            out.push(MAT_OPEN);
-            out.push(`KIT="${KIT_ROOT}"`);
-            out.push(MAT_CLOSE);
-            out.push(line);
-            continue;
-        }
-        out.push(line);
-    }
-    // Unterminated open at EOF: the block never closed → restore what we buffered (lose nothing).
-    if (inblk && buf.length > 0) {
-        for (const line of buf)
-            out.push(line);
-    }
-    writeFileSync(dest, out.join("\n"));
+    writeFileSync(dest, final);
     report("materialized", `${label} ${suffix}`);
 }
 // seedFile: copy ONE bundled seed file into the target, skip-if-exists (D-04).
@@ -1788,6 +1880,32 @@ else {
                 return;
             }
             aliasOf.set(f, alias.value);
+            // THE BANNER COUNT FLOOR (D-14), ASKED HERE AND ONLY HERE.
+            //
+            // WHAT BOUNDS THE PREDICATE'S INPUT: bytes THIS RUN rendered for an AGENT adapter. It is not
+            // asked about a skill, about a file already in the target, or about arbitrary markdown.
+            // materializeAdapter also serves the skills loop, and the one slot-carrying skill legitimately
+            // carries ZERO banner lines, so a blanket assertion inside the transform would be wrong; the
+            // assertion belongs at the call site that knows what it is looking at.
+            //
+            // WHY A COUNT AND NOT A BOOLEAN. The dangerous direction is silent: a generator rewording
+            // makes the recogniser match NOTHING, every target keeps a banner naming a command it cannot
+            // run, and nothing goes red. Zero and two-or-more are different defects with different
+            // remedies and neither is read as the other. Checked BEFORE the first write, with the same
+            // all-or-nothing posture every other cross-check above takes.
+            const banners = transformAdapter(text).banners;
+            if (banners !== 1) {
+                verify(`.claude/agents/ — ${label} was rendered carrying ${banners} recognised provenance ` +
+                    `banner line(s) where exactly one was required, so the banner this installer would ` +
+                    `write into the target cannot be placed. Zero means the generator's wording moved away ` +
+                    `from the line this installer recognises, which would leave every target adapter naming ` +
+                    `a command the target cannot run; two or more means the rendered file is not the shape ` +
+                    `this installer knows how to rewrite.\n` +
+                    `                 No adapter was installed and every pre-existing target adapter was ` +
+                    `left as it was. Re-run the installer from a kit checkout whose generator and installer ` +
+                    `are the same version.`);
+                return;
+            }
         }
         // THE ALIAS-SET CROSS-CHECK — THE CLOSING OF THE LOOP. The report below is derived from the
         // BYTES about to be written; the announcement is derived from the map the generator rendered
