@@ -1069,6 +1069,41 @@ const GENERATOR_KIT_SOURCES = ["agent-factory/roles", "agent-factory/packaging"]
 // is added, no dependency is introduced, and the mirror stops depending on which Node minor the
 // host happens to run.
 const MIRROR_PACKAGE_JSON = '{"type":"module"}\n';
+// THE RESOLUTION READER PROBE (R-1, D-04).
+//
+// D-04 wants the run to report the resolution, and the "derive the set, assert the count" rule wants
+// the announced member count cross-checked against a listing this side derived itself. Both need the
+// announced payload — and the grammar that payload is written in belongs to scripts/model-tiers.ts,
+// which install/ does not import (D-18/D-28).
+//
+// THE TWO RULES ARE RECONCILED BY SPAWNING, NOT BY COPYING. This fixed source is written into the
+// mirror beside the twins and run there with the generator's stdout on its stdin. It imports the
+// MIRRORED ./model-tiers.js by a relative specifier — which resolves inside the mirror exactly as
+// the generator's own imports do, with no file-URL conversion and no path interpolation — calls the
+// module's own exported reader, and prints ONE JSON line back. install.ts parses that one line and
+// nothing else, so the installer holds NO copy of either announcement prefix and this module's
+// import graph is untouched. A second hand-synced spelling of a cross-boundary literal is this
+// repository's named second systemic failure class, and its drift direction here is the worst one:
+// the reader stops finding the line exactly when the emitter stops announcing.
+//
+// THE SOURCE IS A FIXED LITERAL WITH NO INTERPOLATION (T-29.2-06). Nothing derived from the target,
+// from argv or from the environment reaches it; it is written into the 0700 mkdtemp directory and
+// invoked by an absolute join()-built path with `shell` unset.
+//
+// The `.mjs` extension makes it unambiguously an ES module whatever any package.json says.
+const RESOLUTION_PROBE_REL = "grugops-read-resolution.mjs";
+const RESOLUTION_PROBE_SOURCE = [
+    "// Written into a temp mirror by the grugops installer and removed with it. It exists so the",
+    "// installer can read the resolution the generator announced without importing the module that",
+    "// owns that grammar: the reader stays where it is declared, and the installer holds no copy of",
+    "// the marker. Reads the generator's stdout from stdin; prints one JSON line.",
+    'import { resolvedAssignmentsIn } from "./model-tiers.js";',
+    'let input = "";',
+    'process.stdin.setEncoding("utf8");',
+    "for await (const chunk of process.stdin) input += chunk;",
+    'process.stdout.write(JSON.stringify({ results: resolvedAssignmentsIn(input) }) + "\\n");',
+    "",
+].join("\n");
 // renderAdaptersInMirror: build the mirror, run the generator in it, and hand the result to `use`.
 //
 // A HOISTED DECLARATION, NOT A CONST ARROW, and it takes ONE argument — a callback. Both are
@@ -1110,6 +1145,9 @@ function renderAdaptersInMirror(use) {
                 recursive: true,
             });
         }
+        // The reader probe, beside the twins so its relative import of ./model-tiers.js resolves the
+        // same way the generator's own imports do.
+        writeFileSync(join(dir, "scripts", RESOLUTION_PROBE_REL), RESOLUTION_PROBE_SOURCE);
         // 3. THE ONE NEW INPUT (D-05, D-06). The target's own configuration file, copied WHOLESALE and
         //    only when it already exists. Nothing is ever read out of it on this side and joined onto a
         //    path (T-29.2-03): the file crosses the boundary as bytes, and only the generator reads
@@ -1171,7 +1209,94 @@ function renderAdaptersInMirror(use) {
             });
             return;
         }
-        use({ ok: true, value: { dir, files, stdout: child.stdout ?? "", configPath } });
+        // 7. The announced resolution, read back through the module that owns the grammar. THREE
+        //    DIFFERENT CONDITIONS, THREE DIFFERENT REMEDIES, each named: the probe could not run; it
+        //    ran but did not print exactly one readable line; or it read something other than exactly
+        //    one well-formed announcement.
+        const generatorStdout = child.stdout ?? "";
+        const probe = spawnSync(process.execPath, [join(dir, "scripts", RESOLUTION_PROBE_REL)], {
+            encoding: "utf8",
+            env: process.env,
+            input: generatorStdout,
+        });
+        if (probe.status !== 0) {
+            use({
+                ok: false,
+                reason: `the adapter render completed but the resolution could not be read back: the reader ` +
+                    `exited ${probe.status === null ? "without a status" : String(probe.status)}` +
+                    `${probe.error ? ` (${probe.error.message})` : ""}. Without it this run cannot cross-check ` +
+                    `what the generator announced against what it produced, and installing over an unchecked ` +
+                    `resolution would be installing a set it cannot vouch for. Its message follows:\n` +
+                    `${(probe.stderr ?? "").trim() || "  (the reader produced no output)"}`,
+            });
+            return;
+        }
+        const probeLines = (probe.stdout ?? "").split("\n").filter((l) => l.trim() !== "");
+        if (probeLines.length !== 1) {
+            use({
+                ok: false,
+                reason: `the adapter render completed but the resolution reader printed ${probeLines.length} ` +
+                    `line(s) where exactly one was required, so its answer cannot be read. No adapter was ` +
+                    `installed. Re-run the installer from a complete kit checkout.`,
+            });
+            return;
+        }
+        let announced = null;
+        let announceProblem = "";
+        try {
+            const parsed = JSON.parse(probeLines[0]);
+            const results = Array.isArray(parsed.results) ? parsed.results : null;
+            if (results === null) {
+                announceProblem = "the reader's answer did not carry a list of results";
+            }
+            else if (results.length !== 1) {
+                // Zero means the run announced nothing; two or more means a stream carrying two
+                // announcements, which is ambiguous rather than agreeable. Neither is a default.
+                announceProblem =
+                    `the generator's output carried ${results.length} resolved-assignment announcement(s) ` +
+                        "where exactly one was required";
+            }
+            else {
+                const one = results[0];
+                if (one.ok !== true) {
+                    announceProblem = `the announced resolution was refused by name — ${String(one.reason ?? "no reason given")}`;
+                }
+                else {
+                    const v = one.value;
+                    const aliases = Array.isArray(v.aliases) ? v.aliases : null;
+                    if (typeof v.roles !== "number" ||
+                        typeof v.overrides !== "number" ||
+                        aliases === null ||
+                        aliases.some((a) => typeof a !== "string")) {
+                        announceProblem = "the announced resolution did not carry the declared shape";
+                    }
+                    else {
+                        announced = {
+                            roles: v.roles,
+                            overrides: v.overrides,
+                            aliases: aliases,
+                        };
+                    }
+                }
+            }
+        }
+        catch (e) {
+            announceProblem = `the reader's answer is not parseable JSON (${e instanceof Error ? e.message : String(e)})`;
+        }
+        if (announced === null) {
+            use({
+                ok: false,
+                reason: `the adapter render completed but this run cannot read what it resolved: ` +
+                    `${announceProblem}. An unreadable announcement is not an agreement — reading silence as ` +
+                    `consent is exactly the failure the announcement exists to prevent — so no adapter was ` +
+                    `installed and every pre-existing target adapter was left as it was.`,
+            });
+            return;
+        }
+        use({
+            ok: true,
+            value: { dir, files, stdout: generatorStdout, configPath, assignment: announced },
+        });
     }
     finally {
         // The installer has many exit paths and registers no exit handler, so cleanup is a `finally`
@@ -1180,17 +1305,39 @@ function renderAdaptersInMirror(use) {
         rmSync(dir, { recursive: true, force: true, maxRetries: 3 });
     }
 }
+// The frontmatter key a rendered adapter carries its resolved alias on. A whole-line PREFIX test,
+// matching how the generator emits it (`model: ` then the alias, on its own line).
+const RENDERED_MODEL_KEY = "model: ";
+function readRenderedAlias(text, label) {
+    const found = text.split("\n").filter((line) => line.startsWith(RENDERED_MODEL_KEY));
+    if (found.length !== 1) {
+        return {
+            ok: false,
+            reason: `${label} was rendered carrying ${found.length} line(s) beginning "${RENDERED_MODEL_KEY}" ` +
+                `where exactly one was required, so the model this adapter would be installed with cannot ` +
+                `be stated. Zero and two are different defects from a wrong value and neither is read as ` +
+                `the other; reporting the first match would hide both.`,
+        };
+    }
+    return { ok: true, value: found[0].slice(RENDERED_MODEL_KEY.length) };
+}
 // materializeAdapter: lay an adapter down from $GRUGOPS_SRC and inject the resolved KIT line
 // above the slot, stripping any prior grugops:materialized-kit block first (strip-then-inject,
 // content-idempotent — Pitfall 1). Preserves the blockquote (SC2) and self-heal line (gate
 // Assertion 3).
-function materializeAdapter(src, dest, label) {
+//
+// `alias` is OPTIONAL and reporting-only (D-04). An agent adapter is laid down from bytes this run
+// rendered, so its report line names the model it was rendered with; a skill is laid down from the
+// kit source and carries no model, so it passes nothing and its line is byte-unchanged. The alias
+// never reaches the written bytes — it is read OUT of them.
+function materializeAdapter(src, dest, label, alias) {
+    const suffix = alias === undefined ? `(KIT=${KIT_ROOT})` : `(KIT=${KIT_ROOT}, model=${alias})`;
     if (!existsSync(src)) {
         report("skipped", `${label} (source missing: ${src})`);
         return;
     }
     if (DRY_RUN) {
-        report("would-materialize", `${label} (KIT=${KIT_ROOT})`);
+        report("would-materialize", `${label} ${suffix}`);
         return;
     }
     mkdirp(dirname(dest));
@@ -1232,7 +1379,7 @@ function materializeAdapter(src, dest, label) {
             out.push(line);
     }
     writeFileSync(dest, out.join("\n"));
-    report("materialized", `${label} (KIT=${KIT_ROOT})`);
+    report("materialized", `${label} ${suffix}`);
 }
 // seedFile: copy ONE bundled seed file into the target, skip-if-exists (D-04).
 function seedFile(src, dest, label) {
@@ -1597,6 +1744,80 @@ else {
                 `matches its role corpus.`);
             return;
         }
+        // THE MEMBER-COUNT CROSS-CHECK, AGAINST A LISTING THIS SIDE DERIVED ITSELF.
+        //
+        // PLACED AFTER THE SET HALF, DELIBERATELY. An extra or a missing member also moves this number,
+        // and the set half names WHICH member — a strictly better finding for the same defect. By this
+        // line the two listings are provably set-equal, so the number below is the one the announcing
+        // run actually produced.
+        //
+        // AND IT IS CHECKED AGAINST A DERIVATION, NOT AGAINST THE ANNOUNCEMENT ALONE, because a vacuity
+        // floor catches an EMPTY resolution and never a silently SHORT one.
+        const announced = render.value.assignment;
+        if (announced.roles !== rendered.length) {
+            verify(`.claude/agents/ — the render announced a resolution covering ${announced.roles} role(s), ` +
+                `while this run derived ${rendered.length} rendered adapter(s) from the render's own ` +
+                `output directory. The two numbers must agree: a run installing over a disagreement ` +
+                `would be installing a set it cannot vouch for.\n` +
+                `                 No adapter was installed and every pre-existing target adapter was left ` +
+                `as it was. The model configuration this run reads is ${targetConfigFile}.`);
+            return;
+        }
+        // THE ALIAS EVERY RENDERED ADAPTER CARRIES, READ OUT OF THE BYTES ABOUT TO BE WRITTEN. Read for
+        // ALL members BEFORE the first write, so a refusal on the last member still leaves the target
+        // untouched — the generator's own all-or-nothing posture carried through the install side.
+        const aliasOf = new Map();
+        for (const f of SRC_ADAPTERS) {
+            const label = `.claude/agents/${f}`;
+            let text;
+            try {
+                text = readFileSync(join(render.value.dir, ".claude", "agents", f), "utf8");
+            }
+            catch (e) {
+                verify(`.claude/agents/ — ${label} was rendered but could not be read back ` +
+                    `(${e instanceof Error ? e.message : String(e)}), so the model it would be installed ` +
+                    `with is unknown. No adapter was installed and every pre-existing target adapter was ` +
+                    `left as it was.`);
+                return;
+            }
+            const alias = readRenderedAlias(text, label);
+            if (!alias.ok) {
+                verify(`.claude/agents/ — ${alias.reason}\n` +
+                    `                 No adapter was installed and every pre-existing target adapter was ` +
+                    `left as it was.`);
+                return;
+            }
+            aliasOf.set(f, alias.value);
+        }
+        // THE ALIAS-SET CROSS-CHECK — THE CLOSING OF THE LOOP. The report below is derived from the
+        // BYTES about to be written; the announcement is derived from the map the generator rendered
+        // FROM. Neither side alone proves the other, so they are required to agree.
+        const readAliases = [...new Set(aliasOf.values())].sort();
+        const saidAliases = [...announced.aliases].sort();
+        if (readAliases.join(",") !== saidAliases.join(",")) {
+            verify(`.claude/agents/ — the aliases read out of the rendered adapters are ` +
+                `[${readAliases.join(", ")}], while the render announced [${saidAliases.join(", ")}]. ` +
+                `The bytes and the announcement describe the same resolution, so a disagreement means one ` +
+                `of them is wrong and this run cannot say which.\n` +
+                `                 No adapter was installed and every pre-existing target adapter was left ` +
+                `as it was. The model configuration this run reads is ${targetConfigFile}.`);
+            return;
+        }
+        // THE RESOLUTION REPORT (D-04). The generator's own announcement lines are relayed VERBATIM —
+        // the installer authors no preset wording of its own and holds no copy of either marker. They
+        // are relayed through the padded report channel, so the relayed text is a MENTION rather than a
+        // second announcement and the two authorities stay distinguishable (T-29.2-08).
+        for (const line of render.value.stdout.split("\n")) {
+            if (line.trim() === "")
+                continue;
+            report("render", line);
+        }
+        // ...plus ONE line of the installer's own, naming the configuration file it read, or stating
+        // plainly that none was found. A run that resolved nothing says so.
+        report("resolution", render.value.configPath === null
+            ? `no configuration file was found at ${targetConfigFile}, so every role took the ` +
+                `generator's zero-config answer and this run resolved nothing of its own`
+            : `read from ${render.value.configPath}`);
         for (const f of SRC_ADAPTERS) {
             // The src is the RENDERED file. Routing stays srcCarriesSlot on the src that is actually
             // being read, so routing and injection still cannot disagree about the same bytes.
@@ -1604,7 +1825,7 @@ else {
             const dest = join(TARGET, ".claude", "agents", f);
             const label = `.claude/agents/${f}`;
             if (srcCarriesSlot(src))
-                materializeAdapter(src, dest, label);
+                materializeAdapter(src, dest, label, aliasOf.get(f));
             else
                 linkOrCopy(src, dest, label);
         }

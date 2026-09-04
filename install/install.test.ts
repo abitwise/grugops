@@ -88,7 +88,13 @@ import { listAgentAdapters, listSkillAdapters } from "../scripts/kit-model.js";
 // restating four strings — a restated copy would keep passing after the set moved, which is the
 // drift class this repository names as its second systemic failure. install.ts itself still imports
 // nothing from scripts/; that boundary is about the INSTALLER's module graph, and this is the test.
-import { MODEL_ALIASES } from "../scripts/model-tiers.js";
+import {
+  MODEL_ALIASES,
+  RESOLVED_PRESET_PREFIX,
+  RESOLVED_ASSIGNMENT_PREFIX,
+  resolvedPresetsIn,
+  resolvedAssignmentsIn,
+} from "../scripts/model-tiers.js";
 
 // THE INSTALLER-SIDE WALK, IMPORTED DIRECTLY (D-35/D-36). The boundary cases below need to examine
 // MAX_WALK_ENTRIES+1 directory entries; driving that through a full installer subprocess would
@@ -1190,6 +1196,239 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     expect(rShort.stdout).toContain("install INCOMPLETE");
     expect(rShort.stdout).toContain("the kit source does not carry");
     expect(installedAdapters(targetShort)).toEqual([]);
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────────────────────────
+  // THE RESOLUTION REPORT (D-04, R-1). The run says which resolution it applied and where it read
+  // it from, and every per-adapter line carries the alias that adapter was rendered with.
+  // ─────────────────────────────────────────────────────────────────────────────────────────────
+
+  // adapterReportLines — the installer's own per-adapter report lines for the AGENT class, at the
+  // given verb. The set is filtered out of real output rather than reconstructed, so a case can
+  // compare its length against the target listing instead of trusting a literal.
+  function adapterReportLines(stdout: string, verb: string): string[] {
+    const rx = new RegExp(`^\\s{2}${verb}\\s+\\.claude/agents/`);
+    return stdout.split("\n").filter((l) => rx.test(l));
+  }
+
+  it("model delivery: a ZERO-CONFIG run relays the generator's own announcement and states that no configuration file was found (D-04)", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    expect(existsSync(targetConfigPath(target))).toBe(false);
+
+    const r = runInstall(target, home);
+    expect(r.status).toBe(0);
+
+    // (a) THE GENERATOR'S OWN LINES, RELAYED VERBATIM. The installer authors no preset wording and
+    // holds no copy of either prefix — the prefixes below are imported from the module that owns
+    // them, so a marker that moved fails here instead of drifting apart in two files.
+    expect(r.stdout).toContain(`${RESOLVED_PRESET_PREFIX}none`);
+    expect(r.stdout).toContain(
+      `${RESOLVED_ASSIGNMENT_PREFIX}{"roles":17,"overrides":0,"aliases":["inherit"]}`,
+    );
+
+    // (b) THE RELAY IS A MENTION, NOT A SECOND ANNOUNCEMENT — and that is deliberate. Both readers
+    // require their prefix at BYTE 0 of the trimmed line (finding WR-03), and the relayed text sits
+    // indented under the installer's own padded report label. So the installer's stdout does NOT
+    // read back as an announcing run: the generator says what it resolved, the installer forwards
+    // it, and the two authorities stay distinguishable (T-29.2-08).
+    expect(resolvedPresetsIn(r.stdout)).toEqual([]);
+    expect(resolvedAssignmentsIn(r.stdout)).toEqual([]);
+
+    // (c) ONE INSTALLER-AUTHORED LINE, naming the real file and saying plainly that none was there.
+    // A run that resolved nothing says so.
+    expect(r.stdout).toContain(targetConfigPath(target));
+    expect(r.stdout).toContain("no configuration file");
+
+    // (d) EVERY per-adapter line carries the alias. The count is derived from the target listing.
+    const lines = adapterReportLines(r.stdout, "materialized");
+    expect(lines.length).toBe(installedAdapters(target).length);
+    expect(lines.length).toBe(17);
+    for (const line of lines) {
+      expect(`${line.trim().split(/\s+/)[1]}: ${line.includes("model=inherit")}`).toBe(
+        `${line.trim().split(/\s+/)[1]}: true`,
+      );
+    }
+    // ...and no report line anywhere carries a full model id shape.
+    expect(r.stdout).not.toMatch(/model=[a-z]+-[a-z0-9-]*\d/);
+  });
+
+  it("model delivery: a TIERED run names the configuration file it read and carries the generator's assignment payload verbatim (D-04)", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    const configPath = writeTargetConfig(target, '{"models":{"preset":"tiered"}}\n');
+
+    const r = runInstall(target, home);
+    expect(r.status).toBe(0);
+
+    expect(r.stdout).toContain(`${RESOLVED_PRESET_PREFIX}tiered`);
+    expect(r.stdout).toContain(
+      `${RESOLVED_ASSIGNMENT_PREFIX}{"roles":17,"overrides":0,"aliases":["opus","sonnet"]}`,
+    );
+    // The installer-authored line names the REAL file on this machine, not the temp mirror the
+    // generator's own message would name.
+    expect(r.stdout).toContain(configPath);
+    expect(r.stdout).not.toContain("no configuration file");
+
+    // Every per-adapter line ends with an alias drawn from the closed vocabulary, and the two
+    // tallies match the bytes on disk — the report is derived from what was written, and the
+    // announcement independently confirms it.
+    const lines = adapterReportLines(r.stdout, "materialized");
+    expect(lines.length).toBe(installedAdapters(target).length);
+    const reported = lines.map((l) => l.slice(l.lastIndexOf("model=") + "model=".length).replace(/\)$/, ""));
+    expect([...reported].sort()).toEqual([...targetModelLines(target)].sort());
+    for (const alias of reported) {
+      expect(`${alias}: legal alias = ${(MODEL_ALIASES as readonly string[]).includes(alias)}`).toBe(
+        `${alias}: legal alias = true`,
+      );
+    }
+  });
+
+  it("model delivery: DRY_RUN reports the same resolution, reads `would-materialize` with an alias, and mutates neither root", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    rmSync(home, { recursive: true, force: true }); // start with the home ABSENT
+    writeTargetConfig(target, '{"models":{"preset":"tiered"}}\n');
+
+    const tPre = snapshot(target);
+    const hPre = snapshot(home);
+
+    const r = spawnSync("node", [INSTALL_JS, "--yes"], {
+      encoding: "utf8",
+      env: { ...process.env, DRY_RUN: "1", INSTALL_MODE: "copy", GRUGOPS_SRC: REPO_ROOT, GRUGOPS_HOME: home, TARGET: target },
+    });
+    expect(r.status).toBe(0);
+
+    // The SAME resolution is reported under DRY_RUN — the render is read-only with respect to both
+    // roots, so there is no reason for a plan to be less informative than the run it describes.
+    expect(r.stdout ?? "").toContain(`${RESOLVED_PRESET_PREFIX}tiered`);
+    expect(r.stdout ?? "").toContain(targetConfigPath(target));
+
+    const lines = adapterReportLines(r.stdout ?? "", "would-materialize");
+    expect(lines.length).toBe(17);
+    const aliases = new Set(
+      lines.map((l) => l.slice(l.lastIndexOf("model=") + "model=".length).replace(/\)$/, "")),
+    );
+    expect([...aliases].sort()).toEqual(["opus", "sonnet"]);
+    // ...and no per-adapter line claims a write happened.
+    expect(adapterReportLines(r.stdout ?? "", "materialized")).toEqual([]);
+
+    // NEITHER ROOT MUTATED. The temp mirror lives outside both and is removed with the run.
+    expect(snapshot(target)).toBe(tPre);
+    expect(snapshot(home)).toBe(hPre);
+    expect(existsSync(home)).toBe(false);
+  });
+
+  // ── THE THREE CROSS-CHECKS, DRIVEN BY A PATCHED GENERATOR TWIN ────────────────────────────────
+  //
+  // These are BEHAVIOURAL cases, not scratch-build mutations. The installer copies the generator's
+  // committed .js twins out of $GRUGOPS_SRC into its mirror, so a synthetic source carrying a
+  // PATCHED twin makes the mirrored generator misbehave in exactly the way each cross-check exists
+  // to catch — an announcement that disagrees with the bytes, and bytes that disagree with
+  // themselves. Nothing in the repository is mutated; the patch lives in a throwaway fixture.
+  function patchSyntheticGenerator(src: string, from: string, to: string): void {
+    const p = join(src, "scripts", "generate-role-adapters.js");
+    const before = readFileSync(p, "utf8");
+    if (!before.includes(from)) {
+      throw new Error(
+        `the synthetic generator twin does not contain the patch anchor ${JSON.stringify(from)} — ` +
+          "the fixture would run an UNPATCHED generator and the case below would assert nothing",
+      );
+    }
+    writeFileSync(p, before.replace(from, to));
+  }
+
+  it("model delivery: an announced member count that disagrees with the rendered listing installs NOTHING and prints both numbers", () => {
+    const src = makeSyntheticSrc();
+    const target = mkTmp();
+    writeFileSync(join(target, "CLAUDE.md"), "# User Project\n");
+    // The announcement is made to claim sixteen roles while the render still produces seventeen
+    // files. A vacuity floor catches an EMPTY resolution and never a silently SHORT one, which is
+    // why the count is cross-checked against a listing the INSTALLER derived itself.
+    patchSyntheticGenerator(
+      src,
+      "console.log(resolvedAssignmentLine(models, modelsConfig.overrides.size));",
+      'console.log("' + RESOLVED_ASSIGNMENT_PREFIX + '" + JSON.stringify({ roles: 16, overrides: 0, aliases: ["inherit"] }));',
+    );
+
+    const r = runInstallFrom(src, target, mkTmp());
+    // BOTH NUMBERS AND THE STATUS IN ONE ASSERTION: the announced count and the count this side
+    // derived, so a failure prints the whole claim rather than the first half of it to trip.
+    const bothNumbers =
+      r.stdout.includes("announced a resolution covering 16 role(s)") &&
+      r.stdout.includes("derived 17 rendered adapter(s)");
+    expect(`status=${r.status} prints both numbers: ${bothNumbers}`).toBe(
+      "status=3 prints both numbers: true",
+    );
+    expect(r.stdout).toContain("install INCOMPLETE");
+    expect(installedAdapters(target)).toEqual([]);
+  });
+
+  it("model delivery: a rendered adapter carrying two `model:` lines installs NOTHING and names the file", () => {
+    const src = makeSyntheticSrc();
+    const target = mkTmp();
+    writeFileSync(join(target, "CLAUDE.md"), "# User Project\n");
+    // Exactly one is the floor. Zero and two-or-more are different defects from a wrong value, and
+    // taking "the first match" would hide both.
+    patchSyntheticGenerator(
+      src,
+      "lines.push(`model: ${a.model}`);",
+      "lines.push(`model: ${a.model}`);\n    lines.push(`model: ${a.model}`);",
+    );
+
+    const r = runInstallFrom(src, target, mkTmp());
+    // NAMED BY FILE, and the status, in ONE assertion — a status-only failure would say the floor
+    // is gone without saying which file went unreported.
+    const named = `.claude/agents/${SYNTH_ADAPTERS[0]}`;
+    expect(`status=${r.status} refuses ${named}: ${r.stdout.includes(`${named} was rendered carrying 2 line(s)`)}`).toBe(
+      `status=3 refuses ${named}: true`,
+    );
+    expect(r.stdout).toContain("install INCOMPLETE");
+    expect(installedAdapters(target)).toEqual([]);
+  });
+
+  it("model delivery: an announced alias SET that disagrees with the rendered bytes installs NOTHING and prints both sets", () => {
+    const src = makeSyntheticSrc();
+    const target = mkTmp();
+    writeFileSync(join(target, "CLAUDE.md"), "# User Project\n");
+    // The bytes still say `inherit` seventeen times; the announcement claims `opus`. This is the
+    // closing of the loop: the report is derived from the bytes about to be written and the
+    // announcement independently confirms it — neither side alone.
+    patchSyntheticGenerator(
+      src,
+      "console.log(resolvedAssignmentLine(models, modelsConfig.overrides.size));",
+      'console.log("' + RESOLVED_ASSIGNMENT_PREFIX + '" + JSON.stringify({ roles: 17, overrides: 0, aliases: ["opus"] }));',
+    );
+
+    const r = runInstallFrom(src, target, mkTmp());
+    // BOTH SETS AND THE STATUS IN ONE ASSERTION — a disagreement that named only one side would
+    // leave the reader to guess which authority was wrong, and a status-only failure would not say
+    // that either side went unreported.
+    const bothSets = r.stdout.includes("read out of the rendered adapters are [inherit]")
+      && r.stdout.includes("the render announced [opus]");
+    expect(`status=${r.status} prints both sets: ${bothSets}`).toBe("status=3 prints both sets: true");
+    expect(r.stdout).toContain("install INCOMPLETE");
+    expect(installedAdapters(target)).toEqual([]);
+  });
+
+  it("model delivery: the installer holds NO copy of either announcement prefix — it consults the module that owns them (R-1, D-04)", () => {
+    const src = readFileSync(join(import.meta.dirname, "install.ts"), "utf8");
+    // The two prefixes stay in scripts/model-tiers.ts. A copy here would be a hand-synced
+    // cross-boundary literal whose drift direction is silent: the installer would stop finding the
+    // line exactly when the generator stopped announcing it.
+    for (const prefix of [RESOLVED_PRESET_PREFIX, RESOLVED_ASSIGNMENT_PREFIX]) {
+      expect(`install.ts spells ${JSON.stringify(prefix)}: ${src.includes(prefix)}`).toBe(
+        `install.ts spells ${JSON.stringify(prefix)}: false`,
+      );
+    }
+    // The grammar is reached by SPAWNING a probe against the MIRRORED module, so the reader's name
+    // appears only inside the probe source literal and never in an import statement.
+    expect(src).toContain("resolvedAssignmentsIn");
+    const importing = src
+      .split("\n")
+      .filter((l) => l.includes("resolvedAssignmentsIn") && /^\s*import\b/.test(l));
+    expect(importing).toEqual([]);
+    expect(src).toContain("RESOLUTION_PROBE_SOURCE");
   });
 
   // ── THE MIRROR'S INPUT LIST IS THE GENERATOR'S IMPORT CLOSURE, AND THE FIXTURE TRACKS IT ───────
