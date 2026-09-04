@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 103
+open_count: 104
 waived_count: 0
 fixed_count: 4
-total_count: 107
-last_updated: 2026-09-03T16:13:02.272Z
+total_count: 108
+last_updated: 2026-09-04T09:27:20.480Z
 ---
 
 # Broken Windows Ledger
@@ -122,6 +122,7 @@ last_updated: 2026-09-03T16:13:02.272Z
 | 105 | 29.1 | deviation | scripts/check-kit-refs.ts |  | ACCEPTED BY USER 2026-09-03 (D-29.1-19), not closed. Round-5 verifier Blocker 1: configReferencesIn truncates each record at the first CONFIG_REF_TERMINATOR byte and then decides membership over the TRUNCATED PREFIX, so a shorter string that IS a member admits a path out of the kit. Reproduced 9 for 9 across the entire declared terminator class at TRUE exit 0 with /../../../../etc/passwd shipping and all three published cardinalities as declared. The comment at :230-233 asserting this cannot happen is FALSIFIED by measurement. Compounds with row 103 (symlinks join the exemption sibling set), which defeats the code review's suggested remedy. Direction: FAIL-OPEN. Owner: unassigned — carried past phase close by user acceptance. | open |  | 2026-09-03T16:12:49.409Z |  |
 | 106 | 29.1 | deviation | scripts/check-foundation-guards.test.ts |  | ACCEPTED BY USER 2026-09-03 (D-29.1-19), not closed. Round-5 verifier Blocker 2: the (r-class-authority) class claim is decided over a NON-RECURSIVE readdirSync of scripts/, so its denominator is 50 of the 56 tracked *.test.ts files. Invisible: hooks/ (2), install/ (1), scripts/e2e/ (1), scripts/runnable-ref/ (2). A genuine second reader with its own step-name literal and the bare-locator base, planted into scripts/runnable-ref/reference-check.test.ts, returns the byte-identical baseline 4 failed/261 passed; the identical plant at top level reds by name. This is round-3 R3-IN-03 re-opened one directory out by its own replacement. Direction: FAIL-OPEN. Remedy shape: derive the denominator from git ls-files, assert the count. Owner: unassigned — carried past phase close by user acceptance. | open |  | 2026-09-03T16:13:02.191Z |  |
 | 107 | 29.1 | deviation | scripts/model-tiers.ts |  | ACCEPTED BY USER 2026-09-03 (D-29.1-19), not closed. Round-5 verifier Blocker 3: resolveModels throws on the STEMS argument on ordinary values — resolveModels([Symbol('a'),'b'],{preset:'none'}) and a throwing-toString stem both throw at Floor 2's .sort(), under both presets. Floors 2 (:1126) and 3b (:1167) still interpolate the stem raw. The defect of record is the FALSE COMPLETENESS CLAIM: ledger row 95 and deferred-items D-29.1-23-01 both publish a CLOSED enumeration of four classes, all on overrides, when a fifth exists on a different parameter. Behaviourally fail-closed. Remedy shape: state the residual as open-ended, or route stems through the same quoting authority. Owner: unassigned — carried past phase close by user acceptance. | open |  | 2026-09-03T16:13:02.272Z |  |
+| 108 | 29.2 | unrun-verify | install/install.ts |  | UNKNOWN - verify (Windows): the install-time adapter render spawns the mirrored generator with process.execPath and cleans the mkdtemp mirror with rmSync({recursive,force,maxRetries:3}). Neither the spawn nor the retry-on-locked-handle cleanup was executed on Windows this session (no Windows runner locally); the windows-latest CI leg is the only place they will be observed. install.test.ts's two symlink plants already skip on win32 for want of SeCreateSymbolicLink, so the WR-02 representation claim over the reshaped fixture is POSIX-only too. Remedy: read the windows-latest leg before treating the render as proven cross-platform. | open |  | 2026-09-04T09:27:20.480Z |  |
 
 ````json
 [
@@ -1407,6 +1408,18 @@ last_updated: 2026-09-03T16:13:02.272Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-09-03T16:13:02.272Z",
+    "resolved_at": null
+  },
+  {
+    "id": 108,
+    "kind": "unrun-verify",
+    "phase": "29.2",
+    "file": "install/install.ts",
+    "line": null,
+    "description": "UNKNOWN - verify (Windows): the install-time adapter render spawns the mirrored generator with process.execPath and cleans the mkdtemp mirror with rmSync({recursive,force,maxRetries:3}). Neither the spawn nor the retry-on-locked-handle cleanup was executed on Windows this session (no Windows runner locally); the windows-latest CI leg is the only place they will be observed. install.test.ts's two symlink plants already skip on win32 for want of SeCreateSymbolicLink, so the WR-02 representation claim over the reshaped fixture is POSIX-only too. Remedy: read the windows-latest leg before treating the render as proven cross-platform.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-04T09:27:20.480Z",
     "resolved_at": null
   }
 ]
