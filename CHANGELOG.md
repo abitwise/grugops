@@ -43,9 +43,12 @@ is in progress and not yet tagged.
   repository's own `.grugops/factory.config.json`, so a `models` block finally reaches the adapters
   the repository's session loads; `--check` names every adapter a configuration edit has not been
   re-installed into yet, and a repository whose `models` block is refused keeps the adapters it had
-  rather than silently receiving the default assignment. One consequence is worth stating: a
-  checkout that cannot run the render — a partial checkout missing the modules the render needs —
-  now installs no sub-agent adapter at all, where before it installed the ones the kit shipped.
+  rather than silently receiving the default assignment. Two consequences are worth stating for
+  existing users: every adapter installed before this change is reported stale by `--check` until
+  the repository is re-installed, and `--strict` promotes that warning to a failure, so a job
+  already running `--check --strict` goes red until the re-run; and a checkout that cannot run the
+  render — a partial checkout missing the modules the render needs — now installs no sub-agent
+  adapter at all, where before it installed the ones the kit shipped.
 
 _In progress: the phase 26 dogfood dual-path oracle is not yet complete. The A3/DOG-02 live
 dual-path parity retirement is deferred pending a captured live run._

@@ -1366,8 +1366,21 @@ const INSTALL_TARGET_FLAG = "--target";
 // The 29.1 disclosure that phase 29.2 refuted, held as WORDINGS the way the retired precedence
 // phrasings above are held. Each fragment sits inside ONE source line of the reference as it was
 // written, because every comparison in this file is an exact substring match over the raw file.
+//
+// THE FIRST FRAGMENT IS NARROWED, AND HERE IS WHAT THE NARROWING COSTS (plan 29.2-05, IN-02). It
+// used to be the bare `"Disclosed limitation"`. That is not a 29.1 wording — it is a HEADING STYLE,
+// and an honest future disclosure about a different dial in this same reference would legitimately
+// reuse it and be refused by a case that exists to refuse a refuted sentence. A guard that forbids
+// true prose is worse than the drift it was aimed at, because the only route back to green is to
+// stop writing the disclosure. `"Disclosed limitation — an installed repository"` identifies the
+// 29.1 SENTENCE instead of the style any disclosure would share.
+//
+// WHAT IT DOES NOT BUY, AND WHAT IT DOES NOT CHANGE. The block below already discloses that this is
+// a list of WORDINGS rather than a decision procedure, so a fresh paraphrase of the retired sentence
+// is not in the list and is not caught. That residual is UNCHANGED by this narrowing and must not be
+// described as if it had been closed: narrowing a fragment makes the guard refuse less, never more.
 const RETIRED_INSTALLED_TARGET_DISCLOSURES = [
-  "Disclosed limitation",
+  "Disclosed limitation — an installed repository",
   "closed by Phase 29.2",
   "does not change the adapters that repository's session loads",
 ] as const;
