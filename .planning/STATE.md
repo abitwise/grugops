@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v2.1
 milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live Board
 current_phase: 29.2
-current_phase_name: Model Assignment Delivery Path
+current_phase_name: model-assignment-delivery-path
 status: phase-complete
 stopped_at: Completed 29.2-03-PLAN.md
-last_updated: "2026-09-04T10:43:30.367Z"
-state_head: f8215797e329fde6ae3950b54d716bcac3c907ed
+last_updated: "2026-09-04T12:17:04.456Z"
+state_head: 5a787dec784456c8b99092af59e06291830a6273
 progress:
   total_phases: 9
   completed_phases: 3
-  total_plans: 162
+  total_plans: 165
   completed_plans: 162
   percent: 33
 last_activity: 2026-08-19
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-07-28 — after v2.0 milestone)
 
 ## Current Position
 
-Phase: 29.2 (Model Assignment Delivery Path) — EXECUTING
+Phase: 29.2 (model-assignment-delivery-path) — READY TO EXECUTE
 Plan: 3 of 3
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
