@@ -5,9 +5,9 @@ milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live
 current_phase: 29.2
 current_phase_name: Model Assignment Delivery Path (INSERTED — split out of 29.1 by D-17)
 status: phase-complete
-stopped_at: Completed 29.2-06-PLAN.md — gap-closure round 1 closed (10 findings, 10 dispositions, none deferred)
-last_updated: "2026-09-04T18:51:12.138Z"
-state_head: d5fc73d1f936c0cdffdad503fe984250cbd17bc2
+stopped_at: Phase 30 context gathered
+last_updated: "2026-09-04T21:28:35.215Z"
+state_head: 74ca321057754f57cb7fb32485309e13d555f534
 progress:
   total_phases: 9
   completed_phases: 3
@@ -1256,9 +1256,9 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-09-04T18:51:11.827Z
-Stopped at: Completed 29.2-06-PLAN.md — gap-closure round 1 closed (10 findings, 10 dispositions, none deferred)
-Resume file: None
+Last session: 2026-09-04T21:28:34.811Z
+Stopped at: Phase 30 context gathered
+Resume file: .planning/phases/30-per-checkpoint-autonomy-matrix/30-CONTEXT.md
 
 ## Operator Next Steps
 
