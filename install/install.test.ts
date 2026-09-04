@@ -1969,6 +1969,43 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     expect(existsSync(home)).toBe(false);
   });
 
+  it("model delivery: a SECOND dry run over an unchanged target reports `skipped`, not `would-materialize` (D-11 preview parity, WR-01)", () => {
+    // D-11 bought a property — a re-run is a visible no-op and a refresh a visible change — and a
+    // preview that reports a write for every file the run would skip cannot answer the question a
+    // preview is run to answer. The case above pins the FRESH target, where `would-materialize` is
+    // the true answer for all seventeen; this one pins the UNCHANGED target, where it is false for
+    // all seventeen. Both directions, or the pin only says the branch exists.
+    const target = makeFixture();
+    const home = mkTmp();
+    writeTargetConfig(target, '{"models":{"preset":"tiered"}}\n');
+
+    // (a) THE PREMISE, ASSERTED RATHER THAN ASSUMED. Over a target that was never installed, the
+    // second dry run would report seventeen `skipped (source missing)` lines and this case would
+    // pass for a reason that has nothing to do with WR-01. So the real run's own materialized
+    // count is checked first: seventeen adapters are on disk before the preview is taken.
+    const first = runInstall(target, home);
+    expect(first.status).toBe(0);
+    expect(adapterReportLines(first.stdout, "materialized").length).toBe(17);
+
+    const tPre = snapshot(target);
+
+    // (b) The SAME direct spawn shape the fresh-target case above uses, so the two previews differ
+    // only in the state of the target they are taken over.
+    const r = spawnSync("node", [INSTALL_JS, "--yes"], {
+      encoding: "utf8",
+      env: { ...process.env, DRY_RUN: "1", INSTALL_MODE: "copy", GRUGOPS_SRC: REPO_ROOT, GRUGOPS_HOME: home, TARGET: target },
+    });
+    expect(r.status).toBe(0);
+
+    // (c) THE PREVIEW AGREES WITH THE RUN IT DESCRIBES. Every adapter a real re-run would skip is
+    // reported `skipped` in the preview, and nothing claims a write that would not happen.
+    expect(adapterReportLines(r.stdout ?? "", "skipped").length).toBe(17);
+    expect(adapterReportLines(r.stdout ?? "", "would-materialize")).toEqual([]);
+
+    // (d) ...and it is still a preview: the target is byte-unchanged.
+    expect(snapshot(target)).toBe(tPre);
+  });
+
   // ── THE WRITE BOUND (plan 29.2-04, CR-01 / VERIFICATION truth 10) ─────────────────────────────
   //
   // WHAT `dest` MAY BE. `materializeAdapter()` used to read and writeFileSync a target adapter

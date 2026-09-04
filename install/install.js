@@ -1829,10 +1829,6 @@ function materializeAdapter(src, dest, label, alias) {
         verify(`${label} — ${hazard}`);
         return;
     }
-    if (DRY_RUN) {
-        report("would-materialize", `${label} ${suffix}`);
-        return;
-    }
     const final = transformAdapter(readFileSync(src, "utf8")).text;
     let current = null;
     try {
@@ -1845,6 +1841,28 @@ function materializeAdapter(src, dest, label, alias) {
         // The identical wording linkOrCopy already prints for an identical copy — one sentence for one
         // fact, so a reader meeting either line reads the same thing.
         report("skipped", `${label} (identical copy present)`);
+        return;
+    }
+    // THE PREVIEW IS TAKEN FROM THE SAME COMPARISON AS THE RUN (plan 29.2-05, WR-01).
+    //
+    // This branch used to sit ABOVE the build-then-compare, so a preview reported `would-materialize`
+    // for every adapter whether or not the final bytes already matched. Measured against that build:
+    // over an unchanged target the preview printed 18 `would-materialize` and the real run printed 24
+    // `skipped` moments later. D-11's whole point — a re-run is a visible no-op and a refresh a
+    // visible change — was therefore invisible in exactly the place a user looks for it, which is
+    // before touching a money-adjacent dial.
+    //
+    // THIS REMOVES A DISAGREEMENT, IT DOES NOT ADD A RULE. linkOrCopy has always checked identity
+    // before its own DRY_RUN branch; the two write paths now answer "would this change?" the same way.
+    //
+    // BOTH READS ABOVE ARE SAFE UNDER A PREVIEW. The mirror exists under DRY_RUN (the run reports the
+    // resolution it read from it), and reading the destination is a read. `mkdirp` is already
+    // DRY_RUN-aware and now sits below this return, so it is not reached at all.
+    //
+    // THE PLAN-04 HAZARD GUARD STAYS ABOVE THIS. A preview over a hazardous destination is still a
+    // refusal: a preview that reads through a link is a read this installer was never entitled to.
+    if (DRY_RUN) {
+        report("would-materialize", `${label} ${suffix}`);
         return;
     }
     mkdirp(dirname(dest));
