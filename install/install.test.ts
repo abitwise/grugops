@@ -39,6 +39,7 @@ import {
   renameSync,
   existsSync,
   lstatSync,
+  realpathSync,
   statSync,
   chmodSync,
   symlinkSync,
@@ -2063,6 +2064,202 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     expect(staleLines.filter((l) => l.includes(planted))).toEqual([]);
     // No clean verdict is printed over a target whose adapters are links.
     expect(r.stdout).not.toContain("\nALL CHECKS PASSED\n");
+  });
+
+  it("write bound: an ANCESTOR directory symlink cannot carry a write outside the target (the leaf is a regular file)", () => {
+    if (process.platform === "win32") return; // SeCreateSymbolicLink — see the block comment above.
+
+    const target = makeFixture();
+    const home = mkTmp();
+    writeTargetConfig(target, '{"models":{"preset":"tiered"}}\n');
+    expect(runInstall(target, home).status).toBe(0);
+
+    const agentsDir = join(target, ".claude", "agents");
+    const before = installedAdapters(target);
+    expect(`installed adapters = ${before.length}`).toBe("installed adapters = 17");
+
+    // MOVE the adapter directory out of the target entirely, then link it back into place — the
+    // shape a user produces by pointing `.claude/agents` at a dotfiles repository.
+    const outside = mkTmp();
+    const moved = join(outside, "agents");
+    renameSync(agentsDir, moved);
+    symlinkSync(moved, agentsDir);
+
+    // PREMISE, AND THE WHOLE POINT OF THE CASE: the ANCESTOR is a link while every LEAF is an
+    // ordinary regular file. A leaf-only lstat guard answers FALSE here and writes all seventeen
+    // adapters outside the target, which is exactly what the pre-fix build was measured doing.
+    expect(`.claude/agents is a symlink = ${lstatSync(agentsDir).isSymbolicLink()}`).toBe(
+      ".claude/agents is a symlink = true",
+    );
+    const leafAbs = join(agentsDir, before[0]);
+    expect(`the leaf ${before[0]} is a symlink = ${lstatSync(leafAbs).isSymbolicLink()}`).toBe(
+      `the leaf ${before[0]} is a symlink = false`,
+    );
+
+    const movedPre = snapshot(moved);
+    writeTargetConfig(target, '{"models":{"preset":"none"}}\n');
+    const r = runInstall(target, home);
+
+    // NOT ONE BYTE LANDED IN THE DIRECTORY OUTSIDE THE TARGET.
+    expect(snapshot(moved)).toBe(movedPre);
+    expect(r.status).toBe(3);
+    expect(r.stdout).toContain(leafAbs);
+    expect(adapterReportLines(r.stdout, "materialized")).toEqual([]);
+  });
+
+  it("write bound: a DANGLING symlink at a target adapter path creates nothing outside the target", () => {
+    if (process.platform === "win32") return; // SeCreateSymbolicLink — see the block comment above.
+
+    const target = makeFixture();
+    const home = mkTmp();
+    writeTargetConfig(target, '{"models":{"preset":"tiered"}}\n');
+    expect(runInstall(target, home).status).toBe(0);
+
+    const outside = mkTmp();
+    const nowhere = join(outside, "nothing-is-here-yet.md");
+    const planted = installedAdapters(target)[0];
+    const plantedAbs = join(target, ".claude", "agents", planted);
+    rmSync(plantedAbs);
+    symlinkSync(nowhere, plantedAbs);
+
+    // PREMISE — THE ASYMMETRY THIS CASE EXISTS TO FREEZE. lstat sees a symlink; existsSync, which
+    // FOLLOWS the link, sees nothing. A guard narrowed to `existsSync(dest) && isSymlink(dest)`
+    // would therefore answer false here, and the pre-fix build was measured CREATING a brand-new
+    // file at the link's target path, outside the target, at exit 0. This case is the standing pin
+    // against that narrowing; it is not a second behaviour, it is a fence around the first.
+    expect(`lstat says symlink = ${lstatSync(plantedAbs).isSymbolicLink()}`).toBe("lstat says symlink = true");
+    expect(`existsSync(dest) = ${existsSync(plantedAbs)}`).toBe("existsSync(dest) = false");
+    expect(existsSync(nowhere)).toBe(false);
+
+    writeTargetConfig(target, '{"models":{"preset":"none"}}\n');
+    const r = runInstall(target, home);
+
+    // NOTHING WAS CREATED AT THE LINK'S TARGET PATH.
+    expect(existsSync(nowhere)).toBe(false);
+    expect(r.status).toBe(3);
+    expect(r.stdout).toContain(plantedAbs);
+  });
+
+  it("write bound: a leaf symlink under an ancestor-symlinked directory is decided by ONE named refusal", () => {
+    if (process.platform === "win32") return; // SeCreateSymbolicLink — see the block comment above.
+
+    const target = makeFixture();
+    const home = mkTmp();
+    writeTargetConfig(target, '{"models":{"preset":"tiered"}}\n');
+    expect(runInstall(target, home).status).toBe(0);
+
+    const agentsDir = join(target, ".claude", "agents");
+    const before = installedAdapters(target);
+    const planted = before[0];
+
+    // BOTH SHAPES AT ONCE: the directory is linked out of the target, AND one leaf inside it is
+    // itself a link to a sentinel somewhere else again. Two arms are eligible for one destination.
+    const outside = mkTmp();
+    const moved = join(outside, "agents");
+    renameSync(agentsDir, moved);
+    symlinkSync(moved, agentsDir);
+
+    const elsewhere = mkTmp();
+    const sentinel = join(elsewhere, "sentinel.md");
+    const sentinelBody = "SENTINEL — reached through two links, and still not to be written.\n";
+    writeFileSync(sentinel, sentinelBody);
+    rmSync(join(moved, planted));
+    symlinkSync(sentinel, join(moved, planted));
+
+    const plantedAbs = join(agentsDir, planted);
+    // PREMISE: both shapes are live.
+    expect(`.claude/agents is a symlink = ${lstatSync(agentsDir).isSymbolicLink()}`).toBe(
+      ".claude/agents is a symlink = true",
+    );
+    expect(`the leaf ${planted} is a symlink = ${lstatSync(plantedAbs).isSymbolicLink()}`).toBe(
+      `the leaf ${planted} is a symlink = true`,
+    );
+
+    const movedPre = snapshot(moved);
+    writeTargetConfig(target, '{"models":{"preset":"none"}}\n');
+    const r = runInstall(target, home);
+
+    expect(readFileSync(sentinel, "utf8")).toBe(sentinelBody);
+    expect(snapshot(moved)).toBe(movedPre);
+    expect(r.status).toBe(3);
+    expect(r.stdout).toContain(plantedAbs);
+    expect(adapterReportLines(r.stdout, "materialized")).toEqual([]);
+
+    // ONE REFUSAL, NOT TWO. The two arms are eligible for this destination and exactly one of them
+    // gets to speak: a predicate that returns the FIRST reason it finds, consumed by a call site
+    // that returns immediately, cannot emit two findings that disagree about one path.
+    const naming = r.stdout.split("\n").filter((l) => l.includes(plantedAbs));
+    expect(`lines naming ${planted} = ${naming.length}`).toBe(`lines naming ${planted} = 1`);
+  });
+
+  it("write bound: install and --check ask the SAME question about a destination, and a target whose realpath differs from its literal path still installs", () => {
+    const src = readFileSync(join(import.meta.dirname, "install.ts"), "utf8");
+
+    // ONE AUTHORITY FOR ONE PREDICATE. Two helpers answering "may I write through this path?" is
+    // the drift class this repository has spent four phases removing.
+    expect((src.match(/const adapterDestHazard/g) ?? []).length).toBe(1);
+
+    // ...AND BOTH CONSUMERS REACH THAT ONE NAME. The doctor body is bounded with the same two
+    // delimiters the D-09 structural case above uses, so the two cases cannot disagree about where
+    // the doctor begins and ends.
+    const doctorStart = src.indexOf("function doctor(): number {");
+    const doctorEnd = src.indexOf("\n// --- Doctor early-exit", doctorStart);
+    expect(`the doctor body is bounded: ${doctorStart >= 0 && doctorEnd > doctorStart}`).toBe(
+      "the doctor body is bounded: true",
+    );
+    expect(src.slice(doctorStart, doctorEnd)).toContain("adapterDestHazard(");
+
+    const mStart = src.indexOf("function materializeAdapter(");
+    const mEnd = src.indexOf("\nfunction ", mStart + 1);
+    expect(`materializeAdapter is bounded: ${mStart >= 0 && mEnd > mStart}`).toBe(
+      "materializeAdapter is bounded: true",
+    );
+    const mBody = src.slice(mStart, mEnd);
+    expect(mBody).toContain("adapterDestHazard(dest)");
+    // ...and it is asked BEFORE the destination is read, which is what makes the refusal precede
+    // D-11's skip-if-identical arm rather than follow it.
+    expect(
+      `hazard asked before dest is read: ${mBody.indexOf("adapterDestHazard(dest)") < mBody.indexOf("readFileSync(dest")}`,
+    ).toBe("hazard asked before dest is read: true");
+
+    // THE TEMPORAL DEAD ZONE. `--check` calls the doctor at an early exit part-way down this file;
+    // a const declared after it throws a ReferenceError on every --check run.
+    expect(
+      `declared above the --check early exit: ${src.indexOf("const adapterDestHazard") < src.indexOf("process.exit(doctor())")}`,
+    ).toBe("declared above the --check early exit: true");
+
+    // BOTH SIDES OF THE CONTAINMENT COMPARE ARE RESOLVED — two distinct realpathSync call sites
+    // inside the predicate, one target-derived and one destination-derived. See the behavioural
+    // half below for what a one-sided compare costs.
+    const hStart = src.indexOf("const adapterDestHazard");
+    const hEnd = src.indexOf("\n};", hStart);
+    const hBody = src.slice(hStart, hEnd);
+    expect((hBody.match(/realpathSync\(/g) ?? []).length).toBeGreaterThanOrEqual(2);
+    // ...and the lstat arm is NOT gated on existsSync, which would re-open the dangling shape.
+    // COMMENT LINES ARE FILTERED, the same way the D-09 structural case above filters them: the
+    // predicate's own comment SPELLS the forbidden form in order to forbid it, and a raw substring
+    // scan would read that prohibition as the thing it prohibits.
+    const hCode = hBody.split("\n").filter((l) => !/^\s*\/\//.test(l));
+    expect(hCode.filter((l) => /existsSync\(dest\)\s*&&\s*isSymlink\(dest\)/.test(l))).toEqual([]);
+
+    // ── THE BEHAVIOURAL HALF: THE RESOLVED-VS-LITERAL TRAP ──────────────────────────────────────
+    // Every fixture in this file is built under mkdtempSync(join(tmpdir(), "grugops-")). On macOS
+    // that returns a /var/folders/… path whose realpath is /private/var/folders/… — so a
+    // containment check comparing a RAW TARGET against a RESOLVED destination refuses EVERY install
+    // in this suite. This assertion is the standing pin: an ordinary install over an ordinary
+    // fixture still exits 0 and still installs seventeen adapters.
+    const target = makeFixture();
+    const home = mkTmp();
+    writeTargetConfig(target, '{"models":{"preset":"tiered"}}\n');
+    const r = runInstall(target, home);
+    expect(r.status).toBe(0);
+    expect(installedAdapters(target).length).toBe(17);
+    expect(adapterReportLines(r.stdout, "materialized").length).toBe(17);
+    // Recorded rather than asserted as an equality, because whether the two spellings differ is a
+    // property of the host filesystem: on macOS they do, and there this case IS the regression.
+    expect(`target realpath differs from its literal path: ${realpathSync(target) !== target}`).toContain(
+      "target realpath differs from its literal path:",
+    );
   });
 
   // ── THE THREE CROSS-CHECKS, DRIVEN BY A PATCHED GENERATOR TWIN ────────────────────────────────

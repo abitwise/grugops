@@ -43,8 +43,8 @@
 // KIT-02 / D-18: the adapter and skill sets are DERIVED at run time by reading $GRUGOPS_SRC — the
 // installer carries no adapter or skill name literal, and whether a source file is materialized or
 // plain-copied is decided by the resolver slot line in its own body (D-06), not by its filename.
-import { existsSync, mkdirSync, readFileSync, writeFileSync, appendFileSync, symlinkSync, copyFileSync, cpSync, rmSync, renameSync, readSync, readdirSync, lstatSync, mkdtempSync, } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { existsSync, mkdirSync, readFileSync, writeFileSync, appendFileSync, symlinkSync, copyFileSync, cpSync, rmSync, renameSync, readSync, readdirSync, lstatSync, mkdtempSync, realpathSync, } from "node:fs";
+import { basename, dirname, join, resolve, sep } from "node:path";
 import { homedir, tmpdir } from "node:os";
 // The mirror spawn (D-01). This is the ONLY import this file has ever needed beyond fs/path/os, and
 // it buys the whole render path: the generator stays the single renderer of the `model:` line, and
@@ -433,9 +433,65 @@ const adapterDestHazard = (dest) => {
             `Replace the link with a regular file (or remove it) and re-run; the installer never writes ` +
             `a target adapter through a link.`);
     }
-    // ARM 2 — the destination resolving OUTSIDE the target through a symlinked ANCESTOR directory —
-    // is added by task 2 of this plan. The return type is a NULLABLE REASON STRING rather than a
-    // boolean precisely so a second arm can name its own remedy without changing either consumer.
+    // ARM 2 — the DESTINATION RESOLVES OUTSIDE THE TARGET, through a symlinked ANCESTOR DIRECTORY.
+    // A LEAF-ONLY CHECK DOES NOT CATCH THIS, and that is a measurement, not a worry: with
+    // `.claude/agents` replaced by a link to a directory elsewhere, every leaf is an ordinary REGULAR
+    // FILE — arm 1 above answers false — and the pre-fix build wrote all seventeen adapters outside
+    // the target at exit 0. Watched RED against the leaf-only build before this arm was written: all
+    // seventeen content hashes in the moved-out directory changed.
+    //
+    // BOTH SIDES ARE RESOLVED, AND THAT IS LOAD-BEARING. On macOS `mkdtempSync(tmpdir())` returns a
+    // `/var/folders/…` path whose realpath is `/private/var/folders/…`. Comparing a RAW target
+    // against a RESOLVED destination therefore refuses EVERY legitimate install; a standing case in
+    // install.test.ts drives an ordinary install and asserts it still exits 0 with seventeen
+    // adapters, so this trap cannot be reintroduced quietly.
+    let resolvedTarget;
+    try {
+        resolvedTarget = realpathSync(TARGET);
+    }
+    catch {
+        return (`${TARGET} could not be resolved to a real path, so this run cannot say whether ${dest} is ` +
+            `inside it, and it will not write to a destination it cannot place. Nothing was written. ` +
+            `Check that the target directory exists and is readable, then re-run.`);
+    }
+    // A FRESH INSTALL MUST NOT BE REFUSED. On the first run `.claude/agents` does not exist yet and
+    // realpathSync throws ENOENT — so walk up to the nearest EXISTING ancestor and resolve THAT. The
+    // question this arm asks is which real directory the path would be created under, not whether it
+    // has been created yet.
+    let probe = dirname(dest);
+    while (!existsSync(probe)) {
+        const up = dirname(probe);
+        if (up === probe)
+            break; // filesystem root reached — resolve it and let the compare decide.
+        probe = up;
+    }
+    let resolvedDir;
+    try {
+        resolvedDir = realpathSync(probe);
+    }
+    catch {
+        // ANY OTHER RESOLUTION FAILURE IS A REFUSAL, NOT A FALLTHROUGH. "We could not tell" is not
+        // "it is fine", and a destination this run cannot place is not a destination it may write to.
+        return (`the directory ${probe} that would hold ${dest} could not be resolved to a real path, so ` +
+            `this run cannot say whether it is inside ${resolvedTarget}. Nothing was written.`);
+    }
+    // SEGMENT-WISE CONTAINMENT, NOT A BARE startsWith. A sibling directory whose name merely BEGINS
+    // with the target's name — `/tmp/repo-backup` beside `/tmp/repo` — is not a descendant of it, and
+    // a prefix compare would call it one.
+    if (resolvedDir !== resolvedTarget && !resolvedDir.startsWith(resolvedTarget + sep)) {
+        return (`${dest} resolves to ${join(resolvedDir, basename(dest))}, which is OUTSIDE the target ` +
+            `${resolvedTarget} — a directory on the way to it is a symbolic link into somewhere else. ` +
+            `Nothing was written there or anywhere else for this file. Replace the linked directory with ` +
+            `a real one, or install into the directory the link points at, and re-run; the installer only ` +
+            `writes adapters inside the target it was given.`);
+    }
+    // WHAT THIS PREDICATE DOES NOT REACH, STATED PLAINLY RATHER THAN LEFT TO BE INFERRED. A
+    // destination that is ITSELF A DIRECTORY (EISDIR) or is UNWRITABLE (EACCES) is NOT caught here:
+    // arm 2 resolves the destination's DIRECTORY, which for both of those shapes is an ordinary
+    // directory inside the target, so both still reach writeFileSync and both still throw uncaught
+    // exactly as they did before this phase. That is a loud crash, never a silent write, and it is
+    // pre-existing and deliberately not re-opened by this plan: `.planning/WINDOWS.md` ledger row 111
+    // and this phase's deferred-items.md row 2 carry it.
     return null;
 };
 // isoStamp: a filesystem-safe, millisecond-precision ISO timestamp — every ':' replaced with '-'
@@ -743,6 +799,9 @@ function doctor() {
                 // reworded here, so the sentence a reader meets on --check is the sentence they meet on the
                 // install that refused. Two wordings for one fact is two authorities for one fact.
                 const hazardReasons = [];
+                // unreadable: present, but not readable as a file (IN-03). Its own list for the same reason
+                // `hazardous` has one — `absent` must keep meaning genuinely absent.
+                const unreadable = [];
                 for (const name of docNames) {
                     let expected;
                     try {
@@ -763,13 +822,30 @@ function doctor() {
                     try {
                         actual = readFileSync(destPath, "utf8");
                     }
-                    catch {
+                    catch (e) {
+                        // IN-03. This catch used to collapse EVERY read failure to "absent from the target",
+                        // which is only true of ENOENT. A directory at that path, or an EACCES, is a PRESENT
+                        // thing this run could not read, and calling it missing names the wrong remedy — one
+                        // says "re-install", the other says "look at what is sitting there". `absent` keeps its
+                        // narrow meaning and everything else is reported separately.
                         actual = null;
+                        if (e?.code !== "ENOENT") {
+                            unreadable.push(name);
+                            continue;
+                        }
                     }
                     if (actual === null)
                         absent.push(name);
                     else if (actual !== expected)
                         stale.push(name);
+                }
+                if (unreadable.length > 0) {
+                    docWarn(`adapter staleness: ${unreadable.length} member(s) of the target's adapter set are ` +
+                        `present but could not be read — ${unreadable.join(", ")} — so NO VERDICT on ` +
+                        `adapter staleness was produced for them. Something IS at each of those paths under ` +
+                        `${join(TARGET, ".claude", "agents")}; it is not a file this run could open, so it ` +
+                        `is reported as absent or unreadable rather than as missing. Look at what is at each ` +
+                        `path — a directory and a permission denial need different remedies from a re-install.`);
                 }
                 if (hazardous.length > 0) {
                     docWarn(`adapter staleness: ${hazardous.length} member(s) of the target's adapter set sit at ` +
