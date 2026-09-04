@@ -885,7 +885,7 @@ Plans:
   2. **D-01 lands on an ordering conflict.** The adapter loop runs at `install/install.ts:1451`/`:1472`, but `seedState()` — which creates the target's config — runs at `:1555`. At adapter time there is no target config to resolve against.
   3. **D-03's premise is already true and its divergence does not exist.** All **17 of 17** adapters carry `MAT_SLOT` and route through `materializeAdapter()` (a `writeFileSync`), so adapters are copies under `--symlink` **today** and `INSTALL_MODE` never reaches an agent adapter on any path. D-03 was written to resolve a conflict that is not there.
 
-**Plans**: 2/3 plans executed *(discussed 2026-09-03, researched and planned 2026-09-04; D-01/D-02/D-03 were re-decided from scratch against the three tree facts above, not inherited)*
+**Plans**: 3/3 plans executed *(discussed 2026-09-03, researched and planned 2026-09-04; D-01/D-02/D-03 were re-decided from scratch against the three tree facts above, not inherited)*
 
 Plans:
 **Wave 1**
@@ -898,7 +898,7 @@ Plans:
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 29.2-03-PLAN.md — the 29.1 "inert for an installed target" disclosures rewritten to current truth (with the asserting test re-aimed in the same commit), the CHANGELOG entry, and an independent review plus an eight-hypothesis adversarial reproduction pass before the phase is called complete
+- [x] 29.2-03-PLAN.md — the 29.1 "inert for an installed target" disclosures rewritten to current truth (with the asserting test re-aimed in the same commit), the CHANGELOG entry, and an independent review plus an eight-hypothesis adversarial reproduction pass before the phase is called complete
 
 ### Phase 30: Per-Checkpoint Autonomy Matrix
 
