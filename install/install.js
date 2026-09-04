@@ -9,8 +9,13 @@
 // safety contract is a CLAUDE.md hard constraint). The committed compiled output is
 // install/install.js, which is what users run.
 //
-// Cross-platform (Windows / no-POSIX). Node stdlib ONLY: node:fs + node:path + node:os — ZERO npm
-// dependencies; the shipped/compiled .js needs nothing installed on host machines (D-05).
+// Cross-platform (Windows / no-POSIX). Node stdlib ONLY: node:fs + node:path + node:os +
+// node:child_process — ZERO npm dependencies; the shipped/compiled .js needs nothing installed on
+// host machines (D-05). node:child_process joined that list in phase 29.2 for exactly one reason:
+// the installer renders a target's adapters by SPAWNING the committed generator inside a temp
+// mirror (D-01), which is what keeps the `model:` line rendered by its one owner instead of
+// re-implemented here. The spawn is also the boundary that preserves D-18/D-28 — install/ still
+// imports nothing from scripts/.
 //
 // Contract (CLEAR PROFESSIONAL VOICE governs every report/warning/error string — safety surface):
 //   - additive    — never overwrites or deletes user content; appends via unique sentinels
@@ -38,9 +43,13 @@
 // KIT-02 / D-18: the adapter and skill sets are DERIVED at run time by reading $GRUGOPS_SRC — the
 // installer carries no adapter or skill name literal, and whether a source file is materialized or
 // plain-copied is decided by the resolver slot line in its own body (D-06), not by its filename.
-import { existsSync, mkdirSync, readFileSync, writeFileSync, appendFileSync, symlinkSync, copyFileSync, cpSync, rmSync, renameSync, readSync, readdirSync, lstatSync, } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync, appendFileSync, symlinkSync, copyFileSync, cpSync, rmSync, renameSync, readSync, readdirSync, lstatSync, mkdtempSync, } from "node:fs";
 import { dirname, join, resolve } from "node:path";
-import { homedir } from "node:os";
+import { homedir, tmpdir } from "node:os";
+// The mirror spawn (D-01). This is the ONLY import this file has ever needed beyond fs/path/os, and
+// it buys the whole render path: the generator stays the single renderer of the `model:` line, and
+// install/ reaches it as a child process rather than as a module.
+import { spawnSync } from "node:child_process";
 // KIT-02 / D-28: the ONE derivation of "what is in the kit source", shared with uninstall.ts. It
 // used to be defined here and hand-synced into uninstall.ts; that pair drifted twice inside phase 27
 // (CR-02), so it was collapsed into a single sibling module. kit-source.ts is inside install/ by
@@ -1006,6 +1015,171 @@ function copyKit(retainBackup = false) {
     }
     report("copied", `kit → ${KIT_ROOT}`);
 }
+// ---------------------------------------------------------------------------
+// THE INSTALL-TIME ADAPTER RENDER (phase 29.2 — D-01, D-02, D-05, D-06).
+//
+// A target repository may carry a `models` block at .grugops/factory.config.json, and the seventeen
+// sub-agent adapters that repository loads must carry the aliases that block resolves to. The
+// `model:` line has exactly ONE renderer in this tree — scripts/generate-role-adapters — so the
+// installer does not re-implement any part of it. It mirrors that generator's committed import
+// closure into a temp tree, drops the TARGET's own configuration file in as the one new input,
+// spawns the mirrored generator, and hands the rendered bytes to materializeAdapter() below.
+//
+// THE SPAWN IS THE BOUNDARY, AND IT IS WHAT PRESERVES D-18/D-28 RATHER THAN REVERSING IT. install/
+// still imports nothing from scripts/: a path literal joined against GRUGOPS_SRC and handed to
+// cpSync adds NO EDGE to this module's import graph, while an `import` statement naming a scripts/
+// module would. A host still runs the committed installer with the scripts/ layer absent — it then
+// gets a named refusal from the missing-twins branch below, never a silent wrong answer.
+//
+// THE RENDER RUNS FROM GRUGOPS_SRC, NEVER FROM THE KIT HOME (D-02). Install is invoked as
+// `node install/install.js` out of a checkout, so GRUGOPS_SRC is always present; a target refresh
+// is a re-run of install from that checkout. copyKit ships nothing new into $GRUGOPS_HOME and its
+// contract is byte-unchanged.
+//
+// THE TWIN LIST IS THE GENERATOR'S IMPORT CLOSURE AND MUST TRACK IT. It is hand-written rather than
+// derived, and that is the same deliberate trade scripts/adapters-freshness.ts records above its own
+// copy: deriving it would mean writing a grammar for "what does this module import" inside an
+// installer, which is a second grammar of exactly the kind this milestone exists to delete. The
+// trade is acceptable only because the FAILURE DIRECTION IS LOUD — an unmirrored import makes the
+// mirrored generator fail to resolve it and exit non-zero, the fail-closed branch below reports a
+// render that did not run, and R-5 then installs NO adapter at all rather than a stale one. It can
+// never quietly install while one file short.
+//
+// THE LIST IS FOUR, NOT FIVE. canonical-frontmatter.js is NOT in the generator's import closure —
+// the generator reads frontmatter through frontmatter.js — so mirroring it would copy a file
+// nothing in the mirror opens. install.test.ts pins both the membership and the integer.
+const GENERATOR_TWINS = [
+    "scripts/generate-role-adapters.js",
+    "scripts/kit-model.js",
+    "scripts/frontmatter.js",
+    "scripts/model-tiers.js",
+];
+// The kit sources the mirrored generator reads. agent-factory/config is DELIBERATELY ABSENT, and
+// that absence is load-bearing: it is what makes D-06 true BY CONSTRUCTION. The resolver tries
+// .grugops/factory.config.json first and agent-factory/config/factory.config.json second, first
+// existing file wins WHOLE — so a second candidate that cannot exist inside the mirror is a
+// shadowing that cannot recur inside a target's render.
+const GENERATOR_KIT_SOURCES = ["agent-factory/roles", "agent-factory/packaging"];
+// The mirror's module-type declaration. The committed twins are ES modules with a BARE `.js`
+// extension, and Node decides that from the nearest package.json `type` field. A mkdtemp directory
+// under the system temp root has no package.json above it, and implicit-ESM detection for a bare
+// `.js` only became the default in Node 22.12 — on 22.0 through 22.11 the mirrored generator would
+// die with a syntax error about an import statement, and R-5 would turn that into an install that
+// laid down no adapter at all. One file at the mirror root states the fact outright: no directory
+// is added, no dependency is introduced, and the mirror stops depending on which Node minor the
+// host happens to run.
+const MIRROR_PACKAGE_JSON = '{"type":"module"}\n';
+// renderAdaptersInMirror: build the mirror, run the generator in it, and hand the result to `use`.
+//
+// A HOISTED DECLARATION, NOT A CONST ARROW, and it takes ONE argument — a callback. Both are
+// deliberate. The declaration form means the install run below and any later caller reach it without
+// a temporal-dead-zone hazard, wherever they sit in the file. The callback means the mirror
+// directory lives EXACTLY as long as the block that reads it: `use` is invoked inside this
+// function's own `try`, the `finally` removes the tree on every path out including a throw, and no
+// directory handle can escape to be read after cleanup.
+function renderAdaptersInMirror(use) {
+    // 1. The twins, checked BEFORE anything is created. An absent twin is the partial-checkout shape,
+    //    and it is reported as the ABSENCE OF A VERDICT rather than as a clean one — the same
+    //    unreadable-versus-empty distinction install/kit-source.ts draws for its own derivations.
+    const missingTwins = GENERATOR_TWINS.filter((rel) => !existsSync(join(GRUGOPS_SRC, ...rel.split("/"))));
+    if (missingTwins.length > 0) {
+        use({
+            ok: false,
+            reason: `the adapter render could not start: ${missingTwins.length} of ${GENERATOR_TWINS.length} ` +
+                `compiled generator file(s) are absent from the kit checkout at ${GRUGOPS_SRC} — ` +
+                `${missingTwins.join(", ")}. NO VERDICT on this target's adapters was produced, which is a ` +
+                `different fact from a clean one: the render was never able to run, so what these adapters ` +
+                `should contain is unknown rather than known to be unchanged. Re-run the installer from a ` +
+                `complete kit checkout, or run the kit's build there so the committed .js twins exist.`,
+        });
+        return;
+    }
+    const dir = mkdtempSync(join(tmpdir(), "grugops-install-render-"));
+    try {
+        // 2. The mirror layout. Only these directories are created here; agent-factory/roles and
+        //    agent-factory/packaging arrive through cpSync below, and no agent-factory/config path is
+        //    ever built inside the mirror (D-06).
+        mkdirSync(join(dir, "scripts"), { recursive: true });
+        mkdirSync(join(dir, ".claude", "agents"), { recursive: true });
+        writeFileSync(join(dir, "package.json"), MIRROR_PACKAGE_JSON);
+        for (const rel of GENERATOR_TWINS) {
+            cpSync(join(GRUGOPS_SRC, ...rel.split("/")), join(dir, ...rel.split("/")));
+        }
+        for (const rel of GENERATOR_KIT_SOURCES) {
+            cpSync(join(GRUGOPS_SRC, ...rel.split("/")), join(dir, ...rel.split("/")), {
+                recursive: true,
+            });
+        }
+        // 3. THE ONE NEW INPUT (D-05, D-06). The target's own configuration file, copied WHOLESALE and
+        //    only when it already exists. Nothing is ever read out of it on this side and joined onto a
+        //    path (T-29.2-03): the file crosses the boundary as bytes, and only the generator reads
+        //    values from it. When the file is absent the generator takes its own zero-config path, which
+        //    is the same answer the seed written later in this run would give, since the seed carries no
+        //    `models` key — so a fresh install has no non-inherit answer to miss (D-05).
+        const targetConfig = join(TARGET, ".grugops", "factory.config.json");
+        let configPath = null;
+        if (existsSync(targetConfig)) {
+            mkdirSync(join(dir, ".grugops"), { recursive: true });
+            copyFileSync(targetConfig, join(dir, ".grugops", "factory.config.json"));
+            configPath = targetConfig;
+        }
+        // 4. The spawn. `process.execPath` rather than a bare launcher name, so there is no PATH or
+        //    PATHEXT lookup and the interpreter is the one already running (T-29.2-01). NEVER a `shell`
+        //    option, and no target-derived string appears in argv.
+        //
+        //    THE CHILD ENVIRONMENT IS INHERITED, AND THAT IS A STATEMENT ABOUT TODAY. The generator
+        //    reads NO resolution-affecting environment variable: its ROOT and OUT_DIR are fixed literals
+        //    resolved against its own location inside the mirror, and its configuration comes from the
+        //    file copied in above. If one is ever added, it MUST be deleted from the child environment
+        //    BY NAME here — the rule scripts/adapters-freshness.ts already applies to its own CHECK_ROOT
+        //    override, and for the same reason: an inherited override would silently point the render at
+        //    a different resolution than the one this run is reporting.
+        const child = spawnSync(process.execPath, [join(dir, "scripts", "generate-role-adapters.js")], {
+            encoding: "utf8",
+            env: process.env,
+        });
+        // 5. Fail-closed. A non-zero status, or a spawn that produced no status at all, installs
+        //    nothing. The generator's OWN message is relayed verbatim — it already names the role, the
+        //    offending value and the legal set (D-03), and re-authoring that sentence here would be a
+        //    second refusal grammar drifting away from the first.
+        if (child.status !== 0) {
+            const detail = `${child.stderr ?? ""}${child.stdout ?? ""}`.trim();
+            use({
+                ok: false,
+                reason: `the adapter render did not complete: the mirrored generator exited ` +
+                    `${child.status === null ? "without a status" : String(child.status)}` +
+                    `${child.error ? ` (${child.error.message})` : ""}. Its own message follows verbatim:\n` +
+                    `${detail === "" ? "  (the generator produced no output)" : detail}`,
+            });
+            return;
+        }
+        // 6. The rendered set, DERIVED by reading the mirror's own output directory. An unreadable
+        //    directory is its own condition with its own remedy, never folded into the branch above.
+        let files;
+        try {
+            files = readdirSync(join(dir, ".claude", "agents"))
+                .filter((name) => name.endsWith(".md"))
+                .sort();
+        }
+        catch (e) {
+            use({
+                ok: false,
+                reason: `the adapter render ran cleanly but its output directory could not be read ` +
+                    `(${e instanceof Error ? e.message : String(e)}), so the rendered set is unknown. This is ` +
+                    `not the same fact as an empty render: nothing was read, so nothing is known. No adapter ` +
+                    `was installed. Check that the system temporary directory is writable and re-run.`,
+            });
+            return;
+        }
+        use({ ok: true, value: { dir, files, stdout: child.stdout ?? "", configPath } });
+    }
+    finally {
+        // The installer has many exit paths and registers no exit handler, so cleanup is a `finally`
+        // around the whole body rather than a process-level hook. `maxRetries` covers a Windows host
+        // where a just-closed child still holds a handle for a moment (T-29.2-05).
+        rmSync(dir, { recursive: true, force: true, maxRetries: 3 });
+    }
+}
 // materializeAdapter: lay an adapter down from $GRUGOPS_SRC and inject the resolved KIT line
 // above the slot, stripping any prior grugops:materialized-kit block first (strip-then-inject,
 // content-idempotent — Pitfall 1). Preserves the blockquote (SC2) and self-heal line (gate
@@ -1371,15 +1545,70 @@ else if (SRC_ADAPTERS.length === 0) {
         `directory and needs a different remedy: check the kit source, not the checkout.`);
 }
 else {
-    for (const f of SRC_ADAPTERS) {
-        const src = join(GRUGOPS_SRC, ".claude", "agents", f);
-        const dest = join(TARGET, ".claude", "agents", f);
-        const label = `.claude/agents/${f}`;
-        if (srcCarriesSlot(src))
-            materializeAdapter(src, dest, label);
-        else
-            linkOrCopy(src, dest, label);
-    }
+    // THE BYTE SOURCE IS THE RENDER; THE SET IS STILL srcAdapterFiles(GRUGOPS_SRC) (D-01, phase 29.2).
+    //
+    // Keeping SRC_ADAPTERS as the install SET is not a detail. install/uninstall.ts derives its
+    // removal set from that SAME call, so an install set taken from the mirror instead would place a
+    // file the reversal cannot see — the CR-02/D-28 defect that shipped once already. The mirror is
+    // the per-member BYTE source and nothing more.
+    //
+    // The whole arm runs INSIDE the render callback, so the mirror exists for exactly the span that
+    // reads it and is removed on every path out.
+    renderAdaptersInMirror((render) => {
+        // The REAL file on this machine. Named in every finding below because the generator's own
+        // message names a temporary mirror path that does not exist on the user's filesystem.
+        const targetConfigFile = join(TARGET, ".grugops", "factory.config.json");
+        if (!render.ok) {
+            // R-5: NO FALLBACK BYTE SOURCE. Falling back to the kit-shipped adapter bytes would be a
+            // second byte source and a silent downgrade of a configured target to `inherit` — the shape
+            // D-03 and D-11 both reject. A render that did not complete installs nothing, names the
+            // condition, lets every other install class finish, and the run reports itself INCOMPLETE.
+            verify(`.claude/agents/ — ${render.reason}\n` +
+                `                 No adapter was installed, and every adapter already in ` +
+                `${join(TARGET, ".claude", "agents")} was left exactly as it was. The model configuration ` +
+                `this run reads is ${targetConfigFile}; any path inside the relayed message above is a ` +
+                `temporary mirror that no longer exists.`);
+            return;
+        }
+        // SET EQUALITY IN BOTH DIRECTIONS, BEFORE THE FIRST WRITE. Asserted with every extra and every
+        // missing member NAMED: a bare count disagreement would say that the two sets differ and never
+        // which member is the problem. The render runs to completion and is checked here, so rendering
+        // and materializing are never interleaved.
+        const rendered = render.value.files;
+        const extra = SRC_ADAPTERS.filter((name) => !rendered.includes(name));
+        const missing = rendered.filter((name) => !SRC_ADAPTERS.includes(name));
+        if (extra.length > 0 || missing.length > 0) {
+            let why = `.claude/agents/ — the install set derived from ${join(GRUGOPS_SRC, ".claude", "agents")} ` +
+                `(${SRC_ADAPTERS.length} member(s)) is not the set the render produced ` +
+                `(${rendered.length} member(s)), so this run cannot vouch for the bytes it would write.`;
+            if (extra.length > 0) {
+                why +=
+                    `\n                 ${extra.length} member(s) in the kit source that the render does not ` +
+                        `produce: ${extra.join(", ")}`;
+            }
+            if (missing.length > 0) {
+                why +=
+                    `\n                 ${missing.length} member(s) the render produces that the kit source ` +
+                        `does not carry: ${missing.join(", ")}`;
+            }
+            verify(`${why}\n` +
+                `                 No adapter was installed and every pre-existing target adapter was left ` +
+                `as it was. Re-run the installer from a complete kit checkout whose adapter directory ` +
+                `matches its role corpus.`);
+            return;
+        }
+        for (const f of SRC_ADAPTERS) {
+            // The src is the RENDERED file. Routing stays srcCarriesSlot on the src that is actually
+            // being read, so routing and injection still cannot disagree about the same bytes.
+            const src = join(render.value.dir, ".claude", "agents", f);
+            const dest = join(TARGET, ".claude", "agents", f);
+            const label = `.claude/agents/${f}`;
+            if (srcCarriesSlot(src))
+                materializeAdapter(src, dest, label);
+            else
+                linkOrCopy(src, dest, label);
+        }
+    });
 }
 // The flat-directory contract, refused BY NAME rather than silently skipped (T-27-62). See
 // srcNestedAdapterFiles() for why the install set stays flat while the platform recurses.

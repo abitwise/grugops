@@ -41,6 +41,7 @@ import {
   lstatSync,
   chmodSync,
   symlinkSync,
+  cpSync,
 } from "node:fs";
 import { join, resolve, dirname } from "node:path";
 import { tmpdir } from "node:os";
@@ -79,6 +80,15 @@ import { createHash } from "node:crypto";
 // If the locked decision is ever revisited, this import and those cases are what to delete along
 // with the duplicate. Drives the COMMITTED .js — the repo idiom.
 import { listAgentAdapters, listSkillAdapters } from "../scripts/kit-model.js";
+
+// THE CLOSED ALIAS VOCABULARY, IMPORTED HERE FOR THE SAME REASON AND UNDER THE SAME EXCEPTION
+// (29.2-01). The model-delivery cases below assert that every alias an installed adapter carries is
+// a member of the legal set, and that a refusal names that whole set. Both facts are ABOUT the
+// vocabulary scripts/model-tiers.ts closes, so the test reads them from that module rather than
+// restating four strings — a restated copy would keep passing after the set moved, which is the
+// drift class this repository names as its second systemic failure. install.ts itself still imports
+// nothing from scripts/; that boundary is about the INSTALLER's module graph, and this is the test.
+import { MODEL_ALIASES } from "../scripts/model-tiers.js";
 
 // THE INSTALLER-SIDE WALK, IMPORTED DIRECTLY (D-35/D-36). The boundary cases below need to examine
 // MAX_WALK_ENTRIES+1 directory entries; driving that through a full installer subprocess would
@@ -254,13 +264,60 @@ function runUninstall(target: string, home: string, ...args: string[]): { status
 // the ONLY routing signal the installer uses to decide materialize-vs-plain-copy (D-06).
 const MAT_SLOT = "# 1. (installed) the absolute kit path the installer wrote above this line.";
 
-// Seventeen synthetic adapters. grugops-orchestrator.md is included deliberately: it is the ONE
-// adapter an already-installed v2.0 repo carries, so the update case can pre-seed exactly that
-// single-adapter layout and prove the other sixteen are laid down by the run.
-const SYNTH_ADAPTERS: string[] = [
-  "grugops-orchestrator.md",
-  ...Array.from({ length: 16 }, (_, i) => `grugops-synthetic-role-${String(i + 1).padStart(2, "0")}.md`),
-].sort();
+// THE SYNTHETIC ADAPTER SET IS DERIVED FROM THE REAL ONE (29.2-01, D-01).
+//
+// It used to be seventeen invented names — `grugops-synthetic-role-01.md` and friends — so the
+// derived-install cases asserted the DERIVATION and depended on no real adapter existing. Phase
+// 29.2 makes the installer render each agent adapter by spawning the committed generator inside a
+// temp mirror, and the generator derives its output names from `agent-factory/roles`. The install
+// SET stays `srcAdapterFiles($GRUGOPS_SRC)` and the mirror is only the per-member BYTE source, so
+// the two are cross-checked for SET EQUALITY IN BOTH DIRECTIONS before anything is written; an
+// invented name is a member the render cannot produce, and under R-5 (no fallback byte source) that
+// disagreement installs nothing at all.
+//
+// So the fixture is COUPLED TO THE REAL ROLES CORPUS ON PURPOSE, where it was deliberately
+// decoupled before. What the derived-install cases lose is independence from the role corpus; what
+// they keep — and what every one of them actually asserts — is that the installer's set comes from
+// reading $GRUGOPS_SRC at run time and carries no adapter name literal anywhere in install.ts. The
+// names below are still never written down here: they are read from the ONE authority for "what is
+// an adapter", exactly as the conformance case reads them.
+//
+// grugops-orchestrator.md is a member of the real set too, so the 17-adapter update case can still
+// pre-seed exactly the single-adapter v2.0 layout it needs.
+const SYNTH_ADAPTERS: string[] = listAgentAdapters(REPO_ROOT).slice().sort();
+
+// THE GENERATOR'S IMPORT CLOSURE AND KIT INPUTS, MIRRORED INTO EVERY SYNTHETIC SOURCE (29.2-01).
+//
+// A synthetic $GRUGOPS_SRC must now be RENDERABLE: the installer copies these same paths out of
+// $GRUGOPS_SRC into its own temp mirror and spawns the generator there. A source missing them
+// produces no adapter at all (R-5), which would turn every derived-install case below into an
+// assertion about a fail-closed branch instead of about the derivation it was written for.
+//
+// THE MEMBERSHIP IS PINNED AGAINST install.ts's OWN LIST by a case in this file, so this fixture
+// cannot silently fall one file behind the installer's closure. It is not a second authority — it
+// is a fixture asserted equal to the authority.
+const SYNTH_GENERATOR_TWINS: string[] = [
+  "scripts/generate-role-adapters.js",
+  "scripts/kit-model.js",
+  "scripts/frontmatter.js",
+  "scripts/model-tiers.js",
+];
+const SYNTH_GENERATOR_KIT_SOURCES: string[] = ["agent-factory/roles", "agent-factory/packaging"];
+
+// plantRenderInputs — make a throwaway $GRUGOPS_SRC renderable by the install-time mirror spawn.
+// Copies the four committed generator twins file-wise and the two kit source trees recursively, all
+// out of the real repository. It plants NO `agent-factory/config`: the installer never copies that
+// into its mirror either (D-06), and a fixture that shipped one would be asserting against a shape
+// the installer cannot produce.
+function plantRenderInputs(src: string): void {
+  mkdirSync(join(src, "scripts"), { recursive: true });
+  for (const rel of SYNTH_GENERATOR_TWINS) {
+    cpSync(join(REPO_ROOT, ...rel.split("/")), join(src, ...rel.split("/")));
+  }
+  for (const rel of SYNTH_GENERATOR_KIT_SOURCES) {
+    cpSync(join(REPO_ROOT, ...rel.split("/")), join(src, ...rel.split("/")), { recursive: true });
+  }
+}
 
 // Seven synthetic skills; only the resolver skill carries the slot line (mirrors the real kit).
 const SYNTH_SKILLS = [
@@ -298,10 +355,11 @@ function makeSymlinkDag(dir: string, n: number): void {
 
 function makeSyntheticSrc(): string {
   const src = mkTmp();
-  mkdirSync(join(src, "agent-factory", "roles"), { recursive: true });
+  // The render inputs FIRST: the roles corpus this plants is what decides the rendered adapter
+  // names, and SYNTH_ADAPTERS is derived from the same corpus in the real repository.
+  plantRenderInputs(src);
   mkdirSync(join(src, "agent-factory", "seed", ".grugops"), { recursive: true });
   mkdirSync(join(src, ".claude", "agents"), { recursive: true });
-  writeFileSync(join(src, "agent-factory", "roles", "orchestrator.md"), "SYNTHETIC KIT ROLE\n");
   writeFileSync(join(src, "agent-factory", "VERSION"), "0.0.0-synthetic\n");
   writeFileSync(join(src, "agent-factory", "seed", ".grugops", "factory.config.json"), '{"seed":true}\n');
   for (const a of SYNTH_ADAPTERS) {
@@ -325,6 +383,26 @@ function makeSyntheticSrc(): string {
     );
   }
   return src;
+}
+
+// linkifyMember — REPLACE an existing source adapter with a SYMLINK to ANOTHER existing member of
+// the same directory. The set is unchanged in NAME and in CARDINALITY; what changes is one member's
+// REPRESENTATION, which is exactly what WR-02 is about: readdirSync(withFileTypes) reports a symlink
+// as isSymbolicLink() — NEITHER isFile() NOR isDirectory() — so a Dirent-flag filter drops it while
+// a statSync filter (which FOLLOWS the link, as the platform does) keeps it. A derivation that
+// diverges on that flag still installs a member the reversal cannot see, or the other way round.
+//
+// WHY IT REPLACES RATHER THAN ADDS (29.2-01). These plants used to ADD an eighteenth adapter. The
+// installer now cross-checks its install set against the mirror's RENDERED set for equality in both
+// directions, and the render produces exactly the names the roles corpus defines — so an added
+// eighteenth is a member no render can produce, and the run would refuse the whole adapter class
+// instead of exercising the derivation these cases are about. Replacing an existing member keeps the
+// forcing function intact and removes the false disagreement: the link and its target remain two
+// DISTINCT members of one directory, which is the KIT-01 adjacency edge the cases pin.
+function linkifyMember(src: string, linkName: string, targetName: string): void {
+  const agents = join(src, ".claude", "agents");
+  rmSync(join(agents, linkName), { force: true });
+  symlinkSync(join(agents, targetName), join(agents, linkName));
 }
 
 // ── THE CR-02 UNREADABLE-NEST FIXTURE, BUILT ONCE AND SHARED (D-41) ──────────────────────────
@@ -531,8 +609,19 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     const target = makeFixture();
     const home = mkTmp();
     mkdirSync(join(target, ".grugops"), { recursive: true });
-    writeFileSync(join(target, ".grugops", "factory.config.json"), "SENTINEL-USER-CONFIG-DO-NOT-CLOBBER\n");
+    // THE SENTINEL IS VALID JSON (29.2-01). It used to be a bare token, which was fine when nothing
+    // read this file during an install. The adapter render now hands the target's own configuration
+    // to the mirrored generator, and a present-but-unparseable configuration is a NAMED REFUSAL by
+    // design (D-03) — "a user who edited that file meant something by it" — so a garbage body would
+    // make this case assert the refusal path rather than the never-overwrite contract it is for.
+    // The contract asserted is unchanged: the exact bytes present before the run are present after.
+    writeFileSync(
+      join(target, ".grugops", "factory.config.json"),
+      '{ "_sentinel": "SENTINEL-USER-CONFIG-DO-NOT-CLOBBER" }\n',
+    );
+    const preConfig = readFileSync(join(target, ".grugops", "factory.config.json"), "utf8");
     expect(runInstall(target, home).status).toBe(0);
+    expect(readFileSync(join(target, ".grugops", "factory.config.json"), "utf8")).toBe(preConfig);
     expect(readFileSync(join(target, ".grugops", "factory.config.json"), "utf8")).toContain("SENTINEL-USER-CONFIG-DO-NOT-CLOBBER");
   });
 
@@ -898,6 +987,289 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     expect(snapshot(target)).toBe(pre);
   });
 
+  // ─────────────────────────────────────────────────────────────────────────────────────────────
+  // MODEL DELIVERY (Phase 29.2, D-01 … D-06). A `models` block written into a TARGET repository
+  // reaches THAT repository's adapters.
+  //
+  // These cases drive the REAL repository as $GRUGOPS_SRC through runInstall, because the render is
+  // performed by the committed generator against the real `agent-factory/roles` corpus and the
+  // aliases asserted below are what that corpus resolves to. Each one asserts its FIXTURE PREMISE
+  // before the effect — that the configuration file exists (or does not) at the exact path the
+  // installer reads, and that the pre-state carries what the case claims — so a case can never pass
+  // by observing a fixture it did not build.
+  // ─────────────────────────────────────────────────────────────────────────────────────────────
+
+  // targetConfigPath — the ONE location the installer hands to the render (D-06). Written once here
+  // so no case spells the path twice and then asserts against its own second spelling.
+  const targetConfigPath = (target: string): string => join(target, ".grugops", "factory.config.json");
+
+  // writeTargetConfig — plant a configuration file at that location, creating the directory.
+  function writeTargetConfig(target: string, body: string): string {
+    const p = targetConfigPath(target);
+    mkdirSync(dirname(p), { recursive: true });
+    writeFileSync(p, body);
+    return p;
+  }
+
+  // targetModelLines — the alias every installed agent adapter carries, read off the bytes in the
+  // TARGET. The set of adapters is DERIVED from the target listing, never written down, and each
+  // file must carry EXACTLY ONE `model:` line: zero or two are different defects from a wrong
+  // value, and folding them into "the first match" would hide both.
+  function targetModelLines(target: string): string[] {
+    return installedAdapters(target).map((rel) => {
+      const found = readFileSync(join(target, ".claude", "agents", rel), "utf8")
+        .split("\n")
+        .filter((l) => l.startsWith("model: "));
+      expect(`${rel}: model lines = ${found.length}`).toBe(`${rel}: model lines = 1`);
+      return found[0].slice("model: ".length);
+    });
+  }
+
+  it("model delivery: a target with NO configuration file installs adapters that ALL resolve `inherit` (D-05)", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    // PREMISE: the file the installer reads does not exist yet — a fresh install has nothing to
+    // resolve, and D-05 says the seed it writes afterwards would give the same answer anyway.
+    expect(existsSync(targetConfigPath(target))).toBe(false);
+
+    expect(runInstall(target, home).status).toBe(0);
+
+    const models = targetModelLines(target);
+    // The count is DERIVED from the target listing rather than written as a literal...
+    expect(models.length).toBe(installedAdapters(target).length);
+    // ...and pinned as an integer beside it, so a listing that silently shrinks fails the number
+    // instead of making the set comparison vacuous.
+    expect(models.length).toBe(17);
+    expect([...new Set(models)]).toEqual(["inherit"]);
+  });
+
+  it("model delivery: a `tiered` target's adapters carry the aliases that preset resolves to (D-01, D-06)", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    const configPath = writeTargetConfig(target, '{"models":{"preset":"tiered"}}\n');
+    // PREMISE: the planted file is exactly where the installer will look for it.
+    expect(existsSync(configPath)).toBe(true);
+
+    expect(runInstall(target, home).status).toBe(0);
+
+    const models = targetModelLines(target);
+    expect(models.length).toBe(installedAdapters(target).length);
+    expect(models.length).toBe(17);
+    // Both tallies in ONE assertion so a failure prints both numbers rather than the first to trip.
+    const tally = (alias: string): number => models.filter((m) => m === alias).length;
+    expect(`opus=${tally("opus")} sonnet=${tally("sonnet")}`).toBe("opus=4 sonnet=13");
+    expect([...new Set(models)].sort()).toEqual(["opus", "sonnet"]);
+    // Every value is a member of the closed vocabulary the resolver owns — never a full model id.
+    for (const m of models) {
+      expect(`${m}: legal alias = ${(MODEL_ALIASES as readonly string[]).includes(m)}`).toBe(
+        `${m}: legal alias = true`,
+      );
+    }
+    // The seeded config is USER content and survives untouched (D-04) — the render reads it, it
+    // never rewrites it.
+    expect(readFileSync(configPath, "utf8")).toBe('{"models":{"preset":"tiered"}}\n');
+  });
+
+  it("model delivery: an ILLEGAL `models` value refuses the adapter class by name; every other class completes (D-03, R-5)", () => {
+    const badValue = "claude-opus-4-1-20250805";
+    const badConfig = `{"models":{"roles":{"orchestrator":"${badValue}"}}}\n`;
+
+    // ── ARM 1: A FRESH TARGET. No adapter is installed AT ALL, and the marker plus the seeded
+    // memory-bank index still land — "report, don't abort" over a class the run could not do.
+    const fresh = makeFixture();
+    const freshHome = mkTmp();
+    const freshConfig = writeTargetConfig(fresh, badConfig);
+    expect(existsSync(freshConfig)).toBe(true);
+    expect(existsSync(join(fresh, ".claude", "agents"))).toBe(false);
+
+    const r = runInstall(fresh, freshHome);
+    expect(r.status).toBe(3);
+    expect(r.stdout).toContain("install INCOMPLETE");
+    expect(r.stdout).not.toContain("== install complete");
+    // R-5: no fallback byte source. Falling back to the kit's own adapters would silently downgrade
+    // a configured target to `inherit`, which is the exact repudiation D-03 and D-11 both reject.
+    expect(installedAdapters(fresh)).toEqual([]);
+    // The generator's OWN refusal is relayed verbatim: the role, the offending value, the legal set.
+    expect(r.stdout).toContain("orchestrator");
+    expect(r.stdout).toContain(badValue);
+    for (const alias of MODEL_ALIASES) {
+      expect(`legal set names ${alias}: ${r.stdout.includes(`"${alias}"`)}`).toBe(
+        `legal set names ${alias}: true`,
+      );
+    }
+    // ...plus ONE installer-authored line naming the REAL file on this machine. The generator's
+    // message names a temp mirror path that does not exist here, which is why this line exists.
+    expect(r.stdout).toContain(freshConfig);
+    // EVERY OTHER CLASS STILL COMPLETED (kit-source's report-don't-abort posture).
+    expect(existsSync(join(fresh, ".grugops", "install.json"))).toBe(true);
+    expect(existsSync(join(fresh, "memory-bank", "00-index.md"))).toBe(true);
+    expect(installedSkills(fresh).length).toBe(7);
+
+    // ── ARM 2: A TARGET THAT WAS ALREADY INSTALLED. Every pre-existing adapter is BYTE-UNCHANGED —
+    // a refused render never half-writes and never rewrites.
+    const seeded = makeFixture();
+    const seededHome = mkTmp();
+    expect(runInstall(seeded, seededHome).status).toBe(0);
+    const before = snapshot(join(seeded, ".claude", "agents"));
+    expect(before).not.toBe("");
+    writeTargetConfig(seeded, badConfig);
+
+    const r2 = runInstall(seeded, seededHome);
+    expect(r2.status).toBe(3);
+    expect(r2.stdout).toContain("install INCOMPLETE");
+    expect(snapshot(join(seeded, ".claude", "agents"))).toBe(before);
+    expect(targetModelLines(seeded).every((m) => m === "inherit")).toBe(true);
+  });
+
+  it("model delivery: a second install over an unchanged CONFIGURED target produces ZERO diff in both roots", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    writeTargetConfig(target, '{"models":{"preset":"tiered"}}\n');
+
+    expect(runInstall(target, home).status).toBe(0);
+    const t1 = snapshot(target);
+    const h1 = snapshot(home);
+
+    expect(runInstall(target, home).status).toBe(0);
+    expect(snapshot(target)).toBe(t1);
+    expect(snapshot(home)).toBe(h1);
+    // ...and the resolution did not drift between the two runs.
+    expect([...new Set(targetModelLines(target))].sort()).toEqual(["opus", "sonnet"]);
+  });
+
+  it("model delivery: an install set that DIVERGES from the render installs NOTHING and names every differing member, in BOTH directions (D-01)", () => {
+    // WHY THIS IS THE LOAD-BEARING CROSS-CHECK. The install SET stays srcAdapterFiles($GRUGOPS_SRC)
+    // — the same derivation install/uninstall.ts removes by — and the mirror is only the per-member
+    // BYTE source. If the two ever disagree, the run either writes a file the reversal cannot see or
+    // reads bytes for a member that was never rendered. Both are silent; the refusal is not.
+
+    // ── DIRECTION 1: a member the kit source carries that no render can produce.
+    const srcExtra = makeSyntheticSrc();
+    const targetExtra = mkTmp();
+    writeFileSync(join(targetExtra, "CLAUDE.md"), "# User Project\n");
+    const orphan = "grugops-orphan-role.md";
+    writeFileSync(
+      join(srcExtra, ".claude", "agents", orphan),
+      `> synthetic orphan adapter\n${MAT_SLOT}\n`,
+    );
+    // PREMISE: it is a legal FLAT member, so the install derivation admits it — the divergence is
+    // with the render, not with the flat-directory contract.
+    expect(listAgentAdapters(srcExtra)).toContain(orphan);
+    expect(listAgentAdapters(srcExtra).length).toBe(SYNTH_ADAPTERS.length + 1);
+
+    const rExtra = runInstallFrom(srcExtra, targetExtra, mkTmp());
+    // THE MEMBER AND THE STATUS IN ONE ASSERTION, deliberately: the two facts are one claim, and a
+    // status-only failure would say the refusal is missing without saying which member went
+    // unreported. NAMED, not counted — a bare count disagreement says the sets differ and never
+    // which member is the problem.
+    expect(`status=${rExtra.status} names ${orphan}: ${rExtra.stdout.includes(orphan)}`).toBe(
+      `status=3 names ${orphan}: true`,
+    );
+    expect(rExtra.stdout).toContain("install INCOMPLETE");
+    expect(rExtra.stdout).not.toContain("== install complete");
+    expect(rExtra.stdout).toContain("the render does not");
+    // R-5: nothing at all is installed — not the seventeen that WOULD have matched.
+    expect(installedAdapters(targetExtra)).toEqual([]);
+    // ...and the other classes still complete.
+    expect(installedSkills(targetExtra).length).toBe(7);
+    expect(existsSync(join(targetExtra, ".grugops", "install.json"))).toBe(true);
+
+    // ── DIRECTION 2: a member the render produces that the kit source does not carry.
+    const srcShort = makeSyntheticSrc();
+    const targetShort = mkTmp();
+    writeFileSync(join(targetShort, "CLAUDE.md"), "# User Project\n");
+    const dropped = SYNTH_ADAPTERS[0];
+    rmSync(join(srcShort, ".claude", "agents", dropped), { force: true });
+    expect(listAgentAdapters(srcShort)).not.toContain(dropped);
+    expect(listAgentAdapters(srcShort).length).toBe(SYNTH_ADAPTERS.length - 1);
+
+    const rShort = runInstallFrom(srcShort, targetShort, mkTmp());
+    expect(`status=${rShort.status} names ${dropped}: ${rShort.stdout.includes(dropped)}`).toBe(
+      `status=3 names ${dropped}: true`,
+    );
+    expect(rShort.stdout).toContain("install INCOMPLETE");
+    expect(rShort.stdout).toContain("the kit source does not carry");
+    expect(installedAdapters(targetShort)).toEqual([]);
+  });
+
+  // ── THE MIRROR'S INPUT LIST IS THE GENERATOR'S IMPORT CLOSURE, AND THE FIXTURE TRACKS IT ───────
+  //
+  // install.ts hand-writes the twin list (the same deliberate trade scripts/adapters-freshness.ts
+  // records above its own copy: deriving it would mean writing a grammar for "what does this module
+  // import" inside an installer). A hand-written list is a set literal, and a set literal that
+  // nothing pins is this repository's named second systemic failure class — so the list is read out
+  // of install.ts, compared against the one this suite plants into every synthetic source, and its
+  // cardinality asserted as an integer so a pair that shrinks together still fails.
+  //
+  // The reader refuses rather than under-matches: it counts the string literals the AUTHOR wrote
+  // inside the block and fails by name if the matcher recovered fewer, which is the WR-04 lesson
+  // applied to a list of single strings rather than of tuples.
+  function parseStringList(file: string, constName: string): string[] {
+    const src = readFileSync(join(import.meta.dirname, file), "utf8");
+    // Non-greedy to the FIRST closing bracket, so the same reader handles a one-line list and a
+    // multi-line one. An anchor requiring a newline before `];` read a single-line declaration as
+    // unterminated and ran on into the rest of the file — recovering strings from code that has
+    // nothing to do with the constant, which is the under-match failure this reader exists to make
+    // loud rather than the over-match one.
+    const block = new RegExp(`const ${constName}: string\\[\\] = \\[([\\s\\S]*?)\\];`).exec(src);
+    if (!block) throw new Error(`${file}: could not find the ${constName} list literal`);
+    const body = block[1];
+    const parsed = [...body.matchAll(/["'`]([^"'`]+)["'`]/g)].map((m) => m[1]);
+    const declared = (body.match(/["'`][^"'`]+["'`]/g) ?? []).length;
+    if (parsed.length !== declared) {
+      throw new Error(
+        `${file}: ${constName} declares ${declared} entr(ies) but only ${parsed.length} were parsed — ` +
+          "an entry is in a shape this test cannot read, so the set derived here would cover less " +
+          "than the source does while every count beside it still passed",
+      );
+    }
+    return parsed;
+  }
+
+  it("model delivery: the installer's GENERATOR_TWINS is the four-file import closure this suite plants, and names no canonical-frontmatter", () => {
+    const twins = parseStringList("install.ts", "GENERATOR_TWINS");
+    expect([...twins].sort()).toEqual([...SYNTH_GENERATOR_TWINS].sort());
+    // The integer, so a pair that shrinks together still fails. FOUR, not five: the generator does
+    // not import canonical-frontmatter.js, so mirroring it would be a fifth file nothing reads.
+    expect(twins.length).toBe(4);
+    expect(SYNTH_GENERATOR_TWINS.length).toBe(4);
+    expect(twins.filter((t) => t.includes("canonical-frontmatter"))).toEqual([]);
+
+    const kitSources = parseStringList("install.ts", "GENERATOR_KIT_SOURCES");
+    expect([...kitSources].sort()).toEqual([...SYNTH_GENERATOR_KIT_SOURCES].sort());
+    expect(kitSources.length).toBe(2);
+    // agent-factory/config is DELIBERATELY ABSENT: its absence inside the mirror is what makes D-06
+    // true by construction, so a member naming it would be the decision being reversed in silence.
+    expect(kitSources.filter((s) => s.includes("config"))).toEqual([]);
+  });
+
+  it("model delivery: the mirror declares its module type, so a bare `.js` twin cannot fail to parse on Node 22.0-22.11", () => {
+    // WHY THIS IS PINNED. The committed twins are ES modules with a bare `.js` extension, and Node
+    // decides that from the nearest package.json `type` field. A mkdtemp directory under the system
+    // temp root has none above it, and implicit-ESM detection for a bare `.js` only became the
+    // default in Node 22.12 — below that the mirrored generator dies with a syntax error about an
+    // import statement, and R-5 turns that into an install that lays down no adapter at all. The
+    // declaration is one file at the mirror root; this case is what stops it being deleted as
+    // redundant on whichever Node the author happened to be running.
+    for (const path of [join(import.meta.dirname, "install.ts"), INSTALL_JS]) {
+      const src = readFileSync(path, "utf8");
+      expect(`${path}: ${src.includes('{"type":"module"}')}`).toBe(`${path}: true`);
+    }
+  });
+
+  it("model delivery: install.ts reaches the generator by SPAWNING it, never by importing anything under scripts/ (D-18/D-28)", () => {
+    const src = readFileSync(join(import.meta.dirname, "install.ts"), "utf8");
+    const scriptsImports = src
+      .split("\n")
+      .filter((l) => /^\s*(import|export)\b/.test(l) && /scripts\//.test(l));
+    // Named rather than counted, so a failure prints the offending line instead of `1 !== 0`.
+    expect(scriptsImports).toEqual([]);
+    // ...and the spawn is by absolute interpreter path with no shell, so nothing target-derived can
+    // reach a command line (T-29.2-01).
+    expect(src).toContain("process.execPath");
+    expect(`install.ts uses a shell: ${src.includes("shell: true")}`).toBe("install.ts uses a shell: false");
+  });
+
   // ── unknown-arg exit-2 contract (install.mjs:80 / D-12) ─────────────────────────────────────
   it("unknown-arg: install.js and uninstall.js both exit 2 on an unknown flag (D-12 contract)", () => {
     const inst = spawnSync("node", [INSTALL_JS, "--bad-arg-xyz"], { encoding: "utf8", env: { ...process.env } });
@@ -1106,34 +1478,31 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     expect(backupGlob(targetR, "factory.config.json").length).toBe(1);
   });
 
-  // SC3 / CR-01: bounded marker-strip — migrate re-materializes the resolver adapters via
-  // materializeAdapter, which strips a prior grugops:materialized-kit block from the SOURCE adapter
+  // SC3 / CR-01: bounded marker-strip — migrate re-materializes the resolver files via
+  // materializeAdapter, which strips a prior grugops:materialized-kit block from the SOURCE file
   // before injecting the fresh KIT line. CR-01 guarantees that an UNTERMINATED open marker (no close)
-  // in that source adapter loses NO following lines (it buffers the block and restores it at EOF
-  // rather than swallowing the rest of the file). To exercise migrate's materializeAdapter on
-  // unterminated-marker content, point GRUGOPS_SRC at a minimal fake source whose orchestrator
-  // adapter carries an unterminated open marker + a sentinel line, run --migrate, and assert the
-  // sentinel survives in the materialized output (the v1.1 CR-01 bounded removal not regressed).
+  // in that source loses NO following lines (it buffers the block and restores it at EOF rather than
+  // swallowing the rest of the file).
+  //
+  // THE PLANT MOVED FROM THE AGENT ADAPTER TO THE RESOLVER SKILL (29.2-01), AND THAT IS WHERE THE
+  // MECHANISM NOW LIVES. materializeAdapter is unchanged and its bounded-removal loop is unchanged;
+  // what changed is which BYTES reach it. An agent adapter's bytes now come from the install-time
+  // mirror render (D-01), so an unterminated marker written into a source AGENT adapter is never
+  // read by anything and a case planting one there would assert nothing. The resolver SKILL is still
+  // materialized straight from $GRUGOPS_SRC — routing is by the slot line in the body (D-06), not by
+  // directory — so it is the surface that still carries source bytes into that loop, and the CR-01
+  // invariant is asserted over it unchanged: the line after an unterminated open survives.
   it("migrate: bounded marker-strip", () => {
-    // minimal fake GRUGOPS_SRC the install run can copy + materialize from.
-    const src = mkTmp();
-    mkdirSync(join(src, "agent-factory", "roles"), { recursive: true });
-    mkdirSync(join(src, "agent-factory", "seed", ".grugops"), { recursive: true });
-    mkdirSync(join(src, ".claude", "skills", "grugops"), { recursive: true });
-    mkdirSync(join(src, ".claude", "agents"), { recursive: true });
-    writeFileSync(join(src, "agent-factory", "roles", "orchestrator.md"), "FROZEN SRC CORE\n");
-    writeFileSync(join(src, "agent-factory", "VERSION"), "0.0.0-test\n");
-    writeFileSync(join(src, "agent-factory", "seed", ".grugops", "factory.config.json"), '{"seed":true}\n');
-    writeFileSync(join(src, ".claude", "skills", "grugops", "SKILL.md"), "> src skill\n");
-    // The orchestrator adapter SOURCE carries an UNTERMINATED grugops:materialized-kit open marker
-    // (no close) followed by a sentinel line and the MAT_SLOT line. CR-01: the unterminated block is
+    const src = makeSyntheticSrc();
+    // The resolver SKILL source carries an UNTERMINATED grugops:materialized-kit open marker (no
+    // close) followed by a sentinel line and the MAT_SLOT line. CR-01: the unterminated block is
     // restored verbatim at EOF rather than swallowing every following line.
     writeFileSync(
-      join(src, ".claude", "agents", "grugops-orchestrator.md"),
+      join(src, ".claude", "skills", "grugops", "SKILL.md"),
       "# <!-- grugops:materialized-kit -->\n" +
         'KIT="/will/be/stripped"\n' +
         "SENTINEL-AFTER-UNTERMINATED-OPEN-MUST-SURVIVE\n" +
-        "# 1. (installed) the absolute kit path the installer wrote above this line.\n",
+        `${MAT_SLOT}\n`,
     );
 
     const target = makeOldLayoutFixture();
@@ -1143,9 +1512,16 @@ describe("install.js / uninstall.js — single-installer contract (folds install
       env: { ...process.env, INSTALL_MODE: "copy", GRUGOPS_SRC: src, GRUGOPS_HOME: home, TARGET: target },
     });
     expect(r.status).toBe(0);
-    const after = readFileSync(join(target, ".claude", "agents", "grugops-orchestrator.md"), "utf8");
-    // the line following the unterminated open marker is preserved (CR-01 bounded removal — no loss).
+    const after = readFileSync(join(target, ".claude", "skills", "grugops", "SKILL.md"), "utf8");
+    // the line following the unterminated open is preserved (CR-01 bounded removal — no loss).
     expect(after).toContain("SENTINEL-AFTER-UNTERMINATED-OPEN-MUST-SURVIVE");
+    // ...and so is EVERY line the never-closed block buffered, in order: the guarantee is "lose
+    // nothing", not "keep the one line this case happens to name".
+    expect(after.split("\n").filter((l) => l !== "")).toEqual([
+      'KIT="/will/be/stripped"',
+      "SENTINEL-AFTER-UNTERMINATED-OPEN-MUST-SURVIVE",
+      MAT_SLOT,
+    ]);
   });
 
   // ── MIGR-04 (Phase 24, D-18/D-20) — the 4 plans/handoffs/ backup cases ───────────────────────
@@ -1644,17 +2020,17 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     const canSymlink = process.platform !== "win32";
 
     // PLANT 1 — a symlinked ADAPTER inside the source .claude/agents. Flat and top-level, so the
-    // flat-directory contract admits it: the correct outcome is installed, then removed.
-    const linkedAdapter = "grugops-linked-role.md";
+    // flat-directory contract admits it: the correct outcome is installed, then removed. It REPLACES
+    // an existing member rather than adding an eighteenth (29.2-01) — see linkifyMember for why the
+    // representation, not the cardinality, is what this plant is for.
+    const linkedAdapter = SYNTH_ADAPTERS[0];
+    const linkTarget = SYNTH_ADAPTERS[1];
     // PLANT 2 — a symlinked SKILL DIRECTORY inside the source .claude/skills whose target holds a
     // real SKILL.md. The platform loads it as a skill, so the installer installs it and the reversal
-    // must remove it.
+    // must remove it. Skills are NOT rendered, so this one still ADDS a member.
     const linkedSkill = "grugops-linked-skill";
     if (canSymlink) {
-      symlinkSync(
-        join(src, ".claude", "agents", SYNTH_ADAPTERS[0]),
-        join(src, ".claude", "agents", linkedAdapter),
-      );
+      linkifyMember(src, linkedAdapter, linkTarget);
       mkdirSync(join(src, "outside-skill"), { recursive: true });
       writeFileSync(join(src, "outside-skill", "SKILL.md"), "> synthetic linked skill\n");
       symlinkSync(join(src, "outside-skill"), join(src, ".claude", "skills", linkedSkill));
@@ -1667,6 +2043,9 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     // because it never arrived".
     if (canSymlink) {
       expect(existsSync(join(target, ".claude", "agents", linkedAdapter))).toBe(true);
+      // The link's TARGET is a distinct member and lands too — a symlink and its target in one
+      // directory are two members, never one merged member (KIT-01 adjacency edge).
+      expect(existsSync(join(target, ".claude", "agents", linkTarget))).toBe(true);
       expect(existsSync(join(target, ".claude", "skills", linkedSkill, "SKILL.md"))).toBe(true);
     }
 
@@ -1688,6 +2067,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     // is the repudiation half of the same defect (T-27-120).
     if (canSymlink) {
       expect(existsSync(join(target, ".claude", "agents", linkedAdapter))).toBe(false);
+      expect(existsSync(join(target, ".claude", "agents", linkTarget))).toBe(false);
       expect(existsSync(join(target, ".claude", "skills", linkedSkill))).toBe(false);
       expect(un.stdout).toContain(`.claude/agents/${linkedAdapter}`);
       expect(un.stdout).toContain(`.claude/skills/${linkedSkill}/SKILL.md`);
@@ -1797,11 +2177,15 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     // `== install complete ==`: the exact silent disappearance srcNestedAdapterFiles exists to
     // prevent. This is a NEW case rather than an edit to the conformance case above, so that
     // case's seventeen-member cardinality pin survives untouched as its own forcing function.
-    const linkName = "grugops-linked-role.md";
-    symlinkSync(
-      join(src, ".claude", "agents", SYNTH_ADAPTERS[0]),
-      join(src, ".claude", "agents", linkName),
-    );
+    //
+    // THE PLANT REPLACES A MEMBER RATHER THAN ADDING ONE (29.2-01). It used to add an eighteenth
+    // adapter; the installer now refuses any install set that disagrees with the mirror's rendered
+    // set, and no render can produce an invented name, so an added member would exercise that
+    // refusal instead of the derivation split this case exists for. The SHAPE that split the two
+    // derivations is a symlink, not an extra file, and the shape is what is planted.
+    const linkName = SYNTH_ADAPTERS[0];
+    const linkTarget = SYNTH_ADAPTERS[1];
+    linkifyMember(src, linkName, linkTarget);
 
     // THE SKILL-SIDE PLANT (WR-02, plan 27-25). A symlinked skill DIRECTORY whose target holds a
     // real SKILL.md. Without it the skill assertion at the bottom of this case compared two
@@ -1826,12 +2210,19 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     expect(installedAdapters(target)).toEqual(authorityAdapters);
     expect(authorityAdapters).toContain(linkName);
     expect(installedAdapters(target)).toContain(linkName);
-    expect(authorityAdapters.length).toBe(18);
-    expect(installedAdapters(target).length).toBe(18);
+    // CARDINALITY AS A NUMBER, taken from the derived set rather than written as a literal — the
+    // plant changes one member's representation and never the count, so the count is the SAME
+    // seventeen on both sides and a derivation that dropped the symlink fails HERE.
+    expect(SYNTH_ADAPTERS.length).toBe(17);
+    expect(authorityAdapters.length).toBe(17);
+    expect(installedAdapters(target).length).toBe(17);
+    // ...and the link is genuinely a link in the source, or the assertions above are a statement
+    // about an ordinary file and this case has quietly stopped being the WR-02 fixture.
+    expect(lstatSync(join(src, ".claude", "agents", linkName)).isSymbolicLink()).toBe(true);
 
     // The link's TARGET is still installed too — a symlink and its target in the same directory
     // are two distinct members of the set, never one merged member (KIT-01 adjacency edge).
-    expect(installedAdapters(target)).toContain(SYNTH_ADAPTERS[0]);
+    expect(installedAdapters(target)).toContain(linkTarget);
 
     // A symlinked SKILL directory is a skill for the same reason, and by the same test — and now
     // over a fixture that actually contains one. Set equality against the authority is kept, but it

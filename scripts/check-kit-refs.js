@@ -63,11 +63,18 @@ const ROOT = process.env.CHECK_ROOT
 // (Phase 29.1 round 3 / finding R2-WR-05, plan 29.1-17) `agent-factory/config` JOINS this set, and
 // the four facts that justify it are written here rather than left to be reconstructed:
 //
-//   1. THE INSTALLER SHIPS THIS DIRECTORY. install/install.ts:1065 is
-//      `cpSync(join(GRUGOPS_SRC, "agent-factory"), tmp, { recursive: true })` inside copyKit — the
-//      WHOLE agent-factory/ tree, config/ included, lands at $GRUGOPS_HOME/agent-factory on every
+//   1. THE INSTALLER SHIPS THIS DIRECTORY. `copyKit()` in install/install.ts stages the kit with
+//      `cpSync(join(GRUGOPS_SRC, "agent-factory"), tmp, { recursive: true })` — the WHOLE
+//      agent-factory/ tree, config/ included, lands at $GRUGOPS_HOME/agent-factory on every
 //      install. agent-factory/config/factory.config.md is therefore delivered to every installed
 //      user, which is exactly the audience D-08.1 protects.
+//      THE REFERENCE IS BY IDENTIFIER, NOT BY LINE NUMBER, AND THAT IS THE POINT. This sentence
+//      used to name a line inside install/install.ts. A hand-written line number inside a comment
+//      is a set literal that rots: it goes stale the moment anything is inserted above the site it
+//      names, and it rots SILENTLY, because nothing anywhere checks that the line still holds what
+//      the prose claims. install/install.ts's own known-residual note deleted a list of six such
+//      numbers on measured evidence that every one of them had drifted. The function name and the
+//      call it makes are stable facts a reader can grep for; the line was not.
 //   2. ITS ABSENCE WAS AN OMISSION, NOT AN AUDIENCE JUDGMENT — the record is corrected here.
 //      29.1-11-SUMMARY.md recorded the WR-05 disposition as split by audience, calling the config
 //      field reference the "developer-facing" authority that "lives outside the scan set". "Outside
