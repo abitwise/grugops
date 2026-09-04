@@ -2006,6 +2006,68 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     expect(snapshot(target)).toBe(tPre);
   });
 
+  it("install reporting: the temp-mirror disclaimer has ONE authority, and the render cleanup cannot change the run's exit code (WR-03/WR-05)", () => {
+    // WHAT THIS CASE IS AND IS NOT. (iii) and (iv) below are STRUCTURAL PINS over a
+    // PLATFORM-DEPENDENT condition — an `rmSync` that throws after three retries needs an EBUSY /
+    // EPERM / ENOTEMPTY the host will not reliably produce on demand, and manufacturing one is a
+    // fixture that would pass on one operating system and be meaningless on another. They are NOT a
+    // behavioural proof that a cleanup failure is survived; they are a proof that the code shape
+    // which survives it is present and that the shape which would convert it into an exit-3 verdict
+    // is absent. (i) and (ii) are exact: one wording authority, asserted by counting.
+    const src = readFileSync(join(import.meta.dirname, "install.ts"), "utf8");
+
+    // (i) EXACTLY ONE DECLARATION of the shared disclaimer constant.
+    const decls = src.match(/^const TEMP_MIRROR_DISCLAIMER\b/gm) ?? [];
+    expect(`declarations of TEMP_MIRROR_DISCLAIMER: ${decls.length}`).toBe(
+      "declarations of TEMP_MIRROR_DISCLAIMER: 1",
+    );
+
+    // (ii) ...and the sentence itself appears as a literal EXACTLY ONCE — in that declaration. Two
+    // hand-written copies is how the file arrived at this finding; a third would have been the same
+    // defect one site wider.
+    const sentence = "any path inside the relayed message above is a temporary mirror that no longer exists.";
+    const literalOccurrences = src.split(sentence).length - 1;
+    expect(`literal occurrences of the disclaimer sentence: ${literalOccurrences}`).toBe(
+      "literal occurrences of the disclaimer sentence: 1",
+    );
+
+    // ...consumed by THREE sites, which is what makes it an authority rather than a lone constant:
+    // the doctor's NO VERDICT arm, the install-side render refusal, and the success-path relay.
+    const refs = (src.match(/\$\{TEMP_MIRROR_DISCLAIMER\}/g) ?? []).length;
+    expect(`interpolating consumers: ${refs}`).toBe("interpolating consumers: 3");
+
+    // (iii) + (iv) THE GUARDED CLEANUP. Bound the `finally` first and assert the bound, so a
+    // renamed helper fails here instead of scanning an empty string and passing vacuously.
+    const fnStart = src.indexOf("function renderAdaptersInMirror(");
+    const fnEnd = src.indexOf("\n// The frontmatter key a rendered adapter carries", fnStart);
+    const fnBody = fnStart >= 0 && fnEnd > fnStart ? src.slice(fnStart, fnEnd) : "";
+    const finIdx = fnBody.lastIndexOf("} finally {");
+    expect(`the render helper's finally block is bounded: ${fnStart >= 0 && fnEnd > fnStart && finIdx >= 0}`).toBe(
+      "the render helper's finally block is bounded: true",
+    );
+    const finallyBlock = fnBody.slice(finIdx);
+    const finallyCode = finallyBlock.split("\n").filter((l) => !/^\s*\/\//.test(l));
+
+    // (iii) the rmSync is inside a try/catch: a cleanup that throws is caught, not propagated.
+    expect(`the finally removes the mirror: ${finallyCode.some((l) => /rmSync\(/.test(l))}`).toBe(
+      "the finally removes the mirror: true",
+    );
+    expect(`the removal is guarded: ${finallyCode.some((l) => /\bcatch\b/.test(l))}`).toBe(
+      "the removal is guarded: true",
+    );
+
+    // (iv) ...and it reports through a label that does NOT increment VERIFY_FINDINGS. `verify()`
+    // drives process.exitCode = 3, which in this installer means an install CLASS was refused; a
+    // temp directory the OS would not release is housekeeping and must not be given that meaning.
+    // Comment lines are filtered because the paragraph above the block explains this choice BY
+    // NAMING `verify()`, and a scan that read the explanation as the thing it forbids would be the
+    // same prohibition-reads-as-violation trap plan 29.2-04 already hit once.
+    expect(finallyCode.filter((l) => /\bverify\(/.test(l))).toEqual([]);
+    expect(`the cleanup has its own label: ${/report\(\s*\n?\s*"cleanup"/.test(finallyBlock)}`).toBe(
+      "the cleanup has its own label: true",
+    );
+  });
+
   // ── THE WRITE BOUND (plan 29.2-04, CR-01 / VERIFICATION truth 10) ─────────────────────────────
   //
   // WHAT `dest` MAY BE. `materializeAdapter()` used to read and writeFileSync a target adapter

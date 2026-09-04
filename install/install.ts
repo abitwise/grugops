@@ -418,6 +418,26 @@ const sameContent = (a: string, b: string): boolean => {
   }
 };
 
+// TEMP_MIRROR_DISCLAIMER (plan 29.2-05, WR-05) — ONE WORDING, THREE CONSUMERS.
+//
+// The generator's own stdout is relayed VERBATIM, and it names the temp render mirror it wrote
+// into — a directory this run deletes before the closing banner prints. This repository's own rule
+// is that nothing it hands a reader may name a path they cannot go and look at, and that rule was
+// already applied to the doctor's NO VERDICT arm and to the install-side render refusal. It was NOT
+// applied to the SUCCESS path, which is the one every user reads.
+//
+// THE FIX IS A THIRD CONSUMER, NOT A THIRD SPELLING. Two near-identical hand-written copies of this
+// sentence already existed; adding a third would be the set-literal drift class this repository has
+// spent several phases deleting. There is one declaration here, above the `--check` early exit —
+// the same temporal-dead-zone rule `verify`, `isSymlink` and `adapterDestHazard` are placed by,
+// because the doctor is one of the three consumers.
+//
+// IT CARRIES NO CAPITAL AND NO LEAD-IN. Every consumer supplies its own preceding clause and the
+// `; ` that joins it, so each site keeps its own surrounding sentence and none of them re-authors
+// the shared half.
+const TEMP_MIRROR_DISCLAIMER =
+  "any path inside the relayed message above is a temporary mirror that no longer exists.";
+
 // isSymlink: lstat-based, so it answers TRUE for a DANGLING link as well as a live one. It lives
 // HERE — and no longer beside the COPILOT_* constants where it used to — for the identical reason
 // `verify` above gives: adapterDestHazard() below consumes it, the doctor consumes THAT, and the
@@ -812,8 +832,7 @@ function doctor(): number {
             `adapter staleness: NO VERDICT on adapter staleness was produced by this run — ` +
               `${res.reason.split("\n").join("\n                 ")}\n` +
               `                 The configuration file this check reads is ` +
-              `${join(TARGET, ".grugops", "factory.config.json")}; any path inside the relayed ` +
-              `message above is a temporary mirror that no longer exists.`,
+              `${join(TARGET, ".grugops", "factory.config.json")}; ${TEMP_MIRROR_DISCLAIMER}`,
           );
           return;
         }
@@ -1852,7 +1871,35 @@ function renderAdaptersInMirror(use: (result: MirrorResult) => void): void {
     // The installer has many exit paths and registers no exit handler, so cleanup is a `finally`
     // around the whole body rather than a process-level hook. `maxRetries` covers a Windows host
     // where a just-closed child still holds a handle for a moment (T-29.2-05).
-    rmSync(dir, { recursive: true, force: true, maxRetries: 3 });
+    //
+    // AND A CLEANUP FAILURE CANNOT AUTHOR THE RUN'S VERDICT (plan 29.2-05, WR-03). `rmSync` THROWS
+    // after its retries on EBUSY / EPERM / ENOTEMPTY — documented Node behaviour, and the exact
+    // shape a Windows antivirus or indexer produces over a just-written temp tree, which this phase
+    // records as `UNKNOWN - verify`. Unguarded, that throw escaped this helper: on the install path
+    // AFTER all seventeen adapters had been written and BEFORE seedState() / writeMarker(), so the
+    // process died at exit 1 with a raw stack, no closing banner, and a target holding adapters and
+    // no marker; on the `--check` path it killed the doctor mid-verdict. That is the
+    // crash-where-a-finding-belongs shape R1 and F-D were already fixed for, sitting one line after
+    // them.
+    //
+    // WHY `report` AND NOT `verify()` — DECIDED HERE RATHER THAN LEFT IMPLICIT, because the review
+    // asked for the choice and not for a default. `verify()` increments VERIFY_FINDINGS, which
+    // drives `process.exitCode = 3`, and exit 3 in this installer means an install CLASS was refused
+    // and a human must resolve it (D-03). A temp directory the operating system would not release is
+    // housekeeping on a run that already completed its work; making it exit 3 would tell every
+    // downstream consumer that an install class failed when none did, and would give one exit code
+    // two meanings. So it takes its OWN label — `cleanup` — and the line cannot be read as a
+    // findings-tier verdict it deliberately is not.
+    try {
+      rmSync(dir, { recursive: true, force: true, maxRetries: 3 });
+    } catch (e) {
+      report(
+        "cleanup",
+        `the render mirror at ${dir} could not be removed ` +
+          `(${e instanceof Error ? e.message : String(e)}). It holds no target data, it changes ` +
+          `nothing this run reported, and it can be deleted by hand.`,
+      );
+    }
   }
 }
 
@@ -1916,6 +1963,22 @@ interface AdapterTransform {
 //   - CR-01 (bounded removal): an UNTERMINATED block at end of file restores its buffered lines
 //     verbatim, so no content is ever swallowed — the guarantee is "lose nothing", and it now
 //     covers the second slot because there is only one loop to give it.
+//
+// THE TWO SLOTS ARE NOT SYMMETRIC, AND D-14's "handled like `KIT=`" OVERSTATES IT (plan 29.2-05,
+// IN-01). The kit slot PRESERVES its anchor: `MAT_SLOT` is re-emitted after the injected block, so
+// feeding this function's own output back through it yields the same text — T(T(x)) = T(x). The
+// banner slot CONSUMES its anchor: `KIT_BANNER` is REPLACED by the `BAN_OPEN…BAN_CLOSE` block, and
+// that block is stripped on re-entry with nothing left behind to re-trigger the injection. So a
+// materialized file fed back through this transform yields ZERO banners, not one.
+//
+// AND HERE IS THE REACHABILITY BOUND THAT MAKES THAT HARMLESS TODAY, stated rather than left to be
+// inferred from the absence of a bug report. Nothing feeds this function its own output: agent
+// sources are always FRESH RENDERS from the mirror, the one slot-carrying skill source is KIT TEXT,
+// and `--migrate` runs its pre-steps and then the ordinary install over those same two sources. The
+// banner floor that counts on exactly one banner is asked only about freshly rendered agent bytes,
+// for the same reason. This is a CORRECTED CLAIM, not a behaviour change: making the banner slot
+// anchor-preserving would move rendered bytes in every target, and that is not what this comment is
+// for.
 function transformAdapter(srcText: string): AdapterTransform {
   const out: string[] = [];
   let close: string | null = null;
@@ -2399,8 +2462,7 @@ if (SRC_ADAPTERS === null) {
         `.claude/agents/ — ${render.reason}\n` +
           `                 No adapter was installed, and every adapter already in ` +
           `${join(TARGET, ".claude", "agents")} was left exactly as it was. The model configuration ` +
-          `this run reads is ${targetConfigFile}; any path inside the relayed message above is a ` +
-          `temporary mirror that no longer exists.`,
+          `this run reads is ${targetConfigFile}; ${TEMP_MIRROR_DISCLAIMER}`,
       );
       return;
     }
@@ -2570,6 +2632,19 @@ if (SRC_ADAPTERS === null) {
       if (line.trim() === "") continue;
       report("render", line);
     }
+    // ...followed by the SAME disclaimer the doctor's NO VERDICT arm and the render-refusal arm
+    // already carry (WR-05). The relayed lines above name the temp mirror the generator wrote into,
+    // and this run deletes that directory before the closing banner prints. The failure arms said so
+    // and the success path — the one every user reads — did not.
+    //
+    // THE GENERATOR'S OWN LINE IS NOT REWRITTEN. It is the one-authority announcement; editing it
+    // here would be a second grammar over the same sentence, which is precisely the failure this
+    // repository's own rule names. The disclaimer is added BESIDE it, from the one wording
+    // authority, and it names the directory the adapters were actually written to.
+    report(
+      "resolution",
+      `the adapters were written to ${join(TARGET, ".claude", "agents")}; ${TEMP_MIRROR_DISCLAIMER}`,
+    );
     // ...plus ONE line of the installer's own, naming the configuration file it read, or stating
     // plainly that none was found. A run that resolved nothing says so.
     report(
