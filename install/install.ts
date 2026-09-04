@@ -241,6 +241,107 @@ const TARGET_BANNER =
   "model line comes from .grugops/factory.config.json in this repository — set it there, not here. -->";
 
 // ---------------------------------------------------------------------------
+// THE INSTALL-TIME ADAPTER RENDER (phase 29.2 — D-01, D-02, D-05, D-06).
+//
+// THE MIRROR'S INPUTS ARE DECLARED HERE, ABOVE THE DOCTOR, FOR THE REASON THE MATERIALIZATION
+// SENTINELS ABOVE RECORD FOR THEMSELVES. `renderAdaptersInMirror` is a hoisted declaration and
+// reaches its caller wherever that caller sits — but the constants its BODY reads are `const`
+// bindings, and a `const` is in its temporal dead zone until the module reaches it. The `--check`
+// doctor runs from an early-exit branch far above the install run, so leaving these beside the
+// function would make the doctor's staleness comparison throw a reference error at the moment it
+// first mattered. The function itself stays where it is; only its inputs moved.
+//
+// A target repository may carry a `models` block at .grugops/factory.config.json, and the seventeen
+// sub-agent adapters that repository loads must carry the aliases that block resolves to. The
+// `model:` line has exactly ONE renderer in this tree — scripts/generate-role-adapters — so the
+// installer does not re-implement any part of it. It mirrors that generator's committed import
+// closure into a temp tree, drops the TARGET's own configuration file in as the one new input,
+// spawns the mirrored generator, and hands the rendered bytes to materializeAdapter() below.
+//
+// THE SPAWN IS THE BOUNDARY, AND IT IS WHAT PRESERVES D-18/D-28 RATHER THAN REVERSING IT. install/
+// still imports nothing from scripts/: a path literal joined against GRUGOPS_SRC and handed to
+// cpSync adds NO EDGE to this module's import graph, while an `import` statement naming a scripts/
+// module would. A host still runs the committed installer with the scripts/ layer absent — it then
+// gets a named refusal from the missing-twins branch below, never a silent wrong answer.
+//
+// THE RENDER RUNS FROM GRUGOPS_SRC, NEVER FROM THE KIT HOME (D-02). Install is invoked as
+// `node install/install.js` out of a checkout, so GRUGOPS_SRC is always present; a target refresh
+// is a re-run of install from that checkout. copyKit ships nothing new into $GRUGOPS_HOME and its
+// contract is byte-unchanged.
+//
+// THE TWIN LIST IS THE GENERATOR'S IMPORT CLOSURE AND MUST TRACK IT. It is hand-written rather than
+// derived, and that is the same deliberate trade scripts/adapters-freshness.ts records above its own
+// copy: deriving it would mean writing a grammar for "what does this module import" inside an
+// installer, which is a second grammar of exactly the kind this milestone exists to delete. The
+// trade is acceptable only because the FAILURE DIRECTION IS LOUD — an unmirrored import makes the
+// mirrored generator fail to resolve it and exit non-zero, the fail-closed branch below reports a
+// render that did not run, and R-5 then installs NO adapter at all rather than a stale one. It can
+// never quietly install while one file short.
+//
+// THE LIST IS FOUR, NOT FIVE. canonical-frontmatter.js is NOT in the generator's import closure —
+// the generator reads frontmatter through frontmatter.js — so mirroring it would copy a file
+// nothing in the mirror opens. install.test.ts pins both the membership and the integer.
+const GENERATOR_TWINS: string[] = [
+  "scripts/generate-role-adapters.js",
+  "scripts/kit-model.js",
+  "scripts/frontmatter.js",
+  "scripts/model-tiers.js",
+];
+
+// The kit sources the mirrored generator reads. agent-factory/config is DELIBERATELY ABSENT, and
+// that absence is load-bearing: it is what makes D-06 true BY CONSTRUCTION. The resolver tries
+// .grugops/factory.config.json first and agent-factory/config/factory.config.json second, first
+// existing file wins WHOLE — so a second candidate that cannot exist inside the mirror is a
+// shadowing that cannot recur inside a target's render.
+const GENERATOR_KIT_SOURCES: string[] = ["agent-factory/roles", "agent-factory/packaging"];
+
+// The mirror's module-type declaration. The committed twins are ES modules with a BARE `.js`
+// extension, and Node decides that from the nearest package.json `type` field. A mkdtemp directory
+// under the system temp root has no package.json above it, and implicit-ESM detection for a bare
+// `.js` only became the default in Node 22.12 — on 22.0 through 22.11 the mirrored generator would
+// die with a syntax error about an import statement, and R-5 would turn that into an install that
+// laid down no adapter at all. One file at the mirror root states the fact outright: no directory
+// is added, no dependency is introduced, and the mirror stops depending on which Node minor the
+// host happens to run.
+const MIRROR_PACKAGE_JSON = '{"type":"module"}\n';
+
+// THE RESOLUTION READER PROBE (R-1, D-04).
+//
+// D-04 wants the run to report the resolution, and the "derive the set, assert the count" rule wants
+// the announced member count cross-checked against a listing this side derived itself. Both need the
+// announced payload — and the grammar that payload is written in belongs to scripts/model-tiers.ts,
+// which install/ does not import (D-18/D-28).
+//
+// THE TWO RULES ARE RECONCILED BY SPAWNING, NOT BY COPYING. This fixed source is written into the
+// mirror beside the twins and run there with the generator's stdout on its stdin. It imports the
+// MIRRORED ./model-tiers.js by a relative specifier — which resolves inside the mirror exactly as
+// the generator's own imports do, with no file-URL conversion and no path interpolation — calls the
+// module's own exported reader, and prints ONE JSON line back. install.ts parses that one line and
+// nothing else, so the installer holds NO copy of either announcement prefix and this module's
+// import graph is untouched. A second hand-synced spelling of a cross-boundary literal is this
+// repository's named second systemic failure class, and its drift direction here is the worst one:
+// the reader stops finding the line exactly when the emitter stops announcing.
+//
+// THE SOURCE IS A FIXED LITERAL WITH NO INTERPOLATION (T-29.2-06). Nothing derived from the target,
+// from argv or from the environment reaches it; it is written into the 0700 mkdtemp directory and
+// invoked by an absolute join()-built path with `shell` unset.
+//
+// The `.mjs` extension makes it unambiguously an ES module whatever any package.json says.
+const RESOLUTION_PROBE_REL = "grugops-read-resolution.mjs";
+const RESOLUTION_PROBE_SOURCE = [
+  "// Written into a temp mirror by the grugops installer and removed with it. It exists so the",
+  "// installer can read the resolution the generator announced without importing the module that",
+  "// owns that grammar: the reader stays where it is declared, and the installer holds no copy of",
+  "// the marker. Reads the generator's stdout from stdin; prints one JSON line.",
+  'import { resolvedAssignmentsIn } from "./model-tiers.js";',
+  'let input = "";',
+  'process.stdin.setEncoding("utf8");',
+  "for await (const chunk of process.stdin) input += chunk;",
+  'process.stdout.write(JSON.stringify({ results: resolvedAssignmentsIn(input) }) + "\\n");',
+  "",
+].join("\n");
+
+// ---------------------------------------------------------------------------
 // Kit-set derivation (KIT-02 / D-18, AMENDED BY D-28). The installer SELF-DERIVES the adapter and
 // skill sets by reading $GRUGOPS_SRC at run time; it carries NO hand-listed adapter or skill name.
 // Laying down seventeen adapters instead of one therefore requires no installer edit.
@@ -329,12 +430,23 @@ const isoStamp = (): string => new Date().toISOString().replace(/:/g, "-");
 const GRUGOPS_BACKUP_SUFFIX = /\.bak\.\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}\.\d{3}Z$/;
 
 // ---------------------------------------------------------------------------
-// Doctor (INSTALL-05) — a non-mutating verifier: reads only, stats only, mutates NOTHING (never
-// copyKit / materializeAdapter / seedState / writeMarker; never reads or writes the prod
-// deploy-approval env var, carried prohibition from INSTALL-02 / SAFE-02). It reuses the one
-// resolution rule (GRUGOPS_HOME / KIT_ROOT, source (a) of the D-03 cross-check, resolved above).
-// Fail-closed parsing: a garbled or absent marker/adapter becomes a finding, never an unhandled
-// throw. Findings are greppable lines; FAIL names the path + referencing file.
+// Doctor (INSTALL-05) — a verifier that MUTATES NOTHING INSIDE THE TARGET. It never writes, links,
+// seeds or marks any path under TARGET: it never calls copyKit, seedState or writeMarker, it never
+// opens a file in the target for writing, and it never reads or writes the prod deploy-approval env
+// var (carried prohibition from INSTALL-02 / SAFE-02).
+//
+// THAT SENTENCE USED TO SAY SOMETHING WIDER, AND PHASE 29.2 MADE THE WIDER VERSION FALSE. The
+// staleness verdict below (D-09) RENDERS this checkout's adapters into a temp tree the render
+// helper owns and removes, and puts the result through transformAdapter IN MEMORY so the comparison
+// is like-for-like against what an install would write. Both the render and the transform happen
+// OUTSIDE TARGET, and the doctor still opens nothing there for writing. A blanket denial that the
+// doctor runs any part of the materialization path stopped being true the moment that verdict
+// landed, and a false sentence in the one file whose job is producing true ones is rewritten, not
+// left standing.
+//
+// It reuses the one resolution rule (GRUGOPS_HOME / KIT_ROOT, source (a) of the D-03 cross-check,
+// resolved above). Fail-closed parsing: a garbled or absent marker/adapter becomes a finding, never
+// an unhandled throw. Findings are greppable lines; FAIL names the path + referencing file.
 // ---------------------------------------------------------------------------
 
 // docReport / docFail / docWarn: greppable finding lines (printf '  %-14s %s\n'). The counters
@@ -536,6 +648,95 @@ function doctor(): number {
     // missing optional seed: a seed file the user may have pruned (e.g. memory-bank/00-index.md).
     if (!existsSync(join(TARGET, "memory-bank", "00-index.md"))) {
       docWarn(`missing optional seed: ${join(TARGET, "memory-bank", "00-index.md")} (run install.js to re-seed)`);
+    }
+
+    // --- ADAPTER STALENESS (D-09, D-10) -------------------------------------------------------
+    //
+    // THE QUESTION: has a configuration edit — or a kit-side adapter change — reached this
+    // repository's adapters yet? Before this the answer could only be got by reading bytes by hand.
+    //
+    // PLACED INSIDE THIS BLOCK DELIBERATELY, AND THE PLACEMENT IS LOAD-BEARING. This block runs only
+    // when the kit-root cross-check and the ordered stat set are clean, so a target with a missing
+    // kit or a garbled marker reports THAT — its primary defect — rather than a wall of staleness
+    // lines derived from a render that could not have been right anyway.
+    //
+    // WHICH KIT IT RENDERS FROM (R-3): GRUGOPS_SRC, the checkout this command is running out of.
+    // The remedy the finding names is a re-run of install FROM THAT CHECKOUT, so the question the
+    // comparison answers is "would that re-run change this file?" — a checkout question, not a
+    // kit-home question. The finding says which root it used in its own words, so a reader meeting
+    // it beside the kit-version line above can see that the two name two different roots on purpose.
+    //
+    // ONE RENDER AUTHORITY, ONE TRANSFORM AUTHORITY, WHOLE-FILE COMPARISON. The render is the same
+    // helper the install path uses and the transform is the same pure function the writer uses, so
+    // the doctor cannot drift into a second answer for "what would be written here". Nothing parses
+    // frontmatter: a differing `model:` line and a differing kit-side body are the same fact to
+    // this comparison, which is why it catches both.
+    //
+    // IT WRITES NOTHING INTO THE TARGET. The render goes into a temp tree the helper owns and
+    // removes on every path out; the transform runs in memory; the target side of every comparison
+    // is a read.
+    //
+    // THE TWINS PRE-CHECK IS NOT RESTATED HERE. renderAdaptersInMirror already refuses a partial
+    // checkout by name, counting the absent members and naming each, and a second implementation of
+    // that predicate inside the doctor is the duplicate-authority class this repository keeps
+    // deleting. What this side adds is the SEVERITY and the sentence that makes the absence of a
+    // verdict legible as such — never as a clean one.
+    const docNames = srcAdapterFiles(GRUGOPS_SRC) ?? [];
+    if (docNames.length > 0) {
+      renderAdaptersInMirror((res) => {
+        if (!res.ok) {
+          docWarn(
+            `adapter staleness: NO VERDICT on adapter staleness was produced by this run — ` +
+              `${res.reason.split("\n").join("\n                 ")}`,
+          );
+          return;
+        }
+        const stale: string[] = [];
+        const absent: string[] = [];
+        const unrendered: string[] = [];
+        for (const name of docNames) {
+          let expected: string;
+          try {
+            expected = transformAdapter(
+              readFileSync(join(res.value.dir, ".claude", "agents", name), "utf8"),
+            ).text;
+          } catch {
+            unrendered.push(name);
+            continue;
+          }
+          let actual: string | null = null;
+          try {
+            actual = readFileSync(join(TARGET, ".claude", "agents", name), "utf8");
+          } catch {
+            actual = null;
+          }
+          if (actual === null) absent.push(name);
+          else if (actual !== expected) stale.push(name);
+        }
+        if (unrendered.length > 0) {
+          docWarn(
+            `adapter staleness: the fresh render produced no file for ${unrendered.length} member(s) ` +
+              `of the kit's adapter set — ${unrendered.join(", ")} — so NO VERDICT on adapter ` +
+              `staleness was produced for them. The adapter directory and the role corpus in the kit ` +
+              `checkout at ${GRUGOPS_SRC} disagree; re-run --check from a complete kit checkout.`,
+          );
+        }
+        if (stale.length > 0 || absent.length > 0) {
+          const parts: string[] = [];
+          if (stale.length > 0) parts.push(`${stale.length} differ: ${stale.join(", ")}`);
+          if (absent.length > 0) {
+            parts.push(`${absent.length} absent from the target: ${absent.join(", ")}`);
+          }
+          docWarn(
+            `stale adapter(s) under ${join(TARGET, ".claude", "agents")} — ${parts.join("; ")}. ` +
+              `Each was byte-compared, whole file, against a fresh render of the kit checkout at ` +
+              `${GRUGOPS_SRC}, materialized exactly the way an install would materialize it — so ` +
+              `what differs here is what a re-run would change. That checkout is a DIFFERENT root ` +
+              `from the installed kit at ${KIT_ROOT} the version line reports on, and the remedy is ` +
+              `run from the checkout: node install/install.js --target ${TARGET}`,
+          );
+        }
+      });
     }
   }
 
@@ -1141,97 +1342,11 @@ function copyKit(retainBackup = false): void {
 }
 
 // ---------------------------------------------------------------------------
-// THE INSTALL-TIME ADAPTER RENDER (phase 29.2 — D-01, D-02, D-05, D-06).
-//
-// A target repository may carry a `models` block at .grugops/factory.config.json, and the seventeen
-// sub-agent adapters that repository loads must carry the aliases that block resolves to. The
-// `model:` line has exactly ONE renderer in this tree — scripts/generate-role-adapters — so the
-// installer does not re-implement any part of it. It mirrors that generator's committed import
-// closure into a temp tree, drops the TARGET's own configuration file in as the one new input,
-// spawns the mirrored generator, and hands the rendered bytes to materializeAdapter() below.
-//
-// THE SPAWN IS THE BOUNDARY, AND IT IS WHAT PRESERVES D-18/D-28 RATHER THAN REVERSING IT. install/
-// still imports nothing from scripts/: a path literal joined against GRUGOPS_SRC and handed to
-// cpSync adds NO EDGE to this module's import graph, while an `import` statement naming a scripts/
-// module would. A host still runs the committed installer with the scripts/ layer absent — it then
-// gets a named refusal from the missing-twins branch below, never a silent wrong answer.
-//
-// THE RENDER RUNS FROM GRUGOPS_SRC, NEVER FROM THE KIT HOME (D-02). Install is invoked as
-// `node install/install.js` out of a checkout, so GRUGOPS_SRC is always present; a target refresh
-// is a re-run of install from that checkout. copyKit ships nothing new into $GRUGOPS_HOME and its
-// contract is byte-unchanged.
-//
-// THE TWIN LIST IS THE GENERATOR'S IMPORT CLOSURE AND MUST TRACK IT. It is hand-written rather than
-// derived, and that is the same deliberate trade scripts/adapters-freshness.ts records above its own
-// copy: deriving it would mean writing a grammar for "what does this module import" inside an
-// installer, which is a second grammar of exactly the kind this milestone exists to delete. The
-// trade is acceptable only because the FAILURE DIRECTION IS LOUD — an unmirrored import makes the
-// mirrored generator fail to resolve it and exit non-zero, the fail-closed branch below reports a
-// render that did not run, and R-5 then installs NO adapter at all rather than a stale one. It can
-// never quietly install while one file short.
-//
-// THE LIST IS FOUR, NOT FIVE. canonical-frontmatter.js is NOT in the generator's import closure —
-// the generator reads frontmatter through frontmatter.js — so mirroring it would copy a file
-// nothing in the mirror opens. install.test.ts pins both the membership and the integer.
-const GENERATOR_TWINS: string[] = [
-  "scripts/generate-role-adapters.js",
-  "scripts/kit-model.js",
-  "scripts/frontmatter.js",
-  "scripts/model-tiers.js",
-];
-
-// The kit sources the mirrored generator reads. agent-factory/config is DELIBERATELY ABSENT, and
-// that absence is load-bearing: it is what makes D-06 true BY CONSTRUCTION. The resolver tries
-// .grugops/factory.config.json first and agent-factory/config/factory.config.json second, first
-// existing file wins WHOLE — so a second candidate that cannot exist inside the mirror is a
-// shadowing that cannot recur inside a target's render.
-const GENERATOR_KIT_SOURCES: string[] = ["agent-factory/roles", "agent-factory/packaging"];
-
-// The mirror's module-type declaration. The committed twins are ES modules with a BARE `.js`
-// extension, and Node decides that from the nearest package.json `type` field. A mkdtemp directory
-// under the system temp root has no package.json above it, and implicit-ESM detection for a bare
-// `.js` only became the default in Node 22.12 — on 22.0 through 22.11 the mirrored generator would
-// die with a syntax error about an import statement, and R-5 would turn that into an install that
-// laid down no adapter at all. One file at the mirror root states the fact outright: no directory
-// is added, no dependency is introduced, and the mirror stops depending on which Node minor the
-// host happens to run.
-const MIRROR_PACKAGE_JSON = '{"type":"module"}\n';
-
-// THE RESOLUTION READER PROBE (R-1, D-04).
-//
-// D-04 wants the run to report the resolution, and the "derive the set, assert the count" rule wants
-// the announced member count cross-checked against a listing this side derived itself. Both need the
-// announced payload — and the grammar that payload is written in belongs to scripts/model-tiers.ts,
-// which install/ does not import (D-18/D-28).
-//
-// THE TWO RULES ARE RECONCILED BY SPAWNING, NOT BY COPYING. This fixed source is written into the
-// mirror beside the twins and run there with the generator's stdout on its stdin. It imports the
-// MIRRORED ./model-tiers.js by a relative specifier — which resolves inside the mirror exactly as
-// the generator's own imports do, with no file-URL conversion and no path interpolation — calls the
-// module's own exported reader, and prints ONE JSON line back. install.ts parses that one line and
-// nothing else, so the installer holds NO copy of either announcement prefix and this module's
-// import graph is untouched. A second hand-synced spelling of a cross-boundary literal is this
-// repository's named second systemic failure class, and its drift direction here is the worst one:
-// the reader stops finding the line exactly when the emitter stops announcing.
-//
-// THE SOURCE IS A FIXED LITERAL WITH NO INTERPOLATION (T-29.2-06). Nothing derived from the target,
-// from argv or from the environment reaches it; it is written into the 0700 mkdtemp directory and
-// invoked by an absolute join()-built path with `shell` unset.
-//
-// The `.mjs` extension makes it unambiguously an ES module whatever any package.json says.
-const RESOLUTION_PROBE_REL = "grugops-read-resolution.mjs";
-const RESOLUTION_PROBE_SOURCE = [
-  "// Written into a temp mirror by the grugops installer and removed with it. It exists so the",
-  "// installer can read the resolution the generator announced without importing the module that",
-  "// owns that grammar: the reader stays where it is declared, and the installer holds no copy of",
-  "// the marker. Reads the generator's stdout from stdin; prints one JSON line.",
-  'import { resolvedAssignmentsIn } from "./model-tiers.js";',
-  'let input = "";',
-  'process.stdin.setEncoding("utf8");',
-  "for await (const chunk of process.stdin) input += chunk;",
-  'process.stdout.write(JSON.stringify({ results: resolvedAssignmentsIn(input) }) + "\\n");',
-  "",
-].join("\n");
+// THE INSTALL-TIME ADAPTER RENDER, CONTINUED. Its constants — the twin list, the kit sources, the
+// mirror's module-type declaration and the resolution probe — are declared ABOVE THE DOCTOR, with
+// the rationale for that placement beside them. Everything from here down is types and the hoisted
+// function itself, neither of which a `--check` run can reach too early.
+// ---------------------------------------------------------------------------
 
 // The announced resolution, as this side reads it back off the probe's one line. The three numbers
 // a consumer can check independently: the member count, how many members an override set, and the

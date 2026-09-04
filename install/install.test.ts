@@ -995,6 +995,200 @@ describe("install.js / uninstall.js — single-installer contract (folds install
   });
 
   // ─────────────────────────────────────────────────────────────────────────────────────────────
+  // THE STALENESS VERDICT (29.2 plan 02, D-09 / D-10). `--check` can now say that a configuration
+  // edit has not reached the adapters yet.
+  //
+  // It renders from GRUGOPS_SRC (R-3), because the remedy the finding names is a re-run of install
+  // FROM THIS CHECKOUT — so the question the comparison answers is "would that re-run change this
+  // file?", which is a checkout question and not a kit-home one. It compares WHOLE FILES: no
+  // frontmatter is parsed anywhere in the doctor, and the render is put through the same transform
+  // an install would apply, so the two sides are like-for-like.
+  //
+  // These cases drive the REAL repository as $GRUGOPS_SRC (the default when the variable is unset),
+  // which is what the existing doctor cases above already do.
+  // ─────────────────────────────────────────────────────────────────────────────────────────────
+
+  // runCheck — a --check run over an installed target, optionally from a different kit checkout and
+  // with extra flags. The doctor's own default for GRUGOPS_SRC is the checkout install.js lives in,
+  // which is the repository under test.
+  function runCheck(
+    target: string,
+    home: string,
+    opts: { src?: string; args?: string[] } = {},
+  ): { status: number | null; stdout: string } {
+    const env: NodeJS.ProcessEnv = { ...process.env, GRUGOPS_HOME: home, TARGET: target };
+    if (opts.src !== undefined) env.GRUGOPS_SRC = opts.src;
+    const r = spawnSync("node", [INSTALL_JS, "--check", ...(opts.args ?? [])], {
+      encoding: "utf8",
+      env,
+    });
+    return { status: r.status, stdout: r.stdout ?? "" };
+  }
+
+  it("doctor: a --check run immediately after a clean install reports NO staleness line at all (D-09)", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    expect(runInstall(target, home).status).toBe(0);
+    // PREMISE: the install really did lay adapters down, so the comparison below has something to
+    // compare. A clean verdict over an empty set would be vacuous.
+    expect(installedAdapters(target).length).toBe(17);
+
+    const doc = runCheck(target, home);
+    expect(`status=${doc.status}`).toBe("status=0");
+    expect(doc.stdout).toContain("ALL CHECKS PASSED");
+    expect(`names a stale adapter: ${doc.stdout.includes("stale adapter")}`).toBe(
+      "names a stale adapter: false",
+    );
+    // ...and it is a VERDICT, not an absence of one.
+    expect(`claims no verdict: ${doc.stdout.includes("NO VERDICT on adapter staleness")}`).toBe(
+      "claims no verdict: false",
+    );
+  });
+
+  it("doctor: a configuration edited AFTER install names every stale adapter and the re-run remedy — WARN bare, FAIL under --strict (D-09, D-10)", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    expect(runInstall(target, home).status).toBe(0);
+    const rels = installedAdapters(target);
+    expect(rels.length).toBe(17);
+    // PREMISE 1: before the edit, the doctor really is clean about staleness. Without this the
+    // warning below could be an artefact of the fixture rather than of the edit.
+    expect(runCheck(target, home).stdout.includes("stale adapter")).toBe(false);
+
+    // PREMISE 2: the edit landed on disk, at the path the render reads.
+    const configPath = writeTargetConfig(target, '{"models":{"preset":"tiered"}}\n');
+    expect(existsSync(configPath)).toBe(true);
+    expect(readFileSync(configPath, "utf8")).toContain('"tiered"');
+    // ...and it has NOT been applied: the installed adapters still carry the old resolution.
+    expect([...new Set(targetModelLines(target))]).toEqual(["inherit"]);
+
+    const bare = runCheck(target, home);
+    // D-10: a WARN, so the exit stays 0 and the banner carries a warning count.
+    expect(`status=${bare.status}`).toBe("status=0");
+    expect(bare.stdout).toContain("ALL CHECKS PASSED");
+    expect(bare.stdout).toMatch(/warning\(s\)/);
+    expect(bare.stdout).toContain("stale adapter");
+    // EVERY stale file is NAMED — a count with no names is a finding a reader cannot act on.
+    for (const rel of rels) {
+      expect(`${rel} named: ${bare.stdout.includes(rel)}`).toBe(`${rel} named: true`);
+    }
+    // ...and the remedy is the re-run, named as such.
+    expect(bare.stdout).toContain("install.js --target");
+    // Nothing was written into the target while it looked.
+    expect(targetModelLines(target).every((m) => m === "inherit")).toBe(true);
+
+    // D-10's other half: --strict promotes it to a failure.
+    const strict = runCheck(target, home, { args: ["--strict"] });
+    expect(`status=${strict.status}`).toBe("status=1");
+    expect(strict.stdout).toContain("promoted to failure");
+    expect(strict.stdout).toContain("stale adapter");
+  });
+
+  it("doctor: a --check run over a STALE target leaves the target byte-identical (T-29.2-10)", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    expect(runInstall(target, home).status).toBe(0);
+    writeTargetConfig(target, '{"models":{"preset":"tiered"}}\n');
+    const pre = snapshot(target);
+    // PREMISE: this run is the one that actually renders — a read-only claim over a run that never
+    // reached the render would prove nothing.
+    const doc = runCheck(target, home);
+    expect(doc.stdout).toContain("stale adapter");
+    expect(snapshot(target)).toBe(pre);
+  });
+
+  it("doctor: a checkout MISSING a generator module states that NO VERDICT on adapter staleness was produced, and never a clean one (D-09)", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    expect(runInstall(target, home).status).toBe(0);
+
+    // Every twin in turn, so the case cannot pass by covering whichever one is checked first.
+    for (const twin of SYNTH_GENERATOR_TWINS) {
+      const partial = makeSyntheticSrc();
+      rmSync(join(partial, ...twin.split("/")), { force: true });
+      expect(existsSync(join(partial, ...twin.split("/")))).toBe(false);
+
+      const doc = runCheck(target, home, { src: partial });
+      // A WARNING, matching the tier D-10 sets for the whole feature...
+      expect(`${twin}: status=${doc.status}`).toBe(`${twin}: status=0`);
+      expect(`${twin}: named=${doc.stdout.includes(twin)}`).toBe(`${twin}: named=true`);
+      // ...stating the ABSENCE OF A VERDICT rather than a clean one.
+      expect(doc.stdout).toContain("NO VERDICT on adapter staleness");
+      expect(`${twin}: claims a clean compare: ${doc.stdout.includes("stale adapter")}`).toBe(
+        `${twin}: claims a clean compare: false`,
+      );
+      // ...and --strict escalates it, like every other warning.
+      const strict = runCheck(target, home, { src: partial, args: ["--strict"] });
+      expect(`${twin}: strict status=${strict.status}`).toBe(`${twin}: strict status=1`);
+    }
+  });
+
+  it("doctor: a target with a FAILING cross-check reports that primary defect and produces no staleness lines at all (D-09)", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    expect(runInstall(target, home).status).toBe(0);
+    // PREMISE: the pre-damage doctor was clean, so the absence below is caused by the damage.
+    expect(runCheck(target, home).status).toBe(0);
+
+    rmSync(join(home, "agent-factory"), { recursive: true, force: true });
+    const doc = runCheck(target, home);
+    expect(`status=${doc.status}`).toBe("status=1");
+    expect(doc.stdout).toContain("FAIL");
+    // The WARN tier — staleness included — runs only when the cross-check and the stats are clean,
+    // so a broken target reports its primary defect rather than a wall of derived lines.
+    expect(`stale lines: ${doc.stdout.includes("stale adapter")}`).toBe("stale lines: false");
+    expect(`no-verdict lines: ${doc.stdout.includes("NO VERDICT on adapter staleness")}`).toBe(
+      "no-verdict lines: false",
+    );
+  });
+
+  it("doctor: the header sentence stops denying what the doctor now does, and states the invariant that IS true", () => {
+    const src = readFileSync(join(import.meta.dirname, "install.ts"), "utf8");
+    const start = src.indexOf("// Doctor (INSTALL-05)");
+    expect(`the doctor header is locatable: ${start >= 0}`).toBe("the doctor header is locatable: true");
+    const end = src.indexOf("// ---------------------------------------------------------------------------", start);
+    expect(`the doctor header is bounded: ${end > start}`).toBe("the doctor header is bounded: true");
+    const header = src.slice(start, end);
+
+    // The old sentence enumerated the adapter materializer among the things the doctor never calls.
+    // The doctor now runs that file's transform, so the enumeration became false the moment the
+    // staleness verdict landed. A false sentence in the one file whose job is true ones is not left
+    // standing.
+    expect(
+      `the old enumeration survives: ${header.includes("copyKit / materializeAdapter / seedState / writeMarker")}`,
+    ).toBe("the old enumeration survives: false");
+    // What replaced it is the invariant that actually holds and that the read-only case above
+    // asserts behaviourally.
+    expect(header).toContain("MUTATES NOTHING INSIDE THE TARGET");
+    expect(header).toContain("transformAdapter");
+  });
+
+  it("doctor: the staleness verdict landed in the WARN tier only, and no frontmatter grammar came with it (D-09, D-10)", () => {
+    const src = readFileSync(join(import.meta.dirname, "install.ts"), "utf8");
+    const doctorStart = src.indexOf("function doctor(): number {");
+    const doctorEnd = src.indexOf("\n// --- Doctor early-exit", doctorStart);
+    expect(`the doctor body is bounded: ${doctorStart >= 0 && doctorEnd > doctorStart}`).toBe(
+      "the doctor body is bounded: true",
+    );
+    const body = src.slice(doctorStart, doctorEnd);
+    // No new severity mechanism: DOC_WARNS is already promoted by --strict in the exit matrix, so
+    // D-10 is a PLACEMENT decision rather than a mechanism. The staleness lines are warnings.
+    expect(body).toContain("docWarn");
+    // NO FRONTMATTER GRAMMAR. The comparison is whole-file; the doctor parses no `model:` line and
+    // no other frontmatter key. A second grammar over the same bytes is what D-09 exists to avoid.
+    // Comment lines are filtered the way the mid-script-exit pin above filters them: prose about a
+    // frontmatter key is not a grammar over one, and the scan would otherwise trip on the paragraph
+    // that explains why there is no grammar. What is asserted is that no CODE line inside the
+    // doctor so much as mentions the word — no regex, no string, no key lookup.
+    const codeLines = body.split("\n").filter((l) => !/^\s*\/\//.test(l));
+    const modelKeyMentions = codeLines.filter((l) => /model/i.test(l));
+    expect(modelKeyMentions).toEqual([]);
+    // ...and it writes nothing: no write call of any kind inside the doctor body.
+    const writes = codeLines.filter((l) => /\b(writeFileSync|appendFileSync|copyFileSync|symlinkSync|renameSync|rmSync|mkdirSync|mkdirp)\s*\(/.test(l));
+    expect(writes).toEqual([]);
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────────────────────────
   // MODEL DELIVERY (Phase 29.2, D-01 … D-06). A `models` block written into a TARGET repository
   // reaches THAT repository's adapters.
   //
