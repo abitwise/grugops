@@ -59,14 +59,21 @@
 // the vocabulary and agreed with CLAUDE.md:84 — that agreement is a SESSION-LEVEL CROSS-CHECK, NOT a
 // fetched vendor-documentation citation, and it does not upgrade this note or add a source to it.
 //
-// SCOPE, AS OF PLAN 29.1-02. The module is complete: the closed alias vocabulary, the closed preset
+// SCOPE, AS OF PHASE 29.2. The module is complete: the closed alias vocabulary, the closed preset
 // vocabulary, the shipped `tiered` table with a rationale required by the type, the two-location
 // config read with every illegal input refused by name, and the sparse-override contract. What is
-// NOT here, deliberately: the exact live-tree cardinality (adjudicated in `guard_model_assignment`,
-// plan 29.1-04) and the install-time delivery of a per-repo `models` block (moved to phase 29.2 by
-// D-17). Until 29.2 lands, a per-repo `models` block is INERT FOR AN INSTALLED TARGET — the
-// mechanism resolves and emits correctly in-kit, but the adapters an installed repo loads are
-// whatever the kit shipped. That is a disclosed limitation of this increment, not a defect.
+// NOT here, deliberately: the exact live-tree cardinality, which is adjudicated in
+// `guard_model_assignment` (plan 29.1-04) and by nothing in this file.
+//
+// WHERE THE RESOLVED ANSWER GOES. This module resolves the block. scripts/generate-role-adapters.ts
+// is the one emitter of the `model:` line from that resolution. install/install.ts renders a target
+// repository's adapters by spawning that generator against THAT repository's own configuration file,
+// so installing a repository from the checkout delivers that repository's `models` block into the
+// adapters its session loads. Delivery happens at install time and only there: a block edited
+// afterwards reaches the repository on the next install run against it from the checkout, and the
+// installer's `--check` mode names every adapter an edit has not reached yet. The 29.1 increment
+// disclosed this delivery path as absent; that disclosure described 29.1 and is not true of the
+// tree as it stands.
 //
 // DELIBERATELY NOT IMPORTED: `listRoles`. The role-set authority is still the only source of stems,
 // but this module never derives them itself — `resolveModels` and `readModelsConfig` both TAKE the

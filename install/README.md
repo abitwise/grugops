@@ -74,7 +74,9 @@ step, a Makefile), read the exit code. Both `install.js` and `uninstall.js` use 
 | `3` | **incomplete** — the run went ahead but could not finish a whole class, and printed `== install INCOMPLETE — N item(s) need verification ==` (`uninstall.js` prints the same line with `uninstall` in place of `install`). Every `verify` line in the output names what was left undone and the remedy for it. |
 
 Code `3` is the important one: grug not lie about finish. A run that could not read a source
-directory, or that refused an adapter, installed **nothing for that class** — so it does not
+directory, that refused an adapter (a `models` block the resolver refuses is one way), or that could
+not render the adapters at all (a partial checkout missing the modules the render needs is one way),
+installed **nothing for that class** — so it does not
 claim completion, and it does not return the success code either. **A chained command stops
 here.** That is deliberate: proceeding over a partial install is how a broken install reaches
 production looking fine. Read the `verify` lines, fix the source, re-run (the installer is
@@ -288,6 +290,14 @@ DRY_RUN=1 node install/install.js --update
 from the running checkout and **does not touch any repo's per-repo state** — it never writes adapters,
 seeded `.grugops/` state, or a marker into a target. There is no `--target` to pass; one update
 refreshes the one shared kit that every installed repo resolves against.
+
+So `--update` is **not** how a change reaches a repo's `.claude/agents/` sub-agent adapters. Those are
+rendered per repo at install time, from that repo's own `.grugops/factory.config.json`. A `models`
+edit — or a kit-side adapter change — reaches an installed repo by **re-running the install from the
+checkout against that repo**: `node install/install.js --target /path/to/repo`. The re-run is
+idempotent, so an adapter that would not change is left alone and reported as identical. To see what
+an edit has not reached yet without writing anything, run
+`node install/install.js --check --target /path/to/repo`; it names every stale adapter.
 
 It is **reversible**: the displaced kit is retained as a timestamped `agent-factory.bak.<ISO>`
 backup under the kit home (renamed aside, never deleted) whenever the new kit differs from it. If the

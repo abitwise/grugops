@@ -1353,12 +1353,60 @@ describe("model dial — the configuration locations are documented, and the rul
   });
 });
 
-describe("model dial — the D-17 limitation is disclosed where a configuring reader meets it", () => {
-  it("the config field reference discloses the installed-target limitation and names Phase 29.2", () => {
+// ── THE REMEDY THE CONFIG REFERENCE MUST NAME (D-07 / D-15, phase 29.2) ───────────────────────
+//
+// The installer entry point a reader re-runs to deliver a `models` edit into an installed repository,
+// and the flag that points that run at the repository. Spelled here because there is nothing in the
+// tree to derive them from — they are a command line, not an exported symbol — and the PREMISE in
+// the case below checks the entry point names a file this repository really ships, so a rename
+// cannot leave this case asserting that the reference names a command nobody can run.
+const INSTALL_ENTRYPOINT_REL = "install/install.js";
+const INSTALL_TARGET_FLAG = "--target";
+
+// The 29.1 disclosure that phase 29.2 refuted, held as WORDINGS the way the retired precedence
+// phrasings above are held. Each fragment sits inside ONE source line of the reference as it was
+// written, because every comparison in this file is an exact substring match over the raw file.
+const RETIRED_INSTALLED_TARGET_DISCLOSURES = [
+  "Disclosed limitation",
+  "closed by Phase 29.2",
+  "does not change the adapters that repository's session loads",
+] as const;
+
+describe("model dial — the delivery path is stated where a configuring reader meets it", () => {
+  it("the config field reference names the install re-run as the way a models edit reaches an installed repository", () => {
     const pointer = readSurface("pointer");
-    // The WORDING is deliberately not pinned — that would make this file a second authority over the
-    // note's prose. What is pinned is that the disclosure is present and names where it closes.
-    expect(pointer).toContain("Disclosed limitation");
-    expect(pointer).toContain("Phase 29.2");
+
+    // RE-AIMED IN PHASE 29.2, IN THE SAME COMMIT AS THE PROSE IT ASKS ABOUT. This block used to
+    // assert that the reference DISCLOSED the 29.1 limitation — a `models` block was inert for an
+    // installed target — and named the phase that would close it. Phase 29.2 closed it, so that
+    // disclosure became a refuted sentence, and a case asserting its presence would hold shipped kit
+    // prose to a claim that is no longer true.
+    //
+    // The WORDING is still deliberately not pinned — that would make this file a second authority
+    // over the note's prose. What is pinned is that the reference names the REMEDY a reader has to
+    // run: the installer entry point, and the flag that points it at their own repository.
+    expect(
+      existsSync(join(ROOT, INSTALL_ENTRYPOINT_REL)),
+      `PREMISE: ${INSTALL_ENTRYPOINT_REL} must be a file this repository ships, or this case is asserting that the reference names a command nobody can run`,
+    ).toBe(true);
+    expect(pointer).toContain(INSTALL_ENTRYPOINT_REL);
+    expect(pointer).toContain(INSTALL_TARGET_FLAG);
+  });
+
+  it("the retired 29.1 disclosure has not survived in the reference", () => {
+    // Same idiom as the retired-precedence-phrasings case above, applied to the sentence D-15
+    // rewrote: an editor who restores the refuted wording verbatim is told by name. WHAT IT DOES NOT
+    // BUY, stated rather than left to be rediscovered: it is a list of WORDINGS and not a decision
+    // procedure over the claim, so a fresh paraphrase of the same refuted sentence is not in this
+    // list and is not caught by it.
+    const pointer = readSurface("pointer");
+    expect(
+      RETIRED_INSTALLED_TARGET_DISCLOSURES.length,
+      "PREMISE: the retired list must not be empty",
+    ).toBeGreaterThan(0);
+    const returned = RETIRED_INSTALLED_TARGET_DISCLOSURES.filter(
+      (frag) => occurrences(pointer, frag) > 0,
+    );
+    expect(returned).toEqual([]);
   });
 });
