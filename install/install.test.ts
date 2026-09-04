@@ -1198,6 +1198,50 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     expect(installedAdapters(targetShort)).toEqual([]);
   });
 
+  it("model delivery: a kit checkout MISSING a generator twin installs NOTHING, names every absent file, and states that no verdict was produced (R-5)", () => {
+    // THE PARTIAL-CHECKOUT ARM. It is the branch R-5 exists for and the one with the most
+    // dangerous silent alternative: falling back to the kit-shipped adapter bytes would install a
+    // configured target's adapters at `inherit` and report a clean completion. Every twin is
+    // removed in turn so the case cannot pass by covering whichever one happens to be checked
+    // first, and the whole set is removed once so the count in the message is exercised too.
+    for (const twin of SYNTH_GENERATOR_TWINS) {
+      const src = makeSyntheticSrc();
+      const target = mkTmp();
+      writeFileSync(join(target, "CLAUDE.md"), "# User Project\n");
+      rmSync(join(src, ...twin.split("/")), { force: true });
+      expect(existsSync(join(src, ...twin.split("/")))).toBe(false);
+
+      const r = runInstallFrom(src, target, mkTmp());
+      expect(`${twin}: status=${r.status} named=${r.stdout.includes(twin)}`).toBe(
+        `${twin}: status=3 named=true`,
+      );
+      // THE ABSENCE OF A VERDICT, NOT A CLEAN ONE — the unreadable-versus-empty distinction this
+      // installer draws everywhere else. A render that could not run knows nothing about these
+      // adapters; it does not know them to be unchanged.
+      expect(r.stdout).toContain("NO VERDICT");
+      expect(r.stdout).toContain("install INCOMPLETE");
+      expect(r.stdout).not.toContain("== install complete");
+      // R-5: no fallback byte source.
+      expect(installedAdapters(target)).toEqual([]);
+      // ...and every other class still completed.
+      expect(installedSkills(target).length).toBe(7);
+      expect(existsSync(join(target, ".grugops", "install.json"))).toBe(true);
+    }
+
+    // ALL FOUR ABSENT AT ONCE: the count travels with the message, and every name is still listed.
+    const bare = makeSyntheticSrc();
+    const bareTarget = mkTmp();
+    writeFileSync(join(bareTarget, "CLAUDE.md"), "# User Project\n");
+    for (const twin of SYNTH_GENERATOR_TWINS) rmSync(join(bare, ...twin.split("/")), { force: true });
+    const rAll = runInstallFrom(bare, bareTarget, mkTmp());
+    expect(rAll.status).toBe(3);
+    expect(rAll.stdout).toContain(`${SYNTH_GENERATOR_TWINS.length} of ${SYNTH_GENERATOR_TWINS.length}`);
+    for (const twin of SYNTH_GENERATOR_TWINS) {
+      expect(`names ${twin}: ${rAll.stdout.includes(twin)}`).toBe(`names ${twin}: true`);
+    }
+    expect(installedAdapters(bareTarget)).toEqual([]);
+  }, 60_000);
+
   // ─────────────────────────────────────────────────────────────────────────────────────────────
   // THE RESOLUTION REPORT (D-04, R-1). The run says which resolution it applied and where it read
   // it from, and every per-adapter line carries the alias that adapter was rendered with.
