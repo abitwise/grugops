@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 108
+open_count: 110
 waived_count: 0
 fixed_count: 4
-total_count: 112
-last_updated: 2026-09-04T10:38:41.417Z
+total_count: 114
+last_updated: 2026-09-04T15:54:39.225Z
 ---
 
 # Broken Windows Ledger
@@ -127,6 +127,8 @@ last_updated: 2026-09-04T10:38:41.417Z
 | 110 | 29.2 | deviation | install/install.ts |  | OPEN DEFECT (found 29.2-03 red-team, deliberately NOT fixed): the --check doctor names a target adapter that is stale or absent, but never one the target holds that the kit no longer ships. A stray grugops-*.md left by an older kit is loaded by Claude Code, survives uninstall (removal is by derived name over the kit set), and the doctor reports ALL CHECKS PASSED over it. Reproduced 2026-09-04. Deciding which target files the doctor speaks for is a contract question spanning install and uninstall, not a local bug, so it is recorded rather than invented mid-execution. | open |  | 2026-09-04T10:38:21.651Z |  |
 | 111 | 29.2 | deviation | install/install.ts |  | PRE-EXISTING, out of scope for 29.2 (found 29.2-03 red-team): materializeAdapter's WRITE half throws uncaught when the destination adapter is a directory (EISDIR) or unwritable (EACCES). The run dies at exit 1 with a stack trace part-way through the adapter loop, after some adapters were already reported. The skip-if-identical arm added in 29.2-02 does NOT hide a stale target in either case - both were probed and neither reports identical - so the invariant this phase added holds; the crash predates the phase (the write was previously unconditional and threw the same way). | open |  | 2026-09-04T10:38:41.321Z |  |
 | 112 | 29.2 | deviation | install/install.ts |  | OBSERVATION, pre-existing (found 29.2-03 red-team): when the checkout's .claude/agents cannot be read or is empty, the --check doctor is loud (exit 1) but reports it as a kit-root cross-check disagreement reading 'adapter=<unset>', which names the target rather than the unreadable checkout. Not silent, so not a bypass; the sentence points a reader at the wrong root. targetAdapterFiles' null propagation predates 29.2. | open |  | 2026-09-04T10:38:41.417Z |  |
+| 113 | 29.2 | unrun-verify | install/install.test.ts |  | Unreproduced transient: one full-suite run reported 2 failing test files (baseline is 1); the extra failure was not identified and did not reproduce in 3 subsequent full runs. UNKNOWN - verify. | open |  | 2026-09-04T15:54:39.135Z |  |
+| 114 | 29.2 | deviation | install/install.ts |  | Sibling-prefix containment trap (…/target-backup beside …/target) is covered only by an adversarial probe, not by a CI regression case. | open |  | 2026-09-04T15:54:39.225Z |  |
 
 ````json
 [
@@ -1472,6 +1474,30 @@ last_updated: 2026-09-04T10:38:41.417Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-09-04T10:38:41.417Z",
+    "resolved_at": null
+  },
+  {
+    "id": 113,
+    "kind": "unrun-verify",
+    "phase": "29.2",
+    "file": "install/install.test.ts",
+    "line": null,
+    "description": "Unreproduced transient: one full-suite run reported 2 failing test files (baseline is 1); the extra failure was not identified and did not reproduce in 3 subsequent full runs. UNKNOWN - verify.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-04T15:54:39.135Z",
+    "resolved_at": null
+  },
+  {
+    "id": 114,
+    "kind": "deviation",
+    "phase": "29.2",
+    "file": "install/install.ts",
+    "line": null,
+    "description": "Sibling-prefix containment trap (…/target-backup beside …/target) is covered only by an adversarial probe, not by a CI regression case.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-04T15:54:39.225Z",
     "resolved_at": null
   }
 ]
