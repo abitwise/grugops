@@ -1152,6 +1152,91 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     }
   });
 
+  it("doctor: a fresh render producing members the kit's adapter set does not carry states that NO VERDICT was produced for them (D-09)", () => {
+    // THE BYPASS, REPRODUCED 2026-09-04 AGAINST THE COMMITTED install.js. The doctor iterates the
+    // set it derives from the checkout's own adapter directory and compares each member against the
+    // fresh render. It catches a member it has that the render does not produce. It never asks the
+    // OTHER direction — a member the render produces that its set does not carry — so a checkout
+    // whose adapter directory is SHORT reports a clean verdict over a subset and says nothing about
+    // the members it never asked about. Measured: a checkout carrying ONE of the seventeen adapters,
+    // against a target whose seventeen were all stale, printed `ALL CHECKS PASSED (1 warning(s))` at
+    // exit 0, naming exactly one file.
+    //
+    // A VACUITY FLOOR CATCHES AN EMPTY DENOMINATOR AND NEVER A SILENTLY SHORT ONE. The doctor's
+    // `docNames.length > 0` guard is that floor; this case is the short one it cannot see. The
+    // second listing is not a new derivation — the render helper already returns its own output
+    // listing, and this side simply has to ask it.
+    const target = makeFixture();
+    const home = mkTmp();
+    expect(runInstall(target, home).status).toBe(0);
+    // PREMISE: the pre-damage doctor was clean, so every line below is caused by the damage.
+    expect(runCheck(target, home).status).toBe(0);
+
+    const short = makeSyntheticSrc();
+    const keep = SYNTH_ADAPTERS[0];
+    for (const a of SYNTH_ADAPTERS.slice(1)) rmSync(join(short, ".claude", "agents", a), { force: true });
+    // PREMISE, ASSERTED: the checkout is short by sixteen while its roles corpus is complete, so
+    // the render still produces every member. A fixture that shortened BOTH sides would make this
+    // case pass for the reason it exists to refuse.
+    expect(readdirSync(join(short, ".claude", "agents")).sort()).toEqual([keep]);
+    expect(SYNTH_ADAPTERS.length).toBeGreaterThan(1);
+
+    const doc = runCheck(target, home, { src: short });
+    expect(doc.stdout).toContain("NO VERDICT on adapter staleness");
+    // Every member the render produced but the set does not carry is NAMED — a count alone would
+    // say the two disagree and never which member went unasked.
+    const unnamed = SYNTH_ADAPTERS.slice(1).filter((a) => !doc.stdout.includes(a));
+    expect(unnamed, `every unasked member must be named; stdout was:\n${doc.stdout}`).toEqual([]);
+    // The tier is unchanged: a WARN by default, promoted under --strict like every other one.
+    expect(`status=${doc.status}`).toBe("status=0");
+    expect(runCheck(target, home, { src: short, args: ["--strict"] }).status).toBe(1);
+  });
+
+  it("doctor: a REFUSED configuration is relayed with the REAL configuration path, never only the temp mirror's (D-09)", () => {
+    // FOUND BY AN INDEPENDENT REVIEW OF THIS PHASE'S DIFF (29.2-03 task 2). The install arm ends its
+    // relay with a sentence naming TARGET/.grugops/factory.config.json and disclaiming any path
+    // inside the relayed message; the doctor's arm relayed the same message without it. Reproduced
+    // against the committed build: `--check` over a target carrying an illegal preset printed a
+    // remedy naming a temp mirror directory that had already been removed when the line printed.
+    // Nothing a reader is handed may name a path that does not exist on their machine.
+    const target = makeFixture();
+    const home = mkTmp();
+    expect(runInstall(target, home).status).toBe(0);
+    expect(runCheck(target, home).status).toBe(0);
+
+    mkdirSync(join(target, ".grugops"), { recursive: true });
+    writeFileSync(
+      join(target, ".grugops", "factory.config.json"),
+      JSON.stringify({ models: { preset: "turbo" } }) + "\n",
+    );
+    const doc = runCheck(target, home);
+    expect(doc.stdout).toContain("NO VERDICT on adapter staleness");
+
+    // THE ASSERTION IS BOUNDED TO THE FINDING, AND THAT BOUND IS THE WHOLE CASE. Written first as a
+    // toContain over the WHOLE stdout, it passed against the UNFIXED build — because the doctor's
+    // ordinary stat list already prints `ok  <target>/.grugops/factory.config.json` on its own line.
+    // A green for a reason that has nothing to do with the claim. The finding block is a docWarn
+    // line plus the continuation lines indented under its padded label, so it is sliced out and
+    // asked about on its own.
+    const lines = doc.stdout.split("\n");
+    const at = lines.findIndex((l) => l.includes("NO VERDICT on adapter staleness"));
+    expect(at, "PREMISE: the no-verdict finding must be present to be asked about").toBeGreaterThan(-1);
+    let end = at + 1;
+    while (end < lines.length && lines[end].startsWith("                 ")) end += 1;
+    const block = lines.slice(at, end).join("\n");
+
+    // PREMISE: the generator's own refusal really is relayed inside this block, and it really does
+    // carry a temp-mirror path — without both, the leak this case exists for is not in the input.
+    expect(block, "PREMISE: the generator's refusal must be relayed inside the finding").toContain("turbo");
+    expect(block, "PREMISE: the relayed text must carry a temp-mirror path, or there is no leak to disclaim")
+      .toContain("grugops-install-render-");
+
+    // THE CLAIM: the real path on this machine is named inside the same finding.
+    expect(block).toContain(join(target, ".grugops", "factory.config.json"));
+    expect(`status=${doc.status}`).toBe("status=0");
+    expect(runCheck(target, home, { args: ["--strict"] }).status).toBe(1);
+  });
+
   it("doctor: a target with a FAILING cross-check reports that primary defect and produces no staleness lines at all (D-09)", () => {
     const target = makeFixture();
     const home = mkTmp();
@@ -1955,6 +2040,167 @@ describe("install.js / uninstall.js — single-installer contract (folds install
   // a patched generator twin rather than only by a scratch-build mutation: the fixture makes the
   // mirrored generator emit a banner the installer does not recognise (the silent-drift shape) and
   // then emit two of them (the ambiguous shape), and the installer must refuse both by name.
+  // ── ROUND-1 RED-TEAM FINDINGS (29.2-03 task 2) ───────────────────────────────────────────────
+  //
+  // Both cases below were written from a REPRODUCED bypass against the committed install.js, not
+  // from a reading of the code. Each records what the run did BEFORE the fix in its own comment, so
+  // a later reader can judge whether the case is aimed at the defect or at the patch.
+
+  it("model delivery: a rendered adapter carrying NO kit slot line installs NOTHING and names the file (D-14)", () => {
+    // THE BYPASS, REPRODUCED 2026-09-04 AGAINST THE COMMITTED install.js. The banner count floor is
+    // asked about every rendered agent adapter and refuses on zero or on two — but the floor's
+    // guarantee is that the banner will be REWRITTEN, and the rewrite happens only on the
+    // materialize route. A rendered adapter that carries exactly one recognised banner and NO kit
+    // slot line is routed to linkOrCopy instead, which copies raw bytes: the target received a file
+    // still naming `node scripts/generate-role-adapters.js`, a command the target cannot run, and
+    // the run exited 0 claiming completion. Measured: 17 adapters installed, 0 target-banner blocks,
+    // 1 occurrence of the generator command in the installed file, exit 0.
+    //
+    // WHAT THE CASE ASKS, THEREFORE: not "did the floor count right" but "is the file the floor
+    // counted actually going to be transformed". The predicate is the SAME srcCarriesSlot the
+    // router uses, asked about the same path, so routing and the refusal cannot disagree.
+    const src = makeSyntheticSrc();
+    const target = mkTmp();
+    writeFileSync(join(target, "CLAUDE.md"), "# User Project\n");
+
+    // The RESOLVER block is what carries the kit slot line into a rendered adapter. Removing the
+    // FIRST of the generator's two emit sites leaves the other members intact, so the fixture is the
+    // MIXED shape a real drift would produce rather than an all-or-nothing one.
+    patchSyntheticGenerator(src, "        ...RESOLVER,", '        "(resolver block removed by this fixture)",');
+
+    const r = runInstallFrom(src, target, mkTmp());
+    expect(`status=${r.status}`).toBe("status=3");
+    expect(installedAdapters(target)).toEqual([]);
+    expect(r.stdout).toContain("install INCOMPLETE");
+
+    // THE FILE IS NAMED, and the name is DERIVED from the run rather than spelled here — a hand
+    // written name would go stale the moment the generator's emit order changed, and this case would
+    // then be asserting about a member the fixture no longer damages.
+    const named = SYNTH_ADAPTERS.filter((a) =>
+      r.stdout.includes(`.claude/agents/${a} was rendered without`),
+    );
+    expect(
+      `named exactly one member: ${named.length}`,
+      `the refusal must name the damaged member; stdout was:\n${r.stdout}`,
+    ).toBe("named exactly one member: 1");
+
+    // AND THE CONSEQUENCE THE REFUSAL EXISTS FOR IS STATED: no target file may name a command the
+    // target cannot run. Asserted over the whole target, not only over the damaged member.
+    const leaked = installedAdapters(target).filter((a) =>
+      readFileSync(join(target, ".claude", "agents", a), "utf8").includes(
+        "node scripts/generate-role-adapters.js",
+      ),
+    );
+    expect(leaked).toEqual([]);
+
+    // THE SAME ROUTE UNDER --symlink, WHICH IS THE WORSE HALF AND WAS FOUND BY AN INDEPENDENT
+    // REVIEW OF THIS PHASE'S DIFF. linkOrCopy's symlink arm points the target at `src` — and `src`
+    // is now a path inside the temp mirror, which the render helper's `finally` removes as soon as
+    // the callback returns. Measured against the committed build: all seventeen installed as
+    // symlinks into a deleted directory, every one reported `linked`, `== install complete ==`,
+    // exit 0, and every file unreadable a moment later. Silent and total, which is the direction
+    // this file refuses everywhere else.
+    const symTarget = mkTmp();
+    writeFileSync(join(symTarget, "CLAUDE.md"), "# User Project\n");
+    const sym = runInstallFrom(src, symTarget, mkTmp(), "--symlink");
+    expect(`symlink mode: status=${sym.status}`).toBe("symlink mode: status=3");
+    expect(installedAdapters(symTarget)).toEqual([]);
+  });
+
+  it("model delivery: a mirror the installer cannot BUILD is a named finding, never a crash (R-5)", () => {
+    // FOUND BY AN INDEPENDENT REVIEW OF THIS PHASE'S DIFF (29.2-03 task 2). The render helper's
+    // header promises a discriminated result that never throws, and its `finally` guarantees only
+    // CLEANUP — not a result. Every construction step ran outside any try/catch that produces one:
+    // the mkdtemp itself, the mirror layout, the twin copies and the kit-source copies. Reproduced
+    // against the committed build, both at exit 1 with a raw stack and no banner at all:
+    //   - TMPDIR pointing at a path that does not exist  → `ENOENT … mkdtemp`
+    //   - a checkout whose agent-factory/roles is absent → `ENOENT … lstat …/agent-factory/roles`
+    // The second one matters most: the twins pre-check covers the four scripts/*.js and says nothing
+    // about the two kit-source trees, so exactly the partial checkout that pre-check exists for can
+    // still reach the mirror and crash it. And a crash here lands AFTER the kit and skills classes
+    // have written and BEFORE the state seed and the marker — a half-installed target reported by
+    // no banner at all.
+    const runWithEnv = (src: string, target: string, home: string, extra: NodeJS.ProcessEnv) => {
+      const r = spawnSync("node", [INSTALL_JS, "--yes"], {
+        encoding: "utf8",
+        maxBuffer: 64 * 1024 * 1024,
+        env: { ...process.env, INSTALL_MODE: "copy", GRUGOPS_SRC: src, GRUGOPS_HOME: home, TARGET: target, ...extra },
+      });
+      return { status: r.status, stdout: r.stdout ?? "", stderr: r.stderr ?? "" };
+    };
+
+    // ARM 1 — the temp root itself is unusable.
+    {
+      const src = makeSyntheticSrc();
+      const target = mkTmp();
+      writeFileSync(join(target, "CLAUDE.md"), "# User Project\n");
+      const dead = join(mkTmp(), "no-such-temp-root");
+      // PREMISE: the path really is absent, or this arm exercises nothing.
+      expect(existsSync(dead)).toBe(false);
+      const r = runWithEnv(src, target, mkTmp(), { TMPDIR: dead });
+      expect(`tmpdir: status=${r.status}`).toBe("tmpdir: status=3");
+      expect(r.stdout).toContain("install INCOMPLETE");
+      expect(installedAdapters(target)).toEqual([]);
+      expect(`tmpdir: stack trace: ${r.stderr.includes("at ")}`).toBe("tmpdir: stack trace: false");
+      // The run still reaches the classes that follow the adapters — the half-installed target with
+      // no banner is the shape this arm exists to delete.
+      expect(existsSync(join(target, ".grugops", "install.json"))).toBe(true);
+    }
+
+    // ARM 2 — a checkout the twins pre-check calls complete, whose kit sources are not.
+    {
+      const src = makeSyntheticSrc();
+      const target = mkTmp();
+      writeFileSync(join(target, "CLAUDE.md"), "# User Project\n");
+      rmSync(join(src, "agent-factory", "roles"), { recursive: true, force: true });
+      // PREMISE, TWO-SIDED: the four twins the pre-check asks about are all still present, so this
+      // arm is NOT a second run of the missing-twin case wearing a different name.
+      for (const twin of SYNTH_GENERATOR_TWINS) {
+        expect(`${twin} present: ${existsSync(join(src, ...twin.split("/")))}`).toBe(`${twin} present: true`);
+      }
+      expect(existsSync(join(src, "agent-factory", "roles"))).toBe(false);
+
+      const r = runWithEnv(src, target, mkTmp(), {});
+      expect(`roles: status=${r.status}`).toBe("roles: status=3");
+      expect(r.stdout).toContain("install INCOMPLETE");
+      expect(installedAdapters(target)).toEqual([]);
+      expect(`roles: stack trace: ${r.stderr.includes("at ")}`).toBe("roles: stack trace: false");
+      // The absent input is NAMED, derived from the installer's own kit-source list rather than
+      // spelled here twice.
+      expect(r.stdout).toContain("agent-factory/roles");
+    }
+  });
+
+  it("model delivery: a target whose configuration path is NOT A READABLE FILE installs NOTHING, names the path, and lets every other class complete (R-5)", () => {
+    // THE BYPASS, REPRODUCED 2026-09-04 AGAINST THE COMMITTED install.js. The one new input D-01
+    // added is copied with `copyFileSync` guarded only by `existsSync`. A `.grugops/factory.config.json`
+    // that is a DIRECTORY passes existsSync and makes the copy throw UNCAUGHT: the installer died at
+    // exit 1 with a stack trace, having installed nothing and completed no other class — on both the
+    // install path and the --check path. That is the exact shape the twins pre-check was added to
+    // delete in 29.2-01: a crash where a named finding belongs.
+    const src = makeSyntheticSrc();
+    const target = mkTmp();
+    writeFileSync(join(target, "CLAUDE.md"), "# User Project\n");
+    mkdirSync(join(target, ".grugops", "factory.config.json"), { recursive: true });
+
+    const r = runInstallFrom(src, target, mkTmp());
+    // R-5's whole contract in one assertion: a named refusal at the INCOMPLETE code, never a crash.
+    expect(`status=${r.status}`).toBe("status=3");
+    expect(installedAdapters(target)).toEqual([]);
+    expect(r.stdout).toContain("install INCOMPLETE");
+    // The REAL path on this machine is named — the generator never ran, so there is no relayed
+    // message to carry it.
+    expect(r.stdout).toContain(join(target, ".grugops", "factory.config.json"));
+    // NOT a stack trace: the crash printed the error class on stderr and nothing on stdout.
+    expect(`stack trace on stderr: ${r.stderr.includes("at ")}`).toBe("stack trace on stderr: false");
+    // REPORT, DON'T ABORT: every other class still completes. Asserted over the classes THIS
+    // fixture ships — a synthetic source carries no memory-bank seed, so asking about one would be
+    // asking about a class that was never in the run.
+    expect(r.stdout).toContain("-- state seed --");
+    expect(existsSync(join(target, ".grugops", "install.json"))).toBe(true);
+    expect(existsSync(join(target, ".claude", "skills", "grugops", "SKILL.md"))).toBe(true);
+  });
+
   it("model delivery: a rendered adapter carrying ZERO or TWO recognised banner lines installs NOTHING and names the file (D-14)", () => {
     const provenance = provenanceLiteral();
     // The compiled twin declares the literal on one line, so the anchor is DERIVED from the source

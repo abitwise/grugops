@@ -640,9 +640,47 @@ function doctor() {
         if (docNames.length > 0) {
             renderAdaptersInMirror((res) => {
                 if (!res.ok) {
+                    // THE RELAYED MESSAGE NAMES A TEMP MIRROR THAT NO LONGER EXISTS, so the real path on this
+                    // machine is named beside it — the same closing sentence the install arm carries, for the
+                    // same reason. Nothing this repository hands a reader may name a path they cannot go and
+                    // look at. (Found by an independent review of this phase's diff: `--check` over a target
+                    // carrying an illegal preset printed a remedy naming a directory already removed.)
+                    //
+                    // IT SAYS "configuration file" WHERE THE INSTALL ARM SAYS "model configuration", AND THE
+                    // DIFFERENCE IS DELIBERATE. A structural pin in install.test.ts asserts that no CODE line
+                    // inside this function mentions that word at all — the cheapest way to keep a frontmatter
+                    // grammar out of the doctor is to keep the word out of it, and the pin does not
+                    // distinguish a string literal from a parser. The pin caught this sentence on the way in,
+                    // which is the pin working; the sentence was reworded rather than the pin relaxed.
                     docWarn(`adapter staleness: NO VERDICT on adapter staleness was produced by this run — ` +
-                        `${res.reason.split("\n").join("\n                 ")}`);
+                        `${res.reason.split("\n").join("\n                 ")}\n` +
+                        `                 The configuration file this check reads is ` +
+                        `${join(TARGET, ".grugops", "factory.config.json")}; any path inside the relayed ` +
+                        `message above is a temporary mirror that no longer exists.`);
                     return;
+                }
+                // THE OTHER DIRECTION OF THE SET QUESTION (29.2-03 task 2, found by reproduction).
+                //
+                // The loop below asks about every member of docNames. It never asked about a member the
+                // RENDER produced that docNames does not carry — so a checkout whose adapter directory is
+                // SHORT compared a subset and printed a clean verdict over it. Measured against the
+                // committed build: a checkout carrying one of the seventeen, against a target whose
+                // seventeen were all stale, printed `ALL CHECKS PASSED (1 warning(s))` at exit 0. A vacuity
+                // floor catches an EMPTY denominator and never a silently short one, and `docNames.length >
+                // 0` above is that floor.
+                //
+                // NO NEW DERIVATION IS INTRODUCED. The render helper already returns the listing it read out
+                // of its own output directory; this side only has to ask it. The install path asks the same
+                // question in both directions before its first write, and this makes the doctor's half of
+                // the comparison say the same thing.
+                const unlisted = res.value.files.filter((n) => !docNames.includes(n));
+                if (unlisted.length > 0) {
+                    docWarn(`adapter staleness: the fresh render produced ${unlisted.length} member(s) that the ` +
+                        `kit's own adapter set does not carry — ${unlisted.join(", ")} — so NO VERDICT on ` +
+                        `adapter staleness was produced for them. Whatever this target holds under those ` +
+                        `names was never compared against anything. The adapter directory and the role corpus ` +
+                        `in the kit checkout at ${GRUGOPS_SRC} disagree; re-run --check from a complete kit ` +
+                        `checkout.`);
                 }
                 const stale = [];
                 const absent = [];
@@ -1274,36 +1312,99 @@ function renderAdaptersInMirror(use) {
         });
         return;
     }
-    const dir = mkdtempSync(join(tmpdir(), "grugops-install-render-"));
+    // 1b. THE TEMP ROOT ITSELF. `mkdtempSync` is the first thing that can fail and the one thing the
+    //     `finally` below cannot clean up after, because there is no directory yet. A throw here used
+    //     to be uncaught: the process died at exit 1 with a raw stack, AFTER the kit and skills
+    //     classes had already written and BEFORE the state seed and the marker, and printed no banner
+    //     at all. Found by an independent review of this phase's diff and reproduced with TMPDIR
+    //     pointing at an absent path.
+    let dir;
+    try {
+        dir = mkdtempSync(join(tmpdir(), "grugops-install-render-"));
+    }
+    catch (e) {
+        use({
+            ok: false,
+            reason: `the adapter render could not start: no temporary directory could be created under ` +
+                `${tmpdir()} (${e instanceof Error ? e.message : String(e)}), so the render had nowhere to ` +
+                `run. NO VERDICT on this target's adapters was produced. Make the system temporary ` +
+                `directory writable — or point TMPDIR at one that is — and re-run.`,
+        });
+        return;
+    }
     try {
         // 2. The mirror layout. Only these directories are created here; agent-factory/roles and
         //    agent-factory/packaging arrive through cpSync below, and no agent-factory/config path is
         //    ever built inside the mirror (D-06).
-        mkdirSync(join(dir, "scripts"), { recursive: true });
-        mkdirSync(join(dir, ".claude", "agents"), { recursive: true });
-        writeFileSync(join(dir, "package.json"), MIRROR_PACKAGE_JSON);
-        for (const rel of GENERATOR_TWINS) {
-            cpSync(join(GRUGOPS_SRC, ...rel.split("/")), join(dir, ...rel.split("/")));
+        //
+        //    AND THE WHOLE OF IT IS GUARDED, BECAUSE THE PRE-CHECK ABOVE DOES NOT COVER IT. That check
+        //    asks about the four compiled twins and says NOTHING about the two kit-source trees — so a
+        //    checkout missing agent-factory/roles passes it and then makes `cpSync` throw. Uncaught,
+        //    that was a stack trace at exit 1 with no banner: exactly the partial checkout the pre-check
+        //    exists for, arriving through the door it does not watch. The absent input is named here
+        //    rather than crashed on. (Found by an independent review of this phase's diff.)
+        try {
+            mkdirSync(join(dir, "scripts"), { recursive: true });
+            mkdirSync(join(dir, ".claude", "agents"), { recursive: true });
+            writeFileSync(join(dir, "package.json"), MIRROR_PACKAGE_JSON);
+            for (const rel of GENERATOR_TWINS) {
+                cpSync(join(GRUGOPS_SRC, ...rel.split("/")), join(dir, ...rel.split("/")));
+            }
+            for (const rel of GENERATOR_KIT_SOURCES) {
+                cpSync(join(GRUGOPS_SRC, ...rel.split("/")), join(dir, ...rel.split("/")), {
+                    recursive: true,
+                });
+            }
+            // The reader probe, beside the twins so its relative import of ./model-tiers.js resolves the
+            // same way the generator's own imports do.
+            writeFileSync(join(dir, "scripts", RESOLUTION_PROBE_REL), RESOLUTION_PROBE_SOURCE);
         }
-        for (const rel of GENERATOR_KIT_SOURCES) {
-            cpSync(join(GRUGOPS_SRC, ...rel.split("/")), join(dir, ...rel.split("/")), {
-                recursive: true,
+        catch (e) {
+            use({
+                ok: false,
+                reason: `the adapter render could not start: the render mirror could not be built from the kit ` +
+                    `checkout at ${GRUGOPS_SRC} (${e instanceof Error ? e.message : String(e)}). The four ` +
+                    `compiled generator file(s) were all present, so this is a different condition from the ` +
+                    `absent-twin one: the inputs the generator READS — ${GENERATOR_KIT_SOURCES.join(", ")} — ` +
+                    `or the mirror's own layout could not be assembled. NO VERDICT on this target's adapters ` +
+                    `was produced. Re-run the installer from a complete kit checkout.`,
             });
+            return;
         }
-        // The reader probe, beside the twins so its relative import of ./model-tiers.js resolves the
-        // same way the generator's own imports do.
-        writeFileSync(join(dir, "scripts", RESOLUTION_PROBE_REL), RESOLUTION_PROBE_SOURCE);
         // 3. THE ONE NEW INPUT (D-05, D-06). The target's own configuration file, copied WHOLESALE and
         //    only when it already exists. Nothing is ever read out of it on this side and joined onto a
         //    path (T-29.2-03): the file crosses the boundary as bytes, and only the generator reads
         //    values from it. When the file is absent the generator takes its own zero-config path, which
         //    is the same answer the seed written later in this run would give, since the seed carries no
         //    `models` key — so a fresh install has no non-inherit answer to miss (D-05).
+        //
+        //    AND THE COPY IS GUARDED, BECAUSE existsSync ANSWERS A DIFFERENT QUESTION THAN THE ONE THE
+        //    COPY ASKS. `existsSync` says a path resolves; it does not say the path is a readable file.
+        //    A `.grugops/factory.config.json` that is a DIRECTORY (or a file this process cannot read)
+        //    passes it and makes `copyFileSync` throw — and an uncaught throw here is a stack trace at
+        //    exit 1 with no other install class completed, which is exactly the crash-where-a-finding-
+        //    belongs shape the twins pre-check above was added to delete. Reproduced against the
+        //    committed build before this guard existed, on both the install and the --check path.
         const targetConfig = join(TARGET, ".grugops", "factory.config.json");
         let configPath = null;
         if (existsSync(targetConfig)) {
-            mkdirSync(join(dir, ".grugops"), { recursive: true });
-            copyFileSync(targetConfig, join(dir, ".grugops", "factory.config.json"));
+            try {
+                mkdirSync(join(dir, ".grugops"), { recursive: true });
+                copyFileSync(targetConfig, join(dir, ".grugops", "factory.config.json"));
+            }
+            catch (e) {
+                use({
+                    ok: false,
+                    reason: `the adapter render could not start: the model configuration at ${targetConfig} exists ` +
+                        `but could not be read as a file (${e instanceof Error ? e.message : String(e)}). This ` +
+                        `is not the same fact as an absent configuration, which resolves every role to the ` +
+                        `generator's zero-config answer — this path resolves to something, so what it means is ` +
+                        `unknown rather than known to be nothing, and reading it as absent would silently ` +
+                        `install a resolution the file was never asked about. Make that path a readable JSON ` +
+                        `file, or remove it, and re-run.`,
+                });
+                return;
+            }
             configPath = targetConfig;
         }
         // 4. The spawn. `process.execPath` rather than a bare launcher name, so there is no PATH or
@@ -1984,6 +2085,31 @@ else {
                 return;
             }
             aliasOf.set(f, alias.value);
+            // THE ROUTING FLOOR, ASKED BEFORE THE BANNER FLOOR BECAUSE IT BOUNDS WHAT THAT FLOOR MEANS.
+            //
+            // FOUND BY REPRODUCTION, NOT BY READING (29.2-03 task 2). The banner floor below counts the
+            // banners a transform WOULD rewrite — but the transform only runs on the materialize route,
+            // and the route is chosen by srcCarriesSlot further down. A rendered adapter carrying exactly
+            // one recognised banner and NO kit slot line therefore passed the floor and was then copied
+            // RAW, so the target received a file still naming the generator command, and the run exited 0
+            // claiming completion. Measured against the committed build: 17 installed, 0 target banners,
+            // exit 0. Nothing in a target may name a command the target cannot run, so a rendered agent
+            // adapter that cannot be materialized is a refusal rather than a copy.
+            //
+            // ASKED THROUGH THE ROUTER'S OWN PREDICATE, on the same path the router will hand it, so the
+            // refusal and the routing cannot come to two different answers about one file. This is a
+            // statement about RENDERED AGENT ADAPTERS ONLY: the skills loop legitimately carries files
+            // that do not route here, and it is not asked.
+            if (!srcCarriesSlot(join(render.value.dir, ".claude", "agents", f))) {
+                verify(`.claude/agents/ — ${label} was rendered without the installer's kit slot line, so it ` +
+                    `cannot be materialized: its provenance banner would not be rewritten and it would ` +
+                    `reach the target still naming a command the target cannot run. A rendered agent ` +
+                    `adapter that this installer cannot materialize is refused rather than copied raw.\n` +
+                    `                 No adapter was installed and every pre-existing target adapter was ` +
+                    `left as it was. Re-run the installer from a kit checkout whose generator and installer ` +
+                    `are the same version.`);
+                return;
+            }
             // THE BANNER COUNT FLOOR (D-14), ASKED HERE AND ONLY HERE.
             //
             // WHAT BOUNDS THE PREDICATE'S INPUT: bytes THIS RUN rendered for an AGENT adapter. It is not
