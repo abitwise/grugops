@@ -417,6 +417,57 @@ const sameContent = (a: string, b: string): boolean => {
   }
 };
 
+// isSymlink: lstat-based, so it answers TRUE for a DANGLING link as well as a live one. It lives
+// HERE — and no longer beside the COPILOT_* constants where it used to — for the identical reason
+// `verify` above gives: adapterDestHazard() below consumes it, the doctor consumes THAT, and the
+// doctor is invoked at the `--check` early exit further down this file. A const declared after that
+// exit is in the temporal dead zone when the doctor runs and would throw a ReferenceError on every
+// --check. One declaration, one authority.
+const isSymlink = (p: string): boolean => {
+  try {
+    return lstatSync(p).isSymbolicLink();
+  } catch {
+    return false;
+  }
+};
+
+// adapterDestHazard (plan 29.2-04, CR-01 / VERIFICATION truth 10) — THE ONE QUESTION BOTH THE WRITE
+// PATH AND THE `--check` DOCTOR ASK ABOUT A TARGET ADAPTER DESTINATION: may bytes be read from, or
+// written to, this path at all? It returns a REASON SENTENCE when they may not, and null otherwise.
+//
+// ONE PREDICATE, TWO CONSUMERS. materializeAdapter() calls it before its read and before its write;
+// the doctor's byte-compare loop calls it before its read. A second helper answering the same
+// question is the drift class this repository has spent four phases removing, so there is exactly
+// one declaration of this and a structural case in install.test.ts pins that both consumers reach
+// it. Nothing here writes: the doctor executes this body, and the doctor mutates nothing.
+//
+// WHY THIS BOUNDS D-13 RATHER THAN WITHDRAWING IT. D-13 says an installed `.claude/agents/grugops-*.md`
+// is a kit-owned derived artifact that a re-run may rewrite. That claim is true of a REGULAR FILE
+// INSIDE THE TARGET and false of everything else — a link, or a path that resolves outside the
+// target, names bytes this installer never owned. A real file inside the target is still kit-owned
+// and still rewritten; this refuses only the destinations that are not that.
+const adapterDestHazard = (dest: string): string | null => {
+  // ARM 1 — the LEAF IS A LINK. Measured against the pre-fix build: a leaf symlink to a file
+  // outside the target had that file OVERWRITTEN and the run reported `materialized` at exit 0.
+  //
+  // DO NOT NARROW THIS TO `existsSync(dest) && isSymlink(dest)`. Also measured against the pre-fix
+  // build: a DANGLING link at a target adapter path made the installer CREATE a brand-new 2024-byte
+  // file at the link's target path, outside the target. existsSync is FALSE for that shape, so an
+  // existsSync gate would re-open it. isSymlink is lstat-based and answers true for both.
+  if (isSymlink(dest)) {
+    return (
+      `${dest} is a symbolic link, and writing the rendered adapter would follow it and overwrite ` +
+      `whatever it points at. The file it points at was left untouched and nothing was written. ` +
+      `Replace the link with a regular file (or remove it) and re-run; the installer never writes ` +
+      `a target adapter through a link.`
+    );
+  }
+  // ARM 2 — the destination resolving OUTSIDE the target through a symlinked ANCESTOR directory —
+  // is added by task 2 of this plan. The return type is a NULLABLE REASON STRING rather than a
+  // boolean precisely so a second arm can name its own remedy without changing either consumer.
+  return null;
+};
+
 // isoStamp: a filesystem-safe, millisecond-precision ISO timestamp — every ':' replaced with '-'
 // so the suffix is legal on every filesystem including Windows (D-08). Shape: YYYY-MM-DDTHH-MM-SS.mmmZ.
 const isoStamp = (): string => new Date().toISOString().replace(/:/g, "-");
@@ -735,6 +786,16 @@ function doctor(): number {
         const stale: string[] = [];
         const absent: string[] = [];
         const unrendered: string[] = [];
+        // hazardous: a destination this doctor will NOT read through. It is deliberately its own
+        // list rather than folded into `stale` or `absent`, because it is neither and both name
+        // the wrong remedy: nothing was compared, so no staleness verdict exists to report, and the
+        // file is emphatically not missing. See adapterDestHazard() — the SAME predicate the write
+        // path calls, so install and --check cannot disagree about one destination.
+        const hazardous: string[] = [];
+        // ...and the reason each one carries, taken VERBATIM from the predicate rather than
+        // reworded here, so the sentence a reader meets on --check is the sentence they meet on the
+        // install that refused. Two wordings for one fact is two authorities for one fact.
+        const hazardReasons: string[] = [];
         for (const name of docNames) {
           let expected: string;
           try {
@@ -745,14 +806,32 @@ function doctor(): number {
             unrendered.push(name);
             continue;
           }
+          const destPath = join(TARGET, ".claude", "agents", name);
+          const destHazard = adapterDestHazard(destPath);
+          if (destHazard !== null) {
+            hazardous.push(name);
+            hazardReasons.push(`${name} — ${destHazard}`);
+            continue;
+          }
           let actual: string | null = null;
           try {
-            actual = readFileSync(join(TARGET, ".claude", "agents", name), "utf8");
+            actual = readFileSync(destPath, "utf8");
           } catch {
             actual = null;
           }
           if (actual === null) absent.push(name);
           else if (actual !== expected) stale.push(name);
+        }
+        if (hazardous.length > 0) {
+          docWarn(
+            `adapter staleness: ${hazardous.length} member(s) of the target's adapter set sit at ` +
+              `destinations this run will not read through — ${hazardous.join(", ")} — so NO ` +
+              `VERDICT on adapter staleness was produced for them. Nothing under ` +
+              `${join(TARGET, ".claude", "agents")} was compared for those names: a verdict taken ` +
+              `by reading through a symbolic link would describe a file that is not the adapter, ` +
+              `and calling that result stale or absent would name the wrong remedy. ` +
+              `${hazardReasons.join(" ")}`,
+          );
         }
         if (unrendered.length > 0) {
           docWarn(
@@ -890,13 +969,10 @@ const COPILOT_PTR =
   "grugops: read `AGENTS.md`, then `agent-factory/roles/orchestrator.md`, and act as the Orchestrator.";
 const COPILOT_CLOSE = "<!-- GSD:grugops-copilot-start-here-end -->";
 
-const isSymlink = (p: string): boolean => {
-  try {
-    return lstatSync(p).isSymbolicLink();
-  } catch {
-    return false;
-  }
-};
+// isSymlink MOVED (plan 29.2-04) up into the primitives block beside report / verify / mkdirp /
+// sameContent. It used to be declared here; the doctor now needs adapterDestHazard, which needs it,
+// and a const declared below the `--check` early exit is in the temporal dead zone when the doctor
+// runs. One authority for one predicate: there is no copy left at this position.
 
 // ---------------------------------------------------------------------------
 // Phase-17 Wave-0 shared backup primitives (Plan 17-01, MIGR-01 / UPD-01).
@@ -1822,6 +1898,26 @@ function materializeAdapter(src: string, dest: string, label: string, alias?: st
   const suffix = alias === undefined ? `(KIT=${KIT_ROOT})` : `(KIT=${KIT_ROOT}, model=${alias})`;
   if (!existsSync(src)) {
     report("skipped", `${label} (source missing: ${src})`);
+    return;
+  }
+  // THE WRITE BOUND (plan 29.2-04, CR-01). Ask what `dest` IS before reading it, before comparing
+  // it and before writing it. This function used to read and writeFileSync a destination nothing
+  // had bounded, and on the ordinary re-run — the re-run D-07 and D-15 made the documented way to
+  // deliver a `models` edit — a link at that path carried the write to whatever it pointed at.
+  //
+  // REFUSE, DO NOT UNLINK. migratePreSteps() unlinks the same shape, and the difference is not an
+  // inconsistency: a `--migrate` run is a declared one-time conversion the user asked for, while
+  // the ordinary re-run is routine and must never silently delete a link the user put there.
+  //
+  // THIS PRECEDES D-11's SKIP-IF-IDENTICAL ARM ON PURPOSE. The refusal comes before the read, so
+  // `skipped (identical copy present)` can never be printed about bytes that live outside the
+  // target — a reassuring sentence about a file this installer was never entitled to read.
+  //
+  // IT BOUNDS D-13 RATHER THAN WITHDRAWING IT (see the ownership paragraph above): a regular file
+  // inside the target is still kit-owned, still rewritten on difference, and still reported by name.
+  const hazard = adapterDestHazard(dest);
+  if (hazard !== null) {
+    verify(`${label} — ${hazard}`);
     return;
   }
   if (DRY_RUN) {

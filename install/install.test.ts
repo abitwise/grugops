@@ -1968,6 +1968,103 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     expect(existsSync(home)).toBe(false);
   });
 
+  // ── THE WRITE BOUND (plan 29.2-04, CR-01 / VERIFICATION truth 10) ─────────────────────────────
+  //
+  // WHAT `dest` MAY BE. `materializeAdapter()` used to read and writeFileSync a target adapter
+  // destination without ever asking what that destination IS. On the ordinary re-run — which D-07
+  // and D-15 made the documented way to deliver a `models` edit — a symlink at that path carried
+  // the write to whatever it pointed at, anywhere on disk, at exit 0. The cases below pin the four
+  // destination shapes MEASURED against the pre-fix committed build, each one asserting its fixture
+  // PREMISE before its effect so a case can never pass over a fixture it failed to build.
+  //
+  // SKIPPED WHERE THE FIXTURE CANNOT EXIST. Creating a symlink on Windows requires the
+  // SeCreateSymbolicLink privilege an unprivileged runner does not hold, so symlinkSync throws
+  // EPERM and the plant would assert nothing at all. These claims are proven on the POSIX legs
+  // only; Windows behaviour is `UNKNOWN - verify`. The two STRUCTURAL cases run everywhere.
+
+  // sha — the same content-address the `snapshot` helper takes, over one file. Used to prove a
+  // sentinel OUTSIDE the target is byte-unchanged across a run that would have written through it.
+  const sha = (p: string): string => createHash("sha256").update(readFileSync(p)).digest("hex");
+
+  it("write bound: a target adapter that is a SYMLINK is refused by name, and the file it points at is byte-unchanged (CR-01)", () => {
+    if (process.platform === "win32") return; // SeCreateSymbolicLink — see the block comment above.
+
+    const target = makeFixture();
+    const home = mkTmp();
+    writeTargetConfig(target, '{"models":{"preset":"tiered"}}\n');
+    expect(runInstall(target, home).status).toBe(0);
+
+    // THE SENTINEL LIVES OUTSIDE THE TARGET. That is the point of the case: a write through the
+    // link lands on a file no part of this install owns or was ever pointed at.
+    const outside = mkTmp();
+    const sentinel = join(outside, "my-precious-notes.md");
+    const sentinelBody = "MY PRECIOUS USER NOTES — no install may touch these bytes.\n";
+    writeFileSync(sentinel, sentinelBody);
+    const sentinelHash = sha(sentinel);
+
+    const planted = installedAdapters(target)[0];
+    const plantedAbs = join(target, ".claude", "agents", planted);
+    rmSync(plantedAbs);
+    symlinkSync(sentinel, plantedAbs);
+
+    // PREMISE: the plant is a symlink, and the sentinel holds what was just written.
+    expect(`${planted}: leaf is a symlink = ${lstatSync(plantedAbs).isSymbolicLink()}`).toBe(
+      `${planted}: leaf is a symlink = true`,
+    );
+    expect(readFileSync(sentinel, "utf8")).toBe(sentinelBody);
+
+    // A DIFFERENT preset, so a run that did not refuse WOULD have rewritten that adapter.
+    writeTargetConfig(target, '{"models":{"preset":"none"}}\n');
+    const r = runInstall(target, home);
+
+    // THE FILE OUTSIDE THE TARGET IS BYTE-UNCHANGED.
+    expect(sha(sentinel)).toBe(sentinelHash);
+    expect(readFileSync(sentinel, "utf8")).toBe(sentinelBody);
+    // ...the run is a finding, not a success...
+    expect(r.status).toBe(3);
+    // ...the finding NAMES the destination...
+    expect(r.stdout).toContain(plantedAbs);
+    expect(r.stdout).toContain("symbolic link");
+    // ...and no per-adapter line claims that adapter was written.
+    expect(adapterReportLines(r.stdout, "materialized").filter((l) => l.includes(planted))).toEqual([]);
+    // The refusal PRECEDES D-11's skip-if-identical arm, so `skipped (identical copy present)` can
+    // never be printed about bytes that live outside the target.
+    expect(adapterReportLines(r.stdout, "skipped").filter((l) => l.includes(planted))).toEqual([]);
+  });
+
+  it("write bound: --check names a symlinked target adapter instead of reading through it (D-09)", () => {
+    if (process.platform === "win32") return; // SeCreateSymbolicLink — see the block comment above.
+
+    const target = makeFixture();
+    const home = mkTmp();
+    writeTargetConfig(target, '{"models":{"preset":"tiered"}}\n');
+    expect(runInstall(target, home).status).toBe(0);
+
+    const outside = mkTmp();
+    const sentinel = join(outside, "not-an-adapter.md");
+    writeFileSync(sentinel, "SENTINEL — the doctor must not produce a staleness verdict from these bytes.\n");
+
+    const planted = installedAdapters(target)[0];
+    const plantedAbs = join(target, ".claude", "agents", planted);
+    rmSync(plantedAbs);
+    symlinkSync(sentinel, plantedAbs);
+    expect(`${planted}: leaf is a symlink = ${lstatSync(plantedAbs).isSymbolicLink()}`).toBe(
+      `${planted}: leaf is a symlink = true`,
+    );
+
+    const r = runInstall(target, home, "--check");
+
+    // The doctor NAMES it...
+    expect(r.stdout).toContain(planted);
+    expect(r.stdout).toContain("symbolic link");
+    // ...and does NOT fold it into the staleness verdict, which is a verdict it did not produce.
+    // Reading the linked file and calling the result `stale` names the wrong remedy entirely.
+    const staleLines = r.stdout.split("\n").filter((l) => /\bdiffer:/.test(l));
+    expect(staleLines.filter((l) => l.includes(planted))).toEqual([]);
+    // No clean verdict is printed over a target whose adapters are links.
+    expect(r.stdout).not.toContain("\nALL CHECKS PASSED\n");
+  });
+
   // ── THE THREE CROSS-CHECKS, DRIVEN BY A PATCHED GENERATOR TWIN ────────────────────────────────
   //
   // These are BEHAVIOURAL cases, not scratch-build mutations. The installer copies the generator's
