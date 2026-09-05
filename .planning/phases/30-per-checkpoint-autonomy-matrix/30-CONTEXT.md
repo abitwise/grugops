@@ -79,8 +79,8 @@ the registry rows whose `depends_on` changes. Red-team rounds are **budgeted sco
   stop bullets. The exported `CHECKPOINTS as const` roster must equal the derived id set
   **two-sided** (an id in either set and not the other is red). Untagged bullets are prose and are
   not checkpoints. Rationale: set-literal drift is this milestone's founding defect class.
-- **D-02: Tag syntax is a trailing backticked token in canonical form:** `` `checkpoint: <id>` `` as
-  the last token of the bullet, matched by one strict regex. Anything else containing the word
+- **D-02: Tag syntax is a trailing backticked token in canonical form.** The token `` `checkpoint: <id>` ``
+  is the last token of the bullet, matched by one strict regex. Anything else containing the word
   `checkpoint` in those sections is **refused**, not tolerated (D-64 allow-list posture, not a wider
   parser). Visible to a human reading the role; no HTML comment, no frontmatter duplication.
 - **D-03: Ids are snake_case verb-noun and GLOBAL.** The same human stop tagged in a role and a
@@ -107,11 +107,12 @@ the registry rows whose `depends_on` changes. Red-team rounds are **budgeted sco
 
 ### Two keys, notify, trace (AUTO-02, AUTO-03)
 
-- **D-08: Config shape is a flat `checkpoints: { <id>: block|notify|off }` object.** Unknown id or
+- **D-08: Config shape is a flat checkpoints object keyed by checkpoint id.** The shape is
+  `checkpoints: { <id>: block|notify|off }`. Unknown id or
   non-canonical value: refused by `validate-agent-factory.ts` and **gated as `block`** at runtime.
   Absent object or absent key = the roster default. Matches the `quality` / `context` object
   convention. Must land in the JSON, its markdown twin, and the seed copy in the same commit.
-- **D-09: Key two is one env var per floor: `GRUGOPS_FLOOR_<ID>=<human name>`**, value a non-empty
+- **D-09: Key two is one env var per floor.** The var is `GRUGOPS_FLOOR_<ID>=<human name>`, value a non-empty
   name (same rule as `GRUGOPS_PROD_DEPLOY_APPROVED`), read fresh by the hook process on every
   invocation. A var set by the current tool call itself (`export X=… && cmd`) is refused, extending
   the `guard.ts:118` self-approval refusal. No list-valued var, no token file, no blanket grant.
@@ -125,7 +126,7 @@ the registry rows whose `depends_on` changes. Red-team rounds are **budgeted sco
 
 ### Reader collapse and test_integrity (AUTO-04, AUTO-06)
 
-- **D-12: One reader: `readGovernanceConfig(root)` returns a discriminated result**
+- **D-12: One reader returns a discriminated result.** `readGovernanceConfig(root)` returns
   `{ source: "absent" | "ok" | "unreadable", config }` where `config` now includes the checkpoint
   matrix. The value-only reader is **deleted**; all three call sites move. `unreadable` is treated as
   `block` everywhere. Tests at `context-io.test.ts:848-905, 1661-1720, 1798` are rewritten, not
@@ -134,8 +135,8 @@ the registry rows whose `depends_on` changes. Red-team rounds are **budgeted sco
   and is not a safety path. A comment names it as the one deliberate non-governance reader and a test
   **asserts the count of config-reading sites** (derived by grep, not by hand) so a fourth cannot
   appear silently. Folding it is a backlog item (see deferred).
-- **D-14: In-process `admit()` on `unreadable` config REFUSES the write and degrades to
-  `UNKNOWN - verify`**, exactly as a non-green gate does (Phase 21). It never throws.
+- **D-14: In-process admit() on unreadable config REFUSES the write and degrades.** It degrades
+  to `UNKNOWN - verify`, exactly as a non-green gate does (Phase 21). It never throws.
 - **D-15: `emitVerdict()` takes the gate run's test-integrity result as an EXPLICIT argument.** No
   hidden file or log read inside the frozen path. The signature change is deliberate and every pin is
   updated in the same plan. The hook-enforced vs in-process tier split is stated in the config doc and
@@ -158,10 +159,10 @@ the registry rows whose `depends_on` changes. Red-team rounds are **budgeted sco
   contiguity hold. No deletion, no strike-through.
   — **Reversibility:** costly — the registry `status` enum grows and the verbatim gate learns a
   generated form; removing either later means re-auditing every anchored region.
-- **D-19: The banner is printed by every hook denial or notify AND as the gate run (workflow 05)
-  header**, before any check output, with banner/exit-status agreement in the coordinator-precheck
+- **D-19: The banner is printed by every hook denial or notify AND as the gate run header.** The
+  gate run is workflow 05; the banner prints before any check output, with banner/exit-status agreement in the coordinator-precheck
   shape. `/grug` start and the install doctor are not banner sites in this phase.
-- **D-20: Zero-config prints ONE fixed banner line: `all checkpoints at default`.** Always present so a
+- **D-20: Zero-config prints ONE fixed banner line.** The line is `all checkpoints at default`. Always present so a
   missing banner and a broken banner look different. The AUTO-07 test asserts a zero-config run
   differs from HEAD **only** by this line.
 
