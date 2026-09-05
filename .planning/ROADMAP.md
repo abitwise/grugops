@@ -919,7 +919,20 @@ Plans:
   4. `test_integrity` is enforced at the **point of effect** — `emitVerdict()` refuses GREEN — rather than being handed a false-equivalent env-var mechanism it cannot actually enforce; the hook-enforced vs in-process tier split is stated explicitly rather than papered over. (AUTO-04)
   5. A lowered floor is visible without reading config: the generated guarantees render and a per-run banner both name every non-default checkpoint, so a lowered floor can never leave an overstated claim standing in the docs — and a zero-config repo behaves **exactly** as it does today, with no floor lowered by omission. (AUTO-05, AUTO-07)
 
-**Plans**: TBD
+**Plans**: 11 plans
+
+Plans:
+- [ ] 30-01-PLAN.md — Tracer: one floor end-to-end (roster, config cell, reader field, hook matrix lookup, key two, banner, re-freeze)
+- [ ] 30-02-PLAN.md — Floor set settled: `SAFETY_FLOORS` remap, registry `depends_on` remap, duplicate-id refusal
+- [ ] 30-03-PLAN.md — Reader collapse to one discriminated authority, `admit()` degrade, config-reading-site count
+- [ ] 30-04-PLAN.md — Checkpoint derivation, workflow stop-bullet tagging, two-sided cardinality, compile-error proof
+- [ ] 30-05-PLAN.md — `emitVerdict()` refuses GREEN at the point of effect, the missing emission verb, gate-workflow correction
+- [ ] 30-06-PLAN.md — Retire the `autonomy` scalar: validator polarity flip, three config surfaces, sixteen fixtures, migration table
+- [ ] 30-07-PLAN.md — Guarantees generator, freshness gate, and language-gate scan-set wiring
+- [ ] 30-08-PLAN.md — Notify path with a trace finding, banner/decision agreement, full-roster zero-config differential
+- [ ] 30-09-PLAN.md — Claim-dropping in place, pointer lines, settings-file residual row
+- [ ] 30-10-PLAN.md — Red-team surface B (derivation, reader, validator, render, banner)
+- [ ] 30-11-PLAN.md — Red-team surface A (two-key hook path, point-of-effect refusal)
 
 **This is the direct successor to Phase 25** — the hardest phase in the project (8 rounds; 13 documented green-suite-insufficient bypasses across the milestone; closure required a structural fix + ≥2 independent red-teams + self-reproduction). Its **red-team rounds are budgeted as scope, not overrun.** A green suite does not close a floor here.
 
