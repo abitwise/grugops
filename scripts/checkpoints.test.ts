@@ -265,9 +265,9 @@ describe("FLOOR_CHECKPOINTS derivation (AUTO-01 edge: empty)", () => {
 // The matrix read (AUTO-02, AUTO-07) — driven through the committed discriminated reader.
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 
-describe("readGovernanceConfigResult — the checkpoint matrix", () => {
+describe("readGovernanceConfig — the checkpoint matrix", () => {
   it("no config file at all → exactly CHECKPOINT_DEFAULTS, compared key by key", () => {
-    const res = io.readGovernanceConfigResult(freshTmp("cp-absent-"));
+    const res = io.readGovernanceConfig(freshTmp("cp-absent-"));
     expect(res.source).toBe("absent");
     for (const id of cp.CHECKPOINTS) {
       expect(res.config.checkpoints[id], `matrix[${id}]`).toBe(cp.CHECKPOINT_DEFAULTS[id]);
@@ -276,7 +276,7 @@ describe("readGovernanceConfigResult — the checkpoint matrix", () => {
   });
 
   it("a config with NO `checkpoints` object → exactly CHECKPOINT_DEFAULTS and NO refusal (AUTO-07)", () => {
-    const res = io.readGovernanceConfigResult(rootWithRawConfig('{"mode":"lean"}'));
+    const res = io.readGovernanceConfig(rootWithRawConfig('{"mode":"lean"}'));
     expect(res.source).toBe("ok");
     for (const id of cp.CHECKPOINTS) {
       expect(res.config.checkpoints[id], `matrix[${id}]`).toBe(cp.CHECKPOINT_DEFAULTS[id]);
@@ -287,13 +287,13 @@ describe("readGovernanceConfigResult — the checkpoint matrix", () => {
   });
 
   it("EMPTY: an empty `checkpoints` object yields the FULL roster default, not an empty matrix", () => {
-    const res = io.readGovernanceConfigResult(rootWithRawConfig('{"checkpoints":{}}'));
+    const res = io.readGovernanceConfig(rootWithRawConfig('{"checkpoints":{}}'));
     expect(cp.sortedIds(Object.keys(res.config.checkpoints))).toEqual(cp.sortedIds(cp.CHECKPOINTS));
     for (const id of cp.CHECKPOINTS) expect(res.config.checkpoints[id]).toBe("block");
   });
 
   it("an object that OMITS a roster key yields that key's roster default", () => {
-    const res = io.readGovernanceConfigResult(
+    const res = io.readGovernanceConfig(
       rootWithRawConfig('{"checkpoints":{"protected_branch_merge":"notify"}}'),
     );
     expect(res.config.checkpoints.protected_branch_merge).toBe("notify");
@@ -310,7 +310,7 @@ describe("readGovernanceConfigResult — the checkpoint matrix", () => {
       '{"checkpoints":null}',
       '{"checkpoints":true}',
     ]) {
-      const res = io.readGovernanceConfigResult(rootWithRawConfig(body));
+      const res = io.readGovernanceConfig(rootWithRawConfig(body));
       for (const id of cp.CHECKPOINTS) {
         expect(res.config.checkpoints[id], `${body} → matrix[${id}]`).toBe("block");
         expect(res.config.checkpoints[id], `${body} → matrix[${id}]`).not.toBe("off");
@@ -321,14 +321,14 @@ describe("readGovernanceConfigResult — the checkpoint matrix", () => {
 
   it("a whole-file config that is not a JSON object → DEFAULTS plus a refusal, never `off`", () => {
     for (const body of ["[]", '"lean"', "7", "null"]) {
-      const res = io.readGovernanceConfigResult(rootWithRawConfig(body));
+      const res = io.readGovernanceConfig(rootWithRawConfig(body));
       for (const id of cp.CHECKPOINTS) expect(res.config.checkpoints[id], body).toBe("block");
       expect(res.checkpointRefusals.length, `${body} refusals`).toBeGreaterThan(0);
     }
   });
 
   it("an UNREADABLE config (non-JSON) → DEFAULTS plus a refusal, and source='unreadable'", () => {
-    const res = io.readGovernanceConfigResult(rootWithRawConfig("{ not valid json ]]]"));
+    const res = io.readGovernanceConfig(rootWithRawConfig("{ not valid json ]]]"));
     expect(res.source).toBe("unreadable");
     for (const id of cp.CHECKPOINTS) expect(res.config.checkpoints[id]).toBe("block");
     expect(res.checkpointRefusals.length).toBeGreaterThan(0);
@@ -337,7 +337,7 @@ describe("readGovernanceConfigResult — the checkpoint matrix", () => {
   it("every garbage sweep value written into a roster cell reads back as `block`", () => {
     for (const raw of SWEEP) {
       if (raw === "block" || raw === "notify" || raw === "off") continue;
-      const res = io.readGovernanceConfigResult(
+      const res = io.readGovernanceConfig(
         rootWithRawConfig(JSON.stringify({ checkpoints: { protected_branch_merge: raw } })),
       );
       expect(
@@ -348,7 +348,7 @@ describe("readGovernanceConfigResult — the checkpoint matrix", () => {
   });
 
   it("an id OUTSIDE the roster is dropped and recorded — the key set stays exactly CHECKPOINTS", () => {
-    const res = io.readGovernanceConfigResult(
+    const res = io.readGovernanceConfig(
       rootWithRawConfig(
         '{"checkpoints":{"protected_branch_merge":"block","not_a_checkpoint":"off","autonomy":"off"}}',
       ),
@@ -375,7 +375,7 @@ describe("readGovernanceConfigResult — the checkpoint matrix", () => {
       '{"checkpoints":"garbage"}',
       "[]",
     ]) {
-      const res = io.readGovernanceConfigResult(rootWithRawConfig(body));
+      const res = io.readGovernanceConfig(rootWithRawConfig(body));
       expect(Object.keys(res.config.checkpoints).length, `${body} key count`).toBe(expected);
     }
   });

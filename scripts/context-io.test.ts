@@ -958,10 +958,15 @@ describe("30-03 D-14 — admit() refuses and degrades on an unreadable governanc
 // The round-2 red-team found a PRESENT but non-string human_admission (true / 1 / null / array /
 // object) — and a present non-object `context` / non-object whole-file config — coerced to the lean
 // `off` default at source="ok" (NOT the absent path). Writing `"human_admission": true` to "turn
-// governance on" silently turned it OFF at both tiers (verified RED in 25-05-RED-baseline.txt). Both
-// readers now canonicalize a present non-string value (and a present non-object shape) to a
+// governance on" silently turned it OFF at both tiers (verified RED in 25-05-RED-baseline.txt). The
+// reader canonicalizes a present non-string value (and a present non-object shape) to a
 // gate-or-stricter sentinel ("all"); only the EXACT JSON string "off" is off-equivalent. A genuinely
 // ABSENT config — and a present valid object whose `human_admission` key is simply absent — stays lean.
+//
+// PLAN 30-03 (D-12): this block used to assert the SAME canonicalization twice, once per reader, in
+// paired `it`s. It is REWRITTEN IN PLACE rather than half-deleted: two test suites asserting two
+// readers is the same second-authority shape at the test tier, and leaving one behind as a "legacy"
+// suite would re-create at the test tier exactly what the plan deleted at the source tier.
 describe("25-05 GAP-C non-string human_admission canonicalization", () => {
   // Write a raw JSON config (so a non-string human_admission value can be expressed) and return the
   // repoRoot the readers resolve against.
@@ -979,53 +984,44 @@ describe("25-05 GAP-C non-string human_admission canonicalization", () => {
     ["array", '["all"]'],
     ["object", "{}"],
   ] as const) {
-    it(`readGovernanceConfig: a present non-string human_admission (${label}) gates-or-stricter, never off`, () => {
+    it(`a present non-string human_admission (${label}) is source="ok" + gate-or-stricter, never off`, () => {
       const root = repoRaw(`{"context":{"human_admission":${raw}}}`);
-      const cfg = mod.readGovernanceConfig(root);
-      expect(cfg.human_admission).not.toBe("off");
-      // The sentinel is the strictest dial; the hook treats it as gate-every-match.
-      expect(cfg.human_admission).toBe("all");
-    });
-
-    it(`readGovernanceConfigResult: a present non-string human_admission (${label}) is source="ok" + gate-or-stricter`, () => {
-      const root = repoRaw(`{"context":{"human_admission":${raw}}}`);
-      const res = mod.readGovernanceConfigResult(root);
+      const res = mod.readGovernanceConfig(root);
       expect(res.source).toBe("ok"); // it WAS read — not absent, not unreadable
       expect(res.config.human_admission).not.toBe("off");
+      // The sentinel is the strictest dial; the hook treats it as gate-every-match.
       expect(res.config.human_admission).toBe("all");
     });
   }
 
   it("a present non-object `context` (string) gates-or-stricter, never off", () => {
     const root = repoRaw('{"context":"x"}');
-    expect(mod.readGovernanceConfig(root).human_admission).toBe("all");
-    expect(mod.readGovernanceConfigResult(root).config.human_admission).toBe("all");
+    expect(mod.readGovernanceConfig(root).config.human_admission).toBe("all");
   });
 
   it("a present non-object whole-file config (array) gates-or-stricter at source=ok", () => {
     const root = repoRaw("[]");
-    expect(mod.readGovernanceConfig(root).human_admission).toBe("all");
-    const res = mod.readGovernanceConfigResult(root);
+    const res = mod.readGovernanceConfig(root);
     expect(res.source).toBe("ok");
     expect(res.config.human_admission).toBe("all");
   });
 
   it("a genuinely ABSENT config still reads the lean `off` (zero-config preserved, SC2)", () => {
     const root = freshTmp("gapc-absent-");
-    expect(mod.readGovernanceConfig(root).human_admission).toBe("off");
-    expect(mod.readGovernanceConfigResult(root).source).toBe("absent");
-    expect(mod.readGovernanceConfigResult(root).config.human_admission).toBe("off");
+    const res = mod.readGovernanceConfig(root);
+    expect(res.source).toBe("absent");
+    expect(res.config.human_admission).toBe("off");
   });
 
   it("a present valid object `context` with NO human_admission key stays lean `off`", () => {
     const root = repoRaw('{"context":{"audit_retention":"git"}}');
-    expect(mod.readGovernanceConfig(root).human_admission).toBe("off");
+    expect(mod.readGovernanceConfig(root).config.human_admission).toBe("off");
   });
 
   it("a present valid STRING human_admission is read VERBATIM (the existing contract is unchanged)", () => {
     for (const s of ["off", "high-severity", "all"]) {
       const root = repoRaw(`{"context":{"human_admission":"${s}"}}`);
-      expect(mod.readGovernanceConfig(root).human_admission).toBe(s);
+      expect(mod.readGovernanceConfig(root).config.human_admission).toBe(s);
     }
   });
 });
@@ -1792,12 +1788,20 @@ describe("context-io.js — splitNotes multi-fence split (shared grammar, IN-02)
   });
 });
 
-// ── readGovernanceConfig — the SINGLE shared config-read path (GOV-01/GOV-02, OQ-3) ────────────────
-// Read-at-use, default-on-absent (D-11): a missing/unreadable/garbage config — or an absent key —
-// degrades to the lean default (human_admission→"off", audit_retention→"git"), NEVER throws. A value
-// that IS present is returned verbatim (the reader does NOT sanitize; the consumer decides). This is
-// fail-OPEN-to-LEAN because it is the READER; the hook (25-02) is the one that fails CLOSED on a
-// matched admit.
+// ── readGovernanceConfig — THE governance config-read path. One reader. (GOV-01/GOV-02, AUTO-06) ──
+//
+// REWRITTEN IN PLACE BY PLAN 30-03 (D-12), not appended to. This block used to pin the fail-OPEN
+// VALUE reader: it asserted that a missing config, an unreadable config and a garbage config all
+// collapsed to the same lean default. The collapse of the last of those three is the fail-open the
+// plan deleted, so the assertion that PINNED it had to go with it — leaving it in place beside a
+// contradicting assertion is how a test file comes to hold two answers to one question.
+//
+// What survives unchanged: read-at-use, default-on-absent (D-11); a present value returned VERBATIM
+// (the reader does NOT sanitize — the SC3 floor-sweep depends on a bogus value flowing through so it
+// can prove the bogus value still REFUSES); and never throwing.
+// What is new: `source` distinguishes ABSENT from UNREADABLE, and every consumer fails closed on the
+// latter. The candidate-path RESOLUTION ORDER is asserted here too — it was a contract both deleted
+// and surviving readers honored, and a collapse is exactly when such a contract goes missing.
 describe("governance-config", () => {
   // Write a config file at the standard repo-drop location (.grugops/factory.config.json) under a
   // temp root, with the given `context` object, and return the temp root to pass as repoRoot.
@@ -1811,41 +1815,140 @@ describe("governance-config", () => {
     return root;
   }
 
-  it("no config file present → lean defaults off/git (never throws)", () => {
+  it("no config file present → source=absent + lean defaults off/git (never throws)", () => {
     const root = freshTmp("gov-nocfg-"); // empty dir, no config anywhere
     const g = mod.readGovernanceConfig(root);
-    expect(g).toEqual({ human_admission: "off", audit_retention: "git" });
+    expect(g.source).toBe("absent");
+    expect(g.config.human_admission).toBe("off");
+    expect(g.config.audit_retention).toBe("git");
   });
 
   it("context.human_admission='high-severity' is read back verbatim", () => {
     const root = rootWithContext({ human_admission: "high-severity" });
-    expect(mod.readGovernanceConfig(root).human_admission).toBe("high-severity");
+    expect(mod.readGovernanceConfig(root).config.human_admission).toBe("high-severity");
   });
 
   it("context.audit_retention='retained' is read back verbatim", () => {
     const root = rootWithContext({ audit_retention: "retained" });
-    expect(mod.readGovernanceConfig(root).audit_retention).toBe("retained");
+    expect(mod.readGovernanceConfig(root).config.audit_retention).toBe("retained");
   });
 
-  it("absent context object → lean defaults (never throws)", () => {
+  it("absent context object → source=ok + lean defaults (never throws)", () => {
     const root = freshTmp("gov-noctx-");
     mkdirSync(join(root, ".grugops"), { recursive: true });
     writeFileSync(join(root, ".grugops", "factory.config.json"), JSON.stringify({ mode: "lean" }));
-    expect(mod.readGovernanceConfig(root)).toEqual({ human_admission: "off", audit_retention: "git" });
+    const g = mod.readGovernanceConfig(root);
+    expect(g.source).toBe("ok");
+    expect(g.config.human_admission).toBe("off");
+    expect(g.config.audit_retention).toBe("git");
   });
 
-  it("garbage (non-JSON) config → lean defaults (never throws)", () => {
+  it("garbage (non-JSON) config → source=UNREADABLE, NOT the lean default (the deleted reader's fail-open)", () => {
+    // The rewritten pin. The value reader answered `{off, git}` here — indistinguishable from "no
+    // config at all" — and that is precisely what let admit() admit on a corrupt file (D-14).
     const root = freshTmp("gov-garbage-");
     mkdirSync(join(root, ".grugops"), { recursive: true });
     writeFileSync(join(root, ".grugops", "factory.config.json"), "{ not valid json ]]]");
-    expect(mod.readGovernanceConfig(root)).toEqual({ human_admission: "off", audit_retention: "git" });
+    const g = mod.readGovernanceConfig(root);
+    expect(g.source).toBe("unreadable");
+    expect(g.source).not.toBe("absent");
+    expect(() => mod.readGovernanceConfig(root)).not.toThrow();
   });
 
   it("a set GARBAGE value is returned verbatim — the reader does NOT sanitize (SC3 floor-sweep relies on this)", () => {
     const root = rootWithContext({ human_admission: "bogus", audit_retention: "nonsense" });
-    const g = mod.readGovernanceConfig(root);
+    const g = mod.readGovernanceConfig(root).config;
     expect(g.human_admission).toBe("bogus");
     expect(g.audit_retention).toBe("nonsense");
+  });
+
+  // ── The candidate-path contract: two locations, repo-dropped FIRST, whole-file precedence ───────
+  // Both readers resolved these two paths in this order before the collapse. The order is asserted
+  // behaviorally here, and structurally below, because "the survivor kept the order" is the kind of
+  // thing a merge silently loses and no other test would notice.
+  it("resolves .grugops/factory.config.json BEFORE agent-factory/config/factory.config.json", () => {
+    const root = freshTmp("gov-order-");
+    mkdirSync(join(root, ".grugops"), { recursive: true });
+    mkdirSync(join(root, "agent-factory", "config"), { recursive: true });
+    writeFileSync(
+      join(root, ".grugops", "factory.config.json"),
+      JSON.stringify({ context: { human_admission: "first-wins" } }),
+    );
+    writeFileSync(
+      join(root, "agent-factory", "config", "factory.config.json"),
+      JSON.stringify({ context: { human_admission: "second-loses" } }),
+    );
+    expect(mod.readGovernanceConfig(root).config.human_admission).toBe("first-wins");
+  });
+
+  it("falls through to agent-factory/config/factory.config.json when the repo-dropped one is absent", () => {
+    const root = freshTmp("gov-fallthrough-");
+    mkdirSync(join(root, "agent-factory", "config"), { recursive: true });
+    writeFileSync(
+      join(root, "agent-factory", "config", "factory.config.json"),
+      JSON.stringify({ context: { human_admission: "second-used" } }),
+    );
+    expect(mod.readGovernanceConfig(root).config.human_admission).toBe("second-used");
+  });
+
+  it("a whole-file config at the FIRST location shadows the second even when it carries no `context`", () => {
+    // Whole-file precedence, not per-key merge. The first file that EXISTS wins entirely.
+    const root = freshTmp("gov-shadow-");
+    mkdirSync(join(root, ".grugops"), { recursive: true });
+    mkdirSync(join(root, "agent-factory", "config"), { recursive: true });
+    writeFileSync(join(root, ".grugops", "factory.config.json"), JSON.stringify({ mode: "lean" }));
+    writeFileSync(
+      join(root, "agent-factory", "config", "factory.config.json"),
+      JSON.stringify({ context: { human_admission: "all" } }),
+    );
+    expect(mod.readGovernanceConfig(root).config.human_admission).toBe("off");
+  });
+
+  // ── STRUCTURAL: exactly ONE reader and exactly ONE candidate array survive (D-12) ───────────────
+  it("the compiled module exports exactly one governance reader", () => {
+    const names = Object.keys(mod).filter((k) => /^readGovernanceConfig/.test(k));
+    expect(names, `governance reader exports: ${names.join(", ")}`).toEqual(["readGovernanceConfig"]);
+  });
+
+  it("the candidate-path order is spelled exactly ONCE in the source (the deleted reader's copy is gone)", () => {
+    // The two readers each carried their own copy of this array — identical, and therefore free to
+    // drift apart. Asserting the count, not just the content, is what makes the deletion durable:
+    // a future "convenience wrapper" would have to spell the order a second time to exist.
+    const src = readFileSync(join(ROOT, "scripts", "context-io.ts"), "utf8");
+    const occurrences = src.split('join(base, ".grugops", "factory.config.json")').length - 1;
+    expect(occurrences, "candidate-path arrays resolving the governance config").toBe(1);
+  });
+
+  it("the surviving reader reads NO config key the deleted pair did not (T-30-10 scope)", () => {
+    // The collapse's own hazard: a unified authority's SCOPE is a new degree of freedom. The answer
+    // is "nothing new", and this is the assertion that establishes it rather than asserting it in
+    // prose. The keys read are exactly the union of what the two readers already read.
+    const root = freshTmp("gov-scope-");
+    mkdirSync(join(root, ".grugops"), { recursive: true });
+    writeFileSync(
+      join(root, ".grugops", "factory.config.json"),
+      JSON.stringify({
+        context: { human_admission: "all", audit_retention: "retained" },
+        checkpoints: {},
+        // Keys NEITHER reader ever read. If the survivor had widened its scope, one of these would
+        // have to surface somewhere in its result.
+        models: { preset: "budget" },
+        quality: { test_integrity: "block" },
+        security: { asvs_level: 2 },
+        production_requires_human_confirmation: true,
+      }),
+    );
+    const res = mod.readGovernanceConfig(root);
+    expect(Object.keys(res).sort()).toEqual(["checkpointRefusals", "config", "source"]);
+    expect(Object.keys(res.config).sort()).toEqual([
+      "audit_retention",
+      "checkpoints",
+      "human_admission",
+    ]);
+    expect(res.config.human_admission).toBe("all");
+    expect(res.config.audit_retention).toBe("retained");
+    // And the matrix key set is the roster, derived from the committed roster rather than transcribed.
+    expect(Object.keys(res.config.checkpoints).sort()).toEqual([...cpMod.CHECKPOINTS].sort());
   });
 });
 
@@ -1878,12 +1981,14 @@ describe("governance-config", () => {
 // 30-03 D-14 block above, so the span change is strictly the added refusal. admit()'s span therefore
 // changes deliberately and the freeze RE-LOCKS below, so any FUTURE drift still goes RED.
 describe("context-io.ts — W-B admit() mechanical byte-freeze (Plan 25-09; re-baselined 25-13, 30-03)", () => {
-  // The pinned baseline: sha256 of admit()'s function span. RE-PINNED in Plan 30-03 after the
-  // deliberate D-14 unfreeze routed the governance read through the ONE discriminated reader and added
-  // the unreadable-config refusal. admit() must hash to this exactly; the prior baselines were
-  // dbf66ac7…ebf7 (25-13) and b7998cbd…be3d (pre-25-13).
+  // The pinned baseline: sha256 of admit()'s function span. RE-PINNED TWICE in Plan 30-03: first for
+  // the deliberate D-14 unfreeze that added the unreadable-config refusal (ae159bb3…5551), then for
+  // the D-12 reader RENAME, which moves admit()'s span by exactly one identifier — the call
+  // `readGovernanceConfigResult(repoRoot)` becomes `readGovernanceConfig(repoRoot)` and nothing else
+  // inside the span changes. admit() must hash to this exactly; the prior baselines were ae159bb3…5551
+  // (30-03 D-14), dbf66ac7…ebf7 (25-13) and b7998cbd…be3d (pre-25-13).
   const ADMIT_FROZEN_SHA256 =
-    "ae159bb32c694ef6ca8d244633c4fddec57e4a422cec8434ba16f05248255551";
+    "760319ff4fc1eb63703117df9541f5ab32510f801bcc7caafd172c40159c2876";
 
   // Extract the span `export function admit(` … matching `}` by brace-counting (the SAME extraction the
   // baseline was captured with). Reads the committed .ts source (the freeze is on the source of truth).

@@ -109,7 +109,16 @@ const APPROVAL = "GRUGOPS_ADMISSION_APPROVED_BY";
 // commit. Updating this constant makes the blob comparison pass immediately, but
 // `git diff --quiet hooks/guard.ts` throws until the file is committed. A red naming
 // `git diff --quiet` mid-edit is the mechanism working, not a broken change — commit, then re-run.
-const FROZEN_GUARD_BLOB = "de37e4fbd8b35795af3ce2e744346c20902f8464";
+//
+// RE-BASELINED AGAIN BY PLAN 30-03 (D-24, the phase's SECOND guard commit). The previous baseline
+// `de37e4fb…8464` froze the 30-01 guard, which imported the governance reader under its pre-collapse
+// name. Plan 30-03 deletes the second reader and renames the survivor, and the rename reaches the
+// frozen file's import. THIS CHANGE IS A RENAME ONLY: one identifier at the import and one at the
+// matrix read, with no decision branch, no message, no env read and no deny path touched — the diff
+// is four lines across `guard.ts` and its compiled `guard.js`, and every guard test is unchanged and
+// green. That is why the reproduction burden here is the freeze rule itself (source + artifact +
+// constant in ONE commit) rather than a new bypass surface: there is no new surface to reproduce.
+const FROZEN_GUARD_BLOB = "d91c20068a286407cbea7bae1f39d07dc94f6b66";
 
 // Import the COMMITTED .js for the pure-function floor checks (validate / admit). Never the .ts.
 const mod: typeof import("../scripts/context-io.js") = await import(

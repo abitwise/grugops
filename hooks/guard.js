@@ -52,7 +52,7 @@
 // `permissionDecisionReason` (gives the agent a clear message). Allow = exit 0, no stdout.
 import { readFileSync } from "node:fs";
 import { CHECKPOINT_DEFAULTS, FLOOR_CHECKPOINTS, FLOOR_ENV_VAR_PREFIX, floorEnvVarName, renderCheckpointBanner, resolveCheckpoint, } from "../scripts/checkpoints.js";
-import { readGovernanceConfigResult } from "../scripts/context-io.js";
+import { readGovernanceConfig } from "../scripts/context-io.js";
 // D-33: the human-confirm signal. A human exports this in the shell that launches Claude
 // (or via settings env). The name is a placeholder per research Assumption A2 — projects may
 // rename it; the guard reads whatever name is set here from its own process env.
@@ -182,7 +182,7 @@ catch {
 let matrix = { ...CHECKPOINT_DEFAULTS };
 let matrixUnread = false;
 try {
-    matrix = readGovernanceConfigResult(process.env.CLAUDE_PROJECT_DIR).config.checkpoints;
+    matrix = readGovernanceConfig(process.env.CLAUDE_PROJECT_DIR).config.checkpoints;
 }
 catch {
     matrix = { ...CHECKPOINT_DEFAULTS };

@@ -42,7 +42,7 @@
 //     composition ((high-severity && active) || all, with dial canonicalization) NOR the severity
 //     classifier locally — the SAME predicate the combiner (admitAndAppend) imports, so the gate tier
 //     and the persist tier can never diverge (the ten-round allow-forge drift surface).
-//   - Reads the `human_admission` dial via the shared readGovernanceConfigResult (Plan 25-01/25-04):
+//   - Reads the `human_admission` dial via the shared readGovernanceConfig (Plan 25-01/25-04):
 //     `absent`/`off` → not gated (lean / zero-config preserved, SC2); `unreadable` (corrupt config) →
 //     fail CLOSED (isGatedNote treats it as gate-or-stricter, SC3); a typo/garbage/non-string value →
 //     gate-or-stricter (the only off-equivalent value is EXACTLY "off").
@@ -62,7 +62,7 @@
 // `permissionDecisionReason` (gives the agent a clear message). Allow = exit 0, no output. This mirrors
 // the prod-deploy guard's posture exactly.
 import { readFileSync } from "node:fs";
-import { isGatedNote, normalizeKind, readGovernanceConfigResult } from "../scripts/context-io.js";
+import { isGatedNote, normalizeKind, readGovernanceConfig } from "../scripts/context-io.js";
 // The human-confirm signal for admission. A human exports this in the shell that launches Claude (or
 // via settings env); the agent must never set it. The hook reads it from its OWN process env, which the
 // agent's spawned-child env cannot reach.
@@ -115,7 +115,7 @@ if (toolInput === null) {
 // not throw, but a throw on a matched admit must also fail closed.
 let configResult;
 try {
-    configResult = readGovernanceConfigResult(process.env.CLAUDE_PROJECT_DIR);
+    configResult = readGovernanceConfig(process.env.CLAUDE_PROJECT_DIR);
 }
 catch {
     deny(`Admission blocked (fail-closed): the governance configuration could not be read while ` +

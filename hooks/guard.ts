@@ -62,7 +62,7 @@ import {
   type Checkpoint,
   type Disposition,
 } from "../scripts/checkpoints.js";
-import { readGovernanceConfigResult } from "../scripts/context-io.js";
+import { readGovernanceConfig } from "../scripts/context-io.js";
 
 // D-33: the human-confirm signal. A human exports this in the shell that launches Claude
 // (or via settings env). The name is a placeholder per research Assumption A2 — projects may
@@ -203,7 +203,7 @@ try {
 let matrix: Readonly<Record<Checkpoint, Disposition>> = { ...CHECKPOINT_DEFAULTS };
 let matrixUnread = false;
 try {
-  matrix = readGovernanceConfigResult(process.env.CLAUDE_PROJECT_DIR).config.checkpoints;
+  matrix = readGovernanceConfig(process.env.CLAUDE_PROJECT_DIR).config.checkpoints;
 } catch {
   matrix = { ...CHECKPOINT_DEFAULTS };
   matrixUnread = true;

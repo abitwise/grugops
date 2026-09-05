@@ -1082,7 +1082,7 @@ export function admit(
   // rather than on a second reconstructed result shape — a read that failed is a read that failed.
   let govResult: GovernanceConfigResult | null = null;
   try {
-    govResult = readGovernanceConfigResult(repoRoot);
+    govResult = readGovernanceConfig(repoRoot);
   } catch {
     govResult = null;
   }
@@ -1269,32 +1269,55 @@ export function render(task: string, contextRoot: string = DEFAULT_CONTEXT_ROOT)
   atomicWrite(join(taskDir, "index.md"), md.join("\n"));
 }
 
-// ── readGovernanceConfig — the SINGLE shared governance config-read path (GOV-01/GOV-02) ─────────
+// ── readGovernanceConfig — THE governance config-read path. One reader. (GOV-01/GOV-02, AUTO-06) ──
 //
-// This is the ONE config-read both the admission-guard hook (Plan 25-02) and the in-script admit()
-// refusal (Plan 25-03) consume, so the two governance read paths cannot diverge (OQ-3).
+// This is the ONE config-read the admission-guard hook (25-02), the prod-deploy guard's matrix read
+// (30-01), the in-script admit() refusal (25-03 / 30-03 D-14) and admitAndAppend() (25-09) all
+// consume, so no two governance read paths can diverge (OQ-3).
+//
+// THERE WAS A SECOND READER, AND PLAN 30-03 DELETED IT (D-12). Until this plan the module exported a
+// pair: a value-only reader under THIS name, returning `{human_admission, audit_retention}` and
+// failing OPEN to the lean default, and a `…Result`-suffixed sibling returning the discriminated shape
+// and failing CLOSED. Two functions answering the same question is the second-authority shape this tree has
+// paid for repeatedly, and the pair had already diverged in the way that matters: the fail-open half
+// could not distinguish an ABSENT config from an UNREADABLE one, so admit() — its only consumer —
+// silently admitted on a corrupt config. The fail-open reader was NOT deleted and replaced by a
+// stricter one; the surviving function IS the discriminated reader, renamed, with the fail-open
+// reader's one legitimate job (the lean default on a genuinely absent config) still done here, on the
+// `source: "absent"` branch, and its illegitimate one (leaning on an unparseable file) given the
+// explicit landing place D-14 specifies at admit()'s own call site. NO third reader may be added as a
+// convenience wrapper over this one: a wrapper is a second authority wearing a smaller name.
 //
 // Semantics (D-11, read-at-use / default-on-absent — see agent-factory/config/factory.config.md):
-//   - A missing config file, an unreadable file, a non-JSON file, an absent `context` object, or an
-//     absent key all degrade to the LEAN DEFAULT for that key (human_admission→"off",
-//     audit_retention→"git"). This function NEVER throws — zero-config grugops always runs lean.
+//   - A missing config file, an absent `context` object, or an absent key all degrade to the LEAN
+//     DEFAULT for that key (human_admission→"off", audit_retention→"git"). Zero-config runs lean.
+//   - A config file that EXISTS but cannot be read or parsed is `source: "unreadable"` — NOT lean.
+//     Every consumer treats it as `block`/gate-or-stricter: `isGatedNote` gates it (SC3), the
+//     checkpoint matrix comes back at the roster default (every entry `block`), and admit() refuses
+//     and degrades to `UNKNOWN - verify` (D-14).
 //   - A value that IS present is returned VERBATIM. The reader does NOT validate it against the
 //     allowed set; the consumer (hook / admit / floor-sweep) decides. Returning a garbage value
 //     verbatim is required so the Plan-25-03 floor-sweep can prove a bogus value still REFUSES.
-//   - This helper fails OPEN to lean because it is the READER. Failing CLOSED on a matched
-//     high-severity admit is the HOOK's job (Plan 25-02), NOT this read helper's.
+//   - This function does not throw. Its consumers nonetheless catch, because a read that failed by
+//     throwing must reach the same fail-closed branch as one that failed by returning `unreadable`.
 //
 // Config-location resolution: given a directory to look in (`repoRoot`), try the standard config
 // locations in order — first the installed/repo-dropped `.grugops/factory.config.json` (what the
 // installer drops at a consumer repo root and what the hook points `${CLAUDE_PROJECT_DIR}` at), then
 // the in-kit `agent-factory/config/factory.config.json`. When `repoRoot` is omitted, default to the
 // script's own repo root (join(import.meta.dirname, "..")) exactly as freshness.ts resolves ROOT.
-export interface GovernanceConfig {
-  human_admission: string;
-  audit_retention: string;
-}
-
-const GOVERNANCE_DEFAULTS: GovernanceConfig = { human_admission: "off", audit_retention: "git" };
+// THAT ORDER IS A CONTRACT, NOT AN IMPLEMENTATION DETAIL. Both deleted-and-surviving readers resolved
+// these same two paths in this same order; the surviving reader's array below is now the single place
+// the order is spelled, and scripts/context-io.test.ts asserts BOTH that the order holds behaviorally
+// and that exactly ONE such candidate array survives in this file.
+//
+// THE SURVIVING READER READS NOTHING THE PAIR DID NOT (T-30-10). Collapsing two authorities into one
+// makes the survivor's SCOPE a new degree of freedom, so it is stated and asserted rather than
+// assumed: the keys read are `context.human_admission`, `context.audit_retention` and `checkpoints`
+// — the union of what the two readers already read, with nothing added. The deleted reader read a
+// strict SUBSET (the first two); it never read `checkpoints`, deliberately, because a safety matrix
+// must not be reported by a fail-open reader.
+const GOVERNANCE_DEFAULTS = { human_admission: "off", audit_retention: "git" } as const;
 
 // Gate-or-stricter sentinel for a PRESENT-but-non-string human_admission (round-2 GAP-C). Only the
 // EXACT JSON string "off" is off-equivalent; a present non-string value (true / 1 / null / array /
@@ -1313,88 +1336,37 @@ function canonicalizeHumanAdmission(raw: unknown): string {
   return typeof raw === "string" ? raw : GATE_OR_STRICTER_HUMAN_ADMISSION;
 }
 
-export function readGovernanceConfig(repoRoot?: string): GovernanceConfig {
-  const base = repoRoot ?? ROOT;
-  // Standard config locations, most-specific (repo-dropped) first.
-  const candidates = [
-    join(base, ".grugops", "factory.config.json"),
-    join(base, "agent-factory", "config", "factory.config.json"),
-  ];
-
-  for (const path of candidates) {
-    try {
-      if (!existsSync(path)) continue;
-      const parsed = JSON.parse(readFileSync(path, "utf8")) as unknown;
-      // A whole-file config that parsed but is NOT a JSON object (an array / string / number / null)
-      // is a present-but-degenerate shape — gate-or-stricter, never lean (round-2 GAP-C). A genuinely
-      // absent file is handled after the loop and stays lean.
-      if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
-        return { human_admission: GATE_OR_STRICTER_HUMAN_ADMISSION, audit_retention: GOVERNANCE_DEFAULTS.audit_retention };
-      }
-      const context = (parsed as { context?: unknown }).context;
-      // A `context` key that is PRESENT but not a JSON object (null / array / string / number) is a
-      // degenerate present shape — gate-or-stricter (GAP-C). A genuinely ABSENT `context` key (a valid
-      // config with governance simply unconfigured) stays lean — zero-config preserved (SC2).
-      if (context === undefined) {
-        return { ...GOVERNANCE_DEFAULTS };
-      }
-      if (context === null || typeof context !== "object" || Array.isArray(context)) {
-        return { human_admission: GATE_OR_STRICTER_HUMAN_ADMISSION, audit_retention: GOVERNANCE_DEFAULTS.audit_retention };
-      }
-      const ctx = context as Record<string, unknown>;
-      const human = ctx.human_admission;
-      const audit = ctx.audit_retention;
-      // A PRESENT human_admission key that is non-string → gate-or-stricter; an ABSENT key → lean `off`.
-      return {
-        human_admission:
-          human === undefined ? GOVERNANCE_DEFAULTS.human_admission : canonicalizeHumanAdmission(human),
-        audit_retention: typeof audit === "string" ? audit : GOVERNANCE_DEFAULTS.audit_retention,
-      };
-    } catch {
-      // Unreadable / non-JSON / any failure → fall through to the lean default. Never throw.
-      return { ...GOVERNANCE_DEFAULTS };
-    }
-  }
-
-  // No config file at any standard location → lean default. Zero-config runs lean.
-  return { ...GOVERNANCE_DEFAULTS };
-}
-
-// ── readGovernanceConfigResult — the richer, discriminated read the HOOK consumes (GOV-01, SC3) ──
+// ── The discriminated result the ONE reader returns (GOV-01, SC3, AUTO-01/02) ────────────────────
 //
-// readGovernanceConfig() above is the value reader: it fails OPEN to the lean default and NEVER
-// throws, because that default-on-absent contract is what zero-config grugops and 25-01/02/03/SC2
-// depend on — its absent path must NOT change. But the un-forgeable admission-guard hook needs to
-// distinguish a genuinely ABSENT config (stay lean → allow routine) from a present-but-UNREADABLE
-// one (a corrupt / non-JSON file → fail CLOSED → deny pending a human). Collapsing both into the
-// same `off` (as the value reader must) is exactly the SC3 fail-open the verifier found.
-//
-// This result reports `source`:
+// `source` is the distinction the deleted value reader could not express, and the whole reason the
+// pair existed at all:
 //   - "absent"     — no config file at any standard location (zero-config lean).
 //   - "ok"         — a config file was read and parsed; `config` carries its (verbatim) values.
 //   - "unreadable" — a config file EXISTS at a standard location but could not be read or parsed
-//                    (corrupt / non-JSON). The hook treats this as fail-closed.
-// The value reader's default-on-absent behavior is unchanged; this is an ADDITIVE read path.
+//                    (corrupt / non-JSON). EVERY consumer fails closed on it: the hook denies,
+//                    `isGatedNote` gates, the matrix reads at the roster default (all `block`), and
+//                    admit() refuses and degrades to `UNKNOWN - verify` (D-14).
 export type GovernanceConfigSource = "absent" | "ok" | "unreadable";
 
-// ── The Phase-30 checkpoint matrix, carried on the DISCRIMINATED read only (AUTO-01/02/07) ───────
+// ── The config shape, checkpoint matrix included (AUTO-01/02/07; collapsed to one type by 30-03) ──
 //
-// WHY THE MATRIX HANGS OFF THIS READER AND NOT OFF `GovernanceConfig` ITSELF. `GovernanceConfig` is
-// also the value reader's return shape, and the value reader (`readGovernanceConfig`, above) fails
-// OPEN to lean by contract. A safety matrix must never be reported by a fail-open reader: a consumer
-// that picked it up from there would be reading a dial from a function whose whole documented
-// posture is "degrade quietly". So the matrix is added HERE, on the shape the fail-CLOSED reader
-// returns, and the value reader is left byte-unchanged — it is not, and must not become, a second
-// authority for the matrix. Plan 30-03 deletes the value reader outright and this type collapses
-// back into one.
-export interface GovernanceConfigWithCheckpoints extends GovernanceConfig {
+// This was TWO types while there were two readers: a `GovernanceConfig` the fail-open value reader
+// returned, and a `GovernanceConfigWithCheckpoints` extending it that only the fail-closed reader
+// returned — because a safety matrix must never be reported by a reader whose documented posture is
+// "degrade quietly". With the value reader deleted (D-12) that split has nothing left to protect:
+// there is one reader, it fails closed, and it returns one shape. Keeping a matrix-less
+// `GovernanceConfig` export beside it would leave a type saying "a governance config need not carry
+// a matrix", which is exactly the residue of the authority this plan removed.
+export interface GovernanceConfig {
+  human_admission: string;
+  audit_retention: string;
   /** The effective per-checkpoint matrix. Key set is EXACTLY `CHECKPOINTS`, always. */
   readonly checkpoints: Readonly<Record<Checkpoint, Disposition>>;
 }
 
 export interface GovernanceConfigResult {
   source: GovernanceConfigSource;
-  config: GovernanceConfigWithCheckpoints;
+  config: GovernanceConfig;
   /**
    * Human-readable refusals accumulated while reading the matrix — a `checkpoints` value that was
    * not a JSON object, or a key that is not a roster member. A refused input is DROPPED from the
@@ -1491,7 +1463,7 @@ function readCheckpointMatrix(parsed: unknown): CheckpointMatrixRead {
   return { matrix: defaults, refusals };
 }
 
-export function readGovernanceConfigResult(repoRoot?: string): GovernanceConfigResult {
+export function readGovernanceConfig(repoRoot?: string): GovernanceConfigResult {
   const base = repoRoot ?? ROOT;
   const candidates = [
     join(base, ".grugops", "factory.config.json"),
@@ -1622,7 +1594,7 @@ export function isHighSeverityRole(by: string): boolean {
 // hook IMPORT this; NEITHER reconstructs the `((high-sev && active) || all)` composition locally —
 // that duplicated composition was the 10-round drift surface (the allow-forge risk: the hook reading
 // not-gated/allow-unchecked while the combiner reads gated/trust-the-stamp). configResult is the
-// discriminated read (readGovernanceConfigResult): an UNREADABLE config fails CLOSED (gate-or-stricter,
+// discriminated read (readGovernanceConfig): an UNREADABLE config fails CLOSED (gate-or-stricter,
 // SC3). The value reader already canonicalizes a present non-string dial to "all" (gate-or-stricter),
 // so config.human_admission is always a string here; a present typo/garbage string is also treated as
 // gate-or-stricter. Only the exact string "off" (or a genuinely absent config, which reads "off") is
@@ -1674,7 +1646,7 @@ export function admitAndAppend(
   // Decide GATED via the SINGLE-SOURCE predicate (W-A) — NOT a local reconstruction; the SAME
   // isGatedNote the 25-10 per-call hook imports. The discriminated read fails closed on an unreadable
   // config (gate-or-stricter, SC3).
-  const configResult = readGovernanceConfigResult(repoRoot);
+  const configResult = readGovernanceConfig(repoRoot);
   const gated = isGatedNote(note.by, note.kind, configResult);
   const vb = (note.verified_by ?? "").trim();
 
