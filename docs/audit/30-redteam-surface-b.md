@@ -1453,3 +1453,30 @@ The reviewers' other three observations are recorded in `deferred-items.md` as `
 (the hook's kit-root fallback base — surface A) and `V-30-10-04` (the `resolve()`/`realpathSync`
 dedupe, the one-space grant, and the residual vacuity of `sectionsFound === filesWalked`), each with
 the reason it was not fixed here.
+
+---
+
+## Round 2 — self-reproduction against the FIXED build (closure clause 5)
+
+Every round-2 attack was re-run by the fixing agent against the committed artifacts **after** the
+fixes landed, at HEAD `9d6d81c`. The premise is asserted first: the working-tree `.js` files are
+byte-identical to the committed ones for all six attacked modules
+(`validate-agent-factory.js`, `checkpoints.js`, `context-io.js`, `frontmatter.js`, `kit-model.js`,
+`check-public-docs-vocabulary.js` — 6/6 OK, zero mismatches), so what was driven IS what shipped.
+
+| finding | the attack, re-run | result on the fixed build |
+|---|---|---|
+| F1 | the six-error payload at `<KIT_ROOT>/.grugops/factory.config.json`, two-root arrangement | **6 ERROR(S), exit 1** |
+| F2 | `##  Stop conditions` + a tagged bullet appended to a live workflow | **REFUSED, exit 1**, naming the file, the line and the offending bytes |
+| F3 | the in-kit governance config replaced by a directory | **`agent-factory/config/factory.config.json: exists but could not be read`, exit 1** |
+| F4 | a root `PUBLIC.MD` carrying banned-claim literals | **1 finding naming it, exit 1** |
+| F5 | the three consumer evasions — namespace import, `hooks/`, `scripts/` subdirectory | **exit 1**, all three named in one message |
+| F6 | an unnumbered `hotfix-emergency.md` carrying a canonically tagged stop | **REFUSED, exit 1**, naming the directory and the file |
+| obs. 1 | `assertSiteCounts` driven with an id of `constructor` | **REFUSED** where the pre-fix artifact accepted silently |
+
+Every attack reverted immediately; `git status --short` shows no tracked modification outside this
+plan's own files, and each control returns to green after the revert.
+
+**Its bound, restated.** Self-reproduction proves the fixing agent can make the fixed build refuse
+the input it was fixed for. Round 1 passed this clause too, and two independent reviews then found
+six things it had not thought to try. It is a floor.
