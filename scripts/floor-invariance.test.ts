@@ -301,7 +301,7 @@ describe("SC3 floor-invariance — every governance dial value (incl. garbage) s
       const contextRoot = freshTmp("floor-struct-ctx-");
       const task = "floor-struct-task";
       const id = "RUN-FLOOR-STRUCT";
-      mod.emitVerdict(task, id, contextRoot);
+      mod.emitVerdict(task, id, "clean", contextRoot);
       const text = noteText({ kind: "finding", by: "security-nfr", verified_by: `§14-gate#${id}` });
       return { contextRoot, task, text };
     }

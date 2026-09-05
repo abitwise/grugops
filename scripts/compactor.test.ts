@@ -858,7 +858,7 @@ describe("compactor.js — CMP-03 dial behavior + re-verify", () => {
       pathToFileURL(join(ROOT, "scripts", "context-io.js")).href
     );
     const id = "RUN-CMP-7A3F";
-    ctxIo.emitVerdict(task, id, contextRoot);
+    ctxIo.emitVerdict(task, id, "clean", contextRoot);
     // A faithfully compacted finding body still carrying the §14-gate#<id> stamp.
     const finding = noteText({ kind: "finding", verified_by: `§14-gate#${id}`, body: "401 verified." });
     const findings = mod.reVerify(task, finding, contextRoot);

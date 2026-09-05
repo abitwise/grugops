@@ -445,7 +445,7 @@ describe("admission-server — GAP-R7-1 round-8 unified-classifier end-to-end (R
   it("Lever-1+2 combined: padded kind + internal-space high-sev by, live green gate, NO env/stamp → REFUSED, no note, no ledger line", () => {
     const root = repoWithGovernance({ human_admission: "high-severity", audit_retention: "retained" });
     const task = "asrv-gapr7-combined";
-    cio.emitVerdict(task, "LIVEID-1", ctxRootOf(root)); // a REAL live green §14-gate verdict
+    cio.emitVerdict(task, "LIVEID-1", "clean", ctxRootOf(root)); // a REAL live green §14-gate verdict
     const res = withProjectDir(root, () =>
       srv.handleProposeNote(
         args({
@@ -466,7 +466,7 @@ describe("admission-server — GAP-R7-1 round-8 unified-classifier end-to-end (R
   it("Lever-1 isolated control: padded kind + EXACT high-sev by → REFUSED (admit's D-04 also catches the exact role)", () => {
     const root = repoWithGovernance({ human_admission: "high-severity", audit_retention: "retained" });
     const task = "asrv-gapr7-lever1";
-    cio.emitVerdict(task, "LIVEID-2", ctxRootOf(root));
+    cio.emitVerdict(task, "LIVEID-2", "clean", ctxRootOf(root));
     const res = withProjectDir(root, () =>
       srv.handleProposeNote(
         args({ task, kind: "finding ", by: "security-nfr", verified_by: "§14-gate#LIVEID-2", body: "padded kind, exact role" }),
@@ -487,7 +487,7 @@ describe("admission-server — GAP-R7-1 round-8 unified-classifier end-to-end (R
       it(`structural REFUSE: kind=${JSON.stringify(kind)} × by=${JSON.stringify(by)} (no env/stamp) → REFUSED, no ledger line`, () => {
         const root = repoWithGovernance({ human_admission: "high-severity", audit_retention: "retained" });
         const task = `asrv-gapr7-sweep-${i}`;
-        cio.emitVerdict(task, `SWEEP-${i}`, ctxRootOf(root));
+        cio.emitVerdict(task, `SWEEP-${i}`, "clean", ctxRootOf(root));
         const res = withProjectDir(root, () =>
           srv.handleProposeNote(args({ task, kind, by, verified_by: `§14-gate#SWEEP-${i}`, body: "sweep" })),
         );
@@ -537,7 +537,7 @@ describe("admission-server — GAP-R7-1 round-8 unified-classifier end-to-end (R
   it("no over-block: padded routine finding (gate-stamped) under high-severity ADMITS; ledger severity=routine", () => {
     const root = repoWithGovernance({ human_admission: "high-severity", audit_retention: "retained" });
     const task = "asrv-gapr7-routine";
-    cio.emitVerdict(task, "ROUT-1", ctxRootOf(root));
+    cio.emitVerdict(task, "ROUT-1", "clean", ctxRootOf(root));
     const res = withProjectDir(root, () =>
       srv.handleProposeNote(
         args({ task, kind: "finding ", by: "software-engineer", verified_by: "§14-gate#ROUT-1", body: "routine padded finding" }),

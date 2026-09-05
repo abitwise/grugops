@@ -3201,3 +3201,103 @@ describe("emitVerdict: the required test-integrity argument (plan 30-05, D-15/D-
     expect([...mod.TEST_INTEGRITY_RESULTS]).not.toContain("disabled");
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// The command surface: the dispatch and its usage line, DERIVED and compared (plan 30-05).
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+//
+// `agent-factory/workflows/05-pr-quality-gate.md` told the agent that `node scripts/context-io.js`
+// exposed the verdict emitter. It did not — the dispatch handled three verbs and the emitter was
+// none of them. This plan adds the verb, and this block is the reason a fifth one cannot be added
+// without appearing in the usage text: the dispatched set and the enumerated set are both derived
+// from the source and compared, so neither is a hand-maintained list beside the other.
+
+/** Every command name the dispatch actually branches on, read from the dispatch itself. */
+function dispatchedCommands(src: string): string[] {
+  return [...src.matchAll(/cmd === "([a-z][a-z0-9-]*)"/g)].map((m) => m[1]).sort();
+}
+
+/** Every command name the fallthrough usage line enumerates, read from that line. */
+function usageLineCommands(src: string): string[] {
+  const m = src.match(/"usage: context-io\.js <(.*)>",/);
+  if (m === null) {
+    throw new Error(
+      "context-io.test: could not locate the fallthrough usage line in scripts/context-io.ts — " +
+        "the comparison below has no right-hand side and would be vacuously green",
+    );
+  }
+  return m[1]
+    .split(" | ")
+    .map((segment) => segment.trim().split(/\s+/)[0])
+    .sort();
+}
+
+describe("context-io CLI: the dispatched verbs and the usage line are one set (plan 30-05)", () => {
+  const SRC = readFileSync(join(ROOT, "scripts", "context-io.ts"), "utf8");
+
+  it("the usage line enumerates EXACTLY the set of verbs the dispatch handles", () => {
+    const dispatched = dispatchedCommands(SRC);
+    const enumerated = usageLineCommands(SRC);
+    // Non-vacuity first: an empty extraction on either side would make the equality meaningless.
+    expect(dispatched.length).toBeGreaterThan(1);
+    expect(enumerated.length).toBeGreaterThan(1);
+    expect(enumerated).toEqual(dispatched);
+    // …and the emission surface the gate workflow names is one of them.
+    expect(dispatched).toContain("emit-verdict");
+  });
+
+  it("that comparison DISCRIMINATES — a verb missing from the usage line is refused", () => {
+    // The premise assertion: prove the comparison would have failed had the usage line been short,
+    // rather than trusting that the green above could have come out any other way.
+    const short = SRC.replace(
+      " | emit-verdict <task> <id> <clean|finding|unknown> [contextRoot]",
+      "",
+    );
+    expect(short).not.toBe(SRC);
+    expect(usageLineCommands(short)).not.toEqual(dispatchedCommands(short));
+  });
+
+  it("the new verb with NO integrity argument writes no note and reports a refusal", () => {
+    const contextRoot = freshTmp("cli-ev-absent-");
+    const r = spawnSync("node", [CONTEXT_IO_JS, "emit-verdict", "cli-task", "RUN-CLI-1", "", contextRoot], {
+      cwd: ROOT,
+      encoding: "utf8",
+    });
+    expect(r.status).not.toBe(0);
+    expect(`${r.stdout}${r.stderr}`).toContain("refusing to emit a green verdict");
+    expect(existsSync(join(contextRoot, "cli-task", "notes"))).toBe(false);
+  });
+
+  it("the new verb with an UNRECOGNIZED integrity argument refuses identically", () => {
+    const contextRoot = freshTmp("cli-ev-bogus-");
+    const r = spawnSync(
+      "node",
+      [CONTEXT_IO_JS, "emit-verdict", "cli-task", "RUN-CLI-2", "CLEAN", contextRoot],
+      { cwd: ROOT, encoding: "utf8" },
+    );
+    expect(r.status).not.toBe(0);
+    expect(`${r.stdout}${r.stderr}`).toContain("refusing to emit a green verdict");
+    expect(existsSync(join(contextRoot, "cli-task", "notes"))).toBe(false);
+  });
+
+  it("CONTROL — the new verb with `clean` emits exactly one verdict the admit path accepts", () => {
+    const contextRoot = freshTmp("cli-ev-clean-");
+    const r = spawnSync(
+      "node",
+      [CONTEXT_IO_JS, "emit-verdict", "cli-task", "RUN-CLI-3", "clean", contextRoot],
+      { cwd: ROOT, encoding: "utf8" },
+    );
+    expect(r.status, `${r.stdout}${r.stderr}`).toBe(0);
+    expect(r.stdout).toContain("§14-gate#RUN-CLI-3");
+    const notes = readdirSync(join(contextRoot, "cli-task", "notes"));
+    expect(notes).toHaveLength(1);
+    // The two surfaces agree: a finding stamping that per-run id is admitted.
+    const f = join(contextRoot, "finding.md");
+    writeFileSync(f, goodNoteText({ kind: "finding", verified_by: "§14-gate#RUN-CLI-3" }));
+    const admitted = spawnSync("node", [CONTEXT_IO_JS, "admit", "cli-task", f, contextRoot], {
+      cwd: ROOT,
+      encoding: "utf8",
+    });
+    expect(admitted.status, `${admitted.stdout}${admitted.stderr}`).toBe(0);
+  });
+});

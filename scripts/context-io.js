@@ -1570,6 +1570,29 @@ if (isMain) {
             console.log(`note admitted: structurally valid and the §14-gate stamp matches a live green verdict.`);
             process.exit(0);
         }
+        else if (cmd === "emit-verdict") {
+            // The emission surface 05-pr-quality-gate.md describes (plan 30-05). The integrity argument
+            // is read from its command-line position and passed through UNMODIFIED — no canonicalization,
+            // no defaulting, no coercion — so an absent or unrecognized one reaches exactly the same
+            // refusal as the in-process path and the two surfaces cannot come to disagree.
+            const task = rest[0];
+            const id = rest[1];
+            const integrity = rest[2];
+            const contextRoot = rest[3]; // optional explicit root (tests pass a temp dir)
+            if (!task || !id) {
+                console.error("usage: context-io.js emit-verdict <task> <id> <clean|finding|unknown> [contextRoot]");
+                process.exit(1);
+            }
+            const noteIdStr = emitVerdict(task, id, integrity, contextRoot ?? DEFAULT_CONTEXT_ROOT);
+            if (noteIdStr === null) {
+                console.error(`context-io: refusing to emit a green verdict — the test-integrity result was ` +
+                    `${JSON.stringify(integrity ?? null)}, and only "clean" admits one. Nothing was ` +
+                    `written. The finding stays at UNKNOWN - verify.`);
+                process.exit(1);
+            }
+            console.log(`verdict emitted: ${noteIdStr} (§14-gate#${id}).`);
+            process.exit(0);
+        }
         else if (cmd === "render") {
             const task = rest[0];
             const contextRoot = rest[1]; // optional explicit root (tests pass a temp dir)
@@ -1582,7 +1605,7 @@ if (isMain) {
             process.exit(0);
         }
         else {
-            console.error("usage: context-io.js <validate <noteFile> | admit <task> <noteFile> [contextRoot] | render <task> [contextRoot]>");
+            console.error("usage: context-io.js <validate <noteFile> | admit <task> <noteFile> [contextRoot] | emit-verdict <task> <id> <clean|finding|unknown> [contextRoot] | render <task> [contextRoot]>");
             process.exit(1);
         }
     }
