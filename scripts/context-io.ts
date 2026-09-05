@@ -1018,7 +1018,10 @@ const AUDIT_LEDGER_RELPATH = [".grugops", "audit", "admissions.jsonl"] as const;
 //     is the WEAKER, self-settable tier (D-05): an in-script check is settable in admit()'s own child
 //     env, so it covers the four non-CC CLIs at the script level but is NOT the un-forgeable primary
 //     (that is the separate admission-guard hook, Plan 25-02). The dial is read via the shared
-//     readGovernanceConfig — the SAME read path the hook uses — so the two tiers cannot diverge (OQ-3).
+//     discriminated reader — the SAME read path the hook uses — so the two tiers cannot diverge (OQ-3).
+//   - D-14 (Plan 30-03) unreadable-config refusal: a config file that EXISTS but cannot be read or
+//     parsed refuses the admission and degrades the finding to `UNKNOWN - verify`. See the block at
+//     the governance read below for why this is not scoped to high-severity roles.
 //   - GOV-02 audit ledger: under audit_retention: retained, a successful admission appends one
 //     fixed-key JSONL event to the single global .grugops/audit/admissions.jsonl. Under git (the lean
 //     default) nothing new is written (the audit stays implicit in git history).
@@ -1062,7 +1065,38 @@ export function admit(
   // disposition, REFUSE and name the fault — mirroring the validate() refuse-self set exactly. We push
   // a finding; we NEVER silently rewrite the note (the no-fabrication floor). The dials only ADD this
   // refusal; there is no value that removes a floor refusal (SC3).
-  const gov = readGovernanceConfig(repoRoot);
+  //
+  // ── D-14 (Plan 30-03): an UNREADABLE config REFUSES the write and degrades ─────────────────────
+  // admit() reads the ONE discriminated reader, which distinguishes a genuinely ABSENT config (stay
+  // lean — the zero-config contract, SC2) from a config file that EXISTS at a standard location but
+  // cannot be read or parsed. The fail-OPEN value reader admit() used before Plan 30-03 collapsed
+  // those two into the same lean default, so a corrupt config silently ADMITTED what the dial would
+  // otherwise have gated (measured RED at 30-03: findings came back EMPTY, it did not even throw).
+  // An unknown dial is not a lean dial. We refuse, we write NOTHING (no note, no ledger event), and
+  // we degrade the finding to `UNKNOWN - verify` — the same posture a non-green gate already
+  // produces (Phase 21), never a fabricated pass. The refusal is NOT scoped to high-severity roles:
+  // scoping it would leave the fail-open standing for every routine admission, which is most of them.
+  //
+  // IT MUST NOT THROW. The contract here promises a degraded finding, and a crash is not one. The
+  // reader does not throw today; a throw is nonetheless caught and lands on the SAME refusal branch
+  // rather than on a second reconstructed result shape — a read that failed is a read that failed.
+  let govResult: GovernanceConfigResult | null = null;
+  try {
+    govResult = readGovernanceConfigResult(repoRoot);
+  } catch {
+    govResult = null;
+  }
+  if (govResult === null || govResult.source === "unreadable") {
+    return [
+      `admission REFUSED (UNKNOWN - verify): a governance configuration file exists at a standard ` +
+        `location but could not be read or parsed, so the human_admission dial is UNKNOWN. This ` +
+        `admission is refused and nothing is written — no note, no audit-ledger event — and the ` +
+        `finding stays "UNKNOWN - verify" until a human repairs the configuration. An unreadable ` +
+        `dial is never degraded to the lean "off" default; reading it as off is the fail-open this ` +
+        `refusal closes (D-14). A genuinely ABSENT config is a different case and still runs lean.`,
+    ];
+  }
+  const gov = govResult.config;
   // SINGLE-SOURCE high-severity classification (round-8 GAP-R7-1 Lever-2). admit()'s D-04 backstop now
   // classifies severity through the ONE classifier isHighSeverityRole — NOT a separate inline
   // `.trim().toLowerCase()` membership test. isHighSeverityRole is a STRICT SUPERSET of the former check:

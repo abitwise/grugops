@@ -826,6 +826,134 @@ describe("d-04 high-severity in-script refusal", () => {
   });
 });
 
+// ── D-14 (Plan 30-03): admit() on an UNREADABLE config REFUSES and degrades to `UNKNOWN - verify` ──
+//
+// WHY THIS IS ITS OWN BLOCK AND NOT A LINE APPENDED TO THE GOVERNANCE SUITE. Until Plan 30-03,
+// admit() consumed the fail-OPEN value reader, whose documented contract collapsed "no config file"
+// and "a config file that exists but cannot be parsed" into the SAME lean default. That collapse is
+// the SC3 fail-open the hook already closed at its own tier; admit() kept it, so a corrupt config
+// silently ADMITTED a high-severity finding the dial would otherwise have gated. RESEARCH §F-7 names
+// admit() — not the reader merge — as the collapse's real hazard, and D-14 specifies the landing
+// place: refuse the write, degrade the finding to `UNKNOWN - verify` exactly as a non-green gate
+// already does (the Phase 21 posture), and never throw.
+//
+// THREE DIRECTIONS, BECAUSE A REFUSAL THAT ALSO BREAKS THE ZERO-CONFIG PATH IS NOT A FIX. The block
+// asserts the unreadable path refuses, the ABSENT path is byte-unchanged (the lean default the
+// fail-open reader existed to provide, now provided explicitly at the one site that needed it), and
+// the well-formed path is byte-unchanged.
+//
+// AND ONE ARTIFACT DIRECTION: a refusal that leaves a zero-length note behind is a partial write, not
+// a refusal. The notes directory is captured as a listing PLUS every file's bytes before the call and
+// compared after it (T-30-11).
+describe("30-03 D-14 — admit() refuses and degrades on an unreadable governance config", () => {
+  // Write RAW bytes as the config so a genuinely unparseable file can be expressed (JSON.stringify
+  // cannot produce one). Returns the repoRoot admit() resolves its config and audit ledger against.
+  function repoWithRawConfig(raw: string): string {
+    const root = freshTmp("d14-repo-");
+    mkdirSync(join(root, ".grugops"), { recursive: true });
+    writeFileSync(join(root, ".grugops", "factory.config.json"), raw);
+    return root;
+  }
+
+  // A high-severity finding whose §14-gate cross-check PASSES, so the ONLY thing left to decide the
+  // admission is the governance read — the same isolation the D-04 block uses.
+  function gateStampedHighSev(): { contextRoot: string; task: string; text: string } {
+    const contextRoot = freshTmp("d14-ctx-");
+    const task = "d14-task";
+    const id = "RUN-D14-GREEN";
+    mod.emitVerdict(task, id, contextRoot);
+    return {
+      contextRoot,
+      task,
+      text: goodNoteText({ kind: "finding", by: "security-nfr", verified_by: `§14-gate#${id}` }),
+    };
+  }
+
+  /** A directory listing PLUS each file's bytes — a listing alone cannot see a truncated file. */
+  function snapshot(dir: string): Record<string, string> {
+    const out: Record<string, string> = {};
+    for (const name of readdirSync(dir, { recursive: true, withFileTypes: true })) {
+      if (!name.isFile()) continue;
+      const rel = join(String(name.parentPath ?? name.path ?? dir), name.name);
+      out[rel] = readFileSync(rel, "utf8");
+    }
+    return out;
+  }
+
+  it("REFUSES a high-severity admit when the config file exists but cannot be parsed", () => {
+    const repoRoot = repoWithRawConfig("{ not valid json ]]]");
+    const { contextRoot, task, text } = gateStampedHighSev();
+    const findings = mod.admit(task, text, contextRoot, repoRoot);
+    expect(findings.length).toBeGreaterThan(0);
+  });
+
+  it("degrades the refusal to `UNKNOWN - verify` and names the unreadable configuration", () => {
+    const repoRoot = repoWithRawConfig("{ not valid json ]]]");
+    const { contextRoot, task, text } = gateStampedHighSev();
+    const joined = mod.admit(task, text, contextRoot, repoRoot).join("\n");
+    expect(joined).toContain("UNKNOWN - verify");
+    expect(joined).toMatch(/could not be read or parsed|unreadable/);
+  });
+
+  it("REFUSES a ROUTINE finding too — an unknown dial cannot be read as `off` for anybody", () => {
+    // The unreadable dial is unknown, not lean. Scoping the refusal to high-severity roles would
+    // re-open the fail-open for every routine admission, which is most of them.
+    const repoRoot = repoWithRawConfig("<<<not json at all>>>");
+    const contextRoot = freshTmp("d14-routine-");
+    const task = "d14-routine";
+    const id = "RUN-D14-ROUTINE";
+    mod.emitVerdict(task, id, contextRoot);
+    const text = goodNoteText({
+      kind: "finding",
+      by: "software-engineer",
+      verified_by: `§14-gate#${id}`,
+    });
+    const joined = mod.admit(task, text, contextRoot, repoRoot).join("\n");
+    expect(joined).toContain("UNKNOWN - verify");
+  });
+
+  it("does NOT throw — the contract promises a degraded finding, and a crash is not one", () => {
+    const repoRoot = repoWithRawConfig("{ not valid json ]]]");
+    const { contextRoot, task, text } = gateStampedHighSev();
+    expect(() => mod.admit(task, text, contextRoot, repoRoot)).not.toThrow();
+  });
+
+  it("writes NOTHING on a refused admit — the notes directory is byte-identical before and after", () => {
+    const repoRoot = repoWithRawConfig("{ not valid json ]]]");
+    const { contextRoot, task, text } = gateStampedHighSev();
+    const before = snapshot(contextRoot);
+    expect(Object.keys(before).length).toBeGreaterThan(0); // the fixture is not vacuous
+    mod.admit(task, text, contextRoot, repoRoot);
+    expect(snapshot(contextRoot)).toEqual(before);
+    // And no audit-ledger event was appended under the repo root either.
+    expect(existsSync(join(repoRoot, ".grugops", "audit", "admissions.jsonl"))).toBe(false);
+  });
+
+  it("the ABSENT-config path is UNCHANGED — zero-config still admits leanly (the D-14 carve-out)", () => {
+    const repoRoot = freshTmp("d14-absent-"); // empty dir: no config at either standard location
+    const { contextRoot, task, text } = gateStampedHighSev();
+    expect(mod.admit(task, text, contextRoot, repoRoot)).toEqual([]);
+  });
+
+  it("the WELL-FORMED-config path is UNCHANGED at every dial value", () => {
+    for (const [dial, expected] of [
+      ["off", 0],
+      ["high-severity", 1],
+      ["all", 1],
+    ] as const) {
+      const repoRoot = repoWithRawConfig(JSON.stringify({ context: { human_admission: dial } }));
+      const { contextRoot, task, text } = gateStampedHighSev();
+      const findings = mod.admit(task, text, contextRoot, repoRoot);
+      expect(
+        findings.length === 0 ? 0 : 1,
+        `dial=${dial} must behave exactly as it did before D-14`,
+      ).toBe(expected);
+      // Whatever it says, it is never the unreadable degrade — the config parsed fine.
+      expect(findings.join("\n")).not.toContain("UNKNOWN - verify");
+    }
+  });
+});
+
 // ── 25-05 GAP-C: non-string human_admission canonicalization (gate-or-stricter, never silently off) ─
 // The round-2 red-team found a PRESENT but non-string human_admission (true / 1 / null / array /
 // object) — and a present non-object `context` / non-object whole-file config — coerced to the lean
@@ -1739,12 +1867,23 @@ describe("governance-config", () => {
 // deliberately, and the freeze RE-LOCKS at the new baseline below so any FUTURE drift to admit() still
 // goes RED. The freeze stays a structural guard — re-pinned, NEVER deleted/skipped/weakened.
 // (hooks/guard.ts's SEPARATE prod-deploy freeze is untouched — a different invariant.)
-describe("context-io.ts — W-B admit() mechanical byte-freeze (Plan 25-09; re-baselined 25-13)", () => {
-  // The pinned baseline: sha256 of admit()'s function span. RE-PINNED in Plan 25-13 (round-8) after the
-  // deliberate Lever-2 unfreeze routed D-04 through the single-source isHighSeverityRole. admit() must
-  // hash to this exactly; the prior baseline was b7998cbd…be3d (pre-25-13).
+//
+// PLAN 30-03 DELIBERATE UNFREEZE + RE-BASELINE (D-14). admit() consumed the fail-OPEN value reader,
+// whose contract collapsed "no config file" and "a config file that cannot be parsed" into the same
+// lean default — so a corrupt config silently ADMITTED (measured RED this plan: findings came back
+// EMPTY, and the reader did not even throw, because never throwing is exactly what that reader
+// promised). D-14 moves admit() onto the ONE discriminated reader and gives it the explicit landing
+// place the fail-open reader was standing in for: an unreadable config REFUSES the write and degrades
+// the finding to `UNKNOWN - verify`. The ABSENT and well-formed paths are asserted UNCHANGED in the
+// 30-03 D-14 block above, so the span change is strictly the added refusal. admit()'s span therefore
+// changes deliberately and the freeze RE-LOCKS below, so any FUTURE drift still goes RED.
+describe("context-io.ts — W-B admit() mechanical byte-freeze (Plan 25-09; re-baselined 25-13, 30-03)", () => {
+  // The pinned baseline: sha256 of admit()'s function span. RE-PINNED in Plan 30-03 after the
+  // deliberate D-14 unfreeze routed the governance read through the ONE discriminated reader and added
+  // the unreadable-config refusal. admit() must hash to this exactly; the prior baselines were
+  // dbf66ac7…ebf7 (25-13) and b7998cbd…be3d (pre-25-13).
   const ADMIT_FROZEN_SHA256 =
-    "dbf66ac76f577ce848b9f6c2d3422ba39694c9c7a775c4524e8976ee4893ebf7";
+    "ae159bb32c694ef6ca8d244633c4fddec57e4a422cec8434ba16f05248255551";
 
   // Extract the span `export function admit(` … matching `}` by brace-counting (the SAME extraction the
   // baseline was captured with). Reads the committed .ts source (the freeze is on the source of truth).
