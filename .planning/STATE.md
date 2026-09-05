@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v2.1
 milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live Board
-current_phase: 29.2
-current_phase_name: Model Assignment Delivery Path (INSERTED — split out of 29.1 by D-17)
+current_phase: 30
+current_phase_name: Per-Checkpoint Autonomy Matrix
 status: phase-complete
 stopped_at: Phase 30 context gathered
-last_updated: "2026-09-04T21:28:35.215Z"
-state_head: 74ca321057754f57cb7fb32485309e13d555f534
+last_updated: "2026-09-05T09:16:09.593Z"
+state_head: f93f0d7a508d08f7a5f392e43c68f8d3b6b93253
 progress:
   total_phases: 9
   completed_phases: 3
-  total_plans: 165
+  total_plans: 176
   completed_plans: 165
   percent: 33
 last_activity: 2026-08-19
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-07-28 — after v2.0 milestone)
 
 ## Current Position
 
-Phase: 29.2 (Model Assignment Delivery Path (INSERTED — split out of 29.1 by D-17)) — EXECUTING
+Phase: 30 (Per-Checkpoint Autonomy Matrix) — READY TO EXECUTE
 Plan: 6 of 6
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute

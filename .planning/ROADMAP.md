@@ -922,16 +922,39 @@ Plans:
 **Plans**: 11 plans
 
 Plans:
+**Wave 1**
+
 - [ ] 30-01-PLAN.md — Tracer: one floor end-to-end (roster, config cell, reader field, hook matrix lookup, key two, banner, re-freeze)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
 - [ ] 30-02-PLAN.md — Floor set settled: `SAFETY_FLOORS` remap, registry `depends_on` remap, duplicate-id refusal
 - [ ] 30-03-PLAN.md — Reader collapse to one discriminated authority, `admit()` degrade, config-reading-site count
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
 - [ ] 30-04-PLAN.md — Checkpoint derivation, workflow stop-bullet tagging, two-sided cardinality, compile-error proof
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
 - [ ] 30-05-PLAN.md — `emitVerdict()` refuses GREEN at the point of effect, the missing emission verb, gate-workflow correction
 - [ ] 30-06-PLAN.md — Retire the `autonomy` scalar: validator polarity flip, three config surfaces, sixteen fixtures, migration table
+
+**Wave 5** *(blocked on Wave 4 completion)*
+
 - [ ] 30-07-PLAN.md — Guarantees generator, freshness gate, and language-gate scan-set wiring
 - [ ] 30-08-PLAN.md — Notify path with a trace finding, banner/decision agreement, full-roster zero-config differential
+
+**Wave 6** *(blocked on Wave 5 completion)*
+
 - [ ] 30-09-PLAN.md — Claim-dropping in place, pointer lines, settings-file residual row
+
+**Wave 7** *(blocked on Wave 6 completion)*
+
 - [ ] 30-10-PLAN.md — Red-team surface B (derivation, reader, validator, render, banner)
+
+**Wave 8** *(blocked on Wave 7 completion)*
+
 - [ ] 30-11-PLAN.md — Red-team surface A (two-key hook path, point-of-effect refusal)
 
 **This is the direct successor to Phase 25** — the hardest phase in the project (8 rounds; 13 documented green-suite-insufficient bypasses across the milestone; closure required a structural fix + ≥2 independent red-teams + self-reproduction). Its **red-team rounds are budgeted as scope, not overrun.** A green suite does not close a floor here.
