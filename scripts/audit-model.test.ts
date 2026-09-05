@@ -272,7 +272,12 @@ describe("audit-model: the closed sets", () => {
 
     const backed = SAFETY_FLOORS.filter((f) => f.configPath !== null);
     // Non-vacuity: at least one floor must actually be config-backed, or this case proves nothing.
-    expect(backed.length).toBe(3);
+    expect(backed.length).toBeGreaterThan(0);
+    // Phase 30 (AUTO-01) gave `protected_branch_merge` a config cell
+    // (`checkpoints.protected_branch_merge`), so EVERY floor is now config-backed and this loop
+    // covers the whole list. The denominator is SAFETY_FLOORS.length rather than a transcribed
+    // number, so adding or removing a floor cannot leave this case silently checking a subset.
+    expect(backed.length).toBe(SAFETY_FLOORS.length);
 
     for (const floor of backed) {
       const path = floor.configPath as string;
@@ -284,11 +289,34 @@ describe("audit-model: the closed sets", () => {
     }
   });
 
-  it("the hard-limit floor declares no config key rather than inventing one", () => {
-    const hard = SAFETY_FLOORS.filter((f) => f.configPath === null);
-    expect(hard.length).toBe(1);
-    expect(hard[0].id).toBe("protected_branch_merge");
-    expect(safetyFloorLiveValue(hard[0], REPO_ROOT)).toBeNull();
+  // ── Phase 30 (AUTO-01): the former hard-limit floor now names a config cell. ────────────────────
+  // This case previously asserted the OPPOSITE — that `protected_branch_merge` declared NO config
+  // key, because naming one would have implied a dial existed. Phase 30 gave it one
+  // (`checkpoints.protected_branch_merge`, default `block`), so the old assertion is not weakened
+  // here, it is REPLACED by the claim that is now true: the cell exists, it resolves against the
+  // live config, and the cell ALONE cannot lower the floor — that second half is enforced by the
+  // two-key rule in hooks/guard.ts and asserted there, by spawning the committed guard.js.
+  it("protected_branch_merge names its Phase-30 config cell and that cell resolves live", () => {
+    const floor = SAFETY_FLOORS.find((f) => f.id === "protected_branch_merge");
+    expect(floor).toBeDefined();
+    expect(floor!.configPath).toBe("checkpoints.protected_branch_merge");
+    expect(safetyFloorLiveValue(floor!, REPO_ROOT)).toBe("block");
+    // The `why` text must not still claim the floor has no config key — that sentence became false
+    // the moment the matrix gave it a cell, and a stale rationale is how a register starts lying.
+    expect(floor!.why).not.toMatch(/NO config key/);
+    expect(floor!.why).toMatch(/two keys|cell alone|GRUGOPS_FLOOR_PROTECTED_BRANCH_MERGE/i);
+  });
+
+  it("safetyFloorLiveValue still reports null for a floor that declares no config key", () => {
+    // No SAFETY_FLOORS member declares `configPath: null` after Phase 30, so the null arm would be
+    // unexercised — and an unexercised arm is one nobody would notice breaking. Drive it directly:
+    // null means "this floor is not held by a config key at all", never "the key is missing".
+    const synthetic = {
+      id: "synthetic_hard_limit",
+      configPath: null,
+      why: "A floor held by code alone, used here only to exercise the null arm.",
+    } as const;
+    expect(safetyFloorLiveValue(synthetic, REPO_ROOT)).toBeNull();
   });
 
   it("SAFETY_SURFACE_VALUES carries the unfilled marker alongside yes/no", () => {

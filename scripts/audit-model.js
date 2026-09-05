@@ -168,8 +168,8 @@ export const SAFETY_FLOORS = [
     },
     {
         id: "protected_branch_merge",
-        configPath: null,
-        why: "Agents never merge a protected branch. This is a HARD LIMIT with NO config key — there is no dial for it, and naming one here would imply there is.",
+        configPath: "checkpoints.protected_branch_merge",
+        why: "Agents never merge a protected branch. Phase 30 gives it a config cell (`checkpoints.protected_branch_merge`, default `block`), and the cell ALONE cannot lower it: a declared `notify`/`off` takes effect only when a human has also set GRUGOPS_FLOOR_PROTECTED_BRANCH_MERGE in the session the hook reads. An agent editing config alone changes nothing, and the denial says so by name.",
     },
 ];
 /**

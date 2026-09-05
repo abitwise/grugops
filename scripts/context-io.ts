@@ -42,6 +42,13 @@ import {
 } from "node:fs";
 import { join, resolve, sep } from "node:path";
 import { pathToFileURL } from "node:url";
+import {
+  CHECKPOINTS,
+  CHECKPOINT_DEFAULTS,
+  canonicalizeDisposition,
+  type Checkpoint,
+  type Disposition,
+} from "./checkpoints.js";
 
 // ── The six note kinds (SCTX-01) ──────────────────────────────────────────────────────────────
 export const NOTE_KINDS = [
@@ -1335,9 +1342,119 @@ export function readGovernanceConfig(repoRoot?: string): GovernanceConfig {
 //                    (corrupt / non-JSON). The hook treats this as fail-closed.
 // The value reader's default-on-absent behavior is unchanged; this is an ADDITIVE read path.
 export type GovernanceConfigSource = "absent" | "ok" | "unreadable";
+
+// ── The Phase-30 checkpoint matrix, carried on the DISCRIMINATED read only (AUTO-01/02/07) ───────
+//
+// WHY THE MATRIX HANGS OFF THIS READER AND NOT OFF `GovernanceConfig` ITSELF. `GovernanceConfig` is
+// also the value reader's return shape, and the value reader (`readGovernanceConfig`, above) fails
+// OPEN to lean by contract. A safety matrix must never be reported by a fail-open reader: a consumer
+// that picked it up from there would be reading a dial from a function whose whole documented
+// posture is "degrade quietly". So the matrix is added HERE, on the shape the fail-CLOSED reader
+// returns, and the value reader is left byte-unchanged — it is not, and must not become, a second
+// authority for the matrix. Plan 30-03 deletes the value reader outright and this type collapses
+// back into one.
+export interface GovernanceConfigWithCheckpoints extends GovernanceConfig {
+  /** The effective per-checkpoint matrix. Key set is EXACTLY `CHECKPOINTS`, always. */
+  readonly checkpoints: Readonly<Record<Checkpoint, Disposition>>;
+}
+
 export interface GovernanceConfigResult {
   source: GovernanceConfigSource;
-  config: GovernanceConfig;
+  config: GovernanceConfigWithCheckpoints;
+  /**
+   * Human-readable refusals accumulated while reading the matrix — a `checkpoints` value that was
+   * not a JSON object, or a key that is not a roster member. A refused input is DROPPED from the
+   * effective matrix (it never widens the roster) and recorded here so the run can say what it
+   * ignored instead of ignoring it silently (D-08).
+   */
+  readonly checkpointRefusals: readonly string[];
+}
+
+/** What `readCheckpointMatrix` returns: the effective matrix plus anything it refused. */
+interface CheckpointMatrixRead {
+  readonly matrix: Readonly<Record<Checkpoint, Disposition>>;
+  readonly refusals: readonly string[];
+}
+
+/**
+ * Read the `checkpoints` object out of an already-parsed config file.
+ *
+ * THE FOUR DEGENERATE SHAPES, EACH ITS OWN BRANCH — the same four the `context` object above already
+ * distinguishes, because that structure is what closed the round-2 GAP-C fail-open and a new key
+ * written without that history reintroduces it (RESEARCH Pitfall 4):
+ *   1. the whole parsed file is not a JSON object  → roster defaults + a refusal;
+ *   2. `checkpoints` is ABSENT                     → roster defaults, NO refusal (AUTO-07: a repo
+ *                                                    that configures nothing is not misconfigured);
+ *   3. `checkpoints` is PRESENT but not an object  → roster defaults + a refusal;
+ *   4. `checkpoints` is a present object           → per key: absent → the roster default; present →
+ *                                                    `canonicalizeDisposition`, which reaches `block`
+ *                                                    by RULE for the entire non-canonical complement.
+ * Branches 1 and 3 reach the roster DEFAULT rather than `off`, and every default is `block`, so no
+ * degenerate shape can lower a checkpoint. Branch 2 is the only one that is not also a refusal.
+ *
+ * THE KEY SET IS STRUCTURAL, NOT ACCUMULATED. The result starts as a copy of `CHECKPOINT_DEFAULTS`
+ * and is overwritten in place, so it CANNOT come out short — and the count is asserted anyway
+ * against a denominator taken from `CHECKPOINT_DEFAULTS` rather than from the loop that filled it
+ * (RESEARCH Pitfall 6). An unknown id is dropped and recorded; it never becomes a roster member.
+ */
+function readCheckpointMatrix(parsed: unknown): CheckpointMatrixRead {
+  const defaults = { ...CHECKPOINT_DEFAULTS } as Record<Checkpoint, Disposition>;
+  const refusals: string[] = [];
+
+  if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
+    refusals.push(
+      "the config file did not parse to a JSON object, so no `checkpoints` matrix could be read — every checkpoint is enforced at its default",
+    );
+    return { matrix: defaults, refusals };
+  }
+
+  const raw = (parsed as { checkpoints?: unknown }).checkpoints;
+  if (raw === undefined) {
+    return { matrix: defaults, refusals }; // zero-config: defaults, and nothing to report.
+  }
+  if (raw === null || typeof raw !== "object" || Array.isArray(raw)) {
+    refusals.push(
+      "`checkpoints` is present but is not a JSON object — the whole matrix is refused and every checkpoint is enforced at its default",
+    );
+    return { matrix: defaults, refusals };
+  }
+
+  const obj = raw as Record<string, unknown>;
+  const rosterIds = new Set<string>(CHECKPOINTS);
+  for (const key of Object.keys(obj)) {
+    if (!rosterIds.has(key)) {
+      refusals.push(
+        `\`checkpoints.${key}\` is not a checkpoint on the roster — the entry is dropped and does not widen the checkpoint set`,
+      );
+    }
+  }
+  for (const id of CHECKPOINTS) {
+    if (!(id in obj)) continue; // absent key → the roster default already in place.
+    const value = obj[id];
+    const canonical = canonicalizeDisposition(value);
+    if (canonical === "block" && value !== "block") {
+      refusals.push(
+        `\`checkpoints.${id}\` carries a value that is not one of block|notify|off — it is enforced as \`block\``,
+      );
+    }
+    defaults[id] = canonical;
+  }
+
+  // Pitfall 6: the denominator comes from the roster table, not from the loop above.
+  const expected = Object.keys(CHECKPOINT_DEFAULTS).length;
+  const actual = Object.keys(defaults).length;
+  if (actual !== expected) {
+    // Unreachable by construction (the object starts as a full copy); asserted anyway, because a
+    // matrix that comes out SHORT gates fewer checkpoints while presenting as a clean read.
+    return {
+      matrix: { ...CHECKPOINT_DEFAULTS },
+      refusals: [
+        ...refusals,
+        `the effective checkpoint matrix carried ${actual} key(s) where the roster declares ${expected} — the read is refused and every checkpoint is enforced at its default`,
+      ],
+    };
+  }
+  return { matrix: defaults, refusals };
 }
 
 export function readGovernanceConfigResult(repoRoot?: string): GovernanceConfigResult {
@@ -1354,24 +1471,30 @@ export function readGovernanceConfigResult(repoRoot?: string): GovernanceConfigR
     // (correctly) cannot make.
     try {
       const parsed = JSON.parse(readFileSync(path, "utf8")) as unknown;
+      // The checkpoint matrix is read ONCE, from the same parsed bytes, and carried on every
+      // source="ok" return below — including the degenerate-shape ones, where it supplies the roster
+      // default (i.e. `block` everywhere). No branch below can return a config without a matrix.
+      const cp = readCheckpointMatrix(parsed);
       // A present-but-degenerate whole-file shape (array / string / number / null) parses but is not a
       // config object — gate-or-stricter at source="ok" (it WAS read), never the lean default (GAP-C).
       if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
         return {
           source: "ok",
-          config: { human_admission: GATE_OR_STRICTER_HUMAN_ADMISSION, audit_retention: GOVERNANCE_DEFAULTS.audit_retention },
+          config: { human_admission: GATE_OR_STRICTER_HUMAN_ADMISSION, audit_retention: GOVERNANCE_DEFAULTS.audit_retention, checkpoints: cp.matrix },
+          checkpointRefusals: cp.refusals,
         };
       }
       const context = (parsed as { context?: unknown }).context;
       // An ABSENT `context` key (governance unconfigured) stays lean; a PRESENT non-object `context`
       // (null / array / string / number) is a degenerate present shape → gate-or-stricter (GAP-C).
       if (context === undefined) {
-        return { source: "ok", config: { ...GOVERNANCE_DEFAULTS } };
+        return { source: "ok", config: { ...GOVERNANCE_DEFAULTS, checkpoints: cp.matrix }, checkpointRefusals: cp.refusals };
       }
       if (context === null || typeof context !== "object" || Array.isArray(context)) {
         return {
           source: "ok",
-          config: { human_admission: GATE_OR_STRICTER_HUMAN_ADMISSION, audit_retention: GOVERNANCE_DEFAULTS.audit_retention },
+          config: { human_admission: GATE_OR_STRICTER_HUMAN_ADMISSION, audit_retention: GOVERNANCE_DEFAULTS.audit_retention, checkpoints: cp.matrix },
+          checkpointRefusals: cp.refusals,
         };
       }
       const ctx = context as Record<string, unknown>;
@@ -1384,15 +1507,30 @@ export function readGovernanceConfigResult(repoRoot?: string): GovernanceConfigR
           human_admission:
             human === undefined ? GOVERNANCE_DEFAULTS.human_admission : canonicalizeHumanAdmission(human),
           audit_retention: typeof audit === "string" ? audit : GOVERNANCE_DEFAULTS.audit_retention,
+          checkpoints: cp.matrix,
         },
+        checkpointRefusals: cp.refusals,
       };
     } catch {
-      return { source: "unreadable", config: { ...GOVERNANCE_DEFAULTS } };
+      // Unreadable is treated as `block` everywhere: the matrix is the roster default, and the fact
+      // that no matrix could be read is recorded rather than presented as "nothing was configured".
+      return {
+        source: "unreadable",
+        config: { ...GOVERNANCE_DEFAULTS, checkpoints: { ...CHECKPOINT_DEFAULTS } },
+        checkpointRefusals: [
+          "the config file exists but could not be read or parsed — every checkpoint is enforced at its default",
+        ],
+      };
     }
   }
 
-  // No config file at any standard location → genuinely absent. Zero-config runs lean.
-  return { source: "absent", config: { ...GOVERNANCE_DEFAULTS } };
+  // No config file at any standard location → genuinely absent. Zero-config runs lean, and every
+  // checkpoint sits at its roster default (AUTO-07): nothing is lowered by omission.
+  return {
+    source: "absent",
+    config: { ...GOVERNANCE_DEFAULTS, checkpoints: { ...CHECKPOINT_DEFAULTS } },
+    checkpointRefusals: [],
+  };
 }
 
 // ── admitAndAppend + isGatedNote + isHighSeverityRole — the structured-channel persist arbiter ───

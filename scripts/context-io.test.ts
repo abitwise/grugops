@@ -54,6 +54,12 @@ const mod: typeof import("./context-io.js") = await import(
   pathToFileURL(CONTEXT_IO_JS).href
 );
 
+// Phase 30 (AUTO-01/02): the committed checkpoint roster, imported rather than transcribed, so a
+// roster change cannot leave a stale literal in a fixture here.
+const cpMod: typeof import("./checkpoints.js") = await import(
+  pathToFileURL(join(ROOT, "scripts", "checkpoints.js")).href
+);
+
 // A complete, valid note frontmatter+body the BAD cases mutate from.
 function goodNoteText(over: Partial<Record<string, string>> = {}): string {
   const f: Record<string, string> = {
@@ -1795,16 +1801,25 @@ describe("context-io.js — isHighSeverityRole (single-source severity classifie
 
 // ── isGatedNote — the single-source FULL gated decision (W-A, Plan 25-09) ─────────────────────────
 describe("context-io.js — isGatedNote (single-source full gated decision, W-A)", () => {
-  const ok = (human_admission: string): import("./context-io.js").GovernanceConfigResult => ({
-    source: "ok",
-    config: { human_admission, audit_retention: "git" },
+  // Phase 30 (AUTO-01/02): a GovernanceConfigResult now also carries the checkpoint matrix and the
+  // refusals accumulated reading it. These isGatedNote cases are about the human_admission dial and
+  // say nothing about checkpoints, so every fixture below carries the ROSTER DEFAULT — imported from
+  // the committed checkpoints.js rather than transcribed, so a roster change cannot leave a stale
+  // literal here.
+  const result = (
+    source: import("./context-io.js").GovernanceConfigSource,
+    human_admission: string,
+  ): import("./context-io.js").GovernanceConfigResult => ({
+    source,
+    config: { human_admission, audit_retention: "git", checkpoints: cpMod.CHECKPOINT_DEFAULTS },
+    checkpointRefusals: [],
   });
+  const ok = (human_admission: string): import("./context-io.js").GovernanceConfigResult =>
+    result("ok", human_admission);
 
   it("off (or absent) → NOT gated for any kind/role", () => {
     expect(mod.isGatedNote("security-nfr", "finding", ok("off"))).toBe(false);
-    expect(
-      mod.isGatedNote("security-nfr", "finding", { source: "absent", config: { human_admission: "off", audit_retention: "git" } }),
-    ).toBe(false);
+    expect(mod.isGatedNote("security-nfr", "finding", result("absent", "off"))).toBe(false);
   });
 
   it("high-severity → gated for a high-sev role finding, NOT for a routine role finding", () => {
@@ -1827,9 +1842,7 @@ describe("context-io.js — isGatedNote (single-source full gated decision, W-A)
   });
 
   it("an UNREADABLE config source → fail closed (gated)", () => {
-    expect(
-      mod.isGatedNote("software-engineer", "finding", { source: "unreadable", config: { human_admission: "off", audit_retention: "git" } }),
-    ).toBe(true);
+    expect(mod.isGatedNote("software-engineer", "finding", result("unreadable", "off"))).toBe(true);
   });
 });
 

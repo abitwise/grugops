@@ -49,6 +49,10 @@
     "asvs_level": "L1",
     "block_on": "high"
   },
+  "checkpoints": {
+    "protected_branch_merge": "block",
+    "production_requires_human_confirmation": "block"
+  },
   "context": {
     "compaction": "aggressive",
     "human_admission": "off",

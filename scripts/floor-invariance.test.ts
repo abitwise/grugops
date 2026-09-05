@@ -90,9 +90,26 @@ const KIT_JSON = join(ROOT, "agent-factory/config/factory.config.json");
 const APPROVAL = "GRUGOPS_ADMISSION_APPROVED_BY";
 
 // The frozen prod-deploy-guard source blob (D-02). hooks/guard.ts must hash to this at every dial
-// value — admission work must never touch the deploy guard. This is the committed-tree blob recorded
-// in the project memory and the 25-02 summary.
-const FROZEN_GUARD_BLOB = "3501810e21308e4b7e219679a6ca30dace9b5d66";
+// value — GOVERNANCE-ADMISSION work must never touch the deploy guard.
+//
+// RE-BASELINED BY PLAN 30-01 (D-24). The previous baseline
+// `3501810e21308e4b7e219679a6ca30dace9b5d66` froze the Phase-5 guard, which consulted no config at
+// all. Phase 30 makes the guard consult the per-checkpoint autonomy matrix and enforce the two-key
+// rule on a floor lowering, so the guard is DELIBERATELY unfrozen and re-frozen at the new blob —
+// in the SAME commit that changes it, under the D-04 companion rule.
+//
+// WHAT THIS FREEZE STILL BUYS, WHICH IS THE POINT OF RE-BASELINING RATHER THAN DELETING IT. The
+// two assertions below are not one check but two: `git hash-object` reads the WORKING TREE, and
+// `git diff --quiet` reads the INDEX against HEAD. Together they refuse a hash-only change (someone
+// updates this constant without changing the guard) AND a code-only change (someone changes the
+// guard without updating this constant, or leaves it uncommitted). Either half alone is defeatable
+// by the other kind of edit.
+//
+// EXECUTOR NOTE (RESEARCH F-8 / Pitfall 5): the suite CANNOT be green between the edit and the
+// commit. Updating this constant makes the blob comparison pass immediately, but
+// `git diff --quiet hooks/guard.ts` throws until the file is committed. A red naming
+// `git diff --quiet` mid-edit is the mechanism working, not a broken change — commit, then re-run.
+const FROZEN_GUARD_BLOB = "de37e4fbd8b35795af3ce2e744346c20902f8464";
 
 // Import the COMMITTED .js for the pure-function floor checks (validate / admit). Never the .ts.
 const mod: typeof import("../scripts/context-io.js") = await import(
@@ -232,8 +249,10 @@ describe("SC3 floor-invariance — every governance dial value (incl. garbage) s
   });
 
   // ── Floor invariant 4: the prod-deploy guard hooks/guard.ts is byte-frozen (D-02) ────────────────
-  // Humans hold merge/deploy via the UNCHANGED guard. Governance admission work must never touch it.
-  describe("invariant 4 — hooks/guard.ts is byte-unchanged (D-02)", () => {
+  // Humans hold merge/deploy via the guard, and the guard only ever changes DELIBERATELY: a change
+  // must move the source AND this baseline AND land both in one commit. Governance admission work
+  // must never touch it. Re-baselined once, by plan 30-01 (D-24) — see FROZEN_GUARD_BLOB above.
+  describe("invariant 4 — hooks/guard.ts matches its frozen baseline (D-02)", () => {
     it("the committed hooks/guard.ts blob matches the frozen D-02 hash", () => {
       // git hash-object computes the blob SHA exactly as git stored it; compare to the frozen blob.
       const blob = execFileSync("git", ["hash-object", "hooks/guard.ts"], {
