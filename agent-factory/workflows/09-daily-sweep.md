@@ -40,8 +40,8 @@ In `plans/traceability.md`, keep each in-flight ticket's `Status` current so the
 Update `plans/metrics.md` with the flow metrics from the frozen set. `Cycle time` is how long a ticket takes start→Done, the kanban optimization target. `WIP` is how many tickets are in flight per column against the throttle. `Blocked time` is how long blocked items have waited. Record the values as they stand; never fake a count or invent a metric.
 
 ## Stop conditions
-- A ticket has been blocked longer than `blocked_escalation_days` — do not let it hide. Escalate it to the `Blocked` column with the blocker named, and raise it for a human to clear.
-- A WIP limit is already breached — do not recommend a new pull into that column. Finish work in flight first, and only exceed a WIP limit with a written reason.
+- A ticket has been blocked longer than `blocked_escalation_days` — do not let it hide. Escalate it to the `Blocked` column with the blocker named, and raise it for a human to clear. `checkpoint: escalate_stale_blocker`
+- A WIP limit is already breached — do not recommend a new pull into that column. Finish work in flight first, and only exceed a WIP limit with a written reason. `checkpoint: exceed_wip_limit`
 
 ## Done condition
 A sweep report (done / next / blocked) is produced, and `plans/board.md`, `plans/metrics.md`, and `memory-bank/60-progress.md` are current. Every column matches the real ticket status, blockers past `blocked_escalation_days` are escalated, and the next pull respects `wip_limits`.

@@ -46,7 +46,7 @@ Run these in order.
 ## Stop conditions
 - The claim is lost (`claimTask` returns false / `EEXIST`) → do not proceed on that task; move to the next pending task. Do not retry the same claim in a tight loop.
 - `claimTask` throws any code other than `EEXIST` (parent missing, permission) → stop; a real error is never swallowed into a false "lost". Surface it.
-- A result cannot be honestly admitted by WF16 (no real stamp, budget exhausted) → stop and hand to a human per WF16. Do not fake a stamp; do not mark the task done on an unverified result.
+- A result cannot be honestly admitted by WF16 (no real stamp, budget exhausted) → stop and hand to a human per WF16. Do not fake a stamp; do not mark the task done on an unverified result. `checkpoint: exhaust_self_fix_budget`
 
 ## Board moves
 None of its own. The queue and `plans/board.md` are two different substrates and must never be conflated. The queue tracks subtask ownership (pending → claimed → done) inside one ticket's work, while the board tracks the ticket through the delivery columns. Claiming a subtask does not move a ticket, and moving a ticket does not claim anything. The board move belongs to the invoking workflow.

@@ -40,7 +40,7 @@ Confirm the reviewed tickets' rows in `plans/traceability.md` are complete for e
 Record `Velocity` in `plans/metrics.md` — the scrum size points completed in this sprint. Take the value from the accepted items and write it back into the sprint file's Velocity field.
 
 ## Stop conditions
-- A committed item's acceptance is ambiguous or unmet — do not mark it `Done`. Flag it as carry-over with a reason, and leave acceptance to a named human. Never self-sign or fake a pass.
+- A committed item's acceptance is ambiguous or unmet — do not mark it `Done`. Flag it as carry-over with a reason, and leave acceptance to a named human. Never self-sign or fake a pass. `checkpoint: sign_off_acceptance`
 
 ## Done condition
 The review notes are appended to `plans/sprints/SPRINT-xx.md`. Velocity is filled, the Carried out items carry reasons, and the demo / release notes and Notes-for-retro are captured. Every accepted item genuinely met its acceptance criteria.

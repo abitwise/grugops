@@ -56,7 +56,7 @@ Run these in order.
 
 ## Stop conditions
 - The carve-out checker refuses (a dropped `failed-attempt` id, or a missing `verified_by` / `supersedes` / `by` / `at`) → stop; do not promote. Fix the distilled set so the named element survives, then re-run the checker.
-- A promoted finding's re-verify is refused, and the bounded `self_fix_attempts` budget is exhausted without a real stamp → stop and hand to a human. The budget is referenced from `05-pr-quality-gate.md`. Do not loop, do not fake a stamp.
+- A promoted finding's re-verify is refused, and the bounded `self_fix_attempts` budget is exhausted without a real stamp → stop and hand to a human. The budget is referenced from `05-pr-quality-gate.md`. Do not loop, do not fake a stamp. `checkpoint: exhaust_self_fix_budget`
 - The only way to promote would be to hand-write the `.grugops/context/` path → stop; the sanctioned writer is `context-io.ts` via `appendNote`.
 
 ## Board moves

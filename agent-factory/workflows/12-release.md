@@ -40,7 +40,7 @@ Append to `plans/traceability.md` the release ID (`REL-xxxx`) against each ticke
 Record `Lead time` in `plans/metrics.md` as the release clears. Report the values exactly as they stand. Never fake a passing gate, a clean release, or an approval that did not happen. Mark anything unverified `UNKNOWN - verify`.
 
 ## Stop conditions
-- The `release-readiness-checklist.md` fails, or there is no named human approval — set the status to `BLOCKED` and do not deploy. The release waits for a named human; this workflow never deploys prod itself.
+- The `release-readiness-checklist.md` fails, or there is no named human approval — set the status to `BLOCKED` and do not deploy. The release waits for a named human; this workflow never deploys prod itself. `checkpoint: production_requires_human_confirmation`
 
 ## Done condition
 The release outcome is recorded as typed notes per Workflow 16, and the release record `plans/releases/REL-xxxx.md` is written. The status is one of `READY_TO_RELEASE | BLOCKED | RELEASED`. A release reaches `RELEASED` only after a named human approves and confirms the production action.

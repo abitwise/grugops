@@ -39,7 +39,7 @@ Seed `plans/traceability.md` rows for the safe first tickets. Set `Status` and l
 None beyond seeding. The board and metrics counters start empty; `plans/metrics.md` records `Throughput` and `Lead time` once real work begins.
 
 ## Stop conditions
-- Security/NFR returns `BLOCKED` on a high-risk finding — stop. Do not cut first tickets that build on a blocked risk; resolve the finding first.
+- Security/NFR returns `BLOCKED` on a high-risk finding — stop. Do not cut first tickets that build on a blocked risk; resolve the finding first. `checkpoint: proceed_past_blocked_risk`
 - The repo cannot be mapped (no readable structure, no confirmable commands) — stop and request access or context.
 
 ## Done condition

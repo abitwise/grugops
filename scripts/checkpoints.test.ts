@@ -972,3 +972,81 @@ describe("30-04 — the roster records a site count per member, and it is assert
     expect(() => cp.assertSiteCounts(sites, { a: 1, b: 1 })).toThrow(/\bb\b/);
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// PLAN 30-04 TASK 3 — THE REAL CORPUS. The fixtures above prove the RULES; these prove the TREE.
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+
+describe("30-04 — the live workflow corpus derives the roster, two-sided (D-01, AUTO-01)", () => {
+  const live = cp.deriveCheckpoints(ROOT);
+
+  it("walks every workflow and locates every stop section, at full cardinality", () => {
+    // Two-sided by construction: a workflow added without a stop section is red, a stop bullet
+    // added or deleted anywhere is red, and bumping the anchor obliges a re-walk of the list.
+    expect(() => cp.assertLiveCorpusCardinality(live)).not.toThrow();
+    expect(live.sectionsFound).toBe(live.filesWalked);
+    expect(live.countedBullets).toBe(cp.WORKFLOW_STOP_BULLET_COUNT);
+    expect(live.examinedBullets).toBe(live.countedBullets);
+  });
+
+  it("the derived set and the exported roster prove each other in BOTH directions", () => {
+    const c = cp.compareRosterToDerivation(cp.derivedCheckpointSet(ROOT), cp.CHECKPOINTS);
+    expect(c.failures).toEqual([]);
+    expect(c.ok).toBe(true);
+    expect(() => cp.assertRosterMatchesDerivation(ROOT)).not.toThrow();
+  });
+
+  it("that comparison is NON-VACUOUS — both sets are populated and it discriminates live", () => {
+    const derived = cp.derivedCheckpointSet(ROOT);
+    expect(derived.length).toBe(cp.CHECKPOINTS.length);
+    expect(derived.length).toBeGreaterThan(1);
+    // Planting one id on each side of the LIVE sets, so the green above is a measured equality
+    // rather than a comparison that could not have come out any other way.
+    expect(cp.compareRosterToDerivation(derived, [...cp.CHECKPOINTS, "planted"]).rosterOnly).toEqual(
+      ["planted"],
+    );
+    expect(cp.compareRosterToDerivation([...derived, "planted"], cp.CHECKPOINTS).corpusOnly).toEqual(
+      ["planted"],
+    );
+  });
+
+  it("the derived id→sites map matches the recorded site counts, both directions (D-03)", () => {
+    expect(() => cp.assertSiteCounts(live.sites, cp.CHECKPOINT_SITE_COUNTS)).not.toThrow();
+    expect(live.totalSites).toBe(cp.RECORDED_TOTAL_SITES);
+    // The floor and legacy arms reach the roster without a tag; their recorded zero is a fact
+    // about the corpus, not a placeholder, so it is asserted rather than assumed.
+    expect(live.sites.has("commit_to_branch")).toBe(false);
+    expect(live.sites.has("open_pr")).toBe(false);
+    // …and the one id that arrives through TWO arms at once carries both.
+    expect(live.sites.get("production_requires_human_confirmation")?.length).toBe(2);
+  });
+
+  it("`05-pr-quality-gate.md` carries no tag yet — plan 30-05 owns that file", () => {
+    // Recorded as an assertion rather than as a sentence in a summary, so the moment 30-05 tags it
+    // this case goes red and the site counts above are re-walked with it.
+    const tagged = new Set<string>();
+    for (const list of live.sites.values()) for (const s of list) tagged.add(s.file);
+    expect([...tagged]).not.toContain("05-pr-quality-gate.md");
+    expect(tagged.size).toBe(11);
+  });
+
+  it("every file this plan tagged is named by a row in its disposition file (Pitfall 7)", () => {
+    // The file-level companion obligation, derived on BOTH sides: the left is the set of files the
+    // TAGS live in, the right is the set of files the disposition ROWS name. Neither is typed here.
+    const tagged = new Set<string>();
+    for (const list of live.sites.values()) {
+      for (const s of list) tagged.add(`agent-factory/workflows/${s.file}`);
+    }
+    const doc = readFileSync(
+      join(ROOT, "docs", "audit", "29-style-dispositions", "30-04.md"),
+      "utf8",
+    );
+    const named = new Set<string>();
+    for (const line of doc.split("\n")) {
+      const m = line.match(/^\|\s*(agent-factory\/workflows\/[^\s|]+)\s*\|/);
+      if (m) named.add(m[1]);
+    }
+    expect(named.size).toBeGreaterThan(0);
+    expect(cp.sortedIds([...named])).toEqual(cp.sortedIds([...tagged]));
+  });
+});

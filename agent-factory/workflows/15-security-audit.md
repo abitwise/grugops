@@ -36,7 +36,7 @@ Append to `plans/traceability.md`: the audit result and the reviewed ASVS requir
 
 ## Stop conditions
 - A checklist requirement cannot be evidenced either way → do not tick it and do not fail it silently. Record it `UNKNOWN - verify` and continue. An unbacked tick is a fabricated gate.
-- A finding's severity is overridden without a stated reason and a named owner → stop; the override is not admissible until both are present.
+- A finding's severity is overridden without a stated reason and a named owner → stop; the override is not admissible until both are present. `checkpoint: override_finding_severity`
 - The audit would have to block the change itself → stop. This workflow produces findings; `security.block_on` is read at the gate (workflow 05), and enforcement lives there.
 - `security.asvs_level` is unreadable or holds a value outside `L1 | L2 | L3` → stop and get it fixed. Auditing at a guessed level misreports the coverage.
 

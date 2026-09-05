@@ -36,7 +36,7 @@ Append to `plans/traceability.md` the `UAT` link and the human signoff result ag
 Record `Lead time` in `plans/metrics.md` as the ticket clears acceptance.
 
 ## Stop conditions
-- The acceptance criteria are missing or ambiguous — stop and route the ticket back; never self-sign or fake a pass. A named human signoff is required.
+- The acceptance criteria are missing or ambiguous — stop and route the ticket back; never self-sign or fake a pass. A named human signoff is required. `checkpoint: sign_off_acceptance`
 
 ## Done condition
 The scenarios, test data, pass/fail criteria, signoff checklist, and known limitations exist. The named human has signed off. The ticket moves to `Ready to Release` (or to `Done` in lean mode).

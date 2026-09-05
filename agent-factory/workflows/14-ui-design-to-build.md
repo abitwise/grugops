@@ -37,8 +37,8 @@ Append to `plans/traceability.md`: the design-contract link against the ticket r
 
 ## Stop conditions
 - The ticket has no readable acceptance scenarios and no product context to author the contract from → stop. Send it back to product rather than inventing the intent.
-- A component cannot meet the WCAG 2.2 AA bar without a product decision → stop and get the decision. The decision may be a contrast change, or a control the design does not have. Never mark the accessibility item passed on an unmet control.
-- The gate (workflow 05) exhausts its bounded self-fix budget against the contract → stop and hand to a human, per that workflow. Never hand-set a green.
+- A component cannot meet the WCAG 2.2 AA bar without a product decision → stop and get the decision. The decision may be a contrast change, or a control the design does not have. Never mark the accessibility item passed on an unmet control. `checkpoint: decide_accessibility_exception`
+- The gate (workflow 05) exhausts its bounded self-fix budget against the contract → stop and hand to a human, per that workflow. Never hand-set a green. `checkpoint: exhaust_self_fix_budget`
 - The built UI diverges from the contract and the contract is judged wrong → stop and re-author the contract as a recorded decision. Never let the build silently redefine the contract.
 
 ## Done condition

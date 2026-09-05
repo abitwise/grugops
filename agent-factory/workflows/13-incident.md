@@ -35,7 +35,7 @@ Append to `plans/traceability.md`: record the incident ID (`INC-xxxx`) and the f
 Record `Escaped defects` in `plans/metrics.md` for the incident, if applicable. Report the timeline and root cause exactly as observed. Never fake a root cause, a rollback that did not run, or a remediation that did not happen. Mark anything unverified `UNKNOWN - verify`.
 
 ## Stop conditions
-- The blast radius is unclear — mitigate or roll back first to limit harm, and write the postmortem after. Production action is always human-confirmed; the postmortem is blameless and examines the system, never a person.
+- The blast radius is unclear — mitigate or roll back first to limit harm, and write the postmortem after. Production action is always human-confirmed; the postmortem is blameless and examines the system, never a person. `checkpoint: production_requires_human_confirmation`
 
 ## Done condition
 The blameless postmortem is recorded as typed notes per Workflow 16, and the follow-up tickets are created in `plans/tickets/` so they enter the `Backlog`. The postmortem never blames a person; it examines the system and the process.

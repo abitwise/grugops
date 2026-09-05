@@ -43,8 +43,8 @@ The three admission outcomes, stated once:
 - Escalate to a named human → `human:<name>` when the result is **not gate-verifiable and high-stakes**, or when agents disagree. The rare path.
 
 ## Stop conditions
-- A `finding`'s admission is refused, and the bounded `self_fix_attempts` budget is exhausted without a real stamp → stop and hand to a human. The budget is referenced from `05-pr-quality-gate.md`. Do not loop, do not fake a stamp.
-- The result is high-stakes and not gate-adjudicable, or agents disagree and cannot resolve it → escalate to a named human (`human:<name>`); do not self-stamp.
+- A `finding`'s admission is refused, and the bounded `self_fix_attempts` budget is exhausted without a real stamp → stop and hand to a human. The budget is referenced from `05-pr-quality-gate.md`. Do not loop, do not fake a stamp. `checkpoint: exhaust_self_fix_budget`
+- The result is high-stakes and not gate-adjudicable, or agents disagree and cannot resolve it → escalate to a named human (`human:<name>`); do not self-stamp. `checkpoint: escalate_unadjudicable_result`
 - The only way to record the result would be to hand-write the `.grugops/context/` path → stop; the sanctioned writer is `context-io.ts`.
 
 ## Board moves
