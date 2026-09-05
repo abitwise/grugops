@@ -20,7 +20,7 @@
 // Ships RED until the committed context-io.js lands (correct Wave-0 test-first sequencing).
 
 import { describe, it, expect, afterAll } from "vitest";
-import { spawnSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
   mkdtempSync,
@@ -1949,6 +1949,231 @@ describe("governance-config", () => {
     expect(res.config.audit_retention).toBe("retained");
     // And the matrix key set is the roster, derived from the committed roster rather than transcribed.
     expect(Object.keys(res.config.checkpoints).sort()).toEqual([...cpMod.CHECKPOINTS].sort());
+  });
+});
+
+// ── D-13 (Plan 30-03): how many places in this tree resolve a factory config, DERIVED ─────────────
+//
+// WHY A COUNT AND NOT A PROHIBITION. Deleting the second governance reader is worth nothing if a
+// third can appear next quarter without anyone noticing — that is this repository's named second
+// systemic failure class (a hand-maintained set rotting while the suite stays green). So the set is
+// DERIVED from the tracked bytes and its size is pinned, and every member carries a written reason.
+// A new file that resolves a factory config path turns this red on the number before anyone has to
+// notice it in review.
+//
+// WHAT THE PREDICATE ENUMERATES, STATED BECAUSE THE ANSWER IS NOT "READERS". The scan admits a file
+// when, AFTER comments are stripped, it contains a string literal whose ENTIRE content is a path
+// ending in the config filename. That is deliberately a SUPERSET of "reads the config": it also
+// catches a file that resolves the path to COPY the config (the installer), to EXCLUDE it from a
+// scan (check-banned-claims), or to VALIDATE that it parses. A superset is the correct pin here —
+// a fourth reader cannot appear without appearing in this set, and it cannot dodge the set by
+// avoiding `readFileSync`. It excludes a file that merely NAMES the config in prose or in a message
+// it prints (hooks/guard.ts, check-kit-refs.ts, generate-role-adapters.ts, install/uninstall.ts all
+// mention the filename and resolve no path; they are in MENTIONS below and not in the site set).
+//
+// AND WHAT D-13 ACTUALLY GOT SLIGHTLY WRONG, RECORDED RATHER THAN QUIETLY MATCHED. D-13 describes
+// `scripts/model-tiers.ts` as "the one deliberate non-governance reader". Measured, it is not the
+// only one: `scripts/compactor.ts` reads `context.compaction` out of the same file, and
+// `audit-model.ts`, `check-imperative-lexicon.ts` and `validate-agent-factory.ts` each read the
+// shipped kit config for their own purposes. The claim that IS true, and the one AUTO-06's
+// prohibition is actually about, is narrower: exactly ONE site reads the GOVERNANCE dials
+// (`context.human_admission`, `context.audit_retention`, `checkpoints`), and that is
+// scripts/context-io.ts. Both facts are asserted below rather than either being asserted in prose.
+describe("30-03 D-13 — the derived, pinned set of config-resolving sites", () => {
+  const CONFIG_FILENAME = "factory.config.json";
+
+  /** The ONE site that reads the governance dials. The subject of the AUTO-06 prohibition. */
+  const GOVERNANCE_READER = "scripts/context-io.ts";
+
+  /**
+   * Every tracked non-test TypeScript source that resolves a factory config BY PATH, each with the
+   * reason it does. The KEY SET is asserted against the scan in both directions below, so this table
+   * cannot silently disagree with the tree; it exists to carry the WHY, which no scan can derive.
+   */
+  const CONFIG_PATH_SITES: Readonly<Record<string, string>> = {
+    "install/install.ts":
+      "installer: seeds, migrates, preserves and mirrors the user's .grugops/factory.config.json. Handles the file; does not read a dial out of it.",
+    "scripts/audit-model.ts":
+      "reads the shipped kit config to report a SAFETY_FLOOR's live value, and throws rather than reporting a value it did not read.",
+    "scripts/check-banned-claims.ts":
+      "names the two shipped config files as EXEMPT scan paths (configuration data, not prose a reader meets). Resolves the paths to exclude them; reads no dial.",
+    "scripts/check-imperative-lexicon.ts":
+      "reads the shipped kit config to derive the config-key vocabulary its lexicon check is allowed to spend words on.",
+    "scripts/compactor.ts":
+      "reads `context.compaction` at point-of-use (D-06, default-on-absent). A NON-GOVERNANCE dial reader, and the one D-13's wording overlooked.",
+    "scripts/context-io.ts":
+      "THE governance reader (human_admission, audit_retention, checkpoints). Exactly one, by AUTO-06. A second must not be added, including as a convenience wrapper.",
+    "scripts/model-tiers.ts":
+      "reads the `models` block (D-05/D-06/D-07/D-11). A deliberate non-governance reader, disclosed by D-13 and out of scope this phase; folding it in is a backlog item.",
+    "scripts/validate-agent-factory.ts":
+      "structure validator: reads the shipped kit config to assert it parses and carries mode/cadence/autonomy.",
+  };
+
+  /**
+   * The pinned size. Written as a literal, deliberately, so that the scan is compared against a
+   * number a human chose and not against itself. Justification for 8: the eight members enumerated
+   * in CONFIG_PATH_SITES, measured 2026-09-05 by the scan below — one governance reader, two
+   * non-governance dial readers (model-tiers, compactor), three gate/validator readers of the
+   * shipped kit config, one installer that handles the file, one scanner that excludes it.
+   */
+  const CONFIG_PATH_SITE_COUNT = 8;
+
+  /**
+   * Refuse a zero-length set BY NAME rather than reporting a pass over nothing. This mirrors
+   * `refuseEmpty` in scripts/kit-model.ts (which is module-private there, so its SHAPE is reused
+   * rather than the function): same argument, same failure mode, same refusal-with-a-name.
+   */
+  function refuseEmpty<T>(items: readonly T[], what: string): readonly T[] {
+    if (items.length === 0) {
+      throw new Error(
+        `context-io.test: no ${what} found — refusing to report a count over an empty set (a vacuous scan set passes every assertion)`,
+      );
+    }
+    return items;
+  }
+
+  /**
+   * Strip `//` and block comments while respecting string and template literals, so a `//` inside a
+   * URL or a filename inside a comment are each treated correctly. A comment-blind scan would admit
+   * every file that merely DISCUSSES the config, and a string-blind stripper would mangle the very
+   * literals the predicate is looking for.
+   */
+  function stripComments(src: string): string {
+    let out = "";
+    let i = 0;
+    const n = src.length;
+    while (i < n) {
+      const c = src[i];
+      const d = src[i + 1];
+      if (c === "/" && d === "/") {
+        while (i < n && src[i] !== "\n") i++;
+        continue;
+      }
+      if (c === "/" && d === "*") {
+        i += 2;
+        while (i < n && !(src[i] === "*" && src[i + 1] === "/")) i++;
+        i += 2;
+        continue;
+      }
+      if (c === '"' || c === "'" || c === "`") {
+        const quote = c;
+        out += c;
+        i++;
+        while (i < n) {
+          const e = src[i];
+          if (e === "\\") {
+            out += src.slice(i, i + 2);
+            i += 2;
+            continue;
+          }
+          out += e;
+          i++;
+          if (e === quote) break;
+          if (quote !== "`" && e === "\n") break; // an unterminated ordinary string ends at EOL
+        }
+        continue;
+      }
+      out += c;
+      i++;
+    }
+    return out;
+  }
+
+  /** A string literal whose ENTIRE content is a path ending in the config filename. */
+  const PURE_CONFIG_PATH = new RegExp(
+    `(["'])([A-Za-z0-9_.\\-/]*${CONFIG_FILENAME.replace(/\./g, "\\.")})\\1`,
+  );
+
+  /** The tracked non-test TypeScript corpus, derived from git rather than from a directory walk. */
+  function trackedSources(): readonly string[] {
+    const files = execFileSync("git", ["ls-files", "*.ts"], { cwd: ROOT, encoding: "utf8" })
+      .split("\n")
+      .map((f) => f.trim())
+      .filter((f) => f.length > 0 && !f.endsWith(".test.ts"));
+    return refuseEmpty(files, "tracked non-test TypeScript sources");
+  }
+
+  /**
+   * The scan. Returns the derived site set PLUS the number of files it actually visited, so the
+   * caller can compare the visited count against the corpus size it was handed — the P29 lesson: a
+   * vacuity floor catches an EMPTY denominator but never a SILENTLY SHORT one, so the element count
+   * must be derived independently of the loop that consumes it.
+   */
+  function scanConfigPathSites(corpus: readonly string[]): {
+    sites: string[];
+    mentions: string[];
+    visited: number;
+  } {
+    const sites: string[] = [];
+    const mentions: string[] = [];
+    let visited = 0;
+    for (const rel of corpus) {
+      visited++;
+      const src = readFileSync(join(ROOT, rel), "utf8");
+      if (!src.includes(CONFIG_FILENAME)) continue;
+      mentions.push(rel);
+      if (PURE_CONFIG_PATH.test(stripComments(src))) sites.push(rel);
+    }
+    return { sites: sites.sort(), mentions: mentions.sort(), visited };
+  }
+
+  it("visits every tracked source it was handed — a silently short scan is red, not just an empty one", () => {
+    const corpus = trackedSources();
+    const { visited } = scanConfigPathSites(corpus);
+    // Both numbers are derived this run, by INDEPENDENT means: one from `git ls-files`, one counted
+    // inside the loop. A scan that skipped files would report a smaller `visited` and go red here
+    // while still producing a plausible-looking site set.
+    expect(visited, "files visited by the scan vs. files in the tracked corpus").toBe(corpus.length);
+  });
+
+  it("the derived site count equals the pinned count", () => {
+    const { sites } = scanConfigPathSites(trackedSources());
+    refuseEmpty(sites, "config-resolving sites");
+    expect(sites.length, `derived sites:\n${sites.join("\n")}`).toBe(CONFIG_PATH_SITE_COUNT);
+  });
+
+  it("the annotation table is the same size as the pin (so the table cannot drift off the number)", () => {
+    expect(Object.keys(CONFIG_PATH_SITES).length).toBe(CONFIG_PATH_SITE_COUNT);
+  });
+
+  it("the derived set and the annotated set agree, and a disagreement names its direction", () => {
+    const { sites } = scanConfigPathSites(trackedSources());
+    const annotated = Object.keys(CONFIG_PATH_SITES).sort();
+    const undocumented = sites.filter((s) => !(s in CONFIG_PATH_SITES));
+    const stale = annotated.filter((a) => !sites.includes(a));
+    expect(
+      undocumented,
+      `these files resolve a factory config path and are NOT documented above — if one of them is a new governance reader, AUTO-06 forbids it:\n${undocumented.join("\n")}`,
+    ).toEqual([]);
+    expect(
+      stale,
+      `these files are documented above but no longer resolve a factory config path — the annotation is stale:\n${stale.join("\n")}`,
+    ).toEqual([]);
+    expect(sites).toEqual(annotated);
+  });
+
+  it("exactly ONE site is the governance reader, and it is scripts/context-io.ts (AUTO-06)", () => {
+    const { sites } = scanConfigPathSites(trackedSources());
+    expect(sites).toContain(GOVERNANCE_READER);
+    // The narrow claim D-13 is actually about: one reader of the governance dials. The other seven
+    // sites read a different key, or no key at all, and each says which above.
+    const governanceKeyReaders = sites.filter((rel) => {
+      const src = stripComments(readFileSync(join(ROOT, rel), "utf8"));
+      return /human_admission/.test(src) && /audit_retention/.test(src);
+    });
+    expect(
+      governanceKeyReaders,
+      `sites reading the governance dials — AUTO-06 admits exactly one:\n${governanceKeyReaders.join("\n")}`,
+    ).toEqual([GOVERNANCE_READER]);
+  });
+
+  it("MENTIONS is a strict superset of SITES — naming the config in prose is not resolving it", () => {
+    const { sites, mentions } = scanConfigPathSites(trackedSources());
+    for (const s of sites) expect(mentions).toContain(s);
+    // Files that mention the filename without resolving a path exist today (guard.ts names it in a
+    // deny message, uninstall.ts in comments). If that ever stops being true the predicate has
+    // silently widened to "mentions", and the site set stops meaning what it says.
+    expect(mentions.length).toBeGreaterThan(sites.length);
   });
 });
 

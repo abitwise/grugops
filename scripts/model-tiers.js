@@ -29,12 +29,27 @@
 // A throw would force every degrading consumer to write a catch, and a catch is where a refusal
 // quietly becomes a default nobody chose.
 //
-// COUPLING RISK, RECORDED SO PHASE 30'S AUTHOR FINDS IT RATHER THAN DISCOVERS IT. Phase 30 collapses
-// `readGovernanceConfig` and `readGovernanceConfigResult` in scripts/context-io.ts into ONE
-// discriminated-result config reader. This module is deliberately written in that same shape so that
-// it does not become the THIRD config reader in the tree while a plan is actively deleting the
-// second. An author unifying those two should read this module's reader as a fourth caller of the
-// pattern they are settling, not as an unrelated module to leave alone.
+// COUPLING RISK, RESOLVED BY PLAN 30-03 (D-13). Phase 30 collapsed the two governance readers in
+// scripts/context-io.ts into ONE discriminated-result reader, `readGovernanceConfig`, and deleted the
+// fail-open value reader outright. This module was deliberately written in that same shape so that it
+// would not become a second authority while that plan was running.
+//
+// THIS MODULE IS A DELIBERATE NON-GOVERNANCE CONFIG READER, AND IT IS NOT THE ONLY ONE. It reads the
+// `models` block out of a factory config; it reads NO governance dial, imports nothing from
+// `readGovernanceConfig`, wraps it and extends it not at all. D-13 keeps it out of Phase 30's scope:
+// the model dial was closed in phases 29.1 and 29.2, and folding this reader into the governance one
+// would reopen it. FOLDING IT IN IS A RECORDED BACKLOG ITEM, NOT AN OVERSIGHT — see D-13 in
+// .planning/phases/30-per-checkpoint-autonomy-matrix/30-CONTEXT.md and its deferred-items entry.
+//
+// D-13's own wording calls this module "the one deliberate non-governance reader". Measured against
+// the tree, that is one short: scripts/compactor.ts reads `context.compaction` from the same file,
+// and audit-model.ts, check-imperative-lexicon.ts and validate-agent-factory.ts each read the shipped
+// kit config for their own purposes. The claim that holds — and the one AUTO-06's prohibition is
+// about — is narrower: exactly ONE site reads the GOVERNANCE dials, and it is scripts/context-io.ts.
+// DO NOT TRUST THIS COMMENT AS THE ROSTER. The authority for how many places resolve a factory config
+// is the DERIVED, pinned scan in scripts/context-io.test.ts ("30-03 D-13 — the derived, pinned set of
+// config-resolving sites"), which annotates every member and goes red in both directions when the set
+// moves. A comment is prose and rots; that test is measured every run.
 //
 // NO MEASUREMENT IS TAKEN HERE AND NO COST CLAIM IS MADE (MODEL-07 / D-14). Assigning a role a
 // cheaper model is not evidence that anything was saved, and this module states no saving, implies
@@ -108,12 +123,19 @@
 // explicitly means that name more than they mean the preset they also selected. This is stated here
 // so that the precedence is a property of the design rather than of which loop happened to run last.
 //
-// NO THIRD CONFIG READER. `readModelsConfig` IMITATES the candidate order and the shape discipline
-// of `readGovernanceConfig` in scripts/context-io.ts; it does not import it, does not wrap it and
-// does not extend it. It also deliberately does NOT copy that reader's verdict: `readGovernanceConfig`
-// records an explicit fail-OPEN contract and returns a present value VERBATIM without validating it,
-// which is correct for a governance dial whose consumer decides, and fatal here — a verbatim
-// unvalidated value is exactly the full model id MODEL-04 exists to refuse.
+// NO SECOND GOVERNANCE READER. `readModelsConfig` IMITATES the candidate order and the shape
+// discipline of `readGovernanceConfig` in scripts/context-io.ts; it does not import it, does not wrap
+// it and does not extend it. It also deliberately does NOT copy that reader's verdict on a PRESENT
+// value: `readGovernanceConfig` returns a present value VERBATIM without validating it, which is
+// correct for a governance dial whose consumer decides, and fatal here — a verbatim unvalidated value
+// is exactly the full model id MODEL-04 exists to refuse.
+//
+// (Updated by plan 30-03. This paragraph previously described `readGovernanceConfig` as recording an
+// explicit fail-OPEN contract. That was true of the VALUE reader which held this name until 30-03 and
+// is now false: the surviving reader is the discriminated one, and it fails CLOSED — an existing but
+// unparseable config reads `source: "unreadable"`, which every consumer treats as block-or-stricter.
+// What is unchanged, and what this module still declines to copy, is returning a present value
+// verbatim.)
 //
 // Findings are written in CLEAR PROFESSIONAL VOICE. A model tier is a money topic, and CLAUDE.md's
 // voice discipline makes clear voice mandatory for money, security and compliance — never caveman.
