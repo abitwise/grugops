@@ -52,6 +52,11 @@ grugops version `0.1.0`.
 <!-- claim: C-28-009 -->
 The release history lives in [`CHANGELOG.md`](CHANGELOG.md) and follows Keep a Changelog.
 
+## Safety guarantees
+
+<!-- generated: guarantees-pointer -->
+Which safety claims still hold on this repository, joined to the live checkpoint matrix: [`docs/GUARANTEES.md`](docs/GUARANTEES.md).
+
 ## Acknowledgements
 
 grugops is inspired by **The Grug Brained Developer** (https://grugbrain.dev) by Carson Gross —

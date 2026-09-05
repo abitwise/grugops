@@ -37,7 +37,13 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { REGISTRY_PATH, SAFETY_FLOORS } from "./audit-model.js";
+import {
+  REGISTRY_PATH,
+  RESIDUAL_PATH,
+  RESIDUAL_ADDITIONS_HEADING,
+  SAFETY_FLOORS,
+  readResidualAdditions,
+} from "./audit-model.js";
 import { CHECKPOINT_DEFAULTS, floorEnvVarName } from "./checkpoints.js";
 import {
   OUT,
@@ -45,6 +51,11 @@ import {
   GUARANTEES_DATA_SOURCES,
   GUARANTEES_DATA_SOURCE_COUNT,
   GUARANTEES_ENTRY_JS,
+  GUARANTEES_AUDIT_SOURCES,
+  GUARANTEES_CONFIG_CANDIDATES,
+  POINTER_DOCS,
+  POINTER_ANCHOR,
+  pointerLine,
   declaredSafetyRows,
   declaredDroppedRows,
   disclosureFor,
@@ -120,11 +131,34 @@ function renderRegistry(claims: readonly ClaimSpec[], trailer = ""): string {
   return ["# Registry", "", ...blocks, trailer].join("\n");
 }
 
+/**
+ * A minimal residual register a mirror can render against.
+ *
+ * PARAMETERISED ON THE REASON, because the property Task 3 buys is that the reason cell DRIVES the
+ * published page. A fixture with a fixed reason could not tell a render that quotes the register
+ * from one that restates it in its own words.
+ */
+function residualRegister(reason: string, item = "a fixture residual"): string {
+  return [
+    "# Residual sizing",
+    "",
+    RESIDUAL_ADDITIONS_HEADING,
+    "",
+    "| # | Item | Disposition | Target phase | Reason / owner |",
+    "|---|---|---|---|---|",
+    `| 9 | ${item} | \`accepted\` | — | ${reason} |`,
+    "",
+  ].join("\n");
+}
+
+const FIXTURE_REASON = "The fixture reason, quoted verbatim by the render.";
+
 /** A mirror root carrying only the registry. No config file → the roster defaults (AUTO-07). */
-function mirrorWith(registry: string, config?: string): string {
+function mirrorWith(registry: string, config?: string, residual = residualRegister(FIXTURE_REASON)): string {
   const root = freshTmp("grugops-guarantees-");
   mkdirSync(join(root, "docs", "audit"), { recursive: true });
   writeFileSync(join(root, REGISTRY_PATH), registry, "utf8");
+  writeFileSync(join(root, RESIDUAL_PATH), residual, "utf8");
   if (config !== undefined) {
     mkdirSync(join(root, "agent-factory", "config"), { recursive: true });
     writeFileSync(
@@ -437,6 +471,127 @@ describe("generate-guarantees — the module's own shape", () => {
     expect(text).toContain("un-forgeable from inside a tool call");
     expect(text).not.toMatch(/an agent cannot set(?!.{0,400}settings)/s);
   });
+// ────────────────────────────────────────────────────────────────────────────────────────────────
+describe("generate-guarantees — the residual register drives the render (AUTO-05)", () => {
+  it("a PLANTED change in the register row CHANGES the render — it is quoted, not restated", () => {
+    // THE ONE PROPERTY THIS CASE BUYS. A render that happened to contain the same words would pass
+    // a "contains the reason" assertion while being a second, independently maintained copy. Two
+    // renders differing by exactly the planted bytes can only come from a render that READS the row.
+    const registry = renderRegistry(SIX_SAFETY);
+    const before = renderGuarantees(mirrorWith(registry, undefined, residualRegister(FIXTURE_REASON)));
+    const planted = "A DIFFERENT reason, planted by this case and expected to reach the page.";
+    const after = renderGuarantees(mirrorWith(registry, undefined, residualRegister(planted)));
+
+    expect(before).toContain(FIXTURE_REASON);
+    expect(before).not.toContain(planted);
+    expect(after).toContain(planted);
+    expect(after).not.toContain(FIXTURE_REASON);
+    expect(after).not.toBe(before);
+  });
+
+  it("the ITEM and the DISPOSITION reach the page too, not only the reason", () => {
+    const text = renderGuarantees(
+      mirrorWith(renderRegistry(SIX_SAFETY), undefined, residualRegister(FIXTURE_REASON, "a planted item name")),
+    );
+    expect(text).toContain("a planted item name");
+    expect(text).toContain("`accepted`");
+  });
+
+  it("REFUSES to render when the register carries no additions table", () => {
+    // FAIL CLOSED. A page whose job is to name what it does not close must never publish silence
+    // where a residual belongs, so an unreadable register is a refusal and not an empty section.
+    const root = mirrorWith(renderRegistry(SIX_SAFETY), undefined, "# Residual sizing\n\nnothing here\n");
+    expect(() => renderGuarantees(root)).toThrow(/carries no `## Phase 30 additions/);
+  });
+
+  it("REFUSES a decorated disposition cell rather than best-effort unwrapping it", () => {
+    const decorated = residualRegister(FIXTURE_REASON).replace("| `accepted` |", "| **`accepted`** *(by 30-09)* |");
+    const root = mirrorWith(renderRegistry(SIX_SAFETY), undefined, decorated);
+    expect(() => renderGuarantees(root)).toThrow(/outside the canonical cell form/);
+  });
+
+  it("REFUSES a blank `Reason / owner` — a named gap with nothing said about it", () => {
+    const root = mirrorWith(renderRegistry(SIX_SAFETY), undefined, residualRegister("—"));
+    expect(() => renderGuarantees(root)).toThrow(/carries no `Reason \/ owner`/);
+  });
+
+  it("the LIVE register's rows are all published, and the count is the register's own", () => {
+    const rows = readResidualAdditions(ROOT);
+    expect(rows.length).toBeGreaterThan(0);
+    const text = renderGuarantees(ROOT);
+    for (const r of rows) {
+      expect(text).toContain(r.item);
+      expect(text).toContain(r.reason);
+    }
+    // DERIVED DENOMINATOR: the number of rendered residual headings comes from the register, never
+    // from a literal in this file. A row silently dropped from the render is short against it.
+    const rendered = text.split("\n").filter((l) => /^### \d+\. /.test(l));
+    expect(rendered.length).toBe(rows.length);
+  });
+
+  it("the live register records the settings-file grant vector in the ACCEPTED vocabulary", () => {
+    const rows = readResidualAdditions(ROOT);
+    const grant = rows.find((r) => r.item.includes("settings-file"));
+    expect(grant, "no settings-file grant row in the residual register").toBeDefined();
+    // The SAME disposition vocabulary as the pre-existing same-class row 4 of the historical table.
+    expect(grant!.disposition).toBe("accepted");
+    expect(grant!.reason).toContain("Irreducible");
+    expect(grant!.reason).toContain(".claude/settings.json");
+    expect(grant!.reason).toContain("permissions.deny");
+  });
+
+  it("the WATCH ITEM is recorded with its source tier stated honestly", () => {
+    const watch = readResidualAdditions(ROOT).find((r) => r.item.includes("scrubbing"));
+    expect(watch, "no environment-scrubbing watch item in the residual register").toBeDefined();
+    expect(watch!.reason).toContain("CLAUDE_CODE_SUBPROCESS_ENV_SCRUB");
+    // Marked ASSUMED rather than cited as established — the tier is the whole point of the entry.
+    expect(watch!.reason).toContain("ASSUMED");
+    expect(watch!.reason).toContain("not from primary vendor documentation");
+  });
+});
+
+// ────────────────────────────────────────────────────────────────────────────────────────────────
+describe("generate-guarantees — the anchored pointer lines (D-17)", () => {
+  it("EXACTLY one pointer line per public entry document, counted from the DOCUMENT LIST", () => {
+    // The denominator is POINTER_DOCS.length, never the literal 3. A fourth entry document added to
+    // the list without its pointer line is short against this number; a document carrying two
+    // copies is long against it. Neither is visible to a hand-written count.
+    expect(POINTER_DOCS.length).toBeGreaterThan(0);
+    let found = 0;
+    for (const doc of POINTER_DOCS) {
+      const text = readFileSync(join(ROOT, doc), "utf8");
+      const want = `${POINTER_ANCHOR}\n${pointerLine(doc)}`;
+      const occurrences = text.split(want).length - 1;
+      expect(occurrences, `${doc} carries ${occurrences} generated pointer block(s), expected 1`).toBe(1);
+      // …and no SECOND anchor without the generated line beneath it.
+      expect(text.split(POINTER_ANCHOR).length - 1, `${doc} carries a stray pointer anchor`).toBe(1);
+      found += occurrences;
+    }
+    expect(found).toBe(POINTER_DOCS.length);
+  });
+
+  it("each pointer line's LINK TARGET resolves to the committed render", () => {
+    for (const doc of POINTER_DOCS) {
+      const m = /\]\(([^)]+)\)/.exec(pointerLine(doc));
+      expect(m, `no link in the pointer line for ${doc}`).not.toBeNull();
+      const resolved = join(ROOT, join(doc, "..", m![1]));
+      expect(existsSync(resolved), `${doc}'s pointer target ${m![1]} does not resolve`).toBe(true);
+    }
+  });
+
+  it("the SUBSTRATE document's addition is ONE line", () => {
+    // AGENTS.md is deliberately short and high-signal: a long machine-written context file
+    // measurably lowers agent success, and Codex caps it at 32 KiB. One line is what it can afford.
+    expect(pointerLine("AGENTS.md").split("\n").length).toBe(1);
+    expect(POINTER_DOCS).toContain("AGENTS.md");
+  });
+
+  it("the pointer TARGET is computed from the document's own directory, never typed per document", () => {
+    expect(pointerLine("README.md")).toContain(`(${OUT})`);
+    expect(pointerLine("agent-factory/README.md")).toContain(`(../${OUT})`);
+  });
+});
+
 
   it("the committed render is byte-identical to a fresh render of the live tree", () => {
     expect(readFileSync(COMMITTED, "utf8")).toBe(renderGuarantees(ROOT));
@@ -538,8 +693,16 @@ describe("guarantees-freshness.js — the byte-equality drift gate", () => {
     // renamed there reds this case rather than silently leaving the mirror rendering against the
     // roster defaults while the real tree reads a declared matrix.
     const reader = readFileSync(join(ROOT, "scripts", "context-io.ts"), "utf8");
-    const configCandidates = GUARANTEES_DATA_SOURCES.filter((p) => p !== REGISTRY_PATH);
+    // THE CONFIG ARM IS ASKED FOR, NEVER INFERRED BY SUBTRACTION. This case used to compute it as
+    // "the union minus the registry", so the moment the union gained a NON-config member (plan
+    // 30-09's residual register) it demanded that context-io.ts resolve a document it has no
+    // business knowing about. The two arms are declared at their source now.
+    const configCandidates = GUARANTEES_CONFIG_CANDIDATES;
     expect(configCandidates.length).toBeGreaterThan(0);
+    // …and the union is EXACTLY the two arms, so a third provenance cannot enter unlabelled.
+    expect([...GUARANTEES_DATA_SOURCES].sort()).toEqual(
+      [...GUARANTEES_AUDIT_SOURCES, ...GUARANTEES_CONFIG_CANDIDATES].sort(),
+    );
     for (const c of configCandidates) {
       const segments = c.split("/");
       expect(

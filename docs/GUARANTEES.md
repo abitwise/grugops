@@ -38,28 +38,20 @@ measured. A repository that configures nothing lands here: nothing is lowered by
 | `C-28-032` | `agent-factory/README.md` | true | `open_pr` at `block`; `protected_branch_merge` at `block` | held |
 | `C-28-038` | `.claude-plugin/plugin.json` | overstated | `open_pr` at `block`; `production_requires_human_confirmation` at `block`; `protected_branch_merge` at `block` | held |
 
-## The residual this page does not close
+## The residuals this page does not close
 
-**Lowering a safety floor takes two keys, and the second one is a session environment variable**
-**a human sets by name.** The claim this page makes about that variable is the one that holds,
-stated at its true tier rather than as an absolute:
+Every entry below is quoted from `docs/audit/28-residual-sizing.md` § *Phase 30 additions to this register (AUTO-05)*.
+This page does not restate them in its own words: it publishes the register's, so the record and
+the public page cannot come to disagree about what is still open.
 
-- It is **un-forgeable from inside a tool call**. An agent's own inline `export VAR=...` lands
-  in the child environment it spawns, which the hook process never inherits; a human's session
-  export does reach the hook.
-- It is **reachable by an agent that can write the host's settings files**. A settings-file
-  `env` entry in `.claude/settings.json` or `.claude/settings.local.json` is reapplied to a live
-  session and is read by the next hook subprocess as if a human had exported it. The hook cannot
-  tell the two apart, because the value is the same string either way.
-- The narrowing measure is a `permissions.deny` recommendation over those settings files plus a
-  companion write-matcher guard. It **narrows** the vector; it does not close it, and this page
-  does not say that it does. An agent that can write arbitrary project files can reach the grant
-  — the same irreducible class the residual register records as the same-uid, no-hook,
-  direct-filesystem forgery residual, disposition `accepted`.
-- The grant is **session-scoped under a name, not per-action consent**. One export authorizes
-  every subsequent action the lowered floor admits, for the life of that session. A reader who
-  takes it as an approval of one act is reading it more narrowly than it is written.
+### 9. settings-file `env` grant-injection vector
 
-`UNKNOWN - verify`: whether a host tier exists on which the settings-file vector is closed
-rather than narrowed. Nothing in this repository measures that today, and this page does not
-assert it.
+**Disposition:** `accepted`
+
+> **Irreducible, and the same class as row 4 above.** Lowering a safety floor takes two keys, and the second is a session environment variable a human sets by name. The claim that holds, stated at its true tier rather than as an absolute: the grant is **un-forgeable from inside a tool call** — an agent's own inline `export VAR=...` lands in the child environment it spawns, which the hook process never inherits, while a human's session export does reach the hook. It is nonetheless **reachable by an agent that can write the host's settings files**: an `env` entry in `.claude/settings.json` or `.claude/settings.local.json` is reapplied to a live session and is read by the next hook subprocess as if a human had exported it, and the hook cannot tell the two apart because the value is the same string either way. The narrowing measure is a `permissions.deny` recommendation over those settings files plus a companion write-matcher guard; it **narrows** the vector and does not close it, for the same reason row 4 is irreducible — an agent that can write arbitrary project files can reach the grant. The grant is also **session-scoped under a name, not per-action consent**: one export authorizes every subsequent action the lowered floor admits, for the life of that session, and a reader who takes it as approval of one act is reading it more narrowly than it is written. **This is a pre-existing exposure, not one Phase 30 introduced** — it applies identically to `GRUGOPS_PROD_DEPLOY_APPROVED` and `GRUGOPS_ADMISSION_APPROVED_BY`; Phase 30 is the first phase to look, which is why it is the phase that disposes of it. `UNKNOWN - verify`: whether a host tier exists on which this vector is closed rather than narrowed. Nothing in this repository measures that today, and no document here asserts it.
+
+### 10. host-side subprocess environment scrubbing could break the grant mechanism silently
+
+**Disposition:** `accepted`
+
+> **Watch item, recorded with its source tier rather than cited as established.** Claude Code v2.1.251 is reported to have introduced `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1`, which strips `CLAUDE_CONFIG_DIR` from hook and Bash subprocess environments. **Source tier: `ASSUMED`** — the report comes from a GitHub issue title surfaced in a web search, not from primary vendor documentation, and repeating it here does not upgrade it. If such a scrub list ever widens to unrecognised variables, every `GRUGOPS_FLOOR_*` grant would stop reaching the hook and the two-key mechanism would break silently. The break direction is fail-safe — a floor that can no longer be lowered stays at `block` — but a mechanism that stops working without saying so is not a thing to learn from a user report. Measured 2026-09-05: `claude --version` reports `2.1.261`, already past the named version, and the existing grants work on this host. `UNKNOWN - verify`: whether that scrub list is documented anywhere primary, and what it enumerates. Nothing in this repository treats environment inheritance as a permanent guarantee.

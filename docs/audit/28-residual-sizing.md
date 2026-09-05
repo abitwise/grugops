@@ -392,6 +392,41 @@ lost.
 
 ---
 
+## Phase 30 additions to this register (AUTO-05)
+
+Plan 30-09 adds the residuals Phase 30 surfaced. They continue the numbering of the eight-row table
+above and use the same closed disposition vocabulary (D-04: `fixed`, `accepted`, `deferred`), because
+they are the same kind of record — a thing measured, decided about, and left visible rather than
+quietly closed.
+
+**These rows are a READ SOURCE, not only a record.** `scripts/generate-guarantees.ts` parses this
+table through `readResidualAdditions()` in `scripts/audit-model.ts` and publishes each row's
+`Reason / owner` cell **verbatim** in `docs/GUARANTEES.md` § *The residuals this page does not close*.
+Editing a reason here changes the published page; there is no second copy of these words anywhere,
+which is the point. Two consequences a later editor should know before touching the table:
+
+1. **The `Disposition` cell is held to a canonical form** — exactly one backticked word and nothing
+   else. The eight-row table above decorates its dispositions with prose (`**`fixed`** *(by plan
+   28-08)*`); this one may not, because a best-effort unwrap of a decorated cell would be a second
+   grammar over the same bytes.
+2. **A blank `Reason / owner` is refused.** The reason *is* what the public page states, so an empty
+   one would publish a named gap with nothing said about it.
+
+Row 9 is deliberately placed beside **row 4** of the table above — `same-uid / no-hook direct-FS
+forgery residual`, disposition `accepted`, `Irreducible` — because it is the same class, reached by a
+different vector, and a reader who accepts one has already accepted the other.
+
+| # | Item | Disposition | Target phase | Reason / owner |
+|---|---|---|---|---|
+| 9 | settings-file `env` grant-injection vector | `accepted` | — | **Irreducible, and the same class as row 4 above.** Lowering a safety floor takes two keys, and the second is a session environment variable a human sets by name. The claim that holds, stated at its true tier rather than as an absolute: the grant is **un-forgeable from inside a tool call** — an agent's own inline `export VAR=...` lands in the child environment it spawns, which the hook process never inherits, while a human's session export does reach the hook. It is nonetheless **reachable by an agent that can write the host's settings files**: an `env` entry in `.claude/settings.json` or `.claude/settings.local.json` is reapplied to a live session and is read by the next hook subprocess as if a human had exported it, and the hook cannot tell the two apart because the value is the same string either way. The narrowing measure is a `permissions.deny` recommendation over those settings files plus a companion write-matcher guard; it **narrows** the vector and does not close it, for the same reason row 4 is irreducible — an agent that can write arbitrary project files can reach the grant. The grant is also **session-scoped under a name, not per-action consent**: one export authorizes every subsequent action the lowered floor admits, for the life of that session, and a reader who takes it as approval of one act is reading it more narrowly than it is written. **This is a pre-existing exposure, not one Phase 30 introduced** — it applies identically to `GRUGOPS_PROD_DEPLOY_APPROVED` and `GRUGOPS_ADMISSION_APPROVED_BY`; Phase 30 is the first phase to look, which is why it is the phase that disposes of it. `UNKNOWN - verify`: whether a host tier exists on which this vector is closed rather than narrowed. Nothing in this repository measures that today, and no document here asserts it. |
+| 10 | host-side subprocess environment scrubbing could break the grant mechanism silently | `accepted` | — | **Watch item, recorded with its source tier rather than cited as established.** Claude Code v2.1.251 is reported to have introduced `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1`, which strips `CLAUDE_CONFIG_DIR` from hook and Bash subprocess environments. **Source tier: `ASSUMED`** — the report comes from a GitHub issue title surfaced in a web search, not from primary vendor documentation, and repeating it here does not upgrade it. If such a scrub list ever widens to unrecognised variables, every `GRUGOPS_FLOOR_*` grant would stop reaching the hook and the two-key mechanism would break silently. The break direction is fail-safe — a floor that can no longer be lowered stays at `block` — but a mechanism that stops working without saying so is not a thing to learn from a user report. Measured 2026-09-05: `claude --version` reports `2.1.261`, already past the named version, and the existing grants work on this host. `UNKNOWN - verify`: whether that scrub list is documented anywhere primary, and what it enumerates. Nothing in this repository treats environment inheritance as a permanent guarantee. |
+
+**Completeness:** 2 rows, `accepted` 2 / `fixed` 0 / `deferred` 0. Both are `accepted` because
+neither has a mechanism in this repository that would close it; each names the tier at which its
+claim holds, and neither is written as an absolute.
+
+---
+
 ## Checkpoint resolution (task 4) — the decisions taken
 
 The blocking checkpoint returned **"approved — 28-08 runs, assign D-19 item 3, pull residual 2

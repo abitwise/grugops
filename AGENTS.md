@@ -102,6 +102,9 @@ Real commands only, with flags, preferring fast single-file variants. If a comma
 - Never merge a protected branch. Never deploy prod without human confirmation.
 - Do not change dependencies without reason. No unrelated refactors. No fake results.
 
+<!-- generated: guarantees-pointer -->
+Which safety claims still hold on this repository, joined to the live checkpoint matrix: [`docs/GUARANTEES.md`](docs/GUARANTEES.md).
+
 ## Coding rules (the 12)
 
 <!-- claim: C-28-019 -->

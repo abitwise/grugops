@@ -81,6 +81,9 @@ cell at its documented default. grugops runs lean with no config at all, because
 falls back to these same documented defaults when the file is absent. Edit the dial to scale
 up to enterprise governance (scrum cadence, compliance regimes, release gates) on a single flag.
 
+<!-- generated: guarantees-pointer -->
+Which safety claims still hold on this repository, joined to the live checkpoint matrix: [`docs/GUARANTEES.md`](../docs/GUARANTEES.md).
+
 ## How work flows
 
 <!-- claim: C-28-033 -->

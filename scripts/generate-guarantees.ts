@@ -56,10 +56,15 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import {
+  isBlank,
   readRegistry,
+  readResidualAdditions,
   REGISTRY_PATH,
+  RESIDUAL_PATH,
+  RESIDUAL_ADDITIONS_HEADING,
   SAFETY_FLOORS,
   type ClaimStatus,
+  type ResidualRow,
 } from "./audit-model.js";
 import {
   BANNER_ALL_DEFAULT,
@@ -97,14 +102,77 @@ export const GUARANTEES_ENTRY_JS = "scripts/generate-guarantees.js";
  * compare it, byte-equal, against a committed document that happened to say the same thing, and
  * would go on doing so on the day a repository lowered a floor.
  */
-export const GUARANTEES_DATA_SOURCES: readonly string[] = [
-  REGISTRY_PATH,
+export const GUARANTEES_AUDIT_SOURCES: readonly string[] = [REGISTRY_PATH, RESIDUAL_PATH];
+
+/**
+ * The RESTATED arm: config candidates this module retypes because scripts/context-io.ts keeps its
+ * candidate list private. Held against that module's source, two-sided, by the harness.
+ *
+ * THE TWO ARMS ARE DECLARED SEPARATELY BECAUSE THEIR UPKEEP RULES DIFFER, and conflating them has
+ * already cost once: the harness used to derive "the config arm" by subtracting `REGISTRY_PATH`
+ * from the union, so plan 30-09's addition of the residual register silently became a config
+ * candidate the harness then demanded `context-io.ts` resolve. The provenance is now declared where
+ * it is known rather than inferred where it is not.
+ */
+export const GUARANTEES_CONFIG_CANDIDATES: readonly string[] = [
   ".grugops/factory.config.json",
   "agent-factory/config/factory.config.json",
 ];
 
-/** The pin over the list above. A mirror short by one input compares two different documents. */
-export const GUARANTEES_DATA_SOURCE_COUNT = 3;
+export const GUARANTEES_DATA_SOURCES: readonly string[] = [
+  ...GUARANTEES_AUDIT_SOURCES,
+  ...GUARANTEES_CONFIG_CANDIDATES,
+];
+
+/**
+ * The pin over the list above. A mirror short by one input compares two different documents.
+ *
+ * 3 -> 4 in plan 30-09: the render's residual section is now GENERATED FROM the residual register
+ * rather than restated inside this module, so that register is an INPUT. A mirror that did not copy
+ * it would refuse outright (the reader throws on a missing file), which is the fail-closed
+ * direction — but the pin is moved anyway, because a data source invisible in an import graph is
+ * exactly what this constant exists to make visible.
+ */
+export const GUARANTEES_DATA_SOURCE_COUNT = 4;
+
+/**
+ * D-17's three PUBLIC ENTRY DOCUMENTS — the ones a person or an agent lands on first. Each carries
+ * exactly ONE anchored generated pointer line to the render.
+ *
+ * DECLARED HERE AND ASSERTED FROM THIS LIST, never hand-counted. "Exactly three pointer lines" is a
+ * number derived from `POINTER_DOCS.length` in scripts/generate-guarantees.test.ts, so a fourth
+ * pointer, a lost one, or a second copy inside one document is red — the set-literal-drift class
+ * this repository has diagnosed as one of its two systemic failure modes, closed at the point where
+ * the count is spent rather than where it is written.
+ */
+export const POINTER_DOCS: readonly string[] = [
+  "README.md",
+  "AGENTS.md",
+  "agent-factory/README.md",
+];
+
+/** The marker that makes a pointer line ANCHORED — locatable, and visibly generated. */
+export const POINTER_ANCHOR = "<!-- generated: guarantees-pointer -->";
+
+/**
+ * The pointer line a given public entry document must carry, VERBATIM.
+ *
+ * The link target is COMPUTED from the document's own directory rather than typed per document, so
+ * `agent-factory/README.md` gets `../docs/GUARANTEES.md` and a root document gets `docs/GUARANTEES.md`
+ * without anybody maintaining three strings that must agree.
+ *
+ * ONE LINE, AND FOR `AGENTS.md` THAT IS A HARD CONSTRAINT RATHER THAN A PREFERENCE: the substrate
+ * document is deliberately short and high-signal, because a long machine-written context file
+ * measurably lowers agent success and Codex caps it at 32 KiB. One line is what it can afford.
+ */
+export function pointerLine(doc: string): string {
+  const depth = doc.split("/").length - 1;
+  const target = `${"../".repeat(depth)}${OUT}`;
+  return (
+    `Which safety claims still hold on this repository, joined to the live checkpoint matrix: ` +
+    `[\`${OUT}\`](${target}).`
+  );
+}
 
 /** The exact registry line that declares a safety row. The byte pass's whole grammar. */
 const SAFETY_KIND_LINE = "- kind: safety";
@@ -112,8 +180,24 @@ const SAFETY_KIND_LINE = "- kind: safety";
 /** The exact registry line that declares a DROPPED row. The dropped byte pass's whole grammar. */
 const DROPPED_STATUS_LINE = "- status: dropped";
 
-/** A claim heading, read off the registry's raw bytes. Never the parser's recogniser. */
-const RAW_CLAIM_HEADING_RE = /^### (C-28-\d{3})$/;
+/**
+ * The literal prefix a claim heading starts with, read off the registry's raw bytes.
+ *
+ * A LITERAL, NOT A REGEX, AND THAT IS A DELIBERATE CORRECTION. The first draft of the pass below
+ * declared `/^### (C-28-\d{3})$/` and applied it, which put a SECOND heading recogniser into the
+ * tree — and `scripts/check-foundation-guards.test.ts`'s [B1] closure caught it at once: the live
+ * blast radius of "declaration-lines that apply a heading recogniser" is pinned at exactly one site,
+ * in `scripts/audit-model.ts`. The pin was NOT moved. The pass was rewritten to the idiom its own
+ * sibling already uses — `declaredSafetyRows` recognises its field line by literal string equality —
+ * so this module contributes no heading recogniser at all and the tree still has one.
+ *
+ * THE LOOSENESS IS THE SAFE DIRECTION, STATED RATHER THAN LEFT TO BE NOTICED. A prefix test admits
+ * `### C-28-banana` where the parser's canonical form would refuse it. That over-attributes rather
+ * than under-attributes: the id this pass produces then has no counterpart in the join, the two
+ * sets disagree by MEMBERSHIP, and the render REFUSES. The failure direction it cannot have is the
+ * one where a dropped row goes unseen.
+ */
+const RAW_CLAIM_HEADING_PREFIX = "### C-28-";
 
 /**
  * The sentinel a dropped-status line with no claim heading above it produces.
@@ -202,9 +286,8 @@ export function declaredDroppedRows(root: string = DEFAULT_ROOT): readonly strin
   let current: string | null = null;
   for (const raw of text.split("\n")) {
     const line = raw.replace(/\r$/, "");
-    const heading = RAW_CLAIM_HEADING_RE.exec(line);
-    if (heading !== null) {
-      current = heading[1];
+    if (line.startsWith(RAW_CLAIM_HEADING_PREFIX)) {
+      current = line.slice("### ".length);
       continue;
     }
     if (line === DROPPED_STATUS_LINE) out.push(current ?? DROPPED_WITHOUT_HEADING);
@@ -427,6 +510,7 @@ export function renderGuarantees(root: string = DEFAULT_ROOT): string {
 
   const lowered = loweredCheckpoints(root);
   const floorIds = SAFETY_FLOORS.map((f) => f.id).sort();
+  const residuals = readResidualAdditions(root);
 
   const lines: string[] = [
     "# grugops safety guarantees",
@@ -512,32 +596,28 @@ export function renderGuarantees(root: string = DEFAULT_ROOT): string {
       return `| \`${r.claimId}\` | \`${r.file}\` | ${r.status} | ${floors} | ${standing} |`;
     }),
     "",
-    "## The residual this page does not close",
+    "## The residuals this page does not close",
     "",
-    "**Lowering a safety floor takes two keys, and the second one is a session environment variable**",
-    "**a human sets by name.** The claim this page makes about that variable is the one that holds,",
-    "stated at its true tier rather than as an absolute:",
+    // GENERATED FROM THE REGISTER, NOT RESTATED BESIDE IT (plan 30-09). Until this plan the honest
+    // statement of what this page does not close was prose inside the generator, with the register
+    // that owns those residuals maintained separately and nothing able to tell if the two had come
+    // to disagree. The register is now the authority and this section QUOTES it, so a residual can
+    // be edited in exactly one place and a reader of either document sees the same words.
+    `Every entry below is quoted from \`${RESIDUAL_PATH}\` § *${RESIDUAL_ADDITIONS_HEADING.replace(/^##\s*/, "")}*.`,
+    "This page does not restate them in its own words: it publishes the register's, so the record and",
+    "the public page cannot come to disagree about what is still open.",
     "",
-    "- It is **un-forgeable from inside a tool call**. An agent's own inline `export VAR=...` lands",
-    "  in the child environment it spawns, which the hook process never inherits; a human's session",
-    "  export does reach the hook.",
-    "- It is **reachable by an agent that can write the host's settings files**. A settings-file",
-    "  `env` entry in `.claude/settings.json` or `.claude/settings.local.json` is reapplied to a live",
-    "  session and is read by the next hook subprocess as if a human had exported it. The hook cannot",
-    "  tell the two apart, because the value is the same string either way.",
-    "- The narrowing measure is a `permissions.deny` recommendation over those settings files plus a",
-    "  companion write-matcher guard. It **narrows** the vector; it does not close it, and this page",
-    "  does not say that it does. An agent that can write arbitrary project files can reach the grant",
-    "  — the same irreducible class the residual register records as the same-uid, no-hook,",
-    "  direct-filesystem forgery residual, disposition `accepted`.",
-    "- The grant is **session-scoped under a name, not per-action consent**. One export authorizes",
-    "  every subsequent action the lowered floor admits, for the life of that session. A reader who",
-    "  takes it as an approval of one act is reading it more narrowly than it is written.",
-    "",
-    "`UNKNOWN - verify`: whether a host tier exists on which the settings-file vector is closed",
-    "rather than narrowed. Nothing in this repository measures that today, and this page does not",
-    "assert it.",
-    "",
+    ...residuals.flatMap((r: ResidualRow) => [
+      `### ${r.num}. ${r.item}`,
+      "",
+      // `isBlank` is ASKED, never re-derived. A private `trim() === "—"` here would be the FOURTH
+      // definition of "blank" in this tree, which is the class scripts/audit-model.test.ts refuses
+      // by scanning every source — and it caught this line before it was committed.
+      `**Disposition:** \`${r.disposition}\`${isBlank(r.targetPhase) ? "" : ` · **Target phase:** ${r.targetPhase}`}`,
+      "",
+      `> ${r.reason}`,
+      "",
+    ]),
   );
 
   return `${lines.join("\n")}`;

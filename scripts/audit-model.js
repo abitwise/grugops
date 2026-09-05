@@ -62,6 +62,8 @@ import { FENCE_DELIMITER_LINE, fencedLineFlags, sectionEndIndex, unfencedHeading
 // ---------------------------------------------------------------------------
 export const REGISTER_PATH = "docs/audit/28-disposition-register.md";
 export const REGISTRY_PATH = "docs/audit/28-claim-registry.md";
+/** The residual register. Phase 30 (plan 30-09) makes it a READ source, not only a record. */
+export const RESIDUAL_PATH = "docs/audit/28-residual-sizing.md";
 const DEFAULT_ROOT = join(import.meta.dirname, "..");
 // ---------------------------------------------------------------------------
 // THE CLOSED SETS. Each is enumerated ONCE here and never written down a second time; every
@@ -705,6 +707,126 @@ function duplicates(values) {
         }
     }
     return dup;
+}
+// =============================================================================================
+// readResidualAdditions — the residual register read as a SOURCE (plan 30-09, AUTO-05).
+//
+// WHY THIS EXISTS. docs/GUARANTEES.md carries a section stating what the page does NOT close. Until
+// this plan that section was PROSE INSIDE THE GENERATOR — which put the honest statement of a
+// residual and the register that owns that residual in two places, maintained by memory, with
+// nothing able to tell if they disagreed. That is the same shape as a hand-maintained set beside a
+// derived one, and this repository's recorded second systemic failure class is exactly that.
+//
+// So the register is the authority and the render QUOTES it. A change to the row's reason changes
+// the published page; a row added to the table is published; and the two cannot say different
+// things about one residual because there is only one place either of them reads.
+//
+// THE TABLE IS LOCATED BY ITS EXACT HEADING and read through `tableUnder`, this module's ONE
+// markdown-table authority — fence-aware, section-bounded, positional-column-checked. No second
+// grammar over the same bytes.
+//
+// CANONICAL FORM WITH A REFUSAL OUTSIDE IT (the D-64 doctrine). The historical eight-row table above
+// this one in the same document carries prose-decorated disposition cells (`**`fixed`** *(by plan
+// 28-08)*`), which is why this reader does NOT try to parse that table: it reads the Phase 30
+// additions table, whose cells are held to an exact `` `value` `` form. A decorated cell is REFUSED
+// BY NAME rather than best-effort unwrapped, because a best-effort unwrap is a second grammar that
+// drifts from the first.
+// =============================================================================================
+/** The heading that locates the additions table. Exact, unfenced, column-zero. */
+export const RESIDUAL_ADDITIONS_HEADING = "## Phase 30 additions to this register (AUTO-05)";
+/** The additions table's schema, read POSITIONALLY. A rename or reorder is refused. */
+export const RESIDUAL_ADDITIONS_COLUMNS = [
+    "#",
+    "Item",
+    "Disposition",
+    "Target phase",
+    "Reason / owner",
+];
+/** `` `value` `` and nothing else. The canonical cell form for the disposition column. */
+const RESIDUAL_BACKTICKED_RE = /^`([a-z]+)`$/;
+/**
+ * Every row of the Phase 30 additions table, in document order.
+ *
+ * Throws — naming the file, the line and what was wrong — on an absent heading, an empty table, a
+ * reordered header, a duplicate row number, a disposition outside DISPOSITIONS or outside the
+ * canonical cell form, a `deferred` row with no target phase, or a blank reason. It never returns a
+ * partial list: a render that published three of four residuals would understate what it does not
+ * close, which is the one direction this document must never fail in.
+ */
+export function readResidualAdditions(root = DEFAULT_ROOT) {
+    const abs = join(root, RESIDUAL_PATH);
+    if (!existsSync(abs)) {
+        throw new Error(`audit-model: refusing to parse ${RESIDUAL_PATH} — the residual register does not exist at ` +
+            `${abs}. A missing register is not an empty one: returning zero residuals would let a page ` +
+            `whose job is to name what it does not close publish nothing at all`);
+    }
+    let text;
+    try {
+        text = readFileSync(abs, "utf8");
+    }
+    catch (e) {
+        refuse(RESIDUAL_PATH, `it could not be read (${e.message})`);
+    }
+    const table = tableUnder(text, RESIDUAL_ADDITIONS_HEADING);
+    if (table === null) {
+        refuse(RESIDUAL_PATH, `it carries no \`${RESIDUAL_ADDITIONS_HEADING}\` heading. The additions table is located by ` +
+            `that exact heading; a register whose additions table cannot be found is unreadable, not ` +
+            `empty`);
+    }
+    if (table.length === 0) {
+        refuse(RESIDUAL_PATH, `\`${RESIDUAL_ADDITIONS_HEADING}\` carries no rows at all, not even a header row`);
+    }
+    assertColumns(RESIDUAL_PATH, table[0], RESIDUAL_ADDITIONS_COLUMNS, "the Phase 30 additions table");
+    const body = table.slice(1);
+    if (body.length === 0) {
+        refuse(RESIDUAL_PATH, `the Phase 30 additions table carries zero residual rows. A vacuous residual list satisfies ` +
+            `every downstream equality trivially — zero rows published against zero rows declared agree ` +
+            `perfectly — while telling a reader that nothing is left open`);
+    }
+    const rows = body.map((tl) => {
+        const [num, item, disposition, targetPhase, reason] = tl.cells;
+        const m = RESIDUAL_BACKTICKED_RE.exec(disposition);
+        if (m === null) {
+            refuse(RESIDUAL_PATH, `the additions row at line ${tl.line} carries \`Disposition\` ${JSON.stringify(disposition)}, ` +
+                `which is outside the canonical cell form \`` +
+                "`value`" +
+                `\` (a single backticked word, nothing else on the cell). The historical eight-row table ` +
+                `above decorates its dispositions with prose, and a reader that best-effort unwrapped ` +
+                `such a cell would be a SECOND grammar over these bytes — refused by name instead`);
+        }
+        if (!DISPOSITIONS.includes(m[1])) {
+            refuse(RESIDUAL_PATH, `the additions row at line ${tl.line} carries disposition "${m[1]}", which is outside the ` +
+                `legal set [${DISPOSITIONS.join(", ")}]. D-04's closed set applies to this table exactly ` +
+                `as it applies to the one above it`);
+        }
+        if (isBlank(item)) {
+            refuse(RESIDUAL_PATH, `the additions row at line ${tl.line} names no \`Item\``);
+        }
+        if (isBlank(reason)) {
+            refuse(RESIDUAL_PATH, `the additions row at line ${tl.line} carries no \`Reason / owner\`. The reason IS what ` +
+                `docs/GUARANTEES.md publishes, so a blank one would render a residual with no statement ` +
+                `of what it is — an entry that names a gap and then says nothing about it`);
+        }
+        if (m[1] === "deferred" && isBlank(targetPhase)) {
+            refuse(RESIDUAL_PATH, `the additions row at line ${tl.line} is \`deferred\` with no \`Target phase\`. A deferral ` +
+                `with no named target is not a decision`);
+        }
+        return {
+            num,
+            item,
+            disposition: m[1],
+            targetPhase,
+            reason,
+            line: tl.line,
+        };
+    });
+    const dupNums = duplicates(rows.map((r) => r.num));
+    if (dupNums.length > 0) {
+        refuse(RESIDUAL_PATH, `the Phase 30 additions table carries duplicate row number(s): ${dupNums.join(", ")}. The ` +
+            `number is how a residual is cited from outside this document, so two rows sharing one let ` +
+            `a citation resolve to either`);
+    }
+    return rows;
 }
 // ---------------------------------------------------------------------------
 // readRegistry — declared here and consumed in plan 28-04.
