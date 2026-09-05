@@ -884,6 +884,12 @@ describe("D-64 cutover: the spawn verdict is rendered by the canonical admission
     // THIS PIN MOVING IS THE PIN WORKING. It went red the moment the eighth consumer landed, which is
     // exactly what a two-sided list is for — the number is moved here to acknowledge a change that was
     // made on purpose, never to clear a failure.
+    //
+    // (Plan 30-04, AUTO-01) AND FROM TEN TO ELEVEN. `checkpoints.ts` imports `fencedLineFlags` and
+    // `unfencedMatchIndices` and no verdict-bearing symbol at all — it asks the parser where the
+    // fences are and which unfenced lines match a caller-supplied predicate, and takes the section
+    // extent itself from `check-diff-disposition.ts`'s `locateSection`. It is a DEMOTION-shaped
+    // addition, not a promotion: a new consumer of the authority, carrying no private grammar.
     expect(consumers).toEqual([
       "audit-model.ts",
       "canonical-frontmatter.ts",
@@ -891,6 +897,7 @@ describe("D-64 cutover: the spawn verdict is rendered by the canonical admission
       "check-diff-disposition.ts",
       "check-foundation-guards.ts",
       "check-imperative-lexicon.ts",
+      "checkpoints.ts",
       "generate-catalog.ts",
       "generate-role-adapters.ts",
       "generate-skill-twins.ts",
@@ -1893,16 +1900,25 @@ const LOCATOR_FUNCTIONS = [
 // the direction has been checked. `scripts/generate-role-adapters.ts` joins for the same reason in
 // the same plan — the two copies of the deleted grammar were byte-identical, so the two replacements
 // are too, and a set that gained one of them and not the other would be the finding.
+// (Plan 30-04, AUTO-01) RE-DERIVED AND UP BY ONE AGAIN. `scripts/checkpoints.ts` joins the set the
+// day it derives the checkpoint roster from the workflow `## Stop conditions` corpus. It takes
+// `fencedLineFlags` and `unfencedMatchIndices` from the authority and `locateSection` from
+// `check-diff-disposition.ts`, and it declares NO heading equality, NO close scan and NO fence state
+// of its own — which is the whole reason it appears here rather than as a fifth private locator.
+// THE PIN MOVING IS THE PIN WORKING: it went red the moment the module took the authority, and it is
+// raised only after checking that the direction is adoption and not a private grammar smuggled in
+// under an import.
 const LOCATOR_CONSUMERS = [
   "scripts/audit-model.ts",
   "scripts/check-banned-claims.ts",
   "scripts/check-diff-disposition.ts",
   "scripts/check-imperative-lexicon.ts",
+  "scripts/checkpoints.ts",
   "scripts/generate-catalog.ts",
   "scripts/generate-role-adapters.ts",
   "scripts/voice-model.ts",
 ];
-const LOCATOR_CONSUMER_COUNT = 7;
+const LOCATOR_CONSUMER_COUNT = 8;
 
 /**
  * A source carrying ONE site of each construct pair — the falsifiability probe's fixture.

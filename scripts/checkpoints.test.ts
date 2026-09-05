@@ -587,13 +587,19 @@ describe("30-02 — the floor set after the `autonomy` retirement (D-04 / D-05 /
     // Derived from SAFETY_FLOORS, never from the comment above CHECKPOINT_DEFAULTS. A floor added
     // later with a permissive default is red here without anyone remembering to come back.
     const floorIds = new Set<string>(am.SAFETY_FLOORS.map((f) => f.id));
+    const nonFloor: string[] = [];
     const permissive: string[] = [];
     for (const id of cp.CHECKPOINTS) {
       if (floorIds.has(id)) expect(cp.CHECKPOINT_DEFAULTS[id], `floor ${id}`).toBe("block");
-      else permissive.push(id);
+      else nonFloor.push(id);
+      if (cp.CHECKPOINT_DEFAULTS[id] !== "block") permissive.push(id);
     }
-    // Non-vacuity in the other direction: the non-floor arm is exercised, and it is exercised by
-    // exactly the member D-06 names.
+    // Non-vacuity in the other direction: the non-floor arm is exercised. Plan 30-04 widened it
+    // from one member to nine, so the SET of non-floor ids is no longer the assertion — what the
+    // case was always protecting is that exactly ONE default anywhere in the roster is permissive,
+    // and that it is the member D-06 names. The nine tag-arm members are human stops and default to
+    // `block` like every floor; only the legacy grade's permissive half does not.
+    expect(nonFloor.length).toBeGreaterThan(0);
     expect(permissive).toEqual(["commit_to_branch"]);
     expect(cp.CHECKPOINT_DEFAULTS.commit_to_branch).toBe("off");
     expect(cp.isFloorCheckpoint("commit_to_branch")).toBe(false);
@@ -656,5 +662,313 @@ describe("30-02 — NON_DIALABLE_INVARIANTS is disjoint from the roster, in BOTH
     expect(cp.CHECKPOINTS).toContain("test_integrity");
     expect(am.NON_DIALABLE_INVARIANTS.map((i) => i.id)).not.toContain("test_integrity");
     expect(am.NON_DIALABLE_INVARIANTS.length + 1).toBe(4);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// PLAN 30-04 — THE DERIVATION, SECTION-ANCHORED AND TWO-SIDED (D-01, D-02, D-03, AUTO-01).
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+//
+// WHAT CHANGED IN D-01, AND WHY THESE CASES DO NOT TEST THE ROLE CORPUS. D-01 as written names two
+// corpora — the 17 role `## Hard limits` and the 19 workflow `## Stop conditions` sections. RESEARCH
+// F-1 established that the role sections contain ZERO markdown bullets: they are prose paragraphs,
+// and `agent-factory/roles/orchestrator.md`'s carries FOUR distinct prohibitions in one sentence
+// run. D-02's "trailing backticked token as the last token of the BULLET" has no referent there, and
+// one trailing tag on that paragraph would attach a single id to four prohibitions.
+//
+// The user settled it at plan 30-04's Task 1 checkpoint (option `workflow-plus-floors`): the TAG
+// corpus is the workflow sections alone, and the floor arm comes from `SAFETY_FLOORS`, which D-04
+// already makes canonical. Three of the orchestrator paragraph's four prohibitions are covered
+// anyway — two through the floor arm and "never exceed WIP without a written reason" through
+// `exceed_wip_limit`, tagged at `09-daily-sweep.md`. The role prose loses no coverage; it loses a
+// SECOND DECLARATION of a prohibition the floor list already owns.
+//
+// WHY THE CASES BELOW DRIVE FIXTURES RATHER THAN THE REAL TREE. A boundary or fence probe planted in
+// the shipped kit would be prose nobody wrote for a reader. The real-corpus two-sided assertion is a
+// separate case, and it can only be green once the bullets carry their tags (plan 30-04 Task 3).
+
+/** A throwaway kit root holding only `agent-factory/workflows/`, for driving the derivation. */
+function workflowFixture(files: Readonly<Record<string, string>>): string {
+  const root = freshTmp("cp-corpus-");
+  mkdirSync(join(root, "agent-factory", "workflows"), { recursive: true });
+  for (const [name, body] of Object.entries(files)) {
+    writeFileSync(join(root, "agent-factory", "workflows", name), body);
+  }
+  return root;
+}
+
+/**
+ * The CONTROL file every probe fixture carries.
+ *
+ * It exists so a probe's expected answer is "the control id and nothing else" rather than "nothing".
+ * An empty derivation is REFUSED by name, so a probe fixture holding only the probe would throw for
+ * the wrong reason and the case would pass while measuring the vacuity floor instead of the scope
+ * rule it was written for.
+ */
+const CONTROL = `# Control workflow
+
+## Stop conditions
+
+- A stop a named human holds. \`checkpoint: control_stop\`
+
+## Commit
+
+- nothing
+`;
+
+describe("30-04 — the tag pattern is the ONE canonical form, and the keyword scan is its scope selector (D-02)", () => {
+  it("accepts the canonical trailing backticked token as the LAST token of a bullet", () => {
+    const m = "- Never merge a protected branch. `checkpoint: protected_branch_merge`".match(
+      cp.CHECKPOINT_TAG_RE,
+    );
+    expect(m?.[1]).toBe("protected_branch_merge");
+  });
+
+  it("the keyword scan MATCHES everything the tag pattern matches — the refusal can never miss a tag", () => {
+    // The structural invariant that makes the allow-list posture safe: if the scope selector were
+    // NARROWER than the tag pattern, a canonical tag could be collected without ever being offered
+    // to the refusal, and a second grammar would have opened underneath the first.
+    for (const line of [
+      "- x. `checkpoint: a`",
+      "  * y. `checkpoint: a_b`",
+      "-\tz. `checkpoint: a1_b2`",
+    ]) {
+      expect(cp.CHECKPOINT_TAG_RE.test(line), line).toBe(true);
+      expect(cp.CHECKPOINT_KEYWORD_RE.test(line), line).toBe(true);
+    }
+  });
+
+  it("exactly ONE tag keyword is declared in scripts/checkpoints.ts — both patterns are built from it", () => {
+    const src = readFileSync(join(ROOT, "scripts", "checkpoints.ts"), "utf8");
+    const code = src
+      .split("\n")
+      .filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l))
+      .join("\n");
+    const declarations = code.match(/TAG_KEYWORD\s*=\s*"checkpoint"/g) ?? [];
+    expect(declarations.length).toBe(1);
+    // …and no second literal spelling of the tag form anywhere in the executable text.
+    expect((code.match(/"checkpoint: /g) ?? []).length).toBe(0);
+  });
+});
+
+describe("30-04 — deriveCheckpoints is SECTION-ANCHORED (D-02, RESEARCH Pitfall 2, T-30-14)", () => {
+  it("a canonically tagged bullet yields exactly that id, with one site naming file and line", () => {
+    const d = cp.deriveCheckpoints(workflowFixture({ "00-control.md": CONTROL }));
+    expect(d.ids).toEqual(["control_stop"]);
+    const sites = d.sites.get("control_stop");
+    expect(sites?.length).toBe(1);
+    expect(sites?.[0].file).toBe("00-control.md");
+    expect(sites?.[0].line).toBe(5);
+  });
+
+  it("a tag ONE LINE PAST the section's closing boundary is NOT collected", () => {
+    const root = workflowFixture({
+      "00-control.md": CONTROL,
+      "01-boundary.md": `# Boundary probe
+
+## Stop conditions
+
+- A stop with no tag.
+
+## A later section
+
+- Past the boundary. \`checkpoint: past_boundary\`
+`,
+    });
+    const d = cp.deriveCheckpoints(root);
+    expect(d.ids).toEqual(["control_stop"]);
+    expect(d.ids).not.toContain("past_boundary");
+  });
+
+  it("a tag inside a FENCED block within the section is neither collected nor refused", () => {
+    const root = workflowFixture({
+      "00-control.md": CONTROL,
+      "01-fenced.md": [
+        "# Fence probe",
+        "",
+        "## Stop conditions",
+        "",
+        "- A stop with no tag.",
+        "",
+        "```text",
+        "- A quoted example. `checkpoint: fenced_example`",
+        "```",
+        "",
+        "## Commit",
+        "",
+        "- nothing",
+        "",
+      ].join("\n"),
+    });
+    const d = cp.deriveCheckpoints(root);
+    expect(d.ids).toEqual(["control_stop"]);
+  });
+});
+
+describe("30-04 — a non-canonical construction is REFUSED by name, never tolerated (D-02, T-30-16)", () => {
+  const probes: readonly (readonly [string, string])[] = [
+    ["no space after the colon", "- A stop. `checkpoint:no_space`"],
+    ["no backticks at all", "- A stop. checkpoint: bare_token"],
+    ["not the last token", "- A stop. `checkpoint: not_last` and more words."],
+    ["wrong case", "- A stop. `Checkpoint: Wrong_Case`"],
+    ["an HTML comment", "- A stop. <!-- checkpoint: hidden -->"],
+    ["two tags on one bullet", "- A stop. `checkpoint: first` `checkpoint: second`"],
+    ["not a bullet at all", "A paragraph. `checkpoint: not_a_bullet`"],
+  ];
+  for (const [label, line] of probes) {
+    it(`refuses ${label}, naming the file and the line`, () => {
+      const root = workflowFixture({
+        "00-control.md": CONTROL,
+        "01-probe.md": `# Probe\n\n## Stop conditions\n\n${line}\n\n## Commit\n\n- nothing\n`,
+      });
+      let err: Error | null = null;
+      try {
+        cp.deriveCheckpoints(root);
+      } catch (e) {
+        err = e as Error;
+      }
+      expect(err, `${label} was tolerated`).not.toBeNull();
+      expect(err?.name).toBe("CheckpointDerivationError");
+      expect(err?.message).toContain("01-probe.md");
+      expect(err?.message).toContain("line 5");
+    });
+  }
+});
+
+describe("30-04 — ids are GLOBAL: one id at several sites is ONE roster member (D-03)", () => {
+  it("the same id tagged in two files yields one id and a site count of two", () => {
+    const dup = (n: string) =>
+      `# ${n}\n\n## Stop conditions\n\n- A shared human stop. \`checkpoint: shared_stop\`\n\n## Commit\n\n- nothing\n`;
+    const d = cp.deriveCheckpoints(
+      workflowFixture({ "00-a.md": dup("a"), "01-b.md": dup("b") }),
+    );
+    expect(d.ids).toEqual(["shared_stop"]);
+    expect(d.sites.get("shared_stop")?.map((s) => s.file)).toEqual(["00-a.md", "01-b.md"]);
+    expect(d.totalSites).toBe(2);
+  });
+});
+
+describe("30-04 — the derivation refuses EMPTY, and refuses SHORT (Pitfall 6, T-30-15)", () => {
+  it("a corpus with bullets but no tags throws a NAMED error rather than returning an empty set", () => {
+    const root = workflowFixture({
+      "00-untagged.md": "# u\n\n## Stop conditions\n\n- A stop with no tag.\n\n## Commit\n\n- x\n",
+    });
+    let err: Error | null = null;
+    try {
+      cp.deriveCheckpoints(root);
+    } catch (e) {
+      err = e as Error;
+    }
+    expect(err?.name).toBe("CheckpointDerivationError");
+    expect(err?.message).toMatch(/no tagged/i);
+  });
+
+  it("a workflow file with NO `## Stop conditions` section is refused, not skipped", () => {
+    const root = workflowFixture({
+      "00-control.md": CONTROL,
+      "01-headless.md": "# h\n\n## Commit\n\n- x\n",
+    });
+    expect(() => cp.deriveCheckpoints(root)).toThrow(/01-headless\.md/);
+  });
+
+  it("the examined-bullet count is compared against a denominator counted by a SECOND pass", () => {
+    // The two numbers are produced by different traversals — a line walk and an unfenced-index
+    // intersection — so a collector that silently skipped a bullet disagrees with the counter.
+    const d = cp.deriveCheckpoints(workflowFixture({ "00-control.md": CONTROL }));
+    expect(d.examinedBullets).toBe(d.countedBullets);
+    expect(d.examinedBullets).toBe(1);
+  });
+
+  it("the count assertion DISCRIMINATES — a planted disagreement is refused", () => {
+    // Drives the assertion directly with a short count, which is the state a silently-short walk
+    // would produce. Without this the equality above could hold vacuously in every reachable case.
+    expect(() => cp.assertBulletCount(37, 38, "planted")).toThrow(/37/);
+    expect(() => cp.assertBulletCount(38, 38, "planted")).not.toThrow();
+  });
+});
+
+describe("30-04 — the two-sided comparison names the ids, and each direction has its OWN message", () => {
+  it("a roster-only id and a corpus-only id produce DIFFERENT messages, both naming the id", () => {
+    const rosterOnly = cp.compareRosterToDerivation(["a"], ["a", "only_in_roster"]);
+    const corpusOnly = cp.compareRosterToDerivation(["a", "only_in_corpus"], ["a"]);
+
+    expect(rosterOnly.ok).toBe(false);
+    expect(corpusOnly.ok).toBe(false);
+    expect(rosterOnly.rosterOnly).toEqual(["only_in_roster"]);
+    expect(corpusOnly.corpusOnly).toEqual(["only_in_corpus"]);
+
+    expect(rosterOnly.failures.length).toBe(1);
+    expect(corpusOnly.failures.length).toBe(1);
+    expect(rosterOnly.failures[0]).toContain("only_in_roster");
+    expect(corpusOnly.failures[0]).toContain("only_in_corpus");
+    // The two directions are different FAULTS — a roster member nothing declares, versus a
+    // declaration the roster never admitted — so they must not share one message.
+    expect(rosterOnly.failures[0]).not.toBe(corpusOnly.failures[0]);
+  });
+
+  it("both directions wrong at once reports BOTH, rather than the first one found", () => {
+    const c = cp.compareRosterToDerivation(["a", "x"], ["a", "y"]);
+    expect(c.failures.length).toBe(2);
+    expect(c.failures.join(" ")).toContain("x");
+    expect(c.failures.join(" ")).toContain("y");
+  });
+
+  it("equal sets in a different ORDER are equal — a comparison cannot be decided by iteration order", () => {
+    expect(cp.compareRosterToDerivation(["b", "a"], ["a", "b"]).ok).toBe(true);
+  });
+});
+
+describe("30-04 — the three arms of the derived set, each with ONE authority (C1-a)", () => {
+  it("the legacy grade table is the authority for the diff/branch/pr mapping (D-06)", () => {
+    expect(cp.LEGACY_AUTONOMY_GRADES.diff).toEqual({
+      commit_to_branch: "block",
+      open_pr: "block",
+    });
+    expect(cp.LEGACY_AUTONOMY_GRADES.branch).toEqual({
+      commit_to_branch: "off",
+      open_pr: "block",
+    });
+    expect(cp.LEGACY_AUTONOMY_GRADES.pr).toEqual({ commit_to_branch: "off", open_pr: "off" });
+  });
+
+  it("arm three is DERIVED from that table's keys, never listed beside it", () => {
+    expect(cp.sortedIds(cp.legacyGradeCheckpoints())).toEqual(["commit_to_branch", "open_pr"]);
+  });
+
+  it("the derived set is the UNION of the tag arm, the floor arm and the legacy arm", () => {
+    const root = workflowFixture({ "00-control.md": CONTROL });
+    const set = cp.derivedCheckpointSet(root);
+    // the tag arm
+    expect(set).toContain("control_stop");
+    // the floor arm — imported from SAFETY_FLOORS, not restated
+    for (const f of am.SAFETY_FLOORS) expect(set).toContain(f.id);
+    // the legacy arm
+    expect(set).toContain("commit_to_branch");
+    expect(cp.sortedIds(set)).toEqual([...set]);
+  });
+});
+
+describe("30-04 — the roster records a site count per member, and it is asserted (D-03)", () => {
+  it("every roster member has a recorded site count", () => {
+    expect(cp.sortedIds(Object.keys(cp.CHECKPOINT_SITE_COUNTS))).toEqual(
+      cp.sortedIds(cp.CHECKPOINTS),
+    );
+  });
+
+  it("the recorded counts sum to a total the site map is compared against", () => {
+    const recorded = Object.values(cp.CHECKPOINT_SITE_COUNTS).reduce<number>(
+      (a, b) => a + b,
+      0,
+    );
+    expect(recorded).toBe(cp.RECORDED_TOTAL_SITES);
+  });
+
+  it("the site assertion DISCRIMINATES — a count off by one anywhere is refused", () => {
+    const sites = new Map<string, readonly { file: string; line: number }[]>([
+      ["a", [{ file: "00-x.md", line: 1 }]],
+    ]);
+    expect(() => cp.assertSiteCounts(sites, { a: 1 })).not.toThrow();
+    expect(() => cp.assertSiteCounts(sites, { a: 2 })).toThrow(/\ba\b/);
+    expect(() => cp.assertSiteCounts(sites, { a: 1, b: 1 })).toThrow(/\bb\b/);
   });
 });
