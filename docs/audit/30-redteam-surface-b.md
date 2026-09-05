@@ -1965,3 +1965,27 @@ config says `none` rather than listing nothing.
 | mutant | outcome |
 |---|---|
 | `stateRootSupplied` forced true — the caveat suppressed | **KILLED** — 1 failed / 81 passed |
+
+---
+
+## Round 3 — self-reproduction against the FIXED build (closure clause 5)
+
+Re-run by the fixing agent at HEAD `f078df5`, after asserting that the working-tree `.js` is
+byte-identical to the committed artifact for all seven attacked modules (7/7 OK, zero mismatches).
+
+| finding | the attack, re-run | result on the fixed build |
+|---|---|---|
+| R3-1 | `## Stop conditions ##` inserted between the two tags of `09-daily-sweep.md` | **REFUSED, exit 1** |
+| R3-2 | a four-backtick block then a byte-exact `## Stop conditions` | **REFUSED, exit 1** |
+| R3-3 | `##  Hard limits` planted mid-section in a role file | **a refusal naming the file and the anchor, exit 1** |
+| R3-4 | `hotfix.markdown` carrying a canonically tagged stop | **REFUSED, exit 1** |
+| R4-1 | a residual row under a repeated additions heading | **render REFUSED, exit 1** |
+| R4-2 | `hooks/check-audit-register.ts` — the basename collision | **exit 1**, named by path |
+| R4-3 | the shared-install single-root invocation | the SCOPE caveat is present and names the class not examined |
+| obs. 1 | `commit_to_branch: block`, a tightening | **no `LOWERED` line, no grant variable named** |
+
+Every attack reverted; `git status --short` shows no tracked modification outside this plan's files.
+
+**Its bound, for the third time.** Rounds 1 and 2 both passed this clause, and independent reviews
+then found six and seven things respectively that the fixing agent had not thought to try. Self-
+reproduction proves a fix holds against the attack it was written for. It is a floor.
