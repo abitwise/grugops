@@ -3312,3 +3312,85 @@ describe("context-io CLI: the dispatched verbs and the usage line are one set (p
     expect(admitted.status, `${admitted.stdout}${admitted.stderr}`).toBe(0);
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// PLAN 30-10 (RED-TEAM SURFACE B, ROUND 1) — "WHICH FILE GOVERNS" IS ONE AUTHORITY, PUBLISHED.
+//
+// Round 1 finding B-1: the structure validator's governance-config form check was asked only at
+// `agent-factory/config/factory.config.json` while this reader prefers `.grugops/factory.config.json`,
+// so nine of nine must-refuse payloads passed at the position that governs. The repair is positional
+// and it needs the ORDER to be published rather than copied: a validator that spelled the two paths
+// for itself would be a second answer to "which file is the governance configuration", which is the
+// authority-duplication this module already deleted once (D-12).
+//
+// So the candidate list is exported as a function, `readGovernanceConfig` consumes it, and the
+// literal-count assertion above still holds — the order is spelled ONCE, in this file, and every
+// other consumer asks for it.
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+
+describe("30-10 — governanceConfigCandidates is the ONE published answer to `which file governs`", () => {
+  it("returns both standard locations, repo-drop FIRST, as absolute paths under the given base", () => {
+    const base = freshTmp("gov-cand-");
+    const got = mod.governanceConfigCandidates(base);
+    expect(got).toEqual([
+      join(base, ".grugops", "factory.config.json"),
+      join(base, "agent-factory", "config", "factory.config.json"),
+    ]);
+  });
+
+  it("the ORDER it publishes is the order the reader actually applies — asserted behaviourally", () => {
+    // The published list would be worthless if the reader resolved its own paths beside it. Both
+    // files are written with DIFFERENT matrices and the first candidate must win.
+    const base = freshTmp("gov-cand-order-");
+    const cands = mod.governanceConfigCandidates(base);
+    for (const p of cands) mkdirSync(join(p, ".."), { recursive: true });
+    writeFileSync(cands[0], JSON.stringify({ checkpoints: { commit_to_branch: "block" } }));
+    writeFileSync(cands[1], JSON.stringify({ checkpoints: { commit_to_branch: "notify" } }));
+    expect(mod.readGovernanceConfig(base).config.checkpoints.commit_to_branch).toBe("block");
+  });
+
+  it("a candidate the list does not name is NOT read — the list bounds the read, not just orders it", () => {
+    const base = freshTmp("gov-cand-bound-");
+    mkdirSync(join(base, "config"), { recursive: true });
+    writeFileSync(
+      join(base, "config", "factory.config.json"),
+      JSON.stringify({ checkpoints: { protected_branch_merge: "off" } }),
+    );
+    const res = mod.readGovernanceConfig(base);
+    expect(res.source).toBe("absent");
+    expect(res.config.checkpoints.protected_branch_merge).toBe("block");
+  });
+
+  it("the candidate order is STILL spelled exactly once in the source after the extraction", () => {
+    const src = readFileSync(join(ROOT, "scripts", "context-io.ts"), "utf8");
+    const occurrences = src.split('join(base, ".grugops", "factory.config.json")').length - 1;
+    expect(occurrences, "candidate-path arrays resolving the governance config").toBe(1);
+  });
+
+  it("the checkpoint refusals this reader accumulates have a NAMED reader — recorded, round 1 B-2", () => {
+    // FINDING B-2, recorded as an assertion rather than as prose. `checkpointRefusals` is produced
+    // for a dropped unknown id and for a coerced non-canonical value, and the field's own contract
+    // is that a run can then SAY what it ignored. Measured in round 1: no non-test consumer reads
+    // it — hooks/guard.ts takes `.config.checkpoints` and discards the rest — so the only runtime
+    // surface that could report the drop (the banner) truthfully reports the opposite, because the
+    // dropped entry never became a roster member.
+    //
+    // The refusal itself is what this case pins, in BOTH directions, so the field cannot quietly
+    // stop being produced while its publication is still owed. The publication point is the hook
+    // run, which is red-team surface A's file; it is recorded in deferred-items.md rather than
+    // asserted here, because a case asserting a consumer that does not exist would be the
+    // fabrication this trace exists to prevent.
+    const base = freshTmp("gov-refusal-");
+    mkdirSync(join(base, ".grugops"), { recursive: true });
+    writeFileSync(
+      join(base, ".grugops", "factory.config.json"),
+      JSON.stringify({ checkpoints: { not_a_real_checkpoint: "off", open_pr: "OFF" } }),
+    );
+    const res = mod.readGovernanceConfig(base);
+    expect(res.checkpointRefusals.join("\n")).toMatch(/not_a_real_checkpoint/);
+    expect(res.checkpointRefusals.join("\n")).toMatch(/open_pr/);
+    // …and the drop is fail-CLOSED in both cases: neither entry lowered anything.
+    expect(res.config.checkpoints.open_pr).toBe("block");
+    expect(Object.keys(res.config.checkpoints)).not.toContain("not_a_real_checkpoint");
+  });
+});

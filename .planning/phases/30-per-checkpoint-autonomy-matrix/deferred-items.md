@@ -143,3 +143,49 @@ verdict nor a checkpoint record is compactable as things stand.
 **Why it is not fixed here:** the fix is a read-path rule about reserved identities in general, not a
 checkpoint concern, and changing it would change how verdicts compact.
 **Suggested owner:** the same owner as V-30-08-02.
+
+## V-30-10-01 — the reader's checkpoint refusals have no runtime publisher
+
+**Found during:** plan 30-10, red-team surface B round 1 (finding B-2).
+**Where:** `scripts/context-io.ts` — `GovernanceConfigResult.checkpointRefusals` — and its would-be
+publisher, `hooks/guard.ts`.
+**What:** the reader accumulates a refusal for a `checkpoints` value that is not an object, for a key
+that is not a roster member, and for a value outside `block|notify|off`. The field's contract says the
+entry is dropped and recorded "so the run can say what it ignored instead of ignoring it silently".
+Measured: **no non-test consumer reads it.** `hooks/guard.ts` takes `.config.checkpoints` and discards
+the rest. The drop is fail-CLOSED in every case — nothing is lowered — so the loss is visibility, not
+permission, and the only runtime surface that could report it (the banner) truthfully reports
+`all checkpoints at default`, because the offending entry never became a roster member.
+**Why it is not fixed here:** D-08's design puts the refusal at the validator and the strictness at the
+runtime, and plan 30-10 fixed the half that was actually broken — the validator was not being asked at
+the config file that governs (finding B-1). The remaining half is a PRINT at the hook run, and
+`hooks/guard.ts` is red-team surface A's file, byte-frozen under D-24 with a same-commit companion
+obligation. Putting a change into the surface that has not been attacked yet, during the round attacking
+a different one, is how a round's own diff becomes the next round's finding.
+**Suggested owner:** plan 30-11 (red-team surface A), which owns `hooks/guard.ts`. If it prints them,
+the exactly-one-banner count in `hooks/guard.test.ts` must stay intact — a refusal line is not a banner
+line and `isCheckpointBannerLine` must not learn to accept one.
+
+## V-30-10-02 — the derivation's two-sided assertions do not run in the shipped kit
+
+**Found during:** plan 30-10, red-team surface B round 1 (the "at WHICH POSITIONS is it asked" question,
+answered for the derivation).
+**Where:** `scripts/checkpoints.ts` — `assertRosterMatchesDerivation`, `assertSiteCounts`,
+`assertLiveCorpusCardinality` — and `scripts/validate-agent-factory.ts`, which does not call them.
+**What:** the three assertions that hold the derived checkpoint set against the exported roster are
+called from `scripts/checkpoints.test.ts` and from nowhere else. They run in this repository's CI,
+through vitest. They do **not** run in an installed kit: the shipped structure validator checks that
+each workflow HAS a `## Stop conditions` section and says nothing about the tags inside it. A user who
+edits a workflow's stop bullets — adding a tag, removing one, or writing a non-canonical one — gets no
+check at all, and D-02's refusal ("anything else containing the word `checkpoint` in those sections is
+refused") has no enforcement outside this repository.
+**Why it is not fixed here:** wiring the derivation into the shipped validator is not a defect repair,
+it is a semantics decision with a visible cost. `assertRosterMatchesDerivation` compares against the
+roster THIS repository ships, so a legitimately customised kit — a user who tags a stop of their own —
+would go red, and the validator would be refusing a customisation rather than a malformation. The
+narrower alternative (run the tag CANONICALITY refusal but not the roster comparison) is a different
+predicate from either of the two that exist, and inventing a third arm inside a red-team round is how a
+heuristic gets in.
+**Suggested owner:** a follow-up phase, or Phase 30 verification when it reconciles AUTO-01's reach.
+Whichever takes it should decide explicitly which of the three assertions a user's kit owes, because the
+answer is not the same for all three.

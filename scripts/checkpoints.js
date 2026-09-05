@@ -48,7 +48,7 @@ import { SAFETY_FLOORS } from "./audit-model.js";
 // Phase 29 lesson this module exists downstream of.
 import { locateSection } from "./check-diff-disposition.js";
 import { listWorkflows, WORKFLOWS_SUBPATH } from "./kit-model.js";
-import { fencedLineFlags, unfencedMatchIndices } from "./frontmatter.js";
+import { fencedLineFlags, unfencedHeadingIndices, unfencedMatchIndices, } from "./frontmatter.js";
 /**
  * The roster AND its defaults, in ONE table. Object.keys() over this is the roster count; nothing
  * else declares it.
@@ -464,6 +464,34 @@ export function deriveCheckpoints(root = DEFAULT_ROOT) {
     let sectionsFound = 0;
     for (const file of files) {
         const text = readFileSync(join(root, WORKFLOWS_SUBPATH, file), "utf8");
+        // ── THE CANONICAL FORM OF THE CORPUS ITSELF (plan 30-10, red-team surface B finding B-3) ──
+        //
+        // `locateSection` answers about the FIRST unfenced occurrence of the heading. Until this
+        // refusal existed, a workflow carrying a SECOND `## Stop conditions` section put every bullet
+        // in it outside the located range on BOTH arms: pass A never walked it, and pass B's
+        // `inSection` filter discarded it. A canonically tagged bullet written there was neither
+        // collected nor refused nor counted — a declared human stop with no roster member, no config
+        // cell and no enforcement, which is the exact fault the two-sided comparison exists to name.
+        // Measured pre-fix against the committed artifact: ids, sites, examined and counted bullets all
+        // unchanged over a planted second section, with all three live assertions green.
+        //
+        // THE REPAIR IS THE ALLOW-LIST, NOT A WIDER WALK (D-64). A workflow declares its stops in ONE
+        // section; a repeated heading is ambiguity and is refused BY NAME rather than resolved by
+        // silently taking the first. Collecting from every occurrence is the other available repair and
+        // it is the wrong one: it would make the corpus depend on how many times an editor repeated a
+        // heading, and it would leave `sectionsFound === filesWalked` asserting nothing.
+        //
+        // The occurrence count is asked of the ONE heading authority (`unfencedHeadingIndices`), which
+        // is fence-aware, so a workflow QUOTING the heading inside a fenced example still carries one
+        // section. A private occurrence scan here would be the second grammar this module refuses.
+        const occurrences = unfencedHeadingIndices(text, WORKFLOW_STOP_HEADING);
+        if (occurrences.length > 1) {
+            throw new CheckpointDerivationError(`checkpoints: ${file} carries ${occurrences.length} \`${WORKFLOW_STOP_HEADING}\` ` +
+                `sections (lines ${occurrences.map((i) => i + 1).join(", ")}). The tag corpus is ONE ` +
+                `stop section per workflow: only the first is located, so a bullet in any later one is ` +
+                `neither collected nor refused nor counted, and a tag written there would declare a stop ` +
+                `nothing governs. Merge the sections rather than repeating the heading`);
+        }
         const range = locateSection(text, WORKFLOW_STOP_HEADING);
         if (range === null) {
             throw new CheckpointDerivationError(`checkpoints: ${file} carries no \`${WORKFLOW_STOP_HEADING}\` section. The tag corpus is ` +

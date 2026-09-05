@@ -50,7 +50,7 @@
 // try/catch so a missing or garbled file becomes a finding, never an unhandled throw
 // (T-06-01/T-06-03, mirrors hooks/guard.ts + install.ts fail-closed posture).
 import { readFileSync, existsSync, readdirSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { join, resolve, sep } from "node:path";
 // Phase 27 (KIT-02): the role and workflow name sets are DERIVED here, never hand-listed.
 // kit-model.ts is the single authority for "which roles and workflows exist" (KIT-01). It reads NO
 // environment variable — the kit root is an explicit parameter (D-22) — so this file keeps exactly
@@ -61,6 +61,13 @@ import { listRoles, listWorkflows } from "./kit-model.js";
 // would be the set-literal drift this milestone exists to close — it would keep passing while the
 // roster grew past it, and the ids it had never heard of would be refused as unknown.
 import { CHECKPOINTS, DISPOSITIONS } from "./checkpoints.js";
+// (Plan 30-10, finding B-1) WHICH FILES ARE GOVERNANCE CONFIGURATION IS THE READER'S ANSWER, ASKED.
+// scripts/context-io.ts owns the candidate list and its precedence order; this file imports it so
+// the form check below is applied at exactly the positions the reader would consult and at no
+// invented third one. Spelling the two paths here instead would be a second answer to one question,
+// free to drift the day a location is added — which is precisely how the form check came to be
+// asked only at the file the reader consults second.
+import { governanceConfigCandidates } from "./context-io.js";
 // ── Two-root resolution (VAL-02 / D-08 — kit root + state root, resolved separately) ─────────
 // STATE_ROOT keeps the install.ts back-compat shape: VALIDATE_ROOT, else the repo root.
 // KIT_ROOT comes ONLY from VALIDATE_KIT_ROOT and has NO default — the deliberate C3 override
@@ -297,11 +304,84 @@ function checkWorkflowSections() {
     }
 }
 // ── Check 4: config parses + has mode/cadence (autonomy RETIRED — its presence is refused) ────
+//
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// (Plan 30-10, red-team surface B round 1 — FINDING B-1) THE FORM CHECK IS ONE AUTHORITY, ASKED AT
+// EVERY POSITION A GOVERNANCE CONFIGURATION CAN GOVERN FROM.
+//
+// This check used to be a single function bound to ONE path: `agent-factory/config/factory.config.json`
+// under the kit root. `readGovernanceConfig` (scripts/context-io.ts) resolves a governance
+// configuration from TWO locations and prefers the repo-dropped `.grugops/factory.config.json`, so
+// every finding below — the required-key loop, the retired-`autonomy` refusal, the `checkpoints`
+// form check, the TINT-03 carve-out, the WR-01 deploy boolean and the dial enums — was being asked
+// at the file the reader consults SECOND and never at the file that decides runtime behaviour.
+//
+// MEASURED, against the committed artifact, before this change: nine of nine payloads this
+// validator refuses in the kit config produced `ALL CHECKS PASSED` and exit 0 when written to
+// `.grugops/factory.config.json` — including `checkpoints.test_integrity: "off"`, the one value the
+// TINT-03 carve-out states has no legal form, which the reader then reports as the effective
+// disposition. The predicate accepted the right characters and was never consulted at the position
+// that mattered; the repair is positional, and the pattern itself is unchanged.
+//
+// TWO PROPERTIES HOLD THE REPAIR IN PLACE, AND BOTH ARE ASSERTED IN scripts/validate.test.ts:
+//   1. ONE authority. The whole per-file predicate lives in `checkConfigForm` and is called from
+//      every position; there is no second, laxer copy for the second file.
+//   2. The POSITIONS come from the reader. `governanceConfigCandidates` is imported, never
+//      re-spelled here, so "which files are governance configuration" has one answer and a third
+//      location added later reaches this gate without an edit.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
 function checkConfig() {
-    const rel = "agent-factory/config/factory.config.json";
-    const raw = kitRead(rel);
-    if (raw === null)
-        return; // missing-file already reported
+    const kitRel = "agent-factory/config/factory.config.json";
+    const kitRaw = kitRead(kitRel);
+    // A missing kit config is already reported by the required-file check; absence is never a form
+    // finding here, exactly as before.
+    if (kitRaw !== null)
+        checkConfigForm(kitRel, kitRaw);
+    // The OTHER positions the governance reader would consult, under the STATE root — which is the
+    // root the reader itself resolves against (`join(import.meta.dirname, "..")` in context-io.ts is
+    // the same expression STATE_ROOT falls back to). An ABSENT file is the documented lean default
+    // and never a finding (SC4 / AUTO-07); only a file that EXISTS is form-checked.
+    const kitAbs = resolve(join(KIT_ROOT, kitRel));
+    for (const abs of governanceConfigCandidates(STATE_ROOT)) {
+        // The two roots coincide in this repository and in every single-tree fixture, so the second
+        // candidate resolves to the file the kit arm just checked. Checking it twice would double every
+        // finding — a positional repair turning into a reporting defect — so the identity is compared
+        // on the RESOLVED path rather than on the spelling.
+        if (resolve(abs) === kitAbs)
+            continue;
+        if (!existsSync(abs))
+            continue;
+        let raw;
+        try {
+            raw = readFileSync(abs, "utf8");
+        }
+        catch {
+            raw = null;
+        }
+        const label = relativeToState(abs);
+        if (raw === null) {
+            // It exists and could not be read. The reader calls that `unreadable` and fails closed on it;
+            // this gate says so rather than passing over a file it could not examine.
+            err(`${label}: exists but could not be read`);
+            continue;
+        }
+        checkConfigForm(label, raw);
+    }
+}
+/** A path under STATE_ROOT, rendered repo-relative with POSIX separators for the finding line. */
+function relativeToState(abs) {
+    const base = STATE_ROOT.endsWith(sep) ? STATE_ROOT : STATE_ROOT + sep;
+    const rel = abs.startsWith(base) ? abs.slice(base.length) : abs;
+    return rel.split(sep).join("/");
+}
+/**
+ * The per-file governance-config form check. ONE predicate, called once per position.
+ *
+ * `rel` is the label every finding is reported under, so a reader is told WHICH configuration is
+ * malformed — the two positions produce identical findings against identical bytes, differing only
+ * in the path they name.
+ */
+function checkConfigForm(rel, raw) {
     let cfg;
     try {
         cfg = JSON.parse(raw);

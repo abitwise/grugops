@@ -2448,10 +2448,22 @@ describe("check-diff-disposition — every section-extent locator is DERIVED, no
       readFileSync(join(REPO, AUTHORITY_REL), "utf8"),
     );
     expect(authority.length).toBeGreaterThan(0);
+    // (Plan 30-10) THE SITE IS NAMED BY ITS FAMILY, NOT BY ONE FUNCTION NAME. This pin read
+    // `startsWith("unfencedHeadingIndex")` until red-team surface B round 1 split the authority into
+    // a first-match adapter and an all-positions implementation (`unfencedHeadingIndices`), whose
+    // name is NOT a prefix-extension of the old one — so the pin went red on a change that moved
+    // nothing about the property it guards. The property was never "one particular function
+    // declares it"; it is "the heading authority still declares it, in ONE place". Both halves are
+    // now asserted, and the second is strictly stronger than what was here: a second copy of the
+    // equality inside the authority — the drift a same-module split invites — is red.
     expect(
-      authority.some((s) => s.startsWith("unfencedHeadingIndex")),
+      authority.some((s) => s.startsWith("unfencedHeading")),
       "scripts/frontmatter.ts must still declare the heading equality — it is the one place this predicate is allowed to live",
     ).toBe(true);
+    expect(
+      authority.filter((s) => /\btrimEnd\(\)\s*===\s*heading\b/.test(s)),
+      "…and it declares it EXACTLY once — an adapter must delegate, never re-spell the comparison",
+    ).toHaveLength(1);
   });
 });
 

@@ -597,3 +597,151 @@ describe("the retired key is gone from every shipped and fixture config surface 
     expect(twin).not.toMatch(/^\|\s*`autonomy`\s*\|/m);
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// PLAN 30-10 (RED-TEAM SURFACE B, ROUND 1) — FINDING B-1: THE FORM CHECK IS ASKED AT THE WRONG FILE.
+//
+// `readGovernanceConfig` (scripts/context-io.ts) resolves the governance configuration from TWO
+// locations, IN ORDER: the repo-dropped `.grugops/factory.config.json` FIRST, then the in-kit
+// `agent-factory/config/factory.config.json`. `checkConfig` read only the second one. So every
+// finding this validator can produce about a governance configuration — the required-key loop, the
+// retired-`autonomy` refusal, the `checkpoints` form check, the TINT-03 carve-out, the WR-01
+// boolean and the dial enums — was asked at the file the reader consults SECOND and never at the
+// file that actually governs. Measured pre-fix: 9 of 9 must-refuse payloads written to
+// `.grugops/factory.config.json` produced `ALL CHECKS PASSED`, exit 0, while the SAME bytes in the
+// kit config exit 1.
+//
+// This is P27 round 10's shape — a predicate that accepts the right characters and is never
+// consulted at the position that matters — and it is invisible in this repository because this
+// repository carries no `.grugops/factory.config.json`, so the shadowed file has never existed here.
+//
+// THE FIX IS POSITIONAL, NOT A WIDER PATTERN: one form-check authority, asked at EVERY position the
+// governance reader would consult, with the candidate list exported from the reader so the two
+// cannot come to disagree about which file governs.
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+
+const cio: typeof import("./context-io.js") = await import(
+  pathToFileURL(join(ROOT, "scripts", "context-io.js")).href
+);
+
+/** A good-kit copy carrying a raw repo-dropped `.grugops/factory.config.json`. */
+function kitWithDroppedConfig(body: string): string {
+  const kit = copyGoodKit(true);
+  mkdirSync(join(kit, ".grugops"), { recursive: true });
+  writeFileSync(join(kit, ".grugops", "factory.config.json"), body);
+  return kit;
+}
+
+describe("30-10 B-1 — the config form check is asked at EVERY position the reader would consult", () => {
+  // Every payload the validator refuses in the kit config. Written to the SHADOWING file instead.
+  // The list is the finding set of `checkConfig` itself, one payload per arm, so a single arm left
+  // unreachable at the governing position still reds here.
+  const mustRefuse: readonly (readonly [string, string, RegExp])[] = [
+    ["a missing required key", '{"cadence":"kanban"}', /"mode"/],
+    ["the retired autonomy scalar", '{"mode":"m","cadence":"c","autonomy":"pr"}', /autonomy/],
+    [
+      "an unknown checkpoint id",
+      '{"mode":"m","cadence":"c","checkpoints":{"not_a_real_checkpoint":"off"}}',
+      /not_a_real_checkpoint/,
+    ],
+    [
+      "a non-canonical disposition",
+      '{"mode":"m","cadence":"c","checkpoints":{"open_pr":"OFF"}}',
+      /open_pr/,
+    ],
+    [
+      "a checkpoints value a matrix cannot come out of",
+      '{"mode":"m","cadence":"c","checkpoints":"not-an-object"}',
+      /checkpoints/,
+    ],
+    [
+      "the TINT-03 carve-out",
+      '{"mode":"m","cadence":"c","checkpoints":{"test_integrity":"off"}}',
+      /test_integrity/,
+    ],
+    [
+      "the WR-01 deploy boolean",
+      '{"mode":"m","cadence":"c","production_requires_human_confirmation":false}',
+      /production_requires_human_confirmation/,
+    ],
+    ["an out-of-enum dial", '{"mode":"m","cadence":"c","security":{"asvs_level":"L4"}}', /asvs_level/],
+    ["bytes that are not JSON at all", "not json at all", /not valid JSON/],
+  ];
+
+  it.each(mustRefuse)(
+    "%s written to the SHADOWING .grugops config is refused",
+    (_label, body, finding) => {
+      const kit = kitWithDroppedConfig(body);
+      const r = runSplit(kit, kit);
+      expect(r.status, `exit status for ${body}`).not.toBe(0);
+      expect(out(r)).toMatch(finding);
+      // …and the finding names the file it is about, so a reader can act on it.
+      expect(out(r)).toContain(".grugops/factory.config.json");
+    },
+  );
+
+  it("the SAME payload is still refused in the kit config — the kit arm is not traded away", () => {
+    const kit = kitWithConfig((c) => {
+      (c as Record<string, unknown>).checkpoints = { test_integrity: "off" };
+    });
+    const r = runSplit(kit, kit);
+    expect(r.status).not.toBe(0);
+    expect(out(r)).toContain("agent-factory/config/factory.config.json");
+  });
+
+  it("an ABSENT .grugops config changes nothing — the lean default is untouched (AUTO-07)", () => {
+    const kit = copyGoodKit(true);
+    expect(existsSync(join(kit, ".grugops", "factory.config.json"))).toBe(false);
+    expect(runSplit(kit, kit).status).toBe(0);
+  });
+
+  it("a VALID .grugops config passes, so the new arm is not a blanket refusal", () => {
+    const kit = kitWithDroppedConfig(
+      JSON.stringify({ mode: "lean", cadence: "kanban", checkpoints: wholeMatrix("notify") }),
+    );
+    const r = runSplit(kit, kit);
+    expect(out(r)).toContain("ALL CHECKS PASSED");
+    expect(r.status).toBe(0);
+  });
+
+  it("the checked positions EQUAL the reader's candidate list — derived on both sides", () => {
+    // The anti-drift half. The reader owns "which files are governance configuration"; the
+    // validator must ask its form check at exactly those positions and at no invented third one.
+    // Both sides are DERIVED here: the left from the reader's exported candidate function, the
+    // right from the paths the validator actually names when every one of them is poisoned.
+    const kit = kitWithDroppedConfig('{"mode":"m","cadence":"c","autonomy":"pr"}');
+    const p = join(kit, "agent-factory/config/factory.config.json");
+    const c = JSON.parse(readFileSync(p, "utf8")) as Record<string, unknown>;
+    c.autonomy = "pr";
+    writeFileSync(p, JSON.stringify(c, null, 2));
+
+    const r = runSplit(kit, kit);
+    const named = new Set(
+      out(r)
+        .split("\n")
+        .flatMap((l) => {
+          const m = l.match(/ERROR\s+(\S+?):/);
+          return m ? [m[1]] : [];
+        })
+        .filter((f) => f.endsWith("factory.config.json")),
+    );
+    const expected = new Set(
+      cio.governanceConfigCandidates(kit).map((abs) => abs.slice(kit.length + 1).split("\\").join("/")),
+    );
+    expect(expected.size).toBeGreaterThan(1);
+    expect([...named].sort()).toEqual([...expected].sort());
+  });
+
+  it("one file checked once — a state candidate that IS the kit config produces ONE finding", () => {
+    // In this repository the two roots coincide and the second candidate resolves to the file the
+    // kit arm already checked. A form check applied twice to one file would double every finding,
+    // which is how a positional fix turns into a reporting defect.
+    const kit = kitWithConfig((c) => {
+      (c as Record<string, unknown>).autonomy = "pr";
+    });
+    const lines = out(runSplit(kit, kit))
+      .split("\n")
+      .filter((l) => l.includes("the retired \"autonomy\" key is present"));
+    expect(lines).toHaveLength(1);
+  });
+});

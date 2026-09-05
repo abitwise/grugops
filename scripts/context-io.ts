@@ -1692,12 +1692,41 @@ function readCheckpointMatrix(parsed: unknown): CheckpointMatrixRead {
   return { matrix: defaults, refusals };
 }
 
-export function readGovernanceConfig(repoRoot?: string): GovernanceConfigResult {
-  const base = repoRoot ?? ROOT;
-  const candidates = [
+/**
+ * The standard governance-config locations under `base`, IN PRECEDENCE ORDER: the repo-dropped
+ * `.grugops/factory.config.json` first, then the in-kit `agent-factory/config/factory.config.json`.
+ *
+ * ---------------------------------------------------------------------------------------------
+ * WHY THE ORDER IS PUBLISHED AND NOT MERELY OBEYED (plan 30-10, red-team surface B finding B-1).
+ *
+ * The candidate order was already spelled exactly once — inside `readGovernanceConfig` — and a test
+ * asserted the count, so no second reader could appear. What no assertion covered was a consumer
+ * that needed to know WHICH FILES ARE GOVERNANCE CONFIGURATION without reading one:
+ * `scripts/validate-agent-factory.ts` form-checks a governance configuration, and it named only the
+ * in-kit path. That is the file this reader consults SECOND. Measured on the committed artifact:
+ * nine of nine payloads the validator refuses in the kit config — a missing required key, the
+ * retired `autonomy` scalar, an unknown checkpoint id, a non-canonical disposition, a `checkpoints`
+ * value a matrix cannot come out of, the TINT-03 carve-out, the WR-01 deploy boolean, an
+ * out-of-enum dial, and bytes that are not JSON — produced `ALL CHECKS PASSED` when written to
+ * `.grugops/factory.config.json`, the file that actually governs every read.
+ *
+ * The predicate was correct and was asked at the wrong position. The repair is positional, and it
+ * needs this list to be ASKED FOR rather than copied: a validator spelling the two paths for itself
+ * would be a second answer to "which file is the governance configuration", free to drift from this
+ * one the day a third location is added — the authority-duplication D-12 deleted from this module.
+ * So the order lives here, once, and every consumer asks.
+ * ---------------------------------------------------------------------------------------------
+ */
+export function governanceConfigCandidates(base: string): readonly string[] {
+  return [
     join(base, ".grugops", "factory.config.json"),
     join(base, "agent-factory", "config", "factory.config.json"),
   ];
+}
+
+export function readGovernanceConfig(repoRoot?: string): GovernanceConfigResult {
+  const base = repoRoot ?? ROOT;
+  const candidates = governanceConfigCandidates(base);
 
   for (const path of candidates) {
     if (!existsSync(path)) continue;

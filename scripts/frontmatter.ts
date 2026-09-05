@@ -546,12 +546,50 @@ const HEADING_AT_MOST_2 = /^#{1,2} /;
  * ---------------------------------------------------------------------------------------------
  */
 export function unfencedHeadingIndex(text: string, heading: string): number {
+  // ONE LINE, DELIBERATELY (plan 30-10, red-team surface B round 1). The equality that decides
+  // "is this line that heading" is spelled ONCE, in `unfencedHeadingIndices` below, and this
+  // function is its FIRST-MATCH adapter. Two loops carrying the same `trimEnd()` comparison in one
+  // module would be two answers to one question — the shape this file exists to have deleted — and
+  // they would be free to drift the moment either learned about whitespace, case or fences.
+  return unfencedHeadingIndices(text, heading)[0] ?? -1;
+}
+
+/**
+ * EVERY 0-based index at which `heading` occurs as an unfenced line, in ASCENDING order. `[]` when
+ * it occurs nowhere.
+ *
+ * ---------------------------------------------------------------------------------------------
+ * WHY THE AUTHORITY HAD TO LEARN TO ANSWER AT ALL POSITIONS (plan 30-10, finding B-3).
+ *
+ * `unfencedHeadingIndex` answers about the FIRST occurrence, and every consumer that located a
+ * section through it therefore inherited a premise none of them stated: that the heading occurs at
+ * most once. `scripts/checkpoints.ts` derives the checkpoint roster from each workflow's
+ * `## Stop conditions` section and asserts `sectionsFound === filesWalked` — one located section
+ * per file, which can only ever hold, because the walk locates one. Measured on the live tree: a
+ * SECOND `## Stop conditions` section carrying a canonically tagged bullet was neither collected,
+ * nor refused, nor counted by the independent bullet denominator, and every gate stayed green. A
+ * declared human stop that never becomes a roster member is exactly the fault the two-sided roster
+ * comparison exists to name.
+ *
+ * A consumer cannot ask "does this occur more than once" without either this function or a second
+ * copy of the equality above. The second copy is the answer this tree refuses, so the authority
+ * answers the question instead. It declares no new heading grammar: the same `trimEnd()` equality,
+ * the same fence toggle, one implementation, two questions.
+ *
+ * THIS IS NOT A SECTION-EXTENT CONSTRUCT. It returns heading POSITIONS and no bound; a caller that
+ * wants a section's extent still asks `sectionEndIndex`, and no caller may derive an extent from
+ * "the next element of this array" — that is precisely the fence-blind private terminator the
+ * comment on `unfencedMatchIndices` records as the sixth member of the deleted class.
+ * ---------------------------------------------------------------------------------------------
+ */
+export function unfencedHeadingIndices(text: string, heading: string): number[] {
   const lines = text.split("\n");
   const flags = fencedLineFlags(text);
+  const at: number[] = [];
   for (let i = 0; i < lines.length; i++) {
-    if (!flags[i] && lines[i].trimEnd() === heading) return i;
+    if (!flags[i] && lines[i].trimEnd() === heading) at.push(i);
   }
-  return -1;
+  return at;
 }
 
 /**

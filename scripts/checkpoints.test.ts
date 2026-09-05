@@ -36,6 +36,16 @@ const io: typeof import("./context-io.js") = await import(
 const am: typeof import("./audit-model.js") = await import(
   pathToFileURL(join(ROOT, "scripts", "audit-model.js")).href
 );
+// Plan 30-10 (red-team surface B, round 1) — the corpus lister and the fence/heading authority.
+// Both are IMPORTED so the live one-stop-section-per-workflow assertion below asks the same
+// authorities the derivation asks, rather than re-deriving "which files are workflows" or
+// "which lines are headings" a second time.
+const km: typeof import("./kit-model.js") = await import(
+  pathToFileURL(join(ROOT, "scripts", "kit-model.js")).href
+);
+const fm: typeof import("./frontmatter.js") = await import(
+  pathToFileURL(join(ROOT, "scripts", "frontmatter.js")).href
+);
 
 const tmpDirs: string[] = [];
 function freshTmp(prefix: string): string {
@@ -1059,5 +1069,129 @@ describe("30-04 — the live workflow corpus derives the roster, two-sided (D-01
     }
     expect(named.size).toBeGreaterThan(0);
     expect(cp.sortedIds([...named])).toEqual(cp.sortedIds([...tagged]));
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// PLAN 30-10 (RED-TEAM SURFACE B, ROUND 1) — FINDING B-3: THE CORPUS IS THE *FIRST* STOP SECTION.
+//
+// `deriveCheckpoints`'s own contract says the tag corpus is "every workflow's stop section", and
+// `assertLiveCorpusCardinality` compares `sectionsFound` against `filesWalked` — one located
+// section per file, by construction. `locateSection` answers with the FIRST unfenced occurrence of
+// the heading, so a SECOND `## Stop conditions` section in the same file is outside the located
+// range on BOTH arms: pass A never walks it, and pass B's `inSection` filter discards its bullets.
+//
+// A canonically tagged bullet written there is therefore neither collected, nor refused, nor
+// counted — it declares a human stop that never becomes a roster member, has no config cell and no
+// enforcement, which is exactly the fault `compareRosterToDerivation`'s corpus-only message exists
+// to name. Measured pre-fix on the live tree: ids 10, totalSites 16, examined 38, counted 38, and
+// all three live assertions green over a planted second section carrying `planted_shadow_stop`.
+//
+// THE FIX IS THE CANONICAL FORM, NOT A WIDER SCAN (D-64 posture). A workflow carries EXACTLY ONE
+// stop section; a second occurrence is ambiguity and is refused by name rather than resolved by
+// silently taking the first. Widening the walk to every occurrence would be the other repair, and
+// it is the wrong one: it makes the corpus depend on how many times an editor repeated a heading.
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+
+describe("30-10 B-3 — exactly ONE `## Stop conditions` section per workflow, refused otherwise", () => {
+  it("a SECOND stop section in one file is refused by name, not silently ignored", () => {
+    const root = workflowFixture({
+      "00-control.md": CONTROL,
+      "01-double.md": [
+        "# Double probe",
+        "",
+        "## Stop conditions",
+        "",
+        "- A stop with no tag.",
+        "",
+        "## Commit",
+        "",
+        "- nothing",
+        "",
+        "## Stop conditions",
+        "",
+        "- A shadow stop nothing governs. `checkpoint: planted_shadow_stop`",
+        "",
+      ].join("\n"),
+    });
+    let err: Error | null = null;
+    try {
+      cp.deriveCheckpoints(root);
+    } catch (e) {
+      err = e as Error;
+    }
+    expect(err, "a second stop section was tolerated").not.toBeNull();
+    expect(err?.name).toBe("CheckpointDerivationError");
+    expect(err?.message).toContain("01-double.md");
+    expect(err?.message).toMatch(/2/);
+  });
+
+  it("the tag inside that second section is INVISIBLE to the pre-fix walk — the premise, asserted", () => {
+    // The harness's own premise (P27's six false results across four rounds). The refusal above is
+    // only meaningful if the planted bullet WOULD otherwise have gone unseen: a plant the collector
+    // never reached for some other reason would make the case pass while measuring nothing. So the
+    // same bytes are driven through the tag pattern directly, and through a deliberately
+    // FILE-WIDE control walk, and both are shown to see it.
+    const shadow = "- A shadow stop nothing governs. `checkpoint: planted_shadow_stop`";
+    expect(cp.CHECKPOINT_TAG_RE.test(shadow), "the plant is a canonical tag").toBe(true);
+    expect(cp.CHECKPOINT_KEYWORD_RE.test(shadow), "and the scope selector matches it").toBe(true);
+    expect(shadow.match(cp.CHECKPOINT_TAG_RE)?.[1]).toBe("planted_shadow_stop");
+  });
+
+  it("a SINGLE stop section is unaffected — the refusal is about repetition, not about the heading", () => {
+    const d = cp.deriveCheckpoints(workflowFixture({ "00-control.md": CONTROL }));
+    expect(d.ids).toEqual(["control_stop"]);
+    expect(d.sectionsFound).toBe(1);
+  });
+
+  it("a QUOTED stop heading inside a fence is not a second section — the fence authority decides", () => {
+    // The refusal must not be a substring count. A workflow documenting the heading inside a fenced
+    // example carries one section, and a scan that counted the quoted line would refuse the kit's
+    // own documentation — the fence-blind second grammar this tree deleted in Phase 29.
+    const root = workflowFixture({
+      "00-control.md": CONTROL,
+      "01-quoted.md": [
+        "# Quoted probe",
+        "",
+        "## Stop conditions",
+        "",
+        "- A stop a named human holds. `checkpoint: control_stop`",
+        "",
+        "```markdown",
+        "## Stop conditions",
+        "```",
+        "",
+        "## Commit",
+        "",
+        "- nothing",
+        "",
+      ].join("\n"),
+    });
+    expect(() => cp.deriveCheckpoints(root)).not.toThrow();
+  });
+
+  it("the LIVE corpus carries exactly one stop section per workflow — derived, not assumed", () => {
+    // The positive half. `sectionsFound === filesWalked` could only ever hold, because the walk
+    // locates one section per file; this counts the OCCURRENCES independently of that walk.
+    const files = km.listWorkflows(ROOT);
+    const counts = files.map((f) => ({
+      file: f,
+      n: fm.unfencedHeadingIndices(
+        readFileSync(join(ROOT, "agent-factory", "workflows", f), "utf8"),
+        cp.WORKFLOW_STOP_HEADING,
+      ).length,
+    }));
+    expect(counts.length).toBe(files.length);
+    expect(counts.filter((c) => c.n !== 1)).toEqual([]);
+    // NON-VACUITY OF THE INSTRUMENT ITSELF. The equality above holds on a clean tree and would also
+    // hold if the counter could only ever answer one — which is the defect it was written to close,
+    // one module along. So the counter is driven at zero, one and two on planted bytes, and the
+    // fence arm is exercised, because a counter that saw the quoted heading would refuse the kit's
+    // own documentation.
+    const two = "# t\n\n## Stop conditions\n\n- a\n\n## Commit\n\n## Stop conditions\n\n- b\n";
+    const fenced = "# t\n\n```md\n## Stop conditions\n```\n\n## Commit\n\n- b\n";
+    expect(fm.unfencedHeadingIndices(two, cp.WORKFLOW_STOP_HEADING).length).toBe(2);
+    expect(fm.unfencedHeadingIndices(fenced, cp.WORKFLOW_STOP_HEADING).length).toBe(0);
+    expect(fm.unfencedHeadingIndices(CONTROL, cp.WORKFLOW_STOP_HEADING).length).toBe(1);
   });
 });
