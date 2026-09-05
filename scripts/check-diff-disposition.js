@@ -162,7 +162,10 @@ import { fencedLineFlags, sectionEndIndex, unfencedHeadingIndex,
 // the fix: this module owns the FREEZE, so the question "is this anchor's heading unambiguous in
 // this document" is asked here — of the same authority — rather than being answered for one of
 // the three anchors in a module that owns a different corpus.
-unfencedHeadingIndices, unfencedHeadingNearMisses, } from "./frontmatter.js";
+unfencedHeadingIndices, unfencedHeadingNearMisses, 
+// (Plan 30-10, round 4, R5-1) The canonical-line-ending predicate, asked once at the gates that
+// own their corpora rather than by giving five consumers a second line grammar.
+carriageReturnLines, } from "./frontmatter.js";
 // CHECK_ROOT override is load-bearing: the Vitest harness builds a hermetic mirror — here a real git
 // repository under the OS temp dir — and points CHECK_ROOT at it, then spawns this committed .js
 // against the mirror. When unset, resolve against the script-relative repo root (cwd does not
@@ -591,6 +594,26 @@ export function deriveFrozenSet(root = ROOT) {
                 continue;
             }
             const body = readFileSync(path, "utf8");
+            // ── LF IS THE CANONICAL LINE ENDING OF THE GOVERNED CORPUS (round 4, finding R5-1) ────────
+            //
+            // A lone `\r` is a CommonMark §2.1 line ending and this module's authority splits on `\n`
+            // alone, so `## Hard limits\r#` is ONE line to every predicate: not an occurrence, not a
+            // near-miss (its rendered text is `Hard limits #`), and a terminator. Measured on the
+            // committed artifact: it took this file's frozen region from seven body lines to one, dropped
+            // two declared clauses out of the freeze, and left the cardinality at 17/17 and the gate at
+            // exit 0. A lone CR survives `.gitattributes`' `eol=lf` normalisation, so it is committable.
+            //
+            // Refused BY NAME here rather than by teaching five consumers a second line grammar — a
+            // `documentLines()` splitter would silently re-index every `file:line` four gates report.
+            const crs = carriageReturnLines(body);
+            if (crs.length > 0) {
+                refusals.push(`${rel}: carries a carriage return on ${crs.length} line(s) (lines ` +
+                    `${crs.map((i) => i + 1).join(", ")}). LF is the canonical line ending of the governed ` +
+                    `corpus: a lone CR is a line ending to a renderer and not to this gate, so a heading ` +
+                    `written after one is invisible here while closing the section a reader sees. ` +
+                    `\`.gitattributes\` already normalises CRLF; remove the stray CR`);
+                continue;
+            }
             // ── THE HEADING MUST BE UNAMBIGUOUS BEFORE THE REGION IS BELIEVED ─────────────────────────
             //
             // (Plan 30-10, round 3, finding R3-3.) `locateSection` answers about the FIRST unfenced

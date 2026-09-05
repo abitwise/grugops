@@ -88,7 +88,7 @@ import {
 import { normalizeSentence, segmentClauses } from "./voice-model.js";
 // The ONE fence toggle. Imported here for the SAME reason the gate must import it: a second
 // recogniser in the file that polices the first is how one authority becomes two.
-import { fencedLineFlags } from "./frontmatter.js";
+import { blockContextFlags, fencedLineFlags } from "./frontmatter.js";
 
 const REPO = join(import.meta.dirname, "..");
 
@@ -2959,5 +2959,150 @@ describe("30-10 R3-3 — every FROZEN anchor refuses a repeated or renderer-iden
     for (const [heading] of ANCHORS) {
       expect(body.includes(`"${heading}"`), `${heading} is a literal inside deriveFrozenSet`).toBe(false);
     }
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// PLAN 30-10 ROUND 4 (THE LAST) — R5-1 and R5-2: a line that CLOSES a frozen region while the
+// renderer shows something else, or nothing at all.
+//
+// Round 3 asserted, and reviewer 5 re-measured as true over a 2,197-line alphabet product, that the
+// terminator language is a SUBSET of the heading classifier. That invariant is INSUFFICIENT, because
+// the refusal predicate is `classifier(line) === want`, not `!== null`. Any line that closes a
+// section while a renderer shows NO heading there truncates the region and is refused by nothing.
+//
+//   R5-1  `## Hard limits\r#` — a lone CR is a CommonMark §2.1 line ending. `text.split("\n")` sees
+//         ONE line; `trimEnd()` ≠ the anchor; `renderedText` yields "Hard limits #" so it is not a
+//         near-miss; and `/^#{1,2} /` matches, so it CLOSES. Measured: 446 → 444 frozen clauses,
+//         cardinality still 17/17, `check:diff-disposition` ALL CHECKS PASSED. A lone CR survives
+//         `.gitattributes` `eol=lf` normalisation — proven by the reviewer with `git cat-file`.
+//   R5-2  an HTML comment or HTML block — `<!--` / `## Anything at all` / `-->` — which no arm of
+//         the classifier models and which produces NO rendered output at all. Same 444, same 17/17,
+//         same exit 0, whole suite unchanged. Plus two fence-parity arms: §4.5's info-string and
+//         ≤3-space-indent rules, deliberately not adopted in round 3 on the recorded ground that
+//         their residual "over-scans, which is fail-closed" — measured false, because the desync
+//         flips PARITY and therefore under-scans too.
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+
+describe("30-10 R4 — a line that CLOSES a frozen region while rendering as nothing is refused", () => {
+  function rolePlant(insert: readonly string[]): string {
+    const root = mkdtempSync(join(tmpdir(), "r4frozen-"));
+    tmpDirs.push(root);
+    cpSync(join(REPO, "agent-factory"), join(root, "agent-factory"), { recursive: true });
+    const p = join(root, "agent-factory/roles/agents-md-scribe.md");
+    const lines = readFileSync(p, "utf8").split("\n");
+    const at = lines.findIndex((l) => l.trimEnd() === "## Hard limits");
+    expect(at).toBeGreaterThan(-1);
+    lines.splice(at + 2, 0, ...insert);
+    writeFileSync(p, lines.join("\n"));
+    return root;
+  }
+
+  const named = (root: string): string[] =>
+    deriveFrozenSet(root).refusals.filter((r) => r.includes("agents-md-scribe.md"));
+
+  it("R5-1 — a lone CARRIAGE RETURN inside a line is refused by name", () => {
+    expect(named(rolePlant(["## Hard limits\r#"])), "the CR plant was tolerated").not.toEqual([]);
+  });
+
+  it("R5-1 — every CR tail the reviewer measured is refused, not just the hash one", () => {
+    for (const tail of ["#", "-", ">", "|", ".", "<!---->"]) {
+      expect(named(rolePlant([`## Hard limits\r${tail}`])), `tail ${tail}`).not.toEqual([]);
+    }
+  });
+
+  it("R5-1 — a CRLF line ending is NOT refused: it is normalised on commit and renders as one line", () => {
+    // The bound. `.gitattributes` pins `*.md text eol=lf`, so CRLF cannot reach a committed file;
+    // refusing it would red every Windows working tree for a shape that cannot ship.
+    expect(named(rolePlant(["a paragraph line\r", "another\r"]))).toEqual([]);
+  });
+
+  it("R5-2 arm C — a heading-shaped line inside an HTML COMMENT truncates NOTHING", () => {
+    // The correct outcome here is INERTNESS, not a refusal. A renderer shows no heading, so the
+    // region must be unchanged — refusing an HTML comment in a kit document would be a false red on
+    // a legitimate construct. The strict block-context projection makes the plant inert; nothing
+    // needs to name it.
+    const root = rolePlant(["<!--", "## Anything at all", "-->"]);
+    const frozen = deriveFrozenSet(root);
+    const region = frozen.regions.find(
+      (r) => r.file.endsWith("agents-md-scribe.md") && r.heading === "## Hard limits",
+    );
+    expect(region, "the region vanished").toBeDefined();
+    expect(region!.to - region!.from, "the region was truncated by an HTML comment").toBeGreaterThan(3);
+  });
+
+  it("R5-2 arm C — a heading-shaped line inside an HTML BLOCK truncates nothing either", () => {
+    const root = rolePlant(["<div>", "## Anything at all", "</div>"]);
+    const region = deriveFrozenSet(root).regions.find(
+      (r) => r.file.endsWith("agents-md-scribe.md") && r.heading === "## Hard limits",
+    );
+    expect(region!.to - region!.from).toBeGreaterThan(3);
+  });
+
+  it("R5-2 arm A — the info-string PARITY flip no longer moves the terminator", () => {
+    // Round 3 declined §4.5's info-string rule for the PROSE question, on a measurement that stands.
+    // For the TERMINATOR question the same omission flipped fence PARITY: `` ```sh `` closed a
+    // `` ```markdown `` block, so a heading a renderer places INSIDE the code block became a
+    // terminator to this module and truncated the region. The strict projection keeps the block open,
+    // which is what the renderer does.
+    const root = rolePlant(["```markdown", "```sh", "## Anything at all", "```"]);
+    const region = deriveFrozenSet(root).regions.find(
+      (r) => r.file.endsWith("agents-md-scribe.md") && r.heading === "## Hard limits",
+    );
+    expect(region!.to - region!.from).toBeGreaterThan(3);
+  });
+
+  it("R5-2 arm B — an INDENTED opener closes correctly, so the heading after it is a real one", () => {
+    // The other arm, and the bound on the fix rather than a second instance of it. `   ``` ` opens a
+    // fence and the next unindented ``` ` closes it, so the heading below is OUTSIDE the block —
+    // which is exactly what a renderer shows, `<pre><code></code></pre>` then an `<h2>`. It
+    // therefore SHOULD truncate: it is an ordinary VISIBLE section boundary, the same class as a
+    // plain `# Anything`, and refusing it would be the widening this projection exists to avoid.
+    const root = rolePlant(["   ```", "```", "## Anything at all", "```"]);
+    const region = deriveFrozenSet(root).regions.find(
+      (r) => r.file.endsWith("agents-md-scribe.md") && r.heading === "## Hard limits",
+    );
+    expect(region!.to - region!.from).toBeLessThan(4);
+  });
+
+  it("the two block views agree on the GOVERNED corpus but for HTML, and no extent moves", () => {
+    // The projection is sharp, so the corpus delta is the only honest way to trust it. Measured over
+    // roles and workflows: the strict and lax views differ on exactly one line — a single-line HTML
+    // comment — and every located section extent is unchanged.
+    const files: [string, string][] = [];
+    for (const f of listRoles(REPO)) files.push([`agent-factory/roles/${f}`, "## Hard limits"]);
+    for (const f of listWorkflows(REPO)) files.push([`agent-factory/workflows/${f}`, "## Stop conditions"]);
+    for (const f of listWorkflows(REPO)) files.push([`agent-factory/workflows/${f}`, "## Commit"]);
+    let differing = 0;
+    for (const [rel] of files) {
+      const t = readFileSync(join(REPO, rel), "utf8");
+      const lax = fencedLineFlags(t);
+      const strict = blockContextFlags(t);
+      for (let i = 0; i < lax.length; i += 1) if (lax[i] !== strict[i]) differing += 1;
+    }
+    expect(differing, "the governed corpus delta grew").toBeLessThanOrEqual(3);
+    expect(files.length).toBeGreaterThan(50);
+  });
+
+  it("R5-2 — the frozen region is INTACT under those plants, which is what the refusal protects", () => {
+    // The refusal is the visible half; this is the half that matters. Without it the region shrank
+    // from 7 body lines to 1 and the cardinality still said 17/17.
+    for (const plant of [["## Hard limits\r#"], ["<!--", "## Anything at all", "-->"]]) {
+      const root = rolePlant(plant);
+      const frozen = deriveFrozenSet(root);
+      const region = frozen.regions.find(
+        (r) => r.file.endsWith("agents-md-scribe.md") && r.heading === "## Hard limits",
+      );
+      // Either the region is refused outright (no region recorded) or it still spans its real body.
+      if (region !== undefined) expect(region.to - region.from).toBeGreaterThan(3);
+    }
+  });
+
+  it("the LIVE kit carries no CR and no heading-shaped line inside an HTML block", () => {
+    // Non-vacuity in the other direction, and the measurement that makes the refusals real events
+    // rather than already-firing noise. Reviewer 5 measured zero CR files across 1,501 tracked
+    // markdown files; this pins it for the corpora the refusals actually run over.
+    const frozen = deriveFrozenSet(REPO);
+    expect(frozen.refusals.filter((r) => /carriage return|HTML/i.test(r))).toEqual([]);
   });
 });

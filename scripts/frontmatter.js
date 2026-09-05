@@ -493,6 +493,145 @@ export function fencedLineFlags(text) {
     }
     return flags;
 }
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// (Plan 30-10, round 4, finding R5-2) ONE MACHINE, TWO PROJECTIONS — the STRICT block context.
+//
+// `fencedLineFlags` answers "is this line governed PROSE". Round 3 measured its scan set carefully
+// and declined two §4.5 rules because adopting them changed which lines eight governed documents
+// scan — the info-string rule over-scans (fail-closed) and the ≤3-space indent narrows the scan
+// (fail-open). Both of those judgements were about the PROSE question and both stand.
+//
+// THE TERMINATOR ASKS A DIFFERENT QUESTION, AND ROUND 3 GAVE IT THE PROSE ANSWER. "Does this line
+// end a section" must agree with the RENDERER or a freeze is fiction. Reviewer 5 measured the
+// consequence: because the two un-adopted rules flip fence PARITY rather than only widening it, a
+// heading the renderer shows can be inside a fence to this module and a line the renderer shows as
+// code can close a section — so the recorded direction ("over-scanning, which is fail-closed") was
+// false in one half. And a third arm was modelled by nothing at all: an HTML comment or HTML block
+// carrying a `## …` line produces NO rendered output and closed a frozen region silently.
+//
+// SO THE ANSWER IS SPLIT AT ITS POINT OF EFFECT, AND THE MACHINE IS NOT FORKED. This is a second
+// PROJECTION of the same walk — the shape `stripFencedBlocks` already is — consumed ONLY by the
+// three section/heading questions. The prose scan set is byte-unchanged, so round 3's corpus
+// measurements are untouched, and `scripts/frontmatter.test.ts`'s derived fence-machine count stays
+// at three.
+//
+// WHAT THE HTML ARM MODELS, AND WHAT IT DOES NOT. CommonMark §4.6 defines seven HTML block types.
+// This models the two that are reachable here and decidable in one pass: a COMMENT (`<!--` … `-->`,
+// type 2) and a TAG BLOCK (a line whose first non-space character opens or closes an HTML tag,
+// running to the next blank line, type 6). The other five are not modelled, and the direction of
+// that gap is UNCHANGED behaviour rather than a new hole: an unmodelled block's lines stay outside
+// the strict flags exactly as they are today.
+//
+// THE TWO VIEWS ARE NOT NESTED, AND SAYING SO IS THE POINT. A parity flip is not a widening: where
+// a document is malformed markdown — `` ```markdown `` closed by `` ```sh `` — the two views run out
+// of phase and each calls lines fenced the other does not. Measured over all 1,501 tracked markdown
+// files: they differ somewhere in 460 of them. Over the GOVERNED roles-and-workflows corpus they
+// differ on exactly ONE line — a single-line HTML comment in `04-ticket-to-pr.md` — and no located
+// section extent and no frozen clause count moves. Those two numbers are asserted as permanent cases
+// rather than described here, because "the delta is zero on the corpus that matters" is the only
+// form in which a projection this sharp can be trusted.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+/** A line whose first non-space character begins an HTML tag or an HTML comment. */
+const HTML_BLOCK_OPEN = /^ {0,3}<[!/a-zA-Z]/;
+export function blockContextFlags(text) {
+    const lines = text.split("\n");
+    const flags = [];
+    let inside = false;
+    let openChar = "";
+    let openLen = 0;
+    let html = "none";
+    for (const line of lines) {
+        if (html !== "none") {
+            // A COMMENT block ends on the line carrying `-->`; a TAG block ends at the next blank line.
+            const ends = html === "comment" ? line.includes("-->") : /^[ \t]*$/.test(line);
+            flags.push(true);
+            if (ends)
+                html = "none";
+            continue;
+        }
+        const run = strictFenceRun(line);
+        if (!inside) {
+            if (run !== null) {
+                inside = !inside;
+                openChar = run.char;
+                openLen = run.len;
+                flags.push(true);
+                continue;
+            }
+            if (HTML_BLOCK_OPEN.test(line)) {
+                html = line.includes("<!--") ? "comment" : "tag";
+                // A comment that opens and closes on one line, or a tag block on a line that is itself
+                // blank-terminated, does not carry the block past itself.
+                if (html === "comment" && line.includes("-->"))
+                    html = "none";
+                flags.push(true);
+                continue;
+            }
+        }
+        else if (run !== null &&
+            run.char === openChar &&
+            run.len >= openLen &&
+            /^[ \t]*$/.test(run.info)) {
+            // §4.5's closing rule IN FULL here: same character, at least as long, and NO info string.
+            inside = !inside;
+            flags.push(true);
+            continue;
+        }
+        flags.push(inside);
+    }
+    return flags;
+}
+/** §4.5's delimiter, in full: up to three leading spaces, three or more of one fence character. */
+function strictFenceRun(line) {
+    const at = line.search(/[^ ]/);
+    if (at < 0 || at > 3)
+        return null;
+    const rest = line.slice(at);
+    const char = rest[0];
+    if (char !== "`" && char !== "~")
+        return null;
+    let len = 0;
+    while (len < rest.length && rest[len] === char)
+        len += 1;
+    if (len < 3)
+        return null;
+    const info = rest.slice(len);
+    if (char === "`" && info.includes("`"))
+        return null; // a backtick fence's info string may not carry one
+    return { char, len, info };
+}
+/**
+ * The lines carrying a CARRIAGE RETURN — the canonical-line-ending refusal (round 4, R5-1).
+ *
+ * ---------------------------------------------------------------------------------------------
+ * CommonMark §2.1 makes a lone `\r` a line ending. This module splits on `\n` alone, so
+ * `## Hard limits\r#` is ONE line to every predicate here: not an occurrence (`trimEnd()` differs),
+ * not a near-miss (its rendered text is `Hard limits #`), and a terminator (`/^#{1,2} /` matches).
+ * Measured on the committed artifact: it took a frozen region from seven body lines to one, dropped
+ * two declared clauses out of the freeze, and left the cardinality at `17/17` and the gate at exit 0.
+ * A lone CR survives `.gitattributes`' `eol=lf` normalisation, so it is committable.
+ *
+ * THE REPAIR IS D-64's POSTURE, NOT A SECOND LINE GRAMMAR. Teaching five consumers to split on
+ * `/\r\n|\r|\n/` would silently re-index every `file:line` four gates report — a behaviour change to
+ * all of them at once, which is exactly what round 3 declined to do to `sectionEndIndex`. Instead LF
+ * is DECLARED the canonical line ending of the governed corpus and a `\r` is refused BY NAME at the
+ * gates that own their corpora, asked once, here.
+ *
+ * CRLF IS DELIBERATELY NOT REFUSED. `.gitattributes` pins `*.md text eol=lf`, so a CRLF file cannot
+ * reach a commit; refusing it would red every Windows working tree for a shape that cannot ship.
+ * A LONE CR is what survives normalisation, and it is what this reports.
+ * ---------------------------------------------------------------------------------------------
+ */
+export function carriageReturnLines(text) {
+    const lines = text.split("\n");
+    const at = [];
+    for (let i = 0; i < lines.length; i++) {
+        // A trailing CR is CRLF, which git normalises away; a CR anywhere else is a lone one.
+        if (lines[i].replace(/\r$/, "").includes("\r"))
+            at.push(i);
+    }
+    return at;
+}
 export function stripFencedBlocks(text) {
     const lines = text.split("\n");
     const flags = fencedLineFlags(text);
@@ -636,7 +775,8 @@ export function unfencedHeadingIndex(text, heading) {
  */
 export function unfencedHeadingIndices(text, heading) {
     const lines = text.split("\n");
-    const flags = fencedLineFlags(text);
+    // THE STRICT PROJECTION, not the prose one (round 4, R5-2). See `blockContextFlags`.
+    const flags = blockContextFlags(text);
     const at = [];
     for (let i = 0; i < lines.length; i++) {
         if (!flags[i] && lines[i].trimEnd() === heading)
@@ -700,7 +840,7 @@ export function unfencedHeadingNearMisses(text, heading) {
     // adapter above exists to have exactly one of.
     const exact = new Set(unfencedHeadingIndices(text, heading));
     const lines = text.split("\n");
-    const flags = fencedLineFlags(text);
+    const flags = blockContextFlags(text); // the strict projection (round 4, R5-2)
     const at = [];
     for (let i = 0; i < lines.length; i++) {
         if (flags[i] || exact.has(i))
@@ -826,7 +966,10 @@ const ZERO_WIDTH = /[­​‌‍⁠﻿]/g;
  */
 export function sectionEndIndex(text, from, level) {
     const lines = text.split("\n");
-    const flags = fencedLineFlags(text);
+    // THE STRICT PROJECTION (round 4, R5-2). "Does this line END a section" must agree with the
+    // renderer or every freeze built on it is fiction; "is this line governed prose" is the other
+    // question and keeps the measured lax view.
+    const flags = blockContextFlags(text);
     const closes = level === 1 ? HEADING_AT_MOST_1 : HEADING_AT_MOST_2;
     for (let i = Math.max(from, 0); i < lines.length; i++) {
         if (!flags[i] && closes.test(lines[i]))

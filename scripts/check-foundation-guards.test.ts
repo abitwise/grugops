@@ -1032,7 +1032,16 @@ describe("D-64 cutover: the spawn verdict is rendered by the canonical admission
     // a different corpus; they are asked here, once, inside the loop that walks the anchors. Both
     // entrants are DECLARATIVE index lists, so the property this pin protects — the module renders
     // no verdict from the parser — is unchanged.
+    //
+    // (Plan 30-10, round 4, finding R5-1) FIVE -> SIX, and the entrant is again ASKED OF THE
+    // AUTHORITY. `carriageReturnLines` is the canonical-line-ending predicate: a lone `\r` is a
+    // CommonMark §2.1 line ending, this module's authority splits on `\n` alone, and a heading
+    // written after one closed a frozen region while being invisible to both refusals. The
+    // alternative — a `documentLines()` splitter every consumer imports — would silently re-index
+    // every `file:line` four gates report, so the refusal lives at the gates that own their corpora
+    // and the predicate lives once in the authority. It is a DECLARATIVE index list like the rest.
     ).toEqual([
+      "carriageReturnLines",
       "fencedLineFlags",
       "sectionEndIndex",
       "unfencedHeadingIndex",

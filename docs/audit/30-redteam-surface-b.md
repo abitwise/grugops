@@ -1989,3 +1989,148 @@ Every attack reverted; `git status --short` shows no tracked modification outsid
 **Its bound, for the third time.** Rounds 1 and 2 both passed this clause, and independent reviews
 then found six and seven things respectively that the fixing agent had not thought to try. Self-
 reproduction proves a fix holds against the attack it was written for. It is a floor.
+
+---
+
+# Round 3 closure attempt — the two independent reviews
+
+**Both at `claude-opus`, both over surface B as scoped by round 3's scope statement, and NEITHER
+returned "nothing new".** Surface B is not closed at round 3. **Round 4 is the last (D-22).**
+
+| reviewer | model | lens | verdict |
+|---|---|---|---|
+| Reviewer 5 | claude-opus | heading classifier + fence machine + frozen anchors + membership | **FINDINGS: 3** (R5-1 … R5-3) |
+| Reviewer 6 | claude-opus | validator + reader + render/freshness + pins | **FINDINGS: 6** (R6-1 … R6-6) |
+
+Nine distinct findings, no overlap. Reviewer 5 proved every renderer premise against the reference
+`commonmark` implementation — including the NEGATIVE cases, where the *absence* of a heading is the
+claim — and discarded one probe as a failed premise (a literal backslash-`r` that produced the same
+delta for an unrelated reason). Reviewer 6 discarded one control as a false control (an accidental
+symlinked base) and re-ran it with `pwd -P`. Both asserted artifact identity on entry and exit.
+
+**Seven of the nine were created by round 3's own fixes.** R5-1 and R5-2 attack R3-1's classifier and
+R3-2's fence machine; R5-3 attacks R3-4's alias set on its first probe; R6-1, R6-2 and R6-3 attack
+R4-3's and obs-1's repairs; R6-6 is R3-4's alias set taught to one corpus of two. That ratio has now
+held for three consecutive rounds and is itself the phase's most durable measurement.
+
+---
+
+# Round 4 — 2026-09-06 — THE LAST ROUND
+
+**Baseline:** `1 failed / 2829 passed / 2 skipped` (the pre-existing `V-30-01-01`); every gate green.
+**Mirror:** `git archive HEAD | tar -x` at `392f3ab`.
+
+## R5-1 — a lone carriage return is a line ending to a renderer and not to this module
+
+### What it is
+
+CommonMark §2.1 makes a lone `\r` a line ending. `text.split("\n")` sees `## Hard limits\r#` as ONE
+line: not an occurrence (`trimEnd()` differs), not a near-miss (its rendered text is
+`Hard limits #`), and a terminator (`/^#{1,2} /` matches). A lone CR survives `.gitattributes`'
+`eol=lf` normalisation — the reviewer proved it with `git cat-file` on a staged blob — so it is
+committable.
+
+### Mirror reproduction
+
+```
+$ # MIRROR (392f3ab) — `## Hard limits\r#` planted inside the frozen region
+  clauses=250 regionBody=1 cardinality=17/17 refusals=0        mirror exit=0
+$ # CURRENT TREE (fixed)
+  clauses=245 regionBody=-1 cardinality=16/17 refusals=1       tree exit=1
+```
+
+The region went from **seven body lines to one** while the cardinality that exists to catch a short
+region reported `17/17` and `check:diff-disposition` published `444 frozen clause(s)` as a verdict.
+Six tails measured, all identically silent.
+
+### The structural fix, in one sentence
+
+**LF is declared the canonical line ending of the governed corpus and a lone `\r` is refused BY NAME**
+at the gates that own their corpora, asked once through `carriageReturnLines` in the authority.
+
+**The rejected alternative, and why:** a `documentLines()` splitter on `/\r\n|\r|\n/` imported by every
+consumer would silently re-index every `file:line` four gates report — a behaviour change to all of
+them at once, which is exactly what round 3 declined to do to `sectionEndIndex`.
+
+### What NEW freedom this creates, and how it is bounded
+
+**A refusal that could fire on a legitimate Windows-authored contribution.** Bounded three ways:
+CRLF is deliberately **not** refused (a trailing CR is stripped before the test) because
+`.gitattributes` normalises it away on commit and refusing it would red every Windows working tree
+for a shape that cannot ship; the live corpus is asserted CR-free, so a first CR is a real event; and
+the message names the remedy.
+
+### Mutation proof
+
+| mutant | outcome |
+|---|---|
+| the CR refusal disabled | **KILLED** — 3 failed / 102 passed |
+
+---
+
+## R5-2 — a line that closes a section while rendering as nothing at all
+
+### What it is
+
+Round 3 asserted, and reviewer 5 re-measured as true over a 2,197-line alphabet product with **zero**
+violations, that the terminator language is a subset of the classifier. **That invariant is
+insufficient**, because the refusal predicate is `classifier(line) === want`, not `!== null`. Three
+arms reach it:
+
+- **A — §4.5's info-string rule**, declined in round 3 on the recorded ground that its residual
+  "over-scans, which is fail-closed". Measured false: the desync flips **parity**, so it under-scans
+  too. A heading the renderer places *inside* a code block became a terminator.
+- **B — §4.5's ≤3-space indent**, same inversion.
+- **C — an HTML comment or block**, modelled by nothing, producing **no rendered output at all**.
+
+### Mirror reproduction (arm C)
+
+```
+$ # MIRROR (392f3ab) — `<!--` / `## Anything at all` / `-->` planted in the frozen region
+  clauses=250 regionBody=2 cardinality=17/17 refusals=0        mirror exit=0
+$ # CURRENT TREE (fixed)
+  clauses=252 regionBody=10 cardinality=17/17 refusals=0       tree exit=1  (the region is INTACT)
+```
+
+Arm C is the stealthiest: a human reviewing the diff sees three inert lines.
+
+### The structural fix, in one sentence
+
+**One machine, two projections:** `blockContextFlags` — §4.5-complete (info string, ≤3-space indent)
+plus an HTML-block arm — is consumed **only** by `sectionEndIndex`, `unfencedHeadingIndices` and
+`unfencedHeadingNearMisses`, while `stripFencedBlocks` and the language guards keep the measured lax
+view, so round 3's corpus judgements about the PROSE question stand untouched.
+
+**The correct outcome for arm C is INERTNESS, not a refusal** — a renderer shows no heading, so
+refusing an HTML comment in a kit document would be a false red on a legitimate construct. Arm B's
+correct outcome is that the heading **does** truncate: the renderer shows it, so it is an ordinary
+visible section boundary, the same class as a plain `# Anything`, and refusing it would be the
+widening this projection exists to avoid. Both are cases.
+
+### What NEW freedom this creates, and how it is bounded
+
+**Two flag arrays in the module whose founding rule is one authority per predicate.** Bounded by
+being two *projections* and one *walk* (the shape `stripFencedBlocks` already is), by the derived
+fence-machine count staying pinned at three, and by two corpus measurements asserted as permanent
+cases rather than described:
+
+- **The two views are NOT nested.** A parity flip is not a widening; measured over 1,501 tracked
+  markdown files they differ somewhere in 460. Claiming `strict ⊇ lax` would have been false, and
+  the first draft of this comment claimed it before the measurement.
+- **Over the governed roles-and-workflows corpus they differ on exactly ONE line** — a single-line
+  HTML comment in `04-ticket-to-pr.md` — **no located section extent moves, and the frozen clause
+  count is 446 before and after.**
+
+**The HTML arm models two of §4.6's seven block types** — comment (type 2) and tag-to-blank-line
+(type 6) — which are the reachable, one-pass-decidable ones. The other five are unmodelled and the
+direction of that gap is UNCHANGED behaviour, not a new hole.
+
+### Mutation proof
+
+| mutant | outcome |
+|---|---|
+| the HTML arm disabled | **KILLED** — 3 failed |
+| the info-string rule disabled in the strict projection | **KILLED** — 1 failed |
+
+**One pin moved:** `check-diff-disposition.ts`'s imported-symbol set 5 → 6, the entrant named and its
+declarative nature argued.
