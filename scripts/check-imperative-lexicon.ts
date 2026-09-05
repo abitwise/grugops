@@ -714,7 +714,8 @@ function configKeys(): string[] {
 // helper this replaces compared a line to the heading with EXACT equality; the authority compares
 // `trimEnd()`. So a heading carrying one trailing space is now FOUND where it used to be missed —
 // a real widening, and the one the round-2 review tabulated as the disagreement nobody had pinned.
-// `TECHNICAL_NAMES_COUNT` is re-derived after the change and is required to stay at 76: if it
+// `TECHNICAL_NAMES_COUNT` is re-derived after the change and is required to stay put (76 when this
+// paragraph was written; 77 since plan 30-01 added the `checkpoints` config key): if it
 // moved, one of the two table sources carries a trailing-whitespace heading and the movement is
 // REPORTED with its cause, never absorbed.
 //
@@ -817,11 +818,22 @@ export function technicalNames(): string[] {
 export const TECHNICAL_NAMES: readonly string[] = technicalNames();
 
 /**
- * The pinned cardinality of the deduped union. 76 today: 17 role display names + 19 workflow
- * display names + 21 config keys + 6 note kinds + 13 board columns, with no member shared by two
+ * The pinned cardinality of the deduped union. 77 today: 17 role display names + 19 workflow
+ * display names + 22 config keys + 6 note kinds + 13 board columns, with no member shared by two
  * sources. TWO-SIDED, for the same reason every other set here is.
+ *
+ * MOVED 76 -> 77 BY PLAN 30-01, WITH ITS CAUSE NAMED RATHER THAN ABSORBED. Phase 30 added ONE
+ * top-level config key, `checkpoints` (the per-checkpoint autonomy matrix), so `configKeys` moved
+ * 21 -> 22. Both consumers were walked before this number changed, as the refusal message demands:
+ *   - countWords() collapses each Technical Name to ONE placeholder token. `checkpoints` is a
+ *     single word already, so no sentence changes length and no sentence crosses a bound. Verified
+ *     by re-running the gate: `guard_sentence_form` reports the same 2166 sentences (414
+ *     procedural / 1752 descriptive) and 0 findings before and after.
+ *   - the Technical Names PASS line reports the derived count, which is what moved.
+ * The nested keys under `checkpoints` do NOT enter the set — the derivation reads top-level keys,
+ * which is why this is +1 and not +3.
  */
-export const TECHNICAL_NAMES_COUNT = 76;
+export const TECHNICAL_NAMES_COUNT = 77;
 
 /**
  * THE WORD COUNT, DECIDED ONCE AND USED EVERYWHERE.

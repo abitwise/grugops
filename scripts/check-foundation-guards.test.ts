@@ -32,6 +32,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname, basename } from "node:path";
+import { jsImportClosure } from "./js-import-closure.js";
 
 // (27-65 task 3) The gate-level sweep plants rows from plan 27-63's corpus BY ID, and adjudicates
 // which rows are graftable with the same admission reader the gate now uses — so the module-level
@@ -502,11 +503,28 @@ function normalizeMirroredRole(text: string, rel: string): string {
 
 const MIRRORED_ROLE_PREFIX = `${ROLE_DIR_REL}/`;
 
+// The committed .js that hooks/guard.js needs in order to RUN, DERIVED from its imports rather than
+// listed (plan 30-01). The aggregator spawns the MIRRORED guard.js, so the mirror must carry the
+// guard's whole module graph. GUARD_INPUTS carried the guard alone for as long as the guard imported
+// only node builtins; Phase 30 gave it a checkpoint roster and a config reader to consult and the
+// mirrored guard died with ERR_MODULE_NOT_FOUND, which this harness read as a guard failure. The
+// closure is walked from the bytes so the next import updates it without an edit here.
+//
+// It is kept OUT of GUARD_INPUTS deliberately: GUARD_INPUTS is pinned two-sided against a derived
+// cardinality elsewhere in this file, and those pins are about the guard's INPUT set — the documents
+// it reads and a plant can break. A module the guard needs in order to start is a different kind of
+// thing, and folding it into that set would silently move a number those cases exist to hold.
+const GUARD_JS_CLOSURE = jsImportClosure(ROOT, "hooks/guard.js");
+
 // Build a temp mirror carrying copies of every guard input — byte-faithful for every input except
 // the 17 role files, which are normalized as argued above. Returns the mirror dir.
 function mirror(): string {
   const m = mkdtempSync(join(tmpdir(), "grugops-fg-"));
   tmpDirs.push(m);
+  for (const rel of GUARD_JS_CLOSURE) {
+    mkdirSync(join(m, dirname(rel)), { recursive: true });
+    cpSync(join(ROOT, rel), join(m, rel));
+  }
   for (const rel of GUARD_INPUTS) {
     mkdirSync(join(m, dirname(rel)), { recursive: true });
     if (rel.startsWith(MIRRORED_ROLE_PREFIX)) {
@@ -1736,8 +1754,19 @@ const SECTION_EXTENT_OWNER_COUNT = 1;
  * `(r-class-authority)` asserts by a derived scan — but it is a non-test `.ts` under `scripts/` and
  * so it is genuinely a member of THIS corpus, which is enumerated by file shape rather than by
  * consumer.
+ *
+ * 51 -> 53 (plan 30-01), TWO modules, both under `scripts/`, both named with their reason:
+ *   - `scripts/checkpoints.ts` — the per-checkpoint autonomy roster, defaults, fail-closed
+ *     canonicalizer and run banner (AUTO-01/02). It decides no section extent and declares no
+ *     frontmatter parser.
+ *   - `scripts/js-import-closure.ts` — the derived transitive `.js` import closure the mirror-spawn
+ *     gates and harnesses use to lay out a temp mirror. It reads import SPECIFIERS out of compiled
+ *     JavaScript; it does not locate a section and does not parse frontmatter.
+ * The owner answer is therefore unchanged by both: SECTION_EXTENT_OWNERS stays at the one authority,
+ * and the frontmatter-parser owner set is unmoved. The number moves in the SAME commit that adds the
+ * modules, which is the whole point of the pin.
  */
-const NON_TEST_MODULE_COUNT = 51;
+const NON_TEST_MODULE_COUNT = 53;
 
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 // (Plan 29-40, gap G-29-1 of 29-UAT.md, closing V-29-35-01) THE FRONTMATTER-PARSER NAME OWNER SET.
@@ -2231,9 +2260,10 @@ describe("LANG-07: exactly ONE module owns the section-extent predicate (plan 29
     // exists to delete, so the two are compared on the whole overlap rather than trusted to agree.
     const flat = nonTestScripts();
     // 41 → 42 (plan 29.1-01): `scripts/model-tiers.ts`. 42 → 43 (plan 29.1-24):
-    // `scripts/ci-workflow.testkit.ts`. Derived independently — `ls scripts/*.ts` minus the
-    // `.test.ts` members reports 43 on this tree.
-    expect(flat.length, "the `scripts/`-scoped reader's own corpus").toBe(43);
+    // `scripts/ci-workflow.testkit.ts`. 43 → 45 (plan 30-01): `scripts/checkpoints.ts` and
+    // `scripts/js-import-closure.ts`. Derived independently — `ls scripts/*.ts` minus the
+    // `.test.ts` members reports 45 on this tree.
+    expect(flat.length, "the `scripts/`-scoped reader's own corpus").toBe(45);
     let compared = 0;
     for (const n of flat) {
       for (const spec of ["frontmatter", "canonical-frontmatter", "audit-model"]) {
@@ -2244,11 +2274,12 @@ describe("LANG-07: exactly ONE module owns the section-extent predicate (plan 29
         compared += 1;
       }
     }
-    // 41 * 3 → 42 * 3 (plan 29.1-01) → 43 * 3 (plan 29.1-24), tracking the one module added above
+    // 41 * 3 → 42 * 3 (plan 29.1-01) → 43 * 3 (plan 29.1-24) → 45 * 3 (plan 30-01, two modules:
+    // `scripts/checkpoints.ts` and `scripts/js-import-closure.ts`), tracking the modules added above
     // each time. Kept as a LITERAL times
     // the spec count rather than `flat.length * 3`: deriving it from the loop's own input would make
     // the assertion true by construction and blind to a corpus that silently shrank.
-    expect(compared, "the comparison must really have run over the whole corpus").toBe(43 * 3);
+    expect(compared, "the comparison must really have run over the whole corpus").toBe(45 * 3);
     // NON-VACUITY: the comparison would be clean over two readers that both return nothing, so at
     // least one module must have produced a non-empty answer through the NEW reader.
     expect(
@@ -2412,13 +2443,14 @@ describe("LANG-07: exactly ONE module owns the section-extent predicate (plan 29
       expect(walked, `the recursive set must contain ${outside}`).toContain(outside);
     }
     // 41 → 42 (plan 29.1-01): `scripts/model-tiers.ts`. 42 → 43 (plan 29.1-24):
-    // `scripts/ci-workflow.testkit.ts`. Each is the same one module the flat reader gained. Both pins
+    // `scripts/ci-workflow.testkit.ts`. 43 → 45 (plan 30-01): `scripts/checkpoints.ts` and
+    // `scripts/js-import-closure.ts`. Each is the same module the flat reader gained. Both pins
     // move together on purpose — they are two enumerations of one corpus, and a change that moved
     // only one of them would be the disagreement this pair exists to surface.
     expect(
       walked.filter((n) => n.startsWith("scripts/") && !n.slice(8).includes("/")).length,
       "…and the old non-recursive answer is a strict subset, stated as the number this widening moved off",
-    ).toBe(43);
+    ).toBe(45);
 
     // THE ELEMENT COUNT, DERIVED INDEPENDENTLY OF THE WALK THAT PRODUCES IT. A vacuity floor catches
     // an EMPTY denominator and has never caught a SILENTLY SHORT one, so the set is compared against
@@ -8905,7 +8937,12 @@ const censusRelationshipFindings = (c: TripwireCensus): string[] => {
  * The FROZEN `PLAN_29_39_TRIPWIRE.modules` below stays at 47 and must not be touched — it describes
  * the tree at `b76a65e`, which cannot change.
  */
-const TRIPWIRE_MODULES = 50;
+// 50 → 52 (plan 30-01): the two test modules this plan added, `scripts/checkpoints.test.ts` (the
+// canonicalizer / matrix-reader unit floor) and `scripts/autonomy-zero-config.test.ts` (the AUTO-07
+// whole-run differential). Kept EXACT rather than as a floor for the reason stated at its use site:
+// a test module arriving or leaving this scan is a structural event a human should read, not corpus
+// growth to be absorbed.
+const TRIPWIRE_MODULES = 52;
 /**
  * Corpus-derived floors, expressed as RATES so the floor grows with the corpus it floors.
  * Each is set well below its measured live value: the point is to catch a measurement that

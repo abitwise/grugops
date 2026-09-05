@@ -28,6 +28,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
+import { jsImportClosure } from "./js-import-closure.js";
 // The single-source equivalence comparator the Tier-1 oracle uses — imported here for the RED
 // non-vacuity case (proving assertEquivalent genuinely goes red on divergence, not a fabricated green).
 import { assertEquivalent, type ProjectedNote } from "./dual-path-equivalence.js";
@@ -59,11 +60,20 @@ const GUARD_INPUTS = [
 
 const tmpDirs: string[] = [];
 
+// The committed .js that hooks/guard.js needs in order to RUN, DERIVED from its imports rather than
+// listed (plan 30-01). oracleHooksWiring spawns the MIRRORED guard.js, so the mirror must carry the
+// guard's whole module graph. It carried nothing but the guard itself for as long as the guard
+// imported only node builtins; when Phase 30 gave it a checkpoint roster and a config reader to
+// consult, the mirrored guard died with ERR_MODULE_NOT_FOUND and this harness reported the crash as
+// a wiring failure. A hand-listed dependency set would go stale again on the next import; this one
+// cannot, because it is read from the bytes of the files in the graph.
+const GUARD_JS_CLOSURE = jsImportClosure(ROOT, "hooks/guard.js");
+
 // Build a temp mirror carrying byte-faithful copies of every aggregator input. Returns the mirror dir.
 function mirror(): string {
   const m = mkdtempSync(join(tmpdir(), "grugops-uat-"));
   tmpDirs.push(m);
-  for (const rel of GUARD_INPUTS) {
+  for (const rel of [...GUARD_INPUTS, ...GUARD_JS_CLOSURE]) {
     mkdirSync(join(m, dirname(rel)), { recursive: true });
     cpSync(join(ROOT, rel), join(m, rel));
   }

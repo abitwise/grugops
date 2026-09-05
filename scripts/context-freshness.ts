@@ -59,7 +59,8 @@ import {
   existsSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, sep } from "node:path";
+import { dirname, join, sep } from "node:path";
+import { jsImportClosure } from "./js-import-closure.js";
 
 // Repo root = this script's parent's parent (scripts/ -> repo root).
 const ROOT = join(import.meta.dirname, "..");
@@ -111,15 +112,22 @@ if (taskDirs.length === 0) {
   process.exit(0);
 }
 
-// Lay out the temp mirror's render once: <tmp>/scripts/context-io.js. Per task we
-// cpSync that task's notes/ into <tmp>/.grugops/context/<task>/notes and spawn the
-// mirrored render so it writes <tmp>/.grugops/context/<task>/index.{md,jsonl}.
-mkdirSync(join(tmp, "scripts"), { recursive: true });
-cpSync(
-  join(ROOT, "scripts", "context-io.js"),
-  join(tmp, "scripts", "context-io.js"),
-);
-const mirroredRender = join(tmp, "scripts", "context-io.js");
+// Lay out the temp mirror's render once: <tmp>/scripts/context-io.js AND every committed .js it
+// imports. Per task we cpSync that task's notes/ into <tmp>/.grugops/context/<task>/notes and spawn
+// the mirrored render so it writes <tmp>/.grugops/context/<task>/index.{md,jsonl}.
+//
+// THE DEPENDENCY SET IS DERIVED, NOT LISTED (plan 30-01). This used to copy exactly one file,
+// which was correct only for as long as context-io.js imported nothing but node builtins. When it
+// grew a repo import, the mirrored render died with ERR_MODULE_NOT_FOUND — and a render that could
+// not START is reported by this gate as a render that did not run CLEANLY, i.e. as drift. A crash
+// wearing a verdict's clothes is exactly what this gate must never emit, so the closure is walked
+// from the bytes rather than remembered here.
+const RENDER_REL = "scripts/context-io.js";
+for (const rel of jsImportClosure(ROOT, RENDER_REL)) {
+  mkdirSync(dirname(join(tmp, rel)), { recursive: true });
+  cpSync(join(ROOT, rel), join(tmp, rel));
+}
+const mirroredRender = join(tmp, RENDER_REL);
 const mirroredContextRoot = join(tmp, ".grugops", "context");
 
 const derivedNames = ["index.md", "index.jsonl"] as const;

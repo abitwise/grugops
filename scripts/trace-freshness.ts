@@ -53,7 +53,8 @@ import {
   existsSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, sep } from "node:path";
+import { dirname, join, sep } from "node:path";
+import { jsImportClosure } from "./js-import-closure.js";
 import { pathToFileURL } from "node:url";
 
 // Repo root = this script's parent's parent (scripts/ -> repo root).
@@ -99,14 +100,22 @@ function main(): void {
     process.exit(0);
   }
 
-  // Lay out the temp mirror's render once: <tmp>/scripts/{trace-render.js, context-io.js}. The render
-  // imports context-io.js, so BOTH committed .js are mirrored. Mirror the whole .grugops/context/ notes
-  // tree into <tmp>/.grugops/context and spawn the mirrored render so it writes
-  // <tmp>/plans/traceability.md — the committed tree is never touched.
-  mkdirSync(join(tmp, "scripts"), { recursive: true });
-  cpSync(join(ROOT, "scripts", "trace-render.js"), join(tmp, "scripts", "trace-render.js"));
-  cpSync(join(ROOT, "scripts", "context-io.js"), join(tmp, "scripts", "context-io.js"));
-  const mirroredRender = join(tmp, "scripts", "trace-render.js");
+  // Lay out the temp mirror's render once: <tmp>/scripts/trace-render.js AND every committed .js it
+  // transitively imports. Mirror the whole .grugops/context/ notes tree into <tmp>/.grugops/context
+  // and spawn the mirrored render so it writes <tmp>/plans/traceability.md — the committed tree is
+  // never touched.
+  //
+  // THE DEPENDENCY SET IS DERIVED, NOT LISTED (plan 30-01). It used to name two files, with a
+  // comment asserting that two was the whole graph. That was true when it was written and became
+  // false the moment context-io.js grew an import of its own, at which point the mirrored render
+  // died with ERR_MODULE_NOT_FOUND and this gate reported the crash as STALE — a defect indication
+  // for a render that never started. The closure is now walked from the bytes.
+  const RENDER_REL = "scripts/trace-render.js";
+  for (const rel of jsImportClosure(ROOT, RENDER_REL)) {
+    mkdirSync(dirname(join(tmp, rel)), { recursive: true });
+    cpSync(join(ROOT, rel), join(tmp, rel));
+  }
+  const mirroredRender = join(tmp, RENDER_REL);
   const mirroredContextRoot = join(tmp, ".grugops", "context");
   const mirroredPlansRoot = join(tmp, "plans");
 
