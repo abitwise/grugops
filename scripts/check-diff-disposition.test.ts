@@ -64,6 +64,9 @@ import {
   RESIDUE_FROM_REGISTRY_COUNT,
 } from "./check-diff-disposition.js";
 import {
+  ROLE_DIR_EXEMPT,
+  ROLE_DIR_EXEMPT_NAMES,
+  listRoleDirEntries,
   listRoles,
   listWorkflows,
   ROLE_COUNT,
@@ -3104,5 +3107,35 @@ describe("30-10 R4 — a line that CLOSES a frozen region while rendering as not
     // markdown files; this pins it for the corpora the refusals actually run over.
     const frozen = deriveFrozenSet(REPO);
     expect(frozen.refusals.filter((r) => /carriage return|HTML/i.test(r))).toEqual([]);
+  });
+});
+
+describe("30-10 R4 — reviewer 5 obs. 4: the ROLES corpus gets the membership refusal too", () => {
+  function roleDirPlant(name: string): string {
+    const root = mkdtempSync(join(tmpdir(), "r4roles-"));
+    tmpDirs.push(root);
+    cpSync(join(REPO, "agent-factory"), join(root, "agent-factory"), { recursive: true });
+    cpSync(
+      join(REPO, "agent-factory/roles/agents-md-scribe.md"),
+      join(root, "agent-factory/roles", name),
+    );
+    return root;
+  }
+
+  for (const name of ["rogue.markdown", "_rogue.md", "rogue.mdwn", "rogue.txt"]) {
+    it(`refuses agent-factory/roles/${name} — a document the corpus rule drops is scanned by nothing`, () => {
+      const refusals = deriveFrozenSet(roleDirPlant(name)).refusals.filter((r) => r.includes(name));
+      expect(refusals, `${name} was tolerated`).not.toEqual([]);
+    });
+  }
+
+  it("the role exemptions are pinned two-sided, each with a reason, and cover the live tree", () => {
+    expect([...ROLE_DIR_EXEMPT_NAMES].sort()).toEqual([".gitkeep", "_role-switch-protocol.md"]);
+    for (const e of ROLE_DIR_EXEMPT) expect(e.why.length).toBeGreaterThan(40);
+    expect(listRoleDirEntries(REPO).filter((f) => !listRoles(REPO).includes(f))).toEqual([]);
+  });
+
+  it("the LIVE kit raises no membership refusal at either corpus", () => {
+    expect(deriveFrozenSet(REPO).refusals.filter((r) => /does not admit/.test(r))).toEqual([]);
   });
 });

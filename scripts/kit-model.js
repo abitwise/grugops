@@ -521,37 +521,126 @@ export function listWorkflows(kitRoot = DEFAULT_KIT_ROOT) {
  * lower-case numbered form.
  * ---------------------------------------------------------------------------------------------
  */
-export function listWorkflowDirMarkdown(kitRoot = DEFAULT_KIT_ROOT) {
-    const dir = join(kitRoot, WORKFLOWS_SUBPATH);
+/**
+ * EVERY entry in the ROLES directory that the corpus rule does not admit — the other half of the
+ * membership question (plan 30-10, round 4, reviewer 5 observation 4).
+ *
+ * ---------------------------------------------------------------------------------------------
+ * F6 and R3-4 built the raw-membership refusal for the WORKFLOWS corpus and never built it for the
+ * ROLES one. `listRoles` filters `.md && !startsWith("_")` with no companion, so
+ * `agent-factory/roles/rogue.markdown`, `agent-factory/roles/_rogue.md` and
+ * `agent-factory/roles/rogue.mdwn` each place a full role document — `## Hard limits` and all — into
+ * the kit where the validator, the foundation guards and the frozen-set derivation all report
+ * `ALL CHECKS PASSED` / `17/17` and nothing scans it.
+ *
+ * The same inversion the workflow corpus took: the read returns every entry, the consumer refuses
+ * anything the corpus rule drops, and the exemptions are NAMED with reasons and pinned two-sided.
+ * ---------------------------------------------------------------------------------------------
+ */
+export const ROLE_DIR_EXEMPT = [
+    {
+        name: ".gitkeep",
+        why: "git's own empty-directory placeholder; not a document and present in this repository today",
+    },
+    {
+        name: "_role-switch-protocol.md",
+        why: "the D-02 role-switch protocol. `listRoles` excludes `_`-prefixed files by long-standing " +
+            "convention because it is a protocol document rather than a role, and it is separately " +
+            "watched: check-audit-register records it as the one uncounted `safety_surface: yes` row",
+    },
+];
+/** The exempt names alone. Derived, never listed a second time. */
+export const ROLE_DIR_EXEMPT_NAMES = ROLE_DIR_EXEMPT.map((e) => e.name);
+/** Every entry in the roles directory except the named exemptions. */
+export function listRoleDirEntries(kitRoot = DEFAULT_KIT_ROOT) {
+    const dir = join(kitRoot, ROLES_SUBPATH);
     return readDirOrThrow(dir)
-        .filter((f) => isMarkdownDocumentName(f))
+        .filter((f) => !ROLE_DIR_EXEMPT_NAMES.includes(f))
         .sort();
 }
 /**
- * The extensions that spell "markdown" WITHOUT being the canonical one (plan 30-10, round 3, R3-4).
+ * THE ONE IMITATION PREDICATE FOR THE TREE (plan 30-10, round 4, findings R5-3 and R6-6).
  *
  * ---------------------------------------------------------------------------------------------
- * A HAND-DECLARED SET, WHICH IS THIS REPOSITORY'S NAMED SECOND SYSTEMIC FAILURE CLASS — so it is
- * declared with its bound and pinned two-sided rather than left to grow by habit.
+ * A filename SPELLS MARKDOWN NON-CANONICALLY when it is not the canonical lower-case `.md` and it
+ * either case-folds to it (F4's axis) or carries a published markdown alias extension (R3-4's axis).
  *
- * WHY IT EXISTS. `listWorkflowDirMarkdown` is the RAW membership read: its whole job is to find what
- * the corpus rule is dropping, so that `deriveCheckpoints` can refuse it by name. Filtering it on
- * the canonical extension alone left `agent-factory/workflows/hotfix.markdown` — a markdown document
- * with a canonically tagged stop bullet in it — walked by nothing, counted by nothing and refused by
- * nothing, while F6's refusal message told authors to rename or move a file it never mentioned.
+ * WHY IT LIVES HERE AND WHY IT IS ONE FUNCTION. F4 taught the public-docs corpus the CASE axis;
+ * R3-4 taught the workflow corpus the ALIAS axis; neither corpus learned the other's, so a root
+ * `PUBLIC.markdown` carrying live disproven claims was outside BOTH language gates with the corpus
+ * size unchanged and no refusal — R3-3's "a refusal added at one of N anchors" shape, applied to F4.
+ * One predicate, asked by every corpus that needs it, is the only form in which that cannot recur.
  *
- * THE BOUND, STATED: these are ALIASES OF MARKDOWN, not "every text file". A `.txt`, a `.json` or an
- * extensionless file is a different kind of document and stays out of scope, with its own case. The
- * canonical `.md` is deliberately NOT a member — a set containing it would make every workflow a
- * refusal — and that is asserted too.
+ * THE ALIAS LIST'S PROVENANCE IS EXTERNAL, WHICH IS THE MOST THAT CAN BE SAID FOR IT. These are the
+ * extensions GitHub Linguist classifies as Markdown. That does not make the list complete forever —
+ * reviewer 5 defeated the previous three-member list on its first probe — so where a corpus CAN
+ * invert the test it does (`WORKFLOW_DIR_EXEMPT` and `listWorkflowDirEntries` above), and this
+ * predicate is used only where inversion is impossible: an open directory, like a repository root,
+ * whose legitimate non-markdown contents cannot be enumerated. The residual is recorded rather than
+ * claimed closed.
  * ---------------------------------------------------------------------------------------------
  */
-export const MARKDOWN_ALIAS_EXTENSIONS = [".markdown", ".mdown", ".mkd"];
-/** Is this filename a markdown document — canonical extension or a declared alias of it? */
-function isMarkdownDocumentName(name) {
-    const lower = name.toLowerCase();
-    return (lower.endsWith(MARKDOWN_EXT) || MARKDOWN_ALIAS_EXTENSIONS.some((e) => lower.endsWith(e)));
+export const MARKDOWN_ALIAS_EXTENSIONS = [
+    ".markdown",
+    ".mdown",
+    ".mdwn",
+    ".mkd",
+    ".mkdn",
+    ".mkdown",
+    ".mdx",
+    ".livemd",
+    ".workbook",
+    ".ronn",
+];
+/** Is this filename the canonical markdown spelling — lower-case `.md`? */
+export function isCanonicalMarkdownName(name) {
+    return name.endsWith(MARKDOWN_EXT);
 }
+/** Does this filename spell markdown WITHOUT being the canonical spelling? */
+export function imitatesMarkdownName(name) {
+    if (isCanonicalMarkdownName(name))
+        return false;
+    const lower = name.toLowerCase();
+    return lower.endsWith(MARKDOWN_EXT) || MARKDOWN_ALIAS_EXTENSIONS.some((e) => lower.endsWith(e));
+}
+export function listWorkflowDirEntries(kitRoot = DEFAULT_KIT_ROOT) {
+    const dir = join(kitRoot, WORKFLOWS_SUBPATH);
+    return readDirOrThrow(dir)
+        .filter((f) => !WORKFLOW_DIR_EXEMPT_NAMES.includes(f))
+        .sort();
+}
+/**
+ * Entries the workflows directory may legitimately carry that are not workflows.
+ *
+ * ---------------------------------------------------------------------------------------------
+ * ASSERTED EMPTY, AND THAT IS THE WHOLE BOUND (plan 30-10, round 4, finding R5-3).
+ *
+ * The raw read used to filter on a hand-declared markdown-alias set, and reviewer 5 defeated it on
+ * the first probe: `.mdwn`, `.mkdn`, `.mkdown`, `.mdx`, `.livemd`, `.workbook` and `.ronn` are all
+ * GitHub-Linguist markdown extensions and none was in the list. R3-4's own stated bound — "a
+ * two-sided pin on its exact members" — pins what is IN the set and proves nothing about what a
+ * markdown document is.
+ *
+ * SO THE TEST IS INVERTED RATHER THAN THE LIST LENGTHENED. The workflows directory's only legitimate
+ * contents are canonically named numbered workflows, so the read admits EVERY entry and the consumer
+ * refuses anything the corpus rule does not admit. There is no extension question left to get wrong.
+ *
+ * This array is the freedom that swap creates, and it is a smaller one: its members are NAMED
+ * ENTRIES rather than a CLASS that must stay complete, `scripts/checkpoints.test.ts` pins it
+ * two-sided, and it is asserted EMPTY on the live tree — so a first member is a deliberate,
+ * reviewable act rather than a category quietly widening.
+ * ---------------------------------------------------------------------------------------------
+ */
+export const WORKFLOW_DIR_EXEMPT = [
+    {
+        name: ".gitkeep",
+        why: "git's own empty-directory placeholder. It is not a document, it carries no prose, and it is " +
+            "present in this repository today — the inversion found it on its first run, which is the " +
+            "exemption list earning its existence rather than being written speculatively",
+    },
+];
+/** The exempt names alone, for the membership test. Derived, never listed a second time. */
+export const WORKFLOW_DIR_EXEMPT_NAMES = WORKFLOW_DIR_EXEMPT.map((e) => e.name);
 // ---------------------------------------------------------------------------
 // THE DISPLAY-NAME DERIVATIONS (Phase 29 / D-40, correcting D-13 additively).
 //

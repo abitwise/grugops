@@ -583,6 +583,7 @@ describe("30-10 B-8 — the corpus/scan consumer split is derived and its direct
     // authority and names an accessor consumes it, however it later spells the call. Detecting an
     // import is one question with one answer; detecting a call spelling is an open set.
     const AUTHORITY = "check-public-docs-vocabulary";
+    const AUTHORITY_PATH = `scripts/${AUTHORITY}.ts`;
     const sources = execFileSync(
       "git",
       ["ls-files", "--cached", "--others", "--exclude-standard", "*.ts"],
@@ -591,13 +592,29 @@ describe("30-10 B-8 — the corpus/scan consumer split is derived and its direct
       .split("\n")
       .map((f) => f.trim())
       .filter((f) => f.length > 0 && !f.endsWith(".test.ts") && !f.endsWith(".d.ts"))
-      .filter((f) => !f.includes(AUTHORITY))
+      // EXCLUDED BY IDENTITY, NOT BY SUBSTRING (plan 30-10, round 4, finding R6-4). The filter is
+      // here to drop the authority itself; written as a substring over the whole repo-relative path
+      // it also dropped every sibling whose name contains it — `check-public-docs-vocabulary-companion.ts`
+      // was silently outside the scan set while the same bytes at `pdv-companion.ts` reddened the
+      // pin. The filename was the only variable.
+      .filter((f) => f !== AUTHORITY_PATH)
       .sort();
     // Non-vacuity, and a floor that a flat single-directory read could not clear: the set spans the
     // whole repository, so it is far larger than one directory's worth of modules.
     expect(sources.length).toBeGreaterThan(30);
     expect(sources.some((f) => f.startsWith("hooks/"))).toBe(true);
     expect(sources.some((f) => f.startsWith("install/"))).toBe(true);
+    // …and the exclusion removes EXACTLY the authority — never a sibling that merely shares its name
+    // (round 4, R6-4). Asserted as a count so the exclusion cannot silently grow back.
+    const allTs = execFileSync(
+      "git",
+      ["ls-files", "--cached", "--others", "--exclude-standard", "*.ts"],
+      { cwd: ROOT, encoding: "utf8" },
+    )
+      .split("\n")
+      .map((f) => f.trim())
+      .filter((f) => f.length > 0 && !f.endsWith(".test.ts") && !f.endsWith(".d.ts"));
+    expect(allTs.filter((f) => !sources.includes(f))).toEqual([AUTHORITY_PATH]);
 
     const found: { module: string; accessor: string }[] = [];
     for (const rel of sources) {
@@ -710,15 +727,53 @@ describe("30-10 R2 F4 — a root entry that imitates the markdown extension is r
     expect(r.stdout).toContain(`${PUBLIC_DOCS_SCAN_COUNT} public document(s)`);
   });
 
-  it("an unrelated extension is NOT an imitation — the refusal's scope is one extension, case-folded", () => {
-    // Bounding the new predicate: it folds CASE on the SAME extension literal and nothing else. A
-    // `.markdown`, a `.txt` or a `.mdx` is a different file type, not a near-miss, and refusing them
-    // would be the widening this posture avoids.
-    const mirror = makeMirror("pdv-f4-scope-");
-    writeFileSync(join(mirror, "NOTES.txt"), "plain text\n", "utf8");
-    writeFileSync(join(mirror, "guide.markdown"), "# g\n", "utf8");
-    writeFileSync(join(mirror, "page.mdx"), "# p\n", "utf8");
+  it("SUPERSEDED by R6-6: `.markdown` and `.mdx` ARE imitations; a non-markdown extension is not", () => {
+    // F4 scoped its refusal to the CASE axis and this case asserted that `.markdown` and `.mdx` were
+    // therefore out of scope. Round 4's R6-6 established that as the gap: this tree already declared
+    // the alias axis in kit-model and had taught it to one corpus of two, so a root
+    // `PUBLIC.markdown` with live disproven claims sat outside BOTH language gates. The verdict for
+    // those two extensions FLIPS; the bound that survives is that a genuinely different file type is
+    // still not an imitation. Recorded here, where the old belief was written.
+    const refused = makeMirror("pdv-f4-scope-a-");
+    writeFileSync(join(refused, "guide.markdown"), "# g\n", "utf8");
+    expect(runGate(refused).status).not.toBe(0);
+
+    const clean = makeMirror("pdv-f4-scope-b-");
+    writeFileSync(join(clean, "NOTES.txt"), "plain text\n", "utf8");
+    writeFileSync(join(clean, "data.json"), "{}\n", "utf8");
+    expect(runGate(clean).status, "a genuinely different file type was refused").toBe(0);
+  });
+});
+
+describe("30-10 R4 R6-6 — the public-docs corpus refuses the ALIAS imitation, not only the case one", () => {
+  it("a root `PUBLIC.markdown` is a NAMED derivation refusal", () => {
+    const mirror = makeMirror("pdv-r66-");
+    writeFileSync(join(mirror, "PUBLIC.markdown"), "# x\n\nbody\n", "utf8");
+    const r = runGate(mirror);
+    expect(r.status, `PUBLIC.markdown was silently excluded:\n${r.stdout}`).not.toBe(0);
+    expect(r.stdout).toContain("PUBLIC.markdown");
+  });
+
+  it("every alias spelling reviewer 5 named is refused at the root", () => {
+    for (const ext of [".markdown", ".mdown", ".mdwn", ".mkd", ".mkdn", ".mkdown", ".mdx", ".livemd", ".workbook", ".ronn"]) {
+      const mirror = makeMirror(`pdv-r66${ext.replace(".", "-")}-`);
+      writeFileSync(join(mirror, `PUBLIC${ext}`), "# x\n\nbody\n", "utf8");
+      expect(runGate(mirror).status, ext).not.toBe(0);
+    }
+  });
+
+  it("the CASE axis still fires — F4's own case, re-run against the merged predicate", () => {
+    const mirror = makeMirror("pdv-r66-case-");
+    writeFileSync(join(mirror, "PUBLIC.MD"), "# x\n\nbody\n", "utf8");
+    expect(runGate(mirror).status).not.toBe(0);
+  });
+
+  it("unrelated extensions are still NOT imitations, and the clean corpus is unchanged", () => {
+    const mirror = makeMirror("pdv-r66-scope-");
+    writeFileSync(join(mirror, "NOTES.txt"), "plain\n", "utf8");
+    writeFileSync(join(mirror, "data.json"), "{}\n", "utf8");
     const r = runGate(mirror);
     expect(r.status, r.stdout).toBe(0);
+    expect(r.stdout).toContain(`${PUBLIC_DOCS_SCAN_COUNT} public document(s)`);
   });
 });

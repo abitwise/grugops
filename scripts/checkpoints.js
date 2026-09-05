@@ -47,7 +47,7 @@ import { SAFETY_FLOORS } from "./audit-model.js";
 // directory walk here would be a SECOND authority for a predicate this tree already unified — the
 // Phase 29 lesson this module exists downstream of.
 import { locateSection } from "./check-diff-disposition.js";
-import { listWorkflowDirMarkdown, listWorkflows, WORKFLOWS_SUBPATH } from "./kit-model.js";
+import { listWorkflowDirEntries, listWorkflows, WORKFLOWS_SUBPATH } from "./kit-model.js";
 import { fencedLineFlags, unfencedHeadingIndices, unfencedHeadingNearMisses, unfencedMatchIndices, } from "./frontmatter.js";
 /**
  * The roster AND its defaults, in ONE table. Object.keys() over this is the roster count; nothing
@@ -471,15 +471,19 @@ export function deriveCheckpoints(root = DEFAULT_ROOT) {
     // corpus's directory without taking that form is refused BY NAME rather than dropped. The
     // unfiltered read is asked of the lister's own module, so this is two traversals of one directory
     // through one `readdirSync` helper — never a second directory walk written here.
-    const present = listWorkflowDirMarkdown(root);
+    // (Round 4, R5-3) INVERTED: the read admits EVERY entry and this refuses anything the corpus rule
+    // does not, so there is no extension question left to get wrong. R3-4's alias list was defeated on
+    // the first probe by seven further Linguist markdown spellings.
+    const present = listWorkflowDirEntries(root);
     const admitted = new Set(files);
     const unadmitted = present.filter((f) => !admitted.has(f));
     if (unadmitted.length > 0) {
-        throw new CheckpointDerivationError(`checkpoints: ${WORKFLOWS_SUBPATH} carries ${unadmitted.length} markdown file(s) the workflow ` +
-            `corpus does not admit — ${unadmitted.join(", ")}. A stop declared in a file the corpus rule ` +
-            `drops is walked by nothing: it has no roster member, no config cell and no enforcement, and ` +
-            `no cardinality anywhere can see that it is missing. Rename it into the numbered corpus, or ` +
-            `move it out of the workflows directory`);
+        throw new CheckpointDerivationError(`checkpoints: ${WORKFLOWS_SUBPATH} carries ${unadmitted.length} entr(ies) the workflow corpus ` +
+            `does not admit — ${unadmitted.join(", ")}. A stop declared in a file the corpus rule drops ` +
+            `is walked by nothing: it has no roster member, no config cell and no enforcement, and no ` +
+            `cardinality anywhere can see that it is missing. Rename it into the numbered corpus, move ` +
+            `it out of the workflows directory, or add it to WORKFLOW_DIR_EXEMPT in scripts/kit-model.ts ` +
+            `with a reason`);
     }
     const sites = new Map();
     let examinedBullets = 0;

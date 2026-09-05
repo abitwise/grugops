@@ -84,7 +84,11 @@ import { RETIRED_PATH_FORMS, RETIRED_PROSE_FORMS, } from "./dead-vocabulary.js";
 // The walk's WORK bound is taken from the ONE place this repository declares it rather than
 // restated as a second 10000. kit-model's own comment records why a per-path cycle answer cannot
 // bound a walk; the same argument applies to any directory a contributor can add files to.
-import { MAX_WALK_ENTRIES } from "./kit-model.js";
+import { MAX_WALK_ENTRIES, 
+// (Plan 30-10, round 4, R6-6) The tree's ONE markdown-imitation predicate. F4's case axis and
+// R3-4's alias axis are one question; asking it here rather than restating half of it is what
+// stops a third corpus learning a third half.
+isCanonicalMarkdownName, imitatesMarkdownName, } from "./kit-model.js";
 // The generated guarantees page's path, taken from the module that DECLARES it. A second literal
 // here would be two spellings of one path, and a rename would move only one of them — the exact
 // set-literal drift this repository has already paid for twice. See the `guarantees` part below.
@@ -133,18 +137,21 @@ const EXAMPLES_DIR = "examples";
  * widening this posture exists to avoid, and each has a case saying so.
  * ═════════════════════════════════════════════════════════════════════════════════════════════
  */
-function isCanonicalMarkdown(name) {
-    return name.endsWith(MARKDOWN_EXT);
-}
-function imitatesMarkdown(name) {
-    return !isCanonicalMarkdown(name) && name.toLowerCase().endsWith(MARKDOWN_EXT);
-}
+// (Plan 30-10, round 4, finding R6-6) THE PREDICATE MOVED TO THE ONE PLACE THAT OWNS IT.
+// F4 folded the CASE axis here; R3-4 declared the ALIAS axis in scripts/kit-model.ts and taught it
+// to the workflow corpus only. A root `PUBLIC.markdown` carrying live disproven claims was therefore
+// neither a member, nor an imitation, nor a derivation refusal, nor counted by the two-sided scan
+// pin — outside BOTH language gates, with the corpus size unchanged at 11. Both axes are one
+// question and now have one answer, asked here rather than restated.
+const isCanonicalMarkdown = isCanonicalMarkdownName;
+const imitatesMarkdown = imitatesMarkdownName;
 /** Record every imitation in `entries` as a named derivation refusal, and return the entries. */
 function refuseMarkdownImitations(part, entries) {
     for (const name of entries) {
         if (!imitatesMarkdown(name))
             continue;
-        DERIVATION_REFUSALS.push(`${part}: "${name}" spells the markdown extension in a case this corpus does not admit, so it ` +
+        DERIVATION_REFUSALS.push(`${part}: "${name}" spells markdown without being the canonical lower-case "${MARKDOWN_EXT}" ` +
+            `extension, so it ` +
             `is a public document that no part derives and no cardinality pin can miss — the derived ` +
             `count never counted it. Rename it to the canonical lower-case "${MARKDOWN_EXT}" extension, ` +
             `or move it out of the public corpus`);

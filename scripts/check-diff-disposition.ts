@@ -132,7 +132,9 @@ import { reportMeasured, type Measured } from "./vacuity.js";
 // The derivation authority for D-01 source (b). listRoles/listWorkflows THROW on an empty or missing
 // directory rather than returning [], so the vacuity refusal is inherited rather than restated.
 import {
+  listRoleDirEntries,
   listRoles,
+  listWorkflowDirEntries,
   listWorkflows,
   ROLE_COUNT,
   WORKFLOW_COUNT,
@@ -705,6 +707,25 @@ export function deriveFrozenSet(root: string = ROOT): FrozenSet {
         expected: anchor.expected,
       });
       continue;
+    }
+    // ── THE CORPUS'S OWN MEMBERSHIP, BOTH HALVES (round 4, reviewer 5 observation 4) ──────────
+    //
+    // F6 and R3-4 built the raw-membership refusal for the workflows corpus and never built it for
+    // the roles one, so a `roles/rogue.markdown` or `roles/_rogue.md` carrying a full role document
+    // and a complete `## Hard limits` section sat in the kit while every gate reported 17/17 and
+    // nothing scanned it. The refusal is asked here, where the corpus is walked, from the same
+    // inverted read the workflow corpus uses.
+    const entries =
+      anchor.corpus === "roles" ? listRoleDirEntries(root) : listWorkflowDirEntries(root);
+    const unadmitted = entries.filter((e) => !files.includes(e));
+    if (unadmitted.length > 0) {
+      refusals.push(
+        `${anchor.subpath}: carries ${unadmitted.length} entr(ies) the ${anchor.corpus} corpus does ` +
+          `not admit — ${unadmitted.join(", ")}. A document the corpus rule drops is scanned by ` +
+          `nothing: its \`${anchor.heading}\` section is frozen by no gate and counted by no ` +
+          `cardinality. Rename it into the corpus, move it out of the directory, or add it to the ` +
+          `named exemption list in scripts/kit-model.ts with a reason`,
+      );
     }
     let located = 0;
     for (const base of files) {

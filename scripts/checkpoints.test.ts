@@ -1425,12 +1425,14 @@ describe("30-10 R2 F6 — a markdown file the workflow corpus does not admit is 
     expect(cp.sortedIds([...d.ids])).toEqual(cp.sortedIds(["control_stop", "second_stop"]));
   });
 
-  it("a NON-markdown entry is not a workflow and is not refused", () => {
-    // The refusal's scope is markdown. A README fragment, a JSON fixture or a directory beside the
-    // workflows is not a document the corpus rule was ever about, and refusing it would be the
-    // widening this posture avoids.
+  it("SUPERSEDED by R5-3: a non-markdown entry is now refused unless it is a named exemption", () => {
+    // F6 scoped its refusal to markdown, and round 4's inversion removed the extension question
+    // entirely — so this case's verdict FLIPS. The reversal is deliberate: the workflows directory's
+    // only legitimate contents are the numbered corpus plus a pinned list of named non-documents,
+    // and an extension test is precisely what reviewer 5 defeated on its first probe. Recorded here
+    // rather than deleted, so the change of mind is visible where the old belief was written.
     const root = workflowFixture({ "00-control.md": CONTROL, "notes.txt": "not a workflow" });
-    expect(() => cp.deriveCheckpoints(root)).not.toThrow();
+    expect(() => cp.deriveCheckpoints(root)).toThrow(/notes\.txt/);
   });
 
   it("the admitted set is a SUBSET of the directory read — two traversals, one equality", () => {
@@ -1438,11 +1440,12 @@ describe("30-10 R2 F6 — a markdown file the workflow corpus does not admit is 
     // Both go through kit-model's one `readdirSync` helper, and the containment is asserted rather
     // than assumed: a lister that admitted a file the raw read cannot see would be reading a
     // different directory.
-    const present = km.listWorkflowDirMarkdown(ROOT);
+    const present = km.listWorkflowDirEntries(ROOT);
     const admitted = km.listWorkflows(ROOT);
     expect(present.length).toBeGreaterThan(0);
     expect(admitted.filter((f) => !present.includes(f))).toEqual([]);
-    // On the live tree the two agree exactly — there is nothing in the directory the corpus drops.
+    // On the live tree the two agree exactly — the directory carries the numbered corpus and, apart
+    // from the named exemptions the read already drops, nothing else.
     expect([...admitted].sort()).toEqual([...present].sort());
   });
 });
@@ -1683,7 +1686,13 @@ describe("30-10 R3 — the heading authority answers about the RENDERER, not abo
 // named second systemic failure class, so it is pinned two-sided and its bound is stated.
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 
-describe("30-10 R3-4 — a markdown ALIAS extension in the workflows directory is refused by name", () => {
+// SUPERSEDED BY ROUND 4's R5-3 INVERSION, and kept as the record of what round 3 believed.
+// The alias-set cases below are re-expressed as "the inversion refuses these too", and the two
+// assertions that were ABOUT the alias set — its membership pin and its non-markdown carve-out —
+// are deleted here and replaced by the exemption-list pin in the R5-3 block, because the set they
+// pinned no longer exists. Deleting an assertion inside a red-team round is the one edit that
+// cannot be distinguished from narrowing the check, so it is named rather than done quietly.
+describe("30-10 R3-4 (superseded by R5-3) — alias extensions are still refused, now by inversion", () => {
   const tagged = (name: string): Record<string, string> => ({
     "00-control.md": CONTROL,
     [name]: "# Hotfix\n\n## Stop conditions\n\n- Stop before force-pushing. `checkpoint: planted_shadow_stop`\n",
@@ -1695,23 +1704,75 @@ describe("30-10 R3-4 — a markdown ALIAS extension in the workflows directory i
     });
   }
 
-  it("a NON-markdown entry is still out of scope — the bound is aliases, not every file", () => {
-    // F6's own bound, re-derived against the new boundary. `.txt`, `.json` and a bare name are not
-    // markdown documents and refusing them would be the widening this posture avoids.
+  it("the LIVE workflows directory carries only admitted entries and named exemptions", () => {
+    expect(km.listWorkflowDirEntries(ROOT).filter((f) => !km.listWorkflows(ROOT).includes(f))).toEqual([]);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// PLAN 30-10 ROUND 4 — R5-3: R3-4's hand-declared alias set failed on the first probe.
+//
+// R3-4 named its own new freedom — "a hand-declared alias set, this repository's named second
+// systemic failure class" — and bounded it with "a two-sided pin on its exact members", which pins
+// what is IN the set and proves nothing about what a markdown document is. Reviewer 5 swept ten
+// extensions: `.markdown`, `.mdown`, `.mkd` refused; `.mdwn`, `.mkdn`, `.mkdown`, `.mdx`, `.livemd`,
+// `.workbook`, `.ronn` — all GitHub-Linguist markdown — ACCEPTED, walked by nothing, refused by
+// nothing.
+//
+// THE REPAIR INVERTS THE TEST RATHER THAN LENGTHENING THE LIST. The workflows directory's only
+// legitimate contents are canonically named numbered workflows, so the raw read admits EVERY entry
+// and the refusal names anything the corpus rule does not admit — with a pinned, asserted-empty
+// exemption list for entries a working tree legitimately carries. The membership question then has
+// one answer derived from the directory, not from a set somebody must keep complete.
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+
+describe("30-10 R4 R5-3 — the workflow corpus refuses by INVERSION, not by an alias list", () => {
+  const tagged = (name: string): Record<string, string> => ({
+    "00-control.md": CONTROL,
+    [name]: "# Hotfix\n\n## Stop conditions\n\n- Stop before force-pushing. `checkpoint: planted_shadow_stop`\n",
+  });
+
+  for (const name of [
+    "hotfix.mdwn", "hotfix.mkdn", "hotfix.mkdown", "hotfix.mdx",
+    "hotfix.livemd", "hotfix.workbook", "hotfix.ronn",
+    "hotfix.markdown", "hotfix.mdown", "hotfix.mkd", "hotfix.md",
+  ]) {
+    it(`refuses ${name} — the corpus admits numbered canonical .md and nothing else`, () => {
+      expect(() => cp.deriveCheckpoints(workflowFixture(tagged(name)))).toThrow(
+        new RegExp(name.replace(".", "\\.")),
+      );
+    });
+  }
+
+  it("a NON-document entry is refused too — the inversion has no extension question left", () => {
+    // The deliberate reversal of F6's own "a non-markdown entry is explicitly out of scope" case.
+    // Under inversion there is no extension predicate at all: the directory's contents are the
+    // numbered corpus or they are named. That case is superseded, and the reversal is recorded.
     for (const name of ["notes.txt", "fixture.json", "README"]) {
-      expect(() => cp.deriveCheckpoints(workflowFixture({ "00-control.md": CONTROL, [name]: "x" }))).not.toThrow();
+      expect(() => cp.deriveCheckpoints(workflowFixture({ "00-control.md": CONTROL, [name]: "x" }))).toThrow(
+        new RegExp(name.replace(".", "\\.")),
+      );
     }
   });
 
-  it("the alias set is pinned two-sided and the canonical extension is NOT one of them", () => {
-    // The hand-declared set, bounded. A canonical `.md` must never be an alias — that would make
-    // every workflow a refusal — and the aliases must be exactly the declared ones.
-    expect([...km.MARKDOWN_ALIAS_EXTENSIONS].sort()).toEqual([".markdown", ".mdown", ".mkd"]);
-    expect(km.MARKDOWN_ALIAS_EXTENSIONS).not.toContain(".md");
-    expect(km.MARKDOWN_ALIAS_EXTENSIONS.length).toBeGreaterThan(0);
+  it("the EXEMPTION list is pinned two-sided, every member carries a reason, and it covers the tree", () => {
+    // The freedom the inversion creates: an exemption list, which is a set literal again — but a
+    // smaller one. Its members are NAMED ENTRIES rather than a CLASS that must stay complete, each
+    // carries a written reason, and the live directory is asserted to contain nothing outside the
+    // admitted set plus this list. The inversion found `.gitkeep` on its FIRST run, which is the
+    // list earning its existence by measurement rather than being written speculatively.
+    expect(km.WORKFLOW_DIR_EXEMPT_NAMES).toEqual([".gitkeep"]);
+    for (const e of km.WORKFLOW_DIR_EXEMPT) expect(e.why.length).toBeGreaterThan(40);
+    expect(km.listWorkflowDirEntries(ROOT).filter((f) => !km.listWorkflows(ROOT).includes(f))).toEqual([]);
+    // …and the exemption is a NAME test, not a class test: `.gitkeep2` is still refused.
+    expect(() => cp.deriveCheckpoints(workflowFixture({ "00-control.md": CONTROL, ".gitkeep2": "" }))).toThrow(
+      /\.gitkeep2/,
+    );
   });
 
-  it("the LIVE workflows directory carries no alias — the refusal is not already firing", () => {
-    expect(km.listWorkflowDirMarkdown(ROOT).filter((f) => !f.toLowerCase().endsWith(".md"))).toEqual([]);
+  it("the live corpus still derives cleanly — the inversion is not already firing", () => {
+    const d = cp.deriveCheckpoints(ROOT);
+    expect(d.ids.length).toBe(10);
+    expect(d.totalSites).toBe(cp.RECORDED_TOTAL_SITES);
   });
 });

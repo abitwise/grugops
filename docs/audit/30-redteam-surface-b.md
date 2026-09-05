@@ -2134,3 +2134,129 @@ direction of that gap is UNCHANGED behaviour, not a new hole.
 
 **One pin moved:** `check-diff-disposition.ts`'s imported-symbol set 5 → 6, the entrant named and its
 declarative nature argued.
+
+---
+
+## R5-3 and R6-6 — the alias set failed on the first probe, and had been taught to one corpus of two
+
+### What they are
+
+**R5-3.** R3-4 named its own new freedom — *"a hand-declared alias set, this repository's named second
+systemic failure class"* — and bounded it with "a two-sided pin on its exact members", which pins what
+is IN the set and proves nothing about what a markdown document is. Reviewer 5 swept ten extensions:
+`.markdown`, `.mdown`, `.mkd` refused; **`.mdwn`, `.mkdn`, `.mkdown`, `.mdx`, `.livemd`, `.workbook`,
+`.ronn` accepted** — all GitHub-Linguist markdown, all walked by nothing.
+
+**R6-6.** F4 folded the CASE axis into the public-docs corpus; R3-4 declared the ALIAS axis in
+`kit-model` and taught it to the workflow corpus only. So a root `PUBLIC.markdown` carrying live
+disproven claims was neither a member, nor an imitation, nor a derivation refusal, nor countable by a
+two-sided pin over a derived count — **outside BOTH language gates**. R3-3's shape ("a refusal added
+at one of N anchors") applied to F4.
+
+### Mirror reproduction (R6-6)
+
+```
+$ # MIRROR (392f3ab) — a root PUBLIC.markdown with live banned-claim literals
+  check-public-docs-vocabulary  exit 0
+  check-banned-claims           exit 0
+$ # CURRENT TREE (fixed)
+  check-public-docs-vocabulary  exit 1, 1 finding naming PUBLIC.markdown
+  check-banned-claims           exit 1
+```
+
+### The structural fixes, each in one sentence
+
+**R5-3 — the workflow corpus INVERTS the test rather than lengthening the list:** the raw read admits
+every directory entry and the consumer refuses anything the corpus rule does not admit, so **there is
+no extension question left to get wrong**.
+
+**R6-6 — one imitation predicate for the tree:** `isCanonicalMarkdownName` / `imitatesMarkdownName`
+live once, beside the alias set, and the public-docs corpus asks them instead of restating half the
+question.
+
+### Why the two corpora take DIFFERENT postures, stated rather than glossed
+
+The reviewers asked for one posture. There is one *principle* and two *applications*, and the
+difference is a property of the directories rather than a preference. The workflows directory is
+CLOSED — its only legitimate contents are canonically named numbered workflows — so inversion is
+available and removes the freedom entirely. A repository root is OPEN: its legitimate non-markdown
+contents cannot be enumerated, so inversion there would refuse `LICENSE`, `package.json` and every
+future file. The imitation predicate is used **only** where inversion is impossible, and the residual
+it leaves — a markdown spelling Linguist adds later — is carried as a backlog item rather than
+claimed closed.
+
+### What NEW freedom these create, and how they are bounded
+
+**An exemption list** (`WORKFLOW_DIR_EXEMPT`, `ROLE_DIR_EXEMPT`) — a set literal again, but a
+smaller one: its members are NAMED ENTRIES rather than a CLASS that must stay complete, each carries
+a written reason, both are pinned two-sided, and the live directory is asserted to hold nothing
+outside the admitted set plus the list. **The inversion found `.gitkeep` on its first run**, which is
+the list earning its existence by measurement rather than being written speculatively. The exemption
+is a NAME test, not a class test — `.gitkeep2` is still refused, and that has a case.
+
+**The alias list survives for the open corpus** and is widened to Linguist's, with its provenance
+named — an external authority rather than one invented here. That does not make it complete, and the
+declaration says so.
+
+### Two round-3 cases are SUPERSEDED, and both reversals are recorded where the old belief was written
+
+- *"a non-markdown entry is explicitly out of scope"* (F6/R3-4) — the inversion removes the extension
+  question, so `notes.txt` in the workflows directory is now refused. The case's verdict flips and it
+  says why.
+- *"an unrelated extension is NOT an imitation — the scope is one extension, case-folded"* (F4) —
+  `.markdown` and `.mdx` ARE imitations at the public-docs root now. The surviving bound is that a
+  genuinely different file type (`.txt`, `.json`) is still not one, and that half is re-asserted.
+
+Deleting an assertion inside a red-team round is the one edit that cannot be distinguished from
+narrowing the check, so both are named rather than done quietly.
+
+### Also closed — reviewer 5 observation 4: the ROLES corpus had no membership refusal at all
+
+F6 and R3-4 built the raw-membership refusal for workflows and never built it for roles, so
+`roles/rogue.markdown`, `roles/_rogue.md` and `roles/rogue.mdwn` each placed a full role document —
+`## Hard limits` and all — into the kit where every gate reported `17/17` and nothing scanned it. The
+same inversion is applied in `deriveFrozenSet`, from the same kind of read, with the two genuine
+exemptions named and reasoned (`.gitkeep`, and `_role-switch-protocol.md`, which
+`check-audit-register` separately records as the one uncounted `safety_surface: yes` row).
+
+### Mutation proof
+
+| mutant | outcome |
+|---|---|
+| the workflow inversion refusal disabled | **KILLED** — 20 failed |
+| the alias arm removed from the imitation predicate | **KILLED** — 3 failed |
+| the roles membership refusal disabled | **KILLED** — 4 failed |
+
+---
+
+## R6-4 — the consumer pin excluded every path CONTAINING the authority's name
+
+### What it is
+
+`.filter((f) => !f.includes(AUTHORITY))` — a substring test over the whole repo-relative path, there
+to drop the authority itself. F5 widened the module set to the repository and R4-2 keyed the rows by
+path; neither moved this filter, so `scripts/check-public-docs-vocabulary-companion.ts` was removed
+from the scan set before detection ran.
+
+### Reproduction, measured on the predicate
+
+The suite run was **not** used as the mirror here: the round-3 test file fails against the round-4
+artifact for an unrelated reason, so a red from it would be a false control. The two filters were
+driven over the same file list instead:
+
+```
+round-3 filter (substring): plant in scan set? false   | dropped 2 file(s)
+round-4 filter (identity) : plant in scan set? true    | dropped 1 file(s):
+                                                          ["scripts/check-public-docs-vocabulary.ts"]
+TREE (round-4 pin): consumer(s) … with no declared direction:
+  [scripts/check-public-docs-vocabulary-companion.ts::publicDocsScan]
+```
+
+### The structural fix, in one sentence
+
+**Exclude by identity, not by substring**, with a floor asserting the excluded set has exactly one
+member — so the exclusion cannot silently grow back.
+
+### What NEW freedom this creates
+
+**None — it strictly grows the scan set**, and the added floor removes the freedom the old filter had.
