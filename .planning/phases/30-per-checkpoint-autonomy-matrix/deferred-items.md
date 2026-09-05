@@ -102,3 +102,44 @@ the key without them would leave the kit documenting a dial that no longer exist
 refused for this id alone, as a documented per-id restriction in the validator — never by removing
 `off` from the ternary, which would change every other checkpoint.
 **Suggested owner:** plan 30-04 or 30-05, whichever carries the config-key migration.
+
+## V-30-08-01 — a self-set ATTEMPT leaves nothing in the trace
+
+**Found during:** plan 30-08, adversarial probe E (13 spawns of the committed `hooks/guard.js`).
+**Where:** `hooks/guard.ts` — the `SELF_APPROVE` refusal runs BEFORE the per-checkpoint decision loop.
+**What:** an agent that tries to grant itself a floor key (`export GRUGOPS_FLOOR_X=me && git push
+origin main`) is refused under every disposition — `block`, `notify` and `off` alike, measured — and
+the refusal writes NO note. The attempt is therefore visible to whoever reads the denial in the
+transcript and invisible to whoever reads the shared verified context later. An UNAUTHORIZED
+DECLARATION now records itself (D-10); an attempted SELF-AUTHORIZATION does not.
+**Why it is not fixed here:** D-10 and D-11 govern what a LOWERING records. The self-set refusal is
+D-09/D-33, predates this phase, and its behaviour is unchanged by this plan — adding a note there
+would be a new record class with its own flood question (below), decided by nobody.
+**Suggested owner:** plan 30-09 (the settings-file vector), which is already the plan that narrows
+self-authorization.
+
+## V-30-08-02 — one note per matched invocation, with no rate bound
+
+**Found during:** plan 30-08, Task 1 design.
+**Where:** `hooks/guard.ts` → `scripts/context-io.ts` `emitCheckpointNote`.
+**What:** every matched command at a lowered checkpoint writes one note file. A loop issuing the same
+`notify`-tier command a thousand times writes a thousand notes. That is the honest consequence of
+"every lowering is recorded" — a deduplicating or rate-limited record would be a record that omits
+occurrences, which is the property the record exists to deny — but it is a growth path nothing bounds.
+**Why it is not fixed here:** compaction (`scripts/compactor.ts`) is the tree's existing answer to note
+volume, and it currently refuses a reserved-identity note on the plain validator (as it already does
+for a `§14-gate` verdict). Deciding how the checkpoint trace compacts is a compaction question.
+**Suggested owner:** whichever plan next touches `scripts/compactor.ts`, or a follow-up phase.
+
+## V-30-08-03 — a stored reserved-identity note does not pass the plain validator
+
+**Found during:** plan 30-08, adversarial probe B.
+**Where:** `scripts/context-io.ts` — `validate(text)` with no claimed identity.
+**What:** a checkpoint note read back off disk and handed to `validate()` FAILs the reserved-identity
+rule, because the plain call claims no identity. Measured. This is not new behaviour introduced here:
+a stored `§14-gate` verdict has exactly the same property today, for the same reason. It matters
+because the compaction carve-out oracle runs the plain `validate()` on stored bytes, so neither a
+verdict nor a checkpoint record is compactable as things stand.
+**Why it is not fixed here:** the fix is a read-path rule about reserved identities in general, not a
+checkpoint concern, and changing it would change how verdicts compact.
+**Suggested owner:** the same owner as V-30-08-02.
