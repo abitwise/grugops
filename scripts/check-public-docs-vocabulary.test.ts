@@ -28,7 +28,7 @@
 // Vitest globals:false → import explicitly.
 
 import { describe, it, expect, afterAll } from "vitest";
-import { spawnSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import {
   mkdtempSync,
   mkdirSync,
@@ -566,25 +566,59 @@ describe("30-10 B-8 — the corpus/scan consumer split is derived and its direct
   ];
 
   it("the tree's consumers of each accessor are EXACTLY the declared ones, both directions", () => {
-    const dir = join(import.meta.dirname);
-    const modules = readdirSync(dir)
-      .filter((f) => f.endsWith(".ts") && !f.endsWith(".test.ts"))
-      .filter((f) => f !== "check-public-docs-vocabulary.ts")
+    // ROUND 2, F5 — THE SET THIS PIN ENUMERATES, REPAIRED.
+    //
+    // Round 1's derivation was `readdirSync(scripts/)` filtered to non-test `.ts`, matched with a
+    // BARE-CALL regex whose lookbehind excluded `.`. Three silent gaps, all measured by the review:
+    // a namespace-import consumer (`import * as pdv …; pdv.publicDocsScan()`) is unmatchable by that
+    // regex; a consumer in `hooks/` or `install/` — both of which import `scripts/` modules today —
+    // is outside the directory read; and `scripts/` has subdirectories the flat read never descends
+    // into. A pin whose job is "EXACTLY the declared consumers" was reporting over a set that
+    // excluded three module trees, every subdirectory and one call form.
+    //
+    // The repair changes BOTH halves. The module set is the repository's own `.ts` sources — tracked
+    // AND untracked-but-not-ignored, recursively, whole tree — so a plant anywhere is visible and
+    // `node_modules` is excluded by the ignore rules rather than by a directory literal. And the
+    // detection is by IMPORT BINDING rather than by call shape: a module that imports this
+    // authority and names an accessor consumes it, however it later spells the call. Detecting an
+    // import is one question with one answer; detecting a call spelling is an open set.
+    const AUTHORITY = "check-public-docs-vocabulary";
+    const sources = execFileSync(
+      "git",
+      ["ls-files", "--cached", "--others", "--exclude-standard", "*.ts"],
+      { cwd: ROOT, encoding: "utf8" },
+    )
+      .split("\n")
+      .map((f) => f.trim())
+      .filter((f) => f.length > 0 && !f.endsWith(".test.ts") && !f.endsWith(".d.ts"))
+      .filter((f) => !f.includes(AUTHORITY))
       .sort();
-    // Non-vacuity: the scan set is the tree's non-test modules, and it is not empty.
-    expect(modules.length).toBeGreaterThan(10);
+    // Non-vacuity, and a floor that a flat single-directory read could not clear: the set spans the
+    // whole repository, so it is far larger than one directory's worth of modules.
+    expect(sources.length).toBeGreaterThan(30);
+    expect(sources.some((f) => f.startsWith("hooks/"))).toBe(true);
+    expect(sources.some((f) => f.startsWith("install/"))).toBe(true);
 
     const found: { module: string; accessor: string }[] = [];
-    for (const m of modules) {
-      const code = readFileSync(join(dir, m), "utf8")
+    for (const rel of sources) {
+      const code = readFileSync(join(ROOT, rel), "utf8")
         .split("\n")
         .filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l))
         .join("\n");
+      // The module must reach this authority at all — a name coincidence in an unrelated file is
+      // not a consumer, and a module that imports it is one however it spells the call.
+      if (!code.includes(AUTHORITY)) continue;
+      const m = rel.split("/").pop() as string;
+      let named = 0;
       for (const accessor of ["publicDocsCorpus", "publicDocsScan"] as const) {
-        if (new RegExp(`(?<![\\w$.])${accessor}\\s*\\(`).test(code)) {
+        if (new RegExp(`\\b${accessor}\\b`).test(code)) {
           found.push({ module: m, accessor });
+          named += 1;
         }
       }
+      // Imports the authority and names NEITHER accessor: still a consumer, and it still owes a
+      // declared direction. Fail-closed, so a computed or re-exported access cannot be silent.
+      if (named === 0) found.push({ module: m, accessor: "*" });
     }
 
     const key = (r: { module: string; accessor: string }): string => `${r.module}::${r.accessor}`;
@@ -619,5 +653,63 @@ describe("30-10 B-8 — the corpus/scan consumer split is derived and its direct
       expect(corpus).toContain(e);
       expect(scan).not.toContain(e);
     }
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// PLAN 30-10 ROUND 2 — F4 (reviewer R1-4, LOW): the corpus's EXTENSION test is case-sensitive.
+//
+// `rootMarkdown()` filters `entries.filter(f => f.endsWith(".md"))`. A root `PUBLIC.MD` is therefore
+// not a member — and `PUBLIC_DOCS_SCAN_COUNT` is a two-sided pin over the DERIVED count, so a
+// document the derivation never admits does not move it. Measured by the reviewer on the live
+// worktree: a root `PUBLIC.MD` carrying live banned claims left both language gates at exit 0 while
+// the identical bytes in `README.md` are red.
+//
+// This is the recorded CHANGELOG.md defect's shape — a public document outside the scan carrying
+// live disproven claims — reached through the extension test instead of through the exemption.
+//
+// THE REPAIR DOES NOT WIDEN THE CORPUS. Admitting `.MD` would move the pin and change which
+// documents the gate scans; the canonical extension stays the lower-case one. What changes is that a
+// near-miss is REFUSED BY NAME through the derivation-refusal channel the module already owns, so
+// the entry is loud rather than absent. Same posture as F2: define the canonical form, refuse what
+// imitates it.
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+
+describe("30-10 R2 F4 — a root entry that imitates the markdown extension is refused by name", () => {
+  it("a root `PUBLIC.MD` is a NAMED derivation refusal, not a silent non-member", () => {
+    const mirror = makeMirror("pdv-f4-upper-");
+    writeFileSync(join(mirror, "PUBLIC.MD"), "# x\n\nthis is a public document\n", "utf8");
+    const r = runGate(mirror);
+    expect(r.status, `PUBLIC.MD was silently excluded:\n${r.stdout}`).not.toBe(0);
+    expect(r.stdout).toContain("PUBLIC.MD");
+  });
+
+  it("an examples entry that imitates the extension is refused too — one rule, every part", () => {
+    const mirror = makeMirror("pdv-f4-examples-");
+    writeFileSync(join(mirror, "examples", "06-extra.MD"), "# x\n\nbody\n", "utf8");
+    const r = runGate(mirror);
+    expect(r.status).not.toBe(0);
+    expect(r.stdout).toContain("06-extra.MD");
+  });
+
+  it("the canonical corpus is UNCHANGED — the repair refuses, it does not widen", () => {
+    // The pin must not move. A repair that admitted `.MD` would grow the scan set, change which
+    // documents are scanned, and quietly re-answer a different question than the one asked.
+    const mirror = makeMirror("pdv-f4-clean-");
+    const r = runGate(mirror);
+    expect(r.status, r.stdout).toBe(0);
+    expect(r.stdout).toContain(`${PUBLIC_DOCS_SCAN_COUNT} public document(s)`);
+  });
+
+  it("an unrelated extension is NOT an imitation — the refusal's scope is one extension, case-folded", () => {
+    // Bounding the new predicate: it folds CASE on the SAME extension literal and nothing else. A
+    // `.markdown`, a `.txt` or a `.mdx` is a different file type, not a near-miss, and refusing them
+    // would be the widening this posture avoids.
+    const mirror = makeMirror("pdv-f4-scope-");
+    writeFileSync(join(mirror, "NOTES.txt"), "plain text\n", "utf8");
+    writeFileSync(join(mirror, "guide.markdown"), "# g\n", "utf8");
+    writeFileSync(join(mirror, "page.mdx"), "# p\n", "utf8");
+    const r = runGate(mirror);
+    expect(r.status, r.stdout).toBe(0);
   });
 });

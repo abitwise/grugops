@@ -1002,7 +1002,15 @@ export function assertSiteCounts(
     }
   }
   for (const id of sites.keys()) {
-    if (!(id in recorded)) {
+    // `Object.hasOwn`, NOT `in` (plan 30-10 round 2, reviewer 2's observation 1). `recorded` is a
+    // plain object, so `in` consults `Object.prototype` — and `constructor` is the one prototype
+    // name that is ALSO legal under `CHECKPOINT_TAG_RE`'s snake_case pattern. Measured against the
+    // committed artifact: a bullet tagged `checkpoint: constructor` passed this arm silently while
+    // every other prototype spelling was refused. It is masked end-to-end by
+    // `compareRosterToDerivation`'s `Set`, so it lowered nothing — but this function is exported
+    // precisely so a test can plant a disagreement and watch it refuse, and for that id it silently
+    // would not.
+    if (!Object.hasOwn(recorded, id)) {
       problems.push(`${id}: tagged in the corpus but carries no recorded site count`);
     }
   }

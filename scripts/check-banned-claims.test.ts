@@ -1740,7 +1740,14 @@ describe("check-banned-claims — the imported corpus's derivation-refusal chann
     expect(decl).toBe(1);
     // 3 → 4 (plan 30-07): the `guarantees` part's named refusal for a missing docs/GUARANTEES.md,
     // the fourth push site in that module. The number moves in the SAME commit that adds the site.
-    expect(pushes).toBe(4);
+    //
+    // 4 → 5 (plan 30-10, round 2, finding F4): `refuseMarkdownImitations` — the named refusal for a
+    // root or examples entry whose case-folded extension is the canonical one while its bytes are
+    // not. A root `PUBLIC.MD` was a public document that NO part derived and NO cardinality pin
+    // could miss, because the derived count never counted it; it now refuses through this channel
+    // rather than being absent. ONE push site serves BOTH parts, which is why the number moves by
+    // one and not by two, and it moves in the SAME commit that adds it.
+    expect(pushes).toBe(5);
     // The prose mention must be GONE from the stripped text but PRESENT in the raw text — the two
     // halves together prove the strip removed comments and only comments.
     expect(raw).toContain("`DERIVATION_REFUSALS.push` sites");

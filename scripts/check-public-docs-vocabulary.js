@@ -110,6 +110,47 @@ const fail = (m) => {
 export const publicDocsVocabularyFails = () => FAILS;
 const MARKDOWN_EXT = ".md";
 const EXAMPLES_DIR = "examples";
+/**
+ * ═════════════════════════════════════════════════════════════════════════════════════════════
+ * THE EXTENSION IS A CANONICAL FORM, AND WHAT IMITATES IT IS REFUSED (plan 30-10 round 2, F4).
+ *
+ * Every corpus part filtered membership with `endsWith(MARKDOWN_EXT)`, which is case-SENSITIVE. A
+ * root `PUBLIC.MD` is therefore not a member — and `PUBLIC_DOCS_SCAN_COUNT` is a two-sided pin over
+ * the DERIVED count, so a document the derivation never admits does not move it. Measured on the
+ * live worktree: a root `PUBLIC.MD` carrying live banned claims left BOTH language gates at exit 0
+ * while the identical bytes in `README.md` are red. That is the recorded CHANGELOG.md defect's shape
+ * — a public document outside the scan carrying live disproven claims — reached through the
+ * extension test instead of through the exemption.
+ *
+ * ADMITTING `.MD` WOULD HAVE BEEN THE WRONG REPAIR. It grows the scan set, moves the pin, and
+ * silently re-answers a different question than the one the pin was written about. So the canonical
+ * extension stays the lower-case one and NOTHING new is admitted; an entry whose case-folded
+ * extension is the canonical one while its bytes are not is pushed into the derivation-refusal
+ * channel this module already owns, where `runAll()` reports it and exits non-zero.
+ *
+ * THE PREDICATE'S SCOPE IS ONE EXTENSION, CASE-FOLDED, AND NOTHING ELSE. A `.markdown`, a `.mdx` or
+ * a `.txt` is a different file type, not an imitation of this one — refusing those would be the
+ * widening this posture exists to avoid, and each has a case saying so.
+ * ═════════════════════════════════════════════════════════════════════════════════════════════
+ */
+function isCanonicalMarkdown(name) {
+    return name.endsWith(MARKDOWN_EXT);
+}
+function imitatesMarkdown(name) {
+    return !isCanonicalMarkdown(name) && name.toLowerCase().endsWith(MARKDOWN_EXT);
+}
+/** Record every imitation in `entries` as a named derivation refusal, and return the entries. */
+function refuseMarkdownImitations(part, entries) {
+    for (const name of entries) {
+        if (!imitatesMarkdown(name))
+            continue;
+        DERIVATION_REFUSALS.push(`${part}: "${name}" spells the markdown extension in a case this corpus does not admit, so it ` +
+            `is a public document that no part derives and no cardinality pin can miss — the derived ` +
+            `count never counted it. Rename it to the canonical lower-case "${MARKDOWN_EXT}" extension, ` +
+            `or move it out of the public corpus`);
+    }
+    return entries;
+}
 const KIT_README = "agent-factory/README.md";
 // ---------------------------------------------------------------------------
 // THE EXEMPTION, BY NAME, WITH ITS REASON AND ITS BOUND RECORDED.
@@ -268,8 +309,8 @@ function rootMarkdown() {
             `derived from an unreadable directory`);
         return [];
     }
-    return entries
-        .filter((f) => f.endsWith(MARKDOWN_EXT))
+    return refuseMarkdownImitations("root", entries)
+        .filter(isCanonicalMarkdown)
         .filter((f) => {
         try {
             return statSync(join(ROOT, f)).isFile();
@@ -288,7 +329,7 @@ function examplesMarkdown() {
     const refusal = walkFiles(EXAMPLES_DIR, { examined: 0 }, acc);
     if (refusal !== null)
         DERIVATION_REFUSALS.push(refusal);
-    return acc.filter((f) => f.endsWith(MARKDOWN_EXT));
+    return refuseMarkdownImitations(EXAMPLES_DIR, acc).filter(isCanonicalMarkdown);
 }
 // Part `kitReadme`: one named literal. agent-factory/README.md is the start-here guide
 // install/install.ts copies into every host repo, and it is deliberately absent from
@@ -400,9 +441,10 @@ export function publicDocsCorpus() {
  * a derivation had refused.
  *
  * WHAT THIS CHANNEL ENUMERATES, AND WHAT BOUNDS IT. The set is *the refusals the public-docs corpus
- * derivation raised in this process*. It is derived by the four `DERIVATION_REFUSALS.push` sites
+ * derivation raised in this process*. It is derived by the five `DERIVATION_REFUSALS.push` sites
  * above — an unreadable repository root, a walk that exceeded its entry budget, a missing
- * `agent-factory/README.md`, and (plan 30-07) a missing `docs/GUARANTEES.md`. **Nothing pins its
+ * `agent-factory/README.md`, (plan 30-07) a missing `docs/GUARANTEES.md`, and (plan 30-10, round 2,
+ * finding F4) an entry that imitates the canonical markdown extension. **Nothing pins its
  * count, and nothing should:** a refusal count is an
  * EVENT count, not a set cardinality, so there is no correct number for it to be compared against
  * and a vacuity floor over it would fail on every healthy run. This is stated plainly rather than

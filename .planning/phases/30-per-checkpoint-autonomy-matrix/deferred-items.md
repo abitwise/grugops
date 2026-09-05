@@ -189,3 +189,46 @@ heuristic gets in.
 **Suggested owner:** a follow-up phase, or Phase 30 verification when it reconciles AUTO-01's reach.
 Whichever takes it should decide explicitly which of the three assertions a user's kit owes, because the
 answer is not the same for all three.
+
+## V-30-10-03 — the governance reader's fallback base is the KIT root, and the hook relies on it
+
+**Found during:** plan 30-10, round-2 independent reviews (reviewer 1 observation 4; reviewer 2
+observation 5), and confirmed while fixing round-2 finding F1.
+**Where:** `hooks/guard.ts:233` and `hooks/admission-guard.ts:128` — both pass
+`process.env.CLAUDE_PROJECT_DIR` straight through to `readGovernanceConfig`.
+**What:** `CLAUDE_PROJECT_DIR` is set by ONE of the five target host CLIs. On the other four, and in
+any manual or library call, the variable is `undefined` and the reader falls back to its own
+module-relative base — the KIT root. So on four of five hosts the governance matrix a hook enforces
+is read from `<kit>/.grugops/factory.config.json`, not from the repository the agent is working in.
+Round 2's F1 makes that position form-checked; it does not decide whether it should be the position
+at all.
+**Why it is not fixed here:** `hooks/guard.ts` is red-team surface A's subject, is byte-frozen under
+D-24, and the question — should a per-repository dial fall back to a per-kit file, or should a hook
+with no project root REFUSE rather than read the kit's — is a semantics decision about the hook's
+contract, not a defect in the validator this plan repaired.
+**Suggested owner:** plan 30-11 (red-team surface A). Whoever takes it should decide explicitly
+between (a) keeping the fallback and documenting that a shared kit carries a shared dial, and (b)
+deleting the `= ROOT` default so a caller with no project root gets a named refusal instead of a
+different repository's configuration.
+
+## V-30-10-04 — three reviewer observations recorded, none of them a lowering
+
+**Found during:** plan 30-10, round-2 independent reviews.
+**Where / what:**
+1. **`resolve()` is not `realpathSync()` in `checkConfig`'s dedupe** (reviewer 1 obs. 1, reviewer 2
+   obs. 2). Two spellings of one directory — `VALIDATE_KIT_ROOT=/tmp/x` with
+   `VALIDATE_ROOT=/private/tmp/x` through macOS's `/tmp` symlink — make the identity test fail and
+   every governance finding double. Direction: NOISY, never permissive. Not fixed because
+   `realpathSync` introduces a filesystem call that throws on a vanished path, and a dedupe that can
+   throw is a worse failure than a dedupe that over-reports.
+2. **A floor grant of a single space authorizes a lowering** (reviewer 2 obs. 3). `raw.length > 0`
+   accepts `" "`. The grant value is the human's NAME, and whoever can set the variable can set any
+   string, so this is a disclosure about the honesty of the recorded name rather than an
+   access-control gap. Surface A owns the variable's provenance.
+3. **`sectionsFound === filesWalked` remains structurally vacuous** (reviewer 1 obs. 3). The
+   derivation throws on a missing stop section and refuses a repeated or imitated one, so
+   `sectionsFound` increments exactly once per file and the equality can only ever hold. Round 2's
+   F2 and F6 refusals are what actually carry that property; the equality is a residue kept for its
+   message. Not removed here because deleting an assertion inside a red-team round is the one edit
+   that cannot be distinguished from narrowing the check.
+**Suggested owner:** (1) and (3) — Phase 30 verification or a follow-up; (2) — plan 30-11.

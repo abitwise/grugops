@@ -46,6 +46,10 @@ const km: typeof import("./kit-model.js") = await import(
 const fm: typeof import("./frontmatter.js") = await import(
   pathToFileURL(join(ROOT, "scripts", "frontmatter.js")).href
 );
+type cpTypes = typeof import("./checkpoints.js");
+declare namespace cpTypes {
+  type CheckpointSite = import("./checkpoints.js").CheckpointSite;
+}
 
 const tmpDirs: string[] = [];
 function freshTmp(prefix: string): string {
@@ -1440,5 +1444,24 @@ describe("30-10 R2 F6 — a markdown file the workflow corpus does not admit is 
     expect(admitted.filter((f) => !present.includes(f))).toEqual([]);
     // On the live tree the two agree exactly — there is nothing in the directory the corpus drops.
     expect([...admitted].sort()).toEqual([...present].sort());
+  });
+});
+
+describe("30-10 R2 — assertSiteCounts is not prototype-blind (reviewer 2, observation 1)", () => {
+  it("an id that is also an Object.prototype name is reported, not swallowed by `in`", () => {
+    // `constructor` is the ONE prototype name that is also legal under CHECKPOINT_TAG_RE's
+    // `[a-z][a-z0-9]*(_[a-z0-9]+)*`. With `in`, the "tagged but unrecorded" arm consulted the
+    // prototype and passed it silently. Every other prototype spelling was already refused, which is
+    // why the hole was exactly one id wide and invisible.
+    const sites = new Map<string, readonly cpTypes.CheckpointSite[]>([
+      ["constructor", [{ file: "09-daily-sweep.md", line: 1 }]],
+    ]);
+    expect(() => cp.assertSiteCounts(sites, {})).toThrow(/constructor/);
+    // …and the CONTROL: a plain unrecorded id still refuses, so the case is not passing for a
+    // reason unrelated to the prototype.
+    const plain = new Map<string, readonly cpTypes.CheckpointSite[]>([
+      ["planted_shadow_stop", [{ file: "09-daily-sweep.md", line: 1 }]],
+    ]);
+    expect(() => cp.assertSiteCounts(plain, {})).toThrow(/planted_shadow_stop/);
   });
 });

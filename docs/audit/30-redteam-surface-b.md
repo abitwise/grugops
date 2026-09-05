@@ -1302,3 +1302,154 @@ here".
 | mutant | outcome |
 |---|---|
 | the unadmitted-file refusal disabled in `checkpoints.js` | **KILLED** — 2 failed / 97 passed |
+
+---
+
+## F4 — the corpus's extension test was case-sensitive
+
+### What it is
+
+Every public-docs corpus part filtered membership with `endsWith(".md")`. A root `PUBLIC.MD` is not a
+member — and `PUBLIC_DOCS_SCAN_COUNT` is a two-sided pin over the DERIVED count, so a document the
+derivation never admits does not move it. This is the recorded CHANGELOG.md defect's shape reached
+through the extension test instead of through the exemption.
+
+### The premise, asserted
+
+The same bytes under a lower-case name ARE red: a `PUBLIC-lower.md` twin beside the plant took the
+mirror gate to exit 1. The plant is therefore refusable content, and its silence is about the NAME.
+
+### Mirror reproduction
+
+```
+$ # MIRROR (ae56690) — a root PUBLIC.MD carrying "reduces token economy and improves comprehension"
+  PASS  AUDIT-02: 11 public document(s) carry zero retired vocabulary …
+ALL CHECKS PASSED
+mirror exit=0
+  mirror corpus size = 12 | PUBLIC.MD a member? false
+
+$ # CURRENT TREE (fixed)
+  FAIL  public-docs scan derivation refused: root: "PUBLIC.MD" spells the markdown extension in a
+        case this corpus does not admit … Rename it to the canonical lower-case ".md" extension …
+tree exit=1
+  …and check-banned-claims, which consumes the same corpus, reports the same refusal by name.
+```
+
+### The structural fix, in one sentence
+
+**The canonical form is the lower-case extension and what imitates it is refused by name** through
+the derivation-refusal channel the module already owns — **the corpus is not widened**, so the scan
+set, the pin and which documents are scanned are all unchanged.
+
+### What NEW degree of freedom this fix introduces, and how it is bounded
+
+**An "imitates" predicate.** It is bounded to a case-fold of the SAME extension literal and nothing
+else, and that bound has its own case: `.txt`, `.markdown` and `.mdx` are different file types, not
+imitations, and a mirror carrying all three still exits 0. One push site serves both parts, so the
+refusal channel gains one member and not two.
+
+### Mutation proof
+
+| mutant | outcome |
+|---|---|
+| `imitatesMarkdown` returns `false` | **KILLED** — 2 failed / 22 passed |
+
+### One pin moved, with its reason
+
+`DERIVATION_REFUSALS.push` site count **4 → 5** in `check-banned-claims.test.ts`, and the enumeration
+prose in `check-public-docs-vocabulary.ts` corrected from "four" to "five" with the new member named.
+The pin moving is the pin working: a new refusal channel is exactly what it exists to notice.
+
+---
+
+## F5 — the consumer-split pin enumerated a set that excluded three module trees
+
+### What it is
+
+Round 1's B-8 pin derived its consumer set as `readdirSync(scripts/)` filtered to non-test `.ts`,
+matched with a bare-call regex whose lookbehind excluded `.`. Three silent gaps, all measured by
+reviewer 2: a namespace-import consumer is unmatchable by that regex; `hooks/` and `install/` both
+import `scripts/` modules today and are outside the directory read; and `scripts/` has
+subdirectories the flat read never descends into. A pin whose stated job is "EXACTLY the declared
+consumers" was reporting over a set missing three module trees, every subdirectory and one call form.
+
+### Mirror reproduction
+
+Three plants — a namespace importer in `scripts/`, a named importer in `hooks/`, a named importer in
+`scripts/probe-sub/` — driven through the ROUND-1 pin and then through the repaired one, with the
+same committed gate artifacts underneath:
+
+```
+$ # MIRROR — the committed round-1 pin at HEAD, all three plants present
+mirror exit=0
+      Tests  20 passed (20)
+
+$ # CURRENT TREE — the repaired pin, the SAME three plants
+tree exit=1
+AssertionError: consumer(s) of the public-docs corpus/scan with no declared direction:
+  [probe-consumer.ts::publicDocsScan, probe-deep-consumer.ts::publicDocsCorpus,
+   probe-ns-consumer.ts::publicDocsScan]
+```
+
+**And the round-1 pin's own premise was re-measured rather than assumed:** a bare-call plant in
+`scripts/` DOES red it (1 failed / 19 passed). Its blindness was specific — three shapes — not total,
+which is what makes it a finding rather than a broken pin.
+
+### The structural fix, in one sentence
+
+**Both halves are replaced: the module set becomes the repository's own `.ts` sources — tracked AND
+untracked-but-not-ignored, recursively, whole tree — and detection becomes IMPORT BINDING rather than
+call shape**, because detecting an import is one question with one answer while detecting a call
+spelling is an open set.
+
+A module that imports the authority and names NEITHER accessor is recorded as consuming `*` and still
+owes a declared direction, so a computed or re-exported access cannot be silent.
+
+### What NEW degree of freedom this fix introduces, and how it is bounded
+
+**The module set is now defined by git's ignore rules rather than by a directory literal.** That is a
+wider set with a different owner, so the case FLOORS it: more than thirty sources, and `hooks/` and
+`install/` each asserted present. A narrowed set is red before any plant exists — which is exactly
+what killed the module-set mutant below.
+
+**The `\b<accessor>\b` detector can match a name in prose or in an unrelated identifier.** It is
+gated by the module first having to reference the authority's own specifier, and comment lines are
+stripped, so a false consumer must import the module to be reported. Over-reporting is the safe
+direction here: it demands a declared row, it never removes one.
+
+### Mutation proof, and what each mutant isolates
+
+| mutant | outcome |
+|---|---|
+| detection reverted to the bare-call shape (`(?<![\w$.])name\s*\(`) | **survived the detection half, KILLED by the `*` arm** — the namespace plant is reported as `probe-ns-consumer.ts::*`. Recorded rather than hidden: the fail-closed arm is a genuine second line of defence, and the mutant that would kill the detector alone is the one that removes both |
+| module set reverted to the flat `scripts/` readdir | **KILLED by the scope FLOOR**, before any plant is consulted — `expect(sources.some(f => f.startsWith("hooks/")))` fails. The set's own reach is asserted, so a narrowed set cannot wait for a plant to be noticed |
+| a phantom declared consumer (`phantom-module.ts`) | **KILLED** — the vanished direction, with its own message |
+
+---
+
+## Round 2 — an observation closed in passing
+
+Reviewer 2's observation 1 was not a finding — it lowers nothing today — but it is a one-line
+correctness repair inside this plan's own surface, so it was taken rather than deferred.
+
+**`assertSiteCounts` was prototype-blind for exactly one legal id.** Its "tagged but unrecorded" arm
+asked `!(id in recorded)`; `recorded` is a plain object, so `constructor` — the one
+`Object.prototype` name that is also legal under `CHECKPOINT_TAG_RE`'s snake_case pattern — passed
+silently. Measured against the committed artifact: `constructor` ACCEPTED, `planted_shadow_stop`
+REFUSED. It is masked end-to-end by `compareRosterToDerivation`'s `Set`, so nothing was lowered — but
+this function is exported *specifically* so a test can plant a disagreement and watch it refuse, and
+for that id it silently would not.
+
+```
+MIRROR (ae56690): ACCEPTED (silently) — exit 0
+CURRENT TREE:     REFUSED — checkpoints: the derived id→sites map disagrees …
+mutant `!(id in recorded)` restored → 1 failed / 99 passed          KILLED
+```
+
+Fixed with `Object.hasOwn`, with a control case asserting an ordinary unrecorded id still refuses —
+so the case cannot pass for a reason unrelated to the prototype.
+
+The reviewers' other three observations are recorded in `deferred-items.md` as `V-30-10-03`
+(the hook's kit-root fallback base — surface A) and `V-30-10-04` (the `resolve()`/`realpathSync`
+dedupe, the one-space grant, and the residual vacuity of `sectionsFound === filesWalked`), each with
+the reason it was not fixed here.
