@@ -56,3 +56,49 @@ phases 29.1 and 29.2 and folding it in would reopen it. `compactor.ts` was never
 present-but-invalid value (it must NOT inherit the governance reader's return-verbatim contract) and
 `readCompactionDial`'s default-on-absent behaviour.
 **Suggested owner:** a follow-up phase, after Phase 30's checkpoint work settles.
+
+## V-30-02-01 — the shipped kit's matrix posture is not yet reconciled with the legacy grade
+
+**Found during:** plan 30-02, Task 2.
+**Where:** `agent-factory/config/factory.config.json` and its seed twin — the `checkpoints` object
+against the still-present `autonomy: "pr"` and `quality.test_integrity: "warn"` keys.
+**What:** plan 30-02 had to add `checkpoints.open_pr`, `checkpoints.test_integrity` and
+`checkpoints.commit_to_branch` to the shipped config, because migrating every `SAFETY_FLOORS`
+member's `configPath` to the dotted `checkpoints.<id>` form makes `safetyFloorLiveValue` resolve
+those paths against the live file. They were added at the ROSTER DEFAULT
+(`open_pr: block`, `test_integrity: block`, `commit_to_branch: off`), which is the zero-config
+posture — and is STRICTER than the legacy grade the same file still declares. D-06 maps
+`autonomy: "pr"` to `open_pr: off`, and `quality.test_integrity: "warn"` maps to
+`checkpoints.test_integrity: "notify"`.
+**Why the legacy values were NOT written instead:** both are floor-tier, so declaring them at the
+permissive value would be an unauthorized lowering — enforced as `block` anyway, and printed on
+every guard invocation as `open_pr=off NOT AUTHORIZED (GRUGOPS_FLOOR_OPEN_PR absent; enforced as
+block)`. That is strictly worse than the roster default: it looks lowered and behaves blocked.
+**Why it is not a behaviour change today:** nothing consults `open_pr`, `test_integrity` or
+`commit_to_branch` at run time yet. `hooks/guard.ts` reads only `protected_branch_merge` (plan
+30-01), and the quality gate still reads `quality.test_integrity`. The cells exist so the floors'
+`configPath`s resolve; the enforcement wiring is later plans'.
+**Disposition:** record, do not fix here. The legacy migration mapping is D-06's own subject and
+belongs with the validator's `autonomy` refusal (D-05) and the `factory.config.md` twin, which does
+not yet document the `checkpoints` object at all.
+**Suggested owner:** plan 30-04 (validator + config documentation), or whichever plan retires the
+`autonomy` scalar from the shipped config.
+
+## V-30-02-02 — `test_integrity` now has two config cells until the legacy key is retired
+
+**Found during:** plan 30-02, Task 2.
+**Where:** `agent-factory/config/factory.config.json` — `quality.test_integrity` (`warn`) and
+`checkpoints.test_integrity` (`block`).
+**What:** the floor's `configPath` moved to `checkpoints.test_integrity`, so `SAFETY_FLOORS` and the
+Phase 28 floor→claims index now name the matrix cell. The legacy `quality.test_integrity` key is
+still present, still documented in `factory.config.md`, still enforced by
+`scripts/validate-agent-factory.ts`'s `["warn", "block"]` enum, still swept by
+`scripts/floor-invariance.test.ts` invariant 3, and still read by workflow 05. Two cells, one value:
+exactly the duplicate-authority shape this repository keeps closing.
+**Why it was not collapsed here:** this plan's scope is the floor SET and the registry remap. The
+validator, the twin document and the workflow text are three other plans' surfaces, and collapsing
+the key without them would leave the kit documenting a dial that no longer exists.
+**The ordering constraint that matters:** the TINT-03 carve-out must survive the collapse. `off` is
+refused for this id alone, as a documented per-id restriction in the validator — never by removing
+`off` from the ternary, which would change every other checkpoint.
+**Suggested owner:** plan 30-04 or 30-05, whichever carries the config-key migration.

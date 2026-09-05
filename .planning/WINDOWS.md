@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 111
+open_count: 113
 waived_count: 0
 fixed_count: 4
-total_count: 115
-last_updated: 2026-09-04T18:33:31.118Z
+total_count: 117
+last_updated: 2026-09-05T13:31:29.626Z
 ---
 
 # Broken Windows Ledger
@@ -130,6 +130,8 @@ last_updated: 2026-09-04T18:33:31.118Z
 | 113 | 29.2 | unrun-verify | install/install.test.ts |  | Unreproduced transient: one full-suite run reported 2 failing test files (baseline is 1); the extra failure was not identified and did not reproduce in 3 subsequent full runs. UNKNOWN - verify. | open |  | 2026-09-04T15:54:39.135Z |  |
 | 114 | 29.2 | deviation | install/install.ts |  | Sibling-prefix containment trap (…/target-backup beside …/target) is covered only by an adversarial probe, not by a CI regression case. | open |  | 2026-09-04T15:54:39.225Z |  |
 | 115 | 29.2 | unrun-verify | install/install.ts |  | UNKNOWN - verify (Windows): the plan-29.2-04 destination-hazard guard adapterDestHazard() is proven on the POSIX legs only. Five of its seven cases in install/install.test.ts carry a process.platform === win32 early return because creating a symlink on Windows needs the SeCreateSymbolicLink privilege an unprivileged CI runner does not hold, so symlinkSync throws EPERM and the plant would assert nothing; the leaf, ancestor, dangling and union shapes are therefore unobserved on windows-latest. The containment arm adds its OWN Windows unknown beyond the missing privilege: realpathSync resolves drive letters, UNC paths and directory junctions, and a junction is NOT a symbolic link to lstat, so whether arm 1 or arm 2 refuses a junctioned agents directory - or whether either does - was not measured. Remedy: read the windows-latest leg, and probe a directory junction (mklink /J) there before treating the containment bound as cross-platform. | open |  | 2026-09-04T18:33:31.118Z |  |
+| 116 | 30 | deviation | agent-factory/config/factory.config.json |  | shipped checkpoints posture not reconciled with the legacy autonomy: pr / quality.test_integrity: warn grade (V-30-02-01) | open |  | 2026-09-05T13:31:29.522Z |  |
+| 117 | 30 | deviation | agent-factory/config/factory.config.json |  | test_integrity has two config cells (quality.test_integrity and checkpoints.test_integrity) until the legacy key is retired (V-30-02-02) | open |  | 2026-09-05T13:31:29.626Z |  |
 
 ````json
 [
@@ -1511,6 +1513,30 @@ last_updated: 2026-09-04T18:33:31.118Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-09-04T18:33:31.118Z",
+    "resolved_at": null
+  },
+  {
+    "id": 116,
+    "kind": "deviation",
+    "phase": "30",
+    "file": "agent-factory/config/factory.config.json",
+    "line": null,
+    "description": "shipped checkpoints posture not reconciled with the legacy autonomy: pr / quality.test_integrity: warn grade (V-30-02-01)",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-05T13:31:29.522Z",
+    "resolved_at": null
+  },
+  {
+    "id": 117,
+    "kind": "deviation",
+    "phase": "30",
+    "file": "agent-factory/config/factory.config.json",
+    "line": null,
+    "description": "test_integrity has two config cells (quality.test_integrity and checkpoints.test_integrity) until the legacy key is retired (V-30-02-02)",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-05T13:31:29.626Z",
     "resolved_at": null
   }
 ]
