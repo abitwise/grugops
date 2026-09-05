@@ -1680,3 +1680,114 @@ narrowing above is what took it to 2.
 |---|---|
 | tilde fences unrecognised | **KILLED** — 2 failed |
 | the run-length rule removed | **KILLED** — 1 failed |
+
+---
+
+## R3-3 — the heading refusals were added at ONE of the three frozen anchors
+
+### What it is
+
+`FROZEN_SECTION_ANCHORS` freezes three heading-located regions — role `## Hard limits` (×17),
+workflow `## Stop conditions` (×19), workflow `## Commit` (×19). Rounds 1 and 2 added the duplicate
+and near-miss refusals in `scripts/checkpoints.ts`, asked only about the second. `locateSection` fails
+OPEN — its own comment records that "the failure mode is a region that gets too SHORT" — so a
+repeated or renderer-identical heading planted mid-section silently un-freezes every clause below it
+while the gate goes on printing `17/17`.
+
+### RED first, against the committed pre-fix artifact
+
+The new cases were authored, and then driven with `git show HEAD:scripts/check-diff-disposition.js`
+in place of the fixed one — so the RED is the committed artifact's own behaviour:
+
+```
+ Tests  9 failed | 86 passed (95)
+AssertionError: no refusal named agents-md-scribe.md / ## Hard limits; refusals were: …
+mirror exit=1
+```
+
+(The first RED run of these cases failed for the WRONG reason — `cpSync is not defined` in the new
+fixture helper. That is a failed premise, not a finding, and it was repaired and re-run before any
+red was believed. Recorded because a case that goes red for the wrong reason is the same class of
+false result as a mutation that never landed.)
+
+### Mirror reproduction, and the direct measurement
+
+```
+$ # MIRROR (committed .js at 915a942), `##  Hard limits` planted mid-section
+    clean frozen clauses = 446 | planted = 250 | cardinality still 17/17 | no refusal names the plant
+$ # CURRENT TREE (fixed)
+    a refusal naming agents-md-scribe.md and `## Hard limits`               tree exit=1
+```
+
+### The structural fix, in one sentence
+
+**The two refusals move ONTO THE ANCHOR SET**, into the loop that walks `FROZEN_SECTION_ANCHORS` in
+the module that owns the freeze, so a fourth anchor inherits them without an edit.
+
+### The import direction, settled deliberately
+
+`check-diff-disposition.ts` asks `scripts/frontmatter.ts` — the authority it **already** consumes for
+`locateSection` — and gains no dependency on `scripts/checkpoints.ts`. The alternative (moving the
+refusal into the checkpoint module and having the freeze import it) would have made the corpus-form
+question depend on a module that owns a different corpus. `scripts/checkpoints.ts` keeps its own
+refusals for its own corpus; the two consumers of one authority now ask the same question.
+
+### What NEW freedom this creates, and how it is bounded
+
+**The near-miss refusal's false-red surface lands on 36 more files.** Measured before the refusal was
+written: across all three anchors and all 55 files the live kit carries **zero** duplicates and
+**zero** near-misses, and that measurement is a permanent case, so the refusal is not already firing
+and a future kit edit that trips it is a real event. The known over-refusals (a heading inside an HTML
+block, R3-O1) are recorded as observations, not fixed by widening.
+
+### Mutation proof
+
+| mutant | outcome |
+|---|---|
+| the duplicate arm disabled | **KILLED** — 3 failed |
+| the near-miss arm disabled | **KILLED** — 6 failed |
+
+**One pin moved:** `check-diff-disposition.ts`'s imported-symbol list from the authority, 3 → 5, with
+the entrants named and the direction argued — both are declarative index lists, so the property the
+pin protects (the module renders no verdict from the parser) is unchanged.
+
+---
+
+## R3-4 — the raw membership read admitted one spelling of "markdown"
+
+### What it is
+
+`listWorkflowDirMarkdown` — the read whose whole job is to find what the corpus rule drops — filtered
+on the canonical extension alone, so `agent-factory/workflows/hotfix.markdown` carrying a canonically
+tagged stop was walked by nothing, counted by nothing and refused by nothing, while F6's refusal
+message told authors to rename or move a file it never mentioned.
+
+### Mirror reproduction
+
+```
+$ # MIRROR (committed kit-model.js at 915a942)
+ACCEPTED — ids=10 sites=16 sections=19 counted=38          mirror exit=0
+$ # CURRENT TREE (fixed)
+REFUSED — … carries 1 markdown file(s) the workflow corpus does not admit — hotfix.markdown …
+tree exit=1
+```
+
+### The structural fix, in one sentence
+
+**F4's posture applied to this axis:** a declared alias set (`.markdown`, `.mdown`, `.mkd`) makes the
+raw read see the document, and F6's existing refusal names it — the canonical extension is not
+widened.
+
+### What NEW freedom this creates, and how it is bounded
+
+**A hand-declared alias set — this repository's named second systemic failure class.** Bounded by a
+two-sided pin on its exact members, an assertion that the canonical `.md` is NOT among them (a set
+containing it would make every workflow a refusal), a non-vacuity floor, an assertion that the live
+directory carries no alias, and a re-derivation of F6's own bound against the new boundary: `.txt`,
+`.json` and an extensionless file each have a case proving they stay out of scope.
+
+### Mutation proof
+
+| mutant | outcome |
+|---|---|
+| the alias set emptied | **KILLED** — 5 failed |

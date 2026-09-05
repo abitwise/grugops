@@ -35,12 +35,13 @@
 import { describe, it, expect, afterAll } from "vitest";
 import { spawnSync } from "node:child_process";
 import {
-  mkdtempSync,
-  mkdirSync,
-  writeFileSync,
   copyFileSync,
+  cpSync,
+  mkdirSync,
+  mkdtempSync,
   readFileSync,
   rmSync,
+  writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -2866,5 +2867,97 @@ describe("check-diff-disposition — wiring", () => {
     );
     // T-29-SC: this plan installs nothing. The manifest gains one `scripts` entry and no dependency.
     expect(pkg.dependencies).toBeUndefined();
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// PLAN 30-10 ROUND 3 — R3-3 (reviewer 3, MEDIUM): the heading refusals were added at ONE of the
+// three frozen anchors.
+//
+// `FROZEN_SECTION_ANCHORS` freezes three heading-located regions: role `## Hard limits` (×17),
+// workflow `## Stop conditions` (×19) and workflow `## Commit` (×19). B-3's duplicate refusal and
+// F2's near-miss refusal live in `scripts/checkpoints.ts` and are asked only about the second.
+// `locateSection` fails OPEN — its own comment says "the failure mode is a region that gets too
+// SHORT" — so a repeated or renderer-identical heading planted mid-section silently UN-FREEZES every
+// clause below it, and this gate goes on printing `roles \`## Hard limits\` 17/17`.
+//
+// Measured by the reviewer on the committed artifact: a `##  Hard limits` planted mid-section took
+// the gate from `447 frozen clause(s)` to `446` with the cardinality still reporting 17/17. A clause
+// left the freeze while a full-cardinality assertion stayed green — "a gate reports a verdict for a
+// check it did not perform".
+//
+// THE IMPORT DIRECTION IS SETTLED HERE AND NOT THE OTHER WAY. The refusals move ONTO THE ANCHOR SET,
+// in the module that owns the freeze, asking `scripts/frontmatter.ts` — the authority this module
+// already consumes for `locateSection`. `scripts/checkpoints.ts` keeps its own refusals for its own
+// corpus and gains no dependency on this module beyond the one it already has.
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+
+describe("30-10 R3-3 — every FROZEN anchor refuses a repeated or renderer-identical heading", () => {
+  /** A kit mirror with one file's section heading duplicated or imitated. */
+  function kitWithPlant(anchorHeading: string, subpath: string, file: string, plant: string): string {
+    const root = mkdtempSync(join(tmpdir(), "r33-"));
+    tmpDirs.push(root);
+    cpSync(join(REPO, "agent-factory"), join(root, "agent-factory"), { recursive: true });
+    const p = join(root, subpath, file);
+    const text = readFileSync(p, "utf8");
+    const lines = text.split("\n");
+    const at = lines.findIndex((l) => l.trimEnd() === anchorHeading);
+    expect(at, `${file} carries no ${anchorHeading}`).toBeGreaterThan(-1);
+    lines.splice(at + 2, 0, plant, "");
+    writeFileSync(p, lines.join("\n"));
+    return root;
+  }
+
+  const PLANTS: readonly (readonly [string, string])[] = [
+    ["an exact repeat", ""],
+    ["a two-space near-miss", "  "],
+    ["a closing-hash near-miss", " ##"],
+  ];
+
+  const ANCHORS: readonly (readonly [string, string, string])[] = [
+    ["## Hard limits", "agent-factory/roles", "agents-md-scribe.md"],
+    ["## Commit", "agent-factory/workflows", "04-ticket-to-pr.md"],
+    ["## Stop conditions", "agent-factory/workflows", "11-retro.md"],
+  ];
+
+  for (const [heading, subpath, file] of ANCHORS) {
+    for (const [label, mutate] of PLANTS) {
+      it(`refuses ${label} of \`${heading}\` in ${file}`, () => {
+        const plant =
+          mutate === "  " ? heading.replace("## ", "##  ") : `${heading}${mutate}`;
+        const root = kitWithPlant(heading, subpath, file, plant);
+        const frozen = deriveFrozenSet(root);
+        const named = frozen.refusals.filter((r) => r.includes(file) && r.includes(heading));
+        expect(
+          named,
+          `no refusal named ${file} / ${heading}; refusals were:\n${frozen.refusals.join("\n")}`,
+        ).not.toEqual([]);
+      });
+    }
+  }
+
+  it("the LIVE kit carries no repeated or imitated frozen heading — the refusal is not already firing", () => {
+    // Non-vacuity in the other direction: the cases above are only meaningful if the clean tree is
+    // clean. Measured across all three anchors and all 55 files before the refusal was written.
+    const frozen = deriveFrozenSet(REPO);
+    const ambiguity = frozen.refusals.filter((r) => /renders as|carries \d+ .*section/i.test(r));
+    expect(ambiguity).toEqual([]);
+  });
+
+  it("the refusal is DERIVED from the anchor set — a fourth anchor inherits it without an edit", () => {
+    // The property that makes this a structural repair rather than a third copy of one rule: the
+    // loop that raises the refusal is the loop that walks FROZEN_SECTION_ANCHORS, so an anchor added
+    // to that array is checked by construction. Asserted on the source, bounded to the function.
+    const src = readFileSync(join(REPO, "scripts", "check-diff-disposition.ts"), "utf8");
+    const from = src.indexOf("export function deriveFrozenSet(");
+    expect(from).toBeGreaterThan(-1);
+    const body = src.slice(from, src.indexOf("\n}\n", from));
+    expect(body).toContain("FROZEN_SECTION_ANCHORS");
+    expect(body).toContain("unfencedHeadingNearMisses");
+    expect(body).toContain("unfencedHeadingIndices");
+    // …and no heading literal was written into the loop: the anchors supply them.
+    for (const [heading] of ANCHORS) {
+      expect(body.includes(`"${heading}"`), `${heading} is a literal inside deriveFrozenSet`).toBe(false);
+    }
   });
 });

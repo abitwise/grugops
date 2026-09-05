@@ -157,7 +157,12 @@ import { safetySurfaceUnion } from "./generate-safety-surface.js";
 // heading equality with its own `startsWith("## ")` close loop, and `readDispositionRows`'s bare
 // `indexOf` search with no close at all. Both are DELETED. What this module contributes now is the
 // QUESTION — which heading, in which document — and never the grammar.
-import { fencedLineFlags, sectionEndIndex, unfencedHeadingIndex, } from "./frontmatter.js";
+import { fencedLineFlags, sectionEndIndex, unfencedHeadingIndex, 
+// (Plan 30-10, round 3, R3-3) The set grew from three symbols to five, and the growth is again
+// the fix: this module owns the FREEZE, so the question "is this anchor's heading unambiguous in
+// this document" is asked here — of the same authority — rather than being answered for one of
+// the three anchors in a module that owns a different corpus.
+unfencedHeadingIndices, unfencedHeadingNearMisses, } from "./frontmatter.js";
 // CHECK_ROOT override is load-bearing: the Vitest harness builds a hermetic mirror — here a real git
 // repository under the OS temp dir — and points CHECK_ROOT at it, then spawns this committed .js
 // against the mirror. When unset, resolve against the script-relative repo root (cwd does not
@@ -586,6 +591,38 @@ export function deriveFrozenSet(root = ROOT) {
                 continue;
             }
             const body = readFileSync(path, "utf8");
+            // ── THE HEADING MUST BE UNAMBIGUOUS BEFORE THE REGION IS BELIEVED ─────────────────────────
+            //
+            // (Plan 30-10, round 3, finding R3-3.) `locateSection` answers about the FIRST unfenced
+            // occurrence and fails OPEN — its own comment records that "the failure mode is a region that
+            // gets too SHORT". So a REPEATED heading, or one that RENDERS as the anchor without being
+            // spelled as it, truncates the frozen region and silently un-freezes every clause below the
+            // plant, while the cardinality below goes on reporting `17/17`. Measured on the committed
+            // artifact: a `##  Hard limits` planted mid-section took this gate from 447 frozen clauses to
+            // 446 with the cardinality unchanged — a verdict over a frozen set that is silently short.
+            //
+            // Rounds 1 and 2 added exactly these two refusals in `scripts/checkpoints.ts`, for exactly one
+            // of this array's three anchors. Here they are asked ONCE, inside the loop that walks the
+            // anchors, so a fourth anchor inherits them without an edit — and they ask
+            // `scripts/frontmatter.ts`, the authority this module already consumes for `locateSection`,
+            // rather than importing the checkpoint module or restating a heading grammar.
+            const occurrences = unfencedHeadingIndices(body, anchor.heading);
+            if (occurrences.length > 1) {
+                refusals.push(`${rel}: carries ${occurrences.length} \`${anchor.heading}\` sections (lines ` +
+                    `${occurrences.map((i) => i + 1).join(", ")}). Only the first is located, so every ` +
+                    `clause below the second has left the freeze while the cardinality still reports one ` +
+                    `region per file. Merge the sections rather than repeating the heading`);
+                continue;
+            }
+            const imitations = unfencedHeadingNearMisses(body, anchor.heading);
+            if (imitations.length > 0) {
+                refusals.push(`${rel}: carries ${imitations.length} heading(s) that RENDER as \`${anchor.heading}\` ` +
+                    `but are not spelled as it (lines ${imitations.map((i) => i + 1).join(", ")}): ` +
+                    `${imitations.map((i) => JSON.stringify(body.split("\n")[i])).join(", ")}. A reader sees ` +
+                    `the frozen section continuing and this gate does not, so the clauses below the ` +
+                    `imitation are unfrozen. Write the heading exactly`);
+                continue;
+            }
             const span = locateSection(body, anchor.heading);
             if (span === null)
                 continue;

@@ -524,8 +524,33 @@ export function listWorkflows(kitRoot = DEFAULT_KIT_ROOT) {
 export function listWorkflowDirMarkdown(kitRoot = DEFAULT_KIT_ROOT) {
     const dir = join(kitRoot, WORKFLOWS_SUBPATH);
     return readDirOrThrow(dir)
-        .filter((f) => f.toLowerCase().endsWith(MARKDOWN_EXT))
+        .filter((f) => isMarkdownDocumentName(f))
         .sort();
+}
+/**
+ * The extensions that spell "markdown" WITHOUT being the canonical one (plan 30-10, round 3, R3-4).
+ *
+ * ---------------------------------------------------------------------------------------------
+ * A HAND-DECLARED SET, WHICH IS THIS REPOSITORY'S NAMED SECOND SYSTEMIC FAILURE CLASS — so it is
+ * declared with its bound and pinned two-sided rather than left to grow by habit.
+ *
+ * WHY IT EXISTS. `listWorkflowDirMarkdown` is the RAW membership read: its whole job is to find what
+ * the corpus rule is dropping, so that `deriveCheckpoints` can refuse it by name. Filtering it on
+ * the canonical extension alone left `agent-factory/workflows/hotfix.markdown` — a markdown document
+ * with a canonically tagged stop bullet in it — walked by nothing, counted by nothing and refused by
+ * nothing, while F6's refusal message told authors to rename or move a file it never mentioned.
+ *
+ * THE BOUND, STATED: these are ALIASES OF MARKDOWN, not "every text file". A `.txt`, a `.json` or an
+ * extensionless file is a different kind of document and stays out of scope, with its own case. The
+ * canonical `.md` is deliberately NOT a member — a set containing it would make every workflow a
+ * refusal — and that is asserted too.
+ * ---------------------------------------------------------------------------------------------
+ */
+export const MARKDOWN_ALIAS_EXTENSIONS = [".markdown", ".mdown", ".mkd"];
+/** Is this filename a markdown document — canonical extension or a declared alias of it? */
+function isMarkdownDocumentName(name) {
+    const lower = name.toLowerCase();
+    return (lower.endsWith(MARKDOWN_EXT) || MARKDOWN_ALIAS_EXTENSIONS.some((e) => lower.endsWith(e)));
 }
 // ---------------------------------------------------------------------------
 // THE DISPLAY-NAME DERIVATIONS (Phase 29 / D-40, correcting D-13 additively).

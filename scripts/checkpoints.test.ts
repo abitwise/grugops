@@ -1668,3 +1668,50 @@ describe("30-10 R3 — the heading authority answers about the RENDERER, not abo
     }
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// PLAN 30-10 ROUND 3 — R3-4 (reviewer 3, LOW): F6's raw read admits ONE spelling of "markdown".
+//
+// `listWorkflowDirMarkdown` filters `f.toLowerCase().endsWith(".md")`, so a `hotfix.markdown` or
+// `hotfix.mdown` carrying `## Stop conditions` and a canonically tagged bullet is walked by nothing,
+// counted by nothing and refused by nothing. F6's refusal message tells the author to "rename it
+// into the numbered corpus, or move it out of the workflows directory" — and a `.markdown` file does
+// neither and is never reported.
+//
+// F4 already established the posture for exactly this axis: what imitates the canonical extension is
+// refused by name rather than admitted. The alias set is hand-declared, which is this repository's
+// named second systemic failure class, so it is pinned two-sided and its bound is stated.
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+
+describe("30-10 R3-4 — a markdown ALIAS extension in the workflows directory is refused by name", () => {
+  const tagged = (name: string): Record<string, string> => ({
+    "00-control.md": CONTROL,
+    [name]: "# Hotfix\n\n## Stop conditions\n\n- Stop before force-pushing. `checkpoint: planted_shadow_stop`\n",
+  });
+
+  for (const name of ["hotfix.markdown", "hotfix.mdown", "hotfix.mkd", "20-x.MARKDOWN"]) {
+    it(`refuses ${name} — it is a markdown document the corpus rule does not admit`, () => {
+      expect(() => cp.deriveCheckpoints(workflowFixture(tagged(name)))).toThrow(new RegExp(name.replace(".", "\\.")));
+    });
+  }
+
+  it("a NON-markdown entry is still out of scope — the bound is aliases, not every file", () => {
+    // F6's own bound, re-derived against the new boundary. `.txt`, `.json` and a bare name are not
+    // markdown documents and refusing them would be the widening this posture avoids.
+    for (const name of ["notes.txt", "fixture.json", "README"]) {
+      expect(() => cp.deriveCheckpoints(workflowFixture({ "00-control.md": CONTROL, [name]: "x" }))).not.toThrow();
+    }
+  });
+
+  it("the alias set is pinned two-sided and the canonical extension is NOT one of them", () => {
+    // The hand-declared set, bounded. A canonical `.md` must never be an alias — that would make
+    // every workflow a refusal — and the aliases must be exactly the declared ones.
+    expect([...km.MARKDOWN_ALIAS_EXTENSIONS].sort()).toEqual([".markdown", ".mdown", ".mkd"]);
+    expect(km.MARKDOWN_ALIAS_EXTENSIONS).not.toContain(".md");
+    expect(km.MARKDOWN_ALIAS_EXTENSIONS.length).toBeGreaterThan(0);
+  });
+
+  it("the LIVE workflows directory carries no alias — the refusal is not already firing", () => {
+    expect(km.listWorkflowDirMarkdown(ROOT).filter((f) => !f.toLowerCase().endsWith(".md"))).toEqual([]);
+  });
+});

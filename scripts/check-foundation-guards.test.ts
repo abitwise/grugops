@@ -1021,7 +1021,24 @@ describe("D-64 cutover: the spawn verdict is rendered by the canonical admission
     expect(
       importedSymbols("check-diff-disposition.ts", "frontmatter"),
       "check-diff-disposition.ts must take the per-line fence PROJECTION and the shared section LOCATOR — never a section-end, heading-equality or heading-search predicate of its own, which is the fourth-grammar shape this round deletes",
-    ).toEqual(["fencedLineFlags", "sectionEndIndex", "unfencedHeadingIndex"]);
+    //
+    // (Plan 30-10, round 3, finding R3-3) THE SET GREW THREE -> FIVE, AND THE DIRECTION IS THE ONE
+    // THIS PIN WANTS. The two entrants are `unfencedHeadingIndices` and `unfencedHeadingNearMisses`,
+    // both ASKED OF THE AUTHORITY: `deriveFrozenSet` now refuses a frozen anchor's heading that is
+    // REPEATED or that RENDERS as the anchor without being spelled as it, because `locateSection`
+    // answers about the first occurrence and fails OPEN — a plant mid-section silently un-freezes
+    // every clause below it while the cardinality still reports one region per file. Rounds 1 and 2
+    // added exactly those two refusals for ONE of this array's three anchors, in a module that owns
+    // a different corpus; they are asked here, once, inside the loop that walks the anchors. Both
+    // entrants are DECLARATIVE index lists, so the property this pin protects — the module renders
+    // no verdict from the parser — is unchanged.
+    ).toEqual([
+      "fencedLineFlags",
+      "sectionEndIndex",
+      "unfencedHeadingIndex",
+      "unfencedHeadingIndices",
+      "unfencedHeadingNearMisses",
+    ]);
     // (Plan 29-23, WR-02 + WR-08) AND `check-banned-claims.ts`'s OWN SET MOVED FROM ONE SYMBOL TO
     // THREE — the LAST of the four disagreeing section locators the round-2 review tabulated, and in
     // the direction D-24 wants, which is why the PIN moves rather than the code. THE PIN MOVING IS
