@@ -421,13 +421,93 @@ export const FENCE_DELIMITER_LINE = /^```/;
 //
 // Returns one boolean per line of `text.split("\n")`: true means the line is a fence DELIMITER or
 // sits INSIDE a fence, i.e. it is documentation rather than governed prose.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// (Plan 30-10, round 3, finding R3-2) THE MACHINE IS A CommonMark §4.5 FENCE MACHINE, NOT A TOGGLE.
+//
+// It flipped on ANY line beginning with three backticks. CommonMark §4.5 admits TILDE fences and
+// fences opened with MORE than three backticks, and inside either of those a ``` line is CONTENT.
+// So a document that shows a fenced example inside a fenced example — the idiomatic four-backtick
+// form — inverted this module's fence state relative to the renderer's, from that line to EOF.
+//
+// MEASURED on the committed artifact before this change: a BYTE-EXACT canonical `## Stop conditions`
+// written after a four-backtick block was invisible to `unfencedHeadingIndices` (which returned the
+// original occurrence only) and to `unfencedHeadingNearMisses` (empty), so NEITHER of the checkpoint
+// derivation's refusals was even ASKED — and the derived roster, the site counts, the bullet
+// denominator and the shipped validator were all unchanged. The heading needed no imitation at all.
+//
+// THE MIRROR IMAGE WAS A FALSE RED. `~~~\n## Stop conditions\n~~~` is code to a renderer and was
+// governed prose to this machine, so the derivation refused a legitimate kit by name. One machine,
+// both directions, one fix.
+//
+// THE STATE IT GAINS, AND THE BOUND ON IT. The machine now carries the opening delimiter's CHARACTER
+// and RUN LENGTH where it carried one boolean. A fence closes only on an unindented-by-≤3 run of the
+// SAME character at least as long as the opening run, with nothing but whitespace after it — §4.5's
+// own rule. `inside` is still a boolean flipped by negating itself, deliberately: `frontmatter.test.ts`
+// derives the tree's fence STATE MACHINES by a recogniser arm and a toggle arm, and a machine that
+// stopped matching the toggle arm would drop the authority out of its own pin and leave the
+// classifier blind to the one implementation it exists to find.
+//
+// WHAT IS UNCHANGED. `FENCE_DELIMITER_LINE` still names the delimiter CLASS and is still what the
+// three other consumers import; an unterminated fence still extends to EOF (fail-safe); the
+// delimiter line itself is still never governed prose. On the live kit the delta is ZERO — it
+// carries no `~~~` and no four-backtick line — and `scripts/frontmatter.test.ts` asserts that
+// corpus delta rather than assuming it.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+/** A fence delimiter line's indent, character and run length, or `null` when the line is not one. */
+function fenceRun(line: string): { char: string; len: number } | null {
+  // COLUMN-ZERO, exactly as `FENCE_DELIMITER_LINE` has always been. §4.5 admits up to three leading
+  // spaces, and adopting that here is DELIBERATELY DECLINED: R3-2 is about a ``` line that is
+  // content inside a tilde or longer-backtick fence, which the character and run-length rules below
+  // close completely, and honouring the indent would newly treat every list-indented fenced block in
+  // the kit as code. Measured: six governed documents — `README.md`, `install/README.md`,
+  // `docs/dogfood-human-runbook.md` and three audit residual pages — carry `   ```bash`-style blocks
+  // whose content every gate currently scans as prose. Narrowing what a gate scans is the FAIL-OPEN
+  // direction; the residual it leaves (an indented fence's content is governed prose) is fail-closed
+  // and is already recorded tree-wide as V-29-26-04. Closing exactly the finding, in the safe
+  // direction, beats adopting a spec rule the finding did not ask for.
+  const char = line[0];
+  if (char !== "`" && char !== "~") return null;
+  let len = 0;
+  while (len < line.length && line[len] === char) len += 1;
+  if (len < 3) return null;
+  return { char, len };
+}
+
 export function fencedLineFlags(text: string): boolean[] {
   const flags: boolean[] = [];
   let inside = false;
+  let openChar = "";
+  let openLen = 0;
   for (const line of text.split("\n")) {
-    if (FENCE_DELIMITER_LINE.test(line)) {
+    const run = fenceRun(line);
+    if (!inside) {
+      if (run !== null) {
+        inside = !inside;
+        openChar = run.char;
+        openLen = run.len;
+        flags.push(true); // the fence delimiter line is itself never governed prose
+        continue;
+      }
+    } else if (run !== null && run.char === openChar && run.len >= openLen) {
+      // A CLOSING fence: the SAME character, at least as long as the opening run.
+      //
+      // §4.5'S THIRD RULE — "a closing fence may not have an info string" — IS DELIBERATELY NOT
+      // ADOPTED, and the reason is measured rather than preferred. R3-2 is about a ``` line that is
+      // CONTENT because it sits inside a TILDE fence or a LONGER backtick fence; the character and
+      // run-length rules above close that exactly. Adding the info-string rule closes nothing more
+      // of R3-2 and changes this module's view of EIGHT governed kit documents, because the kit
+      // contains blocks written ```` ```markdown ```` … ```` ```sh ```` where the author meant the
+      // second line to open a new block and a renderer reads it as content. Repairing eight kit
+      // documents inside a red-team round, to gain nothing the finding asked for, is a larger risk
+      // than the residual it removes.
+      //
+      // AND THE RESIDUAL'S DIRECTION IS THE SAFE ONE. Treating an info-string line as a closer makes
+      // MORE lines count as governed prose than a renderer would show, so every gate built on this
+      // toggle scans more and refuses more. Over-scanning is fail-closed; under-scanning — which is
+      // what R3-2 was — is not. Recorded here rather than left for a later round to rediscover.
       inside = !inside;
-      flags.push(true); // the fence delimiter line is itself never governed prose
+      flags.push(true);
       continue;
     }
     // An unterminated fence leaves `inside` set at EOF, so the tail stays flagged — fail-safe, the
@@ -640,7 +720,7 @@ export function unfencedHeadingNearMisses(text: string, heading: string): number
   // The requested heading, parsed by the SAME rule the candidates are. A caller that asks about a
   // string which is not itself an ATX heading gets an empty answer rather than a match against a
   // half-parsed target.
-  const want = atxHeadingText(heading);
+  const want = atxOrSetextHeadingText([heading], 0);
   if (want === null) return [];
   // The EXACT set is asked of the function that owns it, never re-spelled here. A second
   // `trimEnd() === heading` in this module would be a second declaration of the equality the
@@ -651,7 +731,9 @@ export function unfencedHeadingNearMisses(text: string, heading: string): number
   const at: number[] = [];
   for (let i = 0; i < lines.length; i++) {
     if (flags[i] || exact.has(i)) continue; // an occurrence is never a near-miss
-    if (atxHeadingText(lines[i]) === want) at.push(i);
+    // A setext heading's TEXT line is the one reported, and its underline must be unfenced too —
+    // otherwise a `---` inside a code block could promote an ordinary paragraph to a heading.
+    if (atxOrSetextHeadingText(lines, i, flags) === want) at.push(i);
   }
   return at;
 }
@@ -664,25 +746,66 @@ export function unfencedHeadingNearMisses(text: string, heading: string): number
  * `sectionEndIndex(…, 2)`'s, which is what makes the near-miss set exactly the set of lines that can
  * close a section while imitating one.
  */
-function atxHeadingText(line: string): string | null {
-  // Up to three leading spaces are ignored by CommonMark; four or more open an indented code block.
-  if (!/^ {0,3}\S/.test(line)) return null;
-  const undented = line.replace(/^ +/, "");
-  // THE LEVEL QUESTION IS ASKED OF `sectionEndIndex` ITSELF, NOT OF A COPY OF ITS PATTERN. A
-  // one-line document whose only line closes a level-at-most-two section IS a level-at-most-two ATX
-  // heading, so this is the terminator's own grammar answering about one line rather than a second
-  // recogniser standing beside it. That is the whole point of the repair: the gap F2 walked through
-  // was two grammars for one question, and adding a third would be the same defect with more code.
-  if (sectionEndIndex(undented, 0, 2) !== 0) return null;
-  // THE TEXT IS TAKEN BY SLICING, NOT BY A SECOND PATTERN. The level test above already guarantees
-  // one or two hashes followed by a space, so the first space is the separator and everything after
-  // it is the heading's text. Declaring a `/^#{1,2} +/` strip here would put a THIRD anchored ATX
-  // regex in this module — and `check-foundation-guards.test.ts`'s [B1] closure aliases recogniser
-  // names through their bindings, so binding its result to an ordinary identifier propagated
-  // "recogniser" through half the module's locals when it was tried. No pattern, no alias, no pin.
-  const separator = undented.indexOf(" ");
-  if (separator < 1) return null; // unreachable once the line closes; refused rather than assumed
-  return renderedText(undented.slice(separator + 1));
+export function atxOrSetextHeadingText(
+  lines: readonly string[],
+  i: number,
+  flags?: readonly boolean[],
+): string | null {
+  const line = lines[i];
+  if (line === undefined) return null;
+  // ── The ATX form (CommonMark §4.2) ────────────────────────────────────────────────────────────
+  //
+  // ROUND 3 REPLACED A GRAMMAR WITH A CLASSIFIER (finding R3-1). The previous implementation asked
+  // `sectionEndIndex` whether a one-line document closed a level-2 section, then sliced at the first
+  // ASCII SPACE. That is `/^#{1,2} /` and a literal tail — narrower than the renderer in four ways,
+  // each proven against the reference `commonmark` implementation by the round-2 review:
+  //
+  //   `## Stop conditions ##`   §4.2's optional CLOSING SEQUENCE   renders `<h2>Stop conditions</h2>`
+  //   `## Stop conditions #`    the same, one hash                 renders identically
+  //   `##\tStop conditions`     a TAB separator, legal per §4.2     renders identically
+  //   `Stop conditions` + `---` the SETEXT form, §4.3               renders identically
+  //
+  // The closing-hash form is the dangerous one: it ALSO matches `/^#{1,2} /`, so it closes the real
+  // section. Inserted between two tagged bullets it removed a live roster member from the derived
+  // set with BOTH independent bullet counts agreeing — the shear the two-pass design exists to catch,
+  // defeated because both passes take the same wrong range.
+  //
+  // THE INVARIANT THAT MAKES THIS COMPLETE FOR THE TRUNCATING CLASS: the terminator language is a
+  // SUBSET of what this classifier accepts. Every line `sectionEndIndex(…, 2)` closes on begins with
+  // one or two hashes and a space at column ≤3, which this function recognises — so no heading that
+  // can truncate a section is invisible here. `scripts/checkpoints.test.ts` asserts that containment
+  // over a probe set rather than leaving it as this paragraph.
+  //
+  // WHAT IT DELIBERATELY DOES NOT DO. `sectionEndIndex` is NOT widened to close on tab-separated or
+  // setext headings. That would change the located extent of every frozen region in the kit — a
+  // corpus-wide behaviour change — and the direction of NOT widening it is safe: such a heading
+  // closes nothing, so it truncates nothing, and the near-miss refusal catches it anyway. The
+  // divergence that matters is one-directional, and it is the direction this classifier closes.
+  const at = line.search(/[^ ]/);
+  if (at >= 0 && at <= 3 && line[at] === "#") {
+    const rest = line.slice(at);
+    let hashes = 0;
+    while (hashes < rest.length && rest[hashes] === "#") hashes += 1;
+    if (hashes >= 1 && hashes <= 2) {
+      const after = rest.slice(hashes);
+      // §4.2: the opening sequence is followed by a space or tab, or by end of line.
+      if (after === "" || after[0] === " " || after[0] === "\t") {
+        // The optional CLOSING sequence: trailing whitespace, a run of hashes, trailing whitespace.
+        return renderedText(after.replace(/[ \t]+#+[ \t]*$/, ""));
+      }
+    }
+  }
+  // ── The SETEXT form (CommonMark §4.3) ─────────────────────────────────────────────────────────
+  //
+  // A non-blank paragraph line whose NEXT line is a run of `=` (level 1) or `-` (level 2), indented
+  // by at most three spaces, with nothing else on it. The underline must be unfenced too, or a `---`
+  // inside a code block would promote an ordinary paragraph to a heading.
+  const under = lines[i + 1];
+  if (under === undefined) return null;
+  if (flags !== undefined && (flags[i] === true || flags[i + 1] === true)) return null;
+  if (/^[ \t]*$/.test(line) || /^ {0,3}#/.test(line)) return null;
+  if (!/^ {0,3}(?:=+|-+)[ \t]*$/.test(under)) return null;
+  return renderedText(line);
 }
 
 /**
@@ -690,8 +813,31 @@ function atxHeadingText(line: string): string | null {
  * collapsed, ends trimmed. Declared once and used on both sides of the near-miss comparison.
  */
 function renderedText(s: string): string {
-  return s.replace(ZERO_WIDTH, "").replace(/[ \t]+/g, " ").trim();
+  return s
+    .replace(NUMERIC_CHARACTER_REFERENCE, (_m, dec: string | undefined, hex: string | undefined) => {
+      const code = dec !== undefined ? Number.parseInt(dec, 10) : Number.parseInt(hex ?? "", 16);
+      return Number.isFinite(code) && code > 0 && code <= 0x10ffff ? String.fromCodePoint(code) : _m;
+    })
+    .replace(ZERO_WIDTH, "")
+    .replace(/[ \t]+/g, " ")
+    .trim();
 }
+
+/**
+ * A NUMERIC character reference — `&#32;` or `&#x20;` — which a renderer resolves to the character
+ * it names (plan 30-10, round 3, R3-1: `## Stop&#32;conditions` renders as `<h2>Stop conditions</h2>`).
+ *
+ * NUMERIC ONLY, AND THE BOUND IS THE POINT. Numeric references are a CLOSED, decidable grammar: two
+ * shapes, a base, a code point. NAMED references are a table of some two thousand entries, and this
+ * repository's recorded second systemic failure class is the hand-maintained set that rots while
+ * every gate over it stays green — importing that table to fold `&nbsp;` would be that class, in the
+ * one authority every gate inherits. A named reference therefore renders to a character this
+ * function does not fold, and the resulting line is an ORDINARY DIFFERENT HEADING rather than a
+ * near-miss. That is the same disclosed bound as visual-confusable folding: "looks similar to a
+ * human" is an open set, and an open-set predicate held as a gate is the totality claim D-59 already
+ * proved undecidable.
+ */
+const NUMERIC_CHARACTER_REFERENCE = /&#(?:(\d{1,7})|[xX]([0-9a-fA-F]{1,6}));/g;
 
 /**
  * The code points that occupy no visual width and are therefore invisible in a heading: soft hyphen,

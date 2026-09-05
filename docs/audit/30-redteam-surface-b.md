@@ -1480,3 +1480,203 @@ plan's own files, and each control returns to green after the revert.
 **Its bound, restated.** Self-reproduction proves the fixing agent can make the fixed build refuse
 the input it was fixed for. Round 1 passed this clause too, and two independent reviews then found
 six things it had not thought to try. It is a floor.
+
+---
+
+# Round 2 closure attempt — the two independent reviews
+
+**Both at `claude-opus`, both over surface B as scoped by round 2's scope statement, and NEITHER
+returned "nothing new".** Surface B is therefore not closed at round 2, and this log continues at
+round 3. One round remains after this one (D-22 cap: four).
+
+| reviewer | model | lens | verdict |
+|---|---|---|---|
+| Reviewer 3 | claude-opus | surface B, **heading authority + corpus membership** | **FINDINGS: 4** (R3-1 … R3-4) |
+| Reviewer 4 | claude-opus | surface B, **validator bases + reader structure + render/freshness + scan-set pins** | **FINDINGS: 3** (R4-1 … R4-3) |
+
+**No overlap this round — seven distinct findings.** Reviewer 3 additionally recorded fourteen
+probes that found nothing and six observations; reviewer 4 twenty-four probes and seven observations.
+Reviewer 3 proved **every heading-rendering premise against the reference `commonmark`
+implementation** rather than against the spec text, and demoted one probe to "nothing found" when its
+own premise failed (a blockquote heading whose bullet the tag pattern rejects). Reviewer 4 discarded
+one probe as a failed premise (an EOF append that landed under a later heading) and re-ran it against
+measured line numbers. Both asserted artifact identity on entry and exit (6/6 and 8/8 `premise OK`).
+
+| round-3 id | reviewer id | severity | one line |
+|---|---|---|---|
+| **R3-1** | R3-1 | high | the near-miss set is not "what a renderer shows as this heading" — five renderer-identical spellings escape both refusals |
+| **R3-2** | R3-2 | high | the fence toggle desynchronises from the renderer, hiding a BYTE-EXACT canonical stop section |
+| **R3-3** | R3-3 | medium | the duplicate/near-miss refusals were added at ONE of the three frozen anchors; the other two truncate silently |
+| **R3-4** | R3-4 | low | the corpus's raw membership read admits exactly one spelling of "markdown" |
+| **R4-1** | R4-1 | medium | the residual-additions table is located by first-occurrence heading and has no independent denominator |
+| **R4-2** | R4-2 | medium | the consumer-split pin keys by BASENAME while its module set is now the whole repository |
+| **R4-3** | R4-3 | medium | `STATE_ROOT`'s back-compat default is the KIT in a shared install, so the governing per-repo config is checked at no base |
+
+**Again, most of the round came from the previous round's own fixes.** R3-1 is F2's near-miss set
+measured against a grammar rather than a renderer. R3-3 is F2's refusal added at one consumer of an
+authority with three. R3-4 is F6's raw read admitting one extension. R4-2 is F5's widened module set
+keeping a key that was only unique in one directory. R4-3 is F1's base set meeting a default that
+aliases its two members. **Four of seven.** The standing question — *what did this repair make newly
+free?* — is asked of every fix below, and answered.
+
+---
+
+# Round 3 — 2026-09-06
+
+**Baseline before the round:** `1 failed / 2785 passed / 2 skipped` (the pre-existing `frontmatter`
+D-49 control, `V-30-01-01`); every check and freshness gate green.
+**Mirror:** `git archive HEAD | tar -x` at `312b662`, sha256-verified against `git show HEAD:<path>`
+for six modules — 6/6 `premise OK`.
+
+## R3-1 — the near-miss set was measured against a grammar, not against a renderer
+
+### What it is
+
+F2 declared its scope as "which unfenced lines a renderer would show as `heading`". Its measured
+scope was `/^ {0,3}#{1,2} /` plus a literal-tail comparison. Five spellings sit outside that grammar
+and inside the renderer's, each verified by the reviewer against the reference `commonmark`
+implementation: the optional closing sequence `## Stop conditions ##` and `## Stop conditions #`
+(§4.2), a TAB separator `##\tStop conditions` (§4.2), the setext form `Stop conditions` + `---`
+(§4.3), and a numeric character reference `## Stop&#32;conditions`.
+
+**The closing-hash form is the dangerous one:** it also matches `/^#{1,2} /`, so it CLOSES the real
+section.
+
+### Mirror reproduction — the truncating form, on the live corpus
+
+A `## Stop conditions ##` inserted between the two tagged bullets of `09-daily-sweep.md`:
+
+```
+$ # MIRROR (312b662)
+  ACCEPTED — ids=9 sites=15 examined=37 counted=37
+  exceed_wip_limit present? false
+mirror exit=0
+
+$ # CURRENT TREE (fixed)
+REFUSED — checkpoints: 09-daily-sweep.md carries 1 heading(s) that RENDER as `## Stop conditions`
+but are not spelled as it …
+tree exit=1
+```
+
+A **live roster member removed from the derived set with both independent counts agreeing at 37/37** —
+the shear the two-pass design exists to catch, defeated because both passes take the same wrong range.
+
+### RED first
+
+```
+ Tests  13 failed | 101 passed (114)
+ × refuses a closing hash sequence          × refuses a one-hash closing sequence
+ × refuses a closing sequence with padding  × refuses a TAB separator
+ × refuses a tab separator with a closing sequence
+ × refuses a numeric character reference    × refuses a hex character reference
+ × refuses the SETEXT form                  × the TRUNCATING form is refused
+ × the terminator language is a SUBSET of the classifier    (+ the four R3-2 cases)
+```
+
+### The structural fix, in one sentence
+
+**`atxHeadingText` is replaced by `atxOrSetextHeadingText`, a CommonMark level-≤2 heading
+classifier** — one or two hashes at column ≤3, a space **or tab** separator (or end of line), the
+optional closing sequence stripped, plus the setext form — and the near-miss derivation is unchanged:
+`rendered-as-this-heading ∧ ¬byte-exact`.
+
+### What NEW freedom this creates, and how it is bounded
+
+**The classifier now decides "is this a heading" for lines `sectionEndIndex` does not close** (tab
+separated, setext), so the near-miss set stops being a subset of the terminator language — exactly
+the freedom reviewer 3 named. It is bounded by asserting the containment in the direction that
+matters: **the terminator language is a SUBSET of the classifier**, so no heading that can truncate a
+section is invisible to the refusal. `scripts/checkpoints.test.ts` drives that over a probe set.
+
+**`sectionEndIndex` is deliberately NOT widened** to close on tab-separated or setext headings. That
+would change the located extent of every frozen region in the kit — a corpus-wide behaviour change —
+and the direction of not widening it is safe: such a heading closes nothing, truncates nothing, and
+the near-miss refusal catches it anyway. The divergence that matters is one-directional.
+
+**Entity decoding is NUMERIC ONLY, and the bound is stated at the declaration.** Numeric references
+are a closed, decidable grammar. Named references are a two-thousand-entry table, and importing one
+into the tree's one heading authority would be this repository's named second systemic failure class
+in the worst possible place. A named reference therefore renders to a character the fold does not
+touch, and the line is an ordinary different heading — the same disclosed bound as visual-confusable
+folding (D-59, open set).
+
+### Mutation proof
+
+| mutant (emitted `.js`, marker grep-verified) | outcome |
+|---|---|
+| the closing-sequence strip removed | **KILLED** — 5 failed |
+| the tab separator rejected | **KILLED** — 2 failed |
+| the setext arm removed | **KILLED** — 1 failed |
+| numeric entity decoding removed | **KILLED** — 2 failed |
+
+---
+
+## R3-2 — the fence toggle could be desynchronised from the renderer
+
+### What it is
+
+`fencedLineFlags` flipped on any line beginning with three backticks. CommonMark §4.5 admits tilde
+fences and fences opened with more than three backticks, and inside either a ``` line is CONTENT. So
+the idiomatic four-backtick "fenced example inside a fenced example" inverted this module's fence
+state relative to the renderer's, to EOF — and this is **the one authority every heading consumer
+inherits**.
+
+### Mirror reproduction
+
+```
+$ # MIRROR (312b662) — a four-backtick block, then a BYTE-EXACT canonical `## Stop conditions`
+  premise: unfencedHeadingIndices("## Stop conditions") = [35]   ← the EXACT heading is invisible
+  premise: unfencedHeadingNearMisses = []
+  ACCEPTED — ids=10 sites=16 examined=38 counted=38
+  cardinality OK — nothing anywhere notices
+  shipped validator: ALL CHECKS PASSED
+mirror exit=0
+
+$ # CURRENT TREE (fixed)
+REFUSED — checkpoints: 11-retro.md carries 2 `## Stop conditions` sections (lines 36, 49) …
+tree exit=1
+```
+
+The strongest form of the class: the heading needs **no imitation at all**. It is spelled canonically
+and neither refusal is even asked. The mirror image was a false red — `~~~\n## Stop conditions\n~~~`
+is code to a renderer and was two stop sections to the old toggle (R3-O2) — and the same machine
+removes it.
+
+### The structural fix, in one sentence
+
+**`fencedLineFlags` becomes a §4.5 fence machine:** it records the opening delimiter's CHARACTER and
+RUN LENGTH and closes only on a same-character run at least as long — where it previously carried one
+boolean.
+
+### What NEW freedom this creates, and how it is bounded
+
+**The machine gains state.** `inside` is still a boolean flipped by negating itself, deliberately:
+`frontmatter.test.ts` derives the tree's fence state machines by a recogniser arm and a toggle arm,
+and a machine that stopped matching the toggle arm would drop the authority out of its own pin and
+leave that classifier blind to the one implementation it exists to find. Measured: the pin still
+reports exactly three machines with `scripts/frontmatter.ts` among them.
+
+**Two §4.5 rules are DELIBERATELY NOT ADOPTED, each with its direction measured — this is the part
+that took the work.**
+
+- *"A closing fence may not have an info string."* Adopting it changed this module's view of **eight
+  governed kit documents**, because the kit contains blocks written ```` ```markdown ```` …
+  ```` ```sh ```` where the author meant to open a second block; 47 foundation-guard cases went red.
+  It closes nothing R3-2 asked for. Not adopted; the residual's direction is **over**-scanning, which
+  is fail-closed.
+- *"Up to three leading spaces are allowed."* Adopting it newly treated every list-indented fenced
+  block as code — six governed documents including `README.md` and `install/README.md` — which
+  **narrows what every gate scans**, the fail-open direction. Not adopted; the residual is
+  pre-existing and already recorded tree-wide as V-29-26-04.
+
+**The measured corpus delta is therefore two files, both archived planning documents, and ZERO
+governed files** — over 1,501 tracked markdown files, comparing the committed pre-fix artifact
+against the fixed one line by line. The first draft's delta was 30 files including 8 governed; the
+narrowing above is what took it to 2.
+
+### Mutation proof
+
+| mutant | outcome |
+|---|---|
+| tilde fences unrecognised | **KILLED** — 2 failed |
+| the run-length rule removed | **KILLED** — 1 failed |

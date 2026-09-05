@@ -1465,3 +1465,206 @@ describe("30-10 R2 — assertSiteCounts is not prototype-blind (reviewer 2, obse
     expect(() => cp.assertSiteCounts(plain, {})).toThrow(/planted_shadow_stop/);
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// PLAN 30-10 ROUND 3 — R3-1 and R3-2: F2's OWN FIX WAS MEASURED AGAINST A GRAMMAR, NOT A RENDERER.
+//
+// F2 declared its scope as "which unfenced lines a renderer would show as `heading`". Its MEASURED
+// scope was narrower: lines matching `/^ {0,3}#{1,2} /` whose text after the first ASCII space,
+// zero-width-stripped and whitespace-collapsed, equals the requested heading's. Reviewer 3 proved
+// five spellings outside that grammar and inside the renderer's, each verified against the reference
+// `commonmark` implementation rather than argued from the spec:
+//
+//   `## Stop conditions ##`   the optional closing sequence (CommonMark §4.2)
+//   `## Stop conditions #`    the same, one hash
+//   `##\tStop conditions`     a TAB separator, legal per §4.2
+//   `Stop conditions` + `---` the setext form (§4.3)
+//   `## Stop&#32;conditions`  a numeric character reference
+//
+// THE CLOSING-HASH FORM IS THE DANGEROUS ONE: it also matches `/^#{1,2} /`, so it CLOSES the real
+// section. Inserted between the two tagged bullets of `09-daily-sweep.md` it REMOVED
+// `exceed_wip_limit` from the derived set with BOTH independent counts agreeing at 37/37 — the shear
+// the two-pass design exists to catch, defeated because both passes take the same wrong range.
+//
+// R3-2 is the same class one level down: `fencedLineFlags` toggled on any line starting with three
+// backticks, so a ``` line that is CONTENT inside a tilde fence or a four-backtick fence (§4.5)
+// inverted the fence state to EOF and made a BYTE-EXACT canonical `## Stop conditions` invisible to
+// every heading question — neither refusal even asked.
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+
+describe("30-10 R3 — the heading authority answers about the RENDERER, not about one grammar", () => {
+  const shadowBullet = "- A shadow stop nobody governs. `checkpoint: planted_shadow_stop`";
+
+  const doubled = (heading: string): string =>
+    ["# Probe", "", "## Stop conditions", "", "- A stop with no tag.", "", "## Commit", "", "- nothing", "", heading, "", shadowBullet, ""].join("\n");
+
+  const RENDERER_IDENTICAL: readonly (readonly [string, string])[] = [
+    ["a closing hash sequence", "## Stop conditions ##"],
+    ["a one-hash closing sequence", "## Stop conditions #"],
+    ["a closing sequence with padding", "## Stop conditions   ###"],
+    ["a TAB separator", "##\tStop conditions"],
+    ["a tab separator with a closing sequence", "##\tStop conditions\t##"],
+    ["a numeric character reference", "## Stop&#32;conditions"],
+    ["a hex character reference", "## Stop&#x20;conditions"],
+  ];
+
+  for (const [label, heading] of RENDERER_IDENTICAL) {
+    it(`refuses ${label} — a renderer shows it as the stop heading`, () => {
+      expect(cp.CHECKPOINT_TAG_RE.test(shadowBullet), "the plant must be a canonical tag").toBe(true);
+      const root = workflowFixture({ "00-control.md": CONTROL, "01-probe.md": doubled(heading) });
+      expect(() => cp.deriveCheckpoints(root)).toThrow(/01-probe\.md/);
+    });
+  }
+
+  it("refuses the SETEXT form — a paragraph line underlined by dashes is an h2", () => {
+    const root = workflowFixture({
+      "00-control.md": CONTROL,
+      "01-setext.md": [
+        "# Probe",
+        "",
+        "## Stop conditions",
+        "",
+        "- A stop with no tag.",
+        "",
+        "## Commit",
+        "",
+        "- nothing",
+        "",
+        "Stop conditions",
+        "--------------",
+        "",
+        shadowBullet,
+        "",
+      ].join("\n"),
+    });
+    expect(() => cp.deriveCheckpoints(root)).toThrow(/01-setext\.md/);
+  });
+
+  it("the TRUNCATING form is refused — it closes the real section and drops a live roster member", () => {
+    // R3-1's sharpest measurement, as a fixture: a closing-hash heading inserted INSIDE a stop
+    // section truncates it, and the bullets after the insertion leave the corpus with both counts
+    // agreeing. The refusal must fire before the truncation can be observed as a clean run.
+    const root = workflowFixture({
+      "00-control.md": CONTROL,
+      "01-truncated.md": [
+        "# Probe",
+        "",
+        "## Stop conditions",
+        "",
+        "- A first stop. `checkpoint: first_stop`",
+        "",
+        "## Stop conditions ##",
+        "",
+        "- A second stop. `checkpoint: second_stop`",
+        "",
+        "## Commit",
+        "",
+        "- nothing",
+        "",
+      ].join("\n"),
+    });
+    expect(() => cp.deriveCheckpoints(root)).toThrow(/01-truncated\.md/);
+  });
+
+  it("a FOUR-BACKTICK fence does not desynchronise the fence state (R3-2)", () => {
+    // The strongest form: the heading needs no imitation at all. It is spelled canonically and a
+    // renderer shows it as an h2, because the ``` line between the four-backtick delimiters is
+    // CONTENT. The pre-fix toggle flipped on it and inverted fence state to EOF, so the exact
+    // heading was invisible and NEITHER refusal was asked.
+    const root = workflowFixture({
+      "00-control.md": CONTROL,
+      "01-quad.md": [
+        "# Probe",
+        "",
+        "## Stop conditions",
+        "",
+        "- A stop with no tag.",
+        "",
+        "````",
+        "```",
+        "````",
+        "",
+        "## Stop conditions",
+        "",
+        shadowBullet,
+        "",
+      ].join("\n"),
+    });
+    expect(() => cp.deriveCheckpoints(root)).toThrow(/01-quad\.md/);
+  });
+
+  it("a TILDE fence does not desynchronise the fence state either", () => {
+    const root = workflowFixture({
+      "00-control.md": CONTROL,
+      "01-tilde.md": [
+        "# Probe",
+        "",
+        "## Stop conditions",
+        "",
+        "- A stop with no tag.",
+        "",
+        "~~~",
+        "```",
+        "~~~",
+        "",
+        "## Stop conditions",
+        "",
+        shadowBullet,
+        "",
+      ].join("\n"),
+    });
+    expect(() => cp.deriveCheckpoints(root)).toThrow(/01-tilde\.md/);
+  });
+
+  it("R3-O2 — a heading QUOTED inside a tilde fence is code, and is NOT refused", () => {
+    // The mirror image, and the false red the same machine removes: `~~~` opens a fence, so the
+    // heading inside it is code to a renderer. The pre-fix toggle ignored `~~~` entirely and
+    // reported two stop sections on a legitimate kit.
+    const root = workflowFixture({
+      "00-control.md": CONTROL,
+      "01-quoted.md": [
+        "# Probe",
+        "",
+        "## Stop conditions",
+        "",
+        "- A stop a named human holds. `checkpoint: control_stop`",
+        "",
+        "~~~markdown",
+        "## Stop conditions",
+        "~~~",
+        "",
+        "## Commit",
+        "",
+        "- nothing",
+        "",
+      ].join("\n"),
+    });
+    expect(() => cp.deriveCheckpoints(root)).not.toThrow();
+  });
+
+  it("the terminator language is a SUBSET of the classifier — no closing heading can escape", () => {
+    // THE INVARIANT THAT MAKES THE REFUSAL COMPLETE FOR THE TRUNCATING CLASS, asserted rather than
+    // argued. `sectionEndIndex(line, 0, 2) === 0` is "this line closes a level-2 section". Every such
+    // line must be a line the heading classifier recognises, or a truncating heading exists that
+    // neither the exact set nor the near-miss set can see — which is exactly R3-1.
+    const probes = [
+      "# a", "## a", "## a ##", "##   spaced   ", "#\ttabbed", "## Stop conditions",
+      "## Stop conditions ##", "   ## indented", "#", "##",
+    ];
+    for (const line of probes) {
+      if (fm.sectionEndIndex(line, 0, 2) !== 0) continue;
+      expect(
+        fm.atxOrSetextHeadingText([line], 0),
+        `${JSON.stringify(line)} closes a level-2 section but the classifier does not see it`,
+      ).not.toBeNull();
+    }
+  });
+
+  it("the LIVE corpus is unchanged by the new authority — zero near-misses, one section per file", () => {
+    for (const f of km.listWorkflows(ROOT)) {
+      const text = readFileSync(join(ROOT, "agent-factory", "workflows", f), "utf8");
+      expect(fm.unfencedHeadingNearMisses(text, cp.WORKFLOW_STOP_HEADING), f).toEqual([]);
+      expect(fm.unfencedHeadingIndices(text, cp.WORKFLOW_STOP_HEADING).length, f).toBe(1);
+    }
+  });
+});
