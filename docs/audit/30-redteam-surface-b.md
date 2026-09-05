@@ -922,6 +922,33 @@ instead of assuming.
 **Nothing found** on this probe. It is recorded because the negative is the finding's absence, not the
 absence of the question.
 
+## Self-reproduction against the FIXED build (closure clause 5)
+
+Every attack in this round was re-run by the fixing agent against the committed artifacts **after**
+the fixes landed, at HEAD `87700bf`. The premise is asserted first: the working-tree `.js` files are
+byte-identical to the committed ones (`git show HEAD:<path>` sha256 compared for
+`validate-agent-factory.js`, `checkpoints.js`, `context-io.js`, `generate-guarantees.js` — four OK,
+zero mismatches), so what was driven IS what shipped.
+
+| finding | the attack, re-run | result on the fixed build |
+|---|---|---|
+| B-1 | all nine must-refuse payloads written to `.grugops/factory.config.json` | **9/9 refused**, every finding naming `.grugops/factory.config.json`; the control with no such file still `ALL CHECKS PASSED` |
+| B-2 | the unknown-id + non-canonical-value config, read | refusals `2`, `open_pr` effective `block`, the unknown id absent from the matrix — the drop is fail-closed and the same input is now refused at the position it is written (B-1's row above). Runtime publication remains open as `V-30-10-01` |
+| B-3 | the duplicate `## Stop conditions` section, planted on the **live tree** this time | **REFUSED**, exit 1, naming `11-retro.md`; the fixture form also exit 1; the restored corpus still derives cleanly — 10 ids / 16 sites / 38 bullets |
+| B-4 | `npm run check:diff-disposition` | `PASS diff disposition — 0 findings over 39/39 elements` |
+| B-5 | a third candidate planted in the reader's array, in the committed artifact | freshness gate **exit 1**, refusing by name; control after restore exit 0 |
+| B-6 | one `- kind: safety` flipped to `- kind: architecture` | the render still publishes 5 of 6 — it is deliberately not the owner — while `check:audit-register` **exit 1** with 4 findings and this round's asserted agreement case **exit 1**; both green after restore |
+| B-7 | the `empty-body` payload replaced by a duplicate | differential **exit 1**, 1 failed / 14 passed, naming `empty-body`; control after restore exit 0 |
+| B-8 | the consumer table falsified in each direction separately | undeclared direction **exit 1** naming `check-audit-register.ts::publicDocsScan`; vanished direction **exit 1** naming `phantom-module.ts::publicDocsCorpus`; control exit 0 |
+
+Each attack was reverted immediately after its run and the tree confirmed clean
+(`git status --short` shows no tracked modification outside this plan's own files).
+
+**What self-reproduction is worth, stated so it is not over-read.** It proves the fixing agent can
+still make the fixed build refuse the input it was fixed for. It is a floor, not a closure — the
+agent that wrote the fix is the worst-placed party to find what the fix does not cover, which is why
+D-23 requires two independent reviews as a separate clause.
+
 ## Round 1, what was NOT established
 
 - The derivation's two-sided assertions run in vitest and **not** in the shipped validator; an installed
