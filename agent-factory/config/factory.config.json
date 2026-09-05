@@ -2,7 +2,6 @@
   "version": "0.1.0",
   "mode": "lean",
   "cadence": "kanban",
-  "autonomy": "pr",
   "bdd": "lean",
   "id_prefix": "ABC",
   "repo_strategy": "mono",

@@ -19,6 +19,11 @@
 //       into a temp kit and the validator must SEE them; pin the extension shape so no path join
 //       can produce a doubled `.md`; and prove an unreadable kit directory still degrades to a
 //       'missing required' finding rather than an unhandled kit-model throw.
+//   (j) PHASE 30 (D-05 / D-08 / AUTO-07): the `autonomy` scalar is RETIRED — its presence is now
+//       the refusal and its absence is clean — and the `checkpoints` matrix is FORM-CHECKED against
+//       the imported roster: an unknown id or a non-canonical disposition is refused by name, while
+//       an absent object and an absent id stay the lean default. The shipped and fixture config
+//       surfaces are scanned, over a DISCOVERED set with an asserted count, for the retired key.
 //
 // Two-root resolution (VAL-02 / D-08): KIT_ROOT comes ONLY from VALIDATE_KIT_ROOT (no default);
 // STATE_ROOT from VALIDATE_ROOT (else repo root). The single-tree fixtures point BOTH roots at the
@@ -34,10 +39,12 @@ import {
   rmSync,
   writeFileSync,
   readFileSync,
+  readdirSync,
   existsSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 
 const ROOT = join(import.meta.dirname, "..");
 const VALIDATOR_JS = join(ROOT, "scripts", "validate-agent-factory.js");
@@ -309,5 +316,284 @@ describe("validate-agent-factory.js (VAL-01 / VAL-02 self-test)", () => {
       join(ROOT, "agent-factory/seed/.grugops/factory.config.json"),
     );
     expect(a.equals(b)).toBe(true);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// (j) PHASE 30 — the retired `autonomy` scalar and the `checkpoints` matrix (D-05 / D-08 / AUTO-07).
+//
+// THE POLARITY FLIP. Until this phase the validator refused the ABSENCE of `autonomy`; it now
+// refuses its PRESENCE, and the refusal names the replacement so a reader can act without opening a
+// document. `mode` and `cadence` stay required — the flip is one key wide.
+//
+// THE FORM CHECK, AND THE CONTRACT IT INHERITS. The `checkpoints` object follows the same
+// ACTIVE-WHEN-PRESENT / LENIENT-WHEN-ABSENT contract the v1.2 dial keys already carry: an absent
+// object and an absent individual id are the documented lean default and never an error (AUTO-07),
+// and only a PRESENT invalid declaration is refused. It differs from the quality block in one
+// respect the cases below pin: the legal KEY set is the imported roster, so an unknown id is itself
+// a refusal — a checkpoint the roster does not carry cannot be gated, and silently accepting it
+// would let a typo read as a configured stop that never fires.
+//
+// The roster is IMPORTED here for the same reason the validator imports it: a second array of
+// checkpoint ids in either file is the set-literal drift this milestone exists to close, and a
+// stale copy would keep passing while the roster grew past it.
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+
+const cp: typeof import("./checkpoints.js") = await import(
+  pathToFileURL(join(ROOT, "scripts", "checkpoints.js")).href
+);
+
+/** A good-kit copy whose config has been mutated in place. Returns the temp kit root. */
+function kitWithConfig(mutate: (c: Record<string, unknown>) => void): string {
+  const kit = copyGoodKit(true);
+  const p = join(kit, "agent-factory/config/factory.config.json");
+  const c = JSON.parse(readFileSync(p, "utf8")) as Record<string, unknown>;
+  mutate(c);
+  writeFileSync(p, JSON.stringify(c, null, 2));
+  return kit;
+}
+
+/** Every roster id at one disposition — built from the IMPORTED roster, never from a list here. */
+function wholeMatrix(d: string): Record<string, string> {
+  return Object.fromEntries(cp.CHECKPOINTS.map((id) => [id, d]));
+}
+
+describe("validate-agent-factory.js — the retired `autonomy` scalar (D-05)", () => {
+  it("REFUSES a config that carries `autonomy`, naming the replacement key", () => {
+    const kit = kitWithConfig((c) => {
+      c.autonomy = "pr";
+    });
+    const r = runFixture(kit);
+    expect(r.status).not.toBe(0);
+    expect(out(r)).toMatch(/autonomy/);
+    // The message must name the replacement, not merely say "no".
+    expect(out(r)).toMatch(/checkpoints/);
+  });
+
+  it("REFUSES `autonomy` at every legacy grade value, not only the shipped one", () => {
+    for (const grade of Object.keys(cp.LEGACY_AUTONOMY_GRADES)) {
+      const kit = kitWithConfig((c) => {
+        c.autonomy = grade;
+      });
+      const r = runFixture(kit);
+      expect(r.status, `autonomy="${grade}" was accepted`).not.toBe(0);
+      expect(out(r)).toMatch(/autonomy/);
+    }
+  });
+
+  it("a config WITHOUT `autonomy` validates clean — its absence is no longer an error", () => {
+    const kit = kitWithConfig((c) => {
+      delete c.autonomy;
+    });
+    expect(runFixture(kit).status).toBe(0);
+  });
+
+  it("`mode` and `cadence` remain required (the flip is exactly one key wide)", () => {
+    for (const key of ["mode", "cadence"]) {
+      const kit = kitWithConfig((c) => {
+        delete c[key];
+      });
+      const r = runFixture(kit);
+      expect(r.status, `deleting "${key}" was accepted`).not.toBe(0);
+      expect(out(r)).toMatch(new RegExp(key));
+    }
+  });
+});
+
+describe("validate-agent-factory.js — the `checkpoints` matrix form check (D-08 / AUTO-07)", () => {
+  it("an ABSENT `checkpoints` object → exit 0 (the lean default, never an error)", () => {
+    const kit = kitWithConfig((c) => {
+      delete c.checkpoints;
+    });
+    expect(runFixture(kit).status).toBe(0);
+  });
+
+  it("a PARTIAL `checkpoints` object → exit 0 (an omitted id is never an error)", () => {
+    const kit = kitWithConfig((c) => {
+      c.checkpoints = { open_pr: "notify" };
+    });
+    expect(runFixture(kit).status).toBe(0);
+  });
+
+  it("an UNKNOWN checkpoint id → nonzero, and the message names the offending id", () => {
+    const kit = kitWithConfig((c) => {
+      c.checkpoints = { open_pr: "block", not_a_real_checkpoint: "block" };
+    });
+    const r = runFixture(kit);
+    expect(r.status).not.toBe(0);
+    expect(out(r)).toMatch(/not_a_real_checkpoint/);
+  });
+
+  it("a NON-CANONICAL disposition → nonzero, naming the key and listing the allowed values", () => {
+    const kit = kitWithConfig((c) => {
+      c.checkpoints = { open_pr: "warn" };
+    });
+    const r = runFixture(kit);
+    expect(r.status).not.toBe(0);
+    expect(out(r)).toMatch(/checkpoints\.open_pr/);
+    for (const d of cp.DISPOSITIONS) expect(out(r)).toMatch(new RegExp(d));
+  });
+
+  it.each([
+    ["null", null],
+    ["an array", []],
+    ["a string", "block"],
+    ["a number", 3],
+    ["a boolean", true],
+  ])("a `checkpoints` value that is %s → nonzero, naming the key", (_label, value) => {
+    const kit = kitWithConfig((c) => {
+      c.checkpoints = value;
+    });
+    const r = runFixture(kit);
+    expect(r.status).not.toBe(0);
+    expect(out(r)).toMatch(/checkpoints/);
+  });
+
+  it("the TINT-03 carve-out: `checkpoints.test_integrity: off` is refused by name", () => {
+    const kit = kitWithConfig((c) => {
+      c.checkpoints = { test_integrity: "off" };
+    });
+    const r = runFixture(kit);
+    expect(r.status).not.toBe(0);
+    expect(out(r)).toMatch(/test_integrity/);
+    expect(out(r)).toMatch(/TINT-03/);
+  });
+
+  // NON-VACUITY. The three runs below drive the WHOLE imported roster through the validator, so a
+  // hand-copied thirteen-id list inside the validator (the roster grew to fourteen in plan 30-04)
+  // would refuse the fourteenth and go red here. A per-id loop would spawn 42 processes for the
+  // same information; three whole-matrix runs cover every id at every canonical value.
+  it("EVERY roster id is accepted at `block` and at `notify` (the imported set, not a copy)", () => {
+    for (const d of ["block", "notify"]) {
+      const kit = kitWithConfig((c) => {
+        c.checkpoints = wholeMatrix(d);
+      });
+      const r = runFixture(kit);
+      expect(r.status, `whole matrix at "${d}" was refused: ${out(r)}`).toBe(0);
+    }
+  });
+
+  it("EVERY roster id except the carved-out one is accepted at `off`", () => {
+    const kit = kitWithConfig((c) => {
+      const m = wholeMatrix("off");
+      m.test_integrity = "block"; // the one cell TINT-03 excludes
+      c.checkpoints = m;
+    });
+    const r = runFixture(kit);
+    expect(r.status, out(r)).toBe(0);
+  });
+
+  it("the roster the cases above drive is the FOURTEEN-member imported one, not a stale thirteen", () => {
+    // Guards the guard: if `wholeMatrix` were ever fed a shrunken roster the runs above would pass
+    // while covering less. The count is read from the module, and the floor is the roster size plan
+    // 30-04 settled — a shrink is red here rather than silently narrowing the coverage above.
+    expect(cp.CHECKPOINTS.length).toBeGreaterThanOrEqual(14);
+    expect(new Set(cp.CHECKPOINTS).size).toBe(cp.CHECKPOINTS.length);
+  });
+});
+
+describe("each deliberately-broken fixture still fails for EXACTLY its own reason (Pitfall 3)", () => {
+  // A bare non-zero exit cannot tell "fails for its one defect" from "fails for its one defect AND
+  // a config-key finding the retirement introduced". A fixture that has quietly started failing for
+  // a second reason has stopped testing the thing it was built to test, which is a silently deleted
+  // test. So each row asserts the FINDING SET, not the exit status: the intended finding is present,
+  // and the count of configuration findings is exactly the number that fixture exists to produce.
+  //
+  // `bad-config-no-mode` is the one fixture whose OWN defect is a configuration key, so its expected
+  // configuration-finding count is 1 and the others' is 0. Stating that per row — rather than
+  // exempting the fixture from the check — keeps the assertion honest for all eight.
+  const INTENT: ReadonlyArray<readonly [string, RegExp, number, number]> = [
+    // [fixture, its intended finding, expected config findings, expected bare exit status]
+    ["bad-role-missing-section", /Hard limits/i, 0, 1],
+    ["bad-config-no-mode", /missing or empty required key "mode"/, 1, 1],
+    ["bad-plugin-noname", /name/i, 0, 1],
+    ["bad-ticket-mismatch", /status/i, 0, 1],
+    ["bad-ticket-bad-column", /not a board column/i, 0, 1],
+    ["bad-workflow-no-commit", /Commit/i, 0, 1],
+    // `good` has no defect: its intent is that NOTHING is found, so its row asserts the absence of
+    // any finding rather than the presence of one. `warn-only-no-trace` exits 0 bare but must still
+    // EMIT its warning — asserting only its exit status would pass over a run that found nothing.
+    ["good", /ALL CHECKS PASSED/i, 0, 0],
+    ["warn-only-no-trace", /WARN/, 0, 0],
+  ];
+
+  it("the intent table names EVERY fixture repository on disk, and no other", () => {
+    // Two-sided, so neither a fixture added without a row nor a row naming a deleted fixture can
+    // hide. The disk side is discovered; the table side is written. Equality is the assertion.
+    const onDisk = readdirSync(FIX, { withFileTypes: true })
+      .filter((e) => e.isDirectory())
+      .map((e) => e.name)
+      .sort();
+    expect(INTENT.map(([f]) => f).sort()).toEqual(onDisk);
+    expect(onDisk.length).toBe(8);
+  });
+
+  it.each(INTENT)(
+    "%s: its own finding is present and it produces exactly the configuration findings it should",
+    (fixture, intended, configFindings, exitStatus) => {
+      const r = runFixture(join(FIX, fixture));
+      expect(r.status, `${fixture} exit status`).toBe(exitStatus);
+      expect(out(r), `${fixture} did not emit its intended finding`).toMatch(intended);
+      if (fixture === "good") expect(out(r)).not.toMatch(/^\s*(ERROR|WARN)\b/m);
+      const configLines = out(r)
+        .split("\n")
+        .filter((l) => l.includes("agent-factory/config/factory.config.json:"));
+      expect(
+        configLines,
+        `${fixture} produced ${configLines.length} configuration finding(s), expected ${configFindings}`,
+      ).toHaveLength(configFindings);
+    },
+  );
+});
+
+describe("validate-agent-factory.ts — the legal key set is IMPORTED, never restated", () => {
+  it("no roster id is written as a literal in the validator except the two that are ALSO config keys", () => {
+    const src = readFileSync(join(ROOT, "scripts", "validate-agent-factory.ts"), "utf8");
+    const spelled = cp.CHECKPOINTS.filter((id) => src.includes(id)).sort();
+    // `test_integrity` is also the legacy `quality.test_integrity` enum key AND the TINT-03
+    // carve-out this file states by name; `production_requires_human_confirmation` is also the
+    // top-level WR-01 safety-floor boolean. Every OTHER roster id must reach this file only through
+    // the import — a third spelling means an array of ids was written back in.
+    expect(spelled).toEqual(
+      ["production_requires_human_confirmation", "test_integrity"].sort(),
+    );
+    expect(src).toMatch(/from "\.\/checkpoints\.js"/);
+  });
+});
+
+describe("the retired key is gone from every shipped and fixture config surface (D-05)", () => {
+  // The surface set is DISCOVERED, never listed: the two shipped JSON twins plus one JSON per
+  // fixture repository found by reading the fixture directory. The count is asserted so a ninth
+  // fixture added later cannot slip through un-scanned.
+  const fixtureDirs = readdirSync(FIX, { withFileTypes: true })
+    .filter((e) => e.isDirectory())
+    .map((e) => e.name)
+    .sort();
+
+  const surfaces = [
+    join(ROOT, "agent-factory/config/factory.config.json"),
+    join(ROOT, "agent-factory/seed/.grugops/factory.config.json"),
+    ...fixtureDirs.map((d) => join(FIX, d, "agent-factory/config/factory.config.json")),
+  ];
+
+  it("the discovered surface set is the eight fixture repositories plus the two shipped twins", () => {
+    expect(fixtureDirs.length).toBe(8);
+    expect(surfaces.length).toBe(fixtureDirs.length + 2);
+    for (const s of surfaces) expect(existsSync(s), `${s} is missing`).toBe(true);
+  });
+
+  it("not one of those config surfaces carries the retired `autonomy` key", () => {
+    const carriers = surfaces.filter((s) =>
+      Object.prototype.hasOwnProperty.call(JSON.parse(readFileSync(s, "utf8")), "autonomy"),
+    );
+    expect(carriers).toEqual([]);
+  });
+
+  it("the human-readable twin documents no `autonomy` field row", () => {
+    const twin = readFileSync(join(ROOT, "agent-factory/config/factory.config.md"), "utf8");
+    // A field row is a table line beginning with the key in backticks. The legacy GRADE table is
+    // deliberately allowed to name the retired scalar — that table is the migration path — so the
+    // scan is for a FIELD ROW, not for the word.
+    expect(twin).not.toMatch(/^\|\s*`autonomy`\s*\|/m);
   });
 });

@@ -12,7 +12,7 @@
 //
 // Asserts the frozen grugops kit tree is structurally well-formed: required files exist,
 // role/workflow files carry their required sections (by PREFIX match — never exact-string,
-// never uniqueness), the config parses with mode/cadence/autonomy AND enum-checks the 8
+// never uniqueness), the config parses with mode/cadence AND enum-checks the 8
 // optional v1.2 dial keys WHEN PRESENT (bdd; quality.tdd/ui_e2e/test_integrity/gate_enforcement;
 // quality.lint shape; security.asvs_level/block_on) — a MISSING key is its lean default, never
 // an error (D-14 active-when-present / lenient-when-absent, preserving SC4 zero-config); the
@@ -38,7 +38,8 @@
 // (Phase-7 classification: agent-factory/… + AGENTS.md + .claude-plugin/ = KIT; plans/… = STATE).
 //
 // Two-tier findings (D-44): ERRORS (missing file/section; config doesn't parse or lacks
-// mode/cadence/autonomy; a PRESENT dial key carrying an out-of-enum value — e.g. asvs_level:"L4"
+// mode/cadence; config carrying the RETIRED `autonomy` scalar or a malformed `checkpoints`
+// declaration; a PRESENT dial key carrying an out-of-enum value — e.g. asvs_level:"L4"
 // or a trace-integrity value outside warn|block; a malformed quality.lint shape; plugin.json
 // missing name; board/ticket status mismatch) → exit 1.
 // WARNINGS (ticket missing a traceability row, or a row missing Tests/UAT) → reported, exit 0
@@ -56,6 +57,11 @@ import { join, resolve } from "node:path";
 // environment variable — the kit root is an explicit parameter (D-22) — so this file keeps exactly
 // the two root conventions it already had (VALIDATE_KIT_ROOT + VALIDATE_ROOT) and gains no third.
 import { listRoles, listWorkflows } from "./kit-model.js";
+// THE CHECKPOINT ROSTER AND THE DISPOSITION VOCABULARY ARE IMPORTED, NEVER RESTATED (D-08).
+// scripts/checkpoints.ts is the ONE declaration of both; a second array of checkpoint ids here
+// would be the set-literal drift this milestone exists to close — it would keep passing while the
+// roster grew past it, and the ids it had never heard of would be refused as unknown.
+import { CHECKPOINTS, DISPOSITIONS } from "./checkpoints.js";
 
 // ── Two-root resolution (VAL-02 / D-08 — kit root + state root, resolved separately) ─────────
 // STATE_ROOT keeps the install.ts back-compat shape: VALIDATE_ROOT, else the repo root.
@@ -312,7 +318,7 @@ function checkWorkflowSections(): void {
   }
 }
 
-// ── Check 4: config parses + has mode/cadence/autonomy ────────────────────────────────────────
+// ── Check 4: config parses + has mode/cadence (autonomy RETIRED — its presence is refused) ────
 function checkConfig(): void {
   const rel = "agent-factory/config/factory.config.json";
   const raw = kitRead(rel);
@@ -333,10 +339,29 @@ function checkConfig(): void {
     return;
   }
   const cfgObj = cfg as Record<string, unknown>;
-  for (const key of ["mode", "cadence", "autonomy"]) {
+  for (const key of ["mode", "cadence"]) {
     if (typeof cfgObj[key] !== "string" || (cfgObj[key] as string).trim() === "") {
       err(`${rel}: missing or empty required key "${key}"`);
     }
+  }
+
+  // ── The RETIRED `autonomy` scalar — a POLARITY FLIP, not an addition (Phase 30, D-05) ────────
+  // This validator refused the ABSENCE of `autonomy` until this phase; it now refuses its
+  // PRESENCE. The scalar was documentary — it graded `diff | branch | pr` and no mechanism read it
+  // — and Phase 30 replaces it with the enforced per-checkpoint `checkpoints` matrix. There is no
+  // coexistence mode and no conflict-resolution rule: two live vocabularies over one question is
+  // the second-authority defect this milestone exists to close, so a config carrying the old key
+  // is refused rather than read alongside the new one.
+  //
+  // The message names the REPLACEMENT and the TABLE, so a user reading a red run can migrate
+  // without opening a document to find out what to do.
+  if ("autonomy" in cfgObj) {
+    err(
+      `${rel}: the retired "autonomy" key is present. It is replaced by the per-checkpoint ` +
+        `"checkpoints" object (each id set to ${DISPOSITIONS.join("|")}); translate the old ` +
+        `diff/branch/pr value with the legacy grade table in ` +
+        `agent-factory/config/factory.config.md and delete the key`,
+    );
   }
 
   // ── Optional-enum recognition of the 8 new v1.2 dial keys (SDLC-03 / D-14) ──────────────────
@@ -403,6 +428,61 @@ function checkConfig(): void {
         err(
           `${rel}: invalid "security.${k}" value "${s[k]}" (allowed: ${allowed.join("|")})`,
         );
+      }
+    }
+  }
+
+  // ── The `checkpoints` matrix — form-checked against the IMPORTED roster (Phase 30, D-08) ─────
+  // IT INHERITS THE CONTRACT STATED ABOVE, VERBATIM: ACTIVE-WHEN-PRESENT, LENIENT-WHEN-ABSENT.
+  // An absent `checkpoints` object and an absent individual id are both the documented lean
+  // default and NEVER an error (AUTO-07 — a repository that configures nothing keeps the
+  // un-lowered posture, which is exactly what the roster's own defaults give it). Only a PRESENT
+  // invalid declaration is refused. Every check below is reached only through a presence test; no
+  // loop over the roster can produce a finding for an id the config does not mention.
+  //
+  // TWO THINGS DIFFER FROM THE `quality` BLOCK ABOVE, AND BOTH ARE DELIBERATE.
+  //   1. The legal KEY set is the imported roster rather than a table written here. Nothing in this
+  //      file lists checkpoint ids.
+  //   2. An UNKNOWN key is itself a refusal, which the quality block has no arm for. A checkpoint
+  //      id the roster does not carry cannot be gated by anything, so accepting it would let a
+  //      typo read as a configured stop that never fires — silently, and in the permissive
+  //      direction. The refusal names the offending id and quotes the roster back.
+  if ("checkpoints" in cfgObj) {
+    const ck = cfgObj.checkpoints;
+    if (ck === null || typeof ck !== "object" || Array.isArray(ck)) {
+      err(
+        `${rel}: "checkpoints" must be an object mapping checkpoint ids to ` +
+          `${DISPOSITIONS.join("|")} (a matrix cannot come out of the value written here)`,
+      );
+    } else {
+      const legalIds = new Set<string>(CHECKPOINTS);
+      const rosterList = [...CHECKPOINTS].sort().join(", ");
+      for (const [id, value] of Object.entries(ck as Record<string, unknown>)) {
+        if (!legalIds.has(id)) {
+          err(
+            `${rel}: unknown checkpoint id "checkpoints.${id}" — the roster is closed ` +
+              `(allowed ids: ${rosterList})`,
+          );
+          continue;
+        }
+        if (typeof value !== "string" || !(DISPOSITIONS as readonly string[]).includes(value)) {
+          err(
+            `${rel}: invalid "checkpoints.${id}" value ${JSON.stringify(value)} ` +
+              `(allowed: ${DISPOSITIONS.join("|")})`,
+          );
+          continue;
+        }
+        // The TINT-03 carve-out, restated at the ONE place a checkpoint value is judged. Trace
+        // integrity is never fully dialable off — the same floor `quality.test_integrity`'s
+        // warn|block enum carries, expressed in the matrix's own vocabulary. `notify` is the
+        // matrix spelling of `warn` and remains legal; `off` is the value that has no legal form.
+        if (id === "test_integrity" && value === "off") {
+          err(
+            `${rel}: "checkpoints.test_integrity" must not be "off" (TINT-03 trace-integrity ` +
+              `safety carve-out — the gate must never silently accept a hollowed-out test suite; ` +
+              `use "notify" for the advisory posture)`,
+          );
+        }
       }
     }
   }

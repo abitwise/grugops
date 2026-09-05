@@ -11,7 +11,7 @@ This document is the human-readable twin of the JSON. Each top-level field has o
 | `version` | SemVer string | `0.1.0` | Version of the grugops config schema this file targets. |
 | `mode` | `lean`, `enterprise` | `lean` | `lean` = core agents + light Definition of Done; `enterprise` = full role pack + full gates. |
 | `cadence` | `kanban`, `scrum` | `kanban` | `kanban` = continuous flow with WIP limits; `scrum` = fixed sprints + ceremonies. |
-| `autonomy` | `diff`, `branch`, `pr` | `pr` | `diff` = produce diffs only; `branch` = commit to a branch; `pr` = branch + open a PR (agents never merge). |
+| `checkpoints` | object of checkpoint id → `block`, `notify`, `off` | absent (every id at its documented default) | Per-checkpoint disposition matrix — the enforced replacement for the retired `autonomy` scalar. One cell per human stop the kit declares. See below for the roster, the defaults, the two-key rule that governs the floor-tier stops, and the table that translates an old `autonomy` value. |
 | `id_prefix` | short uppercase string | `ABC` | Prefix for work-item IDs (e.g. `ABC-12`). Set this per project; `ABC` is the generic kit placeholder. |
 | `repo_strategy` | `mono`, `poly` | `mono` | `mono` = nested `AGENTS.md` per package; `poly` = one `AGENTS.md` per repo plus a root index. |
 | `default_stack` | object | TypeScript / node-fastify / Vue / PostgreSQL / Playwright / Docker / kubernetes-ready | Default technology stack the factory recommends for new work (keys: `language`, `backend`, `frontend`, `db`, `e2e`, `container`, `deploy`). |
@@ -139,6 +139,60 @@ The `models` object assigns one model alias to each generated Claude Code sub-ag
 
 **How an edit reaches an installed repository.** The model dial is resolved when adapters are generated, and installing a repository generates that repository's adapters from that repository's own configuration — so a `models` block written into an installed repository does change the adapters that repository's session loads. It changes them at install time, and only then. A block you edit after installing is delivered by running the install again from the grugops checkout against that repository, `node install/install.js --target <repo>`; the installer's `--update` mode refreshes the shared kit alone and writes no adapter into any repository, so it is not the way an edit is delivered. Between your edit and that re-run the repository keeps the adapters the previous run wrote, and `node install/install.js --check --target <repo>` names every adapter your edit has not reached yet. A block the resolver refuses leaves the repository's adapters exactly as they were and the run says so, rather than quietly installing the default answer.
 
+### `checkpoints` sub-fields
+
+The `checkpoints` object is the per-checkpoint disposition matrix. It replaces the retired `autonomy` scalar, which graded `diff | branch | pr` in prose and was read by no mechanism. Each key is one human stop the kit declares, and each value is one of three dispositions:
+
+- `block` — the stop is enforced; the action is refused without a named human.
+- `notify` — the action proceeds and is recorded (a finding note plus a line in the run banner).
+- `off` — the action proceeds silently.
+
+There is no fourth value. The roster is closed and lives once, in `scripts/checkpoints.ts`; the structure validator imports it rather than restating it, so an unknown checkpoint id is refused by name and a value outside the three dispositions is refused with the allowed set quoted back to you.
+
+**Absence is the lean default, and it is never an error.** A missing `checkpoints` object, and a missing individual id inside a present object, both read as that id's documented default below. A zero-config repository therefore gets the un-lowered posture without writing anything, which is the whole zero-config contract. Only a value you actually wrote can be refused.
+
+| Checkpoint | Tier | Default | The stop it names |
+|------------|------|---------|-------------------|
+| `protected_branch_merge` | floor | `block` | An agent merging a protected branch. |
+| `production_requires_human_confirmation` | floor | `block` | A production deploy without a named human confirming it. |
+| `test_integrity` | floor | `block` | Weakened, skipped or disabled tests passing unsurfaced. **`off` is refused for this id** (TINT-03); `notify` is the matrix spelling of the legacy `warn`. |
+| `open_pr` | floor | `block` | An agent carrying a change past the pull request instead of stopping there. |
+| `commit_to_branch` | — | `off` | An agent committing to a working branch. The permissive default is deliberate: committing to a branch is what the factory does on every ticket. |
+| `proceed_past_blocked_risk` | — | `block` | Cutting tickets that build on a high-risk finding the security review returned `BLOCKED`. |
+| `sign_off_acceptance` | — | `block` | Signing off acceptance when the criteria are missing, ambiguous or unmet. |
+| `escalate_stale_blocker` | — | `block` | Letting a ticket sit blocked past `blocked_escalation_days` without escalating it. |
+| `exceed_wip_limit` | — | `block` | Pulling new work into a column whose WIP limit is already breached. |
+| `decide_accessibility_exception` | — | `block` | Marking an accessibility item passed on a control the design does not meet. |
+| `exhaust_self_fix_budget` | — | `block` | Continuing after the bounded `self_fix_attempts` budget is spent and the gate still fails. |
+| `override_finding_severity` | — | `block` | Overriding a security finding's severity without a stated reason and a named owner. |
+| `escalate_unadjudicable_result` | — | `block` | Self-stamping a high-stakes result no gate can adjudicate. |
+| `accept_human_only_failure` | — | `block` | Spending an agent fix attempt on a failure only a human can clear. |
+
+**Which members are floor-tier is not decided here.** The canonical floor list is `SAFETY_FLOORS` in `scripts/audit-model.ts`; the roster derives its floor subset by intersecting with it, and the `Tier` column above reports that derivation rather than declaring it. A member added to the floor list later becomes floor-tier without this table being the thing that says so.
+
+**The two-key rule for a floor-tier stop.** Every checkpoint is ternary, and a floor-tier checkpoint differs in exactly one respect: lowering it below `block` takes two keys, not one.
+
+- Key one is the configuration cell — `checkpoints.<id>: notify` or `off` — which an agent can write.
+- Key two is a session environment variable a human sets — `GRUGOPS_FLOOR_<ID>`, its value being the name of the human authorizing it — which the guard reads fresh on every invocation.
+
+A configuration cell with no matching environment variable is an unauthorized lowering: the effective disposition stays `block`. An agent that edits configuration alone changes nothing, and the run banner and the denial both say so by name, so it changes nothing loudly. Be precise about how far key two reaches: the variable is un-forgeable from inside a tool call, because an agent's own export lands in the child process it spawns rather than in the guard's process; it is not un-forgeable against an agent that can write the host's own settings files. That residual is disclosed rather than closed.
+
+**On host tools without hook enforcement, a non-blocking disposition is advisory.** The mechanical enforcement of this matrix is a Claude Code `PreToolUse` hook. On Codex CLI, Gemini CLI, OpenCode and GitHub Copilot CLI there is no equivalent pre-tool hook, so the same matrix is a procedural instruction the roles follow rather than a mechanism that refuses a command. The `block` dispositions still describe where the factory stops on those tools; what differs is that nothing outside the prompt makes it stop. Configure with that asymmetry in mind.
+
+#### Translating a retired `autonomy` value
+
+If a repository still carries `autonomy`, the structure validator refuses the configuration and names the replacement. The translation is mechanical — the old grade split into two independent stops, "may the agent commit to a branch" and "may it open a pull request" — so there is one fixed answer per old value rather than an interpretation:
+
+| Old `autonomy` value | `checkpoints.commit_to_branch` | `checkpoints.open_pr` |
+|----------------------|--------------------------------|------------------------|
+| `diff` | `block` | `block` |
+| `branch` | `off` | `block` |
+| `pr` | `off` | `off` |
+
+Delete the `autonomy` key and write the two cells its row names. That reproduces the behaviour you had. Note that it is not the same as the kit's shipped defaults, which hold `open_pr` at `block`: translating `pr` preserves your previous posture, while the shipped default stops at the pull request. Choose deliberately rather than by inheritance.
+
+The installer never performs this edit for you. When it meets a configuration carrying the retired key it names the key, points at this table and leaves the file untouched — a tool that rewrites your declared intent without asking is the opposite of this project's posture.
+
 ## Config-dial contract (lean → enterprise)
 
 This is the escalation contract for the gate / test-first / security dials. Each row states the key, its allowed values, the **lean default** (what zero-config gives you), and the **Enterprise escalation** (the direction a regulated team turns the dial). Phase 10 documents this contract; the behaviour behind each key is wired in later milestones (BDD/TDD, UI/E2E, ASVS) — turning a dial up does not, by itself, change behaviour until that capability ships.
@@ -155,6 +209,7 @@ This is the escalation contract for the gate / test-first / security dials. Each
 | `security.block_on` | `none`, `low`, `medium`, `high` | `high` | `medium`, then `low` — more security findings block the gate as the bar rises. |
 | `context.compaction` | `aggressive`, `balanced`, `retain-raw` | `aggressive` | `retain-raw` — full trajectory bodies admitted to the committed shared context (enterprise/audit: pay the tokens to keep the whole record durable). The body/raw verbosity knob is **all** the dial moves; the durable note set and the carve-out (the load-bearing provenance fields + every raw `failed-attempt` id) are **un-dialable at every value** (D-05) — exactly like `quality.test_integrity` has no `off`. |
 | `context.human_admission` | `off`, `high-severity`, `all` | `off` | `high-severity`, then `all` — a named human must dispose ever-more entries before admission (GOV-01). This dial only ever **tightens** admission: each step up *adds* the named-human stop to more entries; it never subtracts a safety floor. The verified-context integrity floor (a note still cannot enter without passing structural validation and provenance) holds at every value — un-dialable, the same trace-integrity reason `quality.test_integrity` has no `off` (SC3 / D-12). |
+| `checkpoints.<id>` | `block`, `notify`, `off` | every id at its documented default | `block` on every id — the strictest matrix. This dial only ever **tightens** when turned up; turning a floor-tier id DOWN additionally requires the human-set `GRUGOPS_FLOOR_<ID>` session variable, so an agent editing configuration alone cannot lower it. `checkpoints.test_integrity` has no `off` value in any mode (TINT-03). |
 | `context.audit_retention` | `git`, `retained` | `git` | `retained` — keep a durable append-only governance audit ledger an auditor can read end-to-end (GOV-02). This dial only ever **tightens** record durability (more is kept, never less); it never removes the audit floor that already exists in git history. |
 
 ## Zero-config defaults
@@ -163,9 +218,9 @@ grugops runs with zero configuration. When no `factory.config.json` is present, 
 
 - `mode=lean`
 - `cadence=kanban`
-- `autonomy=pr`
+- every `checkpoints` cell at its documented default (see the roster above)
 
-The same holds for the gate / test-first / security / memory dials documented above: every one of the nine keys (`bdd`, `quality.tdd`, `quality.lint`, `quality.ui_e2e`, `quality.test_integrity`, `quality.gate_enforcement`, `security.asvs_level`, `security.block_on`, `context.compaction`) degrades to its documented lean default when the key — or the whole file — is absent. A missing key is never an error; it is read as its lean default. So a missing `context.compaction` reads as `aggressive`, exactly the read-at-use, default-on-absent precedent the compactor relies on (D-06). (The single safety floor is `quality.test_integrity`, which has no `off` value in any mode — TINT-03; the carve-out behind `context.compaction` is un-dialable for the same trace-integrity reason — D-05.)
+The same holds for the gate / test-first / security / memory dials documented above: every one of the keys enumerated here — `bdd`, `quality.tdd`, `quality.lint`, `quality.ui_e2e`, `quality.test_integrity`, `quality.gate_enforcement`, `security.asvs_level`, `security.block_on`, `context.compaction`, and every cell of the `checkpoints` object — degrades to its documented lean default when the key, its enclosing object, or the whole file is absent. The enumeration is the inventory; no separate count is kept beside it, because a hand-maintained numeral drifts the moment a key is added and this sentence had already drifted once. A missing key is never an error; it is read as its lean default. So a missing `context.compaction` reads as `aggressive`, exactly the read-at-use, default-on-absent precedent the compactor relies on (D-06). (The safety floors are not one key. The canonical floor list is `SAFETY_FLOORS` in `scripts/audit-model.ts`, and the roster table in *`checkpoints` sub-fields* above marks each floor-tier member; lowering any of them takes the two keys described there, so none of them is lowered by an absent configuration. Two values are refused outright rather than dialled: `quality.test_integrity` has no `off` in any mode, and `checkpoints.test_integrity` refuses `off` for the same TINT-03 reason. The carve-out behind `context.compaction` is un-dialable on that same trace-integrity argument — D-05.)
 
 The same read-at-use, default-on-absent rule covers the `queue` object: a missing `queue.wip_limit`, `queue.claim_cap`, or `queue.stale_ttl_minutes` key — or the whole `queue` object — degrades to its lean default (`3 / 2 / 30`). A missing queue key is never an error; the coordinator reads it as the lean default, exactly as it reads a missing `context.compaction` as `aggressive`.
 

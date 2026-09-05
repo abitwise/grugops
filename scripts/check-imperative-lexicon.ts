@@ -818,22 +818,36 @@ export function technicalNames(): string[] {
 export const TECHNICAL_NAMES: readonly string[] = technicalNames();
 
 /**
- * The pinned cardinality of the deduped union. 77 today: 17 role display names + 19 workflow
- * display names + 22 config keys + 6 note kinds + 13 board columns, with no member shared by two
+ * The pinned cardinality of the deduped union. 76 today: 17 role display names + 19 workflow
+ * display names + 21 config keys + 6 note kinds + 13 board columns, with no member shared by two
  * sources. TWO-SIDED, for the same reason every other set here is.
  *
  * MOVED 76 -> 77 BY PLAN 30-01, WITH ITS CAUSE NAMED RATHER THAN ABSORBED. Phase 30 added ONE
  * top-level config key, `checkpoints` (the per-checkpoint autonomy matrix), so `configKeys` moved
- * 21 -> 22. Both consumers were walked before this number changed, as the refusal message demands:
+ * 21 -> 22. Both consumers were walked before that number changed, as the refusal message demands:
  *   - countWords() collapses each Technical Name to ONE placeholder token. `checkpoints` is a
  *     single word already, so no sentence changes length and no sentence crosses a bound. Verified
  *     by re-running the gate: `guard_sentence_form` reports the same 2166 sentences (414
  *     procedural / 1752 descriptive) and 0 findings before and after.
  *   - the Technical Names PASS line reports the derived count, which is what moved.
  * The nested keys under `checkpoints` do NOT enter the set — the derivation reads top-level keys,
- * which is why this is +1 and not +3.
+ * which is why that step was +1 and not +3.
+ *
+ * MOVED 77 -> 76 BY PLAN 30-06, THE OPPOSITE DIRECTION AND THE SAME DISCIPLINE. D-05 RETIRES the
+ * `autonomy` scalar, so `configKeys` moves 22 -> 21 and the union loses exactly that one member.
+ * Both consumers were walked again before this number changed:
+ *   - countWords() collapses each Technical Name to ONE placeholder token, and `autonomy` is a
+ *     single word, so removing it cannot change any sentence's length. MEASURED rather than argued:
+ *     the gate was run with the key present and again with it removed, and `guard_sentence_form`
+ *     reports the same 2199 sentences (421 procedural / 1778 descriptive) with 0 findings on both
+ *     sides, alongside the same 139 `## Steps` bullets.
+ *   - the bullet-classification consumer treats a bullet whose text STARTS WITH a Technical Name as
+ *     technical rather than verb-led. No governed bullet starts with `autonomy` — the same paired
+ *     runs report 0 findings for `guard_imperative_lexicon` before and after, so no bullet lost its
+ *     exemption.
+ *   - the Technical Names PASS line reports the derived count, which is what moved.
  */
-export const TECHNICAL_NAMES_COUNT = 77;
+export const TECHNICAL_NAMES_COUNT = 76;
 
 /**
  * THE WORD COUNT, DECIDED ONCE AND USED EVERYWHERE.
