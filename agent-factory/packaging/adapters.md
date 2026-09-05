@@ -106,10 +106,12 @@ the host tool allows it.
   does nothing.
 - **The other four tools (procedural fallback):** Codex CLI, Gemini CLI, OpenCode, and
   GitHub Copilot CLI have no equivalent pre-tool hook system, so they rely on the
-  **`autonomy=pr`** posture plus `production_requires_human_confirmation: true` — the
+  **`checkpoints` matrix** read procedurally — `checkpoints.open_pr` and
+  `checkpoints.production_requires_human_confirmation`, both at their `block` default — so the
   Orchestrator and Release Manager stop at a pull request and require a named human to
   perform the merge and the production deploy. This is the procedural rendering of the same
-  rule the Claude Code hook enforces mechanically.
+  rule the Claude Code hook enforces mechanically. Be precise about what "procedural" means
+  here: on those four tools nothing outside the prompt refuses the command.
 
 **Known limitation (clear voice): the Claude Code guard only inspects `Bash` commands.** Its
 `hooks.json` matcher is `"Bash"`, so it evaluates the command of a `Bash` tool call and nothing
@@ -119,12 +121,15 @@ matcher's view. Trivial shell indirection such as `K=kubectl; $K apply -f x` als
 literal tool-name patterns, because the guard does not expand variables; that case is out of
 scope by design, not a bug to be fixed in the default pattern set. The mechanical guard is a
 strong, prompt-proof backstop for deploys that run through the Bash tool, not a complete sandbox.
-The tool-independent backstop on every tool remains the `autonomy=pr` posture (stop at a pull
-request; a named human merges and deploys).
+The tool-independent backstop on every tool is the `checkpoints` matrix at its `block`
+defaults (stop at a pull request; a named human merges and deploys). On Claude Code a
+floor-tier cell additionally takes the two keys — the configuration cell plus the human-set
+`GRUGOPS_FLOOR_<ID>` session variable — before a lowering has any effect, so an agent editing
+configuration alone changes nothing. On the other four tools that backstop is procedural.
 
 Both facts must stay documented together: the mechanical guard is Claude-Code-only and
-Bash-scoped; the `autonomy=pr` procedural fallback is what protects production everywhere else.
-Verify the hook schema and the per-tool autonomy behavior against current tool docs.
+Bash-scoped; the procedurally-read `checkpoints` matrix is what protects production everywhere
+else. Verify the hook schema and the per-tool checkpoint behavior against current tool docs.
 
 ## What this file is not
 

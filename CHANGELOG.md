@@ -50,6 +50,25 @@ is in progress and not yet tagged.
   render — a partial checkout missing the modules the render needs — now installs no sub-agent
   adapter at all, where before it installed the ones the kit shipped.
 
+### Removed
+
+- The `autonomy` configuration scalar (`diff` / `branch` / `pr`) is retired. It graded three steps
+  in prose and no mechanism read it. It is replaced by the per-checkpoint `checkpoints` object,
+  whose cells are enforced: each key is one declared human stop and each value is `block`,
+  `notify` or `off`. There is no coexistence mode — the structure validator refuses a
+  configuration that still carries the retired key, and the refusal names the replacement.
+
+  **Migrating an existing repository.** The translation is mechanical, published as a table in
+  `agent-factory/config/factory.config.md`: the old grade split into two independent stops, so
+  `diff` becomes `commit_to_branch: block` + `open_pr: block`, `branch` becomes
+  `commit_to_branch: off` + `open_pr: block`, and `pr` becomes `commit_to_branch: off` +
+  `open_pr: off`. Delete the `autonomy` key and write the two cells its row names.
+
+  **The installer reports; it does not rewrite.** Installing over a repository whose configuration
+  still carries the key prints a line naming the key and pointing at the translation table, and
+  leaves the file byte-identical. Editing a user's declared intent without asking is the opposite
+  of this project's posture, so the edit stays with the human.
+
 _In progress: the phase 26 dogfood dual-path oracle is not yet complete. The A3/DOG-02 live
 dual-path parity retirement is deferred pending a captured live run._
 

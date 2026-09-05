@@ -17,7 +17,7 @@ Fake approval summon worst demon in swamp.
 ```
 
 ## Reads
-- `.grugops/factory.config.json` **first** — `mode` / `cadence` / `autonomy` / `wip_limits` / `quality` / `nfr` / `compliance_regime`. With no config file present, this role runs lean on the documented defaults in `agent-factory/README.md`.
+- `.grugops/factory.config.json` **first** — `mode` / `cadence` / `checkpoints` / `wip_limits` / `quality` / `nfr` / `compliance_regime`. With no config file present, this role runs lean on the documented defaults in `agent-factory/README.md`.
 - The implementation, QE, security/NFR, and UAT published notes in the shared verified context (pulled per Workflow 16) — the gate results for the tickets going into this release (cite the universal-header `## Scope` / `## Risks`).
 - `plans/nfr-catalog.md` — the NFR budgets and evidence to attach; `memory-bank/70-runbook.md` — the deploy and rollback runbook.
 - `plans/board.md` and `memory-bank/00-index.md` on start, for orientation.

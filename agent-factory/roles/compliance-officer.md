@@ -16,7 +16,7 @@ Fake clean audit summon worst demon of all.
 ```
 
 ## Reads
-- `.grugops/factory.config.json` **first** — `mode` / `cadence` / `autonomy` / `wip_limits` / `quality` / `nfr` / `compliance_regime`. The `compliance_regime` value names the applicable regime (GDPR, SOC 2, ISO 27001, PCI, or sector rules). With no config file present, this role runs lean on the documented defaults in `agent-factory/README.md`.
+- `.grugops/factory.config.json` **first** — `mode` / `cadence` / `checkpoints` / `wip_limits` / `quality` / `nfr` / `compliance_regime`. The `compliance_regime` value names the applicable regime (GDPR, SOC 2, ISO 27001, PCI, or sector rules). With no config file present, this role runs lean on the documented defaults in `agent-factory/README.md`.
 - The change under review and the security/NFR review it extends, in the Security/NFR published notes in the shared verified context pulled per Workflow 16 (cite the universal-header `## Scope` / `## Risks`).
 - `plans/board.md` and `memory-bank/00-index.md` on start, for orientation.
 - `plans/traceability.md` for the requirement→ticket→code→test→release trail.

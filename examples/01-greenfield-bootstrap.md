@@ -35,15 +35,15 @@ approval env var — only a human may.
 
 ## Orchestrator decision
 
-The Orchestrator read `factory.config.json` (`mode=lean · cadence=kanban · autonomy=pr`,
+The Orchestrator read `factory.config.json` (`mode=lean · cadence=kanban · checkpoints.open_pr=block`,
 `default_stack` = ts/node-fastify/vue) and the empty board first, then classified:
 
 ```markdown
 # Orchestrator Decision
 ## Request type
 greenfield-bootstrap — stand up the project plane for the version-reporting API.
-## Mode/Cadence/Autonomy in effect
-mode=lean · cadence=kanban · autonomy=pr
+## Mode/Cadence/Checkpoints in effect
+mode=lean · cadence=kanban · checkpoints.open_pr=block
 ## Activated agents
 Greenfield Mapper, AGENTS.md Scribe, BA/PM, System Analyst, Architect/Design
 ## Why

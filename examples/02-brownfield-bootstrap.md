@@ -30,8 +30,8 @@ decision block:
 # Orchestrator Decision
 ## Request type
 brownfield-bootstrap — adopt an existing repo, map → document → risk-scan → safe first tickets.
-## Mode/Cadence/Autonomy in effect
-mode=lean · cadence=kanban · autonomy=pr
+## Mode/Cadence/Checkpoints in effect
+mode=lean · cadence=kanban · checkpoints.open_pr=block
 ## Activated agents
 Brownfield Mapper, AGENTS.md Scribe, Architect/Design, Security/NFR, BA/PM
 ## Why

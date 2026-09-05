@@ -16,7 +16,7 @@ Fake signoff summon worst demon in swamp.
 ```
 
 ## Reads
-- `.grugops/factory.config.json` **first** — `mode` / `cadence` / `autonomy` / `wip_limits` / `quality` / `nfr` / `compliance_regime`. With no config file present, this role runs lean on the documented defaults in `agent-factory/README.md`.
+- `.grugops/factory.config.json` **first** — `mode` / `cadence` / `checkpoints` / `wip_limits` / `quality` / `nfr` / `compliance_regime`. With no config file present, this role runs lean on the documented defaults in `agent-factory/README.md`.
 - `plans/board.md` and `memory-bank/00-index.md` on start, for orientation.
 - The gated change and the Security/NFR notes in the shared verified context (pulled per Workflow 16) — the work ready for business acceptance (cite the universal-header `## Scope` / `## Risks`).
 - `agent-factory/checklists/uat-checklist.md` — the UAT gate checklist this role works through.

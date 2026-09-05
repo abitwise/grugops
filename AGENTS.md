@@ -13,7 +13,7 @@ All work starts with the Orchestrator: `agent-factory/roles/orchestrator.md`.
 Read in this order:
 
 <!-- claim: C-28-012 -->
-1. `.grugops/factory.config.json` — the dial (mode, cadence, autonomy, WIP limits). Runs lean with documented defaults when absent.
+1. `.grugops/factory.config.json` — the dial (mode, cadence, checkpoints, WIP limits). Runs lean with documented defaults when absent.
 2. `agent-factory/roles/orchestrator.md` — the routing contract; act as the Orchestrator.
 3. `plans/board.md` — the visible state; respect every column's WIP limit before pulling new work.
 

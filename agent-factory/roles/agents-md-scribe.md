@@ -17,7 +17,7 @@ Fake command worst demon in swamp.
 ```
 
 ## Reads
-- `.grugops/factory.config.json` **first** — `mode` / `cadence` / `autonomy` / `wip_limits` / `quality` / `nfr` / `compliance_regime`. With no config file present, this role runs lean on the documented defaults in `agent-factory/README.md`.
+- `.grugops/factory.config.json` **first** — `mode` / `cadence` / `checkpoints` / `wip_limits` / `quality` / `nfr` / `compliance_regime`. With no config file present, this role runs lean on the documented defaults in `agent-factory/README.md`.
 - `plans/board.md` and `memory-bank/00-index.md` on start, for orientation.
 - The repo itself (and any mapper output) for the real commands, repo map, and done definition that go into `AGENTS.md`.
 - `plans/traceability.md` for the requirement→ticket→code→test→release trail.

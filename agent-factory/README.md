@@ -76,10 +76,10 @@ companion to `agent-factory/config/factory.config.md`. The config is visible and
 change a value, change the factory's behavior.
 
 <!-- claim: C-28-032 -->
-The **zero-config baseline** is `mode=lean`, `cadence=kanban`, `autonomy=pr`. grugops runs
-lean with no config at all, because every role falls back to these same documented defaults
-when the file is absent. Edit the dial to scale up to enterprise governance (scrum cadence,
-compliance regimes, release gates) on a single flag.
+The **zero-config baseline** is `mode=lean`, `cadence=kanban`, and every `checkpoints`
+cell at its documented default. grugops runs lean with no config at all, because every role
+falls back to these same documented defaults when the file is absent. Edit the dial to scale
+up to enterprise governance (scrum cadence, compliance regimes, release gates) on a single flag.
 
 ## How work flows
 

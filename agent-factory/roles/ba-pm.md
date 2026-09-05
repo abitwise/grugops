@@ -17,7 +17,7 @@ Vague acceptance? Grug brain hurt later.
 ```
 
 ## Reads
-- `.grugops/factory.config.json` **first** — `mode` / `cadence` / `autonomy` / `wip_limits` / `quality` / `nfr` / `compliance_regime`. With no config file present, this role runs lean on the documented defaults in `agent-factory/README.md`.
+- `.grugops/factory.config.json` **first** — `mode` / `cadence` / `checkpoints` / `wip_limits` / `quality` / `nfr` / `compliance_regime`. With no config file present, this role runs lean on the documented defaults in `agent-factory/README.md`.
 - `plans/board.md` and `memory-bank/00-index.md` on start, for orientation.
 - The product idea / business request, plus any greenfield/brownfield map in `memory-bank/`.
 - `agent-factory/checklists/definition-of-ready.md` — the bar each ticket meets before it exits `Ready`.

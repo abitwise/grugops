@@ -16,7 +16,7 @@ Grug walk back same path, or grug no trust cave.
 ```
 
 ## Reads
-- `.grugops/factory.config.json` **first** — `mode` / `cadence` / `autonomy` / `wip_limits` / `quality` / `nfr` / `compliance_regime`. With no config file present, this role runs lean on the documented defaults in `agent-factory/README.md`.
+- `.grugops/factory.config.json` **first** — `mode` / `cadence` / `checkpoints` / `wip_limits` / `quality` / `nfr` / `compliance_regime`. With no config file present, this role runs lean on the documented defaults in `agent-factory/README.md`.
 - The host coding agent it is installing into — to detect which tool is in use and which adapter and entry file are right for it.
 - `plans/board.md` and `memory-bank/00-index.md` on start, for orientation.
 - `plans/traceability.md` for the requirement→ticket→code→test→release trail.

@@ -2762,6 +2762,63 @@ ensureBlock(
   `${COPILOT_REL} (optional Copilot pointer)`,
 );
 
+// ── The RETIRED `autonomy` scalar: REPORT, never rewrite (Phase 30, D-05 / T-30-22) ─────────────
+//
+// A target repository installed before Phase 30 carries `autonomy` in its `.grugops/factory.config.json`.
+// The scalar is retired: the structure validator now refuses a configuration that still carries it,
+// and `agent-factory/config/factory.config.md` publishes the mechanical translation for the old
+// `diff | branch | pr` value.
+//
+// THIS FUNCTION READS AND PRINTS. IT WRITES NOTHING. The installer's whole contract is additive,
+// idempotent and reversible, and it never overwrites user content; a configuration file is the
+// user's declared intent, and a tool that edits declared intent without asking is the opposite of
+// this project's stated posture. So the remedy is named and handed to the human, and the file is
+// left exactly as it was — asserted from the outside by comparing the file's bytes across a run.
+//
+// IT DOES NOT CHANGE THE EXIT CODE. The install itself completed; the retired key is a migration
+// notice, and the surface that REFUSES the key is the structure validator. Failing the install over
+// a configuration this run did not write would report the wrong thing.
+//
+// A configuration that cannot be read or parsed produces a line saying the CHECK DID NOT RUN, never
+// silence. Silence here would be indistinguishable from a clean result, which is the one thing a
+// no-fabrication contract forbids.
+const RETIRED_CONFIG_KEYS: ReadonlyArray<readonly [string, string]> = [
+  [
+    "autonomy",
+    'replaced by the per-checkpoint "checkpoints" object; translate the old diff/branch/pr value ' +
+      "with the legacy grade table in agent-factory/config/factory.config.md",
+  ],
+];
+
+function reportRetiredConfigKeys(): void {
+  const cfgPath = join(TARGET, ".grugops", "factory.config.json");
+  if (!existsSync(cfgPath)) return; // nothing configured here; nothing to report about
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(readFileSync(cfgPath, "utf8"));
+  } catch {
+    report(
+      "skipped",
+      `retired-key check (${cfgPath} did not parse — the check was NOT performed, so this run ` +
+        `says nothing about whether it carries a retired key)`,
+    );
+    return;
+  }
+  if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
+    report(
+      "skipped",
+      `retired-key check (${cfgPath} is not a JSON object — the check was NOT performed)`,
+    );
+    return;
+  }
+  const obj = parsed as Record<string, unknown>;
+  for (const [key, remedy] of RETIRED_CONFIG_KEYS) {
+    if (!Object.prototype.hasOwnProperty.call(obj, key)) continue;
+    report("retired-key", `${cfgPath} carries the retired "${key}" key — ${remedy}.`);
+    report("retired-key", `  This installer left the file untouched. Edit it yourself.`);
+  }
+}
+
 // 7. Seed the per-repo state plane into the target (skip-if-exists) so /grugops works first run.
 console.log("\n-- state seed --");
 seedState();
@@ -2773,6 +2830,9 @@ seedState();
 console.log("\n-- runnables --");
 materializeRunnable();
 
+// 7b. Report a retired configuration key in the target — read-only, never a rewrite (D-05).
+reportRetiredConfigKeys();
+
 // 8. Write the install marker (grugops-owned; overwritten unconditionally).
 writeMarker();
 
@@ -2781,7 +2841,7 @@ console.log("  Claude Code plugin form (colon commands /grugops:plan) installs s
 console.log("    /plugin marketplace add <owner>/grugops   (UNKNOWN - verify against current tool docs)");
 console.log("    /plugin install grugops@grugops           (UNKNOWN - verify against current tool docs)");
 console.log("  Safety: the mechanical prod-deploy guard is Claude-Code-only (plugin hooks/hooks.json).");
-console.log("          The other four tools rely on the autonomy=pr procedural fallback. See install/README.md.");
+console.log("          The other four tools read the checkpoints matrix procedurally. See install/README.md.");
 console.log("  This installer NEVER sets the deploy-approval env var — only a human may approve a deploy.");
 
 // THE CLOSING CLAIM IS CONDITIONAL (27-13, T-27-59). A run that could not read a source directory,

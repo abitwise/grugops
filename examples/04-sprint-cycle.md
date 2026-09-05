@@ -28,8 +28,8 @@ its inline decision for the planning step:
 # Orchestrator Decision
 ## Request type
 sprint-planning — pull a committed set from a stocked Ready column into a sprint goal.
-## Mode/Cadence/Autonomy in effect
-mode=enterprise · cadence=scrum · autonomy=pr
+## Mode/Cadence/Checkpoints in effect
+mode=enterprise · cadence=scrum · checkpoints.open_pr=block
 ## Activated agents
 BA/PM (sprint goal + DoR), Orchestrator (pull to capacity)
 ## Why
@@ -112,7 +112,7 @@ verified context; QE/E2E pulls that same context and publishes its own verdict b
 (`16-context-read-write.md`); and the gate (per `05-pr-quality-gate.md`) returns
 `READY_FOR_HUMAN_REVIEW`. A verdict asserted as measured is a `finding`, and it is admitted only
 against the gate's own green `§14-gate#<id>` stamp — the gate is the root of that chain, so no
-role can self-certify a pass. autonomy=pr — the agent opens a branch and a PR; it never merges.
+role can self-certify a pass. checkpoints.open_pr=block — the agent opens a branch and stops at the PR; it never merges.
 
 ## Daily sweep (09)
 

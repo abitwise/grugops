@@ -19,7 +19,7 @@ Too many grug in cave at once, cave fall in.
 ```
 
 ## Reads
-- `.grugops/factory.config.json` **first** — `mode` / `cadence` / `autonomy` / `wip_limits` / `queue` / `quality` / `nfr` / `compliance_regime`. With no config file present, this role runs lean on the documented defaults in `agent-factory/README.md`.
+- `.grugops/factory.config.json` **first** — `mode` / `cadence` / `checkpoints` / `wip_limits` / `queue` / `quality` / `nfr` / `compliance_regime`. With no config file present, this role runs lean on the documented defaults in `agent-factory/README.md`.
 - `plans/board.md` — column state and per-column WIP.
 - `memory-bank/00-index.md` on start, then the roles' published notes per Workflow 16.
 - `plans/traceability.md` for the requirement→ticket→code→test→release trail.
@@ -29,7 +29,7 @@ Too many grug in cave at once, cave fall in.
 Any incoming request — every `/grugops` starts here.
 
 ## Responsibilities
-1. Read config (mode/cadence/autonomy/wip) — it decides which gates are live.
+1. Read config (mode/cadence/checkpoints/wip) — it decides which gates are live.
 2. Read board and published notes; a started ticket outranks a new one.
 3. Classify request:
    `greenfield-bootstrap` `brownfield-bootstrap` `idea-to-epics` `epic-to-tickets`
@@ -60,7 +60,7 @@ AGENTS.md -> AGENTS.md Scribe  adapters installed -> Installer
 - Sizing `XS=1 S=2 M=3 L=5 XL=8`. **No XL into dev** — an XL emits `SPLIT_REQUIRED` and routes back to BA/PM.
 
 ## Output (file + format)
-Typed notes per Workflow 16 plus an inline `# Orchestrator Decision` block, each a `##` heading in this order: Request type; Mode/Cadence/Autonomy; Activated agents; Why; Required inputs; Workflow; Board moves; Expected notes; Stop conditions; Next action.
+Typed notes per Workflow 16 plus an inline `# Orchestrator Decision` block, each a `##` heading in this order: Request type; Mode/Cadence/Checkpoints; Activated agents; Why; Required inputs; Workflow; Board moves; Expected notes; Stop conditions; Next action.
 In the **Workflow** line, NAME the workflow file — do not inline steps. Each classification maps to its like-named workflow in `agent-factory/workflows/`; `install` has none — the Installer handles it directly.
 
 ## Board moves (which column transitions this role causes)

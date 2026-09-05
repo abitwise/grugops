@@ -33,8 +33,8 @@ to the Release Manager:
 # Orchestrator Decision
 ## Request type
 release — cut REL-0007 for the UAT-signed FX conversion ticket.
-## Mode/Cadence/Autonomy in effect
-mode=enterprise · cadence=scrum · autonomy=pr
+## Mode/Cadence/Checkpoints in effect
+mode=enterprise · cadence=scrum · checkpoints.open_pr=block
 ## Activated agents
 Release Manager
 ## Why

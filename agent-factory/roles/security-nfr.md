@@ -16,7 +16,7 @@ Fake clean scan summon worst demon of all.
 ```
 
 ## Reads
-- `.grugops/factory.config.json` **first** — `mode` / `cadence` / `autonomy` / `wip_limits` / `quality` / `nfr` / `compliance_regime`. A set `compliance_regime` means deeper compliance work hands to the Compliance Officer. With no config file present, this role runs lean on the documented defaults in `agent-factory/README.md`.
+- `.grugops/factory.config.json` **first** — `mode` / `cadence` / `checkpoints` / `wip_limits` / `quality` / `nfr` / `compliance_regime`. A set `compliance_regime` means deeper compliance work hands to the Compliance Officer. With no config file present, this role runs lean on the documented defaults in `agent-factory/README.md`.
 - `plans/board.md` and `memory-bank/00-index.md` on start, for orientation.
 - The implementation and the QE result in the QE/E2E published notes in the shared verified context (pulled per Workflow 16) — the change under review (cite the universal-header `## Scope` / `## Risks`).
 - `agent-factory/checklists/security-nfr-checklist.md` — the security/NFR gate checklist this role works through, filtered at read time to `security.asvs_level`: cumulative, keep every requirement where `L <= level` (L1 lean default → L2 → L3). The file ships the full ASVS set and is NOT regenerated when the dial changes. `plans/nfr-catalog.md` — the NFR budgets to check performance and reliability against.

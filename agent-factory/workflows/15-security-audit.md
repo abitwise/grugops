@@ -17,7 +17,7 @@ The Security/NFR role reads the shared verified context before it works. The Sec
 - `security.asvs_level` and `security.block_on` from `.grugops/factory.config.json` — the active level filters the checklist; the block threshold is read at the gate, not here.
 - `agent-factory/checklists/security-nfr-checklist.md` — the full ASVS 5.0 checklist this audit works through.
 - The change or scope under review.
-- The `autonomy` setting from `.grugops/factory.config.json`.
+- The `checkpoints` matrix from `.grugops/factory.config.json`.
 
 ## Steps
 1. Read `security.asvs_level` and filter the full checklist to the active tier at read time. ASVS levels are cumulative. Keep every requirement whose level is less than or equal to the configured level. The counts are L1 = 70 requirements, L2 = 253, L3 = 345. State the filter honestly in the report; the checklist file is not regenerated when the dial changes.
@@ -41,7 +41,7 @@ Append to `plans/traceability.md`: the audit result and the reviewed ASVS requir
 - `security.asvs_level` is unreadable or holds a value outside `L1 | L2 | L3` → stop and get it fixed. Auditing at a guessed level misreports the coverage.
 
 ## Done condition
-The filtered checklist is walked, and every pass cites evidence or reads `UNKNOWN - verify`. The findings carry their default-or-overridden severity, and the report is handed off for enforcement at the gate. This workflow honors `autonomy=pr` — the agent opens a branch and a PR; it never merges. Humans hold merge and deploy.
+The filtered checklist is walked, and every pass cites evidence or reads `UNKNOWN - verify`. The findings carry their default-or-overridden severity, and the report is handed off for enforcement at the gate. This workflow honors `checkpoints.open_pr` — the agent opens a branch and a PR; it never merges. Humans hold merge and deploy.
 
 ## Commit
 Commit the artifacts this workflow wrote per `agent-factory/_commit-convention.md` — branch guard first (never a protected branch; switch to `grugops/security-audit-<id>`), then `type(scope): summary`. The artifacts are the board context, the security-nfr audit notes recorded per Workflow 16, and the updated traceability rows. Never merge, never deploy; humans hold both.

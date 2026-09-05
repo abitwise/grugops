@@ -19,7 +19,7 @@ Each role reads the shared verified context before it works. Each role records i
 ## Inputs required
 - A ticket with acceptance criteria, size, and priority.
 - `agent-factory/checklists/definition-of-ready.md` — the readiness gate.
-- The `autonomy` setting from `.grugops/factory.config.json`.
+- The `checkpoints` matrix from `.grugops/factory.config.json`.
 
 ## Steps
 1. Confirm the ticket against `agent-factory/checklists/definition-of-ready.md` (Orchestrator). Stop and name the missing input when the ticket is not ready.
@@ -50,7 +50,7 @@ Record `Cycle time` and `WIP` in `plans/metrics.md`.
 - The ticket is XL (too large for one PR) -> `SPLIT_REQUIRED`, routed back to BA/PM for splitting before it can enter `Ready for Dev`.
 
 ## Done condition
-Code is changed per the `autonomy` setting and tests are added. The gate commands have run. The implementation and QE results are recorded as typed notes per Workflow 16, with the security-nfr result when triggered. The trace is updated. This workflow honors `autonomy=pr` — the agent opens a branch and a PR; it never merges. Humans hold merge and deploy.
+Code is changed per the `checkpoints` matrix and tests are added. The gate commands have run. The implementation and QE results are recorded as typed notes per Workflow 16, with the security-nfr result when triggered. The trace is updated. This workflow honors `checkpoints.open_pr` — the agent opens a branch and a PR; it never merges. Humans hold merge and deploy.
 
 ## Commit
-Commit the artifacts this workflow wrote per `agent-factory/_commit-convention.md` — branch guard first, then `type(scope): summary`. Never a protected branch: the implementation already lives on a `grugops/ticket-to-pr-<id>` working branch per `autonomy=pr`. The artifacts are the board moves, the metrics and the updated traceability rows. They also include the implementation, QE and security-nfr context notes recorded per Workflow 16. Never merge, never deploy; humans hold both.
+Commit the artifacts this workflow wrote per `agent-factory/_commit-convention.md` — branch guard first, then `type(scope): summary`. Never a protected branch: the implementation already lives on a `grugops/ticket-to-pr-<id>` working branch per `checkpoints.open_pr`. The artifacts are the board moves, the metrics and the updated traceability rows. They also include the implementation, QE and security-nfr context notes recorded per Workflow 16. Never merge, never deploy; humans hold both.

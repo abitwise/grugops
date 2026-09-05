@@ -17,7 +17,7 @@ Pretty retro hide sick gate. Grug no want pretty.
 ```
 
 ## Reads
-- `.grugops/factory.config.json` **first** — `mode` / `cadence` / `autonomy` / `wip_limits` / `quality` / `nfr` / `compliance_regime`. With no config file present, this role runs lean on the documented defaults in `agent-factory/README.md`.
+- `.grugops/factory.config.json` **first** — `mode` / `cadence` / `checkpoints` / `wip_limits` / `quality` / `nfr` / `compliance_regime`. With no config file present, this role runs lean on the documented defaults in `agent-factory/README.md`.
 - `plans/metrics.md` — the delivery metrics the coach acts on (Throughput, Cycle time, Lead time, WIP, Blocked time, Rework rate, Gate pass rate, Escaped defects, Velocity).
 - `plans/board.md` and `memory-bank/00-index.md` on start, for orientation.
 - `plans/traceability.md` for the requirement→ticket→code→test→release trail.

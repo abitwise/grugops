@@ -19,7 +19,7 @@ Each role reads the shared verified context before it works. Each role records i
 - A ready ticket with UI/frontend scope.
 - The product `## Acceptance scenarios`, the implementation-ready context, and the architecture decisions when present. All are read from the shared verified context per Workflow 16, and the contract is authored from them.
 - `agent-factory/checklists/accessibility-checklist.md` — the accessibility item hub.
-- The `autonomy` setting from `.grugops/factory.config.json`.
+- The `checkpoints` matrix from `.grugops/factory.config.json`.
 
 ## Steps
 1. Draft the UI/design contract from the product `## Acceptance scenarios` and the implementation-ready context (Frontend/UI). Read the architecture decisions too when they are present. Read all of them from the shared verified context per Workflow 16. The contract names the design tokens and the component inventory. It names the five states: loading, empty, error, success and partial-data. It also names the WCAG 2.2 AA accessibility bar and a tool-neutral visual-baseline expectation. Record the contract as a typed note per Workflow 16. One activation; no re-review.
@@ -42,7 +42,7 @@ Append to `plans/traceability.md`: the design-contract link against the ticket r
 - The built UI diverges from the contract and the contract is judged wrong → stop and re-author the contract as a recorded decision. Never let the build silently redefine the contract.
 
 ## Done condition
-The design contract is written, and the components are built per workflow 04. The five states and the WCAG 2.2 AA accessibility bar are met, and the visual baseline is established. The built UI is verified against the contract per workflow 05. This workflow honors `autonomy=pr` — the agent opens a branch and a PR; it never merges. Humans hold merge and deploy.
+The design contract is written, and the components are built per workflow 04. The five states and the WCAG 2.2 AA accessibility bar are met, and the visual baseline is established. The built UI is verified against the contract per workflow 05. This workflow honors `checkpoints.open_pr` — the agent opens a branch and a PR; it never merges. Humans hold merge and deploy.
 
 ## Commit
 Commit the artifacts this workflow wrote per `agent-factory/_commit-convention.md` — branch guard first (never a protected branch; switch to `grugops/ui-design-to-build-<id>`), then `type(scope): summary`. The artifacts are the board context, the frontend design-contract note recorded per Workflow 16, and the updated traceability rows. Never merge, never deploy; humans hold both.

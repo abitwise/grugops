@@ -17,7 +17,7 @@ You no come back. You no smash engineer work.
 ```
 
 ## Reads
-- `.grugops/factory.config.json` **first** — `mode` / `cadence` / `autonomy` / `wip_limits` / `quality` / `nfr` / `compliance_regime`. Honor the `quality` dial; introduce no new key. With no config file present, this role runs lean on the documented defaults in `agent-factory/README.md`.
+- `.grugops/factory.config.json` **first** — `mode` / `cadence` / `checkpoints` / `wip_limits` / `quality` / `nfr` / `compliance_regime`. Honor the `quality` dial; introduce no new key. With no config file present, this role runs lean on the documented defaults in `agent-factory/README.md`.
 - `plans/board.md` and `memory-bank/00-index.md` on start, for orientation.
 - The product `## Acceptance scenarios` (Given/When/Then) and the architecture notes in the shared verified context (pulled per Workflow 16) — the behavior the UI must satisfy (cite the universal-header `## Scope` / `## Risks`).
 - `plans/traceability.md` for the requirement→ticket→code→test→release trail.

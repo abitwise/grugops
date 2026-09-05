@@ -31,7 +31,7 @@ The sample already answered `GET /health`; the ticket adds a sibling read-only `
 
 ## Orchestrator decision
 
-The Orchestrator read `factory.config.json` (`mode=lean · cadence=kanban · autonomy=pr`) and
+The Orchestrator read `factory.config.json` (`mode=lean · cadence=kanban · checkpoints.open_pr=block`) and
 `plans/board.md` first, classified the request as `ticket-to-pr`, checked `ABC-001` against the
 Definition of Ready, and pulled it within WIP:
 
@@ -39,14 +39,14 @@ Definition of Ready, and pulled it within WIP:
 # Orchestrator Decision
 ## Request type
 ticket-to-pr — implement ABC-001 (GET /version) as a PR a human can review.
-## Mode/Cadence/Autonomy in effect
-mode=lean · cadence=kanban · autonomy=pr
+## Mode/Cadence/Checkpoints in effect
+mode=lean · cadence=kanban · checkpoints.open_pr=block
 ## Activated agents
 Software Engineer (implement), QE/E2E (break it), Orchestrator (gate recommendation)
 ## Why
 grug no rush — one engineer, one small change, then the gate.
 ## Required inputs
-ABC-001 with acceptance criteria + size + priority; definition-of-ready.md; autonomy=pr
+ABC-001 with acceptance criteria + size + priority; definition-of-ready.md; checkpoints.open_pr=block
 ## Workflow
 04-ticket-to-pr.md  (the gate loop lives in 05-pr-quality-gate.md, referenced not restated)
 ## Board moves
@@ -137,7 +137,7 @@ All four `mandatory_gates` (`lint, typecheck, unit, build`) passed; no self-fix 
 
 Terminal result: **`READY_FOR_HUMAN_REVIEW`**.
 
-autonomy=pr — the agent opened a branch and stopped at the PR. It never merged. A human holds
+checkpoints.open_pr=block — the agent opened a branch and stopped at the PR. It never merged. A human holds
 merge and deploy.
 
 ## PR / branch link (honest)

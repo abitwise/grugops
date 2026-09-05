@@ -633,6 +633,65 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     expect(readFileSync(join(target, ".grugops", "factory.config.json"), "utf8")).toContain("SENTINEL-USER-CONFIG-DO-NOT-CLOBBER");
   });
 
+  // ── RETIRED CONFIGURATION KEY: report, never rewrite (Phase 30, D-05 / T-30-22) ───────────────
+  //
+  // The threat this pins is the installer editing a user's declared intent. The assertion is
+  // therefore made from the OUTSIDE, on bytes: the configuration file is captured before the run
+  // and compared after it. A test that only checked for the printed line would pass over a run that
+  // printed the line AND rewrote the file.
+  it("retired key: a target carrying `autonomy` is REPORTED by name and its config is left byte-identical", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    mkdirSync(join(target, ".grugops"), { recursive: true });
+    const cfgPath = join(target, ".grugops", "factory.config.json");
+    const body = '{\n  "mode": "lean",\n  "cadence": "kanban",\n  "autonomy": "pr"\n}\n';
+    writeFileSync(cfgPath, body);
+    const pre = readFileSync(cfgPath);
+
+    const r = runInstall(target, home);
+    expect(r.status).toBe(0);
+
+    // The report names the key, the file, and where the translation lives.
+    expect(r.stdout).toContain("retired-key");
+    expect(r.stdout).toContain('carries the retired "autonomy" key');
+    expect(r.stdout).toContain("agent-factory/config/factory.config.md");
+    expect(r.stdout).toContain("left the file untouched");
+
+    // …and the file itself did not move one byte.
+    expect(readFileSync(cfgPath).equals(pre)).toBe(true);
+    expect(readFileSync(cfgPath, "utf8")).toBe(body);
+  });
+
+  it("retired key: a target whose config carries NO retired key produces no retired-key line", () => {
+    // The negative control. Without it the case above could pass against an installer that printed
+    // the line unconditionally, which would make the report meaningless.
+    const target = makeFixture();
+    const home = mkTmp();
+    mkdirSync(join(target, ".grugops"), { recursive: true });
+    writeFileSync(
+      join(target, ".grugops", "factory.config.json"),
+      '{ "mode": "lean", "cadence": "kanban" }\n',
+    );
+    const r = runInstall(target, home);
+    expect(r.status).toBe(0);
+    expect(r.stdout).not.toContain("retired-key");
+  });
+
+  it("retired key: an UNPARSEABLE config says the check was NOT performed, never nothing", () => {
+    // A silent skip is indistinguishable from a clean result. The installer must say which of the
+    // two happened, because a no-fabrication contract forbids a run implying a check it skipped.
+    const target = makeFixture();
+    const home = mkTmp();
+    mkdirSync(join(target, ".grugops"), { recursive: true });
+    const cfgPath = join(target, ".grugops", "factory.config.json");
+    writeFileSync(cfgPath, "{ this is not json\n");
+    const pre = readFileSync(cfgPath);
+    const r = runInstall(target, home);
+    expect(r.stdout).toContain("retired-key check");
+    expect(r.stdout).toMatch(/NOT performed/);
+    expect(readFileSync(cfgPath).equals(pre)).toBe(true);
+  });
+
   // ── copy-default: a default install (no INSTALL_MODE override) leaves NO symlinks (two-root [7], D-05) ─
   it("copy-default: a default install creates no symlinks in either root (copy is the default, D-05)", () => {
     const target = makeFixture();

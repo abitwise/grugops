@@ -397,14 +397,15 @@ production without named human confirmation. Humans decide; agents execute.** Ho
 
 - **Codex CLI, Gemini CLI, OpenCode, GitHub Copilot CLI — procedural fallback.** These four
   tools have no equivalent pre-tool hook, so there is **no mechanical guard** on them. They
-  rely on the **`autonomy=pr`** posture plus `production_requires_human_confirmation: true`:
-  the Orchestrator and Release Manager stop at a pull request, and a named human performs the
+  rely on the **`checkpoints` matrix** read procedurally — `checkpoints.open_pr` and
+  `checkpoints.production_requires_human_confirmation`, both at their `block` default: the
+  Orchestrator and Release Manager stop at a pull request, and a named human performs the
   merge and the production deploy. This is the same rule, enforced by procedure and by the
   prompt-level safety rule rather than by code.
 
 Be clear with yourself about this asymmetry: **the mechanical guard protects Claude Code only.**
-On the other four tools, production safety rests on the `autonomy=pr` fallback and your own
-discipline. Do not assume the guard is watching where it is not.
+On the other four tools, production safety rests on the procedurally-read `checkpoints` matrix
+and your own discipline. Do not assume the guard is watching where it is not.
 
 **Known limitation — the guard only sees Bash commands.** The hook's matcher is `"Bash"`, so the
 guard inspects the command of a `Bash` tool call and nothing else. A deploy command that does not
@@ -416,16 +417,18 @@ transit the Bash tool is not seen by it. Two concrete gaps to be honest about:
   patterns — the guard does not expand variables. This is documented as out of scope, not fixed.
 
 So the mechanical guard is a strong, prompt-proof backstop **for deploys that run through the Bash
-tool**, not a complete sandbox. The real, tool-independent backstop is the **`autonomy=pr`** posture:
-the agent stops at a pull request and a named human performs the merge and the production deploy.
-Treat the Bash guard as defense-in-depth on top of `autonomy=pr`, never as the only thing standing
+tool**, not a complete sandbox. The real, tool-independent backstop is the **`checkpoints` matrix**
+at its `block` defaults: the agent stops at a pull request and a named human performs the merge and
+the production deploy. On Claude Code, lowering a floor-tier cell additionally takes a human-set
+`GRUGOPS_FLOOR_<ID>` session variable, so an agent editing configuration alone changes nothing.
+Treat the Bash guard as defense-in-depth on top of that matrix, never as the only thing standing
 between an agent and production.
 
 The installer **never** sets the approval environment variable — only a human may. And the
 `grugops-release` skill ships with `disable-model-invocation: true`, so the agent can never
 auto-fire a release on any tool.
 
-Verify the hook schema and the per-tool autonomy behavior against current tool docs
+Verify the hook schema and the per-tool checkpoint behavior against current tool docs
 (`code.claude.com/docs/en/hooks`) before you depend on them.
 
 ---
