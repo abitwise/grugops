@@ -1772,8 +1772,15 @@ const SECTION_EXTENT_OWNER_COUNT = 1;
  * The owner answer is therefore unchanged by both: SECTION_EXTENT_OWNERS stays at the one authority,
  * and the frontmatter-parser owner set is unmoved. The number moves in the SAME commit that adds the
  * modules, which is the whole point of the pin.
+ *
+ * 53 -> 54 (plan 30-07), ONE module under `scripts/`, named with its reason:
+ *   - `scripts/generate-guarantees.ts` — the D-17 guarantees render, joining the claim registry's
+ *     `kind: safety` rows to the live checkpoint matrix. It decides no section extent and declares
+ *     no frontmatter parser, so the owner answer is unchanged: SECTION_EXTENT_OWNERS stays at the
+ *     one authority and the frontmatter-parser owner set is unmoved. The number moves in the SAME
+ *     commit that adds the module.
  */
-const NON_TEST_MODULE_COUNT = 53;
+const NON_TEST_MODULE_COUNT = 54;
 
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 // (Plan 29-40, gap G-29-1 of 29-UAT.md, closing V-29-35-01) THE FRONTMATTER-PARSER NAME OWNER SET.
@@ -2277,9 +2284,10 @@ describe("LANG-07: exactly ONE module owns the section-extent predicate (plan 29
     const flat = nonTestScripts();
     // 41 → 42 (plan 29.1-01): `scripts/model-tiers.ts`. 42 → 43 (plan 29.1-24):
     // `scripts/ci-workflow.testkit.ts`. 43 → 45 (plan 30-01): `scripts/checkpoints.ts` and
-    // `scripts/js-import-closure.ts`. Derived independently — `ls scripts/*.ts` minus the
-    // `.test.ts` members reports 45 on this tree.
-    expect(flat.length, "the `scripts/`-scoped reader's own corpus").toBe(45);
+    // `scripts/js-import-closure.ts`. 45 → 46 (plan 30-07): `scripts/generate-guarantees.ts`.
+    // Derived independently — `ls scripts/*.ts` minus the `.test.ts` members reports 46 on this
+    // tree.
+    expect(flat.length, "the `scripts/`-scoped reader's own corpus").toBe(46);
     let compared = 0;
     for (const n of flat) {
       for (const spec of ["frontmatter", "canonical-frontmatter", "audit-model"]) {
@@ -2295,7 +2303,7 @@ describe("LANG-07: exactly ONE module owns the section-extent predicate (plan 29
     // each time. Kept as a LITERAL times
     // the spec count rather than `flat.length * 3`: deriving it from the loop's own input would make
     // the assertion true by construction and blind to a corpus that silently shrank.
-    expect(compared, "the comparison must really have run over the whole corpus").toBe(45 * 3);
+    expect(compared, "the comparison must really have run over the whole corpus").toBe(46 * 3);
     // NON-VACUITY: the comparison would be clean over two readers that both return nothing, so at
     // least one module must have produced a non-empty answer through the NEW reader.
     expect(
@@ -2460,13 +2468,14 @@ describe("LANG-07: exactly ONE module owns the section-extent predicate (plan 29
     }
     // 41 → 42 (plan 29.1-01): `scripts/model-tiers.ts`. 42 → 43 (plan 29.1-24):
     // `scripts/ci-workflow.testkit.ts`. 43 → 45 (plan 30-01): `scripts/checkpoints.ts` and
-    // `scripts/js-import-closure.ts`. Each is the same module the flat reader gained. Both pins
-    // move together on purpose — they are two enumerations of one corpus, and a change that moved
-    // only one of them would be the disagreement this pair exists to surface.
+    // `scripts/js-import-closure.ts`. 45 → 46 (plan 30-07): `scripts/generate-guarantees.ts`. Each
+    // is the same module the flat reader gained. Both pins move together on purpose — they are two
+    // enumerations of one corpus, and a change that moved only one of them would be the
+    // disagreement this pair exists to surface.
     expect(
       walked.filter((n) => n.startsWith("scripts/") && !n.slice(8).includes("/")).length,
       "…and the old non-recursive answer is a strict subset, stated as the number this widening moved off",
-    ).toBe(45);
+    ).toBe(46);
 
     // THE ELEMENT COUNT, DERIVED INDEPENDENTLY OF THE WALK THAT PRODUCES IT. A vacuity floor catches
     // an EMPTY denominator and has never caught a SILENTLY SHORT one, so the set is compared against
@@ -8958,7 +8967,12 @@ const censusRelationshipFindings = (c: TripwireCensus): string[] => {
 // whole-run differential). Kept EXACT rather than as a floor for the reason stated at its use site:
 // a test module arriving or leaving this scan is a structural event a human should read, not corpus
 // growth to be absorbed.
-const TRIPWIRE_MODULES = 52;
+//
+// 52 → 53 (plan 30-07): ONE test module, `scripts/generate-guarantees.test.ts` — the harness for
+// the D-17 guarantees render and its byte-equality freshness gate. Re-derived rather than
+// incremented: `ls scripts/*.test.ts | wc -l` reports 53 on this tree, agreeing with the live
+// census, and the number moves in the SAME commit that adds the module.
+const TRIPWIRE_MODULES = 53;
 /**
  * Corpus-derived floors, expressed as RATES so the floor grows with the corpus it floors.
  * Each is set well below its measured live value: the point is to catch a measurement that

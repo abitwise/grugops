@@ -558,9 +558,16 @@ describe("the standalone-gate idioms are uniform across scripts/", () => {
     // the first run. Moving the pin is how that entry is acknowledged; it is never how a property
     // failure is cleared. If the `offenders` assertion had failed, the fix would have been the new
     // gate's entry guard, not this number.
-    expect(sources.length).toBe(10);
-    expect(sources.length).not.toBe(9);
-    expect(sources.length).not.toBe(11);
+    //
+    // 10 → 11 (Phase 30 / plan 30-07): scripts/generate-guarantees.ts, the D-17 guarantees render.
+    // It is a GENERATOR rather than a gate, which is the same class scripts/generate-safety-surface.ts
+    // already sits in here: the property this block asserts is about the ENTRY GUARD, and a
+    // generator whose direct run writes nothing while exiting 0 is the same fabricated success a
+    // gate's would be. The entrant's guard passed the offenders assertion below on its first run;
+    // this number is the acknowledgement, not the fix.
+    expect(sources.length).toBe(11);
+    expect(sources.length).not.toBe(10);
+    expect(sources.length).not.toBe(12);
     const offenders = sources
       .filter((s) => !/import\.meta\.url === pathToFileURL\(process\.argv\[1\]\)\.href/.test(s.src))
       .map((s) => `scripts/${s.name}`);
