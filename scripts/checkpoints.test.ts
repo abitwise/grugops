@@ -1021,13 +1021,22 @@ describe("30-04 — the live workflow corpus derives the roster, two-sided (D-01
     expect(live.sites.get("production_requires_human_confirmation")?.length).toBe(2);
   });
 
-  it("`05-pr-quality-gate.md` carries no tag yet — plan 30-05 owns that file", () => {
-    // Recorded as an assertion rather than as a sentence in a summary, so the moment 30-05 tags it
-    // this case goes red and the site counts above are re-walked with it.
+  it("`05-pr-quality-gate.md` now carries its two tags — plan 30-05 owned that file", () => {
+    // The inverse of the plan-30-04 assertion this replaces. That case pinned the file as UNTAGGED
+    // so that the moment 30-05 tagged it the site counts above would be re-walked; they were, and
+    // the pin is now the positive statement of the same fact rather than a stale negative.
     const tagged = new Set<string>();
-    for (const list of live.sites.values()) for (const s of list) tagged.add(s.file);
-    expect([...tagged]).not.toContain("05-pr-quality-gate.md");
-    expect(tagged.size).toBe(11);
+    const inWf05: string[] = [];
+    for (const [id, list] of live.sites) {
+      for (const s of list) {
+        tagged.add(s.file);
+        if (s.file === "05-pr-quality-gate.md") inWf05.push(id);
+      }
+    }
+    expect(cp.sortedIds(inWf05)).toEqual(
+      cp.sortedIds(["exhaust_self_fix_budget", "accept_human_only_failure"]),
+    );
+    expect(tagged.size).toBe(12);
   });
 
   it("every file this plan tagged is named by a row in its disposition file (Pitfall 7)", () => {
@@ -1037,14 +1046,16 @@ describe("30-04 — the live workflow corpus derives the roster, two-sided (D-01
     for (const list of live.sites.values()) {
       for (const s of list) tagged.add(`agent-factory/workflows/${s.file}`);
     }
-    const doc = readFileSync(
-      join(ROOT, "docs", "audit", "29-style-dispositions", "30-04.md"),
-      "utf8",
-    );
+    // BOTH disposition files, because the tags were laid down by two plans: 30-04 tagged eleven
+    // files and 30-05 tagged the twelfth. Reading only one of them would make the equality below
+    // fail for a bookkeeping reason rather than a missing row.
     const named = new Set<string>();
-    for (const line of doc.split("\n")) {
-      const m = line.match(/^\|\s*(agent-factory\/workflows\/[^\s|]+)\s*\|/);
-      if (m) named.add(m[1]);
+    for (const plan of ["30-04.md", "30-05.md"]) {
+      const doc = readFileSync(join(ROOT, "docs", "audit", "29-style-dispositions", plan), "utf8");
+      for (const line of doc.split("\n")) {
+        const m = line.match(/^\|\s*(agent-factory\/workflows\/[^\s|]+)\s*\|/);
+        if (m) named.add(m[1]);
+      }
     }
     expect(named.size).toBeGreaterThan(0);
     expect(cp.sortedIds([...named])).toEqual(cp.sortedIds([...tagged]));

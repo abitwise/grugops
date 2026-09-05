@@ -84,6 +84,7 @@ export const CHECKPOINT_DEFAULTS = {
     exhaust_self_fix_budget: "block",
     override_finding_severity: "block",
     escalate_unadjudicable_result: "block",
+    accept_human_only_failure: "block",
 };
 /**
  * The roster, DERIVED. Never a second array literal of checkpoint ids (D-01).
@@ -577,10 +578,11 @@ export function assertRosterMatchesDerivation(root = DEFAULT_ROOT) {
  * is a `SAFETY_FLOORS` member AND it is tagged at `12-release.md` and `13-incident.md`, which is
  * the D-03 merge rule doing its job rather than a duplicate.
  *
- * PLAN 30-05 OWNS `05-pr-quality-gate.md` AND WILL MOVE TWO OF THESE NUMBERS. Its self-fix-budget
- * bullet takes `exhaust_self_fix_budget` (4 → 5) and its human-only-failure bullet takes a NEW id,
- * which that plan adds to the union, this table and the config in its own commit. Until then the
- * new id is in neither set and the two-sided comparison is green on both.
+ * PLAN 30-05 TAGGED `05-pr-quality-gate.md` AND MOVED TWO OF THESE NUMBERS. Its self-fix-budget
+ * bullet took `exhaust_self_fix_budget` (4 → 5, a site rather than an id) and its human-only-failure
+ * bullet took the NEW id `accept_human_only_failure`, added to the union, to `CHECKPOINT_DEFAULTS`,
+ * to this table and to `RECORDED_TOTAL_SITES` in the same commit as the tag — which is what the
+ * two-sided comparison forces, since either half alone is red.
  */
 export const CHECKPOINT_SITE_COUNTS = {
     protected_branch_merge: 0,
@@ -593,9 +595,10 @@ export const CHECKPOINT_SITE_COUNTS = {
     escalate_stale_blocker: 1,
     exceed_wip_limit: 1,
     decide_accessibility_exception: 1,
-    exhaust_self_fix_budget: 4,
+    exhaust_self_fix_budget: 5,
     override_finding_severity: 1,
     escalate_unadjudicable_result: 1,
+    accept_human_only_failure: 1,
 };
 /**
  * The total number of tagged bullets, as an INDEPENDENT anchor.
@@ -604,7 +607,7 @@ export const CHECKPOINT_SITE_COUNTS = {
  * number written down separately is not. This is the same reason `WORKFLOW_STOP_BULLET_COUNT` is a
  * literal: a denominator computed by the loop it audits has never caught anything.
  */
-export const RECORDED_TOTAL_SITES = 14;
+export const RECORDED_TOTAL_SITES = 16;
 /**
  * Assert a derived id→sites map against the recorded counts, in BOTH directions.
  *

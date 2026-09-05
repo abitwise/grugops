@@ -106,6 +106,37 @@ describe("VFY-04: bounded self_fix_attempts loop and honest escape hatch", () =>
     expect(text).toMatch(/READY_FOR_HUMAN_REVIEW.*only.*READY_FOR_HUMAN_REVIEW|On `READY_FOR_HUMAN_REVIEW`/s);
   });
 
+  it("05-pr-quality-gate.md names the emission surface that EXISTS — the emit-verdict verb", () => {
+    // Plan 30-05. This paragraph previously asserted that `node scripts/context-io.js` exposed the
+    // emitter; the dispatch handled `validate`, `admit` and `render` and the emitter was none of
+    // them. The verb now exists, and this pin moves with the prose in the same commit so the two
+    // cannot disagree for even one commit — which is the whole reason the old sentence survived.
+    const text = readFileSync(WF05, "utf8");
+    expect(text).toContain("node scripts/context-io.js emit-verdict <task> <id> <integrity>");
+    // The three-state argument, named where the agent running the gate reads it.
+    expect(text).toContain("`clean` for exit `0`, `finding` for exit `1`, and `unknown` for exit `2`");
+    expect(text).toContain("Only `clean` emits a verdict.");
+    // The fail-closed arm, including the two cases a reader most often assumes are safe.
+    expect(text).toMatch(/an unrecognized value and an absent one all refuse/);
+  });
+
+  it("05-pr-quality-gate.md states the TIER of the integrity argument rather than overstating it", () => {
+    // D-15 requires the hook-enforced vs in-process split to be stated. A workflow that described
+    // the refusal without its tier would read as a guarantee the mechanism cannot make.
+    const text = readFileSync(WF05, "utf8");
+    expect(text).toContain("a different tier from the checkpoint hook");
+    expect(text).toContain("does not stop a caller from stating `clean`");
+  });
+
+  it("05-pr-quality-gate.md prints the run banner as the gate run's header (D-19)", () => {
+    const text = readFileSync(WF05, "utf8");
+    expect(text).toContain("Emit the run banner as this gate run's header line, before any check output.");
+    // Banner/exit-status agreement: a header claiming all-default over a run that stopped at a
+    // checkpoint is its own named failure, not a quietly inconsistent pair of signals.
+    expect(text).toContain("The banner and the terminal result agree");
+    expect(text).toContain("all checkpoints at default");
+  });
+
   it("16-context-read-write.md references the bounded loop (05-pr-quality-gate or self_fix_attempts)", () => {
     const text = readFileSync(WF16, "utf8");
     const hasRef =
