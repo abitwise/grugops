@@ -131,13 +131,20 @@ export class FloorCheckpointDerivationError extends Error {
  */
 export function deriveFloorCheckpoints(checkpoints = CHECKPOINTS, floors = SAFETY_FLOORS) {
     const floorIds = new Set(floors.map((f) => f.id));
-    const derived = checkpoints.filter((c) => floorIds.has(c));
-    // The independent denominator: counted from `floors`, never from `derived` or `checkpoints`.
+    const derived = [...new Set(checkpoints)].filter((c) => floorIds.has(c));
+    // The independent denominator: counted by walking `floors`, never by measuring `derived`.
+    //
+    // IT COUNTS DISTINCT IDS, NOT ENTRIES — this is the ADJACENCY rule (D-02/D-03), and it is the
+    // reason this is a Set and not a counter. The same human stop can be declared in more than one
+    // place (a role's `## Hard limits` AND a workflow's `## Stop conditions`, and later more than one
+    // of each); equal ids MERGE into one roster member with a site count of N. They never collide,
+    // and they must never inflate the denominator into disagreeing with a correctly-merged result.
     const rosterIds = new Set(checkpoints);
-    let expected = 0;
+    const distinctInRoster = new Set();
     for (const f of floors)
         if (rosterIds.has(f.id))
-            expected += 1;
+            distinctInRoster.add(f.id);
+    const expected = distinctInRoster.size;
     if (derived.length !== expected) {
         throw new FloorCheckpointDerivationError(`checkpoints: the floor-tier derivation produced ${derived.length} member(s) while ` +
             `SAFETY_FLOORS independently accounts for ${expected} — a derivation that returns short ` +
