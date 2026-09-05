@@ -505,7 +505,7 @@ describe("context-io.js — verify-before-write admission (VFY-01/VFY-02)", () =
     // Plant a real green verdict via the dedicated gate emission carve-out (D-03/D-04). The verdict
     // is itself a context note authored by: §14-gate, carrying the per-run id and a green marker.
     const id = "RUN-7A3F";
-    mod.emitVerdict(task, id, contextRoot);
+    mod.emitVerdict(task, id, "clean", contextRoot);
     // The finding stamps that exact per-run id.
     const f = join(contextRoot, "finding.md");
     writeFileSync(f, goodNoteText({ kind: "finding", verified_by: `§14-gate#${id}` }));
@@ -516,7 +516,7 @@ describe("context-io.js — verify-before-write admission (VFY-01/VFY-02)", () =
   it("D-01 admission FAIL on id mismatch: a finding stamping a different id than the planted verdict is refused", () => {
     const contextRoot = freshTmp("ctx-io-vfy-mismatch-");
     const task = "task-admit-mismatch";
-    mod.emitVerdict(task, "RUN-AAAA", contextRoot);
+    mod.emitVerdict(task, "RUN-AAAA", "clean", contextRoot);
     const f = join(contextRoot, "finding.md");
     writeFileSync(f, goodNoteText({ kind: "finding", verified_by: "§14-gate#RUN-BBBB" }));
     const r = runAdmit(task, f, contextRoot);
@@ -590,7 +590,7 @@ describe("context-io.js — CRLF round-trip admission (CR-01)", () => {
     const id = "RUN-CRLF-7A3F";
     // Plant a real green verdict (emitVerdict writes LF), then rewrite its on-disk bytes to CRLF
     // — the exact state that makes the verdict invisible to readContext before the parseNote fix.
-    mod.emitVerdict(task, id, contextRoot);
+    mod.emitVerdict(task, id, "clean", contextRoot);
     rewriteNotesToCRLF(contextRoot, task);
     // The candidate finding is ALSO CRLF-encoded, covering the candidate-note side of parseNote.
     const f = join(contextRoot, "finding.md");
@@ -608,7 +608,7 @@ describe("context-io.js — CRLF round-trip admission (CR-01)", () => {
     const contextRoot = freshTmp("ctx-io-crlf-read-");
     const task = "crlf-task-read";
     const id = "RUN-CRLF-READ-01";
-    mod.emitVerdict(task, id, contextRoot);
+    mod.emitVerdict(task, id, "clean", contextRoot);
     rewriteNotesToCRLF(contextRoot, task);
     // Direct proof readContext no longer silently drops the CRLF note: the verdict record is visible.
     const records = mod.readContext(task, contextRoot);
@@ -622,7 +622,7 @@ describe("context-io.js — CRLF round-trip admission (CR-01)", () => {
     const contextRoot = freshTmp("ctx-io-crlf-lf-");
     const task = "crlf-task-lf";
     const id = "RUN-LF-PARITY-01";
-    mod.emitVerdict(task, id, contextRoot); // LF bytes, NOT rewritten to CRLF
+    mod.emitVerdict(task, id, "clean", contextRoot); // LF bytes, NOT rewritten to CRLF
     const f = join(contextRoot, "finding.md");
     writeFileSync(f, goodNoteText({ kind: "finding", verified_by: `§14-gate#${id}` })); // LF finding
     const r = runAdmit(task, f, contextRoot);
@@ -655,7 +655,7 @@ describe("d-04 high-severity in-script refusal", () => {
     const contextRoot = freshTmp("d04-ctx-");
     const task = "d04-task";
     const id = "RUN-D04-GREEN";
-    mod.emitVerdict(task, id, contextRoot);
+    mod.emitVerdict(task, id, "clean", contextRoot);
     const text = goodNoteText({ kind: "finding", by, verified_by: `§14-gate#${id}` });
     return { contextRoot, text };
   }
@@ -694,7 +694,7 @@ describe("d-04 high-severity in-script refusal", () => {
     const contextRoot = freshTmp("d04-routine-");
     const task = "d04-routine";
     const id = "RUN-D04-ROUTINE";
-    mod.emitVerdict(task, id, contextRoot);
+    mod.emitVerdict(task, id, "clean", contextRoot);
     const text = goodNoteText({
       kind: "finding",
       by: "software-engineer",
@@ -815,7 +815,7 @@ describe("d-04 high-severity in-script refusal", () => {
       const contextRoot = freshTmp("d04-cv-routine-");
       const task = "d04-cv-routine";
       const id = "RUN-CV-ROUTINE";
-      mod.emitVerdict(task, id, contextRoot);
+      mod.emitVerdict(task, id, "clean", contextRoot);
       const text = goodNoteText({
         kind: "finding",
         by: "software-engineer",
@@ -861,7 +861,7 @@ describe("30-03 D-14 — admit() refuses and degrades on an unreadable governanc
     const contextRoot = freshTmp("d14-ctx-");
     const task = "d14-task";
     const id = "RUN-D14-GREEN";
-    mod.emitVerdict(task, id, contextRoot);
+    mod.emitVerdict(task, id, "clean", contextRoot);
     return {
       contextRoot,
       task,
@@ -902,7 +902,7 @@ describe("30-03 D-14 — admit() refuses and degrades on an unreadable governanc
     const contextRoot = freshTmp("d14-routine-");
     const task = "d14-routine";
     const id = "RUN-D14-ROUTINE";
-    mod.emitVerdict(task, id, contextRoot);
+    mod.emitVerdict(task, id, "clean", contextRoot);
     const text = goodNoteText({
       kind: "finding",
       by: "software-engineer",
@@ -2430,7 +2430,7 @@ describe("context-io.js — admitAndAppend (structured-channel persist arbiter, 
     const repoRoot = repoWithGovernance({ human_admission: "off" });
     const task = "aaa-postureb-green";
     const id = "RUN-AAA-7A3F";
-    mod.emitVerdict(task, id, contextRoot);
+    mod.emitVerdict(task, id, "clean", contextRoot);
     const note = baseNote({ kind: "finding", by: "software-engineer", verified_by: `§14-gate#${id}` });
     const res = mod.admitAndAppend(task, note, "a gate-verified finding", contextRoot, repoRoot);
     expect(res.findings).toEqual([]);
@@ -2537,7 +2537,13 @@ describe("context-io.js — GAP-R6-1 path-containment (shared writeNoteFile chok
     const contextRoot = freshTmp("r61-ev-ctx-");
     plantVictim(contextRoot);
     expect(() =>
-      mod.emitVerdict("ATK", "RUN-AAAA", contextRoot, "2026-06-17T14:23:05Z/../../../VICTIM/notes/INJECTED"),
+      mod.emitVerdict(
+        "ATK",
+        "RUN-AAAA",
+        "clean",
+        contextRoot,
+        "2026-06-17T14:23:05Z/../../../VICTIM/notes/INJECTED",
+      ),
     ).toThrow();
     expect(noteFilesOf(contextRoot, "VICTIM")).toHaveLength(0);
   });
@@ -2551,7 +2557,7 @@ describe("context-io.js — GAP-R6-1 path-containment (shared writeNoteFile chok
 
   it("POSITIVE: a reserved `by: §14-gate` verdict via emitVerdict (legit ISO `at`) still writes", () => {
     const contextRoot = freshTmp("r61-pos-verdict-ctx-");
-    const id = mod.emitVerdict("OWN", "RUN-OWN-7A3F", contextRoot);
+    const id = mod.emitVerdict("OWN", "RUN-OWN-7A3F", "clean", contextRoot);
     expect(id).toBeTruthy();
     expect(noteFilesOf(contextRoot, "OWN")).toHaveLength(1);
     const text = readFileSync(join(notesDirOf(contextRoot, "OWN"), `${id}.md`), "utf8");
@@ -2995,5 +3001,203 @@ describe("context-io.js — byte-count fidelity for a leading boundary (28-08, r
     // The probe is a real measurement either way: a `null` status means the binary was not spawnable
     // at all, which must be distinguishable from a non-zero exit.
     expect(HAS_RUBY).toBe(RUBY_PROBE.status === 0);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// emitVerdict — the test-integrity floor AT ITS POINT OF EFFECT (plan 30-05, D-15/D-16, AUTO-04).
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+//
+// Until this plan `quality.test_integrity` was a validated config enum that nothing consulted at the
+// moment a green verdict was written. It is now a REQUIRED, POSITIONAL third argument to the one
+// function that writes the note, and everything that is not exactly the clean sentinel — recognized
+// or not — refuses before a single character of the note is composed.
+//
+// WHAT THESE CASES CAN AND CANNOT PROVE. They prove the refusal is total over the input space they
+// sweep and that a refusal leaves the notes directory byte-identical. They do NOT prove the caller
+// is honest: the argument is agent-supplied, which is a different tier from the hook-enforced
+// checkpoints, and both `emitVerdict`'s header and the gate workflow say so in those words.
+
+/**
+ * The degenerate-value sweep, DERIVED from its existing authority rather than retyped.
+ *
+ * `scripts/floor-invariance.test.ts` owns the garbage-value list for the sibling dial
+ * (`HUMAN_ADMISSION_VALUES`), whose members were chosen because each takes a different path in a
+ * naive reader: wrong case, empty string, a numeral, a boolean spelling, arbitrary junk. Retyping
+ * them here would create a second list that rots independently of the first — the set-literal drift
+ * class this milestone exists to refuse.
+ *
+ * It is EXTRACTED rather than imported for the same reason `scripts/checkpoints.test.ts` extracts
+ * it: importing a test module registers that module's cases a second time inside this file, and
+ * floor-invariance.test.ts is spawn-heavy. The extraction is asserted rather than trusted — a
+ * failed locate, an empty result, or a result short of the anchors this file reasons about is a
+ * named throw, never a quietly short sweep.
+ */
+function extractIntegritySweep(): readonly string[] {
+  const src = readFileSync(join(ROOT, "scripts", "floor-invariance.test.ts"), "utf8");
+  const open = src.indexOf("const HUMAN_ADMISSION_VALUES = [");
+  if (open === -1) {
+    throw new Error(
+      "context-io.test: could not locate `const HUMAN_ADMISSION_VALUES = [` in " +
+        "scripts/floor-invariance.test.ts. The sweep is derived from that declaration on purpose; " +
+        "refusing to fall back to a retyped copy, which would drift silently.",
+    );
+  }
+  const close = src.indexOf("];", open);
+  if (close === -1) {
+    throw new Error("context-io.test: the HUMAN_ADMISSION_VALUES block is unterminated");
+  }
+  const block = src.slice(open, close);
+  // The independent denominator: lines carrying a quoted literal, counted BEFORE and separately
+  // from the extraction that consumes them, so a silently short sweep is a throw and not a pass.
+  const literalLines = block
+    .split("\n")
+    .slice(1)
+    .filter((l) => /^\s*"(?:[^"\\]|\\.)*"\s*,/.test(l)).length;
+  const values = [...block.matchAll(/"((?:[^"\\]|\\.)*)"/g)].map((m) => m[1]);
+  if (values.length !== literalLines) {
+    throw new Error(
+      `context-io.test: the sweep extraction produced ${values.length} value(s) while the block ` +
+        `independently accounts for ${literalLines} line(s) carrying a literal — refusing a sweep ` +
+        `that may be silently short`,
+    );
+  }
+  if (values.length === 0) throw new Error("context-io.test: the extracted sweep is empty");
+  for (const anchor of ["off", "OFF", "bogus", ""]) {
+    if (!values.includes(anchor)) {
+      throw new Error(
+        `context-io.test: the extracted sweep is missing the anchor ${JSON.stringify(anchor)} — ` +
+          `the source list changed shape and this extraction can no longer vouch for it`,
+      );
+    }
+  }
+  return values;
+}
+
+const INTEGRITY_SWEEP = extractIntegritySweep();
+
+/** Wrong-TYPED values a JavaScript caller can hand across the boundary the type cannot police. */
+const INTEGRITY_WRONG_TYPES: ReadonlyArray<readonly [string, unknown]> = [
+  ["undefined (absent)", undefined],
+  ["null", null],
+  ["the number 0 (the clean exit code, not the sentinel)", 0],
+  ["the boolean true", true],
+  ["an empty object", {}],
+  ["an array carrying the sentinel", ["clean"]],
+  ["an object whose toString() is the sentinel", { toString: () => "clean" }],
+];
+
+/** Every note file under a task, as [name, bytes] pairs, sorted — the before/after comparand. */
+function notesSnapshot(contextRoot: string, task: string): Array<[string, string]> {
+  const dir = join(contextRoot, task, "notes");
+  if (!existsSync(dir)) return [];
+  return readdirSync(dir)
+    .sort()
+    .map((f) => [f, readFileSync(join(dir, f), "utf8")] as [string, string]);
+}
+
+describe("emitVerdict: the required test-integrity argument (plan 30-05, D-15/D-16)", () => {
+  const TASK = "ti-task";
+
+  it("CONTROL — the clean sentinel writes exactly one valid green verdict", () => {
+    const contextRoot = freshTmp("ti-clean-");
+    const returned = mod.emitVerdict(TASK, "RUN-TI-CLEAN", "clean", contextRoot);
+    expect(returned).toBeTruthy();
+    const snap = notesSnapshot(contextRoot, TASK);
+    expect(snap).toHaveLength(1);
+    expect(snap[0][0]).toBe(`${returned}.md`);
+    expect(snap[0][1]).toContain("by: §14-gate");
+    expect(snap[0][1]).toContain("READY_FOR_HUMAN_REVIEW");
+    expect(snap[0][1]).toContain("§14-gate#RUN-TI-CLEAN");
+    // The note is emitted through the same validation carve-out as before this plan.
+    expect(mod.validate(snap[0][1], true)).toEqual([]);
+  });
+
+  it("the sweep's own premise: not one swept value is the clean sentinel", () => {
+    // A sweep that accidentally contained `clean` would expect a write where it asserts a refusal,
+    // and would then be green for the wrong reason.
+    expect(INTEGRITY_SWEEP).not.toContain("clean");
+    expect(INTEGRITY_SWEEP.length).toBeGreaterThan(0);
+  });
+
+  for (const state of ["finding", "unknown"] as const) {
+    it(`the recognized non-clean state \`${state}\` emits NOTHING and returns null`, () => {
+      const contextRoot = freshTmp(`ti-${state}-`);
+      // Start from a NON-EMPTY directory so "identical before and after" is a measurement rather
+      // than a comparison of two empty lists.
+      mod.emitVerdict(TASK, "RUN-TI-PRIOR", "clean", contextRoot);
+      const before = notesSnapshot(contextRoot, TASK);
+      expect(before).toHaveLength(1);
+      const returned = mod.emitVerdict(TASK, "RUN-TI-REFUSED", state, contextRoot);
+      expect(returned).toBeNull();
+      expect(notesSnapshot(contextRoot, TASK)).toEqual(before);
+    });
+  }
+
+  it("every degenerate STRING value refuses, leaving the notes directory byte-identical", () => {
+    for (const value of INTEGRITY_SWEEP) {
+      const contextRoot = freshTmp("ti-sweep-");
+      mod.emitVerdict(TASK, "RUN-TI-PRIOR", "clean", contextRoot);
+      const before = notesSnapshot(contextRoot, TASK);
+      const returned = mod.emitVerdict(
+        TASK,
+        "RUN-TI-SWEEP",
+        value as unknown as import("./context-io.js").TestIntegrityResult,
+        contextRoot,
+      );
+      expect(returned, `value ${JSON.stringify(value)} was admitted`).toBeNull();
+      expect(notesSnapshot(contextRoot, TASK), `value ${JSON.stringify(value)} wrote`).toEqual(
+        before,
+      );
+    }
+  });
+
+  it("every wrong-TYPED value refuses too — the type cannot police a JavaScript caller", () => {
+    for (const [label, value] of INTEGRITY_WRONG_TYPES) {
+      const contextRoot = freshTmp("ti-type-");
+      const returned = mod.emitVerdict(
+        TASK,
+        "RUN-TI-TYPE",
+        value as import("./context-io.js").TestIntegrityResult,
+        contextRoot,
+      );
+      expect(returned, `${label} was admitted`).toBeNull();
+      // Nothing was created at all: not a note, not an empty file, not the directory.
+      expect(notesSnapshot(contextRoot, TASK), `${label} wrote`).toEqual([]);
+    }
+  });
+
+  it("no partial or zero-length note file survives a refusal", () => {
+    const contextRoot = freshTmp("ti-partial-");
+    for (const value of [...INTEGRITY_SWEEP, "finding", "unknown"]) {
+      mod.emitVerdict(
+        TASK,
+        "RUN-TI-PARTIAL",
+        value as unknown as import("./context-io.js").TestIntegrityResult,
+        contextRoot,
+      );
+    }
+    // Refuse-before-compose means the write chokepoint was never reached: no file, of any length.
+    expect(notesSnapshot(contextRoot, TASK)).toEqual([]);
+  });
+
+  it("the refusal sits AFTER the task and id assertions — an invalid id still throws", () => {
+    // Placement pin. If the refusal were moved above the id validation, a caller could hand a
+    // malformed per-run id past the grammar check by pairing it with a non-clean result, and the
+    // named throw this tree relies on would become a silent null.
+    const contextRoot = freshTmp("ti-order-");
+    expect(() => mod.emitVerdict(TASK, "bad id with spaces", "finding", contextRoot)).toThrow(
+      /invalid per-run id/,
+    );
+    expect(notesSnapshot(contextRoot, TASK)).toEqual([]);
+  });
+
+  it("the state vocabulary is exactly the checker's three exit codes, with NO disabling value", () => {
+    // The TINT-03 floor: `quality.test_integrity` has no `off` value in any mode, and a dial that
+    // can be switched off entirely is not a floor. That carve-out has to survive the move to the
+    // point of effect, so the vocabulary is asserted here rather than only in the validator's enum.
+    expect([...mod.TEST_INTEGRITY_RESULTS]).toEqual(["clean", "finding", "unknown"]);
+    expect([...mod.TEST_INTEGRITY_RESULTS]).not.toContain("off");
+    expect([...mod.TEST_INTEGRITY_RESULTS]).not.toContain("disabled");
   });
 });

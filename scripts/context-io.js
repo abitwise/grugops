@@ -819,14 +819,45 @@ function isLiveGreenVerdict(n, id) {
         n.refs.includes(verdictStampFor(id)) &&
         n.body.includes(VERDICT_GREEN_MARKER));
 }
+// ── The gate run's test-integrity result, as the emitter receives it (plan 30-05, D-15). ────────
+// Three states, mirroring the exit codes the gate workflow's test-integrity step ALREADY branches
+// on (05-pr-quality-gate.md Step 3): `0` → the skip registry justifies every skip; `1` → an
+// unjustified, expired or malformed skip; `2` → the checker failed to run. The argument therefore
+// carries information the gate procedure already holds, rather than inventing a second vocabulary
+// beside the one the workflow documents.
+//
+// There is deliberately NO fourth "disabled" state. `quality.test_integrity` has no `off` value in
+// any mode (the TINT-03 trace-integrity floor, recorded in scripts/validate-agent-factory.ts's
+// enum), and a dial that can be switched off entirely is not a floor. That carve-out survives this
+// move to the point of effect: the only value that admits a green verdict is `clean`.
+export const TEST_INTEGRITY_RESULTS = ["clean", "finding", "unknown"];
+/** The ONE value that admits a green verdict. Everything else — recognized or not — refuses. */
+const TEST_INTEGRITY_CLEAN = "clean";
 // ── emitVerdict: the §14 gate's verdict emission carve-out (D-03/D-04). ──────────────────────────
 // The ONE path allowed to author a `by: §14-gate` note. Called by the §14 quality gate step
 // (05-pr-quality-gate.md, Plan 02) on a GREEN terminal result, carrying the unique per-run <id>
 // that downstream findings reference in `verified_by: §14-gate#<id>`. Composes a verdict note,
 // validates it with the trusted-gate-emission carve-out (so the reserved-identity rule does not
 // reject the gate's own note), and atomically appends it under the task. Returns the verdict
-// note's id. The per-run <id> is the caller's (the gate generates it via node:crypto, D-03).
-export function emitVerdict(task, id, contextRoot = DEFAULT_CONTEXT_ROOT, at = new Date().toISOString()) {
+// note's id, or `null` when it refused to emit. The per-run <id> is the caller's (the gate
+// generates it via node:crypto, D-03).
+//
+// THE TEST-INTEGRITY FLOOR, AT ITS POINT OF EFFECT (plan 30-05, D-15/D-16). The third argument is
+// the gate run's test-integrity result. It is REQUIRED and it is POSITIONAL — ahead of the two
+// defaulted parameters — so that every existing call site had to be revisited rather than keep
+// compiling against a default that would have made the floor decorative. This function performs no
+// file read and no log read of its own to obtain that result: a second parser inside a safety path
+// is a second thing to drift, and the workflow already holds the checker's exit code.
+//
+// THE TIER, STATED RATHER THAN PAPERED OVER. The hook-enforced checkpoints are decided by a
+// SEPARATE process (hooks/guard.js) reading its own environment, which the agent under the hook
+// cannot set for itself. This one is decided IN-PROCESS from an argument the gate procedure
+// supplies. Those are different tiers and this file will not claim otherwise. What the mechanism
+// does buy is that a malformed, misspelled, wrong-typed, empty or absent result FAILS CLOSED —
+// nothing is written and nothing is partially written — so the only way to reach a green verdict
+// is to state `clean` outright. The residual is that a caller determined to lie can state it; that
+// residual is named here and in the workflow prose instead of being claimed away.
+export function emitVerdict(task, id, integrity, contextRoot = DEFAULT_CONTEXT_ROOT, at = new Date().toISOString()) {
     assertSafeTask(task);
     // The per-run id is interpolated into a ref; it must be single-line and grammar-clean so the
     // emitted stamp `§14-gate#<id>` is a valid GATE_STAMP_RE stamp downstream findings can match.
@@ -835,6 +866,15 @@ export function emitVerdict(task, id, contextRoot = DEFAULT_CONTEXT_ROOT, at = n
         throw new Error(`context-io.emitVerdict: invalid per-run id "${id}" — the emitted stamp ` +
             `"${verdictStampFor(id)}" must match ${GATE_STAMP_RE}.`);
     }
+    // REFUSE BEFORE COMPOSE (D-16). Placed above the first line that builds any part of the note, so
+    // a refusal cannot leave a partial or zero-length note file behind — the only way to guarantee
+    // "nothing was written" is to have composed nothing. Anything that is not EXACTLY the clean
+    // sentinel lands here, including a value this file does not recognize: `finding`, `unknown`, a
+    // misspelling, a wrong case, a non-string forced through by an untyped caller, and absence.
+    // It returns rather than throws: a throw at the gate's terminal step is a crash where the
+    // contract promises a degraded finding at `UNKNOWN - verify`.
+    if (integrity !== TEST_INTEGRITY_CLEAN)
+        return null;
     const note = {
         kind: "finding",
         by: GATE_IDENTITY,
