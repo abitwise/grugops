@@ -232,3 +232,40 @@ different repository's configuration.
    message. Not removed here because deleting an assertion inside a red-team round is the one edit
    that cannot be distinguished from narrowing the check.
 **Suggested owner:** (1) and (3) — Phase 30 verification or a follow-up; (2) — plan 30-11.
+
+## V-30-10-05 — round-3 reviewer observations not closed in round 3
+
+**Found during:** plan 30-10, round-2 independent reviews (reviewers 3 and 4).
+**Where / what:**
+1. **False red: a heading inside an HTML block** (R3-O1). `<div>\n## Stop conditions\n</div>` renders
+   as raw HTML — verified by the reviewer against the reference `commonmark` implementation — and
+   carries no `<h2>`, yet `unfencedHeadingIndices` counts it and the derivation refuses a legitimate
+   kit by name. Same for `<!-- … -->` comment blocks. **Not fixed by widening the near-miss set**,
+   which is what the reviewer explicitly warns against; the honest repair is an HTML-block-aware line
+   classifier alongside the fence toggle, which is a fourth block-level grammar in the one authority
+   and belongs in its own task. The direction is over-refusal (fail-closed), and no live kit document
+   carries the shape.
+2. **Nested directories under `agent-factory/workflows/`** (R3-O3). `workflows/extra/20-nested.md`
+   with a tagged stop is invisible to both directory reads, which are non-recursive. Outside F6's
+   stated bound ("the corpus's own directory") — but the bound is worth stating at the site rather
+   than left to be inferred.
+3. **A root DIRECTORY whose name ends in `.MD` reds both language gates** (R4 obs. 2).
+   `refuseMarkdownImitations` runs over raw `readdirSync` entries before the `isFile()` filter, so
+   `mkdir notes.MD` produces a refusal whose message talks about renaming "a public document" while
+   naming a directory. Safe direction, wrong noun.
+4. **`.mts` / `.cts` are outside the F5 consumer source set** (R4 obs. 3). Measured not live: this
+   `tsconfig.json` emits nothing for `.mts`, so such a module can never be a shipped consumer.
+5. **`COVERED_ELSEWHERE` is a hand-written escape hatch in the zero-config differential** (R4 obs. 5).
+   A roster member can be moved out of `HOOK_MATCHABLE` into it with a prose reference, leaving the
+   differential while both coverage directions stay green. Bounded by disjointness and by the
+   reference being mechanically resolved; it is the one un-derived edge of an otherwise two-sided set.
+6. **The `GOVERNANCE_BASES` source scan pins the DECLARATION, not the USE** (R4 obs. 6).
+   `for (const base of [...GOVERNANCE_BASES, someOtherRoot])` would satisfy it. The direction is
+   widening (more positions checked) and the narrowing direction is separately killed behaviourally
+   by a mutation the reviewer ran, so it is the residual freedom the pin leaves rather than a hole.
+7. **`sectionsFound === filesWalked` remains structurally vacuous** (R3-O4 / carried from
+   `V-30-10-04`). The derivation throws on a missing stop section and refuses a repeated or imitated
+   one, so the equality can only ever hold; the refusals carry the property now.
+**Suggested owner:** (1) and (2) — a follow-up task on the heading/fence authority, or Phase 30
+verification. (3) — whoever next touches `check-public-docs-vocabulary.ts`. (4)–(7) — recorded as
+residual freedoms, no owner required unless a later round finds a live path through one.

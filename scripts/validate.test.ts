@@ -636,8 +636,16 @@ describe("30-10 B-1 — the config form check is asked at EVERY position the rea
   // Every payload the validator refuses in the kit config. Written to the SHADOWING file instead.
   // The list is the finding set of `checkConfig` itself, one payload per arm, so a single arm left
   // unreachable at the governing position still reds here.
+  //
+  // ROUND 3 REMOVED ONE ROW FROM THIS LIST, AND THE REMOVAL IS RECORDED RATHER THAN QUIET.
+  // `["a missing required key", '{"cadence":"kanban"}', /"mode"/]` was here, asserting that a
+  // `.grugops` drop omitting `mode` is refused. Reviewer 4's observation 4 established that this was
+  // F1 over-reaching: nothing reads `mode` or `cadence` out of that file — every consumer of those
+  // two keys reads the in-kit config by its own fixed path — so refusing a checkpoints-only override,
+  // the most natural use of the position, was a false red on the position F1 had just repaired. The
+  // required-key arm now runs only at the in-kit config, which has its own case, and the
+  // checkpoints-only override has one too. Every OTHER arm below still runs at every position.
   const mustRefuse: readonly (readonly [string, string, RegExp])[] = [
-    ["a missing required key", '{"cadence":"kanban"}', /"mode"/],
     ["the retired autonomy scalar", '{"mode":"m","cadence":"c","autonomy":"pr"}', /autonomy/],
     [
       "an unknown checkpoint id",
@@ -1005,5 +1013,46 @@ describe("30-10 R4-3 — the run NAMES the governance positions it examined", ()
     mkdirSync(join(kit, "agent-factory"), { recursive: true });
     const o = out(runSplit(kit, kit));
     expect(o).toMatch(/governance configurations examined: none/);
+  });
+});
+
+describe("30-10 R3 — reviewer 4 obs. 4: a checkpoints-only repo override is not a malformed config", () => {
+  it("a `.grugops` drop carrying only `checkpoints` passes — mode/cadence are not read from it", () => {
+    // F1 applied the WHOLE per-file predicate at a position that previously had no predicate at all,
+    // so the most natural use of the first candidate — a repository dropping a checkpoints-only
+    // override — was refused for `missing or empty required key "mode"`. The reader reads such a
+    // file happily and governs from it, and NOTHING reads `mode` or `cadence` out of it: every
+    // consumer of those two keys reads the in-kit config by its own fixed path. A false red on the
+    // position's natural use is exactly the pressure that gets a repair widened back out.
+    const kit = copyGoodKit(true);
+    mkdirSync(join(kit, ".grugops"), { recursive: true });
+    writeFileSync(
+      join(kit, ".grugops", "factory.config.json"),
+      JSON.stringify({ checkpoints: { open_pr: "notify" } }),
+    );
+    const r = runSplit(kit, kit);
+    expect(out(r), "a checkpoints-only override was refused").toContain("ALL CHECKS PASSED");
+    expect(r.status).toBe(0);
+  });
+
+  it("…and the KIT config still owes mode and cadence — the requirement moved, it did not vanish", () => {
+    const kit = kitWithConfig((c) => {
+      delete (c as Record<string, unknown>).mode;
+    });
+    const r = runSplit(kit, kit);
+    expect(r.status).not.toBe(0);
+    expect(out(r)).toMatch(/agent-factory\/config\/factory\.config\.json: missing or empty required key "mode"/);
+  });
+
+  it("every OTHER arm still runs at the repo-drop position — only the required-key loop is scoped", () => {
+    // The bound on the new freedom: exactly one arm differs by position. All six form checks are
+    // driven at the drop position and each must still fire.
+    const kit = copyGoodKit(true);
+    mkdirSync(join(kit, ".grugops"), { recursive: true });
+    writeFileSync(join(kit, ".grugops", "factory.config.json"), SIX_ERROR_PAYLOAD);
+    const lines = out(runSplit(kit, kit))
+      .split("\n")
+      .filter((l) => l.includes(".grugops/factory.config.json:"));
+    expect(lines.length, lines.join("\n")).toBeGreaterThanOrEqual(6);
   });
 });

@@ -408,6 +408,9 @@ const GOVERNANCE_BASES: readonly string[] = [KIT_ROOT, STATE_ROOT];
 const governanceExamined: string[] = [];
 
 function checkConfig(): void {
+  // The in-kit config's resolved path — the ONE position at which `mode` and `cadence` are read by
+  // anything, and therefore the one at which their absence is a finding (reviewer 4 obs. 4).
+  const kitConfigAbs = resolve(join(KIT_ROOT, "agent-factory", "config", "factory.config.json"));
   // ONE LOOP, ONE READ, ONE PREDICATE — the kit arm is gone (round 2, F3).
   //
   // It used to be a separate arm reading through `kitRead`, which catches every error to `null` and
@@ -443,7 +446,20 @@ function checkConfig(): void {
         err(`${label}: exists but could not be read`);
         continue;
       }
-      checkConfigForm(label, raw);
+      // THE REQUIRED-KEY LOOP RUNS ONLY WHERE THOSE KEYS ARE READ (round 3, reviewer 4 obs. 4).
+      //
+      // F1 applied the WHOLE per-file predicate at a position that previously had no predicate, so
+      // the most natural use of the first candidate — a repository dropping a checkpoints-only
+      // override — was refused for `missing or empty required key "mode"`. The reader reads such a
+      // file happily and governs from it, and NOTHING reads `mode` or `cadence` out of it: every
+      // consumer of those two keys reads the in-kit config by its own fixed path. A false red on a
+      // position's natural use is exactly the pressure that gets a positional repair widened back
+      // out, so the requirement MOVES to its point of effect rather than being dropped or endured.
+      //
+      // EXACTLY ONE ARM IS SCOPED. Every other form check — the retired scalar, the checkpoint
+      // matrix, the TINT-03 carve-out, the WR-01 boolean, the dial enums, the JSON shape — runs at
+      // every position under every base, and `scripts/validate.test.ts` asserts both halves.
+      checkConfigForm(label, raw, resolve(abs) === kitConfigAbs);
     }
   }
 }
@@ -462,7 +478,7 @@ function relativeToBase(base: string, abs: string): string {
  * malformed — the two positions produce identical findings against identical bytes, differing only
  * in the path they name.
  */
-function checkConfigForm(rel: string, raw: string): void {
+function checkConfigForm(rel: string, raw: string, requireBaseKeys: boolean): void {
   let cfg: unknown;
   try {
     cfg = JSON.parse(raw);
@@ -479,9 +495,11 @@ function checkConfigForm(rel: string, raw: string): void {
     return;
   }
   const cfgObj = cfg as Record<string, unknown>;
-  for (const key of ["mode", "cadence"]) {
-    if (typeof cfgObj[key] !== "string" || (cfgObj[key] as string).trim() === "") {
-      err(`${rel}: missing or empty required key "${key}"`);
+  if (requireBaseKeys) {
+    for (const key of ["mode", "cadence"]) {
+      if (typeof cfgObj[key] !== "string" || (cfgObj[key] as string).trim() === "") {
+        err(`${rel}: missing or empty required key "${key}"`);
+      }
     }
   }
 
