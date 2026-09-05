@@ -33,6 +33,13 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
+
+// The COMMITTED checkpoints artifact — the same module the spawned guard imports, so the recognizer
+// this file counts banners with and the composer the guard prints them from are one authority.
+const cp: typeof import("../scripts/checkpoints.js") = await import(
+  pathToFileURL(join(import.meta.dirname, "..", "scripts", "checkpoints.js")).href
+);
 
 const APPROVAL = "GRUGOPS_PROD_DEPLOY_APPROVED";
 
@@ -544,6 +551,109 @@ describe("guard.js — D-11 the notify tier allows, RECORDS and announces", () =
     chmodSync(ctx, 0o700);
     expect(r.stdout).toContain('"permissionDecision":"deny"');
     expect(r.reason).toContain("not a lowering");
+  });
+});
+
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+// Plan 30-08 (D-19, T-30-31) — the banner and the decision are ONE evaluation, so they cannot disagree.
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+//
+// THE FAILURE THIS BLOCK EXISTS FOR is the anti-pattern this phase inherits at severity `blocking`:
+// a gate printing a passing or all-default line for a check it did not perform. The banner is a claim
+// a human acts on. A run whose banner says `all checkpoints at default` while its own denial names a
+// lowered checkpoint has narrated something the run did not establish, and that is a failure with its
+// OWN message here — not a silent inconsistency and not something a reader is expected to notice.
+//
+// BOTH SIGNALS COME FROM THE SAME CAPTURED RUN, and the message names which of the two fired. This is
+// the shape scripts/coordinator-resolution-precheck.ts uses for the installer's exit-status/banner
+// pair. Two signals read from two runs would prove only that two runs existed.
+
+/** Every line of a run's stderr that the ONE banner recognizer accepts. */
+function bannerLines(r: { stderr: string }): string[] {
+  return r.stderr.split("\n").filter((l) => cp.isCheckpointBannerLine(l));
+}
+
+/**
+ * Assert the run emitted EXACTLY ONE banner, and that the banner and the decision agree.
+ *
+ * The count is exact in both directions on purpose: zero banners is the D-20 fault (a missing banner
+ * and a broken banner must look different), and two banners is the fault a later code path introduces
+ * by printing its own — redundant is not harmless when the two can differ.
+ */
+function assertBannerAgrees(label: string, r: ReturnType<typeof runAt>): string {
+  const lines = bannerLines(r);
+  if (lines.length !== 1) {
+    throw new Error(
+      `${label}: expected EXACTLY ONE banner line, got ${lines.length}. ` +
+        (lines.length === 0
+          ? `Zero banners means a missing banner is indistinguishable from a broken one (D-20).`
+          : `Two or more means a second code path emits its own banner, and two banners can differ.`) +
+        ` stderr: ${JSON.stringify(r.stderr)}`,
+    );
+  }
+  const banner = lines[0];
+  const bannerSaysAllDefault = banner === cp.BANNER_ALL_DEFAULT;
+  const decisionNamesALowering = /is declared `|NOT AUTHORIZED/.test(r.stdout);
+  if (bannerSaysAllDefault && decisionNamesALowering) {
+    throw new Error(
+      `${label}: the DECISION signal fired — the denial in this run names a lowered checkpoint while ` +
+        `the banner from the SAME run claims "${cp.BANNER_ALL_DEFAULT}". The banner is a claim a ` +
+        `human acts on; it must never narrate a posture the run did not have. ` +
+        `stdout: ${r.stdout}`,
+    );
+  }
+  return banner;
+}
+
+describe("guard.js — D-19 exactly one banner, and it agrees with the decision", () => {
+  const AT_DEFAULT = '{"mode":"lean"}';
+
+  for (const [label, body, env] of [
+    ["zero-config deny", PUSH, {}],
+    ["zero-config allow", payload("ls -la"), {}],
+    ["malformed stdin", "not json at all", {}],
+    ["empty stdin", "", {}],
+    ["approved deploy", payload("kubectl apply -f x.yaml"), { [APPROVAL]: "1" }],
+    ["self-set refusal", payload(`export ${FLOOR_VAR}=me && git push origin main`), {}],
+  ] as const) {
+    it(`exactly one banner, and it is the D-20 literal — ${label}`, () => {
+      const r = runAt(projectWithConfig(AT_DEFAULT), body, env);
+      expect(assertBannerAgrees(label, r)).toBe(cp.BANNER_ALL_DEFAULT);
+    });
+  }
+
+  it("NON-VACUITY: a declared lowering moves the banner off the literal AND is named by the denial", () => {
+    // Without this the agreement check could pass by never seeing a non-default run at all. Here the
+    // same two signals are read from one run in the OPPOSITE state.
+    const r = runAt(projectWithConfig(LOWERED_NOTIFY), PUSH);
+    const banner = assertBannerAgrees("declared lowering, no grant", r);
+    expect(banner).not.toBe(cp.BANNER_ALL_DEFAULT);
+    expect(banner).toContain("protected_branch_merge=notify NOT AUTHORIZED");
+    expect(r.stdout).toContain('"permissionDecision":"deny"');
+    expect(r.reason).toContain("protected_branch_merge");
+    expect(r.reason).toContain(FLOOR_VAR);
+  });
+
+  it("NON-VACUITY: an AUTHORIZED lowering allows, and the one banner names the authorizing key", () => {
+    const r = runAt(projectWithConfig(LOWERED_NOTIFY), PUSH, { [FLOOR_VAR]: "a-named-human" });
+    const banner = assertBannerAgrees("declared lowering, granted", r);
+    expect(banner).toBe(
+      `checkpoints not at default: protected_branch_merge=notify authorized by ${FLOOR_VAR}=a-named-human`,
+    );
+    expect(r.stdout).toBe("");
+  });
+
+  it("the agreement check's own premise: the two signals are read from ONE spawn", () => {
+    // A harness that spawned twice would prove only that two runs existed. runAt returns one process
+    // result and both signals are projections of it — asserted here rather than assumed, because a
+    // verification harness stating a false premise is this project's recorded repeat failure.
+    const r = runAt(projectWithConfig(LOWERED_NOTIFY), PUSH);
+    expect(bannerLines(r).length).toBe(1);
+    expect(r.stdout.length).toBeGreaterThan(0);
+    // Both projections come from the same object: mutating the captured stdout changes what the
+    // agreement check reads, which is only true if it reads THIS run and not another.
+    const spoofed = { ...r, stderr: cp.BANNER_ALL_DEFAULT };
+    expect(() => assertBannerAgrees("spoof", spoofed)).toThrow(/DECISION signal fired/);
   });
 });
 

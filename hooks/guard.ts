@@ -67,9 +67,9 @@ import {
   CHECKPOINT_DEFAULTS,
   FLOOR_CHECKPOINTS,
   FLOOR_ENV_VAR_PREFIX,
+  composeBanner,
+  evaluateMatrix,
   floorEnvVarName,
-  renderCheckpointBanner,
-  resolveCheckpoint,
   type Checkpoint,
   type CheckpointResolution,
   type Disposition,
@@ -236,10 +236,20 @@ try {
   matrixUnread = true;
 }
 
+// ── ONE evaluation, feeding BOTH the banner and the decision (D-19, plan 30-08). ─────────────────
+// The banner and the decision below read this same value. They are not two reads of the same config
+// reconciled by a check afterwards; there is one value, so there is nothing to reconcile. A banner
+// that claimed `all checkpoints at default` over a run that denied a lowered checkpoint would be a
+// line asserting something the run did not establish — and it is not a state this file can reach,
+// because the text and the decision are computed from one object.
+const evaluation = evaluateMatrix(matrix, process.env);
+
 // ── The run banner, on EVERY invocation (D-19, D-20). ────────────────────────────────────────────
 // stderr, never stdout: stdout carries the hook's JSON and a bare line there would break the deny
 // mechanism. One line, always present, so a missing banner and a broken banner look different.
-process.stderr.write(`${renderCheckpointBanner(matrix, process.env)}\n`);
+// It is written ONCE, here, and no other line in this file writes a banner — hooks/guard.test.ts
+// counts the recognized banner lines per run and refuses zero and two alike.
+process.stderr.write(`${composeBanner(evaluation)}\n`);
 
 // ── The trace write (AUTO-05, D-10 / D-11). ──────────────────────────────────────────────────────
 // THE HOOK WRITES NOTHING ITSELF. There is no `writeFileSync` in this file and there must never be
@@ -315,7 +325,15 @@ if (selfSet) {
 //                        above already named the checkpoint, its value and the authorizing grant.
 for (const group of CHECKPOINT_PATTERNS) {
   if (!group.patterns.some((re) => re.test(cmd))) continue;
-  const r = resolveCheckpoint(group.id, matrix, process.env);
+  // The SAME evaluation the banner was composed from — never a second resolve of the same id.
+  const r = evaluation.get(group.id);
+  if (r === undefined) {
+    deny(
+      `Blocked (fail-closed): this command matches the "${group.id}" checkpoint, which the ` +
+        `evaluation of the checkpoint matrix does not carry. The guard will not decide a command ` +
+        `against a checkpoint it did not evaluate.`,
+    );
+  }
 
   // ── D-10: an UNAUTHORIZED lowering records its own finding, then is refused. ───────────────────
   // The declaration alone changed nothing, and without this note it would ALSO have left nothing —

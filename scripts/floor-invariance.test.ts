@@ -127,7 +127,14 @@ const APPROVAL = "GRUGOPS_ADMISSION_APPROVED_BY";
 // same payload. It adds no write of its own: both records go through the sanctioned emitter in
 // scripts/context-io.ts, and hooks/guard.test.ts asserts that the guard source and artifact contain
 // no filesystem write token. The zero-config decision and wording are byte-unchanged.
-const FROZEN_GUARD_BLOB = "88456e2c0d0f471f6a233478a624c765aed6af02";
+//
+// RE-BASELINED AGAIN BY PLAN 30-08 TASK 2 (D-24, this phase's FOURTH guard commit). The previous
+// baseline `88456e2c…af02` froze a guard that resolved each matched checkpoint a SECOND time, beside
+// the resolution the banner had already made — two independent evaluations of one rule, which is the
+// surface a banner and a decision drift apart on. The guard now holds ONE evaluation of the whole
+// roster and passes it to both the banner composer and the decision loop, so there is no second value
+// to disagree with. No message, no pattern and no env read changed.
+const FROZEN_GUARD_BLOB = "63c659c179ac99728f1286fb42f96f81eb16a9e3";
 
 // Import the COMMITTED .js for the pure-function floor checks (validate / admit). Never the .ts.
 const mod: typeof import("../scripts/context-io.js") = await import(

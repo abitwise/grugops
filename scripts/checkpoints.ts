@@ -208,6 +208,23 @@ export const FLOOR_ENV_VAR_PREFIX = "GRUGOPS_FLOOR_";
 /** The fixed zero-config banner line (D-20). Always printed, so absent and broken look different. */
 export const BANNER_ALL_DEFAULT = "all checkpoints at default";
 
+/** The opening of the OTHER banner form. Declared once; the composer and the recognizer share it. */
+export const BANNER_NON_DEFAULT_PREFIX = "checkpoints not at default: ";
+
+/**
+ * Is this line a checkpoint banner? The RECOGNIZER half of the exactly-one-banner assertion.
+ *
+ * A banner-presence check written as "does the output contain this substring" passes for a run that
+ * also printed nine wrong lines — the anti-pattern this phase carries forward as blocking. A caller
+ * counts the lines this predicate accepts and refuses BY NAME on zero and on two or more, which is
+ * the shape install/install.ts already uses for its per-adapter provenance banner. Because both banner
+ * forms are produced from the two literals above, a recognizer and a composer that disagree is not a
+ * state this module can reach.
+ */
+export function isCheckpointBannerLine(line: string): boolean {
+  return line === BANNER_ALL_DEFAULT || line.startsWith(BANNER_NON_DEFAULT_PREFIX);
+}
+
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 // Canonicalization — fail closed BY RULE, never by coercion.
 // ─────────────────────────────────────────────────────────────────────────────────────────────
@@ -399,6 +416,32 @@ export function resolveCheckpoint(
   };
 }
 
+/** One resolution per roster member — the value a banner and a decision must BOTH be read from. */
+export type CheckpointEvaluation = ReadonlyMap<Checkpoint, CheckpointResolution>;
+
+/**
+ * Resolve the WHOLE roster once (D-19, plan 30-08).
+ *
+ * WHY THIS EXISTS RATHER THAN TWO CALLS TO `resolveCheckpoint`. Until this plan the banner walked
+ * the roster and resolved every member, and the guard's decision loop separately resolved the member
+ * it had matched. Two independent evaluations of the same rule over the same inputs is the surface on
+ * which a banner comes to say `all checkpoints at default` over a run that denied a lowered
+ * checkpoint — the Phase 28 AP-1 shape, a line asserting something the run did not establish. A
+ * consistency CHECK between the two would only report the disagreement after the fact. One evaluation
+ * removes the disagreement by construction: there is no second value to disagree with.
+ *
+ * The map is built by walking `CHECKPOINTS`, so its key set IS the roster and a member cannot be
+ * silently skipped; `composeBanner` refuses a map that is missing one anyway.
+ */
+export function evaluateMatrix(
+  matrix: Readonly<Record<Checkpoint, Disposition>>,
+  env: EnvLike,
+): CheckpointEvaluation {
+  const out = new Map<Checkpoint, CheckpointResolution>();
+  for (const id of CHECKPOINTS) out.set(id, resolveCheckpoint(id, matrix, env));
+  return out;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 // The run banner (D-19 / D-20).
 // ─────────────────────────────────────────────────────────────────────────────────────────────
@@ -418,13 +461,20 @@ export function resolveCheckpoint(
  * `all checkpoints at default` — always present, so a missing banner and a broken banner look
  * different.
  */
-export function renderCheckpointBanner(
-  matrix: Readonly<Record<Checkpoint, Disposition>>,
-  env: EnvLike,
-): string {
+export function composeBanner(evaluation: CheckpointEvaluation): string {
   const parts: string[] = [];
   for (const id of CHECKPOINTS) {
-    const r = resolveCheckpoint(id, matrix, env);
+    const r = evaluation.get(id);
+    if (r === undefined) {
+      // Unreachable through evaluateMatrix, which walks the same roster. Asserted anyway: a banner
+      // composed over a SHORT evaluation would omit exactly the checkpoint whose absence an attacker
+      // wants, and would present as a clean line while doing it (Pitfall 6, the short denominator).
+      throw new Error(
+        `checkpoints: the banner was asked to describe "${id}", which the evaluation it was given ` +
+          `does not carry. A banner is a claim a human acts on; it is refused rather than composed ` +
+          `over a partial evaluation.`,
+      );
+    }
     if (r.declared === CHECKPOINT_DEFAULTS[id]) continue;
     if (r.unauthorizedLowering) {
       parts.push(
@@ -436,9 +486,21 @@ export function renderCheckpointBanner(
       parts.push(`${id}=${r.declared}`);
     }
   }
-  return parts.length === 0
-    ? BANNER_ALL_DEFAULT
-    : `checkpoints not at default: ${parts.join(", ")}`;
+  return parts.length === 0 ? BANNER_ALL_DEFAULT : BANNER_NON_DEFAULT_PREFIX + parts.join(", ");
+}
+
+/**
+ * The convenience adapter: evaluate, then compose. ONE line, so there is still ONE banner grammar.
+ *
+ * Callers that also DECIDE something must not use this — they must hold the evaluation themselves
+ * and pass it to `composeBanner`, or the banner and the decision are two independent reads of the
+ * same config and can drift apart. hooks/guard.ts does exactly that.
+ */
+export function renderCheckpointBanner(
+  matrix: Readonly<Record<Checkpoint, Disposition>>,
+  env: EnvLike,
+): string {
+  return composeBanner(evaluateMatrix(matrix, env));
 }
 
 // ─────────────────────────────────────────────────────────────────────────────────────────────
