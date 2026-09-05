@@ -919,7 +919,7 @@ Plans:
   4. `test_integrity` is enforced at the **point of effect** — `emitVerdict()` refuses GREEN — rather than being handed a false-equivalent env-var mechanism it cannot actually enforce; the hook-enforced vs in-process tier split is stated explicitly rather than papered over. (AUTO-04)
   5. A lowered floor is visible without reading config: the generated guarantees render and a per-run banner both name every non-default checkpoint, so a lowered floor can never leave an overstated claim standing in the docs — and a zero-config repo behaves **exactly** as it does today, with no floor lowered by omission. (AUTO-05, AUTO-07)
 
-**Plans**: 4/11 plans executed
+**Plans**: 5/11 plans executed
 
 Plans:
 **Wave 1**
@@ -937,7 +937,7 @@ Plans:
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
-- [ ] 30-05-PLAN.md — `emitVerdict()` refuses GREEN at the point of effect, the missing emission verb, gate-workflow correction
+- [x] 30-05-PLAN.md — `emitVerdict()` refuses GREEN at the point of effect, the missing emission verb, gate-workflow correction
 - [ ] 30-06-PLAN.md — Retire the `autonomy` scalar: validator polarity flip, three config surfaces, sixteen fixtures, migration table
 
 **Wave 5** *(blocked on Wave 4 completion)*
@@ -1045,7 +1045,7 @@ Plans:
 | 27. Spawn Correctness & Kit-Set Authority | v2.1 | 66/66 | Complete    | 2026-08-11 |
 | 28. Kit Consistency Audit | v2.1 | 8/8 | Complete    | 2026-08-12 |
 | 29. Controlled Language & Voice Guard Rebuild | v2.1 | 60/60 | Complete    | 2026-08-18 |
-| 30. Per-Checkpoint Autonomy Matrix | v2.1 | 4/11 | In Progress|  |
+| 30. Per-Checkpoint Autonomy Matrix | v2.1 | 5/11 | In Progress|  |
 | 31. Autonomous Manual Testing | v2.1 | 0/TBD | Not started | - |
 | 32. Board Projector & CLI Dashboard | v2.1 | 0/TBD | Not started | - |
 | 33. Live Capture & Windows Portability | v2.1 | 0/TBD | Not started | - |
