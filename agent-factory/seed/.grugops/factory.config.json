@@ -51,7 +51,10 @@
   },
   "checkpoints": {
     "protected_branch_merge": "block",
-    "production_requires_human_confirmation": "block"
+    "production_requires_human_confirmation": "block",
+    "test_integrity": "block",
+    "open_pr": "block",
+    "commit_to_branch": "off"
   },
   "context": {
     "compaction": "aggressive",

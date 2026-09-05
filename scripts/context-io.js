@@ -32,7 +32,7 @@ import { randomUUID } from "node:crypto";
 import { writeFileSync, appendFileSync, readFileSync, readdirSync, renameSync, unlinkSync, mkdirSync, existsSync, } from "node:fs";
 import { join, resolve, sep } from "node:path";
 import { pathToFileURL } from "node:url";
-import { CHECKPOINTS, CHECKPOINT_DEFAULTS, canonicalizeDisposition, } from "./checkpoints.js";
+import { CHECKPOINTS, CHECKPOINT_DEFAULTS, STRICTEST_MATRIX, canonicalizeDisposition, } from "./checkpoints.js";
 // ── The six note kinds (SCTX-01) ──────────────────────────────────────────────────────────────
 export const NOTE_KINDS = [
     "claim",
@@ -1185,15 +1185,20 @@ function canonicalizeHumanAdmission(raw) {
  * THE FOUR DEGENERATE SHAPES, EACH ITS OWN BRANCH — the same four the `context` object above already
  * distinguishes, because that structure is what closed the round-2 GAP-C fail-open and a new key
  * written without that history reintroduces it (RESEARCH Pitfall 4):
- *   1. the whole parsed file is not a JSON object  → roster defaults + a refusal;
+ *   1. the whole parsed file is not a JSON object  → STRICTEST_MATRIX + a refusal;
  *   2. `checkpoints` is ABSENT                     → roster defaults, NO refusal (AUTO-07: a repo
  *                                                    that configures nothing is not misconfigured);
- *   3. `checkpoints` is PRESENT but not an object  → roster defaults + a refusal;
+ *   3. `checkpoints` is PRESENT but not an object  → STRICTEST_MATRIX + a refusal;
  *   4. `checkpoints` is a present object           → per key: absent → the roster default; present →
  *                                                    `canonicalizeDisposition`, which reaches `block`
  *                                                    by RULE for the entire non-canonical complement.
- * Branches 1 and 3 reach the roster DEFAULT rather than `off`, and every default is `block`, so no
- * degenerate shape can lower a checkpoint. Branch 2 is the only one that is not also a refusal.
+ * Branches 1 and 3 reach `STRICTEST_MATRIX` — every member at `block` — and NOT the roster defaults.
+ * That distinction is load-bearing as of plan 30-02: `commit_to_branch` is a non-floor member whose
+ * roster default is `off`, so "fall back to the defaults" would have let a corrupt config GRANT a
+ * permission the repository had declared `block`. A shape a matrix cannot come out of is an UNKNOWN
+ * declaration, and an unknown declaration is enforced at the strictest value, never at the
+ * permissive one. Branch 2 is the only one that is not also a refusal, and it is the only one where
+ * the roster defaults are the right answer: the file WAS read and it says nothing.
  *
  * THE KEY SET IS STRUCTURAL, NOT ACCUMULATED. The result starts as a copy of `CHECKPOINT_DEFAULTS`
  * and is overwritten in place, so it CANNOT come out short — and the count is asserted anyway
@@ -1204,16 +1209,16 @@ function readCheckpointMatrix(parsed) {
     const defaults = { ...CHECKPOINT_DEFAULTS };
     const refusals = [];
     if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
-        refusals.push("the config file did not parse to a JSON object, so no `checkpoints` matrix could be read — every checkpoint is enforced at its default");
-        return { matrix: defaults, refusals };
+        refusals.push("the config file did not parse to a JSON object, so no `checkpoints` matrix could be read — every checkpoint is enforced at `block`");
+        return { matrix: { ...STRICTEST_MATRIX }, refusals };
     }
     const raw = parsed.checkpoints;
     if (raw === undefined) {
         return { matrix: defaults, refusals }; // zero-config: defaults, and nothing to report.
     }
     if (raw === null || typeof raw !== "object" || Array.isArray(raw)) {
-        refusals.push("`checkpoints` is present but is not a JSON object — the whole matrix is refused and every checkpoint is enforced at its default");
-        return { matrix: defaults, refusals };
+        refusals.push("`checkpoints` is present but is not a JSON object — the whole matrix is refused and every checkpoint is enforced at `block`");
+        return { matrix: { ...STRICTEST_MATRIX }, refusals };
     }
     const obj = raw;
     const rosterIds = new Set(CHECKPOINTS);
@@ -1239,10 +1244,10 @@ function readCheckpointMatrix(parsed) {
         // Unreachable by construction (the object starts as a full copy); asserted anyway, because a
         // matrix that comes out SHORT gates fewer checkpoints while presenting as a clean read.
         return {
-            matrix: { ...CHECKPOINT_DEFAULTS },
+            matrix: { ...STRICTEST_MATRIX },
             refusals: [
                 ...refusals,
-                `the effective checkpoint matrix carried ${actual} key(s) where the roster declares ${expected} — the read is refused and every checkpoint is enforced at its default`,
+                `the effective checkpoint matrix carried ${actual} key(s) where the roster declares ${expected} — the read is refused and every checkpoint is enforced at \`block\``,
             ],
         };
     }
@@ -1303,13 +1308,15 @@ export function readGovernanceConfig(repoRoot) {
             };
         }
         catch {
-            // Unreadable is treated as `block` everywhere: the matrix is the roster default, and the fact
-            // that no matrix could be read is recorded rather than presented as "nothing was configured".
+            // Unreadable is treated as `block` everywhere — STRICTEST_MATRIX, not the roster defaults.
+            // The file EXISTS and we could not read it, so what it declared is unknown, and an unknown
+            // declaration is enforced at the strictest value. The fact that no matrix could be read is
+            // recorded rather than presented as "nothing was configured".
             return {
                 source: "unreadable",
-                config: { ...GOVERNANCE_DEFAULTS, checkpoints: { ...CHECKPOINT_DEFAULTS } },
+                config: { ...GOVERNANCE_DEFAULTS, checkpoints: { ...STRICTEST_MATRIX } },
                 checkpointRefusals: [
-                    "the config file exists but could not be read or parsed — every checkpoint is enforced at its default",
+                    "the config file exists but could not be read or parsed — every checkpoint is enforced at `block`",
                 ],
             };
         }

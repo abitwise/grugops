@@ -903,12 +903,12 @@ describe("audit-model: readRegistry", () => {
       registryDoc(
         claimBlock("C-28-001", {
           kind: "safety",
-          dependsOn: "autonomy, protected_branch_merge",
+          dependsOn: "open_pr, protected_branch_merge",
         }),
       ),
     );
     expect(readRegistry(dir).claims[0].dependsOn).toEqual([
-      "autonomy",
+      "open_pr",
       "protected_branch_merge",
     ]);
   });
@@ -997,7 +997,7 @@ describe("audit-model: readRegistry", () => {
       "- file: README.md",
       "- line: 3",
       "- kind: safety",
-      "- depends_on: autonomy",
+      "- depends_on: open_pr",
       "- status: false",
       "- status: true",
       "",
@@ -1197,7 +1197,7 @@ describe("audit-model: readRegistry's block boundaries come from the ONE authori
       "- file: README.md",
       "- line: 4",
       "- kind: architecture",
-      "- depends_on: autonomy",
+      "- depends_on: open_pr",
       "- status: true",
       "",
       FENCE, // 1 — the real claim's fence opens
@@ -1214,7 +1214,7 @@ describe("audit-model: readRegistry's block boundaries come from the ONE authori
       "- file: PHANTOM.md",
       "- line: 1",
       "- kind: safety",
-      "- depends_on: autonomy",
+      "- depends_on: open_pr",
       "- status: true",
       "",
       FENCE, // 4
@@ -1266,7 +1266,7 @@ describe("audit-model: readRegistry's block boundaries come from the ONE authori
       "- file: README.md",
       "- line: 4",
       "- kind: architecture",
-      "- depends_on: autonomy",
+      "- depends_on: open_pr",
       "- status: true",
       "",
       FENCE,
@@ -1287,7 +1287,7 @@ describe("audit-model: readRegistry's block boundaries come from the ONE authori
       "- file: AGENTS.md",
       "- line: 9",
       "- kind: architecture",
-      "- depends_on: autonomy",
+      "- depends_on: open_pr",
       "- status: true",
       "",
       FENCE,
@@ -1395,7 +1395,7 @@ describe("audit-model: parseClaimBlock answers the fence question ONCE (plan 29-
       "- file: README.md",
       "- line: 4",
       "- kind: architecture",
-      "- depends_on: autonomy",
+      "- depends_on: open_pr",
       "- status: true",
       "",
       open,
@@ -1547,7 +1547,7 @@ describe("audit-model: an unterminated fence cannot silently shorten the claim l
         "- file: README.md",
         "- line: 4",
         "- kind: architecture",
-        "- depends_on: autonomy",
+        "- depends_on: open_pr",
         "- status: true",
         "",
         FENCE,
@@ -1727,7 +1727,7 @@ describe("audit-model: a verbatim that swallowed a claim block is a NAMED refusa
       "- file: README.md",
       "- line: 4",
       "- kind: architecture",
-      "- depends_on: autonomy",
+      "- depends_on: open_pr",
       "- status: true",
       "",
       FENCE,
@@ -1737,7 +1737,7 @@ describe("audit-model: a verbatim that swallowed a claim block is a NAMED refusa
       "- file: README.md",
       "- line: 4",
       `- kind: ${secondKind}`,
-      "- depends_on: autonomy",
+      "- depends_on: open_pr",
       "- status: true",
       "",
       FENCE,
@@ -2145,7 +2145,7 @@ describe("audit-model: probe edges around the registry parse (plan 29-37)", () =
       "- file: README.md",
       "- line: 3",
       "- kind: architecture",
-      "- depends_on: autonomy",
+      "- depends_on: open_pr",
       "- status: true",
       "",
       FENCE,
@@ -2555,5 +2555,111 @@ describe("audit-model: the anchored-block authority against the LIVE registry (p
     expect(onlyInDocuments, "anchors with no markdown registry row").toEqual([]);
     expect(onlyInRegistry, "markdown registry rows with no anchor").toEqual([]);
     expect(fromDocuments.length, "and the two counts agree").toBe(fromRegistry.length);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// Plan 30-02 (AUTO-05) — the floor→claims JOIN this phase's guarantees render consumes.
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+//
+// WHAT IS ASSERTED HERE AND WHAT IS NOT. The RENDER — docs/GUARANTEES.md and the mechanical
+// claim-dropping over it — lands in plan 30-09. What lands HERE is the JOIN it will read: the
+// mapping from each `SAFETY_FLOORS` id to the `kind: safety` claim ids whose `depends_on` names it.
+// The three edges below are the ones the remap in this plan made reachable — four rows now share
+// one `depends_on` value where none did before — so they are asserted against the join now, before
+// a renderer exists to hide them.
+//
+// THE JOIN IS BUILT HERE THE WAY A CONSUMER WOULD BUILD IT, from `readRegistry()` and
+// `SAFETY_FLOORS`, and never from a transcribed table. A join computed from a literal would agree
+// with itself no matter what the registry says.
+
+function floorJoin(root: string): Map<string, string[]> {
+  const claims = readRegistry(root).claims.filter((c) => c.kind === "safety");
+  const out = new Map<string, string[]>();
+  for (const floor of SAFETY_FLOORS) {
+    out.set(
+      floor.id,
+      claims
+        .filter((c) => c.dependsOn.includes(floor.id))
+        .map((c) => c.id)
+        .sort(),
+    );
+  }
+  return out;
+}
+
+describe("30-02 (AUTO-05) — the floor→claims join, at its three edges", () => {
+  it("ADJACENCY: rows sharing ONE depends_on value are disclosed independently, never merged", () => {
+    // The remap in this plan put FOUR rows on `open_pr`. Equal dependencies must not collapse two
+    // claims into one entry, and must not suppress the second — an equal dependency is the shape a
+    // merge bug hides behind, because the merged output still looks like a valid join.
+    const join = floorJoin(REPO_ROOT);
+    const onOpenPr = join.get("open_pr") ?? [];
+    expect(onOpenPr.length).toBeGreaterThan(1);
+    // Each is present under its OWN id, and no id appears twice.
+    expect(new Set(onOpenPr).size).toBe(onOpenPr.length);
+    // …and the count is derived independently of the join, by scanning the parsed rows again.
+    const independent = readRegistry(REPO_ROOT)
+      .claims.filter((c) => c.kind === "safety" && c.dependsOn.includes("open_pr"))
+      .map((c) => c.id);
+    expect(onOpenPr).toEqual([...independent].sort());
+    expect(onOpenPr.length).toBe(independent.length);
+  });
+
+  it("ADJACENCY, the other side: one claim naming N floors appears under EVERY one of them", () => {
+    // The same rule read down the other axis. A row whose `depends_on` lists three floors is three
+    // entries in the join, not one filed under whichever floor was seen first.
+    const join = floorJoin(REPO_ROOT);
+    for (const claim of readRegistry(REPO_ROOT).claims.filter((c) => c.kind === "safety")) {
+      for (const floorId of claim.dependsOn) {
+        expect(join.get(floorId), `${claim.id} under ${floorId}`).toContain(claim.id);
+      }
+    }
+    // Non-vacuity: at least one row really does name more than one floor.
+    const multi = readRegistry(REPO_ROOT).claims.filter((c) => c.dependsOn.length > 1);
+    expect(multi.length).toBeGreaterThan(0);
+  });
+
+  it("EMPTY: a registry with NO `kind: safety` row is a named refusal, not an empty join", () => {
+    // An empty join satisfies every "each floor's claims are correct" check vacuously. What is
+    // measured HERE is that the emptiness is VISIBLE — every floor comes back with zero entries, so
+    // a consumer can tell an empty join from a populated one. The NAMED REFUSAL over that state is
+    // owned by scripts/check-claim-anchors.ts (`safety floor(s) [...] have no claim mapped to them`)
+    // and is driven as a process in scripts/check-claim-anchors.test.ts; it is not re-implemented
+    // here, because a second refusal is a second authority.
+    const dir = writeRegistryFixture(
+      registryDoc(claimBlock("C-28-001", { kind: "architecture", dependsOn: "—" })),
+    );
+    const join = floorJoin(dir);
+    for (const floor of SAFETY_FLOORS) expect(join.get(floor.id)).toEqual([]);
+    // Every floor came back empty — which is exactly the state that must never pass as a clean run.
+    const emptyFloors = [...join.values()].filter((v) => v.length === 0).length;
+    expect(emptyFloors).toBe(SAFETY_FLOORS.length);
+  });
+
+  it("EMPTY: a SINGLE safety row renders as a valid join of one, so the floor is not `>1`", () => {
+    // The other half of the empty edge: refusing zero must not accidentally refuse one.
+    const dir = writeRegistryFixture(
+      registryDoc(
+        claimBlock("C-28-001", { kind: "safety", dependsOn: "open_pr" }),
+      ),
+    );
+    const join = floorJoin(dir);
+    expect(join.get("open_pr")).toEqual(["C-28-001"]);
+    expect(join.get("test_integrity")).toEqual([]);
+  });
+
+  it("ORDERING: entries are in ascending claim-id order, and that is the ONLY ordering rule", () => {
+    // Two rows sharing a `depends_on` value must have a stable, reproducible position. Ascending id
+    // is the whole rule — nothing about file order, nothing about which floor was walked first.
+    const join = floorJoin(REPO_ROOT);
+    for (const [floorId, ids] of join) {
+      expect(ids, `order under ${floorId}`).toEqual([...ids].sort());
+    }
+    // And it is reproducible: a second, independent build of the join is byte-equal to the first.
+    const again = floorJoin(REPO_ROOT);
+    expect([...again.entries()]).toEqual([...join.entries()]);
+    // Non-vacuity: at least one floor carries enough entries for an order to exist at all.
+    expect(Math.max(...[...join.values()].map((v) => v.length))).toBeGreaterThan(1);
   });
 });

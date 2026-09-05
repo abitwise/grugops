@@ -56,15 +56,30 @@ export type Disposition = "block" | "notify" | "off";
 /**
  * The closed checkpoint roster.
  *
- * TRACER SCOPE (plan 30-01): exactly these two members. Plan 30-04 widens this union from the
- * DERIVED set — the tagged stop bullets in the 17 role `## Hard limits` and 19 workflow
+ * SCOPE AS OF PLAN 30-02: the FOUR floor ids plus `commit_to_branch`. Plan 30-04 widens this union
+ * from the DERIVED set — the tagged stop bullets in the 17 role `## Hard limits` and 19 workflow
  * `## Stop conditions` sections — and adds the two-sided derived-vs-roster assertion. Until then
  * this union and `CHECKPOINT_DEFAULTS` are the roster, and they are asserted against each other by
  * the compiler rather than by a comment.
+ *
+ * THE FLOOR HALF IS NOT DECLARED HERE. Which of these members are floor-tier is decided by
+ * `SAFETY_FLOORS` in ./audit-model.js and derived by `deriveFloorCheckpoints` below (D-04). Four of
+ * the five members below are `SAFETY_FLOORS` ids; `commit_to_branch` is deliberately not one.
+ *
+ * WHY `commit_to_branch` IS A ROSTER MEMBER AND NOT A FLOOR (D-06). The retired `autonomy` scalar
+ * graded three steps — `diff`, `branch`, `pr` — and Phase 30 splits that grade into two independent
+ * stops: may the agent commit to a branch, and may it open a pull request. `open_pr` is the
+ * floor-tier half, because stopping at a pull request is what the public "a human holds the merge"
+ * claims actually rest on. `commit_to_branch` is the other half and its documented grade default is
+ * the permissive one, so making it a floor would produce a floor whose env var is never consulted —
+ * a floor in name only.
  */
 export type Checkpoint =
   | "protected_branch_merge"
-  | "production_requires_human_confirmation";
+  | "production_requires_human_confirmation"
+  | "test_integrity"
+  | "open_pr"
+  | "commit_to_branch";
 
 /**
  * The roster AND its defaults, in ONE table. Object.keys() over this is the roster count; nothing
@@ -76,12 +91,23 @@ export type Checkpoint =
  *   - `as const` keeps the literal value types, so `CHECKPOINT_DEFAULTS[id]` is a `Disposition` and
  *     not a widened `string`.
  *
- * Every default is `block`. That is AUTO-07 in one line: a repo that configures nothing gets the
- * un-lowered posture, and no floor is lowered by omission.
+ * EVERY FLOOR-TIER MEMBER DEFAULTS TO `block`. That is AUTO-07 in one line: a repo that configures
+ * nothing gets the un-lowered posture, and no floor is lowered by omission.
+ *
+ * THE ONE NON-`block` DEFAULT, AND WHY IT IS NOT AN EXCEPTION TO THAT RULE. `commit_to_branch` is
+ * NOT a floor (it is absent from `SAFETY_FLOORS`), and D-06 fixes its grade default at `off`:
+ * committing to a working branch is what the factory does on every ticket, so a `block` default
+ * would stop the kit's own documented flow at its first step rather than protect anything. AUTO-07
+ * says no FLOOR is lowered by omission, and no floor is: the four `SAFETY_FLOORS` members below all
+ * read `block`, and scripts/checkpoints.test.ts asserts that mapping from `SAFETY_FLOORS` rather
+ * than from this comment, so a floor added later with a permissive default is red.
  */
 export const CHECKPOINT_DEFAULTS = {
   protected_branch_merge: "block",
   production_requires_human_confirmation: "block",
+  test_integrity: "block",
+  open_pr: "block",
+  commit_to_branch: "off",
 } as const satisfies Record<Checkpoint, Disposition>;
 
 /**
@@ -92,6 +118,30 @@ export const CHECKPOINT_DEFAULTS = {
  * verdict — see `sortedIds()`.
  */
 export const CHECKPOINTS = Object.keys(CHECKPOINT_DEFAULTS) as readonly Checkpoint[];
+
+/**
+ * EVERY roster member at `block` — the answer a reader gives when it does not KNOW what the config
+ * says. Derived from `CHECKPOINTS`, never listed.
+ *
+ * WHY THIS EXISTS, AND WHY IT IS NOT THE SAME THING AS `CHECKPOINT_DEFAULTS` (plan 30-02). Until
+ * this plan the two were interchangeable, because every roster default was `block` — so
+ * scripts/context-io.ts could hand back the DEFAULTS on a corrupt config and truthfully say "no
+ * degenerate shape can lower a checkpoint". D-06 breaks that premise: `commit_to_branch` is a
+ * non-floor member whose default is `off`, and the moment one default is permissive, "fall back to
+ * the defaults" stops meaning "fail closed". A repository that had declared
+ * `commit_to_branch: block` and then corrupted its config file would have had the corruption
+ * silently GRANT the permission it had refused.
+ *
+ * THE TWO CASES ARE NOW DISTINGUISHED BY NAME.
+ *   - The config was READ and simply says nothing about a checkpoint → `CHECKPOINT_DEFAULTS`. A
+ *     repository that configures nothing is not misconfigured (AUTO-07).
+ *   - The config could NOT be read, or was read into a shape a matrix cannot come out of → this
+ *     constant. An unknown declaration is treated as the strictest one, never as the absent one,
+ *     because "we could not tell" and "they chose the permissive value" are different facts.
+ */
+export const STRICTEST_MATRIX: Readonly<Record<Checkpoint, Disposition>> = Object.freeze(
+  Object.fromEntries(CHECKPOINTS.map((id) => [id, "block"])) as Record<Checkpoint, Disposition>,
+);
 
 /** The canonical spellings of `Disposition`, derived from nothing else and used by the validator. */
 export const DISPOSITIONS: readonly Disposition[] = ["block", "notify", "off"];

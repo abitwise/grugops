@@ -2073,7 +2073,7 @@ describe("check-diff-disposition — WR-06: the union's residue is asserted, not
     // at the source; here it moves the residue's registry contribution the other way. Both ends
     // speak, and neither number absorbs the other's drift.
     const STRAY = "docs/stray-claim-home.md";
-    const widened = `${REGISTRY_AS_COMMITTED}\n### C-28-900\n\n- file: ${STRAY}\n- line: 1\n- kind: safety\n- depends_on: autonomy\n- status: true\n- mechanism: measured against the live config value.\n\n\`\`\`\nA planted sentence.\n\`\`\`\n`;
+    const widened = `${REGISTRY_AS_COMMITTED}\n### C-28-900\n\n- file: ${STRAY}\n- line: 1\n- kind: safety\n- depends_on: open_pr\n- status: true\n- mechanism: measured against the live config value.\n\n\`\`\`\nA planted sentence.\n\`\`\`\n`;
     const { root } = makeMirror("gops-diffdisp-wr06-long-", {
       baseCorpus: { [REGISTRY_REL]: widened },
     });

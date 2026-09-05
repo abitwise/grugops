@@ -33,6 +33,9 @@ const cp: typeof import("./checkpoints.js") = await import(
 const io: typeof import("./context-io.js") = await import(
   pathToFileURL(join(ROOT, "scripts", "context-io.js")).href
 );
+const am: typeof import("./audit-model.js") = await import(
+  pathToFileURL(join(ROOT, "scripts", "audit-model.js")).href
+);
 
 const tmpDirs: string[] = [];
 function freshTmp(prefix: string): string {
@@ -181,11 +184,33 @@ describe("the roster (AUTO-01)", () => {
     expect([...cp.sortedIds(cp.CHECKPOINTS)]).toEqual([...cp.CHECKPOINTS].sort());
   });
 
-  it("every roster member carries a default, and every default is `block`", () => {
+  it("every roster member carries a default, and every FLOOR's default is `block` (AUTO-07)", () => {
+    // PLAN 30-02 NARROWED THIS ASSERTION, AND THE NARROWING IS THE POINT. It previously read "every
+    // default is `block`", which was true while the roster was two floors and became false when
+    // D-06 added `commit_to_branch` at `off`. The claim AUTO-07 actually makes is about floors — no
+    // FLOOR is lowered by omission — so that is what is asserted, against the floor set rather than
+    // against a transcribed id list. A non-floor member is free to default permissively; a floor is
+    // not, and adding one that does is red here.
+    const floors = new Set<string>(cp.FLOOR_CHECKPOINTS);
     for (const id of cp.CHECKPOINTS) {
-      expect(cp.CHECKPOINT_DEFAULTS[id], `default for ${id}`).toBe("block");
+      expect(cp.CHECKPOINT_DEFAULTS[id], `default for ${id}`).toMatch(/^(block|notify|off)$/);
+      if (floors.has(id)) expect(cp.CHECKPOINT_DEFAULTS[id], `FLOOR default for ${id}`).toBe("block");
     }
     expect(Object.keys(cp.CHECKPOINT_DEFAULTS).length).toBe(cp.CHECKPOINTS.length);
+    // Non-vacuity: the floor arm above must actually have run over something.
+    expect(floors.size).toBeGreaterThan(0);
+  });
+
+  it("STRICTEST_MATRIX is the whole roster at `block`, and it is NOT CHECKPOINT_DEFAULTS", () => {
+    // The two constants were interchangeable until a non-floor member defaulted permissively. They
+    // are asserted DIFFERENT here so that a later phase which re-flattens every default back to
+    // `block` cannot silently make the fail-closed branches indistinguishable from the zero-config
+    // ones again — the distinction is the mechanism, not an accident of the current values.
+    expect(cp.sortedIds(Object.keys(cp.STRICTEST_MATRIX))).toEqual(cp.sortedIds(cp.CHECKPOINTS));
+    for (const id of cp.CHECKPOINTS) expect(cp.STRICTEST_MATRIX[id], id).toBe("block");
+    expect(cp.STRICTEST_MATRIX).not.toEqual(cp.CHECKPOINT_DEFAULTS);
+    // And it is frozen, so a consumer cannot mutate the shared strictest answer in place.
+    expect(Object.isFrozen(cp.STRICTEST_MATRIX)).toBe(true);
   });
 
   it("floorEnvVarName derives GRUGOPS_FLOOR_<UPPER_ID> for every floor, and for the tracer floor by name", () => {
@@ -287,9 +312,18 @@ describe("readGovernanceConfig — the checkpoint matrix", () => {
   });
 
   it("EMPTY: an empty `checkpoints` object yields the FULL roster default, not an empty matrix", () => {
+    // The file WAS read and it declares nothing, so this is branch 2 — the roster defaults, which
+    // is the ONE branch where a permissive non-floor default is the right answer. Compared against
+    // CHECKPOINT_DEFAULTS rather than against the literal `block`, so this case keeps meaning the
+    // same thing as the roster widens.
     const res = io.readGovernanceConfig(rootWithRawConfig('{"checkpoints":{}}'));
     expect(cp.sortedIds(Object.keys(res.config.checkpoints))).toEqual(cp.sortedIds(cp.CHECKPOINTS));
-    for (const id of cp.CHECKPOINTS) expect(res.config.checkpoints[id]).toBe("block");
+    for (const id of cp.CHECKPOINTS) {
+      expect(res.config.checkpoints[id], id).toBe(cp.CHECKPOINT_DEFAULTS[id]);
+    }
+    // And it is NOT the strictest matrix: an empty declaration is not a failed read.
+    expect(res.config.checkpoints).not.toEqual(cp.STRICTEST_MATRIX);
+    expect(res.checkpointRefusals).toEqual([]);
   });
 
   it("an object that OMITS a roster key yields that key's roster default", () => {
@@ -302,7 +336,7 @@ describe("readGovernanceConfig — the checkpoint matrix", () => {
     );
   });
 
-  it("a `checkpoints` value that is a string / number / array / null → DEFAULTS, never `off`", () => {
+  it("a `checkpoints` value that is a string / number / array / null → STRICTEST, never `off`", () => {
     for (const body of [
       '{"checkpoints":"off"}',
       '{"checkpoints":0}',
@@ -319,7 +353,7 @@ describe("readGovernanceConfig — the checkpoint matrix", () => {
     }
   });
 
-  it("a whole-file config that is not a JSON object → DEFAULTS plus a refusal, never `off`", () => {
+  it("a whole-file config that is not a JSON object → STRICTEST plus a refusal, never `off`", () => {
     for (const body of ["[]", '"lean"', "7", "null"]) {
       const res = io.readGovernanceConfig(rootWithRawConfig(body));
       for (const id of cp.CHECKPOINTS) expect(res.config.checkpoints[id], body).toBe("block");
@@ -327,10 +361,15 @@ describe("readGovernanceConfig — the checkpoint matrix", () => {
     }
   });
 
-  it("an UNREADABLE config (non-JSON) → DEFAULTS plus a refusal, and source='unreadable'", () => {
+  it("an UNREADABLE config (non-JSON) → STRICTEST plus a refusal, and source='unreadable'", () => {
     const res = io.readGovernanceConfig(rootWithRawConfig("{ not valid json ]]]"));
     expect(res.source).toBe("unreadable");
     for (const id of cp.CHECKPOINTS) expect(res.config.checkpoints[id]).toBe("block");
+    // The DISCRIMINATING half (plan 30-02): a permissive roster default must NOT survive a failed
+    // read. `commit_to_branch` defaults to `off`, so if this branch fell back to CHECKPOINT_DEFAULTS
+    // a corrupt config would GRANT what a repository may have declared `block`.
+    expect(res.config.checkpoints).toEqual(cp.STRICTEST_MATRIX);
+    expect(res.config.checkpoints).not.toEqual(cp.CHECKPOINT_DEFAULTS);
     expect(res.checkpointRefusals.length).toBeGreaterThan(0);
   });
 
@@ -385,8 +424,23 @@ describe("readGovernanceConfig — the checkpoint matrix", () => {
 // resolveCheckpoint — the two-key rule at value level (the hook proves it end to end).
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 
+// A full matrix built FROM the roster defaults with named overrides applied.
+//
+// WHY A HELPER AND NOT AN OBJECT LITERAL. `Record<Checkpoint, Disposition>` is total, so every
+// literal below would have to name every roster member — and every widening of the union would then
+// be a mechanical edit across a dozen test call sites, which is precisely the hand-maintained-set
+// rot this module exists to refuse. Deriving from `CHECKPOINT_DEFAULTS` means a new checkpoint
+// arrives here at its default with no edit, and a test that means to move one says so by name.
+function matrix(
+  overrides: Partial<Record<import("./checkpoints.js").Checkpoint, string>> = {},
+): Readonly<Record<import("./checkpoints.js").Checkpoint, import("./checkpoints.js").Disposition>> {
+  return { ...cp.CHECKPOINT_DEFAULTS, ...overrides } as Readonly<
+    Record<import("./checkpoints.js").Checkpoint, import("./checkpoints.js").Disposition>
+  >;
+}
+
 describe("resolveCheckpoint — the two-key rule", () => {
-  const AT_OFF = { protected_branch_merge: "off", production_requires_human_confirmation: "block" } as const;
+  const AT_OFF = matrix({ protected_branch_merge: "off" });
 
   it("a floor declared `off` with NO grant variable is enforced as `block` and flagged unauthorized", () => {
     const r = cp.resolveCheckpoint("protected_branch_merge", AT_OFF, {});
@@ -428,7 +482,7 @@ describe("resolveCheckpoint — the two-key rule", () => {
   it("a non-canonical declared value resolves to `block` even with a grant present", () => {
     const r = cp.resolveCheckpoint(
       "protected_branch_merge",
-      { protected_branch_merge: "OFF", production_requires_human_confirmation: "block" } as never,
+      matrix({ protected_branch_merge: "OFF" }),
       { GRUGOPS_FLOOR_PROTECTED_BRANCH_MERGE: "someone" },
     );
     expect(r.effective).toBe("block");
@@ -448,10 +502,7 @@ describe("renderCheckpointBanner", () => {
   });
 
   it("reports the DECLARED value, so the banner cannot disagree with a denial that names it", () => {
-    const line = cp.renderCheckpointBanner(
-      { protected_branch_merge: "off", production_requires_human_confirmation: "block" },
-      {},
-    );
+    const line = cp.renderCheckpointBanner(matrix({ protected_branch_merge: "off" }), {});
     // An unauthorized lowering enforces `block`, which IS the default — a banner keyed on the
     // EFFECTIVE value would print "all checkpoints at default" over a config that plainly says off.
     expect(line).not.toBe(cp.BANNER_ALL_DEFAULT);
@@ -462,12 +513,148 @@ describe("renderCheckpointBanner", () => {
   });
 
   it("names the authorizing grant when the lowering IS authorized", () => {
-    const line = cp.renderCheckpointBanner(
-      { protected_branch_merge: "notify", production_requires_human_confirmation: "block" },
-      { GRUGOPS_FLOOR_PROTECTED_BRANCH_MERGE: "Olger Oeselg" },
-    );
+    const line = cp.renderCheckpointBanner(matrix({ protected_branch_merge: "notify" }), {
+      GRUGOPS_FLOOR_PROTECTED_BRANCH_MERGE: "Olger Oeselg",
+    });
     expect(line).toContain("protected_branch_merge=notify");
     expect(line).toContain("authorized by GRUGOPS_FLOOR_PROTECTED_BRANCH_MERGE=Olger Oeselg");
     expect(line).not.toContain("NOT AUTHORIZED");
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// Plan 30-02 — the settled floor set, and the properties that are outside the matrix on purpose.
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+//
+// D-04 makes `SAFETY_FLOORS` (scripts/audit-model.ts) the ONE canonical floor list and this module
+// the ONE roster. Everything below reads both artifacts and asserts the relationship between them —
+// never a transcribed id list, because a transcribed list is the defect class the whole module was
+// written to refuse.
+
+describe("30-02 — the floor set after the `autonomy` retirement (D-04 / D-05 / D-06)", () => {
+  it("SAFETY_FLOORS carries exactly the four decided ids, and every one is a roster member", () => {
+    expect(cp.sortedIds(am.SAFETY_FLOORS.map((f) => f.id))).toEqual([
+      "open_pr",
+      "production_requires_human_confirmation",
+      "protected_branch_merge",
+      "test_integrity",
+    ]);
+    for (const f of am.SAFETY_FLOORS) expect(cp.CHECKPOINTS).toContain(f.id);
+  });
+
+  it("the RETIRED scalar resolves to nothing — asking the floor list for it returns undefined", () => {
+    // The point of a retirement is that the name stops resolving. A floor id that still answers is
+    // a floor that a later `depends_on`, env var or config key can quietly re-acquire.
+    expect(am.SAFETY_FLOORS.find((f) => f.id === "autonomy")).toBeUndefined();
+    expect(cp.CHECKPOINTS).not.toContain("autonomy");
+    // …and the derivation cannot be talked into producing it either.
+    expect(() =>
+      cp.deriveFloorCheckpoints(cp.CHECKPOINTS, [{ id: "autonomy" }]),
+    ).toThrow(/produced NO members/);
+  });
+
+  it("no registry row depends on the retired scalar, and the live registry still parses", () => {
+    // Asserted at the point of effect: the parser every consumer of the registry goes through.
+    const claims = am.readRegistry(ROOT).claims;
+    expect(claims.length).toBeGreaterThan(0);
+    const named = new Set(claims.flatMap((c) => c.dependsOn));
+    expect([...named]).not.toContain("autonomy");
+    // Two-sided: every name a row DOES carry is a live floor id, so the remap landed on real ids
+    // rather than merely stopping at removing the dead one.
+    const floorIds = new Set(am.SAFETY_FLOORS.map((f) => f.id));
+    for (const n of named) expect(floorIds.has(n), `depends_on value ${n}`).toBe(true);
+  });
+
+  it("FLOOR_CHECKPOINTS' length equals a count computed from SAFETY_FLOORS OUTSIDE the filtering loop", () => {
+    // PITFALL 6. The denominator is walked over the OTHER side of the intersection, and it is
+    // computed here rather than read back off `FLOOR_CHECKPOINTS`, so a derivation that returns 3
+    // of 4 is red — not merely a derivation that returns 0.
+    const roster = new Set<string>(cp.CHECKPOINTS);
+    let expected = 0;
+    const counted = new Set<string>();
+    for (const f of am.SAFETY_FLOORS) {
+      if (roster.has(f.id) && !counted.has(f.id)) {
+        counted.add(f.id);
+        expected += 1;
+      }
+    }
+    expect(expected).toBe(4);
+    expect(cp.FLOOR_CHECKPOINTS.length).toBe(expected);
+    expect(cp.sortedIds(cp.FLOOR_CHECKPOINTS)).toEqual(cp.sortedIds([...counted]));
+  });
+
+  it("every FLOOR defaults to `block`, and the one non-`block` default is NOT a floor (AUTO-07)", () => {
+    // Derived from SAFETY_FLOORS, never from the comment above CHECKPOINT_DEFAULTS. A floor added
+    // later with a permissive default is red here without anyone remembering to come back.
+    const floorIds = new Set<string>(am.SAFETY_FLOORS.map((f) => f.id));
+    const permissive: string[] = [];
+    for (const id of cp.CHECKPOINTS) {
+      if (floorIds.has(id)) expect(cp.CHECKPOINT_DEFAULTS[id], `floor ${id}`).toBe("block");
+      else permissive.push(id);
+    }
+    // Non-vacuity in the other direction: the non-floor arm is exercised, and it is exercised by
+    // exactly the member D-06 names.
+    expect(permissive).toEqual(["commit_to_branch"]);
+    expect(cp.CHECKPOINT_DEFAULTS.commit_to_branch).toBe("off");
+    expect(cp.isFloorCheckpoint("commit_to_branch")).toBe(false);
+  });
+
+  it("every floor's configPath is the dotted `checkpoints.<id>` form, and it resolves live", () => {
+    for (const f of am.SAFETY_FLOORS) {
+      expect(f.configPath, `floor ${f.id}`).toBe(`checkpoints.${f.id}`);
+      // Reading it proves the cell EXISTS; safetyFloorLiveValue throws on a path that does not
+      // resolve, so a floor pointing at an absent key cannot pass as a floor with a null value.
+      expect(am.safetyFloorLiveValue(f, ROOT)).toBe(
+        cp.CHECKPOINT_DEFAULTS[f.id as import("./checkpoints.js").Checkpoint],
+      );
+    }
+  });
+});
+
+describe("30-02 — NON_DIALABLE_INVARIANTS is disjoint from the roster, in BOTH directions (D-04)", () => {
+  it("carries the three floor-invariance properties that are test-harness properties, not dials", () => {
+    expect(cp.sortedIds(am.NON_DIALABLE_INVARIANTS.map((i) => i.id))).toEqual([
+      "guard-byte-frozen",
+      "no-fabrication",
+      "refuse-self",
+    ]);
+    // Each records WHY it is not a dial. An exclusion with no stated reason is one a later phase
+    // deletes on the grounds that nobody remembers what it was for.
+    for (const inv of am.NON_DIALABLE_INVARIANTS) {
+      expect(inv.what.length, inv.id).toBeGreaterThan(20);
+      expect(inv.why.length, inv.id).toBeGreaterThan(20);
+    }
+  });
+
+  it("no non-dialable invariant is a checkpoint (a later phase cannot quietly PROMOTE one)", () => {
+    const roster = new Set<string>(cp.CHECKPOINTS);
+    for (const inv of am.NON_DIALABLE_INVARIANTS) {
+      expect(roster.has(inv.id), `invariant ${inv.id} appeared in the roster`).toBe(false);
+    }
+  });
+
+  it("no checkpoint is a non-dialable invariant (a later phase cannot quietly DEMOTE one)", () => {
+    const excluded = new Set<string>(am.NON_DIALABLE_INVARIANTS.map((i) => i.id));
+    for (const id of cp.CHECKPOINTS) {
+      expect(excluded.has(id), `checkpoint ${id} appeared in the exclusion set`).toBe(false);
+    }
+  });
+
+  it("the disjointness is NON-VACUOUS — both sets are non-empty and the check discriminates", () => {
+    expect(am.NON_DIALABLE_INVARIANTS.length).toBeGreaterThan(0);
+    expect(cp.CHECKPOINTS.length).toBeGreaterThan(0);
+    // The rig: planting a roster id into a copy of the exclusion set makes the intersection
+    // non-empty, so the two cases above are measuring an intersection that CAN be non-empty.
+    const planted = [...am.NON_DIALABLE_INVARIANTS.map((i) => i.id), cp.CHECKPOINTS[0]];
+    const clash = planted.filter((id) => (cp.CHECKPOINTS as readonly string[]).includes(id));
+    expect(clash).toEqual([cp.CHECKPOINTS[0]]);
+  });
+
+  it("`test_integrity` is on the DIAL side of the line, and the other three are not", () => {
+    // scripts/floor-invariance.test.ts sweeps FOUR invariants; exactly one of them is a checkpoint.
+    // Stating which, by assertion, is what stops the count drifting to 4-and-0 or 2-and-2.
+    expect(cp.CHECKPOINTS).toContain("test_integrity");
+    expect(am.NON_DIALABLE_INVARIANTS.map((i) => i.id)).not.toContain("test_integrity");
+    expect(am.NON_DIALABLE_INVARIANTS.length + 1).toBe(4);
   });
 });

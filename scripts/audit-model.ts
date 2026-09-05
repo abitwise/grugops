@@ -199,26 +199,106 @@ export interface SafetyFloor {
 // from the config it describes. A transcribed `"pr"` in this file would be a second authority for a
 // value factory.config.json already owns, and scripts/audit-model.test.ts asserts the live read
 // against an INDEPENDENT read of the same file so a stale transcription would be a red test.
+//
+// ── PHASE 30 (plan 30-02, D-04 / D-05 / D-06): THE `autonomy` FLOOR IS RETIRED. ────────────────
+//
+// THIS LIST IS THE CANONICAL FLOOR SET (D-04). scripts/checkpoints.ts imports it and DERIVES
+// `FLOOR_CHECKPOINTS` from it; it declares no floor id of its own. So the ids below are consumed by
+// four downstream surfaces at once — the `checkpoints.<id>` config keys, the `GRUGOPS_FLOOR_<ID>`
+// env var names, the registry's `depends_on` vocabulary, and the guarantees join — and they cannot
+// disagree for even one commit, because `readRegistry()` refuses a `depends_on` value that is not a
+// member here.
+//
+// WHAT CHANGED AND WHY. `autonomy` was a DOCUMENTARY scalar (`diff | branch | pr`) that no hook
+// enforced. Phase 30 replaces it with the enforced ternary matrix, so a floor id naming it would
+// name a dial that no longer exists. D-06 splits the grade into two checkpoints — `commit_to_branch`
+// and `open_pr` — and `open_pr` is the FLOOR-tier half: it is the one that carries the "the agent
+// stops at a pull request, a human holds the merge" claims that four of the six `kind: safety`
+// registry rows assert. `commit_to_branch` is a roster member and NOT a floor, because its
+// documented grade default is the permissive one, and a floor that is permissive by default is a
+// floor in name only.
+//
+// THE REMAP IS ONE-WAY, AND IT WAS PROVEN LIVE RATHER THAN ASSUMED. The five registry rows that
+// named `autonomy` were remapped FIRST, against this list still holding it, and the membership
+// enforcement below refused the registry by name (`claim C-28-001 carries depends_on naming
+// [open_pr], which is outside the safety-floor set […]`). Only then was this list changed. A remap
+// that never showed red would prove only that two files agree, not that the check is live.
+//
+// EVERY FLOOR IS NOW HELD BY A `checkpoints.<id>` CELL. `test_integrity` moved off
+// `quality.test_integrity` and `production_requires_human_confirmation` moved off its top-level
+// boolean, so `configPath` is the dotted checkpoint path for all four and `safetyFloorLiveValue`
+// needed no change. The legacy keys still exist in the shipped config for the migration window;
+// retiring them, and the `autonomy` scalar itself, is the validator's job in a later plan.
 export const SAFETY_FLOORS: readonly SafetyFloor[] = [
   {
-    id: "autonomy",
-    configPath: "autonomy",
-    why: "How far an agent may act without a human. Lowering it past `pr` is what would falsify every claim that a human holds the merge.",
+    id: "open_pr",
+    configPath: "checkpoints.open_pr",
+    why: "Whether an agent must stop at a pull request instead of carrying the change further itself. Lowering it is what would falsify every claim that a human holds the merge — the claim four of the six `kind: safety` registry rows assert. It replaces the retired `autonomy` scalar, which was documentary and enforced by nothing.",
   },
   {
     id: "test_integrity",
-    configPath: "quality.test_integrity",
-    why: "Whether weakened or skipped tests are surfaced. It is NEVER off — a claim that the trace is the proof rests on it.",
+    configPath: "checkpoints.test_integrity",
+    why: "Whether weakened or skipped tests are surfaced. It is NEVER off — a claim that the trace is the proof rests on it. TINT-03 carries into the matrix as a per-id restriction: the legacy `warn` maps to `notify` and `block` stays `block`, and `off` is refused for this id alone rather than removed from the ternary for every other checkpoint.",
   },
   {
     id: "production_requires_human_confirmation",
-    configPath: "production_requires_human_confirmation",
+    configPath: "checkpoints.production_requires_human_confirmation",
     why: "Whether a production deploy demands a named human confirmation. Lowering it falsifies every claim that humans hold the deploy.",
   },
   {
     id: "protected_branch_merge",
     configPath: "checkpoints.protected_branch_merge",
     why: "Agents never merge a protected branch. Phase 30 gives it a config cell (`checkpoints.protected_branch_merge`, default `block`), and the cell ALONE cannot lower it: a declared `notify`/`off` takes effect only when a human has also set GRUGOPS_FLOOR_PROTECTED_BRANCH_MERGE in the session the hook reads. An agent editing config alone changes nothing, and the denial says so by name.",
+  },
+];
+
+/** One property that is deliberately NOT a checkpoint, and the reason it never becomes one. */
+export interface NonDialableInvariant {
+  /** The invariant's name as scripts/floor-invariance.test.ts spells it. */
+  readonly id: string;
+  /** What the property asserts, in one sentence. */
+  readonly what: string;
+  /** Why it is a test-harness property rather than a dial. */
+  readonly why: string;
+}
+
+// ── D-04: THE THREE PROPERTIES THAT ARE OUTSIDE THE MATRIX ON PURPOSE. ─────────────────────────
+//
+// scripts/floor-invariance.test.ts sweeps FOUR invariants. One of them — test-integrity — IS a
+// checkpoint: it is a `SAFETY_FLOORS` member with a `checkpoints.test_integrity` cell, and it is a
+// dial precisely because the legacy config already gave it two legal values. The other three are
+// NOT dials and must never become checkpoints, so D-04 records them HERE, beside the floor list, in
+// a form a test can read.
+//
+// WHY RECORD A NEGATIVE AT ALL. This repository's founding defect class is the hand-maintained set
+// that rots while every gate over it stays green. A property that is "obviously not a checkpoint"
+// is exactly the kind of thing a later phase promotes into the roster by accident while widening
+// the union from a derived source — and the promotion would be invisible, because a checkpoint's
+// default is `block` and nothing would break. So the exclusion is DATA, and
+// scripts/checkpoints.test.ts asserts this set and `CHECKPOINTS` are disjoint in BOTH directions:
+// no member here may appear in the roster, and no roster member may appear here.
+//
+// WHAT MAKES THESE THREE DIFFERENT FROM A CHECKPOINT. A checkpoint is a HUMAN STOP: a place where
+// the ternary decides whether a human must be present. These three are properties of the machinery
+// that measures human stops. Giving any of them a `notify` or `off` cell would mean offering to
+// turn off the ability to detect a forged stamp, a rewritten note, or an edited guard — which is
+// not a lowered posture, it is a blinded one. There is no legitimate repository that wants them
+// off, so there is no dial.
+export const NON_DIALABLE_INVARIANTS: readonly NonDialableInvariant[] = [
+  {
+    id: "refuse-self",
+    what: "A self-stamped finding (`verified_by === by`) is a structural FAIL at every governance value.",
+    why: "It is a property of the admission harness, not a human stop. A dial that could switch it off would let the same actor author and verify one finding, which removes the second party the stamp exists to record.",
+  },
+  {
+    id: "no-fabrication",
+    what: "admit() never silently rewrites a note to make it pass; a hollow-evidence stamp still refuses and the note text is unchanged on refusal.",
+    why: "It is the no-fabrication floor the whole trace rests on. A checkpoint cell for it would be an offer to let the machinery edit the evidence it is judging, so the ternary has nothing meaningful to say about it.",
+  },
+  {
+    id: "guard-byte-frozen",
+    what: "hooks/guard.ts is byte-unchanged against its recorded baseline (D-02).",
+    why: "It is a build-integrity check over the enforcement code itself, asserted by hash in the test suite. It has no runtime decision point a human could stand at, so it cannot be a checkpoint; a dialable freeze is not a freeze.",
   },
 ];
 

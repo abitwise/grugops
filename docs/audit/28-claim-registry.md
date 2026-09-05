@@ -79,7 +79,7 @@ Three consequences, recorded rather than left to be discovered:
 - file: README.md
 - line: 4
 - kind: safety
-- depends_on: autonomy, production_requires_human_confirmation, protected_branch_merge
+- depends_on: open_pr, production_requires_human_confirmation, protected_branch_merge
 - status: overstated
 - mechanism: Three assertions in one hard-wrapped line, each measured separately, and the row takes the WORST of the three — which is why fixing two of them moves this row from `false` to `overstated` rather than to `true`. (1) `handoff packets` — was FIXED in 28-05; the phrase now reads `a shared verified context`, which is the artifact class that actually ships (`.grugops/context/<task>/notes/`, sole writer `scripts/context-io.ts`). (2) The linear arrow chain `business analysis → … → release` — was FIXED in 28-05; the sentence now states decompose-and-enqueue over a shared queue with the shared verified context as the only memory, matching `AGENTS.md:21` and `agent-factory/roles/orchestrator.md`'s § *Responsibilities* step 4 (`Decompose → enqueue → schedule → gate → sweep`) and its § *Hard limits* (`does NOT relay data between agents — the shared verified context is the only channel`). (3) `Humans always hold merge and deploy` — UNCHANGED and still overstated, for exactly the reason measured in full at C-28-023: the failing word is `always`, the mechanical guard is Claude-Code-plugin-only (`hooks/hooks.json`, `install/install.ts:1571`), and `.planning/PROJECT.md` records an irreducible same-uid / no-hook / direct-filesystem forgery residual. It is backstopped by the `autonomy=pr` floor, which is why it is overstated rather than false. Assertion (3) is ACCEPTED here on the same basis and with the same named residual as C-28-023 / F-28-208; it was deliberately not reworded, because C-28-023 registers the identical claim and is an `accepted` row this plan is not permitted to touch.
 - disposition: accepted
@@ -198,7 +198,7 @@ The release history lives in [`CHANGELOG.md`](CHANGELOG.md) and follows Keep a C
 - file: AGENTS.md
 - line: 6
 - kind: safety
-- depends_on: autonomy, production_requires_human_confirmation, protected_branch_merge
+- depends_on: open_pr, production_requires_human_confirmation, protected_branch_merge
 - status: overstated
 - mechanism: Two assertions, and the row takes the worse of them. (1) The self-contradiction is FIXED in 28-05: this line now states `decomposes each request into subtasks and enqueues them on a shared queue`, which is the same fact `AGENTS.md:21` states as `the Orchestrator sequences by decompose→enqueue`. The two lines agreed nowhere before and agree exactly now. (2) `Humans decide; agents execute` is UNCHANGED and still carries the overstatement measured in full at C-28-023 — the mechanical guard is Claude-Code-plugin-only and the same-uid / no-hook forgery residual is irreducible. Accepted here on the same basis and with the same named residual as C-28-023 / F-28-208. The motto is the project's own framing of the `autonomy=pr` floor and was deliberately not reworded; the residual is recorded rather than papered over.
 - disposition: accepted
@@ -385,7 +385,7 @@ The intelligence lives in the host coding agent; grugops only supplies
 - file: agent-factory/README.md
 - line: 13-14
 - kind: safety
-- depends_on: autonomy, production_requires_human_confirmation, protected_branch_merge
+- depends_on: open_pr, production_requires_human_confirmation, protected_branch_merge
 - status: overstated
 - mechanism: THIS IS D-19 ITEM 4 AND `docs/audit/28-residual-sizing.md` TABLE ROW 4 BECOMING A REGISTRY ROW. Measured three ways. (1) `factory.config.json` `autonomy: "pr"` — agents stop at a pull request and a named human merges; `production_requires_human_confirmation: true`. (2) `hooks/guard.ts` makes the deploy half mechanical rather than prompt-only, and refuses agent self-approval of `GRUGOPS_PROD_DEPLOY_APPROVED`. (3) The word that fails is `always`: `hooks/hooks.json` wires the guard as a PLUGIN-level hook and `install/install.ts:1571` states it is Claude-Code-only, and `.planning/PROJECT.md` records an irreducible same-uid / no-hook / direct-filesystem forgery residual — an agent running as the same uid with no hook can write the filesystem directly, and no in-process mechanism can prevent it. Backstopped by the `autonomy=pr` floor, which is why the claim is overstated rather than false.
 - disposition: accepted
@@ -534,7 +534,7 @@ change a value, change the factory's behavior.
 - file: agent-factory/README.md
 - line: 77-80
 - kind: safety
-- depends_on: autonomy
+- depends_on: open_pr, protected_branch_merge
 - status: true
 - mechanism: The baseline triple holds exactly: `factory.config.json` carries `mode: "lean"`, `cadence: "kanban"` and `autonomy: "pr"`. THE CAUSAL CLAUSE `because every role falls back to these same documented defaults when the file is absent` was the overstatement, and it NOW HOLDS: Phase 29 added one when-absent fallback sentence to the `## Reads` section of every in-set role file, reading "With no config file present, this role runs lean on the documented defaults in agent-factory/README.md." — and it points at the § Configuration section of this same document, which is where this claim lives. Measured at 17 of 17 by two independent methods (`grep -lc` in forced text mode and a Node directory walk using `String.includes`), where the 2026-08-12 measurement was ZERO. The word `every` in the claim is therefore satisfied over the set the kit actually activates. THE DENOMINATOR IS 17, NOT THE 18 FILES ON DISK: `kit-model.listRoles()` drops underscore-prefixed entries by derivation, so `agent-factory/roles/_role-switch-protocol.md` is out of set for counting; it is a protocol document rather than a role an agent is activated as, and it reads no config, so its exclusion is principled rather than incidental. A later reader who counts 18 markdown files under `agent-factory/roles/` must not correct this number back. This is the same mechanism as C-28-012, stated more strongly here, and the two rows close together. RESIDUAL, `UNKNOWN - verify`: no gate asserts that an agent reading the instruction behaves that way at run time.
 
@@ -632,7 +632,7 @@ current tool docs — `UNKNOWN - verify`.
 - file: .claude-plugin/plugin.json
 - line: 4
 - kind: safety
-- depends_on: autonomy, production_requires_human_confirmation, protected_branch_merge
+- depends_on: open_pr, production_requires_human_confirmation, protected_branch_merge
 - status: overstated
 - mechanism: ADJUDICATED AS A CLAIM AND REGISTERED, WITH ITS FRESHNESS RESIDUAL NAMED — see the section below. The manifest `description` is public and shipped: it is what a user reads in the plugin manager. It carried the SAME two defects measured at C-28-001 and C-28-010, and the deferral named 28-05 as its target because no gate can reach it. THE DEFERRAL WAS DISCHARGED IN 28-05, BY HAND, IN THE SAME COMMIT AS THE FOUR ANCHORED DOCUMENTS. (1) `The Orchestrator routes work through the full lifecycle` — FIXED; the description now states decompose-and-enqueue on a shared queue with the shared verified context as the only memory between roles, matching `AGENTS.md:21` and `orchestrator.md` § *Responsibilities* step 4. (2) `humans always hold merge and deploy` — UNCHANGED and still overstated for the reason measured in full at C-28-023; accepted here on the same basis and with the same named residual as C-28-023 / F-28-208. The row therefore takes the worse of the two and lands `overstated`, not `true`. `.claude-plugin/plugin.json` was re-parsed as JSON after the edit and remains well formed.
 - disposition: accepted
@@ -833,10 +833,28 @@ lists below are the same fact in a form a reader can check.
 
 | Floor | Held by | Claims mapped to it |
 |---|---|---|
-| `autonomy` | `factory.config.json` `autonomy` (live value `pr`) | C-28-001, C-28-010, C-28-023, C-28-032, C-28-038 |
-| `test_integrity` | `factory.config.json` `quality.test_integrity` (live value `warn`) | C-28-018 |
-| `production_requires_human_confirmation` | `factory.config.json` `production_requires_human_confirmation` (live value `true`) | C-28-001, C-28-010, C-28-018, C-28-023, C-28-038 |
-| `protected_branch_merge` | **HARD LIMIT, no config key** — `hooks/guard.ts`'s protected-branch push patterns | C-28-001, C-28-010, C-28-018, C-28-023, C-28-038 |
+| `open_pr` | `factory.config.json` `checkpoints.open_pr` (live value `block`) | C-28-001, C-28-010, C-28-023, C-28-032, C-28-038 |
+| `test_integrity` | `factory.config.json` `checkpoints.test_integrity` (live value `block`) | C-28-018 |
+| `production_requires_human_confirmation` | `factory.config.json` `checkpoints.production_requires_human_confirmation` (live value `block`) | C-28-001, C-28-010, C-28-018, C-28-023, C-28-038 |
+| `protected_branch_merge` | `factory.config.json` `checkpoints.protected_branch_merge` (live value `block`) | C-28-001, C-28-010, C-28-018, C-28-023, C-28-032, C-28-038 |
+
+**The `autonomy` floor was RETIRED here, and the rows it backed were not deleted (Phase 30, plan
+30-02, D-05/D-06).** Every row above that reads `open_pr` read `autonomy` until this remap. The
+scalar was documentary — no hook enforced it — and Phase 30 replaced it with the enforced
+per-checkpoint matrix, splitting its `diff | branch | pr` grade into two stops: `commit_to_branch`
+(a roster member, not a floor) and `open_pr` (floor-tier). `open_pr` is the floor because stopping
+at a pull request is the thing the public "a human holds the merge" sentences actually rest on, and
+it is what four of the six `kind: safety` rows assert. C-28-032, which named `autonomy` alone, now
+names `open_pr, protected_branch_merge` — the two floors its zero-config-baseline sentence rests on
+once the grade is split. **No claim was deleted or struck through by this remap; the anchors and the
+audit trail are unchanged.** The claim TEXT is untouched here on purpose — whether any of these
+sentences must now be recorded `dropped` is measured separately.
+
+`protected_branch_merge` was recorded above as a **hard limit with no config key** until Phase 30
+gave it the cell `checkpoints.protected_branch_merge`. That cell does not make the floor dialable by
+an agent: lowering it below `block` needs a second key the config cannot carry — a human-set
+`GRUGOPS_FLOOR_PROTECTED_BRANCH_MERGE` in the session the hook reads — so a config edit alone
+changes nothing, and the denial names the missing variable.
 
 **A declared safety rule with no floor, recorded rather than papered over.** `AGENTS.md:29` calls
 the kit-versus-state block *"a resolution and safety rule, not a joke"*, and `AGENTS.md:31-34`

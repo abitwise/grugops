@@ -89,7 +89,7 @@ function registry(...claims: ClaimSpec[]): string {
  * the BASELINE and every case below is measuring the thing it names rather than tripping over an
  * unrelated floor-coverage failure.
  */
-const FLOORS = "autonomy, test_integrity, production_requires_human_confirmation, protected_branch_merge";
+const FLOORS = "open_pr, test_integrity, production_requires_human_confirmation, protected_branch_merge";
 
 function baseline(): { root: string; docBody: string } {
   const root = freshTmp();
@@ -450,7 +450,7 @@ describe("check-claim-anchors: D-14 and D-17 completeness", () => {
     writeAt(
       root,
       REGISTRY_PATH,
-      registry({ id: "C-28-001", file: "PUBLIC.md", line: "4", kind: "safety", dependsOn: "autonomy", text: "A safety sentence." }),
+      registry({ id: "C-28-001", file: "PUBLIC.md", line: "4", kind: "safety", dependsOn: "open_pr", text: "A safety sentence." }),
     );
     const r = run(root);
     expect(r.status).toBe(1);

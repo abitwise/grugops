@@ -97,7 +97,7 @@ function renderRegistry(claims: readonly ClaimSpec[]): string {
       `- file: ${c.file}`,
       "- line: 4",
       `- kind: ${c.kind}`,
-      "- depends_on: autonomy",
+      "- depends_on: open_pr",
       "- status: true",
       "- mechanism: measured against the live config value.",
       "",
