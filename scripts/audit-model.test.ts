@@ -2663,3 +2663,128 @@ describe("30-02 (AUTO-05) — the floor→claims join, at its three edges", () =
     expect(Math.max(...[...join.values()].map((v) => v.length))).toBeGreaterThan(1);
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// Plan 30-02 Task 3 — readRegistry refuses a duplicate claim id, BEFORE `status` becomes
+// load-bearing (T-30-07).
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+//
+// WHY THIS BLOCK EXISTS. Plan 30-09 makes `status` decide whether a public claim is still asserted.
+// A parser that silently takes the LAST occurrence of a repeated id is the exact shape that lets a
+// `status` line be shadowed by a later duplicate row — one row says `dropped`, a second row with the
+// same id says `true`, and last-wins publishes the claim the registry meant to retire.
+//
+// THE STATE THIS PLAN FOUND, RECORDED RATHER THAN THE STATE IT EXPECTED. The plan's action text
+// says to close a last-wins path. There is no last-wins path: plan 29-28 already added the refusal
+// at readRegistry's `dupIds` check, mirroring readRegister's Table A duplicate-`file` refusal —
+// same `duplicates()` helper, same `refuse()` call, same named throw, same message form. The
+// instructed RED (a duplicate fixture that PARSES) is therefore not producible against HEAD, and
+// asserting that it was would be a fabricated measurement.
+//
+// SO THE DISCRIMINATION WAS BOUGHT THE OTHER WAY — BY MUTATION. The `dupIds` refusal was deleted
+// from scripts/audit-model.ts, the module rebuilt, and this block re-run; the transcript is in the
+// plan SUMMARY. What the mutation buys is the same fact a RED-first authoring would have bought:
+// these assertions fail when the refusal is absent, so they are measuring the refusal and not
+// merely agreeing with it.
+//
+// WHAT IS ADDED HERE THAT DID NOT EXIST. The row count is now checked against a denominator
+// computed by an INDEPENDENT pass over the fixture text — a regex authored in this file, never
+// `Registry`'s own published figures and never the loop that built the rows. The existing pins
+// compare published denominators against the LIVE registry only, so a fixture that parsed SHORT
+// (rather than empty) had nothing to be short against.
+
+describe("30-02 — readRegistry's duplicate-id refusal, and a denominator it cannot compute for itself", () => {
+  /** Count claim blocks by scanning the fixture TEXT. Authored here; shares no code with the parser. */
+  function claimHeadingCount(body: string): number {
+    let n = 0;
+    for (const line of body.split("\n")) {
+      if (/^### C-\d{2}-\d{3}\s*$/.test(line)) n += 1;
+    }
+    return n;
+  }
+
+  it("refuses a duplicate claim id with a named throw whose message carries the duplicated id", () => {
+    const body = registryDoc(claimBlock("C-28-001"), claimBlock("C-28-001"));
+    let err: Error | null = null;
+    try {
+      readRegistry(writeRegistryFixture(body));
+    } catch (e) {
+      err = e as Error;
+    }
+    expect(err, "a duplicate id must not parse").not.toBeNull();
+    expect(err!.message).toMatch(/duplicate claim id/i);
+    expect(err!.message).toContain("C-28-001");
+    // The refusal is the module's own named form, so a caller can tell it from a runtime crash.
+    expect(err!.message).toMatch(/^audit-model: refusing to parse /);
+    // The id is named ONCE, not once per occurrence — a value that violates twice is one finding.
+    expect(err!.message.split("C-28-001").length - 1).toBe(1);
+  });
+
+  it("names EVERY duplicated id, so a second collision is not masked by the first", () => {
+    const body = registryDoc(
+      claimBlock("C-28-001"),
+      claimBlock("C-28-002"),
+      claimBlock("C-28-001"),
+      claimBlock("C-28-002"),
+    );
+    let msg = "";
+    try {
+      readRegistry(writeRegistryFixture(body));
+    } catch (e) {
+      msg = (e as Error).message;
+    }
+    expect(msg).toContain("C-28-001");
+    expect(msg).toContain("C-28-002");
+  });
+
+  it("the SHADOWED-STATUS shape specifically: two rows, one id, disagreeing `status` — refused", () => {
+    // This is the shape plan 30-09 makes dangerous. Last-wins would publish `true` over `dropped`.
+    const body = registryDoc(
+      claimBlock("C-28-001", { status: "true" }),
+      claimBlock("C-28-001", { status: "overstated" }),
+    );
+    expect(() => readRegistry(writeRegistryFixture(body))).toThrow(/duplicate claim id/i);
+  });
+
+  it("the refusal mirrors readRegister's, rather than being a second grammar for the same defect", () => {
+    // Same detection point (after the rows are built, before anything is computed over them), same
+    // named throw, same message form. Asserted so a later edit cannot fork one of them.
+    let registryMsg = "";
+    try {
+      readRegistry(writeRegistryFixture(registryDoc(claimBlock("C-28-001"), claimBlock("C-28-001"))));
+    } catch (e) {
+      registryMsg = (e as Error).message;
+    }
+    expect(registryMsg).toMatch(/^audit-model: refusing to parse .* — .*duplicate .*: /);
+  });
+
+  it("ALL-UNIQUE ids parse, and the row count equals an INDEPENDENTLY derived count of the fixture", () => {
+    // The denominator is computed by the local text scan above — not by `Registry`'s published
+    // figures and not by the loop that built the rows. A parse that came out SHORT (three of four,
+    // say) is red here; a vacuity floor that only refuses an EMPTY result would let it through.
+    const ids = ["C-28-001", "C-28-002", "C-28-003", "C-28-004", "C-28-005"];
+    const body = registryDoc(...ids.map((id) => claimBlock(id)));
+    const expected = claimHeadingCount(body);
+    expect(expected).toBe(ids.length); // the scanner itself is not trivially zero
+    const reg = readRegistry(writeRegistryFixture(body));
+    expect(reg.claims.length).toBe(expected);
+    expect(reg.claims.map((c) => c.id)).toEqual(ids);
+  });
+
+  it("the independent denominator DISCRIMINATES — a fixture one block shorter moves it", () => {
+    // Non-vacuity for the case above: the two numbers must not both be constants that happen to
+    // agree. Dropping one block moves BOTH sides together, and moves them to a different value.
+    const four = registryDoc(
+      ...["C-28-001", "C-28-002", "C-28-003", "C-28-004"].map((id) => claimBlock(id)),
+    );
+    expect(claimHeadingCount(four)).toBe(4);
+    expect(readRegistry(writeRegistryFixture(four)).claims.length).toBe(4);
+    expect(claimHeadingCount(four)).not.toBe(5);
+  });
+
+  it("the LIVE registry parses without a refusal, and its ids are unique", () => {
+    const reg = readRegistry(REPO_ROOT);
+    expect(reg.claims.length).toBeGreaterThan(0);
+    expect(new Set(reg.claims.map((c) => c.id)).size).toBe(reg.claims.length);
+  });
+});
