@@ -56,6 +56,10 @@ import {
   RETIRED_PATH_FORMS,
   RETIRED_PROSE_FORMS,
 } from "./dead-vocabulary.js";
+// The generated guarantees page's path, taken from the generator that declares it — the same
+// import the gate itself makes, so this harness cannot come to disagree with the gate about which
+// document the `guarantees` part names.
+import { OUT as GUARANTEES_DOC } from "./generate-guarantees.js";
 
 const ROOT = join(import.meta.dirname, "..");
 const GATE_JS = join(ROOT, "scripts", "check-public-docs-vocabulary.js");
@@ -98,6 +102,9 @@ const DEFAULT_EXAMPLES = [
 ];
 const CHANGELOG = "CHANGELOG.md";
 const KIT_README = "agent-factory/README.md";
+// The fourth named corpus part's one member (plan 30-07). Imported from the GENERATOR that
+// declares it, exactly as the gate does — a literal here would be a third spelling of one path.
+const GUARANTEES = GUARANTEES_DOC;
 
 type MirrorSpec = {
   // Root markdown file names (excluding CHANGELOG.md, which is written separately so the exemption
@@ -108,6 +115,10 @@ type MirrorSpec = {
   examples?: string[];
   // Per-path content overrides, keyed by the same repo-relative path the gate reports.
   plant?: Record<string, string>;
+  // (Plan 30-07) Omit docs/GUARANTEES.md — the `guarantees` part's vanished-file case. A literal
+  // part can never reach the per-part vacuity floor by shrinking, so this is the only way that
+  // floor and the part's named refusal are reachable at all.
+  omitGuarantees?: boolean;
 };
 
 function makeMirror(prefix: string, spec: MirrorSpec = {}): string {
@@ -129,6 +140,7 @@ function makeMirror(prefix: string, spec: MirrorSpec = {}): string {
   mkdirSync(join(mirror, "examples"), { recursive: true });
   for (const f of examples) write(`examples/${f}`);
   write(KIT_README);
+  if (spec.omitGuarantees !== true) write(GUARANTEES);
   return mirror;
 }
 
@@ -293,6 +305,41 @@ describe("check-public-docs-vocabulary — vacuity is refused by name", () => {
       /the "kitReadme" part of the public-docs scan set derived ZERO members/,
     );
   });
+
+  // ── PLAN 30-07: THE GENERATED GUARANTEES PAGE IS A MEMBER, PROVEN BY PLANTING. ────────────────
+  //
+  // MEMBERSHIP IS PROVEN BY BEHAVIOUR, NOT BY INSPECTING THE PARTS ARRAY. An assertion that the
+  // array contains the path proves the array contains the path; it says nothing about whether the
+  // grep ever reads the file. This plants a retired form INTO the document and asserts this gate
+  // names it — the same proof shape the sibling banned-claims harness uses for CHANGELOG.md, and
+  // the shape that would have caught the round-6 finding on the day it landed.
+  it("PLANT: a retired PROSE form in the generated guarantees page is NAMED by this gate", () => {
+    const mirror = makeMirror("gops-pubdocs-guarantees-plant-", {
+      plant: { [GUARANTEES]: PROSE_PLANT },
+    });
+    const { status, stdout } = runGate(mirror);
+    expect(status).toBe(1);
+    expect(stdout).toContain(GUARANTEES);
+    expect(stdout).toContain(RETIRED_PROSE_FORMS[0]);
+  });
+
+  it("CONTROL: the SAME mirror without the plant exits 0 — the red above is the plant's", () => {
+    const { status, stdout } = runGate(makeMirror("gops-pubdocs-guarantees-control-"));
+    expect(status).toBe(0);
+    expect(stdout).toContain("ALL CHECKS PASSED");
+  });
+
+  it("REPORTS a missing docs/GUARANTEES.md by name rather than crashing with ENOENT", () => {
+    const mirror = makeMirror("gops-pubdocs-noguarantees-", { omitGuarantees: true });
+    const { status, stdout } = runGate(mirror);
+    expect(status).toBe(1);
+    expect(stdout).toContain(GUARANTEES);
+    expect(stdout).toMatch(/refusing to report a verdict/);
+    expect(stdout).not.toMatch(/at Object\.|node:internal|ENOENT/);
+    expect(stdout).toMatch(
+      /the "guarantees" part of the public-docs scan set derived ZERO members/,
+    );
+  });
 });
 
 describe("check-public-docs-vocabulary — the derived pin and the D-10 control", () => {
@@ -303,7 +350,7 @@ describe("check-public-docs-vocabulary — the derived pin and the D-10 control"
     expect(live.length).not.toBe(PUBLIC_DOCS_SCAN_COUNT + 1);
   });
 
-  it("the scan set is the concatenation of its three named parts, none empty", () => {
+  it("the scan set is the concatenation of its four named parts, none empty", () => {
     // Partition the composition by the SAME parts it was built from rather than restating a
     // directory literal. A claim about one part says nothing about the others, so every part is
     // asserted — a widening that swapped one part for another would hold the total at the pin.
@@ -311,6 +358,7 @@ describe("check-public-docs-vocabulary — the derived pin and the D-10 control"
       "root",
       "examples",
       "kitReadme",
+      "guarantees",
     ]);
     for (const part of PUBLIC_DOCS_SCAN_PARTS) {
       expect(part.members.length).toBeGreaterThan(0);
@@ -396,7 +444,11 @@ function corpusFromDisk(): string[] {
   const kitReadme = existsSync(join(ROOT, "agent-factory", "README.md"))
     ? ["agent-factory/README.md"]
     : [];
-  return [...root, ...examples, ...kitReadme];
+  // (Plan 30-07) The fourth part. Enumerated here the same way the other three are — by asking the
+  // DISK — so this remains an independent second enumeration rather than a restatement of the
+  // gate's derivation. The PATH is imported for the reason the gate imports it: one declaration.
+  const guarantees = existsSync(join(ROOT, GUARANTEES_DOC)) ? [GUARANTEES_DOC] : [];
+  return [...root, ...examples, ...kitReadme, ...guarantees];
 }
 
 describe("check-public-docs-vocabulary — the corpus, the scan, and the difference between them", () => {

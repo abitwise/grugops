@@ -172,6 +172,10 @@ import {
   // time, so a refusal is already raised before this gate asks for a single member.
   publicDocsDerivationRefusals,
 } from "./check-public-docs-vocabulary.js";
+// The generated guarantees page's path, taken from the module that DECLARES it. See the
+// `guarantees` part below for why this gate names the document itself rather than inheriting it
+// through the public-docs corpus, and why the path is imported rather than written a second time.
+import { OUT as GUARANTEES_DOC } from "./generate-guarantees.js";
 // THE ONE FENCE TOGGLE AND THE ONE SECTION LOCATOR (plans 29-18 and 29-23, WR-06 / WR-08).
 // `locateExemptRegion` answers two section-extent questions, and this tree answers both in exactly
 // one place. `unfencedHeadingIndex` gives the region's own heading and `sectionEndIndex` gives its
@@ -1153,6 +1157,43 @@ function pluginManifestMembers(): string[] {
   return acc.filter((f) => f.endsWith(JSON_EXT)).sort();
 }
 
+// Part `guarantees`: the D-17 generated guarantees page, named by this gate rather than inherited.
+//
+// ── WHY A NAMED PART WHEN THE `publicDocs` PART ALREADY REACHES IT (plan 30-07) ────────────────
+//
+// It does reach it: `docs/GUARANTEES.md` is a member of the public-docs CORPUS as of the same
+// plan, so this gate would scan it either way and the member appears in both parts. That is a
+// DELIBERATE second membership route, not an oversight, and the overlap it creates is counted and
+// reported by `bannedClaimScanOverlap()` exactly as `agent-factory/README.md`'s already is.
+//
+// THE REASON IS THIS GATE'S OWN ROUND-6 FINDING. `CHANGELOG.md` sat outside this scan set carrying
+// two live claims because membership here was INHERITED from another module's derivation, argued
+// for another module's predicate. The remedy recorded at that import is that this gate must NAME
+// the question it is asking. A public document whose entire subject is safety claims is the last
+// one whose presence in the CLAIM gate should depend on a sibling gate's corpus continuing to
+// include it: the vocabulary gate's corpus is maintained for the retired-vocabulary question, and
+// a future edit there that is correct for that question could silently remove this document from
+// this one. Naming it here makes that impossible.
+//
+// THE PATH IS THE GENERATOR'S OWN DECLARATION, imported as `GUARANTEES_DOC`. Neither gate writes a
+// second literal of it, so a rename moves the render and both scan memberships together.
+//
+// DERIVED AGAINST THE DISK, for the two reasons `installReadmeMembers()` records: a literal part
+// can never reach the per-part vacuity floor, and `readText()` is called unguarded downstream, so
+// returning [] with a named refusal is the only way an absent page produces a verdict rather than
+// a node:internal stack trace.
+function guaranteesMembers(): string[] {
+  if (!existsSync(abs(GUARANTEES_DOC))) {
+    DERIVATION_REFUSALS.push(
+      `${GUARANTEES_DOC} is a NAMED member of the banned-claim scan set and does not exist at ` +
+        `${abs(GUARANTEES_DOC)} — refusing to report a verdict over a part whose one member could ` +
+        `not be read. A missing document is not a clean one`,
+    );
+    return [];
+  }
+  return [GUARANTEES_DOC];
+}
+
 // ── THE `encoding` PROBE ROW, ANSWERED IN CODE (round 7, LANG-04) ──────────────────────────────
 //
 // THE QUESTION: whose definition of the text applies — raw bytes, or the values a JSON parse
@@ -1238,7 +1279,8 @@ export const BANNED_CLAIM_SCAN_PARTS: readonly {
     | "installReadme"
     | "skillSources"
     | "claudeAdapters"
-    | "pluginManifests";
+    | "pluginManifests"
+    | "guarantees";
   members: readonly string[];
 }[] = [
   { name: "kit", members: kitMarkdown() },
@@ -1247,13 +1289,15 @@ export const BANNED_CLAIM_SCAN_PARTS: readonly {
   { name: "skillSources", members: skillSourceMarkdown() },
   { name: "claudeAdapters", members: claudeAdapterMarkdown() },
   { name: "pluginManifests", members: pluginManifestMembers() },
+  { name: "guarantees", members: guaranteesMembers() },
 ];
 
 /**
  * The DEDUPED union of the two parts, sorted.
  *
- * The parts OVERLAP by exactly one member today — agent-factory/README.md is both a kit document
- * and a public document — and the overlap is real rather than a derivation bug. Deduping is what
+ * The parts OVERLAP by exactly two members today — agent-factory/README.md is both a kit document
+ * and a public document, and docs/GUARANTEES.md (plan 30-07) is both a public document and this
+ * gate's own named `guarantees` part — and both overlaps are real rather than a derivation bug. Deduping is what
  * makes a finding in that file one finding instead of two identical ones; the arithmetic
  * `kit + publicDocs - overlap = total` is reported in the PASS line so a reader can check it rather
  * than take it. Sorted, so two runs over one tree produce byte-identical output.
@@ -1341,13 +1385,28 @@ export function bannedClaimScanOverlap(): number {
  * and per group: plugin.json 0 (standard-name 0, token-economy 0, comprehension 0),
  * marketplace.json 0 (standard-name 0, token-economy 0, comprehension 0), group total 0.
  *
+ * MOVED AGAIN 117 → 118 IN PLAN 30-07, AND THE ENTRANT IS NAMED: `docs/GUARANTEES.md`, the D-17
+ * generated guarantees page. It enters TWICE — once through the `publicDocs` corpus (11 → 12) and
+ * once through this gate's own named `guarantees` part — so the OVERLAP moves 1 → 2 while the
+ * deduped total moves by one. That is the arithmetic the refusal below publishes, and it is the
+ * reason the overlap is reported rather than subtracted in silence.
+ *
+ * Read off this gate's own refusal on the intermediate build rather than computed by hand:
+ *
+ *   FAIL  the banned-claim scan set derived 118 document(s), expected exactly 117
+ *         (kit 73, publicDocs 12, installReadme 1, skillSources 7, claudeAdapters 24,
+ *          pluginManifests 2, guarantees 1, overlap 2)
+ *
+ * The admission test held: the run that moved the pin reported ZERO findings over 118/118 elements,
+ * so the entrant costs zero reds on correct text.
+ *
  * AND `kit` STAYED AT 73 ACROSS THE SAME BUILD, which is the number that proves the round's OTHER
  * change moved nothing: the walk now refuses to descend into a segment-class directory, and the
  * thirteen kit documents under agent-factory/seed/plans/ and agent-factory/seed/memory-bank/ are
  * still members. See the anchoring paragraph at BANNED_CLAIM_EXCLUDED_LOCATIONS for why those two
  * names are root-anchored and not segment classes.
  */
-export const BANNED_CLAIM_SCAN_COUNT = 117;
+export const BANNED_CLAIM_SCAN_COUNT = 118;
 
 // ---------------------------------------------------------------------------
 // The exemption region, located by EXACT heading line.

@@ -70,6 +70,9 @@ import {
   scanAnchoredDocument,
   anchoredBlockAt,
 } from "./audit-model.js";
+// (Plan 30-07) The generated guarantees page's path, taken from the generator that declares it —
+// the same import both gates make, so this harness cannot come to disagree with them.
+import { OUT as GUARANTEES_DOC } from "./generate-guarantees.js";
 import {
   BANNED_CLAIM_LITERALS,
   BANNED_CLAIM_SCAN_COUNT,
@@ -397,6 +400,48 @@ const DEFAULT_EXAMPLES = [
 ];
 const CHANGELOG = "CHANGELOG.md";
 const KIT_README = "agent-factory/README.md";
+// (Plan 30-07) The `guarantees` part's one member. Imported from the GENERATOR that declares it,
+// exactly as both gates do, so this harness cannot come to disagree with them about the path.
+const GUARANTEES = GUARANTEES_DOC;
+
+// ── PLAN 30-07: THE ONE MEMBER ADMITTED BY NAME UNDER AN EXCLUDED SEGMENT, AND WHY IT IS A ─────
+// ── FINDING RATHER THAN A QUIET WIDENING. ──────────────────────────────────────────────────────
+//
+// Two cases in this file assert that the live scan and the exclusion list do not overlap: one over
+// the coverage predicate, one over segment-class names below a member's root. Both were written
+// about members that arrive through a WALK, where an overlap means the walk descended somewhere it
+// was told not to and the guarantee has stopped holding.
+//
+// `docs/GUARANTEES.md` overlaps and did not arrive through a walk. `**/docs/` is enforced AT THE
+// POINT DESCENT IS DECIDED, and this member is contributed by a NAMED part that never walks — the
+// same mechanism as `install/README.md`, differing only in that its directory happens to carry an
+// exclusion entry. Nothing about the walk changed: `BANNED_CLAIM_EXCLUDED_LOCATIONS` is
+// byte-unchanged, `bannedClaimExcludedBy` is byte-unchanged, and no exception was carved into
+// either.
+//
+// WHAT DID CHANGE IS THIS FILE, AND THAT IS THE ACT BEING RECORDED. The two cases below now compare
+// against THIS ENUMERATED SET instead of against the empty array. That is a weaker statement than
+// "no member overlaps", and pretending otherwise would be the overstatement this milestone exists
+// to stop — so it is written down here, named in 30-07-SUMMARY.md as a finding, and bounded three
+// ways: the set is ENUMERATED (a second document does not join it by existing), its cardinality is
+// PINNED, and the WALK-DERIVED parts are asserted to contribute NOTHING to it, which is the
+// original predicate kept intact over the set it was written about.
+//
+// THE ALTERNATIVE, REJECTED WITH ITS REASON: carving `docs/GUARANTEES.md` out of the `**/docs/`
+// segment class would have deleted a fail-closed exclusion's meaning for every other path under
+// every `docs/` in the tree, in order to admit one file. Research offered a second disposition —
+// move the render to the repository root, where membership follows by construction — and D-17
+// records the path under `docs/`. Honouring the recorded path costs this enumerated exception; the
+// exception is the smaller error, and it is stated rather than absorbed.
+const ADMITTED_BY_NAME_UNDER_AN_EXCLUDED_SEGMENT: readonly string[] = [GUARANTEES];
+
+/** The parts whose members arrive through THIS module's walk. The exclusion's actual subject. */
+const WALK_DERIVED_PART_NAMES = [
+  "kit",
+  "skillSources",
+  "claudeAdapters",
+  "pluginManifests",
+] as const;
 const PROFILE = BANNED_CLAIM_EXEMPT_REGION.file;
 
 // (Round 6, WR-02) The three classes admitted this round. Each is a SEPARATE derived part in the
@@ -745,6 +790,12 @@ type MirrorSpec = {
   claudeAdapters?: string[];
   /** (Round 7, CR-02) Override the .claude-plugin/ part's members. `[]` empties the part. */
   pluginManifests?: string[];
+  /**
+   * (Plan 30-07) Omit docs/GUARANTEES.md — the `guarantees` part's vanished-file case. The page is
+   * a member of BOTH this gate's own named part and the imported public-docs corpus, so omitting it
+   * exercises the two refusal channels together, which is the shape a reader should meet.
+   */
+  omitGuarantees?: boolean;
   /** Per-path content overrides, keyed by the same repo-relative path the gate reports. */
   plant?: Record<string, string>;
 };
@@ -763,12 +814,18 @@ const PUBLIC_DOCS =
   DEFAULT_ROOT_DOCS.length + // the non-exempt root markdown files
   1 + // CHANGELOG.md — in the corpus, exempt only from the VOCABULARY gate
   DEFAULT_EXAMPLES.length +
-  1; // agent-factory/README.md, the kit README part
+  1 + // agent-factory/README.md, the kit README part
+  1; // (plan 30-07) docs/GUARANTEES.md, the corpus's fourth part
 const INSTALL_README_COUNT = 1;
 const SKILL_SOURCES = DEFAULT_SKILL_SOURCES.length;
 const CLAUDE_ADAPTERS = DEFAULT_CLAUDE_ADAPTERS.length;
 const PLUGIN_MANIFEST_COUNT = PLUGIN_MANIFESTS.length;
-const OVERLAP = 1; // agent-factory/README.md is in both parts
+const GUARANTEES_COUNT = 1; // (plan 30-07) docs/GUARANTEES.md, this gate's own named part
+// (Plan 30-07) TWO overlaps now, both named: agent-factory/README.md is in the kit part and the
+// public-docs part, and docs/GUARANTEES.md is in the public-docs part and this gate's own
+// `guarantees` part. The second membership is deliberate — see the part's own reasoning in the
+// gate — and the overlap is counted rather than subtracted in silence.
+const OVERLAP = 2;
 const FILLER_COUNT =
   BANNED_CLAIM_SCAN_COUNT -
   (KIT_NAMED +
@@ -776,7 +833,8 @@ const FILLER_COUNT =
     INSTALL_README_COUNT +
     SKILL_SOURCES +
     CLAUDE_ADAPTERS +
-    PLUGIN_MANIFEST_COUNT -
+    PLUGIN_MANIFEST_COUNT +
+    GUARANTEES_COUNT -
     OVERLAP);
 
 function defaultFillers(): string[] {
@@ -835,6 +893,11 @@ function makeMirror(prefix: string, spec: MirrorSpec = {}): string {
   // absent too, which is the shape the gate's own named refusal is about.
   for (const f of spec.pluginManifests ?? PLUGIN_MANIFESTS)
     write(f, CLEAN_MANIFEST);
+  // (Plan 30-07) The seventh part. Written under docs/ — which is a SEGMENT-CLASS exclusion for the
+  // WALK — because this member arrives by NAME and not through a walk. The two are different
+  // mechanisms, and the distinction is asserted directly by the segment-class case near the end of
+  // this file.
+  if (spec.omitGuarantees !== true) write(GUARANTEES);
   return mirror;
 }
 
@@ -1675,7 +1738,9 @@ describe("check-banned-claims — the imported corpus's derivation-refusal chann
       .length;
     const pushes = (src.match(/DERIVATION_REFUSALS\.push\(/g) ?? []).length;
     expect(decl).toBe(1);
-    expect(pushes).toBe(3);
+    // 3 → 4 (plan 30-07): the `guarantees` part's named refusal for a missing docs/GUARANTEES.md,
+    // the fourth push site in that module. The number moves in the SAME commit that adds the site.
+    expect(pushes).toBe(4);
     // The prose mention must be GONE from the stripped text but PRESENT in the raw text — the two
     // halves together prove the strip removed comments and only comments.
     expect(raw).toContain("`DERIVATION_REFUSALS.push` sites");
@@ -2731,6 +2796,62 @@ describe("check-banned-claims — CHANGELOG.md is INSIDE the scan set (round 6, 
     expect(stdout).not.toContain("ALL CHECKS PASSED");
   });
 
+  it("PLANT: a banned literal in docs/GUARANTEES.md is named at file:line:column", () => {
+    // ── PLAN 30-07, AND THE FINDING IT CLOSES IN ADVANCE ──────────────────────────────────────
+    //
+    // §F-6 of this phase's research measured `docs/GUARANTEES.md` as born OUTSIDE both claim gates:
+    // `**/docs/` is a segment-class exclusion here, and the page is a member of none of the
+    // public-docs corpus's three parts as they stood. That is the CHANGELOG.md finding one level up
+    // — a public document whose entire subject is safety claims, unscanned — and the deferral would
+    // have BEEN the defect. So the membership lands in the same plan that creates the document, and
+    // it is proven the way the changelog's is: by PLANTING, not by inspecting a parts array. An
+    // assertion that the array contains the path proves the array contains the path.
+    const { status, stdout } = runGate(
+      makeMirror("gops-banned-guarantees-", {
+        plant: { [GUARANTEES]: CHANGELOG_PLANT },
+      }),
+    );
+    expect(status).toBe(1);
+    expect(stdout).toContain(
+      `${GUARANTEES}:${CHANGELOG_PLANT_AT.line}:${CHANGELOG_PLANT_AT.column} — ` +
+        `banned ${TOKEN_CLAIM.group} literal "${TOKEN_CLAIM.literal}"`,
+    );
+    // Exactly one finding: the plant, and no second one smuggled in by the fixture.
+    expect(findingCount(stdout)).toBe(1);
+    expect(stdout).not.toContain("ALL CHECKS PASSED");
+  });
+
+  it("CONTROL: the SAME mirror without the plant exits 0 — the red above is the plant's", () => {
+    const { status, stdout } = runGate(makeMirror("gops-banned-guarantees-control-"));
+    expect(status).toBe(0);
+    expect(stdout).toContain("ALL CHECKS PASSED");
+  });
+
+  it("REPORTS a missing docs/GUARANTEES.md by name rather than dying with a stack trace", () => {
+    const { status, stdout } = runGate(
+      makeMirror("gops-banned-noguarantees-", { omitGuarantees: true }),
+    );
+    expect(status).toBe(1);
+    expect(stdout).toContain(GUARANTEES);
+    expect(stdout).toMatch(/refusing to report a verdict/);
+    // A stack trace is not a verdict — the sibling assertion in check-audit-register.test.ts.
+    expect(stdout).not.toMatch(/at Object\.|node:internal|ENOENT/);
+    // BOTH channels report it: this gate's own named part, and the imported corpus's derivation
+    // refusal raised inside check-public-docs-vocabulary.ts. The second is the channel round 6
+    // found being dropped on the floor, so its presence is asserted rather than assumed.
+    expect(stdout).toContain(
+      'the "guarantees" part of the banned-claim scan set derived ZERO members',
+    );
+    expect(stdout).toContain("public-document corpus derivation refused");
+  });
+
+  it("docs/GUARANTEES.md is a MEMBER of the live derived scan set, and the pin counts it", () => {
+    const live = bannedClaimScan();
+    expect(live).toContain(GUARANTEES);
+    expect(live.length).toBe(BANNED_CLAIM_SCAN_COUNT);
+    expect(live.length).toBeGreaterThan(1);
+  });
+
   it("the changelog is a MEMBER of the derived scan set, and the pin counts it", () => {
     // The membership half, stated over the LIVE tree rather than inferred from the finding above.
     // Deliberately NOT the mirror: the finding case already proves the mirror's changelog is read,
@@ -3188,10 +3309,23 @@ describe("check-banned-claims — an excluded directory is excluded WHEREVER it 
     // among its directory components. The day the kit ships an `agent-factory/**/docs/`, this reds
     // rather than the walk silently dropping it.
     const segs = bannedClaimExcludedSegments();
-    const offenders = bannedClaimScan().filter((m) =>
-      m.split("/").slice(0, -1).some((c) => segs.includes(c)),
-    );
-    expect(offenders).toEqual([]);
+    const offenders = bannedClaimScan()
+      .filter((m) => m.split("/").slice(0, -1).some((c) => segs.includes(c)))
+      .sort();
+    // (Plan 30-07) The enumerated admission set, for the reason recorded in full at that constant.
+    // The property this case is named for is unchanged for every member that arrives through a
+    // WALK; the assertion immediately below is that half, kept exact.
+    expect(offenders).toEqual([...ADMITTED_BY_NAME_UNDER_AN_EXCLUDED_SEGMENT].sort());
+    const walkDerived = BANNED_CLAIM_SCAN_PARTS.filter((p) =>
+      (WALK_DERIVED_PART_NAMES as readonly string[]).includes(p.name),
+    ).flatMap((p) => [...p.members]);
+    expect(walkDerived.length, "the walk-derived set must be non-empty, or the assertion below is vacuous").toBeGreaterThan(0);
+    expect(
+      walkDerived.filter((m) =>
+        m.split("/").slice(0, -1).some((c) => segs.includes(c)),
+      ),
+      "a WALK-derived member carrying a segment-class name below its root means the walk descended somewhere it was told not to — the day the kit ships an agent-factory/**/docs/, this is the line that reds",
+    ).toEqual([]);
     // AND THE MEASUREMENT THAT MAKES THE THREE-KIND RULE NECESSARY, asserted rather than recounted:
     // the two root-anchored names DO occur below the root of live scan members.
     const seedMembers = bannedClaimScan().filter((m) =>
@@ -3234,7 +3368,10 @@ describe("check-banned-claims — vacuity is refused by name, per part, before t
   it("refuses a publicDocs part that derives ZERO members, by its own name", () => {
     // BOTH parts are asserted, because a floor proven on one says nothing about the other — and the
     // floor is per-part precisely so one part emptying out cannot hide behind the other's members.
-    const mirror = makeMirror("gops-banned-vacuous-pub-");
+    // (Plan 30-07) `omitGuarantees` because docs/GUARANTEES.md is a member of the imported
+    // public-docs corpus too: leaving it in place would keep that part at one member and this case
+    // would assert a floor that never fired.
+    const mirror = makeMirror("gops-banned-vacuous-pub-", { omitGuarantees: true });
     for (const f of [...DEFAULT_ROOT_DOCS, CHANGELOG])
       rmSync(join(mirror, f), { force: true });
     rmSync(join(mirror, "examples"), { recursive: true, force: true });
@@ -3321,6 +3458,7 @@ describe("check-banned-claims — the derived pin against the live tree", () => 
       "skillSources",
       "claudeAdapters",
       "pluginManifests",
+      "guarantees",
     ]);
     for (const part of BANNED_CLAIM_SCAN_PARTS) {
       expect(part.members.length).toBeGreaterThan(0);
@@ -3339,8 +3477,35 @@ describe("check-banned-claims — the derived pin against the live tree", () => 
     // `startsWith` written here. The prefix test this line used to perform is exactly the one the
     // reviewer's nested plant walked through: it is TRUE of no entry for `.claude/worktrees/x/docs/`,
     // so it stayed green while the guarantee it claims to hold stopped holding.
-    for (const member of bannedClaimScan()) {
+    // (Plan 30-07) The comparison is against the ENUMERATED admission set rather than against the
+    // empty array, for the reason recorded in full at that constant. Exact equality in both
+    // directions: a SECOND document admitted under an excluded segment reds here until someone
+    // writes down why, which is the same discipline BANNED_CLAIM_EXCLUDED_LOCATIONS itself carries.
+    const overlapping = bannedClaimScan()
+      .filter((m) => bannedClaimExcluded(m))
+      .sort();
+    expect(overlapping).toEqual([...ADMITTED_BY_NAME_UNDER_AN_EXCLUDED_SEGMENT].sort());
+    // …AND THE CARDINALITY, PINNED, so the equality above cannot be satisfied by both sides
+    // emptying out together.
+    expect(ADMITTED_BY_NAME_UNDER_AN_EXCLUDED_SEGMENT.length).toBe(1);
+
+    // THE ORIGINAL PREDICATE, KEPT EXACTLY, OVER THE SET IT WAS WRITTEN ABOUT. The exclusion is
+    // enforced at the walk, so the walk's own members must still overlap it NOWHERE. A widened
+    // comparison that stopped asking this would have traded a real guarantee for one admission.
+    const walkDerived = new Set(
+      BANNED_CLAIM_SCAN_PARTS.filter((p) =>
+        (WALK_DERIVED_PART_NAMES as readonly string[]).includes(p.name),
+      ).flatMap((p) => [...p.members]),
+    );
+    expect(walkDerived.size, "the walk-derived set must be non-empty, or the assertion below is vacuous").toBeGreaterThan(0);
+    for (const member of walkDerived) {
       expect(bannedClaimExcluded(member), member).toBe(false);
+    }
+
+    // And the self-exclusion the case is named for, stated as itself: this module declares every
+    // literal it bans, so scripts/ must never be a member under any derivation.
+    for (const member of bannedClaimScan()) {
+      expect(member.startsWith("scripts/"), member).toBe(false);
     }
   });
 

@@ -89,6 +89,10 @@ import {
 // restated as a second 10000. kit-model's own comment records why a per-path cycle answer cannot
 // bound a walk; the same argument applies to any directory a contributor can add files to.
 import { MAX_WALK_ENTRIES } from "./kit-model.js";
+// The generated guarantees page's path, taken from the module that DECLARES it. A second literal
+// here would be two spellings of one path, and a rename would move only one of them — the exact
+// set-literal drift this repository has already paid for twice. See the `guarantees` part below.
+import { OUT as GUARANTEES_DOC } from "./generate-guarantees.js";
 
 // CHECK_ROOT override is load-bearing: the Vitest harness builds a hermetic mirror and points
 // CHECK_ROOT at it, then spawns this committed .js against the mirror. When unset, resolve every
@@ -157,10 +161,17 @@ const KIT_README = "agent-factory/README.md";
 // never to weaken the assertion.
 //
 // docs/initial/ and docs/design/ are exempt STRUCTURALLY, by never being members of the derived
-// set: the derivation reaches root markdown files, examples/ and one named kit document, and
-// nothing under docs/. They carry handoff prose as design-history record for the same reason
-// CHANGELOG.md does, and they are recorded here so their absence reads as a decision rather than
-// as an oversight.
+// set: the derivation reaches root markdown files, examples/, one named kit document and one named
+// GENERATED document, and nothing else under docs/. They carry the retired relay prose as
+// design-history record for the same reason CHANGELOG.md does, and they are recorded here so their
+// absence reads as a decision rather than as an oversight.
+//
+// THE ONE NAMED DOCUMENT UNDER docs/ IS `docs/GUARANTEES.md` (plan 30-07), and it is a member
+// rather than an exemption. It is a PUBLIC document — the page stating which safety claims still
+// hold on this repository — and it is GENERATED, so retired vocabulary reaching it would mean the
+// generator is writing it. A brand-new public document born outside this gate is the shape of the
+// CHANGELOG.md finding this header records one paragraph up; the deferral IS the defect, so the
+// membership lands in the same plan that creates the document.
 // ---------------------------------------------------------------------------
 export const PUBLIC_DOCS_EXEMPT: readonly string[] = ["CHANGELOG.md"];
 
@@ -258,7 +269,7 @@ export function grepSubstringInsensitive(
 }
 
 // ---------------------------------------------------------------------------
-// THE DERIVED SCAN SET — three parts, each self-deriving, none hand-listed.
+// THE DERIVED SCAN SET — four parts, each self-deriving, none hand-listed.
 //
 // A hand-listed file array here would be the set-literal drift defect landing INSIDE the phase
 // auditing for set-literal drift. The derivation fails CLOSED: a new public document carrying
@@ -328,6 +339,33 @@ function kitReadmeMembers(): string[] {
   return [KIT_README];
 }
 
+// Part `guarantees`: one named member, and the name is IMPORTED rather than written (plan 30-07).
+//
+// `docs/GUARANTEES.md` is the D-17 generated page joining the claim registry's `kind: safety` rows
+// to the live checkpoint matrix. It is public, it ships, and its whole subject is safety claims —
+// which makes it the single document in this tree where retired vocabulary would do the most
+// damage and the one most obviously born outside a scan set.
+//
+// THE PATH IS THE GENERATOR'S OWN DECLARATION, imported as `GUARANTEES_DOC`. This module writes no
+// second literal of it, so a rename moves the scan member and the render together or not at all.
+//
+// DERIVED AGAINST THE DISK, for `kitReadmeMembers()`'s two recorded reasons and no others: the
+// per-part vacuity floor can never fire for a literal part, so returning [] on an absent file is
+// the only way this gate notices the page is gone; and `grepSubstring` calls `readText()`
+// unguarded, so an absent file would otherwise kill the gate with a node:internal stack trace
+// instead of a verdict.
+function guaranteesMembers(): string[] {
+  if (!existsSync(abs(GUARANTEES_DOC))) {
+    DERIVATION_REFUSALS.push(
+      `${GUARANTEES_DOC} is a NAMED member of the public-docs scan set and does not exist at ` +
+        `${abs(GUARANTEES_DOC)} — refusing to report a verdict over a part whose one member could ` +
+        `not be read. A missing document is not a clean one`,
+    );
+    return [];
+  }
+  return [GUARANTEES_DOC];
+}
+
 // ---------------------------------------------------------------------------
 // ONE DERIVATION, TWO QUESTIONS, AND THE SUBTRACTION AT EXACTLY ONE PLACE (round 6 / CR-01).
 //
@@ -347,12 +385,13 @@ function kitReadmeMembers(): string[] {
 // consumer must now NAME which question it is asking, and the two names differ.
 // ---------------------------------------------------------------------------
 export const PUBLIC_DOCS_CORPUS_PARTS: readonly {
-  name: "root" | "examples" | "kitReadme";
+  name: "root" | "examples" | "kitReadme" | "guarantees";
   members: readonly string[];
 }[] = [
   { name: "root", members: rootMarkdown() },
   { name: "examples", members: examplesMarkdown() },
   { name: "kitReadme", members: kitReadmeMembers() },
+  { name: "guarantees", members: guaranteesMembers() },
 ];
 
 /**
@@ -384,9 +423,10 @@ export function publicDocsCorpus(): string[] {
  * a derivation had refused.
  *
  * WHAT THIS CHANNEL ENUMERATES, AND WHAT BOUNDS IT. The set is *the refusals the public-docs corpus
- * derivation raised in this process*. It is derived by the three `DERIVATION_REFUSALS.push` sites
- * above — an unreadable repository root, a walk that exceeded its entry budget, and a missing
- * `agent-factory/README.md`. **Nothing pins its count, and nothing should:** a refusal count is an
+ * derivation raised in this process*. It is derived by the four `DERIVATION_REFUSALS.push` sites
+ * above — an unreadable repository root, a walk that exceeded its entry budget, a missing
+ * `agent-factory/README.md`, and (plan 30-07) a missing `docs/GUARANTEES.md`. **Nothing pins its
+ * count, and nothing should:** a refusal count is an
  * EVENT count, not a set cardinality, so there is no correct number for it to be compared against
  * and a vacuity floor over it would fail on every healthy run. This is stated plainly rather than
  * left for a reader to infer that a missing pin is an oversight.
@@ -408,7 +448,7 @@ export function publicDocsDerivationRefusals(): readonly string[] {
 // breakdown, and a subtraction applied only to the concatenation would print a breakdown whose sum
 // disagreed with the total standing next to it.
 export const PUBLIC_DOCS_SCAN_PARTS: readonly {
-  name: "root" | "examples" | "kitReadme";
+  name: "root" | "examples" | "kitReadme" | "guarantees";
   members: readonly string[];
 }[] = PUBLIC_DOCS_CORPUS_PARTS.map((p) => ({
   name: p.name,
@@ -426,8 +466,18 @@ export function publicDocsScan(): string[] {
   return PUBLIC_DOCS_SCAN_PARTS.flatMap((p) => [...p.members]);
 }
 
-// The pinned cardinality OF THE SCAN. 10 today: 4 root markdown files (5 in the corpus, minus the
-// CHANGELOG.md exemption) + 5 examples + 1 kit README.
+// The pinned cardinality OF THE SCAN. 11 today: 4 root markdown files (5 in the corpus, minus the
+// CHANGELOG.md exemption) + 5 examples + 1 kit README + 1 generated guarantees page.
+//
+// MOVED 10 -> 11 IN PLAN 30-07, AND THE ENTRANT IS NAMED RATHER THAN LEFT AS ARITHMETIC:
+// `docs/GUARANTEES.md`. Read off this gate's own refusal on the intermediate build rather than
+// computed by hand, which is this repository's rule for a moved pin:
+//
+//   FAIL  the public-docs scan set derived 11 document(s), expected exactly 10
+//         (root 4, examples 5, kitReadme 1, guarantees 1)
+//
+// That run reported ZERO retired-vocabulary hits, which is the admission test: the entrant costs
+// zero reds on correct text.
 //
 // THE CORPUS CARRIES NO SECOND PIN, AND THAT IS ARITHMETIC RATHER THAN AN OVERSIGHT. The corpus and
 // the scan differ by exactly PUBLIC_DOCS_EXEMPT, which is a frozen one-member array: a corpus that
@@ -436,7 +486,7 @@ export function publicDocsScan(): string[] {
 // The corpus is additionally pinned from the other side by BANNED_CLAIM_SCAN_COUNT, which is
 // two-sided over a union this corpus is half of. A third pin would be a number to maintain, not a
 // question nobody is asking.
-export const PUBLIC_DOCS_SCAN_COUNT = 10;
+export const PUBLIC_DOCS_SCAN_COUNT = 11;
 
 // ---------------------------------------------------------------------------
 // The check.
