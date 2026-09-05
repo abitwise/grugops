@@ -548,7 +548,7 @@ describe("30-10 B-8 — the corpus/scan consumer split is derived and its direct
     readonly why: string;
   }[] = [
     {
-      module: "check-banned-claims.ts",
+      module: "scripts/check-banned-claims.ts",
       accessor: "publicDocsCorpus",
       why:
         "it asks WHICH DOCUMENTS ARE PUBLIC. A conformance, token-economy or comprehension-benefit " +
@@ -556,7 +556,7 @@ describe("30-10 B-8 — the corpus/scan consumer split is derived and its direct
         "has no bearing on it. Taking the scan here is the recorded CR-01 defect and it fails OPEN.",
     },
     {
-      module: "check-audit-register.ts",
+      module: "scripts/check-audit-register.ts",
       accessor: "publicDocsScan",
       why:
         "it uses the set as a VOUCHING set — a registry-arm file must be a member or the gate " +
@@ -608,7 +608,16 @@ describe("30-10 B-8 — the corpus/scan consumer split is derived and its direct
       // The module must reach this authority at all — a name coincidence in an unrelated file is
       // not a consumer, and a module that imports it is one however it spells the call.
       if (!code.includes(AUTHORITY)) continue;
-      const m = rel.split("/").pop() as string;
+      // KEYED BY REPO-RELATIVE PATH, NOT BY BASENAME (plan 30-10, round 3, finding R4-2). F5 widened
+      // this module set from one flat directory to the whole repository and left the identity key as
+      // the basename. In one directory basenames are unique; across a tree they are not, so a
+      // consumer at ANY path whose basename matched a declared one folded onto that row and was
+      // reported as declared. Measured: `hooks/check-audit-register.ts`, importing the authority and
+      // calling `publicDocsScan()`, left this case at 24 passed — while the identical bytes at a
+      // distinct basename reddened it. A declared row now pins a LOCATION as well as a direction,
+      // which is the correct direction: a module move is exactly when the direction argument should
+      // be re-read, and the `vanished` message already names the row a mover must update.
+      const m = rel;
       let named = 0;
       for (const accessor of ["publicDocsCorpus", "publicDocsScan"] as const) {
         if (new RegExp(`\\b${accessor}\\b`).test(code)) {

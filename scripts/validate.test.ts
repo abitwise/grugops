@@ -955,3 +955,55 @@ describe("30-10 R2 F1 — the fallback base is a KIT root BY CONSTRUCTION, asser
     expect(body).toContain("governanceConfigCandidates");
   });
 });
+
+describe("30-10 R4-3 — the run NAMES the governance positions it examined", () => {
+  it("the SCOPE line names every governance config the run form-checked", () => {
+    const { kit, state } = twoRoots();
+    for (const [base, id] of [[kit, "kit_scope_id"], [state, "state_scope_id"]] as const) {
+      mkdirSync(join(base, ".grugops"), { recursive: true });
+      writeFileSync(
+        join(base, ".grugops", "factory.config.json"),
+        JSON.stringify({ mode: "lean", cadence: "kanban", checkpoints: { [id]: "off" } }),
+      );
+    }
+    const o = out(runSplit(kit, state));
+    expect(o).toMatch(/SCOPE\s+governance configurations examined:/);
+    expect(o).toContain(".grugops/factory.config.json");
+    expect(o).toContain("agent-factory/config/factory.config.json");
+  });
+
+  it("with NO state root supplied the run SAYS which class it did not examine", () => {
+    // R4-3's own shape: the state root defaults to this script's tree, both bases resolve to it, and
+    // a repository-level config elsewhere is checked at no base. The run no longer reports a clean
+    // verdict without naming that — which is the property the finding is about.
+    const r = spawnSync("node", [VALIDATOR_JS], {
+      encoding: "utf8",
+      env: (() => {
+        const e = { ...process.env, VALIDATE_KIT_ROOT: ROOT };
+        delete e.VALIDATE_ROOT;
+        return e;
+      })(),
+    });
+    expect(r.status).toBe(0);
+    expect(out(r)).toMatch(/VALIDATE_ROOT was not supplied/);
+    expect(out(r)).toMatch(/was NOT examined/);
+    expect(out(r)).toMatch(/Pass VALIDATE_ROOT=<repo>/);
+  });
+
+  it("with a DISTINCT state root supplied the run makes no such statement", () => {
+    // The other arm, two-sided: the caveat is about the DEFAULT, so an operator who supplied a state
+    // root must not be told their repository was skipped.
+    const { kit, state } = twoRoots();
+    const o = out(runSplit(kit, state));
+    expect(o).toMatch(/SCOPE\s+governance configurations examined:/);
+    expect(o).not.toMatch(/VALIDATE_ROOT was not supplied/);
+  });
+
+  it("a run that examined NO governance config says so rather than listing nothing", () => {
+    const kit = mkdtempSync(join(tmpdir(), "grugops-val-nocfg-"));
+    tmpDirs.push(kit);
+    mkdirSync(join(kit, "agent-factory"), { recursive: true });
+    const o = out(runSplit(kit, kit));
+    expect(o).toMatch(/governance configurations examined: none/);
+  });
+});

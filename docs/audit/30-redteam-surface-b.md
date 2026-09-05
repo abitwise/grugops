@@ -1791,3 +1791,177 @@ directory carries no alias, and a re-derivation of F6's own bound against the ne
 | mutant | outcome |
 |---|---|
 | the alias set emptied | **KILLED** — 5 failed |
+
+---
+
+## R4-1 — the residual section had no independent denominator
+
+### What it is
+
+The render carries two independent denominators — `declaredSafetyRows` and `declaredDroppedRows`,
+each a raw byte pass sharing no parser with the join. The residual section had **neither**. Its only
+floor was `body.length === 0` inside the parse — a vacuity floor over an EMPTY denominator, which
+never sees a SILENTLY SHORT one — and the harness case that looked like the guard took its
+denominator from that same parse, so both sides moved together. B-6's shape at the one `tableUnder`
+consumer that feeds a published document.
+
+`readResidualAdditions` locates the additions table by FIRST unfenced exact heading, so a row written
+under a repeated heading, a renderer-identical near-miss, or a `…, continued` heading was silently
+unpublished: the reviewer measured `residual rows parsed = 2`, `published = 2`, the planted row absent
+from `docs/GUARANTEES.md`, the generator at exit 0, freshness fresh and 168 tests passing.
+
+### RED first
+
+```
+ Tests  6 failed | 46 passed (52)
+ × a row under a REPEATED additions heading is refused, not silently unpublished
+ × a row under a NEAR-MISS additions heading is refused too
+ × a row under a `, continued` heading is refused — the byte pass sees it, the parse does not
+ × the LIVE register agrees — the byte pass and the parse name the same rows
+ × the two passes share no parser — the byte pass is a raw line read
+ × `commit_to_branch: block` is stricter than its default and is NOT published as lowered  (obs. 1)
+```
+
+### The structural fix, in one sentence
+
+**The residual section gets the denominator its two siblings already have** — `declaredResidualRows`,
+a raw line pass over the register's bytes that calls no parser — and the comparison is by
+**MEMBERSHIP**, not cardinality, because a set short by exactly the rows that matter has the same size
+as one short by any two.
+
+### What NEW freedom this creates, and how it is bounded
+
+**A `HISTORICAL_RESIDUAL_ROWS = 8` boundary** separating the register's original table from Phase
+30's additions — a hand-written number. It is bounded by the live agreement case (the byte pass and
+the parse name the same rows on the real register, asserted), by the byte pass being deliberately
+FENCE- and HEADING-BLIND so its disagreements are refusals rather than silences, and by a source
+assertion that the pass calls neither `readResidualAdditions` nor `tableUnder` — which is what makes
+the equality evidence rather than a tautology.
+
+### Mutation proof
+
+| mutant | outcome |
+|---|---|
+| the membership comparison disabled | **KILLED** — 3 failed |
+
+---
+
+## Reviewer 4 observation 1 — a TIGHTENED checkpoint was published as LOWERED
+
+Not a finding — the direction is over-statement, not permission — but taken in this round as a
+correctness item, because it is **a false sentence in the one document whose subject is which
+sentences stopped being true**, and it is reachable by a legitimate configuration.
+
+`loweredCheckpoints` and `guaranteesJoin` both tested `value !== fallback`, which is "different", not
+"lower". `commit_to_branch` is the only roster member whose documented default is not `block`, so
+declaring it `block` — a *stricter* posture — published
+`**LOWERED: 1 checkpoint(s) sit below their documented default on this tree.**` and named
+`GRUGOPS_FLOOR_COMMIT_TO_BRANCH` as authorizing it.
+
+**The fix:** the ternary is ordered — `block` < `notify` < `off` — and that order is what "lowered"
+already means everywhere else in this phase. The rank is declared once and both call sites ask it.
+The case asserts both arms: a tightening publishes no `LOWERED` line and names no grant variable, and
+a genuine lowering still does. Mutant `isLowered` → `!==` **KILLED**.
+
+---
+
+## R4-2 — the consumer-split pin keyed by BASENAME over a whole-repository module set
+
+### What it is
+
+F5 widened the module set from one flat directory to the whole repository and left the identity key
+as the basename. In one directory basenames are unique; across a tree they are not.
+
+### Mirror reproduction
+
+`hooks/check-audit-register.ts` — same basename as the declared `scripts/check-audit-register.ts` —
+importing the authority and calling `publicDocsScan()`:
+
+```
+$ # MIRROR (the committed round-2 pin at HEAD)
+      Tests  24 passed (24)          exit 0 — folded onto the declared row
+$ # CURRENT TREE (path key)
+AssertionError: consumer(s) … with no declared direction:
+  [hooks/check-audit-register.ts::publicDocsScan]
+      Tests  1 failed | 23 passed (24)   exit 1
+```
+
+### The structural fix, in one sentence
+
+**Consumers are keyed by repo-relative path**, and the declared rows carry paths.
+
+### What NEW freedom this creates, and how it is bounded
+
+**A declared row now pins a LOCATION as well as a direction, so a legitimate module move reds the
+pin.** That is the correct direction — a move is exactly when the direction argument should be
+re-read — and it is bounded by the existing `vanished` message, which already names the row a mover
+must update.
+
+---
+
+## R4-3 — the state root's back-compat default aliases the kit in a shared install
+
+### What it is
+
+`STATE_ROOT` falls back to `resolve(SCRIPT_DIR, "..")` — "the repo root (back-compat)". In the shared
+install this project shipped in v1.1 that is the KIT, so under the validator's own documented
+single-root invocation `GOVERNANCE_BASES` becomes `[kit, kit]`, the dedupe collapses them, and the
+repository's `.grugops/factory.config.json` — the file the reader governs from — is form-checked at
+no base.
+
+### The premise and the mirror
+
+```
+premise: readGovernanceConfig(<repo>) → source=ok  test_integrity=off
+$ # MIRROR (committed .js at HEAD), single-root documented form, from the repo
+ALL CHECKS PASSED
+$ # the SAME bytes, two-root form
+4 ERROR(S)
+```
+
+### Why this is REPORTED rather than REFUSED, stated rather than preferred
+
+A refusal needs a predicate separating "the kit and the state tree genuinely coincide" (the in-repo
+dev checkout, where the default is correct) from "the state root silently aliased the kit" (the
+shared install). **The validator's inputs do not contain one:** in both cases
+`resolve(SCRIPT_DIR, "..") === KIT_ROOT`, because in both cases the operator runs the kit's own
+script. `process.cwd()` would distinguish them and has never been an input to this gate — and every
+fixture in `validate.test.ts` spawns with the repository as cwd against a temp kit, so a cwd rule
+would refuse thirty legitimate runs. Inventing a discriminator the gate cannot compute is how a
+round-three fix becomes a round-four finding.
+
+### The structural fix, in one sentence
+
+**The run publishes the governance positions it examined**, and when no state root was supplied says
+that both bases resolved to one tree and that a repository-level configuration outside it was NOT
+examined, naming the remedy — so `ALL CHECKS PASSED` over an unexamined governing file becomes
+`ALL CHECKS PASSED` beside a statement of exactly what was and was not checked.
+
+```
+$ # CURRENT TREE (fixed), the same shared-install invocation
+  SCOPE    governance configurations examined: agent-factory/config/factory.config.json;
+           VALIDATE_ROOT was not supplied, so the state root defaulted to this script's own tree and
+           both bases resolved to it — a repository-level .grugops/factory.config.json outside that
+           tree was NOT examined. Pass VALIDATE_ROOT=<repo> to check it.
+ALL CHECKS PASSED
+```
+
+**There is no exit-0/exit-1 mirror pair for this one, and that is stated rather than manufactured** —
+the repair removes the property the finding names (a verdict over an unstated scope) without changing
+the verdict, exactly as B-6's did. The exit-status pair that *does* exist is the one the reviewer
+measured: identical bytes, `ALL CHECKS PASSED` single-root versus `4 ERROR(S)` two-root, and after
+this change the single-root run says why.
+
+### What NEW freedom this creates, and how it is bounded
+
+**A line printed on every run, which a later reader could weaken without any test noticing.** Bounded
+four ways, all asserted two-sided: the line names every examined position (both bases' drops plus the
+in-kit config, driven over distinct roots); the caveat appears when `VALIDATE_ROOT` is unset; the
+caveat does NOT appear when a distinct state root is supplied; and a run that examined no governance
+config says `none` rather than listing nothing.
+
+### Mutation proof
+
+| mutant | outcome |
+|---|---|
+| `stateRootSupplied` forced true — the caveat suppressed | **KILLED** — 1 failed / 81 passed |

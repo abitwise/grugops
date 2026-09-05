@@ -271,6 +271,63 @@ export function declaredDroppedRows(root = DEFAULT_ROOT) {
     return out;
 }
 /**
+ * THE INDEPENDENT RESIDUAL DENOMINATOR. Which addition-row NUMBERS the register's BYTES declare.
+ *
+ * ---------------------------------------------------------------------------------------------
+ * WHY IT EXISTS (plan 30-10, round 3, finding R4-1). This render carries two independent
+ * denominators — `declaredSafetyRows` for the safety join and `declaredDroppedRows` for the dropped
+ * set — and the residual section had NEITHER. Its only floor was `body.length === 0` inside the
+ * parse: a vacuity floor over an EMPTY denominator, which never sees a SILENTLY SHORT one. And the
+ * harness case that looked like the guard took its denominator from the SAME parse, so both sides
+ * moved together — B-6's shape, at the one `tableUnder` consumer that feeds a published document.
+ *
+ * `readResidualAdditions` locates the table by FIRST unfenced exact heading. Measured on the
+ * committed artifact: a row written under a repeated heading, a renderer-identical near-miss, or a
+ * `…, continued` heading parsed as 2 rows, published 2 rows, and left the generator at exit 0, the
+ * freshness gate reporting fresh and every gate green — the register recording a residual the page
+ * whose job is to name what the project does not close never named.
+ *
+ * WHAT IT ENUMERATES, AND WHY ITS BLINDNESS IS THE SAFE DIRECTION. Every line of the register whose
+ * first table cell is a bare integer GREATER THAN the historical eight-row table's last row. It is
+ * FENCE-BLIND and HEADING-BLIND, exactly like its two siblings: a row written inside a fenced
+ * example, or under any heading at all, is counted here and not by the parse, the two sets disagree
+ * by MEMBERSHIP, and the render REFUSES. Teaching it the parser's grammar would make it a copy of
+ * the parser rather than an independent witness.
+ *
+ * MEMBERSHIP, NOT CARDINALITY — the `declaredDroppedRows` construction, for the same reason: a set
+ * that is short by exactly the rows that matter has the same size as one that is short by any two.
+ * ---------------------------------------------------------------------------------------------
+ */
+export function declaredResidualRows(root = DEFAULT_ROOT) {
+    let text;
+    try {
+        text = readFileSync(join(root, RESIDUAL_PATH), "utf8");
+    }
+    catch (e) {
+        throw new Error(`generate-guarantees: cannot read the residual register at ${join(root, RESIDUAL_PATH)} — ` +
+            `refusing to report a residual-row set that was not read (${e.message})`);
+    }
+    const out = [];
+    for (const raw of text.split("\n")) {
+        const line = raw.replace(/\r$/, "").trim();
+        if (!line.startsWith("|"))
+            continue;
+        const first = line.slice(1, line.indexOf("|", 1) === -1 ? undefined : line.indexOf("|", 1)).trim();
+        if (!/^\d+$/.test(first))
+            continue;
+        if (Number.parseInt(first, 10) <= HISTORICAL_RESIDUAL_ROWS)
+            continue;
+        out.push(first);
+    }
+    return out;
+}
+/**
+ * The last row number of the register's ORIGINAL eight-row table. Rows above it are Phase 30's
+ * additions — the ones this render publishes — and rows at or below it are the historical record
+ * the additions table continues the numbering of.
+ */
+const HISTORICAL_RESIDUAL_ROWS = 8;
+/**
  * THE GENERATED DISCLOSURE — D-18's replacement text for a dropped claim.
  *
  * A PURE FUNCTION OF ONE JOINED ROW. No file read, no environment read, no clock: two calls with
@@ -379,7 +436,7 @@ export function guaranteesJoin(root = DEFAULT_ROOT) {
             // outside SAFETY_FLOORS, and SAFETY_FLOORS is what the roster derives its floor tier from —
             // but the render states the strictest value rather than `undefined` if it ever did.
             const value = held ?? "block";
-            return { id, held: value, lowered: fallback !== undefined && value !== fallback };
+            return { id, held: value, lowered: isLowered(value, fallback) };
         });
         rows.push({
             claimId: claim.id,
@@ -391,13 +448,40 @@ export function guaranteesJoin(root = DEFAULT_ROOT) {
     }
     return rows.sort((a, b) => (a.claimId < b.claimId ? -1 : a.claimId > b.claimId ? 1 : 0));
 }
+/**
+ * Is `held` STRICTLY MORE PERMISSIVE than `fallback`? (Plan 30-10, round 3, reviewer 4 obs. 1.)
+ *
+ * ---------------------------------------------------------------------------------------------
+ * BOTH CALL SITES USED `value !== fallback`, WHICH IS "DIFFERENT", NOT "LOWER". `commit_to_branch`
+ * is the one roster member whose documented default is not `block`, so TIGHTENING it — declaring
+ * `commit_to_branch: "block"`, a legitimate and stricter posture — published
+ * `**LOWERED: 1 checkpoint(s) sit below their documented default on this tree.**` and a table row
+ * naming `GRUGOPS_FLOOR_COMMIT_TO_BRANCH` as authorizing it.
+ *
+ * The direction is over-statement rather than permission, so it is not a bypass. It is nonetheless a
+ * FALSE SENTENCE IN THE ONE DOCUMENT WHOSE SUBJECT IS WHICH SENTENCES STOPPED BEING TRUE, reachable
+ * by a legitimate configuration, and this page's whole value is that a reader can believe it.
+ *
+ * The ternary is ordered — `block` < `notify` < `off` — and that order is what "lowered" has always
+ * meant everywhere else in this phase: `resolveCheckpoint` treats `block` as the strictest value,
+ * `STRICTEST_MATRIX` is every member at `block`, and the two-key rule is about lowering BELOW the
+ * default. The rank is declared once, here, and both call sites ask it.
+ * ---------------------------------------------------------------------------------------------
+ */
+function isLowered(held, fallback) {
+    if (fallback === undefined)
+        return false;
+    return PERMISSIVENESS[held] > PERMISSIVENESS[fallback];
+}
+/** The ternary's order, strictest first. Declared once; `isLowered` is its only reader. */
+const PERMISSIVENESS = { block: 0, notify: 1, off: 2 };
 /** Every roster checkpoint whose live value sits below its documented default. */
 function loweredCheckpoints(root) {
     const matrix = readGovernanceConfig(root).config.checkpoints;
     const out = [];
     for (const [id, fallback] of Object.entries(CHECKPOINT_DEFAULTS)) {
         const held = matrix[id];
-        if (held !== undefined && held !== fallback) {
+        if (held !== undefined && isLowered(held, fallback)) {
             out.push({ id, held, grant: floorEnvVarName(id) });
         }
     }
@@ -455,6 +539,26 @@ export function renderGuarantees(root = DEFAULT_ROOT) {
     const lowered = loweredCheckpoints(root);
     const floorIds = SAFETY_FLOORS.map((f) => f.id).sort();
     const residuals = readResidualAdditions(root);
+    // ── THE RESIDUAL SECTION'S OWN DENOMINATOR (plan 30-10, round 3, R4-1) ───────────────────────
+    //
+    // The parse locates the additions table by FIRST unfenced exact heading, so a row under a
+    // repeated, renderer-identical or `…, continued` heading was silently unpublished — with the
+    // generator exiting 0 and the freshness gate reporting fresh, because both sides of every check
+    // came from that same parse. The byte pass shares no parser, no loop and no intermediate with it,
+    // and the comparison is by MEMBERSHIP: a set short by exactly the rows that matter has the same
+    // size as one short by any two.
+    const declaredResiduals = new Set(declaredResidualRows(root));
+    const parsedResiduals = new Set(residuals.map((r) => r.num));
+    const unpublished = [...declaredResiduals].filter((n) => !parsedResiduals.has(n)).sort();
+    const unbacked = [...parsedResiduals].filter((n) => !declaredResiduals.has(n)).sort();
+    if (unpublished.length > 0 || unbacked.length > 0) {
+        throw new Error(`generate-guarantees: the residual register's bytes and its parse name different addition ` +
+            `rows — declared but NOT PUBLISHED [${unpublished.join(", ")}], published but NOT DECLARED ` +
+            `[${unbacked.join(", ")}]. The parse locates the additions table by its first exact heading, ` +
+            `so a row under a repeated, renderer-identical or continued heading reaches the register and ` +
+            `never reaches the page whose subject is what this project does not close. Refusing to render ` +
+            `a partial residual section`);
+    }
     const lines = [
         "# grugops safety guarantees",
         "",

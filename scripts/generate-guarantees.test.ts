@@ -64,6 +64,7 @@ import {
   dropConsistencyRefusals,
   guaranteesJoin,
   renderGuarantees,
+  declaredResidualRows,
 } from "./generate-guarantees.js";
 
 const ROOT = join(import.meta.dirname, "..");
@@ -800,5 +801,113 @@ describe("30-10 B-6 — the count assertion's BOUND is asserted, not assumed", (
     expect(safety, "check-audit-register declares no `safety` cardinality").toBeDefined();
     expect(safety?.count).toBe(declaredSafetyRows(ROOT));
     expect(declaredSafetyRows(ROOT)).toBeGreaterThan(0);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// PLAN 30-10 ROUND 3 — R4-1 (reviewer 4, MEDIUM): the residual section had no denominator.
+//
+// The render carries TWO independent denominators — `declaredSafetyRows` for the safety join and
+// `declaredDroppedRows` for the dropped set, each a raw byte pass sharing no parser with the join.
+// The residual section had NEITHER. Its only floor is `body.length === 0` in `readResidualAdditions`
+// — a vacuity floor over an EMPTY denominator, which never sees a SILENTLY SHORT one — and the
+// harness case that looks like the guard takes its denominator from the same parse that came out
+// short, so both sides move together. That is B-6's shape at a site B-6 did not reach.
+//
+// `readResidualAdditions` locates the additions table with `tableUnder` → `unfencedHeadingIndex`,
+// which answers about the FIRST unfenced exact occurrence. A row written under a repeated heading, a
+// renderer-identical near-miss, or a `…, continued` heading is silently unpublished from
+// `docs/GUARANTEES.md` with the generator exiting 0, freshness reporting fresh and every gate green.
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+
+describe("30-10 R4-1 — the residual section has an INDEPENDENT denominator, compared by membership", () => {
+  /** A mirror of the audit sources with the residual register mutated. */
+  function registerMirror(mutate: (text: string) => string): string {
+    const root = freshTmp("r41-");
+    cpSync(join(ROOT, "docs"), join(root, "docs"), { recursive: true });
+    cpSync(join(ROOT, "agent-factory"), join(root, "agent-factory"), { recursive: true });
+    const p = join(root, RESIDUAL_PATH);
+    writeFileSync(p, mutate(readFileSync(p, "utf8")));
+    return root;
+  }
+
+  it("a row under a REPEATED additions heading is refused, not silently unpublished", () => {
+    const root = registerMirror(
+      (t) =>
+        `${t}\n## Phase 30 additions to this register (AUTO-05)\n\n` +
+        "| # | Item | Disposition | Target phase | Reason / owner |\n" +
+        "|---|---|---|---|---|\n" +
+        "| 11 | A residual nobody publishes | `accepted` | — | never shown on the public page. |\n",
+    );
+    expect(() => renderGuarantees(root)).toThrow(/11|repeated|render/i);
+  });
+
+  it("a row under a NEAR-MISS additions heading is refused too", () => {
+    const root = registerMirror(
+      (t) =>
+        `${t}\n##  Phase 30 additions to this register (AUTO-05)\n\n` +
+        "| # | Item | Disposition | Target phase | Reason / owner |\n" +
+        "|---|---|---|---|---|\n" +
+        "| 12 | A residual nobody publishes | `accepted` | — | never shown on the public page. |\n",
+    );
+    expect(() => renderGuarantees(root)).toThrow(/12|render/i);
+  });
+
+  it("a row under a `, continued` heading is refused — the byte pass sees it, the parse does not", () => {
+    const root = registerMirror(
+      (t) =>
+        `${t}\n## Phase 30 additions to this register (AUTO-05), continued\n\n` +
+        "| # | Item | Disposition | Target phase | Reason / owner |\n" +
+        "|---|---|---|---|---|\n" +
+        "| 13 | A residual nobody publishes | `accepted` | — | never shown on the public page. |\n",
+    );
+    expect(() => renderGuarantees(root)).toThrow(/13/);
+  });
+
+  it("the LIVE register agrees — the byte pass and the parse name the same rows", () => {
+    const parsed = readResidualAdditions(ROOT).map((r) => r.num);
+    const declared = declaredResidualRows(ROOT);
+    expect(parsed.length).toBeGreaterThan(0);
+    expect([...declared].sort()).toEqual([...parsed].sort());
+  });
+
+  it("the two passes share no parser — the byte pass is a raw line read", () => {
+    // The property that makes the equality evidence rather than a tautology, asserted on the source
+    // and bounded to the function's own body.
+    const src = readFileSync(join(ROOT, "scripts", "generate-guarantees.ts"), "utf8");
+    const from = src.indexOf("export function declaredResidualRows(");
+    expect(from).toBeGreaterThan(-1);
+    const body = src.slice(from, src.indexOf("\n}\n", from));
+    expect(body).toContain("readFileSync");
+    expect(body).not.toContain("readResidualAdditions");
+    expect(body).not.toContain("tableUnder");
+  });
+});
+
+describe("30-10 R4 observation 1 — a TIGHTENED checkpoint is not a lowered one", () => {
+  it("`commit_to_branch: block` is stricter than its default and is NOT published as lowered", () => {
+    // `loweredCheckpoints` and `guaranteesJoin` both tested `value !== fallback`, not "strictly more
+    // permissive". `commit_to_branch` is the only roster member whose default is not `block`, so
+    // TIGHTENING it to `block` published `LOWERED: 1 checkpoint(s) sit below their documented
+    // default` and named a grant variable as authorizing it — a false sentence in the one document
+    // whose subject is which sentences stopped being true. Over-statement, not permission, and
+    // reachable by a legitimate tightening.
+    const root = freshTmp("r4o1-");
+    cpSync(join(ROOT, "docs"), join(root, "docs"), { recursive: true });
+    cpSync(join(ROOT, "agent-factory"), join(root, "agent-factory"), { recursive: true });
+    mkdirSync(join(root, ".grugops"), { recursive: true });
+    writeFileSync(
+      join(root, ".grugops", "factory.config.json"),
+      JSON.stringify({ checkpoints: { commit_to_branch: "block" } }),
+    );
+    const text = renderGuarantees(root);
+    expect(text).not.toMatch(/LOWERED/);
+    expect(text).not.toContain("GRUGOPS_FLOOR_COMMIT_TO_BRANCH");
+    // …and the CONTROL: a genuine lowering still publishes as lowered.
+    writeFileSync(
+      join(root, ".grugops", "factory.config.json"),
+      JSON.stringify({ checkpoints: { protected_branch_merge: "off" } }),
+    );
+    expect(() => renderGuarantees(root)).toThrow(/dropped|lowered/i);
   });
 });

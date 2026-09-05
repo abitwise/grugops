@@ -375,6 +375,38 @@ function checkWorkflowSections(): void {
 // in-kit config keeps the `agent-factory/config/factory.config.json` label it has always had.
 const GOVERNANCE_BASES: readonly string[] = [KIT_ROOT, STATE_ROOT];
 
+/**
+ * The governance positions this run actually examined, and the bases it enumerated them under.
+ *
+ * ═══════════════════════════════════════════════════════════════════════════════════════════════
+ * (Plan 30-10, round 3, finding R4-3) THE VERDICT NAMES ITS OWN SCOPE, BECAUSE IT CANNOT DERIVE IT.
+ *
+ * `STATE_ROOT` falls back to `resolve(SCRIPT_DIR, "..")` — "the repo root (back-compat)". In the
+ * SHARED INSTALL this project shipped in v1.1 that is the KIT, not the repository, so under the
+ * validator's OWN documented single-root invocation `GOVERNANCE_BASES` becomes `[kit, kit]`, the
+ * resolved-path dedupe collapses them, and the repository's `.grugops/factory.config.json` — the
+ * file `readGovernanceConfig(<repo>)` actually governs from — is form-checked at no base. Measured:
+ * identical governing bytes produced `ALL CHECKS PASSED` under the single-root form and 4 named
+ * errors under the two-root form, depending only on whether a second environment variable was set.
+ *
+ * WHY THIS IS REPORTED RATHER THAN REFUSED, STATED PLAINLY RATHER THAN PREFERRED. A refusal needs a
+ * predicate that separates "the kit and the state tree genuinely coincide" (the in-repo dev checkout,
+ * where the default is correct) from "the state root silently aliased the kit" (the shared install).
+ * The validator's inputs do not contain one: in BOTH cases `resolve(SCRIPT_DIR, "..") === KIT_ROOT`,
+ * because in both cases the operator runs the kit's own script. `process.cwd()` distinguishes them
+ * and is not an input this gate has ever consulted — and every fixture in `validate.test.ts` spawns
+ * with the repository as cwd against a temp kit, so a cwd rule would refuse thirty legitimate runs.
+ *
+ * So the property the finding names — "a gate reports a verdict for a check it did not perform" — is
+ * removed at its root instead: the run PUBLISHES the governance positions it examined and, when no
+ * state root was supplied, says so and names the remedy. `ALL CHECKS PASSED` over an unexamined
+ * governing file becomes `ALL CHECKS PASSED` beside a line saying which files were examined and
+ * which class was not. The residual is recorded rather than closed, and it is recorded where the
+ * operator reads it.
+ * ═══════════════════════════════════════════════════════════════════════════════════════════════
+ */
+const governanceExamined: string[] = [];
+
 function checkConfig(): void {
   // ONE LOOP, ONE READ, ONE PREDICATE — the kit arm is gone (round 2, F3).
   //
@@ -404,6 +436,7 @@ function checkConfig(): void {
         raw = null;
       }
       const label = relativeToBase(base, abs);
+      governanceExamined.push(label);
       if (raw === null) {
         // It EXISTS and could not be read. The reader calls that `unreadable` and fails closed on
         // it; this gate says so rather than passing over a file it could not examine.
@@ -754,6 +787,26 @@ checkPackaging();
 checkRoleSwitchProtocol();
 checkCommitConvention();
 checkWorkflowCommit();
+
+// ── The governance SCOPE line, printed on every run (round 3, R4-3) ───────────────────────────
+// A verdict that does not name its own scope is a verdict about an unstated set. This says which
+// governance configurations were examined and, when the state root was not supplied, that the run
+// examined none outside the kit and how to change that.
+const stateRootSupplied = process.env.VALIDATE_ROOT !== undefined;
+const basesCollapsed = resolve(KIT_ROOT) === resolve(STATE_ROOT);
+console.error(
+  `  SCOPE    governance configurations examined: ` +
+    (governanceExamined.length === 0
+      ? "none (no config file at any candidate under either root)"
+      : governanceExamined.join(", ")) +
+    (stateRootSupplied
+      ? ""
+      : basesCollapsed
+        ? "; VALIDATE_ROOT was not supplied, so the state root defaulted to this script's own tree " +
+          "and both bases resolved to it — a repository-level .grugops/factory.config.json outside " +
+          "that tree was NOT examined. Pass VALIDATE_ROOT=<repo> to check it."
+        : "")
+);
 
 // ── Render + exit ──────────────────────────────────────────────────────────────────────────────
 for (const e of errors) console.error(`  ERROR    ${e}`);
