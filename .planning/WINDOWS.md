@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 113
+open_count: 114
 waived_count: 0
 fixed_count: 4
-total_count: 117
-last_updated: 2026-09-05T13:31:29.626Z
+total_count: 118
+last_updated: 2026-09-05T16:47:59.587Z
 ---
 
 # Broken Windows Ledger
@@ -132,6 +132,7 @@ last_updated: 2026-09-05T13:31:29.626Z
 | 115 | 29.2 | unrun-verify | install/install.ts |  | UNKNOWN - verify (Windows): the plan-29.2-04 destination-hazard guard adapterDestHazard() is proven on the POSIX legs only. Five of its seven cases in install/install.test.ts carry a process.platform === win32 early return because creating a symlink on Windows needs the SeCreateSymbolicLink privilege an unprivileged CI runner does not hold, so symlinkSync throws EPERM and the plant would assert nothing; the leaf, ancestor, dangling and union shapes are therefore unobserved on windows-latest. The containment arm adds its OWN Windows unknown beyond the missing privilege: realpathSync resolves drive letters, UNC paths and directory junctions, and a junction is NOT a symbolic link to lstat, so whether arm 1 or arm 2 refuses a junctioned agents directory - or whether either does - was not measured. Remedy: read the windows-latest leg, and probe a directory junction (mklink /J) there before treating the containment bound as cross-platform. | open |  | 2026-09-04T18:33:31.118Z |  |
 | 116 | 30 | deviation | agent-factory/config/factory.config.json |  | shipped checkpoints posture not reconciled with the legacy autonomy: pr / quality.test_integrity: warn grade (V-30-02-01) | open |  | 2026-09-05T13:31:29.522Z |  |
 | 117 | 30 | deviation | agent-factory/config/factory.config.json |  | test_integrity has two config cells (quality.test_integrity and checkpoints.test_integrity) until the legacy key is retired (V-30-02-02) | open |  | 2026-09-05T13:31:29.626Z |  |
+| 118 | 30 | deviation | scripts/check-banned-claims.test.ts |  | Plan 30-07: two 'no scan member overlaps an exclusion entry' assertions now compare against an ENUMERATED, count-pinned admission set (docs/GUARANTEES.md), because D-17 places the render under an excluded segment class. Exclusion list and walk byte-unchanged; original predicate kept exact over walk-derived parts. | open |  | 2026-09-05T16:47:59.587Z |  |
 
 ````json
 [
@@ -1537,6 +1538,18 @@ last_updated: 2026-09-05T13:31:29.626Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-09-05T13:31:29.626Z",
+    "resolved_at": null
+  },
+  {
+    "id": 118,
+    "kind": "deviation",
+    "phase": "30",
+    "file": "scripts/check-banned-claims.test.ts",
+    "line": null,
+    "description": "Plan 30-07: two 'no scan member overlaps an exclusion entry' assertions now compare against an ENUMERATED, count-pinned admission set (docs/GUARANTEES.md), because D-17 places the render under an excluded segment class. Exclusion list and walk byte-unchanged; original predicate kept exact over walk-derived parts.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-05T16:47:59.587Z",
     "resolved_at": null
   }
 ]
