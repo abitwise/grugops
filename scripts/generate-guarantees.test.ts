@@ -1,5 +1,5 @@
-// generate-guarantees.test.ts — the harness for D-17's generated guarantees render (AUTO-05,
-// AUTO-02). The byte-equality freshness gate's cases join this file when that gate lands.
+// generate-guarantees.test.ts — the harness for D-17's generated guarantees render and its
+// byte-equality freshness gate (AUTO-05, AUTO-02).
 //
 // THE ONE PROPERTY THIS FILE EXISTS TO BUY. `docs/GUARANTEES.md` is a PUBLIC document whose entire
 // job is to state which safety claims still hold. Its failure mode is silent and asymmetric: a
@@ -7,8 +7,8 @@
 // the registry declares, and the rows most likely to go missing are the ones a lowered floor
 // touches. A render that is too long only costs a reader some reading. So every case below is
 // written against under-inclusion: the empty-join refusal, the SHORT-join refusal against an
-// independently counted denominator, and the byte-equality check of the committed document against
-// a fresh render.
+// independently counted denominator, and the byte-equality freshness guard that must red when a
+// source moves or when a hand edits the committed document.
 //
 // THE PROJECT LESSON THIS FILE APPLIES, verbatim from the recorded round: "a vacuity floor catches
 // an EMPTY denominator but never a SILENTLY SHORT one — derive the ELEMENT count independently of
@@ -17,18 +17,23 @@
 // no loop, no parser and no intermediate with the join.
 //
 // Fixture cases drive `renderGuarantees(root)` against a hermetic mirror under the OS temp dir.
+// Freshness cases drive the COMMITTED scripts/guarantees-freshness.js as a child process against
+// the REAL tree, planting and restoring under an afterEach guard — the shape
+// scripts/catalog-freshness.test.ts set.
 //
 // NOT in the e2e lane. Run with:
 //   npx vitest run --exclude '**/scripts/e2e/**' scripts/generate-guarantees.test.ts
 // Vitest globals:false -> import explicitly.
 
-import { describe, it, expect, afterAll } from "vitest";
+import { describe, it, expect, afterAll, afterEach } from "vitest";
+import { spawnSync } from "node:child_process";
 import {
   mkdtempSync,
   mkdirSync,
   writeFileSync,
   readFileSync,
   rmSync,
+  existsSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -36,6 +41,10 @@ import { REGISTRY_PATH, SAFETY_FLOORS } from "./audit-model.js";
 import { CHECKPOINT_DEFAULTS, floorEnvVarName } from "./checkpoints.js";
 import {
   OUT,
+  REGEN_COMMAND,
+  GUARANTEES_DATA_SOURCES,
+  GUARANTEES_DATA_SOURCE_COUNT,
+  GUARANTEES_ENTRY_JS,
   declaredSafetyRows,
   guaranteesJoin,
   renderGuarantees,
@@ -43,6 +52,7 @@ import {
 
 const ROOT = join(import.meta.dirname, "..");
 const GENERATOR_TS = join(ROOT, "scripts", "generate-guarantees.ts");
+const FRESHNESS_JS = join(ROOT, "scripts", "guarantees-freshness.js");
 const COMMITTED = join(ROOT, OUT);
 
 const tmpDirs: string[] = [];
@@ -268,6 +278,106 @@ describe("generate-guarantees — the module's own shape", () => {
     const ids = new Set(SAFETY_FLOORS.map((f) => f.id));
     for (const row of guaranteesJoin(ROOT)) {
       for (const f of row.floors) expect(ids.has(f.id)).toBe(true);
+    }
+  });
+});
+
+// ────────────────────────────────────────────────────────────────────────────────────────────────
+describe("guarantees-freshness.js — the byte-equality drift gate", () => {
+  let planted: string | null = null;
+  let original: Buffer | null = null;
+  afterEach(() => {
+    if (planted !== null && original !== null) {
+      writeFileSync(planted, original);
+      planted = null;
+      original = null;
+    }
+  });
+
+  function runFreshness(env: NodeJS.ProcessEnv = {}) {
+    const r = spawnSync("node", [FRESHNESS_JS], {
+      cwd: ROOT,
+      encoding: "utf8",
+      env: { ...process.env, ...env },
+    });
+    return { status: r.status ?? -1, stdout: (r.stdout ?? "") + (r.stderr ?? "") };
+  }
+
+  it("exits 0 and reports fresh when the committed document matches a regeneration", () => {
+    const r = runFreshness();
+    expect(r.status).toBe(0);
+    expect(r.stdout.toLowerCase()).toContain("fresh");
+  });
+
+  it("exits non-zero on ONE character of planted drift, and names the regeneration command", () => {
+    planted = COMMITTED;
+    original = readFileSync(COMMITTED);
+    writeFileSync(COMMITTED, Buffer.concat([original, Buffer.from("x")]));
+
+    // ── THE HARNESS'S OWN PREMISE, ASSERTED RATHER THAN ASSUMED ────────────────────────────────
+    // This project has recorded six instances across four rounds of a verification harness
+    // producing a false result because nobody asked whether its premise held. The premise here is
+    // "the committed bytes now differ from a fresh regeneration". Prove it in-process, from the
+    // same generator the gate mirror-spawns, BEFORE reading the gate's verdict — otherwise a gate
+    // that reds for an unrelated reason reads as a passing case.
+    expect(readFileSync(COMMITTED, "utf8")).not.toBe(renderGuarantees(ROOT));
+
+    const r = runFreshness();
+    expect(r.status).not.toBe(0);
+    expect(r.stdout).toContain("STALE:");
+    expect(r.stdout).toContain(OUT);
+    expect(r.stdout).toContain(REGEN_COMMAND);
+  });
+
+  it("FAIL-CLOSED: a generator that cannot run cleanly NEVER reports fresh", () => {
+    // Break the generator's own input rather than the generator: a registry with a stray safety-row
+    // declaration makes the mirrored regeneration refuse by name, which is the condition the gate
+    // must never mistake for an up-to-date document.
+    planted = join(ROOT, REGISTRY_PATH);
+    original = readFileSync(planted);
+    writeFileSync(planted, Buffer.concat([original, Buffer.from("\n- kind: safety\n")]));
+
+    const r = runFreshness();
+    expect(r.status).not.toBe(0);
+    expect(r.stdout.toLowerCase()).not.toContain("matches a fresh regeneration");
+  });
+
+  it("FAIL-CLOSED: an unwritable mirror directory NEVER reports fresh", () => {
+    const r = runFreshness({ TMPDIR: join(ROOT, "no-such-tmp-dir-for-guarantees") });
+    expect(r.status).not.toBe(0);
+    expect(r.stdout.toLowerCase()).not.toContain("matches a fresh regeneration");
+    expect(r.stdout).toContain("mirror");
+  });
+
+  it("the mirror's COPY SET is derived, not hand-listed, and its data half is count-asserted", () => {
+    const src = readFileSync(join(ROOT, "scripts", "guarantees-freshness.ts"), "utf8");
+    // The .js half: derived by the ONE import-closure authority, never a cpSync list.
+    expect(src).toContain("jsImportClosure");
+    // The DATA half: a declared list with a pinned length, so the mirror cannot silently lose an
+    // input and then compare against a regeneration that never had the same sources.
+    expect(GUARANTEES_DATA_SOURCES.length).toBe(GUARANTEES_DATA_SOURCE_COUNT);
+    expect(GUARANTEES_DATA_SOURCES).toContain(REGISTRY_PATH);
+    expect(src).toContain("GUARANTEES_DATA_SOURCE_COUNT");
+    // And the entry the gate spawns is the generator's own declaration, not a second path literal.
+    expect(existsSync(join(ROOT, GUARANTEES_ENTRY_JS))).toBe(true);
+    expect(src).toContain("GUARANTEES_ENTRY_JS");
+  });
+
+  it("the config-candidate paths this module declares are byte-present in the ONE reader", () => {
+    // A DUPLICATION, PINNED RATHER THAN DENIED. scripts/context-io.ts owns config resolution and
+    // keeps its candidate list private; the mirror needs the PATHS in order to carry them. So the
+    // list is restated here and held against the reader's source, two-sided — a candidate added or
+    // renamed there reds this case rather than silently leaving the mirror rendering against the
+    // roster defaults while the real tree reads a declared matrix.
+    const reader = readFileSync(join(ROOT, "scripts", "context-io.ts"), "utf8");
+    const configCandidates = GUARANTEES_DATA_SOURCES.filter((p) => p !== REGISTRY_PATH);
+    expect(configCandidates.length).toBeGreaterThan(0);
+    for (const c of configCandidates) {
+      const segments = c.split("/");
+      expect(
+        reader.includes(segments.map((s) => JSON.stringify(s)).join(", ")),
+        `context-io.ts does not resolve the candidate ${c}`,
+      ).toBe(true);
     }
   });
 });

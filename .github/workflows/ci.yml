@@ -146,6 +146,16 @@ jobs:
           # scripts/skill-twins-freshness.test.ts, deliberately at both ends — freshness:adapters
           # was un-wired for a whole phase and that was this phase's most expensive omission.
           npm run freshness:skill-twins
+          # AUTO-05 (plan 30-07, D-17) — the guarantees render's byte-equality drift gate. Wired
+          # HERE and in scripts/generate-guarantees.test.ts, deliberately at both ends, for the
+          # reason this block already records twice: freshness:adapters shipped for a whole phase
+          # while it ran solely as a side effect of a test spawning it, one --exclude pattern away
+          # from being un-gated. docs/GUARANTEES.md is a PUBLIC document that states which safety
+          # claims still hold on this repository; a hand edit to it, or a source moving underneath
+          # it, is exactly the drift a reader would have no way to notice. A red here means the
+          # committed page differs from a fresh regeneration — run `npm run generate:guarantees`
+          # and commit the result. Do NOT hand-edit the page to reach green.
+          npm run freshness:guarantees
           # MODEL-03 / MODEL-05 (plan 29.1-09, WR-07) — THE REFUSALS THIS PHASE BUILT WERE UNREACHABLE
           # FROM THE BUILD, and the three lines below are the half of the fix no source edit can hold.
           #

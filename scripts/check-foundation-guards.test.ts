@@ -1779,8 +1779,13 @@ const SECTION_EXTENT_OWNER_COUNT = 1;
  *     no frontmatter parser, so the owner answer is unchanged: SECTION_EXTENT_OWNERS stays at the
  *     one authority and the frontmatter-parser owner set is unmoved. The number moves in the SAME
  *     commit that adds the module.
+ *
+ * 54 -> 55 (plan 30-07), ONE further module under `scripts/`:
+ *   - `scripts/guarantees-freshness.ts` — the byte-equality drift gate over that render. It is a
+ *     mirror-spawn gate; it locates no section and parses no frontmatter, so the owner answer is
+ *     again unchanged.
  */
-const NON_TEST_MODULE_COUNT = 54;
+const NON_TEST_MODULE_COUNT = 55;
 
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 // (Plan 29-40, gap G-29-1 of 29-UAT.md, closing V-29-35-01) THE FRONTMATTER-PARSER NAME OWNER SET.
@@ -2284,10 +2289,10 @@ describe("LANG-07: exactly ONE module owns the section-extent predicate (plan 29
     const flat = nonTestScripts();
     // 41 → 42 (plan 29.1-01): `scripts/model-tiers.ts`. 42 → 43 (plan 29.1-24):
     // `scripts/ci-workflow.testkit.ts`. 43 → 45 (plan 30-01): `scripts/checkpoints.ts` and
-    // `scripts/js-import-closure.ts`. 45 → 46 (plan 30-07): `scripts/generate-guarantees.ts`.
-    // Derived independently — `ls scripts/*.ts` minus the `.test.ts` members reports 46 on this
-    // tree.
-    expect(flat.length, "the `scripts/`-scoped reader's own corpus").toBe(46);
+    // `scripts/js-import-closure.ts`. 45 → 47 (plan 30-07): `scripts/generate-guarantees.ts` and
+    // `scripts/guarantees-freshness.ts`. Derived independently — `ls scripts/*.ts` minus the
+    // `.test.ts` members reports 47 on this tree.
+    expect(flat.length, "the `scripts/`-scoped reader's own corpus").toBe(47);
     let compared = 0;
     for (const n of flat) {
       for (const spec of ["frontmatter", "canonical-frontmatter", "audit-model"]) {
@@ -2303,7 +2308,7 @@ describe("LANG-07: exactly ONE module owns the section-extent predicate (plan 29
     // each time. Kept as a LITERAL times
     // the spec count rather than `flat.length * 3`: deriving it from the loop's own input would make
     // the assertion true by construction and blind to a corpus that silently shrank.
-    expect(compared, "the comparison must really have run over the whole corpus").toBe(46 * 3);
+    expect(compared, "the comparison must really have run over the whole corpus").toBe(47 * 3);
     // NON-VACUITY: the comparison would be clean over two readers that both return nothing, so at
     // least one module must have produced a non-empty answer through the NEW reader.
     expect(
@@ -2468,14 +2473,14 @@ describe("LANG-07: exactly ONE module owns the section-extent predicate (plan 29
     }
     // 41 → 42 (plan 29.1-01): `scripts/model-tiers.ts`. 42 → 43 (plan 29.1-24):
     // `scripts/ci-workflow.testkit.ts`. 43 → 45 (plan 30-01): `scripts/checkpoints.ts` and
-    // `scripts/js-import-closure.ts`. 45 → 46 (plan 30-07): `scripts/generate-guarantees.ts`. Each
-    // is the same module the flat reader gained. Both pins move together on purpose — they are two
-    // enumerations of one corpus, and a change that moved only one of them would be the
-    // disagreement this pair exists to surface.
+    // `scripts/js-import-closure.ts`. 45 → 47 (plan 30-07): `scripts/generate-guarantees.ts` and
+    // `scripts/guarantees-freshness.ts`. Each is the same module the flat reader gained. Both pins
+    // move together on purpose — they are two enumerations of one corpus, and a change that moved
+    // only one of them would be the disagreement this pair exists to surface.
     expect(
       walked.filter((n) => n.startsWith("scripts/") && !n.slice(8).includes("/")).length,
       "…and the old non-recursive answer is a strict subset, stated as the number this widening moved off",
-    ).toBe(46);
+    ).toBe(47);
 
     // THE ELEMENT COUNT, DERIVED INDEPENDENTLY OF THE WALK THAT PRODUCES IT. A vacuity floor catches
     // an EMPTY denominator and has never caught a SILENTLY SHORT one, so the set is compared against
