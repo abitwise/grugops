@@ -19,6 +19,10 @@ import {
   anchoredBlockAt,
 } from "./audit-model.js";
 import { spawnGrantScan } from "./kit-model.js";
+import { CHECKPOINT_DEFAULTS } from "./checkpoints.js";
+// (Plan 30-09, D-18) The dropped-claim authority, ASKED rather than retyped. A hand-copied
+// disclosure in this file would be a second spelling of the exact bytes the gate exists to hold.
+import { disclosureFor, guaranteesJoin } from "./generate-guarantees.js";
 // (Plan 29-51) The exemption region's OWN declaration and OWN locator, asked rather than restated.
 // A second spelling of "which lines are the disclaimer" in this file would be the duplicate-authority
 // defect arriving inside the plan whose whole subject is removing one.
@@ -248,6 +252,274 @@ describe("check-claim-anchors: the verbatim comparison", () => {
     const r = run(root);
     expect(r.status).toBe(1);
     expect(r.out).toMatch(/C-28-002/);
+  });
+});
+
+// ────────────────────────────────────────────────────────────────────────────────────────────────
+describe("check-claim-anchors: a DROPPED claim is replaced in place (D-18)", () => {
+  /**
+   * The baseline mirror plus a config that lowers ONE floor, and the row resting on it marked
+   * `dropped`. Everything a dropped case needs and nothing else, so a case varies exactly one thing.
+   */
+  function droppedMirror(opts: { docText?: string; status?: string; lower?: boolean } = {}): {
+    root: string;
+    disclosure: string;
+  } {
+    const root = freshTmp();
+    if (opts.lower !== false) {
+      writeAt(
+        root,
+        "agent-factory/config/factory.config.json",
+        JSON.stringify({ checkpoints: { ...CHECKPOINT_DEFAULTS, test_integrity: "notify" } }),
+      );
+    }
+    writeAt(
+      root,
+      REGISTRY_PATH,
+      registry(
+        {
+          id: "C-28-001",
+          file: "PUBLIC.md",
+          line: "4",
+          kind: "safety",
+          dependsOn: FLOORS,
+          status: opts.status ?? "dropped",
+          text: "Humans always hold merge and deploy.",
+        },
+        {
+          id: "C-28-002",
+          file: "PUBLIC.md",
+          line: "7-8",
+          text: "The installer never overwrites your content.\nand it removes only what it added.",
+        },
+      ),
+    );
+    // The disclosure is asked of the ONE authority, never retyped here: a hand-copied expectation
+    // in a test file is a second spelling of the very bytes this gate exists to hold.
+    const row = guaranteesJoin(root).find((r) => r.claimId === "C-28-001");
+    if (row === undefined) throw new Error("the dropped fixture row is not in the join");
+    // With nothing lowered there IS no disclosure — `disclosureFor` refuses to retract a sentence
+    // that still holds, which is the point of that refusal. The fixture then carries the original
+    // text, which is what a direction-1 mirror looks like on disk.
+    const disclosure = opts.lower === false ? "Humans always hold merge and deploy." : disclosureFor(row);
+    writeAt(
+      root,
+      "PUBLIC.md",
+      [
+        "# Fixture",
+        "",
+        "<!-- claim: C-28-001 -->",
+        opts.docText ?? disclosure,
+        "",
+        "<!-- claim: C-28-002 -->",
+        "The installer never overwrites your content.",
+        "and it removes only what it added.",
+        "",
+      ].join("\n"),
+    );
+    return { root, disclosure };
+  }
+
+  it("GREEN when the anchored region carries the GENERATED disclosure", () => {
+    const { root } = droppedMirror();
+    const r = run(root);
+    expect(r.status).toBe(0);
+    expect(r.out).toMatch(/ALL CHECKS PASSED/);
+    // The PASS line states how many comparisons went against generated text — a number, not a
+    // claim: a gate that printed a PASS for a comparison it did not perform is this milestone's
+    // carried-forward AP-1.
+    expect(r.out).toMatch(/of which 1 compared against GENERATED disclosure text/);
+  });
+
+  it("RED when the disclosure at the anchor is HAND-WRITTEN, however plausible", () => {
+    // RED-FIRST, and the plausibility is the point. This substitute says the same thing a reader
+    // would say — it names the checkpoint, the value and the grant — and it is still refused,
+    // because the mechanism's text is generated and a paraphrase of it is not it.
+    const { root, disclosure } = droppedMirror({
+      docText:
+        "This guarantee is lowered in this repo: `test_integrity=notify`, authorized by " +
+        "`GRUGOPS_FLOOR_TEST_INTEGRITY`.",
+    });
+    const r = run(root);
+    expect(r.status).toBe(1);
+    expect(r.out).toMatch(/not byte-identical to the GENERATED disclosure/);
+    expect(r.out).toMatch(/hand-written substitute/);
+    // …and the refusal hands over the exact bytes, so the remedy is a paste and not another guess.
+    expect(r.out).toContain(JSON.stringify(disclosure));
+    // It is NOT reported as a deletion: something stands under the anchor.
+    expect(r.out).not.toMatch(/has been DELETED/);
+  });
+
+  it("a DELETED anchored region has its OWN message, distinct from a drifted one", () => {
+    // The two used to be one message. Deletion is the act D-18 prohibits; drift is an ordinary
+    // stale regeneration. A reader sent to the drift remedy for a deletion is told to RECORD what
+    // someone removed rather than to put it back.
+    const { root } = droppedMirror({ docText: "" });
+    const r = run(root);
+    expect(r.status).toBe(1);
+    expect(r.out).toMatch(/has been DELETED/);
+    expect(r.out).toMatch(/forbids deleting, striking through or quietly rewording/);
+    // DISCRIMINATION, BOTH WAYS: the deletion message is not what a drift produces.
+    const drift = run(droppedMirror({ docText: "Something else entirely." }).root);
+    expect(drift.status).toBe(1);
+    expect(drift.out).not.toMatch(/has been DELETED/);
+    expect(drift.out).toMatch(/not byte-identical to the GENERATED disclosure/);
+  });
+
+  it("a deletion is reported for a STANDING row too — the rule is about the document", () => {
+    const { root, docBody } = baseline();
+    expect(docBody.length).toBeGreaterThan(0);
+    writeAt(
+      root,
+      "PUBLIC.md",
+      [
+        "# Fixture",
+        "",
+        "<!-- claim: C-28-001 -->",
+        "",
+        "<!-- claim: C-28-002 -->",
+        "The installer never overwrites your content.",
+        "and it removes only what it added.",
+        "",
+      ].join("\n"),
+    );
+    const r = run(root);
+    expect(r.status).toBe(1);
+    expect(r.out).toMatch(/has been DELETED/);
+    expect(r.out).toMatch(/C-28-001/);
+  });
+
+  it("the BIJECTION still holds in both directions over a dropped row", () => {
+    // A drop that removed the anchor would be the silent deletion D-18 forbids, and it must surface
+    // as the ordinary bijection failure rather than as some new dropped-row-specific silence.
+    const { root } = droppedMirror();
+    writeAt(
+      root,
+      "PUBLIC.md",
+      [
+        "# Fixture",
+        "",
+        "<!-- claim: C-28-002 -->",
+        "The installer never overwrites your content.",
+        "and it removes only what it added.",
+        "",
+      ].join("\n"),
+    );
+    const r = run(root);
+    expect(r.status).toBe(1);
+    expect(r.out).toMatch(/bijection does not hold/);
+    expect(r.out).toMatch(/missing \[C-28-001\]/);
+  });
+
+  it("CONTIGUITY still holds over a dropped row — the id stays in the sequence", () => {
+    // The other structural half. A drop that DELETED the row would leave a gap here; the dropped
+    // row is still counted, so the sequence is unbroken and a genuine deletion still reds.
+    const { root } = droppedMirror();
+    const registryText = readFileSync(join(root, REGISTRY_PATH), "utf8");
+    // Renumber the dropped row to C-28-003, leaving C-28-001 unfilled: the shape a delete-and-renumber
+    // would produce.
+    writeAt(root, REGISTRY_PATH, registryText.replace(/C-28-001/g, "C-28-003"));
+    const r = run(root);
+    expect(r.status).toBe(1);
+    expect(r.out).toMatch(/claim ids are not contiguous/);
+  });
+
+  it("REFUSES a `dropped` row whose floors are all at their default (direction 1)", () => {
+    const { root } = droppedMirror({ lower: false });
+    const r = run(root);
+    expect(r.status).toBe(1);
+    expect(r.out).toMatch(/disagree/);
+    expect(r.out).toMatch(/C-28-001/);
+  });
+
+  it("REFUSES a lowered floor whose dependent row is NOT dropped (direction 2)", () => {
+    const { root } = droppedMirror({ status: "true", docText: "Humans always hold merge and deploy." });
+    const r = run(root);
+    expect(r.status).toBe(1);
+    expect(r.out).toMatch(/disagree/);
+    expect(r.out).toMatch(/replace the text at its anchor with EXACTLY/);
+  });
+
+  it("a `dropped` row is EXEMPT from the disposition and finding_id obligations", () => {
+    // …and the exemption is watched from the other side in the same run: the fixture carries
+    // neither key, and an `overstated` row carrying neither is still refused. The exemption is a
+    // stronger bar (the text is mechanically replaced), never a hole a status can be laundered into.
+    const { root } = droppedMirror();
+    expect(run(root).status).toBe(0);
+
+    const laundered = droppedMirror({ status: "overstated", docText: "Humans always hold merge and deploy." });
+    const r = run(laundered.root);
+    expect(r.status).toBe(1);
+    expect(r.out).toMatch(/disposition/);
+  });
+
+  it("REFUSES a NON-safety row marked dropped — a row resting on no floor cannot be dropped", () => {
+    const root = freshTmp();
+    writeAt(
+      root,
+      REGISTRY_PATH,
+      registry(
+        {
+          id: "C-28-001",
+          file: "PUBLIC.md",
+          line: "4",
+          kind: "safety",
+          dependsOn: FLOORS,
+          text: "Humans always hold merge and deploy.",
+        },
+        { id: "C-28-002", file: "PUBLIC.md", line: "7", status: "dropped", text: "A plain sentence." },
+      ),
+    );
+    writeAt(
+      root,
+      "PUBLIC.md",
+      [
+        "# Fixture",
+        "",
+        "<!-- claim: C-28-001 -->",
+        "Humans always hold merge and deploy.",
+        "",
+        "<!-- claim: C-28-002 -->",
+        "A plain sentence.",
+        "",
+      ].join("\n"),
+    );
+    const r = run(root);
+    expect(r.status).toBe(1);
+    expect(r.out).toMatch(/rests on no floor/);
+  });
+
+  it("no anchor this mechanism can ever rewrite falls inside the byte-frozen exemption region", () => {
+    // THE TWO-FILE-CHANGE QUESTION, ASKED RATHER THAN ASSUMED. Editing a denial sentence inside
+    // check-banned-claims' exemption region is a two-file change under D-04. A drop rewrites the
+    // text at an anchor, so the question is whether any anchor inside that region could ever be
+    // dropped — and the answer is structural, not incidental: dropping requires a `depends_on`
+    // floor, which only a `kind: safety` row carries. DERIVED here, both halves, so a safety row
+    // arriving inside the region later reds this case instead of being discovered at gate time.
+    const exemptText = readFileSync(join(REPO, BANNED_CLAIM_EXEMPT_REGION.file), "utf8");
+    // ONE LINE ASSEMBLY, HANDED TO BOTH READERS. `locateExemptRegion` takes lines and
+    // `scanAnchoredDocument` takes text but POPS the empty element a terminating newline produces,
+    // so the two arrays differ by one element at the END and never at any index a region bound or
+    // an anchor uses. Indices are compared across them below, which is exactly the coordinate shear
+    // this repository has paid for, so the premise is asserted rather than assumed.
+    const scan = scanAnchoredDocument(exemptText);
+    const exemptLines = exemptText.split("\n");
+    for (let i = 0; i < scan.lines.length; i++) {
+      expect(scan.lines[i], `line ${i} differs between the two assemblies`).toBe(exemptLines[i]);
+    }
+    const region = locateExemptRegion(exemptLines);
+    expect(region, "the exemption region must be locatable").not.toBeNull();
+    const claims = readRegistry(REPO).claims;
+    const inRegion = scan.anchors
+      .filter((a) => a.index >= region!.headingAt && a.index < region!.endBefore)
+      .map((a) => a.id);
+    expect(inRegion.length, "a vacuous answer would prove nothing").toBeGreaterThan(0);
+    for (const id of inRegion) {
+      const row = claims.find((c) => c.id === id);
+      expect(row, `${id} is anchored in the region with no registry row`).toBeDefined();
+      expect(row!.kind, `${id} sits inside the byte-frozen region and IS droppable`).not.toBe("safety");
+      expect(row!.dependsOn, `${id} rests on a floor and is therefore droppable`).toEqual([]);
+    }
   });
 });
 

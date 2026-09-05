@@ -1986,6 +1986,19 @@ export interface AnchoredBlock {
   readonly documentBytes: number;
   /** Byte length of the registry verbatim. Always measured — it does not depend on the document. */
   readonly verbatimBytes: number;
+  /**
+   * The FIRST line the block expects, and the FIRST line the document actually carries there.
+   *
+   * PUBLISHED BY THE AUTHORITY RATHER THAN RE-SPLIT BY A CONSUMER (plan 30-09). D-18's
+   * deletion-versus-drift distinction needs both, and scripts/check-claim-anchors.ts computing them
+   * itself would be a SECOND assembly of one document beside this one — the coordinate-shear axis
+   * this whole shape exists to delete, and the tree's own guard caught it being reintroduced. Both
+   * come from the SAME `want`/`slice` derivation the extent and the byte verdict come from.
+   *
+   * `documentFirstLine` is `""` when `overruns`, for the same reason `text` is: nothing was read.
+   */
+  readonly verbatimFirstLine: string;
+  readonly documentFirstLine: string;
 }
 
 /**
@@ -2064,6 +2077,8 @@ export function anchoredBlockAt(
       text: "",
       documentBytes: 0,
       verbatimBytes: verbatimBuf.length,
+      verbatimFirstLine: want[0],
+      documentFirstLine: "",
     };
   }
 
@@ -2080,5 +2095,7 @@ export function anchoredBlockAt(
     text,
     documentBytes: documentBuf.length,
     verbatimBytes: verbatimBuf.length,
+    verbatimFirstLine: want[0],
+    documentFirstLine: scan.lines[start],
   };
 }

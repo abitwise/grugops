@@ -1541,6 +1541,8 @@ export function anchoredBlockAt(scan, anchor, verbatim) {
             text: "",
             documentBytes: 0,
             verbatimBytes: verbatimBuf.length,
+            verbatimFirstLine: want[0],
+            documentFirstLine: "",
         };
     }
     const text = scan.lines.slice(start, end).join("\n");
@@ -1556,5 +1558,7 @@ export function anchoredBlockAt(scan, anchor, verbatim) {
         text,
         documentBytes: documentBuf.length,
         verbatimBytes: verbatimBuf.length,
+        verbatimFirstLine: want[0],
+        documentFirstLine: scan.lines[start],
     };
 }
