@@ -21,7 +21,16 @@
 
 import { describe, it, expect, afterAll } from "vitest";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
+import {
+  mkdtempSync,
+  mkdirSync,
+  writeFileSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  existsSync,
+  chmodSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -378,6 +387,163 @@ describe("guard.js — AUTO-03 the agent may never set its own floor grant (D-09
     expect(runAt(root, payload(`echo ${FLOOR_VAR}`)).stdout).not.toContain("deny");
     expect(runAt(root, payload(`grep -r ${FLOOR_VAR} docs/`)).stdout).not.toContain("deny");
     expect(runAt(root, payload(`echo "$${FLOOR_VAR}"`)).stdout).not.toContain("deny");
+  });
+});
+
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+// Plan 30-08 (AUTO-05, D-10 / D-11) — the NON-BLOCKING tier: allow, RECORD, announce.
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+//
+// The claim under test is the one that makes AUTO-05 worth anything: a lowering is not invisible.
+// `notify` allows the action AND leaves a finding in the shared verified context; an UNAUTHORIZED
+// lowering is refused AND leaves its own finding. Both are proven by spawning the committed guard.js
+// and comparing the notes directory BEFORE and AFTER — never by reading the guard's own report of
+// what it did.
+//
+// WHY EVERY COUNT ASSERTION IS EXACTLY-ONE AND NEVER AT-LEAST-ONE. A branch that writes twice and a
+// branch that writes zero times each pass an at-least-one assertion in one direction or the other:
+// the first passes it outright, the second passes its negation elsewhere while this case never runs.
+// A before/after DELTA with an exact cardinality is the only shape that fails on both faults.
+
+const GUARD_TS = join(import.meta.dirname, "guard.ts");
+/** Must match CHECKPOINT_TRACE_TASK in scripts/context-io.ts. */
+const TRACE_TASK = "checkpoint-trace";
+const GUARD_AUTHOR = "by: §checkpoint-guard";
+
+/** Every note file under the checkpoint trace, as [name, bytes] pairs, sorted. */
+function notesSnapshot(projectDir: string): Array<[string, string]> {
+  const dir = join(projectDir, ".grugops", "context", TRACE_TASK, "notes");
+  if (!existsSync(dir)) return [];
+  return readdirSync(dir)
+    .sort()
+    .map((f) => [f, readFileSync(join(dir, f), "utf8")] as [string, string]);
+}
+
+/** Run the guard and return the run plus the note files that appeared BECAUSE of it. */
+function runWithTrace(
+  projectDir: string,
+  json: string,
+  extra: Record<string, string> = {},
+): { run: ReturnType<typeof runAt>; added: Array<[string, string]> } {
+  const before = new Set(notesSnapshot(projectDir).map(([name]) => name));
+  const run = runAt(projectDir, json, extra);
+  const added = notesSnapshot(projectDir).filter(([name]) => !before.has(name));
+  return { run, added };
+}
+
+const LOWERED_NOTIFY = '{"checkpoints":{"protected_branch_merge":"notify"}}';
+
+describe("guard.js — D-11 the notify tier allows, RECORDS and announces", () => {
+  it("notify WITH the human grant: allows, and writes EXACTLY ONE finding naming the decision", () => {
+    const root = projectWithConfig(LOWERED_NOTIFY);
+    const { run: r, added } = runWithTrace(root, PUSH, { [FLOOR_VAR]: "Olger Oeselg" });
+
+    expect(r.status).toBe(0);
+    expect(r.stdout).toBe(""); // allowed: exit 0, no stdout at all
+    expect(added, `expected exactly one new note, got ${added.length}`).toHaveLength(1);
+
+    const [, text] = added[0];
+    expect(text).toContain(GUARD_AUTHOR); // the HOOK's identity, never the agent's
+    expect(text).toContain("kind: finding");
+    expect(text).toContain("protected_branch_merge");
+    expect(text).toContain("declared: notify");
+    expect(text).toContain("effective: notify");
+    expect(text).toContain(`${FLOOR_VAR}="Olger Oeselg"`); // the authorizing name, verbatim
+    expect(text).toContain('"git push origin main"'); // the command
+    expect(text).toContain("actor: "); // the actor, as far as a PreToolUse payload names one
+    expect(text).toContain("CHECKPOINT ALLOWED");
+    // The banner on the SAME run names the checkpoint and its authorizing key.
+    expect(r.stderr).toContain(`protected_branch_merge=notify authorized by ${FLOOR_VAR}=Olger Oeselg`);
+  });
+
+  it("D-10 an UNAUTHORIZED lowering: denies, AND writes EXACTLY ONE finding of its own", () => {
+    const root = projectWithConfig(LOWERED_NOTIFY);
+    const { run: r, added } = runWithTrace(root, PUSH);
+
+    expect(r.stdout).toContain('"permissionDecision":"deny"');
+    expect(added, `expected exactly one new note, got ${added.length}`).toHaveLength(1);
+
+    const [, text] = added[0];
+    expect(text).toContain(GUARD_AUTHOR);
+    expect(text).toContain("kind: finding");
+    expect(text).toContain("CHECKPOINT REFUSED");
+    expect(text).toContain("declared: notify");
+    expect(text).toContain("effective: block"); // the declaration lowered NOTHING
+    expect(text).toContain(`NONE — ${FLOOR_VAR} is absent`);
+    expect(text).toContain('"git push origin main"');
+  });
+
+  it("the same holds for a config declaring `off` with no grant (both values are lowerings)", () => {
+    const root = projectWithConfig(LOWERED_OFF);
+    const { run: r, added } = runWithTrace(root, PUSH);
+    expect(r.stdout).toContain('"permissionDecision":"deny"');
+    expect(added).toHaveLength(1);
+    expect(added[0][1]).toContain("declared: off");
+  });
+
+  it("`off` WITH the grant allows SILENTLY: zero notes, because `off` is what a human chose to hear nothing", () => {
+    const root = projectWithConfig(LOWERED_OFF);
+    const { run: r, added } = runWithTrace(root, PUSH, { [FLOOR_VAR]: "a-named-human" });
+    expect(r.stdout).toBe("");
+    expect(added, `\`off\` must write nothing, got ${added.length} note(s)`).toHaveLength(0);
+  });
+
+  it("the ZERO-CONFIG deny writes NO note (AUTO-07: nothing new happens when nothing is declared)", () => {
+    const root = projectWithConfig('{"mode":"lean"}');
+    const { run: r, added } = runWithTrace(root, PUSH);
+    expect(r.stdout).toContain('"permissionDecision":"deny"');
+    expect(added, `zero-config must write nothing, got ${added.length} note(s)`).toHaveLength(0);
+  });
+
+  it("an ALLOWED non-matching command writes no note (only a matched checkpoint is recorded)", () => {
+    const root = projectWithConfig(LOWERED_NOTIFY);
+    const { run: r, added } = runWithTrace(root, payload("ls -la"), { [FLOOR_VAR]: "someone" });
+    expect(r.stdout).toBe("");
+    expect(added).toHaveLength(0);
+  });
+
+  it("the hook contains NO direct write to the notes directory — every note goes through context-io", () => {
+    // T-30-33. Containment lives in the shared chokepoint; a second direct writer inside the hook is
+    // the shape this tree already had to close once. Asserted over BOTH the source and the committed
+    // artifact, because the artifact is what the host runs.
+    for (const file of [GUARD_TS, GUARD_JS]) {
+      const text = readFileSync(file, "utf8");
+      for (const token of ["writeFileSync", "appendFileSync", "renameSync", "mkdirSync"]) {
+        expect(text, `${file} must not call ${token} — notes are written by context-io.ts alone`).not.toContain(
+          `${token}(`,
+        );
+      }
+    }
+  });
+
+  it("RECORD-OR-REFUSE: a notify lowering that cannot be recorded is REFUSED, not silently allowed", () => {
+    // A lowering that leaves no trace is exactly the invisibility AUTO-05 exists to prevent, so the
+    // allow is conditional on the write. The fixture is PROBED rather than assumed: a runner with
+    // write access regardless of mode (root, or a filesystem ignoring the mode bits) cannot exercise
+    // this branch, and a case that silently passes there would be worse than one that says so.
+    const root = projectWithConfig(LOWERED_NOTIFY);
+    const ctx = join(root, ".grugops", "context");
+    mkdirSync(ctx, { recursive: true });
+    chmodSync(ctx, 0o500);
+    let writable = true;
+    try {
+      writeFileSync(join(ctx, "probe.tmp"), "x");
+    } catch {
+      writable = false;
+    }
+    if (writable) {
+      chmodSync(ctx, 0o700);
+      // eslint-disable-next-line no-console
+      console.log(
+        "SKIPPED (record-or-refuse): this runner writes into a mode-0500 directory, so the " +
+          "unwritable-context branch cannot be exercised here.",
+      );
+      return;
+    }
+    const r = runAt(root, PUSH, { [FLOOR_VAR]: "a-named-human" });
+    chmodSync(ctx, 0o700);
+    expect(r.stdout).toContain('"permissionDecision":"deny"');
+    expect(r.reason).toContain("not a lowering");
   });
 });
 

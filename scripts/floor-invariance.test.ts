@@ -118,7 +118,16 @@ const APPROVAL = "GRUGOPS_ADMISSION_APPROVED_BY";
 // is four lines across `guard.ts` and its compiled `guard.js`, and every guard test is unchanged and
 // green. That is why the reproduction burden here is the freeze rule itself (source + artifact +
 // constant in ONE commit) rather than a new bypass surface: there is no new surface to reproduce.
-const FROZEN_GUARD_BLOB = "d91c20068a286407cbea7bae1f39d07dc94f6b66";
+//
+// RE-BASELINED AGAIN BY PLAN 30-08 TASK 1 (D-24, this phase's THIRD guard commit). The previous
+// baseline `d91c2006…6b66` froze the 30-03 guard, which decided only the blocking tier: a matched
+// command at a lowered checkpoint was allowed with no record at all. This change adds the two
+// RECORDING branches D-10 and D-11 require — an authorized `notify` allows AND writes one finding,
+// an unauthorized declaration is refused AND writes one finding — plus the actor fields read off the
+// same payload. It adds no write of its own: both records go through the sanctioned emitter in
+// scripts/context-io.ts, and hooks/guard.test.ts asserts that the guard source and artifact contain
+// no filesystem write token. The zero-config decision and wording are byte-unchanged.
+const FROZEN_GUARD_BLOB = "88456e2c0d0f471f6a233478a624c765aed6af02";
 
 // Import the COMMITTED .js for the pure-function floor checks (validate / admit). Never the .ts.
 const mod: typeof import("../scripts/context-io.js") = await import(

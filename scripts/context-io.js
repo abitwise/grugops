@@ -62,6 +62,41 @@ function assertSafeTask(task) {
 // The one carve-out (D-04): the gate's own verdict emission goes through emitVerdict(), which sets
 // an internal trusted flag so the reserved-identity rule does not reject it.
 const GATE_IDENTITY = "§14-gate";
+// ── The SECOND reserved machine identity: the PreToolUse checkpoint guard (D-10/D-11, plan 30-08) ─
+//
+// WHY A SECOND ONE EXISTS AT ALL, STATED BEFORE THE MECHANISM. D-11 requires that a checkpoint
+// lowered to `notify` records a `kind: finding` note naming the checkpoint, the actor and the
+// command, and D-10 requires the same of an UNAUTHORIZED lowering. A `finding` needs a `verified_by`
+// stamp under one of the two accepted grammars, and neither grammar can be satisfied honestly by
+// this writer: there is no §14 gate run behind a hook decision, and in the unauthorized case there
+// is NO human at all — that absence is the whole fact being recorded. The two ways out that were
+// NOT taken: emitting a `§14-gate#<id>` stamp with no verdict behind it (a forged stamp), or
+// interpolating the floor grant's value into a `human:<name>` stamp (a name the grammar's charset
+// would mangle, and a claim the guard cannot make in the unauthorized branch at all).
+//
+// WHAT THIS IDENTITY IS, AND WHAT IT IS NOT. It is the SAME shape as the §14-gate carve-out one
+// screen up: the guard is a separate operating-system process that the agent under it cannot
+// invoke, cannot pass content to and cannot silence, so — exactly like the gate — it is a root of
+// the verification chain and its record stamps nothing above it. It is NOT a widening of the
+// refuse-self floor on any agent-reachable path: adding it here makes `validate()` STRICTER
+// everywhere else, because a note authored by this identity through appendNote / admitAndAppend /
+// the CLI / the compaction carve-out oracle is now an impersonation FAIL that was previously an
+// ordinary author string. The only path that may author it is emitCheckpointNote() below.
+//
+// THE RESIDUAL, NAMED RATHER THAN CLAIMED AWAY. A process running as the same uid can write a note
+// file directly and spell this identity itself. That is the pre-existing same-uid direct-FS residual
+// recorded at writeNoteFile, it applies identically to `§14-gate` today, and this identity neither
+// widens nor narrows it.
+const CHECKPOINT_GUARD_IDENTITY = "§checkpoint-guard";
+/**
+ * The reserved machine identities, declared ONCE.
+ *
+ * A note may be authored by one of these ONLY through that identity's own sanctioned emitter, which
+ * names itself when it validates. Every other path — every agent-reachable path — reaches the
+ * impersonation FAIL. The list is a constant rather than two scattered comparisons so that a third
+ * identity (should one ever be justified) cannot be added to one check and forgotten in the other.
+ */
+const RESERVED_IDENTITIES = [GATE_IDENTITY, CHECKPOINT_GUARD_IDENTITY];
 // ── The two accepted verified_by grammars (D-05/D-06/D-07) ──────────────────────────────────────
 // Anchored allowlists modeled on TASK_NAME_RE — only these two grammars admit a `finding`:
 //   - §14-gate#<id>  the workhorse; admission cross-checks a live green verdict (D-01).
@@ -527,10 +562,14 @@ export function splitNotes(text) {
 // ── Validate a note's structure (SC-1, extended in Phase 21 with the D-09/D-02 refuse-self set). ─
 // PURE text→findings — inspects ONLY the parsed scalars, never reads context (D-10 keeps the cheap
 // structural check pure; the context-aware admission cross-check is the separate admit() function).
-// `trustedGateEmission` is the D-04 carve-out flag the gate's own emitVerdict() path sets so its
-// reserved `by: §14-gate` verdict note is not rejected as an impersonation. The plain CLI
-// `validate <file>` verb NEVER sets it, so an agent impersonating the gate always FAILs.
-export function validate(text, trustedGateEmission = false) {
+// `trustedEmitter` is the D-04 carve-out, generalized by plan 30-08 from a BOOLEAN to the reserved
+// identity the emission CLAIMS. A boolean said "somebody trusted is writing"; the identity says WHICH
+// one, so the carve-out cannot be borrowed across emitters — emitVerdict() may author `§14-gate` and
+// nothing else, emitCheckpointNote() may author `§checkpoint-guard` and nothing else, and each is
+// still an impersonation FAIL in the other's name. The plain CLI `validate <file>` verb, the compaction
+// carve-out oracle and every appendNote write path pass `null`, so an agent impersonating EITHER
+// reserved identity always FAILs.
+export function validate(text, trustedEmitter = null) {
     const findings = [];
     const parsed = parseNote(text);
     if (!parsed) {
@@ -586,18 +625,25 @@ export function validate(text, trustedGateEmission = false) {
         }
     }
     // ── D-02 reserved-identity rule (applies to ANY note, not only findings) ──────────────────────
-    // A note authored `by: §14-gate` is an impersonation flag, EXCEPT the gate's own verdict
-    // emission (D-04), which routes through emitVerdict() and sets trustedGateEmission.
-    if (scalars.by === GATE_IDENTITY && !trustedGateEmission) {
-        findings.push(`structural FAIL: "${GATE_IDENTITY}" is a reserved author identity (the §14 quality gate). ` +
-            `A note may not be authored by it — this is an impersonation flag. Only the gate's own ` +
-            `verdict emission may use this identity.`);
+    // A note authored by a RESERVED machine identity is an impersonation flag, EXCEPT that identity's
+    // OWN sanctioned emitter — emitVerdict() for `§14-gate` (D-04), emitCheckpointNote() for
+    // `§checkpoint-guard` (D-10/D-11) — each of which names itself here. The comparison is against the
+    // claimed identity, not against a boolean, so one emitter's carve-out never covers the other's name.
+    if (RESERVED_IDENTITIES.includes(scalars.by ?? "") &&
+        scalars.by !== trustedEmitter) {
+        findings.push(`structural FAIL: "${scalars.by}" is a reserved author identity (a grugops machine writer). ` +
+            `A note may not be authored by it — this is an impersonation flag. Only that identity's own ` +
+            `sanctioned emitter may use it.`);
     }
     // ── D-09 refuse-self FAIL set, GATED on kind === "finding" (D-08 — only a finding needs a stamp).
     // Still text-only: inspects scalars.verified_by / scalars.by only. The gate's own verdict is a
     // `finding` authored by the trusted root (D-04): it carries no verified_by of its own (nothing
-    // verifies the root), so the refuse-self set is suppressed for the trusted-gate-emission path.
-    if (scalars.kind === "finding" && !trustedGateEmission) {
+    // verifies the root), so the refuse-self set is suppressed for a trusted emission. The checkpoint
+    // guard's record is the same shape and for the same reason (D-10/D-11): it is written by a separate
+    // process the agent under it cannot invoke, pass content to or silence, so nothing verifies it
+    // either. The suppression is reached ONLY with a claimed reserved identity, which the reserved-
+    // identity rule above has already matched against the note's own author.
+    if (scalars.kind === "finding" && trustedEmitter === null) {
         const vb = (scalars.verified_by ?? "").trim();
         if (vb === "") {
             findings.push(`structural FAIL: a finding requires a verified_by stamp — it must not be empty ` +
@@ -892,17 +938,104 @@ export function emitVerdict(task, id, integrity, contextRoot = DEFAULT_CONTEXT_R
     const noteIdStr = noteId(note);
     assertSingleLine("id", noteIdStr);
     const text = composeNote(note, body, noteIdStr);
-    // Validate WITH the trusted-gate-emission carve-out: the reserved-identity rule is suppressed for
-    // this one path (D-04); every other structural rule still applies.
-    const findings = validate(text, true);
-    if (findings.length > 0) {
-        throw new Error(`context-io.emitVerdict: refusing to write an invalid verdict note:\n${findings.join("\n")}`);
+    return emitTrusted(GATE_IDENTITY, "emitVerdict", task, note, text, noteIdStr, contextRoot);
+}
+// ── emitTrusted — the ONE trusted-emission tail, shared by every reserved-identity emitter. ──────
+//
+// WHY IT IS ONE FUNCTION AND NOT A COPIED THREE LINES (plan 30-08). Composing a note and then
+// validating it under a carve-out and then writing it is the exact sequence whose steps must not
+// drift apart: a second emitter that validated with the wrong identity, or skipped the validation,
+// or wrote past writeNoteFile, would be a second authority for the same rule — this repository's
+// named failure class pointed at the one path that may author a reserved identity. So the sequence
+// exists once, takes the claimed identity as an argument, and every reserved-identity emitter ends
+// on this line. Adding an emitter therefore cannot add a way to write.
+//
+// It validates with the CLAIMED identity (never a blanket "trusted" flag), so an emitter that
+// composed a note under the wrong reserved name is refused by the same impersonation rule that
+// refuses an agent. It throws on an invalid note and writes NOTHING — a refusal here leaves no
+// partial file, because nothing is written before the findings are known.
+function emitTrusted(identity, emitterName, task, note, text, id, contextRoot) {
+    if (note.by !== identity) {
+        throw new Error(`context-io.${emitterName}: refusing to emit — the composed note is authored "${note.by}" ` +
+            `while the emitter claims the reserved identity "${identity}". An emitter may only author ` +
+            `its own identity.`);
     }
-    // Route through the SAME single write chokepoint as appendNote (R6-1): emitVerdict is a SECOND
-    // direct note-file writer, so containment must live in the shared helper, not only in appendNote.
-    const notesDir = join(contextRoot, task, "notes");
-    writeNoteFile(notesDir, noteIdStr, text);
-    return noteIdStr;
+    const findings = validate(text, identity);
+    if (findings.length > 0) {
+        throw new Error(`context-io.${emitterName}: refusing to write an invalid note:\n${findings.join("\n")}`);
+    }
+    // Route through the SAME single write chokepoint as appendNote (R6-1): a reserved-identity emitter
+    // is a SECOND direct note-file writer, so containment must live in the shared helper, not only in
+    // appendNote. Every emitter reaches the chokepoint through this one line.
+    writeNoteFile(join(contextRoot, task, "notes"), id, text);
+    return id;
+}
+// ── The checkpoint trace (D-10 / D-11, plan 30-08) ───────────────────────────────────────────────
+/**
+ * The fixed task the PreToolUse checkpoint guard records under.
+ *
+ * A PreToolUse payload carries no task name — the hook is a per-tool-call process, not a step in a
+ * ticket — so the task is a FIXED constant rather than something derived from a payload field an
+ * agent controls. It satisfies the TASK_NAME_RE allowlist by construction, and it is one greppable
+ * place a human or an auditor reads the checkpoint trace from.
+ */
+export const CHECKPOINT_TRACE_TASK = "checkpoint-trace";
+/**
+ * Write ONE checkpoint record into the shared verified context (D-10, D-11).
+ *
+ * TWO CASES, ONE WRITER. A lowering that WAS authorized allows the action and records that it did
+ * (D-11); a lowering that was NOT authorized is refused and records the unauthorized declaration
+ * (D-10). Both go through here, because "an agent that edits config alone is ineffective" and "…and
+ * visible" are one promise, and a second writer for the second half is how the halves come apart.
+ *
+ * WHY THE BODY CARRIES THE NAMES AND THE FRONTMATTER DOES NOT. `authorizedBy` is a human name typed
+ * into a shell — it may carry spaces, and the `human:<name>` stamp grammar does not admit them. A
+ * stamp is therefore not where it goes: the note is a trusted emission (verified_by is empty, as the
+ * gate's own verdict is), and the name appears VERBATIM in the body, unmangled, beside the variable
+ * that carried it. Recording a mangled name in a provenance field would be worse than recording none.
+ *
+ * It THROWS on any failure — an unwritable directory, a field carrying a newline, a note the
+ * validator refuses. It does not swallow. The caller decides what a failure to record means, and the
+ * guard's answer is that an unrecordable lowering is not a lowering (see hooks/guard.ts).
+ */
+export function emitCheckpointNote(input, contextRoot = DEFAULT_CONTEXT_ROOT, at = new Date().toISOString(), task = CHECKPOINT_TRACE_TASK) {
+    assertSafeTask(task);
+    const note = {
+        kind: "finding",
+        by: CHECKPOINT_GUARD_IDENTITY,
+        at,
+        // The guard is a root of trust exactly as the §14 gate is (see CHECKPOINT_GUARD_IDENTITY):
+        // its record stamps nothing above it, so it carries no verified_by of its own.
+        verified_by: "",
+        confidence: "high",
+        refs: [input.checkpoint],
+        supersedes: null,
+    };
+    // THE THREE UNTRUSTED VALUES ARE QUOTED, NOT INTERPOLATED RAW. `command` is agent-authored text
+    // and `actor` comes off the same payload; `authorizedBy` is whatever a human typed into a shell.
+    // Any of them may carry a newline, and a newline in a note BODY can spell a `---` fence line — the
+    // shape that makes one file read as two notes to anything that splits a stream. JSON.stringify
+    // renders each on ONE line with its newlines escaped and its quotes visible, so the recorded value
+    // is exactly the value, and the record's own structure is not something the command can rewrite.
+    const authorization = input.authorizedBy === null
+        ? input.envVarName === null
+            ? "not applicable (this checkpoint is not floor-tier and needs no second key)"
+            : `NONE — ${input.envVarName} is absent, so the declaration authorized nothing`
+        : `${input.envVarName}=${JSON.stringify(input.authorizedBy)}`;
+    const body = `CHECKPOINT ${input.outcome.toUpperCase()}: the checkpoint "${input.checkpoint}" was declared ` +
+        `\`${input.declared}\` and enforced as \`${input.effective}\`.\n\n` +
+        `- checkpoint: ${input.checkpoint}\n` +
+        `- declared: ${input.declared}\n` +
+        `- effective: ${input.effective}\n` +
+        `- authorized by: ${authorization}\n` +
+        `- actor: ${JSON.stringify(input.actor)}\n` +
+        `- command: ${JSON.stringify(input.command)}\n`;
+    for (const r of note.refs)
+        assertSingleLine("refs[]", r);
+    const id = noteId(note);
+    assertSingleLine("id", id);
+    const text = composeNote(note, body, id);
+    return emitTrusted(CHECKPOINT_GUARD_IDENTITY, "emitCheckpointNote", task, note, text, id, contextRoot);
 }
 // ── Governance high-severity roles (D-06) ───────────────────────────────────────────────────────
 // Severity is the AUTHORING ROLE, read from the note's `by` scalar via the canonical parseNote —

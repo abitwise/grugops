@@ -38,6 +38,16 @@
 //   - REFUSES any command that tries to inline-set/export the approval variable OR any floor
 //     variable, so the agent can never self-approve and can never self-authorize a lowering (D-33,
 //     D-09) — even when the variable is already present in the environment.
+//   - RECORDS a non-blocking decision in the shared verified context (D-11): a checkpoint set to
+//     `notify` whose floor key is present allows the action AND writes ONE finding note naming the
+//     checkpoint, the authorizing name, the actor and the command — through the sanctioned emitter
+//     in scripts/context-io.ts, never a write of its own. The allow is CONDITIONAL on that record:
+//     an unrecordable lowering is refused, because a lowering that leaves no trace is exactly the
+//     invisibility AUTO-05 exists to prevent. `off` allows and writes nothing, which is what a human
+//     chose `off` to mean.
+//   - RECORDS an unauthorized lowering too (D-10): a config declaration with no matching floor key
+//     is refused as before AND writes its own finding, so an agent that edits config alone is both
+//     ineffective and visible rather than only ineffective.
 //   - PRINTS the run banner on stderr on EVERY invocation: one line naming each checkpoint whose
 //     declared disposition is not its default, or the fixed literal `all checkpoints at default`
 //     (D-19, D-20). It goes to stderr, never stdout, because stdout is the hook's JSON channel and
@@ -52,6 +62,7 @@
 // `permissionDecisionReason` (gives the agent a clear message). Allow = exit 0, no stdout.
 
 import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import {
   CHECKPOINT_DEFAULTS,
   FLOOR_CHECKPOINTS,
@@ -60,9 +71,10 @@ import {
   renderCheckpointBanner,
   resolveCheckpoint,
   type Checkpoint,
+  type CheckpointResolution,
   type Disposition,
 } from "../scripts/checkpoints.js";
-import { readGovernanceConfig } from "../scripts/context-io.js";
+import { emitCheckpointNote, readGovernanceConfig } from "../scripts/context-io.js";
 
 // D-33: the human-confirm signal. A human exports this in the shell that launches Claude
 // (or via settings env). The name is a placeholder per research Assumption A2 — projects may
@@ -183,12 +195,27 @@ function deny(reason: string): never {
 // matrix is only ever consulted for a command that HAS matched. The argument would stop holding if
 // a checkpoint were ever enforced on the ABSENCE of a match; none is, and none may be added here
 // without revisiting this comment.
+//
+// THE ACTOR, READ FROM THE SAME PAYLOAD AND NO FURTHER (plan 30-08). D-11's record names the actor.
+// A PreToolUse payload does not carry an agent name; what it carries is the TOOL being invoked and
+// the SESSION it belongs to. Those two are what the record states, and it states nothing else — an
+// invented "agent" field would be the fabrication the trace exists to make impossible. When either
+// is absent the record says so with this repository's honest-unknown marker rather than an empty
+// string, because a blank field reads as "nobody" and the truth is "the payload did not say".
+const UNKNOWN = "UNKNOWN - verify";
 let cmd = "";
+let actor = `tool=${UNKNOWN} session=${UNKNOWN}`;
 try {
   const raw = readFileSync(0, "utf8");
-  const input = JSON.parse(raw) as { tool_input?: { command?: unknown } } | null;
+  const input = JSON.parse(raw) as
+    | { tool_input?: { command?: unknown }; tool_name?: unknown; session_id?: unknown }
+    | null;
   cmd = (input?.tool_input?.command ?? "") as string;
   if (typeof cmd !== "string") cmd = "";
+  const tool = typeof input?.tool_name === "string" && input.tool_name !== "" ? input.tool_name : UNKNOWN;
+  const session =
+    typeof input?.session_id === "string" && input.session_id !== "" ? input.session_id : UNKNOWN;
+  actor = `tool=${tool} session=${session}`;
 } catch {
   cmd = ""; // malformed / empty stdin → no command → allow only non-deploys.
 }
@@ -213,6 +240,32 @@ try {
 // stderr, never stdout: stdout carries the hook's JSON and a bare line there would break the deny
 // mechanism. One line, always present, so a missing banner and a broken banner look different.
 process.stderr.write(`${renderCheckpointBanner(matrix, process.env)}\n`);
+
+// ── The trace write (AUTO-05, D-10 / D-11). ──────────────────────────────────────────────────────
+// THE HOOK WRITES NOTHING ITSELF. There is no `writeFileSync` in this file and there must never be
+// one: containment of a note write lives in the shared chokepoint inside scripts/context-io.ts, and
+// a second direct writer is the shape this tree already had to close once. This function hands
+// structured fields to the ONE sanctioned emitter and holds no path of its own beyond the context
+// root, which is resolved from the SAME base the matrix read used — so the record and the decision
+// can never land in two different repositories.
+const PROJECT_ROOT = process.env.CLAUDE_PROJECT_DIR ?? join(import.meta.dirname, "..");
+const CONTEXT_ROOT = join(PROJECT_ROOT, ".grugops", "context");
+
+function record(r: CheckpointResolution, outcome: "allowed" | "refused"): void {
+  emitCheckpointNote(
+    {
+      checkpoint: r.id,
+      declared: r.declared,
+      effective: r.effective,
+      authorizedBy: r.authorizedBy,
+      envVarName: r.envVarName,
+      outcome,
+      actor,
+      command: cmd,
+    },
+    CONTEXT_ROOT,
+  );
+}
 
 // The derived floor names must fall inside the family the self-set detector refuses. Asserted here,
 // at the point of use, rather than trusted: a derived name outside the pattern would be a grant the
@@ -263,6 +316,43 @@ if (selfSet) {
 for (const group of CHECKPOINT_PATTERNS) {
   if (!group.patterns.some((re) => re.test(cmd))) continue;
   const r = resolveCheckpoint(group.id, matrix, process.env);
+
+  // ── D-10: an UNAUTHORIZED lowering records its own finding, then is refused. ───────────────────
+  // The declaration alone changed nothing, and without this note it would ALSO have left nothing —
+  // an agent editing config alone would be ineffective and invisible, which is only half of what
+  // AUTO-05 promises. The record is written BEFORE the denial so a denial can never be the only
+  // trace of an attempt. If the record cannot be written the action is refused anyway (it already
+  // was), and the denial says the trace is incomplete rather than pretending it is not.
+  let unrecorded = "";
+  if (r.unauthorizedLowering) {
+    try {
+      record(r, "refused");
+    } catch (e) {
+      unrecorded =
+        ` NOTE: this refusal could NOT be recorded in the shared verified context ` +
+        `(${e instanceof Error ? e.message : String(e)}), so the trace is incomplete for this run.`;
+    }
+  }
+
+  // ── D-11: the NON-BLOCKING tier allows, records and announces — all three. ─────────────────────
+  // `notify` is where a lowering becomes invisible if it is only a line on standard error, so the
+  // allow is CONDITIONAL on the record: if the note cannot be written, the lowering does not take
+  // effect and the command is refused. An unrecordable lowering is not a lowering. `off` is the
+  // disposition a human chose in order to hear nothing, and it writes nothing.
+  if (r.effective === "notify") {
+    try {
+      record(r, "allowed");
+    } catch (e) {
+      deny(
+        `Blocked: the checkpoint "${r.id}" is set to \`notify\`, which allows this command only ` +
+          `because the decision is recorded in the shared verified context — and the record could ` +
+          `not be written (${e instanceof Error ? e.message : String(e)}). A lowering that leaves ` +
+          `no trace is not a lowering, so the command is refused at \`block\` until the context ` +
+          `directory is writable.`,
+      );
+    }
+    continue;
+  }
   if (r.effective !== "block") continue;
   if (process.env[APPROVAL]) continue;
 
@@ -281,7 +371,8 @@ for (const group of CHECKPOINT_PATTERNS) {
         `config declaration AND the environment variable ${r.envVarName}, set by a human in the ` +
         `session this hook reads. ${r.envVarName} is not set, so "${r.id}" is enforced at \`block\` ` +
         `and this command is refused. A human must export ${r.envVarName}=NAME in the shell that ` +
-        `launches Claude — an agent may not set it, and setting it inside this command is refused.`,
+        `launches Claude — an agent may not set it, and setting it inside this command is refused.` +
+        unrecorded,
     );
   }
   deny(

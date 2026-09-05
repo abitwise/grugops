@@ -3121,7 +3121,7 @@ describe("emitVerdict: the required test-integrity argument (plan 30-05, D-15/D-
     expect(snap[0][1]).toContain("READY_FOR_HUMAN_REVIEW");
     expect(snap[0][1]).toContain("§14-gate#RUN-TI-CLEAN");
     // The note is emitted through the same validation carve-out as before this plan.
-    expect(mod.validate(snap[0][1], true)).toEqual([]);
+    expect(mod.validate(snap[0][1], "§14-gate")).toEqual([]);
   });
 
   it("the sweep's own premise: not one swept value is the clean sentinel", () => {
