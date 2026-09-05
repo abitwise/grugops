@@ -40,6 +40,26 @@
 // intermediate value with the join: one side is the registry PARSE, the other is a raw line pass.
 // The two agreeing is evidence; one side vouching for itself would not be.
 //
+// ── WHAT THAT EQUALITY DOES **NOT** COVER, MEASURED RATHER THAN ASSUMED (plan 30-10, finding B-6).
+//
+// Both sides read the SAME FILE. The equality therefore catches a PARSE that drops a row; it cannot
+// catch a REGISTRY that loses one, because the loss moves both numbers together. Measured on a
+// hermetic copy of this tree: flipping ONE row's `- kind: safety` to `- kind: architecture` takes
+// `declaredSafetyRows()` from 6 to 5 and the join from 6 to 5, the equality is satisfied, and the
+// render publishes five of six safety claims without a word.
+//
+// THE OTHER DIRECTION HAS AN OWNER, AND IT IS NOT THIS FILE. `CLAIM_KIND_CARDINALITY` in
+// scripts/check-audit-register.ts is a hand-declared per-kind measurement baseline — legitimate
+// precisely because nothing in this repository independently derives WHICH claims are safety claims,
+// `kind` being an editorial judgement. Driven against the same mutation it reports three findings,
+// one of which names this attack in its own message. `scripts/generate-guarantees.test.ts` asserts
+// that baseline agrees with `declaredSafetyRows()` on the live tree, so the dependency is a checked
+// fact rather than a belief about another gate.
+//
+// Stating the bound here is the point: a comment claiming this equality stops a short document from
+// shipping would be wider than the mechanism, and a source comment that overstates a safety
+// mechanism is the failure this repository keeps paying for.
+//
 // WHAT THE BYTE PASS ENUMERATES, STATED SO A LATER READER DOES NOT MISTAKE ITS SCOPE. It counts
 // every line of the registry whose exact content is the safety-kind field line, fenced blocks
 // INCLUDED. That is deliberate and it fails CLOSED: a safety-kind line written inside a fenced
@@ -56,7 +76,7 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { isBlank, readRegistry, readResidualAdditions, REGISTRY_PATH, RESIDUAL_PATH, RESIDUAL_ADDITIONS_HEADING, SAFETY_FLOORS, } from "./audit-model.js";
 import { BANNER_ALL_DEFAULT, CHECKPOINT_DEFAULTS, floorEnvVarName, } from "./checkpoints.js";
-import { readGovernanceConfig } from "./context-io.js";
+import { GOVERNANCE_CONFIG_RELPATHS, readGovernanceConfig } from "./context-io.js";
 const DEFAULT_ROOT = join(import.meta.dirname, "..");
 /** FIXED literal, repo-relative. The ROOT is redirected under test; this path never is. */
 export const OUT = "docs/GUARANTEES.md";
@@ -68,33 +88,44 @@ export const GUARANTEES_ENTRY_JS = "scripts/generate-guarantees.js";
  * The DATA this render reads, as repo-relative paths. The freshness gate mirrors exactly this set
  * beside the derived JavaScript import closure.
  *
- * THE REGISTRY ARM IS IMPORTED, NEVER RETYPED. The config arm is RESTATED, and the restatement is
- * pinned rather than denied: scripts/context-io.ts owns config resolution and keeps its candidate
- * list private, so a mirror has no way to ask it for the paths. A case in
- * scripts/generate-guarantees.test.ts holds these two strings against that module's source, so a
- * candidate added or renamed there reds rather than silently leaving a mirror rendering against the
- * roster defaults while the real tree reads a declared matrix.
+ * BOTH ARMS ARE IMPORTED AND NEITHER IS RETYPED (plan 30-10 removed the last restatement — see
+ * `GUARANTEES_CONFIG_CANDIDATES`). The two arms stay SEPARATELY DECLARED because their upkeep rules
+ * differ, and conflating them has already cost once: the harness used to derive "the config arm" by
+ * subtracting `REGISTRY_PATH` from the union, so plan 30-09's addition of the residual register
+ * silently became a config candidate the harness then demanded `context-io.ts` resolve. Provenance
+ * is declared where it is known rather than inferred where it is not.
  *
- * BOTH CANDIDATES ARE LISTED EVEN THOUGH ONLY ONE EXISTS TODAY. The gate copies whichever it finds
- * and refuses if it finds none — a mirror with no config would render the all-default statement and
- * compare it, byte-equal, against a committed document that happened to say the same thing, and
- * would go on doing so on the day a repository lowered a floor.
+ * BOTH CONFIG CANDIDATES ARE COPIED EVEN THOUGH ONLY ONE EXISTS TODAY. The gate copies whichever it
+ * finds and refuses if it finds none — a mirror with no config would render the all-default
+ * statement and compare it, byte-equal, against a committed document that happened to say the same
+ * thing, and would go on doing so on the day a repository lowered a floor.
  */
 export const GUARANTEES_AUDIT_SOURCES = [REGISTRY_PATH, RESIDUAL_PATH];
 /**
- * The RESTATED arm: config candidates this module retypes because scripts/context-io.ts keeps its
- * candidate list private. Held against that module's source, two-sided, by the harness.
+ * The config arm: the governance-config candidates, IMPORTED from the reader that resolves them.
  *
- * THE TWO ARMS ARE DECLARED SEPARATELY BECAUSE THEIR UPKEEP RULES DIFFER, and conflating them has
- * already cost once: the harness used to derive "the config arm" by subtracting `REGISTRY_PATH`
- * from the union, so plan 30-09's addition of the residual register silently became a config
- * candidate the harness then demanded `context-io.ts` resolve. The provenance is now declared where
- * it is known rather than inferred where it is not.
+ * ---------------------------------------------------------------------------------------------
+ * IT WAS A RESTATEMENT, AND PLAN 30-10 DELETED THE SECOND GRAMMAR (red-team surface B, finding B-5).
+ *
+ * This constant used to spell the two paths itself, with a comment justifying the duplication —
+ * "scripts/context-io.ts owns config resolution and keeps its candidate list private, so a mirror
+ * has no way to ask it for the paths" — and a harness case holding the restatement against that
+ * module's source, described as two-sided.
+ *
+ * BOTH HALVES OF THAT JUSTIFICATION FAILED. The case was one-sided: it asserted that every path
+ * this list names is present in the reader, and nothing in the other direction, so a candidate ADDED
+ * to the reader would leave this list a strict subset — the mirror would copy fewer inputs than the
+ * real render reads, and the freshness gate would then byte-compare two documents rendered from
+ * different sources, which is a comparison between two different questions. And the premise stopped
+ * being true in the same round: the reader now PUBLISHES its candidate list, because the structure
+ * validator had to be able to ask which files govern (finding B-1).
+ *
+ * So there is nothing left to hold two-sided. The list is the reader's own, in the reader's own
+ * order, and a candidate added there arrives here without an edit — where `GUARANTEES_DATA_SOURCE_COUNT`
+ * below then refuses the mirror by name until a human moves the pin.
+ * ---------------------------------------------------------------------------------------------
  */
-export const GUARANTEES_CONFIG_CANDIDATES = [
-    ".grugops/factory.config.json",
-    "agent-factory/config/factory.config.json",
-];
+export const GUARANTEES_CONFIG_CANDIDATES = GOVERNANCE_CONFIG_RELPATHS;
 export const GUARANTEES_DATA_SOURCES = [
     ...GUARANTEES_AUDIT_SOURCES,
     ...GUARANTEES_CONFIG_CANDIDATES,

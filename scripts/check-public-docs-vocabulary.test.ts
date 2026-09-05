@@ -35,6 +35,7 @@ import {
   writeFileSync,
   rmSync,
   readdirSync,
+  readFileSync,
   existsSync,
   statSync,
 } from "node:fs";
@@ -513,6 +514,110 @@ describe("check-public-docs-vocabulary — the corpus, the scan, and the differe
       expect(byName(PUBLIC_DOCS_CORPUS_PARTS, name)).toBe(
         byName(PUBLIC_DOCS_SCAN_PARTS, name),
       );
+    }
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// PLAN 30-10 (RED-TEAM SURFACE B, ROUND 1) — FINDING B-8: WHO TAKES THE NARROWED SET, DERIVED.
+//
+// `publicDocsCorpus()` and `publicDocsScan()` exist as two functions precisely because a consumer
+// that takes the post-exemption set inherits an exemption argued for a predicate it does not run —
+// the recorded CR-01 defect, in which CHANGELOG.md sat outside the banned-claim scan carrying two
+// live disproven claims while the identical bytes in README.md went red.
+//
+// The module's own comment describes that as something "a future consumer" might do. Measured on the
+// live tree in round 1: a consumer already does. `scripts/check-audit-register.ts` imports
+// `publicDocsScan()` and uses it as a VOUCHING set — "is this registry-arm file vouched for by a
+// derivation" — where a SMALLER set produces MORE findings. That direction is fail-closed, so it is
+// not a defect; what was a defect is that nothing said so, and the sentence a reader meets said the
+// opposite.
+//
+// So the split is DERIVED and pinned here rather than described. A new consumer of either accessor
+// is red until somebody writes down which question it is asking and which way its narrowing fails.
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+
+describe("30-10 B-8 — the corpus/scan consumer split is derived and its direction is recorded", () => {
+  /**
+   * The declared consumers, each with the direction its narrowing fails in. Held two-sided against
+   * a scan of the tree, so neither a new consumer nor a vanished one can pass silently.
+   */
+  const DECLARED_CONSUMERS: readonly {
+    readonly module: string;
+    readonly accessor: "publicDocsCorpus" | "publicDocsScan";
+    readonly why: string;
+  }[] = [
+    {
+      module: "check-banned-claims.ts",
+      accessor: "publicDocsCorpus",
+      why:
+        "it asks WHICH DOCUMENTS ARE PUBLIC. A conformance, token-economy or comprehension-benefit " +
+        "claim is just as wrong in a changelog as anywhere else, so the vocabulary gate's exemption " +
+        "has no bearing on it. Taking the scan here is the recorded CR-01 defect and it fails OPEN.",
+    },
+    {
+      module: "check-audit-register.ts",
+      accessor: "publicDocsScan",
+      why:
+        "it uses the set as a VOUCHING set — a registry-arm file must be a member or the gate " +
+        "reports it. A smaller set therefore produces MORE findings, so the exemption's narrowing " +
+        "fails CLOSED here. Measured, not assumed: the finding fires on absence from the set.",
+    },
+  ];
+
+  it("the tree's consumers of each accessor are EXACTLY the declared ones, both directions", () => {
+    const dir = join(import.meta.dirname);
+    const modules = readdirSync(dir)
+      .filter((f) => f.endsWith(".ts") && !f.endsWith(".test.ts"))
+      .filter((f) => f !== "check-public-docs-vocabulary.ts")
+      .sort();
+    // Non-vacuity: the scan set is the tree's non-test modules, and it is not empty.
+    expect(modules.length).toBeGreaterThan(10);
+
+    const found: { module: string; accessor: string }[] = [];
+    for (const m of modules) {
+      const code = readFileSync(join(dir, m), "utf8")
+        .split("\n")
+        .filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l))
+        .join("\n");
+      for (const accessor of ["publicDocsCorpus", "publicDocsScan"] as const) {
+        if (new RegExp(`(?<![\\w$.])${accessor}\\s*\\(`).test(code)) {
+          found.push({ module: m, accessor });
+        }
+      }
+    }
+
+    const key = (r: { module: string; accessor: string }): string => `${r.module}::${r.accessor}`;
+    const declared = DECLARED_CONSUMERS.map((c) => `${c.module}::${c.accessor}`).sort();
+    const live = found.map(key).sort();
+
+    const undeclared = live.filter((k) => !declared.includes(k));
+    expect(
+      undeclared,
+      `consumer(s) of the public-docs corpus/scan with no declared direction: ` +
+        `[${undeclared.join(", ")}] — write down which question it asks and which way its ` +
+        `narrowing fails before this passes`,
+    ).toEqual([]);
+    const vanished = declared.filter((k) => !live.includes(k));
+    expect(
+      vanished,
+      `declared consumer(s) the tree no longer has: [${vanished.join(", ")}] — a table row that ` +
+        `describes nothing is worse than no table`,
+    ).toEqual([]);
+    // Both accessors are live, so the split is not a distinction nobody uses.
+    expect(new Set(found.map((f) => f.accessor)).size).toBe(2);
+    for (const c of DECLARED_CONSUMERS) expect(c.why.length).toBeGreaterThan(80);
+  });
+
+  it("the narrowing is REAL — the two accessors actually differ on this tree", () => {
+    // A direction argument about a subtraction that subtracts nothing would be a statement about an
+    // empty difference. PUBLIC_DOCS_EXEMPT is non-empty and its member is in the corpus.
+    const corpus = publicDocsCorpus();
+    const scan = publicDocsScan();
+    expect(corpus.length).toBe(scan.length + PUBLIC_DOCS_EXEMPT.length);
+    for (const e of PUBLIC_DOCS_EXEMPT) {
+      expect(corpus).toContain(e);
+      expect(scan).not.toContain(e);
     }
   });
 });

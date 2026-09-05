@@ -2007,8 +2007,6 @@ describe("30-03 D-13 — the derived, pinned set of config-resolving sites", () 
       "reads the `models` block (D-05/D-06/D-07/D-11). A deliberate non-governance reader, disclosed by D-13 and out of scope this phase; folding it in is a backlog item.",
     "scripts/validate-agent-factory.ts":
       "structure validator: reads the shipped kit config to assert it parses and carries mode/cadence/autonomy.",
-    "scripts/generate-guarantees.ts":
-      "D-17 guarantees render (plan 30-07): DECLARES the two config candidate paths as GUARANTEES_DATA_SOURCES so the freshness gate can mirror them. It reads its matrix through readGovernanceConfig and nowhere else — NOT a second governance reader, and AUTO-06 stays at one.",
     "scripts/guarantees-freshness.ts":
       "the guarantees drift gate (plan 30-07): COPIES whichever candidate exists into its temp mirror and refuses if none did. It opens no config for a value and parses no JSON; it moves bytes so the mirrored render reads the same matrix the real tree does.",
   };
@@ -2021,13 +2019,24 @@ describe("30-03 D-13 — the derived, pinned set of config-resolving sites", () 
    * shipped kit config, one installer that handles the file, one scanner that excludes it.
    *
    * 8 → 10 (plan 30-07). TWO entrants, and the question this pin exists to force was asked of both:
-   * is either a second GOVERNANCE READER? Neither is. `generate-guarantees.ts` DECLARES the
-   * candidate paths so its freshness gate can mirror them, and takes its matrix from
+   * is either a second GOVERNANCE READER? Neither is. `generate-guarantees.ts` DECLARED the
+   * candidate paths so its freshness gate could mirror them, and took its matrix from
    * `readGovernanceConfig` — the one reader — rather than opening the file itself.
    * `guarantees-freshness.ts` copies bytes into a temp mirror and parses nothing. AUTO-06's "exactly
    * one governance reader" is unmoved, and the number moves in the SAME commit that adds the sites.
+   *
+   * 10 → 9 (plan 30-10, red-team surface B finding B-5). ONE DEPARTURE, and it is the pin moving in
+   * the direction this repository wants: `scripts/generate-guarantees.ts` no longer SPELLS a config
+   * path at all. Its declaration was a restatement of the reader's candidate list, held by a case
+   * that called itself two-sided and was one-sided — so a candidate added to the reader would have
+   * left the freshness mirror copying a strict subset of what the real render reads. The reader now
+   * publishes the list (`GOVERNANCE_CONFIG_RELPATHS`, added for the validator in finding B-1) and
+   * the render imports it, so the tree has one fewer place spelling a config path rather than one
+   * more. `guarantees-freshness.ts` still spells nothing either — it reads the list through the
+   * generator — and it stays a member only because it names `factory.config.json` in its own
+   * refusal text, which is the predicate's deliberate superset behaviour.
    */
-  const CONFIG_PATH_SITE_COUNT = 10;
+  const CONFIG_PATH_SITE_COUNT = 9;
 
   /**
    * Refuse a zero-length set BY NAME rather than reporting a pass over nothing. This mirrors

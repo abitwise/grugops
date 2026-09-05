@@ -371,9 +371,19 @@ export const PUBLIC_DOCS_CORPUS_PARTS = [
  * anywhere else, and the reason CHANGELOG.md is exempt from the vocabulary check ("its retired
  * vocabulary describes what the project used to ship") has no bearing on any of them.
  *
- * `check-banned-claims.ts` consumes THIS function. If a future consumer takes `publicDocsScan()`
- * instead, it inherits an exemption argued for a predicate it does not run — which is exactly the
- * CR-01 defect, and is why both functions exist rather than one.
+ * `check-banned-claims.ts` consumes THIS function, for that reason.
+ *
+ * A CONSUMER OF THE OTHER ACCESSOR ALREADY EXISTS, AND SAYING SO IS THE POINT (plan 30-10, finding
+ * B-8). This paragraph used to describe taking `publicDocsScan()` as something "a future consumer"
+ * might do. `scripts/check-audit-register.ts` does it today: it uses the set as a VOUCHING set —
+ * a registry-arm file must be a member or the gate reports it — so a SMALLER set produces MORE
+ * findings and the exemption's narrowing fails CLOSED there. That direction makes it correct rather
+ * than defective; what was defective was a sentence inviting a reader to believe nobody takes the
+ * narrowed set, in a module whose whole reason for having two accessors is that somebody might.
+ *
+ * The split is now DERIVED and pinned two-sided in scripts/check-public-docs-vocabulary.test.ts,
+ * with each consumer's narrowing direction written down. A new consumer of either accessor is red
+ * until somebody records which question it asks and which way its narrowing fails.
  */
 export function publicDocsCorpus() {
     return PUBLIC_DOCS_CORPUS_PARTS.flatMap((p) => [...p.members]);

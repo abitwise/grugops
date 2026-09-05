@@ -284,6 +284,39 @@ describe("AUTO-07 — every roster member is accounted for, in both directions",
     expect(PAYLOADS.length).toBe(EXPECTED_RUNS);
   });
 
+  it("the STRUCTURAL arm's SET is asserted, not only its cardinality (plan 30-10, finding B-7)", () => {
+    // WHAT THE CARDINALITY EQUALITY ABOVE MISSES, MEASURED BEFORE THIS CASE WAS WRITTEN. The
+    // structural arm has two hand-declared sides — STRUCTURAL_KINDS names the shapes,
+    // STRUCTURAL_PAYLOADS carries them — and the only thing compared was `PAYLOADS.length`, which
+    // counts one side against the other's LENGTH. Replacing the `empty-body` payload with a second
+    // copy of `benign-read-only` therefore removed a shape from the differential entirely while
+    // every case stayed green: 14 passed, and the guard's empty-stdin path was never exercised.
+    //
+    // "Derive the set, assert the count" is half a rule when the elements are what can go missing.
+    // Both directions, and each with its own message, because they are different faults: a kind
+    // declared but not carried is a shape nobody drives, and a kind carried but not declared is a
+    // payload nobody wrote down.
+    const carried = STRUCTURAL_PAYLOADS.map((p) => p.kind).sort();
+    const declared = [...STRUCTURAL_KINDS].sort();
+    const missing = declared.filter((k) => !carried.includes(k));
+    expect(
+      missing,
+      `structural shape(s) declared in STRUCTURAL_KINDS but carried by no payload: ` +
+        `[${missing.join(", ")}] — the differential is short by exactly these shapes`,
+    ).toEqual([]);
+    const undeclared = carried.filter((k) => !declared.includes(k));
+    expect(
+      undeclared,
+      `structural payload(s) whose kind is not declared in STRUCTURAL_KINDS: ` +
+        `[${undeclared.join(", ")}] — a shape nobody wrote down cannot be reasoned about`,
+    ).toEqual([]);
+    // …and no kind appears twice, which is the shape the cardinality check reads as full.
+    expect(new Set(carried).size, `duplicate structural kinds: ${carried.join(", ")}`).toBe(
+      carried.length,
+    );
+    expect(carried.length).toBeGreaterThan(0);
+  });
+
   it("every COVERED_ELSEWHERE reference resolves: the file exists and carries that test name", () => {
     // A reference nobody reads is the hand-maintained set-literal this repository's founding defect
     // is made of. Each one is resolved against the tree here, so a renamed or deleted test is red.

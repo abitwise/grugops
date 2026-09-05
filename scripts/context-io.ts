@@ -1724,6 +1724,29 @@ export function governanceConfigCandidates(base: string): readonly string[] {
   ];
 }
 
+/**
+ * The same candidates as REPO-RELATIVE POSIX paths, for a consumer that must NAME the files rather
+ * than read them — a mirror that copies them, a gate that reports one by path.
+ *
+ * ---------------------------------------------------------------------------------------------
+ * WHY IT IS DERIVED FROM THE FUNCTION ABOVE AND NOT WRITTEN OUT (plan 30-10, finding B-5).
+ *
+ * `scripts/generate-guarantees.ts` needed exactly this and, with no published answer to ask,
+ * RESTATED the two paths — with a comment saying so, and a harness case holding the restatement
+ * against this module's source. That case was documented as two-sided and was measurably one-sided:
+ * it asserted every path the restatement names is present here, and nothing in the other direction,
+ * so a candidate ADDED here would leave the mirror copying a strict subset of what the real render
+ * reads. A byte comparison between two documents rendered from different inputs is a comparison
+ * between two different questions.
+ *
+ * `join(base, …)` with an EMPTY base yields the repo-relative form, so this list cannot disagree
+ * with the absolute one: there is one array of segments, in one function, and both views are it.
+ * ---------------------------------------------------------------------------------------------
+ */
+export const GOVERNANCE_CONFIG_RELPATHS: readonly string[] = governanceConfigCandidates("").map(
+  (p) => p.split(sep).join("/"),
+);
+
 export function readGovernanceConfig(repoRoot?: string): GovernanceConfigResult {
   const base = repoRoot ?? ROOT;
   const candidates = governanceConfigCandidates(base);

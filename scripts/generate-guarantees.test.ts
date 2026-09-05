@@ -34,9 +34,11 @@ import {
   readFileSync,
   rmSync,
   existsSync,
+  cpSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import {
   REGISTRY_PATH,
   RESIDUAL_PATH,
@@ -686,29 +688,117 @@ describe("guarantees-freshness.js — the byte-equality drift gate", () => {
     expect(src).toContain("GUARANTEES_ENTRY_JS");
   });
 
-  it("the config-candidate paths this module declares are byte-present in the ONE reader", () => {
-    // A DUPLICATION, PINNED RATHER THAN DENIED. scripts/context-io.ts owns config resolution and
-    // keeps its candidate list private; the mirror needs the PATHS in order to carry them. So the
-    // list is restated here and held against the reader's source, two-sided — a candidate added or
-    // renamed there reds this case rather than silently leaving the mirror rendering against the
-    // roster defaults while the real tree reads a declared matrix.
-    const reader = readFileSync(join(ROOT, "scripts", "context-io.ts"), "utf8");
-    // THE CONFIG ARM IS ASKED FOR, NEVER INFERRED BY SUBTRACTION. This case used to compute it as
-    // "the union minus the registry", so the moment the union gained a NON-config member (plan
-    // 30-09's residual register) it demanded that context-io.ts resolve a document it has no
-    // business knowing about. The two arms are declared at their source now.
-    const configCandidates = GUARANTEES_CONFIG_CANDIDATES;
-    expect(configCandidates.length).toBeGreaterThan(0);
+  it("the config-candidate list IS the reader's, and no copy of it survives in this module", () => {
+    // WHAT THIS CASE USED TO ASSERT, AND WHY IT WAS REPLACED (plan 30-10, finding B-5). It held a
+    // hand-written copy of the two candidate paths against `context-io.ts`'s SOURCE TEXT and called
+    // that two-sided. It was one-sided: every path the copy named had to appear in the reader, and
+    // nothing asserted the converse — so a candidate ADDED to the reader left the copy a strict
+    // subset, and the freshness mirror would copy fewer inputs than the real render reads. A byte
+    // comparison between two documents rendered from different sources is a comparison between two
+    // different questions.
+    //
+    // There is no copy left to hold. The reader publishes the list, this module imports it, and the
+    // assertion is IDENTITY rather than textual presence — which is the only form a "no second
+    // grammar" claim can take.
+    expect(GUARANTEES_CONFIG_CANDIDATES.length).toBeGreaterThan(0);
     // …and the union is EXACTLY the two arms, so a third provenance cannot enter unlabelled.
     expect([...GUARANTEES_DATA_SOURCES].sort()).toEqual(
       [...GUARANTEES_AUDIT_SOURCES, ...GUARANTEES_CONFIG_CANDIDATES].sort(),
     );
-    for (const c of configCandidates) {
-      const segments = c.split("/");
-      expect(
-        reader.includes(segments.map((s) => JSON.stringify(s)).join(", ")),
-        `context-io.ts does not resolve the candidate ${c}`,
-      ).toBe(true);
+    // No candidate path is spelled a second time in this module's own source.
+    const src = readFileSync(GENERATOR_TS, "utf8");
+    const code = src
+      .split("\n")
+      .filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l))
+      .join("\n");
+    for (const c of GUARANTEES_CONFIG_CANDIDATES) {
+      expect(code.includes(`"${c}"`), `${c} is spelled as a literal in the generator`).toBe(false);
     }
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// PLAN 30-10 (RED-TEAM SURFACE B, ROUND 1) — the render's data-source authority and the bound on
+// its count assertion.
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+
+const cioMod: typeof import("./context-io.js") = await import(
+  pathToFileURL(join(ROOT, "scripts", "context-io.js")).href
+);
+const auditRegister: typeof import("./check-audit-register.js") = await import(
+  pathToFileURL(join(ROOT, "scripts", "check-audit-register.js")).href
+);
+
+describe("30-10 B-5 — the config arm is the reader's own list, not a restatement of it", () => {
+  it("GUARANTEES_CONFIG_CANDIDATES IS the reader's published relative-path list", () => {
+    // Identity, not similarity. The previous shape was a hand-written copy held against the reader's
+    // SOURCE TEXT in one direction only — every path the copy named had to appear there, and nothing
+    // asserted the converse — so a candidate ADDED to the reader left this list a strict subset and
+    // the freshness mirror copying fewer inputs than the real render reads.
+    expect(GUARANTEES_CONFIG_CANDIDATES).toBe(cioMod.GOVERNANCE_CONFIG_RELPATHS);
+  });
+
+  it("the reader's two views agree: the relative list is the absolute list under an empty base", () => {
+    // Non-vacuity plus coherence. Both views come from one array of segments in one function, and
+    // this is the assertion that says so rather than trusting the comment that claims it.
+    const abs = cioMod.governanceConfigCandidates("");
+    expect(abs.length).toBeGreaterThan(1);
+    expect(cioMod.GOVERNANCE_CONFIG_RELPATHS.length).toBe(abs.length);
+    for (const rel of cioMod.GOVERNANCE_CONFIG_RELPATHS) {
+      expect(rel.endsWith("factory.config.json"), `${rel} is not a config candidate`).toBe(true);
+    }
+    expect(cioMod.GOVERNANCE_CONFIG_RELPATHS[0]).toContain(".grugops");
+  });
+
+  it("a candidate added to the READER reaches the mirror's declared inputs, and moves the pin", () => {
+    // The direction the deleted restatement was blind to, driven as a fact about the live values:
+    // the data-source union IS the audit arm plus the reader's list, so a third candidate lands in
+    // GUARANTEES_DATA_SOURCES automatically — and then trips GUARANTEES_DATA_SOURCE_COUNT, which is
+    // the freshness gate's own named refusal rather than a silent short mirror.
+    expect([...GUARANTEES_DATA_SOURCES].sort()).toEqual(
+      [...GUARANTEES_AUDIT_SOURCES, ...cioMod.GOVERNANCE_CONFIG_RELPATHS].sort(),
+    );
+    const hypothetical = [...GUARANTEES_AUDIT_SOURCES, ...cioMod.GOVERNANCE_CONFIG_RELPATHS, "x/factory.config.json"];
+    expect(hypothetical.length).not.toBe(GUARANTEES_DATA_SOURCE_COUNT);
+  });
+});
+
+describe("30-10 B-6 — the count assertion's BOUND is asserted, not assumed", () => {
+  it("both sides of the equality read the SAME registry, so a lost row moves both together", () => {
+    // The measurement this case records, run on a hermetic copy before it was written: flipping one
+    // `- kind: safety` to `- kind: architecture` took declaredSafetyRows 6 -> 5 AND the join 6 -> 5,
+    // the equality held, and renderGuarantees published five of six safety claims. The equality
+    // catches a PARSE that drops a row; it cannot catch a REGISTRY that loses one.
+    const root = freshTmp("guar-b6-");
+    cpSync(join(ROOT, "docs"), join(root, "docs"), { recursive: true });
+    cpSync(join(ROOT, "agent-factory"), join(root, "agent-factory"), { recursive: true });
+    const reg = join(root, REGISTRY_PATH);
+    const text = readFileSync(reg, "utf8");
+    const head = text.indexOf("### C-28-038");
+    const kindAt = text.indexOf("- kind: safety", head);
+    expect(head, "the fixture premise: the registry carries C-28-038").toBeGreaterThan(-1);
+    expect(kindAt, "the fixture premise: it is a safety row").toBeGreaterThan(head);
+    writeFileSync(
+      reg,
+      text.slice(0, kindAt) + "- kind: architecture" + text.slice(kindAt + "- kind: safety".length),
+    );
+
+    const declared = declaredSafetyRows(root);
+    const join6 = guaranteesJoin(root);
+    expect(declared).toBe(join6.length); // the equality is SATISFIED …
+    expect(declared).toBe(declaredSafetyRows(ROOT) - 1); // … while a row was lost
+    expect(() => renderGuarantees(root)).not.toThrow(); // … and the render publishes the short set
+  });
+
+  it("the OTHER direction has a named owner, and it agrees with this render on the live tree", () => {
+    // CLAIM_KIND_CARDINALITY is the hand-declared per-kind measurement baseline in
+    // check-audit-register.ts — legitimate exactly because nothing derives WHICH claims are safety
+    // claims. It is the authority that reds on the mutation above. Asserting the agreement here
+    // makes the dependency a checked fact rather than a belief about another gate: if that baseline
+    // and this render's byte pass ever disagree, one of them is measuring a registry the other is not.
+    const safety = auditRegister.CLAIM_KIND_CARDINALITY.find((c) => c.kind === "safety");
+    expect(safety, "check-audit-register declares no `safety` cardinality").toBeDefined();
+    expect(safety?.count).toBe(declaredSafetyRows(ROOT));
+    expect(declaredSafetyRows(ROOT)).toBeGreaterThan(0);
   });
 });
