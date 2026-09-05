@@ -745,3 +745,213 @@ describe("30-10 B-1 — the config form check is asked at EVERY position the rea
     expect(lines).toHaveLength(1);
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// PLAN 30-10 ROUND 2 — F1 (R1-1 ≡ R2-2, HIGH) and F3 (R1-3 ≡ R2-5, LOW).
+//
+// F1 — ROUND 1'S OWN FIX INTRODUCED THIS. B-1 took the POSITIONS from the reader and left the BASE
+// hand-chosen: `checkConfig` iterated `governanceConfigCandidates(STATE_ROOT)` and one fixed kit
+// relpath. `readGovernanceConfig(repoRoot?)` has TWO bases — the caller's, and, when the caller
+// passes nothing, its own module-relative `ROOT`, which in the shipped shared-install IS THE KIT
+// ROOT. That fallback is the declared default of `admit()`, `admitAndAppend()` and the
+// `context-io.js admit` CLI. So `<KIT_ROOT>/.grugops/factory.config.json` is the reader's FIRST
+// candidate under its fallback base and was form-checked at no position.
+//
+// AND THE HARNESS PREMISE FAILED. Every case in round 1's B-1 block — including the one titled
+// "the checked positions EQUAL the reader's candidate list" — ran `runSplit(kit, kit)`. With the two
+// roots coinciding there is exactly one base, so the equality was trivially true and the fixture
+// never exhibited the condition the case exists to bound. The two-root split is the documented
+// shared-install shape, and it is what these cases drive now.
+//
+// F3 — THE SAME REPAIR CLOSES IT. `kitRead` conflated ABSENT with UNREADABLE (both `null`), the kit
+// arm treated `null` as absence, and round 1's resolved-path dedupe then skipped the state arm —
+// the only one that knows how to say "exists but could not be read" — for exactly that path. So an
+// unreadable governing config produced `ALL CHECKS PASSED`: a gate reporting a verdict for a check
+// it did not perform, which is the Phase 28 AP-1 anti-pattern this phase carries forward.
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+
+/** Two DISTINCT roots: a kit tree and a state tree, the documented shared-install arrangement. */
+function twoRoots(): { kit: string; state: string } {
+  const kit = copyGoodKit(false);
+  const state = mkdtempSync(join(tmpdir(), "grugops-val-state2-"));
+  tmpDirs.push(state);
+  cpSync(join(FIX, "good", "plans"), join(state, "plans"), { recursive: true });
+  return { kit, state };
+}
+
+/** The payload carrying one instance of every finding `checkConfigForm` can produce. */
+const SIX_ERROR_PAYLOAD = JSON.stringify({
+  mode: "lean",
+  cadence: "kanban",
+  autonomy: "pr",
+  checkpoints: { test_integrity: "off", open_pr: "OFF", not_a_real_checkpoint: "off" },
+  production_requires_human_confirmation: false,
+  security: { asvs_level: "L4" },
+});
+
+describe("30-10 R2 F1 — the form check is asked under EVERY base the reader can resolve against", () => {
+  it("the two-root control still passes with no governance config dropped anywhere", () => {
+    const { kit, state } = twoRoots();
+    const r = runSplit(kit, state);
+    expect(out(r)).toContain("ALL CHECKS PASSED");
+    expect(r.status).toBe(0);
+  });
+
+  it("the SAME bytes are refused at the STATE base — the positive control", () => {
+    const { kit, state } = twoRoots();
+    mkdirSync(join(state, ".grugops"), { recursive: true });
+    writeFileSync(join(state, ".grugops", "factory.config.json"), SIX_ERROR_PAYLOAD);
+    const r = runSplit(kit, state);
+    expect(r.status).not.toBe(0);
+    expect(out(r)).toContain(".grugops/factory.config.json");
+    expect(out(r)).toMatch(/test_integrity/);
+  });
+
+  it("…and at the KIT base, which the reader consults FIRST under its fallback root", () => {
+    const { kit, state } = twoRoots();
+    mkdirSync(join(kit, ".grugops"), { recursive: true });
+    writeFileSync(join(kit, ".grugops", "factory.config.json"), SIX_ERROR_PAYLOAD);
+    const r = runSplit(kit, state);
+    expect(r.status, `kit-base payload was accepted:\n${out(r)}`).not.toBe(0);
+    expect(out(r)).toContain(".grugops/factory.config.json");
+    expect(out(r)).toMatch(/test_integrity/);
+    expect(out(r)).toMatch(/autonomy/);
+    expect(out(r)).toMatch(/not_a_real_checkpoint/);
+  });
+
+  it("every finding checkConfigForm can produce fires at the KIT base, not just one", () => {
+    const { kit, state } = twoRoots();
+    mkdirSync(join(kit, ".grugops"), { recursive: true });
+    writeFileSync(join(kit, ".grugops", "factory.config.json"), SIX_ERROR_PAYLOAD);
+    const lines = out(runSplit(kit, state))
+      .split("\n")
+      .filter((l) => l.includes(".grugops/factory.config.json:"));
+    // Six independent arms: the retired scalar, the TINT-03 carve-out, the unknown id, the
+    // non-canonical disposition, the WR-01 boolean and the out-of-enum dial. A repair that reached
+    // the position but only ran one arm would satisfy the case above and fail this one.
+    expect(lines.length, lines.join("\n")).toBeGreaterThanOrEqual(6);
+  });
+
+  it("the BASE set comes from the reader, and the checked positions are bases × candidates", () => {
+    // ROUND 1'S CASE, REPAIRED. It ran over coinciding roots, where "the positions equal the
+    // reader's candidate list" holds for one base and says nothing about the split it names. It is
+    // driven over DISTINCT roots now, and the expected set is the cross product of the reader's
+    // published bases and its published candidates — both derived, neither typed here.
+    const { kit, state } = twoRoots();
+    // DISTINCT payloads per base. Both positions render the same repo-relative LABEL
+    // (`.grugops/factory.config.json`), so a case keyed on labels alone cannot tell which base was
+    // checked — it would pass on a repair that reached only one of them. The unknown-id arm quotes
+    // the offending id back, so the ids are the discriminator.
+    for (const [base, id] of [[kit, "kit_base_only_id"], [state, "state_base_only_id"]] as const) {
+      mkdirSync(join(base, ".grugops"), { recursive: true });
+      writeFileSync(
+        join(base, ".grugops", "factory.config.json"),
+        JSON.stringify({ mode: "lean", cadence: "kanban", checkpoints: { [id]: "off" } }),
+      );
+    }
+    const p = join(kit, "agent-factory/config/factory.config.json");
+    const c = JSON.parse(readFileSync(p, "utf8")) as Record<string, unknown>;
+    c.autonomy = "pr";
+    writeFileSync(p, JSON.stringify(c, null, 2));
+
+    const r = runSplit(kit, state);
+    const named = new Set(
+      out(r)
+        .split("\n")
+        .flatMap((l) => {
+          const m = l.match(/ERROR\s+(\S+?):/);
+          return m ? [m[1]] : [];
+        })
+        .filter((f) => f.endsWith("factory.config.json")),
+    );
+    // The three positions that EXIST in this arrangement: both drops, plus the kit's in-kit config.
+    expect([...named].sort()).toEqual(
+      [".grugops/factory.config.json", "agent-factory/config/factory.config.json"].sort(),
+    );
+    // Non-vacuity of the two-root premise itself: the roots really are distinct, and BOTH bases'
+    // own payloads are named, so a repair that reached only one of them fails here.
+    expect(kit).not.toBe(state);
+    expect(out(r)).toMatch(/autonomy/);
+    expect(out(r), "the STATE base was not checked").toMatch(/state_base_only_id/);
+    expect(out(r), "the KIT base was not checked").toMatch(/kit_base_only_id/);
+  });
+});
+
+describe("30-10 R2 F3 — a governance config that EXISTS and cannot be READ is named, never passed over", () => {
+  it("an unreadable in-kit config is reported by name rather than treated as absent", () => {
+    const kit = copyGoodKit(true);
+    const p = join(kit, "agent-factory/config/factory.config.json");
+    rmSync(p);
+    mkdirSync(p); // a directory where a file belongs: existsSync true, readFileSync throws EISDIR
+    const r = runSplit(kit, kit);
+    expect(r.status, `an unreadable governing config passed:\n${out(r)}`).not.toBe(0);
+    expect(out(r)).toMatch(/agent-factory\/config\/factory\.config\.json: exists but could not be read/);
+  });
+
+  it("an unreadable repo-dropped config is reported by name too — one rule, every position", () => {
+    const kit = copyGoodKit(true);
+    mkdirSync(join(kit, ".grugops", "factory.config.json"), { recursive: true });
+    const r = runSplit(kit, kit);
+    expect(r.status).not.toBe(0);
+    expect(out(r)).toMatch(/\.grugops\/factory\.config\.json: exists but could not be read/);
+  });
+
+  it("an ABSENT config is still not a form finding — absence and unreadability stay different facts", () => {
+    const kit = copyGoodKit(true);
+    expect(existsSync(join(kit, ".grugops", "factory.config.json"))).toBe(false);
+    const r = runSplit(kit, kit);
+    expect(r.status).toBe(0);
+    expect(out(r)).not.toMatch(/could not be read/);
+  });
+});
+
+describe("30-10 R2 F1 — the fallback base is a KIT root BY CONSTRUCTION, asserted not argued", () => {
+  it("`GOVERNANCE_FALLBACK_BASE` is the parent of the running reader module, i.e. a kit root", () => {
+    // WHY THIS CASE EXISTS. The validator's base set is its own two documented roots. The reader has
+    // a THIRD base — its own module-relative fallback — and the claim that covering `KIT_ROOT`
+    // covers it rests entirely on that fallback being `<kit>`. That is a fact about the filesystem,
+    // so it is measured here rather than asserted in a comment: the base must carry the reader's own
+    // module and the kit tree beside it.
+    const fallback = cio.GOVERNANCE_FALLBACK_BASE;
+    expect(existsSync(join(fallback, "scripts", "context-io.js")), `${fallback} carries no reader`).toBe(true);
+    expect(existsSync(join(fallback, "agent-factory")), `${fallback} is not a kit root`).toBe(true);
+    // …and the candidate list under it is the same relative set, so "which files" cannot differ
+    // between bases even though "which base" can.
+    expect(
+      cio.governanceConfigCandidates(fallback).map((p) => p.slice(fallback.length + 1).split("\\").join("/")),
+    ).toEqual([...cio.GOVERNANCE_CONFIG_RELPATHS]);
+  });
+
+  it("the validator declares NO base beyond its own two documented roots", () => {
+    // The new degree of freedom this repair introduces is a BASE SET, and a hand-listed set is this
+    // repository's founding defect class. It is bounded by construction — the members are the two
+    // env-var-resolved root constants and nothing else — and that is what this source scan asserts:
+    // a third base cannot enter without a third root literal appearing beside them.
+    const src = readFileSync(join(ROOT, "scripts", "validate-agent-factory.ts"), "utf8");
+    const decl = src.match(/const GOVERNANCE_BASES:[^=]*=\s*\[([^\]]*)\]/);
+    expect(decl, "GOVERNANCE_BASES is not declared as an array literal").not.toBeNull();
+    const members = (decl?.[1] ?? "")
+      .split(",")
+      .map((m) => m.trim())
+      .filter((m) => m.length > 0);
+    expect(members).toEqual(["KIT_ROOT", "STATE_ROOT"]);
+    // And the two roots are the two documented env vars, spelled once each.
+    expect((src.match(/process\.env\.VALIDATE_KIT_ROOT/g) ?? []).length).toBeGreaterThan(0);
+    expect((src.match(/process\.env\.VALIDATE_ROOT/g) ?? []).length).toBeGreaterThan(0);
+    // No candidate path literal was written back into `checkConfig` by the repair. The scan is
+    // bounded by that function's OWN closing brace rather than run file-wide: the required-file
+    // existence loop elsewhere legitimately names the in-kit config, and a file-wide scan would be
+    // asserting about a different predicate — the axis this project has recorded losing before.
+    const from = src.indexOf("function checkConfig(): void {");
+    expect(from, "checkConfig not found").toBeGreaterThan(-1);
+    const to = src.indexOf("\n}\n", from);
+    expect(to, "checkConfig has no closing brace").toBeGreaterThan(from);
+    const body = src.slice(from, to);
+    for (const rel of cio.GOVERNANCE_CONFIG_RELPATHS) {
+      expect(body.includes(`"${rel}"`), `${rel} is spelled as a literal inside checkConfig`).toBe(false);
+    }
+    // …and the body genuinely contains the loop, so the slice is not empty-by-accident.
+    expect(body).toContain("GOVERNANCE_BASES");
+    expect(body).toContain("governanceConfigCandidates");
+  });
+});

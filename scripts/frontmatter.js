@@ -563,6 +563,116 @@ export function unfencedHeadingIndices(text, heading) {
     return at;
 }
 /**
+ * ═════════════════════════════════════════════════════════════════════════════════════════════
+ * THE THIRD QUESTION, AND WHY IT IS DERIVED FROM THE OTHER TWO RATHER THAN INVENTED BESIDE THEM
+ * (plan 30-10, round 2, finding F2 = reviewers R1-2 ≈ R2-1).
+ *
+ * This module answers two questions about a heading line and they do not use the same grammar:
+ *
+ *   `unfencedHeadingIndices`  — OCCURRENCE  — a `trimEnd()`-exact, column-zero EQUALITY.
+ *   `sectionEndIndex`         — TERMINATION — a PREFIX, `/^#{1,2} /`.
+ *
+ * Every string in the prefix language but outside the equality language CLOSES a section while
+ * being invisible to any consumer counting occurrences. Round 1's finding B-3 closed the byte-exact
+ * repeated heading by counting occurrences; measured afterwards, five spellings walked straight
+ * through it — `##  Stop conditions` (two spaces), a trailing `U+200B` / `U+2060` / `U+00AD`, and a
+ * ≤3-space indent. Each renders identically to the canonical heading in every CommonMark renderer,
+ * and each opened a region that neither pass watched.
+ *
+ * WHAT THIS FUNCTION ANSWERS. Which unfenced lines a renderer would show as `heading` — same level
+ * class, same rendered text — while `unfencedHeadingIndices` refuses them. It is the NEAR-MISS set,
+ * and it is a projection of the same fence toggle and the same requested heading, not a third
+ * independent opinion: a line is a near-miss iff it is an ATX heading of level at most two whose
+ * rendered text equals the requested heading's rendered text AND the exact equality rejects it.
+ * The two sets are disjoint by construction and their union is "what a reader sees as this heading".
+ *
+ * WHY IT IS A REFUSAL SET AND NOT A WIDER ACCEPTANCE. Widening the equality would change
+ * `locateSection` for the four gates built on it, and it would leave two grammars with a smaller
+ * gap rather than one grammar. So acceptance is unchanged — the canonical form is still the only
+ * form anything is COLLECTED from — and a consumer that cares asks for the imitations and refuses
+ * them by name. That is D-64's posture: define the canonical spelling, then refuse what imitates it.
+ *
+ * WHAT IT DELIBERATELY DOES NOT DO, STATED SO ITS SCOPE IS NOT OVER-READ. It folds the axes on which
+ * two lines render IDENTICALLY: leading indentation a renderer ignores, the hash count within the
+ * level class, whitespace runs an HTML renderer collapses, and code points that occupy no width. It
+ * does NOT attempt visual-confusable folding — full-width forms, Cyrillic homoglyphs, NFKC
+ * compatibility mappings — because "looks similar to a human" is an open set, and an open-set
+ * predicate held as a gate is the totality claim this project has already spent eight rounds
+ * proving undecidable (D-59). Those spellings render DIFFERENTLY and are therefore ordinary
+ * unrelated headings; a consumer that wants them refused wants a different predicate.
+ *
+ * LEVEL THREE AND BELOW ARE NOT NEAR-MISSES. `### Stop conditions` does not close a level-2 section,
+ * so a consumer's located range still contains everything under it — it is governed, not shadowed —
+ * and refusing it would be the widening this function exists to avoid.
+ * ═════════════════════════════════════════════════════════════════════════════════════════════
+ */
+export function unfencedHeadingNearMisses(text, heading) {
+    // The requested heading, parsed by the SAME rule the candidates are. A caller that asks about a
+    // string which is not itself an ATX heading gets an empty answer rather than a match against a
+    // half-parsed target.
+    const want = atxHeadingText(heading);
+    if (want === null)
+        return [];
+    // The EXACT set is asked of the function that owns it, never re-spelled here. A second
+    // `trimEnd() === heading` in this module would be a second declaration of the equality the
+    // adapter above exists to have exactly one of.
+    const exact = new Set(unfencedHeadingIndices(text, heading));
+    const lines = text.split("\n");
+    const flags = fencedLineFlags(text);
+    const at = [];
+    for (let i = 0; i < lines.length; i++) {
+        if (flags[i] || exact.has(i))
+            continue; // an occurrence is never a near-miss
+        if (atxHeadingText(lines[i]) === want)
+            at.push(i);
+    }
+    return at;
+}
+/**
+ * The RENDERED text of a level-≤2 ATX heading line, or `null` when the line is not one.
+ *
+ * ONE PARSE, SHARED BY BOTH ARMS ABOVE — the requested heading and every candidate line go through
+ * this same function, so "same heading" cannot mean two things. The level bound matches
+ * `sectionEndIndex(…, 2)`'s, which is what makes the near-miss set exactly the set of lines that can
+ * close a section while imitating one.
+ */
+function atxHeadingText(line) {
+    // Up to three leading spaces are ignored by CommonMark; four or more open an indented code block.
+    if (!/^ {0,3}\S/.test(line))
+        return null;
+    const undented = line.replace(/^ +/, "");
+    // THE LEVEL QUESTION IS ASKED OF `sectionEndIndex` ITSELF, NOT OF A COPY OF ITS PATTERN. A
+    // one-line document whose only line closes a level-at-most-two section IS a level-at-most-two ATX
+    // heading, so this is the terminator's own grammar answering about one line rather than a second
+    // recogniser standing beside it. That is the whole point of the repair: the gap F2 walked through
+    // was two grammars for one question, and adding a third would be the same defect with more code.
+    if (sectionEndIndex(undented, 0, 2) !== 0)
+        return null;
+    // THE TEXT IS TAKEN BY SLICING, NOT BY A SECOND PATTERN. The level test above already guarantees
+    // one or two hashes followed by a space, so the first space is the separator and everything after
+    // it is the heading's text. Declaring a `/^#{1,2} +/` strip here would put a THIRD anchored ATX
+    // regex in this module — and `check-foundation-guards.test.ts`'s [B1] closure aliases recogniser
+    // names through their bindings, so binding its result to an ordinary identifier propagated
+    // "recogniser" through half the module's locals when it was tried. No pattern, no alias, no pin.
+    const separator = undented.indexOf(" ");
+    if (separator < 1)
+        return null; // unreachable once the line closes; refused rather than assumed
+    return renderedText(undented.slice(separator + 1));
+}
+/**
+ * The text as a renderer would present it: code points of zero visual width removed, whitespace runs
+ * collapsed, ends trimmed. Declared once and used on both sides of the near-miss comparison.
+ */
+function renderedText(s) {
+    return s.replace(ZERO_WIDTH, "").replace(/[ \t]+/g, " ").trim();
+}
+/**
+ * The code points that occupy no visual width and are therefore invisible in a heading: soft hyphen,
+ * zero-width space / non-joiner / joiner, word joiner, and the byte-order mark. `trimEnd()` strips
+ * `U+FEFF` and the `Zs` class but none of the others, which is precisely the gap F2 walked through.
+ */
+const ZERO_WIDTH = /[­​‌‍⁠﻿]/g;
+/**
  * The 0-based index of the first line at `from` or later that is NOT inside a fence and IS an ATX
  * heading of level at most `level` — the line that ENDS the caller's section. When no such line
  * exists the answer is `text.split("\n").length`, the ARRAY LENGTH and not the last index, so a

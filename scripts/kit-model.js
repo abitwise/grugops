@@ -496,6 +496,37 @@ export function listWorkflows(kitRoot = DEFAULT_KIT_ROOT) {
         .sort();
     return refuseEmpty(files, dir, "workflow");
 }
+/**
+ * EVERY markdown entry in the workflows directory, admitted or not — the raw membership question.
+ *
+ * ---------------------------------------------------------------------------------------------
+ * WHY THE UNFILTERED READ IS PUBLISHED (plan 30-10, round 2, finding F6 = reviewer R2-4).
+ *
+ * `listWorkflows` applies `isNumberedWorkflowFile` as a SILENT filter. A markdown file in that
+ * directory which the rule does not admit — `hotfix-emergency.md` — is outside the walked set,
+ * outside `WORKFLOW_COUNT`, and outside every denominator derived from either. Measured: such a file
+ * carrying a canonically tagged stop bullet left the checkpoint derivation, the shipped validator,
+ * the foundation guards and the whole suite green, with the declared stop governed by nothing.
+ *
+ * A consumer cannot ask "is anything in this directory being dropped" without either this function
+ * or a second `readdirSync` of its own — and a second directory walk beside the lister is the
+ * two-traversals-that-can-disagree shape this module exists to prevent. So the lister's own module
+ * answers it, through the SAME `readDirOrThrow`, and `scripts/checkpoints.test.ts` asserts the
+ * admitted set is a subset of this one.
+ *
+ * THE EXTENSION TEST IS CASE-INSENSITIVE HERE AND EXACT IN THE LISTER, DELIBERATELY. This function
+ * exists to find what the corpus rule is dropping, so a `.MD` entry must be visible TO IT even
+ * though the corpus would never admit it — a case-sensitive raw read would hide exactly the file a
+ * consumer wants refused. Acceptance is unchanged: `listWorkflows` still admits only the canonical
+ * lower-case numbered form.
+ * ---------------------------------------------------------------------------------------------
+ */
+export function listWorkflowDirMarkdown(kitRoot = DEFAULT_KIT_ROOT) {
+    const dir = join(kitRoot, WORKFLOWS_SUBPATH);
+    return readDirOrThrow(dir)
+        .filter((f) => f.toLowerCase().endsWith(MARKDOWN_EXT))
+        .sort();
+}
 // ---------------------------------------------------------------------------
 // THE DISPLAY-NAME DERIVATIONS (Phase 29 / D-40, correcting D-13 additively).
 //

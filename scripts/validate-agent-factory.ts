@@ -352,46 +352,73 @@ function checkWorkflowSections(): void {
 //      re-spelled here, so "which files are governance configuration" has one answer and a third
 //      location added later reaches this gate without an edit.
 // ═══════════════════════════════════════════════════════════════════════════════════════════════
-function checkConfig(): void {
-  const kitRel = "agent-factory/config/factory.config.json";
-  const kitRaw = kitRead(kitRel);
-  // A missing kit config is already reported by the required-file check; absence is never a form
-  // finding here, exactly as before.
-  if (kitRaw !== null) checkConfigForm(kitRel, kitRaw);
+// ── The BASES a governance read in the installation under test resolves against (round 2, F1) ──
+//
+// ROUND 1'S REPAIR CREATED THIS DEGREE OF FREEDOM AND DID NOT CLOSE IT. It took the POSITIONS from
+// the reader — `governanceConfigCandidates` — and left the BASE hand-chosen at `STATE_ROOT`. The
+// reader has two bases: the caller's `repoRoot`, and its own `GOVERNANCE_FALLBACK_BASE` when the
+// caller supplies none, which is the declared default of `admit()`, `admitAndAppend()` and the
+// `context-io.js admit` CLI, and the base the PreToolUse guard's read lands on wherever
+// `CLAUDE_PROJECT_DIR` is unset. Measured before this change: identical illegal bytes produced six
+// named errors at `STATE_ROOT/.grugops/factory.config.json` and `ALL CHECKS PASSED` at
+// `KIT_ROOT/.grugops/factory.config.json` — the same file name, the same reader, one of them
+// governing and unchecked.
+//
+// THE SET IS THE VALIDATOR'S OWN TWO DOCUMENTED ROOTS, AND NOTHING ELSE IS INVENTED HERE. The
+// caller names a kit and a state root; those are the two trees the installation under test resolves
+// against, and `GOVERNANCE_FALLBACK_BASE` is `<kit>` BY CONSTRUCTION (it is `import.meta.dirname`'s
+// parent, and `context-io.js` lives at `<kit>/scripts`), so covering `KIT_ROOT` covers it.
+// `scripts/validate.test.ts` asserts that construction rather than leaving it as this paragraph.
+//
+// The order is KIT then STATE, and it is load-bearing for the LABEL rather than for the verdict: a
+// path reachable from both bases is checked once, under the first base that names it, so the
+// in-kit config keeps the `agent-factory/config/factory.config.json` label it has always had.
+const GOVERNANCE_BASES: readonly string[] = [KIT_ROOT, STATE_ROOT];
 
-  // The OTHER positions the governance reader would consult, under the STATE root — which is the
-  // root the reader itself resolves against (`join(import.meta.dirname, "..")` in context-io.ts is
-  // the same expression STATE_ROOT falls back to). An ABSENT file is the documented lean default
-  // and never a finding (SC4 / AUTO-07); only a file that EXISTS is form-checked.
-  const kitAbs = resolve(join(KIT_ROOT, kitRel));
-  for (const abs of governanceConfigCandidates(STATE_ROOT)) {
-    // The two roots coincide in this repository and in every single-tree fixture, so the second
-    // candidate resolves to the file the kit arm just checked. Checking it twice would double every
-    // finding — a positional repair turning into a reporting defect — so the identity is compared
-    // on the RESOLVED path rather than on the spelling.
-    if (resolve(abs) === kitAbs) continue;
-    if (!existsSync(abs)) continue;
-    let raw: string | null;
-    try {
-      raw = readFileSync(abs, "utf8");
-    } catch {
-      raw = null;
+function checkConfig(): void {
+  // ONE LOOP, ONE READ, ONE PREDICATE — the kit arm is gone (round 2, F3).
+  //
+  // It used to be a separate arm reading through `kitRead`, which catches every error to `null` and
+  // therefore conflates ABSENT with UNREADABLE. The arm treated `null` as absence, and round 1's
+  // resolved-path dedupe then skipped the state arm — the only one that knows how to say "exists
+  // but could not be read" — for exactly that path. An unreadable governing config produced
+  // `ALL CHECKS PASSED`: a gate reporting a verdict for a check it did not perform, which is the
+  // Phase 28 AP-1 anti-pattern at severity `blocking` that this phase carries forward.
+  //
+  // Folding the kit path into the candidate loop deletes that second arm rather than teaching it a
+  // third outcome. There is now one existence test, one read, one unreadable message and one form
+  // check, asked at every position under every base.
+  const seen = new Set<string>();
+  for (const base of GOVERNANCE_BASES) {
+    for (const abs of governanceConfigCandidates(base)) {
+      const key = resolve(abs);
+      if (seen.has(key)) continue; // one file, one verdict — a positional repair must not double-report
+      seen.add(key);
+      // ABSENT is the documented lean default and never a finding (SC4 / AUTO-07). A missing in-kit
+      // config is separately reported by the required-file check, so absence stays silent here.
+      if (!existsSync(abs)) continue;
+      let raw: string | null;
+      try {
+        raw = readFileSync(abs, "utf8");
+      } catch {
+        raw = null;
+      }
+      const label = relativeToBase(base, abs);
+      if (raw === null) {
+        // It EXISTS and could not be read. The reader calls that `unreadable` and fails closed on
+        // it; this gate says so rather than passing over a file it could not examine.
+        err(`${label}: exists but could not be read`);
+        continue;
+      }
+      checkConfigForm(label, raw);
     }
-    const label = relativeToState(abs);
-    if (raw === null) {
-      // It exists and could not be read. The reader calls that `unreadable` and fails closed on it;
-      // this gate says so rather than passing over a file it could not examine.
-      err(`${label}: exists but could not be read`);
-      continue;
-    }
-    checkConfigForm(label, raw);
   }
 }
 
-/** A path under STATE_ROOT, rendered repo-relative with POSIX separators for the finding line. */
-function relativeToState(abs: string): string {
-  const base = STATE_ROOT.endsWith(sep) ? STATE_ROOT : STATE_ROOT + sep;
-  const rel = abs.startsWith(base) ? abs.slice(base.length) : abs;
+/** A path under `base`, rendered base-relative with POSIX separators for the finding line. */
+function relativeToBase(base: string, abs: string): string {
+  const prefix = base.endsWith(sep) ? base : base + sep;
+  const rel = abs.startsWith(prefix) ? abs.slice(prefix.length) : abs;
   return rel.split(sep).join("/");
 }
 

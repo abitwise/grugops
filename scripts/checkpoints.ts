@@ -49,10 +49,11 @@ import { SAFETY_FLOORS } from "./audit-model.js";
 // directory walk here would be a SECOND authority for a predicate this tree already unified — the
 // Phase 29 lesson this module exists downstream of.
 import { locateSection } from "./check-diff-disposition.js";
-import { listWorkflows, WORKFLOWS_SUBPATH } from "./kit-model.js";
+import { listWorkflowDirMarkdown, listWorkflows, WORKFLOWS_SUBPATH } from "./kit-model.js";
 import {
   fencedLineFlags,
   unfencedHeadingIndices,
+  unfencedHeadingNearMisses,
   unfencedMatchIndices,
 } from "./frontmatter.js";
 
@@ -647,6 +648,33 @@ export function assertBulletCount(examined: number, counted: number, where: stri
  */
 export function deriveCheckpoints(root: string = DEFAULT_ROOT): CheckpointDerivation {
   const files = listWorkflows(root);
+
+  // ── THE FILE SET IS TWO-SIDED TOO (plan 30-10 round 2, finding F6) ──────────────────────────
+  //
+  // `listWorkflows` applies its membership rule as a SILENT filter. A markdown file in the workflows
+  // directory that the rule does not admit — an unnumbered `hotfix-emergency.md`, or one with an
+  // upper-case extension — is outside the walked set AND outside every denominator derived from it,
+  // so a canonically tagged stop bullet in it is neither collected, nor refused, nor counted. That
+  // is B-3's fault reached through the corpus's MEMBERSHIP instead of its FORM, and it left the
+  // whole tree green when it was measured.
+  //
+  // The same posture answers it: the corpus admits a canonical form, and a document that sits in the
+  // corpus's directory without taking that form is refused BY NAME rather than dropped. The
+  // unfiltered read is asked of the lister's own module, so this is two traversals of one directory
+  // through one `readdirSync` helper — never a second directory walk written here.
+  const present = listWorkflowDirMarkdown(root);
+  const admitted = new Set(files);
+  const unadmitted = present.filter((f) => !admitted.has(f));
+  if (unadmitted.length > 0) {
+    throw new CheckpointDerivationError(
+      `checkpoints: ${WORKFLOWS_SUBPATH} carries ${unadmitted.length} markdown file(s) the workflow ` +
+        `corpus does not admit — ${unadmitted.join(", ")}. A stop declared in a file the corpus rule ` +
+        `drops is walked by nothing: it has no roster member, no config cell and no enforcement, and ` +
+        `no cardinality anywhere can see that it is missing. Rename it into the numbered corpus, or ` +
+        `move it out of the workflows directory`,
+    );
+  }
+
   const sites = new Map<string, CheckpointSite[]>();
   let examinedBullets = 0;
   let countedBullets = 0;
@@ -682,6 +710,31 @@ export function deriveCheckpoints(root: string = DEFAULT_ROOT): CheckpointDeriva
           `stop section per workflow: only the first is located, so a bullet in any later one is ` +
           `neither collected nor refused nor counted, and a tag written there would declare a stop ` +
           `nothing governs. Merge the sections rather than repeating the heading`,
+      );
+    }
+    // ── AND A HEADING THAT IMITATES IT (plan 30-10 round 2, finding F2) ────────────────────────
+    //
+    // THE REFUSAL ABOVE COUNTS OCCURRENCES, AND "OCCURRENCE" IS A BYTE-EXACT EQUALITY. The rule that
+    // decides where a section ENDS is a prefix. Five spellings sit in the prefix language and
+    // outside the equality — two spaces after the hashes, a trailing zero-width or word-joiner or
+    // soft-hyphen code point, a ≤3-space indent — and each renders identically to the canonical
+    // heading while closing the real section and opening a region neither pass walks. A tagged
+    // bullet there is neither collected nor refused nor counted: the fault the refusal above exists
+    // to name, reached through a heading the counter does not see.
+    //
+    // The imitations are asked of the ONE heading authority, which derives them from the two
+    // grammars it already owns. Nothing here parses a heading, and acceptance is unchanged — the
+    // canonical form is still the only form a section is located from.
+    const imitations = unfencedHeadingNearMisses(text, WORKFLOW_STOP_HEADING);
+    if (imitations.length > 0) {
+      throw new CheckpointDerivationError(
+        `checkpoints: ${file} carries ${imitations.length} heading(s) that RENDER as ` +
+          `\`${WORKFLOW_STOP_HEADING}\` but are not spelled as it (lines ` +
+          `${imitations.map((i) => i + 1).join(", ")}): ` +
+          `${imitations.map((i) => JSON.stringify(text.split("\n")[i])).join(", ")}. A reader sees ` +
+          `a stop section there and the corpus does not, so a tag written under one declares a stop ` +
+          `nothing governs. The canonical spelling is the only one this corpus admits — write the ` +
+          `heading exactly, rather than widening what counts as it`,
       );
     }
     const range = locateSection(text, WORKFLOW_STOP_HEADING);

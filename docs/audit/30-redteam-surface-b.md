@@ -964,3 +964,341 @@ D-23 requires two independent reviews as a separate clause.
   config-landed mutation kill) were not re-run in this round and are not claimed as its evidence.
 - **Suite greenness establishes nothing here and is not offered.** Every finding above was found on a
   tree whose suite was green apart from one recorded pre-existing failure.
+
+---
+
+# Round 1 closure attempt — the two independent reviews
+
+**Both reviews were run at `claude-opus`, the strongest model available, over surface B as scoped by
+round 1's scope statement, and NEITHER returned "nothing new".** Surface B is therefore not closed at
+round 1, and this log continues at round 2 (D-22 cap: four).
+
+| reviewer | model | lens | verdict |
+|---|---|---|---|
+| Reviewer 1 | claude-opus | surface B, **assembly + position** | **FINDINGS: 4** (R1-1 … R1-4) |
+| Reviewer 2 | claude-opus | surface B, **enumeration + harness-premise** | **FINDINGS: 5** (R2-1 … R2-5) |
+
+Both drove the committed `.js` and both asserted artifact identity against `git show HEAD:<path>`
+before and after their probes (8/8 and 7/7 `premise OK`, zero mismatches on exit). Reviewer 1
+recorded fifteen probes that found nothing and five observations; reviewer 2 recorded seventeen and
+five. Two of reviewer 1's probes were **discarded as failed premises** by the reviewer itself and
+re-run — a CRLF probe applied to an untagged workflow, and a registry mutation that hit prose instead
+of a `- kind: safety` row — which is the harness-premise discipline working inside the review rather
+than only inside the round.
+
+**The overlap, and why it is six findings and not nine.** The two reviewers found the same defect
+from two lenses three times. The cross-reference is recorded so a later reader does not count the
+same fault twice, and so the independence of the two reviews is visible in what they did NOT share.
+
+| round-2 id | reviewer ids | severity | one line |
+|---|---|---|---|
+| **F1** | R1-1 ≡ R2-2 | high | the form check enumerates the reader's candidates under ONE base; the reader's fallback base is the kit root |
+| **F2** | R1-2 ≈ R2-1 | high | the one-section refusal is an EQUALITY while the section terminator is a PREFIX |
+| **F3** | R1-3 ≡ R2-5 | low | a governance config that exists and cannot be read produces `ALL CHECKS PASSED` |
+| **F4** | R1-4 | low | `rootMarkdown()`'s case-sensitive `.md` test drops a root `*.MD` from both language gates |
+| **F5** | R2-3 | medium | the consumer-split pin enumerates flat `scripts/*.ts` and bare-call sites only |
+| **F6** | R2-4 | medium | the tag corpus's file set is a silent filter; an unnumbered workflow declares stops nothing governs |
+
+**Three of the six were created by round 1's own fixes.** F1 is B-1's repair taking the positions
+from the reader and leaving the base hand-chosen. F2 is B-3's repair counting occurrences with a
+grammar the terminator does not share. F3 is B-1's resolved-path dedupe suppressing the one arm that
+knows how to report an unreadable file. That is the round-2 lesson stated as a fact rather than as a
+resolution: **every fix introduces a degree of freedom, and the question "what did this repair make
+newly free?" belongs in the round that ships the repair.** Each fix below answers it explicitly.
+
+---
+
+# Round 2 — 2026-09-05
+
+**Baseline before the round:** `1 failed / 2754 passed / 2 skipped` — the recorded pre-existing
+`frontmatter` D-49 control (`V-30-01-01`). Every check and freshness gate green.
+
+**The mirror for this round** is `git archive HEAD | tar -x` at `ae56690` (round 1's last commit),
+with the sha256 of `validate-agent-factory.js`, `checkpoints.js`, `context-io.js` and
+`frontmatter.js` compared against `git show HEAD:<path>` before use — 4/4 `premise OK`.
+
+## F1 — the form check enumerates ONE base; the reader has two
+
+### What it is
+
+Round 1's B-1 repair took the POSITIONS from the reader (`governanceConfigCandidates`) and left the
+BASE hand-chosen at `STATE_ROOT`. `readGovernanceConfig(repoRoot?)` has two bases: the caller's, and
+its own module-relative `ROOT` when the caller supplies none — which is the **declared default of
+`admit()`, `admitAndAppend()` and the `context-io.js admit` CLI**, and the base the PreToolUse guard's
+read lands on wherever `CLAUDE_PROJECT_DIR` is unset (four of the five target host CLIs). In the
+shipped shared-install that base is the KIT ROOT, so `<KIT_ROOT>/.grugops/factory.config.json` is the
+reader's FIRST candidate and was form-checked at no position.
+
+**And the harness premise failed.** Every case in round 1's B-1 block — including the one titled
+*"the checked positions EQUAL the reader's candidate list — derived on both sides"* — ran
+`runSplit(kit, kit)`. With the roots coinciding there is one base, so the equality was trivially true
+and the fixture never exhibited the condition the case exists to bound.
+
+### RED first
+
+```
+ Tests  4 failed | 72 passed (76)
+
+ × …and at the KIT base, which the reader consults FIRST under its fallback root
+ × every finding checkConfigForm can produce fires at the KIT base, not just one
+ × the BASE set comes from the reader, and the checked positions are bases × candidates
+   AssertionError: the KIT base was not checked: expected '  ERROR    agent-factory/config/facto…'
+   to match /kit_base_only_id/
+ × an unreadable in-kit config is reported by name rather than treated as absent      (F3)
+```
+
+The positions case was authored, run, and found **non-discriminating on its first draft** — both
+bases render the same repo-relative label, so a case keyed on labels alone passes on a repair that
+reaches only one of them. It was rewritten to plant a DIFFERENT unknown checkpoint id at each base
+before it was allowed to be red for the right reason. That correction is recorded because a case that
+goes red for the wrong reason is a false result in the same family as a mutation that never landed.
+
+### The premise, asserted
+
+```
+candidates(kit base) = [<kit>/.grugops/factory.config.json,
+                        <kit>/agent-factory/config/factory.config.json]
+source = ok | test_integrity = off
+```
+
+The reader, driven on the committed `context-io.js`, resolves the kit-base candidate and reports
+`off` for the value TINT-03 states has no legal form.
+
+### Mirror reproduction
+
+```
+$ # MIRROR (ae56690) — six-error payload at <KIT>/.grugops/factory.config.json
+VALIDATE_KIT_ROOT=<kit> VALIDATE_ROOT=<state> node MIRROR/scripts/validate-agent-factory.js
+ALL CHECKS PASSED
+mirror exit=0
+
+$ # CURRENT TREE (fixed) — the SAME bytes at the SAME base
+  ERROR    .grugops/factory.config.json: the retired "autonomy" key is present …
+  ERROR    .grugops/factory.config.json: invalid "security.asvs_level" value "L4" …
+  ERROR    .grugops/factory.config.json: "checkpoints.test_integrity" must not be "off" (TINT-03 …)
+  ERROR    .grugops/factory.config.json: invalid "checkpoints.open_pr" value "OFF" …
+  ERROR    .grugops/factory.config.json: unknown checkpoint id "checkpoints.not_a_real_checkpoint" …
+  ERROR    .grugops/factory.config.json: "production_requires_human_confirmation" must be true …
+6 ERROR(S)
+tree exit=1
+```
+
+Six arms, not one: a repair that reached the position but ran a single check would satisfy a
+status-only assertion and fail the arm-count case.
+
+### The structural fix, in one sentence
+
+**One authority for the BASES as well as for the positions:** `checkConfig` iterates
+`governanceConfigCandidates(b)` over `GOVERNANCE_BASES` — the validator's own two documented roots —
+so "which files are governance configuration" stays the reader's answer and "under which roots" stops
+being a second, narrower answer held by the validator.
+
+The reader's third base is closed **by construction rather than by listing**: `GOVERNANCE_FALLBACK_BASE`
+is published and asserted to be the parent of the running reader module — i.e. always a kit root — so
+a validator asked about that kit covers it by covering `KIT_ROOT`.
+
+### What NEW degree of freedom this fix introduces, and how it is bounded
+
+**A base SET.** A hand-listed set is this repository's founding defect class, so the members are
+bounded at their declaration and asserted by a source scan: `GOVERNANCE_BASES` must be exactly
+`[KIT_ROOT, STATE_ROOT]`, both roots must come from the two documented environment variables, and no
+candidate path literal may appear inside `checkConfig`'s own body — a scan bounded by that function's
+closing brace rather than run file-wide, because the required-file loop elsewhere legitimately names
+the in-kit config.
+
+**A label collision.** Two bases render the same repo-relative label, so the positions case had to
+discriminate on CONTENT. That is recorded above and is why the case plants distinct ids.
+
+### Mutation proof
+
+| mutant (committed `.js`, marker grep-verified) | outcome |
+|---|---|
+| `GOVERNANCE_BASES = [STATE_ROOT]` — the base set back to one | **KILLED** — 3 failed / 75 passed |
+| the unreadable-branch `err(...)` suppressed | **KILLED** — 2 failed / 76 passed (F3's cases) |
+
+---
+
+## F3 — a governance config that exists and cannot be read passed silently
+
+### What it is
+
+`kitRead` catches every error to `null`, conflating ABSENT with UNREADABLE. The kit arm treated
+`null` as absence — and round 1's resolved-path dedupe then skipped the state arm, the only one
+carrying an `exists but could not be read` message, for exactly that path. So an unreadable governing
+config produced a clean verdict for a check that did not happen: the Phase 28 AP-1 anti-pattern this
+phase carries forward at severity `blocking`.
+
+### Mirror reproduction
+
+```
+$ # MIRROR (ae56690) — agent-factory/config/factory.config.json replaced by a DIRECTORY
+  premise: existsSync = true ; readFileSync throws EISDIR
+ALL CHECKS PASSED
+mirror exit=0
+  (the same condition at the NON-coinciding position IS named by the mirror:
+   ERROR  .grugops/factory.config.json: exists but could not be read)
+
+$ # CURRENT TREE (fixed)
+  ERROR    agent-factory/config/factory.config.json: exists but could not be read
+1 ERROR(S)
+tree exit=1
+```
+
+### The structural fix, in one sentence
+
+**The second arm is deleted rather than taught a third outcome:** the kit path is folded into the
+candidate loop, so there is one existence test, one read, one unreadable message and one form check,
+asked at every position under every base — and the dedupe now protects reporting instead of hiding a
+branch.
+
+### What NEW degree of freedom this fix introduces
+
+None that F1's bounds do not already cover: the loop is the same loop, and the three-way outcome
+(absent / unreadable / read) is exhaustive over what a filesystem can answer. Absence stays silent,
+which is asserted by its own case so the repair cannot drift into refusing a zero-config repository.
+
+---
+
+## F2 — the occurrence grammar and the terminator grammar were different
+
+### What it is
+
+B-3's repair counts OCCURRENCES with `unfencedHeadingIndices`, a `trimEnd()`-exact column-zero
+EQUALITY. Where a section ENDS is decided by `sectionEndIndex` with a PREFIX, `/^#{1,2} /`. Every
+string in the prefix language and outside the equality language closes the real section and opens a
+region neither pass walks — and a canonically tagged bullet there is, verbatim B-3's own refusal text,
+neither collected nor refused nor counted.
+
+### The premise, asserted
+
+```
+unfencedHeadingIndices(text, "## Stop conditions") = [35]      ← ONE occurrence: the refusal is
+                                                                 not asked, rather than asked and passed
+/^#{1,2} /.test("##  Stop conditions")            = true      ← and it DOES close a level-2 section
+CHECKPOINT_TAG_RE captured id = "planted_shadow_stop"
+```
+
+### RED first
+
+```
+ Tests  8 failed | 86 passed (94)
+ × refuses two spaces after the hashes …        × refuses a trailing zero-width space …
+ × refuses a trailing word joiner …             × refuses a trailing soft hyphen …
+ × refuses a two-space indent …                 × refuses an internal double space …
+ × refuses a single hash …                      × the near-miss set is DISJOINT from the exact set
+```
+
+### Mirror reproduction
+
+```
+$ # MIRROR (ae56690) — `##  Stop conditions` + a tagged bullet appended to 11-retro.md
+ACCEPTED — ids=[10 ids] sites=16 sections=19 counted=38
+mirror exit=0        (and the shipped validator: ALL CHECKS PASSED)
+
+$ # CURRENT TREE (fixed)
+REFUSED — checkpoints: 11-retro.md carries 1 heading(s) that RENDER as `## Stop conditions` but are
+not spelled as it (lines 45): "##  Stop conditions". A reader sees a stop section there and the
+corpus does not …
+tree exit=1
+```
+
+### The spelling sweep, against the fixed artifact
+
+| spelling | verdict |
+|---|---|
+| exact `## Stop conditions` | REFUSED (duplicate occurrence — B-3's arm) |
+| trailing tab / trailing NBSP | REFUSED (duplicate — `trimEnd()` strips both) |
+| `##  Stop conditions` (two spaces) | **REFUSED (near-miss)** |
+| trailing `U+200B` / `U+2060` / `U+00AD` | **REFUSED (near-miss)** |
+| two-space indent | **REFUSED (near-miss)** |
+| internal double space | **REFUSED (near-miss)** |
+| single hash `# Stop conditions` | **REFUSED (near-miss)** |
+| `### Stop conditions` | **ACCEPTED — correct.** It closes no level-2 section, so its bullets stay inside the located range and ARE collected; refusing it would be the widening this fix avoids |
+| inside a fence | ACCEPTED — it renders as code |
+
+### The structural fix, in one sentence
+
+**The authority answers a THIRD question DERIVED from the two grammars it already owns** —
+`unfencedHeadingNearMisses` returns the unfenced lines a renderer would show as the requested heading
+while the canonical equality refuses them — and the derivation refuses that set by name; **acceptance
+is unchanged**, so `locateSection` behaves byte-identically for the four gates built on it.
+
+The level question is asked of `sectionEndIndex` ITSELF, on a one-line document, rather than of a copy
+of its pattern: a line that closes a level-at-most-two section IS such a heading. That is the
+unification the reviewers asked for rather than a third parallel grammar.
+
+### What NEW degree of freedom this fix introduces, and how it is bounded
+
+**A near-miss acceptance set** — potentially a third heading grammar. It is bounded four ways, each
+asserted rather than described: it is DERIVED (terminator language ∧ rendered-text equality ∧ not
+byte-exact); it is DISJOINT from the exact set by construction and by case; the live corpus is
+asserted to contain zero near-misses, so the refusal is not already firing; and its scope is stated at
+the declaration — it folds only the axes on which two lines render IDENTICALLY (indentation a renderer
+ignores, hash count within the level class, collapsed whitespace runs, zero-width code points) and
+deliberately does **not** attempt visual-confusable folding, which is an open set and the totality
+claim D-59 already proved undecidable.
+
+**A second implementation hazard, met and avoided.** The first draft declared a `/^#{1,2} +/` strip
+and bound its result to `text`. `check-foundation-guards.test.ts`'s [B1] closure ALIASES recogniser
+names through their bindings, so that one binding propagated "recogniser" through half the module's
+locals and took the pin's blast radius from 1 to 6. The repair was to take the heading's text by
+SLICING at the first space — no pattern, no alias, no pin moved. **No guard pin was moved by this
+fix.**
+
+### Mutation proof
+
+| mutant | outcome |
+|---|---|
+| the near-miss refusal disabled in `checkpoints.js` | **KILLED** — 7 failed / 87 passed |
+| `unfencedHeadingNearMisses` returns `[]` in `frontmatter.js` | **KILLED** — 8 failed / 86 passed |
+
+---
+
+## F6 — the corpus's FILE SET was a silent filter
+
+### What it is
+
+`listWorkflows` admits `/^\d{2}-.+\.md$/` and drops everything else without a word. An unnumbered
+`agent-factory/workflows/hotfix-emergency.md` carrying a canonically tagged stop bullet is outside the
+walked set, outside `WORKFLOW_COUNT`, and outside every denominator derived from either. Reviewer 2
+measured the whole tree green after discharging the one red — the banned-claim scan-set cardinality
+pin — exactly as that pin's own remedy text prescribes.
+
+### Mirror reproduction
+
+```
+$ # MIRROR (ae56690)
+ACCEPTED — ids=[10 ids] sites=16 sections=19 counted=38
+mirror exit=0        (and the shipped validator: ALL CHECKS PASSED)
+
+$ # CURRENT TREE (fixed)
+REFUSED — checkpoints: agent-factory/workflows carries 1 markdown file(s) the workflow corpus does
+not admit — hotfix-emergency.md. A stop declared in a file the corpus rule drops is walked by
+nothing … Rename it into the numbered corpus, or move it out of the workflows directory
+tree exit=1
+```
+
+### The structural fix, in one sentence
+
+**The same canonical-form posture, applied to MEMBERSHIP rather than to FORM:** the corpus admits a
+canonical filename, and a markdown document sitting in the corpus's own directory without taking that
+form is refused by name rather than dropped — with the unfiltered directory read published by the
+lister's own module (`listWorkflowDirMarkdown`) so no second directory walk is written at the consumer.
+
+The raw read is deliberately case-INSENSITIVE while the lister stays exact: this function exists to
+find what the corpus rule is dropping, and a case-sensitive raw read would hide exactly the `.MD`
+entry a consumer wants refused. Acceptance is unchanged.
+
+### What NEW degree of freedom this fix introduces, and how it is bounded
+
+**A second traversal of one directory.** Two reads that could disagree about what is in it. Both go
+through kit-model's single `readDirOrThrow`, and the containment is asserted: the admitted set must be
+a subset of the raw read, and on the live tree the two are asserted equal. A non-markdown entry is
+explicitly out of scope and has its own case, so the refusal cannot grow into "nothing else may live
+here".
+
+### Mutation proof
+
+| mutant | outcome |
+|---|---|
+| the unadmitted-file refusal disabled in `checkpoints.js` | **KILLED** — 2 failed / 97 passed |

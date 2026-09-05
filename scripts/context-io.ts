@@ -1747,6 +1747,30 @@ export const GOVERNANCE_CONFIG_RELPATHS: readonly string[] = governanceConfigCan
   (p) => p.split(sep).join("/"),
 );
 
+/**
+ * The base this reader resolves against when a caller supplies NO `repoRoot` — its own module's
+ * parent, which is the KIT this module ships in.
+ *
+ * ---------------------------------------------------------------------------------------------
+ * WHY IT IS PUBLISHED (plan 30-10, round 2, finding F1 = reviewer R1-1 ≡ R2-2).
+ *
+ * Round 1 took the POSITIONS from this module and left the BASE hand-chosen: the structure
+ * validator enumerated `governanceConfigCandidates(STATE_ROOT)` and one fixed kit relpath. But this
+ * reader has TWO bases — the caller's, and this one — and this one is the DECLARED DEFAULT of
+ * `admit()`, `admitAndAppend()` and the `context-io.js admit` CLI. On the four host CLIs that set no
+ * `CLAUDE_PROJECT_DIR`, it is the base the PreToolUse guard's read lands on too. So
+ * `<this base>/.grugops/factory.config.json` is a governing FIRST candidate, and it was form-checked
+ * at no position: identical illegal bytes produced six named errors at the state position and
+ * `ALL CHECKS PASSED` at the kit position.
+ *
+ * WHAT IT IS BY CONSTRUCTION, WHICH IS WHY NAMING IT CLOSES THE HOLE RATHER THAN WIDENING A LIST.
+ * `import.meta.dirname` is `<kit>/scripts`, so this constant is always `<kit>` — the kit the reader
+ * ships in. A validator asked about that kit therefore covers this base by covering `KIT_ROOT`, and
+ * `scripts/validate.test.ts` asserts that construction rather than arguing it.
+ * ---------------------------------------------------------------------------------------------
+ */
+export const GOVERNANCE_FALLBACK_BASE: string = ROOT;
+
 export function readGovernanceConfig(repoRoot?: string): GovernanceConfigResult {
   const base = repoRoot ?? ROOT;
   const candidates = governanceConfigCandidates(base);

@@ -1195,3 +1195,250 @@ describe("30-10 B-3 — exactly ONE `## Stop conditions` section per workflow, r
     expect(fm.unfencedHeadingIndices(CONTROL, cp.WORKFLOW_STOP_HEADING).length).toBe(1);
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// PLAN 30-10 ROUND 2 — F2 (reviewer R1-2 ≈ R2-1, HIGH): B-3'S OWN FIX INTRODUCED THIS.
+//
+// B-3 closed the byte-exact repeated heading by asking `unfencedHeadingIndices` for the OCCURRENCE
+// count. That question is answered by a `trimEnd()`-exact, column-zero EQUALITY. The question
+// "does this line CLOSE a level-2 section" is answered by `sectionEndIndex` with a PREFIX,
+// `/^#{1,2} /`. Two grammars, and every string in the prefix language but outside the equality
+// language opens a region that neither pass watches:
+//
+//   `##  Stop conditions`        two spaces   — closes the section, is not an occurrence
+//   `## Stop conditions​`   zero-width   — closes the section, is not an occurrence
+//   `## Stop conditions⁠`   word joiner  — same
+//   `## Stop conditions­`   soft hyphen  — same
+//   `  ## Stop conditions`       ≤3 indent    — renders as an h2, is neither
+//
+// Every one of them renders identically to the real heading, and a canonically tagged bullet under
+// it is — verbatim B-3's own refusal text — neither collected, nor refused, nor counted.
+//
+// THE REPAIR IS NOT A WIDER EQUALITY. Widening acceptance would change `locateSection` for the four
+// gates that consume it, and would leave two grammars with a smaller gap. Instead the authority
+// gains the ability to answer a THIRD question — "which lines would a renderer show as this
+// heading, while the canonical equality refuses them?" — DERIVED from the other two, and the
+// derivation refuses that set by name. D-64's posture: define the canonical spelling, refuse
+// everything that imitates it.
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+
+describe("30-10 R2 F2 — a heading that RENDERS as the stop heading but is not canonical is refused", () => {
+  const shadowBullet = "- A shadow stop nobody governs. `checkpoint: planted_shadow_stop`";
+
+  /** A workflow whose SECOND stop section is spelled `heading`, carrying the shadow bullet. */
+  const doubled = (heading: string): string =>
+    [
+      "# Probe",
+      "",
+      "## Stop conditions",
+      "",
+      "- A stop with no tag.",
+      "",
+      "## Commit",
+      "",
+      "- nothing",
+      "",
+      heading,
+      "",
+      shadowBullet,
+      "",
+    ].join("\n");
+
+  const NEAR_MISSES: readonly (readonly [string, string])[] = [
+    ["two spaces after the hashes", "##  Stop conditions"],
+    ["a trailing zero-width space", "## Stop conditions​"],
+    ["a trailing word joiner", "## Stop conditions⁠"],
+    ["a trailing soft hyphen", "## Stop conditions­"],
+    ["a two-space indent", "  ## Stop conditions"],
+    ["an internal double space", "##  Stop  conditions"],
+    ["a single hash", "# Stop conditions"],
+  ];
+
+  for (const [label, heading] of NEAR_MISSES) {
+    it(`refuses ${label} by name — it renders as the heading and the equality refuses it`, () => {
+      // The harness's own premise FIRST: the plant is a canonical tag, so "not collected" cannot be
+      // explained by the bullet being unrecognisable.
+      expect(cp.CHECKPOINT_TAG_RE.test(shadowBullet)).toBe(true);
+      expect(shadowBullet.match(cp.CHECKPOINT_TAG_RE)?.[1]).toBe("planted_shadow_stop");
+
+      const root = workflowFixture({ "00-control.md": CONTROL, "01-probe.md": doubled(heading) });
+      let err: Error | null = null;
+      try {
+        cp.deriveCheckpoints(root);
+      } catch (e) {
+        err = e as Error;
+      }
+      expect(err, `${label} was tolerated`).not.toBeNull();
+      expect(err?.name).toBe("CheckpointDerivationError");
+      expect(err?.message).toContain("01-probe.md");
+    });
+  }
+
+  it("the byte-exact repeat is STILL refused — B-3's own case, re-run against the new predicate", () => {
+    const root = workflowFixture({
+      "00-control.md": CONTROL,
+      "01-probe.md": doubled("## Stop conditions"),
+    });
+    expect(() => cp.deriveCheckpoints(root)).toThrow(/01-probe\.md/);
+  });
+
+  it("a FENCED quote of the heading is still not a section — the fence authority still decides", () => {
+    const root = workflowFixture({
+      "00-control.md": CONTROL,
+      "01-quoted.md": [
+        "# Quoted",
+        "",
+        "## Stop conditions",
+        "",
+        "- A stop a named human holds. `checkpoint: control_stop`",
+        "",
+        "```markdown",
+        "##  Stop conditions",
+        "## Stop conditions​",
+        "```",
+        "",
+        "## Commit",
+        "",
+        "- nothing",
+        "",
+      ].join("\n"),
+    });
+    expect(() => cp.deriveCheckpoints(root)).not.toThrow();
+  });
+
+  it("a LEVEL-3 heading is not a near-miss — it closes nothing and its bullets ARE collected", () => {
+    // R2's P10, pinned so the refusal cannot quietly grow to cover it. `### Stop conditions` does
+    // not close a level-2 section, so a tagged bullet under it stays INSIDE the located range and is
+    // collected and counted — governed, not shadowed. Refusing it would be the widening this fix
+    // exists to avoid.
+    const root = workflowFixture({
+      "00-control.md": CONTROL,
+      "01-sub.md": [
+        "# Sub",
+        "",
+        "## Stop conditions",
+        "",
+        "- A stop with no tag.",
+        "",
+        "### Stop conditions",
+        "",
+        "- A sub stop. `checkpoint: sub_level_stop`",
+        "",
+        "## Commit",
+        "",
+        "- nothing",
+        "",
+      ].join("\n"),
+    });
+    const d = cp.deriveCheckpoints(root);
+    expect(cp.sortedIds([...d.ids])).toEqual(cp.sortedIds(["control_stop", "sub_level_stop"]));
+  });
+
+  it("the near-miss set is DISJOINT from the exact set, and the LIVE corpus has none", () => {
+    // The new degree of freedom this repair introduces is a THIRD heading grammar in the authority.
+    // It is bounded by being DERIVED from the other two — a near-miss is a line the ATX parse reads
+    // as this heading and the canonical equality refuses — and both halves are asserted here rather
+    // than described.
+    const doc = [
+      "## Stop conditions",
+      "##  Stop conditions",
+      "## Stop conditions​",
+      "  ## Stop conditions",
+      "## Something else",
+      "### Stop conditions",
+    ].join("\n");
+    const exact = fm.unfencedHeadingIndices(doc, cp.WORKFLOW_STOP_HEADING);
+    const near = fm.unfencedHeadingNearMisses(doc, cp.WORKFLOW_STOP_HEADING);
+    expect(exact).toEqual([0]);
+    expect(near).toEqual([1, 2, 3]);
+    expect(near.filter((i) => exact.includes(i)), "a line is both exact and a near-miss").toEqual([]);
+
+    // The live corpus carries the canonical form and nothing that imitates it.
+    for (const f of km.listWorkflows(ROOT)) {
+      const text = readFileSync(join(ROOT, "agent-factory", "workflows", f), "utf8");
+      expect(
+        fm.unfencedHeadingNearMisses(text, cp.WORKFLOW_STOP_HEADING),
+        `${f} carries a heading that imitates the stop heading`,
+      ).toEqual([]);
+      expect(fm.unfencedHeadingIndices(text, cp.WORKFLOW_STOP_HEADING).length).toBe(1);
+    }
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// PLAN 30-10 ROUND 2 — F6 (reviewer R2-4, MEDIUM): the corpus's FILE SET is a silent filter.
+//
+// `listWorkflows` admits `/^\d{2}-.+\.md$/` and drops everything else without a word. An
+// `agent-factory/workflows/hotfix-emergency.md` carrying a canonically tagged stop bullet is walked
+// by nothing: it is outside the tag corpus, outside `WORKFLOW_COUNT`, and outside the bullet
+// denominator, so every assertion in this file stays green. Reviewer 2 measured the whole tree green
+// after discharging the ONE red — the banned-claim scan-set cardinality pin — exactly as that pin's
+// own remedy text prescribes.
+//
+// A silent filter over a corpus whose entire job is two-sidedness is a one-sided arm. The refusal
+// B-3 and F2 added is about ambiguity in the corpus FORM; this extends the same posture to its
+// MEMBERSHIP: a stop declared in a file the corpus rule does not admit is governed by nothing, so
+// the file is refused by name rather than skipped.
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+
+describe("30-10 R2 F6 — a markdown file the workflow corpus does not admit is refused by name", () => {
+  it("an UNNUMBERED workflow markdown file is refused, not silently skipped", () => {
+    const root = workflowFixture({
+      "00-control.md": CONTROL,
+      "hotfix-emergency.md": [
+        "# Hotfix emergency workflow",
+        "",
+        "## Stop conditions",
+        "",
+        "- Stop before force-pushing to a release tag. `checkpoint: planted_shadow_stop`",
+        "",
+      ].join("\n"),
+    });
+    // Premise: the bullet is canonical, so "not collected" cannot be blamed on the tag.
+    expect(cp.CHECKPOINT_TAG_RE.test("- Stop before force-pushing to a release tag. `checkpoint: planted_shadow_stop`")).toBe(true);
+    let err: Error | null = null;
+    try {
+      cp.deriveCheckpoints(root);
+    } catch (e) {
+      err = e as Error;
+    }
+    expect(err, "an unadmitted workflow file was skipped silently").not.toBeNull();
+    expect(err?.name).toBe("CheckpointDerivationError");
+    expect(err?.message).toContain("hotfix-emergency.md");
+  });
+
+  it("an upper-case extension is refused too — the membership rule is not case-dodgeable", () => {
+    const root = workflowFixture({ "00-control.md": CONTROL, "19-EXTRA.MD": "# x\n\n## Stop conditions\n\n- y\n" });
+    expect(() => cp.deriveCheckpoints(root)).toThrow(/19-EXTRA\.MD/);
+  });
+
+  it("a NUMBERED file is admitted exactly as before — the refusal is about membership only", () => {
+    const root = workflowFixture({
+      "00-control.md": CONTROL,
+      "01-second.md": "# s\n\n## Stop conditions\n\n- A second stop. `checkpoint: second_stop`\n\n## Commit\n\n- x\n",
+    });
+    const d = cp.deriveCheckpoints(root);
+    expect(cp.sortedIds([...d.ids])).toEqual(cp.sortedIds(["control_stop", "second_stop"]));
+  });
+
+  it("a NON-markdown entry is not a workflow and is not refused", () => {
+    // The refusal's scope is markdown. A README fragment, a JSON fixture or a directory beside the
+    // workflows is not a document the corpus rule was ever about, and refusing it would be the
+    // widening this posture avoids.
+    const root = workflowFixture({ "00-control.md": CONTROL, "notes.txt": "not a workflow" });
+    expect(() => cp.deriveCheckpoints(root)).not.toThrow();
+  });
+
+  it("the admitted set is a SUBSET of the directory read — two traversals, one equality", () => {
+    // The new degree of freedom this repair introduces is a SECOND read of the workflows directory.
+    // Both go through kit-model's one `readdirSync` helper, and the containment is asserted rather
+    // than assumed: a lister that admitted a file the raw read cannot see would be reading a
+    // different directory.
+    const present = km.listWorkflowDirMarkdown(ROOT);
+    const admitted = km.listWorkflows(ROOT);
+    expect(present.length).toBeGreaterThan(0);
+    expect(admitted.filter((f) => !present.includes(f))).toEqual([]);
+    // On the live tree the two agree exactly — there is nothing in the directory the corpus drops.
+    expect([...admitted].sort()).toEqual([...present].sort());
+  });
+});
