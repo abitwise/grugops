@@ -46,6 +46,9 @@ import {
   GUARANTEES_DATA_SOURCE_COUNT,
   GUARANTEES_ENTRY_JS,
   declaredSafetyRows,
+  declaredDroppedRows,
+  disclosureFor,
+  dropConsistencyRefusals,
   guaranteesJoin,
   renderGuarantees,
 } from "./generate-guarantees.js";
@@ -54,6 +57,24 @@ const ROOT = join(import.meta.dirname, "..");
 const GENERATOR_TS = join(ROOT, "scripts", "generate-guarantees.ts");
 const FRESHNESS_JS = join(ROOT, "scripts", "guarantees-freshness.js");
 const COMMITTED = join(ROOT, OUT);
+
+/**
+ * The SOURCE TEXT OF ONE EXPORTED FUNCTION, bounded by its own closing brace.
+ *
+ * The two "these are two independent passes" cases below are assertions ABOUT SOURCE, and their
+ * INPUT is the slice they are handed — which is exactly the axis this project has recorded losing
+ * before. They used to slice "from this export to the NEXT one", so inserting any function between
+ * them silently widened the region under assertion until an unrelated body's text satisfied (or
+ * broke) the predicate. Plan 30-09 inserted three functions there and broke it, which is how the
+ * fragility surfaced. Bounding each slice by its own function's closing brace removes the axis.
+ */
+function functionBody(src: string, name: string): string {
+  const at = src.indexOf(`export function ${name}`);
+  if (at === -1) throw new Error(`functionBody: no \`export function ${name}\` in the source`);
+  const close = src.indexOf("\n}\n", at);
+  if (close === -1) throw new Error(`functionBody: \`${name}\` has no column-zero closing brace`);
+  return src.slice(at, close + 3);
+}
 
 const tmpDirs: string[] = [];
 function freshTmp(prefix: string): string {
@@ -74,6 +95,8 @@ interface ClaimSpec {
   file: string;
   kind: string;
   dependsOn: string;
+  /** D-18. Omitted means `true`. */
+  status?: string;
 }
 
 function renderRegistry(claims: readonly ClaimSpec[], trailer = ""): string {
@@ -85,7 +108,7 @@ function renderRegistry(claims: readonly ClaimSpec[], trailer = ""): string {
       "- line: 4",
       `- kind: ${c.kind}`,
       `- depends_on: ${c.dependsOn}`,
-      "- status: true",
+      `- status: ${c.status ?? "true"}`,
       "- mechanism: measured against the live config value.",
       "",
       "```",
@@ -209,8 +232,15 @@ describe("generate-guarantees — the count-asserted join (D-17)", () => {
   });
 
   it("a LOWERED checkpoint renders its id, its value AND its authorizing name", () => {
+    // Plan 30-09 (D-18): a lowered floor now OBLIGES every row resting on it to be `dropped`, in
+    // both directions, so this fixture marks them rather than leaving the render to refuse. That
+    // obligation IS the phase's payoff — the case is updated to satisfy it, never relaxed to skip it.
     const root = mirrorWith(
-      renderRegistry(SIX_SAFETY),
+      renderRegistry(
+        SIX_SAFETY.map((c) =>
+          c.dependsOn.split(", ").includes("open_pr") ? { ...c, status: "dropped" } : c,
+        ),
+      ),
       JSON.stringify({
         checkpoints: { ...CHECKPOINT_DEFAULTS, open_pr: "off" },
       }),
@@ -224,8 +254,149 @@ describe("generate-guarantees — the count-asserted join (D-17)", () => {
     expect(text).toContain(floorEnvVarName("open_pr"));
     expect(text).toContain("LOWERED");
     expect(text).not.toContain("all checkpoints at default");
-    // …and the claims that rest on it are marked, not merely listed.
-    expect(text).toMatch(/C-28-001.*LOWERED/);
+    // …and the claims that rest on it are marked, not merely listed. `DROPPED` is the D-18 mark a
+    // row carries once the registry records the drop; a row left merely `LOWERED` would be the
+    // inconsistency `dropConsistencyRefusals` refuses.
+    expect(text).toMatch(/C-28-001.*\*\*DROPPED\*\*/);
+  });
+});
+
+// ────────────────────────────────────────────────────────────────────────────────────────────────
+describe("generate-guarantees — the dropped status and the generated disclosure (D-18)", () => {
+  /** A mirror whose matrix lowers exactly the named checkpoints. */
+  function loweredMirror(claims: readonly ClaimSpec[], lower: Record<string, string>): string {
+    return mirrorWith(
+      renderRegistry(claims),
+      JSON.stringify({ checkpoints: { ...CHECKPOINT_DEFAULTS, ...lower } }),
+    );
+  }
+
+  it("with NO floor lowered, no row is dropped and the render says so", () => {
+    const root = loweredMirror(SIX_SAFETY, {});
+    const rows = guaranteesJoin(root);
+    expect(rows.filter((r) => r.status === "dropped")).toEqual([]);
+    expect(declaredDroppedRows(root)).toEqual([]);
+    expect(dropConsistencyRefusals(rows)).toEqual([]);
+    const text = renderGuarantees(root);
+    expect(text).toContain("all checkpoints at default");
+    expect(text).not.toContain("DROPPED");
+  });
+
+  it("with ONE floor lowered, EXACTLY the rows resting on it are the ones that must drop", () => {
+    // The set is computed here from the FIXTURE's own `depends_on` strings — never from the join —
+    // so the assertion has a denominator that does not come out of the loop it is auditing.
+    const expected = SIX_SAFETY.filter((c) => c.dependsOn.split(", ").includes("test_integrity"))
+      .map((c) => c.id)
+      .sort();
+    expect(expected.length).toBeGreaterThan(0);
+
+    const root = loweredMirror(SIX_SAFETY, { test_integrity: "notify" });
+    const refusals = dropConsistencyRefusals(guaranteesJoin(root));
+    // One refusal per row that rests on the lowered floor and is not yet `dropped`, and NOT ONE
+    // MORE: a refusal naming a row that does not rest on it would be the mechanism over-reaching.
+    expect(refusals.length).toBe(expected.length);
+    for (const id of expected) expect(refusals.join("\n")).toContain(id);
+    expect(() => renderGuarantees(root)).toThrow(/disagree in \d+ place/);
+  });
+
+  it("REFUSES direction 1 — a row `dropped` whose floors all sit at their default", () => {
+    const root = loweredMirror(
+      SIX_SAFETY.map((c) => (c.id === "C-28-018" ? { ...c, status: "dropped" } : c)),
+      {},
+    );
+    const refusals = dropConsistencyRefusals(guaranteesJoin(root));
+    expect(refusals.length).toBe(1);
+    expect(refusals[0]).toContain("C-28-018");
+    expect(refusals[0]).toContain("sits at its documented");
+    expect(() => renderGuarantees(root)).toThrow(/C-28-018/);
+  });
+
+  it("REFUSES direction 2 — a lowered floor with a dependent row that is NOT dropped", () => {
+    // The mirror image of the case above. One direction alone lets the registry and the matrix
+    // drift apart silently, which is the state the whole mechanism exists to make impossible.
+    const root = loweredMirror(SIX_SAFETY, { test_integrity: "notify" });
+    const refusals = dropConsistencyRefusals(guaranteesJoin(root));
+    expect(refusals.length).toBe(1);
+    expect(refusals[0]).toContain("C-28-018");
+    expect(refusals[0]).toContain("test_integrity");
+    // The remedy names the EXACT bytes to write, so the fix is not a hand-written paraphrase.
+    expect(refusals[0]).toContain("replace the text at its anchor with EXACTLY");
+  });
+
+  it("a CONSISTENT drop renders green, marks the row DROPPED and names the grant", () => {
+    const root = loweredMirror(
+      SIX_SAFETY.map((c) => (c.id === "C-28-018" ? { ...c, status: "dropped" } : c)),
+      { test_integrity: "notify" },
+    );
+    expect(dropConsistencyRefusals(guaranteesJoin(root))).toEqual([]);
+    expect(declaredDroppedRows(root)).toEqual(["C-28-018"]);
+    const text = renderGuarantees(root);
+    expect(text).toMatch(/C-28-018.*\*\*DROPPED\*\*/);
+    expect(text).toContain(floorEnvVarName("test_integrity"));
+  });
+
+  it("`disclosureFor` is BYTE-DETERMINISTIC for fixed inputs", () => {
+    const root = loweredMirror(
+      SIX_SAFETY.map((c) => (c.id === "C-28-018" ? { ...c, status: "dropped" } : c)),
+      { test_integrity: "notify" },
+    );
+    const row = guaranteesJoin(root).find((r) => r.claimId === "C-28-018");
+    expect(row).toBeDefined();
+    const once = disclosureFor(row!);
+    const twice = disclosureFor(row!);
+    expect(Buffer.from(once, "utf8").equals(Buffer.from(twice, "utf8"))).toBe(true);
+    // It names the claim, the checkpoint, its held value and the authorizing name — the four facts
+    // D-18 requires a replacement to carry, so a reader of the public document learns all of them
+    // without opening the configuration.
+    expect(once).toContain("C-28-018");
+    expect(once).toContain("`test_integrity`");
+    expect(once).toContain("`notify`");
+    expect(once).toContain(floorEnvVarName("test_integrity"));
+    // ONE LINE — the anchored extent is a line slice, and one line cannot disagree with itself.
+    expect(once.split("\n").length).toBe(1);
+  });
+
+  it("`disclosureFor` REFUSES a row whose floors are all held — no retraction of a live claim", () => {
+    const root = loweredMirror(SIX_SAFETY, {});
+    const row = guaranteesJoin(root)[0];
+    expect(() => disclosureFor(row)).toThrow(/none of the floors it rests on is lowered/);
+  });
+
+  it("the dropped set is asserted against an INDEPENDENTLY computed one, by MEMBERSHIP", () => {
+    // The registry's bytes declare a dropped row inside a place the claim parser does not reach, so
+    // the raw pass sees it and the parse does not. A cardinality floor would not have caught this
+    // if a real row had simultaneously stopped being dropped; membership does.
+    const root = mirrorWith(
+      renderRegistry(
+        SIX_SAFETY,
+        ["## Notes", "", "```", "### C-28-099", "", "- status: dropped", "```", ""].join("\n"),
+      ),
+      JSON.stringify({ checkpoints: { ...CHECKPOINT_DEFAULTS } }),
+    );
+    expect(declaredDroppedRows(root)).toEqual(["C-28-099"]);
+    expect(guaranteesJoin(root).filter((r) => r.status === "dropped")).toEqual([]);
+    expect(() => renderGuarantees(root)).toThrow(/Declared but not joined: \[C-28-099\]/);
+  });
+
+  it("a `- status: dropped` line with NO claim heading above it is a NAMED disagreement", () => {
+    const root = mirrorWith(
+      renderRegistry(SIX_SAFETY).replace("# Registry", "# Registry\n\n- status: dropped\n"),
+      JSON.stringify({ checkpoints: { ...CHECKPOINT_DEFAULTS } }),
+    );
+    // It becomes a sentinel that cannot coincide with any claim id, so it cannot vanish into a
+    // count that then agrees by accident.
+    expect(declaredDroppedRows(root)).toEqual([
+      "(a `- status: dropped` line with no claim heading above it)",
+    ]);
+    expect(() => renderGuarantees(root)).toThrow(/no claim heading above it/);
+  });
+
+  it("the dropped byte pass shares NO parser with the join", () => {
+    const src = readFileSync(GENERATOR_TS, "utf8");
+    const fn = functionBody(src, "declaredDroppedRows");
+    expect(fn.length).toBeGreaterThan(0);
+    expect(fn).not.toContain("readRegistry");
+    expect(fn).not.toContain("guaranteesJoin");
   });
 });
 
@@ -250,10 +421,7 @@ describe("generate-guarantees — the module's own shape", () => {
     // registry parser. Asserted on the source, because the property is "these are two passes",
     // which no single run can report.
     const src = readFileSync(GENERATOR_TS, "utf8");
-    const fn = src.slice(
-      src.indexOf("export function declaredSafetyRows"),
-      src.indexOf("export function guaranteesJoin"),
-    );
+    const fn = functionBody(src, "declaredSafetyRows");
     expect(fn.length).toBeGreaterThan(0);
     expect(fn).not.toContain("readRegistry");
     expect(fn).not.toContain("guaranteesJoin");

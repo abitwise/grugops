@@ -239,6 +239,13 @@ describe("audit-model: the closed sets", () => {
     expect(SAFETY_FLOORS.length).toBe(4);
     expect(SAFETY_FLOORS.length).not.toBe(3);
     expect(SAFETY_FLOORS.length).not.toBe(5);
+
+    // Plan 30-09 (D-18): the status vocabulary grew by one, `dropped`. It is pinned two-sided in
+    // the same shape as its four siblings, so a fifth value cannot arrive unreviewed and the fourth
+    // cannot be removed without this line moving.
+    expect(CLAIM_STATUSES.length).toBe(4);
+    expect(CLAIM_STATUSES.length).not.toBe(3);
+    expect(CLAIM_STATUSES.length).not.toBe(5);
   });
 
   it("DISPOSITIONS holds exactly AUDIT-01's three names, nothing invented", () => {
@@ -249,8 +256,11 @@ describe("audit-model: the closed sets", () => {
     expect([...CLAIM_KINDS]).toEqual(["safety", "architecture", "install"]);
   });
 
-  it("CLAIM_STATUSES holds exactly D-17's three statuses", () => {
-    expect([...CLAIM_STATUSES]).toEqual(["true", "overstated", "false"]);
+  it("CLAIM_STATUSES holds D-17's three statuses plus D-18's `dropped`", () => {
+    // TWO-SIDED, and the fourth member is named rather than counted. Plan 30-09 added `dropped`
+    // (D-18); a fifth value arriving without this line moving is the set-literal drift this
+    // repository has diagnosed as one of its two systemic failure classes.
+    expect([...CLAIM_STATUSES]).toEqual(["true", "overstated", "false", "dropped"]);
   });
 
   it("RUBRIC_CATEGORY 6 is record-only and names Phase 29 as its only legal target", () => {
@@ -954,9 +964,36 @@ describe("audit-model: readRegistry", () => {
     for (const k of CLAIM_KINDS) expect(msg).toContain(k);
   });
 
-  it("refuses a status outside CLAIM_STATUSES", () => {
+  it("refuses a status outside CLAIM_STATUSES, NAMING the value and the legal set", () => {
     const dir = writeRegistryFixture(registryDoc(claimBlock("C-28-001", { status: "partial" })));
     expect(() => readRegistry(dir)).toThrow(/partial/);
+    // Named rather than coerced, and the whole legal set is quoted — including `dropped`, so a
+    // reader who meant to record a drop is told the spelling rather than left guessing.
+    let msg = "";
+    try {
+      readRegistry(dir);
+    } catch (e) {
+      msg = (e as Error).message;
+    }
+    for (const s of CLAIM_STATUSES) expect(msg).toContain(s);
+  });
+
+  it("ACCEPTS `status: dropped` (D-18) — the parser admits the drop the matrix decides", () => {
+    // The parser's job is to admit the value; whether a drop AGREES with the live matrix is
+    // `dropConsistencyRefusals`'s question, one layer up, and deliberately not asked here. A parser
+    // that refused `dropped` outright would make D-18's replace-in-place unwritable.
+    const dir = writeRegistryFixture(
+      registryDoc(
+        claimBlock("C-28-001", {
+          kind: "safety",
+          dependsOn: "open_pr",
+          status: "dropped",
+        }),
+      ),
+    );
+    const claims = readRegistry(dir).claims;
+    expect(claims.length).toBe(1);
+    expect(claims[0].status).toBe("dropped");
   });
 
   it("refuses a depends_on naming a floor outside SAFETY_FLOORS", () => {

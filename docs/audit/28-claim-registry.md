@@ -38,7 +38,7 @@ phase's `docs/audit/` artifacts. Enforced by `scripts/check-claim-anchors.js`.
 | `line` | **Advisory, not asserted.** See § *Why `line` is recorded and not checked*. |
 | `kind` | `safety` \| `architecture` \| `install`. |
 | `depends_on` | The safety floor(s) whose LOWERING would falsify the claim, drawn from `SAFETY_FLOORS`. `—` on a non-safety row. |
-| `status` | `true` \| `overstated` \| `false`, **measured** against `mechanism` (D-17). |
+| `status` | `true` \| `overstated` \| `false`, **measured** against `mechanism` (D-17), or `dropped` — see § *A dropped claim is replaced in place (D-18)*. |
 | `mechanism` | The specific thing the status was measured against. Never blank — the gate refuses a blank one. |
 | `disposition` | `fixed` \| `accepted` \| `deferred`, present when `status` is not `true`. |
 | `finding_id` | The `F-28-NNN` name of the finding, present when `status` is not `true`. |
@@ -824,6 +824,51 @@ carries no **second, contradicting** claim — the same limit the anchored rows 
 registry's `## What this registry does not catch (D-16)` section already names. `UNKNOWN - verify`
 whether a position check for JSON is worth having; it would need a path expression into the parsed
 document rather than a line number, which is a different mechanism from the one this registry uses.
+
+## A dropped claim is replaced in place (D-18)
+
+`dropped` is the fourth `status` value, added by Phase 30 plan 30-09. A row is `dropped` when a
+safety floor it rests on has been **lowered** on this repository, so the public sentence the row
+names has stopped being true here.
+
+It is not a measurement verdict like the other three. `true`, `overstated` and `false` record what
+an auditor measured a sentence against; `dropped` records that the **configuration moved out from
+under a sentence that was standing**. Nothing about the sentence changed — what held it changed.
+
+**The claim is REPLACED IN PLACE, never deleted, struck through or quietly reworded.**
+
+- The **anchor stays** where it was. The registry **row stays**, with its `mechanism` and its
+  original fenced verbatim, so the record still shows what was claimed.
+- The **anchored text becomes generated disclosure text** naming the checkpoint, the value it is
+  held at, its documented default, and the authorizing name. That text is produced by
+  `disclosureFor()` in `scripts/generate-guarantees.ts` and is a pure function of the row and the
+  live matrix.
+- `scripts/check-claim-anchors.js` compares a dropped row's anchored region against **that generated
+  text**, not against a string somebody copied into this file, so the published prose and the
+  mechanism cannot drift apart. A hand-written disclosure is red.
+- The **anchor-to-row bijection and the claim-id contiguity are unchanged** by a drop, in both
+  directions. A drop that broke either would be the silent deletion this decision forbids.
+
+**The drop and the matrix must agree in BOTH directions**, enforced by `dropConsistencyRefusals()`:
+
+| The registry says | The live matrix says | Verdict |
+|---|---|---|
+| `dropped` | every floor the row rests on is at its documented default | **refused** — a retraction of a sentence that is still true |
+| not `dropped` | a floor the row rests on is lowered | **refused** — an overstated claim left standing after its mechanism was lowered |
+| `dropped` | a floor the row rests on is lowered | green, and the render marks the row **DROPPED** |
+
+One direction alone would let this registry and the checkpoint matrix drift apart in silence, which
+is the state the mechanism exists to make impossible.
+
+**Why a `dropped` row carries no `disposition` and no `finding_id`.** Every other non-`true` status
+must carry both, because a claim nobody decided about otherwise stays **standing** in a shipped
+document. A dropped claim's text has been mechanically replaced, so that obligation is discharged by
+a stronger mechanism rather than waived — and reaching `dropped` at all requires lowering a real
+floor in the live configuration, which needs a second key the configuration cannot carry.
+
+**As committed by plan 30-09: zero rows are `dropped`.** Nothing on this tree lowers a floor, so
+every row below still stands at the status it was measured at. The mechanism is here before it is
+needed, which is the only order in which it can be trusted.
 
 ## Two-sided completeness (D-14)
 

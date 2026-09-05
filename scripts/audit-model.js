@@ -78,9 +78,40 @@ export const DISPOSITIONS = ["fixed", "accepted", "deferred"];
 // architecture and install claims get ids and cannot drift back unnoticed (D-15 — one registry,
 // kind-tagged, never a second registry).
 export const CLAIM_KINDS = ["safety", "architecture", "install"];
-// D-17's three statuses, measured against the claim's named mechanism. Anything not `true` becomes
-// an AUDIT-01 finding; `overstated` is a real verdict and not a hedge.
-export const CLAIM_STATUSES = ["true", "overstated", "false"];
+// D-17's statuses, measured against the claim's named mechanism. Anything not `true` becomes an
+// AUDIT-01 finding; `overstated` is a real verdict and not a hedge.
+//
+// ── PHASE 30 (plan 30-09, D-18): THE FOURTH VALUE, `dropped`. ──────────────────────────────────
+//
+// A claim is `dropped` when a safety floor it rests on has been LOWERED on this tree, so the public
+// sentence the row names has stopped being true here. It is NOT a measurement verdict like the other
+// three: `true`, `overstated` and `false` record what an auditor measured the sentence against;
+// `dropped` records that the CONFIGURATION moved out from under a sentence that was standing.
+//
+// WHAT IT COSTS AND WHY THAT IS THE POINT. D-18 forbids deleting, striking through or quietly
+// rewording a dropped claim. The anchor survives, the registry row survives, and the anchored text
+// is REPLACED IN PLACE by generated disclosure text naming the checkpoint, its held value and the
+// authorizing name. So a `dropped` row is held to a STRICTER bar than an `overstated` one, not a
+// looser one, and the bar is mechanical rather than editorial:
+//
+//   1. Every floor the row's `depends_on` names must actually be lowered on the live matrix, and
+//      every row depending on a lowered floor must be `dropped`. Both directions are refused by
+//      `dropConsistencyRefusals` in scripts/generate-guarantees.ts — one direction alone would let
+//      the registry and the matrix drift apart silently, which is the state this mechanism exists
+//      to make impossible.
+//   2. The bytes at the row's anchor must equal `disclosureFor(...)` EXACTLY. A hand-written
+//      substitute is red; scripts/check-claim-anchors.ts compares against the generated text rather
+//      than against a stored string, so prose and mechanism cannot diverge.
+//
+// THE LAUNDERING QUESTION, ANSWERED RATHER THAN LEFT OPEN. `dropped` is exempt from the
+// disposition / finding_id obligations that scripts/check-claim-anchors.ts places on every other
+// non-`true` status, so a reader may reasonably ask whether a `false` row could be laundered into a
+// `dropped` one to escape them. It cannot: those obligations exist so a claim nobody decided about
+// does not stay STANDING in a shipped document, and a `dropped` row's text has been mechanically
+// replaced — the obligation is discharged by a stronger mechanism, not waived. Reaching `dropped`
+// additionally requires lowering a real floor in the live config, which needs a second key the
+// config cannot carry.
+export const CLAIM_STATUSES = ["true", "overstated", "false", "dropped"];
 // D-18's per-row safety-surface flag, plus the UNFILLED MARKER.
 //
 // WHY THE MARKER IS A LEGAL PARSE VALUE AND STILL A GATE FAILURE. The register ships in this plan

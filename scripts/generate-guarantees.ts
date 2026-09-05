@@ -109,6 +109,21 @@ export const GUARANTEES_DATA_SOURCE_COUNT = 3;
 /** The exact registry line that declares a safety row. The byte pass's whole grammar. */
 const SAFETY_KIND_LINE = "- kind: safety";
 
+/** The exact registry line that declares a DROPPED row. The dropped byte pass's whole grammar. */
+const DROPPED_STATUS_LINE = "- status: dropped";
+
+/** A claim heading, read off the registry's raw bytes. Never the parser's recogniser. */
+const RAW_CLAIM_HEADING_RE = /^### (C-28-\d{3})$/;
+
+/**
+ * The sentinel a dropped-status line with no claim heading above it produces.
+ *
+ * It is deliberately NOT a valid claim id, so it can never coincide with an id the join produced:
+ * the two lists disagree and the render refuses, rather than a headingless status line vanishing
+ * from a count that then agrees by accident.
+ */
+const DROPPED_WITHOUT_HEADING = "(a `- status: dropped` line with no claim heading above it)";
+
 /** One floor a claim rests on, with where that floor is actually held on this tree. */
 export interface GuaranteeFloor {
   readonly id: string;
@@ -151,6 +166,148 @@ export function declaredSafetyRows(root: string = DEFAULT_ROOT): number {
     if (line.replace(/\r$/, "") === SAFETY_KIND_LINE) n += 1;
   }
   return n;
+}
+
+/**
+ * THE INDEPENDENT DROPPED-ROW SET. Which claim ids the registry's BYTES declare `dropped`.
+ *
+ * THE SAME ARGUMENT AS `declaredSafetyRows`, APPLIED ONE LEVEL DOWN AND FOR A SHARPER REASON. The
+ * loop that marks a row dropped is the registry PARSE; a floor over its output computed by that same
+ * parse would be the loop vouching for itself. This pass reads the file's bytes, tracks the last
+ * claim heading it saw, and records the id above every exact `- status: dropped` line. It calls no
+ * parser and holds no value in common with `guaranteesJoin`.
+ *
+ * WHAT IT ENUMERATES, AND WHY ITS BLINDNESS IS THE SAFE DIRECTION. It is fence-blind, exactly like
+ * `declaredSafetyRows`: a `- status: dropped` line inside a fenced example is counted here and not
+ * by the parse, the two lists disagree, and the render REFUSES. It is also KIND-BLIND — it sees a
+ * dropped `architecture` row that the safety-only join never produces, and that disagreement is a
+ * refusal too, correctly: a non-safety row rests on no floor, so it can never be legitimately
+ * dropped.
+ *
+ * A vacuity floor over an EMPTY set would not catch a set that is short by exactly the rows that
+ * matter, which is why this returns the IDS and not a count: the comparison below is membership,
+ * not cardinality.
+ */
+export function declaredDroppedRows(root: string = DEFAULT_ROOT): readonly string[] {
+  let text: string;
+  try {
+    text = readFileSync(join(root, REGISTRY_PATH), "utf8");
+  } catch (e) {
+    throw new Error(
+      `generate-guarantees: cannot read the claim registry at ${join(root, REGISTRY_PATH)} — ` +
+        `refusing to report a dropped-row set that was not read (${(e as Error).message})`,
+    );
+  }
+  const out: string[] = [];
+  let current: string | null = null;
+  for (const raw of text.split("\n")) {
+    const line = raw.replace(/\r$/, "");
+    const heading = RAW_CLAIM_HEADING_RE.exec(line);
+    if (heading !== null) {
+      current = heading[1];
+      continue;
+    }
+    if (line === DROPPED_STATUS_LINE) out.push(current ?? DROPPED_WITHOUT_HEADING);
+  }
+  return out;
+}
+
+/**
+ * THE GENERATED DISCLOSURE — D-18's replacement text for a dropped claim.
+ *
+ * A PURE FUNCTION OF ONE JOINED ROW. No file read, no environment read, no clock: two calls with
+ * the same inputs are byte-identical, which is the property the anchor gate's verbatim comparison
+ * rests on. scripts/check-claim-anchors.ts compares a dropped row's anchored region against THIS
+ * text rather than against a string somebody copied into the registry, so the published prose and
+ * the mechanism cannot drift apart — that drift is the whole failure D-18 names.
+ *
+ * WHAT IT NAMES, IN THIS ORDER: the checkpoint, the value it is held at, its documented default,
+ * and the authorizing name. "The authorizing name" is the GRANT VARIABLE — `floorEnvVarName(id)` —
+ * which is what the table in this render already calls it, and which is deterministic where the
+ * human's own name is a session value the generator has no honest way to read.
+ *
+ * THE FLOORS ARE SORTED BY ID rather than left in the registry row's `depends_on` order. Document
+ * order is deterministic today; sorting removes the dependence entirely, so a reordered
+ * `depends_on` cannot silently change published bytes at an anchor.
+ *
+ * ONE LINE, DELIBERATELY. The anchored extent is a line slice, and a single line is the simplest
+ * extent that cannot disagree with itself.
+ */
+export function disclosureFor(row: GuaranteeRow): string {
+  const lowered = row.floors
+    .filter((f) => f.lowered)
+    .slice()
+    .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  if (lowered.length === 0) {
+    throw new Error(
+      `generate-guarantees: refusing to generate a disclosure for ${row.claimId} — none of the ` +
+        `floors it rests on is lowered on this tree. A disclosure states which guarantee stopped ` +
+        `holding here, so generating one for a claim that still holds would publish a retraction of ` +
+        `a sentence that is still true`,
+    );
+  }
+  const clauses = lowered
+    .map(
+      (f) =>
+        `\`${f.id}\` is held at \`${f.held}\` instead of \`${CHECKPOINT_DEFAULTS[f.id as Checkpoint]}\`, ` +
+        `authorized by \`${floorEnvVarName(f.id as Checkpoint)}\``,
+    )
+    .join("; ");
+  return (
+    `**This guarantee is lowered on this repository.** ${clauses}. ` +
+    `The sentence that stood here is recorded as ${row.claimId} in \`${REGISTRY_PATH}\` — it is ` +
+    `replaced rather than deleted, so the record shows what was claimed and what stopped holding ` +
+    `it. See \`${OUT}\`.`
+  );
+}
+
+/**
+ * THE TWO-DIRECTIONAL CONSISTENCY REFUSAL between the registry's `dropped` rows and the live matrix.
+ *
+ * A PURE FUNCTION OF THE JOIN, so the generator and scripts/check-claim-anchors.ts ask ONE authority
+ * and cannot reach different verdicts about one tree.
+ *
+ * BOTH DIRECTIONS, BECAUSE EITHER ONE ALONE IS A SILENT DRIFT:
+ *
+ *   * A row marked `dropped` whose floors all sit at their documented default is a retraction of a
+ *     sentence that is still true. The registry says the guarantee stopped holding; the matrix says
+ *     it holds. Left unrefused, the public document carries a disclosure nobody's configuration
+ *     justifies.
+ *   * A row resting on a LOWERED floor that is not marked `dropped` is the failure this whole phase
+ *     exists to close: an overstated claim left standing in a shipped document after the mechanism
+ *     under it was lowered. That is the one the milestone named at kickoff.
+ *
+ * EACH REFUSAL CARRIES ITS REMEDY, and for the second direction the remedy INCLUDES the exact bytes
+ * to write at the anchor. A mechanism that refuses without saying what to write invites a
+ * hand-written substitute, which the anchor gate then reds a second time.
+ */
+export function dropConsistencyRefusals(rows: readonly GuaranteeRow[]): readonly string[] {
+  const refusals: string[] = [];
+  for (const row of rows) {
+    const dropped = row.status === "dropped";
+    if (dropped && !row.lowered) {
+      refusals.push(
+        `${row.claimId} is recorded \`status: dropped\` in ${REGISTRY_PATH}, but every floor it ` +
+          `rests on (${row.floors.map((f) => `\`${f.id}\``).join(", ")}) sits at its documented ` +
+          `default on this tree. Dropping a claim whose floor was never lowered publishes a ` +
+          `retraction of a sentence that is still true. Either lower the floor or restore the row's ` +
+          `measured status and its original text`,
+      );
+    }
+    if (!dropped && row.lowered) {
+      refusals.push(
+        `${row.claimId} rests on lowered floor(s) ` +
+          `${row.floors
+            .filter((f) => f.lowered)
+            .map((f) => `\`${f.id}\` (held at \`${f.held}\`)`)
+            .join(", ")} and is still recorded \`status: ${row.status}\`. A lowered floor that ` +
+          `leaves its public sentence standing is the exact failure D-18 exists to close. Set the ` +
+          `row to \`status: dropped\` and replace the text at its anchor with EXACTLY:\n` +
+          `        ${disclosureFor(row)}`,
+      );
+    }
+  }
+  return refusals;
 }
 
 /**
@@ -234,6 +391,40 @@ export function renderGuarantees(root: string = DEFAULT_ROOT): string {
     );
   }
 
+  // ── THE DROPPED-ROW SET, ASSERTED AGAINST AN INDEPENDENTLY COMPUTED ONE (D-18) ───────────────
+  //
+  // The membership comparison, not a count. A cardinality floor over this set would agree while the
+  // two lists named DIFFERENT rows — which on this surface means publishing a disclosure for one
+  // claim and leaving another's overstated sentence standing, with the tally balanced.
+  const droppedFromJoin = rows
+    .filter((r) => r.status === "dropped")
+    .map((r) => r.claimId)
+    .sort();
+  const droppedFromBytes = [...declaredDroppedRows(root)].sort();
+  const onlyInBytes = droppedFromBytes.filter((id) => !droppedFromJoin.includes(id));
+  const onlyInJoin = droppedFromJoin.filter((id) => !droppedFromBytes.includes(id));
+  if (onlyInBytes.length > 0 || onlyInJoin.length > 0) {
+    throw new Error(
+      `generate-guarantees: the ${droppedFromJoin.length} dropped row(s) the join produced ` +
+        `[${droppedFromJoin.join(", ")}] disagree with the ${droppedFromBytes.length} the registry's ` +
+        `BYTES declare [${droppedFromBytes.join(", ")}] — refusing to render. Declared but not ` +
+        `joined: [${onlyInBytes.join(", ")}]; joined but not declared: [${onlyInJoin.join(", ")}]. ` +
+        `The two sets come from independent passes (the registry parse and a raw line pass), and ` +
+        `only their AGREEMENT is evidence. A row declared dropped that the join never sees is ` +
+        `either fenced documentation read as a real row, or a non-\`safety\` row resting on no floor ` +
+        `and therefore droppable by nothing. Reconcile the registry, then re-run \`${REGEN_COMMAND}\``,
+    );
+  }
+
+  const inconsistent = dropConsistencyRefusals(rows);
+  if (inconsistent.length > 0) {
+    throw new Error(
+      `generate-guarantees: the registry's dropped rows and the live checkpoint matrix disagree in ` +
+        `${inconsistent.length} place(s) — refusing to render a guarantees page that would state ` +
+        `one thing while the mechanism does another:\n  - ${inconsistent.join("\n  - ")}`,
+    );
+  }
+
   const lowered = loweredCheckpoints(root);
   const floorIds = SAFETY_FLOORS.map((f) => f.id).sort();
 
@@ -302,12 +493,22 @@ export function renderGuarantees(root: string = DEFAULT_ROOT): string {
       const floors = r.floors
         .map((f) => `\`${f.id}\` at \`${f.held}\``)
         .join("; ");
-      const standing = r.lowered
-        ? `**LOWERED** — rests on ${r.floors
-            .filter((f) => f.lowered)
-            .map((f) => `\`${f.id}\``)
-            .join(", ")}`
-        : "held";
+      const restsOn = r.floors
+        .filter((f) => f.lowered)
+        .map((f) => `\`${f.id}\``)
+        .join(", ");
+      // THREE STANDINGS, AND THE MIDDLE ONE IS A CONTRACT GUARD WITH NO LIVE PATH — said plainly
+      // rather than implied to be reachable. `dropConsistencyRefusals` above has already refused
+      // any row that is lowered and not `dropped`, so the second arm cannot be reached from a
+      // render that got this far. It stays because unreachability is a property of today's code
+      // and a rendering is a property of the contract, and because a row that somehow arrived here
+      // lowered-but-standing must not print as `held`.
+      const standing =
+        r.status === "dropped"
+          ? `**DROPPED** — rests on ${restsOn}; the text at its anchor is the generated disclosure`
+          : r.lowered
+            ? `**LOWERED** — rests on ${restsOn}`
+            : "held";
       return `| \`${r.claimId}\` | \`${r.file}\` | ${r.status} | ${floors} | ${standing} |`;
     }),
     "",
