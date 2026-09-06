@@ -551,3 +551,13 @@ the timeout is input-reachable (measured 10 047 ms → SIGTERM → fail-closed D
 runtime control at all. `V-30-11-23`, `V-30-11-24`, `V-30-11-27` and `V-30-11-29` are one task on
 gate reachability: derive the runner set from the CI grammar the repository already owns, over a set
 derived from the tree. `V-30-11-26` and `V-30-11-28` are one task on the emitters.
+
+### Decision — 2026-09-06
+
+**The user chose `fence` at the Task 3 checkpoint and confirmed the fence text and the backlog entries
+`V-30-11-16` … `V-30-11-31` as written.** Surface A is fenced at D-22's four-round cap with
+thirty-one residuals recorded, **six of them zero-key bypasses with working reproductions that
+executed real forced updates of `main` against the final artifact**. `closed` was not available on the
+evidence; `another-round` is forbidden by D-22. The closure judgement is a human judgement and is
+marked `human_judgment: true` in `30-11-SUMMARY.md`. These entries are live backlog: they are not
+closed by the fence, they are made visible by it.

@@ -4391,3 +4391,22 @@ and re-verified**: one expression for the fallback base; `readGovernanceConfig(u
 leaves nothing in the trace, round 2 showed a `+=` spelling that left nothing in the transcript either,
 and `V-30-11-22` now widens it again — the strongest grant on that channel (`NODE_OPTIONS`) is refused
 by nothing and recorded nowhere.
+
+---
+
+## Decision — 2026-09-06
+
+**The user chose `fence` at the Task 3 checkpoint and confirmed the fence text and the backlog entries
+`V-30-11-16` … `V-30-11-31` as written.**
+
+Surface A is fenced at D-22's four-round cap. `closed` was not available on the evidence: the criterion
+round 4 wrote down in advance — two independent reviews at the strongest available model, each
+returning no reproduced bypass — failed by nine reproduced bypasses, six of them executed against a
+real remote. `another-round` is forbidden by D-22, and the measured trend (findings created by the
+previous round's fixes going 1/11 → 12/13 → 10/10 → 11/14) is the reason that rule exists.
+
+**This closure judgement is a human judgement** and is marked `human_judgment: true` in
+`30-11-SUMMARY.md`. The entries `V-30-11-01` … `V-30-11-31` are **live backlog**: they are not closed
+by the fence, they are made visible by it. Nine of them are recorded in `.planning/WINDOWS.md` so the
+ship gate sees them, and the whole set is written into
+`.planning/phases/30-per-checkpoint-autonomy-matrix/deferred-items.md`.
