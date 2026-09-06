@@ -2512,3 +2512,281 @@ Because one register line contains a backticked bare `` `scripts` ``, the mirror
 - **Tree restored.** `git checkout -- . && git clean -fd -e node_modules`; `git status --short` reports only `?? node_modules`; HEAD unchanged at `1cc52d4`. All mutation was confined to the temp mirror, which was removed. Nothing under `/Users/olgeroeselg/Projects/public/grugops` was touched, and no `.claude/settings*.json` was read or written anywhere.
 
 <!-- END VERBATIM -->
+
+---
+
+# Round 3 — the fixes, and what each one deleted
+
+## The corpus, measured before and after on ONE artifact
+
+Reviewer 3's complete corpus — every bypass row and every legitimate command — plus the prior-round
+denials, run against the committed `.js` spawned as a process with a scrubbed environment and a 20 s
+bound. Two-sided controls in every group.
+
+| group | want | before (`1cc52d4`) | after |
+|---|---|---|---|
+| controls (deny / allow) | both | 1/1, 1/1 | 1/1, 1/1 |
+| `RA3-1` word-internal quoting | DENY | **0/13** | **13/13** |
+| `RA3-2` grouping / reserved words | DENY | **0/13** | **13/13** |
+| `RA3-3` wrappers / flag-with-argument | DENY | **0/13** | **13/13** |
+| `RA3-4` backstop defeated with the parser | DENY | **0/5** | **5/5** |
+| `RA3-5` nested shells | DENY | **0/3** | **3/3** |
+| `RA3-6` alias + basename | DENY | **0/4** | **4/4** |
+| PRIOR denials (additivity) | DENY | 59/59 | **59/59** |
+| LEGITIMATE commands | ALLOW | 33/33 | **33/33** |
+| the five NEW false denials | ALLOW | **0/5** | **5/5** |
+| **TOTAL** | | **101/157** | **155/157** |
+
+**The two remaining "deviations" are both improvements**, and the table's expectations were written
+from the round-2 state rather than from the round-3 intent:
+
+- `kubectl get pods --namespace delete` now ALLOWs — that was the round-2 recorded **over**-denial.
+- `docker exec c kubectl -n prod apply -f x` now DENIEs — that was a recorded residual **bypass**.
+
+### The false-denial delta, measured on work this repository actually does
+
+Reviewer 3's list is the reviewer's; the new model is far more aggressive than the old one, so its
+over-denial profile was measured again on 62 everyday commands that appear in no report — git
+plumbing, npm, kubectl reads, terraform, docker, make, cargo, rg, sed, awk, loops and conditionals:
+
+```
+round-2 build : 59/62 allow      round-3 build : 60/62 allow
+```
+
+**Strictly better.** The two that still deny — `git commit -m "chore: kubectl apply docs"` and
+`rg 'kubectl apply' --type ts` — deny on **both** builds, through the literal patterns' documented
+whole-line behaviour, and are not new.
+
+---
+
+## `RA3-1` / `RA3-2` / `RA3-3` / `RA3-4` — one rewrite, three deletions
+
+The command model was **rewritten, not repaired**, and what it deletes is the point.
+
+**1. Nothing identifies "the tool of a segment" any more.** Every canonical non-flag word is a
+candidate tool, and a governed verb is looked for after it. That single deletion removes `WRAPPERS`,
+the flag-with-argument question and the grouping/reserved-word question **together**: `sudo -u root
+kubectl … apply`, `nice -n 5 kubectl … apply`, `( kubectl … apply )`, `for f in a; do npm … publish;
+done` and `find . -exec kubectl … apply` all match without one new rule. No reserved-word list was
+added; `RA3-2`'s suggested POSIX prefix set was **not** needed once the tool step was gone.
+
+**2. Edge quote-stripping is deleted; words are CLASSIFIED.** A word is canonical when it is a single
+unquoted run of safe characters, a single wholly-quoted run, or the `--flag='value'` shape. Everything
+else — `app""ly`, `""apply`, `"ap""ply"`, `ma'in'`, `$'apply'`, `app\ly` — is OPAQUE and **refused
+rather than read**. That is D-64's posture (name the canonical form, refuse the near-miss) applied to
+shell words, and it means the next splicing spelling is refused without anyone enumerating it.
+
+**3. The fail-closed backstop's verb conjunct is deleted.** Round 2 required both the tool and one of
+its verbs in the raw text, so the same edit that made a segment unreadable removed the token the
+backstop searched for — *"untokenizable is a fail-closed state"* was measurably not a state at all,
+but a second weaker pattern match. An unreadable segment now denies on the **tool name alone**.
+
+### New freedoms, named and bounded
+
+- **The fail-closed scan now over-denies more.** `git commit -m "push \"x\""` denies, and so does
+  `git push origin refs/heads/feature#1` (a `#` is outside the canonical set). Bounded by requiring a
+  governed TOOL to be named — `echo "a \"b\""` is untouched — and this is the deliberate price of a
+  backstop that cannot be defeated by the edit that triggers it.
+- **`benign` is a new hand-maintained set, and that is admissible where `WRAPPERS` was not.** The rule
+  is written at the table: **a set whose incompleteness OVER-refuses is admissible; a set whose
+  incompleteness UNDER-refuses is not.** A launcher missing from `WRAPPERS` produced an ALLOW; a
+  subcommand missing from `benign` merely fails to suppress and the fail-closed scan decides. Only two
+  tools have one, both measured rather than guessed.
+- **A wholly-quoted word's value may contain spaces**, which is what stops a quoted commit message
+  from contributing its words as verb candidates — the mechanism behind five false denials.
+
+### The irreducible tension, stated rather than resolved by cleverness
+
+`kubectl 'apply' -f x` must deny and `git commit -m 'push'` must not, and at the word level those are
+the same shape: a wholly-quoted word whose value is a governed verb. Separating them needs to know
+that `-m` takes an argument — per-tool flag grammar, whose incompleteness is fail-**OPEN**, which is
+why it is refused. They are separated instead by the FIRST decision word after the tool: `commit` is a
+`benign` git subcommand and decides the segment before `push` is reached, while `'apply'` is the first
+decision word after `kubectl`. That is why `benign` exists at all, and it is the only thing it does.
+
+## `RA3-5` / `RA3-6`
+
+`-c` clusters and herestrings fall out of the rewrite: a nested shell's non-flag operands are all
+re-tokenized, and `<<<` is in the unresolvable set, so `sh -cx '…'` and `bash <<< "…"` both reach the
+fail-closed scan. `git.exe`, `kubectl.exe` and `\kubectl` are handled by a normalized basename (leading
+`\` stripped, a Windows executable extension stripped) — Windows is a supported host and `.exe` is the
+ordinary spelling there. `git -c alias.p=push p origin main` is handled by reading git's own documented
+`-c alias.<x>=<verb>` form as verb-bearing: one closed, cited git form, not a general look-inside-flags
+rule.
+
+**Non-shell interpreters are a RECORDED RESIDUAL, not parsed** — `python -c`, `perl -e`, `node -e`,
+`ssh host "…"`. Pinned by a test so a later reader meets a decision rather than an oversight.
+`docker exec c kubectl …` now denies as a side effect of the rewrite (the tool is a word in the
+segment), which is recorded as an improvement rather than claimed as a design.
+
+## `RA3-7` — the invariant left the process
+
+```
+                                         round-2 (direct entry)      round-3 (wrapper entry)
+CONTROL intact dependency                DENY   exit 0               DENY   exit 0
+dependency = not js                      DENY   exit 0               DENY   exit 0
+dependency calls process.exit(2)         DENY   exit 0               DENY   exit 0
+dependency calls process.reallyExit(0)   ALLOW  exit 0, 0 bytes      DENY   exit 0
+dependency calls process.abort()         ALLOW  SIGABRT, no answer   DENY   exit 0
+dependency SIGKILLs itself               ALLOW  SIGKILL, no answer   DENY   exit 0
+dependency SIGTERMs itself               ALLOW  SIGTERM, no answer   DENY   exit 0
+junk on stdout then exit 0               DENY   exit 0               DENY   exit 0
+never-settling top-level await           DENY   exit 0               DENY   exit 0
+```
+
+`hooks/hook-entry.ts` is the hook entry point, imports only `node:` builtins — so the corruption class
+that reaches the decider cannot reach it — and answers for the decider on every abnormal exit in ONE
+branch, without enumerating termination mechanisms.
+
+**And `reallyExit(0)` needed a second half, because the wrapper alone did not close it.** Exit 0 with
+empty stdout is a real allow AND what a process that died silently leaves behind; the first wrapper
+passed it through. So **an allow is now ASSERTED on fd 3** — a private channel the host never sees —
+and silence there is refused. The decider tolerates fd 3 being absent, so running it directly (as every
+test in this repository does) remains a legal invocation.
+
+**New freedom, bounded:** a second process per Bash call, and a new artifact that must itself have no
+undecided exit. Bounded by four assertions in `scripts/floor-invariance.test.ts`: the entry is
+byte-frozen with its own blob under D-24, `hooks.json` must route BOTH matchers through it naming a
+decider (a matcher pointing straight at a decider would restore every class this closed), and the
+wrapper's imports must all be `node:` builtins.
+
+## `RA4-1` / `RA4-2` / `RA4-3` / `RA4-4` / `RA4-5` / `RA4-6`
+
+- **`RA4-1`** — one `bodyValue()` for every value interpolated into a checkpoint record, plus
+  `assertSingleLine` on the two names that publish unquoted. The axis is HOW a value reaches the body,
+  not which fields someone remembered; a test asserts that every bare `${input.` in the body
+  composition is covered by a closed vocabulary or a single-line guard.
+- **`RA4-2`** — a presence predicate publishes the value it tested (`grantedBy` already did), and a
+  **supplied** root that is not an existing directory is `unreadable`, not `absent`. Scoped to a
+  supplied root so the kit fallback, which exists by construction, keeps the lean path.
+- **`RA4-3` + `RA4-6`, closed together by moving the gate rather than repairing it.** The membership
+  test is INVERTED — a path-shaped span must be `git ls-files`-**tracked**, not merely present on this
+  disk, with an `EXTERNAL:` marker for a host's own files — and it moved from the generator entry to
+  `scripts/check-audit-register.ts`, which runs in the repository and can ask git. That **deletes** the
+  freshness mirror's cited-path copy, which had been pulling whole directories (35 modules outside the
+  declared import closure) and voiding the isolation the byte comparison rests on. The gate fired on
+  its first run, on exactly the citations `RA4-3` named.
+- **`RA4-4`** — one `bannerValue()` at the composition site: a value carrying a line break is refused
+  by name, so the run still emits exactly one banner and the human is told what to fix. Asserted by
+  COUNTING `isCheckpointBannerLine` matches, not by substring presence.
+- **`RA4-5`** — **both** halves of the un-forgeability sentence are now marked `[inferred]`. Round 2
+  tiered only the half that made the residual look worse; the protective half is the load-bearing floor
+  and has never been exercised. What one further observation would need is written into the row so a
+  human can decide rather than rediscover — and **no further settings write was made**: the human's
+  grant was for one write and it was used in round 2.
+
+**`RA4-5`'s per-clause marker GATE was declined, and the decline is recorded rather than silent.** The
+suggested form refuses any unmarked declarative clause, which needs a sentence splitter inside a
+publishing gate — the parser this round deleted from the safety path, moved to the documentation path,
+with the same failure mode (a clause it cannot read). The prose finding is closed; the mechanism is
+left for a later round with the reasoning written down.
+
+## Round 3 — mutation proofs (closure clause 3)
+
+Applied to the emitted `.js` the tests load, marker grepped before each run, `npm run build`
+restoring afterwards.
+
+| # | mutation | marker | result |
+|---|---|---|---|
+| `P1` | an opaque word read instead of refused | `MUT-P1` | **KILLED** — 2 failed / 216 passed |
+| `P2` | one tool per segment again (the deleted step) | `MUT-P2` | **KILLED** — 14 failed / 204 passed |
+| `P3` | the verb conjunct restored in the fail-closed scan | `MUT-P3` | **KILLED** — 12 failed / 206 passed |
+| `P4` | the normalized basename dropped | `MUT-P4` | **KILLED** — 2 failed / 216 passed |
+| `P5` | the grant value handed to the banner raw | `MUT-P5` | **SURVIVED**, then KILLED — see below |
+| `P6` | `trustedRepoRoot` returns the raw value | `MUT-P6` | **SURVIVED**, then KILLED — see below |
+| `P6b` | a supplied non-directory root is `absent` again | `MUT-P6b` | **KILLED** — 1 failed / 232 passed |
+| `P7` | the `envVarName` single-line guard dropped | `MUT-P7` | **SURVIVED**, then KILLED — see below |
+
+### THREE MUTATIONS SURVIVED, AND THAT IS THE ROUND'S OWN FINDING ABOUT ITSELF
+
+`P5`, `P6` and `P7` each survived the first run. Not because the tests were weak — because **there
+were no tests**. The `RA4-1`, `RA4-2` and `RA4-4` fixes were in the code and nothing asserted them, so
+a later edit could have removed any of the three silently. A mutation that survives is a fix that is
+not pinned, and it was the mutation table that said so rather than a reviewer.
+
+Tests were added, and all three then died: `P5` 1 failed / 223 passed, `P6` 1 failed / 232 passed,
+`P7` 1 failed / 232 passed.
+
+### AND ADDING THEM EXPOSED A FALSE CONTROL IN THIS PLAN'S OWN SUITE
+
+The new guard-side `RA4-2` case passed **under** the `P6` mutation. Measured directly rather than
+assumed: with `trustedRepoRoot` returning the raw padded value, the guard's banner was byte-identical
+to the clean run's — because `readGovernanceConfig` trims its base independently. **Either trim alone
+closes the hole**, so the case cannot discriminate one of them.
+
+```
+P6   trustedRepoRoot returns raw            guard 224/224 PASS   context-io 1 failed
+P6c  BOTH trims reverted                    guard   2 failed     context-io 1 failed
+```
+
+This is round 2's `N4` situation again — two independently sufficient halves of one fix — and it is
+recorded the same way rather than presented as a clean kill. Both are kept: the reader's trim protects
+every caller, and `trustedRepoRoot`'s trim is the one that makes the predicate publish the value it
+tested, which is the property `RA4-2` is actually about.
+
+---
+
+## Round 3 — self-reproduction against the FIXED build (closure clause 5)
+
+Premise asserted first — every mirrored artifact sha256-compared to the working tree before any probe:
+
+```
+hooks/guard.js            13028ffa0ea821ad…  premise OK
+hooks/hook-entry.js       ff52f58fb3c35693…  premise OK
+hooks/admission-guard.js  461ea83556564d30…  premise OK
+scripts/checkpoints.js    427afd0fdfa3ddb5…  premise OK
+scripts/context-io.js     61d4a53bcdce9257…  premise OK
+```
+
+| id | verdict | evidence, re-run by the fixing agent against the mirror |
+|---|---|---|
+| `RA3-1` | CLOSED | 13/13 word-internal quoting rows deny; `'kubectl' apply` (a legitimate wholly-quoted tool) still denies; `--grep='…'` still allows |
+| `RA3-2` | CLOSED | 13/13 grouping and reserved-word rows deny |
+| `RA3-3` | CLOSED | 13/13 wrapper and flag-with-argument rows deny; `WRAPPERS` is absent from the source, asserted |
+| `RA3-4` | CLOSED | 5/5 split-verb rows deny; `echo "$(date)"` still allows |
+| `RA3-5` | CLOSED | 3/3 nested-shell rows deny |
+| `RA3-6` | CLOSED | 4/4 alias and basename rows deny |
+| `RA3-7` | CLOSED | all 5 termination classes deny through the wrapper, each `exit 0` + JSON; an ordinary allow still passes through |
+| `RA4-1` | CLOSED | a newline in `envVarName`/`actionApproval` throws with nothing on disk; the three quoted fields still produce ONE note |
+| `RA4-2` | CLOSED | padded and clean roots produce byte-identical runs; a supplied non-directory root denies naming it |
+| `RA4-3` | CLOSED | the auditor refused the live register until the two `.claude/` citations were marked `EXTERNAL:` |
+| `RA4-4` | CLOSED | banner-shaped lines: 1 (was 2) under a newline-bearing grant; 1 under a clean name (control) |
+| `RA4-5` | CLOSED | both halves marked `[inferred]`; the page regenerates byte-identically |
+| `RA4-6` | CLOSED | the mirror's cited-path copy is deleted; `freshness:guarantees` green |
+| additivity | HELD | 59/59 prior denials, 33/33 legitimate commands, on the same artifact in the same sweep |
+
+## Observations addressed, and residuals recorded
+
+- **Reviewer-3 obs 3** — two `spawnSync` calls had no timeout, including the one in the file whose
+  subject is the safety floor. Both bounded, and the set is now **derived**: a case scans all three
+  hook/floor test files and refuses any `spawnSync` without a `timeout`, asserting its own scan is
+  non-vacuous.
+- **Reviewer-4 obs 2** — the catch-all usage line still advertised the deleted `[contextRoot]`
+  positional. Corrected.
+- **Reviewer-4 obs 3** — workflow 05 Step 3 kept a fourth, exit-`1`-only sentence after round 2's rule
+  reached three sites. Corrected, with its own disposition rows.
+- **Reviewer-4's premise finding, which is a live property** — `node <symlinked-path>/scripts/context-io.js
+  admit …` exited **0 having printed nothing and admitted nothing**, because `import.meta.url` is
+  realpath-resolved and `process.argv[1]` is not. A caller reading the exit code reads an admission.
+  Reproduced through `/tmp` (a symlink to `/private/tmp` on macOS): round-2 artifact `exit=0, 0 bytes`
+  and the arity refusal silently not firing; round-3 artifact runs and the arity refusal fires with
+  `exit=1`. Fixed with `realpathSync` on both sides, wrapped so an unresolvable path falls back rather
+  than throwing at import.
+- **Reviewer-3 obs 4** — a `.git/config`-persisted alias (`git config alias.x '!git push origin main'`,
+  itself denied, then `git x`) is permissive and **undecidable from the command text**, exactly like
+  `git merge`. Recorded here with its reproduction as a residual under the same rule: fail closed where
+  an escape exists, record where refusing would leave no legal spelling.
+- **Reviewer-3 obs 2** — when stdout is unwritable the deny is lost (`1>&-` → exit 0 and nothing
+  written). Not agent-reachable — the host owns the stdio — so the published process invariant holds
+  **under a writable stdout**, and that precondition is now stated rather than assumed.
+- **Reviewer-3 obs 5** — `setenv NAME me` (csh) is not refused. An open-set spelling on a shell this
+  hook path does not use; per D-64 the answer is not to widen. Noted, unchanged.
+- **Reviewer-3 obs 6** — a reviewer probe overshot and invoked real `npm publish` in a worktree. It
+  failed before contacting the registry (`private: true`, unauthenticated); nothing was published.
+  Recorded because the finding's own point is that the command was **allowed by the guard**.
+- **Reviewer-4 obs 1** — `RA2-1`'s closure moved the hole from argv into the recorded D-05 env tier
+  rather than removing it. Stated here: the CLI override is gone, and what actually holds is the hook,
+  which is why `RA4-2` mattered.
+- **Reviewer-4 obs 4, 5, 6** — `readCheckpointMatrix` still does not hold TINT-03 (latent: no runtime
+  consumer); bare directory-name citations satisfy the gate's non-vacuity floor while asserting nothing
+  about a mechanism; the mirror's partial-repository copy is deleted by `RA4-6`'s fix.
