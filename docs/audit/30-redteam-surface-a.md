@@ -3338,3 +3338,168 @@ Register↔page **byte identity holds**: row 9 body = 5943 bytes, row 10 = 2213 
 **For round 4 (the last):** `RA6-1`, `RA6-2` and `RA6-3` are all one file — the file round 3 created to close `RA4-3`/`RA4-6`. The pattern across rounds 2→3→4 is now explicit: **the citation gate has had three homes in three rounds, and each move was verified against the gate's output rather than against the gate's reachability.** The structural question round 4 should ask of every fix is not "does the gate refuse the bad input" but "**by what mechanism is this gate reached, and is that mechanism derived or hand-kept?**" — the same set-literal-drift class this repository has now paid for in adapters, in spawn allowlists, and here.
 
 <!-- END VERBATIM -->
+
+---
+
+# Round 4 — the fixes, every one a deletion
+
+## The corpus, measured on ONE artifact, on BOTH entry paths
+
+| group | want | before (`d117f7b`) | after |
+|---|---|---|---|
+| `RA5-1` segment cap | DENY | **0/5** (+ 63-pad boundary control denies) | **5/5** |
+| `RA5-2` benign decided by a flag's argument | DENY | **0/12** | **12/12** |
+| `RA5-3` alias value discarded | DENY | **0/5** | **5/5** |
+| `RA5-4` `eval` / `watch` | DENY | **0/7** | **7/7** |
+| PRIOR denials (additivity) | DENY | 36/36 | **36/36** |
+| LEGITIMATE commands | ALLOW | 36/36 | **36/36** |
+| the three NEW false denials (`npm run publish`) | ALLOW | **0/3** | **3/3** |
+| **TOTAL** | | **73/105** | **105/105** |
+
+Identical on the bare decider (`105/105`), and the everyday over-denial profile is **unchanged at
+60/62** — the two that still deny (`git commit -m "chore: kubectl apply docs"`, `rg 'kubectl apply'`)
+deny on every build through the literal patterns' documented whole-line behaviour.
+
+## `RA5-1` … `RA5-4` — four deletions in the command model
+
+- **`RA5-1`: the 64-SEGMENT cap is deleted**, not made fail-closed. It counted segments consumed, not
+  nesting, and segment 65 onward was never classified, never scanned and never reached the backstop —
+  a 64-token prefix removed the model *and* its fail-closed scan, executably. It was bounding the
+  wrong thing: nesting is already bounded at 3 and segment count by input length, with 466 ms measured
+  at 2 MB. A bound that silently drops evidence is worse than the cost it avoids.
+- **`RA5-2`: the suppression POSITION is removed.** `benign` could be decided by a flag's operand, so
+  `git -C log push origin main` allowed — and executed a real push to `main` against real git. The
+  round's admissibility rule covered a set's MEMBERSHIP (a missing member over-refuses) and said
+  nothing about POSITION, which is the axis it was attacked on. A benign word now suppresses only
+  adjacent to the tool with no flag between — the one position the model can justify without knowing
+  any tool's flag grammar.
+- **`RA5-3`: the `.split()[0]` alias read is deleted.** It fed `gitPushIsGoverned` a candidate list the
+  command does not have and allowed a real **force push to `main`**. A multi-word alias value is now
+  OPAQUE — refuse the near-miss rather than read half of it.
+- **`RA5-4`: `NESTED_SHELLS` is deleted**, the way `WRAPPERS` was. It was a hand-maintained set whose
+  incompleteness UNDER-refuses, which the `benign` table's own rule declares inadmissible; `eval` is
+  the shell itself and was not in it. Any canonical word carrying whitespace is now re-tokenized.
+- **And a rule the model never had.** Fixing `RA5-2` surfaced `git -C log push --force origin feature`
+  — a force push matching neither authority, because the literal pattern needs `git` adjacent to
+  `push` and the model only ever asked about the refspec. The model now carries the same
+  "a force push on any branch" rule the literal set already declares.
+
+### The tension reviewer 5 predicted, MEASURED rather than assumed
+
+`RA5-4`'s write-up expected deleting `NESTED_SHELLS` to resurrect `git commit -m 'push to main'`. It
+does not, and the reason is structural: re-tokenizing `push to main` yields a segment whose words name
+**no governed tool**, so nothing matches. Re-tokenization only bites when the quoted content names a
+tool — which `eval 'kubectl …'` does and a commit message does not. Measured across the corpus and 62
+everyday commands. The residual cost is a message containing a whole governed command
+(`git commit -m 'git push origin main'` denies), recorded rather than parsed away.
+
+### New freedoms, named and bounded
+
+Three recorded over-denials, all fail-closed, all measured: `git -c user.name=x commit -m 'push'`
+(a flag before the decider makes the segment un-suppressible), `kubectl -n dev get pods --namespace
+delete` (same), and `git -c alias.st='status -sb' st` (a multi-word alias value is opaque). The
+`benign` sets grew for `npm`/`yarn`/`pnpm`, whose incompleteness over-refuses — admissible by the
+stated rule, and now bounded on the axis `RA5-2` proved the rule did not cover.
+
+## `RA5-5` / `RA5-6` — the wrapper stops taking the decider's word
+
+```
+                                         round-3 (d117f7b)          round-4
+CONTROL intact                           DENY   exit=0  110ms       DENY  exit=0   130ms
+fd3 token + reallyExit(0)                ALLOW  exit=0   95ms       DENY  exit=0    46ms
+fd3 token embedded in noise              ALLOW  exit=0   98ms       DENY  exit=0    68ms
+writes permissionDecision:"allow"        AUTO-APPROVE     85ms      DENY  exit=0    44ms
+writes permissionDecision:"ask"          OTHER  exit=0   96ms       DENY  exit=0    46ms
+infinite loop                            ALLOW  exit=null 30 004ms  DENY  exit=0    69ms
+Atomics.wait hang                        ALLOW  exit=null 30 023ms  DENY  exit=0    53ms
+```
+
+`RA3-7` asked the child to ASSERT an allow. The assertion is a plaintext constant the child's own
+corrupted dependency can spell — **nothing a process emits establishes a property about that process.**
+So the property is established about the CODE: the wrapper carries a per-decider manifest of that
+decider's emitted import closure and verifies it **before the spawn**. The manifest is DERIVED by
+`scripts/generate-hook-manifest.ts` from the same import-closure derivation the freshness mirrors use,
+drift-gated by `npm run freshness:hook-manifest`, and its cardinality is asserted against a fresh
+derivation — a manifest that silently went SHORT would leave exactly the module an attacker wants
+unverified.
+
+The second half is a deletion: the wrapper **rejects `allow` and `ask`**. A decider in this kit can
+only ever emit a denial, so accepting them was latitude nothing needed — and it was the worse half,
+because an explicit allow does not merely fail to block, it **skips the host's permission prompt**.
+
+`RA5-6` adds a value, not a branch: the spawn is bounded at 10 s, which `child.signal` already converts
+into the fail-closed deny. The two bounds are documented against each other — 10 s is >20× the worst
+measured decision (466 ms) and 6× under the host's 60 s default — so they cannot silently invert.
+
+**New freedom, bounded:** the manifest moves on any legitimate `scripts/` rebuild, so the wrapper's
+freeze is taken over its source with the **manifest region normalised out**. "The wrapper's logic
+changed" and "the manifest was regenerated" stay different events; otherwise the freeze would stop
+meaning anything.
+
+## `RA6-1` … `RA6-4` — reachability, not just correctness
+
+Reviewer 6's rule, adopted: *by what mechanism is this gate reached, and is that mechanism derived or
+hand-kept?*
+
+- **`RA6-1`** — the citation gate was invoked by **nothing**, and carried the pre-fix `isMain` idiom so
+  it also silently no-opped. Both halves are now derived: a test enumerates every `scripts/check-*.js`
+  and every `check:*` npm script and refuses one CI never runs (an exemption must give a reason **and**
+  still be reached by something CI executes), and the entrypoint predicate — which had **fourteen**
+  spellings — lives once in `scripts/is-entry.ts`, with a guard refusing any `import.meta.url ===`
+  comparison outside it. **The derived runner set immediately found a SECOND unreachable gate**
+  (`check-uat-oracles.js`), which is the finding the derivation exists to make.
+- **`RA6-3`** — `git ls-files` is index-membership, so a deleted file was still "in the tree" in the
+  only environment where the gate ran. Both halves now, with the refusal naming which one failed.
+- **`RA6-2`** — the public page pointed at the gate's SECOND home. The pointer is **deleted**, not
+  corrected: a mechanism's location is not a public fact, and it had moved twice in one round.
+- **`RA6-4`** — one loop over every body field, applying the type rule and the single-line rule
+  together. `actionApproval: undefined` minted *"undefined was set by a human"* under the reserved
+  identity because `assertSingleLine` coerces.
+
+Observations closed with them: the wrapper's own directory is decoded and realpath-resolved (an
+install path with a space denied every Bash call); the fd-3 token is compared by equality, not
+`includes`; `EXTERNAL:` requires a well-formed remainder; a relative `CLAUDE_PROJECT_DIR` is resolved
+to absolute, so the code no longer contradicts its own comment.
+
+## Round 4 — mutation proofs
+
+| # | mutation | result |
+|---|---|---|
+| `Q1` | restore the 64-segment cap | KILLED |
+| `Q2` | let `benign` suppress from any position | KILLED |
+| `Q3` | restore the alias first-token read | KILLED |
+| `Q4` | restore `NESTED_SHELLS` gating | KILLED (3 cases) |
+| `Q5` | remove the force arm | KILLED |
+| `Q10` | drop the type half of the one-loop guard | KILLED (2 cases) |
+| `Q11` | unwire the citation gate from CI | KILLED (2 cases) |
+| `Q6` | accept `allow`/`ask` again | **SURVIVED**, then KILLED |
+| `Q7` | skip the manifest verification | **SURVIVED**, then KILLED (3 cases) |
+| `Q8` | drop the wrapper timeout | **SURVIVED**, then KILLED |
+| `Q9` | index-membership only | **SURVIVED**, then KILLED |
+
+### Four survived, and then two of the new tests were FALSE CONTROLS
+
+`Q6`–`Q9` survived because there were no tests — the same finding-about-itself round 3 made, on four
+different fixes. Tests were added. Then `Q6` and `Q8` **survived again**: the new cases passed under
+their own mutations because the **manifest check fires first** and denies any modified dependency
+before stdout or a hang is ever reached. That layering is real and worth stating — those two branches
+are defence in depth behind the code check — but a case that cannot fail when its subject is removed
+is not testing its subject. Both now re-seal the kit copy's manifest by hash so the branch under test
+is the one that decides, and both die under their mutations.
+
+This is the second time in two rounds that this plan's own new tests contained a false control, and
+both were found by the mutation table rather than by a reviewer.
+
+## Round 4 — self-reproduction against the FIXED build
+
+Premise asserted first: seven artifacts sha256-compared to the working tree before any probe
+(`guard.js 13028ffa…`, `hook-entry.js 1ba74536…`, `admission-guard.js 461ea835…`, `checkpoints.js
+3283cc47…`, `context-io.js 0136697…`, `check-residual-citations.js aa37d580…`, `is-entry.js
+4bea9504…`) — seven of seven `premise OK`.
+
+- Corpus: **105/105 through the wrapper, 105/105 through the bare decider.**
+- `RA5-5`/`RA5-6`: all nine termination and forgery classes DENY, each `exit 0` + JSON, 44–130 ms.
+- `RA6-1`: the round-3 artifact through a symlinked directory gives `exit=0, 0 bytes`; the round-4
+  artifact gives `exit=0, 185 bytes` — identical to its own real-path invocation (the control).
+- `RA6-4`: control writes; `actionApproval` undefined / 42 / `{}`, `envVarName` 7 / undefined, and
+  `authorizedBy` 5 all REFUSED with nothing on disk.
