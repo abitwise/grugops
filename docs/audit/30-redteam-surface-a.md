@@ -3503,3 +3503,101 @@ Premise asserted first: seven artifacts sha256-compared to the working tree befo
   artifact gives `exit=0, 185 bytes` — identical to its own real-path invocation (the control).
 - `RA6-4`: control writes; `actionApproval` undefined / 42 / `{}`, `envVarName` 7 / undefined, and
   `authorizedBy` 5 all REFUSED with nothing on disk.
+
+---
+
+# DRAFT FENCE — ready to finalize if the round-4 reviews still find something
+
+**This is a DRAFT.** D-22 caps this surface at four rounds and round 4 is run. If the round-4 reviews
+return findings, this text and the backlog below are what the human is asked to approve, and the
+surface is **fenced, not closed**. If both reviews return "nothing new", the human decides whether the
+evidence supports `closed` — and this draft is deleted rather than published, exactly as surface B's
+draft fence was required to be.
+
+## The draft fence text
+
+> **Surface A is fenced, not closed.** Four adversarial gap-closure rounds ran against the two-key
+> hook path — the prod-deploy guard, the admission guard, the command model, the hook entry point,
+> the fresh environment read, the self-set refusal — and the point-of-effect test-integrity refusal.
+> They closed **8 + 11 + 13 + 10 = 42 findings**, each with a failing test written before the fix
+> existed, a mirror reproduction against the committed `.js` spawned as a process, a structural fix,
+> and a mutation proof read out of the emitted artifact.
+>
+> **No round returned "nothing new."** Eight independent reviews at the strongest available model ran
+> across the four rounds and every one of them found something. The trend is worth stating precisely,
+> because it is not the same trend surface B recorded:
+>
+> | round | findings | created by the PREVIOUS round's fixes | severity of the worst |
+> |---|---|---|---|
+> | 1 | 8 | — | HIGH: a crashed hook is an ALLOW at the host |
+> | 2 | 11 | 1 of 11 | HIGH: one global flag defeated every deploy pattern |
+> | 3 | 13 | **12 of 13** | HIGH: word-splicing defeated the literals AND the tokenizer |
+> | 4 | 10 | **10 of 10** | HIGH: a real force push to `main` executed |
+>
+> **Every finding in the last two rounds was created by the previous round's fixes**, and rounds 3
+> and 4 each closed their findings by DELETING what the previous round had added — a parser, a cap, a
+> wrapper set, a shell set, a suppression position, an alias reader, an allow token. The defect rate
+> per round did not fall. What changed is the KIND of defect: rounds 1–2 found holes in code that had
+> been there for phases; rounds 3–4 found holes in code written the week before, by this plan.
+>
+> **That is the honest reading, and it is why the word here is "fenced".** Closing would assert that
+> no further bypass exists on a surface where the last twenty-three findings were all manufactured by
+> the previous round's repair. D-22 caps the surface at four rounds precisely so this judgement is
+> made by a written rule rather than by whoever is tired.
+>
+> **What a reader may take from this record.** The gates named in this log are **evidence, not
+> proof**. Each refuses a specific, named, reproduced bypass; none establishes that no further bypass
+> exists, and the measured trend says another round would find more. What IS established, and is
+> worth stating because it is the floor the whole design rests on: the hook is a separate process
+> whose environment an agent's own tool call cannot reach **[observed]**; a settings-file `env` entry
+> DOES reach that process **[observed, round 2]**; and the wrapper now verifies the decider's CODE
+> rather than trusting anything the decider says about itself.
+>
+> **A green test suite is not offered as a closure argument anywhere in this record.** Every one of
+> the four rounds was run against a fully green suite and found HIGH-severity, executable bypasses
+> anyway — twice with a real `git` performing a real force push to `main`.
+
+## Draft backlog — the residuals carried out of this surface
+
+Each is a recorded backlog item under D-22, **not a fix**. Severity, reproduction, direction and a
+suggested structural fix are carried so a later phase can act without re-deriving any of it.
+
+### Command-model residuals
+
+| id | severity | direction | what, with its reproduction |
+|---|---|---|---|
+| `V-30-11-01` | MEDIUM | permissive | **`git merge` is undecidable from the command text.** `git merge feature` and `git checkout main && git merge feature` ALLOW. The target is always the current branch and no syntax names it, so refusing the ambiguous form would refuse the operation entirely with no legal spelling. Rule applied: *fail closed where an escape exists; record where refusing would leave none.* Fix would need the guard to read `.git/HEAD`, which is a new input class. |
+| `V-30-11-02` | MEDIUM | permissive | **A `.git/config`-persisted alias.** `git config alias.x '!git push origin main'` is itself DENIED; a plain file write to `.git/config` is not, and then `git x` is undecidable. Same class as `V-30-11-01`. |
+| `V-30-11-03` | MEDIUM | permissive | **Non-shell interpreters.** `python -c "…os.system('kubectl -n prod apply …')"`, `perl -e`, `node -e`, `ssh host "…"` ALLOW when the governed tool is inside a wholly-quoted multi-word value that the nested re-tokenization reaches but whose OUTER tool is not a shell. Round 4's whitespace re-tokenization closed `eval`/`watch`/`docker exec`; a per-interpreter parser is refused (Phase-25/27). |
+| `V-30-11-04` | LOW | over-refusal | **Three measured false denials**, all fail-closed: `git -c user.name=x commit -m 'push'`, `kubectl -n dev get pods --namespace delete`, `git -c alias.st='status -sb' st`. Consequences of `RA5-2`'s position rule and `RA5-3`'s opacity rule. Fixing needs per-tool flag grammar, whose incompleteness is fail-OPEN — which is why it is refused. |
+| `V-30-11-05` | LOW | over-refusal | **The literal patterns match whole-line.** `rg 'kubectl apply' --type ts` and `git commit -m "chore: kubectl apply docs"` deny on every build in this phase. Documented Phase-5 fail-closed behaviour, unchanged. |
+| `V-30-11-06` | LOW | permissive | **`setenv NAME me`** (csh) is not refused by the self-set detector. An open-set spelling on a shell the hook path does not use; per D-64 the answer is not to widen. |
+
+### Process and gate residuals
+
+| id | severity | direction | what, with its reproduction |
+|---|---|---|---|
+| `V-30-11-07` | MEDIUM | invisible | **The deny is lost when stdout is unwritable.** `node hook-entry.js 1>&- ` → exit 0, nothing written; `>/dev/full` → exit 1. Not agent-reachable (the host owns the stdio), so the published process invariant holds **under a writable stdout** — a precondition now stated rather than assumed. |
+| `V-30-11-08` | MEDIUM | permissive | **The manifest verifies the decider's closure, not the wrapper's own integrity.** An agent that can write `hooks/hook-entry.js` defeats everything above it. The freeze is a repository-time control, not a runtime one; a runtime answer needs a signed or read-only kit, which is a host-tier question this repository cannot settle. |
+| `V-30-11-09` | LOW | process | **Three `freshness:*` gates are structurally vacuous** on this tree — `:context`, `:queue`, `:traceability` all pass by having no `.grugops/` tree to compare. 3 of 8 freshness gates in CI assert nothing today. Pre-existing; surfaced by reviewer 6. |
+| `V-30-11-10` | MEDIUM | invisible | **`readCheckpointMatrix` does not hold TINT-03.** `checkpoints.test_integrity: "off"` round-trips with zero refusals while `validate-agent-factory.ts` refuses it. Latent: no runtime consumer reads the cell, and `emitVerdict` reads no config. Becomes live the moment anything consults it. |
+| `V-30-11-11` | LOW | invisible | **A live green verdict can be withdrawn by any agent** via `appendNote` with `supersedes: <verdict id>`, after which every finding stamped against it is refused. Direction is fail-safe (denial, never admission), and nothing records that it happened. |
+| `V-30-11-12` | LOW | permissive | **`emit-verdict … clean ""`** lands the note under the process CWD: `rest[3] ?? DEFAULT` defaults only on `undefined`, so an empty fourth positional passes arity. The `task`/`id` slots use `!x` and this one does not. |
+| `V-30-11-13` | LOW | invisible | **`render()` re-implements `currentState`'s supersede fold** inline instead of calling it — two implementations of one predicate. Benign today (`render` demotes rather than erases); free to drift. |
+| `V-30-11-14` | MEDIUM | publishes an unmarked clause | **The `RA4-5` per-clause marker gate is DECLINED, and the decline has a cost.** A sentence splitter in a publishing gate is the parser this surface deleted from the safety path. Round 3 declined it and, in the same commit, published a new unmarked declarative clause that was false (`RA6-2`). The decline is recorded WITH that instance attached so a later round weighs a measured cost rather than a hypothetical one. |
+| `V-30-11-15` | LOW | invisible | **`EXTERNAL:` renders literally on the public page.** Readers of `docs/GUARANTEES.md` are told an `env` entry lives in `EXTERNAL:.claude/settings.local.json`, which is not a path anyone can follow. An internal gate token has leaked into published prose; the marker is well-formed-checked now but not rendered. |
+
+### Inherited from surface B, still owned here
+
+`V-30-10-01` is CLOSED (round 1 published the reader's refusals). `V-30-10-03` is DECIDED (round 1,
+option (a), with the second expression deleted; round 2's observation that Claude Code sets
+`CLAUDE_PROJECT_DIR` in the hook subprocess was confirmed empirically). `V-30-10-04` item 2 is CLOSED
+(`A-4`). `V-30-08-01` remains open and is **widened**: a self-set attempt leaves nothing in the trace,
+and round 2 showed a `+=` spelling that left nothing in the transcript either.
+
+## What would have to be true to call this surface closed
+
+Stated so the judgement has a criterion rather than a mood: **two independent reviews at the strongest
+available model, over the surfaces named in the round-4 scope statement, each returning no reproduced
+bypass** — and a fifth round is not available to get there. That is the whole question in front of the
+human at this checkpoint.
