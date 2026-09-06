@@ -66,7 +66,7 @@
 // Block mechanism: exit 0 + JSON `hookSpecificOutput.permissionDecision: "deny"` with a
 // `permissionDecisionReason` (gives the agent a clear message). Allow = exit 0, no stdout.
 
-import { readFileSync } from "node:fs";
+import { readFileSync, writeSync } from "node:fs";
 import { join } from "node:path";
 import type {
   Checkpoint,
@@ -74,11 +74,34 @@ import type {
   Disposition,
 } from "../scripts/checkpoints.js";
 
-// ── The fail-closed answer, declared BEFORE anything that can fail. ──────────────────────────────
-// `deny` is written first, uses nothing but `process`, and is therefore reachable on every path
-// including the one where this file's own dependencies could not be loaded.
-function deny(reason: string): never {
-  process.stdout.write(
+// ── The two answers, declared BEFORE anything that can fail. ─────────────────────────────────────
+// `deny` and `allow` are written first, use nothing but `process` and `node:fs`, and are therefore
+// reachable on every path including the one where this file's own dependencies could not be loaded.
+//
+// THERE ARE EXACTLY TWO WAYS OUT OF THIS PROCESS, AND A HANDLER THAT REFUSES A THIRD (plan 30-11
+// round 2, finding `RA1-2`). Round 1 stated the invariant as "no exit path that is neither an
+// explicit allow nor an explicit deny" and established it for THROWS. Three exits that are not
+// throws survived: a dependency whose top-level `await` never settles (Node exits 13 with zero
+// bytes in 22 ms), a dependency that calls `process.exit(0)` at module scope, and — before the
+// reader was hardened — a blocking read that never returned at all. The first two are measured, and
+// neither the `try` nor the `uncaughtException` handler can see either.
+//
+// So the invariant is asserted as a POST-CONDITION rather than as a set of branches: `decided` is
+// set by `deny` and by `allow` and by nothing else, and an `exit` handler installed before any
+// other code writes the fail-closed deny if the process is leaving without having decided. That
+// converts EVERY exit — including code 13 and a dependency's own `process.exit(0)` — into a
+// decision. The one exit it cannot convert is a process that never exits, which is why the reader's
+// non-regular-file refusal is the other half of this fix and not an optional companion.
+let decided = false;
+
+// `writeSync(1, …)` and not `process.stdout.write` (plan 30-11 round 2). Inside an `exit` handler
+// only synchronous work runs, and `process.stdout.write` to a pipe is not guaranteed synchronous;
+// a decision that is queued rather than written is, at the host, no decision. The same call is used
+// on the ordinary path so there is one write, not one reliable one and one hopeful one.
+function emitDecision(reason: string): void {
+  decided = true;
+  writeSync(
+    1,
     JSON.stringify({
       hookSpecificOutput: {
         hookEventName: "PreToolUse",
@@ -87,8 +110,37 @@ function deny(reason: string): never {
       },
     }),
   );
+}
+
+function deny(reason: string): never {
+  emitDecision(reason);
   process.exit(0); // exit 0 + JSON deny = blocked, with a message for the agent.
 }
+
+/** The other answer. An allow is exit 0 with no stdout — and it is now a NAMED exit, not a default. */
+function allow(): never {
+  decided = true;
+  process.exit(0);
+}
+
+// Installed before anything else can exit. Idempotent against `deny`/`allow` through `decided`.
+process.on("exit", () => {
+  if (decided) return;
+  // THE EXIT CODE MUST BE CORRECTED TOO, AND THIS NEARLY SHIPPED WITHOUT IT. The block mechanism is
+  // exit 0 PLUS the deny JSON; any other non-zero exit is non-blocking at the host regardless of
+  // what is on stdout. The `ERR_UNFINISHED_TOP_LEVEL_AWAIT` path exits 13, so a handler that wrote
+  // the deny and left the code alone would have emitted a refusal the host ignores — a fix whose
+  // own premise was false. Measured directly: with `process.exitCode = 0` in the handler the
+  // process exits 0 and carries the JSON; without it, exit 13 and the same JSON.
+  process.exitCode = 0;
+  emitDecision(
+    `Blocked (fail-closed): the grugops prod-deploy guard is exiting without having decided ` +
+      `anything. A PreToolUse hook that does not answer does not block, so an undecided exit is ` +
+      `converted into a refusal here rather than left to read as permission. This usually means a ` +
+      `dependency of the guard ended the process on its own. A human must repair the grugops ` +
+      `installation, then re-run.`,
+  );
+});
 
 /**
  * The answer for a run that could not reach a decision at all (plan 30-11, finding A-2).
@@ -112,10 +164,8 @@ function deny(reason: string): never {
  * be able to fail recursively.
  * ---------------------------------------------------------------------------------------------
  */
-let answering = false;
 function denyUndecided(stage: string, e: unknown): never {
-  if (answering) process.exit(0); // never loop inside the fail-closed answer itself
-  answering = true;
+  if (decided) process.exit(0); // never loop inside the fail-closed answer itself
   deny(
     `Blocked (fail-closed): the grugops prod-deploy guard could not ${stage} ` +
       `(${e instanceof Error ? e.message : String(e)}), so it could not decide whether this ` +
@@ -142,6 +192,7 @@ try {
 
 const {
   CHECKPOINT_DEFAULTS,
+  COMMAND_RULE_CHECKPOINTS,
   CONFIG_REFUSAL_PREFIX,
   FLOOR_CHECKPOINTS,
   NAMED_GRANT_ENV_VARS,
@@ -152,8 +203,9 @@ const {
   floorEnvVarName,
   grantedBy,
   isGrantEnvVarName,
+  matchCommandCheckpoints,
 } = cpMod;
-const { GOVERNANCE_FALLBACK_BASE, emitCheckpointNote, readGovernanceConfig } = ioMod;
+const { emitCheckpointNote, readGovernanceConfig, trustedRepoRoot } = ioMod;
 
 // D-33: the human-confirm signal. A human exports this in the shell that launches Claude
 // (or via settings env). The name is a placeholder per research Assumption A2 — projects may
@@ -256,8 +308,22 @@ const CHECKPOINT_PATTERNS: readonly { readonly id: Checkpoint; readonly patterns
 // of names, so a roster that grows is covered without anyone remembering to widen a regex — and the
 // derived names are still asserted to fall inside the vocabulary below, so a name that escaped it
 // would make the guard refuse to run rather than run with a hole.
+//
+// THE ASSIGNMENT OPERATOR IS A NAMED, CLOSED SET (plan 30-11 round 2, finding `RA1-5`). The pattern
+// assumed `=` follows the name. Bash's APPEND-assignment `NAME+=value` is a valid assignment word,
+// valid as a command prefix and valid after `export`, and the grant name appears in it literally and
+// unexpanded — so it is on this refusal's own declared axis (a literal spelling), not the disclosed
+// indirection residual. Measured on the committed artifact:
+// `export GRUGOPS_FLOOR_PROTECTED_BRANCH_MERGE+=me && ls` ALLOWED, and so did the `~/.zshrc`
+// persistence form, which is the very thing `A-1` was raised for.
+//
+// `=` and `+=` are the COMPLETE set of assignment operators in POSIX sh and bash — there is no
+// third — so this is a one-character widening of a CLOSED grammar, not the open-set widening D-64
+// refused. It is written as a named constant so the next reader can check that claim rather than
+// re-derive it.
+const ASSIGNMENT_OPERATOR = `\\s*\\+?=`;
 const SELF_APPROVE = new RegExp(
-  `(?:^|[\\s;&|(])(?:export\\s+|env\\s+)?(${GRANT_ENV_VAR_PATTERN_SOURCE})\\s*=`,
+  `(?:^|[\\s;&|(])(?:export\\s+|env\\s+)?(${GRANT_ENV_VAR_PATTERN_SOURCE})${ASSIGNMENT_OPERATOR}`,
 );
 
 // Read and parse stdin. Fail CLOSED: if input cannot be read or parsed, treat the command as
@@ -306,7 +372,7 @@ let matrix: Readonly<Record<Checkpoint, Disposition>> = { ...CHECKPOINT_DEFAULTS
 let matrixUnread = false;
 let configRefusals: readonly string[] = [];
 try {
-  const read = readGovernanceConfig(process.env.CLAUDE_PROJECT_DIR);
+  const read = readGovernanceConfig(trustedRepoRoot());
   matrix = read.config.checkpoints;
   configRefusals = read.checkpointRefusals;
 } catch {
@@ -372,7 +438,12 @@ for (const refusal of configRefusals) {
 // so this file reads that answer instead of recomputing it. The two were equal only because
 // `hooks/` and `scripts/` happen to sit at the same depth — an equality maintained by coincidence is
 // the thing this repository keeps closing, not a property.
-const PROJECT_ROOT = process.env.CLAUDE_PROJECT_DIR ?? GOVERNANCE_FALLBACK_BASE;
+// ONE trusted root, asked once (round 2, reviewer-1 observation 2). `?? GOVERNANCE_FALLBACK_BASE`
+// treated an EMPTY `CLAUDE_PROJECT_DIR` as a supplied value, because `""` is not nullish, and
+// resolved the context root against the process cwd — a third base beside the project and the kit.
+// `trustedRepoRoot()` is the one place that question is answered, and the matrix read below uses it
+// too, so the record and the decision cannot land in different repositories.
+const PROJECT_ROOT = trustedRepoRoot();
 const CONTEXT_ROOT = join(PROJECT_ROOT, ".grugops", "context");
 
 function record(
@@ -460,8 +531,31 @@ if (selfSet) {
 //                        transcript both say WHY it did not take effect (D-10);
 //   effective `notify` / `off` → allow. The lowering was authorized by a human, and the banner
 //                        above already named the checkpoint, its value and the authorizing grant.
+// ── The command model, consulted BESIDE the literal patterns (round 2, RA1-1/RA1-3/RA1-4). ───────
+// One tokenizer, one tool->verb table, in scripts/checkpoints.ts. It runs ADDITIVELY: a command
+// matches a checkpoint if the literal patterns match it OR the model does. Keeping the literals is
+// load-bearing — a parser has a grammar an attacker can leave, so the model may only ever ADD
+// denials, never remove one. It fails CLOSED on a segment carrying a substitution it will not reason
+// about, returning every checkpoint whose tool name appears in that segment.
+const modelled = matchCommandCheckpoints(cmd);
+
+// Every checkpoint the TABLE governs must be a checkpoint the evaluation carries. Asserted at the
+// point of use, like the grant-vocabulary walk above: a row naming an id the roster does not carry
+// would govern nothing while reading as coverage — the set-literal-drift class pointed at a match set.
+for (const id of COMMAND_RULE_CHECKPOINTS) {
+  if (evaluation.get(id) === undefined) {
+    deny(
+      `Blocked (fail-closed): the command model governs the checkpoint "${id}", which the ` +
+        `evaluation of the checkpoint matrix does not carry. The guard will not decide a command ` +
+        `against a table row whose checkpoint does not exist.`,
+    );
+  }
+}
+
 for (const group of CHECKPOINT_PATTERNS) {
-  if (!group.patterns.some((re) => re.test(cmd))) continue;
+  const byPattern = group.patterns.some((re) => re.test(cmd));
+  const byModel = modelled.checkpoints.has(group.id);
+  if (!byPattern && !byModel) continue;
   // The SAME evaluation the banner was composed from — never a second resolve of the same id.
   const r = evaluation.get(group.id);
   if (r === undefined) {
@@ -549,13 +643,27 @@ for (const group of CHECKPOINT_PATTERNS) {
         unrecorded,
     );
   }
+  // The refusal NAMES THE ESCAPE when the model is what matched, because a denial a user cannot act
+  // on is a denial they disable the guard to get past — design rule 1's own caveat (round 2, RA1-3).
+  const escape =
+    group.id === "protected_branch_merge" && !byPattern
+      ? ` This command was matched by the command model rather than by a literal pattern: a ` +
+        `\`git push\` that does not name a branch is treated as a push to the current branch, ` +
+        `which may be protected. Naming it — \`git push origin <branch>\` — is not refused when the ` +
+        `branch is not protected.`
+      : modelled.untokenizable
+        ? ` This command carries a shell substitution the guard will not reason about, so it is ` +
+          `matched on the tool name alone and refused rather than guessed at.`
+        : "";
   deny(
     `Production deploy blocked: humans decide, agents execute. ` +
       `This command matches a production-deploy pattern and ${APPROVAL} is not set. ` +
       `A human must export ${APPROVAL} in the shell that launches Claude ` +
-      `(pairs with factory.config.json production_requires_human_confirmation), then re-run the deploy.`,
+      `(pairs with factory.config.json production_requires_human_confirmation), then re-run the deploy.` +
+      escape,
   );
 }
 
-// Allow everything else.
-process.exit(0);
+// Allow everything else — through the NAMED allow, so the exit handler above can tell an intended
+// allow from a process that simply stopped (finding `RA1-2`).
+allow();

@@ -39,12 +39,18 @@ import {
   unlinkSync,
   mkdirSync,
   existsSync,
+  openSync,
+  fstatSync,
+  readSync,
+  closeSync,
+  constants as fsConstants,
 } from "node:fs";
 import { join, resolve, sep } from "node:path";
 import { pathToFileURL } from "node:url";
 import {
   CHECKPOINTS,
   CHECKPOINT_DEFAULTS,
+  DISPOSITIONS,
   STRICTEST_MATRIX,
   canonicalizeDisposition,
   type Checkpoint,
@@ -732,13 +738,26 @@ export function validate(text: string, trustedEmitter: ReservedIdentity | null =
   }
 
   // ── D-09 refuse-self FAIL set, GATED on kind === "finding" (D-08 — only a finding needs a stamp).
-  // Still text-only: inspects scalars.verified_by / scalars.by only. The gate's own verdict is a
-  // `finding` authored by the trusted root (D-04): it carries no verified_by of its own (nothing
-  // verifies the root), so the refuse-self set is suppressed for a trusted emission. The checkpoint
-  // guard's record is the same shape and for the same reason (D-10/D-11): it is written by a separate
-  // process the agent under it cannot invoke, pass content to or silence, so nothing verifies it
-  // either. The suppression is reached ONLY with a claimed reserved identity, which the reserved-
-  // identity rule above has already matched against the note's own author.
+  // Still text-only: inspects scalars.verified_by / scalars.by only.
+  //
+  // WHY THE SUPPRESSION EXISTS, SAID ABOUT THE IDENTITY RATHER THAN ABOUT ONE CALLER (plan 30-11
+  // round 2, finding `RA2-2`). Both reserved emitters author a `finding` that carries no
+  // `verified_by` of its own, and the reason is the same for both and is a property of the identity:
+  // **a root of trust stamps nothing above itself, because nothing verifies it.** That is the whole
+  // justification, and it is true of `§14-gate` and `§checkpoint-guard` alike.
+  //
+  // This comment previously justified the checkpoint arm differently — "it is written by a separate
+  // process the agent under it cannot invoke, pass content to or silence" — and that sentence is
+  // false. `emitCheckpointNote` is an exported function; any importer calls it with any content, and
+  // the record it writes is byte-indistinguishable from a hook-written one. Measured: an in-process
+  // call produced `CHECKPOINT ALLOWED … command: "git push --force origin main"` under
+  // `by: §checkpoint-guard` with no guard running, no grant and nothing pushed. The clause was not
+  // decoration — it was the stated reason a human auditing `checkpoint-trace` may read a record as a
+  // hook fact, so it is replaced rather than softened. What DOES distinguish the tiers is named at
+  // `emitCheckpointNote`'s own header, in the same terms `emitVerdict` uses.
+  //
+  // The suppression is reached ONLY with a claimed reserved identity, which the reserved-identity
+  // rule above has already matched against the note's own author.
   if (scalars.kind === "finding" && trustedEmitter === null) {
     const vb = (scalars.verified_by ?? "").trim();
     if (vb === "") {
@@ -1173,9 +1192,34 @@ export interface CheckpointNoteInput {
  * that carried it. Recording a mangled name in a provenance field would be worse than recording none.
  *
  * It THROWS on any failure — an unwritable directory, a field carrying a newline, a note the
- * validator refuses. It does not swallow. The caller decides what a failure to record means, and the
- * guard's answer is that an unrecordable lowering is not a lowering (see hooks/guard.ts).
+ * validator refuses, or a field outside the vocabularies checked at the top of the body. It does not
+ * swallow. The caller decides what a failure to record means, and the guard's answer is that an
+ * unrecordable lowering is not a lowering (see hooks/guard.ts).
+ *
+ * ---------------------------------------------------------------------------------------------
+ * THE TIER, STATED RATHER THAN PAPERED OVER (plan 30-11 round 2, `RA2-2`) — the paragraph
+ * `emitVerdict` has carried since plan 30-05, owed here for the same reason.
+ *
+ * A `§checkpoint-guard` record written BY THE HOOK is written by a separate process whose
+ * environment and invocation an agent's tool call cannot reach. That is what makes the hook's record
+ * a fact about a decision a human's key did or did not authorize.
+ *
+ * This function is not that process. It is an exported function, and an importer may call it with
+ * any content: an in-process caller can write `CHECKPOINT ALLOWED … command: "git push --force
+ * origin main"` under the reserved identity with no guard running and nothing pushed, and the
+ * resulting file is byte-indistinguishable from a real one. So the distinction between the tiers is
+ * the CALLER, not the identity, and no reader should take the identity alone as evidence of a hook
+ * run. The residual is that an in-process caller determined to lie can — named here rather than
+ * claimed away, exactly as `emitVerdict` names its own.
+ *
+ * What the vocabulary checks below DO buy: a record under this identity always names a real
+ * checkpoint, a real disposition and one of the two defined outcomes, so a forged record is
+ * constrained to statements the design defines even when its content is false.
+ * ---------------------------------------------------------------------------------------------
  */
+/** The two outcomes a checkpoint record may state. Derived from the input type's own union. */
+const CHECKPOINT_OUTCOMES: readonly CheckpointNoteInput["outcome"][] = ["allowed", "refused"];
+
 export function emitCheckpointNote(
   input: CheckpointNoteInput,
   contextRoot: string = DEFAULT_CONTEXT_ROOT,
@@ -1183,6 +1227,62 @@ export function emitCheckpointNote(
   task: string = CHECKPOINT_TRACE_TASK,
 ): string {
   assertSafeTask(task);
+  // ── REFUSE BEFORE COMPOSE, against the vocabularies that already exist (round 2, `RA2-3`). ──────
+  //
+  // This emitter validated the note's STRUCTURE and none of its content. Measured on the committed
+  // artifact, every one of these was WRITTEN under the reserved identity and none was refused:
+  // an off-roster checkpoint id published as a checkpoint; `outcome: "approved"` minted
+  // `CHECKPOINT APPROVED`, a verdict word the design does not define; non-canonical `declared`
+  // /`effective` values (`yes`, `maybe`); an empty checkpoint id; and a misspelled field name put the
+  // literal string `undefined` into `refs`, which is a load-bearing provenance field the compaction
+  // carve-out matches on.
+  //
+  // The TypeScript unions that were supposed to prevent this are ERASED in the compiled `.js`, and
+  // the compiled `.js` is what a host runs — the artifact rule this whole surface is audited against.
+  // So the check is at runtime, above the first line that builds any part of the note, exactly as
+  // `emitVerdict` does it 150 lines above: the sibling emitter refuses the complement of one exact
+  // string by rule and composes nothing before it decides, while this one composed everything and
+  // decided nothing.
+  //
+  // Every accept set is DERIVED — `CHECKPOINTS` is the roster table, the disposition set is the
+  // canonicalizer's own three values, and the outcome set comes off the input type's union — so none
+  // of them is a second list beside the authority it mirrors.
+  if (!(CHECKPOINTS as readonly string[]).includes(input.checkpoint)) {
+    throw new Error(
+      `context-io.emitCheckpointNote: refusing to emit — "${input.checkpoint}" is not a checkpoint ` +
+        `on the roster. A record under the reserved identity may only name a checkpoint that exists.`,
+    );
+  }
+  for (const [field, value] of [
+    ["declared", input.declared],
+    ["effective", input.effective],
+  ] as const) {
+    if (!(DISPOSITIONS as readonly string[]).includes(value)) {
+      throw new Error(
+        `context-io.emitCheckpointNote: refusing to emit — ${field} is "${value}", which is not one ` +
+          `of ${DISPOSITIONS.join("|")}. A record under the reserved identity may only state a ` +
+          `disposition the canonicalizer admits.`,
+      );
+    }
+  }
+  if (!(CHECKPOINT_OUTCOMES as readonly string[]).includes(input.outcome)) {
+    throw new Error(
+      `context-io.emitCheckpointNote: refusing to emit — outcome is "${input.outcome}", which is ` +
+        `not one of ${CHECKPOINT_OUTCOMES.join("|")}. A record under the reserved identity may not ` +
+        `mint a verdict word the design does not define.`,
+    );
+  }
+  for (const [field, value] of [
+    ["actor", input.actor],
+    ["command", input.command],
+  ] as const) {
+    if (typeof value !== "string") {
+      throw new Error(
+        `context-io.emitCheckpointNote: refusing to emit — ${field} is ${typeof value}, not a ` +
+          `string. A misspelled caller field reaches the record as the literal text "undefined".`,
+      );
+    }
+  }
   const note: NoteInput = {
     kind: "finding",
     by: CHECKPOINT_GUARD_IDENTITY,
@@ -1795,17 +1895,116 @@ export const GOVERNANCE_CONFIG_RELPATHS: readonly string[] = governanceConfigCan
  */
 export const GOVERNANCE_FALLBACK_BASE: string = ROOT;
 
+/**
+ * THE ONE TRUSTED ROOT (plan 30-11 round 2, findings `RA2-1` and reviewer-1 observation 2).
+ *
+ * `CLAUDE_PROJECT_DIR` when it names something, else the kit this module ships in. Every consumer
+ * that needs "the root governance is read from" asks this, so there is one answer rather than one
+ * per caller.
+ *
+ * WHY IT IS `trim() !== ""` AND NOT `?? `. `process.env.CLAUDE_PROJECT_DIR ?? BASE` treats an EMPTY
+ * value as a supplied one, because `""` is not nullish — so `join("", ".grugops", …)` resolves
+ * against the *process's cwd*, which is neither the project root nor the kit. That is a third base
+ * for a reader surface B spent a round reducing to two. An empty or whitespace-only value names
+ * nothing, and naming nothing is what the fallback is for.
+ *
+ * WHY IT IS EXPORTED. `scripts/admission-server.ts` had its own copy of this function
+ * (`CLAUDE_PROJECT_DIR`, else the module's parent) — the second spelling of one rule, which is the
+ * shape this module keeps deleting. The server now imports this one, and so does the CLI `admit`
+ * verb, which used to read the root from `process.argv`.
+ */
+export function trustedRepoRoot(): string {
+  const fromEnv = process.env.CLAUDE_PROJECT_DIR;
+  if (typeof fromEnv === "string" && fromEnv.trim() !== "") return fromEnv;
+  return GOVERNANCE_FALLBACK_BASE;
+}
+
+/** The ceiling on a governance config read. Larger than any real config, small enough to bound. */
+const GOVERNANCE_CONFIG_MAX_BYTES = 8 * 1024 * 1024;
+
+/**
+ * Read one governance-config candidate as text, or `null` when nothing is at that position.
+ *
+ * ---------------------------------------------------------------------------------------------
+ * WHY THIS IS NOT `existsSync` + `readFileSync` (plan 30-11 round 2, finding `RA1-2`).
+ *
+ * `readFileSync` on a path that is not a regular file BLOCKS. Measured on the committed
+ * `hooks/guard.js` and `hooks/admission-guard.js`, spawned as processes: with a FIFO at
+ * `<project>/.grugops/factory.config.json` — created by a plain `mkfifo`, which the guard itself
+ * ALLOWS — both hooks produced **no exit, zero bytes of stdout and zero bytes of stderr at 20
+ * seconds**, against controls answering in 31 ms and 43 ms. A symlink to `/dev/zero` did the same.
+ * A PreToolUse hook that never answers produces no `permissionDecision`, which the host treats as
+ * non-blocking: the same event as an allow. One allowed `mkfifo` turned BOTH guards off for every
+ * subsequent command, with no grant, no config declaration and no human.
+ *
+ * The refusal is BY RULE and not an enumeration of dangerous file types: a governance config is a
+ * regular file, and anything else at that position is `unreadable` — which this reader already maps
+ * to the un-lowered posture. `fstat` on the OPEN descriptor stats through a symlink, so a config
+ * legitimately delivered through a symlink to a regular file still reads; `lstat` would have
+ * refused it and that would be a different, wrong rule.
+ *
+ * `O_NONBLOCK` is what makes the open itself safe: opening a FIFO for reading blocks until a writer
+ * appears unless it is set. The descriptor is stat'ed and closed; nothing is read from a
+ * non-regular file at all.
+ *
+ * ENOENT is the ONLY error mapped to "nothing here". Every other open failure — EACCES, ELOOP, a
+ * dangling symlink's ENOENT-on-target — is a file that IS at this position and could not be read,
+ * which is `unreadable` and fails closed. Mapping EACCES to absence would have been a regression:
+ * the old `existsSync` + `readFileSync` pair reached the unreadable branch for it.
+ * ---------------------------------------------------------------------------------------------
+ */
+function readGovernanceConfigCandidate(path: string): string | null {
+  let fd: number;
+  try {
+    fd = openSync(path, fsConstants.O_RDONLY | fsConstants.O_NONBLOCK);
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code === "ENOENT") return null; // genuinely nothing here
+    throw e; // present and unopenable → the caller's unreadable branch (fail closed)
+  }
+  try {
+    const st = fstatSync(fd);
+    if (!st.isFile()) {
+      throw new Error(
+        `context-io: the governance config position "${path}" is not a regular file — it is ` +
+          `refused rather than read, because reading a FIFO, a device or a directory can block ` +
+          `forever and a guard that never answers does not block anything.`,
+      );
+    }
+    if (st.size > GOVERNANCE_CONFIG_MAX_BYTES) {
+      throw new Error(
+        `context-io: the governance config at "${path}" is ${st.size} bytes, above the ` +
+          `${GOVERNANCE_CONFIG_MAX_BYTES}-byte ceiling — refused rather than read.`,
+      );
+    }
+    // The read is bounded by the size fstat just reported on this same descriptor.
+    const buf = Buffer.allocUnsafe(Number(st.size));
+    let off = 0;
+    while (off < buf.length) {
+      const n = readSync(fd, buf, off, buf.length - off, off);
+      if (n === 0) break;
+      off += n;
+    }
+    return buf.subarray(0, off).toString("utf8");
+  } finally {
+    closeSync(fd);
+  }
+}
+
 export function readGovernanceConfig(repoRoot?: string): GovernanceConfigResult {
-  const base = repoRoot ?? ROOT;
+  // An empty or whitespace-only root names nothing and falls back, exactly as an absent one does
+  // (round 2, reviewer-1 observation 2) — never to the process cwd.
+  const base = repoRoot !== undefined && repoRoot.trim() !== "" ? repoRoot : ROOT;
   const candidates = governanceConfigCandidates(base);
 
   for (const path of candidates) {
-    if (!existsSync(path)) continue;
     // A config file EXISTS here. Any failure to read or parse it is a read FAILURE → unreadable
     // (fail closed), NOT an absence. This is the distinction the hook needs and the value reader
-    // (correctly) cannot make.
+    // (correctly) cannot make. `readGovernanceConfigCandidate` returns null ONLY for ENOENT and
+    // throws for everything else, including a path that is not a regular file (RA1-2).
     try {
-      const parsed = JSON.parse(readFileSync(path, "utf8")) as unknown;
+      const text = readGovernanceConfigCandidate(path);
+      if (text === null) continue;
+      const parsed = JSON.parse(text) as unknown;
       // The checkpoint matrix is read ONCE, from the same parsed bytes, and carried on every
       // source="ok" return below — including the degenerate-shape ones, where it supplies the roster
       // default (i.e. `block` everywhere). No branch below can return a config without a matrix.
@@ -2074,19 +2273,39 @@ if (isMain) {
       process.exit(0);
     } else if (cmd === "admit") {
       // Context-aware admission (D-01): structural validate + the §14-gate verdict cross-check.
+      //
+      // THE GOVERNANCE ROOT IS NOT AN ARGUMENT (plan 30-11 round 2, finding `RA2-1`). This verb used
+      // to read `contextRoot` and `repoRoot` from `process.argv` — the exact two arguments GAP-R6-2
+      // removed from the MCP tool schema, where `scripts/admission-server.ts` states in this same
+      // codebase that "the dial / ledger root / context root MUST come from the SAME trusted source
+      // … NOT from agent-supplied tool args … the agent can no longer point governance at a root it
+      // controls." The fix was applied to the schema and not to the CLI — which is the surface the
+      // four non-Claude-Code CLIs use, i.e. exactly the tier the MCP fix does not cover.
+      //
+      // Measured on the committed artifact: the identical self-stamped high-severity finding was
+      // REFUSED with `repoRoot` naming a repository whose dial is active, and ADMITTED with
+      // `repoRoot` naming an empty directory. A test seam was sitting on the production verb.
+      //
+      // Both roots now come from `trustedRepoRoot()`. Tests reach `admit()` in-process, where the
+      // parameters remain — a test seam belongs in the function signature, not in argv.
       const task = rest[0];
       const noteFile = rest[1];
-      const contextRoot = rest[2]; // optional explicit root (tests pass a temp dir)
-      const repoRoot = rest[3]; // optional governance/audit root (tests pass a temp dir); defaults to ROOT
-      if (!task || !noteFile) {
-        console.error("usage: context-io.js admit <task> <noteFile> [contextRoot] [repoRoot]");
+      if (!task || !noteFile || rest.length !== 2) {
+        console.error("usage: context-io.js admit <task> <noteFile>");
+        console.error(
+          `context-io: admit takes exactly 2 positional arguments and received ${rest.length}. ` +
+            `The governance root is NOT an argument: it is CLAUDE_PROJECT_DIR, else the kit this ` +
+            `script ships in. Set CLAUDE_PROJECT_DIR to move it — an admission may not point ` +
+            `governance at a root the caller chose.`,
+        );
         process.exit(1);
       }
+      const admitRoot = trustedRepoRoot();
       const findings = admit(
         task,
         readFileSync(noteFile, "utf8"),
-        contextRoot ?? DEFAULT_CONTEXT_ROOT,
-        repoRoot ?? ROOT,
+        join(admitRoot, ".grugops", "context"),
+        admitRoot,
       );
       if (findings.length > 0) {
         for (const f of findings) console.error(f);

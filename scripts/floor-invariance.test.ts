@@ -154,7 +154,27 @@ const APPROVAL = "GRUGOPS_ADMISSION_APPROVED_BY";
 // governance reader's dropped-entry refusals, closing `V-30-10-01`. Every one is a strictly stricter
 // decision or a more honest record; the zero-config decision and wording are byte-unchanged, which
 // scripts/autonomy-zero-config.test.ts asserts as a whole-run differential.
-const FROZEN_GUARD_BLOB = "12ea942f749236a448f29ed8a015c355d873f363";
+//
+// RE-BASELINED AGAIN BY PLAN 30-11 ROUND 2 (D-24, this phase's SIXTH guard commit). The previous
+// baseline `12ea942f…f363` froze the round-1 guard, whose two independent reviews both returned
+// findings. Five of them are in this file's subject:
+//
+//   RA1-1 — every deploy pattern anchored its verb ADJACENT to the tool name, so ONE global flag
+//   defeated all of them at once (`kubectl -n prod apply`, `git -C /repo push origin main`,
+//   `terraform -chdir=infra/prod apply`, eleven more, all measured ALLOW with zero keys). The guard
+//   now consults a tokenizer and a tool->verb table BESIDE the literal patterns — additively, so no
+//   existing denial can regress and a parser bug can only miss, never admit.
+//   RA1-2 — three exits that decide nothing survived round 1's fix, which bounded THROWS: a FIFO at
+//   the agent-writable config path made the process hang forever with zero bytes on both streams; a
+//   never-settling dependency exited 13; a dependency's own `process.exit(0)` exited 0. There are
+//   now exactly two named exits and an `exit` handler that converts any third into a refusal — and
+//   it corrects the exit CODE, because a deny JSON on a non-zero exit is non-blocking at the host.
+//   RA1-3/RA1-4 — `git push` naming no branch, and the merge forms that name their target.
+//   RA1-5 — `NAME+=value` is an assignment and the refusal only knew `=`.
+//
+// The zero-config decision and wording are byte-unchanged, which
+// scripts/autonomy-zero-config.test.ts asserts as a whole-run differential.
+const FROZEN_GUARD_BLOB = "995ae7cc34854a2817344afa3cb7ab2a4284f766";
 
 // Import the COMMITTED .js for the pure-function floor checks (validate / admit). Never the .ts.
 const mod: typeof import("../scripts/context-io.js") = await import(

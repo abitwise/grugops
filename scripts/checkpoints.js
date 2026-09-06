@@ -200,6 +200,346 @@ export function grantedBy(env, name) {
     const named = raw.trim();
     return named.length > 0 ? named : null;
 }
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// THE COMMAND MODEL — one tokenizer, one tool->verb table (plan 30-11 round 2, RA1-1/RA1-3/RA1-4).
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+/**
+ * WHY A TOKENIZER EXISTS AT ALL, AND WHY IT IS ADDITIVE.
+ *
+ * `hooks/guard.ts`'s pattern set declares its own design rule as *"Match the SUBCOMMAND VERB, not a
+ * substring anywhere in the line… anchored to the verb position"*. Every pattern implemented that by
+ * anchoring the verb **adjacent** to the tool name (`/\bkubectl\s+(apply|rollout|delete)\b/`). Every
+ * one of these tools accepts global flags BEFORE its subcommand, and production invocations
+ * routinely carry them, so one flag moved the verb out of every pattern at once. Measured on the
+ * committed artifact, all ALLOW with exit 0 and the banner `all checkpoints at default`:
+ *
+ *     kubectl -n prod apply -f deploy.yaml        helm --kube-context prod upgrade rel chart
+ *     kubectl --context=prod apply -f x.yaml      terraform -chdir=infra/prod apply -auto-approve
+ *     kubectl --kubeconfig=/k/prod delete ns app  aws --profile prod s3 sync ./dist s3://prod
+ *     sudo kubectl -n prod apply -f x.yaml        gcloud --project=prod run deploy svc
+ *     npm --access public publish                 git -C /repo push origin main
+ *     git --git-dir=/repo/.git push origin main   git -c user.name=x push --force origin main
+ *
+ * This is NOT the disclosed env-var-indirection residual: the tool name and the verb both appear
+ * literally and unexpanded in the string the guard reads. A real production mutation ran with ZERO
+ * keys — no grant, no declaration, no human — because the matrix is only ever asked about a command
+ * that has already matched.
+ *
+ * THE FIX IS ADDITIVE, AND THAT IS LOAD-BEARING. This model runs BESIDE the literal patterns, never
+ * instead of them: a command matches a checkpoint if the patterns match it OR this model does. A
+ * tokenizer is a parser, and a parser has a grammar an attacker can leave — the Phase-25/27 lesson.
+ * Keeping the literals means the grammar can only ever ADD denials, so no bypass can be introduced
+ * by a tokenizer bug, only missed. It also fails CLOSED on anything it cannot tokenize.
+ */
+/** A shell metacharacter set that ENDS a segment. Split only outside quotes. */
+const SEGMENT_SPLIT_RE = /^(?:&&|\|\||;;|[;|&\n])/;
+/**
+ * Substitution forms this tokenizer refuses to reason about. Their presence makes a segment
+ * UNTOKENIZABLE, which is a fail-closed state and not an allow: the guard treats an untokenizable
+ * segment as matching every checkpoint whose tool name appears anywhere in it.
+ */
+//
+// BACKSLASH-ESCAPED QUOTES ARE ON THIS LIST ON PURPOSE, AND THE REASON IS THE DOCTRINE (round 2).
+// This tokenizer tracks quoting but not backslash escaping. A third layer of `sh -c` with escaped
+// quotes inside it was measured to slip past the nested expansion. The answer is NOT to keep
+// implementing shell quoting one layer at a time — that is the losing game Phase 25 played for ten
+// rounds — but to NAME the grammar this model handles and refuse what is outside it. An escaped
+// quote makes the segment untokenizable, and untokenizable is a fail-closed state.
+const UNRESOLVABLE_SHELL_RE = /\$\(|`|\$\{|<\(|>\(|\\["']/;
+/**
+ * Split a command into segments and reduce each to `(tool, non-flag words)`.
+ * Returns `null` when the command cannot be tokenized at all, which the caller must treat as
+ * fail-closed rather than as "no match".
+ *
+ * ---------------------------------------------------------------------------------------------
+ * WHY IT COLLECTS **EVERY** NON-FLAG WORD RATHER THAN "THE FIRST ONE".
+ *
+ * "The first non-flag word after the tool" needs to know which flags take an argument:
+ * `git -c user.name=x push` would otherwise report the verb as `user.name=x`. Knowing that is
+ * per-tool flag grammar — a second thing to maintain, and exactly the kind of hand-kept set this
+ * repository keeps closing. Collecting every non-flag word needs no flag grammar at all, and its
+ * error direction is strictly toward MORE denials, which is the direction the pattern set's own
+ * design rule 1 already declares for ambiguity.
+ *
+ * The cost, stated rather than discovered later: a governed verb appearing as a flag's ARGUMENT
+ * denies. `kubectl get pods --namespace delete` — a namespace literally named `delete` — is refused.
+ * That is a rare, fail-closed false denial with an obvious escape, and it is the price of not
+ * maintaining a flag grammar per tool. The control that matters is the read-only case, which passes:
+ * `kubectl -n dev get pods` yields words `dev get pods`, none of which is a governed verb.
+ *
+ * A leading `sudo`/`env`/`command`/`nohup`/`time` wrapper is unwrapped, because those take the real
+ * tool as their first non-flag argument and leaving them wrapped would make `sudo kubectl … apply`
+ * report the tool as `sudo`.
+ * ---------------------------------------------------------------------------------------------
+ */
+export function commandSegments(cmd, depth = 0) {
+    if (typeof cmd !== "string")
+        return null;
+    if (depth > 3)
+        return null; // bounded recursion; deeper nesting is untokenizable, i.e. fail closed
+    const segments = [];
+    let cur = "";
+    let quote = null;
+    for (let i = 0; i < cmd.length; i++) {
+        const c = cmd[i];
+        if (quote !== null) {
+            cur += c;
+            if (c === quote)
+                quote = null;
+            continue;
+        }
+        if (c === '"' || c === "'") {
+            quote = c;
+            cur += c;
+            continue;
+        }
+        // A COMMENT IS NOT A COMMAND (round 2). `#` opens a comment only at the start of a word, so a
+        // `#` inside `refs/heads/x#y` is not one. The pattern set's design rule 2 names this case
+        // explicitly — `gcloud config list # see deploy docs` must NOT be denied — and the first draft
+        // of this tokenizer regressed it by collecting `deploy` out of the comment as a verb. Caught by
+        // the false-denial control table, which is why that table exists.
+        if (c === "#" && (i === 0 || /\s/.test(cmd[i - 1]))) {
+            const nl = cmd.indexOf("\n", i);
+            if (nl === -1)
+                break;
+            i = nl - 1;
+            continue;
+        }
+        const rest = cmd.slice(i);
+        const m = SEGMENT_SPLIT_RE.exec(rest);
+        if (m) {
+            segments.push({ tool: "", words: [], raw: cur });
+            cur = "";
+            i += m[0].length - 1;
+            continue;
+        }
+        cur += c;
+    }
+    if (quote !== null)
+        return null; // unbalanced quoting — untokenizable, fail closed
+    segments.push({ tool: "", words: [], raw: cur });
+    const WRAPPERS = new Set(["sudo", "env", "command", "nohup", "time", "builtin", "exec", "xargs"]);
+    return segments.map((seg) => {
+        const words = seg.raw
+            .trim()
+            .split(/\s+/)
+            .filter((w) => w.length > 0)
+            .map((w) => w.replace(/^["']|["']$/g, ""));
+        let idx = 0;
+        // Unwrap leading wrappers and any of their flags, and skip leading `NAME=value` assignments,
+        // which are a command prefix rather than the command.
+        for (;;) {
+            const w = words[idx];
+            if (w === undefined)
+                break;
+            if (w.startsWith("-")) {
+                idx++;
+                continue;
+            }
+            if (/^[A-Za-z_][A-Za-z0-9_]*\+?=/.test(w)) {
+                idx++;
+                continue;
+            }
+            const base = (w.split("/").pop() ?? w).toLowerCase();
+            if (WRAPPERS.has(base)) {
+                idx++;
+                continue;
+            }
+            break;
+        }
+        const toolWord = words[idx];
+        const tool = toolWord === undefined ? "" : (toolWord.split("/").pop() ?? toolWord).toLowerCase();
+        const rest = words.slice(idx + 1).filter((w) => !w.startsWith("-"));
+        return { tool, words: rest, raw: seg.raw };
+    });
+}
+/** Shells whose `-c` argument is a NESTED command rather than an operand. */
+const NESTED_SHELLS = new Set(["sh", "bash", "zsh", "dash", "ksh"]);
+/**
+ * Segments, with `sh -c "<command>"` expanded into the nested command's own segments.
+ *
+ * WHY THIS EXISTS (round 2, found by this plan's own false-denial control table rather than by a
+ * reviewer). The first draft closed `kubectl -n prod apply` and left
+ * `sh -c "kubectl -n prod apply -f x"` ALLOWED: the outer segment's tool is `sh` and the nested
+ * command is one quoted word. That is a hole shaped exactly like the one the tokenizer was written
+ * to close — the failure mode RA1-4's review warned about in the adjacent fix — so it is closed the
+ * same way, by construction: a shell's `-c` operand is re-tokenized as a command, to a bounded
+ * depth, and anything deeper is untokenizable and therefore fail-closed.
+ */
+function expandNestedShells(segs, depth) {
+    const out = [];
+    for (const seg of segs) {
+        out.push(seg);
+        if (!NESTED_SHELLS.has(seg.tool))
+            continue;
+        // Re-tokenize the RAW TEXT after `-c`, not the already-split words: the nested command is one
+        // shell string, and splitting it into words first loses the adjacency the table matches on.
+        const m = /(?:^|\s)-[a-zA-Z]*c(?:\s+|$)/.exec(seg.raw);
+        if (m === null)
+            continue;
+        const tail = seg.raw.slice(m.index + m[0].length).trim().replace(/^(["'])([\s\S]*)\1$/, "$2");
+        if (tail.length === 0)
+            continue;
+        const nested = commandSegments(tail, depth + 1);
+        if (nested === null)
+            return null; // could not tokenize the nested command → fail closed
+        // Expand the nested segments too: a doubly-nested `sh -c "sh -c '…'"` is one more layer of the
+        // same wrapper, and an expansion that only runs at the top level leaves exactly the hole it was
+        // written to close. Bounded by `commandSegments`'s own depth ceiling, which returns null (fail
+        // closed) rather than recursing forever.
+        const expanded = expandNestedShells(nested, depth + 1);
+        if (expanded === null)
+            return null;
+        out.push(...expanded);
+    }
+    return out;
+}
+/**
+ * The tool -> governed-verb table, per checkpoint. One row per tool; adding a tool adds a row.
+ *
+ * `git push` is deliberately absent from `git`'s verb list and is handled by `gitPushIsGoverned`
+ * below, because a push's hazard depends on the refspec and a merge's does not.
+ */
+export const COMMAND_CHECKPOINT_RULES = [
+    { checkpoint: "production_requires_human_confirmation", tool: "kubectl", verbs: ["apply", "rollout", "delete"] },
+    { checkpoint: "production_requires_human_confirmation", tool: "helm", verbs: ["upgrade", "install"] },
+    { checkpoint: "production_requires_human_confirmation", tool: "terraform", verbs: ["apply"] },
+    { checkpoint: "production_requires_human_confirmation", tool: "gcloud", verbs: ["deploy"] },
+    { checkpoint: "production_requires_human_confirmation", tool: "aws", verbs: ["deploy", "sync"] },
+    { checkpoint: "production_requires_human_confirmation", tool: "serverless", verbs: ["deploy"] },
+    { checkpoint: "production_requires_human_confirmation", tool: "sls", verbs: ["deploy"] },
+    { checkpoint: "production_requires_human_confirmation", tool: "flyctl", verbs: ["deploy"] },
+    { checkpoint: "production_requires_human_confirmation", tool: "fly", verbs: ["deploy"] },
+    { checkpoint: "production_requires_human_confirmation", tool: "npm", verbs: ["publish"] },
+    { checkpoint: "production_requires_human_confirmation", tool: "yarn", verbs: ["publish"] },
+    { checkpoint: "production_requires_human_confirmation", tool: "pnpm", verbs: ["publish"] },
+    // RA1-4: the checkpoint named `protected_branch_merge` matched no merge command at all. These two
+    // are the merge forms that NAME their target and are therefore decidable from the command text.
+    { checkpoint: "protected_branch_merge", tool: "gh", verbs: ["merge"] },
+    // Both git verbs live in ONE row so the precise matcher and the fail-closed scan read one list.
+    // Each needs its own decision (a push depends on its refspec, an update-ref on its target ref),
+    // and that decision is made below — the row says WHICH verbs are governed, not how.
+    { checkpoint: "protected_branch_merge", tool: "git", verbs: ["update-ref", "push"] },
+];
+/** The protected branch names. One list; the push rule and the update-ref rule both read it. */
+const PROTECTED_REF_RE = /^(?:refs\/heads\/)?(?:main|master)$|^(?:refs\/heads\/)?release\//;
+/**
+ * Is this `git push` segment governed by `protected_branch_merge`?
+ *
+ * ---------------------------------------------------------------------------------------------
+ * RA1-3, AND THE RULE THAT DECIDES WHEN TO FAIL CLOSED.
+ *
+ * All three literal push patterns require `main`/`master`/`release/` or a force flag ON THE LINE.
+ * `git push` with no refspec pushes the CURRENT branch to its upstream — the ordinary way an agent
+ * sitting on `main` pushes to `main` — and matched nothing. Measured: `git push`, `git push origin
+ * HEAD` and `git push -u origin @` all ALLOW.
+ *
+ * The guard cannot resolve the current branch from the command text, so the honest move is to invert
+ * the default: a push is allowed only when it names a refspec that is demonstrably NOT protected.
+ * Concretely, at least two non-flag words after `push` (a remote and a refspec) whose LAST is
+ * neither `HEAD`, `@`, nor a protected name.
+ *
+ *     git push                      -> governed (no refspec named)
+ *     git push origin               -> governed (one word; `origin` is the remote, not a refspec)
+ *     git push origin HEAD          -> governed (HEAD is the current branch, unnamed)
+ *     git push -u origin @          -> governed
+ *     git push origin main          -> governed (protected by name)
+ *     git push origin feature/x     -> NOT governed
+ *
+ * WHY THIS FAILS CLOSED WHILE `git merge` DOES NOT — the distinction, stated so it does not read as
+ * a fudge. `git push` has a spelling that makes it decidable and that a user can actually type:
+ * naming the remote and the branch. Refusing the ambiguous form costs one extra word and the refusal
+ * says so. `git merge` has NO such spelling — its target is always the current branch and no syntax
+ * names it — so refusing the ambiguous form would refuse the operation entirely, with no legal
+ * escape. **Fail closed where an escape exists; record a residual where refusing would leave no
+ * legal spelling.** `git merge` and `git checkout main && git merge x` are therefore recorded, with
+ * their reproductions, in docs/audit/30-redteam-surface-a.md § RA1-4 rather than matched here.
+ * ---------------------------------------------------------------------------------------------
+ */
+function gitPushIsGoverned(words) {
+    const at = words.indexOf("push");
+    if (at === -1)
+        return false;
+    const after = words.slice(at + 1);
+    if (after.length < 2)
+        return true; // no refspec named at all
+    const ref = after[after.length - 1];
+    if (ref === "HEAD" || ref === "@")
+        return true;
+    return PROTECTED_REF_RE.test(ref);
+}
+/**
+ * The fail-closed answer for text this model will not parse: which checkpoints does it touch, judged
+ * on the raw string alone?
+ *
+ * BOTH the tool name AND one of that tool's governed verbs must appear. The first draft required
+ * only the tool name, which made every `git` command with an escaped quote in it — a commit message
+ * containing `\"`, for instance — a denial. That is the over-blocking design rule 1 warns trains
+ * users to disable the guard. Requiring the verb keeps the direction fail-closed while making the
+ * refusal about something the text actually says.
+ */
+function failClosedCheckpoints(text) {
+    const out = [];
+    for (const r of COMMAND_CHECKPOINT_RULES) {
+        if (!new RegExp(`\\b${r.tool}\\b`).test(text))
+            continue;
+        if (r.verbs.some((v) => new RegExp(`\\b${v}\\b`).test(text)))
+            out.push(r.checkpoint);
+    }
+    return out;
+}
+/**
+ * Which checkpoints does this command touch, according to the tokenizer and the table?
+ *
+ * On an untokenizable command it returns every checkpoint whose TOOL NAME appears anywhere in the
+ * text — the fail-closed answer — rather than an empty set.
+ */
+export function matchCommandCheckpoints(cmd) {
+    const out = new Set();
+    const top = commandSegments(cmd);
+    const segs = top === null ? null : expandNestedShells(top, 0);
+    if (segs === null) {
+        for (const id of failClosedCheckpoints(cmd))
+            out.add(id);
+        return { checkpoints: out, untokenizable: true };
+    }
+    let untokenizable = false;
+    for (const seg of segs) {
+        if (UNRESOLVABLE_SHELL_RE.test(seg.raw)) {
+            untokenizable = true;
+            for (const id of failClosedCheckpoints(seg.raw))
+                out.add(id);
+            continue;
+        }
+        for (const r of COMMAND_CHECKPOINT_RULES) {
+            if (seg.tool !== r.tool)
+                continue;
+            if (r.tool === "git") {
+                // Each git verb needs its own decision, because each names its target differently.
+                // `update-ref` names the ref outright: govern it only for a protected one.
+                const at = seg.words.indexOf("update-ref");
+                if (at !== -1 && seg.words.slice(at + 1).some((w) => PROTECTED_REF_RE.test(w))) {
+                    out.add(r.checkpoint);
+                }
+                // `push` names its target only sometimes: see gitPushIsGoverned.
+                if (gitPushIsGoverned(seg.words))
+                    out.add(r.checkpoint);
+                continue;
+            }
+            if (seg.words.some((w) => r.verbs.includes(w)))
+                out.add(r.checkpoint);
+        }
+    }
+    return { checkpoints: out, untokenizable };
+}
+/**
+ * Every tool the table governs, derived. `hooks/guard.ts` asserts at startup that each is a real
+ * roster checkpoint, so a row naming a checkpoint the roster does not carry refuses to run rather
+ * than silently governing nothing.
+ */
+export const COMMAND_RULE_CHECKPOINTS = [
+    ...new Set(COMMAND_CHECKPOINT_RULES.map((r) => r.checkpoint)),
+];
 /** The fixed zero-config banner line (D-20). Always printed, so absent and broken look different. */
 export const BANNER_ALL_DEFAULT = "all checkpoints at default";
 /** The opening of the OTHER banner form. Declared once; the composer and the recognizer share it. */

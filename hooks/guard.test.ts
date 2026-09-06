@@ -20,7 +20,7 @@
 // Vitest globals:false (the repo default) → import test fns explicitly.
 
 import { describe, it, expect, afterAll } from "vitest";
-import { spawnSync } from "node:child_process";
+import { spawnSync, execFileSync } from "node:child_process";
 import {
   mkdtempSync,
   mkdirSync,
@@ -28,6 +28,7 @@ import {
   readFileSync,
   readdirSync,
   copyFileSync,
+  symlinkSync,
   rmSync,
   existsSync,
   chmodSync,
@@ -983,5 +984,253 @@ describe("30-11 V-30-10-01 — the run says what the config reader DROPPED", () 
     const refusalLines = r.stderr.split("\n").filter((l) => l.startsWith(cp.CONFIG_REFUSAL_PREFIX));
     expect(refusalLines.length).toBe(2); // one per dropped entry, never more
     for (const l of refusalLines) expect(cp.isCheckpointBannerLine(l)).toBe(false);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// PLAN 30-11 — RED-TEAM SURFACE A, ROUND 2. Every case reproduced first against the committed
+// round-1 artifact, spawned as a process. See docs/audit/30-redteam-surface-a.md § Round 2.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+describe("30-11 RA1-1 — one global flag no longer defeats every deploy pattern", () => {
+  // THE BYPASS. The patterns anchored the verb ADJACENT to the tool name, so any global flag — which
+  // every one of these tools accepts before its subcommand — moved the verb out of the pattern. All
+  // of these ALLOWed on the round-1 artifact, with exit 0 and the banner `all checkpoints at
+  // default`, and a real production mutation therefore ran with ZERO keys.
+  for (const cmd of [
+    "kubectl -n prod apply -f deploy.yaml",
+    "kubectl --context=prod apply -f x.yaml",
+    "kubectl --kubeconfig=/k/prod delete ns app",
+    "sudo kubectl -n prod apply -f x.yaml",
+    "helm --kube-context prod upgrade rel chart",
+    "terraform -chdir=infra/prod apply -auto-approve",
+    "aws --profile prod s3 sync ./dist s3://prod-bucket",
+    "aws --region us-east-1 deploy create-deployment",
+    "gcloud --project=prod run deploy svc",
+    "npm --access public publish",
+    "git -C /repo push origin main",
+    "git --git-dir=/repo/.git --work-tree=/repo push origin main",
+    "git -c user.name=x push --force origin main",
+    "git --no-pager push origin main",
+  ]) {
+    it(`denies: ${cmd}`, () => {
+      expectDeny(payload(cmd));
+    });
+  }
+
+  it("the ADJACENT forms still deny — the model is ADDITIVE and removed no denial", () => {
+    for (const cmd of [
+      "kubectl apply -f x.yaml",
+      "helm upgrade rel chart",
+      "terraform apply",
+      "aws s3 sync ./dist s3://prod",
+      "gcloud run deploy svc",
+      "npm publish",
+      "git push --force origin main",
+    ]) {
+      expectDeny(payload(cmd));
+    }
+  });
+
+  // FALSE-DENIAL CONTROLS. Every one of these is a benign command a user runs constantly. A fix that
+  // denies them trains users to disable the guard, which design rule 1 names as the opposite of safe.
+  for (const cmd of [
+    "ls -la",
+    "kubectl -n dev get pods",
+    "kubectl get pods -o yaml",
+    "git status",
+    "git log --oneline",
+    "git merge feature",
+    "npm install",
+    "npm run build",
+    "aws s3 ls s3://bucket",
+    "helm list -n dev",
+    "terraform plan",
+    "gh pr list",
+    "gh pr view 12",
+    "cat ./deploy/notes.txt",
+    "gcloud config list # see deploy docs",
+    "sh -c 'ls -la'",
+  ]) {
+    it(`still allows: ${cmd}`, () => {
+      expectAllow(payload(cmd));
+    });
+  }
+
+  it("a comment is not a command (the first draft of the model regressed this)", () => {
+    // Design rule 2 names this case by hand: a benign read-only command that merely mentions
+    // "deploy" in a comment must not be denied. Collecting every non-flag word picked `deploy` out
+    // of the comment until the tokenizer learned to strip them.
+    expectAllow(payload("gcloud config list # see deploy docs"));
+    expectAllow(payload("helm list # upgrade later"));
+  });
+
+  it("a nested shell does not launder a bypass, and does not deny a benign nested command", () => {
+    expectDeny(payload('sh -c "kubectl -n prod apply -f x"'));
+    expectDeny(payload("bash -c 'git -C /r push origin main'"));
+    expectDeny(payload('bash -lc "terraform -chdir=p apply"'));
+    expectDeny(payload("sh -c \"sh -c 'kubectl -n p apply'\""));
+    expectAllow(payload('sh -c "ls -la"'));
+    expectAllow(payload("bash -c 'git push origin feature/x'"));
+  });
+
+  it("text outside the tokenizer's grammar is fail-CLOSED, and bounded to tool+verb", () => {
+    // The grammar boundary is named rather than extended one layer at a time. An escaped quote makes
+    // a segment untokenizable; an untokenizable segment matches only when the TOOL and one of its
+    // governed VERBS both appear, so an ordinary commit message with an escaped quote is not denied.
+    expectDeny(payload('sh -c "sh -c \'sh -c \\"kubectl -n p apply\\"\'"'));
+    expectAllow(payload('git commit -m "say \\"hi\\" now"'));
+    expectAllow(payload('echo "a \\"b\\""'));
+  });
+});
+
+describe("30-11 RA1-3 — a git push that does not name a branch is governed", () => {
+  // `git push` with no refspec pushes the CURRENT branch to its upstream — the ordinary way an agent
+  // sitting on `main` pushes to `main`. All four ALLOWed on the round-1 artifact.
+  for (const cmd of ["git push", "git push origin", "git push origin HEAD", "git push -u origin @"]) {
+    it(`denies: ${cmd}`, () => {
+      expectDeny(payload(cmd));
+    });
+  }
+
+  it("naming a non-protected branch is NOT denied — the escape the refusal advertises", () => {
+    expectAllow(payload("git push origin feature/x"));
+    expectAllow(payload("git push -u origin feature/my-work"));
+  });
+
+  it("the refusal NAMES the escape, so the fix costs a word rather than a disabled guard", () => {
+    const r = runGuard(payload("git push"));
+    expect(r.stdout).toContain('"permissionDecision":"deny"');
+    const reason = JSON.parse(r.stdout).hookSpecificOutput.permissionDecisionReason as string;
+    expect(reason).toContain("git push origin <branch>");
+  });
+});
+
+describe("30-11 RA1-4 — protected_branch_merge governs merge forms that name their target", () => {
+  it("gh pr merge --admin is denied (it merges a protected branch server-side)", () => {
+    expectDeny(payload("gh pr merge 12 --admin --merge"));
+  });
+
+  it("git update-ref against a protected ref is denied", () => {
+    expectDeny(payload("git update-ref refs/heads/main abc123"));
+    expectDeny(payload("git update-ref refs/heads/master abc123"));
+  });
+
+  it("git update-ref against a NON-protected ref is not denied (it names its target)", () => {
+    expectAllow(payload("git update-ref refs/heads/feature-x abc123"));
+  });
+
+  it("RECORDED RESIDUAL, asserted so it cannot be mistaken for coverage: `git merge` is NOT matched", () => {
+    // The rule is stated in scripts/checkpoints.ts: fail closed where an escape exists, record a
+    // residual where refusing would leave no legal spelling. `git merge` names no target — the
+    // target is always the current branch — so denying the ambiguous form would deny the operation
+    // entirely. This case pins the residual so a future reader meets it as a decision rather than as
+    // an oversight, and so that closing it later is a deliberate change with a red test.
+    expectAllow(payload("git merge feature"));
+    expectAllow(payload("git checkout main && git merge feature"));
+  });
+});
+
+describe("30-11 RA1-5 — the assignment operator set is `=` and `+=`", () => {
+  for (const cmd of [
+    "export GRUGOPS_FLOOR_PROTECTED_BRANCH_MERGE+=me && ls",
+    "GRUGOPS_FLOOR_PROTECTED_BRANCH_MERGE+=me ls",
+    "export GRUGOPS_ADMISSION_APPROVED_BY+=alice",
+    "export GRUGOPS_PROD_DEPLOY_APPROVED+=1",
+    "echo 'export GRUGOPS_FLOOR_PROTECTED_BRANCH_MERGE+=me' >> ~/.zshrc",
+  ]) {
+    it(`refuses: ${cmd}`, () => {
+      expectDeny(payload(cmd));
+    });
+  }
+
+  it("a lookalike is still not refused (the operator widening did not widen the NAME set)", () => {
+    expectAllow(payload("MY_GRUGOPS_FLOOR_OPEN_PR+=1 ls"));
+    expectAllow(payload("GRUGOPS_UNRELATED+=1 ls"));
+  });
+});
+
+describe("30-11 RA1-2 — the process has no exit that decides nothing", () => {
+  /** A project root whose config path is created by `make` — a FIFO, a device, a directory… */
+  function projectWithConfigPath(make: (p: string) => void): string {
+    const root = mkdtempSync(join(tmpdir(), "guard-nonfile-"));
+    cpTmpDirs.push(root);
+    mkdirSync(join(root, ".grugops"), { recursive: true });
+    make(join(root, ".grugops", "factory.config.json"));
+    return root;
+  }
+
+  it("CONTROL: a regular config answers, and fast (the timeout rows below are real hangs)", () => {
+    const root = projectWithConfigPath((p) => writeFileSync(p, "{}"));
+    const t0 = Date.now();
+    const r = runAt(root, PUSH);
+    expect(r.stdout).toContain('"permissionDecision":"deny"');
+    expect(Date.now() - t0).toBeLessThan(5000);
+  });
+
+  for (const [label, make] of [
+    ["a FIFO", (p: string) => execFileSync("mkfifo", [p])],
+    ["a symlink to /dev/zero", (p: string) => symlinkSync("/dev/zero", p)],
+  ] as const) {
+    it(`${label} at the config path DENIES rather than blocking forever`, () => {
+      // `readFileSync` on a non-regular file BLOCKS. Measured on the round-1 artifact: no exit, zero
+      // bytes on BOTH stdout and stderr at 20 seconds, against a control answering in 31 ms. A
+      // PreToolUse hook that never answers produces no decision, which the host treats as an allow —
+      // so one allowed `mkfifo` turned the guard off for every subsequent command.
+      const root = projectWithConfigPath(make);
+      const r = runAt(root, PUSH);
+      expect(r.status, "a timed-out hook produces status null and no decision").toBe(0);
+      expect(r.stdout).toContain('"permissionDecision":"deny"');
+    });
+  }
+
+  it("a config reached through a symlink to a REGULAR file still READS (stat through the link)", () => {
+    // The non-vacuity control for the refusal above: the rule is "not a regular file", resolved on
+    // the OPEN descriptor, so `lstat` semantics would have refused this legitimate case.
+    const root = mkdtempSync(join(tmpdir(), "guard-symlink-"));
+    cpTmpDirs.push(root);
+    mkdirSync(join(root, ".grugops"), { recursive: true });
+    const real = join(root, "real-config.json");
+    writeFileSync(real, '{"checkpoints":{"protected_branch_merge":"off"}}');
+    symlinkSync(real, join(root, ".grugops", "factory.config.json"));
+    // The config IS read: it declares a lowering, so the banner reports it rather than `all default`.
+    const r = runAt(root, PUSH, { [FLOOR_VAR]: "a-named-human" });
+    expect(r.stderr).toContain("protected_branch_merge=off");
+    expect(r.stdout).toBe("");
+  });
+
+  for (const [label, body] of [
+    ["a dependency whose top-level await never settles", "await new Promise(()=>{});\nexport const CHECKPOINT_DEFAULTS={};"],
+    ["a dependency that calls process.exit(0) at module scope", "process.exit(0);"],
+  ] as const) {
+    it(`${label} DENIES, with exit 0 so the host honours it`, () => {
+      // Neither is a throw, so neither the `try` around the import nor the `uncaughtException`
+      // handler can see it. Measured on the round-1 artifact: exit 13 with zero bytes in 22 ms, and
+      // exit 0 with zero bytes. The exit handler converts both into a decision — AND corrects the
+      // exit code, because a deny JSON riding a non-zero exit is non-blocking at the host.
+      const root = mirrorKit("hooks/guard.js");
+      writeFileSync(join(root, "scripts", "checkpoints.js"), body);
+      const r = runArtifact(join(root, "hooks", "guard.js"), PUSH);
+      expect(r.status, "exit 0 is half the block mechanism; the JSON alone is not enough").toBe(0);
+      expect(r.stdout).toContain('"permissionDecision":"deny"');
+    });
+  }
+
+  it("an ordinary allow is still an allow — the exit handler does not deny everything", () => {
+    const r = runGuard(payload("ls -la"));
+    expect(r.status).toBe(0);
+    expect(r.stdout).toBe("");
+  });
+});
+
+describe("30-11 reviewer-1 observation 2 — an EMPTY CLAUDE_PROJECT_DIR names nothing", () => {
+  it("does not resolve the config against the process cwd", () => {
+    // `?? ` treats "" as a supplied value because it is not nullish, so `join("", ".grugops", …)`
+    // resolved against the hook's cwd — a third base beside the project and the kit. The run must
+    // behave as if the variable were absent.
+    const withEmpty = runGuard(payload("git push --force origin main"), { CLAUDE_PROJECT_DIR: "" });
+    const withUnset = runGuard(payload("git push --force origin main"));
+    expect(withEmpty.stdout).toBe(withUnset.stdout);
+    expect(bannerLines(withEmpty)).toEqual(bannerLines(withUnset));
   });
 });

@@ -49,6 +49,7 @@ import {
   NOTE_KINDS,
   type NoteInput,
   type NoteKind,
+  trustedRepoRoot,
 } from "./context-io.js";
 
 // The MCP server name. The full tool name a hook/agent sees is mcp__<server>__<tool>, so this name must
@@ -119,11 +120,11 @@ export const PROPOSE_NOTE_TOOL = {
 // — equal to context-io's ROOT and to admitAndAppend's repoRoot default. Agent `repoRoot`/`contextRoot`
 // are no longer in the inputSchema and are ignored here (the off-mode W3 defeat + forged disposed_by are
 // closed: the agent can no longer point governance at a root it controls).
-function trustedRepoRoot(): string {
-  const fromEnv = process.env.CLAUDE_PROJECT_DIR;
-  if (typeof fromEnv === "string" && fromEnv !== "") return fromEnv;
-  return join(import.meta.dirname, "..");
-}
+// IMPORTED, NOT RE-SPELLED (plan 30-11 round 2, finding `RA2-1`). This function used to be declared
+// here as a second copy of a rule context-io also holds. Two spellings of one root is the shape this
+// module keeps deleting, and the copy also used `fromEnv !== ""` where the other used `??`, so they
+// disagreed on an empty value. There is now one `trustedRepoRoot`, exported from context-io, and the
+// CLI `admit` verb reads it too instead of taking the root from argv.
 
 // ── handleProposeNote — build a NoteInput from the structured args and forward to the combiner. ──────
 // This is the server's ONLY persistence path: context-io.admitAndAppend → appendNote (the single

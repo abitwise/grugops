@@ -28,7 +28,7 @@
 // Vitest globals:false (repo default) -> import explicitly.
 
 import { describe, it, expect } from "vitest";
-import { spawnSync } from "node:child_process";
+import { spawnSync, execFileSync } from "node:child_process";
 import { join } from "node:path";
 import { mkdtempSync, writeFileSync, mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -414,5 +414,31 @@ describe("30-11 A-1 — this hook's approval name is IMPORTED from the grant voc
     // pass for the wrong reason.
     expect(APPROVAL).toBe(cp.ADMISSION_APPROVAL_ENV_VAR);
     expect(cp.isGrantEnvVarName(APPROVAL)).toBe(true);
+  });
+});
+
+describe("30-11 RA1-2 (round 2) — the admission guard has no exit that decides nothing", () => {
+  it("a FIFO at the config path DENIES a gated admission rather than blocking forever", () => {
+    // Measured on the round-1 artifact: control answered in 43 ms; with a FIFO at
+    // `<project>/.grugops/factory.config.json` there was NO answer at 20 seconds, on either stream.
+    // A hook that never answers produces no decision, which the host treats as an allow.
+    const dir = mkdtempSync(join(tmpdir(), "adm-fifo-"));
+    tmpDirs.push(dir);
+    mkdirSync(join(dir, ".grugops"), { recursive: true });
+    execFileSync("mkfifo", [join(dir, ".grugops", "factory.config.json")]);
+    const { status, stdout } = runGuard(
+      payload({ by: "security-nfr", kind: "finding", verified_by: "" }),
+      { CLAUDE_PROJECT_DIR: dir },
+    );
+    expect(status, "a timed-out hook has status null and no decision").toBe(0);
+    expect(stdout).toContain('"permissionDecision":"deny"');
+  });
+
+  it("an EMPTY CLAUDE_PROJECT_DIR names nothing rather than resolving against the cwd", () => {
+    const empty = runGuard(payload({ by: "security-nfr", kind: "finding", verified_by: "" }), {
+      CLAUDE_PROJECT_DIR: "",
+    });
+    const unset = runGuard(payload({ by: "security-nfr", kind: "finding", verified_by: "" }));
+    expect(empty.stdout).toBe(unset.stdout);
   });
 });

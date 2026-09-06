@@ -57,7 +57,8 @@ import { mkdtempSync, mkdirSync, cpSync, rmSync, readFileSync, realpathSync, exi
 import { tmpdir } from "node:os";
 import { dirname, join, sep } from "node:path";
 import { jsImportClosure } from "./js-import-closure.js";
-import { OUT, REGEN_COMMAND, GUARANTEES_DATA_SOURCES, GUARANTEES_DATA_SOURCE_COUNT, GUARANTEES_ENTRY_JS, } from "./generate-guarantees.js";
+import { OUT, REGEN_COMMAND, GUARANTEES_DATA_SOURCES, GUARANTEES_DATA_SOURCE_COUNT, GUARANTEES_ENTRY_JS, citedResidualPaths, } from "./generate-guarantees.js";
+import { RESIDUAL_PATH } from "./audit-model.js";
 // Repo root = this script's parent's parent (scripts/ -> repo root).
 const ROOT = join(import.meta.dirname, "..");
 const toPosix = (p) => p.split(sep).join("/");
@@ -135,6 +136,37 @@ if (configsCopied === 0) {
         `states the roster defaults, which on a tree that has lowered nothing is byte-identical to a ` +
         `correct page; reporting "fresh" from that comparison would keep reporting it on the day a ` +
         `floor was lowered.`);
+}
+// ── Mirror the files the register CITES, so the entry's path gate is live here too ──────────────
+// The generator's entry refuses to write when a published residual row names a file that is not in
+// the tree (round 2, `RA2-4`). That gate reads paths the REGISTER names, which are not part of the
+// render's import closure and not among its declared data sources — so without this the mirror runs
+// the gate against a tree that was never given the files, and the freshness check goes red on files
+// that exist. The set is DERIVED from the register text by the same exported scanner the gate uses,
+// so the mirror cannot copy a different set from the one the gate asks about.
+let citedCopied = 0;
+{
+    const registerText = readFileSync(join(ROOT, RESIDUAL_PATH), "utf8");
+    const cited = new Set();
+    for (const line of registerText.split("\n")) {
+        for (const rel of citedResidualPaths(line))
+            cited.add(rel);
+    }
+    for (const rel of cited) {
+        const src = join(ROOT, rel);
+        if (!existsSync(src))
+            continue; // the gate itself reports a missing one; the mirror does not hide it
+        const dst = join(tmp, rel);
+        mkdirSync(dirname(dst), { recursive: true });
+        cpSync(src, dst, { recursive: true });
+        citedCopied += 1;
+    }
+    // The mirror's own premise: a scan that copied nothing would make the gate vacuously pass here.
+    if (citedCopied === 0) {
+        cleanupAndRefuse(`the register cites no existing file path, so the generator's residual-path gate would pass ` +
+            `vacuously in this mirror — refusing to report freshness from a comparison whose gate was ` +
+            `never asked anything.`);
+    }
 }
 // The render's own output directory, taken from OUT rather than typed a second time.
 mkdirSync(join(tmp, dirname(OUT)), { recursive: true });

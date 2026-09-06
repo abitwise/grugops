@@ -1776,3 +1776,117 @@ describe("30-10 R4 R5-3 — the workflow corpus refuses by INVERSION, not by an 
     expect(d.totalSites).toBe(cp.RECORDED_TOTAL_SITES);
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// PLAN 30-11 ROUND 2 — the command model (RA1-1 / RA1-3 / RA1-4), as a unit.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+describe("30-11 the command model — one tokenizer, one tool->verb table", () => {
+  const has = (cmd: string, id: string): boolean =>
+    cp.matchCommandCheckpoints(cmd).checkpoints.has(id as never);
+
+  it("the table's checkpoints are all roster members (derived, not restated)", () => {
+    for (const id of cp.COMMAND_RULE_CHECKPOINTS) {
+      expect(cp.CHECKPOINTS as readonly string[]).toContain(id);
+    }
+    expect(cp.COMMAND_RULE_CHECKPOINTS.length).toBeGreaterThan(0);
+  });
+
+  it("a global flag between the tool and the verb does not hide the verb", () => {
+    for (const cmd of [
+      "kubectl -n prod apply -f x",
+      "kubectl --context=prod apply -f x",
+      "helm --kube-context prod upgrade rel c",
+      "terraform -chdir=infra/prod apply",
+      "aws --profile prod s3 sync a b",
+      "gcloud --project=prod run deploy s",
+      "npm --access public publish",
+    ]) {
+      expect(has(cmd, "production_requires_human_confirmation"), cmd).toBe(true);
+    }
+  });
+
+  it("a read-only command with the same flags is NOT matched (the flags do not decide)", () => {
+    expect(has("kubectl -n dev get pods", "production_requires_human_confirmation")).toBe(false);
+    expect(has("aws --profile prod s3 ls s3://b", "production_requires_human_confirmation")).toBe(false);
+    expect(has("helm --kube-context prod list", "production_requires_human_confirmation")).toBe(false);
+  });
+
+  it("a leading wrapper is unwrapped; a leading assignment prefix is skipped", () => {
+    expect(has("sudo kubectl -n prod apply -f x", "production_requires_human_confirmation")).toBe(true);
+    expect(has("env FOO=1 kubectl apply -f x", "production_requires_human_confirmation")).toBe(true);
+    expect(has("FOO=1 BAR=2 kubectl apply -f x", "production_requires_human_confirmation")).toBe(true);
+  });
+
+  it("a comment is not a command", () => {
+    expect(has("gcloud config list # see deploy docs", "production_requires_human_confirmation")).toBe(false);
+    // …but a `#` mid-word is not a comment, so a real refspec containing one is unaffected.
+    expect(has("git push origin refs/heads/feature#1", "protected_branch_merge")).toBe(false);
+  });
+
+  it("git push: governed unless it names a demonstrably non-protected refspec", () => {
+    for (const cmd of ["git push", "git push origin", "git push origin HEAD", "git push -u origin @",
+                       "git push origin main", "git push origin master", "git push origin release/1.2"]) {
+      expect(has(cmd, "protected_branch_merge"), cmd).toBe(true);
+    }
+    for (const cmd of ["git push origin feature/x", "git push -u origin my-work", "git push upstream topic"]) {
+      expect(has(cmd, "protected_branch_merge"), cmd).toBe(false);
+    }
+  });
+
+  it("git update-ref is governed only for a protected target ref", () => {
+    expect(has("git update-ref refs/heads/main abc", "protected_branch_merge")).toBe(true);
+    expect(has("git update-ref refs/heads/feature abc", "protected_branch_merge")).toBe(false);
+  });
+
+  it("gh pr merge is governed; other gh verbs are not", () => {
+    expect(has("gh pr merge 12 --admin --merge", "protected_branch_merge")).toBe(true);
+    expect(has("gh pr list", "protected_branch_merge")).toBe(false);
+    expect(has("gh pr view 12", "protected_branch_merge")).toBe(false);
+  });
+
+  it("THE RECORDED RESIDUAL: `git merge` names no target and is NOT matched", () => {
+    // Stated as a decision rather than left as an oversight: fail closed where an escape exists,
+    // record a residual where refusing would leave no legal spelling. `git merge` has none.
+    expect(has("git merge feature", "protected_branch_merge")).toBe(false);
+    expect(has("git checkout main && git merge feature", "protected_branch_merge")).toBe(false);
+  });
+
+  it("a nested shell's -c argument is re-tokenized, to a bounded depth", () => {
+    expect(has('sh -c "kubectl -n prod apply -f x"', "production_requires_human_confirmation")).toBe(true);
+    expect(has("bash -c 'git -C /r push origin main'", "protected_branch_merge")).toBe(true);
+    expect(has("sh -c \"sh -c 'kubectl -n p apply'\"", "production_requires_human_confirmation")).toBe(true);
+    expect(has('sh -c "ls -la"', "production_requires_human_confirmation")).toBe(false);
+  });
+
+  it("text outside the grammar is UNTOKENIZABLE and fails closed on tool+verb", () => {
+    const m = cp.matchCommandCheckpoints('eval "$(printf \'kubectl apply -f x\')"');
+    expect(m.untokenizable).toBe(true);
+    expect(m.checkpoints.has("production_requires_human_confirmation" as never)).toBe(true);
+    // …and the fail-closed scan needs BOTH the tool and one of its verbs, so an ordinary command
+    // carrying an escaped quote is not swept up by the tool name alone.
+    const benign = cp.matchCommandCheckpoints('git commit -m "say \\"hi\\""');
+    expect(benign.untokenizable).toBe(true);
+    expect(benign.checkpoints.size).toBe(0);
+  });
+
+  it("unbalanced quoting is untokenizable, not silently mis-parsed", () => {
+    expect(cp.commandSegments('kubectl apply -f "unclosed')).toBeNull();
+  });
+
+  it("segments split on shell separators, and quoted separators do not split", () => {
+    const segs = cp.commandSegments("ls; kubectl apply -f x && echo done");
+    expect(segs).not.toBeNull();
+    expect((segs as readonly { tool: string }[]).map((s) => s.tool)).toEqual(["ls", "kubectl", "echo"]);
+    const quoted = cp.commandSegments('echo "a; b" && ls');
+    expect((quoted as readonly { tool: string }[]).map((s) => s.tool)).toEqual(["echo", "ls"]);
+  });
+});
+
+describe("30-11 the grant vocabulary's operator set (RA1-5)", () => {
+  it("`=` and `+=` are both assignment operators, and the constant says so", () => {
+    const src = readFileSync(join(import.meta.dirname, "..", "hooks", "guard.ts"), "utf8");
+    expect(src).toMatch(/ASSIGNMENT_OPERATOR/);
+    expect(src).toMatch(/COMPLETE set of assignment operators/);
+  });
+});

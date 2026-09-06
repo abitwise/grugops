@@ -1472,3 +1472,309 @@ Sentence-by-sentence table is inside `RA2-5` above. Summary: GUARANTEES.md §9/�
 - **Tree restored.** `git checkout -- . && git clean -fd -e node_modules`; `git status --short` reports only `?? node_modules`; HEAD unchanged at `7079fc5`. No `.claude/settings*.json` was read or written anywhere.
 
 <!-- END VERBATIM -->
+
+---
+
+# Round 2 — the findings, the fixes, and what each fix freed
+
+Every reproduction spawns a compiled artifact **as a process** against the round-1 committed build
+(`380ffba` / `7079fc5`), which is the artifact both reviewers tested.
+
+## `RA1-1` (HIGH, zero keys) — one global flag defeated every deploy pattern
+
+### Mirror reproduction — round-1 build vs round-2 tree
+
+```
+                                                       round-1   round-2
+kubectl apply -f x.yaml                       CONTROL  DENY      DENY
+kubectl -n prod apply -f deploy.yaml                   ALLOW     DENY
+kubectl --context=prod apply -f x.yaml                 ALLOW     DENY
+kubectl --kubeconfig=/k/prod delete ns app             ALLOW     DENY
+sudo kubectl -n prod apply -f x.yaml                   ALLOW     DENY
+helm --kube-context prod upgrade rel chart             ALLOW     DENY
+terraform -chdir=infra/prod apply -auto-approve        ALLOW     DENY
+aws --profile prod s3 sync ./dist s3://prod-bucket     ALLOW     DENY
+aws --region us-east-1 deploy create-deployment        ALLOW     DENY
+gcloud --project=prod run deploy svc                   ALLOW     DENY
+npm --access public publish                            ALLOW     DENY
+git -C /repo push origin main                          ALLOW     DENY
+git --git-dir=/repo/.git --work-tree=/repo push …      ALLOW     DENY
+git -c user.name=x push --force origin main            ALLOW     DENY
+git --no-pager push origin main                        ALLOW     DENY
+```
+
+Every round-1 `ALLOW` is exit 0, zero bytes of stdout, banner `all checkpoints at default`. The tool
+name and the verb both appear **literally and unexpanded**, so this is not the disclosed
+env-indirection residual — and a real production mutation ran with **zero keys**.
+
+### The structural fix
+
+One tokenizer and one tool→verb table in `scripts/checkpoints.ts`, consulted **beside** the literal
+patterns. Additivity is load-bearing: a command matches if the patterns match it **or** the model
+does, so a parser bug can only miss a denial, never create a bypass.
+
+The tokenizer collects **every** non-flag word rather than "the first one", because "the first" needs
+per-tool flag grammar (`git -c user.name=x push` would report the verb as `user.name=x`) — a second
+hand-maintained set, which is the class this repository keeps closing.
+
+### What NEW freedom this creates, and how it is bounded
+
+1. **A governed verb appearing as a flag's ARGUMENT denies.** `kubectl get pods --namespace delete`
+   is refused. Fail-closed, rare, obvious escape, and the price of not maintaining a flag grammar per
+   tool. The control that matters passes: `kubectl -n dev get pods` yields `dev get pods`, no verb.
+2. **A parser has a grammar an attacker can leave.** Named rather than extended one layer at a time:
+   `$( … )`, backticks, `${…}`, process substitution **and backslash-escaped quotes** make a segment
+   untokenizable, which is a fail-CLOSED state. `sh -c` operands are re-tokenized to a bounded depth;
+   deeper is untokenizable, not allowed.
+3. **The fail-closed scan itself over-denied.** Its first draft matched on the TOOL NAME alone, which
+   made every `git` command carrying an escaped quote — an ordinary commit message — a denial. It now
+   requires the tool **and** one of that tool's governed verbs. Residual cost, measured and accepted:
+   `git commit -m "push \"x\""` denies.
+4. **A false denial this plan introduced and caught itself.** The first model collected `deploy` out
+   of `gcloud config list # see deploy docs` — the case design rule 2 names by hand. Comments are now
+   stripped (a `#` at the start of a word, outside quotes). It was caught by the false-denial control
+   table, which is why that table exists.
+
+**19 false-denial controls pass**, including `git status`, `git merge feature`, `npm install`,
+`gh pr list`, `terraform plan`, `kubectl -n dev get pods` and `sh -c 'ls -la'`.
+
+## `RA1-2` (HIGH, zero keys) — three exits that decide nothing
+
+Round 1 bounded THROWS and stated the invariant as a property of the file. Three non-throw exits
+survived, measured on the round-1 build:
+
+```
+                                                round-1                round-2
+regular config                        CONTROL   DENY   exit 0  40ms    DENY  exit 0  38ms
+config = FIFO                                   HUNG   —      20007ms  DENY  exit 0  33ms
+config = symlink -> /dev/zero                    HUNG   —      20109ms  DENY  exit 0  35ms
+config = directory                              DENY   exit 0  47ms    DENY  exit 0  34ms
+config = symlink -> a REGULAR file    CONTROL   DENY   exit 0  40ms    DENY  exit 0  33ms
+admission guard, config = FIFO                  HUNG   —      20006ms  DENY  exit 0  33ms
+never-settling top-level await in a dep         ALLOW  exit 13  22ms   DENY  exit 0  22ms
+dependency calls process.exit(0)                ALLOW  exit 0   24ms   DENY  exit 0  23ms
+```
+
+The `mkfifo` that enables the first row **is itself allowed by the guard**. One allowed command turned
+both hooks off for every subsequent command, with no grant, no declaration and no human.
+
+### The structural fix, two halves at two points of effect
+
+1. **The reader refuses a config path that is not a regular file** —
+   `openSync(O_RDONLY|O_NONBLOCK)` + `fstatSync().isFile()`, by rule and not by enumerating dangerous
+   file types. `fstat` on the open descriptor stats **through** a symlink, so a config delivered via a
+   symlink to a regular file still reads (asserted). Only `ENOENT` means absence; every other open
+   failure is `unreadable`, which fails closed — mapping `EACCES` to absence would have been a
+   regression against the old `existsSync` pair.
+2. **Exactly two named exits, and an `exit` handler that refuses a third.** `deny()` and `allow()`
+   set `decided`; the handler writes the fail-closed deny if the process is leaving undecided.
+
+### The premise of that fix, measured — and one correction it forced
+
+```
+sync top-level throw, no await          -> HANDLED-UNCAUGHT, exit 0
+throw AFTER a top-level await           -> HANDLED-UNCAUGHT, exit 0
+failing dynamic import inside try/catch -> CAUGHT, exit 0
+```
+
+**And the correction.** The first version wrote the deny JSON from the handler and left the exit code
+alone — so the never-settling-await path emitted a refusal on **exit 13**, which is non-blocking at
+the host. A fix whose own premise was false. Measured directly:
+
+```
+handler writes DENY + sets process.exitCode = 0  ->  exit 0, stdout DENY-JSON
+handler writes DENY only                         ->  exit 13, stdout DENY-JSON
+```
+
+`process.exitCode = 0` is now set in both handlers.
+
+### New freedom, bounded
+
+`writeSync(1, …)` replaces `process.stdout.write` on **both** paths, because only synchronous work
+runs in an exit handler and a queued decision is no decision — one write, not one reliable and one
+hopeful. The handler is idempotent through `decided`. The `isFile()` rule refuses a config delivered
+by process substitution or a named pipe **on purpose**, which is strictly stricter and asserted as
+such, with the symlink-to-regular-file control proving it is not `lstat`.
+
+## `RA1-3` / `RA1-4` — and the rule that decides when to fail closed
+
+```
+                                          round-1   round-2
+git push                                  ALLOW     DENY
+git push origin                           ALLOW     DENY
+git push origin HEAD                      ALLOW     DENY
+git push -u origin @                      ALLOW     DENY
+gh pr merge 12 --admin --merge            ALLOW     DENY
+git update-ref refs/heads/main abc123     ALLOW     DENY
+git push origin feature/x       CONTROL   ALLOW     ALLOW
+git update-ref refs/heads/feature abc     —         ALLOW
+```
+
+A push is governed unless it names a refspec that is demonstrably **not** protected: at least two
+non-flag words after `push` whose last is neither `HEAD`, `@`, nor a protected name.
+
+**The rule, stated so it does not read as a fudge.** `git push` is refused in its ambiguous form and
+`git merge` is not, and the difference is not taste:
+
+> **Fail closed where an escape exists; record a residual where refusing would leave no legal
+> spelling.**
+
+`git push origin <branch>` is a spelling a user can type, costs one word, and the refusal names it.
+`git merge` has no spelling that names its target — the target is always the current branch — so
+refusing the ambiguous form would refuse the operation entirely. `git merge` and
+`git checkout main && git merge x` are therefore **recorded residuals with their reproductions**, and
+pinned by a test that asserts they are NOT matched, so a future reader meets a decision rather than an
+oversight and closing it later needs a deliberate change with a red test.
+
+**New freedom, bounded:** `git push` bare is now denied, which is common. The refusal names the escape
+in its own text, so the cost is a more explicit command rather than a disabled hook — design rule 1's
+own caveat, answered in the refusal rather than in a comment.
+
+## `RA1-5` (LOW, invisible) — the assignment-operator set
+
+```
+                                                             round-1  round-2
+export GRUGOPS_FLOOR_PROTECTED_BRANCH_MERGE+=me && ls        ALLOW    DENY
+GRUGOPS_FLOOR_PROTECTED_BRANCH_MERGE+=me ls                  ALLOW    DENY
+export GRUGOPS_ADMISSION_APPROVED_BY+=alice                  ALLOW    DENY
+export GRUGOPS_PROD_DEPLOY_APPROVED+=1                       ALLOW    DENY
+echo 'export GRUGOPS_FLOOR_…+=me' >> ~/.zshrc                ALLOW    DENY
+MY_GRUGOPS_FLOOR_OPEN_PR+=1 ls                     CONTROL   ALLOW    ALLOW
+```
+
+`\s*\+?=` as a named constant, documented as the **complete** bash assignment-operator set — a
+one-character widening of a CLOSED grammar, not the open-set widening D-64 refused. **New freedom:**
+the operator set is now a thing to check rather than to re-derive, so it is a named constant carrying
+the completeness claim, and a test asserts the claim is written down.
+
+## `RA2-1` (HIGH) — the admit verb took the governance root from argv
+
+```
+                                                    round-1   round-2
+repoRoot = a repo whose dial is ACTIVE   CONTROL    refused   arity refusal
+repoRoot = an EMPTY directory            ATTACK     ADMITTED  arity refusal
+repoRoot omitted (documented shape)      ATTACK2    ADMITTED  arity refusal
+CLAUDE_PROJECT_DIR = the active repo     TRUSTED    ADMITTED  refused (the dial is consulted)
+```
+
+The identical self-stamped high-severity finding, refused under an active dial and admitted under an
+empty directory — the exact shape `scripts/admission-server.ts:113-126` declares closed for the MCP
+schema, still open on the CLI, which is the surface the four non-Claude-Code CLIs use.
+
+The last row is the second half: on the round-1 build `CLAUDE_PROJECT_DIR` was **ignored**, so in a
+shared install a repository declaring `human_admission: all` was never consulted by the verb. It is
+now.
+
+**Structural fix:** both positionals deleted; one exported `trustedRepoRoot()` in `context-io.ts`,
+which `admission-server.ts` now IMPORTS instead of declaring its own copy (the two copies also
+disagreed on an empty value). `contextRoot` is derived. Arity for `admit` is exactly 2. Tests reach
+`admit()` in-process, where the parameters stay — a test seam belongs in a function signature, not in
+argv.
+
+**New freedom, bounded:** an operator with a non-standard layout loses the CLI override. The refusal
+names `CLAUDE_PROJECT_DIR` as the one way to move the root.
+
+## `RA2-2` / `RA2-3` — the checkpoint emitter
+
+`RA2-2` is a false sentence: `validate()` justified the `§checkpoint-guard` carve-out with *"it is
+written by a separate process the agent under it cannot invoke, pass content to or silence"*.
+`emitCheckpointNote` is an exported function. An in-process call wrote
+`CHECKPOINT ALLOWED … command: "git push --force origin main"` under the reserved identity with no
+guard running and nothing pushed. The clause was the stated reason a human may read such a record as a
+hook fact.
+
+Fixed by saying what is true **of the identity** — a root of trust stamps nothing above itself because
+nothing verifies it, which holds for both emitters — and by giving `emitCheckpointNote` the explicit
+tier paragraph `emitVerdict` has carried since 30-05, naming what *does* distinguish the tiers (the
+caller) rather than claiming the distinction away.
+
+`RA2-3`, measured on the round-1 build — every one **written**, none refused:
+
+```
+                                     round-1                                      round-2
+CONTROL well-formed refused          WRITTEN  CHECKPOINT REFUSED …                WRITTEN
+off-roster checkpoint id             WRITTEN  the checkpoint "not_a_checkpoint"   REFUSED, 0 files
+outcome outside the union            WRITTEN  CHECKPOINT APPROVED …               REFUSED, 0 files
+declared/effective non-canonical     WRITTEN  declared `yes` … enforced `maybe`   REFUSED, 0 files
+empty checkpoint id                  WRITTEN  the checkpoint ""                   REFUSED, 0 files
+a misspelled caller field            WRITTEN  refs: [ - undefined ]               REFUSED, 0 files
+```
+
+`outcome: "approved"` minted `CHECKPOINT APPROVED` — a verdict word the design does not define —
+under a reserved identity, and the literal string `undefined` reached `refs`, a load-bearing
+provenance field the compaction carve-out matches on. The TypeScript unions that were supposed to
+prevent this are **erased in the compiled `.js`**, which is what a host runs.
+
+Fixed by refuse-before-compose against sets that already exist and are **derived**: `CHECKPOINTS` for
+the id, the canonicalizer's `DISPOSITIONS` for the values, the input type's own union for the outcome.
+**New freedom, bounded:** the guard now has a way to fail while recording, and D-11 makes an
+unrecordable lowering a refusal — so a roster/emitter disagreement denies rather than mis-records. The
+accept sets are derived from the roster and a test drives **every roster member** through the emitter,
+so the emitter's set cannot drift narrower than the roster it mirrors.
+
+## `RA2-4` / `RA2-5` — the published residual
+
+`RA2-4`: `GUARANTEES.md` §9 published, in the present indicative, a narrowing measure that does not
+exist. Measured: zero `permissions.deny` recommendations in `install/`, `agent-factory/`,
+`.claude-plugin/` or `hooks/`; `hooks/hooks.json` carries exactly two PreToolUse matchers, neither
+matching `Write` or `Edit`. Corrected to the tense the tree supports, with `UNKNOWN - verify` on
+whether they land.
+
+**The gate that stops the next one**, and a correction to where it lives: a residual row may name a
+file, and the generator refuses to WRITE when a published row cites a path that is not in the tree.
+The path set is **derived** by scanning the row's own backticked spans, and the scan asserts its own
+non-vacuity. It was first placed inside `renderGuarantees`, which made the render depend on the whole
+tree — and `guarantees-freshness` re-renders in a MIRROR holding only the import closure, so the gate
+reported `hooks/hooks.json` missing from a tree it was never given. The render must stay a pure
+function of its declared inputs, because the freshness comparison is built on exactly that. The gate
+now runs at the entry point, and the freshness mirror copies the cited paths using the **same exported
+scanner** the gate uses, so the two cannot ask about different sets.
+
+`RA2-5`: the settings-file experiment (above) turned the negative half into a measurement. Row 9's
+positive half — *"a human's session export does reach the hook"* — is now marked at the same tier as
+the settings-file half rather than published flat, because both are the same composition and neither
+was separately observed on this host. Row 10's *"and the existing grants work on this host"* is
+**withdrawn**: it sat inside a sentence beginning "Measured" and nothing measured it. Row 10's
+`CLAUDE_CONFIG_DIR`-only scrub claim now carries the same correction row 9 carries, so two rows resting
+on one measurement stop disagreeing about it.
+
+**New freedom, bounded:** stating the positive half as unobserved makes the guarantee read weaker than
+the repository intends. Bounded by naming what IS observed and load-bearing in the same clause — the
+hook is a separate process, an agent's inline export cannot reach it, and a settings-file entry can —
+so the guarantee's floor is unchanged and only its ceiling is honest.
+
+## `RA2-6` — the gate procedure
+
+Exit `2` (the checker failed to run) was excluded from the human-only set in **both** places it was
+enumerated, is not agent-fixable, and reached Step 5's terminal mapping with no arm forcing a block.
+The gate could publish `READY_FOR_HUMAN_REVIEW` for a run whose trace-integrity checker never ran, and
+the only backstop — `emit-verdict`'s refusal — changed nothing about the terminal result.
+
+Fixed by stating the rule the enumeration approximated (**any** test-integrity result other than exit
+`0` is human-only, which cannot fall one short again) and by making the terminal result a
+**consequence** of the emission: `READY_FOR_HUMAN_REVIEW` only after `emit-verdict` exits 0. The
+frozen `## Stop conditions` bullet carried the third copy and moved with them, with 17 sentence-level
+disposition rows in `docs/audit/29-style-dispositions/30-11.md`.
+
+**New freedom, bounded:** the terminal result now depends on a write succeeding, so an unwritable
+context root blocks a genuinely green run — the same trade D-11 already made for an unrecordable
+lowering, and the result names the write failure so a human reads "the trace could not be written"
+rather than "the tests are red".
+
+## Reviewer observations, addressed
+
+- **`CLAUDE_PROJECT_DIR=""` read a CWD-relative config.** `??` treats `""` as supplied. Closed by
+  `trustedRepoRoot()`, which is now the single answer for the guard, the admission guard, the reader
+  and the CLI verb — the third base surface B spent a round reducing to two is gone.
+- **`V-30-08-01` is broader than recorded** — a self-set attempt in the `+=` spelling left nothing in
+  the transcript *either*. `RA1-5` closes the spelling; the entry's width is noted here.
+- **Refusal volume is unbounded** (N bogus config keys → N stderr lines per invocation). Not fixed:
+  capping the report would be a record that omits occurrences, which is the property the report exists
+  to deny, and the banner survives as line 1 either way. Recorded as a round-2 residual.
+- **The dropped-value refusal never names the value.** Deliberate — the value is untrusted and `A-6`
+  is why. Recorded, not changed.
+- **A live green verdict can be withdrawn via `supersedes` with nothing recorded**; **`emit-verdict …
+  clean ""` lands the note under CWD**; **`test_integrity` is published as a floor whose config cell
+  governs nothing**; **`readCheckpointMatrix` does not hold TINT-03**; **`render()` re-implements the
+  supersede fold.** All five are recorded as round-2 residuals with their directions; none is a
+  lowering, and each is a different surface's decision.

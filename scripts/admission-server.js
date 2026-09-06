@@ -42,7 +42,7 @@
 import { createInterface } from "node:readline";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
-import { admitAndAppend, normalizeKind, NOTE_KINDS, } from "./context-io.js";
+import { admitAndAppend, normalizeKind, NOTE_KINDS, trustedRepoRoot, } from "./context-io.js";
 // The MCP server name. The full tool name a hook/agent sees is mcp__<server>__<tool>, so this name must
 // match the mcpServers key in .claude-plugin/plugin.json → mcp__grugops__propose_note.
 export const SERVER_NAME = "grugops";
@@ -97,21 +97,6 @@ export const PROPOSE_NOTE_TOOL = {
         required: ["task", "kind", "by", "at", "confidence", "body"],
     },
 };
-// ── The TRUSTED governance/persist root (GAP-R6-2, Plan 25-12). ──────────────────────────────────
-// The dial / ledger root / context root MUST come from the SAME trusted source the per-call
-// admission-guard hook reads (process.env.CLAUDE_PROJECT_DIR), NOT from agent-supplied tool args. An
-// MCP server's process.env is launch-frozen, but the harness keeps CLAUDE_PROJECT_DIR stable per
-// session, so the hook tier and this persist tier resolve the IDENTICAL root and cannot diverge. When
-// CLAUDE_PROJECT_DIR is unset the fallback is the server's OWN resolved repo root (join(dirname, ".."))
-// — equal to context-io's ROOT and to admitAndAppend's repoRoot default. Agent `repoRoot`/`contextRoot`
-// are no longer in the inputSchema and are ignored here (the off-mode W3 defeat + forged disposed_by are
-// closed: the agent can no longer point governance at a root it controls).
-function trustedRepoRoot() {
-    const fromEnv = process.env.CLAUDE_PROJECT_DIR;
-    if (typeof fromEnv === "string" && fromEnv !== "")
-        return fromEnv;
-    return join(import.meta.dirname, "..");
-}
 export function handleProposeNote(args) {
     // Defensive shape coercion — the gate's decision logic lives in context-io, not here.
     const task = String(args.task ?? "");

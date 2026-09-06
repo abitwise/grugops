@@ -64,18 +64,55 @@
 // Block mechanism: exit 0 + JSON `hookSpecificOutput.permissionDecision: "deny"` with a
 // `permissionDecisionReason` (gives the agent a clear message). Allow = exit 0, no output. This mirrors
 // the prod-deploy guard's posture exactly.
-import { readFileSync } from "node:fs";
-// ── The fail-closed answer, declared BEFORE anything that can fail. ──────────────────────────────
-function deny(reason) {
-    process.stdout.write(JSON.stringify({
+import { readFileSync, writeSync } from "node:fs";
+// ── The two answers, declared BEFORE anything that can fail. ─────────────────────────────────────
+//
+// EXACTLY TWO WAYS OUT, AND A HANDLER THAT REFUSES A THIRD (plan 30-11 round 2, finding `RA1-2`).
+// Identical in form to hooks/guard.ts, and for the identical reason: round 1 bounded THROWS, and
+// three non-throw exits survived — a dependency whose top-level `await` never settles (Node exits
+// 13, zero bytes, 22 ms), a dependency calling `process.exit(0)` at module scope, and a blocking
+// read of a non-regular config path that never returned at all (measured: this hook answered a
+// control in 43 ms and produced NO answer at 20 seconds against a FIFO). The first two are
+// converted here; the third is closed in the reader, because a process that never exits cannot be
+// caught by an exit handler.
+//
+// `writeSync(1, …)` and not `process.stdout.write`: inside an `exit` handler only synchronous work
+// runs, and a decision that is merely queued is, at the host, no decision.
+let decided = false;
+function emitDecision(reason) {
+    decided = true;
+    writeSync(1, JSON.stringify({
         hookSpecificOutput: {
             hookEventName: "PreToolUse",
             permissionDecision: "deny",
             permissionDecisionReason: reason,
         },
     }));
+}
+function deny(reason) {
+    emitDecision(reason);
     process.exit(0); // exit 0 + JSON deny = blocked, with a message for the agent.
 }
+/** The other answer. Allow = exit 0, no output — now a NAMED exit rather than a bare one. */
+function allow() {
+    decided = true;
+    process.exit(0);
+}
+process.on("exit", () => {
+    if (decided)
+        return;
+    // THE EXIT CODE MUST BE CORRECTED TOO, AND THIS NEARLY SHIPPED WITHOUT IT. The block mechanism is
+    // exit 0 PLUS the deny JSON; any other non-zero exit is non-blocking at the host regardless of
+    // what is on stdout. The `ERR_UNFINISHED_TOP_LEVEL_AWAIT` path exits 13, so a handler that wrote
+    // the deny and left the code alone would have emitted a refusal the host ignores — a fix whose
+    // own premise was false. Measured directly: with `process.exitCode = 0` in the handler the
+    // process exits 0 and carries the JSON; without it, exit 13 and the same JSON.
+    process.exitCode = 0;
+    emitDecision(`Admission blocked (fail-closed): the grugops admission guard is exiting without having ` +
+        `decided anything. A PreToolUse hook that does not answer does not block, so an undecided ` +
+        `exit is converted into a refusal here rather than left to read as permission. A human must ` +
+        `repair the grugops installation, then re-run.`);
+});
 /**
  * The answer for a run that could not reach a decision at all (plan 30-11, finding A-2).
  *
@@ -87,11 +124,9 @@ function deny(reason) {
  * nor an explicit deny — and the two handlers plus the guarded dynamic import are what establish it.
  * The re-entrancy flag exists because the fail-closed answer must not be able to fail recursively.
  */
-let answering = false;
 function denyUndecided(stage, e) {
-    if (answering)
+    if (decided)
         process.exit(0);
-    answering = true;
     deny(`Admission blocked (fail-closed): the grugops admission guard could not ${stage} ` +
         `(${e instanceof Error ? e.message : String(e)}), so it could not decide whether this ` +
         `admission needs a named human. A hook that does not answer does not block, so it answers by ` +
@@ -161,7 +196,7 @@ if (toolInput === null) {
 // not throw, but a throw on a matched admit must also fail closed.
 let configResult;
 try {
-    configResult = readGovernanceConfig(process.env.CLAUDE_PROJECT_DIR);
+    configResult = readGovernanceConfig(ioMod.trustedRepoRoot());
 }
 catch {
     deny(`Admission blocked (fail-closed): the governance configuration could not be read while ` +
@@ -185,7 +220,7 @@ if (typeof kindRaw !== "string" || kindRaw.length === 0) {
             `is active. The hook cannot classify it, so it treats this admission as gate-or-stricter. A ` +
             `human must review this admission, or export ${APPROVAL}=NAME to authorize it.`);
     }
-    process.exit(0); // off / absent → nothing to gate
+    allow(); // off / absent → nothing to gate
 }
 // Canonicalize the kind via the SINGLE-SOURCE authority ONCE at the source (round-8 GAP-R7-1 Lever-1)
 // so BOTH the finding-equality check below AND the isGatedNote call further down see the SAME normalized
@@ -196,7 +231,7 @@ if (typeof kindRaw !== "string" || kindRaw.length === 0) {
 const kind = normalizeKind(kindRaw);
 // Only a finding is ever gated (soft kinds carry no disposition stamp, D-08 — via isGatedNote).
 if (kind !== "finding") {
-    process.exit(0);
+    allow();
 }
 // A finding's authoring role `by` drives severity classification. A missing/empty `by` on a finding is
 // unclassifiable: fail closed while the dial is active (a `by` the hook cannot read is gate-or-stricter,
@@ -210,7 +245,7 @@ if (by === "") {
             `gate-or-stricter. A human must review this admission, or export ${APPROVAL}=NAME to ` +
             `authorize it.`);
     }
-    process.exit(0);
+    allow();
 }
 // ── The single-source gated decision (W-A). ───────────────────────────────────────────────────────
 // isGatedNote owns the FULL composition ((isHighSeverityRole(by) && dial active) || dial=all, with the
@@ -221,7 +256,7 @@ if (by === "") {
 // defines no classifier of its own.
 const gated = isGatedNote(by, kind, configResult);
 if (!gated) {
-    process.exit(0); // routine under high-severity, or off / absent → not gated
+    allow(); // routine under high-severity, or off / absent → not gated
 }
 // ── The un-forgeable per-call gate (D-07). ────────────────────────────────────────────────────────
 // A GATED note is authorized ONLY if BOTH the FRESH human-set session env is present AND the
@@ -249,4 +284,4 @@ if (verifiedBy !== expectedStamp) {
         `call — the stamp alone never grants, and a stamp for a different name is refused.`);
 }
 // env present AND verified_by === `human:${env}` → this gated admission is authorized for this call.
-process.exit(0);
+allow();

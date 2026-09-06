@@ -68,6 +68,8 @@ import {
   pointerLine,
   declaredSafetyRows,
   declaredDroppedRows,
+  citedResidualPaths,
+  residualPathRefusals,
   disclosureFor,
   dropConsistencyRefusals,
   guaranteesJoin,
@@ -552,12 +554,20 @@ describe("generate-guarantees — the residual register drives the render (AUTO-
   });
 
   it("the WATCH ITEM is recorded with its source tier stated honestly", () => {
+    // THE TIER MOVED, AND THAT IS WHY THIS CASE CHANGED (plan 30-11 round 2, `RA2-5`). It used to
+    // require the words `ASSUMED` and "not from primary vendor documentation", which were correct
+    // while the entry rested on a GitHub issue title. Round 2 read the installed binary directly, so
+    // the entry now rests on an observation and asserting the old tier would pin a stale one. What
+    // this case asserts is unchanged in kind: the tier is STATED, and the specific claim the
+    // observation did not confirm is marked as not confirmed rather than quietly carried.
     const watch = readResidualAdditions(ROOT).find((r) => r.item.includes("scrubbing"));
     expect(watch, "no environment-scrubbing watch item in the residual register").toBeDefined();
     expect(watch!.reason).toContain("CLAUDE_CODE_SUBPROCESS_ENV_SCRUB");
-    // Marked ASSUMED rather than cited as established — the tier is the whole point of the entry.
-    expect(watch!.reason).toContain("ASSUMED");
-    expect(watch!.reason).toContain("not from primary vendor documentation");
+    expect(watch!.reason).toContain("DIRECT OBSERVATION");
+    expect(watch!.reason).toContain("NOT confirmed");
+    // The withdrawn clause must be gone: it sat inside a sentence beginning "Measured" and nothing
+    // measured it.
+    expect(watch!.reason).not.toContain("and the existing grants work on this host.");
   });
 });
 
@@ -1002,5 +1012,28 @@ describe("30-10 R6-3 — \"nothing is lowered\" is not \"everything is at its de
         )}, banner says "${banner}"`,
       ).toBe(banner === BANNER_ALL_DEFAULT);
     }
+  });
+});
+
+describe("30-11 RA2-4 — a published residual may not name a mechanism that is not in the tree", () => {
+  it("the scanner finds repo-shaped paths in a row and ignores prose", () => {
+    const row = "| 9 | x | `accepted` | — | see `hooks/hooks.json`, `install/README.md`, `not/a/path`, `off` |";
+    expect(citedResidualPaths(row)).toEqual(["hooks/hooks.json", "install/README.md"]);
+  });
+
+  it("the real register cites paths, and every one of them exists", () => {
+    // Two-sided: the refusal list is empty AND the scan is not vacuous. A scanner that matched
+    // nothing would pass this gate for every row forever, which is the failure the gate's own
+    // vacuity clause refuses.
+    expect(residualPathRefusals()).toEqual([]);
+    const text = readFileSync(join(ROOT, "docs/audit/28-residual-sizing.md"), "utf8");
+    const all = text.split("\n").flatMap((l) => citedResidualPaths(l));
+    expect(all.length).toBeGreaterThan(0);
+  });
+
+  it("the published row no longer states a narrowing measure in the present indicative", () => {
+    const page = readFileSync(join(ROOT, "docs/GUARANTEES.md"), "utf8");
+    expect(page).not.toContain("The narrowing measure is a `permissions.deny` recommendation");
+    expect(page).toContain("neither is in the tree at HEAD");
   });
 });

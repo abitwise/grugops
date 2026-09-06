@@ -29,6 +29,7 @@ import {
   readFileSync,
   readdirSync,
   existsSync,
+  symlinkSync,
   rmSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -364,14 +365,40 @@ describe("context-io.js — provenance-forgery defense (CR-01)", () => {
   });
 });
 
+/**
+ * Run the CLI `admit` verb against a chosen context root.
+ *
+ * The verb no longer takes `contextRoot`/`repoRoot` from argv (plan 30-11 round 2, `RA2-1`): both
+ * are derived from `trustedRepoRoot()`. So the harness supplies the root the way a host does — by
+ * setting `CLAUDE_PROJECT_DIR` — and links the canonical context position at the temp root the case
+ * built. The assertions below are unchanged; only the way the root is supplied is.
+ */
+function admitViaCli(
+  task: string,
+  noteFile: string,
+  contextRoot: string,
+  extraEnv: Record<string, string> = {},
+): { status: number | null; stdout: string; stderr: string } {
+  const repoRoot = mkdtempSync(join(tmpdir(), "admit-repo-"));
+  tmpDirs.push(repoRoot);
+  mkdirSync(join(repoRoot, ".grugops"), { recursive: true });
+  symlinkSync(contextRoot, join(repoRoot, ".grugops", "context"));
+  const env: Record<string, string> = {};
+  for (const [k, v] of Object.entries(process.env)) {
+    if (k === "CLAUDE_PROJECT_DIR" || v === undefined) continue;
+    env[k] = v;
+  }
+  const r = spawnSync("node", [CONTEXT_IO_JS, "admit", task, noteFile], {
+    cwd: ROOT,
+    encoding: "utf8",
+    env: { ...env, CLAUDE_PROJECT_DIR: repoRoot, ...extraEnv },
+  });
+  return { status: r.status, stdout: r.stdout ?? "", stderr: r.stderr ?? "" };
+}
+
 describe("context-io.js — verify-before-write admission (VFY-01/VFY-02)", () => {
   // Run the compiled CLI: `node context-io.js admit <task> <noteFile> <contextRoot>`.
-  function runAdmit(task: string, noteFile: string, contextRoot: string) {
-    return spawnSync("node", [CONTEXT_IO_JS, "admit", task, noteFile, contextRoot], {
-      cwd: ROOT,
-      encoding: "utf8",
-    });
-  }
+  const runAdmit = admitViaCli;
 
   // ── D-09 structural refuse-self set (text-only `validate <file>` path) ─────────────────────────
 
@@ -564,12 +591,7 @@ describe("context-io.js — replay/supersede (SCTX-04)", () => {
 describe("context-io.js — CRLF round-trip admission (CR-01)", () => {
   // Run the compiled CLI: `node context-io.js admit <task> <noteFile> <contextRoot>`.
   // Same spawnSync shape as the verify-before-write admission block (L318-323).
-  function runAdmit(task: string, noteFile: string, contextRoot: string) {
-    return spawnSync("node", [CONTEXT_IO_JS, "admit", task, noteFile, contextRoot], {
-      cwd: ROOT,
-      encoding: "utf8",
-    });
-  }
+  const runAdmit = admitViaCli;
 
   // Rewrite every note file under <contextRoot>/<task>/notes/ from LF to CRLF on disk —
   // reproducing the git autocrlf=true (Windows default) state CR-01 fails on. emitVerdict
@@ -3314,10 +3336,7 @@ describe("context-io CLI: the dispatched verbs and the usage line are one set (p
     // The two surfaces agree: a finding stamping that per-run id is admitted.
     const f = join(contextRoot, "finding.md");
     writeFileSync(f, goodNoteText({ kind: "finding", verified_by: "§14-gate#RUN-CLI-3" }));
-    const admitted = spawnSync("node", [CONTEXT_IO_JS, "admit", "cli-task", f, contextRoot], {
-      cwd: ROOT,
-      encoding: "utf8",
-    });
+    const admitted = admitViaCli("cli-task", f, contextRoot);
     expect(admitted.status, `${admitted.stdout}${admitted.stderr}`).toBe(0);
   });
 });
@@ -3578,12 +3597,8 @@ describe("30-11 A-7 — the admit CLI's success line asserts only checks that RA
     const root = freshTmp("ctx-admit-");
     const file = join(root, "candidate.md");
     writeFileSync(file, noteText(f));
-    const r = spawnSync(
-      "node",
-      [CONTEXT_IO_JS, "admit", "t", file, join(root, "ctx"), root],
-      { encoding: "utf8" },
-    );
-    return { status: r.status, msg: ((r.stdout ?? "") + (r.stderr ?? "")).trim() };
+    const r = admitViaCli("t", file, join(root, "ctx"));
+    return { status: r.status, msg: (r.stdout + r.stderr).trim() };
   }
 
   it("a human-stamped finding admits WITHOUT claiming a gate cross-check matched", () => {
@@ -3637,11 +3652,10 @@ describe("30-11 — the green-verdict RECOGNIZER and the impersonation refusal d
       const w = freshTmp("ctx-div-a-");
       const wf = join(w, "c.md");
       writeFileSync(wf, note({ kind: "finding", by, verified_by: "human:alice" }));
-      const a = spawnSync("node", [CONTEXT_IO_JS, "admit", "t", wf, join(w, "ctx"), w], {
-        encoding: "utf8",
-      });
+      mkdirSync(join(w, "ctx"), { recursive: true });
+      const a = admitViaCli("t", wf, join(w, "ctx"));
       const refusedAsImpersonation =
-        a.status !== 0 && ((a.stderr ?? "") + (a.stdout ?? "")).includes("reserved author identity");
+        a.status !== 0 && (a.stderr + a.stdout).includes("reserved author identity");
 
       // SIDE 2 — the read path. The plant is written straight to disk, which is the documented
       // same-uid direct-filesystem residual; the only question here is whether the RECOGNIZER folds
@@ -3663,7 +3677,7 @@ describe("30-11 — the green-verdict RECOGNIZER and the impersonation refusal d
         ff,
         note({ kind: "finding", by: "software-engineer", verified_by: "§14-gate#RUN-9" }),
       );
-      const b = spawnSync("node", [CONTEXT_IO_JS, "admit", "t", ff, ctx, rd], { encoding: "utf8" });
+      const b = admitViaCli("t", ff, ctx);
       const recognized = b.status === 0;
 
       expect(
@@ -3674,4 +3688,216 @@ describe("30-11 — the green-verdict RECOGNIZER and the impersonation refusal d
       ).toBe(refusedAsImpersonation);
     });
   }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// PLAN 30-11 — RED-TEAM SURFACE A, ROUND 2 (RA2-1, RA2-3, RA1-2's reader half).
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+describe("30-11 RA2-1 — the admit verb does not take the governance root from argv", () => {
+  // THE BYPASS. The verb read `contextRoot` and `repoRoot` from `process.argv` — the exact two
+  // arguments GAP-R6-2 removed from the MCP tool schema, where scripts/admission-server.ts states in
+  // this same codebase that the agent "can no longer point governance at a root it controls". The
+  // fix had been applied to the schema and not to the CLI, which is the surface the four
+  // non-Claude-Code CLIs use. Measured on the round-1 artifact: the identical self-stamped
+  // high-severity finding was REFUSED with repoRoot naming an active repo and ADMITTED with repoRoot
+  // naming an empty directory.
+  function fixture(): { note: string; active: string; empty: string } {
+    const root = freshTmp("ra21-");
+    mkdirSync(join(root, "empty"), { recursive: true });
+    mkdirSync(join(root, "active", ".grugops"), { recursive: true });
+    writeFileSync(
+      join(root, "active", ".grugops", "factory.config.json"),
+      '{"checkpoints":{},"context":{"human_admission":"high-severity"}}',
+    );
+    const note = join(root, "hi.md");
+    writeFileSync(
+      note,
+      "---\nid: n1\nkind: finding\nby: security-nfr\nat: 2026-09-06T00:00:00Z\n" +
+        "verified_by: human:alice\nconfidence: high\nrefs:\nsupersedes:\n---\n\nA high severity finding.\n",
+    );
+    return { note, active: join(root, "active"), empty: join(root, "empty") };
+  }
+  function admitCli(args: string[], env: Record<string, string> = {}): { status: number | null; msg: string } {
+    const base: Record<string, string> = {};
+    for (const [k, v] of Object.entries(process.env)) {
+      if (k === "CLAUDE_PROJECT_DIR" || v === undefined) continue;
+      base[k] = v;
+    }
+    const r = spawnSync("node", [CONTEXT_IO_JS, "admit", ...args], {
+      encoding: "utf8",
+      env: { ...base, ...env },
+    });
+    return { status: r.status, msg: ((r.stdout ?? "") + (r.stderr ?? "")).trim() };
+  }
+
+  it("a caller-supplied contextRoot/repoRoot is refused as an arity error", () => {
+    const f = fixture();
+    for (const args of [
+      ["t", f.note, join(f.empty, "ctx"), f.empty],
+      ["t", f.note, join(f.empty, "ctx")],
+    ]) {
+      const r = admitCli(args);
+      expect(r.status, `argv ${args.length} must not be accepted`).toBe(1);
+      expect(r.msg).toContain("exactly 2 positional arguments");
+      expect(r.msg).toContain("CLAUDE_PROJECT_DIR");
+    }
+  });
+
+  it("the dial comes from CLAUDE_PROJECT_DIR — the self-stamped finding is REFUSED", () => {
+    const f = fixture();
+    const r = admitCli(["t", f.note], { CLAUDE_PROJECT_DIR: f.active });
+    expect(r.status).toBe(1);
+    expect(r.msg).toContain("high-severity");
+  });
+
+  it("NON-VACUITY: the same note under a root whose dial is absent is admitted", () => {
+    // Without this the case above could be passing because the note itself is invalid.
+    const f = fixture();
+    const r = admitCli(["t", f.note], { CLAUDE_PROJECT_DIR: f.empty });
+    expect(r.status).toBe(0);
+  });
+
+  it("trustedRepoRoot is ONE function, and an empty CLAUDE_PROJECT_DIR names nothing", () => {
+    const before = process.env.CLAUDE_PROJECT_DIR;
+    try {
+      delete process.env.CLAUDE_PROJECT_DIR;
+      const unset = mod.trustedRepoRoot();
+      process.env.CLAUDE_PROJECT_DIR = "";
+      expect(mod.trustedRepoRoot(), "an empty value is not a supplied one").toBe(unset);
+      process.env.CLAUDE_PROJECT_DIR = "   ";
+      expect(mod.trustedRepoRoot(), "whitespace names nothing either").toBe(unset);
+      process.env.CLAUDE_PROJECT_DIR = "/tmp/some-project";
+      expect(mod.trustedRepoRoot()).toBe("/tmp/some-project");
+    } finally {
+      if (before === undefined) delete process.env.CLAUDE_PROJECT_DIR;
+      else process.env.CLAUDE_PROJECT_DIR = before;
+    }
+  });
+
+  it("the admission server does not declare a SECOND trustedRepoRoot", () => {
+    const src = readFileSync(join(ROOT, "scripts", "admission-server.ts"), "utf8");
+    expect(src).not.toMatch(/function\s+trustedRepoRoot/);
+    expect(src).toMatch(/trustedRepoRoot,/); // imported from the one authority
+  });
+});
+
+describe("30-11 RA2-3 — emitCheckpointNote refuses before composing, on content as well as shape", () => {
+  const base = {
+    checkpoint: "protected_branch_merge",
+    declared: "block",
+    effective: "block",
+    authorizedBy: null,
+    envVarName: "GRUGOPS_FLOOR_PROTECTED_BRANCH_MERGE",
+    outcome: "refused",
+    actionApproval: null,
+    actor: "tool=Bash session=s1",
+    command: "git push origin main",
+  } as const;
+  function tree(root: string): string[] {
+    const out: string[] = [];
+    const walk = (d: string): void => {
+      if (!existsSync(d)) return;
+      for (const e of readdirSync(d, { withFileTypes: true })) {
+        const p = join(d, e.name);
+        if (e.isDirectory()) walk(p);
+        else out.push(p);
+      }
+    };
+    walk(root);
+    return out;
+  }
+
+  it("CONTROL: a well-formed record is written (the sweep is not vacuous)", () => {
+    const root = freshTmp("ra23-ok-");
+    mod.emitCheckpointNote({ ...base }, root);
+    const files = tree(root).filter((f) => f.endsWith(".md"));
+    expect(files.length).toBe(1);
+    expect(readFileSync(files[0] as string, "utf8")).toContain("CHECKPOINT REFUSED");
+  });
+
+  for (const [label, patch] of [
+    ["an off-roster checkpoint id", { checkpoint: "not_a_checkpoint" }],
+    ["an empty checkpoint id", { checkpoint: "" }],
+    ["an outcome outside the two-member union", { outcome: "approved" }],
+    ["a non-canonical declared", { declared: "yes" }],
+    ["a non-canonical effective", { effective: "maybe" }],
+    ["a missing actor (a misspelled caller field)", { actor: undefined }],
+    ["a missing command", { command: undefined }],
+  ] as const) {
+    it(`refuses ${label}, leaving NOTHING on disk`, () => {
+      const root = freshTmp("ra23-");
+      expect(() =>
+        mod.emitCheckpointNote({ ...base, ...(patch as Record<string, unknown>) } as never, root),
+      ).toThrow(/refusing to emit/);
+      // The strongest form of "no partial record": nothing was created at all.
+      expect(tree(root)).toEqual([]);
+    });
+  }
+
+  it("`outcome: \"approved\"` cannot mint a verdict word the design does not define", () => {
+    const root = freshTmp("ra23-approved-");
+    expect(() => mod.emitCheckpointNote({ ...base, outcome: "approved" } as never, root)).toThrow(
+      /may not mint a verdict word/,
+    );
+    expect(tree(root)).toEqual([]);
+  });
+
+  it("the accept sets are DERIVED from the roster, not restated beside it", () => {
+    // Every roster member is accepted, so the emitter's set cannot drift narrower than the roster it
+    // mirrors — the set-literal-drift class, asserted rather than trusted.
+    for (const id of cpMod.CHECKPOINTS) {
+      const root = freshTmp("ra23-roster-");
+      expect(() => mod.emitCheckpointNote({ ...base, checkpoint: id }, root)).not.toThrow();
+    }
+  });
+});
+
+describe("30-11 RA1-2 (reader half) — a governance config that is not a regular file is refused", () => {
+  it("a FIFO at the config path is unreadable, not read — and unreadable is the strictest matrix", () => {
+    const base = freshTmp("nonfile-");
+    mkdirSync(join(base, ".grugops"), { recursive: true });
+    execFileSync("mkfifo", [join(base, ".grugops", "factory.config.json")]);
+    const res = mod.readGovernanceConfig(base);
+    expect(res.source).toBe("unreadable");
+    // Every checkpoint at `block`: an unknown declaration is enforced at the strictest value.
+    for (const id of cpMod.CHECKPOINTS) expect(res.config.checkpoints[id]).toBe("block");
+  });
+
+  it("a DIRECTORY at the config path is unreadable too", () => {
+    const base = freshTmp("nonfile-dir-");
+    mkdirSync(join(base, ".grugops", "factory.config.json"), { recursive: true });
+    expect(mod.readGovernanceConfig(base).source).toBe("unreadable");
+  });
+
+  it("NON-VACUITY: a regular file at the same position reads normally", () => {
+    const base = freshTmp("nonfile-ok-");
+    mkdirSync(join(base, ".grugops"), { recursive: true });
+    writeFileSync(
+      join(base, ".grugops", "factory.config.json"),
+      '{"checkpoints":{"protected_branch_merge":"off"}}',
+    );
+    const res = mod.readGovernanceConfig(base);
+    expect(res.source).toBe("ok");
+    expect(res.config.checkpoints.protected_branch_merge).toBe("off");
+  });
+
+  it("a SYMLINK to a regular file still reads (stat through the link, never lstat)", () => {
+    const base = freshTmp("nonfile-link-");
+    mkdirSync(join(base, ".grugops"), { recursive: true });
+    const real = join(base, "real.json");
+    writeFileSync(real, '{"checkpoints":{"protected_branch_merge":"notify"}}');
+    symlinkSync(real, join(base, ".grugops", "factory.config.json"));
+    const res = mod.readGovernanceConfig(base);
+    expect(res.source).toBe("ok");
+    expect(res.config.checkpoints.protected_branch_merge).toBe("notify");
+  });
+
+  it("an absent config is still ABSENT, not unreadable (ENOENT is the only absence)", () => {
+    expect(mod.readGovernanceConfig(freshTmp("nonfile-absent-")).source).toBe("absent");
+  });
+
+  it("an empty repoRoot falls back rather than resolving against the cwd", () => {
+    expect(mod.readGovernanceConfig("").source).toBe(mod.readGovernanceConfig(undefined).source);
+  });
 });
