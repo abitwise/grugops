@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 114
+open_count: 123
 waived_count: 0
 fixed_count: 4
-total_count: 118
-last_updated: 2026-09-05T16:47:59.587Z
+total_count: 127
+last_updated: 2026-09-06T15:18:02.258Z
 ---
 
 # Broken Windows Ledger
@@ -133,6 +133,15 @@ last_updated: 2026-09-05T16:47:59.587Z
 | 116 | 30 | deviation | agent-factory/config/factory.config.json |  | shipped checkpoints posture not reconciled with the legacy autonomy: pr / quality.test_integrity: warn grade (V-30-02-01) | open |  | 2026-09-05T13:31:29.522Z |  |
 | 117 | 30 | deviation | agent-factory/config/factory.config.json |  | test_integrity has two config cells (quality.test_integrity and checkpoints.test_integrity) until the legacy key is retired (V-30-02-02) | open |  | 2026-09-05T13:31:29.626Z |  |
 | 118 | 30 | deviation | scripts/check-banned-claims.test.ts |  | Plan 30-07: two 'no scan member overlaps an exclusion entry' assertions now compare against an ENUMERATED, count-pinned admission set (docs/GUARANTEES.md), because D-17 places the render under an excluded segment class. Exclusion list and walk byte-unchanged; original predicate kept exact over walk-derived parts. | open |  | 2026-09-05T16:47:59.587Z |  |
+| 119 | 30 | deviation | scripts/checkpoints.ts |  | V-30-11-16 (RA7-1, HIGH, ZERO KEYS, plan 30-11 surface A fence): PROTECTED_REF_RE matches only a whole-word ref, so +main / HEAD:main / feature:main escape it, and a git global flag removes the literal pattern in the same stroke. EXECUTED on real git 2.55.0: git -C sub push origin +main gave '+ 30c1a74...18db97f main -> main (forced update)' through the committed hook artifact with no grant, no env var and no human name. Fenced under D-22 at the four-round cap, not fixed. Reproduction and structural fix in docs/audit/30-redteam-surface-a.md. | open |  | 2026-09-06T15:17:38.768Z |  |
+| 120 | 30 | deviation | scripts/checkpoints.ts |  | V-30-11-17 (RA7-2, HIGH, ZERO KEYS, plan 30-11 surface A fence): git config is deliverable through the ENVIRONMENT inside the same command text (GIT_CONFIG_COUNT, GIT_CONFIG_PARAMETERS, --config-env) while the alias arm reads only -c. EXECUTED: three consecutive forced updates of main on a real bare remote. Round 3's reviewer recorded --config-env as 'not a governed action' under probes that found nothing; that claim was measurably wrong and passed into round 4 unexamined. Fenced under D-22, not fixed. | open |  | 2026-09-06T15:17:38.863Z |  |
+| 121 | 30 | deviation | scripts/checkpoints.ts |  | V-30-11-18 (RA7-3, HIGH, ZERO KEYS, plan 30-11 surface A fence): a chained alias feeds gitPushIsGoverned a candidate list whose tail is an alias NAME rather than a refspec, so git -c alias.p=push -c alias.q=p q ALLOWS and EXECUTED a bare git push (eeb436f..fb57a1b main -> main) - the ambiguous form RA1-3 exists to deny. Subsumed by V-30-11-17's deletion. Fenced under D-22, not fixed. | open |  | 2026-09-06T15:17:38.949Z |  |
+| 122 | 30 | deviation | scripts/checkpoints.ts |  | V-30-11-19 (RA7-4, HIGH, ZERO KEYS, plan 30-11 surface A fence): the whitespace re-tokenization is gated behind 'w.isFlag continue', so a governed command inside a flag-shaped word reaches neither authority - env -S'kubectl -n prod apply -f x.yaml' and --message="deploy: helm -n prod upgrade" ALLOW while -m 'deploy: helm -n prod upgrade' DENIES. EXECUTED against stub kubectl/gh binaries and against real git. Fenced under D-22, not fixed. | open |  | 2026-09-06T15:18:01.831Z |  |
+| 123 | 30 | deviation | scripts/checkpoints.ts |  | V-30-11-20 (RA7-5, HIGH, ZERO KEYS, plan 30-11 surface A fence): a COMBINED short flag defeats the force rule in BOTH authorities in the plainest spelling - git push -fu origin feature EXECUTED '+ 3202f43...9a0d4c3 feature -> feature (forced update)' on real git. FORCE_PUSH_FLAGS holds exact tokens and the literal pattern misses it too; the first finding in this log both authorities miss in an adjacent, unquoted, unwrapped form. Fenced under D-22, not fixed. | open |  | 2026-09-06T15:18:01.916Z |  |
+| 124 | 30 | deviation | hooks/hook-entry.ts |  | V-30-11-25 (RA8-3, HIGH, plan 30-11 surface A fence): DECIDER_MANIFEST is a plain object literal, so a decider name resolving to an Object.prototype key (hook-entry.js ../__proto__) SKIPS the manifest check entirely - Object.entries(Object.prototype) is [], the loop runs zero times and verification reports success having read zero files. A planted module writing the plaintext fd-3 token then yields exit 0 / 0 bytes = ALLOW at the host on 'git push --force origin main', with NO D-20 banner in the transcript. Reachability is repository-time (argv[2] comes from hooks.json) but it is an invisibility escalation: hooks.json still names hook-entry.js and every check stays green. Fenced under D-22, not fixed. | open |  | 2026-09-06T15:18:02.001Z |  |
+| 125 | 30 | deviation | hooks/hook-entry.ts |  | V-30-11-21/22 (RA7-6, RA7-7, plan 30-11 surface A fence): the wrapper's integrity is a REPOSITORY-TIME control, not a runtime one. RA7-6 - verifyDeciderClosure hashes then spawnSync loads, not atomic: a background writer flipping the file in that window measured 87/352 = 24.7% ALLOW against a 0/124 control. RA7-7 - NODE_OPTIONS=--require preloads arbitrary code inside the hook process before the wrapper's first line, wrapper ALLOW with the manifest still verifying, and the self-set vocabulary (three GRUGOPS names) refuses it nowhere and records it nowhere. This WIDENS V-30-08-01. Fenced under D-22, not fixed. | open |  | 2026-09-06T15:18:02.086Z |  |
+| 126 | 30 | unrun-verify | .github/workflows/ci.yml |  | V-30-11-23/24/29 (RA8-1, RA8-2, RA8-7, plan 30-11 surface A fence): gate reachability is not established. The derived runner set decides 'is this gate in CI' by raw-text ci.includes over ci.yml, so a COMMENTED-OUT step keeps it green (measured), and both arms filter on check- so a freshness gate is invisible to it. freshness:hook-manifest - the drift gate the whole wrapper-manifest fix rests on - appears in ci.yml ZERO times and in no test; the suite substitute is a whole-file containment test that cannot see a per-decider short manifest. 9 freshness scripts, 6 in CI, 3 at zero. Fenced under D-22, not fixed. | open |  | 2026-09-06T15:18:02.172Z |  |
+| 127 | 30 | deviation | hooks/hook-entry.ts |  | V-30-11-31 (plan 30-11 surface A fence): the documented 10 s wrapper-timeout justification at hooks/hook-entry.ts:259 is FALSE - '466 ms is the worst decision measured' was the worst SAMPLED, not the worst reachable. Measured: 'true ; ' x 250000 gives 10047 ms -> SIGTERM -> fail-closed DENY; git x 50000 gives 10046 ms -> DENY. The command model is quadratic in tool-name occurrences per segment, so the timeout is input-reachable. Direction is over-refusal so the guard still fails closed, but a documented invariant that is false is the class this log keeps catching. Annotated in place, not rewritten. Fenced under D-22, not fixed. | open |  | 2026-09-06T15:18:02.258Z |  |
 
 ````json
 [
@@ -1550,6 +1559,114 @@ last_updated: 2026-09-05T16:47:59.587Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-09-05T16:47:59.587Z",
+    "resolved_at": null
+  },
+  {
+    "id": 119,
+    "kind": "deviation",
+    "phase": "30",
+    "file": "scripts/checkpoints.ts",
+    "line": null,
+    "description": "V-30-11-16 (RA7-1, HIGH, ZERO KEYS, plan 30-11 surface A fence): PROTECTED_REF_RE matches only a whole-word ref, so +main / HEAD:main / feature:main escape it, and a git global flag removes the literal pattern in the same stroke. EXECUTED on real git 2.55.0: git -C sub push origin +main gave '+ 30c1a74...18db97f main -> main (forced update)' through the committed hook artifact with no grant, no env var and no human name. Fenced under D-22 at the four-round cap, not fixed. Reproduction and structural fix in docs/audit/30-redteam-surface-a.md.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-06T15:17:38.768Z",
+    "resolved_at": null
+  },
+  {
+    "id": 120,
+    "kind": "deviation",
+    "phase": "30",
+    "file": "scripts/checkpoints.ts",
+    "line": null,
+    "description": "V-30-11-17 (RA7-2, HIGH, ZERO KEYS, plan 30-11 surface A fence): git config is deliverable through the ENVIRONMENT inside the same command text (GIT_CONFIG_COUNT, GIT_CONFIG_PARAMETERS, --config-env) while the alias arm reads only -c. EXECUTED: three consecutive forced updates of main on a real bare remote. Round 3's reviewer recorded --config-env as 'not a governed action' under probes that found nothing; that claim was measurably wrong and passed into round 4 unexamined. Fenced under D-22, not fixed.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-06T15:17:38.863Z",
+    "resolved_at": null
+  },
+  {
+    "id": 121,
+    "kind": "deviation",
+    "phase": "30",
+    "file": "scripts/checkpoints.ts",
+    "line": null,
+    "description": "V-30-11-18 (RA7-3, HIGH, ZERO KEYS, plan 30-11 surface A fence): a chained alias feeds gitPushIsGoverned a candidate list whose tail is an alias NAME rather than a refspec, so git -c alias.p=push -c alias.q=p q ALLOWS and EXECUTED a bare git push (eeb436f..fb57a1b main -> main) - the ambiguous form RA1-3 exists to deny. Subsumed by V-30-11-17's deletion. Fenced under D-22, not fixed.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-06T15:17:38.949Z",
+    "resolved_at": null
+  },
+  {
+    "id": 122,
+    "kind": "deviation",
+    "phase": "30",
+    "file": "scripts/checkpoints.ts",
+    "line": null,
+    "description": "V-30-11-19 (RA7-4, HIGH, ZERO KEYS, plan 30-11 surface A fence): the whitespace re-tokenization is gated behind 'w.isFlag continue', so a governed command inside a flag-shaped word reaches neither authority - env -S'kubectl -n prod apply -f x.yaml' and --message=\"deploy: helm -n prod upgrade\" ALLOW while -m 'deploy: helm -n prod upgrade' DENIES. EXECUTED against stub kubectl/gh binaries and against real git. Fenced under D-22, not fixed.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-06T15:18:01.831Z",
+    "resolved_at": null
+  },
+  {
+    "id": 123,
+    "kind": "deviation",
+    "phase": "30",
+    "file": "scripts/checkpoints.ts",
+    "line": null,
+    "description": "V-30-11-20 (RA7-5, HIGH, ZERO KEYS, plan 30-11 surface A fence): a COMBINED short flag defeats the force rule in BOTH authorities in the plainest spelling - git push -fu origin feature EXECUTED '+ 3202f43...9a0d4c3 feature -> feature (forced update)' on real git. FORCE_PUSH_FLAGS holds exact tokens and the literal pattern misses it too; the first finding in this log both authorities miss in an adjacent, unquoted, unwrapped form. Fenced under D-22, not fixed.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-06T15:18:01.916Z",
+    "resolved_at": null
+  },
+  {
+    "id": 124,
+    "kind": "deviation",
+    "phase": "30",
+    "file": "hooks/hook-entry.ts",
+    "line": null,
+    "description": "V-30-11-25 (RA8-3, HIGH, plan 30-11 surface A fence): DECIDER_MANIFEST is a plain object literal, so a decider name resolving to an Object.prototype key (hook-entry.js ../__proto__) SKIPS the manifest check entirely - Object.entries(Object.prototype) is [], the loop runs zero times and verification reports success having read zero files. A planted module writing the plaintext fd-3 token then yields exit 0 / 0 bytes = ALLOW at the host on 'git push --force origin main', with NO D-20 banner in the transcript. Reachability is repository-time (argv[2] comes from hooks.json) but it is an invisibility escalation: hooks.json still names hook-entry.js and every check stays green. Fenced under D-22, not fixed.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-06T15:18:02.001Z",
+    "resolved_at": null
+  },
+  {
+    "id": 125,
+    "kind": "deviation",
+    "phase": "30",
+    "file": "hooks/hook-entry.ts",
+    "line": null,
+    "description": "V-30-11-21/22 (RA7-6, RA7-7, plan 30-11 surface A fence): the wrapper's integrity is a REPOSITORY-TIME control, not a runtime one. RA7-6 - verifyDeciderClosure hashes then spawnSync loads, not atomic: a background writer flipping the file in that window measured 87/352 = 24.7% ALLOW against a 0/124 control. RA7-7 - NODE_OPTIONS=--require preloads arbitrary code inside the hook process before the wrapper's first line, wrapper ALLOW with the manifest still verifying, and the self-set vocabulary (three GRUGOPS names) refuses it nowhere and records it nowhere. This WIDENS V-30-08-01. Fenced under D-22, not fixed.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-06T15:18:02.086Z",
+    "resolved_at": null
+  },
+  {
+    "id": 126,
+    "kind": "unrun-verify",
+    "phase": "30",
+    "file": ".github/workflows/ci.yml",
+    "line": null,
+    "description": "V-30-11-23/24/29 (RA8-1, RA8-2, RA8-7, plan 30-11 surface A fence): gate reachability is not established. The derived runner set decides 'is this gate in CI' by raw-text ci.includes over ci.yml, so a COMMENTED-OUT step keeps it green (measured), and both arms filter on check- so a freshness gate is invisible to it. freshness:hook-manifest - the drift gate the whole wrapper-manifest fix rests on - appears in ci.yml ZERO times and in no test; the suite substitute is a whole-file containment test that cannot see a per-decider short manifest. 9 freshness scripts, 6 in CI, 3 at zero. Fenced under D-22, not fixed.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-06T15:18:02.172Z",
+    "resolved_at": null
+  },
+  {
+    "id": 127,
+    "kind": "deviation",
+    "phase": "30",
+    "file": "hooks/hook-entry.ts",
+    "line": null,
+    "description": "V-30-11-31 (plan 30-11 surface A fence): the documented 10 s wrapper-timeout justification at hooks/hook-entry.ts:259 is FALSE - '466 ms is the worst decision measured' was the worst SAMPLED, not the worst reachable. Measured: 'true ; ' x 250000 gives 10047 ms -> SIGTERM -> fail-closed DENY; git x 50000 gives 10046 ms -> DENY. The command model is quadratic in tool-name occurrences per segment, so the timeout is input-reachable. Direction is over-refusal so the guard still fails closed, but a documented invariant that is false is the class this log keeps catching. Annotated in place, not rewritten. Fenced under D-22, not fixed.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-06T15:18:02.258Z",
     "resolved_at": null
   }
 ]

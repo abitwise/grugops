@@ -401,3 +401,153 @@ twenty residuals recorded, ten of them open bypasses with working reproductions.
 available on the evidence; `another-round` is forbidden by D-22. The closure judgement is a human
 judgement and is marked `human_judgment: true` in `30-10-SUMMARY.md`. These entries are live backlog:
 they are not closed by the fence, they are made visible by it.
+
+---
+
+# Surface A (plan 30-11) — THE FENCE and its backlog
+
+**Status: FENCED at D-22's four-round cap, 2026-09-06.** Full round log, both round-4 reviewer reports
+verbatim, and every reproduction: `docs/audit/30-redteam-surface-a.md` (§ *THE FENCE — final*).
+
+**Read this before reading the plan's SUMMARY.** The entries below are **live backlog with working
+reproductions**, not closed items. The fence makes them visible; it does not close them.
+
+## The fence text (identical to the round log)
+
+> **Surface A is FENCED, NOT CLOSED.**
+>
+> Four adversarial gap-closure rounds ran against the two-key hook path — the prod-deploy guard, the
+> admission guard, the command model, the hook entry point, the fresh environment read, the self-set
+> refusal — and against the point-of-effect test-integrity refusal. They closed
+> **8 + 11 + 13 + 10 = 42 findings**. Each closure carries a failing test written before the fix
+> existed, a mirror reproduction against the **committed `.js` spawned as a process**, a structural
+> fix rather than a heuristic, and a mutation proof read out of the emitted artifact.
+>
+> **No round returned "nothing new."** Eight independent reviews at the strongest available model ran
+> across the four rounds, and every one of them found something.
+>
+> **The rate at which each round's own repairs manufactured the next round's findings did not fall:**
+> round 1, 8 findings; round 2, 11 findings, **1 of 11** created by round 1's fixes; round 3, 13
+> findings, **12 of 13** created by round 2's fixes; round 4, 10 findings, **10 of 10** created by
+> round 3's fixes; and post-cap, **14 findings, 11 of 14** created by round 4's fixes. Rounds 3 and 4
+> each closed their findings by DELETING what the previous round had added — a parser, a cap, a
+> wrapper set, a shell set, a suppression position, an alias reader, an allow token. What changed is
+> not the defect rate but the KIND of defect: rounds 1–2 found holes in code that had stood for
+> phases; rounds 3, 4 and the post-cap review found holes in code written the week before, by this
+> plan, including in the mechanisms built specifically to answer the previous reviewer's question.
+>
+> **The post-cap findings are executable, not theoretical.** Four of the five zero-key command-model
+> findings were EXECUTED against real `git 2.55.0` on a real bare remote, producing real forced
+> updates of `main` with **zero keys** — no grant, no env var, no human name, no approval of any kind.
+> A sixth finding produced a real host-level ALLOW on a force push to `main` with **no D-20 banner in
+> the transcript at all**.
+>
+> **The settings-file environment vector was OBSERVED, not inferred.** In round 2, under the human's
+> explicit one-write grant, a `.claude/settings.local.json` `env` entry reached a hook subprocess on
+> the very next tool call. The residual register and `docs/GUARANTEES.md` §9–§10 tier that measurement
+> honestly and separately from what remains inferred.
+>
+> **What is established, and is the floor the whole design rests on:** the hook is a separate process
+> whose environment an agent's own tool call cannot reach **[observed]**; a settings-file `env` entry
+> DOES reach that process **[observed, round 2]**; and the wrapper verifies the decider's CODE rather
+> than trusting anything the decider says about itself.
+>
+> **What is NOT established, stated plainly:** the wrapper's own integrity is a **repository-time
+> control, not a runtime one.** The freeze, the manifest and the build-parity gates are checks a
+> repository runs on itself; none binds an agent at the moment of the tool call. **The wrapper cannot
+> defend its own preload** — `NODE_OPTIONS=--require` grants arbitrary code inside the hook process
+> before the wrapper's first line executes, with the manifest still verifying, and the verification it
+> does perform is not atomic with the spawn it protects. A runtime answer needs a signed or read-only
+> kit, which is a host-tier question this repository cannot settle.
+>
+> **The gates named in this log are evidence, not proof.** Each refuses a specific, named, reproduced
+> bypass; none establishes that no further bypass exists, and the measured trend says another round
+> would find more. Closing would assert exactly what the evidence denies. D-22 caps the surface at
+> four rounds precisely so this judgement is made by a written rule rather than by whoever is tired —
+> and the honest word at the cap is **fenced**.
+>
+> **A green test suite is not offered as a closure argument anywhere in this record.** All four rounds
+> and both post-cap reviews were run against a fully green suite and found HIGH-severity, executable
+> bypasses anyway — repeatedly with a real `git` performing a real forced update of a real remote.
+
+## The criterion that was NOT met
+
+Round 4 wrote it down in advance: **two independent reviews at the strongest available model, over the
+surfaces named in the round-4 scope statement, each returning no reproduced bypass.** Reviewer 7
+returned five executed bypasses; reviewer 8 returned four reproduced ones. The criterion is not met, a
+fifth round is forbidden by D-22, and the surface is therefore fenced.
+
+## THE SIX BYPASSES THE PHASE VERIFIER MUST SEE — AUTO-03's guarantee wording depends on them
+
+These are **open, executable, zero-key defeats of the production-deploy / protected-branch floor on
+the committed artifact at HEAD `446ea2b`**. Any wording anywhere in this phase that says the two-key
+path refuses an unapproved forced update of a protected branch must be read against them.
+
+| id | finding | what was EXECUTED | keys required |
+|---|---|---|---|
+| `V-30-11-16` | `RA7-1` | `git -C sub push origin +main` → `+ 30c1a74...18db97f main -> main (forced update)` on real git 2.55.0 | **none** |
+| `V-30-11-17` | `RA7-2` | three consecutive **forced updates** delivered through `GIT_CONFIG_COUNT` / `GIT_CONFIG_PARAMETERS` / `--config-env` | **none** |
+| `V-30-11-18` | `RA7-3` | a **bare `git push`** — the form `RA1-3` exists to deny as ambiguous — executed through a chained alias (`eeb436f..fb57a1b main -> main`) | **none** |
+| `V-30-11-19` | `RA7-4` | a governed command inside a flag-shaped word (`env -S'kubectl -n prod apply -f x.yaml'`, `--message="…"`) reaching neither authority; executed against stub `kubectl`/`gh` and against real git | **none** |
+| `V-30-11-20` | `RA7-5` | `git push -fu origin feature` → `+ 3202f43...9a0d4c3 feature -> feature (forced update)`, defeating the model AND the literal pattern in the plainest spelling | **none** |
+| `V-30-11-25` | `RA8-3` | `hooks/hook-entry.js ../__proto__` skips the manifest check entirely (`Object.entries(Object.prototype)` is `[]`), and the plaintext fd-3 token then yields **exit 0, 0 bytes = ALLOW at the host** on `git push --force origin main`, **with no D-20 banner** | **none at runtime**; requires a repository-time `hooks.json` edit |
+
+**Consequence for AUTO-03.** The requirement is that the settings-file grant vector be reproduced
+empirically and its result recorded rather than inferred. **That half is satisfied and is the
+strongest evidence in the phase** — the vector was OBSERVED in round 2 under the human's one-write
+grant. What these six add is a bound on how the surrounding guarantee may be worded: the two-key
+mechanism's *refusal* is not established for forced updates of a protected branch, so no AUTO-03
+wording may generalise the observation into a claim that the floor holds against an unapproved force
+push. `V-30-11-22` (`RA7-7`) widens `V-30-08-01` in the same direction: `NODE_OPTIONS` is a strictly
+stronger grant on the very channel round 2 observed, refused by nothing and recorded nowhere.
+
+## The backlog — `V-30-11-16` … `V-30-11-29` (the fourteen post-cap findings)
+
+Full reproduction, severity, direction, suggested structural fix and the new freedom each fix creates:
+`docs/audit/30-redteam-surface-a.md` § *The backlog*. Titles and severities:
+
+| id | finding | severity | title |
+|---|---|---|---|
+| `V-30-11-16` | `RA7-1` | **HIGH** | `PROTECTED_REF_RE` reads only a whole-word ref, so every `+`/`:` refspec escapes both authorities |
+| `V-30-11-17` | `RA7-2` | **HIGH** | git config is deliverable through the ENVIRONMENT in the same command text; the alias arm reads only `-c` |
+| `V-30-11-18` | `RA7-3` | **HIGH** | a chained alias feeds `gitPushIsGoverned` a candidate list whose tail is an alias NAME, not a refspec |
+| `V-30-11-19` | `RA7-4` | **HIGH** | the whitespace re-tokenization is applied only to NON-flag words, so a flag-shaped word reaches neither authority |
+| `V-30-11-20` | `RA7-5` | **HIGH** | a COMBINED short flag (`-fu`) defeats the force rule in BOTH authorities in the plainest spelling |
+| `V-30-11-21` | `RA7-6` | **HIGH** | the manifest verification is not atomic with the spawn — a TOCTOU race, 24.7 % ALLOW measured |
+| `V-30-11-22` | `RA7-7` | MEDIUM | `NODE_OPTIONS` is a stronger grant than the three `GRUGOPS_` names the self-set vocabulary enumerates |
+| `V-30-11-23` | `RA8-1` | **HIGH** | the derived runner set accepts a COMMENTED-OUT `ci.yml` line as proof a gate is reached |
+| `V-30-11-24` | `RA8-2` | **HIGH** | `freshness:hook-manifest` is invoked by nothing, and the suite substitute cannot see a per-decider short manifest |
+| `V-30-11-25` | `RA8-3` | **HIGH** | a decider name resolving to an `Object.prototype` key skips the manifest check entirely, and the fd-3 token then ALLOWs |
+| `V-30-11-26` | `RA8-4` | MEDIUM | `emitVerdict`'s `id` has no type check, so a missing caller field mints the live green stamp `§14-gate#undefined` |
+| `V-30-11-27` | `RA8-5` | MEDIUM | the "one authority per predicate" entrypoint guard scans `scripts/*.ts` only and matches one operand order |
+| `V-30-11-28` | `RA8-6` | MEDIUM | a set the shipped source calls DERIVED (`NULLABLE_BODY_FIELDS`) is a hand-written literal and nothing asserts it |
+| `V-30-11-29` | `RA8-7` | LOW/MED | `V-30-11-09` as drafted was wrong in the direction that hides the problem — three freshness gates run in NO CI step |
+
+Two further entries were promoted to backlog from the round-4 observations so they are not lost:
+**`V-30-11-30`** (LOW, over-refusal) — five NEW false denials created by round 4's re-tokenization, all
+fail-closed; and **`V-30-11-31`** (LOW, false published claim) — the 10 s wrapper-timeout justification
+(`hooks/hook-entry.ts:259`) is FALSE: the model is quadratic in tool-name occurrences per segment and
+the timeout is input-reachable (measured 10 047 ms → SIGTERM → fail-closed DENY).
+
+## Corrections applied to the round-4 draft entries (no code was changed)
+
+- **`V-30-11-03`** — WITHDRAWN AS DRAFTED. All four of its own examples DENY; the real residual in that
+  family is `V-30-11-19`.
+- **`V-30-11-08`** — INCOMPLETE as a bound. Two further defeats need no write to `hooks/hook-entry.js`:
+  `V-30-11-21` (not atomic) and `V-30-11-22` (`NODE_OPTIONS` preload).
+- **`V-30-11-09`** — restated: 9 freshness scripts, **6** in `ci.yml`, and `:queue`, `:traceability`,
+  `:hook-manifest` at **zero**. (Reviewer 8's own "5 of 9" was itself one low; re-measured here.)
+- **`V-30-11-14`** — a **second** measured cost of declining the per-clause marker gate is attached:
+  `V-30-11-28`.
+- **The timing sentence** in the round log and in `hooks/hook-entry.ts:259` is annotated as FALSE and
+  carried as `V-30-11-31`. Annotated, not rewritten: the log records what was believed each round.
+
+## Owners
+
+`V-30-11-16` … `V-30-11-20` are ONE task on the command model, and the cheapest form of it is
+`V-30-11-17`'s deletion (which subsumes `V-30-11-18`) plus `V-30-11-16`'s refspec-destination rule and
+`V-30-11-20`'s letter-membership rule applied to **both** authorities. `V-30-11-21`, `V-30-11-22` and
+`V-30-11-25` are one task on the wrapper — and it is the task that decides whether the wrapper is a
+runtime control at all. `V-30-11-23`, `V-30-11-24`, `V-30-11-27` and `V-30-11-29` are one task on
+gate reachability: derive the runner set from the CI grammar the repository already owns, over a set
+derived from the tree. `V-30-11-26` and `V-30-11-28` are one task on the emitters.
