@@ -3434,3 +3434,31 @@ them leave **every count, cardinality and gate green** while a governed document
 
 **The derived checkpoint set that surface A builds on is fenced, not settled.** Any claim in 30-11
 that rests on "the roster is what the corpus declares" must cite this fence.
+
+## THE DECISION — 2026-09-06
+
+**The user was presented with the three options the plan names — `closed`, `another-round`, `fence` —
+together with every finding, both round-4 reviewer reports verbatim, the self-reproduction record and
+the proposed fence text. The user chose `fence`, and confirmed the fence text and the ten backlog
+entries `V-30-10-11` … `V-30-10-20` as written.**
+
+| | |
+|---|---|
+| **Option chosen** | `fence` — fence at the round cap and record the outstanding findings as backlog |
+| **Decided by** | the user, at the Task 3 checkpoint |
+| **Date** | 2026-09-06 |
+| **Rounds run** | 4 of 4 (D-22's cap), 30 findings closed, 10 recorded as backlog |
+| **Reviews** | 8 independent, all `claude-opus`, none returning "nothing new" |
+
+`closed` was not available on the evidence and was not argued for: both round-4 reviewers returned
+findings with working reproductions. `another-round` is forbidden by D-22, which the phase wrote in
+advance precisely so this judgement would be made by a rule rather than by fatigue.
+
+**The closure judgement itself is a human judgement, not a mechanical result**, and is marked as such
+in `30-10-SUMMARY.md`'s coverage block (`human_judgment: true`). Nothing in this record offers suite
+greenness as an argument for it; three of the four HIGH post-cap findings leave every count, every
+cardinality and every gate green while a governed document goes ungoverned, which is the reason the
+prohibition exists.
+
+Surface B is **fenced**. Plan 30-11 (red-team surface A) may begin, and must treat the derived
+checkpoint set as fenced rather than settled — see § *CARRIED INTO PLAN 30-11*.

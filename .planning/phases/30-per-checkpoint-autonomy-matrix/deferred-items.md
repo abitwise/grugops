@@ -392,3 +392,12 @@ validator's SCOPE line. `V-30-10-16` and `V-30-10-19` are one task on the guaran
 **Plan 30-11 must read this section**, not only the summary: the derived checkpoint set surface A
 builds on is fenced, not settled, and `V-30-10-11` / `V-30-10-14` each remove or add a roster member
 while every independent count agrees.
+
+### Decision — 2026-09-06
+
+**The user chose `fence` at the Task 3 checkpoint and confirmed the fence text and the ten backlog
+entries `V-30-10-11` … `V-30-10-20` as written.** Surface B is fenced at D-22's four-round cap with
+twenty residuals recorded, ten of them open bypasses with working reproductions. `closed` was not
+available on the evidence; `another-round` is forbidden by D-22. The closure judgement is a human
+judgement and is marked `human_judgment: true` in `30-10-SUMMARY.md`. These entries are live backlog:
+they are not closed by the fence, they are made visible by it.
