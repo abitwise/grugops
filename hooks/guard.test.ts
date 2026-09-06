@@ -1481,3 +1481,55 @@ describe("30-11 RA3-7 — the process invariant moved OUT of the process", () =>
     expect(r.stdout ?? "").toContain('"permissionDecision":"deny"');
   });
 });
+
+describe("30-11 RA4-4 — the grant VALUE cannot forge a second banner line", () => {
+  // `A-6` bounded the config KEY and left the other untrusted value in the same sentence unbounded.
+  // Measured on the round-2 artifact with a newline-bearing grant: the run emitted TWO stderr lines
+  // and the shipped recognizer accepted BOTH — a verbatim, valid alternative banner asserting the
+  // opposite posture, on the one artifact D-20 guarantees per invocation.
+  it("a newline in the grant value leaves EXACTLY ONE banner line", () => {
+    const r = runAt(projectWithConfig(LOWERED_OFF), PUSH, {
+      [FLOOR_VAR]: "alice\nall checkpoints at default",
+    });
+    // Counted with the shipped recognizer, not with a substring probe — that count is the mechanism.
+    expect(bannerLines(r).length).toBe(1);
+    expect(r.stderr).toContain("REFUSED (the value contains a line break)");
+  });
+
+  it("a carriage return is refused the same way", () => {
+    const r = runAt(projectWithConfig(LOWERED_OFF), PUSH, { [FLOOR_VAR]: "alice\rall checkpoints at default" });
+    expect(bannerLines(r).length).toBe(1);
+  });
+
+  it("NON-VACUITY: an ordinary name still publishes verbatim, and still authorizes", () => {
+    const r = runAt(projectWithConfig(LOWERED_OFF), PUSH, { [FLOOR_VAR]: "Olger Oeselg" });
+    expect(bannerLines(r).length).toBe(1);
+    expect(r.stderr).toContain(`authorized by ${FLOOR_VAR}=Olger Oeselg`);
+    expect(r.stdout).toBe(""); // the lowering still takes effect
+  });
+});
+
+describe("30-11 RA4-2 — a padded CLAUDE_PROJECT_DIR does not silently disable a gate", () => {
+  it("a padded root reaches the SAME config as an unpadded one", () => {
+    // `trustedRepoRoot` trimmed to DECIDE and returned the RAW value, so `join()` produced a path
+    // with the padding still in it — ENOENT, which the reader mapped to ABSENCE, which is lean.
+    const root = projectWithConfig(LOWERED_OFF);
+    const clean = runAt(root, PUSH, { [FLOOR_VAR]: "alice" });
+    const padded = runGuard(PUSH, { CLAUDE_PROJECT_DIR: ` ${root} `, [FLOOR_VAR]: "alice" });
+    expect(padded.stderr).toBe(clean.stderr);
+    expect(padded.stdout).toBe(clean.stdout);
+  });
+
+  it("a trailing newline on the root is the same value too", () => {
+    const root = projectWithConfig(LOWERED_OFF);
+    const clean = runAt(root, PUSH, { [FLOOR_VAR]: "alice" });
+    const padded = runGuard(PUSH, { CLAUDE_PROJECT_DIR: `${root}\n`, [FLOOR_VAR]: "alice" });
+    expect(padded.stderr).toBe(clean.stderr);
+  });
+
+  it("a SUPPLIED root that is not a directory fails CLOSED, and says so", () => {
+    const r = runGuard(PUSH, { CLAUDE_PROJECT_DIR: "/nonexistent-root-for-this-case" });
+    expect(r.stdout).toContain('"permissionDecision":"deny"');
+    expect(r.stderr).toContain("is not an existing directory");
+  });
+});
