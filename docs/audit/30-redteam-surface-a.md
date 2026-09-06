@@ -1852,3 +1852,663 @@ scripts/context-io.js     1fbe8465bd7a2abf…  premise OK
 
 Every row carries the refusal text or the measured value, never the exit code alone, and every row
 has a control that comes out the other way.
+
+
+---
+
+# Round 3 — 2026-09-06
+
+Both round-2 reviews returned findings. **Neither returned "nothing new."** Per D-22 this is round
+**3 of 4**; one round remains after it.
+
+**Thirteen findings. Twelve of the thirteen were created by round-2 fixes** — all seven of reviewer
+3's, and five of reviewer 4's six. That is not incidental, and the round does not treat it as
+incidental:
+
+> **THE PARSER IS THE PROBLEM.** `RA1-1` closed a real zero-key bypass by adding a tokenizer to a
+> safety path, and named its own new freedom in the round-2 log: *"a tokenizer is a parser, and a
+> parser has a grammar an attacker can leave — this repository's Phase-25/27 lesson."* One round
+> later that grammar has six holes in it, every one the Phase-25/27 shape, and every one executable.
+> Round 3's rule for itself is therefore: **prefer a fix that DELETES grammar over a fix that adds
+> it**, and where grammar cannot be deleted, replace reading with refusing.
+
+| id | severity | direction | one line |
+|---|---|---|---|
+| `RA3-1` | **HIGH** | permissive, 0 keys, **executes** | word-internal quoting/escaping (`kubectl ""apply`, `app\ly`, `$'apply'`, `git ""push origin main`) is invisible to the literals AND the tokenizer |
+| `RA3-2` | **HIGH** | permissive, 0 keys, **executes** | `( … )`, `{ …; }`, `if/then`, `for/do`, `case`, `!` — the grouping token becomes the "tool" |
+| `RA3-3` | **HIGH** | permissive, 0 keys, **executes** | `WRAPPERS` is a hand-maintained set literal, and the unwrap loop needs the flag grammar its own docstring refuses to maintain (`sudo -u root kubectl …`) |
+| `RA3-4` | **HIGH** | permissive, 0 keys, **executes** | the fail-closed backstop needs BOTH tool and verb in the raw text, so splitting the verb defeats the parser AND the backstop at once |
+| `RA3-5` | MEDIUM | permissive, 0 keys | `sh -cx`, herestrings, and every non-shell interpreter operand |
+| `RA3-6` | MEDIUM | permissive | `git -c alias.p=push p origin main`; `git.exe` / `\kubectl` are not the governed tool |
+| `RA3-7` | MEDIUM | permissive + invisible | `process.reallyExit(0)` is a silent ALLOW; `abort()`/self-`SIGKILL` leave no decision — the invariant cannot be established inside a process a dependency can terminate |
+| `RA4-1` | MEDIUM | invisible | `emitCheckpointNote` type-checks the two fields it already quotes and raw-interpolates the two it does not; a newline mints a second note under a NON-reserved author |
+| `RA4-2` | **HIGH** | permissive + invisible | `trustedRepoRoot()` trims to TEST and returns RAW — one byte of padding silently turns the admission gate off |
+| `RA4-3` | MEDIUM | permissive to the reader | the residual gate's "derived" scan is gated on a six-prefix set literal, and `.claude/` — the directory row 9 is ABOUT — is outside it |
+| `RA4-4` | MEDIUM | invisible | the grant VALUE forges a second recognizer-accepted banner line; `A-6` bounded the key and left the value |
+| `RA4-5` | MEDIUM | permissive to the reader | row 9 now tiers the negative half and publishes the load-bearing POSITIVE half flat |
+| `RA4-6` | LOW/MED | invisible | the freshness mirror copies whole directories, voiding the derived-import-closure isolation the gate rests on |
+
+**What round 2 got right, measured by reviewer 3 and recorded here because a round that only lists its
+failures is not an honest record:** the additive wiring holds — **all 34 round-1/round-2 denial rows
+still DENY**, and `if (!byPattern && !byModel) continue;` is structurally incapable of removing a
+literal denial. `gitPushIsGoverned`'s refspec arms survived a 25-row sweep with no hole. The config
+reader survived a 10 MB and a 200 MB config, a symlink chain, and a ReDoS sweep to 5 MB. Round 2's
+`A-4`, `A-6`, `RA2-3` and `RA1-5` predicates each survived their own targeted sweeps.
+
+## The two round-2 reviewer reports, verbatim
+
+Both recorded in full, model and scope named, sha256-verified byte-identical to the files received.
+
+
+### Reviewer 3 (round 2) — claude-opus — scope: the command model + the process invariant — verbatim
+
+Source `scratchpad/surface-a-review-a3.md`, sha256 `479e0cbfddebe20e8462e22b9d2df938c833578c78531d4038c47a72569c8de0`, 272 lines.
+
+<!-- BEGIN VERBATIM -->
+
+Tree restored and verified clean (only `node_modules`). Report follows.
+
+---
+
+## Reviewer 3 (round 2) — model: claude-opus (strongest available) — scope: surface A, command model + process invariant
+
+### Verdict: FINDINGS: 7
+
+All reproductions spawn the **committed `.js` at HEAD `1cc52d4`** as a process, stdin `{"tool_name":"Bash","tool_input":{"command":<cmd>},"session_id":"s1"}`, with every `GRUGOPS_*` variable plus `CLAUDE_PROJECT_DIR` and `CLAUDE_PLUGIN_ROOT` deleted from the inherited environment before the case's own env is applied, bounded at 20 000 ms. Every sweep carries two-sided controls (`kubectl apply -f x.yaml` → DENY, `ls` → ALLOW) on the same artifact. Headline rows were re-run on a `git archive HEAD | tar -x` mirror whose artifacts are sha256-equal to the worktree's (see § Premise assertions). **Every permissive row below was additionally executed under `bash -c` against stub `kubectl`/`git` binaries and observed to perform the governed action** — so no finding rests on "this string looks like a deploy".
+
+---
+
+### Findings
+
+#### `RA3-1` — HIGH — word-internal quoting and escaping defeat the literal patterns **and** the new tokenizer at once
+
+**Predicate 1 (the tokenizer's grammar).** `commandSegments` strips quotes only at word **edges** (`w.replace(/^["']|["']$/g, "")`) and processes no backslashes at all; `UNRESOLVABLE_SHELL_RE` names `$(`, `` ` ``, `${`, `<(`, `>(`, `\"`, `\'` — it does **not** name an empty-string splice, a mid-word quote, a bare backslash, or `$'…'`. The literal patterns need the adjacent literal spelling. A verb spelled with any of these is invisible to both.
+
+```
+DENY   CONTROL   kubectl apply -f x.yaml
+ALLOW            kubectl ""apply -f prod.yaml
+ALLOW            kubectl app""ly -f prod.yaml
+ALLOW            kubectl ''apply -f prod.yaml
+ALLOW            kubectl app\ly -f prod.yaml
+ALLOW            kubectl $'apply' -f prod.yaml
+ALLOW            kubectl -n prod "ap""ply" -f x
+ALLOW            terraform app""ly
+ALLOW            npm pub""lish
+ALLOW            helm up""grade rel chart
+ALLOW            git ""push origin main
+ALLOW            git push origin ma'in'
+ALLOW            git push origin HEAD:ma""in
+ALLOW            git push origin HEAD:refs/heads/ma""in
+ALLOW   CONTROL  ls
+```
+
+Every ALLOW is exit 0, zero bytes of stdout, stderr `all checkpoints at default`. Executability, measured under `bash -c` with stub binaries on PATH:
+
+```
+kubectl ""apply -f prod.yaml            => KUBECTL-RAN: apply -f prod.yaml
+kubectl app\ly -f prod.yaml             => KUBECTL-RAN: apply -f prod.yaml
+kubectl $'apply' -f prod.yaml           => KUBECTL-RAN: apply -f prod.yaml
+git ""push origin main                  => GIT-RAN: push origin main
+git push origin HEAD:refs/heads/ma""in  => GIT-RAN: push origin HEAD:refs/heads/main
+```
+
+**Why permissive:** a real production mutation and an unforced push to `main` run with **zero keys** — no grant, no config declaration, no human, no banner beyond `all checkpoints at default`. This is not the disclosed env-indirection residual: nothing is expanded from a variable; the tool name and the verb are both present in the command text, merely spelled with shell-neutral punctuation.
+
+**Suggested STRUCTURAL fix, and yes — it must NOT widen the parser.** Widening `UNRESOLVABLE_SHELL_RE` by one more alternative is the twelfth-round move D-64 refused. The canonical-form refusal that replaces the widening: **define the canonical word — an unquoted, unescaped run of `[A-Za-z0-9._/@:+=-]` — and treat any word containing a character outside that set as UNTOKENIZABLE, i.e. fail-closed, rather than as a word whose text can be read.** Then `""`, `''`, `\`, `$'…'`, a mid-word quote and every future spelling are refused by rule (they leave the canonical form) instead of enumerated. **Its new freedom:** words legitimately carrying a quote — `git commit -m "msg"` — become untokenizable, so the fail-closed scan decides them, and that scan is itself broken (`RA3-4`); the two must be fixed together, and the false-denial cost must be measured against the table below before shipping.
+
+---
+
+#### `RA3-2` — HIGH — a segment whose first word is a shell keyword or grouping token has that token adopted as its "tool"
+
+**Predicate 1 (grammar).** `SEGMENT_SPLIT_RE` splits on `&& || ;; ; | & \n` only. `(`, `)`, `{`, `}` and the reserved words `then`, `do`, `else`, and a `case` arm are ordinary words, so `words[idx]` — the tool — becomes `(`, `{`, `then`, `do`. No rule row matches, and the literal patterns never see the tool and verb adjacent because of the global flag (`RA1-1`'s own class).
+
+```
+DENY   CONTROL  kubectl apply -f x.yaml
+ALLOW           ( kubectl -n prod apply -f x )
+ALLOW           (kubectl -n prod apply -f x)
+ALLOW           { kubectl -n prod apply -f x; }
+ALLOW           if true; then kubectl -n prod apply -f x; fi
+ALLOW           for i in 1; do kubectl -n prod apply -f x; done
+ALLOW           while read l; do kubectl -n prod apply -f x; done
+ALLOW           case x in x) kubectl -n prod apply -f y;; esac
+ALLOW           true && ( kubectl -n prod apply -f x )
+ALLOW           ! kubectl -n prod apply -f x
+ALLOW           (git -C /r push origin main)
+ALLOW           ( git -C /r push origin main )
+ALLOW           { git push; }
+ALLOW           for f in a; do npm --access public publish; done
+ALLOW   CONTROL ls
+```
+
+Executed: `( kubectl -n prod apply -f x )`, `{ kubectl …; }`, `if true; then kubectl …; fi`, `case …;; esac`, `true && ( kubectl … )` all print `KUBECTL-RAN: -n prod apply -f x`. `for f in a; do npm --access public publish; done` reached real `npm publish` (it failed only because this package is `private: true` and npm is unauthenticated — recorded in § Observations as a probe that overshot).
+
+Note `( git push origin main )` **does** deny — but only because the literal pattern still sees `git push … main`. Add the one global flag from `RA1-1` (`git -C /r`) and both authorities miss. The two round-2 gaps compose.
+
+**Why permissive:** parenthesised and `if`/`for`/`while` forms are what an agent writes when it wants a loop or a subshell; `( … )` costs two characters.
+
+**Suggested STRUCTURAL fix:** before choosing the tool word, strip a **closed, complete** prefix set drawn from the POSIX shell grammar's reserved words and operator tokens (`! ( ) { } then else elif do done fi esac time` plus a `case`-arm `)`), and add `(`/`)` to the segment splitter so a grouping never merges two commands. This is a closed grammar with a written-down completeness claim, in the shape `ASSIGNMENT_OPERATOR` already uses — not an open-set widening. **Its new freedom:** the prefix set is a new hand-maintained set-literal, the class this repository keeps closing; bound it by deriving the reserved-word list from one named constant carrying the POSIX citation and asserting in a test that every member appears in the tokenizer's own strip loop.
+
+---
+
+#### `RA3-3` — HIGH — `WRAPPERS` is a hand-maintained set literal, and the unwrap loop assumes no flag takes a separate-word argument
+
+**Predicate 1 (grammar).** The docstring's whole argument for collecting *every* non-flag word is *"knowing which flags take an argument is per-tool flag grammar — a second thing to maintain."* The unwrap loop then needs exactly that knowledge and does not have it: `sudo -u root kubectl …` skips `sudo` and `-u`, then takes **`root`** as the tool and breaks. And the wrapper set itself (`sudo env command nohup time builtin exec xargs`) omits every other common launcher.
+
+```
+DENY   CONTROL  kubectl apply -f x.yaml
+DENY   CONTROL  sudo kubectl -n prod apply -f x.yaml
+ALLOW           sudo -u root kubectl -n prod apply -f x.yaml      <- flag-with-argument
+ALLOW           sudo -E -u root terraform -chdir=infra apply -auto-approve
+ALLOW           sudo -u deploy git -C /repo push origin main
+ALLOW           nice -n 5 kubectl -n prod apply -f x.yaml         <- wrapper not in the set
+ALLOW           timeout 60 kubectl -n prod apply -f x.yaml
+ALLOW           doas kubectl -n prod apply -f x.yaml
+ALLOW           stdbuf -o0 kubectl -n prod apply -f x.yaml
+ALLOW           setsid kubectl -n prod apply -f x.yaml
+ALLOW           ionice -c2 kubectl -n prod apply -f x.yaml
+ALLOW           nohup nice kubectl -n prod apply -f x.yaml
+ALLOW           \time kubectl -n prod apply -f x.yaml
+ALLOW           parallel kubectl -n prod apply -f ::: x
+ALLOW           find . -exec kubectl -n prod apply -f {} ;
+DENY   CONTROL  env -i kubectl -n prod apply -f x.yaml
+DENY   CONTROL  sudo --user=root kubectl -n prod apply -f x.yaml  (attached-value form still works)
+ALLOW   CONTROL ls
+```
+
+`nice -n 5 kubectl -n prod apply -f x` executed: `KUBECTL-RAN: -n prod apply -f x`.
+
+**Why permissive:** zero keys; `sudo -u <user>` is the *normal* production spelling, and the two-key matrix is never consulted.
+
+**Suggested STRUCTURAL fix:** stop trying to identify one tool per segment. Since the model already collects *every* non-flag word, match the table against **every** non-flag word as a candidate tool with its governed verbs appearing after it — i.e. ask "does any (tool, verb) pair from the table occur in this segment's word list, in order?" That deletes both the wrapper set and the flag-argument question, which is exactly the "derive the set, don't maintain it" move. **Its new freedom:** more false denials, since `grep kubectl apply` style word lists now match — measurable, fail-closed in direction, and it must be run against the false-denial table before shipping. It does **not** widen a parser: it removes a hand-maintained set rather than adding grammar to one.
+
+---
+
+#### `RA3-4` — HIGH — the fail-closed backstop is defeated by the same edit that triggers it
+
+**Predicate 3 (my scope's explicit question: when the tokenizer cannot tokenize, is the deny actually emitted?).** **Answer: only when both the tool name and one of that tool's governed verbs survive as whole words in the raw text.** `failClosedCheckpoints` tests `\b<tool>\b` **and** `\b<verb>\b`. An attacker who splits the *verb* with a substitution gets both effects at once: the segment becomes untokenizable, and the token the backstop searches for is gone.
+
+```
+DENY   CONTROL  kubectl -n prod $(echo apply) -f x        (verb intact -> backstop fires)
+ALLOW           kubectl -n prod ap$(echo ply) -f x
+ALLOW           kubectl -n prod ap`echo ply` -f x
+ALLOW           kubectl -n prod ap${V}ply -f x
+ALLOW           git pu$(echo sh) origin main
+ALLOW           echo "unterminated ; kubectl -n prod ap\"ply -f x
+DENY   CONTROL  echo "unterminated ; kubectl -n prod apply -f x
+DENY   CONTROL  kubectl -n prod ${V}apply -f x
+ALLOW   CONTROL ls
+```
+
+`kubectl -n prod ap$(echo ply) -f x` executed: `KUBECTL-RAN: -n prod apply -f x`.
+
+**Why permissive:** the comment above `UNRESOLVABLE_SHELL_RE` states *"untokenizable is a fail-closed state"* and the round-2 log repeats it as the bound on `RA1-1`'s new freedom. Measured, it is not a state at all — it is a second, weaker pattern match over the same attacker-controlled text. The stated bound on the parser's grammar does not hold, which makes every "the grammar is bounded by fail-closed" argument in the round-2 record narrower than published.
+
+**Suggested STRUCTURAL fix:** make untokenizable an actual *state*, not a re-scan: a segment the model refuses to parse denies **every** checkpoint the table governs whose tool name appears — or, better, denies unconditionally with a refusal naming the substitution and telling the caller to run the command without it. Do **not** widen `failClosedCheckpoints`'s vocabulary — that is the same widening in a different file. **Its new freedom:** `echo "$(date)"` and every ordinary substitution would deny, which is intolerable; so the honest structural answer is the narrower one — an untokenizable segment denies the checkpoints of **any table tool named in it**, dropping the verb conjunct, with the round-2 over-denial it caused (`git commit -m "push \"x\""`) accepted or resolved by `RA3-1`'s canonical-word rule instead.
+
+---
+
+#### `RA3-5` — MEDIUM — the nested-shell re-tokenizer's own grammar, and every non-shell interpreter operand
+
+**Predicate 1.** `expandNestedShells` finds `-c` with `/(?:^|\s)-[a-zA-Z]*c(?:\s+|$)/` — `c` must be the **last** letter of a combined cluster. And only `sh bash zsh dash ksh` are re-tokenized at all; a herestring is never an operand it looks at.
+
+```
+DENY   CONTROL  sh -c 'kubectl -n prod apply -f x'
+DENY   CONTROL  bash -c "sh -c 'kubectl -n prod apply -f x'"
+ALLOW           sh -cx 'kubectl -n prod apply -f x'
+ALLOW           sh -s <<< 'kubectl -n prod apply -f x'
+ALLOW           bash <<< "kubectl -n prod apply -f x"
+ALLOW           python -c "import os;os.system('kubectl -n prod apply -f x')"
+ALLOW           perl -e 'system("kubectl -n prod apply -f x")'
+ALLOW           node -e "require('child_process').execSync('kubectl -n prod apply -f x')"
+ALLOW           ssh host "kubectl -n prod apply -f x"
+ALLOW           docker exec c kubectl -n prod apply -f x
+ALLOW   CONTROL ls
+```
+
+`sh -cx '…'`, `sh -s <<< '…'` and `bash <<< "…"` all executed and printed `KUBECTL-RAN`. (`sh -c'…'` does **not** execute; recorded as a probe that found nothing.)
+
+**Why permissive:** zero keys. Note these only survive because the *inner* command carries `RA1-1`'s global flag; the plain inner spelling is still caught by the literal patterns. That is the composition risk the additive design creates: the literal set is the only thing holding these, and it holds them only for the pre-`RA1-1` spelling.
+
+**Suggested STRUCTURAL fix:** `-c` is `-c` wherever it sits in a cluster (`/(?:^|\s)-[a-zA-Z]*c[a-zA-Z]*(?:\s+|$)/`, or split the cluster), and treat a herestring/heredoc body as a nested command for a shell tool. For the non-shell interpreters, the honest move is a written residual with reproductions — the same treatment `git merge` got — not a per-interpreter parser. **Its new freedom:** the `-c` widening makes `-color`-style clusters match; bound it by requiring a single-dash short cluster of letters only. It does widen the parser by one character-class position; the canonical-form alternative is to treat *any* `sh`-family segment carrying an operand this model did not re-tokenize as untokenizable.
+
+---
+
+#### `RA3-6` — MEDIUM — `git -c alias.<x>=push <x>` pushes to a protected branch with the verb hidden in a filtered flag value, and a `.exe`/`\`-prefixed tool name is not the governed tool
+
+**Predicate 1 + 4.** `rest` filters every word starting with `-`, so `-c` disappears and `alias.p=push` survives as one word — `words.indexOf("push")` is `-1`. The literal pattern needs `git\s+push`.
+
+```
+DENY   CONTROL  git push origin main
+ALLOW           git -c alias.p=push p origin main       (executes a push to main)
+ALLOW           git.exe push origin main
+ALLOW           kubectl.exe -n prod apply -f x.yaml
+ALLOW           \kubectl -n prod apply -f x.yaml
+DENY   CONTROL  /usr/bin/git push origin main
+DENY   CONTROL  ./git push origin main
+DENY   CONTROL  git --exec-path=/tmp push origin main
+ALLOW   CONTROL ls
+```
+
+`git.exe` / `kubectl.exe` matter because Node 22 + Claude Code on Windows is a supported host for this kit (CLAUDE.md: "including Windows, where POSIX shell cannot"), and `.exe` is the ordinary spelling there. `\kubectl` is the standard alias-bypass form.
+
+**Suggested STRUCTURAL fix:** compare the tool by a normalized basename — strip a leading `\`, strip a trailing `.exe`/`.cmd`/`.bat` on any platform — and, for `git`, read `-c <k>=<v>` / `-c<k>=<v>` values for `alias.*` as verb-bearing. The alias half is better handled by `RA3-3`'s "any word may be a tool" rewrite, which sees `push` regardless. **Its new freedom:** the extension strip is a small closed list; assert its completeness against `PATHEXT`'s executable set in a comment and a test.
+
+---
+
+#### `RA3-7` — MEDIUM — a fourth and fifth exit class survive `RA1-2`: `process.reallyExit(0)` (silent allow) and `process.abort()` / self-`SIGKILL` (no decision)
+
+**Predicate 5 (the process invariant).** `hooks/guard.ts` states *"this file has no exit path that is neither an explicit allow nor an explicit deny"*, and `RA1-2` established it with two named exits plus an `exit` handler. `process.reallyExit` skips the `exit` event entirely; `abort`/`kill` terminate before any handler. Reachable exactly as `A-2` was: an ordinary agent write to `scripts/checkpoints.js`, which matches no deploy pattern and carries no grant name.
+
+Mirror copy at `/tmp/a3m2`, payload `kubectl apply -f x.yaml`, scrubbed env:
+
+```
+DENY    sig=null   status=0   CONTROL intact dependency
+DENY    sig=null   status=0   dependency = "not js (((        (RA1-2, still closed)
+DENY    sig=null   status=0   dependency calls process.exit(2)
+DENY    sig=null   status=0   dependency exit(0) + a throwing exit handler
+ALLOW   sig=null   status=0   dependency calls process.reallyExit(0)      <- exit 0, 0 bytes stdout
+—       sig=SIGABRT status=null  dependency calls process.abort()          <- no decision
+—       sig=SIGKILL status=null  dependency SIGKILLs its own process       <- no decision
+DENY    sig=null   status=0   CONTROL restored
+```
+
+`reallyExit(0)` is the sharp one: exit 0 with no stdout is an **allow** at the host, and it is silent — the transcript shows a hook that ran and said nothing.
+
+**Honest overlap statement:** this is the class `A-2`/`RA1-2` own, reached through mechanisms neither enumerated. I report it because the invariant is published as a property of the *process* and is still false, and because `RA1-2`'s fix specifically converts "corrupt the dependency" from allow to deny — an attacker simply picks a different corruption.
+
+**Suggested STRUCTURAL fix:** the invariant cannot be established from inside a process that a dependency can terminate. Move it to the point of effect: a **wrapper** that is the hook entry point, spawns the decider as a child, and emits the fail-closed deny whenever the child's exit is anything other than exit 0 with a well-formed decision on stdout — signal, non-zero code, empty stdout, all one branch. **Its new freedom:** a second process per Bash call (~30 ms measured here) and a new artifact that must itself have no undecided exit; bound it by making the wrapper import nothing but `node:child_process` and by asserting, in a test, that killing the child by every signal class still yields a deny.
+
+---
+
+### Additivity check — every round-1-denied input re-run
+
+**No regression.** All 34 round-1/round-2 denial rows still DENY on HEAD, against an `ls` control that still ALLOWs on the same artifact: the twelve `PRODUCTION_DEPLOY_PATTERNS` canonical forms (`kubectl apply|rollout|delete`, `helm upgrade|install`, `terraform apply`, `gcloud run deploy`, `aws deploy`, `aws s3 sync`, `serverless|sls|flyctl|fly deploy`, `vercel --prod`, `npm|yarn|pnpm publish`), the three `PROTECTED_BRANCH_PATTERNS` forms (`git push --force origin main`, `git push origin main`, `git push origin release/1`, `git push -f origin feature`), the four `A-1`/`RA1-5` self-set spellings including `+=`, the fifteen `RA1-1` global-flag rows, the four `RA1-3`/`RA1-4` rows (`git push`, `git push origin`, `git push origin HEAD`, `gh pr merge --admin`, `git update-ref refs/heads/main`), and the `MY_GRUGOPS_FLOOR_OPEN_PR=1 ls` non-vacuity control which correctly still ALLOWs. The additive wiring in `hooks/guard.ts` (`if (!byPattern && !byModel) continue;`) is structurally incapable of removing a literal denial, and the measurement agrees.
+
+### False-denial table — every legitimate command that now DENIES
+
+| command | denied by | new in round 2? |
+|---|---|---|
+| `git commit -m 'push'` | model, `gitPushIsGoverned` (0 words after `push` → governed) | **YES** |
+| `git commit -m 'push to main'` | model | **YES** |
+| `git commit -m 'refactor: split the push path'` | model | **YES** |
+| `git commit -m 'fix: do not push to main'` | model | **YES** |
+| `git commit -m 'chore: update-ref refs/heads/main docs'` | model | **YES** |
+| `echo 'git push origin main' >> notes.txt` | literal + model | no (literal) |
+| `git commit -m "push \"x\""` | fail-closed scan (escaped quote) | recorded round-2 residual |
+| `kubectl get pods --namespace delete` | model | recorded round-2 residual |
+| `npm publish --dry-run` | literal | no |
+| `grep -rn 'kubectl apply' docs/` | literal | no |
+| `echo 'kubectl apply'` | literal | no |
+| `git push --dry-run origin main` | literal | no |
+| `git push origin main-2` | literal | no (documented deliberate) |
+| `git push --force-with-lease origin feature/x`, `git push -f origin feature` | literal | no (deliberate) |
+
+The five **new** rows are one mechanism: `gitPushIsGoverned` reads `seg.words`, and `commandSegments` splits on whitespace **regardless of quoting**, so the contents of a quoted commit message become candidate verbs. In a repository whose own commit messages discuss pushing to main, this blocks routine commits. It is fail-closed in direction, but design rule 1's own caveat — over-blocking trains users to disable the guard — applies squarely. It was not in the 19 controls the round-2 record cites.
+
+Legitimate commands confirmed still ALLOW: `git push origin feature/x`, `git push -u origin HEAD:feature/x`, `kubectl -n dev get pods`, `terraform plan`, `aws --profile dev s3 ls`, `aws s3 ls s3://bucket`, `git -C sub status`, `git status`, `git merge feature`, `git rebase main`, `git checkout main`, `git fetch origin main`, `git branch -d feature/x`, `git log --oneline -5`, `git log --grep='push origin main'`, `git show HEAD -- docs/push-to-main.md`, `git diff HEAD -- hooks/guard.ts`, `npm install`, `npm run build`, `npm test`, `npx vitest run --exclude '**/scripts/e2e/**'`, `gh pr list`, `gh pr view 12`, `gh pr create --title 'x' --body 'y'`, `gh pr create --body 'do not push to main'`, `helm list -n dev`, `sh -c 'ls -la'`, `cat ./deploy/notes.txt`, `gcloud config list # see deploy docs`, `node scripts/validate-agent-factory.js`.
+
+### Probes that found nothing (every probe)
+
+- **Refspec sweep, `gitPushIsGoverned` (predicate 4) — 25 rows, no hole.** `origin main:main`, `origin +main`, `origin refs/heads/main`, `origin :main`, `--all`, `--mirror`, `--tags` (both positions), `origin HEAD:main`, `origin feature:main`, remote named `main` (`git push main HEAD`), `origin main-2`, `--force-with-lease`, `-f`, `origin --delete main`, `origin HEAD:refs/heads/main`, `origin 'main'`, `origin feature/x main`, `origin main feature/x`, `update-ref refs/heads/main abc`, `update-ref -m x refs/heads/main abc` — **all DENY**. `git push origin feature/x`, `git push -u origin HEAD:feature/x`, `git push origin src:dst --repo=x` correctly ALLOW. The push rule's arms are sound; only the *word source* feeding it is attackable (`RA3-1`).
+- **ReDoS / quadratic tokenizer.** `SEGMENT_SPLIT_RE.exec(cmd.slice(i))` per character looked quadratic; measured it is not. 1 KB → 400 KB: 39–68 ms. 5 MB plain `echo`: 380 ms. 5 MB `git push origin feature/x <2M words>` (worst case for `[\s\S]*` backtracking): 466 ms. 5 MB `vercel …` (the `[\s\S]*--prod` pattern): 456 ms. 2 MB of `"a" ` quote pairs: 194 ms. 2 MB of `; ls`: 347 ms. 1 MB `sh -c` prefix: 176 ms. No timeout, no memory failure, decision correct in every row.
+- **Config reader (`readGovernanceConfigCandidate`).** Regular file → DENY 43 ms; absent → DENY 42 ms; **symlink chain a→b→regular file** → reads and decides, 39 ms (proves `fstat`-through-symlink, not `lstat`); **10 MB config** → 41 ms, fails closed to `block` everywhere; **200 MB sparse config** → 43 ms, fails closed. The `st.size`-bounded read cannot over-read a file that grows after `fstat`, and `Buffer.allocUnsafe(st.size)` is gated by `GOVERNANCE_CONFIG_MAX_BYTES` before allocation.
+- **Separators.** `;`, `&&`, `||`, `|`, `|&`, `&`, `;;`, newline, and a heredoc whose **body** holds the verb (`bash <<EOF\nkubectl -n prod apply…\nEOF`) all DENY — the newline split reaches the body. `\r` ALLOWs but is not a separator in bash (`ls\rkubectl` is one word), so it is not an executable attack.
+- **Nesting.** `sh -c '…'`, `bash -c "sh -c '…'"`, `bash -c "sh -c \"…\""`, `zsh -c`, `ksh -o vi -c`, `bash --norc -c`, a triple `sh -c` with escaped quotes, `bash <(echo …)`, `eval "$(printf …)"` — all DENY. Depth cap and `UNRESOLVABLE_SHELL_RE` behave as documented on these.
+- **Unicode.** Trailing ZWSP after the verb DENIES; NBSP as the separator DENIES; RTL-override prefix DENIES. ZWSP **inside** the verb, fullwidth `ａpply`, and a NUL after the tool name all ALLOW — but none is executable (the shell passes the mangled bytes to the binary, or `execve` refuses the NUL), so **no finding**.
+- **Wrappers that work.** `env -i kubectl …`, `sudo --user=root kubectl …`, `exec`, `command`, `builtin`, `time`, `xargs -0`, `nohup`, a leading `NAME=v` assignment, `'kubectl'`/`"kubectl"` fully-quoted, `/usr/bin/git`, `./git`, `git --exec-path=… push`, `nice kubectl apply` (no flag) — all DENY.
+- **`sh -c'cmd'` (attached operand).** Guard ALLOWs, but the form does not execute the command under `bash`/`sh` — recorded as a probe that found nothing rather than a finding.
+- **Self-set operator set (`\s*\+?=`).** `NAME=`, `export`, `env`, `declare -x`, `typeset -x`, after `;`, tab before `=`, space before `=`, quoted value, `+=` — all DENY. `MY_GRUGOPS_FLOOR_OPEN_PR=1 ls` correctly ALLOWs (non-vacuous). `NAME+ =me` ALLOWs but is not valid bash.
+- **stdout backpressure.** Deny JSON through a pipe drained only after `sleep 3`: exit 0, decision delivered, no hang. `writeSync(1, …)` blocked and completed as designed.
+- **Startup roster walk.** `COMMAND_RULE_CHECKPOINTS` vs `evaluation` — every table row's checkpoint exists on the roster; the fail-closed branch is unreachable today, as documented.
+
+### Observations
+
+1. **`process.abort()` / self-`SIGKILL` reachability is bounded by dependency-write access**, which is the same access `A-2` treats as ordinary. Listed inside `RA3-7`; noting separately that a host that *did* map "killed by signal" to block would neutralize it — the guarantee therefore depends on undocumented host behaviour.
+2. **When stdout is unwritable the deny is silently lost.** `node guard.js 1>&-` → exit 0, nothing written (an ALLOW at the host); `>/dev/full` → exit 1 (also non-blocking), stderr 44 bytes. Not agent-reachable — the host owns the stdio — so it is an observation, not a finding. It does mean the published process invariant holds only under a writable stdout, which is not stated.
+3. **The 20 s spawn bound from `N4c` is a hand-maintained set that already missed two sites.** `scripts/floor-invariance.test.ts:527` — the *safety-floor* sweep, which spawns the committed guard — has **no** `timeout`, and neither does `hooks/guard.test.ts:221`. The file's own 30 s `testTimeout` cannot preempt a synchronous `spawnSync`, so the exact `N4c` failure (a hang that stops CI instead of reddening it) is still reachable in the file whose subject is the floor. Derive the set: assert that every `spawnSync` in the repo's hook/floor tests passes a timeout.
+4. **`git x` with a `.git/config`-persisted alias** (`git config alias.x '!git push origin main'` — itself DENIED — then a plain file write, then `git x`) is permissive and **undecidable from the command text**, exactly like the recorded `git merge` residual. It is not currently recorded. It should be, with its reproduction, so a reader meets a decision rather than an oversight.
+5. **`setenv GRUGOPS_FLOOR_… me`** (csh spelling) is not refused by `SELF_APPROVE`. This is an open-set spelling on a shell the hook path does not use; per D-64 the correct answer is to *not* widen, and to note it. Noted.
+6. **A probe of mine overshot and should be recorded rather than deleted.** While confirming executability I ran `for f in a; do npm --access public publish; done` under a stub PATH that did not stub `npm`, so real `npm publish` was invoked in the worktree. It failed before contacting the registry (`package.json` is `private: true`; `npm whoami` → `ENEEDAUTH`; the run died on an unrelated version read). Nothing was published; no files changed. The lesson is the finding's own point: that command was **ALLOWED by the guard**.
+
+### Premise assertions performed
+
+1. **The artifact under test is the committed one.** `shasum -a 256` on the worktree and on a `git archive HEAD | tar -x` mirror agree byte-for-byte, and match the round-2 self-reproduction table published in the audit: `hooks/guard.js f56acce7184533fb…`, `scripts/checkpoints.js a9ec8c09681b0f09…`, `hooks/admission-guard.js 538c9eedfa17f9de…`, `scripts/context-io.js 1fbe8465bd7a2abf…`. HEAD is `1cc52d4`.
+2. **The harness scrubs, and is proved non-vacuous both ways.** Every spawn deletes all `GRUGOPS_*`, `CLAUDE_PROJECT_DIR`, `CLAUDE_PLUGIN_ROOT` before applying the case env. Every table's first rows are `kubectl apply -f x.yaml` → DENY and `ls` → ALLOW on the same artifact in the same sweep; a harness returning one answer for everything would have failed one of them in all 17 sweeps.
+3. **The guard is what decided, not the shell.** Every permissive row was separately executed under `bash -c` with stub `kubectl`/`git` on PATH, and the stub's output was read — so "this string is a governed action" is measured, not argued. The three rows that did **not** execute (`sh -c'…'`, `\r` split, ZWSP/fullwidth/NUL in the verb) were demoted from findings on that evidence.
+4. **The dependency-corruption probes ran against a private copy** (`/tmp/a3m2`), never the worktree, with an intact-control row before and after the mutation series — both DENY, so the ALLOW rows are the mutation and not the copy.
+5. **Timeout handling.** Every spawn is bounded at 20 000 ms and `status === null` is reported as `TIMEOUT/NO-DECISION`, a finding-class result. Two rows returned `status === null` — both by signal, reported as such.
+6. **Tree restored.** `git checkout -- . && git clean -fd -e node_modules`; `git status --short` reports only `?? node_modules`; the two hashes above re-verified after restore.
+
+<!-- END VERBATIM -->
+
+### Reviewer 4 (round 2) — claude-opus — scope: the emitters, the admission path + the published residual — verbatim
+
+Source `scratchpad/surface-a-review-a4.md`, sha256 `2965de63e0e5461aad50034cfa3dcf6c3bdecbbc8dda41b46401624abad6ce59`, 323 lines.
+
+<!-- BEGIN VERBATIM -->
+
+Tree restored — `git status --short` shows only `?? node_modules`, HEAD still `1cc52d4`.
+
+## Reviewer 4 (round 2) — model: claude-opus (strongest available) — scope: surface A, emitters + admission path + published residual
+
+### Verdict: FINDINGS: 6
+
+Setup used by every reproduction below:
+
+```
+W=/private/tmp/.../scratchpad/review-a-a4
+SP=$(mktemp -d); cd $W; git archive HEAD | tar -x -C $SP; ln -s $W/node_modules $SP/node_modules
+SP=$(cd $SP && pwd -P)          # see § Premise assertions — the un-realpath'd form silently no-ops
+```
+sha256 premise asserted for all seven artifacts before any probe (`scripts/context-io.js 1fbe8465bd7a2abf`, `hooks/guard.js f56acce7184533fb`, `hooks/admission-guard.js 538c9eedfa17f9de`, `scripts/checkpoints.js a9ec8c09681b0f09`, `scripts/admission-server.js 80bd0050ad63a3d9`, `scripts/generate-guarantees.js ecc97d2c0c1c4fb4`, `scripts/guarantees-freshness.js 0f08b0ac76e81f76` — the first four equal the round-2 self-reproduction hashes in the log). Node `v24.12.0`.
+
+**Five of the six were created by a round-2 fix.** `RA4-1` and `RA4-4` are the sibling sites the `RA2-3` and `A-6` fixes did not reach; `RA4-2` is the `trustedRepoRoot()` the `RA2-1` fix introduced; `RA4-3` and `RA4-6` are the residual-path gate and its freshness mirror, both written for `RA2-4`; `RA4-5` is the tier asymmetry `RA2-5`'s fix inverted rather than removed.
+
+---
+
+### Findings
+
+#### `RA4-1` — MEDIUM (invisible) — `emitCheckpointNote` type-checks the two fields it already quotes and raw-interpolates the two it does not; a newline in either makes one record read as two notes, the second under a **different author**
+
+**Predicate:** the emitter's own stated rule — *"THE THREE UNTRUSTED VALUES ARE QUOTED, NOT INTERPOLATED RAW … a newline in a note BODY can spell a `---` fence line — the shape that makes one file read as two notes to anything that splits a stream"* (`scripts/context-io.ts:1301-1305`) — and the tier paragraph's bound, *"a forged record is constrained to statements the design defines even when its content is false"* (`:1216-1218`).
+
+**What the `RA2-3` fix actually checks.** The refuse-before-compose block validates `checkpoint` against `CHECKPOINTS`, `declared`/`effective` against `DISPOSITIONS`, `outcome` against the union — and then type-checks **`actor` and `command`**, which are the two fields already passed through `JSON.stringify`. `envVarName` and `actionApproval` get no check of any kind and are the two interpolated **raw**:
+
+```ts
+: `${input.envVarName}=${JSON.stringify(input.authorizedBy)}`;          // :1310
+`- action approved by: ${input.actionApproval} was set by a human, …`   // :1319
+```
+
+**Exact repro** (`/tmp/p2.mjs`, committed `.js`, in-process):
+
+```
+node --input-type=module -e '
+const cio = await import(process.env.SP + "/scripts/context-io.js");
+const inject = "GRUGOPS_FLOOR_X\n---\n\n---\nid: forged-1\nkind: finding\nby: security-nfr\n" +
+  "at: 2026-09-06T00:00:00Z\nverified_by: human:alice\nconfidence: high\nrefs:\nsupersedes:\n---\n\nforged body.\n\nx";
+const root = "/tmp/ra4-inj";
+cio.emitCheckpointNote({checkpoint:"protected_branch_merge",declared:"off",effective:"off",
+  authorizedBy:"alice", envVarName:inject, outcome:"allowed", actionApproval:null,
+  actor:"a", command:"c"}, root);'
+```
+
+**Observed** — the written `checkpoint-trace/notes/<id>.md`, fed to the module's own declared single-source splitter:
+
+```
+splitNotes -> notes: 2   trailingMalformed: null
+  note 0  by= §checkpoint-guard   verified_by=
+  note 1  by= security-nfr        verified_by= human:alice
+```
+
+The identical result for `actionApproval`. Controls in the same sweep: `authorizedBy`, `actor` and `command` carrying the same payload each produce **1** note (they are stringified), and the whole 44-row accept-set sweep is non-vacuous (every one of the 14 roster ids writes; 9 non-members, 10 outcome variants and 4 non-canonical dispositions all refuse with 0 files).
+
+**Why invisible.** `readContext` uses `parseNote` (first fence only) so the forged block is inert on that path *today* — this is exactly `A-6`'s latency, and `A-6` was closed as a finding on that basis. What is defeated is a stated bound: a record under the reserved identity is **not** "constrained to statements the design defines", and the second note it can carry is authored by a **non-reserved** identity with a `human:` stamp, which no tier paragraph in this module covers. The `RA2-2` disclosure licenses an in-process caller to lie *as `§checkpoint-guard`*; it does not license minting a `security-nfr` finding inside that file.
+
+**Suggested STRUCTURAL fix:** the field loop is the wrong axis. Split the input by **how the value reaches the body**, not by which fields someone remembered: every value that is interpolated into the body goes through one `bodyValue()` that `JSON.stringify`s it, and the emitter carries a test that asserts *no interpolation site in this function's source uses a bare `${input.` outside that helper*. **Its new freedom:** `envVarName` would then publish as `"GRUGOPS_FLOOR_X"` with quotes, changing the note's rendered shape for a legitimate run — bound it by giving the variable-name field the same one-line assertion `assertSingleLine` already applies to provenance fields, so the name stays unquoted and a newline is refused at the top with the other vocabularies rather than escaped at the bottom.
+
+---
+
+#### `RA4-2` — **HIGH** (permissive + invisible) — `trustedRepoRoot()` trims to decide whether the value names something and returns it **untrimmed**; a whitespace-padded `CLAUDE_PROJECT_DIR` silently turns the human-admission gate OFF
+
+**Predicate:** one trusted root, one answer — *"An empty or whitespace-only value names nothing, and naming nothing is what the fallback is for"* (`scripts/context-io.ts:1905-1912`).
+
+```ts
+const fromEnv = process.env.CLAUDE_PROJECT_DIR;
+if (typeof fromEnv === "string" && fromEnv.trim() !== "") return fromEnv;   // trims to TEST, returns RAW
+```
+
+`" /path/to/proj "` passes the emptiness test, is returned with its padding, and `join()` produces `" /path/to/proj /.grugops/factory.config.json"` — which is `ENOENT`, which `readGovernanceConfigCandidate` maps to **absence**, which is the *lean* posture (`human_admission: "off"`). The config was not unreadable; it was invisible.
+
+Note the asymmetry inside one module: `grantedBy` (the `A-4` fix) trims for the presence test **and publishes the trimmed value**; `trustedRepoRoot` (the `RA2-1` fix) trims for the presence test and publishes the raw one. Same predicate shape, two answers, in the two functions round 2 wrote.
+
+**Exact repro — the un-forgeable primary tier, `hooks/admission-guard.js` spawned as a process** (`/tmp/p4.mjs`; env scrubbed of every `GRUGOPS_*` and `CLAUDE_*` before each case; payload = an un-stamped `security-nfr` finding through `mcp__grugops__persist_note`; project config `{"context":{"human_admission":"all"}}`):
+
+```
+CONTROL CLAUDE_PROJECT_DIR = proj              exit=0  DENY   {"permissionDecision":"deny", …}
+PADDED  CLAUDE_PROJECT_DIR = " proj "          exit=0  ALLOW  0 bytes stdout, 0 bytes stderr
+TRAILING NEWLINE proj+"\n"                     exit=0  ALLOW  0 bytes stdout, 0 bytes stderr
+unset (kit fallback, disclosed V-30-10-03)     exit=0  ALLOW
+```
+
+**And the checkpoint guard mis-publishes rather than mis-decides** (`/tmp/p5.mjs`, project config `{"checkpoints":{"protected_branch_merge":"notify"}}` + a valid floor grant):
+
+```
+CONTROL  CLAUDE_PROJECT_DIR = proj    ALLOW  banner: "checkpoints not at default: protected_branch_merge=notify authorized by …"; 1 note written
+PADDED   CLAUDE_PROJECT_DIR = " proj "  DENY  banner: "all checkpoints at default";  proj notes: NONE
+```
+
+The guard's *decision* fails closed (absent matrix → roster defaults → `block`), so the harm there is the **banner asserting a posture the repository did not declare** — the D-20 line that exists so a human can read the run's posture. The admission guard has no such backstop: absent dial is `off`, and `off` allows, in silence.
+
+**Why permissive and invisible.** One byte of trailing whitespace on a variable the guard reads is a complete, recordless disabling of the two-key admission gate. The value is supplied by the parent process, and row 9 of the register now records **as an observation** that a settings-file `env` entry reaches the hook subprocess — so the population channel is not hypothetical, and a shell wrapper, a CI `env:` block or a `$(cat …)` expansion reach it just as well. I did **not** observe whether a settings entry can override `CLAUDE_PROJECT_DIR` specifically and do not claim it; the finding does not need it, because a benign padding is silent fail-**open** on a governance dial regardless of who typed it.
+
+**Suggested STRUCTURAL fix:** `trustedRepoRoot()` returns `fromEnv.trim()` — the value it tested, not a different one — which is what `grantedBy` already does next door, and the two get one shared assertion: *a presence predicate publishes the value it tested*. Second half, at the point of effect: `readGovernanceConfig` must distinguish "no config anywhere under a root that exists" from "the root itself does not exist". A `repoRoot` that is not an existing directory is `unreadable`, not `absent` — the same by-rule move `RA1-2` made for a non-regular file. **Its new freedom:** a legitimately absent project directory (a fresh clone, a caller passing a path it is about to create) now fails closed instead of running lean; bound it by scoping the existence test to a root that was *supplied* (`CLAUDE_PROJECT_DIR` present) and leaving the kit fallback — which exists by construction — on the lean path, and by naming the missing directory in the refusal.
+
+---
+
+#### `RA4-3` — MEDIUM (permissive to the reader) — the residual-path gate's "derived, not hand-kept" scan is gated on a hand-kept six-member directory list, and `.claude/` — the directory row 9's mechanism claim is *about* — is outside it
+
+**Predicate:** *"a residual row may name a file, and the render refuses to publish a row naming a file that is not in the tree … THE SET IS DERIVED, NOT HAND-KEPT … so a clause that starts citing a new file is covered without anyone editing a list here, which is the set-literal-drift class this repository keeps closing"* (`scripts/generate-guarantees.ts:406-429`).
+
+The scan (`citedResidualPaths`, `:430-441`) accepts a backticked span only if it matches
+
+```js
+/^(?:install|agent-factory|scripts|hooks|docs|\.claude-plugin)\//
+```
+
+That is a set literal. Everything else in the repository is invisible to the gate.
+
+**Exact repro, unit level** (`/tmp/p6.mjs`):
+
+```
+control: existing path           `hooks/hooks.json`                    -> ["hooks/hooks.json"]
+control: MISSING known prefix    `hooks/nope.json`                     -> ["hooks/nope.json"]
+ATTACK .claude/  (row 9's own)   `.claude/settings-nonexistent.json`   -> []
+ATTACK .github/                  `.github/workflows/nope.yml`          -> []
+ATTACK repo-root file            `install-nonexistent.ts`              -> []
+ATTACK package.json-shaped       `package-nope.json`                   -> []
+ATTACK bare doc                  `AGENTS-nope.md`                      -> []
+ATTACK user-scope                `~/.claude/settings.json`             -> []
+ATTACK uppercase                 `Hooks/nope.json`                     -> []
+live gate over the real register:  []   (5 paths cited, all real: install, agent-factory, .claude-plugin, hooks, hooks/hooks.json)
+```
+
+**Exact repro, end to end** — appending one clause to register row 10 and running the committed generator in the mirror:
+
+```
+ATTACK   … Narrowed by `.claude/settings-nonexistent.json`.
+  node scripts/generate-guarantees.js  -> exit=0  "Wrote docs/GUARANTEES.md — 6 safety row(s)."
+  grep -c settings-nonexistent docs/GUARANTEES.md -> 1        <- PUBLISHED on the public safety page
+CONTROL  … Narrowed by `hooks/nope-guard.json`.
+  node scripts/generate-guarantees.js  -> exit=1
+  "residual row 10 cites `hooks/nope-guard.json`, which is not in the tree — a published residual
+   may not name a mechanism that does not exist (plan 30-11 RA2-4)"
+```
+
+The control is the non-vacuity proof: the identical clause, the identical row, one path under an enumerated prefix and one under `.claude/`.
+
+**Second axis, same gate, different root cause — `existsSync` is not "in the tree".** Creating an untracked `hooks/local-only-not-committed.json` and citing it publishes it too (`exit=0`, `grep -c` = 1). A mechanism that exists only in one working tree is precisely a mechanism that "is not in the tree" for every reader of the page.
+
+**Why permissive.** `RA2-4`'s harm was a reader told the vector is currently narrowed by mechanisms that do not exist. That harm reproduces verbatim, through the gate built to stop it, for every path outside six directory names — including the two settings files the whole row is about. The vacuity floor (`scanned > 0 && cited === 0`) does not fire, because the row cites five *real* directories alongside the fake file.
+
+**Suggested STRUCTURAL fix:** stop deciding what is a path by its prefix. The register's own backticked spans are already the derived input; make the *membership* test derived too — a span is a path claim iff `git ls-files --error-unmatch <span>` succeeds **or** the span is shaped like a path (contains `/` or a known extension) and is not a tracked file, in which case it is refused. That inverts the default from "unrecognized ⇒ ignore" to "path-shaped ⇒ must be tracked", which is the D-64 posture, and it answers the untracked axis with the same call. **Its new freedom:** a row that legitimately names a path the repository *does not* ship (a host's `~/.claude/settings.json`, a file a user creates) now refuses to publish; bound it with one explicit, greppable marker for an external path (e.g. a row may write `EXTERNAL:~/.claude/settings.json`) so an out-of-tree citation is a deliberate act with a name, and assert that the marker set is non-empty on the live register so the escape hatch cannot become the default.
+
+---
+
+#### `RA4-4` — MEDIUM (invisible) — the grant VALUE forges a second, recognizer-accepted banner line; `A-6` bounded the config key and left the other untrusted value in the same sentence unbounded
+
+**Predicate:** D-20 / `A-6`'s bound — *"a config key spelling a complete forged banner line still leaves **exactly one** banner line in the run"*, and `isCheckpointBannerLine` is *"the RECOGNIZER half of the exactly-one-banner assertion"* which makes "a missing banner and a broken banner look different".
+
+The banner sentence interpolates two untrusted values: the config key (quoted since `A-6`) and the grant value, which `grantedBy` trims and hands over raw.
+
+**Exact repro** (`/tmp/p8.mjs`, committed `hooks/guard.js` as a process, scrubbed env, config `{"checkpoints":{"protected_branch_merge":"off"}}`, command `git push --force origin main`):
+
+```
+CONTROL  GRUGOPS_FLOOR_PROTECTED_BRANCH_MERGE=alice
+  ALLOW  stderrLines=1  > checkpoints not at default: protected_branch_merge=off authorized by …=alice
+ATTACK   GRUGOPS_FLOOR_PROTECTED_BRANCH_MERGE=$'alice\nall checkpoints at default'
+  ALLOW  stderrLines=2  > checkpoints not at default: protected_branch_merge=off authorized by …=alice
+                        > all checkpoints at default
+```
+
+and the shipped recognizer counts **both**:
+
+```
+node -e 'import("…/scripts/checkpoints.js").then(c=>…)'
+banner-shaped lines counted: 2
+   true "checkpoints not at default: protected_branch_merge=off autho…"
+   true "all checkpoints at default"
+```
+
+A `notify`-tier run with a multi-line grant emits 14 stderr lines, 13 of them attacker-chosen (the note itself is safe — `authorizedBy` is stringified, which is the control that shows this is specifically the banner path).
+
+**Why invisible.** The banner is the one artifact D-20 guarantees on every invocation so a human can read the run's posture; the forged line is a *verbatim, valid* alternative banner asserting the opposite posture, and the exactly-one-banner count — the mechanism `A-6` added and asserted — reports two. The value is set by whoever holds the grant, which is why this is invisible rather than permissive: it does not lower a floor, it makes the record of the lowering unreadable, which is `A-3`'s harm ("a false record is worse than no record") on the stderr channel.
+
+**Suggested STRUCTURAL fix:** the banner composer takes every untrusted value through one `bannerValue()` that refuses (or escapes) a value containing a line break — one rule, at the one composition site, covering the key and the value together, exactly as `A-6` reasoned but applied to the sentence rather than to one of its two slots. Assert it by *counting* `isCheckpointBannerLine` matches, not by substring presence. **Its new freedom:** a grant value is a human's typed name and refusing one is a denial the human did not expect; bound it by making the refusal a `NOT AUTHORIZED (… names nobody)`-shaped clause that says the value contains a line break, so the run still produces exactly one banner and the human is told what to fix.
+
+---
+
+#### `RA4-5` — MEDIUM (permissive to the reader) — after round 2, row 9 tiers the **positive** half and publishes the **negative** half flat; the observer that was live for three tool calls never exercised it
+
+**Predicate:** a sentence in the register published without a tier marker names something someone observed.
+
+Round 2 fixed `RA2-5` by marking *"a human's session export does reach the hook"* as "the vendor-documented mechanism … not separately observed on this host". The clause immediately before it now reads, flat and in the indicative, inside a sentence framed as **"The claim that holds"**:
+
+> "the grant is **un-forgeable from inside a tool call** — an agent's own inline `export VAR=...` lands in the child environment it spawns, which the hook process never inherits"
+
+That is the load-bearing *protective* half of the two-key guarantee, and it is **not** observed anywhere in this log. Round 1's thirteen self-set spawns measured a *refusal pattern over a command string*, not what a Claude-Code-spawned hook inherits after an agent exports something. The round-2 fix's own closing paragraph asserts it as measured: *"naming what IS observed and load-bearing in the same clause — the hook is a separate process, an agent's inline export cannot reach it, and a settings-file entry can — so the guarantee's floor is unchanged"*. Two of those three were measured; the middle one was not.
+
+**Exact repro — the observer's own verbatim log, quoted in this document:**
+
+```
+{"at":"…09:43:32…","cmd":"echo \"TRIGGER 1 — this Bash tool call is the observation…",
+ "env":{"GRUGOPS_SETTINGS_PROBE_PROJECT":"set-by-project-settings-local",
+        "GRUGOPS_FLOOR_PROTECTED_BRANCH_MERGE":null, "GRUGOPS_PROD_DEPLOY_APPROVED":null, …}}
+{"at":"…09:43:37…","cmd":"SP=/private/tmp/…", …}
+{"at":"…09:44:05…","cmd":"SP=/private/tmp/…", …}
+```
+
+Three invocations. Not one `cmd` is an `export` of a grant name. The observer **already recorded `GRUGOPS_FLOOR_PROTECTED_BRANCH_MERGE` and `GRUGOPS_PROD_DEPLOY_APPROVED` as explicit keys** — the experiment was one tool call (`export GRUGOPS_FLOOR_PROTECTED_BRANCH_MERGE=me && echo x`) away from turning the guarantee's floor into a measurement, on the one occasion a human had granted the settings write, and it was not taken. The round records two restraints (neutral probe name; no live grant); neither of them forbids an agent exporting a name into its *own* child shell, which grants nothing to anyone.
+
+**Why permissive under criterion (2).** The register's editorial achievement is separating observation from inference. It now tiers the half that makes the residual look **worse** and publishes flat the half that makes it look **better** — a reader learns the exposure is inferred and the protection is asserted. That is `RA2-5`'s asymmetry with the signs reversed, produced by `RA2-5`'s own fix. `docs/GUARANTEES.md` §9 carries it byte-identically (verified).
+
+**Suggested STRUCTURAL fix:** the register stops choosing which clauses carry tiers and carries one per clause by construction — each factual clause in rows 9–10 ends in an explicit `[observed <date>]` / `[inferred]` marker, and `scripts/generate-guarantees.ts` refuses to publish a row containing an unmarked declarative clause (the same refuse-to-write shape the path gate already uses). **Its new freedom:** a marker vocabulary is a set literal and a clause splitter is a parser, both of which this repository has been burned by; bound it by making the *absence* of a marker the refusing condition (so the failure mode is over-refusal, never silent flat publication) and by keeping the split at the sentence level with the count asserted against an independently derived sentence count.
+
+---
+
+#### `RA4-6` — LOW/MEDIUM (invisible) — the freshness mirror's cited-path copy pulls whole directories, including all of `scripts/`, which voids the derived-import-closure isolation the gate is built on
+
+**Predicate:** two sentences in `scripts/guarantees-freshness.ts`. *"The set is DERIVED from the register text by the **same exported scanner** the gate uses, so the mirror cannot copy a different set from the one the gate asks about"* (`:171-175`), and the gate's founding rationale, *"the JavaScript half of the mirror is the derived transitive closure of the generator's own entry artifact"* (`:29-36`).
+
+Both are false at HEAD. The mirror calls `citedResidualPaths` on **every line** of the register; the gate calls it only on addition rows above `HISTORICAL_RESIDUAL_ROWS`. And the copy is `cpSync(src, dst, {recursive: true})`.
+
+**Exact repro:**
+
+```
+mirror copy set (every line): 27 paths, incl. "scripts", "agent-factory", "agent-factory/roles",
+   "install", "hooks", ".claude-plugin", "docs/GUARANTEES.md", "scripts/context-io.ts", …
+gate ask set (addition rows):  5 paths — install, agent-factory, .claude-plugin, hooks, hooks/hooks.json
+
+declared closure size: 12
+scripts/*.js in repo: 47  |  NOT in the declared closure but copied by the mirror: 35
+examples: adapters-freshness.js, admission-server.js, catalog-freshness.js, check-claim-anchors.js, …
+```
+
+Because one register line contains a backticked bare `` `scripts` ``, the mirror copies the entire `scripts/` directory. The gate whose whole purpose is *"adding an import to any module in that graph updates this mirror automatically"* can no longer detect an undeclared import: the module would be present in the mirror regardless. `node scripts/guarantees-freshness.js` reports fresh in 0.44 s and would keep reporting fresh with the closure derivation deleted.
+
+**Why invisible.** Nothing goes red. The render still reads only its declared inputs (I confirmed the committed page regenerates byte-identically), so the executor's "purity restored" claim about `renderGuarantees` holds — but the mirror's *isolation*, which is what makes a byte comparison meaningful, does not, and the header asserts both properties in the present indicative.
+
+**Suggested STRUCTURAL fix:** the mirror asks the same question the gate asks — apply the addition-row filter before scanning — and copies a cited path only as a **file** (`cpSync` without `recursive`, or `mkdirSync` for a cited directory so `existsSync` is satisfied without its contents). A directory citation needs to *exist*, not to be populated, because that is all the gate tests. **Its new freedom:** an empty mirrored directory would fail a future gate that inspects a cited directory's contents; bound it by asserting, in the same commit, that `residualPathRefusals` only ever calls `existsSync` — one grep-able property, so the mirror's shortcut and the gate's question stay the same question.
+
+---
+
+### Residual-wording audit — rows 9–10 and `GUARANTEES.md` §9–§10, every sentence
+
+`docs/GUARANTEES.md` §9 and §10 quote register rows 9 and 10 **byte-identically** (verified by substring identity of the full 4638-byte and 2213-byte cell texts). No register-vs-page drift.
+
+**Version reconciliation.** Both documents carry `2.1.251` ×1, `2.1.260` ×3, `2.1.263` ×3. All three are now reconciled in text (`2.1.251` = the GitHub-issue claim being corrected; `2.1.263` = `claude --version`; `2.1.260` = the artifact read). The unreconciled `2.1.261` that `RA2-5` flagged is gone. **CLAUDE_CONFIG_DIR:** row 10 now carries the correction row 9 carries, verbatim ("That specific claim was NOT confirmed and is corrected here to what was observed — the same correction row 9 carries, applied here too"). `RA2-5`'s two sub-items are closed.
+
+| sentence | tier |
+|---|---|
+| row 9: "an agent's own inline `export VAR=...` lands in the child environment it spawns, **which the hook process never inherits**" | **inferred-flat** — `RA4-5`. Never exercised, including in the one round where the observer was live and recorded that exact variable name as a key |
+| row 9: "while a human's session export does reach the hook (that positive half is the vendor-documented mechanism, tiered below — it is not separately observed on this host)" | inferred-and-tiered ✓ (`RA2-5` closed) |
+| row 9: "an `env` entry in `.claude/settings.json` **or** `.claude/settings.local.json` is reapplied to a live session and is read by the next hook subprocess" | **inferred-and-tiered, but wider than observed** — the log shows `.claude/settings.local.json` only; the round-1 design's `GRUGOPS_SETTINGS_PROBE_USER` never appears in any logged `env` object. Direction is conservative (a wider exposure), so an observation, not a finding |
+| row 9: "the hook cannot tell the two apart because the value is the same string either way" | inferred-flat — carried over from `RA2-5`'s table unaddressed; now nearly entailed by the observed settings→hook delivery, so low-consequence |
+| row 9: "**OBSERVED, in plan 30-11 round 2, on this host** … reached a hook subprocess spawned afterwards on the very next tool call, with no restart and no reload" | **observed** ✓ — matches the verbatim log |
+| row 9: "Removing the entry is live in the same way" | **observed** ✓ (3 lines before, 3 after) |
+| row 9: "the probe name was `GRUGOPS_`-prefixed, so the observation covers the prefix family the grants belong to" | observed + a name-independence inference the log's restraint paragraph grounds ✓ |
+| row 9: "What is still NOT observed … a *human's login-shell export* reaching Claude Code's own process was not exercised" | **observed-absence, correctly stated** ✓ |
+| row 9: "The narrowing measure **would be** … and **neither is in the tree at HEAD**" | **observed**, and re-measured here at HEAD: the only `permissions.deny` occurrence outside the two publications is the comment at `hooks/guard.test.ts:688`; `hooks/hooks.json` carries exactly `"Bash"` and `"mcp__grugops__.*"` ✓ (`RA2-4` closed in prose — but see `RA4-3` for the gate) |
+| row 9: "session-scoped under a name, not per-action consent" / "pre-existing exposure … applies identically to `GRUGOPS_PROD_DEPLOY_APPROVED` and `GRUGOPS_ADMISSION_APPROVED_BY`" | observed by inspection ✓ |
+| row 10: scrub feature exists / off by default outside GH Actions / targets `INPUT_*`+`NPM_CONFIG_*` / zero `GRUGOPS` / membership not extracted | **observed**, correctly bounded ✓ |
+| row 10: "The former clause 'and the existing grants work on this host' is **withdrawn**" | **withdrawn** ✓ (`RA2-5` closed) |
+| row 10: "the hook reads `GRUGOPS_*` from its own process environment (by spawning the artifact)" | **observed** ✓ |
+| row 10: "whether a human's login-shell export does so on this host is unobserved" | **observed-absence** ✓ |
+| — | **false: none.** One inferred-flat clause is load-bearing (`RA4-5`); one is inconsequential; one is wider-than-observed in the conservative direction |
+
+### Workflow 05 (`agent-factory/workflows/05-pr-quality-gate.md`)
+
+- **The rule is the text now**, in all three places `RA2-6` named: Step 4 — *"Human-only failures are a RULE, not a list. An enumeration goes one code short when the checker gains one. They are a UI/E2E visual-baseline acceptance, and **any test-integrity result other than exit `0`**"*; Step 5 — same phrasing, explicitly *"This set is the rule Step 4 states, not a second enumeration beside it"*; the frozen `## Stop conditions` bullet (`:67`) — *"or any test-integrity result other than exit `0`"*. ✓
+- **`READY_FOR_HUMAN_REVIEW` is stated as a consequence of the emission**: *"**The terminal result is a CONSEQUENCE of that emission, not a sibling of it.** Publish `READY_FOR_HUMAN_REVIEW` only after `emit-verdict` exits `0`."* ✓
+- **No machine consumer enforces the ordering.** Re-measured at HEAD: `grep -rn "READY_FOR_HUMAN_REVIEW" --include=*.ts --include=*.js scripts/ hooks/ tools/` returns only `context-io`'s own `VERDICT_GREEN_MARKER` and `check-uat-oracles`'s documented `FROZEN_VERDICT` ("deliberately NO live gate"); no consumer of `verdict emitted` / `note admitted` exists anywhere. It is prose only — which is the position the fix's own "new freedom" paragraph takes, so it is recorded here rather than raised.
+- **Disposition rows:** `docs/audit/29-style-dispositions/30-11.md`, 76 lines, 24 table rows, covering the Step 4 / Step 5 / frozen-bullet edits with the judgement written above the table. Present and coherent.
+
+---
+
+### Probes that found nothing (every probe)
+
+| # | predicate | input | result |
+|---|---|---|---|
+| 1 | emitter accept sets DERIVED | all **14** `CHECKPOINTS` members driven through `emitCheckpointNote` | 14/14 **written**, one note each — the emitter's set cannot be narrower than the roster |
+| 2 | ditto, complement | 9 non-members: `not_a_checkpoint`, `""`, `PROTECTED_BRANCH_MERGE`, `protected_branch_merge␠`, `protected-branch-merge`, Cyrillic-е homoglyph, trailing U+200B, `ⓟ`-circled, trailing `\n` | 9/9 **refused**, 0 files each |
+| 3 | outcome union | `allowed`, `refused`, `approved`, `ALLOWED`, `allowed␠`, `""`, `allowed`+U+200B, `undefined`, `null`, `0`, `{toString:()=>"allowed"}` | only the 2 exact members write; the `toString` object is refused (`includes` uses `===`, no coercion) |
+| 4 | disposition set | `block`/`notify`/`off` + `yes`, `BLOCK`, `block␠`, `""` | 3 write, 4 refused |
+| 5 | does an emitter refusal make the guard DENY (D-11)? | every config-driven route into `record()` | **unreachable by config** — `readCheckpointMatrix` drops off-roster keys and `canonicalizeDisposition` has no non-member output, so no matrix can produce an input the emitter refuses. The derivation is doing its job |
+| 6 | unwritable trace root = global DoS? | `chmod 500` on `<proj>/.grugops/context`, `notify` + grant | the matched command **DENIES** (D-11, message names the write failure); `ls -la` in the same config still **ALLOWS**. Fail-closed and scoped, not a blanket denial |
+| 7 | guard, padded root, decision direction | `CLAUDE_PROJECT_DIR=" proj "`, config `notify` + grant, `git push --force origin main` | **DENY** — the decision fails closed; only the banner lies (folded into `RA4-2`) |
+| 8 | `admit` arity | `admit t note.md ""`, `admit t note.md --`, `admit -- t note.md` | all three exit 1 with the arity refusal naming `CLAUDE_PROJECT_DIR`. The `rest.length !== 2` test does not have the `emit-verdict` `?? `-vs-`""` asymmetry |
+| 9 | CLI/server root agreement | `trustedRepoRoot()` under 9 env shapes (unset, `""`, `"   "`, `" /tmp "`, relative, `../..`, nonexistent, a FILE, embedded newline) | one function, one answer; `admission-server.ts:176` imports it rather than re-spelling it. The two surfaces agree on every shape (they agree on the wrong answer for the padded one — `RA4-2`) |
+| 10 | `emitVerdict` premise controls | `clean` / `finding` through the CLI verb | `clean` → exit 0, 1 file; `finding` → exit 1, 0 files, refusal names the value and the argument order. Non-vacuous |
+| 11 | recorded residual: `emit-verdict … clean ""` | 4th positional `""`, run from an unrelated cwd | **direction confirmed as recorded** — `exit=0`, note lands at `./t/notes/<id>.md`. `rest[3] ?? DEFAULT` defaults only on `undefined` |
+| 12 | `test_integrity` config cell (V-30-02-02) in the permissive direction | `{"checkpoints":{"test_integrity":"off"\|"notify"\|"block"}}` through `readGovernanceConfig` | the cell round-trips with **0 refusals** (TINT-03 not held by the runtime reader — reviewer 2 obs. 4, direction confirmed), but `hooks/guard.ts` has exactly two pattern groups (`production_requires_human_confirmation`, `protected_branch_merge`) and `emitVerdict` reads no config, so the cell still governs nothing. **Latent, not permissive** |
+| 13 | note-body injection through the three quoted values | `authorizedBy`, `actor`, `command` each carrying a full forged frontmatter block | all three `JSON.stringify`d onto one line; `splitNotes` → **1** note. The quoted set is safe; only the unquoted two are not (`RA4-1`) |
+| 14 | grant value shapes, floor tier | `"\t"`, `" "`, `"\n"`, U+00A0, U+200B, `"0"`, `"false"`, `"null"`, `"undefined"`, `"  Olger Oeselg  "`, 100 KB | whitespace-only (incl. `\t`, `\n`, NBSP) → `names nobody`, DENY; `"0"`/`"false"`/`"null"` → ALLOW (a name, correctly — JS truthiness is not the test); padded name publishes **trimmed** ✓; 100 KB name writes one banner |
+| 15 | same, action-approval tier | identical 11 values against `kubectl apply -f x.yaml` | identical partition — one predicate, three call sites, as `A-4` fixed |
+| 16 | admission approver tier | covered through the hook (probe in `RA4-2`) with the padded/clean root pair | the approver predicate itself is the same `grantedBy`; no divergence found |
+| 17 | reserved identity through the sanctioned writer | `appendNote` with `by: §14-gate` / `§checkpoint-guard` | both throw `structural FAIL: … reserved author identity`; nothing written |
+| 18 | `isLiveGreenVerdict` write/read symmetry | re-confirmed the round-1 eleven-variant sweep is pinned as an equality in `scripts/context-io.test.ts` and the file is green (225/225) | no divergence |
+| 19 | register↔page drift | full-cell substring identity for rows 9 and 10 against `docs/GUARANTEES.md` | byte-identical, both rows |
+| 20 | row 9's own "neither is in the tree" measurement, re-run at HEAD | `grep -rn permissions.deny install/ agent-factory/ .claude-plugin/ hooks/`; `hooks/hooks.json` matchers | 1 hit, a test comment; matchers `Bash` and `mcp__grugops__.*`. The published measurement is true |
+| 21 | residual gate, trailing punctuation / slash | `` `docs/nope.md.` ``, `` `hooks/nope/` `` | both scanned; both refuse (`.`-suffixed path does not exist; `nope/` → `nope` does not exist). Fail-closed on this axis |
+| 22 | residual gate, self-citation vacuity | does any addition row cite `docs/GUARANTEES.md` (the file being written)? | the mirror set contains it, the **gate ask set does not** (it is cited outside an addition row). No self-citation vacuity today |
+| 23 | freshness gate live | `node scripts/guarantees-freshness.js` at HEAD | `Guarantees fresh` in 0.44 s — the committed page is a faithful regeneration |
+| 24 | workflow-05 machine consumers | `grep -rn READY_FOR_HUMAN_REVIEW\|emit-verdict\|note admitted` over `scripts/ hooks/ tools/ .github/` | one recognizer + one documented frozen string; **no** consumer of the ordering. Prose tier, as the fix states |
+| 25 | the round-2 residual "`supersedes` withdrawal of a live verdict" | re-read of `currentState` + `admit`'s ordering | direction confirmed: the fold runs before `isLiveGreenVerdict`, so a withdrawal can only **refuse** an admission. Fail-safe, unchanged, still unrecorded |
+| 26 | the round-2 residual "`render()` duplicates the supersede fold" | `context-io.ts:1458-1465` vs `currentState` | still two implementations; `render` demotes rather than erases. Benign, unchanged |
+
+---
+
+### Observations
+
+1. **The `RA2-1` closure is narrower than the log records.** The argv positionals are gone and the arity check holds — but the attack reproduces through the env var that replaced them, at the same one-word cost: with the same self-stamped high-severity finding, `CLAUDE_PROJECT_DIR=<active repo> admit` → `exit=1 admission REFUSED`, and `CLAUDE_PROJECT_DIR=<empty dir> admit` → `exit=0 note admitted`. That *is* the disclosed weaker tier (`context-io.ts` names it: *"an in-script check is settable in admit()'s own child env"*), so it is not a finding — but the log's row `RA2-1 | CLOSED` and the fix's "new freedom" paragraph ("an operator with a non-standard layout loses the CLI override") never say that the override was replaced by a cheaper one. The honest closure is "the hole moved from argv into the recorded D-05 tier", and the hook half is what actually holds — which is why `RA4-2`, on the hook, matters.
+2. **The CLI's fall-through usage line still advertises the deleted positional.** `scripts/context-io.ts:2404` (and the emitted `.js:2066`): `"usage: context-io.js <validate <noteFile> | admit <task> <noteFile> [contextRoot] | …>"`. The `admit` branch's own usage line is correct; the catch-all one tells a user to pass a root the verb refuses as an arity error. Direction is fail-closed and it is one string, so it is an observation, not a finding — but it is the same "a published sentence outlived the mechanism" class this round is auditing.
+3. **Step 3 of workflow 05 keeps a fourth, exit-`1`-only sentence.** *"On exit `1` the gate STOPS and hands to a human — see the human-only short-circuit in Step 4."* The rule fix reached Steps 4, 5 and the frozen stop-conditions bullet; this sentence was left. It is *covered* by the same paragraph's "This step is **always human-only**", so nothing is permissive — but the disposition document's own analysis quotes Step 3 while missing it, which is the "a three-site fix misses a fourth site nobody derived" pattern.
+4. **`readCheckpointMatrix` still does not hold TINT-03** (`test_integrity: "off"` round-trips with zero refusals while `validate-agent-factory.ts` refuses it). Recorded direction confirmed; still latent because the guard has no `test_integrity` pattern group and `emitVerdict` reads no config.
+5. **The register cites paths as bare directory names.** `` `scripts` ``, `` `install` ``, `` `agent-factory` `` etc. are treated by `citedResidualPaths` as path claims and satisfied by `existsSync` on a *directory*. That is what makes `RA4-6`'s recursive copy pull the repo, and it also means a row can satisfy the gate's non-vacuity floor with five citations that assert nothing about any mechanism.
+6. **The freshness mirror's cited-path copy is a partial repository copy on every CI run** — `scripts/` (47 `.js` + all `.ts`), `agent-factory/` (incl. `agent-factory/roles`), `install/`, `hooks/`, `.claude-plugin/`. It completes in 0.44 s today; it is the sort of cost that grows silently with the register.
+
+---
+
+### Premise assertions performed
+
+- **Artifact identity.** All seven `.js` under test sha256-compared between the `git archive HEAD` mirror and the worktree **before any probe**: seven of seven `premise OK`, and the four overlapping with the round-2 self-reproduction table match its published hashes. Re-verified after every mutation of the mirror's register and after the final restore (`git hash-object` vs `git rev-parse HEAD:<path>`, six of six OK).
+- **Never the `.ts`.** Every reproduction either spawns a compiled `.js` as a child process or `import()`s the compiled `.js`. No `.ts` was imported, no `npm run build` was run, so no emitted artifact could drift.
+- **The environment is scrubbed, not inherited.** Every spawn deletes every `GRUGOPS_*` key and every `CLAUDE_*` key from the parent environment before applying the case's own env.
+- **Two-sided controls in every sweep.** The emitter sweep's control is all 14 roster members **writing** (so the 23 refusals are the predicate and not a dead harness). The `emitVerdict` premise pair is `clean` → exit 0 / 1 file and `finding` → exit 1 / 0 files, on the same artifact in the same run. The `RA4-2` control is the *identical* payload and config denying under an unpadded root. The `RA4-3` control is the *identical* clause in the *identical* row refusing under an enumerated prefix. The `RA4-4` control is the same grant name without a newline producing exactly one banner line. The `RA4-1` control is the same injection payload placed in `authorizedBy`/`actor`/`command`, producing one note.
+- **A FALSE HARNESS PREMISE WAS CAUGHT AND IS RECORDED, NOT DELETED.** My first `admit` CLI table returned `exit=0` with **zero bytes of output on every row**, including rows that must fail arity. Cause: `SP` was `/tmp/ra4.XXXX` while `import.meta.dirname` resolves through `/private/tmp`, so `import.meta.url === pathToFileURL(process.argv[1]).href` was false, `isMain` was false, and the CLI never ran — the exact fabricated-success trap `scripts/guarantees-freshness.ts:104-113` records for its own mirror. Every CLI table was re-run with `SP=$(cd $SP && pwd -P)`. **This is also a live property worth naming:** `node <symlinked-path>/scripts/context-io.js admit …` exits **0**, prints nothing, and admits nothing — a caller reading the exit code reads it as an admission.
+- **A second discarded probe.** A 1 MB grant value produced `stderrLines=0` and looked like a suppressed banner. It was `E2BIG` at `spawnSync` (macOS `ARG_MAX` = 1 MiB), i.e. the guard never ran. Re-run at 100 KB: one banner line, correct decision. The 1 MB row is discarded as a harness artifact, not reported.
+- **Grep premise.** Every "it does not exist" claim was run as a recursive `grep -rn` with a paired positive control in the same pattern — `permissions.deny` returns 1 hit in `hooks/guard.test.ts` and `grep -c` = 1 in `docs/GUARANTEES.md`, so a harness returning zero for everything would have failed that control.
+- **Non-vacuity of the residual-gate scan.** `citedResidualPaths` was shown to return a non-empty list for two known-prefix inputs (one existing, one missing) in the same invocation as the twelve attack rows, so the empty results are the prefix test and not a dead scanner.
+- **Baseline suite green.** `npx vitest run --exclude '**/scripts/e2e/**' scripts/context-io.test.ts` → 225/225 passed at HEAD, so no finding here is an artifact of a broken tree.
+- **Tree restored.** `git checkout -- . && git clean -fd -e node_modules`; `git status --short` reports only `?? node_modules`; HEAD unchanged at `1cc52d4`. All mutation was confined to the temp mirror, which was removed. Nothing under `/Users/olgeroeselg/Projects/public/grugops` was touched, and no `.claude/settings*.json` was read or written anywhere.
+
+<!-- END VERBATIM -->
