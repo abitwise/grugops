@@ -101,8 +101,16 @@ Each requirement maps to exactly one roadmap phase (27–33). REQ-IDs continue g
 
 - [x] **AUTO-01**: Every human stop in the kit is enumerated into a closed, exported checkpoint set (sourced from the `## Stop conditions` and role `## Hard limits` sections), such that adding a checkpoint without a default is a compile error.
 - [x] **AUTO-02**: A per-checkpoint ternary matrix (`block` / `notify` / `off`) replaces the `autonomy` scalar, with **fail-closed** handling of unknown or malformed values — any non-canonical value gates at least as strictly as `block`.
-- [ ] **AUTO-03**: Lowering a safety floor requires **two keys**: a declaration in config (agent-writable, form-checked only) plus authorization via a per-floor session env var the hook process reads fresh (agent-unwritable) — never a blanket grant.
-- [ ] **AUTO-04**: The hook-enforced vs in-process tier split is honoured explicitly: `test_integrity` moves to the **point of effect** (`emitVerdict()` refuses GREEN) rather than being given a false-equivalent env-var mechanism it cannot actually enforce.
+- [x] **AUTO-03**: Lowering a safety floor requires **two keys**: a declaration in config (agent-writable, form-checked only) plus authorization via a per-floor session env var the hook process reads fresh (agent-unwritable) — never a blanket grant.
+  - **Scope note (plan 30-11, red-team surface A, fenced 2026-09-06).** The two keys are built and the
+    settings-file vector is **OBSERVED** rather than inferred, which is the half this requirement was
+    written to settle. The **"agent-unwritable"** clause is held as **content with a disclosed
+    backstop**, not as a closed mechanism: the env var is unwritable through the channels surface A
+    attacked and refused, with two disclosed channels open (`NODE_OPTIONS` preload, and any host
+    settings file). Six zero-key bypasses of the protected-branch floor are recorded with working
+    reproductions as `V-30-11-16` … `V-30-11-20` and `V-30-11-25`. See `30-11-SUMMARY.md` §*What the
+    verifier must see* before wording any guarantee against this requirement.
+- [x] **AUTO-04**: The hook-enforced vs in-process tier split is honoured explicitly: `test_integrity` moves to the **point of effect** (`emitVerdict()` refuses GREEN) rather than being given a false-equivalent env-var mechanism it cannot actually enforce.
 - [x] **AUTO-05**: Claim-dropping is mechanical — a generated guarantees render plus a per-run banner naming every non-default checkpoint, so a lowered floor can never leave an overstated claim standing in the docs.
 - [x] **AUTO-06**: `readGovernanceConfig` and `readGovernanceConfigResult` collapse into a **single** discriminated-result config reader whose failure path is fail-closed, deleting the second authority rather than adding a third.
 - [x] **AUTO-07**: Defaults are unchanged and safe — a zero-config repo behaves exactly as it does today, and no floor is lowered by omission.
@@ -196,8 +204,8 @@ _Filled by the roadmapper 2026-07-28. Every requirement maps to exactly one phas
 | MODEL-07 | Phase 29.1 | Complete |
 | AUTO-01 | Phase 30 | Complete |
 | AUTO-02 | Phase 30 | Complete |
-| AUTO-03 | Phase 30 | Pending |
-| AUTO-04 | Phase 30 | Pending |
+| AUTO-03 | Phase 30 | Complete |
+| AUTO-04 | Phase 30 | Complete |
 | AUTO-05 | Phase 30 | Complete |
 | AUTO-06 | Phase 30 | Complete |
 | AUTO-07 | Phase 30 | Complete |
