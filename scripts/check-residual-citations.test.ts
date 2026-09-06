@@ -5,7 +5,7 @@
 // it, and these cases assert what it does when it runs.
 
 import { describe, it, expect } from "vitest";
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync, cpSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
