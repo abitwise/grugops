@@ -2526,3 +2526,73 @@ proved non-vacuous by planting an undeclared kind and observing the named red.
 
 The process lesson is recorded rather than the defect: **run every gate the repository ships, not the
 subset that has been failing informatively.**
+
+## Round 4 — self-reproduction against the FIXED build (closure clause 5)
+
+Every round-4 bypass, re-driven by the fixing agent against the committed artifacts at `ac57787`. The
+corpus gates are driven inside a real `git clone` of this repository, not a `git archive` mirror —
+the first attempt used an archive, which has no `.git`, so `check-diff-disposition` failed on
+`not a git repository` **before it ever reached the frozen region** and returned a green-looking
+`exit=1` for the wrong reason. That is this log's own recurring false-control class, caught here for
+the seventh time, and it is why each row below names the evidence rather than the exit code alone.
+
+| bypass | evidence against the fixed build |
+|---|---|
+| R5-1 — lone CR in a frozen region | `FAIL agent-factory/roles/orchestrator.md: carries a carriage return on 1 line(s) (lines 74)` — refused by name |
+| R5-2 arm C — an HTML comment hiding a heading | region body: **8** untouched → **2** under the pre-fix artifact (six lines silently unfrozen) → **12** under the fixed one, i.e. intact |
+| R5-3 — `workflows/rogue.mdwn` | `carries 1 entr(ies) the workflows corpus does not admit — rogue.mdwn`, once per anchor |
+| R5 obs. 4 — `roles/rogue.markdown` | `carries 1 entr(ies) the roles corpus does not admit — rogue.markdown` |
+| R6-6 — root `PUBLIC.markdown` with live disproven claims | `check-public-docs-vocabulary` exit 1 naming the file; `check-banned-claims` exit 1 |
+| R6-4 — a companion consumer of `publicDocsScan` | caught by name: `consumer(s) … with no declared direction: [scripts/check-public-docs-vocabulary-companion.ts::publicDocsScan]`; control clean at 28/28 |
+| R6-1 — `VALIDATE_ROOT=""` | `VALIDATE_ROOT was not supplied` now printed |
+| R6-2 — symlink-spelled kit root | caveat printed; SCOPE lists the in-kit config **once** |
+| R6 obs. 1 — precedence | SCOPE carries `precedence is replace, not merge` when more than one position is listed |
+| R6-5 — a row without outer pipes | `REFUSED: … declared but NOT PUBLISHED [11]`; mirror exit 0 → tree exit 1 |
+| R6-3 — a tightened checkpoint | mirror: 5919 bytes, byte-identical to zero-config, exit 0 → tree: 6069 bytes, exit 1, the tightening named |
+
+A note on two of these. R5-1's first plant landed in `_role-switch-protocol.md`, the one **exempt**
+role — `ls | head -1` sorts it first — so it measured nothing; and R5-2's first plant was placed
+*before* the frozen heading rather than inside the region, so it also measured nothing while
+returning a plausible number. Both were re-done. Recorded because the failure mode is the same one
+the mutation discipline exists for: a probe that produces a clean-looking result from an input that
+never reached the predicate.
+
+## DRAFT FENCE — proposed, pending the round-4 reviews
+
+D-22 caps surface B at four gap-closure rounds and round 4 is the last. This is the fence text and
+backlog drafted **in advance** of the round-4 reviews, so that if those reviews still find something
+the residual can be recorded and fenced rather than argued about. If both reviewers return "nothing
+new", this section is deleted and the surface is `closed` instead. The human makes that call.
+
+### Proposed fence text
+
+> **Surface B is fenced, not proven.** Four adversarial rounds against the derived checkpoint set,
+> the collapsed governance reader, the structure validator, the guarantees render, the freshness gate
+> and the run banner closed 8 + 6 + 7 + 9 findings, each with a failing test written first, a mirror
+> reproduction against the committed `.js`, a structural fix, and a mutation proof read out of the
+> emitted artifact. **No round returned "nothing new."** Rounds 2, 3 and 4 were each dominated by
+> defects that the PREVIOUS round's own fixes created — 3 of 6, 4 of 7, and 7 of 9 respectively — so
+> the honest reading of this surface is not that it is now correct, but that its defect rate per
+> round did not fall and the review budget ran out first.
+>
+> What that means for a reader: the gates named in this log are **evidence, not proof**. Each one
+> refuses a specific, named, reproduced bypass. None establishes that no further bypass exists, and
+> the measured trend says the next round would probably find more. The residuals below are the
+> things known to be open at the moment the budget closed, each with the direction it fails in
+> (`permissive` — it can let something through; `noisy` — it can only over-refuse). **A green test
+> suite is not offered as a closure argument anywhere in this record.**
+
+### Draft backlog entries
+
+| id | residual | direction | specific enough to act on |
+|---|---|---|---|
+| `V-30-10-01` | The hook does not publish `checkpointRefusals` | permissive (invisible) | The derivation's refusals exist and no shipped consumer surfaces them to a user; wire them into the hook's output or delete the claim that they are user-visible. |
+| `V-30-10-02` | The derivation assertions have no shipped consumer | permissive (invisible) | They are test-time tripwires. Either give them a runtime consumer or describe them as tripwires everywhere they are cited as evidence. |
+| `V-30-10-03` | The hook's kit-root fallback base | permissive | The hook resolves a kit root by fallback rather than from a supplied value; the validator's R6-1 fix (one supplied-root expression) has not been applied to it. |
+| `V-30-10-04` | Resolve-vs-realpath dedupe, one-space grant, `sectionsFound === filesWalked` vacuity | mixed — **item 1 was INVERTED by R6-2** | Item 1's "noisy, never permissive" disposition is no longer true and the entry must be rewritten, not merely carried; items 2 and 3 stand as recorded. |
+| `V-30-10-05` | Six round-3 reviewer observations | mixed | Item 5 (`COVERED_ELSEWHERE`) was independently re-raised by a round-4 reviewer, which promotes it: two reviewers reading one hand-written escape hatch as an escape hatch. |
+| `V-30-10-06` | Eight round-4 reviewer observations | mixed | Item 4 (named whitespace entities) is a **closed, decidable set** and the best candidate for actual work; item 7 (a future `.gitignore` rule narrowing the consumer pin) is the one that fails in the narrowing direction and should be checked whenever `.gitignore` changes. |
+| `V-30-10-07` | **The alias list cannot be completed for the public-docs corpus** | permissive | The workflow and roles corpora were fixed by INVERSION — admit every entry, refuse what the corpus rule does not admit — which removes the extension question entirely. The public-docs corpus is an OPEN set (any path in the repository), so inversion does not apply and it still asks a hand-declared alias list. Reviewer 5 swept ten extensions and seven were accepted; the list was extended to those ten, which is not the same as being complete. **This is the one round-4 finding whose fix is not structural**, and it is fenced rather than claimed closed. |
+| `V-30-10-08` | **Five §4.6 HTML block types are unmodelled** | noisy and permissive, depending on type | `blockContextFlags` models the comment/tag-block arm that R5-2 arm C needed. CommonMark §4.6 defines seven block types; the remaining five (notably the `<?`, `<!DECLARATION`, `<![CDATA[` and the type-7 generic-tag conditions) are not modelled, so a heading inside one of them can still be classified as a terminator. No live governed document carries the shape. |
+| `V-30-10-09` | **Named, non-numeric character references are not decoded** | permissive | `renderedText` decodes numeric references and zero-width characters. `&nbsp;`, `&#x200B;`'s named siblings and the rest of the HTML5 named-reference table are not decoded, so a heading padded with them still truncates differently for this module than for a renderer. Overlaps `V-30-10-06` item 4 and shares its remedy: the set is finite. |
+| `V-30-10-10` | **`npm run typecheck` runs two projects and only one was in the loop** | process, not code | Fixed here, but the process defect is the residual: four rounds of adversarial review ran a subset of the repository's own gates. Whatever CI runs for this repository should be the same list the closure standard runs, derived from `package.json` rather than remembered. |
