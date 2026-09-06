@@ -29,9 +29,9 @@
 // under the context root. The context root itself is a fixed literal (.grugops/context) in
 // production; tests pass an explicit temp root.
 import { randomUUID } from "node:crypto";
-import { writeFileSync, appendFileSync, readFileSync, readdirSync, renameSync, unlinkSync, mkdirSync, existsSync, openSync, fstatSync, readSync, closeSync, statSync, realpathSync, constants as fsConstants, } from "node:fs";
+import { isEntrypoint } from "./is-entry.js";
+import { writeFileSync, appendFileSync, readFileSync, readdirSync, renameSync, unlinkSync, mkdirSync, existsSync, openSync, fstatSync, readSync, closeSync, statSync, constants as fsConstants, } from "node:fs";
 import { join, resolve, sep } from "node:path";
-import { pathToFileURL, fileURLToPath } from "node:url";
 import { CHECKPOINTS, CHECKPOINT_DEFAULTS, DISPOSITIONS, STRICTEST_MATRIX, canonicalizeDisposition, } from "./checkpoints.js";
 // ── The six note kinds (SCTX-01) ──────────────────────────────────────────────────────────────
 export const NOTE_KINDS = [
@@ -1101,22 +1101,31 @@ export function emitCheckpointNote(input, contextRoot = DEFAULT_CONTEXT_ROOT, at
             `not one of ${CHECKPOINT_OUTCOMES.join("|")}. A record under the reserved identity may not ` +
             `mint a verdict word the design does not define.`);
     }
-    // `envVarName` publishes UNQUOTED in the body (it is a variable NAME a human reads and retypes),
-    // so it gets the one-line guard the provenance fields have rather than being escaped at the bottom
-    // — a newline is refused at the top, with the other vocabularies (round 3, `RA4-1`).
-    if (input.envVarName !== null)
-        assertSingleLine("envVarName", input.envVarName);
-    if (input.actionApproval !== null)
-        assertSingleLine("actionApproval", input.actionApproval);
-    for (const [field, value] of [
-        ["actor", input.actor],
-        ["command", input.command],
-        ["authorizedBy", input.authorizedBy ?? ""],
-    ]) {
+    // ── ONE RULE FOR EVERY BODY FIELD (plan 30-11 round 4, `RA6-4`). ────────────────────────────
+    //
+    // Round 3 closed `RA2-3` with a TYPE refusal over `actor`/`command`/`authorizedBy`, and closed
+    // `RA4-1` with a SINGLE-LINE refusal over `envVarName`/`actionApproval`. Two fixes, each covering
+    // one field-set on one axis — and the remaining cell was open: `assertSingleLine` does not refuse a
+    // non-string, because `/[\r\n]/.test(undefined)` coerces to the string `"undefined"` and passes.
+    // Measured: `actionApproval: undefined` WROTE the record, minting the sentence
+    // `- action approved by: undefined was set by a human` under the reserved identity. That line is
+    // the record's assertion that a human set an approval; a missing field minted it rather than
+    // refusing, and no reader or test can tell the forged line from a real one.
+    //
+    // The axis is "is this a field of the record", not "which fields did which round remember". One
+    // loop, both rules, and the nullable set is DERIVED from the input type's own optionality rather
+    // than hand-listed — `scripts/context-io.test.ts` asserts the loop covers exactly the fields the
+    // body interpolates.
+    const NULLABLE_BODY_FIELDS = new Set(["envVarName", "actionApproval", "authorizedBy"]);
+    for (const field of ["envVarName", "actionApproval", "authorizedBy", "actor", "command"]) {
+        const value = input[field];
+        if (value === null && NULLABLE_BODY_FIELDS.has(field))
+            continue;
         if (typeof value !== "string") {
-            throw new Error(`context-io.emitCheckpointNote: refusing to emit — ${field} is ${typeof value}, not a ` +
-                `string. A misspelled caller field reaches the record as the literal text "undefined".`);
+            throw new Error(`context-io.emitCheckpointNote: refusing to emit — ${field} is ${value === undefined ? "undefined" : typeof value}, not a string. A misspelled or missing caller field reaches the record as the literal text ` +
+                `"undefined", and this record's whole value is that its sentences are true.`);
         }
+        assertSingleLine(field, value);
     }
     const note = {
         kind: "finding",
@@ -1658,8 +1667,12 @@ export function trustedRepoRoot() {
     // `hooks/admission-guard.js` ALLOW an un-stamped high-severity finding with zero bytes on both
     // streams, against a control that DENIED. `grantedBy`, the `A-4` fix, already trims and publishes
     // the trimmed value; these are the same predicate shape and now give the same answer.
+    // …and it is made ABSOLUTE (round 4, reviewer-6 observation 3). `CLAUDE_PROJECT_DIR=.` resolved
+    // against the process cwd while this function's own comment says the design never does that. A
+    // caller that can set the variable can set anything, so this is not permissive — but a comment one
+    // case wider than its code is the shape this surface has spent four rounds deleting.
     if (typeof fromEnv === "string" && fromEnv.trim() !== "")
-        return fromEnv.trim();
+        return resolve(fromEnv.trim());
     return GOVERNANCE_FALLBACK_BASE;
 }
 /** The ceiling on a governance config read. Larger than any real config, small enough to bound. */
@@ -2000,34 +2013,9 @@ export function admitAndAppend(task, note, body, contextRoot = DEFAULT_CONTEXT_R
 }
 // ── CLI entrypoint (only when run directly, never on import) ────────────────────────────────────
 // import.meta.url === the executed file's URL when run via `node context-io.js ...`.
-/**
- * Is this module being RUN, rather than imported?
- *
- * ---------------------------------------------------------------------------------------------
- * RESOLVED THROUGH `realpathSync` ON BOTH SIDES (plan 30-11 round 3, reviewer 4's premise finding).
- *
- * `import.meta.url` is already realpath-resolved by Node; `process.argv[1]` is not. So invoking this
- * CLI through a path containing a symlink — `/tmp` on macOS is a symlink to `/private/tmp`, which is
- * where every mirror in this audit lives — made the comparison FALSE, and the CLI **exited 0 having
- * printed nothing and admitted nothing**. A caller reading the exit code reads that as an admission.
- * Reviewer 4 hit it as a false harness premise: an entire `admit` table returned exit 0 with zero
- * bytes on every row, including rows that must fail arity.
- *
- * This is the same class `scripts/guarantees-freshness.ts` already records for its own mirror — a
- * fabricated success from a path comparison that silently does not match — and it is fixed the same
- * way. `realpathSync` throws for a path that does not exist, so both sides are wrapped and fall back
- * to the raw value: an unresolvable argv[1] compares as before rather than crashing the import.
- * ---------------------------------------------------------------------------------------------
- */
-function resolvedHref(p) {
-    try {
-        return pathToFileURL(realpathSync(p)).href;
-    }
-    catch {
-        return pathToFileURL(p).href;
-    }
-}
-const isMain = process.argv[1] !== undefined && resolvedHref(fileURLToPath(import.meta.url)) === resolvedHref(process.argv[1]);
+// ONE authority for the entrypoint predicate (round 4, `RA6-1`) — see scripts/is-entry.ts
+// for why a per-file spelling of it silently no-ops under a symlinked path.
+const isMain = isEntrypoint(import.meta.url);
 if (isMain) {
     const [cmd, ...rest] = process.argv.slice(2);
     try {

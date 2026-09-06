@@ -140,8 +140,8 @@
 // would be one historical commit.
 // ---------------------------------------------------------------------------------------------
 import { readFileSync, existsSync, readdirSync, statSync } from "node:fs";
+import { isEntrypoint } from "./is-entry.js";
 import { join } from "node:path";
-import { pathToFileURL } from "node:url";
 // The walk's WORK bound is taken from the ONE place this repository declares it rather than
 // restated as a second literal.
 import { MAX_WALK_ENTRIES } from "./kit-model.js";
@@ -2396,8 +2396,7 @@ function runAll() {
 // `node scripts/check-banned-claims.js` run ZERO checks and exit 0, a fabricated green.
 // The guard is also what lets the test file IMPORT this module for its exported pins without the
 // import running the check and calling process.exit inside the vitest worker.
-const isEntry = process.argv[1] !== undefined &&
-    import.meta.url === pathToFileURL(process.argv[1]).href;
+const isEntry = isEntrypoint(import.meta.url);
 if (isEntry) {
     runAll();
 }

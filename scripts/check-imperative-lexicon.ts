@@ -186,8 +186,8 @@
 // ---------------------------------------------------------------------------------------------
 
 import { readFileSync, existsSync, readdirSync, statSync } from "node:fs";
+import { isEntrypoint } from "./is-entry.js";
 import { join } from "node:path";
-import { pathToFileURL } from "node:url";
 // The ONE fence state machine, asked per line so a finding can carry its source line number, and
 // the ONE section-locator authority (plan 29-20) this module now asks EVERY section-extent question
 // of. It declares no heading-equality test and no section-end predicate of its own.
@@ -1797,9 +1797,7 @@ function runAll(): void {
 // `node scripts/check-imperative-lexicon.js` run ZERO checks and exit 0, a fabricated green.
 // The guard is also what lets the test file IMPORT this module for its exported pins without the
 // import running the check and calling process.exit inside the vitest worker.
-const isEntry =
-  process.argv[1] !== undefined &&
-  import.meta.url === pathToFileURL(process.argv[1]).href;
+const isEntry = isEntrypoint(import.meta.url);
 
 if (isEntry) {
   runAll();

@@ -24,10 +24,10 @@
 // in the tree" for every reader of the published page.
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 
-import { readFileSync } from "node:fs";
+import { readFileSync, existsSync } from "node:fs";
+import { isEntrypoint } from "./is-entry.js";
 import { join } from "node:path";
 import { execFileSync } from "node:child_process";
-import { pathToFileURL } from "node:url";
 import { RESIDUAL_PATH } from "./audit-model.js";
 import {
   citedResidualPaths,
@@ -84,12 +84,27 @@ export function residualCitationRefusals(root: string = ROOT): CitationResult {
     scanned += 1;
     for (const path of citedResidualPaths(line)) {
       cited += 1;
-      if (!tracked.has(path)) {
+      // BOTH HALVES, AND THE REFUSAL SAYS WHICH ONE FAILED (plan 30-11 round 4, `RA6-3`).
+      //
+      // `git ls-files` reads the INDEX, not the worktree. `rm scripts/audit-model.ts` and the gate
+      // still PASSED — the inversion bought a real property (an untracked file exists in one working
+      // tree only) and silently sold the converse (an indexed but absent file). It compounds with
+      // `RA6-1`: in CI the index and the worktree agree, and `RA6-1` established the gate never ran
+      // in CI, so the ONLY place it ran was a developer's tree — precisely the only place the two can
+      // disagree. The citation must name a file this repository TRACKS and that is HERE.
+      const isTracked = tracked.has(path);
+      const isPresent = existsSync(join(root, path));
+      if (!isTracked || !isPresent) {
+        const why = !isTracked
+          ? !isPresent
+            ? "is neither tracked by git nor present on disk"
+            : "is present on disk but NOT tracked by git — it exists in one working tree only"
+          : "is tracked by git but ABSENT from the working tree — the index still carries it";
         refusals.push(
-          `residual row ${first} cites \`${path}\`, which is not a TRACKED file in this repository — ` +
-            `a published residual may not name a mechanism that does not exist here. If the path is ` +
-            `deliberately outside the tree (a host's own settings file), write it as ` +
-            `\`${EXTERNAL_PATH_MARKER}${path}\` so the citation is a named act.`,
+          `residual row ${first} cites \`${path}\`, which ${why}. A published residual may not name ` +
+            `a mechanism that does not exist here. If the path is deliberately outside the tree ` +
+            `(a host's own settings file), write it as \`${EXTERNAL_PATH_MARKER}${path}\` so the ` +
+            `citation is a named act.`,
         );
       }
     }
@@ -104,8 +119,7 @@ export function residualCitationRefusals(root: string = ROOT): CitationResult {
   return { refusals, scanned, cited };
 }
 
-const isEntry =
-  process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href;
+const isEntry = isEntrypoint(import.meta.url);
 
 if (isEntry) {
   const r = residualCitationRefusals();

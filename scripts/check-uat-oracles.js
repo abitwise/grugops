@@ -40,9 +40,9 @@
 // Exit 0 = all three oracles GREEN (ALL CHECKS PASSED); exit 1 = at least one FAIL.
 import { readFileSync, existsSync, mkdtempSync, mkdirSync, writeFileSync, readdirSync, rmSync, } from "node:fs";
 import { join } from "node:path";
+import { isEntrypoint } from "./is-entry.js";
 import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
-import { pathToFileURL } from "node:url";
 // Substrate primitives (committed .js twins) + the single-source equivalence comparator. The Tier-1
 // oracleDualPathEquivalence drives these directly to replay one seed two ways on disk (DOGF-01).
 import { appendNote } from "./context-io.js";
@@ -600,8 +600,7 @@ function runAll() {
 // `file://${argv[1]}` URL does NOT match on Windows (backslash paths + drive letters), which would make
 // a direct `node check-uat-oracles.js` run ZERO oracles and exit 0 — a fabricated green for a
 // no-fabrication safety tool (CR-01). Every sibling script (claim/context-io/compactor) uses this form.
-const isEntry = process.argv[1] !== undefined &&
-    import.meta.url === pathToFileURL(process.argv[1]).href;
+const isEntry = isEntrypoint(import.meta.url);
 if (isEntry) {
     runAll();
 }

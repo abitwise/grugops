@@ -50,8 +50,8 @@
 //   node scripts/compactor.js check <threadDir> <promotedDir> [--compaction=<dial>]
 //     # exit 0 = carve-out intact; exit 1 = a load-bearing element was dropped (named on stderr)
 import { readFileSync, readdirSync, mkdirSync, existsSync, writeFileSync } from "node:fs";
+import { isEntrypoint } from "./is-entry.js";
 import { join } from "node:path";
-import { pathToFileURL } from "node:url";
 import { appendNote, admit, currentState, noteId, parseNote, splitNotes, validate, NOTE_KINDS, } from "./context-io.js";
 // ── Context root (production). Tests pass an explicit root. ──────────────────────────────────────
 const REPO_ROOT = join(import.meta.dirname, "..");
@@ -516,7 +516,7 @@ export function degradeToClaim(findingText) {
     return out;
 }
 // ── CLI entrypoint (only when run directly, never on import). ────────────────────────────────────
-const isMain = process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href;
+const isMain = isEntrypoint(import.meta.url);
 if (isMain) {
     const [cmd, ...rest] = process.argv.slice(2);
     try {

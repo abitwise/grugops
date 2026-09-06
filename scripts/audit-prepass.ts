@@ -43,8 +43,8 @@
 // ---------------------------------------------------------------------------------------------
 
 import { readFileSync, existsSync, writeFileSync, mkdirSync, readdirSync } from "node:fs";
+import { isEntrypoint } from "./is-entry.js";
 import { join, dirname } from "node:path";
-import { pathToFileURL } from "node:url";
 import {
   listRoles,
   listWorkflows,
@@ -486,9 +486,7 @@ function main(): void {
 // `file://${argv[1]}` — the hand-built form does not match on Windows, which would make a direct
 // run emit nothing and exit 0, a fabricated green. It is also what lets the test file import the
 // exported pins without the import running the pre-pass inside the vitest worker.
-const isEntry =
-  process.argv[1] !== undefined &&
-  import.meta.url === pathToFileURL(process.argv[1]).href;
+const isEntry = isEntrypoint(import.meta.url);
 
 if (isEntry) {
   main();

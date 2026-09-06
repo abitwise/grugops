@@ -27,8 +27,8 @@
 // caveman voice).
 
 import { readdirSync, existsSync } from "node:fs";
+import { isEntrypoint } from "./is-entry.js";
 import { join } from "node:path";
-import { pathToFileURL } from "node:url";
 
 import { readContext, atomicWrite, type NoteRecord } from "./context-io.js";
 
@@ -182,8 +182,7 @@ export function renderTraceability(
 }
 
 // ── CLI entrypoint (only when run directly, never on import) ─────────────────────────────────────
-const isMain =
-  process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href;
+const isMain = isEntrypoint(import.meta.url);
 
 if (isMain) {
   const [ctxRoot, plansRoot] = process.argv.slice(2);

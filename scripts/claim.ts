@@ -53,7 +53,7 @@ import {
   existsSync,
 } from "node:fs";
 import { join } from "node:path";
-import { pathToFileURL } from "node:url";
+import { isEntrypoint } from "./is-entry.js";
 import { randomUUID } from "node:crypto";
 
 // ── Fixed queue root (production). Tests pass an explicit root. ──────────────────────────────────
@@ -321,8 +321,7 @@ export function renderNowRunning(queueRoot: string = DEFAULT_QUEUE_ROOT): void {
 // ── CLI entrypoint (only when run directly, never on import) ─────────────────────────────────────
 // import.meta.url === the executed file's URL when run via `node claim.js ...`. The freshness gate
 // and the package.json script invoke `node scripts/claim.js now-running [queueRoot]`.
-const isMain =
-  process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href;
+const isMain = isEntrypoint(import.meta.url);
 
 if (isMain) {
   const [cmd, ...rest] = process.argv.slice(2);

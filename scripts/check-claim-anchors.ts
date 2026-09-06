@@ -59,8 +59,8 @@
 // ---------------------------------------------------------------------------------------------
 
 import { readFileSync, existsSync } from "node:fs";
+import { isEntrypoint } from "./is-entry.js";
 import { join } from "node:path";
-import { pathToFileURL } from "node:url";
 // (Plan 29-51) THIS GATE DECLARES NO ANCHOR GRAMMAR, NO LINE ASSEMBLY AND NO BYTE COMPARISON.
 //
 // All four used to be declared here. Plan 29-52 needs the same question answered — "is this line
@@ -585,7 +585,5 @@ function verdict(): void {
 // An `endsWith` test also answers a weaker question — any path ending in that filename matches,
 // including one in another directory — where the URL comparison asks whether THIS module is the
 // entry point.
-const isEntry =
-  process.argv[1] !== undefined &&
-  import.meta.url === pathToFileURL(process.argv[1]).href;
+const isEntry = isEntrypoint(import.meta.url);
 if (isEntry) main();

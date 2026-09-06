@@ -42,6 +42,7 @@
 // build-safety + trace surface, never caveman voice).
 
 import { spawnSync } from "node:child_process";
+import { isEntrypoint } from "./is-entry.js";
 import {
   mkdtempSync,
   mkdirSync,
@@ -53,7 +54,6 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, sep } from "node:path";
-import { pathToFileURL } from "node:url";
 
 // Repo root = this script's parent's parent (scripts/ -> repo root).
 const ROOT = join(import.meta.dirname, "..");
@@ -167,9 +167,7 @@ function main(): void {
 // Entry check: true only when this module was launched directly (not imported). process.argv[1] is
 // the launched script path; compare it to this module's own file URL (mirrors claim.ts `isMain` /
 // check-uat-oracles.ts `isEntry`). Importing the module is now side-effect-free.
-const isMain =
-  process.argv[1] !== undefined &&
-  import.meta.url === pathToFileURL(process.argv[1]).href;
+const isMain = isEntrypoint(import.meta.url);
 
 if (isMain) {
   main();

@@ -11574,3 +11574,114 @@ describe("guard_model_assignment (Phase 29.1, MODEL-03/MODEL-05)", () => {
     ).toEqual(members.map((f) => `scripts/${f}`).sort());
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// PLAN 30-11 ROUND 4 — THE RUNNER SET IS DERIVED (`RA6-1`).
+//
+// Round 3 created `scripts/check-residual-citations.ts`, gave it a 27-line header stating it "runs
+// against the real tree", and wired it to nothing: zero references in `.github/`, no test, no git
+// hook, not in `audit-prepass`. It existed only as an npm script a human must type, and it passed a
+// whole round by never running. Its sibling `check-audit-register.js` appears in `ci.yml` once — the
+// positive control that made the absence measurable rather than assumed.
+//
+// The question this case asks is the one reviewer 6 named as the round's rule: not "does the gate
+// refuse the bad input" but "BY WHAT MECHANISM IS THIS GATE REACHED, and is that mechanism derived or
+// hand-kept?" So the invocation set is derived from the filesystem and from package.json, and every
+// member must appear in CI. A gate deliberately outside CI must say so by name, with a reason.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+describe("30-11 round 4 — every check gate is REACHED, and the runner set is derived", () => {
+  /**
+   * Gates that deliberately do not run in the CI gate block, each with the reason that makes it a
+   * decision rather than an oversight. Kept deliberately short; a growing list here is the smell.
+   */
+  const CI_EXEMPT: Readonly<Record<string, string>> = {
+    "scripts/check-kit-refs.js":
+      "runs in its own earlier CI step rather than the gate block; asserted present in ci.yml below",
+    "scripts/check-uat-oracles.js":
+      "not a repository gate: it is the Phase-19 Tier-1 fail-proof HARNESS SUBJECT, spawned by " +
+      "scripts/check-uat-oracles.test.ts against mirrored inputs in a temp dir. Its reachability is " +
+      "the test suite, which CI does run. Surfaced by this very case in round 4 — the derived runner " +
+      "set found a SECOND gate nothing invoked, which is the finding the derivation exists to make.",
+  };
+
+  it("every scripts/check-*.js appears in ci.yml, or declares why not", () => {
+    const ci = readFileSync(join(ROOT, ".github", "workflows", "ci.yml"), "utf8");
+    const gates = readdirSync(join(ROOT, "scripts"))
+      .filter((f) => f.startsWith("check-") && f.endsWith(".js"))
+      .map((f) => `scripts/${f}`)
+      .sort();
+    // The scan's own premise: a walk that found nothing would pass this case forever.
+    expect(gates.length, "the check-gate walk found no gates at all").toBeGreaterThan(5);
+    const missing: string[] = [];
+    for (const g of gates) {
+      if (ci.includes(`node ${g}`)) continue;
+      if (CI_EXEMPT[g] !== undefined) {
+        // An exemption must name a reason AND still be reachable by something the CI run executes —
+        // either ci.yml names it, or a test spawns it. "Exempt" may not mean "unreached".
+        expect(CI_EXEMPT[g]!.length, `${g}'s exemption gives no reason`).toBeGreaterThan(40);
+        const spawnedByATest = readdirSync(join(ROOT, "scripts")).some(
+          (f) =>
+            f.endsWith(".test.ts") &&
+            readFileSync(join(ROOT, "scripts", f), "utf8").includes(g.replace("scripts/", "")),
+        );
+        expect(
+          ci.includes(g) || spawnedByATest,
+          `${g} is exempt from the gate block and is reached by nothing at all`,
+        ).toBe(true);
+        continue;
+      }
+      missing.push(g);
+    }
+    expect(
+      missing,
+      `these check gates are invoked by NOTHING in ci.yml:\n  ${missing.join("\n  ")}\n` +
+        `A gate that is never reached passes by not running — round 3 shipped one for a whole round.`,
+    ).toEqual([]);
+  });
+
+  it("every `check:*` npm script names a gate that CI runs", () => {
+    const pkg = JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8")) as {
+      scripts: Record<string, string>;
+    };
+    const ci = readFileSync(join(ROOT, ".github", "workflows", "ci.yml"), "utf8");
+    const names = Object.keys(pkg.scripts).filter((k) => k.startsWith("check:"));
+    expect(names.length, "no check:* scripts found — the scan has stopped asking").toBeGreaterThan(5);
+    const missing: string[] = [];
+    for (const n of names) {
+      const cmd = pkg.scripts[n] as string;
+      const m = /node (scripts\/[\w.-]+\.js)/.exec(cmd);
+      if (m === null) continue; // build-parity and friends run tsc/git rather than a gate module
+      const g = m[1] as string;
+      if (!ci.includes(g) && CI_EXEMPT[g] === undefined) missing.push(`${n} -> ${g}`);
+    }
+    expect(
+      missing,
+      `these npm check scripts run a gate CI never runs:\n  ${missing.join("\n  ")}`,
+    ).toEqual([]);
+  });
+
+  it("the entrypoint predicate has ONE spelling (RA6-1's other half)", () => {
+    // Four files carried `import.meta.url === pathToFileURL(process.argv[1]).href` and three of them
+    // still had the pre-realpath form after round 3 fixed the fourth. A predicate with four spellings
+    // is not fixed by fixing one; it is fixed by having one.
+    const offenders: string[] = [];
+    for (const f of readdirSync(join(ROOT, "scripts"))) {
+      if (!f.endsWith(".ts") || f === "is-entry.ts") continue;
+      const src = readFileSync(join(ROOT, "scripts", f), "utf8");
+      for (const line of src.split("\n")) {
+        if (line.trimStart().startsWith("//") || line.trimStart().startsWith("*")) continue;
+        if (/import\.meta\.url\s*===/.test(line)) offenders.push(`scripts/${f}: ${line.trim()}`);
+      }
+    }
+    expect(
+      offenders,
+      `these files spell the entrypoint predicate themselves instead of importing isEntrypoint:\n` +
+        `  ${offenders.join("\n  ")}\n` +
+        `A per-file spelling silently no-ops under a symlinked invocation path — exit 0, zero bytes, ` +
+        `which a caller reads as a pass.`,
+    ).toEqual([]);
+    // Non-vacuity: the one authority must itself contain the comparison.
+    expect(readFileSync(join(ROOT, "scripts", "is-entry.ts"), "utf8")).toContain("resolvedHref");
+  });
+});

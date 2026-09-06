@@ -42,8 +42,8 @@
 // instead ask which of the three existing gates should have covered the surface.
 // ---------------------------------------------------------------------------------------------
 import { readFileSync, existsSync, writeFileSync, mkdirSync, readdirSync } from "node:fs";
+import { isEntrypoint } from "./is-entry.js";
 import { join, dirname } from "node:path";
-import { pathToFileURL } from "node:url";
 import { listRoles, listWorkflows, ROLE_COUNT, WORKFLOW_COUNT, 
 // Phase 29 / plan 29-04: these two were re-declared locally below. They are now taken from the
 // one authority that already owned them, so a third consumer cannot inherit a second spelling.
@@ -392,8 +392,7 @@ function main() {
 // `file://${argv[1]}` — the hand-built form does not match on Windows, which would make a direct
 // run emit nothing and exit 0, a fabricated green. It is also what lets the test file import the
 // exported pins without the import running the pre-pass inside the vitest worker.
-const isEntry = process.argv[1] !== undefined &&
-    import.meta.url === pathToFileURL(process.argv[1]).href;
+const isEntry = isEntrypoint(import.meta.url);
 if (isEntry) {
     main();
 }

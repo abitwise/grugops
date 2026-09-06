@@ -43,6 +43,7 @@
 // build-safety + trace surface, never caveman voice).
 
 import { spawnSync } from "node:child_process";
+import { isEntrypoint } from "./is-entry.js";
 import {
   mkdtempSync,
   mkdirSync,
@@ -55,7 +56,6 @@ import {
 import { tmpdir } from "node:os";
 import { dirname, join, sep } from "node:path";
 import { jsImportClosure } from "./js-import-closure.js";
-import { pathToFileURL } from "node:url";
 
 // Repo root = this script's parent's parent (scripts/ -> repo root).
 const ROOT = join(import.meta.dirname, "..");
@@ -180,8 +180,7 @@ function main(): void {
 // Entry check: true only when this module was launched directly (not imported). process.argv[1] is
 // the launched script path; compare it to this module's own file URL. Importing the module is
 // side-effect-free.
-const isMain =
-  process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href;
+const isMain = isEntrypoint(import.meta.url);
 
 if (isMain) {
   main();

@@ -456,10 +456,16 @@ describe("generate-guarantees — the module's own shape", () => {
     expect(outDecl).not.toMatch(/argv|process\.env|readFileSync|\$\{/);
   });
 
-  it("the entry guard compares against pathToFileURL, never a hand-built file:// string", () => {
+  it("the entry guard delegates to the ONE entrypoint authority (round 4, RA6-1)", () => {
+    // This asserted the pathToFileURL spelling until round 4. That spelling is FALSE under a
+    // symlinked invocation path — `import.meta.url` is realpath-resolved and `argv[1]` is not — so a
+    // generator invoked that way writes nothing and exits 0, the fabricated success this case was
+    // written to prevent, through the very idiom it required. Reviewer 6 measured this file as one of
+    // three still carrying it after round 3 fixed a fourth. The predicate now lives once.
     const src = readFileSync(GENERATOR_TS, "utf8");
-    expect(src).toContain("pathToFileURL(process.argv[1]).href");
+    expect(src).toContain("isEntrypoint(import.meta.url)");
     expect(src).not.toContain("`file://${");
+    expect(src).not.toMatch(/import\.meta\.url\s*===/);
   });
 
   it("the join length assertion does not share a loop with the join", () => {

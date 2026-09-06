@@ -817,45 +817,40 @@ describe("the standalone-gate idioms are uniform across scripts/", () => {
     return out;
   }
 
-  it("every isEntry guard compares import.meta.url against pathToFileURL(argv[1])", () => {
+  it("every isEntry guard delegates to the ONE entrypoint authority", () => {
     const sources = entryGuardSources();
     // Two-sided pin. A set that silently shrank would assert the property over fewer files than it
     // names; one that grew is a gate nobody reviewed.
     //
-    // 7 → 8 (Phase 29 / plan 29-02): scripts/check-banned-claims.ts is the eighth standalone gate.
-    // 8 → 9 (Phase 29 / plan 29-03): scripts/check-imperative-lexicon.ts is the ninth.
-    // 9 → 10 (Phase 29 / plan 29-04): scripts/check-diff-disposition.ts is the tenth.
-    // THE PIN MOVED BECAUSE THE SET GREW, AND THE SET GREW BY THE MECHANISM THIS BLOCK IS FOR — the
-    // new gate joined the assertion by EXISTING, and the property assertion below passed for it on
-    // the first run. Moving the pin is how that entry is acknowledged; it is never how a property
-    // failure is cleared. If the `offenders` assertion had failed, the fix would have been the new
-    // gate's entry guard, not this number.
+    // 7 → 8 (29-02) check-banned-claims · 8 → 9 (29-03) check-imperative-lexicon · 9 → 10 (29-04)
+    // check-diff-disposition · 10 → 11 (30-07) generate-guarantees · 11 → 12 (30-11 round 3)
+    // check-residual-citations · 12 → 14 (30-11 round 4) generate-hook-manifest and
+    // hook-manifest-freshness, the derived decider-closure manifest and its drift gate.
     //
-    // 10 → 11 (Phase 30 / plan 30-07): scripts/generate-guarantees.ts, the D-17 guarantees render.
-    // It is a GENERATOR rather than a gate, which is the same class scripts/generate-safety-surface.ts
-    // already sits in here: the property this block asserts is about the ENTRY GUARD, and a
-    // generator whose direct run writes nothing while exiting 0 is the same fabricated success a
-    // gate's would be. The entrant's guard passed the offenders assertion below on its first run;
-    // this number is the acknowledgement, not the fix.
-    //
-    // 11 → 12 (plan 30-11 round 3): scripts/check-residual-citations.ts, the published-residual
-    // citation gate. Its entrant guard passed the offenders assertion; its ROOT override did NOT —
-    // it used `??` where the sibling idiom uses the truthiness ternary, which is the identical
-    // empty-value defect this same plan closed for `CLAUDE_PROJECT_DIR` one round earlier. Caught by
-    // the case below rather than by a reviewer, which is the whole point of a uniform-idiom sweep.
-    expect(sources.length).toBe(12);
-    expect(sources.length).not.toBe(11);
+    // THE PROPERTY THIS CASE ASSERTS CHANGED IN ROUND 4, AND THE REASON IS THE FINDING. It used to
+    // require each guard to spell `import.meta.url === pathToFileURL(process.argv[1]).href`. That
+    // comparison is FALSE under a symlinked invocation path — `import.meta.url` is realpath-resolved
+    // and `argv[1]` is not — so a script invoked that way exits 0 having done nothing, which a caller
+    // reads as a pass. Round 3 fixed it in ONE file; reviewer 6 measured three others still carrying
+    // it, including the gate round 3 had just created. A predicate with fourteen spellings is not
+    // fixed by fixing one of them, so there is now one authority (`scripts/is-entry.ts`) and this
+    // case asserts DELEGATION to it rather than uniformity of a spelling that was itself wrong.
+    expect(sources.length).toBe(14);
     expect(sources.length).not.toBe(13);
+    expect(sources.length).not.toBe(15);
     const offenders = sources
-      .filter((s) => !/import\.meta\.url === pathToFileURL\(process\.argv\[1\]\)\.href/.test(s.src))
+      .filter((s) => !/isEntrypoint\(import\.meta\.url\)/.test(s.src))
       .map((s) => `scripts/${s.name}`);
     expect(
       offenders,
-      `an isEntry guard is using a weaker form than the sibling precedent. ` +
-        `\`process.argv[1].endsWith("x.js")\` matches ANY path ending in that filename, and a ` +
-        `hand-built \`file://\${argv[1]}\` does not match on Windows — which makes a direct run ` +
-        `perform ZERO checks and exit 0, a fabricated green.`,
+      `these entry guards do not delegate to isEntrypoint():\n  ${offenders.join("\n  ")}\n` +
+        `A per-file spelling of the entrypoint predicate silently no-ops under a symlinked ` +
+        `invocation path — exit 0, zero bytes — which a caller reads as a pass.`,
     ).toEqual([]);
+    // Non-vacuity: the one authority must be the file that actually performs the comparison.
+    const auth = readFileSync(join(REPO, "scripts", "is-entry.ts"), "utf8");
+    expect(auth).toMatch(/realpathSync/);
+    expect(auth).toMatch(/resolvedHref/);
   });
 
   it("every *_ROOT override uses the truthiness ternary, so an empty env var degrades to the repo root", () => {

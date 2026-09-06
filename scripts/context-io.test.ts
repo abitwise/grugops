@@ -3929,7 +3929,10 @@ describe("30-11 RA4-1 — every value interpolated into a checkpoint record goes
   it("the QUOTED values still cannot mint a second note (the control that shows this is the axis)", () => {
     for (const field of ["authorizedBy", "actor", "command"] as const) {
       const root = freshTmp(`ra41-${field}-`);
-      mod.emitCheckpointNote({ ...base, [field]: INJECT }, root);
+      // The payload carries no real newline (round 4's one-loop guard refuses those at the top for
+      // EVERY body field); what it carries is a full forged frontmatter block on one line, which is
+      // the axis this control is about: a QUOTED value cannot mint a second note.
+      mod.emitCheckpointNote({ ...base, [field]: INJECT.replace(/\n/g, "\\n") }, root);
       const dir = join(root, "checkpoint-trace", "notes");
       const files = readdirSync(dir);
       expect(files.length).toBe(1);
@@ -3962,12 +3965,18 @@ describe("30-11 RA4-1 — every value interpolated into a checkpoint record goes
         `input.${f}`,
       );
     }
+    // ROUND 4 (`RA6-4`) replaced the two per-field guard lines with ONE loop over every body field,
+    // applying the type rule and the single-line rule together — so the assertion is now that the
+    // field appears in that loop's field list, not that it has a line of its own. The axis moved from
+    // "which fields did someone remember" to "is this a field of the record", and the test follows it.
+    const loop = /for \(const field of \[([^\]]*)\] as const\)/.exec(guards);
+    expect(loop, "the one-loop body-field guard is missing").not.toBeNull();
+    const covered = [...(loop as RegExpExecArray)[1]!.matchAll(/"(\w+)"/g)].map((m) => m[1] as string);
+    expect(covered.length, "the field loop covers nothing").toBeGreaterThan(3);
     const bare = [...new Set([...body.matchAll(/\$\{input\.(\w+)[\s.}]/g)].map((m) => m[1] as string))];
     for (const f of bare) {
       if (VOCAB_GUARDED.includes(f)) continue;
-      expect(guards, `${f} is interpolated bare into the note body with no guard at all`).toContain(
-        `assertSingleLine("${f}", input.${f})`,
-      );
+      expect(covered, `${f} is interpolated bare into the note body and is not in the guard loop`).toContain(f);
     }
     // Non-vacuity: the scan must actually see interpolations, and must see the two guarded names.
     expect(bare.length).toBeGreaterThan(2);

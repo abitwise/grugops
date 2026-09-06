@@ -43,6 +43,12 @@ import {
   readFileSync,
   rmSync,
 } from "node:fs";
+import { createHash } from "node:crypto";
+import {
+  MANIFEST_OPEN,
+  MANIFEST_CLOSE,
+  deriveManifest,
+} from "./generate-hook-manifest.js";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -196,6 +202,26 @@ const APPROVAL = "GRUGOPS_ADMISSION_APPROVED_BY";
 //
 // The zero-config decision and wording are byte-unchanged, which
 // scripts/autonomy-zero-config.test.ts asserts as a whole-run differential.
+//
+// NOT RE-BASELINED IN ROUND 4 — AND THAT IS WORTH SAYING OUT LOUD. Round 4 closed six findings in
+// this file's subject and `hooks/guard.ts` did not change by one byte: every one of them lives in
+// `scripts/checkpoints.ts` (the command model) or `hooks/hook-entry.ts` (the wrapper). The blob below
+// is still round 3's. A freeze that had moved here would have been a signal nobody could read.
+//
+// The six, each a DELETION rather than an addition:
+//   RA5-1 the 64-SEGMENT cap that stopped silently — deleted, not made fail-closed; it bounded the
+//         wrong thing, and nesting was already bounded at 3.
+//   RA5-2 `benign` suppression decided by a FLAG'S ARGUMENT (`git -C log push origin main` executed a
+//         real push to main) — the POSITION is removed: benign may only suppress adjacent to the tool.
+//   RA5-3 the `-c alias` half-read that fed `gitPushIsGoverned` a list the command does not have and
+//         allowed a real FORCE PUSH TO MAIN — the `.split()[0]` read is deleted; a multi-word alias
+//         value is OPAQUE.
+//   RA5-4 `NESTED_SHELLS`, a hand-maintained set whose incompleteness UNDER-refuses (`eval '…'`) —
+//         deleted the way WRAPPERS was: any canonical word carrying whitespace is a nested command.
+//   the FORCE ARM, found by this plan's own corpus: the model never implemented the literal set's
+//         "a force push on any branch" rule, so `git -C log push --force origin feature` matched
+//         neither authority.
+// The zero-config decision and wording are byte-unchanged (scripts/autonomy-zero-config.test.ts).
 const FROZEN_GUARD_BLOB = "669725bc1c616ab57123e22090d93d57eff1b001";
 
 // Import the COMMITTED .js for the pure-function floor checks (validate / admit). Never the .ts.
@@ -786,15 +812,42 @@ describe("30-11 round 3 — every spawn in the hook and floor tests is BOUNDED (
  * fail-closed answer for a decider that never answers, so a change to it is exactly as deliberate as
  * a change to the guard: source, artifact and this baseline move in ONE commit.
  */
-const FROZEN_HOOK_ENTRY_BLOB = "1533b95c7b0e1bb2e9b74d6f200a1d1828feacf2";
+//
+// RE-BASELINED BY PLAN 30-11 ROUND 4, AND THE FREEZE INPUT CHANGED WITH IT. The wrapper now carries a
+// GENERATED manifest of every decider's emitted import closure (`RA5-5`), which moves on any
+// legitimate `scripts/` rebuild. Freezing the raw file would make "the wrapper's logic changed" and
+// "the manifest was regenerated" the same event, and the freeze would stop meaning anything. So the
+// baseline is taken over the source with the manifest region NORMALISED OUT — the two stay different
+// events, and `npm run freshness:hook-manifest` is what holds the region itself.
+const FROZEN_HOOK_ENTRY_LOGIC_SHA = "5bfd5ba85a716dcd4383e819480edaf32bfeba58cadb3479089fd22e94777d9e";
 
 describe("30-11 round 3 — the hook ENTRY is frozen, and hooks.json names it", () => {
-  it("the committed hooks/hook-entry.ts blob matches its frozen hash", () => {
-    const blob = execFileSync("git", ["hash-object", "hooks/hook-entry.ts"], {
-      cwd: ROOT,
-      encoding: "utf8",
-    }).trim();
-    expect(blob).toBe(FROZEN_HOOK_ENTRY_BLOB);
+  it("hooks/hook-entry.ts's LOGIC matches its frozen hash (manifest region normalised out)", () => {
+    const src = readFileSync(join(ROOT, "hooks", "hook-entry.ts"), "utf8");
+    const a = src.indexOf(MANIFEST_OPEN);
+    const b = src.indexOf(MANIFEST_CLOSE);
+    expect(a, "the manifest region's opening marker is missing").toBeGreaterThan(-1);
+    expect(b, "the manifest region's closing marker is missing").toBeGreaterThan(a);
+    const normalised = src.slice(0, a) + "<MANIFEST REGION>" + src.slice(b + MANIFEST_CLOSE.length);
+    // Non-vacuity: normalising must actually remove something, or this is hashing the whole file.
+    expect(normalised.length).toBeLessThan(src.length - 100);
+    expect(createHash("sha256").update(normalised).digest("hex")).toBe(FROZEN_HOOK_ENTRY_LOGIC_SHA);
+  });
+
+  it("the manifest covers EVERY module in each decider's closure, cardinality asserted", () => {
+    // A manifest that silently went SHORT would leave exactly the module an attacker wants
+    // unverified, so it is compared against a fresh derivation rather than trusted.
+    const derived = deriveManifest(ROOT);
+    const src = readFileSync(join(ROOT, "hooks", "hook-entry.ts"), "utf8");
+    for (const [entry, per] of Object.entries(derived)) {
+      expect(src, `the manifest carries no entry for ${entry}`).toContain(JSON.stringify(entry));
+      for (const [rel, hash] of Object.entries(per)) {
+        expect(src, `${entry}'s manifest is missing ${rel}`).toContain(JSON.stringify(rel));
+        expect(src, `${entry}'s manifest carries a stale hash for ${rel}`).toContain(hash);
+      }
+      expect(Object.keys(per).length, `${entry}'s closure looks short`).toBeGreaterThan(3);
+    }
+    expect(Object.keys(derived).length, "no deciders were derived at all").toBe(2);
   });
 
   it("hooks/hook-entry.ts has no uncommitted modification, measured against HEAD", () => {

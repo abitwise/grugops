@@ -26,8 +26,8 @@
 // Voice: CLEAR PROFESSIONAL VOICE throughout (CLAUDE.md hard rule — this is a trace surface, never
 // caveman voice).
 import { readdirSync, existsSync } from "node:fs";
+import { isEntrypoint } from "./is-entry.js";
 import { join } from "node:path";
-import { pathToFileURL } from "node:url";
 import { readContext, atomicWrite } from "./context-io.js";
 // Repo root = this script's parent's parent (scripts/ -> repo root).
 const ROOT = join(import.meta.dirname, "..");
@@ -164,7 +164,7 @@ export function renderTraceability(contextRoot = DEFAULT_CONTEXT_ROOT, plansRoot
     atomicWrite(join(plansRoot, "traceability.md"), md.join("\n"));
 }
 // ── CLI entrypoint (only when run directly, never on import) ─────────────────────────────────────
-const isMain = process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href;
+const isMain = isEntrypoint(import.meta.url);
 if (isMain) {
     const [ctxRoot, plansRoot] = process.argv.slice(2);
     try {

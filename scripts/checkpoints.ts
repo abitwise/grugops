@@ -568,9 +568,30 @@ export const COMMAND_CHECKPOINT_RULES: readonly {
   { checkpoint: "production_requires_human_confirmation", tool: "sls", verbs: ["deploy"] },
   { checkpoint: "production_requires_human_confirmation", tool: "flyctl", verbs: ["deploy"] },
   { checkpoint: "production_requires_human_confirmation", tool: "fly", verbs: ["deploy"] },
-  { checkpoint: "production_requires_human_confirmation", tool: "npm", verbs: ["publish"] },
-  { checkpoint: "production_requires_human_confirmation", tool: "yarn", verbs: ["publish"] },
-  { checkpoint: "production_requires_human_confirmation", tool: "pnpm", verbs: ["publish"] },
+  {
+    checkpoint: "production_requires_human_confirmation",
+    tool: "npm",
+    verbs: ["publish"],
+    // `npm run publish` is an ordinary package-script invocation, not a registry publish
+    // (plan 30-11 round 4, reviewer 5's three NEW false denials).
+    benign: ["run", "install", "ci", "test", "exec", "init", "ls", "audit", "pack", "version", "link", "view", "why", "outdated", "start", "update", "dedupe"],
+  },
+  {
+    checkpoint: "production_requires_human_confirmation",
+    tool: "yarn",
+    verbs: ["publish"],
+    // `yarn run publish` is an ordinary package-script invocation, not a registry publish
+    // (plan 30-11 round 4, reviewer 5's three NEW false denials).
+    benign: ["run", "install", "ci", "test", "exec", "init", "ls", "audit", "pack", "version", "link", "view", "why", "outdated", "start", "update", "dedupe"],
+  },
+  {
+    checkpoint: "production_requires_human_confirmation",
+    tool: "pnpm",
+    verbs: ["publish"],
+    // `pnpm run publish` is an ordinary package-script invocation, not a registry publish
+    // (plan 30-11 round 4, reviewer 5's three NEW false denials).
+    benign: ["run", "install", "ci", "test", "exec", "init", "ls", "audit", "pack", "version", "link", "view", "why", "outdated", "start", "update", "dedupe"],
+  },
   { checkpoint: "protected_branch_merge", tool: "gh", verbs: ["merge"], benign: ["list", "view", "create", "checkout", "status", "diff", "comment"] },
   {
     checkpoint: "protected_branch_merge",
@@ -611,30 +632,102 @@ export function normalizeToolWord(word: string): string {
  * `<verb>`. The value is therefore verb-bearing, and it is read here — one documented, closed git
  * form, not a general "look inside flags" rule.
  */
-function verbCandidates(words: readonly CommandWord[], from: number): readonly string[] {
+interface Candidates {
+  readonly values: readonly string[];
+  /** An alias value this model will not read as a whole. The segment is untokenizable. */
+  readonly opaque: boolean;
+}
+
+function verbCandidates(words: readonly CommandWord[], from: number): Candidates {
   const out: string[] = [];
+  let opaque = false;
+  // AN ALIAS VALUE IS READ WHOLE OR NOT AT ALL (plan 30-11 round 4, `RA5-3`).
+  //
+  // Round 3 read the value's FIRST TOKEN and then pushed the whole raw value as one more candidate.
+  // For `alias.p='push origin main'` that made the list `["push", "alias.p=push origin main", "p"]`,
+  // so `gitPushIsGoverned` saw two words after `push` and read the LAST — `"p"` — as the refspec.
+  // Not protected, not governed. Measured against real git 2.55.0 with a real bare remote:
+  // `git -c alias.p='push --force origin main' p` performed a **force push to main**, the one command
+  // `PROTECTED_BRANCH_PATTERNS` governs unconditionally on every branch.
+  //
+  // The `.split()[0]` read is DELETED rather than corrected. An alias value that is not a single
+  // canonical word is a command this model cannot read, and reading half of it produced a candidate
+  // list the command does not have. Refusing the near-miss is D-64's posture; half-reading it is what
+  // this whole surface has spent four rounds deleting.
+  const readAlias = (raw: string): void => {
+    const m = /^alias\.[^=]+=(.+)$/.exec(raw);
+    if (!m) return;
+    const value = (m[1] as string).trim();
+    if (CANONICAL_WORD_RE.test(value)) out.push(value);
+    else opaque = true;
+  };
   for (let j = from; j < words.length; j++) {
     const w = words[j] as CommandWord;
     if (w.kind !== "canonical") continue;
     if (w.isFlag) {
       const m = /^-{1,2}c(?:onfig)?=?(.*)$/.exec(w.value);
-      if (m && m[1]) {
-        const alias = /^alias\.[^=]+=(.+)$/.exec(m[1]);
-        if (alias) out.push((alias[1] as string).split(/\s+/)[0] as string);
-      }
+      if (m && m[1]) readAlias(m[1]);
       continue;
     }
-    const alias = /^alias\.[^=]+=(.+)$/.exec(w.value);
-    if (alias) out.push((alias[1] as string).split(/\s+/)[0] as string);
+    readAlias(w.value);
     out.push(w.value);
   }
-  return out;
+  return { values: out, opaque };
 }
 
+/**
+ * The first candidate after the tool, or `null` when a FLAG comes first.
+ *
+ * ---------------------------------------------------------------------------------------------
+ * `benign` MAY ONLY SUPPRESS ADJACENT TO THE TOOL (plan 30-11 round 4, `RA5-2`).
+ *
+ * Round 3 let any `benign` word anywhere after the tool decide the segment. `verbCandidates` cannot
+ * tell a SUBCOMMAND from the OPERAND OF A PRECEDING FLAG — that is the per-tool flag grammar this
+ * model refuses to maintain — so a flag whose value happened to be a benign word suppressed the whole
+ * segment. Measured, and executed against real `git` and real `kubectl`:
+ *
+ *     git -C log push origin main          ALLOW   (control: git -C . push origin main -> DENY)
+ *     git -C notes push origin main        ALLOW
+ *     kubectl --cache-dir version apply …  ALLOW   (control: kubectl -n prod apply -f x -> DENY)
+ *     kubectl -n get apply -f x.yaml       ALLOW
+ *
+ * The discriminator between allow and deny was whether a directory happened to be named `log` — a
+ * word the agent picks. The round's admissibility rule was stated about a set's MEMBERSHIP (a missing
+ * member over-refuses, which is safe) and said nothing about POSITION, which is the axis it was
+ * attacked on. So the position is REMOVED rather than the grammar extended: a benign word suppresses
+ * only when it is the first thing after the tool with no flag in between, which is the one position
+ * this model can justify without knowing any tool's flags.
+ * ---------------------------------------------------------------------------------------------
+ */
+function adjacentWord(words: readonly CommandWord[], from: number): string | null {
+  for (let j = from; j < words.length; j++) {
+    const w = words[j] as CommandWord;
+    if (w.kind !== "canonical") return null;
+    if (w.isFlag) return null; // a flag intervenes: nothing after it is a justifiable decider
+    return w.value;
+  }
+  return null;
+}
+
+/**
+ * The force-push flags, which `PROTECTED_BRANCH_PATTERNS`' first regex governs on ANY branch:
+ * *"Deny a force push (any branch — a force push is destructive enough to gate)"*.
+ */
+const FORCE_PUSH_FLAGS = new Set(["--force", "-f", "--force-with-lease"]);
+
 /** Is this `git push` occurrence governed? See the rule statement below. */
-function gitPushIsGoverned(candidates: readonly string[]): boolean {
+function gitPushIsGoverned(candidates: readonly string[], words: readonly CommandWord[]): boolean {
   const at = candidates.indexOf("push");
   if (at === -1) return false;
+  // THE FORCE ARM, WHICH THE MODEL NEVER IMPLEMENTED (plan 30-11 round 4, found by this plan's own
+  // corpus while fixing `RA5-2`). The literal pattern governs a force push on ANY branch; the model
+  // only ever asked about the refspec. That was invisible while the literal pattern caught every
+  // force push it saw — and it needs `git` ADJACENT to `push`, so `git -C log push --force origin
+  // feature` matched neither authority and executed. The model now carries the same rule the literal
+  // set already declares, rather than a narrower one beside it.
+  if (words.some((w) => w.kind === "canonical" && w.isFlag && FORCE_PUSH_FLAGS.has(w.value))) {
+    return true;
+  }
   const after = candidates.slice(at + 1);
   if (after.length < 2) return true; // no refspec named at all
   const ref = after[after.length - 1] as string;
@@ -675,9 +768,6 @@ function failClosedCheckpoints(text: string): readonly Checkpoint[] {
   return out;
 }
 
-/** Shells whose `-c` argument is a NESTED command rather than an operand. */
-const NESTED_SHELLS = new Set(["sh", "bash", "zsh", "dash", "ksh"]);
-
 /**
  * Which checkpoints does this command touch?
  *
@@ -699,9 +789,22 @@ export function matchCommandCheckpoints(cmd: string): CommandMatch {
   }
   let untokenizable = false;
   const queue: CommandSegment[] = [...segs];
-  let depth = 0;
-  while (queue.length > 0 && depth < 64) {
-    depth += 1;
+
+  // NO SEGMENT CAP (plan 30-11 round 4, `RA5-1`).
+  //
+  // Round 3 wrote `while (queue.length > 0 && depth < 64)`, where `depth` counted SEGMENTS CONSUMED
+  // rather than nesting. Segment 65 onward was never classified, never scanned, and never reached
+  // `failClosedCheckpoints` — the loop simply ended and nothing was marked untokenizable. Measured:
+  // 64 `true ;` then `kubectl -n prod apply -f x`, `gh pr merge 12`, `helm -n prod upgrade rel c`,
+  // `git -C sub push origin main` — and even `kubectl ap$(echo ply) -f x`, whose whole point is the
+  // fail-closed scan — all ALLOW, executably. A 64-token prefix removed the model AND its backstop.
+  //
+  // The cap is DELETED rather than made fail-closed, because it was bounding the wrong thing. Work
+  // here is already bounded twice: `commandSegments` refuses beyond nesting depth 3, and the number
+  // of segments is bounded by the input length. Reviewer 5 measured the worst case at 466 ms for a
+  // 2 MB command, and reviewer 3 measured 5 MB at under 500 ms. A bound that silently drops evidence
+  // is worse than the cost it was avoiding.
+  while (queue.length > 0) {
     const seg = queue.shift() as CommandSegment;
     if (seg.opaque) {
       untokenizable = true;
@@ -712,32 +815,54 @@ export function matchCommandCheckpoints(cmd: string): CommandMatch {
     for (let i = 0; i < words.length; i++) {
       const w = words[i] as CommandWord;
       if (w.kind !== "canonical" || w.isFlag) continue;
-      const tool = normalizeToolWord(w.value);
-      // A nested shell's `-c` / operand is re-tokenized as a command of its own.
-      if (NESTED_SHELLS.has(tool)) {
-        for (let j = i + 1; j < words.length; j++) {
-          const o = words[j] as CommandWord;
-          if (o.kind !== "canonical" || o.isFlag) continue;
-          const nested = commandSegments(o.value, 1);
-          if (nested === null) {
-            untokenizable = true;
-            for (const id of failClosedCheckpoints(o.value)) out.add(id);
-          } else queue.push(...nested);
-        }
+
+      // ANY MULTI-WORD VALUE IS A NESTED COMMAND (plan 30-11 round 4, `RA5-4`).
+      //
+      // `NESTED_SHELLS = {sh,bash,zsh,dash,ksh}` was a hand-maintained set whose incompleteness
+      // UNDER-refuses — the exact property the `benign` table's own admissibility rule declares
+      // inadmissible. `eval` is the shell itself with `sh -c` semantics and was not in it:
+      // `eval 'kubectl -n prod apply -f x'` and `eval 'gh pr merge 12'` both ALLOW and both execute.
+      //
+      // It is DELETED the way `WRAPPERS` was: nothing enumerates which tools take a command as an
+      // operand. Any canonical word whose value carries whitespace is re-tokenized as a command, so
+      // `eval`, `watch`, `xargs -I{} sh -c`, `su -c`, `timeout … sh -c` and every future launcher are
+      // covered without naming one of them.
+      //
+      // THE TENSION REVIEWER 5 NAMED, MEASURED RATHER THAN ASSUMED. The concern was that this
+      // resurrects `git commit -m 'push to main'`. It does not: re-tokenizing `push to main` yields a
+      // segment whose words name NO governed tool, so nothing matches. Re-tokenization only bites
+      // when the quoted content names a tool — which is what `eval 'kubectl …'` does and what a
+      // commit message does not. The residual cost is a message that contains a whole governed
+      // command (`git commit -m 'git push origin main'`), which is recorded rather than parsed away.
+      if (/\s/.test(w.value)) {
+        const nested = commandSegments(w.value, 1);
+        if (nested === null) {
+          untokenizable = true;
+          for (const id of failClosedCheckpoints(w.value)) out.add(id);
+        } else queue.push(...nested);
       }
+
+      const tool = normalizeToolWord(w.value);
       for (const r of COMMAND_CHECKPOINT_RULES) {
         if (tool !== r.tool) continue;
-        const candidates = verbCandidates(words, i + 1);
-        const decider = candidates.find(
-          (c) => r.verbs.includes(c) || (r.benign ?? []).includes(c),
-        );
-        if (decider !== undefined && !r.verbs.includes(decider)) continue; // benign decided first
+        const cand = verbCandidates(words, i + 1);
+        if (cand.opaque) {
+          untokenizable = true;
+          for (const id of failClosedCheckpoints(seg.raw)) out.add(id);
+          continue;
+        }
+        const candidates = cand.values;
+        // A benign subcommand suppresses ONLY from the position adjacent to the tool (`RA5-2`).
+        const adjacent = adjacentWord(words, i + 1);
+        if (adjacent !== null && (r.benign ?? []).includes(adjacent) && !r.verbs.includes(adjacent)) {
+          continue;
+        }
         if (r.tool === "git") {
           const at = candidates.indexOf("update-ref");
           if (at !== -1 && candidates.slice(at + 1).some((c) => PROTECTED_REF_RE.test(c))) {
             out.add(r.checkpoint);
           }
-          if (gitPushIsGoverned(candidates)) out.add(r.checkpoint);
+          if (gitPushIsGoverned(candidates, words)) out.add(r.checkpoint);
           continue;
         }
         if (candidates.some((c) => r.verbs.includes(c))) out.add(r.checkpoint);

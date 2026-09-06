@@ -40,8 +40,8 @@
 // MCP transport: newline-delimited JSON-RPC 2.0 over stdin/stdout (the MCP stdio transport). The minimal
 // handshake implemented: initialize, notifications/initialized, tools/list, tools/call, ping.
 import { createInterface } from "node:readline";
+import { isEntrypoint } from "./is-entry.js";
 import { join } from "node:path";
-import { pathToFileURL } from "node:url";
 import { admitAndAppend, normalizeKind, NOTE_KINDS, trustedRepoRoot, } from "./context-io.js";
 // The MCP server name. The full tool name a hook/agent sees is mcp__<server>__<tool>, so this name must
 // match the mcpServers key in .claude-plugin/plugin.json → mcp__grugops__propose_note.
@@ -217,6 +217,6 @@ function main() {
     });
 }
 // import.meta.url === the executed file's URL when run via `node admission-server.js`.
-const isMain = process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href;
+const isMain = isEntrypoint(import.meta.url);
 if (isMain)
     main();

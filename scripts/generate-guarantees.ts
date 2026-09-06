@@ -73,8 +73,8 @@
 // path is not, which is what lets a hermetic mirror be pointed at safely.
 
 import { readFileSync, writeFileSync } from "node:fs";
+import { isEntrypoint } from "./is-entry.js";
 import { join } from "node:path";
-import { pathToFileURL } from "node:url";
 import {
   isBlank,
   readRegistry,
@@ -429,16 +429,27 @@ export const EXTERNAL_PATH_MARKER = "EXTERNAL:";
  * `~/.claude/settings.json` — writes it with the `EXTERNAL:` marker, so an out-of-tree citation is a
  * deliberate, greppable act rather than an accident.
  *
- * WHERE THE MEMBERSHIP IS DECIDED: `scripts/check-audit-register.ts`, which runs in the repository
- * and can ask `git ls-files`. It is deliberately NOT decided in the render — see that file for why
- * putting it there forced the freshness mirror to copy a third of the repository.
+ * WHERE THE MEMBERSHIP IS DECIDED: `scripts/check-residual-citations.ts`, which runs in the
+ * repository and can ask `git ls-files`. It is deliberately NOT decided in the render — putting it
+ * there forced the freshness mirror to copy a third of the repository. This pointer was stale for a
+ * whole round (round 4, `RA6-2`): it named the gate's SECOND home after the gate had moved to its
+ * third, which is why the published prose no longer carries an implementation pointer at all.
  * ---------------------------------------------------------------------------------------------
  */
 export function citedResidualPaths(rowText: string): readonly string[] {
   const out: string[] = [];
   for (const m of rowText.matchAll(/`([^`\n]+)`/g)) {
     const t = (m[1] as string).trim();
-    if (t.startsWith(EXTERNAL_PATH_MARKER)) continue; // a deliberate out-of-tree citation
+    if (t.startsWith(EXTERNAL_PATH_MARKER)) {
+      // THE MARKER IS AN EXEMPTION, SO IT IS ITSELF CHECKED (round 4, reviewer-6 observation 1).
+      // It skipped ANY span beginning `EXTERNAL:` with no further validation: a bare `EXTERNAL:`
+      // with no path, and `EXTERNAL: nope/fake.ts` with a space after the marker, both scanned to
+      // nothing and passed. An escape hatch relied on to mean "deliberate" must at least be
+      // well-formed, or "deliberate" is doing work it cannot do.
+      const rest = t.slice(EXTERNAL_PATH_MARKER.length);
+      if (rest.trim() === "" || rest !== rest.trim()) out.push(t); // malformed: refused downstream
+      continue;
+    }
     if (/\s/.test(t)) continue; // prose in backticks is not a path claim
     const pathShaped = t.includes("/") || /\.(?:md|ts|js|json|ya?ml|sh|txt|toml)$/.test(t);
     if (!pathShaped) continue;
@@ -895,9 +906,7 @@ export function renderGuarantees(root: string = DEFAULT_ROOT): string {
 // Guarded so the test file can import the exports without the write running inside the vitest
 // worker. pathToFileURL rather than a hand-built file URL — the hand-built form does not match on
 // Windows, which would make a direct run write NOTHING and exit 0, a fabricated success.
-const isEntry =
-  process.argv[1] !== undefined &&
-  import.meta.url === pathToFileURL(process.argv[1]).href;
+const isEntry = isEntrypoint(import.meta.url);
 
 if (isEntry) {
   try {

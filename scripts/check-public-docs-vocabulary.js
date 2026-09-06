@@ -75,8 +75,8 @@
 //    is the ACCEPTANCE EVIDENCE for D-24, not a regression.
 // ---------------------------------------------------------------------------------------------
 import { readFileSync, existsSync, readdirSync, statSync } from "node:fs";
+import { isEntrypoint } from "./is-entry.js";
 import { join } from "node:path";
-import { pathToFileURL } from "node:url";
 // Phase 27 (SPAWN-05 / D-24), extended by Phase 28 (AUDIT-02 / D-09): the retired-vocabulary
 // literals are single-source. Both arrays are taken whole; neither is filtered, sliced, or
 // re-declared here.
@@ -601,8 +601,7 @@ function runAll() {
 // `node scripts/check-public-docs-vocabulary.js` run ZERO checks and exit 0, a fabricated green.
 // The guard is also what lets the test file IMPORT this module for its exported pins without the
 // import running the check and calling process.exit inside the vitest worker.
-const isEntry = process.argv[1] !== undefined &&
-    import.meta.url === pathToFileURL(process.argv[1]).href;
+const isEntry = isEntrypoint(import.meta.url);
 if (isEntry) {
     runAll();
 }

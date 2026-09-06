@@ -458,4 +458,13 @@ jobs:
           # above the gates before it: freshness:adapters once ran for an entire phase solely as a
           # side effect of a test spawning it.
           node scripts/check-nul-bytes.js
+
+          # ── The published-residual citation gate (plan 30-11 round 4, `RA6-1`) ─────────────────
+          # WIRED HERE **AND** derived-asserted by scripts/check-foundation-guards.test.ts, which
+          # enumerates every scripts/check-*.js and every `check:*` npm script and refuses one that
+          # does not appear in this block. Round 3 created this gate, wrote a 27-line header saying it
+          # "runs against the real tree", and invoked it from NOTHING — not CI, not a test, not a git
+          # hook. It passed for a whole round by never running. The runner set is derived now, so the
+          # next gate cannot be added without being reachable.
+          node scripts/check-residual-citations.js
           VALIDATE_KIT_ROOT=. node scripts/validate-agent-factory.js

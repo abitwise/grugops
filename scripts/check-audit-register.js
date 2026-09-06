@@ -34,8 +34,8 @@
 // dies is not a gate that failed. Every parse refusal is caught below and printed through fail().
 // ---------------------------------------------------------------------------------------------
 import { readFileSync, existsSync } from "node:fs";
+import { isEntrypoint } from "./is-entry.js";
 import { join } from "node:path";
-import { pathToFileURL } from "node:url";
 import { readRegister, readRegistry, isBlank, CLAIM_KINDS, REGISTER_PATH, REGISTRY_PATH, } from "./audit-model.js";
 import { listRoles, listWorkflows } from "./kit-model.js";
 // The public-document scan set, taken from the ONE module that DERIVES it rather than restated as a
@@ -715,8 +715,7 @@ function finish() {
 // `file://${argv[1]}` — the hand-built form does not match on Windows, which would make a direct
 // run perform ZERO checks and exit 0, a fabricated green. It is also what lets the test file import
 // the exported accessor without the import running the gate inside the vitest worker.
-const isEntry = process.argv[1] !== undefined &&
-    import.meta.url === pathToFileURL(process.argv[1]).href;
+const isEntry = isEntrypoint(import.meta.url);
 if (isEntry) {
     runAll();
 }

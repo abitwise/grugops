@@ -114,8 +114,8 @@
 // and this paragraph is the record of the third item's absence.
 // ---------------------------------------------------------------------------------------------
 import { readFileSync, existsSync, readdirSync } from "node:fs";
+import { isEntrypoint } from "./is-entry.js";
 import { join } from "node:path";
-import { pathToFileURL } from "node:url";
 import { execFileSync } from "node:child_process";
 // The ONE sentence-identity pair (Phase 29 / plan 29-01, D-38). IMPORTED, never re-implemented: the
 // diff gate and guard_role_clause_uniqueness must not be able to disagree about what one clause is.
@@ -1765,8 +1765,7 @@ function runAll() {
 // `node scripts/check-diff-disposition.js` run ZERO checks and exit 0, a fabricated green. The guard
 // is also what lets the test file IMPORT this module's exported sets without the import running the
 // check and calling process.exit inside the vitest worker.
-const isEntry = process.argv[1] !== undefined &&
-    import.meta.url === pathToFileURL(process.argv[1]).href;
+const isEntry = isEntrypoint(import.meta.url);
 if (isEntry) {
     runAll();
 }

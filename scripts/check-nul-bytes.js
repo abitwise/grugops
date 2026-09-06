@@ -170,9 +170,9 @@
 // shipping a different artifact is the shape this repository has been bitten by; the refusal is
 // therefore attributed to the code that ships.
 import { readFileSync } from "node:fs";
+import { isEntrypoint } from "./is-entry.js";
 import { join } from "node:path";
 import { execFileSync } from "node:child_process";
-import { pathToFileURL } from "node:url";
 // THE SCAN ROOT IS OVERRIDABLE, FOLLOWING THE `VALIDATE_KIT_ROOT` PRECEDENT IN
 // scripts/validate-agent-factory.ts. Without it this gate can only ever be run against the one tree
 // it lives in, which means the ONLY way to watch it fail is to break the real repository — and a
@@ -621,8 +621,7 @@ function finish() {
 // `node scripts/check-nul-bytes.js` run ZERO checks and exit 0, a fabricated green. The guard is
 // also what lets the test file IMPORT this module without the import running the check and calling
 // process.exit inside the vitest worker.
-const isEntry = process.argv[1] !== undefined &&
-    import.meta.url === pathToFileURL(process.argv[1]).href;
+const isEntry = isEntrypoint(import.meta.url);
 if (isEntry) {
     runAll();
 }

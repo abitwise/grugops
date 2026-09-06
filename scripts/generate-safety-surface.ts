@@ -39,8 +39,8 @@
 // what lets a hermetic mirror be pointed at safely.
 
 import { writeFileSync } from "node:fs";
+import { isEntrypoint } from "./is-entry.js";
 import { join } from "node:path";
-import { pathToFileURL } from "node:url";
 import {
   readRegister,
   readRegistry,
@@ -170,9 +170,7 @@ export function renderSafetySurface(root: string = DEFAULT_ROOT): string {
 // worker (the precedent plans 28-01, 28-02 and 28-03 each set). pathToFileURL rather than a
 // hand-built `file://${argv[1]}` — the hand-built form does not match on Windows, which would make
 // a direct run write NOTHING and exit 0, a fabricated success.
-const isEntry =
-  process.argv[1] !== undefined &&
-  import.meta.url === pathToFileURL(process.argv[1]).href;
+const isEntry = isEntrypoint(import.meta.url);
 
 if (isEntry) {
   try {
