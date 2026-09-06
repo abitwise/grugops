@@ -837,9 +837,15 @@ describe("the standalone-gate idioms are uniform across scripts/", () => {
     // generator whose direct run writes nothing while exiting 0 is the same fabricated success a
     // gate's would be. The entrant's guard passed the offenders assertion below on its first run;
     // this number is the acknowledgement, not the fix.
-    expect(sources.length).toBe(11);
-    expect(sources.length).not.toBe(10);
-    expect(sources.length).not.toBe(12);
+    //
+    // 11 → 12 (plan 30-11 round 3): scripts/check-residual-citations.ts, the published-residual
+    // citation gate. Its entrant guard passed the offenders assertion; its ROOT override did NOT —
+    // it used `??` where the sibling idiom uses the truthiness ternary, which is the identical
+    // empty-value defect this same plan closed for `CLAUDE_PROJECT_DIR` one round earlier. Caught by
+    // the case below rather than by a reviewer, which is the whole point of a uniform-idiom sweep.
+    expect(sources.length).toBe(12);
+    expect(sources.length).not.toBe(11);
+    expect(sources.length).not.toBe(13);
     const offenders = sources
       .filter((s) => !/import\.meta\.url === pathToFileURL\(process\.argv\[1\]\)\.href/.test(s.src))
       .map((s) => `scripts/${s.name}`);

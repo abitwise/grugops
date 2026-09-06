@@ -29,7 +29,14 @@ import { execFileSync } from "node:child_process";
 import { pathToFileURL } from "node:url";
 import { RESIDUAL_PATH } from "./audit-model.js";
 import { citedResidualPaths, EXTERNAL_PATH_MARKER, HISTORICAL_RESIDUAL_ROWS, } from "./generate-guarantees.js";
-const ROOT = process.env.CHECK_ROOT ?? join(import.meta.dirname, "..");
+// THE TRUTHINESS TERNARY, NOT `??` — and an existing guard caught this file using `??` (plan 30-11
+// round 3). `??` treats an EMPTY `CHECK_ROOT` as a supplied value, so `join("", …)` resolves against
+// the process cwd. That is the identical defect this same plan closed in round 2 for
+// `CLAUDE_PROJECT_DIR`, reproduced here by the author in a new file one round later, and refused by
+// `check-claim-anchors`'s uniform-idiom sweep rather than by a reviewer.
+const ROOT = process.env.CHECK_ROOT
+    ? process.env.CHECK_ROOT
+    : join(import.meta.dirname, "..");
 /** Every tracked path, once. A directory counts as tracked when anything under it is. */
 export function trackedPaths(root = ROOT) {
     const out = new Set();
