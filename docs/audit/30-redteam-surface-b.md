@@ -2260,3 +2260,269 @@ member — so the exclusion cannot silently grow back.
 ### What NEW freedom this creates
 
 **None — it strictly grows the scan set**, and the added floor removes the freedom the old filter had.
+
+## R6-1 — two tests over one variable, and an empty string fell between them
+
+### What it is
+
+`STATE_ROOT` branched on **truthiness** (`process.env.VALIDATE_ROOT ? … : resolve(SCRIPT_DIR, "..")`)
+while the scope caveat tested **definedness** (`process.env.VALIDATE_ROOT !== undefined`). One
+variable, two questions, and exactly one input shape separates them: `VALIDATE_ROOT=""`. That is not
+a contrived value — it is the ordinary shape of a CI wrapper written
+`VALIDATE_ROOT=$SOME_UNSET_VAR node scripts/validate-agent-factory.js`, where the variable is
+exported empty rather than left unset.
+
+On that input the state root fell back to the kit, the two bases collapsed, the repository's
+governing `.grugops/factory.config.json` was form-checked at **no base at all** — and the caveat that
+exists to say so was suppressed, because the variable existed.
+
+### Mirror reproduction
+
+Reviewer 6's, run against the committed `.js` at `392f3ab`:
+
+```
+control:  SCOPE  … ; VALIDATE_ROOT was not supplied, so the state root defaulted to this script's own
+                  tree … was NOT examined. Pass VALIDATE_ROOT=<repo> to check it.        exit=0
+finding:  SCOPE  governance configurations examined: agent-factory/config/factory.config.json
+                                                                                          exit=0
+```
+
+The premise is asserted rather than assumed: the reader on that same repository reports
+`source=ok, test_integrity=off` from the file neither run examined.
+
+### The structural fix, in one sentence
+
+**One expression for "was a state root supplied"** — `const SUPPLIED_STATE_ROOT = process.env.VALIDATE_ROOT?.trim() || null`
+— read by both the branch and the caveat, so there is no second test to disagree with.
+
+### What NEW freedom this creates, and how it is bounded
+
+A trimming rule: `"   "` is now "not supplied" where it used to be a path. That is the intended
+reading and it is the *stricter* one, but it is a new behaviour, so the case walks **every input
+shape** — `unset`, `""`, `"   "`, a real path — and asserts the caveat's presence tracks
+`STATE_ROOT`'s branch rather than the variable's existence.
+
+### Mutation proof
+
+Restoring either test independently (`VALIDATE_ROOT !== undefined` for the caveat; raw truthiness for
+the branch) reds the empty and whitespace cases; markers grepped in the emitted `.js` before the run
+was believed.
+
+## R6-2 — one tree, two spellings, and the disclosure vanished from the exact invocation it was written for
+
+### What it is
+
+`const basesCollapsed = resolve(KIT_ROOT) === resolve(STATE_ROOT)`. `KIT_ROOT` is the **operator's
+spelling**; `STATE_ROOT` falls back to `resolve(SCRIPT_DIR, "..")`, and `import.meta.dirname` is
+**realpath-resolved by Node**. `resolve()` normalises `.` and `..` and does not follow symlinks, so
+any symlinked ancestor on the kit path makes two spellings of one tree compare unequal. Then
+`basesCollapsed` is false, R4-3's caveat is suppressed, the SCOPE line double-lists the same file,
+and the run prints `ALL CHECKS PASSED` over a scope it has just misdescribed.
+
+This is not a hypothetical path shape. macOS `/tmp` — and the whole default `TMPDIR` under `/var` —
+is a symlink; so is a symlinked `~/.grugops`, a symlinked home, a Windows junction.
+
+### It also inverted a residual this log had already recorded
+
+`V-30-10-04` item 1 disposes of the `resolve()`-not-`realpathSync` dedupe as **"noisy, never
+permissive"**. That disposition stopped being true the moment the identity test acquired a second
+consumer whose *false negative suppresses a disclosure*. Recorded here rather than quietly amended:
+the residual's reasoning was sound about the consumer it was written for, and wrong about the tree
+after the consumer was added.
+
+### The structural fix, in one sentence
+
+**Ask the candidate loop instead of asking a string** — the state base collapsed onto the kit base
+exactly when it contributed no resolved path the kit base had not already contributed
+(`basesCollapsed = governanceBaseContributions[1] === 0`), so there is no spelling in the question at
+all, and a future change to the candidate list moves the answer automatically.
+
+### What NEW freedom this creates, and how it is bounded
+
+The contributions are recorded **per base position, in an array** — deliberately not a map keyed by
+the base string, because when the two roots are one tree they are one key and the map would report
+the kit's contribution as the state base's. `canonicalBase` is also applied to `kitConfigAbs`, since
+an identity test built from the raw root while the loop uses the canonical one misses the very file
+it is about (this was caught by measurement, not by review: on macOS's `/var` symlink the mode and
+cadence arm silently stopped firing).
+
+### Mutation proof
+
+Reverting to the string comparison reds the symlink case; the fixture overwrites the archived
+`scripts/` with the working tree's, so it drives the artifact under test rather than HEAD's — without
+that the case passes or fails for the wrong reason, which is the mutation-that-never-landed class
+this log has already been bitten by twice.
+
+## Reviewer 6 observation 1 — the SCOPE line listed two files where one governs
+
+Taken as a correctness item rather than an observation. `readGovernanceConfig` takes the **first**
+candidate it finds **entirely**: precedence is REPLACE, not merge. So a repository-level file that
+mentions no checkpoints at all silently voids a kit-level tightening, with no refusal, and a banner
+reading `all checkpoints at default`. Listing two paths as "examined" told a reader two files were
+consulted where one governs.
+
+The line now says so, and only when more than one position is listed — a line that explains
+precedence on a tree with one config would be noise.
+
+## R6-5 — the "independent witness" shared the row grammar with the parse it was witnessing
+
+### What it is
+
+R4-1 added `declaredResidualRows` as an independent witness and said so in its own structural pin:
+"shares no parser, no loop and no intermediate". That was true of the **heading** grammar and false
+of the **row** grammar — both passes skipped a line unless it began with a pipe. GFM makes the outer
+pipes optional, so a row written without them is a table row to a reader and to GitHub, and was
+dropped by both passes at once.
+
+A membership comparison can only fire on an axis the two passes **disagree** about. On this axis they
+agreed by being equally blind, and the page published a register short by that row while both
+denominators called it complete.
+
+### Mirror reproduction, with the reviewer's own control
+
+Against the committed `.js` at `3d1f346`:
+
+```
+byte pass   [ '9', '10' ]
+parse       [ '9', '10' ]
+page names row 11? false
+MIRROR exit=0 — render succeeded, row silently dropped by BOTH passes
+```
+
+Control, the same row content WITH outer pipes — the only variable:
+
+```
+byte pass   [ '9', '10', '11' ]
+parse       [ '9', '10', '11' ]
+```
+
+### The structural fix, in one sentence
+
+**The witness is made the WIDER of the two passes** — it accepts a row that omits its outer pipes and
+the parse does not — so the disagreement, and therefore the named refusal, is the outcome; the
+canonical row form is unchanged and still carries its outer pipes (D-64's posture: name the canonical
+spelling, refuse the near-miss, never widen acceptance).
+
+### What NEW freedom this creates, and how it is bounded
+
+A wider denominator can **over**-count: any line containing a pipe whose first field is a bare number
+above the historical rows now counts as declared. That direction is noisy and never permissive — it
+can only refuse to publish, never publish short — which is the asymmetry this whole file is built on.
+The bound is the live equality case: over the real register both passes must still name exactly the
+same rows, so an over-count on this tree fails the suite rather than being discovered by a reader.
+
+### A textual pin caught the comment explaining the fix
+
+The "shares no parser" pin greps the function's own body, so the paragraph naming
+`readResidualAdditions` reddened it. The rationale was moved into the doc comment above the function.
+Recorded because the direction matters: the pin failed **safe**, and a pin that can be defeated by
+prose inside the region it guards is worth knowing about.
+
+### Mutation proof
+
+Narrowing the witness back to `startsWith("|")`, and separately blinding the pipe-less body
+extraction, each red the case; markers grepped in the emitted `.js` first.
+
+## R6-3 — the sentence written for the old predicate, left standing after the predicate changed
+
+### What it is
+
+Round 3 (reviewer 4's observation 1) replaced `value !== fallback` with the ordered `isLowered`. The
+**sentence** published when `lowered.length === 0` was written for the old predicate and was not
+moved: it reuses the `BANNER_ALL_DEFAULT` literal and then asserts, in prose, that *every checkpoint
+on the roster sits at its documented default*.
+
+`commit_to_branch` is the one roster member whose default is not `block`, so declaring it `block` — a
+legitimate, **stricter** posture that a cautious repository would actually adopt — empties `lowered`
+and lands on that totalizing claim. Meanwhile `composeBanner`, asking strict equality, says
+`checkpoints not at default: commit_to_branch=block` about the same tree.
+
+Round 3 traded a **visible** false sentence for an **invisible** one: the pre-round-3 artifact printed
+a wrong `LOWERED:` line, which a reader would notice; this one made the tightened page byte-identical
+to the page for a tree that configured nothing.
+
+### Mirror reproduction
+
+Against the committed `.js` at `3d1f346`:
+
+```
+zero-config page bytes : 5919
+TIGHTENED page bytes   : 5919
+byte-identical         : true
+tightened page says all-default: true
+MIRROR exit=0
+```
+
+RED, before the fix existed, with the disagreement printed by the case itself:
+
+```
+AssertionError: matrix {"commit_to_branch":"block"}: page says all-default=true,
+banner says "checkpoints not at default: commit_to_branch=block": expected true to be false
+```
+
+### The structural fix, in one sentence
+
+**"Nothing is lowered" and "everything is at its default" are made two separately named questions** —
+`isLowered` (the ordered rank) and `atDocumentedDefault` (strict equality, the predicate
+`composeBanner` already asks) — and the render publishes a three-way statement whose third arm NAMES
+the tightening instead of erasing it.
+
+### Why ONE function and not two
+
+The obvious repair was a second `tightenedCheckpoints` beside `loweredCheckpoints`, each with its own
+`readGovernanceConfig` and its own loop. That would reintroduce, inside this file, precisely the shape
+`evaluateMatrix`'s own comment says it exists to remove: two independent evaluations of one rule over
+one config, free to disagree. One walk assigns every roster member to exactly one bucket.
+
+### What NEW freedom this creates, and how it is bounded
+
+**Three buckets where there were two** means a member can now go missing from all three and be
+reported by no sentence — the short-denominator failure this project has already been bitten by. The
+partition is therefore asserted TOTAL against the roster's own size, derived from
+`CHECKPOINT_DEFAULTS` rather than from any of the three arrays that consume it, and the refusal is
+named:
+
+```
+generate-guarantees: the checkpoint roster has 14 members but only 13 were classified as
+at-default, lowered or tightened. …The document is refused rather than published short.
+```
+
+A second bound, the one reviewer 6 asked for: a case asserts the page's at-default claim and
+`composeBanner`'s agree **on the same matrix**, across four matrices, so the two can never again say
+different things about one tree.
+
+A third thing worth stating plainly: today `commit_to_branch` is the ONLY member that can ever be
+tightened, because every other default is already the strictest value. The tightened bucket therefore
+has capacity one on this tree, and grows the moment any future checkpoint's default is not `block`.
+The partition assertion holds either way; the plural wording was fixed because it will not always be
+one.
+
+### Mutation proof
+
+Four mutations, each with its marker grepped in the emitted `.js`: `atDocumentedDefault` forced true;
+the three-way branch collapsed back to two; the totality assertion defeated together with the
+bucketing; and — the discriminating one — the bucketing broken with the assertion **left live**,
+which produced the named refusal above rather than a wrong page.
+
+## A gate that had been red since round 1, found by running it rather than by review
+
+Not a reviewer finding. `npm run typecheck` runs **two** projects — `tsc --noEmit` and
+`tsc -p tsconfig.tests.json` — and across all four rounds only the first was ever run. The second had
+been failing since `87700bf` (round 1) on two errors, both mine:
+
+```
+scripts/validate.test.ts(991,18):        error TS2551: Property 'VALIDATE_ROOT' does not exist on type
+                                         '{ VALIDATE_KIT_ROOT: string; }'
+scripts/autonomy-zero-config.test.ts(307,65): error TS2345: Argument of type 'string' is not assignable
+                                         to parameter of type '"benign-read-only" | …'
+```
+
+Vitest transpiles without typechecking, so a green suite said nothing about either — which is this
+plan's own standing rule ("a green test suite must never be offered as a closure argument") arriving
+from an unexpected direction. Both are fixed; the second was widened to `string[]` **deliberately**,
+because typed as the literal union the comparison refuses the very argument the "carried but not
+declared" direction exists to pass, and would have been well-typed and vacuous. That widening was
+proved non-vacuous by planting an undeclared kind and observing the named red.
+
+The process lesson is recorded rather than the defect: **run every gate the repository ships, not the
+subset that has been failing informatively.**

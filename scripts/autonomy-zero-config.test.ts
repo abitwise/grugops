@@ -297,7 +297,11 @@ describe("AUTO-07 — every roster member is accounted for, in both directions",
     // declared but not carried is a shape nobody drives, and a kind carried but not declared is a
     // payload nobody wrote down.
     const carried = STRUCTURAL_PAYLOADS.map((p) => p.kind).sort();
-    const declared = [...STRUCTURAL_KINDS].sort();
+    // Widened to `string[]` DELIBERATELY: both directions of this comparison have to accept a kind
+    // the other side does not know about, which is the entire point of comparing them. Typed as the
+    // literal union, `declared.includes(k)` refuses the very argument the "carried but not declared"
+    // direction exists to pass, and the check would be well-typed and vacuous.
+    const declared: string[] = [...STRUCTURAL_KINDS].sort();
     const missing = declared.filter((k) => !carried.includes(k));
     expect(
       missing,

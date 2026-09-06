@@ -49,7 +49,7 @@
 // rel>); no write path is ever derived from file content. Every read/JSON.parse is wrapped in
 // try/catch so a missing or garbled file becomes a finding, never an unhandled throw
 // (T-06-01/T-06-03, mirrors hooks/guard.ts + install.ts fail-closed posture).
-import { readFileSync, existsSync, readdirSync } from "node:fs";
+import { readFileSync, existsSync, readdirSync, realpathSync } from "node:fs";
 import { join, resolve, sep } from "node:path";
 // Phase 27 (KIT-02): the role and workflow name sets are DERIVED here, never hand-listed.
 // kit-model.ts is the single authority for "which roles and workflows exist" (KIT-01). It reads NO
@@ -74,8 +74,16 @@ import { governanceConfigCandidates } from "./context-io.js";
 // ("no fallback" beats "sensible default" here, and ONLY here). Unset → hard error, never a
 // silent "." / dev-checkout fallback that would false-green.
 const SCRIPT_DIR = import.meta.dirname;
-const STATE_ROOT = process.env.VALIDATE_ROOT
-    ? resolve(process.env.VALIDATE_ROOT)
+// ONE EXPRESSION FOR "WAS A STATE ROOT SUPPLIED" (plan 30-10, round 4, finding R6-1).
+//
+// There were two tests over one variable: `STATE_ROOT` branched on TRUTHINESS while the scope
+// caveat tested `!== undefined`. `VALIDATE_ROOT=""` — the ordinary shape of a CI wrapper that
+// exports an unset variable — therefore took the fallback branch (state root = the kit, the two
+// bases collapsed, the repository's governing config form-checked at no base) while the caveat was
+// suppressed because the variable existed. Both questions now read one value.
+const SUPPLIED_STATE_ROOT = process.env.VALIDATE_ROOT?.trim() || null;
+const STATE_ROOT = SUPPLIED_STATE_ROOT
+    ? resolve(SUPPLIED_STATE_ROOT)
     : resolve(SCRIPT_DIR, ".."); // back-compat repo root for STATE only
 if (!process.env.VALIDATE_KIT_ROOT) {
     console.error("  ERROR    VALIDATE_KIT_ROOT is unset — refusing to default the kit root to '.' (C3)");
@@ -383,10 +391,38 @@ const GOVERNANCE_BASES = [KIT_ROOT, STATE_ROOT];
  * ═══════════════════════════════════════════════════════════════════════════════════════════════
  */
 const governanceExamined = [];
+/**
+ * How many NEW candidate paths each base contributed, indexed by its position in `GOVERNANCE_BASES`.
+ *
+ * An ARRAY and not a map keyed by the base string: when the two roots are the same tree they are the
+ * same key, and a map would report the kit's own contribution for the state base. The loop's answer
+ * has to be per POSITION.
+ */
+const governanceBaseContributions = [];
+/**
+ * A base as the filesystem knows it, so two SPELLINGS of one tree cannot look like two trees.
+ *
+ * (Round 4, finding R6-2.) `resolve()` normalises `.` and `..` and does not follow symlinks, so a
+ * symlinked kit path — macOS `/tmp` and the whole default `TMPDIR` under `/var`, a symlinked
+ * `~/.grugops`, a Windows junction — made the two bases compare unequal, the caveat vanish and the
+ * SCOPE line double-list the same file. Resolving the BASE (which exists, or the run has already
+ * failed elsewhere) rather than each candidate keeps this out of the throwing path that
+ * `V-30-10-04` item 1 records as the reason the dedupe was left spelling-based.
+ */
+function canonicalBase(base) {
+    try {
+        return realpathSync(base);
+    }
+    catch {
+        return resolve(base);
+    }
+}
 function checkConfig() {
     // The in-kit config's resolved path — the ONE position at which `mode` and `cadence` are read by
     // anything, and therefore the one at which their absence is a finding (reviewer 4 obs. 4).
-    const kitConfigAbs = resolve(join(KIT_ROOT, "agent-factory", "config", "factory.config.json"));
+    // Built from the CANONICAL base, exactly as the loop's own candidates are — otherwise a symlinked
+    // temp root makes this identity test miss the very file the loop is about to check (round 4).
+    const kitConfigAbs = resolve(join(canonicalBase(KIT_ROOT), "agent-factory", "config", "factory.config.json"));
     // ONE LOOP, ONE READ, ONE PREDICATE — the kit arm is gone (round 2, F3).
     //
     // It used to be a separate arm reading through `kitRead`, which catches every error to `null` and
@@ -400,12 +436,15 @@ function checkConfig() {
     // third outcome. There is now one existence test, one read, one unreadable message and one form
     // check, asked at every position under every base.
     const seen = new Set();
-    for (const base of GOVERNANCE_BASES) {
+    for (let b = 0; b < GOVERNANCE_BASES.length; b += 1) {
+        const base = canonicalBase(GOVERNANCE_BASES[b]);
+        governanceBaseContributions[b] = 0;
         for (const abs of governanceConfigCandidates(base)) {
             const key = resolve(abs);
             if (seen.has(key))
                 continue; // one file, one verdict — a positional repair must not double-report
             seen.add(key);
+            governanceBaseContributions[b] += 1;
             // ABSENT is the documented lean default and never a finding (SC4 / AUTO-07). A missing in-kit
             // config is separately reported by the required-file check, so absence stays silent here.
             if (!existsSync(abs))
@@ -750,8 +789,22 @@ checkWorkflowCommit();
 // A verdict that does not name its own scope is a verdict about an unstated set. This says which
 // governance configurations were examined and, when the state root was not supplied, that the run
 // examined none outside the kit and how to change that.
-const stateRootSupplied = process.env.VALIDATE_ROOT !== undefined;
-const basesCollapsed = resolve(KIT_ROOT) === resolve(STATE_ROOT);
+const stateRootSupplied = SUPPLIED_STATE_ROOT !== null;
+// (Round 4, finding R6-2) THE BASE IDENTITY IS THE LOOP'S OWN BEHAVIOUR, NOT A SECOND STRING TEST.
+//
+// It was `resolve(KIT_ROOT) === resolve(STATE_ROOT)` — the operator's SPELLING of the kit compared
+// against a realpath-resolved `import.meta.dirname`. Any symlinked ancestor on the kit path (macOS
+// `/tmp` and the whole default `TMPDIR` under `/var`, a symlinked `~/.grugops`, a Windows junction)
+// makes two spellings of one tree compare unequal, so the caveat vanished from the exact invocation
+// R4-3 was written for and the SCOPE line double-listed the in-kit config instead. It also inverted
+// a recorded residual: `V-30-10-04` item 1 disposes of the `resolve()`-not-`realpathSync` dedupe as
+// "noisy, never permissive", which stopped being true the moment that identity test acquired a
+// second consumer whose false negative suppresses a disclosure.
+//
+// So the question is answered by the candidate loop itself: the state base COLLAPSED onto the kit
+// base exactly when it contributed no resolved path the kit base had not already contributed. One
+// authority, no spelling, and a future candidate-list change moves it automatically.
+const basesCollapsed = governanceBaseContributions[1] === 0;
 console.error(`  SCOPE    governance configurations examined: ` +
     (governanceExamined.length === 0
         ? "none (no config file at any candidate under either root)"
@@ -762,7 +815,16 @@ console.error(`  SCOPE    governance configurations examined: ` +
             ? "; VALIDATE_ROOT was not supplied, so the state root defaulted to this script's own tree " +
                 "and both bases resolved to it — a repository-level .grugops/factory.config.json outside " +
                 "that tree was NOT examined. Pass VALIDATE_ROOT=<repo> to check it."
-            : ""));
+            : "") +
+    // (Round 4, reviewer 6 observation 1) PRECEDENCE IS REPLACE, NOT MERGE, AND THE LINE SAID
+    // NOTHING ABOUT IT. `readGovernanceConfig` takes the FIRST candidate it finds ENTIRELY; a
+    // repository-level file that mentions no checkpoints at all silently voids a kit-level
+    // tightening, with no refusal and a banner reading `all checkpoints at default`. Listing two
+    // files as "examined" told a reader two files were consulted where one governs.
+    (governanceExamined.length > 1
+        ? " — of these the FIRST is the one that governs: precedence is replace, not merge, so a " +
+            "repository-level file voids the kit's declarations entirely rather than overlaying them."
+        : ""));
 // ── Render + exit ──────────────────────────────────────────────────────────────────────────────
 for (const e of errors)
     console.error(`  ERROR    ${e}`);

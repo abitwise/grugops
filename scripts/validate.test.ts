@@ -31,16 +31,18 @@
 // NOTHING outside the temp dir is mutated. Spawns the COMMITTED compiled .js (never the .ts).
 
 import { describe, it, expect, afterAll } from "vitest";
-import { spawnSync, type SpawnSyncReturns } from "node:child_process";
+import { execFileSync, spawnSync, type SpawnSyncReturns } from "node:child_process";
 import {
-  mkdtempSync,
-  mkdirSync,
   cpSync,
-  rmSync,
-  writeFileSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
   readFileSync,
   readdirSync,
-  existsSync,
+  realpathSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -987,7 +989,7 @@ describe("30-10 R4-3 — the run NAMES the governance positions it examined", ()
     const r = spawnSync("node", [VALIDATOR_JS], {
       encoding: "utf8",
       env: (() => {
-        const e = { ...process.env, VALIDATE_KIT_ROOT: ROOT };
+        const e: NodeJS.ProcessEnv = { ...process.env, VALIDATE_KIT_ROOT: ROOT };
         delete e.VALIDATE_ROOT;
         return e;
       })(),
@@ -1054,5 +1056,86 @@ describe("30-10 R3 — reviewer 4 obs. 4: a checkpoints-only repo override is no
       .split("\n")
       .filter((l) => l.includes(".grugops/factory.config.json:"));
     expect(lines.length, lines.join("\n")).toBeGreaterThanOrEqual(6);
+  });
+});
+
+describe("30-10 R4 — R6-1 and R6-2: one supplied-root expression, one base identity", () => {
+  it("R6-1 — an EMPTY VALIDATE_ROOT takes the same branch the caveat reports", () => {
+    // Two tests over one variable: STATE_ROOT branched on TRUTHINESS while the caveat tested
+    // `!== undefined`. `VALIDATE_ROOT=""` — the ordinary shape of a CI wrapper exporting an unset
+    // variable — took the fallback branch (state root = the kit, bases collapsed, the repository's
+    // governing config form-checked at no base) while the caveat was suppressed. Both read one value.
+    for (const value of ["", "   "]) {
+      const r = spawnSync("node", [VALIDATOR_JS], {
+        encoding: "utf8",
+        env: { ...process.env, VALIDATE_KIT_ROOT: ROOT, VALIDATE_ROOT: value },
+      });
+      expect(r.status, JSON.stringify(value)).toBe(0);
+      expect(out(r), `VALIDATE_ROOT=${JSON.stringify(value)} suppressed the caveat`).toMatch(
+        /VALIDATE_ROOT was not supplied/,
+      );
+    }
+  });
+
+  it("R6-1 — a REAL state root still suppresses the caveat, and an unset one still raises it", () => {
+    const { kit, state } = twoRoots();
+    expect(out(runSplit(kit, state))).not.toMatch(/VALIDATE_ROOT was not supplied/);
+    const r = spawnSync("node", [VALIDATOR_JS], {
+      encoding: "utf8",
+      env: (() => {
+        const e: NodeJS.ProcessEnv = { ...process.env, VALIDATE_KIT_ROOT: ROOT };
+        delete e.VALIDATE_ROOT;
+        return e;
+      })(),
+    });
+    expect(out(r)).toMatch(/VALIDATE_ROOT was not supplied/);
+  });
+
+  it("R6-2 — a SYMLINK-spelled kit root does not make one tree look like two", () => {
+    // `resolve()` normalises `.` and `..` and does not follow symlinks, so the operator's spelling of
+    // the kit compared unequal to a realpath-resolved `import.meta.dirname`: the caveat vanished from
+    // the exact invocation it was written for and the SCOPE line double-listed the in-kit config.
+    // The kit runs its OWN validator, which is the shipped shared-install shape and the shape
+    // reviewer 6 measured: `SCRIPT_DIR/..` is then the kit itself, so the two bases are one tree and
+    // only the SPELLING of the path differs between the two runs.
+    const real = realpathSync(mkdtempSync(join(tmpdir(), "grugops-val-real-")));
+    tmpDirs.push(real);
+    execFileSync("bash", ["-c", `git archive HEAD | tar -x -C ${JSON.stringify(real)}`], { cwd: ROOT });
+    // …and overwrite the compiled scripts with the WORKING TREE's, so the fixture drives the
+    // artifact under test rather than the one at HEAD. Without this the case silently measures the
+    // pre-fix build and passes or fails for the wrong reason — the mutation-that-never-landed class.
+    cpSync(join(ROOT, "scripts"), join(real, "scripts"), { recursive: true });
+    const linkDir = realpathSync(mkdtempSync(join(tmpdir(), "grugops-val-link-")));
+    tmpDirs.push(linkDir);
+    const link = join(linkDir, "kitlink");
+    symlinkSync(real, link);
+
+    const spawnKit = (kitPath: string): SpawnSyncReturns<string> =>
+      spawnSync("node", [join(kitPath, "scripts", "validate-agent-factory.js")], {
+        encoding: "utf8",
+        env: (() => { const e: NodeJS.ProcessEnv = { ...process.env, VALIDATE_KIT_ROOT: kitPath }; delete e.VALIDATE_ROOT; return e; })(),
+      });
+    const viaReal = spawnKit(real);
+    const viaLink = spawnKit(link);
+    // The only variable is the spelling of the kit path, so the SCOPE line must not differ in kind.
+    const scope = (o: string): string => (o.split("\n").find((l) => l.includes("SCOPE")) ?? "").trim();
+    expect(scope(out(viaLink))).not.toMatch(
+      /factory\.config\.json,\s*.*factory\.config\.json/,
+    );
+    expect(scope(out(viaReal)).includes("VALIDATE_ROOT was not supplied")).toBe(
+      scope(out(viaLink)).includes("VALIDATE_ROOT was not supplied"),
+    );
+  });
+
+  it("reviewer 6 obs. 1 — the SCOPE line says precedence is REPLACE when it lists more than one", () => {
+    // `readGovernanceConfig` takes the FIRST candidate ENTIRELY, so a repository-level file that
+    // mentions no checkpoints voids a kit-level tightening with no refusal anywhere. Listing two
+    // files as "examined" told a reader two files were consulted where one governs.
+    const { kit, state } = twoRoots();
+    mkdirSync(join(state, ".grugops"), { recursive: true });
+    writeFileSync(join(state, ".grugops", "factory.config.json"), JSON.stringify({ cadence: "kanban" }));
+    const o = out(runSplit(kit, state));
+    expect(o).toMatch(/the FIRST is the one that governs/);
+    expect(o).toMatch(/replace, not merge/);
   });
 });

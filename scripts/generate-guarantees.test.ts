@@ -46,7 +46,15 @@ import {
   SAFETY_FLOORS,
   readResidualAdditions,
 } from "./audit-model.js";
-import { CHECKPOINT_DEFAULTS, floorEnvVarName } from "./checkpoints.js";
+import {
+  BANNER_ALL_DEFAULT,
+  CHECKPOINT_DEFAULTS,
+  CHECKPOINTS,
+  floorEnvVarName,
+  renderCheckpointBanner,
+  type Checkpoint,
+  type Disposition,
+} from "./checkpoints.js";
 import {
   OUT,
   REGEN_COMMAND,
@@ -864,6 +872,29 @@ describe("30-10 R4-1 — the residual section has an INDEPENDENT denominator, co
     expect(() => renderGuarantees(root)).toThrow(/13/);
   });
 
+  it("R6-5 — a row WITHOUT outer pipes is seen by the byte pass and refused, not dropped by both", () => {
+    // R4-1 called `declaredResidualRows` an INDEPENDENT witness: "shares no parser, no loop and no
+    // intermediate". True of the heading grammar, false of the ROW grammar — both passes skipped a
+    // line unless it `startsWith("|")`. GFM makes the outer pipes OPTIONAL, so a row written without
+    // them is a table row to a reader and to GitHub and was invisible to both passes at once. A
+    // membership comparison can only fire on an axis the two passes disagree about; on this axis
+    // they agreed by being equally blind, and the page published a register short by that row while
+    // both denominators said it was complete.
+    const root = registerMirror((t) =>
+      t.replace(
+        "\n\n**Completeness:** 2 rows,",
+        "\n11 | a residual nobody publishes | `deferred` | Phase 31 | renders as a table row on " +
+          "GitHub and was invisible to both passes.\n\n**Completeness:** 2 rows,",
+      ),
+    );
+    // The BYTE PASS sees it — that is what makes it a witness rather than a second opinion.
+    expect(declaredResidualRows(root)).toContain("11");
+    // …and the render is REFUSED rather than published short. The canonical row form keeps its outer
+    // pipes (D-64's posture: name the canonical spelling and refuse the near-miss); the author is
+    // told, instead of the row silently vanishing.
+    expect(() => renderGuarantees(root)).toThrow(/11/);
+  });
+
   it("the LIVE register agrees — the byte pass and the parse name the same rows", () => {
     const parsed = readResidualAdditions(ROOT).map((r) => r.num);
     const declared = declaredResidualRows(ROOT);
@@ -909,5 +940,67 @@ describe("30-10 R4 observation 1 — a TIGHTENED checkpoint is not a lowered one
       JSON.stringify({ checkpoints: { protected_branch_merge: "off" } }),
     );
     expect(() => renderGuarantees(root)).toThrow(/dropped|lowered/i);
+  });
+});
+
+describe("30-10 R6-3 — \"nothing is lowered\" is not \"everything is at its default\"", () => {
+  /** A mirror whose only departure from the real tree is the governance config it declares. */
+  function configuredMirror(checkpoints: Record<string, string>): string {
+    const root = freshTmp("r63-");
+    cpSync(join(ROOT, "docs"), join(root, "docs"), { recursive: true });
+    cpSync(join(ROOT, "agent-factory"), join(root, "agent-factory"), { recursive: true });
+    mkdirSync(join(root, ".grugops"), { recursive: true });
+    writeFileSync(
+      join(root, ".grugops", "factory.config.json"),
+      JSON.stringify({ checkpoints }),
+    );
+    return root;
+  }
+
+  it("a TIGHTENED checkpoint does not publish `all checkpoints at default`", () => {
+    // Round 4 observation 1 replaced the render's `!==` with the ordered `isLowered` and did not
+    // move the sentence written for the OLD predicate. `commit_to_branch` is the one roster member
+    // whose default is not `block`, so declaring it `block` — STRICTER, and a posture a cautious
+    // repository would actually adopt — empties `lowered` and lands on the all-default branch. The
+    // page then states that every checkpoint sits at its documented default over a tree where one
+    // provably does not. Round 3 traded a visible false sentence for an invisible one.
+    const text = renderGuarantees(configuredMirror({ commit_to_branch: "block" }));
+    expect(text).not.toContain(BANNER_ALL_DEFAULT);
+    // …and it is NAMED, not merely omitted — the arm publishes the checkpoint, the value it is held
+    // at and the default it sits above.
+    expect(text).toContain("commit_to_branch");
+    expect(text).toMatch(/sits ABOVE the documented/);
+    // …and a tightening is still not a lowering: no LOWERED line, no grant variable named as
+    // authorizing something that needs no authorization.
+    expect(text).not.toMatch(/LOWERED/);
+    expect(text).not.toContain("GRUGOPS_FLOOR_COMMIT_TO_BRANCH");
+    // THE DEFAULT ARM, for contrast: the same render with nothing configured DOES publish it.
+    expect(renderGuarantees(configuredMirror({}))).toContain(BANNER_ALL_DEFAULT);
+  });
+
+  it("the page's at-default claim and `composeBanner` agree on ONE matrix", () => {
+    // The property, not a spot check: for any matrix, the page carries the all-default sentence if
+    // and only if the guard's banner is the fixed all-default literal. Two documents describing one
+    // config cannot be allowed to describe it differently — that disagreement IS the AP-1 shape the
+    // banner's own comment says it exists to remove.
+    const matrices: Record<string, Disposition>[] = [
+      {},
+      { commit_to_branch: "block" },
+      { commit_to_branch: "notify" },
+      { plan_approval: "block" },
+    ];
+    for (const m of matrices) {
+      const full = Object.fromEntries(
+        CHECKPOINTS.map((id) => [id, m[id] ?? CHECKPOINT_DEFAULTS[id]]),
+      ) as Record<Checkpoint, Disposition>;
+      const banner = renderCheckpointBanner(full, {});
+      const page = renderGuarantees(configuredMirror(m));
+      expect(
+        page.includes(BANNER_ALL_DEFAULT),
+        `matrix ${JSON.stringify(m)}: page says all-default=${page.includes(
+          BANNER_ALL_DEFAULT,
+        )}, banner says "${banner}"`,
+      ).toBe(banner === BANNER_ALL_DEFAULT);
+    }
   });
 });

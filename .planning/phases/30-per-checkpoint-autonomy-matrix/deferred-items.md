@@ -269,3 +269,50 @@ different repository's configuration.
 **Suggested owner:** (1) and (2) — a follow-up task on the heading/fence authority, or Phase 30
 verification. (3) — whoever next touches `check-public-docs-vocabulary.ts`. (4)–(7) — recorded as
 residual freedoms, no owner required unless a later round finds a live path through one.
+
+## V-30-10-06 — round-4 reviewer observations, recorded rather than fixed
+
+Surface B, round 4 of 4 (D-22's cap). Both reviewers (claude-opus) raised observations alongside
+their findings. The findings were fixed structurally; these are the observations, each recorded with
+the direction it fails in, because a residual whose direction is not stated is not a residual — it is
+a thing somebody will rediscover.
+
+1. **The setext arm can red a legitimate document** (R5 obs. 1). A line of `-` or `=` directly under
+   an ordinary paragraph makes that paragraph a level-1/2 heading to CommonMark and now to this
+   module. That is *correct* CommonMark and is exactly why the arm exists, but it means a document
+   which never intended a heading can be refused by name. Direction: over-refusal, fail-closed. No
+   live governed document carries the shape (measured over the corpus at the time of the round).
+2. **A live module-vs-renderer desync in `agent-factory/roles/subagent.frontmatter.md`** (R5 obs. 2).
+   Recorded as a measurement, not a defect of this plan: the file's rendered form and the module's
+   read of it differ on one line. It is not in the governed roles-and-workflows corpus that the
+   strict block-context view is asserted over, which is why the round's one-line parity claim still
+   holds.
+3. **`WORKFLOW_STOP_BULLET_COUNT = 38` is the only defence on its axis, and has no shipped consumer**
+   (R5 obs. 3 and 6, one item). A hand-maintained count is this repository's named second systemic
+   failure class ("derive the set, assert the count"), and this one is asserted in tests only —
+   nothing that ships reads it. It is a test-time tripwire, not a runtime guard, and should be
+   described as one wherever it is cited as evidence.
+4. **Named whitespace entities are a closed, decidable set that is not yet decoded** (R5 obs. 5).
+   `renderedText` decodes NUMERIC character references and zero-width characters; `&nbsp;` and a raw
+   U+00A0 are not in that set, so a heading padded with them can still truncate differently for the
+   module than for a renderer. Unlike the open alias problem below, this set is finite and closable —
+   it is deferred for scope, not because it resists a fix.
+5. **`COVERED_ELSEWHERE` is reachable in one edit** (R6 obs. 2). Carried forward from
+   `V-30-10-05` item 5, re-raised independently by a second reviewer, which is itself the signal: two
+   independent reviewers finding one hand-written escape hatch means it reads as one.
+6. **Three cosmetic properties of the SCOPE line** (R6 obs. 3, 4, 5): a path can be double-listed when
+   two bases genuinely differ but overlap; two distinct files can present under colliding labels; the
+   listing is lexicographic rather than in examination order. All three make the line harder to read
+   and none makes it false.
+7. **A future `.gitignore` rule would narrow the consumer pin** (R6 obs. 6). The pin enumerates
+   consumers via `git ls-files --cached --others --exclude-standard`, so a later ignore rule silently
+   shrinks the denominator. Direction: narrowing, and therefore the one to watch — the same shape as
+   the alias-set and scan-set defects this surface has already produced three times.
+8. **`readCheckpointMatrix` still uses `id in obj`** (R6 obs. 7). Prototype-chain reachable in
+   principle; the parsed value is `JSON.parse` output with a null-prototype guard upstream, so no live
+   path was demonstrated. Recorded because `Object.hasOwn` was adopted elsewhere in this plan for
+   exactly this reason, and a mixed posture across one file set is worth either finishing or naming.
+
+**Suggested owner:** (4) is a bounded, closable task on the heading authority — the best candidate for
+actual work. (1), (2), (6) need no owner. (3), (5), (7), (8) belong to whoever next touches the set
+they name, and (7) should be checked whenever `.gitignore` changes.

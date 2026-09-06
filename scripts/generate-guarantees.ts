@@ -353,6 +353,29 @@ export function declaredDroppedRows(root: string = DEFAULT_ROOT): readonly strin
  * MEMBERSHIP, NOT CARDINALITY — the `declaredDroppedRows` construction, for the same reason: a set
  * that is short by exactly the rows that matter has the same size as one that is short by any two.
  * ---------------------------------------------------------------------------------------------
+  *
+ * THE WITNESS MUST BE THE WIDER OF THE TWO PASSES (round 4, finding R6-5).
+ *
+ * This pass was called independent of `readResidualAdditions` — "shares no parser, no loop and
+ * no intermediate". That was true of the HEADING grammar and false of the ROW grammar: both
+ * skipped a line unless it began with a pipe. GFM makes the outer pipes OPTIONAL, so a row
+ * written without them is a table row to a reader and to GitHub, and was dropped by both passes
+ * at once. A membership comparison can only fire on an axis the two passes DISAGREE about; on
+ * that axis they agreed by being equally blind, and the page published a register short by a row
+ * while both denominators called it complete.
+ *
+ * So the denominator accepts a row that omits its outer pipes and the parse does not, which
+ * makes the disagreement — and therefore the refusal — the outcome. The canonical row form is
+ * unchanged and still carries its outer pipes; a near-miss is REFUSED and named rather than
+ * quietly admitted (D-64's posture), and the register's author is told.
+ *
+ * THE NEW DEGREE OF FREEDOM, AND ITS BOUND. A wider denominator can over-count: any line
+ * containing a pipe whose first field is a bare number above the historical rows now counts as
+ * a declared row. That direction is NOISY AND NEVER PERMISSIVE — it can only produce a refusal
+ * to publish, never a silent short page — which is the asymmetry this whole file is built on.
+ * The bound is the live equality case below: over the real register both passes must still name
+ * exactly the same rows, so an over-count on this tree fails the suite rather than being
+ * discovered by a reader.
  */
 export function declaredResidualRows(root: string = DEFAULT_ROOT): readonly string[] {
   let text: string;
@@ -367,8 +390,11 @@ export function declaredResidualRows(root: string = DEFAULT_ROOT): readonly stri
   const out: string[] = [];
   for (const raw of text.split("\n")) {
     const line = raw.replace(/\r$/, "").trim();
-    if (!line.startsWith("|")) continue;
-    const first = line.slice(1, line.indexOf("|", 1) === -1 ? undefined : line.indexOf("|", 1)).trim();
+    // R6-5: the outer pipes are OPTIONAL in GFM, so the witness accepts a row without them and the
+    // parse does not — see this function's doc comment for why that asymmetry is the whole point.
+    if (!line.includes("|")) continue;
+    const body = line.startsWith("|") ? line.slice(1) : line;
+    const first = body.split("|")[0].trim();
     if (!/^\d+$/.test(first)) continue;
     if (Number.parseInt(first, 10) <= HISTORICAL_RESIDUAL_ROWS) continue;
     out.push(first);
@@ -545,22 +571,61 @@ function isLowered(held: Disposition, fallback: Disposition | undefined): boolea
 /** The ternary's order, strictest first. Declared once; `isLowered` is its only reader. */
 const PERMISSIVENESS: Readonly<Record<Disposition, number>> = { block: 0, notify: 1, off: 2 };
 
-/** Every roster checkpoint whose live value sits below its documented default. */
-function loweredCheckpoints(
-  root: string,
-): readonly { id: Checkpoint; held: Disposition; grant: string }[] {
+/**
+ * Is `held` EXACTLY the documented default? (Round 4, finding R6-3.)
+ *
+ * A SEPARATELY NAMED QUESTION from `isLowered`, and named because this file was answering one and
+ * publishing the other. "Nothing is lowered" and "everything sits at its default" are different
+ * claims, and they come apart on exactly the tree an attacker does not need to construct: a
+ * repository that TIGHTENS something. This is the predicate `composeBanner` already asks
+ * (`r.declared === CHECKPOINT_DEFAULTS[id]`), so the page and the run banner are now two readings
+ * of ONE rule rather than two rules that happened to agree on the trees anybody tested.
+ */
+function atDocumentedDefault(held: Disposition, fallback: Disposition | undefined): boolean {
+  return fallback !== undefined && held === fallback;
+}
+
+/**
+ * The roster split by DIRECTION of departure, from ONE read and ONE walk.
+ *
+ * WHY ONE FUNCTION AND NOT TWO. The obvious repair for R6-3 was a second `tightenedCheckpoints`
+ * beside `loweredCheckpoints`, each with its own `readGovernanceConfig` and its own loop. That
+ * reintroduces, inside this file, precisely the shape `evaluateMatrix`'s comment says it exists to
+ * remove: two independent evaluations of one rule over one config, free to disagree. One walk
+ * assigns every roster member to exactly one bucket, so "lowered" and "tightened" cannot both claim
+ * a checkpoint and neither can silently drop one.
+ *
+ * THE NEW DEGREE OF FREEDOM THIS INTRODUCES, AND ITS BOUND. Three buckets where there were two
+ * means a member can now go missing from all three and be reported nowhere — the SHORT-denominator
+ * failure this project has already been bitten by. So the partition is asserted TOTAL against the
+ * roster's own size, derived from `CHECKPOINT_DEFAULTS` rather than from any of the three arrays
+ * that consume it, and the refusal is named rather than silent.
+ */
+function matrixDepartures(root: string): {
+  lowered: readonly { id: Checkpoint; held: Disposition; grant: string }[];
+  tightened: readonly { id: Checkpoint; held: Disposition }[];
+} {
   const matrix = readGovernanceConfig(root).config.checkpoints;
-  const out: { id: Checkpoint; held: Disposition; grant: string }[] = [];
-  for (const [id, fallback] of Object.entries(CHECKPOINT_DEFAULTS) as [
-    Checkpoint,
-    Disposition,
-  ][]) {
+  const lowered: { id: Checkpoint; held: Disposition; grant: string }[] = [];
+  const tightened: { id: Checkpoint; held: Disposition }[] = [];
+  let atDefault = 0;
+  const entries = Object.entries(CHECKPOINT_DEFAULTS) as [Checkpoint, Disposition][];
+  for (const [id, fallback] of entries) {
     const held = matrix[id];
-    if (held !== undefined && isLowered(held, fallback)) {
-      out.push({ id, held, grant: floorEnvVarName(id) });
-    }
+    if (held === undefined || atDocumentedDefault(held, fallback)) atDefault += 1;
+    else if (isLowered(held, fallback)) lowered.push({ id, held, grant: floorEnvVarName(id) });
+    else tightened.push({ id, held });
   }
-  return out;
+  const placed = atDefault + lowered.length + tightened.length;
+  if (placed !== entries.length) {
+    throw new Error(
+      `generate-guarantees: the checkpoint roster has ${entries.length} members but only ${placed} ` +
+        `were classified as at-default, lowered or tightened. A member that lands in no bucket is ` +
+        `reported by no sentence on the page, which is the one failure this render must not have. ` +
+        `The document is refused rather than published short.`,
+    );
+  }
+  return { lowered, tightened };
 }
 
 /**
@@ -624,7 +689,7 @@ export function renderGuarantees(root: string = DEFAULT_ROOT): string {
     );
   }
 
-  const lowered = loweredCheckpoints(root);
+  const { lowered, tightened } = matrixDepartures(root);
   const floorIds = SAFETY_FLOORS.map((f) => f.id).sort();
   const residuals = readResidualAdditions(root);
   // ── THE RESIDUAL SECTION'S OWN DENOMINATOR (plan 30-10, round 3, R4-1) ───────────────────────
@@ -679,11 +744,31 @@ export function renderGuarantees(root: string = DEFAULT_ROOT): string {
     "",
   ];
 
-  if (lowered.length === 0) {
+  if (lowered.length === 0 && tightened.length === 0) {
     lines.push(
       `**${BANNER_ALL_DEFAULT}.** Every checkpoint on the roster sits at its documented default, so`,
       "no floor below is lowered and every row in the table holds at the status the registry",
       "measured. A repository that configures nothing lands here: nothing is lowered by omission.",
+      "",
+    );
+  } else if (lowered.length === 0) {
+    // THE THIRD SENTENCE (round 4, R6-3). Nothing is lowered here, but the page may not therefore
+    // say everything is at its default: this tree holds something ABOVE it. A tightening is good
+    // news and is still a departure, so it is NAMED — the alternative, silence, made the page for a
+    // tightened tree byte-identical to the page for a tree that configured nothing.
+    lines.push(
+      `**No checkpoint is lowered on this tree, and ${tightened.length} ` +
+        `checkpoint${tightened.length === 1 ? "" : "s"} sit${tightened.length === 1 ? "s" : ""} ` +
+        "ABOVE the documented",
+      "default.** A tightening is not a lowering: it removes no guarantee and needs no authorizing",
+      "grant. It is named anyway, because a page that stayed silent about it would describe this",
+      "repository in exactly the words it uses for one that configured nothing at all.",
+      "",
+      "| checkpoint | held at | default |",
+      "|---|---|---|",
+      ...tightened.map(
+        (t) => `| \`${t.id}\` | \`${t.held}\` | \`${CHECKPOINT_DEFAULTS[t.id]}\` |`,
+      ),
       "",
     );
   } else {
