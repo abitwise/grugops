@@ -316,3 +316,79 @@ a thing somebody will rediscover.
 **Suggested owner:** (4) is a bounded, closable task on the heading authority — the best candidate for
 actual work. (1), (2), (6) need no owner. (3), (5), (7), (8) belong to whoever next touches the set
 they name, and (7) should be checked whenever `.gitignore` changes.
+
+## SURFACE B IS FENCED AT THE ROUND CAP — V-30-10-11 .. V-30-10-20
+
+**Plan 30-10, round 4 of 4 (D-22's cap). Both round-4 reviewers (claude-opus) returned findings; ten
+post-cap findings are recorded here as backlog rather than fixed, because D-22 says a finding after
+the fourth round becomes a recorded backlog item or a follow-up phase — never a fifth round.**
+
+Four rounds closed **8 + 6 + 7 + 9 = 30** findings. **No round returned "nothing new"** across eight
+independent reviews. Each round's fixes created most of the next round's findings (3/6, 4/7, 7/9, and
+2 of these 10 name a round-4 fix as their cause). **The defect rate per round did not fall; the review
+budget ran out first.** The full fence text, every reproduction, and both reviewer reports verbatim are
+in `docs/audit/30-redteam-surface-b.md` § *THE FENCE — FINAL*.
+
+| id | sev | finding | direction |
+|---|---|---|---|
+| `V-30-10-11` | HIGH | R7-1 — section extent is the strict view, both collecting passes are lax; an indented closing fence separates them, and a tagged stop is collected by nothing at `examined===counted` 38/38 | permissive + invisible |
+| `V-30-10-12` | HIGH | R7-2 — `HTML_BLOCK_OPEN` opens a phantom block on an autolink or inline tag, un-freezing 17 clauses at `17/17` with zero refusals. **Created by R5-2's fix**; the code comment claiming "unchanged behaviour, not a new hole" is measurably false | permissive + invisible |
+| `V-30-10-13` | MEDIUM | R7-3 — the membership exemptions are NAME tests, not FILE tests: `roles/.gitkeep/` as a DIRECTORY ships a full role document that nothing governs | permissive; ships to hosts |
+| `V-30-10-14` | HIGH | R7-4 — zero-glyph inline markup is not folded, so `## Stop conditions<!-- x -->` truncates a section unrefused; `exceed_wip_limit` leaves the roster with both counts agreeing at 37/37, and the invisible form leaves every number byte-identical | permissive + invisible |
+| `V-30-10-15` | MEDIUM | R8-1 — "the FIRST is the one that governs" names the wrong file in the two-root shape, and base-relative labels print two files as one string | publishes a false sentence |
+| `V-30-10-16` | MEDIUM | R8-2 — the tightened bucket is computed, asserted total, and never published when anything is also lowered; the agreement pin asserts one bit and its fourth matrix is vacuous (`plan_approval` is not a roster member). **Created by R6-3's fix** | permissive + invisible |
+| `V-30-10-17` | MEDIUM | R8-3 — the alias list does not equal the Linguist set its own comment names; `PUBLIC.scd` / `PUBLIC.qmd` leave both language gates at exit 0 | permissive |
+| `V-30-10-18` | MEDIUM | R8-4 — the verdict goes to stdout and the entire scope disclosure to stderr; no test can see it, because every case reads the two concatenated | invisible to every test |
+| `V-30-10-19` | LOW | R8-5 — the witness's `<= HISTORICAL_RESIDUAL_ROWS` window is blindness shared with the parse; a low-numbered row out of section publishes short and reports fresh | permissive |
+| `V-30-10-20` | LOW | R8-6 — the collapsed-bases caveat is gated on `stateRootSupplied`, not on `basesCollapsed`, so `VALIDATE_ROOT=$KIT` suppresses it | invisible |
+
+Each entry in the round log carries its **exact reproduction command, its control, the suggested
+structural fix, and that fix's own named new freedom** — specific enough to act on without re-deriving
+anything.
+
+### Corrections the round-4 reviewers made to the EARLIER residuals
+
+These amend entries already recorded above; the originals are left in place and corrected here rather
+than rewritten, because a residual whose reasoning was wrong is itself worth keeping visible.
+
+- **`V-30-10-02` — stronger than stated.** `deriveCheckpoints`/`checkpointSites` have **no non-test
+  consumer at all**, and the shipped validator performs **none** of the corpus-membership or
+  heading-form refusals: it returns `ALL CHECKS PASSED` over a kit containing `roles/rogue.markdown`,
+  `roles/.gitkeep/rogue-role.md`, a duplicate stop section or a near-miss heading. Generalise the entry
+  from "the derivation assertions" to "the derivation and both membership inversions".
+  `matrixDepartures`' totality assertion is a further instance — unreachable by construction.
+- **`V-30-10-05` — bound now precise.** `COVERED_ELSEWHERE` resolves by file-exists plus test-name
+  **substring**, not by reach. `test_integrity`'s citation resolves and does not vouch for the claim
+  (the cited case asserts `emitVerdict`'s note-writing and reads no matrix). No substantive gap today.
+- **`V-30-10-07` — bound understated.** The decidable part is that the alias list does not match its
+  own declared authority. See `V-30-10-17`.
+- **`V-30-10-08` — direction one-sided.** It recorded under-modelling only; the live and larger hole is
+  **over**-modelling. See `V-30-10-12`.
+- **`V-30-10-09` — stated direction wrong.** Named references truncate for **both** module and
+  renderer; the residual is visual identity without refusal, not divergent truncation.
+- **`V-30-10-10` — remedy confirmed.** Reviewer 8 ran every `package.json` script except the live e2e
+  lane: all green, both `typecheck` projects included. The class does not recur.
+
+### Further observations from round 4's reviews
+
+1. **R7 obs. 1** — `carriageReturnLines` is asked only in `check-diff-disposition.ts`; `checkpoints.ts`
+   owns its own corpus refusals and never asks it. R3-3's "one of N consumers" shape; caught here only
+   because the workflow anchors are frozen.
+2. **R8 obs. 1** — `renderGuarantees` performs two independent `readGovernanceConfig` calls, and they
+   **disagree about an `undefined` matrix entry** (`block` vs at-default). Unreachable today.
+3. **R8 obs. 3** — `VALIDATE_KIT_ROOT` is untrimmed while `VALIDATE_ROOT` is: two rules over two
+   variables that R6-1 had just reduced to one. Noisy, not permissive.
+4. **R8 obs. 4** — `audit:prepass` mutates a tracked file, so a gate sweep leaves the tree dirty.
+5. **R8 obs. 2** — `resolveCheckpoint` accepts a whitespace-only grant; surface A owns it.
+
+### Owners
+
+`V-30-10-11`, `V-30-10-12`, `V-30-10-14` are one task on the heading/fence authority and should be
+taken together — they are three faces of "which lines are governed". `V-30-10-13` belongs with them or
+with whoever next touches `kit-model.ts`. `V-30-10-15`, `V-30-10-18`, `V-30-10-20` are one task on the
+validator's SCOPE line. `V-30-10-16` and `V-30-10-19` are one task on the guarantees render.
+`V-30-10-17` is one task on the alias authority.
+
+**Plan 30-11 must read this section**, not only the summary: the derived checkpoint set surface A
+builds on is fenced, not settled, and `V-30-10-11` / `V-30-10-14` each remove or add a roster member
+while every independent count agrees.

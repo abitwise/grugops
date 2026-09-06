@@ -2557,42 +2557,880 @@ returning a plausible number. Both were re-done. Recorded because the failure mo
 the mutation discipline exists for: a probe that produces a clean-looking result from an input that
 never reached the predicate.
 
-## DRAFT FENCE — proposed, pending the round-4 reviews
+# Round 4 reviews — the closure attempt AT THE CAP
 
-D-22 caps surface B at four gap-closure rounds and round 4 is the last. This is the fence text and
-backlog drafted **in advance** of the round-4 reviews, so that if those reviews still find something
-the residual can be recorded and fenced rather than argued about. If both reviewers return "nothing
-new", this section is deleted and the surface is `closed` instead. The human makes that call.
+**Both at `claude-opus`, both over surface B as scoped by round 4's scope statement, and NEITHER
+returned "nothing new".** D-22's cap is reached. There is no round 5: every finding below is a
+recorded backlog item, not a fix.
 
-### Proposed fence text
-
-> **Surface B is fenced, not proven.** Four adversarial rounds against the derived checkpoint set,
-> the collapsed governance reader, the structure validator, the guarantees render, the freshness gate
-> and the run banner closed 8 + 6 + 7 + 9 findings, each with a failing test written first, a mirror
-> reproduction against the committed `.js`, a structural fix, and a mutation proof read out of the
-> emitted artifact. **No round returned "nothing new."** Rounds 2, 3 and 4 were each dominated by
-> defects that the PREVIOUS round's own fixes created — 3 of 6, 4 of 7, and 7 of 9 respectively — so
-> the honest reading of this surface is not that it is now correct, but that its defect rate per
-> round did not fall and the review budget ran out first.
->
-> What that means for a reader: the gates named in this log are **evidence, not proof**. Each one
-> refuses a specific, named, reproduced bypass. None establishes that no further bypass exists, and
-> the measured trend says the next round would probably find more. The residuals below are the
-> things known to be open at the moment the budget closed, each with the direction it fails in
-> (`permissive` — it can let something through; `noisy` — it can only over-refuse). **A green test
-> suite is not offered as a closure argument anywhere in this record.**
-
-### Draft backlog entries
-
-| id | residual | direction | specific enough to act on |
+| reviewer | model | lens | verdict |
 |---|---|---|---|
-| `V-30-10-01` | The hook does not publish `checkpointRefusals` | permissive (invisible) | The derivation's refusals exist and no shipped consumer surfaces them to a user; wire them into the hook's output or delete the claim that they are user-visible. |
-| `V-30-10-02` | The derivation assertions have no shipped consumer | permissive (invisible) | They are test-time tripwires. Either give them a runtime consumer or describe them as tripwires everywhere they are cited as evidence. |
-| `V-30-10-03` | The hook's kit-root fallback base | permissive | The hook resolves a kit root by fallback rather than from a supplied value; the validator's R6-1 fix (one supplied-root expression) has not been applied to it. |
-| `V-30-10-04` | Resolve-vs-realpath dedupe, one-space grant, `sectionsFound === filesWalked` vacuity | mixed — **item 1 was INVERTED by R6-2** | Item 1's "noisy, never permissive" disposition is no longer true and the entry must be rewritten, not merely carried; items 2 and 3 stand as recorded. |
-| `V-30-10-05` | Six round-3 reviewer observations | mixed | Item 5 (`COVERED_ELSEWHERE`) was independently re-raised by a round-4 reviewer, which promotes it: two reviewers reading one hand-written escape hatch as an escape hatch. |
-| `V-30-10-06` | Eight round-4 reviewer observations | mixed | Item 4 (named whitespace entities) is a **closed, decidable set** and the best candidate for actual work; item 7 (a future `.gitignore` rule narrowing the consumer pin) is the one that fails in the narrowing direction and should be checked whenever `.gitignore` changes. |
-| `V-30-10-07` | **The alias list cannot be completed for the public-docs corpus** | permissive | The workflow and roles corpora were fixed by INVERSION — admit every entry, refuse what the corpus rule does not admit — which removes the extension question entirely. The public-docs corpus is an OPEN set (any path in the repository), so inversion does not apply and it still asks a hand-declared alias list. Reviewer 5 swept ten extensions and seven were accepted; the list was extended to those ten, which is not the same as being complete. **This is the one round-4 finding whose fix is not structural**, and it is fenced rather than claimed closed. |
-| `V-30-10-08` | **Five §4.6 HTML block types are unmodelled** | noisy and permissive, depending on type | `blockContextFlags` models the comment/tag-block arm that R5-2 arm C needed. CommonMark §4.6 defines seven block types; the remaining five (notably the `<?`, `<!DECLARATION`, `<![CDATA[` and the type-7 generic-tag conditions) are not modelled, so a heading inside one of them can still be classified as a terminator. No live governed document carries the shape. |
-| `V-30-10-09` | **Named, non-numeric character references are not decoded** | permissive | `renderedText` decodes numeric references and zero-width characters. `&nbsp;`, `&#x200B;`'s named siblings and the rest of the HTML5 named-reference table are not decoded, so a heading padded with them still truncates differently for this module than for a renderer. Overlaps `V-30-10-06` item 4 and shares its remedy: the set is finite. |
-| `V-30-10-10` | **`npm run typecheck` runs two projects and only one was in the loop** | process, not code | Fixed here, but the process defect is the residual: four rounds of adversarial review ran a subset of the repository's own gates. Whatever CI runs for this repository should be the same list the closure standard runs, derived from `package.json` rather than remembered. |
+| Reviewer 7 | claude-opus | heading/fence authority + frozen anchors + membership | **FINDINGS: 4** (R7-1 … R7-4) + a fence audit of `V-30-10-01..10` |
+| Reviewer 8 | claude-opus | validator + reader + render/freshness + pins | **FINDINGS: 6** (R8-1 … R8-6) + a full `package.json` gate sweep |
+
+**Ten distinct findings, no overlap.** Two are created by round 4's own fixes and say so in the
+reviewer's words: **R7-2** by R5-2's `blockContextFlags` HTML arm, and **R8-2** by R6-3's three-arm
+render. A third, **R7-3**, reaches reviewer 5's observation-4 harm *through the inversion written to
+close it*. The ratio that has held for three rounds held for a fourth.
+
+Both reviewers asserted artifact identity on entry and exit (9/9 and 6/6 sha256 comparisons against
+`git show HEAD:<path>`), proved every renderer premise against the reference `commonmark`
+implementation including the NEGATIVE cases, and each caught **their own** false control mid-review —
+reviewer 7 an off-by-one line index that threw `premise fail` before anything was believed, reviewer 8
+an exit status captured after a pipe and a plant that landed nowhere. That is the same false-control
+class this log has now recorded on both sides of the review boundary.
+
+Reviewer 8 additionally ran **every `package.json` script** except the live e2e lane: all green,
+including both `typecheck` projects. `V-30-10-10`'s class does not recur.
+
+## The two reports, verbatim
+
+Recorded byte-for-byte, each inside a five-backtick container. The container is disclosed rather than
+silent because it is load-bearing: **reviewer 7's report contains an unbalanced column-zero fence** —
+its R7-1 input block is literally a fence wrapping fence lines, being a report about fence parsing —
+so pasting it uncontained would leave every following section of this log inside an open code block.
+A report about a fence-parsing defect that breaks its own host document's fence parsing is worth
+noting in a log whose subject is exactly that.
+
+### Reviewer 7 — verbatim
+
+`````markdown
+Tree restored, artifacts verified 9/9 on entry and exit. Here is the report.
+
+---
+
+## Reviewer 7 (round 4) — model: claude-opus (strongest available) — scope: surface B, heading/fence authority + frozen anchors + membership lens
+
+### Verdict: FINDINGS: 4
+
+All four are reproduced on the committed `.js` at `7dc9018`, driven from the detached worktree, with the reference `commonmark` implementation used for every renderer premise and a control run for every plant. The tree is restored; `git status --short` shows only `node_modules`.
+
+---
+
+### Findings
+
+#### R7-1 — the section EXTENT is the strict view and BOTH collecting passes are the lax view; an indented closing fence separates them
+
+**Severity: high. Direction: permissive + invisible.**
+
+**Predicate.** `deriveCheckpoints` (`scripts/checkpoints.ts:744-796`) takes its section range from `locateSection` → `sectionEndIndex`/`unfencedHeadingIndices`, which R5-2 moved to `blockContextFlags` (strict). Pass A's line filter is `fencedLineFlags(text)` (lax, line 755) and pass B is `unfencedMatchIndices` (lax, `frontmatter.ts:1069`). CommonMark §4.5 allows a **closing** fence to be indented up to three spaces; round 3 declined that rule for the lax view and recorded its residual as *"over-scanning, which is fail-closed"*. For a **closing** fence the same omission runs the parity the other way: the fence stays open to EOF in the lax view while the renderer and the strict view both close it.
+
+**Input** (appended inside `09-daily-sweep.md`'s `## Stop conditions` section, after the last real bullet):
+
+```
+```
+   ```
+- Never deploy without a second human. `checkpoint: planted_ghost_stop`
+```
+
+**Exact repro**
+
+```
+$ node -e "const fs=require('fs');const f='agent-factory/workflows/09-daily-sweep.md';
+  const l=fs.readFileSync(f,'utf8').split('\n');
+  l.splice(44,0,'\`\`\`','   \`\`\`','- Never deploy without a second human. \`checkpoint: planted_ghost_stop\`');
+  fs.writeFileSync(f,l.join('\n'))"
+
+$ node probe-derive.mjs "$PWD/scripts/checkpoints.js"
+ACCEPTED — ids=10 sites=16 examined=38 counted=38 sections=19
+planted_ghost_stop present? false                                          exit 0
+
+$ VALIDATE_KIT_ROOT=$PWD VALIDATE_ROOT=$PWD node scripts/validate-agent-factory.js
+ALL CHECKS PASSED                                                          exit 0
+
+$ npx vitest run --exclude '**/scripts/e2e/**' scripts/checkpoints.test.ts
+Tests  133 passed (133)                                                    exit 0
+
+$ node probe-frozen.mjs        # check-diff-disposition
+regions=55 refusals=0 cardinalities= … workflows `## Stop conditions`:19/19
+```
+
+**Premise, asserted twice.**
+1. *The plant is refusable content.* The SAME bullet without the two fence lines: `ACCEPTED — ids=11 sites=17 examined=39 counted=39`, `planted_ghost_stop present? true`, and `scripts/checkpoints.test.ts` → **5 failed**, naming *"the derivation produces 1 id(s) the roster does not admit — [planted_ghost_stop]"*. So the invisibility is caused by the two fence lines and by nothing else.
+2. *The renderer shows the bullet.* `commonmark` on the section:
+   `<h2>Stop conditions</h2><ul><li>…escalate_stale_blocker</li><li>…exceed_wip_limit</li></ul><pre><code></code></pre><ul><li>Never deploy without a second human. <code>checkpoint: planted_ghost_stop</code></li></ul>`
+3. *The two views measured directly*: `fencedLineFlags` = `[true,true,true,true,true]`, `blockContextFlags` = `[true,true,false,false,false]` on the same bytes.
+
+**Why permissive/invisible.** A canonically tagged human stop is declared in a workflow, is visible to every reader, and is collected by nothing, refused by nothing and counted by nothing — with `examined === counted` at 38/38, i.e. the two-pass shear detector agreeing because both passes take the same wrong flags. This is verbatim B-3/F2/R3-1/R3-2's stated harm.
+
+**Structural fix + its new freedom.** The three heading questions were moved to the strict projection; the two questions that decide **which lines inside that extent are governed** were not. Move pass A and pass B onto `blockContextFlags` too (one walk feeding the whole derivation), or — the narrower repair — adopt §4.5's ≤3-space rule for the **closing** delimiter only in the lax machine, which cannot narrow any scan set (it can only close a fence earlier, i.e. scan more). *New freedom:* moving the collectors to strict changes what the checkpoint corpus scans in the 460-file divergent set; bound it by re-measuring the roles-and-workflows delta (today: 1 line) and asserting `examined`/`counted` are unchanged on the live corpus.
+
+---
+
+#### R7-2 — `blockContextFlags`' HTML arm opens a phantom block on any line starting with `<`, hiding a byte-exact anchor heading — a **new** hole created by R5-2
+
+**Severity: high. Direction: permissive + invisible (un-freezes frozen clauses).**
+
+**Predicate.** `HTML_BLOCK_OPEN = /^ {0,3}<[!\/a-zA-Z]/` (`frontmatter.ts:560`) with the block running to the next blank line. CommonMark §4.6 type 6 requires the tag name to be in a fixed list and type 7 requires a *complete tag alone on the line* that *cannot interrupt a paragraph*. This regex matches neither condition: an **autolink** (`<https://…>`), an inline `<span>x</span>`, `<foo@bar>` — all ordinary paragraph content to a renderer — open a block here.
+
+The code comment claims *"the direction of that gap is UNCHANGED behaviour rather than a new hole"*. Measured false:
+
+```
+text = "<https://example.com/spec>\n## Hard limits\n- Never merge.\n\ntail\n"
+PRE-R5-2 (git show 392f3ab:scripts/frontmatter.js)  unfencedHeadingIndices → [1]
+HEAD     (7dc9018)                                  unfencedHeadingIndices → []
+commonmark                                          <p><a …>…</a></p><h2>Hard limits</h2>…
+```
+
+**Input** — `agent-factory/roles/orchestrator.md`: one line `<https://example.com/orchestrator-spec>` inserted immediately above the real `## Hard limits` (line 74), plus a decoy `## Hard limits` section appended at EOF.
+
+**Exact repro**
+
+```
+$ node probe-frozen.mjs      # CLEAN
+regions=55 refusals=0  roles `## Hard limits`:17/17
+orchestrator.md region = {from:74, to:82}      frozen clause count = 446
+
+$ node probe-frozen.mjs      # PLANTED
+regions=55 refusals=0  roles `## Hard limits`:17/17
+orchestrator.md region = {from:85, to:87}      frozen clause count = 429
+```
+
+**17 frozen clauses left the freeze**, silently, with the cardinality reporting `17/17`, zero refusals, and the whole "Coordinator hard limit (clear voice — a safety/capability surface)" paragraph — the WIP/spawn/merge/deploy limits — among them.
+
+**Control (the decoy is load-bearing).** The autolink line alone, no decoy: `roles ## Hard limits: 16/17`, region absent — i.e. the gate is red without the decoy, so the bypass is the pair, and the duplicate-heading refusal never fires because only one occurrence is *visible*.
+
+**Why permissive/invisible.** Exactly R3-3's harm (*"silently un-freezes every clause below it while the gate goes on printing 17/17"*), reached through a construct R3-3's refusals cannot see, and created by round 4's own fix.
+
+**Structural fix + its new freedom.** Make the HTML arm ask CommonMark's actual start conditions: type 1 (`pre|script|style|textarea`, ends at the closing tag), type 2/3/4/5 (literal openers), type 6 (the fixed tag-name list), and type 7 only for a *complete tag alone on the line that does not interrupt a paragraph*. Anything else is not a block. *New freedom:* a hand-written tag-name list — this repository's named second failure class — so pin it two-sided against the §4.6 list, assert the governed-corpus delta stays at its measured value, and add a permanent case that `<https://…>` and `<span>x</span>` are **not** block openers. Refusing such a line is the wrong repair: it would red legitimate documents.
+
+---
+
+#### R7-3 — the two hand-written membership exemptions are NAME tests, not FILE tests, so each exempt name is an unbounded container inside the corpus's own closed directory
+
+**Severity: medium. Direction: permissive + invisible (narrows the scan set; ships to hosts).**
+
+**Predicate.** `listRoleDirEntries` / `listWorkflowDirEntries` (`kit-model.ts`) filter `!EXEMPT_NAMES.includes(f)` over `readdirSync`, and the round-4 inversion refuses everything else. `readdirSync` returns directories too, and nothing asserts an exempt entry is a regular file. The inversion is one level deep.
+
+**Exact repro (four arms, each on the live tree)**
+
+```
+$ rm agent-factory/roles/.gitkeep && mkdir agent-factory/roles/.gitkeep
+$ cp agent-factory/roles/orchestrator.md agent-factory/roles/.gitkeep/rogue-role.md
+$ node probe-frozen.mjs           regions=55 refusals=0  roles `## Hard limits`:17/17
+$ VALIDATE_KIT_ROOT=$PWD VALIDATE_ROOT=$PWD node scripts/validate-agent-factory.js   exit 0
+$ node probe-derive.mjs           ACCEPTED — ids=10 sites=16 examined=38 counted=38  exit 0
+```
+
+Same result for `agent-factory/workflows/.gitkeep/20-rogue.md` (a full numbered workflow with a `## Stop conditions` section: `19/19`, `refusals=0`, derivation unchanged) and for `agent-factory/roles/_role-switch-protocol.md/rogue.md` (`17/17`, `refusals=0`).
+
+**Control.** A non-exempt subdirectory IS refused by name:
+`agent-factory/roles: carries 1 entr(ies) the roles corpus does not admit — notes.` So the exemption name is precisely what makes the container invisible.
+
+**Why permissive.** `install/install.ts:1546` copies `agent-factory` with `{recursive:true}`, so the contents ship into every installed kit. A complete role document — `## Hard limits` and all — is placed in the kit, read by an agent, frozen by no gate, counted by no cardinality and scanned by no language guard. This is reviewer 5's observation 4 harm, reached through the fix written for it.
+
+**Structural fix + its new freedom.** Assert the entry TYPE: an exempt name must be a regular file (`statSync(…).isFile()`), and any directory entry in a closed corpus directory is refused by name regardless of its name. *New freedom:* a `stat` per entry (an unreadable/dangling entry is a new third outcome) — bound it with a case for a dangling symlink and one for a directory named exactly `.gitkeep`.
+
+---
+
+#### R7-4 — inline HTML that renders to nothing is not folded, so a heading a reader sees as `## Stop conditions` truncates the section and is refused by neither arm
+
+**Severity: high. Direction: permissive + invisible.**
+
+**Predicate.** `renderedText` folds numeric character references, zero-width code points and whitespace runs. It does not remove markup that produces **no visible output**: an HTML comment, an empty element, an anchor tag. Such a line matches `/^#{1,2} /`, so `sectionEndIndex` **closes the section on it**, while `unfencedHeadingIndices` (byte equality) and `unfencedHeadingNearMisses` (rendered-text equality) both say nothing. This is not the disclosed visual-confusable open set (D-59) — these spellings render to *literally the same characters*.
+
+**Renderer premise** (`commonmark`): `## Stop conditions<!-- x -->` → `<h2>Stop conditions<!-- x --></h2>`; `## Stop conditions<a name="s"></a>` → `<h2>Stop conditions<a name="s"></a></h2>`; `## Stop <span></span>conditions` → `<h2>Stop <span></span>conditions</h2>`. Visible text in all three: exactly `Stop conditions`.
+
+**Exact repro — arm A, the truncating form** (`## Stop conditions<!-- anchor -->` inserted between the two tagged bullets of `09-daily-sweep.md`, i.e. R3-1's own attack position):
+
+```
+occurrences [41]  nearmiss []  sectionEnd(from 42) = 43     ← it truncates, unrefused
+$ node probe-derive.mjs
+ACCEPTED — ids=9 sites=15 examined=37 counted=37 sections=19      exit 0
+exceed_wip_limit present? false
+$ node scripts/check-diff-disposition.js | grep "frozen clause"
+… 19/19 … 442 frozen clause(s), 55 frozen region(s)               (clean: 446)
+$ VALIDATE_KIT_ROOT=$PWD VALIDATE_ROOT=$PWD node scripts/validate-agent-factory.js
+ALL CHECKS PASSED                                                 exit 0
+```
+
+A **live roster member removed from the derived set with both independent bullet counts agreeing at 37/37**, and four frozen clauses unfrozen with the cardinality at 19/19 and zero refusals.
+
+**Exact repro — arm B, the fully invisible form** (the same heading placed *after* the last real bullet, followed by a new tagged stop):
+
+```
+$ node probe-derive.mjs
+ACCEPTED — ids=10 sites=16 examined=38 counted=38 sections=19     exit 0
+planted_ghost_stop present? false ; all 10 roster members intact
+$ VALIDATE_KIT_ROOT=$PWD VALIDATE_ROOT=$PWD node scripts/validate-agent-factory.js  ALL CHECKS PASSED
+$ npx vitest run --exclude '**/scripts/e2e/**' scripts/checkpoints.test.ts   Tests 133 passed (133)
+$ node scripts/check-diff-disposition.js | grep -o "[0-9]* frozen clause(s)"   446 frozen clause(s)
+```
+
+**Every number is byte-identical to the clean tree** while a human stop is declared, rendered and governed by nothing.
+
+**Sweep (reviewer 5's 21 spellings re-run against the round-4 artifact, plus five new axes).** All 15 previously closed spellings still refused; `### Stop conditions` correctly accepted; `&nbsp;`/`&Tab;` behave as V-30-10-09 describes; **three new bypasses**, all `same=true truncates=true refused=false`: `## Stop conditions<!-- x -->`, `## Stop <span></span>conditions`, `## Stop conditions<a name="s"></a>`.
+
+**Structural fix + its new freedom.** `renderedText` must strip what a renderer emits with zero visible glyphs before comparing: HTML comments (`<!--…-->`) and empty/void inline elements are a *closed, decidable* grammar — unlike the named-reference table — and the module already owns a `VISIBLE_GLYPH` class it can reuse. Then all three spellings become near-misses and are refused by name; acceptance is unchanged. *New freedom:* an inline-HTML stripper inside the one heading authority, which could over-fold a heading that legitimately contains rendered inline markup (`## Use <code>x</code>`) — bound it by folding only constructs that emit no glyph, by asserting the live corpus still carries zero near-misses across all 55 regions and all 19 stop sections, and by a case that a glyph-bearing inline element is NOT folded.
+
+---
+
+### Fence audit — each entry's stated direction/bound, measured
+
+| id | verdict |
+|---|---|
+| `V-30-10-01` hook does not publish `checkpointRefusals` | **Correct.** `git grep` confirms no non-test consumer; surface A owns it. |
+| `V-30-10-02` derivation assertions have no shipped consumer | **Correct, and stronger than stated.** `deriveCheckpoints`/`checkpointSites` have **no non-test consumer at all**; `validate-agent-factory.ts` imports only the static `CHECKPOINTS`/`DISPOSITIONS`. Every round-1..4 refusal inside the derivation is a vitest-only tripwire. |
+| `V-30-10-03` hook's kit-root fallback base | Out of scope (surface A); not measured. |
+| `V-30-10-04` resolve-vs-realpath / one-space grant / `sectionsFound === filesWalked` vacuity | **Correct as rewritten.** Item 3 stands: `sectionsFound` is still incremented once per located section, so `=== filesWalked` remains an identity. |
+| `V-30-10-05` six round-3 observations | Not re-measured (out of my lens). |
+| `V-30-10-06` eight round-4 observations | Item 4 (named whitespace entities) confirmed a closed decidable set; see `V-30-10-09`. |
+| `V-30-10-07` alias list cannot be completed for the open public-docs corpus | **Correct**, and the roles/workflows inversion it contrasts itself with is the one R7-3 defeats — the inversion does not "remove the freedom entirely", it removes the *extension* freedom and leaves the *entry-type* freedom. |
+| `V-30-10-08` five §4.6 HTML block types unmodelled | **Direction is one-sided and measurably incomplete.** It records only UNDER-modelling ("a heading inside one of them can still be classified as a terminator"). The live and larger hole is OVER-modelling: `HTML_BLOCK_OPEN` opens a phantom block on lines that are not HTML blocks at all, which hides a *byte-exact* heading — see R7-4… R7-2. The claim "the direction of that gap is UNCHANGED behaviour rather than a new hole" is falsified by the `392f3ab` → `7dc9018` comparison. |
+| `V-30-10-09` named references not decoded | **Substance right, stated direction wrong.** Measured: `## Stop&nbsp;conditions` and `## Stop&Tab;conditions` truncate for **both** the module and the renderer — they are ordinary headings to both, so nothing "truncates differently". The real residual is that they render *visually* identically and are not refused. The entry should say that, not that truncation diverges. |
+| `V-30-10-10` typecheck runs two projects | **Correct**, and confirmed live: `package.json` `typecheck: tsc --noEmit && tsc -p tsconfig.tests.json`, both wired in CI. |
+
+Two round-4 corpus claims re-measured and **both correct**: strict-vs-lax differ *somewhere* in **460 of 1,501** tracked markdown files, and over the governed roles-and-workflows corpus (37 files) on **exactly one line** — `agent-factory/workflows/04-ticket-to-pr.md:42`, the single-line HTML comment. The governed corpus carries exactly one `HTML_BLOCK_OPEN` match, that same line.
+
+---
+
+### Probes that found nothing
+
+1. **`check-banned-claims` via the indented closing fence** — the gate's main scan is fence-blind, so it caught the plant at `README.md:75` (3 findings, exit 1) where the fence-aware derivation did not. Over-scanning, fail-closed. Nothing found.
+2. **CRLF as a fence desync.** `strictFenceRun`'s info test `/^[ \t]*$/` rejects a trailing `\r`, so a CRLF closing fence would never close in the strict view. Unreachable: `.gitattributes` `*.md text eol=lf`; `git add` of a CRLF fence line produced a blob with pure LF (`od -c` verified). R5-1's CRLF carve-out is sound.
+3. **U+2028 / U+2029 / U+0085 / form feed as line separators.** `commonmark` shows **no** heading for any of them (`rendererShowsH2=false`) and the module also sees none — agreement on all four. Only the lone CR diverges, and `carriageReturnLines` reports it.
+4. **Live frozen-region agreement with the reference renderer.** All 55 regions cross-checked against `commonmark` sourcepos heading positions: **0 disagreements, 0 refusals** — no live false red, and no live region that truncates with cardinality green.
+5. **Live near-miss / duplicate refusals across all three anchors and 55 regions** — zero firing, so the refusals are not already noisy.
+6. **`unfencedHeadingNearMisses` disjointness and the level-3 rule** — `### Stop conditions` correctly accepted (closes no level-2 section), near-miss set disjoint from the exact set on all 23 sweep rows.
+7. **Case-collision on the exemption names** — `readdirSync` returns the on-disk spelling, so `.GITKEEP` is refused; the exemption is an exact-name test as documented.
+8. **Non-exempt subdirectory in either corpus directory** — refused by name (`notes`), both corpora.
+9. **`rogue.markdown` in `agent-factory/roles/`** — refused by `check-diff-disposition` by name; the round-4 inversion holds on the extension axis.
+10. **Named-reference near-misses** (`&nbsp;`, `&Tab;`) — behave exactly as `V-30-10-09` fences; no new axis.
+11. **Zero-width tails** (`U+200B`, `U+2060`, `U+00AD`), two-space forms, closing-hash forms, tab separator, ≤3-space indent, one-hash, numeric/hex references — **all still refused** at HEAD; R3-1's and F2's fixes hold.
+12. **`## Stop conditions` with a leading `<!-- x -->` on the same line** — renders as a paragraph, not a heading; the module also sees no heading. Agreement.
+
+---
+
+### Observations (fail criterion 2 as measured today, recorded anyway)
+
+1. **R5-1's carriage-return refusal was added at one of two corpus owners.** `carriageReturnLines` is asked only in `check-diff-disposition.ts`. `scripts/checkpoints.ts` — which owns its own corpus refusals — never asks it. Measured: `## Hard limits\r#`-style plant in `09-daily-sweep.md` → `deriveCheckpoints` **ACCEPTED, ids=10 sites=16 examined=38 counted=38**, validator **exit 0**, planted stop invisible; only `check:diff-disposition` names it (2 findings). It is caught in this repository's CI because the workflows anchors are in `FROZEN_SECTION_ANCHORS`, which is why this is an observation and not a finding — but it is R3-3's "a refusal added at one of N consumers" shape, and it becomes a live hole the moment those anchors change or the kit is validated outside this repository.
+2. **The shipped validator performs none of the corpus-membership or heading-form refusals.** `validate-agent-factory.js` returns `ALL CHECKS PASSED` over a kit containing `roles/rogue.markdown`, `roles/.gitkeep/rogue-role.md`, a duplicate stop section or a near-miss heading. Every one of rounds 1–4's corpus refusals lives in `check-diff-disposition` (needs git) or in vitest. This generalises `V-30-10-02` from "the derivation assertions" to "the derivation and both membership inversions".
+3. **The `.gitkeep` entries exist for a reason that a type test would not break** — both directories genuinely carry a `.gitkeep` file today, so `statSync().isFile()` is available as a bound at zero cost.
+4. **Round 4's own new-freedom disclosure for `blockContextFlags` names the right risk and measures the wrong half.** It measured the two views' divergence (460/1501, 1 governed line) and asserted no extent moves — both true — but the disclosure is a statement about *today's corpus*, not about what the arm *accepts*, which is what R7-2 walks through. "Measure the delta on the corpus" and "ask what the predicate enumerates" are different questions, and only the first was asked.
+
+---
+
+### Premise assertions performed
+
+- **Artifact identity, entry and exit.** sha256 of nine committed `.js` (`frontmatter`, `checkpoints`, `check-diff-disposition`, `kit-model`, `validate-agent-factory`, `check-banned-claims`, `context-io`, `generate-guarantees`, `check-public-docs-vocabulary`) compared against `git show HEAD:<path>` — **9/9 `premise OK` on entry, 9/9 on exit**. Every probe drove the committed `.js`; no `.ts` was edited.
+- **Every renderer claim proved against `commonmark`** installed under `/tmp/r7cm` (never in the worktree), including the **negative** claims (U+2028/2029/0085/FF show no heading; a leading `<!-- -->` shows no heading).
+- **Every plant proved refusable.** R7-1: the same bullet without the fence lines is collected (`ids 10→11`) and reds 5 tests. R7-2: the autolink line without the decoy reds the cardinality (`16/17`). R7-3: a non-exempt subdirectory is refused by name. R7-4: the same heading spelled canonically is refused as a duplicate.
+- **One premise check failed and stopped a probe** — an off-by-one line index (`l[43]` vs `l[42]`) threw `premise fail` before any measurement was believed; re-run against measured indices. Two subsequent command outputs produced on the unmodified tree were discarded rather than read.
+- **Vacuity floors.** Clean-tree baselines measured before every comparison: 446 frozen clauses, 55 regions, 0 refusals, `17/17 · 19/19 · 19/19 · 47/47`, derivation `ids=10 sites=16 examined=38 counted=38 sections=19`, `checkpoints.test.ts` 133/133.
+- **Tree restored**; `git status --short` → `?? node_modules` only.
+`````
+
+### Reviewer 8 — verbatim
+
+`````markdown
+Tree restored and clean; committed artifacts byte-identical to HEAD on exit. Report follows.
+
+## Reviewer 8 (round 4) — model: claude-opus (strongest available) — scope: surface B, validator + reader + render/freshness + pins lens
+
+### Verdict: FINDINGS: 6
+
+---
+
+### Findings
+
+#### R8-1 — the SCOPE line's "the FIRST is the one that governs" points at the wrong file whenever the governing candidate is contributed by the SECOND base, and its labels are base-relative so two files print as one string
+
+**Severity:** medium. **Predicate:** `validate-agent-factory.ts` SCOPE line, the reviewer-6-observation-1 precedence clause (`governanceExamined.length > 1 ? " — of these the FIRST is the one that governs…"`).
+
+**What it is.** `governanceExamined` is filled by the base loop: base 0 (KIT) contributes its `.grugops` then its in-kit config, then base 1 (STATE). Within one base the order *is* the reader's precedence. **Across bases it is not.** In the shared-install two-root shape — kit carries the in-kit config, repo carries `.grugops/factory.config.json` — the list is `[agent-factory/config/factory.config.json, .grugops/factory.config.json]` and the sentence names the kit config as governing, while `readGovernanceConfig(<repo>)` governs from `.grugops`. Separately, `relativeToBase` renders every label base-relative, so two distinct files under two roots print as the *same string*.
+
+**Exact repro (committed `.js`, HEAD 7dc9018):**
+
+```
+W=$(mktemp -d); mkdir -p $W/kit $W/state
+cp -R scripts/fixtures/good/agent-factory $W/kit/; cp scripts/fixtures/good/AGENTS.md $W/kit/
+cp -R scripts/fixtures/good/.claude-plugin $W/kit/; cp -R scripts/fixtures/good/plans $W/state/
+mkdir -p $W/state/.grugops
+echo '{"checkpoints":{"open_pr":"off"}}' > $W/state/.grugops/factory.config.json
+VALIDATE_KIT_ROOT=$W/kit VALIDATE_ROOT=$W/state node scripts/validate-agent-factory.js
+```
+
+**Observed on HEAD (exit 0):**
+```
+  SCOPE    governance configurations examined: agent-factory/config/factory.config.json,
+           .grugops/factory.config.json — of these the FIRST is the one that governs: precedence is
+           replace, not merge, so a repository-level file voids the kit's declarations entirely…
+ALL CHECKS PASSED
+```
+
+**Premise asserted** (the reader, same trees, committed `context-io.js`):
+```
+candidates under state root: [ <W>/state/.grugops/factory.config.json,
+                              <W>/state/agent-factory/config/factory.config.json ]
+source= ok open_pr= off        ← the SECOND-listed file is the one that governs
+kit-base read: open_pr= block
+```
+
+**Control (single tree, both roots one dir):** order is `[.grugops…, agent-factory/config…]` — the sentence is *correct* there. The falsity is specific to the two-root arrangement, i.e. the exact shape R4-3 and obs-1 were written for.
+
+**Second facet — the label collision, on a live-shaped invocation.** Kit `.grugops` + repo `.grugops` + in-kit config:
+```
+SCOPE governance configurations examined: .grugops/factory.config.json,
+      agent-factory/config/factory.config.json, .grugops/factory.config.json — of these the FIRST…
+ALL CHECKS PASSED
+```
+Two of three entries are the same string from different trees. And with `VALIDATE_ROOT` unset against a kit that is not the script's own tree (a tool checkout validating a customer kit — the header's documented `VALIDATE_KIT_ROOT=/path/to/kit` form):
+```
+SCOPE governance configurations examined: agent-factory/config/factory.config.json,
+      agent-factory/config/factory.config.json — of these the FIRST is the one that governs…
+ALL CHECKS PASSED
+```
+— two different trees' configs, one label, printed twice, and R4-3's caveat absent (correctly, since `contributions[1] ≠ 0`).
+
+**Why permissive/invisible.** The gate publishes a false sentence in the one line whose subject is which file decides runtime behaviour. An operator reading it looks for a lowered checkpoint in the file that does *not* govern; a `.grugops` drop that voids a kit-level tightening is exactly the case the sentence was added to expose.
+
+**Suggested structural fix.** Make the sentence a property of the *reader's* answer rather than of list position: record, per examined path, whether `readGovernanceConfig(<base>)` for that base would stop there, and name the governing path explicitly (and per base, since there is one governing file *per base*, not one per run). Label positions by base-qualified path, not base-relative path. **New freedom it creates:** a run now names a base-qualified absolute-ish path, which leaks the operator's directory layout into a log — bound it by naming the base by its role (`kit:` / `state:`) rather than by its full spelling.
+
+---
+
+#### R8-2 — the `tightened` bucket is computed, asserted total, and then never published whenever anything is also lowered; the page and `composeBanner` disagree about one tree
+
+**Severity:** medium. **Predicate:** `generate-guarantees.ts` `matrixDepartures` + the three-arm render branch (R6-3's fix).
+
+**What it is.** The three arms are `lowered===0 && tightened===0`, `lowered===0`, `else`. The third arm fires on `lowered > 0` **regardless of `tightened`** and renders only the LOWERED table. The totality assertion (`placed !== entries.length`) is over the **partition**, not over the **publication**: every member is classified, the assertion is satisfied, and a whole bucket is dropped on the floor. This is R6-3's own named failure ("a member … reported by no sentence") relocated from classification to rendering.
+
+**Exact repro (committed `.js`, HEAD 7dc9018):**
+```
+mkdir -p .grugops
+echo '{"checkpoints":{"commit_to_branch":"block","exceed_wip_limit":"off"}}' > .grugops/factory.config.json
+node scripts/generate-guarantees.js ; echo "exit=$?"
+grep -c commit_to_branch docs/GUARANTEES.md
+```
+**Observed on HEAD:**
+```
+Wrote docs/GUARANTEES.md — 6 safety row(s).
+exit=0
+0                       ← the tightening is nowhere on the page
+```
+Page section rendered: `**LOWERED: 1 checkpoint(s) sit below their documented default…** | exceed_wip_limit | off | block | GRUGOPS_FLOOR_EXCEED_WIP_LIMIT |` — and nothing else.
+
+**Premise asserted**, same matrix, committed `checkpoints.js`:
+```
+banner: checkpoints not at default: commit_to_branch=block, exceed_wip_limit=off
+```
+The banner names two departures; the page names one. R6-3's stated bound — "a case asserts the page's at-default claim and `composeBanner`'s agree on the same matrix, across four matrices, so the two can never again say different things about one tree" — does not hold.
+
+**And the pin that was supposed to hold it is short in two ways.** `generate-guarantees.test.ts:981` asserts only the **one bit** `page.includes(BANNER_ALL_DEFAULT) === (banner === BANNER_ALL_DEFAULT)`; it never compares the departures the two name. Its four matrices are `{}`, `{commit_to_branch:"block"}`, `{commit_to_branch:"notify"}`, `{plan_approval:"block"}` — **`plan_approval` is not a roster member** (roster measured: 14 ids, no `plan_approval`), so the fourth matrix is a vacuous duplicate of the first. Three distinct inputs, none combining a lowering with a tightening.
+
+**Why permissive/invisible.** A departure the page exists to name is unnamed while every gate is green and the freshness gate reports fresh; the guard banner and the published page describe one tree differently, which is the AP-1 shape `evaluateMatrix`'s own comment says it exists to remove.
+
+**Suggested structural fix.** Render from the partition rather than from a branch over two of its three arms: emit one departures section that iterates `[...lowered, ...tightened]` and lets each row carry its own direction, with the assertion moved from "every member was classified" to "every member of `lowered ∪ tightened` appears in the rendered bytes". **New freedom:** a byte-level assertion over rendered output couples the check to the table's markdown spelling — bound it by asserting on the row-composing function's output, not on the joined page string.
+
+---
+
+#### R8-3 — the markdown-alias list does not equal the authority it declares, and a root `PUBLIC.scd` carrying live disproven claims leaves both language gates at exit 0
+
+**Severity:** medium. **Predicate:** `kit-model.ts` `MARKDOWN_ALIAS_EXTENSIONS` / `imitatesMarkdownName`, consumed by `check-public-docs-vocabulary.ts` `refuseMarkdownImitations`.
+
+**What it is.** The list's declared provenance is stated in its own doc comment: *"These are the extensions GitHub Linguist classifies as Markdown."* It carries ten. GitHub Linguist's `Markdown` entry also carries `.scd` (scdoc), which is absent — so the list is a strict subset of its own named authority, and the sentence asserting otherwise is false. (It also carries `.mdx`, which Linguist now holds as a separate language, so the two sets differ in both directions. I could not fetch `languages.yml` from this sandbox; the *measurement* below stands independently of the provenance question.)
+
+**Exact repro (committed `.js`, HEAD 7dc9018), with controls:**
+```
+P='This kit uses a handoff packet. It conforms to ASD-STE100.'
+for ext in scd md markdown qmd; do
+  printf '%s\n' "$P" > PUBLIC.$ext
+  node scripts/check-public-docs-vocabulary.js >/dev/null 2>&1; v=$?
+  node scripts/check-banned-claims.js          >/dev/null 2>&1; b=$?
+  echo ".$ext vocab=$v banned=$b"; rm -f PUBLIC.$ext
+done
+```
+**Observed on HEAD:**
+```
+.scd       vocab_exit=0  banned_exit=0  named_in_vocab=0  named_in_banned=0
+.md        vocab_exit=1  banned_exit=1  named_in_vocab=1  named_in_banned=1
+.markdown  vocab_exit=1  banned_exit=1  named_in_vocab=1  named_in_banned=1
+.qmd       vocab_exit=0  banned_exit=0  named_in_vocab=0  named_in_banned=0
+```
+`.scd` and `.qmd` are neither members, nor imitations, nor derivation refusals, nor counted by `PUBLIC_DOCS_SCAN_COUNT`. This is R6-6's exact shape, reached through a name R6-6's own list still does not carry.
+
+**Relation to the fence.** V-30-10-07 records the residual with the right *direction* (permissive) but frames it as undecidable — "an OPEN set … so inversion does not apply". The part measured here is **decidable and one member wide**: the list fails against the authority it names. Reported as a finding on the ground that the artifact publishes a false provenance sentence and the fence's bound understates what is closeable.
+
+**Suggested structural fix.** Vendor the authority rather than transcribing it: commit the extension set as a data file with its source URL and a checked-in `sha`, and assert in a test that the module's list *equals* that file. **New freedom:** a vendored list is a set literal, which is this repository's other systemic failure class — bound it by making the file the only declaration and the module's array a derivation from it, with a count asserted at the point it is spent.
+
+---
+
+#### R8-4 — the validator's verdict goes to stdout and its entire scope disclosure to stderr; a stdout-only capture receives an unqualified `ALL CHECKS PASSED`
+
+**Severity:** medium. **Predicate:** `validate-agent-factory.ts` — `console.error` for the SCOPE line, `console.log("ALL CHECKS PASSED")` for the verdict.
+
+**Exact repro (committed `.js`, HEAD 7dc9018), on the live tree:**
+```
+env -u VALIDATE_ROOT VALIDATE_KIT_ROOT=$(pwd) node scripts/validate-agent-factory.js 2>/dev/null
+```
+**Observed on HEAD:**
+```
+ALL CHECKS PASSED
+exit=0
+```
+and the whole disclosure on the other stream:
+```
+$ … 2>&1 >/dev/null | head -2
+  SCOPE    governance configurations examined: agent-factory/config/factory.config.json;
+           VALIDATE_ROOT was not supplied, so the state root defaulted to this script's own tree…
+```
+
+**Why invisible.** R4-3's fix removed "a verdict over an unstated scope" by printing the scope. The stream split restores it for every ordinary consumer that captures stdout — `> report.txt`, `$(...)`, a CI step that archives stdout. **No test can see it:** every case in `validate.test.ts` reads through `out(r) = stdout + stderr`, so the R4-3, R6-1 and R6-2 assertions all pass on a concatenation the operator never receives.
+
+**Suggested structural fix.** Emit the verdict and its scope through **one** writer, on one stream, in one call — the disclosure is part of the verdict, not diagnostics beside it — and assert in the test harness on `r.stdout` alone for the passing case. **New freedom:** moving the SCOPE line to stdout changes what any downstream parser of this gate's stdout sees; bound it by asserting the verdict literal is still the *last* stdout line.
+
+---
+
+#### R8-5 — the residual witness's `> HISTORICAL_RESIDUAL_ROWS` gate is a blind window it shares with the parse
+
+**Severity:** low. **Predicate:** `generate-guarantees.ts` `declaredResidualRows` (`if (Number.parseInt(first,10) <= HISTORICAL_RESIDUAL_ROWS) continue;`) against `readResidualAdditions`'s first-exact-heading location.
+
+**What it is.** R4-1's independence argument is that the witness is fence-blind and heading-blind *where the parse is not*. It is also **number-blind**, and on that axis the two passes agree by being equally blind: a row numbered ≤ 8 written under a repeated/near-miss additions heading is seen by neither, so `unpublished` and `unbacked` are both empty and the page publishes short.
+
+**Exact repro (committed `.js`, HEAD 7dc9018):**
+```
+printf '\n## Phase 30 additions to this register (AUTO-05)\n\n| # | item | disposition | target phase | reason / owner |\n|---|---|---|---|---|\n| 8 | LOWNUM-SHADOW | `deferred` | — | planted under a repeated heading |\n' >> docs/audit/28-residual-sizing.md
+node scripts/generate-guarantees.js ; echo "exit=$?"
+grep -c LOWNUM-SHADOW docs/GUARANTEES.md
+node scripts/guarantees-freshness.js ; echo "fresh exit=$?"
+```
+**Observed on HEAD:**
+```
+Wrote docs/GUARANTEES.md — 6 safety row(s).   exit=0
+0                                              ← unpublished
+Guarantees fresh: docs/GUARANTEES.md matches a fresh regeneration.   fresh exit=0
+```
+
+**Controls, both decisive.** Same plant numbered `12` under the same repeated heading → **exit 1**, `declared but NOT PUBLISHED [12]`. Same row numbered `8` inserted into the **real** additions table → **exit 1**, `published but NOT DECLARED [8]` (noisy, correct). So the hole is exactly the intersection: low number *and* out-of-section.
+
+**Why permissive.** The page whose subject is what the project does not close publishes short, with the generator at exit 0 and the freshness gate reporting fresh — R4-1's finding verbatim, reached through the witness's numeric gate instead of through its heading grammar.
+
+**Suggested structural fix.** Delete the number window from the witness and give the *parse* the historical-vs-additions distinction it actually owns (the parse is already section-scoped, so every row it returns is by construction an additions row); the witness then declares every bare-integer first cell in the file and the two disagree wherever the parse is short. **New freedom:** the witness now over-counts the eight historical rows — bound it by making the comparison a set difference against the parse's rows *plus* an explicitly declared historical set, asserted equal to eight on the live register.
+
+---
+
+#### R8-6 — the collapsed-bases caveat is keyed on "was a state root supplied", not on the condition it describes
+
+**Severity:** low. **Predicate:** `stateRootSupplied ? "" : basesCollapsed ? <caveat> : ""`.
+
+**Exact repro (committed `.js`, HEAD 7dc9018):**
+```
+# A — the documented single-root form (kit is the script's tree)
+env -u VALIDATE_ROOT VALIDATE_KIT_ROOT=$KIT node scripts/validate-agent-factory.js
+# B — the same tree named explicitly, the two-root form the header documents and every fixture uses
+VALIDATE_KIT_ROOT=$KIT VALIDATE_ROOT=$KIT node scripts/validate-agent-factory.js
+```
+**Observed on HEAD:** A prints the full caveat; **B prints `SCOPE governance configurations examined: agent-factory/config/factory.config.json` and nothing else** — `basesCollapsed` is true in both, and the disclosure is suppressed in B purely because the variable was set. Same for `VALIDATE_ROOT=$KIT/.`.
+
+**Why invisible.** R6-1 closed "two tests over one variable" for the *branch*; the *disclosure* is still gated on a different question than the one it reports. A shared-install operator who names the kit twice — the shape `runFixture` uses thirty times — gets a verdict with no statement that a repository-level config outside the kit was not examined.
+
+**Suggested structural fix.** Gate the disclosure on `basesCollapsed` alone and let `stateRootSupplied` choose only the *remedy wording* ("pass `VALIDATE_ROOT=<repo>`" vs "the state root you supplied is the kit"). **New freedom:** a line printed on more runs; bound it by asserting the caveat's presence tracks `basesCollapsed` across all four input shapes (unset, `""`, `=kit`, `=distinct`).
+
+---
+
+### Gate sweep — every `package.json` script run (except `test:e2e`, `count:lines`)
+
+Run individually from the worktree, exit code captured directly (not through a pipe):
+
+| script | exit |
+|---|---|
+| `build` | 0 |
+| `typecheck` (**both** projects: `tsc --noEmit` and `tsc -p tsconfig.tests.json`) | 0 |
+| `check:build-parity` | 0 |
+| `check:public-docs` | 0 |
+| `check:audit-register` | 0 |
+| `check:claim-anchors` | 0 |
+| `check:banned-claims` | 0 |
+| `check:imperative-lexicon` | 0 |
+| `check:diff-disposition` | 0 |
+| `check:nul-bytes` | 0 |
+| `audit:prepass` | 0 |
+| `generate:safety-surface` | 0 |
+| `generate:catalog` | 0 |
+| `generate:adapters` | 0 |
+| `generate:skill-twins` | 0 |
+| `generate:guarantees` | 0 |
+| `freshness` | 0 |
+| `freshness:catalog` | 0 |
+| `freshness:adapters` | 0 |
+| `freshness:skill-twins` | 0 |
+| `freshness:guarantees` | 0 |
+| `freshness:context` | 0 |
+| `freshness:queue` | 0 |
+| `freshness:traceability` | 0 |
+| `test` / `test:e2e` | not run (live lane, excluded by instruction) |
+| `count:lines` | not run (`tokei` not required) |
+
+**No red gate the executor missed** — round 4's `V-30-10-10` class does not recur. One side effect worth naming: `audit:prepass` **mutates a tracked file** (`docs/audit/28-prepass-evidence.md`) as a byproduct of running, so a clean sweep leaves the tree dirty. Not a finding (it is a generator), but a sweep script that runs every gate should be prepared for it.
+
+---
+
+### Fence audit — V-30-10-01 .. 10
+
+| id | direction/bound as stated — measurably correct? |
+|---|---|
+| `V-30-10-01` | **Correct.** `git grep checkpointRefusals -- '*.ts' \| grep -v .test.ts` returns only `scripts/context-io.ts` — the declaration and the seven returns. Zero non-test consumers; permissive-invisible is the right direction. |
+| `V-30-10-02` | **Correct, and understated.** `matrixDepartures`' totality assertion is a further instance: its three arms are `if / else if / else`, so `placed !== entries.length` is unreachable by construction and can never fire. It is a tripwire, exactly as the entry says. |
+| `V-30-10-03` | **Not verifiable here** — `hooks/guard.ts` is surface A and out of scope. No contradiction observed from surface B. |
+| `V-30-10-04` | **Correct as amended.** Item 1's inversion by R6-2 is recorded accurately; item 3 (`sectionsFound === filesWalked`) still stands — the counter is incremented once per located section inside the per-file loop (`checkpoints.ts:752` / `:1038`), so the equality remains structurally near-vacuous. |
+| `V-30-10-05` | **Correct, and the bound can now be stated precisely.** `COVERED_ELSEWHERE` covers 12 of 14 roster ids by citation. The resolver case (`autonomy-zero-config.test.ts:324`) checks only that the cited file exists and **contains the test's name as a substring** — not that the cited test asserts that id's zero-config disposition. Measured: 11 ids cite `checkpoints.test.ts` "no config file at all → exactly `CHECKPOINT_DEFAULTS`, compared key by key", which walks `cp.CHECKPOINTS` and does cover each of them. `test_integrity` cites `context-io.test.ts` "CONTROL — the clean sentinel writes exactly one valid green verdict", which asserts `emitVerdict`'s note-writing behaviour, reads no config and reads no matrix — **the citation resolves and does not vouch for the claim**. No substantive gap (the `checkpoints.test.ts` key-by-key case covers `test_integrity` too), so this is an observation, not a finding — but the escape hatch's verification is name-existence, not reach. |
+| `V-30-10-06` | **Correct.** Item 7's narrowing direction confirmed: the consumer pin's module set is `git ls-files --cached --others --exclude-standard '*.ts'`, so a `.gitignore` rule silently removes modules from it. |
+| `V-30-10-07` | **Direction correct (permissive); bound understated** — see **R8-3**. The entry frames the residual as undecidable because the corpus is an open set; the measured gap is that the alias list does not match its own declared external authority, which is decidable. |
+| `V-30-10-08` | **Correct.** `blockContextFlags` (`frontmatter.ts:568`) models exactly two states, `"comment"` and `"tag"`; the other five §4.6 types are unmodelled, as stated. |
+| `V-30-10-09` | **Correct.** `renderedText` decodes numeric references only; the module's own comment at `frontmatter.ts:971` declines to import a named-reference table, exactly as the entry says. |
+| `V-30-10-10` | **Correct, and the remedy holds** — the full `package.json` sweep above is green, including both `typecheck` projects. |
+
+---
+
+### Probes that found nothing (every probe)
+
+1. **`canonicalBase` fallback, symlinked spelling** — live tree via a `/tmp` symlink kit root: caveat present, in-kit config listed **once**. R6-2's fix holds.
+2. **`VALIDATE_KIT_ROOT` is a file** — 20 named errors, exit 1; SCOPE lists only the state-base config. Fail-closed.
+3. **State-base `.grugops` unreadable (`chmod 000`)** — `ERROR .grugops/factory.config.json: exists but could not be read`, exit 1, and the path is still listed as examined. Correct.
+4. **State-base `.grugops` is a broken symlink** — validator lists neither; `readGovernanceConfig` reports `source=absent`. Gate and reader agree.
+5. **`readGovernanceConfig` — candidate one malformed, candidate two strict** — invalid JSON at `.grugops` returns `source=unreadable` + `STRICTEST_MATRIX` and does **not** fall through to candidate two. Fail-closed, as documented.
+6. **Freshness gate vs a `.grugops` lowering** — plant → `STALE` exit 1; regenerate → fresh exit 0; remove the config → `STALE` exit 1. The config genuinely lands in the mirror and genuinely moves the bytes; the gate's sharpest stated claim holds.
+7. **Freshness mirror inputs vs real reads** — `GUARANTEES_DATA_SOURCES` (4, pinned) plus the derived `jsImportClosure` regenerate the committed page byte-for-byte from a bare temp tree; no undeclared read.
+8. **Residual witness, high-numbered row out of section** — `| 12 |` under a repeated heading → named refusal, exit 1. R4-1's guard fires where it was designed to.
+9. **Residual witness over-inclusion on the LIVE register** — `declaredResidualRows()` = `['9','10']`, `readResidualAdditions()` = `['9','10']`. R6-5's wider witness produces **no false red** on the real register.
+10. **Consumer pin, `.ts` plant** — `scripts/r8probe-consumer2.ts` importing the authority: caught by name, `[scripts/r8probe-consumer2.ts::publicDocsScan]`, 1 failed / 27 passed. Removing it restores 28/28. Pin discriminates.
+11. **Consumer pin, `.mts` hiding place** — `git ls-files '*.ts'` does **not** see `scripts/r8probe-consumer.mts` (pin blind), but `tsc --listFiles` does not compile it either (0 occurrences) and `npm run typecheck` stays 0. A `.mts` can never become a shipped `.js`, so the hole is unreachable through the build. Not a finding.
+12. **Hand-written `.js` consumer (no `.ts` source)** — `scripts/r8rogue.js` → `npm run freshness` exits **1** with `UNCOMMITTED BUILD OUTPUT: scripts/r8rogue.js`. Orphan/untracked `.js` is closed; the `orphaned` arm covers the committed case.
+13. **Required-key scoping asymmetry** — the only per-position difference in `checkConfigForm` is `requireBaseKeys`; every other arm fires identically at both positions. `mode`/`cadence` have **zero code consumers** anywhere in `scripts/`, `hooks/`, `install/`, so the scoping has no permissive consequence.
+14. **`readCheckpointMatrix` degenerate shapes** — all four branches reach `STRICTEST_MATRIX` or the roster defaults correctly; the `actual !== expected` floor is structurally unreachable but fails closed if reached.
+15. **SCOPE line completeness** — it cannot list a position it did not examine (`governanceExamined.push` follows `existsSync` and precedes the read) nor omit one it did.
+
+---
+
+### Observations
+
+1. **`renderGuarantees` performs two independent `readGovernanceConfig(root)` calls** — `guaranteesJoin` (`:522`) and `matrixDepartures` (`:608`) — each with its own `isLowered` walk. The "ONE read and ONE walk" claim at `:589` is scoped to `matrixDepartures` and is locally true, so this is not a false sentence; but the file-level shape is the one `evaluateMatrix`'s comment says it exists to remove. They also disagree about an `undefined` matrix entry: `guaranteesJoin` reads it as `block`, `matrixDepartures` counts it as at-default. Unreachable today.
+2. **`resolveCheckpoint` accepts a whitespace-only grant** — `env[envVarName]` with value `" "` has `length > 0`, so `authorizedBy = " "` and a floor lowering takes effect authorized by a blank name. The per-floor env read is surface A, so this is logged, not filed.
+3. **`VALIDATE_KIT_ROOT` is not trimmed while `VALIDATE_ROOT` is** — R6-1 introduced `?.trim() || null` for the state root only; `VALIDATE_KIT_ROOT="   "` is truthy and resolves to `<cwd>/   `. Fails loudly (many errors), so noisy, not permissive — but it is now two rules over two variables that were previously one.
+4. **`audit:prepass` mutates a tracked file when run.** A gate sweep that treats a dirty tree as a failure will misreport.
+5. **`declaredResidualRows`' over-inclusion bound is real and currently harmless**, but its noisy-only argument rests on the live-equality case; that case would start failing on the day the register acquires any pipe-bearing line whose first cell is a bare integer above 8 for an unrelated reason.
+
+---
+
+### Premise assertions performed
+
+1. **Artifact identity on entry** — sha256 of the working-tree `.js` compared against `git show HEAD:<path>` for `validate-agent-factory.js`, `context-io.js`, `checkpoints.js`, `generate-guarantees.js`, `guarantees-freshness.js`, `check-public-docs-vocabulary.js` — 6/6 `premise OK`. Repeated on exit for those plus `audit-model.js` — 5/5 OK, `git status --short` clean apart from `node_modules`.
+2. **R8-1's premise** — that the second-listed file is the governing one: driven through the committed `context-io.js`, printing `governanceConfigCandidates(<state>)` and `readGovernanceConfig(<state>).config.checkpoints.open_pr = off` against the kit base's `block`.
+3. **R8-2's premise** — that the tightening is real and visible elsewhere: `renderCheckpointBanner` over the same matrix names `commit_to_branch=block`; the roster and defaults were printed from `checkpoints.js` rather than read from prose (14 members, `commit_to_branch` the only non-`block` default, 4 floors).
+4. **R8-2's pin bound** — `plan_approval` verified absent from the live roster, making the fourth "matrix" identical to the first.
+5. **R8-3's premise** — the planted payload genuinely trips both gates: identical bytes at `PUBLIC.md` and `PUBLIC.markdown` exit 1 with the file named in both gates' output. Without that control the `.scd` exit 0 would have measured nothing.
+6. **R8-5's premise, and two controls** — the high-number plant (refused) and the in-table low-number plant (refused for the opposite reason) bracket the blind window; without them the exit-0 result would be indistinguishable from a plant the parser never reached.
+7. **Harness self-check, twice caught.** (a) An early run captured `$?` after a pipe into `head`, reporting `EXIT=0` for a generator that had exited 1 — every subsequent exit status was taken from an unpiped invocation or `PIPESTATUS`. (b) An early R8-5 control inserted its row after a `| 11 ` line that does not exist in the register, so the plant landed nowhere and produced a plausible clean result; the row's landing position was thereafter verified with `sed -n` before the run was believed. Both are this log's recurring false-control class.
+8. **Fence audit premises** — `V-30-10-01` measured by `git grep`, not by memory; `V-30-10-05`'s citation checked by reading both cited tests; `V-30-10-08` by counting the modelled states in `blockContextFlags`.
+`````
+
+# THE FENCE — FINAL
+
+**Surface B is FENCED, not closed.** This section replaces the draft fence written before the round-4
+reviews; those reviews returned ten findings, so the draft's own condition for deletion was not met.
+
+## The fence text
+
+> **Surface B is fenced, not closed.** Four adversarial gap-closure rounds ran against the derived
+> checkpoint set, the collapsed governance reader, the structure validator, the guarantees render, the
+> freshness gate and the run banner. They closed **8 + 6 + 7 + 9 = 30 findings**, each with a failing
+> test written before the fix existed, a mirror reproduction against the committed `.js`, a structural
+> fix, and a mutation proof read out of the emitted artifact.
+>
+> **No round returned "nothing new."** Eight independent reviews at the strongest available model ran
+> across the four rounds and every one of them found something. Each round's own fixes created most of
+> the next round's findings — **3 of 6** in round 2, **4 of 7** in round 3, **7 of 9** in round 4, and
+> now **2 of the 10 post-cap findings** name a round-4 fix as their cause (R7-2 from R5-2's HTML arm,
+> R8-2 from R6-3's three-arm render), with a third (R7-3) reaching the harm through the inversion
+> written to close it.
+>
+> **The defect rate per round did not fall. The review budget ran out first.** That is the honest
+> reading of this surface, and it is why the word here is "fenced" rather than "closed": closing would
+> assert a proposition that eight consecutive reviews contradicted. D-22 caps the surface at four
+> rounds precisely so that this judgement is made by a written rule rather than by whoever is tired.
+>
+> What this means for a reader. The gates named in this log are **evidence, not proof**. Each refuses
+> a specific, named, reproduced bypass. None establishes that no further bypass exists, and the
+> measured trend says another round would find more. Twenty residuals are recorded below and in
+> `.planning/phases/30-per-checkpoint-autonomy-matrix/deferred-items.md`, each with the direction it
+> fails in — `permissive` (it can let something through), `noisy` (it can only over-refuse), or
+> `process`. Ten of them (`V-30-10-11` … `V-30-10-20`) are open bypasses with working reproductions.
+>
+> **A green test suite is not offered as a closure argument anywhere in this record**, and the
+> post-cap findings are the reason the rule exists: R7-1, R7-4 and R7-3 each leave every cardinality,
+> every count and every gate green while a governed document goes ungoverned.
+
+## Backlog — the ten post-cap findings
+
+Each is a recorded backlog item under D-22, **not a fix**. Severity, reproduction, direction,
+suggested structural fix and that fix's own new freedom are carried so a later phase can act without
+re-deriving any of it.
+
+### `V-30-10-11` (HIGH, permissive+invisible) — R7-1: the section extent is the strict view, both collecting passes are the lax view
+
+`deriveCheckpoints` takes its range from `sectionEndIndex`/`unfencedHeadingIndices` (strict, moved
+there by R5-2) while pass A filters on `fencedLineFlags` and pass B on `unfencedMatchIndices` (both
+lax). CommonMark §4.5 lets a **closing** fence be indented ≤3 spaces; round 3 declined that rule for
+the lax view calling its residual "over-scanning, which is fail-closed". For a *closing* delimiter the
+same omission runs the parity the other way — the fence stays open to EOF in the lax view while the
+renderer and the strict view close it.
+
+**Reproduce:** append inside `09-daily-sweep.md`'s `## Stop conditions`, after the last bullet, a
+column-zero fence line, then a three-space-indented fence line, then
+`- Never deploy without a second human. \`checkpoint: planted_ghost_stop\``. Result: derivation
+`ACCEPTED — ids=10 sites=16 examined=38 counted=38`, planted stop absent, validator exit 0,
+`checkpoints.test.ts` 133/133, `check-diff-disposition` `19/19` refusals=0. **Control:** the same
+bullet without the two fence lines is collected (`ids 10→11`) and reds 5 tests.
+
+**Direction:** permissive and invisible — `examined === counted` agrees at 38/38 because *both passes
+take the same wrong flags*, so the two-pass shear detector cannot see it.
+**Suggested fix:** move pass A and pass B onto `blockContextFlags` (one walk feeding the whole
+derivation), or the narrower repair — adopt §4.5's ≤3-space rule for the **closing** delimiter only in
+the lax machine, which cannot narrow any scan set.
+**Its new freedom:** moving the collectors to strict changes what the checkpoint corpus scans across
+the 460-file divergent set; bound by re-measuring the roles-and-workflows delta (today: one line) and
+asserting `examined`/`counted` unchanged on the live corpus.
+
+### `V-30-10-12` (HIGH, permissive+invisible, CREATED BY R5-2's FIX) — R7-2: the HTML arm opens a phantom block on any line starting with `<`
+
+`HTML_BLOCK_OPEN = /^ {0,3}<[!\/a-zA-Z]/` matches neither CommonMark §4.6 type 6 (fixed tag-name list)
+nor type 7 (a complete tag alone on a line that cannot interrupt a paragraph). An **autolink**
+(`<https://…>`), an inline `<span>`, `<foo@bar>` — ordinary paragraph content to a renderer — all open
+a block, which then hides a **byte-exact** anchor heading.
+
+**Reproduce:** insert `<https://example.com/orchestrator-spec>` immediately above the real
+`## Hard limits` in `orchestrator.md` and append a decoy `## Hard limits` section at EOF. Frozen
+clause count **446 → 429**, region moves `{74,82}` → `{85,87}`, cardinality still `17/17`, refusals 0
+— **17 clauses left the freeze silently**, including the coordinator hard-limit paragraph carrying the
+WIP/spawn/merge/deploy limits. The decoy is load-bearing: the autolink alone reds at `16/17`.
+
+**The code comment "the direction of that gap is UNCHANGED behaviour rather than a new hole" is
+falsified** by direct comparison: on `<https://…>\n## Hard limits\n…`, `392f3ab` returns `[1]` and
+`7dc9018` returns `[]`, while `commonmark` renders the `<h2>`.
+**Suggested fix:** make the HTML arm ask §4.6's actual start conditions (types 1–7 with their real
+openers and end conditions); anything else is not a block. Refusing such a line is the wrong repair —
+it would red legitimate documents.
+**Its new freedom:** a hand-written tag-name list, this repository's named second failure class — pin
+two-sided against the §4.6 list, assert the governed-corpus delta stays at its measured value, and add
+permanent cases that `<https://…>` and `<span>x</span>` are **not** block openers.
+
+### `V-30-10-13` (MEDIUM, permissive+invisible, ships to hosts) — R7-3: the membership exemptions are NAME tests, not FILE tests
+
+`listRoleDirEntries`/`listWorkflowDirEntries` filter `!EXEMPT_NAMES.includes(f)` over `readdirSync`,
+which returns directories too, and nothing asserts an exempt entry is a regular file. The round-4
+inversion is one level deep, so each exempt **name** is an unbounded container inside the corpus's own
+closed directory.
+
+**Reproduce:** `rm agent-factory/roles/.gitkeep && mkdir agent-factory/roles/.gitkeep`, then copy any
+role into `agent-factory/roles/.gitkeep/rogue-role.md`. Result: `17/17`, refusals 0, validator exit 0,
+derivation unchanged. Same for `workflows/.gitkeep/20-rogue.md` and for
+`roles/_role-switch-protocol.md/rogue.md`. **Control:** a non-exempt subdirectory IS refused by name
+(`carries 1 entr(ies) the roles corpus does not admit — notes`), so the exemption name is exactly the
+hole. `install/install.ts` copies `agent-factory` recursively, so the contents ship into every
+installed kit.
+**Suggested fix:** assert the entry TYPE — an exempt name must be a regular file (`statSync().isFile()`)
+and any directory entry in a closed corpus directory is refused regardless of its name.
+**Its new freedom:** a `stat` per entry introduces a third outcome (unreadable/dangling); bound with a
+case for a dangling symlink and one for a directory named exactly `.gitkeep`.
+
+### `V-30-10-14` (HIGH, permissive+invisible) — R7-4: inline markup that emits no glyph is not folded
+
+`renderedText` folds numeric references, zero-width code points and whitespace runs. It does not
+remove markup that renders to **no visible output**: `## Stop conditions<!-- x -->`,
+`## Stop <span></span>conditions`, `## Stop conditions<a name="s"></a>`. All three match `/^#{1,2} /`
+so `sectionEndIndex` closes the section on them, while the exact-occurrence arm (byte equality) and
+the near-miss arm (rendered-text equality) both say nothing. **This is not D-59's open confusable
+set** — these spellings render to literally the same characters, and the grammar is closed and
+decidable.
+
+**Reproduce, arm A (truncating):** insert `## Stop conditions<!-- anchor -->` between the two tagged
+bullets of `09-daily-sweep.md`. Result: `ACCEPTED — ids=9 sites=15 examined=37 counted=37`,
+`exceed_wip_limit` **removed from the live roster** with both independent counts agreeing at 37/37,
+frozen clauses 446 → 442 at `19/19` with zero refusals, validator exit 0.
+**Arm B (fully invisible):** the same heading after the last real bullet, followed by a new tagged
+stop — **every number byte-identical to the clean tree** while a human stop is declared, rendered and
+governed by nothing.
+**Suggested fix:** strip zero-glyph constructs in `renderedText` before comparing — HTML comments and
+empty/void inline elements — reusing the module's existing `VISIBLE_GLYPH` class. All three spellings
+then become near-misses and are refused by name; acceptance is unchanged.
+**Its new freedom:** an inline-HTML stripper inside the one heading authority could over-fold a
+heading that legitimately contains rendered inline markup (`## Use <code>x</code>`); bound by folding
+only constructs that emit no glyph, asserting the live corpus still carries zero near-misses across
+all 55 regions and all 19 stop sections, and a case that a glyph-bearing element is NOT folded.
+
+### `V-30-10-15` (MEDIUM, publishes a false sentence) — R8-1: "the FIRST is the one that governs" names the wrong file in the two-root shape
+
+`governanceExamined` is filled base-by-base. **Within** one base the order is the reader's precedence;
+**across** bases it is not. In the shared-install shape the list is
+`[agent-factory/config/factory.config.json, .grugops/factory.config.json]` and the sentence names the
+kit config, while `readGovernanceConfig(<repo>)` governs from `.grugops` — the second entry. Separately
+`relativeToBase` renders labels base-relative, so two distinct files under two roots print as the same
+string, and a run can print one label twice for two different trees.
+
+**Reproduce:** kit fixture at `$W/kit`, state at `$W/state` with
+`.grugops/factory.config.json` = `{"checkpoints":{"open_pr":"off"}}`; run with both roots set. SCOPE
+names the kit config as governing; the reader on the same trees reports `open_pr=off` from the
+second-listed file. **Control:** single tree, both roots one dir — the order is `[.grugops…, kit…]` and
+the sentence is correct there, so the falsity is specific to the shape R4-3 and obs-1 were written for.
+**Suggested fix:** make the sentence a property of the *reader's answer* — record per base whether
+`readGovernanceConfig` would stop at that path, and name the governing path explicitly, per base.
+Label by base role, not base-relative path.
+**Its new freedom:** naming base-qualified paths leaks the operator's directory layout into a log;
+bound by naming the base by its role (`kit:` / `state:`) rather than its full spelling.
+
+### `V-30-10-16` (MEDIUM, permissive+invisible, CREATED BY R6-3's FIX) — R8-2: the tightened bucket is computed, asserted total, and never published
+
+The three arms are `lowered===0 && tightened===0`, `lowered===0`, `else`. The third fires on
+`lowered > 0` **regardless of `tightened`** and renders only the LOWERED table. The totality assertion
+is over the **partition**, not over the **publication**: every member is classified, the assertion is
+satisfied, and a whole bucket is dropped on the floor — R6-3's own named failure ("a member reported
+by no sentence") relocated from classification to rendering.
+
+**Reproduce:** `.grugops/factory.config.json` =
+`{"checkpoints":{"commit_to_branch":"block","exceed_wip_limit":"off"}}`; `generate-guarantees` exits 0
+and `grep -c commit_to_branch docs/GUARANTEES.md` → **0**, while `renderCheckpointBanner` on the same
+matrix names **both** departures.
+**And the pin that was supposed to hold it is short in two ways:** it asserts only the ONE bit
+`page.includes(BANNER_ALL_DEFAULT) === (banner === BANNER_ALL_DEFAULT)` and never compares the
+departures the two name; and its fourth matrix uses **`plan_approval`, which is not a roster member**,
+so that case is a vacuous duplicate of the first. Three distinct inputs, none combining a lowering
+with a tightening.
+**Suggested fix:** render from the partition — one departures section iterating `[...lowered,
+...tightened]` with each row carrying its direction — and move the assertion from "every member was
+classified" to "every member of `lowered ∪ tightened` appears in the rendered output".
+**Its new freedom:** a byte-level assertion couples the check to the table's markdown spelling; bound
+by asserting on the row-composing function's output rather than the joined page string.
+
+### `V-30-10-17` (MEDIUM, permissive) — R8-3: the alias list does not equal the authority its own comment names
+
+`MARKDOWN_ALIAS_EXTENSIONS`' doc comment states its provenance as GitHub Linguist's Markdown set. It
+carries ten; Linguist's entry also carries `.scd`, absent here, and `.mdx`, which Linguist now holds as
+a separate language — the two sets differ in **both** directions and the provenance sentence is false.
+
+**Reproduce:** write `This kit uses a handoff packet. It conforms to ASD-STE100.` to `PUBLIC.$ext` for
+`ext in scd md markdown qmd`. `.md` and `.markdown` → both gates exit 1 with the file named; `.scd` and
+`.qmd` → **both gates exit 0**, neither member, nor imitation, nor derivation refusal, nor counted by
+`PUBLIC_DOCS_SCAN_COUNT`. R6-6's exact shape through a name R6-6's own list still does not carry.
+**Suggested fix:** vendor the authority rather than transcribing it — commit the extension set as a
+data file with its source URL and a checked-in `sha`, and assert the module's list *equals* that file.
+**Its new freedom:** a vendored list is still a set literal; bound by making the file the only
+declaration, the module's array a derivation from it, and the count asserted at the point it is spent.
+
+### `V-30-10-18` (MEDIUM, invisible to every test) — R8-4: the verdict goes to stdout and the whole scope disclosure to stderr
+
+R4-3's fix removed "a verdict over an unstated scope" by printing the scope — on the other stream. A
+stdout-only capture (`> report.txt`, `$(...)`, a CI step archiving stdout) receives an unqualified
+`ALL CHECKS PASSED`. **No test can see this:** every case in `validate.test.ts` reads
+`out(r) = stdout + stderr`, so the R4-3, R6-1 and R6-2 assertions all pass on a concatenation the
+operator never receives.
+
+**Reproduce:** `env -u VALIDATE_ROOT VALIDATE_KIT_ROOT=$(pwd) node scripts/validate-agent-factory.js 2>/dev/null`
+→ `ALL CHECKS PASSED`, exit 0, no scope.
+**Suggested fix:** emit the verdict and its scope through one writer on one stream in one call — the
+disclosure is part of the verdict, not diagnostics beside it — and assert on `r.stdout` alone for the
+passing case.
+**Its new freedom:** moving SCOPE to stdout changes what a downstream parser of this gate sees; bound
+by asserting the verdict literal is still the LAST stdout line.
+
+### `V-30-10-19` (LOW, permissive) — R8-5: the witness's number window is blindness it shares with the parse
+
+R4-1's independence argument is that the witness is fence-blind and heading-blind where the parse is
+not. It is also **number-blind** (`<= HISTORICAL_RESIDUAL_ROWS` → `continue`), and on that axis the two
+agree by being equally blind: a row numbered ≤ 8 under a repeated additions heading is seen by
+neither, so both difference sets are empty and the page publishes short.
+
+**Reproduce:** append a second `## Phase 30 additions to this register (AUTO-05)` heading with a table
+row numbered `8`. Generator exit 0, row unpublished, `guarantees-freshness` reports **fresh**.
+**Controls, both decisive:** the same plant numbered `12` → exit 1 `declared but NOT PUBLISHED [12]`;
+the same row numbered `8` inside the real table → exit 1 `published but NOT DECLARED [8]`. The hole is
+exactly the intersection — low number *and* out of section.
+**Suggested fix:** delete the number window from the witness and give the *parse* the
+historical-vs-additions distinction it already owns by being section-scoped.
+**Its new freedom:** the witness then over-counts the eight historical rows; bound by making the
+comparison a set difference against the parse's rows plus an explicitly declared historical set,
+asserted equal to eight on the live register.
+
+### `V-30-10-20` (LOW, invisible) — R8-6: the collapsed-bases caveat is keyed on the wrong question
+
+The disclosure is gated on `stateRootSupplied`, not on `basesCollapsed` — the condition it describes.
+`VALIDATE_ROOT=$KIT`, the two-root form the header documents and every fixture uses, suppresses the
+caveat while the bases are collapsed. R6-1 closed "two tests over one variable" for the *branch*; the
+*disclosure* still asks a different question than the one it reports.
+
+**Reproduce:** `VALIDATE_KIT_ROOT=$KIT VALIDATE_ROOT=$KIT node scripts/validate-agent-factory.js` →
+SCOPE with no caveat, where `env -u VALIDATE_ROOT` on the same tree prints the full caveat.
+**Suggested fix:** gate the disclosure on `basesCollapsed` alone and let `stateRootSupplied` choose
+only the remedy wording.
+**Its new freedom:** the line prints on more runs; bound by asserting its presence tracks
+`basesCollapsed` across all four input shapes (unset, `""`, `=kit`, `=distinct`).
+
+## Fence-audit corrections applied to the earlier residuals
+
+Both reviewers audited `V-30-10-01` … `V-30-10-10` against the artifact. Five entries were wrong or
+understated and are corrected here rather than left standing:
+
+- **`V-30-10-02` is stronger than it was written.** `deriveCheckpoints`/`checkpointSites` have **no
+  non-test consumer at all** — the shipped validator imports only the static `CHECKPOINTS`/
+  `DISPOSITIONS`. So the residual is not "the derivation assertions have no shipped consumer" but
+  **the derivation and both membership inversions have none**: `validate-agent-factory.js` returns
+  `ALL CHECKS PASSED` over a kit containing `roles/rogue.markdown`, `roles/.gitkeep/rogue-role.md`, a
+  duplicate stop section or a near-miss heading (R7 obs. 2). Every corpus refusal from rounds 1–4
+  lives in `check-diff-disposition` (which needs git) or in vitest. Reviewer 8 adds that
+  `matrixDepartures`' totality assertion is itself unreachable by construction — its arms are
+  `if/else if/else`, so `placed !== entries.length` can never fire. It is a tripwire, as the entry says.
+- **`V-30-10-05`'s bound can now be stated precisely.** `COVERED_ELSEWHERE` covers 12 of 14 roster ids
+  by citation, and the resolver checks only that the cited file exists and contains the test's name as
+  a **substring** — not that the cited test asserts that id's zero-config disposition. Measured: 11 ids
+  cite a case that genuinely walks the roster key by key; `test_integrity` cites a case that asserts
+  `emitVerdict`'s note-writing, reads no config and reads no matrix — **the citation resolves and does
+  not vouch for the claim**. No substantive gap today, because the key-by-key case covers it anyway;
+  the escape hatch's verification is name-existence, not reach.
+- **`V-30-10-07`'s bound was understated.** The entry frames the residual as undecidable because the
+  public-docs corpus is an open set. The part measured by R8-3 is **decidable and at least one member
+  wide**: the list does not equal the external authority its own comment names. See `V-30-10-17`.
+- **`V-30-10-08`'s direction was one-sided.** It recorded only UNDER-modelling ("a heading inside one
+  of the five unmodelled types can still be classified as a terminator"). The live and larger hole is
+  **OVER-modelling** — `HTML_BLOCK_OPEN` opens a phantom block on lines that are not HTML blocks at
+  all, hiding a byte-exact heading. See `V-30-10-12`.
+- **`V-30-10-09`'s stated direction was wrong.** Measured: `## Stop&nbsp;conditions` and
+  `## Stop&Tab;conditions` truncate for **both** the module and the renderer — they are ordinary
+  headings to both, so nothing "truncates differently". The real residual is that they render
+  *visually identically* and are not refused. The substance stands; the sentence did not.
+
+## Further observations recorded (no fix, no owner required)
+
+- **R7 obs. 1 — R5-1's carriage-return refusal was added at one of two corpus owners.**
+  `carriageReturnLines` is asked only in `check-diff-disposition.ts`; `checkpoints.ts`, which owns its
+  own corpus refusals, never asks it. A `\r`-bearing plant leaves the derivation `ACCEPTED` at
+  `examined=counted=38` and the validator at exit 0. It is caught in *this* repository only because the
+  workflow anchors sit in `FROZEN_SECTION_ANCHORS` — R3-3's "a refusal added at one of N consumers"
+  shape, and a live hole the moment those anchors change or the kit is validated elsewhere.
+- **R8 obs. 1 — `renderGuarantees` performs two independent `readGovernanceConfig` calls**
+  (`guaranteesJoin` and `matrixDepartures`), each with its own walk. The "ONE read and ONE walk"
+  comment is scoped to `matrixDepartures` and is locally true, but the file-level shape is the one
+  `evaluateMatrix`'s comment says it exists to remove. They also **disagree about an `undefined` matrix
+  entry**: `guaranteesJoin` reads it as `block`, `matrixDepartures` counts it as at-default.
+  Unreachable today.
+- **R8 obs. 3 — `VALIDATE_KIT_ROOT` is not trimmed while `VALIDATE_ROOT` is.** R6-1 introduced
+  `?.trim() || null` for the state root only, so `VALIDATE_KIT_ROOT="   "` resolves to `<cwd>/   `. It
+  fails loudly, so noisy rather than permissive — but it is now two rules over two variables that used
+  to be one, which is the shape R6-1 existed to remove.
+- **R8 obs. 4 — `audit:prepass` mutates a tracked file when run** (`docs/audit/28-prepass-evidence.md`),
+  so a full gate sweep leaves the tree dirty. Not a defect; a property any sweep script must expect.
+- **R8 obs. 2 — `resolveCheckpoint` accepts a whitespace-only grant** (`" "` has `length > 0`, so a
+  lowering is authorized by a blank name). The per-floor env read is surface A; logged here, owned there.
+
+## CARRIED INTO PLAN 30-11 — the corpus the hook's floor ids come from
+
+Plan 30-11 (red-team surface A, the two-key hook path) derives its floor ids from the same corpus these
+four findings leave ungoverned. They are named here because 30-11 reads this log, and because three of
+them leave **every count, cardinality and gate green** while a governed document goes ungoverned:
+
+| id | what 30-11 must not assume |
+|---|---|
+| `V-30-10-11` (R7-1) | A tagged stop can exist in a workflow and be collected by nothing, with `examined === counted` agreeing at 38/38. |
+| `V-30-10-12` (R7-2) | An autolink above a frozen heading un-freezes 17 clauses at `17/17` with zero refusals. |
+| `V-30-10-13` (R7-3) | A complete role document can ship inside `roles/.gitkeep/` and be governed by nothing. |
+| `V-30-10-14` (R7-4) | A live roster member (`exceed_wip_limit`) can be REMOVED from the derived set with both independent counts agreeing at 37/37, and the fully invisible form leaves every number byte-identical to the clean tree. |
+
+**The derived checkpoint set that surface A builds on is fenced, not settled.** Any claim in 30-11
+that rests on "the roster is what the corpus declares" must cite this fence.
