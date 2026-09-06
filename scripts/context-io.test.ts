@@ -3403,3 +3403,275 @@ describe("30-10 — governanceConfigCandidates is the ONE published answer to `w
     expect(Object.keys(res.config.checkpoints)).not.toContain("not_a_real_checkpoint");
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// PLAN 30-11 — RED-TEAM SURFACE A, ROUND 1: the point-of-effect test-integrity refusal.
+//
+// Every case below was reproduced first against a mirror of the committed `scripts/context-io.js`,
+// spawned as a PROCESS through the CLI verb. See docs/audit/30-redteam-surface-a.md.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+describe("30-11 — emitVerdict refuses BEFORE composing, on every path, leaving nothing behind", () => {
+  /** Every path under `root`, so "nothing was written" is a directory comparison and not a guess. */
+  function tree(root: string): string[] {
+    const out: string[] = [];
+    const walk = (d: string, pre: string): void => {
+      if (!existsSync(d)) return;
+      for (const e of readdirSync(d, { withFileTypes: true })) {
+        const p = join(d, e.name);
+        if (e.isDirectory()) {
+          out.push(`${pre}${e.name}/`);
+          walk(p, `${pre}${e.name}/`);
+        } else out.push(`${pre}${e.name}`);
+      }
+    };
+    walk(root, "");
+    return out.sort();
+  }
+
+  function emitVia(argv: string[]): { status: number | null; msg: string; root: string; after: string[] } {
+    const root = freshTmp("ctx-emit-");
+    const r = spawnSync("node", [CONTEXT_IO_JS, "emit-verdict", ...argv, root], { encoding: "utf8" });
+    return {
+      status: r.status,
+      msg: ((r.stderr ?? "") + (r.stdout ?? "")).trim(),
+      root,
+      after: tree(root),
+    };
+  }
+
+  it("CONTROL: the exact clean sentinel emits exactly one verdict (the sweep is not vacuous)", () => {
+    const r = emitVia(["t", "RUN-1", "clean"]);
+    expect(r.status).toBe(0);
+    expect(r.after.filter((p) => p.endsWith(".md")).length).toBe(1);
+  });
+
+  // Anything that is not EXACTLY the clean sentinel refuses — including values a canonicalizer
+  // somewhere else in this tree would fold INTO it (`CLEAN`, `clean `, ` clean`). There is no
+  // canonicalization on this path, which is the point: the only value that admits is `clean`.
+  for (const v of [
+    "finding",
+    "unknown",
+    "CLEAN",
+    "Clean",
+    "clean ",
+    " clean",
+    "clean\n",
+    "clean\t",
+    "",
+    "0",
+    "1",
+    "true",
+    "cleanX",
+    "xclean",
+    "clea​n",
+  ]) {
+    it(`refuses ${JSON.stringify(v)} and leaves the context root EMPTY`, () => {
+      const r = emitVia(["t", "RUN-1", v]);
+      expect(r.status).toBe(1);
+      // The strongest available form of "no partial file": nothing was created AT ALL, not even the
+      // task directory. The refusal sits above the first composition line, so there is nothing to
+      // half-write.
+      expect(r.after).toEqual([]);
+    });
+  }
+
+  // The refusal paths ABOVE the integrity check must leave nothing behind either — they are the
+  // paths the integrity sweep never reaches, and "the refusal is reached before the first
+  // composition line on every code path, not only on the one the tests exercise" is the claim.
+  for (const [label, argv] of [
+    ["an invalid task name", ["../escape", "RUN-1", "clean"]],
+    ["a verdict id that breaks the stamp grammar", ["t", "bad id with spaces", "clean"]],
+    ["a verdict id carrying a newline", ["t", "RUN\n1", "clean"]],
+    ["a verdict id carrying a path separator", ["t", "../../RUN", "clean"]],
+    ["an empty verdict id", ["t", "", "clean"]],
+  ] as const) {
+    it(`${label} refuses and leaves the context root EMPTY`, () => {
+      const r = emitVia([...argv]);
+      expect(r.status).toBe(1);
+      expect(r.after).toEqual([]);
+    });
+  }
+});
+
+describe("30-11 A-8 — the emit-verdict verb checks its own ARITY", () => {
+  // THE FINDING. The verb takes three required positionals and one optional. With no arity check, a
+  // caller using the pre-30-05 three-argument shape had its CONTEXT ROOT read into the integrity
+  // slot: measured on the committed artifact, the refusal reported `the test-integrity result was
+  // "/var/folders/.../T/t2-XXXX"`. Fail-closed in direction (a path is not `clean`), but the
+  // refusal misdescribed what went wrong.
+  it("too FEW arguments are refused as an arity error", () => {
+    const r = spawnSync("node", [CONTEXT_IO_JS, "emit-verdict", "t", "RUN-1"], {
+      encoding: "utf8",
+    });
+    expect(r.status).toBe(1);
+    expect((r.stderr ?? "") + (r.stdout ?? "")).toContain("positional arguments");
+  });
+
+  it("WHAT ARITY CANNOT DECIDE: the shifted 3-arg shape fails CLOSED and names the argument order", () => {
+    // The pre-30-05 shape `emit-verdict <task> <id> <contextRoot>` has exactly THREE arguments,
+    // which is also the legitimate `emit-verdict <task> <id> clean`. Nothing but the VALUE
+    // separates them, and inspecting the value here would put the integrity vocabulary in two
+    // places. So this case pins the honest outcome instead of a fix that cannot exist: the
+    // invocation fails CLOSED, nothing is written, and the message states the argument order
+    // unconditionally rather than guessing why the caller is here.
+    const root = freshTmp("ctx-arity-");
+    const r = spawnSync("node", [CONTEXT_IO_JS, "emit-verdict", "t", "RUN-1", root], {
+      encoding: "utf8",
+    });
+    expect(r.status).toBe(1);
+    const msg = (r.stderr ?? "") + (r.stdout ?? "");
+    expect(msg).toContain("Argument order:");
+    expect(msg).toContain("THIRD argument is the test-integrity result");
+    // Fail-closed is the load-bearing half: the shifted invocation writes nothing anywhere.
+    expect(existsSync(join(root, "t"))).toBe(false);
+  });
+
+  it("too MANY arguments are refused rather than silently ignored", () => {
+    const root = freshTmp("ctx-arity2-");
+    const r = spawnSync(
+      "node",
+      [CONTEXT_IO_JS, "emit-verdict", "t", "RUN-1", "clean", root, "stowaway"],
+      { encoding: "utf8" },
+    );
+    expect(r.status).toBe(1);
+    expect((r.stderr ?? "") + (r.stdout ?? "")).toContain("positional arguments");
+  });
+
+  it("the legitimate 3- and 4-argument shapes still work (the check is not over-broad)", () => {
+    const root = freshTmp("ctx-arity3-");
+    const four = spawnSync("node", [CONTEXT_IO_JS, "emit-verdict", "t", "RUN-4", "clean", root], {
+      encoding: "utf8",
+    });
+    expect(four.status).toBe(0);
+    // The 3-argument shape (no explicit context root) refuses on the INTEGRITY value, not on arity,
+    // which is what proves the arity check let it through to the real predicate.
+    const three = spawnSync("node", [CONTEXT_IO_JS, "emit-verdict", "t", "RUN-3", "finding"], {
+      encoding: "utf8",
+    });
+    expect(three.status).toBe(1);
+    expect((three.stderr ?? "") + (three.stdout ?? "")).toContain("only \"clean\" admits one");
+  });
+});
+
+describe("30-11 A-7 — the admit CLI's success line asserts only checks that RAN", () => {
+  // THE FINDING. The success line was printed unconditionally and read "structurally valid and the
+  // §14-gate stamp matches a live green verdict". A `human:<name>`-stamped finding and a soft
+  // `claim` both print it while NO gate cross-check ran — only a §14-gate-stamped finding is
+  // cross-checked. A line naming a check the run did not perform is the AP-1 shape this repository
+  // records at severity `blocking`.
+  function noteText(f: {
+    kind: string;
+    by: string;
+    verified_by?: string;
+    refs?: string[];
+    body?: string;
+  }): string {
+    return (
+      `---\nid: p-0001\nkind: ${f.kind}\nby: ${f.by}\nat: 2026-09-06T00:00:00Z\n` +
+      `verified_by: ${f.verified_by ?? ""}\nconfidence: high\nrefs:\n` +
+      `${(f.refs ?? []).map((r) => `  - ${r}`).join("\n")}\n---\n\n${f.body ?? "b"}\n`
+    );
+  }
+
+  function admitVia(f: Parameters<typeof noteText>[0]): { status: number | null; msg: string } {
+    const root = freshTmp("ctx-admit-");
+    const file = join(root, "candidate.md");
+    writeFileSync(file, noteText(f));
+    const r = spawnSync(
+      "node",
+      [CONTEXT_IO_JS, "admit", "t", file, join(root, "ctx"), root],
+      { encoding: "utf8" },
+    );
+    return { status: r.status, msg: ((r.stdout ?? "") + (r.stderr ?? "")).trim() };
+  }
+
+  it("a human-stamped finding admits WITHOUT claiming a gate cross-check matched", () => {
+    const r = admitVia({ kind: "finding", by: "software-engineer", verified_by: "human:alice" });
+    expect(r.status).toBe(0);
+    expect(r.msg).not.toContain("the §14-gate stamp matches a live green verdict");
+    expect(r.msg).toContain("every admission check that applies to it");
+  });
+
+  it("a soft claim admits WITHOUT claiming a gate cross-check matched", () => {
+    const r = admitVia({ kind: "claim", by: "software-engineer" });
+    expect(r.status).toBe(0);
+    expect(r.msg).not.toContain("the §14-gate stamp matches a live green verdict");
+  });
+});
+
+describe("30-11 — the green-verdict RECOGNIZER and the impersonation refusal do not diverge", () => {
+  // The two-sided question: is there any spelling of the reserved gate identity that the WRITE
+  // path lets through as "not the reserved identity" while the READ path still counts it as a live
+  // green verdict? That divergence would be a forge. Eleven code-point variants were probed on the
+  // committed artifact and none diverged; the sweep is pinned here so a future normalizer added to
+  // ONE side goes red.
+  const GATE = "§14-gate";
+  const VARIANTS: readonly (readonly [string, string])[] = [
+    ["exact", GATE],
+    ["trailing U+0020", `${GATE} `],
+    ["trailing U+00A0", `${GATE} `],
+    ["leading U+00A0", ` ${GATE}`],
+    ["trailing U+200B", `${GATE}​`],
+    ["trailing U+FEFF", `${GATE}﻿`],
+    ["trailing U+2007", `${GATE} `],
+    ["trailing TAB", `${GATE}\t`],
+    ["internal U+200B", "§14​-gate"],
+    ["uppercase GATE", "§14-GATE"],
+    ["fullwidth digits", "§１４-gate"],
+  ];
+
+  function note(f: { kind: string; by: string; verified_by?: string; refs?: string[]; body?: string }): string {
+    return (
+      `---\nid: p-0001\nkind: ${f.kind}\nby: ${f.by}\nat: 2026-09-06T00:00:00Z\n` +
+      `verified_by: ${f.verified_by ?? ""}\nconfidence: high\nrefs:\n` +
+      `${(f.refs ?? []).map((r) => `  - ${r}`).join("\n")}\n---\n\n${f.body ?? "b"}\n`
+    );
+  }
+
+  for (const [label, by] of VARIANTS) {
+    it(`${label}: refused as impersonation on WRITE ⇔ recognized as a verdict on READ`, () => {
+      // SIDE 1 — the write path. A valid human stamp is carried so `by` is the ONLY axis under
+      // test; the first version of this probe was a FALSE CONTROL, refused for a missing
+      // verified_by while the impersonation rule was never reached.
+      const w = freshTmp("ctx-div-a-");
+      const wf = join(w, "c.md");
+      writeFileSync(wf, note({ kind: "finding", by, verified_by: "human:alice" }));
+      const a = spawnSync("node", [CONTEXT_IO_JS, "admit", "t", wf, join(w, "ctx"), w], {
+        encoding: "utf8",
+      });
+      const refusedAsImpersonation =
+        a.status !== 0 && ((a.stderr ?? "") + (a.stdout ?? "")).includes("reserved author identity");
+
+      // SIDE 2 — the read path. The plant is written straight to disk, which is the documented
+      // same-uid direct-filesystem residual; the only question here is whether the RECOGNIZER folds
+      // on an axis the impersonation rule does not.
+      const rd = freshTmp("ctx-div-b-");
+      const ctx = join(rd, "ctx");
+      mkdirSync(join(ctx, "t", "notes"), { recursive: true });
+      writeFileSync(
+        join(ctx, "t", "notes", "plant.md"),
+        note({
+          kind: "finding",
+          by,
+          refs: ["§14-gate#RUN-9"],
+          body: "READY_FOR_HUMAN_REVIEW: run RUN-9 passed",
+        }),
+      );
+      const ff = join(rd, "f.md");
+      writeFileSync(
+        ff,
+        note({ kind: "finding", by: "software-engineer", verified_by: "§14-gate#RUN-9" }),
+      );
+      const b = spawnSync("node", [CONTEXT_IO_JS, "admit", "t", ff, ctx, rd], { encoding: "utf8" });
+      const recognized = b.status === 0;
+
+      expect(
+        recognized,
+        `DIVERGENCE on "${label}": the write path did not refuse this spelling as the reserved ` +
+          `identity, and the read path still counted it as a live green verdict. One side folds ` +
+          `where the other does not, which is a forge.`,
+      ).toBe(refusedAsImpersonation);
+    });
+  }
+});

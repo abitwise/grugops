@@ -1784,7 +1784,19 @@ if (isMain) {
                     console.error(f);
                 process.exit(1);
             }
-            console.log(`note admitted: structurally valid and the §14-gate stamp matches a live green verdict.`);
+            // WHAT THIS LINE MAY ASSERT (plan 30-11, finding A-7). It used to read "structurally valid
+            // and the §14-gate stamp matches a live green verdict" — printed unconditionally. Measured:
+            // a finding carrying a `human:<name>` stamp, and a soft `claim` note, both print that line
+            // while NO gate cross-check ran at all, because only a §14-gate-stamped finding is
+            // cross-checked. A success line that names a check the run did not perform is the same shape
+            // this repository records at severity `blocking` and has closed twice elsewhere in this phase.
+            //
+            // The fix is not a second predicate here deciding which checks applied — that would put the
+            // admission rule in two places. It is to say only what is true of EVERY admitted note: it
+            // passed every check that applies to it.
+            console.log(`note admitted: it passed every admission check that applies to it — structural ` +
+                `validation, the reserved-identity rule, the governance dial in force, and, for a ` +
+                `finding stamped §14-gate#<id>, the live-green-verdict cross-check.`);
             process.exit(0);
         }
         else if (cmd === "emit-verdict") {
@@ -1796,15 +1808,44 @@ if (isMain) {
             const id = rest[1];
             const integrity = rest[2];
             const contextRoot = rest[3]; // optional explicit root (tests pass a temp dir)
-            if (!task || !id) {
+            // ARITY IS THE CLI'S OWN CONCERN, AND IT IS CHECKED HERE (plan 30-11, finding A-8).
+            //
+            // The verb takes three required positional arguments and one optional one. Without this
+            // check, an invocation with too few or too many arguments was accepted silently: two
+            // arguments passed `undefined` into the integrity slot, and five let a stowaway argument sit
+            // unremarked after the context root.
+            //
+            // It is an ARITY check and deliberately not a VALUE check. The integrity value is passed
+            // through UNMODIFIED — no canonicalization, no defaulting, no coercion — so the CLI and the
+            // in-process path cannot come to disagree about which values admit a verdict. Checking argv's
+            // SHAPE adds no second authority over that vocabulary; checking the value here would.
+            //
+            // WHAT ARITY CANNOT DECIDE, WRITTEN DOWN RATHER THAN FUDGED. A caller using the pre-30-05
+            // shape `emit-verdict <task> <id> <contextRoot>` passes exactly THREE arguments, which is
+            // also the legitimate shape `emit-verdict <task> <id> clean`. The two are indistinguishable
+            // by count, and the only thing that separates them is the VALUE — which is precisely what
+            // this site must not inspect. So the shifted invocation is left to the refusal below, where
+            // it fails CLOSED (a filesystem path is not `clean`, so nothing is written) and the message
+            // names the argument order unconditionally rather than guessing at the caller's intent. The
+            // residual is recorded in docs/audit/30-redteam-surface-a.md § A-8.
+            if (!task || !id || rest.length < 3 || rest.length > 4) {
                 console.error("usage: context-io.js emit-verdict <task> <id> <clean|finding|unknown> [contextRoot]");
+                console.error(`context-io: emit-verdict takes 3 or 4 positional arguments and received ${rest.length}. ` +
+                    `The third is the gate run's test-integrity result, NOT the context root — a shifted ` +
+                    `invocation would have its context root read as a test outcome. Nothing was written.`);
                 process.exit(1);
             }
             const noteIdStr = emitVerdict(task, id, integrity, contextRoot ?? DEFAULT_CONTEXT_ROOT);
             if (noteIdStr === null) {
                 console.error(`context-io: refusing to emit a green verdict — the test-integrity result was ` +
                     `${JSON.stringify(integrity ?? null)}, and only "clean" admits one. Nothing was ` +
-                    `written. The finding stays at UNKNOWN - verify.`);
+                    `written. The finding stays at UNKNOWN - verify. ` +
+                    // Stated UNCONDITIONALLY, never as a guess about the value above (plan 30-11, A-8).
+                    // The third positional is the integrity result and the FOURTH is the context root; a
+                    // caller using the pre-30-05 three-argument shape has its context root land here, and
+                    // the refusal would otherwise read as a claim about a test run that never happened.
+                    `Argument order: emit-verdict <task> <id> <clean|finding|unknown> [contextRoot] — the ` +
+                    `THIRD argument is the test-integrity result and the FOURTH is the context root.`);
                 process.exit(1);
             }
             console.log(`verdict emitted: ${noteIdStr} (§14-gate#${id}).`);

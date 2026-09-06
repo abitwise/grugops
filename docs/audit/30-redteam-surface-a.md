@@ -605,3 +605,276 @@ The predicate separates four commits from one. The Phase-15 TypeScript port chan
 carrying the frozen baseline in the same commit — a historical instance of exactly the split D-24
 forbids and nothing had been asking about. A predicate that passed all five would have been vacuous;
 this one discriminates on real history.
+
+---
+
+# Round 1, Task 2 — the point-of-effect test-integrity refusal, and the settings-file vector
+
+## The emitter's refusal: attacked on the committed artifact, through the CLI verb
+
+Every probe spawns the committed `scripts/context-io.js` **as a process** through the `emit-verdict`
+verb, with a fresh empty context root, and compares the directory before and after.
+
+### Can a green verdict be written without a clean integrity result?
+
+**No, on every axis probed.** Fifteen values were driven through the verb, including every value a
+canonicalizer elsewhere in this tree would fold INTO the sentinel:
+
+```
+exit=0 wrote=1  "clean"      <- CONTROL: the sweep is not vacuous
+exit=1 wrote=0  "finding" "unknown" "CLEAN" "Clean" "clean " " clean" "clean\n" "clean\t"
+exit=1 wrote=0  "" "0" "1" "true" "cleanX" "xclean" "clea<U+200B>n"
+exit=1 wrote=0  (integrity argument ABSENT)
+```
+
+There is no canonicalization on this path, and that is the point: `TEST_INTEGRITY_CLEAN` is compared
+with `!==` against a value passed through unmodified, and the complement of one exact string is
+refused by rule rather than by enumeration.
+
+### Is the refusal reached before the first composition line on EVERY path?
+
+**Yes, and it is measured as a directory comparison rather than asserted.** On every refusal — the
+integrity refusal and the four refusals ABOVE it (invalid task name, a verdict id that breaks the
+stamp grammar, a verdict id carrying a newline, a verdict id carrying a path separator) — the context
+root is **empty**: not a partial file, not a zero-length file, not even the task directory. Nothing
+was written because nothing was composed.
+
+```
+tree after refusal:  (EMPTY — nothing created at all)
+```
+
+The nine-case sweep and the five above-the-check paths are pinned in `scripts/context-io.test.ts`.
+
+### Can a green verdict be RECOGNIZED without the emitter having written one?
+
+`isLiveGreenVerdict` requires `kind === "finding"`, `by === "§14-gate"`, the exact `§14-gate#<id>`
+stamp in `refs`, the green marker in the body, and liveness under `currentState`. Each was attacked
+in turn against the committed artifact, with a plant written straight to disk (the documented same-uid
+direct-filesystem residual, so the only question is what the RECOGNIZER accepts):
+
+```
+ADMITTED  CONTROL: a real emitVerdict-shaped plant                    <- non-vacuous
+refused   a CLAIM carrying the stamp in refs and the marker in body
+refused   a FINDING by an ordinary role carrying both
+refused   a gate-authored note with the marker but the WRONG run id
+refused   a gate-authored note with the right refs but NO marker
+```
+
+### The two-sided divergence question — the one that would be a forge
+
+The sharp question is not "does the recognizer accept a near-miss", it is **"is there a spelling the
+WRITE path lets through as not-the-reserved-identity while the READ path still counts it as a
+verdict?"** That asymmetry is the forge, and it is the Phase-27 class this repository spent twelve
+rounds on. Eleven code-point variants, both sides, on the committed artifact:
+
+```
+  side-1   side-2      variant
+  refused  RECOG       exact
+  refused  RECOG       trailing U+0020
+  refused  RECOG       trailing U+00A0 nbsp
+  refused  RECOG       leading U+00A0 nbsp
+  allowed  no          trailing U+200B zwsp
+  refused  RECOG       trailing U+FEFF bom
+  refused  RECOG       trailing U+2007 figure space
+  refused  RECOG       trailing TAB
+  allowed  no          internal U+200B
+  allowed  no          uppercase GATE
+  allowed  no          fullwidth digits
+```
+
+**No divergence.** Every row is either `(refused, RECOG)` — the identity is protected on write and
+recognized on read — or `(allowed, no)` — the spelling is not the identity on either side. The two
+predicates agree on every axis probed, because both read the value the frontmatter parser produces
+rather than the bytes on the line. The sweep is pinned as an equality (`recognized ===
+refusedAsImpersonation`), so a normalizer added later to ONE side goes red.
+
+**A FALSE CONTROL was caught and discarded before any of this was believed.** The first version of
+this probe carried no `verified_by`, so every near-miss row was refused for "a finding requires a
+verified_by stamp" and the impersonation rule was never reached. The corrected probe carries
+`human:alice` on every row, so `by` is the only axis under test. The discarded run is recorded here
+rather than deleted.
+
+### The emitter's header tier statement — checked, not changed
+
+AUTO-04's flagged assumption is about what the CALLER can assert, and the header already states it at
+the right tier and refuses to overclaim. Quoted, because the acceptance criterion is that the wording
+matches what is true:
+
+> THE TIER, STATED RATHER THAN PAPERED OVER. The hook-enforced checkpoints are decided by a SEPARATE
+> process (hooks/guard.js) reading its own environment, which the agent under the hook cannot set for
+> itself. This one is decided IN-PROCESS from an argument the gate procedure supplies. Those are
+> different tiers and this file will not claim otherwise. […] The residual is that a caller determined
+> to lie can state it; that residual is named here and in the workflow prose instead of being claimed
+> away.
+
+No change. Recorded as an answer that found nothing.
+
+---
+
+## `A-7` — the admit CLI's success line named a check that had not run
+
+`console.log("note admitted: structurally valid and the §14-gate stamp matches a live green
+verdict.")` was printed unconditionally. Only a finding stamped `§14-gate#<id>` is cross-checked; a
+`human:<name>`-stamped finding and a soft `claim` reach the same line having had no cross-check at
+all. Observed directly while running the divergence sweep, whose rows carry `human:alice` stamps and
+printed that sentence.
+
+A success line naming a check the run did not perform is the AP-1 shape this repository records at
+severity `blocking`, and it is the third instance of it in this round (`A-3` and the `A-4` banner
+clause are the others).
+
+**Structural fix:** not a second predicate here deciding which checks applied — that would put the
+admission rule in two places. The line now says only what is true of every admitted note: *it passed
+every admission check that applies to it*, and enumerates the checks that can apply.
+
+---
+
+## `A-8` — the emit-verdict verb did not check its own arity, and one half of that is undecidable
+
+**What was fixed.** The verb takes three required positionals and one optional. Fewer or more were
+accepted silently: two arguments passed `undefined` into the integrity slot, five let a stowaway
+argument sit unremarked. Both are now refused as arity errors. This is an ARITY check and
+deliberately not a VALUE check — the integrity value is passed through unmodified so the CLI and the
+in-process path cannot come to disagree about which values admit a verdict, and checking argv's SHAPE
+adds no second authority over that vocabulary.
+
+**What CANNOT be fixed, written down rather than fudged.** The pre-30-05 shape
+`emit-verdict <task> <id> <contextRoot>` has exactly THREE arguments, which is also the legitimate
+`emit-verdict <task> <id> clean`. Nothing but the VALUE separates them, and inspecting the value here
+is exactly what must not happen. Measured on the committed artifact, the shifted invocation produced:
+
+```
+context-io: refusing to emit a green verdict — the test-integrity result was
+"/var/folders/y3/.../T/t2-XXXX", and only "clean" admits one. Nothing was written.
+```
+
+Fail-closed in direction — a filesystem path is not `clean`, so nothing was written — but a refusal
+that names a directory as a test outcome sends a human to the wrong place. The message now states the
+argument order **unconditionally**, never as a guess about the value it just quoted. The remaining
+ambiguity is a recorded residual, and the test that pins it asserts the honest outcome (fails closed,
+names the order) rather than a fix that cannot exist.
+
+---
+
+## The settings-file vector — the empirical reproduction AUTO-03 requires
+
+### What was attempted
+
+The experiment was designed and built: a read-only PreToolUse observer that records
+`GRUGOPS_SETTINGS_PROBE_PROJECT`, `GRUGOPS_SETTINGS_PROBE_USER`,
+`GRUGOPS_FLOOR_PROTECTED_BRANCH_MERGE`, `CLAUDE_PROJECT_DIR` and `CLAUDE_PLUGIN_ROOT` from its own
+process environment, denies nothing, and exits 1 only for a command carrying a sentinel token so the
+host's treatment of a non-zero hook exit could be observed at the same time. Registering it required
+writing an `env` block and a `hooks.PreToolUse` entry into `.claude/settings.local.json` mid-session —
+which is the vector itself, performed deliberately, with a backup taken first and a restore after.
+
+### What happened
+
+**The write was refused by the host's own permission classifier**, before any byte was written:
+
+> Permission for this action was denied by the Claude Code auto mode classifier.
+
+`.claude/settings.local.json` is byte-unchanged (`sha256
+0026a20c76a707f6989b86bd91151154acac37e9693aab33777168624c85f860`, keys `["outputStyle",
+"permissions"]`), and no backup file was created because the command did not get that far. **No
+workaround was attempted.** A settings-file write blocked by the permission system is not something
+to route around, and this executor has no authority to grant itself the permission.
+
+### What this is, and what it is NOT
+
+It is **not** "the vector did not reproduce". It is **"the reproduction could not be run"**, and the
+two must not be recorded as the same thing. Nothing here licenses upgrading the guarantee, and
+nothing here licenses softening the residual either. `A2` in the research assumptions log stays open,
+at its recorded tier: the vendor documentation states that settings-file `env` entries are reapplied
+dynamically during active sessions, and does **not** state that a hook subprocess spawned after the
+edit inherits the new value; the composition of the two is an inference this round did not turn into
+an observation.
+
+The published residual therefore keeps every clause it has. What changes is that its **evidence tier
+is now stated** — the mechanism sentence is marked as a composed inference with the attempted
+reproduction and its blocker named — so no reader takes an inference for a measurement. Marking the
+tier is not softening: the residual remains `accepted`, remains open, and remains permissive in
+direction.
+
+**This is a checkpoint item.** AUTO-03's must-have asks for the vector to be reproduced empirically at
+least once. It cannot be satisfied without a human either granting the settings-write permission for
+one experiment or accepting the fence.
+
+### What WAS observed on the host
+
+| | |
+|---|---|
+| Claude Code | `2.1.263` (running binary at `~/.local/share/claude/versions/2.1.260`) |
+| Node | `v24.12.0` |
+| `CLAUDE_PROJECT_DIR` in a Bash tool environment | **not present** (measured: `env \| grep CLAUDE`) |
+
+The `CLAUDE_PROJECT_DIR` observation bounds one claim and not another: it is absent from the *tool*
+environment, which says nothing about the *hook subprocess* environment the vendor documentation
+describes separately. It is recorded at exactly that width, and it is the reason the `V-30-10-03`
+decision above rests on which CLI runs the hook rather than on this measurement.
+
+### The environment-scrubbing watch item (`A1`) — its tier upgraded by direct observation
+
+`A1` entered the research from a GitHub issue title, not from vendor documentation: that Claude Code
+v2.1.251 introduced `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1` scrubbing only `CLAUDE_CONFIG_DIR`. The
+installed binary was read directly. **OBSERVED** in `~/.local/share/claude/versions/2.1.260`:
+
+- The variable exists — 8 occurrences.
+- Its enablement rule is `enabled = truthy(CLAUDE_CODE_SUBPROCESS_ENV_SCRUB) || (truthy(GITHUB_ACTIONS)
+  && !falsy(CLAUDE_CODE_SUBPROCESS_ENV_SCRUB))`, with `falsy` matching `/^(?:0|false|no|off)$/i`. So
+  it is **off by default outside GitHub Actions** and on by default inside it.
+- Its scrub set is built by flat-mapping a fixed list with `INPUT_<NAME>` and lowercase
+  `NPM_CONFIG_*` forms, alongside code that rewrites credential-shaped values and URLs — the shape of
+  a CI-injected-input hardening feature, not a general-purpose variable filter. The user-facing string
+  is *"(allowed_non_write_users hardening). Declare allowedTools explicitly, or set
+  CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=0 to opt out."*
+- **The binary contains ZERO occurrences of the string `GRUGOPS`.** No shipped scrub list on this
+  version can name a `GRUGOPS_*` variable.
+
+**The premise of that last measurement is asserted, not assumed.** `grep -a` was used throughout,
+because BSD `grep` silently reports zero matches on a file it classifies as binary; and the control is
+that the *same* invocation over the *same* file found `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB` eight times.
+A harness that returned 0 for everything would have failed that control.
+
+**Tier, stated honestly.** The scrub feature's existence, its enablement rule and the absence of any
+`GRUGOPS` string are **OBSERVED on this host version**. The literal membership of the scrub list was
+**NOT extracted** (the grep budget over a 198 MB Mach-O binary did not reach it), so this round does
+not claim to know every name in it — only that none of them is a `GRUGOPS_*` name, which is the
+question `A1` actually poses. The general risk `A1` records — that a future list could widen — is
+unaffected and stays open. The research's specific claim that the scrub covers "only
+`CLAUDE_CONFIG_DIR`" was **not** confirmed and is corrected to what was observed.
+
+---
+
+## Discarded probes (recorded rather than deleted)
+
+1. **The first near-miss identity sweep was a FALSE CONTROL.** Its rows carried no `verified_by`, so
+   they were refused for a missing stamp and the impersonation rule was never reached. Re-run with
+   `human:alice` on every row.
+2. **The RED tree produced five failures that never reached their predicates.** `$SP/red` is a
+   `git archive` mirror with no `.git`, and five pre-existing `context-io.test.ts` cases derive their
+   corpus from `git ls-files`. They failed with `fatal: not a git repository` — the exact class
+   surface B recorded — and are discarded as harness artifacts, not results. The five RED failures
+   that ARE results are the two `A-7` cases and the three `A-8` cases.
+3. **The first `A-8` fix was wrong and its test was written against it.** An arity check cannot
+   separate the shifted three-argument shape from the legitimate one; the test asserting it could was
+   red, and the honest outcome replaced both the fix's scope and the test's claim.
+
+---
+
+## Mutation proofs — Task 2 (closure clause 3)
+
+| # | mutation, in the emitted `scripts/context-io.js` | marker | result |
+|---|---|---|---|
+| `M7` | the admit success line restored to the unconditional "the §14-gate stamp matches a live green verdict" | `MUT-M7` ×1 | **KILLED** — 2 failed / 202 passed (exactly the two `A-7` cases) |
+| `M8` | the arity bounds `rest.length < 3 \|\| rest.length > 4` deleted | `MUT-M8` ×1 | **KILLED** — 2 failed / 202 passed (exactly the two arity cases) |
+| `M9` | the unconditional argument-order sentence deleted from the refusal | `MUT-M9` ×1 | **KILLED** — 1 failed / 203 passed |
+| `M10` | `isLiveGreenVerdict` given a fold the write path does not have (strip `U+200B`/`U+FEFF`, lowercase) | `MUT-M10` ×1 | **KILLED** — 3 failed / 201 passed |
+
+`M10` is the load-bearing one. The divergence sweep asserts an EQUALITY between two sides, and an
+equality over eleven rows that all agree is exactly the kind of assertion that can be vacuously true.
+Folding the recognizer on three axes the impersonation rule does not fold on — `U+200B` inside, `U+200B`
+trailing, and case — made the sweep fail on **exactly those three rows** and no others. The sweep
+discriminates on the axis it names.
+
+Markers after the restoring build: `scripts/context-io.js:0`.
