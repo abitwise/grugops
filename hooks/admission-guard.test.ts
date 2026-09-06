@@ -32,6 +32,12 @@ import { spawnSync } from "node:child_process";
 import { join } from "node:path";
 import { mkdtempSync, writeFileSync, mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
+import { pathToFileURL } from "node:url";
+
+// The COMMITTED checkpoints artifact — the same module the spawned hook imports its grant name from.
+const cp: typeof import("../scripts/checkpoints.js") = await import(
+  pathToFileURL(join(import.meta.dirname, "..", "scripts", "checkpoints.js")).href
+);
 
 const APPROVAL = "GRUGOPS_ADMISSION_APPROVED_BY";
 
@@ -353,5 +359,60 @@ describe("admission-guard.js (GOV-01 per-call structured gate) — child-spawn d
       }
     }
     expect(true).toBe(true);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// PLAN 30-11 — RED-TEAM SURFACE A, ROUND 1. Reproduced first against the committed artifact.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+describe("30-11 A-4 — an approver that names nobody is not an approver", () => {
+  // THE BYPASS, IN ONE SENTENCE. The presence test was `approver.length === 0`, so a single space
+  // was an approver: the expected stamp became `human: ` and a gated governance disposition could be
+  // attributed to a name that renders as nothing. The value of this variable IS the human's name —
+  // it is interpolated straight into the stamp the admission must match.
+  const HI = { by: "security-nfr", kind: "finding" };
+
+  for (const [label, value] of [
+    ["one space", " "],
+    ["a tab", "\t"],
+    ["a newline", "\n"],
+  ] as const) {
+    it(`env=${label} with a matching whitespace stamp is REFUSED, not admitted`, () => {
+      expectDeny(payload({ ...HI, verified_by: `human:${value}` }), {
+        CLAUDE_PROJECT_DIR: makeProject({ dial: "high-severity" }),
+        [APPROVAL]: value,
+      });
+    });
+    it(`env=${label} with any stamp at all is REFUSED`, () => {
+      expectDeny(payload({ ...HI, verified_by: "human:alice" }), {
+        CLAUDE_PROJECT_DIR: makeProject({ dial: "high-severity" }),
+        [APPROVAL]: value,
+      });
+    });
+  }
+
+  it("a padded but REAL name still admits, matched against the trimmed name (non-vacuous)", () => {
+    expectAllow(payload({ ...HI, verified_by: "human:alice" }), {
+      CLAUDE_PROJECT_DIR: makeProject({ dial: "high-severity" }),
+      [APPROVAL]: "  alice  ",
+    });
+  });
+
+  it("and the trimmed name is what the stamp must match — a padded stamp does NOT", () => {
+    expectDeny(payload({ ...HI, verified_by: "human:  alice  " }), {
+      CLAUDE_PROJECT_DIR: makeProject({ dial: "high-severity" }),
+      [APPROVAL]: "alice",
+    });
+  });
+});
+
+describe("30-11 A-1 — this hook's approval name is IMPORTED from the grant vocabulary", () => {
+  it("the name this test asserts is the one the published vocabulary declares", () => {
+    // The test's own premise. If the hook's constant and the vocabulary ever disagreed, every case
+    // in this file would be exercising a variable the hook does not read, and every DENY would be a
+    // pass for the wrong reason.
+    expect(APPROVAL).toBe(cp.ADMISSION_APPROVAL_ENV_VAR);
+    expect(cp.isGrantEnvVarName(APPROVAL)).toBe(true);
   });
 });

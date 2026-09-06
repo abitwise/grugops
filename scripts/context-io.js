@@ -1028,6 +1028,10 @@ export function emitCheckpointNote(input, contextRoot = DEFAULT_CONTEXT_ROOT, at
         `- declared: ${input.declared}\n` +
         `- effective: ${input.effective}\n` +
         `- authorized by: ${authorization}\n` +
+        (input.actionApproval === null
+            ? ""
+            : `- action approved by: ${input.actionApproval} was set by a human, which approves THIS ` +
+                `action at the enforced posture — it does not authorize the declared lowering\n`) +
         `- actor: ${JSON.stringify(input.actor)}\n` +
         `- command: ${JSON.stringify(input.command)}\n`;
     for (const r of note.refs)
@@ -1397,7 +1401,16 @@ function readCheckpointMatrix(parsed) {
     const rosterIds = new Set(CHECKPOINTS);
     for (const key of Object.keys(obj)) {
         if (!rosterIds.has(key)) {
-            refusals.push(`\`checkpoints.${key}\` is not a checkpoint on the roster — the entry is dropped and does not widen the checkpoint set`);
+            // THE KEY IS QUOTED, NOT INTERPOLATED RAW (plan 30-11, finding A-6). This is the one value in
+            // this function that comes from the config file rather than from the roster, and a config file
+            // is agent-writable. JSON permits a key carrying a newline, so a raw interpolation would let
+            // that key spell additional LINES in whatever prints this refusal — including a line shaped
+            // like the run banner the guard emits on the next line down. `emitCheckpointNote` in this same
+            // module already states the rule for untrusted values ("quoted, not interpolated raw"); this
+            // site was the one that had not applied it. Quoting renders the key on one line, with its
+            // escapes visible, so the reported value is exactly the value and the report's own structure
+            // is not something the config can rewrite.
+            refusals.push(`\`checkpoints.\` entry ${JSON.stringify(key)} is not a checkpoint on the roster — the entry is dropped and does not widen the checkpoint set`);
         }
     }
     for (const id of CHECKPOINTS) {

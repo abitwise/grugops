@@ -56,21 +56,19 @@
 //     the agent can never set the hook's session env).
 //   - FAILS CLOSED: a matched admission with missing/malformed structured args, or an unclassifiable
 //     note under an active dial, DENIES — never crash-allow. An unparsable / absent stdin payload also
-//     denies (the matcher only routes real admission calls here).
+//     denies (the matcher only routes real admission calls here). A dependency that will not load, or
+//     any unexpected throw, ALSO denies (plan 30-11, finding A-2): a PreToolUse hook that exits with
+//     any code other than 0-plus-deny-JSON or 2 is NON-BLOCKING at the host, so "the hook crashed"
+//     and "the hook allowed it" are the same event and this file must never reach that state.
 //
 // Block mechanism: exit 0 + JSON `hookSpecificOutput.permissionDecision: "deny"` with a
 // `permissionDecisionReason` (gives the agent a clear message). Allow = exit 0, no output. This mirrors
 // the prod-deploy guard's posture exactly.
 
 import { readFileSync } from "node:fs";
-import { isGatedNote, normalizeKind, readGovernanceConfig } from "../scripts/context-io.js";
 import type { GovernanceConfigResult } from "../scripts/context-io.js";
 
-// The human-confirm signal for admission. A human exports this in the shell that launches Claude (or
-// via settings env); the agent must never set it. The hook reads it from its OWN process env, which the
-// agent's spawned-child env cannot reach.
-const APPROVAL = "GRUGOPS_ADMISSION_APPROVED_BY";
-
+// ── The fail-closed answer, declared BEFORE anything that can fail. ──────────────────────────────
 function deny(reason: string): never {
   process.stdout.write(
     JSON.stringify({
@@ -83,6 +81,56 @@ function deny(reason: string): never {
   );
   process.exit(0); // exit 0 + JSON deny = blocked, with a message for the agent.
 }
+
+/**
+ * The answer for a run that could not reach a decision at all (plan 30-11, finding A-2).
+ *
+ * Measured on the committed `hooks/admission-guard.js`, spawned as a process against a kit whose
+ * `scripts/context-io.js` had been overwritten with one line of garbage: a gated high-severity
+ * admission with no human env and no stamp produced exit 1, zero bytes of stdout, and therefore
+ * ALLOW. The whole un-forgeable tier turned off by one agent-reachable file write. The invariant is
+ * stated as a property of the process — this file has no exit path that is neither an explicit allow
+ * nor an explicit deny — and the two handlers plus the guarded dynamic import are what establish it.
+ * The re-entrancy flag exists because the fail-closed answer must not be able to fail recursively.
+ */
+let answering = false;
+function denyUndecided(stage: string, e: unknown): never {
+  if (answering) process.exit(0);
+  answering = true;
+  deny(
+    `Admission blocked (fail-closed): the grugops admission guard could not ${stage} ` +
+      `(${e instanceof Error ? e.message : String(e)}), so it could not decide whether this ` +
+      `admission needs a named human. A hook that does not answer does not block, so it answers by ` +
+      `refusing. A human must repair the grugops installation, then re-run.`,
+  );
+}
+process.on("uncaughtException", (e) => denyUndecided("complete its evaluation", e));
+process.on("unhandledRejection", (e) => denyUndecided("complete its evaluation", e));
+
+// ── The dependency load, GUARDED (finding A-2). ──────────────────────────────────────────────────
+// Static `import` statements are hoisted above every line of this module, so a dependency that will
+// not load kills the process before `deny` has ever been reachable. The imports are therefore
+// dynamic and inside a try. The type-only import above is erased at compile time.
+let ioMod: typeof import("../scripts/context-io.js");
+let cpMod: typeof import("../scripts/checkpoints.js");
+try {
+  ioMod = await import("../scripts/context-io.js");
+  cpMod = await import("../scripts/checkpoints.js");
+} catch (e) {
+  denyUndecided("load its note classifier and governance reader", e);
+}
+const { isGatedNote, normalizeKind, readGovernanceConfig } = ioMod;
+
+// The human-confirm signal for admission. A human exports this in the shell that launches Claude (or
+// via settings env); the agent must never set it. The hook reads it from its OWN process env, which the
+// agent's spawned-child env cannot reach.
+//
+// IT IS IMPORTED, NOT SPELLED (plan 30-11, finding A-1). This name used to be a bare string literal
+// here and appeared in no other file — so the prod-deploy guard's self-set refusal, which enumerates
+// the grant vocabulary, did not contain it, and an agent's `export GRUGOPS_ADMISSION_APPROVED_BY=…`
+// was allowed where the same command for a floor grant was refused. The vocabulary now lives once,
+// in scripts/checkpoints.ts, and both hooks read their own constant out of it.
+const APPROVAL = cpMod.ADMISSION_APPROVAL_ENV_VAR;
 
 // ── Read and parse the PreToolUse stdin payload. ──────────────────────────────────────────────────
 // The hooks.json matcher (mcp__grugops__.*) guarantees this hook is invoked ONLY for a grugops
@@ -202,8 +250,13 @@ if (!gated) {
 // A GATED note is authorized ONLY if BOTH the FRESH human-set session env is present AND the
 // agent-supplied stamp matches it exactly. The agent cannot set the hook's session env, so the stamp
 // alone never grants — this is the structured-channel form of refuse-self-set.
-const approver = process.env[APPROVAL];
-if (typeof approver !== "string" || approver.length === 0) {
+// ONE presence predicate for the whole grant vocabulary (plan 30-11, finding A-4). The value of this
+// variable IS the human's name — it is interpolated straight into the stamp the admission must
+// match — so a value that names nobody is not a grant. `length === 0` accepted a single space, which
+// would have made the expected stamp `human: ` and attributed a gated governance disposition to a
+// name that renders as nothing.
+const approver = cpMod.grantedBy(process.env, APPROVAL);
+if (approver === null) {
   deny(
     `Admission blocked: humans decide, agents execute. This is a gated governance finding ` +
       `(by: ${by}); it requires a named human disposition. The finding cannot be admitted until a ` +

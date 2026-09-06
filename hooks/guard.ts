@@ -53,7 +53,12 @@
 //     (D-19, D-20). It goes to stderr, never stdout, because stdout is the hook's JSON channel and
 //     a non-JSON line there would break the deny mechanism this file exists to provide.
 //   - FAILS CLOSED: malformed/empty stdin never crash-allows a matched deploy; a config that cannot
-//     be read is treated as `block`; a throw while reading the matrix denies a MATCHED command.
+//     be read is treated as `block`; a throw while reading the matrix denies a MATCHED command; and
+//     a failure the guard cannot even name — a dependency that will not load, an unexpected throw
+//     anywhere in this file — DENIES rather than exiting non-zero (plan 30-11, finding A-2). At the
+//     host, a PreToolUse hook that exits with any code other than 0-plus-deny-JSON or 2 is
+//     NON-BLOCKING: the command it was supposed to gate simply runs. So "the guard crashed" and
+//     "the guard allowed it" are the same event to the host, and this file must never reach it.
 //   - Uses no hardcoded absolute path; the deploy-pattern set is config-driven with sane
 //     defaults (D-32) and pairs with factory.config.json
 //     `production_requires_human_confirmation: true`.
@@ -63,18 +68,92 @@
 
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import {
+import type {
+  Checkpoint,
+  CheckpointResolution,
+  Disposition,
+} from "../scripts/checkpoints.js";
+
+// ── The fail-closed answer, declared BEFORE anything that can fail. ──────────────────────────────
+// `deny` is written first, uses nothing but `process`, and is therefore reachable on every path
+// including the one where this file's own dependencies could not be loaded.
+function deny(reason: string): never {
+  process.stdout.write(
+    JSON.stringify({
+      hookSpecificOutput: {
+        hookEventName: "PreToolUse",
+        permissionDecision: "deny",
+        permissionDecisionReason: reason,
+      },
+    }),
+  );
+  process.exit(0); // exit 0 + JSON deny = blocked, with a message for the agent.
+}
+
+/**
+ * The answer for a run that could not reach a decision at all (plan 30-11, finding A-2).
+ *
+ * ---------------------------------------------------------------------------------------------
+ * WHY A CRASH IS NOT A FAIL-CLOSED STATE, WHICH IS THE WHOLE POINT OF THIS FUNCTION.
+ *
+ * This file's contract said "FAILS CLOSED" and its every documented failure branch does — but the
+ * branches it documented were the ones it had thought of. Every OTHER failure left the process to
+ * die with an uncaught exception, exit code 1 and no stdout. Measured on the committed
+ * `hooks/guard.js`, spawned as a process against a kit whose `scripts/checkpoints.js` had been
+ * overwritten with one line of garbage: `git push --force origin main` produced exit 1, zero bytes
+ * of stdout, and therefore ALLOW. The same for a deleted `scripts/context-io.js`. Neither needed a
+ * grant variable, a config declaration or a human — a single agent-reachable file write turned the
+ * two-key rule off entirely, because a hook that does not answer is a hook that does not block.
+ *
+ * So the invariant this function establishes is stated as a property of the PROCESS rather than of
+ * any branch: **this file has no exit path that is neither an explicit allow nor an explicit deny.**
+ * The dependency load is guarded, the whole body is guarded, and the two last-resort handlers below
+ * catch anything asynchronous. The re-entrancy flag exists because the fail-closed answer must not
+ * be able to fail recursively.
+ * ---------------------------------------------------------------------------------------------
+ */
+let answering = false;
+function denyUndecided(stage: string, e: unknown): never {
+  if (answering) process.exit(0); // never loop inside the fail-closed answer itself
+  answering = true;
+  deny(
+    `Blocked (fail-closed): the grugops prod-deploy guard could not ${stage} ` +
+      `(${e instanceof Error ? e.message : String(e)}), so it could not decide whether this ` +
+      `command crosses a safety checkpoint. A hook that does not answer does not block, so it ` +
+      `answers by refusing. A human must repair the grugops installation, then re-run.`,
+  );
+}
+process.on("uncaughtException", (e) => denyUndecided("complete its evaluation", e));
+process.on("unhandledRejection", (e) => denyUndecided("complete its evaluation", e));
+
+// ── The dependency load, GUARDED (finding A-2). ──────────────────────────────────────────────────
+// Static `import` statements are hoisted above every line of this module, so a dependency that will
+// not load kills the process before `deny` has ever been reachable. The imports are therefore
+// dynamic and inside a try — the ONLY structural way to keep the fail-closed answer above them. The
+// type-only import at the top of the file is erased at compile time and adds no runtime dependency.
+let cpMod: typeof import("../scripts/checkpoints.js");
+let ioMod: typeof import("../scripts/context-io.js");
+try {
+  cpMod = await import("../scripts/checkpoints.js");
+  ioMod = await import("../scripts/context-io.js");
+} catch (e) {
+  denyUndecided("load its checkpoint roster and governance reader", e);
+}
+
+const {
   CHECKPOINT_DEFAULTS,
+  CONFIG_REFUSAL_PREFIX,
   FLOOR_CHECKPOINTS,
-  FLOOR_ENV_VAR_PREFIX,
+  NAMED_GRANT_ENV_VARS,
+  GRANT_ENV_VAR_PATTERN_SOURCE,
+  PROD_DEPLOY_APPROVAL_ENV_VAR,
   composeBanner,
   evaluateMatrix,
   floorEnvVarName,
-  type Checkpoint,
-  type CheckpointResolution,
-  type Disposition,
-} from "../scripts/checkpoints.js";
-import { emitCheckpointNote, readGovernanceConfig } from "../scripts/context-io.js";
+  grantedBy,
+  isGrantEnvVarName,
+} = cpMod;
+const { GOVERNANCE_FALLBACK_BASE, emitCheckpointNote, readGovernanceConfig } = ioMod;
 
 // D-33: the human-confirm signal. A human exports this in the shell that launches Claude
 // (or via settings env). The name is a placeholder per research Assumption A2 — projects may
@@ -85,7 +164,14 @@ import { emitCheckpointNote, readGovernanceConfig } from "../scripts/context-io.
 // Phase 30. It is NOT key two: it approves THIS action at the un-lowered posture, whereas a
 // `GRUGOPS_FLOOR_<ID>` variable authorizes a standing LOWERING of the posture itself. Two different
 // grants, deliberately two different names.
-const APPROVAL = "GRUGOPS_PROD_DEPLOY_APPROVED";
+//
+// IT IS IMPORTED, NOT SPELLED (plan 30-11, finding A-1). The name lives once, in the grant
+// vocabulary in scripts/checkpoints.ts, beside the admission approval and the floor family — so the
+// self-set refusal below is built from the same table this constant is read out of, and the two
+// cannot name different sets. `hooks/guard.test.ts` asserts that neither hook source contains a
+// `GRUGOPS_…` grant name as a string literal, which is what keeps a fourth grant from being
+// introduced somewhere the refusal cannot see.
+const APPROVAL = PROD_DEPLOY_APPROVAL_ENV_VAR;
 
 // D-32: default production-deploy command patterns. This is a sane built-in set; per-project
 // patterns are extended at build/bootstrap and never hardcoded to a single stack. The guard
@@ -155,35 +241,24 @@ const CHECKPOINT_PATTERNS: readonly { readonly id: Checkpoint; readonly patterns
 
 // ONE self-set detector, over the WHOLE grant vocabulary (D-09). It detects any attempt to set or
 // export a grant variable inline (e.g. `GRUGOPS_PROD_DEPLOY_APPROVED=1 ...`,
-// `export GRUGOPS_FLOOR_PROTECTED_BRANCH_MERGE=me`, `env GRUGOPS_PROD_DEPLOY_APPROVED=1 ...`),
+// `export GRUGOPS_FLOOR_PROTECTED_BRANCH_MERGE=me`, `env GRUGOPS_ADMISSION_APPROVED_BY=me ...`),
 // regardless of the surrounding command. The Phase-5 shape
 // `(^|[\s;&|(])(export\s+|env\s+)?NAME\s*=` is preserved exactly; only the NAME position widened
 // from one literal to an alternation, and the two leading groups became non-capturing so that
 // group 1 is the matched NAME and the denial can say which grant was attempted.
 //
-// THE FLOOR ARM IS THE FAMILY, NOT A LIST OF NAMES — AND THE LIST IS ASSERTED INTO IT. A per-name
-// alternation would refuse exactly today's floors and silently allow `GRUGOPS_FLOOR_<something new>`
-// the moment the roster grows, which is this repository's founding defect class (set-literal drift)
-// pointed at a safety refusal. So the arm matches the whole prefix family, and the DERIVED names
-// are asserted to fall inside it below: if a derived name ever escaped the family pattern, the
-// guard refuses to run rather than run with a hole.
-const FLOOR_ENV_VAR_PATTERN = `${FLOOR_ENV_VAR_PREFIX}[A-Z0-9_]+`;
+// THE ALTERNATION IS THE PUBLISHED GRANT VOCABULARY, NOT A LIST WRITTEN HERE (plan 30-11, finding
+// A-1). It used to be `APPROVAL | FLOOR-FAMILY`, which enumerated a set that nothing derived: the
+// admission approval `GRUGOPS_ADMISSION_APPROVED_BY` — declared as a bare literal in the OTHER hook
+// in this same directory — was not in it, so `export GRUGOPS_FLOOR_OPEN_PR=alice && ls` was refused
+// while `export GRUGOPS_ADMISSION_APPROVED_BY=alice && ls` was allowed. One detector over the whole
+// grant family, or the family is not protected. The floor arm remains the FAMILY rather than a list
+// of names, so a roster that grows is covered without anyone remembering to widen a regex — and the
+// derived names are still asserted to fall inside the vocabulary below, so a name that escaped it
+// would make the guard refuse to run rather than run with a hole.
 const SELF_APPROVE = new RegExp(
-  `(?:^|[\\s;&|(])(?:export\\s+|env\\s+)?(${APPROVAL}|${FLOOR_ENV_VAR_PATTERN})\\s*=`,
+  `(?:^|[\\s;&|(])(?:export\\s+|env\\s+)?(${GRANT_ENV_VAR_PATTERN_SOURCE})\\s*=`,
 );
-
-function deny(reason: string): never {
-  process.stdout.write(
-    JSON.stringify({
-      hookSpecificOutput: {
-        hookEventName: "PreToolUse",
-        permissionDecision: "deny",
-        permissionDecisionReason: reason,
-      },
-    }),
-  );
-  process.exit(0); // exit 0 + JSON deny = blocked, with a message for the agent.
-}
 
 // Read and parse stdin. Fail CLOSED: if input cannot be read or parsed, treat the command as
 // empty. An empty command matches no deploy pattern and is allowed, so a malformed payload can
@@ -229,8 +304,11 @@ try {
 // produced. An unmatched command was never gated by this hook and is not gated by a read failure.
 let matrix: Readonly<Record<Checkpoint, Disposition>> = { ...CHECKPOINT_DEFAULTS };
 let matrixUnread = false;
+let configRefusals: readonly string[] = [];
 try {
-  matrix = readGovernanceConfig(process.env.CLAUDE_PROJECT_DIR).config.checkpoints;
+  const read = readGovernanceConfig(process.env.CLAUDE_PROJECT_DIR);
+  matrix = read.config.checkpoints;
+  configRefusals = read.checkpointRefusals;
 } catch {
   matrix = { ...CHECKPOINT_DEFAULTS };
   matrixUnread = true;
@@ -251,17 +329,57 @@ const evaluation = evaluateMatrix(matrix, process.env);
 // counts the recognized banner lines per run and refuses zero and two alike.
 process.stderr.write(`${composeBanner(evaluation)}\n`);
 
+// ── What the config declared and the reader DROPPED (plan 30-11, closing `V-30-10-01`). ──────────
+// The reader accumulates a refusal for every `checkpoints` entry it refuses: a key that is not on
+// the roster, a value outside `block|notify|off`, a matrix that is not an object. Every drop is
+// fail-CLOSED — the checkpoint keeps its default, so nothing is lowered — but until this loop nothing
+// printed them, so a human who mistyped a checkpoint id saw a run whose banner truthfully said
+// `all checkpoints at default` and had no way to learn that the line they wrote had been ignored.
+// The contract on that field says the entry is dropped and recorded "so the run can say what it
+// ignored instead of ignoring it silently"; this is the half that says it.
+//
+// THE BOUND ON WHAT THIS PRINTS. Refusal text is the only stderr this file emits that is composed
+// from config CONTENT, and config is agent-writable. Two properties keep that from mattering, both
+// asserted in tests rather than argued here: the reader QUOTES the untrusted key (so a refusal is
+// one line and cannot spell a second), and `CONFIG_REFUSAL_PREFIX` is disjoint from both banner
+// forms (so `isCheckpointBannerLine` rejects every line written here and the exactly-one-banner
+// count is unchanged). stderr, never stdout, for the same reason the banner is: stdout is the
+// decision channel.
+for (const refusal of configRefusals) {
+  process.stderr.write(`${CONFIG_REFUSAL_PREFIX}${refusal}\n`);
+}
+
 // ── The trace write (AUTO-05, D-10 / D-11). ──────────────────────────────────────────────────────
 // THE HOOK WRITES NOTHING ITSELF. There is no `writeFileSync` in this file and there must never be
 // one: containment of a note write lives in the shared chokepoint inside scripts/context-io.ts, and
 // a second direct writer is the shape this tree already had to close once. This function hands
 // structured fields to the ONE sanctioned emitter and holds no path of its own beyond the context
-// root, which is resolved from the SAME base the matrix read used — so the record and the decision
-// can never land in two different repositories.
-const PROJECT_ROOT = process.env.CLAUDE_PROJECT_DIR ?? join(import.meta.dirname, "..");
+// root, which is resolved from the SAME base the matrix read used.
+//
+// V-30-10-03 IS DECIDED HERE, AND THE SECOND EXPRESSION IS DELETED (plan 30-11). Surface B recorded
+// that this line and the reader's own fallback were two independent spellings of one base, and left
+// the semantics question open: should a caller with no project root read the KIT's dial, or refuse?
+// The decision is (a) — KEEP the fallback and say so — for a reason that is a fact about this hook
+// rather than a preference: `hooks/hooks.json` is a Claude Code plugin manifest, and Claude Code is
+// the one target CLI that sets `CLAUDE_PROJECT_DIR`. On the four CLIs that do not set it, this hook
+// does not run at all, so the fallback is not a per-repository dial silently resolving to a per-kit
+// one for a guard invocation; it is the base for library and manual callers of the reader, for whom
+// "the kit I was loaded from" is the only root that exists. A shared kit therefore carries a shared
+// dial for those callers, which is documented rather than left to be discovered.
+//
+// What the surface-B finding got right, and what is fixed here: there were TWO expressions for one
+// base. The reader now PUBLISHES its fallback (`GOVERNANCE_FALLBACK_BASE`, added by surface B's F1),
+// so this file reads that answer instead of recomputing it. The two were equal only because
+// `hooks/` and `scripts/` happen to sit at the same depth — an equality maintained by coincidence is
+// the thing this repository keeps closing, not a property.
+const PROJECT_ROOT = process.env.CLAUDE_PROJECT_DIR ?? GOVERNANCE_FALLBACK_BASE;
 const CONTEXT_ROOT = join(PROJECT_ROOT, ".grugops", "context");
 
-function record(r: CheckpointResolution, outcome: "allowed" | "refused"): void {
+function record(
+  r: CheckpointResolution,
+  outcome: "allowed" | "refused",
+  actionApproval: string | null,
+): void {
   emitCheckpointNote(
     {
       checkpoint: r.id,
@@ -270,6 +388,7 @@ function record(r: CheckpointResolution, outcome: "allowed" | "refused"): void {
       authorizedBy: r.authorizedBy,
       envVarName: r.envVarName,
       outcome,
+      actionApproval,
       actor,
       command: cmd,
     },
@@ -277,16 +396,27 @@ function record(r: CheckpointResolution, outcome: "allowed" | "refused"): void {
   );
 }
 
-// The derived floor names must fall inside the family the self-set detector refuses. Asserted here,
-// at the point of use, rather than trusted: a derived name outside the pattern would be a grant the
-// agent could set for itself, so the guard refuses to run rather than run with the hole.
-const FAMILY = new RegExp(`^${FLOOR_ENV_VAR_PATTERN}$`);
+// Every grant name this guard can be asked about must fall inside the vocabulary the self-set
+// refusal is built from. Asserted here, at the point of use, rather than trusted: a name outside the
+// vocabulary would be a grant the agent could set for itself, so the guard refuses to run rather
+// than run with the hole. Both arms are walked — the DERIVED floor names, and the NAMED grants —
+// because a table entry that the pattern source failed to fold in is the same hole as a derived name
+// that escaped the family.
 for (const c of FLOOR_CHECKPOINTS) {
-  if (!FAMILY.test(floorEnvVarName(c))) {
+  if (!isGrantEnvVarName(floorEnvVarName(c))) {
     deny(
       `Blocked (fail-closed): the floor grant variable for checkpoint "${c}" is ` +
         `"${floorEnvVarName(c)}", which the self-set refusal cannot recognize. The guard will not ` +
         `evaluate a command while a grant variable exists that an agent could set for itself.`,
+    );
+  }
+}
+for (const name of Object.keys(NAMED_GRANT_ENV_VARS)) {
+  if (!isGrantEnvVarName(name)) {
+    deny(
+      `Blocked (fail-closed): the grant variable "${name}" is published in the grant vocabulary ` +
+        `but the self-set refusal built from that vocabulary does not recognize it. The guard will ` +
+        `not evaluate a command while a grant variable exists that an agent could set for itself.`,
     );
   }
 }
@@ -304,9 +434,16 @@ if (selfSet) {
         `in the shell that launches Claude — it cannot be set inside the command.`,
     );
   }
+  // Every OTHER member of the vocabulary. The sentence naming WHAT the grant authorizes is read out
+  // of the published table when the name is one of the named grants, and falls back to the floor
+  // sentence for the derived family — so a grant added to the table gets a truthful denial without a
+  // fourth arm being written here (finding A-1: three grants, two arms, one of them silently absent).
+  const named = (NAMED_GRANT_ENV_VARS as Record<string, string | undefined>)[attempted];
   deny(
     `Refused: an agent may not set or export ${attempted}. ` +
-      `A floor grant lowers a safety checkpoint below its default and must come from a human who ` +
+      (named === undefined
+        ? `A floor grant lowers a safety checkpoint below its default and must come from a human who `
+        : `That variable carries ${named}, and must come from a human who `) +
       `exports ${attempted}=NAME in the shell that launches Claude — it cannot be set inside the ` +
       `command, and it is refused here even when the variable is already present in the environment. ` +
       `The grant is session-scoped: once a human sets it, it authorizes the lowered posture under ` +
@@ -335,7 +472,23 @@ for (const group of CHECKPOINT_PATTERNS) {
     );
   }
 
-  // ── D-10: an UNAUTHORIZED lowering records its own finding, then is refused. ───────────────────
+  // ── The OUTCOME is decided BEFORE anything is recorded (plan 30-11, finding A-3). ──────────────
+  // The record used to be written from its POSITION in this loop: it sat above the action-approval
+  // check and therefore hardcoded `"refused"`, because at that point in the file a refusal was the
+  // only outcome the author had in view. Measured on the committed artifact: a config declaring
+  // `off` with no floor grant, a matched `git push origin main`, and a human-set
+  // GRUGOPS_PROD_DEPLOY_APPROVED produced ALLOW — and a note in the shared verified context reading
+  // `CHECKPOINT REFUSED`. A record of a refusal that did not happen is worse than no record: the
+  // trace is the proof, and this one asserted something the run did not establish.
+  //
+  // So the run decides first and records second. `actionApproved` is the same question the loop asks
+  // below, asked once, above both the record and the decision — the D-19 shape (one evaluation
+  // feeding both the announcement and the decision) applied to the record.
+  const actionApproved = grantedBy(process.env, APPROVAL);
+  const outcome: "allowed" | "refused" =
+    r.effective === "block" && actionApproved === null ? "refused" : "allowed";
+
+  // ── D-10: an UNAUTHORIZED lowering records its own finding, with the outcome the run reached. ──
   // The declaration alone changed nothing, and without this note it would ALSO have left nothing —
   // an agent editing config alone would be ineffective and invisible, which is only half of what
   // AUTO-05 promises. The record is written BEFORE the denial so a denial can never be the only
@@ -344,7 +497,7 @@ for (const group of CHECKPOINT_PATTERNS) {
   let unrecorded = "";
   if (r.unauthorizedLowering) {
     try {
-      record(r, "refused");
+      record(r, outcome, actionApproved === null ? null : APPROVAL);
     } catch (e) {
       unrecorded =
         ` NOTE: this refusal could NOT be recorded in the shared verified context ` +
@@ -359,7 +512,7 @@ for (const group of CHECKPOINT_PATTERNS) {
   // disposition a human chose in order to hear nothing, and it writes nothing.
   if (r.effective === "notify") {
     try {
-      record(r, "allowed");
+      record(r, "allowed", null); // an authorized lowering allows on its own key, not on the action approval
     } catch (e) {
       deny(
         `Blocked: the checkpoint "${r.id}" is set to \`notify\`, which allows this command only ` +
@@ -372,7 +525,10 @@ for (const group of CHECKPOINT_PATTERNS) {
     continue;
   }
   if (r.effective !== "block") continue;
-  if (process.env[APPROVAL]) continue;
+  // ONE presence predicate for the whole grant vocabulary (finding A-4): a value that names nobody
+  // is not an approval. `process.env[APPROVAL]` accepted a single space, so a grant that renders as
+  // nothing allowed a matched production deploy.
+  if (actionApproved !== null) continue;
 
   if (matrixUnread) {
     deny(

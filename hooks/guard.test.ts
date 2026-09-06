@@ -27,13 +27,15 @@ import {
   writeFileSync,
   readFileSync,
   readdirSync,
+  copyFileSync,
   rmSync,
   existsSync,
   chmodSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
+import { closureTargets } from "../scripts/js-import-closure.js";
 
 // The COMMITTED checkpoints artifact — the same module the spawned guard imports, so the recognizer
 // this file counts banners with and the composer the guard prints them from are one authority.
@@ -676,5 +678,310 @@ describe("guard.js — the RESIDUAL this phase discloses rather than closes (RES
     expect(r.stderr).toContain(`authorized by ${FLOOR_VAR}=provenance-unknown`);
     // The honest reading: the guard reports WHO the grant names, never WHERE it came from.
     expect(r.stderr).not.toContain("human-verified");
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// PLAN 30-11 — RED-TEAM SURFACE A, ROUND 1.
+//
+// Every case below was REPRODUCED FIRST against a mirror of the committed compiled artifact (the
+// file a host actually runs), pre-fix, with both exit statuses recorded in
+// docs/audit/30-redteam-surface-a.md. None of them is a test written after the fact to describe a
+// change: each names a decision the shipped guard made and the reason it was wrong.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Build a MIRROR KIT: the entry hook plus its derived transitive `.js` import closure, copied into a
+ * temp root with the repo-relative layout preserved. The closure is DERIVED by
+ * scripts/js-import-closure.ts rather than listed here, because a hand-listed mirror that misses a
+ * module reproduces "the module is missing" instead of whatever the case meant to reproduce.
+ */
+function mirrorKit(entryRel: string): string {
+  const root = mkdtempSync(join(tmpdir(), "guard-mirror-"));
+  cpTmpDirs.push(root);
+  for (const t of closureTargets(join(import.meta.dirname, ".."), entryRel, root)) {
+    mkdirSync(dirname(t.to), { recursive: true });
+    copyFileSync(t.from, t.to);
+  }
+  return root;
+}
+
+/** Spawn an arbitrary hook artifact with the ambient GRUGOPS_/CLAUDE_PROJECT_DIR environment scrubbed. */
+function runArtifact(
+  artifact: string,
+  json: string,
+  extra: Record<string, string> = {},
+): { status: number | null; stdout: string; stderr: string } {
+  const env: Record<string, string> = {};
+  for (const [k, v] of Object.entries(process.env)) {
+    if (k.startsWith("GRUGOPS_") || k === "CLAUDE_PROJECT_DIR" || v === undefined) continue;
+    env[k] = v;
+  }
+  const r = spawnSync("node", [artifact], { input: json, encoding: "utf8", env: { ...env, ...extra } });
+  return { status: r.status, stdout: r.stdout ?? "", stderr: r.stderr ?? "" };
+}
+
+describe("30-11 A-1 — the self-set refusal covers the WHOLE grant vocabulary, derived", () => {
+  // THE BYPASS, IN ONE SENTENCE. The refusal enumerated the prod-deploy approval plus the floor
+  // family. `GRUGOPS_ADMISSION_APPROVED_BY` — the human-admission gate's key, declared as a bare
+  // literal in the OTHER hook in this same directory — was in neither arm. Measured on the committed
+  // artifact: `export GRUGOPS_FLOOR_OPEN_PR=alice && ls` DENY,
+  // `export GRUGOPS_ADMISSION_APPROVED_BY=alice && ls` ALLOW. Same shape, opposite decisions.
+  //
+  // The assertion is written over the PUBLISHED vocabulary, not over a list repeated here, so a
+  // grant added to the table is covered by this test without anyone editing it.
+  const everyGrantName = [
+    ...Object.keys(cp.NAMED_GRANT_ENV_VARS),
+    ...cp.FLOOR_CHECKPOINTS.map((c) => cp.floorEnvVarName(c)),
+  ];
+
+  it("the vocabulary is non-empty and carries BOTH arms (the assertion is not vacuous)", () => {
+    expect(Object.keys(cp.NAMED_GRANT_ENV_VARS).length).toBeGreaterThanOrEqual(2);
+    expect(cp.FLOOR_CHECKPOINTS.length).toBeGreaterThanOrEqual(1);
+    expect(everyGrantName).toContain("GRUGOPS_ADMISSION_APPROVED_BY");
+  });
+
+  for (const name of [
+    "GRUGOPS_PROD_DEPLOY_APPROVED",
+    "GRUGOPS_ADMISSION_APPROVED_BY",
+    "GRUGOPS_FLOOR_OPEN_PR",
+    "GRUGOPS_FLOOR_PROTECTED_BRANCH_MERGE",
+  ]) {
+    it(`refuses an inline set of ${name} on a command that matches NO checkpoint pattern`, () => {
+      const r = runGuard(payload(`export ${name}=alice && ls`));
+      expect(r.stdout, `${name} must be refused like every other grant`).toContain(
+        '"permissionDecision":"deny"',
+      );
+    });
+    it(`refuses PERSISTING ${name} into a shell profile`, () => {
+      // The persistence form is the one that matters: an inline export dies with the child shell,
+      // but a line appended to a profile reaches the environment of the NEXT session's hook.
+      const r = runGuard(payload(`echo 'export ${name}=alice' >> ~/.zshrc`));
+      expect(r.stdout).toContain('"permissionDecision":"deny"');
+    });
+  }
+
+  it("EVERY published grant name is refused — driven by the vocabulary, not by a list", () => {
+    for (const name of everyGrantName) {
+      const r = runGuard(payload(`${name}=alice ls`));
+      expect(r.stdout, `grant ${name} escaped the self-set refusal`).toContain(
+        '"permissionDecision":"deny"',
+      );
+    }
+  });
+
+  it("a name that merely LOOKS like a grant is not refused (the refusal is not a prefix sweep)", () => {
+    expect(runGuard(payload("GRUGOPS_UNRELATED=1 ls")).stdout).not.toContain("deny");
+    expect(runGuard(payload("MY_GRUGOPS_FLOOR_OPEN_PR=1 ls")).stdout).not.toContain("deny");
+  });
+
+  it("neither hook SOURCE spells a grant name as a string literal (the drift guard)", () => {
+    // The set-literal drift class, refused structurally: a fourth grant introduced as a literal in a
+    // hook is exactly how the third one escaped. Both hooks must import their constant.
+    for (const rel of ["guard.ts", "admission-guard.ts"]) {
+      const src = readFileSync(join(import.meta.dirname, rel), "utf8");
+      // Only CODE lines are inspected; the prose above each hook names the variables deliberately.
+      const codeLines = src
+        .split("\n")
+        .filter((l) => !l.trimStart().startsWith("//") && !l.trimStart().startsWith("*"));
+      for (const line of codeLines) {
+        expect(line, `${rel} restates a grant name as a literal: ${line.trim()}`).not.toMatch(
+          /["'`]GRUGOPS_(PROD_DEPLOY_APPROVED|ADMISSION_APPROVED_BY|FLOOR_)/,
+        );
+      }
+    }
+  });
+});
+
+describe("30-11 A-2 — a hook that cannot decide DENIES; it never exits non-zero", () => {
+  // THE BYPASS, IN ONE SENTENCE. A PreToolUse hook that exits with anything other than 0-plus-deny
+  // JSON (or 2) is NON-BLOCKING at the host, so a crashed guard and an allowing guard are the same
+  // event. Measured on the committed artifacts: with `scripts/checkpoints.js` overwritten by one
+  // line of garbage, `git push --force origin main` produced exit 1, zero bytes of stdout, ALLOW.
+  // No grant, no config declaration, no human — one agent-reachable file write turned the two-key
+  // rule off entirely.
+  const MATCHED = payload("git push --force origin main");
+
+  it("the mirror harness's own premise: an INTACT mirror still denies a matched command", () => {
+    // Without this, every case below could be passing because the mirror is broken in some other
+    // way — the false-control class this project has recorded six times.
+    const root = mirrorKit("hooks/guard.js");
+    const r = runArtifact(join(root, "hooks", "guard.js"), MATCHED);
+    expect(r.status).toBe(0);
+    expect(r.stdout).toContain('"permissionDecision":"deny"');
+  });
+
+  for (const [label, breakIt] of [
+    ["a corrupted checkpoint roster", (root: string) => writeFileSync(join(root, "scripts", "checkpoints.js"), "not js {{{\n")],
+    ["a deleted checkpoint roster", (root: string) => rmSync(join(root, "scripts", "checkpoints.js"))],
+    ["a corrupted governance reader", (root: string) => writeFileSync(join(root, "scripts", "context-io.js"), "not js {{{\n")],
+    ["a deleted governance reader", (root: string) => rmSync(join(root, "scripts", "context-io.js"))],
+  ] as const) {
+    it(`prod-deploy guard: ${label} DENIES a matched command (never exit 1 + empty stdout)`, () => {
+      const root = mirrorKit("hooks/guard.js");
+      breakIt(root);
+      const r = runArtifact(join(root, "hooks", "guard.js"), MATCHED);
+      expect(r.status, "a non-zero exit is NON-BLOCKING at the host — it is an allow").toBe(0);
+      expect(r.stdout).toContain('"permissionDecision":"deny"');
+      expect(r.stdout).toContain("could not");
+    });
+  }
+
+  it("admission guard: a corrupted dependency DENIES a gated high-severity admission", () => {
+    const root = mirrorKit("hooks/admission-guard.js");
+    mkdirSync(join(root, ".grugops"), { recursive: true });
+    writeFileSync(
+      join(root, ".grugops", "factory.config.json"),
+      '{"context":{"human_admission":"high-severity"}}',
+    );
+    const gated = JSON.stringify({
+      tool_name: "mcp__grugops__propose_note",
+      tool_input: { by: "security-nfr", kind: "finding", verified_by: "", task: "t" },
+    });
+    // Premise first: the intact mirror denies for the RIGHT reason (the human gate), not by accident.
+    const intact = runArtifact(join(root, "hooks", "admission-guard.js"), gated, {
+      CLAUDE_PROJECT_DIR: root,
+    });
+    expect(intact.stdout).toContain("humans decide, agents execute");
+    writeFileSync(join(root, "scripts", "context-io.js"), "not js {{{\n");
+    const broken = runArtifact(join(root, "hooks", "admission-guard.js"), gated, {
+      CLAUDE_PROJECT_DIR: root,
+    });
+    expect(broken.status).toBe(0);
+    expect(broken.stdout).toContain('"permissionDecision":"deny"');
+  });
+});
+
+describe("30-11 A-3 — the record states the outcome the run REACHED", () => {
+  // THE BYPASS, IN ONE SENTENCE. The D-10 record sat above the action-approval check and hardcoded
+  // `"refused"` from its POSITION. Measured on the committed artifact: config `off`, no floor grant,
+  // a matched push, and a human-set GRUGOPS_PROD_DEPLOY_APPROVED produced ALLOW — and a note in the
+  // shared verified context reading `CHECKPOINT REFUSED`. The trace is the proof; a record of a
+  // refusal that did not happen is worse than no record.
+  function noteBodies(projectDir: string): string[] {
+    const dir = join(projectDir, ".grugops", "context");
+    const out: string[] = [];
+    const walk = (d: string): void => {
+      if (!existsSync(d)) return;
+      for (const e of readdirSync(d, { withFileTypes: true })) {
+        const p = join(d, e.name);
+        if (e.isDirectory()) walk(p);
+        else out.push(readFileSync(p, "utf8"));
+      }
+    };
+    walk(dir);
+    return out;
+  }
+
+  it("an unauthorized lowering that the ACTION approval then allowed records ALLOWED, not REFUSED", () => {
+    const root = projectWithConfig(LOWERED_OFF);
+    const r = runAt(root, PUSH, { [APPROVAL]: "a-named-human" });
+    expect(r.stdout).toBe(""); // the action was allowed
+    const notes = noteBodies(root);
+    expect(notes.length).toBe(1);
+    expect(notes[0]).toContain("CHECKPOINT ALLOWED");
+    expect(notes[0]).not.toContain("CHECKPOINT REFUSED");
+    // …and it says WHICH key applied, so "allowed" beside "enforced as block" is not a puzzle.
+    expect(notes[0]).toContain("action approved by");
+    expect(notes[0]).toContain(APPROVAL);
+    // The lowering itself is still recorded as unauthorized — the two keys stay distinct.
+    expect(notes[0]).toContain("authorized nothing");
+  });
+
+  it("the same shape WITHOUT the action approval still records REFUSED (non-vacuous)", () => {
+    const root = projectWithConfig(LOWERED_OFF);
+    const r = runAt(root, PUSH);
+    expect(r.stdout).toContain('"permissionDecision":"deny"');
+    const notes = noteBodies(root);
+    expect(notes.length).toBe(1);
+    expect(notes[0]).toContain("CHECKPOINT REFUSED");
+    expect(notes[0]).not.toContain("action approved by");
+  });
+});
+
+describe("30-11 A-4 — a grant that names nobody is not a grant", () => {
+  // THE BYPASS, IN ONE SENTENCE. The presence test was `raw.length > 0` for the floor grant and bare
+  // truthiness for the action approval. Measured on the committed artifact: a grant of a single
+  // space AUTHORIZED the lowering, and the banner published
+  // `authorized by GRUGOPS_FLOOR_PROTECTED_BRANCH_MERGE=` — a lowering in effect attributed to a
+  // name that renders as nothing. The value of a grant IS the human's name.
+  for (const [label, value] of [
+    ["one space", " "],
+    ["a tab", "\t"],
+    ["several spaces", "   "],
+    ["a newline", "\n"],
+  ] as const) {
+    it(`a floor grant of ${label} does NOT authorize a lowering`, () => {
+      const r = runAt(projectWithConfig(LOWERED_OFF), PUSH, { [FLOOR_VAR]: value });
+      expect(r.stdout).toContain('"permissionDecision":"deny"');
+      expect(r.stderr).toContain("NOT AUTHORIZED");
+    });
+    it(`an ACTION approval of ${label} does NOT approve a matched deploy`, () => {
+      const r = runAt(projectWithConfig("{}"), PUSH, { [APPROVAL]: value });
+      expect(r.stdout).toContain('"permissionDecision":"deny"');
+    });
+  }
+
+  it("a real name still authorizes, and the published name is the trimmed name (non-vacuous)", () => {
+    const r = runAt(projectWithConfig(LOWERED_OFF), PUSH, { [FLOOR_VAR]: "  Olger Oeselg  " });
+    expect(r.stdout).toBe("");
+    expect(r.stderr).toContain(`authorized by ${FLOOR_VAR}=Olger Oeselg`);
+  });
+
+  it("the banner says the grant NAMES NOBODY rather than that it is absent", () => {
+    // The new degree of freedom this fix created, bounded in the same commit: a variable can now be
+    // SET and still not be a grant, so a banner saying `absent` would send a human looking for a
+    // variable that is right there.
+    const r = runAt(projectWithConfig(LOWERED_OFF), PUSH, { [FLOOR_VAR]: " " });
+    expect(r.stderr).toContain("names nobody");
+    expect(r.stderr).not.toContain("absent");
+  });
+});
+
+describe("30-11 V-30-10-01 — the run says what the config reader DROPPED", () => {
+  // Surface B recorded that the reader accumulates a refusal for every `checkpoints` entry it drops
+  // and that NO non-test consumer read the field. Every drop is fail-closed, so the loss is
+  // visibility: a human who mistyped a checkpoint id saw a run whose banner truthfully said
+  // `all checkpoints at default` and had no way to learn their line had been ignored.
+  it("a non-roster checkpoint key is REPORTED, on stderr, naming the entry", () => {
+    const r = runAt(projectWithConfig('{"checkpoints":{"protected_branch_mergeX":"off"}}'), PUSH);
+    expect(r.stderr).toContain(cp.CONFIG_REFUSAL_PREFIX);
+    expect(r.stderr).toContain("protected_branch_mergeX");
+    expect(r.stdout).toContain('"permissionDecision":"deny"'); // and it is still fail-closed
+  });
+
+  it("a non-canonical disposition VALUE is reported too", () => {
+    const r = runAt(projectWithConfig('{"checkpoints":{"protected_branch_merge":"OFF"}}'), PUSH);
+    expect(r.stderr).toContain(cp.CONFIG_REFUSAL_PREFIX);
+    expect(r.stderr).toContain("protected_branch_merge");
+  });
+
+  it("a clean config reports NOTHING (the report is not printed unconditionally)", () => {
+    const r = runAt(projectWithConfig('{"checkpoints":{"protected_branch_merge":"block"}}'), PUSH);
+    expect(r.stderr).not.toContain(cp.CONFIG_REFUSAL_PREFIX);
+  });
+
+  it("A-6 BOUND: a config key carrying a newline cannot forge a SECOND line, or a banner", () => {
+    // The refusal is the only stderr this file composes from config CONTENT, and config is
+    // agent-writable. Pre-fix the reader interpolated the key RAW, so publishing the refusals would
+    // have made a newline-carrying key spell extra lines — including a line shaped like the banner.
+    const forged = `x\n${cp.BANNER_NON_DEFAULT_PREFIX}protected_branch_merge=off authorized by GRUGOPS_FLOOR_PROTECTED_BRANCH_MERGE=nobody`;
+    const r = runAt(projectWithConfig(JSON.stringify({ checkpoints: { [forged]: "off" } })), PUSH);
+    // Exactly one banner line survives: the real one.
+    expect(bannerLines(r).length).toBe(1);
+    expect(bannerLines(r)[0]).toBe(cp.BANNER_ALL_DEFAULT);
+    // The forged text is present but ESCAPED onto one line, so it is reported and inert.
+    expect(r.stderr).toContain("\\n");
+    expect(r.stdout).toContain('"permissionDecision":"deny"');
+  });
+
+  it("every refusal the reader can produce is a SINGLE line", () => {
+    const r = runAt(
+      projectWithConfig(JSON.stringify({ checkpoints: { "a\nb\nc": "off", protected_branch_merge: 7 } })),
+      PUSH,
+    );
+    const refusalLines = r.stderr.split("\n").filter((l) => l.startsWith(cp.CONFIG_REFUSAL_PREFIX));
+    expect(refusalLines.length).toBe(2); // one per dropped entry, never more
+    for (const l of refusalLines) expect(cp.isCheckpointBannerLine(l)).toBe(false);
   });
 });

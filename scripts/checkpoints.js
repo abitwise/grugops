@@ -119,10 +119,105 @@ export const STRICTEST_MATRIX = Object.freeze(Object.fromEntries(CHECKPOINTS.map
 export const DISPOSITIONS = ["block", "notify", "off"];
 /** The env-var family that carries key two. One prefix, declared once. */
 export const FLOOR_ENV_VAR_PREFIX = "GRUGOPS_FLOOR_";
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// THE GRANT VOCABULARY — one authority over every variable a human sets to authorize something.
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+/**
+ * The NAMED grant variables: every environment variable whose presence authorizes an action or a
+ * posture that a human — and only a human — may authorize. The floor family
+ * (`GRUGOPS_FLOOR_<ID>`) is the third member and is a PATTERN rather than a list, because it grows
+ * with the roster; it is folded in by `GRANT_ENV_VAR_PATTERN_SOURCE` below.
+ *
+ * ---------------------------------------------------------------------------------------------
+ * WHY THIS TABLE EXISTS (plan 30-11, red-team surface A, finding A-1).
+ *
+ * Until this table, the grant vocabulary was written down in three unrelated places: `hooks/guard.ts`
+ * held the prod-deploy approval as a bare string literal, `hooks/admission-guard.ts` held the
+ * admission approval as its own bare string literal, and the self-set refusal in `hooks/guard.ts`
+ * was an alternation of ONE of those two names plus the floor family. Measured on the committed
+ * artifact: `export GRUGOPS_FLOOR_OPEN_PR=alice && ls` was REFUSED and
+ * `export GRUGOPS_ADMISSION_APPROVED_BY=alice && ls` was ALLOWED — two grant variables, the same
+ * command shape, opposite decisions, because the refusal enumerated a set that nothing derived.
+ *
+ * That is this repository's founding defect class (a hand-maintained set literal drifting away from
+ * the thing it is supposed to cover) pointed at a safety refusal. So the set is declared ONCE here,
+ * both hooks import their own constant OUT of it rather than restating it, and the refusal pattern
+ * is BUILT from it. A grant added to this table is refused without anyone remembering to widen a
+ * regex; a grant added anywhere else is caught by the no-second-literal assertion in
+ * `hooks/guard.test.ts`.
+ *
+ * WHAT THE REFUSAL IS, AND WHAT IT IS NOT. Refusing an inline `NAME=value` in an agent-authored
+ * command is a VISIBILITY control, not the access control. The access control is that the hook runs
+ * as a separate process whose environment the agent's own child shell can never reach. Shell
+ * indirection (`V=GRUGOPS_FLOOR_OPEN_PR; export "$V=me"`) defeats the literal spelling and is
+ * measured to do so — and it authorizes nothing either way, for the same reason. See
+ * `docs/audit/30-redteam-surface-a.md` § A-1.
+ * ---------------------------------------------------------------------------------------------
+ */
+export const NAMED_GRANT_ENV_VARS = {
+    GRUGOPS_PROD_DEPLOY_APPROVED: "approval for a production deploy at the un-lowered posture (this action, this session)",
+    GRUGOPS_ADMISSION_APPROVED_BY: "the named human who may dispose of a gated governance finding (this session)",
+};
+/** The prod-deploy ACTION approval. `hooks/guard.ts` imports this rather than spelling it. */
+export const PROD_DEPLOY_APPROVAL_ENV_VAR = "GRUGOPS_PROD_DEPLOY_APPROVED";
+/** The human-admission approval. `hooks/admission-guard.ts` imports this rather than spelling it. */
+export const ADMISSION_APPROVAL_ENV_VAR = "GRUGOPS_ADMISSION_APPROVED_BY";
+/**
+ * The whole grant vocabulary as ONE regular-expression source: every named grant, plus the floor
+ * FAMILY. Built from the table above and the prefix above; nothing restates a name.
+ */
+export const GRANT_ENV_VAR_PATTERN_SOURCE = `${Object.keys(NAMED_GRANT_ENV_VARS).join("|")}|${FLOOR_ENV_VAR_PREFIX}[A-Z0-9_]+`;
+/** Anchored form of the vocabulary — "is this exact string a grant variable name?" */
+const GRANT_ENV_VAR_EXACT = new RegExp(`^(?:${GRANT_ENV_VAR_PATTERN_SOURCE})$`);
+/** Is `name` a member of the grant vocabulary (a named grant, or a floor-family name)? */
+export function isGrantEnvVarName(name) {
+    return GRANT_ENV_VAR_EXACT.test(name);
+}
+/**
+ * Read a grant out of an environment: the human's NAME, or `null` when nobody is named.
+ *
+ * ---------------------------------------------------------------------------------------------
+ * ONE PREDICATE FOR THE WHOLE VOCABULARY, AND WHY IT TRIMS (plan 30-11, finding A-4; reviewer 8
+ * observation 2 carried over from surface B as `V-30-10-04` item 2).
+ *
+ * The presence test used to be `raw.length > 0`, applied to the floor grant only, while the action
+ * approval used a bare truthiness test. Measured on the committed artifact: a grant of a single
+ * space AUTHORIZED the lowering, and the run banner then published
+ * `authorized by GRUGOPS_FLOOR_PROTECTED_BRANCH_MERGE=` — a lowering in effect, attributed to a name
+ * that renders as nothing. The value of a grant is the human's name; that is its entire content and
+ * the whole reason the record exists. A value that names nobody is not a grant, and a run that
+ * cannot say who authorized a lowering has not recorded the lowering.
+ *
+ * The direction of the change is strictly stricter: a value that previously authorized and named
+ * nobody now authorizes nothing. A value that names somebody is unchanged except that surrounding
+ * whitespace is dropped from the published name.
+ * ---------------------------------------------------------------------------------------------
+ */
+export function grantedBy(env, name) {
+    const raw = env[name];
+    if (typeof raw !== "string")
+        return null;
+    const named = raw.trim();
+    return named.length > 0 ? named : null;
+}
 /** The fixed zero-config banner line (D-20). Always printed, so absent and broken look different. */
 export const BANNER_ALL_DEFAULT = "all checkpoints at default";
 /** The opening of the OTHER banner form. Declared once; the composer and the recognizer share it. */
 export const BANNER_NON_DEFAULT_PREFIX = "checkpoints not at default: ";
+/**
+ * The opening of a CONFIG-REFUSAL line (plan 30-11, closing `V-30-10-01`).
+ *
+ * The governance reader accumulates a refusal for every `checkpoints` entry it drops — a key that is
+ * not on the roster, a value outside `block|notify|off`, a whole matrix that is not an object. Until
+ * this constant nothing printed them, so a human who mistyped a checkpoint id got no signal at all
+ * and believed they had lowered something they had not.
+ *
+ * It is a DIFFERENT prefix from the banner's on purpose, and `isCheckpointBannerLine` must never
+ * accept a line that starts with it: the exactly-one-banner count in `hooks/guard.test.ts` is what
+ * makes a missing banner and a broken banner look different, and a refusal line counted as a banner
+ * would break that count. The two literals are asserted disjoint in `scripts/checkpoints.test.ts`.
+ */
+export const CONFIG_REFUSAL_PREFIX = "checkpoint config refused: ";
 /**
  * Is this line a checkpoint banner? The RECOGNIZER half of the exactly-one-banner assertion.
  *
@@ -270,8 +365,10 @@ export function resolveCheckpoint(id, matrix, env) {
             unauthorizedLowering: false,
         };
     }
-    const raw = env[envVarName];
-    const authorizedBy = typeof raw === "string" && raw.length > 0 ? raw : null;
+    // ONE presence predicate for the whole grant vocabulary (finding A-4). A value that names nobody
+    // is not a grant, so a whitespace-only grant leaves the floor at `block` and reports itself as an
+    // unauthorized lowering exactly as an absent one does.
+    const authorizedBy = grantedBy(env, envVarName);
     return {
         id,
         declared,
@@ -335,7 +432,13 @@ export function composeBanner(evaluation) {
         if (r.declared === CHECKPOINT_DEFAULTS[id])
             continue;
         if (r.unauthorizedLowering) {
-            parts.push(`${id}=${r.declared} NOT AUTHORIZED (${r.envVarName} absent; enforced as block)`);
+            // "names nobody", not "absent" (plan 30-11, finding A-4 — the new freedom that fix created).
+            // Tightening `grantedBy` so a whitespace-only value stops authorizing introduced a SECOND way
+            // to be unauthorized: the variable can now be set and still not be a grant. The banner said
+            // `absent`, which for that case is a sentence the run did not establish — a human would go
+            // looking for a variable that is in fact right there. One clause covers both, because the
+            // predicate is one predicate: what is missing is a NAME, not the variable.
+            parts.push(`${id}=${r.declared} NOT AUTHORIZED (${r.envVarName} names nobody; enforced as block)`);
         }
         else if (r.authorizedBy !== null) {
             parts.push(`${id}=${r.declared} authorized by ${r.envVarName}=${r.authorizedBy}`);

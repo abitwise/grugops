@@ -134,7 +134,27 @@ const APPROVAL = "GRUGOPS_ADMISSION_APPROVED_BY";
 // surface a banner and a decision drift apart on. The guard now holds ONE evaluation of the whole
 // roster and passes it to both the banner composer and the decision loop, so there is no second value
 // to disagree with. No message, no pattern and no env read changed.
-const FROZEN_GUARD_BLOB = "63c659c179ac99728f1286fb42f96f81eb16a9e3";
+//
+// RE-BASELINED AGAIN BY PLAN 30-11 (D-24, this phase's FIFTH and last guard commit). The previous
+// baseline `63c659c1…a9e3` froze a guard that FAILED OPEN on any failure it had not thought of.
+// Red-team surface A round 1 reproduced this on the committed `hooks/guard.js`, spawned as a
+// process: with `scripts/checkpoints.js` overwritten by one line of garbage,
+// `git push --force origin main` produced exit 1, zero bytes of stdout, and therefore ALLOW — a
+// PreToolUse hook that exits non-zero is NON-BLOCKING at the host, so a crashed guard and an
+// allowing guard are the same event. One agent-reachable file write turned the two-key rule off with
+// no grant, no config declaration and no human.
+//
+// This change makes the fail-closed posture a property of the PROCESS rather than of the branches
+// the author happened to foresee: the dependency load is a guarded dynamic import (a static import
+// is hoisted above `deny` itself and cannot be caught), and two last-resort handlers convert any
+// remaining throw into the deny JSON. It also folds three other round-1 findings — the self-set
+// refusal is rebuilt from the PUBLISHED grant vocabulary so `GRUGOPS_ADMISSION_APPROVED_BY` stops
+// escaping it (A-1); the D-10 record states the outcome the run REACHED instead of the one its
+// position implied (A-3); a grant that names nobody stops authorizing (A-4) — and publishes the
+// governance reader's dropped-entry refusals, closing `V-30-10-01`. Every one is a strictly stricter
+// decision or a more honest record; the zero-config decision and wording are byte-unchanged, which
+// scripts/autonomy-zero-config.test.ts asserts as a whole-run differential.
+const FROZEN_GUARD_BLOB = "12ea942f749236a448f29ed8a015c355d873f363";
 
 // Import the COMMITTED .js for the pure-function floor checks (validate / admit). Never the .ts.
 const mod: typeof import("../scripts/context-io.js") = await import(
@@ -287,12 +307,92 @@ describe("SC3 floor-invariance — every governance dial value (incl. garbage) s
       expect(blob).toBe(FROZEN_GUARD_BLOB);
     });
 
-    it("hooks/guard.ts has no uncommitted modification (git diff --quiet)", () => {
-      // `git diff --quiet <path>` exits 0 when the working tree matches HEAD for that path. execFileSync
-      // throws on a nonzero exit, so a clean tree returns normally and a dirty tree throws (fails).
+    it("hooks/guard.ts has no uncommitted modification, measured against HEAD", () => {
+      // MEASURED AGAINST **HEAD**, NOT THE INDEX (plan 30-11, red-team surface A, finding A-5).
+      //
+      // This assertion used to read `git diff --quiet hooks/guard.ts`. With no commit argument,
+      // `git diff` compares the WORKING TREE to the **INDEX** — so a single `git add hooks/guard.ts`
+      // satisfied it while HEAD still carried the old guard. Reproduced on a clone of this
+      // repository: append a line to the guard, update FROZEN_GUARD_BLOB to the new hash, stage ONLY
+      // the guard, and `git diff --quiet hooks/guard.ts` exits 0 while
+      // `git diff --quiet HEAD -- hooks/guard.ts` exits non-zero. The comment above claims this pair
+      // refuses a change that someone "leaves uncommitted"; against the index, it did not.
+      //
+      // `--quiet` exits 0 when the path matches HEAD. execFileSync throws on a nonzero exit, so a
+      // clean tree returns normally and a dirty-or-merely-staged tree throws (fails).
       expect(() =>
-        execFileSync("git", ["diff", "--quiet", "hooks/guard.ts"], { cwd: ROOT }),
+        execFileSync("git", ["diff", "--quiet", "HEAD", "--", "hooks/guard.ts"], { cwd: ROOT }),
       ).not.toThrow();
+    });
+
+    it("the guard and this baseline moved in the SAME COMMIT (D-24, commit-scoped)", () => {
+      // WHAT SCOPE THE FREEZE RULE ACTUALLY HAD, AND WHAT IT NOW HAS (finding A-5).
+      //
+      // D-24 says the hook is unfrozen and re-frozen in the SAME COMMIT. Until this case, nothing
+      // asked that question: the two assertions above are working-tree assertions, and
+      // `scripts/check-diff-disposition.ts` — which owns this repository's per-commit companion
+      // machinery, with the explicit "the commit that actually changed it, not merely somewhere in
+      // the range" rule — carries three frozen sources and `hooks/guard.ts` is not one of them. So
+      // the freeze was neither commit-scoped nor range-scoped: it was index-scoped, and D-24 was
+      // enforced by the author's discipline alone.
+      //
+      // The question asked here is commit-scoped on purpose. A range-scoped form ("did the baseline
+      // change anywhere between some base and HEAD") self-disarms the first time the companion file
+      // changes for an unrelated reason — and this phase changed the guard four times, which is
+      // exactly the condition under which that happens.
+      const guardCommit = execFileSync(
+        "git",
+        ["log", "-1", "--format=%H", "--", "hooks/guard.ts"],
+        { cwd: ROOT, encoding: "utf8" },
+      ).trim();
+      expect(guardCommit, "hooks/guard.ts must exist in history for the freeze to mean anything").toMatch(
+        /^[0-9a-f]{40}$/,
+      );
+      const touched = execFileSync(
+        "git",
+        ["show", "--name-only", "--format=", guardCommit],
+        { cwd: ROOT, encoding: "utf8" },
+      )
+        .split("\n")
+        .map((l) => l.trim())
+        .filter((l) => l.length > 0);
+      // Its own premise: the commit we found really is a commit that touched the guard. Without
+      // this, a `git log` that silently returned an unrelated commit would make the case pass for a
+      // reason it never checked.
+      expect(touched, `commit ${guardCommit} does not touch hooks/guard.ts`).toContain("hooks/guard.ts");
+      expect(
+        touched,
+        `hooks/guard.ts last changed in ${guardCommit}, which does not also carry ` +
+          `scripts/floor-invariance.test.ts. D-24 requires the source and its frozen baseline to ` +
+          `move as one act; a two-commit split leaves HEAD carrying a guard whose blob does not ` +
+          `match HEAD's baseline, and a fresh clone of that commit is red while this working tree ` +
+          `is green.`,
+      ).toContain("scripts/floor-invariance.test.ts");
+      // And the compiled artifact the HOST runs moved with them — the source freeze says nothing
+      // about hooks/guard.js on its own.
+      expect(
+        touched,
+        `commit ${guardCommit} changed hooks/guard.ts without hooks/guard.js; the host runs the ` +
+          `artifact, so a source-only commit ships a guard nobody built.`,
+      ).toContain("hooks/guard.js");
+    });
+
+    it("NEW FREEDOM, BOUNDED: the commit-scoped assertion needs a git HISTORY, and says so", () => {
+      // The bound on the case above, stated in the same commit that introduced it. `git hash-object`
+      // works outside a repository; `git log` does not. A consumer running this suite from an
+      // exported archive (`git archive`, a tarball, a vendored copy) has no history, and this
+      // repository has already recorded one round where a mirror with no `.git` produced a clean
+      // result from a gate that never reached its predicate. So the premise is asserted rather than
+      // assumed: if this is not a git working tree, the case above proves nothing and this one says
+      // which of the two situations we are in.
+      const inRepo = execFileSync("git", ["rev-parse", "--is-inside-work-tree"], {
+        cwd: ROOT,
+        encoding: "utf8",
+      }).trim();
+      expect(
+        inRepo,
+        "the commit-scoped freeze assertion is only meaningful inside a git working tree",
+      ).toBe("true");
     });
   });
 

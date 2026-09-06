@@ -1141,6 +1141,17 @@ export interface CheckpointNoteInput {
   readonly envVarName: string | null;
   /** What the guard did about this command. */
   readonly outcome: "allowed" | "refused";
+  /**
+   * The name of the ACTION-approval variable when that variable — not the checkpoint's own key two —
+   * is what let the command proceed; `null` otherwise (plan 30-11, finding A-3).
+   *
+   * It exists because `outcome: "allowed"` and `effective: "block"` are a legal and initially
+   * puzzling combination: the lowering was NOT authorized (so the checkpoint is enforced at its
+   * default) while the action itself was separately approved by a human at that un-lowered posture.
+   * Without this field a reader of the record would have to guess which of the two keys applied, and
+   * the obvious guess — that the two-key rule was bypassed — is the wrong one.
+   */
+  readonly actionApproval: string | null;
   /** The actor, as far as a PreToolUse payload can identify one. */
   readonly actor: string;
   /** The command the decision was about. */
@@ -1202,6 +1213,10 @@ export function emitCheckpointNote(
     `- declared: ${input.declared}\n` +
     `- effective: ${input.effective}\n` +
     `- authorized by: ${authorization}\n` +
+    (input.actionApproval === null
+      ? ""
+      : `- action approved by: ${input.actionApproval} was set by a human, which approves THIS ` +
+        `action at the enforced posture — it does not authorize the declared lowering\n`) +
     `- actor: ${JSON.stringify(input.actor)}\n` +
     `- command: ${JSON.stringify(input.command)}\n`;
   for (const r of note.refs) assertSingleLine("refs[]", r);
@@ -1658,8 +1673,17 @@ function readCheckpointMatrix(parsed: unknown): CheckpointMatrixRead {
   const rosterIds = new Set<string>(CHECKPOINTS);
   for (const key of Object.keys(obj)) {
     if (!rosterIds.has(key)) {
+      // THE KEY IS QUOTED, NOT INTERPOLATED RAW (plan 30-11, finding A-6). This is the one value in
+      // this function that comes from the config file rather than from the roster, and a config file
+      // is agent-writable. JSON permits a key carrying a newline, so a raw interpolation would let
+      // that key spell additional LINES in whatever prints this refusal — including a line shaped
+      // like the run banner the guard emits on the next line down. `emitCheckpointNote` in this same
+      // module already states the rule for untrusted values ("quoted, not interpolated raw"); this
+      // site was the one that had not applied it. Quoting renders the key on one line, with its
+      // escapes visible, so the reported value is exactly the value and the report's own structure
+      // is not something the config can rewrite.
       refusals.push(
-        `\`checkpoints.${key}\` is not a checkpoint on the roster — the entry is dropped and does not widen the checkpoint set`,
+        `\`checkpoints.\` entry ${JSON.stringify(key)} is not a checkpoint on the roster — the entry is dropped and does not widen the checkpoint set`,
       );
     }
   }
