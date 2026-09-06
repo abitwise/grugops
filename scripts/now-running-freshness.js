@@ -42,9 +42,10 @@
 // build-safety + trace surface, never caveman voice).
 import { spawnSync } from "node:child_process";
 import { isEntrypoint } from "./is-entry.js";
+import { jsImportClosure } from "./js-import-closure.js";
 import { mkdtempSync, mkdirSync, cpSync, rmSync, readFileSync, realpathSync, existsSync, } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, sep } from "node:path";
+import { join, dirname, sep } from "node:path";
 // Repo root = this script's parent's parent (scripts/ -> repo root).
 const ROOT = join(import.meta.dirname, "..");
 const toPosix = (p) => p.split(sep).join("/");
@@ -85,7 +86,17 @@ function main() {
     // into <tmp>/.grugops/queue/claimed and spawn the mirrored render so it writes
     // <tmp>/.grugops/queue/now-running.md — the committed tree is never touched.
     mkdirSync(join(tmp, "scripts"), { recursive: true });
-    cpSync(join(ROOT, "scripts", "claim.js"), join(tmp, "scripts", "claim.js"));
+    // THE MIRROR SET IS DERIVED, NOT HAND-KEPT (plan 30-11 round 4). This copied exactly
+    // `scripts/claim.js` and nothing else, so the day `claim.js` gained an import the mirror stopped
+    // resolving and this gate began reporting "the render did not run cleanly" — a failure that looks
+    // like drift and is actually a mirror one module short. `scripts/js-import-closure.ts` already
+    // publishes the transitive `.js` closure, and every other freshness mirror in this repository uses
+    // it; this one was the exception. A hand-kept mirror set is the same set-literal-drift class as a
+    // hand-kept wrapper list or a hand-kept runner set, pointed at a gate's own inputs.
+    for (const rel of jsImportClosure(ROOT, "scripts/claim.js")) {
+        mkdirSync(dirname(join(tmp, rel)), { recursive: true });
+        cpSync(join(ROOT, rel), join(tmp, rel));
+    }
     const mirroredRender = join(tmp, "scripts", "claim.js");
     const mirroredQueueRoot = join(tmp, ".grugops", "queue");
     mkdirSync(join(mirroredQueueRoot, "claimed"), { recursive: true });

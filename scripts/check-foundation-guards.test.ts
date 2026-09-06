@@ -1822,8 +1822,19 @@ const SECTION_EXTENT_OWNER_COUNT = 1;
  *     mirror to copy a third of the repository) and the register auditor (whose own test builds a
  *     hermetic mirror the check's inputs are not in). It asks a question about the REPOSITORY, so it
  *     runs only against the real tree. It declares no parser and locates no section.
+ *
+ * 57 -> 60 (plan 30-11 round 4), THREE modules, each named with its reason:
+ *   - `scripts/is-entry.ts` — the ONE entrypoint predicate (`RA6-1`). It had fourteen spellings, and
+ *     the pre-realpath form silently no-ops under a symlinked invocation path: exit 0, zero bytes,
+ *     which a caller reads as a pass. Round 3 fixed one file and reintroduced it in the file it
+ *     created one commit later. It declares no parser and locates no section.
+ *   - `scripts/generate-hook-manifest.ts` — derives the per-decider import-closure manifest the hook
+ *     wrapper verifies before it runs a decider (`RA5-5`). Asking the child to ASSERT an allow could
+ *     never hold: the token is a constant the corrupted dependency can spell.
+ *   - `scripts/hook-manifest-freshness.ts` — the drift gate over that manifest, so the wrapper's
+ *     frozen expectation cannot silently stop being a derivation.
  */
-const NON_TEST_MODULE_COUNT = 57;
+const NON_TEST_MODULE_COUNT = 60;
 
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 // (Plan 29-40, gap G-29-1 of 29-UAT.md, closing V-29-35-01) THE FRONTMATTER-PARSER NAME OWNER SET.
@@ -2330,10 +2341,12 @@ describe("LANG-07: exactly ONE module owns the section-extent predicate (plan 29
     // `scripts/js-import-closure.ts`. 45 → 47 (plan 30-07): `scripts/generate-guarantees.ts` and
     // `scripts/guarantees-freshness.ts`. 47 → 48 (plan 30-11 round 3):
     // `scripts/check-residual-citations.ts`, the published-residual citation gate `RA4-3` moved into
-    // its own home. Derived independently — `ls scripts/*.ts` minus the `.test.ts` members reports 48
-    // on this tree. (`hooks/hook-entry.ts` moves the WHOLE-TREE count and not this one, because this
-    // pin is `scripts/`-scoped — the two numbers are deliberately different questions.)
-    expect(flat.length, "the `scripts/`-scoped reader's own corpus").toBe(48);
+    // its own home. 48 → 51 (plan 30-11 round 4): `scripts/is-entry.ts`,
+    // `scripts/generate-hook-manifest.ts`, `scripts/hook-manifest-freshness.ts`. Derived
+    // independently — `ls scripts/*.ts` minus the `.test.ts` members reports 51 on this tree.
+    // (`hooks/hook-entry.ts` moves the WHOLE-TREE count and not this one, because this pin is
+    // `scripts/`-scoped — the two numbers are deliberately different questions.)
+    expect(flat.length, "the `scripts/`-scoped reader's own corpus").toBe(51);
     let compared = 0;
     for (const n of flat) {
       for (const spec of ["frontmatter", "canonical-frontmatter", "audit-model"]) {
@@ -2349,8 +2362,9 @@ describe("LANG-07: exactly ONE module owns the section-extent predicate (plan 29
     // each time. Kept as a LITERAL times
     // the spec count rather than `flat.length * 3`: deriving it from the loop's own input would make
     // the assertion true by construction and blind to a corpus that silently shrank.
-    // 47 → 48 (plan 30-11 round 3): `scripts/check-residual-citations.ts`.
-    expect(compared, "the comparison must really have run over the whole corpus").toBe(48 * 3);
+    // 47 → 48 (round 3): `check-residual-citations.ts`. 48 → 51 (round 4): `is-entry.ts`,
+    // `generate-hook-manifest.ts`, `hook-manifest-freshness.ts`.
+    expect(compared, "the comparison must really have run over the whole corpus").toBe(51 * 3);
     // NON-VACUITY: the comparison would be clean over two readers that both return nothing, so at
     // least one module must have produced a non-empty answer through the NEW reader.
     expect(
@@ -2517,13 +2531,14 @@ describe("LANG-07: exactly ONE module owns the section-extent predicate (plan 29
     // `scripts/ci-workflow.testkit.ts`. 43 → 45 (plan 30-01): `scripts/checkpoints.ts` and
     // `scripts/js-import-closure.ts`. 45 → 47 (plan 30-07): `scripts/generate-guarantees.ts` and
     // `scripts/guarantees-freshness.ts`. 47 → 48 (plan 30-11 round 3):
-    // `scripts/check-residual-citations.ts`. Each is the same module the flat reader gained. Both
-    // pins move together on purpose — they are two enumerations of one corpus, and a change that
-    // moved only one of them would be the disagreement this pair exists to surface.
+    // `scripts/check-residual-citations.ts`. 48 → 51 (plan 30-11 round 4): `is-entry.ts`,
+    // `generate-hook-manifest.ts`, `hook-manifest-freshness.ts`. Each is the same module the flat
+    // reader gained. Both pins move together on purpose — they are two enumerations of one corpus,
+    // and a change that moved only one of them would be the disagreement this pair exists to surface.
     expect(
       walked.filter((n) => n.startsWith("scripts/") && !n.slice(8).includes("/")).length,
       "…and the old non-recursive answer is a strict subset, stated as the number this widening moved off",
-    ).toBe(48);
+    ).toBe(51);
 
     // THE ELEMENT COUNT, DERIVED INDEPENDENTLY OF THE WALK THAT PRODUCES IT. A vacuity floor catches
     // an EMPTY denominator and has never caught a SILENTLY SHORT one, so the set is compared against
