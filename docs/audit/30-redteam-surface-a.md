@@ -3601,3 +3601,28 @@ Stated so the judgement has a criterion rather than a mood: **two independent re
 available model, over the surfaces named in the round-4 scope statement, each returning no reproduced
 bypass** — and a fifth round is not available to get there. That is the whole question in front of the
 human at this checkpoint.
+
+---
+
+## One transient, recorded rather than papered over
+
+`scripts/freshness.test.ts` failed once in a full-suite run and passed on the immediately following
+full-suite run and in isolation (56 s / 70 s — it is the slowest file in the suite and spawns a full
+`tsc`). Two full runs bracket it: `2 failed / 3148 passed` then `1 failed / 3149 passed`, the single
+remaining failure being the known `frontmatter` D-49 baseline in both. It is recorded as a **timing
+flake under load, not a result**, because a run that is sometimes red is exactly the shape a reader
+should not have to guess about — and because this plan has twice caught itself believing a harness
+result it had not checked.
+
+## Round 4 final state
+
+```
+suite       1 failed / 3149 passed / 2 skipped   (the known frontmatter D-49 baseline)
+typecheck   both projects green
+build parity / freshness (57 committed .js)      green
+8 freshness:* and 8 check:* scripts              green   (freshness:hook-manifest and
+                                                          check:residual-citations are new)
+floor-invariance (the freeze, run AFTER commit)  136/136
+corpus      105/105 wrapper, 105/105 bare decider
+everyday    60/62 allow — unchanged from round 3
+```
