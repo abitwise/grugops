@@ -219,6 +219,7 @@ describe("guard.js (SAFE-02 prod-deploy guard) — parity oracle for guard.test.
   it("D-10 fail-closed: a missing/unrunnable guard.js does NOT allow the deploy through", () => {
     const missingGuard = join(import.meta.dirname, "guard.MISSING.js");
     const r = spawnSync("node", [missingGuard], {
+      timeout: SPAWN_TIMEOUT_MS, // every spawn in this file is bounded — see SPAWN_TIMEOUT_MS
       input: payload("kubectl apply -f x.yaml"),
       encoding: "utf8",
       env: { ...process.env },
@@ -1093,12 +1094,19 @@ describe("30-11 RA1-1 — one global flag no longer defeats every deploy pattern
     expectAllow(payload("bash -c 'git push origin feature/x'"));
   });
 
-  it("text outside the tokenizer's grammar is fail-CLOSED, and bounded to tool+verb", () => {
-    // The grammar boundary is named rather than extended one layer at a time. An escaped quote makes
-    // a segment untokenizable; an untokenizable segment matches only when the TOOL and one of its
-    // governed VERBS both appear, so an ordinary commit message with an escaped quote is not denied.
+  it("text outside the grammar is fail-CLOSED on the TOOL NAME ALONE (round 3, RA3-4)", () => {
+    // THIS CASE CHANGED IN ROUND 3, AND THE REASON IS THE FINDING. Round 2 bounded the fail-closed
+    // scan to "the tool AND one of its verbs", and measured that as the price of not over-denying an
+    // ordinary commit message. Reviewer 3 then showed the bound was the bypass: splitting the VERB
+    // (`kubectl -n prod ap$(echo ply) -f x`) makes the segment unreadable AND removes the token the
+    // scan searched for, so one edit defeated the parser and its backstop together. The verb conjunct
+    // is gone, so an unreadable segment naming a governed tool now denies — including the commit
+    // message this case used to assert was allowed. That over-denial is the deliberate price of a
+    // backstop that cannot be defeated by the edit that triggers it.
     expectDeny(payload('sh -c "sh -c \'sh -c \\"kubectl -n p apply\\"\'"'));
-    expectAllow(payload('git commit -m "say \\"hi\\" now"'));
+    expectDeny(payload('git commit -m "say \\"hi\\" now"'));
+    // …and a segment with no governed tool named is still not denied, which is what keeps the
+    // fail-closed scan from being a blanket refusal.
     expectAllow(payload('echo "a \\"b\\""'));
   });
 });
@@ -1251,5 +1259,225 @@ describe("30-11 reviewer-1 observation 2 — an EMPTY CLAUDE_PROJECT_DIR names n
     const withUnset = runGuard(payload("git push --force origin main"));
     expect(withEmpty.stdout).toBe(withUnset.stdout);
     expect(bannerLines(withEmpty)).toEqual(bannerLines(withUnset));
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// PLAN 30-11 — RED-TEAM SURFACE A, ROUND 3. Every row reproduced first against the committed
+// round-2 artifact, spawned as a process. See docs/audit/30-redteam-surface-a.md § Round 3.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+describe("30-11 RA3-1 — a word this model cannot READ is refused, not read", () => {
+  // Quotes were stripped at word EDGES and backslashes were not handled at all, so a verb spelled
+  // with shell-neutral punctuation was invisible to the tokenizer AND to the literal patterns. Every
+  // row below was measured EXECUTABLE by reviewer 3 under stub binaries: the governed action ran.
+  for (const cmd of [
+    'kubectl ""apply -f prod.yaml',
+    'kubectl app""ly -f prod.yaml',
+    "kubectl ''apply -f prod.yaml",
+    "kubectl app\\ly -f prod.yaml",
+    "kubectl $'apply' -f prod.yaml",
+    'kubectl -n prod "ap""ply" -f x',
+    'terraform app""ly',
+    'npm pub""lish',
+    'helm up""grade rel chart',
+    'git ""push origin main',
+    "git push origin ma'in'",
+    'git push origin HEAD:refs/heads/ma""in',
+  ]) {
+    it(`denies: ${cmd}`, () => {
+      expectDeny(payload(cmd));
+    });
+  }
+
+  it("a WHOLLY quoted word is still read — that is how a quoted subcommand legitimately arrives", () => {
+    expectDeny(payload("'kubectl' apply -f x"));
+    expectDeny(payload('"kubectl" apply -f x'));
+  });
+
+  it("the `--flag='value'` shape is NOT splicing and is not refused", () => {
+    expectAllow(payload("git log --grep='push origin main'"));
+    expectAllow(payload("gh pr create --body='do not push to main'"));
+    expectAllow(payload("git commit -m'wip'"));
+  });
+});
+
+describe("30-11 RA3-2 / RA3-3 — nothing identifies 'the tool of a segment' any more", () => {
+  // Both findings are closed by ONE deletion: every canonical non-flag word is a candidate tool, so
+  // a grouping token, a reserved word, an unlisted launcher and a flag-with-argument all stop
+  // mattering. No wrapper set, no reserved-word list, no flag grammar was added.
+  for (const cmd of [
+    "( kubectl -n prod apply -f x )",
+    "(kubectl -n prod apply -f x)",
+    "{ kubectl -n prod apply -f x; }",
+    "if true; then kubectl -n prod apply -f x; fi",
+    "for i in 1; do kubectl -n prod apply -f x; done",
+    "case x in x) kubectl -n prod apply -f y;; esac",
+    "! kubectl -n prod apply -f x",
+    "(git -C /r push origin main)",
+    "for f in a; do npm --access public publish; done",
+    "sudo -u root kubectl -n prod apply -f x.yaml",
+    "sudo -E -u root terraform -chdir=infra apply -auto-approve",
+    "sudo -u deploy git -C /repo push origin main",
+    "nice -n 5 kubectl -n prod apply -f x.yaml",
+    "timeout 60 kubectl -n prod apply -f x.yaml",
+    "doas kubectl -n prod apply -f x.yaml",
+    "stdbuf -o0 kubectl -n prod apply -f x.yaml",
+    "setsid kubectl -n prod apply -f x.yaml",
+    "ionice -c2 kubectl -n prod apply -f x.yaml",
+    "\\time kubectl -n prod apply -f x.yaml",
+    "parallel kubectl -n prod apply -f ::: x",
+    "find . -exec kubectl -n prod apply -f {} ;",
+  ]) {
+    it(`denies: ${cmd}`, () => {
+      expectDeny(payload(cmd));
+    });
+  }
+
+  it("the WRAPPERS set literal is gone from the source, not merely lengthened", () => {
+    const src = readFileSync(join(import.meta.dirname, "..", "scripts", "checkpoints.ts"), "utf8");
+    expect(src).not.toMatch(/const WRAPPERS\b/);
+    expect(src).toMatch(/EVERY canonical non-flag word is a candidate tool/);
+  });
+});
+
+describe("30-11 RA3-4 — untokenizable is a STATE, decided on the tool name alone", () => {
+  // Round 2's backstop needed BOTH the tool and one of its verbs as whole words, so splitting the
+  // VERB defeated the parser and the backstop with one edit.
+  for (const cmd of [
+    "kubectl -n prod ap$(echo ply) -f x",
+    "kubectl -n prod ap`echo ply` -f x",
+    "kubectl -n prod ap${V}ply -f x",
+    "git pu$(echo sh) origin main",
+    'echo "unterminated ; kubectl -n prod ap\\"ply -f x',
+  ]) {
+    it(`denies: ${cmd}`, () => {
+      expectDeny(payload(cmd));
+    });
+  }
+
+  it("an ordinary substitution with NO governed tool named is not denied", () => {
+    expectAllow(payload('echo "$(date)"'));
+    expectAllow(payload("ls $(pwd)"));
+  });
+});
+
+describe("30-11 RA3-5 / RA3-6 — nested shells, and the tool's normalized basename", () => {
+  for (const cmd of [
+    "sh -cx 'kubectl -n prod apply -f x'",
+    "sh -s <<< 'kubectl -n prod apply -f x'",
+    'bash <<< "kubectl -n prod apply -f x"',
+    "git -c alias.p=push p origin main",
+    "git.exe push origin main",
+    "kubectl.exe -n prod apply -f x.yaml",
+    "\\kubectl -n prod apply -f x.yaml",
+  ]) {
+    it(`denies: ${cmd}`, () => {
+      expectDeny(payload(cmd));
+    });
+  }
+});
+
+describe("30-11 round 3 — the five NEW false denials reviewer 3 measured are gone", () => {
+  // `gitPushIsGoverned` read every whitespace-split word, so a quoted commit message contributed its
+  // words as verb candidates. In a repository whose own commit messages discuss pushing to main, that
+  // blocked routine commits — design rule 1's own caveat, squarely.
+  for (const cmd of [
+    "git commit -m 'push'",
+    "git commit -m 'push to main'",
+    "git commit -m 'refactor: split the push path'",
+    "git commit -m 'fix: do not push to main'",
+    "git commit -m 'chore: update-ref refs/heads/main docs'",
+  ]) {
+    it(`allows: ${cmd}`, () => {
+      expectAllow(payload(cmd));
+    });
+  }
+
+  it("and a real push is still denied — the suppression is decided by the FIRST subcommand", () => {
+    expectDeny(payload("git push origin main"));
+    expectDeny(payload("git push"));
+    expectDeny(payload("git commit -m 'x' && git push origin main"));
+  });
+});
+
+describe("30-11 RA3-7 — the process invariant moved OUT of the process", () => {
+  const MATCHED = payload("kubectl apply -f x.yaml");
+
+  function runEntry(root: string, extra: Record<string, string> = {}): { status: number | null; stdout: string } {
+    const env: Record<string, string> = {};
+    for (const [k, v] of Object.entries(process.env)) {
+      if (k.startsWith("GRUGOPS_") || k.startsWith("CLAUDE_") || v === undefined) continue;
+      env[k] = v;
+    }
+    const r = spawnSync("node", [join(root, "hooks", "hook-entry.js"), "guard.js"], {
+      input: MATCHED,
+      encoding: "utf8",
+      env: { ...env, ...extra },
+      timeout: SPAWN_TIMEOUT_MS,
+    });
+    return { status: r.status, stdout: r.stdout ?? "" };
+  }
+
+  it("CONTROL: the wrapper passes a real decision through unchanged", () => {
+    const root = mirrorKit("hooks/hook-entry.js");
+    for (const rel of closureTargets(join(import.meta.dirname, ".."), "hooks/guard.js", root)) {
+      mkdirSync(dirname(rel.to), { recursive: true });
+      copyFileSync(rel.from, rel.to);
+    }
+    const r = runEntry(root);
+    expect(r.status).toBe(0);
+    expect(r.stdout).toContain('"permissionDecision":"deny"');
+  });
+
+  for (const [label, body] of [
+    ["process.reallyExit(0) — the SILENT allow", "process.reallyExit(0);\n"],
+    ["process.abort()", "process.abort();\n"],
+    ["a self-SIGKILL", "process.kill(process.pid,'SIGKILL');\n"],
+    ["a self-SIGTERM", "process.kill(process.pid,'SIGTERM');\n"],
+    ["junk on stdout then exit 0", "process.stdout.write('hello');process.exit(0);\n"],
+  ] as const) {
+    it(`a dependency that does ${label} DENIES`, () => {
+      const root = mirrorKit("hooks/hook-entry.js");
+      for (const rel of closureTargets(join(import.meta.dirname, ".."), "hooks/guard.js", root)) {
+        mkdirSync(dirname(rel.to), { recursive: true });
+        copyFileSync(rel.from, rel.to);
+      }
+      writeFileSync(join(root, "scripts", "checkpoints.js"), body);
+      const r = runEntry(root);
+      expect(r.status, "the wrapper's own answer is exit 0 + JSON, like any decision").toBe(0);
+      expect(r.stdout).toContain('"permissionDecision":"deny"');
+    });
+  }
+
+  it("an ALLOW still passes through the wrapper — silence is refused, a stated allow is not", () => {
+    const root = mirrorKit("hooks/hook-entry.js");
+    for (const rel of closureTargets(join(import.meta.dirname, ".."), "hooks/guard.js", root)) {
+      mkdirSync(dirname(rel.to), { recursive: true });
+      copyFileSync(rel.from, rel.to);
+    }
+    const env: Record<string, string> = {};
+    for (const [k, v] of Object.entries(process.env)) {
+      if (k.startsWith("GRUGOPS_") || k.startsWith("CLAUDE_") || v === undefined) continue;
+      env[k] = v;
+    }
+    const r = spawnSync("node", [join(root, "hooks", "hook-entry.js"), "guard.js"], {
+      input: payload("ls -la"),
+      encoding: "utf8",
+      env,
+      timeout: SPAWN_TIMEOUT_MS,
+    });
+    expect(r.status).toBe(0);
+    expect(r.stdout).toBe("");
+  });
+
+  it("the wrapper refuses to run without a named decider", () => {
+    const root = mirrorKit("hooks/hook-entry.js");
+    const r = spawnSync("node", [join(root, "hooks", "hook-entry.js")], {
+      input: MATCHED,
+      encoding: "utf8",
+      timeout: SPAWN_TIMEOUT_MS,
+    });
+    expect(r.stdout ?? "").toContain('"permissionDecision":"deny"');
   });
 });

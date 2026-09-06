@@ -1820,8 +1820,11 @@ describe("30-11 the command model — one tokenizer, one tool->verb table", () =
 
   it("a comment is not a command", () => {
     expect(has("gcloud config list # see deploy docs", "production_requires_human_confirmation")).toBe(false);
-    // …but a `#` mid-word is not a comment, so a real refspec containing one is unaffected.
-    expect(has("git push origin refs/heads/feature#1", "protected_branch_merge")).toBe(false);
+    // …but a `#` mid-word is not a comment. `#` is outside the canonical character set, so such a
+    // word is OPAQUE and the segment falls to the fail-closed scan — which, since round 3, decides on
+    // the tool name alone. `git` is named, so this denies. Recorded rather than smoothed over: it is
+    // the same over-denial `RA3-4`'s fix trades for a backstop that cannot be defeated.
+    expect(has("git push origin refs/heads/feature#1", "protected_branch_merge")).toBe(true);
   });
 
   it("git push: governed unless it names a demonstrably non-protected refspec", () => {
@@ -1859,27 +1862,38 @@ describe("30-11 the command model — one tokenizer, one tool->verb table", () =
     expect(has('sh -c "ls -la"', "production_requires_human_confirmation")).toBe(false);
   });
 
-  it("text outside the grammar is UNTOKENIZABLE and fails closed on tool+verb", () => {
+  it("text outside the grammar is UNTOKENIZABLE and fails closed on the TOOL NAME (round 3)", () => {
     const m = cp.matchCommandCheckpoints('eval "$(printf \'kubectl apply -f x\')"');
     expect(m.untokenizable).toBe(true);
     expect(m.checkpoints.has("production_requires_human_confirmation" as never)).toBe(true);
-    // …and the fail-closed scan needs BOTH the tool and one of its verbs, so an ordinary command
-    // carrying an escaped quote is not swept up by the tool name alone.
-    const benign = cp.matchCommandCheckpoints('git commit -m "say \\"hi\\""');
-    expect(benign.untokenizable).toBe(true);
-    expect(benign.checkpoints.size).toBe(0);
+    // The verb conjunct is GONE (`RA3-4`): requiring it meant splitting the verb defeated the parser
+    // and the backstop with one edit. A command carrying an escaped quote and naming a governed tool
+    // now denies; one naming no governed tool still does not, which is what keeps this from being a
+    // blanket refusal.
+    const named = cp.matchCommandCheckpoints('git commit -m "say \\"hi\\""');
+    expect(named.untokenizable).toBe(true);
+    expect(named.checkpoints.size).toBe(1);
+    const unnamed = cp.matchCommandCheckpoints('echo "a \\"b\\""');
+    expect(unnamed.checkpoints.size).toBe(0);
   });
 
   it("unbalanced quoting is untokenizable, not silently mis-parsed", () => {
-    expect(cp.commandSegments('kubectl apply -f "unclosed')).toBeNull();
+    // An unbalanced quote yields ONE segment marked opaque rather than a silent mis-parse.
+    const segs = cp.commandSegments('kubectl apply -f "unclosed');
+    expect(segs).not.toBeNull();
+    expect((segs as readonly { opaque: boolean }[]).every((x) => x.opaque)).toBe(true);
   });
 
   it("segments split on shell separators, and quoted separators do not split", () => {
+    // Round 3 deleted "the tool of a segment" — every canonical non-flag word is a candidate — so a
+    // segment is now identified by its WORDS rather than by a single tool field.
     const segs = cp.commandSegments("ls; kubectl apply -f x && echo done");
     expect(segs).not.toBeNull();
-    expect((segs as readonly { tool: string }[]).map((s) => s.tool)).toEqual(["ls", "kubectl", "echo"]);
+    expect((segs as readonly { words: readonly { value: string }[] }[]).map((s) => s.words[0]?.value))
+      .toEqual(["ls", "kubectl", "echo"]);
     const quoted = cp.commandSegments('echo "a; b" && ls');
-    expect((quoted as readonly { tool: string }[]).map((s) => s.tool)).toEqual(["echo", "ls"]);
+    expect((quoted as readonly { words: readonly { value: string }[] }[]).map((s) => s.words[0]?.value))
+      .toEqual(["echo", "ls"]);
   });
 });
 

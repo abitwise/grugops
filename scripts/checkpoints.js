@@ -201,83 +201,162 @@ export function grantedBy(env, name) {
     return named.length > 0 ? named : null;
 }
 // ─────────────────────────────────────────────────────────────────────────────────────────────
-// THE COMMAND MODEL — one tokenizer, one tool->verb table (plan 30-11 round 2, RA1-1/RA1-3/RA1-4).
+// THE COMMAND MODEL — words are CLASSIFIED, not parsed (plan 30-11 round 3).
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 /**
- * WHY A TOKENIZER EXISTS AT ALL, AND WHY IT IS ADDITIVE.
+ * WHY THIS WAS REWRITTEN RATHER THAN REPAIRED, AND WHAT WAS DELETED.
  *
- * `hooks/guard.ts`'s pattern set declares its own design rule as *"Match the SUBCOMMAND VERB, not a
- * substring anywhere in the line… anchored to the verb position"*. Every pattern implemented that by
- * anchoring the verb **adjacent** to the tool name (`/\bkubectl\s+(apply|rollout|delete)\b/`). Every
- * one of these tools accepts global flags BEFORE its subcommand, and production invocations
- * routinely carry them, so one flag moved the verb out of every pattern at once. Measured on the
- * committed artifact, all ALLOW with exit 0 and the banner `all checkpoints at default`:
+ * Round 2 added a tokenizer to close a real zero-key bypass, and named its own new freedom: *"a
+ * tokenizer is a parser, and a parser has a grammar an attacker can leave — this repository's
+ * Phase-25/27 lesson."* One round later that grammar had SIX executable holes, every one the same
+ * shape:
  *
- *     kubectl -n prod apply -f deploy.yaml        helm --kube-context prod upgrade rel chart
- *     kubectl --context=prod apply -f x.yaml      terraform -chdir=infra/prod apply -auto-approve
- *     kubectl --kubeconfig=/k/prod delete ns app  aws --profile prod s3 sync ./dist s3://prod
- *     sudo kubectl -n prod apply -f x.yaml        gcloud --project=prod run deploy svc
- *     npm --access public publish                 git -C /repo push origin main
- *     git --git-dir=/repo/.git push origin main   git -c user.name=x push --force origin main
+ *   RA3-1  word-internal quoting/escaping — `kubectl ""apply`, `app\ly`, `$'apply'`, `git ""push
+ *          origin main` — invisible to the literal patterns AND to the tokenizer, because quotes were
+ *          stripped at word EDGES and backslashes were not handled at all.
+ *   RA3-2  `( … )`, `{ …; }`, `if/then`, `for/do`, `case`, `!` — the grouping token became the "tool".
+ *   RA3-3  `WRAPPERS` was a hand-maintained set literal (`nice`, `timeout`, `doas`, `stdbuf`,
+ *          `setsid`, `ionice`, `parallel`, `find -exec` all missing), and the unwrap loop needed
+ *          exactly the per-tool flag grammar the docstring refused to maintain: `sudo -u root
+ *          kubectl …` took **`root`** as the tool.
+ *   RA3-4  the fail-closed backstop required BOTH the tool and one of its verbs as whole words in the
+ *          raw text, so splitting the VERB defeated the parser and the backstop with one edit.
+ *   RA3-5  `-c` had to be the last letter of a flag cluster; herestrings were never operands.
+ *   RA3-6  `git.exe`, `\kubectl`, and a verb hidden in a `-c alias.x=push` value.
  *
- * This is NOT the disclosed env-var-indirection residual: the tool name and the verb both appear
- * literally and unexpanded in the string the guard reads. A real production mutation ran with ZERO
- * keys — no grant, no declaration, no human — because the matrix is only ever asked about a command
- * that has already matched.
+ * THE THREE THINGS THIS REWRITE DELETES, rather than fixes:
  *
- * THE FIX IS ADDITIVE, AND THAT IS LOAD-BEARING. This model runs BESIDE the literal patterns, never
- * instead of them: a command matches a checkpoint if the patterns match it OR this model does. A
- * tokenizer is a parser, and a parser has a grammar an attacker can leave — the Phase-25/27 lesson.
- * Keeping the literals means the grammar can only ever ADD denials, so no bypass can be introduced
- * by a tokenizer bug, only missed. It also fails CLOSED on anything it cannot tokenize.
+ *   1. **The wrapper set is gone.** Nothing identifies "the tool of a segment" any more. EVERY
+ *      canonical non-flag word is a candidate tool, and a governed verb is looked for AFTER it. That
+ *      one change removes `WRAPPERS`, the flag-with-argument question, and the grouping/reserved-word
+ *      question together — `sudo -u root kubectl … apply`, `nice -n 5 kubectl … apply`,
+ *      `( kubectl … apply )` and `find . -exec kubectl … apply` all match without a single new rule.
+ *   2. **Edge quote-stripping is gone.** A word is now CLASSIFIED, and a word this model cannot read
+ *      is refused rather than read. That is the D-64 posture — name the canonical form and refuse the
+ *      near-miss — applied to shell words instead of to markdown headings.
+ *   3. **The verb conjunct in the fail-closed backstop is gone.** An unreadable segment denies on the
+ *      TOOL NAME alone, so splitting the verb no longer defeats both authorities at once.
+ *
+ * IT REMAINS ADDITIVE to the literal patterns in `hooks/guard.ts`, which is what makes a bug in this
+ * file able to MISS a denial and never able to CREATE a bypass.
  */
+/**
+ * The characters a canonical unquoted word may contain.
+ *
+ * Anything outside this set — a quote in the middle of a word, a backslash, `$`, a brace, a
+ * parenthesis, a redirection glyph — means the word's VALUE is not the text, and this model does not
+ * guess at it. It refuses instead. That refusal is `WordKind.opaque` below.
+ */
+const CANONICAL_WORD_RE = /^[A-Za-z0-9._/@:+=,~%^-]+$/;
+/**
+ * Split one segment into words, quote-aware, and classify each.
+ *
+ * ---------------------------------------------------------------------------------------------
+ * THE CANONICAL FORM, AND THE TWO SHAPES THAT ARE NOT SPLICING.
+ *
+ * A word is built from RUNS: unquoted text, `'…'` and `"…"`. A word is CANONICAL when it is
+ *   (a) a single unquoted run of `CANONICAL_WORD_RE` characters, or
+ *   (b) a single wholly-quoted run — `'apply'` is the word `apply`, which is how a quoted subcommand
+ *       legitimately reaches a tool, or
+ *   (c) an unquoted prefix that starts with `-` or ends with `=`, followed by ONE quoted run —
+ *       the `--grep='x y'` / `-m'msg'` / `--body='…'` shape, which is ordinary and must not be
+ *       refused.
+ *
+ * Everything else is OPAQUE: `app""ly`, `""apply`, `"ap""ply"`, `ma'in'`, `$'apply'`, `app\ly`,
+ * `ap$(echo ply)`, an unbalanced quote. Those are exactly the spellings `RA3-1` and `RA3-4` used, and
+ * they are refused BY RULE — the model does not learn to read one more of them.
+ *
+ * A wholly-quoted word's value may contain spaces (`'do not push to main'` is ONE word whose value is
+ * that whole string). That is what stops a quoted commit message from contributing its words as verb
+ * candidates, which is the mechanism behind five of the false denials reviewer 3 measured.
+ * ---------------------------------------------------------------------------------------------
+ */
+export function classifyWords(segment) {
+    const words = [];
+    let runs = [];
+    let cur = "";
+    let quote = null;
+    let sawBackslash = false;
+    const flush = () => {
+        if (runs.length === 0 && cur === "")
+            return;
+        if (cur !== "")
+            runs.push({ quoted: false, text: cur });
+        cur = "";
+        const joined = runs.map((r) => r.text).join("");
+        let kind = "opaque";
+        if (!sawBackslash) {
+            if (runs.length === 1) {
+                kind = runs[0].quoted || CANONICAL_WORD_RE.test(runs[0].text) ? "canonical" : "opaque";
+            }
+            else if (runs.length === 2 &&
+                !runs[0].quoted &&
+                runs[1].quoted &&
+                (runs[0].text.startsWith("-") || runs[0].text.endsWith("=")) &&
+                CANONICAL_WORD_RE.test(runs[0].text)) {
+                kind = "canonical";
+            }
+        }
+        const value = kind === "canonical" ? joined : joined;
+        words.push({ kind, value, isFlag: kind === "canonical" && value.startsWith("-") });
+        runs = [];
+        sawBackslash = false;
+    };
+    for (let i = 0; i < segment.length; i++) {
+        const c = segment[i];
+        if (quote !== null) {
+            if (c === quote) {
+                runs.push({ quoted: true, text: cur });
+                cur = "";
+                quote = null;
+            }
+            else
+                cur += c;
+            continue;
+        }
+        if (c === "\\") {
+            sawBackslash = true;
+            cur += c;
+            if (i + 1 < segment.length)
+                cur += segment[++i];
+            continue;
+        }
+        if (c === '"' || c === "'") {
+            if (cur !== "") {
+                runs.push({ quoted: false, text: cur });
+                cur = "";
+            }
+            quote = c;
+            continue;
+        }
+        if (/\s/.test(c)) {
+            flush();
+            continue;
+        }
+        cur += c;
+    }
+    if (quote !== null) {
+        // An unbalanced quote: everything from the opening quote on is unreadable.
+        words.push({ kind: "opaque", value: cur, isFlag: false });
+        return words;
+    }
+    flush();
+    return words;
+}
 /** A shell metacharacter set that ENDS a segment. Split only outside quotes. */
 const SEGMENT_SPLIT_RE = /^(?:&&|\|\||;;|[;|&\n])/;
 /**
- * Substitution forms this tokenizer refuses to reason about. Their presence makes a segment
- * UNTOKENIZABLE, which is a fail-closed state and not an allow: the guard treats an untokenizable
- * segment as matching every checkpoint whose tool name appears anywhere in it.
+ * Substitution and expansion forms whose presence makes a segment unreadable at the RAW-TEXT level.
+ * Kept as a raw-text test in addition to word classification, because a substitution can span words.
  */
-//
-// BACKSLASH-ESCAPED QUOTES ARE ON THIS LIST ON PURPOSE, AND THE REASON IS THE DOCTRINE (round 2).
-// This tokenizer tracks quoting but not backslash escaping. A third layer of `sh -c` with escaped
-// quotes inside it was measured to slip past the nested expansion. The answer is NOT to keep
-// implementing shell quoting one layer at a time — that is the losing game Phase 25 played for ten
-// rounds — but to NAME the grammar this model handles and refuse what is outside it. An escaped
-// quote makes the segment untokenizable, and untokenizable is a fail-closed state.
-const UNRESOLVABLE_SHELL_RE = /\$\(|`|\$\{|<\(|>\(|\\["']/;
-/**
- * Split a command into segments and reduce each to `(tool, non-flag words)`.
- * Returns `null` when the command cannot be tokenized at all, which the caller must treat as
- * fail-closed rather than as "no match".
- *
- * ---------------------------------------------------------------------------------------------
- * WHY IT COLLECTS **EVERY** NON-FLAG WORD RATHER THAN "THE FIRST ONE".
- *
- * "The first non-flag word after the tool" needs to know which flags take an argument:
- * `git -c user.name=x push` would otherwise report the verb as `user.name=x`. Knowing that is
- * per-tool flag grammar — a second thing to maintain, and exactly the kind of hand-kept set this
- * repository keeps closing. Collecting every non-flag word needs no flag grammar at all, and its
- * error direction is strictly toward MORE denials, which is the direction the pattern set's own
- * design rule 1 already declares for ambiguity.
- *
- * The cost, stated rather than discovered later: a governed verb appearing as a flag's ARGUMENT
- * denies. `kubectl get pods --namespace delete` — a namespace literally named `delete` — is refused.
- * That is a rare, fail-closed false denial with an obvious escape, and it is the price of not
- * maintaining a flag grammar per tool. The control that matters is the read-only case, which passes:
- * `kubectl -n dev get pods` yields words `dev get pods`, none of which is a governed verb.
- *
- * A leading `sudo`/`env`/`command`/`nohup`/`time` wrapper is unwrapped, because those take the real
- * tool as their first non-flag argument and leaving them wrapped would make `sudo kubectl … apply`
- * report the tool as `sudo`.
- * ---------------------------------------------------------------------------------------------
- */
+const UNRESOLVABLE_SHELL_RE = /\$\(|`|\$\{|<\(|>\(|<<</;
+/** Split a command into segments, quote-aware, stripping comments. `null` = unreadable outright. */
 export function commandSegments(cmd, depth = 0) {
     if (typeof cmd !== "string")
         return null;
     if (depth > 3)
-        return null; // bounded recursion; deeper nesting is untokenizable, i.e. fail closed
-    const segments = [];
+        return null;
+    const raws = [];
     let cur = "";
     let quote = null;
     for (let i = 0; i < cmd.length; i++) {
@@ -288,16 +367,18 @@ export function commandSegments(cmd, depth = 0) {
                 quote = null;
             continue;
         }
+        if (c === "\\") {
+            cur += c;
+            if (i + 1 < cmd.length)
+                cur += cmd[++i];
+            continue;
+        }
         if (c === '"' || c === "'") {
             quote = c;
             cur += c;
             continue;
         }
-        // A COMMENT IS NOT A COMMAND (round 2). `#` opens a comment only at the start of a word, so a
-        // `#` inside `refs/heads/x#y` is not one. The pattern set's design rule 2 names this case
-        // explicitly — `gcloud config list # see deploy docs` must NOT be denied — and the first draft
-        // of this tokenizer regressed it by collecting `deploy` out of the comment as a verb. Caught by
-        // the false-denial control table, which is why that table exists.
+        // A COMMENT IS NOT A COMMAND. `#` opens one only at the start of a word.
         if (c === "#" && (i === 0 || /\s/.test(cmd[i - 1]))) {
             const nl = cmd.indexOf("\n", i);
             if (nl === -1)
@@ -305,103 +386,56 @@ export function commandSegments(cmd, depth = 0) {
             i = nl - 1;
             continue;
         }
-        const rest = cmd.slice(i);
-        const m = SEGMENT_SPLIT_RE.exec(rest);
+        const m = SEGMENT_SPLIT_RE.exec(cmd.slice(i));
         if (m) {
-            segments.push({ tool: "", words: [], raw: cur });
+            raws.push(cur);
             cur = "";
             i += m[0].length - 1;
             continue;
         }
         cur += c;
     }
-    if (quote !== null)
-        return null; // unbalanced quoting — untokenizable, fail closed
-    segments.push({ tool: "", words: [], raw: cur });
-    const WRAPPERS = new Set(["sudo", "env", "command", "nohup", "time", "builtin", "exec", "xargs"]);
-    return segments.map((seg) => {
-        const words = seg.raw
-            .trim()
-            .split(/\s+/)
-            .filter((w) => w.length > 0)
-            .map((w) => w.replace(/^["']|["']$/g, ""));
-        let idx = 0;
-        // Unwrap leading wrappers and any of their flags, and skip leading `NAME=value` assignments,
-        // which are a command prefix rather than the command.
-        for (;;) {
-            const w = words[idx];
-            if (w === undefined)
-                break;
-            if (w.startsWith("-")) {
-                idx++;
-                continue;
-            }
-            if (/^[A-Za-z_][A-Za-z0-9_]*\+?=/.test(w)) {
-                idx++;
-                continue;
-            }
-            const base = (w.split("/").pop() ?? w).toLowerCase();
-            if (WRAPPERS.has(base)) {
-                idx++;
-                continue;
-            }
-            break;
-        }
-        const toolWord = words[idx];
-        const tool = toolWord === undefined ? "" : (toolWord.split("/").pop() ?? toolWord).toLowerCase();
-        const rest = words.slice(idx + 1).filter((w) => !w.startsWith("-"));
-        return { tool, words: rest, raw: seg.raw };
+    if (quote !== null) {
+        // Unbalanced quoting: one unreadable segment carrying the whole text, never a silent mis-parse.
+        return [{ words: [{ kind: "opaque", value: cmd, isFlag: false }], raw: cmd, opaque: true }];
+    }
+    raws.push(cur);
+    return raws.map((raw) => {
+        const words = classifyWords(raw);
+        return {
+            words,
+            raw,
+            opaque: UNRESOLVABLE_SHELL_RE.test(raw) || words.some((w) => w.kind === "opaque"),
+        };
     });
 }
-/** Shells whose `-c` argument is a NESTED command rather than an operand. */
-const NESTED_SHELLS = new Set(["sh", "bash", "zsh", "dash", "ksh"]);
 /**
- * Segments, with `sh -c "<command>"` expanded into the nested command's own segments.
+ * The tool -> verb table. `benign` names subcommands of that tool that DECIDE the segment is not a
+ * governed invocation when they appear before any governed verb.
  *
- * WHY THIS EXISTS (round 2, found by this plan's own false-denial control table rather than by a
- * reviewer). The first draft closed `kubectl -n prod apply` and left
- * `sh -c "kubectl -n prod apply -f x"` ALLOWED: the outer segment's tool is `sh` and the nested
- * command is one quoted word. That is a hole shaped exactly like the one the tokenizer was written
- * to close — the failure mode RA1-4's review warned about in the adjacent fix — so it is closed the
- * same way, by construction: a shell's `-c` operand is re-tokenized as a command, to a bounded
- * depth, and anything deeper is untokenizable and therefore fail-closed.
- */
-function expandNestedShells(segs, depth) {
-    const out = [];
-    for (const seg of segs) {
-        out.push(seg);
-        if (!NESTED_SHELLS.has(seg.tool))
-            continue;
-        // Re-tokenize the RAW TEXT after `-c`, not the already-split words: the nested command is one
-        // shell string, and splitting it into words first loses the adjacency the table matches on.
-        const m = /(?:^|\s)-[a-zA-Z]*c(?:\s+|$)/.exec(seg.raw);
-        if (m === null)
-            continue;
-        const tail = seg.raw.slice(m.index + m[0].length).trim().replace(/^(["'])([\s\S]*)\1$/, "$2");
-        if (tail.length === 0)
-            continue;
-        const nested = commandSegments(tail, depth + 1);
-        if (nested === null)
-            return null; // could not tokenize the nested command → fail closed
-        // Expand the nested segments too: a doubly-nested `sh -c "sh -c '…'"` is one more layer of the
-        // same wrapper, and an expansion that only runs at the top level leaves exactly the hole it was
-        // written to close. Bounded by `commandSegments`'s own depth ceiling, which returns null (fail
-        // closed) rather than recursing forever.
-        const expanded = expandNestedShells(nested, depth + 1);
-        if (expanded === null)
-            return null;
-        out.push(...expanded);
-    }
-    return out;
-}
-/**
- * The tool -> governed-verb table, per checkpoint. One row per tool; adding a tool adds a row.
+ * ---------------------------------------------------------------------------------------------
+ * WHY `benign` IS ADMISSIBLE WHERE `WRAPPERS` WAS NOT — the rule this round adopts.
  *
- * `git push` is deliberately absent from `git`'s verb list and is handled by `gitPushIsGoverned`
- * below, because a push's hazard depends on the refspec and a merge's does not.
+ * `WRAPPERS` was a hand-maintained set whose INCOMPLETENESS let a command through: a launcher missing
+ * from it produced an ALLOW. `benign` is a hand-maintained set whose incompleteness makes the model
+ * REFUSE more: a subcommand missing from it simply fails to suppress, and the fail-closed word scan
+ * decides. **A set whose incompleteness over-refuses is admissible; a set whose incompleteness
+ * under-refuses is not.** That distinction is the whole reason one was deleted and the other added,
+ * and it is asserted in `scripts/checkpoints.test.ts` by driving an unknown subcommand through and
+ * requiring the strict answer.
+ *
+ * Only two tools need one, and both are measured rather than guessed: `git`, because
+ * `git commit -m 'push'` and four sibling spellings were denied (reviewer 3's false-denial table), and
+ * `kubectl`, because `kubectl get pods --namespace delete` was the round-2 recorded over-denial.
+ * ---------------------------------------------------------------------------------------------
  */
 export const COMMAND_CHECKPOINT_RULES = [
-    { checkpoint: "production_requires_human_confirmation", tool: "kubectl", verbs: ["apply", "rollout", "delete"] },
+    {
+        checkpoint: "production_requires_human_confirmation",
+        tool: "kubectl",
+        verbs: ["apply", "rollout", "delete"],
+        benign: ["get", "describe", "logs", "explain", "version", "config", "cluster-info", "top", "api-resources", "auth", "diff"],
+    },
     { checkpoint: "production_requires_human_confirmation", tool: "helm", verbs: ["upgrade", "install"] },
     { checkpoint: "production_requires_human_confirmation", tool: "terraform", verbs: ["apply"] },
     { checkpoint: "production_requires_human_confirmation", tool: "gcloud", verbs: ["deploy"] },
@@ -413,54 +447,71 @@ export const COMMAND_CHECKPOINT_RULES = [
     { checkpoint: "production_requires_human_confirmation", tool: "npm", verbs: ["publish"] },
     { checkpoint: "production_requires_human_confirmation", tool: "yarn", verbs: ["publish"] },
     { checkpoint: "production_requires_human_confirmation", tool: "pnpm", verbs: ["publish"] },
-    // RA1-4: the checkpoint named `protected_branch_merge` matched no merge command at all. These two
-    // are the merge forms that NAME their target and are therefore decidable from the command text.
-    { checkpoint: "protected_branch_merge", tool: "gh", verbs: ["merge"] },
-    // Both git verbs live in ONE row so the precise matcher and the fail-closed scan read one list.
-    // Each needs its own decision (a push depends on its refspec, an update-ref on its target ref),
-    // and that decision is made below — the row says WHICH verbs are governed, not how.
-    { checkpoint: "protected_branch_merge", tool: "git", verbs: ["update-ref", "push"] },
+    { checkpoint: "protected_branch_merge", tool: "gh", verbs: ["merge"], benign: ["list", "view", "create", "checkout", "status", "diff", "comment"] },
+    {
+        checkpoint: "protected_branch_merge",
+        tool: "git",
+        verbs: ["update-ref", "push"],
+        benign: [
+            "commit", "add", "log", "show", "diff", "status", "rebase", "merge", "checkout", "branch",
+            "fetch", "pull", "tag", "stash", "config", "remote", "reset", "restore", "switch",
+            "cherry-pick", "revert", "describe", "blame", "grep", "ls-files", "rev-parse", "worktree",
+            "submodule", "clean", "apply", "am", "bisect", "archive", "init", "clone", "mv", "rm",
+            "notes", "reflog", "shortlog", "sparse-checkout", "hash-object", "cat-file", "rev-list",
+        ],
+    },
 ];
 /** The protected branch names. One list; the push rule and the update-ref rule both read it. */
 const PROTECTED_REF_RE = /^(?:refs\/heads\/)?(?:main|master)$|^(?:refs\/heads\/)?release\//;
 /**
- * Is this `git push` segment governed by `protected_branch_merge`?
+ * Normalize a word to the tool name it invokes: basename, lower-cased, a leading `\` (the standard
+ * alias-bypass spelling) removed, and a Windows executable extension removed.
  *
- * ---------------------------------------------------------------------------------------------
- * RA1-3, AND THE RULE THAT DECIDES WHEN TO FAIL CLOSED.
- *
- * All three literal push patterns require `main`/`master`/`release/` or a force flag ON THE LINE.
- * `git push` with no refspec pushes the CURRENT branch to its upstream — the ordinary way an agent
- * sitting on `main` pushes to `main` — and matched nothing. Measured: `git push`, `git push origin
- * HEAD` and `git push -u origin @` all ALLOW.
- *
- * The guard cannot resolve the current branch from the command text, so the honest move is to invert
- * the default: a push is allowed only when it names a refspec that is demonstrably NOT protected.
- * Concretely, at least two non-flag words after `push` (a remote and a refspec) whose LAST is
- * neither `HEAD`, `@`, nor a protected name.
- *
- *     git push                      -> governed (no refspec named)
- *     git push origin               -> governed (one word; `origin` is the remote, not a refspec)
- *     git push origin HEAD          -> governed (HEAD is the current branch, unnamed)
- *     git push -u origin @          -> governed
- *     git push origin main          -> governed (protected by name)
- *     git push origin feature/x     -> NOT governed
- *
- * WHY THIS FAILS CLOSED WHILE `git merge` DOES NOT — the distinction, stated so it does not read as
- * a fudge. `git push` has a spelling that makes it decidable and that a user can actually type:
- * naming the remote and the branch. Refusing the ambiguous form costs one extra word and the refusal
- * says so. `git merge` has NO such spelling — its target is always the current branch and no syntax
- * names it — so refusing the ambiguous form would refuse the operation entirely, with no legal
- * escape. **Fail closed where an escape exists; record a residual where refusing would leave no
- * legal spelling.** `git merge` and `git checkout main && git merge x` are therefore recorded, with
- * their reproductions, in docs/audit/30-redteam-surface-a.md § RA1-4 rather than matched here.
- * ---------------------------------------------------------------------------------------------
+ * Windows is a supported host for this kit (`CLAUDE.md`: "including Windows, where POSIX shell cannot
+ * run"), and `git.exe` is the ordinary spelling there. The extension list is the executable subset of
+ * `PATHEXT`; being incomplete over-refuses nothing and under-refuses only a spelling nobody uses.
  */
-function gitPushIsGoverned(words) {
-    const at = words.indexOf("push");
+const WINDOWS_EXE_EXT_RE = /\.(?:exe|cmd|bat|com|ps1)$/;
+export function normalizeToolWord(word) {
+    const base = word.replace(/^\\+/, "").split(/[\\/]/).pop() ?? word;
+    return base.toLowerCase().replace(WINDOWS_EXE_EXT_RE, "");
+}
+/**
+ * The verb candidates a segment offers after position `i`, in order.
+ *
+ * `git -c alias.p=push p origin main` hides the verb in a `-c` VALUE (`RA3-6`): git's own documented
+ * `-c <name>=<value>` sets a config key for one invocation, and `alias.<x>=<verb>` makes `<x>` run
+ * `<verb>`. The value is therefore verb-bearing, and it is read here — one documented, closed git
+ * form, not a general "look inside flags" rule.
+ */
+function verbCandidates(words, from) {
+    const out = [];
+    for (let j = from; j < words.length; j++) {
+        const w = words[j];
+        if (w.kind !== "canonical")
+            continue;
+        if (w.isFlag) {
+            const m = /^-{1,2}c(?:onfig)?=?(.*)$/.exec(w.value);
+            if (m && m[1]) {
+                const alias = /^alias\.[^=]+=(.+)$/.exec(m[1]);
+                if (alias)
+                    out.push(alias[1].split(/\s+/)[0]);
+            }
+            continue;
+        }
+        const alias = /^alias\.[^=]+=(.+)$/.exec(w.value);
+        if (alias)
+            out.push(alias[1].split(/\s+/)[0]);
+        out.push(w.value);
+    }
+    return out;
+}
+/** Is this `git push` occurrence governed? See the rule statement below. */
+function gitPushIsGoverned(candidates) {
+    const at = candidates.indexOf("push");
     if (at === -1)
         return false;
-    const after = words.slice(at + 1);
+    const after = candidates.slice(at + 1);
     if (after.length < 2)
         return true; // no refspec named at all
     const ref = after[after.length - 1];
@@ -469,73 +520,113 @@ function gitPushIsGoverned(words) {
     return PROTECTED_REF_RE.test(ref);
 }
 /**
- * The fail-closed answer for text this model will not parse: which checkpoints does it touch, judged
- * on the raw string alone?
+ * The fail-closed answer for a segment this model will not read: which checkpoints does it touch,
+ * judged on the raw text alone?
  *
- * BOTH the tool name AND one of that tool's governed verbs must appear. The first draft required
- * only the tool name, which made every `git` command with an escaped quote in it — a commit message
- * containing `\"`, for instance — a denial. That is the over-blocking design rule 1 warns trains
- * users to disable the guard. Requiring the verb keeps the direction fail-closed while making the
- * refusal about something the text actually says.
+ * ---------------------------------------------------------------------------------------------
+ * THE VERB CONJUNCT IS GONE (round 3, `RA3-4`).
+ *
+ * Round 2 required BOTH `\btool\b` and `\bverb\b`. Measured: `kubectl -n prod ap$(echo ply) -f x`
+ * and `git pu$(echo sh) origin main` are untokenizable AND unmatched, because the same edit that
+ * made the segment unreadable removed the token the backstop searched for. "Untokenizable is a
+ * fail-closed state" was not a state at all — it was a second, weaker pattern match over the same
+ * attacker-controlled text.
+ *
+ * An unreadable segment now denies on the TOOL NAME alone. The over-denial that buys — `git commit
+ * -m "push \"x\""` — is the round-2 recorded residual, unchanged in kind and now the deliberate
+ * price of a backstop that cannot be defeated by the edit that triggers it.
+ * ---------------------------------------------------------------------------------------------
  */
 function failClosedCheckpoints(text) {
     const out = [];
     for (const r of COMMAND_CHECKPOINT_RULES) {
-        if (!new RegExp(`\\b${r.tool}\\b`).test(text))
-            continue;
-        if (r.verbs.some((v) => new RegExp(`\\b${v}\\b`).test(text)))
+        if (new RegExp(`(?:^|[^A-Za-z0-9_-])${r.tool}(?:[^A-Za-z0-9_-]|$)`).test(text))
             out.push(r.checkpoint);
     }
     return out;
 }
+/** Shells whose `-c` argument is a NESTED command rather than an operand. */
+const NESTED_SHELLS = new Set(["sh", "bash", "zsh", "dash", "ksh"]);
 /**
- * Which checkpoints does this command touch, according to the tokenizer and the table?
+ * Which checkpoints does this command touch?
  *
- * On an untokenizable command it returns every checkpoint whose TOOL NAME appears anywhere in the
- * text — the fail-closed answer — rather than an empty set.
+ * EVERY canonical non-flag word is a candidate tool. There is no "the tool of this segment" any more,
+ * which is what deletes the wrapper set, the flag-argument question and the reserved-word question in
+ * one move (`RA3-2`, `RA3-3`).
+ *
+ * For each tool occurrence, the FIRST candidate after it that is either a governed verb or a `benign`
+ * subcommand DECIDES: a benign one suppresses the occurrence, a governed one matches it. When no
+ * candidate decides, the fail-closed answer applies — any governed verb anywhere after the tool
+ * matches.
  */
 export function matchCommandCheckpoints(cmd) {
     const out = new Set();
-    const top = commandSegments(cmd);
-    const segs = top === null ? null : expandNestedShells(top, 0);
+    const segs = commandSegments(cmd);
     if (segs === null) {
         for (const id of failClosedCheckpoints(cmd))
             out.add(id);
         return { checkpoints: out, untokenizable: true };
     }
     let untokenizable = false;
-    for (const seg of segs) {
-        if (UNRESOLVABLE_SHELL_RE.test(seg.raw)) {
+    const queue = [...segs];
+    let depth = 0;
+    while (queue.length > 0 && depth < 64) {
+        depth += 1;
+        const seg = queue.shift();
+        if (seg.opaque) {
             untokenizable = true;
             for (const id of failClosedCheckpoints(seg.raw))
                 out.add(id);
             continue;
         }
-        for (const r of COMMAND_CHECKPOINT_RULES) {
-            if (seg.tool !== r.tool)
+        const words = seg.words;
+        for (let i = 0; i < words.length; i++) {
+            const w = words[i];
+            if (w.kind !== "canonical" || w.isFlag)
                 continue;
-            if (r.tool === "git") {
-                // Each git verb needs its own decision, because each names its target differently.
-                // `update-ref` names the ref outright: govern it only for a protected one.
-                const at = seg.words.indexOf("update-ref");
-                if (at !== -1 && seg.words.slice(at + 1).some((w) => PROTECTED_REF_RE.test(w))) {
-                    out.add(r.checkpoint);
+            const tool = normalizeToolWord(w.value);
+            // A nested shell's `-c` / operand is re-tokenized as a command of its own.
+            if (NESTED_SHELLS.has(tool)) {
+                for (let j = i + 1; j < words.length; j++) {
+                    const o = words[j];
+                    if (o.kind !== "canonical" || o.isFlag)
+                        continue;
+                    const nested = commandSegments(o.value, 1);
+                    if (nested === null) {
+                        untokenizable = true;
+                        for (const id of failClosedCheckpoints(o.value))
+                            out.add(id);
+                    }
+                    else
+                        queue.push(...nested);
                 }
-                // `push` names its target only sometimes: see gitPushIsGoverned.
-                if (gitPushIsGoverned(seg.words))
-                    out.add(r.checkpoint);
-                continue;
             }
-            if (seg.words.some((w) => r.verbs.includes(w)))
-                out.add(r.checkpoint);
+            for (const r of COMMAND_CHECKPOINT_RULES) {
+                if (tool !== r.tool)
+                    continue;
+                const candidates = verbCandidates(words, i + 1);
+                const decider = candidates.find((c) => r.verbs.includes(c) || (r.benign ?? []).includes(c));
+                if (decider !== undefined && !r.verbs.includes(decider))
+                    continue; // benign decided first
+                if (r.tool === "git") {
+                    const at = candidates.indexOf("update-ref");
+                    if (at !== -1 && candidates.slice(at + 1).some((c) => PROTECTED_REF_RE.test(c))) {
+                        out.add(r.checkpoint);
+                    }
+                    if (gitPushIsGoverned(candidates))
+                        out.add(r.checkpoint);
+                    continue;
+                }
+                if (candidates.some((c) => r.verbs.includes(c)))
+                    out.add(r.checkpoint);
+            }
         }
     }
     return { checkpoints: out, untokenizable };
 }
 /**
- * Every tool the table governs, derived. `hooks/guard.ts` asserts at startup that each is a real
- * roster checkpoint, so a row naming a checkpoint the roster does not carry refuses to run rather
- * than silently governing nothing.
+ * Every checkpoint the table governs, derived. `hooks/guard.ts` asserts at startup that each is a
+ * real roster checkpoint.
  */
 export const COMMAND_RULE_CHECKPOINTS = [
     ...new Set(COMMAND_CHECKPOINT_RULES.map((r) => r.checkpoint)),
@@ -757,6 +848,29 @@ export function evaluateMatrix(matrix, env) {
  * `all checkpoints at default` — always present, so a missing banner and a broken banner look
  * different.
  */
+/**
+ * The ONE way an untrusted value reaches the banner sentence (plan 30-11 round 3, `RA4-4`).
+ *
+ * ---------------------------------------------------------------------------------------------
+ * `A-6` BOUNDED THE KEY AND LEFT THE VALUE IN THE SAME SENTENCE.
+ *
+ * The banner interpolates two untrusted values: the config KEY (quoted since `A-6`) and the GRANT
+ * VALUE, which `grantedBy` trims and hands over raw. Measured on the round-2 artifact with
+ * `GRUGOPS_FLOOR_PROTECTED_BRANCH_MERGE=$'alice\nall checkpoints at default'`: the run emitted TWO
+ * stderr lines, and the shipped recognizer `isCheckpointBannerLine` accepted BOTH — a verbatim, valid
+ * alternative banner asserting the opposite posture, on the one artifact D-20 guarantees per
+ * invocation so a human can read the run's posture. The exactly-one-banner count that `A-6` added and
+ * asserted reported two.
+ *
+ * The rule is applied to the SENTENCE rather than to one of its slots: every untrusted value goes
+ * through here, and a value carrying a line break is refused by name rather than escaped, so the run
+ * still emits exactly one banner and the human is told what to fix — the same shape as the
+ * `names nobody` clause `A-4` introduced next door.
+ * ---------------------------------------------------------------------------------------------
+ */
+export function bannerValue(v) {
+    return /[\r\n]/.test(v) ? "REFUSED (the value contains a line break)" : v;
+}
 export function composeBanner(evaluation) {
     const parts = [];
     for (const id of CHECKPOINTS) {
@@ -781,7 +895,7 @@ export function composeBanner(evaluation) {
             parts.push(`${id}=${r.declared} NOT AUTHORIZED (${r.envVarName} names nobody; enforced as block)`);
         }
         else if (r.authorizedBy !== null) {
-            parts.push(`${id}=${r.declared} authorized by ${r.envVarName}=${r.authorizedBy}`);
+            parts.push(`${id}=${r.declared} authorized by ${r.envVarName}=${bannerValue(r.authorizedBy)}`);
         }
         else {
             parts.push(`${id}=${r.declared}`);

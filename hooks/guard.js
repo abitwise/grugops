@@ -85,6 +85,9 @@ import { join } from "node:path";
 // converts EVERY exit — including code 13 and a dependency's own `process.exit(0)` — into a
 // decision. The one exit it cannot convert is a process that never exits, which is why the reader's
 // non-regular-file refusal is the other half of this fix and not an optional companion.
+/** The private channel an allow is asserted on, and the token it carries (round 3, `RA3-7`). */
+const ALLOW_FD = 3;
+const ALLOW_TOKEN = "grugops-hook-allow";
 let decided = false;
 // `writeSync(1, …)` and not `process.stdout.write` (plan 30-11 round 2). Inside an `exit` handler
 // only synchronous work runs, and `process.stdout.write` to a pipe is not guaranteed synchronous;
@@ -104,9 +107,28 @@ function deny(reason) {
     emitDecision(reason);
     process.exit(0); // exit 0 + JSON deny = blocked, with a message for the agent.
 }
-/** The other answer. An allow is exit 0 with no stdout — and it is now a NAMED exit, not a default. */
+/**
+ * The other answer — and it is ASSERTED, not inferred from silence (round 3, `RA3-7`).
+ *
+ * An allow is exit 0 with no stdout, which is also what a process that died without deciding leaves
+ * behind. Measured on the round-2 artifact: a dependency calling `process.reallyExit(0)` — which
+ * skips the `exit` event entirely — produced exit 0 and zero bytes, a SILENT ALLOW that no wrapper
+ * observing exit codes could tell from a real one.
+ *
+ * So the decider states its allow on a private channel: file descriptor 3, which
+ * `hooks/hook-entry.ts` opens as a pipe and the host never sees. Silence on that channel is not an
+ * allow; it is a process that stopped. The token is written BEFORE the exit so a later termination
+ * cannot retract it, and the write is tolerant of fd 3 being absent — running the decider directly
+ * (as every test in this repository does) is still a legal, un-wrapped invocation.
+ */
 function allow() {
     decided = true;
+    try {
+        writeSync(ALLOW_FD, ALLOW_TOKEN);
+    }
+    catch {
+        /* fd 3 is not open: the decider was run directly rather than under the wrapper. */
+    }
     process.exit(0);
 }
 // Installed before anything else can exit. Idempotent against `deny`/`allow` through `decided`.

@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/guard.js\""
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/hook-entry.js\" guard.js"
           }
         ]
       },
@@ -15,7 +15,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/admission-guard.js\""
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/hook-entry.js\" admission-guard.js"
           }
         ]
       }

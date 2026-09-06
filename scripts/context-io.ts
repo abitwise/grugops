@@ -43,10 +43,12 @@ import {
   fstatSync,
   readSync,
   closeSync,
+  statSync,
+  realpathSync,
   constants as fsConstants,
 } from "node:fs";
 import { join, resolve, sep } from "node:path";
-import { pathToFileURL } from "node:url";
+import { pathToFileURL, fileURLToPath } from "node:url";
 import {
   CHECKPOINTS,
   CHECKPOINT_DEFAULTS,
@@ -1217,6 +1219,32 @@ export interface CheckpointNoteInput {
  * constrained to statements the design defines even when its content is false.
  * ---------------------------------------------------------------------------------------------
  */
+/**
+ * The ONE way an untrusted value reaches a checkpoint record's body (plan 30-11 round 3, `RA4-1`).
+ *
+ * ---------------------------------------------------------------------------------------------
+ * WHY THE FIELD LOOP WAS THE WRONG AXIS.
+ *
+ * Round 2's refuse-before-compose block type-checked `actor` and `command` — the two fields that were
+ * ALREADY passed through `JSON.stringify` — and left `envVarName` and `actionApproval`, the two
+ * interpolated RAW, with no check of any kind. Measured on the round-2 artifact: a newline in
+ * `envVarName` carrying a complete frontmatter block made the single written record parse, through
+ * this module's own splitter, as **two notes** — the second authored `by: security-nfr` with a
+ * `verified_by: human:alice` stamp. A record under the reserved identity was therefore NOT
+ * "constrained to statements the design defines", which is the bound the tier paragraph publishes;
+ * and the second note it carried was authored by a NON-reserved identity that no tier paragraph in
+ * this module covers.
+ *
+ * The axis is not "which fields did someone remember to check". It is **how a value reaches the
+ * body**: every value interpolated into the body goes through this function, and
+ * `scripts/context-io.test.ts` asserts that this function's source contains no other `${input.`
+ * interpolation site — so a field added later is covered by the rule rather than by a memory.
+ * ---------------------------------------------------------------------------------------------
+ */
+function bodyValue(v: unknown): string {
+  return JSON.stringify(String(v));
+}
+
 /** The two outcomes a checkpoint record may state. Derived from the input type's own union. */
 const CHECKPOINT_OUTCOMES: readonly CheckpointNoteInput["outcome"][] = ["allowed", "refused"];
 
@@ -1272,9 +1300,15 @@ export function emitCheckpointNote(
         `mint a verdict word the design does not define.`,
     );
   }
+  // `envVarName` publishes UNQUOTED in the body (it is a variable NAME a human reads and retypes),
+  // so it gets the one-line guard the provenance fields have rather than being escaped at the bottom
+  // — a newline is refused at the top, with the other vocabularies (round 3, `RA4-1`).
+  if (input.envVarName !== null) assertSingleLine("envVarName", input.envVarName);
+  if (input.actionApproval !== null) assertSingleLine("actionApproval", input.actionApproval);
   for (const [field, value] of [
     ["actor", input.actor],
     ["command", input.command],
+    ["authorizedBy", input.authorizedBy ?? ""],
   ] as const) {
     if (typeof value !== "string") {
       throw new Error(
@@ -1305,7 +1339,7 @@ export function emitCheckpointNote(
       ? input.envVarName === null
         ? "not applicable (this checkpoint is not floor-tier and needs no second key)"
         : `NONE — ${input.envVarName} is absent, so the declaration authorized nothing`
-      : `${input.envVarName}=${JSON.stringify(input.authorizedBy)}`;
+      : `${input.envVarName}=${bodyValue(input.authorizedBy)}`;
   const body =
     `CHECKPOINT ${input.outcome.toUpperCase()}: the checkpoint "${input.checkpoint}" was declared ` +
     `\`${input.declared}\` and enforced as \`${input.effective}\`.\n\n` +
@@ -1317,8 +1351,8 @@ export function emitCheckpointNote(
       ? ""
       : `- action approved by: ${input.actionApproval} was set by a human, which approves THIS ` +
         `action at the enforced posture — it does not authorize the declared lowering\n`) +
-    `- actor: ${JSON.stringify(input.actor)}\n` +
-    `- command: ${JSON.stringify(input.command)}\n`;
+    `- actor: ${bodyValue(input.actor)}\n` +
+    `- command: ${bodyValue(input.command)}\n`;
   for (const r of note.refs) assertSingleLine("refs[]", r);
   const id = noteId(note);
   assertSingleLine("id", id);
@@ -1915,7 +1949,14 @@ export const GOVERNANCE_FALLBACK_BASE: string = ROOT;
  */
 export function trustedRepoRoot(): string {
   const fromEnv = process.env.CLAUDE_PROJECT_DIR;
-  if (typeof fromEnv === "string" && fromEnv.trim() !== "") return fromEnv;
+  // A PRESENCE PREDICATE PUBLISHES THE VALUE IT TESTED (plan 30-11 round 3, `RA4-2`). This trimmed to
+  // decide and returned the RAW value, so `CLAUDE_PROJECT_DIR=" proj "` passed the emptiness test and
+  // `join()` produced `" proj /.grugops/factory.config.json"` — ENOENT, which the reader mapped to
+  // ABSENCE, which is the lean posture. Measured on the round-2 artifact: one byte of padding made
+  // `hooks/admission-guard.js` ALLOW an un-stamped high-severity finding with zero bytes on both
+  // streams, against a control that DENIED. `grantedBy`, the `A-4` fix, already trims and publishes
+  // the trimmed value; these are the same predicate shape and now give the same answer.
+  if (typeof fromEnv === "string" && fromEnv.trim() !== "") return fromEnv.trim();
   return GOVERNANCE_FALLBACK_BASE;
 }
 
@@ -1953,6 +1994,15 @@ const GOVERNANCE_CONFIG_MAX_BYTES = 8 * 1024 * 1024;
  * the old `existsSync` + `readFileSync` pair reached the unreadable branch for it.
  * ---------------------------------------------------------------------------------------------
  */
+/** Does this path name a directory that exists? `false` for a file, a dangling link or an error. */
+function isExistingDirectory(path: string): boolean {
+  try {
+    return statSync(path).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
 function readGovernanceConfigCandidate(path: string): string | null {
   let fd: number;
   try {
@@ -1993,7 +2043,28 @@ function readGovernanceConfigCandidate(path: string): string | null {
 export function readGovernanceConfig(repoRoot?: string): GovernanceConfigResult {
   // An empty or whitespace-only root names nothing and falls back, exactly as an absent one does
   // (round 2, reviewer-1 observation 2) — never to the process cwd.
-  const base = repoRoot !== undefined && repoRoot.trim() !== "" ? repoRoot : ROOT;
+  const supplied = repoRoot !== undefined && repoRoot.trim() !== "";
+  const base = supplied ? repoRoot.trim() : ROOT;
+
+  // A SUPPLIED ROOT THAT IS NOT A DIRECTORY IS `unreadable`, NOT `absent` (round 3, `RA4-2` half 2).
+  // "No config anywhere under a root that exists" and "the root itself does not exist" are different
+  // facts, and only the first is a repository that configured nothing. Collapsing them made a
+  // mistyped or padded root read as the lean posture — silent fail-OPEN on a governance dial. This is
+  // the same by-rule move `RA1-2` made for a non-regular config file.
+  //
+  // Scoped to a SUPPLIED root on purpose: the kit fallback exists by construction, so requiring it to
+  // exist would add a failure mode without adding a check. A caller that names a root owns naming one
+  // that is there, and the refusal says which one was missing.
+  if (supplied && !isExistingDirectory(base)) {
+    return {
+      source: "unreadable",
+      config: { ...GOVERNANCE_DEFAULTS, checkpoints: { ...STRICTEST_MATRIX } },
+      checkpointRefusals: [
+        `the supplied governance root ${JSON.stringify(base)} is not an existing directory — the ` +
+          `configuration could not be looked for at all, so every checkpoint is enforced at \`block\``,
+      ],
+    };
+  }
   const candidates = governanceConfigCandidates(base);
 
   for (const path of candidates) {
@@ -2252,8 +2323,34 @@ export function admitAndAppend(
 
 // ── CLI entrypoint (only when run directly, never on import) ────────────────────────────────────
 // import.meta.url === the executed file's URL when run via `node context-io.js ...`.
+/**
+ * Is this module being RUN, rather than imported?
+ *
+ * ---------------------------------------------------------------------------------------------
+ * RESOLVED THROUGH `realpathSync` ON BOTH SIDES (plan 30-11 round 3, reviewer 4's premise finding).
+ *
+ * `import.meta.url` is already realpath-resolved by Node; `process.argv[1]` is not. So invoking this
+ * CLI through a path containing a symlink — `/tmp` on macOS is a symlink to `/private/tmp`, which is
+ * where every mirror in this audit lives — made the comparison FALSE, and the CLI **exited 0 having
+ * printed nothing and admitted nothing**. A caller reading the exit code reads that as an admission.
+ * Reviewer 4 hit it as a false harness premise: an entire `admit` table returned exit 0 with zero
+ * bytes on every row, including rows that must fail arity.
+ *
+ * This is the same class `scripts/guarantees-freshness.ts` already records for its own mirror — a
+ * fabricated success from a path comparison that silently does not match — and it is fixed the same
+ * way. `realpathSync` throws for a path that does not exist, so both sides are wrapped and fall back
+ * to the raw value: an unresolvable argv[1] compares as before rather than crashing the import.
+ * ---------------------------------------------------------------------------------------------
+ */
+function resolvedHref(p: string): string {
+  try {
+    return pathToFileURL(realpathSync(p)).href;
+  } catch {
+    return pathToFileURL(p).href;
+  }
+}
 const isMain =
-  process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href;
+  process.argv[1] !== undefined && resolvedHref(fileURLToPath(import.meta.url)) === resolvedHref(process.argv[1]);
 
 if (isMain) {
   const [cmd, ...rest] = process.argv.slice(2);
@@ -2401,7 +2498,7 @@ if (isMain) {
       process.exit(0);
     } else {
       console.error(
-        "usage: context-io.js <validate <noteFile> | admit <task> <noteFile> [contextRoot] | emit-verdict <task> <id> <clean|finding|unknown> [contextRoot] | render <task> [contextRoot]>",
+        "usage: context-io.js <validate <noteFile> | admit <task> <noteFile> | emit-verdict <task> <id> <clean|finding|unknown> [contextRoot] | render <task> [contextRoot]>",
       );
       process.exit(1);
     }

@@ -71,7 +71,7 @@
 // generate-safety-surface.ts and generate-catalog.ts): OUT is a FIXED literal repo-relative path.
 // It is never derived from argv, env, or file content. Under test the ROOT is redirected and the
 // path is not, which is what lets a hermetic mirror be pointed at safely.
-import { readFileSync, writeFileSync, existsSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { isBlank, readRegistry, readResidualAdditions, REGISTRY_PATH, RESIDUAL_PATH, RESIDUAL_ADDITIONS_HEADING, SAFETY_FLOORS, } from "./audit-model.js";
@@ -347,83 +347,58 @@ export function declaredResidualRows(root = DEFAULT_ROOT) {
     }
     return out;
 }
+/** A residual row may cite a path deliberately OUTSIDE this repository by prefixing it with this. */
+export const EXTERNAL_PATH_MARKER = "EXTERNAL:";
 /**
- * Every repo-relative path a published residual row CITES, with whether it exists.
+ * Every span in a published residual row that CLAIMS to name a path.
  *
  * ---------------------------------------------------------------------------------------------
- * WHY THE RENDER REFUSES A CLAUSE THAT NAMES A MECHANISM THAT IS NOT THERE (plan 30-11 round 2,
- * finding `RA2-4`).
+ * THE MEMBERSHIP TEST IS INVERTED (plan 30-11 round 3, `RA4-3`).
  *
- * Row 9 published, in the present indicative, on the public safety page: *"The narrowing measure is
- * a `permissions.deny` recommendation over those settings files plus a companion write-matcher
- * guard."* Neither exists. Measured: zero `permissions.deny` recommendations anywhere in `install/`,
- * `agent-factory/`, `.claude-plugin/` or `hooks/`, and `hooks/hooks.json` carries exactly two
- * PreToolUse matchers, neither matching `Write` or `Edit`. A reader was told the vector is
- * *currently* narrowed by two mechanisms and read the residual as smaller than it is — the softening
- * that same row forbids for its other clauses.
+ * Round 2 called this scan "derived, not hand-kept" and then gated it on a six-member directory list
+ * (`install|agent-factory|scripts|hooks|docs|.claude-plugin`). Everything else in the repository was
+ * invisible to it — including `.claude/`, which is the directory row 9's mechanism claim is ABOUT.
+ * Measured: appending `Narrowed by ` + a backticked `.claude/settings-nonexistent.json` to row 10
+ * published on the public safety page with exit 0, while the identical clause naming a missing file
+ * under an enumerated prefix refused. `RA2-4`'s exact harm reproduced through the gate built to stop
+ * it, for every path outside six directory names.
  *
- * The prose was corrected. This gate is what stops the next one: a residual row may name a file, and
- * the render refuses to publish a row naming a file that is not in the tree.
+ * So the default is inverted: **a span shaped like a path must be a TRACKED file, or the row is
+ * refused.** "Path-shaped" is a property of the span — it contains a `/`, or ends in a known file
+ * extension — not a membership in a list of blessed directories, so a clause citing a new file is
+ * covered without anyone editing anything here. That is the D-64 posture (name the canonical form,
+ * refuse everything outside it) rather than the enumerate-the-good-cases posture round 2 shipped.
  *
- * THE SET IS DERIVED, NOT HAND-KEPT. The paths come from scanning the row's own backticked spans for
- * things shaped like repo paths — so a clause that starts citing a new file is covered without anyone
- * editing a list here, which is the set-literal-drift class this repository keeps closing. The scan's
- * own vacuity is asserted by `residualPathScanIsLive` below: a scan that silently matched nothing
- * would pass this gate for every row forever.
+ * A row that legitimately names a path this repository does not ship — a host's own
+ * `~/.claude/settings.json` — writes it with the `EXTERNAL:` marker, so an out-of-tree citation is a
+ * deliberate, greppable act rather than an accident.
+ *
+ * WHERE THE MEMBERSHIP IS DECIDED: `scripts/check-audit-register.ts`, which runs in the repository
+ * and can ask `git ls-files`. It is deliberately NOT decided in the render — see that file for why
+ * putting it there forced the freshness mirror to copy a third of the repository.
  * ---------------------------------------------------------------------------------------------
  */
 export function citedResidualPaths(rowText) {
     const out = [];
     for (const m of rowText.matchAll(/`([^`\n]+)`/g)) {
         const t = m[1].trim();
-        // A repo path: no whitespace, and either a known top-level directory prefix or a file extension.
+        if (t.startsWith(EXTERNAL_PATH_MARKER))
+            continue; // a deliberate out-of-tree citation
         if (/\s/.test(t))
+            continue; // prose in backticks is not a path claim
+        const pathShaped = t.includes("/") || /\.(?:md|ts|js|json|ya?ml|sh|txt|toml)$/.test(t);
+        if (!pathShaped)
             continue;
-        if (!/^(?:install|agent-factory|scripts|hooks|docs|\.claude-plugin)\//.test(t))
-            continue;
-        out.push(t.replace(/\/$/, ""));
+        out.push(t.replace(/[.,;:]+$/, "").replace(/\/+$/, ""));
     }
     return [...new Set(out)];
-}
-/** Refusals for every published residual row citing a path that is not in the tree. */
-export function residualPathRefusals(root = DEFAULT_ROOT) {
-    const text = readFileSync(join(root, RESIDUAL_PATH), "utf8");
-    const refusals = [];
-    let scanned = 0;
-    let cited = 0;
-    for (const raw of text.split("\n")) {
-        const line = raw.replace(/\r$/, "").trim();
-        if (!line.includes("|"))
-            continue;
-        const body = line.startsWith("|") ? line.slice(1) : line;
-        const first = (body.split("|")[0] ?? "").trim();
-        if (!/^\d+$/.test(first))
-            continue;
-        if (Number.parseInt(first, 10) <= HISTORICAL_RESIDUAL_ROWS)
-            continue;
-        scanned += 1;
-        for (const path of citedResidualPaths(line)) {
-            cited += 1;
-            if (!existsSync(join(root, path))) {
-                refusals.push(`residual row ${first} cites \`${path}\`, which is not in the tree — a published residual ` +
-                    `may not name a mechanism that does not exist (plan 30-11 RA2-4)`);
-            }
-        }
-    }
-    // THE SCAN'S OWN PREMISE. A scan that matched nothing would pass every row vacuously, forever.
-    // The published residual rows DO cite paths today; if they stop, this gate has stopped asking.
-    if (scanned > 0 && cited === 0) {
-        refusals.push(`the residual path scan examined ${scanned} published row(s) and found NO cited path at all. ` +
-            `That is a scan that has stopped asking rather than a register that has stopped citing`);
-    }
-    return refusals;
 }
 /**
  * The last row number of the register's ORIGINAL eight-row table. Rows above it are Phase 30's
  * additions — the ones this render publishes — and rows at or below it are the historical record
  * the additions table continues the numbering of.
  */
-const HISTORICAL_RESIDUAL_ROWS = 8;
+export const HISTORICAL_RESIDUAL_ROWS = 8;
 /**
  * THE GENERATED DISCLOSURE — D-18's replacement text for a dropped claim.
  *
@@ -787,19 +762,6 @@ const isEntry = process.argv[1] !== undefined &&
     import.meta.url === pathToFileURL(process.argv[1]).href;
 if (isEntry) {
     try {
-        // A published residual may not name a mechanism that is not in the tree (round 2, `RA2-4`).
-        //
-        // IT RUNS HERE AND NOT INSIDE `renderGuarantees` (this plan's own second attempt). Putting it in
-        // the render made the render depend on the whole tree, and `guarantees-freshness` re-renders in a
-        // MIRROR containing only the import closure — so the gate reported `hooks/hooks.json` missing
-        // from a tree it was never given, and the freshness check went red on a file that exists. The
-        // render must stay a pure function of its declared inputs, because the freshness comparison is
-        // built on exactly that. The point of effect for "does this file exist in the repository" is the
-        // entry point that runs IN the repository.
-        const pathRefusals = residualPathRefusals();
-        if (pathRefusals.length > 0) {
-            throw new Error(`refusing to write —\n  ${pathRefusals.join("\n  ")}`);
-        }
         const text = renderGuarantees();
         writeFileSync(join(DEFAULT_ROOT, OUT), text, "utf8");
         const count = guaranteesJoin().length;

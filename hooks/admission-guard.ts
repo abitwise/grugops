@@ -81,6 +81,10 @@ import type { GovernanceConfigResult } from "../scripts/context-io.js";
 //
 // `writeSync(1, …)` and not `process.stdout.write`: inside an `exit` handler only synchronous work
 // runs, and a decision that is merely queued is, at the host, no decision.
+/** The private channel an allow is asserted on, and the token it carries (round 3, `RA3-7`). */
+const ALLOW_FD = 3;
+const ALLOW_TOKEN = "grugops-hook-allow";
+
 let decided = false;
 
 function emitDecision(reason: string): void {
@@ -102,9 +106,27 @@ function deny(reason: string): never {
   process.exit(0); // exit 0 + JSON deny = blocked, with a message for the agent.
 }
 
-/** The other answer. Allow = exit 0, no output — now a NAMED exit rather than a bare one. */
+/**
+ * The other answer — and it is ASSERTED, not inferred from silence (round 3, `RA3-7`).
+ *
+ * An allow is exit 0 with no stdout, which is also what a process that died without deciding leaves
+ * behind. Measured on the round-2 artifact: a dependency calling `process.reallyExit(0)` — which
+ * skips the `exit` event entirely — produced exit 0 and zero bytes, a SILENT ALLOW that no wrapper
+ * observing exit codes could tell from a real one.
+ *
+ * So the decider states its allow on a private channel: file descriptor 3, which
+ * `hooks/hook-entry.ts` opens as a pipe and the host never sees. Silence on that channel is not an
+ * allow; it is a process that stopped. The token is written BEFORE the exit so a later termination
+ * cannot retract it, and the write is tolerant of fd 3 being absent — running the decider directly
+ * (as every test in this repository does) is still a legal, un-wrapped invocation.
+ */
 function allow(): never {
   decided = true;
+  try {
+    writeSync(ALLOW_FD, ALLOW_TOKEN);
+  } catch {
+    /* fd 3 is not open: the decider was run directly rather than under the wrapper. */
+  }
   process.exit(0);
 }
 

@@ -174,7 +174,29 @@ const APPROVAL = "GRUGOPS_ADMISSION_APPROVED_BY";
 //
 // The zero-config decision and wording are byte-unchanged, which
 // scripts/autonomy-zero-config.test.ts asserts as a whole-run differential.
-const FROZEN_GUARD_BLOB = "995ae7cc34854a2817344afa3cb7ab2a4284f766";
+//
+// RE-BASELINED AGAIN BY PLAN 30-11 ROUND 3 (D-24, this phase's SEVENTH guard commit). The previous
+// baseline `995ae7cc…f766` froze the round-2 guard, whose two independent reviews returned thirteen
+// findings — twelve of them created by round-2 fixes, and seven of them in this file's subject.
+//
+// THE COMMAND MODEL WAS REWRITTEN RATHER THAN REPAIRED. Round 2 closed a real zero-key bypass by
+// adding a tokenizer to a safety path and named its own new freedom: a parser has a grammar an
+// attacker can leave. One round later that grammar had SIX executable holes — word-internal quoting
+// (`kubectl ""apply`), grouping tokens adopted as the tool (`( kubectl … )`), a hand-maintained
+// wrapper set that missed `nice`/`timeout`/`doas` and could not survive `sudo -u root`, a
+// fail-closed backstop defeated by the same edit that triggered it, `sh -cx`, and `git.exe`. The
+// rewrite DELETES the wrapper set, the tool-identification step and the backstop's verb conjunct;
+// words are now CLASSIFIED and a word this model cannot read is refused rather than read.
+//
+// AND THE PROCESS INVARIANT MOVED OUT OF THE PROCESS. `process.reallyExit(0)` in a dependency was a
+// SILENT ALLOW and `abort()`/self-`SIGKILL` left no decision at all; no care inside a process
+// establishes a property about a process a dependency can terminate. `hooks/hook-entry.ts` is now
+// the hook entry point and answers for the decider, and an ALLOW is asserted on fd 3 rather than
+// inferred from silence.
+//
+// The zero-config decision and wording are byte-unchanged, which
+// scripts/autonomy-zero-config.test.ts asserts as a whole-run differential.
+const FROZEN_GUARD_BLOB = "669725bc1c616ab57123e22090d93d57eff1b001";
 
 // Import the COMMITTED .js for the pure-function floor checks (validate / admit). Never the .ts.
 const mod: typeof import("../scripts/context-io.js") = await import(
@@ -525,6 +547,11 @@ function hookDecision(
   if (fields.by !== undefined) tool_input.by = fields.by;
   if (fields.verified_by !== undefined) tool_input.verified_by = fields.verified_by;
   const r = spawnSync("node", [GUARD_JS], {
+    // A HANG MUST REDDEN THIS CASE, NOT STOP THE SUITE (plan 30-11 round 3, reviewer-3 observation
+    // 3). This file's subject is the safety floor and its spawn was the one with no bound: the
+    // file's own 30 s `testTimeout` cannot preempt a synchronous `spawnSync`, so the exact `N4c`
+    // failure — a hang that stops CI instead of reddening it — was still reachable here.
+    timeout: 20_000,
     input: JSON.stringify({ tool_name: toolName, tool_input }),
     encoding: "utf8",
     env,
@@ -710,5 +737,96 @@ describe("Floor invariants preserved at the structured hook tier (25-10)", () =>
       encoding: "utf8",
     }).trim();
     expect(blob, "hooks/guard.ts must be byte-frozen at the D-02 blob").toBe(FROZEN_GUARD_BLOB);
+  });
+});
+
+describe("30-11 round 3 — every spawn in the hook and floor tests is BOUNDED (derive the set)", () => {
+  // REVIEWER-3 OBSERVATION 3. Round 2 bounded the spawns it remembered and missed two — including the
+  // one in THIS file, whose subject is the safety floor. A hand-applied bound is a set literal, and
+  // this repository's answer to a set literal is to derive the set and assert over it rather than to
+  // remember harder. The membership question is asked of the SOURCE, so a spawn added tomorrow is
+  // covered without anyone editing this case.
+  const FILES = [
+    "scripts/floor-invariance.test.ts",
+    "hooks/guard.test.ts",
+    "hooks/admission-guard.test.ts",
+  ];
+
+  it("every spawnSync call in these files passes a timeout", () => {
+    const offenders: string[] = [];
+    let calls = 0;
+    for (const rel of FILES) {
+      const src = readFileSync(join(ROOT, rel), "utf8");
+      // Each call's options object runs to the closing `});` of the call — enough to see `timeout:`.
+      for (const m of src.matchAll(/spawnSync\(/g)) {
+        calls += 1;
+        const window = src.slice(m.index, m.index + 600);
+        const end = window.indexOf("\n  });");
+        const body = end === -1 ? window : window.slice(0, end);
+        if (!/\btimeout\s*:/.test(body)) {
+          offenders.push(`${rel} @ char ${m.index}: ${body.split("\n")[0]}`);
+        }
+      }
+    }
+    // The scan's own premise: a regex that matched nothing would pass this case forever.
+    expect(calls, "the spawnSync scan found no calls at all — it has stopped asking").toBeGreaterThan(3);
+    expect(
+      offenders,
+      `spawnSync without a timeout:\n${offenders.join("\n")}\n` +
+        `A synchronous spawn cannot be preempted by vitest's testTimeout, so an unbounded one turns a ` +
+        `regression into a hung suite rather than a red one.`,
+    ).toEqual([]);
+  });
+});
+
+/**
+ * The hook ENTRY POINT is frozen too (plan 30-11 round 3, D-24 applied to the file that is now the
+ * entry). `hooks/hooks.json` names `hooks/hook-entry.js`, so the entry is what a host actually runs
+ * and the freeze rule follows the entry rather than the file it used to name. The wrapper is the
+ * fail-closed answer for a decider that never answers, so a change to it is exactly as deliberate as
+ * a change to the guard: source, artifact and this baseline move in ONE commit.
+ */
+const FROZEN_HOOK_ENTRY_BLOB = "1533b95c7b0e1bb2e9b74d6f200a1d1828feacf2";
+
+describe("30-11 round 3 — the hook ENTRY is frozen, and hooks.json names it", () => {
+  it("the committed hooks/hook-entry.ts blob matches its frozen hash", () => {
+    const blob = execFileSync("git", ["hash-object", "hooks/hook-entry.ts"], {
+      cwd: ROOT,
+      encoding: "utf8",
+    }).trim();
+    expect(blob).toBe(FROZEN_HOOK_ENTRY_BLOB);
+  });
+
+  it("hooks/hook-entry.ts has no uncommitted modification, measured against HEAD", () => {
+    expect(() =>
+      execFileSync("git", ["diff", "--quiet", "HEAD", "--", "hooks/hook-entry.ts"], { cwd: ROOT }),
+    ).not.toThrow();
+  });
+
+  it("hooks.json routes BOTH hooks through the wrapper, naming the decider", () => {
+    // The freeze is worth nothing if the host runs something else. Both matchers must name the
+    // wrapper, and the wrapper must be handed a decider — a matcher pointing straight at a decider
+    // would restore every termination class RA3-7 closed.
+    const hooks = JSON.parse(readFileSync(join(ROOT, "hooks", "hooks.json"), "utf8")) as {
+      hooks: { PreToolUse: Array<{ matcher: string; hooks: Array<{ command: string }> }> };
+    };
+    const commands = hooks.hooks.PreToolUse.flatMap((m) => m.hooks.map((h) => h.command));
+    expect(commands.length).toBe(2);
+    for (const c of commands) {
+      expect(c, `a PreToolUse command bypasses the wrapper: ${c}`).toContain("hooks/hook-entry.js");
+    }
+    expect(commands.join(" ")).toContain("guard.js");
+    expect(commands.join(" ")).toContain("admission-guard.js");
+  });
+
+  it("the wrapper imports nothing that an agent-reachable write could corrupt", () => {
+    // The wrapper's whole value is that the corruption class reaching the decider cannot reach IT.
+    // Node builtins cannot fail to load and no agent can overwrite them; a relative import could.
+    const src = readFileSync(join(ROOT, "hooks", "hook-entry.ts"), "utf8");
+    const imports = [...src.matchAll(/^import .*? from "([^"]+)";$/gm)].map((m) => m[1] as string);
+    expect(imports.length).toBeGreaterThan(0);
+    for (const spec of imports) {
+      expect(spec, `hook-entry imports ${spec}, which is not a node: builtin`).toMatch(/^node:/);
+    }
   });
 });

@@ -69,7 +69,6 @@ import {
   declaredSafetyRows,
   declaredDroppedRows,
   citedResidualPaths,
-  residualPathRefusals,
   disclosureFor,
   dropConsistencyRefusals,
   guaranteesJoin,
@@ -1016,19 +1015,39 @@ describe("30-10 R6-3 — \"nothing is lowered\" is not \"everything is at its de
 });
 
 describe("30-11 RA2-4 — a published residual may not name a mechanism that is not in the tree", () => {
-  it("the scanner finds repo-shaped paths in a row and ignores prose", () => {
+  it("the scanner finds PATH-SHAPED spans and ignores prose (round 3, RA4-3 inverted it)", () => {
+    // Round 2 accepted a span only under six blessed directory prefixes, so `not/a/path` was ignored
+    // for the wrong reason — it is path-SHAPED and must be a claim, then refused for not being
+    // tracked. That prefix list is what let `.claude/settings-nonexistent.json` publish.
     const row = "| 9 | x | `accepted` | — | see `hooks/hooks.json`, `install/README.md`, `not/a/path`, `off` |";
-    expect(citedResidualPaths(row)).toEqual(["hooks/hooks.json", "install/README.md"]);
+    expect(citedResidualPaths(row)).toEqual([
+      "hooks/hooks.json",
+      "install/README.md",
+      "not/a/path",
+    ]);
   });
 
-  it("the real register cites paths, and every one of them exists", () => {
-    // Two-sided: the refusal list is empty AND the scan is not vacuous. A scanner that matched
-    // nothing would pass this gate for every row forever, which is the failure the gate's own
-    // vacuity clause refuses.
-    expect(residualPathRefusals()).toEqual([]);
+  it("the real register cites paths, and the scan is not vacuous", () => {
+    // The MEMBERSHIP decision moved to scripts/check-audit-register.ts in round 3 (`RA4-3`/`RA4-6`):
+    // "is this a tracked file" is a question about the repository, and putting it in the render forced
+    // the freshness mirror to copy a third of the repo. What stays here is the scan itself.
     const text = readFileSync(join(ROOT, "docs/audit/28-residual-sizing.md"), "utf8");
     const all = text.split("\n").flatMap((l) => citedResidualPaths(l));
     expect(all.length).toBeGreaterThan(0);
+  });
+
+  it("a path-shaped span is a claim regardless of its directory; EXTERNAL: opts out", () => {
+    // Round 2 gated the scan on six directory names, so `.claude/` — the directory row 9 is ABOUT —
+    // was invisible to it. The test is inverted with the code.
+    expect(citedResidualPaths("| 9 | x | see `.claude/settings-nonexistent.json` |")).toEqual([
+      ".claude/settings-nonexistent.json",
+    ]);
+    expect(citedResidualPaths("| 9 | x | see `.github/workflows/nope.yml` |")).toEqual([
+      ".github/workflows/nope.yml",
+    ]);
+    expect(citedResidualPaths("| 9 | x | see `package-nope.json` |")).toEqual(["package-nope.json"]);
+    expect(citedResidualPaths("| 9 | x | see `EXTERNAL:.claude/settings.json` |")).toEqual([]);
+    expect(citedResidualPaths("| 9 | x | prose like `all checkpoints at default` |")).toEqual([]);
   });
 
   it("the published row no longer states a narrowing measure in the present indicative", () => {
