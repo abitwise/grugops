@@ -1727,7 +1727,13 @@ describe("kit-model listPluginExemptComponentFiles (the `hooks/` exemption's two
       true,
     );
     // THE MEASURED FILE COUNT IS IN THE MESSAGE so a SHRUNKEN directory is visible rather than
-    // silently making the zero-markdown assertion easier to satisfy. Today: 7 files, 0 markdown.
+    // silently making the zero-markdown assertion easier to satisfy. Today: 9 files, 0 markdown.
+    //
+    // 7 -> 9 (plan 30-11 round 3, `RA3-7`): `hooks/hook-entry.ts` and its compiled `.js`. The hook
+    // ENTRY POINT is now a wrapper that spawns the decider and answers for it, because the published
+    // "no undecided exit path" invariant cannot be established inside a process a dependency can
+    // terminate — `process.reallyExit(0)` was a silent ALLOW and `abort()`/self-`SIGKILL` left no
+    // decision. The pin caught the addition, which is what a two-sided cardinality is for.
     expect(
       hooks.markdownFiles,
       `hooks/ holds ${hooks.files.length} file(s): ${hooks.files.join(", ")}`,
@@ -1735,7 +1741,7 @@ describe("kit-model listPluginExemptComponentFiles (the `hooks/` exemption's two
     expect(
       hooks.files.length,
       `hooks/ holds ${hooks.files.length} file(s): ${hooks.files.join(", ")}`,
-    ).toBe(7);
+    ).toBe(9);
   });
 });
 

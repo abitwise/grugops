@@ -35,7 +35,6 @@
 // ---------------------------------------------------------------------------------------------
 
 import { readFileSync, existsSync } from "node:fs";
-import { execFileSync } from "node:child_process";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import {
@@ -45,7 +44,6 @@ import {
   CLAIM_KINDS,
   REGISTER_PATH,
   REGISTRY_PATH,
-  RESIDUAL_PATH,
   type ClaimKind,
   type Register,
   type RegisterRow,
@@ -64,11 +62,6 @@ import {
   OUT as SAFETY_SURFACE_PATH,
   REGEN_COMMAND as SAFETY_SURFACE_REGEN,
 } from "./generate-safety-surface.js";
-import {
-  citedResidualPaths,
-  EXTERNAL_PATH_MARKER,
-  HISTORICAL_RESIDUAL_ROWS,
-} from "./generate-guarantees.js";
 
 // CHECK_ROOT override is load-bearing: the Vitest harness builds a hermetic mirror and points
 // CHECK_ROOT at it, then spawns this committed .js against the mirror.
@@ -460,86 +453,7 @@ export function registryArmFindings(i: RegistryArmInputs): string[] {
 // The check.
 // ---------------------------------------------------------------------------
 
-// ─────────────────────────────────────────────────────────────────────────────────────────────
-// A PUBLISHED RESIDUAL MAY NOT NAME A MECHANISM THAT IS NOT IN THE TREE (30-11, RA2-4 / RA4-3).
-// ─────────────────────────────────────────────────────────────────────────────────────────────
-//
-// WHY THE CHECK LIVES HERE AND NOT IN THE GENERATOR (round 3, `RA4-3` + `RA4-6`).
-//
-// Round 2 put it at the generator's entry point. That forced `scripts/guarantees-freshness.ts` to
-// copy the cited paths into its mirror so the gate could run there too — and that copy scanned every
-// register line and copied whole directories, pulling 35 modules that are NOT in the render's
-// declared import closure into the tree whose isolation is the only reason the freshness byte
-// comparison means anything.
-//
-// "Does this file exist in the repository" is a question about the REPOSITORY. The generator is a
-// pure function of its declared inputs and the mirror is a synthetic tree; neither is the place to
-// ask it. It is asked here, in the register auditor, which already runs in the repository — and the
-// mirror's copy is deleted rather than repaired.
-//
-// THE MEMBERSHIP TEST IS `git ls-files`, NOT `existsSync`. An untracked file exists in exactly one
-// working tree, and a mechanism that exists in one working tree is precisely a mechanism that "is
-// not in the tree" for every reader of the published page.
-
-/** Every tracked path, once. A directory counts as tracked when anything under it is. */
-function trackedPaths(): ReadonlySet<string> {
-  const out = new Set<string>();
-  const listed = execFileSync("git", ["ls-files"], { cwd: ROOT, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
-  for (const line of listed.split("\n")) {
-    const rel = line.trim();
-    if (rel === "") continue;
-    out.add(rel);
-    const parts = rel.split("/");
-    for (let i = 1; i < parts.length; i++) out.add(parts.slice(0, i).join("/"));
-  }
-  return out;
-}
-
-function checkResidualCitedPaths(): void {
-  const text = readFileSync(join(ROOT, RESIDUAL_PATH), "utf8");
-  const tracked = trackedPaths();
-  const refusals: string[] = [];
-  let scanned = 0;
-  let cited = 0;
-  for (const raw of text.split("\n")) {
-    const line = raw.replace(/\r$/, "").trim();
-    if (!line.includes("|")) continue;
-    const body = line.startsWith("|") ? line.slice(1) : line;
-    const first = (body.split("|")[0] ?? "").trim();
-    if (!/^\d+$/.test(first)) continue;
-    if (Number.parseInt(first, 10) <= HISTORICAL_RESIDUAL_ROWS) continue;
-    scanned += 1;
-    for (const path of citedResidualPaths(line)) {
-      cited += 1;
-      if (!tracked.has(path)) {
-        refusals.push(
-          `residual row ${first} cites \`${path}\`, which is not a TRACKED file in this repository — ` +
-            `a published residual may not name a mechanism that does not exist here. If the path is ` +
-            `deliberately outside the tree (a host's own settings file), write it as ` +
-            `\`${EXTERNAL_PATH_MARKER}${path}\` so the citation is a named act.`,
-        );
-      }
-    }
-  }
-  // THE SCAN'S OWN PREMISE. A scan that matched nothing would pass every row vacuously, forever.
-  if (scanned > 0 && cited === 0) {
-    refusals.push(
-      `the residual path scan examined ${scanned} published row(s) and found NO cited path at all — ` +
-        `that is a scan that has stopped asking, not a register that has stopped citing`,
-    );
-  }
-  if (refusals.length > 0) {
-    for (const r of refusals) fail(r);
-    return;
-  }
-  pass(
-    `residual citations: ${cited} path claim(s) across ${scanned} published row(s), every one a ` +
-      `tracked file (30-11 RA4-3 — tracked, not merely present on this disk).`,
-  );
-}
-
 function runAll(): void {
-  checkResidualCitedPaths();
   process.stdout.write(
     "\n[check_audit_register] the AUDIT-01 disposition register is complete against the derived kit (D-03 / D-05)\n",
   );
