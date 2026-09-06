@@ -56,6 +56,7 @@ function runGuard(
     if (v !== undefined) baseEnv[k] = v;
   }
   const r = spawnSync("node", [GUARD_JS], {
+    timeout: 20_000, // a hang must redden this case, not stop the suite (round 2, RA1-2)
     input: payload,
     encoding: "utf8",
     env: { ...baseEnv, ...env },

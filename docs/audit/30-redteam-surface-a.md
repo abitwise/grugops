@@ -1778,3 +1778,77 @@ rather than "the tests are red".
   governs nothing**; **`readCheckpointMatrix` does not hold TINT-03**; **`render()` re-implements the
   supersede fold.** All five are recorded as round-2 residuals with their directions; none is a
   lowering, and each is a different surface's decision.
+
+---
+
+## Round 2 — mutation proofs (closure clause 3)
+
+Applied to the **emitted `.js` the tests load**, marker grepped in that artifact before the run,
+`npm run build` restoring the tree afterwards.
+
+| # | mutation | marker | result |
+|---|---|---|---|
+| `N1` | the command model's contribution deleted (`byModel = false`) — patterns only again | `MUT-N1` ×1 in `hooks/guard.js` | **KILLED** — 23 failed / 132 passed |
+| `N2` | the exit handler's decision dropped | `MUT-N2` ×1 | **KILLED** — 2 failed / 153 passed |
+| `N3` | the exit-CODE correction dropped, deny JSON still written | `MUT-N3` ×1 | **KILLED** — 1 failed / 154 passed |
+| `N5` | assignment operator reverted to bare `=` | `MUT-N5` ×1 | **KILLED** — 5 failed / 150 passed |
+| `N6` | a push naming no refspec allowed again | `MUT-N6` ×1 in `scripts/checkpoints.js` | **KILLED** — 3 failed (guard) + 1 failed (model) |
+| `N7` | the emitter's roster refusal dropped | `MUT-N7` ×1 in `scripts/context-io.js` | **KILLED** — 2 failed / 223 passed |
+| `N8` | the admit verb's roots put back on argv | `MUT-N8` ×1 | **KILLED** — 1 failed / 224 passed |
+
+`N3` is worth its own line: it removes ONE assignment — `process.exitCode = 0` — while the deny JSON
+is still written, and exactly one case fails. That is the case asserting `status === 0`, which is the
+half of the block mechanism the first version of this fix had wrong.
+
+### `N4` SURVIVED, and pursuing it produced two results
+
+Mutating `if (!st.isFile())` to `if (false)` did **not** redden the suite. That is not a weak test; it
+is a fact about the fix that the mutation exposed and that a passing table would have hidden:
+
+```
+N4a  remove isFile() ONLY   (keep the size-bounded read)   -> PASSES
+N4b  remove the size bound  (keep isFile())                -> PASSES
+N4c  remove BOTH            (the pre-round-2 read)         -> HANGS  (killed after >20 minutes)
+```
+
+**Either half alone closes the hang, and the pair is load-bearing.** A FIFO and a character device
+both report `st.size === 0`, so the size-bounded read performs no read at all and returns `""`, which
+`JSON.parse` then refuses into the `unreadable` branch. `isFile()` is the DURABLE rule — it refuses by
+what the path IS, and would still refuse a non-regular file that reported a non-zero size — while the
+size bound is incidental to how FIFOs report size today. Both are kept, and this is written down so
+the next reader does not delete the "redundant" one.
+
+**The second result is about this harness, not the guard.** `N4c` did not FAIL — it hung, and took the
+whole suite with it for twenty minutes. A regression that stops CI rather than reddening it is a
+regression nobody reads. Every spawn in `hooks/guard.test.ts` and `hooks/admission-guard.test.ts` is
+now bounded at 20 s, and `spawnSync`'s timeout returns `status === null`, which every case already
+refuses. Found by mutation-proving this plan's own fix.
+
+---
+
+## Round 2 — self-reproduction against the FIXED build (closure clause 5)
+
+Premise asserted first: every mirrored `.js` sha256-compared to the working tree's before any probe.
+
+```
+hooks/guard.js            f56acce7184533fb…  premise OK
+hooks/admission-guard.js  538c9eedfa17f9de…  premise OK
+scripts/checkpoints.js    a9ec8c09681b0f09…  premise OK
+scripts/context-io.js     1fbe8465bd7a2abf…  premise OK
+```
+
+| id | verdict | evidence |
+|---|---|---|
+| `RA1-1` | CLOSED | 5/5 flag-carrying forms denied; 3/3 read-only controls still allowed |
+| `RA1-2a` | CLOSED | FIFO config: `exit=0`, `Production deploy blocked: humans decide, agents execute…` — it decides in 33 ms where it hung at 20 s |
+| `RA1-2b` | CLOSED | never-settling dependency: `exit=0`, `Blocked (fail-closed): the grugops prod-deploy guard could not…` |
+| `RA1-2c` | CLOSED | dependency's own `process.exit(0)`: `exit=0`, same refusal |
+| `RA1-2` control | CLOSED | a symlink to a REGULAR file still READS: banner `protected_branch_merge=off authorized by …` |
+| `RA1-3` | CLOSED | 3/3 unnamed pushes denied; `git push origin feature/x` allowed; the refusal names `git push origin <branch>` |
+| `RA1-4` | CLOSED | `gh pr merge --admin` and `git update-ref refs/heads/main` denied; `git merge` remains the RECORDED residual |
+| `RA1-5` | CLOSED | 3/3 `+=` spellings refused; `MY_GRUGOPS_FLOOR_OPEN_PR+=1` still allowed |
+| `RA2-1` | CLOSED | argv roots refused as an arity error; with `CLAUDE_PROJECT_DIR` the dial IS consulted and the self-stamped high-severity finding is REFUSED |
+| `RA2-3` | CLOSED | 5/5 malformed records refused, **0** files written |
+
+Every row carries the refusal text or the measured value, never the exit code alone, and every row
+has a control that comes out the other way.

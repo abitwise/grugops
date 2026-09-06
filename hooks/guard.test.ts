@@ -49,6 +49,18 @@ const APPROVAL = "GRUGOPS_PROD_DEPLOY_APPROVED";
 // Targets the COMMITTED guard.js (the artifact the host hook runs), never the .ts.
 const GUARD_JS = join(import.meta.dirname, "guard.js");
 
+/**
+ * EVERY SPAWN IS BOUNDED, AND THAT IS A FINDING ABOUT THIS HARNESS (plan 30-11 round 2).
+ *
+ * The `RA1-2` cases assert that the guard ANSWERS where it used to block forever. Without a spawn
+ * timeout an unfixed guard does not fail those cases — it hangs them, and with them the whole suite.
+ * Measured while mutation-proving the fix: removing both halves of the reader's non-regular-file
+ * refusal left the run alive for over twenty minutes with no verdict. A regression that stops CI
+ * rather than reddening it is a regression nobody reads. `spawnSync`'s timeout returns
+ * `status === null`, which every case here already refuses.
+ */
+const SPAWN_TIMEOUT_MS = 20_000;
+
 // sh analog (guard.test.sh:30-36):  printf '%s' "$1" | env "$2" node "$GUARD"
 // The env-assignment 2nd arg becomes a Record merged onto process.env.
 function runGuard(
@@ -59,6 +71,7 @@ function runGuard(
     input: json,
     encoding: "utf8",
     env: { ...process.env, ...env },
+    timeout: SPAWN_TIMEOUT_MS,
   });
   return { status: r.status, stdout: r.stdout ?? "", stderr: r.stderr ?? "" };
 }
@@ -268,6 +281,7 @@ function runAt(
     input: json,
     encoding: "utf8",
     env: { ...env, CLAUDE_PROJECT_DIR: projectDir, ...extra },
+    timeout: SPAWN_TIMEOUT_MS,
   });
   const stdout = r.stdout ?? "";
   let reason = "";
@@ -718,7 +732,12 @@ function runArtifact(
     if (k.startsWith("GRUGOPS_") || k === "CLAUDE_PROJECT_DIR" || v === undefined) continue;
     env[k] = v;
   }
-  const r = spawnSync("node", [artifact], { input: json, encoding: "utf8", env: { ...env, ...extra } });
+  const r = spawnSync("node", [artifact], {
+    input: json,
+    encoding: "utf8",
+    env: { ...env, ...extra },
+    timeout: SPAWN_TIMEOUT_MS,
+  });
   return { status: r.status, stdout: r.stdout ?? "", stderr: r.stderr ?? "" };
 }
 
