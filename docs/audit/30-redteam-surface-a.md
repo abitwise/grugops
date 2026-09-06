@@ -2790,3 +2790,48 @@ scripts/context-io.js     61d4a53bcdce9257…  premise OK
 - **Reviewer-4 obs 4, 5, 6** — `readCheckpointMatrix` still does not hold TINT-03 (latent: no runtime
   consumer); bare directory-name citations satisfy the gate's non-vacuity floor while asserting nothing
   about a mechanism; the mirror's partial-repository copy is deleted by `RA4-6`'s fix.
+
+---
+
+## What the FULL suite caught that the touched-file runs did not
+
+Round 3's targeted runs (the suites I had edited) were green while **44 cases across 6 files were
+red**. Running everything found two defects, both mine, both the class this round is about.
+
+**1. The citation gate had been evicted from two homes and I recorded neither eviction.** Round 2 put
+it at the generator entry, which forced the freshness mirror to copy a third of the repository
+(`RA4-6`). Round 3 moved it into `scripts/check-audit-register.ts` — whose own test builds a
+**hermetic mirror** the gate's inputs are not in, so 29 cases went red for a register that was simply
+not there. The same class, twice, one round apart. It now lives in
+`scripts/check-residual-citations.ts` and runs only against the real tree, needing no mirror at all:
+"does this repository track this file" is a question about the repository, and neither a pure render
+nor a hermetic auditor mirror is the repository.
+
+**2. `check-claim-anchors`' uniform-idiom sweep refused my new file for using `??`.**
+
+```
+scripts/check-residual-citations.ts:38: const ROOT = process.env.CHECK_ROOT ?? join(import.meta.dirname, "..");
+```
+
+That is **the identical defect this same plan closed in round 2** for `CLAUDE_PROJECT_DIR` (reviewer-1
+observation 2): `??` treats an empty value as a supplied one, so an empty `CHECK_ROOT` resolves against
+the process cwd. Written by the author one round after closing it, and caught by an existing guard
+rather than by a reviewer — which is exactly what a uniform-idiom sweep is for, and the strongest
+argument in this log for keeping such sweeps.
+
+**Seven derived-cardinality pins moved**, each with the module named and the reason written: the
+non-test module corpus 55 → 57, the `scripts/`-scoped corpus 47 → 48 in both of its independent
+enumerations, the comparison denominator 47×3 → 48×3, the standalone-gate count 11 → 12, and `hooks/`
+7 → 9 in both files that pin it. Every one caught a real addition. **The lesson for round 4: run the
+whole suite, not the files you touched** — the targeted run is the harness stating a premise it has
+not checked.
+
+## Round 3 state
+
+```
+suite   1 failed / 3133 passed  (the known frontmatter D-49 baseline, a Phase 29.1 planning document)
+typecheck  both projects green
+build parity / freshness (56 committed .js)  green
+7 freshness:* and 8 check:* scripts  green
+floor-invariance (the freeze, run AFTER the commits)  135/135
+```
