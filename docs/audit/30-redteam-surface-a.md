@@ -878,3 +878,50 @@ trailing, and case — made the sweep fail on **exactly those three rows** and n
 discriminates on the axis it names.
 
 Markers after the restoring build: `scripts/context-io.js:0`.
+
+---
+
+# Round 1 — self-reproduction against the FIXED build (closure clause 5)
+
+The fixing agent re-ran every round-1 attack itself, against a `git archive HEAD` mirror of the FIXED
+tree, spawning the compiled artifacts as processes. **Premise asserted first** — every mirrored `.js`
+was sha256-compared to the working tree's copy before a single probe ran:
+
+```
+FIXED mirror HEAD = 380ffbadf98c05965e8bfa8ed4d1b6663383a9b3
+hooks/guard.js            8e149a6d2b55ff1b…  premise OK
+hooks/admission-guard.js  ab37cf9eadd9d3e3…  premise OK
+scripts/checkpoints.js    4c7b2848b2606273…  premise OK
+scripts/context-io.js     397a746e9a7af37d…  premise OK
+```
+
+Every row records the **evidence** — the refusal text or the measured value — never the exit code
+alone.
+
+| id | verdict | evidence |
+|---|---|---|
+| `A-1` | REFUSED | `Refused: an agent may not set or export GRUGOPS_ADMISSION_APPROVED_BY. That variable carries the named human who may dispose of a gated governance finding…` |
+| `A-2a` | REFUSED | `exit=0` :: `Blocked (fail-closed): the grugops prod-deploy guard could not load its checkpoint roster and governance reader…` — the corrupted-roster attack now DENIES where it allowed |
+| `A-2b` | REFUSED | `exit=0` :: `Admission blocked (fail-closed): the grugops admission guard could not load its note classifier and governance reader…` |
+| `A-3` | TRUE RECORD | `CHECKPOINT ALLOWED: the checkpoint "protected_branch_merge" was declared \`off\` and enforced as \`block\`.` — the note now states the outcome the run reached |
+| `A-4a` | REFUSED | banner: `protected_branch_merge=off NOT AUTHORIZED (GRUGOPS_FLOOR_PROTECTED_BRANCH_MERGE names nobody; enforced as block)` |
+| `A-4b` | REFUSED | `Production deploy blocked: humans decide, agents execute…` — a one-space ACTION approval no longer approves |
+| `A-4c` | REFUSED | `Admission blocked: humans decide, agents execute. This is a gated governance finding (by: security-nfr)…` — a one-space approver with a matching `human: ` stamp no longer admits |
+| `A-6` | INERT | exactly **1** banner line survives a config key spelling a complete forged banner; the forged text is present, escaped onto one line |
+| `A-7` | HONEST | `note admitted: it passed every admission check that applies to it — structural validation, the reserved-identity rule…` |
+| `A-8` | NAMED + CLOSED | wrote nothing: `true`; the refusal names `emit-verdict <task> <id> <clean\|finding\|unknown> [contextRoot]` |
+
+`A-5` cannot be self-reproduced by spawning an artifact, so it was reproduced the way it was found —
+on a clone of the FIXED tree, running the original attack:
+
+```
+clone HEAD 380ffba
+control: the freeze block on a clean clone            4 passed
+ATTACK:  change the guard, update the constant, `git add hooks/guard.ts` ONLY
+  old index-scoped question : exit 0        -> WOULD HAVE PASSED
+  new HEAD-scoped question  : exit != 0     -> REFUSES
+  suite: × hooks/guard.ts has no uncommitted modification, measured against HEAD   1 failed | 3 passed
+```
+
+The exact bypass that was green in round 1 is red against the fixed assertion, and the clean-tree
+control still passes — so the fix refuses the attack rather than refusing everything.
