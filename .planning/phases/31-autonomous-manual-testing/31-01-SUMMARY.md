@@ -24,10 +24,12 @@ affects: [31-03 browser-uat-recipe, 31-04 workflow-05 prose and the chrome lane,
 actuals:
   tokens: 34405
   tasks: 3
-  commits: 7
+  commits: 8
 plan_head_before: 109d5c7a001b56f93f91046e9ed6d3c91ba304cc
-# commits MEASURED with `git rev-list --count 109d5c7..HEAD` — 6 production commits plus this
-# SUMMARY's own docs commit, so re-running the same command after it lands reproduces 7.
+# commits MEASURED with `git rev-list --count 109d5c7..HEAD` — 6 production commits plus two docs
+# commits (this SUMMARY, then the state/roadmap/requirements close-out that also carries this
+# corrected number). The close-out commit was amended rather than followed by a ninth, so
+# re-running the same command reproduces 8.
 # tokens is chars/4 over `git diff 109d5c7..HEAD` (137619 chars) at the last production commit —
 # the estimate's scale, not a harness token count. The plan estimated 88000; the realized diff is
 # 2.6x smaller.
@@ -301,6 +303,12 @@ None - no external service configuration required.
 - **Ready for `31-04`.** Its task 1 step 4 owns the `agent-factory/workflows/05-pr-quality-gate.md` prose edit that brings the documented `emit-verdict` shape into line with the four-positional signature shipped here. **Until that lands, the workflow prose at line 47 documents a three-argument invocation the CLI now refuses on arity** — a known, deliberate, plan-assigned mismatch, not a defect introduced here. It is the one thing a reader of this plan must not mistake for done.
 - **Ready for `31-03` and `31-02`'s consumers.** The `artifact-ref` provenance shape and the refusal that binds it are in place, so the browser-UAT recipe and the spec-integrity runnable have a stable evidence contract to point at.
 - **Concern to carry forward:** the two residuals above (the `appendNote` write path, and `composeThreadNote`'s missing mirror). Neither is a silent pass — both fail closed — but both are places where a later widening of the evidence path would need a decision rather than a patch.
+
+## Self-Check: PASSED
+
+Every file named under `key-files` exists on disk (`[ -f ]`), and all seven commits resolve in
+`git log --oneline --all`: `5d84633`, `a0ab6e7`, `f394762`, `087987f`, `a7d0cf7`, `c84a5ca`,
+`a8f4c69`.
 
 ---
 *Phase: 31-autonomous-manual-testing*
