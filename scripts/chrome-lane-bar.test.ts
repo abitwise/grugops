@@ -14,17 +14,31 @@
 //     carve-out has exactly one member, and neither document that defines the attended lane carries
 //     a route into it.
 //
-// THE RESIDUAL THIS TEST DOES NOT CLOSE, NAMED RATHER THAN IMPLIED. It asserts the absence of a
-// route in this repository's own TypeScript sources under `scripts/`, `hooks/` and `install/`, and
-// in the two documents that define the lane. It does NOT prove totality. A route introduced outside
-// those directories, a host repository's own script, or a lane operator hand-writing a note is
-// covered by the behavioural refusal in `scripts/context-io.test.ts` and by the admission grant the
-// `admission-guard` hook reads — not here. A green run here says what these derivations measured,
+// THE RESIDUALS THIS TEST DOES NOT CLOSE, NAMED AND MEASURED RATHER THAN IMPLIED. It asserts the
+// absence of a route in this repository's own TypeScript sources under `scripts/`, `hooks/` and
+// `install/`, and in the documents that define the lane. It does NOT prove totality, and the
+// red-team pass run before it was committed found exactly where it stops:
+//
+//   1. THE PREDICATE IS SYNTACTIC AND AN ALIAS DEFEATS IT. Measured: `const f = emitVerdict;` then
+//      `f(…)`, and `mod["emitVerdict"](…)`, both contain no `emitVerdict(` and are therefore NOT
+//      reported. Widening the matcher once per counter-example is the failure this repository has
+//      paid for repeatedly, so the boundary is written down instead. What actually stops such a
+//      call is the BEHAVIOURAL half in `scripts/context-io.test.ts`, which refuses the resulting
+//      note at write time no matter which expression produced it.
+//   2. A HOST REPOSITORY'S OWN SCRIPTS ARE OUT OF SCOPE ENTIRELY. Only this tree is walked.
+//   3. A LANE OPERATOR HAND-WRITING A NOTE is covered by the admission grant the `admission-guard`
+//      hook reads in a separate process, not by anything here.
+//
+// The two set literals this file used to carry — the source directories and the lane documents —
+// were the third residual, and that one is CLOSED rather than disclosed: the lane-document set is
+// derived from the kit below, and the walk's coverage of every tracked source is asserted against
+// `git ls-files` with its remainder named. A green run here says what these derivations measured,
 // and nothing wider.
 //
 // Vitest `globals: false` (the repo default) → the test functions are imported explicitly.
 
 import { describe, it, expect, afterEach } from "vitest";
+import { spawnSync } from "node:child_process";
 import {
   mkdirSync,
   mkdtempSync,
@@ -92,13 +106,30 @@ const WALKED_SOURCE_FLOOR = 40;
 /** The heading both documents use for the lane. One concept, one name, one anchor. */
 const ATTENDED_LANE_HEADING = "## The attended Chrome lane";
 
-/** The two documents that DEFINE the attended lane, as shipped by plan 31-03 and 31-04 task 2. */
-const ATTENDED_LANE_DOCS = [
+/**
+ * The documents that DEFINE the attended lane — DERIVED from the kit, then compared against the
+ * pair below.
+ *
+ * A typed-out list here would be the hand-maintained set literal this repository names as its second
+ * systemic failure class: a THIRD lane document could land, go unscanned, and every assertion below
+ * would stay green while covering less than it claims. So the set is derived by walking the kit for
+ * the anchor heading, and the named pair is what the derivation is CHECKED AGAINST rather than what
+ * it is read from.
+ */
+const KIT_DIR = "agent-factory";
+const EXPECTED_ATTENDED_LANE_DOCS = [
   "agent-factory/checklists/browser-uat-recipe.md",
   "agent-factory/workflows/06-uat-pack.md",
 ] as const;
 
 const EXPECTED_REGION_COUNT = 2;
+
+/**
+ * Tracked `.ts` sources the three walked directories do NOT cover, named so the gap is an assertion
+ * rather than a silence. Measured against `git ls-files` when this file was written: one file, the
+ * test runner's own configuration, which invokes nothing.
+ */
+const UNWALKED_TRACKED_SOURCES = ["vitest.config.ts"] as const;
 
 /** The reserved gate identity, spelled here exactly as a note's `by:` field carries it. */
 const GATE_IDENTITY_STAMP = "§14-gate";
@@ -184,6 +215,27 @@ function forbiddenHits(region: string): string[] {
   return FORBIDDEN_IN_LANE.filter((f) => region.includes(f));
 }
 
+/** Every kit markdown file carrying the anchor heading, repo-relative and sorted. */
+function deriveAttendedLaneDocs(root: string): string[] {
+  const out: string[] = [];
+  const walk = (dir: string): void => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const abs = join(dir, entry.name);
+      if (entry.isDirectory()) {
+        if (!SKIPPED_DIRECTORIES.has(entry.name)) walk(abs);
+        continue;
+      }
+      if (!entry.isFile() || !entry.name.endsWith(".md")) continue;
+      const lines = readFileSync(abs, "utf8").split("\n");
+      if (lines.some((l) => l.trimEnd() === ATTENDED_LANE_HEADING)) {
+        out.push(relative(root, abs).split(sep).join("/"));
+      }
+    }
+  };
+  walk(join(root, KIT_DIR));
+  return out.sort();
+}
+
 // ── Temp-tree bookkeeping (the test-skip-integrity.test.ts harness shape) ───────────────────────
 
 const tmpDirs: string[] = [];
@@ -231,6 +283,40 @@ describe("31-04 D-09: exactly one repository source invokes the verdict carve-ou
 
   it("the derived author set has the expected MEMBER", () => {
     expect(deriveVerdictAuthors(ROOT)).toEqual([...EXPECTED_VERDICT_AUTHORS]);
+  });
+
+  it("PREMISE: the walk covers every tracked source but a named, asserted remainder", () => {
+    // ASSERT THE HARNESS'S OWN PREMISE. The three walked directories are this file's input
+    // boundary, and a boundary nobody compared against the repository is a claim, not a bound. The
+    // comparison is made against `git ls-files`, which is the same authority the foundation guards
+    // pin their own module walk to.
+    const listed = spawnSync("git", ["ls-files", "*.ts"], { cwd: ROOT, encoding: "utf8" });
+    expect(
+      listed.status,
+      "chrome-lane-bar: `git ls-files` did not run, so the walk's coverage was never compared — " +
+        "a premise that could not be checked FAILS here rather than being skipped",
+    ).toBe(0);
+    const tracked = (listed.stdout ?? "")
+      .split("\n")
+      .map((l) => l.trim())
+      .filter((l) => l.length > 0 && !l.endsWith(".test.ts"));
+    expect(tracked.length).toBeGreaterThanOrEqual(WALKED_SOURCE_FLOOR);
+
+    const walked = new Set(walkTypeScriptSources(ROOT));
+    const outside = tracked.filter((p) => !walked.has(p)).sort();
+    expect(
+      outside,
+      `chrome-lane-bar: ${outside.length} tracked non-test source(s) sit outside the walk ` +
+        `[${outside.join(", ")}] — every one of them is a place a second verdict author could ` +
+        `land unseen, so the remainder is named here rather than left as a silence`,
+    ).toEqual([...UNWALKED_TRACKED_SOURCES]);
+    // …and the named remainder carries no route either, so naming it is not excusing it.
+    for (const rel of outside) {
+      expect(
+        readFileSync(join(ROOT, rel), "utf8").includes(INVOCATION),
+        `${rel}: an unwalked tracked source invokes the verdict carve-out`,
+      ).toBe(false);
+    }
   });
 });
 
@@ -280,18 +366,28 @@ describe("31-04 D-09: the author-set assertion is a control, not a coincidence",
 
 describe("31-04 D-09: the documented attended lane carries no route to the machine stamp", () => {
   function liveRegions(): { doc: string; region: string; whole: string }[] {
-    return ATTENDED_LANE_DOCS.map((doc) => {
+    return deriveAttendedLaneDocs(ROOT).map((doc) => {
       const whole = readFileSync(join(ROOT, doc), "utf8");
       return { doc, region: extractSection(whole, ATTENDED_LANE_HEADING), whole };
     });
   }
+
+  it("the lane-document set is DERIVED from the kit and equals the named pair", () => {
+    const derived = deriveAttendedLaneDocs(ROOT);
+    expect(
+      derived,
+      `chrome-lane-bar: the kit walk derived [${derived.join(", ")}] as the documents defining the ` +
+        `attended lane — a THIRD document would be scanned by nothing below, so the derivation is ` +
+        `compared against the named pair rather than read from it`,
+    ).toEqual([...EXPECTED_ATTENDED_LANE_DOCS]);
+  });
 
   it("the region derivation is non-empty and has the expected COUNT", () => {
     const regions = liveRegions();
     expect(
       regions.length,
       `chrome-lane-bar: derived ${regions.length} attended-lane region(s) from ` +
-        `[${ATTENDED_LANE_DOCS.join(", ")}], expected exactly ${EXPECTED_REGION_COUNT}`,
+        `[${regions.map((r) => r.doc).join(", ")}], expected exactly ${EXPECTED_REGION_COUNT}`,
     ).toBe(EXPECTED_REGION_COUNT);
     for (const { doc, region } of regions) {
       expect(region.length, `${doc}: the extracted region is empty`).toBeGreaterThan(0);
@@ -364,7 +460,7 @@ describe("31-04 D-09: the documented attended lane carries no route to the machi
     // The direct control for the bound: the only thing that changes between this document and the
     // live one is a section AFTER the lane. A region that reported the plant would have read past
     // its bound, which is the failure the two cases above exist to catch.
-    const doc = ATTENDED_LANE_DOCS[1];
+    const doc = EXPECTED_ATTENDED_LANE_DOCS[1];
     const whole = readFileSync(join(ROOT, doc), "utf8");
     const planted = `${whole}\n\n## A later section\n\nThis section names ${VERDICT_EMITTER} and ${GATE_IDENTITY_STAMP}.\n`;
     const root = mkTmp("grugops-chrome-lane-later-");
@@ -389,7 +485,7 @@ describe("31-04 D-09: the documented attended lane carries no route to the machi
 describe("31-04 D-09: the no-route assertion is a control, not a coincidence", () => {
   for (const forbidden of FORBIDDEN_IN_LANE) {
     it(`a region seeded with ${JSON.stringify(forbidden)} is reported`, () => {
-      const doc = ATTENDED_LANE_DOCS[1];
+      const doc = EXPECTED_ATTENDED_LANE_DOCS[1];
       const whole = readFileSync(join(ROOT, doc), "utf8");
       const seededWhole = whole.replace(
         ATTENDED_LANE_HEADING,
