@@ -4779,3 +4779,94 @@ describe("31-01 — the derived index carries the provenance, and only when ther
     expect(readFileSync(join(contextRoot, task, "index.jsonl"), "utf8")).toBe(first.jsonl);
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// PHASE 31 (plan 31-01) — RED-TEAM ROUND 1 AGAINST THE D-03 REFUSAL.
+//
+// A green suite is not proof for a safety predicate in this repository, so the branch was attacked
+// before it was called done: 24 probes across three rounds (padded and zero-width `kind`, an
+// omitted / empty / whitespace `gate_run` meant to skip the branch entirely, a `Sha:` key alias, a
+// padded `gate_run`, an abbreviated SHA against a full one, a verdict in another task, a superseded
+// verdict, uppercase hex, the reserved identity, and the provenance triple smuggled onto a
+// `finding` and an `observation`). Every one was refused and the control admitted.
+//
+// TWO residuals survived and are recorded here as ASSERTIONS rather than as prose, so a later
+// change that alters either is visible rather than silent.
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+
+describe("31-01 red-team — the residuals the D-03 probes surfaced", () => {
+  const TASK = "p31-rt";
+
+  function evidenceNote(sha: string, gateRun = "RUN-A"): Parameters<typeof mod.appendNote>[1] {
+    return {
+      kind: "artifact-ref",
+      by: "qe-e2e",
+      at: "2026-09-07T09:00:00Z",
+      verified_by: "",
+      confidence: "high",
+      refs: ["tests/e2e/uat/TICKET-1.uat.spec.ts"],
+      supersedes: null,
+      sha,
+      gate_run: gateRun,
+      content_hash: P31_CONTENT_HASH,
+    };
+  }
+
+  it("TWO live green verdicts sharing one per-run id at different SHAs REFUSE, both ways", () => {
+    // Probe R6/R6-inverse. `find()` returned the EARLIEST match, so evidence claiming the earlier
+    // SHA was admitted while a later run under the same id had run at a different commit — the
+    // refusal's own message says "THE live green verdict", and with two of them there is no such
+    // thing. An ambiguous pair is refused in BOTH directions rather than silently resolved by
+    // replay order, which is the fail-closed posture every other arm of this branch keeps.
+    for (const claimed of [P31_SHA_A, P31_SHA_B]) {
+      const contextRoot = freshTmp("p31-rt-dup-");
+      const repoRoot = freshTmp("p31-rt-dup-repo-");
+      mod.emitVerdict(TASK, "RUN-A", "clean", P31_SHA_A, contextRoot, "2026-09-07T08:00:00Z");
+      mod.emitVerdict(TASK, "RUN-A", "clean", P31_SHA_B, contextRoot, "2026-09-07T09:00:00Z");
+      const text = artifactRefText({ sha: claimed, gate_run: "RUN-A" });
+      const joined = mod.admit(TASK, text, contextRoot, repoRoot).join("\n");
+      expect(joined, `sha ${claimed} was admitted against an ambiguous verdict pair`).toContain(
+        "more than one",
+      );
+      expect(joined).toContain("RUN-A");
+    }
+  });
+
+  it("CONTROL — a SINGLE live green verdict still admits (the ambiguity arm is not over-broad)", () => {
+    const contextRoot = freshTmp("p31-rt-single-");
+    const repoRoot = freshTmp("p31-rt-single-repo-");
+    mod.emitVerdict(TASK, "RUN-A", "clean", P31_SHA_A, contextRoot);
+    expect(
+      mod.admit(TASK, artifactRefText({ sha: P31_SHA_A, gate_run: "RUN-A" }), contextRoot, repoRoot),
+    ).toEqual([]);
+  });
+
+  it("admitAndAppend — the structured channel — REACHES the refusal and writes nothing", () => {
+    const contextRoot = freshTmp("p31-rt-aaa-");
+    const repoRoot = freshTmp("p31-rt-aaa-repo-");
+    mod.emitVerdict(TASK, "RUN-A", "clean", P31_SHA_A, contextRoot);
+    const before = notesSnapshot(contextRoot, TASK);
+    const r = mod.admitAndAppend(TASK, evidenceNote(P31_SHA_B), "body", contextRoot, repoRoot);
+    expect(r.id).toBeNull();
+    expect(r.findings.join("\n")).toContain(P31_SHA_A);
+    expect(r.findings.join("\n")).toContain(P31_SHA_B);
+    expect(notesSnapshot(contextRoot, TASK)).toEqual(before);
+  });
+
+  it("RESIDUAL, PINNED: appendNote writes without asking admit(), so it persists a stale SHA", () => {
+    // D-03 puts the comparison in admit() and NOWHERE else, so a caller who writes straight through
+    // appendNote never reaches it. That is the same tier the §14-gate stamp cross-check already
+    // sits in — appendNote is the writer, admit()/admitAndAppend() is the admission authority — and
+    // adding a second check inside appendNote would be the two-authorities drift D-03 forbids.
+    // Recorded as an assertion so the day this changes is a day this case goes red on purpose.
+    const contextRoot = freshTmp("p31-rt-bypass-");
+    mod.emitVerdict(TASK, "RUN-A", "clean", P31_SHA_A, contextRoot);
+    const id = mod.appendNote(TASK, evidenceNote(P31_SHA_B), "body", contextRoot);
+    expect(id).toBeTruthy();
+    const onDisk = readFileSync(join(contextRoot, TASK, "notes", `${id}.md`), "utf8");
+    expect(onDisk).toContain(`sha: ${P31_SHA_B}`);
+    // …and the note it wrote is exactly what admit() would have refused, which is the residual.
+    const repoRoot = freshTmp("p31-rt-bypass-repo-");
+    expect(mod.admit(TASK, onDisk, contextRoot, repoRoot).length).toBeGreaterThan(0);
+  });
+});
