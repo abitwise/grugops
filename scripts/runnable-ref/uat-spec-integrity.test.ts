@@ -29,6 +29,7 @@ import {
   symlinkSync,
 } from "node:fs";
 import { join, resolve, dirname } from "node:path";
+import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 
 // Run the COMMITTED compiled artifact, not the .ts (the repo-wide runnable-test convention).
@@ -41,17 +42,42 @@ const REPO_NODE_MODULES = join(REPO_ROOT, "node_modules");
 // The module surface the injection cases reach. Imported DYNAMICALLY inside the cases that need it
 // so that a missing artifact fails those cases on their own terms rather than preventing this file
 // from loading at all (which would make every case fail for one unrelated reason).
+interface SpecAnalysisView {
+  readonly visited: number;
+  readonly expected: number;
+  readonly findings: readonly string[];
+  readonly errors: readonly string[];
+}
+
 interface CheckerModule {
   readonly UAT_SPEC_GLOB_SUFFIX: string;
   readonly PARSER_ABSENT_MARKER: string;
   readonly BROWSER_ABSENT_MARKER: string;
   readonly BROWSER_ABSENT_STAGES: Readonly<Record<"parser_package" | "browser_binaries", string>>;
   readonly BANNED_CONSTRUCTS: ReadonlyArray<{ readonly object: string; readonly member: string }>;
+  readonly SKIPPED_DIRECTORIES: readonly string[];
   emitLoudSkipIfBrowserUnusable(
     repoRoot: string,
     probe?: (repoRoot: string) => "parser_package" | "browser_binaries" | null,
   ): boolean;
+  deriveSpecPaths(repoRoot: string): { relPaths: readonly string[]; refusals: readonly string[] };
+  analyzeSpecs(
+    repoRoot: string,
+    specRelPaths: readonly string[],
+    ts: unknown,
+    readFile?: (absPath: string) => string,
+  ): SpecAnalysisView;
+  reportMeasured(
+    m: { visited: number; expected: number; findings: readonly string[] },
+    wantJson: boolean,
+    out: (s: string) => void,
+    err: (s: string) => void,
+  ): number;
 }
+
+// The parser this repository provides, reached the same way the runnable reaches the target's.
+const requireFromHere = createRequire(import.meta.url);
+const hostTypeScript: unknown = requireFromHere("typescript");
 
 async function loadChecker(): Promise<CheckerModule> {
   return (await import("./uat-spec-integrity.js")) as unknown as CheckerModule;
@@ -423,6 +449,154 @@ describe("uat-spec-integrity.js — the D-15 two-stage browser loud skip (UATX-0
     expect(r.stderr).toContain(
       `${mod.BROWSER_ABSENT_MARKER} (${mod.BROWSER_ABSENT_STAGES.parser_package})`,
     );
+    expect(r.stdout).not.toContain("0 findings");
+  });
+});
+
+describe("uat-spec-integrity.js — the vacuity and short-set floors (UATX-06)", () => {
+  // Plant a file at an arbitrary repo-relative path inside a target repo.
+  function plant(root: string, relPath: string, body: string): void {
+    const dest = join(root, relPath);
+    mkdirSync(dirname(dest), { recursive: true });
+    writeFileSync(dest, body, "utf8");
+  }
+  const TRIVIAL_SPEC = [
+    'import { test, expect } from "@playwright/test";',
+    'test("a scenario", async ({ page }) => {',
+    '  await page.goto("/x");',
+    '  await expect(page.getByTestId("x")).toBeVisible();',
+    "});",
+    "",
+  ].join("\n");
+
+  // ── branch (4): the pass line CARRIES the measurement ─────────────────────────────────────────
+  it("reports N/N on the pass line for a two-spec target", () => {
+    const root = mkTargetRepo({});
+    plant(root, "e2e/uat/one.uat.spec.ts", TRIVIAL_SPEC);
+    plant(root, "e2e/uat/two.uat.spec.ts", TRIVIAL_SPEC);
+    const r = runCheck(root);
+    expect(r.status).toBe(0);
+    expect(r.stdout).toContain("2/2");
+  });
+
+  // ── branch (1): a loop that never runs reports 0 and FAILS its own floor ──────────────────────
+  it("a stubbed-out loop (visited 0 of a non-empty derived set) exits 2 rather than passing", async () => {
+    const { reportMeasured } = await loadChecker();
+    let out = "";
+    let err = "";
+    const code = reportMeasured(
+      { visited: 0, expected: 7, findings: [] },
+      false,
+      (s) => {
+        out += s;
+      },
+      (s) => {
+        err += s;
+      },
+    );
+    expect(code).toBe(2);
+    expect(err.toLowerCase()).toContain("zero");
+    expect(err).toContain("7");
+    expect(out).toBe(""); // no pass line may be printed on this branch
+  });
+
+  // ── branch (2): a SHORT scan set, forced through the injectable reader ────────────────────────
+  it("forcing the reader to throw on one file yields visited < expected and exit code 2 naming both numbers", async () => {
+    const { analyzeSpecs, reportMeasured } = await loadChecker();
+    const root = mkTargetRepo({});
+    plant(root, "e2e/uat/one.uat.spec.ts", TRIVIAL_SPEC);
+    plant(root, "e2e/uat/two.uat.spec.ts", TRIVIAL_SPEC);
+    plant(root, "e2e/uat/three.uat.spec.ts", TRIVIAL_SPEC);
+
+    const analysis = analyzeSpecs(
+      root,
+      ["e2e/uat/one.uat.spec.ts", "e2e/uat/two.uat.spec.ts", "e2e/uat/three.uat.spec.ts"],
+      hostTypeScript,
+      (absPath: string) => {
+        if (absPath.endsWith("two.uat.spec.ts")) throw new Error("forced read failure");
+        return readFileSync(absPath, "utf8");
+      },
+    );
+
+    // The unreadable file is a could-not-run reason and did NOT count toward `visited`.
+    expect(analysis.expected).toBe(3);
+    expect(analysis.visited).toBe(2);
+    expect(analysis.errors.join("\n")).toContain("two.uat.spec.ts");
+
+    let out = "";
+    let err = "";
+    const code = reportMeasured(analysis, false, (s) => {
+      out += s;
+    }, (s) => {
+      err += s;
+    });
+    expect(code).toBe(2);
+    expect(err).toContain("2");
+    expect(err).toContain("3");
+    expect(out).toBe(""); // never a pass line, and never a bare findings report
+  });
+
+  // ── the two counters have two origins ─────────────────────────────────────────────────────────
+  it("expected comes from the derived list and visited from the loop, so an empty input yields 0 of 0", async () => {
+    const { analyzeSpecs } = await loadChecker();
+    const root = mkTargetRepo({});
+    const analysis = analyzeSpecs(root, [], hostTypeScript);
+    expect(analysis.expected).toBe(0);
+    expect(analysis.visited).toBe(0);
+  });
+
+  // ── the walker's INPUT BOUNDARY, tested on BOTH sides ─────────────────────────────────────────
+  it("does not count a uat spec planted under node_modules", async () => {
+    const { SKIPPED_DIRECTORIES, deriveSpecPaths } = await loadChecker();
+    expect(SKIPPED_DIRECTORIES).toContain("node_modules");
+    const root = mkTmp(); // no node_modules symlink: we create a real one to plant inside
+    writeFileSync(join(root, "package.json"), "{}", "utf8");
+    plant(root, "node_modules/some-dep/e2e/uat/dep.uat.spec.ts", TRIVIAL_SPEC);
+    expect(deriveSpecPaths(root).relPaths).toEqual([]);
+  });
+
+  it("counts a uat spec in a legitimate deeply nested uat directory", async () => {
+    const { deriveSpecPaths } = await loadChecker();
+    const root = mkTmp();
+    writeFileSync(join(root, "package.json"), "{}", "utf8");
+    plant(root, "packages/web/tests/e2e/uat/deep.uat.spec.ts", TRIVIAL_SPEC);
+    expect(deriveSpecPaths(root).relPaths).toEqual(["packages/web/tests/e2e/uat/deep.uat.spec.ts"]);
+  });
+
+  // ── the recognition key needs BOTH halves ─────────────────────────────────────────────────────
+  it("requires both the uat path segment and the suffix", async () => {
+    const { deriveSpecPaths } = await loadChecker();
+    const root = mkTmp();
+    writeFileSync(join(root, "package.json"), "{}", "utf8");
+    plant(root, "e2e/uat/yes.uat.spec.ts", TRIVIAL_SPEC); // both halves
+    plant(root, "e2e/regression/no.uat.spec.ts", TRIVIAL_SPEC); // suffix, no uat segment
+    plant(root, "e2e/uat/no.spec.ts", TRIVIAL_SPEC); // uat segment, no suffix
+    plant(root, "e2e/uat.uat.spec.ts", TRIVIAL_SPEC); // `uat` in the FILE name, not a segment
+    expect(deriveSpecPaths(root).relPaths).toEqual(["e2e/uat/yes.uat.spec.ts"]);
+  });
+
+  // ── derivation is SORTED, so findings and the pass line are byte-identical across runs ────────
+  it("derives the spec set in sorted repo-relative order", async () => {
+    const { deriveSpecPaths } = await loadChecker();
+    const root = mkTmp();
+    writeFileSync(join(root, "package.json"), "{}", "utf8");
+    for (const name of ["z", "a", "m"]) {
+      plant(root, `e2e/uat/${name}.uat.spec.ts`, TRIVIAL_SPEC);
+    }
+    expect(deriveSpecPaths(root).relPaths).toEqual([
+      "e2e/uat/a.uat.spec.ts",
+      "e2e/uat/m.uat.spec.ts",
+      "e2e/uat/z.uat.spec.ts",
+    ]);
+  });
+
+  // ── an unparseable spec is could-not-run (exit 2), never a clean fail ─────────────────────────
+  it("treats an unparseable spec as could-not-run and never as a pass", () => {
+    const root = mkTargetRepo({});
+    plant(root, "e2e/uat/broken.uat.spec.ts", "test('x', async () => { if ( });\n");
+    const r = runCheck(root);
+    expect(r.status).toBe(2);
+    expect(r.stderr).toContain("did not parse");
     expect(r.stdout).not.toContain("0 findings");
   });
 });
