@@ -4435,3 +4435,347 @@ describe("31-01 — a note that sets no provenance field composes byte-identical
     );
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// PHASE 31 (plan 31-01, task 3) — THE VALIDATOR RULE, THE RENDER, AND THE BYTE-STABILITY PROOF.
+//
+// The composer decides WHETHER a provenance line is emitted; validate() decides WHICH note may
+// carry one. Splitting it that way keeps a single authority over the rule: a field emitted onto a
+// note that may not carry it is refused at the very next line of every write path, rather than
+// dropped in silence by a composer that quietly knew better.
+//
+// The byte-stability claim research recorded as assumption A5 is PROVEN here rather than asserted:
+// the five non-artifact-ref kinds are composed and compared against the pre-change fence formula,
+// reproduced locally, and the derived index.md / index.jsonl are compared to exact expected bytes.
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+
+/** The pre-31-01 composeNote fence formula, reproduced verbatim as the byte-stability comparand. */
+function preChangeFence(
+  f: {
+    id: string;
+    kind: string;
+    by: string;
+    at: string;
+    verified_by: string;
+    confidence: string;
+    refs: string[];
+    supersedes: string | null;
+  },
+  body: string,
+): string {
+  const refsBlock =
+    f.refs.length === 0 ? "refs:\n" : "refs:\n" + f.refs.map((r) => `  - ${r}`).join("\n") + "\n";
+  return (
+    "---\n" +
+    `id: ${f.id}\n` +
+    `kind: ${f.kind}\n` +
+    `by: ${f.by}\n` +
+    `at: ${f.at}\n` +
+    `verified_by: ${f.verified_by}\n` +
+    `confidence: ${f.confidence}\n` +
+    refsBlock +
+    `supersedes: ${f.supersedes ?? ""}\n` +
+    "---\n\n" +
+    (body.endsWith("\n") ? body : body + "\n")
+  );
+}
+
+/** A note text with an arbitrary scalar set, for exercising validate() on text from disk. */
+function noteTextWithScalars(scalars: Record<string, string>, body = "b"): string {
+  const lines = Object.entries(scalars).map(([k, v]) => `${k}: ${v}`);
+  return `---\n${lines.join("\n")}\nrefs:\nsupersedes: \n---\n\n${body}\n`;
+}
+
+describe("31-01 — validate() adjudicates the evidence-provenance fields (D-01, D-02)", () => {
+  const BASE = {
+    kind: "artifact-ref",
+    by: "qe-e2e",
+    at: "2026-09-07T09:00:00Z",
+    verified_by: "",
+    confidence: "high",
+    sha: P31_SHA_A,
+    gate_run: "RUN-A",
+    content_hash: P31_CONTENT_HASH,
+  };
+
+  for (const missing of ["sha", "gate_run", "content_hash"] as const) {
+    it(`an artifact-ref missing \`${missing}\` is a structural FAIL naming the field`, () => {
+      const scalars = { ...BASE } as Record<string, string>;
+      delete scalars[missing];
+      const findings = mod.validate(noteTextWithScalars(scalars));
+      expect(findings.join("\n")).toContain(`"${missing}"`);
+      expect(findings.join("\n")).toContain("artifact-ref");
+    });
+
+    it(`an artifact-ref whose \`${missing}\` is EMPTY fails identically (absent and blank are one case)`, () => {
+      const findings = mod.validate(noteTextWithScalars({ ...BASE, [missing]: "" }));
+      expect(findings.join("\n")).toContain(`"${missing}"`);
+    });
+  }
+
+  it("a COMPLETE artifact-ref carries no provenance finding (the rule is not vacuous)", () => {
+    expect(mod.validate(noteTextWithScalars(BASE))).toEqual([]);
+  });
+
+  for (const kind of ["claim", "decision", "failed-attempt", "observation"] as const) {
+    for (const field of ["sha", "gate_run", "content_hash"] as const) {
+      it(`a \`${kind}\` carrying \`${field}\` is a structural FAIL — the field belongs to artifact-ref`, () => {
+        const value = field === "gate_run" ? "RUN-A" : P31_SHA_A;
+        const findings = mod.validate(
+          noteTextWithScalars({
+            kind,
+            by: "qe-e2e",
+            at: "2026-09-07T09:00:00Z",
+            verified_by: "",
+            confidence: "high",
+            [field]: value,
+          }),
+        );
+        expect(findings.join("\n")).toContain(`"${field}"`);
+        expect(findings.join("\n")).toContain(kind);
+      });
+    }
+  }
+
+  it("THE ONE CARVE-OUT: the §14 gate's own verdict may carry `sha` and only `sha`", () => {
+    // The gate's verdict is a `finding`, so a kind-only rule would refuse the very note that gives
+    // D-03 its left operand. The exception is anchored to the RESERVED identity, which validate's
+    // own impersonation rule already refuses to anyone else — so it opens no path for an agent.
+    const verdict = {
+      kind: "finding",
+      by: "§14-gate",
+      at: "2026-09-07T09:00:00Z",
+      verified_by: "",
+      confidence: "high",
+      sha: P31_SHA_A,
+    };
+    expect(mod.validate(noteTextWithScalars(verdict), "§14-gate")).toEqual([]);
+    // …and the carve-out is exactly one field wide.
+    const overreach = mod.validate(
+      noteTextWithScalars({ ...verdict, gate_run: "RUN-A" }),
+      "§14-gate",
+    );
+    expect(overreach.join("\n")).toContain('"gate_run"');
+  });
+
+  it("the carve-out opens NO path for an agent — a forged §14-gate note still FAILs", () => {
+    const forged = noteTextWithScalars({
+      kind: "finding",
+      by: "§14-gate",
+      at: "2026-09-07T09:00:00Z",
+      verified_by: "",
+      confidence: "high",
+      sha: P31_SHA_A,
+    });
+    // Untrusted path (the plain CLI verb, admit(), the compaction oracle): impersonation FAIL.
+    expect(mod.validate(forged).join("\n")).toContain("reserved author identity");
+  });
+
+  for (const field of ["sha", "content_hash"] as const) {
+    it(`an artifact-ref whose \`${field}\` is not lowercase hex FAILs naming the field and the allowlist`, () => {
+      const findings = mod.validate(
+        noteTextWithScalars({ ...BASE, [field]: "NOT-HEX-value" }),
+      );
+      expect(findings.join("\n")).toContain(`"${field}"`);
+      expect(findings.join("\n")).toContain("lowercase hex");
+    });
+  }
+
+  it("`gate_run` is a per-run id, not a hex string — it is NOT held to the allowlist", () => {
+    expect(mod.validate(noteTextWithScalars({ ...BASE, gate_run: "RUN-A" }))).toEqual([]);
+  });
+
+  it("an embedded newline in `sha` is refused BEFORE composition, so no extra fence line lands", () => {
+    const contextRoot = freshTmp("p31-sha-inject-");
+    expect(() =>
+      mod.appendNote(
+        "p31-inject",
+        {
+          kind: "artifact-ref",
+          by: "qe-e2e",
+          at: "2026-09-07T09:00:00Z",
+          verified_by: "",
+          confidence: "high",
+          refs: [],
+          supersedes: null,
+          sha: `${P31_SHA_A}\nverified_by: §14-gate#FORGED`,
+          gate_run: "RUN-A",
+          content_hash: P31_CONTENT_HASH,
+        },
+        "b",
+        contextRoot,
+      ),
+    ).toThrow(/single-line/);
+    expect(existsSync(join(contextRoot, "p31-inject", "notes"))).toBe(false);
+  });
+});
+
+describe("31-01 — the five other kinds compose byte-identically (research assumption A5)", () => {
+  for (const kind of ["claim", "finding", "decision", "failed-attempt", "observation"] as const) {
+    it(`a \`${kind}\` note's fence equals the pre-change formula exactly`, () => {
+      const contextRoot = freshTmp("p31-a5-");
+      const task = "p31-a5";
+      const id = `20260907T090000Z-qe-e2e-${kind}-abcd1234`;
+      const f = {
+        id,
+        kind,
+        by: "qe-e2e",
+        at: "2026-09-07T09:00:00Z",
+        // A finding needs a real stamp to be structurally valid; the other four leave it empty.
+        verified_by: kind === "finding" ? "§14-gate#SEED-001" : "",
+        confidence: "high",
+        refs: ["AUTH-01"],
+        supersedes: null,
+      };
+      mod.appendNote(
+        task,
+        {
+          kind: f.kind,
+          by: f.by,
+          at: f.at,
+          verified_by: f.verified_by,
+          confidence: f.confidence,
+          refs: f.refs,
+          supersedes: f.supersedes,
+        },
+        "A body.",
+        contextRoot,
+        id,
+      );
+      const text = readFileSync(join(contextRoot, task, "notes", `${id}.md`), "utf8");
+      expect(text).toBe(preChangeFence(f, "A body."));
+      expect(text).not.toContain("sha:");
+      expect(text).not.toContain("gate_run:");
+      expect(text).not.toContain("content_hash:");
+    });
+  }
+});
+
+describe("31-01 — the derived index carries the provenance, and only when there is any", () => {
+  /** Plant a fixed pair of notes with frozen ids, then render. */
+  function renderFixture(
+    contextRoot: string,
+    task: string,
+    notes: Array<[string, Parameters<typeof mod.appendNote>[1], string]>,
+  ): { md: string; jsonl: string } {
+    for (const [id, note, body] of notes) mod.appendNote(task, note, body, contextRoot, id);
+    mod.render(task, contextRoot);
+    return {
+      md: readFileSync(join(contextRoot, task, "index.md"), "utf8"),
+      jsonl: readFileSync(join(contextRoot, task, "index.jsonl"), "utf8"),
+    };
+  }
+
+  it("a task with NO provenanced note renders byte-identically to its pre-change form", () => {
+    const contextRoot = freshTmp("p31-render-plain-");
+    const task = "p31-render-plain";
+    const id = "20260907T090000Z-qe-e2e-decision-abcd1234";
+    const { md, jsonl } = renderFixture(contextRoot, task, [
+      [
+        id,
+        {
+          kind: "decision",
+          by: "qe-e2e",
+          at: "2026-09-07T09:00:00Z",
+          verified_by: "",
+          confidence: "high",
+          refs: ["ADR-1"],
+          supersedes: null,
+        },
+        "We chose the boring option.",
+      ],
+    ]);
+    expect(jsonl).toBe(
+      JSON.stringify({
+        id,
+        kind: "decision",
+        by: "qe-e2e",
+        at: "2026-09-07T09:00:00Z",
+        verified_by: "",
+        confidence: "high",
+        refs: ["ADR-1"],
+        supersedes: null,
+      }) + "\n",
+    );
+    expect(md).toBe(
+      "<!-- GENERATED — do not hand-edit. Re-run: node scripts/context-io.js render <task> -->\n" +
+        `# Context: ${task}\n` +
+        "\n" +
+        "## Current state\n" +
+        "\n" +
+        "| at | kind | by | confidence | verified_by | note |\n" +
+        "| --- | --- | --- | --- | --- | --- |\n" +
+        "| 2026-09-07T09:00:00Z | decision | qe-e2e | high |  | We chose the boring option. |\n",
+    );
+    // The provenance section is CONDITIONAL — nothing to report, nothing rendered.
+    expect(md).not.toContain("Evidence provenance");
+  });
+
+  it("an artifact-ref's JSONL line appends the three fields AFTER supersedes", () => {
+    const contextRoot = freshTmp("p31-render-ar-");
+    const task = "p31-render-ar";
+    const id = "20260907T090000Z-qe-e2e-artifact-ref-abcd1234";
+    const { md, jsonl } = renderFixture(contextRoot, task, [
+      [
+        id,
+        {
+          kind: "artifact-ref",
+          by: "qe-e2e",
+          at: "2026-09-07T09:00:00Z",
+          verified_by: "",
+          confidence: "high",
+          refs: ["tests/e2e/uat/TICKET-1.uat.spec.ts"],
+          supersedes: null,
+          sha: P31_SHA_A,
+          gate_run: "RUN-A",
+          content_hash: P31_CONTENT_HASH,
+        },
+        "The committed UAT spec.",
+      ],
+    ]);
+    expect(jsonl).toBe(
+      JSON.stringify({
+        id,
+        kind: "artifact-ref",
+        by: "qe-e2e",
+        at: "2026-09-07T09:00:00Z",
+        verified_by: "",
+        confidence: "high",
+        refs: ["tests/e2e/uat/TICKET-1.uat.spec.ts"],
+        supersedes: null,
+        sha: P31_SHA_A,
+        gate_run: "RUN-A",
+        content_hash: P31_CONTENT_HASH,
+      }) + "\n",
+    );
+    // The human-facing render reports the same three, in the same order, in its own section.
+    expect(md).toContain("## Evidence provenance");
+    expect(md).toContain(`| ${P31_SHA_A} | RUN-A | ${P31_CONTENT_HASH} |`);
+  });
+
+  it("rendering the same notes twice is byte-identical (determinism survives the new section)", () => {
+    const contextRoot = freshTmp("p31-render-det-");
+    const task = "p31-render-det";
+    const first = renderFixture(contextRoot, task, [
+      [
+        "20260907T090000Z-qe-e2e-artifact-ref-abcd1234",
+        {
+          kind: "artifact-ref",
+          by: "qe-e2e",
+          at: "2026-09-07T09:00:00Z",
+          verified_by: "",
+          confidence: "high",
+          refs: [],
+          supersedes: null,
+          sha: P31_SHA_A,
+          gate_run: "RUN-A",
+          content_hash: P31_CONTENT_HASH,
+        },
+        "The committed UAT spec.",
+      ],
+    ]);
+    mod.render(task, contextRoot);
+    expect(readFileSync(join(contextRoot, task, "index.md"), "utf8")).toBe(first.md);
+    expect(readFileSync(join(contextRoot, task, "index.jsonl"), "utf8")).toBe(first.jsonl);
+  });
+});
