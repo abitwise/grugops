@@ -23,11 +23,18 @@ Each role reads the shared verified context before it works. Each role records i
 ## Steps
 1. Assemble the UAT pack as typed notes per Workflow 16 (UAT Planner). The pack holds the business scenarios, the test data, and the pass/fail criteria. It also holds the signoff checklist naming the human role, and the known limitations. Work through `agent-factory/checklists/uat-checklist.md`.
 2. Validate the business acceptance: confirm the scenarios cover the user value and scope (BA/PM).
-3. Validate the test coverage: confirm the tests back the scenarios, and name any remaining gaps (QE/E2E).
-4. Obtain the named human's signoff on the scenarios; the ticket then moves on toward release.
+3. Write each validated scenario as a committed `<ticket-id>.uat.spec.ts` under the `uat/` subfolder of the repository's end-to-end directory (QE/E2E). Explore the running application through the pinned browser MCP server documented in `agent-factory/checklists/browser-uat-recipe.md`. Open the application, walk the scenario, and record the assertions observed. The MCP transcript is an authoring aid and never the evidence; the gate re-running the committed spec is the evidence. The spec meets the spec-integrity ban set. No assertion is written inside a conditional, inside a caught region, or behind a skip or soft modifier. No new role is introduced here. The UAT Planner still owns the scenarios, and QE/E2E still owns coverage.
+4. Validate the test coverage: confirm the tests back the scenarios, and name any remaining gaps (QE/E2E).
+5. Obtain the named human's signoff on the scenarios; the ticket then moves on toward release.
 
 ## Board moves
 On `plans/board.md`, the UAT Planner moves the ticket `Ready for UAT -> In UAT` to begin acceptance. The UAT Planner owns the `In UAT` exit. Once the named human signs off, the ticket moves to `Ready to Release` (or directly to `Done` in lean mode).
+
+Green machine-backed evidence does not by itself carry the ticket past acceptance. With the shipped configuration, the `In UAT -> Ready to Release` move still stops for a named human at the `sign_off_acceptance` checkpoint. The zero-config posture stops there, and this workflow does not change it. The lean path straight to `Done` is unchanged. A repository that trusts its machine-backed evidence may lower `sign_off_acceptance` in its own `checkpoints` configuration. The closed disposition vocabulary lives in `agent-factory/config/factory.config.md`, which publishes `block`, `notify` and `off`. Only a value the repository actually wrote can lower it; absence reads as the documented default. `sign_off_acceptance` is not a safety floor, so no floor is weakened and no second key is involved. No new checkpoint id is added for an evidence-backed advance. The UAT Planner presents the pack as machine-backed either way — the dial changes who signs, never what the evidence is.
+
+## The attended Chrome lane
+
+An optional attended browser lane exists for a human who wants to watch the session. The lane produces a `finding` stamped with a named human and an `artifact-ref` describing what was witnessed, and nothing else. The witnessing human's name arrives only through the existing admission grant that a separate process reads; the agent can never author it. The lane cannot produce a gate stamp, so an attended narration is never presented in the pack as machine-verified evidence. Read `agent-factory/checklists/browser-uat-recipe.md` for the setup and for host availability. The recipe is referenced here, never restated.
 
 ## Trace updates
 Append to `plans/traceability.md` the `UAT` link and the human signoff result against the ticket row. Update `Status` in the same row, so acceptance traces back to the test row and forward to the release row.
