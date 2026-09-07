@@ -69,7 +69,7 @@ a later note's `supersedes`. See SCTX-04.
 
 ## The provenance fence (frontmatter keys)
 
-Every note's frontmatter carries exactly these provenance keys:
+Every note's frontmatter carries these provenance keys:
 
 | Key           | Type                       | Meaning |
 | ------------- | -------------------------- | ------- |
@@ -81,6 +81,9 @@ Every note's frontmatter carries exactly these provenance keys:
 | `confidence`  | string                     | The author's confidence (e.g. `high` / `medium` / `low` / `UNKNOWN - verify`). |
 | `refs`        | YAML list (may be empty)   | References this note points at — requirement ids, file paths, ticket refs. The trace-migration substrate (SCTX-04). |
 | `supersedes`  | note-id ref, or empty      | The id of an earlier note this one overrides. Empty when the note supersedes nothing. |
+
+Two note shapes carry further keys beyond this table: an `artifact-ref` that points at a committed
+UAT spec, and the `§14-gate` verdict. Both are described under *Evidence provenance* below.
 
 ### Required-field rule (the validator contract)
 
@@ -134,7 +137,50 @@ that names the offending value.
 | `decision`       | A choice made, with its rationale, that constrains later work. |
 | `failed-attempt` | An approach that was tried and did not work, recorded so it is not retried. |
 | `observation`    | A neutral fact noticed during the work, not asserted as a claim or proven as a finding. |
-| `artifact-ref`   | A pointer to a produced artifact (a file, a PR, a report) by reference. |
+| `artifact-ref`   | A pointer to a produced artifact (a file, a PR, a report) by reference. When it points at a committed UAT spec it also carries the evidence-provenance keys described in the next section. |
+
+## Evidence provenance
+
+An `artifact-ref` that points at a committed UAT spec carries three further frontmatter keys. They
+exist so a piece of evidence can be bound to the commit the §14 quality gate re-ran it at.
+
+| Key            | Type                 | Meaning |
+| -------------- | -------------------- | ------- |
+| `sha`          | lowercase hex string | The commit the referenced spec was run at. |
+| `gate_run`     | per-run id string    | The `<id>` of the `§14-gate` verdict that certifies that run. |
+| `content_hash` | sha256 hex digest    | sha256 over the bytes of the committed `*.uat.spec.ts` file at `sha`. |
+
+All three are **required and non-empty on an `artifact-ref`**, and **absent on every other kind**.
+`sha` and `content_hash` are held to an anchored lowercase-hex allowlist (`^[0-9a-f]{7,64}$`);
+`gate_run` is a per-run id rather than a digest, so it is held to the single-line field rule and
+nothing further. A note that breaks any of these rules is a structural FAIL that names the field.
+
+There is one exception, and it is narrow. The `§14-gate` verdict note records `sha` — the commit
+its own run was performed at — and carries neither `gate_run` nor `content_hash`, because the
+verdict *is* the run and it references no artifact. That recorded value is what an `artifact-ref`'s
+`sha` is compared against: `admit()` refuses an `artifact-ref` whose `sha` differs from the SHA
+recorded by the live green verdict its `gate_run` names, and it names both SHAs in the refusal. An
+`artifact-ref` naming a `gate_run` with no live green verdict, or one whose verdict recorded no SHA
+at all, is refused for the same reason — evidence that cannot be bound to a run is not evidence.
+The comparison is made in `admit()` at write time and nowhere else, so there is one implementation
+of that rule rather than two that can come to disagree.
+
+**The six-kind schema stays closed.** No evidence kind is added. Evidence is recorded as a
+`finding` stamped `verified_by: §14-gate#<id>` paired with an `artifact-ref` carrying the three keys
+above — both of them existing kinds, validated and admitted by the rules already stated here.
+
+**What `content_hash` is, and what it is not.** It is a recomputable integrity digest: anyone with
+the repository can run sha256 over the spec file at `sha` and compare the result. It is **not a
+security token and it is not tamper-proof**. No secrecy, unforgeability, or authentication property
+is claimed of it; it must never be treated as a credential or capability token. A writer able to
+change the note is equally able to change the digest inside it. What the digest is worth is that a
+reader can tell whether the file at `sha` is the file the note describes.
+
+**Disclosed limit: transitive imports are not hashed.** `content_hash` covers the bytes of the
+`*.uat.spec.ts` file and nothing that file imports. An edit to a helper the spec imports therefore
+leaves the digest unchanged and leaves the evidence standing. The narrow file-only coverage is the
+stated scope of the digest, not an oversight; a reader who needs the helper covered checks it
+separately.
 
 ## CRITICAL DISTINCTION: the `claim` note-KIND is NOT the queue CLAIM
 

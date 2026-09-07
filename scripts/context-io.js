@@ -645,6 +645,59 @@ export function validate(text, trustedEmitter = null) {
                 `metacharacter there is a path-traversal attempt.`);
         }
     }
+    // ── The evidence-provenance rule (Phase 31, D-01/D-02): which note may carry which field ──────
+    //
+    // THE COMPOSER DECIDES WHETHER A LINE IS EMITTED; THIS DECIDES WHICH NOTE MAY CARRY ONE, and it
+    // is the only place that rule lives. `sha`, `gate_run` and `content_hash` are the evidence triple
+    // an `artifact-ref` needs to be bound to a gate run: all three REQUIRED and non-empty there, and
+    // absent everywhere else. Absent and blank are ONE case — a note carrying `sha:` with nothing
+    // after it records no commit, and admitting it would leave admit()'s comparison reading "".
+    //
+    // THE ONE CARVE-OUT, AND WHY IT IS SAFE. The §14 gate's verdict is a `finding`, and it records
+    // the commit its run was performed at — that recorded value is the left operand of D-03's
+    // stale-evidence refusal, so a kind-only rule would refuse the very note the refusal depends on.
+    // The exception is therefore keyed to `by === GATE_IDENTITY`, a property of the note's own text.
+    // It opens no path for an agent: the reserved-identity rule below refuses `by: §14-gate` on
+    // anything but the gate's own emission, so a narration cannot reach this carve-out by claiming
+    // the name. Keying it on the text rather than on `trustedEmitter` is what lets the untrusted
+    // readers — the plain `validate <file>` verb, admit(), and the compaction carve-out oracle —
+    // re-read a legitimately written verdict from disk without reporting a false FAIL on it.
+    //
+    // The hex allowlist is asked of `sha` and `content_hash` wherever they are present: the composer
+    // guards the write path, this guards text that arrived from disk, and both ask the ONE exported
+    // SHA_HEX_RE so there is no second charset spelled anywhere. `gate_run` is a per-run id, not a
+    // digest, so it is held to the single-line guard and nothing more.
+    const PROVENANCE_FIELDS = ["sha", "gate_run", "content_hash"];
+    if (scalars.kind === "artifact-ref") {
+        for (const field of PROVENANCE_FIELDS) {
+            if (scalars[field] === undefined || scalars[field] === "") {
+                findings.push(`structural FAIL: an artifact-ref requires the evidence-provenance field "${field}" — ` +
+                    `an artifact-ref records the commit its spec was run at (sha), the per-run id of the ` +
+                    `§14-gate verdict that certifies that run (gate_run), and the sha256 of the committed ` +
+                    `spec bytes (content_hash). A missing or empty one cannot be bound to a gate run.`);
+            }
+        }
+    }
+    else {
+        for (const field of PROVENANCE_FIELDS) {
+            if (scalars[field] === undefined || scalars[field] === "")
+                continue;
+            if (field === "sha" && scalars.by === GATE_IDENTITY)
+                continue; // the verdict's own carve-out
+            findings.push(`structural FAIL: the evidence-provenance field "${field}" belongs to an artifact-ref and ` +
+                `to no other kind; this note is a "${scalars.kind}". The only other note that may carry ` +
+                `one is the §14-gate verdict, which records "sha" — the commit its run was performed at ` +
+                `— and nothing else of the triple.`);
+        }
+    }
+    for (const field of ["sha", "content_hash"]) {
+        const v = scalars[field];
+        if (v !== undefined && v !== "" && !SHA_HEX_RE.test(v)) {
+            findings.push(`structural FAIL: provenance field "${field}" ("${v}") is not lowercase hex matching ` +
+                `${SHA_HEX_RE} — an abbreviated or full git object id, or a sha256 digest. The allowlist ` +
+                `is anchored: a value that merely contains hex is refused.`);
+        }
+    }
     // ── D-02 reserved-identity rule (applies to ANY note, not only findings) ──────────────────────
     // A note authored by a RESERVED machine identity is an impersonation flag, EXCEPT that identity's
     // OWN sanctioned emitter — emitVerdict() for `§14-gate` (D-04), emitCheckpointNote() for
@@ -1498,8 +1551,13 @@ function bodyExcerpt(body) {
     return body.trim().split("\n")[0]?.trim() ?? "";
 }
 // ── Deterministic JSONL event line: FIXED key order, body excluded (event index only). ──────────
+// The evidence-provenance fields are APPENDED after `supersedes`, in the fence's own order, and
+// only when the record carries them — the same presence condition the composer emits on, so a
+// note's JSONL line and its fence never disagree about which fields exist. Every note that carries
+// none produces the identical eight-key line it produced before Phase 31; the JSON key order is
+// fixed by insertion order here, so the line stays byte-reproducible either way.
 function toJsonl(n) {
-    return JSON.stringify({
+    const event = {
         id: n.id,
         kind: n.kind,
         by: n.by,
@@ -1508,7 +1566,14 @@ function toJsonl(n) {
         confidence: n.confidence,
         refs: n.refs,
         supersedes: n.supersedes,
-    });
+    };
+    if (n.sha !== undefined && n.sha !== "")
+        event.sha = n.sha;
+    if (n.gate_run !== undefined && n.gate_run !== "")
+        event.gate_run = n.gate_run;
+    if (n.content_hash !== undefined && n.content_hash !== "")
+        event.content_hash = n.content_hash;
+    return JSON.stringify(event);
 }
 // ── render: read notes/ → emit byte-reproducible index.md + index.jsonl (SCTX-03/04). ──────────
 // Sorted by at (ISO lexicographic) with note-id tiebreak; no wall-clock timestamps of its own;
@@ -1539,6 +1604,24 @@ export function render(task, contextRoot = DEFAULT_CONTEXT_ROOT) {
     for (const n of live) {
         md.push(`| ${cell(n.at)} | ${cell(n.kind)} | ${cell(n.by)} | ${cell(n.confidence)} | ` +
             `${cell(n.verified_by)} | ${cell(bodyExcerpt(n.body))} |`);
+    }
+    // ── Evidence provenance, rendered as its OWN conditional section (Phase 31) ──
+    // The current-state table's columns are fixed and every existing render depends on them, so the
+    // three fields get a section of their own rather than three more columns on every row. It is
+    // emitted only when some live note carries provenance, in the same shape the history section
+    // already uses — so a task holding no evidence renders byte-for-byte what it rendered before.
+    // Field order matches the fence and the JSONL line: sha, then gate_run, then content_hash.
+    const provenanced = live.filter((n) => (n.sha ?? "") !== "" || (n.gate_run ?? "") !== "" || (n.content_hash ?? "") !== "");
+    if (provenanced.length > 0) {
+        md.push("");
+        md.push("## Evidence provenance");
+        md.push("");
+        md.push("| at | kind | by | sha | gate_run | content_hash |");
+        md.push("| --- | --- | --- | --- | --- | --- |");
+        for (const n of provenanced) {
+            md.push(`| ${cell(n.at)} | ${cell(n.kind)} | ${cell(n.by)} | ${cell(n.sha ?? "")} | ` +
+                `${cell(n.gate_run ?? "")} | ${cell(n.content_hash ?? "")} |`);
+        }
     }
     if (history.length > 0) {
         md.push("");
