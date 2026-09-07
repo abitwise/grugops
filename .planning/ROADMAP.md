@@ -95,7 +95,7 @@ Full phase details + milestone summary: `milestones/v2.0-ROADMAP.md` · requirem
 - [x] **Phase 28: Kit Consistency Audit** — a real correctness-and-strangeness pass over 17 roles + 19 workflows (17, not 18: `kit-model.listRoles()` drops the `_`-prefixed `_role-switch-protocol.md` by derivation — it is read once and recorded as an explicitly uncounted 37th register row), the `CLAUDE.md` v2.0 drift reconciled, and every public safety claim given an id (completed 2026-08-12)
 - [x] **Phase 29: Controlled Language & Voice Guard Rebuild** — an ASD-STE100-derived writing profile for procedural/agent-written surfaces, a de-duplicated role skeleton, and a voice guard that measures voice instead of sentence shape
 - [x] **Phase 29.1: Per-Role Model Assignment** *(INSERTED — CLOSED 2026-09-03 by user override D-29.1-19; round-5 verification stands at `gaps_found`, three blockers ACCEPTED OPEN as ledger rows 105-107)* — a stronger model where judgment lives and a cheaper one for execution, set on the config dial and emitted into every generated adapter, with zero-config byte-identical to today's
-- [ ] **Phase 29.2: Model Assignment Delivery Path** *(INSERTED — split out of 29.1 by D-17)* — how a per-repo `models` block actually reaches an installed target's adapters; until it lands, the block is **inert for an installed repo** and 29.1 says so
+- [x] **Phase 29.2: Model Assignment Delivery Path** *(INSERTED — split out of 29.1 by D-17)* — how a per-repo `models` block actually reaches an installed target's adapters; until it lands, the block is **inert for an installed repo** and 29.1 says so (completed 2026-09-07)
 - [x] **Phase 30: Per-Checkpoint Autonomy Matrix** — every human stop enumerated and dialable, the four safety floors lowerable only behind two keys, with mechanical claim-dropping (completed 2026-09-07)
 - [ ] **Phase 31: Autonomous Manual Testing** — browser-driven UAT where the committed Playwright spec is the evidence and the agent's narration never is
 - [ ] **Phase 32: Board Projector & CLI Dashboard** — one board-grammar authority emitting a typed snapshot, rendered live by a read-only terminal dashboard
@@ -1045,6 +1045,7 @@ Plans:
 | 27. Spawn Correctness & Kit-Set Authority | v2.1 | 66/66 | Complete    | 2026-08-11 |
 | 28. Kit Consistency Audit | v2.1 | 8/8 | Complete    | 2026-08-12 |
 | 29. Controlled Language & Voice Guard Rebuild | v2.1 | 60/60 | Complete    | 2026-08-18 |
+| 29.2. Model Assignment Delivery Path | v2.1 | 6/6 | Complete    | 2026-09-07 |
 | 30. Per-Checkpoint Autonomy Matrix | v2.1 | 11/11 | Complete    | 2026-09-07 |
 | 31. Autonomous Manual Testing | v2.1 | 0/TBD | Not started | - |
 | 32. Board Projector & CLI Dashboard | v2.1 | 0/TBD | Not started | - |

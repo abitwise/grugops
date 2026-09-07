@@ -2,18 +2,18 @@
 gsd_state_version: 1.0
 milestone: v2.1
 milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live Board
-current_phase: 29.2
-current_phase_name: Model Assignment Delivery Path (INSERTED — split out of 29.1 by D-17)
+current_phase: 31
+current_phase_name: Autonomous Manual Testing
 status: executing
-stopped_at: Phase 30 complete, ready to plan Phase 29.2
-last_updated: "2026-09-07T06:13:07.709Z"
-state_head: cde824e29896acad9f30f5cb0d2dbf99a7d1f086
+stopped_at: Phase 29.2 complete, ready to plan Phase 31
+last_updated: "2026-09-07T07:21:15.200Z"
+state_head: 2590c93fc5f5f42ee7e463dd0786cf2335c243d4
 progress:
   total_phases: 9
-  completed_phases: 4
+  completed_phases: 5
   total_plans: 176
   completed_plans: 176
-  percent: 44
+  percent: 56
 last_activity: 2026-08-19
 prior_activity_desc: "Gap-closure round 8 wave 3 EXECUTED — 27-45 closed WR-02, IN-01 and IN-05 (D-53), completing round 8 with none deferred. WR-02: the fence authority ran over the WHOLE document inside parseFrontmatter BEFORE the frontmatter region was located, so its line-dropping applied inside the region as readily as inside the body — a column-0 fence deleted content and the TRUNCATED remainder was returned on the SUCCESS arm, the module founding failure wearing a fence. Measured against the committed .js on a git archive HEAD mirror with a libyaml column (Ruby 2.6.10 / Psych 3.1.0 / libyaml 0.2.1): d1, a fence around a whole tools key, returned ok true value false with the tools key VANISHED; d2, a fence around a continuation line, returned tools equal to the single element Read-comma with the token DELETED; libyaml REJECTS both with Psych SyntaxError. d3, fences inside a double-quoted scalar, libyaml ACCEPTS as a grant and the module REFUSES — the safe divergence, pre-existing and unchanged. Closed STRUCTURALLY: parseFrontmatter now deletes NO line at all. It normalizes, LOCATES the region, then flattens; the fence authority is not consulted there and its scope SHRANK to the guards prose checks, which are byte-unaffected. FENCE_DELIMITER_LINE is hoisted out of stripFencedBlocks so the region scan and the strip cannot disagree about what a fence delimiter line is — one class declaration, one state machine, no second fence parser. A fence delimiter line inside the located region is a NAMED REFUSAL, because it is not a legal node in a top-level block mapping. RED-TEAM OF THIS PLANS OWN FIX over 15 fence-position shapes, each adjudicated against libyaml: FIVE MORE truncated-success shapes no review had reported also moved to a refusal — a fence after a literal block scalar, after a folded block scalar, a fence with an info string, four backticks, and a fence inside a flow sequence, the last returning the mangled value tools equal to open-bracket-Read-comma. ZERO new refusals on loader-accepted content: the only two module-refuse-loader-accept rows, a double-quoted and a single-quoted scalar containing fence text, BOTH pre-date this change. Re-measured with the modules OWN classifier over a corpus derived at run time: 1142 tracked markdown files, 0 whose located region differs under the two orderings, 0 of the 563 raw-delimiter openers carrying a column-0 fence inside the region. Value map BEFORE to AFTER: 0 arms changed, 0 values changed, 0 new refusals, both corpus sizes derived this session and equal; all 33 spawn-grant scan verdicts byte-unchanged, 0 reaching the keyless arm; the foundation gate output BYTE-IDENTICAL; the 27-44 loader differential re-run at the same digest 4ccc987f19323055 with 312 cells, 97 skipped and 32 disagreements — not one cell moved. IN-01: the spawn-occurrence balance arm was provably unreachable AND unexercised, and neither the accounting nor the kinds array was exported so no case COULD reach it — the exact shape 27-42 spent a plan closing while 27-41 shipped it anew in the same round. Closed with 27-42s own remedy: checkGrantOccurrenceBalance extracted VERBATIM as an exported pure function, the refusal wording moved byte-for-byte with the restricted diff empty modulo the parameter rename, and the kind type, kinds array and occurrence interface exported for one stated reason recorded in source — a case must construct a FOURTH, UNCLASSIFIED kind. The refusal now fires BY NAME with both interpolated counts, the arm stays unreachable in production, and the disclosure ships with the assertion. Behaviour proven preserved against a transcript captured from the PRE-EXTRACTION build as data: bucket assignment and names results byte-identical over a 17-value corpus, 4 derived from the live tree and 13 adversarial. IN-05 RECORDED, NOT FIXED: a multi-document stream is dispositioned in the module header inside the three-outcomes partition argument, which enumerated delimiter spellings exhaustively and never mentioned a second document — an unconsidered adjacency is how the WR-05 arms came to be written one rule short. Measured in session: the module reads the FIRST region only and reports no grant, while Psych parse_stream reads SIX documents of which doc3 carries Read, Agent(grugops-orchestrator). Carries an explicit UNKNOWN - verify, an explicit statement that it is NOT a bypass and must not be escalated into one, and the decision that a stream is out of scope; seven further stream shapes were probed and all read exactly the first region, so the paragraph states what the code does rather than what it intends. ONE DEVIATION: generate-role-adapters.test.ts unterminated-block case was split in two, because its fixture body carries a fence and now reaches the fence refusal — the unterminated diagnosis keeps its own case with the fences removed, and the fence refusal gets a new named case. Suite 1215 passing / 2 skipped; build, freshness, foundation guards, coordinator precheck, kit-refs and validator all exit 0; the foundation gate runs in 0.46s; no dependency introduced. CARRIED FORWARD, still owned by nobody: validate-agent-factory.ts is not a spawn-grant surface, so 27-43s validator criterion remains unsatisfiable as written and 27-44s recommendation to RETIRE it stands. ROUND 8 NOW COMPLETE — 27-46 EXECUTED, closing IN-04 (D-53), the last of the eight round-7 findings, none deferred. IN-04: the claim partition foreign arm was not de-duplicated, so a key claimed by two buckets AND absent from the schema was interpolated TWICE into the guard failure message; the sibling arm de-duplicates implicitly by filtering over the schema keys, the foreign arm filtered over the claims and inherited their multiplicity, and only the single-occurrence shape was pinned so nothing observed it. RED on a mirror of 17b9372 against the COMMITTED kit-model.js: foreign returned themes TWICE; GREEN returns it once. Closed by reporting each non-schema claimed key AT MOST ONCE in FIRST-OCCURRENCE order via indexOf(k) === i, so the order is a property of the expression rather than of runtime insertion order, with the multiplicity DROPPED rather than kept in a second field. Behaviour preservation PROVEN: the gate kit counts PASS line is BYTE-IDENTICAL before and after at sha256 7a731112, 511 bytes, both exit 0, and the unclaimed and doubleClaimed expressions do not appear in the diff at all. Four cases were RED first: the duplicate pin, a both-arms at-most-once invariant, an order-determinism case asserting first-occurrence and explicitly NOT sorted, and the permutation case extended to carry multiplicity. SWEEP: the 27-44 differential re-run after this whole-project compile is identical on all three counts and the digest — 312 cells, 97 skipped, 32 disagreements, 4ccc987f19323055 — not one cell moved, measured clean rather than skipped. The three 27-43 surface reproductions still hold on fresh mirrors of 2cc66a9: skill twins family a, skill twins family b flow sequence, and the non-coordinator adapter each move exit 0 to exit 1 on the WR-05 violation, finding text READ on each, every red ending 1 CHECK(S) FAILED so guard_wr05 alone is responsible; the control exits 0. Value map derived at run time both sides: 1143 and 1143, 0 arms, 0 values, 0 new refusals — the plus one over 27-45s 1142 is 27-45-SUMMARY.md itself. Suite 1218 passing / 2 skipped, a floor and not proof no bypass remains; build, freshness over 32 committed .js, foundation guards, coordinator precheck, kit-refs and validator all exit 0; the gate runs in 0.44s to 0.90s; the package manifest diff is EMPTY across the whole round b24d980 to HEAD so the supply-chain mitigation is asserted absence at round scope; no dependency added. ONE DEVIATION: a stale sentence above the partition describing the third arm order as the claim order was corrected, outside the literal restricted-diff wording and tabulated in the summary. Next: phase verification for Phase 27."
 last_activity_desc: "Phase 29 CLOSED by user decision (D-59, reversing D-29): LANG-04's conformance prohibition is held as CONTENT — the claim registry and the honesty floor — with guard_banned_claims a disclosed drift backstop, not the mechanism that makes a totality true. Eight verification rounds established that a totality over an open set of phrasings is not a decidable predicate; D-55 had already ended at a per-line predicate, so the totality was already content-held on the tree while LANG-04's text still said a mechanism held it. Round-8 review CR-02 (the narrowed sentence printed above the findings contradicting it) FIXED at 4c6a76a, watched failing against the pre-fix build and asserted in both directions; two existing cases whose premise the change invalidated were repaired, not weakened. CR-01 (freshness.ts working-tree arm fail-opens, reproduced) carried as V-29-59-03 — a build-parity defect plan 29-59 itself recorded as named by no LANG requirement. CR-03/04/05 carried with owners in docs/audit/29-round8-residuals.md section 10. The round-8 verifier's gaps_found verdict is left standing and annotated rather than rewritten: it verified LANG-04's previous text. All 8 LANG requirements Complete. 15 repo gates green, 52 files / 2140 passed / 2 skipped. Next: Phase 29.1 (per-role model assignment)."
@@ -23,14 +23,14 @@ last_activity_desc: "Phase 29 CLOSED by user decision (D-59, reversing D-29): LA
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-09-07 — after Phase 30)
+See: .planning/PROJECT.md (updated 2026-09-07 — after Phase 29.2)
 
 **Core value:** A user installs grugops on top of the coding-agent CLI they already run, types `/grug`, and gets a disciplined delivery team — a visible board, a shared context where nothing is written until it is *verified*, and an auditable requirement→code→test→release trail — entirely as readable markdown, with humans always holding merge and deploy. The v2.0 differentiator: **"verified" means passed the §14 behavior gate**, recorded as a `verified_by` stamp the writing agent cannot forge or self-set.
-**Current focus:** Phase 29.2 — Model Assignment Delivery Path (UAT complete 2026-09-04; close it via /gsd-verify-work 29.2), then Phase 31 — Autonomous Manual Testing
+**Current focus:** Phase 31 — Autonomous Manual Testing (browser-driven UAT where the committed Playwright spec is the evidence); no CONTEXT.md yet — start with /gsd-discuss-phase 31
 
 ## Current Position
 
-Phase: 29.2 — Model Assignment Delivery Path (INSERTED — split out of 29.1 by D-17)
+Phase: 31 of 33 (Autonomous Manual Testing)
 Plan: Not started
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
@@ -100,7 +100,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 
 **Velocity:**
 
-- Total plans completed: 254
+- Total plans completed: 260
 - Average duration: -
 - Total execution time: 0 hours
 
@@ -135,6 +135,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | 28 | 8 | - | - |
 | 29 | 60 | - | - |
 | 30 | 11 | - | - |
+| 29.2 | 6 | - | - |
 
 **Recent Trend:**
 
@@ -453,6 +454,9 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 
 ### Decisions
 
+- **[Phase 29.2, 2026-09-07]** Closed via UAT (54/54: 43 automated from SUMMARY coverage blocks, 11 human). Tests 9-11 (Windows mirror spawn, doctor mirror, destination-hazard guard) were passed by USER OVERRIDE, not observation — `WINDOWS.md` rows 105-107 and 115 stay `UNKNOWN - verify`; the user will re-test on a real project and on Windows later.
+- **[Phase 29.2, 2026-09-04]** D-01/D-06: install mirror-spawns the committed generator against `TARGET/.grugops/factory.config.json` and nothing else; D-07: `--update` stays kit-home-only and never writes an adapter into a repo; D-13: installed `.claude/agents/grugops-*.md` are kit-owned derived artifacts, rewritten and named on re-run.
+- **[Phase 29.2, 2026-09-04]** Gap-closure round 1 (CR-01 data-loss): a target adapter destination that is a symlink, reached through a symlinked ancestor, or dangling is refused by name at exit 3 through ONE hazard predicate shared by the write path and `--check`; R-5 no-fallback-byte-source holds (a render the installer cannot materialize installs nothing).
 - **[Phase 30, 2026-09-06]** Red-team surface A FENCED, NOT CLOSED at D-22's four-round cap: six zero-key executed bypasses of `protected_branch_merge` (`V-30-11-16`..`-20`, `-25`) are backlog, and `protected_branch_merge=block` is not an operative guarantee against an unauthorized force-push until a follow-up phase closes the command model (UAT test 1; SECURITY.md AR-30-02).
 - **[Phase 30, 2026-09-06]** `checkpoints.open_pr` stays documentary-only (no hook rule intercepts `gh pr create`); Phase 30 unified its declaration, it did not newly gate it (UAT test 2).
 - **[Phase 30, 2026-09-06]** Settings-file `env` grant vector accepted as irreducible per `docs/GUARANTEES.md` §9; `permissions.deny` narrowing not yet built (UAT test 3; AR-30-03). `NODE_OPTIONS=--require` preload (`V-30-11-22`) accepted alongside it (AR-30-01).
@@ -1193,6 +1197,7 @@ None yet.
 
 ### Blockers/Concerns
 
+- ⚠️ [Phase 29.2] Windows delivery path UNOBSERVED: mirror spawn / `process.execPath` launch / `rmSync` retry cleanup (WINDOWS.md rows 105-107) and the destination-hazard guard's symlink + junction shapes (row 115; 5 of 7 write-bound cases skip on win32) were passed in UAT by user override, not by a Windows run. Owner: Phase 33 `windows-latest` leg.
 - ⚠️ [Phase 30] `scripts/frontmatter.test.ts` D-49 corpus control had been RED since 7d52ee0 (2026-08-21) on a 29.1 verification doc's escaped scalars, unnoticed through all of Phase 30's "full suite green" claims; fixed 2026-09-07 by rewriting the doc. The authority refused `\"\\n\"` as `\n`, which hints at a double resolution — probe RED-first in the next frontmatter round.
 
 [Issues that affect future work]
@@ -1301,8 +1306,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-09-07T06:20:00Z
-Stopped at: Phase 30 complete (UAT 3/3, security threats_open 0 with 3 accepted risks, Nyquist validated). Phase 29.2 already executed 5/5 with UAT complete — run /gsd-verify-work 29.2 to close it; then Phase 31.
+Last session: 2026-09-07T07:30:00Z
+Stopped at: Phase 29.2 complete (UAT 54/54 — 43 automated + 11 human, Windows tests 9-11 by user override; verification passed; security threats_open 0; Nyquist validated), ready to plan Phase 31
 Resume file: None
 
 ## Operator Next Steps
