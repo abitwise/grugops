@@ -23,6 +23,7 @@ import {
   mkdtempSync,
   mkdirSync,
   copyFileSync,
+  readFileSync,
   rmSync,
   writeFileSync,
   symlinkSync,
@@ -95,6 +96,57 @@ function mkTargetRepo(
   return root;
 }
 
+// ── the mutation harness (D-14 discrimination) ─────────────────────────────────────────────────
+//
+// Each per-arm fixture marks its banned constructs, and ONLY those, between MUTATE-REMOVE-START and
+// MUTATE-REMOVE-END. Deleting exactly the marked lines and asserting the checker then exits 0 is
+// what proves a finding was caused by the construct it NAMES: the try block, the catch clause, the
+// if/else, the ternary and the straight-line assertions all survive the deletion, so none of them
+// can have been the cause. A fixture that still fails after its construct is removed is a fixture
+// whose finding came from something else.
+const MUTATE_START = "MUTATE-REMOVE-START";
+const MUTATE_END = "MUTATE-REMOVE-END";
+
+function withBannedConstructsRemoved(fixtureName: string): string {
+  const lines = readFileSync(join(FIXTURES, fixtureName), "utf8").split("\n");
+  const kept: string[] = [];
+  let dropping = false;
+  let regions = 0;
+  // A marker is recognised ONLY as a comment line that OPENS with it. `includes` would also match
+  // the fixture header's prose description of the markers, which would open a region at the top of
+  // the file and silently delete the imports — measured: it produced four parse diagnostics and an
+  // exit 2 that looked like a checker defect rather than a harness defect.
+  for (const line of lines) {
+    const opener = line.trim();
+    if (opener.startsWith(`// ${MUTATE_START}`)) {
+      dropping = true;
+      regions++;
+      continue;
+    }
+    if (opener.startsWith(`// ${MUTATE_END}`)) {
+      dropping = false;
+      continue;
+    }
+    if (!dropping) kept.push(line);
+  }
+  if (regions === 0) {
+    throw new Error(`${fixtureName} carries no ${MUTATE_START} region — the mutation would be a no-op`);
+  }
+  if (dropping) {
+    throw new Error(`${fixtureName} has an unterminated ${MUTATE_START} region`);
+  }
+  return kept.join("\n");
+}
+
+/** Plant a mutated spec (banned constructs deleted) in a fresh target repo and run the checker. */
+function runMutated(fixtureName: string): { status: number | null; stdout: string; stderr: string } {
+  const root = mkTargetRepo({});
+  const dest = join(root, "e2e", "uat", "mutated.uat.spec.ts");
+  mkdirSync(dirname(dest), { recursive: true });
+  writeFileSync(dest, withBannedConstructsRemoved(fixtureName), "utf8");
+  return runCheck(root);
+}
+
 describe("uat-spec-integrity.js — the D-12 contract and D-14 arm (c) (UATX-06)", () => {
   // ── clean corpus → exit 0, and the pass line REPORTS WHAT IT MEASURED ────────────────────────
   it("exits 0 on a clean uat spec and reports the derived count on the pass line", () => {
@@ -109,7 +161,7 @@ describe("uat-spec-integrity.js — the D-12 contract and D-14 arm (c) (UATX-06)
     const root = mkTargetRepo({ "e2e/uat/refund.uat.spec.ts": "modifier-call.uat.spec.ts" });
     const r = runCheck(root);
     expect(r.status).toBe(1);
-    expect(r.stdout).toContain("e2e/uat/refund.uat.spec.ts:12");
+    expect(r.stdout).toContain("e2e/uat/refund.uat.spec.ts:13");
     expect(r.stdout).toContain("test.skip");
   });
 
@@ -196,6 +248,111 @@ describe("uat-spec-integrity.js — the D-12 contract and D-14 arm (c) (UATX-06)
       "test.only",
       "test.skip",
     ]);
+  });
+});
+
+describe("uat-spec-integrity.js — D-14 arms (a) and (b), and the union of the arms (UATX-06)", () => {
+  // ── arm (a): caught assertions, expect AND assert, try block AND catch clause ─────────────────
+  it("refuses an expect inside a try block and an assert inside a catch clause", () => {
+    const root = mkTargetRepo({ "e2e/uat/orders.uat.spec.ts": "caught-assertion.uat.spec.ts" });
+    const r = runCheck(root);
+    expect(r.status).toBe(1);
+    expect(r.stdout).toContain("caught assertion");
+    expect(r.stdout).toContain("inside a try block");
+    expect(r.stdout).toContain("inside a catch clause");
+    // The `assert` head is refused in arm (a), not only `expect`.
+    expect(r.stdout).toContain("`assert` call");
+  });
+
+  // ── arm (b): every conditional position D-14 names ────────────────────────────────────────────
+  it("refuses an expect under an if, an else, a conditional expression, each logical operand and an optional call", () => {
+    const root = mkTargetRepo({ "e2e/uat/dashboard.uat.spec.ts": "conditional-assertion.uat.spec.ts" });
+    const r = runCheck(root);
+    expect(r.status).toBe(1);
+    for (const where of [
+      "under an if statement",
+      "under an else clause",
+      "inside a conditional expression",
+      "as an operand of a logical operator",
+      "as an optional call",
+    ]) {
+      expect(r.stdout).toContain(where);
+    }
+    // Both ternary arms and all three logical operators are separate positions, so arm (b) reports
+    // more findings than the five distinct phrasings above.
+    expect(r.stdout).toContain("conditional assertion");
+  });
+
+  // ── the union, not the first hit ──────────────────────────────────────────────────────────────
+  it("reports findings from ALL THREE arms on the union fixture, not only the first arm reached", () => {
+    const root = mkTargetRepo({ "e2e/uat/billing.uat.spec.ts": "union-all-arms.uat.spec.ts" });
+    const r = runCheck(root, "--json");
+    expect(r.status).toBe(1);
+    const parsed = JSON.parse(r.stdout) as { ok: boolean; findings: string[] };
+    expect(parsed.findings.length).toBeGreaterThanOrEqual(3);
+    const joined = parsed.findings.join("\n");
+    expect(joined).toContain("caught assertion");
+    expect(joined).toContain("conditional assertion");
+    expect(joined).toContain("banned modifier call");
+  });
+
+  // ── the adversarial negative: control flow and assertion-shaped TEXT are not the ban ──────────
+  it("accepts the adversarial clean fixture (if, try, finally, a banned name in a comment and in a string)", () => {
+    const root = mkTargetRepo({ "e2e/uat/checkout.uat.spec.ts": "clean.uat.spec.ts" });
+    const r = runCheck(root);
+    expect(r.status).toBe(0);
+    // Prove the negative is really adversarial rather than merely empty.
+    const text = readFileSync(join(FIXTURES, "clean.uat.spec.ts"), "utf8");
+    expect(text).toContain("try {");
+    expect(text).toContain("finally {");
+    expect(text).toContain("if (");
+    expect(text).toContain("test.skip"); // present as prose and inside a string literal only
+  });
+
+  // ── mutation: each finding is proven to be caused by the construct it names ────────────────────
+  for (const fixture of [
+    "caught-assertion.uat.spec.ts",
+    "conditional-assertion.uat.spec.ts",
+    "modifier-call.uat.spec.ts",
+  ]) {
+    it(`mutation: ${fixture} is accepted once its banned constructs, and only those, are removed`, () => {
+      const before = runCheck(
+        mkTargetRepo({ "e2e/uat/subject.uat.spec.ts": fixture }),
+      );
+      expect(before.status).toBe(1); // the un-mutated fixture is refused
+      const after = runMutated(fixture);
+      expect(after.status).toBe(0); // removing exactly the construct clears the finding
+      expect(after.stdout).toContain("1/1");
+    });
+  }
+
+  // ── the locked-set boundary: what is deliberately NOT refused ──────────────────────────────────
+  it("does not refuse an assertion in a finally block, a promise catch handler, or a spec with no assertions", () => {
+    const root = mkTargetRepo({});
+    const dest = join(root, "e2e", "uat", "boundary.uat.spec.ts");
+    mkdirSync(dirname(dest), { recursive: true });
+    writeFileSync(
+      dest,
+      [
+        'import { test, expect } from "@playwright/test";',
+        'test("outside the locked set", async ({ page }) => {',
+        '  await page.goto("/x");',
+        "  try {",
+        '    await page.getByTestId("a").click();',
+        "  } finally {",
+        '    await expect(page.getByTestId("a")).toBeVisible();', // finally: deferred, not refused
+        "  }",
+        '  await page.goto("/y").catch(() => { expect(page.url()).toContain("/y"); });', // .catch: deferred
+        "});",
+        'test("no assertions at all", async ({ page }) => {',
+        '  await page.goto("/z");', // zero-expect vacuity: deferred, not refused
+        "});",
+        "",
+      ].join("\n"),
+      "utf8",
+    );
+    const r = runCheck(root);
+    expect(r.status).toBe(0);
   });
 });
 
