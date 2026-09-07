@@ -974,7 +974,7 @@ Plans:
   4. An evidence note carries commit SHA + gate-run id + content hash, and a note whose SHA is not the HEAD the gate ran against is refused. (UATX-04)
   5. An absent or unusable browser produces a **loud skip** that leaves the UAT `pending` (reusing the existing Tier-2 convention verbatim, never a silent pass), and a generated spec containing a conditional or caught assertion is rejected over the **TypeScript AST** rather than by regex, so the claim matches the mechanism. (UATX-05, UATX-06)
 
-**Plans**: 4 plans (waves 1, 1, 2, 3)
+**Plans**: 0/4 plans executed (waves 1, 1, 2, 3)
 
 Plans:
 **Wave 1**
@@ -1062,7 +1062,7 @@ Plans:
 | 29.1. Per-Role Model Assignment | v2.1 | 25/25 | Closed by user override D-29.1-19 (verification gaps_found; 3 blockers accepted open, WINDOWS.md rows 105-107) | 2026-09-03 |
 | 29.2. Model Assignment Delivery Path | v2.1 | 6/6 | Complete    | 2026-09-07 |
 | 30. Per-Checkpoint Autonomy Matrix | v2.1 | 11/11 | Complete    | 2026-09-07 |
-| 31. Autonomous Manual Testing | v2.1 | 0/TBD | Not started | - |
+| 31. Autonomous Manual Testing | v2.1 | 0/4 | Planned    |  |
 | 32. Board Projector & CLI Dashboard | v2.1 | 0/TBD | Not started | - |
 | 33. Live Capture & Windows Portability | v2.1 | 0/TBD | Not started | - |
 

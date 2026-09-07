@@ -122,7 +122,7 @@ Each requirement maps to exactly one roadmap phase (27–33). REQ-IDs continue g
 - [ ] **UATX-03**: Claude in Chrome is available as an optional, clearly-labelled `verified_by: <named human>` lane, and is structurally barred from producing a `§14-gate` stamp.
 - [ ] **UATX-04**: Evidence carries provenance — commit SHA + gate-run id + content hash — and a note whose SHA is not the HEAD the gate ran against is refused.
 - [ ] **UATX-05**: An absent or unusable browser produces a **loud skip** leaving the UAT `pending` (reusing the existing Tier-2 convention verbatim), never a silent pass.
-- [ ] **UATX-06**: Conditional or caught assertions are banned in generated specs, checked over the TypeScript AST rather than by regex, so the claim matches the mechanism.
+- [x] **UATX-06**: Conditional or caught assertions are banned in generated specs, checked over the TypeScript AST rather than by regex, so the claim matches the mechanism.
 
 ### DASH — Board Projector & CLI Dashboard
 
@@ -214,7 +214,7 @@ _Filled by the roadmapper 2026-07-28. Every requirement maps to exactly one phas
 | UATX-03 | Phase 31 | Pending |
 | UATX-04 | Phase 31 | Pending |
 | UATX-05 | Phase 31 | Pending |
-| UATX-06 | Phase 31 | Pending |
+| UATX-06 | Phase 31 | Complete |
 | DASH-01 | Phase 32 | Pending |
 | DASH-02 | Phase 32 | Pending |
 | DASH-03 | Phase 32 | Pending |

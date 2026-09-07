@@ -5,9 +5,9 @@ milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live
 current_phase: 31
 current_phase_name: Autonomous Manual Testing
 status: executing
-stopped_at: Phase 31 context gathered
-last_updated: "2026-09-07T10:48:07.285Z"
-state_head: 1fe4e4acd63be6b68674f3f6aa9cacdae9d4b0a0
+stopped_at: Completed 31-02-PLAN.md
+last_updated: "2026-09-07T12:24:22.067Z"
+state_head: 803fc43beafb48ad3831fc60dc5d22889234414f
 progress:
   total_phases: 9
   completed_phases: 6
@@ -26,12 +26,12 @@ last_activity_desc: "Phase 29 CLOSED by user decision (D-59, reversing D-29): LA
 See: .planning/PROJECT.md (updated 2026-09-07 — after Phase 29.2)
 
 **Core value:** A user installs grugops on top of the coding-agent CLI they already run, types `/grug`, and gets a disciplined delivery team — a visible board, a shared context where nothing is written until it is *verified*, and an auditable requirement→code→test→release trail — entirely as readable markdown, with humans always holding merge and deploy. The v2.0 differentiator: **"verified" means passed the §14 behavior gate**, recorded as a `verified_by` stamp the writing agent cannot forge or self-set.
-**Current focus:** Phase 31 — Autonomous Manual Testing (browser-driven UAT where the committed Playwright spec is the evidence); no CONTEXT.md yet — start with /gsd-discuss-phase 31
+**Current focus:** Phase 31 — Autonomous Manual Testing
 
 ## Current Position
 
-Phase: 31 (Autonomous Manual Testing) — READY TO EXECUTE
-Plan: Not started
+Phase: 31 (Autonomous Manual Testing) — EXECUTING
+Plan: 2 of 4
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 
@@ -433,6 +433,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 30 P09 | 56 min | 3 tasks | 15 files |
 | Phase 30 P10 | 4 rounds | 3 tasks | 23 files |
 | Phase 30 P11 | 7h 9m | 3 tasks | 74 files |
+| Phase 31 P02 | 35 min | 3 tasks | 17 files |
 
 ## Accumulated Context
 
@@ -1188,6 +1189,8 @@ Recent decisions affecting current work:
 - [Phase 30]: A segment-class exception WAS required for docs/GUARANTEES.md and is recorded as a finding: two 'no overlap' assertions now compare against an ENUMERATED, count-pinned admission set, with the original predicate kept exact over the walk-derived parts.
 - [Phase 30]: Surface B (plan 30-10) is FENCED, not closed — user decision 2026-09-06. Four adversarial rounds closed 30 findings; eight independent claude-opus reviews ran and NOT ONE returned 'nothing new'; each round's fixes created most of the next round's findings (3/6, 4/7, 7/9, 2 of 10 post-cap). The defect rate per round did not fall, the review budget ran out first. Ten post-cap findings recorded as backlog V-30-10-11..20 under D-22's no-fifth-round rule. Plan 30-11 must treat the derived checkpoint set as fenced rather than settled.
 - [Phase 30]: Red-team surface A is FENCED, NOT CLOSED at D-22's four-round cap (user decision 2026-09-06, option id `fence`): 42 findings closed across four rounds, the post-cap reviews returned fourteen more, six of them zero-key bypasses that executed real forced updates of a real remote against the final artifact. V-30-11-01..31 are live backlog; the wrapper's integrity is a repository-time control, so AUTO-03's agent-unwritable premise is held as content with a disclosed backstop.
+- [Phase 31]: The browser probe is opt-in behind --check-browser; the AST check never depends on a browser — Probing the lane unconditionally would make every repository without Playwright installed exit 2, putting the pass path out of reach and training a reader to ignore exit 2. Either way an unusable lane is exit 2 and never exit 0.
+- [Phase 31]: The five .uat.spec.ts fixtures are a parse corpus: excluded from tsc and vitest, but COUNTED in the foundation guards module corpus — tsc and vitest both collect them by default and both fail on them, because @playwright/test is not a dependency. The guards walk, by contrast, is pinned equal to the git index listing of tracked .ts files, so narrowing it would mean two edits to one predicate input; leaving them in only widens a scan, which is the fail-safe direction.
 
 ### Pending Todos
 
@@ -1306,9 +1309,9 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-09-07T09:29:06.330Z
-Stopped at: Phase 31 context gathered
-Resume file: .planning/phases/31-autonomous-manual-testing/31-CONTEXT.md
+Last session: 2026-09-07T12:23:51.176Z
+Stopped at: Completed 31-02-PLAN.md
+Resume file: None
 
 ## Operator Next Steps
 
