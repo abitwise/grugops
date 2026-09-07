@@ -2264,12 +2264,14 @@ describe("30-03 D-13 — the derived, pinned set of config-resolving sites", () 
 // governance dial and the ledger are asserted UNCHANGED above, so the span change is strictly the
 // added branch. The freeze RE-LOCKS at the new baseline, so any FUTURE drift still goes RED.
 describe("context-io.ts — W-B admit() mechanical byte-freeze (Plan 25-09; re-baselined 25-13, 30-03, 31-01)", () => {
-  // The pinned baseline: sha256 of admit()'s function span. RE-PINNED in Plan 31-01 for the
-  // deliberate D-03 unfreeze described above. admit() must hash to this exactly; the prior baselines
-  // were 760319ff…2876 (30-03 D-12 reader rename), ae159bb3…5551 (30-03 D-14), dbf66ac7…ebf7 (25-13)
-  // and b7998cbd…be3d (pre-25-13).
+  // The pinned baseline: sha256 of admit()'s function span. RE-PINNED TWICE in Plan 31-01: first for
+  // the deliberate D-03 unfreeze described above (ee418ce3…f06f), then for the red-team round-1
+  // ambiguity arm — two live green verdicts sharing one per-run id have no single SHA to bind to, so
+  // the branch refuses instead of resolving the question by replay order. admit() must hash to this
+  // exactly; the prior baselines were ee418ce3…f06f (31-01 D-03), 760319ff…2876 (30-03 D-12 reader
+  // rename), ae159bb3…5551 (30-03 D-14), dbf66ac7…ebf7 (25-13) and b7998cbd…be3d (pre-25-13).
   const ADMIT_FROZEN_SHA256 =
-    "ee418ce3bf6267e6ffb770b433b586bc21552a1590b68e71618999f41f69f06f";
+    "08df9e5c15754f8b3f3bde417475652d3d3861c50fd5458704b29651b83709e9";
 
   // Extract the span `export function admit(` … matching `}` by brace-counting (the SAME extraction the
   // baseline was captured with). Reads the committed .ts source (the freeze is on the source of truth).

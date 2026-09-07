@@ -1400,14 +1400,29 @@ export function admit(task, text, contextRoot = DEFAULT_CONTEXT_ROOT, repoRoot =
         const runId = (scalars.gate_run ?? "").trim();
         const evidenceSha = (scalars.sha ?? "").trim();
         const live = currentState(readContext(task, contextRoot));
-        const verdict = live.find((n) => isLiveGreenVerdict(n, runId));
-        if (verdict === undefined) {
+        const matches = live.filter((n) => isLiveGreenVerdict(n, runId));
+        if (matches.length === 0) {
             return [
                 `admission FAIL: no live green §14-gate verdict found for "${verdictStampFor(runId)}" ` +
                     `under task "${task}". An artifact-ref naming gate_run "${runId}" is evidence only when ` +
                     `a real green gate verdict with that per-run id exists in the task context.`,
             ];
         }
+        // AMBIGUITY REFUSES, IN BOTH DIRECTIONS (red-team round 1). The refusal below says "THE live
+        // green verdict", and with two of them there is no such thing. Taking the first match would
+        // resolve the question by replay order, so evidence claiming EITHER recorded SHA would admit —
+        // measured, before this arm existed. A per-run id is minted from node:crypto per gate run, so a
+        // duplicate is not a shape the gate produces; when one appears anyway the honest answer is that
+        // this evidence cannot be bound, which is the posture every other arm here keeps.
+        if (matches.length > 1) {
+            return [
+                `admission FAIL: more than one live green §14-gate verdict exists for ` +
+                    `"${verdictStampFor(runId)}" under task "${task}" (${matches.length} found), so there is ` +
+                    `no single commit this artifact-ref can be bound to. A per-run id names one gate run; ` +
+                    `the evidence is refused and nothing is written until the duplicate is superseded.`,
+            ];
+        }
+        const verdict = matches[0];
         const verdictSha = (verdict.sha ?? "").trim();
         if (verdictSha === "") {
             return [
