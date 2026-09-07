@@ -342,6 +342,11 @@ const GUARD_INPUTS = [
   // every foundation-guards plant case.
   "agent-factory/packaging/adapters.md",
   "agent-factory/README.md",
+  // (Plan 31-03, D-08) guard_playwright_mcp_pin reads its pin literal out of this file by fixed
+  // subpath and FAILS CLOSED when it is absent. A mirror that did not carry it would red every
+  // unrelated plant case on a missing authority instead of on the violation it planted — and the
+  // `(pin-no-authority)` case below, which deletes it deliberately, would then prove nothing.
+  "agent-factory/checklists/browser-uat-recipe.md",
 ];
 
 const tmpDirs: string[] = [];
@@ -11713,5 +11718,193 @@ describe("30-11 round 4 — every check gate is REACHED, and the runner set is d
     ).toEqual([]);
     // Non-vacuity: the one authority must itself contain the comparison.
     expect(readFileSync(join(ROOT, "scripts", "is-entry.ts"), "utf8")).toContain("resolvedHref");
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────────
+// (Plan 31-03, D-08 / UATX-02) guard_playwright_mcp_pin — the browser MCP server's version pin.
+//
+// The pin is the only supply-chain control over a pre-1.0 server that the user's own coding agent
+// fetches with `npx`. A floating specifier in a committed configuration is the anti-pattern, so the
+// guard asserts that every pinned mention across the kit and the documentation equals ONE literal —
+// and it READS that literal out of the recipe rather than declaring a version of its own.
+//
+// TWO WAYS THIS GUARD COULD SILENTLY PASS, AND BOTH ARE PINNED BELOW:
+//   • it scans a tree with zero pinned mentions and prints a PASS over an empty loop;
+//   • its authority is missing or unparseable and it falls back to an assumed default version.
+// Neither is reachable by planting a file (the authority is itself in the scan set, so a tree that
+// parses an authority always carries at least one occurrence), so the zero-occurrence floor is
+// exercised through the scratch-build harness the sibling floors already use.
+// ─────────────────────────────────────────────────────────────────────────────────────────────────
+
+const PIN_BANNER = "guard_playwright_mcp_pin";
+const PIN_SOURCE_REL = "agent-factory/checklists/browser-uat-recipe.md";
+
+/** The pin as the RECIPE spells it — derived, never typed into this harness. */
+function livePin(): string {
+  const src = readFileSync(join(ROOT, PIN_SOURCE_REL), "utf8");
+  const m = /@playwright\/mcp@([^\s`"'()[\],<>]*)/.exec(src);
+  expect(
+    m,
+    `PREMISE — ${PIN_SOURCE_REL} must carry a pinned mention for any case below to mean anything`,
+  ).not.toBeNull();
+  const v = (m as RegExpExecArray)[1] as string;
+  expect(v, "PREMISE — the first pinned mention must carry a version").not.toBe("");
+  return v;
+}
+
+describe("guard_playwright_mcp_pin (plan 31-03, D-08 / UATX-02)", () => {
+  it("(pin-live) passes on the real tree and reports what it scanned", () => {
+    const r = spawnSync("node", [GUARD_JS], { encoding: "utf8" });
+    const section = guardSection(out(r), PIN_BANNER).join("\n");
+    expect(section, "the guard printed no section at all").not.toBe("");
+    // The PASS line carries the measurement, and the numerator is non-zero.
+    const m = /0 findings over (\d+)\/(\d+) elements/.exec(section);
+    expect(m, `no measured PASS line in:\n${section}`).not.toBeNull();
+    expect(Number((m as RegExpExecArray)[1])).toBeGreaterThan(0);
+    expect((m as RegExpExecArray)[1]).toBe((m as RegExpExecArray)[2]);
+    // It reports the file count it walked and the pin it read, so a narrowed scan is visible.
+    expect(section).toMatch(/markdown file\(s\)/);
+    expect(section).toContain(livePin());
+    expect(out(r)).toContain("ALL CHECKS PASSED");
+    expect(r.status).toBe(0);
+  });
+
+  it("(pin-drift) a DIFFERENT version anywhere in the scan set is one finding naming file, found and pin", () => {
+    const m = mirror();
+    const planted = "agent-factory/checklists/00-index.md";
+    appendFileSync(
+      join(m, planted),
+      "\nSee `@playwright/mcp@9.9.9` for the drifted mention.\n",
+      "utf8",
+    );
+    const r = runIn(m);
+    const section = guardSection(out(r), PIN_BANNER).join("\n");
+    expect(r.status).not.toBe(0);
+    expect(section).toContain(planted);
+    expect(section).toContain("9.9.9");
+    expect(section).toContain(livePin());
+    expect(section).toContain("1 finding(s)");
+  });
+
+  it("(pin-floating) a floating specifier is a finding of the same shape", () => {
+    const m = mirror();
+    const planted = "agent-factory/checklists/00-index.md";
+    appendFileSync(
+      join(m, planted),
+      "\nRun `npx @playwright/mcp@latest` to try the newest build.\n",
+      "utf8",
+    );
+    const r = runIn(m);
+    const section = guardSection(out(r), PIN_BANNER).join("\n");
+    expect(r.status).not.toBe(0);
+    expect(section).toContain(planted);
+    expect(section).toContain("latest");
+    expect(section).toContain("1 finding(s)");
+  });
+
+  it("(pin-equal) two files each carrying an EQUAL mention are two visited elements, zero findings", () => {
+    const base = mirror();
+    const baseSection = guardSection(out(runIn(base)), PIN_BANNER).join("\n");
+    const baseM = /0 findings over (\d+)\/(\d+) elements/.exec(baseSection);
+    expect(baseM, `no measured PASS line in:\n${baseSection}`).not.toBeNull();
+    const before = Number((baseM as RegExpExecArray)[1]);
+
+    const m = mirror();
+    const pin = livePin();
+    appendFileSync(
+      join(m, "agent-factory/checklists/00-index.md"),
+      `\nThe pinned server is \`@playwright/mcp@${pin}\`.\n`,
+      "utf8",
+    );
+    appendFileSync(
+      join(m, "AGENTS.md"),
+      `\nThe pinned server is \`@playwright/mcp@${pin}\`.\n`,
+      "utf8",
+    );
+    const r = runIn(m);
+    const section = guardSection(out(r), PIN_BANNER).join("\n");
+    const after = /0 findings over (\d+)\/(\d+) elements/.exec(section);
+    expect(after, `no measured PASS line in:\n${section}`).not.toBeNull();
+    // TWO more visited elements, not one: equal occurrences are counted separately and never merged.
+    expect(Number((after as RegExpExecArray)[1])).toBe(before + 2);
+    expect(Number((after as RegExpExecArray)[2])).toBe(before + 2);
+    expect(out(r)).toContain("ALL CHECKS PASSED");
+  });
+
+  it("(pin-no-authority) a mirror whose recipe is GONE fails naming the recipe, never assuming a version", () => {
+    const m = mirror();
+    rmSync(join(m, PIN_SOURCE_REL));
+    const r = runIn(m);
+    const section = guardSection(out(r), PIN_BANNER).join("\n");
+    expect(r.status).not.toBe(0);
+    expect(section).toContain(PIN_SOURCE_REL);
+    // It must NOT have silently assumed the live pin and passed over the rest of the tree.
+    expect(section).not.toMatch(/0 findings over/);
+  });
+
+  it("(pin-unparseable-authority) a recipe carrying NO pinned mention fails naming the recipe", () => {
+    const m = mirror();
+    writeFileSync(
+      join(m, PIN_SOURCE_REL),
+      "---\nkind: checklist\ntier: enterprise\n---\n# Browser UAT Recipe\n\nNo pin here.\n",
+      "utf8",
+    );
+    const r = runIn(m);
+    const section = guardSection(out(r), PIN_BANNER).join("\n");
+    expect(r.status).not.toBe(0);
+    expect(section).toContain(PIN_SOURCE_REL);
+    expect(section).not.toMatch(/0 findings over/);
+  });
+
+  it("(pin-versionless-authority) a recipe whose first mention carries NO version fails naming the recipe", () => {
+    const m = mirror();
+    writeFileSync(
+      join(m, PIN_SOURCE_REL),
+      "---\nkind: checklist\ntier: enterprise\n---\n# Browser UAT Recipe\n\nThe package `@playwright/mcp@` has no version here.\n",
+      "utf8",
+    );
+    const r = runIn(m);
+    const section = guardSection(out(r), PIN_BANNER).join("\n");
+    expect(r.status).not.toBe(0);
+    expect(section).toContain(PIN_SOURCE_REL);
+    expect(section).not.toMatch(/0 findings over/);
+  });
+
+  it("(pin-vacuity) a scan set that yields ZERO occurrences FAILS with the zero-elements message", () => {
+    // Unreachable by planting: the authority is itself a member of the scan set, so a tree whose
+    // authority parses always carries at least one occurrence. The floor is therefore exercised
+    // through a scratch build whose WALK returns nothing while the authority read is untouched —
+    // the same harness the sibling vacuity floors use, and the mutation is asserted to have applied.
+    const guardJs = scratchGuardFiles({
+      "check-foundation-guards.js": (src) =>
+        src.replace(
+          "function pinScanMarkdownFiles() {",
+          "function pinScanMarkdownFiles() {\n    return { files: [], missingRoots: [] };",
+        ),
+    });
+    const r = runScratch(guardJs, mirror());
+    const section = guardSection(out(r), PIN_BANNER).join("\n");
+    expect(r.status).not.toBe(0);
+    expect(section).toContain("ZERO elements visited");
+    expect(section).not.toMatch(/0 findings over/);
+  });
+
+  it("(pin-no-version-literal) the guard declares NO version of its own", () => {
+    // The fact has ONE home. A guard that restates the number is the second home, and two homes for
+    // one fact is this repository's most-repeated defect class. Asserted over the guard's own
+    // section of the source, comments included: a version written in a comment drifts exactly as
+    // readily as one written in code, and a reader trusts it just as much.
+    const src = readFileSync(join(ROOT, "scripts", "check-foundation-guards.ts"), "utf8");
+    const start = src.indexOf("function guardPlaywrightMcpPin(");
+    expect(start, "guardPlaywrightMcpPin not found in the source").toBeGreaterThan(-1);
+    const region = src.slice(src.lastIndexOf("\n// ---", start), src.indexOf("\n}", start) + 2);
+    expect(region.length, "the extracted guard region is empty").toBeGreaterThan(200);
+    const literals = region.match(/\d+\.\d+\.\d+/g) ?? [];
+    expect(
+      literals,
+      `the pin guard's own source carries version literal(s) ${literals.join(", ")} — the version ` +
+        `must be READ from ${PIN_SOURCE_REL}, never restated here`,
+    ).toEqual([]);
   });
 });
