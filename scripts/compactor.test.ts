@@ -60,6 +60,12 @@ const mod: typeof import("./compactor.js") = await import(
 // writer-order guard pins composeThreadNote's output against (the splitter and the writer must agree
 // on the note-opening shape, or a future field-reorder silently re-opens the boundary-miss hole).
 const CONTEXT_IO_JS = join(ROOT, "scripts", "context-io.js");
+
+// A stable 40-hex fixture commit id for the gate-run SHA emitVerdict has REQUIRED since
+// plan 31-01. The value is a fixture, not a real commit: these cases assert admission behaviour,
+// not provenance binding, so any well-formed object id serves.
+const GATE_RUN_SHA = "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0";
+
 const ctxio: typeof import("./context-io.js") = await import(
   pathToFileURL(CONTEXT_IO_JS).href
 );
@@ -858,7 +864,7 @@ describe("compactor.js — CMP-03 dial behavior + re-verify", () => {
       pathToFileURL(join(ROOT, "scripts", "context-io.js")).href
     );
     const id = "RUN-CMP-7A3F";
-    ctxIo.emitVerdict(task, id, "clean", contextRoot);
+    ctxIo.emitVerdict(task, id, "clean", GATE_RUN_SHA, contextRoot);
     // A faithfully compacted finding body still carrying the §14-gate#<id> stamp.
     const finding = noteText({ kind: "finding", verified_by: `§14-gate#${id}`, body: "401 verified." });
     const findings = mod.reVerify(task, finding, contextRoot);

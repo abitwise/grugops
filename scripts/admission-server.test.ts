@@ -48,6 +48,12 @@ const srv: typeof import("./admission-server.js") = await import(pathToFileURL(S
 // Import the committed context-io .js to SEED a real live green §14-gate verdict for the GAP-R7-1
 // end-to-end cases (the combiner's Posture-B cross-check requires a genuine verdict in the task context).
 const CONTEXT_IO_JS = join(ROOT, "scripts", "context-io.js");
+
+// A stable 40-hex fixture commit id for the gate-run SHA emitVerdict has REQUIRED since
+// plan 31-01. The value is a fixture, not a real commit: these cases assert admission behaviour,
+// not provenance binding, so any well-formed object id serves.
+const GATE_RUN_SHA = "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0";
+
 const cio: typeof import("./context-io.js") = await import(pathToFileURL(CONTEXT_IO_JS).href);
 
 // A factory.config.json under a temp root with the given context dial values; returns the root. This
@@ -445,7 +451,7 @@ describe("admission-server — GAP-R7-1 round-8 unified-classifier end-to-end (R
   it("Lever-1+2 combined: padded kind + internal-space high-sev by, live green gate, NO env/stamp → REFUSED, no note, no ledger line", () => {
     const root = repoWithGovernance({ human_admission: "high-severity", audit_retention: "retained" });
     const task = "asrv-gapr7-combined";
-    cio.emitVerdict(task, "LIVEID-1", "clean", ctxRootOf(root)); // a REAL live green §14-gate verdict
+    cio.emitVerdict(task, "LIVEID-1", "clean", GATE_RUN_SHA, ctxRootOf(root)); // a REAL live green §14-gate verdict
     const res = withProjectDir(root, () =>
       srv.handleProposeNote(
         args({
@@ -466,7 +472,7 @@ describe("admission-server — GAP-R7-1 round-8 unified-classifier end-to-end (R
   it("Lever-1 isolated control: padded kind + EXACT high-sev by → REFUSED (admit's D-04 also catches the exact role)", () => {
     const root = repoWithGovernance({ human_admission: "high-severity", audit_retention: "retained" });
     const task = "asrv-gapr7-lever1";
-    cio.emitVerdict(task, "LIVEID-2", "clean", ctxRootOf(root));
+    cio.emitVerdict(task, "LIVEID-2", "clean", GATE_RUN_SHA, ctxRootOf(root));
     const res = withProjectDir(root, () =>
       srv.handleProposeNote(
         args({ task, kind: "finding ", by: "security-nfr", verified_by: "§14-gate#LIVEID-2", body: "padded kind, exact role" }),
@@ -487,7 +493,7 @@ describe("admission-server — GAP-R7-1 round-8 unified-classifier end-to-end (R
       it(`structural REFUSE: kind=${JSON.stringify(kind)} × by=${JSON.stringify(by)} (no env/stamp) → REFUSED, no ledger line`, () => {
         const root = repoWithGovernance({ human_admission: "high-severity", audit_retention: "retained" });
         const task = `asrv-gapr7-sweep-${i}`;
-        cio.emitVerdict(task, `SWEEP-${i}`, "clean", ctxRootOf(root));
+        cio.emitVerdict(task, `SWEEP-${i}`, "clean", GATE_RUN_SHA, ctxRootOf(root));
         const res = withProjectDir(root, () =>
           srv.handleProposeNote(args({ task, kind, by, verified_by: `§14-gate#SWEEP-${i}`, body: "sweep" })),
         );
@@ -537,7 +543,7 @@ describe("admission-server — GAP-R7-1 round-8 unified-classifier end-to-end (R
   it("no over-block: padded routine finding (gate-stamped) under high-severity ADMITS; ledger severity=routine", () => {
     const root = repoWithGovernance({ human_admission: "high-severity", audit_retention: "retained" });
     const task = "asrv-gapr7-routine";
-    cio.emitVerdict(task, "ROUT-1", "clean", ctxRootOf(root));
+    cio.emitVerdict(task, "ROUT-1", "clean", GATE_RUN_SHA, ctxRootOf(root));
     const res = withProjectDir(root, () =>
       srv.handleProposeNote(
         args({ task, kind: "finding ", by: "software-engineer", verified_by: "§14-gate#ROUT-1", body: "routine padded finding" }),

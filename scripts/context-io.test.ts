@@ -61,6 +61,12 @@ const cpMod: typeof import("./checkpoints.js") = await import(
   pathToFileURL(join(ROOT, "scripts", "checkpoints.js")).href
 );
 
+// A stable 40-hex fixture commit id — the SHA a gate run was performed at (plan 31-01, D-01).
+// Declared here, at the top, because the emitVerdict call sites that use it run during collection
+// as well as inside cases; a const declared further down the file would be in its temporal dead
+// zone for the earliest of them.
+const FIXTURE_GATE_SHA = "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0";
+
 // A complete, valid note frontmatter+body the BAD cases mutate from.
 function goodNoteText(over: Partial<Record<string, string>> = {}): string {
   const f: Record<string, string> = {
@@ -532,7 +538,7 @@ describe("context-io.js — verify-before-write admission (VFY-01/VFY-02)", () =
     // Plant a real green verdict via the dedicated gate emission carve-out (D-03/D-04). The verdict
     // is itself a context note authored by: §14-gate, carrying the per-run id and a green marker.
     const id = "RUN-7A3F";
-    mod.emitVerdict(task, id, "clean", contextRoot);
+    mod.emitVerdict(task, id, "clean", FIXTURE_GATE_SHA, contextRoot);
     // The finding stamps that exact per-run id.
     const f = join(contextRoot, "finding.md");
     writeFileSync(f, goodNoteText({ kind: "finding", verified_by: `§14-gate#${id}` }));
@@ -543,7 +549,7 @@ describe("context-io.js — verify-before-write admission (VFY-01/VFY-02)", () =
   it("D-01 admission FAIL on id mismatch: a finding stamping a different id than the planted verdict is refused", () => {
     const contextRoot = freshTmp("ctx-io-vfy-mismatch-");
     const task = "task-admit-mismatch";
-    mod.emitVerdict(task, "RUN-AAAA", "clean", contextRoot);
+    mod.emitVerdict(task, "RUN-AAAA", "clean", FIXTURE_GATE_SHA, contextRoot);
     const f = join(contextRoot, "finding.md");
     writeFileSync(f, goodNoteText({ kind: "finding", verified_by: "§14-gate#RUN-BBBB" }));
     const r = runAdmit(task, f, contextRoot);
@@ -612,7 +618,7 @@ describe("context-io.js — CRLF round-trip admission (CR-01)", () => {
     const id = "RUN-CRLF-7A3F";
     // Plant a real green verdict (emitVerdict writes LF), then rewrite its on-disk bytes to CRLF
     // — the exact state that makes the verdict invisible to readContext before the parseNote fix.
-    mod.emitVerdict(task, id, "clean", contextRoot);
+    mod.emitVerdict(task, id, "clean", FIXTURE_GATE_SHA, contextRoot);
     rewriteNotesToCRLF(contextRoot, task);
     // The candidate finding is ALSO CRLF-encoded, covering the candidate-note side of parseNote.
     const f = join(contextRoot, "finding.md");
@@ -630,7 +636,7 @@ describe("context-io.js — CRLF round-trip admission (CR-01)", () => {
     const contextRoot = freshTmp("ctx-io-crlf-read-");
     const task = "crlf-task-read";
     const id = "RUN-CRLF-READ-01";
-    mod.emitVerdict(task, id, "clean", contextRoot);
+    mod.emitVerdict(task, id, "clean", FIXTURE_GATE_SHA, contextRoot);
     rewriteNotesToCRLF(contextRoot, task);
     // Direct proof readContext no longer silently drops the CRLF note: the verdict record is visible.
     const records = mod.readContext(task, contextRoot);
@@ -644,7 +650,7 @@ describe("context-io.js — CRLF round-trip admission (CR-01)", () => {
     const contextRoot = freshTmp("ctx-io-crlf-lf-");
     const task = "crlf-task-lf";
     const id = "RUN-LF-PARITY-01";
-    mod.emitVerdict(task, id, "clean", contextRoot); // LF bytes, NOT rewritten to CRLF
+    mod.emitVerdict(task, id, "clean", FIXTURE_GATE_SHA, contextRoot); // LF bytes, NOT rewritten to CRLF
     const f = join(contextRoot, "finding.md");
     writeFileSync(f, goodNoteText({ kind: "finding", verified_by: `§14-gate#${id}` })); // LF finding
     const r = runAdmit(task, f, contextRoot);
@@ -677,7 +683,7 @@ describe("d-04 high-severity in-script refusal", () => {
     const contextRoot = freshTmp("d04-ctx-");
     const task = "d04-task";
     const id = "RUN-D04-GREEN";
-    mod.emitVerdict(task, id, "clean", contextRoot);
+    mod.emitVerdict(task, id, "clean", FIXTURE_GATE_SHA, contextRoot);
     const text = goodNoteText({ kind: "finding", by, verified_by: `§14-gate#${id}` });
     return { contextRoot, text };
   }
@@ -716,7 +722,7 @@ describe("d-04 high-severity in-script refusal", () => {
     const contextRoot = freshTmp("d04-routine-");
     const task = "d04-routine";
     const id = "RUN-D04-ROUTINE";
-    mod.emitVerdict(task, id, "clean", contextRoot);
+    mod.emitVerdict(task, id, "clean", FIXTURE_GATE_SHA, contextRoot);
     const text = goodNoteText({
       kind: "finding",
       by: "software-engineer",
@@ -837,7 +843,7 @@ describe("d-04 high-severity in-script refusal", () => {
       const contextRoot = freshTmp("d04-cv-routine-");
       const task = "d04-cv-routine";
       const id = "RUN-CV-ROUTINE";
-      mod.emitVerdict(task, id, "clean", contextRoot);
+      mod.emitVerdict(task, id, "clean", FIXTURE_GATE_SHA, contextRoot);
       const text = goodNoteText({
         kind: "finding",
         by: "software-engineer",
@@ -883,7 +889,7 @@ describe("30-03 D-14 — admit() refuses and degrades on an unreadable governanc
     const contextRoot = freshTmp("d14-ctx-");
     const task = "d14-task";
     const id = "RUN-D14-GREEN";
-    mod.emitVerdict(task, id, "clean", contextRoot);
+    mod.emitVerdict(task, id, "clean", FIXTURE_GATE_SHA, contextRoot);
     return {
       contextRoot,
       task,
@@ -924,7 +930,7 @@ describe("30-03 D-14 — admit() refuses and degrades on an unreadable governanc
     const contextRoot = freshTmp("d14-routine-");
     const task = "d14-routine";
     const id = "RUN-D14-ROUTINE";
-    mod.emitVerdict(task, id, "clean", contextRoot);
+    mod.emitVerdict(task, id, "clean", FIXTURE_GATE_SHA, contextRoot);
     const text = goodNoteText({
       kind: "finding",
       by: "software-engineer",
@@ -2247,15 +2253,23 @@ describe("30-03 D-13 — the derived, pinned set of config-resolving sites", () 
 // the finding to `UNKNOWN - verify`. The ABSENT and well-formed paths are asserted UNCHANGED in the
 // 30-03 D-14 block above, so the span change is strictly the added refusal. admit()'s span therefore
 // changes deliberately and the freeze RE-LOCKS below, so any FUTURE drift still goes RED.
-describe("context-io.ts — W-B admit() mechanical byte-freeze (Plan 25-09; re-baselined 25-13, 30-03)", () => {
-  // The pinned baseline: sha256 of admit()'s function span. RE-PINNED TWICE in Plan 30-03: first for
-  // the deliberate D-14 unfreeze that added the unreadable-config refusal (ae159bb3…5551), then for
-  // the D-12 reader RENAME, which moves admit()'s span by exactly one identifier — the call
-  // `readGovernanceConfigResult(repoRoot)` becomes `readGovernanceConfig(repoRoot)` and nothing else
-  // inside the span changes. admit() must hash to this exactly; the prior baselines were ae159bb3…5551
-  // (30-03 D-14), dbf66ac7…ebf7 (25-13) and b7998cbd…be3d (pre-25-13).
+//
+// PLAN 31-01 DELIBERATE UNFREEZE + RE-BASELINE (D-03). UATX-04 binds a piece of UAT evidence to the
+// commit its gate run was performed at, and D-03 places that comparison in admit() at write time
+// AND NOWHERE ELSE — one authority per predicate, so the §14 gate deliberately performs no SHA
+// pre-check. admit() therefore grows one sibling branch beside the existing verdict cross-check,
+// covering the three refusals an artifact-ref can earn: no live green verdict for its `gate_run`, a
+// verdict that recorded no SHA (unbindable — refused, never a fall-through pass), and a recorded
+// SHA that differs from the one claimed. The pre-existing behavioral cases for findings, the
+// governance dial and the ledger are asserted UNCHANGED above, so the span change is strictly the
+// added branch. The freeze RE-LOCKS at the new baseline, so any FUTURE drift still goes RED.
+describe("context-io.ts — W-B admit() mechanical byte-freeze (Plan 25-09; re-baselined 25-13, 30-03, 31-01)", () => {
+  // The pinned baseline: sha256 of admit()'s function span. RE-PINNED in Plan 31-01 for the
+  // deliberate D-03 unfreeze described above. admit() must hash to this exactly; the prior baselines
+  // were 760319ff…2876 (30-03 D-12 reader rename), ae159bb3…5551 (30-03 D-14), dbf66ac7…ebf7 (25-13)
+  // and b7998cbd…be3d (pre-25-13).
   const ADMIT_FROZEN_SHA256 =
-    "760319ff4fc1eb63703117df9541f5ab32510f801bcc7caafd172c40159c2876";
+    "ee418ce3bf6267e6ffb770b433b586bc21552a1590b68e71618999f41f69f06f";
 
   // Extract the span `export function admit(` … matching `}` by brace-counting (the SAME extraction the
   // baseline was captured with). Reads the committed .ts source (the freeze is on the source of truth).
@@ -2472,7 +2486,7 @@ describe("context-io.js — admitAndAppend (structured-channel persist arbiter, 
     const repoRoot = repoWithGovernance({ human_admission: "off" });
     const task = "aaa-postureb-green";
     const id = "RUN-AAA-7A3F";
-    mod.emitVerdict(task, id, "clean", contextRoot);
+    mod.emitVerdict(task, id, "clean", FIXTURE_GATE_SHA, contextRoot);
     const note = baseNote({ kind: "finding", by: "software-engineer", verified_by: `§14-gate#${id}` });
     const res = mod.admitAndAppend(task, note, "a gate-verified finding", contextRoot, repoRoot);
     expect(res.findings).toEqual([]);
@@ -2583,6 +2597,7 @@ describe("context-io.js — GAP-R6-1 path-containment (shared writeNoteFile chok
         "ATK",
         "RUN-AAAA",
         "clean",
+        FIXTURE_GATE_SHA,
         contextRoot,
         "2026-06-17T14:23:05Z/../../../VICTIM/notes/INJECTED",
       ),
@@ -2599,7 +2614,7 @@ describe("context-io.js — GAP-R6-1 path-containment (shared writeNoteFile chok
 
   it("POSITIVE: a reserved `by: §14-gate` verdict via emitVerdict (legit ISO `at`) still writes", () => {
     const contextRoot = freshTmp("r61-pos-verdict-ctx-");
-    const id = mod.emitVerdict("OWN", "RUN-OWN-7A3F", "clean", contextRoot);
+    const id = mod.emitVerdict("OWN", "RUN-OWN-7A3F", "clean", FIXTURE_GATE_SHA, contextRoot);
     expect(id).toBeTruthy();
     expect(noteFilesOf(contextRoot, "OWN")).toHaveLength(1);
     const text = readFileSync(join(notesDirOf(contextRoot, "OWN"), `${id}.md`), "utf8");
@@ -3143,7 +3158,7 @@ describe("emitVerdict: the required test-integrity argument (plan 30-05, D-15/D-
 
   it("CONTROL — the clean sentinel writes exactly one valid green verdict", () => {
     const contextRoot = freshTmp("ti-clean-");
-    const returned = mod.emitVerdict(TASK, "RUN-TI-CLEAN", "clean", contextRoot);
+    const returned = mod.emitVerdict(TASK, "RUN-TI-CLEAN", "clean", FIXTURE_GATE_SHA, contextRoot);
     expect(returned).toBeTruthy();
     const snap = notesSnapshot(contextRoot, TASK);
     expect(snap).toHaveLength(1);
@@ -3167,10 +3182,10 @@ describe("emitVerdict: the required test-integrity argument (plan 30-05, D-15/D-
       const contextRoot = freshTmp(`ti-${state}-`);
       // Start from a NON-EMPTY directory so "identical before and after" is a measurement rather
       // than a comparison of two empty lists.
-      mod.emitVerdict(TASK, "RUN-TI-PRIOR", "clean", contextRoot);
+      mod.emitVerdict(TASK, "RUN-TI-PRIOR", "clean", FIXTURE_GATE_SHA, contextRoot);
       const before = notesSnapshot(contextRoot, TASK);
       expect(before).toHaveLength(1);
-      const returned = mod.emitVerdict(TASK, "RUN-TI-REFUSED", state, contextRoot);
+      const returned = mod.emitVerdict(TASK, "RUN-TI-REFUSED", state, FIXTURE_GATE_SHA, contextRoot);
       expect(returned).toBeNull();
       expect(notesSnapshot(contextRoot, TASK)).toEqual(before);
     });
@@ -3179,12 +3194,13 @@ describe("emitVerdict: the required test-integrity argument (plan 30-05, D-15/D-
   it("every degenerate STRING value refuses, leaving the notes directory byte-identical", () => {
     for (const value of INTEGRITY_SWEEP) {
       const contextRoot = freshTmp("ti-sweep-");
-      mod.emitVerdict(TASK, "RUN-TI-PRIOR", "clean", contextRoot);
+      mod.emitVerdict(TASK, "RUN-TI-PRIOR", "clean", FIXTURE_GATE_SHA, contextRoot);
       const before = notesSnapshot(contextRoot, TASK);
       const returned = mod.emitVerdict(
         TASK,
         "RUN-TI-SWEEP",
         value as unknown as import("./context-io.js").TestIntegrityResult,
+        FIXTURE_GATE_SHA,
         contextRoot,
       );
       expect(returned, `value ${JSON.stringify(value)} was admitted`).toBeNull();
@@ -3201,6 +3217,7 @@ describe("emitVerdict: the required test-integrity argument (plan 30-05, D-15/D-
         TASK,
         "RUN-TI-TYPE",
         value as import("./context-io.js").TestIntegrityResult,
+        FIXTURE_GATE_SHA,
         contextRoot,
       );
       expect(returned, `${label} was admitted`).toBeNull();
@@ -3216,6 +3233,7 @@ describe("emitVerdict: the required test-integrity argument (plan 30-05, D-15/D-
         TASK,
         "RUN-TI-PARTIAL",
         value as unknown as import("./context-io.js").TestIntegrityResult,
+        FIXTURE_GATE_SHA,
         contextRoot,
       );
     }
@@ -3228,7 +3246,7 @@ describe("emitVerdict: the required test-integrity argument (plan 30-05, D-15/D-
     // malformed per-run id past the grammar check by pairing it with a non-clean result, and the
     // named throw this tree relies on would become a silent null.
     const contextRoot = freshTmp("ti-order-");
-    expect(() => mod.emitVerdict(TASK, "bad id with spaces", "finding", contextRoot)).toThrow(
+    expect(() => mod.emitVerdict(TASK, "bad id with spaces", "finding", FIXTURE_GATE_SHA, contextRoot)).toThrow(
       /invalid per-run id/,
     );
     expect(notesSnapshot(contextRoot, TASK)).toEqual([]);
@@ -3292,7 +3310,7 @@ describe("context-io CLI: the dispatched verbs and the usage line are one set (p
     // The premise assertion: prove the comparison would have failed had the usage line been short,
     // rather than trusting that the green above could have come out any other way.
     const short = SRC.replace(
-      " | emit-verdict <task> <id> <clean|finding|unknown> [contextRoot]",
+      " | emit-verdict <task> <id> <clean|finding|unknown> <sha> [contextRoot]",
       "",
     );
     expect(short).not.toBe(SRC);
@@ -3301,10 +3319,19 @@ describe("context-io CLI: the dispatched verbs and the usage line are one set (p
 
   it("the new verb with NO integrity argument writes no note and reports a refusal", () => {
     const contextRoot = freshTmp("cli-ev-absent-");
-    const r = spawnSync("node", [CONTEXT_IO_JS, "emit-verdict", "cli-task", "RUN-CLI-1", "", contextRoot], {
-      cwd: ROOT,
-      encoding: "utf8",
-    });
+    const r = spawnSync(
+      "node",
+      [
+        CONTEXT_IO_JS,
+        "emit-verdict",
+        "cli-task",
+        "RUN-CLI-1",
+        "",
+        FIXTURE_GATE_SHA,
+        contextRoot,
+      ],
+      { cwd: ROOT, encoding: "utf8" },
+    );
     expect(r.status).not.toBe(0);
     expect(`${r.stdout}${r.stderr}`).toContain("refusing to emit a green verdict");
     expect(existsSync(join(contextRoot, "cli-task", "notes"))).toBe(false);
@@ -3314,7 +3341,15 @@ describe("context-io CLI: the dispatched verbs and the usage line are one set (p
     const contextRoot = freshTmp("cli-ev-bogus-");
     const r = spawnSync(
       "node",
-      [CONTEXT_IO_JS, "emit-verdict", "cli-task", "RUN-CLI-2", "CLEAN", contextRoot],
+      [
+        CONTEXT_IO_JS,
+        "emit-verdict",
+        "cli-task",
+        "RUN-CLI-2",
+        "CLEAN",
+        FIXTURE_GATE_SHA,
+        contextRoot,
+      ],
       { cwd: ROOT, encoding: "utf8" },
     );
     expect(r.status).not.toBe(0);
@@ -3322,17 +3357,57 @@ describe("context-io CLI: the dispatched verbs and the usage line are one set (p
     expect(existsSync(join(contextRoot, "cli-task", "notes"))).toBe(false);
   });
 
+  it("the PRE-31-01 three-positional shape now fails the ARITY check and writes nothing", () => {
+    // `emit-verdict <task> <id> clean <contextRoot>` is four arguments and used to be legitimate.
+    // Since the SHA became required it is short by one, and the arity check — which inspects SHAPE
+    // and never values — refuses it outright rather than letting the context root be read as a SHA.
+    const contextRoot = freshTmp("cli-ev-arity-");
+    const r = spawnSync(
+      "node",
+      [CONTEXT_IO_JS, "emit-verdict", "cli-task", "RUN-CLI-4", "clean"],
+      { cwd: ROOT, encoding: "utf8" },
+    );
+    expect(r.status).not.toBe(0);
+    expect(`${r.stdout}${r.stderr}`).toContain("takes 4 or 5 positional arguments");
+    expect(existsSync(join(contextRoot, "cli-task", "notes"))).toBe(false);
+  });
+
+  it("the new verb with a NON-HEX sha writes nothing and names the allowlist", () => {
+    const contextRoot = freshTmp("cli-ev-sha-");
+    const r = spawnSync(
+      "node",
+      [CONTEXT_IO_JS, "emit-verdict", "cli-task", "RUN-CLI-5", "clean", "HEAD", contextRoot],
+      { cwd: ROOT, encoding: "utf8" },
+    );
+    expect(r.status).not.toBe(0);
+    expect(`${r.stdout}${r.stderr}`).toContain("lowercase hex");
+    expect(existsSync(join(contextRoot, "cli-task", "notes"))).toBe(false);
+  });
+
   it("CONTROL — the new verb with `clean` emits exactly one verdict the admit path accepts", () => {
     const contextRoot = freshTmp("cli-ev-clean-");
     const r = spawnSync(
       "node",
-      [CONTEXT_IO_JS, "emit-verdict", "cli-task", "RUN-CLI-3", "clean", contextRoot],
+      [
+        CONTEXT_IO_JS,
+        "emit-verdict",
+        "cli-task",
+        "RUN-CLI-3",
+        "clean",
+        FIXTURE_GATE_SHA,
+        contextRoot,
+      ],
       { cwd: ROOT, encoding: "utf8" },
     );
     expect(r.status, `${r.stdout}${r.stderr}`).toBe(0);
     expect(r.stdout).toContain("§14-gate#RUN-CLI-3");
     const notes = readdirSync(join(contextRoot, "cli-task", "notes"));
     expect(notes).toHaveLength(1);
+    // The SHA the CLI was handed is the SHA the verdict recorded — the value is passed through
+    // unmodified, so the CLI and the in-process path cannot come to disagree.
+    expect(readFileSync(join(contextRoot, "cli-task", "notes", notes[0]), "utf8")).toContain(
+      `sha: ${FIXTURE_GATE_SHA}`,
+    );
     // The two surfaces agree: a finding stamping that per-run id is admitted.
     const f = join(contextRoot, "finding.md");
     writeFileSync(f, goodNoteText({ kind: "finding", verified_by: "§14-gate#RUN-CLI-3" }));
@@ -3448,9 +3523,14 @@ describe("30-11 — emitVerdict refuses BEFORE composing, on every path, leaving
     return out.sort();
   }
 
+  // The fixture SHA is inserted by the helper, between the caller's arguments and the context root,
+  // so every case below still reaches the predicate it is about. A case that supplied no SHA would
+  // have the context root read into that slot and refuse on the CHARSET — green, and about nothing.
   function emitVia(argv: string[]): { status: number | null; msg: string; root: string; after: string[] } {
     const root = freshTmp("ctx-emit-");
-    const r = spawnSync("node", [CONTEXT_IO_JS, "emit-verdict", ...argv, root], { encoding: "utf8" });
+    const r = spawnSync("node", [CONTEXT_IO_JS, "emit-verdict", ...argv, FIXTURE_GATE_SHA, root], {
+      encoding: "utf8",
+    });
     return {
       status: r.status,
       msg: ((r.stderr ?? "") + (r.stdout ?? "")).trim(),
@@ -3514,9 +3594,10 @@ describe("30-11 — emitVerdict refuses BEFORE composing, on every path, leaving
 });
 
 describe("30-11 A-8 — the emit-verdict verb checks its own ARITY", () => {
-  // THE FINDING. The verb takes three required positionals and one optional. With no arity check, a
-  // caller using the pre-30-05 three-argument shape had its CONTEXT ROOT read into the integrity
-  // slot: measured on the committed artifact, the refusal reported `the test-integrity result was
+  // THE FINDING. The verb takes four required positionals and one optional (three required before
+  // plan 31-01 added the commit SHA). With no arity check, a caller using the pre-30-05
+  // three-argument shape had its CONTEXT ROOT read into the integrity slot: measured on the
+  // committed artifact, the refusal reported `the test-integrity result was
   // "/var/folders/.../T/t2-XXXX"`. Fail-closed in direction (a path is not `clean`), but the
   // refusal misdescribed what went wrong.
   it("too FEW arguments are refused as an arity error", () => {
@@ -3527,22 +3608,41 @@ describe("30-11 A-8 — the emit-verdict verb checks its own ARITY", () => {
     expect((r.stderr ?? "") + (r.stdout ?? "")).toContain("positional arguments");
   });
 
-  it("WHAT ARITY CANNOT DECIDE: the shifted 3-arg shape fails CLOSED and names the argument order", () => {
-    // The pre-30-05 shape `emit-verdict <task> <id> <contextRoot>` has exactly THREE arguments,
-    // which is also the legitimate `emit-verdict <task> <id> clean`. Nothing but the VALUE
-    // separates them, and inspecting the value here would put the integrity vocabulary in two
-    // places. So this case pins the honest outcome instead of a fix that cannot exist: the
-    // invocation fails CLOSED, nothing is written, and the message states the argument order
-    // unconditionally rather than guessing why the caller is here.
+  it("WHAT ARITY CANNOT DECIDE: a shifted 4-arg shape fails CLOSED and names the slot it read", () => {
+    // The A-8 residual, restated for the post-31-01 signature. The pre-31-01 shape
+    // `emit-verdict <task> <id> clean <contextRoot>` has exactly FOUR arguments, which is also the
+    // arity of the legitimate `emit-verdict <task> <id> clean <sha>`. Nothing but the VALUE
+    // separates them, and inspecting the value here would put the SHA grammar in two places. So
+    // this case pins the honest outcome instead of a fix that cannot exist: the invocation fails
+    // CLOSED, nothing is written, and the message names the FIELD whose slot was misread rather
+    // than guessing why the caller is here.
     const root = freshTmp("ctx-arity-");
-    const r = spawnSync("node", [CONTEXT_IO_JS, "emit-verdict", "t", "RUN-1", root], {
+    const r = spawnSync("node", [CONTEXT_IO_JS, "emit-verdict", "t", "RUN-1", "clean", root], {
       encoding: "utf8",
     });
     expect(r.status).toBe(1);
     const msg = (r.stderr ?? "") + (r.stdout ?? "");
+    expect(msg).toContain("verdict sha");
+    expect(msg).toContain("lowercase hex");
+    // Fail-closed is the load-bearing half: the shifted invocation writes nothing anywhere.
+    expect(existsSync(join(root, "t"))).toBe(false);
+  });
+
+  it("the integrity refusal still names the argument order UNCONDITIONALLY", () => {
+    // The other half of A-8: when the integrity slot holds something that is not `clean` — including
+    // a path a shifted caller put there — the refusal states the whole argument order rather than
+    // guessing at intent, so a caller who mis-ordered sees which slot means what.
+    const root = freshTmp("ctx-arity-order-");
+    const r = spawnSync(
+      "node",
+      [CONTEXT_IO_JS, "emit-verdict", "t", "RUN-1", root, FIXTURE_GATE_SHA, root],
+      { encoding: "utf8" },
+    );
+    expect(r.status).toBe(1);
+    const msg = (r.stderr ?? "") + (r.stdout ?? "");
     expect(msg).toContain("Argument order:");
     expect(msg).toContain("THIRD argument is the test-integrity result");
-    // Fail-closed is the load-bearing half: the shifted invocation writes nothing anywhere.
+    expect(msg).toContain("FOURTH is the commit SHA");
     expect(existsSync(join(root, "t"))).toBe(false);
   });
 
@@ -3550,26 +3650,30 @@ describe("30-11 A-8 — the emit-verdict verb checks its own ARITY", () => {
     const root = freshTmp("ctx-arity2-");
     const r = spawnSync(
       "node",
-      [CONTEXT_IO_JS, "emit-verdict", "t", "RUN-1", "clean", root, "stowaway"],
+      [CONTEXT_IO_JS, "emit-verdict", "t", "RUN-1", "clean", FIXTURE_GATE_SHA, root, "stowaway"],
       { encoding: "utf8" },
     );
     expect(r.status).toBe(1);
     expect((r.stderr ?? "") + (r.stdout ?? "")).toContain("positional arguments");
   });
 
-  it("the legitimate 3- and 4-argument shapes still work (the check is not over-broad)", () => {
+  it("the legitimate 4- and 5-argument shapes still work (the check is not over-broad)", () => {
     const root = freshTmp("ctx-arity3-");
-    const four = spawnSync("node", [CONTEXT_IO_JS, "emit-verdict", "t", "RUN-4", "clean", root], {
-      encoding: "utf8",
-    });
-    expect(four.status).toBe(0);
-    // The 3-argument shape (no explicit context root) refuses on the INTEGRITY value, not on arity,
+    const five = spawnSync(
+      "node",
+      [CONTEXT_IO_JS, "emit-verdict", "t", "RUN-4", "clean", FIXTURE_GATE_SHA, root],
+      { encoding: "utf8" },
+    );
+    expect(five.status).toBe(0);
+    // The 4-argument shape (no explicit context root) refuses on the INTEGRITY value, not on arity,
     // which is what proves the arity check let it through to the real predicate.
-    const three = spawnSync("node", [CONTEXT_IO_JS, "emit-verdict", "t", "RUN-3", "finding"], {
-      encoding: "utf8",
-    });
-    expect(three.status).toBe(1);
-    expect((three.stderr ?? "") + (three.stdout ?? "")).toContain("only \"clean\" admits one");
+    const four = spawnSync(
+      "node",
+      [CONTEXT_IO_JS, "emit-verdict", "t", "RUN-3", "finding", FIXTURE_GATE_SHA],
+      { encoding: "utf8" },
+    );
+    expect(four.status).toBe(1);
+    expect((four.stderr ?? "") + (four.stdout ?? "")).toContain("only \"clean\" admits one");
   });
 });
 
@@ -4043,8 +4147,8 @@ describe("30-11 RA4-2 — a presence predicate publishes the value it tested", (
 //     unchanged by the signature change, asserted here rather than assumed.
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 
-/** A stable 40-hex fixture commit id — the SHA a gate run was performed at. */
-const P31_SHA_A = "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0";
+/** The stable 40-hex fixture commit id, shared with every other call site in this file. */
+const P31_SHA_A = FIXTURE_GATE_SHA;
 /** A DIFFERENT stable 40-hex fixture commit id — the stale SHA a refusal must name alongside it. */
 const P31_SHA_B = "b0a9f8e7d6c5b4a3d2e1c0f9b8a7f6e5d4c3b2a1";
 /** A 64-hex sha256 fixture digest — the shape D-02's content_hash takes. */

@@ -90,6 +90,12 @@ vi.setConfig({ testTimeout: FLOOR_INVARIANCE_TEST_TIMEOUT_MS });
 
 const ROOT = join(import.meta.dirname, "..");
 const CONTEXT_IO_JS = join(ROOT, "scripts", "context-io.js");
+
+// A stable 40-hex fixture commit id for the gate-run SHA emitVerdict has REQUIRED since
+// plan 31-01. The value is a fixture, not a real commit: these cases assert admission behaviour,
+// not provenance binding, so any well-formed object id serves.
+const GATE_RUN_SHA = "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0";
+
 const GUARD_JS = join(ROOT, "hooks", "admission-guard.js");
 const TWIN_MD = join(ROOT, "agent-factory/config/factory.config.md");
 const KIT_JSON = join(ROOT, "agent-factory/config/factory.config.json");
@@ -485,7 +491,7 @@ describe("SC3 floor-invariance — every governance dial value (incl. garbage) s
       const contextRoot = freshTmp("floor-struct-ctx-");
       const task = "floor-struct-task";
       const id = "RUN-FLOOR-STRUCT";
-      mod.emitVerdict(task, id, "clean", contextRoot);
+      mod.emitVerdict(task, id, "clean", GATE_RUN_SHA, contextRoot);
       const text = noteText({ kind: "finding", by: "security-nfr", verified_by: `§14-gate#${id}` });
       return { contextRoot, task, text };
     }

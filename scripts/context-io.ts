@@ -78,6 +78,15 @@ export interface NoteInput {
   confidence: string; // e.g. high | medium | low | UNKNOWN - verify
   refs: string[]; // YAML list — req ids, file paths, ticket refs
   supersedes: string | null; // note-id this note overrides, or null
+  // ── The evidence-provenance scalars (Phase 31, D-01/D-02/D-03) ───────────────────────────────
+  // OPTIONAL on the interface and ADJUDICATED in validate(), exactly how `supersedes` is typed
+  // loosely and decided at validation: the interface carries the shape, the validator carries the
+  // rule, and there is one place that decides it. Required-and-non-empty on an `artifact-ref`;
+  // `sha` is additionally carried by the §14 gate's own verdict (the run's HEAD, D-01/F-02) and
+  // forbidden on every other note.
+  sha?: string; // the commit the referenced spec was run at / the gate run was performed at
+  gate_run?: string; // the per-run id of the §14-gate verdict that certifies that run
+  content_hash?: string; // sha256 over the committed *.uat.spec.ts bytes at `sha` (D-02)
 }
 
 // ── A parsed note (frontmatter projected to a record; id from the filename) ─────────────────────
@@ -90,6 +99,11 @@ export interface NoteRecord {
   confidence: string;
   refs: string[];
   supersedes: string | null;
+  // Projected by readContext so admit()'s D-03 branch can read a verdict's recorded SHA. Without
+  // this projection the comparison has no left operand however faithfully the composer emits it.
+  sha?: string;
+  gate_run?: string;
+  content_hash?: string;
   body: string; // markdown body (NOT emitted in the JSONL event line)
 }
 
@@ -172,6 +186,16 @@ export type ReservedIdentity = (typeof RESERVED_IDENTITIES)[number];
 const GATE_STAMP_RE = /^§14-gate#[A-Za-z0-9._-]+$/;
 const HUMAN_STAMP_RE = /^human:[A-Za-z0-9._-]+$/;
 
+// ── The provenance hex allowlist for `sha` and `content_hash` (Phase 31, D-01/D-02) ─────────────
+// An ANCHORED charset allowlist in the same idiom as TASK_NAME_RE and the two stamp grammars
+// above: the value is admitted only when the WHOLE string is lowercase hex of a plausible digest
+// length. It accepts an abbreviated or full lowercase git object id (the 7-character abbreviation
+// floor through a 40-character sha1 name, and a 64-character sha256 object name) and a sha256 hex
+// digest, and nothing else — no uppercase, no surrounding or embedded whitespace, no `HEAD`, no
+// `refs/`-style prose. Anchoring is the point: an unanchored test would admit a value that merely
+// CONTAINS hex, and these two fields are interpolated raw into the provenance fence.
+export const SHA_HEX_RE = /^[0-9a-f]{7,64}$/;
+
 // ── DeLM invalid-evidence phrase list (D-09; from DeLM verifier.py _INVALID_EVIDENCE_PHRASES) ────
 // A `verified_by` that IS one of these (or STARTS with one at a non-alpha boundary) is hollow
 // evidence and a structural FAIL. Match by lowercase+trim then `==` OR `startsWith` + a non-alpha
@@ -222,6 +246,21 @@ function assertSingleLine(name: string, value: string): void {
   if (/[\r\n]/.test(value)) {
     throw new Error(
       `context-io: field "${name}" must be single-line (no embedded newline): ${JSON.stringify(value)}`,
+    );
+  }
+}
+
+// ── Hex-scalar guard for `sha` / `content_hash` (Phase 31, T-31-03) ─────────────────────────────
+// The write-path companion to SHA_HEX_RE's validator rule: the composer guards what is about to be
+// interpolated into a fence, the validator guards text that arrives from disk. Both ask the ONE
+// exported allowlist, so there is no second charset spelled anywhere. Called only AFTER
+// assertSingleLine, so a CR/LF is reported as the injection attempt it is rather than as a
+// charset miss.
+function assertHexScalar(name: string, value: string): void {
+  if (!SHA_HEX_RE.test(value)) {
+    throw new Error(
+      `context-io: field "${name}" must be lowercase hex matching ${SHA_HEX_RE} — an abbreviated ` +
+        `or full git object id, or a sha256 digest: ${JSON.stringify(value)}`,
     );
   }
 }
@@ -872,10 +911,37 @@ function composeNote(note: NoteInput, body: string, id: string): string {
     `at: ${note.at}\n` +
     `verified_by: ${note.verified_by}\n` +
     `confidence: ${note.confidence}\n` +
+    provenanceBlock(note) +
     refsBlock +
     `supersedes: ${note.supersedes ?? ""}\n` +
     "---\n\n" +
     (body.endsWith("\n") ? body : body + "\n")
+  );
+}
+
+// ── The evidence-provenance lines, emitted PER FIELD and ONLY when the field is set. ────────────
+//
+// WHY PRESENCE AND NOT KIND, WRITTEN DOWN BECAUSE THE PLAN SAID KIND (plan 31-01 deviation).
+// The plan asked for two things that cannot both be literally true: emit the three scalars ONLY
+// for `kind === "artifact-ref"`, AND have the §14 gate's verdict — which is a `finding` — record
+// the SHA its run was performed at. Gating on kind would drop the verdict's SHA at the composer
+// and leave D-03's comparison with no left operand, which is the exact gap research F-02 measured.
+//
+// Gating on PRESENCE discharges the reason the kind gate was asked for. That reason is byte
+// stability: no note composed before this change set any of the three, so every one of them still
+// composes byte-for-byte its previous form, and that is asserted rather than claimed (the
+// composed-fence cases in scripts/context-io.test.ts). What changes bytes is exactly the two
+// shapes that are SUPPOSED to carry provenance — the gate's own verdict, and an `artifact-ref`.
+//
+// The rule about WHICH note may carry WHICH field is not decided here; validate() decides it once
+// (required-and-complete on an artifact-ref; `sha` alone on the gate's verdict; forbidden
+// elsewhere), so a field the composer emits on a note that may not carry it is refused loudly at
+// the very next line of every write path rather than dropped in silence.
+function provenanceBlock(note: NoteInput): string {
+  const line = (key: string, value: string | undefined): string =>
+    value !== undefined && value !== "" ? `${key}: ${value}\n` : "";
+  return (
+    line("sha", note.sha) + line("gate_run", note.gate_run) + line("content_hash", note.content_hash)
   );
 }
 
@@ -911,6 +977,20 @@ export function appendNote(
   assertSingleLine("confidence", note.confidence);
   if (note.supersedes !== null) assertSingleLine("supersedes", note.supersedes);
   for (const r of note.refs) assertSingleLine("refs[]", r);
+  // The three evidence-provenance scalars are interpolated into the same fence, so CR-01 applies to
+  // them identically: a newline in `sha` would smuggle an extra `key: value` line into the
+  // frontmatter. Guarded whenever the field is SET — the same condition the composer emits on, so
+  // no value can reach the fence unguarded — and the two hex fields additionally pass the anchored
+  // allowlist here on the write path.
+  if (note.sha !== undefined) {
+    assertSingleLine("sha", note.sha);
+    assertHexScalar("sha", note.sha);
+  }
+  if (note.gate_run !== undefined) assertSingleLine("gate_run", note.gate_run);
+  if (note.content_hash !== undefined) {
+    assertSingleLine("content_hash", note.content_hash);
+    assertHexScalar("content_hash", note.content_hash);
+  }
   // Compute the frozen id ONCE and use it for BOTH the emitted `id:` frontmatter field and the
   // <id>.md filename — a single source of the identity so frontmatter `id` and filename can never
   // diverge. Guard it as a single-line field (an attacker must not forge/collide an id via a
@@ -962,6 +1042,15 @@ export function readContext(task: string, contextRoot: string = DEFAULT_CONTEXT_
       confidence: s.confidence ?? "",
       refs: parsed.refs,
       supersedes: s.supersedes && s.supersedes !== "" ? s.supersedes : null,
+      // The evidence-provenance projection (Phase 31). parseNote's open scalar map already ACCEPTS
+      // these keys, so no parser change was needed — but a scalar the parser accepted and this
+      // projection dropped is a scalar admit() cannot read, and admit()'s D-03 branch reads the
+      // matched verdict's `sha` through exactly this record. Absent stays `undefined` rather than
+      // "" so "the verdict recorded no SHA" and "the verdict recorded an empty SHA" are one case
+      // for the refusal below to name.
+      sha: s.sha ?? undefined,
+      gate_run: s.gate_run ?? undefined,
+      content_hash: s.content_hash ?? undefined,
       body: parsed.body.trim(),
     });
   }
@@ -1048,10 +1137,26 @@ const TEST_INTEGRITY_CLEAN = "clean";
 // nothing is written and nothing is partially written — so the only way to reach a green verdict
 // is to state `clean` outright. The residual is that a caller determined to lie can state it; that
 // residual is named here and in the workflow prose instead of being claimed away.
+// THE COMMIT THE RUN WAS PERFORMED AT (plan 31-01, D-01/UATX-04). The fourth argument is the HEAD
+// SHA the gate run was performed against, and it is REQUIRED and POSITIONAL for the same reason
+// `integrity` is — ahead of the two defaulted parameters, so every existing call site had to be
+// revisited rather than keep compiling against a default that would have made the field decorative.
+// The verdict RECORDS it, and that recorded value is the only left operand D-03's stale-evidence
+// refusal has: an artifact-ref claims a commit, and this is what that claim is compared against.
+//
+// It is NOT derived here. Shelling to git inside this function would be a second parser inside a
+// safety path — the thing the paragraph above already refuses to do for the test-integrity result
+// — and the gate procedure already holds the fact. A malformed, multi-line, non-hex, empty or
+// absent SHA THROWS a named error before anything is composed, so the failure is loud at the point
+// of invocation rather than a verdict that quietly records nothing. That is a different disposition
+// from the integrity refusal below, and deliberately so: the integrity result is a policy OUTCOME
+// whose non-clean values are ordinary and degrade to `UNKNOWN - verify`, while a malformed SHA is a
+// malformed INVOCATION, which is how this function already treats a malformed per-run id.
 export function emitVerdict(
   task: string,
   id: string,
   integrity: TestIntegrityResult,
+  sha: string,
   contextRoot: string = DEFAULT_CONTEXT_ROOT,
   at: string = new Date().toISOString(),
 ): string | null {
@@ -1065,6 +1170,12 @@ export function emitVerdict(
         `"${verdictStampFor(id)}" must match ${GATE_STAMP_RE}.`,
     );
   }
+  // The gate-run SHA, checked in the same slot and the same way as the per-run id above and BEFORE
+  // the first line that builds any part of the note — a refusal here can leave no partial file
+  // because nothing has been composed. `(sha as unknown) ?? ""` covers the untyped caller who hands
+  // across `undefined` or `null`; a padded or empty value fails the anchored allowlist.
+  assertSingleLine("verdict sha", (sha as unknown as string) ?? "");
+  assertHexScalar("verdict sha", (sha as unknown as string) ?? "");
   // REFUSE BEFORE COMPOSE (D-16). Placed above the first line that builds any part of the note, so
   // a refusal cannot leave a partial or zero-length note file behind — the only way to guarantee
   // "nothing was written" is to have composed nothing. Anything that is not EXACTLY the clean
@@ -1081,6 +1192,10 @@ export function emitVerdict(
     confidence: "high",
     refs: [verdictStampFor(id)],
     supersedes: null,
+    // The verdict records the commit it was performed at, and NOTHING else of the provenance
+    // triple: `gate_run` names the run a piece of evidence points BACK at, and the verdict IS that
+    // run; `content_hash` digests an artifact, and the verdict references none.
+    sha,
   };
   const body = `${VERDICT_GREEN_MARKER}: the §14 quality gate run ${id} passed (all checks green).`;
   for (const r of note.refs) assertSingleLine("refs[]", r);
@@ -1439,6 +1554,55 @@ export function admit(
         `admission FAIL: no live green §14-gate verdict found for "${verdictStampFor(id)}" under ` +
           `task "${task}". A finding stamped §14-gate#${id} is admitted only when a real green ` +
           `gate verdict with that per-run id exists in the task context (Posture B).`,
+      ];
+    }
+  }
+
+  // ── D-03 (Phase 31): an artifact-ref is bound to the commit its gate run was performed at ──────
+  //
+  // THE SIBLING BRANCH, AND THE ONLY IMPLEMENTATION OF THIS PREDICATE. A piece of UAT evidence
+  // names a gate run; that run was performed at one commit; evidence claiming a different commit is
+  // not evidence of that run. The comparison lives HERE, at write time, and nowhere else — the §14
+  // gate performs no SHA pre-check before or after it emits its verdict (D-03). Two code paths
+  // deciding one question is this repository's named failure class; one authority means there is
+  // nothing to drift.
+  //
+  // It compares two RECORDED strings and never shells out to git (research Open Question 2). An
+  // `admit()` that confirmed the recorded HEAD was a real commit would put an I/O failure mode
+  // inside a path whose whole contract is "refuse cleanly, write nothing".
+  //
+  // All three arms REFUSE. The middle one is the one worth naming: a verdict that recorded no SHA
+  // at all — one minted before this change, or hand-written onto disk — leaves the evidence
+  // UNBINDABLE, and an unbindable artifact-ref is refused rather than passed through (T-31-05). A
+  // fall-through there would be exactly the "skipped verification reported as a pass" this path
+  // exists to prevent.
+  if (scalars.kind === "artifact-ref" && (scalars.gate_run ?? "").trim() !== "") {
+    const runId = (scalars.gate_run ?? "").trim();
+    const evidenceSha = (scalars.sha ?? "").trim();
+    const live = currentState(readContext(task, contextRoot));
+    const verdict = live.find((n) => isLiveGreenVerdict(n, runId));
+    if (verdict === undefined) {
+      return [
+        `admission FAIL: no live green §14-gate verdict found for "${verdictStampFor(runId)}" ` +
+          `under task "${task}". An artifact-ref naming gate_run "${runId}" is evidence only when ` +
+          `a real green gate verdict with that per-run id exists in the task context.`,
+      ];
+    }
+    const verdictSha = (verdict.sha ?? "").trim();
+    if (verdictSha === "") {
+      return [
+        `admission FAIL: the live green §14-gate verdict for "${verdictStampFor(runId)}" under ` +
+          `task "${task}" recorded no commit SHA, so this artifact-ref cannot be bound to the ` +
+          `commit that gate run was performed at. The evidence is refused and nothing is written — ` +
+          `an unbindable artifact-ref is never admitted as a pass.`,
+      ];
+    }
+    if (verdictSha !== evidenceSha) {
+      return [
+        `admission FAIL: this artifact-ref records sha "${evidenceSha}" while the live green ` +
+          `§14-gate verdict for "${verdictStampFor(runId)}" under task "${task}" was performed at ` +
+          `sha "${verdictSha}". Evidence is bound to the commit its gate run ran against; a ` +
+          `mismatch is refused and nothing is written.`,
       ];
     }
   }
@@ -2422,35 +2586,40 @@ if (isMain) {
       const task = rest[0];
       const id = rest[1];
       const integrity = rest[2] as TestIntegrityResult | undefined;
-      const contextRoot = rest[3]; // optional explicit root (tests pass a temp dir)
+      const sha = rest[3]; // the commit the gate run was performed at (plan 31-01, D-01)
+      const contextRoot = rest[4]; // optional explicit root (tests pass a temp dir)
       // ARITY IS THE CLI'S OWN CONCERN, AND IT IS CHECKED HERE (plan 30-11, finding A-8).
       //
-      // The verb takes three required positional arguments and one optional one. Without this
+      // The verb takes four required positional arguments and one optional one. Without this
       // check, an invocation with too few or too many arguments was accepted silently: two
-      // arguments passed `undefined` into the integrity slot, and five let a stowaway argument sit
-      // unremarked after the context root.
+      // arguments passed `undefined` into the integrity slot, and one too many let a stowaway
+      // argument sit unremarked after the context root.
       //
-      // It is an ARITY check and deliberately not a VALUE check. The integrity value is passed
-      // through UNMODIFIED — no canonicalization, no defaulting, no coercion — so the CLI and the
-      // in-process path cannot come to disagree about which values admit a verdict. Checking argv's
-      // SHAPE adds no second authority over that vocabulary; checking the value here would.
+      // It is an ARITY check and deliberately not a VALUE check. The integrity value and the SHA
+      // are passed through UNMODIFIED — no canonicalization, no defaulting, no coercion — so the
+      // CLI and the in-process path cannot come to disagree about which values admit a verdict or
+      // which SHAs are well-formed. Checking argv's SHAPE adds no second authority over those
+      // vocabularies; checking the values here would.
       //
       // WHAT ARITY CANNOT DECIDE, WRITTEN DOWN RATHER THAN FUDGED. A caller using the pre-30-05
       // shape `emit-verdict <task> <id> <contextRoot>` passes exactly THREE arguments, which is
       // also the legitimate shape `emit-verdict <task> <id> clean`. The two are indistinguishable
       // by count, and the only thing that separates them is the VALUE — which is precisely what
-      // this site must not inspect. So the shifted invocation is left to the refusal below, where
-      // it fails CLOSED (a filesystem path is not `clean`, so nothing is written) and the message
-      // names the argument order unconditionally rather than guessing at the caller's intent. The
-      // residual is recorded in docs/audit/30-redteam-surface-a.md § A-8.
-      if (!task || !id || rest.length < 3 || rest.length > 4) {
+      // this site must not inspect. Since plan 31-01 the legitimate shape carries FOUR required
+      // arguments, so that particular collision now fails the arity check outright; the general
+      // point stands for any shifted four-argument invocation, which is left to the refusals below,
+      // where it fails CLOSED (a filesystem path is neither `clean` nor lowercase hex, so nothing
+      // is written) and the message names the argument order unconditionally rather than guessing
+      // at the caller's intent. The residual is recorded in docs/audit/30-redteam-surface-a.md § A-8.
+      if (!task || !id || rest.length < 4 || rest.length > 5) {
         console.error(
-          "usage: context-io.js emit-verdict <task> <id> <clean|finding|unknown> [contextRoot]",
+          "usage: context-io.js emit-verdict <task> <id> <clean|finding|unknown> <sha> [contextRoot]",
         );
         console.error(
-          `context-io: emit-verdict takes 3 or 4 positional arguments and received ${rest.length}. ` +
-            `The third is the gate run's test-integrity result, NOT the context root — a shifted ` +
-            `invocation would have its context root read as a test outcome. Nothing was written.`,
+          `context-io: emit-verdict takes 4 or 5 positional arguments and received ${rest.length}. ` +
+            `The third is the gate run's test-integrity result and the fourth is the commit SHA the ` +
+            `run was performed at, NOT the context root — a shifted invocation would have its ` +
+            `context root read as a test outcome. Nothing was written.`,
         );
         process.exit(1);
       }
@@ -2458,6 +2627,7 @@ if (isMain) {
         task,
         id,
         integrity as TestIntegrityResult,
+        sha as string,
         contextRoot ?? DEFAULT_CONTEXT_ROOT,
       );
       if (noteIdStr === null) {
@@ -2466,11 +2636,13 @@ if (isMain) {
             `${JSON.stringify(integrity ?? null)}, and only "clean" admits one. Nothing was ` +
             `written. The finding stays at UNKNOWN - verify. ` +
             // Stated UNCONDITIONALLY, never as a guess about the value above (plan 30-11, A-8).
-            // The third positional is the integrity result and the FOURTH is the context root; a
-            // caller using the pre-30-05 three-argument shape has its context root land here, and
-            // the refusal would otherwise read as a claim about a test run that never happened.
-            `Argument order: emit-verdict <task> <id> <clean|finding|unknown> [contextRoot] — the ` +
-            `THIRD argument is the test-integrity result and the FOURTH is the context root.`,
+            // The third positional is the integrity result, the FOURTH is the commit SHA and the
+            // FIFTH is the context root; a caller using an older shape has some other value land
+            // here, and the refusal would otherwise read as a claim about a test run that never
+            // happened.
+            `Argument order: emit-verdict <task> <id> <clean|finding|unknown> <sha> [contextRoot] ` +
+            `— the THIRD argument is the test-integrity result, the FOURTH is the commit SHA the ` +
+            `gate run was performed at, and the FIFTH is the context root.`,
         );
         process.exit(1);
       }
@@ -2488,7 +2660,7 @@ if (isMain) {
       process.exit(0);
     } else {
       console.error(
-        "usage: context-io.js <validate <noteFile> | admit <task> <noteFile> | emit-verdict <task> <id> <clean|finding|unknown> [contextRoot] | render <task> [contextRoot]>",
+        "usage: context-io.js <validate <noteFile> | admit <task> <noteFile> | emit-verdict <task> <id> <clean|finding|unknown> <sha> [contextRoot] | render <task> [contextRoot]>",
       );
       process.exit(1);
     }
