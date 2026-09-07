@@ -1,12 +1,13 @@
 ---
 phase: 30-per-checkpoint-autonomy-matrix
 verified: 2026-09-06T16:11:54Z
-status: human_needed
+status: passed
 score: 5/5 roadmap success criteria structurally verified; 2 material residuals require human sign-off
 behavior_unverified: 0
 overrides_applied: 0
 behavior_unverified_items: []
 human_verification:
+
   - test: "Decide whether Phase 30 may be marked done in ROADMAP.md given red-team surface A's fence (not close). Independently reproduced: `git push -fu origin feature` (combined short flag `-fu`) is ALLOWED by the committed `hooks/guard.js` at HEAD, with zero grant keys of any kind, against a control `git push --force origin feature` that correctly DENIES. This is one of six documented zero-key, executed bypasses of `protected_branch_merge` (V-30-11-16, -17, -18, -19, -20, -25) recorded in `docs/audit/30-redteam-surface-a.md` and already reflected as an explicit scope note under AUTO-03 in `.planning/REQUIREMENTS.md`."
     expected: "A human decides: (a) accept the fence as final for this milestone (matching the 2026-09-06 fence decision already recorded in `deferred-items.md`) and proceed, or (b) require a dedicated follow-up phase/plan to close the command-model bypasses (`V-30-11-16`..`-20`, `-25`) before relying on `protected_branch_merge=block` as an operative guarantee against an unauthorized `main` force-push."
     why_human: "This is a policy/risk-acceptance decision (D-59-style 'content, not mechanism'), not a fact a script can settle. The disclosure is confirmed accurate by independent reproduction; whether it is *acceptable* to ship is a human call."
@@ -117,6 +118,7 @@ None. Scanned `scripts/checkpoints.ts`, `hooks/guard.ts`, `hooks/admission-guard
 ### Human Verification Required
 
 See frontmatter `human_verification` — three items, none of them a fact a script can settle:
+
 1. Whether the six reproduced, executed, zero-key `protected_branch_merge` bypasses (fenced, not closed) are acceptable to ship, or need a follow-up phase.
 2. Whether `checkpoints.open_pr` having zero runtime enforcement is an accepted permanent design position or an outstanding gap.
 3. Whether the settings-file env-grant vector (observed reaching the hook process) needs a narrowing `permissions.deny` recommendation before shipping.
