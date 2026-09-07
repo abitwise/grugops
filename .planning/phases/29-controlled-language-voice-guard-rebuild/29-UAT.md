@@ -1,9 +1,10 @@
 ---
-status: diagnosed
+status: complete
 phase: 29-controlled-language-voice-guard-rebuild
 source: [29-VERIFICATION.md]
 started: 2026-08-16T14:08:36Z
-updated: 2026-08-17T00:00:00Z
+updated: 2026-09-07T07:45:00Z
+reconciled: 2026-09-07 — both gaps resolved by executed gap-closure plans (29-40, 29-41) and the 2026-08-18 phase override (D-59); record cleaned during the pre-Phase-31 audit
 ---
 
 ## Current Test
@@ -57,9 +58,11 @@ expected: |
   stated horizon was the ROUND and not the PHASE. Verification can measure the
   divergence; it cannot decide whether the phase may close with a known duplicated
   authority still in the tree.
-result: issue
+result: pass
 reported: "decision 1: b - schedule closure"
 severity: minor
+resolved_by: 29-40-PLAN.md (executed; 29-40-SUMMARY.md — private parseFrontmatter deleted, generate-catalog.ts imports the authority; re-verified in 29-VERIFICATION-round5.md)
+resolved_at: 2026-09-07
 decision: |
   (b) SCHEDULE ITS CLOSURE. Not accepted as a residual. The duplicate grammar is to
   be deleted and `scripts/generate-catalog.ts` converted to import the exported
@@ -94,9 +97,11 @@ expected: |
   Why a human decides: where a decidable-subset guard's enumerated set should stop
   is an editorial judgement, not a verification result. The ROADMAP criterion's
   wording is nonetheless stronger than the profile's disclosure.
-result: issue
+result: pass
 reported: "decision 2: c - structural fix"
 severity: major
+resolved_by: 29-41-PLAN.md (executed; 29-41-SUMMARY.md — conditional bare-term members `comprehension` and `understand` on the comprehension group). The stronger LANG-04 totality is held as CONTENT under D-59 (phase override 2026-08-18), not as a mechanism.
+resolved_at: 2026-09-07
 decision: |
   (c) STRUCTURAL FIX. Neither accept the bound nor extend the literal list.
   Reuse the conditional mechanism already built for the `Simplified Technical
@@ -110,8 +115,8 @@ decided_at: 2026-08-17
 ## Summary
 
 total: 2
-passed: 0
-issues: 2
+passed: 2
+issues: 0
 pending: 0
 skipped: 0
 blocked: 0
@@ -129,7 +134,9 @@ than inferred. The working tree was not modified by any probe.
 
 - gap_id: G-29-1
   truth: "One frontmatter grammar governs the repo; no second parser for the same class of bytes (D-24, one authority per predicate)."
-  status: failed
+  status: resolved
+  resolved_by: 29-40-PLAN.md
+  resolved_at: 2026-09-07
   reason: "User reported: decision 1: b - schedule closure"
   severity: minor
   test: 1
@@ -157,7 +164,9 @@ than inferred. The working tree was not modified by any probe.
 
 - gap_id: G-29-2
   truth: "The shipped kit and public docs carry no comprehension-benefit claim; guard_banned_claims decides that prohibition rather than enumerating a phrase list."
-  status: failed
+  status: resolved
+  resolved_by: 29-41-PLAN.md + D-59 (totality held as content, phase override 2026-08-18)
+  resolved_at: 2026-09-07
   reason: "User reported: decision 2: c - structural fix"
   severity: major
   test: 2

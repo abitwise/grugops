@@ -1045,6 +1045,7 @@ Plans:
 | 27. Spawn Correctness & Kit-Set Authority | v2.1 | 66/66 | Complete    | 2026-08-11 |
 | 28. Kit Consistency Audit | v2.1 | 8/8 | Complete    | 2026-08-12 |
 | 29. Controlled Language & Voice Guard Rebuild | v2.1 | 60/60 | Complete    | 2026-08-18 |
+| 29.1. Per-Role Model Assignment | v2.1 | 25/25 | Closed by user override D-29.1-19 (verification gaps_found; 3 blockers accepted open, WINDOWS.md rows 105-107) | 2026-09-03 |
 | 29.2. Model Assignment Delivery Path | v2.1 | 6/6 | Complete    | 2026-09-07 |
 | 30. Per-Checkpoint Autonomy Matrix | v2.1 | 11/11 | Complete    | 2026-09-07 |
 | 31. Autonomous Manual Testing | v2.1 | 0/TBD | Not started | - |
