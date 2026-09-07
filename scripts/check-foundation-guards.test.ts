@@ -9057,7 +9057,14 @@ const censusRelationshipFindings = (c: TripwireCensus): string[] => {
 // citation gate had NO test file at all — reviewer 6 measured that it was reached by nothing, and
 // "nothing" included the suite. A gate with no test is a gate whose behaviour nobody asserts, so this
 // number moving is exactly the structural event this EXACT equality exists to surface.
-const TRIPWIRE_MODULES = 54;
+//
+// 54 → 55 (plan 31-04): ONE test module, `scripts/chrome-lane-bar.test.ts` — the D-09 structural bar
+// asserting that the attended Chrome lane has no route to a §14-gate stamp. Re-derived rather than
+// incremented: `ls scripts/*.test.ts | wc -l` reports 55 on this tree, agreeing with the live census.
+// DISCLOSED DEPARTURE FROM THE CONVENTION ABOVE: this bump lands in the commit AFTER the one that
+// added the module, because the module was committed before the full suite surfaced this pin. The
+// convention asks for one commit and got two; recorded here rather than smoothed over.
+const TRIPWIRE_MODULES = 55;
 /**
  * Corpus-derived floors, expressed as RATES so the floor grows with the corpus it floors.
  * Each is set well below its measured live value: the point is to catch a measurement that
