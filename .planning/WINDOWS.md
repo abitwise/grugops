@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 123
+open_count: 127
 waived_count: 0
 fixed_count: 4
-total_count: 127
-last_updated: 2026-09-06T15:18:02.258Z
+total_count: 131
+last_updated: 2026-09-07T14:30:03.135Z
 ---
 
 # Broken Windows Ledger
@@ -142,6 +142,10 @@ last_updated: 2026-09-06T15:18:02.258Z
 | 125 | 30 | deviation | hooks/hook-entry.ts |  | V-30-11-21/22 (RA7-6, RA7-7, plan 30-11 surface A fence): the wrapper's integrity is a REPOSITORY-TIME control, not a runtime one. RA7-6 - verifyDeciderClosure hashes then spawnSync loads, not atomic: a background writer flipping the file in that window measured 87/352 = 24.7% ALLOW against a 0/124 control. RA7-7 - NODE_OPTIONS=--require preloads arbitrary code inside the hook process before the wrapper's first line, wrapper ALLOW with the manifest still verifying, and the self-set vocabulary (three GRUGOPS names) refuses it nowhere and records it nowhere. This WIDENS V-30-08-01. Fenced under D-22, not fixed. | open |  | 2026-09-06T15:18:02.086Z |  |
 | 126 | 30 | unrun-verify | .github/workflows/ci.yml |  | V-30-11-23/24/29 (RA8-1, RA8-2, RA8-7, plan 30-11 surface A fence): gate reachability is not established. The derived runner set decides 'is this gate in CI' by raw-text ci.includes over ci.yml, so a COMMENTED-OUT step keeps it green (measured), and both arms filter on check- so a freshness gate is invisible to it. freshness:hook-manifest - the drift gate the whole wrapper-manifest fix rests on - appears in ci.yml ZERO times and in no test; the suite substitute is a whole-file containment test that cannot see a per-decider short manifest. 9 freshness scripts, 6 in CI, 3 at zero. Fenced under D-22, not fixed. | open |  | 2026-09-06T15:18:02.172Z |  |
 | 127 | 30 | deviation | hooks/hook-entry.ts |  | V-30-11-31 (plan 30-11 surface A fence): the documented 10 s wrapper-timeout justification at hooks/hook-entry.ts:259 is FALSE - '466 ms is the worst decision measured' was the worst SAMPLED, not the worst reachable. Measured: 'true ; ' x 250000 gives 10047 ms -> SIGTERM -> fail-closed DENY; git x 50000 gives 10046 ms -> DENY. The command model is quadratic in tool-name occurrences per segment, so the timeout is input-reachable. Direction is over-refusal so the guard still fails closed, but a documented invariant that is false is the class this log keeps catching. Annotated in place, not rewritten. Fenced under D-22, not fixed. | open |  | 2026-09-06T15:18:02.258Z |  |
+| 128 | 31 | deviation | scripts/context-io.ts |  | 31-01 residual: appendNote writes without asking admit(), so a caller who bypasses the admission authority persists a stale-SHA artifact-ref. D-03 places the comparison in admit() and nowhere else, so a second check in appendNote is forbidden; pinned by a named case in scripts/context-io.test.ts | open |  | 2026-09-07T14:30:02.245Z |  |
+| 129 | 31 | deviation | scripts/compactor.ts |  | 31-01 residual: composeThreadNote does not mirror composeNote's evidence-provenance lines, so an artifact-ref written to the thread tier composes without sha/gate_run/content_hash. Fail-closed (validate refuses it on promotion), but the raw-to-promoted byte comparison would differ | open |  | 2026-09-07T14:30:02.576Z |  |
+| 130 | 31 | unrun-verify | .planning/phases/31-autonomous-manual-testing/31-01-SUMMARY.md |  | 31-01: npm run freshness:context passes VACUOUSLY - no .grugops/context tree is committed, so the acceptance criterion 'exits 0 with no task listed as stale' is satisfied over an empty denominator. The non-vacuous byte-stability evidence is the composed-fence and render cases in scripts/context-io.test.ts | open |  | 2026-09-07T14:30:02.861Z |  |
+| 131 | 31 | lint-warning | scripts/freshness.test.ts |  | 31-01: 'Test 1 (control, real tree)' exceeds vitest's 5s default timeout on this machine; PRE-EXISTING - reproduced at the plan base commit 109d5c7 in a detached worktree. The npm run freshness gate itself is green | open |  | 2026-09-07T14:30:03.135Z |  |
 
 ````json
 [
@@ -1667,6 +1671,54 @@ last_updated: 2026-09-06T15:18:02.258Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-09-06T15:18:02.258Z",
+    "resolved_at": null
+  },
+  {
+    "id": 128,
+    "kind": "deviation",
+    "phase": "31",
+    "file": "scripts/context-io.ts",
+    "line": null,
+    "description": "31-01 residual: appendNote writes without asking admit(), so a caller who bypasses the admission authority persists a stale-SHA artifact-ref. D-03 places the comparison in admit() and nowhere else, so a second check in appendNote is forbidden; pinned by a named case in scripts/context-io.test.ts",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-07T14:30:02.245Z",
+    "resolved_at": null
+  },
+  {
+    "id": 129,
+    "kind": "deviation",
+    "phase": "31",
+    "file": "scripts/compactor.ts",
+    "line": null,
+    "description": "31-01 residual: composeThreadNote does not mirror composeNote's evidence-provenance lines, so an artifact-ref written to the thread tier composes without sha/gate_run/content_hash. Fail-closed (validate refuses it on promotion), but the raw-to-promoted byte comparison would differ",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-07T14:30:02.576Z",
+    "resolved_at": null
+  },
+  {
+    "id": 130,
+    "kind": "unrun-verify",
+    "phase": "31",
+    "file": ".planning/phases/31-autonomous-manual-testing/31-01-SUMMARY.md",
+    "line": null,
+    "description": "31-01: npm run freshness:context passes VACUOUSLY - no .grugops/context tree is committed, so the acceptance criterion 'exits 0 with no task listed as stale' is satisfied over an empty denominator. The non-vacuous byte-stability evidence is the composed-fence and render cases in scripts/context-io.test.ts",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-07T14:30:02.861Z",
+    "resolved_at": null
+  },
+  {
+    "id": 131,
+    "kind": "lint-warning",
+    "phase": "31",
+    "file": "scripts/freshness.test.ts",
+    "line": null,
+    "description": "31-01: 'Test 1 (control, real tree)' exceeds vitest's 5s default timeout on this machine; PRE-EXISTING - reproduced at the plan base commit 109d5c7 in a detached worktree. The npm run freshness gate itself is green",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-07T14:30:03.135Z",
     "resolved_at": null
   }
 ]
