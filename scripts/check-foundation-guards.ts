@@ -258,7 +258,7 @@
 // the guard notices it. A re-listed array wearing a new name cannot pass those.
 // ---------------------------------------------------------------------------
 
-import { readFileSync, existsSync, statSync } from "node:fs";
+import { readFileSync, existsSync, readdirSync, statSync } from "node:fs";
 import { join, basename, resolve } from "node:path";
 // Phase 19 (UAT-AUTO-05 / BLOCKER 1 / LOCKED CONTEXT.md decision / ROADMAP SC3): the run-all block
 // invokes the three Tier-1 auto-UAT oracles so this aggregator fails closed when any one fails. The
@@ -3705,6 +3705,218 @@ function guardReferentialIntegrity(): void {
 }
 
 // ---------------------------------------------------------------------------
+// guard_playwright_mcp_pin — every pinned mention of the browser MCP server across the kit and the
+// documentation equals the ONE literal in the recipe (Phase 31, D-08 / UATX-02).
+//
+// WHY THE PIN IS A SAFETY CONTROL AND NOT HOUSEKEEPING. The server is pre-1.0 and is fetched with
+// `npx` by the user's OWN coding agent, from a registry, at the moment a documented command is
+// copied into a shell. grugops installs nothing and therefore holds no lockfile over it. The pinned
+// version in the documented command IS the supply-chain control, and a floating specifier in a
+// committed configuration is the anti-pattern this guard exists to keep out of the kit.
+//
+// THE GUARD DECLARES NO VERSION OF ITS OWN, AND THAT IS THE LOAD-BEARING PART. It reads the literal
+// out of the recipe named below. A guard that restated the number would be the SECOND home for one
+// fact, and two homes for one fact is this repository's most-repeated defect class — the drift is
+// silent, because both copies keep passing their own assertions right up until they disagree. A
+// bump therefore stays one edit plus a re-pin, and the acceptance test asserts this function's own
+// source carries no version literal at all, comments included.
+//
+// IT FAILS CLOSED ON ITS OWN AUTHORITY. An absent recipe, an unreadable one, one carrying no pinned
+// mention, or one whose first mention carries no version, each FAIL naming the recipe. There is no
+// fallback default version: a guard that invents the fact it was asked to check is worse than no
+// guard, because it reports a comparison it never made.
+//
+// AND IT REPORTS WHAT IT SCANNED. The verdict folds through `reportMeasured`, so a zero-occurrence
+// scan reads as "this check was NOT performed" rather than as a PASS. That floor is not reachable
+// by planting a file — the authority is itself a member of the scan set — so the harness exercises
+// it through a scratch build whose walk returns nothing, and the mutation is asserted to apply.
+// ---------------------------------------------------------------------------
+
+// Fixed literal subpath joined onto the already-resolved ROOT — never argv/env/content-derived
+// (ASVS V12, mirrors kit-model.ts's path-traversal posture). This constant names WHERE the fact
+// lives; the VALUE is read out of the file, never restated here.
+const PLAYWRIGHT_MCP_PIN_SOURCE = "agent-factory/checklists/browser-uat-recipe.md";
+
+// The directories walked for markdown, and the two repo-root files taken by name.
+//
+// `.planning/` IS DELIBERATELY NOT A ROOT, AND THE REASON IS WRITTEN DOWN RATHER THAN IMPLIED. The
+// GSD planning tree is neither kit nor product documentation: it is the project's own record, and it
+// records the registry's CURRENT version alongside the pinned one on purpose, because a research
+// finding that could not name the version it measured would be useless. Scanning it would convict
+// correct text. The boundary of this predicate's input is therefore these five entries and nothing
+// else.
+const PIN_SCAN_ROOT_DIRS: readonly string[] = ["agent-factory", "docs", "install"];
+const PIN_SCAN_ROOT_FILES: readonly string[] = ["AGENTS.md", "README.md"];
+
+// Never descended into: a dependency tree's markdown is not this repository's documentation, and a
+// git object store is not markdown at all.
+const PIN_SCAN_SKIPPED_DIRS: readonly string[] = ["node_modules", ".git"];
+
+// AN OCCURRENCE IS THE PACKAGE NAME PLUS `@`, AND WHATEVER VERSION TOKEN RUNS UNTIL A DELIMITER.
+//
+// The delimiter class is the punctuation that ends a token in the shapes the recipe actually
+// documents: a shell word, a JSON string, a TOML array element, a markdown code span. Everything up
+// to one of those is the version, so `@latest` is captured as `latest` and compared like any other
+// version — a floating specifier is a FINDING rather than something the pattern quietly declines to
+// see. An occurrence with an EMPTY version token is also a finding, for the same reason: a mention
+// nobody can check is not a mention this guard may skip.
+const PIN_OCCURRENCE_SOURCE = "@playwright/mcp@([^\\s`\"'()\\[\\],<>]*)";
+
+interface PinOccurrence {
+  readonly file: string;
+  readonly line: number;
+  readonly version: string;
+}
+
+/** Every occurrence in one file, in line order, each carrying its own line number. */
+function pinOccurrencesIn(rel: string): PinOccurrence[] {
+  const found: PinOccurrence[] = [];
+  const lines = readText(rel).split("\n");
+  for (let i = 0; i < lines.length; i++) {
+    // A fresh RegExp per line: a module-level `g` regex carries `lastIndex` between calls, which is
+    // how a scan comes to skip the first match of every second file.
+    for (const m of (lines[i] as string).matchAll(
+      new RegExp(PIN_OCCURRENCE_SOURCE, "g"),
+    )) {
+      found.push({ file: rel, line: i + 1, version: m[1] ?? "" });
+    }
+  }
+  return found;
+}
+
+/**
+ * The derived scan set, SORTED by repo-relative forward-slash path.
+ *
+ * Sorted at the end over the whole set rather than per directory, so the order is a property of the
+ * paths and not of the walk order — which makes the findings and the pass line byte-identical across
+ * runs and platforms whatever `readdirSync` returns.
+ *
+ * A configured root that does not exist is RECORDED and reported, never silently dropped: a hermetic
+ * mirror carries only some of them, and a scan that narrowed itself must say so on its own pass line.
+ */
+function pinScanMarkdownFiles(): {
+  files: string[];
+  missingRoots: string[];
+} {
+  const files: string[] = [];
+  const missingRoots: string[] = [];
+  for (const f of PIN_SCAN_ROOT_FILES) {
+    if (fileExists(f)) files.push(f);
+    else missingRoots.push(f);
+  }
+  const walk = (rel: string): void => {
+    for (const entry of readdirSync(abs(rel), { withFileTypes: true })) {
+      if (entry.isDirectory()) {
+        if (PIN_SCAN_SKIPPED_DIRS.includes(entry.name)) continue;
+        walk(`${rel}/${entry.name}`);
+        continue;
+      }
+      if (entry.isFile() && entry.name.endsWith(".md")) {
+        files.push(`${rel}/${entry.name}`);
+      }
+    }
+  };
+  for (const dir of PIN_SCAN_ROOT_DIRS) {
+    if (!existsSync(abs(dir))) {
+      missingRoots.push(dir);
+      continue;
+    }
+    walk(dir);
+  }
+  files.sort();
+  return { files, missingRoots };
+}
+
+function guardPlaywrightMcpPin(): void {
+  process.stdout.write(
+    "\n[guard_playwright_mcp_pin] every pinned mention of the browser MCP server across the kit and the docs equals the ONE literal in the recipe (D-08 / UATX-02)\n",
+  );
+  const authorityRemedy =
+    `the version has ONE home and this guard READS it from there; it must never fall back to an ` +
+    `assumed default, because a guard that invents the fact it was asked to check reports a ` +
+    `comparison it never made`;
+  if (!fileExists(PLAYWRIGHT_MCP_PIN_SOURCE)) {
+    fail(
+      `playwright MCP pin: the pin source ${PLAYWRIGHT_MCP_PIN_SOURCE} does not exist — ${authorityRemedy}`,
+    );
+    FAILS += 1;
+    return;
+  }
+  let authority: PinOccurrence[];
+  try {
+    authority = pinOccurrencesIn(PLAYWRIGHT_MCP_PIN_SOURCE);
+  } catch (e) {
+    fail(
+      `playwright MCP pin: the pin source ${PLAYWRIGHT_MCP_PIN_SOURCE} could not be read — ${(e as Error).message}. ${authorityRemedy}`,
+    );
+    FAILS += 1;
+    return;
+  }
+  const first = authority[0];
+  if (first === undefined) {
+    fail(
+      `playwright MCP pin: the pin source ${PLAYWRIGHT_MCP_PIN_SOURCE} carries no pinned mention of the package, so there is no literal to read — ${authorityRemedy}`,
+    );
+    FAILS += 1;
+    return;
+  }
+  if (first.version === "") {
+    fail(
+      `playwright MCP pin: the first pinned mention in ${PLAYWRIGHT_MCP_PIN_SOURCE} (line ${first.line}) carries no version — ${authorityRemedy}`,
+    );
+    FAILS += 1;
+    return;
+  }
+  const pin = first.version;
+
+  const { files, missingRoots } = pinScanMarkdownFiles();
+  const configuredRoots = PIN_SCAN_ROOT_DIRS.length + PIN_SCAN_ROOT_FILES.length;
+  let occurrences: PinOccurrence[];
+  try {
+    occurrences = files.flatMap(pinOccurrencesIn);
+  } catch (e) {
+    fail(
+      `playwright MCP pin: a member of the derived scan set could not be read — ${(e as Error).message}. A scan that could not open one of its own members has not been performed`,
+    );
+    FAILS += 1;
+    return;
+  }
+  // TWO COUNTERS, TWO ORIGINS. `expected` is the denominator, taken over the derived set BEFORE the
+  // comparison loop; `visited` is incremented BY that loop. A loop that stopped early therefore
+  // reports a short scan rather than a clean one.
+  const expected = occurrences.length;
+  let visited = 0;
+  const findings: PinOccurrence[] = [];
+  for (const o of occurrences) {
+    visited += 1;
+    // EACH OCCURRENCE IS ITS OWN ELEMENT. Two mentions carrying the same wrong version are two
+    // findings, never one deduplicated row: a merged row hides how many places are wrong, and the
+    // number of places is the whole question when a bump is half-applied.
+    if (o.version !== pin) findings.push(o);
+  }
+  process.stdout.write(
+    `        pin \`${pin}\` read from ${PLAYWRIGHT_MCP_PIN_SOURCE} (line ${first.line}); ` +
+      `${files.length} markdown file(s) walked across ${configuredRoots - missingRoots.length} of ${configuredRoots} configured root(s)` +
+      (missingRoots.length === 0
+        ? ""
+        : `; ABSENT root(s) reported rather than dropped: ${missingRoots.join(", ")}`) +
+      `\n        the planning tree is deliberately outside this scan: it records the registry's current version beside the pinned one on purpose, so scanning it would convict correct text\n`,
+  );
+  const measured: Measured<PinOccurrence> = {
+    label: `playwright MCP pin \`${pin}\` — pinned mention(s) over ${files.length} markdown file(s)`,
+    visited,
+    expected,
+    findings,
+  };
+  FAILS += reportMeasured(
+    measured,
+    { pass, fail },
+    (x) =>
+      `  ${x.file}:${x.line}: found \`${x.version === "" ? "(no version)" : x.version}\`, expected the pin \`${pin}\` — bump the literal in ${PLAYWRIGHT_MCP_PIN_SOURCE} and re-pin every mention, or correct this one`,
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Run all guards.
 // ---------------------------------------------------------------------------
 process.stdout.write("== Phase 10 foundation-guards gate (SDLC-02 / SC2) ==\n");
@@ -3741,6 +3953,10 @@ guardContextWrites();
 // platform loads. Do NOT suppress it, skip it, or downgrade it to a warn() if it goes red: a
 // suppressed oracle is how the tree got into the state this milestone exists to close.
 guardReferentialIntegrity();
+// D-08 (plan 31-03): runs LAST among the foundation guards because it is the only one whose subject
+// is a documented third-party version rather than the kit's own structure — nothing above it reads
+// its result, and nothing it reads is derived by the guards above.
+guardPlaywrightMcpPin();
 
 // ---------------------------------------------------------------------------
 // Phase 19 auto-UAT Tier-1 oracles (UAT-AUTO-05 / BLOCKER 1).
