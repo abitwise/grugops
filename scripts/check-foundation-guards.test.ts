@@ -11803,6 +11803,24 @@ describe("guard_playwright_mcp_pin (plan 31-03, D-08 / UATX-02)", () => {
     expect(section).toContain("1 finding(s)");
   });
 
+  it("(pin-drift-two) two mentions of the SAME wrong version are TWO findings, never one merged row", () => {
+    // The number of places that are wrong is the whole question when a bump is half-applied, so a
+    // report deduplicated by version would hide exactly the fact the reader needs.
+    const m = mirror();
+    appendFileSync(
+      join(m, "agent-factory/checklists/00-index.md"),
+      "\nSee `@playwright/mcp@9.9.9`.\n",
+      "utf8",
+    );
+    appendFileSync(join(m, "AGENTS.md"), "\nSee `@playwright/mcp@9.9.9`.\n", "utf8");
+    const r = runIn(m);
+    const section = guardSection(out(r), PIN_BANNER).join("\n");
+    expect(r.status).not.toBe(0);
+    expect(section).toContain("2 finding(s)");
+    expect(section).toContain("agent-factory/checklists/00-index.md");
+    expect(section).toContain("AGENTS.md");
+  });
+
   it("(pin-equal) two files each carrying an EQUAL mention are two visited elements, zero findings", () => {
     const base = mirror();
     const baseSection = guardSection(out(runIn(base)), PIN_BANNER).join("\n");
@@ -11869,6 +11887,62 @@ describe("guard_playwright_mcp_pin (plan 31-03, D-08 / UATX-02)", () => {
     expect(r.status).not.toBe(0);
     expect(section).toContain(PIN_SOURCE_REL);
     expect(section).not.toMatch(/0 findings over/);
+  });
+
+  it("(pin-versionless-mention) a mention with NO version anywhere in the scan set is a finding", () => {
+    // A mention nobody can check is not a mention this guard may skip. Without this case a
+    // `o.version !== ""` tolerance reads as an accepted mention and survives the whole suite.
+    const m = mirror();
+    const planted = "agent-factory/checklists/00-index.md";
+    appendFileSync(join(m, planted), "\nThe package `@playwright/mcp@` on its own.\n", "utf8");
+    const r = runIn(m);
+    const section = guardSection(out(r), PIN_BANNER).join("\n");
+    expect(r.status).not.toBe(0);
+    expect(section).toContain(planted);
+    expect(section).toContain("(no version)");
+    expect(section).toContain("1 finding(s)");
+  });
+
+  it("(pin-short-scan) a loop that stops early reports a SHORT scan, never a clean one", () => {
+    // The denominator floor is unreachable by planting: the comparison loop is a straight `for` with
+    // no failure mode of its own. It is exercised through a scratch build whose loop breaks after the
+    // first element, which is what makes `visited` a MEASUREMENT rather than a restatement of
+    // `expected` — a `visited = occurrences.length` mutant passes every other case in this file.
+    const guardJs = scratchGuardFiles({
+      "check-foundation-guards.js": (src) =>
+        src.replace(
+          "if (o.version !== pin)\n            findings.push(o);",
+          "if (o.version !== pin)\n            findings.push(o);\n        break;",
+        ),
+    });
+    const r = runScratch(guardJs, mirror());
+    const section = guardSection(out(r), PIN_BANNER).join("\n");
+    expect(r.status).not.toBe(0);
+    expect(section).toMatch(/visited 1 of \d+ elements/);
+    expect(section).toContain("the scan set is short");
+    expect(section).not.toMatch(/0 findings over/);
+  });
+
+  it("(pin-first-not-first-parseable) the authority is the FIRST mention, never the first one that parses", () => {
+    // "Search until something works" is the behaviour this guard refuses. A recipe whose first
+    // mention is versionless is a BROKEN authority, and skipping ahead to a later mention would
+    // silently pick a version nobody nominated. Without this case a `find(a => a.version !== "")`
+    // reads exactly like the committed code.
+    const m = mirror();
+    writeFileSync(
+      join(m, PIN_SOURCE_REL),
+      "---\nkind: checklist\ntier: enterprise\n---\n# Browser UAT Recipe\n\n" +
+        "First `@playwright/mcp@` with no version.\n\nLater `@playwright/mcp@9.9.9` with one.\n",
+      "utf8",
+    );
+    const r = runIn(m);
+    const section = guardSection(out(r), PIN_BANNER).join("\n");
+    expect(r.status).not.toBe(0);
+    expect(section).toContain(PIN_SOURCE_REL);
+    expect(section).toContain("carries no version");
+    // It must NOT have adopted the later version and gone on to report a clean scan.
+    expect(section).not.toMatch(/0 findings over/);
+    expect(section).not.toContain("9.9.9");
   });
 
   it("(pin-vacuity) a scan set that yields ZERO occurrences FAILS with the zero-elements message", () => {
