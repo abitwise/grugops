@@ -977,9 +977,17 @@ Plans:
 **Plans**: 4 plans (waves 1, 1, 2, 3)
 
 Plans:
+**Wave 1**
+
 - [ ] 31-01-PLAN.md — evidence-provenance spine: verdict records the gate-run SHA, `artifact-ref` carries sha/gate_run/content_hash, `admit()` refuses a stale SHA (UATX-01, UATX-04)
 - [ ] 31-02-PLAN.md — the materialized UAT spec-integrity runnable: derived spec set, TypeScript-AST ban set, two loud skips (UATX-05, UATX-06)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
 - [ ] 31-03-PLAN.md — the browser-UAT recipe for all five host CLIs and the `@playwright/mcp` pin guard (UATX-02, UATX-03)
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
 - [ ] 31-04-PLAN.md — workflow 05 and 06 wiring plus the test proving the attended Chrome lane has no route to a gate stamp (UATX-01, UATX-03, UATX-05)
 
 **Research flag:** plan with `--research-phase`. Whether `mcp__claude-in-chrome__*` tools are reachable from inside a subagent is explicitly `UNKNOWN - verify`; verify before designing any flow that assumes it. The phase's core recommendation (Playwright as the floor) does not depend on the answer.
