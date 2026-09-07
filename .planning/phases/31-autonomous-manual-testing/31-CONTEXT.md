@@ -33,35 +33,31 @@ new host runtime dependency, and any board/dashboard rendering (Phase 32).
   `agent-factory/contracts/context-note.md` stays closed. — **Reversibility:** costly — every note
   parser, the compactor carve-outs and the freshness-gated index would have to learn a seventh
   kind if this were later changed to a dedicated `evidence` note.
-- **D-02: `content_hash` is sha256 over the committed `*.uat.spec.ts` bytes at `sha`.** The
+- **D-02: `content_hash` is sha256 over the committed UAT spec file (`.uat.spec.ts`) bytes at `sha`.** The
   Playwright run report is not hashed; it is a run product and is bound by `gate_run`. Anyone
   with the repo can recompute the hash. Transitive imports are not hashed (a helper edit does not
   invalidate the evidence in this phase).
-- **D-03: The `sha != HEAD-of-gate-run` refusal lives in `admit()` at write time, and only
-  there.** The verdict note the gate emits records the HEAD it ran against; `admit()` refuses an
+- **D-03: The `sha != HEAD-of-gate-run` refusal lives in `admit()` at write time, and only there.** The verdict note the gate emits records the HEAD it ran against; `admit()` refuses an
   `artifact-ref` whose `sha` differs, naming both SHAs in the refusal. One authority per predicate
   (Phase 29 lesson): the gate does NOT pre-check, so there is no second implementation to drift.
   — **Reversibility:** one-way — moving the predicate later means two code paths deciding one
   question for the transition window, which is the exact drift class that cost 13 green-suite
   rounds in v2.0.
-- **D-04: Green evidence advances `In UAT → Ready` ONLY when `checkpoints.sign_off_acceptance`
-  is dialed to `allow`; the shipped default stays `block`.** The Phase 30 matrix is honoured
+- **D-04: Green evidence advances `In UAT → Ready` ONLY when `checkpoints.sign_off_acceptance` is dialed to `allow`; the shipped default stays `block`.** The Phase 30 matrix is honoured
   unchanged: no default moves, no new checkpoint id, no floor touched. Zero-config still stops for
   a named human at `sign_off_acceptance`; a repo that trusts its specs flips the one config key
   (it is not a floor, so no second key is involved). The UAT Planner presents the pack as
   machine-backed either way.
 
 ### Spec location and authoring flow (UATX-01, UATX-02)
-- **D-05: Specs live in the target repo's existing E2E directory under a `uat/` subfolder and
-  are named `<ticket-id>.uat.spec.ts`.** They ride the existing `quality.ui_e2e` lane unchanged;
+- **D-05: Specs live in the target repo's existing E2E directory under a `uat/` subfolder and are named `<ticket-id>.uat.spec.ts`.** They ride the existing `quality.ui_e2e` lane unchanged;
   no second Playwright project, no new config path. The `.uat.spec.ts` suffix is the recognition
   key for both the provenance `artifact-ref` and the AST ban (D-13).
 - **D-06: QE/E2E authors the spec; the authoring step is added to workflow 06 (UAT pack).** The
   UAT Planner still writes the business scenarios; QE/E2E turns each scenario into a spec through
   Playwright MCP, then the gate re-runs it. No new role — the 17-role count every guard derives is
   untouched.
-- **D-07: A new kit checklist `agent-factory/checklists/browser-uat-recipe.md` is the single
-  home for the `@playwright/mcp@0.0.78` setup** — the five `mcp add` commands (Claude Code, Codex,
+- **D-07: A new kit checklist `agent-factory/checklists/browser-uat-recipe.md` is the single home for the `@playwright/mcp@0.0.78` setup** — the five `mcp add` commands (Claude Code, Codex,
   Gemini CLI, OpenCode, Copilot CLI), the HEADED-default / `--headless` note, `npx playwright
   install --with-deps chromium`, and the pin. `install/README.md` gets one short section pointing
   at it. `package.json` gains nothing: the server is `npx`-invoked by the user's own agent.
@@ -77,42 +73,35 @@ new host runtime dependency, and any board/dashboard rendering (Phase 32).
   `artifact-ref` describing what was witnessed. A test asserts the lane's source carries no
   reference to `emitVerdict` or `§14-gate`, and the existing reserved-identity impersonation
   refusal covers any note that tries. No hook denial on the MCP tools, no third reserved identity.
-- **D-10: Attended-only is detected by reusing the fail-closed `claude auth status --json`
-  probe from `scripts/e2e/uat-live.test.ts`, requiring `loggedIn === true` AND no
-  `ANTHROPIC_API_KEY` in the environment.** A failed or inconclusive probe is a loud skip naming
+- **D-10: Attended-only is detected by reusing the fail-closed `claude auth status --json` probe from `scripts/e2e/uat-live.test.ts`, requiring `loggedIn === true` AND no `ANTHROPIC_API_KEY` in the environment.** A failed or inconclusive probe is a loud skip naming
   the reason; the lane never opens silently. `UNKNOWN - verify`: whether the JSON exposes the auth
   method (plan vs API key vs `setup-token`) — the researcher must check before the predicate is
   pinned; if it does not, the env-var check is the whole predicate and the doc says so.
-- **D-11: The witnessing human's name enters `human:<name>` through the existing grant only —
-  `GRUGOPS_ADMISSION_APPROVED_BY` read by the `admission-guard` PreToolUse hook.** No
+- **D-11: The witnessing human's name enters `human:<name>` through the existing grant only — `GRUGOPS_ADMISSION_APPROVED_BY` read by the `admission-guard` PreToolUse hook.** No
   lane-specific variable. A Chrome-lane finding is just another human-stamped finding; the agent
   can never author the name (D-07 of v2.0 holds).
-- **D-12: On the four non-Claude-Code hosts the lane is absent by design, stated once in the
-  recipe.** No adapter carries a dead tool name, no per-host skip line. Playwright is the floor
+- **D-12: On the four non-Claude-Code hosts the lane is absent by design, stated once in the recipe.** No adapter carries a dead tool name, no per-host skip line. Playwright is the floor
   everywhere, so "degrade, never break" holds.
 
 ### Loud skip and AST ban (UATX-05, UATX-06)
-- **D-13: The AST checker ships as a materialized runnable `tools/grugops/uat-spec-integrity.js`
-  (name to be confirmed by the planner), built from `scripts/runnable-ref/` exactly like
-  `test-skip-integrity.js`, and resolves `typescript` from the TARGET repo's `node_modules`.**
+- **D-13: The AST checker ships as a materialized runnable `tools/grugops/uat-spec-integrity.js` (name to be confirmed by the planner), built from `scripts/runnable-ref/` exactly like `test-skip-integrity.js`, and resolves `typescript` from the TARGET repo's `node_modules`.**
   grugops ships no parser and no dependency. If the target has no `typescript`, the runnable emits
   a loud skip naming `typescript`, the lane exits non-zero, and the UAT stays `pending` — never a
   pass. It runs at the gate over every `*.uat.spec.ts` (D-05).
-- **D-14: The banned-construct set, decided over the TypeScript AST, is:** (a) `expect` /
+- **D-14: The banned-construct set, decided over the TypeScript AST, is as follows.** (a) `expect` /
   `assert` calls inside a `try` block or `catch` clause; (b) `expect` calls under an `if` / `else`,
   a conditional expression, a logical `||` / `&&` / `??` operand, or an optional call; (c)
   `test.skip`, `test.fixme`, `test.only`, `describe.skip`, `describe.only`, and `expect.soft`.
   A spec body with zero `expect` calls is NOT refused in this phase (deferred, see below). The
   claim in the recipe and in GUARANTEES-style prose must name exactly this set — the claim matches
   the mechanism.
-- **D-15: "Browser absent or unusable" is a two-stage fail-closed probe inside the runnable:**
+- **D-15: "Browser absent or unusable" is a two-stage fail-closed probe inside the runnable, as follows.**
   stage 1 resolves `@playwright/test` from the target; stage 2 runs `npx playwright --version`
   and checks that the browsers directory it reports exists and is non-empty. Any failure at either
   stage emits the exact loud-skip idiom (`LOUD_SKIP_MARKER`-style exported constant, distinct text
   naming the stage), the lane exits non-zero, and the UAT stays `pending`. The existing Tier-2
   convention is reused verbatim in shape; only the marker text differs.
-- **D-16: A Playwright-lane skip is recorded as an unstamped `observation` note carrying the
-  marker text verbatim.** No `finding`, no `artifact-ref`, no board move; the ticket stays
+- **D-16: A Playwright-lane skip is recorded as an unstamped `observation` note carrying the marker text verbatim.** No `finding`, no `artifact-ref`, no board move; the ticket stays
   `In UAT` and the pack shows the scenario as pending with the reason.
 
 ### Claude's Discretion
