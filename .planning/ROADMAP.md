@@ -974,7 +974,13 @@ Plans:
   4. An evidence note carries commit SHA + gate-run id + content hash, and a note whose SHA is not the HEAD the gate ran against is refused. (UATX-04)
   5. An absent or unusable browser produces a **loud skip** that leaves the UAT `pending` (reusing the existing Tier-2 convention verbatim, never a silent pass), and a generated spec containing a conditional or caught assertion is rejected over the **TypeScript AST** rather than by regex, so the claim matches the mechanism. (UATX-05, UATX-06)
 
-**Plans**: TBD
+**Plans**: 4 plans (waves 1, 1, 2, 3)
+
+Plans:
+- [ ] 31-01-PLAN.md — evidence-provenance spine: verdict records the gate-run SHA, `artifact-ref` carries sha/gate_run/content_hash, `admit()` refuses a stale SHA (UATX-01, UATX-04)
+- [ ] 31-02-PLAN.md — the materialized UAT spec-integrity runnable: derived spec set, TypeScript-AST ban set, two loud skips (UATX-05, UATX-06)
+- [ ] 31-03-PLAN.md — the browser-UAT recipe for all five host CLIs and the `@playwright/mcp` pin guard (UATX-02, UATX-03)
+- [ ] 31-04-PLAN.md — workflow 05 and 06 wiring plus the test proving the attended Chrome lane has no route to a gate stamp (UATX-01, UATX-03, UATX-05)
 
 **Research flag:** plan with `--research-phase`. Whether `mcp__claude-in-chrome__*` tools are reachable from inside a subagent is explicitly `UNKNOWN - verify`; verify before designing any flow that assumes it. The phase's core recommendation (Playwright as the floor) does not depend on the answer.
 
