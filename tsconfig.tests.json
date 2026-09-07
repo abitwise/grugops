@@ -13,11 +13,16 @@
 // only thing it adds is REACH.
 //
 // The `include` list is inherited from `tsconfig.json` (install/, scripts/, hooks/). The only
-// override is the exclude list, which drops the `**/*.test.ts` entry and keeps the other two.
+// override is the exclude list, which drops the `**/*.test.ts` entry and keeps the other three.
+//
+// scripts/runnable-ref/fixtures/** IS KEPT. Those files are a parse CORPUS for
+// uat-spec-integrity.js, not tooling source: they import @playwright/test (a dependency grugops
+// deliberately does not carry) and several of them contain, on purpose, the exact constructs the
+// checker refuses. Typechecking a corpus asserts nothing about the checker that reads it.
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "noEmit": true
   },
-  "exclude": ["node_modules", ".tmp-build"]
+  "exclude": ["node_modules", ".tmp-build", "scripts/runnable-ref/fixtures/**"]
 }

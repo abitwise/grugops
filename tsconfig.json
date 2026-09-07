@@ -17,5 +17,10 @@
     "types": ["node"]
   },
   "include": ["install/**/*.ts", "scripts/**/*.ts", "hooks/**/*.ts"],
-  "exclude": ["node_modules", ".tmp-build", "**/*.test.ts"]
+  // scripts/runnable-ref/fixtures/ holds *.uat.spec.ts CORPUS files, not tooling sources. They are
+  // Playwright specs written to be PARSED by uat-spec-integrity.js as data — they import
+  // @playwright/test, which grugops deliberately does not depend on (zero shipped runtime deps), so
+  // tsc reports TS2307 on every one of them and would emit a .js twin the freshness gate would then
+  // demand be committed. They are input to a checker, never compiled output.
+  "exclude": ["node_modules", ".tmp-build", "**/*.test.ts", "scripts/runnable-ref/fixtures/**"]
 }
