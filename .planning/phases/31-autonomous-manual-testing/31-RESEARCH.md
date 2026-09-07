@@ -874,26 +874,35 @@ as the recipe's stated flow, with the open question noted honestly beside it.
 | A7 | Adding a checklist file does not trip any pinned cardinality | Pitfall 8 | LOW — `guard_kit_counts` was read and pins roles/workflows/skill-adapters/plugin-skills only. The `CHECKLISTS` literal in `validate-agent-factory.ts:205` is existence-only and already omits 3 of the 14 files on disk. |
 | A8 | The Windows leg of both browser probes is unverified | Environment Availability | Carried forward from CONTEXT as `UNKNOWN - verify` (WINDOWS.md posture). Not testable here (darwin). |
 
-## Open Questions
+## Open Questions (RESOLVED)
+
+All four were answered at planning time — three by locked CONTEXT decisions and one by the
+Claude's-Discretion clause that named it. Each carries an inline `RESOLVED:` line below naming the
+decision and the plan task that implements the answer. The question text above each marker is left
+exactly as researched; nothing here revises the research substance.
 
 1. **The pin literal: `0.0.78` or `0.0.80`?**
    - What we know: D-07/D-08 lock the literal `@playwright/mcp@0.0.78`. `0.0.78` was published 2026-07-09 and still resolves. `latest` moved to `0.0.80` on 2026-09-01, after STACK.md measured the ecosystem.
    - What's unclear: whether the user wants the phase to ship the pin as decided, or to re-pin to current before the guard freezes it in place.
    - Recommendation: **do not re-open unilaterally.** Implement `0.0.78` exactly as locked, and surface this as a one-line confirm to the user during planning. D-08's own design makes a bump "one edit plus re-pin", so the cost of deferring is genuinely one line — but the cost of shipping a guard that freezes a two-releases-stale pre-1.0 pin without anyone noticing is a stale-by-default kit.
+   - **RESOLVED:** ship `0.0.78` exactly as locked by D-07 and D-08 — see plan `31-03` task 1 (the recipe carries the pin as its single literal, substituted into all five host-CLI registrations) and task 2 (the guard READS that literal out of the recipe rather than declaring a version of its own, so a later bump stays one edit plus a re-pin). The F-01 staleness was surfaced to the developer as a one-line confirm during planning and was not re-opened unilaterally. Plan `31-03` carries it as a flagged assumption so the choice stays visible.
 
 2. **Does `admit()` need the verdict's SHA, or the git HEAD at write time?**
    - What we know: D-03 says "a note whose SHA is not the HEAD the gate ran against is refused" — that is the **verdict's** recorded HEAD, which F-02 shows must first be added.
    - What's unclear: whether `admit()` should *also* independently confirm the recorded HEAD is a real commit.
    - Recommendation: no. One authority per predicate. `admit()` compares two recorded strings; it does not shell out to git. Adding a git call inside the admission path introduces an I/O failure mode into a write path whose whole contract is "refuse cleanly, write nothing".
+   - **RESOLVED:** no — `admit()` compares the two recorded strings and never shells out to git, per D-03's one-authority-per-predicate rule. See plan `31-01` task 2 step 5, whose action forbids a git call in the admission path and whose acceptance criteria assert that `scripts/context-io.ts` gained no git invocation. D-03's one-way rating is confirmed by the `checkpoint:decision` that opens plan `31-01`.
 
 3. **Which tier for `browser-uat-recipe.md`?**
    - What we know: this is explicitly Claude's Discretion. Its nearest sibling `playwright-visual-regression-recipe.md` is `tier: enterprise`; `uat-checklist.md` is `tier: lean`. All 13 tiered checklists were enumerated this session.
    - Recommendation: **enterprise**, matching the sibling recipe and `linter-recommendations.md` — both are "how to set up a gate lane" documents rather than "checks to run on every ticket". The lean tier is the always-active set, and browser UAT is dialed behind `quality.ui_e2e`. Frontmatter must be `kind: checklist` + `tier: enterprise`, and the row goes in exactly one 00-index table.
+   - **RESOLVED:** `tier: enterprise`, the discretion CONTEXT explicitly delegated ("whether the browser-uat recipe is listed in the lean tier or the enterprise tier ... it must be listed in exactly one"). Exercised in plan `31-03` task 1, whose acceptance criteria pin the frontmatter to `kind: checklist` + `tier: enterprise` and assert the index row appears exactly once across both tier tables.
 
 4. **Where does the `emit-verdict` CLI verb get the HEAD SHA?**
    - What we know: the verb signature today is `node scripts/context-io.js emit-verdict <task> <id> <integrity> [contextRoot]` `[VERIFIED: agent-factory/workflows/05-pr-quality-gate.md:47]`.
    - What's unclear: whether the SHA becomes a fourth positional argument the gate passes, or the CLI derives it via `git rev-parse HEAD`.
    - Recommendation: **a required positional argument**, matching the `<integrity>` precedent — the gate procedure already holds the fact, and the file's own comment warns against "a second parser inside a safety path". Deriving it inside `emitVerdict` would be exactly that. This is a workflow-05 prose edit as well as a code edit; plan both in the same task.
+   - **RESOLVED:** a required positional argument supplied by the gate, placed after the integrity result and ahead of the two defaulted parameters — never derived inside the emitter, which would be the second parser in a safety path the function's own header warns against. See plan `31-01` task 2 steps 1 and 6 (the function signature and the CLI arity moving from three-or-four to four-or-five positionals) and plan `31-04` task 1 step 4 (the matching workflow-05 prose edit), which the plans name as one key link so prose and code carry the same argument count.
 
 ## Environment Availability
 
