@@ -1833,8 +1833,19 @@ const SECTION_EXTENT_OWNER_COUNT = 1;
  *     never hold: the token is a constant the corrupted dependency can spell.
  *   - `scripts/hook-manifest-freshness.ts` — the drift gate over that manifest, so the wrapper's
  *     frozen expectation cannot silently stop being a derivation.
+ *
+ * 60 -> 66 (plan 31-02), SIX files, one module and five corpus files:
+ *   - `scripts/runnable-ref/uat-spec-integrity.ts` — the UAT spec-integrity runnable (D-13). A real
+ *     module: it declares no frontmatter parser and locates no section.
+ *   - `scripts/runnable-ref/fixtures/{clean,caught-assertion,conditional-assertion,modifier-call,
+ *     union-all-arms}.uat.spec.ts` — the PARSE CORPUS that runnable is pointed at. They are not
+ *     tooling modules, and they are deliberately COUNTED here anyway. This corpus is pinned equal to
+ *     `git ls-files '*.ts'` a few cases below, so narrowing the walk to exclude them would have to
+ *     narrow the git side too — two edits to one predicate's input, which is the drift shape D-24
+ *     exists to prevent. Leaving them IN widens the scans that read this set, and a wider scan can
+ *     only find more, never fewer: the fail-safe direction.
  */
-const NON_TEST_MODULE_COUNT = 60;
+const NON_TEST_MODULE_COUNT = 66;
 
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 // (Plan 29-40, gap G-29-1 of 29-UAT.md, closing V-29-35-01) THE FRONTMATTER-PARSER NAME OWNER SET.

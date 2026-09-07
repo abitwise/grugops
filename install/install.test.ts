@@ -4782,16 +4782,17 @@ describe("install.js / uninstall.js — single-installer contract (folds install
   it("runnable removal: the installer's RUNNABLES and the uninstaller's RUNNABLES_MIRROR are the same mapping", () => {
     const mirror = mappingDests("uninstall.ts", "RUNNABLES_MIRROR");
     expect(mirror).toEqual(RUNNABLE_RELS);
-    // The integer, so a pair that shrinks together still fails.
-    expect(RUNNABLE_RELS.length).toBe(2);
-    expect(mirror.length).toBe(2);
+    // The integer, so a pair that shrinks together still fails. Three kit-shipped runnables:
+    // reference-check, test-skip-integrity and uat-spec-integrity (Phase 31, D-13).
+    expect(RUNNABLE_RELS.length).toBe(3);
+    expect(mirror.length).toBe(3);
     // Sources too — a mirrored dest removed on the strength of the WRONG source's bytes would be a
     // byte-identity check that proves nothing. Through the same declared-versus-parsed helper, so
     // this half can no longer come back short while its own integer still passes.
     const srcSideInstall = mappingSources("install.ts", "RUNNABLES");
     const srcSideUninstall = mappingSources("uninstall.ts", "RUNNABLES_MIRROR");
     expect(srcSideUninstall).toEqual(srcSideInstall);
-    expect(srcSideInstall.length).toBe(2);
+    expect(srcSideInstall.length).toBe(3);
     // The path SHAPES the old hand-written source-side regex used to encode inline. Kept as
     // explicit assertions so routing both halves through one parser lost none of what it checked:
     // every source lives under the runnable reference directory and every dest under the one
