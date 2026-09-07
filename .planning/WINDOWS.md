@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 127
+open_count: 128
 waived_count: 0
 fixed_count: 4
-total_count: 131
-last_updated: 2026-09-07T14:30:03.135Z
+total_count: 132
+last_updated: 2026-09-07T15:26:04.015Z
 ---
 
 # Broken Windows Ledger
@@ -146,6 +146,7 @@ last_updated: 2026-09-07T14:30:03.135Z
 | 129 | 31 | deviation | scripts/compactor.ts |  | 31-01 residual: composeThreadNote does not mirror composeNote's evidence-provenance lines, so an artifact-ref written to the thread tier composes without sha/gate_run/content_hash. Fail-closed (validate refuses it on promotion), but the raw-to-promoted byte comparison would differ | open |  | 2026-09-07T14:30:02.576Z |  |
 | 130 | 31 | unrun-verify | .planning/phases/31-autonomous-manual-testing/31-01-SUMMARY.md |  | 31-01: npm run freshness:context passes VACUOUSLY - no .grugops/context tree is committed, so the acceptance criterion 'exits 0 with no task listed as stale' is satisfied over an empty denominator. The non-vacuous byte-stability evidence is the composed-fence and render cases in scripts/context-io.test.ts | open |  | 2026-09-07T14:30:02.861Z |  |
 | 131 | 31 | lint-warning | scripts/freshness.test.ts |  | 31-01: 'Test 1 (control, real tree)' exceeds vitest's 5s default timeout on this machine; PRE-EXISTING - reproduced at the plan base commit 109d5c7 in a detached worktree. The npm run freshness gate itself is green | open |  | 2026-09-07T14:30:03.135Z |  |
+| 132 | 31 | deviation | scripts/check-foundation-guards.ts |  | guard_playwright_mcp_pin's sorted-walk determinism claim has no test: a differing directory-read order cannot be staged by this harness | open |  | 2026-09-07T15:26:04.015Z |  |
 
 ````json
 [
@@ -1719,6 +1720,18 @@ last_updated: 2026-09-07T14:30:03.135Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-09-07T14:30:03.135Z",
+    "resolved_at": null
+  },
+  {
+    "id": 132,
+    "kind": "deviation",
+    "phase": "31",
+    "file": "scripts/check-foundation-guards.ts",
+    "line": null,
+    "description": "guard_playwright_mcp_pin's sorted-walk determinism claim has no test: a differing directory-read order cannot be staged by this harness",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-07T15:26:04.015Z",
     "resolved_at": null
   }
 ]
