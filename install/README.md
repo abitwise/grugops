@@ -500,6 +500,22 @@ Verify this resolution behavior against current tool docs
 
 ---
 
+## 7. Browser UAT — what grugops installs for it (nothing)
+
+Agent-authored browser UAT has one home in the kit:
+`agent-factory/checklists/browser-uat-recipe.md`. Read it there rather than here; the substrate
+stays short and the detail lives in the file it points at.
+
+The recipe covers the pinned browser-MCP setup for all five host CLIs — Claude Code, Codex CLI,
+Gemini CLI, OpenCode, and GitHub Copilot CLI — and the statement that the attended Claude-in-Chrome
+lane is optional, human-stamped, and absent by design on the other four hosts.
+
+**grugops installs nothing for this.** The MCP server is fetched by your own coding agent through
+`npx` at the pinned version, so `package.json` gains no dependency and the installer writes no MCP
+configuration into your repository. Browser binaries remain your repository's own prerequisite.
+
+---
+
 ## Attribution
 
 grugops borrows its voice in homage to [grugbrain.dev](https://grugbrain.dev). grugops is **not

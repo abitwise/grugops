@@ -1252,8 +1252,14 @@ export function bannedClaimScanOverlap() {
  * thirteen kit documents under agent-factory/seed/plans/ and agent-factory/seed/memory-bank/ are
  * still members. See the anchoring paragraph at BANNED_CLAIM_EXCLUDED_LOCATIONS for why those two
  * names are root-anchored and not segment classes.
+ *
+ * MOVED AGAIN 118 → 119 IN PLAN 31-03, AND THE ENTRANT IS NAMED:
+ * `agent-factory/checklists/browser-uat-recipe.md`, the D-07 browser-UAT recipe. It enters through
+ * the `kit` corpus ONLY (73 → 74), so the overlap is unchanged at 2 and the deduped total moves by
+ * exactly one. The admission test held: the run that moved this pin reported ZERO findings over
+ * 119/119 elements, so the entrant costs zero reds on correct text.
  */
-export const BANNED_CLAIM_SCAN_COUNT = 118;
+export const BANNED_CLAIM_SCAN_COUNT = 119;
 /**
  * Locate the region and report every way it can be wrong. Returns the region when exactly one
  * well-formed region exists, and null otherwise — the caller then scans the file WHOLE, which is

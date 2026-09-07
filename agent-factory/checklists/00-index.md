@@ -38,3 +38,4 @@ Active only in `mode: enterprise` (in addition to the lean tier).
 | `release-readiness-checklist.md` | before a release |
 | `linter-recommendations.md` | when configuring the lint step at the gate |
 | `playwright-visual-regression-recipe.md` | when verifying UI visual baselines at the gate |
+| `browser-uat-recipe.md` | when producing agent-authored browser UAT evidence at the gate |

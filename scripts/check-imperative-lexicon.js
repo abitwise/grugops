@@ -379,13 +379,20 @@ export function governedCorpus() {
     return GOVERNED_CORPUS_PARTS.flatMap((p) => [...p.members]);
 }
 /**
- * The pinned cardinality. 47 today: 19 workflows + 13 hand-authored checklists + 13 seed templates
+ * The pinned cardinality. 48 today: 19 workflows + 14 hand-authored checklists + 13 seed templates
  * + 2 contracts.
  *
  * TWO-SIDED. A corpus that silently SHRANK reports a clean pass over the documents it stopped
  * reading; one that silently GREW is a scan nobody reviewed.
+ *
+ * MOVED 47 → 48 IN PLAN 31-03, AND THE ENTRANT IS NAMED:
+ * `agent-factory/checklists/browser-uat-recipe.md`, the D-07 browser-UAT recipe. It is
+ * hand-authored (it carries no `GENERATED` marker), so it enters the checklists part and is
+ * SCANNED like every other checklist. The admission test held on the run that moved this pin: zero
+ * findings over 48/48 elements for guard_sentence_form and zero over the unchanged 19/19 for
+ * guard_imperative_lexicon, because the recipe carries no `## Steps` section.
  */
-export const GOVERNED_CORPUS_COUNT = 47;
+export const GOVERNED_CORPUS_COUNT = 48;
 // ---------------------------------------------------------------------------
 // APPROVED_STEP_VERBS — the CLOSED verb set (WP-01).
 //
