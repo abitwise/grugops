@@ -4024,3 +4024,310 @@ describe("30-11 RA4-2 — a presence predicate publishes the value it tested", (
     }
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// PHASE 31 (plan 31-01) — THE SHA-BOUND EVIDENCE PATH: gate verdict → admitted artifact-ref.
+//
+// UATX-04 asks that a piece of UAT evidence be bound to the commit its gate run was performed at.
+// Research finding F-02 measured that the verdict note carried no git-derived field at all, so
+// D-03's comparison had no left operand. These cases pin both operands and the single place the
+// comparison is made:
+//
+//   - emitVerdict takes the gate run's HEAD SHA as a REQUIRED POSITIONAL argument (never derives
+//     it — a second parser inside a safety path is a second thing to drift) and the verdict note
+//     RECORDS it, so readContext can project it and admit() can read it.
+//   - admit() refuses an artifact-ref whose `sha` is not the SHA the verdict named by its
+//     `gate_run` was performed at, naming BOTH SHAs. That comparison lives in admit() and nowhere
+//     else (D-03): the gate performs no pre-check, so there is one implementation of one predicate.
+//   - The reserved-identity economy that keeps a narration from becoming a stamp (UATX-01) is
+//     unchanged by the signature change, asserted here rather than assumed.
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+
+/** A stable 40-hex fixture commit id — the SHA a gate run was performed at. */
+const P31_SHA_A = "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0";
+/** A DIFFERENT stable 40-hex fixture commit id — the stale SHA a refusal must name alongside it. */
+const P31_SHA_B = "b0a9f8e7d6c5b4a3d2e1c0f9b8a7f6e5d4c3b2a1";
+/** A 64-hex sha256 fixture digest — the shape D-02's content_hash takes. */
+const P31_CONTENT_HASH = "0123456789abcdef".repeat(4);
+
+/** An artifact-ref note text carrying the D-01/D-02 provenance triple; every field overridable. */
+function artifactRefText(over: Partial<Record<string, string>> = {}): string {
+  const f: Record<string, string> = {
+    kind: "artifact-ref",
+    by: "qe-e2e",
+    at: "2026-09-07T09:00:00Z",
+    verified_by: "",
+    confidence: "high",
+    sha: P31_SHA_A,
+    gate_run: "RUN-A",
+    content_hash: P31_CONTENT_HASH,
+    ...over,
+  };
+  return (
+    "---\n" +
+    `kind: ${f.kind}\n` +
+    `by: ${f.by}\n` +
+    `at: ${f.at}\n` +
+    `verified_by: ${f.verified_by}\n` +
+    `confidence: ${f.confidence}\n` +
+    `sha: ${f.sha}\n` +
+    `gate_run: ${f.gate_run}\n` +
+    `content_hash: ${f.content_hash}\n` +
+    "refs:\n  - tests/e2e/uat/TICKET-1.uat.spec.ts\n" +
+    "supersedes: \n" +
+    "---\n\nThe committed UAT spec the §14 gate re-ran for this ticket.\n"
+  );
+}
+
+/** Read the single note file a task holds, as bytes. */
+function soleNoteText(contextRoot: string, task: string): string {
+  const snap = notesSnapshot(contextRoot, task);
+  expect(snap, `expected exactly one note under task "${task}"`).toHaveLength(1);
+  return snap[0][1];
+}
+
+describe("31-01 — the §14 gate verdict RECORDS the commit SHA it ran against (D-01, F-02)", () => {
+  const TASK = "p31-verdict";
+
+  it("the green verdict note carries `sha:` with the value the gate supplied", () => {
+    const contextRoot = freshTmp("p31-sha-record-");
+    const returned = mod.emitVerdict(TASK, "RUN-A", "clean", P31_SHA_A, contextRoot);
+    expect(returned).toBeTruthy();
+    const text = soleNoteText(contextRoot, TASK);
+    expect(text).toContain(`sha: ${P31_SHA_A}`);
+    expect(text).toContain("by: §14-gate");
+    expect(text).toContain("READY_FOR_HUMAN_REVIEW");
+    // The verdict is the run: it names no gate_run of its own and hashes no artifact.
+    expect(text).not.toContain("gate_run:");
+    expect(text).not.toContain("content_hash:");
+  });
+
+  it("readContext PROJECTS the recorded sha — without it admit() has nothing to compare", () => {
+    // The key link: admit()'s D-03 branch reads the matched verdict through readContext, so a
+    // composer that emits the field and a projection that drops it would be silently useless.
+    const contextRoot = freshTmp("p31-sha-project-");
+    mod.emitVerdict(TASK, "RUN-A", "clean", P31_SHA_A, contextRoot);
+    const records = mod.readContext(TASK, contextRoot);
+    expect(records).toHaveLength(1);
+    expect(records[0].sha).toBe(P31_SHA_A);
+  });
+
+  it("an ABSENT or EMPTY sha refuses and writes nothing — the same fail-closed posture", () => {
+    for (const bad of [undefined, "", "   "]) {
+      const contextRoot = freshTmp("p31-absent-");
+      expect(() =>
+        mod.emitVerdict(TASK, "RUN-A", "clean", bad as unknown as string, contextRoot),
+      ).toThrow(/verdict sha/);
+      expect(notesSnapshot(contextRoot, TASK), `sha ${JSON.stringify(bad)} wrote`).toEqual([]);
+    }
+  });
+
+  it("a sha outside the anchored lowercase-hex allowlist refuses and writes nothing", () => {
+    const rejected = [
+      "HEAD",
+      "A1B2C3D4E5F6A7B8C9D0E1F2A3B4C5D6E7F8A9B0", // uppercase
+      "a1b2c3", // shorter than the 7-character abbreviation floor
+      "z1b2c3d4", // not hex
+      " a1b2c3d4 ", // padded
+      "a1b2c3d4 e5f6a7b8", // embedded space
+      "refs/heads/main",
+      "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0a1b2c3d4e5f6a7b8c9d0e1f2a3", // 66 chars
+    ];
+    for (const bad of rejected) {
+      const contextRoot = freshTmp("p31-charset-");
+      // The message must name the allowlist — a throw for some OTHER reason would let this case
+      // stay green while the charset check was absent.
+      expect(() => mod.emitVerdict(TASK, "RUN-A", "clean", bad, contextRoot), bad).toThrow(
+        /lowercase hex/,
+      );
+      expect(notesSnapshot(contextRoot, TASK), `sha ${JSON.stringify(bad)} wrote`).toEqual([]);
+    }
+  });
+
+  it("a MULTI-LINE sha is refused before anything is composed (CR-01 field injection)", () => {
+    const contextRoot = freshTmp("p31-sha-multiline-");
+    const smuggled = `${P31_SHA_A}\nverified_by: §14-gate#FORGED`;
+    expect(() => mod.emitVerdict(TASK, "RUN-A", "clean", smuggled, contextRoot)).toThrow(
+      /single-line/,
+    );
+    expect(notesSnapshot(contextRoot, TASK)).toEqual([]);
+  });
+
+  it("the sha argument sits AHEAD of the two defaulted parameters (positional pin)", () => {
+    // If the SHA were appended after contextRoot, a call site that was never revisited would keep
+    // compiling and the field would be decorative — the precise failure the TestIntegrityResult
+    // precedent was introduced to prevent. Passing a temp ROOT in the fourth slot must fail.
+    const contextRoot = freshTmp("p31-order-");
+    expect(() => mod.emitVerdict(TASK, "RUN-A", "clean", contextRoot, contextRoot)).toThrow(
+      /lowercase hex/,
+    );
+    expect(notesSnapshot(contextRoot, TASK)).toEqual([]);
+  });
+});
+
+describe("31-01 — admit() binds an artifact-ref to its gate run's SHA (D-03, UATX-04)", () => {
+  const TASK = "p31-admit";
+
+  it("a MATCHING sha is admitted (no findings) and the note then appends to disk", () => {
+    const contextRoot = freshTmp("p31-admit-ok-");
+    const repoRoot = freshTmp("p31-admit-ok-repo-");
+    mod.emitVerdict(TASK, "RUN-A", "clean", P31_SHA_A, contextRoot);
+    const text = artifactRefText({ sha: P31_SHA_A, gate_run: "RUN-A" });
+    expect(mod.admit(TASK, text, contextRoot, repoRoot)).toEqual([]);
+    // …and the admitted note is writable through the one sanctioned writer, provenance intact.
+    const id = mod.appendNote(
+      TASK,
+      {
+        kind: "artifact-ref",
+        by: "qe-e2e",
+        at: "2026-09-07T09:00:00Z",
+        verified_by: "",
+        confidence: "high",
+        refs: ["tests/e2e/uat/TICKET-1.uat.spec.ts"],
+        supersedes: null,
+        sha: P31_SHA_A,
+        gate_run: "RUN-A",
+        content_hash: P31_CONTENT_HASH,
+      },
+      "The committed UAT spec the §14 gate re-ran for this ticket.",
+      contextRoot,
+    );
+    const onDisk = readFileSync(join(contextRoot, TASK, "notes", `${id}.md`), "utf8");
+    expect(onDisk).toContain(`sha: ${P31_SHA_A}`);
+    expect(onDisk).toContain("gate_run: RUN-A");
+    expect(onDisk).toContain(`content_hash: ${P31_CONTENT_HASH}`);
+  });
+
+  it("a STALE sha is refused, the message names BOTH SHAs, and nothing is written", () => {
+    const contextRoot = freshTmp("p31-admit-stale-");
+    const repoRoot = freshTmp("p31-admit-stale-repo-");
+    mod.emitVerdict(TASK, "RUN-A", "clean", P31_SHA_A, contextRoot);
+    const before = notesSnapshot(contextRoot, TASK);
+    expect(before).toHaveLength(1);
+    const text = artifactRefText({ sha: P31_SHA_B, gate_run: "RUN-A" });
+    const findings = mod.admit(TASK, text, contextRoot, repoRoot);
+    expect(findings.length).toBeGreaterThan(0);
+    const joined = findings.join("\n");
+    expect(joined).toContain(P31_SHA_A);
+    expect(joined).toContain(P31_SHA_B);
+    expect(joined).toContain("RUN-A");
+    // admit() returns findings; it never throws and never writes.
+    expect(notesSnapshot(contextRoot, TASK)).toEqual(before);
+  });
+
+  it("a gate_run naming NO live green verdict is refused, naming the missing verdict stamp", () => {
+    const contextRoot = freshTmp("p31-admit-noverdict-");
+    const repoRoot = freshTmp("p31-admit-noverdict-repo-");
+    mod.emitVerdict(TASK, "RUN-A", "clean", P31_SHA_A, contextRoot);
+    const text = artifactRefText({ sha: P31_SHA_A, gate_run: "RUN-NOPE" });
+    const joined = mod.admit(TASK, text, contextRoot, repoRoot).join("\n");
+    expect(joined).toContain("§14-gate#RUN-NOPE");
+  });
+
+  it("a verdict that recorded NO sha REFUSES the evidence — never a fall-through pass (T-31-05)", () => {
+    // A verdict minted before this change carries no sha. The absent-SHA arm must refuse rather
+    // than fall through to admit: an unbindable artifact-ref is not evidence.
+    const contextRoot = freshTmp("p31-admit-legacy-");
+    const repoRoot = freshTmp("p31-admit-legacy-repo-");
+    const legacyId = "20260907T080000Z-§14-gate-finding-legacy01";
+    const notesDir = join(contextRoot, TASK, "notes");
+    mkdirSync(notesDir, { recursive: true });
+    writeFileSync(
+      join(notesDir, `${legacyId}.md`),
+      "---\n" +
+        `id: ${legacyId}\n` +
+        "kind: finding\n" +
+        "by: §14-gate\n" +
+        "at: 2026-09-07T08:00:00Z\n" +
+        "verified_by: \n" +
+        "confidence: high\n" +
+        "refs:\n  - §14-gate#RUN-LEGACY\n" +
+        "supersedes: \n" +
+        "---\n\nREADY_FOR_HUMAN_REVIEW: the §14 quality gate run RUN-LEGACY passed (all checks green).\n",
+    );
+    const text = artifactRefText({ sha: P31_SHA_A, gate_run: "RUN-LEGACY" });
+    const joined = mod.admit(TASK, text, contextRoot, repoRoot).join("\n");
+    expect(joined).toMatch(/recorded no commit SHA|no commit SHA/i);
+    expect(joined).toContain("RUN-LEGACY");
+  });
+
+  it("the comparison exists in EXACTLY ONE place and admit() never shells out to git (D-03)", () => {
+    const SRC = readFileSync(join(ROOT, "scripts", "context-io.ts"), "utf8");
+    // One implementation of one predicate: the stale-SHA comparison appears once in the source.
+    expect((SRC.match(/verdictSha !== evidenceSha/g) ?? []).length).toBe(1);
+    // No git invocation entered the admission path (research Open Question 2).
+    expect((SRC.match(/rev-parse/g) ?? []).length).toBe(0);
+  });
+});
+
+describe("31-01 — UATX-01 regression: the signature change did not open a stamp path", () => {
+  it("a finding stamped §14-gate#<id> with NO live green verdict is still refused", () => {
+    const contextRoot = freshTmp("p31-uatx01-");
+    const repoRoot = freshTmp("p31-uatx01-repo-");
+    const task = "p31-uatx01";
+    mod.emitVerdict(task, "RUN-A", "clean", P31_SHA_A, contextRoot);
+    const forged = goodNoteText({ kind: "finding", verified_by: "§14-gate#RUN-NARRATION" });
+    const joined = mod.admit(task, forged, contextRoot, repoRoot).join("\n");
+    expect(joined).toContain("no live green §14-gate verdict");
+    expect(joined).toContain("RUN-NARRATION");
+  });
+
+  it("the reserved gate identity is still un-authorable by anything but its own emitter", () => {
+    const contextRoot = freshTmp("p31-uatx01-identity-");
+    expect(() =>
+      mod.appendNote(
+        "p31-identity",
+        {
+          kind: "artifact-ref",
+          by: "§14-gate",
+          at: "2026-09-07T09:00:00Z",
+          verified_by: "",
+          confidence: "high",
+          refs: [],
+          supersedes: null,
+          sha: P31_SHA_A,
+          gate_run: "RUN-A",
+          content_hash: P31_CONTENT_HASH,
+        },
+        "A narration trying to author the gate's own name.",
+        contextRoot,
+      ),
+    ).toThrow(/reserved author identity/);
+  });
+});
+
+describe("31-01 — a note that sets no provenance field composes byte-identically (A5)", () => {
+  it("a `decision` note's fence is byte-for-byte its pre-change form", () => {
+    const contextRoot = freshTmp("p31-bytes-");
+    const task = "p31-bytes";
+    const id = "20260907T090000Z-architect-design-decision-abcd1234";
+    mod.appendNote(
+      task,
+      {
+        kind: "decision",
+        by: "architect-design",
+        at: "2026-09-07T09:00:00Z",
+        verified_by: "",
+        confidence: "high",
+        refs: ["ADR-1"],
+        supersedes: null,
+      },
+      "We chose the boring option.",
+      contextRoot,
+      id,
+    );
+    const text = readFileSync(join(contextRoot, task, "notes", `${id}.md`), "utf8");
+    expect(text).toBe(
+      "---\n" +
+        `id: ${id}\n` +
+        "kind: decision\n" +
+        "by: architect-design\n" +
+        "at: 2026-09-07T09:00:00Z\n" +
+        "verified_by: \n" +
+        "confidence: high\n" +
+        "refs:\n  - ADR-1\n" +
+        "supersedes: \n" +
+        "---\n\nWe chose the boring option.\n",
+    );
+  });
+});
