@@ -974,7 +974,7 @@ Plans:
   4. An evidence note carries commit SHA + gate-run id + content hash, and a note whose SHA is not the HEAD the gate ran against is refused. (UATX-04)
   5. An absent or unusable browser produces a **loud skip** that leaves the UAT `pending` (reusing the existing Tier-2 convention verbatim, never a silent pass), and a generated spec containing a conditional or caught assertion is rejected over the **TypeScript AST** rather than by regex, so the claim matches the mechanism. (UATX-05, UATX-06)
 
-**Plans**: 8/8 plans executed — 4/4 executed (waves 1, 1, 2, 3), plus 4 gap-closure plans from the 2026-09-07 verification (waves 1, 2, 2, 3)
+**Plans**: 12 plans — 8/8 executed (the original 4 across waves 1, 1, 2, 3, plus 4 gap-closure plans from the 2026-09-07 verification across waves 1, 2, 2, 3), plus 4 gap-closure plans planned 2026-09-08 and not yet executed. **Gap-closure round 2 (`31-09`…`31-12`)** answers the round-2 verification (`gaps_found` 4/6, 2026-09-08) and the gap-closure code review (`31-REVIEW.md`, CR-05 and CR-06). Both remaining blockers are the round-1 defects reappearing one register over: `appendNote` reaches the admission authority for one KIND (CR-05/UATX-01), and the modifier ban is decided by an enumerable literal rather than a rule (CR-06/UATX-06). The round is a STRUCTURAL fix in both places rather than a third iteration — `31-09` deletes the kind axis so the writer expresses no opinion about which notes admission applies to, and `31-11` deletes the enumerable ban set so a new intermediate segment cannot create a new hole. `31-10` and `31-12` derive the axis each fix's remaining hand-authored set sits on and assert its cardinality, which is the check that was one-directional in both cases. UATX-01 and UATX-06 stay `[ ]` / Gaps Found throughout: only a verification round may flip them.
 
 Plans:
 **Wave 1**
@@ -1004,6 +1004,18 @@ Plans:
 **Gap wave 3** *(blocked on gap wave 2)*
 
 - [x] 31-08-PLAN.md — re-run the three verifier spot-checks verbatim, measure the whole tree green at one commit, and assemble the residual register and closure brief (UATX-01, UATX-02, UATX-04, UATX-06)
+
+**Gap closure, round 2** *(from `31-VERIFICATION.md` round 2 `gaps_found` 4/6 and `31-REVIEW.md` CR-05/CR-06 — plans carry `gap_closure: true`)*
+
+**Gap wave 4**
+
+- [ ] 31-09-PLAN.md — CR-05: delete the kind axis so `appendNote` consults the admission authority for every note, bound the one private pre-admitted route by a derived caller set, give the governance root one answer, and correct workflows 16/17/18 plus the two summary overclaims (UATX-01, UATX-04)
+- [ ] 31-11-PLAN.md — CR-06: decide modifier membership by a head-and-tail rule over the resolved dotted path instead of an enumerable literal, add the two planted spellings and a false-positive control as type-checked fixtures, re-quote the rule in the recipe and record D-17 (UATX-02, UATX-06)
+
+**Gap wave 5** *(blocked on gap wave 4)*
+
+- [ ] 31-10-PLAN.md — derive the refusal-family axis from `admit()`'s own source and exercise every writer against every family, with the probes proven to discriminate and the converse tested (UATX-01, UATX-04)
+- [ ] 31-12-PLAN.md — the reverse cross-check WR-13 names: enumerate the declared Playwright modifier surface by the TypeScript checker and partition it totally into refused-by-rule and dispositioned-with-a-reason, cardinality asserted (UATX-02, UATX-06)
 
 **Research flag:** plan with `--research-phase`. Whether `mcp__claude-in-chrome__*` tools are reachable from inside a subagent is explicitly `UNKNOWN - verify`; verify before designing any flow that assumes it. The phase's core recommendation (Playwright as the floor) does not depend on the answer.
 
