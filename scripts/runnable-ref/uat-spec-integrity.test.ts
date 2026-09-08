@@ -2116,6 +2116,37 @@ describe("uat-spec-integrity — 31-11 CR-06: membership is a rule, decided in o
     expect(arraysExamined, "PREMISE: no exported string array was examined").toBeGreaterThan(0);
     expect(offenders).toEqual([]);
     expect(mod.BANNED_CONSTRUCTS, "the enumerable ban list must not survive").toBeUndefined();
+
+    // 31-13 (D-18): the scan now covers exported plain OBJECTS too. D-18 added a Record-shaped
+    // constant, and an array-only scan would have let the next round smuggle a ban list back in as
+    // `{ "test.mute": true }` while every gate over it stayed green — which is precisely the shape
+    // of the drift this whole assertion exists to prevent, one container type over.
+    const objectOffenders: string[] = [];
+    let objectsExamined = 0;
+    for (const [name, value] of Object.entries(mod)) {
+      if (typeof value !== "object" || value === null || Array.isArray(value)) continue;
+      if (typeof value === "function") continue;
+      objectsExamined++;
+      const keys = Object.keys(value as Record<string, unknown>);
+      if (!keys.some((k) => DOTTED.test(k))) continue;
+      // BANNED_CONFIGURED_PATHS is the ONE admitted exception, and it is admitted for a stated
+      // reason rather than by name alone: its keys are not a ban list, because a key alone decides
+      // nothing. Each key maps to the option that must be ENABLED for the call to be refused, so
+      // `expect.configure({ retries: 2 })` stays admitted. That is a rule with a second axis, not an
+      // enumeration — and it is asserted to stay small and paired, not merely to exist.
+      if (name !== "BANNED_CONFIGURED_PATHS") {
+        objectOffenders.push(name);
+        continue;
+      }
+      for (const [path, option] of Object.entries(value as Record<string, unknown>)) {
+        expect(typeof option, `${path}: the mapped option key must be a string`).toBe("string");
+        expect((option as string).includes("."), `${path}: an option key is a segment, not a path`).toBe(
+          false,
+        );
+      }
+    }
+    expect(objectsExamined, "PREMISE: no exported plain object was examined").toBeGreaterThan(0);
+    expect(objectOffenders).toEqual([]);
   });
 
   // ── the verifier's own probe, end to end, through the COMMITTED artifact ─────────────────────
@@ -2402,5 +2433,731 @@ describe("uat-spec-integrity — 31-13 CR-07/WR-14: the resolver DECIDES the cal
     expect(joined).toContain("test.skip");
     expect(joined).toContain("test.only");
     expect(joined).toContain("test.fixme");
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// 31-13 CR-07 — THE DECLINE SET IS DERIVED, NOT REMEMBERED.
+//
+// WHY A DERIVATION AND NOT THREE MORE RESIDUAL STRINGS. Phase 31 has now been caught three times by
+// the same class: a predicate closed at the exact coordinates a verifier measured, reappearing one
+// register over (round 1 -> gap 2; round 2 -> CR-06; round 3 -> CR-07/WR-14). Every one of those
+// rounds left a HAND-MAINTAINED set behind, and the next round found the member nobody remembered.
+// Writing five more residual sentences after this round would be the fourth instance.
+//
+// So the set of shapes the resolver still DECLINES is read off the runnable's own AST: the arm-(c)
+// call site's resolver closure is derived by following the membership call's arguments back to the
+// functions that produce them, and every position in that closure at which resolution ends without
+// producing a path is emitted as a signature. Each derived signature is then BOUND, in BOTH
+// directions, to either a decided construct or a NAMED member of UNRESOLVABLE_CALLEE_RESIDUALS.
+//
+// A sixth undisclosed shape therefore cannot land silently: it arrives as a derived site with no
+// binding and reds the case that names it. This is the discipline scripts/context-io-writer-set.test.ts
+// established for admit()'s refusal sites, transplanted rather than reinvented.
+//
+// ONE ADAPTATION, STATED RATHER THAN LEFT TO INFERENCE. admit()'s refusal sites return ARRAYS OF
+// LITERAL TEXT, so their signature can be the static text they return. A decline site returns `null`
+// or nothing, so its identity has to come from its POSITION and its GUARD instead: the enclosing
+// function, the chain of enclosing statement kinds, the guard condition's source text, and the
+// return's own text — whitespace collapsed, so the signature is stable against reformatting and
+// moves when a branch is added, removed or re-guarded.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+describe("uat-spec-integrity — 31-13 CR-07: the resolver's DECLINE set, derived from the source", () => {
+  const ts = hostTypeScript as typeof import("typescript");
+  const CHECKER_TS = join(HERE, "uat-spec-integrity.ts");
+
+  /** The function whose body carries arm (c). The derivation is rooted here, never in a name list. */
+  const ARM_C_HOST = "findBannedConstructs";
+  /** The membership authority the arm-(c) condition asks. The closure is seeded from ITS arguments. */
+  const MEMBERSHIP_AUTHORITY = "isBannedModifierCall";
+
+  interface DeclineSite {
+    readonly fn: string;
+    readonly signature: string;
+  }
+
+  interface DeclineDerivation {
+    /** Every top-level function name the parse found — the premise that it parsed anything at all. */
+    readonly declared: readonly string[];
+    /** Whether the arm-(c) host declaration was located, and whether it had a body. */
+    readonly hostFound: boolean;
+    readonly hostHasBody: boolean;
+    /** How many arm-(c) conditions were found. Exactly one is the premise. */
+    readonly armCSites: number;
+    /** The functions the arm-(c) condition reaches directly, through its own arguments. */
+    readonly roots: readonly string[];
+    /** Those roots plus everything they call, transitively — the set sites are derived over. */
+    readonly closure: readonly string[];
+    /** One entry per position at which resolution ends without producing a path. */
+    readonly sites: readonly DeclineSite[];
+  }
+
+  /** Whitespace runs collapsed to one space — the signature must not move when the file is reflowed. */
+  function collapse(text: string): string {
+    return text.replace(/\s+/g, " ").trim();
+  }
+
+  /**
+   * A decline site is a `return` whose expression is the `null` KEYWORD, or a bare `return;`.
+   *
+   * That is the exact shape "resolution ended without producing a path" takes in this module, and it
+   * is deliberately narrow. `return dottedPath;` and `return segments.join(".");` return a value the
+   * caller can use and are NOT sites — which is why `canonicaliseHeadSegment` contributes none: every
+   * one of its exits returns its input or a rewrite of its input. `return keys;` and `return renames;`
+   * likewise return an accumulator that may carry information.
+   */
+  function isDeclineReturn(node: import("typescript").Node): boolean {
+    if (!ts.isReturnStatement(node)) return false;
+    if (node.expression === undefined) return true;
+    return node.expression.kind === ts.SyntaxKind.NullKeyword;
+  }
+
+  /**
+   * The site's identity: enclosing function, the chain of enclosing statement kinds, the nearest
+   * enclosing guard condition, and the return's own text.
+   *
+   * The CHAIN is what separates two textually identical returns. `calleeDottedPath` ends its loop
+   * body with `return null;` and ends the function with another `return null;` — same text, no
+   * guard, different structure. A signature that collided them would shrink the derived set
+   * silently, and a colliding set comparison passes vacuously.
+   */
+  function siteSignature(
+    fn: import("typescript").FunctionDeclaration,
+    ret: import("typescript").Node,
+    sf: import("typescript").SourceFile,
+  ): string {
+    const chain: string[] = [];
+    let guard = "";
+    let cur: import("typescript").Node | undefined = ret.parent;
+    while (cur !== undefined && cur !== fn) {
+      chain.push(ts.SyntaxKind[cur.kind]);
+      if (guard === "" && ts.isIfStatement(cur)) guard = collapse(cur.expression.getText(sf));
+      cur = cur.parent;
+    }
+    chain.reverse();
+    return `${fn.name?.text ?? "<anonymous>"} | ${chain.join(">")} | ${guard} | ${collapse(ret.getText(sf))}`;
+  }
+
+  /**
+   * THE DERIVATION. Root it at the arm-(c) condition, follow that condition's ARGUMENTS back through
+   * the local constants of the host function to the module functions that produce them, close over
+   * the call graph, and emit one signature per decline site in the closure.
+   *
+   * The roots are DERIVED rather than named because a resolver added to the arm-(c) pipeline later
+   * must arrive in this set by itself. Naming them here would put the drift axis back exactly where
+   * this whole block exists to remove it from.
+   */
+  function deriveDeclineSites(sourcePath: string): DeclineDerivation {
+    const sf = ts.createSourceFile(
+      "uat-spec-integrity.ts",
+      readFileSync(sourcePath, "utf8"),
+      ts.ScriptTarget.Latest,
+      true,
+    );
+
+    const functions = new Map<string, import("typescript").FunctionDeclaration>();
+    const walkTop = (node: import("typescript").Node): void => {
+      if (ts.isFunctionDeclaration(node) && node.name !== undefined) {
+        functions.set(node.name.text, node);
+      }
+      ts.forEachChild(node, walkTop);
+    };
+    ts.forEachChild(sf, walkTop);
+    const declared = [...functions.keys()].sort();
+
+    const host = functions.get(ARM_C_HOST);
+    if (host === undefined || host.body === undefined) {
+      return {
+        declared,
+        hostFound: host !== undefined,
+        hostHasBody: false,
+        armCSites: 0,
+        roots: [],
+        closure: [],
+        sites: [],
+      };
+    }
+
+    // Every local `const` of the host, so an argument that is an identifier can be followed to the
+    // expression that produced it — `dottedPath` back to `canonicaliseHeadSegment(calleeDottedPath(...))`
+    // and `renames` back to `deriveImportRenames(...)`.
+    const locals = new Map<string, import("typescript").Node>();
+    const collectLocals = (node: import("typescript").Node): void => {
+      if (
+        ts.isVariableDeclaration(node) &&
+        ts.isIdentifier(node.name) &&
+        node.initializer !== undefined
+      ) {
+        locals.set(node.name.text, node.initializer);
+      }
+      ts.forEachChild(node, collectLocals);
+    };
+    collectLocals(host.body);
+
+    // The arm-(c) condition(s): an `if` whose condition asks the membership authority.
+    const armC: import("typescript").Expression[] = [];
+    const findArmC = (node: import("typescript").Node): void => {
+      if (ts.isIfStatement(node) && node.expression.getText(sf).includes(MEMBERSHIP_AUTHORITY)) {
+        armC.push(node.expression);
+      }
+      ts.forEachChild(node, findArmC);
+    };
+    findArmC(host.body);
+
+    const roots = new Set<string>();
+    const seenLocals = new Set<string>();
+    const queue: import("typescript").Node[] = [...armC];
+    while (queue.length > 0) {
+      const expr = queue.pop()!;
+      const scan = (node: import("typescript").Node): void => {
+        if (ts.isCallExpression(node) && ts.isIdentifier(node.expression)) {
+          const name = node.expression.text;
+          if (functions.has(name)) roots.add(name);
+        }
+        if (ts.isIdentifier(node) && !seenLocals.has(node.text) && locals.has(node.text)) {
+          seenLocals.add(node.text);
+          queue.push(locals.get(node.text)!);
+        }
+        ts.forEachChild(node, scan);
+      };
+      scan(expr);
+    }
+
+    // Transitive closure over the module's own call graph.
+    const closure = new Set<string>(roots);
+    const frontier = [...roots];
+    while (frontier.length > 0) {
+      const name = frontier.pop()!;
+      const fn = functions.get(name);
+      if (fn?.body === undefined) continue;
+      const scan = (node: import("typescript").Node): void => {
+        if (ts.isCallExpression(node) && ts.isIdentifier(node.expression)) {
+          const callee = node.expression.text;
+          if (functions.has(callee) && !closure.has(callee)) {
+            closure.add(callee);
+            frontier.push(callee);
+          }
+        }
+        ts.forEachChild(node, scan);
+      };
+      scan(fn.body);
+    }
+
+    const sites: DeclineSite[] = [];
+    for (const name of [...closure].sort()) {
+      const fn = functions.get(name)!;
+      if (fn.body === undefined) continue;
+      const scan = (node: import("typescript").Node): void => {
+        if (isDeclineReturn(node)) sites.push({ fn: name, signature: siteSignature(fn, node, sf) });
+        ts.forEachChild(node, scan);
+      };
+      scan(fn.body);
+    }
+
+    return {
+      declared,
+      hostFound: true,
+      hostHasBody: true,
+      armCSites: armC.length,
+      roots: [...roots].sort(),
+      closure: [...closure].sort(),
+      sites,
+    };
+  }
+
+  function derivedSignatures(sourcePath: string): string[] {
+    return deriveDeclineSites(sourcePath)
+      .sites.map((s) => s.signature)
+      .sort();
+  }
+
+  /**
+   * THE HARNESS ASSERTS ITS OWN PREMISE, as failing assertions rather than assumptions. An empty
+   * derivation satisfies every claim below vacuously — "every derived site is bound" is trivially
+   * true of no sites — and this repository has recorded a FALSE verification-harness premise six
+   * times across four rounds.
+   */
+  function assertDeclinePremise(d: DeclineDerivation): void {
+    expect(
+      d.declared.length,
+      "PREMISE: the TypeScript parse of the runnable yielded ZERO top-level function declarations, " +
+        "so the decline derivation measured nothing at all",
+    ).toBeGreaterThan(0);
+    expect(
+      d.hostFound,
+      `PREMISE: no function named "${ARM_C_HOST}" was declared, so the arm-(c) pipeline could not ` +
+        `be rooted and the derived set is empty for a reason that says nothing about the resolver`,
+    ).toBe(true);
+    expect(
+      d.hostHasBody,
+      `PREMISE: "${ARM_C_HOST}" was declared with no body to walk`,
+    ).toBe(true);
+    expect(
+      d.armCSites,
+      `PREMISE: the arm-(c) condition asking "${MEMBERSHIP_AUTHORITY}" was not found EXACTLY once, ` +
+        `so the closure was seeded from the wrong expression`,
+    ).toBe(1);
+    expect(
+      d.roots.length,
+      "PREMISE: the arm-(c) condition reached no module function through its own arguments, so the " +
+        "closure is empty and every binding below is vacuous",
+    ).toBeGreaterThan(0);
+    expect(
+      d.sites.length,
+      "PREMISE: ZERO decline sites were derived. Either the resolver declines nothing, or the site " +
+        "matcher stopped matching the shape a decline takes",
+    ).toBeGreaterThan(0);
+  }
+
+  // ── THE BINDING RECORD: one entry per derived site ──────────────────────────────────────────
+  //
+  // WHICH HALF IS LOAD-BEARING. `signature` is a hand-written copy of what the derivation reads off
+  // the module, and it is BOUNDED by being asserted EQUAL to the derived set in both directions —
+  // exactly as EXPECTED_NOTE_WRITERS is bounded in scripts/context-io-writer-set.test.ts. The
+  // disposition is the human judgment that cannot be read off a parse, and it is attached TO a
+  // derived signature rather than standing in for one.
+  //
+  // `decided`  — the site does not open a shape. Either the shape it used to decline is now resolved
+  //              elsewhere and this guard only propagates that decision, or the position is one where
+  //              declining is the correct answer and no construct hides behind it.
+  // `residual` — the site DOES leave a real construct undecided, and the exact sentence of
+  //              UNRESOLVABLE_CALLEE_RESIDUALS that discloses it is named here.
+
+  interface DeclineDisposition {
+    readonly kind: "decided" | "residual";
+    /** `decided`: the construct the resolver now resolves, or why declining opens nothing. */
+    readonly reason: string;
+    /** `residual`: the EXACT text of the register member that discloses this site. */
+    readonly residual?: string;
+  }
+
+  const R_COMPUTED_MEMBER =
+    "A member computed from a non-literal expression is not refused: `test[name](...)` where `name` is a variable. The member name is absent from the source text.";
+  const R_MODULE_SCOPE =
+    "A rename or namespace that arrives through any module other than `@playwright/test` is not canonicalised: `import { test as it } from \"./fixtures\";` then `it.skip(...)`. Following a re-export across files needs module resolution this runnable does not ship, so the rename map is MODULE-SCOPED to the framework's own import declaration.";
+  const R_NON_IDENTIFIER_HEAD =
+    "A callee whose head is not an identifier is not resolved: a call on an object literal, on a `this` expression or on any other non-identifier root. There is no head segment to read, so no membership question can be put.";
+  const R_STEP_BOUND =
+    "A callee chain longer than the resolver's 512-step bound is not resolved. The bound stops a pathological chain from spinning; it is a stated LIMIT rather than a silence, and a chain that reaches it yields no path at all rather than a truncated one.";
+  const R_NON_LITERAL_OPTION =
+    "An option is read as ENABLED only when the call's first argument is an OBJECT LITERAL and the option's value is the `true` keyword: `expect.configure(options)` where `options` is a variable, and `expect.configure({ soft: isCi })` where `isCi` is a variable, both enable nothing. The value is absent from the source text, and this runnable evaluates nothing.";
+  const R_PARSER_PREDICATES =
+    "A parser that does not expose the import or object-literal node predicates yields no rename canonicalisation and no option reading. The parser is the TARGET repository's (D-13), so its surface is not this runnable's to assume; the resolver degrades to the pre-D-18 behaviour for those two shapes rather than throwing outside the D-12 exit-code contract.";
+  const R_ALIAS =
+    "An aliased binding is not refused: `const t = test;` then a modifier call on `t`. The alias cannot be followed to its declaration without a type checker.";
+
+  const DECLINE_SITE_DISPOSITIONS: Readonly<Record<string, DeclineDisposition>> = Object.freeze({
+    // ── calleeDottedPath ──────────────────────────────────────────────────────────────────────
+    "calleeDottedPath | Block>ForStatement>Block>IfStatement>Block>IfStatement | inner === null | return null;":
+      {
+        kind: "decided",
+        reason:
+          "D-18 (1) DECIDES the call link: this guard fires only when the INNER path already " +
+          "declined, at one of the sites below, so it propagates a decision rather than opening a " +
+          "shape of its own. Marking a path whose head the source text does not carry would invent " +
+          "a segment.",
+      },
+    "calleeDottedPath | Block>ForStatement>Block>IfStatement>Block>IfStatement | !ts.isStringLiteralLike(arg) | return null;":
+      {
+        kind: "residual",
+        reason: "A bracket member computed from a variable has no name in the source text.",
+        residual: R_COMPUTED_MEMBER,
+      },
+    "calleeDottedPath | Block>ForStatement>Block |  | return null;": {
+      kind: "residual",
+      reason:
+        "The node kind fell through every descent case, which is the non-identifier head: a call " +
+        "on an object literal, on `this`, or on any other root with no name to read.",
+      residual: R_NON_IDENTIFIER_HEAD,
+    },
+    "calleeDottedPath | Block |  | return null;": {
+      kind: "residual",
+      reason: "The 512-step bound was exhausted; a stated limit, not a silence.",
+      residual: R_STEP_BOUND,
+    },
+
+    // ── enabledOptionKeys ─────────────────────────────────────────────────────────────────────
+    "enabledOptionKeys | Block>IfStatement | !ts.isCallExpression(call) | return null;": {
+      kind: "decided",
+      reason:
+        "The arm-(c) site only ever passes a CallExpression node; this is the narrowing that lets " +
+        "the argument list be read at all. A node that is not a call has no option literal by " +
+        "definition, so nothing hides here.",
+    },
+    "enabledOptionKeys | Block>IfStatement | first === undefined | return null;": {
+      kind: "decided",
+      reason:
+        "A call with no arguments enables no option, so the membership authority answers false — " +
+        "which is correct: `expect.configure()` is not a soft-assertion escape.",
+    },
+    'enabledOptionKeys | Block>IfStatement>Block | typeof isObjectLiteral !== "function" || typeof isPropertyAssignment !== "function" | return null;':
+      {
+        kind: "residual",
+        reason:
+          "The TARGET repository's parser does not expose the object-literal predicates, so no " +
+          "option can be read from any call in this run.",
+        residual: R_PARSER_PREDICATES,
+      },
+    "enabledOptionKeys | Block>IfStatement | !isObjectLiteral(first) | return null;": {
+      kind: "residual",
+      reason:
+        "The options argument is not an object literal — `expect.configure(options)` where " +
+        "`options` is a variable. Its contents are absent from the source text.",
+      residual: R_NON_LITERAL_OPTION,
+    },
+
+    // ── deriveImportRenames ───────────────────────────────────────────────────────────────────
+    'deriveImportRenames | Block>IfStatement>Block | typeof isImportDeclaration !== "function" || typeof isNamedImports !== "function" || typeof isNamespaceImport !== "function" || typeof isImportSpecifier !== "function" | return null;':
+      {
+        kind: "residual",
+        reason:
+          "The TARGET repository's parser does not expose the import predicates, so no rename is " +
+          "canonicalised in this run and the resolver degrades to the pre-D-18 head reading.",
+        residual: R_PARSER_PREDICATES,
+      },
+    "deriveImportRenames | Block>ExpressionStatement>CallExpression>ArrowFunction>Block>IfStatement | !isImportDeclaration(node) | return;":
+      {
+        kind: "decided",
+        reason:
+          "A top-level statement that is not an import declaration carries no import binding, so " +
+          "skipping it opens no shape.",
+      },
+    "deriveImportRenames | Block>ExpressionStatement>CallExpression>ArrowFunction>Block>IfStatement | !ts.isStringLiteralLike(node.moduleSpecifier) | return;":
+      {
+        kind: "decided",
+        reason:
+          "A parseable import declaration's module specifier is always a string literal; this is " +
+          "the narrowing that lets its text be compared, and no real import shape falls through it.",
+      },
+    "deriveImportRenames | Block>ExpressionStatement>CallExpression>ArrowFunction>Block>IfStatement | node.moduleSpecifier.text !== PLAYWRIGHT_TEST_MODULE | return;":
+      {
+        kind: "residual",
+        reason:
+          "THE MODULE SCOPE THIS PLAN'S OWN CHANGE CREATED. A rename or namespace arriving through " +
+          "a local fixture-extension module is not canonicalised; following a re-export across " +
+          "files needs the module resolution D-13 forbids shipping. What would force it open: a " +
+          "reproduced evasion through a fixture-extension re-export, which would make this a " +
+          "resolution question rather than a scope choice.",
+        residual: R_MODULE_SCOPE,
+      },
+    "deriveImportRenames | Block>ExpressionStatement>CallExpression>ArrowFunction>Block>IfStatement | clause === undefined | return;":
+      {
+        kind: "decided",
+        reason:
+          "A side-effect-only import (`import \"@playwright/test\";`) binds no name, so it can " +
+          "carry neither a rename nor a namespace.",
+      },
+    "deriveImportRenames | Block>ExpressionStatement>CallExpression>ArrowFunction>Block>IfStatement | named === undefined | return;":
+      {
+        kind: "decided",
+        reason:
+          "A default-only import binds a name to a default export the declared surface does not " +
+          "carry, so a spec written that way does not run and has no evidence to narrow. " +
+          "`UNKNOWN - verify` at the declared surface's own strength.",
+      },
+  });
+
+  // ── the premise and the derived set ──────────────────────────────────────────────────────────
+
+  it("the derivation's PREMISES hold before any binding is asserted", () => {
+    assertDeclinePremise(deriveDeclineSites(CHECKER_TS));
+  });
+
+  it("the derived closure contains the three resolvers the arm-(c) site asks", () => {
+    const { roots, closure } = deriveDeclineSites(CHECKER_TS);
+    // The roots are what the arm-(c) CONDITION reaches through its own arguments — derived, never
+    // named. Asserting them proves the follow-the-arguments step selected the pipeline rather than
+    // silently selecting nothing.
+    for (const name of [
+      "isBannedModifierCall",
+      "calleeDottedPath",
+      "canonicaliseHeadSegment",
+      "enabledOptionKeys",
+      "deriveImportRenames",
+    ]) {
+      expect(roots, `${name} is not reached from the arm-(c) condition`).toContain(name);
+    }
+    // …and the transitive half really closed over the call graph.
+    expect(closure).toContain("isBannedModifierPath");
+    expect(closure).toContain("isTypeAssertionLike");
+  });
+
+  it("the canonicaliser contributes ZERO decline sites — every exit returns its input", () => {
+    const { closure, sites } = deriveDeclineSites(CHECKER_TS);
+    // PREMISE: it is in the walked set, or the claim below is about a function nobody looked at.
+    expect(closure, "PREMISE: canonicaliseHeadSegment is outside the derived closure").toContain(
+      "canonicaliseHeadSegment",
+    );
+    expect(
+      sites.filter((s) => s.fn === "canonicaliseHeadSegment"),
+      "the rename canonicaliser introduced a decline of its own — it must only rewrite a head or " +
+        "pass its input through, so that the decline set stays exactly the set of positions where " +
+        "no path could be produced",
+    ).toEqual([]);
+  });
+
+  it("every derived signature is DISTINCT — a prefix collision would pass this block vacuously", () => {
+    const signatures = derivedSignatures(CHECKER_TS);
+    expect(
+      new Set(signatures).size,
+      "two decline sites derived the SAME signature, so the set below is smaller than the number " +
+        "of positions the resolver really declines at",
+    ).toBe(signatures.length);
+  });
+
+  it("the derived decline set has exactly the MEMBERS the binding record names", () => {
+    expect(derivedSignatures(CHECKER_TS)).toEqual(
+      Object.keys(DECLINE_SITE_DISPOSITIONS).sort(),
+    );
+  });
+
+  it("the derived decline set has the expected CARDINALITY", () => {
+    // Asserted separately from the member list on purpose, with its own message: a site whose GUARD
+    // was re-worded and a site that was ADDED are different events and must not read as one failure.
+    expect(
+      derivedSignatures(CHECKER_TS).length,
+      "the number of positions at which callee resolution ends without a path CHANGED",
+    ).toBe(Object.keys(DECLINE_SITE_DISPOSITIONS).length);
+  });
+
+  it("the binding record's KEY SET equals the derived set, in BOTH directions", () => {
+    const derived = derivedSignatures(CHECKER_TS);
+    const bound = Object.keys(DECLINE_SITE_DISPOSITIONS).sort();
+
+    const unbound = derived.filter((s) => !bound.includes(s));
+    expect(
+      unbound,
+      `${unbound.length} decline site(s) have no binding: ${unbound.join(" ;; ")}. A site with no ` +
+        `entry is an UNDISCLOSED shape — a construct the ban rule is never asked about, and nobody ` +
+        `was told. This is exactly the state CR-07 found the resolver in.`,
+    ).toEqual([]);
+
+    const stale = bound.filter((s) => !derived.includes(s));
+    expect(
+      stale,
+      `${stale.length} binding(s) name a site the resolver no longer has: ${stale.join(" ;; ")}. A ` +
+        `stale entry pads the record and would make the arithmetic close over a position nobody ` +
+        `can reach.`,
+    ).toEqual([]);
+  });
+
+  // ── the residual register, bound in both directions ─────────────────────────────────────────
+
+  it("every `residual` disposition names a member of UNRESOLVABLE_CALLEE_RESIDUALS, verbatim", async () => {
+    const { UNRESOLVABLE_CALLEE_RESIDUALS } = await loadChecker();
+    const entries = Object.entries(DECLINE_SITE_DISPOSITIONS);
+    expect(entries.length, "PREMISE: the binding record is empty").toBeGreaterThan(0);
+
+    const residualEntries = entries.filter(([, d]) => d.kind === "residual");
+    expect(
+      residualEntries.length,
+      "PREMISE: no site is dispositioned as a residual, so the check below asserts nothing",
+    ).toBeGreaterThan(0);
+
+    for (const [signature, disposition] of entries) {
+      expect(
+        disposition.reason.trim().length,
+        `${signature}: the disposition reason is shorter than a sentence — a label is not a reason`,
+      ).toBeGreaterThan(40);
+      if (disposition.kind !== "residual") {
+        expect(disposition.residual, `${signature}: a decided site must name no residual`).toBeUndefined();
+        continue;
+      }
+      expect(disposition.residual, `${signature}: a residual site names no residual`).toBeDefined();
+      expect(
+        UNRESOLVABLE_CALLEE_RESIDUALS,
+        `${signature}: its residual text is not a member of the exported register`,
+      ).toContain(disposition.residual);
+    }
+  });
+
+  it("THE CONVERSE: every member of UNRESOLVABLE_CALLEE_RESIDUALS is accounted for", async () => {
+    const { UNRESOLVABLE_CALLEE_RESIDUALS } = await loadChecker();
+    const referenced = new Set(
+      Object.values(DECLINE_SITE_DISPOSITIONS)
+        .map((d) => d.residual)
+        .filter((r): r is string => r !== undefined),
+    );
+
+    // TWO AXES, KEPT APART BECAUSE THEY ARE DIFFERENT FACTS. A residual can disclose either a
+    // position where RESOLUTION ends without a path (the derived set above), or a path that
+    // resolves perfectly and is simply NOT A MEMBER of the ban rule. The alias residual is the
+    // second kind: `const t = test; t.skip()` resolves to `t.skip` — the resolver declined nothing,
+    // the head is just not `test`. Folding the two axes together would let a resolution site hide
+    // behind a membership sentence, which is the conflation this phase keeps being caught by.
+    const MEMBERSHIP_RESIDUALS: Readonly<Record<string, string>> = Object.freeze({
+      [R_ALIAS]:
+        "A MEMBERSHIP residual, not a resolution one. The path resolves (`t.skip`); its head is " +
+        "simply not a banned head, and binding a local name to its declaration needs the type " +
+        "checker D-13 forbids shipping. The same sentence covers a binding reached through a " +
+        "fixture parameter (`testInfo.skip()`), which is the shape 31-REVIEW.md listed for " +
+        "completeness. Asserted behaviourally by the alias/computed-member case earlier in this file.",
+    });
+
+    for (const residual of UNRESOLVABLE_CALLEE_RESIDUALS) {
+      const isResolution = referenced.has(residual);
+      const isMembership = Object.prototype.hasOwnProperty.call(MEMBERSHIP_RESIDUALS, residual);
+      expect(
+        isResolution || isMembership,
+        `the register discloses a shape no derived decline site and no membership disposition ` +
+          `accounts for: ${residual}`,
+      ).toBe(true);
+      expect(
+        isResolution && isMembership,
+        `a residual is claimed on BOTH axes at once, so one of the two records is wrong: ${residual}`,
+      ).toBe(false);
+    }
+
+    // …and the membership record holds no sentence the register lacks — the padding direction.
+    for (const member of Object.keys(MEMBERSHIP_RESIDUALS)) {
+      expect(
+        UNRESOLVABLE_CALLEE_RESIDUALS,
+        `the membership record names a residual the register does not carry: ${member}`,
+      ).toContain(member);
+    }
+
+    // The two axes PARTITION the register: their sizes sum to it, so nothing was counted twice and
+    // nothing went missing.
+    const resolutionCount = UNRESOLVABLE_CALLEE_RESIDUALS.filter((r) => referenced.has(r)).length;
+    expect(resolutionCount + Object.keys(MEMBERSHIP_RESIDUALS).length).toBe(
+      UNRESOLVABLE_CALLEE_RESIDUALS.length,
+    );
+  });
+
+  // ── THE WATCHED FAIL: the derivation is a control, not a coincidence ────────────────────────
+
+  /** The seeded branch's guard, distinctive enough that its signature cannot collide with a real one. */
+  const SEEDED_GUARD = "cur === SEEDED_CONTROL_SENTINEL";
+  /** The one-occurrence anchor the seeded mirror inserts after, inside calleeDottedPath's loop. */
+  const SEED_ANCHOR = "  for (let guard = 0; guard < 512; guard++) {\n    if (ts.isIdentifier(cur)) {";
+
+  function mirrorWithSeededDecline(): string {
+    const source = readFileSync(CHECKER_TS, "utf8");
+    expect(
+      source.split(SEED_ANCHOR).length - 1,
+      `PREMISE: the seed anchor was not found EXACTLY once in the runnable, so the mirror is not ` +
+        `the source plus one branch — anchor: ${SEED_ANCHOR}`,
+    ).toBe(1);
+    expect(
+      source.includes(SEEDED_GUARD),
+      "PREMISE: the seeded guard text is ALREADY in the runnable, so its presence would prove nothing",
+    ).toBe(false);
+    const mutated = source.replace(
+      SEED_ANCHOR,
+      `  for (let guard = 0; guard < 512; guard++) {\n    if (${SEEDED_GUARD}) return null;\n    if (ts.isIdentifier(cur)) {`,
+    );
+    expect(
+      mutated.split(SEEDED_GUARD).length - 1,
+      "PREMISE: the seeded branch did not land exactly once in the mirror",
+    ).toBe(1);
+    const path = join(mkTmp(), "uat-spec-integrity.ts");
+    writeFileSync(path, mutated, "utf8");
+    return path;
+  }
+
+  it("a SEEDED extra decline branch moves the count UP by exactly one and arrives UNBOUND", () => {
+    const before = derivedSignatures(CHECKER_TS);
+    const mirror = mirrorWithSeededDecline();
+    const derived = deriveDeclineSites(mirror);
+
+    // PREMISE: the mirror still parses into the same pipeline, or the count difference would be
+    // caused by a broken derivation rather than by the seed.
+    assertDeclinePremise(derived);
+
+    const after = derivedSignatures(mirror);
+    expect(after.length, "the seeded branch did not move the derived cardinality by one").toBe(
+      before.length + 1,
+    );
+
+    const seeded = after.filter((s) => s.includes(SEEDED_GUARD));
+    expect(seeded.length, "the derivation did not see the seeded branch at all").toBe(1);
+
+    // NOTHING ELSE MOVED: the seeded signature is the ONLY difference, so the count change is
+    // caused by the seed and not by a derivation that broke and started reporting some other set.
+    expect(after.filter((s) => !s.includes(SEEDED_GUARD))).toEqual(before);
+
+    // …and the key-set equality REPORTS IT, naming itself — the behaviour a sixth undisclosed shape
+    // would produce.
+    const bound = Object.keys(DECLINE_SITE_DISPOSITIONS);
+    const unbound = after.filter((s) => !bound.includes(s));
+    expect(unbound.length).toBe(1);
+    expect(unbound[0]).toContain(SEEDED_GUARD);
+  });
+
+  it("a RENAMED arm-(c) host fires the PREMISE, not the member comparison", () => {
+    // The distinction: a derivation that found NOTHING must fail as "the harness measured nothing",
+    // never as "the members disagree". The second reads like a real finding about the resolver.
+    const source = readFileSync(CHECKER_TS, "utf8");
+    const anchor = `export function ${ARM_C_HOST}(`;
+    expect(source.split(anchor).length - 1, "PREMISE: the host anchor is not unique").toBe(1);
+    const path = join(mkTmp(), "uat-spec-integrity.ts");
+    writeFileSync(path, source.replace(anchor, "export function findBannedConstructsRenamed("), "utf8");
+
+    const derived = deriveDeclineSites(path);
+    expect(derived.sites).toEqual([]);
+    expect(() => assertDeclinePremise(derived)).toThrow();
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// 31-13 (Rule 2, found BY the decline derivation above) — a NAMESPACE import of the framework.
+//
+// Working the decline set surfaced a shape no round had named: `import * as pw from
+// "@playwright/test"; pw.test.skip(...)` resolves cleanly to `pw.test.skip`, whose head is `pw`, so
+// the head-set check declines it — a real evasion of the same D-14 arm (c) ban, in the same register
+// CR-07 is about. Unlike the disclosed residuals it IS decidable from the source text alone: the
+// local name sits in the import clause's namespace binding, a literal already in the file. Calling
+// it a residual would state something false about why it is not decided, so it is DECIDED.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+describe("uat-spec-integrity — 31-13: a namespace import of @playwright/test is canonicalised", () => {
+  function findingsOf(body: string): string[] {
+    const root = mkTargetRepo({});
+    const dest = join(root, "e2e", "uat", "subject.uat.spec.ts");
+    mkdirSync(dirname(dest), { recursive: true });
+    writeFileSync(dest, body, "utf8");
+    const r = runCheck(root, "--json");
+    if (r.status === 0) return [];
+    return (JSON.parse(r.stdout) as { findings: string[] }).findings;
+  }
+
+  it("refuses a modifier call reached through a namespace import", () => {
+    const findings = findingsOf(
+      [
+        'import * as pw from "@playwright/test";',
+        'pw.test.skip("a skipped scenario", async () => {});',
+        'pw.test.describe.only("billing", () => {});',
+        "",
+      ].join("\n"),
+    );
+    expect(findings.length).toBe(2);
+    const joined = findings.join("\n");
+    expect(joined).toContain("test.skip");
+    expect(joined).toContain("test.describe.only");
+  });
+
+  it("does NOT refuse a namespace import of another module — the same module scope", () => {
+    expect(
+      findingsOf(
+        ['import * as pw from "./fixtures";', 'pw.test.skip("x", async () => {});', ""].join("\n"),
+      ),
+    ).toEqual([]);
+  });
+
+  it("does NOT refuse a legitimate call reached through the namespace", () => {
+    expect(
+      findingsOf(
+        [
+          'import * as pw from "@playwright/test";',
+          'pw.test.describe.serial("billing", () => {',
+          '  pw.test("an invoice is shown", async ({ page }) => {',
+          '    await pw.expect(page.getByTestId("x")).toBeVisible();',
+          "  });",
+          "});",
+          "",
+        ].join("\n"),
+      ),
+    ).toEqual([]);
   });
 });

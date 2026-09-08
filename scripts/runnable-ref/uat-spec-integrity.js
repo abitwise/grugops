@@ -230,6 +230,16 @@ export const BANNED_CONFIGURED_PATHS = Object.freeze({
 });
 /** The module specifier a rename must arrive through for D-18 (3) to canonicalise it. */
 const PLAYWRIGHT_TEST_MODULE = "@playwright/test";
+/**
+ * D-18 (3): the rename map's value for a NAMESPACE import local name. Spelled `*` because that is
+ * how a namespace import is written in the source, and because `*` cannot collide with any imported
+ * name: it is not a valid identifier, so no `import { X as y }` can ever produce it.
+ *
+ * A namespace head is DROPPED rather than rewritten — `pw.test.skip` is asked as `test.skip` —
+ * because a namespace binds the whole module rather than one export, so there is no single imported
+ * name to substitute.
+ */
+const IMPORT_NAMESPACE_MARKER = "*";
 // The callee shapes the resolver CANNOT decide from the source text alone, exported as prose so the
 // recipe quotes the disclosed boundary from the same source as the decided rule. Resolving any of
 // them needs a type checker to follow a binding to its declaration or across a module, and this
@@ -241,10 +251,10 @@ const PLAYWRIGHT_TEST_MODULE = "@playwright/test";
 export const UNRESOLVABLE_CALLEE_RESIDUALS = Object.freeze([
     "An aliased binding is not refused: `const t = test;` then a modifier call on `t`. The alias cannot be followed to its declaration without a type checker.",
     "A member computed from a non-literal expression is not refused: `test[name](...)` where `name` is a variable. The member name is absent from the source text.",
-    "A rename that arrives through any module other than `@playwright/test` is not canonicalised: `import { test as it } from \"./fixtures\";` then `it.skip(...)`. Following a re-export across files needs module resolution this runnable does not ship, so the rename map is MODULE-SCOPED to the framework's own import declaration.",
+    "A rename or namespace that arrives through any module other than `@playwright/test` is not canonicalised: `import { test as it } from \"./fixtures\";` then `it.skip(...)`. Following a re-export across files needs module resolution this runnable does not ship, so the rename map is MODULE-SCOPED to the framework's own import declaration.",
     "A callee whose head is not an identifier is not resolved: a call on an object literal, on a `this` expression or on any other non-identifier root. There is no head segment to read, so no membership question can be put.",
     "A callee chain longer than the resolver's 512-step bound is not resolved. The bound stops a pathological chain from spinning; it is a stated LIMIT rather than a silence, and a chain that reaches it yields no path at all rather than a truncated one.",
-    "An option value that is not the `true` keyword literal is not read as enabling that option: `expect.configure({ soft: isCi })` where `isCi` is a variable. The value is absent from the source text, and this runnable evaluates nothing.",
+    "An option is read as ENABLED only when the call's first argument is an OBJECT LITERAL and the option's value is the `true` keyword: `expect.configure(options)` where `options` is a variable, and `expect.configure({ soft: isCi })` where `isCi` is a variable, both enable nothing. The value is absent from the source text, and this runnable evaluates nothing.",
     "A parser that does not expose the import or object-literal node predicates yields no rename canonicalisation and no option reading. The parser is the TARGET repository's (D-13), so its surface is not this runnable's to assume; the resolver degrades to the pre-D-18 behaviour for those two shapes rather than throwing outside the D-12 exit-code contract.",
 ]);
 // D-13: the loud skip for an unresolvable parser. One frozen constant, ONE emission point, so a test
@@ -656,9 +666,11 @@ export function enabledOptionKeys(ts, call) {
 export function deriveImportRenames(ts, sf) {
     const isImportDeclaration = ts.isImportDeclaration;
     const isNamedImports = ts.isNamedImports;
+    const isNamespaceImport = ts.isNamespaceImport;
     const isImportSpecifier = ts.isImportSpecifier;
     if (typeof isImportDeclaration !== "function" ||
         typeof isNamedImports !== "function" ||
+        typeof isNamespaceImport !== "function" ||
         typeof isImportSpecifier !== "function") {
         return null;
     }
@@ -674,14 +686,22 @@ export function deriveImportRenames(ts, sf) {
         if (clause === undefined)
             return;
         const named = clause.namedBindings;
-        if (named === undefined || !isNamedImports(named))
+        if (named === undefined)
             return;
-        for (const element of named.elements) {
-            if (!isImportSpecifier(element))
-                continue;
-            if (element.propertyName === undefined)
-                continue;
-            renames.set(element.name.text, element.propertyName.text);
+        // The two shapes `namedBindings` takes, decided as a TOTAL alternation rather than as one
+        // narrowing with a silent fall-through: a shape that fell through neither arm would be invisible
+        // to the decline-site derivation, which is the hole this block exists to close.
+        if (isNamespaceImport(named)) {
+            renames.set(named.name.text, IMPORT_NAMESPACE_MARKER);
+        }
+        else if (isNamedImports(named)) {
+            for (const element of named.elements) {
+                if (!isImportSpecifier(element))
+                    continue;
+                if (element.propertyName === undefined)
+                    continue;
+                renames.set(element.name.text, element.propertyName.text);
+            }
         }
     });
     return renames;
@@ -703,6 +723,13 @@ export function canonicaliseHeadSegment(dottedPath, renames) {
     const imported = renames.get(segments[0]);
     if (imported === undefined)
         return dottedPath;
+    if (imported === IMPORT_NAMESPACE_MARKER) {
+        // A namespace head is DROPPED: `pw.test.skip` is asked as `test.skip`. A bare `pw(...)` has no
+        // segment left to ask about, so it passes through unchanged rather than becoming an empty path.
+        if (segments.length < 2)
+            return dottedPath;
+        return segments.slice(1).join(".");
+    }
     segments[0] = imported;
     return segments.join(".");
 }
