@@ -1134,7 +1134,7 @@ describe("uat-spec-integrity — 31-06 gap 2: the ban rule against the declared 
 // 31-06 GAP 2 — the recipe's claim and the checker's mechanism are quoted from ONE source.
 // ═══════════════════════════════════════════════════════════════════════════════════════════════
 
-describe("browser-uat-recipe.md — 31-06 gap 2: the documented ban set equals the decided one", () => {
+describe("browser-uat-recipe.md — the documented ban rule equals the decided one (31-06, 31-11)", () => {
   const RECIPE = join(REPO_ROOT, "agent-factory", "checklists", "browser-uat-recipe.md");
   const BAN_SET_HEADING = "## The spec-integrity ban set";
   const HEADING_LINE = /^(#{1,6}) /;
@@ -1162,18 +1162,29 @@ describe("browser-uat-recipe.md — 31-06 gap 2: the documented ban set equals t
   }
 
   /**
-   * The dotted paths the region LISTS, derived by a strict grammar over its backtick spans rather
-   * than by substring search. Substring search would count `describe.skip` as present whenever
-   * `test.describe.skip` is — the collision that would make a set comparison pass vacuously.
+   * The values one quoted list carries, by a STRICT grammar over the region rather than by
+   * substring search. Substring search would count `skip` as present whenever `test.describe.skip`
+   * is — the collision that would make a set comparison pass vacuously.
+   *
+   * The grammar: the ONE line of the region that quotes the constant's NAME in backticks, read from
+   * after its LAST colon; every backtick span in that tail is a quoted value. The line is located by
+   * the exported constant's own name, so the anchor cannot drift from the thing it anchors to, and
+   * "exactly one such line" is asserted rather than assumed — two lines quoting one constant would
+   * be two documented claims for one decided set.
    */
-  function listedDottedPaths(region: string): string[] {
-    const spans = [...region.matchAll(/`([^`]+)`/g)].map((m) => m[1]);
-    const grammar = /^[A-Za-z_$][A-Za-z0-9_$]*(?:\.[A-Za-z_$][A-Za-z0-9_$]*)+$/;
-    return [...new Set(spans.filter((s) => grammar.test(s)))].sort();
+  function quotedListFor(region: string, constantName: string): string[] {
+    const lines = region.split("\n").filter((l) => l.includes(`\`${constantName}\``));
+    if (lines.length !== 1) {
+      throw new Error(
+        `PREMISE: the region carries ${lines.length} line(s) quoting \`${constantName}\`, not exactly one`,
+      );
+    }
+    const tail = lines[0].slice(lines[0].lastIndexOf(":") + 1);
+    return [...new Set([...tail.matchAll(/`([^`]+)`/g)].map((m) => m[1]))].sort();
   }
 
-  it("every dotted path the recipe's ban-set region lists is decided by the rule", async () => {
-    const { isBannedModifierPath } = await loadChecker();
+  it("the recipe's three quoted lists equal the exported constants, in both directions", async () => {
+    const { BANNED_MODIFIER_HEADS, BANNED_MODIFIER_TAILS, BANNED_EXACT_PATHS } = await loadChecker();
     const whole = readFileSync(RECIPE, "utf8");
     const region = extractSection(whole, BAN_SET_HEADING);
 
@@ -1185,18 +1196,31 @@ describe("browser-uat-recipe.md — 31-06 gap 2: the documented ban set equals t
       "PREMISE: the extracted region ran to end-of-file rather than to the next heading",
     ).toBeLessThan(whole.length);
 
-    const listed = listedDottedPaths(region);
-    // PREMISE: the region really lists dotted paths, or the loop below is a vacuous pass.
-    expect(listed.length, "PREMISE: the region lists no dotted path").toBeGreaterThan(0);
-    // 31-11 (D-17): the constant this compared against no longer exists — membership is a rule, so
-    // the question is whether the checker DECIDES every path the recipe names. The both-directions
-    // equality between the recipe's quoted constants and the exported constants is re-anchored in
-    // plan 31-12's scope-mate, plan 31-11 task 3, which rewrites the region to quote the rule.
-    for (const path of listed) {
-      expect(isBannedModifierPath(path), `the recipe names ${path}, which the rule does not decide`).toBe(
-        true,
+    // The pairs are built from the EXPORTED constants, so a fourth constant added to the rule
+    // without a fourth quoted line is a missing row here rather than a silence.
+    const pairs: ReadonlyArray<readonly [string, readonly string[]]> = [
+      ["BANNED_MODIFIER_HEADS", BANNED_MODIFIER_HEADS],
+      ["BANNED_MODIFIER_TAILS", BANNED_MODIFIER_TAILS],
+      ["BANNED_EXACT_PATHS", BANNED_EXACT_PATHS],
+    ];
+    for (const [name, exported] of pairs) {
+      const quoted = quotedListFor(region, name);
+      // PREMISE: the quoted list is non-empty, so the equality below is not two empty sets.
+      expect(quoted.length, `PREMISE: the recipe quotes nothing for ${name}`).toBeGreaterThan(0);
+      // Set EQUALITY, both directions: a value added to the constant and not to the recipe fails
+      // here, and so does a value the recipe names that the checker does not decide.
+      expect(quoted, `${name}: the recipe and the constant disagree`).toEqual([...exported].sort());
+      expect(quoted.length, `${name}: the recipe and the constant differ in size`).toBe(
+        exported.length,
       );
     }
+  });
+
+  it("the recipe states the one-directional boundary and names the plan that closes it", () => {
+    const region = extractSection(readFileSync(RECIPE, "utf8"), BAN_SET_HEADING);
+    expect(region).toContain("ONE DIRECTION only");
+    expect(region).toContain("31-12");
+    expect(region).toContain("UNKNOWN - verify");
   });
 
   it("the recipe's residual bullets are the exported residual array, verbatim", async () => {

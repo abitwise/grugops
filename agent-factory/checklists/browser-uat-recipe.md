@@ -147,14 +147,31 @@ invalidating the recorded evidence, which is a known limit of the digest as scop
 ## The spec-integrity ban set
 
 The ban is decided over the TypeScript abstract syntax tree by
-`tools/grugops/uat-spec-integrity.js`, never by a textual matcher. The set below is quoted from
-`BANNED_CONSTRUCTS` and the two AST arms beside it in
-`scripts/runnable-ref/uat-spec-integrity.ts`, so the claim here matches the mechanism there. The
-last two entries under "deliberately outside the set" are quoted from `UNRESOLVABLE_CALLEE_RESIDUALS`
-in the same file, so the disclosed boundary comes from the same source as the decided set.
+`tools/grugops/uat-spec-integrity.js`, never by a textual matcher. The three lists below are quoted
+by value from the constants of the same name in `scripts/runnable-ref/uat-spec-integrity.ts`, and
+the two AST arms are quoted from the same file, so the claim here matches the mechanism there. The
+last two entries under "deliberately outside the rule" are quoted from `UNRESOLVABLE_CALLEE_RESIDUALS`
+in that file, so the disclosed boundary comes from the same source as the decided rule.
 
 A modifier call is recognised by its callee's DOTTED PATH, so `test.skip(...)`, `test?.skip(...)`,
 `(test).skip(...)` and `test["skip"](...)` are the same construct and are decided the same way.
+
+**The modifier rule.** A modifier call is refused when the head segment of its dotted path is one of
+the banned head segments AND the tail segment is one of the banned modifier segments, or when the
+whole path is one of the banned exact paths. The segments in between — `describe`, `serial`,
+`parallel`, and whatever routing segment the framework adds next — route the call; they do not
+change what the tail does to the evidence a quality gate re-runs. Matching the head-and-tail pair
+rather than the whole literal path is what makes this a rule rather than a list of paths, so
+`test.describe.serial.only` is refused with nothing added to any list.
+
+- Banned head segments, quoted from `BANNED_MODIFIER_HEADS`: `test`, `describe`.
+- Banned modifier tail segments, quoted from `BANNED_MODIFIER_TAILS`: `skip`, `only`, `fixme`, `fail`.
+- Banned exact paths, quoted from `BANNED_EXACT_PATHS`: `expect.soft`.
+
+The tail set carries the INVERTING modifier as well as the removing ones. A removing modifier drops
+the scenario from the evidence; an inverting one runs the scenario and reports a failed assertion as
+a pass, so the lane is green because the acceptance criterion failed. An inverted scenario is worse
+for the evidence than a removed one, not milder, which is why it is decided rather than left unstated.
 
 Refused in a `*.uat.spec.ts` file:
 
@@ -162,19 +179,24 @@ Refused in a `*.uat.spec.ts` file:
 - An `expect` call under an `if`, under an `else`, or inside a conditional expression.
 - An `expect` call as an operand of `||`, of `&&`, or of `??`.
 - An `expect` call reached through an optional call.
-- `test.skip`, `test.fixme`, `test.only`, `test.describe.skip`, `test.describe.only`,
-  `test.describe.fixme`, `describe.skip`, `describe.only`, `expect.soft`.
+- Any modifier call the rule above decides.
 
-Deliberately outside the set, recorded here so the boundary is written down:
+Deliberately outside the rule, recorded here so the boundary is written down:
 
 - An assertion inside a promise `.catch()` handler is **not** refused.
 - An assertion inside a `finally` block is **not** refused; the third region of a `try` statement is
-  named by no rule in this set.
+  named by no rule here.
 - A spec body carrying **zero** assertions is **not** refused; vacuous evidence is deferred.
 - An aliased binding is not refused: `const t = test;` then a modifier call on `t`. The alias cannot be followed to its declaration without a type checker.
 - A member computed from a non-literal expression is not refused: `test[name](...)` where `name` is a variable. The member name is absent from the source text.
+- Completeness against the real framework surface is asserted in ONE DIRECTION only. Every spelling
+  the rule refuses is a construct the declared surface carries; whether every real modifier on that
+  surface is refused is the reverse question, and plan `31-12` is where it is answered. The declared
+  surface is itself a hand transcription whose drift from the released package is an open
+  `UNKNOWN - verify`, so a claim proven against it is a claim about the declared surface and not
+  about the package.
 
-Widening the set is a new decision and a gap-closure round, never a quiet edit to the checker.
+Widening the rule is a new decision and a gap-closure round, never a quiet edit to the checker.
 
 ### The exit-code contract
 

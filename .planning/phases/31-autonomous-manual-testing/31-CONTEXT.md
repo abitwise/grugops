@@ -104,6 +104,55 @@ new host runtime dependency, and any board/dashboard rendering (Phase 32).
 - **D-16: A Playwright-lane skip is recorded as an unstamped `observation` note carrying the marker text verbatim.** No `finding`, no `artifact-ref`, no board move; the ticket stays
   `In UAT` and the pack shows the scenario as pending with the reason.
 
+#### Gap-closure decision — D-17 (2026-09-08, gap-closure round 2, plan 31-11)
+
+This is a GAP-CLOSURE decision recorded during execution, not an original user decision from the
+discussion. It EXTENDS D-14 arm (c); it does not replace D-14, and no existing decision above is
+edited or renumbered.
+
+**Forced by:** CR-06 of `31-REVIEW.md` and gap 2 of `31-VERIFICATION.md` round 2 (the truth beginning
+"UATX-06"), plus the sibling finding WR-12 on the inverting modifier.
+
+- **D-17: D-14 arm (c) is decided by a RULE over the resolved dotted path, not by an enumerable set
+  of dotted paths.** A modifier call is refused when the HEAD segment of its dotted path is one of
+  the banned head segments (`test`, `describe`) AND the TAIL segment is one of the banned modifier
+  segments (`skip`, `only`, `fixme`, `fail`), or when the whole path is one of the banned exact
+  paths (`expect.soft`). The segments in between — `describe`, `serial`, `parallel`, and whatever
+  routing segment Playwright adds next — route the call and do not change what the tail does to the
+  evidence a gate re-runs. `BANNED_CONSTRUCTS`, the nine-member literal 31-06 shipped, is DELETED:
+  keeping a list of banned paths beside the rule would be two authorities for one question.
+  `isBannedModifierPath` is the only function that answers it, and the arm-(c) call site asks it and
+  performs no comparison of its own.
+  - **Why a rule and not two more members.** The round-2 verifier reproduced
+    `test.describe.serial.only(...)` and `test.describe.parallel.only(...)` passing the committed
+    `.js` at `0 findings over 1/1 uat specs checked`, exit 0, on the same harness that refuses
+    `test.describe.only` alone. Adding those two spellings would have been the third round of the
+    same edit against this repository's recorded set-literal drift. The runnable's own header
+    already required a red-team finding on the set to be "a NEW DECISION and a gap-closure round,
+    never a quiet edit", and cited the prior phase that closed a class by defining a canonical form
+    instead of adding one more spelling. This is that.
+  - **D-14's letter is preserved.** Every path D-14 enumerated — `test.skip`, `test.fixme`,
+    `test.only`, `describe.skip`, `describe.only`, `expect.soft` — and the three `test.describe.*`
+    spellings 31-06 added are still decided. The bare `describe` head is RETAINED even though
+    `@playwright/test` exports no top-level `describe`, because D-14 names it and because another
+    framework's bare `describe` can be imported into a spec file.
+  - **WR-12: the inverting modifier is decided rather than silent.** `test.fail(...)` runs the
+    scenario and reports a failing assertion as a pass, so the lane is green BECAUSE the acceptance
+    criterion failed. That is strictly worse for the evidence than removal, so `fail` joins the tail
+    set. Leaving it undecided was also a choice, and it was being made silently.
+  - **What D-17 does NOT establish.** The head set and the tail set are hand-authored, which is the
+    axis this defect class can reappear on. Completeness against the real Playwright modifier surface
+    is asserted in ONE direction only — every spelling the rule refuses is real — until plan `31-12`
+    lands the reverse partition. The declared surface those checks run against is itself a hand
+    transcription whose drift from the released package stays an open `UNKNOWN - verify` (`R-07`).
+  - **Reversibility: costly.** Deleting the enumerable set changed the exported contract that both
+    the recipe and the test suite consume. Reverting means restoring a set the verifier has now
+    measured as incomplete twice.
+  - **Recorded in three places that must agree:** here, in the comment beside the rule in
+    `scripts/runnable-ref/uat-spec-integrity.ts`, and in `31-11-SUMMARY.md`'s key-decisions block.
+    `agent-factory/checklists/browser-uat-recipe.md` quotes the three constants by value under a
+    both-directions equality test, so the documented claim and the decided rule have one source.
+
 ### Claude's Discretion
 - Exact runnable file name and the exact wording of the two new loud-skip markers, as long as
   each is a single exported constant with a single emission point (the `uat-live.test.ts` shape).
