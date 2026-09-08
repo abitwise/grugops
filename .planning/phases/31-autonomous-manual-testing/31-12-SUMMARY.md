@@ -178,6 +178,8 @@ status: complete
 
 No REFACTOR commit in either cycle: neither GREEN implementation needed cleanup (one interface member plus header prose; then a data record), and the reference's rule is to commit only on change.
 
+**Plan metadata:** `a5bf648` (SUMMARY), `a60f88c` (STATE + ROADMAP + WINDOWS), plus this correction. `actuals.commits: 5` is the protocol's measurement at SUMMARY-write time — the five task commits above, counted from `plan_head_before` when the SUMMARY was written; the docs tail is listed here by hash instead, matching 31-10's precedent in this phase.
+
 ## The measurement WR-13 asked for
 
 Probe repository at `.temp/cr06-reverse-probe`, three specs, run against the **committed `.js`** outside vitest. Deleted after measurement — `.temp/` is not in `SKIPPED_DIRECTORIES`, so a spec-shaped file left there would red the suite's "derives zero specs from grugops's own repository root" case.
