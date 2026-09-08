@@ -1387,6 +1387,241 @@ describe("uat-spec-integrity — 31-12 WR-13: the declared modifier surface, der
       "test.slow must stay OUTSIDE the ban — it changes a timeout, not the evidence",
     ).toBe(false);
   });
+
+  // ── THE PARTITION: every derived member is decided, and the cardinality says so ──────────────
+  //
+  // The forward direction above is a MEMBERSHIP check. This is a PARTITION with an asserted
+  // cardinality, and the difference is the whole point of WR-13: a membership spot-check can only
+  // ever confirm members the set already has, while a partition fails when a member lands that
+  // nobody decided. The three properties are asserted SEPARATELY so a disjointness failure and a
+  // cardinality failure read differently — the second is the one that means a member arrived and
+  // no decision was made about it.
+
+  /**
+   * The derived paths that are NOT refused by the rule, each with the reason it does not narrow or
+   * invert the evidence a quality gate re-runs.
+   *
+   * These are statements about EVIDENCE, not labels. A member whose reason cannot be written is a
+   * member that needs a decision, and the honest outcome is a red suite rather than a padded record
+   * (T-31-65): the partition below asserts every key here is a real derived path, so an entry added
+   * to make the arithmetic close is caught rather than counted.
+   */
+  const DISPOSITIONED_SURFACE_MEMBERS: Readonly<Record<string, string>> = Object.freeze({});
+
+  interface SurfacePartition {
+    /** Paths the shipped membership authority refuses. */
+    readonly refused: readonly string[];
+    /** Paths carrying a written reason for not being refused. */
+    readonly dispositioned: readonly string[];
+  }
+
+  /**
+   * Split a derived path set by asking the RUNNABLE's membership authority — never a copy of it
+   * (T-31-64). Nothing here re-implements the head-and-tail decision; a path the authority refuses
+   * is refused, and every remaining path must carry a disposition or fall outside both buckets,
+   * which is what the totality assertion reports.
+   */
+  function partitionDeclaredSurface(
+    paths: readonly string[],
+    isBanned: (dottedPath: string | null) => boolean,
+  ): SurfacePartition {
+    const refused: string[] = [];
+    const dispositioned: string[] = [];
+    for (const path of paths) {
+      if (isBanned(path)) refused.push(path);
+      else if (Object.prototype.hasOwnProperty.call(DISPOSITIONED_SURFACE_MEMBERS, path)) {
+        dispositioned.push(path);
+      }
+    }
+    return { refused, dispositioned };
+  }
+
+  /** The paths that fell outside BOTH buckets — the members nobody decided. */
+  function undecidedMembers(paths: readonly string[], p: SurfacePartition): string[] {
+    const decided = new Set([...p.refused, ...p.dispositioned]);
+    return paths.filter((path) => !decided.has(path)).sort();
+  }
+
+  /**
+   * The message the totality assertion prints. Factored out so the discrimination case below proves
+   * the REAL assertion names the offending member, rather than proving it about a second string.
+   */
+  function undecidedMessage(undecided: readonly string[]): string {
+    return (
+      `${undecided.length} member(s) of the declared surface are neither refused by the rule nor ` +
+      `dispositioned with a reason: ${undecided.join(", ")}. A member with no decision is a ` +
+      `construct that can change what a quality gate re-runs without anybody being told.`
+    );
+  }
+
+  it("the buckets are DISJOINT", async () => {
+    const { isBannedModifierPath } = await loadChecker();
+    const { paths } = walk();
+    const partition = partitionDeclaredSurface(paths, isBannedModifierPath);
+
+    // PREMISE: two empty buckets are trivially disjoint.
+    expect(
+      partition.refused.length,
+      "PREMISE: the refused bucket is empty",
+    ).toBeGreaterThan(0);
+
+    const both = partition.refused.filter((p) => partition.dispositioned.includes(p));
+    expect(
+      both,
+      `refused AND dispositioned at once: ${both.join(", ")} — a member cannot be both`,
+    ).toEqual([]);
+  });
+
+  it("the buckets' UNION equals the derived set", async () => {
+    const { isBannedModifierPath } = await loadChecker();
+    const { paths } = walk();
+    const partition = partitionDeclaredSurface(paths, isBannedModifierPath);
+
+    const undecided = undecidedMembers(paths, partition);
+    expect(undecided, undecidedMessage(undecided)).toEqual([]);
+    expect([...partition.refused, ...partition.dispositioned].sort()).toEqual([...paths].sort());
+  });
+
+  it("the buckets' SIZES sum to the derived count", async () => {
+    const { isBannedModifierPath } = await loadChecker();
+    const { paths } = walk();
+    const partition = partitionDeclaredSurface(paths, isBannedModifierPath);
+
+    // Asserted separately from the union on purpose: this is the arithmetic that says nothing was
+    // counted twice and nothing went missing, and it reads differently in a failure report.
+    expect(partition.refused.length + partition.dispositioned.length).toBe(paths.length);
+  });
+
+  it("every dispositioned member carries a reason, and the record holds no member the surface lacks", () => {
+    const { paths } = walk();
+    const derived = new Set(paths);
+    const entries = Object.entries(DISPOSITIONED_SURFACE_MEMBERS);
+
+    // PREMISE: an empty record makes the per-member loop below assert nothing.
+    expect(entries.length, "PREMISE: the disposition record is empty").toBeGreaterThan(0);
+
+    for (const [member, reason] of entries) {
+      // A padded record is the denial-of-service on this partition (T-31-65): an entry for a member
+      // the surface does not carry would make the arithmetic close over a member nobody can reach.
+      expect(derived.has(member), `${member} is dispositioned but is not a derived path`).toBe(true);
+      expect(reason.trim().length, `${member}: the disposition reason is empty`).toBeGreaterThan(0);
+      expect(
+        reason.trim().length,
+        `${member}: the disposition reason is shorter than a sentence — a label is not a reason`,
+      ).toBeGreaterThan(40);
+    }
+  });
+
+  // ── the two watched failures ─────────────────────────────────────────────────────────────────
+
+  /**
+   * Mirror the declared surface with one anchored substitution, following this file's mirror idiom:
+   * the anchor is asserted to occur EXACTLY ONCE before the mutation and to be ABSENT after it, so
+   * a mutation that matched nothing cannot be measured as a result.
+   */
+  function mirrorSurface(anchor: string, replacement: string): string {
+    const original = readFileSync(DECL, "utf8");
+    const occurrences = original.split(anchor).length - 1;
+    expect(
+      occurrences,
+      `PREMISE: the mutation anchor ${JSON.stringify(anchor)} occurs ${occurrences} time(s) in the ` +
+        `declared surface, not exactly once`,
+    ).toBe(1);
+
+    const mutated = original.replace(anchor, replacement);
+    expect(
+      mutated.includes(anchor),
+      `PREMISE: the anchor survived the mutation — the substitution matched nothing`,
+    ).toBe(false);
+
+    const path = join(mkTmp(), "playwright-test.d.ts");
+    writeFileSync(path, mutated, "utf8");
+    return path;
+  }
+
+  it("DISCRIMINATES: a fabricated run-narrowing member turns the partition red and is NAMED", async () => {
+    const { isBannedModifierPath } = await loadChecker();
+    // `fixme` becomes `mute`: a member whose name is neither a banned tail nor a dispositioned key.
+    const mirrored = deriveDeclaredModifierPaths(
+      mirrorSurface("readonly fixme: TestModifier;", "readonly mute: TestModifier;"),
+      SURFACE_WALK_MAX_DEPTH,
+    );
+    expect(mirrored.diagnostics, "PREMISE: the mirror does not compile").toEqual([]);
+    expect(mirrored.paths, "PREMISE: the mirror does not declare the fabricated member").toContain(
+      "test.mute",
+    );
+
+    // PREMISE: neither bucket claims it, or the case would prove nothing about the partition.
+    expect(isBannedModifierPath("test.mute")).toBe(false);
+    expect(Object.keys(DISPOSITIONED_SURFACE_MEMBERS)).not.toContain("test.mute");
+
+    const partition = partitionDeclaredSurface(mirrored.paths, isBannedModifierPath);
+    const undecided = undecidedMembers(mirrored.paths, partition);
+
+    expect(undecided, "the partition did not see the fabricated member at all").toContain(
+      "test.mute",
+    );
+    // The message the REAL totality assertion would print — the same function, not a second string.
+    expect(undecidedMessage(undecided)).toContain("test.mute");
+    // And the arithmetic that would have closed silently does not.
+    expect(partition.refused.length + partition.dispositioned.length).not.toBe(
+      mirrored.paths.length,
+    );
+  });
+
+  it("GENERALISES: a routing group nobody enumerated is refused with no edit to any set", async () => {
+    const { isBannedModifierPath, BANNED_MODIFIER_HEADS, BANNED_MODIFIER_TAILS, BANNED_EXACT_PATHS } =
+      await loadChecker();
+    // `parallel` becomes `shard`: a routing group that appears in no set, no fixture and no other
+    // case in this file. This is the property the deleted enumeration could not have had.
+    const mirrored = deriveDeclaredModifierPaths(
+      mirrorSurface("readonly parallel: DescribeGroup;", "readonly shard: DescribeGroup;"),
+      SURFACE_WALK_MAX_DEPTH,
+    );
+    expect(mirrored.diagnostics, "PREMISE: the mirror does not compile").toEqual([]);
+
+    const shardPaths = mirrored.paths.filter((p) => p.split(".").includes("shard"));
+    expect(
+      shardPaths.length,
+      "PREMISE: the mirror declares no member under the new routing group",
+    ).toBeGreaterThan(0);
+
+    const partition = partitionDeclaredSurface(mirrored.paths, isBannedModifierPath);
+    const bannedTailed = shardPaths.filter((p) =>
+      BANNED_MODIFIER_TAILS.includes(p.split(".").pop() ?? ""),
+    );
+    expect(
+      bannedTailed.length,
+      "PREMISE: the new routing group carries no member ending in a banned tail",
+    ).toBeGreaterThan(0);
+    for (const path of bannedTailed) {
+      expect(partition.refused, `${path}: the rule must refuse it with nothing added`).toContain(
+        path,
+      );
+    }
+
+    // NOTHING WAS EDITED TO ACHIEVE IT. This is the assertion that separates a rule from a list.
+    for (const [name, set] of [
+      ["BANNED_MODIFIER_HEADS", BANNED_MODIFIER_HEADS],
+      ["BANNED_MODIFIER_TAILS", BANNED_MODIFIER_TAILS],
+      ["BANNED_EXACT_PATHS", BANNED_EXACT_PATHS],
+    ] as const) {
+      expect(
+        set.some((v) => v.includes("shard")),
+        `${name} was widened to refuse the new routing group`,
+      ).toBe(false);
+    }
+    expect(
+      Object.keys(DISPOSITIONED_SURFACE_MEMBERS).some((k) => k.includes("shard")),
+      "the disposition record was widened to absorb the new routing group",
+    ).toBe(false);
+
+    // THE HONEST CONVERSE, asserted rather than left implicit: the rule generalises over TAILS, and
+    // it does not generalise over new MEMBERS. The routing group's own root carries no banned tail,
+    // so it lands outside both buckets — a new surface member genuinely needs a decision, and the
+    // partition says so instead of absorbing it.
+    expect(undecidedMembers(mirrored.paths, partition)).toContain("test.describe.shard");
+  });
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════════════════════
