@@ -878,3 +878,235 @@ describe("uat-spec-integrity fixtures — 31-06 gap 2: the corpus is inside a ty
     expect(joined).toContain("test.describe.only");
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// 31-06 GAP 2 — every banned spelling is a construct the declared surface ACTUALLY HAS.
+//
+// This is the cross-check that would have caught the gap. `describe.only` was in the ban set and
+// `@playwright/test` exports no top-level `describe`, so the checker was guarding a spelling it
+// could never see fired in the wild — and nothing in the shipped suite asked that question.
+//
+// The partition below is COMPUTED by asking the declared surface which heads it exports, never
+// typed out, so a member added to BANNED_CONSTRUCTS later is classified automatically.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+describe("uat-spec-integrity — 31-06 gap 2: the ban set against the declared @playwright/test surface", () => {
+  const ts = hostTypeScript as typeof import("typescript");
+  const DECL = join(FIXTURES, "playwright-test.d.ts");
+  const MODULE_SPECIFIER = "@playwright/test";
+
+  const COMPILER_OPTIONS: import("typescript").CompilerOptions = {
+    module: ts.ModuleKind.ESNext,
+    moduleResolution: ts.ModuleResolutionKind.Bundler,
+    target: ts.ScriptTarget.ES2022,
+    strict: true,
+    noEmit: true,
+    skipLibCheck: true,
+    types: [],
+  };
+
+  /** The names the declared ambient module exports, read from the declaration by the compiler. */
+  function declaredSurfaceExports(): string[] {
+    const program = ts.createProgram([DECL], COMPILER_OPTIONS);
+    const sf = program.getSourceFile(DECL);
+    if (sf === undefined) throw new Error(`PREMISE: ${DECL} was not part of the program`);
+    const checker = program.getTypeChecker();
+    let names: string[] | null = null;
+    ts.forEachChild(sf, (node) => {
+      if (!ts.isModuleDeclaration(node)) return;
+      if (!ts.isStringLiteral(node.name) || node.name.text !== MODULE_SPECIFIER) return;
+      const symbol = checker.getSymbolAtLocation(node.name);
+      if (symbol === undefined) return;
+      names = checker.getExportsOfModule(symbol).map((s) => s.getName()).sort();
+    });
+    if (names === null) {
+      throw new Error(
+        `PREMISE: no ambient declaration of ${MODULE_SPECIFIER} was found in ${DECL}; every ` +
+          `partition below would be derived from nothing`,
+      );
+    }
+    return names;
+  }
+
+  /** Split the ban set by the ONE question: is this member's head an export of that surface? */
+  function partitionBanSet(members: readonly string[]): {
+    exported: string[];
+    remainder: string[];
+  } {
+    const surface = new Set(declaredSurfaceExports());
+    const exported: string[] = [];
+    const remainder: string[] = [];
+    for (const path of members) {
+      (surface.has(path.split(".")[0]) ? exported : remainder).push(path);
+    }
+    return { exported, remainder };
+  }
+
+  /** Compile one call statement per member against a copy of the declared surface. */
+  function compileCalls(members: readonly string[]): {
+    diagnostics: string[];
+    source: string;
+    statements: number;
+  } {
+    const root = mkTmp();
+    copyFileSync(DECL, join(root, "playwright-test.d.ts"));
+    const heads = [...new Set(members.map((m) => m.split(".")[0]))].sort();
+    const calls = members.map((m, i) => `${m}("scenario ${i}");`);
+    const source = [
+      `import { ${heads.join(", ")} } from "${MODULE_SPECIFIER}";`,
+      ...calls,
+      "",
+    ].join("\n");
+    const srcPath = join(root, "banned-spellings.ts");
+    writeFileSync(srcPath, source, "utf8");
+    writeFileSync(
+      join(root, "tsconfig.json"),
+      JSON.stringify(
+        { compilerOptions: { ...COMPILER_OPTIONS, module: "esnext", moduleResolution: "bundler", target: "es2022" }, include: ["*.ts"] },
+        null,
+        2,
+      ),
+      "utf8",
+    );
+    const program = ts.createProgram([join(root, "playwright-test.d.ts"), srcPath], COMPILER_OPTIONS);
+    const diagnostics = [
+      ...program.getOptionsDiagnostics(),
+      ...program.getGlobalDiagnostics(),
+      ...program.getSyntacticDiagnostics(),
+      ...program.getSemanticDiagnostics(),
+    ].map((d) => `TS${d.code}: ${ts.flattenDiagnosticMessageText(d.messageText, " ")}`);
+    return { diagnostics, source, statements: calls.length };
+  }
+
+  it("the declared surface exports test and expect and NO top-level describe", () => {
+    const exports = declaredSurfaceExports();
+    expect(exports, "PREMISE: the declared surface exports nothing").not.toEqual([]);
+    expect(exports).toContain("test");
+    expect(exports).toContain("expect");
+    // The absence is the whole reason arm (c) had to gain the three test.describe.* paths.
+    expect(exports).not.toContain("describe");
+  });
+
+  it("every banned spelling whose head the surface exports type-checks against it", async () => {
+    const { BANNED_CONSTRUCTS } = await loadChecker();
+    const { exported, remainder } = partitionBanSet(BANNED_CONSTRUCTS);
+
+    // The partition is asserted by COUNT and, for the remainder, by VALUE.
+    expect(exported.length).toBe(7);
+    expect(remainder.length).toBe(2);
+    expect([...remainder].sort()).toEqual(["describe.only", "describe.skip"]);
+    expect(exported.length + remainder.length).toBe(BANNED_CONSTRUCTS.length);
+
+    const { diagnostics, source, statements } = compileCalls(exported);
+    // PREMISE before the verdict: a generator that silently produced nothing would compile clean
+    // and prove nothing. Assert the generated source really carries one call per member.
+    expect(source.length, "PREMISE: the generated source is empty").toBeGreaterThan(0);
+    expect(statements, "PREMISE: the generated call count is not the partition size").toBe(
+      exported.length,
+    );
+    for (const member of exported) {
+      expect(source, `PREMISE: ${member} is absent from the generated source`).toContain(
+        `${member}(`,
+      );
+    }
+    expect(diagnostics).toEqual([]);
+  });
+
+  it("the harness DISCRIMINATES: a fabricated member the surface lacks is a diagnostic", async () => {
+    const { BANNED_CONSTRUCTS } = await loadChecker();
+    const { exported } = partitionBanSet(BANNED_CONSTRUCTS);
+    const fabricated = "test.mute";
+    // PREMISE: the fabricated path is not already in the set, or the case would prove nothing.
+    expect(BANNED_CONSTRUCTS, `PREMISE: ${fabricated} is already banned`).not.toContain(fabricated);
+
+    const { diagnostics } = compileCalls([...exported, fabricated]);
+    expect(diagnostics.length).toBeGreaterThan(0);
+    expect(diagnostics.join("\n")).toContain("mute");
+  });
+
+  it("the remainder is derived by the same question, and the bare names really are absent", async () => {
+    const { BANNED_CONSTRUCTS } = await loadChecker();
+    const { remainder } = partitionBanSet(BANNED_CONSTRUCTS);
+    // Retained on purpose: D-14 named them, and another framework's bare `describe` can be
+    // imported into a spec file. They are not a defect — they are a strictly wider set.
+    for (const path of remainder) {
+      expect(path.startsWith("describe.")).toBe(true);
+      expect(declaredSurfaceExports()).not.toContain(path.split(".")[0]);
+    }
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// 31-06 GAP 2 — the recipe's claim and the checker's mechanism are quoted from ONE source.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+describe("browser-uat-recipe.md — 31-06 gap 2: the documented ban set equals the decided one", () => {
+  const RECIPE = join(REPO_ROOT, "agent-factory", "checklists", "browser-uat-recipe.md");
+  const BAN_SET_HEADING = "## The spec-integrity ban set";
+  const HEADING_LINE = /^(#{1,6}) /;
+
+  /** The region under one heading, ending at the next heading of the same or a higher level. */
+  function extractSection(text: string, heading: string): string {
+    const lines = text.split("\n");
+    const start = lines.findIndex((l) => l.trimEnd() === heading);
+    if (start < 0) {
+      throw new Error(
+        `PREMISE: the anchor heading ${JSON.stringify(heading)} is absent from the recipe — every ` +
+          `assertion over the region would be vacuous`,
+      );
+    }
+    const level = heading.slice(0, heading.indexOf(" ")).length;
+    let end = lines.length;
+    for (let i = start + 1; i < lines.length; i++) {
+      const m = HEADING_LINE.exec(lines[i]);
+      if (m !== null && m[1].length <= level) {
+        end = i;
+        break;
+      }
+    }
+    return lines.slice(start, end).join("\n");
+  }
+
+  /**
+   * The dotted paths the region LISTS, derived by a strict grammar over its backtick spans rather
+   * than by substring search. Substring search would count `describe.skip` as present whenever
+   * `test.describe.skip` is — the collision that would make a set comparison pass vacuously.
+   */
+  function listedDottedPaths(region: string): string[] {
+    const spans = [...region.matchAll(/`([^`]+)`/g)].map((m) => m[1]);
+    const grammar = /^[A-Za-z_$][A-Za-z0-9_$]*(?:\.[A-Za-z_$][A-Za-z0-9_$]*)+$/;
+    return [...new Set(spans.filter((s) => grammar.test(s)))].sort();
+  }
+
+  it("the recipe's ban-set region lists exactly the members of BANNED_CONSTRUCTS", async () => {
+    const { BANNED_CONSTRUCTS } = await loadChecker();
+    const whole = readFileSync(RECIPE, "utf8");
+    const region = extractSection(whole, BAN_SET_HEADING);
+
+    // PREMISE: the extractor found a real, bounded region — an extractor that ran to end-of-file
+    // would silently adopt an unrelated later section.
+    expect(region.length, "PREMISE: the extracted region is empty").toBeGreaterThan(0);
+    expect(
+      region.length,
+      "PREMISE: the extracted region ran to end-of-file rather than to the next heading",
+    ).toBeLessThan(whole.length);
+
+    const listed = listedDottedPaths(region);
+    // Set EQUALITY, not containment: a member added to the constant and not to the recipe fails
+    // here, and so does a name in the recipe the checker does not decide.
+    expect(listed).toEqual([...BANNED_CONSTRUCTS].sort());
+    expect(listed.length).toBe(BANNED_CONSTRUCTS.length);
+  });
+
+  it("the recipe's residual bullets are the exported residual array, verbatim", async () => {
+    const { UNRESOLVABLE_CALLEE_RESIDUALS } = await loadChecker();
+    const region = extractSection(readFileSync(RECIPE, "utf8"), BAN_SET_HEADING);
+    expect(
+      UNRESOLVABLE_CALLEE_RESIDUALS.length,
+      "PREMISE: the residual array is empty",
+    ).toBeGreaterThan(0);
+    for (const residual of UNRESOLVABLE_CALLEE_RESIDUALS) {
+      expect(region, `the recipe does not carry the residual: ${residual}`).toContain(residual);
+    }
+  });
+});

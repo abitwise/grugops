@@ -1849,8 +1849,17 @@ const SECTION_EXTENT_OWNER_COUNT = 1;
  *     narrow the git side too — two edits to one predicate's input, which is the drift shape D-24
  *     exists to prevent. Leaving them IN widens the scans that read this set, and a wider scan can
  *     only find more, never fewer: the fail-safe direction.
+ *
+ * 66 -> 67 (plan 31-06, closing gap 2 of 31-VERIFICATION.md), ONE further corpus file:
+ *   - `scripts/runnable-ref/fixtures/element-access-modifier.uat.spec.ts` — the bracket-notation
+ *     fixture. Same standing as the five corpus files above: not a tooling module, counted anyway
+ *     because this set is pinned equal to `git ls-files '*.ts'`, and a wider scan can only find
+ *     more. It declares no frontmatter parser and locates no section, so both owner answers are
+ *     unchanged. The same plan also adds
+ *     `scripts/runnable-ref/fixtures/playwright-test.d.ts`, which does NOT move this number: the
+ *     walk excludes `.d.ts` by construction, and so does the `git ls-files` side it is pinned to.
  */
-const NON_TEST_MODULE_COUNT = 66;
+const NON_TEST_MODULE_COUNT = 67;
 
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 // (Plan 29-40, gap G-29-1 of 29-UAT.md, closing V-29-35-01) THE FRONTMATTER-PARSER NAME OWNER SET.

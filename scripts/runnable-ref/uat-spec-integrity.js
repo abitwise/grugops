@@ -96,8 +96,8 @@ export const BANNED_CONSTRUCTS = Object.freeze([
 // checker (D-13): it resolves `typescript` from the TARGET repository at run time and uses it to
 // PARSE, never to check types. Both shapes are therefore NAMED here rather than left as a silence.
 export const UNRESOLVABLE_CALLEE_RESIDUALS = Object.freeze([
-    "An aliased binding — `const t = test;` followed by a modifier call on `t` — is not refused; the alias cannot be followed to its declaration without a type checker.",
-    "A member access computed from a non-literal expression — `test[name](...)` where `name` is a variable — is not refused; the member name is not present in the source text.",
+    "An aliased binding is not refused: `const t = test;` then a modifier call on `t`. The alias cannot be followed to its declaration without a type checker.",
+    "A member computed from a non-literal expression is not refused: `test[name](...)` where `name` is a variable. The member name is absent from the source text.",
 ]);
 // D-13: the loud skip for an unresolvable parser. One frozen constant, ONE emission point, so a test
 // can assert the emitted text byte-for-byte. It names `typescript` and states the honest outcome.

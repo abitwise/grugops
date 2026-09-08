@@ -3278,7 +3278,8 @@ describe("check-banned-claims — an excluded directory is excluded WHEREVER it 
     const exact = bannedClaimExcludedExactPaths();
     expect(seg).toEqual(["docs", ".planning", "scripts"]);
     expect(root).toEqual([".gemini/", "memory-bank/", "plans/"]);
-    expect(exact.length).toBe(7);
+    // 31-06 added tsconfig.fixtures.json, dispositioned by name in the block above.
+    expect(exact.length).toBe(8);
     expect(seg.length + root.length + exact.length).toBe(
       BANNED_CLAIM_EXCLUDED_LOCATIONS.length,
     );

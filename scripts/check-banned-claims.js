@@ -687,8 +687,11 @@ export const BANNED_CLAIM_EXEMPT_REGION = {
 //   .claude-plugin/plugin.json        ADMITTED — the sixth part below. Shipped; carries a claim.
 //   .claude-plugin/marketplace.json   ADMITTED — the sixth part below. Shipped; carries a claim.
 //   package.json, package-lock.json   TOOLCHAIN MANIFESTS. Dependency and script data consumed by
-//   tsconfig.json, tsconfig.tests.json   npm and tsc. They ship to nobody and make no claim; their
-//                                     free-text fields are names and versions.
+//   tsconfig.json, tsconfig.tests.json,  npm and tsc. They ship to nobody and make no claim; their
+//   tsconfig.fixtures.json            free-text fields are names and versions. (31-06 added
+//                                     tsconfig.fixtures.json, the fixture-corpus typecheck target;
+//                                     its header explains a build decision to a maintainer, which
+//                                     is the same standing as its two siblings.)
 //   .gemini/settings.json             TOOL CONFIGURATION. Adapter wiring for one host CLI.
 //   hooks/hooks.json                  TOOL CONFIGURATION. The Claude Code hook wiring.
 //   agent-factory/config/factory.config.json          KIT CONFIGURATION DATA. The dial. Keys and
@@ -776,6 +779,7 @@ export const BANNED_CLAIM_EXCLUDED_LOCATIONS = [
     "hooks/hooks.json",
     "package-lock.json",
     "package.json",
+    "tsconfig.fixtures.json",
     "tsconfig.json",
     "tsconfig.tests.json",
 ];

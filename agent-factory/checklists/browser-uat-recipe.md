@@ -149,7 +149,12 @@ invalidating the recorded evidence, which is a known limit of the digest as scop
 The ban is decided over the TypeScript abstract syntax tree by
 `tools/grugops/uat-spec-integrity.js`, never by a textual matcher. The set below is quoted from
 `BANNED_CONSTRUCTS` and the two AST arms beside it in
-`scripts/runnable-ref/uat-spec-integrity.ts`, so the claim here matches the mechanism there.
+`scripts/runnable-ref/uat-spec-integrity.ts`, so the claim here matches the mechanism there. The
+last two entries under "deliberately outside the set" are quoted from `UNRESOLVABLE_CALLEE_RESIDUALS`
+in the same file, so the disclosed boundary comes from the same source as the decided set.
+
+A modifier call is recognised by its callee's DOTTED PATH, so `test.skip(...)`, `test?.skip(...)`,
+`(test).skip(...)` and `test["skip"](...)` are the same construct and are decided the same way.
 
 Refused in a `*.uat.spec.ts` file:
 
@@ -157,7 +162,8 @@ Refused in a `*.uat.spec.ts` file:
 - An `expect` call under an `if`, under an `else`, or inside a conditional expression.
 - An `expect` call as an operand of `||`, of `&&`, or of `??`.
 - An `expect` call reached through an optional call.
-- `test.skip`, `test.fixme`, `test.only`, `describe.skip`, `describe.only`, `expect.soft`.
+- `test.skip`, `test.fixme`, `test.only`, `test.describe.skip`, `test.describe.only`,
+  `test.describe.fixme`, `describe.skip`, `describe.only`, `expect.soft`.
 
 Deliberately outside the set, recorded here so the boundary is written down:
 
@@ -165,6 +171,8 @@ Deliberately outside the set, recorded here so the boundary is written down:
 - An assertion inside a `finally` block is **not** refused; the third region of a `try` statement is
   named by no rule in this set.
 - A spec body carrying **zero** assertions is **not** refused; vacuous evidence is deferred.
+- An aliased binding is not refused: `const t = test;` then a modifier call on `t`. The alias cannot be followed to its declaration without a type checker.
+- A member computed from a non-literal expression is not refused: `test[name](...)` where `name` is a variable. The member name is absent from the source text.
 
 Widening the set is a new decision and a gap-closure round, never a quiet edit to the checker.
 
