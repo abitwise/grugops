@@ -15,10 +15,17 @@
 // The `include` list is inherited from `tsconfig.json` (install/, scripts/, hooks/). The only
 // override is the exclude list, which drops the `**/*.test.ts` entry and keeps the other three.
 //
-// scripts/runnable-ref/fixtures/** IS KEPT. Those files are a parse CORPUS for
-// uat-spec-integrity.js, not tooling source: they import @playwright/test (a dependency grugops
-// deliberately does not carry) and several of them contain, on purpose, the exact constructs the
-// checker refuses. Typechecking a corpus asserts nothing about the checker that reads it.
+// scripts/runnable-ref/fixtures/** IS KEPT IN THE EXCLUDE LIST, and the reason recorded here was
+// WRONG. It used to read "typechecking a corpus asserts nothing about the checker that reads it".
+// Gap 2 of 31-VERIFICATION.md disproved that: union-all-arms.uat.spec.ts imported a top-level
+// `describe` from @playwright/test — a binding that package does not export — and because the
+// corpus was outside every typecheck target, nothing said so. The fixture meant to prove D-14 arm
+// (c) was not representative of real Playwright code, which is exactly why arm (c) could match a
+// spelling Playwright never produces and still look green.
+//
+// The corrected reason: the fixtures stay out of THIS target because they have their OWN, at
+// tsconfig.fixtures.json, which compiles them against a declared @playwright/test surface and is
+// wired into `npm run typecheck`. They are excluded here, not unchecked.
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {

@@ -24,6 +24,7 @@ import {
   mkdirSync,
   copyFileSync,
   readFileSync,
+  readdirSync,
   rmSync,
   writeFileSync,
   symlinkSync,
@@ -359,6 +360,7 @@ describe("uat-spec-integrity.js — D-14 arms (a) and (b), and the union of the 
     "caught-assertion.uat.spec.ts",
     "conditional-assertion.uat.spec.ts",
     "modifier-call.uat.spec.ts",
+    "element-access-modifier.uat.spec.ts",
   ]) {
     it(`mutation: ${fixture} is accepted once its banned constructs, and only those, are removed`, () => {
       const before = runCheck(
@@ -789,5 +791,90 @@ describe("uat-spec-integrity.js — 31-06 gap 2: the real Playwright modifier sp
     // pins the disclosure to the behaviour, so a future change that closes one is visible here.
     expect(alias).toEqual([]);
     expect(computed).toEqual([]);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// 31-06 GAP 2 — the fixture corpus is TYPE-CHECKED evidence.
+//
+// The corpus was excluded from BOTH tsconfig targets, so `union-all-arms.uat.spec.ts` could import
+// a `describe` binding @playwright/test does not export and no command in this repository said so.
+// A corpus outside the reach of a typecheck cannot fail, and a fixture that cannot fail is not
+// evidence. The cases below pin the corpus INTO the command that checks it.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+describe("uat-spec-integrity fixtures — 31-06 gap 2: the corpus is inside a typecheck target", () => {
+  const FIXTURES_TSCONFIG = join(REPO_ROOT, "tsconfig.fixtures.json");
+
+  /** Read a tsconfig that carries a leading `//` header, the way tsconfig.tests.json does. */
+  function readJsonc(absPath: string): Record<string, unknown> {
+    const stripped = readFileSync(absPath, "utf8")
+      .split("\n")
+      .filter((l) => !l.trim().startsWith("//"))
+      .join("\n");
+    return JSON.parse(stripped) as Record<string, unknown>;
+  }
+
+  it("every *.uat.spec.ts fixture on disk is reached by tsconfig.fixtures.json's include", () => {
+    const config = readJsonc(FIXTURES_TSCONFIG);
+    const include = config.include as string[];
+    // PREMISE: the include list is non-empty, so the containment check below is not vacuous.
+    expect(include.length, "PREMISE: tsconfig.fixtures.json has no include list").toBeGreaterThan(0);
+    expect(include).toContain("scripts/runnable-ref/fixtures/**/*.uat.spec.ts");
+    expect((config.compilerOptions as { noEmit?: boolean }).noEmit).toBe(true);
+
+    // The corpus is DERIVED from disk, never typed out, so a fixture added later is covered by this
+    // assertion automatically rather than being silently outside the target.
+    const onDisk = readdirSync(FIXTURES).filter((n) => n.endsWith(".uat.spec.ts")).sort();
+    expect(onDisk.length, "PREMISE: no fixture was found on disk").toBeGreaterThan(0);
+    expect(onDisk).toContain("union-all-arms.uat.spec.ts");
+    expect(onDisk).toContain("element-access-modifier.uat.spec.ts");
+  });
+
+  it("npm run typecheck runs the fixtures target, so the check is not outside the command", () => {
+    const pkg = JSON.parse(readFileSync(join(REPO_ROOT, "package.json"), "utf8")) as {
+      scripts: Record<string, string>;
+    };
+    const typecheck = pkg.scripts.typecheck;
+    expect(typecheck).toContain("tsconfig.fixtures.json");
+    // Three targets, three invocations: the shipped source, the tests, the fixture corpus.
+    expect(typecheck.split("tsc ").length - 1).toBe(3);
+  });
+
+  it("no fixture imports a top-level describe binding from @playwright/test", () => {
+    // The declared surface exports none, so this is the shape the typecheck target refuses. The
+    // assertion is here as well because it names the DEFECT rather than only the diagnostic.
+    for (const name of readdirSync(FIXTURES).filter((n) => n.endsWith(".uat.spec.ts"))) {
+      const text = readFileSync(join(FIXTURES, name), "utf8");
+      const importLine = text.split("\n").find((l) => l.includes('from "@playwright/test"'));
+      expect(importLine, `${name}: no @playwright/test import found`).toBeDefined();
+      expect(
+        /\bdescribe\b/.test(importLine!.slice(0, importLine!.indexOf("}") + 1)),
+        `${name}: imports a top-level describe, which @playwright/test does not export`,
+      ).toBe(false);
+    }
+  });
+
+  it("the element-access fixture yields exactly two findings, one per bracket-notation construct", () => {
+    const root = mkTargetRepo({ "e2e/uat/billing.uat.spec.ts": "element-access-modifier.uat.spec.ts" });
+    const r = runCheck(root, "--json");
+    expect(r.status).toBe(1);
+    const parsed = JSON.parse(r.stdout) as { ok: boolean; findings: string[] };
+    expect(parsed.findings.length).toBe(2);
+    const joined = parsed.findings.join("\n");
+    // Both normalise to the dotted path of their dotted spelling.
+    expect(joined).toContain("test.skip");
+    expect(joined).toContain("expect.soft");
+  });
+
+  it("the corrected union fixture still reports all three arms, now through test.describe.only", () => {
+    const root = mkTargetRepo({ "e2e/uat/billing.uat.spec.ts": "union-all-arms.uat.spec.ts" });
+    const r = runCheck(root, "--json");
+    expect(r.status).toBe(1);
+    const parsed = JSON.parse(r.stdout) as { ok: boolean; findings: string[] };
+    const joined = parsed.findings.join("\n");
+    expect(joined).toContain("caught assertion");
+    expect(joined).toContain("conditional assertion");
+    expect(joined).toContain("test.describe.only");
   });
 });

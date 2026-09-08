@@ -7,7 +7,7 @@
   },
   "scripts": {
     "build": "tsc",
-    "typecheck": "tsc --noEmit && tsc -p tsconfig.tests.json",
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.tests.json && tsc -p tsconfig.fixtures.json",
     "test": "vitest run",
     "test:e2e": "vitest run scripts/e2e",
     "freshness": "tsc --outDir .tmp-build && node scripts/freshness.js",

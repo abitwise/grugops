@@ -3,15 +3,15 @@
 // A parse CORPUS file, not a test. It carries ONE instance of each of D-14's three arms:
 //   (a) a caught assertion — an `expect` inside a catch clause;
 //   (b) a conditional assertion — an `expect` under an `if`;
-//   (c) a banned modifier call — `describe.only`.
+//   (c) a banned modifier call — `test.describe.only`, the spelling @playwright/test actually has.
 //
 // It exists because a walk that returns at the first arm it reaches would still refuse this file,
 // exit 1 and look correct. The harness therefore asserts that ALL THREE characteristic findings are
 // reported together: the result is the UNION of the arms, not the first one hit.
 
-import { test, expect, describe } from "@playwright/test";
+import { test, expect } from "@playwright/test";
 
-describe.only("billing", () => {
+test.describe.only("billing", () => {
   test("an overdue invoice blocks a plan change", async ({ page }) => {
     await page.goto("/billing");
     const overdue = await page.getByTestId("overdue-badge").isVisible();

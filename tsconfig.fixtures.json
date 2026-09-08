@@ -1,0 +1,36 @@
+// tsconfig.fixtures.json — the FIXTURE-CORPUS typecheck target (31-06, closing gap 2).
+//
+// WHY THIS FILE EXISTS. `scripts/runnable-ref/fixtures/**` was excluded from BOTH other targets, so
+// `union-all-arms.uat.spec.ts` could import `describe` from `@playwright/test` — a binding that
+// package does not export — and no command in this repository ever said so. The fixture meant to
+// prove D-14 arm (c) was not representative of real Playwright code, which is precisely why the
+// shipped 47-of-47 green suite could not have caught arm (c) matching a spelling Playwright never
+// produces. A corpus outside the reach of a typecheck is not evidence.
+//
+// WHY A THIRD TARGET RATHER THAN LOOSENING EITHER OF THE OTHER TWO.
+//   - `tsconfig.json` is the SHIPPED-SOURCE target. Its exclude list must stay byte-unchanged so
+//     `npm run build` and `npm run freshness` keep emitting exactly the same committed `.js` set.
+//     Pulling the fixtures in there would emit a `.js` twin for every corpus file and the freshness
+//     gate would then demand those twins be committed.
+//   - `tsconfig.tests.json` exists to give the dead-code flags REACH over `**/*.test.ts`. The
+//     fixtures are a parse corpus, not tooling source; they belong to their own target, which can
+//     point at a declared `@playwright/test` surface without that declaration leaking into the
+//     target that checks the tooling.
+//
+// WHAT IT CHECKS AGAINST. `scripts/runnable-ref/fixtures/playwright-test.d.ts`, a hand-transcribed
+// declaration of the surface this corpus uses. Read that file's header before trusting it: its
+// drift from the upstream package is an open `UNKNOWN - verify`.
+//
+// This target sets `noEmit` and emits nothing at all. It is wired into `npm run typecheck`, so a
+// fixture regression fails the same command CI and every plan's verify step already run.
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true
+  },
+  "include": [
+    "scripts/runnable-ref/fixtures/**/*.uat.spec.ts",
+    "scripts/runnable-ref/fixtures/playwright-test.d.ts"
+  ],
+  "exclude": ["node_modules", ".tmp-build"]
+}

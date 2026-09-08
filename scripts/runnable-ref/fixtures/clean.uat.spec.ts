@@ -25,7 +25,7 @@ test("checkout completes and the receipt shows the paid total", async ({ page })
   // A try/catch/finally that carries no assertion: the ban is on a CAUGHT ASSERTION, not on error
   // handling in the setup path.
   try {
-    await page.getByTestId("promo-banner").dismiss();
+    await page.getByTestId("promo-banner").click();
   } catch {
     await page.reload();
   } finally {
