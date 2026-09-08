@@ -6536,6 +6536,64 @@ describe("31-15 — WR-15: the target repository's dial is read on every host", 
     for (const name of mod.TRUSTED_ROOT_ENV_ORDER) expect(Object.keys(cleanEnv())).not.toContain(name);
   });
 
+  // ── THE FALL-THROUGH CASCADE, AND THE CONSUMER SET DERIVED RATHER THAN TYPED (plan 31-15). ────
+  //
+  // The cases above assert that each step ANSWERS when its input is present. This one asserts the
+  // other half — that removing a step's input makes the NEXT step answer, and that the order is
+  // total: with a DISTINCT root planted at every step, removing them one at a time walks the
+  // resolution down the order, position by position, ending at the kit.
+
+  it("CASCADE: removing each step's input hands the answer to the next step, down to the kit", () => {
+    const viaClaude = projectWith(ACTIVE, "p31-15-cascade-1-");
+    const viaInstaller = projectWith(ACTIVE, "p31-15-cascade-2-");
+    const viaCwd = projectWith(ACTIVE, "p31-15-cascade-3-");
+    const env: Record<string, string> = {
+      [mod.TRUSTED_ROOT_ENV_ORDER[0]]: viaClaude,
+      [mod.TRUSTED_ROOT_ENV_ORDER[1]]: viaInstaller,
+    };
+    // All three inputs present → step 1.
+    expect(drive("trustedRepoRoot", { cwd: viaCwd, env }).root).toBe(viaClaude);
+    // Step 1 removed → step 2.
+    delete env[mod.TRUSTED_ROOT_ENV_ORDER[0]];
+    expect(drive("trustedRepoRoot", { cwd: viaCwd, env }).root).toBe(viaInstaller);
+    // Step 2 removed → step 3.
+    delete env[mod.TRUSTED_ROOT_ENV_ORDER[1]];
+    expect(drive("trustedRepoRoot", { cwd: viaCwd, env }).root).toBe(viaCwd);
+    // Step 3's input removed (a working directory with nothing above it) → step 4, the kit.
+    expect(drive("trustedRepoRoot", { cwd: tmp15("p31-15-cascade-4-"), env }).root).toBe(KIT);
+  });
+
+  /**
+   * The files this block drives. Asserted SET-EQUAL to the files that actually name the one function,
+   * because this repository's recorded second failure class is a hand-maintained set that rots while
+   * the suite stays green: a new consumer added tomorrow is a red test here, not a silent gap.
+   */
+  const DRIVEN_CONSUMER_FILES = [
+    "hooks/admission-guard.ts",
+    "hooks/guard.ts",
+    "scripts/admission-server.ts",
+    "scripts/context-io.ts",
+  ];
+
+  it("the consumer set is DERIVED from the source rather than hand-typed", () => {
+    const sources: string[] = [];
+    for (const dir of ["scripts", "hooks"]) {
+      for (const f of readdirSync(join(ROOT, dir))) {
+        if (!f.endsWith(".ts") || f.endsWith(".test.ts") || f.endsWith(".d.ts")) continue;
+        sources.push(`${dir}/${f}`);
+      }
+    }
+    expect(sources.length, "PREMISE: no TypeScript sources were scanned").toBeGreaterThan(10);
+    const callers = sources.filter((rel) =>
+      /trustedRepoRoot\s*\(/.test(readFileSync(join(ROOT, rel), "utf8")),
+    );
+    expect(
+      callers.sort(),
+      "a file names the one trusted root and is not driven by this block — either drive it or " +
+        "explain why its answer cannot differ",
+    ).toEqual([...DRIVEN_CONSUMER_FILES].sort());
+  });
+
   // ── IN-08: a Tier-1 oracle writes to a root IT owns, never to the host repository's ledger. ───
   //
   // `equivDoWork` called `appendNote` with no governance root, so `admit()` resolved the AMBIENT
