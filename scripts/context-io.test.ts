@@ -5111,3 +5111,163 @@ describe("31-05 gap 1 — appendNote routes an artifact-ref through the single a
     expect(after).toHaveLength(3);
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// 31-09 — CR-05: the fabricated finding stamp
+//
+// WHY THIS BLOCK EXISTS. 31-05 wired appendNote to the admission authority for ONE kind, and
+// 31-VERIFICATION.md round 2 measured the consequence one kind over: admit() decides four refusal
+// families and the branch reached D-03 only, so D-01 — "a finding stamped §14-gate#<id> is admitted
+// only against a live green verdict with that per-run id" — stayed unreachable from the writer that
+// two shipped workflows name BY NAME. The verifier reproduced it live against the committed
+// scripts/context-io.js: a finding carrying `verified_by: "§14-gate#fabricated-run-id"` was WRITTEN,
+// an id returned, and render() printed it into index.md as an ordinary row, indistinguishable from
+// a genuinely admitted finding.
+//
+// THE FIX REMOVES THE AXIS RATHER THAN WIDENING IT. appendNote no longer decides which kinds
+// admission applies to; it consults the authority unconditionally. So these cases are not "the
+// finding kind now refuses" — they are "the writer expresses no opinion about kind at all", which
+// is why the artifact-ref cases above must still pass byte-for-byte beside them.
+//
+// The cases below were WATCHED FAILING against the pre-fix committed .js; the pre-fix output is
+// quoted verbatim in 31-09-SUMMARY.md.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+describe("31-09 — CR-05: the fabricated finding stamp", () => {
+  /** The verifier's exact task name and fabricated per-run id, verbatim (31-VERIFICATION.md). */
+  const CR05_TASK = "verify-repro-task";
+  const CR05_FABRICATED_RUN = "fabricated-run-id";
+  const CR05_STAMP = `§14-gate#${CR05_FABRICATED_RUN}`;
+
+  /** The verifier's exact call shape: kind finding, author qe-e2e, high confidence, fixed `at`. */
+  function fabricatedFinding(
+    over: Partial<Parameters<typeof mod.appendNote>[1]> = {},
+  ): Parameters<typeof mod.appendNote>[1] {
+    return {
+      kind: "finding",
+      by: "qe-e2e",
+      at: "2026-09-08T01:00:00Z",
+      verified_by: CR05_STAMP,
+      confidence: "high",
+      refs: [],
+      supersedes: null,
+      ...over,
+    };
+  }
+
+  function noteCount(contextRoot: string, task: string): number {
+    return notesSnapshot(contextRoot, task).length;
+  }
+
+  // ── RED 1 + RED 2: the reproducing call, into a context root holding NO verdict at all. ────────
+  it("REFUSES the verifier's fabricated §14-gate stamp on a finding and writes NOTHING", () => {
+    const contextRoot = freshTmp("p31-09-cr05-repro-");
+    const before = noteCount(contextRoot, CR05_TASK);
+    expect(() =>
+      mod.appendNote(
+        CR05_TASK,
+        fabricatedFinding(),
+        "the checkout flow passes end to end",
+        contextRoot,
+      ),
+    ).toThrow(new RegExp(CR05_FABRICATED_RUN));
+    // "…and nothing is written" is the other half of the truth, so it is asserted, not assumed.
+    expect(noteCount(contextRoot, CR05_TASK)).toBe(before);
+  });
+
+  it("the refusal reproduces the AUTHORITY's own D-01 text, not a message composed at the writer", () => {
+    const contextRoot = freshTmp("p31-09-cr05-msg-");
+    let message = "";
+    try {
+      mod.appendNote(CR05_TASK, fabricatedFinding(), "body", contextRoot);
+    } catch (e) {
+      message = (e as Error).message;
+    }
+    expect(message).toContain("context-io.appendNote");
+    expect(message).toContain("no live green §14-gate verdict found");
+    expect(message).toContain(CR05_STAMP);
+    expect(message).toMatch(/nothing (is|was) written/i);
+  });
+
+  // ── RED 3: the note the verifier saw rendered into index.md is not there to render. ────────────
+  it("the fabricated per-run id appears NOWHERE in the rendered index.md", () => {
+    const contextRoot = freshTmp("p31-09-cr05-render-");
+    try {
+      mod.appendNote(CR05_TASK, fabricatedFinding(), "the checkout flow passes end to end", contextRoot);
+    } catch {
+      /* the refusal is asserted above; here the question is what render() can print */
+    }
+    // A soft note gives render() something real to print, so an EMPTY index is not what passes this.
+    mod.appendNote(
+      CR05_TASK,
+      { kind: "observation", by: "qe-e2e", at: "2026-09-08T01:05:00Z", verified_by: "", confidence: "high", refs: [], supersedes: null },
+      "an ordinary observation",
+      contextRoot,
+    );
+    mod.render(CR05_TASK, contextRoot);
+    const md = readFileSync(join(contextRoot, CR05_TASK, "index.md"), "utf8");
+    expect(md).toContain("an ordinary observation");
+    expect(md).not.toContain(CR05_FABRICATED_RUN);
+  });
+
+  // ── RED 4: the two exported writers AGREE, where they previously gave opposite dispositions. ───
+  it("admitAndAppend refuses the identical note with the SAME authority text", () => {
+    const contextRoot = freshTmp("p31-09-cr05-aaa-");
+    const repoRoot = freshTmp("p31-09-cr05-aaa-repo-");
+    let writerMessage = "";
+    try {
+      mod.appendNote(CR05_TASK, fabricatedFinding(), "body", contextRoot);
+    } catch (e) {
+      writerMessage = (e as Error).message;
+    }
+    const combiner = mod.admitAndAppend(
+      CR05_TASK,
+      fabricatedFinding(),
+      "body",
+      contextRoot,
+      repoRoot,
+    );
+    expect(combiner.id).toBeNull();
+    const combinerMessage = combiner.findings.join("\n");
+    expect(combinerMessage).toContain("no live green §14-gate verdict found");
+    // The SAME authority text, not merely two refusals: the writer's message wraps the authority's
+    // findings verbatim, so the shared substring is the authority's sentence and nothing else.
+    expect(writerMessage).toContain(combinerMessage);
+    expect(noteCount(contextRoot, CR05_TASK)).toBe(0);
+  });
+
+  // ── GREEN 1: the legitimate path still opens. A fix that closed it would be a worse defect. ────
+  it("WRITES a finding stamped against a REAL live green verdict, and the id is the filename", () => {
+    const contextRoot = freshTmp("p31-09-cr05-green-");
+    mod.emitVerdict(CR05_TASK, "RUN-REAL", "clean", FIXTURE_GATE_SHA, contextRoot);
+    const id = mod.appendNote(
+      CR05_TASK,
+      fabricatedFinding({ verified_by: "§14-gate#RUN-REAL" }),
+      "the checkout flow passes end to end",
+      contextRoot,
+    );
+    expect(id).toBeTruthy();
+    const path = join(contextRoot, CR05_TASK, "notes", `${id}.md`);
+    expect(existsSync(path)).toBe(true);
+    expect(readFileSync(path, "utf8")).toContain("verified_by: §14-gate#RUN-REAL");
+  });
+
+  // ── GREEN 3: the unstamped kinds are untouched — the writer gained no new opinion. ─────────────
+  it("claim, decision, failed-attempt and observation notes with an empty stamp still write", () => {
+    for (const kind of ["claim", "decision", "failed-attempt", "observation"] as const) {
+      const contextRoot = freshTmp(`p31-09-cr05-kind-${kind}-`);
+      const task = "p31-09-kinds";
+      const id = mod.appendNote(
+        task,
+        { kind, by: "software-engineer", at: "2026-06-17T14:23:05Z", verified_by: "", confidence: "high", refs: [], supersedes: null },
+        "body",
+        contextRoot,
+      );
+      const text = readFileSync(join(contextRoot, task, "notes", `${id}.md`), "utf8");
+      expect(text).toContain(`kind: ${kind}\n`);
+      expect(text).not.toContain("sha:");
+      expect(text).not.toContain("gate_run:");
+      expect(text).not.toContain("content_hash:");
+    }
+  });
+});
