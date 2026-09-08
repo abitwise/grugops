@@ -399,3 +399,28 @@ browser binaries are the user's own prerequisites, documented rather than perfor
   2 skipped over 60 files. Bare `npm test` was never run.
 - Only the plan's own files were touched; the four pre-existing uncommitted paths
   (`.planning/milestone.lock`, `human-notes.txt`, `.gsd/`, `.planning/state.json`) were left alone.
+
+## Correction — 2026-09-08
+
+Appended by plan 31-07, the gap-closure plan for gap 3 of `31-VERIFICATION.md`. No line above this
+heading has been edited: the record of what was believed at the time is part of the trail.
+
+The Decisions Made bullet **"A floating specifier is a finding, not an unseen token"** was true for a
+NON-AUTHORITY mention and false for the authority itself. `guardPlaywrightMcpPin` read its pin as the
+first `@playwright/mcp@` mention in `agent-factory/checklists/browser-uat-recipe.md` and adopted the
+captured token with no assertion on its shape. `31-VERIFICATION.md` confirmed by code inspection
+(`scripts/check-foundation-guards.ts:3838-3855`, `const pin = first.version;`) that a recipe whose
+first mention floated would have made the pin the dist-tag string itself; every other mention
+re-pinned to match would then have compared equal to it, and the guard would have reported a clean
+pass over a kit that pins nothing. Plan 31-07 reproduced that configuration against the guard as
+committed before changing it: the guard exited 0 and printed
+`PASS playwright MCP pin \`latest\` — pinned mention(s) over 43 markdown file(s): 0 findings over 7/7 elements`.
+
+Plan 31-07 closes it with `PIN_CONCRETE_VERSION_RE`, an anchored concrete-version assertion applied
+to the authority's captured token before that token is adopted as the pin. It refuses a dist-tag by
+name and cites the source file, its line and the rejected token. The scan-side comparison is
+unchanged, so a floating specifier at a non-authority mention is still reported as drift rather than
+as a shape fault — during a half-applied bump the number of places that are wrong is the whole
+question.
+
+The original bullet is left in place.

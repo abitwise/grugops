@@ -3351,10 +3351,19 @@ const PIN_SCAN_SKIPPED_DIRS = ["node_modules", ".git"];
 //
 // The delimiter class is the punctuation that ends a token in the shapes the recipe actually
 // documents: a shell word, a JSON string, a TOML array element, a markdown code span. Everything up
-// to one of those is the version, so `@latest` is captured as `latest` and compared like any other
-// version — a floating specifier is a FINDING rather than something the pattern quietly declines to
-// see. An occurrence with an EMPTY version token is also a finding, for the same reason: a mention
-// nobody can check is not a mention this guard may skip.
+// to one of those is the version, so `@latest` is captured as `latest` rather than quietly declined.
+//
+// WHICH CHECK CATCHES A FLOATING SPECIFIER DEPENDS ON WHERE THE MENTION SITS, and this comment used
+// to claim only half of that (corrected by plan 31-07, closing 31-VERIFICATION.md gap 3). At a
+// NON-AUTHORITY mention it is caught by the equality comparison in the loop below: the token is
+// compared against the pin like any other version, so a dist-tag is a finding. At the AUTHORITY
+// mention equality decides nothing, because the authority IS what everything else is compared
+// against and it compares equal to itself whatever it says; that case is caught by
+// PIN_CONCRETE_VERSION_RE in the authority branch of guardPlaywrightMcpPin, which refuses the token
+// before it is adopted as the pin.
+//
+// An occurrence with an EMPTY version token is a finding wherever it sits: a mention nobody can
+// check is not a mention this guard may skip.
 const PIN_OCCURRENCE_SOURCE = "@playwright/mcp@([^\\s`\"'()\\[\\],<>]*)";
 // A CONCRETE VERSION, ANCHORED AT BOTH ENDS — the shape the AUTHORITY's captured token must have
 // before it is adopted as the pin.
