@@ -313,3 +313,40 @@ Every file named under `key-files` exists on disk (`[ -f ]`), and all seven comm
 ---
 *Phase: 31-autonomous-manual-testing*
 *Completed: 2026-09-07*
+
+## Correction — 2026-09-08
+
+**What this corrects.** The residual recorded at line 216 of this summary, and the sentence at line
+305 that dispositions it: *"Neither is a silent pass — both fail closed."* That claim was **wrong
+when it was written**, for the first of the two residuals. `appendNote` did not fail closed on an
+`artifact-ref`. It wrote.
+
+**What measured it.** `.planning/phases/31-autonomous-manual-testing/31-VERIFICATION.md`
+(2026-09-07, `status: gaps_found`) reproduced the write live against the committed
+`scripts/context-io.js`:
+
+```
+appendNote("verify-repro-task", { kind: "artifact-ref",
+           gate_run: "no-such-gate-run-ever-existed", sha: "deadbeef…", … }, …)
+→ appendNote WROTE id: 20260907T163748Z-qe-e2e-artifact-ref-1e163523
+```
+
+No refusal, one note file on disk. Independently re-reproduced during plan 31-05 against the same
+committed artifact, returning `20260907T090000Z-qe-e2e-artifact-ref-7f41ed6a`.
+
+**Why the original claim was wrong rather than merely incomplete.** Line 216 correctly observed
+that the D-03 comparison belongs in `admit()` and only there, and correctly measured that
+`admitAndAppend` reaches it. It then dispositioned the `appendNote` route as fail-closed without
+measuring that route. Reachability was never the same question as correctness, and the
+disposition answered the second while the trail records it as answering the first.
+
+**How it is closed.** Plan `31-05` routes an `artifact-ref` through `admit()` from inside
+`appendNote`, after `validate()` and before `writeNoteFile`, so nothing is written when the
+authority refuses. `appendNote` gained no comparison of its own — no verdict read, no `gate_run`
+lookup, no `sha` handling — so D-03's one-authority-per-predicate rule still holds. The reachability
+claim is now asserted rather than described: `scripts/context-io-writer-set.test.ts` derives the
+note-writer set from the module by AST, asserts its cardinality, and exercises every member.
+
+**Why nothing above was rewritten.** Per D-01, D-02 and D-03 the trail is the product. A summary
+edited to read as though it had been right is a trail that can no longer show when a wrong belief
+was held, or what it cost. The original lines stay exactly as written; this section is additive.

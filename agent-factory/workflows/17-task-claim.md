@@ -37,7 +37,7 @@ Run these in order.
 
 3. Transition the subtask file `pending/<task>.md` → `claimed/<task>/<task>.md` by `claim.js` `transition` (atomic rename). The claim directory already exists, because step 2 created it.
 
-4. Implement the subtask. Write only after you verify. Record results into the shared verified context ONLY via WF16 (`context-io.ts` `appendNote`) under the honest note kind. A `finding` needs a real stamp; soft results go in as `claim` / `observation`. The admission rules live in WF16; this workflow references them and does not restate them. Coordination is ONLY through the on-disk substrate — never relay data agent-to-agent.
+4. Implement the subtask. Write only after you verify. Record results into the shared verified context ONLY via WF16 (`context-io.ts` `appendNote`) under the honest note kind. A `finding` needs a real stamp; soft results go in as `claim` / `observation`. Evidence pointing at a committed UAT spec goes in as an `artifact-ref`. It carries `sha`, `gate_run` and `content_hash`. `appendNote` admits it only against a live green `§14-gate` verdict for that run. Otherwise it is refused and nothing is written. The admission rules live in WF16; this workflow references them and does not restate them. Coordination is ONLY through the on-disk substrate — never relay data agent-to-agent.
 
 5. Mark the subtask done. Transition `claimed/<task>/<task>.md` → `done/<task>.md` by `claim.js` `transition` (atomic rename) once the work is recorded and verified.
 

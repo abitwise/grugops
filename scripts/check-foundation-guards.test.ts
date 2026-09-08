@@ -9064,7 +9064,15 @@ const censusRelationshipFindings = (c: TripwireCensus): string[] => {
 // DISCLOSED DEPARTURE FROM THE CONVENTION ABOVE: this bump lands in the commit AFTER the one that
 // added the module, because the module was committed before the full suite surfaced this pin. The
 // convention asks for one commit and got two; recorded here rather than smoothed over.
-const TRIPWIRE_MODULES = 55;
+//
+// 55 -> 56 (plan 31-05): ONE test module, `scripts/context-io-writer-set.test.ts` — the derived
+// note-writer set closing gap 1 of 31-VERIFICATION.md. The gap was a writer nobody had enumerated,
+// so a pin that surfaces a module arriving is the correct thing to have fired here. Re-derived
+// rather than incremented: `ls scripts/*.test.ts | wc -l` reports 56 on this tree, agreeing with
+// the live census. Same DISCLOSED DEPARTURE as the 54 -> 55 bump above: it lands in the commit
+// after the one that added the module, because the module was committed before the full suite
+// surfaced this pin.
+const TRIPWIRE_MODULES = 56;
 /**
  * Corpus-derived floors, expressed as RATES so the floor grows with the corpus it floors.
  * Each is set well below its measured live value: the point is to catch a measurement that
