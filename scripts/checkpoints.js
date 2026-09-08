@@ -1050,7 +1050,7 @@ export const WORKFLOW_STOP_HEADING = "## Stop conditions";
  * happily reports a clean run over 20 of 38 bullets, and the eighteen it skipped are exactly the
  * ones an attacker would want skipped.
  */
-export const WORKFLOW_STOP_BULLET_COUNT = 38;
+export const WORKFLOW_STOP_BULLET_COUNT = 39;
 /**
  * The tag keyword, declared ONCE. Both patterns below are built from it, so the allow-list and the
  * scope selector can never come to disagree about which word they are talking about.
@@ -1381,6 +1381,14 @@ export function assertRosterMatchesDerivation(root = DEFAULT_ROOT) {
  * bullet took the NEW id `accept_human_only_failure`, added to the union, to `CHECKPOINT_DEFAULTS`,
  * to this table and to `RECORDED_TOTAL_SITES` in the same commit as the tag — which is what the
  * two-sided comparison forces, since either half alone is red.
+ *
+ * PLAN 31-14 TAGGED `18-context-compaction.md` AND MOVED THREE NUMBERS THE SAME WAY. Its new stop
+ * condition — a faithful re-binding is refused, so stop and hand to a human rather than downgrading
+ * — took the EXISTING id `escalate_unadjudicable_result` at a second site (1 -> 2, a site rather
+ * than an id), which moved `RECORDED_TOTAL_SITES` (16 -> 17) and `WORKFLOW_STOP_BULLET_COUNT`
+ * (38 -> 39) in the same commit as the tag. The id is reused rather than added because the case IS
+ * an unadjudicable result: the in-script tier cannot re-verify the human disposition it is being
+ * asked to carry forward, and a downgrade there would discard a named human's adjudication.
  */
 export const CHECKPOINT_SITE_COUNTS = {
     protected_branch_merge: 0,
@@ -1395,7 +1403,7 @@ export const CHECKPOINT_SITE_COUNTS = {
     decide_accessibility_exception: 1,
     exhaust_self_fix_budget: 5,
     override_finding_severity: 1,
-    escalate_unadjudicable_result: 1,
+    escalate_unadjudicable_result: 2,
     accept_human_only_failure: 1,
 };
 /**
@@ -1405,7 +1413,7 @@ export const CHECKPOINT_SITE_COUNTS = {
  * number written down separately is not. This is the same reason `WORKFLOW_STOP_BULLET_COUNT` is a
  * literal: a denominator computed by the loop it audits has never caught anything.
  */
-export const RECORDED_TOTAL_SITES = 16;
+export const RECORDED_TOTAL_SITES = 17;
 /**
  * Assert a derived id→sites map against the recorded counts, in BOTH directions.
  *

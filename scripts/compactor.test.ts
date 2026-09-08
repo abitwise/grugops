@@ -2706,3 +2706,220 @@ describe("31-14 — compactor.promoteAdmitted: the proof-gated re-binding pass-t
     expect(cr08NoteFiles(destB)).toEqual([]);
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// 31-14 SELF-RED-TEAM — every caller driven with a LEGITIMATE input, under every dial.
+//
+// THE DOCTRINE CORRECTION THIS BLOCK IMPLEMENTS. 31-09's blast-radius table enumerated the promotion
+// call site and dispositioned it "admits, unchanged shape ... for every kind" — and the round's only
+// promotion probe used a FABRICATED §14-gate stamp. The case that actually changed, a LEGITIMATE
+// human-disposed finding, was never driven. So the shape of this block is the correction: every
+// caller is driven with a legitimate input FIRST, and with the corresponding illegitimate input
+// second, under every value of the governance dial and both audit-retention values — because a dial
+// that changes the answer is exactly the axis CR-08 hid behind.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+describe("31-14 self-red-team — the legitimate input, under every dial and both retentions", () => {
+  const RT_TASK = "redteam-task";
+  const RT_BODY = "the legitimate disposed body";
+
+  function rtProject(context: Record<string, unknown> | null): string {
+    const dir = freshTmp("c31-14-rt-proj-");
+    if (context !== null) {
+      mkdirSync(join(dir, ".grugops"), { recursive: true });
+      writeFileSync(join(dir, ".grugops", "factory.config.json"), JSON.stringify({ context }, null, 2));
+    }
+    return dir;
+  }
+
+  function rtDisposed(over: Partial<Parameters<typeof ctxio.appendNote>[1]> = {}) {
+    return {
+      kind: "finding",
+      by: "security-nfr",
+      at: "2026-09-08T02:00:00Z",
+      verified_by: "human:alice",
+      confidence: "high",
+      refs: ["REQ-SEC-01"],
+      supersedes: null,
+      ...over,
+    } as Parameters<typeof ctxio.appendNote>[1];
+  }
+
+  function rtNotes(root: string): string[] {
+    const dir = join(root, RT_TASK, "notes");
+    return existsSync(dir) ? readdirSync(dir).sort() : [];
+  }
+
+  function rtUnder<T>(projectDir: string, fn: () => T): T {
+    const previous = process.env.CLAUDE_PROJECT_DIR;
+    process.env.CLAUDE_PROJECT_DIR = projectDir;
+    try {
+      return fn();
+    } finally {
+      if (previous === undefined) delete process.env.CLAUDE_PROJECT_DIR;
+      else process.env.CLAUDE_PROJECT_DIR = previous;
+    }
+  }
+
+  /** Seed the origin through the writer the dial makes correct — the module's own gated predicate. */
+  function rtSeedOrigin(repoRoot: string): { originRoot: string; id: string } {
+    const originRoot = freshTmp("c31-14-rt-origin-");
+    const note = rtDisposed();
+    const gated = ctxio.isGatedNote(note.by, note.kind, ctxio.readGovernanceConfig(repoRoot));
+    const id = gated
+      ? (ctxio.admitAndAppend(RT_TASK, note, RT_BODY, originRoot, repoRoot).id as string)
+      : ctxio.appendNote(RT_TASK, note, RT_BODY, originRoot, undefined, repoRoot);
+    expect(id, "PREMISE: the origin seed did not write, so nothing below measures a re-binding").toBeTruthy();
+    return { originRoot, id };
+  }
+
+  // ── The dial matrix. One case per (dial value, retention), never a loop over a hand-typed list
+  //    reported as one result — a value that behaves differently must read as its own failure. ────
+  const DIAL_VALUES: ReadonlyArray<{ label: string; value: unknown }> = [
+    { label: '"off"', value: "off" },
+    { label: '"high-severity"', value: "high-severity" },
+    { label: '"all"', value: "all" },
+    { label: "a present typo string", value: "hihg-severity" },
+    { label: "a present NON-STRING", value: true },
+  ];
+  const RETENTIONS = ["git", "retained"] as const;
+
+  for (const dial of DIAL_VALUES) {
+    for (const retention of RETENTIONS) {
+      it(`LEGITIMATE: the compactor's re-binding writes under human_admission ${dial.label}, audit_retention "${retention}"`, () => {
+        const repoRoot = rtProject({ human_admission: dial.value, audit_retention: retention });
+        const { originRoot, id } = rtSeedOrigin(repoRoot);
+        const destRoot = freshTmp("c31-14-rt-dest-");
+        const promoted = rtUnder(repoRoot, () =>
+          mod.promoteAdmitted(RT_TASK, id, rtDisposed(), RT_BODY, originRoot, destRoot),
+        );
+        expect(promoted).toBe(id);
+        expect(rtNotes(destRoot)).toEqual([`${id}.md`]);
+        expect(readFileSync(join(destRoot, RT_TASK, "notes", `${promoted}.md`), "utf8")).toBe(
+          readFileSync(join(originRoot, RT_TASK, "notes", `${id}.md`), "utf8"),
+        );
+      });
+    }
+  }
+
+  it("LEGITIMATE: the compactor's re-binding writes with the dial ABSENT (no configuration at all)", () => {
+    const repoRoot = rtProject(null);
+    const { originRoot, id } = rtSeedOrigin(repoRoot);
+    const destRoot = freshTmp("c31-14-rt-absent-dest-");
+    const promoted = rtUnder(repoRoot, () =>
+      mod.promoteAdmitted(RT_TASK, id, rtDisposed(), RT_BODY, originRoot, destRoot),
+    );
+    expect(promoted).toBe(id);
+    expect(rtNotes(destRoot)).toEqual([`${id}.md`]);
+  });
+
+  it("LEGITIMATE: the unchanged full-admission route writes an admissible note of every kind", () => {
+    // The converse of every refusal row: a route that refused everything would satisfy them all.
+    const repoRoot = rtProject({ human_admission: "high-severity", audit_retention: "retained" });
+    const destRoot = freshTmp("c31-14-rt-promote-dest-");
+    const RUN = "RUN-31-14-RT";
+    ctxio.emitVerdict(RT_TASK, RUN, "clean", GATE_RUN_SHA, destRoot);
+    const written = ctxio.NOTE_KINDS.map((kind, index) =>
+      rtUnder(repoRoot, () =>
+        mod.promote(
+          RT_TASK,
+          {
+            kind,
+            by: "qe-e2e",
+            at: `2026-09-08T07:0${index}:00Z`,
+            verified_by: kind === "finding" ? `§14-gate#${RUN}` : "",
+            confidence: "high",
+            refs: [],
+            supersedes: null,
+            ...(kind === "artifact-ref"
+              ? { sha: GATE_RUN_SHA, gate_run: RUN, content_hash: "0123456789abcdef".repeat(4), refs: ["tests/e2e/uat/T.uat.spec.ts"] }
+              : {}),
+          } as Parameters<typeof ctxio.appendNote>[1],
+          RT_BODY,
+          destRoot,
+        ),
+      ),
+    );
+    expect(new Set(written).size).toBe(ctxio.NOTE_KINDS.length);
+    // The seeded verdict plus one note per kind.
+    expect(rtNotes(destRoot)).toHaveLength(ctxio.NOTE_KINDS.length + 1);
+  });
+
+  it("ILLEGITIMATE: each caller refuses its corresponding bad input and writes zero files", () => {
+    const repoRoot = rtProject({ human_admission: "high-severity", audit_retention: "retained" });
+    const { originRoot, id } = rtSeedOrigin(repoRoot);
+
+    // compactor.promote — a fabricated gate stamp.
+    const destA = freshTmp("c31-14-rt-bad-a-");
+    expect(() =>
+      rtUnder(repoRoot, () =>
+        mod.promote(RT_TASK, rtDisposed({ by: "qe-e2e", verified_by: "§14-gate#fabricated-run-id" }), RT_BODY, destA),
+      ),
+    ).toThrow(/no live green §14-gate verdict found/);
+    expect(rtNotes(destA)).toEqual([]);
+
+    // compactor.promoteAdmitted — a human stamp whose origin record says something else.
+    const destB = freshTmp("c31-14-rt-bad-b-");
+    expect(() =>
+      rtUnder(repoRoot, () =>
+        mod.promoteAdmitted(RT_TASK, id, rtDisposed({ verified_by: "human:mallory" }), RT_BODY, originRoot, destB),
+      ),
+    ).toThrow(/DECLINED \(field-differs-from-origin\)/);
+    expect(rtNotes(destB)).toEqual([]);
+
+    // context-io.promoteAdmitted — the same route reached directly, with no admitted origin at all.
+    const destC = freshTmp("c31-14-rt-bad-c-");
+    expect(() =>
+      ctxio.promoteAdmitted(RT_TASK, "no-such-id", rtDisposed(), RT_BODY, originRoot, destC, repoRoot),
+    ).toThrow(/DECLINED \(no-such-origin-note\)/);
+    expect(rtNotes(destC)).toEqual([]);
+
+    // context-io.appendNote — the writer the fall-through lands on.
+    const destD = freshTmp("c31-14-rt-bad-d-");
+    expect(() => ctxio.appendNote(RT_TASK, rtDisposed(), RT_BODY, destD, undefined, repoRoot)).toThrow(
+      /admission REFUSED \(human_admission: high-severity\)/,
+    );
+    expect(rtNotes(destD)).toEqual([]);
+
+    // context-io.admitAndAppend — the other caller of the private pre-admitted route.
+    const destE = freshTmp("c31-14-rt-bad-e-");
+    const refused = ctxio.admitAndAppend(RT_TASK, rtDisposed({ verified_by: "" }), RT_BODY, destE, repoRoot);
+    expect(refused.id).toBeNull();
+    expect(refused.findings.join("\n")).toContain("admission REFUSED");
+    expect(rtNotes(destE)).toEqual([]);
+  });
+
+  it("D-19 MEASURED: under retained, an origin-write-then-promote leaves exactly ONE ledger event", () => {
+    // The answer is measured rather than inherited: D-19 states a re-binding records no new
+    // admission, because the origin's event already keys this exact id.
+    const repoRoot = rtProject({ human_admission: "high-severity", audit_retention: "retained" });
+    const { originRoot, id } = rtSeedOrigin(repoRoot);
+    const ledgerPath = join(repoRoot, ".grugops", "audit", "admissions.jsonl");
+    const lines = (): string[] =>
+      existsSync(ledgerPath)
+        ? readFileSync(ledgerPath, "utf8").trim().split("\n").filter((l) => l.length > 0)
+        : [];
+    const afterOrigin = lines();
+    expect(afterOrigin).toHaveLength(1);
+    const event = JSON.parse(afterOrigin[0]) as Record<string, unknown>;
+    expect(event.id).toBe(id);
+    expect(event.severity).toBe("high");
+    expect(event.disposed_by).toBe("human:alice");
+
+    const destRoot = freshTmp("c31-14-rt-ledger-dest-");
+    rtUnder(repoRoot, () => mod.promoteAdmitted(RT_TASK, id, rtDisposed(), RT_BODY, originRoot, destRoot));
+    expect(
+      lines(),
+      "the re-binding appended a ledger event. D-19 decided it appends none, because a second line " +
+        "keyed by the origin's own id is the duplicate 31-09 collapsed rather than widened",
+    ).toEqual(afterOrigin);
+  });
+
+  it("D-19 MEASURED: under the lean `git` retention, neither the origin write nor the promotion writes a ledger", () => {
+    const repoRoot = rtProject({ human_admission: "high-severity", audit_retention: "git" });
+    const { originRoot, id } = rtSeedOrigin(repoRoot);
+    const destRoot = freshTmp("c31-14-rt-ledger-git-dest-");
+    rtUnder(repoRoot, () => mod.promoteAdmitted(RT_TASK, id, rtDisposed(), RT_BODY, originRoot, destRoot));
+    expect(existsSync(join(repoRoot, ".grugops", "audit", "admissions.jsonl"))).toBe(false);
+  });
+});

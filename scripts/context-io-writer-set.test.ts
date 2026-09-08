@@ -2730,3 +2730,153 @@ describe("31-14 — every derived decline clause is reached by a probe, and writ
     );
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// PART SIX-D — the CALLER axis, derived ACROSS FILES, and the SUMMARY's enumeration bound to it.
+//
+// PART FIVE-B derives the private route's callers WITHIN the module. That is the right scope for a
+// module-private function and the wrong scope for an exported one: `promoteAdmitted` is part of the
+// surface a host repository's workflows call, so "who calls it" is a question about the tracked
+// corpus, not about one file. The derivation therefore resolves IMPORT ALIASES — `import
+// { promoteAdmitted as ctxPromoteAdmitted }` is exactly how the compactor names it, and a
+// name-matching regex would report that caller as absent.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+/** Every tracked NON-TEST source under scripts/, hooks/ and install/ — the corpus a caller can hide in. */
+function trackedSources(): string[] {
+  const sources = trackedFiles("scripts/*.ts", "hooks/*.ts", "install/*.ts").filter(
+    (p) => !p.endsWith(".test.ts"),
+  );
+  expect(sources.length, "PREMISE: no tracked sources were listed at all").toBeGreaterThan(10);
+  return sources;
+}
+
+/**
+ * Every `<file>::<function>` in the tracked corpus whose body calls `routeName` as exported by the
+ * module whose compiled specifier ends with `moduleSuffix`. Import aliases are resolved through the
+ * import clause's own `propertyName`, so a renamed binding is still the same callee.
+ */
+function deriveRouteCallers(routeName: string, moduleSuffix: string): string[] {
+  const out: string[] = [];
+  for (const rel of trackedSources()) {
+    const source = ts.createSourceFile(rel, readFileSync(join(ROOT, rel), "utf8"), ts.ScriptTarget.Latest, true);
+    const aliases = new Set<string>();
+    const isDeclaring = rel.endsWith(moduleSuffix.replace(".js", ".ts"));
+    if (isDeclaring) aliases.add(routeName);
+    for (const statement of source.statements) {
+      if (!ts.isImportDeclaration(statement) || !ts.isStringLiteral(statement.moduleSpecifier)) continue;
+      if (!statement.moduleSpecifier.text.endsWith(moduleSuffix)) continue;
+      const named = statement.importClause?.namedBindings;
+      if (named && ts.isNamedImports(named)) {
+        for (const element of named.elements) {
+          if ((element.propertyName ?? element.name).text === routeName) aliases.add(element.name.text);
+        }
+      }
+    }
+    if (aliases.size === 0) continue;
+    for (const statement of source.statements) {
+      if (!ts.isFunctionDeclaration(statement) || !statement.name) continue;
+      if (isDeclaring && statement.name.text === routeName) continue; // the declaration is not a caller
+      let count = 0;
+      const walk = (node: ts.Node): void => {
+        if (ts.isCallExpression(node) && ts.isIdentifier(node.expression) && aliases.has(node.expression.text)) {
+          count += 1;
+        }
+        ts.forEachChild(node, walk);
+      };
+      if (statement.body) walk(statement.body);
+      if (count > 0) out.push(`${rel}::${statement.name.text}`);
+    }
+  }
+  return out.sort();
+}
+
+/**
+ * MEASURED on 2026-09-08. The re-binding route has exactly one in-repo caller: the compactor's
+ * pass-through. Everything else that calls it is a host repository's workflow, which is why the
+ * prose in `agent-factory/workflows/18-context-compaction.md` moves in the same plan as the route.
+ */
+const EXPECTED_REBINDING_CALLERS = Object.freeze(["scripts/compactor.ts::promoteAdmitted"]);
+
+/**
+ * MEASURED in the same reading: the full-admission route's in-repo callers. The third is the
+ * re-binding route's own FALL-THROUGH, which is the caller that did not exist before 31-14.
+ */
+const EXPECTED_FULL_ADMISSION_CALLERS = Object.freeze([
+  "scripts/check-uat-oracles.ts::equivDoWork",
+  "scripts/compactor.ts::promote",
+  "scripts/context-io.ts::promoteAdmitted",
+]);
+
+describe("31-14 — the callers of both promotion routes are derived across files, aliases resolved", () => {
+  it("the re-binding route's caller set is exactly the compactor's pass-through", () => {
+    expect(
+      deriveRouteCallers("promoteAdmitted", "context-io.js"),
+      "a caller of the re-binding route landed or left. Each one can skip the human-stamp arm when " +
+        "its proof holds, so a new caller is a decision with a written reason, never a widened list",
+    ).toEqual([...EXPECTED_REBINDING_CALLERS]);
+  });
+
+  it("the full-admission route's caller set gained the fall-through and nothing else", () => {
+    expect(deriveRouteCallers("appendNote", "context-io.js")).toEqual([
+      ...EXPECTED_FULL_ADMISSION_CALLERS,
+    ]);
+  });
+
+  it("the derivation RESOLVES ALIASES — a name-matching search would miss the one real caller", () => {
+    // The compactor imports the route as `ctxPromoteAdmitted`. This case exists so the derivation's
+    // alias handling is a measured property rather than an implementation detail nobody checked:
+    // the caller is found even though its call site never spells the exported name.
+    const compactor = readFileSync(join(ROOT, "scripts", "compactor.ts"), "utf8");
+    expect(compactor).toContain("promoteAdmitted as ctxPromoteAdmitted");
+    expect(deriveRouteCallers("promoteAdmitted", "context-io.js")).toContain(
+      "scripts/compactor.ts::promoteAdmitted",
+    );
+  });
+});
+
+// ─── The SUMMARY's enumeration is bound to the derived set, by the suite rather than by hand. ───
+
+const PLAN_SUMMARY = join(
+  ROOT,
+  ".planning",
+  "phases",
+  "31-autonomous-manual-testing",
+  "31-14-SUMMARY.md",
+);
+
+/** The heading the SUMMARY's decline enumeration sits under, in one place so both sides agree. */
+const SUMMARY_DECLINE_HEADING = "### Derived decline clauses and their dispositions";
+
+describe("31-14 — the SUMMARY's decline enumeration equals the derived set", () => {
+  it("the plan SUMMARY exists and carries the enumeration heading", () => {
+    // FAIL-CLOSED. A missing SUMMARY, or a renamed heading, must not make the binding below vacuous
+    // — an empty enumeration equals an empty derived set and would report coverage that was never
+    // written down.
+    expect(
+      existsSync(PLAN_SUMMARY),
+      `the plan SUMMARY is absent at ${PLAN_SUMMARY}, so the enumeration this case binds cannot be read`,
+    ).toBe(true);
+    expect(readFileSync(PLAN_SUMMARY, "utf8")).toContain(SUMMARY_DECLINE_HEADING);
+  });
+
+  it("every derived decline clause is enumerated in the SUMMARY, and the SUMMARY names no other", () => {
+    const text = readFileSync(PLAN_SUMMARY, "utf8");
+    const section = text.slice(text.indexOf(SUMMARY_DECLINE_HEADING));
+    const table = section.slice(0, section.indexOf("\n#", 1) === -1 ? undefined : section.indexOf("\n#", 1));
+    const enumerated = [
+      ...new Set(
+        table
+          .split("\n")
+          .filter((line) => line.startsWith("| `"))
+          .map((line) => line.slice(3, line.indexOf("`", 3))),
+      ),
+    ].sort();
+    expect(
+      enumerated,
+      "the SUMMARY's decline enumeration and the clauses derived from the route's own body " +
+        "disagree. A written disposition for a clause that no longer exists reads as coverage and " +
+        "is not; a clause with no written disposition is the silence this plan exists to remove",
+    ).toEqual(derivedDeclineKeys(CONTEXT_IO_TS));
+  });
+});
