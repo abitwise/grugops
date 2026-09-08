@@ -1,10 +1,11 @@
 ---
 phase: 31-autonomous-manual-testing
-verified: 2026-09-07T19:45:00Z
+verified: 2026-09-08T14:45:00Z
 status: gaps_found
-score: 3/6 must-haves verified
+score: 4/6 must-haves verified
 covered_files:
   - ".planning/REQUIREMENTS.md"
+  - ".planning/WINDOWS.md"
   - ".planning/phases/31-autonomous-manual-testing/31-01-PLAN.md"
   - ".planning/phases/31-autonomous-manual-testing/31-01-SUMMARY.md"
   - ".planning/phases/31-autonomous-manual-testing/31-02-PLAN.md"
@@ -13,132 +14,159 @@ covered_files:
   - ".planning/phases/31-autonomous-manual-testing/31-03-SUMMARY.md"
   - ".planning/phases/31-autonomous-manual-testing/31-04-PLAN.md"
   - ".planning/phases/31-autonomous-manual-testing/31-04-SUMMARY.md"
+  - ".planning/phases/31-autonomous-manual-testing/31-05-PLAN.md"
+  - ".planning/phases/31-autonomous-manual-testing/31-05-SUMMARY.md"
+  - ".planning/phases/31-autonomous-manual-testing/31-06-PLAN.md"
+  - ".planning/phases/31-autonomous-manual-testing/31-06-SUMMARY.md"
+  - ".planning/phases/31-autonomous-manual-testing/31-07-PLAN.md"
+  - ".planning/phases/31-autonomous-manual-testing/31-07-SUMMARY.md"
+  - ".planning/phases/31-autonomous-manual-testing/31-08-PLAN.md"
+  - ".planning/phases/31-autonomous-manual-testing/31-08-SUMMARY.md"
   - ".planning/phases/31-autonomous-manual-testing/31-CONTEXT.md"
   - ".planning/phases/31-autonomous-manual-testing/31-REVIEW.md"
   - ".planning/phases/31-autonomous-manual-testing/31-VALIDATION.md"
+  - ".planning/phases/31-autonomous-manual-testing/31-VERIFICATION.md"
   - "agent-factory/checklists/00-index.md"
   - "agent-factory/checklists/browser-uat-recipe.md"
   - "agent-factory/contracts/context-note.md"
   - "agent-factory/workflows/05-pr-quality-gate.md"
   - "agent-factory/workflows/06-uat-pack.md"
+  - "agent-factory/workflows/17-task-claim.md"
+  - "agent-factory/workflows/18-context-compaction.md"
+  - "hooks/hook-entry.js"
+  - "hooks/hook-entry.ts"
   - "install/README.md"
   - "install/install.js"
   - "install/install.ts"
   - "install/uninstall.js"
   - "install/uninstall.ts"
+  - "package.json"
+  - "scripts/check-banned-claims.js"
+  - "scripts/check-banned-claims.test.ts"
+  - "scripts/check-banned-claims.ts"
   - "scripts/check-foundation-guards.js"
   - "scripts/check-foundation-guards.test.ts"
   - "scripts/check-foundation-guards.ts"
   - "scripts/chrome-lane-bar.test.ts"
+  - "scripts/context-io-writer-set.test.ts"
   - "scripts/context-io.js"
   - "scripts/context-io.test.ts"
   - "scripts/context-io.ts"
   - "scripts/runnable-ref/fixtures/caught-assertion.uat.spec.ts"
   - "scripts/runnable-ref/fixtures/clean.uat.spec.ts"
   - "scripts/runnable-ref/fixtures/conditional-assertion.uat.spec.ts"
+  - "scripts/runnable-ref/fixtures/element-access-modifier.uat.spec.ts"
   - "scripts/runnable-ref/fixtures/modifier-call.uat.spec.ts"
+  - "scripts/runnable-ref/fixtures/playwright-test.d.ts"
   - "scripts/runnable-ref/fixtures/union-all-arms.uat.spec.ts"
   - "scripts/runnable-ref/uat-spec-integrity.js"
   - "scripts/runnable-ref/uat-spec-integrity.test.ts"
   - "scripts/runnable-ref/uat-spec-integrity.ts"
-covered_digest: "v1:sha256:206042241407e7452e53d311f355e3a815e67b7dfc88063d39ef5819652424be"
+  - "tsconfig.fixtures.json"
+  - "tsconfig.tests.json"
+covered_digest: "v1:sha256:0b6023d4e2132c41ea8b8c548667688cdc97a40f316347b8034a0c0171662e58"
 behavior_unverified: 0
 overrides_applied: 0
+re_verification:
+  previous_status: gaps_found
+  previous_score: 3/6
+  gaps_closed:
+    - "gap 1 (31-VERIFICATION.md round 1): an artifact-ref whose sha is not the HEAD the named gate run was performed at is refused, and nothing is written — closed by 31-05, independently re-reproduced in this round (appendNote on an artifact-ref THREW, 0 files written)."
+    - "gap 2 (31-VERIFICATION.md round 1): the exact three constructs the round-1 verifier planted (test.describe.only, test.describe.skip, test[\"skip\"]) are now refused — closed by 31-06, independently re-reproduced (3 findings, exit 1, same repo/spec)."
+    - "gap 3 (31-VERIFICATION.md round 1): guardPlaywrightMcpPin's authority read now carries a concrete-version shape assertion — closed by 31-07, independently re-reproduced (a fully-floated mirror now exits 1 naming the authority's file/line/token, where it previously exited 0 with a clean pass)."
+  gaps_remaining:
+    - "CR-05 (31-REVIEW.md, gap-closure round): appendNote() reaches the admission authority for kind === \"artifact-ref\" only. A finding note carrying a fabricated §14-gate stamp is still written unrefused and rendered into index.md as verified evidence — the same reachability defect as gap 1, one kind over, and it lands on UATX-01's central claim (narration never produces a stamp)."
+    - "CR-06 (31-REVIEW.md, gap-closure round): BANNED_CONSTRUCTS is a nine-member literal. test.describe.serial.only and test.describe.parallel.only — real Playwright spellings that narrow an entire gate run exactly as test.describe.only does — walk past it undetected. Same defect class as gap 2, one segment over, and it lands on UATX-06's claim that the mechanism matches what it claims to ban."
+  regressions: []
 gaps:
-  - truth: "An artifact-ref whose sha is not the HEAD the named gate run was performed at is refused, and nothing is written (UATX-04, D-03)."
+  - truth: "UATX-01 / phase goal — the only thing that counts as evidence is an artifact the §14 gate re-runs; an agent's narration or self-supplied claim never produces a stamp."
     status: failed
     reason: >
-      admit()'s D-03 branch performs the SHA-vs-verdict comparison correctly, but appendNote() — the
-      function two shipped workflows (17-task-claim.md, 18-context-compaction.md) name BY NAME as
-      the sanctioned write path — never calls admit() and never consults it. appendNote() only runs
-      validate(), which checks that sha/gate_run/content_hash are present and hex-shaped, never that
-      they correspond to a real, matching, live green verdict. Independently reproduced live in this
-      verification: `appendNote("verify-repro-task", { kind: "artifact-ref", gate_run:
-      "no-such-gate-run-ever-existed", sha: "deadbeef...", ... }, ...)` returned a written note id
-      with no refusal. 31-01-SUMMARY.md's own disclosure of this route ("Neither is a silent pass —
-      both fail closed") is contradicted by this measurement.
+      31-05 correctly routed appendNote's artifact-ref kind through admit(), closing gap 1 at its
+      own coordinates. But admit() decides four refusal families (D-01 finding-stamp, D-03
+      artifact-ref binding, D-04 governance disposition, D-14 unreadable config), and the new branch
+      in appendNote is scoped to `normalizeKind(note.kind) === "artifact-ref"` only. D-01 — the
+      refusal that a `finding` stamped `§14-gate#<id>` is admitted only against a live green verdict
+      with that per-run id — remains unreachable from appendNote, the writer both 17-task-claim.md
+      and 18-context-compaction.md name by name. Independently reproduced live in this verification:
+      `appendNote(task, { kind: "finding", by: "qe-e2e", verified_by: "§14-gate#fabricated-run-id",
+      confidence: "high", ... }, body, contextRoot)` against the committed scripts/context-io.js
+      returned a written note id with no refusal, while the identical note passed to
+      `admitAndAppend` returned `admission FAIL: no live green §14-gate verdict found for
+      "§14-gate#fabricated-run-id"`. `render(task, contextRoot)` then rendered the fabricated note
+      into index.md as a normal row — `| 2026-09-08T01:00:00Z | finding | qe-e2e | high |
+      §14-gate#fabricated-run-id | the checkout flow passes end to end |` — indistinguishable from a
+      genuinely admitted finding. This is the phase's central goal failing on the sibling kind gap 1
+      was closed for: a self-supplied claim entering the shared context wearing the shape of gate
+      evidence.
     artifacts:
       - path: "scripts/context-io.ts"
-        issue: "appendNote() (~line 1020-1073) composes and writes an artifact-ref note after only validate() (shape/presence check); admit()'s D-03 cross-check (~line 1618-1680) is reachable only via admit()/admitAndAppend(), which appendNote() does not call."
+        issue: "appendNote() (~line 1095-1105) gates its admit() call on note.kind === \"artifact-ref\" only; the D-01 finding-stamp refusal inside the same admit() is unreachable from this writer for any other kind, including \"finding\", the kind the shared context exists to protect."
+      - path: "agent-factory/workflows/17-task-claim.md"
+        issue: "Step 4 (~line 40) still names appendNote as the sanctioned writer without qualifying that a finding's §14-gate stamp is not checked there."
+      - path: "agent-factory/workflows/18-context-compaction.md"
+        issue: "Step 4 (~line 51) claims \"Phase-21 admission still fires on every promoted note\", which is false for a promoted finding — only the separate, agent-run re-verify in step 5 checks it, and the writer itself does not."
     missing:
-      - "One authority reachable from every writer: either have appendNote() call admit() for kind === \"artifact-ref\", or make appendNote() refuse that kind outright unless called with an internal admittedBy token that only admit-bearing paths mint."
-      - "A contract test in scripts/context-io.test.ts asserting a stale-SHA / fabricated-gate-run artifact-ref is refused through every exported write entry point, derived from the module's exports rather than a hand-typed list."
-      - "Update agent-factory/workflows/17-task-claim.md and 18-context-compaction.md to name the corrected sanctioned path once the fix lands."
-  - truth: "The banned-construct set decided over the TypeScript AST is exactly D-14 arm (c) — test.skip, test.fixme, test.only, describe.skip, describe.only, expect.soft — and the claim in the recipe matches the mechanism the checker actually decides (UATX-06, D-14)."
+      - "Ask the authority for every kind it has an opinion about and derive that set, rather than naming one kind by string comparison — e.g. call admit() unconditionally from appendNote (accounting for admitAndAppend's gated branch, which deliberately skips admit() for a hook-disposed high-severity finding), or derive the kind list admit() adjudicates from its own source and assert its cardinality."
+      - "Extend scripts/context-io-writer-set.test.ts's exercise table from one refusal-family question (\"refuses the fabricated artifact-ref\") to one per refusal family admit() implements (D-01, D-03, D-04, D-14), so a writer that reaches only one family cannot read as closed."
+      - "Correct workflow 18 step 4's \"admission still fires on every promoted note\" sentence and the provides-line overclaim in 31-05-SUMMARY.md (\"the appendNote bypass is closed\" is true only for artifact-ref)."
+  - truth: "UATX-06 — conditional or caught assertions, and the D-14 arm-(c) modifier-call bans, are rejected over the TypeScript AST, and the recipe's claim matches exactly what the checker decides."
     status: failed
     reason: >
-      Arm (c)'s matcher requires the call's callee to be `PropertyAccessExpression(Identifier,
-      member)` — a BARE `describe.only(...)`. `@playwright/test` exports no top-level `describe`; the
-      only spelling Playwright supports is `test.describe.only(...)`, whose callee is
-      `PropertyAccessExpression(PropertyAccessExpression(test, describe), only)` and never matches.
-      The identical construct written as `test["skip"](...)` (ElementAccessExpression) is also never
-      seen, because the matcher only accepts PropertyAccessExpression. Independently reproduced live
-      in this verification: a spec containing `test.describe.only(...)`, `test.describe.skip(...)`,
-      and `test["skip"](...)` was run through the committed
-      `scripts/runnable-ref/uat-spec-integrity.js` and reported `0 findings over 1/1 uat specs
-      checked`, exit 0 — narrowing the whole gate run to one describe block and skipping a whole
-      block, undetected. The union fixture meant to prove arm (c) (`union-all-arms.uat.spec.ts`)
-      imports a non-existent `describe` binding from `@playwright/test` and is invisible to
-      typecheck because both tsconfig.json and tsconfig.tests.json exclude
-      `scripts/runnable-ref/fixtures/**` — so the fixture corpus never proves discrimination against
-      real Playwright syntax.
+      31-06 correctly widened the callee matcher to a dotted-path normaliser and closed gap 2 for
+      the three constructs the round-1 verifier planted (test.describe.only, test.describe.skip,
+      test["skip"]) — independently re-reproduced in this verification (3 findings, exit 1, same
+      probe repository and spec). But BANNED_CONSTRUCTS is compared by
+      `BANNED_CONSTRUCTS.includes(dottedPath)` against a nine-member literal, and Playwright
+      documents more `describe` modifiers than the three that were added.
+      `test.describe.serial.only(...)` and `test.describe.parallel.only(...)` narrow an entire gate
+      run to one describe block — the exact "a green lane would certify a scenario nobody exercised"
+      outcome the finding text names — and neither is in the set nor in
+      UNRESOLVABLE_CALLEE_RESIDUALS (the disclosed-boundary list). Independently reproduced live in
+      this verification: a spec containing `test.describe.serial.only("evasion-serial", ...)` and
+      `test.describe.parallel.only("evasion-parallel", ...)` run through the committed
+      scripts/runnable-ref/uat-spec-integrity.js reported `0 findings over 1/1 uat specs checked`,
+      exit 0 — the same defect shape as gap 2, one segment over. A control spec containing only
+      `test.describe.only` on the same harness correctly reports 1 finding, exit 1, confirming the
+      matcher itself is sound and the gap is in set membership, not shape resolution.
     artifacts:
       - path: "scripts/runnable-ref/uat-spec-integrity.ts"
-        issue: "Arm (c)'s callee match (~line 487-503) only accepts PropertyAccessExpression(Identifier, member); test.describe.only/skip/fixme and any test[\"x\"]/describe[\"x\"] element-access spelling are never matched."
-      - path: "scripts/runnable-ref/fixtures/union-all-arms.uat.spec.ts"
-        issue: "Imports `describe` from \"@playwright/test\", a binding that package does not export; the fixture does not represent real Playwright code and is excluded from typecheck."
+        issue: "BANNED_CONSTRUCTS (~line 87-96) is a nine-member frozen string literal compared by exact membership; test.describe.serial.only and test.describe.parallel.only are real Playwright spellings that pass calleeDottedPath's normaliser intact but are absent from the set and from UNRESOLVABLE_CALLEE_RESIDUALS."
+      - path: "agent-factory/checklists/browser-uat-recipe.md"
+        issue: "The re-quoted ban set (~line 164-165) and the \"deliberately outside the set\" residual list (~line 168-176) both omit test.describe.serial.only/parallel.only, so the recipe's claim is incomplete in the same place the mechanism is."
     missing:
-      - "Match the callee as a dotted path (walk PropertyAccessExpression.expression chains) and express BANNED_CONSTRUCTS in the spelling Playwright actually uses: test.skip, test.fixme, test.only, test.describe.skip, test.describe.only, test.describe.fixme, expect.soft."
-      - "Add ElementAccessExpression + string-literal-argument handling so test[\"skip\"](...) resolves to the same dotted path as test.skip(...)."
-      - "Fix union-all-arms.uat.spec.ts to import only { test, expect } and use test.describe.only(...); add a corpus case that asserts the fixture's imports actually resolve against the real @playwright/test API."
-      - "Re-quote the corrected set in agent-factory/checklists/browser-uat-recipe.md:165."
-  - truth: "guard_playwright_mcp_pin asserts every @playwright/mcp@ mention across the kit and docs equals the ONE literal in the recipe, and cannot itself be defeated by a floating specifier (D-08, 31-03 must_have)."
-    status: failed
-    reason: >
-      The guard reads its authority as `authority[0].version` — the first @playwright/mcp@ mention in
-      browser-uat-recipe.md — with no check that the extracted string is a well-formed concrete
-      version. If that first mention is itself `@playwright/mcp@latest`, `pin` becomes the string
-      "latest", every other re-pinned mention in the kit compares equal to it, and the guard prints a
-      clean 0-findings pass over a fully-floating kit — the exact failure the guard exists to
-      prevent. Confirmed by direct code inspection (scripts/check-foundation-guards.ts:3838-3855: `const
-      pin = first.version;` with no format assertion). The guard's own PIN_OCCURRENCE_SOURCE comment
-      and 31-03-SUMMARY.md both assert "a floating specifier is a finding, not something the pattern
-      quietly declines to see" — true only for a non-authority mention; no test in
-      check-foundation-guards.test.ts makes the authority itself float, so the overclaim is
-      unverified by the suite that exists.
-    artifacts:
-      - path: "scripts/check-foundation-guards.ts"
-        issue: "guardPlaywrightMcpPin (~line 3838-3855) accepts `first.version` as the pin authority with no shape check; a dist-tag like \"latest\" is accepted as a valid pin."
-    missing:
-      - "Add a concrete-version shape assertion on the authority (e.g. /^\\d+\\.\\d+\\.\\d+(?:-[0-9A-Za-z.-]+)?$/) that fails when the first mention is a floating specifier such as latest/next/beta."
-      - "A test case where the recipe's first mention floats and every other mention is re-pinned to match it, asserting the run is non-zero."
-      - "Correct the PIN_OCCURRENCE_SOURCE comment and 31-03-SUMMARY.md:233's overclaim."
+      - "Decide the membership question by rule over the normalised path (e.g. a banned HEAD set {test, describe} paired with a banned TAIL set {skip, only, fixme}, expect.soft kept as an explicit exact-path exception) rather than by an enumerable literal, so a new intermediate segment (serial, parallel, or any future Playwright modifier) needs no new member."
+      - "Add a case asserting test.describe.serial.only and test.describe.parallel.only are refused; re-quote the corrected set in browser-uat-recipe.md; record the widening as a decision per the file's own header rule (\"a NEW DECISION and a gap-closure round, never a quiet edit here\")."
+      - "Add the reverse cross-check WR-13 names: every skip/only/fixme-shaped member reachable on the declared @playwright/test surface (playwright-test.d.ts) must be in BANNED_CONSTRUCTS or named as a residual, asserted by partition cardinality rather than by one-directional membership."
 deferred: []
 advisory: []
+behavior_unverified_items: []
 human_verification:
   - test: "The attended Claude-in-Chrome lane opens under real interactive auth, pauses for a human on a login/challenge page, and produces only a human-stamped finding + artifact-ref (never a gate stamp)."
     expected: "The lane behaves as documented in agent-factory/checklists/browser-uat-recipe.md §attended lane; no route to a §14-gate stamp is exercised in practice."
-    why_human: "Requires an attended Claude Code session with the Claude-in-Chrome browser extension installed and a real interactive login; not reachable in CI and not reachable on this box (extension not connected). 31-VALIDATION.md already records this as a Manual-Only Verification."
+    why_human: "Requires an attended Claude Code session with the Claude-in-Chrome browser extension installed and a real interactive login; not reachable in CI and not reachable on this box (extension not connected). Recorded in 31-VALIDATION.md as a Manual-Only Verification and carried forward unchanged by 31-08 (R-01)."
   - test: "The claude auth status --json fail-closed predicate (D-10) behaves correctly under an API-key-only box and under a long-lived setup token."
     expected: "Both configurations are a loud skip naming the failing clause, never a silent open."
-    why_human: "Research assumptions A2/A3 are UNKNOWN - verify; neither configuration is reachable without destroying this box's real credentials, per 31-VALIDATION.md."
+    why_human: "Research assumptions A2/A3 are UNKNOWN - verify; neither configuration is reachable without destroying this box's real credentials, per 31-VALIDATION.md. Not attempted by 31-08 (R-02)."
   - test: "Both browser-absence probe stages, and the whole spec-integrity runnable, on a Windows host."
     expected: "Exit 2 with the browser-absent marker when browsers are missing; parser-absent marker when typescript cannot be resolved."
-    why_human: "UNKNOWN - verify per the standing Windows posture (WINDOWS.md); not testable on darwin."
+    why_human: "UNKNOWN - verify per the standing Windows posture (WINDOWS.md); not testable on darwin. Not attempted by 31-08 (R-03)."
   - test: "A host repository that installed grugops before this release re-runs the installer and picks up tools/grugops/uat-spec-integrity.js; the uninstaller removes it."
     expected: "The new runnable is materialized on re-install and cleanly removed on uninstall."
-    why_human: "Requires a second scratch repository with a prior grugops install at an earlier release; not exercised by the unit suite."
+    why_human: "Requires a second scratch repository with a prior grugops install at an earlier release; not exercised by the unit suite. Not attempted by 31-08 (R-04)."
 ---
 
 # Phase 31: Autonomous Manual Testing Verification Report
 
 **Phase Goal:** An agent can drive a real browser to produce UAT evidence, and the only thing that
 counts as evidence is an artifact the §14 gate re-runs — never the agent's narration of what it saw.
-**Verified:** 2026-09-07T19:45:00Z
+**Verified:** 2026-09-08T14:45:00Z
 **Status:** gaps_found
-**Re-verification:** No — initial verification (a code review, 31-REVIEW.md, ran immediately before
-this verification and reproduced the same defects; each was independently re-reproduced below rather
-than taken on the review's word).
+**Re-verification:** Yes — second round, after gap-closure plans 31-05..31-08 closed the three
+blockers from round 1's `31-VERIFICATION.md` (score 3/6). A code review of the gap-closure round
+(`31-REVIEW.md`, committed at `41a2154`) found two NEW Criticals, CR-05 and CR-06, on the exact same
+predicates one register over. Both are independently re-reproduced below against the committed `.js`
+rather than accepted from the review's word.
 
 ## Goal Achievement
 
@@ -146,128 +174,151 @@ than taken on the review's word).
 
 | # | Truth | Status | Evidence |
 |---|-------|--------|----------|
-| 1 | UATX-01 — a committed Playwright spec, re-run by the §14 gate, is the machine-verifiable evidence floor; an agent's narration/MCP transcript never produces a stamp | ⚠️ PARTIAL — see gap 1 | The `by: §14-gate` impersonation refusal lives in `validate()` (shared by every writer) and holds; the AST-checked spec is real. But the artifact-ref binding meant to tie evidence to a specific gate run can be written with a fabricated `gate_run`/`sha` through the documented sanctioned writer (gap 1), which is a route for an agent's own unverified claim to enter the context looking like bound evidence. |
-| 2 | UATX-02 — browser MCP tooling documented and pinned for all five host CLIs; `package.json` gains nothing | ✓ VERIFIED | `agent-factory/checklists/browser-uat-recipe.md` names all five host CLIs with `@playwright/mcp@0.0.78`; `grep -c '@playwright/mcp@' browser-uat-recipe.md` ≥ 5; `git diff` shows no `package.json` change across the phase. |
-| 3 | UATX-03 — Claude in Chrome is attended-only and structurally barred from producing a `§14-gate` stamp | ✓ VERIFIED | `scripts/chrome-lane-bar.test.ts` derives the one-file author set (`scripts/context-io.ts`) and the two-region no-route check, both watched-fail per its own tests; part of the current green 61-file/3264-test suite. No defect against this bar was found by the review or by this verification. |
-| 4 | UATX-04 — evidence carries commit SHA + gate-run id + content hash; a note whose SHA is not the HEAD the gate ran against is refused | ✗ FAILED | Gap 1 below. Reproduced live: `appendNote()` wrote an `artifact-ref` note naming a nonexistent `gate_run` and an arbitrary `sha` with no refusal. |
-| 5 | UATX-05 — an absent/unusable browser produces a loud skip leaving the UAT `pending`, never a silent pass | ✓ VERIFIED | `PARSER_ABSENT_MARKER` / `BROWSER_ABSENT_MARKER` each have a single emission point and exit 2; `scripts/runnable-ref/uat-spec-integrity.test.ts` exercises both through injectable probes; not contested by the review or by this verification's checks. |
-| 6 | UATX-06 — conditional or caught assertions in generated specs are rejected over the TypeScript AST, and the recipe's claim matches exactly what the checker decides | ✗ FAILED | Gap 2 below. Arms (a)/(b) (caught and conditional assertions) are correctly decided over the AST and not contested. Arm (c) (the modifier-call bans) is unreachable for the real Playwright spellings `test.describe.only`/`test.describe.skip` and for any bracket-notation call (`test["skip"]`); reproduced live: a spec containing all three constructs reported `0 findings`, exit 0. |
-| 7 | D-08 / 31-03 must_have — the pin guard cannot itself be defeated by a floating specifier | ✗ FAILED | Gap 3 below. `guardPlaywrightMcpPin` reads its authority as the first mention with no concrete-version shape check; confirmed by direct code read. |
+| 1 | UATX-01 — a committed Playwright spec, re-run by the §14 gate, is the machine-verifiable evidence floor; an agent's narration/self-supplied claim never produces a stamp | ✗ FAILED — see gap 1 (CR-05) | Gap 1's original defect (artifact-ref) is closed and re-reproduced (see row 4). But a `finding` bearing a fabricated `§14-gate#<id>` stamp is still written through `appendNote` with no refusal and rendered into `index.md` as a normal, indistinguishable-from-verified row. Independently reproduced live in this verification. |
+| 2 | UATX-02 — browser MCP tooling documented and pinned for all five host CLIs; `package.json` gains nothing; the pin authority cannot itself be defeated by a floating specifier | ✓ VERIFIED | Recipe unchanged from round 1 (5 host CLIs, `@playwright/mcp@0.0.78`, `package.json` untouched). The round-1 gap 3 (pin authority) is closed: a fully-floated mirror (every mention, including the authority's own, rewritten to `@playwright/mcp@latest`) reproduced live in this verification exits 1, naming the authority's file, line and rejected token, where the round-1 guard exited 0 with a clean `0 findings over 7/7` pass. |
+| 3 | UATX-03 — Claude in Chrome is attended-only and structurally barred from producing a `§14-gate` stamp | ✓ VERIFIED | `scripts/chrome-lane-bar.test.ts` unchanged this round, part of the current green 62-file/3318-test suite; not contested by the review or by this verification. |
+| 4 | UATX-04 — evidence carries commit SHA + gate-run id + content hash; a note whose SHA is not the HEAD the gate ran against is refused | ✓ VERIFIED | Gap 1 closed and independently re-reproduced: `appendNote(task, { kind: "artifact-ref", gate_run: "no-such-gate-run-ever-existed", sha: <hex>, content_hash: <hex> }, ...)` against the committed `scripts/context-io.js` now THROWS `admission FAIL: no live green §14-gate verdict found for "§14-gate#no-such-gate-run-ever-existed" ...`, and the notes directory gains **0** files (previously wrote 1). The legitimate bound path was not independently re-tested here but is covered by `scripts/context-io.test.ts`'s green suite. |
+| 5 | UATX-05 — an absent/unusable browser produces a loud skip leaving the UAT `pending`, never a silent pass | ✓ VERIFIED | Unchanged this round; `PARSER_ABSENT_MARKER` / `BROWSER_ABSENT_MARKER` each single-emission, exit 2, exercised by `scripts/runnable-ref/uat-spec-integrity.test.ts`; not contested. |
+| 6 | UATX-06 — conditional or caught assertions in generated specs, and the D-14 arm-(c) modifier bans, are rejected over the TypeScript AST, and the recipe's claim matches exactly what the checker decides | ✗ FAILED — see gap 2 (CR-06) | Gap 2's original defect (the three planted constructs) is closed and re-reproduced (see row 2). But `test.describe.serial.only` and `test.describe.parallel.only` — real Playwright spellings that narrow an entire gate run the same way `test.describe.only` does — walk past the nine-member `BANNED_CONSTRUCTS` set undetected. Independently reproduced live in this verification: `0 findings over 1/1 uat specs checked`, exit 0, on the same harness that correctly refuses `test.describe.only` alone. |
 
-**Score:** 3/6 roadmap Success Criteria fully verified (UATX-02, UATX-03, UATX-05); UATX-01, UATX-04,
-UATX-06 fail on the artifact-ref binding bypass and the AST-ban coverage gap. One additional plan-level
-must_have (the pin guard's self-resistance, D-08) also fails.
+**Score:** 4/6 roadmap Success Criteria fully verified (UATX-02, UATX-03, UATX-04, UATX-05); UATX-01
+and UATX-06 fail on the same defect class as round 1 — a predicate closed at the exact coordinates a
+verifier measured, reappearing one register over (a sibling kind for UATX-01, a sibling spelling for
+UATX-06).
 
 ### Required Artifacts
 
 | Artifact | Expected | Status | Details |
 |----------|----------|--------|---------|
-| `scripts/context-io.ts` / `.js` | `emitVerdict` records SHA; `admit()` D-03 refusal; provenance fields on `artifact-ref` | ⚠️ PRESENT BUT INCOMPLETE | The mechanism exists and works when reached through `admit()`/`admitAndAppend()`, but is not reachable from `appendNote()`, the writer two shipped workflows document by name (gap 1). |
-| `scripts/context-io.test.ts` | Regression + new SHA-binding cases | ✓ VERIFIED (exists, green) | Green, but has no case exercising a stale-SHA/fabricated-gate-run write through `appendNote()` directly — the exact path that bypasses D-03. |
-| `agent-factory/contracts/context-note.md` | Three provenance fields documented, six-kind schema closed | ✓ VERIFIED | `content_hash` correctly disclosed as non-tamper-proof; six kinds still listed. |
-| `scripts/runnable-ref/uat-spec-integrity.ts` / `.js` / `.test.ts` | AST ban over D-14's three arms; loud skips; derived/vacuity-floored spec set | ⚠️ PRESENT BUT INCOMPLETE | Arms (a)/(b) and the loud skips/vacuity floors are correct and tested; arm (c) fails to match real Playwright syntax (gap 2). |
-| `scripts/runnable-ref/fixtures/union-all-arms.uat.spec.ts` | Proves the union of all three arms is refused | ✗ NOT REPRESENTATIVE | Imports a non-existent `describe` binding; excluded from typecheck; does not exercise real Playwright syntax, so it cannot have caught gap 2. |
-| `agent-factory/checklists/browser-uat-recipe.md` | Single home for pinned five-host setup, evidence provenance, ban set, loud skips, attended-lane rule | ✓ VERIFIED | All required sections present; `mcp@latest` count 0; `UNKNOWN - verify` present ≥2. |
-| `agent-factory/checklists/00-index.md`, `install/README.md` | One index row, one pointer section | ✓ VERIFIED | `browser-uat-recipe.md` appears exactly once in `00-index.md`; `install/README.md` points at it. |
-| `scripts/check-foundation-guards.ts` — `guardPlaywrightMcpPin` | Fail-closed pin assertion, reports scan | ✗ INCOMPLETE | Zero-occurrence and missing-authority cases fail correctly; the authority-floats case is unguarded (gap 3). |
-| `agent-factory/workflows/05-pr-quality-gate.md`, `06-uat-pack.md` | Spec-integrity step wired before e2e; QE/E2E authoring step; acceptance-checkpoint statement | ✓ VERIFIED | Gate-order sentence and step list agree; verdict-emission line documents 5 positional slots; workflow 06 names `Ready to Release` and the unchanged `sign_off_acceptance` default. |
-| `scripts/chrome-lane-bar.test.ts` | Derived one-author-set + no-route-in-documented-lane, both watched-fail | ✓ VERIFIED | Present, green, part of the passing suite; not contested. |
+| `scripts/context-io.ts` / `.js` | `appendNote` routes every kind `admit()` has an opinion about through the single authority | ⚠️ PRESENT BUT INCOMPLETE | The `artifact-ref` branch (D-03) is correct and reachable; the sibling `finding` branch (D-01) is not reached from `appendNote` at all (CR-05). |
+| `scripts/context-io-writer-set.test.ts` | Every writer exercised against every refusal family `admit()` implements | ⚠️ PRESENT BUT INCOMPLETE | The writer set is correctly derived by AST and counted (4 writers), but the exercise table asks only "refuses the fabricated artifact-ref" — one refusal family out of four `admit()` implements (D-01/D-03/D-04/D-14). |
+| `agent-factory/workflows/17-task-claim.md`, `18-context-compaction.md` | Prose states what the mechanism does for every kind | ⚠️ PRESENT BUT INCOMPLETE | Both name the corrected artifact-ref path; workflow 18 step 4 additionally claims admission "fires on every promoted note", which is false for a promoted finding (WR-11). |
+| `scripts/runnable-ref/uat-spec-integrity.ts` / `.js` / `.test.ts` | AST ban over the real Playwright modifier-call surface | ⚠️ PRESENT BUT INCOMPLETE | `calleeDottedPath` correctly resolves any callee shape to a dotted path; `BANNED_CONSTRUCTS` under-decides which resolved paths are banned (CR-06). |
+| `scripts/runnable-ref/fixtures/playwright-test.d.ts`, `tsconfig.fixtures.json` | A declared, type-checked Playwright surface the ban set can be cross-checked against | ✓ VERIFIED (as far as it goes) | Proves every banned spelling is real; does not (yet) prove every real modifier is banned — a one-directional check (WR-13), which is why CR-06 was not caught by the shipped suite. |
+| `agent-factory/checklists/browser-uat-recipe.md` | Ban set and pin quoted from, and equal to, the exported constants | ✓ VERIFIED (quotes agree with the code, both incomplete in the same place) | The recipe's ban-set region and `BANNED_CONSTRUCTS` are asserted equal by a test — but both are incomplete against real Playwright syntax in the same way (CR-06), so agreement here does not mean correctness. |
+| `scripts/check-foundation-guards.ts` — `guardPlaywrightMcpPin` | Fail-closed pin assertion, cannot be defeated by a floating authority | ✓ VERIFIED | `PIN_CONCRETE_VERSION_RE` refuses a non-concrete authority token; independently reproduced against a fully-floated mirror (exit 1, correct diagnosis). |
+| `scripts/chrome-lane-bar.test.ts` | Derived one-author-set + no-route-in-documented-lane, both watched-fail | ✓ VERIFIED | Unchanged, green, not contested. |
 
 ### Key Link Verification
 
 | From | To | Via | Status | Details |
 |------|-----|-----|--------|---------|
-| `emitVerdict` | `emitTrusted` | single write tail for the reserved gate identity | ✓ WIRED | Unchanged single-author path; confirmed by `chrome-lane-bar.test.ts`'s derived one-file author set. |
-| `appendNote()` | `admit()`'s D-03 branch | **expected but absent** | ✗ NOT WIRED | This is the core of gap 1: the documented sanctioned writer does not route through the admission authority for the predicate that binds evidence to a gate run. |
-| `RUNNABLES` (`install.ts`) | `RUNNABLES_MIRROR` (`uninstall.ts`) | materialization pair for `uat-spec-integrity.js` | ✓ WIRED | Both files reference `tools/grugops/uat-spec-integrity.js` exactly once each. |
-| `BANNED_CONSTRUCTS` | `browser-uat-recipe.md`'s ban-set prose | quoted from the single exported constant | ⚠️ PARTIAL | The prose quotes the set correctly, but the set itself under-decides arm (c) against real Playwright syntax (gap 2) — the claim and the mechanism agree with each other and both are wrong about what Playwright actually accepts. |
-| recipe's pin literal | `guardPlaywrightMcpPin` | guard reads the literal rather than re-declaring it | ⚠️ PARTIAL | One home for the literal is honored, but nothing validates that the one home is well-formed (gap 3). |
-| workflow 05's `emit-verdict` line | the CLI's 4/5-arity check | prose names the same slot count as the code | ✓ WIRED | Confirmed — five positional slots documented, matching the shipped arity check. |
+| `appendNote()` (kind `artifact-ref`) | `admit()`'s D-03 branch | the link round-1 gap 1 recorded as `expected but absent` | ✓ WIRED | Closed by 31-05; independently reproduced. |
+| `appendNote()` (kind `finding`) | `admit()`'s D-01 branch | the sibling link the review found still absent | ✗ NOT WIRED | CR-05: a `finding` stamped `§14-gate#<id>` is composed and written by `appendNote` with no call into `admit()` at all; only `admitAndAppend` (a route the sanctioned-writer workflows do not name for this case) reaches it. |
+| `BANNED_CONSTRUCTS` | `calleeDottedPath`'s resolved output | comparison by exact-string membership | ⚠️ PARTIAL | The shape resolution is correct and total; the membership set is an incomplete enumeration (CR-06) rather than a rule, so a real, gate-narrowing Playwright construct (`test.describe.serial.only`) resolves correctly and is still not banned. |
+| recipe's pin literal | `guardPlaywrightMcpPin`'s authority read | a concrete-version shape assertion before adoption | ✓ WIRED | Closed by 31-07; independently reproduced against a fully-floated mirror. |
 
-### Behavioral Spot-Checks (independently reproduced in this verification, not taken from 31-REVIEW.md)
+### Behavioral Spot-Checks
 
-| Behavior | Command | Result | Status |
-|----------|---------|--------|--------|
-| `appendNote()` writes a fabricated-provenance `artifact-ref` (no matching live verdict) | `node` script calling `appendNote("verify-repro-task", { kind: "artifact-ref", gate_run: "no-such-gate-run-ever-existed", sha: "deadbeef...", content_hash: "0"*64, ... }, ...)` against `scripts/context-io.js` | `appendNote WROTE id: 20260907T163748Z-qe-e2e-artifact-ref-1e163523` — no refusal | ✗ FAIL (confirms gap 1) |
-| `uat-spec-integrity.js` over a spec using `test.describe.only`, `test.describe.skip`, `test["skip"]` | `node scripts/runnable-ref/uat-spec-integrity.js <tmp-repo-with-typescript-resolvable>` | `UAT spec integrity: 0 findings over 1/1 uat specs checked`, `EXIT=0` | ✗ FAIL (confirms gap 2) |
-| `guardPlaywrightMcpPin`'s authority read | Code inspection: `scripts/check-foundation-guards.ts:3838-3855`, `const pin = first.version;` with no format check | No concrete-version assertion present | ✗ FAIL (confirms gap 3) |
-| Full excluded-e2e regression suite | `npx vitest run --exclude '**/scripts/e2e/**'` | `Test Files 61 passed (61)`, `Tests 3264 passed \| 2 skipped (3266)` | ✓ PASS (green, but does not exercise any of the three gaps above — confirms the project's standing "green suite is not proof for a safety predicate" doctrine) |
+Round-1 commands preserved verbatim, with this round's independently-reproduced result recorded beside each. Two additional rows (4, 5) are this round's own reproductions of the review's new Criticals.
+
+| # | Behavior | Command | Round-1 result (31-VERIFICATION.md) | This round's result (independently reproduced) | Status |
+|---|----------|---------|--------------------------------------|--------------------------------------------------|--------|
+| 1 | `appendNote()` writes a fabricated-provenance `artifact-ref` (no matching live verdict) | `node` script calling `appendNote("verify-repro-task", { kind: "artifact-ref", gate_run: "no-such-gate-run-ever-existed", sha: "deadbeef...", content_hash: "0"*64, ... }, ...)` against `scripts/context-io.js` | `appendNote WROTE id: 20260907T163748Z-qe-e2e-artifact-ref-1e163523` — no refusal | `appendNote THREW: context-io.appendNote: refusing to write an artifact-ref whose provenance the admission authority did not accept. Nothing was written: admission FAIL: no live green §14-gate verdict found for "§14-gate#no-such-gate-run-ever-existed" ...` — `files AFTER: 0` | ✓ PASS — gap 1 closed |
+| 2 | `uat-spec-integrity.js` over a spec using `test.describe.only`, `test.describe.skip`, `test["skip"]` | `node scripts/runnable-ref/uat-spec-integrity.js <tmp-repo-with-typescript-resolvable>` | `UAT spec integrity: 0 findings over 1/1 uat specs checked`, `EXIT=0` | `UAT spec integrity: 1 finding(s) over 1/1 uat specs checked` per construct when isolated; run with the same three-construct spec, one finding per construct, `EXIT=1` | ✓ PASS — gap 2 closed for the planted constructs |
+| 3 | `guardPlaywrightMcpPin`'s authority read | Code inspection: `scripts/check-foundation-guards.ts` authority-adoption region; behavioral run against a fully-floated mirror | No concrete-version assertion present | `PIN_CONCRETE_VERSION_RE` present at the authority branch; a mirror with every mention (including the authority's) rewritten to `@playwright/mcp@latest` now exits 1: `FAIL playwright MCP pin: the first pinned mention ... reads \`latest\`, which is not a concrete version — a floating specifier AT THE AUTHORITY ...` | ✓ PASS — gap 3 closed |
+| 4 | **NEW this round (CR-05):** `appendNote()` writes a fabricated `§14-gate` stamp on a `finding` note (no matching live verdict) | `node` script calling `appendNote(task, { kind: "finding", by: "qe-e2e", verified_by: "§14-gate#fabricated-run-id", confidence: "high", ... }, body, contextRoot)` against `scripts/context-io.js`, then `render(task, contextRoot)` | n/a (round 1 did not test this kind) | `appendNote WROTE id: 20260908T010000Z-qe-e2e-finding-cdaf0eb1`, `files AFTER: 1` — no refusal. `admitAndAppend` on the identical note THROWS `admission FAIL: no live green §14-gate verdict found for "§14-gate#fabricated-run-id" ...`. `render()` then writes the fabricated note into `index.md` as an ordinary row: `\| 2026-09-08T01:00:00Z \| finding \| qe-e2e \| high \| §14-gate#fabricated-run-id \| the checkout flow passes end to end \|`. | ✗ FAIL (confirms CR-05) |
+| 5 | **NEW this round (CR-06):** `uat-spec-integrity.js` over a spec using `test.describe.serial.only` and `test.describe.parallel.only` | `node scripts/runnable-ref/uat-spec-integrity.js <tmp-repo>` over a spec with both constructs; control spec with bare `test.describe.only` on the same harness | n/a (round 1 did not test these spellings) | Both-construct spec: `UAT spec integrity: 0 findings over 1/1 uat specs checked`, `EXIT=0`. Control (`test.describe.only` alone): `UAT spec integrity: 1 finding(s) over 1/1 uat specs checked`, `EXIT=1` — confirms the matcher is sound and the gap is set membership. | ✗ FAIL (confirms CR-06) |
+| 6 | Full excluded-e2e regression suite | `npx vitest run --exclude '**/scripts/e2e/**'` | `Test Files 61 passed (61)`, `Tests 3264 passed \| 2 skipped (3266)` | `Test Files 62 passed (62)`, `Tests 3318 passed \| 2 skipped (3320)`, exit 0 | ✓ PASS (green, but rows 4-5 show it does not exercise either new gap — the project's "green suite is not proof for a safety predicate" doctrine holds again this round) |
 
 ### Requirements Coverage
 
 | Requirement | Source Plan(s) | Description | Status | Evidence |
 |---|---|---|---|---|
-| UATX-01 | 31-01, 31-04 | Committed spec = evidence floor; narration never a stamp | ⚠️ PARTIAL | Impersonation refusal holds; artifact-ref binding is bypassable (gap 1) |
-| UATX-02 | 31-03 | Browser MCP tooling documented + pinned, 5 hosts | ✓ SATISFIED | Recipe complete; `package.json` untouched |
+| UATX-01 | 31-01, 31-04, 31-05 | Committed spec = evidence floor; narration never a stamp | ✗ BLOCKED | Artifact-ref binding closed (31-05); the `finding` sibling stamp is still self-suppliable through the sanctioned writer with no refusal, rendered as verified (CR-05) |
+| UATX-02 | 31-03, 31-06, 31-07 | Browser MCP tooling documented + pinned, 5 hosts; pin authority cannot itself float | ✓ SATISFIED | Recipe complete; pin authority now shape-checked and independently reproduced closed |
 | UATX-03 | 31-03, 31-04 | Attended Chrome lane structurally barred from gate stamp | ✓ SATISFIED | `chrome-lane-bar.test.ts` green and unchallenged |
-| UATX-04 | 31-01 | Evidence provenance (SHA/gate_run/content_hash); mismatched SHA refused | ✗ BLOCKED | Refused only through `admit()`, not through the documented `appendNote()` path (gap 1) |
-| UATX-05 | 31-02, 31-04 | Loud skip on absent/unusable browser, never a silent pass | ✓ SATISFIED | Both markers, single emission points, tested |
-| UATX-06 | 31-02, 31-04 | AST ban on conditional/caught assertions; claim matches mechanism | ✗ BLOCKED | Arms (a)/(b) correct; arm (c) does not match real Playwright syntax (gap 2) |
+| UATX-04 | 31-01, 31-05 | Evidence provenance (SHA/gate_run/content_hash); mismatched SHA refused | ✓ SATISFIED | The D-03 sha-versus-verdict binding is reachable from `appendNote` and independently reproduced refusing the round-1 fabricated call |
+| UATX-05 | 31-02, 31-04 | Loud skip on absent/unusable browser, never a silent pass | ✓ SATISFIED | Both markers, single emission points, tested; unchanged this round |
+| UATX-06 | 31-02, 31-04, 31-06 | AST ban on conditional/caught assertions and modifier calls; claim matches mechanism | ✗ BLOCKED | Arms (a)/(b) and the three planted arm-(c) spellings correct; `test.describe.serial.only`/`parallel.only` still bypass the ban set (CR-06) |
 
-No orphaned requirements: every plan's `requirements:` frontmatter entry (UATX-01, UATX-02, UATX-03,
-UATX-04, UATX-05, UATX-06 across 31-01..31-04) is accounted for above, and `.planning/REQUIREMENTS.md`
-maps no additional Phase 31 requirement ID beyond these six.
+No orphaned requirements: every requirement ID declared across the eight plans' `requirements:`
+frontmatter (UATX-01 through UATX-06) is accounted for above, and `.planning/REQUIREMENTS.md` maps
+no additional Phase 31 requirement ID beyond these six. `.planning/REQUIREMENTS.md` still lists all
+six as unchecked (`- [ ]`) and the traceability table still reads "Gaps Found" for all six — correctly
+unmoved, since this report also finds `gaps_found`.
 
 ### Anti-Patterns Found
 
 | File | Line | Pattern | Severity | Impact |
 |------|------|---------|----------|--------|
-| `scripts/runnable-ref/uat-spec-integrity.ts` | ~487-503 | Matcher accepts a narrower AST shape than the real-world construct it claims to ban | 🛑 Blocker | Gap 2 — the modifier-ban claim is false for the mechanism's actual coverage |
-| `scripts/context-io.ts` | 1020-1073 (`appendNote`) | Documented "sole sanctioned writer" omits the one safety check the phase exists to add | 🛑 Blocker | Gap 1 — an agent-controllable write path can forge provenance-bound evidence |
-| `scripts/check-foundation-guards.ts` | 3838-3855 | Guard's fail-closed claim ("a floating specifier is a finding") is untrue for the authority mention itself | 🛑 Blocker | Gap 3 — supply-chain guard has an unguarded self-referential hole |
-| `.planning/phases/31-autonomous-manual-testing/31-01-SUMMARY.md` | §Residual 1 | States "Neither is a silent pass — both fail closed" for the `appendNote` bypass; measurement contradicts this | ℹ️ Info | No-fabrication rule: a disclosed residual whose stated disposition is wrong is not a disclosed residual |
-| `.planning/phases/31-autonomous-manual-testing/31-03-SUMMARY.md` | ~233 | Repeats the guard's overclaim about floating-specifier detection | ℹ️ Info | Same root cause as gap 3's comment overclaim |
-| `tsconfig.json`, `tsconfig.tests.json` | exclude list | `scripts/runnable-ref/fixtures/**` excluded from both, hiding an invalid fixture (non-existent `describe` import) | ⚠️ Warning | Contributed to gap 2 going undetected by the shipped test suite |
+| `scripts/context-io.ts` | 1095-1105 (`appendNote`) | The single-authority call this round added is scoped to one kind (`artifact-ref`) out of the four `admit()` adjudicates | 🛑 Blocker | CR-05/gap 1 reappears one kind over — a `finding` bearing a fabricated `§14-gate` stamp is still writable through the documented sanctioned path |
+| `scripts/runnable-ref/uat-spec-integrity.ts` | 87-96 (`BANNED_CONSTRUCTS`) | A widened but still-enumerable literal set, rather than a rule over the callee's resolved head/tail | 🛑 Blocker | CR-06/gap 2 reappears one segment over — `test.describe.serial.only`/`parallel.only` narrow evidence scope undetected |
+| `scripts/context-io-writer-set.test.ts` | ~374 (exercise table) | Derives the writer SET by AST (correct) but asks every writer only ONE predicate question ("refuses the fabricated artifact-ref"), not one per refusal family `admit()` implements | ⚠️ Warning | The contract test that was built specifically to prevent this class of gap could not see CR-05, because it enumerated writers but not predicates |
+| `agent-factory/workflows/18-context-compaction.md` | ~51 (step 4) | Retains "Phase-21 admission still fires on every promoted note" beside a new, narrower, accurate sentence about `artifact-ref` | ⚠️ Warning | False for a promoted `finding`; the two adjacent sentences disagree, and the reader most likely to be misled is the agent this workflow instructs (WR-11) |
+| `scripts/context-io.ts` | 1026 (`appendNote`'s new `repoRoot` parameter) | Defaults to `ROOT` (the kit's own install root) rather than `trustedRepoRoot()`, re-introducing a caller-chosen governance-root seam a prior phase (30-11) deliberately removed from the `admit` CLI verb | ⚠️ Warning | Under the shared-install model (`~/.grugops` kit + per-repo state) with `CLAUDE_PROJECT_DIR` set, the writer's admission can resolve the governance dial against a different root than the hooks/CLI do (WR-10) — not independently re-measured in this verification, taken from 31-REVIEW.md's code inspection |
+| `.planning/phases/31-autonomous-manual-testing/31-05-SUMMARY.md` | key-files `provides` line | "the D-03 authority is now reachable from every exported note writer" reads, in context, as closing the whole class of writer-bypass; it is true only for the `artifact-ref` predicate | ℹ️ Info | No-fabrication rule: a true-but-narrower claim read at face value overstates the closure, which is exactly how CR-05 escaped this round's own review-adjacent checks |
 
-No unreferenced `TBD`/`FIXME`/`XXX` debt markers were found in the files this phase modified.
+No unreferenced `TBD`/`FIXME`/`XXX` debt markers were found in any file this phase (round 1 or the
+gap-closure round) modified — confirmed by a fresh grep across the full changed-file set in this
+verification session; the one `XXXX` match in `scripts/context-io.test.ts` is a redacted example path
+in a comment, not a debt marker.
 
 ### Human Verification Required
 
 4 items, all pre-existing `UNKNOWN - verify` / manual-only items already recorded in
-`31-VALIDATION.md` — none newly discovered by this verification, listed for completeness in the
-frontmatter `human_verification` block above (the attended Chrome lane's real interactive behavior,
-the `claude auth status --json` predicate under API-key/long-lived-token auth, the Windows leg of
-every browser probe, and the installer/uninstaller round-trip on a pre-existing host install).
+`31-VALIDATION.md` and explicitly not attempted by 31-08 — none newly discovered by this
+verification, listed for completeness in the frontmatter `human_verification` block above (the
+attended Chrome lane's real interactive behavior, the `claude auth status --json` predicate under
+API-key/long-lived-token auth, the Windows leg of every browser probe, and the installer/uninstaller
+round-trip on a pre-existing host install).
+
+The one question `31-08-SUMMARY.md`'s closure brief leaves for a named human — *"Are the three gaps
+closed well enough to return Phase 31 to verification, or is another adversarial round needed
+first?"* — is not answered here, per this task's explicit instruction. This verification's own answer
+to the underlying question (arrived at independently, by reproduction rather than by reading the
+brief) is: the three original gaps are closed, and two new ones of the same shape were found by the
+subsequent code review and are confirmed live in this report, so another adversarial round is needed.
 
 ### Gaps Summary
 
-Three 🛑 Blockers, all independently re-reproduced in this verification session (not taken on
-31-REVIEW.md's word):
+Two 🛑 Blockers, both independently re-reproduced in this verification session (not taken on
+31-REVIEW.md's word), and both are the exact defect class the gap-closure round was convened to
+close, reappearing one axis over:
 
-1. **The evidence-binding refusal (D-03/UATX-04) has a live bypass.** `admit()` correctly refuses a
-   stale-SHA or fabricated-gate-run `artifact-ref`, but `appendNote()` — named as the sanctioned
-   writer by two shipped workflows — never calls `admit()` and writes such a note anyway. This
-   directly contradicts the phase's own goal statement: an agent-authored claim (a `gate_run`/`sha`
-   pair the agent supplies) can enter the shared context looking like bound evidence with no
-   verification that a matching gate run exists. Reproduced live: `appendNote()` wrote and returned
-   an id for a note naming `gate_run: "no-such-gate-run-ever-existed"`.
+1. **The finding-stamp refusal (D-01/UATX-01) has a live bypass, sibling to the closed D-03/UATX-04
+   bypass.** `appendNote`'s new `admit()` call is gated on `note.kind === "artifact-ref"` (after
+   `normalizeKind`). `admit()` itself also refuses a `finding` stamped `§14-gate#<id>` against no
+   live green verdict (D-01) — but that refusal is reached only through `admitAndAppend`, not
+   through `appendNote`, the writer both sanctioned-path workflows name. Reproduced live:
+   `appendNote` wrote a `finding` naming `verified_by: "§14-gate#fabricated-run-id"` with no
+   refusal, and `render()` printed it into `index.md` indistinguishable from a genuinely admitted
+   finding. This is closer to the phase's core goal statement than gap 1 was — an agent's own claim
+   about what it saw, wearing a gate stamp it never earned.
 
-2. **The D-14 arm (c) ban set does not match real Playwright syntax (UATX-06).** `test.describe.only`,
-   `test.describe.skip`, `test.describe.fixme`, and any bracket-notation call (`test["skip"]`,
-   `expect["soft"]`) are the actual spellings Playwright supports and are all invisible to the
-   checker. `test.describe.only` in particular narrows an entire gate run to one describe block —
-   precisely the "a green lane would certify a scenario nobody exercised" failure the checker exists
-   to prevent. The fixture meant to prove this arm imports a non-existent Playwright export and is
-   excluded from typecheck, so the gap was never caught by the shipped 47/47-green test suite.
+2. **The D-14 arm (c) ban set still does not match the full real Playwright modifier surface
+   (UATX-06).** 31-06 correctly widened the matcher to resolve any callee shape to a dotted path and
+   correctly added the three spellings the round-1 verifier had planted. But the membership set is a
+   nine-item literal, and `test.describe.serial.only` / `test.describe.parallel.only` — real,
+   gate-run-narrowing Playwright constructs — are not in it. Reproduced live: both constructs
+   together produce `0 findings over 1/1 uat specs checked`, exit 0, while a control spec containing
+   only `test.describe.only` on the identical harness correctly reports 1 finding, exit 1.
 
-3. **The pin guard (D-08) cannot detect a floating specifier when the authority mention itself
-   floats.** The guard's own source comment claims the opposite of what the code does; no test
-   exercises the authority-floats case. This is a secondary supply-chain control weakening rather
-   than a defeat of the phase's core evidence-binding goal, but it is a documented must_have of Plan
-   31-03 that fails as written.
+Both gaps were found by `31-REVIEW.md`'s code review of the gap-closure round and independently
+re-reproduced end-to-end in this verification against the committed `.js`, not accepted from the
+review's narration. The full excluded-e2e suite is green (62/62 files, 3318/3320 tests, 2 pre-existing
+skips) and exercises neither gap — this project's standing doctrine that a green suite is not proof
+for a safety predicate holds for the second consecutive verification round on this phase.
 
-All three were reproduced independently in this verification (live `appendNote()` call, live
-`uat-spec-integrity.js` run, and direct code inspection) rather than accepted from the code review
-that preceded this verification. The full excluded-e2e suite is green (61/61 files, 3264/3266 tests)
-and does not exercise any of these three paths — consistent with this project's standing doctrine
-that a green suite is not proof for a safety predicate.
+**Progress since round 1 is real and should not be discounted:** all three original blockers (the
+artifact-ref sha binding, the three planted modifier spellings, and the pin-authority shape) are
+closed and independently re-verified in this round. The remaining two gaps are narrower in scope than
+the original three (one kind and two spellings, rather than an entire predicate or matcher being
+unreachable), but they sit on the exact same two truths (UATX-01, UATX-06) and are the same failure
+mode this repository has now paid for four times across this phase alone (gap 1 → CR-05; gap 2 →
+CR-06): a fix that closes a predicate or a matcher exactly where the verifier measured it, and nowhere
+else along the same family.
 
-**This looks like it needs a gap-closure round, not an override.** All three defects are structural
-mismatches between the claimed mechanism and the actual one, in the exact register this project's
-own doctrine treats as blocking (see `agent-factory/checklists/browser-uat-recipe.md`'s own framing:
-"the claim matches the mechanism"). No override is suggested.
+**This looks like it needs a third gap-closure round, not an override.** Both defects are the same
+structural pattern the project's own doctrine (and `browser-uat-recipe.md`'s own header) treats as
+blocking — "the claim matches the mechanism" is false in a place adjacent to where it was made true.
+No override is suggested; the fixes indicated in each `gaps:` entry's `missing:` list (derive the
+refusal-family set from `admit()` rather than naming one; decide ban-set membership by a head/tail
+rule over the resolved path rather than by an enumerable literal) are structural fixes of the same
+shape that closed the original three gaps, applied one level higher so a fourth reappearance is
+harder to produce.
 
 ---
 
-_Verified: 2026-09-07T19:45:00Z_
+_Verified: 2026-09-08T14:45:00Z_
 _Verifier: Claude (gsd-verifier)_
