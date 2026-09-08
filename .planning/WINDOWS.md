@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 131
+open_count: 132
 waived_count: 0
 fixed_count: 4
-total_count: 135
-last_updated: 2026-09-07T16:15:06.567Z
+total_count: 136
+last_updated: 2026-09-08T07:33:14.050Z
 ---
 
 # Broken Windows Ledger
@@ -150,6 +150,7 @@ last_updated: 2026-09-07T16:15:06.567Z
 | 133 | 31 | deviation | scripts/chrome-lane-bar.test.ts |  | D-09 structural bar: the emitVerdict( predicate is syntactic — an aliased reference (const f = emitVerdict; f(...)) or bracket access evades it; measured, disclosed in the file header, not closed | open |  | 2026-09-07T16:15:06.392Z |  |
 | 134 | 31 | deviation | agent-factory/workflows/05-pr-quality-gate.md |  | A repository holding *.uat.spec.ts files with quality.ui_e2e off never runs the UAT spec-integrity check; applicability is the dial's, so unchecked specs remain possible | open |  | 2026-09-07T16:15:06.479Z |  |
 | 135 | 31 | unrun-verify | agent-factory/workflows/06-uat-pack.md |  | UNKNOWN - verify: the attended Chrome lane was not exercised live on this host; only its documented absence-of-route was asserted structurally | open |  | 2026-09-07T16:15:06.567Z |  |
+| 136 | 31 | deviation | scripts/context-io.ts |  | Disclosed: one artifact-ref through admitAndAppend records TWO retained GOV-02 ledger events, because appendNote now admits the kind after the combiner already did. Asserted in scripts/context-io-writer-set.test.ts and scripts/context-io.test.ts rather than suppressed with a bypass token. | open |  | 2026-09-08T07:33:14.050Z |  |
 
 ````json
 [
@@ -1771,6 +1772,18 @@ last_updated: 2026-09-07T16:15:06.567Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-09-07T16:15:06.567Z",
+    "resolved_at": null
+  },
+  {
+    "id": 136,
+    "kind": "deviation",
+    "phase": "31",
+    "file": "scripts/context-io.ts",
+    "line": null,
+    "description": "Disclosed: one artifact-ref through admitAndAppend records TWO retained GOV-02 ledger events, because appendNote now admits the kind after the combiner already did. Asserted in scripts/context-io-writer-set.test.ts and scripts/context-io.test.ts rather than suppressed with a bypass token.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-08T07:33:14.050Z",
     "resolved_at": null
   }
 ]
