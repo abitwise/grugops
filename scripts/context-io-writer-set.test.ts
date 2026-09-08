@@ -416,35 +416,48 @@ describe("31-05 — every derived note writer is exercised against fabricated pr
 // ═══════════════════════════════════════════════════════════════════════════════════════════════
 
 const AUTHORITY_CALL = "const admission = admit(task, text, contextRoot, repoRoot);";
+const KIND_AUTHORITY_TEST = 'if (normalizeKind(note.kind) === "artifact-ref")';
+
+/**
+ * A mirror of the COMMITTED .js with one anchor textually replaced — the same program minus (or
+ * minus the strength of) one decision, so a difference in behaviour is attributable to that one
+ * edit and to nothing else.
+ *
+ * The anchor's presence is asserted at EXACTLY one occurrence before the mutation and its absence
+ * after it. A mutation that matched nothing would produce an unmutated copy, and every "the mirror
+ * writes" assertion would then be measuring the live module while claiming otherwise.
+ */
+async function mirrorOfCommittedJs(
+  anchor: string,
+  replacement: string,
+  prefix: string,
+): Promise<typeof import("./context-io.js")> {
+  const original = readFileSync(CONTEXT_IO_JS, "utf8");
+  expect(
+    original.split(anchor).length - 1,
+    `PREMISE: the anchor was not found exactly once in the committed scripts/context-io.js, so the ` +
+      `mutation mutated nothing and the case built on it proves nothing — anchor: ${anchor}`,
+  ).toBe(1);
+  const mutated = original
+    .replace(anchor, replacement)
+    // Point the mirror's relative imports at the REAL sibling modules, so the copy is the same
+    // program minus one decision rather than a differently-wired one.
+    .replace(
+      /from "\.\/([A-Za-z0-9._-]+\.js)"/g,
+      (_m, file: string) => `from "${pathToFileURL(join(ROOT, "scripts", file)).href}"`,
+    );
+  expect(mutated.includes(anchor), "PREMISE: the anchor survived the mutation").toBe(false);
+  const mirrorPath = join(freshTmp(prefix), "context-io.js");
+  writeFileSync(mirrorPath, mutated);
+  return (await import(pathToFileURL(mirrorPath).href)) as typeof import("./context-io.js");
+}
 
 describe("31-05 — neutralizing the authority call makes the fabricated evidence WRITE", () => {
   it("the neutralized mirror of the committed .js writes what the live module refuses", async () => {
-    const original = readFileSync(CONTEXT_IO_JS, "utf8");
-    // PREMISE: the anchor exists exactly once in the compiled artifact. A mutation that matched
-    // nothing would produce an unmutated copy, and the "it writes" assertion below would then be
-    // measuring the live module while claiming to measure a neutralized one.
-    expect(
-      original.split(AUTHORITY_CALL).length - 1,
-      "PREMISE: the authority call was not found exactly once in the committed scripts/context-io.js, " +
-        "so the neutralization below mutated nothing and this case proves nothing",
-    ).toBe(1);
-    const dir = freshTmp("ctx-io-neutralized-");
-    const mutated = original
-      .replace(AUTHORITY_CALL, "const admission = [];")
-      // Point the mirror's relative imports at the REAL sibling modules, so the copy is the same
-      // program minus one call rather than a differently-wired one.
-      .replace(
-        /from "\.\/([A-Za-z0-9._-]+\.js)"/g,
-        (_m, file: string) => `from "${pathToFileURL(join(ROOT, "scripts", file)).href}"`,
-      );
-    expect(
-      mutated.includes(AUTHORITY_CALL),
-      "PREMISE: the authority call survived the neutralization",
-    ).toBe(false);
-    const mirrorPath = join(dir, "context-io.js");
-    writeFileSync(mirrorPath, mutated);
-    const neutralized: typeof import("./context-io.js") = await import(
-      pathToFileURL(mirrorPath).href
+    const neutralized = await mirrorOfCommittedJs(
+      AUTHORITY_CALL,
+      "const admission = [];",
+      "ctx-io-neutralized-",
     );
     const contextRoot = freshTmp("ctx-io-neutralized-ctx-");
     const task = "writer-set-task";
@@ -458,6 +471,60 @@ describe("31-05 — neutralizing the authority call makes the fabricated evidenc
       new RegExp(FABRICATED_RUN),
     );
     expect(noteFileCount(liveRoot, task)).toBe(0);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// PART FIVE-A — the kind test consults the kind AUTHORITY, and that choice is watched failing.
+//
+// RED-TEAMED, NOT REASONED. The branch could have been spelled `note.kind === "artifact-ref"`. It
+// is not, because `parseNote` TRIMS the value it persists: a padded `kind: "artifact-ref "` reads
+// as a non-artifact-ref at a raw comparison and stores as a REAL artifact-ref on disk. That is the
+// GAP-R7-1 Lever-1 divergence — the gate's view of a kind being NARROWER than the store's — and it
+// is a bypass of this plan's whole fix, not a style preference. Measured on a mirror below.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+describe("31-05 — a raw kind comparison would re-open the fix, and the live module closes it", () => {
+  function paddedKindEvidence(): Parameters<typeof mod.appendNote>[1] {
+    // The union type forbids the padded spelling. The COMPILED .js a host actually runs does not —
+    // TypeScript unions are erased there — and an untyped caller is exactly who reaches this writer
+    // from the four non-Claude-Code CLIs. The cast reproduces that caller rather than a type error.
+    return { ...fabricatedEvidence(), kind: "artifact-ref " as unknown as "artifact-ref" };
+  }
+
+  it("a mirror comparing the RAW kind writes the padded fabrication, and it persists as an artifact-ref", async () => {
+    const weak = await mirrorOfCommittedJs(
+      KIND_AUTHORITY_TEST,
+      'if (note.kind === "artifact-ref")',
+      "ctx-io-rawkind-",
+    );
+    const contextRoot = freshTmp("ctx-io-rawkind-ctx-");
+    const task = "writer-set-task";
+    const id = weak.appendNote(task, paddedKindEvidence(), "body", contextRoot);
+    expect(id).toBeTruthy();
+    expect(noteFileCount(contextRoot, task)).toBe(1);
+    // The padding survives in the BYTES and is normalized away by the READER, which is what makes
+    // the bypass worth closing: the store resolves this note to a real artifact-ref, so a gate
+    // that compared the raw value held a NARROWER view of the kind than the store did.
+    const onDisk = readFileSync(join(contextRoot, task, "notes", `${id}.md`), "utf8");
+    expect(onDisk).toContain("kind: artifact-ref \n"); // the padded byte form, written as supplied
+    expect(mod.parseNote(onDisk)?.scalars.kind).toBe("artifact-ref"); // …and read back as the kind
+  });
+
+  it("the live module REFUSES the padded fabrication, and the refusal comes from the authority", () => {
+    const contextRoot = freshTmp("ctx-io-rawkind-live-");
+    const task = "writer-set-task";
+    let message = "";
+    try {
+      mod.appendNote(task, paddedKindEvidence(), "body", contextRoot);
+    } catch (e) {
+      message = (e as Error).message;
+    }
+    // "admission FAIL" rather than "invalid note": the padded kind is structurally VALID, so
+    // validate() lets it by and only the admission call stands between it and the disk.
+    expect(message).toContain("admission FAIL");
+    expect(message).toContain(FABRICATED_RUN);
+    expect(noteFileCount(contextRoot, task)).toBe(0);
   });
 });
 
