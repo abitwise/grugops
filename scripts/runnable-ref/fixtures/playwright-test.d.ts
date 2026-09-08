@@ -27,18 +27,28 @@
 // it and because another framework's bare `describe` can be imported into a spec file, not because
 // this package exports one.
 //
-// WHAT THIS FILE IS NOW USED FOR, AND WHY THAT RAISES THE COST OF ITS DRIFT (31-11, WR-13). It has
-// stopped being only a compile target for the corpus. `uat-spec-integrity.test.ts` reads it as the
-// authority for a coverage-ADJACENT claim: it partitions the spellings the ban rule decides by
-// asking which heads this surface exports, and compiles the exported side against it. Today that
-// check runs in ONE DIRECTION — every banned spelling is real. The REVERSE partition, which asks
-// whether every real modifier on this surface is banned, lands in plan 31-12; the members added
-// below (`serial`, `parallel`, `configure`, `fail`) are what give that reverse check something to
-// find. Until it lands, no claim about completeness against Playwright is established here.
+// WHAT THIS FILE IS NOW USED FOR, AND WHY THAT RAISES THE COST OF ITS DRIFT (31-11 and 31-12,
+// WR-13). It has stopped being only a compile target for the corpus. `uat-spec-integrity.test.ts`
+// reads it in BOTH directions, and the second one makes it the DENOMINATOR of a coverage
+// assertion rather than only a compile target:
 //
-// The drift disclosure above is UNCHANGED and still governs: this file remains a hand transcription
-// and an open `UNKNOWN - verify` (`R-07`). A claim proven against this surface is a claim about the
-// DECLARED surface, never about the package.
+//   FORWARD  — every spelling the ban rule decides has its head exported here, and the call
+//              type-checks against this surface. This answers "is every banned spelling real?"
+//   REVERSE  — every member reachable by walking this file's declared types with the TypeScript
+//              checker is either refused by the ban rule or carries a written reason for not being
+//              refused, asserted as a TOTAL partition whose cardinality is checked. This answers
+//              "is every real modifier decided?" — the direction CR-01 was and CR-06 still was.
+//
+// SO A CHANGE HERE IS A CHANGE TO A MEASUREMENT, NOT ONLY TO A FIXTURE. Adding a member adds a row
+// the reverse partition must decide: it is refused by the rule, or it needs a reason. A member with
+// neither turns the suite red naming it, which is the intended behaviour and not a defect in the
+// test. Removing a member shrinks the denominator silently, which is why the walk asserts it
+// reached its own declared depth bound. A change must keep BOTH directions green.
+//
+// The drift disclosure above is UNCHANGED and still governs, and it matters more now than it did:
+// this file remains a hand transcription and an open `UNKNOWN - verify` (`R-07`). The reverse
+// partition establishes coverage of the DECLARED surface. It does not establish coverage of the
+// package, and no reader may take it as such.
 
 declare module "@playwright/test" {
   /** The subset of `Locator` this corpus calls. */
@@ -129,6 +139,15 @@ declare module "@playwright/test" {
     // because the ban rule now decides it and the ban-set/surface cross-check compiles every
     // spelling the rule decides.
     readonly fail: TestModifier;
+    // 31-12 (WR-13): a modifier that is NOT refused, and the reason it is declared here. Playwright
+    // files `slow` in the same modifiers group as `skip`, `only`, `fixme` and `fail`, but its effect
+    // is to triple the time budget a scenario is given — the scenario still runs and its assertions
+    // are still read. Without a member of this shape the reverse partition's non-refused bucket
+    // would hold only hooks, structure and configuration, and it would never have to decide a
+    // member that is a modifier by the framework's own taxonomy. It is here so the reverse question
+    // could have gone the other way. `UNKNOWN - verify` at the same strength as the rest of this
+    // file: a hand transcription, not a reading of the package.
+    readonly slow: TestModifier;
     readonly step: TestModifier;
     readonly beforeEach: TestModifier;
     readonly afterEach: TestModifier;
