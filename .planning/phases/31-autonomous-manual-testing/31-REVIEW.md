@@ -1,433 +1,360 @@
 ---
 phase: 31-autonomous-manual-testing
-reviewed: 2026-09-08T12:20:00Z
+reviewed: 2026-09-08T18:50:00Z
 depth: standard
-files_reviewed: 25
+files_reviewed: 21
 files_reviewed_list:
   - agent-factory/checklists/browser-uat-recipe.md
+  - agent-factory/workflows/16-context-read-write.md
   - agent-factory/workflows/17-task-claim.md
   - agent-factory/workflows/18-context-compaction.md
+  - docs/audit/29-style-dispositions/31-09.md
   - hooks/hook-entry.js
   - hooks/hook-entry.ts
-  - package.json
-  - scripts/check-banned-claims.js
-  - scripts/check-banned-claims.test.ts
-  - scripts/check-banned-claims.ts
-  - scripts/check-foundation-guards.js
   - scripts/check-foundation-guards.test.ts
-  - scripts/check-foundation-guards.ts
+  - scripts/check-uat-oracles.js
+  - scripts/check-uat-oracles.ts
+  - scripts/compactor.test.ts
   - scripts/context-io-writer-set.test.ts
   - scripts/context-io.js
   - scripts/context-io.test.ts
   - scripts/context-io.ts
-  - scripts/runnable-ref/fixtures/clean.uat.spec.ts
-  - scripts/runnable-ref/fixtures/element-access-modifier.uat.spec.ts
+  - scripts/runnable-ref/fixtures/modifier-family.uat.spec.ts
+  - scripts/runnable-ref/fixtures/modifier-group-clean.uat.spec.ts
   - scripts/runnable-ref/fixtures/playwright-test.d.ts
-  - scripts/runnable-ref/fixtures/union-all-arms.uat.spec.ts
   - scripts/runnable-ref/uat-spec-integrity.js
   - scripts/runnable-ref/uat-spec-integrity.test.ts
   - scripts/runnable-ref/uat-spec-integrity.ts
-  - tsconfig.fixtures.json
-  - tsconfig.tests.json
 findings:
   critical: 2
-  warning: 4
+  warning: 3
   info: 3
-  total: 9
+  total: 8
 status: issues_found
 ---
 
-# Phase 31: Code Review Report (incremental — gap-closure round 31-05..31-08)
+# Phase 31: Code Review Report (incremental — gap-closure round 2, plans 31-09..31-12)
 
-**Reviewed:** 2026-09-08T12:20:00Z
+**Reviewed:** 2026-09-08T18:50:00Z
 **Depth:** standard
-**Scope:** `3253598..HEAD`, source files only
-**Files Reviewed:** 25
+**Scope:** `41a2154..HEAD`, the 21 source files listed above
+**Files Reviewed:** 21
 **Status:** issues_found
 
 ## Summary
 
-This is an incremental review of the 31-05..31-08 gap-closure round against the previous
-`31-REVIEW.md` (CR-01..CR-04, WR-01..WR-09, IN-01..IN-03) and `31-VERIFICATION.md`'s three gaps.
+This round was convened to close CR-05 (`appendNote` reached the admission authority for one kind
+only) and CR-06 (modifier membership decided by an enumerable literal). **Both are closed, and each
+closure was re-measured on this tree against the committed `.js`, not taken from a summary:**
 
-**All four prior Criticals are closed at the coordinates they were reported at**, and each closure
-was re-measured on this tree rather than taken from a summary — see *Prior findings status*. The
-round's engineering discipline is visibly higher than the phase's first pass: the pin guard's new
-shape assertion is watched failing through a mutated scratch build, the fixture corpus is now inside
-a real typecheck target that I confirmed discriminates (planting `import { describe }` produces
-`TS2724`), the writer set is derived by AST rather than typed out, and `31-08-SUMMARY.md` carries a
-33-row residual register that names every prior warning it did not close. Baseline health is good:
-`npm run freshness` reports 60 committed `.js` fresh (so **no `.ts`/`.js` drift** — that focus area
-is clean), `npm run typecheck` passes all three targets, and the three changed suites are 368/368.
+- CR-05: `appendNote(finding, §14-gate#fabricated-run-id)` into an empty context now throws the
+  authority's own D-01 text and writes zero files; the same call with a genuine verdict writes. The
+  kind axis is deleted rather than widened (`context-io.ts:1156` is an unconditional `admit()` call),
+  the two branches that legitimately skip it go through a non-exported `appendPreAdmittedNote` whose
+  caller set is AST-derived and asserted equal to `{admitAndAppend}` with exactly 2 call sites, and
+  the refusal-family axis is now derived from `admit()`'s own return sites (8 signatures) rather than
+  typed out — the exact "derive BOTH axes" correction the prior review asked for. R-21 (duplicate
+  retained-ledger event) collapsed from 2 to 1 as a side effect.
+- CR-06: membership is a head/tail rule in one function (`isBannedModifierPath`,
+  `uat-spec-integrity.ts:131`). Measured: `test.describe.serial.only` → 1 finding, exit 1;
+  `test.fail` → exit 1 (WR-12 closed); `test.step.skip` → exit 1; `test.describe.configure(...)`,
+  `test.describe.serial(...)` → exit 0 (no false positive). A reverse partition over the declared
+  surface exists (WR-13 closed at the strength it claims, which the recipe now states honestly).
 
-The two Criticals below are both the **same failure mode the round was convened to fix, reappearing
-one axis over** — a predicate that was made reachable/wider exactly where the verifier measured it,
-and nowhere else along the same family. Both were reproduced on this tree with a discriminating
-control:
+Baseline health: `npm run freshness` reports 60/60 committed `.js` fresh (no `.ts`/`.js` drift); all
+12 `DECIDER_MANIFEST` hashes in `hooks/hook-entry.ts` match the committed files byte-for-byte; the
+five changed suites are 939/939.
 
-- `appendNote` now reaches the admission authority **for `kind: artifact-ref` only**. The sibling
-  D-01 refusal inside the *same* `admit()` — a `finding` whose `§14-gate#<id>` stamp names no live
-  green verdict — is still unreachable from the writer workflows 17 and 18 name by name. Measured:
-  `appendNote` wrote it and `render()` printed it into `index.md` as a verified finding, while
-  `admitAndAppend` refused the identical note.
-- Arm (c)'s ban set gained the three `test.describe.*` spellings the verifier planted. Playwright's
-  other documented `describe` modifiers — `test.describe.serial.only` and
-  `test.describe.parallel.only`, which narrow an entire gate run exactly as `test.describe.only`
-  does — walk straight past the widened set. Measured: `test.describe.only` → 1 finding, exit 1;
-  `test.describe.serial.only` → `0 findings over 1/1 uat specs checked`, exit 0.
+**Two new defects, both found by asking how the gate is reached rather than what it refuses.** Neither
+is a regression of the closed findings; one is a hole the widened rule cannot see by construction, the
+other is a consequence of the unconditional call that the round's own blast-radius table dispositioned
+as "admits, unchanged shape" without driving the case that changed:
 
-No `<structural_findings>` block was supplied for this review, so every finding below is narrative.
-Numbering continues the prior review's sequences (`CR-05+`, `WR-10+`, `IN-04+`).
+- The modifier rule is asked only about callees `calleeDottedPath` resolves, and that resolver declines
+  every chain containing a call. Playwright's `test.info().skip()` / `.fail()` / `.fixme()` — the
+  documented runtime form of exactly the modifiers the rule bans — pass at `0 findings`, exit 0. So
+  does `expect.configure({ soft: true })(...)`. The shape is not in `UNRESOLVABLE_CALLEE_RESIDUALS`,
+  the recipe's boundary does not name it, and the reverse partition walks property chains only, so no
+  bucket can ever hold it.
+- With `admit()` now consulted for every note, the frozen D-04 arm fires on a **human-disposed**
+  high-severity `finding` when it is *promoted*: the hook-gated combiner writes it at the origin, and
+  `compactor.promote` (the writer Workflow 18 names) refuses the identical unchanged note at the
+  destination. Under any active `human_admission` dial the compaction workflow can no longer carry a
+  human-adjudicated security finding forward, and its only prescribed recovery (step 6) degrades it to
+  an unverified `claim`.
+
+No `<structural_findings>` block was supplied, so every finding is narrative. Numbering continues the
+prior sequences (`CR-07+`, `WR-14+`, `IN-07+`).
 
 ## Prior findings status
 
 | Prior | Status | Evidence (measured on this tree unless noted) |
 |---|---|---|
-| CR-01 `describe.only` ban targets a binding Playwright lacks | **closed** (see CR-06 for the residue) | `BANNED_CONSTRUCTS` is now nine dotted paths; `uat/probe.uat.spec.ts` with `test.describe.only` → `1 finding(s) over 1/1`, exit 1 |
-| CR-02 `test["skip"](...)` unseen | **closed** | `calleeDottedPath` resolves string-literal element access; `test["skip"](…)` → `1 finding(s) over 1/1`, exit 1 |
-| CR-03 `appendNote` bypasses the D-03 binding | **closed for `artifact-ref`, still open for `finding`** → CR-05 | `appendNote(..., kind:"artifact-ref", gate_run:"no-such…")` now throws `admission FAIL`, 0 files written; the same call with `kind:"finding"` and a fabricated gate stamp still writes |
-| CR-04 pin guard cannot see a floating authority | **closed** | `PIN_CONCRETE_VERSION_RE` refuses the authority token before it is adopted; three new cases including a permissive-mutant watched-fail that restores exit 0 |
-| WR-01 spec outside a `uat` segment silently unchecked | **still open** (deliberate) | `hasUatSegment` still `continue`s with no refusal (`uat-spec-integrity.ts:386,407`); register `R-09`, re-measured by 31-08 |
-| WR-02 missing materialized checker exits 1, read as a finding | **still open** | `05-pr-quality-gate.md` unchanged in this range; register `R-14` |
-| WR-03 no-version-literal test skips the rationale comment | **still open** | Region still anchored on the header's closing rule; register `R-10` (flagged by 31-07 as A2) |
-| WR-04 pin guard's directory walk has no error handling | **still open** | `pinScanMarkdownFiles`'s `readdirSync` is still un-wrapped (`check-foundation-guards.ts:3831`); register `R-15` |
-| WR-05 pin denominator floor structurally unreachable | **still open** | `visited += 1` is still the first statement of a `break`-free loop; register `R-11` |
-| WR-06 `--json` emits nothing on exit-2 paths | **still open** | `node uat-spec-integrity.js --json` (no root) → empty stdout, exit 2; register `R-16` |
-| WR-07 `content_hash` never recomputed | **still open** | No caller of any digest over spec bytes exists; register `R-13` |
-| WR-08 workflow 05 Step 5 enumeration one checker short | **still open** | `05-pr-quality-gate.md` unchanged in this range; register `R-17` |
-| WR-09 occurrence pattern admits `.` | **still open, symptom changed** | Now collides with the new shape assertion → misdiagnosed FAIL; register `R-12` + `R-18` |
-| IN-01 `PLAYWRIGHT_BROWSERS_PATH=0` | **still open** | Untouched; register `R-30` |
-| IN-02 provenance key order in JSONL vs fence | **still open** | Untouched; register `R-31` |
-| IN-03 two dead paths in `deriveSpecPaths` | **still open** | Untouched; register `R-32` |
-
-The four items the gap-closure summaries said they left open on purpose (WR-01, WR-03, WR-05, WR-09)
-are confirmed open and correctly disposed. Five further prior warnings (WR-02, WR-04, WR-06, WR-07,
-WR-08) are also untouched; they are named in `31-08-SUMMARY.md`'s register as `inherited`, so they
-are disclosed, not lost.
+| CR-05 `appendNote` reaches admission for `artifact-ref` only | **closed** | Unconditional `admit()` at `context-io.ts:1156`; fabricated `finding` stamp refused with the D-01 text, 0 files; fabricated `artifact-ref` still refused; genuine stamp writes. Family axis derived from source (8 sites), 4 writers × 8 families matrix with a neutralized-mirror inversion |
+| CR-06 routed `describe` modifiers walk past the set | **closed** | `test.describe.serial.only` → exit 1; rule is head×tail + exact path, one authority, two type-checked corpus fixtures (family + false-positive control), module pin 67→69 |
+| WR-10 `repoRoot` defaults to `ROOT` not `trustedRepoRoot()` | **closed as filed; residue → WR-15** | Both defaults moved together; watched-failing mirror restores the old default and flips the disposition. The trusted root's own fallback is the kit, which is what every non-CC CLI gets |
+| WR-11 WF18 step 4 "fires on every promoted note" beside a one-kind clause | **closed** | Sentence is now true of the mechanism; step 5 distinguishes the writer's refusal from the explicit re-verify; 17 rows in `docs/audit/29-style-dispositions/31-09.md` |
+| WR-12 `test.fail` undecided | **closed** | `fail` in `BANNED_MODIFIER_TAILS`; measured exit 1; finding text rewritten to be true of the inverting modifier |
+| WR-13 ban/surface cross-check one-directional | **closed at declared strength** | Reverse partition: refused ∪ dispositioned = walked set, disjoint, counts sum, depth bound asserted reached, discriminates on a planted `test.mute`/`test.describe.shard`. Coverage of the *package* is disclaimed in the recipe and `R-43` |
+| IN-04 ledger event before write refuses | **open by choice, now an assertion** | `context-io.test.ts` "IN-04 DISCLOSED" pins the extra-line direction |
+| IN-06 `tsconfig.fixtures.json` disposition category | **still open** | `check-banned-claims.ts` not in this range |
 
 ## Critical Issues
 
-### CR-05: `appendNote` reaches the admission authority for `artifact-ref` only — a fabricated `§14-gate` stamp on a `finding` is still written, and rendered as verified
+### CR-07: `test.info().skip()` / `.fail()` / `.fixme()` and `expect.configure({ soft: true })(...)` pass at exit 0 — the rule is never asked about a callee that contains a call, and that boundary is disclosed nowhere the recipe quotes
 
-**File:** `scripts/context-io.ts:1095-1105` (the new branch), `:1641-1650` (the D-01 refusal it does
-not reach), `agent-factory/workflows/17-task-claim.md:40`,
-`agent-factory/workflows/18-context-compaction.md:51`
+**File:** `scripts/runnable-ref/uat-spec-integrity.ts:595-628` (`calleeDottedPath`, the `return null` at
+`:626` for any link that is not identifier/property/element/paren/non-null/assertion),
+`:148-151` (`UNRESOLVABLE_CALLEE_RESIDUALS`, two members), `:131-142` (`isBannedModifierPath`),
+`agent-factory/checklists/browser-uat-recipe.md:184-191`,
+`scripts/runnable-ref/fixtures/playwright-test.d.ts:131-150` (no `info` member),
+`scripts/runnable-ref/uat-spec-integrity.test.ts:1246-1256` (the walk follows `getPropertiesOfType` only)
 
-**Issue:** 31-05 fixed reachability with a call rather than a second check — the right shape — but
-scoped the call to one kind:
+**Issue:** D-17 fixed the *membership* question. The *reachability* question — which call expressions
+the membership rule is even asked about — is answered by `calleeDottedPath`, and it returns `null` for
+any chain with a `CallExpression` link. The docstring calls this deliberate ("`expect(x).soft` is not
+`expect.soft`"), which is right for that example and wrong as a policy: Playwright's `TestInfo` object,
+obtained by `test.info()` or as the second fixture argument, carries `skip()`, `fixme()`, `fail()` and
+`slow()` — the documented *runtime* form of precisely the modifiers the tail set bans, with the same
+effect on the evidence (the scenario is skipped, or a failing assertion is reported as a pass).
+
+**Reproduced on this tree** (probe repo with `uat/probe.uat.spec.ts`, committed runnable):
+
+```
+test.describe.serial.only(...)                 -> 1 finding(s), exit 1   (control: the rule works)
+test("a", async ({page}) => { test.info().skip(); ... })   -> 0 findings over 1/1, exit 0
+test("a", async ({page}) => { test.info().fail(); ... })   -> 0 findings over 1/1, exit 0
+test("a", async ({page}) => { test.info().fixme(true, "later"); ... }) -> 0 findings, exit 0
+await expect.configure({ soft: true })(locator).toBeVisible()   -> 0 findings, exit 0
+```
+
+Three things make this a Critical rather than a set-content Warning:
+
+1. **It is undisclosed at every quoted boundary.** `UNRESOLVABLE_CALLEE_RESIDUALS` names the alias
+   shape and the computed-member shape and says "Both shapes are therefore NAMED here rather than
+   left as a silence" — the call-link shape is the third, and it *is* a silence. The recipe's
+   "Deliberately outside the rule" list (lines 184-191) inherits the same two. `R-46` in
+   `31-12-SUMMARY.md` restates the alias case only.
+2. **The stated reason for the residuals does not apply.** Both disclosed residuals are justified by
+   "needs a type checker to follow a binding to its declaration". `test.info().skip` needs no binding
+   followed: the head identifier `test`, the member `info`, the call, and the member `skip` are all in
+   the source text. The resolver could emit a path (e.g. `test.info().skip`, or a marker segment) from
+   the parse alone.
+3. **The reverse partition cannot ever find it.** The walk (`deriveDeclaredModifierPaths`) descends via
+   `checker.getPropertiesOfType` and never through a call signature's return type, and the stub
+   declares no `info`. So even if the `.d.ts` were extended, `test.info().skip` is outside both buckets
+   by construction — the partition's "total" claim is total over property chains, and the recipe's
+   completeness paragraph does not say so.
+
+`testInfo.skip()` via the fixture parameter also passes (measured), but that is a binding and falls
+under the disclosed alias residual in spirit; it is listed here for completeness, not counted.
+
+**Fix:** Decide the call-link shape instead of declining it, in the one resolver, and let the rule see
+it:
 
 ```ts
-if (normalizeKind(note.kind) === "artifact-ref") {
-  const admission = admit(task, text, contextRoot, repoRoot);
-  ...
+// In calleeDottedPath: a call link is RESOLVED, not dropped. `test.info().skip` is the runtime
+// spelling of `test.skip`; the head and tail are what the rule reads, and both are in the source text.
+// The parenthesised marker keeps `expect(x).soft` distinguishable from `expect.soft`, so the
+// legitimate chained assertion stays legitimate: its head is `expect()`, not `expect`.
+if (ts.isCallExpression(cur)) {
+  const inner = calleeDottedPath(ts, cur.expression);
+  if (inner === null) return null;
+  segments.push(`${inner}()`);           // e.g. ["skip", "test.info()"]
+  segments.reverse();
+  return segments.join(".");             // "test.info().skip"
 }
 ```
 
-`admit()` implements four refusal families, not one: D-01 (a `finding` stamped `§14-gate#<id>` is
-admitted only against a live green verdict with that per-run id), D-03 (the artifact-ref binding),
-D-04 (a high-severity governance finding needs a named human disposition), and D-14 (an unreadable
-governance config refuses). The new branch reaches **only D-03**. Every other family stays exactly as
-unreachable from `appendNote` as D-03 was before this round — and `finding` is the kind the shared
-verified context exists to protect, the one `17-task-claim.md` step 4 names first ("A `finding` needs
-a real stamp").
-
-`WF16` says the four non-Claude-Code CLIs "get the in-script `admit()` refusal plus a prompt-level
-stop". On the route `17-task-claim.md` actually prescribes — `context-io.ts` `appendNote` — that
-in-script refusal does not exist for a `finding`. The degrade tier is prose, not mechanism.
-
-**Reproduced on this tree** (committed `scripts/context-io.js`, fresh temp context root holding no
-verdict at all):
-
-```
-appendNote(finding) -> 20260908T010000Z-qe-e2e-finding-f720826f
-admitAndAppend(finding) -> {"id":null,"findings":["admission FAIL: no live green §14-gate verdict
-  found for \"§14-gate#fabricated-run-id\" under task \"t1\" ..."]}
---- index.md excerpt ---
-| 2026-09-08T01:00:00Z | finding | qe-e2e | high | §14-gate#fabricated-run-id | the checkout flow passes end to end |
-```
-
-Two exported writers, one note, opposite dispositions — and the fabricated stamp is rendered into
-`index.md` as verified evidence. This is byte-for-byte the CR-03 shape, one kind over.
-
-Why the round's own controls could not see it: `scripts/context-io-writer-set.test.ts` derives the
-**writer set** by AST and asserts its cardinality (good), but the exercise table asks every member
-one question — `"${name}: refuses the fabricated artifact-ref, or cannot express the kind at all"`
-(line 374). The set that was derived is the set of writers; the set that was *enumerated by hand* is
-the set of predicates, and it has one member. `R-33` in `31-08-SUMMARY.md` records "the `appendNote`
-bypass … closed", unqualified.
-
-**Fix:** Ask the authority for every kind it has an opinion about, and derive that set rather than
-naming it:
-
-```ts
-// admit() decides admissibility for ALL kinds; appendNote asks it and adds no predicate. The kind
-// test that used to sit here was a second, narrower statement of which notes admission applies to —
-// the drift shape D-03 forbids, expressed as a scope instead of as a comparison.
-const admission = admit(task, text, contextRoot, repoRoot);
-if (admission.length > 0) {
-  throw new Error(
-    `context-io.appendNote: refusing to write a note the admission authority did not accept. ` +
-      `Nothing was written:\n${admission.join("\n")}`,
-  );
-}
-```
-
-Note that `admit()` already runs `validate()` first, so the preceding `validate` call can stay or
-collapse into this one — either way there is still exactly one implementation of every rule. Two
-consequences must be handled deliberately, not discovered: (a) `admitAndAppend`'s **gated** branch
-deliberately does *not* call `admit()` (`context-io.ts:2592-2596`, because the frozen D-04 arm would
-refuse a hook-disposed high-severity finding), so it needs the existing trusted-emitter-style seam
-rather than an unconditional call, and (b) the retained-ledger duplication already disclosed as
-`R-21` widens to every kind. If (a) makes the unconditional call untenable, the fallback is Option B
-from the previous review — refuse from `appendNote` any kind `admit()` adjudicates unless the caller
-presents a proof-of-admission token — but the kind list must then be **derived from `admit()`'s own
-source** (the `scalars.kind === …` sites) and its cardinality asserted, in the same idiom
-`context-io-writer-set.test.ts` already uses for writers.
-
-Then extend that test's exercise table from one question to one per refusal family, and re-point
-`R-33`, the `provides` line in `31-05-SUMMARY.md` ("the D-03 authority is now reachable from every
-exported note writer" is true; "the `appendNote` bypass is closed" is not), and WF16's non-CC
-degrade sentence.
+then in `isBannedModifierPath`, read the head as the first segment *stripped of a trailing `()`* only
+when that segment is `test.info()` (a decided list of call-bearing heads, recorded as a decision like
+D-17), and add `expect.configure` with a `soft: true` literal argument to `BANNED_EXACT_PATHS`'s
+neighbour rule or to the residuals with a written reason. Whatever is chosen: add the four probes above
+to the corpus (a `MUTATE-REMOVE` fixture like `modifier-family.uat.spec.ts`), declare `info` on the
+stub's `Test` so the forward direction compiles it, name the call-link shape in
+`UNRESOLVABLE_CALLEE_RESIDUALS` *if* any part of it stays undecided, and state in the recipe's
+completeness paragraph that the reverse walk covers property chains only.
 
 ---
 
-### CR-06: `test.describe.serial.only` and `test.describe.parallel.only` walk past the widened ban set — the round enumerated three spellings instead of covering the modifier family
+### CR-08: under an active `human_admission` dial, compaction can no longer promote a human-disposed high-severity `finding` — `admit()`'s frozen D-04 arm refuses at the destination what the hook-gated combiner admitted at the origin
 
-**File:** `scripts/runnable-ref/uat-spec-integrity.ts:75-92` (`BANNED_CONSTRUCTS`), `:94-101`
-(`UNRESOLVABLE_CALLEE_RESIDUALS`), `agent-factory/checklists/browser-uat-recipe.md:165-176`,
-`scripts/runnable-ref/uat-spec-integrity.test.ts:991-1000` (the surface partition)
+**File:** `scripts/context-io.ts:1156` (the unconditional call), `:1841-1858` (the D-04 arm that
+refuses a self-authored `human:<name>` stamp on a high-severity finding), `scripts/compactor.ts:615`
+(`promote` → `appendNote`), `agent-factory/workflows/18-context-compaction.md:51-55`,
+`.planning/phases/31-autonomous-manual-testing/31-09-SUMMARY.md` blast-radius row 2 ("admits,
+unchanged shape") and probe Q5 (fabricated stamp only)
 
-**Issue:** `calleeDottedPath` is a genuine improvement — one normaliser, every spelling of one call
-reduced to one string, and CR-01/CR-02 are properly closed by it. But the comparison is
-`BANNED_CONSTRUCTS.includes(dottedPath)` against a nine-member literal list, and `@playwright/test`
-documents more `describe` modifiers than the three that were added.
-`test.describe.serial.only(...)` and `test.describe.parallel.only(...)` narrow the **entire gate
-run** to one describe block — verbatim the outcome the finding text names ("a green lane would
-certify a scenario nobody exercised") — and neither is in the set nor in the disclosed boundary.
+**Issue:** The round correctly identified that `admitAndAppend`'s gated branch must skip `admit()`,
+because D-04 "cannot verify" a human stamp and would refuse a note the hook already disposed
+(`context-io.ts:2660-2668`). The same reasoning applies to every *re-write* of that note — and
+Workflow 18 prescribes exactly one: promotion through `appendNote`. That route now calls `admit()`
+unconditionally, so the D-04 arm fires on the promoted copy.
 
-**Reproduced on this tree**, same file, same probe repo, one segment apart:
+**Reproduced on this tree** (`CLAUDE_PROJECT_DIR` → a project with
+`{ human_admission: "high-severity", audit_retention: "retained" }`, no approval env in the child):
 
 ```
-# uat/probe.uat.spec.ts:  test.describe.only("control", …)
-UAT spec integrity: 1 finding(s) over 1/1 uat specs checked
-uat/probe.uat.spec.ts:2: banned modifier call — `test.describe.only` …
-EXIT=1
-
-# uat/probe.uat.spec.ts:  test.describe.serial.only("evasion", …)
-UAT spec integrity: 0 findings over 1/1 uat specs checked
-EXIT=0
+origin admitAndAppend (gated branch): WROTE 20260908T020000Z-security-nfr-finding-e87a634e
+compactor.promote (same note, same body, fresh destination):
+  REFUSED — admission REFUSED (human_admission: high-severity): a high-severity governance entry
+  authored by "security-nfr" ... carries a self-authored human disposition stamp (verified_by: human:alice)
+  that this in-script tier cannot verify ...
+dest notes: []
+appendNote (direct, same note): REFUSED — same text
 ```
 
-`test.describe.parallel.only` behaves identically. Neither appears in
-`UNRESOLVABLE_CALLEE_RESIDUALS` (which discloses only the alias and computed-member shapes,
-`R-05`/`R-06`), so this is an undisclosed hole, not a named boundary — and the recipe's "Deliberately
-outside the set, recorded here so the boundary is written down" list is therefore incomplete as
-shipped.
+The finding was not changed by compaction; its stamp is the one the human placed; the admission ledger
+already carries the human's disposition for it. Workflow 18 step 4 now says "Phase-21 admission
+therefore fires on every promoted note, of every kind" as if that were only a strengthening; step 6's
+only recovery is "Degrade to a `claim` carrying `confidence: UNKNOWN - verify`". So in the governance
+mode grugops sells to regulated teams, every compaction turns every human-adjudicated security /
+architecture / release finding into an unverified claim, and nothing in the substrate records that a
+human had disposed it. On Claude Code the per-call hook cannot help: it gates
+`mcp__grugops__propose_note`, and `compactor.js` is not that channel.
 
-The file's own header says widening the set is "a NEW DECISION and a gap-closure round, never a
-quiet edit here", and cites the prior phase that "closed [a class] by defining a canonical form
-instead of adding one more spelling". This round did the opposite: it added three spellings. The
-matcher's shape question is now correctly centralised; the *membership* question was left as a
-hand-maintained literal, which is this repository's recorded second systemic failure class
-(set-literal drift).
+This is created by the round, not inherited: before 31-09 `promote` wrote a `finding` unconditionally
+(the CR-05 bypass), and 31-05's scoped call did not reach D-04. The blast-radius table enumerated the
+`promote` call site and dispositioned it as "admits, unchanged shape ... for every kind"; the only
+`promote` probe (Q5) used a fabricated `§14-gate` stamp. The case that changed — a *legitimate*
+human-disposed high-severity note — was not driven.
 
-**Fix:** Decide the membership question by rule over the normalised path rather than by exact
-membership, so a new intermediate segment cannot create a new hole:
+**Fix:** Promotion of a note that was already admitted is not a new admission; it is a re-binding.
+Give the compactor the pre-admitted route through a *proof*, not a parameter an agent can set:
 
 ```ts
-// A modifier call is banned by the HEAD it starts from and the MODIFIER it ends in. Segments in
-// between (`describe`, `serial`, `parallel`) route the call; they do not change what `only` does to
-// the evidence. Matching on the pair rather than on the whole literal path is what makes this a
-// rule instead of an enumeration — `test.describe.serial.only` needs no new member.
-export const BANNED_MODIFIER_HEADS = Object.freeze(["test", "describe"]);
-export const BANNED_MODIFIER_TAILS = Object.freeze(["skip", "only", "fixme"]);
-// `expect.soft` is a different rule (a head/tail PAIR), kept explicit.
-export const BANNED_EXACT_PATHS = Object.freeze(["expect.soft"]);
+// compactor.promote: promotion is a RE-WRITE of a note that already exists, admitted, under the
+// same task. Prove that before persisting: the source note's id must be live in the origin
+// context and its retained-ledger / origin fence must carry the human disposition verbatim.
+// Only then is the copy written through the pre-admitted route; a stamp that cannot be traced
+// to an admitted origin note goes through appendNote (full admission) exactly as today.
 ```
 
-Whatever rule is chosen, the acceptance evidence has to change in the same round, because the
-harness as written cannot find the next one — see WR-13. Add a case that asserts
-`test.describe.serial.only` and `test.describe.parallel.only` are refused, re-quote the set in
-`browser-uat-recipe.md`, and record the widening as a decision.
+Concretely: (a) add an exported `promoteAdmitted(task, sourceId, note, body, from, to)` in
+`context-io.ts` that reads the source note by id from `from`, asserts byte-equality of
+`kind/by/verified_by/at` with the promoted input and that the source is in `currentState(readContext(task, from))`, then writes via `appendPreAdmittedNote`; (b) extend the derived caller-set
+assertion in `context-io-writer-set.test.ts` to the new caller and bump the call-site count with the
+usual watched-fail mirror; (c) drive a test with `human_admission: high-severity` where the combiner
+writes at the origin and `promote` carries it to the destination unchanged; (d) rewrite WF18 step 4/6
+so "degrade to a claim" is the posture for a *changed* finding only. If instead the team decides
+promotion must re-adjudicate, then WF18 must say that a human re-disposes every promoted high-severity
+finding through the hook, and the compactor must refuse loudly rather than instruct a silent downgrade —
+either way the current prose and mechanism disagree.
 
 ## Warnings
 
-### WR-10: `appendNote`'s new `repoRoot` is caller-chosen and defaults to the module's install root, not `trustedRepoRoot()` — two answers to "which root governs this admission"
+### WR-14: an import-renamed head (`import { test as it }`) evades the rule, and the disclosed alias residual's justification is false for it
 
-**File:** `scripts/context-io.ts:1026` (the new parameter), `:1095-1096` (the call),
-`:2264-2280` (`trustedRepoRoot`), `:2680-2698` (the CLI `admit` verb), `scripts/compactor.ts:615`
+**File:** `scripts/runnable-ref/uat-spec-integrity.ts:148-151`, `:595-628`,
+`agent-factory/checklists/browser-uat-recipe.md:190`
 
-**Issue:** The round added `repoRoot: string = ROOT` to the sanctioned writer and passes it to
-`admit()`, which uses it for the governance dial (D-04/D-14) and for the GOV-02 audit-ledger path.
-Two problems, both about a question this module has already answered once:
+**Issue:** Measured: `import { test as it, expect } from "@playwright/test"; it.skip(...);
+it.describe.only(...)` → `0 findings over 1/1`, exit 0. The recipe covers this only via "An aliased
+binding is not refused: `const t = test;` ... cannot be followed to its declaration without a type
+checker." An `ImportSpecifier` rename is in the same file's AST with a literal `propertyName`; no type
+checker is needed to map `it` → `test`. Renaming on import is idiomatic Playwright (its own docs use
+`import { test as base }`), so this evasion does not even look like one in review.
 
-1. **The default is not the trusted root.** `trustedRepoRoot()` exists precisely so "the root
-   governance is read from" has one answer, and `hooks/guard.ts`, `hooks/admission-guard.ts`,
-   `scripts/admission-server.ts` and the CLI `admit` verb all ask it. The new default asks
-   `ROOT` (the kit the script ships in) and ignores `CLAUDE_PROJECT_DIR`. Measured with
-   `CLAUDE_PROJECT_DIR=/tmp`: `trustedRepoRoot()` → `/tmp`, `GOVERNANCE_FALLBACK_BASE` →
-   `/Users/olgeroeselg/Projects/public/grugops`. Under the shipped shared-install model
-   (`~/.grugops` kit + per-repo state) those are different directories, so the hook refuses on the
-   host repo's dial while the writer's admission consults the kit's — and under
-   `audit_retention: retained` the ledger line lands in the kit, shared across every repo.
-   `compactor.promote` (line 615) passes `contextRoot` and no `repoRoot`, so every promotion
-   inherits this.
-2. **It is a caller-chosen seam on a production path.** The CLI comment at `:2670-2690` records that
-   exactly this seam was removed from the `admit` verb in plan 30-11 — *"A test seam was sitting on
-   the production verb … an admission may not point governance at a root the caller chose."* The
-   parameter has now been re-added to the writer that surface routes through.
-
-**Fix:** Default to the one trusted answer and keep the parameter as an explicitly-named test seam:
-
-```ts
-export function appendNote(
-  task: string,
-  note: NoteInput,
-  body: string,
-  contextRoot: string = DEFAULT_CONTEXT_ROOT,
-  precomputedId?: string,
-  // TEST SEAM. Production callers pass nothing: the governance root is the ONE trusted answer, the
-  // same one hooks/guard.ts, the admission server and the CLI admit verb read.
-  repoRoot: string = trustedRepoRoot(),
-): string
-```
-
-and add a case asserting that with `CLAUDE_PROJECT_DIR` set, `appendNote`'s admission and
-`hooks/admission-guard`'s decision read the *same* config source. (`admitAndAppend` carries the same
-`= ROOT` default and should move with it; changing one and not the other reintroduces the drift in
-the other direction.)
+**Fix:** In `calleeDottedPath`'s caller (or a one-line pre-pass over the source file's import
+declarations), build `Map<localName, importedName>` for the `@playwright/test` specifier and
+canonicalise the head segment through it before the rule is asked. Add a corpus fixture. If deliberately
+left out, change the residual's text so its reason is true: "an aliased binding *declared by assignment*
+is not refused; an import rename *is / is not* resolved" — and add the import case to the recipe.
 
 ---
 
-### WR-11: workflow 18 step 4 still claims admission "fires on every promoted note", beside the new sentence that scopes it to one kind
+### WR-15: `trustedRepoRoot()`'s fallback is the kit, so on the four non-Claude-Code CLIs — the only tier for which `appendNote` is the in-script refusal — governance is read from `~/.grugops`, never from the target repo's seeded `.grugops/factory.config.json`
 
-**File:** `agent-factory/workflows/18-context-compaction.md:51`
+**File:** `scripts/context-io.ts:2323-2337` (`return GOVERNANCE_FALLBACK_BASE` when
+`CLAUDE_PROJECT_DIR` is unset), `:1109-1125` and `:2615-2624` (both defaults now resolve through it),
+`agent-factory/workflows/16-context-read-write.md:32` (the sentence added this round),
+`install/install.ts:36-40` (two-root layout: kit at `$GRUGOPS_HOME`, config seeded per repo)
 
-**Issue:** The round appended an accurate `artifact-ref` clause to step 4 but left the sentence
-before it untouched: *"This preserves the single sanctioned write path so Phase-21 admission still
-fires on every promoted note."* Given CR-05 that is false for the kind Phase-21 admission was built
-for. The two sentences now sit adjacent and say different things, and the reader most likely to be
-misled is the agent this workflow instructs. The same claim is echoed by step 5's
-"`admit()` re-admits cheaply", which is true only because the agent is separately told to run
-`compactor.reVerify` — nothing in the write path performs it.
+**Issue:** WR-10's fix is faithful to what was asked, and the mirror test proves the default moved. But
+the "one trusted answer" is `CLAUDE_PROJECT_DIR`-or-kit, and `CLAUDE_PROJECT_DIR` is a Claude Code
+variable. Measured with the env unset: `trustedRepoRoot()` → `GOVERNANCE_FALLBACK_BASE` → the module's
+install root. Under the shipped two-root install that is `~/.grugops`, whose only config is the shipped
+lean default. So on Codex / Gemini / OpenCode / Copilot the D-04 and D-14 arms that WF16 now promises
+("`appendNote` ... reaches that refusal for every note it takes") are evaluated against
+`human_admission: off`, whatever the target repository's dial says — the exact symptom WR-10 described,
+one CLI family over. Every WR-10 test case sets `CLAUDE_PROJECT_DIR`; none runs with it unset from a
+cwd that carries a config.
 
-**Fix:** Replace the general claim with what the mechanism does — *"Promotion goes through the one
-sanctioned writer. An `artifact-ref` is re-bound by the admission authority there; a promoted
-`finding` is re-admitted by the explicit re-verify in step 5, which the agent runs — the writer does
-not run it."* If CR-05 is fixed by the unconditional call, the original sentence becomes true and can
-stay; either way, the prose and the mechanism must be made to agree in the same commit.
-
----
-
-### WR-12: `test.fail()` turns a failing UAT assertion into a green lane and is neither banned nor disclosed
-
-**File:** `scripts/runnable-ref/uat-spec-integrity.ts:75-92`,
-`agent-factory/checklists/browser-uat-recipe.md:171-176`
-
-**Issue:** `test.fail()` marks a scenario as *expected to fail*: Playwright runs it and reports a
-failing assertion as a pass (and a passing one as a failure). Applied to a `*.uat.spec.ts` file that
-is the evidence a gate re-runs, its effect is strictly worse than `test.skip` — the scenario is not
-removed from the evidence, it is inverted, so the lane is green *because* the acceptance criterion
-failed. It is not in `BANNED_CONSTRUCTS`, not in `UNRESOLVABLE_CALLEE_RESIDUALS`, and not in the
-recipe's "deliberately outside the set" list, so a reader of either source cannot tell whether it was
-considered.
-
-This is a set-content decision, not a matcher defect, which is why it is a Warning and not filed
-with CR-06: per the file's own rule it needs a recorded decision, not a quiet edit. But leaving it
-undecided is also a choice, and it is currently made silently.
-
-**Fix:** Decide it and write the decision down — either add `test.fail` (and `test.describe.fail`, if
-the rule from CR-06 is adopted) to the set, or add one line to
-`UNRESOLVABLE_CALLEE_RESIDUALS`/the recipe naming it as deliberately outside and why.
+**Fix:** Give the trusted root a non-CC answer that is still not caller-chosen: honour a documented
+`GRUGOPS_PROJECT_DIR` (set by the installer's per-repo adapter, not by the agent), else discover the
+project root from `process.cwd()` by walking up to the nearest `.grugops/factory.config.json` or `.git`,
+else the kit. Assert it in one case with `CLAUDE_PROJECT_DIR` unset, cwd = a temp project with
+`human_admission: high-severity`, expecting the refusal — and one control with cwd = an empty dir. Then
+qualify the WF16 sentence: the refusal reads the target repo's dial only where the root is resolved.
 
 ---
 
-### WR-13: the ban-set/declared-surface cross-check is one-directional, so it can only ever validate members the set already has
+### WR-16: `equivDoWork`'s doc comment describes a mechanism the function does not have (a REAL verdict + a stamped finding)
 
-**File:** `scripts/runnable-ref/uat-spec-integrity.test.ts:991-1027`,
-`scripts/runnable-ref/fixtures/playwright-test.d.ts:79-96`
+**File:** `scripts/check-uat-oracles.ts:541-545` (the comment), `:557-575` (the code)
 
-**Issue:** The new harness is presented as "the cross-check that would have caught the gap". It asks
-one direction: for each member of `BANNED_CONSTRUCTS`, does the declared surface export its head, and
-does the call type-check? That answers *"is every banned spelling real?"* It cannot answer *"is every
-real modifier banned?"* — which is the direction CR-01 was, and CR-06 still is. The discrimination
-case (`test.mute`) also probes only the first direction.
+**Issue:** The comment reads "Each task gets one REAL green §14-gate verdict for FIXED_ID, one soft
+observation note (no stamp), and one admitted finding carrying the frozen §14-gate stamp". The function
+emits no verdict and writes an unstamped `claim` with the id in `refs` — the block directly above it
+(`:482-508`) explains at length *why* the verdict attempt was measured and reverted. The comment is the
+reverted attempt's, left behind. In a Tier-1 oracle whose whole doctrine is "the claim matches the
+mechanism", a docstring that claims a stamp the fixture never earns is the defect class this round
+exists to remove, and it will mislead the next person who wonders why `stampedA !== 0` is asserted.
 
-The reverse check is additionally bounded by the stub: `playwright-test.d.ts`'s `Describe` interface
-declares `skip`/`only`/`fixme` and no `serial`/`parallel`, and `Test` declares no `fail`. So even a
-reversed harness derived from this surface would report "complete" today. The stub honestly discloses
-its drift as `UNKNOWN - verify` (`R-07`), but that disclosure is about the *fixtures compiling*; here
-the same file is being used as the authority for a completeness claim, which is a stronger use than
-its header licenses.
-
-**Fix:** Add the reverse assertion — every `skip`/`only`/`fixme`/`fail`-shaped member reachable on the
-declared `Test`/`Describe` surface (enumerated from the checker's own `TypeChecker` walk, not typed
-out) must be either in `BANNED_CONSTRUCTS` or named in `UNRESOLVABLE_CALLEE_RESIDUALS`; assert the
-partition's cardinality. Then extend the stub to carry the modifiers CR-06 names, so the reverse
-check has something to find, and state in the `.d.ts` header that it is now load-bearing for a
-completeness claim (which raises the cost of its drift and should be reflected in `R-07`).
+**Fix:** Replace with what the code does: "Each task gets one soft `observation` (no stamp) and one
+unstamped `claim` carrying `FIXED_ID` in `refs`. No verdict is emitted here — see the 31-09 block above
+for why — and the oracle asserts that no note on either path carries a `§14-gate` stamp."
 
 ## Info
 
-### IN-04: under `audit_retention: retained`, the GOV-02 ledger event is appended before `writeNoteFile` can refuse
+### IN-07: WF18 step 5 "carry no stamp and pass through" is no longer exact under D-14
 
-**File:** `scripts/context-io.ts:1095-1105`, `:1808-1812` (`appendAuditLedger` inside `admit`),
-`:1110-1115` (the write chokepoint)
+**File:** `agent-factory/workflows/18-context-compaction.md:53`
 
-**Issue:** `admit()` appends the ledger line as its last act on the admitted path; `appendNote` then
-calls `writeNoteFile`, which can still refuse (the R6-1 containment chokepoint on a forged
-`precomputedId`). In retained mode that leaves a ledger event recording an admission for a note that
-never landed. The direction is harmless (an extra audit line, never a missing one) and it is adjacent
-to the already-disclosed duplicate-ledger residual `R-21`, but the ledger's own doc-comment describes
-it as "the admission RECORD", and a record with no note is a shape an auditor has no rule for.
+**Issue:** With `admit()` consulted for every kind, an unreadable governance config (D-14) refuses a
+promoted `claim` / `observation` / `decision` / `failed-attempt` too. "Pass through" was true when the
+writer had a kind axis; it is now "admitted unless the dial is unreadable".
 
-**Fix:** Note it in the same disclosure as `R-21`, or move the ledger append to after the write in
-`appendNote`'s success path (which would also collapse the duplicate).
+**Fix:** "... carry no stamp and are admitted without a cross-check (an unreadable governance
+configuration still refuses every kind — D-14)."
 
 ---
 
-### IN-05: disclosed residuals confirmed present and correctly dispositioned
+### IN-08: the Tier-1 dual-path oracle and every default-root `appendNote` now read the *ambient* trusted root, so a retained-mode project under `CLAUDE_PROJECT_DIR` receives ledger lines from a deterministic oracle
 
-**File:** `.planning/phases/31-autonomous-manual-testing/31-08-SUMMARY.md` (residual register R-01..R-33)
+**File:** `scripts/check-uat-oracles.ts:557`, `:570`; `scripts/context-io.ts:1125`
 
-**Issue:** Recorded here so they are not re-raised as new: `R-18` (a *correct* sentence-final pin
-mention at the authority is now refused with a message naming a floating specifier that is not
-there — verified by reading `PIN_OCCURRENCE_SOURCE` against `PIN_CONCRETE_VERSION_RE`; fail-closed,
-misdiagnosed), `R-19` (`tools` is in `SKIPPED_DIRECTORIES` while `install.ts` materializes the
-checker into `tools/grugops/`), `R-22` (`FAILS` double-increment — confirmed: `fail()` at
-`check-foundation-guards.ts:444` already increments and every early-return branch increments again;
-note the same double-count also applies at all four `FAILS += reportMeasured(...)` sites, since
-`reportMeasured` emits through `fail` *and* returns 1, so the trailing tally is systematically
-doubled repo-wide, not only in this guard), `R-05`/`R-06` (alias and computed-member callee shapes),
-`R-07` (declared Playwright surface drift), `R-21` (duplicate retained-ledger event). None is worse
-than disclosed except `R-22`'s scope, which is wider than the register states and is pre-existing.
+**Issue:** `equivDoWork` calls `appendNote(..., sub.contextRoot)` with no `repoRoot`, so
+`admit()` resolves governance from `trustedRepoRoot()`. Run inside Claude Code against a project whose
+config says `audit_retention: retained`, the oracle appends 12 admission events (3 tasks × 2 notes × 2
+paths) into that project's `.grugops/audit/admissions.jsonl` on every run, and an unreadable config there
+makes the whole `check-foundation-guards` lane fail for a reason unrelated to what it measures. This
+repo's own root reads lean (asserted by the A2 case), so CI is unaffected today.
 
-**Fix:** Widen `R-22`'s scope note to "every `FAILS += reportMeasured(...)` site"; leave the rest.
+**Fix:** Pass an explicit lean temp `repoRoot` to both `appendNote` calls in `equivDoWork` (the seam
+exists for exactly this), with a one-line comment that a Tier-1 oracle never writes to the host ledger.
 
 ---
 
-### IN-06: `tsconfig.fixtures.json` is excluded from the banned-claims scan under a rationale its own contents falsify
+### IN-09: residuals confirmed present and correctly dispositioned
 
-**File:** `scripts/check-banned-claims.ts:796-802` (the disposition), `:891` (the entry),
-`tsconfig.fixtures.json:1-27`
+**File:** `.planning/phases/31-autonomous-manual-testing/31-09..31-12-SUMMARY.md`,
+`docs/audit/29-style-dispositions/31-09.md`
 
-**Issue:** The new file joins the excluded-locations list in the block whose stated category is
-"TOOLCHAIN MANIFESTS … They ship to nobody and make no claim; their free-text fields are names and
-versions." The file is 27 lines of prose rationale before its first key — the largest comment header
-of any config in the repo — so the category sentence is false of its newest member, and the
-appended parenthetical ("its header explains a build decision to a maintainer") acknowledges as much
-without correcting the category. The count assertion moved `7 → 8` by hand, cross-checked only
-against the array's own length; the coverage equality elsewhere (`tracked ⊆ scan ∪ excluded`) is what
-actually forces a disposition, and it held. Low impact — the file is not shipped to hosts — but this
-is the scan-set-scope shape that has bitten this repo before.
+**Issue:** Recorded so they are not re-raised: `R-43`/`R-44`/`R-47` (declared surface is a hand
+transcription and now a denominator; depth bound 4; disposition record hand-authored) — all accurately
+stated in the recipe and the `.d.ts` header; `R-46` (alias outside both buckets) — accurate but
+incomplete, see CR-07; `Q9` (an in-process importer can mint a verdict via `emitVerdict`) — disclosed,
+pre-existing; the 78 undispositioned clauses from 31-05/06/08 deferred with a measured count. The
+`31-09.md` disposition file's row for WF18 line 51 explains the `§14-gate` (no `#<id>`) spelling as a
+`guard_context_writes` false-positive avoidance — worth a guard-side fix eventually so prose does not
+have to route around a redirect misparse.
 
-**Fix:** Either split the disposition so prose-bearing tsconfigs are their own category with a stated
-reason (they are dev-only and unshipped), or bring `tsconfig.fixtures.json` and
-`tsconfig.tests.json` into the scan and let the claim guard read their headers.
+**Fix:** None required beyond the cross-references above.
 
 ---
 
-_Reviewed: 2026-09-08T12:20:00Z_
+_Reviewed: 2026-09-08T18:50:00Z_
 _Reviewer: Claude (gsd-code-reviewer)_
 _Depth: standard_
-_Diff base: 3253598_
+_Diff base: 41a2154_
