@@ -4,10 +4,10 @@ milestone: v2.1
 milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live Board
 current_phase: 31
 current_phase_name: Autonomous Manual Testing
-status: "Phase 31 verification round 2: gaps_found 4/6 — 2 gaps (CR-05 finding-kind bypass, CR-06 serial/parallel modifier spellings); next: /gsd-plan-phase 31 --gaps"
+status: "Phase 31 verification round 3: gaps_found 5/6 — round-2 gaps CR-05/CR-06 closed; 2 new blockers (CR-07 call-chain callee never asked of the ban rule + WR-14 import-alias head; CR-08 unconditional admit() refuses compactor.promote of a human-disposed finding, WR-15 trustedRepoRoot kit fallback); next: /gsd-plan-phase 31 --gaps"
 stopped_at: Completed 31-12-PLAN.md
-last_updated: "2026-09-08T15:31:27.049Z"
-state_head: a5bf648593e112cf188bfbb2b76ad256a4dacc43
+last_updated: "2026-09-08T16:05:06.951Z"
+state_head: 58a9cf6daee625bf2034bb52b18295164051d726
 progress:
   total_phases: 9
   completed_phases: 6
