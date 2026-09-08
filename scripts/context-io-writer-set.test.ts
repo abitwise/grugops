@@ -34,6 +34,7 @@ import ts from "typescript";
 import { spawnSync } from "node:child_process";
 import {
   mkdtempSync,
+  mkdirSync,
   existsSync,
   readdirSync,
   readFileSync,
@@ -824,53 +825,6 @@ function noteFileCount(contextRoot: string, task: string): number {
   return existsSync(dir) ? readdirSync(dir).length : 0;
 }
 
-/**
- * How one writer is exercised.
- *
- *  • `behavioral` — the writer accepts a caller-supplied kind, so it CAN be asked to author an
- *    artifact-ref. It is driven with the fabricated provenance and must refuse, writing nothing.
- *  • `structural` — the writer composes its note's `kind` from a SOURCE LITERAL, so it cannot
- *    express the kind at all. The impossibility is asserted POSITIVELY off the parsed source rather
- *    than left as an untested silence: an unexercised member is precisely what this file removes.
- */
-type Exercise =
-  | { readonly mode: "behavioral"; readonly drive: (contextRoot: string, task: string) => string }
-  | { readonly mode: "structural"; readonly composedKind: string };
-
-const WRITER_EXERCISES: Record<string, Exercise> = {
-  appendNote: {
-    mode: "behavioral",
-    drive: (contextRoot, task) => {
-      try {
-        mod.appendNote(task, fabricatedEvidence(), "body", contextRoot);
-        return ""; // no refusal — the caller asserts this is a failure
-      } catch (e) {
-        return (e as Error).message;
-      }
-    },
-  },
-  admitAndAppend: {
-    mode: "behavioral",
-    drive: (contextRoot, task) => {
-      // A fresh repoRoot with no config at all → the lean dial, so governance is not the decider.
-      const result = mod.admitAndAppend(
-        task,
-        fabricatedEvidence(),
-        "body",
-        contextRoot,
-        freshTmp("ctx-io-writer-repo-"),
-      );
-      return result.id === null ? result.findings.join("\n") : "";
-    },
-  },
-  // STRUCTURAL IMPOSSIBILITY, NOT A BEHAVIOURAL REFUSAL. `emitVerdict` composes `kind: "finding"`
-  // from a literal and takes no kind from its caller; there is no argument that makes it author an
-  // artifact-ref. Asserted off the source below, and paired with the `artifact-ref` absence check.
-  emitVerdict: { mode: "structural", composedKind: "finding" },
-  // Likewise `emitCheckpointNote`: a fixed reserved-identity emitter over a roster-checked input.
-  emitCheckpointNote: { mode: "structural", composedKind: "finding" },
-};
-
 /** The `kind:` string literals a named function composes, read off the parsed source. */
 function composedKindLiterals(sourcePath: string, functionName: string): string[] {
   const source = ts.createSourceFile(
@@ -910,52 +864,761 @@ function functionSource(sourcePath: string, functionName: string): string {
   return "";
 }
 
-describe("31-05 — every derived note writer is exercised against fabricated provenance", () => {
-  it("the exercise table's key set EQUALS the derived writer set", () => {
-    // Asserted BEFORE any driver runs. A writer that landed with no driver would otherwise be
-    // silently skipped by the loop below, which is the exact silence this file exists to remove.
+// ─── The probe fixtures. One per derived refusal site, reusing proven setups. ───────────────────
+
+/** The body every probe carries. Its content decides nothing; only the provenance does. */
+const PROBE_BODY = "the probe body";
+
+/** A DIFFERENT stable 40-hex commit id — the stale sha the D-03 mismatch arm must name. */
+const PROBE_STALE_SHA = "b0a9f8e7d6c5b4a3d2e1c0f9b8a7f6e5d4c3b2a1";
+
+/**
+ * The note TEXT the writers actually hand the authority, composed by the MODULE'S OWN composer.
+ *
+ * WHY NOT A LITERAL IN THIS FILE. `admit()` takes a text, not a note, so a probe driven directly at
+ * the authority needs one — and hand-writing the frontmatter here would put a SECOND composer beside
+ * the module's, which is this repository's named failure class applied to the harness itself. So the
+ * text is obtained from the committed `.js` with the authority call neutralized: the same compose
+ * and the same validate the live writer performs, minus the one decision under test. What the direct
+ * probe is handed is therefore exactly what the writer would have handed it.
+ */
+let composeMirrorPromise: Promise<typeof import("./context-io.js")> | null = null;
+function composeMirror(): Promise<typeof import("./context-io.js")> {
+  composeMirrorPromise ??= mirrorOfCommittedJs(
+    AUTHORITY_CALL,
+    "const admission = [];",
+    "ctx-io-compose-mirror-",
+  );
+  return composeMirrorPromise;
+}
+
+async function composedNoteText(note: Parameters<typeof mod.appendNote>[1]): Promise<string> {
+  const mirror = await composeMirror();
+  const scratch = freshTmp("ctx-io-compose-scratch-");
+  const task = "compose-scratch-task";
+  const id = mirror.appendNote(task, note, PROBE_BODY, scratch);
+  return readFileSync(join(scratch, task, "notes", `${id}.md`), "utf8");
+}
+
+/** A repo root carrying a governance configuration file with the given raw bytes. */
+function repoWithRawConfig(raw: string): string {
+  const root = freshTmp("ctx-io-probe-repo-");
+  mkdirSync(join(root, ".grugops"), { recursive: true });
+  writeFileSync(join(root, ".grugops", "factory.config.json"), raw);
+  return root;
+}
+
+/** A repo root whose governance dial is set — the same shape `scripts/context-io.test.ts` writes. */
+function repoWithGovernance(context: Record<string, string>): string {
+  return repoWithRawConfig(JSON.stringify({ context }, null, 2));
+}
+
+/** Emit a REAL live green verdict for a per-run id, through the module's own sole emitter. */
+function seedGreenVerdict(contextRoot: string, task: string, runId: string, at?: string): void {
+  mod.emitVerdict(task, runId, "clean", FABRICATED_SHA, contextRoot, at);
+}
+
+/**
+ * A live green verdict that recorded NO sha, written to disk by hand.
+ *
+ * The ONE probe fixture this file authors as raw note text, and deliberately: since plan 31-01 the
+ * sole emitter REFUSES to mint a verdict without a sha, so the shape that reaches the "recorded no
+ * commit SHA" site is exactly a verdict minted before that change or hand-written onto disk. A
+ * fixture that could be produced by the emitter would not reach the site at all.
+ */
+function seedShalessVerdict(contextRoot: string, task: string, runId: string): void {
+  const id = "20260908T080000Z-§14-gate-finding-shaless01";
+  const dir = join(contextRoot, task, "notes");
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(
+    join(dir, `${id}.md`),
+    "---\n" +
+      `id: ${id}\n` +
+      "kind: finding\nby: §14-gate\nat: 2026-09-08T08:00:00Z\nverified_by: \nconfidence: high\n" +
+      `refs:\n  - §14-gate#${runId}\n` +
+      "supersedes: \n---\n\nREADY_FOR_HUMAN_REVIEW: the §14 quality gate run passed (all checks green).\n",
+  );
+}
+
+/** A soft-kind note with no stamp — the shape that reaches the governance read without a stamp arm. */
+function softNote(over: Partial<Parameters<typeof mod.appendNote>[1]> = {}) {
+  return {
+    kind: "observation",
+    by: "software-engineer",
+    at: "2026-09-08T02:00:00Z",
+    verified_by: "",
+    confidence: "high",
+    refs: [],
+    supersedes: null,
+    ...over,
+  } as Parameters<typeof mod.appendNote>[1];
+}
+
+/** An artifact-ref carrying the full provenance triple; every field overridable. */
+function artifactRefNote(over: Partial<Parameters<typeof mod.appendNote>[1]> = {}) {
+  return {
+    ...fabricatedEvidence(),
+    gate_run: "RUN-PROBE",
+    ...over,
+  } as Parameters<typeof mod.appendNote>[1];
+}
+
+/**
+ * ONE PROBE PER DERIVED REFUSAL SITE.
+ *
+ * `rawText` is carried only by a site no writer can compose an input for; every other probe is a
+ * NOTE, so the SAME probe drives the direct-authority discrimination check below AND every writer
+ * cell in the matrix. That sharing is deliberate: a probe that tripped a site directly but was
+ * quietly swapped for something else at the writer would prove nothing about the writer.
+ */
+interface RefusalProbe {
+  /** A note text no writer can compose. Present only where the site takes one. */
+  readonly rawText?: string;
+  /** The note a writer is asked to author. */
+  readonly note?: () => Parameters<typeof mod.appendNote>[1];
+  /** Seed the task context so the site's precondition holds. */
+  readonly seed?: (contextRoot: string, task: string) => void;
+  /** The governance root the site needs; a fresh empty root (the lean dial) when absent. */
+  readonly repoRoot?: () => string;
+}
+
+const REFUSAL_PROBE_SPECS: Readonly<Record<string, RefusalProbe>> = Object.freeze({
+  // The authority delegates its structural check to validate() before this site, so the input that
+  // WOULD reach it is refused one authority earlier. Kept as a probe rather than dropped, because
+  // the disposition below has to DRIVE it to prove which authority answered.
+  S1: { rawText: "no frontmatter fence here\n" },
+  // D-01: a finding stamped against a per-run id no live green verdict certifies.
+  S2: {
+    note: () =>
+      softNote({ kind: "finding", by: "qe-e2e", verified_by: "§14-gate#no-such-gate-run" }),
+  },
+  // D-03 a: an artifact-ref naming a gate run with no verdict at all.
+  S3: { note: () => artifactRefNote({ gate_run: "RUN-ABSENT" }) },
+  // D-03 b: two live green verdicts sharing one per-run id — ambiguity refuses in both directions.
+  S4: {
+    note: () => artifactRefNote({ gate_run: "RUN-DUPLICATE" }),
+    seed: (contextRoot, task) => {
+      seedGreenVerdict(contextRoot, task, "RUN-DUPLICATE", "2026-09-08T03:00:00Z");
+      seedGreenVerdict(contextRoot, task, "RUN-DUPLICATE", "2026-09-08T04:00:00Z");
+    },
+  },
+  // D-03 c: the matched verdict recorded no commit, so the evidence is unbindable.
+  S5: {
+    note: () => artifactRefNote({ gate_run: "RUN-SHALESS" }),
+    seed: (contextRoot, task) => seedShalessVerdict(contextRoot, task, "RUN-SHALESS"),
+  },
+  // D-03 d: the evidence claims a different commit than the run it names was performed at.
+  S6: {
+    note: () => artifactRefNote({ gate_run: "RUN-BOUND", sha: PROBE_STALE_SHA }),
+    seed: (contextRoot, task) => seedGreenVerdict(contextRoot, task, "RUN-BOUND"),
+  },
+  // D-14: a governance configuration that exists and cannot be parsed. A SOFT kind, so neither stamp
+  // arm above can answer first and the governance read is the only thing left to decide it.
+  S7: { note: () => softNote(), repoRoot: () => repoWithRawConfig("{ not valid json ]]]") },
+  // D-04: a high-severity finding under an active dial, its §14-gate cross-check deliberately
+  // SATISFIED by a real seeded verdict so the dial is the only remaining decider.
+  S8: {
+    note: () =>
+      softNote({ kind: "finding", by: "security-nfr", verified_by: "§14-gate#RUN-HIGHSEV" }),
+    seed: (contextRoot, task) => seedGreenVerdict(contextRoot, task, "RUN-HIGHSEV"),
+    repoRoot: () => repoWithGovernance({ human_admission: "high-severity" }),
+  },
+});
+
+/** The site handle for a derived signature, or "" when the site has no spec row. */
+function siteKeyOf(signature: string): string {
+  return REFUSAL_SITE_SPECS.find((spec) => spec.signature === signature)?.key ?? "";
+}
+
+/**
+ * THE PROBE RECORD, KEYED BY DERIVED SIGNATURE.
+ *
+ * Built by walking the DERIVED set and looking each signature's probe up through the site-handle
+ * bijection. A derived site with no spec row, or a spec row with no probe, simply produces no key —
+ * so the key-set equality below reports it as a missing member rather than the build throwing
+ * somewhere a reader cannot see. That is what makes the equality load-bearing instead of vacuous.
+ */
+function buildRefusalProbes(): Record<string, RefusalProbe> {
+  const out: Record<string, RefusalProbe> = {};
+  for (const signature of derivedRefusalSignatures(CONTEXT_IO_TS)) {
+    const probe = REFUSAL_PROBE_SPECS[siteKeyOf(signature)];
+    if (probe) out[signature] = probe;
+  }
+  return out;
+}
+
+const REFUSAL_PROBES: Readonly<Record<string, RefusalProbe>> = Object.freeze(buildRefusalProbes());
+
+/**
+ * Does this refusal message come from this site?
+ *
+ * Decided on the site's RAW static chunks, found IN ORDER. The signature has its interpolations
+ * removed, so a plain substring test against it can never match a real message; the chunks are the
+ * same text with the holes left open, and requiring them in order is what keeps the two sites that
+ * share an opening sentence from matching each other.
+ */
+function matchesSite(message: string, chunks: readonly string[]): boolean {
+  let cursor = 0;
+  for (const chunk of chunks) {
+    const at = message.indexOf(chunk, cursor);
+    if (at < 0) return false;
+    cursor = at + chunk.length;
+  }
+  return true;
+}
+
+/** Every derived signature whose site the message matches. */
+function sitesTrippedBy(message: string): string[] {
+  return deriveAdmitRefusalSites(CONTEXT_IO_TS)
+    .sites.filter((site) => matchesSite(message, site.chunks))
+    .map((site) => site.signature)
+    .sort();
+}
+
+/** Prepare one probe's world: a fresh context, its seeded state, and its governance root. */
+function stageProbe(probe: RefusalProbe, prefix: string): { contextRoot: string; task: string; repoRoot: string } {
+  const contextRoot = freshTmp(prefix);
+  const task = "matrix-task";
+  if (probe.seed) probe.seed(contextRoot, task);
+  const repoRoot = probe.repoRoot ? probe.repoRoot() : freshTmp("ctx-io-probe-leanrepo-");
+  return { contextRoot, task, repoRoot };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// PART THREE-A — the probes are proven to DISCRIMINATE before they are trusted against a writer.
+//
+// A probe set that trips three of eight sites and reads as complete is the same failure as a writer
+// set that asks one question: the covered set looks like the whole set because nothing measured the
+// difference. So the union of what the probes actually trip is asserted EQUAL to the derived set —
+// in both directions, so neither an unreachable site nor an unused probe can hide — and the sites
+// that are structurally unreachable are named and PROVEN unreachable rather than subtracted quietly.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+/**
+ * The derived sites no input can reach, each with the reason and the authority that answers instead.
+ *
+ * MEASURED, NOT ASSUMED (31-10). `admit()` begins by delegating the structural check to `validate()`
+ * and returning its findings — the R-34 identifier return — and `validate()` refuses a fence-less
+ * text with its own `structural FAIL` message. The authority's own `admission FAIL: no YAML
+ * frontmatter fence` return therefore sits BEHIND that delegation and cannot be reached by any
+ * input, from any writer or from a direct call. It is a defensive backstop, and this file says so
+ * with a driven proof rather than counting it as covered or dropping it from the set.
+ */
+const UNREACHABLE_SITES: Readonly<Record<string, string>> = Object.freeze({
+  S1:
+    "unreachable: the authority delegates the structural check to validate() first and returns its " +
+    "findings (R-34), and validate() refuses a fence-less text with `structural FAIL`. This site is " +
+    "a defensive backstop behind that delegation — a DIFFERENT authority answers, and this file " +
+    "names it rather than counting the refusal as evidence that this site was reached.",
+});
+
+describe("31-10 — the probe set is proven to trip every reachable refusal site", () => {
+  it("the probe record's KEY SET equals the derived signature set", () => {
+    // Asserted BEFORE any probe runs. A derived site with no probe would otherwise be skipped by
+    // every loop below, which is the silence this plan exists to remove.
     expect(
-      Object.keys(WRITER_EXERCISES).sort(),
-      "a derived note writer has no driver in WRITER_EXERCISES (or a driver names a function that " +
-        "is no longer a writer). Every writer is exercised or the set is not covered",
-    ).toEqual(deriveNoteWriters(CONTEXT_IO_TS));
+      Object.keys(REFUSAL_PROBES).sort(),
+      "a derived refusal site has no probe in REFUSAL_PROBE_SPECS (or a probe names a site handle " +
+        "the authority no longer implements). Every site is probed or the set is not covered",
+    ).toEqual(derivedRefusalSignatures(CONTEXT_IO_TS));
   });
 
-  for (const name of EXPECTED_NOTE_WRITERS) {
-    it(`${name}: refuses the fabricated artifact-ref, or cannot express the kind at all`, () => {
-      const exercise = WRITER_EXERCISES[name];
-      expect(exercise, `${name} has no exercise`).toBeDefined();
-      if (exercise.mode === "behavioral") {
-        const contextRoot = freshTmp(`ctx-io-writer-${name}-`);
-        const task = "writer-set-task";
-        const before = noteFileCount(contextRoot, task);
-        const refusal = exercise.drive(contextRoot, task);
-        expect(
-          refusal,
-          `${name} accepted a fabricated gate_run — the admission authority was not reached`,
-        ).not.toBe("");
-        expect(refusal).toContain(FABRICATED_RUN);
-        expect(
-          noteFileCount(contextRoot, task),
-          `${name} refused but left a file behind — "nothing is written" must be true of the disk`,
-        ).toBe(before);
-      } else {
-        const literals = composedKindLiterals(CONTEXT_IO_TS, name);
-        expect(
-          literals,
-          `${name}'s composed kind is no longer a single source literal, so it may now be able to ` +
-            `author an artifact-ref and needs a behavioural driver instead of this assertion`,
-        ).toEqual([exercise.composedKind]);
-        expect(exercise.composedKind).not.toBe("artifact-ref");
-        // A second, independent structural fact: the kind does not appear in the function at all.
-        expect(
-          functionSource(CONTEXT_IO_TS, name).includes("artifact-ref"),
-          `${name} names the artifact-ref kind in its body — the structural impossibility claimed ` +
-            `for it is no longer obviously true and must be re-derived`,
-        ).toBe(false);
-      }
+  it("the unreachable-site set is a strict SUBSET of the derived set, named by handle", () => {
+    const handles = derivedRefusalSignatures(CONTEXT_IO_TS).map(siteKeyOf);
+    for (const key of Object.keys(UNREACHABLE_SITES)) {
+      expect(handles, `${key} is declared unreachable but is not a derived site`).toContain(key);
+    }
+    expect(
+      Object.keys(UNREACHABLE_SITES).length,
+      "every derived refusal site was declared unreachable, which would make every claim below " +
+        "vacuous — the harness would be measuring nothing while reporting green",
+    ).toBeLessThan(handles.length);
+  });
+
+  it("the union of signatures the probes trip EQUALS the reachable derived set, both directions", async () => {
+    const reachable = derivedRefusalSignatures(CONTEXT_IO_TS).filter(
+      (signature) => !(siteKeyOf(signature) in UNREACHABLE_SITES),
+    );
+    const tripped = new Set<string>();
+    for (const signature of reachable) {
+      const probe = REFUSAL_PROBES[signature];
+      const { contextRoot, task, repoRoot } = stageProbe(probe, `ctx-io-probe-${siteKeyOf(signature)}-`);
+      const text = probe.rawText ?? (await composedNoteText((probe.note as () => Parameters<typeof mod.appendNote>[1])()));
+      const findings = mod.admit(task, text, contextRoot, repoRoot);
+      expect(
+        findings.length,
+        `the probe for ${siteKeyOf(signature)} was ADMITTED by the authority — it trips nothing, so ` +
+          `every writer cell built on it would be asserting a refusal that has no source`,
+      ).toBeGreaterThan(0);
+      const matched = sitesTrippedBy(findings.join("\n"));
+      // Exactly its own site, not merely "at least" it: a probe that also trips a neighbour would
+      // let one probe stand in for two and shrink the effective set without moving any count.
+      expect(
+        matched,
+        `the probe for ${siteKeyOf(signature)} trips ${matched.map(siteKeyOf).join("/") || "nothing"} ` +
+          `— a probe that trips a site it is not registered for is a many-to-one mapping and must be ` +
+          `recorded as one with its reason, never left implicit`,
+      ).toEqual([signature]);
+      for (const s of matched) tripped.add(s);
+    }
+    expect([...tripped].sort()).toEqual(reachable);
+  });
+
+  for (const [key, reason] of Object.entries(UNREACHABLE_SITES)) {
+    it(`${key}: the unreachability is PROVEN, and the answering authority is named`, async () => {
+      const spec = REFUSAL_SITE_SPECS.find((s) => s.key === key) as RefusalSiteSpec;
+      const probe = REFUSAL_PROBE_SPECS[key];
+      const { contextRoot, task, repoRoot } = stageProbe(probe, `ctx-io-unreachable-${key}-`);
+      const text = probe.rawText ?? (await composedNoteText((probe.note as () => Parameters<typeof mod.appendNote>[1])()));
+      const findings = mod.admit(task, text, contextRoot, repoRoot);
+      // POSITIVE, not an absence: the input IS refused, and the refusal is the OTHER authority's.
+      expect(findings.length, `${key}: ${reason}`).toBeGreaterThan(0);
+      const joined = findings.join("\n");
+      expect(joined).toContain("structural FAIL");
+      expect(sitesChunksOf(key).length).toBeGreaterThan(0);
+      expect(
+        sitesTrippedBy(joined),
+        `${key} was reached after all — it is no longer unreachable, so it needs a real probe row ` +
+          `in the reachable set rather than this disposition`,
+      ).not.toContain(spec.signature);
+      // …and the structural reason, off the parsed source: the delegating identifier return sits
+      // ABOVE this site in the authority's body, which is WHY nothing can reach it.
+      expect(delegatingReturnPrecedes(spec.signature)).toBe(true);
     });
   }
+});
+
+/**
+ * The raw chunks of one derived site, by handle — with the matcher's own INPUT asserted.
+ *
+ * THE VACUITY THIS CLOSES. `matchesSite(message, [])` is TRUE for every message: an empty chunk list
+ * makes the matcher accept anything, so a cell built on it would pass on a refusal from any
+ * authority at all. A short-but-non-empty list is the same failure quieter. This repository's
+ * standing lesson is that a floor which catches an EMPTY denominator but not a SILENTLY SHORT one is
+ * not a floor — so the chunks are asserted to reconstruct the site's REGISTERED signature exactly,
+ * which no truncated list can do.
+ */
+function sitesChunksOf(key: string): readonly string[] {
+  const site = deriveAdmitRefusalSites(CONTEXT_IO_TS).sites.find(
+    (s) => siteKeyOf(s.signature) === key,
+  );
+  expect(site, `no derived refusal site carries the handle ${key}`).toBeDefined();
+  const chunks = (site as RefusalSite).chunks;
+  const spec = REFUSAL_SITE_SPECS.find((s) => s.key === key);
+  expect(
+    refusalSignature(chunks),
+    `the chunk list the matcher is about to use for ${key} does not reconstruct that site's ` +
+      `registered signature, so the match it reports would be about some other text — a truncated ` +
+      `or empty list makes matchesSite() accept every message`,
+  ).toBe((spec as RefusalSiteSpec).signature);
+  return chunks;
+}
+
+/**
+ * Does the authority's delegating `return findings;` (R-34) sit ABOVE this refusal site in source
+ * order? That ordering is the structural reason a site behind it cannot be reached: the delegation
+ * returns first for exactly the inputs that would otherwise arrive here.
+ */
+function delegatingReturnPrecedes(signature: string): boolean {
+  const source = ts.createSourceFile(
+    "context-io.ts",
+    readFileSync(CONTEXT_IO_TS, "utf8"),
+    ts.ScriptTarget.Latest,
+    true,
+  );
+  let delegationAt = -1;
+  let siteAt = -1;
+  for (const statement of source.statements) {
+    if (!ts.isFunctionDeclaration(statement) || statement.name?.text !== ADMIT_AUTHORITY) continue;
+    const walk = (node: ts.Node): void => {
+      if (ts.isReturnStatement(node) && node.expression) {
+        if (ts.isIdentifier(node.expression) && delegationAt < 0) {
+          delegationAt = node.getStart(source);
+        } else if (
+          ts.isArrayLiteralExpression(node.expression) &&
+          node.expression.elements.length > 0 &&
+          refusalSignature(refusalStaticChunks(node.expression)) === signature
+        ) {
+          siteAt = node.getStart(source);
+        }
+      }
+      ts.forEachChild(node, walk);
+    };
+    if (statement.body) walk(statement.body);
+  }
+  return delegationAt >= 0 && siteAt >= 0 && delegationAt < siteAt;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// PART THREE-B — the exercise table is a MATRIX over the cross product of two derived sets.
+//
+// WHAT REPLACED WHAT, AND WHY (31-10, CR-05 round 2). This section used to loop over the derived
+// writers asking each ONE question — "does it refuse the fabricated artifact-ref?" — and that single
+// question was the whole reason the shipped contract test could not see CR-05. The loop is now a
+// matrix keyed by (writer, refusal signature), and its key set is asserted EQUAL to the cross
+// product of the derived writer set and the derived refusal set BEFORE any cell runs. A pair with no
+// row does not exist to be skipped; it turns the file red.
+//
+// EVERY CELL RESOLVES, AND NO CELL IS SKIPPED. A cell is either DRIVEN — the writer refuses, the
+// message matches that site's registered signature, and the notes directory is unchanged across the
+// call — or DISPOSITIONED, with a written reason and a POSITIVE assertion off the parsed source
+// establishing why it cannot be driven. `it.skip`, `it.todo` and a quietly absent key are all the
+// same silence, and this file exists to remove it.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+interface CellDisposition {
+  readonly reason: string;
+  /** The POSITIVE assertion that establishes the impossibility. Runs inside the cell's own case. */
+  readonly prove: (writer: string, siteKey: string) => void;
+}
+
+/** The writer-wide disposition: this writer never reaches the authority at all. */
+function neverReachesAuthority(composedKind: string): CellDisposition {
+  return {
+    reason:
+      "this writer never reaches the admission authority. It is a reserved-identity emitter whose " +
+      "tail is emitTrusted (validate-and-write), it composes its note's kind from a source literal, " +
+      "and no caller input puts it in front of admit(). Its refusals come from a DIFFERENT authority " +
+      "— emitTrusted's identity and validity checks — which is why they are recorded here rather " +
+      "than counted as evidence that any admission family was reached.",
+    prove: (writer) => {
+      const analysis = analyze(CONTEXT_IO_TS);
+      expect(
+        analysis.calls.has(writer),
+        `PREMISE: ${writer} was not found as a top-level declaration, so the closure below measured ` +
+          `nothing`,
+      ).toBe(true);
+      expect(
+        closureOf(analysis, writer).has(ADMIT_AUTHORITY),
+        `${writer} now reaches ${ADMIT_AUTHORITY}(), so it CAN be asked an admission question and ` +
+          `owes every derived family a driven cell instead of this disposition`,
+      ).toBe(false);
+      expect(
+        composedKindLiterals(CONTEXT_IO_TS, writer),
+        `${writer}'s composed kind is no longer a single source literal, so it may now express a ` +
+          `caller-chosen kind and needs behavioural drivers`,
+      ).toEqual([composedKind]);
+      expect(
+        functionSource(CONTEXT_IO_TS, writer).includes("artifact-ref"),
+        `${writer} names the artifact-ref kind in its body — the structural impossibility claimed ` +
+          `for it is no longer obviously true and must be re-derived`,
+      ).toBe(false);
+    },
+  };
+}
+
+const WRITER_WIDE_DISPOSITIONS: Readonly<Record<string, CellDisposition>> = Object.freeze({
+  emitVerdict: neverReachesAuthority("finding"),
+  emitCheckpointNote: neverReachesAuthority("finding"),
+});
+
+/** The site-wide disposition: nothing can reach this site, so no writer can be driven at it. */
+const SITE_WIDE_DISPOSITIONS: Readonly<Record<string, CellDisposition>> = Object.freeze({
+  S1: {
+    reason: UNREACHABLE_SITES.S1,
+    prove: (_writer, siteKey) => {
+      const spec = REFUSAL_SITE_SPECS.find((s) => s.key === siteKey) as RefusalSiteSpec;
+      expect(
+        delegatingReturnPrecedes(spec.signature),
+        `${siteKey} is no longer behind the authority's delegating return, so it may now be ` +
+          `reachable and owes every writer a driven cell`,
+      ).toBe(true);
+    },
+  },
+});
+
+/** `${writer}::${siteKey}` → a disposition for one specific cell. */
+const CELL_DISPOSITIONS: Readonly<Record<string, CellDisposition>> = Object.freeze({
+  "admitAndAppend::S8": {
+    reason:
+      "a DIFFERENT authority refuses first. The combiner routes a note through isGatedNote, and a " +
+      "high-severity finding under an active dial is gated — a condition that SUBSUMES the one this " +
+      "site tests — so the gated branch returns its own refusal before admit() is called. The cell " +
+      "is recorded as reached-by-another-authority rather than counted as evidence that D-04 fired, " +
+      "which is exactly the pass this plan refuses to grant.",
+    prove: (writer) => {
+      // POSITIVE, off the parsed source: the gated branch RETURNS, and the authority call sits after
+      // the whole gated statement — so a gated note cannot arrive at admit().
+      const source = ts.createSourceFile(
+        "context-io.ts",
+        readFileSync(CONTEXT_IO_TS, "utf8"),
+        ts.ScriptTarget.Latest,
+        true,
+      );
+      let gatedEnd = -1;
+      let authorityAt = -1;
+      let returnsInsideGated = 0;
+      for (const statement of source.statements) {
+        if (!ts.isFunctionDeclaration(statement) || statement.name?.text !== writer) continue;
+        const walk = (node: ts.Node): void => {
+          if (
+            ts.isIfStatement(node) &&
+            ts.isIdentifier(node.expression) &&
+            node.expression.text === "gated"
+          ) {
+            gatedEnd = node.getEnd();
+            const count = (inner: ts.Node): void => {
+              if (ts.isReturnStatement(inner)) returnsInsideGated += 1;
+              ts.forEachChild(inner, count);
+            };
+            count(node.thenStatement);
+          }
+          if (
+            ts.isCallExpression(node) &&
+            ts.isIdentifier(node.expression) &&
+            node.expression.text === ADMIT_AUTHORITY &&
+            authorityAt < 0
+          ) {
+            authorityAt = node.getStart(source);
+          }
+          ts.forEachChild(node, walk);
+        };
+        if (statement.body) walk(statement.body);
+      }
+      expect(gatedEnd, `PREMISE: no \`if (gated)\` statement was found in ${writer}`).toBeGreaterThan(0);
+      expect(authorityAt, `PREMISE: no ${ADMIT_AUTHORITY}() call was found in ${writer}`).toBeGreaterThan(0);
+      expect(
+        returnsInsideGated,
+        `${writer}'s gated branch no longer returns, so a gated note may now fall through to the ` +
+          `authority and this disposition must become a driven cell`,
+      ).toBeGreaterThan(0);
+      expect(
+        authorityAt > gatedEnd,
+        `${writer} now calls the authority from inside or above the gated branch, so the ordering ` +
+          `this disposition rests on no longer holds`,
+      ).toBe(true);
+      // …and the diverting predicate is TRUE for exactly this probe's shape.
+      expect(
+        mod.isGatedNote(
+          "security-nfr",
+          "finding",
+          mod.readGovernanceConfig(repoWithGovernance({ human_admission: "high-severity" })),
+        ),
+      ).toBe(true);
+    },
+  },
+});
+
+type CellOutcome =
+  | { readonly kind: "refused"; readonly message: string }
+  | { readonly kind: "wrote"; readonly id: string };
+
+const WRITER_DRIVERS: Readonly<
+  Record<
+    string,
+    (
+      note: Parameters<typeof mod.appendNote>[1],
+      contextRoot: string,
+      task: string,
+      repoRoot: string,
+    ) => CellOutcome
+  >
+> = Object.freeze({
+  appendNote: (note, contextRoot, task, repoRoot) => {
+    try {
+      return { kind: "wrote", id: mod.appendNote(task, note, PROBE_BODY, contextRoot, undefined, repoRoot) };
+    } catch (e) {
+      return { kind: "refused", message: (e as Error).message };
+    }
+  },
+  admitAndAppend: (note, contextRoot, task, repoRoot) => {
+    const result = mod.admitAndAppend(task, note, PROBE_BODY, contextRoot, repoRoot);
+    return result.id === null
+      ? { kind: "refused", message: result.findings.join("\n") }
+      : { kind: "wrote", id: result.id };
+  },
+});
+
+type MatrixCell =
+  | { readonly mode: "behavioural"; readonly writer: string; readonly signature: string }
+  | {
+      readonly mode: "dispositioned";
+      readonly writer: string;
+      readonly signature: string;
+      readonly disposition: CellDisposition;
+    };
+
+/** Resolve one (writer, signature) pair, or `null` when nothing covers it. */
+function resolveCell(writer: string, signature: string): MatrixCell | null {
+  const siteKey = siteKeyOf(signature);
+  const disposition =
+    WRITER_WIDE_DISPOSITIONS[writer] ??
+    SITE_WIDE_DISPOSITIONS[siteKey] ??
+    CELL_DISPOSITIONS[`${writer}::${siteKey}`];
+  if (disposition) return { mode: "dispositioned", writer, signature, disposition };
+  if (WRITER_DRIVERS[writer] && REFUSAL_PROBES[signature]?.note) {
+    return { mode: "behavioural", writer, signature };
+  }
+  return null;
+}
+
+/** THE MATRIX, keyed `${writer}::${signature}` over the cross product of the two derived sets. */
+function buildWriterFamilyMatrix(): Record<string, MatrixCell> {
+  const out: Record<string, MatrixCell> = {};
+  for (const writer of deriveNoteWriters(CONTEXT_IO_TS)) {
+    for (const signature of derivedRefusalSignatures(CONTEXT_IO_TS)) {
+      const cell = resolveCell(writer, signature);
+      // An UNRESOLVED pair deliberately produces NO KEY rather than throwing here: the key-set
+      // equality below then reports it as a missing member of the cross product, which is a reader-
+      // legible failure at the assertion instead of a crash during collection.
+      if (cell) out[`${writer}::${signature}`] = cell;
+    }
+  }
+  return out;
+}
+
+const WRITER_FAMILY_MATRIX: Readonly<Record<string, MatrixCell>> = Object.freeze(
+  buildWriterFamilyMatrix(),
+);
+
+describe("31-10 — every derived writer is exercised against every derived refusal family", () => {
+  it("the matrix KEY SET equals the cross product of the two derived sets", () => {
+    // The load-bearing half: a pair that resolved to NOTHING — no driver, no probe, no disposition —
+    // produces no key, so it shows up here as a missing member rather than as a loop that ran one
+    // fewer time. That is the failure mode a `for` over a hand-written table cannot report.
+    const writers = deriveNoteWriters(CONTEXT_IO_TS);
+    const signatures = derivedRefusalSignatures(CONTEXT_IO_TS);
+    const crossProduct = writers
+      .flatMap((writer) => signatures.map((signature) => `${writer}::${signature}`))
+      .sort();
+    expect(crossProduct.length).toBe(writers.length * signatures.length);
+    expect(
+      Object.keys(WRITER_FAMILY_MATRIX).sort(),
+      "a (writer, refusal family) pair has neither a behavioural driver nor a written disposition. " +
+        "A cell that does not exist is a cell nobody exercises, which is the silence CR-05 shipped " +
+        "through — every pair is driven or dispositioned, never skipped",
+    ).toEqual(crossProduct);
+  });
+
+  it("the matrix contains at least one BEHAVIOURAL cell per driveable writer", () => {
+    // A vacuity floor. If every cell resolved to a disposition, every claim below would be a
+    // structural assertion and nothing would have driven the module at all.
+    for (const writer of Object.keys(WRITER_DRIVERS)) {
+      const driven = Object.values(WRITER_FAMILY_MATRIX).filter(
+        (cell) => cell.writer === writer && cell.mode === "behavioural",
+      );
+      expect(
+        driven.length,
+        `${writer} has a driver but not one behavioural cell — every family was dispositioned away`,
+      ).toBeGreaterThan(0);
+    }
+  });
+
+  for (const [key, cell] of Object.entries(WRITER_FAMILY_MATRIX)) {
+    const siteKey = siteKeyOf(cell.signature);
+    it(`${cell.writer} × ${siteKey}: ${cell.mode === "behavioural" ? "refuses, naming that family" : "dispositioned with a reason"}`, async () => {
+      if (cell.mode === "dispositioned") {
+        expect(cell.disposition.reason.length, `${key} carries an empty reason`).toBeGreaterThan(0);
+        cell.disposition.prove(cell.writer, siteKey);
+        return;
+      }
+      const probe = REFUSAL_PROBES[cell.signature];
+      const { contextRoot, task, repoRoot } = stageProbe(probe, `ctx-io-cell-${cell.writer}-${siteKey}-`);
+      const before = noteFileCount(contextRoot, task);
+      const outcome = WRITER_DRIVERS[cell.writer](
+        (probe.note as () => Parameters<typeof mod.appendNote>[1])(),
+        contextRoot,
+        task,
+        repoRoot,
+      );
+      expect(
+        outcome.kind,
+        `${cell.writer} WROTE a note the ${siteKey} family refuses — the authority was not reached ` +
+          `for this family, which is exactly the shape CR-05 had`,
+      ).toBe("refused");
+      const message = (outcome as { message: string }).message;
+      // The matcher's INPUT is checked before its OUTPUT is believed (the vacuity floor above).
+      expect(sitesChunksOf(siteKey).length).toBeGreaterThan(0);
+      // The refusal must be EXACTLY this family's, not merely some refusal: a cell that passed on
+      // any refusal at all would grant a pass on a message from a different authority. Set EQUALITY
+      // rather than containment, so a message that also matched a neighbouring site — which is what
+      // an over-broad or empty chunk list produces — fails here instead of reading as covered.
+      expect(
+        sitesTrippedBy(message),
+        `${cell.writer} refused the ${siteKey} probe, but not with exactly the ${siteKey} family's ` +
+          `message. Whichever authority answered, it was not the one this cell claims — name it in ` +
+          `a disposition rather than accepting the refusal as evidence. Refusal was:\n${message}`,
+      ).toEqual([cell.signature]);
+      expect(
+        noteFileCount(contextRoot, task),
+        `${cell.writer} refused the ${siteKey} probe but left a file behind — "nothing is written" ` +
+          `must be true of the disk, not only of the return value`,
+      ).toBe(before);
+    });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// PART THREE-C — THE CONVERSE. A predicate that refused everything would satisfy every row above.
+//
+// Every assertion in PART THREE-B is of the form "this note does NOT get written". A change that
+// made the authority refuse unconditionally would satisfy all of them and destroy the writer, and
+// nothing in this file before 31-10 would have noticed. So the converse is asserted directly: a
+// clean, admissible note of EVERY one of the six kinds writes through the sanctioned writer, and the
+// returned id is the filename on disk.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+describe("31-10 — the converse: a clean note of every kind still writes", () => {
+  const CONVERSE_RUN = "RUN-CONVERSE";
+
+  it("the six kinds under test ARE the module's own kind vocabulary", () => {
+    // The kind list is the module's exported authority, not a hand-typed six. A seventh kind lands
+    // in the loop below automatically and must earn its own admissible fixture.
+    expect(mod.NOTE_KINDS.length, "the note-kind vocabulary moved").toBe(6);
+  });
+
+  for (const kind of ["claim", "finding", "decision", "failed-attempt", "observation", "artifact-ref"] as const) {
+    it(`${kind}: a clean, admissible note writes and the returned id is the filename on disk`, () => {
+      const contextRoot = freshTmp(`ctx-io-converse-${kind}-`);
+      const repoRoot = freshTmp("ctx-io-converse-repo-"); // no config → the lean dial
+      const task = "converse-task";
+      seedGreenVerdict(contextRoot, task, CONVERSE_RUN);
+      const note =
+        kind === "artifact-ref"
+          ? artifactRefNote({ gate_run: CONVERSE_RUN, sha: FABRICATED_SHA })
+          : softNote({
+              kind,
+              // A finding must carry a real stamp (the D-09 refuse-self rule); the seeded verdict
+              // above is the live green one it names, so the D-01 cross-check PASSES.
+              verified_by: kind === "finding" ? `§14-gate#${CONVERSE_RUN}` : "",
+            });
+      const id = mod.appendNote(task, note, PROBE_BODY, contextRoot, undefined, repoRoot);
+      expect(id, `${kind}: the sanctioned writer returned no id for an admissible note`).toBeTruthy();
+      expect(
+        existsSync(join(contextRoot, task, "notes", `${id}.md`)),
+        `${kind}: the writer returned id "${id}" but no file of that name is on disk — the id must ` +
+          `BE the filename, not a receipt for a write that did not happen`,
+      ).toBe(true);
+    });
+  }
+
+  it("a fix that refused everything would fail here — all six kinds share one context and one dial", () => {
+    // Stated as its own case so the intent survives a future edit: the six cases above are the
+    // control for every refusal row in PART THREE-B, not extra coverage.
+    const contextRoot = freshTmp("ctx-io-converse-all-");
+    const repoRoot = freshTmp("ctx-io-converse-all-repo-");
+    const task = "converse-all";
+    seedGreenVerdict(contextRoot, task, CONVERSE_RUN);
+    const written = mod.NOTE_KINDS.map((kind, index) =>
+      mod.appendNote(
+        task,
+        kind === "artifact-ref"
+          ? artifactRefNote({ gate_run: CONVERSE_RUN, sha: FABRICATED_SHA, at: `2026-09-08T06:0${index}:00Z` })
+          : softNote({
+              kind,
+              at: `2026-09-08T06:0${index}:00Z`,
+              verified_by: kind === "finding" ? `§14-gate#${CONVERSE_RUN}` : "",
+            }),
+        PROBE_BODY,
+        contextRoot,
+        undefined,
+        repoRoot,
+      ),
+    );
+    expect(new Set(written).size).toBe(mod.NOTE_KINDS.length);
+    // The seeded verdict plus one note per kind.
+    expect(noteFileCount(contextRoot, task)).toBe(mod.NOTE_KINDS.length + 1);
+  });
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════════════════════
