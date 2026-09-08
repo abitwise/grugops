@@ -412,3 +412,19 @@ None - no external service configuration required.
 - **Gaps 2 and 3 remain open** and are not touched here: `31-06`/`31-07` own the arm-(c) AST ban set (`UATX-06`) and the `guardPlaywrightMcpPin` authority shape (`D-08`). `31-VERIFICATION.md`'s score does not move to 6/6 on this plan alone.
 - **Carry forward:** the disclosed duplicate retained-ledger event, logged in `.planning/WINDOWS.md`. It is an audit-line duplication, not a refusal weakening, and closing it needs a decision about whether an admission ledger records admissions or notes — not a patch.
 - **Carry forward:** `atomicWrite` stays the named `accept` residual. It is now derived and asserted rather than described, so the day a second exported non-note-writer gains a direct filesystem write is a day the suite goes red.
+
+## Self-Check: PASSED
+
+Every file named under `key-files` exists on disk (`[ -f ]`): `scripts/context-io-writer-set.test.ts`,
+`scripts/context-io.ts`, `scripts/context-io.js`, `scripts/context-io.test.ts`,
+`scripts/check-foundation-guards.test.ts`, `hooks/hook-entry.ts`, `hooks/hook-entry.js`,
+`agent-factory/workflows/17-task-claim.md`, `agent-factory/workflows/18-context-compaction.md`,
+`.planning/phases/31-autonomous-manual-testing/31-01-SUMMARY.md`.
+
+All five commits resolve in `git log --oneline --all`: `0d7f8fd`, `195be24`, `acb21e2`, `00de8d0`,
+`0308880`. `git rev-list --count bca4bc8..HEAD` reported **4** production/test commits before this
+metadata commit, which is the number recorded in `actuals.commits`.
+
+---
+*Phase: 31-autonomous-manual-testing*
+*Completed: 2026-09-08*
