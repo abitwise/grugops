@@ -31,7 +31,7 @@
 import { randomUUID } from "node:crypto";
 import { isEntrypoint } from "./is-entry.js";
 import { writeFileSync, appendFileSync, readFileSync, readdirSync, renameSync, unlinkSync, mkdirSync, existsSync, openSync, fstatSync, readSync, closeSync, statSync, constants as fsConstants, } from "node:fs";
-import { join, resolve, sep } from "node:path";
+import { dirname, join, resolve, sep } from "node:path";
 import { CHECKPOINTS, CHECKPOINT_DEFAULTS, DISPOSITIONS, STRICTEST_MATRIX, canonicalizeDisposition, } from "./checkpoints.js";
 // ── The six note kinds (SCTX-01) ──────────────────────────────────────────────────────────────
 export const NOTE_KINDS = [
@@ -2162,17 +2162,122 @@ export const GOVERNANCE_CONFIG_RELPATHS = governanceConfigCandidates("").map((p)
  */
 export const GOVERNANCE_FALLBACK_BASE = ROOT;
 /**
- * THE ONE TRUSTED ROOT (plan 30-11 round 2, findings `RA2-1` and reviewer-1 observation 2).
+ * THE PROJECT-DIRECTORY VARIABLES THE TRUSTED ROOT HONOURS, IN PRECEDENCE ORDER, NAMED ONCE
+ * (plan 31-15, review finding WR-15).
  *
- * `CLAUDE_PROJECT_DIR` when it names something, else the kit this module ships in. Every consumer
- * that needs "the root governance is read from" asks this, so there is one answer rather than one
- * per caller.
+ * `CLAUDE_PROJECT_DIR` is the variable CLAUDE CODE sets for a real project session.
+ * `GRUGOPS_PROJECT_DIR` is the documented INSTALLER-SET answer for the four host CLIs that set no
+ * Claude Code variable — the installer knows the target repository it seeded (`install/install.ts`
+ * resolves `TARGET` and materializes the resolved kit path into every target adapter), and it is the
+ * installer, not the agent, that names it.
  *
- * WHY IT IS `trim() !== ""` AND NOT `?? `. `process.env.CLAUDE_PROJECT_DIR ?? BASE` treats an EMPTY
+ * WHY THE ORDER IS DATA AND NOT READING ORDER. Two `if` statements are a precedence rule stated by
+ * position; a reader asking "which one wins when both are set?" has to reconstruct it from the source
+ * and a test asserting the answer has to hand-type the same order a third time. The array IS the
+ * precedence, `trustedRepoRoot` iterates it, and `scripts/context-io.test.ts` asserts the winning
+ * value against `TRUSTED_ROOT_ENV_ORDER[0]` rather than against a literal.
+ */
+export const TRUSTED_ROOT_ENV_ORDER = Object.freeze([
+    "CLAUDE_PROJECT_DIR",
+    "GRUGOPS_PROJECT_DIR",
+]);
+/**
+ * The names that mark a REPOSITORY BOUNDARY for the upward search below. The walk stops at the first
+ * ancestor carrying one of these and never continues past it, so a resolution can never reach a
+ * user's home directory or a sibling checkout's configuration (threat `T-31-15-03`).
+ */
+export const REPO_BOUNDARY_MARKERS = Object.freeze([".git"]);
+/**
+ * The ceiling on how many ancestors the upward search inspects. A bound, not a tuning knob: a
+ * symlink cycle or a pathologically deep path must not make a governance read spin, and no real
+ * repository is nested this far below a filesystem root.
+ */
+const TRUSTED_ROOT_SEARCH_MAX_ANCESTORS = 64;
+/**
+ * Step 3 of the resolution order: the nearest ancestor of `startDir` that carries a factory
+ * configuration, or `null` when the walk reaches a repository boundary, a filesystem root or the
+ * step limit without finding one.
+ *
+ * The candidate POSITIONS come from `governanceConfigCandidates` — the one published answer to
+ * "which file is the governance configuration" — so this search cannot come to disagree with the
+ * reader about what it is searching for.
+ *
+ * ORDER WITHIN ONE DIRECTORY. A configuration at this directory wins over this directory's own
+ * repository marker: a repository that configured the factory is exactly the repository whose dial
+ * should decide. A directory carrying ONLY a marker ends the walk and yields `null`, which the caller
+ * turns into the kit fallback — the lean posture, which is the correct answer for a host repository
+ * that configured nothing and is recorded as such in `TRUSTED_ROOT_RESIDUALS`.
+ */
+function projectRootFromWorkingDirectory(startDir) {
+    let dir;
+    try {
+        dir = resolve(startDir);
+    }
+    catch {
+        return null;
+    }
+    for (let step = 0; step < TRUSTED_ROOT_SEARCH_MAX_ANCESTORS; step++) {
+        for (const candidate of governanceConfigCandidates(dir)) {
+            // `existsSync` is the right predicate here and its failure direction is the safe one: a
+            // position occupied by something that is not a readable regular file still ANSWERS this
+            // search, and `readGovernanceConfig` then maps it to `unreadable`, which is gate-or-stricter.
+            // A position that does not exist at all is not a configuration and the walk continues.
+            if (existsSync(candidate))
+                return dir;
+        }
+        if (REPO_BOUNDARY_MARKERS.some((marker) => existsSync(join(dir, marker))))
+            return null;
+        const parent = dirname(dir);
+        if (parent === dir)
+            return null; // filesystem root
+        dir = parent;
+    }
+    return null;
+}
+/**
+ * THE ONE TRUSTED ROOT (plan 30-11 round 2, findings `RA2-1` and reviewer-1 observation 2; the
+ * resolution order below is plan 31-15, review finding WR-15).
+ *
+ * Every consumer that needs "the root governance is read from" asks this, so there is one answer
+ * rather than one per caller. It answers, in this order:
+ *
+ *   1. `CLAUDE_PROJECT_DIR` when present and non-empty after trimming, made absolute.
+ *   2. `GRUGOPS_PROJECT_DIR` — the documented installer-set variable — under the same predicate.
+ *   3. The nearest ancestor of the process working directory carrying a factory configuration,
+ *      bounded by the first ancestor carrying a repository marker.
+ *   4. The kit this module ships in.
+ *
+ * WHY STEPS 2 AND 3 EXIST (WR-15, reproduced by the round-3 verifier as spot-check row 6). Step 1's
+ * variable is a CLAUDE CODE variable, and step 4 under the shipped two-root install is `~/.grugops`,
+ * whose only configuration is the shipped LEAN default. So on Codex, Gemini CLI, OpenCode and
+ * Copilot CLI — the four hosts D-12 names as the ones where the attended lane is absent by design,
+ * which makes this in-script refusal the ONLY tier available — every D-04/D-14 refusal the writers
+ * reach was evaluated against `human_admission: off` whatever the target repository's dial said.
+ * Measured against the committed `.js` before this change: with the variable unset and the working
+ * directory inside a project carrying `human_admission: high-severity`, a self-stamped high-severity
+ * governance finding was WRITTEN, and `trustedRepoRoot()` reported the kit's install root.
+ *
+ * WHY THIS IS NOT A ROOT THE CALLER CHOSE — the doctrine 30-11 and 31-09 both enforce. What that
+ * doctrine forbids is an admission pointed at a governance root supplied as an ARGUMENT: no
+ * parameter is added here, the CLI `admit` verb still refuses a root on `argv`, and the MCP tool
+ * schema still carries none. Steps 2 and 3 read the AMBIENT environment and the working directory,
+ * which a process could already influence — and the step they replace resolved unconditionally to
+ * the kit, which is the MOST PERMISSIVE answer available, so the change is monotone in the safe
+ * direction. The residual is named, not waved away: see `TRUSTED_ROOT_RESIDUALS`.
+ *
+ * WHY THE PRESENCE TEST IS `trim() !== ""` AND NOT `?? `. `process.env.X ?? BASE` treats an EMPTY
  * value as a supplied one, because `""` is not nullish — so `join("", ".grugops", …)` resolves
- * against the *process's cwd*, which is neither the project root nor the kit. That is a third base
- * for a reader surface B spent a round reducing to two. An empty or whitespace-only value names
- * nothing, and naming nothing is what the fallback is for.
+ * against the *process's cwd*, which is neither the project root nor the kit. An empty or
+ * whitespace-only value names nothing, and naming nothing is what the next step is for.
+ *
+ * A PRESENCE PREDICATE PUBLISHES THE VALUE IT TESTED (plan 30-11 round 3, `RA4-2`). This trimmed to
+ * decide and returned the RAW value, so `CLAUDE_PROJECT_DIR=" proj "` passed the emptiness test and
+ * `join()` produced `" proj /.grugops/factory.config.json"` — ENOENT, which the reader mapped to
+ * ABSENCE, which is the lean posture. Measured on the round-2 artifact: one byte of padding made
+ * `hooks/admission-guard.js` ALLOW an un-stamped high-severity finding with zero bytes on both
+ * streams, against a control that DENIED. The trimmed value is also made ABSOLUTE (round 4,
+ * reviewer-6 observation 3). Both variables go through that ONE predicate, in the loop below, so the
+ * second name cannot acquire a second spelling of it.
  *
  * WHY IT IS EXPORTED. `scripts/admission-server.ts` had its own copy of this function
  * (`CLAUDE_PROJECT_DIR`, else the module's parent) — the second spelling of one rule, which is the
@@ -2180,22 +2285,90 @@ export const GOVERNANCE_FALLBACK_BASE = ROOT;
  * verb, which used to read the root from `process.argv`.
  */
 export function trustedRepoRoot() {
-    const fromEnv = process.env.CLAUDE_PROJECT_DIR;
-    // A PRESENCE PREDICATE PUBLISHES THE VALUE IT TESTED (plan 30-11 round 3, `RA4-2`). This trimmed to
-    // decide and returned the RAW value, so `CLAUDE_PROJECT_DIR=" proj "` passed the emptiness test and
-    // `join()` produced `" proj /.grugops/factory.config.json"` — ENOENT, which the reader mapped to
-    // ABSENCE, which is the lean posture. Measured on the round-2 artifact: one byte of padding made
-    // `hooks/admission-guard.js` ALLOW an un-stamped high-severity finding with zero bytes on both
-    // streams, against a control that DENIED. `grantedBy`, the `A-4` fix, already trims and publishes
-    // the trimmed value; these are the same predicate shape and now give the same answer.
-    // …and it is made ABSOLUTE (round 4, reviewer-6 observation 3). `CLAUDE_PROJECT_DIR=.` resolved
-    // against the process cwd while this function's own comment says the design never does that. A
-    // caller that can set the variable can set anything, so this is not permissive — but a comment one
-    // case wider than its code is the shape this surface has spent four rounds deleting.
-    if (typeof fromEnv === "string" && fromEnv.trim() !== "")
-        return resolve(fromEnv.trim());
+    for (const name of TRUSTED_ROOT_ENV_ORDER) {
+        const fromEnv = process.env[name];
+        if (typeof fromEnv === "string" && fromEnv.trim() !== "")
+            return resolve(fromEnv.trim());
+    }
+    let cwd = null;
+    try {
+        cwd = process.cwd();
+    }
+    catch {
+        // A deleted working directory is not a project root. Fall through to the kit rather than throw
+        // inside a governance read — the reader's job is to answer, and the un-lowered answer is safe.
+        cwd = null;
+    }
+    // ANCHORED FOR THE MONOTONICITY MIRROR (`scripts/context-io.test.ts`, plan 31-15). That case
+    // reconstructs the PRE-31-15 program — step 1, else the kit — by reverting this ONE call to `null`
+    // and the loop above to its first element, then drives the same configuration set through both
+    // programs and compares verdict by verdict. Each anchor's occurrence count is asserted exactly
+    // before the mutation and at zero after it, so a mutation that matched nothing cannot masquerade
+    // as a passing control. Keep both on ONE line each; a reformat is a red test, not a silent miss.
+    const discovered = cwd === null ? null : projectRootFromWorkingDirectory(cwd);
+    if (discovered !== null)
+        return discovered;
     return GOVERNANCE_FALLBACK_BASE;
 }
+/**
+ * WHAT THE RESOLUTION ORDER STILL CANNOT ANSWER, ENUMERATED (plan 31-15).
+ *
+ * WHY THIS IS A FROZEN EXPORT AND NOT A PARAGRAPH. This repository's recorded failure mode is that a
+ * gap in a safety predicate arrives as a SILENCE — nobody wrote it down, so the next round rediscovers
+ * it as a finding. A named register makes the next gap arrive as a member: `scripts/context-io.test.ts`
+ * asserts the round's written dispositions set-equal to this array, so adding a member without
+ * dispositioning it turns a test red rather than shipping quietly.
+ *
+ * NOT EVERY MEMBER IS A DEFECT. `R-31-15-02` in particular is the CORRECT answer stated so a future
+ * reader does not mistake it for a hole.
+ */
+export const TRUSTED_ROOT_RESIDUALS = Object.freeze([
+    Object.freeze({
+        id: "R-31-15-01",
+        shape: "A process that can change its own working directory can decide which project's factory " +
+            "configuration step 3 finds.",
+        reason: "Threat T-31-15-02, dispositioned ACCEPT. It is strictly monotone against the behaviour it " +
+            "replaces: step 4 resolved unconditionally to the kit, the most permissive answer available. " +
+            "A process that can change its working directory can already set the step-1 or step-2 " +
+            "variable in its own child environment, so this adds no capability. What the doctrine forbids " +
+            "is a root chosen as an ARGUMENT, and no parameter is added. The un-forgeable tier remains the " +
+            "per-call admission hook, which reads the human's fresh session grant.",
+        what_would_force_it_closed: "A root the calling process cannot influence at all — resolved by the host from outside the " +
+            "agent's process tree and delivered through a channel the agent cannot write, as the per-call " +
+            "admission hook's session grant already is.",
+    }),
+    Object.freeze({
+        id: "R-31-15-02",
+        shape: "A host repository that carries no factory configuration at any of the published candidate " +
+            "positions resolves to the kit, whose shipped dial is lean.",
+        reason: "This is the CORRECT answer and not a hole: a repository that configured nothing has expressed " +
+            "no governance posture, and the kit's shipped default is the posture the project ships. It is " +
+            "recorded here because it reads like a miss to someone tracing WR-15 and is not one.",
+        what_would_force_it_closed: "Nothing in this module. It would change only if the project decided an unconfigured " +
+            "repository should be treated as stricter than the shipped default, which is a product " +
+            "decision about the dial and not a resolution-order defect.",
+    }),
+    Object.freeze({
+        id: "R-31-15-03",
+        shape: "Both project-directory variables are ambient environment values; a process that controls its " +
+            "own child environment sets what a child of it resolves.",
+        reason: "Pre-existing and unchanged by this plan — step 1 has always had this property, and step 2 is " +
+            "the same shape one name over. It is the reason the environment tier is documented as the " +
+            "weaker, non-mechanically-un-forgeable signal (D-05) rather than as the authority.",
+        what_would_force_it_closed: "The same thing that would close R-31-15-01: a governance root delivered outside the agent's " +
+            "process tree.",
+    }),
+    Object.freeze({
+        id: "R-31-15-04",
+        shape: "A factory configuration held ABOVE a nested repository is not found from inside that nested " +
+            "repository — the walk stops at the inner repository marker.",
+        reason: "Deliberate, and it is threat T-31-15-03's mitigation rather than a side effect: an unbounded " +
+            "walk reaches a user's home directory and a sibling checkout's dial. Stopping at the boundary " +
+            "is what makes the search safe to run from an arbitrary working directory.",
+        what_would_force_it_closed: "A published, explicit statement that an outer repository governs an inner one — which today " +
+            "no artifact in this project makes, and which would need its own decision record.",
+    }),
+]);
 /** The ceiling on a governance config read. Larger than any real config, small enough to bound. */
 const GOVERNANCE_CONFIG_MAX_BYTES = 8 * 1024 * 1024;
 /**
@@ -2599,9 +2772,11 @@ if (isMain) {
             if (!task || !noteFile || rest.length !== 2) {
                 console.error("usage: context-io.js admit <task> <noteFile>");
                 console.error(`context-io: admit takes exactly 2 positional arguments and received ${rest.length}. ` +
-                    `The governance root is NOT an argument: it is CLAUDE_PROJECT_DIR, else the kit this ` +
-                    `script ships in. Set CLAUDE_PROJECT_DIR to move it — an admission may not point ` +
-                    `governance at a root the caller chose.`);
+                    `The governance root is NOT an argument: it is ${TRUSTED_ROOT_ENV_ORDER.join(", else ")}` +
+                    `, else the nearest ancestor of the working directory carrying a factory configuration ` +
+                    `(bounded by the repository marker), else the kit this script ships in. Set ` +
+                    `${TRUSTED_ROOT_ENV_ORDER[0]} to move it — an admission may not point governance at a ` +
+                    `root the caller chose.`);
                 process.exit(1);
             }
             const admitRoot = trustedRepoRoot();

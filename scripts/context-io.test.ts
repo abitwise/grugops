@@ -31,6 +31,9 @@ import {
   existsSync,
   symlinkSync,
   rmSync,
+  cpSync,
+  statSync,
+  realpathSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -5926,5 +5929,610 @@ describe("31-14 — CR-08: a note a human already disposed promotes unchanged", 
     expect(cr08NoteFiles(destRoot)).toEqual([`${originId}.md`]);
     // No board or traceability artifact anywhere under the governance root either.
     expect(existsSync(join(repoRoot, "plans"))).toBe(false);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// 31-15 — WR-15: the trusted root is a documented ORDER, and the kit is its LAST step.
+//
+// WHAT THE ROUND-3 VERIFIER MEASURED (31-VERIFICATION.md behavioral spot-check row 6, and the
+// closing paragraph that flags it as compounding CR-08). `trustedRepoRoot()` answered
+// `CLAUDE_PROJECT_DIR`, else the kit this module ships in. `CLAUDE_PROJECT_DIR` is a CLAUDE CODE
+// variable, and under the shipped two-root install the kit is `~/.grugops`, whose only configuration
+// is the shipped LEAN default. So on Codex, Gemini CLI, OpenCode and Copilot CLI — the four hosts
+// D-12 names as the ones where the attended lane is absent by design, which makes this in-script
+// refusal the ONLY tier available — every D-04/D-14 refusal the writers reach was decided against
+// `human_admission: off`, whatever the target repository's dial said.
+//
+// REPRODUCED AGAINST THE COMMITTED .js BEFORE ANY SOURCE CHANGE (quoted verbatim in
+// 31-15-SUMMARY.md): with both project-directory variables unset and the working directory inside a
+// project carrying `human_admission: high-severity`, `trustedRepoRoot()` reported the kit's install
+// root, the dial actually read was `human_admission: off`, and the self-stamped high-severity
+// governance finding was WRITTEN.
+//
+// WHAT THESE CASES HOLD. The order — the Claude Code variable, else the documented installer-set
+// variable, else the nearest ancestor of the working directory carrying a factory configuration
+// (bounded by the repository marker), else the kit — is asserted step by step, in both directions:
+// each step ANSWERS when it should and FALLS THROUGH when it should. The change is proven MONOTONE
+// against the pre-31-15 program by mirroring the committed `.js` with the order reverted through two
+// asserted anchors and comparing verdict by verdict. And every consumer of the trusted root is
+// driven with a legitimate input at every step, so a consumer that grew a second spelling of the
+// rule is a red test rather than a note.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+describe("31-15 — WR-15: the target repository's dial is read on every host", () => {
+  /**
+   * Every temporary directory in this block is REALPATH-resolved at creation. On macOS `/var` is a
+   * symlink to `/private/var`, so a child process reports `process.cwd()` in the resolved form while
+   * `mkdtempSync` returns the unresolved one — the two are the same directory and comparing them
+   * verbatim measures the platform rather than the resolution order.
+   */
+  function tmp15(prefix: string): string {
+    return realpathSync(freshTmp(prefix));
+  }
+
+  const WR15_TASK = "wr15-task";
+  const APPROVAL_VAR = "GRUGOPS_ADMISSION_APPROVED_BY";
+  const FLOOR_VAR_15 = "GRUGOPS_FLOOR_PROTECTED_BRANCH_MERGE";
+  const LOWERED = '{"checkpoints":{"protected_branch_merge":"off"}}';
+
+  /**
+   * A TEMPORARY KIT: the committed `.js` of `scripts/` and `hooks/`, copied into a temp directory so
+   * that `GOVERNANCE_FALLBACK_BASE` — the order's LAST step — resolves to a directory these cases
+   * own. Driving the repository's own checkout instead would make the step-4 rows WRITE notes into
+   * the working tree, which is the very thing IN-08 is about. It carries the kit's shipped lean
+   * configuration at the in-kit position, so step 4 reads exactly what a real shared install reads.
+   */
+  const KIT = (() => {
+    const dir = tmp15("p31-15-kit-");
+    for (const sub of ["scripts", "hooks"]) {
+      cpSync(join(ROOT, sub), join(dir, sub), {
+        recursive: true,
+        filter: (src) => statSync(src).isDirectory() || src.endsWith(".js"),
+      });
+    }
+    mkdirSync(join(dir, "agent-factory", "config"), { recursive: true });
+    cpSync(
+      join(ROOT, "agent-factory", "config", "factory.config.json"),
+      join(dir, "agent-factory", "config", "factory.config.json"),
+    );
+    return dir;
+  })();
+
+  /** The driver a case spawns: it runs ONE consumer of the trusted root and prints one JSON line. */
+  const DRIVER = (() => {
+    const file = join(tmp15("p31-15-driver-"), "driver.mjs");
+    writeFileSync(
+      file,
+      [
+        'import { join } from "node:path";',
+        'import { pathToFileURL } from "node:url";',
+        "const [, , kit, consumer, ctxRoot, originRoot, sourceId] = process.argv;",
+        'const io = await import(pathToFileURL(join(kit, "scripts", "context-io.js")).href);',
+        "const TASK = " + JSON.stringify(WR15_TASK) + ";",
+        "const note = {",
+        '  kind: "finding", by: "security-nfr", at: "2026-09-08T02:00:00Z",',
+        '  verified_by: "human:alice", confidence: "high", refs: [], supersedes: null,',
+        "};",
+        'const out = { root: io.trustedRepoRoot(), verdict: "n/a", message: "" };',
+        "try {",
+        '  if (consumer === "trustedRepoRoot") {',
+        "    const g = io.readGovernanceConfig(out.root);",
+        '    out.verdict = "n/a";',
+        '    out.message = g.source + " / human_admission: " + String(g.config.human_admission);',
+        '  } else if (consumer === "appendNote") {',
+        '    out.message = io.appendNote(TASK, note, "body", ctxRoot);',
+        '    out.verdict = "write";',
+        '  } else if (consumer === "admitAndAppend") {',
+        '    const r = io.admitAndAppend(TASK, note, "body", ctxRoot);',
+        '    out.verdict = r.id ? "write" : "refuse";',
+        '    out.message = r.id ?? r.findings.join(" ");',
+        '  } else if (consumer === "promoteAdmitted") {',
+        "    out.message = io.promoteAdmitted(",
+        '      TASK, sourceId, note, "body", originRoot, ctxRoot,',
+        "    );",
+        '    out.verdict = "write";',
+        '  } else if (consumer === "handleProposeNote") {',
+        '    const srv = await import(pathToFileURL(join(kit, "scripts", "admission-server.js")).href);',
+        "    const r = srv.handleProposeNote({",
+        '      task: TASK, body: "body", kind: note.kind, by: note.by, at: note.at,',
+        "      verified_by: note.verified_by, confidence: note.confidence, refs: [], supersedes: null,",
+        "    });",
+        '    out.verdict = r.isError ? "refuse" : "write";',
+        '    out.message = r.content.map((c) => c.text).join(" ");',
+        "  } else {",
+        '    throw new Error("unknown consumer: " + consumer);',
+        "  }",
+        "} catch (e) {",
+        '  out.verdict = "refuse";',
+        "  out.message = String(e && e.message ? e.message : e);",
+        "}",
+        "console.log(JSON.stringify(out));",
+      ].join("\n"),
+    );
+    return file;
+  })();
+
+  interface Driven {
+    root: string;
+    verdict: string;
+    message: string;
+  }
+
+  /**
+   * The launching session's own project-directory and grant variables are REMOVED, never blanked:
+   * this whole block is about what happens when they name nothing, and a value leaking in from the
+   * shell that started vitest would make every case below measure the step-1 path instead.
+   */
+  function cleanEnv(over: Record<string, string> = {}): Record<string, string> {
+    const env: Record<string, string> = {};
+    for (const [k, v] of Object.entries(process.env)) {
+      if (v === undefined) continue;
+      if (mod.TRUSTED_ROOT_ENV_ORDER.includes(k)) continue;
+      if (k.startsWith("GRUGOPS_")) continue;
+      env[k] = v;
+    }
+    return { ...env, ...over };
+  }
+
+  function drive(
+    consumer: string,
+    opts: { cwd: string; env?: Record<string, string>; ctxRoot?: string; originRoot?: string; sourceId?: string; kit?: string },
+  ): Driven {
+    const r = spawnSync(
+      "node",
+      [
+        DRIVER,
+        opts.kit ?? KIT,
+        consumer,
+        opts.ctxRoot ?? tmp15("p31-15-ctx-"),
+        opts.originRoot ?? tmp15("p31-15-origin-"),
+        opts.sourceId ?? "20260908T020000Z-security-nfr-finding-absent",
+      ],
+      { cwd: opts.cwd, env: cleanEnv(opts.env ?? {}), encoding: "utf8", timeout: 30_000 },
+    );
+    const line = (r.stdout ?? "").trim().split("\n").pop() ?? "";
+    if (!line.startsWith("{")) {
+      throw new Error(`driver produced no result for ${consumer}: ${(r.stdout ?? "") + (r.stderr ?? "")}`);
+    }
+    return JSON.parse(line) as Driven;
+  }
+
+  /** A temp project carrying a governance configuration at the repo-drop position. */
+  function projectWith(context: Record<string, unknown> | null, prefix = "p31-15-proj-"): string {
+    const dir = tmp15(prefix);
+    if (context !== null) {
+      mkdirSync(join(dir, ".grugops"), { recursive: true });
+      writeFileSync(join(dir, ".grugops", "factory.config.json"), JSON.stringify({ context }));
+    }
+    return dir;
+  }
+
+  /** A temp project whose governance configuration EXISTS and cannot be parsed — the D-14 shape. */
+  function projectWithUnreadableConfig(): string {
+    const dir = tmp15("p31-15-unreadable-");
+    mkdirSync(join(dir, ".grugops"), { recursive: true });
+    writeFileSync(join(dir, ".grugops", "factory.config.json"), "{ not valid json ]]]");
+    return dir;
+  }
+
+  const ACTIVE = { human_admission: "high-severity" } as const;
+
+  // ── THE ORDER, STEP BY STEP ───────────────────────────────────────────────────────────────────
+
+  it("the precedence is DATA: the order names two variables and the Claude Code one is first", () => {
+    expect(mod.TRUSTED_ROOT_ENV_ORDER).toHaveLength(2);
+    expect(mod.TRUSTED_ROOT_ENV_ORDER[0]).toBe("CLAUDE_PROJECT_DIR");
+    expect(Object.isFrozen(mod.TRUSTED_ROOT_ENV_ORDER)).toBe(true);
+  });
+
+  it("ROW 6, GREEN: both variables unset and the cwd inside a project — the project's dial REFUSES", () => {
+    const project = projectWith(ACTIVE);
+    const r = drive("appendNote", { cwd: project });
+    expect(r.root, "step 3 must answer the project the working directory is in").toBe(project);
+    expect(r.verdict).toBe("refuse");
+    // The refusal NAMES the dial it read, so this is shown to be the governance refusal rather than
+    // any other way the writer can fail.
+    expect(r.message).toContain("human_admission: high-severity");
+  });
+
+  it("GREEN 2: the documented installer-set variable answers when the Claude Code one does not", () => {
+    const project = projectWith(ACTIVE);
+    const r = drive("appendNote", {
+      cwd: tmp15("p31-15-elsewhere-"),
+      env: { [mod.TRUSTED_ROOT_ENV_ORDER[1]]: project },
+    });
+    expect(r.root).toBe(project);
+    expect(r.verdict).toBe("refuse");
+    expect(r.message).toContain("human_admission: high-severity");
+  });
+
+  it("PRECEDENCE: with BOTH variables set to different projects, the Claude Code one wins", () => {
+    const active = projectWith(ACTIVE);
+    const lean = projectWith(null);
+    // Asserted in BOTH directions, because "the first one wins" and "the active dial wins" are
+    // different rules that agree on a single-direction case.
+    const claudeLean = drive("appendNote", {
+      cwd: tmp15("p31-15-elsewhere-"),
+      env: { [mod.TRUSTED_ROOT_ENV_ORDER[0]]: lean, [mod.TRUSTED_ROOT_ENV_ORDER[1]]: active },
+    });
+    expect(claudeLean.root).toBe(lean);
+    expect(claudeLean.verdict).toBe("write");
+
+    const claudeActive = drive("appendNote", {
+      cwd: tmp15("p31-15-elsewhere-"),
+      env: { [mod.TRUSTED_ROOT_ENV_ORDER[0]]: active, [mod.TRUSTED_ROOT_ENV_ORDER[1]]: lean },
+    });
+    expect(claudeActive.root).toBe(active);
+    expect(claudeActive.verdict).toBe("refuse");
+  });
+
+  it("EMPTY INPUT: an empty or whitespace-only installer variable names nothing and falls through", () => {
+    const project = projectWith(ACTIVE);
+    for (const value of ["", "   ", "\n"]) {
+      const r = drive("trustedRepoRoot", {
+        cwd: project,
+        env: { [mod.TRUSTED_ROOT_ENV_ORDER[1]]: value },
+      });
+      expect(r.root, `a ${JSON.stringify(value)} value must not name a root`).toBe(project);
+    }
+    // …and a PADDED value is trimmed and published, exactly as the Claude Code one already is.
+    const padded = drive("trustedRepoRoot", {
+      cwd: tmp15("p31-15-elsewhere-"),
+      env: { [mod.TRUSTED_ROOT_ENV_ORDER[1]]: ` ${project} ` },
+    });
+    expect(padded.root).toBe(project);
+  });
+
+  it("CONTROL 2 (unchanged): no variable and no configuration above the cwd resolves to the KIT", () => {
+    const r = drive("appendNote", { cwd: tmp15("p31-15-empty-cwd-") });
+    expect(
+      r.root,
+      "PREMISE: the temp directory's ancestors carry no factory configuration and no repository " +
+        "marker within the search bound — if this fails the control is measuring something else",
+    ).toBe(KIT);
+    // …and the posture is the lean one, which is what the pre-31-15 program did unconditionally.
+    expect(r.verdict).toBe("write");
+  });
+
+  it("CONTROL 3 (adjacency): when the cwd IS the project root, it answers at distance zero", () => {
+    const project = projectWith(ACTIVE);
+    expect(drive("trustedRepoRoot", { cwd: project }).root).toBe(project);
+    // …and the NEAREST ancestor answers from below, rather than the search skipping past it.
+    const nested = join(project, "a", "b", "c");
+    mkdirSync(nested, { recursive: true });
+    expect(drive("trustedRepoRoot", { cwd: nested }).root).toBe(project);
+  });
+
+  it("BOUND: the search stops at the first repository marker and never returns the OUTER project", () => {
+    const outer = projectWith(ACTIVE, "p31-15-outer-");
+    const inner = join(outer, "inner");
+    mkdirSync(join(inner, ".git"), { recursive: true });
+    mkdirSync(join(inner, "src"), { recursive: true });
+    const r = drive("appendNote", { cwd: join(inner, "src") });
+    expect(r.root, "the outer project's dial must not govern an inner repository").not.toBe(outer);
+    expect(r.root).toBe(KIT);
+    expect(r.verdict).toBe("write");
+  });
+
+  it("BOUND, non-vacuous: an inner repository that DOES carry a configuration answers with its own", () => {
+    const outer = projectWith({ human_admission: "off" }, "p31-15-outer2-");
+    const inner = join(outer, "inner");
+    mkdirSync(join(inner, ".git"), { recursive: true });
+    mkdirSync(join(inner, ".grugops"), { recursive: true });
+    writeFileSync(
+      join(inner, ".grugops", "factory.config.json"),
+      JSON.stringify({ context: ACTIVE }),
+    );
+    const r = drive("appendNote", { cwd: inner });
+    expect(r.root).toBe(inner);
+    expect(r.verdict).toBe("refuse");
+    expect(r.message).toContain("human_admission: high-severity");
+  });
+
+  it("BOUND: the ancestor walk is limited, so a configuration far above the cwd is not reached", () => {
+    const top = projectWith(ACTIVE, "p31-15-deep-");
+    const deep = join(top, ...Array.from({ length: 70 }, (_v, i) => `d${i}`));
+    mkdirSync(deep, { recursive: true });
+    const r = drive("trustedRepoRoot", { cwd: deep });
+    expect(r.root, "a walk without a step limit would have found the configuration 70 levels up").toBe(KIT);
+  });
+
+  // ── MONOTONICITY, AGAINST THE PRE-31-15 PROGRAM ITSELF ────────────────────────────────────────
+  //
+  // The comparison is against the program this change replaces, not against a hand-written model of
+  // it. The committed `.js` is mirrored into a temp kit with the order reverted through two anchors
+  // whose occurrence counts are asserted before and after the mutation, so a mutation that matched
+  // nothing cannot masquerade as a passing control.
+
+  function preFixKit(): string {
+    const dir = tmp15("p31-15-prefix-kit-");
+    for (const sub of ["scripts", "hooks"]) {
+      cpSync(join(ROOT, sub), join(dir, sub), {
+        recursive: true,
+        filter: (src) => statSync(src).isDirectory() || src.endsWith(".js"),
+      });
+    }
+    mkdirSync(join(dir, "agent-factory", "config"), { recursive: true });
+    cpSync(
+      join(ROOT, "agent-factory", "config", "factory.config.json"),
+      join(dir, "agent-factory", "config", "factory.config.json"),
+    );
+    const target = join(dir, "scripts", "context-io.js");
+    let text = readFileSync(target, "utf8");
+    const anchors: [string, string][] = [
+      // Step 2 removed: the loop sees only the Claude Code variable.
+      ["for (const name of TRUSTED_ROOT_ENV_ORDER)", "for (const name of TRUSTED_ROOT_ENV_ORDER.slice(0, 1))"],
+      // Step 3 removed: the working-directory search never answers.
+      [
+        "const discovered = cwd === null ? null : projectRootFromWorkingDirectory(cwd);",
+        "const discovered = null;",
+      ],
+    ];
+    for (const [from, to] of anchors) {
+      expect(
+        text.split(from).length - 1,
+        `PREMISE: the pre-31-15 reversion anchor ${JSON.stringify(from)} was not found exactly ` +
+          "once in the committed .js, so the mirror is not the program it claims to be",
+      ).toBe(1);
+      text = text.split(from).join(to);
+      expect(text.includes(from)).toBe(false);
+    }
+    writeFileSync(target, text);
+    return dir;
+  }
+
+  it("MONOTONICITY: no configuration moved from REFUSED to ADMITTED, on either host family", () => {
+    const preFix = preFixKit();
+    const active = projectWith(ACTIVE, "p31-15-mono-active-");
+    const activeAll = projectWith({ human_admission: "all" }, "p31-15-mono-all-");
+    const lean = projectWith({ human_admission: "off" }, "p31-15-mono-lean-");
+    const none = projectWith(null, "p31-15-mono-none-");
+    const unreadable = projectWithUnreadableConfig();
+    const empty = tmp15("p31-15-mono-empty-");
+
+    // The configuration set: every dial value the suite already covers, driven from INSIDE the
+    // project (the non-Claude-Code host shape) and with the Claude Code variable set (the shape
+    // every pre-31-15 case used).
+    const cases: { name: string; project: string; carriesUnreadDial: boolean }[] = [
+      { name: "high-severity", project: active, carriesUnreadDial: true },
+      { name: "all", project: activeAll, carriesUnreadDial: true },
+      { name: "explicitly off", project: lean, carriesUnreadDial: false },
+      { name: "no configuration", project: none, carriesUnreadDial: false },
+      { name: "unreadable configuration", project: unreadable, carriesUnreadDial: true },
+      { name: "empty directory", project: empty, carriesUnreadDial: false },
+    ];
+
+    const moved: string[] = [];
+    for (const c of cases) {
+      for (const envName of [null, mod.TRUSTED_ROOT_ENV_ORDER[0], mod.TRUSTED_ROOT_ENV_ORDER[1]]) {
+        const env = envName === null ? {} : { [envName]: c.project };
+        const before = drive("appendNote", { cwd: c.project, env, kit: preFix });
+        const after = drive("appendNote", { cwd: c.project, env, kit: KIT });
+        expect(
+          `${c.name}/${envName ?? "no variable"}: ${before.verdict} -> ${after.verdict}`,
+          "a configuration moved from REFUSED to ADMITTED — the change is not monotone",
+        ).not.toBe(`${c.name}/${envName ?? "no variable"}: refuse -> write`);
+        if (before.verdict !== after.verdict) moved.push(`${c.name}/${envName ?? "no variable"}`);
+      }
+    }
+
+    // The cases that moved are EXACTLY those whose target repository carries a dial the pre-31-15
+    // program never read: no Claude Code variable, and a project that carries an active or
+    // unreadable configuration. Asserted as set equality rather than as a count, so a case that
+    // moved for a different reason is a failure and not a rounding error.
+    const expectedMoves = cases
+      .filter((c) => c.carriesUnreadDial)
+      .flatMap((c) => [`${c.name}/no variable`, `${c.name}/${mod.TRUSTED_ROOT_ENV_ORDER[1]}`]);
+    expect(moved.sort()).toEqual(expectedMoves.sort());
+  });
+
+  // ── EVERY CONSUMER OF THE TRUSTED ROOT, AT EVERY STEP OF THE ORDER ────────────────────────────
+  //
+  // A consumer whose answer does not match the one function's answer is a SECOND SPELLING of the
+  // rule, which is the shape this module keeps deleting. Each consumer is driven with a LEGITIMATE
+  // input at each step, and with the input that makes that step fall through.
+
+  interface StepShape {
+    id: string;
+    label: string;
+    env(dialRoot: string): Record<string, string>;
+    cwd(dialRoot: string): string;
+    /** Which root the order must answer with. `null` means "the kit", i.e. the last step. */
+    answersDialRoot: boolean;
+  }
+
+  const STEPS: StepShape[] = [
+    {
+      id: "step 1",
+      label: `${mod.TRUSTED_ROOT_ENV_ORDER[0]} (Claude Code)`,
+      env: (d) => ({ [mod.TRUSTED_ROOT_ENV_ORDER[0]]: d }),
+      cwd: () => tmp15("p31-15-step-cwd-"),
+      answersDialRoot: true,
+    },
+    {
+      id: "step 2",
+      label: `${mod.TRUSTED_ROOT_ENV_ORDER[1]} (installer-set)`,
+      env: (d) => ({ [mod.TRUSTED_ROOT_ENV_ORDER[1]]: d }),
+      cwd: () => tmp15("p31-15-step-cwd-"),
+      answersDialRoot: true,
+    },
+    {
+      id: "step 3",
+      label: "the nearest configured ancestor of the working directory",
+      env: () => ({}),
+      cwd: (d) => d,
+      answersDialRoot: true,
+    },
+    {
+      id: "step 4",
+      label: "the kit (fall-through)",
+      env: () => ({}),
+      cwd: () => tmp15("p31-15-step-cwd-"),
+      answersDialRoot: false,
+    },
+  ];
+
+  for (const step of STEPS) {
+    describe(`${step.id} — ${step.label}`, () => {
+      it("the three in-process writers agree with the one function", () => {
+        const dialRoot = projectWith(ACTIVE, "p31-15-consumer-");
+        const expectedRoot = step.answersDialRoot ? dialRoot : KIT;
+        // THE TWO WRITERS HAVE OPPOSITE POLARITY ON THIS ONE NOTE, AND THAT IS THE POINT.
+        // Under an ACTIVE dial a human-stamped high-severity finding is GATED, so the combiner's
+        // pre-admitted branch is the route that writes it, while `appendNote`'s in-script tier
+        // refuses a stamp it cannot verify. Under the LEAN dial the same note is NOT gated, so the
+        // combiner refuses the `human:NAME` disposition (W3 — a disposition on a non-gated entry
+        // would forge a `disposed_by` record) while `appendNote` admits it. Hard-coding ONE
+        // direction would have made this case measure the writers' preconditions instead of the
+        // root they read; each writer FLIPS with the root, which is what proves it read that root.
+        const expected: Record<string, "write" | "refuse"> = step.answersDialRoot
+          ? { appendNote: "refuse", admitAndAppend: "write", handleProposeNote: "write" }
+          : { appendNote: "write", admitAndAppend: "refuse", handleProposeNote: "refuse" };
+        for (const consumer of Object.keys(expected)) {
+          const r = drive(consumer, { cwd: step.cwd(dialRoot), env: step.env(dialRoot) });
+          expect(r.root, `${consumer} resolved a different root at ${step.id}`).toBe(expectedRoot);
+          expect(r.verdict, `${consumer} at ${step.id}: ${r.message}`).toBe(expected[consumer]);
+        }
+      });
+
+      it("the CLI admit verb agrees with the one function", () => {
+        const dialRoot = projectWith(ACTIVE, "p31-15-cli-");
+        const noteFile = join(tmp15("p31-15-cli-note-"), "n.md");
+        writeFileSync(
+          noteFile,
+          "---\nid: n1\nkind: finding\nby: security-nfr\nat: 2026-09-06T00:00:00Z\n" +
+            "verified_by: human:alice\nconfidence: high\nrefs:\nsupersedes:\n---\n\nA high severity finding.\n",
+        );
+        const r = spawnSync("node", [join(KIT, "scripts", "context-io.js"), "admit", WR15_TASK, noteFile], {
+          cwd: step.cwd(dialRoot),
+          env: cleanEnv(step.env(dialRoot)),
+          encoding: "utf8",
+          timeout: 30_000,
+        });
+        const msg = ((r.stdout ?? "") + (r.stderr ?? "")).trim();
+        if (step.answersDialRoot) {
+          expect(r.status, msg).toBe(1);
+          expect(msg).toContain("high-severity");
+        } else {
+          expect(r.status, msg).toBe(0);
+        }
+      });
+
+      it("promoteAdmitted's fail-closed arm reads the SAME root (D-14 shape)", () => {
+        // The proof-gated route 31-14 added does not consult the `human_admission` dial for a note
+        // it can prove, so the dial is the wrong probe for it. The D-14 arm — an UNREADABLE
+        // configuration refuses every route — is the one this consumer reaches, and it is
+        // discriminating: it fires only if the consumer read the root carrying that configuration.
+        const dialRoot = projectWithUnreadableConfig();
+        const r = drive("promoteAdmitted", { cwd: step.cwd(dialRoot), env: step.env(dialRoot) });
+        expect(r.root).toBe(step.answersDialRoot ? dialRoot : KIT);
+        expect(r.verdict).toBe("refuse"); // both arms refuse; the CLAUSE is what discriminates
+        if (step.answersDialRoot) {
+          expect(r.message).toContain("governance configuration");
+        } else {
+          expect(r.message).not.toContain("governance configuration");
+        }
+      });
+
+      it("hooks/admission-guard.js agrees with the one function", () => {
+        const dialRoot = projectWith(ACTIVE, "p31-15-hook-");
+        const r = spawnSync("node", [join(KIT, "hooks", "admission-guard.js")], {
+          cwd: step.cwd(dialRoot),
+          env: cleanEnv(step.env(dialRoot)),
+          input: JSON.stringify({
+            tool_name: "mcp__grugops__propose_note",
+            tool_input: {
+              task: WR15_TASK,
+              body: "body",
+              kind: "finding",
+              by: "security-nfr",
+              verified_by: "human:alice",
+            },
+          }),
+          encoding: "utf8",
+          timeout: 30_000,
+        });
+        const denied = (r.stdout ?? "").includes('"permissionDecision":"deny"');
+        expect(denied, r.stdout ?? "").toBe(step.answersDialRoot);
+      });
+
+      it("hooks/guard.js agrees with the one function", () => {
+        // The command guard reads the CHECKPOINT matrix rather than `human_admission`, so its probe
+        // is a checkpoint lowering plus its floor grant: the lowering takes effect only if the guard
+        // read the root carrying it. That is a fact about which key this consumer reads, not a
+        // second spelling of which root it reads.
+        const dialRoot = tmp15("p31-15-guard-");
+        mkdirSync(join(dialRoot, ".grugops"), { recursive: true });
+        writeFileSync(join(dialRoot, ".grugops", "factory.config.json"), LOWERED);
+        const r = spawnSync("node", [join(KIT, "hooks", "guard.js")], {
+          cwd: step.cwd(dialRoot),
+          env: cleanEnv({ ...step.env(dialRoot), [FLOOR_VAR_15]: "Olger Oeselg" }),
+          input: JSON.stringify({
+            tool_name: "Bash",
+            tool_input: { command: "git push origin main" },
+          }),
+          encoding: "utf8",
+          timeout: 30_000,
+        });
+        const denied = (r.stdout ?? "").includes('"permissionDecision":"deny"');
+        // The lowering applies where the guard resolved the configured root; at the kit it does not.
+        expect(denied, (r.stdout ?? "") + (r.stderr ?? "")).toBe(!step.answersDialRoot);
+      });
+    });
+  }
+
+  // ── THE RESIDUAL REGISTER ─────────────────────────────────────────────────────────────────────
+
+  it("every residual the order cannot answer is named, frozen, and carries its two reasons", () => {
+    expect(Object.isFrozen(mod.TRUSTED_ROOT_RESIDUALS)).toBe(true);
+    expect(mod.TRUSTED_ROOT_RESIDUALS.length).toBeGreaterThan(0);
+    for (const residual of mod.TRUSTED_ROOT_RESIDUALS) {
+      expect(Object.isFrozen(residual)).toBe(true);
+      expect(residual.id).toMatch(/^R-31-15-\d\d$/);
+      expect(residual.shape.length, `${residual.id} states no shape`).toBeGreaterThan(40);
+      expect(residual.reason.length, `${residual.id} states no reason`).toBeGreaterThan(40);
+      expect(
+        residual.what_would_force_it_closed.length,
+        `${residual.id} states no criterion for closing it`,
+      ).toBeGreaterThan(40);
+    }
+    // The ids are unique — a register with a duplicate id cannot be dispositioned member by member.
+    const ids = mod.TRUSTED_ROOT_RESIDUALS.map((r) => r.id);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  // The round's WRITTEN dispositions, which `31-15-SUMMARY.md` reproduces. Held HERE rather than
+  // read from the SUMMARY so the assertion is not conditional on a file the suite does not own —
+  // and asserted SET-EQUAL to the register, so a residual added later without a disposition turns
+  // this red instead of shipping as a silence.
+  const RESIDUAL_DISPOSITIONS: Record<string, string> = {
+    "R-31-15-01":
+      "ACCEPTED, with the reason recorded at the register and the closing criterion stated: the " +
+      "step it replaces resolved unconditionally to the kit, the most permissive answer available.",
+    "R-31-15-02":
+      "NOT A HOLE — the correct answer, recorded so a reader tracing WR-15 does not read it as one.",
+    "R-31-15-03":
+      "PRE-EXISTING and unchanged by this plan; it is why the environment tier is documented as the " +
+      "weaker signal (D-05) rather than as the authority.",
+    "R-31-15-04":
+      "DELIBERATE — it is threat T-31-15-03's mitigation, and closing it would need a published " +
+      "decision that an outer repository governs an inner one.",
+  };
+
+  it("the round's written dispositions cover the register exactly — no member without one", () => {
+    expect(Object.keys(RESIDUAL_DISPOSITIONS).sort()).toEqual(
+      mod.TRUSTED_ROOT_RESIDUALS.map((r) => r.id).sort(),
+    );
+    for (const [id, text] of Object.entries(RESIDUAL_DISPOSITIONS)) {
+      expect(text.length, `${id}'s disposition is not a written one`).toBeGreaterThan(40);
+    }
+  });
+
+  it("the approval grant is never what decides these cases", () => {
+    // A developer box or CI runner carrying a real grant would turn a refusal into an admission and
+    // every case above would pass for the wrong reason. The scrub is asserted rather than assumed.
+    expect(Object.keys(cleanEnv())).not.toContain(APPROVAL_VAR);
+    for (const name of mod.TRUSTED_ROOT_ENV_ORDER) expect(Object.keys(cleanEnv())).not.toContain(name);
   });
 });
