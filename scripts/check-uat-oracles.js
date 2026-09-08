@@ -495,11 +495,36 @@ function seedEquivSubstrate(subtasks) {
     return { queueRoot, contextRoot };
 }
 // Deterministic per-task work, IDENTICAL in both modes (only the RUN ORDER differs). Each task gets
-// one REAL green §14-gate verdict for FIXED_ID, one soft observation note (no stamp), and one
-// admitted finding carrying the frozen §14-gate stamp and the frozen verdict in its body. Fixed `at`
-// values keyed off the task make the canonical replay sort mode-independent. Writes through the
-// committed context-io.js to an explicit contextRoot.
+// one soft `observation` carrying NO stamp, and one unstamped `claim` carrying FIXED_ID in `refs`.
+// NO VERDICT IS EMITTED HERE — the block directly above records why the verdict attempt was measured
+// and reverted — and the oracle asserts below that no note on either path carries a `§14-gate` stamp,
+// so this description is the property the code is actually checked against. Fixed `at` values keyed
+// off the task make the canonical replay sort mode-independent. Writes through the committed
+// context-io.js to an explicit contextRoot, under an explicit governance root this function owns.
+//
+// (Plan 31-15, WR-16. The sentence this replaces described one REAL green §14-gate verdict and one
+// admitted finding wearing the frozen stamp — the reverted attempt's mechanism, left behind. In a
+// Tier-1 oracle whose doctrine is that the claim matches the mechanism, a docstring claiming a stamp
+// the fixture never earns is the defect class this round exists to remove.)
 function equivDoWork(sub, task) {
+    // A TIER-1 ORACLE NEVER WRITES TO A HOST REPOSITORY'S LEDGER (plan 31-15, IN-08). Both writes below
+    // take an EXPLICIT governance root this function creates and removes, rather than the ambient
+    // trusted root: under `audit_retention: retained` the ambient root's `.grugops/audit/admissions.jsonl`
+    // would gain one line per note per replay from a deterministic fixture, and an UNREADABLE
+    // configuration there would fail the whole foundation-guards lane for a reason unrelated to what the
+    // lane measures. This matters MORE after 31-15, not less: the trusted root's order now resolves a
+    // real host project in cases where it previously resolved the kit.
+    const governanceRoot = mkdtempSync(join(tmpdir(), "dpe-gov-"));
+    try {
+        equivDoWorkUnder(sub, task, governanceRoot);
+    }
+    finally {
+        rmSync(governanceRoot, { recursive: true, force: true });
+    }
+}
+/** The two writes, under a governance root the caller owns. Split out only so the root's lifetime is
+ *  a `try`/`finally` around one call rather than around the whole body. */
+function equivDoWorkUnder(sub, task, governanceRoot) {
     const n = task.replace(/[^0-9]/g, "") || "0";
     const soft = {
         kind: "observation",
@@ -510,7 +535,9 @@ function equivDoWork(sub, task) {
         refs: [],
         supersedes: null,
     };
-    appendNote(task, soft, `observed work for ${task}`, sub.contextRoot);
+    // The 6th argument is the governance root: a Tier-1 oracle decides admission against a root it
+    // owns, never against whatever repository the ambient order resolves (IN-08).
+    appendNote(task, soft, `observed work for ${task}`, sub.contextRoot, undefined, governanceRoot);
     // An unstamped `claim`, not a stamped `finding` (31-09). It carries the frozen run id in `refs` as
     // an ordinary reference; `verified_by` stays EMPTY, so the note claims no verification it did not
     // earn. Convergence is a property of the substrate, not of the note's kind.
@@ -523,7 +550,9 @@ function equivDoWork(sub, task) {
         refs: [SEEDED_REF],
         supersedes: null,
     };
-    appendNote(task, seeded, `${FROZEN_VERDICT}: seeded admitted claim for ${task}`, sub.contextRoot);
+    // Same governance root, same reason (IN-08): this fixture's admission is decided against a root
+    // this function created and will remove, so no host repository's ledger records it.
+    appendNote(task, seeded, `${FROZEN_VERDICT}: seeded admitted claim for ${task}`, sub.contextRoot, undefined, governanceRoot);
 }
 export function oracleDualPathEquivalence() {
     process.stdout.write("\n[oracleDualPathEquivalence] one seed replayed parallel-spawn-sim vs sequential-drain converges on the same admitted note-set + done/ artifact + frozen verdict (A3 / UAT-AUTO-03, DOGF-01)\n");

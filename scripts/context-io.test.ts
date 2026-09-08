@@ -6535,4 +6535,53 @@ describe("31-15 — WR-15: the target repository's dial is read on every host", 
     expect(Object.keys(cleanEnv())).not.toContain(APPROVAL_VAR);
     for (const name of mod.TRUSTED_ROOT_ENV_ORDER) expect(Object.keys(cleanEnv())).not.toContain(name);
   });
+
+  // ── IN-08: a Tier-1 oracle writes to a root IT owns, never to the host repository's ledger. ───
+  //
+  // `equivDoWork` called `appendNote` with no governance root, so `admit()` resolved the AMBIENT
+  // trusted root. Run against a project configured for RETAINED audit, the oracle appended one
+  // admission event per note per replay into that project's `.grugops/audit/admissions.jsonl`, and an
+  // unreadable configuration there failed the whole foundation-guards lane for a reason unrelated to
+  // what the lane measures. It matters more after this plan's Task 1, not less: the ambient root now
+  // resolves a real host project in cases where it previously resolved the kit.
+  it("IN-08: running the dual-path oracle leaves a retained-audit host project's ledger untouched", () => {
+    const host = projectWith(
+      { human_admission: "off", audit_retention: "retained" },
+      "p31-15-in08-host-",
+    );
+    const ledger = join(host, ".grugops", "audit", "admissions.jsonl");
+    // PREMISE, ASSERTED: this root's dial really does retain, so a write reaching it WOULD be
+    // visible. A case that cannot see the thing it forbids is not a case.
+    const before = mod.readGovernanceConfig(host);
+    expect(before.source).toBe("ok");
+    expect(before.config.audit_retention).toBe("retained");
+    expect(existsSync(ledger)).toBe(false);
+
+    // Point the AMBIENT resolution at the host project — both through the variable (step 1) and
+    // through the working directory (step 3) — and run the oracle's dual-path routine.
+    const runner = join(tmp15("p31-15-in08-runner-"), "run.mjs");
+    writeFileSync(
+      runner,
+      [
+        'import { pathToFileURL } from "node:url";',
+        'import { join } from "node:path";',
+        "const kit = process.argv[2];",
+        'const m = await import(pathToFileURL(join(kit, "scripts", "check-uat-oracles.js")).href);',
+        "m.oracleDualPathEquivalence();",
+      ].join("\n"),
+    );
+    for (const env of [{ [mod.TRUSTED_ROOT_ENV_ORDER[0]]: host }, {}]) {
+      const r = spawnSync("node", [runner, KIT], {
+        cwd: host,
+        env: cleanEnv(env),
+        encoding: "utf8",
+        timeout: 60_000,
+      });
+      expect(r.status, (r.stdout ?? "") + (r.stderr ?? "")).toBe(0);
+      expect(
+        existsSync(ledger),
+        "the Tier-1 oracle appended admission events into the host repository's audit ledger",
+      ).toBe(false);
+    }
+  });
 });
