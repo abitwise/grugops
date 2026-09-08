@@ -4,10 +4,10 @@ milestone: v2.1
 milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live Board
 current_phase: 31
 current_phase_name: Autonomous Manual Testing
-status: "Phase 31 gap-closure round 3 EXECUTED (31-13, 31-14, 31-15) — every actionable finding of 31-REVIEW.md is incorporated or deferred with a written rationale; 31-15-SUMMARY.md carries the round ledger. WR-15 closed: trustedRepoRoot now answers CLAUDE_PROJECT_DIR, else the installer-set GRUGOPS_PROJECT_DIR, else the nearest configured ancestor of the cwd (bounded at the repository marker), else the kit — proven monotone against the pre-fix program, 0 cases moved refused->admitted. UATX rows deliberately NOT flipped: only a verification round may. Next: /gsd-verify-work 31 (round 4)"
+status: "Phase 31 gap-closure round 3 EXECUTED and VERIFIED (round 4, 2026-09-09): gaps_found 4/6 — every round-3 closure (CR-07, CR-08, WR-14, WR-15) re-verified intact, but the round-3 code review raised CR-09/CR-10/CR-11 + WR-17..WR-21 and the verifier independently reproduced all of them against the committed .js. UATX-01 fails on CR-11 (promoteAdmitted, new in 31-14, silently OVERWRITES a live admitted destination note with a caller-forged claim — no destination-liveness check); UATX-06 fails on CR-09/CR-10 (the () marker segment was reasoned about for one of the three ban-rule arms; the two whole-path arms compare a literal so chained expect.configure(...).soft / .configure({soft:true}) pass, and testInfo.skip() via the fixture parameter is never canonicalised). Score fell 5/6 -> 4/6 because CR-11 is a defect the round-3 fix CREATED. Next: /gsd-plan-phase 31 --gaps (round 4 gap closure)"
 stopped_at: Completed 31-15-PLAN.md
-last_updated: "2026-09-08T20:53:15.210Z"
-state_head: 88cbe24b6f5dfd938e61f482a239ae7e4021daba
+last_updated: "2026-09-08T21:31:38.472Z"
+state_head: e45a116fc5c00643b2692f9c65eed412e3d09715
 progress:
   total_phases: 9
   completed_phases: 6
