@@ -19,11 +19,10 @@
 //                       SAME on-disk admitted-note set (via the single-source dual-path-equivalence
 //                       comparator), the SAME done/ artifact, and the SAME frozen verdict string. This
 //                       REPLACES the former structural-grep oracleParity: real substrate convergence,
-//                       not a doc-shape grep. The finding carries a FROZEN §14-gate stamp (D-03)
-//                       EARNED against a real green verdict this lane emits at a frozen `at` and a
-//                       frozen sha — see the block above equivDoWork for why the former "no
-//                       emitVerdict call" phrasing was retired by plan 31-09. Still deterministic and
-//                       no-LLM: nothing here reads a clock, a git HEAD or a model.
+//                       not a doc-shape grep. The seeded note is an UNSTAMPED `claim` carrying a
+//                       frozen run id in `refs` — see the block above equivDoWork for why plan 31-09
+//                       retired the synthetic §14-gate stamp it used to wear. No live
+//                       gate/emitVerdict/admit call; deterministic and no-LLM.
 //
 // This module is STANDALONE — its own run-all block + exit tail (mirroring the catalog-freshness.ts
 // standalone-not-folded precedent, D-07). It is wired as its own lane AND its three oracle functions
@@ -57,7 +56,7 @@ import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
 // Substrate primitives (committed .js twins) + the single-source equivalence comparator. The Tier-1
 // oracleDualPathEquivalence drives these directly to replay one seed two ways on disk (DOGF-01).
-import { appendNote, emitVerdict, type NoteInput } from "./context-io.js";
+import { appendNote, type NoteInput } from "./context-io.js";
 import { claimTask, transition } from "./claim.js";
 import { projectTaskState, assertEquivalent } from "./dual-path-equivalence.js";
 
@@ -480,37 +479,41 @@ export function oracleHooksWiring(): void {
 // verdict string present on both. "verified means verified / degrade never break" becomes a substrate-
 // convergence proof, not a doc grep.
 //
-// The seeded decomposition includes >=1 admitted `finding` carrying a FROZEN stamp
-// `verified_by: §14-gate#<fixed-id>`.
+// 31-09 CORRECTION — THE SEEDED NOTE NO LONGER WEARS A GATE STAMP, AND THIS PARAGRAPH SAYS WHY.
 //
-// 31-09 CORRECTION — WHAT THIS PARAGRAPH USED TO SAY, AND WHY IT CHANGED. It read: "deliberately NO
-// live gate: this oracle never calls emitVerdict (the sole sanctioned by:§14-gate writer) nor admit
-// (the live-verdict cross-check)". That sentence is no longer true, and the mechanism it described is
-// the reason. `appendNote` now consults the admission authority for EVERY note it takes (plan 31-09,
-// review finding CR-05), so a `finding` stamped `§14-gate#<id>` against a substrate holding no such
-// verdict is REFUSED — which is exactly the fabricated-stamp bypass the phase exists to close. The
-// oracle's seed was, in miniature, that bypass.
+// This block used to read: "The seeded decomposition includes >=1 admitted `finding` carrying a
+// FROZEN synthetic stamp `verified_by: §14-gate#<fixed-id>` that passes context-io validate()
+// structurally via GATE_STAMP_RE (D-03) — deliberately NO live gate: this oracle never calls
+// emitVerdict (the sole sanctioned by:§14-gate writer) nor admit (the live-verdict cross-check)."
 //
-// So the stamp is made GENUINE rather than the writer given a route around the authority: each task
-// gets a REAL green verdict for FIXED_ID, emitted through `emitVerdict` — the sole sanctioned
-// `by: §14-gate` writer — at a FROZEN `at` and a FROZEN sha, before the finding is written. The lane
-// stays deterministic (nothing here reads a clock or a git HEAD) and it stays tightly scoped: gate
-// and admission LOGIC are still tested by their own suites, not here. What changed is that this
-// oracle's fixture is now something the admission authority would accept, instead of something it
-// refuses. `admit` is still never called by name — it is reached through the sanctioned writer.
+// That fixture WAS the CR-05 bypass in miniature: a note wearing a gate stamp against a substrate
+// holding no such verdict. `appendNote` now consults the admission authority for every note it takes
+// (plan 31-09), so the seed is refused — correctly.
 //
-// The verdict note is added SYMMETRICALLY to both replay modes and carries a frozen `at`, so the
-// id-free projected note-set the convergence comparator reads is unchanged in shape and still
-// converges; that is asserted by the oracle's own equivalence check rather than assumed here.
+// TWO WAYS TO FIX IT, AND WHY THIS ONE. The stamp could have been made GENUINE by emitting a real
+// green verdict here through `emitVerdict`. That was tried and MEASURED, and it broke a different
+// bar: `scripts/chrome-lane-bar.test.ts` derives the set of repository sources that invoke the
+// verdict carve-out and asserts it has exactly ONE member, because a second author is a second route
+// to the machine stamp (D-09, the bar UATX-03 rests on and both verification rounds recorded as
+// VERIFIED). Making a Tier-1 oracle a live verdict author would have moved that truth to buy a
+// fixture a decoration.
+//
+// So the seeded note is recorded HONESTLY instead, under an unstamped kind. It is a `claim` with an
+// EMPTY `verified_by`, carrying the frozen run id in `refs` as an ordinary reference rather than as a
+// stamp. This is what the oracle's own scope always said it was doing — gate and admission LOGIC are
+// tested by their own suites (`scripts/context-io.test.ts`,
+// `scripts/context-io-writer-set.test.ts`), and this lane proves SUBSTRATE CONVERGENCE. A claim
+// converges exactly as a finding does, so nothing this oracle measures is weakened; what is removed
+// is a stamp the fixture never earned. This oracle still calls neither `emitVerdict` nor `admit`.
 // ---------------------------------------------------------------------------
 
-// Frozen fixture constants (D-03). FIXED_ID makes the stamp deterministic; FROZEN_VERDICT is
-// context-io's green marker, which the real emitted verdict's body also carries.
+// Frozen fixture constants. FIXED_ID makes the seeded reference deterministic; FROZEN_VERDICT is a
+// fixture BODY string (it happens to equal context-io's green marker) and NOT a gate-authored note.
 const FIXED_ID = "R26-DOGF01-0001";
-const GATE_STAMP = `§14-gate#${FIXED_ID}`; // literal stamp — passes validate() via GATE_STAMP_RE
-const FROZEN_VERDICT = "READY_FOR_HUMAN_REVIEW"; // frozen verdict STRING (context-io's green marker)
-/** The frozen commit the seeded gate run is recorded against — a fixture SHA, never a live HEAD. */
-const FROZEN_GATE_SHA = "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0";
+/** The frozen run id, carried in `refs` as an ordinary reference. NOT a stamp: it never reaches
+ *  `verified_by`, so nothing here claims a verification the fixture did not earn. */
+const SEEDED_REF = FIXED_ID;
+const FROZEN_VERDICT = "READY_FOR_HUMAN_REVIEW"; // frozen verdict STRING (no live gate call)
 const EQUIV_TASKS = ["t1", "t2", "t3"]; // minimal seeded decomposition (honors wip_limit width of 3)
 
 // One hermetic substrate = a queue root (pending/claimed/done) + a context root under it. Returns the
@@ -542,19 +545,6 @@ function seedEquivSubstrate(subtasks: string[]): EquivSubstrate {
 // committed context-io.js to an explicit contextRoot.
 function equivDoWork(sub: EquivSubstrate, task: string): void {
   const n = task.replace(/[^0-9]/g, "") || "0";
-  // The verdict FIRST, because the finding below is admitted only against a live green verdict with
-  // this per-run id (D-01, reached from appendNote since 31-09). `emitVerdict` is the sole sanctioned
-  // `by: §14-gate` writer, so the stamp the finding wears is earned rather than asserted — which is
-  // the property this whole phase is about. Both the `at` and the sha are FROZEN: the lane reads no
-  // clock and no git HEAD, so the two replay modes stay byte-comparable.
-  emitVerdict(
-    task,
-    FIXED_ID,
-    "clean",
-    FROZEN_GATE_SHA,
-    sub.contextRoot,
-    `2026-06-21T10:${String(n).padStart(2, "0")}:15.000Z`,
-  );
   const soft: NoteInput = {
     kind: "observation",
     by: "engineer",
@@ -565,19 +555,22 @@ function equivDoWork(sub: EquivSubstrate, task: string): void {
     supersedes: null,
   };
   appendNote(task, soft, `observed work for ${task}`, sub.contextRoot);
-  const finding: NoteInput = {
-    kind: "finding",
+  // An unstamped `claim`, not a stamped `finding` (31-09). It carries the frozen run id in `refs` as
+  // an ordinary reference; `verified_by` stays EMPTY, so the note claims no verification it did not
+  // earn. Convergence is a property of the substrate, not of the note's kind.
+  const seeded: NoteInput = {
+    kind: "claim",
     by: "engineer",
     at: `2026-06-21T10:${String(n).padStart(2, "0")}:30.000Z`,
-    verified_by: GATE_STAMP,
+    verified_by: "",
     confidence: "high",
-    refs: [GATE_STAMP],
+    refs: [SEEDED_REF],
     supersedes: null,
   };
   appendNote(
     task,
-    finding,
-    `${FROZEN_VERDICT}: seeded admitted finding for ${task}`,
+    seeded,
+    `${FROZEN_VERDICT}: seeded admitted claim for ${task}`,
     sub.contextRoot,
   );
 }
@@ -645,10 +638,21 @@ export function oracleDualPathEquivalence(): void {
       if (!verdictA || !verdictB) {
         divergence += `\n  task "${t}" missing frozen verdict "${FROZEN_VERDICT}" on disk (A=${verdictA} B=${verdictB})`;
       }
-      const stampA = pa.some((nr) => nr.verified_by === GATE_STAMP);
-      const stampB = pb.some((nr) => nr.verified_by === GATE_STAMP);
-      if (!stampA || !stampB) {
-        divergence += `\n  task "${t}" missing the frozen finding stamp "${GATE_STAMP}" on disk (A=${stampA} B=${stampB})`;
+      // The seeded note's frozen REFERENCE on both paths — never fabricate; assert the note landed.
+      // It is a `refs` membership rather than a `verified_by` equality because the seed carries no
+      // stamp (31-09): asserting a stamp here would have required the fixture to wear one.
+      const refA = pa.some((nr) => nr.refs.includes(SEEDED_REF));
+      const refB = pb.some((nr) => nr.refs.includes(SEEDED_REF));
+      if (!refA || !refB) {
+        divergence += `\n  task "${t}" missing the seeded frozen reference "${SEEDED_REF}" on disk (A=${refA} B=${refB})`;
+      }
+      // …and no note on either path carries a §14-gate stamp, because this lane emits no verdict and
+      // seeds no stamp. Asserted rather than left implicit: a stamp appearing here would mean the
+      // fixture had re-acquired the decoration 31-09 removed.
+      const stampedA = pa.filter((nr) => nr.verified_by.startsWith("§14-gate#")).length;
+      const stampedB = pb.filter((nr) => nr.verified_by.startsWith("§14-gate#")).length;
+      if (stampedA !== 0 || stampedB !== 0) {
+        divergence += `\n  task "${t}" carries a §14-gate stamp this lane never earns (A=${stampedA} B=${stampedB})`;
       }
     }
 
