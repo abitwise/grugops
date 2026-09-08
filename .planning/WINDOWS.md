@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 136
+open_count: 139
 waived_count: 0
 fixed_count: 4
-total_count: 140
-last_updated: 2026-09-08T08:33:40.547Z
+total_count: 143
+last_updated: 2026-09-08T08:57:54.919Z
 ---
 
 # Broken Windows Ledger
@@ -155,6 +155,9 @@ last_updated: 2026-09-08T08:33:40.547Z
 | 138 | 31 | deviation | scripts/runnable-ref/uat-spec-integrity.ts |  | 31-06 accepted residual (T-31-31): two callee shapes stay unrefused by arm (c) — an aliased binding (const t = test; t.skip(...)) and a member computed from a non-literal expression (test[name](...)). Resolving either needs a type checker, which this runnable deliberately does not ship (D-13). Exported as UNRESOLVABLE_CALLEE_RESIDUALS, quoted in browser-uat-recipe.md, and pinned by a test asserting both really do pass today. | open |  | 2026-09-08T08:16:01.207Z |  |
 | 139 | 31 | deviation | scripts/runnable-ref/uat-spec-integrity.ts |  | 31-REVIEW.md WR-01, surfaced by 31-06 and NOT closed by it: a .uat.spec.ts one directory outside a uat/ path segment is silently unchecked while the pass line still claims a full count. A real adjacent defect in the same file, outside the three verification gaps; named here so the next round has it rather than rediscovering it. | open |  | 2026-09-08T08:16:01.288Z |  |
 | 140 | 31 | deviation | scripts/check-foundation-guards.ts | 3895 | Every early-return branch in guardPlaywrightMcpPin calls fail() (which increments FAILS) and then increments FAILS again — the authority-refusal tally is doubled. Pre-existing across four branches; the 31-07 branch matches that shape per plan instruction. Affects only the trailing 'N CHECK(S) FAILED' count, never exit status. | open |  | 2026-09-08T08:33:40.547Z |  |
+| 141 | 31 | deviation | scripts/runnable-ref/uat-spec-integrity.ts |  | 31-08 R-19 (NEW, measured): a .uat.spec.ts under a uat segment inside tools/ is silently unchecked because tools is a member of SKIPPED_DIRECTORIES - tools/uat/dirty.uat.spec.ts carrying test.skip produced '0 findings over 1/1 uat specs checked', exit 0. Matters because install.ts materializes the checker itself into tools/grugops/. Skip-list arm of WR-01 (row 139); widening the walk's input boundary is a decision about the predicate's input, so it is named rather than changed. | open |  | 2026-09-08T08:57:54.742Z |  |
+| 142 | 31 | deviation | scripts/check-foundation-guards.ts | 3895 | 31-08 R-18 (NEW, measured): a CORRECT sentence-final pin mention planted as the authority ('The kit uses @playwright/mcp@0.0.78.') is captured as '0.0.78.' by WR-09's dot-admitting occurrence pattern and refused by 31-07's new shape assertion as 'not a concrete version - a floating specifier AT THE AUTHORITY'. Fail-closed in direction (exit 1), wrong in diagnosis. Fixing it means changing WR-09's occurrence grammar. | open |  | 2026-09-08T08:57:54.831Z |  |
+| 143 | 31 | deviation | .planning/phases/31-autonomous-manual-testing/31-05-PLAN.md |  | 31-08 R-20: the edge-probe partition is recorded as '8 = 4 authored + 4 surfaced' in 31-05-PLAN.md:132, 31-06-PLAN.md:127, 31-07-PLAN.md:118 and 31-08-PLAN.md; enumerated from the plans' own dispositions it is 5 authored + 3 surfaced. Total is 8 either way and no row is dropped, so the no-silent-drop property holds; the partition was copied forward across four documents without being re-derived. Recorded rather than corrected in place. | open |  | 2026-09-08T08:57:54.919Z |  |
 
 ````json
 [
@@ -1836,6 +1839,42 @@ last_updated: 2026-09-08T08:33:40.547Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-09-08T08:33:40.547Z",
+    "resolved_at": null
+  },
+  {
+    "id": 141,
+    "kind": "deviation",
+    "phase": "31",
+    "file": "scripts/runnable-ref/uat-spec-integrity.ts",
+    "line": null,
+    "description": "31-08 R-19 (NEW, measured): a .uat.spec.ts under a uat segment inside tools/ is silently unchecked because tools is a member of SKIPPED_DIRECTORIES - tools/uat/dirty.uat.spec.ts carrying test.skip produced '0 findings over 1/1 uat specs checked', exit 0. Matters because install.ts materializes the checker itself into tools/grugops/. Skip-list arm of WR-01 (row 139); widening the walk's input boundary is a decision about the predicate's input, so it is named rather than changed.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-08T08:57:54.742Z",
+    "resolved_at": null
+  },
+  {
+    "id": 142,
+    "kind": "deviation",
+    "phase": "31",
+    "file": "scripts/check-foundation-guards.ts",
+    "line": 3895,
+    "description": "31-08 R-18 (NEW, measured): a CORRECT sentence-final pin mention planted as the authority ('The kit uses @playwright/mcp@0.0.78.') is captured as '0.0.78.' by WR-09's dot-admitting occurrence pattern and refused by 31-07's new shape assertion as 'not a concrete version - a floating specifier AT THE AUTHORITY'. Fail-closed in direction (exit 1), wrong in diagnosis. Fixing it means changing WR-09's occurrence grammar.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-08T08:57:54.831Z",
+    "resolved_at": null
+  },
+  {
+    "id": 143,
+    "kind": "deviation",
+    "phase": "31",
+    "file": ".planning/phases/31-autonomous-manual-testing/31-05-PLAN.md",
+    "line": null,
+    "description": "31-08 R-20: the edge-probe partition is recorded as '8 = 4 authored + 4 surfaced' in 31-05-PLAN.md:132, 31-06-PLAN.md:127, 31-07-PLAN.md:118 and 31-08-PLAN.md; enumerated from the plans' own dispositions it is 5 authored + 3 surfaced. Total is 8 either way and no row is dropped, so the no-silent-drop property holds; the partition was copied forward across four documents without being re-derived. Recorded rather than corrected in place.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-08T08:57:54.919Z",
     "resolved_at": null
   }
 ]
