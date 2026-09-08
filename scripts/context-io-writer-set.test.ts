@@ -70,16 +70,27 @@ const mod: typeof import("./context-io.js") = await import(pathToFileURL(CONTEXT
 // are asserted separately so the two failures read differently.
 // ═══════════════════════════════════════════════════════════════════════════════════════════════
 
-/** Every EXPORTED function of scripts/context-io.ts whose call closure reaches writeNoteFile. */
+/**
+ * Every EXPORTED function of scripts/context-io.ts whose call closure reaches writeNoteFile.
+ *
+ * MEASURED, WITH THE REASON IT MOVED (31-14): 4 -> 5. The derivation was re-run against the
+ * post-31-14 source and its output READ — `["admitAndAppend","appendNote","emitCheckpointNote",
+ * "emitVerdict","promoteAdmitted"]` — rather than the constant being adjusted until the case passed.
+ * The new member is the proof-gated re-binding route: it is exported, and it reaches the note-file
+ * write chokepoint on BOTH of its paths (through `appendPreAdmittedNote` when its proof holds, and
+ * through `appendNote` when the note is outside its entry set). So it is a note writer, and the
+ * (writer x refusal-family) matrix below gains a whole COLUMN with it.
+ */
 const EXPECTED_NOTE_WRITERS = Object.freeze([
   "admitAndAppend",
   "appendNote",
   "emitCheckpointNote",
   "emitVerdict",
+  "promoteAdmitted",
 ]);
 
-/** The cardinality of that set. A fifth writer is a decision, never a bumped constant. */
-const EXPECTED_NOTE_WRITER_COUNT = 4;
+/** The cardinality of that set. A sixth writer is a decision, never a bumped constant. */
+const EXPECTED_NOTE_WRITER_COUNT = 5;
 
 /**
  * The DISCLOSED residual: an exported function that writes to the filesystem, takes its destination
@@ -104,8 +115,15 @@ const NON_NOTE_WRITER_RESIDUALS = Object.freeze(["atomicWrite"]);
  *   scripts/check-uat-oracles.ts  equivDoWork's soft observation note
  *   scripts/check-uat-oracles.ts  equivDoWork's gate-stamped finding, now earned against a real
  *                               green verdict this lane emits (31-09)
+ *
+ * MEASURED AGAIN, WITH THE REASON IT MOVED (31-14): 4 -> 5. The derivation was re-run and read:
+ * `[["scripts/check-uat-oracles.ts",2],["scripts/compactor.ts",1],["scripts/context-io.ts",2]]`. The
+ * fifth occurrence is `promoteAdmitted`'s FALL-THROUGH in scripts/context-io.ts — a note outside the
+ * re-binding route's entry set (a gate stamp, an empty stamp) takes full admission there, which is
+ * how a promoted `finding` and `artifact-ref` keep being re-bound at the destination. It is a place
+ * an artifact-ref can be authored, so it is counted here exactly like the other four.
  */
-const EXPECTED_APPEND_NOTE_CALL_SITES = 4;
+const EXPECTED_APPEND_NOTE_CALL_SITES = 5;
 
 /** Files under agent-factory/ whose prose names `appendNote`. */
 const EXPECTED_AGENT_FACTORY_MENTIONS = 4;
@@ -1427,6 +1445,33 @@ const WRITER_DRIVERS: Readonly<
       ? { kind: "refused", message: result.findings.join("\n") }
       : { kind: "wrote", id: result.id };
   },
+  // 31-14 — THE NEW COLUMN, DECIDED RATHER THAN LEFT TO RESOLVE TO NOTHING.
+  //
+  // WHAT THESE CELLS MEASURE, STATED SO THEY ARE NOT MISREAD. Not one of these probes carries a
+  // `human:NAME` disposition stamp, so not one of them ENTERS the re-binding proof: each falls
+  // through to full admission, which is the route's own entry-boundary behaviour and the reason a
+  // gate-stamped finding and an artifact-ref are still re-bound at the destination. So this column
+  // asserts that the fall-through reaches the authority for EVERY derived family — the property
+  // CR-08's fix could most easily have broken. What the PROOF itself declines is the SECOND derived
+  // axis in PART SIX, driven clause by clause; neither axis stands in for the other.
+  promoteAdmitted: (note, contextRoot, task, repoRoot) => {
+    try {
+      return {
+        kind: "wrote",
+        id: mod.promoteAdmitted(
+          task,
+          "no-such-origin-id",
+          note,
+          PROBE_BODY,
+          contextRoot,
+          contextRoot,
+          repoRoot,
+        ),
+      };
+    } catch (e) {
+      return { kind: "refused", message: (e as Error).message };
+    }
+  },
 });
 
 type MatrixCell =
@@ -1883,11 +1928,25 @@ describe("31-09 — re-scoping the authority call to one kind re-opens the fabri
 // export modifier. A change to any one of them reads differently from a change to the others.
 // ═══════════════════════════════════════════════════════════════════════════════════════════════
 
-/** The one function permitted to reach the pre-admitted write route. */
-const EXPECTED_PRE_ADMITTED_CALLERS = Object.freeze(["admitAndAppend"]);
+/**
+ * The functions permitted to reach the pre-admitted write route.
+ *
+ * MEASURED, WITH THE REASON IT MOVED (31-14): one member -> two. The derivation was re-run and its
+ * output read — `[["admitAndAppend",2],["promoteAdmitted",1]]` — rather than the constant being
+ * widened until the case passed. The second member is the proof-gated re-binding route, and it is a
+ * DECISION (D-19) with its reason written at its site: the note it persists was already adjudicated
+ * at the origin by the un-forgeable hook, and it proves that over the origin's own stored bytes
+ * before it reaches the write. A THIRD caller is the same kind of decision and must move this set
+ * and the count below together.
+ */
+const EXPECTED_PRE_ADMITTED_CALLERS = Object.freeze(["admitAndAppend", "promoteAdmitted"]);
 
-/** Its two adjudicated branches — the gated one and the non-gated one. A third is a decision. */
-const EXPECTED_PRE_ADMITTED_CALL_SITES = 2;
+/**
+ * The adjudicated call sites: `admitAndAppend`'s gated and non-gated branches, plus the re-binding
+ * route's single post-proof write. MEASURED 2 -> 3 in the same reading as the member set above; a
+ * fourth is a branch that must carry its own written reason for skipping the authority.
+ */
+const EXPECTED_PRE_ADMITTED_CALL_SITES = 3;
 
 /** The private route's name, in one place, so the three assertions below cannot drift apart. */
 const PRE_ADMITTED_ROUTE = "appendPreAdmittedNote";
@@ -2115,5 +2174,559 @@ describe("31-05 — the reachability remainder is written down", () => {
         `or removed, so the write-primitive alphabet this file derives its residual over must be ` +
         `re-classified rather than assumed unchanged`,
     ).toBe(14);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// PART SIX — THE SECOND NEW AXIS (31-14). What the re-binding PROOF itself declines is DERIVED.
+//
+// WHY THIS EXISTS, AND WHY THE PREVIOUS ROUND'S DERIVED ASSERTIONS DID NOT CATCH CR-08. Round 3's
+// `regressions:` entry names it exactly: only ONE axis had moved. 31-09 derived the writer set and
+// the pre-admitted caller set, and both were correct — but the question "which OPERATIONS now reach
+// an authority built only to decide NEW admissions" is a third axis nobody derived, and a re-write
+// is such an operation. This plan therefore moves BOTH axes it touches: `promoteAdmitted` joins the
+// derived writer set and the derived caller set above, AND the set of shapes its own proof declines
+// is derived HERE from its own parsed body, bound to the exported register in both directions, and
+// exercised clause by clause.
+//
+// THE SIGNATURE IS THE CLAUSE KEY, AND THAT IS STRONGER THAN COLLAPSED TEXT. `deriveAdmitRefusalSites`
+// above must reconstruct a site's identity from its static literal chunks, because `admit()` spells
+// each refusal inline. The re-binding route does not: every decline names a CLAUSE KEY and takes its
+// sentence from the single exported register `PROMOTE_ADMITTED_DECLINES`, so the identity is a string
+// literal the parse reads directly. The collapsed static-chunk signature is derived alongside it and
+// asserted DISTINCT, so a second clause reusing a key cannot hide inside the same identity.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+/** The re-binding route's declared name, in one place so the derivation and its controls agree. */
+const REBINDING_ROUTE = "promoteAdmitted";
+
+/** The one helper every decline goes through — the seam that makes the clause key readable. */
+const DECLINE_HELPER = "declineRebinding";
+
+interface DeclineSite {
+  /** The clause key: the helper's first argument, a string literal. */
+  readonly key: string;
+  /** The site's collapsed static-chunk signature, in the PART TWO-B shape. */
+  readonly signature: string;
+}
+
+interface DeclineDerivation {
+  readonly declared: readonly string[];
+  readonly declarationFound: boolean;
+  readonly hasBody: boolean;
+  readonly sites: readonly DeclineSite[];
+  /** Throws in the route's body that do NOT go through the decline helper — the derivation's bound. */
+  readonly unhelpedThrows: readonly string[];
+}
+
+/**
+ * THE THIRD DERIVATION: one site per decline in the re-binding route's own body.
+ *
+ * A decline site is a `throw` whose expression is a call to the decline helper. A `throw new
+ * Error(...)` is deliberately NOT a site — it is an internal invariant guard, not a decision about a
+ * caller's input — and its count is asserted separately below so the exclusion is a measured bound
+ * rather than a silence.
+ */
+function deriveDeclineSites(sourcePath: string): DeclineDerivation {
+  const source = ts.createSourceFile(
+    "context-io.ts",
+    readFileSync(sourcePath, "utf8"),
+    ts.ScriptTarget.Latest,
+    true,
+  );
+  const declared: string[] = [];
+  const sites: DeclineSite[] = [];
+  const unhelpedThrows: string[] = [];
+  let declarationFound = false;
+  let hasBody = false;
+  for (const statement of source.statements) {
+    if (!ts.isFunctionDeclaration(statement) || !statement.name) continue;
+    declared.push(statement.name.text);
+    if (statement.name.text !== REBINDING_ROUTE) continue;
+    declarationFound = true;
+    hasBody = statement.body !== undefined;
+    const walk = (node: ts.Node): void => {
+      if (ts.isThrowStatement(node) && node.expression) {
+        const thrown = node.expression;
+        if (
+          ts.isCallExpression(thrown) &&
+          ts.isIdentifier(thrown.expression) &&
+          thrown.expression.text === DECLINE_HELPER
+        ) {
+          const first = thrown.arguments[0];
+          const key = first && ts.isStringLiteral(first) ? first.text : "";
+          sites.push({ key, signature: refusalSignature(refusalStaticChunks(thrown)) });
+        } else {
+          unhelpedThrows.push(thrown.getText(source).replace(/\s+/g, " ").slice(0, 120));
+        }
+      }
+      ts.forEachChild(node, walk);
+    };
+    if (statement.body) walk(statement.body);
+  }
+  return { declared, declarationFound, hasBody, sites, unhelpedThrows };
+}
+
+/** The derived clause keys, sorted — the set the exported register is bounded by. */
+function derivedDeclineKeys(sourcePath: string): string[] {
+  return deriveDeclineSites(sourcePath)
+    .sites.map((site) => site.key)
+    .sort();
+}
+
+/**
+ * THE HARNESS ASSERTS ITS OWN PREMISE, as a failing assertion rather than an assumption. A parse
+ * that found nothing derives an empty clause set, and an empty set satisfies "every clause is bound
+ * and exercised" vacuously. Six false verification-harness premises across four rounds is why this is
+ * a function the real cases CALL and the renamed-route control WATCHES THROW.
+ */
+function assertDeclinePremise(derived: DeclineDerivation): void {
+  expect(
+    derived.declared.length,
+    "PREMISE: the TypeScript parse of scripts/context-io.ts yielded ZERO top-level function " +
+      "declarations, so the decline derivation measured nothing at all",
+  ).toBeGreaterThan(0);
+  expect(
+    derived.declarationFound,
+    `PREMISE: no function named "${REBINDING_ROUTE}" was declared, so the derived decline set is ` +
+      `empty for a reason that says nothing about what the proof declines`,
+  ).toBe(true);
+  expect(
+    derived.hasBody,
+    `PREMISE: "${REBINDING_ROUTE}" was declared with no body to walk, so no decline could be found`,
+  ).toBe(true);
+  expect(
+    derived.sites.length,
+    `PREMISE: ZERO decline sites were derived from "${REBINDING_ROUTE}"'s body. Either the proof ` +
+      `declines nothing — which would make it a flag — or the site matcher stopped matching`,
+  ).toBeGreaterThan(0);
+}
+
+/**
+ * The expected clause keys.
+ *
+ * MEASURED ON 2026-09-08 by running the derivation against the post-31-14 source and reading its
+ * output. Six clauses: one for an unnameable source, one fail-closed governance read, two about the
+ * origin record's existence and liveness, and two about the promoted note differing from it.
+ */
+const EXPECTED_DECLINE_KEYS = Object.freeze([
+  "body-differs-from-origin",
+  "empty-source-id",
+  "field-differs-from-origin",
+  "no-such-origin-note",
+  "origin-note-not-live",
+  "unreadable-governance-config",
+]);
+
+/** The cardinality, asserted separately: a re-worded clause and an ADDED clause are different events. */
+const EXPECTED_DECLINE_COUNT = 6;
+
+describe("31-14 — the re-binding proof's decline set is derived from its own body", () => {
+  it("PREMISE: the parse found the route, it had a body, and it yielded decline sites", () => {
+    assertDeclinePremise(deriveDeclineSites(CONTEXT_IO_TS));
+  });
+
+  it("the derived clause set has the expected MEMBERS", () => {
+    expect(
+      derivedDeclineKeys(CONTEXT_IO_TS),
+      "the set of shapes the re-binding proof declines moved. Each one is a way a caller can fail " +
+        "to prove a re-binding, so it needs a register entry with a written reason and a probe that " +
+        "reaches exactly it — never a widened constant here",
+    ).toEqual([...EXPECTED_DECLINE_KEYS]);
+  });
+
+  it("the derived clause set has the expected COUNT", () => {
+    expect(
+      deriveDeclineSites(CONTEXT_IO_TS).sites.length,
+      "a decline site landed in or left the re-binding route. A new one changes what the proof " +
+        "refuses, which is a decision with a written reason, never a bumped constant",
+    ).toBe(EXPECTED_DECLINE_COUNT);
+  });
+
+  it("every derived clause key is DISTINCT — a reused key would collapse two clauses into one", () => {
+    const keys = derivedDeclineKeys(CONTEXT_IO_TS);
+    expect(new Set(keys).size, `duplicate clause key among ${keys.join(", ")}`).toBe(keys.length);
+    // …and so is the collapsed static-chunk signature, so two clauses sharing a key could not hide
+    // behind one identity even if the key assertion above were relaxed.
+    const signatures = deriveDeclineSites(CONTEXT_IO_TS).sites.map((site) => site.signature);
+    expect(new Set(signatures).size).toBe(signatures.length);
+  });
+
+  it("the register's KEY SET equals the derived clause set, in BOTH directions", () => {
+    // The load-bearing binding. No derived clause without a register entry (a decline nobody wrote a
+    // reason for), and no register entry naming a clause the route no longer has (a reason for a
+    // refusal that cannot happen, which reads as coverage and is not).
+    expect(
+      Object.keys(mod.PROMOTE_ADMITTED_DECLINES).sort(),
+      "the exported decline register and the clauses derived from the route's own body disagree",
+    ).toEqual(derivedDeclineKeys(CONTEXT_IO_TS));
+  });
+
+  it("every register entry carries a non-empty written reason", () => {
+    for (const [key, reason] of Object.entries(mod.PROMOTE_ADMITTED_DECLINES)) {
+      expect(reason.length, `the register entry for "${key}" carries an empty reason`).toBeGreaterThan(
+        40,
+      );
+    }
+  });
+
+  it("the route's named residuals are published and non-empty", () => {
+    // A boundary nobody wrote down is the next round's gap. Both are disposition `accept`.
+    expect(mod.PROMOTE_ADMITTED_RESIDUALS.length).toBeGreaterThan(0);
+    expect(mod.PROMOTE_ADMITTED_RESIDUALS.join("\n")).toContain("T-31-14-03");
+  });
+
+  it("THE DERIVATION'S BOUND: every throw in the route goes through the decline helper, except the named guards", () => {
+    // The walk sees a `throw declineRebinding(...)` and nothing else. A refusal spelled as a bare
+    // `throw new Error(...)` would be a decline this derivation cannot see, so the count of such
+    // throws is asserted rather than described. ONE is expected: the type-narrowing guard on the
+    // composed candidate's parse, which is unreachable in practice and decides nothing about a
+    // caller's input.
+    const derived = deriveDeclineSites(CONTEXT_IO_TS);
+    expect(
+      derived.unhelpedThrows.length,
+      `the re-binding route throws outside the decline helper: ${derived.unhelpedThrows.join(" | ")}. ` +
+        `Each one is a refusal the derivation above cannot see, so it belongs in the register (and ` +
+        `through the helper) or it needs a written reason for being an internal guard`,
+    ).toBe(1);
+    expect(derived.unhelpedThrows[0]).toContain("internal");
+  });
+});
+
+// ─── PART SIX-B — the new axis DISCRIMINATES, watched failing in both directions. ───────────────
+
+/** The seeded clause's key — distinctive enough that it cannot be confused with a real one. */
+const SEEDED_DECLINE_KEY = "seeded-control-clause";
+
+/** A one-occurrence anchor inside the re-binding route's own body. */
+const DECLINE_SEED_ANCHOR = '  if (sourceId.trim() === "") {';
+
+/** The one-occurrence anchor the premise control renames. */
+const REBINDING_DECLARATION_ANCHOR = `export function ${REBINDING_ROUTE}(`;
+
+describe("31-14 — the decline derivation is a control, not a coincidence", () => {
+  it("a SEEDED extra clause moves the count by exactly one and arrives UNBOUND", () => {
+    const mirror = mirrorOfContextIoTs(
+      (source) =>
+        insertExactlyOnceAfter(
+          source,
+          DECLINE_SEED_ANCHOR,
+          `\n    if (task === "seeded-control") {\n` +
+            `      throw declineRebinding("${SEEDED_DECLINE_KEY}", "A seeded control clause.");\n` +
+            `    }`,
+          "the seeded decline clause",
+        ),
+      "ctx-io-decline-seed-",
+    );
+    const before = derivedDeclineKeys(CONTEXT_IO_TS);
+    const after = derivedDeclineKeys(mirror);
+    expect(after.length).toBe(EXPECTED_DECLINE_COUNT + 1);
+    expect(after).toContain(SEEDED_DECLINE_KEY);
+    // …and NOTHING ELSE moved, so the change is caused by the seed rather than by a derivation that
+    // broke and started reporting some other set.
+    expect(after.filter((key) => key !== SEEDED_DECLINE_KEY)).toEqual(before);
+    // …and the seeded clause is UNBOUND: the exported register does not name it, which is exactly
+    // the failure a new undisclosed decline must produce.
+    expect(
+      Object.keys(mod.PROMOTE_ADMITTED_DECLINES),
+      "the seeded clause was already in the register, so the both-directions binding above could " +
+        "not have reported it as unbound",
+    ).not.toContain(SEEDED_DECLINE_KEY);
+    const unbound = after.filter((key) => !(key in mod.PROMOTE_ADMITTED_DECLINES));
+    expect(unbound).toEqual([SEEDED_DECLINE_KEY]);
+    // …and the same computation against the UN-SEEDED source finds nothing unbound, which is what
+    // makes the case above a control rather than a claim about mirrors in general.
+    expect(before.filter((key) => !(key in mod.PROMOTE_ADMITTED_DECLINES))).toEqual([]);
+  });
+
+  it("a RENAMED route fires the PREMISE, not the member comparison", () => {
+    const mirror = mirrorOfContextIoTs(
+      (source) =>
+        replaceExactlyOnce(
+          source,
+          REBINDING_DECLARATION_ANCHOR,
+          `export function ${REBINDING_ROUTE}RenamedForPremiseControl(`,
+          "the renamed re-binding route declaration",
+        ),
+      "ctx-io-decline-rename-",
+    );
+    const derived = deriveDeclineSites(mirror);
+    expect(derived.declarationFound).toBe(false);
+    expect(derived.sites).toHaveLength(0);
+    expect(() => assertDeclinePremise(derived)).toThrow(/PREMISE/);
+    expect(derived.declared.length).toBeGreaterThan(0);
+  });
+});
+
+// ─── PART SIX-C — every derived clause is EXERCISED by a probe that reaches exactly it. ─────────
+
+/** The high-severity governance finding a named human disposed — the note the proof route is for. */
+function disposedFinding(
+  over: Partial<Parameters<typeof mod.appendNote>[1]> = {},
+): Parameters<typeof mod.appendNote>[1] {
+  return {
+    kind: "finding",
+    by: "security-nfr",
+    at: "2026-09-08T02:00:00Z",
+    verified_by: "human:alice",
+    confidence: "high",
+    refs: ["REQ-SEC-01"],
+    supersedes: null,
+    ...over,
+  } as Parameters<typeof mod.appendNote>[1];
+}
+
+const REBIND_TASK = "rebind-task";
+const REBIND_BODY = "the disposed finding body";
+
+/** Seed an ORIGIN context holding the human-disposed finding, written the way the dial requires. */
+function seedAdmittedOrigin(repoRoot: string, prefix: string): { originRoot: string; id: string } {
+  const originRoot = freshTmp(prefix);
+  const note = disposedFinding();
+  const gated = mod.isGatedNote(note.by, note.kind, mod.readGovernanceConfig(repoRoot));
+  const id = gated
+    ? (mod.admitAndAppend(REBIND_TASK, note, REBIND_BODY, originRoot, repoRoot).id as string)
+    : mod.appendNote(REBIND_TASK, note, REBIND_BODY, originRoot, undefined, repoRoot);
+  expect(id, "PREMISE: the origin seed did not write, so no probe below is measuring a re-binding").toBeTruthy();
+  return { originRoot, id };
+}
+
+/** A repo root whose dial is ACTIVE — the configuration CR-08 was reproduced under. */
+function activeDialRoot(): string {
+  return repoWithGovernance({ human_admission: "high-severity", audit_retention: "retained" });
+}
+
+interface DeclineProbe {
+  /** Run the probe; it must throw. Returns the destination root so files can be counted. */
+  readonly drive: () => { destRoot: string; run: () => string };
+}
+
+/**
+ * ONE PROBE PER DERIVED CLAUSE, keyed by clause key.
+ *
+ * The key set is asserted EQUAL to the derived set before any probe runs, so a clause with no probe
+ * is a reader-legible failure rather than a loop that quietly ran one fewer time.
+ */
+const DECLINE_PROBES: Readonly<Record<string, DeclineProbe>> = Object.freeze({
+  "empty-source-id": {
+    drive: () => {
+      const repoRoot = activeDialRoot();
+      const { originRoot } = seedAdmittedOrigin(repoRoot, "ctx-io-decline-empty-origin-");
+      const destRoot = freshTmp("ctx-io-decline-empty-dest-");
+      return {
+        destRoot,
+        run: () =>
+          mod.promoteAdmitted(REBIND_TASK, "   ", disposedFinding(), REBIND_BODY, originRoot, destRoot, repoRoot),
+      };
+    },
+  },
+  "unreadable-governance-config": {
+    drive: () => {
+      const goodRoot = activeDialRoot();
+      const { originRoot } = seedAdmittedOrigin(goodRoot, "ctx-io-decline-unreadable-origin-");
+      const badRoot = repoWithRawConfig("{ not valid json ]]]");
+      const destRoot = freshTmp("ctx-io-decline-unreadable-dest-");
+      return {
+        destRoot,
+        run: () =>
+          mod.promoteAdmitted(
+            REBIND_TASK,
+            "any-id",
+            disposedFinding(),
+            REBIND_BODY,
+            originRoot,
+            destRoot,
+            badRoot,
+          ),
+      };
+    },
+  },
+  "no-such-origin-note": {
+    drive: () => {
+      const repoRoot = activeDialRoot();
+      const { originRoot } = seedAdmittedOrigin(repoRoot, "ctx-io-decline-absent-origin-");
+      const destRoot = freshTmp("ctx-io-decline-absent-dest-");
+      return {
+        destRoot,
+        run: () =>
+          mod.promoteAdmitted(
+            REBIND_TASK,
+            "20260908T020000Z-security-nfr-finding-notthere",
+            disposedFinding(),
+            REBIND_BODY,
+            originRoot,
+            destRoot,
+            repoRoot,
+          ),
+      };
+    },
+  },
+  "origin-note-not-live": {
+    drive: () => {
+      const repoRoot = activeDialRoot();
+      const { originRoot, id } = seedAdmittedOrigin(repoRoot, "ctx-io-decline-superseded-origin-");
+      // A LATER note supersedes the disposed one, so the deterministic replay folds it out. Liveness
+      // is decided by that replay — never by file position or mtime.
+      const successor = disposedFinding({ at: "2026-09-08T03:00:00Z", supersedes: id });
+      const gated = mod.isGatedNote(successor.by, successor.kind, mod.readGovernanceConfig(repoRoot));
+      const wrote = gated
+        ? mod.admitAndAppend(REBIND_TASK, successor, REBIND_BODY, originRoot, repoRoot).id
+        : mod.appendNote(REBIND_TASK, successor, REBIND_BODY, originRoot, undefined, repoRoot);
+      expect(wrote, "PREMISE: the superseding note did not write, so the origin note is still live").toBeTruthy();
+      const destRoot = freshTmp("ctx-io-decline-superseded-dest-");
+      return {
+        destRoot,
+        run: () =>
+          mod.promoteAdmitted(REBIND_TASK, id, disposedFinding(), REBIND_BODY, originRoot, destRoot, repoRoot),
+      };
+    },
+  },
+  "field-differs-from-origin": {
+    drive: () => {
+      const repoRoot = activeDialRoot();
+      const { originRoot, id } = seedAdmittedOrigin(repoRoot, "ctx-io-decline-field-origin-");
+      const destRoot = freshTmp("ctx-io-decline-field-dest-");
+      return {
+        destRoot,
+        run: () =>
+          mod.promoteAdmitted(
+            REBIND_TASK,
+            id,
+            // A DIFFERENT named human — still a human disposition stamp, so it enters the proof, and
+            // still not the disposition the origin record carries.
+            disposedFinding({ verified_by: "human:mallory" }),
+            REBIND_BODY,
+            originRoot,
+            destRoot,
+            repoRoot,
+          ),
+      };
+    },
+  },
+  "body-differs-from-origin": {
+    drive: () => {
+      const repoRoot = activeDialRoot();
+      const { originRoot, id } = seedAdmittedOrigin(repoRoot, "ctx-io-decline-body-origin-");
+      const destRoot = freshTmp("ctx-io-decline-body-dest-");
+      return {
+        destRoot,
+        run: () =>
+          mod.promoteAdmitted(
+            REBIND_TASK,
+            id,
+            disposedFinding(),
+            `${REBIND_BODY} — and one more sentence the compaction added`,
+            originRoot,
+            destRoot,
+            repoRoot,
+          ),
+      };
+    },
+  },
+});
+
+describe("31-14 — every derived decline clause is reached by a probe, and writes nothing", () => {
+  it("the probe record's KEY SET equals the derived clause set", () => {
+    expect(
+      Object.keys(DECLINE_PROBES).sort(),
+      "a derived decline clause has no probe (or a probe names a clause the route no longer has). " +
+        "Every clause is exercised or the set is not covered",
+    ).toEqual(derivedDeclineKeys(CONTEXT_IO_TS));
+  });
+
+  for (const clause of EXPECTED_DECLINE_KEYS) {
+    it(`${clause}: the probe reaches exactly that clause and zero files are written`, () => {
+      const probe = DECLINE_PROBES[clause];
+      const { destRoot, run } = probe.drive();
+      const before = noteFileCount(destRoot, REBIND_TASK);
+      let message = "";
+      try {
+        run();
+      } catch (e) {
+        message = (e as Error).message;
+      }
+      expect(message, `the ${clause} probe was ADMITTED — the proof accepted a shape it declines`).not.toBe("");
+      // EXACTLY this clause: the decline names its own key, and no other derived key appears in the
+      // message, so a probe cannot stand in for two clauses.
+      expect(message).toContain(`DECLINED (${clause})`);
+      const others = derivedDeclineKeys(CONTEXT_IO_TS).filter((key) => key !== clause);
+      for (const other of others) {
+        expect(
+          message.includes(`DECLINED (${other})`),
+          `the ${clause} probe also names ${other} — a many-to-one probe mapping must be recorded`,
+        ).toBe(false);
+      }
+      // …and the register's own sentence for that clause is what the caller is told.
+      expect(message).toContain(mod.PROMOTE_ADMITTED_DECLINES[clause]);
+      expect(
+        noteFileCount(destRoot, REBIND_TASK),
+        `the ${clause} probe left a file behind — "nothing is written" must be true of the disk`,
+      ).toBe(before);
+    });
+  }
+
+  // ─── THE ENTRY SET, ASKED IN THE OTHER DIRECTION. ────────────────────────────────────────────
+  //
+  // Every case above asks what the proof REFUSES. The reachability question this repository keeps
+  // paying for is the converse: which shapes REACH the proof at all? A note outside the entry set
+  // must fall through to full admission — never be silently accepted, and never be silently dropped.
+  it("a note carrying a §14-gate stamp falls THROUGH to full admission, and is refused there without a verdict", () => {
+    const repoRoot = activeDialRoot();
+    const originRoot = freshTmp("ctx-io-entry-gate-origin-");
+    const destRoot = freshTmp("ctx-io-entry-gate-dest-");
+    const gateStamped = disposedFinding({ by: "qe-e2e", verified_by: "§14-gate#no-such-run" });
+    let message = "";
+    try {
+      mod.promoteAdmitted(REBIND_TASK, "no-such-origin-id", gateStamped, REBIND_BODY, originRoot, destRoot, repoRoot);
+    } catch (e) {
+      message = (e as Error).message;
+    }
+    // NOT a decline: the refusal is the AUTHORITY's, which is what proves the fall-through happened.
+    expect(message).toContain("admission FAIL: no live green §14-gate verdict found");
+    expect(message).not.toContain("DECLINED (");
+    expect(noteFileCount(destRoot, REBIND_TASK)).toBe(0);
+  });
+
+  it("a note carrying an EMPTY stamp falls THROUGH to full admission and WRITES when admissible", () => {
+    // The other half of the converse: the fall-through is not a disguised refusal. A soft note with
+    // no stamp is admissible, so it lands — with a NEW id, which is the observable difference from
+    // the proof route's carried-forward frozen id.
+    const repoRoot = freshTmp("ctx-io-entry-soft-repo-"); // no config → the lean dial
+    const originRoot = freshTmp("ctx-io-entry-soft-origin-");
+    const destRoot = freshTmp("ctx-io-entry-soft-dest-");
+    const id = mod.promoteAdmitted(
+      REBIND_TASK,
+      "no-such-origin-id",
+      softNote(),
+      REBIND_BODY,
+      originRoot,
+      destRoot,
+      repoRoot,
+    );
+    expect(id).toBeTruthy();
+    expect(id).not.toBe("no-such-origin-id");
+    expect(noteFileCount(destRoot, REBIND_TASK)).toBe(1);
+  });
+
+  it("THE CONVERSE OF EVERY DECLINE: a genuine re-binding still writes, byte-identically", () => {
+    // A proof that declined everything would satisfy all six cases above and destroy the route. So
+    // the legitimate input is driven too — the probe the round that created CR-08 never ran.
+    const repoRoot = activeDialRoot();
+    const { originRoot, id } = seedAdmittedOrigin(repoRoot, "ctx-io-decline-converse-origin-");
+    const destRoot = freshTmp("ctx-io-decline-converse-dest-");
+    const promoted = mod.promoteAdmitted(
+      REBIND_TASK,
+      id,
+      disposedFinding(),
+      REBIND_BODY,
+      originRoot,
+      destRoot,
+      repoRoot,
+    );
+    expect(promoted).toBe(id);
+    expect(noteFileCount(destRoot, REBIND_TASK)).toBe(1);
+    expect(readFileSync(join(destRoot, REBIND_TASK, "notes", `${promoted}.md`), "utf8")).toBe(
+      readFileSync(join(originRoot, REBIND_TASK, "notes", `${id}.md`), "utf8"),
+    );
   });
 });
