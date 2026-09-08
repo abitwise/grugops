@@ -56,6 +56,10 @@ interface CheckerModule {
   readonly BROWSER_ABSENT_MARKER: string;
   readonly BROWSER_ABSENT_STAGES: Readonly<Record<"parser_package" | "browser_binaries", string>>;
   readonly BANNED_CONSTRUCTS: readonly string[];
+  readonly BANNED_MODIFIER_HEADS: readonly string[];
+  readonly BANNED_MODIFIER_TAILS: readonly string[];
+  readonly BANNED_EXACT_PATHS: readonly string[];
+  isBannedModifierPath(dottedPath: string | null): boolean;
   readonly UNRESOLVABLE_CALLEE_RESIDUALS: readonly string[];
   readonly SKIPPED_DIRECTORIES: readonly string[];
   emitLoudSkipIfBrowserUnusable(
@@ -1108,5 +1112,323 @@ describe("browser-uat-recipe.md — 31-06 gap 2: the documented ban set equals t
     for (const residual of UNRESOLVABLE_CALLEE_RESIDUALS) {
       expect(region, `the recipe does not carry the residual: ${residual}`).toContain(residual);
     }
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// 31-11 CR-06 — the MEMBERSHIP question becomes a RULE over the resolved path.
+//
+// 31-06 centralised the SHAPE question in `calleeDottedPath` and left the MEMBERSHIP question as a
+// nine-member literal compared by `includes`. The round-2 verifier planted
+// `test.describe.serial.only` and `test.describe.parallel.only` — real Playwright spellings that
+// narrow an entire gate run exactly as `test.describe.only` does — and the committed `.js` reported
+// `0 findings over 1/1 uat specs checked` at exit 0, on the same harness that correctly refuses
+// `test.describe.only` alone. Membership is now decided by HEAD and TAIL over the normalised path,
+// so an intermediate routing segment cannot open a new hole.
+//
+// The corpus below is GENERATED from the rule's own constants. It is EVIDENCE, never an authority:
+// nothing here may become a second list of banned dotted paths, because a list beside a rule is the
+// two-authorities drift the runnable's own header forbids.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+describe("uat-spec-integrity — 31-11 CR-06: membership is a rule, decided in one place", () => {
+  const tsApi = hostTypeScript as typeof import("typescript");
+  const IMPORT = 'import { test, expect } from "@playwright/test";';
+
+  /**
+   * The intermediate segments that ROUTE a modifier call without changing what the tail does to the
+   * evidence. Declared here as a test CORPUS — it is not consulted by the checker and is not an
+   * authority on Playwright's routing surface; it exists so the cross product below exercises the
+   * rule at more than one chain length, including the two the round-2 verifier planted.
+   */
+  const REPRESENTATIVE_ROUTING_CHAINS: readonly (readonly string[])[] = Object.freeze([
+    Object.freeze([]),
+    Object.freeze(["describe"]),
+    Object.freeze(["describe", "serial"]),
+    Object.freeze(["describe", "parallel"]),
+  ]);
+
+  function plantSpec(body: string): string {
+    const root = mkTargetRepo({});
+    const dest = join(root, "e2e", "uat", "subject.uat.spec.ts");
+    mkdirSync(dirname(dest), { recursive: true });
+    writeFileSync(dest, body, "utf8");
+    return root;
+  }
+
+  function findingsOf(body: string): string[] {
+    const r = runCheck(plantSpec(body), "--json");
+    if (r.status === 0) return [];
+    const parsed = JSON.parse(r.stdout) as { ok: boolean; findings: string[] };
+    return parsed.findings;
+  }
+
+  /** Every spelling the rule decides, computed from the rule's own constants — never typed out. */
+  function ruleCorpus(
+    heads: readonly string[],
+    tails: readonly string[],
+    exact: readonly string[],
+  ): string[] {
+    const out: string[] = [];
+    for (const head of heads) {
+      for (const chain of REPRESENTATIVE_ROUTING_CHAINS) {
+        for (const tail of tails) out.push([head, ...chain, tail].join("."));
+      }
+    }
+    for (const path of exact) out.push(path);
+    return [...new Set(out)];
+  }
+
+  /** The committed artifact's own source, parsed — the assertions below read code, never prose. */
+  function parseCommittedChecker(): import("typescript").SourceFile {
+    return tsApi.createSourceFile(
+      "uat-spec-integrity.js",
+      readFileSync(CHECK_JS, "utf8"),
+      tsApi.ScriptTarget.ES2022,
+      true,
+    );
+  }
+
+  function findFunction(
+    sf: import("typescript").SourceFile,
+    name: string,
+  ): import("typescript").FunctionDeclaration {
+    let found: import("typescript").FunctionDeclaration | null = null;
+    const walk = (node: import("typescript").Node): void => {
+      if (tsApi.isFunctionDeclaration(node) && node.name?.text === name) found = node;
+      tsApi.forEachChild(node, walk);
+    };
+    tsApi.forEachChild(sf, walk);
+    if (found === null) throw new Error(`PREMISE: ${name} was not found in the committed .js`);
+    return found;
+  }
+
+  // ── RED 1/2: the two spellings the round-2 verifier planted ──────────────────────────────────
+  for (const routing of ["serial", "parallel"] as const) {
+    it(`refuses test.describe.${routing}.only, which the round-2 verifier planted at exit 0`, () => {
+      const findings = findingsOf(
+        [IMPORT, `test.describe.${routing}.only("evasion-${routing}", () => {});`, ""].join("\n"),
+      );
+      expect(findings.length).toBe(1);
+      expect(findings[0]).toContain(`test.describe.${routing}.only`);
+      expect(findings[0]).toContain("banned modifier call");
+    });
+  }
+
+  it("reports one finding per planted spelling when both sit in ONE spec", () => {
+    const findings = findingsOf(
+      [
+        IMPORT,
+        'test.describe.serial.only("evasion-serial", () => {});',
+        'test.describe.parallel.only("evasion-parallel", () => {});',
+        "",
+      ].join("\n"),
+    );
+    expect(findings.length).toBe(2);
+    expect(findings.join("\n")).toContain("test.describe.serial.only");
+    expect(findings.join("\n")).toContain("test.describe.parallel.only");
+  });
+
+  // ── RED 3 (WR-12): the INVERTING modifier is decided, not left silent ────────────────────────
+  it("refuses test.fail — an inverted scenario is worse evidence than a removed one", () => {
+    const findings = findingsOf([IMPORT, 'test.fail("inverted", async () => {});', ""].join("\n"));
+    expect(findings.length).toBe(1);
+    expect(findings[0]).toContain("test.fail");
+  });
+
+  // ── CONTROL: unchanged before and after, so the change is in MEMBERSHIP, not in shape ────────
+  it("still refuses test.describe.only exactly once — the control the verifier ran", () => {
+    const findings = findingsOf(
+      [IMPORT, 'test.describe.only("control", () => {});', ""].join("\n"),
+    );
+    expect(findings.length).toBe(1);
+    expect(findings[0]).toContain("test.describe.only");
+  });
+
+  // ── the three constants ARE a head set, a tail set and an exact-path set ─────────────────────
+  it("exports the rule as a head set, a tail set and an exact-path set", async () => {
+    const { BANNED_MODIFIER_HEADS, BANNED_MODIFIER_TAILS, BANNED_EXACT_PATHS } = await loadChecker();
+    const SEGMENT = /^[A-Za-z_$][A-Za-z0-9_$]*$/;
+    const DOTTED = /^[A-Za-z_$][A-Za-z0-9_$]*(?:\.[A-Za-z_$][A-Za-z0-9_$]*)+$/;
+
+    expect(BANNED_MODIFIER_HEADS.length, "PREMISE: the head set is empty").toBeGreaterThan(0);
+    expect(BANNED_MODIFIER_TAILS.length, "PREMISE: the tail set is empty").toBeGreaterThan(0);
+    expect(BANNED_EXACT_PATHS.length, "PREMISE: the exact-path set is empty").toBeGreaterThan(0);
+
+    // A head set and a tail set hold SEGMENTS. A segment carrying a dot would be a dotted path
+    // smuggled into a set that is supposed to be one register below one.
+    for (const head of BANNED_MODIFIER_HEADS) expect(SEGMENT.test(head), head).toBe(true);
+    for (const tail of BANNED_MODIFIER_TAILS) expect(SEGMENT.test(tail), tail).toBe(true);
+    for (const path of BANNED_EXACT_PATHS) expect(DOTTED.test(path), path).toBe(true);
+
+    // WR-12: the inverting modifier is DECIDED, not silently undecided.
+    expect(BANNED_MODIFIER_TAILS, "WR-12: the inverting modifier must be decided").toContain("fail");
+  });
+
+  // ── D-14's letter is preserved: every name it enumerated is still decided by the rule ────────
+  it("the rule still decides every dotted path D-14 named", async () => {
+    const { isBannedModifierPath } = await loadChecker();
+    for (const d14 of [
+      "test.skip",
+      "test.fixme",
+      "test.only",
+      "test.describe.skip",
+      "test.describe.only",
+      "test.describe.fixme",
+      "describe.skip",
+      "describe.only",
+      "expect.soft",
+    ]) {
+      expect(isBannedModifierPath(d14), `D-14/31-06 named ${d14} and it must stay banned`).toBe(true);
+    }
+  });
+
+  // ── GREEN 1: the refusal corpus is GENERATED from the rule, and its size is COMPUTED ─────────
+  it("refuses every spelling in the rule's own cross product, one finding each", async () => {
+    const { BANNED_MODIFIER_HEADS, BANNED_MODIFIER_TAILS, BANNED_EXACT_PATHS } = await loadChecker();
+    const corpus = ruleCorpus(BANNED_MODIFIER_HEADS, BANNED_MODIFIER_TAILS, BANNED_EXACT_PATHS);
+
+    // PREMISE: a generator that silently produced nothing would pass every assertion below.
+    const expectedSize =
+      BANNED_MODIFIER_HEADS.length * REPRESENTATIVE_ROUTING_CHAINS.length * BANNED_MODIFIER_TAILS.length +
+      BANNED_EXACT_PATHS.length;
+    expect(corpus.length, "PREMISE: the cross product is not the product of the sets").toBe(
+      expectedSize,
+    );
+
+    const body = [
+      IMPORT,
+      ...corpus.map((path, i) => `${path}("scenario ${i}", async () => {});`),
+      "",
+    ].join("\n");
+    const findings = findingsOf(body);
+    expect(findings.length).toBe(corpus.length);
+    for (const path of corpus) {
+      expect(findings.some((f) => f.includes(path)), `${path}: absent from the union`).toBe(true);
+    }
+  });
+
+  // ── GREEN 2: the CONVERSE — a routing segment WITHOUT a banned tail is not refused ───────────
+  it("refuses nothing when a routing segment carries no banned tail", () => {
+    const body = [
+      IMPORT,
+      'test.describe.serial("billing", () => {',
+      '  test("an invoice is shown", async ({ page }) => {',
+      '    await expect(page.getByTestId("invoice-total")).toHaveText("$42.00");',
+      "  });",
+      "});",
+      'test.describe.parallel("refunds", () => {',
+      '  test("a refund is issued", async ({ page }) => {',
+      '    await expect(page.getByTestId("refund-status")).toHaveText("Issued");',
+      "  });",
+      "});",
+      'test.describe.configure({ mode: "serial" });',
+      'test("a plain scenario", async ({ page }) => {',
+      '  await page.goto("/x");',
+      '  await expect(page.getByTestId("x")).toBeVisible();',
+      "});",
+      "",
+    ].join("\n");
+    expect(findingsOf(body)).toEqual([]);
+  });
+
+  // ── ONE AUTHORITY: the arm-(c) call site ASKS, and decides nothing itself ────────────────────
+  it("the arm-(c) call site is exactly one call to the membership authority", () => {
+    const sf = parseCommittedChecker();
+    const fn = findFunction(sf, "findBannedConstructs");
+
+    const armC: import("typescript").IfStatement[] = [];
+    const walk = (node: import("typescript").Node): void => {
+      if (tsApi.isIfStatement(node)) {
+        const text = node.expression.getText(sf);
+        if (text.includes("isBannedModifierPath")) armC.push(node);
+      }
+      tsApi.forEachChild(node, walk);
+    };
+    tsApi.forEachChild(fn, walk);
+
+    expect(armC.length, "PREMISE: arm (c) does not ask the membership authority at all").toBe(1);
+    const condition = armC[0].expression;
+    // The condition IS the call — no `&&`, no null comparison, no membership test of its own.
+    expect(tsApi.isCallExpression(condition), condition.getText(sf)).toBe(true);
+    const call = condition as import("typescript").CallExpression;
+    expect(call.expression.getText(sf)).toBe("isBannedModifierPath");
+    expect(call.arguments.length).toBe(1);
+  });
+
+  it("the three rule constants are read ONLY inside the membership authority", () => {
+    const sf = parseCommittedChecker();
+    const names = ["BANNED_MODIFIER_HEADS", "BANNED_MODIFIER_TAILS", "BANNED_EXACT_PATHS"];
+    const offenders: string[] = [];
+    let references = 0;
+
+    const walk = (node: import("typescript").Node, enclosing: string | null): void => {
+      let next = enclosing;
+      if (tsApi.isFunctionDeclaration(node) && node.name !== undefined) next = node.name.text;
+      if (tsApi.isIdentifier(node) && names.includes(node.text)) {
+        const parent = node.parent as import("typescript").Node | undefined;
+        const isDeclarationName =
+          parent !== undefined &&
+          tsApi.isVariableDeclaration(parent) &&
+          parent.name === (node as import("typescript").Node);
+        if (!isDeclarationName) {
+          references++;
+          if (next !== "isBannedModifierPath") offenders.push(`${node.text} in ${next ?? "<module>"}`);
+        }
+      }
+      tsApi.forEachChild(node, (child) => walk(child, next));
+    };
+    tsApi.forEachChild(sf, (child) => walk(child, null));
+
+    // PREMISE: a walk that found no reference at all would report zero offenders vacuously.
+    expect(references, "PREMISE: the rule constants are never read").toBeGreaterThan(0);
+    expect(offenders).toEqual([]);
+  });
+
+  it("no exported constant is an enumerable list of banned dotted paths", async () => {
+    const mod = (await import("./uat-spec-integrity.js")) as unknown as Record<string, unknown>;
+    const DOTTED = /^[A-Za-z_$][A-Za-z0-9_$]*(?:\.[A-Za-z_$][A-Za-z0-9_$]*)+$/;
+    const offenders: string[] = [];
+    let arraysExamined = 0;
+    for (const [name, value] of Object.entries(mod)) {
+      if (!Array.isArray(value)) continue;
+      if (!value.every((v) => typeof v === "string")) continue;
+      arraysExamined++;
+      if (!value.some((v) => DOTTED.test(v as string))) continue;
+      if (name !== "BANNED_EXACT_PATHS") offenders.push(name);
+    }
+    // PREMISE: the module really does export string arrays, or the scan proves nothing.
+    expect(arraysExamined, "PREMISE: no exported string array was examined").toBeGreaterThan(0);
+    expect(offenders).toEqual([]);
+    expect(mod.BANNED_CONSTRUCTS, "the enumerable ban list must not survive").toBeUndefined();
+  });
+
+  // ── the verifier's own probe, end to end, through the COMMITTED artifact ─────────────────────
+  it("the spec 31-VERIFICATION.md round 2 ran exits 1 with one finding per planted spelling", () => {
+    const root = plantSpec(
+      [
+        IMPORT,
+        "",
+        'test.describe.serial.only("evasion-serial", () => {',
+        '  test("an invoice is shown", async ({ page }) => {',
+        '    await page.goto("/billing");',
+        '    await expect(page.getByTestId("invoice-total")).toHaveText("$42.00");',
+        "  });",
+        "});",
+        "",
+        'test.describe.parallel.only("evasion-parallel", () => {',
+        '  test("a refund is issued", async ({ page }) => {',
+        '    await page.goto("/refunds");',
+        '    await expect(page.getByTestId("refund-status")).toHaveText("Issued");',
+        "  });",
+        "});",
+        "",
+      ].join("\n"),
+    );
+    const r = runCheck(root);
+    expect(r.status).toBe(1);
+    expect(r.stdout).toContain("2 finding(s) over 1/1 uat specs checked");
+    expect(r.stdout).toContain("test.describe.serial.only");
+    expect(r.stdout).toContain("test.describe.parallel.only");
   });
 });
