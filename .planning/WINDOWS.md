@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 145
+open_count: 148
 waived_count: 0
 fixed_count: 4
-total_count: 149
-last_updated: 2026-09-08T14:55:00.934Z
+total_count: 152
+last_updated: 2026-09-08T15:28:05.899Z
 ---
 
 # Broken Windows Ledger
@@ -164,6 +164,9 @@ last_updated: 2026-09-08T14:55:00.934Z
 | 147 | 31 | deviation | scripts/context-io-writer-set.test.ts |  | 31-10 deviation 1: the plan's 'probe union equals the WHOLE derived set' criterion rested on a premise measurement disproved — S1 is unreachable; the set is now partitioned into reachable + positively-proven-unreachable | open |  | 2026-09-08T14:55:00.772Z |  |
 | 148 | 31 | deviation | .planning/config.json |  | 31-10 deviation 3: commits made on the protected default branch main without git.allow_default_branch_commits; set the flag if sequential-on-main is intended | open |  | 2026-09-08T14:55:00.854Z |  |
 | 149 | 31 | unmet-truth | scripts/context-io.ts |  | 31-10 R-37: admit()'s own 'no YAML frontmatter fence' refusal is DEAD CODE behind validate()'s delegation — derived, driven and disclosed, not removed; a plan owning context-io.ts must decide whether it earns its place | open |  | 2026-09-08T14:55:00.934Z |  |
+| 150 | 31 | unrun-verify | scripts/runnable-ref/fixtures/playwright-test.d.ts |  | The reverse partition's denominator is a hand transcription: coverage of the DECLARED surface is established, coverage of the released @playwright/test package is not (R-07, UNKNOWN - verify) | open |  | 2026-09-08T15:28:05.725Z |  |
+| 151 | 31 | unrun-verify | scripts/runnable-ref/uat-spec-integrity.test.ts |  | The surface walk is bounded at SURFACE_WALK_MAX_DEPTH = 4; a modifier family declared deeper than four segments is outside the measurement | open |  | 2026-09-08T15:28:05.815Z |  |
+| 152 | 31 | deviation | scripts/runnable-ref/uat-spec-integrity.test.ts |  | test.describe.configure carries the weakest disposition reason in the record: its retries option changes how a failed result is read, so a red-team round could reasonably reverse the disposition to a refusal | open |  | 2026-09-08T15:28:05.899Z |  |
 
 ````json
 [
@@ -1953,6 +1956,42 @@ last_updated: 2026-09-08T14:55:00.934Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-09-08T14:55:00.934Z",
+    "resolved_at": null
+  },
+  {
+    "id": 150,
+    "kind": "unrun-verify",
+    "phase": "31",
+    "file": "scripts/runnable-ref/fixtures/playwright-test.d.ts",
+    "line": null,
+    "description": "The reverse partition's denominator is a hand transcription: coverage of the DECLARED surface is established, coverage of the released @playwright/test package is not (R-07, UNKNOWN - verify)",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-08T15:28:05.725Z",
+    "resolved_at": null
+  },
+  {
+    "id": 151,
+    "kind": "unrun-verify",
+    "phase": "31",
+    "file": "scripts/runnable-ref/uat-spec-integrity.test.ts",
+    "line": null,
+    "description": "The surface walk is bounded at SURFACE_WALK_MAX_DEPTH = 4; a modifier family declared deeper than four segments is outside the measurement",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-08T15:28:05.815Z",
+    "resolved_at": null
+  },
+  {
+    "id": 152,
+    "kind": "deviation",
+    "phase": "31",
+    "file": "scripts/runnable-ref/uat-spec-integrity.test.ts",
+    "line": null,
+    "description": "test.describe.configure carries the weakest disposition reason in the record: its retries option changes how a failed result is read, so a red-team round could reasonably reverse the disposition to a refusal",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-08T15:28:05.899Z",
     "resolved_at": null
   }
 ]
