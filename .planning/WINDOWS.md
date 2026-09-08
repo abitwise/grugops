@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 142
+open_count: 145
 waived_count: 0
 fixed_count: 4
-total_count: 146
-last_updated: 2026-09-08T14:16:41.492Z
+total_count: 149
+last_updated: 2026-09-08T14:55:00.934Z
 ---
 
 # Broken Windows Ledger
@@ -161,6 +161,9 @@ last_updated: 2026-09-08T14:16:41.492Z
 | 144 | 31 | deviation | scripts/context-io.ts |  | Q9 residual: an in-process caller that can import scripts/context-io.js can mint its own green verdict via the exported emitVerdict and then admit a finding against it; measured in 31-09's red-team pass, strictly improved but not closed by 31-09 | open |  | 2026-09-08T13:33:19.523Z |  |
 | 145 | 31 | unrun-verify | docs/audit/29-style-dispositions/ |  | check:diff-disposition carries 75 undispositioned clauses owned by plans 31-05/31-06/31-08; measured at 78 before 31-09's prose commit on a hermetic clone at 012364d | open |  | 2026-09-08T13:33:19.617Z |  |
 | 146 | 31 | unmet-truth | scripts/runnable-ref/uat-spec-integrity.ts |  | 31-11 (D-17): the ban rule's head and tail sets are hand-authored and completeness against the real Playwright modifier surface is asserted in ONE direction only; plan 31-12's reverse partition closes it | open |  | 2026-09-08T14:16:41.492Z |  |
+| 147 | 31 | deviation | scripts/context-io-writer-set.test.ts |  | 31-10 deviation 1: the plan's 'probe union equals the WHOLE derived set' criterion rested on a premise measurement disproved — S1 is unreachable; the set is now partitioned into reachable + positively-proven-unreachable | open |  | 2026-09-08T14:55:00.772Z |  |
+| 148 | 31 | deviation | .planning/config.json |  | 31-10 deviation 3: commits made on the protected default branch main without git.allow_default_branch_commits; set the flag if sequential-on-main is intended | open |  | 2026-09-08T14:55:00.854Z |  |
+| 149 | 31 | unmet-truth | scripts/context-io.ts |  | 31-10 R-37: admit()'s own 'no YAML frontmatter fence' refusal is DEAD CODE behind validate()'s delegation — derived, driven and disclosed, not removed; a plan owning context-io.ts must decide whether it earns its place | open |  | 2026-09-08T14:55:00.934Z |  |
 
 ````json
 [
@@ -1914,6 +1917,42 @@ last_updated: 2026-09-08T14:16:41.492Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-09-08T14:16:41.492Z",
+    "resolved_at": null
+  },
+  {
+    "id": 147,
+    "kind": "deviation",
+    "phase": "31",
+    "file": "scripts/context-io-writer-set.test.ts",
+    "line": null,
+    "description": "31-10 deviation 1: the plan's 'probe union equals the WHOLE derived set' criterion rested on a premise measurement disproved — S1 is unreachable; the set is now partitioned into reachable + positively-proven-unreachable",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-08T14:55:00.772Z",
+    "resolved_at": null
+  },
+  {
+    "id": 148,
+    "kind": "deviation",
+    "phase": "31",
+    "file": ".planning/config.json",
+    "line": null,
+    "description": "31-10 deviation 3: commits made on the protected default branch main without git.allow_default_branch_commits; set the flag if sequential-on-main is intended",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-08T14:55:00.854Z",
+    "resolved_at": null
+  },
+  {
+    "id": 149,
+    "kind": "unmet-truth",
+    "phase": "31",
+    "file": "scripts/context-io.ts",
+    "line": null,
+    "description": "31-10 R-37: admit()'s own 'no YAML frontmatter fence' refusal is DEAD CODE behind validate()'s delegation — derived, driven and disclosed, not removed; a plan owning context-io.ts must decide whether it earns its place",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-08T14:55:00.934Z",
     "resolved_at": null
   }
 ]

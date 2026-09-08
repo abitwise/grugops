@@ -974,7 +974,7 @@ Plans:
   4. An evidence note carries commit SHA + gate-run id + content hash, and a note whose SHA is not the HEAD the gate ran against is refused. (UATX-04)
   5. An absent or unusable browser produces a **loud skip** that leaves the UAT `pending` (reusing the existing Tier-2 convention verbatim, never a silent pass), and a generated spec containing a conditional or caught assertion is rejected over the **TypeScript AST** rather than by regex, so the claim matches the mechanism. (UATX-05, UATX-06)
 
-**Plans**: 10/12 plans executed — 8/8 executed (the original 4 across waves 1, 1, 2, 3, plus 4 gap-closure plans from the 2026-09-07 verification across waves 1, 2, 2, 3), plus 4 gap-closure plans planned 2026-09-08 and not yet executed. **Gap-closure round 2 (`31-09`…`31-12`)** answers the round-2 verification (`gaps_found` 4/6, 2026-09-08) and the gap-closure code review (`31-REVIEW.md`, CR-05 and CR-06). Both remaining blockers are the round-1 defects reappearing one register over: `appendNote` reaches the admission authority for one KIND (CR-05/UATX-01), and the modifier ban is decided by an enumerable literal rather than a rule (CR-06/UATX-06). The round is a STRUCTURAL fix in both places rather than a third iteration — `31-09` deletes the kind axis so the writer expresses no opinion about which notes admission applies to, and `31-11` deletes the enumerable ban set so a new intermediate segment cannot create a new hole. `31-10` and `31-12` derive the axis each fix's remaining hand-authored set sits on and assert its cardinality, which is the check that was one-directional in both cases. UATX-01 and UATX-06 stay `[ ]` / Gaps Found throughout: only a verification round may flip them.
+**Plans**: 11/12 plans executed — 8/8 executed (the original 4 across waves 1, 1, 2, 3, plus 4 gap-closure plans from the 2026-09-07 verification across waves 1, 2, 2, 3), plus 4 gap-closure plans planned 2026-09-08 and not yet executed. **Gap-closure round 2 (`31-09`…`31-12`)** answers the round-2 verification (`gaps_found` 4/6, 2026-09-08) and the gap-closure code review (`31-REVIEW.md`, CR-05 and CR-06). Both remaining blockers are the round-1 defects reappearing one register over: `appendNote` reaches the admission authority for one KIND (CR-05/UATX-01), and the modifier ban is decided by an enumerable literal rather than a rule (CR-06/UATX-06). The round is a STRUCTURAL fix in both places rather than a third iteration — `31-09` deletes the kind axis so the writer expresses no opinion about which notes admission applies to, and `31-11` deletes the enumerable ban set so a new intermediate segment cannot create a new hole. `31-10` and `31-12` derive the axis each fix's remaining hand-authored set sits on and assert its cardinality, which is the check that was one-directional in both cases. UATX-01 and UATX-06 stay `[ ]` / Gaps Found throughout: only a verification round may flip them.
 
 Plans:
 **Wave 1**
@@ -1014,7 +1014,7 @@ Plans:
 
 **Gap wave 5** *(blocked on gap wave 4)*
 
-- [ ] 31-10-PLAN.md — derive the refusal-family axis from `admit()`'s own source and exercise every writer against every family, with the probes proven to discriminate and the converse tested (UATX-01, UATX-04)
+- [x] 31-10-PLAN.md — derive the refusal-family axis from `admit()`'s own source and exercise every writer against every family, with the probes proven to discriminate and the converse tested (UATX-01, UATX-04)
 - [ ] 31-12-PLAN.md — the reverse cross-check WR-13 names: enumerate the declared Playwright modifier surface by the TypeScript checker and partition it totally into refused-by-rule and dispositioned-with-a-reason, cardinality asserted (UATX-02, UATX-06)
 
 **Research flag:** plan with `--research-phase`. Whether `mcp__claude-in-chrome__*` tools are reachable from inside a subagent is explicitly `UNKNOWN - verify`; verify before designing any flow that assumes it. The phase's core recommendation (Playwright as the floor) does not depend on the answer.
@@ -1089,7 +1089,7 @@ Plans:
 | 29.1. Per-Role Model Assignment | v2.1 | 25/25 | Closed by user override D-29.1-19 (verification gaps_found; 3 blockers accepted open, WINDOWS.md rows 105-107) | 2026-09-03 |
 | 29.2. Model Assignment Delivery Path | v2.1 | 6/6 | Complete    | 2026-09-07 |
 | 30. Per-Checkpoint Autonomy Matrix | v2.1 | 11/11 | Complete    | 2026-09-07 |
-| 31. Autonomous Manual Testing | v2.1 | 10/12 | In Progress|  |
+| 31. Autonomous Manual Testing | v2.1 | 11/12 | In Progress|  |
 | 32. Board Projector & CLI Dashboard | v2.1 | 0/TBD | Not started | - |
 | 33. Live Capture & Windows Portability | v2.1 | 0/TBD | Not started | - |
 
