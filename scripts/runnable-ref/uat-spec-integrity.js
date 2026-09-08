@@ -4,7 +4,8 @@
 // over the TypeScript AST, never by regex. A Playwright spec is full of selectors, comments and
 // string literals that read like assertions; a textual matcher would refuse those and would let the
 // recipe's prose claim more than the checker actually decides. The claim matches the mechanism
-// because BANNED_CONSTRUCTS below is the ONE set the recipe quotes.
+// because isBannedModifierPath below is the ONE authority that answers whether a resolved path is
+// banned, and the three constants that rule reads are the constants the recipe quotes by value.
 //
 // It is also the mechanical half of UATX-05: when the parser or the browser lane is unusable, the
 // run is a LOUD SKIP at exit 2 — "could not run" — so the UAT stays pending. A silent green is the
@@ -54,24 +55,41 @@ export const SKIPPED_DIRECTORIES = Object.freeze([
     "dist",
     "tools",
 ]);
-// D-14 arm (c): the banned member calls, as ONE frozen exported constant of DOTTED PATHS. The
-// browser-UAT recipe QUOTES this set, so the documented claim and the decided set have a single
-// source.
+// D-14 arm (c), as decided by D-17: the banned member calls are a RULE over the resolved dotted
+// path, never an enumerable list of dotted paths. The browser-UAT recipe quotes the three constants
+// below BY VALUE and states the rule in prose, so the documented claim and the decided rule have a
+// single source.
 //
-// WHY NINE MEMBERS RATHER THAN D-14'S SIX (31-06, closing gap 2 of 31-VERIFICATION.md). D-14
-// enumerated `test.skip`, `test.fixme`, `test.only`, `describe.skip`, `describe.only`,
-// `expect.soft`, and the matcher took that enumeration literally as an object/member PAIR — a BARE
-// `describe.only(...)`. `@playwright/test` exports no top-level `describe`. The only spellings
-// Playwright can produce are `test.describe.only(...)` and its two siblings, so the arm matched a
-// callee shape the package never emits: a spec carrying all three reported ZERO findings and exited
-// 0, narrowing an entire gate run to one describe block undetected.
+// D-17 (2026-09-08, gap-closure round 2, extending D-14 arm (c); forced by CR-06 and WR-12 of
+// 31-REVIEW.md and by gap 2 of 31-VERIFICATION.md round 2). 31-06 closed gap 2 by centralising the
+// SHAPE question in calleeDottedPath and leaving the MEMBERSHIP question as a nine-member literal
+// compared by `includes`. The round-2 verifier then planted `test.describe.serial.only(...)` and
+// `test.describe.parallel.only(...)` — real Playwright spellings that narrow an entire gate run
+// exactly as `test.describe.only(...)` does — and this runnable reported `0 findings over 1/1 uat
+// specs checked` at exit 0, on the same harness that correctly refuses `test.describe.only` alone.
+// That is the same defect one segment over: a hand-maintained set literal rotting while every gate
+// over it stays green. Adding two more members would have been the third round of the same edit.
 //
-// The set below is the UNION of D-14's six and the three real spellings. Nothing D-14 named stops
-// being banned: the two bare-describe names are RETAINED, because D-14 names them and because
-// another framework's bare `describe` can be imported into a spec file. The round only ADDS the
-// spellings the matcher could not see.
+// THE RULE, AND WHY IT IS A RULE. A modifier call is banned by the HEAD it starts from and the
+// MODIFIER it ends in. The segments in between — `describe`, `serial`, `parallel`, and whatever
+// routing segment Playwright adds next — ROUTE the call; they do not change what the tail does to
+// the evidence a gate re-runs. Matching the PAIR rather than the whole literal path is what makes
+// this a rule instead of an enumeration: `test.describe.serial.only` needs no new member, and
+// neither will its successor. `expect.soft` is a head/tail pair of its own kind and stays explicit.
 //
-// DELIBERATELY OUT OF THE SET, and why it is written down here rather than left to be rediscovered:
+// D-14'S LETTER IS PRESERVED. Every path D-14 named — `test.skip`, `test.fixme`, `test.only`,
+// `describe.skip`, `describe.only`, `expect.soft` — is still decided, and so are the three
+// `test.describe.*` spellings 31-06 added. The bare-`describe` head is RETAINED: `@playwright/test`
+// exports no top-level `describe`, but another framework's bare `describe` can be imported into a
+// spec file, and D-14 names it.
+//
+// WR-12: THE INVERTING MODIFIER IS DECIDED, NOT SILENT. `test.fail(...)` marks a scenario as
+// expected to fail, so Playwright reports a failing assertion as a pass. Its effect on the evidence
+// is strictly WORSE than removal — the scenario is not dropped, it is inverted, and the lane is
+// green BECAUSE the acceptance criterion failed. It joins the tail set. Leaving it undecided was
+// also a choice, and it was being made silently.
+//
+// DELIBERATELY OUTSIDE THE RULE, written down here rather than left to be rediscovered:
 //   - a promise `.catch()` handler — an assertion inside one is not refused;
 //   - a finally block — D-14 names the try block and the catch clause, and names no third region;
 //   - a spec body containing zero `expect` calls — vacuous evidence, explicitly deferred;
@@ -79,19 +97,45 @@ export const SKIPPED_DIRECTORIES = Object.freeze([
 // These are DEFERRED, not overlooked. Widening a parser quietly is the failure mode a prior phase
 // closed by defining a canonical form instead of adding one more spelling. A red-team finding on any
 // of them is a NEW DECISION and a gap-closure round, never a quiet edit here.
-export const BANNED_CONSTRUCTS = Object.freeze([
-    "test.skip",
-    "test.fixme",
-    "test.only",
-    "test.describe.skip",
-    "test.describe.only",
-    "test.describe.fixme",
-    "describe.skip",
-    "describe.only",
-    "expect.soft",
+//
+// WHAT THIS RULE DOES NOT ESTABLISH. The head set and the tail set are HAND-AUTHORED, which is the
+// axis this defect can reappear on. That the rule covers the real Playwright modifier surface is
+// asserted in ONE direction only — every spelling it bans is real — until plan 31-12 lands the
+// reverse partition over the declared surface. The declared surface is itself a hand transcription
+// whose drift from the package is an open `UNKNOWN - verify`.
+export const BANNED_MODIFIER_HEADS = Object.freeze(["test", "describe"]);
+export const BANNED_MODIFIER_TAILS = Object.freeze([
+    "skip",
+    "only",
+    "fixme",
+    "fail",
 ]);
+export const BANNED_EXACT_PATHS = Object.freeze(["expect.soft"]);
+/**
+ * THE ONE MEMBERSHIP AUTHORITY. Answers whether a resolved dotted path is banned, and nothing else
+ * in this file answers that question: the arm-(c) call site ASKS this function and performs no
+ * comparison of its own. Keeping a list of banned dotted paths beside this rule would be two
+ * authorities for one question, which is exactly what this file's header forbids and exactly what
+ * the round-2 verification found.
+ *
+ * `null` — the path calleeDottedPath returns when it cannot resolve the callee from the source text
+ * alone — is accepted and answered `false`, so the caller needs no null comparison either. The
+ * return type is a predicate so the caller keeps the narrowed string it reports.
+ */
+export function isBannedModifierPath(dottedPath) {
+    if (dottedPath === null)
+        return false;
+    if (BANNED_EXACT_PATHS.includes(dottedPath))
+        return true;
+    const segments = dottedPath.split(".");
+    // A single segment is a plain call, not a modifier call: `test(...)` is the thing the gate runs.
+    if (segments.length < 2)
+        return false;
+    return (BANNED_MODIFIER_HEADS.includes(segments[0]) &&
+        BANNED_MODIFIER_TAILS.includes(segments[segments.length - 1]));
+}
 // The callee shapes calleeDottedPath CANNOT resolve, exported as prose so the recipe quotes the
-// disclosed boundary from the same source as the decided set. Resolving either one needs a type
+// disclosed boundary from the same source as the decided rule. Resolving either one needs a type
 // checker to follow a binding to its declaration, and this runnable deliberately ships no type
 // checker (D-13): it resolves `typescript` from the TARGET repository at run time and uses it to
 // PARSE, never to check types. Both shapes are therefore NAMED here rather than left as a silence.
@@ -305,7 +349,7 @@ function bannedContextOf(ts, call, allowConditional) {
     while (cur !== undefined) {
         if (ts.isTryStatement(cur)) {
             // Exactly the try block and the catch clause. A finally block is deliberately outside the
-            // locked set — see the note beside BANNED_CONSTRUCTS.
+            // locked set — see the "deliberately outside the rule" note beside the modifier rule.
             if (prev === cur.tryBlock)
                 return { arm: "a", where: "inside a try block" };
             if (cur.catchClause !== undefined && prev === cur.catchClause) {
@@ -449,15 +493,23 @@ export function findBannedConstructs(ts, sf, relPath) {
     const visit = (node) => {
         if (ts.isCallExpression(node)) {
             // ── arm (c): a banned modifier call ────────────────────────────────────────────────────
-            // ONE normaliser, ONE comparison. No callee shape is inspected here: every shape question
-            // belongs to calleeDottedPath, so the two can never answer differently.
+            // ONE normaliser, ONE authority. No callee shape is inspected here — every shape question
+            // belongs to calleeDottedPath — and no membership is decided here either: the whole condition
+            // is the question put to isBannedModifierPath. Two places that decide one question are two
+            // places for the answers to disagree, which is how CR-06 happened.
             const dottedPath = calleeDottedPath(ts, node.expression);
-            if (dottedPath !== null && BANNED_CONSTRUCTS.includes(dottedPath)) {
+            if (isBannedModifierPath(dottedPath)) {
                 const pos = node.getStart(sf);
+                // ONE emission point, and ONE sentence true of the WHOLE banned family. It used to say the
+                // call "removes the scenario", which was true of `skip`/`only`/`fixme` and FALSE of the
+                // inverting `fail` that D-17 added: `fail` runs the scenario and reports a failing
+                // assertion as a pass. A finding that misstates what the construct does to the evidence is
+                // the claim-broader-than-the-mechanism defect this whole file exists to avoid, so the
+                // sentence names both harms rather than branching into a second emission point.
                 findings.push({
                     pos,
-                    text: `${relPath}:${lineOf(pos)}: banned modifier call — \`${dottedPath}\` removes the ` +
-                        `scenario from the evidence the quality gate re-runs, so a green lane would certify a scenario nobody exercised.`,
+                    text: `${relPath}:${lineOf(pos)}: banned modifier call — \`${dottedPath}\` decides which ` +
+                        `scenarios the quality gate re-runs and how their results are read, so a green lane could certify a scenario nobody exercised or one whose acceptance criterion failed.`,
                 });
             }
             // ── arms (a) and (b): a caught or conditional assertion ─────────────────────────────────

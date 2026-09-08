@@ -55,7 +55,6 @@ interface CheckerModule {
   readonly PARSER_ABSENT_MARKER: string;
   readonly BROWSER_ABSENT_MARKER: string;
   readonly BROWSER_ABSENT_STAGES: Readonly<Record<"parser_package" | "browser_binaries", string>>;
-  readonly BANNED_CONSTRUCTS: readonly string[];
   readonly BANNED_MODIFIER_HEADS: readonly string[];
   readonly BANNED_MODIFIER_TAILS: readonly string[];
   readonly BANNED_EXACT_PATHS: readonly string[];
@@ -267,16 +266,17 @@ describe("uat-spec-integrity.js — the D-12 contract and D-14 arm (c) (UATX-06)
     expect(r.stdout).toContain("test.skip");
   });
 
-  // ── the ban set is ONE exported constant the recipe quotes (D-14 "claim matches mechanism") ────
+  // ── the ban is ONE exported rule the recipe quotes (D-14 "claim matches mechanism") ───────────
   //
-  // 31-06: the set is now DOTTED PATHS and has nine members — D-14's six, with its arm (c) names
-  // re-expressed as paths, PLUS the three `test.describe.*` spellings @playwright/test actually
-  // produces. Nothing D-14 named stopped being banned; the two bare-describe names are retained.
-  it("exports BANNED_CONSTRUCTS as the nine dotted paths, a strict superset of D-14's six", async () => {
-    const { BANNED_CONSTRUCTS, UAT_SPEC_GLOB_SUFFIX } = await loadChecker();
+  // 31-11 (D-17): the membership question is no longer a set of dotted paths at all. It is a rule
+  // over the resolved path — a banned HEAD segment plus a banned TAIL segment, or one of the exact
+  // paths — answered in exactly one place. Nothing D-14 named stopped being banned; the assertion
+  // below asks the rule rather than a list, because a list beside the rule is the drift CR-06 was.
+  it("exports the membership rule, and it still decides every path D-14 and 31-06 named", async () => {
+    const { isBannedModifierPath, UAT_SPEC_GLOB_SUFFIX } = await loadChecker();
     expect(UAT_SPEC_GLOB_SUFFIX).toBe(".uat.spec.ts");
-    expect(BANNED_CONSTRUCTS.every((b) => typeof b === "string")).toBe(true);
-    expect([...BANNED_CONSTRUCTS].sort()).toEqual([
+    expect(typeof isBannedModifierPath).toBe("function");
+    for (const decided of [
       "describe.only",
       "describe.skip",
       "expect.soft",
@@ -286,17 +286,8 @@ describe("uat-spec-integrity.js — the D-12 contract and D-14 arm (c) (UATX-06)
       "test.fixme",
       "test.only",
       "test.skip",
-    ]);
-    // D-14's letter is PRESERVED: every name it enumerated is still decided.
-    for (const d14 of [
-      "test.skip",
-      "test.fixme",
-      "test.only",
-      "describe.skip",
-      "describe.only",
-      "expect.soft",
     ]) {
-      expect(BANNED_CONSTRUCTS, `D-14 named ${d14} and it must stay banned`).toContain(d14);
+      expect(isBannedModifierPath(decided), `${decided} must stay banned`).toBe(true);
     }
   });
 });
@@ -721,12 +712,27 @@ describe("uat-spec-integrity.js — 31-06 gap 2: the real Playwright modifier sp
     }
   });
 
-  // ── GREEN 1: every member is exercised FROM the constant, never from a typed-out name ────────
-  it("refuses every member of BANNED_CONSTRUCTS, iterated from the exported constant", async () => {
-    const { BANNED_CONSTRUCTS } = await loadChecker();
-    // PREMISE: the set is non-empty, so the loop below is not a vacuous pass.
-    expect(BANNED_CONSTRUCTS.length, "PREMISE: BANNED_CONSTRUCTS is empty").toBeGreaterThan(0);
-    for (const path of BANNED_CONSTRUCTS) {
+  // ── GREEN 1: every spelling is exercised FROM the rule, never from a typed-out name ──────────
+  //
+  // 31-11 (D-17): this consumer used to iterate a list of banned dotted paths. There is no such
+  // list any more, so the spellings are GENERATED from the rule's head and tail sets — the direct
+  // head-plus-tail spellings, with the routing-chain cross product covered by the 31-11 block at
+  // the end of this file. The generated spellings are evidence, never a second authority.
+  async function directRuleSpellings(): Promise<string[]> {
+    const { BANNED_MODIFIER_HEADS, BANNED_MODIFIER_TAILS, BANNED_EXACT_PATHS } = await loadChecker();
+    const out: string[] = [];
+    for (const head of BANNED_MODIFIER_HEADS) {
+      for (const tail of BANNED_MODIFIER_TAILS) out.push(`${head}.${tail}`);
+    }
+    for (const path of BANNED_EXACT_PATHS) out.push(path);
+    return [...new Set(out)];
+  }
+
+  it("refuses every spelling the rule decides, generated from the exported constants", async () => {
+    const spellings = await directRuleSpellings();
+    // PREMISE: the generator is non-empty, so the loop below is not a vacuous pass.
+    expect(spellings.length, "PREMISE: the rule generated no spelling").toBeGreaterThan(0);
+    for (const path of spellings) {
       const findings = findingsOf([IMPORT, `${path}("a scenario", async () => {});`, ""].join("\n"));
       expect(findings.length, `${path}: expected exactly one finding`).toBe(1);
       expect(findings[0]).toContain(path);
@@ -734,16 +740,16 @@ describe("uat-spec-integrity.js — 31-06 gap 2: the real Playwright modifier sp
   });
 
   // ── GREEN 2: the UNION of the arms, not the first hit ────────────────────────────────────────
-  it("reports one finding per member when every member appears in ONE spec", async () => {
-    const { BANNED_CONSTRUCTS } = await loadChecker();
+  it("reports one finding per spelling when every spelling appears in ONE spec", async () => {
+    const spellings = await directRuleSpellings();
     const body = [
       IMPORT,
-      ...BANNED_CONSTRUCTS.map((path, i) => `${path}("scenario ${i}", async () => {});`),
+      ...spellings.map((path, i) => `${path}("scenario ${i}", async () => {});`),
       "",
     ].join("\n");
     const findings = findingsOf(body);
-    expect(findings.length).toBe(BANNED_CONSTRUCTS.length);
-    for (const path of BANNED_CONSTRUCTS) {
+    expect(findings.length).toBe(spellings.length);
+    for (const path of spellings) {
       expect(findings.some((f) => f.includes(path)), `${path}: absent from the union`).toBe(true);
     }
   });
@@ -891,10 +897,14 @@ describe("uat-spec-integrity fixtures — 31-06 gap 2: the corpus is inside a ty
 // could never see fired in the wild — and nothing in the shipped suite asked that question.
 //
 // The partition below is COMPUTED by asking the declared surface which heads it exports, never
-// typed out, so a member added to BANNED_CONSTRUCTS later is classified automatically.
+// typed out, so a spelling the rule starts deciding later is classified automatically. 31-11 (D-17)
+// re-pointed its input from the deleted ban list to the rule's own generated spellings.
+//
+// This check runs in ONE DIRECTION ONLY: it asks whether every banned spelling is real. It cannot
+// ask whether every real modifier is banned — that reverse partition lands in plan 31-12.
 // ═══════════════════════════════════════════════════════════════════════════════════════════════
 
-describe("uat-spec-integrity — 31-06 gap 2: the ban set against the declared @playwright/test surface", () => {
+describe("uat-spec-integrity — 31-06 gap 2: the ban rule against the declared @playwright/test surface", () => {
   const ts = hostTypeScript as typeof import("typescript");
   const DECL = join(FIXTURES, "playwright-test.d.ts");
   const MODULE_SPECIFIER = "@playwright/test";
@@ -991,15 +1001,38 @@ describe("uat-spec-integrity — 31-06 gap 2: the ban set against the declared @
     expect(exports).not.toContain("describe");
   });
 
-  it("every banned spelling whose head the surface exports type-checks against it", async () => {
-    const { BANNED_CONSTRUCTS } = await loadChecker();
-    const { exported, remainder } = partitionBanSet(BANNED_CONSTRUCTS);
+  /**
+   * The spellings the RULE decides directly (head plus tail, and the exact paths), generated from
+   * the exported constants. 31-11 (D-17) deleted the enumerable ban list, so this partition's input
+   * is derived from the rule; the derived list is evidence for this harness and never an authority.
+   */
+  async function ruleDecidedSpellings(): Promise<string[]> {
+    const { BANNED_MODIFIER_HEADS, BANNED_MODIFIER_TAILS, BANNED_EXACT_PATHS } = await loadChecker();
+    const out: string[] = [];
+    for (const head of BANNED_MODIFIER_HEADS) {
+      for (const tail of BANNED_MODIFIER_TAILS) out.push(`${head}.${tail}`);
+    }
+    for (const path of BANNED_EXACT_PATHS) out.push(path);
+    return [...new Set(out)];
+  }
 
-    // The partition is asserted by COUNT and, for the remainder, by VALUE.
-    expect(exported.length).toBe(7);
-    expect(remainder.length).toBe(2);
-    expect([...remainder].sort()).toEqual(["describe.only", "describe.skip"]);
-    expect(exported.length + remainder.length).toBe(BANNED_CONSTRUCTS.length);
+  it("every banned spelling whose head the surface exports type-checks against it", async () => {
+    const decided = await ruleDecidedSpellings();
+    const { exported, remainder } = partitionBanSet(decided);
+
+    // The partition is asserted by COUNT and, for the remainder, by VALUE — and both sides of the
+    // count are DERIVED, so a rule that generated a shorter list could not make this pass.
+    const { BANNED_MODIFIER_HEADS, BANNED_MODIFIER_TAILS, BANNED_EXACT_PATHS } = await loadChecker();
+    expect(decided.length, "PREMISE: the rule generated no spelling").toBe(
+      BANNED_MODIFIER_HEADS.length * BANNED_MODIFIER_TAILS.length + BANNED_EXACT_PATHS.length,
+    );
+    const surface = new Set(declaredSurfaceExports());
+    const expectedRemainder = BANNED_MODIFIER_HEADS.filter((h) => !surface.has(h))
+      .flatMap((h) => BANNED_MODIFIER_TAILS.map((t) => `${h}.${t}`))
+      .sort();
+    expect([...remainder].sort()).toEqual(expectedRemainder);
+    expect(exported.length).toBeGreaterThan(0);
+    expect(exported.length + remainder.length).toBe(decided.length);
 
     const { diagnostics, source, statements } = compileCalls(exported);
     // PREMISE before the verdict: a generator that silently produced nothing would compile clean
@@ -1017,11 +1050,11 @@ describe("uat-spec-integrity — 31-06 gap 2: the ban set against the declared @
   });
 
   it("the harness DISCRIMINATES: a fabricated member the surface lacks is a diagnostic", async () => {
-    const { BANNED_CONSTRUCTS } = await loadChecker();
-    const { exported } = partitionBanSet(BANNED_CONSTRUCTS);
+    const { isBannedModifierPath } = await loadChecker();
+    const { exported } = partitionBanSet(await ruleDecidedSpellings());
     const fabricated = "test.mute";
-    // PREMISE: the fabricated path is not already in the set, or the case would prove nothing.
-    expect(BANNED_CONSTRUCTS, `PREMISE: ${fabricated} is already banned`).not.toContain(fabricated);
+    // PREMISE: the fabricated path is not already decided, or the case would prove nothing.
+    expect(isBannedModifierPath(fabricated), `PREMISE: ${fabricated} is already banned`).toBe(false);
 
     const { diagnostics } = compileCalls([...exported, fabricated]);
     expect(diagnostics.length).toBeGreaterThan(0);
@@ -1029,10 +1062,10 @@ describe("uat-spec-integrity — 31-06 gap 2: the ban set against the declared @
   });
 
   it("the remainder is derived by the same question, and the bare names really are absent", async () => {
-    const { BANNED_CONSTRUCTS } = await loadChecker();
-    const { remainder } = partitionBanSet(BANNED_CONSTRUCTS);
-    // Retained on purpose: D-14 named them, and another framework's bare `describe` can be
-    // imported into a spec file. They are not a defect — they are a strictly wider set.
+    const { remainder } = partitionBanSet(await ruleDecidedSpellings());
+    // Retained on purpose: D-14 named the bare `describe` head, and another framework's bare
+    // `describe` can be imported into a spec file. It is not a defect — it is a strictly wider rule.
+    expect(remainder.length, "PREMISE: the remainder is empty").toBeGreaterThan(0);
     for (const path of remainder) {
       expect(path.startsWith("describe.")).toBe(true);
       expect(declaredSurfaceExports()).not.toContain(path.split(".")[0]);
@@ -1082,8 +1115,8 @@ describe("browser-uat-recipe.md — 31-06 gap 2: the documented ban set equals t
     return [...new Set(spans.filter((s) => grammar.test(s)))].sort();
   }
 
-  it("the recipe's ban-set region lists exactly the members of BANNED_CONSTRUCTS", async () => {
-    const { BANNED_CONSTRUCTS } = await loadChecker();
+  it("every dotted path the recipe's ban-set region lists is decided by the rule", async () => {
+    const { isBannedModifierPath } = await loadChecker();
     const whole = readFileSync(RECIPE, "utf8");
     const region = extractSection(whole, BAN_SET_HEADING);
 
@@ -1096,10 +1129,17 @@ describe("browser-uat-recipe.md — 31-06 gap 2: the documented ban set equals t
     ).toBeLessThan(whole.length);
 
     const listed = listedDottedPaths(region);
-    // Set EQUALITY, not containment: a member added to the constant and not to the recipe fails
-    // here, and so does a name in the recipe the checker does not decide.
-    expect(listed).toEqual([...BANNED_CONSTRUCTS].sort());
-    expect(listed.length).toBe(BANNED_CONSTRUCTS.length);
+    // PREMISE: the region really lists dotted paths, or the loop below is a vacuous pass.
+    expect(listed.length, "PREMISE: the region lists no dotted path").toBeGreaterThan(0);
+    // 31-11 (D-17): the constant this compared against no longer exists — membership is a rule, so
+    // the question is whether the checker DECIDES every path the recipe names. The both-directions
+    // equality between the recipe's quoted constants and the exported constants is re-anchored in
+    // plan 31-12's scope-mate, plan 31-11 task 3, which rewrites the region to quote the rule.
+    for (const path of listed) {
+      expect(isBannedModifierPath(path), `the recipe names ${path}, which the rule does not decide`).toBe(
+        true,
+      );
+    }
   });
 
   it("the recipe's residual bullets are the exported residual array, verbatim", async () => {

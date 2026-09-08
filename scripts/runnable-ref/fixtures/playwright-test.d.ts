@@ -86,6 +86,12 @@ declare module "@playwright/test" {
     readonly skip: TestModifier;
     readonly only: TestModifier;
     readonly fixme: TestModifier;
+    // 31-11 (D-17, WR-12): the INVERTING modifier. Playwright runs the scenario and reports a
+    // failing assertion as a pass, so on a `*.uat.spec.ts` its effect is strictly worse than
+    // `skip` — the scenario is not removed from the evidence, it is inverted. It is declared here
+    // because the ban rule now decides it and the ban-set/surface cross-check compiles every
+    // spelling the rule decides.
+    readonly fail: TestModifier;
     readonly step: TestModifier;
     readonly beforeEach: TestModifier;
     readonly afterEach: TestModifier;
