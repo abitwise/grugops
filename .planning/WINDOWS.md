@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 139
+open_count: 141
 waived_count: 0
 fixed_count: 4
-total_count: 143
-last_updated: 2026-09-08T08:57:54.919Z
+total_count: 145
+last_updated: 2026-09-08T13:33:19.617Z
 ---
 
 # Broken Windows Ledger
@@ -158,6 +158,8 @@ last_updated: 2026-09-08T08:57:54.919Z
 | 141 | 31 | deviation | scripts/runnable-ref/uat-spec-integrity.ts |  | 31-08 R-19 (NEW, measured): a .uat.spec.ts under a uat segment inside tools/ is silently unchecked because tools is a member of SKIPPED_DIRECTORIES - tools/uat/dirty.uat.spec.ts carrying test.skip produced '0 findings over 1/1 uat specs checked', exit 0. Matters because install.ts materializes the checker itself into tools/grugops/. Skip-list arm of WR-01 (row 139); widening the walk's input boundary is a decision about the predicate's input, so it is named rather than changed. | open |  | 2026-09-08T08:57:54.742Z |  |
 | 142 | 31 | deviation | scripts/check-foundation-guards.ts | 3895 | 31-08 R-18 (NEW, measured): a CORRECT sentence-final pin mention planted as the authority ('The kit uses @playwright/mcp@0.0.78.') is captured as '0.0.78.' by WR-09's dot-admitting occurrence pattern and refused by 31-07's new shape assertion as 'not a concrete version - a floating specifier AT THE AUTHORITY'. Fail-closed in direction (exit 1), wrong in diagnosis. Fixing it means changing WR-09's occurrence grammar. | open |  | 2026-09-08T08:57:54.831Z |  |
 | 143 | 31 | deviation | .planning/phases/31-autonomous-manual-testing/31-05-PLAN.md |  | 31-08 R-20: the edge-probe partition is recorded as '8 = 4 authored + 4 surfaced' in 31-05-PLAN.md:132, 31-06-PLAN.md:127, 31-07-PLAN.md:118 and 31-08-PLAN.md; enumerated from the plans' own dispositions it is 5 authored + 3 surfaced. Total is 8 either way and no row is dropped, so the no-silent-drop property holds; the partition was copied forward across four documents without being re-derived. Recorded rather than corrected in place. | open |  | 2026-09-08T08:57:54.919Z |  |
+| 144 | 31 | deviation | scripts/context-io.ts |  | Q9 residual: an in-process caller that can import scripts/context-io.js can mint its own green verdict via the exported emitVerdict and then admit a finding against it; measured in 31-09's red-team pass, strictly improved but not closed by 31-09 | open |  | 2026-09-08T13:33:19.523Z |  |
+| 145 | 31 | unrun-verify | docs/audit/29-style-dispositions/ |  | check:diff-disposition carries 75 undispositioned clauses owned by plans 31-05/31-06/31-08; measured at 78 before 31-09's prose commit on a hermetic clone at 012364d | open |  | 2026-09-08T13:33:19.617Z |  |
 
 ````json
 [
@@ -1875,6 +1877,30 @@ last_updated: 2026-09-08T08:57:54.919Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-09-08T08:57:54.919Z",
+    "resolved_at": null
+  },
+  {
+    "id": 144,
+    "kind": "deviation",
+    "phase": "31",
+    "file": "scripts/context-io.ts",
+    "line": null,
+    "description": "Q9 residual: an in-process caller that can import scripts/context-io.js can mint its own green verdict via the exported emitVerdict and then admit a finding against it; measured in 31-09's red-team pass, strictly improved but not closed by 31-09",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-08T13:33:19.523Z",
+    "resolved_at": null
+  },
+  {
+    "id": 145,
+    "kind": "unrun-verify",
+    "phase": "31",
+    "file": "docs/audit/29-style-dispositions/",
+    "line": null,
+    "description": "check:diff-disposition carries 75 undispositioned clauses owned by plans 31-05/31-06/31-08; measured at 78 before 31-09's prose commit on a hermetic clone at 012364d",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-08T13:33:19.617Z",
     "resolved_at": null
   }
 ]
