@@ -3161,3 +3161,84 @@ describe("uat-spec-integrity — 31-13: a namespace import of @playwright/test i
     ).toEqual([]);
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// 31-13 — the three NEW corpus fixtures, and their mutation controls.
+//
+// Each fixture follows the shape modifier-family.uat.spec.ts established: a header stating which
+// finding forced it, a marked region holding the planted constructs and nothing else, and a
+// structurally identical unmarked twin. Deleting exactly the marked region and asserting zero
+// findings is what proves a finding was caused by the PLANTED CONSTRUCT rather than by the scenario,
+// the selectors or the assertion.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+describe("uat-spec-integrity fixtures — 31-13: the call-link, rename and configured-soft corpus", () => {
+  function findingsFor(fixtureName: string): string[] {
+    const root = mkTargetRepo({ "e2e/uat/subject.uat.spec.ts": fixtureName });
+    const r = runCheck(root, "--json");
+    if (r.status === 0) return [];
+    return (JSON.parse(r.stdout) as { findings: string[] }).findings;
+  }
+
+  it("modifier-call-link.uat.spec.ts reports one finding per planted TestInfo modifier", () => {
+    const findings = findingsFor("modifier-call-link.uat.spec.ts");
+    expect(findings.length).toBe(3);
+    const joined = findings.join("\n");
+    for (const path of ["test.info().skip", "test.info().fail", "test.info().fixme"]) {
+      expect(joined, `${path} is absent from the findings`).toContain(path);
+    }
+  });
+
+  it("modifier-call-link.uat.spec.ts drops to zero findings when its marked region is removed", () => {
+    const r = runMutated("modifier-call-link.uat.spec.ts");
+    expect(r.status).toBe(0);
+    expect(r.stdout).toContain("0 findings over 1/1");
+  });
+
+  it("import-rename.uat.spec.ts reports one finding per planted renamed modifier", () => {
+    const findings = findingsFor("import-rename.uat.spec.ts");
+    expect(findings.length).toBe(2);
+    const joined = findings.join("\n");
+    expect(joined).toContain("test.skip");
+    expect(joined).toContain("test.describe.only");
+  });
+
+  it("import-rename.uat.spec.ts drops to zero findings when its marked region is removed", () => {
+    // The twin uses the SAME renamed binding without a modifier, so a surviving finding would mean
+    // the rename itself was being refused rather than the modifier.
+    const r = runMutated("import-rename.uat.spec.ts");
+    expect(r.status).toBe(0);
+    expect(r.stdout).toContain("0 findings over 1/1");
+  });
+
+  it("configured-soft.uat.spec.ts reports exactly the planted escape", () => {
+    const findings = findingsFor("configured-soft.uat.spec.ts");
+    expect(findings.length).toBe(1);
+    expect(findings[0]).toContain("expect.configure");
+  });
+
+  it("configured-soft.uat.spec.ts's CONTROL survives: removing the escape leaves zero findings", () => {
+    // PREMISE: the legitimate configure call really is still in the file after the mutation, or the
+    // zero-finding verdict would be a statement about a file that no longer carries the control.
+    const mutated = withBannedConstructsRemoved("configured-soft.uat.spec.ts");
+    expect(
+      mutated,
+      "PREMISE: the false-positive control left the fixture with its marked region",
+    ).toContain("expect.configure({ retries: 2 })");
+
+    const r = runMutated("configured-soft.uat.spec.ts");
+    expect(r.status).toBe(0);
+    expect(r.stdout).toContain("0 findings over 1/1");
+  });
+
+  it("every new fixture is reached by the fixtures typecheck target's derived corpus", () => {
+    const onDisk = readdirSync(FIXTURES).filter((n) => n.endsWith(".uat.spec.ts"));
+    for (const name of [
+      "modifier-call-link.uat.spec.ts",
+      "import-rename.uat.spec.ts",
+      "configured-soft.uat.spec.ts",
+    ]) {
+      expect(onDisk, `${name} is not on disk`).toContain(name);
+    }
+  });
+});
