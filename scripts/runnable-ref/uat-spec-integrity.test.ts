@@ -3302,3 +3302,141 @@ describe("uat-spec-integrity fixtures — 31-13: the call-link, rename and confi
     }
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// 31-13 — THE THREE-WAY CROSS-CHECK: recipe boundary list <-> exported register <-> derived set.
+//
+// UATX-06's whole content is "the recipe's claim matches exactly what the checker decides". Three
+// artifacts carry that claim, and a disagreement between any two of them is the defect — CR-07 was
+// found precisely because the recipe's boundary list named two shapes while the resolver declined
+// five. The register-to-recipe direction was already asserted (every register member appears in the
+// region). This block adds the CONVERSE, which is the direction that catches a recipe bullet
+// claiming a callee-shape boundary the mechanism does not have: the boundary list is partitioned
+// into register members and a bounded set of NON-residual bullets, and the two must account for
+// every bullet with nothing left over.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+describe("browser-uat-recipe.md — 31-13: the boundary list is the register plus a bounded remainder", () => {
+  const RECIPE = join(REPO_ROOT, "agent-factory", "checklists", "browser-uat-recipe.md");
+  const LIST_OPENER = "Deliberately outside the rule, recorded here so the boundary is written down:";
+  const LIST_CLOSER = "Widening the rule is a new decision";
+
+  /** The bullets of the boundary list, each with its wrapped continuation lines folded in. */
+  function boundaryBullets(): string[] {
+    const lines = readFileSync(RECIPE, "utf8").split("\n");
+    const start = lines.findIndex((l) => l.trimEnd() === LIST_OPENER);
+    expect(
+      start,
+      `PREMISE: the boundary list's opener is absent from the recipe, so every assertion below ` +
+        `would be over an empty list`,
+    ).toBeGreaterThanOrEqual(0);
+    const end = lines.findIndex((l, i) => i > start && l.startsWith(LIST_CLOSER));
+    expect(end, "PREMISE: the boundary list has no closing paragraph, so it ran to end-of-file")
+      .toBeGreaterThan(start);
+
+    const bullets: string[] = [];
+    for (const line of lines.slice(start + 1, end)) {
+      if (line.startsWith("- ")) bullets.push(line.slice(2).trim());
+      else if (line.startsWith("  ") && bullets.length > 0) {
+        bullets[bullets.length - 1] = `${bullets[bullets.length - 1]} ${line.trim()}`;
+      }
+    }
+    return bullets;
+  }
+
+  /**
+   * The bullets that are NOT callee-shape residuals, each with the reason it belongs in this list
+   * anyway. Bounded exactly like DISPOSITIONED_SURFACE_MEMBERS: a bullet added to the recipe with no
+   * entry here lands outside both buckets and the totality case reports it, so a new boundary claim
+   * cannot be written into the recipe without either matching the register or being decided here.
+   */
+  const NON_RESIDUAL_BOUNDARY_BULLETS: Readonly<Record<string, string>> = Object.freeze({
+    "catch-handler": "D-14 names the try block and the catch clause; a promise `.catch()` handler is a third region no rule names.",
+    "finally-block": "The same decision, for the third region of a try statement.",
+    "zero-assertion-body": "Vacuous evidence, explicitly deferred by D-14 rather than overlooked.",
+    "both-directions": "States what the forward and reverse halves establish; a claim about coverage, not a declined shape.",
+    "property-chains-only": "States the reverse walk's own boundary — the missing item (c) of round 3.",
+    "derived-decline-set": "States that the decline set is derived and bound, which is what makes the list above trustworthy.",
+    "declared-surface-not-package": "The hand-transcription `UNKNOWN - verify`; a limit of the DENOMINATOR, not a declined callee shape.",
+    "walk-depth-bound": "The reverse walk's depth bound; again a limit of the denominator.",
+  });
+
+  /** The opening words that identify each non-residual bullet. Matched as a prefix, never as a substring. */
+  const NON_RESIDUAL_OPENERS: Readonly<Record<string, string>> = Object.freeze({
+    "catch-handler": "An assertion inside a promise",
+    "finally-block": "An assertion inside a `finally` block",
+    "zero-assertion-body": "A spec body carrying",
+    "both-directions": "Completeness against the DECLARED framework surface",
+    "property-chains-only": "The reverse walk covers DECLARED PROPERTY CHAINS ONLY",
+    "derived-decline-set": "The set of callee shapes the resolver still declines is DERIVED",
+    "declared-surface-not-package": "The declared surface is **not** the released package",
+    "walk-depth-bound": "The walk that produces the reverse half's denominator",
+  });
+
+  it("the boundary list PARTITIONS into register members and the bounded remainder", async () => {
+    const { UNRESOLVABLE_CALLEE_RESIDUALS } = await loadChecker();
+    const bullets = boundaryBullets();
+
+    expect(bullets.length, "PREMISE: the boundary list is empty").toBeGreaterThan(0);
+    expect(
+      UNRESOLVABLE_CALLEE_RESIDUALS.length,
+      "PREMISE: the residual register is empty",
+    ).toBeGreaterThan(0);
+
+    const register = new Set<string>(UNRESOLVABLE_CALLEE_RESIDUALS);
+    const openers = Object.entries(NON_RESIDUAL_OPENERS);
+
+    const asRegister: string[] = [];
+    const asRemainder: string[] = [];
+    const undecided: string[] = [];
+    for (const bullet of bullets) {
+      if (register.has(bullet)) {
+        asRegister.push(bullet);
+        continue;
+      }
+      const match = openers.find(([, opener]) => bullet.startsWith(opener));
+      if (match !== undefined) {
+        asRemainder.push(match[0]);
+        continue;
+      }
+      undecided.push(bullet);
+    }
+
+    expect(
+      undecided,
+      `${undecided.length} boundary bullet(s) are neither a member of UNRESOLVABLE_CALLEE_RESIDUALS ` +
+        `nor a decided non-residual bullet: ${undecided.join(" ;; ")}. A boundary the recipe claims ` +
+        `and the mechanism does not carry is the claim-broader-than-the-mechanism defect UATX-06 ` +
+        `exists to prevent — and it is how CR-07 stayed undisclosed.`,
+    ).toEqual([]);
+
+    // EVERY register member is present as a bullet, verbatim — the direction already asserted
+    // earlier in this file, re-asserted here over the PARSED list so a member buried in a paragraph
+    // rather than written as a bullet is caught too.
+    for (const residual of UNRESOLVABLE_CALLEE_RESIDUALS) {
+      expect(asRegister, `the register member is not a boundary BULLET: ${residual}`).toContain(
+        residual,
+      );
+    }
+
+    // …and the remainder record holds no key the recipe lacks — the padding direction.
+    expect([...asRemainder].sort()).toEqual(Object.keys(NON_RESIDUAL_OPENERS).sort());
+    expect(Object.keys(NON_RESIDUAL_OPENERS).sort()).toEqual(
+      Object.keys(NON_RESIDUAL_BOUNDARY_BULLETS).sort(),
+    );
+
+    // The arithmetic that says nothing was counted twice and nothing went missing.
+    expect(asRegister.length + asRemainder.length).toBe(bullets.length);
+  });
+
+  it("every non-residual boundary bullet carries a written reason, not a label", () => {
+    const entries = Object.entries(NON_RESIDUAL_BOUNDARY_BULLETS);
+    expect(entries.length, "PREMISE: the remainder record is empty").toBeGreaterThan(0);
+    for (const [key, reason] of entries) {
+      expect(
+        reason.trim().length,
+        `${key}: the reason is shorter than a sentence — a label is not a reason`,
+      ).toBeGreaterThan(40);
+    }
+  });
+});
