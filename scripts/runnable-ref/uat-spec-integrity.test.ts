@@ -351,12 +351,35 @@ describe("uat-spec-integrity.js — D-14 arms (a) and (b), and the union of the 
   });
 
   // ── mutation: each finding is proven to be caused by the construct it names ────────────────────
-  for (const fixture of [
-    "caught-assertion.uat.spec.ts",
-    "conditional-assertion.uat.spec.ts",
-    "modifier-call.uat.spec.ts",
-    "element-access-modifier.uat.spec.ts",
-  ]) {
+  //
+  // 31-11: the fixture list used to be typed out here, which is this repository's recorded
+  // set-literal drift — a fixture added later would carry a mutation region no case ever ran. It is
+  // now DERIVED from disk by the one question that decides membership: does the fixture carry a
+  // mutation region at all? A fixture with no region is not a mutation subject, and one that gains
+  // a region gains a case without anybody remembering to add it here.
+  const MUTATION_FIXTURES = readdirSync(FIXTURES)
+    .filter((n) => n.endsWith(".uat.spec.ts"))
+    .filter((n) =>
+      readFileSync(join(FIXTURES, n), "utf8")
+        .split("\n")
+        .some((l) => l.trim().startsWith(`// ${MUTATE_START}`)),
+    )
+    .sort();
+
+  it("the mutation corpus is derived from disk and is not empty", () => {
+    // PREMISE: a derivation that silently found nothing would make the loop below run zero cases,
+    // and a loop that runs zero cases reports green.
+    expect(MUTATION_FIXTURES.length, "PREMISE: no fixture carries a mutation region").toBeGreaterThan(
+      0,
+    );
+    // Every fixture on disk is EITHER a mutation subject or a fixture that must not be refused —
+    // the partition is asserted, so a fixture cannot fall outside both and be silently unexercised.
+    const onDisk = readdirSync(FIXTURES).filter((n) => n.endsWith(".uat.spec.ts"));
+    const noRegion = onDisk.filter((n) => !MUTATION_FIXTURES.includes(n)).sort();
+    expect(MUTATION_FIXTURES.length + noRegion.length).toBe(onDisk.length);
+  });
+
+  for (const fixture of MUTATION_FIXTURES) {
     it(`mutation: ${fixture} is accepted once its banned constructs, and only those, are removed`, () => {
       const before = runCheck(
         mkTargetRepo({ "e2e/uat/subject.uat.spec.ts": fixture }),
@@ -886,6 +909,40 @@ describe("uat-spec-integrity fixtures — 31-06 gap 2: the corpus is inside a ty
     expect(joined).toContain("caught assertion");
     expect(joined).toContain("conditional assertion");
     expect(joined).toContain("test.describe.only");
+  });
+
+  // ── 31-11 (D-17): the routed-modifier fixture and its false-positive control ─────────────────
+
+  it("the modifier-family fixture yields exactly two findings, one per routed spelling", () => {
+    const root = mkTargetRepo({ "e2e/uat/billing.uat.spec.ts": "modifier-family.uat.spec.ts" });
+    const r = runCheck(root, "--json");
+    expect(r.status).toBe(1);
+    const parsed = JSON.parse(r.stdout) as { ok: boolean; findings: string[] };
+    expect(parsed.findings.length).toBe(2);
+    const joined = parsed.findings.join("\n");
+    expect(joined).toContain("test.describe.serial.only");
+    expect(joined).toContain("test.describe.parallel.only");
+  });
+
+  it("the clean-group fixture yields zero findings and really carries the shapes it claims", () => {
+    const text = readFileSync(join(FIXTURES, "modifier-group-clean.uat.spec.ts"), "utf8");
+    // PREMISE: a fixture that silently lost its content would exit 0 and prove nothing. Assert the
+    // control actually exercises each shape the rule must not refuse, BEFORE trusting its verdict.
+    for (const shape of [
+      "test.describe.serial(",
+      "test.describe.parallel(",
+      "test.describe.configure(",
+      "\ntest(",
+      "await expect(",
+    ]) {
+      expect(text, `the control fixture no longer carries ${shape}`).toContain(shape);
+    }
+    const root = mkTargetRepo({
+      "e2e/uat/checkout.uat.spec.ts": "modifier-group-clean.uat.spec.ts",
+    });
+    const r = runCheck(root);
+    expect(r.status).toBe(0);
+    expect(r.stdout).toContain("0 findings over 1/1");
   });
 });
 

@@ -22,8 +22,23 @@
 // corpus meant to prove arm (c) could never have caught the arm being wrong.
 //
 // THE ABSENCE IS THE POINT. There is deliberately NO `describe` export below. `test.describe` is the
-// only spelling Playwright has, which is why `BANNED_CONSTRUCTS` had to gain the three
-// `test.describe.*` paths.
+// only spelling Playwright has. That absence is why the D-17 ban rule keeps the bare `describe`
+// HEAD in `BANNED_MODIFIER_HEADS` rather than dropping it: the head is retained because D-14 named
+// it and because another framework's bare `describe` can be imported into a spec file, not because
+// this package exports one.
+//
+// WHAT THIS FILE IS NOW USED FOR, AND WHY THAT RAISES THE COST OF ITS DRIFT (31-11, WR-13). It has
+// stopped being only a compile target for the corpus. `uat-spec-integrity.test.ts` reads it as the
+// authority for a coverage-ADJACENT claim: it partitions the spellings the ban rule decides by
+// asking which heads this surface exports, and compiles the exported side against it. Today that
+// check runs in ONE DIRECTION — every banned spelling is real. The REVERSE partition, which asks
+// whether every real modifier on this surface is banned, lands in plan 31-12; the members added
+// below (`serial`, `parallel`, `configure`, `fail`) are what give that reverse check something to
+// find. Until it lands, no claim about completeness against Playwright is established here.
+//
+// The drift disclosure above is UNCHANGED and still governs: this file remains a hand transcription
+// and an open `UNKNOWN - verify` (`R-07`). A claim proven against this surface is a claim about the
+// DECLARED surface, never about the package.
 
 declare module "@playwright/test" {
   /** The subset of `Locator` this corpus calls. */
@@ -74,11 +89,33 @@ declare module "@playwright/test" {
     (...args: readonly unknown[]): void;
   }
 
+  /**
+   * A ROUTING GROUP — `test.describe.serial` / `test.describe.parallel`. It is callable in its own
+   * right (a group whose tests run in order, or side by side) AND it carries the same modifiers the
+   * describe group carries, which is what makes `test.describe.serial.only(...)` a real spelling.
+   *
+   * `UNKNOWN - verify` at the same strength as the rest of this file: these two members are a hand
+   * transcription. The corpus needs them because CR-06 was reproduced with them and because the
+   * false-positive control calls them WITHOUT a modifier; nothing here re-checks them against a
+   * released Playwright.
+   */
+  export interface DescribeGroup {
+    (title: string, body: () => unknown): void;
+    readonly skip: DescribeModifier;
+    readonly only: DescribeModifier;
+    readonly fixme: DescribeModifier;
+  }
+
   export interface Describe {
     (title: string, body: () => unknown): void;
     readonly skip: DescribeModifier;
     readonly only: DescribeModifier;
     readonly fixme: DescribeModifier;
+    readonly serial: DescribeGroup;
+    readonly parallel: DescribeGroup;
+    // The configuration call. Its tail is not a modifier, so the D-17 rule must NOT refuse it —
+    // that is the false-positive control's job, and this member is what lets the control compile.
+    readonly configure: (options: { readonly mode?: string; readonly retries?: number }) => void;
   }
 
   export interface Test {
