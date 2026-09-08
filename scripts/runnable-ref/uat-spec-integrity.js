@@ -93,7 +93,7 @@ export const SKIPPED_DIRECTORIES = Object.freeze([
 //   - a promise `.catch()` handler — an assertion inside one is not refused;
 //   - a finally block — D-14 names the try block and the catch clause, and names no third region;
 //   - a spec body containing zero `expect` calls — vacuous evidence, explicitly deferred;
-//   - the two callee shapes named in UNRESOLVABLE_CALLEE_RESIDUALS below.
+//   - the callee shapes named in UNRESOLVABLE_CALLEE_RESIDUALS below.
 // These are DEFERRED, not overlooked. Widening a parser quietly is the failure mode a prior phase
 // closed by defining a canonical form instead of adding one more spelling. A red-team finding on any
 // of them is a NEW DECISION and a gap-closure round, never a quiet edit here.
@@ -103,6 +103,63 @@ export const SKIPPED_DIRECTORIES = Object.freeze([
 // asserted in ONE direction only — every spelling it bans is real — until plan 31-12 lands the
 // reverse partition over the declared surface. The declared surface is itself a hand transcription
 // whose drift from the package is an open `UNKNOWN - verify`.
+//
+// ───────────────────────────────────────────────────────────────────────────────────────────────
+// D-18 (2026-09-08, gap-closure round 3, extending D-14 arm (c) and D-17; forced by CR-07 and
+// WR-14 of 31-REVIEW.md and by gap 1 of 31-VERIFICATION.md round 3). This is the runnable's mirror
+// of the decision recorded in .planning/phases/31-autonomous-manual-testing/31-CONTEXT.md; the two
+// must agree.
+//
+// WHICH REGISTER FAILED. D-17 fixed MEMBERSHIP: `isBannedModifierPath` decides every shape it is
+// asked about, by head and tail, and needs no new member for a routing segment nobody enumerated.
+// The round-3 verifier then planted five constructs the rule is NEVER ASKED ABOUT, because
+// `calleeDottedPath` declined to resolve their callees at all — `test.info().skip()`,
+// `test.info().fail()`, `test.info().fixme(true, "later")`,
+// `expect.configure({ soft: true })(locator).toBeVisible()`, and an import-renamed head
+// (`import { test as it } from "@playwright/test"; it.skip(...)`). All five reported
+// `0 findings over 1/1 uat specs checked` at exit 0 against the committed `.js`. The register that
+// failed is SHAPE RESOLUTION — which call expressions the membership rule is even asked about —
+// one register past the one D-17 fixed, and the third recurrence of this class inside Phase 31.
+//
+// D-18 THEREFORE ADDS NO MEMBER. It decides three declining shapes:
+//
+//   (1) A CALL LINK RESOLVES. `calleeDottedPath` recurses on a `CallExpression` link and, when the
+//       inner path resolves, pushes it as ONE segment suffixed with a `()` marker. `test.info().skip`
+//       therefore resolves to `test.info().skip`, whose head segment is `test` and whose tail
+//       segment is `skip` — so D-17's existing rule refuses it with NO new member in any set. The
+//       marker lands in the ROUTING position D-17 already decided is not part of the membership
+//       question, which is why this needs no decided list of call-bearing heads (the alternative the
+//       verifier's `missing:` offered, and the one that would have been a fourth set literal).
+//       `expect(x).soft` stays legitimate BY CONSTRUCTION and not by exception: its head segment is
+//       the MARKED `expect()` call rather than the bare `expect` identifier, so the path is
+//       `expect().soft`, which is neither a banned exact path nor a banned head.
+//
+//   (2) THE CONFIGURED-SOFT ESCAPE IS A PATH PLUS AN ENABLED OPTION, not a path. Refusing
+//       `expect.configure` by path alone would also refuse the legitimate
+//       `expect.configure({ retries: 2 })`. BANNED_CONFIGURED_PATHS maps a dotted path to the ONE
+//       option key whose `true` literal makes the call an escape, and `enabledOptionKeys` reads the
+//       keys assigned the `true` keyword in the call's first object literal — literals only, no type
+//       checker. `isBannedModifierCall` is the single authority that joins the two halves; the
+//       arm-(c) call site asks it and compares nothing itself, exactly as D-17 requires.
+//
+//   (3) AN IMPORT RENAME IS CANONICALISED BEFORE THE HEAD IS READ. `deriveImportRenames` reads
+//       `ImportSpecifier.propertyName` off the `@playwright/test` import declarations — a literal
+//       already in the source text, needing no type checker — and `canonicaliseHeadSegment` rewrites
+//       the resolved path's head through that map. `it.skip` becomes `test.skip` before membership
+//       is asked.
+//
+// WHAT D-18 DOES NOT ESTABLISH. The rename canonicalisation is MODULE-SCOPED: a rename arriving
+// through a local fixture-extension module is not canonicalised, because following a re-export
+// across files needs the resolution this runnable deliberately does not ship (D-13). That, the
+// step-guard bound, a non-identifier head and a member computed from a non-literal expression are
+// NAMED in UNRESOLVABLE_CALLEE_RESIDUALS below rather than left as silences, and the test suite
+// DERIVES the resolver's decline sites from this file's own AST and binds every one of them to a
+// decision or to a named residual in both directions — so a sixth undisclosed shape arrives as an
+// unbound derived site and reds the suite naming itself, instead of passing at exit 0.
+//
+// Reversibility: costly. The resolved-path spelling for a call link is now part of the exported
+// contract the recipe quotes and the corpus asserts, exactly as D-17's constants are.
+// ───────────────────────────────────────────────────────────────────────────────────────────────
 export const BANNED_MODIFIER_HEADS = Object.freeze(["test", "describe"]);
 export const BANNED_MODIFIER_TAILS = Object.freeze([
     "skip",
@@ -134,14 +191,61 @@ export function isBannedModifierPath(dottedPath) {
     return (BANNED_MODIFIER_HEADS.includes(segments[0]) &&
         BANNED_MODIFIER_TAILS.includes(segments[segments.length - 1]));
 }
-// The callee shapes calleeDottedPath CANNOT resolve, exported as prose so the recipe quotes the
-// disclosed boundary from the same source as the decided rule. Resolving either one needs a type
-// checker to follow a binding to its declaration, and this runnable deliberately ships no type
-// checker (D-13): it resolves `typescript` from the TARGET repository at run time and uses it to
-// PARSE, never to check types. Both shapes are therefore NAMED here rather than left as a silence.
+/**
+ * D-18: THE ONE MEMBERSHIP AUTHORITY THE ARM-(c) CALL SITE ASKS. It takes the resolved (and
+ * head-canonicalised) dotted path and the set of option keys the call enables with a `true` literal,
+ * and answers the whole membership question in one place.
+ *
+ * The pure-path half is DELEGATED to `isBannedModifierPath` rather than reimplemented: two functions
+ * deciding one question are two places for the answers to disagree, which is exactly the defect
+ * D-17 was convened to close. This function adds only the second half — the path-plus-enabled-option
+ * pair D-18 (2) decides — and nothing else in this file answers either half.
+ *
+ * `null` for either argument is accepted and answered `false`, so the caller needs no comparison of
+ * its own. The return type is a predicate so the caller keeps the narrowed string it reports.
+ */
+export function isBannedModifierCall(dottedPath, enabledOptions) {
+    if (isBannedModifierPath(dottedPath))
+        return true;
+    if (dottedPath === null || enabledOptions === null)
+        return false;
+    if (!Object.prototype.hasOwnProperty.call(BANNED_CONFIGURED_PATHS, dottedPath))
+        return false;
+    return enabledOptions.has(BANNED_CONFIGURED_PATHS[dottedPath]);
+}
+/**
+ * D-18 (2): the dotted paths whose call is an escape only when an OPTION is enabled, mapped to the
+ * ONE option key whose `true` literal enables it.
+ *
+ * WHY THIS IS NOT A BAN LIST. `expect.configure` is a legitimate call — `expect.configure({ retries:
+ * 2 })` re-runs a matcher and changes no result. What makes it an escape is `soft: true`, which
+ * turns every assertion produced by the configured matcher into one that records a failure without
+ * failing the scenario, so a green lane certifies a scenario whose acceptance criterion failed. A
+ * bare path membership would refuse the legitimate call too; that is why the decision is a PAIR and
+ * why the pair is joined by the single membership authority below rather than compared at the call
+ * site.
+ */
+export const BANNED_CONFIGURED_PATHS = Object.freeze({
+    "expect.configure": "soft",
+});
+/** The module specifier a rename must arrive through for D-18 (3) to canonicalise it. */
+const PLAYWRIGHT_TEST_MODULE = "@playwright/test";
+// The callee shapes the resolver CANNOT decide from the source text alone, exported as prose so the
+// recipe quotes the disclosed boundary from the same source as the decided rule. Resolving any of
+// them needs a type checker to follow a binding to its declaration or across a module, and this
+// runnable deliberately ships no type checker (D-13): it resolves `typescript` from the TARGET
+// repository at run time and uses it to PARSE, never to check types. Each shape is therefore NAMED
+// here rather than left as a silence, and the test suite binds every one of them to a decline site
+// it DERIVES from this file's own AST — in both directions, so a residual naming a site the
+// resolver no longer has is caught the same way an undisclosed site is.
 export const UNRESOLVABLE_CALLEE_RESIDUALS = Object.freeze([
     "An aliased binding is not refused: `const t = test;` then a modifier call on `t`. The alias cannot be followed to its declaration without a type checker.",
     "A member computed from a non-literal expression is not refused: `test[name](...)` where `name` is a variable. The member name is absent from the source text.",
+    "A rename that arrives through any module other than `@playwright/test` is not canonicalised: `import { test as it } from \"./fixtures\";` then `it.skip(...)`. Following a re-export across files needs module resolution this runnable does not ship, so the rename map is MODULE-SCOPED to the framework's own import declaration.",
+    "A callee whose head is not an identifier is not resolved: a call on an object literal, on a `this` expression or on any other non-identifier root. There is no head segment to read, so no membership question can be put.",
+    "A callee chain longer than the resolver's 512-step bound is not resolved. The bound stops a pathological chain from spinning; it is a stated LIMIT rather than a silence, and a chain that reaches it yields no path at all rather than a truncated one.",
+    "An option value that is not the `true` keyword literal is not read as enabling that option: `expect.configure({ soft: isCi })` where `isCi` is a variable. The value is absent from the source text, and this runnable evaluates nothing.",
+    "A parser that does not expose the import or object-literal node predicates yields no rename canonicalisation and no option reading. The parser is the TARGET repository's (D-13), so its surface is not this runnable's to assume; the resolver degrades to the pre-D-18 behaviour for those two shapes rather than throwing outside the D-12 exit-code contract.",
 ]);
 // D-13: the loud skip for an unresolvable parser. One frozen constant, ONE emission point, so a test
 // can assert the emitted text byte-for-byte. It names `typescript` and states the honest outcome.
@@ -433,10 +537,20 @@ function calleeHeadIdentifier(ts, expr) {
  * and `as` / `<T>` / `satisfies` assertions. Optional-chaining property access is the SAME node kind
  * as ordinary property access and needs no case of its own — asserted by a test rather than assumed.
  *
- * A CallExpression link deliberately does NOT resolve: `expect(x).soft` is not `expect.soft`, and
- * treating it as such would refuse a legitimate chained assertion.
+ * D-18 (1), REPLACING THE POLICY THIS PARAGRAPH USED TO STATE. A CallExpression link now RESOLVES:
+ * the call's own expression is resolved recursively, and its path is pushed as ONE segment suffixed
+ * with a `()` marker. Declining it was the round-3 defect — `test.info().skip()` is the documented
+ * TestInfo-fixture spelling of a banned modifier and the rule was never even asked about it.
  *
- * The two shapes it cannot resolve are named in UNRESOLVABLE_CALLEE_RESIDUALS.
+ * The marker is what keeps a legitimate chained assertion legitimate BY CONSTRUCTION rather than by
+ * exception. `expect(x).soft` resolves to `expect().soft`: its head segment is the MARKED `expect()`
+ * call, not the bare `expect` identifier, so it is neither a banned exact path nor a banned head.
+ * `test.info().skip` resolves to `test.info().skip`, whose head is `test` and whose tail is `skip`,
+ * so the marker lands in the ROUTING position D-17 already decided is not part of the membership
+ * question — and the D-17 rule refuses it with no new member in any set.
+ *
+ * The shapes it still cannot resolve are named in UNRESOLVABLE_CALLEE_RESIDUALS, and the test suite
+ * derives this function's decline sites from its own AST and binds each one to that register.
  */
 export function calleeDottedPath(ts, expr) {
     const segments = [];
@@ -452,6 +566,16 @@ export function calleeDottedPath(ts, expr) {
             segments.push(cur.name.text);
             cur = cur.expression;
             continue;
+        }
+        if (ts.isCallExpression(cur)) {
+            // D-18 (1). An inner path that does not resolve leaves the WHOLE path unresolved: a marker
+            // over an unknown head would invent a segment the source text does not carry.
+            const inner = calleeDottedPath(ts, cur.expression);
+            if (inner === null)
+                return null;
+            segments.push(`${inner}()`);
+            segments.reverse();
+            return segments.join(".");
         }
         if (ts.isElementAccessExpression(cur)) {
             const arg = cur.argumentExpression;
@@ -474,6 +598,114 @@ export function calleeDottedPath(ts, expr) {
     }
     return null;
 }
+/**
+ * D-18 (2): the option keys a call ENABLES — the property names assigned the `true` KEYWORD in the
+ * call's first object-literal argument.
+ *
+ * LITERALS ONLY, AND NO EVALUATION. `{ soft: isCi }` enables nothing here, because the value is
+ * absent from the source text and this runnable evaluates nothing (D-13). That is a NAMED residual,
+ * not a silence. `{ soft: false }` likewise enables nothing, which is the point of comparing against
+ * the keyword rather than against mere presence of the key.
+ *
+ * Returns `null` when there is no readable option literal to consult at all, which the membership
+ * authority answers `false` for — a call whose options could not be read is not thereby an escape.
+ */
+export function enabledOptionKeys(ts, call) {
+    if (!ts.isCallExpression(call))
+        return null;
+    const first = call.arguments[0];
+    if (first === undefined)
+        return null;
+    const isObjectLiteral = ts.isObjectLiteralExpression;
+    const isPropertyAssignment = ts.isPropertyAssignment;
+    if (typeof isObjectLiteral !== "function" || typeof isPropertyAssignment !== "function") {
+        return null;
+    }
+    if (!isObjectLiteral(first))
+        return null;
+    const keys = new Set();
+    for (const property of first.properties) {
+        if (!isPropertyAssignment(property))
+            continue;
+        if (property.initializer.kind !== ts.SyntaxKind.TrueKeyword)
+            continue;
+        const name = property.name;
+        if (ts.isIdentifier(name)) {
+            keys.add(name.text);
+            continue;
+        }
+        if (ts.isStringLiteralLike(name))
+            keys.add(name.text);
+    }
+    return keys;
+}
+/**
+ * D-18 (3): the source file's `@playwright/test` import RENAMES, as local name -> imported name.
+ *
+ * Read from `ImportSpecifier.propertyName`, which is a literal already present in the source text —
+ * `import { test as it }` carries both names in the same node, so no type checker is needed and
+ * none is used.
+ *
+ * MODULE-SCOPED ON PURPOSE, and disclosed as a residual: only the framework's own import
+ * declaration is consulted. A rename arriving through a local fixture-extension module would need
+ * following a re-export across files, which is the resolution D-13 forbids shipping.
+ *
+ * Returns `null` when the parser does not expose the import predicates — the resolver then degrades
+ * to the pre-D-18 behaviour for this one shape rather than throwing outside the D-12 exit codes.
+ */
+export function deriveImportRenames(ts, sf) {
+    const isImportDeclaration = ts.isImportDeclaration;
+    const isNamedImports = ts.isNamedImports;
+    const isImportSpecifier = ts.isImportSpecifier;
+    if (typeof isImportDeclaration !== "function" ||
+        typeof isNamedImports !== "function" ||
+        typeof isImportSpecifier !== "function") {
+        return null;
+    }
+    const renames = new Map();
+    ts.forEachChild(sf, (node) => {
+        if (!isImportDeclaration(node))
+            return;
+        if (!ts.isStringLiteralLike(node.moduleSpecifier))
+            return;
+        if (node.moduleSpecifier.text !== PLAYWRIGHT_TEST_MODULE)
+            return;
+        const clause = node.importClause;
+        if (clause === undefined)
+            return;
+        const named = clause.namedBindings;
+        if (named === undefined || !isNamedImports(named))
+            return;
+        for (const element of named.elements) {
+            if (!isImportSpecifier(element))
+                continue;
+            if (element.propertyName === undefined)
+                continue;
+            renames.set(element.name.text, element.propertyName.text);
+        }
+    });
+    return renames;
+}
+/**
+ * D-18 (3): rewrite a resolved path's HEAD SEGMENT through the rename map, so `it.skip` is asked as
+ * `test.skip` and a renamed head cannot defeat the head-set check.
+ *
+ * THIS FUNCTION DECLINES NOTHING, and that is deliberate rather than incidental. Every exit returns
+ * its INPUT or a rewrite of its input — never a fresh `null` — so it introduces no decline site of
+ * its own, and the resolver's decline set stays exactly the set of positions where a path could not
+ * be produced in the first place. A `null` path passes straight through, so the caller needs no null
+ * comparison.
+ */
+export function canonicaliseHeadSegment(dottedPath, renames) {
+    if (dottedPath === null || renames === null)
+        return dottedPath;
+    const segments = dottedPath.split(".");
+    const imported = renames.get(segments[0]);
+    if (imported === undefined)
+        return dottedPath;
+    segments[0] = imported;
+    return segments.join(".");
+}
 /** The three assertion node kinds, each guarded because the target's parser may predate it. */
 function isTypeAssertionLike(ts, node) {
     const predicates = [ts.isAsExpression, ts.isTypeAssertionExpression, ts.isSatisfiesExpression];
@@ -490,15 +722,20 @@ export function findBannedConstructs(ts, sf, relPath) {
     // once. Arm (c) matches a single call shape and needs no such key.
     const reportedAssertionHeads = new Set();
     const lineOf = (pos) => ts.getLineAndCharacterOfPosition(sf, pos).line + 1;
+    // D-18 (3): the rename map is built ONCE PER SOURCE FILE, before the walk, and applied between
+    // shape resolution and membership. Per-file is the correct scope because an import declaration's
+    // reach is the file it sits in.
+    const renames = deriveImportRenames(ts, sf);
     const visit = (node) => {
         if (ts.isCallExpression(node)) {
             // ── arm (c): a banned modifier call ────────────────────────────────────────────────────
             // ONE normaliser, ONE authority. No callee shape is inspected here — every shape question
             // belongs to calleeDottedPath — and no membership is decided here either: the whole condition
-            // is the question put to isBannedModifierPath. Two places that decide one question are two
-            // places for the answers to disagree, which is how CR-06 happened.
-            const dottedPath = calleeDottedPath(ts, node.expression);
-            if (isBannedModifierPath(dottedPath)) {
+            // is the question put to isBannedModifierCall. Two places that decide one question are two
+            // places for the answers to disagree, which is how CR-06 happened, and asking a rule about a
+            // shape nobody resolved is how CR-07 happened.
+            const dottedPath = canonicaliseHeadSegment(calleeDottedPath(ts, node.expression), renames);
+            if (isBannedModifierCall(dottedPath, enabledOptionKeys(ts, node))) {
                 const pos = node.getStart(sf);
                 // ONE emission point, and ONE sentence true of the WHOLE banned family. It used to say the
                 // call "removes the scenario", which was true of `skip`/`only`/`fixme` and FALSE of the

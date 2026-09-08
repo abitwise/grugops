@@ -153,6 +153,82 @@ edited or renumbered.
     `agent-factory/checklists/browser-uat-recipe.md` quotes the three constants by value under a
     both-directions equality test, so the documented claim and the decided rule have one source.
 
+#### Gap-closure decision — D-18 (2026-09-08, gap-closure round 3, plan 31-13)
+
+This is a GAP-CLOSURE decision recorded during execution, not an original user decision from the
+discussion. It EXTENDS D-14 arm (c) and D-17; it replaces neither, and no existing decision above is
+edited, renumbered or deleted.
+
+**Forced by:** CR-07 and WR-14 of `31-REVIEW.md`, and gap 1 of `31-VERIFICATION.md` round 3 (the
+truth beginning "UATX-06").
+
+**Which register failed.** D-17 fixed MEMBERSHIP, and it fixed it correctly: `isBannedModifierPath`
+decides every shape it is asked about, by head and tail, and needed no new member for the routing
+segments the round-2 verifier planted. The round-3 verifier then planted five constructs the rule is
+NEVER ASKED ABOUT, because `calleeDottedPath` declined to resolve their callees at all —
+`test.info().skip()`, `test.info().fail()`, `test.info().fixme(true, "later")`,
+`expect.configure({ soft: true })(locator).toBeVisible()`, and an import-renamed head
+(`import { test as it } from "@playwright/test"; it.skip(...)`). Each reported
+`0 findings over 1/1 uat specs checked` at exit 0 against the committed `.js`, independently
+reproduced by this plan before any source change. The failing register is SHAPE RESOLUTION — which
+call expressions the membership rule is even asked about — one register past the one D-17 fixed, and
+the THIRD recurrence of this repository's set/shape-literal drift class inside Phase 31 alone.
+
+- **D-18: the declining callee SHAPES are decided, and the set of shapes still declined is derived
+  from the source rather than remembered.** D-18 adds no member to any ban set. It makes three
+  sub-decisions and then bounds what is left.
+  - **(1) A call link RESOLVES.** `calleeDottedPath` recurses on a `CallExpression` link and, when
+    the inner path resolves, pushes it as ONE segment suffixed with a `()` marker; when the inner
+    path does not resolve, the whole path still does not. `test.info().skip` therefore resolves to
+    `test.info().skip`, whose head segment is `test` and whose tail segment is `skip`, so D-17's
+    existing rule refuses it with NO new member in any set — the marker lands in the ROUTING
+    position D-17 already decided is not part of the membership question. This is why the decision
+    needs no decided list of call-bearing heads, which was the alternative the verifier's `missing:`
+    offered and which would have been a fourth set literal on the axis this class keeps returning
+    to. `expect(x).soft` stays legitimate BY CONSTRUCTION rather than by exception: its head segment
+    is the marked `expect()` call, not the bare `expect` identifier, so its path is `expect().soft`,
+    which is neither a banned exact path nor a banned head.
+  - **(2) The configured-soft escape is a PATH PLUS AN ENABLED OPTION, not a path.** Refusing
+    `expect.configure` by path alone would also refuse the legitimate `expect.configure({ retries: 2
+    })`. The new frozen `BANNED_CONFIGURED_PATHS` maps a dotted path to the one option key whose
+    `true` literal makes the call an escape (`expect.configure` -> `soft`), and `enabledOptionKeys`
+    reads the property names assigned the `true` KEYWORD in the call's first object literal —
+    literals only, no evaluation, no type checker. `isBannedModifierCall` is the single membership
+    authority that joins the two halves and DELEGATES the pure-path half to `isBannedModifierPath`;
+    the arm-(c) call site asks that one function and compares nothing itself, exactly as D-17
+    requires.
+  - **(3) An import rename is canonicalised before the head is read.** `deriveImportRenames` reads
+    `ImportSpecifier.propertyName` off the `@playwright/test` import declarations — a literal
+    already present in the source text, needing no type checker — and `canonicaliseHeadSegment`
+    rewrites the resolved path's head through that map, so `it.skip` is asked as `test.skip`.
+  - **The decline set is DERIVED, and bound in both directions.** The test suite parses the
+    runnable's own source, closes over the resolver functions the arm-(c) site asks, and derives
+    every position at which resolution ends without producing a path. That derived set's members and
+    its cardinality are asserted separately, and every member is bound to either a decided construct
+    or a NAMED member of `UNRESOLVABLE_CALLEE_RESIDUALS`, in both directions — no derived site
+    without a binding, and no residual naming a site the resolver no longer has. A seeded extra
+    decline branch is watched moving the count by exactly one and arriving unbound. A sixth
+    undisclosed shape therefore reds the suite naming itself instead of passing at exit 0.
+  - **What D-18 does NOT establish.** The rename canonicalisation is MODULE-SCOPED: a rename
+    arriving through a local fixture-extension module is not canonicalised, because following a
+    re-export across files needs resolution D-13 forbids shipping. The reverse partition `31-12`
+    landed walks DECLARED PROPERTY CHAINS only — `checker.getPropertiesOfType` does not descend
+    through a call signature's return type — so a call-link spelling is outside its denominator
+    until that walk is extended; extending it would move the denominator of every coverage assertion
+    `31-12` landed and is deliberately not in this round, and the boundary is stated in the recipe's
+    completeness paragraph instead. A binding reached through a fixture parameter (`testInfo.skip()`)
+    remains the disclosed alias residual for the same D-13 reason. The head and tail sets are still
+    hand-authored, and the declared surface is still a hand transcription whose drift from the
+    released package stays an open `UNKNOWN - verify` (`R-07`).
+  - **Reversibility: costly.** The resolved-path spelling for a call link is now part of the
+    exported contract the recipe quotes and the corpus asserts, exactly as D-17's constants are.
+    Reverting means restoring a resolver the verifier has measured as declining five real spellings.
+  - **Recorded in three places that must agree:** here, in the decision header of
+    `scripts/runnable-ref/uat-spec-integrity.ts`, and in `31-13-SUMMARY.md`'s key-decisions block.
+    `agent-factory/checklists/browser-uat-recipe.md` quotes the four rule constants by value under
+    the both-directions equality test and carries the residual register verbatim, so the documented
+    claim and the decided rule keep one source.
+
 ### Claude's Discretion
 - Exact runnable file name and the exact wording of the two new loud-skip markers, as long as
   each is a single exported constant with a single emission point (the `uat-live.test.ts` shape).

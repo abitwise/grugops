@@ -807,13 +807,22 @@ describe("uat-spec-integrity.js — 31-06 gap 2: the real Playwright modifier sp
   });
 
   // ── the residuals are NAMED, not silent ─────────────────────────────────────────────────────
-  it("exports the two unresolvable callee shapes as named residuals", async () => {
+  it("exports the unresolvable callee shapes as named residuals, each a written reason", async () => {
     const { UNRESOLVABLE_CALLEE_RESIDUALS } = await loadChecker();
-    expect(UNRESOLVABLE_CALLEE_RESIDUALS.length).toBe(2);
+    // 31-13 (D-18): the COUNT is deliberately not asserted here any more. A hand-typed count is the
+    // set-literal axis this phase has now been caught on three times; the register's size is BOUND
+    // instead by the both-directions binding against the AST-DERIVED decline-site set at the end of
+    // this file — no derived site without a residual, and no residual naming a site the resolver no
+    // longer has. What stays here is the non-vacuity floor and the "a label is not a reason" floor.
+    expect(
+      UNRESOLVABLE_CALLEE_RESIDUALS.length,
+      "PREMISE: the residual register is empty",
+    ).toBeGreaterThan(0);
     for (const residual of UNRESOLVABLE_CALLEE_RESIDUALS) {
       expect(typeof residual).toBe("string");
       expect(residual.length).toBeGreaterThan(20);
     }
+    expect(new Set(UNRESOLVABLE_CALLEE_RESIDUALS).size).toBe(UNRESOLVABLE_CALLEE_RESIDUALS.length);
   });
 
   it("the two named residuals really are unresolved — an alias and a computed member pass", () => {
@@ -1293,7 +1302,19 @@ describe("uat-spec-integrity — 31-12 WR-13: the declared modifier surface, der
           const dotted = calleeDottedPath(ts, node.expression);
           // Only calls rooted at a binding this surface declares: `page.goto` is a call on a value
           // the surface returns, not a member of the surface, and is not this block's question.
-          if (dotted !== null && roots.has(dotted.split(".")[0])) called.add(dotted);
+          //
+          // 31-13 (D-18): and only PROPERTY CHAINS. A path carrying a `()` marker segment —
+          // `expect.soft().toContain`, `test.info().skip` — is a CALL LINK, and the walk that
+          // produces this block's denominator is `checker.getPropertiesOfType`, which descends
+          // declared properties and does NOT descend through a call signature's RETURN TYPE. Such a
+          // path can therefore never be in the walked set, and comparing it against that set would
+          // report a hole in the denominator that is really a boundary of the walk. The boundary is
+          // stated here, in browser-uat-recipe.md's completeness paragraph, and in
+          // playwright-test.d.ts's header, rather than being absorbed silently — which is exactly
+          // the `missing:` item (c) the round-3 verifier raised.
+          if (dotted !== null && !dotted.includes("()") && roots.has(dotted.split(".")[0])) {
+            called.add(dotted);
+          }
         }
         ts.forEachChild(node, visit);
       };
@@ -2009,7 +2030,7 @@ describe("uat-spec-integrity — 31-11 CR-06: membership is a rule, decided in o
     const walk = (node: import("typescript").Node): void => {
       if (tsApi.isIfStatement(node)) {
         const text = node.expression.getText(sf);
-        if (text.includes("isBannedModifierPath")) armC.push(node);
+        if (text.includes("isBannedModifierCall")) armC.push(node);
       }
       tsApi.forEachChild(node, walk);
     };
@@ -2020,8 +2041,34 @@ describe("uat-spec-integrity — 31-11 CR-06: membership is a rule, decided in o
     // The condition IS the call — no `&&`, no null comparison, no membership test of its own.
     expect(tsApi.isCallExpression(condition), condition.getText(sf)).toBe(true);
     const call = condition as import("typescript").CallExpression;
-    expect(call.expression.getText(sf)).toBe("isBannedModifierPath");
-    expect(call.arguments.length).toBe(1);
+    // 31-13 (D-18): the authority is now `isBannedModifierCall`, which takes the resolved path AND
+    // the call's enabled option keys and DELEGATES the pure-path half to `isBannedModifierPath`.
+    // Two arguments, still one authority: the call site asks and compares nothing itself.
+    expect(call.expression.getText(sf)).toBe("isBannedModifierCall");
+    expect(call.arguments.length).toBe(2);
+
+    // …and the pure-path authority is asked by the joint authority, NOT by the call site. A second
+    // membership question put at the call site would be the two-authorities drift D-17 closed.
+    // Counted over CALL EXPRESSIONS, never over text: the committed .js carries this file's own
+    // comments, and a comment naming an authority is not a call to it.
+    const invocations = new Map<string, number>();
+    const countCalls = (node: import("typescript").Node): void => {
+      if (tsApi.isCallExpression(node) && tsApi.isIdentifier(node.expression)) {
+        const name = node.expression.text;
+        invocations.set(name, (invocations.get(name) ?? 0) + 1);
+      }
+      tsApi.forEachChild(node, countCalls);
+    };
+    tsApi.forEachChild(fn, countCalls);
+    expect(
+      invocations.get("isBannedModifierPath") ?? 0,
+      "arm (c) asks the pure-path authority directly — it must ask only the joint authority, which " +
+        "delegates that half itself",
+    ).toBe(0);
+    expect(
+      invocations.get("isBannedModifierCall") ?? 0,
+      "the joint authority is asked more or fewer than once inside findBannedConstructs",
+    ).toBe(1);
   });
 
   it("the three rule constants are read ONLY inside the membership authority", () => {
