@@ -11777,6 +11777,98 @@ function livePin(): string {
   return v;
 }
 
+
+// (Plan 31-07, gap 3) THE AUTHORITY'S OWN SHAPE — the fixtures that make the pin source float.
+//
+// Every case above plants its violation somewhere OTHER than the authority, which is precisely why
+// none of them could see gap 3: the authority is what everything else is compared against, so
+// equality can decide nothing about it. These two helpers exist to put the fault where no case had
+// put it yet.
+
+/**
+ * Every markdown file under `root` that carries at least one pinned mention, as repo-relative
+ * forward-slash paths, sorted.
+ *
+ * DERIVED rather than listed. A hand-maintained "these are the files with mentions" list is the
+ * set-literal drift this repository has already been bitten by: it reads green while the tree moves
+ * underneath it.
+ */
+function pinCarriersIn(root: string): string[] {
+  const carriers: string[] = [];
+  const walk = (rel: string): void => {
+    for (const entry of readdirSync(rel === "" ? root : join(root, rel), {
+      withFileTypes: true,
+    })) {
+      const childRel = rel === "" ? entry.name : `${rel}/${entry.name}`;
+      if (entry.isDirectory()) {
+        walk(childRel);
+        continue;
+      }
+      if (!entry.isFile() || !entry.name.endsWith(".md")) continue;
+      if (/@playwright\/mcp@/.test(readFileSync(join(root, childRel), "utf8"))) {
+        carriers.push(childRel);
+      }
+    }
+  };
+  walk("");
+  carriers.sort();
+  return carriers;
+}
+
+/**
+ * Rewrite EVERY pinned mention in the mirror — the authority's own included — to a FLOATING
+ * specifier, and return the files it changed.
+ *
+ * The changed list is RETURNED rather than discarded so the call site can assert it is non-empty. A
+ * rewrite that matched nothing would leave a correctly-pinned mirror behind and the case below would
+ * pass for a bookkeeping reason; this repository has recorded a false harness premise six times
+ * across four rounds, so the premise is asserted at every call site and never assumed.
+ */
+function floatEveryPinIn(root: string, specifier = "latest"): string[] {
+  const carriers = pinCarriersIn(root);
+  for (const rel of carriers) {
+    const path = join(root, rel);
+    writeFileSync(
+      path,
+      readFileSync(path, "utf8").replace(
+        /@playwright\/mcp@[^\s`"'()[\],<>]*/g,
+        `@playwright/mcp@${specifier}`,
+      ),
+      "utf8",
+    );
+  }
+  return carriers;
+}
+
+interface MutatedGuardRun {
+  readonly result: SpawnSyncReturns<string>;
+  readonly before: string;
+  readonly after: string;
+}
+
+/**
+ * Run a MUTATED copy of the COMMITTED guard against a mirror, returning the run alongside the guard
+ * source before and after the mutation.
+ *
+ * A composition of the two scratch-build helpers rather than a second implementation of them:
+ * `scratchGuardFiles` already copies the compiled import closure into a fresh temp directory and
+ * already REFUSES a mutation that matched nothing. The two sources come back with the run so the
+ * watched-fail case can assert the mutation moved the file it claims to have mutated — a mutation
+ * that silently no-opped would produce a green watched-fail that means nothing.
+ */
+function runMutatedGuardIn(
+  checkRoot: string,
+  mutate: (guardJs: string) => string,
+): MutatedGuardRun {
+  const before = readFileSync(GUARD_JS, "utf8");
+  const guardJs = scratchGuardFiles({ "check-foundation-guards.js": mutate });
+  return {
+    result: runScratch(guardJs, checkRoot),
+    before,
+    after: readFileSync(guardJs, "utf8"),
+  };
+}
+
 describe("guard_playwright_mcp_pin (plan 31-03, D-08 / UATX-02)", () => {
   it("(pin-live) passes on the real tree and reports what it scanned", () => {
     const r = spawnSync("node", [GUARD_JS], { encoding: "utf8" });
@@ -12004,5 +12096,133 @@ describe("guard_playwright_mcp_pin (plan 31-03, D-08 / UATX-02)", () => {
       `the pin guard's own source carries version literal(s) ${literals.join(", ")} — the version ` +
         `must be READ from ${PIN_SOURCE_REL}, never restated here`,
     ).toEqual([]);
+  });
+
+  // ── (Plan 31-07, gap 3) THE AUTHORITY ITSELF FLOATS ────────────────────────────────────────────
+  //
+  // 31-VERIFICATION.md gap 3: the guard adopted `authority[0].version` as the pin with no check that
+  // what it read was a well-formed concrete version. A recipe whose FIRST mention was `@latest` made
+  // the pin the string "latest", every re-pinned mention compared equal to it, and the guard printed
+  // a clean pass over a kit that pins nothing — the exact failure it exists to prevent. Both cases
+  // below were written and RUN against the guard as it stood before the fix.
+
+  it("(pin-authority-floats-all) a kit whose EVERY mention floats — the authority's own included — exits non-zero", () => {
+    const m = mirror();
+    const changed = floatEveryPinIn(m);
+    expect(
+      changed.length,
+      "PREMISE — the rewrite must have touched at least one markdown file; a rewrite that matched " +
+        "nothing would leave a correctly-pinned mirror and this case would pass for a bookkeeping reason",
+    ).toBeGreaterThan(0);
+    const recipe = readFileSync(join(m, PIN_SOURCE_REL), "utf8");
+    expect(changed, "PREMISE — the authority is one of the rewritten files").toContain(PIN_SOURCE_REL);
+    expect(recipe, "PREMISE — the authority now floats").toContain("@playwright/mcp@latest");
+    expect(recipe, "PREMISE — the real pin is gone from the authority").not.toContain(livePin());
+
+    const r = runIn(m);
+    const section = guardSection(out(r), PIN_BANNER).join("\n");
+    expect(
+      r.status,
+      `the guard reported a PASS over a kit that pins nothing:\n${section}`,
+    ).not.toBe(0);
+    expect(section).toContain(PIN_SOURCE_REL);
+    expect(section).toContain("latest");
+    // Every mention equals every other, so a drift comparison finds nothing. Only a SHAPE assertion
+    // on the authority can refuse this tree, and a measured 0-findings pass line here IS the bypass.
+    expect(section).not.toMatch(/0 findings over/);
+  });
+
+  it("(pin-authority-floats-only) ONLY the authority floating is reported as the SHAPE fault on the authority, naming its file, line and token — not merely as drift elsewhere", () => {
+    const m = mirror();
+    const recipePath = join(m, PIN_SOURCE_REL);
+    const src = readFileSync(recipePath, "utf8");
+    const idx = src.indexOf("@playwright/mcp@");
+    expect(idx, "PREMISE — the mirrored recipe must carry a pinned mention").toBeGreaterThan(-1);
+    const authorityLine = src.slice(0, idx).split("\n").length;
+    const floated =
+      src.slice(0, idx) +
+      src
+        .slice(idx)
+        .replace(/@playwright\/mcp@[^\s`"'()[\],<>]*/, "@playwright/mcp@latest");
+    expect(floated, "PREMISE — the first-mention rewrite must have applied").not.toBe(src);
+    writeFileSync(recipePath, floated, "utf8");
+    expect(
+      floated.split(`@playwright/mcp@${livePin()}`).length - 1,
+      "PREMISE — every OTHER mention must still carry the real pin, or this is the all-floating case again",
+    ).toBeGreaterThan(0);
+
+    const r = runIn(m);
+    const section = guardSection(out(r), PIN_BANNER).join("\n");
+    expect(r.status).not.toBe(0);
+    expect(section).toContain(PIN_SOURCE_REL);
+    expect(section).toContain(`line ${authorityLine}`);
+    expect(section).toContain("latest");
+    // WHICH OF THE TWO FAULTS FIRED IS PART OF THE REPORT. Before the fix this tree failed as drift
+    // on the other mentions while quietly adopting the dist-tag as the pin, which told the reader
+    // the opposite of what was wrong.
+    expect(section).toContain("is not a concrete version");
+    expect(section).not.toMatch(/finding\(s\)/);
+  });
+
+  it("(pin-shape-watched-fail) with the concrete-version predicate replaced by a PERMISSIVE one, the all-floating kit exits 0 again", () => {
+    // The control, watched failing. A green assertion proves the assertion is green; only restoring
+    // the bypass proves the assertion is what closed it.
+    const m = mirror();
+    expect(floatEveryPinIn(m).length, "PREMISE — the rewrite touched no file").toBeGreaterThan(0);
+    const run = runMutatedGuardIn(m, (js) =>
+      js.replace(
+        /const PIN_CONCRETE_VERSION_RE = \/.*\/;/,
+        "const PIN_CONCRETE_VERSION_RE = /^[\\s\\S]*$/;",
+      ),
+    );
+    expect(
+      run.after,
+      "PREMISE — the mutation did not move the guard source, so nothing was watched",
+    ).not.toBe(run.before);
+    expect(run.after).toContain("const PIN_CONCRETE_VERSION_RE = /^[\\s\\S]*$/;");
+    const section = guardSection(out(run.result), PIN_BANNER).join("\n");
+    expect(
+      run.result.status,
+      `the permissive build did NOT restore the bypass, so this case proves nothing about the ` +
+        `shape assertion:\n${section}`,
+    ).toBe(0);
+    expect(section).toMatch(/0 findings over/);
+  });
+
+  it("(pin-empty-authority-distinct) an EMPTY captured token reaches its own refusal, distinct in text from the shape refusal", () => {
+    // Two degenerate authorities, two decisions, two sentences. An empty token is not a badly-shaped
+    // token, and a reader who is told the wrong one edits the wrong thing.
+    const m = mirror();
+    writeFileSync(
+      join(m, PIN_SOURCE_REL),
+      "---\nkind: checklist\ntier: enterprise\n---\n# Browser UAT Recipe\n\n" +
+        "The package `@playwright/mcp@` carries no token at all.\n",
+      "utf8",
+    );
+    const r = runIn(m);
+    const section = guardSection(out(r), PIN_BANNER).join("\n");
+    expect(r.status).not.toBe(0);
+    expect(section).toContain("carries no version");
+    expect(section).not.toContain("is not a concrete version");
+    expect(section).not.toMatch(/0 findings over/);
+  });
+
+  it("(pin-authority-only-scan-set) a scan set whose ONLY mention-carrying file is the authority still prints a MEASURED pass line with a non-zero numerator", () => {
+    // THE AUTHORITY IS ITSELF A MEMBER OF THE SCAN SET, so it compares equal to itself — and that
+    // self-comparison is NOT what validates the pin; the shape assertion is. The degenerate set where
+    // the authority is the only carrier must therefore still read as a MEASUREMENT rather than as an
+    // empty loop dressed as a pass.
+    const m = mirror();
+    expect(
+      pinCarriersIn(m),
+      "PREMISE — derived, not assumed: the mirror's only mention-carrying markdown file",
+    ).toEqual([PIN_SOURCE_REL]);
+    const r = runIn(m);
+    const section = guardSection(out(r), PIN_BANNER).join("\n");
+    const measured = /0 findings over (\d+)\/(\d+) elements/.exec(section);
+    expect(measured, `no measured PASS line in:\n${section}`).not.toBeNull();
+    expect(Number((measured as RegExpExecArray)[1])).toBeGreaterThan(0);
+    expect((measured as RegExpExecArray)[1]).toBe((measured as RegExpExecArray)[2]);
+    expect(r.status).toBe(0);
   });
 });

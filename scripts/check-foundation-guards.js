@@ -3356,6 +3356,21 @@ const PIN_SCAN_SKIPPED_DIRS = ["node_modules", ".git"];
 // see. An occurrence with an EMPTY version token is also a finding, for the same reason: a mention
 // nobody can check is not a mention this guard may skip.
 const PIN_OCCURRENCE_SOURCE = "@playwright/mcp@([^\\s`\"'()\\[\\],<>]*)";
+// A CONCRETE VERSION, ANCHORED AT BOTH ENDS — the shape the AUTHORITY's captured token must have
+// before it is adopted as the pin.
+//
+// The guard reads its authority out of prose, and prose carries a dist-tag as readily as a version.
+// The occurrence pattern above does not tell the two apart and must not: it captures whatever token
+// runs to a delimiter, which is right for a mention that will be COMPARED and useless for the one
+// mention everything else is compared AGAINST — that one compares equal to itself whatever it says.
+// So what was read is validated in place before it becomes the fact. D-08 fixes the pin as ONE
+// literal in the checklist with no version lookup at gate time, so this asserts the SHAPE of that
+// literal and never reaches out to learn what a valid version would be.
+//
+// Major, minor and patch with an optional hyphen-introduced prerelease tail, and no build metadata:
+// every mention the kit has ever carried is three numeric parts. A future pin carrying build
+// metadata is refused loudly and the remedy is a decision, never a silent widening of this pattern.
+const PIN_CONCRETE_VERSION_RE = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
 /** Every occurrence in one file, in line order, each carrying its own line number. */
 function pinOccurrencesIn(rel) {
     const found = [];
@@ -3438,6 +3453,14 @@ function guardPlaywrightMcpPin() {
     }
     if (first.version === "") {
         fail(`playwright MCP pin: the first pinned mention in ${PLAYWRIGHT_MCP_PIN_SOURCE} (line ${first.line}) carries no version — ${authorityRemedy}`);
+        FAILS += 1;
+        return;
+    }
+    if (!PIN_CONCRETE_VERSION_RE.test(first.version)) {
+        fail(`playwright MCP pin: the first pinned mention in ${PLAYWRIGHT_MCP_PIN_SOURCE} (line ${first.line}) ` +
+            `reads \`${first.version}\`, which is not a concrete version — a floating specifier AT THE ` +
+            `AUTHORITY makes every re-pinned mention compare equal to it, so this guard would report a ` +
+            `clean pass over a kit that pins nothing — ${authorityRemedy}`);
         FAILS += 1;
         return;
     }
