@@ -1704,6 +1704,104 @@ describe("31-05 — neutralizing the authority call makes the fabricated evidenc
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════════════════════
+// PART FOUR-B — the WHOLE MATRIX is watched failing, not one cell of it (31-10).
+//
+// The case above proves the authority call is load-bearing for ONE probe. That is exactly the shape
+// of argument this plan exists to retire: one proven cell standing in for a set nobody measured. So
+// every behavioural cell of the sanctioned writer is driven against a mirror of the committed `.js`
+// with the authority call neutralized, and each one must WRITE what the live module refuses —
+// MEASURED, cell by cell, rather than asserted as a belief about the mirror.
+//
+// The count of probes that wrote is compared against the count of behavioural cells in the matrix,
+// so a mirror run that silently drove three of seven cannot report success.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+/**
+ * The writer two shipped workflows name BY NAME, and the one whose bypass CR-05 was. Its membership
+ * in the derived writer set is asserted below rather than assumed — a name in a constant is not a
+ * fact about the module.
+ */
+const SANCTIONED_WRITER = "appendNote";
+
+describe("31-10 — the neutralized mirror WRITES every family the live module refuses", () => {
+  it("every behavioural cell of the sanctioned writer inverts on the mirror, and the count matches", async () => {
+    expect(
+      deriveNoteWriters(CONTEXT_IO_TS),
+      `PREMISE: ${SANCTIONED_WRITER} is not in the derived writer set, so the cells counted below ` +
+        `are not the cells of a note writer`,
+    ).toContain(SANCTIONED_WRITER);
+
+    const behavioural = Object.values(WRITER_FAMILY_MATRIX).filter(
+      (cell) => cell.writer === SANCTIONED_WRITER && cell.mode === "behavioural",
+    );
+    // A VACUITY FLOOR THAT ALSO CATCHES A SILENTLY SHORT LIST. An empty set would make the loop
+    // below run zero times and the equality at the end trivially true, so the count is compared
+    // against a denominator derived INDEPENDENTLY of the loop that consumes it: the reachable
+    // derived sites, minus the ones this writer has a disposition for.
+    const independentlyExpected = derivedRefusalSignatures(CONTEXT_IO_TS).filter(
+      (signature) =>
+        !(siteKeyOf(signature) in UNREACHABLE_SITES) &&
+        !(`${SANCTIONED_WRITER}::${siteKeyOf(signature)}` in CELL_DISPOSITIONS) &&
+        !(SANCTIONED_WRITER in WRITER_WIDE_DISPOSITIONS),
+    );
+    expect(independentlyExpected.length).toBeGreaterThan(0);
+    expect(
+      behavioural.length,
+      `the number of behavioural cells for ${SANCTIONED_WRITER} disagrees with the number derived ` +
+        `independently from the site set and the dispositions, so the loop below is about to measure ` +
+        `a different set from the one the matrix claims`,
+    ).toBe(independentlyExpected.length);
+
+    const neutralized = await mirrorOfCommittedJs(
+      AUTHORITY_CALL,
+      "const admission = [];",
+      "ctx-io-matrix-neutralized-",
+    );
+
+    let inverted = 0;
+    for (const cell of behavioural) {
+      const siteKey = siteKeyOf(cell.signature);
+      const probe = REFUSAL_PROBES[cell.signature];
+      const note = probe.note as () => Parameters<typeof mod.appendNote>[1];
+
+      // 1. The MIRROR writes it.
+      const mirrored = stageProbe(probe, `ctx-io-mirror-${siteKey}-`);
+      const beforeMirror = noteFileCount(mirrored.contextRoot, mirrored.task);
+      const id = neutralized.appendNote(
+        mirrored.task,
+        note(),
+        PROBE_BODY,
+        mirrored.contextRoot,
+        undefined,
+        mirrored.repoRoot,
+      );
+      expect(
+        id,
+        `the neutralized mirror REFUSED the ${siteKey} probe too, so the live refusal is NOT caused ` +
+          `by the authority call — some other check is doing the work and this cell proves nothing ` +
+          `about admission`,
+      ).toBeTruthy();
+      expect(noteFileCount(mirrored.contextRoot, mirrored.task)).toBe(beforeMirror + 1);
+
+      // 2. The LIVE module refuses the identical call. The pair is the comparison; either half alone
+      //    is just a program behaving.
+      const live = stageProbe(probe, `ctx-io-mirror-live-${siteKey}-`);
+      const beforeLive = noteFileCount(live.contextRoot, live.task);
+      expect(() =>
+        mod.appendNote(live.task, note(), PROBE_BODY, live.contextRoot, undefined, live.repoRoot),
+      ).toThrow();
+      expect(noteFileCount(live.contextRoot, live.task)).toBe(beforeLive);
+      inverted += 1;
+    }
+    expect(
+      inverted,
+      "a behavioural cell was skipped by the mirror loop, so the inversion was measured over fewer " +
+        "families than the matrix claims to cover",
+    ).toBe(behavioural.length);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
 // PART FIVE-A — the authority call being UNCONDITIONAL is watched failing (31-09, CR-05).
 //
 // WHAT THIS PART USED TO ASK, AND WHY IT CHANGED. Under 31-05 the authority call was scoped by
