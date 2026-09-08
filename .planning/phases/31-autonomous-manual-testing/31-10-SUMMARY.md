@@ -380,3 +380,12 @@ None — no external service configuration, no dependency added, no package inst
 ---
 *Phase: 31-autonomous-manual-testing*
 *Completed: 2026-09-08*
+
+## Self-Check: PASSED
+
+- `scripts/context-io-writer-set.test.ts` present on disk.
+- `.planning/phases/31-autonomous-manual-testing/31-10-SUMMARY.md` present on disk.
+- `.temp/cr05-matrix-probe.mjs` present on disk (gitignored by design).
+- All three task commits reachable: `d45cf57`, `0ae553c`, `19dac6e`.
+- Plan-level verification re-run at close-out: `npx vitest run --exclude '**/scripts/e2e/**'` → 62 files, 3407 passed / 2 skipped; `npm run build && npm run typecheck && npm run check:build-parity && npm run freshness` → green; `node .temp/cr05-matrix-probe.mjs` → exit 0.
+- Every task `<acceptance_criteria>` re-run and passing; zero skipped test cases in the suite.
