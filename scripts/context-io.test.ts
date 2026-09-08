@@ -330,6 +330,14 @@ describe("context-io.js — provenance-forgery defense (CR-01)", () => {
   it("appendNote emits an `id:` field equal to the <id>.md filename", () => {
     const contextRoot = freshTmp("ctx-io-idfield-");
     const task = "task-idfield";
+    // 31-09: appendNote consults the admission authority for EVERY note, so a fixture finding
+    // stamped §14-gate#SEED-001 needs a REAL live green verdict for SEED-001 in this task context.
+    // The stamp is made genuine rather than the case weakened — the question here is the id⇄filename
+    // contract, which is kind-independent and unaffected by the verdict note sitting beside it.
+    mod.emitVerdict(task, "SEED-001", "clean", FIXTURE_GATE_SHA, contextRoot);
+    const beforeFiles = readdirSync(join(contextRoot, task, "notes")).filter((fn) =>
+      fn.endsWith(".md"),
+    ).length;
     const returnedId = mod.appendNote(
       task,
       {
@@ -346,11 +354,15 @@ describe("context-io.js — provenance-forgery defense (CR-01)", () => {
     );
     const notesDir = join(contextRoot, task, "notes");
     const files = readdirSync(notesDir).filter((fn) => fn.endsWith(".md"));
-    expect(files.length).toBe(1);
-    const fileId = files[0].replace(/\.md$/, "");
+    // The call added EXACTLY one file — asserted as a delta against the planted verdict, so the
+    // "one write per call" contract is unchanged by the fixture's extra setup note.
+    expect(files.length).toBe(beforeFiles + 1);
+    const added = files.filter((fn) => fn === `${returnedId}.md`);
+    expect(added.length).toBe(1);
+    const fileId = added[0].replace(/\.md$/, "");
     // The returned id, the filename id, and the emitted frontmatter `id:` line all agree.
     expect(fileId).toBe(returnedId);
-    const text = readFileSync(join(notesDir, files[0]), "utf8");
+    const text = readFileSync(join(notesDir, added[0]), "utf8");
     expect(text).toContain(`id: ${returnedId}\n`);
   });
 
@@ -1561,6 +1573,11 @@ describe("context-io.js — splitNotes multi-fence split (shared grammar, IN-02)
   // future writer change that broke parseNote-acceptability or dropped the id fails THIS test RED.
   it("WRITER-ORDER GUARD (unified): composeNote's real output is parseNote-acceptable + id-bearing + exactly one splitNotes boundary; a dropped-id perturbation is never silently swallowed", () => {
     const root = freshTmp("ctxio-writer-guard-");
+    // 31-09: appendNote now consults the admission authority for every note, so the fixture's
+    // §14-gate#RUN8 stamp is made GENUINE with a real live green verdict rather than the case being
+    // re-kinded. What this guard measures — composeNote's byte output and its splitNotes boundary —
+    // is unchanged by the verdict note sitting beside it (the guard reads its own `${id}.md`).
+    mod.emitVerdict("guard-task", "RUN8", "clean", FIXTURE_GATE_SHA, root);
     // appendNote composes via composeNote and writes notes/<id>.md.
     const id = mod.appendNote(
       "guard-task",
@@ -4617,6 +4634,11 @@ describe("31-01 — the five other kinds compose byte-identically (research assu
     it(`a \`${kind}\` note's fence equals the pre-change formula exactly`, () => {
       const contextRoot = freshTmp("p31-a5-");
       const task = "p31-a5";
+      // 31-09: the finding arm's §14-gate#SEED-001 stamp is made GENUINE with a real live green
+      // verdict, because appendNote now consults the admission authority for every kind. The A5
+      // question is BYTE-identity of the composed fence, which the planted verdict does not touch —
+      // this case reads its own `${id}.md` by name.
+      if (kind === "finding") mod.emitVerdict(task, "SEED-001", "clean", FIXTURE_GATE_SHA, contextRoot);
       const id = `20260907T090000Z-qe-e2e-${kind}-abcd1234`;
       const f = {
         id,
@@ -5005,10 +5027,14 @@ describe("31-05 gap 1 — appendNote routes an artifact-ref through the single a
         refs: [] as string[],
         supersedes: null as string | null,
       };
-      // A finding stamped §14-gate#SEED-001 needs a live green verdict for that run to admit —
-      // but it goes through appendNote, which does NOT gate a finding (that is admit()'s job and
-      // this fix deliberately did not widen it). So the write succeeds with no verdict planted,
-      // which is exactly the "unchanged" this case asserts.
+      // 31-09 CORRECTION. This comment used to read: "it goes through appendNote, which does NOT
+      // gate a finding (that is admit()'s job and this fix deliberately did not widen it). So the
+      // write succeeds with no verdict planted." That sentence described the CR-05 bypass in the
+      // voice of a design choice, and the round-2 verifier reproduced it as a live defect: a finding
+      // wearing a stamp it never earned entering the shared context through the sanctioned writer.
+      // appendNote now consults the authority for EVERY kind, so the fixture's §14-gate#SEED-001
+      // stamp is made GENUINE. The "unchanged bytes" this case asserts are unaffected.
+      if (kind === "finding") mod.emitVerdict(task, "SEED-001", "clean", FIXTURE_GATE_SHA, contextRoot);
       const id = mod.appendNote(task, note, "body", contextRoot);
       const text = readFileSync(join(contextRoot, task, "notes", `${id}.md`), "utf8");
       expect(text).toContain(`kind: ${kind}\n`);
@@ -5063,19 +5089,27 @@ describe("31-05 gap 1 — appendNote routes an artifact-ref through the single a
     expect(good.id).toBeTruthy();
   });
 
-  // ── THE CONSEQUENCE OF THE WIRING, MEASURED AND DISCLOSED RATHER THAN LEFT SILENT. ─────────────
+  // ── R-21, CLOSED BY 31-09 — the assertion changes DIRECTION because the mechanism changed. ─────
   //
-  // admitAndAppend's non-gated branch admits, then persists through appendNote — which now admits
-  // the artifact-ref kind itself. So under `audit_retention: retained` ONE persisted artifact-ref
-  // produces TWO GOV-02 ledger events, because two admissions genuinely happened and the ledger
-  // records admissions rather than notes.
+  // WHAT THIS CASE USED TO ASSERT, AND WHY. Under 31-05, admitAndAppend's non-gated branch admitted
+  // and then persisted through appendNote, which admitted the artifact-ref kind a SECOND time — so
+  // one persisted artifact-ref produced TWO GOV-02 ledger events. 31-05 recorded that as residual
+  // `R-21` and pinned it here, reasoning that every way to suppress the second event would hand
+  // appendNote a way to be told "the authority already spoke": a parameter is agent-reachable, and a
+  // private unadmitted write helper is a second write path with no binding on it.
   //
-  // WHY IT IS NOT "FIXED" BY SUPPRESSING THE SECOND ONE. Every way to suppress it hands appendNote
-  // a way to be told "the authority already spoke" — a parameter is agent-reachable, and a private
-  // unadmitted write helper is a second write path with no binding on it. Both re-open the thing
-  // this plan closed, to tidy a duplicate audit line. The duplicate is recorded here as an
-  // assertion instead, so the day it changes is a day this case goes red on purpose.
-  it("DISCLOSED: one artifact-ref through admitAndAppend records TWO retained ledger events", () => {
+  // WHY THAT REASONING NO LONGER HOLDS (31-09). The second horn is now taken DELIBERATELY and
+  // BOUNDED rather than avoided: `appendPreAdmittedNote` is module-PRIVATE (no export modifier,
+  // asserted off the parsed source), its caller set is DERIVED by the TypeScript AST in
+  // `scripts/context-io-writer-set.test.ts` and asserted equal to the one-member set
+  // {admitAndAppend}, and its call-site COUNT is asserted separately, so a third caller moves a
+  // number as well as a set. That is a bound the 31-05 reasoning did not have available, and with it
+  // the duplicate COLLAPSES instead of widening to every kind — which is what it would have done
+  // once the kind axis was deleted.
+  //
+  // So the count asserted below is ONE, and the day it becomes two again is a day this case goes red
+  // on purpose.
+  it("R-21 CLOSED: one artifact-ref through admitAndAppend records exactly ONE retained ledger event", () => {
     const contextRoot = freshTmp("p31-05-ledger-");
     const repoRoot = freshTmp("p31-05-ledger-repo-");
     mkdirSync(join(repoRoot, ".grugops"), { recursive: true });
@@ -5090,12 +5124,12 @@ describe("31-05 gap 1 — appendNote routes an artifact-ref through the single a
       .trim()
       .split("\n")
       .filter((l) => l.length > 0);
-    expect(lines).toHaveLength(2);
-    // Both name the SAME note id, so an auditor reading the ledger can tell the pair apart from two
-    // different notes — which is what makes the duplicate disclosable rather than corrupting.
+    expect(lines).toHaveLength(1);
+    // The one event names the persisted note's id, so the ledger record and the note on disk share
+    // one identity — the property the duplicate never broke and this collapse must not break either.
     for (const l of lines) expect((JSON.parse(l) as { id: string }).id).toBe(res.id);
-    // A note of any OTHER kind is admitted once and ledgered once — the duplicate is scoped to the
-    // one kind this plan wired, asserted rather than assumed.
+    // A note of any OTHER kind is admitted once and ledgered once — asserted rather than assumed,
+    // and now the SAME number as the artifact-ref above, which is the point of the collapse.
     const soft = mod.admitAndAppend(
       REPRO_TASK,
       { ...evidence(), kind: "observation", sha: undefined, gate_run: undefined, content_hash: undefined },
@@ -5108,7 +5142,7 @@ describe("31-05 gap 1 — appendNote routes an artifact-ref through the single a
       .trim()
       .split("\n")
       .filter((l) => l.length > 0);
-    expect(after).toHaveLength(3);
+    expect(after).toHaveLength(2);
   });
 });
 

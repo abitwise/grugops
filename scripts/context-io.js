@@ -872,10 +872,16 @@ export function noteId(note) {
     const nonce = randomUUID().slice(0, 8); // node:crypto — lock-free same-millisecond uniqueness
     return `${atCompact}-${note.by}-${note.kind}-${nonce}`;
 }
-// ── appendNote: validate → compose → atomicWrite to a FRESH unique notes/<id>.md (append-only). ──
-// Writes one NEW file; never mutates a shared file (SCTX-04). The publish target is always unique,
-// so the cross-platform rename-onto-existing hazard does not apply to note publication.
-export function appendNote(task, note, body, contextRoot = DEFAULT_CONTEXT_ROOT, precomputedId, repoRoot = ROOT) {
+// ── composeValidatedNote: the field guards + the frozen id + compose + the structural refusal. ───
+//
+// NOT EXPORTED. This is the shared BODY of the two write routes below, factored out so the sequence
+// "guard every interpolated field → resolve ONE id → compose → validate" exists exactly once. It
+// decides nothing about admission; it returns the id and the composed text, or throws on a
+// structurally invalid note having written nothing (nothing has been opened at that point).
+//
+// It is a refactor with no behaviour of its own: every assertion below is the one appendNote already
+// performed, in the order it already performed it.
+function composeValidatedNote(task, note, body, precomputedId) {
     assertSafeTask(task);
     // Field-injection guard (CR-01): no interpolated provenance field may carry a newline, which
     // would smuggle additional frontmatter lines into the fence and forge a verified note.
@@ -920,38 +926,79 @@ export function appendNote(task, note, body, contextRoot = DEFAULT_CONTEXT_ROOT,
     if (findings.length > 0) {
         throw new Error(`context-io.appendNote: refusing to write an invalid note:\n${findings.join("\n")}`);
     }
-    // ── 31-05 (gap 1): the evidence-binding authority is REACHED from this writer (D-03). ───────────
+    return { id, text };
+}
+// ── appendPreAdmittedNote: the ONE route that deliberately skips the admission authority. ────────
+//
+// NOT EXPORTED, AND THAT IS THE WHOLE POINT. `admitAndAppend` has two branches that have ALREADY
+// adjudicated the note by the time they persist it, and calling the authority a second time from
+// the writer would either refuse a note a human already disposed or decide the same question twice
+// and append a second GOV-02 ledger event. They need a route that composes, validates and writes —
+// and nothing else.
+//
+// A route that skips a safety check is reachable by any future in-module caller, which is exactly
+// the shape the original bypass had. So it is bounded three ways rather than trusted: it carries no
+// `export` modifier, its caller set is DERIVED from this file by the TypeScript AST in
+// `scripts/context-io-writer-set.test.ts` and asserted equal to a one-member set, and that test
+// asserts its call-site COUNT separately, so a third call site moves a number as well as a set.
+//
+// It takes no `repoRoot`, because it consults no governance dial: a function that admits nothing has
+// no root to resolve, and a parameter it did not use would read as though it did.
+function appendPreAdmittedNote(task, note, body, contextRoot, precomputedId) {
+    const { id, text } = composeValidatedNote(task, note, body, precomputedId);
+    // The SAME single write chokepoint (R6-1) appendNote reaches: containment is a property of the
+    // write, so a traversal-bearing id can never escape the task's notes dir on this route either.
+    writeNoteFile(join(contextRoot, task, "notes"), id, text);
+    return id;
+}
+// ── appendNote: validate → compose → ADMIT → atomicWrite to a FRESH unique notes/<id>.md. ────────
+// Writes one NEW file; never mutates a shared file (SCTX-04). The publish target is always unique,
+// so the cross-platform rename-onto-existing hazard does not apply to note publication.
+export function appendNote(task, note, body, contextRoot = DEFAULT_CONTEXT_ROOT, precomputedId, 
+// TEST SEAM (31-09, review finding WR-10). Production callers pass NOTHING: the governance root is
+// the ONE trusted answer — the same reader `hooks/guard.ts`, `hooks/admission-guard.ts`,
+// `scripts/admission-server.ts` and the CLI `admit` verb ask. A caller-chosen default of `ROOT`
+// meant the hook refused on the host repository's dial while this writer consulted the kit's, which
+// under the shipped shared-install model (`~/.grugops` kit + per-repo state) are different
+// directories. Plan 30-11 removed exactly this seam from the production `admit` verb for exactly
+// this reason: an admission may not point governance at a root the caller chose.
+repoRoot = trustedRepoRoot()) {
+    const { id, text } = composeValidatedNote(task, note, body, precomputedId);
+    // ── 31-09 (CR-05): the admission authority is consulted for EVERY note this writer takes. ───────
     //
-    // WHAT WAS WRONG, MEASURED RATHER THAN DESCRIBED. D-03 put the sha-versus-verdict comparison in
-    // admit() and nowhere else, and that comparison was correct. It was also unreachable from HERE —
-    // the writer `agent-factory/workflows/17-task-claim.md` and `18-context-compaction.md` name BY
-    // NAME as the sanctioned path. 31-VERIFICATION.md reproduced the consequence against the
-    // committed .js: an artifact-ref naming `gate_run: "no-such-gate-run-ever-existed"` was WRITTEN
-    // and an id returned. The defect was reachability, so the fix is a CALL, not a second check.
+    // WHAT WAS WRONG, MEASURED RATHER THAN DESCRIBED — TWICE. 31-05 wired this call for the kind a
+    // verifier had measured (`artifact-ref`) and scoped it there with a comparison. `admit()` decides
+    // FOUR refusal families — D-01 (a `finding` stamped `§14-gate#<id>` is admitted only against a live
+    // green verdict with that per-run id), D-03 (the artifact-ref binding), D-04 (a high-severity
+    // governance finding needs a named human disposition) and D-14 (an unreadable governance config
+    // refuses) — and that scoped call reached D-03 alone. 31-VERIFICATION.md round 2 reproduced the
+    // consequence against the committed .js: a `finding` naming `verified_by:
+    // "§14-gate#fabricated-run-id"` was WRITTEN, an id returned, and `render()` printed it into
+    // `index.md` as an ordinary row, indistinguishable from a genuinely admitted finding.
     //
-    // THIS BRANCH CONTAINS NO PREDICATE OF ITS OWN. It reads no verdict, looks up no gate_run and
-    // never touches `sha`. It consults the single authority and refuses on its findings — which is
-    // what D-03 means by one authority per predicate. A comparison spelled out here would be the
-    // two-code-paths drift D-03 exists to forbid, and this file has paid for that class before.
+    // THE KIND AXIS IS DELETED, NOT WIDENED. The comparison that used to sit here was a SECOND, and
+    // narrower, statement of a question the authority already answers in full: which notes admission
+    // applies to. Widening it to a longer list would keep the second statement and merely postpone the
+    // next round — this file has now paid twice for that shape, and this phase four times across two
+    // predicate families. So this writer expresses NO opinion about kind at all. The set of kinds it
+    // routes is, by construction, the set `admit()` adjudicates, because it is the same call.
     //
-    // WHY THE KIND TEST GOES THROUGH normalizeKind. A raw `note.kind === "artifact-ref"` would be a
-    // NARROWER view of the kind than parseNote persists: a padded `kind: "artifact-ref "` would skip
-    // this branch here and still store as a real artifact-ref — the GAP-R7-1 Lever-1 divergence,
-    // re-introduced. The kind authority is consulted instead, so the two views cannot diverge.
+    // THIS CALL CONTAINS NO PREDICATE OF ITS OWN. It reads no verdict, looks up no gate_run, compares
+    // no stamp and consults no governance dial. It asks the single authority and refuses on its
+    // findings — which is what D-03 means by one authority per predicate.
     //
-    // WHY IT SITS EXACTLY HERE. After composeNote and validate, and BEFORE writeNoteFile. "Nothing is
+    // WHY IT SITS EXACTLY HERE. After compose and validate, and BEFORE writeNoteFile. "Nothing is
     // written" is then true by construction rather than by cleanup: no file has been opened when the
-    // refusal is decided. It is also why the branch cannot be moved lower for convenience.
+    // refusal is decided. It is also why the call cannot be moved lower for convenience.
     //
-    // RECURSION, CHECKED NOT ASSUMED (plan 31-05 assumption A1): admit() calls no note writer —
-    // measured 0 occurrences of appendNote/emitTrusted/writeNoteFile/emitVerdict/emitCheckpointNote/
-    // admitAndAppend in its body before this wiring landed — so this call cannot re-enter.
-    if (normalizeKind(note.kind) === "artifact-ref") {
-        const admission = admit(task, text, contextRoot, repoRoot);
-        if (admission.length > 0) {
-            throw new Error(`context-io.appendNote: refusing to write an artifact-ref whose provenance the admission ` +
-                `authority did not accept. Nothing was written:\n${admission.join("\n")}`);
-        }
+    // RECURSION, CHECKED NOT ASSUMED (plan 31-09 assumption A1, RE-MEASURED on this tree rather than
+    // inherited from 31-05, because `admit()` has changed since): `admit()` calls no note writer —
+    // 0 occurrences of appendNote/appendPreAdmittedNote/emitTrusted/writeNoteFile/emitVerdict/
+    // emitCheckpointNote/admitAndAppend in its body — so this call cannot re-enter.
+    const admission = admit(task, text, contextRoot, repoRoot);
+    if (admission.length > 0) {
+        throw new Error(`context-io.appendNote: refusing to write a note the admission authority did not accept. ` +
+            `Nothing was written:\n${admission.join("\n")}`);
     }
     // Route through the SINGLE write chokepoint (R6-1): containment is a property of the write, so a
     // traversal-bearing id can never escape the task's notes dir.
@@ -2205,7 +2252,12 @@ export function isGatedNote(by, kind, configResult) {
 // no-fabrication floor — it never rewrites a note to make it pass). It reads NO approval env: the
 // un-forgeable per-entry gate is the per-call 25-10 hook. repoRoot resolves the governance config AND
 // the audit ledger (defaults to the script's own repo root); tests pass an explicit temp root.
-export function admitAndAppend(task, note, body, contextRoot = DEFAULT_CONTEXT_ROOT, repoRoot = ROOT) {
+export function admitAndAppend(task, note, body, contextRoot = DEFAULT_CONTEXT_ROOT, 
+// TEST SEAM (31-09, review finding WR-10) — moved in the SAME change as appendNote's. Production
+// callers pass nothing: the governance root is the ONE trusted answer, the same reader the hooks,
+// the admission server and the CLI `admit` verb ask. Moving one default and not the other would
+// re-introduce the divergence in the other direction, which is why they move together.
+repoRoot = trustedRepoRoot()) {
     assertSafeTask(task);
     // Decide GATED via the SINGLE-SOURCE predicate (W-A) — NOT a local reconstruction; the SAME
     // isGatedNote the 25-10 per-call hook imports. The discriminated read fails closed on an unreadable
@@ -2232,16 +2284,26 @@ export function admitAndAppend(task, note, body, contextRoot = DEFAULT_CONTEXT_R
                 ],
             };
         }
-        // Reuse the IN-MODULE composeNote + validate + appendNote (the sole writer) — the gated branch
-        // does NOT call admit() (admit()'s frozen D-04 would refuse a high-severity finding regardless of
-        // stamp). Compose with a frozen id so the persisted <id>.md and the GOV-02 ledger record share one
-        // identity. On a structurally invalid note, return the findings rather than throwing.
+        // Reuse the IN-MODULE composeNote + validate, then persist through the module-private
+        // PRE-ADMITTED route. Compose with a frozen id so the persisted <id>.md and the GOV-02 ledger
+        // record share one identity. On a structurally invalid note, return the findings rather than
+        // throwing.
+        //
+        // WHY THIS BRANCH SKIPS THE AUTHORITY, WRITTEN AT ITS SITE (31-09, CR-05 consequence (a)).
+        // `admit()`'s FROZEN D-04 arm refuses a high-severity governance finding that carries no
+        // verifiable human disposition — and it cannot verify one, because it is the weaker, self-settable
+        // tier (D-05). This branch is reached only AFTER the un-forgeable per-call 25-10 admission hook
+        // has already disposed exactly this note against the human-set session variable an agent's child
+        // env can never reach. Sending it through `admit()` would therefore refuse a note a named human
+        // has already approved — the authority answering a question it is structurally unable to answer
+        // here. The skip is deliberate, it is bounded by the derived caller-set assertion in
+        // `scripts/context-io-writer-set.test.ts`, and it is the reason that route is not exported.
         const id = noteId(note);
         const text = composeNote(note, body, id);
         const findings = validate(text);
         if (findings.length > 0)
             return { id: null, findings };
-        const persistedId = appendNote(task, note, body, contextRoot, id, repoRoot);
+        const persistedId = appendPreAdmittedNote(task, note, body, contextRoot, id);
         // GOV-02 ledger (retained mode only): reuse the SAME private appendAuditLedger admit() uses —
         // disposed_by derives from the human:NAME stamp; severity is the role classification (D-06).
         if (configResult.config.audit_retention === "retained") {
@@ -2280,7 +2342,14 @@ export function admitAndAppend(task, note, body, contextRoot = DEFAULT_CONTEXT_R
     const findings = admit(task, text, contextRoot, repoRoot);
     if (findings.length > 0)
         return { id: null, findings };
-    const persistedId = appendNote(task, note, body, contextRoot, id, repoRoot);
+    // WHY THIS BRANCH SKIPS THE AUTHORITY, WRITTEN AT ITS SITE (31-09, CR-05 consequence (b)). The
+    // line directly above IS the authority call. Persisting through `appendNote` would call `admit()`
+    // a SECOND time on the same note in the same context — deciding one question twice, which is this
+    // repository's named failure class, and appending a SECOND GOV-02 ledger event under
+    // `audit_retention: retained`, because the ledger records admissions rather than notes. (That
+    // duplicate is what residual `R-21` disclosed for the one kind 31-05 wired; routing this branch
+    // through the pre-admitted route COLLAPSES it rather than widening it to every kind.)
+    const persistedId = appendPreAdmittedNote(task, note, body, contextRoot, id);
     return { id: persistedId, findings: [] };
 }
 // ── CLI entrypoint (only when run directly, never on import) ────────────────────────────────────
