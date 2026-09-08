@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 132
+open_count: 135
 waived_count: 0
 fixed_count: 4
-total_count: 136
-last_updated: 2026-09-08T07:33:14.050Z
+total_count: 139
+last_updated: 2026-09-08T08:16:01.288Z
 ---
 
 # Broken Windows Ledger
@@ -151,6 +151,9 @@ last_updated: 2026-09-08T07:33:14.050Z
 | 134 | 31 | deviation | agent-factory/workflows/05-pr-quality-gate.md |  | A repository holding *.uat.spec.ts files with quality.ui_e2e off never runs the UAT spec-integrity check; applicability is the dial's, so unchecked specs remain possible | open |  | 2026-09-07T16:15:06.479Z |  |
 | 135 | 31 | unrun-verify | agent-factory/workflows/06-uat-pack.md |  | UNKNOWN - verify: the attended Chrome lane was not exercised live on this host; only its documented absence-of-route was asserted structurally | open |  | 2026-09-07T16:15:06.567Z |  |
 | 136 | 31 | deviation | scripts/context-io.ts |  | Disclosed: one artifact-ref through admitAndAppend records TWO retained GOV-02 ledger events, because appendNote now admits the kind after the combiner already did. Asserted in scripts/context-io-writer-set.test.ts and scripts/context-io.test.ts rather than suppressed with a bypass token. | open |  | 2026-09-08T07:33:14.050Z |  |
+| 137 | 31 | unrun-verify | scripts/runnable-ref/fixtures/playwright-test.d.ts |  | UNKNOWN - verify (assumption A1, T-31-32): the declared @playwright/test surface is a HAND TRANSCRIPTION at the kit's 1.62.1 pin, not the package. grugops ships zero runtime deps and its dev set is fixed by CLAUDE.md, so the package cannot be installed to derive it and nothing re-checks it against a released Playwright. Remedy: re-derive the surface wherever @playwright/test is actually installable before treating it as an API authority. | open |  | 2026-09-08T08:16:01.122Z |  |
+| 138 | 31 | deviation | scripts/runnable-ref/uat-spec-integrity.ts |  | 31-06 accepted residual (T-31-31): two callee shapes stay unrefused by arm (c) — an aliased binding (const t = test; t.skip(...)) and a member computed from a non-literal expression (test[name](...)). Resolving either needs a type checker, which this runnable deliberately does not ship (D-13). Exported as UNRESOLVABLE_CALLEE_RESIDUALS, quoted in browser-uat-recipe.md, and pinned by a test asserting both really do pass today. | open |  | 2026-09-08T08:16:01.207Z |  |
+| 139 | 31 | deviation | scripts/runnable-ref/uat-spec-integrity.ts |  | 31-REVIEW.md WR-01, surfaced by 31-06 and NOT closed by it: a .uat.spec.ts one directory outside a uat/ path segment is silently unchecked while the pass line still claims a full count. A real adjacent defect in the same file, outside the three verification gaps; named here so the next round has it rather than rediscovering it. | open |  | 2026-09-08T08:16:01.288Z |  |
 
 ````json
 [
@@ -1784,6 +1787,42 @@ last_updated: 2026-09-08T07:33:14.050Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-09-08T07:33:14.050Z",
+    "resolved_at": null
+  },
+  {
+    "id": 137,
+    "kind": "unrun-verify",
+    "phase": "31",
+    "file": "scripts/runnable-ref/fixtures/playwright-test.d.ts",
+    "line": null,
+    "description": "UNKNOWN - verify (assumption A1, T-31-32): the declared @playwright/test surface is a HAND TRANSCRIPTION at the kit's 1.62.1 pin, not the package. grugops ships zero runtime deps and its dev set is fixed by CLAUDE.md, so the package cannot be installed to derive it and nothing re-checks it against a released Playwright. Remedy: re-derive the surface wherever @playwright/test is actually installable before treating it as an API authority.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-08T08:16:01.122Z",
+    "resolved_at": null
+  },
+  {
+    "id": 138,
+    "kind": "deviation",
+    "phase": "31",
+    "file": "scripts/runnable-ref/uat-spec-integrity.ts",
+    "line": null,
+    "description": "31-06 accepted residual (T-31-31): two callee shapes stay unrefused by arm (c) — an aliased binding (const t = test; t.skip(...)) and a member computed from a non-literal expression (test[name](...)). Resolving either needs a type checker, which this runnable deliberately does not ship (D-13). Exported as UNRESOLVABLE_CALLEE_RESIDUALS, quoted in browser-uat-recipe.md, and pinned by a test asserting both really do pass today.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-08T08:16:01.207Z",
+    "resolved_at": null
+  },
+  {
+    "id": 139,
+    "kind": "deviation",
+    "phase": "31",
+    "file": "scripts/runnable-ref/uat-spec-integrity.ts",
+    "line": null,
+    "description": "31-REVIEW.md WR-01, surfaced by 31-06 and NOT closed by it: a .uat.spec.ts one directory outside a uat/ path segment is silently unchecked while the pass line still claims a full count. A real adjacent defect in the same file, outside the three verification gaps; named here so the next round has it rather than rediscovering it.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-08T08:16:01.288Z",
     "resolved_at": null
   }
 ]
