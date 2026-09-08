@@ -1745,11 +1745,29 @@ describe("browser-uat-recipe.md — the documented ban rule equals the decided o
     }
   });
 
-  it("the recipe states the one-directional boundary and names the plan that closes it", () => {
+  it("the recipe states the claim at the strength it has: both directions, declared surface only", () => {
     const region = extractSection(readFileSync(RECIPE, "utf8"), BAN_SET_HEADING);
-    expect(region).toContain("ONE DIRECTION only");
-    expect(region).toContain("31-12");
+
+    // 31-12: the sentence 31-11 wrote here promised a reverse partition as PENDING. It is replaced
+    // by what is now true, in the same commit as the mechanism that made it true — a recipe that
+    // still promised a check that had landed would be a stale claim in the direction that flatters.
+    expect(
+      region,
+      "the recipe still describes the check as one-directional",
+    ).not.toContain("ONE DIRECTION only");
+
+    // What the reverse half establishes, and that it is a PARTITION rather than a spot-check.
+    expect(region).toContain("BOTH directions");
+    expect(region).toContain("total partition");
+    expect(region).toContain("disjoint");
+    expect(region).toContain("sum to");
+
+    // And what it does NOT establish. The boundary is named, not implied.
+    expect(region).toContain("**not** the released package");
     expect(region).toContain("UNKNOWN - verify");
+    // The residual sits in the region's existing "deliberately outside" list rather than in a new
+    // section, so a reader meets the boundary where they meet the rule.
+    expect(region).toContain("outside both directions");
   });
 
   it("the recipe's residual bullets are the exported residual array, verbatim", async () => {

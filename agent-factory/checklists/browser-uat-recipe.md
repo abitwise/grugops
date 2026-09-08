@@ -189,12 +189,23 @@ Deliberately outside the rule, recorded here so the boundary is written down:
 - A spec body carrying **zero** assertions is **not** refused; vacuous evidence is deferred.
 - An aliased binding is not refused: `const t = test;` then a modifier call on `t`. The alias cannot be followed to its declaration without a type checker.
 - A member computed from a non-literal expression is not refused: `test[name](...)` where `name` is a variable. The member name is absent from the source text.
-- Completeness against the real framework surface is asserted in ONE DIRECTION only. Every spelling
-  the rule refuses is a construct the declared surface carries; whether every real modifier on that
-  surface is refused is the reverse question, and plan `31-12` is where it is answered. The declared
-  surface is itself a hand transcription whose drift from the released package is an open
-  `UNKNOWN - verify`, so a claim proven against it is a claim about the declared surface and not
-  about the package.
+- Completeness against the DECLARED framework surface is asserted in BOTH directions. Forward: every
+  spelling the rule refuses is a construct that surface carries and that type-checks against it.
+  Reverse: every member reached by walking that surface's declared types with the TypeScript checker
+  is either refused by the rule or carries a written reason for not being refused. The reverse half
+  is a total partition, not a spot-check — its two buckets are asserted disjoint, their union is
+  asserted equal to the walked set, and their sizes are asserted to sum to that set's count, so a
+  member that arrives and is decided by neither turns the check red and names itself.
+- The declared surface is **not** the released package, and the paragraph above claims nothing about
+  the package. `scripts/runnable-ref/fixtures/playwright-test.d.ts` is a hand transcription at the
+  pin this recipe documents; its drift from a released Playwright is an open `UNKNOWN - verify` and
+  nothing in this kit re-checks it, because the package is deliberately not installed here. A
+  modifier the released package carries and that transcription does not is outside both directions,
+  and it is the residual this ban set has left.
+- The walk that produces the reverse half's denominator is bounded by a declared segment depth. The
+  bound is stated in the harness with its reason and the walk asserts it reached that bound, so a
+  truncation is a failed premise rather than a shorter set. A modifier family declared deeper than
+  the bound would be outside the measurement.
 
 Widening the rule is a new decision and a gap-closure round, never a quiet edit to the checker.
 
