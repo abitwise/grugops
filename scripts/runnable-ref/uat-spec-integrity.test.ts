@@ -54,7 +54,8 @@ interface CheckerModule {
   readonly PARSER_ABSENT_MARKER: string;
   readonly BROWSER_ABSENT_MARKER: string;
   readonly BROWSER_ABSENT_STAGES: Readonly<Record<"parser_package" | "browser_binaries", string>>;
-  readonly BANNED_CONSTRUCTS: ReadonlyArray<{ readonly object: string; readonly member: string }>;
+  readonly BANNED_CONSTRUCTS: readonly string[];
+  readonly UNRESOLVABLE_CALLEE_RESIDUALS: readonly string[];
   readonly SKIPPED_DIRECTORIES: readonly string[];
   emitLoudSkipIfBrowserUnusable(
     repoRoot: string,
@@ -262,18 +263,36 @@ describe("uat-spec-integrity.js — the D-12 contract and D-14 arm (c) (UATX-06)
   });
 
   // ── the ban set is ONE exported constant the recipe quotes (D-14 "claim matches mechanism") ────
-  it("exports BANNED_CONSTRUCTS as the six locked member calls", async () => {
+  //
+  // 31-06: the set is now DOTTED PATHS and has nine members — D-14's six, with its arm (c) names
+  // re-expressed as paths, PLUS the three `test.describe.*` spellings @playwright/test actually
+  // produces. Nothing D-14 named stopped being banned; the two bare-describe names are retained.
+  it("exports BANNED_CONSTRUCTS as the nine dotted paths, a strict superset of D-14's six", async () => {
     const { BANNED_CONSTRUCTS, UAT_SPEC_GLOB_SUFFIX } = await loadChecker();
     expect(UAT_SPEC_GLOB_SUFFIX).toBe(".uat.spec.ts");
-    const pairs = BANNED_CONSTRUCTS.map((b) => `${b.object}.${b.member}`).sort();
-    expect(pairs).toEqual([
+    expect(BANNED_CONSTRUCTS.every((b) => typeof b === "string")).toBe(true);
+    expect([...BANNED_CONSTRUCTS].sort()).toEqual([
       "describe.only",
       "describe.skip",
       "expect.soft",
+      "test.describe.fixme",
+      "test.describe.only",
+      "test.describe.skip",
       "test.fixme",
       "test.only",
       "test.skip",
     ]);
+    // D-14's letter is PRESERVED: every name it enumerated is still decided.
+    for (const d14 of [
+      "test.skip",
+      "test.fixme",
+      "test.only",
+      "describe.skip",
+      "describe.only",
+      "expect.soft",
+    ]) {
+      expect(BANNED_CONSTRUCTS, `D-14 named ${d14} and it must stay banned`).toContain(d14);
+    }
   });
 });
 
@@ -598,5 +617,177 @@ describe("uat-spec-integrity.js — the vacuity and short-set floors (UATX-06)",
     expect(r.status).toBe(2);
     expect(r.stderr).toContain("did not parse");
     expect(r.stdout).not.toContain("0 findings");
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// 31-06 GAP 2 — arm (c) against the spellings @playwright/test actually has.
+//
+// 31-VERIFICATION.md reproduced this live: a spec carrying `test.describe.only(...)`,
+// `test.describe.skip(...)` and `test["skip"](...)` was run through the committed
+// uat-spec-integrity.js and reported `0 findings over 1/1 uat specs checked`, exit 0. The matcher
+// required the callee to be PropertyAccessExpression(Identifier, member) — a BARE `describe.only`,
+// a spelling @playwright/test cannot produce, because it exports no top-level `describe`.
+//
+// The cases below are the coordinates of that bypass. Each one FAILED before the dotted-path
+// normaliser landed; that is what makes them evidence rather than decoration.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+describe("uat-spec-integrity.js — 31-06 gap 2: the real Playwright modifier spellings (UATX-06)", () => {
+  function plantSpec(body: string): string {
+    const root = mkTargetRepo({});
+    const dest = join(root, "e2e", "uat", "subject.uat.spec.ts");
+    mkdirSync(dirname(dest), { recursive: true });
+    writeFileSync(dest, body, "utf8");
+    return root;
+  }
+
+  function findingsOf(body: string): string[] {
+    const r = runCheck(plantSpec(body), "--json");
+    if (r.status === 0) return [];
+    const parsed = JSON.parse(r.stdout) as { ok: boolean; findings: string[] };
+    return parsed.findings;
+  }
+
+  const IMPORT = 'import { test, expect } from "@playwright/test";';
+
+  // ── RED 1/2: the three-segment dotted modifiers Playwright actually supports ─────────────────
+  for (const modifier of ["only", "skip", "fixme"] as const) {
+    it(`refuses test.describe.${modifier} and names the dotted path`, () => {
+      const findings = findingsOf(
+        [IMPORT, `test.describe.${modifier}("billing", () => {`, "});", ""].join("\n"),
+      );
+      expect(findings.length).toBe(1);
+      expect(findings[0]).toContain(`test.describe.${modifier}`);
+      expect(findings[0]).toContain("banned modifier call");
+    });
+  }
+
+  // ── RED 3: bracket notation normalises to the SAME dotted path as its dotted spelling ────────
+  it("refuses a bracket-notation modifier call and resolves it to the same dotted path", () => {
+    const bracket = findingsOf([IMPORT, 'test["skip"]("a scenario", async () => {});', ""].join("\n"));
+    const dotted = findingsOf([IMPORT, 'test.skip("a scenario", async () => {});', ""].join("\n"));
+    expect(bracket.length).toBe(1);
+    expect(dotted.length).toBe(1);
+    // Same path, same sentence — one normaliser feeds one comparison, so the two spellings cannot
+    // be decided differently.
+    expect(bracket[0]).toBe(dotted[0]);
+    expect(bracket[0]).toContain("test.skip");
+  });
+
+  it("refuses a bracket-notation modifier written with a no-substitution template literal", () => {
+    const findings = findingsOf([IMPORT, "test[`only`](\"a scenario\", async () => {});", ""].join("\n"));
+    expect(findings.length).toBe(1);
+    expect(findings[0]).toContain("test.only");
+  });
+
+  // ── RED 4: the verifier's own spec, end to end, through the committed .js ────────────────────
+  it("the spec 31-VERIFICATION.md ran exits 1 with one finding per construct", () => {
+    const findings = findingsOf(
+      [
+        IMPORT,
+        "",
+        'test.describe.only("billing", () => {',
+        '  test("an invoice is shown", async ({ page }) => {',
+        '    await page.goto("/billing");',
+        '    await expect(page.getByTestId("invoice-total")).toHaveText("$42.00");',
+        "  });",
+        "});",
+        "",
+        'test.describe.skip("refunds", () => {',
+        '  test("a refund is issued", async ({ page }) => {',
+        '    await page.goto("/refunds");',
+        '    await expect(page.getByTestId("refund-status")).toHaveText("Issued");',
+        "  });",
+        "});",
+        "",
+        'test["skip"]("a skipped scenario", async ({ page }) => {',
+        '  await page.goto("/x");',
+        '  await expect(page.getByTestId("x")).toBeVisible();',
+        "});",
+        "",
+      ].join("\n"),
+    );
+    expect(findings.length).toBe(3);
+    const joined = findings.join("\n");
+    for (const path of ["test.describe.only", "test.describe.skip", "test.skip"]) {
+      expect(joined).toContain(path);
+    }
+  });
+
+  // ── GREEN 1: every member is exercised FROM the constant, never from a typed-out name ────────
+  it("refuses every member of BANNED_CONSTRUCTS, iterated from the exported constant", async () => {
+    const { BANNED_CONSTRUCTS } = await loadChecker();
+    // PREMISE: the set is non-empty, so the loop below is not a vacuous pass.
+    expect(BANNED_CONSTRUCTS.length, "PREMISE: BANNED_CONSTRUCTS is empty").toBeGreaterThan(0);
+    for (const path of BANNED_CONSTRUCTS) {
+      const findings = findingsOf([IMPORT, `${path}("a scenario", async () => {});`, ""].join("\n"));
+      expect(findings.length, `${path}: expected exactly one finding`).toBe(1);
+      expect(findings[0]).toContain(path);
+    }
+  });
+
+  // ── GREEN 2: the UNION of the arms, not the first hit ────────────────────────────────────────
+  it("reports one finding per member when every member appears in ONE spec", async () => {
+    const { BANNED_CONSTRUCTS } = await loadChecker();
+    const body = [
+      IMPORT,
+      ...BANNED_CONSTRUCTS.map((path, i) => `${path}("scenario ${i}", async () => {});`),
+      "",
+    ].join("\n");
+    const findings = findingsOf(body);
+    expect(findings.length).toBe(BANNED_CONSTRUCTS.length);
+    for (const path of BANNED_CONSTRUCTS) {
+      expect(findings.some((f) => f.includes(path)), `${path}: absent from the union`).toBe(true);
+    }
+  });
+
+  // ── GREEN 3: every callee shape the normaliser claims to resolve ─────────────────────────────
+  it("resolves a parenthesised, non-null-asserted, type-asserted and optional-chained callee", () => {
+    for (const callee of ["(test).skip", "test!.skip", "(test as never).skip", "test?.skip"]) {
+      const findings = findingsOf([IMPORT, `${callee}("a scenario", async () => {});`, ""].join("\n"));
+      expect(findings.length, `${callee}: expected exactly one finding`).toBe(1);
+      expect(findings[0], `${callee}: expected the dotted path`).toContain("test.skip");
+    }
+  });
+
+  // ── GREEN 4: the widening must not start refusing the specs the gate is supposed to run ──────
+  it("does not refuse a call whose dotted path is outside the set", () => {
+    const body = [
+      IMPORT,
+      'test.describe("billing", () => {',
+      '  test("an invoice is shown", async ({ page }) => {',
+      '    await test.step("open the page", async () => {',
+      '      await page.goto("/billing");',
+      "    });",
+      '    await expect(page.getByTestId("invoice-total")).toHaveText("$42.00");',
+      "  });",
+      "});",
+      "",
+    ].join("\n");
+    expect(findingsOf(body)).toEqual([]);
+  });
+
+  // ── the residuals are NAMED, not silent ─────────────────────────────────────────────────────
+  it("exports the two unresolvable callee shapes as named residuals", async () => {
+    const { UNRESOLVABLE_CALLEE_RESIDUALS } = await loadChecker();
+    expect(UNRESOLVABLE_CALLEE_RESIDUALS.length).toBe(2);
+    for (const residual of UNRESOLVABLE_CALLEE_RESIDUALS) {
+      expect(typeof residual).toBe("string");
+      expect(residual.length).toBeGreaterThan(20);
+    }
+  });
+
+  it("the two named residuals really are unresolved — an alias and a computed member pass", () => {
+    const alias = findingsOf(
+      [IMPORT, "const t = test;", 't.skip("a scenario", async () => {});', ""].join("\n"),
+    );
+    const computed = findingsOf(
+      [IMPORT, 'const m = "skip";', 'test[m]("a scenario", async () => {});', ""].join("\n"),
+    );
+    // These are DISCLOSED residuals (D-13: this runnable ships no type checker). The assertion
+    // pins the disclosure to the behaviour, so a future change that closes one is visible here.
+    expect(alias).toEqual([]);
+    expect(computed).toEqual([]);
   });
 });

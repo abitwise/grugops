@@ -59,25 +59,52 @@ export const SKIPPED_DIRECTORIES: readonly string[] = Object.freeze([
   "tools",
 ]);
 
-// D-14 arm (c): the six banned member calls, as ONE frozen exported constant. The browser-UAT
-// recipe QUOTES this set, so the documented claim and the decided set have a single source.
+// D-14 arm (c): the banned member calls, as ONE frozen exported constant of DOTTED PATHS. The
+// browser-UAT recipe QUOTES this set, so the documented claim and the decided set have a single
+// source.
+//
+// WHY NINE MEMBERS RATHER THAN D-14'S SIX (31-06, closing gap 2 of 31-VERIFICATION.md). D-14
+// enumerated `test.skip`, `test.fixme`, `test.only`, `describe.skip`, `describe.only`,
+// `expect.soft`, and the matcher took that enumeration literally as an object/member PAIR — a BARE
+// `describe.only(...)`. `@playwright/test` exports no top-level `describe`. The only spellings
+// Playwright can produce are `test.describe.only(...)` and its two siblings, so the arm matched a
+// callee shape the package never emits: a spec carrying all three reported ZERO findings and exited
+// 0, narrowing an entire gate run to one describe block undetected.
+//
+// The set below is the UNION of D-14's six and the three real spellings. Nothing D-14 named stops
+// being banned: the two bare-describe names are RETAINED, because D-14 names them and because
+// another framework's bare `describe` can be imported into a spec file. The round only ADDS the
+// spellings the matcher could not see.
 //
 // DELIBERATELY OUT OF THE SET, and why it is written down here rather than left to be rediscovered:
 //   - a promise `.catch()` handler — an assertion inside one is not refused;
 //   - a finally block — D-14 names the try block and the catch clause, and names no third region;
-//   - a spec body containing zero `expect` calls — vacuous evidence, explicitly deferred.
+//   - a spec body containing zero `expect` calls — vacuous evidence, explicitly deferred;
+//   - the two callee shapes named in UNRESOLVABLE_CALLEE_RESIDUALS below.
 // These are DEFERRED, not overlooked. Widening a parser quietly is the failure mode a prior phase
 // closed by defining a canonical form instead of adding one more spelling. A red-team finding on any
-// of the three is a NEW DECISION and a gap-closure round, never a quiet edit here.
-export const BANNED_CONSTRUCTS: ReadonlyArray<{ readonly object: string; readonly member: string }> =
-  Object.freeze([
-    Object.freeze({ object: "test", member: "skip" }),
-    Object.freeze({ object: "test", member: "fixme" }),
-    Object.freeze({ object: "test", member: "only" }),
-    Object.freeze({ object: "describe", member: "skip" }),
-    Object.freeze({ object: "describe", member: "only" }),
-    Object.freeze({ object: "expect", member: "soft" }),
-  ]);
+// of them is a NEW DECISION and a gap-closure round, never a quiet edit here.
+export const BANNED_CONSTRUCTS: readonly string[] = Object.freeze([
+  "test.skip",
+  "test.fixme",
+  "test.only",
+  "test.describe.skip",
+  "test.describe.only",
+  "test.describe.fixme",
+  "describe.skip",
+  "describe.only",
+  "expect.soft",
+]);
+
+// The callee shapes calleeDottedPath CANNOT resolve, exported as prose so the recipe quotes the
+// disclosed boundary from the same source as the decided set. Resolving either one needs a type
+// checker to follow a binding to its declaration, and this runnable deliberately ships no type
+// checker (D-13): it resolves `typescript` from the TARGET repository at run time and uses it to
+// PARSE, never to check types. Both shapes are therefore NAMED here rather than left as a silence.
+export const UNRESOLVABLE_CALLEE_RESIDUALS: readonly string[] = Object.freeze([
+  "An aliased binding — `const t = test;` followed by a modifier call on `t` — is not refused; the alias cannot be followed to its declaration without a type checker.",
+  "A member access computed from a non-literal expression — `test[name](...)` where `name` is a variable — is not refused; the member name is not present in the source text.",
+]);
 
 // D-13: the loud skip for an unresolvable parser. One frozen constant, ONE emission point, so a test
 // can assert the emitted text byte-for-byte. It names `typescript` and states the honest outcome.
@@ -123,6 +150,14 @@ interface TsPropertyAccessExpression extends TsNode {
   readonly name: TsIdentifier;
   readonly questionDotToken?: TsNode;
 }
+interface TsElementAccessExpression extends TsNode {
+  readonly expression: TsNode;
+  readonly argumentExpression: TsNode;
+  readonly questionDotToken?: TsNode;
+}
+interface TsStringLiteralLike extends TsNode {
+  readonly text: string;
+}
 interface TsTryStatement extends TsNode {
   readonly tryBlock: TsNode;
   readonly catchClause?: TsNode;
@@ -163,6 +198,17 @@ export interface TsApi {
   isBinaryExpression(n: TsNode): n is TsBinaryExpression;
   isParenthesizedExpression(n: TsNode): n is TsUnaryLike;
   isNonNullExpression(n: TsNode): n is TsUnaryLike;
+  isElementAccessExpression(n: TsNode): n is TsElementAccessExpression;
+  isStringLiteralLike(n: TsNode): n is TsStringLiteralLike;
+  // The three type-assertion node predicates are declared OPTIONAL on purpose. They arrived in the
+  // public API later than the rest of this surface (`isSatisfiesExpression` in 4.9,
+  // `isTypeAssertionExpression` as the rename of `isTypeAssertion`), and the parser is the TARGET's,
+  // not ours. An absent predicate must degrade to "this callee shape is unresolvable" — which is a
+  // documented residual — and never to a thrown TypeError, which would leave the process with an
+  // exit code outside the D-12 contract's { 0, 1, 2 }.
+  readonly isAsExpression?: (n: TsNode) => boolean;
+  readonly isTypeAssertionExpression?: (n: TsNode) => boolean;
+  readonly isSatisfiesExpression?: (n: TsNode) => boolean;
   readonly ScriptTarget: { readonly Latest: number };
   readonly ScriptKind: { readonly TS: number };
   readonly SyntaxKind: {
@@ -189,10 +235,17 @@ export function loadTypeScriptFromTarget(repoRoot: string): TsApi | null {
   try {
     const requireFromTarget = createRequire(join(repoRoot, "package.json"));
     const candidate = requireFromTarget("typescript") as Partial<TsApi>;
+    // The predicates the walk calls UNCONDITIONALLY are validated here. A module missing one of
+    // them cannot be walked, and a walk that throws mid-analysis would exit outside the D-12
+    // contract; an unusable parser is a LOUD SKIP, exactly like an absent one. The three
+    // type-assertion predicates are NOT in this list — they are optional and guarded at their call
+    // site, because their absence costs one resolvable callee shape rather than the whole walk.
     if (
       typeof candidate.createSourceFile !== "function" ||
       typeof candidate.forEachChild !== "function" ||
-      typeof candidate.getLineAndCharacterOfPosition !== "function"
+      typeof candidate.getLineAndCharacterOfPosition !== "function" ||
+      typeof candidate.isElementAccessExpression !== "function" ||
+      typeof candidate.isStringLiteralLike !== "function"
     ) {
       return null;
     }
@@ -472,6 +525,74 @@ function calleeHeadIdentifier(ts: TsApi, expr: TsNode): TsIdentifier | null {
   return null;
 }
 
+/**
+ * The callee of a call expression as a DOTTED PATH, head first — `test.describe.only` for
+ * `test.describe.only(...)`, `test.skip` for `test["skip"](...)`, `expect.soft` for
+ * `(expect as never).soft(...)`. Returns null when the head is not an identifier, or when any link
+ * in the chain cannot be resolved from the source text alone.
+ *
+ * WHY ONE NORMALISER (31-06, gap 2). Arm (c) previously matched a callee SHAPE —
+ * PropertyAccessExpression(Identifier, member) — which is a bare `describe.only(...)`,
+ * a spelling `@playwright/test` cannot produce. Every spelling that means the same call now
+ * normalises to the same string, so a new callee shape is taught to THIS function and never to a
+ * second matcher; two matchers for one question are two places for the answers to disagree.
+ *
+ * The shapes it descends through: property access (the member name), element access whose argument
+ * is a string literal or a no-substitution template literal (the literal's text, so bracket notation
+ * yields the identical path as its dotted spelling), parenthesised expressions, non-null assertions,
+ * and `as` / `<T>` / `satisfies` assertions. Optional-chaining property access is the SAME node kind
+ * as ordinary property access and needs no case of its own — asserted by a test rather than assumed.
+ *
+ * A CallExpression link deliberately does NOT resolve: `expect(x).soft` is not `expect.soft`, and
+ * treating it as such would refuse a legitimate chained assertion.
+ *
+ * The two shapes it cannot resolve are named in UNRESOLVABLE_CALLEE_RESIDUALS.
+ */
+export function calleeDottedPath(ts: TsApi, expr: TsNode): string | null {
+  const segments: string[] = [];
+  let cur: TsNode = expr;
+  // The same step limit calleeHeadIdentifier uses: a pathological chain cannot spin.
+  for (let guard = 0; guard < 512; guard++) {
+    if (ts.isIdentifier(cur)) {
+      segments.push(cur.text);
+      segments.reverse();
+      return segments.join(".");
+    }
+    if (ts.isPropertyAccessExpression(cur)) {
+      segments.push(cur.name.text);
+      cur = cur.expression;
+      continue;
+    }
+    if (ts.isElementAccessExpression(cur)) {
+      const arg = cur.argumentExpression;
+      // A member computed from a non-literal expression is a documented residual, not a silence.
+      if (!ts.isStringLiteralLike(arg)) return null;
+      segments.push(arg.text);
+      cur = cur.expression;
+      continue;
+    }
+    if (ts.isParenthesizedExpression(cur) || ts.isNonNullExpression(cur)) {
+      cur = cur.expression;
+      continue;
+    }
+    if (isTypeAssertionLike(ts, cur)) {
+      cur = (cur as TsUnaryLike).expression;
+      continue;
+    }
+    return null;
+  }
+  return null;
+}
+
+/** The three assertion node kinds, each guarded because the target's parser may predate it. */
+function isTypeAssertionLike(ts: TsApi, node: TsNode): boolean {
+  const predicates = [ts.isAsExpression, ts.isTypeAssertionExpression, ts.isSatisfiesExpression];
+  for (const predicate of predicates) {
+    if (typeof predicate === "function" && predicate(node)) return true;
+  }
+  return false;
+}
+
 /** Every finding in one spec, in source order, as the union of all three arms. */
 export function findBannedConstructs(ts: TsApi, sf: TsSourceFile, relPath: string): string[] {
   const findings: Array<{ pos: number; text: string }> = [];
@@ -484,22 +605,17 @@ export function findBannedConstructs(ts: TsApi, sf: TsSourceFile, relPath: strin
   const visit = (node: TsNode): void => {
     if (ts.isCallExpression(node)) {
       // ── arm (c): a banned modifier call ────────────────────────────────────────────────────
-      const callee = node.expression;
-      if (ts.isPropertyAccessExpression(callee) && ts.isIdentifier(callee.expression)) {
-        const objectName = callee.expression.text;
-        const memberName = callee.name.text;
-        const banned = BANNED_CONSTRUCTS.some(
-          (b) => b.object === objectName && b.member === memberName,
-        );
-        if (banned) {
-          const pos = node.getStart(sf);
-          findings.push({
-            pos,
-            text:
-              `${relPath}:${lineOf(pos)}: banned modifier call — \`${objectName}.${memberName}\` removes the ` +
-              `scenario from the evidence the quality gate re-runs, so a green lane would certify a scenario nobody exercised.`,
-          });
-        }
+      // ONE normaliser, ONE comparison. No callee shape is inspected here: every shape question
+      // belongs to calleeDottedPath, so the two can never answer differently.
+      const dottedPath = calleeDottedPath(ts, node.expression);
+      if (dottedPath !== null && BANNED_CONSTRUCTS.includes(dottedPath)) {
+        const pos = node.getStart(sf);
+        findings.push({
+          pos,
+          text:
+            `${relPath}:${lineOf(pos)}: banned modifier call — \`${dottedPath}\` removes the ` +
+            `scenario from the evidence the quality gate re-runs, so a green lane would certify a scenario nobody exercised.`,
+        });
       }
       // ── arms (a) and (b): a caught or conditional assertion ─────────────────────────────────
       const head = calleeHeadIdentifier(ts, node.expression);
