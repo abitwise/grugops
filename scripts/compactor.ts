@@ -55,6 +55,7 @@ import { isEntrypoint } from "./is-entry.js";
 import { join } from "node:path";
 import {
   appendNote,
+  promoteAdmitted as ctxPromoteAdmitted,
   admit,
   currentState,
   noteId,
@@ -613,6 +614,28 @@ export function promote(
   contextRoot: string = DEFAULT_CONTEXT_ROOT,
 ): string {
   return appendNote(task, note, body, contextRoot);
+}
+
+// ── promoteAdmitted: the RE-BINDING promotion path (31-14, D-19) — also a thin pass-through. ────
+// Promotion of a note that was ALREADY ADMITTED at the origin is not a new admission; it is a
+// re-binding. context-io.ts decides it, gated by a PROOF over the origin's own bytes rather than by
+// any parameter this file could set: the named source note must be LIVE in the origin's replay and
+// the promoted input must recompose to exactly the record stored there. A note carrying no human
+// disposition stamp is not this route's business and falls through to full admission — which is why
+// a §14-gate-stamped finding and an artifact-ref are still re-bound at the destination against a
+// live green verdict THERE, exactly as before.
+//
+// The compactor adds NO logic and NO forked writer here, exactly as `promote` above adds none: the
+// decision, the proof and the refusal all live in the one authority.
+export function promoteAdmitted(
+  task: string,
+  sourceId: string,
+  note: NoteInput,
+  body: string,
+  from: string,
+  to: string,
+): string {
+  return ctxPromoteAdmitted(task, sourceId, note, body, from, to);
 }
 
 // ── reVerify: re-admission of a promoted finding (D-12) — a thin pass-through to context-io.admit. ─

@@ -2631,6 +2631,25 @@ describe("31-14 — compactor.promoteAdmitted: the proof-gated re-binding pass-t
     ).toHaveLength(1);
   });
 
+  /**
+   * Run `fn` with CLAUDE_PROJECT_DIR pointed at a project, restoring the ambient value afterwards.
+   *
+   * WHY THE ENV RATHER THAN A PARAMETER. The compactor's two promotion functions take NO governance
+   * root — they are pass-throughs, and a compactor that could choose the root governance is read
+   * from would be exactly the seam 31-09 removed from the writer. So the dial is set the way a host
+   * actually sets it, which is also how the round-3 verifier reproduced CR-08.
+   */
+  function underProject<T>(projectDir: string, fn: () => T): T {
+    const previous = process.env.CLAUDE_PROJECT_DIR;
+    process.env.CLAUDE_PROJECT_DIR = projectDir;
+    try {
+      return fn();
+    } finally {
+      if (previous === undefined) delete process.env.CLAUDE_PROJECT_DIR;
+      else process.env.CLAUDE_PROJECT_DIR = previous;
+    }
+  }
+
   it("CR-08 end-to-end through the compactor: the origin write is admitted and the promotion is NOT refused", () => {
     const repoRoot = projectWith({ human_admission: "high-severity", audit_retention: "retained" });
     const originRoot = freshTmp("c31-14-origin-");
@@ -2643,18 +2662,14 @@ describe("31-14 — compactor.promoteAdmitted: the proof-gated re-binding pass-t
 
     // The route the round-3 verifier measured REFUSING, still refusing — the regression is real and
     // this plan does not relax it.
-    expect(() => mod.promote(CR08_TASK, note, CR08_BODY, freshTmp("c31-14-old-"))).toThrow(
-      /admission REFUSED \(human_admission: high-severity\)/,
-    );
+    expect(() =>
+      underProject(repoRoot, () =>
+        mod.promote(CR08_TASK, note, CR08_BODY, freshTmp("c31-14-old-")),
+      ),
+    ).toThrow(/admission REFUSED \(human_admission: high-severity\)/);
 
-    const promotedId = mod.promoteAdmitted(
-      CR08_TASK,
-      originId,
-      note,
-      CR08_BODY,
-      originRoot,
-      destRoot,
-      repoRoot,
+    const promotedId = underProject(repoRoot, () =>
+      mod.promoteAdmitted(CR08_TASK, originId, note, CR08_BODY, originRoot, destRoot),
     );
     expect(promotedId).toBe(originId);
     expect(cr08NoteFiles(destRoot)).toEqual([`${originId}.md`]);
@@ -2672,19 +2687,20 @@ describe("31-14 — compactor.promoteAdmitted: the proof-gated re-binding pass-t
       by: "qe-e2e",
       verified_by: "§14-gate#fabricated-run-id",
     });
-    expect(() => mod.promote(CR08_TASK, fabricated, CR08_BODY, destA)).toThrow(
-      /no live green §14-gate verdict found/,
-    );
+    expect(() =>
+      underProject(repoRoot, () => mod.promote(CR08_TASK, fabricated, CR08_BODY, destA)),
+    ).toThrow(/no live green §14-gate verdict found/);
     expect(cr08NoteFiles(destA)).toEqual([]);
     expect(() =>
-      mod.promoteAdmitted(
-        CR08_TASK,
-        "20260908T020000Z-qe-e2e-finding-deadbeef",
-        fabricated,
-        CR08_BODY,
-        originRoot,
-        destB,
-        repoRoot,
+      underProject(repoRoot, () =>
+        mod.promoteAdmitted(
+          CR08_TASK,
+          "20260908T020000Z-qe-e2e-finding-deadbeef",
+          fabricated,
+          CR08_BODY,
+          originRoot,
+          destB,
+        ),
       ),
     ).toThrow(/no live green §14-gate verdict found/);
     expect(cr08NoteFiles(destB)).toEqual([]);

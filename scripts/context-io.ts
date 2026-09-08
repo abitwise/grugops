@@ -1167,46 +1167,73 @@ export function appendNote(
   return id;
 }
 
-// ── readContext: parse every notes/<id>.md into a NoteRecord[] (id from the filename). ──────────
-export function readContext(task: string, contextRoot: string = DEFAULT_CONTEXT_ROOT): NoteRecord[] {
+// ── The ONE note-directory reader: walk, parse, and name each note ONCE. ────────────────────────
+//
+// FACTORED OUT, NOT ADDED BESIDE (31-14). `readContext` returns PROJECTED records, and the
+// proof-gated re-binding route below needs the same directory's RAW bytes as well. Giving that
+// route its own walk would put a SECOND file walk and a SECOND id rule beside this one — this
+// repository's named failure class, applied to the reader. So the walk, the parse and the id rule
+// live here once, and the two views (records, raw text) are both read off this result.
+interface RawNote {
+  /** The note's identity, decided by the ONE rule below. */
+  readonly id: string;
+  /** The file's bytes, exactly as stored. */
+  readonly text: string;
+  /** The canonical parse of those bytes. */
+  readonly parsed: ParsedFrontmatter;
+}
+
+function readRawNotes(task: string, contextRoot: string): RawNote[] {
   assertSafeTask(task);
   const notesDir = join(contextRoot, task, "notes");
   if (!existsSync(notesDir)) return [];
-  const records: NoteRecord[] = [];
+  const out: RawNote[] = [];
   for (const file of readdirSync(notesDir)) {
     if (!file.endsWith(".md")) continue;
     const text = readFileSync(join(notesDir, file), "utf8");
     const parsed = parseNote(text);
     if (!parsed) continue; // skip an unparseable file rather than crash the read
-    const s = parsed.scalars;
     // Prefer the explicit frozen `id:` field; fall back to the filename-derived id when absent (a
     // pre-id note). When BOTH are present they must agree — a frontmatter id diverging from its
     // filename is the on-disk signature of a tampered identity, so the filename (the storage key)
     // wins for the read and the divergence is left for validate() to surface on the explicit path.
     const fileId = file.replace(/\.md$/, "");
-    const id = s.id && s.id !== "" ? s.id : fileId;
-    records.push({
-      id,
-      kind: s.kind ?? "",
-      by: s.by ?? "",
-      at: s.at ?? "",
-      verified_by: s.verified_by ?? "",
-      confidence: s.confidence ?? "",
-      refs: parsed.refs,
-      supersedes: s.supersedes && s.supersedes !== "" ? s.supersedes : null,
-      // The evidence-provenance projection (Phase 31). parseNote's open scalar map already ACCEPTS
-      // these keys, so no parser change was needed — but a scalar the parser accepted and this
-      // projection dropped is a scalar admit() cannot read, and admit()'s D-03 branch reads the
-      // matched verdict's `sha` through exactly this record. Absent stays `undefined` rather than
-      // "" so "the verdict recorded no SHA" and "the verdict recorded an empty SHA" are one case
-      // for the refusal below to name.
-      sha: s.sha ?? undefined,
-      gate_run: s.gate_run ?? undefined,
-      content_hash: s.content_hash ?? undefined,
-      body: parsed.body.trim(),
-    });
+    const s = parsed.scalars;
+    out.push({ id: s.id && s.id !== "" ? s.id : fileId, text, parsed });
   }
-  return records;
+  return out;
+}
+
+// ── recordFromParsed: the store's own read-back PROJECTION of a parsed note. ────────────────────
+// One projection, so "what the store reads back" has a single answer that both `readContext` and
+// the re-binding proof below consult.
+function recordFromParsed(parsed: ParsedFrontmatter, id: string): NoteRecord {
+  const s = parsed.scalars;
+  return {
+    id,
+    kind: s.kind ?? "",
+    by: s.by ?? "",
+    at: s.at ?? "",
+    verified_by: s.verified_by ?? "",
+    confidence: s.confidence ?? "",
+    refs: parsed.refs,
+    supersedes: s.supersedes && s.supersedes !== "" ? s.supersedes : null,
+    // The evidence-provenance projection (Phase 31). parseNote's open scalar map already ACCEPTS
+    // these keys, so no parser change was needed — but a scalar the parser accepted and this
+    // projection dropped is a scalar admit() cannot read, and admit()'s D-03 branch reads the
+    // matched verdict's `sha` through exactly this record. Absent stays `undefined` rather than
+    // "" so "the verdict recorded no SHA" and "the verdict recorded an empty SHA" are one case
+    // for the refusal below to name.
+    sha: s.sha ?? undefined,
+    gate_run: s.gate_run ?? undefined,
+    content_hash: s.content_hash ?? undefined,
+    body: parsed.body.trim(),
+  };
+}
+
+// ── readContext: parse every notes/<id>.md into a NoteRecord[] (id from the filename). ──────────
+export function readContext(task: string, contextRoot: string = DEFAULT_CONTEXT_ROOT): NoteRecord[] {
+  return readRawNotes(task, contextRoot).map((raw) => recordFromParsed(raw.parsed, raw.id));
 }
 
 // ── currentState: deterministic replay (SCTX-04). Sort by at (ISO lexicographic) with note-id ──
@@ -1220,6 +1247,243 @@ export function currentState(notes: NoteRecord[]): NoteRecord[] {
     ordered.map((n) => n.supersedes).filter((x): x is string => x !== null && x !== ""),
   );
   return ordered.filter((n) => !superseded.has(n.id));
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// 31-14 (D-19) — promotion of an ALREADY-ADMITTED note is a RE-BINDING, decided by a PROOF.
+//
+// THE GAP THIS CLOSES, MEASURED RATHER THAN DESCRIBED. 31-09 made `appendNote` consult the
+// admission authority unconditionally — right, and D-01's evidence floor depends on it. But
+// `compactor.promote` is a thin pass-through to that writer, and Workflow 18 names it as the ONLY
+// prescribed route for carrying a note forward through compaction. So a note a human already
+// legitimately disposed at the ORIGIN — written through `admitAndAppend`'s gated, pre-admitted
+// branch, disposed by the un-forgeable per-call admission-guard hook — was REFUSED, unchanged, at
+// the DESTINATION by `admit()`'s frozen D-04 arm, for the same structural reason that branch skips
+// the authority in the first place: this tier cannot verify a self-authored `human:NAME` stamp.
+// Reproduced by the round-3 verifier and re-reproduced by plan 31-14 against the committed `.js`:
+// the origin write returned an id, the identical promotion threw D-04's refusal, zero notes landed.
+//
+// WHAT THIS ROUTE CARRIES FORWARD, AND WHAT IT DOES NOT. It carries forward ONLY the
+// human-disposition binding the frozen arm is structurally unable to verify, and it carries forward
+// NOTHING ELSE. A promoted finding whose stamp is a `§14-gate#<id>` stamp, and a promoted
+// `artifact-ref`, are NOT this route's business: they fall through to full admission and are
+// re-bound at the destination against a live green verdict THERE, exactly as before. D-01, D-02 and
+// D-03 are untouched at the destination.
+//
+// A PROOF OVER BYTES, NEVER A FLAG. There is no "already admitted" parameter, option or flag — an
+// agent-settable one would be the elevation this whole mechanism exists to prevent (T-31-14-01). The
+// only thing that skips the human-stamp arm is a proof over bytes that ALREADY EXIST at the origin:
+// the named source note is LIVE in the origin's deterministic replay, and the promoted input
+// recomposes to exactly the record the store reads back there. A caller that cannot produce that
+// proof is DECLINED, naming the clause that failed, with nothing written.
+//
+// THE LEDGER BEHAVIOUR IS DECIDED, NOT INHERITED (D-19). A re-binding is not a new admission, so it
+// appends NO GOV-02 audit event: the origin's event already records the named human's disposition
+// FOR THIS EXACT ID (the frozen id is carried forward), and a second line keyed by the same id would
+// be a duplicate — the shape 31-09 collapsed rather than widened. Measured by a retained-mode case
+// rather than assumed.
+//
+// NAMED RESIDUAL (T-31-14-03, disposition `accept`). The origin `notes/` directory is trusted here
+// exactly as far as every other reader of it is trusted: a note hand-written into that directory and
+// then promoted is a tampering this route does not close. Workflows 16 and 18 forbid hand-authoring a
+// context path, and the un-forgeable tier remains the per-call admission-guard hook. Recorded as a
+// residual with its reason rather than left as a silence.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Every shape the re-binding proof DECLINES, each with the written reason it declines it.
+ *
+ * THE SINGLE SOURCE OF THE DECLINE TEXT. The route below never spells a reason inline: it names a
+ * clause key and this record supplies the sentence, so the register cannot drift from the code that
+ * uses it. `scripts/context-io-writer-set.test.ts` DERIVES the clause keys from this function's own
+ * parsed body and asserts them equal to this record's key set in BOTH directions — no derived clause
+ * without a register entry, and no register entry naming a clause the route no longer has.
+ */
+export const PROMOTE_ADMITTED_DECLINES: Readonly<Record<string, string>> = Object.freeze({
+  "empty-source-id":
+    "A re-binding names the note it re-binds. An empty or blank source id names nothing, so there " +
+    "is no origin record to prove anything against and the promotion is not a re-binding at all.",
+  "unreadable-governance-config":
+    "The governance configuration exists at a standard location and could not be read or parsed, so " +
+    "the human_admission dial is UNKNOWN (D-14). This route skips only the human-stamp arm the " +
+    "in-script tier cannot verify — never the authority itself — so an unknowable dial fails closed " +
+    "here exactly as it does in admit(). A genuinely ABSENT config is a different case and runs lean.",
+  "no-such-origin-note":
+    "No note with the named id exists in the origin context under this task. The proof's left " +
+    "operand is the origin's own stored bytes; with no such note there is nothing that was ever " +
+    "admitted, and the promotion is a NEW admission that must take the full-admission route.",
+  "origin-note-not-live":
+    "The named origin note exists but is not LIVE in the origin's deterministic replay — another " +
+    "note supersedes it. A superseded disposition is one a later note withdrew, and carrying it " +
+    "forward would re-admit a decision the origin context has already folded out.",
+  "field-differs-from-origin":
+    "A load-bearing field of the promoted note differs from the origin record the id names. A " +
+    "re-binding is a FAITHFUL carry-forward; a note whose provenance changed is a new note, and a " +
+    "new note is a new admission.",
+  "body-differs-from-origin":
+    "The promoted body differs from the origin record's. A compaction that CHANGED the note is not " +
+    "a re-binding — it is a new admission, decided by the full authority at the destination, and " +
+    "honestly degraded when its stamp no longer cross-checks (Workflow 18 step 6).",
+});
+
+/**
+ * Named residuals of this route: trust boundaries it does NOT close, each with its reason.
+ * Published beside the declines so a boundary nobody wrote down cannot become the next round's gap.
+ */
+export const PROMOTE_ADMITTED_RESIDUALS: readonly string[] = Object.freeze([
+  "T-31-14-03 — a note HAND-WRITTEN into the origin notes/ directory and then promoted is not " +
+    "detected. The origin store is trusted here exactly as far as every other reader trusts it; " +
+    "workflows 16 and 18 forbid hand-authoring a context path, and the un-forgeable tier remains " +
+    "the per-call admission-guard hook. Disposition: accept.",
+  "R-37 — the compared field set is the store's own read-back projection (recordFromParsed) plus " +
+    "the body. A frontmatter key the parser accepts and that projection drops is not compared — and " +
+    "is also not read by admit(), render() or any other consumer, so the boundary is the store's " +
+    "view of a note rather than this route's. Disposition: accept, bounded by that projection.",
+]);
+
+/** Build one decline, taking its reason from the single register above. */
+function declineRebinding(clause: string, detail: string): Error {
+  const reason = PROMOTE_ADMITTED_DECLINES[clause];
+  // A clause with no register entry is a decline nobody wrote a reason for. Fail loudly rather than
+  // emitting an undefined sentence — the register and the code are one thing or they are drift.
+  if (reason === undefined) {
+    return new Error(
+      `context-io.promoteAdmitted: internal — no decline register entry for clause "${clause}".`,
+    );
+  }
+  return new Error(
+    `context-io.promoteAdmitted: DECLINED (${clause}). ${detail} Nothing was written. ${reason}`,
+  );
+}
+
+/**
+ * Promote a note that was ALREADY ADMITTED at an origin context into a destination context.
+ *
+ * Returns the persisted note id. On the proof route that id IS `sourceId` — the frozen creation-time
+ * identity is carried forward, so the destination file is byte-identical to the origin file and the
+ * compaction carve-out's id-keyed raw→promoted match still holds.
+ *
+ * @param repoRoot TEST SEAM, exactly as `appendNote`'s and `admitAndAppend`'s: production callers
+ * pass nothing and the governance root is the ONE trusted answer every tier asks.
+ */
+export function promoteAdmitted(
+  task: string,
+  sourceId: string,
+  note: NoteInput,
+  body: string,
+  from: string,
+  to: string,
+  repoRoot: string = trustedRepoRoot(),
+): string {
+  assertSafeTask(task);
+
+  // ── THE ENTRY SET, DECIDED FIRST AND NAMED. ────────────────────────────────────────────────────
+  // This route exists for ONE question the frozen arm cannot answer: is this human disposition the
+  // same one a human already placed at the origin? A note that carries no human disposition stamp
+  // does not ask that question, so it is not this route's business — it takes the FULL-ADMISSION
+  // route, byte-identically to what `compactor.promote` does today. That is why a `§14-gate`-stamped
+  // finding and an `artifact-ref` still re-bind against a live green verdict at the destination: they
+  // never enter the proof at all. Falling through here is deliberate and is asserted by test — a
+  // shape outside the entry set must not be silently accepted OR silently dropped.
+  const vb = (note.verified_by ?? "").trim();
+  if (!HUMAN_STAMP_RE.test(vb)) {
+    return appendNote(task, note, body, to, undefined, repoRoot);
+  }
+
+  // ── FROM HERE ON THE NOTE CLAIMS TO BE A RE-BINDING, AND MUST PROVE IT. ────────────────────────
+  // Every clause below DECLINES before the write chokepoint is reached, so "nothing was written" is
+  // true by construction rather than by cleanup.
+  if (sourceId.trim() === "") {
+    throw declineRebinding("empty-source-id", `The source id was ${JSON.stringify(sourceId)}.`);
+  }
+
+  // FAIL CLOSED ON THE DIAL, ON THIS ROUTE TOO (T-31-14-04). The skip is scoped to the human-stamp
+  // arm, never to the authority — so the SAME discriminated read `admitAndAppend`'s gated branch
+  // consults is consulted here, and an unreadable configuration refuses. It must not throw: a read
+  // that failed is a read that failed, and it lands on this one refusal rather than a second shape.
+  let govResult: GovernanceConfigResult | null = null;
+  try {
+    govResult = readGovernanceConfig(repoRoot);
+  } catch {
+    govResult = null;
+  }
+  if (govResult === null || govResult.source === "unreadable") {
+    throw declineRebinding(
+      "unreadable-governance-config",
+      "A governance configuration file exists at a standard location but could not be read or parsed.",
+    );
+  }
+
+  // THE PROOF'S LEFT OPERAND: the origin's own bytes, folded through the SAME deterministic replay
+  // every other reader of that context uses. Without this read there is nothing to compare against,
+  // which is what makes this a proof rather than a flag.
+  const originRaw = readRawNotes(task, from);
+  const originEntry = originRaw.find((raw) => raw.id === sourceId);
+  if (originEntry === undefined) {
+    throw declineRebinding(
+      "no-such-origin-note",
+      `No note with id "${sourceId}" exists under task "${task}" in the origin context.`,
+    );
+  }
+  const originRecord = recordFromParsed(originEntry.parsed, originEntry.id);
+  const live = currentState(originRaw.map((raw) => recordFromParsed(raw.parsed, raw.id)));
+  if (!live.some((n) => n.id === sourceId)) {
+    throw declineRebinding(
+      "origin-note-not-live",
+      `The note "${sourceId}" is present in the origin context but has been superseded there.`,
+    );
+  }
+
+  // Compose the candidate through the module's OWN composer and validator, with the origin's frozen
+  // id, then read it back through the store's own projection. Comparing two records the SAME
+  // projection produced is what makes "byte-equality" a statement about the note the store will hold
+  // rather than about the shape of a caller's object literal. Nothing is written by this step.
+  const { text: candidateText } = composeValidatedNote(task, note, body, sourceId);
+  const candidateParsed = parseNote(candidateText);
+  if (!candidateParsed) {
+    // Unreachable in practice — composeValidatedNote validated this text — and therefore NOT a
+    // register clause: it is a type-narrowing guard, not a decision about a caller's input.
+    throw new Error("context-io.promoteAdmitted: internal — the composed candidate did not parse.");
+  }
+  const candidateRecord = recordFromParsed(candidateParsed, sourceId);
+
+  // THE COMPARED FIELD SET IS DERIVED FROM THE TWO RECORDS, NOT TYPED OUT HERE. The four scalars
+  // CR-08's fix clause (a) names — kind, by, verified_by, at — are members of it by construction, and
+  // so is every other field the store reads back, so this is that requirement met and exceeded. A
+  // field this projection does not carry is the named residual R-37 above.
+  const comparedKeys = [
+    ...new Set([...Object.keys(originRecord), ...Object.keys(candidateRecord)]),
+  ]
+    .filter((key) => key !== "id" && key !== "body")
+    .sort();
+  const originFields = originRecord as unknown as Record<string, unknown>;
+  const candidateFields = candidateRecord as unknown as Record<string, unknown>;
+  for (const key of comparedKeys) {
+    const originValue = JSON.stringify(originFields[key] ?? null);
+    const candidateValue = JSON.stringify(candidateFields[key] ?? null);
+    if (originValue !== candidateValue) {
+      throw declineRebinding(
+        "field-differs-from-origin",
+        `Field "${key}" is ${candidateValue} on the promoted note and ${originValue} on the origin ` +
+          `record "${sourceId}".`,
+      );
+    }
+  }
+  if (candidateRecord.body !== originRecord.body) {
+    throw declineRebinding(
+      "body-differs-from-origin",
+      `The promoted body is not the body stored for "${sourceId}" at the origin.`,
+    );
+  }
+
+  // EVERY CLAUSE HELD. Persist through the module-private pre-admitted route with the origin's frozen
+  // id, so the destination file IS the origin file. This is the SECOND — and, by the derived caller
+  // assertion in scripts/context-io-writer-set.test.ts, the last unannounced — caller of that route.
+  //
+  // NO GOV-02 LEDGER EVENT (D-19). The origin's admission already recorded this exact id and the
+  // named human who disposed it. Appending here would key a second event to the same id: a duplicate,
+  // which is the shape 31-09 collapsed. A re-binding records no new admission because it decides none.
+  return appendPreAdmittedNote(task, note, body, to, sourceId);
 }
 
 // ── The green-verdict recognition contract (D-01/D-03) ──────────────────────────────────────────

@@ -229,6 +229,81 @@ the THIRD recurrence of this repository's set/shape-literal drift class inside P
     the both-directions equality test and carries the residual register verbatim, so the documented
     claim and the decided rule keep one source.
 
+#### Gap-closure decision — D-19 (2026-09-08, gap-closure round 3, plan 31-14)
+
+This is a GAP-CLOSURE decision recorded during execution, not an original user decision from the
+discussion. It sits BESIDE D-01 and leaves D-01, D-02, D-03 and D-04 untouched; no existing decision
+above is edited, renumbered or deleted.
+
+**Forced by:** CR-08 of `31-REVIEW.md`, and gap 2 of `31-VERIFICATION.md` round 3 (the truth
+beginning "The admission mechanism 31-09 wired for UATX-01").
+
+**Which register failed.** 31-09 correctly deleted the kind axis and made `appendNote` consult the
+admission authority unconditionally — the fix D-01's evidence floor depends on. But the register it
+did not ask about is REACHABILITY IN THE OTHER DIRECTION: not "which notes does the authority
+refuse", but "which OPERATIONS now reach an authority built only to decide new admissions". A
+re-write is one. `compactor.promote` is a thin pass-through to that writer and Workflow 18 names it
+as the only prescribed promotion route, so a note a named human had already legitimately disposed at
+the ORIGIN — written through `admitAndAppend`'s gated, pre-admitted branch — was refused, unchanged,
+at the DESTINATION by `admit()`'s frozen D-04 arm, for the same structural reason that branch skips
+the authority in the first place. Reproduced against the committed `scripts/context-io.js` and
+`scripts/compactor.js` before any source change: the origin write returned an id, the identical
+promotion threw D-04's refusal text, and zero notes landed at the destination. 31-09's own
+blast-radius table enumerated this call site and dispositioned it "admits, unchanged shape ... for
+every kind" without driving the case that changed; the round's only promotion probe used a
+FABRICATED `§14-gate` stamp, never a legitimate human one.
+
+- **D-19: promotion of an already-admitted note is a RE-BINDING, decided by a PROOF over bytes that
+  already exist at the origin — never by a parameter, flag or option a caller can set.** D-19 adds
+  no case to `admit()` and does not touch its frozen human-stamp arm. It adds a second route beside
+  the full-admission one and makes four sub-decisions.
+  - **(1) The entry set is the human-disposition stamp, and it is decided FIRST.** `promoteAdmitted`
+    is entered for a note whose `verified_by` is a `human:NAME` disposition — the one question the
+    in-script tier is structurally unable to answer. Every other shape, including a `§14-gate`
+    stamp and an empty stamp, FALLS THROUGH to `appendNote` byte-identically to what `promote` does
+    today, which is why a gate-stamped finding and an `artifact-ref` are still re-bound at the
+    destination against a live green verdict there (UATX-04, Workflow 18 step 5) and are still
+    refused when that verdict is absent.
+  - **(2) The proof is over the origin's own stored bytes.** The named source note must be present
+    in the origin context under the same task AND LIVE in the deterministic replay there, and the
+    promoted input must recompose — through the module's own composer, validator and read-back
+    projection — to exactly the record stored at that id. The four scalars CR-08's fix clause (a)
+    names (`kind` / `by` / `verified_by` / `at`) are members of that comparison by construction, and
+    so is every other field the store reads back. The frozen id is CARRIED FORWARD, so a faithful
+    promotion produces a destination file byte-identical to the origin file.
+  - **(3) The skip is scoped to the human-stamp arm, never to the authority.** `promoteAdmitted`
+    consults the SAME discriminated `readGovernanceConfig` the gated branch consults and fails
+    CLOSED on an unreadable configuration (D-14), so an unknowable dial refuses on this route too.
+  - **(4) A re-binding appends NO GOV-02 audit event.** The origin's admission already recorded this
+    exact id and the named human who disposed it; a second line keyed by the same id would be a
+    duplicate — the shape 31-09 collapsed rather than widened. Measured by a retained-mode case
+    rather than assumed.
+  - **The road not taken, recorded.** CR-08's alternative — promotion must RE-ADJUDICATE, with a
+    named human re-disposing every promoted high-severity finding through the hook on every
+    compaction — is rejected. It converts a routine, non-semantic operation into a human gate at
+    compaction frequency, and the round-3 verifier's own `missing:` prescribes the proof route.
+  - **`add-alongside`, accepted as debt.** The re-binding case is NOT promoted into `admit()` as a
+    new arm, because that arm is frozen by an earlier phase's forged-stamp backstop and editing it
+    is a strictly larger blast radius than the gap requires. What would force a later promote: a
+    THIRD re-write route appearing, or a need for the audit ledger to record a re-binding as a
+    first-class event rather than as a pre-admitted skip.
+  - **What D-19 does NOT establish.** The origin `notes/` directory is trusted here exactly as far
+    as every other reader of it is trusted: a note HAND-WRITTEN into that directory and then
+    promoted is a tampering this route does not close (`T-31-14-03`, disposition accept). Workflows
+    16 and 18 forbid hand-authoring a context path, and the un-forgeable tier remains the per-call
+    admission-guard hook. The compared field set is the store's own read-back projection plus the
+    body, so a frontmatter key the parser accepts and that projection drops is not compared — and is
+    also not read by `admit()` or `render()` (`R-37`, disposition accept). The route moves no board
+    state and emits no verdict, so D-04's reservation — green evidence advances `In UAT → Ready`
+    only when `checkpoints.sign_off_acceptance` is dialed to `allow` — cannot be reached through it.
+  - **Reversibility: costly.** The route becomes part of the surface a host repository's workflows
+    call, and Workflow 18 prescribes it. Reverting restores a state the verifier has measured as
+    refusing a legitimate, human-adjudicated governance action.
+  - **Recorded in three places that must agree:** here, in the decision header beside the route in
+    `scripts/context-io.ts`, and in `31-14-SUMMARY.md`'s key-decisions block. The decline register
+    `PROMOTE_ADMITTED_DECLINES` is exported from that module and its key set is asserted equal, in
+    both directions, to the clause set derived from the route's own parsed body.
+
 ### Claude's Discretion
 - Exact runnable file name and the exact wording of the two new loud-skip markers, as long as
   each is a single exported constant with a single emission point (the `uat-live.test.ts` shape).

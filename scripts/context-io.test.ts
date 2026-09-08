@@ -5454,16 +5454,22 @@ describe("31-09 — WR-10: one governance root for the writer and the hook", () 
     );
     let text = readFileSync(join(ROOT, "scripts", "context-io.js"), "utf8");
     if (revertDefaults) {
-      // THE WATCHED FAILURE. Revert BOTH `repoRoot = trustedRepoRoot()` defaults to the module's own
-      // install root — the pre-31-09 spelling. The occurrence count is asserted at exactly two
-      // before the mutation and zero after it, so a mutation that matched nothing cannot masquerade
-      // as a passing control.
+      // THE WATCHED FAILURE. Revert EVERY `repoRoot = trustedRepoRoot()` default to the module's own
+      // install root — the pre-31-09 spelling. The occurrence count is asserted exactly before the
+      // mutation and at zero after it, so a mutation that matched nothing cannot masquerade as a
+      // passing control.
+      //
+      // MEASURED, WITH THE REASON IT MOVED (31-14): 2 -> 3. This premise FIRED when the re-binding
+      // route landed, which is the derivation doing its job: `promoteAdmitted` is a third writer
+      // whose governance root must have the SAME one trusted answer, so its seam moved in the same
+      // change as the caller — exactly as 31-09 moved appendNote's and admitAndAppend's together,
+      // and for the same reason (moving one and not the others re-introduces the divergence).
       const anchor = "repoRoot = trustedRepoRoot())";
       expect(
         text.split(anchor).length - 1,
-        "PREMISE: the trustedRepoRoot default was not found exactly twice in the committed .js, so " +
-          "the reversion mutated something other than the two writer defaults",
-      ).toBe(2);
+        "PREMISE: the trustedRepoRoot default was not found exactly three times in the committed " +
+          ".js, so the reversion mutated something other than the three writer defaults",
+      ).toBe(3);
       text = text.split(anchor).join("repoRoot = ROOT)");
       expect(text.includes(anchor)).toBe(false);
     }
