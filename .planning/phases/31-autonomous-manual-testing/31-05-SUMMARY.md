@@ -428,3 +428,45 @@ metadata commit, which is the number recorded in `actuals.commits`.
 ---
 *Phase: 31-autonomous-manual-testing*
 *Completed: 2026-09-08*
+
+---
+
+## Correction — 2026-09-08
+
+**Appended, not edited.** No line above this heading has been rewritten, reflowed or deleted. The
+record of what was believed at the time is itself evidence, and a summary quietly revised to match a
+later measurement is exactly the artifact this phase exists to make impossible.
+
+**The claim, quoted verbatim from this file's `provides` list:**
+
+> "appendNote() routes an artifact-ref through admit() before writeNoteFile — the D-03 authority is
+> now reachable from every exported note writer"
+
+**What was true.** The first clause is true and was independently re-reproduced by the round-2
+verifier: `appendNote` did route an `artifact-ref` through `admit()` before `writeNoteFile`, a
+fabricated `gate_run` THREW, and the notes directory gained zero files. The D-03 evidence-binding
+refusal was genuinely reached from the sanctioned writer, which is what plan 31-05 was asked to do.
+
+**What was not.** The second clause — "the D-03 authority is now reachable from every exported note
+writer" — is true of D-03 alone and reads as though it were true of the authority. `admit()` decides
+FOUR refusal families: D-01 (a `finding` stamped `§14-gate#<id>` is admitted only against a live green
+verdict with that per-run id), D-03 (the artifact-ref binding), D-04 (a high-severity governance
+finding needs a named human disposition) and D-14 (an unreadable governance config refuses). The
+branch this plan added was scoped by `normalizeKind(note.kind) === "artifact-ref"` and reached D-03
+only. Every other family stayed exactly as unreachable from `appendNote` as D-03 had been before —
+including D-01, on `finding`, the kind the shared verified context exists to protect.
+
+**How that was measured.** `31-VERIFICATION.md` round 2 reproduced it live against the committed
+`scripts/context-io.js`: `appendNote(task, { kind: "finding", by: "qe-e2e", verified_by:
+"§14-gate#fabricated-run-id", confidence: "high", ... }, body, contextRoot)` returned a note id with
+no refusal, while the identical note through `admitAndAppend` returned `admission FAIL: no live green
+§14-gate verdict found for "§14-gate#fabricated-run-id"`. `render()` then printed the fabricated note
+into `index.md` as an ordinary row, indistinguishable from a genuinely admitted finding.
+
+**Citations.** `31-VERIFICATION.md` round 2, gap 1 (the `truth` beginning "UATX-01 / phase goal") and
+its Observable Truths row 1; `31-REVIEW.md` CR-05.
+
+**Closure.** Plan `31-09` deleted the kind axis rather than widening it: `appendNote` now consults
+`admit()` unconditionally, so the set of kinds it routes is by construction the set the authority
+adjudicates. The refusal is reproduced against the committed `.js` and watched failing on a mirror
+that restores the scoping.

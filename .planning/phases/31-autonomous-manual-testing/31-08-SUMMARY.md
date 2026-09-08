@@ -670,3 +670,45 @@ None — no external service configuration required.
 ---
 *Phase: 31-autonomous-manual-testing*
 *Completed: 2026-09-08*
+
+---
+
+## Correction — 2026-09-08
+
+**Appended, not edited.** No line above this heading has been rewritten, reflowed or deleted,
+including the `R-33` row this correction is about. The record of what was believed at the time is
+itself evidence.
+
+**The claim, quoted verbatim from this file's residual register:**
+
+> | R-33 | The `appendNote` bypass (31-01 residual, WINDOWS `#128`) | — | **closed this round's
+> predecessors** | Closed by 31-05 and re-measured here at the verifier's own coordinates: Row 1. Its
+> pinned test case in `scripts/context-io.test.ts` was re-pointed at the closure rather than deleted.
+> Listed so the register is complete rather than convenient. |
+
+**What was true.** The re-measurement was real and it was at the verifier's own coordinates: the
+`artifact-ref` bypass round 1 recorded is closed, and the round-2 verifier independently reproduced
+that closure. The pinned case was re-pointed rather than deleted, as stated.
+
+**What was not.** "The `appendNote` bypass … closed" is unqualified, and the bypass it names is a
+FAMILY rather than a single call shape. What closed was the bypass for one kind. `appendNote`'s
+authority call was scoped to `artifact-ref`, so a `finding` carrying a fabricated `§14-gate#<id>`
+stamp was still written unrefused and rendered as verified evidence — the same reachability defect,
+one kind over, landing on UATX-01's central claim that an agent's narration never produces a stamp.
+The register row was accurate about what had been measured and broader than what had been measured.
+
+**Why the round's own controls could not see it.** `scripts/context-io-writer-set.test.ts` derives
+the WRITER set by AST and asserts its cardinality, which is sound. But its exercise table asked every
+member ONE question — "refuses the fabricated artifact-ref, or cannot express the kind at all". The
+set that was derived was the set of writers; the set that was ENUMERATED BY HAND was the set of
+predicates, and it had one member.
+
+**Citations.** `31-VERIFICATION.md` round 2, gap 1 and its `gaps_remaining` entry for CR-05;
+`31-REVIEW.md` CR-05 (including the "Why the round's own controls could not see it" paragraph, which
+this correction restates rather than originates).
+
+**Closure.** Plan `31-09`. `R-33` is now closed for every kind, because the writer carries no kind
+test at all. `R-21` (the duplicate retained-ledger event, disclosed by 31-05) is closed in the same
+change: `admitAndAppend`'s two already-adjudicated branches persist through a module-private,
+derived-and-counted pre-admitted route, so the second admission — and its second ledger event — no
+longer happens.
