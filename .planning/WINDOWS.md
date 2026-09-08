@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 141
+open_count: 142
 waived_count: 0
 fixed_count: 4
-total_count: 145
-last_updated: 2026-09-08T13:33:19.617Z
+total_count: 146
+last_updated: 2026-09-08T14:16:41.492Z
 ---
 
 # Broken Windows Ledger
@@ -160,6 +160,7 @@ last_updated: 2026-09-08T13:33:19.617Z
 | 143 | 31 | deviation | .planning/phases/31-autonomous-manual-testing/31-05-PLAN.md |  | 31-08 R-20: the edge-probe partition is recorded as '8 = 4 authored + 4 surfaced' in 31-05-PLAN.md:132, 31-06-PLAN.md:127, 31-07-PLAN.md:118 and 31-08-PLAN.md; enumerated from the plans' own dispositions it is 5 authored + 3 surfaced. Total is 8 either way and no row is dropped, so the no-silent-drop property holds; the partition was copied forward across four documents without being re-derived. Recorded rather than corrected in place. | open |  | 2026-09-08T08:57:54.919Z |  |
 | 144 | 31 | deviation | scripts/context-io.ts |  | Q9 residual: an in-process caller that can import scripts/context-io.js can mint its own green verdict via the exported emitVerdict and then admit a finding against it; measured in 31-09's red-team pass, strictly improved but not closed by 31-09 | open |  | 2026-09-08T13:33:19.523Z |  |
 | 145 | 31 | unrun-verify | docs/audit/29-style-dispositions/ |  | check:diff-disposition carries 75 undispositioned clauses owned by plans 31-05/31-06/31-08; measured at 78 before 31-09's prose commit on a hermetic clone at 012364d | open |  | 2026-09-08T13:33:19.617Z |  |
+| 146 | 31 | unmet-truth | scripts/runnable-ref/uat-spec-integrity.ts |  | 31-11 (D-17): the ban rule's head and tail sets are hand-authored and completeness against the real Playwright modifier surface is asserted in ONE direction only; plan 31-12's reverse partition closes it | open |  | 2026-09-08T14:16:41.492Z |  |
 
 ````json
 [
@@ -1901,6 +1902,18 @@ last_updated: 2026-09-08T13:33:19.617Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-09-08T13:33:19.617Z",
+    "resolved_at": null
+  },
+  {
+    "id": 146,
+    "kind": "unmet-truth",
+    "phase": "31",
+    "file": "scripts/runnable-ref/uat-spec-integrity.ts",
+    "line": null,
+    "description": "31-11 (D-17): the ban rule's head and tail sets are hand-authored and completeness against the real Playwright modifier surface is asserted in ONE direction only; plan 31-12's reverse partition closes it",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-08T14:16:41.492Z",
     "resolved_at": null
   }
 ]
