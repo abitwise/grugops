@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 150
+open_count: 152
 waived_count: 0
 fixed_count: 4
-total_count: 154
-last_updated: 2026-09-08T18:53:37.116Z
+total_count: 156
+last_updated: 2026-09-08T20:07:37.170Z
 ---
 
 # Broken Windows Ledger
@@ -169,6 +169,8 @@ last_updated: 2026-09-08T18:53:37.116Z
 | 152 | 31 | deviation | scripts/runnable-ref/uat-spec-integrity.test.ts |  | test.describe.configure carries the weakest disposition reason in the record: its retries option changes how a failed result is read, so a red-team round could reasonably reverse the disposition to a refusal | open |  | 2026-09-08T15:28:05.899Z |  |
 | 153 | 31 | deviation | scripts/runnable-ref/uat-spec-integrity.ts |  | D-18 (3): the rename/namespace canonicalisation is MODULE-SCOPED to @playwright/test — a rename arriving through a local fixture-extension re-export is still not canonicalised, a residual this plan's own change created | open |  | 2026-09-08T18:53:37.028Z |  |
 | 154 | 31 | deviation | agent-factory/checklists/browser-uat-recipe.md |  | The reverse partition's walk covers declared PROPERTY CHAINS only; it does not descend through a call signature's return type, so a call-link spelling such as test.info().skip is outside its denominator though the rule refuses it | open |  | 2026-09-08T18:53:37.116Z |  |
+| 155 | 31 | unrun-verify | docs/audit/29-style-dispositions |  | check:diff-disposition exits non-zero for 65 pre-existing undispositioned clauses in 05-pr-quality-gate.md, 06-uat-pack.md and 17-task-claim.md; 31-14 covered all 46 of its own clauses in 18-context-compaction.md (was 10 findings, now 0) | open |  | 2026-09-08T20:07:37.086Z |  |
+| 156 | 31 | deviation | .planning/config.json |  | 31-14 committed on the default branch main: branching_strategy is none, use_worktrees is false, and no git.allow_default_branch_commits override is recorded in config.json | open |  | 2026-09-08T20:07:37.170Z |  |
 
 ````json
 [
@@ -2018,6 +2020,30 @@ last_updated: 2026-09-08T18:53:37.116Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-09-08T18:53:37.116Z",
+    "resolved_at": null
+  },
+  {
+    "id": 155,
+    "kind": "unrun-verify",
+    "phase": "31",
+    "file": "docs/audit/29-style-dispositions",
+    "line": null,
+    "description": "check:diff-disposition exits non-zero for 65 pre-existing undispositioned clauses in 05-pr-quality-gate.md, 06-uat-pack.md and 17-task-claim.md; 31-14 covered all 46 of its own clauses in 18-context-compaction.md (was 10 findings, now 0)",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-08T20:07:37.086Z",
+    "resolved_at": null
+  },
+  {
+    "id": 156,
+    "kind": "deviation",
+    "phase": "31",
+    "file": ".planning/config.json",
+    "line": null,
+    "description": "31-14 committed on the default branch main: branching_strategy is none, use_worktrees is false, and no git.allow_default_branch_commits override is recorded in config.json",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-08T20:07:37.170Z",
     "resolved_at": null
   }
 ]
