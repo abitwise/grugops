@@ -1858,8 +1858,22 @@ const SECTION_EXTENT_OWNER_COUNT = 1;
  *     unchanged. The same plan also adds
  *     `scripts/runnable-ref/fixtures/playwright-test.d.ts`, which does NOT move this number: the
  *     walk excludes `.d.ts` by construction, and so does the `git ls-files` side it is pinned to.
+ *
+ * 67 -> 69 (plan 31-11, closing CR-06 / gap 2 of 31-VERIFICATION.md round 2), TWO further corpus
+ * files:
+ *   - `scripts/runnable-ref/fixtures/modifier-family.uat.spec.ts` — the ROUTED-MODIFIER fixture,
+ *     carrying the two spellings the round-2 verifier reproduced passing at exit 0
+ *     (`test.describe.serial.only`, `test.describe.parallel.only`).
+ *   - `scripts/runnable-ref/fixtures/modifier-group-clean.uat.spec.ts` — the FALSE-POSITIVE control
+ *     for the same rule: routing segments used WITHOUT a banned tail, a configuration call, a plain
+ *     `test(...)` call and an assertion chain, none of which the rule may refuse.
+ *   Same standing as the six corpus files above: neither is a tooling module, both are counted
+ *   anyway because this set is pinned equal to `git ls-files '*.ts'`, and a wider scan can only find
+ *   more. Neither declares a frontmatter parser and neither locates a section, so both owner answers
+ *   are unchanged. The same plan edits `playwright-test.d.ts` in place, which again does not move
+ *   this number — it adds no file, and `.d.ts` is excluded on both sides.
  */
-const NON_TEST_MODULE_COUNT = 67;
+const NON_TEST_MODULE_COUNT = 69;
 
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 // (Plan 29-40, gap G-29-1 of 29-UAT.md, closing V-29-35-01) THE FRONTMATTER-PARSER NAME OWNER SET.
