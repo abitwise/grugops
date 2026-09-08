@@ -558,19 +558,16 @@ function equivDoWork(sub: EquivSubstrate, task: string): void {
   // configuration there would fail the whole foundation-guards lane for a reason unrelated to what the
   // lane measures. This matters MORE after 31-15, not less: the trusted root's order now resolves a
   // real host project in cases where it previously resolved the kit.
+  //
+  // IT STAYS ONE FUNCTION. A first draft put the two writes in an `equivDoWorkUnder` helper so the
+  // root's lifetime was a `try`/`finally` around one call. `scripts/context-io-writer-set.test.ts`
+  // DERIVES the caller set of each promotion route across files and went red naming the new helper:
+  // the derivation is doing exactly its job, and a cosmetic split that renames a derived member is
+  // not worth the churn in a set other cases are pinned against.
   const governanceRoot = mkdtempSync(join(tmpdir(), "dpe-gov-"));
   try {
-    equivDoWorkUnder(sub, task, governanceRoot);
-  } finally {
-    rmSync(governanceRoot, { recursive: true, force: true });
-  }
-}
-
-/** The two writes, under a governance root the caller owns. Split out only so the root's lifetime is
- *  a `try`/`finally` around one call rather than around the whole body. */
-function equivDoWorkUnder(sub: EquivSubstrate, task: string, governanceRoot: string): void {
-  const n = task.replace(/[^0-9]/g, "") || "0";
-  const soft: NoteInput = {
+    const n = task.replace(/[^0-9]/g, "") || "0";
+    const soft: NoteInput = {
     kind: "observation",
     by: "engineer",
     at: `2026-06-21T10:${String(n).padStart(2, "0")}:00.000Z`,
@@ -578,14 +575,14 @@ function equivDoWorkUnder(sub: EquivSubstrate, task: string, governanceRoot: str
     confidence: "high",
     refs: [],
     supersedes: null,
-  };
-  // The 6th argument is the governance root: a Tier-1 oracle decides admission against a root it
-  // owns, never against whatever repository the ambient order resolves (IN-08).
-  appendNote(task, soft, `observed work for ${task}`, sub.contextRoot, undefined, governanceRoot);
-  // An unstamped `claim`, not a stamped `finding` (31-09). It carries the frozen run id in `refs` as
-  // an ordinary reference; `verified_by` stays EMPTY, so the note claims no verification it did not
-  // earn. Convergence is a property of the substrate, not of the note's kind.
-  const seeded: NoteInput = {
+    };
+    // The 6th argument is the governance root: a Tier-1 oracle decides admission against a root it
+    // owns, never against whatever repository the ambient order resolves (IN-08).
+    appendNote(task, soft, `observed work for ${task}`, sub.contextRoot, undefined, governanceRoot);
+    // An unstamped `claim`, not a stamped `finding` (31-09). It carries the frozen run id in `refs` as
+    // an ordinary reference; `verified_by` stays EMPTY, so the note claims no verification it did not
+    // earn. Convergence is a property of the substrate, not of the note's kind.
+    const seeded: NoteInput = {
     kind: "claim",
     by: "engineer",
     at: `2026-06-21T10:${String(n).padStart(2, "0")}:30.000Z`,
@@ -593,17 +590,20 @@ function equivDoWorkUnder(sub: EquivSubstrate, task: string, governanceRoot: str
     confidence: "high",
     refs: [SEEDED_REF],
     supersedes: null,
-  };
-  // Same governance root, same reason (IN-08): this fixture's admission is decided against a root
-  // this function created and will remove, so no host repository's ledger records it.
-  appendNote(
-    task,
-    seeded,
-    `${FROZEN_VERDICT}: seeded admitted claim for ${task}`,
-    sub.contextRoot,
-    undefined,
-    governanceRoot,
-  );
+    };
+    // Same governance root, same reason (IN-08): this fixture's admission is decided against a root
+    // this function created and will remove, so no host repository's ledger records it.
+    appendNote(
+      task,
+      seeded,
+      `${FROZEN_VERDICT}: seeded admitted claim for ${task}`,
+      sub.contextRoot,
+      undefined,
+      governanceRoot,
+    );
+  } finally {
+    rmSync(governanceRoot, { recursive: true, force: true });
+  }
 }
 
 export function oracleDualPathEquivalence(): void {
