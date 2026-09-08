@@ -4659,7 +4659,14 @@ describe("31-01 — the derived index carries the provenance, and only when ther
     contextRoot: string,
     task: string,
     notes: Array<[string, Parameters<typeof mod.appendNote>[1], string]>,
+    // 31-05 (gap 1): an artifact-ref is now BOUND by the admission authority at write time, so a
+    // render fixture that plants one must first plant the green verdict it names — an unbound one
+    // is refused and nothing is written. The seeded verdict is a note in its own right and appears
+    // in the render, which is why the per-line assertions below are scoped to the artifact-ref's own
+    // id rather than to the whole file. A fixture that no longer needs a verdict passes none.
+    gateRuns: Array<[string, string]> = [],
   ): { md: string; jsonl: string } {
+    for (const [runId, sha] of gateRuns) mod.emitVerdict(task, runId, "clean", sha, contextRoot);
     for (const [id, note, body] of notes) mod.appendNote(task, note, body, contextRoot, id);
     mod.render(task, contextRoot);
     return {
@@ -4734,8 +4741,13 @@ describe("31-01 — the derived index carries the provenance, and only when ther
         },
         "The committed UAT spec.",
       ],
-    ]);
-    expect(jsonl).toBe(
+    ], [["RUN-A", P31_SHA_A]]);
+    // Scoped to this note's own line: the seeded green verdict is a second line in the same file.
+    const arLine = jsonl
+      .trim()
+      .split("\n")
+      .find((l) => (JSON.parse(l) as { id: string }).id === id);
+    expect(arLine).toBe(
       JSON.stringify({
         id,
         kind: "artifact-ref",
@@ -4748,7 +4760,7 @@ describe("31-01 — the derived index carries the provenance, and only when ther
         sha: P31_SHA_A,
         gate_run: "RUN-A",
         content_hash: P31_CONTENT_HASH,
-      }) + "\n",
+      }),
     );
     // The human-facing render reports the same three, in the same order, in its own section.
     expect(md).toContain("## Evidence provenance");
@@ -4775,7 +4787,7 @@ describe("31-01 — the derived index carries the provenance, and only when ther
         },
         "The committed UAT spec.",
       ],
-    ]);
+    ], [["RUN-A", P31_SHA_A]]);
     mod.render(task, contextRoot);
     expect(readFileSync(join(contextRoot, task, "index.md"), "utf8")).toBe(first.md);
     expect(readFileSync(join(contextRoot, task, "index.jsonl"), "utf8")).toBe(first.jsonl);
@@ -4855,20 +4867,247 @@ describe("31-01 red-team — the residuals the D-03 probes surfaced", () => {
     expect(notesSnapshot(contextRoot, TASK)).toEqual(before);
   });
 
-  it("RESIDUAL, PINNED: appendNote writes without asking admit(), so it persists a stale SHA", () => {
-    // D-03 puts the comparison in admit() and NOWHERE else, so a caller who writes straight through
-    // appendNote never reaches it. That is the same tier the §14-gate stamp cross-check already
-    // sits in — appendNote is the writer, admit()/admitAndAppend() is the admission authority — and
-    // adding a second check inside appendNote would be the two-authorities drift D-03 forbids.
-    // Recorded as an assertion so the day this changes is a day this case goes red on purpose.
+  it("RESIDUAL 2, NOW CLOSED (31-05): appendNote REFUSES the stale SHA it used to persist", () => {
+    // THE DAY THIS CHANGED. The case above this line used to assert the opposite: that appendNote
+    // wrote without asking admit(), and that the note it wrote was exactly what admit() would have
+    // refused. That was recorded as a pinned residual "so the day this changes is a day this case
+    // goes red on purpose" — and 31-VERIFICATION.md then measured what the residual actually cost:
+    // a fabricated gate_run written through the sanctioned writer, wearing the shape of evidence.
+    //
+    // The residual is closed in 31-05 by REACH, not by a second predicate: appendNote consults
+    // admit() for this one kind and refuses on its findings, and the comparison still lives in
+    // admit() and nowhere else (D-03). The case is re-pointed at the closure rather than deleted,
+    // because the pin is what made the change visible.
     const contextRoot = freshTmp("p31-rt-bypass-");
     mod.emitVerdict(TASK, "RUN-A", "clean", P31_SHA_A, contextRoot);
-    const id = mod.appendNote(TASK, evidenceNote(P31_SHA_B), "body", contextRoot);
+    const before = notesSnapshot(contextRoot, TASK);
+    expect(() => mod.appendNote(TASK, evidenceNote(P31_SHA_B), "body", contextRoot)).toThrow(
+      /admission FAIL/,
+    );
+    expect(notesSnapshot(contextRoot, TASK)).toEqual(before);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// 31-05 — GAP 1: the D-03 authority is REACHABLE from appendNote(), the documented sanctioned writer
+//
+// WHY THIS BLOCK EXISTS. 31-VERIFICATION.md reproduced the defect live against the committed
+// scripts/context-io.js: `appendNote("verify-repro-task", { kind: "artifact-ref", gate_run:
+// "no-such-gate-run-ever-existed", … })` RETURNED a note id and persisted a file. The D-03
+// comparison was correct and unreachable from the one writer two shipped workflows
+// (17-task-claim.md, 18-context-compaction.md) name BY NAME. The defect was reachability, so the
+// fix is a CALL, not a second check: appendNote consults admit() for this one kind and refuses on
+// its findings. The comparison itself still lives in admit() and nowhere else (D-03).
+//
+// These cases were written and WATCHED FAIL against the pre-fix committed .js before the wiring
+// landed; the pre-fix output is quoted in 31-05-SUMMARY.md.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+describe("31-05 gap 1 — appendNote routes an artifact-ref through the single authority", () => {
+  /** The verifier's exact task name, kept verbatim so this block reproduces its coordinates. */
+  const REPRO_TASK = "verify-repro-task";
+  /** The verifier's exact fabricated gate-run id, kept verbatim for the same reason. */
+  const FABRICATED_RUN = "no-such-gate-run-ever-existed";
+
+  function evidence(
+    over: Partial<Parameters<typeof mod.appendNote>[1]> = {},
+  ): Parameters<typeof mod.appendNote>[1] {
+    return {
+      kind: "artifact-ref",
+      by: "qe-e2e",
+      at: "2026-09-07T09:00:00Z",
+      verified_by: "",
+      confidence: "high",
+      refs: ["tests/e2e/uat/TICKET-1.uat.spec.ts"],
+      supersedes: null,
+      sha: P31_SHA_A,
+      gate_run: "RUN-A",
+      content_hash: P31_CONTENT_HASH,
+      ...over,
+    };
+  }
+
+  function noteCount(contextRoot: string, task: string): number {
+    return notesSnapshot(contextRoot, task).length;
+  }
+
+  // ── RED 1 + RED 2: the verifier's exact call shape, in a context holding NO verdict at all. ────
+  it("REFUSES the verifier's fabricated gate_run and writes NOTHING (gap 1, reproduced)", () => {
+    const contextRoot = freshTmp("p31-05-repro-");
+    const before = noteCount(contextRoot, REPRO_TASK);
+    expect(() =>
+      mod.appendNote(
+        REPRO_TASK,
+        evidence({ gate_run: FABRICATED_RUN }),
+        "the committed UAT spec the gate re-ran",
+        contextRoot,
+      ),
+    ).toThrow(new RegExp(FABRICATED_RUN));
+    // "…and nothing is written" is the other half of the truth, so it is asserted, not assumed.
+    expect(noteCount(contextRoot, REPRO_TASK)).toBe(before);
+  });
+
+  it("the refusal names the module, the function and states that nothing was written", () => {
+    const contextRoot = freshTmp("p31-05-msg-");
+    let message = "";
+    try {
+      mod.appendNote(REPRO_TASK, evidence({ gate_run: FABRICATED_RUN }), "body", contextRoot);
+    } catch (e) {
+      message = (e as Error).message;
+    }
+    expect(message).toContain("context-io.appendNote");
+    expect(message).toContain("admission FAIL");
+    expect(message).toMatch(/nothing (is|was) written/i);
+  });
+
+  // ── RED 3: a REAL live green verdict, a stale sha — the refusal must name BOTH shas. ───────────
+  it("REFUSES a stale sha against a real live green verdict, naming BOTH shas", () => {
+    const contextRoot = freshTmp("p31-05-stale-");
+    mod.emitVerdict(REPRO_TASK, "RUN-A", "clean", P31_SHA_A, contextRoot);
+    const before = noteCount(contextRoot, REPRO_TASK);
+    let message = "";
+    expect(() => {
+      try {
+        mod.appendNote(REPRO_TASK, evidence({ sha: P31_SHA_B }), "body", contextRoot);
+      } catch (e) {
+        message = (e as Error).message;
+        throw e;
+      }
+    }).toThrow();
+    // BOTH shas, because the message comes from the single authority rather than one composed here.
+    expect(message).toContain(P31_SHA_A);
+    expect(message).toContain(P31_SHA_B);
+    expect(noteCount(contextRoot, REPRO_TASK)).toBe(before);
+  });
+
+  // ── GREEN 1: the legitimate path still opens. A fix that closed it would be a worse defect. ────
+  it("WRITES a correctly bound artifact-ref, and the returned id is the filename on disk", () => {
+    const contextRoot = freshTmp("p31-05-green-");
+    mod.emitVerdict(REPRO_TASK, "RUN-A", "clean", P31_SHA_A, contextRoot);
+    const id = mod.appendNote(REPRO_TASK, evidence({ sha: P31_SHA_A }), "bound body", contextRoot);
     expect(id).toBeTruthy();
-    const onDisk = readFileSync(join(contextRoot, TASK, "notes", `${id}.md`), "utf8");
-    expect(onDisk).toContain(`sha: ${P31_SHA_B}`);
-    // …and the note it wrote is exactly what admit() would have refused, which is the residual.
-    const repoRoot = freshTmp("p31-rt-bypass-repo-");
-    expect(mod.admit(TASK, onDisk, contextRoot, repoRoot).length).toBeGreaterThan(0);
+    const path = join(contextRoot, REPRO_TASK, "notes", `${id}.md`);
+    expect(existsSync(path)).toBe(true);
+    expect(readFileSync(path, "utf8")).toContain(`sha: ${P31_SHA_A}`);
+  });
+
+  // ── GREEN 2: the other five kinds are untouched, byte-for-byte. ────────────────────────────────
+  it("the other five kinds still write, and their composed bytes are unchanged", () => {
+    for (const kind of ["claim", "finding", "decision", "failed-attempt", "observation"] as const) {
+      const contextRoot = freshTmp(`p31-05-kind-${kind}-`);
+      const task = "p31-05-kinds";
+      const note = {
+        kind,
+        by: "software-engineer",
+        at: "2026-06-17T14:23:05Z",
+        verified_by: kind === "finding" ? "§14-gate#SEED-001" : "",
+        confidence: "high",
+        refs: [] as string[],
+        supersedes: null as string | null,
+      };
+      // A finding stamped §14-gate#SEED-001 needs a live green verdict for that run to admit —
+      // but it goes through appendNote, which does NOT gate a finding (that is admit()'s job and
+      // this fix deliberately did not widen it). So the write succeeds with no verdict planted,
+      // which is exactly the "unchanged" this case asserts.
+      const id = mod.appendNote(task, note, "body", contextRoot);
+      const text = readFileSync(join(contextRoot, task, "notes", `${id}.md`), "utf8");
+      expect(text).toContain(`kind: ${kind}\n`);
+      // No provenance line is emitted for a note that sets none (the A5 byte-stability contract).
+      expect(text).not.toContain("sha:");
+      expect(text).not.toContain("gate_run:");
+      expect(text).not.toContain("content_hash:");
+    }
+  });
+
+  // ── GREEN 3 / assumption A2: an artifact-ref can NEVER take admitAndAppend's gated branch. ─────
+  // The gated branch deliberately does not call admit(); if an artifact-ref could reach it, the
+  // wiring above would be bypassable through the combiner. Asserted for every dial value the
+  // reader admits rather than read off the source once.
+  it("A2: isGatedNote is false for an artifact-ref under EVERY governance dial value", () => {
+    const dials: Array<string | null> = [null, "off", "high-severity", "all", "wat-is-this"];
+    for (const dial of dials) {
+      const root = freshTmp("p31-05-dial-");
+      if (dial !== null) {
+        mkdirSync(join(root, ".grugops"), { recursive: true });
+        writeFileSync(
+          join(root, ".grugops", "factory.config.json"),
+          JSON.stringify({ context: { human_admission: dial } }, null, 2),
+        );
+      }
+      const cfg = mod.readGovernanceConfig(root);
+      for (const by of ["qe-e2e", "security-nfr"]) {
+        expect(
+          mod.isGatedNote(by, "artifact-ref", cfg),
+          `an artifact-ref by "${by}" was gated under human_admission=${dial} — the gated branch ` +
+            `skips admit(), so this would be a route around the D-03 binding`,
+        ).toBe(false);
+      }
+    }
+  });
+
+  it("admitAndAppend still refuses a fabricated gate_run and still admits a bound one", () => {
+    const contextRoot = freshTmp("p31-05-aaa-");
+    const repoRoot = freshTmp("p31-05-aaa-repo-");
+    mod.emitVerdict(REPRO_TASK, "RUN-A", "clean", P31_SHA_A, contextRoot);
+    const bad = mod.admitAndAppend(
+      REPRO_TASK,
+      evidence({ gate_run: FABRICATED_RUN }),
+      "body",
+      contextRoot,
+      repoRoot,
+    );
+    expect(bad.id).toBeNull();
+    expect(bad.findings.join("\n")).toContain(FABRICATED_RUN);
+    const good = mod.admitAndAppend(REPRO_TASK, evidence(), "body", contextRoot, repoRoot);
+    expect(good.findings).toEqual([]);
+    expect(good.id).toBeTruthy();
+  });
+
+  // ── THE CONSEQUENCE OF THE WIRING, MEASURED AND DISCLOSED RATHER THAN LEFT SILENT. ─────────────
+  //
+  // admitAndAppend's non-gated branch admits, then persists through appendNote — which now admits
+  // the artifact-ref kind itself. So under `audit_retention: retained` ONE persisted artifact-ref
+  // produces TWO GOV-02 ledger events, because two admissions genuinely happened and the ledger
+  // records admissions rather than notes.
+  //
+  // WHY IT IS NOT "FIXED" BY SUPPRESSING THE SECOND ONE. Every way to suppress it hands appendNote
+  // a way to be told "the authority already spoke" — a parameter is agent-reachable, and a private
+  // unadmitted write helper is a second write path with no binding on it. Both re-open the thing
+  // this plan closed, to tidy a duplicate audit line. The duplicate is recorded here as an
+  // assertion instead, so the day it changes is a day this case goes red on purpose.
+  it("DISCLOSED: one artifact-ref through admitAndAppend records TWO retained ledger events", () => {
+    const contextRoot = freshTmp("p31-05-ledger-");
+    const repoRoot = freshTmp("p31-05-ledger-repo-");
+    mkdirSync(join(repoRoot, ".grugops"), { recursive: true });
+    writeFileSync(
+      join(repoRoot, ".grugops", "factory.config.json"),
+      JSON.stringify({ context: { human_admission: "off", audit_retention: "retained" } }),
+    );
+    mod.emitVerdict(REPRO_TASK, "RUN-A", "clean", P31_SHA_A, contextRoot);
+    const res = mod.admitAndAppend(REPRO_TASK, evidence(), "body", contextRoot, repoRoot);
+    expect(res.id).toBeTruthy();
+    const lines = readFileSync(join(repoRoot, ".grugops", "audit", "admissions.jsonl"), "utf8")
+      .trim()
+      .split("\n")
+      .filter((l) => l.length > 0);
+    expect(lines).toHaveLength(2);
+    // Both name the SAME note id, so an auditor reading the ledger can tell the pair apart from two
+    // different notes — which is what makes the duplicate disclosable rather than corrupting.
+    for (const l of lines) expect((JSON.parse(l) as { id: string }).id).toBe(res.id);
+    // A note of any OTHER kind is admitted once and ledgered once — the duplicate is scoped to the
+    // one kind this plan wired, asserted rather than assumed.
+    const soft = mod.admitAndAppend(
+      REPRO_TASK,
+      { ...evidence(), kind: "observation", sha: undefined, gate_run: undefined, content_hash: undefined },
+      "body",
+      contextRoot,
+      repoRoot,
+    );
+    expect(soft.id).toBeTruthy();
+    const after = readFileSync(join(repoRoot, ".grugops", "audit", "admissions.jsonl"), "utf8")
+      .trim()
+      .split("\n")
+      .filter((l) => l.length > 0);
+    expect(after).toHaveLength(3);
   });
 });

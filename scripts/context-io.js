@@ -875,7 +875,7 @@ export function noteId(note) {
 // ── appendNote: validate → compose → atomicWrite to a FRESH unique notes/<id>.md (append-only). ──
 // Writes one NEW file; never mutates a shared file (SCTX-04). The publish target is always unique,
 // so the cross-platform rename-onto-existing hazard does not apply to note publication.
-export function appendNote(task, note, body, contextRoot = DEFAULT_CONTEXT_ROOT, precomputedId) {
+export function appendNote(task, note, body, contextRoot = DEFAULT_CONTEXT_ROOT, precomputedId, repoRoot = ROOT) {
     assertSafeTask(task);
     // Field-injection guard (CR-01): no interpolated provenance field may carry a newline, which
     // would smuggle additional frontmatter lines into the fence and forge a verified note.
@@ -919,6 +919,39 @@ export function appendNote(task, note, body, contextRoot = DEFAULT_CONTEXT_ROOT,
     const findings = validate(text);
     if (findings.length > 0) {
         throw new Error(`context-io.appendNote: refusing to write an invalid note:\n${findings.join("\n")}`);
+    }
+    // ── 31-05 (gap 1): the evidence-binding authority is REACHED from this writer (D-03). ───────────
+    //
+    // WHAT WAS WRONG, MEASURED RATHER THAN DESCRIBED. D-03 put the sha-versus-verdict comparison in
+    // admit() and nowhere else, and that comparison was correct. It was also unreachable from HERE —
+    // the writer `agent-factory/workflows/17-task-claim.md` and `18-context-compaction.md` name BY
+    // NAME as the sanctioned path. 31-VERIFICATION.md reproduced the consequence against the
+    // committed .js: an artifact-ref naming `gate_run: "no-such-gate-run-ever-existed"` was WRITTEN
+    // and an id returned. The defect was reachability, so the fix is a CALL, not a second check.
+    //
+    // THIS BRANCH CONTAINS NO PREDICATE OF ITS OWN. It reads no verdict, looks up no gate_run and
+    // never touches `sha`. It consults the single authority and refuses on its findings — which is
+    // what D-03 means by one authority per predicate. A comparison spelled out here would be the
+    // two-code-paths drift D-03 exists to forbid, and this file has paid for that class before.
+    //
+    // WHY THE KIND TEST GOES THROUGH normalizeKind. A raw `note.kind === "artifact-ref"` would be a
+    // NARROWER view of the kind than parseNote persists: a padded `kind: "artifact-ref "` would skip
+    // this branch here and still store as a real artifact-ref — the GAP-R7-1 Lever-1 divergence,
+    // re-introduced. The kind authority is consulted instead, so the two views cannot diverge.
+    //
+    // WHY IT SITS EXACTLY HERE. After composeNote and validate, and BEFORE writeNoteFile. "Nothing is
+    // written" is then true by construction rather than by cleanup: no file has been opened when the
+    // refusal is decided. It is also why the branch cannot be moved lower for convenience.
+    //
+    // RECURSION, CHECKED NOT ASSUMED (plan 31-05 assumption A1): admit() calls no note writer —
+    // measured 0 occurrences of appendNote/emitTrusted/writeNoteFile/emitVerdict/emitCheckpointNote/
+    // admitAndAppend in its body before this wiring landed — so this call cannot re-enter.
+    if (normalizeKind(note.kind) === "artifact-ref") {
+        const admission = admit(task, text, contextRoot, repoRoot);
+        if (admission.length > 0) {
+            throw new Error(`context-io.appendNote: refusing to write an artifact-ref whose provenance the admission ` +
+                `authority did not accept. Nothing was written:\n${admission.join("\n")}`);
+        }
     }
     // Route through the SINGLE write chokepoint (R6-1): containment is a property of the write, so a
     // traversal-bearing id can never escape the task's notes dir.
@@ -2208,7 +2241,7 @@ export function admitAndAppend(task, note, body, contextRoot = DEFAULT_CONTEXT_R
         const findings = validate(text);
         if (findings.length > 0)
             return { id: null, findings };
-        const persistedId = appendNote(task, note, body, contextRoot, id);
+        const persistedId = appendNote(task, note, body, contextRoot, id, repoRoot);
         // GOV-02 ledger (retained mode only): reuse the SAME private appendAuditLedger admit() uses —
         // disposed_by derives from the human:NAME stamp; severity is the role classification (D-06).
         if (configResult.config.audit_retention === "retained") {
@@ -2247,7 +2280,7 @@ export function admitAndAppend(task, note, body, contextRoot = DEFAULT_CONTEXT_R
     const findings = admit(task, text, contextRoot, repoRoot);
     if (findings.length > 0)
         return { id: null, findings };
-    const persistedId = appendNote(task, note, body, contextRoot, id);
+    const persistedId = appendNote(task, note, body, contextRoot, id, repoRoot);
     return { id: persistedId, findings: [] };
 }
 // ── CLI entrypoint (only when run directly, never on import) ────────────────────────────────────
