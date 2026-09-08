@@ -2100,3 +2100,260 @@ describe("uat-spec-integrity — 31-11 CR-06: membership is a rule, decided in o
     expect(r.stdout).toContain("test.describe.parallel.only");
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// 31-13 CR-07 / WR-14 — the SHAPE-RESOLUTION register.
+//
+// 31-11 (D-17) closed the MEMBERSHIP register: `isBannedModifierPath` decides every shape it is
+// asked about, by head and tail, with no enumerable list of dotted paths. The round-3 verifier then
+// planted five constructs that the rule is NEVER ASKED ABOUT, because `calleeDottedPath` declined
+// to resolve them at all — a callee chain containing a call (`test.info().skip()`,
+// `expect.configure({ soft: true })(...)`) and an import-renamed head
+// (`import { test as it }; it.skip(...)`). All five reported `0 findings over 1/1 uat specs
+// checked` at exit 0 against the committed .js.
+//
+// The register that failed is therefore WHICH CALLS THE RULE IS ASKED ABOUT, one register past the
+// one D-17 fixed. The cases below are the verifier's own probe, run through the committed artifact.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+describe("uat-spec-integrity — 31-13 CR-07/WR-14: the resolver DECIDES the call-link and rename shapes", () => {
+  const tsApi = hostTypeScript as typeof import("typescript");
+  const IMPORT = 'import { test, expect } from "@playwright/test";';
+
+  function plantSpec(body: string): string {
+    const root = mkTargetRepo({});
+    const dest = join(root, "e2e", "uat", "subject.uat.spec.ts");
+    mkdirSync(dirname(dest), { recursive: true });
+    writeFileSync(dest, body, "utf8");
+    return root;
+  }
+
+  function findingsOf(body: string): string[] {
+    const r = runCheck(plantSpec(body), "--json");
+    if (r.status === 0) return [];
+    const parsed = JSON.parse(r.stdout) as { ok: boolean; findings: string[] };
+    return parsed.findings;
+  }
+
+  /** Every dotted path the committed resolver produces for the calls in one snippet, in source order. */
+  async function resolvedPathsOf(source: string): Promise<Array<string | null>> {
+    const { calleeDottedPath } = await loadChecker();
+    const sf = tsApi.createSourceFile("probe.ts", source, tsApi.ScriptTarget.Latest, true);
+    const out: Array<string | null> = [];
+    const visit = (node: import("typescript").Node): void => {
+      if (tsApi.isCallExpression(node)) out.push(calleeDottedPath(tsApi, node.expression));
+      tsApi.forEachChild(node, visit);
+    };
+    tsApi.forEachChild(sf, visit);
+    return out;
+  }
+
+  // ── RED 1-3: the three TestInfo modifier spellings the round-3 verifier reproduced ───────────
+  //
+  // `test.info()` returns the TestInfo fixture at run time, and `skip` / `fail` / `fixme` on it are
+  // the documented runtime spelling of exactly the modifiers BANNED_MODIFIER_TAILS names, with the
+  // identical effect on the evidence. Each produced `0 findings over 1/1 uat specs checked`, EXIT=0
+  // against the pre-fix committed .js.
+  for (const [modifier, args] of [
+    ["skip", ""],
+    ["fail", ""],
+    ["fixme", 'true, "later"'],
+  ] as const) {
+    it(`refuses test.info().${modifier}(${args}) — the TestInfo runtime spelling`, () => {
+      const findings = findingsOf(
+        [
+          IMPORT,
+          'test("a scenario", async ({ page }) => {',
+          `  test.info().${modifier}(${args});`,
+          '  await expect(page.getByTestId("x")).toBeVisible();',
+          "});",
+          "",
+        ].join("\n"),
+      );
+      expect(findings.length, `test.info().${modifier}: expected exactly one finding`).toBe(1);
+      expect(findings[0]).toContain(`test.info().${modifier}`);
+      expect(findings[0]).toContain("banned modifier call");
+    });
+  }
+
+  // ── RED 4: the soft-assertion escape, decided by PATH PLUS AN ENABLED OPTION ─────────────────
+  it("refuses expect.configure({ soft: true })(...) — the soft-assertion escape", () => {
+    const findings = findingsOf(
+      [
+        IMPORT,
+        'test("a scenario", async ({ page }) => {',
+        '  await expect.configure({ soft: true })(page.getByTestId("x")).toBeVisible();',
+        "});",
+        "",
+      ].join("\n"),
+    );
+    expect(findings.length).toBe(1);
+    expect(findings[0]).toContain("expect.configure");
+    expect(findings[0]).toContain("banned modifier call");
+  });
+
+  it("does NOT refuse expect.configure({ retries: 2 }) — the false-positive control", () => {
+    const findings = findingsOf(
+      [IMPORT, "expect.configure({ retries: 2 });", ""].join("\n"),
+    );
+    expect(
+      findings,
+      "a configure call carrying no escape option must stay admitted — the rule is path PLUS " +
+        "enabled option, never bare path membership",
+    ).toEqual([]);
+  });
+
+  it("does NOT refuse expect.configure({ soft: false }) — the option must be ENABLED", () => {
+    expect(findingsOf([IMPORT, "expect.configure({ soft: false });", ""].join("\n"))).toEqual([]);
+  });
+
+  // ── RED 5 (WR-14): an ImportSpecifier rename is canonicalised before the head is read ────────
+  it("refuses a modifier call on an import-renamed head", () => {
+    const findings = findingsOf(
+      [
+        'import { test as it, expect } from "@playwright/test";',
+        'it.skip("a skipped scenario", async ({ page }) => {',
+        '  await expect(page.getByTestId("x")).toBeVisible();',
+        "});",
+        'it.describe.only("billing", () => {});',
+        "",
+      ].join("\n"),
+    );
+    expect(findings.length, "both renamed modifier calls must be refused").toBe(2);
+    const joined = findings.join("\n");
+    expect(joined).toContain("test.skip");
+    expect(joined).toContain("test.describe.only");
+  });
+
+  it("the rename map is MODULE-SCOPED: a rename from another module is not canonicalised", () => {
+    // The disclosed boundary, pinned to behaviour. Following a re-export across files needs the
+    // resolution D-13 deliberately does not ship, so this stays a NAMED residual rather than a
+    // silent difference between what the recipe claims and what the checker decides.
+    const findings = findingsOf(
+      [
+        'import { test as it } from "./fixtures";',
+        'it.skip("a skipped scenario", async () => {});',
+        "",
+      ].join("\n"),
+    );
+    expect(findings).toEqual([]);
+  });
+
+  // ── CONTROL A: unchanged before and after — the change is in SHAPE RESOLUTION ────────────────
+  it("CONTROL A: test.describe.serial.only still reports exactly one finding", () => {
+    const findings = findingsOf(
+      [IMPORT, 'test.describe.serial.only("control", () => {});', ""].join("\n"),
+    );
+    expect(findings.length).toBe(1);
+    expect(findings[0]).toContain("test.describe.serial.only");
+  });
+
+  // ── CONTROL B: no legitimate construct is newly refused ──────────────────────────────────────
+  it("CONTROL B: the six legitimate constructs still produce zero findings", () => {
+    const body = [
+      IMPORT,
+      "expect.configure({ retries: 2 });",
+      'test.describe.serial("billing", () => {',
+      '  test.describe.configure({ mode: "parallel" });',
+      '  test("an invoice is shown", async ({ page }) => {',
+      '    await test.step("open the page", async () => {',
+      '      await page.goto("/billing");',
+      "    });",
+      '    await expect(page.getByTestId("invoice-total")).toBeVisible();',
+      "  });",
+      "});",
+      "",
+    ].join("\n");
+    expect(findingsOf(body)).toEqual([]);
+  });
+
+  // ── CONTROL C: a chained assertion resolves to a path the ban set does NOT hold ──────────────
+  it("CONTROL C: expect(locator).soft resolves to a path that is NOT the exact path expect.soft", async () => {
+    const { BANNED_EXACT_PATHS, isBannedModifierPath } = await loadChecker();
+    const resolved = await resolvedPathsOf('expect(locator).soft("still legitimate");');
+    // The OUTER call is the chained one; its callee is a property access on a CALL, so the head
+    // segment is the MARKED `expect` call rather than the bare `expect` identifier.
+    const outer = resolved[0];
+    expect(outer, "PREMISE: the chained callee did not resolve at all").not.toBeNull();
+    expect(
+      BANNED_EXACT_PATHS,
+      "a chained assertion must not collide with the exact banned path",
+    ).not.toContain(outer);
+    expect(isBannedModifierPath(outer)).toBe(false);
+    expect(findingsOf([IMPORT, 'expect(locator).soft("x");', ""].join("\n"))).toEqual([]);
+    // …while the REAL `expect.soft` spelling stays refused, so the control is not a hole.
+    expect(isBannedModifierPath("expect.soft")).toBe(true);
+  });
+
+  // ── the call-link path spelling is part of the decided contract ──────────────────────────────
+  it("a call link resolves to its inner path plus a parenthesis marker segment", async () => {
+    const resolved = await resolvedPathsOf("test.info().skip();");
+    expect(resolved[0]).toBe("test.info().skip");
+    // The marker lands in the ROUTING position, so the head is `test` and the tail is `skip` —
+    // which is why D-17's rule refuses it with NO new member in any set.
+    expect("test.info().skip".split(".")[0]).toBe("test");
+    expect("test.info().skip".split(".").pop()).toBe("skip");
+  });
+
+  it("an UNRESOLVABLE inner call leaves the whole path unresolved", async () => {
+    const resolved = await resolvedPathsOf("test[name]().skip();");
+    expect(resolved[0], "an inner path that does not resolve must not produce an outer one").toBeNull();
+  });
+
+  // ── the position question: at WHICH POSITIONS is the rule even asked? ────────────────────────
+  //
+  // "Which characters the predicate accepts" and "at which positions it is asked" are different
+  // questions, and this repository has been caught by the second one before.
+  it("POSITION: a call-link modifier at file top level is reported", () => {
+    const findings = findingsOf([IMPORT, "test.info().skip();", ""].join("\n"));
+    expect(findings.length).toBe(1);
+    expect(findings[0]).toContain("test.info().skip");
+  });
+
+  it("POSITION: a call-link modifier inside a test.describe callback is reported", () => {
+    const findings = findingsOf(
+      [IMPORT, 'test.describe("billing", () => {', "  test.info().skip();", "});", ""].join("\n"),
+    );
+    expect(findings.length).toBe(1);
+    expect(findings[0]).toContain("test.info().skip");
+  });
+
+  it("POSITION: a call-link modifier inside a nested arrow function is reported", () => {
+    const findings = findingsOf(
+      [
+        IMPORT,
+        'test("a scenario", async ({ page }) => {',
+        '  await test.step("open the page", async () => {',
+        "    test.info().skip();",
+        "  });",
+        "});",
+        "",
+      ].join("\n"),
+    );
+    expect(findings.length).toBe(1);
+    expect(findings[0]).toContain("test.info().skip");
+  });
+
+  it("POSITION: a renamed-head modifier is reported at all three positions in ONE spec", () => {
+    const findings = findingsOf(
+      [
+        'import { test as it, expect } from "@playwright/test";',
+        'it.skip("top level", async () => {});',
+        'it.describe("billing", () => {',
+        '  it.only("inside a describe callback", async () => {});',
+        "});",
+        'it("a scenario", async ({ page }) => {',
+        '  await it.step("nested", async () => {',
+        '    it.fixme("inside a nested arrow", async () => {});',
+        "  });",
+        "});",
+        "",
+      ].join("\n"),
+    );
+    expect(findings.length).toBe(3);
+    const joined = findings.join("\n");
+    expect(joined).toContain("test.skip");
+    expect(joined).toContain("test.only");
+    expect(joined).toContain("test.fixme");
+  });
+});
