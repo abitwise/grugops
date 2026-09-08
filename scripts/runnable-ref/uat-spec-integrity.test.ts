@@ -1406,7 +1406,42 @@ describe("uat-spec-integrity — 31-12 WR-13: the declared modifier surface, der
    * (T-31-65): the partition below asserts every key here is a real derived path, so an entry added
    * to make the arithmetic close is caught rather than counted.
    */
-  const DISPOSITIONED_SURFACE_MEMBERS: Readonly<Record<string, string>> = Object.freeze({});
+  const DISPOSITIONED_SURFACE_MEMBERS: Readonly<Record<string, string>> = Object.freeze({
+    test:
+      "The scenario itself. It is the call a quality gate re-runs, so refusing it would refuse the " +
+      "evidence rather than protect it.",
+    expect:
+      "The assertion itself. It is what makes a scenario evidence at all; D-14's arms (a) and (b) " +
+      "decide WHERE an assertion may sit, and this member is the construct those arms are about.",
+    "test.describe":
+      "A structural grouping. It gives a set of scenarios a shared title and nothing else: every " +
+      "scenario inside still runs and every assertion inside is still read.",
+    "test.describe.serial":
+      "A routing group. It changes the ORDER scenarios run in and their shared-failure behaviour; " +
+      "no scenario is removed from the evidence and no result is inverted. Its modifier tails ARE " +
+      "refused by the rule, which is the part that narrows what a gate re-runs.",
+    "test.describe.parallel":
+      "A routing group. It changes the ISOLATION scenarios run under; no scenario is removed from " +
+      "the evidence and no result is inverted. Its modifier tails ARE refused by the rule.",
+    "test.describe.configure":
+      "A configuration call. It sets options such as mode and retries for the enclosing group; it " +
+      "selects no subset of scenarios and inverts no result.",
+    "test.beforeEach":
+      "A hook. It runs around scenarios and cannot select which of them run, nor change how their " +
+      "assertions are read.",
+    "test.afterEach":
+      "A hook. It runs around scenarios and cannot select which of them run, nor change how their " +
+      "assertions are read.",
+    "test.step":
+      "A structural member INSIDE a scenario. It labels a region of one scenario's body for " +
+      "reporting; the body still executes and every assertion in it is still read.",
+    "test.slow":
+      "A time-budget modifier. It triples the timeout a scenario is given, so the scenario still " +
+      "runs and every assertion in it is still read — the evidence a gate re-runs is unchanged in " +
+      "content. This is the one member of Playwright's own modifiers group that this record holds " +
+      "rather than the rule refusing, and the reason is that a longer deadline neither removes a " +
+      "scenario nor inverts its result.",
+  });
 
   interface SurfacePartition {
     /** Paths the shipped membership authority refuses. */
