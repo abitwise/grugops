@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 135
+open_count: 136
 waived_count: 0
 fixed_count: 4
-total_count: 139
-last_updated: 2026-09-08T08:16:01.288Z
+total_count: 140
+last_updated: 2026-09-08T08:33:40.547Z
 ---
 
 # Broken Windows Ledger
@@ -154,6 +154,7 @@ last_updated: 2026-09-08T08:16:01.288Z
 | 137 | 31 | unrun-verify | scripts/runnable-ref/fixtures/playwright-test.d.ts |  | UNKNOWN - verify (assumption A1, T-31-32): the declared @playwright/test surface is a HAND TRANSCRIPTION at the kit's 1.62.1 pin, not the package. grugops ships zero runtime deps and its dev set is fixed by CLAUDE.md, so the package cannot be installed to derive it and nothing re-checks it against a released Playwright. Remedy: re-derive the surface wherever @playwright/test is actually installable before treating it as an API authority. | open |  | 2026-09-08T08:16:01.122Z |  |
 | 138 | 31 | deviation | scripts/runnable-ref/uat-spec-integrity.ts |  | 31-06 accepted residual (T-31-31): two callee shapes stay unrefused by arm (c) — an aliased binding (const t = test; t.skip(...)) and a member computed from a non-literal expression (test[name](...)). Resolving either needs a type checker, which this runnable deliberately does not ship (D-13). Exported as UNRESOLVABLE_CALLEE_RESIDUALS, quoted in browser-uat-recipe.md, and pinned by a test asserting both really do pass today. | open |  | 2026-09-08T08:16:01.207Z |  |
 | 139 | 31 | deviation | scripts/runnable-ref/uat-spec-integrity.ts |  | 31-REVIEW.md WR-01, surfaced by 31-06 and NOT closed by it: a .uat.spec.ts one directory outside a uat/ path segment is silently unchecked while the pass line still claims a full count. A real adjacent defect in the same file, outside the three verification gaps; named here so the next round has it rather than rediscovering it. | open |  | 2026-09-08T08:16:01.288Z |  |
+| 140 | 31 | deviation | scripts/check-foundation-guards.ts | 3895 | Every early-return branch in guardPlaywrightMcpPin calls fail() (which increments FAILS) and then increments FAILS again — the authority-refusal tally is doubled. Pre-existing across four branches; the 31-07 branch matches that shape per plan instruction. Affects only the trailing 'N CHECK(S) FAILED' count, never exit status. | open |  | 2026-09-08T08:33:40.547Z |  |
 
 ````json
 [
@@ -1823,6 +1824,18 @@ last_updated: 2026-09-08T08:16:01.288Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-09-08T08:16:01.288Z",
+    "resolved_at": null
+  },
+  {
+    "id": 140,
+    "kind": "deviation",
+    "phase": "31",
+    "file": "scripts/check-foundation-guards.ts",
+    "line": 3895,
+    "description": "Every early-return branch in guardPlaywrightMcpPin calls fail() (which increments FAILS) and then increments FAILS again — the authority-refusal tally is doubled. Pre-existing across four branches; the 31-07 branch matches that shape per plan instruction. Affects only the trailing 'N CHECK(S) FAILED' count, never exit status.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-08T08:33:40.547Z",
     "resolved_at": null
   }
 ]
