@@ -157,7 +157,7 @@ const DECIDER_MANIFEST: Readonly<Record<string, Readonly<Record<string, string>>
     "scripts/voice-model.js": "3a16c8761245eee5ef715616363c5d5e33686f6e3a7abacdcd44921fe4bd578f",
   },
   "hooks/guard.js": {
-    "hooks/guard.js": "84c0ef27cd6c67eef916056c6e3307ec6bc785e01a04adc46c3e468925ed44c5",
+    "hooks/guard.js": "13028ffa0ea821adcf55bf992ce41e886f9d1db1aefacd661449ec21b6d5c41f",
     "scripts/audit-model.js": "c8998eb024bcb43c54f0357ac402441f566e28fef089d80b451bd9373f458fa2",
     "scripts/audit-prepass.js": "4a6906e19cfdc885f838ef429854d09cd5786b4a78d490e3ccc38dd9491c98d2",
     "scripts/check-diff-disposition.js": "ca642d36df6aef18f12d5860affe2e2fb15a6e89ee55392124581bb51ec36bb4",

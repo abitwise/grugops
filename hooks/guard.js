@@ -341,9 +341,8 @@ catch {
     cmd = ""; // malformed / empty stdin → no command → allow only non-deploys.
 }
 // ── Read the live matrix (AUTO-02, D-12 posture). ────────────────────────────────────────────────
-// ${CLAUDE_PROJECT_DIR} is the documented hook project root; when it names nothing, `trustedRepoRoot`
-// answers by its own published order (plan 31-15) — this file does not restate that order, it asks
-// the one function, exactly as hooks/admission-guard.ts does. `unreadable` is treated as `block`
+// ${CLAUDE_PROJECT_DIR} is the documented hook project root; when unset the reader falls back to its
+// own repo root, exactly as hooks/admission-guard.ts resolves it. `unreadable` is treated as `block`
 // by the reader itself (it returns the roster default), so an absent, corrupt or degenerate config
 // all reach the un-lowered posture. A THROW is a different failure — nothing was read at all — and
 // is recorded here so that a MATCHED command denies on it rather than proceeding on a matrix nobody
@@ -409,11 +408,6 @@ for (const refusal of configRefusals) {
 // one for a guard invocation; it is the base for library and manual callers of the reader, for whom
 // "the kit I was loaded from" is the only root that exists. A shared kit therefore carries a shared
 // dial for those callers, which is documented rather than left to be discovered.
-//
-// NARROWED BY PLAN 31-15 (WR-15), and the narrowing belongs in the reader rather than here: the kit
-// is now the LAST step of a published order, not the immediate answer, so a library or manual caller
-// working inside a configured repository reads that repository's dial. Nothing above changes — the
-// kit remains the answer when no variable and no repository configuration names anything.
 //
 // What the surface-B finding got right, and what is fixed here: there were TWO expressions for one
 // base. The reader now PUBLISHES its fallback (`GOVERNANCE_FALLBACK_BASE`, added by surface B's F1),

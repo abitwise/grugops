@@ -228,6 +228,20 @@ const APPROVAL = "GRUGOPS_ADMISSION_APPROVED_BY";
 //         "a force push on any branch" rule, so `git -C log push --force origin feature` matched
 //         neither authority.
 // The zero-config decision and wording are byte-unchanged (scripts/autonomy-zero-config.test.ts).
+//
+// NOT RE-BASELINED BY PLAN 31-15 EITHER — AND THIS PARAGRAPH IS WHY THE FILE MOVED ANYWAY. 31-15
+// changes `trustedRepoRoot()`'s resolution order in `scripts/context-io.ts`, which the guard reads
+// through. In the course of that work two COMMENTS in `hooks/guard.ts` — the two describing the kit
+// as the immediate answer when `CLAUDE_PROJECT_DIR` names nothing — were narrowed to match the new
+// order, and committed. That is a byte change to a byte-frozen file, and the two assertions below
+// caught it: the blob comparison went red, and the D-24 companion assertion named the split commit.
+//
+// The change was REVERTED rather than re-baselined, in the commit that carries this paragraph. The
+// guard's prose is now one case wider than the reader it calls, which is a real if small imprecision;
+// it is left standing because re-freezing a deploy guard to correct a comment is the wrong trade, and
+// because the accurate statement of the order lives in the reader that owns it
+// (`scripts/context-io.ts`, `trustedRepoRoot`) where every consumer reads it. The blob below is
+// unchanged from round 3's, and `hooks/guard.ts` at HEAD hashes to it again.
 const FROZEN_GUARD_BLOB = "669725bc1c616ab57123e22090d93d57eff1b001";
 
 // Import the COMMITTED .js for the pure-function floor checks (validate / admit). Never the .ts.
