@@ -59,6 +59,9 @@ interface CheckerModule {
   readonly BANNED_MODIFIER_TAILS: readonly string[];
   readonly BANNED_EXACT_PATHS: readonly string[];
   isBannedModifierPath(dottedPath: string | null): boolean;
+  // 31-12 (WR-13): the SHAPE resolver, read by the reverse cross-check so the fixture corpus is
+  // parsed by the artifact that resolves callees in production rather than by a second reader.
+  calleeDottedPath(ts: unknown, expr: unknown): string | null;
   readonly UNRESOLVABLE_CALLEE_RESIDUALS: readonly string[];
   readonly SKIPPED_DIRECTORIES: readonly string[];
   emitLoudSkipIfBrowserUnusable(
@@ -1127,6 +1130,262 @@ describe("uat-spec-integrity — 31-06 gap 2: the ban rule against the declared 
       expect(path.startsWith("describe.")).toBe(true);
       expect(declaredSurfaceExports()).not.toContain(path.split(".")[0]);
     }
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// 31-12 WR-13 — THE REVERSE DIRECTION. The block above asks "is every banned spelling real?" and
+// cannot, by its shape, ask "is every real modifier banned?" — the direction CR-01 was and CR-06
+// still was. This block asks the reverse question of the DECLARED surface.
+//
+// THE DENOMINATOR IS READ, NOT WRITTEN. The set of members the reverse question is asked about is
+// DERIVED by walking the declared type with the TypeScript checker, rooted at each exported value
+// binding. Enumeration is the axis 31-11's head and tail sets are hand-authored on, and it is
+// therefore the one axis that must not be hand-authored a second time here: a typed-out member list
+// would fail exactly when a member nobody remembered was added, which is the failure this block
+// exists to catch.
+//
+// THE PREMISE IS ASSERTED BEFORE THE COVERAGE CLAIM, AND A SHORT WALK COUNTS AS A FAILED PREMISE.
+// A vacuity floor catches an EMPTY denominator; it never catches a silently SHORT one, and the
+// modifier family CR-06 was about (`test.describe.<routing group>.<modifier>`) lives at the deepest
+// level the surface reaches. So the walk asserts it reached its own declared bound at least once,
+// asserts the program compiled with zero diagnostics, asserts both root bindings were found, and
+// asserts the derived set contains every member the fixture corpus actually calls — a second,
+// independent view of the same surface, so a walk that missed a branch is caught by something other
+// than its own count.
+//
+// WHAT IS AND IS NOT CLAIMED. The claim is coverage of the DECLARED surface. It is NOT coverage of
+// the `@playwright/test` package: playwright-test.d.ts is a hand transcription whose drift from a
+// released Playwright is an open `UNKNOWN - verify` (`R-07`), stated in that file's own header and
+// in browser-uat-recipe.md. This block raises the cost of that drift; it does not close it.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+describe("uat-spec-integrity — 31-12 WR-13: the declared modifier surface, derived and bounded", () => {
+  const ts = hostTypeScript as typeof import("typescript");
+  const DECL = join(FIXTURES, "playwright-test.d.ts");
+  const MODULE_SPECIFIER = "@playwright/test";
+
+  const WALK_COMPILER_OPTIONS: import("typescript").CompilerOptions = {
+    module: ts.ModuleKind.ESNext,
+    moduleResolution: ts.ModuleResolutionKind.Bundler,
+    target: ts.ScriptTarget.ES2022,
+    strict: true,
+    noEmit: true,
+    skipLibCheck: true,
+    types: [],
+  };
+
+  /**
+   * THE DEPTH BOUND, with its reason, because an unstated truncation is indistinguishable from a
+   * complete walk.
+   *
+   * Four is the segment count of the DEEPEST modifier family the declared surface carries:
+   * `test` . `describe` . `<routing group>` . `<modifier>` — which is exactly the family CR-06 was
+   * about. A bound of three would silently drop `test.describe.serial.only`, the spelling the
+   * round-2 verifier planted, and the reverse partition would then report complete over a set that
+   * never contained the member it exists to find. The walk therefore asserts it REACHED this bound,
+   * not merely that it ran.
+   *
+   * Raising it is safe and cheap; lowering it below the deepest declared family turns the
+   * maximum-depth premise red rather than quietly shrinking the denominator.
+   */
+  const SURFACE_WALK_MAX_DEPTH = 4;
+
+  interface SurfaceWalk {
+    /** Every dotted path reached, sorted. Includes each root binding as a one-segment path. */
+    readonly paths: readonly string[];
+    /** The shallowest depth each path was reached at, in segments. */
+    readonly depths: ReadonlyMap<string, number>;
+    /** The exported VALUE bindings the walk rooted at — a spec can only call a value. */
+    readonly roots: readonly string[];
+    /** Every diagnostic the program backing the walk produced. Non-empty means a rejected input. */
+    readonly diagnostics: readonly string[];
+  }
+
+  /**
+   * Walk the declared ambient module's exported VALUE bindings with the TypeScript checker and emit
+   * one dotted path per member reached, bounded by `maxDepth` segments.
+   *
+   * The roots are selected by "has a value declaration", not by name: an interface exported from the
+   * same module is a type a spec cannot call, and naming `test` and `expect` here would re-introduce
+   * the hand-authored enumeration this whole block exists to avoid.
+   */
+  function deriveDeclaredModifierPaths(declPath: string, maxDepth: number): SurfaceWalk {
+    const program = ts.createProgram([declPath], WALK_COMPILER_OPTIONS);
+    const diagnostics = [
+      ...program.getOptionsDiagnostics(),
+      ...program.getGlobalDiagnostics(),
+      ...program.getSyntacticDiagnostics(),
+      ...program.getSemanticDiagnostics(),
+    ].map((d) => `TS${d.code}: ${ts.flattenDiagnosticMessageText(d.messageText, " ")}`);
+
+    const sf = program.getSourceFile(declPath);
+    if (sf === undefined) throw new Error(`PREMISE: ${declPath} was not part of the program`);
+    const checker = program.getTypeChecker();
+
+    let moduleSymbol: import("typescript").Symbol | undefined;
+    ts.forEachChild(sf, (node) => {
+      if (!ts.isModuleDeclaration(node)) return;
+      if (!ts.isStringLiteral(node.name) || node.name.text !== MODULE_SPECIFIER) return;
+      moduleSymbol = checker.getSymbolAtLocation(node.name);
+    });
+    if (moduleSymbol === undefined) {
+      throw new Error(
+        `PREMISE: no ambient declaration of ${MODULE_SPECIFIER} was found in ${declPath}; the ` +
+          `denominator of every coverage assertion below would be derived from nothing`,
+      );
+    }
+
+    const rootSymbols = checker
+      .getExportsOfModule(moduleSymbol)
+      .filter((s) => s.valueDeclaration !== undefined);
+
+    const depths = new Map<string, number>();
+    const visit = (
+      symbol: import("typescript").Symbol,
+      segments: readonly string[],
+      depth: number,
+    ): void => {
+      const dotted = segments.join(".");
+      const prior = depths.get(dotted);
+      if (prior === undefined || depth < prior) depths.set(dotted, depth);
+      if (depth >= maxDepth) return;
+      const type = checker.getTypeOfSymbolAtLocation(symbol, symbol.valueDeclaration ?? sf);
+      for (const prop of checker.getPropertiesOfType(type)) {
+        visit(prop, [...segments, prop.getName()], depth + 1);
+      }
+    };
+    for (const root of rootSymbols) visit(root, [root.getName()], 1);
+
+    return {
+      paths: [...depths.keys()].sort(),
+      depths,
+      roots: rootSymbols.map((s) => s.getName()).sort(),
+      diagnostics,
+    };
+  }
+
+  /** Memoised: one program per file, read by every case below. */
+  let walkCache: SurfaceWalk | null = null;
+  function walk(): SurfaceWalk {
+    walkCache ??= deriveDeclaredModifierPaths(DECL, SURFACE_WALK_MAX_DEPTH);
+    return walkCache;
+  }
+
+  /**
+   * The dotted paths the fixture corpus actually CALLS, resolved by the runnable's own shape
+   * resolver. This is the second, independent view of the same surface: the walk reads the type,
+   * this reads the call sites, and a branch missing from one is caught by the other.
+   */
+  async function fixtureCalledSurfacePaths(): Promise<string[]> {
+    const { calleeDottedPath } = await loadChecker();
+    const roots = new Set(walk().roots);
+    const called = new Set<string>();
+    for (const name of readdirSync(FIXTURES).filter((n) => n.endsWith(".uat.spec.ts"))) {
+      const sf = ts.createSourceFile(
+        name,
+        readFileSync(join(FIXTURES, name), "utf8"),
+        ts.ScriptTarget.ES2022,
+        true,
+      );
+      const visit = (node: import("typescript").Node): void => {
+        if (ts.isCallExpression(node)) {
+          const dotted = calleeDottedPath(ts, node.expression);
+          // Only calls rooted at a binding this surface declares: `page.goto` is a call on a value
+          // the surface returns, not a member of the surface, and is not this block's question.
+          if (dotted !== null && roots.has(dotted.split(".")[0])) called.add(dotted);
+        }
+        ts.forEachChild(node, visit);
+      };
+      ts.forEachChild(sf, visit);
+    }
+    return [...called].sort();
+  }
+
+  it("the walk's premises hold: no diagnostics, both roots, a non-empty set, and the bound reached", () => {
+    const { paths, depths, roots, diagnostics } = walk();
+
+    // A denominator computed from a file the compiler rejected is not a measurement.
+    expect(diagnostics, "PREMISE: the program backing the walk reported diagnostics").toEqual([]);
+
+    // The roots are DERIVED. Asserting the two the surface declares proves the filter selected
+    // value bindings rather than silently selecting nothing or selecting the interfaces too.
+    expect(roots.length, "PREMISE: the walk found no exported value binding").toBeGreaterThan(0);
+    expect(roots).toEqual(["expect", "test"]);
+
+    // The vacuity floor.
+    expect(paths.length, "PREMISE: the derived path set is empty").toBeGreaterThan(0);
+
+    // The SHORTNESS floor — the one a vacuity floor cannot give. A walk that stopped one level
+    // early would still be non-empty and would still look like a complete measurement.
+    const deepest = Math.max(...depths.values());
+    expect(
+      deepest,
+      `PREMISE: the walk never reached its declared bound of ${SURFACE_WALK_MAX_DEPTH} segments — ` +
+        `the deepest path it found has ${deepest}, so the deepest modifier family was truncated`,
+    ).toBe(SURFACE_WALK_MAX_DEPTH);
+  });
+
+  it("the derived set contains every member the fixture corpus actually calls", async () => {
+    const called = await fixtureCalledSurfacePaths();
+    const derived = new Set(walk().paths);
+
+    // PREMISE: a resolver that returned nothing would make the loop below assert nothing.
+    expect(
+      called.length,
+      "PREMISE: no fixture call resolved to a member of the declared surface",
+    ).toBeGreaterThan(0);
+
+    const absent = called.filter((p) => !derived.has(p));
+    expect(
+      absent,
+      `the walk missed members the corpus calls: ${absent.join(", ")} — the denominator has a hole`,
+    ).toEqual([]);
+  });
+
+  it("the derived count exceeds the count the rule refuses", async () => {
+    const { isBannedModifierPath } = await loadChecker();
+    const { paths } = walk();
+    const refused = paths.filter((p) => isBannedModifierPath(p));
+
+    // PREMISE: a walk that found ONLY banned members would make "every member is decided" true by
+    // construction and would read as a coverage measurement while measuring nothing.
+    expect(refused.length, "PREMISE: the rule refuses nothing on this surface").toBeGreaterThan(0);
+    expect(
+      paths.length,
+      "PREMISE: every derived path is refused, so there is nothing left to disposition",
+    ).toBeGreaterThan(refused.length);
+  });
+
+  it("the derived set carries the families this gap is about", () => {
+    const { paths } = walk();
+    // The two spellings the round-2 verifier planted, at the deepest level.
+    expect(paths).toContain("test.describe.serial.only");
+    expect(paths).toContain("test.describe.parallel.only");
+    // The inverting modifier (WR-12).
+    expect(paths).toContain("test.fail");
+    // A routing group used WITHOUT a modifier tail — the false-positive side of the rule.
+    expect(paths).toContain("test.describe.serial");
+  });
+
+  it("the declared surface carries a documented modifier the rule does NOT refuse", async () => {
+    const { isBannedModifierPath } = await loadChecker();
+    const { paths } = walk();
+
+    // WHY THIS CASE EXISTS. A reverse partition whose non-refused bucket holds only hooks,
+    // structure and configuration answers a weaker question than the one WR-13 asked: it never has
+    // to decide a member that is a MODIFIER by the framework's own taxonomy and is still not
+    // refused. `test.slow` is that member. Playwright documents it in the same modifiers group as
+    // `skip`, `only`, `fixme` and `fail`, and it is deliberately NOT refused, because it extends the
+    // time budget a scenario is given rather than removing the scenario or inverting its result.
+    //
+    // Without it the reverse check would be answering a question that could not have gone the other
+    // way. `UNKNOWN - verify` at the same strength as the rest of this surface: a hand transcription.
+    expect(paths, "the surface carries no modifier outside the ban").toContain("test.slow");
+    expect(
+      isBannedModifierPath("test.slow"),
+      "test.slow must stay OUTSIDE the ban — it changes a timeout, not the evidence",
+    ).toBe(false);
   });
 });
 
