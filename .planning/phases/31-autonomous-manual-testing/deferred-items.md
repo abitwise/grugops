@@ -43,3 +43,19 @@
   named the bare invocation, which is the stale half of the record.
   **Remedy when picked up:** either add an `npm run validate` script that supplies the variable, or
   correct the invocation wherever a plan or document names the bare form.
+
+- `check:diff-disposition` still reports pre-existing undispositioned clauses in three OTHER
+  workflows (measured again by plan 31-14)
+  status: open
+  **What:** measured on this tree, `npm run check:diff-disposition` reports 65 findings over 39
+  elements. Every one of them names `agent-factory/workflows/05-pr-quality-gate.md`,
+  `agent-factory/workflows/06-uat-pack.md` or `agent-factory/workflows/17-task-claim.md` — files
+  plan `31-14` does not touch. The count moved 75 → 65 because the 10 findings that named
+  `agent-factory/workflows/18-context-compaction.md` are now covered by
+  `docs/audit/29-style-dispositions/31-14.md`, which carries a row for all 46 clauses this plan
+  changed in that file, including a companion edit for every frozen `## Stop conditions` clause.
+  Measured after the rows landed: 0 findings name `18-context-compaction.md`.
+  **Why it was not fixed here:** unchanged from the 31-09 entry above — writing rows for another
+  plan's clauses would put a reason in the register that this plan cannot vouch for.
+  **Remedy when picked up:** one disposition file per owning plan. Do NOT move `00-base.md`'s
+  recorded base commit forward and do NOT narrow the watched corpus.
