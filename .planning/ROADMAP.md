@@ -974,7 +974,7 @@ Plans:
   4. An evidence note carries commit SHA + gate-run id + content hash, and a note whose SHA is not the HEAD the gate ran against is refused. (UATX-04)
   5. An absent or unusable browser produces a **loud skip** that leaves the UAT `pending` (reusing the existing Tier-2 convention verbatim, never a silent pass), and a generated spec containing a conditional or caught assertion is rejected over the **TypeScript AST** rather than by regex, so the claim matches the mechanism. (UATX-05, UATX-06)
 
-**Plans**: 15 plans — 12/12 executed (the original 4 across waves 1, 1, 2, 3; 4 gap-closure plans from the 2026-09-07 verification across waves 1, 2, 2, 3; and 4 round-2 gap-closure plans across gap waves 4 and 5), plus 3 round-3 gap-closure plans (`31-13`…`31-15`, gap waves 6, 7, 8) planned 2026-09-08 and not yet executed. **Gap-closure round 2 (`31-09`…`31-12`)** answers the round-2 verification (`gaps_found` 4/6, 2026-09-08) and the gap-closure code review (`31-REVIEW.md`, CR-05 and CR-06). Both remaining blockers are the round-1 defects reappearing one register over: `appendNote` reaches the admission authority for one KIND (CR-05/UATX-01), and the modifier ban is decided by an enumerable literal rather than a rule (CR-06/UATX-06). The round is a STRUCTURAL fix in both places rather than a third iteration — `31-09` deletes the kind axis so the writer expresses no opinion about which notes admission applies to, and `31-11` deletes the enumerable ban set so a new intermediate segment cannot create a new hole. `31-10` and `31-12` derive the axis each fix's remaining hand-authored set sits on and assert its cardinality, which is the check that was one-directional in both cases. UATX-01 and UATX-06 stay `[ ]` / Gaps Found throughout: only a verification round may flip them.
+**Plans**: 13/15 plans executed — 12/12 executed (the original 4 across waves 1, 1, 2, 3; 4 gap-closure plans from the 2026-09-07 verification across waves 1, 2, 2, 3; and 4 round-2 gap-closure plans across gap waves 4 and 5), plus 3 round-3 gap-closure plans (`31-13`…`31-15`, gap waves 6, 7, 8) planned 2026-09-08 and not yet executed. **Gap-closure round 2 (`31-09`…`31-12`)** answers the round-2 verification (`gaps_found` 4/6, 2026-09-08) and the gap-closure code review (`31-REVIEW.md`, CR-05 and CR-06). Both remaining blockers are the round-1 defects reappearing one register over: `appendNote` reaches the admission authority for one KIND (CR-05/UATX-01), and the modifier ban is decided by an enumerable literal rather than a rule (CR-06/UATX-06). The round is a STRUCTURAL fix in both places rather than a third iteration — `31-09` deletes the kind axis so the writer expresses no opinion about which notes admission applies to, and `31-11` deletes the enumerable ban set so a new intermediate segment cannot create a new hole. `31-10` and `31-12` derive the axis each fix's remaining hand-authored set sits on and assert its cardinality, which is the check that was one-directional in both cases. UATX-01 and UATX-06 stay `[ ]` / Gaps Found throughout: only a verification round may flip them.
 
 Plans:
 **Wave 1**
@@ -1023,7 +1023,7 @@ Both round-3 blockers are the round-2 fixes' own defects one register over, whic
 
 **Gap wave 6**
 
-- [ ] 31-13-PLAN.md — CR-07/WR-14: decide the call-link and configured-soft shapes instead of declining them, canonicalise an import rename before the head is read, derive the resolver's own decline set and bind every member to a decision or a named residual, record D-18 (UATX-05, UATX-06)
+- [x] 31-13-PLAN.md — CR-07/WR-14: decide the call-link and configured-soft shapes instead of declining them, canonicalise an import rename before the head is read, derive the resolver's own decline set and bind every member to a decision or a named residual, record D-18 (UATX-05, UATX-06)
 
 **Gap wave 7** *(blocked on gap wave 6 — both plans record a dated decision in `31-CONTEXT.md`)*
 
@@ -1105,7 +1105,7 @@ Both round-3 blockers are the round-2 fixes' own defects one register over, whic
 | 29.1. Per-Role Model Assignment | v2.1 | 25/25 | Closed by user override D-29.1-19 (verification gaps_found; 3 blockers accepted open, WINDOWS.md rows 105-107) | 2026-09-03 |
 | 29.2. Model Assignment Delivery Path | v2.1 | 6/6 | Complete    | 2026-09-07 |
 | 30. Per-Checkpoint Autonomy Matrix | v2.1 | 11/11 | Complete    | 2026-09-07 |
-| 31. Autonomous Manual Testing | v2.1 | 12/12 | In Progress|  |
+| 31. Autonomous Manual Testing | v2.1 | 13/15 | In Progress|  |
 | 32. Board Projector & CLI Dashboard | v2.1 | 0/TBD | Not started | - |
 | 33. Live Capture & Windows Portability | v2.1 | 0/TBD | Not started | - |
 

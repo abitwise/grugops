@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 148
+open_count: 150
 waived_count: 0
 fixed_count: 4
-total_count: 152
-last_updated: 2026-09-08T15:28:05.899Z
+total_count: 154
+last_updated: 2026-09-08T18:53:37.116Z
 ---
 
 # Broken Windows Ledger
@@ -167,6 +167,8 @@ last_updated: 2026-09-08T15:28:05.899Z
 | 150 | 31 | unrun-verify | scripts/runnable-ref/fixtures/playwright-test.d.ts |  | The reverse partition's denominator is a hand transcription: coverage of the DECLARED surface is established, coverage of the released @playwright/test package is not (R-07, UNKNOWN - verify) | open |  | 2026-09-08T15:28:05.725Z |  |
 | 151 | 31 | unrun-verify | scripts/runnable-ref/uat-spec-integrity.test.ts |  | The surface walk is bounded at SURFACE_WALK_MAX_DEPTH = 4; a modifier family declared deeper than four segments is outside the measurement | open |  | 2026-09-08T15:28:05.815Z |  |
 | 152 | 31 | deviation | scripts/runnable-ref/uat-spec-integrity.test.ts |  | test.describe.configure carries the weakest disposition reason in the record: its retries option changes how a failed result is read, so a red-team round could reasonably reverse the disposition to a refusal | open |  | 2026-09-08T15:28:05.899Z |  |
+| 153 | 31 | deviation | scripts/runnable-ref/uat-spec-integrity.ts |  | D-18 (3): the rename/namespace canonicalisation is MODULE-SCOPED to @playwright/test — a rename arriving through a local fixture-extension re-export is still not canonicalised, a residual this plan's own change created | open |  | 2026-09-08T18:53:37.028Z |  |
+| 154 | 31 | deviation | agent-factory/checklists/browser-uat-recipe.md |  | The reverse partition's walk covers declared PROPERTY CHAINS only; it does not descend through a call signature's return type, so a call-link spelling such as test.info().skip is outside its denominator though the rule refuses it | open |  | 2026-09-08T18:53:37.116Z |  |
 
 ````json
 [
@@ -1992,6 +1994,30 @@ last_updated: 2026-09-08T15:28:05.899Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-09-08T15:28:05.899Z",
+    "resolved_at": null
+  },
+  {
+    "id": 153,
+    "kind": "deviation",
+    "phase": "31",
+    "file": "scripts/runnable-ref/uat-spec-integrity.ts",
+    "line": null,
+    "description": "D-18 (3): the rename/namespace canonicalisation is MODULE-SCOPED to @playwright/test — a rename arriving through a local fixture-extension re-export is still not canonicalised, a residual this plan's own change created",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-08T18:53:37.028Z",
+    "resolved_at": null
+  },
+  {
+    "id": 154,
+    "kind": "deviation",
+    "phase": "31",
+    "file": "agent-factory/checklists/browser-uat-recipe.md",
+    "line": null,
+    "description": "The reverse partition's walk covers declared PROPERTY CHAINS only; it does not descend through a call signature's return type, so a call-link spelling such as test.info().skip is outside its denominator though the rule refuses it",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-08T18:53:37.116Z",
     "resolved_at": null
   }
 ]

@@ -482,3 +482,19 @@ None — no external service configuration required.
 ---
 *Phase: 31-autonomous-manual-testing*
 *Completed: 2026-09-08*
+
+## Self-Check: PASSED
+
+- Every file in `key-files.created` exists on disk (`[ -f ]`, 3/3), and so does this summary.
+- Every commit hash in "Task Commits" resolves (`git log --oneline --all | grep`, 6/6), plus the SUMMARY commit.
+- `git rev-list --count d7b856d..HEAD` measured **6** at SUMMARY-write time, matching `actuals.commits` — the protocol's SUMMARY-write measurement, the same convention `31-12-SUMMARY.md` records.
+- `npx vitest run --exclude '**/scripts/e2e/**'` — 62 files, 3461 passed, 2 skipped.
+- `npm run build && npm run typecheck && npm run check:build-parity && npm run freshness` — exit 0; 60 committed `.js` files fresh.
+- `npm run check:imperative-lexicon && check:banned-claims && check:public-docs && check:claim-anchors` — `ALL CHECKS PASSED` on all four.
+- `node scripts/check-foundation-guards.js` and `VALIDATE_KIT_ROOT=. node scripts/validate-agent-factory.js` — `ALL CHECKS PASSED`.
+
+## A note on REQUIREMENTS.md
+
+`requirements-completed: [UATX-05, UATX-06]` above records what THIS PLAN declared and delivered. It is deliberately **not** reflected as `Complete` in `.planning/REQUIREMENTS.md`, matching what `31-11-SUMMARY.md` and `31-12-SUMMARY.md` did with the same IDs.
+
+The phase's recorded rule — stated in ROADMAP.md and enforced once already by commit `59d4e39 docs(phase-31): revert premature Complete requirements after gaps found` — is that **only a verification round may flip a UATX requirement**. UATX-06 is the truth round 3 recorded as FAILED. This plan closes the gap the verifier measured and says so with quoted before/after output; whether the truth now holds at its own literal wording is the next verification round's finding to make, not this executor's. The state-update step marked both IDs `Complete`; that write was reverted for exactly this reason, and the reversion is recorded here rather than left as a silent difference between the tooling's default and the phase's rule.
