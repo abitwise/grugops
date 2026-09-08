@@ -19,8 +19,11 @@
 //                       SAME on-disk admitted-note set (via the single-source dual-path-equivalence
 //                       comparator), the SAME done/ artifact, and the SAME frozen verdict string. This
 //                       REPLACES the former structural-grep oracleParity: real substrate convergence,
-//                       not a doc-shape grep. The finding carries a FROZEN synthetic §14-gate stamp
-//                       (D-03) — no live gate/emitVerdict/admit call, kept deterministic and no-LLM.
+//                       not a doc-shape grep. The finding carries a FROZEN §14-gate stamp (D-03)
+//                       EARNED against a real green verdict this lane emits at a frozen `at` and a
+//                       frozen sha — see the block above equivDoWork for why the former "no
+//                       emitVerdict call" phrasing was retired by plan 31-09. Still deterministic and
+//                       no-LLM: nothing here reads a clock, a git HEAD or a model.
 //
 // This module is STANDALONE — its own run-all block + exit tail (mirroring the catalog-freshness.ts
 // standalone-not-folded precedent, D-07). It is wired as its own lane AND its three oracle functions
@@ -54,7 +57,7 @@ import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
 // Substrate primitives (committed .js twins) + the single-source equivalence comparator. The Tier-1
 // oracleDualPathEquivalence drives these directly to replay one seed two ways on disk (DOGF-01).
-import { appendNote, type NoteInput } from "./context-io.js";
+import { appendNote, emitVerdict, type NoteInput } from "./context-io.js";
 import { claimTask, transition } from "./claim.js";
 import { projectTaskState, assertEquivalent } from "./dual-path-equivalence.js";
 
@@ -477,18 +480,37 @@ export function oracleHooksWiring(): void {
 // verdict string present on both. "verified means verified / degrade never break" becomes a substrate-
 // convergence proof, not a doc grep.
 //
-// The seeded decomposition includes >=1 admitted `finding` carrying a FROZEN synthetic stamp
-// `verified_by: §14-gate#<fixed-id>` that passes context-io validate() structurally via GATE_STAMP_RE
-// (D-03) — deliberately NO live gate: this oracle never calls emitVerdict (the sole sanctioned
-// by:§14-gate writer) nor admit (the live-verdict cross-check); gate/admission LOGIC is tested by its
-// own suites. Keeping the Tier-1 lane deterministic and tightly scoped is the whole point.
+// The seeded decomposition includes >=1 admitted `finding` carrying a FROZEN stamp
+// `verified_by: §14-gate#<fixed-id>`.
+//
+// 31-09 CORRECTION — WHAT THIS PARAGRAPH USED TO SAY, AND WHY IT CHANGED. It read: "deliberately NO
+// live gate: this oracle never calls emitVerdict (the sole sanctioned by:§14-gate writer) nor admit
+// (the live-verdict cross-check)". That sentence is no longer true, and the mechanism it described is
+// the reason. `appendNote` now consults the admission authority for EVERY note it takes (plan 31-09,
+// review finding CR-05), so a `finding` stamped `§14-gate#<id>` against a substrate holding no such
+// verdict is REFUSED — which is exactly the fabricated-stamp bypass the phase exists to close. The
+// oracle's seed was, in miniature, that bypass.
+//
+// So the stamp is made GENUINE rather than the writer given a route around the authority: each task
+// gets a REAL green verdict for FIXED_ID, emitted through `emitVerdict` — the sole sanctioned
+// `by: §14-gate` writer — at a FROZEN `at` and a FROZEN sha, before the finding is written. The lane
+// stays deterministic (nothing here reads a clock or a git HEAD) and it stays tightly scoped: gate
+// and admission LOGIC are still tested by their own suites, not here. What changed is that this
+// oracle's fixture is now something the admission authority would accept, instead of something it
+// refuses. `admit` is still never called by name — it is reached through the sanctioned writer.
+//
+// The verdict note is added SYMMETRICALLY to both replay modes and carries a frozen `at`, so the
+// id-free projected note-set the convergence comparator reads is unchanged in shape and still
+// converges; that is asserted by the oracle's own equivalence check rather than assumed here.
 // ---------------------------------------------------------------------------
 
-// Frozen fixture constants (D-03). FIXED_ID makes the stamp deterministic; FROZEN_VERDICT is a fixture
-// string literal (context-io's green marker), NOT a gate-authored note.
+// Frozen fixture constants (D-03). FIXED_ID makes the stamp deterministic; FROZEN_VERDICT is
+// context-io's green marker, which the real emitted verdict's body also carries.
 const FIXED_ID = "R26-DOGF01-0001";
 const GATE_STAMP = `§14-gate#${FIXED_ID}`; // literal stamp — passes validate() via GATE_STAMP_RE
-const FROZEN_VERDICT = "READY_FOR_HUMAN_REVIEW"; // frozen verdict STRING (no live gate call)
+const FROZEN_VERDICT = "READY_FOR_HUMAN_REVIEW"; // frozen verdict STRING (context-io's green marker)
+/** The frozen commit the seeded gate run is recorded against — a fixture SHA, never a live HEAD. */
+const FROZEN_GATE_SHA = "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0";
 const EQUIV_TASKS = ["t1", "t2", "t3"]; // minimal seeded decomposition (honors wip_limit width of 3)
 
 // One hermetic substrate = a queue root (pending/claimed/done) + a context root under it. Returns the
@@ -513,12 +535,26 @@ function seedEquivSubstrate(subtasks: string[]): EquivSubstrate {
   return { queueRoot, contextRoot };
 }
 
-// Deterministic per-task work, IDENTICAL in both modes (only the RUN ORDER differs). Each task gets one
-// soft observation note (no stamp) PLUS one admitted finding carrying the frozen §14-gate stamp and the
-// frozen verdict in its body. Fixed `at` values keyed off the task make the canonical replay sort
-// mode-independent. Writes through the committed context-io.js appendNote to an explicit contextRoot.
+// Deterministic per-task work, IDENTICAL in both modes (only the RUN ORDER differs). Each task gets
+// one REAL green §14-gate verdict for FIXED_ID, one soft observation note (no stamp), and one
+// admitted finding carrying the frozen §14-gate stamp and the frozen verdict in its body. Fixed `at`
+// values keyed off the task make the canonical replay sort mode-independent. Writes through the
+// committed context-io.js to an explicit contextRoot.
 function equivDoWork(sub: EquivSubstrate, task: string): void {
   const n = task.replace(/[^0-9]/g, "") || "0";
+  // The verdict FIRST, because the finding below is admitted only against a live green verdict with
+  // this per-run id (D-01, reached from appendNote since 31-09). `emitVerdict` is the sole sanctioned
+  // `by: §14-gate` writer, so the stamp the finding wears is earned rather than asserted — which is
+  // the property this whole phase is about. Both the `at` and the sha are FROZEN: the lane reads no
+  // clock and no git HEAD, so the two replay modes stay byte-comparable.
+  emitVerdict(
+    task,
+    FIXED_ID,
+    "clean",
+    FROZEN_GATE_SHA,
+    sub.contextRoot,
+    `2026-06-21T10:${String(n).padStart(2, "0")}:15.000Z`,
+  );
   const soft: NoteInput = {
     kind: "observation",
     by: "engineer",

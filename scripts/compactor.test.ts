@@ -746,6 +746,11 @@ describe("compactor.js — CMP-01 two-tier separation + sole writer", () => {
     const onDisk = readFileSync(threadPath, "utf8");
     expect(onDisk).toContain(verboseBody);
 
+    // 31-09: promote() is a pass-through to appendNote, which now consults the admission authority
+    // for EVERY note, so this fixture's §14-gate#SEED-001 stamp is made GENUINE with a real live
+    // green verdict rather than the case being re-kinded. The two-tier question this case measures —
+    // verbose stays in threads/, only the distillation reaches notes/ — is untouched by it.
+    ctxio.emitVerdict(task, "SEED-001", "clean", GATE_RUN_SHA, contextRoot);
     // Promote a compact distillation (NOT the verbose narrative) into notes/.
     const compact = "401 on expired token — verified.";
     mod.promote(
@@ -791,19 +796,28 @@ describe("compactor.js — CMP-01 two-tier separation + sole writer", () => {
       refs: ["AUTH-01"],
       supersedes: null,
     };
-    mod.promote(task, input, "compact body", rootA);
-    ctxIo.appendNote(task, input, "compact body", rootB);
-    const readOne = (root: string) => {
+    // 31-09: both roots get the SAME real live green verdict for SEED-001, so the fixture's stamp is
+    // earned on both sides. Planting it symmetrically keeps the comparison a comparison — the point
+    // of this case is that promote() and appendNote produce the same bytes, and an asymmetric setup
+    // would make that question unanswerable.
+    ctxIo.emitVerdict(task, "SEED-001", "clean", GATE_RUN_SHA, rootA);
+    ctxIo.emitVerdict(task, "SEED-001", "clean", GATE_RUN_SHA, rootB);
+    const idA = mod.promote(task, input, "compact body", rootA);
+    const idB = ctxIo.appendNote(task, input, "compact body", rootB);
+    const readOne = (root: string, id: string) => {
       const d = join(root, task, "notes");
       const files = readdirSync(d).filter((f) => f.endsWith(".md"));
-      expect(files.length).toBe(1);
+      // The verdict note plus the promoted note — and the promoted note is addressed BY ITS OWN ID
+      // rather than by being the only file, so the count assertion still pins "one write per call".
+      expect(files.length).toBe(2);
+      expect(files).toContain(`${id}.md`);
       // Strip the random nonce from the filename and the note id-bearing `id:` line: compare the
       // note BODY+frontmatter bytes, which are produced solely by context-io's composeNote. The
       // `id:` line carries a per-note random nonce, so it differs between two independent writes of
       // the same input — normalize it away, exactly as the filename nonce is stripped.
-      return readFileSync(join(d, files[0]), "utf8").replace(/^id: .*$/m, "id: <id>");
+      return readFileSync(join(d, `${id}.md`), "utf8").replace(/^id: .*$/m, "id: <id>");
     };
-    expect(readOne(rootA)).toBe(readOne(rootB));
+    expect(readOne(rootA, idA)).toBe(readOne(rootB, idB));
   });
 
   it("threads gitignored — committed .gitignore scopes */threads/ and does NOT blanket-ignore the context dir", () => {

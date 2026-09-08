@@ -88,8 +88,23 @@ const EXPECTED_NOTE_WRITER_COUNT = 4;
  */
 const NON_NOTE_WRITER_RESIDUALS = Object.freeze(["atomicWrite"]);
 
-/** Occurrences of `appendNote(` across tracked NON-TEST sources under scripts/, hooks/, install/. */
-const EXPECTED_APPEND_NOTE_CALL_SITES = 6;
+/**
+ * Occurrences of `appendNote(` across tracked NON-TEST sources under scripts/, hooks/, install/.
+ *
+ * MEASURED, WITH THE REASON IT MOVED (31-09): 6 → 4. The derivation below was re-run and its output
+ * read, rather than the constant being adjusted until the case passed. The two lost occurrences are
+ * `admitAndAppend`'s gated and non-gated persistence calls, which now go through the module-private
+ * `appendPreAdmittedNote` — the one route permitted to skip the authority, itself derived and counted
+ * in PART FIVE-B. The four that remain are:
+ *
+ *   scripts/context-io.ts       the `export function appendNote(` DECLARATION (the regex counts it)
+ *   scripts/compactor.ts        promote() — a pass-through, so a promoted note is admitted at the
+ *                               destination by the same authority
+ *   scripts/check-uat-oracles.ts  equivDoWork's soft observation note
+ *   scripts/check-uat-oracles.ts  equivDoWork's gate-stamped finding, now earned against a real
+ *                               green verdict this lane emits (31-09)
+ */
+const EXPECTED_APPEND_NOTE_CALL_SITES = 4;
 
 /** Files under agent-factory/ whose prose names `appendNote`. */
 const EXPECTED_AGENT_FACTORY_MENTIONS = 4;
@@ -416,7 +431,22 @@ describe("31-05 — every derived note writer is exercised against fabricated pr
 // ═══════════════════════════════════════════════════════════════════════════════════════════════
 
 const AUTHORITY_CALL = "const admission = admit(task, text, contextRoot, repoRoot);";
-const KIND_AUTHORITY_TEST = 'if (normalizeKind(note.kind) === "artifact-ref")';
+
+/**
+ * The mutation that RE-INTRODUCES the deleted kind axis (31-09).
+ *
+ * The former anchor here was `if (normalizeKind(note.kind) === "artifact-ref")` — the comparison
+ * that scoped 31-05's authority call to one kind. It no longer exists in the source, because the fix
+ * for CR-05 DELETED the axis rather than widening it, so an anchor naming it would now match nothing
+ * and every case built on it would silently measure the live module.
+ *
+ * The replacement mutation restores exactly that scoping on a mirror of the committed `.js`. It is
+ * the sharper control: the neutralizing mirror above shows that SOME authority call is load-bearing,
+ * while this one shows that the call being UNCONDITIONAL is what refuses a fabricated `finding`
+ * stamp. Both mutate the same one-occurrence anchor, so the two cases differ by one edit each.
+ */
+const KIND_SCOPED_AUTHORITY =
+  'const admission = normalizeKind(note.kind) === "artifact-ref" ? admit(task, text, contextRoot, repoRoot) : [];';
 
 /**
  * A mirror of the COMMITTED .js with one anchor textually replaced — the same program minus (or
@@ -475,56 +505,211 @@ describe("31-05 — neutralizing the authority call makes the fabricated evidenc
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════════════════════
-// PART FIVE-A — the kind test consults the kind AUTHORITY, and that choice is watched failing.
+// PART FIVE-A — the authority call being UNCONDITIONAL is watched failing (31-09, CR-05).
 //
-// RED-TEAMED, NOT REASONED. The branch could have been spelled `note.kind === "artifact-ref"`. It
-// is not, because `parseNote` TRIMS the value it persists: a padded `kind: "artifact-ref "` reads
-// as a non-artifact-ref at a raw comparison and stores as a REAL artifact-ref on disk. That is the
-// GAP-R7-1 Lever-1 divergence — the gate's view of a kind being NARROWER than the store's — and it
-// is a bypass of this plan's whole fix, not a style preference. Measured on a mirror below.
+// WHAT THIS PART USED TO ASK, AND WHY IT CHANGED. Under 31-05 the authority call was scoped by
+// `normalizeKind(note.kind) === "artifact-ref"`, and this part red-teamed the SPELLING of that
+// comparison: a raw `note.kind === "artifact-ref"` would have held a NARROWER view of the kind than
+// the store (a padded `kind: "artifact-ref "` skips the raw comparison and persists as a real
+// artifact-ref — the GAP-R7-1 Lever-1 divergence). That question is now VACUOUS in the strongest
+// possible way: there is no kind comparison at all, so no spelling of one can be narrow. A padded
+// kind cannot skip a call that is not conditional.
+//
+// So this part asks the question one level up, which is the one the round-2 verifier actually
+// answered NO to: is the call's UNCONDITIONALITY what refuses a fabricated `finding` stamp? The
+// mirror re-introduces the deleted scoping and WRITES the note the live module refuses.
 // ═══════════════════════════════════════════════════════════════════════════════════════════════
 
-describe("31-05 — a raw kind comparison would re-open the fix, and the live module closes it", () => {
-  function paddedKindEvidence(): Parameters<typeof mod.appendNote>[1] {
-    // The union type forbids the padded spelling. The COMPILED .js a host actually runs does not —
-    // TypeScript unions are erased there — and an untyped caller is exactly who reaches this writer
-    // from the four non-Claude-Code CLIs. The cast reproduces that caller rather than a type error.
-    return { ...fabricatedEvidence(), kind: "artifact-ref " as unknown as "artifact-ref" };
-  }
+/** The round-2 verifier's fabricated finding stamp, verbatim (31-VERIFICATION.md). */
+const CR05_FABRICATED_RUN = "fabricated-run-id";
 
-  it("a mirror comparing the RAW kind writes the padded fabrication, and it persists as an artifact-ref", async () => {
-    const weak = await mirrorOfCommittedJs(
-      KIND_AUTHORITY_TEST,
-      'if (note.kind === "artifact-ref")',
-      "ctx-io-rawkind-",
+function fabricatedFinding(): Parameters<typeof mod.appendNote>[1] {
+  return {
+    kind: "finding",
+    by: "qe-e2e",
+    at: "2026-09-08T01:00:00Z",
+    verified_by: `§14-gate#${CR05_FABRICATED_RUN}`,
+    confidence: "high",
+    refs: [],
+    supersedes: null,
+  };
+}
+
+describe("31-09 — re-scoping the authority call to one kind re-opens the fabricated finding stamp", () => {
+  it("a mirror that RESTORES the kind scoping writes the fabricated finding the live module refuses", async () => {
+    const scoped = await mirrorOfCommittedJs(
+      AUTHORITY_CALL,
+      KIND_SCOPED_AUTHORITY,
+      "ctx-io-kindscoped-",
     );
-    const contextRoot = freshTmp("ctx-io-rawkind-ctx-");
+    const contextRoot = freshTmp("ctx-io-kindscoped-ctx-");
     const task = "writer-set-task";
-    const id = weak.appendNote(task, paddedKindEvidence(), "body", contextRoot);
+    const id = scoped.appendNote(task, fabricatedFinding(), "body", contextRoot);
     expect(id).toBeTruthy();
     expect(noteFileCount(contextRoot, task)).toBe(1);
-    // The padding survives in the BYTES and is normalized away by the READER, which is what makes
-    // the bypass worth closing: the store resolves this note to a real artifact-ref, so a gate
-    // that compared the raw value held a NARROWER view of the kind than the store did.
-    const onDisk = readFileSync(join(contextRoot, task, "notes", `${id}.md`), "utf8");
-    expect(onDisk).toContain("kind: artifact-ref \n"); // the padded byte form, written as supplied
-    expect(mod.parseNote(onDisk)?.scalars.kind).toBe("artifact-ref"); // …and read back as the kind
+    // …and the mirror still refuses the fabricated ARTIFACT-REF, which is what makes this a
+    // one-axis difference rather than a broken copy: the restored scoping removes exactly the
+    // finding arm and nothing else.
+    const otherRoot = freshTmp("ctx-io-kindscoped-ar-");
+    expect(() => scoped.appendNote(task, fabricatedEvidence(), "body", otherRoot)).toThrow(
+      new RegExp(FABRICATED_RUN),
+    );
+    expect(noteFileCount(otherRoot, task)).toBe(0);
   });
 
-  it("the live module REFUSES the padded fabrication, and the refusal comes from the authority", () => {
-    const contextRoot = freshTmp("ctx-io-rawkind-live-");
+  it("the LIVE module refuses the identical finding, and the refusal comes from the authority", () => {
+    const contextRoot = freshTmp("ctx-io-kindscoped-live-");
     const task = "writer-set-task";
     let message = "";
     try {
-      mod.appendNote(task, paddedKindEvidence(), "body", contextRoot);
+      mod.appendNote(task, fabricatedFinding(), "body", contextRoot);
     } catch (e) {
       message = (e as Error).message;
     }
-    // "admission FAIL" rather than "invalid note": the padded kind is structurally VALID, so
+    // "admission FAIL" rather than "invalid note": a fabricated gate stamp is structurally VALID, so
     // validate() lets it by and only the admission call stands between it and the disk.
     expect(message).toContain("admission FAIL");
-    expect(message).toContain(FABRICATED_RUN);
+    expect(message).toContain(CR05_FABRICATED_RUN);
     expect(noteFileCount(contextRoot, task)).toBe(0);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// PART FIVE-B — the ONE deliberate skip is PRIVATE, and its caller set is DERIVED and COUNTED.
+//
+// Deleting the kind axis moved the degree of freedom rather than removing it. `admitAndAppend` has
+// two branches that have already adjudicated their note, so they persist through a module-private
+// route that performs no admission of its own. That route is the NEW axis, and this repository's
+// standing lesson is that a route which skips a safety check is bounded by derivation or not at all.
+//
+// Three separate assertions, on purpose: the member set, the call-site COUNT, and the absence of an
+// export modifier. A change to any one of them reads differently from a change to the others.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+/** The one function permitted to reach the pre-admitted write route. */
+const EXPECTED_PRE_ADMITTED_CALLERS = Object.freeze(["admitAndAppend"]);
+
+/** Its two adjudicated branches — the gated one and the non-gated one. A third is a decision. */
+const EXPECTED_PRE_ADMITTED_CALL_SITES = 2;
+
+/** The private route's name, in one place, so the three assertions below cannot drift apart. */
+const PRE_ADMITTED_ROUTE = "appendPreAdmittedNote";
+
+interface PreAdmittedDerivation {
+  /** Function name → how many times its body calls the private route. */
+  readonly callers: Map<string, number>;
+  /** Total call sites across the module. */
+  readonly sites: number;
+  /** Whether the route itself carries an `export` modifier; null when it was not declared at all. */
+  readonly exported: boolean | null;
+  /** Every top-level function name the parse found — the premise. */
+  readonly declared: string[];
+}
+
+function derivePreAdmittedCallers(sourcePath: string): PreAdmittedDerivation {
+  const source = ts.createSourceFile(
+    "context-io.ts",
+    readFileSync(sourcePath, "utf8"),
+    ts.ScriptTarget.Latest,
+    true,
+  );
+  const callers = new Map<string, number>();
+  const declared: string[] = [];
+  let sites = 0;
+  let exported: boolean | null = null;
+  for (const statement of source.statements) {
+    if (!ts.isFunctionDeclaration(statement) || !statement.name) continue;
+    declared.push(statement.name.text);
+    if (statement.name.text === PRE_ADMITTED_ROUTE) {
+      exported = (ts.getModifiers(statement) ?? []).some(
+        (m) => m.kind === ts.SyntaxKind.ExportKeyword,
+      );
+    }
+    let count = 0;
+    const walk = (node: ts.Node): void => {
+      if (
+        ts.isCallExpression(node) &&
+        ts.isIdentifier(node.expression) &&
+        node.expression.text === PRE_ADMITTED_ROUTE
+      ) {
+        count += 1;
+      }
+      ts.forEachChild(node, walk);
+    };
+    if (statement.body) walk(statement.body);
+    if (count > 0) {
+      callers.set(statement.name.text, count);
+      sites += count;
+    }
+  }
+  return { callers, sites, exported, declared };
+}
+
+describe("31-09 — the private pre-admitted write route is bounded by derivation", () => {
+  it("PREMISE: the parse found declarations AND found the private route itself", () => {
+    // ASSERT THE HARNESS'S OWN PREMISE FIRST. A parse that yielded nothing returns an empty caller
+    // map, which satisfies "no unexpected caller" vacuously — and a false verification-harness
+    // premise is a mistake this repository has recorded six times across four rounds.
+    const derived = derivePreAdmittedCallers(CONTEXT_IO_TS);
+    expect(
+      derived.declared.length,
+      "PREMISE: the TypeScript parse of scripts/context-io.ts yielded ZERO top-level function " +
+        "declarations, so every claim below measured nothing at all",
+    ).toBeGreaterThan(0);
+    expect(
+      derived.declared,
+      `PREMISE: no function named ${PRE_ADMITTED_ROUTE} was declared, so its caller set is empty ` +
+        `for a reason that says nothing about whether a route around admission exists`,
+    ).toContain(PRE_ADMITTED_ROUTE);
+    expect(derived.exported).not.toBeNull();
+  });
+
+  it("the derived caller set has exactly the expected MEMBERS", () => {
+    expect(
+      [...derivePreAdmittedCallers(CONTEXT_IO_TS).callers.keys()].sort(),
+      `a function other than ${EXPECTED_PRE_ADMITTED_CALLERS.join("/")} can now reach the write ` +
+        `chokepoint WITHOUT consulting the admission authority. That is the shape the original ` +
+        `bypass had, so a new caller is a decision with a written reason at its site, never a ` +
+        `widened constant here`,
+    ).toEqual([...EXPECTED_PRE_ADMITTED_CALLERS]);
+  });
+
+  it("the derived call-site COUNT is asserted separately from the member set", () => {
+    // Separate on purpose: a THIRD call inside admitAndAppend would leave the member set unchanged
+    // and is exactly as much of a decision as a new caller would be.
+    expect(
+      derivePreAdmittedCallers(CONTEXT_IO_TS).sites,
+      "the number of places that reach the write chokepoint without an admission moved; each one " +
+        "is a branch that must carry its own written reason for skipping the authority",
+    ).toBe(EXPECTED_PRE_ADMITTED_CALL_SITES);
+  });
+
+  it("the private route and the compose helper carry NO export modifier", () => {
+    expect(
+      derivePreAdmittedCallers(CONTEXT_IO_TS).exported,
+      `${PRE_ADMITTED_ROUTE} is exported. An exported route that skips the admission authority is ` +
+        `reachable by any importer, which is a bypass with a friendly name`,
+    ).toBe(false);
+    const analysis = analyze(CONTEXT_IO_TS);
+    for (const name of [PRE_ADMITTED_ROUTE, "composeValidatedNote"]) {
+      expect(analysis.calls.has(name), `${name} was not found as a top-level declaration`).toBe(true);
+      expect(analysis.exported.has(name), `${name} carries an export modifier`).toBe(false);
+    }
+  });
+
+  it("the derivation DISCRIMINATES — a seeded second caller moves BOTH the set and the count", () => {
+    const dir = freshTmp("ctx-io-preadmitted-mirror-");
+    const path = join(dir, "context-io.ts");
+    writeFileSync(
+      path,
+      readFileSync(CONTEXT_IO_TS, "utf8") +
+        `\nfunction seededSecondPreAdmittedCaller(task: string, note: NoteInput, body: string, root: string): string {\n` +
+        `  return ${PRE_ADMITTED_ROUTE}(task, note, body, root);\n}\n`,
+    );
+    const derived = derivePreAdmittedCallers(path);
+    expect([...derived.callers.keys()].sort()).toContain("seededSecondPreAdmittedCaller");
+    expect([...derived.callers.keys()].sort()).not.toEqual([...EXPECTED_PRE_ADMITTED_CALLERS]);
+    expect(derived.sites).toBe(EXPECTED_PRE_ADMITTED_CALL_SITES + 1);
   });
 });
 

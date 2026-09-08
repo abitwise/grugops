@@ -5305,3 +5305,234 @@ describe("31-09 — CR-05: the fabricated finding stamp", () => {
     }
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// 31-09 — WR-10: the governance root has ONE answer across the writer, the hook and the CLI
+//
+// WHY THIS BLOCK EXISTS. 31-05 added `repoRoot: string = ROOT` to the sanctioned writer and passed
+// it to `admit()`, which resolves the governance dial (D-04/D-14) and the GOV-02 ledger path from it.
+// `trustedRepoRoot()` exists precisely so that "the root governance is read from" has ONE answer, and
+// `hooks/guard.ts`, `hooks/admission-guard.ts`, `scripts/admission-server.ts` and the CLI `admit` verb
+// all ask it. `ROOT` is the KIT the script ships in and ignores `CLAUDE_PROJECT_DIR` — so under the
+// shipped shared-install model (`~/.grugops` kit + per-repo state) the hook refused on the host
+// repository's dial while the writer's admission consulted the kit's. Plan 30-11 had already removed
+// exactly this seam from the production `admit` verb, recording that "an admission may not point
+// governance at a root the caller chose".
+//
+// 31-09 moves BOTH defaults — appendNote's and admitAndAppend's — to `trustedRepoRoot()` in one
+// change, because moving one and not the other re-introduces the divergence in the other direction.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+describe("31-09 — WR-10: one governance root for the writer and the hook", () => {
+  const ADMISSION_GUARD_JS = join(ROOT, "hooks", "admission-guard.js");
+  const APPROVAL_ENV = "GRUGOPS_ADMISSION_APPROVED_BY";
+  const GOV_TASK = "gov-root-task";
+
+  /** A temp project root, optionally carrying a governance configuration at the repo-drop location. */
+  function projectWith(dial: string | null): string {
+    const dir = freshTmp("p31-09-gov-proj-");
+    if (dial !== null) {
+      mkdirSync(join(dir, ".grugops"), { recursive: true });
+      writeFileSync(
+        join(dir, ".grugops", "factory.config.json"),
+        JSON.stringify({ context: { human_admission: dial } }),
+      );
+    }
+    return dir;
+  }
+
+  /**
+   * A high-severity governance finding carrying a SELF-AUTHORED human disposition. Under an active
+   * dial both tiers refuse it — the writer's admission because it cannot verify the stamp, the hook
+   * because no human exported the approval in the launching shell. Under the lean dial both accept.
+   * It carries no `§14-gate` stamp, so D-01 is not the decider here and the governance dial is.
+   */
+  function governanceFinding(): Parameters<typeof mod.appendNote>[1] {
+    return {
+      kind: "finding",
+      by: "security-nfr",
+      at: "2026-09-08T02:00:00Z",
+      verified_by: "human:alice",
+      confidence: "high",
+      refs: [],
+      supersedes: null,
+    };
+  }
+
+  /**
+   * Drive the writer with CLAUDE_PROJECT_DIR set, restoring the ambient value afterwards.
+   *
+   * It returns the REFUSAL TEXT rather than a bare verdict, because "it threw" is satisfied by a
+   * broken mirror as readily as by a governance refusal, and the reverted-default case below is a
+   * control only if the refusal it observes is the one it claims to be causing.
+   */
+  function writerDecision(
+    module: typeof import("./context-io.js"),
+    projectDir: string,
+  ): { verdict: "refuse" | "write"; message: string } {
+    const previous = process.env.CLAUDE_PROJECT_DIR;
+    process.env.CLAUDE_PROJECT_DIR = projectDir;
+    try {
+      module.appendNote(GOV_TASK, governanceFinding(), "body", freshTmp("p31-09-gov-ctx-"));
+      return { verdict: "write", message: "" };
+    } catch (e) {
+      return { verdict: "refuse", message: (e as Error).message };
+    } finally {
+      if (previous === undefined) delete process.env.CLAUDE_PROJECT_DIR;
+      else process.env.CLAUDE_PROJECT_DIR = previous;
+    }
+  }
+
+  /** Child-spawn the COMMITTED admission-guard.js with a clean env (never inherit a stray approval). */
+  function hookDecision(projectDir: string): "deny" | "allow" {
+    const env: Record<string, string> = {};
+    for (const [k, v] of Object.entries(process.env)) {
+      if (k === APPROVAL_ENV) continue;
+      if (v !== undefined) env[k] = v;
+    }
+    env.CLAUDE_PROJECT_DIR = projectDir;
+    const note = governanceFinding();
+    const r = spawnSync("node", [ADMISSION_GUARD_JS], {
+      timeout: 20_000,
+      input: JSON.stringify({
+        tool_name: "mcp__grugops__propose_note",
+        tool_input: { task: GOV_TASK, body: "body", kind: note.kind, by: note.by, verified_by: note.verified_by },
+      }),
+      encoding: "utf8",
+      env,
+    });
+    return (r.stdout ?? "").includes('"permissionDecision":"deny"') ? "deny" : "allow";
+  }
+
+  // ── Assumption A2, MEASURED AND CORRECTED rather than restated. ────────────────────────────────
+  it("A2 (corrected): this repository's root reads a READABLE, LEAN dial — so governance is not the decider in this suite", () => {
+    const result = mod.readGovernanceConfig(ROOT);
+    // The plan's A2 predicted `absent` (no `.grugops/factory.config.json` at the root). The first
+    // half is true; the SECOND standard candidate — `agent-factory/config/factory.config.json` — is
+    // present and readable, so the source is `ok`, not `absent`. The operative consequence is the
+    // one A2 was actually about and it holds: the dial is OFF and retention is GIT, so neither D-04
+    // nor D-14 fires on the rest of this suite. Asserted rather than assumed, because if it were
+    // false the unconditional admission would refuse much of this file for an unrelated reason.
+    expect(existsSync(join(ROOT, ".grugops", "factory.config.json"))).toBe(false);
+    expect(result.source).toBe("ok");
+    expect(result.config.human_admission).toBe("off");
+    expect(result.config.audit_retention).toBe("git");
+  });
+
+  it("the writer's admission and the hook's decision read the SAME configuration source", () => {
+    const active = projectWith("high-severity");
+    const writer = writerDecision(mod, active);
+    expect(writer.verdict).toBe("refuse");
+    // The refusal NAMES the dial it read, so the two tiers are shown to agree on the value at that
+    // root rather than merely to agree on a disposition.
+    expect(writer.message).toContain("human_admission: high-severity");
+    expect(hookDecision(active)).toBe("deny");
+  });
+
+  it("NON-VACUITY: with no configuration at that same root, both tiers accept the identical note", () => {
+    const lean = projectWith(null);
+    expect(writerDecision(mod, lean).verdict).toBe("write");
+    expect(hookDecision(lean)).toBe("allow");
+  });
+
+  // ── A mirror whose OWN install root carries an active dial. ────────────────────────────────────
+  //
+  // The question is which root the writer resolves when the two disagree. It cannot be asked by
+  // writing a configuration into this repository (that would dirty the tree and change the answer for
+  // every other case), so the committed `.js` is mirrored into `<tmp>/scripts/`, making `<tmp>` the
+  // mirror's own install root, and the configuration is placed THERE.
+  async function mirrorWithInstallRootDial(
+    revertDefaults: boolean,
+    prefix: string,
+  ): Promise<typeof import("./context-io.js")> {
+    const installRoot = freshTmp(prefix);
+    mkdirSync(join(installRoot, "scripts"), { recursive: true });
+    mkdirSync(join(installRoot, ".grugops"), { recursive: true });
+    writeFileSync(
+      join(installRoot, ".grugops", "factory.config.json"),
+      JSON.stringify({ context: { human_admission: "high-severity" } }),
+    );
+    let text = readFileSync(join(ROOT, "scripts", "context-io.js"), "utf8");
+    if (revertDefaults) {
+      // THE WATCHED FAILURE. Revert BOTH `repoRoot = trustedRepoRoot()` defaults to the module's own
+      // install root — the pre-31-09 spelling. The occurrence count is asserted at exactly two
+      // before the mutation and zero after it, so a mutation that matched nothing cannot masquerade
+      // as a passing control.
+      const anchor = "repoRoot = trustedRepoRoot())";
+      expect(
+        text.split(anchor).length - 1,
+        "PREMISE: the trustedRepoRoot default was not found exactly twice in the committed .js, so " +
+          "the reversion mutated something other than the two writer defaults",
+      ).toBe(2);
+      text = text.split(anchor).join("repoRoot = ROOT)");
+      expect(text.includes(anchor)).toBe(false);
+    }
+    // Point the mirror's relative imports at the REAL sibling modules, so the copy is the same
+    // program (minus at most the one reverted decision) rather than a differently-wired one.
+    text = text.replace(
+      /from "\.\/([A-Za-z0-9._-]+\.js)"/g,
+      (_m, file: string) => `from "${pathToFileURL(join(ROOT, "scripts", file)).href}"`,
+    );
+    const mirrorPath = join(installRoot, "scripts", "context-io.js");
+    writeFileSync(mirrorPath, text);
+    return (await import(pathToFileURL(mirrorPath).href)) as typeof import("./context-io.js");
+  }
+
+  it("a configuration at the module's OWN install root does not change the answer", async () => {
+    const mirror = await mirrorWithInstallRootDial(false, "p31-09-gov-kit-");
+    // CLAUDE_PROJECT_DIR names a root with NO configuration; the mirror's install root carries an
+    // ACTIVE one. The trusted answer is the project dir, so the note is written.
+    expect(writerDecision(mirror, projectWith(null)).verdict).toBe("write");
+  });
+
+  it("WATCHED FAILING: reverting the default to the install root REFUSES the same note", async () => {
+    const reverted = await mirrorWithInstallRootDial(true, "p31-09-gov-kit-reverted-");
+    // The same note, the same empty project dir, the same install-root configuration — and the
+    // opposite disposition. That difference is caused by the one reverted default and nothing else,
+    // which is what makes the case above a control rather than a claim.
+    const result = writerDecision(reverted, projectWith(null));
+    expect(result.verdict).toBe("refuse");
+    // …and it refuses for the GOVERNANCE reason, not because the mirror is broken: the message
+    // names the dial it found at the install root, which is the only place that value exists.
+    expect(result.message).toContain("human_admission: high-severity");
+  });
+
+  // ── IN-04, RECORDED AS A DISCLOSED RESIDUAL WITH ITS DIRECTION — not closed here. ──────────────
+  //
+  // `admit()` appends the GOV-02 ledger line as its last act on the admitted path; `appendNote` then
+  // calls `writeNoteFile`, which can still refuse (the R6-1 containment chokepoint on a forged
+  // `precomputedId`). Under `audit_retention: retained` that leaves a ledger event recording an
+  // admission for a note that never landed.
+  //
+  // DIRECTION: an EXTRA audit line, never a missing one. It is not closed in this round because
+  // moving the append would change the ledger's semantics for every caller in the same change as a
+  // safety fix — and the residual is recorded as a failing-on-change ASSERTION rather than a
+  // sentence, so the day it moves is a day this case goes red on purpose.
+  it("IN-04 DISCLOSED: a refused write leaves the admission's ledger event behind (extra line, never missing)", () => {
+    const contextRoot = freshTmp("p31-09-in04-ctx-");
+    const repoRoot = freshTmp("p31-09-in04-repo-");
+    mkdirSync(join(repoRoot, ".grugops"), { recursive: true });
+    writeFileSync(
+      join(repoRoot, ".grugops", "factory.config.json"),
+      JSON.stringify({ context: { human_admission: "off", audit_retention: "retained" } }),
+    );
+    // A traversal-bearing precomputedId is admitted by admit() (it is not a note field) and refused
+    // by the write chokepoint — the exact ordering IN-04 names.
+    expect(() =>
+      mod.appendNote(
+        "in04-task",
+        { kind: "observation", by: "engineer", at: "2026-09-08T03:00:00Z", verified_by: "", confidence: "high", refs: [], supersedes: null },
+        "body",
+        contextRoot,
+        "../escape",
+        repoRoot,
+      ),
+    ).toThrow();
+    // Nothing landed on disk…
+    expect(existsSync(join(contextRoot, "in04-task", "notes", "../escape.md"))).toBe(false);
+    // …and the ledger nonetheless carries the admission record. Recorded, not fabricated away.
+    const ledger = join(repoRoot, ".grugops", "audit", "admissions.jsonl");
+    expect(existsSync(ledger)).toBe(true);
+    expect(readFileSync(ledger, "utf8").trim().split("\n").filter((l) => l.length > 0)).toHaveLength(1);
+  });
+});
