@@ -58,7 +58,13 @@ interface CheckerModule {
   readonly BANNED_MODIFIER_HEADS: readonly string[];
   readonly BANNED_MODIFIER_TAILS: readonly string[];
   readonly BANNED_EXACT_PATHS: readonly string[];
+  // 31-13 (D-18): the path-plus-enabled-option half of the membership question.
+  readonly BANNED_CONFIGURED_PATHS: Readonly<Record<string, string>>;
   isBannedModifierPath(dottedPath: string | null): boolean;
+  isBannedModifierCall(
+    dottedPath: string | null,
+    enabledOptions: ReadonlySet<string> | null,
+  ): boolean;
   // 31-12 (WR-13): the SHAPE resolver, read by the reverse cross-check so the fixture corpus is
   // parsed by the artifact that resolves callees in production rather than by a second reader.
   calleeDottedPath(ts: unknown, expr: unknown): string | null;
@@ -1456,6 +1462,21 @@ describe("uat-spec-integrity — 31-12 WR-13: the declared modifier surface, der
     "test.step":
       "A structural member INSIDE a scenario. It labels a region of one scenario's body for " +
       "reporting; the body still executes and every assertion in it is still read.",
+    "test.info":
+      "31-13 (D-18): the ACCESSOR for the runtime modifier surface. `test.info()` returns the " +
+      "TestInfo fixture; the accessor call itself selects no subset of scenarios and inverts no " +
+      "result, so refusing the path `test.info` would refuse every spec that reads its own title or " +
+      "attachments. Its MODIFIER MEMBERS are a different question and they ARE refused — through the " +
+      "call-link resolution D-18 decided, at paths like `test.info().skip`, which this walk cannot " +
+      "reach because `getPropertiesOfType` does not descend through a call signature's return type. " +
+      "That boundary is stated in browser-uat-recipe.md's completeness paragraph.",
+    "expect.configure":
+      "31-13 (D-18): a configuration call, and the reason the ban is a PAIR rather than a path. " +
+      "`expect.configure({ retries: 2 })` re-runs a matcher and changes no result, so the path alone " +
+      "must not be refused — and this partition asks the PATH-only authority, which correctly " +
+      "answers no. It is refused only when the call ENABLES the `soft` option, which is a property " +
+      "of the call site rather than of the path, decided by `isBannedModifierCall` at the arm-(c) " +
+      "site and asserted by the configured-soft corpus fixture and its retries control.",
     "test.slow":
       "A time-budget modifier. It triples the timeout a scenario is given, so the scenario still " +
       "runs and every assertion in it is still read — the evidence a gate re-runs is unchanged in " +
@@ -1598,8 +1619,16 @@ describe("uat-spec-integrity — 31-12 WR-13: the declared modifier surface, der
   it("DISCRIMINATES: a fabricated run-narrowing member turns the partition red and is NAMED", async () => {
     const { isBannedModifierPath } = await loadChecker();
     // `fixme` becomes `mute`: a member whose name is neither a banned tail nor a dispositioned key.
+    //
+    // 31-13: the anchor carries its PRECEDING LINE. `readonly fixme: TestModifier;` alone stopped
+    // being unique the moment the surface declared the runtime modifier interface, which carries a
+    // `fixme` of its own — and the mirror's own single-occurrence premise is what reported that,
+    // rather than the mutation silently landing on whichever one came first.
     const mirrored = deriveDeclaredModifierPaths(
-      mirrorSurface("readonly fixme: TestModifier;", "readonly mute: TestModifier;"),
+      mirrorSurface(
+        "readonly only: TestModifier;\n    readonly fixme: TestModifier;",
+        "readonly only: TestModifier;\n    readonly mute: TestModifier;",
+      ),
       SURFACE_WALK_MAX_DEPTH,
     );
     expect(mirrored.diagnostics, "PREMISE: the mirror does not compile").toEqual([]);
@@ -1733,8 +1762,9 @@ describe("browser-uat-recipe.md — the documented ban rule equals the decided o
     return [...new Set([...tail.matchAll(/`([^`]+)`/g)].map((m) => m[1]))].sort();
   }
 
-  it("the recipe's three quoted lists equal the exported constants, in both directions", async () => {
-    const { BANNED_MODIFIER_HEADS, BANNED_MODIFIER_TAILS, BANNED_EXACT_PATHS } = await loadChecker();
+  it("the recipe's four quoted lists equal the exported constants, in both directions", async () => {
+    const { BANNED_MODIFIER_HEADS, BANNED_MODIFIER_TAILS, BANNED_EXACT_PATHS, BANNED_CONFIGURED_PATHS } =
+      await loadChecker();
     const whole = readFileSync(RECIPE, "utf8");
     const region = extractSection(whole, BAN_SET_HEADING);
 
@@ -1748,10 +1778,20 @@ describe("browser-uat-recipe.md — the documented ban rule equals the decided o
 
     // The pairs are built from the EXPORTED constants, so a fourth constant added to the rule
     // without a fourth quoted line is a missing row here rather than a silence.
+    //
+    // 31-13 (D-18): the fourth constant is a MAP, so it is flattened to the values a reader has to
+    // be told — the path AND the option key that makes the call an escape. Quoting only the path
+    // would let the recipe claim `expect.configure` is refused outright, which is exactly the
+    // claim-broader-than-the-mechanism defect UATX-06 exists to prevent, since
+    // `expect.configure({ retries: 2 })` is admitted.
     const pairs: ReadonlyArray<readonly [string, readonly string[]]> = [
       ["BANNED_MODIFIER_HEADS", BANNED_MODIFIER_HEADS],
       ["BANNED_MODIFIER_TAILS", BANNED_MODIFIER_TAILS],
       ["BANNED_EXACT_PATHS", BANNED_EXACT_PATHS],
+      [
+        "BANNED_CONFIGURED_PATHS",
+        [...new Set(Object.entries(BANNED_CONFIGURED_PATHS).flat())],
+      ],
     ];
     for (const [name, exported] of pairs) {
       const quoted = quotedListFor(region, name);
@@ -1789,6 +1829,26 @@ describe("browser-uat-recipe.md — the documented ban rule equals the decided o
     // The residual sits in the region's existing "deliberately outside" list rather than in a new
     // section, so a reader meets the boundary where they meet the rule.
     expect(region).toContain("outside both directions");
+
+    // 31-13 (missing item (c) of 31-VERIFICATION.md round 3). The "BOTH directions" claim above was
+    // read, independently, as true only over PROPERTY CHAINS — and did not say so. The reverse walk
+    // is `checker.getPropertiesOfType`, which by construction cannot reach a call-link spelling like
+    // `test.info().skip`, so a reader relying on the completeness paragraph would have believed the
+    // partition covered a shape it structurally cannot see. The disclosure is asserted here in the
+    // same commit as the mechanism it describes.
+    expect(
+      region,
+      "the completeness paragraph does not state that the reverse walk covers property chains only",
+    ).toContain("DECLARED PROPERTY CHAINS ONLY");
+    expect(
+      region,
+      "the completeness paragraph does not name what the walk declines to descend",
+    ).toContain("does not descend through a call signature's RETURN TYPE");
+    expect(region).toContain("test.info().skip");
+
+    // …and that the DECLINE set is derived rather than remembered, which is the other half of what
+    // makes the boundary trustworthy: a shape nobody decided reds the suite naming itself.
+    expect(region).toContain("DERIVED from the checker's own source");
   });
 
   it("the recipe's residual bullets are the exported residual array, verbatim", async () => {
@@ -2737,13 +2797,13 @@ describe("uat-spec-integrity — 31-13 CR-07: the resolver's DECLINE set, derive
   const R_MODULE_SCOPE =
     "A rename or namespace that arrives through any module other than `@playwright/test` is not canonicalised: `import { test as it } from \"./fixtures\";` then `it.skip(...)`. Following a re-export across files needs module resolution this runnable does not ship, so the rename map is MODULE-SCOPED to the framework's own import declaration.";
   const R_NON_IDENTIFIER_HEAD =
-    "A callee whose head is not an identifier is not resolved: a call on an object literal, on a `this` expression or on any other non-identifier root. There is no head segment to read, so no membership question can be put.";
+    "A callee whose head is not an identifier is not resolved: a call on an object literal, or on `this`. There is no head segment to read, so no membership question can be put.";
   const R_STEP_BOUND =
-    "A callee chain longer than the resolver's 512-step bound is not resolved. The bound stops a pathological chain from spinning; it is a stated LIMIT rather than a silence, and a chain that reaches it yields no path at all rather than a truncated one.";
+    "A callee chain longer than the resolver's 512-step bound is not resolved. The bound stops a pathological chain from spinning. It is a stated LIMIT, not a silence. A chain that reaches it yields no path rather than a truncated one.";
   const R_NON_LITERAL_OPTION =
-    "An option is read as ENABLED only when the call's first argument is an OBJECT LITERAL and the option's value is the `true` keyword: `expect.configure(options)` where `options` is a variable, and `expect.configure({ soft: isCi })` where `isCi` is a variable, both enable nothing. The value is absent from the source text, and this runnable evaluates nothing.";
+    "An option is ENABLED only when the call's first argument is an object literal assigning it the `true` keyword. A variable argument enables nothing, and neither does a variable option value. This runnable parses and never evaluates.";
   const R_PARSER_PREDICATES =
-    "A parser that does not expose the import or object-literal node predicates yields no rename canonicalisation and no option reading. The parser is the TARGET repository's (D-13), so its surface is not this runnable's to assume; the resolver degrades to the pre-D-18 behaviour for those two shapes rather than throwing outside the D-12 exit-code contract.";
+    "A parser that does not expose the import or object-literal node predicates yields no rename canonicalisation and no option reading. The parser is the TARGET repository's (D-13), so its surface is not this runnable's to assume. The resolver degrades to the pre-D-18 behaviour for those shapes rather than throwing outside the exit-code contract.";
   const R_ALIAS =
     "An aliased binding is not refused: `const t = test;` then a modifier call on `t`. The alias cannot be followed to its declaration without a type checker.";
 

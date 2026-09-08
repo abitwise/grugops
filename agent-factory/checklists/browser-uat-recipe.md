@@ -147,14 +147,27 @@ invalidating the recorded evidence, which is a known limit of the digest as scop
 ## The spec-integrity ban set
 
 The ban is decided over the TypeScript abstract syntax tree by
-`tools/grugops/uat-spec-integrity.js`, never by a textual matcher. The three lists below are quoted
+`tools/grugops/uat-spec-integrity.js`, never by a textual matcher. The four lists below are quoted
 by value from the constants of the same name in `scripts/runnable-ref/uat-spec-integrity.ts`, and
 the two AST arms are quoted from the same file, so the claim here matches the mechanism there. The
-last two entries under "deliberately outside the rule" are quoted from `UNRESOLVABLE_CALLEE_RESIDUALS`
-in that file, so the disclosed boundary comes from the same source as the decided rule.
+callee-shape entries under "deliberately outside the rule" are quoted from
+`UNRESOLVABLE_CALLEE_RESIDUALS` in that file, so the disclosed boundary comes from the same source as
+the decided rule.
 
 A modifier call is recognised by its callee's DOTTED PATH, so `test.skip(...)`, `test?.skip(...)`,
 `(test).skip(...)` and `test["skip"](...)` are the same construct and are decided the same way.
+
+A callee chain containing a CALL resolves too, as its inner path plus a parenthesis marker segment.
+`test.info().skip(...)` is read as the path `test.info().skip`, whose head segment is `test` and
+whose tail segment is `skip`, so the modifier rule below refuses it with nothing added to any list.
+The marker occupies a routing position, which is what keeps a chained assertion legitimate:
+`expect(locator).soft` is read as `expect().soft`, whose head is the marked call rather than the bare
+`expect` binding, so it is neither a banned exact path nor a banned head.
+
+An import RENAME is canonicalised before the head segment is read, from the import declaration's own
+literal text. `import { test as it } from "@playwright/test";` followed by `it.skip(...)` is asked as
+`test.skip`, and `import * as pw from "@playwright/test";` followed by `pw.test.skip(...)` is asked
+as `test.skip` as well. The canonicalisation is scoped to that module specifier.
 
 **The modifier rule.** A modifier call is refused when the head segment of its dotted path is one of
 the banned head segments AND the tail segment is one of the banned modifier segments, or when the
@@ -167,6 +180,14 @@ rather than the whole literal path is what makes this a rule rather than a list 
 - Banned head segments, quoted from `BANNED_MODIFIER_HEADS`: `test`, `describe`.
 - Banned modifier tail segments, quoted from `BANNED_MODIFIER_TAILS`: `skip`, `only`, `fixme`, `fail`.
 - Banned exact paths, quoted from `BANNED_EXACT_PATHS`: `expect.soft`.
+- Banned configured calls, quoted from `BANNED_CONFIGURED_PATHS`: `expect.configure` refused only when the call enables `soft`.
+
+The last list is a PAIR, not a path, and the difference is load-bearing. `expect.configure` is a
+legitimate call — `expect.configure({ retries: 2 })` re-runs a matcher and changes no result — so
+refusing the path alone would refuse the legitimate spelling too. The call is refused only when its
+first argument is an object literal that assigns the named option the `true` keyword. A value that is
+not that literal, such as `expect.configure({ soft: isCi })`, enables nothing: this checker parses
+and never evaluates.
 
 The tail set carries the INVERTING modifier as well as the removing ones. A removing modifier drops
 the scenario from the evidence; an inverting one runs the scenario and reports a failed assertion as
@@ -179,7 +200,10 @@ Refused in a `*.uat.spec.ts` file:
 - An `expect` call under an `if`, under an `else`, or inside a conditional expression.
 - An `expect` call as an operand of `||`, of `&&`, or of `??`.
 - An `expect` call reached through an optional call.
-- Any modifier call the rule above decides.
+- Any modifier call the rule above decides, including one reached through a call link
+  (`test.info().skip(...)`) or through a canonicalised import rename or namespace
+  (`import { test as it }` / `import * as pw`).
+- A configured soft assertion: `expect.configure({ soft: true })(...)`.
 
 Deliberately outside the rule, recorded here so the boundary is written down:
 
@@ -190,10 +214,10 @@ Deliberately outside the rule, recorded here so the boundary is written down:
 - An aliased binding is not refused: `const t = test;` then a modifier call on `t`. The alias cannot be followed to its declaration without a type checker.
 - A member computed from a non-literal expression is not refused: `test[name](...)` where `name` is a variable. The member name is absent from the source text.
 - A rename or namespace that arrives through any module other than `@playwright/test` is not canonicalised: `import { test as it } from "./fixtures";` then `it.skip(...)`. Following a re-export across files needs module resolution this runnable does not ship, so the rename map is MODULE-SCOPED to the framework's own import declaration.
-- A callee whose head is not an identifier is not resolved: a call on an object literal, on a `this` expression or on any other non-identifier root. There is no head segment to read, so no membership question can be put.
-- A callee chain longer than the resolver's 512-step bound is not resolved. The bound stops a pathological chain from spinning; it is a stated LIMIT rather than a silence, and a chain that reaches it yields no path at all rather than a truncated one.
-- An option is read as ENABLED only when the call's first argument is an OBJECT LITERAL and the option's value is the `true` keyword: `expect.configure(options)` where `options` is a variable, and `expect.configure({ soft: isCi })` where `isCi` is a variable, both enable nothing. The value is absent from the source text, and this runnable evaluates nothing.
-- A parser that does not expose the import or object-literal node predicates yields no rename canonicalisation and no option reading. The parser is the TARGET repository's (D-13), so its surface is not this runnable's to assume; the resolver degrades to the pre-D-18 behaviour for those two shapes rather than throwing outside the D-12 exit-code contract.
+- A callee whose head is not an identifier is not resolved: a call on an object literal, or on `this`. There is no head segment to read, so no membership question can be put.
+- A callee chain longer than the resolver's 512-step bound is not resolved. The bound stops a pathological chain from spinning. It is a stated LIMIT, not a silence. A chain that reaches it yields no path rather than a truncated one.
+- An option is ENABLED only when the call's first argument is an object literal assigning it the `true` keyword. A variable argument enables nothing, and neither does a variable option value. This runnable parses and never evaluates.
+- A parser that does not expose the import or object-literal node predicates yields no rename canonicalisation and no option reading. The parser is the TARGET repository's (D-13), so its surface is not this runnable's to assume. The resolver degrades to the pre-D-18 behaviour for those shapes rather than throwing outside the exit-code contract.
 - Completeness against the DECLARED framework surface is asserted in BOTH directions. Forward: every
   spelling the rule refuses is a construct that surface carries and that type-checks against it.
   Reverse: every member reached by walking that surface's declared types with the TypeScript checker
@@ -201,6 +225,17 @@ Deliberately outside the rule, recorded here so the boundary is written down:
   is a total partition, not a spot-check — its two buckets are asserted disjoint, their union is
   asserted equal to the walked set, and their sizes are asserted to sum to that set's count, so a
   member that arrives and is decided by neither turns the check red and names itself.
+- The reverse walk covers DECLARED PROPERTY CHAINS ONLY. It reads the properties of each declared
+  type and does not descend through a call signature's RETURN TYPE, so a call-link spelling such as
+  `test.info().skip` is outside its denominator until the walk is extended, even though the rule
+  refuses that spelling. What the walk does carry is the accessor — `test.info` — as a member it must
+  decide. Extending the walk to descend return types would move the denominator of every coverage
+  assertion above, so it is a separate decision rather than a quiet widening.
+- The set of callee shapes the resolver still declines is DERIVED from the checker's own source
+  rather than remembered: every position at which resolution ends without producing a path is read
+  off the abstract syntax tree, its count is asserted, and each one is bound to a decided construct
+  or to one of the residual sentences below, in both directions. A shape that nobody decided arrives
+  as an unbound position and turns the check red naming itself.
 - The declared surface is **not** the released package, and the paragraph above claims nothing about
   the package. `scripts/runnable-ref/fixtures/playwright-test.d.ts` is a hand transcription at the
   pin this recipe documents; its drift from a released Playwright is an open `UNKNOWN - verify` and

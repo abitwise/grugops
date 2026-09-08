@@ -128,6 +128,41 @@ declare module "@playwright/test" {
     readonly configure: (options: { readonly mode?: string; readonly retries?: number }) => void;
   }
 
+  /**
+   * 31-13 (D-18, CR-07): the RUNTIME modifier surface, reached through `test.info()`.
+   *
+   * WHY IT IS DECLARED HERE, AND WHAT DECLARING IT COSTS. Playwright's TestInfo fixture carries the
+   * same modifiers as the static `test` object, applied from inside a running scenario:
+   * `test.info().skip()` removes the scenario's result from the evidence exactly as
+   * `test.skip(...)` does, and `test.info().fail()` inverts it. The round-3 verifier reproduced all
+   * three passing the committed checker at exit 0, because the resolver declined any callee chain
+   * containing a call. D-18 (1) decides that shape, and the corpus fixture that carries it —
+   * `modifier-call-link.uat.spec.ts` — must compile against a DECLARED surface rather than against
+   * nothing, or it would be a fixture that could not fail for the reason it exists.
+   *
+   * THE MEMBERS BELOW ARE THE REMOVING MODIFIERS, THE INVERTING ONE AND THE TIMING ONE, and they
+   * are grouped that way on purpose: the first three change WHAT the evidence contains, the last
+   * changes only how long the scenario is given, which is why the rule refuses the first three and
+   * not `slow`.
+   *
+   * WHAT DECLARING IT DOES NOT DO. It does NOT put `test.info().skip` into the reverse partition's
+   * denominator. That walk is `checker.getPropertiesOfType`, which descends declared PROPERTY
+   * CHAINS and does not descend through a call signature's RETURN TYPE, so a call-link spelling
+   * stays outside the walked set until the walk is extended. What declaring `info` does is let the
+   * FORWARD direction compile the shape, and add `test.info` itself to the walked set — a member
+   * the partition must now decide. The boundary is stated in browser-uat-recipe.md's completeness
+   * paragraph rather than being absorbed silently.
+   *
+   * `UNKNOWN - verify` at the same strength as the rest of this file: a hand transcription, not a
+   * reading of the released package.
+   */
+  export interface TestInfo {
+    readonly skip: TestModifier;
+    readonly fixme: TestModifier;
+    readonly fail: TestModifier;
+    readonly slow: TestModifier;
+  }
+
   export interface Test {
     (title: string, body: (args: TestArgs) => unknown): void;
     readonly skip: TestModifier;
@@ -152,6 +187,10 @@ declare module "@playwright/test" {
     readonly beforeEach: TestModifier;
     readonly afterEach: TestModifier;
     readonly describe: Describe;
+    // 31-13 (D-18, CR-07): the accessor for the runtime modifier surface above. The ACCESSOR itself
+    // removes no scenario and inverts no result — its MEMBERS do, and they are refused through the
+    // call-link resolution D-18 decided, which this file's reverse walk cannot reach.
+    readonly info: () => TestInfo;
   }
 
   /** The subset of the matcher surface this corpus calls. */
@@ -166,6 +205,16 @@ declare module "@playwright/test" {
   export interface Expect {
     (actual?: unknown, message?: string): Assertions;
     readonly soft: (actual?: unknown, message?: string) => Assertions;
+    // 31-13 (D-18, CR-07): the CONFIGURED matcher. It returns another `Expect`, which is what makes
+    // `expect.configure({ soft: true })(locator).toBeVisible()` a real spelling — and what made it
+    // an escape the resolver never asked the rule about. The path alone is legitimate
+    // (`expect.configure({ retries: 2 })` changes no result), so it is the PAIR of path and enabled
+    // option that D-18 (2) refuses. `UNKNOWN - verify` at this file's stated strength.
+    readonly configure: (options: {
+      readonly soft?: boolean;
+      readonly retries?: number;
+      readonly timeout?: number;
+    }) => Expect;
   }
 
   export const test: Test;
