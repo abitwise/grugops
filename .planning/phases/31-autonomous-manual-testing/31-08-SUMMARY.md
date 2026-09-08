@@ -20,6 +20,13 @@ provides:
   - "A closure brief ending on the single question a named human answers at end-of-phase harvest"
 affects: [31-VERIFICATION re-run, phase-31 close-out, any future gap-closure round]
 
+actuals:
+  tokens: 13694        # chars/4 over the realized diff — this SUMMARY is the whole of it
+  tasks: 3
+  commits: 2          # MEASURED at SUMMARY-write time via `git rev-list --count`; Task 3's own
+                     # commit and the plan-metadata commit land after this file is written
+  plan_head_before: 4fe930e9c3822256a4b81d98d82e3528282b6663
+
 tech-stack:
   added: []
   patterns:
@@ -40,9 +47,9 @@ key-decisions:
 requirements-completed: [UATX-01, UATX-02, UATX-04, UATX-06]
 
 # Metrics
-duration: TBD
+duration: 40min
 completed: 2026-09-08
-status: in-progress
+status: complete
 ---
 
 # Phase 31 Plan 08: Gap-Closure Evidence and Closure Brief Summary
@@ -51,9 +58,10 @@ status: in-progress
 
 ## Performance
 
-- **Duration:** TBD
+- **Duration:** 40 min
 - **Started:** 2026-09-08T08:20:00Z
-- **Tasks:** 3
+- **Completed:** 2026-09-08T09:00:00Z
+- **Tasks:** 3 of 3
 - **Files modified:** 1 created, 0 source files touched (this plan writes no source file by design)
 
 ## Behavioral Spot-Checks — re-run
@@ -417,3 +425,248 @@ are the three verification gaps, closed and re-measured in Rows 1-3 above.
 **Edge-probe arithmetic:** 8 applicable rows, 5 authored into plan truths, 3 surfaced as covered by
 an already-verified earlier plan, **0 dropped**. 5 + 3 = 8. (The `4 + 4` split stated in the plans
 is registered as R-20.)
+
+## Closure brief
+
+For a human reader, in one sitting. Nothing precedes the three pairs, because nothing else in this
+brief matters as much as they do.
+
+### 1. The three before-and-after pairs
+
+**Pair 1 — the fabricated-provenance write (gap 1, UATX-04, D-03).**
+
+- **Command:** a `node` script that `require`s the committed `scripts/context-io.js` and calls
+  `appendNote("verify-repro-task", { kind: "artifact-ref", gate_run: "no-such-gate-run-ever-existed",
+  sha: "deadbeef…" (40 hex), content_hash: "0"×64, … }, body, freshTempContextRoot)`.
+- **Old — what `31-VERIFICATION.md` measured:**
+  `appendNote WROTE id: 20260907T163748Z-qe-e2e-artifact-ref-1e163523` — no refusal.
+  Reproduced independently here against the module at `bca4bc8`: `appendNote WROTE id: …`,
+  `files AFTER: 1`.
+- **New — HEAD `4fe930e`:** `appendNote THREW:` …
+  `context-io.appendNote: refusing to write an artifact-ref whose provenance the admission authority
+  did not accept. Nothing was written:` / `admission FAIL: no live green §14-gate verdict found for
+  "§14-gate#no-such-gate-run-ever-existed" …`, `files AFTER: 0`.
+
+**Pair 2 — the invisible modifier calls (gap 2, UATX-06, D-14 arm (c)).**
+
+- **Command:** `node scripts/runnable-ref/uat-spec-integrity.js <tmp-repo-with-typescript-resolvable>`
+  over a spec under a `uat` segment containing `test.describe.only`, `test.describe.skip` and
+  `test["skip"]`.
+- **Old:** `UAT spec integrity: 0 findings over 1/1 uat specs checked`, `EXIT=0`. Reproduced
+  independently here against the checker at `5e6ea6f`, byte-identical.
+- **New — HEAD `4fe930e`, same repository and same spec:**
+  `UAT spec integrity: 3 finding(s) over 1/1 uat specs checked`, `EXIT=1`, one finding per construct
+  at lines 3, 10 and 17.
+
+**Pair 3 — the pin authority (gap 3, UATX-02, D-08).**
+
+- **Command:** (a) inspection of the authority-adoption region of
+  `scripts/check-foundation-guards.ts`; (b) `CHECK_ROOT=<mirror> node
+  scripts/check-foundation-guards.js` against a mirror of the tree whose every pinned mention — the
+  authority's own included — was rewritten to `@playwright/mcp@latest`.
+- **Old:** the verification recorded `const pin = first.version;` with no format assertion. Run
+  behaviourally here against the guard at `1033e6f`:
+  `PASS  playwright MCP pin \`latest\` — pinned mention(s) over 115 markdown file(s): 0 findings over
+  7/7 elements`, `ALL CHECKS PASSED`, exit `0` — a clean pass over a kit that pins nothing.
+- **New — HEAD `4fe930e`, the same floated mirror:**
+  `FAIL  playwright MCP pin: the first pinned mention in
+  agent-factory/checklists/browser-uat-recipe.md (line 40) reads \`latest\`, which is not a concrete
+  version …`, exit `1`, and no `0 findings over` line anywhere in the section.
+
+### 2. The whole-tree green record
+
+- Twelve commands — the excluded-e2e regression suite, the build, the typecheck across all three
+  targets, build-parity, freshness, the four language and claim checks, the foundation guards, the
+  structure validator and the config-twin comparison — all exit 0.
+- All twelve were measured at **one commit: `4fe930e9c3822256a4b81d98d82e3528282b6663`**, the tree
+  carrying all three fixes and none of this plan's own writing. Bare `npm test` was never run.
+
+### 3. What this round leaves open, by name
+
+The full register above carries 33 rows. Called out here because they were left open on purpose:
+
+- **The two unresolvable callee shapes** — an aliased binding (`const t = test; t.skip(...)`) and a
+  member computed from a non-literal expression (`test[name](...)`). Resolving either needs a type
+  checker the runnable deliberately does not ship (D-13). Exported as
+  `UNRESOLVABLE_CALLEE_RESIDUALS`, quoted in the recipe, pinned by a test. (R-05, R-06)
+- **The declared Playwright surface** — `scripts/runnable-ref/fixtures/playwright-test.d.ts` is a
+  hand transcription at the kit's `1.62.1` pin, and its drift from the real package is an open
+  `UNKNOWN - verify` because the package cannot be installed under this repository's dependency
+  constraint (zero runtime deps; dev set fixed at `{typescript, vitest}` + type-only `@types/node`
+  by CLAUDE.md). (R-07)
+- **The exported general-purpose file writer** — `atomicWrite`, the sole exported non-note-writer
+  that calls a filesystem write primitive; disposition `accept`, now derived and asserted rather
+  than described. (R-08)
+- **The four review warnings adjacent to the two hardened predicates** — `WR-03` (the no-version-literal
+  test does not scan the guard's rationale comment), `WR-05` (the pin guard's denominator floor is
+  structurally unreachable), `WR-09` (the occurrence pattern admits `.`, so a sentence-final mention
+  is a false FAIL) and `WR-01` (a `.uat.spec.ts` one directory outside a `uat` segment is silently
+  unchecked while the pass line claims a full count). (R-10, R-11, R-12, R-09)
+- **Two residuals this round measured for the first time** — a *correct* sentence-final pin mention
+  at the authority position is now refused with a message that misdescribes the fault (R-18), and a
+  `.uat.spec.ts` under a `uat` segment inside `tools/` is silently unchecked, which matters because
+  `install.ts` materializes the checker itself into `tools/grugops/` (R-19).
+
+### 4. What this round did NOT do
+
+- It did **not attempt the four pre-existing manual-only verification items**: the attended
+  Claude-in-Chrome lane under real interactive auth, the `claude auth status --json` predicate under
+  an API-key-only box and a long-lived setup token, both browser-absence probe stages on a Windows
+  host, and the installer/uninstaller round-trip on a host repository that installed grugops before
+  this release. All four were already recorded as manual-only in `31-VALIDATION.md` before this
+  phase's verification, and all four are carried into the register unchanged (R-01..R-04).
+- It did **not widen into the deferred set**. `deferred-items.md`'s one entry (the
+  `scripts/freshness.test.ts` control case exceeding vitest's 5s default timeout, reproduced at plan
+  31-01's base commit `109d5c7`) stays deferred (R-29).
+- It **changed no shipped default and no safety floor**. This plan modified no source file: its
+  `files_modified` is empty by design, and `git diff --name-only -- .planning/ROADMAP.md
+  .planning/REQUIREMENTS.md` is empty across all three task commits.
+- It **did not flip a requirement row and did not move the phase status**. The plan's frontmatter
+  `requirements:` list is copied into this summary's `requirements-completed:` field because the
+  SUMMARY template requires that copy, and for no other reason: nothing in `.planning/REQUIREMENTS.md`
+  was marked, and `31-VERIFICATION.md` still reads `gaps_found`, `score: 3/6`. Only a re-verification
+  can move either.
+
+### 5. The one question
+
+> **Are the three gaps closed well enough to return Phase 31 to verification, or is another
+> adversarial round needed first?**
+
+- **Answer:** ____________________________________________
+- **Answered by (name):** ____________________________________________
+- **Date:** ____________________________________________
+
+Harvested at end of phase (`workflow.human_verify_mode: end-of-phase`), not assumed here.
+
+## Red-team pass (project doctrine, not optional)
+
+The question that opened all three gaps was asked again: **how is the gate REACHED, not only what
+does it refuse.** Every answer below is a measurement, not a reading.
+
+| Predicate | How is it reached? | Measured |
+|---|---|---|
+| The D-03 evidence binding | Every exported writer that reaches `writeNoteFile` — derived by AST as `admitAndAppend`, `appendNote`, `emitCheckpointNote`, `emitVerdict` — and the CLI surface, enumerated separately | The four writers are exercised individually and green. `node scripts/context-io.js` prints exactly four subcommands (`validate`, `admit`, `emit-verdict`, `render`); only `emit-verdict` writes, and it composes a `verdict` kind from a literal, so no CLI route mints an `artifact-ref`. `atomicWrite` stays the named `accept` residual (R-08) |
+| Arm (c)'s ban set | Only for files the walk *reaches*: under a `uat` path segment, with the `.uat.spec.ts` suffix, and not inside `node_modules`, `.git`, `dist` or `tools` | **Two reach failures measured, both reported as clean passes.** `e2e/dirty.uat.spec.ts` (outside a `uat` segment — R-09/WR-01, known) and `tools/uat/dirty.uat.spec.ts` (inside a skipped directory — R-19, new) both carry `test.skip` and both produce `0 findings over 1/1 uat specs checked`, exit 0. What the gate refuses is now right; where it is asked is still narrower than the claim |
+| The pin authority shape | Only when the recipe exists and the occurrence pattern captures a first mention — so the *occurrence pattern* bounds the shape assertion's input | Probed: a correct sentence-final mention `@playwright/mcp@0.0.78.` planted as the first mention is captured as `0.0.78.` and refused as "not a concrete version" (R-18). Fail-closed in direction, wrong in diagnosis. The predicate's input is assembled by a pattern the predicate does not control |
+
+Two of the three answers are still partly "through the path we tested", which by this project's own
+standard is not yet a complete answer. Both are recorded as residuals (R-09, R-19, R-18) rather than
+softened, and both are about *where the predicate is asked* rather than *what it decides* — the same
+axis that produced the original three gaps.
+
+## Deviations from Plan
+
+### Auto-fixed Issues
+
+**1. [Rule 1 - Bug] This plan's own row-1 harness counted a directory that never exists**
+
+- **Found during:** Task 1
+- **Issue:** The first draft of the row-1 script counted note files under
+  `<contextRoot>/tasks/<task>/notes`. The real layout is `<contextRoot>/<task>/notes`. Against the
+  post-fix module it printed `files AFTER: 0` — the right answer for the wrong reason, since the
+  counter could not have seen a file if one had been written.
+- **Fix:** Corrected the path to the layout `notesSnapshot()` in `scripts/context-io.test.ts:3150-3156`
+  reads, and added an `expect-write` premise assertion that exits 3 if the writing arm reports zero
+  files. Both arms re-run from scratch.
+- **Files modified:** none in the repository — the script lives in this session's scratch directory.
+- **Verification:** the pre-fix arm now reports `files AFTER: 1`, so the counter is calibrated
+  against the defect before its verdict on the fix is believed.
+- **Committed in:** `8dcc4c6` (disclosed in the summary text, per this project's no-fabrication rule)
+
+**2. [Rule 2 - Missing critical] Each re-run row gained a pre-fix control the plan did not ask for**
+
+- **Found during:** Task 1
+- **Issue:** The plan asked for three columns: the command, what the verification measured, and what
+  this tree measures. A post-fix output compared against a *transcribed* pre-fix output shows a
+  difference between two documents, not a move in the code.
+- **Fix:** Each row gained a fourth cell: the same scaffolding run against the committed artifact at
+  the fix commit's parent, extracted with `git archive`. All three controls independently reproduce
+  the verification's recorded output.
+- **Files modified:** none in the repository.
+- **Verification:** row 2's control is byte-identical to the verification's recorded line; rows 1 and
+  3 differ only in per-call nonces and in the mirror's file count.
+- **Committed in:** `8dcc4c6`
+
+**3. [Rule 2 - Missing critical] Two reachability probes were run that the plan's task list did not enumerate**
+
+- **Found during:** the plan's mandatory red-team obligation
+- **Issue:** The plan's `<verification>` block requires asking how each gate is *reached*. Answering
+  that for arm (c) and for the pin authority needs measurements no task specified.
+- **Fix:** Two probes run and recorded: a `.uat.spec.ts` under `tools/` (R-19, new) and a correct
+  sentence-final pin mention at the authority position (R-18, new). Neither is fixed here — this plan
+  writes no source file, and both fixes are decisions about a predicate's input.
+- **Files modified:** none in the repository.
+- **Verification:** both probes produce the outputs quoted in the register and the red-team table.
+- **Committed in:** `b34fc9a`
+
+---
+
+**Total deviations:** 3 auto-fixed (1 × Rule 1, 2 × Rule 2).
+**Impact on plan:** No scope creep and no source file touched. All three strengthen the evidence the
+plan exists to produce; none narrows or skips anything the plan asked for.
+
+## Issues Encountered
+
+- The full excluded-e2e suite takes 283 seconds. Bare `npm test` was avoided throughout, per the
+  plan's prohibition and this project's standing convention.
+- The pre-fix control for row 3 required a mirror of the whole tree rather than the narrower
+  guard-input mirror `scripts/check-foundation-guards.test.ts` builds, which is why the pin scan
+  reports 115 markdown files across 5 of 5 roots here where 31-07 recorded 43 across 2 of 5. The
+  mention count (7) is the same on both, and the control arm on the unmutated full mirror exits 0
+  with `ALL CHECKS PASSED`, so the mirror is a faithful fixture.
+
+## Known Stubs
+
+None. This plan introduces no code, no placeholder value and no unwired component.
+
+## Threat Flags
+
+None. This plan installs nothing, adds no dependency, opens no network path, changes no on-disk
+format and modifies no file in the repository outside `.planning/`. Threats `T-31-38`..`T-31-42` and
+`T-31-SC` are all `mitigate` and all addressed: the commands come from the verification's own table
+(T-31-38); the green suite is recorded for comparison and explicitly stated not to be the closure
+evidence (T-31-39); every check was run at one named commit with all three changes present
+(T-31-40); the register requires a disposition per row and names the out-of-scope warnings and the
+deferred set (T-31-41); and bare `npm test` was never run (T-31-42).
+
+## Verification Results
+
+| Plan `<verification>` item | Result |
+|---|---|
+| The three verifier spot-check commands re-run verbatim, each output moving in the required direction | ✓ — Rows 1-3, each with an independently measured pre-fix control |
+| `npx vitest run --exclude '**/scripts/e2e/**'` green at one named commit | ✓ — 62 files, 3318 passed / 2 skipped at `4fe930e` |
+| `npm run build && npm run typecheck && npm run check:build-parity && npm run freshness` | ✓ — all exit 0; `Build parity: no tracked build output moved when tsc ran.`; 60/60 fresh |
+| The four language and claim checks print `ALL CHECKS PASSED` | ✓ — all four, and re-run green after this summary was written |
+| `node scripts/check-foundation-guards.js` ends `ALL CHECKS PASSED`; `node scripts/validate-agent-factory.js` exits 0 | ✓ |
+| The config twin comparison exits 0 | ✓ — `config twins identical` |
+| Bare `npm test` never run | ✓ |
+| Red-team obligation discharged | ✓ — see the red-team table; two answers are still partly "through the path we tested" and are registered as R-09, R-18, R-19 rather than softened |
+
+## User Setup Required
+
+None — no external service configuration required.
+
+## Next Phase Readiness
+
+- All three `31-VERIFICATION.md` gaps have been re-measured at the verifier's own coordinates and
+  each moved in the required direction. This summary does **not** claim the phase is verified: only a
+  re-verification can move `status: gaps_found` and `score: 3/6`.
+- The closure brief's single question is open and awaits a named human at end-of-phase harvest.
+- Two new residuals (R-18, R-19) and one accounting finding (R-20) enter the record from this round.
+  R-19 is the one worth a second look: it is the same "where is the predicate asked" axis that
+  produced all three original gaps, and `tools/` is a directory the installer writes into.
+
+## Self-Check: PASSED
+
+- `.planning/phases/31-autonomous-manual-testing/31-08-SUMMARY.md` — FOUND on disk (`[ -f ]`).
+- No source file was created or modified: `git diff --name-only` across this plan's commits touches
+  only that one path.
+- `git diff --name-only -- .planning/ROADMAP.md .planning/REQUIREMENTS.md` — empty.
+- The four language and claim checks were re-run after this summary was written and all four print
+  `ALL CHECKS PASSED`.
+- Commit count is MEASURED from the persisted plan ledger
+  (`plan_head_before: 4fe930e9c3822256a4b81d98d82e3528282b6663`), not narrated.
+
+---
+*Phase: 31-autonomous-manual-testing*
+*Completed: 2026-09-08*
