@@ -24,7 +24,8 @@ actuals:
   # gitignored throwaway probe (9,861 chars). Estimate was 90,000 for 3 tasks.
   tokens: 22500
   tasks: 3
-  commits: 3
+  # MEASURED at close-out: git rev-list --count d6764b8..HEAD (3 task + 3 docs commits).
+  commits: 6
 plan_head_before: d6764b83011a8b6ab992f5c158785086feca5fe6
 
 tech-stack:
@@ -178,7 +179,7 @@ status: complete
 2. **Task 2: Prove the probes discriminate, then exercise the full matrix** — `0ae553c` (test)
 3. **Task 3: Watch the matrix fail on a neutralized mirror** — `19dac6e` (test)
 
-**Plan metadata:** see the `docs(31-10)` commit that follows this SUMMARY.
+**Plan metadata:** `ba472d5` (SUMMARY), `5fbc9cc` (self-check), `0a861cb` (STATE + ROADMAP + WINDOWS). Six commits total, measured from `plan_head_before`.
 
 **TDD note.** All three tasks carry `tdd="true"`, and `gsd-tools query task.is-behavior-adding` returns `is_behavior_adding: false` (`reason: "Not behavior-adding: <files> has no non-test source file"`). The plan's only `<files>` entry is a test file, so no production behaviour was added and the RED→GREEN production-code commit contract does not apply; the commits are `test(31-10)` throughout. The equivalent discipline was kept in the form this deliverable admits: **every control was mutated and watched red before it was trusted** (see "Mutation proofs" below).
 
