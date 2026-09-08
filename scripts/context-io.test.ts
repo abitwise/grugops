@@ -5536,3 +5536,389 @@ describe("31-09 — WR-10: one governance root for the writer and the hook", () 
     expect(readFileSync(ledger, "utf8").trim().split("\n").filter((l) => l.length > 0)).toHaveLength(1);
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// 31-14 — CR-08: promotion of an ALREADY-ADMITTED note is a RE-BINDING, not a new admission.
+//
+// WHAT THE ROUND-3 VERIFIER MEASURED, AND WHY IT IS THIS ROUND'S REGRESSION RATHER THAN AN
+// INHERITED DEFECT. 31-09 made `appendNote` consult the admission authority unconditionally, which
+// is right and which D-01's evidence floor depends on. But `compactor.promote` is a thin
+// pass-through to that writer, and Workflow 18 names it as the ONLY prescribed route for carrying a
+// note forward through compaction. So a note a human already legitimately disposed at the ORIGIN —
+// written through `admitAndAppend`'s gated, pre-admitted branch, disposed by the un-forgeable
+// admission-guard hook — was REFUSED, unchanged, at the DESTINATION by `admit()`'s frozen D-04 arm,
+// for the same structural reason that branch skips the authority in the first place: this tier
+// cannot verify a self-authored `human:NAME` stamp.
+//
+// Reproduced against the COMMITTED .js before any source change (the RED baseline quoted verbatim in
+// 31-14-SUMMARY.md): the origin `admitAndAppend` WROTE the finding; the identical `promote` to a
+// fresh destination THREW the D-04 refusal and left zero notes there.
+//
+// THE FIX IS A ROUTE, NOT A FLAG. `promoteAdmitted` is entered only for a note carrying a human
+// disposition stamp, and it writes only after a PROOF over bytes that already exist at the origin:
+// the named source note is LIVE in the deterministic replay there, and the promoted input recomposes
+// to exactly the origin's stored form. Every other shape either falls through to full admission (a
+// gate stamp, an empty stamp — not this route's business) or is refused naming its own clause.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+describe("31-14 — CR-08: a note a human already disposed promotes unchanged", () => {
+  const CR08_TASK = "TICKET-CR08";
+  const CR08_BODY = "Session cookie is missing the Secure attribute on the checkout host.";
+
+  /** A temp project root, optionally carrying a governance configuration at the repo-drop location. */
+  function projectWith(context: Record<string, unknown> | null): string {
+    const dir = freshTmp("p31-14-proj-");
+    if (context !== null) {
+      mkdirSync(join(dir, ".grugops"), { recursive: true });
+      writeFileSync(
+        join(dir, ".grugops", "factory.config.json"),
+        JSON.stringify({ context }, null, 2),
+      );
+    }
+    return dir;
+  }
+
+  /** The high-severity governance finding a NAMED HUMAN disposed — the note CR-08 is about. */
+  function humanDisposedFinding(
+    over: Partial<Parameters<typeof mod.appendNote>[1]> = {},
+  ): Parameters<typeof mod.appendNote>[1] {
+    return {
+      kind: "finding",
+      by: "security-nfr",
+      at: "2026-09-08T02:00:00Z",
+      verified_by: "human:alice",
+      confidence: "high",
+      refs: ["REQ-SEC-01"],
+      supersedes: null,
+      ...over,
+    } as Parameters<typeof mod.appendNote>[1];
+  }
+
+  function cr08NoteFiles(root: string, task = CR08_TASK): string[] {
+    const dir = join(root, task, "notes");
+    return existsSync(dir) ? readdirSync(dir).sort() : [];
+  }
+
+  function cr08NoteText(root: string, id: string, task = CR08_TASK): string {
+    return readFileSync(join(root, task, "notes", `${id}.md`), "utf8");
+  }
+
+  /**
+   * Write the note at the ORIGIN through the writer the dial makes correct — decided by the module's
+   * OWN gated predicate rather than by a hand-typed dial list here.
+   *
+   * WHY THIS IS NOT ONE WRITER. Under an ACTIVE dial a human-stamped high-severity finding is gated,
+   * so the combiner's pre-admitted branch is the only route that writes it. Under the LEAN dial the
+   * same note is NOT gated, and the combiner REFUSES a `human:NAME` stamp on a non-gated note (W3),
+   * while `appendNote` admits it (D-04 cannot fire at `off`). Hard-coding either writer would make
+   * the dial matrix below measure the writer's precondition instead of the promotion's.
+   */
+  function writeOrigin(
+    note: Parameters<typeof mod.appendNote>[1],
+    repoRoot: string,
+    originRoot: string,
+    task = CR08_TASK,
+  ): string {
+    const gated = mod.isGatedNote(note.by, note.kind, mod.readGovernanceConfig(repoRoot));
+    if (gated) {
+      const result = mod.admitAndAppend(task, note, CR08_BODY, originRoot, repoRoot);
+      expect(
+        result.findings,
+        "the ORIGIN write was refused, so the promotion below would be measuring nothing",
+      ).toEqual([]);
+      return result.id as string;
+    }
+    return mod.appendNote(task, note, CR08_BODY, originRoot, undefined, repoRoot);
+  }
+
+  it("PREMISE: no approval grant leaks in from the launching shell, and the dial under test is ACTIVE", () => {
+    // Without this, the gated branch's stamp check could be satisfied for the wrong reason and the
+    // whole block would be measuring a grant rather than a re-binding.
+    expect(
+      process.env.GRUGOPS_ADMISSION_APPROVED_BY,
+      "PREMISE: an approval grant is present in this process env, so the origin write below would " +
+        "be admitted for a reason this block does not control",
+    ).toBeUndefined();
+    const repoRoot = projectWith({ human_admission: "high-severity", audit_retention: "retained" });
+    const gov = mod.readGovernanceConfig(repoRoot);
+    expect(gov.source).toBe("ok");
+    expect(gov.config.human_admission).toBe("high-severity");
+    expect(gov.config.audit_retention).toBe("retained");
+    expect(mod.isGatedNote("security-nfr", "finding", gov)).toBe(true);
+  });
+
+  it("the UNCHANGED full-admission route still refuses the promotion — the regression, still true", () => {
+    // The route CR-08 measured is left byte-unchanged by this plan. It is asserted here so the new
+    // route's success below is a NEW route's success rather than a relaxation of the old one.
+    const repoRoot = projectWith({ human_admission: "high-severity", audit_retention: "retained" });
+    const destRoot = freshTmp("p31-14-unchanged-dest-");
+    let message = "";
+    try {
+      mod.appendNote(CR08_TASK, humanDisposedFinding(), CR08_BODY, destRoot, undefined, repoRoot);
+    } catch (e) {
+      message = (e as Error).message;
+    }
+    expect(message).toContain("admission REFUSED (human_admission: high-severity)");
+    expect(message).toContain("carries a self-authored human disposition stamp");
+    expect(cr08NoteFiles(destRoot)).toEqual([]);
+  });
+
+  it("GREEN 1: the identical note promotes through the proof-gated route and is BYTE-IDENTICAL at the destination", () => {
+    const repoRoot = projectWith({ human_admission: "high-severity", audit_retention: "retained" });
+    const originRoot = freshTmp("p31-14-origin-");
+    const destRoot = freshTmp("p31-14-dest-");
+    const note = humanDisposedFinding();
+
+    const originId = writeOrigin(note, repoRoot, originRoot);
+    expect(cr08NoteFiles(originRoot)).toEqual([`${originId}.md`]);
+
+    const promotedId = mod.promoteAdmitted(
+      CR08_TASK,
+      originId,
+      note,
+      CR08_BODY,
+      originRoot,
+      destRoot,
+      repoRoot,
+    );
+    expect(
+      promotedId,
+      "the faithful promotion of a human-disposed finding was refused — CR-08 is not closed",
+    ).toBe(originId);
+    expect(cr08NoteFiles(destRoot)).toEqual([`${originId}.md`]);
+    // BYTE-IDENTICAL, not merely field-equal: the frozen id is carried forward, so the destination
+    // file is the origin file. That is what "a faithful re-binding" means on disk.
+    expect(cr08NoteText(destRoot, promotedId)).toBe(cr08NoteText(originRoot, originId));
+    // …and the four load-bearing scalars are asserted individually, in the shape CR-08's fix clause
+    // (a) names, so a future change that kept the bytes equal for some other reason still reads here.
+    const dest = mod.currentState(mod.readContext(CR08_TASK, destRoot));
+    expect(dest).toHaveLength(1);
+    expect(dest[0].kind).toBe(note.kind);
+    expect(dest[0].by).toBe(note.by);
+    expect(dest[0].verified_by).toBe(note.verified_by);
+    expect(dest[0].at).toBe(note.at);
+    expect(dest[0].body).toBe(CR08_BODY);
+  });
+
+  // ── GREEN 2 — the invariant, one case per dial value. Not a loop over a hand-typed list: a dial
+  //    value that behaves differently must read as its own failing case. ─────────────────────────
+  const DIAL_CASES: ReadonlyArray<{ readonly label: string; readonly context: Record<string, unknown> | null }> = [
+    { label: 'human_admission: "high-severity"', context: { human_admission: "high-severity" } },
+    { label: 'human_admission: "all"', context: { human_admission: "all" } },
+    { label: 'human_admission: "off"', context: { human_admission: "off" } },
+    { label: "human_admission: a present typo string", context: { human_admission: "hihg-severity" } },
+    { label: "human_admission: a present NON-STRING (gate-or-stricter)", context: { human_admission: true } },
+    { label: "the dial ABSENT (no configuration file at all)", context: null },
+  ];
+
+  for (const dialCase of DIAL_CASES) {
+    it(`GREEN 2 — the round-trip holds under ${dialCase.label}`, () => {
+      const repoRoot = projectWith(dialCase.context);
+      const originRoot = freshTmp("p31-14-dial-origin-");
+      const destRoot = freshTmp("p31-14-dial-dest-");
+      const note = humanDisposedFinding();
+      const originId = writeOrigin(note, repoRoot, originRoot);
+      const promotedId = mod.promoteAdmitted(
+        CR08_TASK,
+        originId,
+        note,
+        CR08_BODY,
+        originRoot,
+        destRoot,
+        repoRoot,
+      );
+      expect(promotedId).toBe(originId);
+      expect(cr08NoteText(destRoot, promotedId)).toBe(cr08NoteText(originRoot, originId));
+    });
+  }
+
+  // ── CR-05 IS NOT REOPENED. The round that CREATED CR-08 probed promotion with a fabricated stamp
+  //    ONLY and never drove the case that changed; this round drives BOTH, and through BOTH routes.
+  it("CR-05 probe 1: a fabricated §14-gate stamp is still refused through the UNCHANGED route, zero files", () => {
+    const repoRoot = projectWith({ human_admission: "high-severity", audit_retention: "retained" });
+    const destRoot = freshTmp("p31-14-cr05-a-");
+    const fabricated = humanDisposedFinding({
+      by: "qe-e2e",
+      verified_by: "§14-gate#fabricated-run-id",
+    });
+    let message = "";
+    try {
+      mod.appendNote(CR08_TASK, fabricated, CR08_BODY, destRoot, undefined, repoRoot);
+    } catch (e) {
+      message = (e as Error).message;
+    }
+    expect(message).toContain("admission FAIL: no live green §14-gate verdict found");
+    expect(message).toContain("fabricated-run-id");
+    expect(cr08NoteFiles(destRoot)).toEqual([]);
+  });
+
+  it("CR-05 probe 2: the same fabricated stamp through the NEW route with an unbacked sourceId is refused, zero files", () => {
+    const repoRoot = projectWith({ human_admission: "high-severity", audit_retention: "retained" });
+    const originRoot = freshTmp("p31-14-cr05-b-origin-");
+    const destRoot = freshTmp("p31-14-cr05-b-dest-");
+    const fabricated = humanDisposedFinding({
+      by: "qe-e2e",
+      verified_by: "§14-gate#fabricated-run-id",
+    });
+    let message = "";
+    try {
+      mod.promoteAdmitted(
+        CR08_TASK,
+        "20260908T020000Z-qe-e2e-finding-deadbeef",
+        fabricated,
+        CR08_BODY,
+        originRoot,
+        destRoot,
+        repoRoot,
+      );
+    } catch (e) {
+      message = (e as Error).message;
+    }
+    expect(
+      message,
+      "a fabricated gate stamp was ADMITTED through the new route — CR-05 is reopened",
+    ).toContain("admission FAIL: no live green §14-gate verdict found");
+    expect(cr08NoteFiles(destRoot)).toEqual([]);
+  });
+
+  // ── PROVENANCE RE-BINDING PRESERVED (UATX-04). A gate-stamped finding and an artifact-ref do NOT
+  //    take the proof route at all; they fall through to full admission and are re-bound at the
+  //    destination against a live green verdict THERE, exactly as Workflow 18 step 5 depends on.
+  it("a §14-gate-stamped finding does NOT take the proof route — it re-admits at the destination against a live green verdict there", () => {
+    const repoRoot = projectWith({ human_admission: "high-severity", audit_retention: "retained" });
+    const originRoot = freshTmp("p31-14-prov-a-origin-");
+    const withVerdict = freshTmp("p31-14-prov-a-green-");
+    const withoutVerdict = freshTmp("p31-14-prov-a-nogreen-");
+    const RUN = "RUN-31-14-PROV";
+    mod.emitVerdict(CR08_TASK, RUN, "clean", FIXTURE_GATE_SHA, withVerdict);
+    const gateFinding = humanDisposedFinding({
+      by: "qe-e2e",
+      verified_by: `§14-gate#${RUN}`,
+    });
+    // With a live green verdict at the destination: admitted, and a NEW id is minted — the note took
+    // the full-admission route, which is the observable difference from the proof route.
+    const id = mod.promoteAdmitted(
+      CR08_TASK,
+      "no-such-origin-id",
+      gateFinding,
+      CR08_BODY,
+      originRoot,
+      withVerdict,
+      repoRoot,
+    );
+    expect(id).toBeTruthy();
+    expect(id).not.toBe("no-such-origin-id");
+    // Without one: refused by the authority, nothing written.
+    expect(() =>
+      mod.promoteAdmitted(
+        CR08_TASK,
+        "no-such-origin-id",
+        gateFinding,
+        CR08_BODY,
+        originRoot,
+        withoutVerdict,
+        repoRoot,
+      ),
+    ).toThrow(/no live green §14-gate verdict found/);
+    expect(cr08NoteFiles(withoutVerdict)).toEqual([]);
+  });
+
+  it("an artifact-ref does NOT take the proof route — its gate_run is re-bound at the destination", () => {
+    const repoRoot = projectWith({ human_admission: "high-severity", audit_retention: "retained" });
+    const originRoot = freshTmp("p31-14-prov-b-origin-");
+    const withVerdict = freshTmp("p31-14-prov-b-green-");
+    const withoutVerdict = freshTmp("p31-14-prov-b-nogreen-");
+    const RUN = "RUN-31-14-AR";
+    mod.emitVerdict(CR08_TASK, RUN, "clean", FIXTURE_GATE_SHA, withVerdict);
+    const evidence = {
+      kind: "artifact-ref",
+      by: "qe-e2e",
+      at: "2026-09-08T02:30:00Z",
+      verified_by: "",
+      confidence: "high",
+      refs: ["tests/e2e/uat/TICKET-1.uat.spec.ts"],
+      supersedes: null,
+      sha: FIXTURE_GATE_SHA,
+      gate_run: RUN,
+      content_hash: "0123456789abcdef".repeat(4),
+    } as Parameters<typeof mod.appendNote>[1];
+    const id = mod.promoteAdmitted(
+      CR08_TASK,
+      "no-such-origin-id",
+      evidence,
+      CR08_BODY,
+      originRoot,
+      withVerdict,
+      repoRoot,
+    );
+    expect(id).toBeTruthy();
+    expect(() =>
+      mod.promoteAdmitted(
+        CR08_TASK,
+        "no-such-origin-id",
+        evidence,
+        CR08_BODY,
+        originRoot,
+        withoutVerdict,
+        repoRoot,
+      ),
+    ).toThrow(/no live green §14-gate verdict found/);
+    expect(cr08NoteFiles(withoutVerdict)).toEqual([]);
+  });
+
+  it("FAIL CLOSED: an unreadable governance configuration refuses on the NEW route too, zero files", () => {
+    const repoRoot = freshTmp("p31-14-unreadable-repo-");
+    mkdirSync(join(repoRoot, ".grugops"), { recursive: true });
+    writeFileSync(join(repoRoot, ".grugops", "factory.config.json"), "{ not valid json ]]]");
+    const originRoot = freshTmp("p31-14-unreadable-origin-");
+    const destRoot = freshTmp("p31-14-unreadable-dest-");
+    // The origin note is seeded through a READABLE root, so the only thing the destination read can
+    // decide is the promotion.
+    const goodRoot = projectWith({ human_admission: "high-severity", audit_retention: "git" });
+    const note = humanDisposedFinding();
+    const originId = writeOrigin(note, goodRoot, originRoot);
+    expect(() =>
+      mod.promoteAdmitted(CR08_TASK, originId, note, CR08_BODY, originRoot, destRoot, repoRoot),
+    ).toThrow(/governance configuration/);
+    expect(cr08NoteFiles(destRoot)).toEqual([]);
+  });
+
+  // ── D-19's LEDGER BEHAVIOUR, MEASURED. A re-binding is not a new admission, so it appends NO
+  //    audit event: the origin's event already records the human's disposition for this exact id,
+  //    and a second line keyed by the same id would be the duplicate 31-09 collapsed.
+  it("D-19 ledger: under audit_retention retained, the promotion appends NO second admission event", () => {
+    const repoRoot = projectWith({ human_admission: "high-severity", audit_retention: "retained" });
+    const originRoot = freshTmp("p31-14-ledger-origin-");
+    const destRoot = freshTmp("p31-14-ledger-dest-");
+    const ledger = join(repoRoot, ".grugops", "audit", "admissions.jsonl");
+    const note = humanDisposedFinding();
+    const originId = writeOrigin(note, repoRoot, originRoot);
+    const afterOrigin = readFileSync(ledger, "utf8").trim().split("\n").filter((l) => l.length > 0);
+    expect(afterOrigin).toHaveLength(1);
+    expect(JSON.parse(afterOrigin[0]).id).toBe(originId);
+    expect(JSON.parse(afterOrigin[0]).disposed_by).toBe("human:alice");
+
+    mod.promoteAdmitted(CR08_TASK, originId, note, CR08_BODY, originRoot, destRoot, repoRoot);
+    const afterPromote = readFileSync(ledger, "utf8").trim().split("\n").filter((l) => l.length > 0);
+    expect(
+      afterPromote,
+      "the re-binding appended a SECOND admission event for the same note id — a duplicate keyed " +
+        "by the origin's own id, which is the shape 31-09 collapsed rather than widened",
+    ).toEqual(afterOrigin);
+  });
+
+  it("NO BOARD MOVE: the promotion writes ONE note and nothing else at the destination", () => {
+    const repoRoot = projectWith({ human_admission: "high-severity", audit_retention: "retained" });
+    const originRoot = freshTmp("p31-14-board-origin-");
+    const destRoot = freshTmp("p31-14-board-dest-");
+    const note = humanDisposedFinding();
+    const originId = writeOrigin(note, repoRoot, originRoot);
+    mod.promoteAdmitted(CR08_TASK, originId, note, CR08_BODY, originRoot, destRoot, repoRoot);
+    // The destination context root holds exactly the task dir; the task dir holds exactly notes/.
+    expect(readdirSync(destRoot).sort()).toEqual([CR08_TASK]);
+    expect(readdirSync(join(destRoot, CR08_TASK)).sort()).toEqual(["notes"]);
+    expect(cr08NoteFiles(destRoot)).toEqual([`${originId}.md`]);
+    // No board or traceability artifact anywhere under the governance root either.
+    expect(existsSync(join(repoRoot, "plans"))).toBe(false);
+  });
+});

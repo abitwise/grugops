@@ -31,6 +31,7 @@ import {
   writeFileSync,
   readFileSync,
   readdirSync,
+  existsSync,
   rmSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -2530,5 +2531,162 @@ describe("compactor.js — CMP-02 round-8 fence-open fail-closure (held-out RED-
     ).not.toBe(0);
     const out = `${run.stdout}${run.stderr}`;
     expect(out.includes(note2Id) || out.includes(`${agent}.md`)).toBe(true);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// 31-14 — CR-08: the compactor gets a proof-gated re-binding route, and forks no writer to get it.
+//
+// Workflow 18 names this file's promotion as the ONLY prescribed route for carrying a note forward
+// through compaction. After 31-09 made the sanctioned writer consult the admission authority
+// unconditionally, that route REFUSED a note a named human had already legitimately disposed at the
+// origin — measured against the committed .js by the round-3 verifier and re-measured by this plan
+// before any source change.
+//
+// The new route is a thin pass-through in exactly the way the existing one is: the compactor still
+// adds NO forked writer of the shared context, and the decision lives entirely in context-io.ts.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+describe("31-14 — compactor.promoteAdmitted: the proof-gated re-binding pass-through", () => {
+  const CR08_TASK = "TICKET-CR08";
+  const CR08_BODY = "Session cookie is missing the Secure attribute on the checkout host.";
+  const COMPACTOR_TS = join(ROOT, "scripts", "compactor.ts");
+
+  function projectWith(context: Record<string, unknown> | null): string {
+    const dir = freshTmp("c31-14-proj-");
+    if (context !== null) {
+      mkdirSync(join(dir, ".grugops"), { recursive: true });
+      writeFileSync(
+        join(dir, ".grugops", "factory.config.json"),
+        JSON.stringify({ context }, null, 2),
+      );
+    }
+    return dir;
+  }
+
+  function humanDisposedFinding(
+    over: Partial<Parameters<typeof ctxio.appendNote>[1]> = {},
+  ): Parameters<typeof ctxio.appendNote>[1] {
+    return {
+      kind: "finding",
+      by: "security-nfr",
+      at: "2026-09-08T02:00:00Z",
+      verified_by: "human:alice",
+      confidence: "high",
+      refs: ["REQ-SEC-01"],
+      supersedes: null,
+      ...over,
+    } as Parameters<typeof ctxio.appendNote>[1];
+  }
+
+  function cr08NoteFiles(root: string): string[] {
+    const dir = join(root, CR08_TASK, "notes");
+    return existsSync(dir) ? readdirSync(dir).sort() : [];
+  }
+
+  /**
+   * The EXISTING promotion function, pinned BYTE-FOR-BYTE.
+   *
+   * This plan adds a route BESIDE it and changes nothing about it: a changed note, and any note
+   * without an admitted origin, still takes it and is still fully admitted at the destination. A pin
+   * rather than a sentence, so the day it moves is a day this case goes red on purpose.
+   */
+  const PROMOTE_PINNED_SOURCE =
+    "export function promote(\n" +
+    "  task: string,\n" +
+    "  note: NoteInput,\n" +
+    "  body: string,\n" +
+    "  contextRoot: string = DEFAULT_CONTEXT_ROOT,\n" +
+    "): string {\n" +
+    "  return appendNote(task, note, body, contextRoot);\n" +
+    "}\n";
+
+  it("the existing promotion function is BYTE-UNCHANGED", () => {
+    const source = readFileSync(COMPACTOR_TS, "utf8");
+    expect(
+      source.split(PROMOTE_PINNED_SOURCE).length - 1,
+      "scripts/compactor.ts's `promote` moved. This plan is additive: the full-admission route and " +
+        "every caller of it are untouched, so a change here is a decision with a written reason",
+    ).toBe(1);
+  });
+
+  it("the new route is a THIN pass-through — it forwards and adds no logic of its own", () => {
+    const source = readFileSync(COMPACTOR_TS, "utf8");
+    const start = source.indexOf("export function promoteAdmitted(");
+    expect(
+      start,
+      "scripts/compactor.ts does not export promoteAdmitted — the compactor has no re-binding route",
+    ).toBeGreaterThan(-1);
+    const body = source.slice(source.indexOf("): string {", start), source.indexOf("\n}\n", start));
+    // Exactly one statement, and it is the forward. A pass-through that grew a decision would put a
+    // SECOND authority beside context-io's, which is this repository's named failure class.
+    expect(body).toContain("return ctxPromoteAdmitted(");
+    const statements = body
+      .split("\n")
+      .map((l) => l.trim())
+      .filter((l) => l.length > 0 && !l.startsWith("//") && l !== "): string {");
+    expect(
+      statements,
+      "the compactor's re-binding route carries logic of its own; it must forward and nothing else",
+    ).toHaveLength(1);
+  });
+
+  it("CR-08 end-to-end through the compactor: the origin write is admitted and the promotion is NOT refused", () => {
+    const repoRoot = projectWith({ human_admission: "high-severity", audit_retention: "retained" });
+    const originRoot = freshTmp("c31-14-origin-");
+    const destRoot = freshTmp("c31-14-dest-");
+    const note = humanDisposedFinding();
+
+    const origin = ctxio.admitAndAppend(CR08_TASK, note, CR08_BODY, originRoot, repoRoot);
+    expect(origin.findings).toEqual([]);
+    const originId = origin.id as string;
+
+    // The route the round-3 verifier measured REFUSING, still refusing — the regression is real and
+    // this plan does not relax it.
+    expect(() => mod.promote(CR08_TASK, note, CR08_BODY, freshTmp("c31-14-old-"))).toThrow(
+      /admission REFUSED \(human_admission: high-severity\)/,
+    );
+
+    const promotedId = mod.promoteAdmitted(
+      CR08_TASK,
+      originId,
+      note,
+      CR08_BODY,
+      originRoot,
+      destRoot,
+      repoRoot,
+    );
+    expect(promotedId).toBe(originId);
+    expect(cr08NoteFiles(destRoot)).toEqual([`${originId}.md`]);
+    expect(readFileSync(join(destRoot, CR08_TASK, "notes", `${promotedId}.md`), "utf8")).toBe(
+      readFileSync(join(originRoot, CR08_TASK, "notes", `${originId}.md`), "utf8"),
+    );
+  });
+
+  it("CR-05 stays closed through the compactor: a fabricated §14-gate stamp is refused on BOTH routes, zero files", () => {
+    const repoRoot = projectWith({ human_admission: "high-severity", audit_retention: "retained" });
+    const originRoot = freshTmp("c31-14-cr05-origin-");
+    const destA = freshTmp("c31-14-cr05-a-");
+    const destB = freshTmp("c31-14-cr05-b-");
+    const fabricated = humanDisposedFinding({
+      by: "qe-e2e",
+      verified_by: "§14-gate#fabricated-run-id",
+    });
+    expect(() => mod.promote(CR08_TASK, fabricated, CR08_BODY, destA)).toThrow(
+      /no live green §14-gate verdict found/,
+    );
+    expect(cr08NoteFiles(destA)).toEqual([]);
+    expect(() =>
+      mod.promoteAdmitted(
+        CR08_TASK,
+        "20260908T020000Z-qe-e2e-finding-deadbeef",
+        fabricated,
+        CR08_BODY,
+        originRoot,
+        destB,
+        repoRoot,
+      ),
+    ).toThrow(/no live green §14-gate verdict found/);
+    expect(cr08NoteFiles(destB)).toEqual([]);
   });
 });
