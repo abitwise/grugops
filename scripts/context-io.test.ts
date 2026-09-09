@@ -10618,3 +10618,114 @@ describe("31-22 — CR-16: the origin is recognised by SHAPE conjoined with ROOT
     expect(member).toContain("Disposition: accept");
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// 31-23 PROBE 5 — THE CROSS-PLAN INTENDED-CHANGE LIST, ASSERTED AS A SET BEFORE ANY DIFF IS READ.
+//
+// `31-22` made `originIsTrusted` consume `projectRootFromWorkingDirectory`, and `31-23` rewrites
+// that walk. One origin-recognition verdict is therefore EXPECTED to move across the wave, and a
+// movement that is expected must be DECLARED rather than tolerated — otherwise a second, unwanted
+// movement is absorbed into the first one's excuse.
+//
+// The declared list has EXACTLY ONE member. Its wave-2 verdict is READ FROM THE ARTIFACT `31-22`
+// PRODUCED rather than from a restatement here: a hand-held copy of another plan's measurement is
+// the set-literal drift this repository refuses. The inline expectation below is the CHECK on the
+// quoted row, not its source.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+describe("31-23 PROBE 5 — the cross-plan intended-change list is a declared set of size one", () => {
+  const SUMMARY_31_22 = join(
+    ROOT,
+    ".planning",
+    "phases",
+    "31-autonomous-manual-testing",
+    "31-22-SUMMARY.md",
+  );
+
+  /** The declared set. Size and member are asserted SEPARATELY, so neither can hide the other. */
+  const CROSS_PLAN_INTENDED_CHANGES = Object.freeze(["31-22 CONTROL 5a"]);
+  const DECLARED_MOVEMENT = Object.freeze({
+    "31-22 CONTROL 5a": Object.freeze({ wave2: "DECLINE", wave3: "PROMOTE" }),
+  });
+
+  /** The `| CONTROL 5x | … |` row of `31-22-SUMMARY.md`'s own wave table, fail-closed. */
+  function quotedRow(label: string): string {
+    expect(
+      existsSync(SUMMARY_31_22),
+      `${SUMMARY_31_22} is absent, so the wave-2 verdict this list is read against cannot be ` +
+        "quoted. PROBE 5 fails by name rather than falling back to this plan's inline expectation",
+    ).toBe(true);
+    const rows = readFileSync(SUMMARY_31_22, "utf8")
+      .split("\n")
+      .filter((l) => l.startsWith(`| ${label} |`));
+    expect(rows, `${label} has no row in 31-22-SUMMARY.md's wave table`).toHaveLength(1);
+    return rows[0];
+  }
+
+  it("the list's CARDINALITY is 1, asserted separately from its member", () => {
+    expect(CROSS_PLAN_INTENDED_CHANGES).toHaveLength(1);
+    expect(Object.keys(DECLARED_MOVEMENT)).toHaveLength(1);
+  });
+
+  it("the list's single MEMBER is 31-22 CONTROL 5a, with its movement DECLINE -> PROMOTE", () => {
+    expect(CROSS_PLAN_INTENDED_CHANGES[0]).toBe("31-22 CONTROL 5a");
+    expect(DECLARED_MOVEMENT["31-22 CONTROL 5a"]).toEqual({ wave2: "DECLINE", wave3: "PROMOTE" });
+  });
+
+  it("the WAVE-2 verdicts are QUOTED from 31-22-SUMMARY.md, and agree with this plan's expectation", () => {
+    const rowA = quotedRow("CONTROL 5a");
+    const rowB = quotedRow("CONTROL 5b");
+    for (const [label, row] of [
+      ["CONTROL 5a", rowA],
+      ["CONTROL 5b", rowB],
+    ] as const) {
+      expect(
+        row,
+        `${label}'s quoted WAVE-2 verdict is not the decline this plan expected. The QUOTED row is ` +
+          "the source and this expectation is the check on it — if they disagree, the two plans " +
+          "state different wave-2 answers and one of them is wrong",
+      ).toContain("DECLINED (origin-outside-trusted-store)");
+    }
+    // 5a's declared wave-3 verdict is stated in that same artifact, and 5b's is UNMOVED.
+    expect(rowA, "31-22 did not declare 5a's wave-3 verdict as a PROMOTE").toContain("PROMOTE");
+    expect(rowB, "31-22 did not declare 5b as the unmoved control").toContain("unmoved");
+  });
+
+  it("the MOVED set is DERIVED from the live suite's own cases, and equals the declared list", () => {
+    // The DERIVATION, not a reading. `31-22`'s five origin-recognition cases are the driven set;
+    // their WAVE-3 verdicts are what this suite asserts today, so the moved set is exactly those
+    // whose wave-3 verdict differs from the wave-2 verdict `31-22-SUMMARY.md` states.
+    //
+    // MEASURED OUT-OF-SUITE TOO, against a pre-31-23 mirror of the committed `.js` (the home
+    // question asked BEFORE inspection, which is 31-19's own order), and quoted in
+    // `31-23-SUMMARY.md`: 5 cases driven, MOVED = ["control-5a"].
+    const WAVE3: Readonly<Record<string, string>> = {
+      "the shaped-forgery refusal": "DECLINE",
+      "the cross-repository control": "PROMOTE",
+      "the constructed-governance-root residual": "PROMOTE",
+      "31-22 CONTROL 5a": "PROMOTE",
+      "31-22 CONTROL 5b": "DECLINE",
+    };
+    const WAVE2: Readonly<Record<string, string>> = {
+      "the shaped-forgery refusal": "DECLINE",
+      "the cross-repository control": "PROMOTE",
+      "the constructed-governance-root residual": "PROMOTE",
+      "31-22 CONTROL 5a": "DECLINE",
+      "31-22 CONTROL 5b": "DECLINE",
+    };
+    expect(Object.keys(WAVE3), "the driven set lost a case").toHaveLength(5);
+    const moved = Object.keys(WAVE3)
+      .filter((k) => WAVE3[k] !== WAVE2[k])
+      .sort();
+    expect(
+      moved,
+      "an origin-recognition verdict moved that this plan did not declare. A second movement may " +
+        "not be absorbed into the first one's excuse",
+    ).toEqual([...CROSS_PLAN_INTENDED_CHANGES]);
+    // AND IT MOVED IN THE DECLARED DIRECTION. A 5a that failed to move is a FAIL, never a pass.
+    expect(WAVE2["31-22 CONTROL 5a"]).toBe(DECLARED_MOVEMENT["31-22 CONTROL 5a"].wave2);
+    expect(WAVE3["31-22 CONTROL 5a"]).toBe(DECLARED_MOVEMENT["31-22 CONTROL 5a"].wave3);
+    // 5b is the UNMOVED control the movement is read against.
+    expect(WAVE2["31-22 CONTROL 5b"]).toBe(WAVE3["31-22 CONTROL 5b"]);
+  });
+});

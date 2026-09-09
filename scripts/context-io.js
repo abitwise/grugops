@@ -3089,8 +3089,23 @@ function namedHomeDirectory() {
     if (typeof raw !== "string" || raw.trim() === "")
         return null;
     const home = resolve(raw.trim());
-    // A home directory that is not an existing directory has not been DETERMINED. Saying so here is
-    // what lets the caller degrade to the kit instead of walking on with an unenforceable bound.
+    // A home directory that cannot be STAT-ED AT ALL has not been DETERMINED. Saying so here is what
+    // lets the caller degrade to the kit instead of walking on with an unenforceable bound.
+    //
+    // WHAT THIS PREDICATE ACTUALLY CHECKS, STATED BECAUSE THE EARLIER SENTENCE HERE DID NOT (plan
+    // 31-23, PROBE 3). It read "a home directory that is not an existing DIRECTORY", and
+    // `directoryIdentity` is a `statSync`, which succeeds on a regular file. Driven with `HOME`
+    // naming a file: `os.homedir()` returned it, the boundary was built from its ancestors, and the
+    // walk was bounded there rather than degrading. That is a claim outrunning its mechanism, which
+    // is the WR-21 class, so the CLAIM is corrected rather than the behaviour.
+    //
+    // WHY THE BEHAVIOUR IS NOT CHANGED TO MATCH THE OLD SENTENCE. Rejecting a non-directory here
+    // would return `null`, which stops the search and lands the caller on `GOVERNANCE_FALLBACK_BASE`
+    // — the kit's LEAN default. A refusal is NOT the safe direction (D-26 (4), `R-31-19-06`), so
+    // tightening this on the strength of a comment would lower a gate. A `$HOME` naming a file is a
+    // misconfigured environment, and the capability it represents is `R-31-19-02`'s: `os.homedir()`
+    // reads an ambient value a process controls in its own child environment, which already names
+    // the governance root outright through either project-directory variable.
     return directoryIdentity(home) === null ? null : home;
 }
 function homeBoundary() {
