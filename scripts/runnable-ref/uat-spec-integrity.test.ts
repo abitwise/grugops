@@ -4051,3 +4051,206 @@ describe("uat-spec-integrity — 31-16 CR-09: every arm that compares a resolved
     expect(unbound[0].operand.includes(`${NORMALISER}(`)).toBe(false);
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// 31-16 CR-10 — THE TESTINFO FIXTURE-PARAMETER BINDING IS DECIDED FROM THE PARSE.
+//
+// `test("a", async ({ page }, testInfo) => { testInfo.skip(); })` is Playwright's PRIMARY documented
+// spelling of exactly the modifiers D-18 (1) was convened to decide in their `test.info()` form. It
+// resolves cleanly to `testInfo.skip` — nothing is declined — and the head is simply not a banned
+// head, which is why neither the derived decline set nor the reverse partition can ever name it.
+//
+// Measured against the committed .js at HEAD before any source change, all three at
+// `0 findings over 1/1 uat specs checked`, EXIT=0:
+//   testInfo.skip()   ·   testInfo.fail()   ·   testInfo.fixme(true, "later")
+//
+// The round did consider the shape and dispositioned it — but only inside a test-file comment, under
+// the exported alias residual whose stated reason ("cannot be followed to its declaration without a
+// type checker") is the exact excuse D-18 (3) disproved one shape earlier for
+// `ImportSpecifier.propertyName`. The SECOND parameter of the function passed as the SECOND argument
+// to a `test(...)`-headed call is TestInfo BY POSITION, and the position is a literal in the source
+// text. So it is DECIDED here, and the disproved excuse is REMOVED rather than relocated.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+describe("uat-spec-integrity — 31-16 CR-10: the TestInfo fixture parameter is canonicalised", () => {
+  const IMPORT = 'import { test, expect } from "@playwright/test";';
+
+  function findingsOf(body: string): string[] {
+    const root = mkTargetRepo({});
+    const dest = join(root, "e2e", "uat", "subject.uat.spec.ts");
+    mkdirSync(dirname(dest), { recursive: true });
+    writeFileSync(dest, body, "utf8");
+    const r = runCheck(root, "--json");
+    if (r.status === 0) return [];
+    return (JSON.parse(r.stdout) as { findings: string[] }).findings;
+  }
+
+  function scenarioWith(call: string, param = "testInfo"): string {
+    return [
+      IMPORT,
+      `test("a scenario", async ({ page }, ${param}) => {`,
+      `  ${call}`,
+      '  await expect(page.getByTestId("x")).toBeVisible();',
+      "});",
+      "",
+    ].join("\n");
+  }
+
+  // ── Test 1 and Test 2: the three refused spellings, named as the decided canonical head ───────
+  for (const [modifier, args] of [
+    ["skip", ""],
+    ["fail", ""],
+    ["fixme", 'true, "later"'],
+  ] as const) {
+    it(`refuses testInfo.${modifier}(${args}) reached through the fixture parameter`, () => {
+      const findings = findingsOf(scenarioWith(`testInfo.${modifier}(${args});`));
+      expect(findings.length, `testInfo.${modifier}: expected exactly one finding`).toBe(1);
+      // The finding names the CANONICAL head D-18 (1) already decided for this construct, so a
+      // reader meets one spelling of the TestInfo modifier family rather than two.
+      expect(findings[0]).toContain(`test.info().${modifier}`);
+      expect(findings[0]).toContain("banned modifier call");
+    });
+  }
+
+  // ── Test 3: the canonicalisation does not refuse the whole TestInfo surface ───────────────────
+  it("does NOT refuse testInfo.slow() — a modifier outside the tail set", () => {
+    expect(
+      findingsOf(scenarioWith("testInfo.slow();")),
+      "`slow` triples a scenario's time budget and removes nothing from the evidence; " +
+        "canonicalising the head must not turn every TestInfo call into a finding",
+    ).toEqual([]);
+  });
+
+  // ── Test 4: the empty / arity cases, each named ───────────────────────────────────────────────
+  it("a ZERO-parameter callback contributes no fixture-parameter binding", async () => {
+    const { deriveTestInfoParameterNames } = await loadChecker();
+    const tsApi = hostTypeScript as typeof import("typescript");
+    const sf = tsApi.createSourceFile(
+      "p.ts",
+      'test("a", async () => { testInfo.skip(); });\n',
+      tsApi.ScriptTarget.Latest,
+      true,
+    );
+    expect([...(deriveTestInfoParameterNames(tsApi, sf, new Map()) ?? [])]).toEqual([]);
+  });
+
+  it("a ONE-parameter callback contributes no fixture-parameter binding", async () => {
+    const { deriveTestInfoParameterNames } = await loadChecker();
+    const tsApi = hostTypeScript as typeof import("typescript");
+    const sf = tsApi.createSourceFile(
+      "p.ts",
+      'test("a", async ({ page }) => { page.goto("/"); });\n',
+      tsApi.ScriptTarget.Latest,
+      true,
+    );
+    expect([...(deriveTestInfoParameterNames(tsApi, sf, new Map()) ?? [])]).toEqual([]);
+  });
+
+  it("a test(...) call whose second argument is NOT a function contributes no binding", async () => {
+    const { deriveTestInfoParameterNames } = await loadChecker();
+    const tsApi = hostTypeScript as typeof import("typescript");
+    const sf = tsApi.createSourceFile(
+      "p.ts",
+      'test("a", someImportedBody);\n',
+      tsApi.ScriptTarget.Latest,
+      true,
+    );
+    expect([...(deriveTestInfoParameterNames(tsApi, sf, new Map()) ?? [])]).toEqual([]);
+  });
+
+  it("a DESTRUCTURED second parameter contributes no binding, and says so as a residual", async () => {
+    const { deriveTestInfoParameterNames, UNRESOLVABLE_CALLEE_RESIDUALS } = await loadChecker();
+    const tsApi = hostTypeScript as typeof import("typescript");
+    const sf = tsApi.createSourceFile(
+      "p.ts",
+      'test("a", async ({ page }, { skip }) => { skip(); });\n',
+      tsApi.ScriptTarget.Latest,
+      true,
+    );
+    expect([...(deriveTestInfoParameterNames(tsApi, sf, new Map()) ?? [])]).toEqual([]);
+    // …and it is NAMED where the claim is made, with a reason that is TRUE OF IT — not folded into
+    // another shape's sentence, which is the conflation that made CR-10 invisible.
+    expect(
+      UNRESOLVABLE_CALLEE_RESIDUALS.some((r) => r.includes("destructured")),
+      "the destructured second parameter has no member of its own in the residual register",
+    ).toBe(true);
+  });
+
+  // ── Test 5: a renamed head composes with the binding ──────────────────────────────────────────
+  it("a RENAMED test binding still contributes its second callback parameter", () => {
+    const findings = findingsOf(
+      [
+        'import { test as it, expect } from "@playwright/test";',
+        'it("a scenario", async ({ page }, info) => {',
+        "  info.skip();",
+        '  await expect(page.getByTestId("x")).toBeVisible();',
+        "});",
+        "",
+      ].join("\n"),
+    );
+    expect(findings.length, "the renamed head must still yield its fixture-parameter binding").toBe(1);
+    expect(findings[0]).toContain("test.info().skip");
+  });
+
+  it("PRECEDENCE: an import rename wins over a fixture-parameter binding of the same name", async () => {
+    const { canonicaliseHeadSegment, TEST_INFO_CANONICAL_HEAD } = await loadChecker();
+    const renames = new Map([["shared", "test"]]);
+    const fixtureParams = new Set(["shared"]);
+    // The rename is a FILE-SCOPED declaration; the fixture parameter is a binding whose real reach
+    // is one callback body, and this derivation is deliberately not scope-aware. Deciding by reading
+    // order would leave the answer to whoever edits the function next, so it is asserted here.
+    expect(canonicaliseHeadSegment("shared.skip", renames, fixtureParams)).toBe("test.skip");
+    expect(canonicaliseHeadSegment("shared.skip", null, fixtureParams)).toBe(
+      `${TEST_INFO_CANONICAL_HEAD}.skip`,
+    );
+  });
+
+  it("the canonical head is the marked accessor form D-18 (1) already decided", async () => {
+    const { TEST_INFO_CANONICAL_HEAD, canonicaliseHeadSegment, isBannedModifierPath } =
+      await loadChecker();
+    expect(TEST_INFO_CANONICAL_HEAD).toBe("test.info()");
+    const canonical = canonicaliseHeadSegment("testInfo.skip", null, new Set(["testInfo"]));
+    expect(canonical).toBe("test.info().skip");
+    // …and that spelling is decided by the EXISTING rule, with no member added to any set.
+    expect(isBannedModifierPath(canonical)).toBe(true);
+    expect(isBannedModifierPath(canonicaliseHeadSegment("testInfo.slow", null, new Set(["testInfo"])))).toBe(
+      false,
+    );
+  });
+
+  it("the canonicaliser still declines nothing — a null path passes straight through", async () => {
+    const { canonicaliseHeadSegment } = await loadChecker();
+    expect(canonicaliseHeadSegment(null, null, new Set(["testInfo"]))).toBeNull();
+    expect(canonicaliseHeadSegment("page.goto", null, new Set(["testInfo"]))).toBe("page.goto");
+  });
+
+  // ── Test 6: the scope boundary is stated, not silent ─────────────────────────────────────────
+  it("the SHADOWING boundary is a named residual, owned by 31-17's WR-20 work", async () => {
+    const { UNRESOLVABLE_CALLEE_RESIDUALS } = await loadChecker();
+    const scoped = UNRESOLVABLE_CALLEE_RESIDUALS.filter((r) => r.includes("WITHOUT SCOPE ANALYSIS"));
+    expect(
+      scoped.length,
+      "the canonicalisations are applied with no scope analysis and the register does not say so",
+    ).toBe(1);
+    expect(scoped[0]).toContain("shadows");
+  });
+
+  // ── Test 7: the disproved excuse is REMOVED, not relocated ────────────────────────────────────
+  it("the alias residual no longer claims to cover the fixture-parameter binding", async () => {
+    const { UNRESOLVABLE_CALLEE_RESIDUALS } = await loadChecker();
+    const alias = UNRESOLVABLE_CALLEE_RESIDUALS.filter((r) => r.startsWith("An aliased binding"));
+    expect(alias.length, "PREMISE: the alias residual is absent from the register").toBe(1);
+    expect(
+      alias[0].includes("testInfo"),
+      "the alias residual still names the fixture-parameter binding, which is now DECIDED",
+    ).toBe(false);
+    // …and the excuse is gone from the test file's own membership record too, which is the only
+    // place CR-10's disposition ever lived.
+    const source = readFileSync(join(HERE, "uat-spec-integrity.test.ts"), "utf8");
+    expect(
+      source.includes("which is the shape 31-REVIEW.md listed for"),
+      "the membership record still carries the sentence that dispositioned the fixture parameter " +
+        "under the alias residual's disproved reason",
+    ).toBe(false);
+  });
+});
