@@ -130,7 +130,7 @@ metrics:
 actuals:
   tokens: 35573
   tasks: 3
-  commits: 5
+  commits: 7
 
 plan_head_before: b54153fb5d052084e262ae2b19b6080f60f8d18c
 ---
@@ -364,4 +364,7 @@ sequenced behind this plan because both modify `scripts/runnable-ref/uat-spec-in
 - `scripts/runnable-ref/fixtures/testinfo-fixture-param.uat.spec.ts` — FOUND
 - `docs/audit/29-style-dispositions/31-16.md` — FOUND
 - commits `18f8a04`, `d779592`, `45e3dc1`, `a3172f6`, `bd38a2e` — all FOUND in `git log --oneline --all`
-- `git rev-list --count b54153f..HEAD` = 5, equal to the commits listed above
+- `git rev-list --count b54153f..HEAD` = 7 — the five above plus the SUMMARY commit and the
+  STATE/ROADMAP commit, which is the plan's whole ledger span and the number `actuals.commits`
+  records. Measured with the same instrument `/gsd-verify-work` uses, against the ledger base
+  persisted at `.git/gsd-plan-head-before-31-16`.

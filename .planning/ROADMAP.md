@@ -974,7 +974,7 @@ Plans:
   4. An evidence note carries commit SHA + gate-run id + content hash, and a note whose SHA is not the HEAD the gate ran against is refused. (UATX-04)
   5. An absent or unusable browser produces a **loud skip** that leaves the UAT `pending` (reusing the existing Tier-2 convention verbatim, never a silent pass), and a generated spec containing a conditional or caught assertion is rejected over the **TypeScript AST** rather than by regex, so the claim matches the mechanism. (UATX-05, UATX-06)
 
-**Plans**: 20 plans — 15 executed (the original 4 across waves 1, 1, 2, 3; 4 gap-closure plans from the 2026-09-07 verification across waves 1, 2, 2, 3; 4 round-2 gap-closure plans across gap waves 4 and 5; and 3 round-3 gap-closure plans across gap waves 6, 7, 8), plus **5 round-4 gap-closure plans (`31-16`…`31-20`, gap waves 9-13) planned 2026-09-09 and not yet executed** after the round-4 verification returned `gaps_found` 4/6. **Gap-closure round 2 (`31-09`…`31-12`)** answers the round-2 verification (`gaps_found` 4/6, 2026-09-08) and the gap-closure code review (`31-REVIEW.md`, CR-05 and CR-06). Both remaining blockers are the round-1 defects reappearing one register over: `appendNote` reaches the admission authority for one KIND (CR-05/UATX-01), and the modifier ban is decided by an enumerable literal rather than a rule (CR-06/UATX-06). The round is a STRUCTURAL fix in both places rather than a third iteration — `31-09` deletes the kind axis so the writer expresses no opinion about which notes admission applies to, and `31-11` deletes the enumerable ban set so a new intermediate segment cannot create a new hole. `31-10` and `31-12` derive the axis each fix's remaining hand-authored set sits on and assert its cardinality, which is the check that was one-directional in both cases. UATX-01 and UATX-06 stay `[ ]` / Gaps Found throughout: only a verification round may flip them.
+**Plans**: 16/20 plans executed — 15 executed (the original 4 across waves 1, 1, 2, 3; 4 gap-closure plans from the 2026-09-07 verification across waves 1, 2, 2, 3; 4 round-2 gap-closure plans across gap waves 4 and 5; and 3 round-3 gap-closure plans across gap waves 6, 7, 8), plus **5 round-4 gap-closure plans (`31-16`…`31-20`, gap waves 9-13) planned 2026-09-09 and not yet executed** after the round-4 verification returned `gaps_found` 4/6. **Gap-closure round 2 (`31-09`…`31-12`)** answers the round-2 verification (`gaps_found` 4/6, 2026-09-08) and the gap-closure code review (`31-REVIEW.md`, CR-05 and CR-06). Both remaining blockers are the round-1 defects reappearing one register over: `appendNote` reaches the admission authority for one KIND (CR-05/UATX-01), and the modifier ban is decided by an enumerable literal rather than a rule (CR-06/UATX-06). The round is a STRUCTURAL fix in both places rather than a third iteration — `31-09` deletes the kind axis so the writer expresses no opinion about which notes admission applies to, and `31-11` deletes the enumerable ban set so a new intermediate segment cannot create a new hole. `31-10` and `31-12` derive the axis each fix's remaining hand-authored set sits on and assert its cardinality, which is the check that was one-directional in both cases. UATX-01 and UATX-06 stay `[ ]` / Gaps Found throughout: only a verification round may flip them.
 
 Plans:
 **Wave 1**
@@ -1039,7 +1039,7 @@ The score fell 5/6 → 4/6. Every round-3 closure re-verified INTACT; the six ne
 
 **Gap wave 9**
 
-- [ ] 31-16-PLAN.md — CR-09 (both variants), CR-10, IN-10: one routing-marker authority every path-comparing arm consumes (derived and cardinality-asserted), the enabled-option axis folded across the whole chain rather than the outer link, the TestInfo fixture-parameter binding decided from the parse, chained-and-invoked corpus fixtures, and D-20 (UATX-06)
+- [x] 31-16-PLAN.md — CR-09 (both variants), CR-10, IN-10: one routing-marker authority every path-comparing arm consumes (derived and cardinality-asserted), the enabled-option axis folded across the whole chain rather than the outer link, the TestInfo fixture-parameter binding decided from the parse, chained-and-invoked corpus fixtures, and D-20 (UATX-06)
 
 **Gap wave 10** *(blocked on gap wave 9 — shares `scripts/runnable-ref/uat-spec-integrity.ts` and `31-CONTEXT.md`)*
 
@@ -1129,7 +1129,7 @@ The score fell 5/6 → 4/6. Every round-3 closure re-verified INTACT; the six ne
 | 29.1. Per-Role Model Assignment | v2.1 | 25/25 | Closed by user override D-29.1-19 (verification gaps_found; 3 blockers accepted open, WINDOWS.md rows 105-107) | 2026-09-03 |
 | 29.2. Model Assignment Delivery Path | v2.1 | 6/6 | Complete    | 2026-09-07 |
 | 30. Per-Checkpoint Autonomy Matrix | v2.1 | 11/11 | Complete    | 2026-09-07 |
-| 31. Autonomous Manual Testing | v2.1 | 15/15 | In Progress|  |
+| 31. Autonomous Manual Testing | v2.1 | 16/20 | In Progress|  |
 | 32. Board Projector & CLI Dashboard | v2.1 | 0/TBD | Not started | - |
 | 33. Live Capture & Windows Portability | v2.1 | 0/TBD | Not started | - |
 
