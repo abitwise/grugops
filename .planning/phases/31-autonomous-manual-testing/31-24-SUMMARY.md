@@ -143,12 +143,12 @@ coverage:
     human_judgment: false
 duration: ~1h10m
 completed: 2026-09-10
-commits: 5
+commits: 6
 plan_head_before: 0f90a5b0d74255b51def1f2848948c839a0eb8dc
 actuals:
   tokens: 50017
   tasks: 3
-  commits: 5
+  commits: 6
 ---
 
 # Phase 31 Plan 24: One nearest-binding resolution authority, asked with a position — Summary
@@ -160,7 +160,7 @@ actuals:
 - **Duration:** ~1h 10m
 - **Tasks:** 3
 - **Files modified:** 6
-- **Commits:** 5 (measured: `git rev-list --count 0f90a5b..HEAD`)
+- **Commits:** 6 (measured: `git rev-list --count 0f90a5b..HEAD`)
 
 ## Accomplishments
 
