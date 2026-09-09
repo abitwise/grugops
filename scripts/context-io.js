@@ -30,7 +30,7 @@
 // production; tests pass an explicit temp root.
 import { randomUUID } from "node:crypto";
 import { isEntrypoint } from "./is-entry.js";
-import { writeFileSync, appendFileSync, 
+import { writeFileSync, writeSync, 
 // `readFileSync` is DELIBERATELY ABSENT from this import list (31-21, CR-12 / D-24). Every read
 // this module performs goes through `readRegularFileOrNull`, so the primitive that BLOCKS on a
 // non-regular file is not in scope to be reached for by accident. Re-adding it here is the drift
@@ -865,6 +865,61 @@ const NOTE_FILE_MAX_BYTES = 8 * 1024 * 1024;
  *
  * Returns `null` for ENOENT and ONLY for ENOENT. Throws — in bounded time — for every other shape.
  */
+/**
+ * The clause an audit-ledger APPEND refusal names (31-21). One spelling, like the note-path clause.
+ */
+export const LEDGER_PATH_NOT_REGULAR_FILE_CLAUSE = "audit-ledger-path-not-a-regular-file";
+/**
+ * The ONE sentence every writer uses when a GOV-02 ledger position cannot be written (31-21).
+ *
+ * Three sites reach this decision — `appendNote`, `admitAndAppend`'s gated branch and its non-gated
+ * branch — and three hand-typed spellings of one sentence is the drift this module keeps deleting.
+ * The sentence is stated once and the sites interpolate it, so a test binds to one literal.
+ */
+export const UNRECORDABLE_ADMISSION_REFUSAL = "An admission the audit trail cannot record is refused rather than granted unrecorded.";
+/**
+ * Append one line to a regular file, creating it when absent, WITHOUT the ability to block.
+ *
+ * THE WRITE SIDE OF THE SAME RULE, AND A CORRECTION TO THIS PLAN'S OWN PREMISE. Plan 31-21 recorded,
+ * as a stated truth, that "`appendFileSync` to a FIFO exits 0 IMMEDIATELY — no hang, and the GOV-02
+ * event is silently discarded", and asked for that to be filed as a write-site disposition. It is
+ * false on darwin, and it was MEASURED false on this tree rather than reasoned about: `appendFileSync`
+ * opens for WRITING, and opening a FIFO for writing BLOCKS until a reader appears.
+ *
+ *   mkfifo <repoRoot>/.grugops/audit/admissions.jsonl
+ *   timeout 10 node <probe> admit          -> EXIT=124, wall 10.08s, zero further bytes
+ *   timeout 10 node <probe> admitAndAppend -> EXIT=124, wall 10.05s, zero further bytes
+ *
+ * That is a FOURTH blocking position in CR-12's class, reached from `admit` and from
+ * `admitAndAppend`'s gated branch — neither of which consults `ledgerRecordsId`, so neither inherits
+ * the read-side refusal. `O_NONBLOCK` makes the open itself safe (a FIFO with no reader fails ENXIO
+ * rather than waiting), `fstat` on the descriptor refuses everything that is not a regular file, and
+ * `O_APPEND` keeps the append-only guarantee the ledger's own comment makes.
+ */
+function appendRegularFileLine(path, line, position) {
+    let fd;
+    try {
+        fd = openSync(path, fsConstants.O_WRONLY | fsConstants.O_APPEND | fsConstants.O_CREAT | fsConstants.O_NONBLOCK, 0o600);
+    }
+    catch (e) {
+        throw new Error(`context-io: the ${position} "${path}" could not be opened for append ` +
+            `(${e.code ?? "unknown"}) — it is refused rather than waited on. ` +
+            `The canonical form for this position is ${CANONICAL_READ_POSITION}.`);
+    }
+    try {
+        const st = fstatSync(fd);
+        if (!st.isFile()) {
+            throw new Error(`context-io: the ${position} "${path}" is not a regular file — it is refused rather than ` +
+                `written, because writing to a FIFO or a device can block forever and a program that ` +
+                `never answers records nothing. The canonical form for this position is ` +
+                `${CANONICAL_READ_POSITION}.`);
+        }
+        writeSync(fd, line, null, "utf8");
+    }
+    finally {
+        closeSync(fd);
+    }
+}
 function readRegularFileOrNull(path, maxBytes, position) {
     let fd;
     try {
@@ -1173,7 +1228,24 @@ repoRoot = trustedRepoRoot()) {
     // inherited from 31-05, because `admit()` has changed since): `admit()` calls no note writer —
     // 0 occurrences of appendNote/appendPreAdmittedNote/emitTrusted/writeNoteFile/emitVerdict/
     // emitCheckpointNote/admitAndAppend in its body — so this call cannot re-enter.
-    const admission = admit(task, text, contextRoot, repoRoot);
+    //
+    // A GOV-02 LEDGER THAT CANNOT BE WRITTEN REFUSES THE WRITE (31-21, CR-12's class at the write
+    // side). `admit()` appends the ledger event under `audit_retention: retained` and the append was
+    // MEASURED wedging on a FIFO ledger at exit 124; it is now bounded and THROWS instead. The throw is
+    // caught HERE rather than inside `admit()` on purpose: `admit()` decides whether a note is
+    // ADMISSIBLE, and "can this admission be recorded" is a different question — putting it inside the
+    // authority would conflate a decision about the note with a fact about the filesystem, and would
+    // add a refusal family to an authority whose families are all about the note. The WRITER owns it,
+    // fails CLOSED, and nothing is written: this call sits before the chokepoint.
+    let admission;
+    try {
+        admission = admit(task, text, contextRoot, repoRoot);
+    }
+    catch (e) {
+        throw new Error(`context-io.appendNote: refusing to write — the admission could not be decided or could not ` +
+            `be recorded. ${UNRECORDABLE_ADMISSION_REFUSAL} Nothing was written. Underlying reason: ` +
+            `${e.message}`);
+    }
     if (admission.length > 0) {
         throw new Error(`context-io.appendNote: refusing to write a note the admission authority did not accept. ` +
             `Nothing was written:\n${admission.join("\n")}`);
@@ -2274,7 +2346,11 @@ function appendAuditLedger(repoRoot, scalars, isHighSeverity, verifiedBy, reBoun
     // produced before this change — the field is ABSENT rather than `false`, which is asserted
     // byte-for-byte rather than claimed — while a re-bound event stays distinguishable from a fresh
     // one for any reader of the ledger.
-    appendFileSync(ledgerPath, JSON.stringify(reBound ? { ...event, re_bound: true } : event) + "\n", "utf8");
+    // THE APPEND CANNOT BLOCK (31-21, CR-12's class at the write side). `appendFileSync` here was
+    // MEASURED wedging both `admit` and `admitAndAppend` on a FIFO ledger at exit 124. The throw is
+    // caught by each caller and turned into a REFUSAL: under `retained` the operator declared that
+    // admissions are recorded, so an admission that cannot be recorded is not granted.
+    appendRegularFileLine(ledgerPath, JSON.stringify(reBound ? { ...event, re_bound: true } : event) + "\n", "GOV-02 audit ledger");
 }
 /**
  * Does the destination repository's GOV-02 ledger already carry an event keyed by this note id?
@@ -3402,7 +3478,24 @@ repoRoot = trustedRepoRoot()) {
             };
             // GOV-02 ledger (retained mode only): reuse the SAME private appendAuditLedger admit() uses —
             // disposed_by derives from the human:NAME stamp; severity is the role classification (D-06).
-            appendAuditLedger(repoRoot, scalars, isHighSeverityRole(note.by), vb);
+            //
+            // A LEDGER THAT CANNOT BE WRITTEN REFUSES THE ADMISSION, in this branch too and for the same
+            // reason as in `admit()`. Because the append now runs BEFORE the note write, the refusal is
+            // returned with nothing on disk — the ordering and the fail-closed direction reinforce each
+            // other rather than each needing its own cleanup.
+            try {
+                appendAuditLedger(repoRoot, scalars, isHighSeverityRole(note.by), vb);
+            }
+            catch (e) {
+                return {
+                    id: null,
+                    findings: [
+                        `admission REFUSED (audit_retention: retained): the GOV-02 audit ledger could not be ` +
+                            `written, so this admission cannot be recorded. ${UNRECORDABLE_ADMISSION_REFUSAL} No ` +
+                            `note was written. Underlying reason: ${e.message}`,
+                    ],
+                };
+            }
         }
         const persistedId = appendPreAdmittedNote(task, note, body, contextRoot, id);
         if (persistedId !== id) {
@@ -3432,7 +3525,23 @@ repoRoot = trustedRepoRoot()) {
     // success. Posture-B is preserved (VFY-01).
     const id = noteId(note);
     const text = composeNote(note, body, id);
-    const findings = admit(task, text, contextRoot, repoRoot);
+    // A GOV-02 ledger that cannot be written refuses here too (31-21). Same argument as `appendNote`'s:
+    // the authority decides admissibility, the WRITER owns the recording failure, and this branch
+    // returns findings rather than throwing because that is its contract.
+    let findings;
+    try {
+        findings = admit(task, text, contextRoot, repoRoot);
+    }
+    catch (e) {
+        return {
+            id: null,
+            findings: [
+                `admission REFUSED: the admission could not be decided or could not be recorded. ` +
+                    `${UNRECORDABLE_ADMISSION_REFUSAL} No note was written. Underlying reason: ` +
+                    `${e.message}`,
+            ],
+        };
+    }
     if (findings.length > 0)
         return { id: null, findings };
     // WHY THIS BRANCH SKIPS THE AUTHORITY, WRITTEN AT ITS SITE (31-09, CR-05 consequence (b)). The

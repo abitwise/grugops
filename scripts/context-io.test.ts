@@ -8659,3 +8659,201 @@ describe("31-21 — a non-regular file inside a notes/ directory is skipped, nev
     ).toThrow(new RegExp(mod.NOTE_PATH_NOT_REGULAR_FILE_CLAUSE));
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// 31-21 (CR-12, THE WRITE SIDE) — the GOV-02 ledger APPEND blocks too, and the plan's premise was
+// wrong about it.
+//
+// PLAN 31-21 STATED, AS A `must_haves.truth`, that "the measured behaviour on darwin is that
+// `appendFileSync` to a FIFO exits 0 IMMEDIATELY — no hang, and the GOV-02 event is silently
+// discarded", and asked for that answer to be recorded as a derived write-site member. MEASURED on
+// this tree, against the built `.js`, with the reads already closed:
+//
+//   mkfifo <repoRoot>/.grugops/audit/admissions.jsonl
+//   timeout 10 node <probe> admit          -> EXIT=124, wall 10.08s, "ENTER admit" then nothing
+//   timeout 10 node <probe> admitAndAppend -> EXIT=124, wall 10.05s, "ENTER admitAndAppend" then nothing
+//
+// `appendFileSync` opens for WRITING, and opening a FIFO for writing BLOCKS until a reader appears.
+// So the answer is a HANG, not a silent loss. The claim is corrected in the code rather than left
+// standing: this is a fourth blocking position, in the same class as CR-12, reached from `admit`
+// (which writes no note) and from `admitAndAppend`'s gated branch — neither of which consults
+// `ledgerRecordsId`, so neither inherits the read-side refusal.
+//
+// AN ADMISSION THAT CANNOT BE RECORDED IS REFUSED, NOT GRANTED. Under `audit_retention: retained`
+// the operator has declared that admissions are recorded. The same argument that makes an UNREADABLE
+// ledger a refusal makes an UNWRITABLE one a refusal: failing closed is the direction that cannot
+// produce an admitted note with no audit line.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+describe("31-21 — a non-regular GOV-02 ledger position refuses the ADMISSION, in bounded time", () => {
+  const T = "T-700";
+  const PROBE_TIMEOUT_MS = 8000;
+
+  const LEDGER_DRIVER = (() => {
+    const file = join(freshTmp("p31-21-ledger-driver-"), "ledger.mjs");
+    writeFileSync(
+      file,
+      [
+        'import { mkdirSync, writeFileSync, existsSync, readdirSync } from "node:fs";',
+        'import { join } from "node:path";',
+        'import { pathToFileURL } from "node:url";',
+        "const [, , jsPath, base, route] = process.argv;",
+        "const io = await import(pathToFileURL(jsPath).href);",
+        "const TASK = " + JSON.stringify(T) + ";",
+        'const strict = join(base, "strict");',
+        'mkdirSync(join(strict, ".grugops"), { recursive: true });',
+        'writeFileSync(join(strict, ".grugops", "factory.config.json"), JSON.stringify({',
+        '  context: { human_admission: "high-severity", audit_retention: "retained" },',
+        "}));",
+        'const ctx = join(base, "proj", ".grugops", "context");',
+        "mkdirSync(ctx, { recursive: true });",
+        "const gated = {",
+        '  kind: "finding", by: "security-nfr", at: "2026-09-09T09:00:00Z",',
+        '  verified_by: "human:alice", confidence: "high", refs: [], supersedes: null,',
+        "};",
+        "const soft = {",
+        '  kind: "observation", by: "qe", at: "2026-09-09T09:00:00Z",',
+        '  verified_by: "", confidence: "high", refs: [], supersedes: null,',
+        "};",
+        'const out = { verdict: "n/a", findings: [], notes: [] };',
+        "try {",
+        '  if (route === "appendNote") {',
+        '    out.findings = [io.appendNote(TASK, soft, "a routine body", ctx, undefined, strict)];',
+        '    out.verdict = "admit";',
+        '  } else if (route === "admitAndAppend") {',
+        '    const r = io.admitAndAppend(TASK, gated, "the disposed body", ctx, strict);',
+        "    out.findings = r.findings;",
+        '    out.verdict = r.id ? "admit" : "refuse";',
+        '  } else if (route === "admit") {',
+        "    // The AUTHORITY itself, driven raw. It THROWS rather than returning findings, which is",
+        "    // the contract: admit() decides admissibility, and the writers above convert a",
+        "    // recording failure into their own refusal. What matters here is that it is BOUNDED.",
+        '    const text = "---\\nkind: observation\\nby: qe\\nat: 2026-09-09T09:00:00Z\\n" +',
+        '      "verified_by: \\nconfidence: high\\nrefs:\\nsupersedes: \\n---\\n\\nbody\\n";',
+        "    out.findings = io.admit(TASK, text, ctx, strict);",
+        '    out.verdict = out.findings.length > 0 ? "refuse" : "admit";',
+        "  } else {",
+        '    throw new Error("unknown route: " + route);',
+        "  }",
+        "} catch (e) {",
+        '  out.verdict = "threw";',
+        "  out.findings = [String(e && e.message ? e.message : e)];",
+        "}",
+        'const notesDir = join(ctx, TASK, "notes");',
+        "out.notes = existsSync(notesDir) ? readdirSync(notesDir).sort() : [];",
+        "console.log(JSON.stringify(out));",
+      ].join("\n"),
+    );
+    return file;
+  })();
+
+  function driveLedger(base: string, route: string): {
+    timedOut: boolean;
+    ms: number;
+    verdict: string;
+    findings: string[];
+    notes: string[];
+    raw: string;
+  } {
+    const started = Date.now();
+    const r = spawnSync(process.execPath, [LEDGER_DRIVER, CONTEXT_IO_JS, base, route], {
+      encoding: "utf8",
+      timeout: PROBE_TIMEOUT_MS,
+      killSignal: "SIGKILL",
+    });
+    const ms = Date.now() - started;
+    const raw = (r.stdout ?? "") + (r.stderr ?? "");
+    let parsed: { verdict?: string; findings?: string[]; notes?: string[] } = {};
+    const line = (r.stdout ?? "").trim().split("\n").filter((l) => l.startsWith("{")).pop();
+    if (line !== undefined) {
+      try {
+        parsed = JSON.parse(line) as typeof parsed;
+      } catch {
+        /* the assertions report `raw` */
+      }
+    }
+    return {
+      timedOut: r.signal === "SIGKILL",
+      ms,
+      verdict: parsed.verdict ?? "",
+      findings: parsed.findings ?? [],
+      notes: parsed.notes ?? [],
+      raw,
+    };
+  }
+
+  function stageFifoLedger(prefix: string): string {
+    const base = freshTmp(prefix);
+    const audit = join(base, "strict", ".grugops", "audit");
+    mkdirSync(audit, { recursive: true });
+    const r = spawnSync("mkfifo", [join(audit, "admissions.jsonl")], { encoding: "utf8" });
+    expect(r.status, `PREMISE: mkfifo failed (${r.stderr ?? ""})`).toBe(0);
+    return base;
+  }
+
+  // BOTH WRITERS that reach `appendAuditLedger` WITHOUT a ledger look: `appendNote` (through the
+  // authority's own ledger append) and `admitAndAppend`'s gated branch. `promoteAdmitted` is already
+  // covered by the read-side `unreadable-audit-ledger` decline.
+  //
+  // THE REFUSAL LIVES IN THE WRITER, NOT IN THE AUTHORITY. `admit()` decides whether a note is
+  // ADMISSIBLE; "can this admission be recorded" is a fact about the filesystem. Putting the second
+  // question inside the authority would conflate them and would add a refusal family to a set whose
+  // every member is about the note — which the derived refusal-family axis in
+  // `scripts/context-io-writer-set.test.ts` would have to absorb. So `admit()` THROWS (bounded) and
+  // each writer converts that into its own refusal shape, with nothing written. `admit()`'s frozen
+  // byte-span is untouched by this change, which is asserted by its own case.
+  // Each writer refuses in ITS OWN documented shape, and the shape is asserted rather than
+  // flattened: `appendNote` THROWS (that is what it already does for an admission the authority did
+  // not accept), `admitAndAppend` returns `{ id: null, findings }`. A case that accepted either
+  // would stop noticing if one of them changed contract.
+  const REFUSAL_SHAPE: Readonly<Record<string, string>> = Object.freeze({
+    appendNote: "threw",
+    admitAndAppend: "refuse",
+  });
+
+  for (const route of ["appendNote", "admitAndAppend"] as const) {
+    it(`${route}: a FIFO at the ledger REFUSES in bounded time and writes no note`, () => {
+      const base = stageFifoLedger(`p31-21-appendfifo-${route}-`);
+      const r = driveLedger(base, route);
+      expect(
+        r.timedOut,
+        `the GOV-02 ledger APPEND blocks on ${route}: no answer within ${PROBE_TIMEOUT_MS}ms. ${r.raw}`,
+      ).toBe(false);
+      expect(r.ms, "the refusal was not bounded").toBeLessThan(5000);
+      expect(
+        r.verdict,
+        `the admission was granted with no audit record: ${JSON.stringify(r.findings)}`,
+      ).toBe(REFUSAL_SHAPE[route]);
+      // Bound to the module's ONE spelling of the sentence, not to a paraphrase of it.
+      expect(r.findings.join("\n")).toContain(mod.UNRECORDABLE_ADMISSION_REFUSAL);
+      expect(r.notes, "a note was written for an admission that could not be recorded").toEqual([]);
+    });
+  }
+
+  it("the AUTHORITY itself is bounded: raw admit() throws rather than wedging", () => {
+    const base = stageFifoLedger("p31-21-appendfifo-authority-");
+    const r = driveLedger(base, "admit");
+    expect(r.timedOut, `raw admit() blocks on a FIFO ledger. ${r.raw}`).toBe(false);
+    expect(r.ms).toBeLessThan(5000);
+    expect(r.verdict, `admit() did not surface the recording failure at all: ${r.raw}`).toBe("threw");
+    expect(r.findings.join("\n")).toContain("GOV-02 audit ledger");
+  });
+
+  it("the converse: an ordinary ledger position still records, and the admission proceeds", () => {
+    // The refusal above must not fire on the legitimate case — a decline nobody proved harmless is
+    // a decline that has not been shown to let the ordinary path through.
+    const base = freshTmp("p31-21-appendok-");
+    const r = driveLedger(base, "admitAndAppend");
+    expect(r.timedOut).toBe(false);
+    expect(r.verdict, `the ordinary retained admission was refused: ${JSON.stringify(r.findings)}`).toBe(
+      "admit",
+    );
+    expect(r.notes).toHaveLength(1);
+    const ledger = readFileSync(
+      join(base, "strict", ".grugops", "audit", "admissions.jsonl"),
+      "utf8",
+    ).trim();
+    expect(ledger.split("\n")).toHaveLength(1);
+    expect((JSON.parse(ledger) as { disposed_by?: string }).disposed_by).toBe("human:alice");
+  });
+});

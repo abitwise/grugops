@@ -904,7 +904,7 @@ let composeMirrorPromise: Promise<typeof import("./context-io.js")> | null = nul
 function composeMirror(): Promise<typeof import("./context-io.js")> {
   composeMirrorPromise ??= mirrorOfCommittedJs(
     AUTHORITY_CALL,
-    "const admission = [];",
+    "admission = [];",
     "ctx-io-compose-mirror-",
   );
   return composeMirrorPromise;
@@ -1674,7 +1674,13 @@ describe("31-10 — the converse: a clean note of every kind still writes", () =
 // mirror — which is what proves the live refusal is caused by that call and not by an unrelated check.
 // ═══════════════════════════════════════════════════════════════════════════════════════════════
 
-const AUTHORITY_CALL = "const admission = admit(task, text, contextRoot, repoRoot);";
+// 31-21: the anchor lost its `const ` and gained one level of indentation when the authority call
+// was wrapped in a try/catch, so a GOV-02 ledger position that cannot be WRITTEN refuses the write
+// instead of wedging it (CR-12's class at the write side). The anchor is re-pinned to the call
+// EXPRESSION rather than to the declaration, which is the part these two mutations actually need
+// and the part that does not move when the statement around it changes. The one-occurrence PREMISE
+// below is what caught the drift rather than a case silently measuring the live module.
+const AUTHORITY_CALL = "admission = admit(task, text, contextRoot, repoRoot);";
 
 /**
  * The mutation that RE-INTRODUCES the deleted kind axis (31-09).
@@ -1690,7 +1696,7 @@ const AUTHORITY_CALL = "const admission = admit(task, text, contextRoot, repoRoo
  * stamp. Both mutate the same one-occurrence anchor, so the two cases differ by one edit each.
  */
 const KIND_SCOPED_AUTHORITY =
-  'const admission = normalizeKind(note.kind) === "artifact-ref" ? admit(task, text, contextRoot, repoRoot) : [];';
+  'admission = normalizeKind(note.kind) === "artifact-ref" ? admit(task, text, contextRoot, repoRoot) : [];';
 
 /**
  * A mirror of the COMMITTED .js with one anchor textually replaced — the same program minus (or
@@ -1730,7 +1736,7 @@ describe("31-05 — neutralizing the authority call makes the fabricated evidenc
   it("the neutralized mirror of the committed .js writes what the live module refuses", async () => {
     const neutralized = await mirrorOfCommittedJs(
       AUTHORITY_CALL,
-      "const admission = [];",
+      "admission = [];",
       "ctx-io-neutralized-",
     );
     const contextRoot = freshTmp("ctx-io-neutralized-ctx-");
@@ -1799,7 +1805,7 @@ describe("31-10 — the neutralized mirror WRITES every family the live module r
 
     const neutralized = await mirrorOfCommittedJs(
       AUTHORITY_CALL,
-      "const admission = [];",
+      "admission = [];",
       "ctx-io-matrix-neutralized-",
     );
 
