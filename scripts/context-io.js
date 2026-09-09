@@ -30,7 +30,8 @@
 // production; tests pass an explicit temp root.
 import { randomUUID } from "node:crypto";
 import { isEntrypoint } from "./is-entry.js";
-import { writeFileSync, appendFileSync, readFileSync, readdirSync, renameSync, unlinkSync, mkdirSync, existsSync, openSync, fstatSync, readSync, closeSync, statSync, constants as fsConstants, } from "node:fs";
+import { writeFileSync, appendFileSync, readFileSync, readdirSync, renameSync, unlinkSync, mkdirSync, existsSync, openSync, fstatSync, readSync, closeSync, statSync, realpathSync, constants as fsConstants, } from "node:fs";
+import { homedir } from "node:os";
 import { basename, dirname, join, resolve, sep } from "node:path";
 import { CHECKPOINTS, CHECKPOINT_DEFAULTS, DISPOSITIONS, STRICTEST_MATRIX, canonicalizeDisposition, } from "./checkpoints.js";
 // ── The six note kinds (SCTX-01) ──────────────────────────────────────────────────────────────
@@ -2438,31 +2439,150 @@ export const TRUSTED_ROOT_ENV_ORDER = Object.freeze([
     "GRUGOPS_PROJECT_DIR",
 ]);
 /**
- * The names that mark a REPOSITORY BOUNDARY for the upward search below. The walk stops at the first
- * ancestor carrying one of these and never continues past it, so a resolution can never reach a
- * user's home directory or a sibling checkout's configuration (threat `T-31-15-03`).
+ * The names that mark a REPOSITORY BOUNDARY for the upward search below (widened by plan 31-19,
+ * review finding WR-21).
+ *
+ * ---------------------------------------------------------------------------------------------
+ * WHAT THIS SET IS, AND WHAT IT IS NOT.
+ *
+ * It is CONTENT: the metadata directory names the common version-control systems place at a
+ * checkout root. It is NOT the bound on the search, and reading it as one is exactly the defect
+ * WR-21 recorded. The docstring here used to claim that the walk "never continues past" a boundary
+ * so a resolution "can never reach a user's home directory". That only followed if some ancestor
+ * happened to carry `.git`, and nothing guarantees one does — the round-4 reviewer reproduced the
+ * walk climbing three ancestors into a home-directory-shaped directory and adopting its dial. The
+ * BOUND is `isAtOrAboveHome` below: a property of the walk rather than of which tool the user
+ * happens to run. This set decides where a REPOSITORY starts, which is a different question.
+ *
+ * WHY IT NAMES MORE THAN ONE SYSTEM. With `.git` alone, a Mercurial, Subversion, Jujutsu or Fossil
+ * checkout was not a boundary at all, so the walk climbed straight out of it into whatever sat
+ * above. A boundary that exists only for users of one tool is not a boundary. The set is open by
+ * nature and is recorded as such in `TRUSTED_ROOT_RESIDUALS`.
+ *
+ * WHY NO NON-VCS MARKER IS IN HERE — the road not taken, recorded so a later round does not
+ * rediscover it as an omission. WR-21 offered "add a second frozen array of non-VCS boundaries" as
+ * an alternative. The obvious member is the factory's own `.grugops` state directory. It is refused
+ * because it moves cases in the UNSAFE direction: a sub-package carrying `.grugops` STATE and no
+ * configuration would end the walk BELOW the repository whose dial governs, and the answer would
+ * fall through to the kit's lean default — a configuration moving from refused to admitted, which
+ * is the WR-15 defect this order exists to close. The kit's own `agent-factory` directory is
+ * refused one register over for the same class of reason: a vendored kit inside a host repository
+ * is not a governed project, which is the inner-configuration case the walk below decides.
+ * ---------------------------------------------------------------------------------------------
  */
-export const REPO_BOUNDARY_MARKERS = Object.freeze([".git"]);
+export const REPO_BOUNDARY_MARKERS = Object.freeze([
+    ".git", // Git
+    ".hg", // Mercurial
+    ".svn", // Subversion
+    ".bzr", // Bazaar
+    "_darcs", // Darcs
+    ".jj", // Jujutsu
+    ".pijul", // Pijul
+    ".fslckout", // Fossil, POSIX checkout marker
+    "_FOSSIL_", // Fossil, Windows checkout marker
+]);
 /**
  * The ceiling on how many ancestors the upward search inspects. A bound, not a tuning knob: a
  * symlink cycle or a pathologically deep path must not make a governance read spin, and no real
  * repository is nested this far below a filesystem root.
  */
 const TRUSTED_ROOT_SEARCH_MAX_ANCESTORS = 64;
+/** A directory's FILESYSTEM IDENTITY, or `null` when it cannot be stat-ed at all. */
+function directoryIdentity(dir) {
+    try {
+        const st = statSync(dir);
+        return `${String(st.dev)}:${String(st.ino)}`;
+    }
+    catch {
+        return null;
+    }
+}
+/** The user's home directory, as `os.homedir()` names it, or `null` when it names nothing real. */
+function namedHomeDirectory() {
+    let raw;
+    try {
+        raw = homedir();
+    }
+    catch {
+        return null;
+    }
+    if (typeof raw !== "string" || raw.trim() === "")
+        return null;
+    const home = resolve(raw.trim());
+    // A home directory that is not an existing directory has not been DETERMINED. Saying so here is
+    // what lets the caller degrade to the kit instead of walking on with an unenforceable bound.
+    return directoryIdentity(home) === null ? null : home;
+}
+function homeBoundary() {
+    const named = namedHomeDirectory();
+    if (named === null)
+        return null;
+    // The same directory under every spelling this module can obtain for it.
+    const spellings = new Set([named]);
+    try {
+        spellings.add(resolve(realpathSync(named)));
+    }
+    catch {
+        // The resolved spelling is what there is. The identity set below covers the rest.
+    }
+    const paths = new Set();
+    const ids = new Set();
+    for (const start of spellings) {
+        let dir = start;
+        for (let step = 0; step < TRUSTED_ROOT_SEARCH_MAX_ANCESTORS; step++) {
+            paths.add(dir);
+            const id = directoryIdentity(dir);
+            if (id !== null)
+                ids.add(id);
+            const parent = dirname(dir);
+            if (parent === dir)
+                break;
+            dir = parent;
+        }
+    }
+    // THE IDENTITY SET'S OWN PREMISE. Two directories that are demonstrably different must not carry
+    // the same identity. Where they do, the platform's identities say nothing and are dropped.
+    const parent = dirname(named);
+    const degenerate = parent !== named && directoryIdentity(parent) === directoryIdentity(named);
+    return { paths, ids: degenerate ? new Set() : ids };
+}
+/** Whether `dir` IS the user's home directory or an ancestor of it — the directories never read. */
+function isAtOrAboveHome(dir, home) {
+    if (home.paths.has(dir))
+        return true;
+    const id = directoryIdentity(dir);
+    return id !== null && home.ids.has(id);
+}
 /**
- * Step 3 of the resolution order: the nearest ancestor of `startDir` that carries a factory
- * configuration, or `null` when the walk reaches a repository boundary, a filesystem root or the
- * step limit without finding one.
+ * Step 3 of the resolution order: the configuration that governs `startDir`, or `null` when the
+ * walk reaches the user's home directory, a repository boundary carrying no configuration, a
+ * filesystem root or the step limit without finding one.
  *
  * The candidate POSITIONS come from `governanceConfigCandidates` — the one published answer to
  * "which file is the governance configuration" — so this search cannot come to disagree with the
- * reader about what it is searching for.
+ * reader about what it is searching for. The complete stop conditions are published once, as
+ * `TRUSTED_ROOT_STOP_CONDITIONS`, and `agent-factory/workflows/16-context-read-write.md` is
+ * asserted equal to that export in both directions.
  *
- * ORDER WITHIN ONE DIRECTORY. A configuration at this directory wins over this directory's own
- * repository marker: a repository that configured the factory is exactly the repository whose dial
- * should decide. A directory carrying ONLY a marker ends the walk and yields `null`, which the caller
- * turns into the kit fallback — the lean posture, which is the correct answer for a host repository
- * that configured nothing and is recorded as such in `TRUSTED_ROOT_RESIDUALS`.
+ * THE THREE RULES, AND THEIR PRECEDENCE, STATED RATHER THAN LEFT TO READING ORDER.
+ *
+ * 1. THE HOME STOP WINS OVER EVERYTHING. A directory that is the user's home directory, or an
+ *    ancestor of it, is never inspected — not for a configuration, not for a marker. This is the
+ *    bound WR-21 found claimed and absent.
+ * 2. A REPOSITORY ROOT'S OWN CONFIGURATION OUTRANKS ONE NESTED INSIDE IT (plan 31-19, the second
+ *    half of WR-21). The reviewer named the nearest-wins rule running the other way: a vendored
+ *    kit's `agent-factory/config/factory.config.json` — the SECOND published candidate, and the
+ *    file every vendored copy of this kit carries — won over the host repository's own for any
+ *    process whose working directory sat under it. That is a governance dial lowered to the kit's
+ *    shipped lean default by changing directory, so the walk no longer stops at the first
+ *    configuration it sees: it remembers it and continues to the repository boundary, and the
+ *    boundary's own configuration wins when it has one. A vendored kit is not a governed project.
+ *    Where the repository root carries no configuration the remembered nearest one still answers,
+ *    so nothing that resolved before resolves differently.
+ * 3. WITHIN ONE DIRECTORY, A CONFIGURATION WINS OVER THAT DIRECTORY'S OWN MARKER — the published
+ *    rule, unchanged: a repository that configured the factory is exactly the repository whose dial
+ *    should decide. A boundary directory carrying ONLY a marker ends the walk and yields whatever
+ *    was remembered below it, which the caller turns into the kit fallback when nothing was.
  */
 function projectRootFromWorkingDirectory(startDir) {
     let dir;
@@ -2472,24 +2592,73 @@ function projectRootFromWorkingDirectory(startDir) {
     catch {
         return null;
     }
+    // A HOME DIRECTORY THAT CANNOT BE DETERMINED IS NOT A LICENCE TO WALK PAST IT. The search does
+    // not run at all, and the caller falls through to the kit — the answer the pre-31-15 program gave
+    // unconditionally. An unbounded search is the one outcome this case may not degrade to.
+    const home = homeBoundary();
+    if (home === null)
+        return null;
+    let nearest = null;
     for (let step = 0; step < TRUSTED_ROOT_SEARCH_MAX_ANCESTORS; step++) {
-        for (const candidate of governanceConfigCandidates(dir)) {
-            // `existsSync` is the right predicate here and its failure direction is the safe one: a
-            // position occupied by something that is not a readable regular file still ANSWERS this
-            // search, and `readGovernanceConfig` then maps it to `unreadable`, which is gate-or-stricter.
-            // A position that does not exist at all is not a configuration and the walk continues.
-            if (existsSync(candidate))
-                return dir;
+        if (isAtOrAboveHome(dir, home))
+            return nearest;
+        // `existsSync` is the right predicate here and its failure direction is the safe one: a
+        // position occupied by something that is not a readable regular file still ANSWERS this
+        // search, and `readGovernanceConfig` then maps it to `unreadable`, which is gate-or-stricter.
+        // A position that does not exist at all is not a configuration and the walk continues.
+        const carriesConfig = governanceConfigCandidates(dir).some((candidate) => existsSync(candidate));
+        if (carriesConfig && nearest === null)
+            nearest = dir;
+        if (REPO_BOUNDARY_MARKERS.some((marker) => existsSync(join(dir, marker)))) {
+            return carriesConfig ? dir : nearest;
         }
-        if (REPO_BOUNDARY_MARKERS.some((marker) => existsSync(join(dir, marker))))
-            return null;
         const parent = dirname(dir);
         if (parent === dir)
-            return null; // filesystem root
+            return nearest; // filesystem root
         dir = parent;
     }
-    return null;
+    return nearest;
 }
+/**
+ * WHAT BOUNDS THE UPWARD SEARCH, PUBLISHED ONCE (plan 31-19, review finding WR-21).
+ *
+ * WHY THIS EXPORT EXISTS. WR-21 is a claim that outran its mechanism: a docstring and a workflow
+ * sentence both said the search could never reach a user's home directory, and neither was bound to
+ * anything that made it so. Correcting the two sentences without binding them would leave the next
+ * drift equally unobserved. So the stop conditions are one frozen answer a consumer or a document
+ * can ask, and `scripts/context-io.test.ts` asserts the workflow's list equal to this array in BOTH
+ * directions — every stop the code has is named in the prose, and every stop the prose names the
+ * code has. This is the discipline `browser-uat-recipe.md` already keeps against the ban-rule
+ * constants, one register over.
+ *
+ * THE STEP LIMIT IS INTERPOLATED, NEVER TYPED. A number written twice is a number free to disagree
+ * with itself; changing the constant moves this sentence, which turns the prose assertion red until
+ * the document moves with it.
+ */
+export const TRUSTED_ROOT_STOP_CONDITIONS = Object.freeze([
+    Object.freeze({
+        id: "S-HOME",
+        sentence: "The upward search never inspects the user's home directory, and never inspects any " +
+            "ancestor of it.",
+    }),
+    Object.freeze({
+        id: "S-HOME-UNKNOWN",
+        sentence: "When the home directory cannot be determined, the upward search does not run at all.",
+    }),
+    Object.freeze({
+        id: "S-BOUNDARY",
+        sentence: "The upward search ends at the first ancestor carrying a version-control marker, and that " +
+            "ancestor's own configuration wins over one nested below it.",
+    }),
+    Object.freeze({
+        id: "S-ROOT",
+        sentence: "The upward search ends at the filesystem root.",
+    }),
+    Object.freeze({
+        id: "S-STEPS",
+        sentence: `The upward search inspects at most ${String(TRUSTED_ROOT_SEARCH_MAX_ANCESTORS)} ancestors.`,
+    }),
+]);
 /**
  * THE ONE TRUSTED ROOT (plan 30-11 round 2, findings `RA2-1` and reviewer-1 observation 2; the
  * resolution order below is plan 31-15, review finding WR-15).
@@ -2499,8 +2668,10 @@ function projectRootFromWorkingDirectory(startDir) {
  *
  *   1. `CLAUDE_PROJECT_DIR` when present and non-empty after trimming, made absolute.
  *   2. `GRUGOPS_PROJECT_DIR` — the documented installer-set variable — under the same predicate.
- *   3. The nearest ancestor of the process working directory carrying a factory configuration,
- *      bounded by the first ancestor carrying a repository marker.
+ *   3. The configuration that governs the process working directory: the repository root's own
+ *      when the walk reaches a repository boundary carrying one, else the nearest ancestor
+ *      carrying a factory configuration. Bounded above by the user's home directory, which the
+ *      search never inspects — see `TRUSTED_ROOT_STOP_CONDITIONS` for the complete stop set.
  *   4. The kit this module ships in.
  *
  * WHY STEPS 2 AND 3 EXIST (WR-15, reproduced by the round-3 verifier as spot-check row 6). Step 1's

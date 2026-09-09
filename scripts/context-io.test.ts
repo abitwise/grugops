@@ -6832,6 +6832,203 @@ describe("31-15 — WR-15: the target repository's dial is read on every host", 
         expect(r.message).toContain("human_admission: high-severity");
       }
     });
+
+    // ── THE CONTROLS: THE STOP IS WHAT DECIDES, AND IT DECIDES NOTHING ELSE ─────────────────────
+    //
+    // A mirror of the committed `.js` with one named line reverted, whose occurrence count is
+    // asserted EXACTLY before the mutation and at zero after it, so a mutation that matched nothing
+    // cannot masquerade as a passing control. The same discipline the 31-15 monotonicity mirror
+    // above keeps, one finding over.
+
+    function mirrorKit(prefix: string, anchors: readonly (readonly [string, string])[]): string {
+      const dir = tmp15(prefix);
+      for (const sub of ["scripts", "hooks"]) {
+        cpSync(join(ROOT, sub), join(dir, sub), {
+          recursive: true,
+          filter: (src) => statSync(src).isDirectory() || src.endsWith(".js"),
+        });
+      }
+      mkdirSync(join(dir, "agent-factory", "config"), { recursive: true });
+      cpSync(
+        join(ROOT, "agent-factory", "config", "factory.config.json"),
+        join(dir, "agent-factory", "config", "factory.config.json"),
+      );
+      const target = join(dir, "scripts", "context-io.js");
+      let text = readFileSync(target, "utf8");
+      for (const [from, to] of anchors) {
+        expect(
+          text.split(from).length - 1,
+          `PREMISE: the mutation anchor ${JSON.stringify(from)} was not found exactly once in the ` +
+            "committed .js, so the mirror is not the program it claims to be",
+        ).toBe(1);
+        text = text.split(from).join(to);
+        expect(text.includes(from), `the mutation left ${JSON.stringify(from)} in place`).toBe(false);
+      }
+      writeFileSync(target, text);
+      return dir;
+    }
+
+    /** The home stop, and nothing else, removed. */
+    const HOME_STOP_ANCHOR = ["if (isAtOrAboveHome(dir, home))", "if (false)"] as const;
+    /** The home directory made undeterminable, and nothing else. */
+    const HOME_UNKNOWN_ANCHOR = ["const named = namedHomeDirectory();", "const named = null;"] as const;
+    /**
+     * The repository-root preference removed: the walk RETURNS at the first configuration it sees
+     * instead of remembering it, which is the pre-31-19 nearest-wins program exactly.
+     */
+    const NEAREST_WINS_ANCHOR = ["nearest = dir;", "return dir;"] as const;
+
+    it("MUTATION PROOF: with the home stop removed, the ancestor IS adopted and IS written to", () => {
+      const mutant = mirrorKit("p31-19-mutant-", [HOME_STOP_ANCHOR]);
+
+      // (a) THE WRONG DIAL. With the stop removed, the planted ancestor's `all` is what governs.
+      const dialShape = plantedHome({ human_admission: "all" }, "p31-19-mutation-dial-");
+      const mutantDial = drive("trustedRepoRoot", { cwd: dialShape.deep, env: asHome(dialShape.home), kit: mutant });
+      expect(mutantDial.root).toBe(dialShape.home);
+      expect(mutantDial.message).toContain("human_admission: all");
+      const fixedDial = drive("trustedRepoRoot", { cwd: dialShape.deep, env: asHome(dialShape.home), kit: KIT });
+      expect(fixedDial.root).toBe(KIT);
+      expect(fixedDial.message).toContain("human_admission: off");
+
+      // (b) THE WRONG AUDIT TRAIL. The dial is `off` here so the note is ADMITTED and the GOV-02
+      // event is actually written — which is the only way this case can see where it lands.
+      const { home, deep } = plantedHome(
+        { human_admission: "off", audit_retention: "retained" },
+        "p31-19-mutation-ledger-",
+      );
+      const ledger = join(home, ...LEDGER_RELPATH);
+      const before = drive("appendNote", { cwd: deep, env: asHome(home), kit: mutant });
+      expect(before.root).toBe(home);
+      expect(before.verdict, "PREMISE: the note must be admitted, or no ledger line is written").toBe(
+        "write",
+      );
+      expect(existsSync(ledger), "PREMISE: the mutant must reach the ledger, or the case is empty").toBe(
+        true,
+      );
+      rmSync(join(home, ".grugops", "audit"), { recursive: true, force: true });
+
+      // The committed program does neither.
+      const after = drive("appendNote", { cwd: deep, env: asHome(home), kit: KIT });
+      expect(after.root).toBe(KIT);
+      expect(after.verdict).toBe("write");
+      expect(
+        existsSync(ledger),
+        "a GOV-02 admission record landed in an unrelated home directory's audit trail",
+      ).toBe(false);
+    });
+
+    it("EMPTY INPUT: a home directory that cannot be determined degrades to the KIT, not to a walk", () => {
+      const mutant = mirrorKit("p31-19-nohome-", [HOME_UNKNOWN_ANCHOR]);
+      const project = projectWith(ACTIVE, "p31-19-nohome-proj-");
+      const src = join(project, "src");
+      mkdirSync(src, { recursive: true });
+      // PREMISE, ASSERTED: the committed program DOES answer this project, so the mutant's KIT
+      // answer is the undeterminable home degrading rather than a tree the search never had.
+      expect(drive("trustedRepoRoot", { cwd: src, kit: KIT }).root).toBe(project);
+      // The mutant's own kit is its step-4 answer, so THAT is the "kit answer" for the mutant.
+      const r = drive("trustedRepoRoot", { cwd: src, kit: mutant });
+      expect(
+        r.root,
+        "an undeterminable home directory must stop the search, never license an unbounded one",
+      ).toBe(mutant);
+    });
+
+    it("the boundary is not one tool's: EVERY named marker ends the walk, and the set is derived", () => {
+      // The sweep is driven from the EXPORT, so a marker added to the rule without a case here is
+      // impossible rather than merely unlikely, and a set that shrank to one is a red test.
+      expect(mod.REPO_BOUNDARY_MARKERS.length).toBeGreaterThan(1);
+      expect(mod.REPO_BOUNDARY_MARKERS).toContain(".git");
+      expect(Object.isFrozen(mod.REPO_BOUNDARY_MARKERS)).toBe(true);
+      let driven = 0;
+      for (const marker of mod.REPO_BOUNDARY_MARKERS) {
+        const outer = projectWith(ACTIVE, "p31-19-marker-");
+        const inner = join(outer, "inner");
+        mkdirSync(join(inner, "src"), { recursive: true });
+        mkdirSync(join(inner, marker), { recursive: true });
+        const r = drive("trustedRepoRoot", { cwd: join(inner, "src") });
+        expect(r.root, `${marker} did not end the walk, so the outer dial governed the inner tree`).toBe(
+          KIT,
+        );
+        driven++;
+      }
+      expect(driven, "the marker sweep drove no case").toBe(mod.REPO_BOUNDARY_MARKERS.length);
+    });
+
+    it("PRECEDENCE: a configuration beats the same directory's marker; the home stop beats both", () => {
+      // (a) One directory carrying BOTH: the configuration wins, which is the published rule.
+      const both = projectWith(ACTIVE, "p31-19-both-");
+      mkdirSync(join(both, ".git"), { recursive: true });
+      const r = drive("appendNote", { cwd: both, env: asHome(tmp15("p31-19-both-home-")) });
+      expect(r.root).toBe(both);
+      expect(r.verdict).toBe("refuse");
+      expect(r.message).toContain("human_admission: high-severity");
+
+      // (b) The SAME directory, when it is the user's home directory: neither rule is reached.
+      expect(drive("trustedRepoRoot", { cwd: both, env: asHome(both) }).root).toBe(KIT);
+    });
+
+    it("the published step limit is the one the walk has, driven from the sentence itself", () => {
+      const limitSentence = mod.TRUSTED_ROOT_STOP_CONDITIONS.filter((s) =>
+        /at most \d+ ancestors/.test(s.sentence),
+      );
+      expect(limitSentence, "the stop set publishes no step limit").toHaveLength(1);
+      const limit = Number(/at most (\d+) ancestors/.exec(limitSentence[0].sentence)?.[1]);
+      expect(Number.isInteger(limit) && limit > 1).toBe(true);
+
+      // Just inside the published limit the configuration IS found…
+      const near = projectWith(ACTIVE, "p31-19-limit-near-");
+      const nearDir = join(near, ...Array.from({ length: limit - 4 }, (_v, i) => `d${String(i)}`));
+      mkdirSync(nearDir, { recursive: true });
+      expect(drive("trustedRepoRoot", { cwd: nearDir }).root).toBe(near);
+
+      // …and past it, it is not. The published number is therefore the walk's number.
+      const far = projectWith(ACTIVE, "p31-19-limit-far-");
+      const farDir = join(far, ...Array.from({ length: limit + 6 }, (_v, i) => `d${String(i)}`));
+      mkdirSync(farDir, { recursive: true });
+      expect(drive("trustedRepoRoot", { cwd: farDir }).root).toBe(KIT);
+    });
+
+    it("MONOTONICITY: no configuration moved from REFUSED to ADMITTED against the pre-31-19 program", () => {
+      // The comparison is against the program this change replaces, reconstructed by reverting the
+      // two lines this plan added — not against a hand-written model of it.
+      const preFix = mirrorKit("p31-19-prefix-", [HOME_STOP_ANCHOR, NEAREST_WINS_ANCHOR]);
+      const active = projectWith(ACTIVE, "p31-19-mono-active-");
+      const activeAll = projectWith({ human_admission: "all" }, "p31-19-mono-all-");
+      const lean = projectWith({ human_admission: "off" }, "p31-19-mono-lean-");
+      const none = projectWith(null, "p31-19-mono-none-");
+      const unreadable = projectWithUnreadableConfig();
+      const empty = tmp15("p31-19-mono-empty-");
+      const cases = [
+        { name: "high-severity", project: active },
+        { name: "all", project: activeAll },
+        { name: "explicitly off", project: lean },
+        { name: "no configuration", project: none },
+        { name: "unreadable configuration", project: unreadable },
+        { name: "empty directory", project: empty },
+      ];
+
+      const moved: string[] = [];
+      let driven = 0;
+      for (const c of cases) {
+        for (const envName of [null, mod.TRUSTED_ROOT_ENV_ORDER[0], mod.TRUSTED_ROOT_ENV_ORDER[1]]) {
+          const env = envName === null ? {} : { [envName]: c.project };
+          const label = `${c.name}/${envName ?? "no variable"}`;
+          const before = drive("appendNote", { cwd: c.project, env, kit: preFix });
+          const after = drive("appendNote", { cwd: c.project, env, kit: KIT });
+          expect(
+            `${label}: ${before.verdict} -> ${after.verdict}`,
+            "a configuration moved from REFUSED to ADMITTED — the change is not monotone",
+          ).not.toBe(`${label}: refuse -> write`);
+          if (before.verdict !== after.verdict) moved.push(label);
+          driven++;
+        }
+      }
+      // NOTHING moved. None of these trees plants a configuration at or above the home directory and
+      // none nests one inside a repository, which are the only two shapes this plan changes — so the
+      // expected move set is EMPTY, asserted as a set rather than as a count.
+      expect(moved).toEqual([]);
+      expect(driven, "the sweep drove no case").toBe(cases.length * 3);
+    });
   });
 });
 

@@ -2146,6 +2146,15 @@ describe("31-05 — the reachability remainder is written down", () => {
   });
 
   it("the filesystem alphabet the residual is derived over is itself bounded", () => {
+    // THE RE-CLASSIFICATIONS THIS COUNT HAS BOUGHT, RECORDED SO THE NUMBER IS A DECISION AND NOT A
+    // BUMPED CONSTANT.
+    //   - `realpathSync` (plan 31-19, WR-21): a READ. It resolves a path to its canonical spelling
+    //     and creates, moves, removes and modifies nothing, so it does not enter
+    //     FS_WRITE_PRIMITIVES. It was added because the home-directory stop compares the DIRECTORY
+    //     rather than a spelling of it, and a home reached through a symlink is the same directory
+    //     under a different string — a comparison a missed resolution gets wrong in the unsafe
+    //     direction.
+    //
     // FS_WRITE_PRIMITIVES is the one hand-written set in this file, and a hand-written set that
     // nobody bounds is this repository's second systemic failure class: it rots while green. The
     // module can only reach the filesystem through what it IMPORTS, so the import clause is the
@@ -2173,7 +2182,7 @@ describe("31-05 — the reachability remainder is written down", () => {
       `scripts/context-io.ts now imports [${bindings.join(", ")}] from node:fs. A binding was added ` +
         `or removed, so the write-primitive alphabet this file derives its residual over must be ` +
         `re-classified rather than assumed unchanged`,
-    ).toBe(14);
+    ).toBe(15);
   });
 });
 
