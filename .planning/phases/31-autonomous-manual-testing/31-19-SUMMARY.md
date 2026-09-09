@@ -22,7 +22,7 @@ affects: [31-20, any later plan touching trustedRepoRoot, admission, the GOV-02 
 actuals:
   tokens: 29162
   tasks: 3
-  commits: 5
+  commits: 7
 
 plan_head_before: 27c7390
 
@@ -163,7 +163,7 @@ status: complete
 - **Duration:** ~50 min
 - **Tasks:** 3 of 3
 - **Files modified:** 9 (1 created)
-- **Commits:** 5 (measured `git rev-list --count 27c7390..HEAD`)
+- **Commits:** 7 — 5 task commits, the SUMMARY commit, and the plan-metadata commit (measured `git rev-list --count 27c7390..HEAD`)
 
 ## The measurements
 
