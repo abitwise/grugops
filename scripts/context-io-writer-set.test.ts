@@ -3340,3 +3340,556 @@ describe("31-18 — the destination-liveness axis is a control, not a coincidenc
     expect(deriveNoteWriters(CONTEXT_IO_TS)).not.toContain("atomicWrite");
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// PART SIX-F — the FILESYSTEM-PRIMITIVE axis (31-21, CR-12 / D-24).
+//
+// THE AXIS NOBODY DERIVED, AND WHY CR-12 SURVIVED FOUR ROUNDS OF DERIVED SETS. This file already
+// derives WHICH FUNCTIONS can write a note, WHAT the authority refuses, WHERE the re-binding route
+// declines, and HOW each writer's destination id is decided. Not one of them asks WHICH PRIMITIVE A
+// READ USES. So round 4's CR-11 fix could add an unguarded `readFileSync` to the single note-write
+// chokepoint — inside a function every one of those axes already covers — and every axis stayed
+// green while one `mkfifo` wedged every writer in the module with zero bytes on both streams.
+//
+// THE RULE THIS AXIS ENFORCES. A caller-influenced filesystem position may be ABSENT, OR A REGULAR
+// FILE. Deciding that requires an `O_NONBLOCK` open and an `fstat` on the descriptor, and this
+// module performs it in exactly TWO places: `readRegularFileOrNull` reads and `appendRegularFileLine`
+// appends. Every call of a primitive that can BLOCK — `openSync`, `readSync`, `readFileSync`,
+// `writeFileSync`, `appendFileSync`, `writeSync` — must therefore sit inside one of those two, or be
+// a site with a WRITTEN disposition saying why it cannot be aimed.
+//
+// THE SET IS DERIVED AND EVERY MEMBER CARRIES ITS ANSWER. A disposition recorded as prose in a
+// summary is a disposition the next round re-discovers; a derived member with a stated answer is one
+// it looks up. Metadata-only primitives (`existsSync`, `statSync`, `readdirSync`, `realpathSync`) are
+// deliberately OUT of the alphabet: they use `stat(2)`, which does not block on a FIFO — MEASURED
+// rather than assumed, since `existsSync` on a planted FIFO returned instantly in every probe above.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+/**
+ * The primitives whose call can BLOCK on a position that is not a regular file. `openSync` blocks
+ * opening a FIFO (either direction) without `O_NONBLOCK`; `readFileSync` opens then reads;
+ * `writeFileSync`/`appendFileSync` open for writing, which blocks until a reader appears;
+ * `readSync`/`writeSync` operate on a descriptor somebody already opened.
+ */
+const FS_BLOCKING_PRIMITIVES: readonly string[] = Object.freeze([
+  "openSync",
+  "readSync",
+  "readFileSync",
+  "writeFileSync",
+  "appendFileSync",
+  "writeSync",
+]);
+
+/** Derive `enclosingFunction:primitive` for every blocking-capable filesystem call in the module. */
+function deriveFsBlockingSites(sourcePath: string): string[] {
+  const source = ts.createSourceFile(
+    "context-io.ts",
+    readFileSync(sourcePath, "utf8"),
+    ts.ScriptTarget.Latest,
+    true,
+  );
+  const alphabet = new Set(FS_BLOCKING_PRIMITIVES);
+  const sites = new Set<string>();
+  for (const statement of source.statements) {
+    if (!ts.isFunctionDeclaration(statement) || !statement.name || !statement.body) continue;
+    const fn = statement.name.text;
+    const walk = (node: ts.Node): void => {
+      if (ts.isCallExpression(node) && ts.isIdentifier(node.expression)) {
+        if (alphabet.has(node.expression.text)) sites.add(`${fn}:${node.expression.text}`);
+      }
+      ts.forEachChild(node, walk);
+    };
+    walk(statement.body);
+  }
+  return [...sites].sort();
+}
+
+/**
+ * ONE WRITTEN DISPOSITION PER DERIVED SITE. The key set is asserted EQUAL to the derived set in both
+ * directions, so a new blocking call anywhere in the module is a reader-legible failure rather than
+ * a number that quietly moved.
+ */
+const FS_SITE_DISPOSITIONS: Readonly<Record<string, string>> = Object.freeze({
+  "readRegularFileOrNull:openSync":
+    "THE READ AUTHORITY. Opens with O_RDONLY|O_NONBLOCK, so a FIFO with no writer returns a " +
+    "descriptor instead of blocking, and maps ENOENT — and only ENOENT — to absence. Every read " +
+    "this module performs reaches the filesystem through this one call.",
+  "readRegularFileOrNull:readSync":
+    "THE READ AUTHORITY's bounded read, on a descriptor `fstat` has already proven is a regular " +
+    "file within the caller's stated ceiling. It cannot be reached for a FIFO, a device or a " +
+    "directory, because those are refused one branch earlier.",
+  "appendRegularFileLine:openSync":
+    "THE WRITE AUTHORITY. Opens with O_WRONLY|O_APPEND|O_CREAT|O_NONBLOCK, so a FIFO with no reader " +
+    "fails ENXIO in bounded time instead of waiting for one. MEASURED: the same position wedged the " +
+    "previous `appendFileSync` at exit 124 through both `admit` and `admitAndAppend`.",
+  "appendRegularFileLine:writeSync":
+    "THE WRITE AUTHORITY's append, on a descriptor `fstat` has already proven is a regular file. " +
+    "O_APPEND preserves the append-only guarantee the GOV-02 ledger's own comment makes.",
+  "atomicWrite:writeFileSync":
+    "NOT AIMABLE, and that is the whole disposition. The destination is " +
+    "`${finalPath}.tmp-${pid}-${Date.now()}-${randomUUID().slice(0,8)}` — a name carrying a random " +
+    "UUID no caller can predict and therefore no caller can pre-occupy with a FIFO. The subsequent " +
+    "`renameSync` REPLACES whatever sits at the final path rather than opening it, and rename does " +
+    "not block on a FIFO. What protects the final path from being replaced is not this call but " +
+    "`writeNoteFile`'s append-only refusal one frame up — CR-11's closure, asserted by PART SIX-E " +
+    "and by the destination cases in scripts/context-io.test.ts. Residual R-31-21-01: a caller who " +
+    "can WATCH the temp name appear and win the race between the write and the rename is already a " +
+    "same-uid direct-filesystem actor, which is the standing T-31-25 residual this module does not " +
+    "close and does not claim to.",
+});
+
+/** The cardinality, asserted separately from the membership: an ADDED site is its own event. */
+const EXPECTED_FS_SITE_COUNT = 5;
+
+describe("31-21 — every blocking-capable filesystem call is derived, and each carries a disposition", () => {
+  it("PREMISE: the derivation actually found blocking-capable calls, in BOTH authorities", () => {
+    // ASSERT THE HARNESS'S OWN PREMISE. A derivation that parsed nothing returns an EMPTY set, and
+    // an empty set trivially satisfies "no unguarded read" — the vacuous pass this repository has
+    // now recorded eight times across five rounds. The premise is a failing assertion, not a note.
+    const derived = deriveFsBlockingSites(CONTEXT_IO_TS);
+    expect(
+      derived.length,
+      "PREMISE: ZERO blocking-capable filesystem calls were derived from scripts/context-io.ts, so " +
+        "every assertion below measured nothing at all",
+    ).toBeGreaterThan(0);
+    expect(
+      derived.some((s) => s.startsWith("readRegularFileOrNull:")),
+      "PREMISE: the read authority was not seen by the parse",
+    ).toBe(true);
+    expect(
+      derived.some((s) => s.startsWith("appendRegularFileLine:")),
+      "PREMISE: the write authority was not seen by the parse",
+    ).toBe(true);
+  });
+
+  it("the derived site set has the expected MEMBERS", () => {
+    expect(
+      deriveFsBlockingSites(CONTEXT_IO_TS),
+      "a filesystem call that can BLOCK landed in or left scripts/context-io.ts. A new one is a " +
+        "position a planted FIFO can wedge — CR-12's whole shape — so it belongs inside one of the " +
+        "two authorities, or it needs a written disposition saying why it cannot be aimed. Never a " +
+        "widened constant",
+    ).toEqual(Object.keys(FS_SITE_DISPOSITIONS).sort());
+  });
+
+  it("the derived site set has the expected COUNT", () => {
+    expect(deriveFsBlockingSites(CONTEXT_IO_TS).length).toBe(EXPECTED_FS_SITE_COUNT);
+    expect(Object.keys(FS_SITE_DISPOSITIONS)).toHaveLength(EXPECTED_FS_SITE_COUNT);
+  });
+
+  it("every disposition is a written reason, not a placeholder", () => {
+    for (const [site, reason] of Object.entries(FS_SITE_DISPOSITIONS)) {
+      expect(reason.length, `the disposition for "${site}" is too short to be a reason`).toBeGreaterThan(
+        80,
+      );
+    }
+  });
+
+  it("readFileSync and appendFileSync are ABSENT from the module entirely", () => {
+    // The two primitives whose unguarded use produced CR-12 and its write-side twin. Their absence
+    // is asserted on the SOURCE rather than inferred from the site set, because the site set would
+    // also be satisfied by them appearing INSIDE an authority — and neither belongs there.
+    const source = ts.createSourceFile(
+      "context-io.ts",
+      readFileSync(CONTEXT_IO_TS, "utf8"),
+      ts.ScriptTarget.Latest,
+      true,
+    );
+    const called = new Set<string>();
+    const walk = (node: ts.Node): void => {
+      if (ts.isCallExpression(node) && ts.isIdentifier(node.expression)) called.add(node.expression.text);
+      ts.forEachChild(node, walk);
+    };
+    ts.forEachChild(source, walk);
+    expect(
+      called.has("readFileSync"),
+      "readFileSync is back in scripts/context-io.ts — the primitive CR-12 was made of",
+    ).toBe(false);
+    expect(
+      called.has("appendFileSync"),
+      "appendFileSync is back in scripts/context-io.ts — the primitive measured wedging the GOV-02 ledger",
+    ).toBe(false);
+  });
+});
+
+// ─── PART SIX-F (b) — the site axis DISCRIMINATES, watched failing in BOTH directions. ──────────
+
+const SEEDED_UNGUARDED_READER = "seededUnguardedReader";
+
+describe("31-21 — the filesystem-site axis is a control, not a coincidence", () => {
+  it("ONE extra unguarded read moves the COUNT by exactly one and NAMES the seeded site", () => {
+    const path = join(freshTmp("ctx-io-fs-site-grow-"), "context-io.ts");
+    writeFileSync(
+      path,
+      readFileSync(CONTEXT_IO_TS, "utf8") +
+        `\nfunction ${SEEDED_UNGUARDED_READER}(p: string): number {\n` +
+        `  return openSync(p, 0);\n}\n`,
+    );
+    const derived = deriveFsBlockingSites(path);
+    expect(derived.length).toBe(EXPECTED_FS_SITE_COUNT + 1);
+    expect(derived).toContain(`${SEEDED_UNGUARDED_READER}:openSync`);
+    // …and it is NOT in the disposition register, which is the failure a reader would actually meet.
+    expect(Object.keys(FS_SITE_DISPOSITIONS)).not.toContain(`${SEEDED_UNGUARDED_READER}:openSync`);
+  });
+
+  it("the CONVERSE: removing an authority's own call moves the count the other way", () => {
+    // A set that can only GROW silently is the set-literal drift this repository keeps deleting, so
+    // the derivation is watched failing in the shrinking direction too.
+    const src = readFileSync(CONTEXT_IO_TS, "utf8");
+    const anchor = 'writeSync(fd, line, null, "utf8");';
+    expect(
+      src.split(anchor).length - 1,
+      "PREMISE: the shrink anchor was not found exactly once, so this mirror removed nothing",
+    ).toBe(1);
+    const path = join(freshTmp("ctx-io-fs-site-shrink-"), "context-io.ts");
+    writeFileSync(path, src.replace(anchor, "void line;"));
+    const derived = deriveFsBlockingSites(path);
+    expect(derived.length).toBe(EXPECTED_FS_SITE_COUNT - 1);
+    expect(derived).not.toContain("appendRegularFileLine:writeSync");
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// PART SIX-G — the NOTE-THEN-LEDGER writer set, and the ORDER inside every member (31-21, WR-22).
+//
+// WHY THE SET IS DERIVED RATHER THAN THE ROUTE THE REVIEW NAMED. WR-22 cited `promoteAdmitted:1704`
+// and nothing else. A fix that inverted that one route would have left the corrected sentence in
+// `agent-factory/workflows/18-context-compaction.md` FALSE at `admitAndAppend`'s gated branch, which
+// has the identical pair — a note write and a GOV-02 append whose `disposed_by` is derived from the
+// very `human:NAME` stamp that makes the note human-disposed. That is the claim outrunning the
+// mechanism INSIDE the edit that exists to stop it. So the set of routes is DERIVED from the
+// module's own source, its cardinality is asserted two-sided, and the order is asserted for EVERY
+// member the derivation returns — never for a hand-typed list of one.
+//
+// `admit()` appends a ledger event and writes NO note, so it is not a member. The derivation SHOWS
+// that rather than the author asserting it.
+//
+// THE ORDER, AND WHICH ASYMMETRY IT CHOOSES. The two steps cannot be made atomic — this module has
+// no transaction — so a crash, a SIGINT or an ENOSPC between them is reachable in either order, and
+// the ORDER decides which state an audit trail can exhibit. Note-then-ledger leaves a destination
+// holding a HUMAN-DISPOSED FINDING WITH NO LEDGER LINE, which is a repudiation and is the state the
+// round-5 review MEASURED with a FIFO at the ledger path (`timeout 15` -> exit 124, note already
+// written). Ledger-then-note leaves a line for a note that was not written, which is an OVER-RECORD:
+// legible, reconcilable against the notes directory, and it accuses nobody. The conservative
+// direction for an audit trail is to over-record.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+/** The three module functions that put a note on disk. `writeNoteFile` is the chokepoint itself. */
+const NOTE_WRITE_CALLS: readonly string[] = Object.freeze([
+  "writeNoteFile",
+  "appendNote",
+  "appendPreAdmittedNote",
+]);
+
+interface NoteLedgerRoute {
+  /** The earliest character offset of an `appendAuditLedger` call in this function's body. */
+  readonly ledgerAt: number;
+  /** The earliest offset of a note write that is NOT a tail delegation (see below). */
+  readonly noteWriteAt: number;
+}
+
+/**
+ * THE DERIVATION: every function whose body contains BOTH a note write and an `appendAuditLedger`
+ * call, with the two offsets the order assertion compares.
+ *
+ * TAIL DELEGATIONS ARE EXCLUDED, AND HERE IS WHY. `promoteAdmitted` opens with
+ * `return appendNote(task, note, body, to, undefined, repoRoot);` — the entry-set fall-through for a
+ * note carrying no human stamp. That statement RETURNS, so no ledger work in this function happens
+ * on that path at all, and counting it would make the order assertion compare two steps that never
+ * run together. The exclusion is narrow and syntactic: a call that IS the whole expression of a
+ * `return` statement. Every other note write — one whose result is bound, or discarded — counts.
+ * The per-member transposed mirrors below are what prove this rule DISCRIMINATES rather than merely
+ * describing it.
+ */
+function deriveNoteLedgerRoutes(sourcePath: string): Map<string, NoteLedgerRoute> {
+  const source = ts.createSourceFile(
+    "context-io.ts",
+    readFileSync(sourcePath, "utf8"),
+    ts.ScriptTarget.Latest,
+    true,
+  );
+  const writes = new Set(NOTE_WRITE_CALLS);
+  const out = new Map<string, NoteLedgerRoute>();
+  for (const statement of source.statements) {
+    if (!ts.isFunctionDeclaration(statement) || !statement.name || !statement.body) continue;
+    const ledgerOffsets: number[] = [];
+    const writeOffsets: number[] = [];
+    const walk = (node: ts.Node): void => {
+      if (ts.isCallExpression(node) && ts.isIdentifier(node.expression)) {
+        const callee = node.expression.text;
+        if (callee === "appendAuditLedger") ledgerOffsets.push(node.getStart(source));
+        if (writes.has(callee)) {
+          const isTailDelegation = ts.isReturnStatement(node.parent) && node.parent.expression === node;
+          if (!isTailDelegation) writeOffsets.push(node.getStart(source));
+        }
+      }
+      ts.forEachChild(node, walk);
+    };
+    walk(statement.body);
+    if (ledgerOffsets.length === 0 || writeOffsets.length === 0) continue;
+    out.set(statement.name.text, {
+      ledgerAt: Math.min(...ledgerOffsets),
+      noteWriteAt: Math.min(...writeOffsets),
+    });
+  }
+  return out;
+}
+
+/** The MEMBERS, measured: the two routes that write a note AND record a GOV-02 event. */
+const EXPECTED_NOTE_LEDGER_ROUTES: readonly string[] = Object.freeze([
+  "admitAndAppend",
+  "promoteAdmitted",
+]);
+
+/** The cardinality, asserted separately. A derivation reporting ONE would have let WR-22 through. */
+const EXPECTED_NOTE_LEDGER_ROUTE_COUNT = 2;
+
+describe("31-21 — the note-then-ledger writer set is derived, with a two-sided count", () => {
+  it("PREMISE: the parse found the routes and both kinds of call", () => {
+    const routes = deriveNoteLedgerRoutes(CONTEXT_IO_TS);
+    expect(
+      routes.size,
+      "PREMISE: ZERO functions were derived as writing both a note and a ledger event, so every " +
+        "order assertion below is vacuous",
+    ).toBeGreaterThan(0);
+    for (const [fn, r] of routes) {
+      expect(r.ledgerAt, `PREMISE: no ledger offset was derived for ${fn}`).toBeGreaterThan(0);
+      expect(r.noteWriteAt, `PREMISE: no note-write offset was derived for ${fn}`).toBeGreaterThan(0);
+    }
+  });
+
+  it("the derived route set has the expected MEMBERS", () => {
+    expect(
+      [...deriveNoteLedgerRoutes(CONTEXT_IO_TS).keys()].sort(),
+      "a route that writes BOTH a note and a GOV-02 ledger event landed in or left the module. Each " +
+        "one is a place where a crash between the two steps decides whether the audit trail can show " +
+        "a human-disposed finding with no ledger line, so it needs the ledger-first ordering AND a " +
+        "mention in the workflow sentence that names the routes it covers",
+    ).toEqual([...EXPECTED_NOTE_LEDGER_ROUTES]);
+  });
+
+  it("the derived route set has the expected COUNT", () => {
+    expect(deriveNoteLedgerRoutes(CONTEXT_IO_TS).size).toBe(EXPECTED_NOTE_LEDGER_ROUTE_COUNT);
+  });
+
+  it("admit is NOT a member: it records an event and writes no note (derived, not asserted)", () => {
+    // The distinction WR-22's fix turns on, measured by the derivation rather than by the author.
+    expect(deriveNoteLedgerRoutes(CONTEXT_IO_TS).has("admit")).toBe(false);
+  });
+});
+
+describe("31-21 — the ledger event precedes the note write at EVERY derived route", () => {
+  // Driven off the DERIVATION, never off the literal above: the set that is derived and the set that
+  // is CONSUMED must be the same object, or the axis is the same defect one register over.
+  for (const fn of deriveNoteLedgerRoutes(CONTEXT_IO_TS).keys()) {
+    it(`${fn}: the GOV-02 append is strictly before the note write`, () => {
+      const route = deriveNoteLedgerRoutes(CONTEXT_IO_TS).get(fn);
+      expect(route, `the derivation lost ${fn} between collection and assertion`).toBeDefined();
+      expect(
+        (route as NoteLedgerRoute).ledgerAt,
+        `${fn} writes the note BEFORE recording the GOV-02 event. A crash between the two steps then ` +
+          `leaves the destination holding a human-disposed finding with no ledger line — the ` +
+          `repudiation 18-context-compaction.md says cannot happen. Ledger first: an over-record is ` +
+          `the safe asymmetry`,
+      ).toBeLessThan((route as NoteLedgerRoute).noteWriteAt);
+    });
+  }
+});
+
+describe("31-21 — the order axis is a control at EVERY member, not a coincidence at one", () => {
+  /**
+   * A mirror of the live source with ONE member's two statements transposed — the pre-31-21 program
+   * for that route and nothing else. Both anchors are asserted to occur exactly once BEFORE the
+   * swap, so a mirror that transposed nothing cannot report a pass.
+   */
+  function mirrorWithTransposedOrder(fn: string, ledgerAnchor: string, writeAnchor: string): string {
+    const src = readFileSync(CONTEXT_IO_TS, "utf8");
+    expect(
+      src.split(ledgerAnchor).length - 1,
+      `PREMISE: ${fn}'s ledger anchor was not found exactly once, so this mirror transposed nothing`,
+    ).toBe(1);
+    expect(
+      src.split(writeAnchor).length - 1,
+      `PREMISE: ${fn}'s note-write anchor was not found exactly once, so this mirror transposed nothing`,
+    ).toBe(1);
+    const SWAP = "/* __GSD_TRANSPOSE_SLOT__ */";
+    const transposed = src
+      .replace(ledgerAnchor, SWAP)
+      .replace(writeAnchor, ledgerAnchor)
+      .replace(SWAP, writeAnchor);
+    const path = join(freshTmp(`ctx-io-order-mirror-${fn}-`), "context-io.ts");
+    writeFileSync(path, transposed);
+    return path;
+  }
+
+  it("promoteAdmitted: transposing its two statements turns the order assertion RED", () => {
+    const path = mirrorWithTransposedOrder(
+      "promoteAdmitted",
+      "let alreadyRecorded: boolean;",
+      "const writtenId = appendPreAdmittedNote(task, note, body, to, sourceId);",
+    );
+    const route = deriveNoteLedgerRoutes(path).get("promoteAdmitted");
+    expect(route, "the transposed mirror lost the route entirely").toBeDefined();
+    expect(
+      (route as NoteLedgerRoute).ledgerAt < (route as NoteLedgerRoute).noteWriteAt,
+      "the order assertion still passes on a mirror with promoteAdmitted's two statements " +
+        "transposed, so it is not a control",
+    ).toBe(false);
+  });
+
+  it("admitAndAppend: transposing its two statements turns the order assertion RED", () => {
+    // The write anchor carries its FOLLOWING line, because the bare call line occurs TWICE in this
+    // function — once in the gated branch and once in the non-gated one — and the PREMISE above
+    // caught exactly that. The gated one is the member of this axis; the identity guard beside it is
+    // what makes the anchor unique. Swapping the two SINGLE-LINE statements keeps the braces
+    // balanced, so the mirror is the pre-31-21 program for this route rather than a broken parse.
+    const path = mirrorWithTransposedOrder(
+      "admitAndAppend",
+      "appendAuditLedger(repoRoot, scalars, isHighSeverityRole(note.by), vb);",
+      "    const persistedId = appendPreAdmittedNote(task, note, body, contextRoot, id);\n" +
+        "    if (persistedId !== id) {",
+    );
+    const route = deriveNoteLedgerRoutes(path).get("admitAndAppend");
+    expect(route, "the transposed mirror lost the route entirely").toBeDefined();
+    expect(
+      (route as NoteLedgerRoute).ledgerAt < (route as NoteLedgerRoute).noteWriteAt,
+      "the order assertion still passes on a mirror with admitAndAppend's two statements " +
+        "transposed, so it is not a control",
+    ).toBe(false);
+  });
+
+  it("a SEEDED third both-writer moves the cardinality to 3 and is NAMED", () => {
+    const path = join(freshTmp("ctx-io-route-grow-"), "context-io.ts");
+    writeFileSync(
+      path,
+      readFileSync(CONTEXT_IO_TS, "utf8") +
+        "\nfunction seededBothWriter(task: string, note: NoteInput, body: string, root: string): void {\n" +
+        '  appendAuditLedger(root, {}, false, "");\n' +
+        "  appendPreAdmittedNote(task, note, body, root);\n}\n",
+    );
+    const derived = deriveNoteLedgerRoutes(path);
+    expect(derived.size).toBe(EXPECTED_NOTE_LEDGER_ROUTE_COUNT + 1);
+    expect([...derived.keys()]).toContain("seededBothWriter");
+  });
+
+  it("the CONVERSE: deleting a member's ledger call moves the cardinality to 1", () => {
+    const src = readFileSync(CONTEXT_IO_TS, "utf8");
+    const anchor = "appendAuditLedger(repoRoot, scalars, isHighSeverityRole(note.by), vb);";
+    expect(
+      src.split(anchor).length - 1,
+      "PREMISE: the shrink anchor was not found exactly once, so this mirror deleted nothing",
+    ).toBe(1);
+    const path = join(freshTmp("ctx-io-route-shrink-"), "context-io.ts");
+    writeFileSync(path, src.replace(anchor, "void scalars;"));
+    const derived = deriveNoteLedgerRoutes(path);
+    expect(derived.size).toBe(EXPECTED_NOTE_LEDGER_ROUTE_COUNT - 1);
+    expect([...derived.keys()]).not.toContain("admitAndAppend");
+  });
+
+  it("the PREMISE fires on a RENAMED authority rather than reporting an empty set as a pass", () => {
+    // The vacuity guard, watched failing. If `appendAuditLedger` is renamed, the derivation returns
+    // NOTHING — and an empty map satisfies every "the ledger comes first" claim above trivially.
+    const src = readFileSync(CONTEXT_IO_TS, "utf8");
+    const path = join(freshTmp("ctx-io-route-renamed-"), "context-io.ts");
+    writeFileSync(path, src.replace(/appendAuditLedger/g, "appendAuditLedgerRenamedAway"));
+    expect(
+      deriveNoteLedgerRoutes(path).size,
+      "renaming the ledger authority did NOT empty the derivation, so the PREMISE case above is not " +
+        "guarding the vacuity it claims to guard",
+    ).toBe(0);
+  });
+});
+
+// ─── PART SIX-G (c) — the WORKFLOW SENTENCE is bound to the DERIVED member set. ─────────────────
+//
+// WHY PROSE NEEDS A BINDING HERE. WR-22 exists because a sentence in
+// `agent-factory/workflows/18-context-compaction.md` asserted a property the code did not have. The
+// correction states the property AND names the routes it covers — and a route list typed into prose
+// is a second hand-maintained set beside a derived one, which is this repository's named failure
+// class exactly. So the sentence is bound: every member the derivation returns must be NAMED in the
+// paragraph, and the cardinality is asserted in the SAME case, so a third route appearing later
+// turns this red rather than silently widening a claim the code no longer supports.
+//
+// WHAT HAPPENS IF THE DERIVATION LATER RETURNS A THIRD MEMBER. This case fails on the membership
+// assertion first (the paragraph will not name it), and on the cardinality assertion beside it. The
+// remedy is to invert the new route and name it in the sentence — never to relax either assertion.
+
+const COMPACTION_WORKFLOW = join(ROOT, "agent-factory", "workflows", "18-context-compaction.md");
+
+/** The heading whose paragraph carries the claim, in one place so both sides agree. */
+const TRACE_UPDATES_HEADING = "## Trace updates";
+
+function traceUpdatesParagraph(): string {
+  const text = readFileSync(COMPACTION_WORKFLOW, "utf8");
+  const start = text.indexOf(TRACE_UPDATES_HEADING);
+  expect(
+    start,
+    `FAIL-CLOSED PREMISE: "${TRACE_UPDATES_HEADING}" was not found in ${COMPACTION_WORKFLOW}, so the ` +
+      "binding below would compare against an empty string and pass vacuously",
+  ).toBeGreaterThan(-1);
+  const rest = text.slice(start + TRACE_UPDATES_HEADING.length);
+  const end = rest.indexOf("\n## ");
+  return end === -1 ? rest : rest.slice(0, end);
+}
+
+describe("31-21 — the corrected workflow sentence names exactly the routes the derivation returns", () => {
+  it("PREMISE: the paragraph was located and is not empty", () => {
+    expect(traceUpdatesParagraph().trim().length).toBeGreaterThan(200);
+  });
+
+  it("every DERIVED note-then-ledger route is NAMED in the paragraph", () => {
+    const paragraph = traceUpdatesParagraph();
+    const derived = [...deriveNoteLedgerRoutes(CONTEXT_IO_TS).keys()].sort();
+    expect(
+      derived.length,
+      "PREMISE: the derivation returned no routes, so naming them is vacuous",
+    ).toBeGreaterThan(0);
+    for (const fn of derived) {
+      expect(
+        paragraph,
+        `the workflow paragraph claims the ledger-before-note property but does not name the route ` +
+          `"${fn}", which the derivation says also writes both. A corrected sentence whose scope is ` +
+          `broader than the routes actually inverted is the exact defect being fixed, committed a ` +
+          `second time in the act of fixing it`,
+      ).toContain(fn);
+    }
+    // The cardinality is asserted in the SAME case, so the pairing is one fact rather than two that
+    // can drift apart. A third route makes both halves fail together.
+    expect(derived.length).toBe(EXPECTED_NOTE_LEDGER_ROUTE_COUNT);
+  });
+
+  it("the paragraph states the retention SCOPE, the reachable over-record, and the unreadable refusal", () => {
+    const paragraph = traceUpdatesParagraph();
+    // The three things WR-22 named as missing, each asserted rather than assumed present.
+    expect(paragraph, "the retention scope is not stated, so the claim reads as unconditional").toContain(
+      "`audit_retention: retained`",
+    );
+    expect(
+      paragraph,
+      "the paragraph does not disclose that the converse (a ledger line for a note that was not " +
+        "written) is REACHABLE, which is the honest half of choosing an asymmetry",
+    ).toContain("over-record");
+    expect(
+      paragraph,
+      "the paragraph does not state that an unreadable destination ledger refuses rather than " +
+        "assuming absence",
+    ).toContain("cannot be read");
+    expect(
+      paragraph,
+      "the paragraph does not disclose that under any other retention value it says nothing",
+    ).toContain("any other `audit_retention` value");
+  });
+
+  it("a mirror of the paragraph with one route name removed FAILS the binding", () => {
+    // Watched failing: the binding is a control rather than a sentence that happens to contain two
+    // words. The paragraph is mirrored with `admitAndAppend` deleted and the same predicate re-run.
+    const paragraph = traceUpdatesParagraph();
+    const mirrored = paragraph.split("admitAndAppend").join("someOtherRoute");
+    const derived = [...deriveNoteLedgerRoutes(CONTEXT_IO_TS).keys()];
+    expect(derived).toContain("admitAndAppend");
+    expect(
+      mirrored.includes("admitAndAppend"),
+      "the mirror still names the route it was built to remove, so the case above proves nothing",
+    ).toBe(false);
+  });
+});

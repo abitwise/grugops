@@ -962,6 +962,25 @@ export function atomicWrite(finalPath: string, data: string): void {
 // `O_NONBLOCK` is what makes the open itself safe: opening a FIFO for reading blocks until a writer
 // appears unless it is set. ENOENT is the ONLY error mapped to "nothing here"; every other open
 // failure is a position that IS occupied and could not be read, which fails CLOSED.
+//
+// ── DECISION D-24, MIRRORED HERE (one of the three places that must agree). ─────────────────────
+// Full text: `.planning/phases/31-autonomous-manual-testing/31-CONTEXT.md`, gap-closure round 5,
+// plan 31-21. Also mirrored in `31-21-SUMMARY.md`'s key-decisions block.
+//
+//   Every read and every append this module performs on a caller-influenced filesystem position
+//   goes through ONE non-blocking authority, and a property asserted in prose is asserted over the
+//   DERIVED set of routes that have it, never over the route a reviewer happened to name.
+//
+// Three sub-decisions: (1) one non-blocking reader and one non-blocking appender for the whole
+// module, with the canonical form `absent, or a regular file` stated once and everything else
+// refused by name; (2) the GOV-02 ledger event is appended BEFORE the note is written at EVERY
+// member of a derived note-then-ledger writer set (`promoteAdmitted` and `admitAndAppend`), and the
+// ledger look fails CLOSED, because an over-record is the safe asymmetry and a note with no ledger
+// line is a repudiation; (3) the corrected workflow prose NAMES the routes it covers and a case
+// binds it to that derived set. D-24 does NOT re-base `ADMIT_FROZEN_SHA256` and does NOT touch
+// `hooks/guard.ts` or `FROZEN_GUARD_BLOB`. Four residuals are named there, including R-31-21-03:
+// this plan's own stated premise about `appendFileSync` was MEASURED false and is closed here
+// rather than recorded as a disposition.
 // ═══════════════════════════════════════════════════════════════════════════════════════════════
 
 /**

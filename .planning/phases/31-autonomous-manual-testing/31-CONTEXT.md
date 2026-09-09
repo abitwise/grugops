@@ -727,6 +727,132 @@ probe drove an admission from that shape and the GOV-02 event landed in the plan
   - **Recorded in three places that must agree:** here, in the resolution-order docstring beside
     `trustedRepoRoot` in `scripts/context-io.ts`, and in `31-19-SUMMARY.md`'s key-decisions block.
 
+#### Gap-closure decision — D-24 (2026-09-09, gap-closure round 5, plan 31-21)
+
+This is a GAP-CLOSURE decision recorded during execution, not an original user decision from the
+discussion. It sits BESIDE D-22 and D-23 and leaves D-01 through D-23 untouched. No existing
+decision above is edited, renumbered or deleted.
+
+**Forced by:** CR-12 and WR-22 of `31-REVIEW.md`, each independently reproduced by
+`31-VERIFICATION.md` round 5 (behavioral spot-check row 7, the `regressions:` entry for CR-12, and
+the key-link row recording `writeNoteFile`'s destination read MISWIRED). Both were re-reproduced on
+this tree against the committed `scripts/context-io.js` before any source change: a FIFO at a note
+path made `appendNote` exit 124 under `timeout 10` with zero bytes of stdout and zero of stderr, and
+a FIFO at `<repoRoot>/.grugops/audit/admissions.jsonl` made `promoteAdmitted` exit 124 under
+`timeout 15` with the destination note ALREADY written.
+
+**Which register failed — two of them, and neither had been touched before.**
+
+The first is WHICH PRIMITIVE A READ USES. Four rounds of this phase built derived axes over
+`scripts/context-io.ts`: which functions can write a note, what the authority refuses, where the
+re-binding route declines, how each writer's destination id is decided. Not one of them asks what a
+read is made of. So round 4's CR-11 fix could add an unguarded `existsSync` + `readFileSync` pair to
+the module's single note-write chokepoint — inside a function every one of those axes already covers
+— and every axis stayed green while one allowed `mkfifo` wedged every writer in the module. The same
+file already carried a 25-line header explaining that exact hazard, and a reader that refuses it,
+2,400 lines below the new unguarded read. A rule living inside one function is a HABIT, not an
+authority: the next reader added to the module did not inherit it.
+
+The second is HOW MANY ROUTES A PROPERTY IS ASSERTED OVER. WR-22 cited `promoteAdmitted:1704` and
+nothing else, and the sentence it corrects — `18-context-compaction.md`'s "the destination never
+holds a human-disposed finding with no ledger line" — is a claim about the whole substrate.
+`admitAndAppend`'s gated branch has the identical note-write / ledger-append pair, with `disposed_by`
+derived from the very `human:NAME` stamp that makes the note human-disposed. Inverting only the
+route the review walked would have left the corrected sentence false at the other one: the claim
+outrunning the mechanism INSIDE the edit that exists to stop it.
+
+- **D-24: every read and every append this module performs on a caller-influenced filesystem
+  position goes through ONE non-blocking authority, and a property asserted in prose is asserted
+  over the DERIVED set of routes that have it, never over the route a reviewer happened to name.**
+  D-24 adds no case to `admit()`, does not touch its frozen byte-span (`ADMIT_FROZEN_SHA256` is NOT
+  re-based), and does not touch `hooks/guard.ts` (`FROZEN_GUARD_BLOB` is NOT re-based). It makes
+  three sub-decisions.
+  - **(1) One non-blocking reader, and one non-blocking appender, for the whole module.** The body
+    of `readGovernanceConfigCandidate` was LIFTED into `readRegularFileOrNull` rather than copied
+    beside it, and that function became a caller of it — so the module has one read rather than two
+    habits. Its own 25-line header stays in place as the recorded ORIGIN of the rule. The canonical
+    form for a caller-influenced position is stated once, as an exported constant: `absent, or a
+    regular file`. Everything else — FIFO, device, directory, socket, present-and-unopenable — is
+    refused in bounded time, BY NAME, naming the position. The decision is made by `fstat` on the
+    OPEN descriptor rather than by an enumeration of dangerous file types, because an enumeration is
+    a list that rots; `fstat` through the descriptor also stats THROUGH a symlink, so a file
+    legitimately delivered by a symlink to a regular file still reads while a symlink to a FIFO is
+    refused for what it points AT. Five positions were routed through it, of which the review named
+    two: the write chokepoint's destination read, `ledgerRecordsId`, the `readRawNotes` directory
+    walk, the two CLI argv note reads, and the governance-config read. `readFileSync` is now absent
+    from the module's `node:fs` import list entirely — 5 non-comment call sites became 0.
+  - **(2) The GOV-02 ledger event is appended BEFORE the note is written, at EVERY member of a
+    DERIVED note-then-ledger writer set, and the ledger look fails CLOSED.** The set is derived from
+    the module's own source and has two members, `promoteAdmitted` and `admitAndAppend`; `admit()`
+    appends an event and writes no note, and the derivation SHOWS that rather than the author
+    asserting it. The two steps cannot be made atomic — this module has no transaction — so the
+    ORDER decides which asymmetry a crash can produce, and it is chosen deliberately: a ledger line
+    for a note that was not written is an OVER-RECORD, legible and reconcilable against the notes
+    directory, while a note with no ledger line is a REPUDIATION. Neither route carries a value
+    backwards: on both, the id is frozen before either step. `ledgerRecordsId` no longer answers
+    `false` for a ledger that is present and unreadable — the caller's response to "not recorded" is
+    to APPEND, so a fail-open read manufactured the duplicate event D-19 (4) exists to prevent. It
+    now throws, and `promoteAdmitted` raises the new `unreadable-audit-ledger` decline before
+    anything is written. D-19 (4) itself is unchanged: when the id is already recorded, nothing is
+    appended.
+  - **(3) The corrected prose names the routes it covers, and is BOUND to the derived set.** The
+    `18-context-compaction.md` sentence now states the property, the two routes it holds on, the
+    `audit_retention: retained` scope, the fact that under any other retention value no ledger is
+    kept and the paragraph says nothing, the REACHABLE over-record direction, and the
+    unreadable-ledger refusal. A case in `scripts/context-io-writer-set.test.ts` asserts that every
+    member the derivation returns is NAMED in that paragraph and asserts the cardinality in the same
+    case, so a third route appearing later turns the binding red instead of silently widening a
+    claim the code no longer supports.
+  - **The road not taken, recorded.** Adding the three lines of `O_NONBLOCK`/`fstat`/refusal
+    directly to `writeNoteFile` — the smallest edit that closes the reproduction — is rejected. It
+    would have produced a THIRD copy of one discipline in a file that already had two, and the
+    reason CR-12 exists is that the second copy was never made: the rule was not reachable as an
+    authority. A fix that closes a reproduction while leaving the next reader free to omit the rule
+    is the "fix the probe shape" pattern five rounds of this phase have paid for.
+  - **What D-24 does NOT establish.**
+    - `R-31-21-01` — `atomicWrite`'s `writeFileSync` is a blocking-capable call this module still
+      makes. It is NOT AIMABLE: its destination carries a random UUID no caller can predict, and the
+      subsequent `renameSync` replaces rather than opens. A caller who can watch the temp name
+      appear and win the race is already a same-uid direct-filesystem actor, which is the standing
+      T-31-25 residual. Disposition: accept, recorded as a derived member with this answer rather
+      than as prose.
+    - `R-31-21-02` — a non-regular file planted INSIDE a `notes/` directory is SKIPPED by the
+      directory walk rather than refused loudly. The walk already skips a file that does not parse,
+      because one malformed file must not make a whole task's context unreadable, and throwing would
+      let one planted FIFO deny `render` and `currentState` for the entire task — trading a hang for
+      a denial one register over. The write side stays loud: the chokepoint refuses that position by
+      name. What this costs is that the skip is quiet on a surface whose value is legibility.
+      Disposition: accept, bounded by the loud write-side refusal.
+    - `R-31-21-03` — THE PLAN'S OWN PREMISE WAS WRONG AND IS CORRECTED HERE RATHER THAN LEFT
+      STANDING. Plan 31-21 recorded as a `must_haves.truth` that "the measured behaviour on darwin
+      is that `appendFileSync` to a FIFO exits 0 IMMEDIATELY — no hang, and the GOV-02 event is
+      silently discarded", and asked for that to be filed as a derived write-site disposition.
+      Measured on this tree, it is false: `appendFileSync` opens for WRITING, and opening a FIFO for
+      writing blocks until a reader appears — `timeout 10` produced exit 124 through BOTH `admit`
+      and `admitAndAppend`. That is a fourth blocking position in CR-12's class, reachable from two
+      routes that consult no ledger and therefore inherit no read-side refusal. It is closed rather
+      than recorded: `appendRegularFileLine` replaces `appendFileSync`, a FIFO now fails ENXIO in
+      0.05 s, and an admission that cannot be recorded under `retained` is REFUSED rather than
+      granted unrecorded. The refusal lives in the WRITERS (`appendNote`, `admitAndAppend`) and not
+      in `admit()`, because `admit()` decides whether a note is admissible while "can this admission
+      be recorded" is a fact about the filesystem — putting the second question inside the authority
+      would conflate them and would add a member to a refusal-family axis whose every member is
+      about the note. This is why `admit()`'s frozen span is untouched.
+    - `R-31-21-04` — the derivations behind both new axes are SYNTACTIC. They resolve a call by
+      identifier, so an alias or a computed member call is not seen; and the order axis excludes a
+      note write that is the whole expression of a `return` statement, because such a tail
+      delegation returns before any ledger work in that function happens. Widening either matcher
+      once per counter-example is the failure this repository has paid for, so the boundary is
+      written down instead. What watches it is behavioural: the FIFO corpus and the per-member
+      transposed mirrors.
+  - **Reversibility: costly.** The named refusal clause, the canonical-form constant and the
+    one-authority rule become part of the module's exported contract and of two derived axes.
+    Reverting restores a chokepoint the round-5 verifier measured hanging forever with zero bytes on
+    both streams, reachable by every writer in the module, and a GOV-02 ledger whose append was
+    measured wedging two more routes.
+  - **Recorded in three places that must agree:** here, in the `writeNoteFile` / one-reader header
+    in `scripts/context-io.ts`, and in `31-21-SUMMARY.md`'s key-decisions block.
+
 ### Claude's Discretion
 - Exact runnable file name and the exact wording of the two new loud-skip markers, as long as
   each is a single exported constant with a single emission point (the `uat-live.test.ts` shape).
