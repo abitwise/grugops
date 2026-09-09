@@ -2738,7 +2738,7 @@ export function trustedRepoRoot() {
     return GOVERNANCE_FALLBACK_BASE;
 }
 /**
- * WHAT THE RESOLUTION ORDER STILL CANNOT ANSWER, ENUMERATED (plan 31-15).
+ * WHAT THE RESOLUTION ORDER STILL CANNOT ANSWER, ENUMERATED (plan 31-15, extended by plan 31-19).
  *
  * WHY THIS IS A FROZEN EXPORT AND NOT A PARAGRAPH. This repository's recorded failure mode is that a
  * gap in a safety predicate arrives as a SILENCE — nobody wrote it down, so the next round rediscovers
@@ -2794,6 +2794,63 @@ export const TRUSTED_ROOT_RESIDUALS = Object.freeze([
             "is what makes the search safe to run from an arbitrary working directory.",
         what_would_force_it_closed: "A published, explicit statement that an outer repository governs an inner one — which today " +
             "no artifact in this project makes, and which would need its own decision record.",
+    }),
+    Object.freeze({
+        id: "R-31-19-01",
+        shape: "A factory configuration held at an ancestor BELOW the user's home directory, with no " +
+            "repository boundary marker between it and the working directory, governs any process whose " +
+            "working directory is under it.",
+        reason: "That IS step 3, and it is WR-15's CLOSURE rather than a residue of it: the round-3 verifier " +
+            "measured every non-Claude-Code host reading the kit's lean default instead of the target " +
+            "repository's dial, and the nearest-ancestor search is what fixed it. WR-21's `Fix:` asks for " +
+            "a case answering the kit for a working directory below a planted ancestor configuration. " +
+            "That case is asserted here for an ancestor AT OR ABOVE the home directory, which is the " +
+            "shape the review actually reproduced; asserting it for an ancestor below the home directory " +
+            "would revert WR-15, so the difference is recorded rather than quietly taken.",
+        what_would_force_it_closed: "A published statement that only a VERSION-CONTROLLED checkout may govern. That would make an " +
+            "un-versioned project directory unreadable to the order, so it needs its own decision record: " +
+            "nothing in this project requires a host repository to carry a repository marker.",
+    }),
+    Object.freeze({
+        id: "R-31-19-02",
+        shape: "The home directory the stop is measured against is whatever `os.homedir()` names, which " +
+            "reads the ambient `HOME` or `USERPROFILE` value a process controls in its own child " +
+            "environment.",
+        reason: "Pre-existing in kind, and the same shape as R-31-15-03 one name over. A process that can set " +
+            "`HOME` can already set either project-directory variable, and those name the governance root " +
+            "outright, so the stop adds no capability an adversary did not have. The stop exists against " +
+            "the ORDINARY case the review reproduced — a legitimate shared install at `~/.grugops` " +
+            "adopted by a process that meant nothing by it — not against a process choosing its own root.",
+        what_would_force_it_closed: "The same thing that would close R-31-15-01 and R-31-15-03: a governance root resolved by the " +
+            "host from outside the agent's process tree and delivered through a channel the agent cannot " +
+            "write, as the per-call admission hook's session grant already is.",
+    }),
+    Object.freeze({
+        id: "R-31-19-03",
+        shape: "On a platform whose filesystem reports no meaningful directory identity, the stop compares " +
+            "path SPELLINGS alone, so the same home directory reached under an unusual spelling is not " +
+            "recognised as the home directory.",
+        reason: "Decided this way because the alternative fails in the worse direction. Where identities are " +
+            "degenerate every directory carries one identity, so trusting them would stop the walk at its " +
+            "first step and hand every host on that platform the kit's lean default — a configuration " +
+            "moving from refused to admitted, which is the WR-15 defect this order exists to close. The " +
+            "premise is CHECKED rather than assumed: the home directory's identity is compared with its " +
+            "own parent's, and the identity set is discarded only where the two agree.",
+        what_would_force_it_closed: "A per-platform identity primitive this module can trust, or a canonicalisation of both sides " +
+            "through one resolver — either of which has to be MEASURED on that platform rather than " +
+            "reasoned about from this one.",
+    }),
+    Object.freeze({
+        id: "R-31-19-04",
+        shape: "A version-control system whose checkout root carries a marker name absent from " +
+            "`REPO_BOUNDARY_MARKERS` is not recognised as a repository root, so a configuration nested " +
+            "inside such a checkout is not outranked by the checkout's own.",
+        reason: "The marker set is CONTENT, and this project has learned that an open set cannot be claimed " +
+            "closed. It is not load-bearing for the BOUND: the home stop bounds the walk whatever markers " +
+            "a filesystem happens to carry, and this set decides only where a repository STARTS. What it " +
+            "leaves is the pre-31-19 nearest-wins answer, which is what every host had before this plan.",
+        what_would_force_it_closed: "A boundary predicate that enumerates no tools — a property every checkout root has and no " +
+            "directory inside one has — which no artifact in this project can name today.",
     }),
 ]);
 /** The ceiling on a governance config read. Larger than any real config, small enough to bound. */

@@ -6525,7 +6525,7 @@ describe("31-15 — WR-15: the target repository's dial is read on every host", 
     expect(mod.TRUSTED_ROOT_RESIDUALS.length).toBeGreaterThan(0);
     for (const residual of mod.TRUSTED_ROOT_RESIDUALS) {
       expect(Object.isFrozen(residual)).toBe(true);
-      expect(residual.id).toMatch(/^R-31-15-\d\d$/);
+      expect(residual.id).toMatch(/^R-31-(15|19)-\d\d$/);
       expect(residual.shape.length, `${residual.id} states no shape`).toBeGreaterThan(40);
       expect(residual.reason.length, `${residual.id} states no reason`).toBeGreaterThan(40);
       expect(
@@ -6554,6 +6554,20 @@ describe("31-15 — WR-15: the target repository's dial is read on every host", 
     "R-31-15-04":
       "DELIBERATE — it is threat T-31-15-03's mitigation, and closing it would need a published " +
       "decision that an outer repository governs an inner one.",
+    // ── Plan 31-19, WR-21. ──────────────────────────────────────────────────────────────────────
+    "R-31-19-01":
+      "RECORDED, not closed — it IS step 3, and step 3 is WR-15's closure. WR-21's `Fix:` sentence " +
+      "reads as asking the kit answer for it; that assertion is made for an ancestor at or above " +
+      "the home directory, which is the shape the review reproduced, and refused below it.",
+    "R-31-19-02":
+      "ACCEPTED, same class as R-31-15-03 one name over: a process that can set `HOME` can already " +
+      "set either project-directory variable, which names the root outright.",
+    "R-31-19-03":
+      "DECIDED this way because the alternative fails in the worse direction, and the identity " +
+      "set's own premise is checked rather than assumed.",
+    "R-31-19-04":
+      "DISCLOSED — the marker set is content and not the bound; the home stop bounds the walk " +
+      "whatever markers a filesystem carries.",
   };
 
   it("the round's written dispositions cover the register exactly — no member without one", () => {
@@ -6563,6 +6577,37 @@ describe("31-15 — WR-15: the target repository's dial is read on every host", 
     for (const [id, text] of Object.entries(RESIDUAL_DISPOSITIONS)) {
       expect(text.length, `${id}'s disposition is not a written one`).toBeGreaterThan(40);
     }
+  });
+
+  // The register's CARDINALITY, asserted separately from its members (plan 31-19). A set equality
+  // between two hand-maintained lists passes when BOTH move together, which is exactly how a member
+  // arrives without anyone deciding it. The number is the third witness.
+  it("the register's cardinality is asserted separately from its members", () => {
+    expect(
+      mod.TRUSTED_ROOT_RESIDUALS.length,
+      "the residual register grew or shrank. That is a decision — record the disposition and move " +
+        "this number deliberately, or remove the member",
+    ).toBe(8);
+    expect(Object.keys(RESIDUAL_DISPOSITIONS)).toHaveLength(8);
+  });
+
+  // THE WATCHED FAILURE. The set-equality above is only a control if it FAILS on an unbound member.
+  it("WATCHED FAIL: a seeded residual arrives unbound and moves the cardinality by exactly one", () => {
+    const seeded = [
+      ...mod.TRUSTED_ROOT_RESIDUALS,
+      Object.freeze({
+        id: "R-31-19-99",
+        shape: "A shape nobody dispositioned, seeded to prove the equality above is a control.",
+        reason: "It has no row in the round's written dispositions, which is the whole point.",
+        what_would_force_it_closed: "Nothing — this member exists only inside this case.",
+      }),
+    ];
+    expect(seeded).toHaveLength(mod.TRUSTED_ROOT_RESIDUALS.length + 1);
+    const unbound = seeded
+      .map((r) => r.id)
+      .filter((id) => !Object.prototype.hasOwnProperty.call(RESIDUAL_DISPOSITIONS, id));
+    expect(unbound, "the seeded member was not reported as unbound").toEqual(["R-31-19-99"]);
+    expect(Object.keys(RESIDUAL_DISPOSITIONS).sort()).not.toEqual(seeded.map((r) => r.id).sort());
   });
 
   it("the approval grant is never what decides these cases", () => {
@@ -7028,6 +7073,82 @@ describe("31-15 — WR-15: the target repository's dial is read on every host", 
       // expected move set is EMPTY, asserted as a set rather than as a count.
       expect(moved).toEqual([]);
       expect(driven, "the sweep drove no case").toBe(cases.length * 3);
+    });
+
+    // ── THE SAME RULE RUNNING THE OTHER WAY: A CONFIGURATION BELOW A REPOSITORY ROOT ────────────
+    //
+    // WR-21's closing paragraph names it. A vendored kit's `agent-factory/config/factory.config.json`
+    // — the SECOND published candidate, and the file every vendored copy of this kit carries — won
+    // over the host repository's own `.grugops/factory.config.json` for any process whose working
+    // directory sat under it. That is a governance dial lowered to the kit's shipped lean default by
+    // changing directory. Measured against the committed `.js` before the source change and quoted
+    // verbatim in 31-19-SUMMARY.md: root `…/host/vendor/kit`, dial `off`, and a self-stamped
+    // high-severity finding WRITTEN. It is DECIDED rather than named: a repository root's own
+    // configuration outranks one nested inside it, because a vendored kit is not a governed project.
+
+    /** A host repository carrying its own dial, with a vendored kit beneath it carrying the kit's. */
+    function vendoredKitTree(prefix = "p31-19-inner-") {
+      const host = tmp15(prefix);
+      mkdirSync(join(host, ".git"), { recursive: true });
+      mkdirSync(join(host, ".grugops"), { recursive: true });
+      writeFileSync(join(host, ".grugops", "factory.config.json"), JSON.stringify({ context: ACTIVE }));
+      const vendored = join(host, "vendor", "kit");
+      mkdirSync(join(vendored, "agent-factory", "config"), { recursive: true });
+      writeFileSync(
+        join(vendored, "agent-factory", "config", "factory.config.json"),
+        JSON.stringify({ context: { human_admission: "off" } }),
+      );
+      const sub = join(vendored, "sub");
+      mkdirSync(sub, { recursive: true });
+      return { host, vendored, sub };
+    }
+
+    it("INNER: a vendored kit's in-repo configuration no longer outranks the repository's own", () => {
+      const preFix = mirrorKit("p31-19-inner-prefix-", [NEAREST_WINS_ANCHOR]);
+      const { host, vendored, sub } = vendoredKitTree();
+
+      // PREMISE, ASSERTED: the pre-31-19 program really did adopt the vendored kit's lean default
+      // and really did admit the note under it, so the fixed answer is a change and not a tautology.
+      const before = drive("appendNote", { cwd: sub, kit: preFix });
+      expect(before.root).toBe(vendored);
+      expect(before.verdict).toBe("write");
+
+      const after = drive("appendNote", { cwd: sub, kit: KIT });
+      expect(after.root, "the host repository's own configuration must govern its own tree").toBe(host);
+      expect(after.verdict).toBe("refuse");
+      expect(after.message).toContain("human_admission: high-severity");
+    });
+
+    it("INNER, non-vacuous: where the repository root carries NO configuration, the nested one still answers", () => {
+      // The rule is "a repository ROOT's own configuration outranks a nested one", not "a nested
+      // configuration never answers". A repository that configured nothing has expressed no posture,
+      // so nothing that resolved before this plan resolves differently here.
+      const { vendored, sub, host } = vendoredKitTree("p31-19-inner-bare-");
+      rmSync(join(host, ".grugops"), { recursive: true, force: true });
+      expect(drive("trustedRepoRoot", { cwd: sub }).root).toBe(vendored);
+    });
+
+    it("BELOW-HOME, recorded as R-31-19-01: a below-home ancestor configuration still governs", () => {
+      // This is the case WR-21's `Fix:` sentence reads as asking for the KIT answer, and it is NOT
+      // asserted that way — asserting it would revert WR-15, whose whole closure is this search. The
+      // difference is the ancestor's position relative to the home directory, and the disagreement
+      // is recorded as a register member rather than taken quietly.
+      const home = tmp15("p31-19-belowhome-");
+      const ancestor = join(home, "ancestor");
+      mkdirSync(join(ancestor, ".grugops"), { recursive: true });
+      writeFileSync(join(ancestor, ".grugops", "factory.config.json"), JSON.stringify({ context: ACTIVE }));
+      const deep = join(ancestor, "a", "b", "c");
+      mkdirSync(deep, { recursive: true });
+      for (const d of [deep, join(ancestor, "a", "b"), join(ancestor, "a"), ancestor]) {
+        expect(existsSync(join(d, ".git")), `PREMISE: ${d} carries a repository marker`).toBe(false);
+      }
+      const r = drive("appendNote", { cwd: deep, env: asHome(home) });
+      expect(r.root).toBe(ancestor);
+      expect(r.verdict).toBe("refuse");
+      expect(
+        mod.TRUSTED_ROOT_RESIDUALS.map((x) => x.id),
+        "the below-home answer is behaviour this suite asserts, so it must be a NAMED residual",
+      ).toContain("R-31-19-01");
     });
   });
 });
