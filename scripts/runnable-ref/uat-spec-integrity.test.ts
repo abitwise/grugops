@@ -6078,3 +6078,155 @@ describe("uat-spec-integrity — 31-24 IN-12: one normalisation per arm, derived
     expect(isBannedModifierCall(null, new Set(["soft"]))).toBe(false);
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// 31-24 PROBE 4 — EVERY PATH TO A MEMBERSHIP QUESTION ASKS ABOUT A HEAD THE CANONICALISER SAW.
+//
+// FOUND BY THIS PLAN'S OWN RED-TEAM, NOT BY A REVIEW. PROBE 4 asks the converse of "where is the
+// canonicaliser asked": is there any path from a call expression to a membership question that does
+// NOT go through it? There was. Arms (a) and (b) — the caught and conditional assertion arms —
+// compared the RAW head identifier's text against `expect` / `assert`, so two words in an import
+// line defeated both:
+//
+//   import { test, expect as check } from "@playwright/test";
+//   test("a", async ({ page }) => {
+//     try { await check(page.getByTestId("x")).toBeVisible(); } catch { void 0; }
+//   });
+//
+// measured against the committed .js before the fix: `0 findings over 1/1`, EXIT=0, while the
+// identical file with the un-renamed head reported `1 finding(s)` naming the caught assertion. The
+// namespace spelling (`pw.expect(...)`) and the CONDITIONAL arm both measured the same way. That is
+// WR-14's defect — a head-set check defeated by a rename — in the one arm family D-18 (3) never
+// reached, and it is exactly the shape UNRESOLVABLE_CALLEE_RESIDUALS did not disclose.
+//
+// THE FIX IS THE ONE AUTHORITY, ASKED TWICE FOR TWO ROUTES, and it adds no new rule. A rename is
+// reachable through the head IDENTIFIER (`check` -> `expect`), and a namespace is reachable only
+// through the resolved PATH (`pw.expect` -> `expect`), because a namespace head has no single
+// imported name to substitute. The arms therefore ask BOTH routes and take the union, and both
+// routes are canonicalised through `canonicaliseHeadSegment` at the call's own position, so the
+// scope rule D-27 decides governs them too.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+describe("uat-spec-integrity — 31-24 PROBE 4: the assertion arms ask about a canonicalised head", () => {
+  function findingsOf(body: string): string[] {
+    const root = mkTargetRepo({});
+    const dest = join(root, "e2e", "uat", "subject.uat.spec.ts");
+    mkdirSync(dirname(dest), { recursive: true });
+    writeFileSync(dest, body, "utf8");
+    const r = runCheck(root, "--json");
+    if (r.status === 0) return [];
+    return (JSON.parse(r.stdout) as { findings: string[] }).findings;
+  }
+
+  it("RED A (caught, RENAMED head): `import { expect as check }` no longer defeats arm (a)", () => {
+    const findings = findingsOf(
+      [
+        'import { test, expect as check } from "@playwright/test";',
+        'test("a", async ({ page }) => {',
+        "  try {",
+        '    await check(page.getByTestId("x")).toBeVisible();',
+        "  } catch {",
+        "    void 0;",
+        "  }",
+        "});",
+        "",
+      ].join("\n"),
+    );
+    expect(findings.length, "PRE-FIX MEASURED: `0 findings`, EXIT=0").toBe(1);
+    expect(findings[0]).toContain("caught assertion");
+  });
+
+  it("RED B (caught, NAMESPACE head): `pw.expect(...)` no longer defeats arm (a)", () => {
+    const findings = findingsOf(
+      [
+        'import * as pw from "@playwright/test";',
+        'pw.test("a", async ({ page }: { page: { getByTestId(id: string): unknown } }) => {',
+        "  try {",
+        '    await pw.expect(page.getByTestId("x")).toBeVisible();',
+        "  } catch {",
+        "    void 0;",
+        "  }",
+        "});",
+        "",
+      ].join("\n"),
+    );
+    expect(findings.length, "PRE-FIX MEASURED: `0 findings`, EXIT=0").toBe(1);
+    expect(findings[0]).toContain("caught assertion");
+  });
+
+  it("RED C (conditional, RENAMED head): the same rename no longer defeats arm (b)", () => {
+    const findings = findingsOf(
+      [
+        'import { test, expect as check } from "@playwright/test";',
+        'test("a", async ({ page }) => {',
+        "  if (Math.random() > 0.5) {",
+        '    await check(page.getByTestId("x")).toBeVisible();',
+        "  }",
+        "});",
+        "",
+      ].join("\n"),
+    );
+    expect(findings.length, "PRE-FIX MEASURED: `0 findings`, EXIT=0").toBe(1);
+    expect(findings[0]).toContain("conditional assertion");
+  });
+
+  it("CONTROL: the un-renamed spellings are unmoved, and are still reported ONCE per assertion", () => {
+    const caught = findingsOf(
+      [
+        'import { test, expect } from "@playwright/test";',
+        'test("a", async ({ page }) => {',
+        "  try {",
+        '    await expect(page.getByTestId("x")).toBeVisible();',
+        "  } catch {",
+        "    void 0;",
+        "  }",
+        "});",
+        "",
+      ].join("\n"),
+    );
+    expect(caught.length, "a chained assertion must still report exactly once").toBe(1);
+    expect(caught[0]).toContain("caught assertion");
+  });
+
+  it("CONTROL: the SCOPE rule governs the new route — a LOCAL `check` is not an assertion head", () => {
+    // The whole point of routing through the one canonicaliser rather than adding a second head
+    // set: a file that renames `expect` to `check` AND separately binds a local `check` must not be
+    // refused, and no finding may name a construct the file does not contain. This is WR-20's
+    // direction, asserted for the arm family PROBE 4 just brought under the rule.
+    expect(
+      findingsOf(
+        [
+          'import { test, expect as check, expect } from "@playwright/test";',
+          'test("a", async ({ page }) => {',
+          "  function inner(check: (n: number) => number): number {",
+          "    try {",
+          "      return check(1);",
+          "    } catch {",
+          "      return 0;",
+          "    }",
+          "  }",
+          "  void inner((n: number) => n);",
+          '  await expect(page.getByTestId("x")).toBeVisible();',
+          "});",
+          "",
+        ].join("\n"),
+      ),
+      "the local `check` parameter is the nearest binding, so the rename must not be applied there",
+    ).toEqual([]);
+  });
+
+  it("CONTROL: a legitimate straight-line assertion on a renamed head is NOT refused", () => {
+    expect(
+      findingsOf(
+        [
+          'import { test, expect as check } from "@playwright/test";',
+          'test("a", async ({ page }) => {',
+          '  await check(page.getByTestId("x")).toBeVisible();',
+          "});",
+          "",
+        ].join("\n"),
+      ),
+      "arms (a) and (b) refuse a CONTEXT, not a head; canonicalising the head must not change that",
+    ).toEqual([]);
+  });
+});
