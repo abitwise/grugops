@@ -550,3 +550,282 @@ phase's derivations currently enumerate."*
 prevent.**
 
 ---
+
+## 7. The disposition ledger — one row per finding, per anti-pattern row, per `missing:` bullet
+
+**Every row states four things:** the finding, the plan that owned it, the disposition, and the
+MEASUREMENT that supports it — cited into §2's pairing table rather than restated. **A row whose
+disposition is `closed` MUST cite a measurement. A row with no measurement is `UNKNOWN - verify` and
+says so.**
+
+Dispositions used: **closed** (a measurement shows the behaviour the finding named is gone) ·
+**closed with a named residual** (the finding is closed and a bounded remainder is registered in the
+code's own exported register) · **partially closed** (one spelling closed, another reproduces;
+both printed) · **carried** (open by choice, with the reason) · **deferred** (owned by a later plan,
+with the criterion).
+
+### 7.1 Block A — the numbered findings of `31-REVIEW.md`
+
+| # | Finding | Owner | Disposition | Measurement |
+|---|---|---|---|---|
+| A1 | **CR-09** — the `()` routing marker defeats both whole-path arms: `expect.configure({retries:2}).soft(...)` | `31-16` (`D-20` (1)) | **closed** | §2.1 row 4 (`1 finding`, EXIT=1, naming `expect.configure().soft`) and §2.2 rows 16–17 (the review's own instrumented table, verdict flipped `false`→`true` on the same instrument). Closed **by one normaliser** — `stripRoutingLinks("expect.configure().soft")` → `"expect.soft"` — not by a new ban member; `BANNED_EXACT_PATHS` is still `["expect.soft"]` |
+| A2 | **CR-09, second variant** — `expect.configure({retries:2}).configure({soft:true})(...)` | `31-16` (`D-20` (1)–(2)) | **closed** | §2.1 row 5 (`1 finding`, EXIT=1, naming `expect.configure().configure`) and §2.2 row 17 (`opts=["soft"]` → banned: true). The converse ordering is also refused (§2.2 note; `31-16` row 3) |
+| A3 | **CR-10** — `testInfo.skip()/.fail()/.fixme()` through the fixture parameter | `31-16` (`D-20` (3)) | **closed** | §2.1 row 6 and §2.2 rows 18–19. Closed **from the parse**: `deriveTestInfoParameterNames` → `["testInfo"]`, `canonicaliseHeadSegment("testInfo.skip", …)` → `"test.info().skip"`, `isBannedModifierPath` → `true`. `BANNED_MODIFIER_HEADS` is still `["test","describe"]` — the excuse the review disproved was removed, not relocated |
+| A4 | **CR-11** — `promoteAdmitted` writes to a caller-chosen id and never consults the destination | `31-18` (`D-22`) | **closed** | §2.1 row 9 and §2.2 row 20, both spellings: the promotion is DECLINED and the destination file is byte-unchanged. Enforced at `writeNoteFile`, the module's single note-write chokepoint, so the capability is closed for **every** writer rather than in the one route the reviewer walked |
+| A5 | **WR-17** — the "proof over bytes" is a proof over bytes the caller supplies | `31-18` (`D-22`) | **closed with a named residual** | §2.2 row 21: all four dial rows now refuse where all four previously wrote. Residual `T-31-18-01` (`PROMOTE_ADMITTED_RESIDUALS`): the origin store is recognised by SHAPE or by `trustedRepoRoot()`, never by a registry — see §8, `RR-04` |
+| A6 | **WR-18** — the governance config is read for readability only, never for its value | `31-18` (`D-22`) | **closed** | §2.1 row 10 (`isGatedNote` now called in the function body) and §2.2 row 21 / PROBE 3: the two routes **agree on all six dial values**. The GOV-02 ledger premise became a CHECK, not an assumption. **One `UNKNOWN - verify` attaches to which CLAUSE is named on two rows — §4.4** |
+| A7 | **WR-19** — the 512-step bound restarts per recursion frame, so a deep chain kills the process | `31-17` (`D-21` (1)) | **closed** | §2.1 row 8 and §2.2 rows 22–23: the end-to-end 4000-link chain now exits 0 with the measurement line on stdout and an empty stderr; the two module-level shapes are now `null` / `null`. The exit-code contract is held **by decision** through a fail-closed per-spec boundary, not by the absence of two known throws |
+| A8 | **WR-20** — the import-rename canonicalisation has no scope analysis, so a shadowing binding is falsely refused | `31-17` (`D-21` (2)) | **closed with a named residual** | §2.1 row 7 and §2.2 row 24: the review's own legitimate spec now reports `0 findings`, EXIT=0. Residual: the scope rule is **file-scoped**, not lexical — `UNRESOLVABLE_CALLEE_RESIDUALS[9]`; see §8, `RR-02` |
+| A9 | **WR-21** — the upward governance-root walk does not stop where its docstring says | `31-19` (`D-23`) | **PARTIALLY CLOSED — `UNKNOWN - verify`** | §2.1 row 11 and **§4.3**. The at-or-above-home shape is closed (the planted ancestor is no longer adopted; the kit answers) and `REPO_BOUNDARY_MARKERS` widened `.git`-only → **9** VCS markers. The **below-home** shape reproduces unchanged and is residual `R-31-19-01`, deliberately, because closing it would revert WR-15. Which of the two the round-4 verifier ran is not recorded in either source document |
+| A10 | **IN-10** — the configured-soft fixture's control is never chained or invoked | `31-16` | **closed** | Source-verified at `scripts/runnable-ref/fixtures/configured-soft.uat.spec.ts`: the control is now `await expect.configure({ retries: 2 })(page.getByTestId("invoice-total")).toBeVisible();` **inside the scenario** (line 45), chained AND invoked, and both chained escapes plus the converse ordering sit inside the `MUTATE-REMOVE` region (lines 35–43). The fixture reports 4 findings and 0 after MUTATE-REMOVE |
+| A11 | **IN-11** — baseline health and freeze consistency, recorded so a later round does not re-measure them | `31-20` (this plan) | **closed as RE-MEASURED, and its own `UNKNOWN - verify` is now closed too** | §6.1 (suite / freshness), §6.2 (the frozen blob and the WHOLE 26-entry manifest). Its single `UNKNOWN - verify` — the checkpoint bookkeeping `31-14` moved — **was independently re-derived this round**: see §7.4 |
+
+**Block A totals.** `31-REVIEW.md`'s frontmatter declares `critical: 3, warning: 5, info: 2,
+total: 10`. This block carries **11** rows because `31-20-PLAN.md` names CR-09's second variant
+separately, and the two variants really are two distinct spellings against two distinct ban arms.
+**Both denominators are stated: 10 headings, 11 dispositioned spellings.** No heading lacks a row.
+
+### 7.2 Block B — the ten rows of `31-REVIEW.md`'s "Prior findings status" table
+
+| # | Prior finding | Owner | Disposition | Measurement |
+|---|---|---|---|---|
+| B1 | **CR-07** — `test.info()` modifiers and `expect.configure({soft:true})(...)` pass at exit 0 | `31-13` | **stays closed** | §2.3 rows 25–28: `3 finding(s)`, EXIT=1 for the three spellings; both controls unmoved; `test.info().slow()` still not refused |
+| B2 | **WR-14** — an import-renamed head evades the rule | `31-13` | **stays closed** | §2.3 rows 29–30: `2 finding(s)` canonicalised to `test.skip` / `test.describe.only`; the namespace import still exit 1 |
+| B3 | **CR-08** — compaction cannot promote a human-disposed high-severity `finding` | `31-14` | **stays closed** | §2.3 row 31, the load-bearing "nothing broke" row: after `31-18` added three decline clauses to the same function, the LEGITIMATE promotion still writes, `compactor.promote` still throws the D-04 refusal, and the GOV-02 ledger still holds exactly **1** line |
+| B4 | **WR-15** — `trustedRepoRoot()` falls back to the kit on the four non-CC hosts | `31-15` | **stays closed** | §4.3, the WR-15 CONTROL: with both variables unset and cwd inside a project carrying an active dial, `trustedRepoRoot()` returns **that project** with dial `high-severity`. `31-19`'s home stop did not revert it — which is exactly why `R-31-19-01` exists |
+| B5 | **WR-16** — `equivDoWork`'s doc comment describes a mechanism it does not have | `31-15` | **stays closed** | Source-verified: `scripts/check-uat-oracles.ts` now describes the unstamped `claim` the code writes ("The seeded note is an UNSTAMPED `claim`…", "nothing here claims a verification the fixture did not earn"). `node scripts/check-uat-oracles.js` → `ALL CHECKS PASSED` (§6.1, G7) |
+| B6 | **IN-07** — WF18 step 5 "carry no stamp and pass through" | `31-14` | **stays closed** | Source-verified: `agent-factory/workflows/18-context-compaction.md` reads "…are admitted without a cross-check. An unreadable governance configuration still refuses every kind (D-14)." |
+| B7 | **IN-08** — the Tier-1 oracle writes into the ambient host ledger | `31-15` | **stays closed** | `node scripts/check-uat-oracles.js` → `ALL CHECKS PASSED` (§6.1, G7); the function-owned `mkdtempSync` governance root and its `rmSync` are present in `scripts/check-uat-oracles.ts` |
+| B8 | **IN-04** — ledger event ordering | — | **carried, open by choice** | Not measured this round and not claimed. The review records it as "open by choice, still an assertion. Unchanged this round." **`UNKNOWN - verify` as to its current state** — no measurement supports any other disposition |
+| B9 | **IN-06** — `tsconfig.fixtures.json` disposition category | — | **carried, still open** | Not measured this round. The review records "`check-banned-claims.ts` not in this range". **`UNKNOWN - verify`** |
+| B10 | **IN-09** — residuals `R-43`/`R-44`/`R-46`/`R-47`, `Q9` | — | **carried** | Not measured this round as a set. `R-46` (the alias sentence) was the load-bearing sentence for CR-10 and **has moved**: `31-16` removed the alias residual's claim to cover the fixture parameter and replaced it with residuals true of their own shapes (`UNRESOLVABLE_CALLEE_RESIDUALS` is now 9 members, 6 resolution + 3 membership). The other four are **`UNKNOWN - verify`** |
+
+### 7.3 Block C — the eight rows of `31-VERIFICATION.md`'s "Anti-Patterns Found" table, and Block D — the six `missing:` bullets
+
+| # | Anti-pattern row (file / pattern) | Severity | Owner | Disposition | Measurement |
+|---|---|---|---|---|---|
+| C1 | `uat-spec-integrity.ts` `BANNED_EXACT_PATHS`/`BANNED_CONFIGURED_PATHS` compared against a marker-carrying path | 🛑 Blocker | `31-16` | **closed** | A1/A2 · §2.2 row 17 |
+| C2 | `uat-spec-integrity.ts` `BANNED_MODIFIER_HEADS` has no `testInfo` member and no fixture-parameter canonicalisation | 🛑 Blocker | `31-16` | **closed** | A3 · §2.2 row 19 |
+| C3 | `context-io.ts` `promoteAdmitted` — no destination read, proof operand from an unconstrained `from` | 🛑 Blocker | `31-18` | **closed** | A4/A5 · §2.1 row 9, §2.2 rows 20–21 |
+| C4 | `context-io.ts` `projectRootFromWorkingDirectory` — the walk's stop conditions never include `os.homedir()` | ⚠️ Warning | `31-19` | **partially closed** | A9 · §4.3. `isAtOrAboveHome` is now a stop; the below-home ancestor case is `R-31-19-01` |
+| C5 | `context-io.ts` `promoteAdmitted`'s governance read — readability only | ⚠️ Warning | `31-18` | **closed** | A6 · §2.1 row 10 |
+| C6 | `uat-spec-integrity.ts` `calleeDottedPath`'s 512-step guard restarts per descent | ⚠️ Warning | `31-17` | **closed** | A7 · §2.2 rows 22–23 |
+| C7 | `uat-spec-integrity.ts` `canonicaliseHeadSegment` rewrites with no scope analysis | ⚠️ Warning | `31-17` | **closed with a named residual** | A8 · §2.1 row 7 |
+| C8 | `browser-uat-recipe.md` boundary list / completeness paragraph does not disclose either gap | ⚠️ Warning | `31-16`, `31-17` | **closed mechanically; the PROSE ADEQUACY is `UNKNOWN - verify`** | The register↔recipe equality is asserted in BOTH directions by `uat-spec-integrity.test.ts` ("the recipe's residual bullets are the exported residual array, verbatim"; "the boundary list PARTITIONS into register members and the bounded remainder"), green in §6.1's suite. **Whether the corrected prose reads as the mechanism now behaves is a reading judgment no test asserts** — both `31-16` and `31-17` marked exactly this `human_judgment: true` in their coverage blocks. It is the verifier's call, not this round's |
+
+| # | `missing:` bullet (gap → bullet) | Owner | Disposition | Measurement |
+|---|---|---|---|---|
+| D1 | gap 1 · make both whole-path arms marker-aware, leaving the head/tail arm as D-17/D-18 left it | `31-16` | **closed** | `stripRoutingLinks` is the ONE normaliser both arms consume; `stripRoutingLinks("expect().soft")` returns its input **unchanged**, so a MARKED HEAD stays distinct from an interior marked LINK — the exact boundary the bullet required. §2.2 row 17; §2.1 control `expect(locator).soft` still exit 0 |
+| D2 | gap 1 · decide the TestInfo fixture-parameter binding from the parse, or give it its own residual with a TRUE reason | `31-16` | **closed by the first branch** | A3. And the second half is honoured anyway: the disproved excuse was **removed** — the alias residual no longer claims to cover the fixture parameter, and the destructured-parameter case has its own member (`UNRESOLVABLE_CALLEE_RESIDUALS[8]`) with a reason true of it |
+| D3 | gap 1 · record the fix as a dated decision beside D-18; add each escape to a MUTATE-REMOVE fixture in its chained/invoked form | `31-16` | **closed** | `D-20` is recorded in `31-CONTEXT.md`, in the runnable's decision header and in `31-16-SUMMARY.md`. `configured-soft.uat.spec.ts` carries both chained escapes and the converse ordering in the marked region (4 findings / 0 after MUTATE-REMOVE); `testinfo-fixture-param.uat.spec.ts` was added (3 / 0) |
+| D4 | gap 2 · read the destination before writing; add a `destination-id-occupied` clause | `31-18` | **closed** | A4. `PROMOTE_ADMITTED_DECLINES` now carries **9** clauses including `destination-id-occupied`; identical bytes are a **decided** idempotent re-promotion rather than `atomicWrite`'s default, which is what the bullet required |
+| D5 | gap 2 · constrain `from` to a trusted store, or add a named residual and soften the header claim | `31-18` | **closed by the first branch, with the residual added anyway** | A5. `origin-outside-trusted-store` is a clause; `T-31-18-01` names what recognition by SHAPE does and does not buy |
+| D6 | gap 2 · consult `human_admission`'s VALUE, mirroring `admitAndAppend`'s W3 arm | `31-18` | **closed** | A6. The route asks the SAME `isGatedNote` and the two routes agree on all six dial values (§2.2 PROBE 3) |
+
+### 7.4 The `UNKNOWN - verify` `31-REVIEW.md` left about checkpoint bookkeeping — the answer, stated
+
+`IN-11` recorded one `UNKNOWN - verify`: *"the checkpoint bookkeeping moved by 31-14
+(`WORKFLOW_STOP_BULLET_COUNT` 38→39, `escalate_unadjudicable_result` 1→2, `RECORDED_TOTAL_SITES`
+16→17) was not independently re-derived here; … I did not re-run the derivation by hand."*
+
+**It was independently re-derived this round. The answer is stated rather than implied, and two of
+the three figures have MOVED since the review recorded them.**
+
+| Anchor | Review's figure | Value now | Independently re-derived how |
+|---|---|---|---|
+| `WORKFLOW_STOP_BULLET_COUNT` | 39 | **42** | `deriveCheckpoints().countedBullets` → **42**, AND a hand `awk` over all 19 workflow files, outside the module entirely, summing `## Stop conditions` bullets → **42** (`18-context-compaction.md` contributes 7). **Three-way agreement.** The 39 → 42 move is `31-18`'s three new stop conditions |
+| `escalate_unadjudicable_result` sites | 2 | **2** | present as `2` in the **DERIVED** `deriveCheckpoints().sites` map, not only in the recorded table |
+| `RECORDED_TOTAL_SITES` | 17 | **17** | the sum of the **DERIVED** sites map → **17**, equal to the separately-written literal |
+
+**A false start on this measurement is recorded, because it is the same class as §6.2's.** The first
+attempt summed `CHECKPOINT_SITE_COUNTS` — a **hand-recorded** table — and compared the sum to
+`RECORDED_TOTAL_SITES`. `scripts/checkpoints.ts:1717-1720` names that move as a tautology in its own
+words: *"Summing the table above and comparing the sum to the table is a tautology; comparing it to a
+number written down separately is not."* The re-derivation above sums the **derived Map** instead.
+The first attempt would have reported agreement and proved nothing.
+
+---
+
+## 8. The ledger's own totals, stated as an equality
+
+**A ledger whose totals do not match the source documents' is SHORT, and being short silently is the
+class this phase keeps paying for.** So the totals are stated rather than implied.
+
+| Source denominator | Declared / derived by | Value | Ledger block | Rows | Agree? |
+|---|---|---|---|---|---|
+| `31-REVIEW.md` numbered findings | its own frontmatter: `critical: 3, warning: 5, info: 2, total: 10` | **10** headings | §7.1 | **11** rows (CR-09's two variants dispositioned separately) | **yes — every heading has ≥1 row; 11 ≥ 10 by design, stated** |
+| `31-REVIEW.md` "Prior findings status" rows | measured: `awk` over the table | **10** | §7.2 | **10** | **yes** |
+| `31-VERIFICATION.md` "Anti-Patterns Found" rows | measured: `awk` over the table | **8** | §7.3 (C-block) | **8** | **yes** |
+| `31-VERIFICATION.md` `missing:` bullets across both gap entries | measured: `awk` over the two `missing:` lists | **6** | §7.3 (D-block) | **6** | **yes** |
+| **total dispositioned items** | | **34** source items | | **35** rows | **yes — no item without a row** |
+
+**No shortfall.** Every heading, every prior-findings row, every anti-pattern row and every `missing:`
+bullet carries exactly one row, and the one surplus row is CR-09's second variant, named as a
+surplus rather than folded into its sibling.
+
+**Disposition mix, counted:** 23 **closed** · 3 **closed with a named residual** (A5, A8, C7 — C7 is
+A8's anti-pattern face) · 2 **partially closed** (A9, C4 — the same finding, two faces) · 1 **closed
+mechanically with the prose adequacy left to the verifier** (C8) · 4 **carried, `UNKNOWN - verify`**
+(B8, B9, B10 and the four of `IN-09`'s five that did not move) · 2 **re-measured and closed by this
+round** (A11 and its `UNKNOWN - verify`, §7.4).
+
+**Every `closed` row cites a measurement.** The rows that cite none say `UNKNOWN - verify` in the
+disposition cell itself, which is B8, B9, B10 — three carried Info-level items neither this round's
+plans nor this measurement touched.
+
+---
+
+## 9. The round's residual register — every boundary round 4's five plans decided to leave open
+
+**What this section is.** A residual is a boundary a plan looked at, decided about, and left open on
+purpose. The enforceable copies live in the code's own exported registers, where the suite binds them
+in both directions. **They are collected here so a reader has the whole set in one place**, which is
+the thing the round-4 verifier had to reconstruct from four summaries.
+
+Each member states: **the shape as a situation** (not as a verdict), **the reason it is left open as
+an argument**, **the decision that owns it**, and **what would force it closed**.
+
+### 9.1 The UAT-spec modifier ban — `UNRESOLVABLE_CALLEE_RESIDUALS`, 9 members
+
+| Id | Shape | Why it is left open | Owner | What would force it closed |
+|---|---|---|---|---|
+| `RR-01` | An aliased binding — `const t = test;` then a modifier call on `t` — is not refused. | The alias cannot be followed to its declaration without a type checker, and `D-13` forbids shipping one in a kit runnable that must run with Node alone. **This reason is true of THIS shape** — `31-16` removed its false extension to the fixture parameter, which is the whole of CR-10 | `D-17` / `D-18`, narrowed by `D-20` | a parse-only assignment census, or a decision to reverse `D-13` |
+| `RR-02` | The scope rule the canonicalisations ask is **file-scoped**, not lexically scoped: a head the file DECLARES anywhere is not rewritten through either map. | Lexical scoping needs a scope stack the walk does not build; file scope is the cheap rule that closes the false refusal WR-20 named. The cost is asserted as a MEASURED case rather than only described — a spec that both declares the renamed name and genuinely calls the modifier through the rename is not refused | `D-21` (2) | a lexical scope stack in `forEachDescendant` |
+| `RR-03` | A TestInfo binding **destructured** in the callback's second parameter — `async ({ page }, { skip }) => skip()` — is not canonicalised. | A binding pattern names no single identifier to rewrite, so there is no head segment to canonicalise | `D-20` (3) | a binding-element census over the second parameter |
+| `RR-04` | A callee chain longer than the 512-step bound yields no path. | The bound stops a pathological chain from spinning. It is a stated LIMIT, not a silence — and after `31-17` it is **one allowance for a whole resolution**, so interleaving call links buys no extra steps | `D-21` (1) | nothing: this is a decided limit, not a defect |
+| `RR-05` | A member computed from a non-literal expression — `test[name](...)` — is not refused. | The member name is absent from the source text | `D-17` | a constant-folding pass, which is a type checker in disguise |
+| `RR-06` | A rename or namespace arriving through a module other than `@playwright/test` is not canonicalised. | Following a re-export across files is cross-module resolution | `D-18` (3) | cross-file resolution, which `D-13` forbids |
+| `RR-07` | A callee whose head is not an identifier (an object literal, `this`) is not resolved. | There is no head segment, so no membership question can be put | `D-17` | a different question shape |
+| `RR-08` | An option is ENABLED only when the call's first argument is an object literal assigning it the `true` keyword. | A variable argument enables nothing; this runnable reads the source text and does not evaluate it | `D-18` (2) | evaluation, which the runnable refuses to do |
+| `RR-09` | A parser not exposing the import, object-literal or function-like node predicates yields no canonicalisation and no option reading. | The parser is the target repository's own `typescript`; the runnable degrades rather than throwing | `D-13`, `D-21` (1) | pinning a parser, which would defeat the kit-runnable contract |
+
+### 9.2 The governance root — `TRUSTED_ROOT_RESIDUALS`, 8 members (4 from `31-15`, 4 added by `31-19`)
+
+| Id | Shape | Why it is left open | Owner | What would force it closed |
+|---|---|---|---|---|
+| `R-31-15-01` | A process that can change its own working directory decides which project's configuration step 3 finds. | Step 3 exists so a host without either project-directory variable still reads its own dial; a process that controls its own cwd is already inside the trust boundary | `D-15` | removing step 3, which re-opens WR-15 |
+| `R-31-15-02` | A host repository carrying no configuration at any published candidate position resolves to the kit, whose shipped dial is lean. | The lean default is the correct answer for a repository that configured nothing | `D-15` | a repository that configures a dial |
+| `R-31-15-03` | Both project-directory variables are ambient environment values a parent process sets for its child. | Ambient environment is the host CLI's own channel; the module cannot outrank the process that spawned it | `D-15` | nothing available to a library |
+| `R-31-15-04` | A configuration held ABOVE a nested repository is not found from inside it — the walk stops at the inner marker. | A repository boundary is where a repository starts, and a nested checkout is its own repository | `D-15`, refined by `D-23` (5) | a decision that a nested checkout is not a project |
+| **`R-31-19-01`** | **A configuration at an ancestor BELOW the user's home directory, with no repository marker between it and the working directory, governs any process whose working directory is under it.** | **This is the shape §4.3 measures as STILL REPRODUCING.** Refusing it would revert `WR-15`'s own green control, which asserts that `project/a/b/c` resolves to `project` with no marker anywhere on the path. The review's `Fix:` sentence and `31-15`'s closure cannot both hold below the home directory; `31-19` chose `WR-15` and wrote the disagreement down rather than resolving it by silence | `D-23`, `31-19` deviation 3 | **a decision about which of the two the project wants — the fifth verification round's call, not a plan's.** §4.3 also records `UNKNOWN - verify` on which shape the round-4 verifier actually probed |
+| `R-31-19-02` | The home directory the stop is measured against is whatever `os.homedir()` names, which reads the ambient `HOME`/`USERPROFILE` a process sets for its child. | Same argument as `R-31-15-03`: a library cannot outrank the process that spawned it | `D-23` (1) | nothing available to a library |
+| `R-31-19-03` | On a platform reporting no meaningful directory identity, the stop compares path SPELLINGS alone. | The `dev:ino` identity set's own premise is CHECKED (home against its parent) and DISCARDED where they agree, because trusting degenerate identities would stop every walk at step one and hand every host the kit's lean default — `WR-15`, re-opened | `D-23` (2) | a platform-specific identity source |
+| `R-31-19-04` | A version-control system whose root marker is absent from `REPO_BOUNDARY_MARKERS` is not recognised as a repository root. | The set is CONTENT and is open by nature; it names 9 systems rather than 1. A non-VCS marker was considered and **REFUSED** with the argument recorded at the site: a sub-package carrying `.grugops` state and no configuration would end the walk BELOW the governing repository and fall through to the kit's lean default — a configuration moving from refused to admitted, which is the WR-15 defect | `D-23` (3) | naming the missing system |
+
+### 9.3 The admission / re-binding route — `PROMOTE_ADMITTED_RESIDUALS`, 3 members
+
+| Id | Shape | Why it is left open | Owner | What would force it closed |
+|---|---|---|---|---|
+| `T-31-14-03` | A note HAND-WRITTEN into the origin `notes/` directory and then promoted is not detected. | The origin store is trusted here exactly as far as every other reader trusts it; workflows 16 and 18 forbid hand-authoring | `D-19` | a signed note format, which is a different mechanism |
+| `T-31-18-01` | The origin store is recognised by its SHAPE (a `context` directory inside a `.grugops` directory) or by sitting under `trustedRepoRoot()`, never by a registry — so a caller that constructs that whole shape is recognised. | A registry of legitimate stores is a set literal, which is this repository's second diagnosed failure class; shape recognition is derived and cheap, and it closes the ordinary-directory operand WR-17 named | `D-22` | a registry, accepted with its drift cost |
+| `R-37` | The compared field set is the store's own read-back projection plus the body; a frontmatter key the parser accepts and the projection drops is not compared. | The projection is the same one every reader uses, so a dropped key is also not read by `admit()` | `D-19` | widening the projection |
+
+### 9.4 The round's plan-level residuals, from the four summaries
+
+| Shape | Why it is left open | Owner | What would force it closed |
+|---|---|---|---|
+| `browser-uat-recipe.md` is **outside** `check:diff-disposition`'s watched corpus (`safetySurfaceUnion()` — register rows flagged `safety_surface: yes` ∪ registry rows of `kind: safety`). | Measured by `31-16` and re-measured by `31-17`: **77 before and 77 after**, with **0** findings in that file either side. `31-16.md` and `31-17.md` were written **anyway**, with all their recipe clause rows, and each states this measured scope in its own header so a later reader is not told the gate demanded it | `31-16` deviation 5 | flagging the recipe `safety_surface: yes` |
+| The head and tail ban sets are still **hand-authored**, and the declared surface (`playwright-test.d.ts`) is a hand transcription whose drift from the released package is an open `UNKNOWN - verify` (`R-07`). | The reverse partition bounds what the sets can miss over the DECLARED surface; drift of that surface from the real package is a different axis and is not asserted | `31-17` | a generated surface, or a pinned package the runnable may read |
+| The **reverse-partition walked denominator is 26** and did not move across the round. | Not a coincidence: adding a PARAMETER to a call signature adds no PROPERTY to a declared type, and `checker.getPropertiesOfType` reads properties only. The reason is written into a case, so a future change that DOES move it turns red and has to say why | `31-16` | a declared-surface change that adds a property |
+| The three anti-pattern **prose** obligations (recipe boundary list, completeness paragraph, `31-CONTEXT.md` decision prose) are asserted MECHANICALLY (verbatim quotation, both-directions set equality) but their **adequacy as prose** is not asserted. | No test can assert that two documents say the same thing in substance. `31-16`, `31-17`, `31-18` and `31-19` each marked exactly this `human_judgment: true` in their coverage blocks | all four plans | a verification round reading them |
+
+**Register cardinalities, measured on this tree:** `UNRESOLVABLE_CALLEE_RESIDUALS` = **9** ·
+`TRUSTED_ROOT_RESIDUALS` = **8** · `PROMOTE_ADMITTED_RESIDUALS` = **3** ·
+`PROMOTE_ADMITTED_DECLINES` = **9** clauses · `TRUSTED_ROOT_STOP_CONDITIONS` = **6** ·
+`REPO_BOUNDARY_MARKERS` = **9**.
+
+---
+
+## 10. What this round did NOT do
+
+Stated plainly, because a closure round's silences are what the next round pays for.
+
+1. **The four human-verification items remain OPEN.** `R-01` (the attended Chrome lane under real
+   interactive auth), `R-02` (the `claude auth status --json` predicate under API-key and
+   long-lived-token configurations), `R-03` (the Windows leg of every browser probe and of the whole
+   spec-integrity runnable), `R-04` (the installer round-trip on a pre-existing host install). Each is
+   carried forward with its `UNKNOWN - verify` marker intact and its carry-forward count updated in
+   `.planning/phases/31-autonomous-manual-testing/31-VALIDATION.md`. **None is closed by inference,
+   and none is dropped.** Every probe in this document ran on darwin only.
+
+2. **The pre-existing `check:diff-disposition` debt is MEASURED and UNCLOSED.** 75 findings over 39
+   elements (§6.3). 65 belong to plans `31-05`/`31-06`/`31-08` and 10 to plan `31-15`. The gate is
+   red and this round did not make it green — deliberately, because the two moves that would
+   (advancing `00-base.md`'s base commit, narrowing the watched corpus) are named in the gate's own
+   message as clearing a finding by deleting its evidence.
+
+3. **The review's checkpoint-bookkeeping `UNKNOWN - verify` WAS independently re-derived** — §7.4,
+   with the answer and the moved figures stated, and with the tautological first attempt recorded.
+
+4. **`WR-21`'s below-home shape was not closed** and is not claimed as closed (§4.3, `R-31-19-01`).
+
+5. **No source file was modified.** A closure plan that fixes something has found a new defect, and a
+   new defect belongs in a new plan with its own RED-first reproduction — not in the round's own
+   closing measurement. Asserted: `git status --porcelain -- scripts hooks agent-factory install` is
+   empty at every commit of this plan.
+
+6. **No requirement was flipped** — §11.
+
+---
+
+## 11. The requirement rows, confirmed UNCHANGED
+
+**Only a verification round may flip a requirement. A gap-closure plan that flips one is certifying
+itself.** Confirmed by reading the files rather than by intent:
+
+`.planning/REQUIREMENTS.md`, lines 120–125 — all six still **unchecked**:
+
+```
+- [ ] **UATX-01**: Playwright is the machine-verifiable evidence floor …
+- [ ] **UATX-02**: Browser MCP tooling is used to *author* specs …
+- [ ] **UATX-03**: Claude in Chrome is available as an optional, clearly-labelled … lane …
+- [ ] **UATX-04**: Evidence carries provenance — commit SHA + gate-run id + content hash …
+- [ ] **UATX-05**: An absent or unusable browser produces a **loud skip** …
+- [ ] **UATX-06**: Conditional or caught assertions are banned in generated specs …
+```
+
+`.planning/REQUIREMENTS.md`, traceability table lines 212–217 — all six still **`Gaps Found`**:
+
+```
+| UATX-01 | Phase 31 | Gaps Found |
+| UATX-02 | Phase 31 | Gaps Found |
+| UATX-03 | Phase 31 | Gaps Found |
+| UATX-04 | Phase 31 | Gaps Found |
+| UATX-05 | Phase 31 | Gaps Found |
+| UATX-06 | Phase 31 | Gaps Found |
+```
+
+`.planning/ROADMAP.md` line 100 — Phase 31 is **not** marked complete:
+
+```
+- [ ] **Phase 31: Autonomous Manual Testing** — browser-driven UAT where the committed Playwright
+      spec is the evidence and the agent's narration never is
+```
+
+**Every plan of this round set `requirements-completed: []` or left the rows alone**, and each said
+so in its own summary. This plan changes neither file's requirement rows.
+
+---
+
+## 12. What the fifth verification round inherits
+
+- **§2** — 31 reproductions, each paired, none re-derived from a fix plan's fixture.
+- **§3** — the eleven spot-checks in both directions, with the plan's own miscount corrected.
+- **§4** — three disagreements, both figures printed, `UNKNOWN - verify` where neither was chosen.
+- **§6** — the one-commit gate record, and the sentence that stops it being read as the argument.
+- **§7/§8** — 35 disposition rows against 34 source items, with the equality stated.
+- **§9** — **24 residuals** in one place, each with a reason and a closing criterion: **9** in
+  `UNRESOLVABLE_CALLEE_RESIDUALS` (§9.1), **8** in `TRUSTED_ROOT_RESIDUALS` (§9.2), **3** in
+  `PROMOTE_ADMITTED_RESIDUALS` (§9.3), and **4** plan-level ones the summaries carried and no
+  exported register holds (§9.4). 9 + 8 + 3 + 4 = 24, counted rather than asserted.
+- **§10** — what was not done.
+- **§11** — the requirement rows, left for the verifier.
+
+**The one thing this round most wants read first: §4.3.** `WR-21`'s original probe spelling still
+reproduces. It is a decided residual and not a regression — but a verifier who re-runs the round-4
+transcript verbatim will see the round-4 result, and should find the reason here rather than filing
+it as a sixth-round finding.
+
+---
+
+_Written: 2026-09-09 · Plan `31-20` · Measured at `263d1a3` (reproductions) and `27f613a` (gates)_
