@@ -6438,9 +6438,16 @@ describe("uat-spec-integrity — 31-25 CR-15: every exit passes through one deci
     expect(r.stderr).toContain("ZERO uat specs were visited (1 derived)");
     // …and stdout is EMPTY, which is branch (1)'s CORRECT output, not the unfixed defect
     expect(r.stdout).toBe("");
-    // the fault never escapes: no interpreter default, no stack trace
-    expect(r.stderr).not.toContain("Maximum call stack size exceeded");
-    expect(r.stderr).not.toContain("RangeError");
+    // The boundary NAMES the cause — that is what makes the four could-not-run reasons
+    // distinguishable — and it is what distinguishes a NAMED refusal from an ESCAPED one.
+    expect(r.stderr).toContain("could not be analysed (Maximum call stack size exceeded)");
+    // …and nothing escaped: an uncaught throw prints stack FRAMES, and there are none. Asserting
+    // the absence of the cause STRING would have been asserting the absence of the diagnostic, which
+    // is the opposite of what a could-not-run boundary is for. Measured: the first form of this
+    // assertion failed against a correct mechanism for exactly that reason.
+    expect(r.stderr, "a stack frame escaped, so the fault was not decided").not.toMatch(
+      /^\s+at .+:\d+:\d+/m,
+    );
   });
 
   // ── GREEN 1b: the DENOMINATOR floor is a DIFFERENT branch, and it is reached too ──────────────

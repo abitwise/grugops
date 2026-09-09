@@ -595,6 +595,14 @@ export function emitLoudSkipIfBrowserUnusable(repoRoot, probe = realBrowserProbe
  * that assertion, so a link pointing outside the repository is REFUSED (exit 2) rather than silently
  * skipped or silently read. Linked directories are not descended into at all — a link cycle is not
  * a spec set.
+ *
+ * D-28 (3): THE DESCENT USES AN EXPLICIT WORKLIST, not self-recursion. CR-15 named this walk as the
+ * SECOND unguarded self-recursion in this file, alongside the parser, and it is de-recursed in the
+ * same edit for the same reason D-21 (1) replaced BOTH self-recursive AST walks rather than only the
+ * one WR-19 reproduced: the fix is about the CLASS, not about the call a reviewer happened to reach.
+ * The depth of a directory tree now leaves the interpreter's stack entirely. Every path is still
+ * visited exactly once, and the derived set is order-independent because `relPaths` is sorted before
+ * it is returned — so LIFO is as correct here as it is in `forEachDescendant`.
  */
 export function deriveSpecPaths(repoRoot) {
     const resolvedRoot = resolve(repoRoot);
@@ -614,14 +622,18 @@ export function deriveSpecPaths(repoRoot) {
     // /private/var/..., so a link target compared against the unexpanded root would always "escape".
     const containedLexically = (candidate) => candidate === resolvedRoot || candidate.startsWith(resolvedRoot + sep);
     const containedReal = (candidate) => candidate === realRoot || candidate.startsWith(realRoot + sep);
-    const walk = (absDir, relDir) => {
+    const pending = [
+        { absDir: resolvedRoot, relDir: "" },
+    ];
+    while (pending.length > 0) {
+        const { absDir, relDir } = pending.pop();
         let entries;
         try {
             entries = readdirSync(absDir, { withFileTypes: true });
         }
         catch {
             refusals.push(`Cannot list the directory ${relDir === "" ? "." : relDir}; the spec set could not be derived, so no result is reported for it.`);
-            return;
+            continue;
         }
         for (const entry of entries) {
             const abs = join(absDir, entry.name);
@@ -648,7 +660,7 @@ export function deriveSpecPaths(repoRoot) {
             if (entry.isDirectory()) {
                 if (SKIPPED_DIRECTORIES.includes(entry.name))
                     continue;
-                walk(abs, rel);
+                pending.push({ absDir: abs, relDir: rel });
                 continue;
             }
             if (!entry.isFile())
@@ -663,8 +675,7 @@ export function deriveSpecPaths(repoRoot) {
             }
             relPaths.push(rel);
         }
-    };
-    walk(resolvedRoot, "");
+    }
     relPaths.sort();
     return { relPaths, refusals };
 }
@@ -1633,23 +1644,35 @@ export function analyzeSpecs(repoRoot, specRelPaths, ts, readFile = defaultReadF
             errors.push(`Cannot read the UAT spec ${rel}; the check was NOT performed for that file, so this run covers less than the derived set.`);
             continue;
         }
-        const sf = ts.createSourceFile(rel, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
-        const diagnostics = sf.parseDiagnostics;
-        if (diagnostics !== undefined && diagnostics.length > 0) {
-            errors.push(`The UAT spec ${rel} did not parse (${diagnostics.length} parse diagnostic(s)); a file that cannot be parsed cannot be checked, so no verdict is reported for it.`);
-            continue;
-        }
-        // D-21 (1): THE EXIT-CODE CONTRACT IS HELD BY DECISION, NOT BY THE INTERPRETER'S DEFAULT.
+        // D-21 (1) / D-28: THE EXIT-CODE CONTRACT IS HELD BY DECISION, NOT BY THE INTERPRETER'S DEFAULT,
+        // AND THE BOUNDARY IS ABOUT THE BYTES RATHER THAN ABOUT ONE FUNCTION.
+        //
         // WR-19 measured a spec whose shape made the walk throw: nothing was caught, `reportMeasured`
         // was never reached, the two floors below were bypassed by construction, stdout stayed silent
         // and the process exited 1 — which the D-12 contract reads as "a finding, the gate blocks".
-        // A spec this runnable cannot finish analysing is a COULD-NOT-RUN reason, exactly like an
-        // unreadable or unparseable one: it does not increment `visited`, so the denominator floor
-        // fires and the run says out loud that it covered less than it claims. The increment is placed
-        // AFTER the analysis for that reason — a file counted before the work is a file that can be
-        // counted as checked without having been.
+        // D-21 (1) answered that by wrapping `findBannedConstructs`. CR-15 then measured the SAME harm
+        // one register over, at a QUARTER of the depth the fix had just closed: `ts.createSourceFile`
+        // is itself a recursive-descent parser running on author-controlled source, and it sat ONE LINE
+        // ABOVE that `try`. The register that failed was not the bound's VALUE and not its UNIT — both
+        // of which D-21 (1) fixed — but WHICH WORK THE BOUNDARY ENCLOSES.
+        //
+        // So the `try` below encloses EVERYTHING this runnable does with a spec's bytes: the parse, the
+        // parse-diagnostics inspection and the walk. A file the parser cannot finish is a file this
+        // runnable did not check, exactly like one it could not read: it is a COULD-NOT-RUN reason, it
+        // does not increment `visited`, and the denominator floor therefore says out loud that the run
+        // covered less than it claims. The increment stays AFTER the analysis for that reason — a file
+        // counted before the work is a file that can be counted as checked without having been.
+        //
+        // The four could-not-run reasons stay DISTINGUISHABLE (unreadable · did not parse · the parse
+        // itself faulted · could not be analysed), so a reader can tell which of them happened.
         let specFindings;
         try {
+            const sf = ts.createSourceFile(rel, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+            const diagnostics = sf.parseDiagnostics;
+            if (diagnostics !== undefined && diagnostics.length > 0) {
+                errors.push(`The UAT spec ${rel} did not parse (${diagnostics.length} parse diagnostic(s)); a file that cannot be parsed cannot be checked, so no verdict is reported for it.`);
+                continue;
+            }
             specFindings = findBannedConstructs(ts, sf, rel);
         }
         catch (cause) {
@@ -1708,16 +1731,48 @@ export function reportMeasured(m, wantJson, out, err) {
 }
 // ── the command line ───────────────────────────────────────────────────────────────────────────
 const USAGE = "Usage: node uat-spec-integrity.js <repo-root> [--json] [--check-browser]\n";
-export function main(argv) {
+/**
+ * D-28 (2): the reason the PROCESS boundary writes when the runnable could not complete. It is a
+ * distinct sentence from every per-file could-not-run reason, so a reader can tell a file that was
+ * not checked from a run that did not finish.
+ */
+export const PROCESS_BOUNDARY_MARKER = "UAT spec integrity: the runnable could not complete";
+/**
+ * D-28 (2): THE WHOLE BODY IS INSIDE ONE PROCESS BOUNDARY, so the D-12 contract is held by decision
+ * at the process edge as well as per file.
+ *
+ * WHY 2 AND NOT 1. 1 means "a finding — the quality gate blocks", which is a claim ABOUT THE SPECS.
+ * A runnable that could not complete has made no claim about them, so reporting 1 would report a
+ * check that never ran as a check that found something — the exact reading CR-15 measured Node's
+ * uncaught-exception code producing. 2 means "could not run", which is what happened.
+ *
+ * The `try` RETURNS WHAT THE BODY RETURNS: a legitimate 0 and a legitimate 1 pass through untouched,
+ * and only a THROW becomes 2.
+ */
+export function main(argv, deps = {}) {
+    const out = deps.out ?? ((s) => {
+        process.stdout.write(s);
+    });
+    const err = deps.err ?? ((s) => {
+        process.stderr.write(s);
+    });
+    try {
+        return runMain(argv, deps, out, err);
+    }
+    catch (cause) {
+        err(`${PROCESS_BOUNDARY_MARKER} (${cause instanceof Error ? cause.message : String(cause)}); ` +
+            `the check was NOT performed, so nothing is claimed about the specs.\n`);
+        return 2;
+    }
+}
+function runMain(argv, deps, out, err) {
     const wantJson = argv.includes("--json");
     const checkBrowser = argv.includes("--check-browser");
     const rootArg = argv.find((a) => !a.startsWith("--"));
-    const out = (s) => {
-        process.stdout.write(s);
-    };
-    const err = (s) => {
-        process.stderr.write(s);
-    };
+    const derive = deps.deriveSpecPaths ?? deriveSpecPaths;
+    const loadParser = deps.loadTypeScript ?? loadTypeScriptFromTarget;
+    const analyze = deps.analyzeSpecs ?? analyzeSpecs;
+    const report = deps.reportMeasured ?? reportMeasured;
     if (rootArg === undefined) {
         err(`Error: no repository root was provided. ${USAGE}`);
         return 2;
@@ -1738,7 +1793,7 @@ export function main(argv) {
     // would invite the reader to treat a checked spec as an exercised one.
     if (checkBrowser && !emitLoudSkipIfBrowserUnusable(repoRoot))
         return 2;
-    const derived = deriveSpecPaths(repoRoot);
+    const derived = derive(repoRoot);
     if (derived.refusals.length > 0) {
         for (const r of derived.refusals)
             err(`${r}\n`);
@@ -1747,17 +1802,17 @@ export function main(argv) {
     // An empty derived set is decided by the SAME four-branch authority as every other outcome, and
     // it is decided BEFORE the parser is needed: there is nothing to parse.
     if (derived.relPaths.length === 0) {
-        return reportMeasured({ visited: 0, expected: 0, findings: [] }, wantJson, out, err);
+        return report({ visited: 0, expected: 0, findings: [] }, wantJson, out, err);
     }
-    const ts = loadTypeScriptFromTarget(repoRoot);
+    const ts = loadParser(repoRoot);
     if (ts === null) {
         err(`${PARSER_ABSENT_MARKER}\n`);
         return 2;
     }
-    const analysis = analyzeSpecs(repoRoot, derived.relPaths, ts);
+    const analysis = analyze(repoRoot, derived.relPaths, ts);
     for (const e of analysis.errors)
         err(`${e}\n`);
-    return reportMeasured(analysis, wantJson, out, err);
+    return report(analysis, wantJson, out, err);
 }
 /**
  * Is this module the process entry point? FAIL TOWARDS RUNNING: an inconclusive answer runs main(),
