@@ -6965,3 +6965,187 @@ describe("31-18 — CR-11: a promotion cannot destroy admitted evidence", () => 
     expect(noteText(dest, id)).toBe(before);
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// 31-18 — WR-17: the proof's LEFT OPERAND must be bytes the module has reason to trust.
+//
+// WHAT THE ROUND-4 REVIEWER MEASURED. The route's own header said: "There is no 'already admitted'
+// parameter, option or flag — an agent-settable one would be the elevation this whole mechanism
+// exists to prevent. The only thing that skips the human-stamp arm is a proof over bytes that
+// ALREADY EXIST at the origin." The proof's left operand is `readRawNotes(task, from)`, and `from`
+// was an ordinary unvalidated path argument — so a caller that authored a directory and named it
+// produced any proof it wanted, which is the functional equivalent of the flag the header refused.
+// Reproduced against the COMMITTED .js before any source change, forged origin outside `.grugops/`
+// entirely, and quoted verbatim in 31-18-SUMMARY.md:
+//
+//   DIAL = high-severity   appendNote REFUSED (D-04)  | admitAndAppend WROTE  | promoteAdmitted WROTE
+//   DIAL = all             appendNote REFUSED (D-04)  | admitAndAppend WROTE  | promoteAdmitted WROTE
+//   DIAL = off             appendNote WROTE           | admitAndAppend REFUSED (W3) | promoteAdmitted WROTE
+//   DIAL = absent          appendNote WROTE           | admitAndAppend REFUSED (W3) | promoteAdmitted WROTE
+//
+// WHAT IS DECIDED HERE. The operand must resolve inside a location the module has independent reason
+// to trust: a directory it RECOGNISES as a grugops context store (`<X>/.grugops/context` — the shape
+// `DEFAULT_CONTEXT_ROOT` names and the only shape the sanctioned writers create), or a location
+// reached from the module's OWN trusted-root answer. No parameter is added that lets a caller widen
+// that — the constraint is not settable, which is the part of the header worth preserving. What
+// remains open is a NAMED residual, not a silence.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+describe("31-18 — WR-17: the proof's left operand comes from a location the module trusts", () => {
+  const WR17_TASK = "TICKET-WR17";
+  const WR17_BODY = "the disposed body";
+
+  function projectWith(context: Record<string, unknown> | null, prefix = "p31-18-wr17-proj-"): string {
+    const dir = freshTmp(prefix);
+    if (context !== null) {
+      mkdirSync(join(dir, ".grugops"), { recursive: true });
+      writeFileSync(join(dir, ".grugops", "factory.config.json"), JSON.stringify({ context }, null, 2));
+    }
+    return dir;
+  }
+
+  /** A CONTEXT STORE the module recognises — `<X>/.grugops/context`. */
+  function contextStore(prefix: string): string {
+    const store = join(freshTmp(prefix), ".grugops", "context");
+    mkdirSync(store, { recursive: true });
+    return store;
+  }
+
+  function disposed(
+    over: Partial<Parameters<typeof mod.appendNote>[1]> = {},
+  ): Parameters<typeof mod.appendNote>[1] {
+    return {
+      kind: "finding",
+      by: "security-nfr",
+      at: "2026-09-08T02:00:00Z",
+      verified_by: "human:alice",
+      confidence: "high",
+      refs: ["REQ-SEC-01"],
+      supersedes: null,
+      ...over,
+    } as Parameters<typeof mod.appendNote>[1];
+  }
+
+  function noteFiles(root: string): string[] {
+    const dir = join(root, WR17_TASK, "notes");
+    return existsSync(dir) ? readdirSync(dir).sort() : [];
+  }
+
+  /** Seed an origin note through the writer the destination's dial makes correct. */
+  function seed(origin: string, repoRoot: string): string {
+    const note = disposed();
+    const gated = mod.isGatedNote(note.by, note.kind, mod.readGovernanceConfig(repoRoot));
+    const id = gated
+      ? (mod.admitAndAppend(WR17_TASK, note, WR17_BODY, origin, repoRoot).id as string)
+      : mod.appendNote(WR17_TASK, note, WR17_BODY, origin, undefined, repoRoot);
+    expect(id, "PREMISE: the origin seed did not write, so nothing below measures a promotion").toBeTruthy();
+    return id;
+  }
+
+  it("Test 1/2: an origin the caller AUTHORED outside any trusted location is refused by name", () => {
+    const repoRoot = projectWith({ human_admission: "high-severity", audit_retention: "retained" });
+    // An ORDINARY directory. Not a context store, not under the module's trusted root — the exact
+    // shape the reviewer used, and the shape that made the header's claim untrue.
+    const forged = freshTmp("p31-18-wr17-forged-origin-");
+    const lean = projectWith(null);
+    const id = seed(forged, lean);
+    const dest = contextStore("p31-18-wr17-dest-");
+    let message = "";
+    try {
+      mod.promoteAdmitted(WR17_TASK, id, disposed(), WR17_BODY, forged, dest, repoRoot);
+    } catch (e) {
+      message = (e as Error).message;
+    }
+    expect(
+      message,
+      "a caller-authored directory outside any trusted location was accepted as the proof's left " +
+        "operand — the caller supplied the bytes its own write is judged against",
+    ).toContain("DECLINED (origin-outside-trusted-store)");
+    expect(message).toContain(mod.PROMOTE_ADMITTED_DECLINES["origin-outside-trusted-store"]);
+    expect(noteFiles(dest)).toEqual([]);
+  });
+
+  it("Test 3: the legitimate compaction origin — a CONTEXT STORE — is still accepted, byte-identically", () => {
+    const repoRoot = projectWith({ human_admission: "high-severity", audit_retention: "retained" });
+    const origin = contextStore("p31-18-wr17-ok-origin-");
+    const dest = contextStore("p31-18-wr17-ok-dest-");
+    const id = seed(origin, repoRoot);
+    expect(mod.promoteAdmitted(WR17_TASK, id, disposed(), WR17_BODY, origin, dest, repoRoot)).toBe(id);
+    expect(readFileSync(join(dest, WR17_TASK, "notes", `${id}.md`), "utf8")).toBe(
+      readFileSync(join(origin, WR17_TASK, "notes", `${id}.md`), "utf8"),
+    );
+  });
+
+  it("Test 3b: the OTHER arm — an origin reached from the module's own trusted-root answer", () => {
+    // A directory that is NOT shaped like a context store, but which sits inside the root
+    // `trustedRepoRoot()` itself answers. The module has independent reason to trust it: no caller
+    // chose it, the ambient project directory did.
+    const repoRoot = projectWith({ human_admission: "high-severity", audit_retention: "retained" });
+    const origin = join(repoRoot, "some", "other", "store");
+    mkdirSync(origin, { recursive: true });
+    const dest = contextStore("p31-18-wr17-trusted-dest-");
+    const previous = process.env.CLAUDE_PROJECT_DIR;
+    process.env.CLAUDE_PROJECT_DIR = repoRoot;
+    try {
+      const id = seed(origin, repoRoot);
+      expect(mod.promoteAdmitted(WR17_TASK, id, disposed(), WR17_BODY, origin, dest, repoRoot)).toBe(id);
+    } finally {
+      if (previous === undefined) delete process.env.CLAUDE_PROJECT_DIR;
+      else process.env.CLAUDE_PROJECT_DIR = previous;
+    }
+  });
+
+  it("Test 4: what is deliberately left open is a NAMED residual with what would force it closed", () => {
+    const residuals = mod.PROMOTE_ADMITTED_RESIDUALS.join("\n");
+    expect(residuals).toContain("T-31-18-01");
+    const member = mod.PROMOTE_ADMITTED_RESIDUALS.find((r) => r.includes("T-31-18-01")) as string;
+    expect(member).toContain("Disposition: accept");
+    expect(
+      member,
+      "the residual states the shape but not what would force it closed, which is the half that " +
+        "turns a disclosure into a decision",
+    ).toContain("What would force it closed");
+    // …and the register's own both-directions binding is untouched by the addition.
+    expect(mod.PROMOTE_ADMITTED_RESIDUALS.join("\n")).toContain("T-31-14-03");
+  });
+
+  it("Test 5: the route's header states what the code TRUSTS, not what the round intended", () => {
+    const source = readFileSync(join(ROOT, "scripts", "context-io.ts"), "utf8");
+    const header = source.slice(
+      source.indexOf("// 31-14 (D-19) — promotion of an ALREADY-ADMITTED note"),
+      source.indexOf("export const PROMOTE_ADMITTED_DECLINES"),
+    );
+    expect(header.length, "PREMISE: the D-19 header block was not found").toBeGreaterThan(500);
+    // The part worth preserving: no parameter, option or flag skips the arm. Still true, still said.
+    expect(header).toContain("parameter, option or flag");
+    // The repaired part: the header names the LOCATION the operand must come from.
+    expect(
+      header,
+      "the header does not say where the proof's operand must come from, so a future reader still " +
+        "cannot tell what the mechanism trusts",
+    ).toContain("a location this module has independent reason to trust");
+    // The sentence the reviewer cited as untrue of the mechanism is gone, not merely softened.
+    expect(
+      header,
+      "the header still carries the sentence WR-17 measured as untrue of the mechanism",
+    ).not.toContain("is a proof over bytes that ALREADY EXIST at the origin:");
+  });
+
+  it("Test 6: no parameter was added that lets a caller widen the constraint", () => {
+    const source = readFileSync(join(ROOT, "scripts", "context-io.ts"), "utf8");
+    const start = source.indexOf("export function promoteAdmitted(");
+    expect(start, "PREMISE: the route's declaration was not found").toBeGreaterThan(-1);
+    const params = source
+      .slice(source.indexOf("(", start) + 1, source.indexOf("): string {", start))
+      .split("\n")
+      .map((l) => l.replace(/\/\/.*$/, "").trim())
+      .filter((l) => l.length > 0)
+      .map((l) => l.replace(/[:=].*$/, "").replace(/,$/, "").trim())
+      .filter((l) => l.length > 0);
+    expect(
+      params,
+      "the re-binding route's parameter list moved. A parameter a caller can set to widen what the " +
+        "proof trusts is the settable flag the header says was refused",
+    ).toEqual(["task", "sourceId", "note", "body", "from", "to", "repoRoot"]);
+  });
+});
