@@ -87,7 +87,11 @@ interface CheckerModule {
     dottedPath: string | null,
     renames: ReadonlyMap<string, string> | null,
     fixtureParams?: ReadonlySet<string> | null,
+    declaredNames?: ReadonlySet<string> | null,
   ): string | null;
+  // 31-17 (D-21 (2)): the per-source-file census of names the file DECLARES, which is what the one
+  // canonicaliser asks before rewriting a head segment through EITHER map.
+  deriveDeclaredNames(ts: unknown, sf: unknown): ReadonlySet<string> | null;
   readonly TEST_INFO_CANONICAL_HEAD: string;
   readonly UNRESOLVABLE_CALLEE_RESIDUALS: readonly string[];
   readonly SKIPPED_DIRECTORIES: readonly string[];
@@ -4628,5 +4632,332 @@ describe("uat-spec-integrity — 31-17 WR-19: a pathological chain is bounded, n
     const clean = mkTargetRepo({});
     plant(clean, "e2e/uat/subject.uat.spec.ts", TRIVIAL_SPEC);
     expect(runCheck(clean).status).toBe(0);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// 31-17 WR-20 — THE CANONICALISATION ASKS WHAT A HEAD IS BOUND TO.
+//
+// WHICH REGISTER FAILED. D-17 fixed MEMBERSHIP; D-18 fixed SHAPE RESOLUTION; D-20 fixed WHICH ARMS
+// the resolved shape is compared against. The register that failed here is WHETHER THE NAME BEING
+// REWRITTEN IS THE NAME THE MAP IS ABOUT. `canonicaliseHeadSegment` rewrote `segments[0]` whenever
+// it was a key of a file-level map, with no scope analysis at all — so a legitimate spec carrying an
+// unrelated local binding of the same name was refused, under a construct name the file does not
+// contain.
+//
+// Measured against the committed .js at HEAD before this plan's change (probe repository under
+// `.temp/wr20-prefix/`, spec at `uat/p.uat.spec.ts`, the review's own reproduction verbatim):
+//   UAT spec integrity: 1 finding(s) over 1/1 uat specs checked
+//   uat/p.uat.spec.ts:4: banned modifier call — `test.skip` decides which scenarios the quality
+//   gate re-runs and how their results are read, …
+//   EXIT=1
+//
+// AND ITS BLAST RADIUS DOUBLED IN 31-16, which added a SECOND map feeding that one canonicaliser.
+// A scope rule written for the import map alone would be this exact defect one map over, so the rule
+// lives in the CANONICALISER and is asked of every map that feeds it — asserted below as its own
+// case rather than left to reading order.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+describe("uat-spec-integrity — 31-17 WR-20: a head with a nearer declaration is not canonicalised", () => {
+  function findingsOf(body: string): string[] {
+    const root = mkTargetRepo({});
+    const dest = join(root, "e2e", "uat", "subject.uat.spec.ts");
+    mkdirSync(dirname(dest), { recursive: true });
+    writeFileSync(dest, body, "utf8");
+    const r = runCheck(root, "--json");
+    if (r.status === 0) return [];
+    return (JSON.parse(r.stdout) as { findings: string[] }).findings;
+  }
+
+  /** The review's reproduction, verbatim apart from the selector member the corpus surface carries. */
+  const SHADOWED_RENAME_SPEC = [
+    'import { test as it, expect } from "@playwright/test";',
+    'it("a", async ({ page }) => {',
+    "  const helpers = { skip: (n: number) => n };",
+    "  function inner(it: { skip: (n: number) => number }) { return it.skip(1); }",
+    "  inner(helpers);",
+    '  await expect(page.getByTestId("x")).toBeVisible();',
+    "});",
+    "",
+  ].join("\n");
+
+  // ── Test 1 (RED): the legitimate spec is not refused ──────────────────────────────────────────
+
+  it("the review's legitimate shadowing spec reports ZERO findings", () => {
+    expect(
+      findingsOf(SHADOWED_RENAME_SPEC),
+      "a legitimate spec is refused because a local binding shares a renamed import's local name",
+    ).toEqual([]);
+  });
+
+  // ── Test 2: the MISLEADING MESSAGE is gone, proven on a run that still reports ────────────────
+  //
+  // A zero-finding run makes "no finding names an absent construct" true vacuously. This case plants
+  // a GENUINE `test.skip` beside the shadowing binding, so the run still reports — and the assertion
+  // is that it reports the genuine one, at the genuine line, and reports it ONCE.
+  it("a genuine modifier beside the shadowing binding is still named, and named ONCE", () => {
+    const findings = findingsOf(
+      [
+        'import { test as it, expect } from "@playwright/test";',
+        "function inner(it: { skip: (n: number) => number }) { return it.skip(1); }",
+        'it.skip("a removed scenario", async ({ page }) => {',
+        "  inner({ skip: (n: number) => n });",
+        '  await expect(page.getByTestId("x")).toBeVisible();',
+        "});",
+        "",
+      ].join("\n"),
+    );
+    expect(findings.length, "the genuine renamed modifier must be reported exactly once").toBe(1);
+    expect(findings[0]).toContain("test.skip");
+    // …at the SCENARIO's line (3), never at the shadowed helper's line (2).
+    expect(findings[0]).toContain("subject.uat.spec.ts:3:");
+  });
+
+  // ── Test 3: every genuine spelling 31-13 closed is still refused ──────────────────────────────
+
+  it("STILL REFUSED: a renamed head, because a spec that CALLS a renamed import does not declare it", () => {
+    const findings = findingsOf(
+      [
+        'import { test as it, expect } from "@playwright/test";',
+        'it.skip("a", async ({ page }) => {',
+        '  await expect(page.getByTestId("x")).toBeVisible();',
+        "});",
+        'it.describe.only("b", () => {',
+        '  it("c", async ({ page }) => {',
+        '    await expect(page.getByTestId("y")).toBeVisible();',
+        "  });",
+        "});",
+        "",
+      ].join("\n"),
+    );
+    expect(findings.length).toBe(2);
+    expect(findings.join("\n")).toContain("test.skip");
+    expect(findings.join("\n")).toContain("test.describe.only");
+  });
+
+  it("STILL REFUSED: a namespace import head", () => {
+    const findings = findingsOf(
+      [
+        'import * as pw from "@playwright/test";',
+        'pw.test.skip("a", async ({ page }: { page: { getByTestId(id: string): unknown } }) => {',
+        "  void page;",
+        "});",
+        "",
+      ].join("\n"),
+    );
+    expect(findings.length).toBe(1);
+    expect(findings[0]).toContain("test.skip");
+  });
+
+  it("STILL REFUSED: a TestInfo fixture-parameter head", () => {
+    const findings = findingsOf(
+      [
+        'import { test, expect } from "@playwright/test";',
+        'test("a", async ({ page }, testInfo) => {',
+        "  testInfo.skip();",
+        '  await expect(page.getByTestId("x")).toBeVisible();',
+        "});",
+        "",
+      ].join("\n"),
+    );
+    expect(findings.length).toBe(1);
+    expect(findings[0]).toContain("test.info().skip");
+  });
+
+  // ── Test 4: BOTH MAPS. The rule lives in the canonicaliser, not in one map's derivation ───────
+
+  it("BOTH MAPS: a fixture-parameter name ALSO declared elsewhere in the file is not canonicalised", () => {
+    expect(
+      findingsOf(
+        [
+          'import { test, expect } from "@playwright/test";',
+          "const testInfo = { skip: (): void => undefined };",
+          'test("a", async ({ page }, info) => {',
+          "  void info;",
+          "  testInfo.skip();",
+          '  await expect(page.getByTestId("x")).toBeVisible();',
+          "});",
+          "",
+        ].join("\n"),
+      ),
+      "a name the file DECLARES as a const was canonicalised through the fixture-parameter map",
+    ).toEqual([]);
+  });
+
+  // ── Test 5: PRECEDENCE. The scope rule wins over BOTH maps ────────────────────────────────────
+
+  it("PRECEDENCE: a name in BOTH maps that also has a declaration is canonicalised by NEITHER", async () => {
+    const { canonicaliseHeadSegment, TEST_INFO_CANONICAL_HEAD } = await loadChecker();
+    const renames = new Map([["shared", "test"]]);
+    const fixtureParams = new Set(["shared"]);
+    const declared = new Set(["shared"]);
+
+    // PREMISE: without the declaration, BOTH maps would have rewritten it — otherwise the case
+    // below asserts a no-op.
+    expect(canonicaliseHeadSegment("shared.skip", renames, fixtureParams, null)).toBe("test.skip");
+    expect(canonicaliseHeadSegment("shared.skip", null, fixtureParams, null)).toBe(
+      `${TEST_INFO_CANONICAL_HEAD}.skip`,
+    );
+    // …and with it, neither does.
+    expect(canonicaliseHeadSegment("shared.skip", renames, fixtureParams, declared)).toBe(
+      "shared.skip",
+    );
+  });
+
+  // ── Test 6: the rule's OWN SET, exercised one declaration kind at a time ──────────────────────
+
+  // EVERY case here CALLS `.skip` on the shadowed binding. A case that merely declared the name
+  // would pass before the fix as well — the canonicalisation only matters where a path is resolved
+  // — and a case that passes on the un-fixed tree proves nothing about the rule. The declaration
+  // kind is the only thing that varies; the call site is held constant.
+  const DECLARATION_KINDS: ReadonlyArray<readonly [string, readonly string[]]> = [
+    [
+      "a function parameter",
+      ["function inner(it: { skip: (n: number) => number }) { return it.skip(1); }", "inner({ skip: (n: number) => n });"],
+    ],
+    ["a const binding", ["const it = { skip: (n: number): number => n };", "it.skip(1);"]],
+    ["a let binding", ["let it = { skip: (n: number): number => n };", "it.skip(1);"]],
+    ["a var binding", ["var it = { skip: (n: number): number => n };", "it.skip(1);"]],
+    ["a function name", ["function it(n: number): number { return n; }", "it.skip(1);"]],
+    ["a class name", ["class it { static skip(n: number): number { return n; } }", "it.skip(1);"]],
+  ];
+
+  for (const [kind, lines] of DECLARATION_KINDS) {
+    it(`DECLARATION KIND: ${kind} suppresses canonicalisation of that name`, () => {
+      expect(
+        findingsOf(
+          [
+            'import { test as it, expect } from "@playwright/test";',
+            ...lines,
+            'test("a", async ({ page }) => {',
+            '  await expect(page.getByTestId("x")).toBeVisible();',
+            "});",
+            "",
+          ].join("\n"),
+        ),
+        `${kind}: the file DECLARES this name and calls \`skip\` on it, so the rename map must not ` +
+          `rewrite that head to \`test\``,
+      ).toEqual([]);
+    });
+  }
+
+  it("the declared-name census really carries every kind the cases above exercise", async () => {
+    const { deriveDeclaredNames } = await loadChecker();
+    const ts = hostTypeScript as typeof import("typescript");
+    const sf = ts.createSourceFile(
+      "p.ts",
+      [
+        "const alpha = 1;",
+        "let beta = 2;",
+        "var gamma = 3;",
+        "function delta(epsilon: number): number { return epsilon; }",
+        "class zeta {}",
+        "const { eta } = { eta: 1 };",
+        "const theta = (iota: number): number => iota;",
+        "",
+      ].join("\n"),
+      ts.ScriptTarget.Latest,
+      true,
+    );
+    const declared = deriveDeclaredNames(ts, sf);
+    expect(declared, "PREMISE: the census degraded to null on the host's own parser").not.toBeNull();
+    for (const name of ["alpha", "beta", "gamma", "delta", "epsilon", "zeta", "eta", "theta", "iota"]) {
+      expect([...declared!], `the census does not carry ${name}`).toContain(name);
+    }
+  });
+
+  it("the census does NOT count an import binding — an import is what the map is ABOUT", async () => {
+    const { deriveDeclaredNames } = await loadChecker();
+    const ts = hostTypeScript as typeof import("typescript");
+    const sf = ts.createSourceFile(
+      "p.ts",
+      [
+        'import { test as it, expect } from "@playwright/test";',
+        'import * as pw from "@playwright/test";',
+        "",
+      ].join("\n"),
+      ts.ScriptTarget.Latest,
+      true,
+    );
+    const declared = deriveDeclaredNames(ts, sf);
+    expect(declared).not.toBeNull();
+    // If an import specifier counted as a declaration, EVERY rename would shadow itself and the
+    // canonicalisation would never fire — the fix would have bought its correctness by doing nothing.
+    expect([...declared!]).toEqual([]);
+  });
+
+  it("the census does NOT count a SECOND-position parameter — that is the fixture map's own site", async () => {
+    const { deriveDeclaredNames } = await loadChecker();
+    const ts = hostTypeScript as typeof import("typescript");
+    const sf = ts.createSourceFile(
+      "p.ts",
+      [
+        'import { test, expect } from "@playwright/test";',
+        'test("a", async ({ page }, testInfo) => { void page; void testInfo; });',
+        "",
+      ].join("\n"),
+      ts.ScriptTarget.Latest,
+      true,
+    );
+    const declared = deriveDeclaredNames(ts, sf);
+    expect(declared).not.toBeNull();
+    expect(
+      [...declared!],
+      "the TestInfo binding position counted as a shadowing declaration, which would suppress the " +
+        "very canonicalisation D-20 (3) decided and reopen CR-10",
+    ).not.toContain("testInfo");
+    // …and the FIRST parameter of the same callback still counts, so the exemption is a position
+    // and not a licence for every parameter.
+    expect([...declared!]).toContain("page");
+  });
+
+  // ── Test 7: the boundary is NAMED, and the register still binds in both directions ────────────
+
+  it("the file-scoped coarseness is a named residual with a reason true of it", async () => {
+    const { UNRESOLVABLE_CALLEE_RESIDUALS } = await loadChecker();
+    const scoped = UNRESOLVABLE_CALLEE_RESIDUALS.filter((r) => r.includes("FILE-SCOPED"));
+    expect(
+      scoped.length,
+      "the scope rule's coarseness is not a named member of the exported register",
+    ).toBe(1);
+    // The register must state what the rule DOES and what it does NOT claim: a declaration anywhere
+    // in the file suppresses the rewrite for the whole file, which is not lexical scoping.
+    expect(scoped[0]).toContain("anywhere in the file");
+    expect(scoped[0]).toContain("second");
+    expect(
+      scoped[0].includes("WITHOUT SCOPE ANALYSIS"),
+      "the register still says the canonicalisations have NO scope analysis, which is now false",
+    ).toBe(false);
+  });
+
+  // ── the control fixture on disk ───────────────────────────────────────────────────────────────
+
+  it("the shadowed-rename control fixture is on disk and reports ZERO findings", () => {
+    const onDisk = readdirSync(FIXTURES).filter((n) => n.endsWith(".uat.spec.ts"));
+    expect(onDisk, "the control fixture is missing from the corpus").toContain(
+      "shadowed-rename.uat.spec.ts",
+    );
+    const r = runCheck(mkTargetRepo({ "e2e/uat/subject.uat.spec.ts": "shadowed-rename.uat.spec.ts" }));
+    expect(r.status, `the control fixture is refused. stdout: ${r.stdout}`).toBe(0);
+    expect(r.stdout).toContain("0 findings over 1/1");
+  });
+
+  it("the control fixture carries NO mutation region — its contract is zero findings either way", () => {
+    const text = readFileSync(join(FIXTURES, "shadowed-rename.uat.spec.ts"), "utf8");
+    expect(
+      text.split("\n").some((l) => l.trim().startsWith(`// ${MUTATE_START}`)),
+      "a control fixture with a mutation region would be asserted to be REFUSED before mutation",
+    ).toBe(false);
+    // …and it really carries the shadowing shape it claims, so it cannot pass for a trivial reason.
+    expect(text).toContain("import { test as it, expect }");
+    expect(text).toContain("function inner(it:");
+  });
+
+  it("the control fixture is covered by the fixtures typecheck target's include", () => {
+    const config = readFileSync(join(REPO_ROOT, "tsconfig.fixtures.json"), "utf8");
+    expect(config).toContain("scripts/runnable-ref/fixtures/**/*.uat.spec.ts");
+    // The include is a GLOB, so coverage is a property of the fixture's PATH. Asserted as the path
+    // test rather than as a name list, which is this repository's recorded set-literal drift.
+    expect("shadowed-rename.uat.spec.ts".endsWith(".uat.spec.ts")).toBe(true);
   });
 });
