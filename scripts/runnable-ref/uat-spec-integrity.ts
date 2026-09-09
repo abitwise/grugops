@@ -298,6 +298,27 @@ export const SKIPPED_DIRECTORIES: readonly string[] = Object.freeze([
 //   membership of the map it constrains. Widening that resolution — including letting an outer
 //   binding answer where an inner one exists — is a new decision and a gap-closure round.
 //
+//   D-28 (2026-09-09, gap-closure round 5) MOVES THE COULD-NOT-RUN BOUNDARY TO THE BYTES AND ADDS A
+//   PROCESS BOUNDARY. D-21 (1) is right about WHAT a spec this runnable cannot finish is; it was
+//   implemented around ONE FUNCTION. `ts.createSourceFile` — a recursive-descent parser running on
+//   author-controlled source — sat one line ABOVE that `try`, so CR-15 measured WR-19's exact harm
+//   at a QUARTER of the depth the round-4 fix had just closed: 1,000 nested parentheses gave an
+//   uncaught RangeError, an EMPTY stdout, exit 1, and no measurement on EITHER stream. The register
+//   that failed was neither the bound's value nor its unit but WHICH WORK THE BOUNDARY ENCLOSES.
+//   D-28 makes three decisions. (1) EVERYTHING done with a spec's bytes — the read, the parse, the
+//   diagnostics inspection and the walk — is inside one per-file boundary, and `deriveSpecPaths`'s
+//   directory walk, the second unguarded self-recursion CR-15 named, is de-recursed in the same edit
+//   so the fix covers the CLASS. (2) `main`'s whole body is inside one process boundary that names
+//   the fault on stderr and returns 2 — 2 rather than 1 because 1 is a claim about the specs and a
+//   runnable that could not complete has made none; the `try` returns what the body returns, so a
+//   legitimate 0 and 1 pass through untouched. (3) The reached-measurement requirement is expressed
+//   as "the measurement reaches the stream ITS BRANCH writes to", published as
+//   `MEASUREMENT_BRANCH_STREAMS` and READ OFF `reportMeasured` rather than imposed on it —
+//   `reportMeasured` stays byte-unchanged, because it is the `scripts/vacuity.ts` mirror and a
+//   requirement that would have forced it to move a floor's output is a requirement to rewrite, not
+//   a mechanism to re-author. Outside both boundaries: a fault that terminates the process WITHOUT
+//   UNWINDING (an out-of-memory kill, a signal), disclosed by name in the recipe.
+//
 // WHAT D-21 AND D-27 DO NOT ESTABLISH. No binder is shipped (D-13), so resolution is a RANGE test
 // over positions the parse already carries rather than real name resolution: a `typeof`-guarded
 // conditional declaration, a `with` block and any other construct whose real binding a parser cannot
@@ -2091,6 +2112,50 @@ export function reportMeasured(
   }
   return 0;
 }
+
+/**
+ * D-28 (3): THE FOUR BRANCHES ABOVE, WITH THE STREAM EACH ONE WRITES TO AND THE CODE IT RETURNS —
+ * READ OFF `reportMeasured` RATHER THAN DECIDED HERE.
+ *
+ * The two floors call `err(...)` and return 2; only the findings line and the pass line call
+ * `out(...)`. A could-not-run run therefore carries its measurement on STDERR with an EMPTY stdout,
+ * BY DESIGN, and that design is the `scripts/vacuity.ts` mirror D-21 established and this runnable
+ * cannot import. Publishing the table is what lets the pathological corpus assert "the measurement
+ * reached the stream ITS BRANCH writes to" without hand-typing an expectation per case — and what
+ * makes a later change to `reportMeasured` move this table and turn that corpus red rather than
+ * silently disagree with it.
+ */
+export type MeasurementBranch = "vacuity_floor" | "denominator_floor" | "findings" | "pass";
+
+export const MEASUREMENT_BRANCH_STREAMS: Readonly<
+  Record<MeasurementBranch, { readonly stream: "stdout" | "stderr"; readonly exitCode: number }>
+> = Object.freeze({
+  vacuity_floor: Object.freeze({ stream: "stderr", exitCode: 2 } as const),
+  denominator_floor: Object.freeze({ stream: "stderr", exitCode: 2 } as const),
+  findings: Object.freeze({ stream: "stdout", exitCode: 1 } as const),
+  pass: Object.freeze({ stream: "stdout", exitCode: 0 } as const),
+});
+
+/**
+ * D-28 (3): the shapes the pathological corpus drives, PUBLISHED as a set rather than left as a
+ * habit inside a test file.
+ *
+ * CR-15 was found at one nesting depth because a reviewer tried that depth; WR-19 was found at one
+ * chain length for the same reason. Both suites were green. A published list is what a document can
+ * quote, what a both-directions equality can bind, and what a later edit cannot quietly shrink.
+ *
+ * The corpus is generated at RUN TIME and removed: a 1,000-deep nesting, an invalid-UTF-8 file or a
+ * binary file committed under the fixtures directory would be type-checked by
+ * `tsconfig.fixtures.json` and would turn a different gate red for a reason unrelated to the ban.
+ */
+export const PATHOLOGICAL_INPUT_SHAPES: readonly string[] = Object.freeze([
+  "a nesting depth the parser cannot finish",
+  "the adjacent nesting depth the parser does finish",
+  "a spec far larger than any ordinary one",
+  "a spec carrying invalid UTF-8 byte sequences",
+  "a spec opening with a byte-order mark",
+  "a spec whose bytes are binary",
+]);
 
 // ── the command line ───────────────────────────────────────────────────────────────────────────
 

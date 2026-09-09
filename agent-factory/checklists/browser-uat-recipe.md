@@ -325,10 +325,38 @@ not run has established nothing.
 
 A spec the checker cannot finish analysing is a could-not-run reason for that file, exactly like an
 unreadable or unparseable one. It is named on stderr, it does not count towards the visited total,
-and the short-scan-set floor then reports the run as covering less than the derived set. The checker
-holds these three codes by decision on every path it can take, including a pathological one: it does
-not exit through an uncaught exception, because an uncaught exception exits 1 and 1 means "a
-finding", which would report a check that never ran as a check that found something.
+and the short-scan-set floor then reports the run as covering less than the derived set.
+
+The three codes are held by decision at TWO boundaries, and nowhere else.
+
+- **Per file.** Everything the checker does with a spec's bytes — the read, the parse, the
+  parse-diagnostics inspection and the walk over the syntax tree — is inside one could-not-run
+  boundary. A file the parser cannot finish is a file the checker did not check, so it is named on
+  stderr and it does not count towards the visited total.
+- **Per process.** The runnable's whole body is inside one boundary that names the fault on stderr
+  and returns 2. A legitimate 0 and a legitimate 1 pass through it untouched; only a throw becomes 2.
+  The code is 2 rather than 1 because 1 means "a finding", which is a claim about the specs, and a
+  runnable that could not complete has made no claim about them.
+
+What remains outside every boundary is a fault that terminates the process without unwinding — an
+out-of-memory kill, or a signal. No `try` catches those, and the checker claims nothing about them.
+Whether the Windows leg of this behaviour matches the POSIX one is an open `UNKNOWN - verify`.
+
+The partition is asserted over a corpus of pathological inputs generated at run time, one case per shape:
+
+- a nesting depth the parser cannot finish
+- the adjacent nesting depth the parser does finish
+- a spec far larger than any ordinary one
+- a spec carrying invalid UTF-8 byte sequences
+- a spec opening with a byte-order mark
+- a spec whose bytes are binary
+
+Each case asserts both halves: the exit code is one of the three above, AND the measurement carrying
+the visited and derived counts reached the stream its branch writes to. The two floors write to
+stderr and return 2; the findings line and the pass line write to stdout and return 1 and 0. A
+could-not-run run therefore carries its measurement on stderr with an empty stdout, by design. The
+half that matters is that the measurement is reached at all: an exit code inside the contract with no
+measurement on either stream is a check that never ran, reported as a check that found something.
 
 ## The loud skips
 

@@ -1190,6 +1190,98 @@ register that fixes it is RESOLUTION — innermost wins — rather than containm
     `deriveDeclaredBindings` docstring in `scripts/runnable-ref/uat-spec-integrity.ts`, and in
     `31-24-SUMMARY.md`'s key-decisions block.
 
+#### Gap-closure decision — D-28 (2026-09-09, gap-closure round 5, plan 31-25)
+
+**Forced by:** CR-15 of `31-REVIEW.md`, independently reproduced by `31-VERIFICATION.md` round 5
+(behavioral spot-check row 12, the `regressions:` entry for CR-15, the key-link row recording
+`ts.createSourceFile` NOT_WIRED to the could-not-run boundary, and the anti-patterns row at ~1605).
+
+Reproduced against the committed `scripts/runnable-ref/uat-spec-integrity.js` before any source
+change, from a probe root under `.temp/31-25-probe/` with the spec at `uat/p.uat.spec.ts`. A spec
+containing `const x: any = ((((…1…))));` measured, on this tree:
+
+| depth | exit | stdout | stderr |
+|---|---|---|---|
+| 500 | 0 | 57 B, `0 findings over 1/1 uat specs checked` | empty |
+| 630 | 0 | the same pass line | empty |
+| 631 | 1 | empty | `RangeError: Maximum call stack size exceeded` |
+| 1000 / 2000 / 5000 | 1 | empty | 1474 B, `RangeError` at `typescript.js` `token()` |
+
+with NO measurement line on EITHER stream at any failing depth. **The bypass threshold moved from
+4,000 to 1,000, in the opposite direction from the round-4 fix**, and the recipe paragraph the same
+round added asserted it could not happen.
+
+**Which register failed — not the bound's VALUE and not its UNIT, both of which D-21 (1) fixed, but
+WHICH WORK THE BOUNDARY ENCLOSES; and separately, WHETHER THE CONTRACT IS HELD AT THE PROCESS EDGE
+AT ALL.**
+
+D-21 (1) decided that a spec this runnable cannot finish is a could-not-run reason rather than an
+escaping throw. That decision is right and is unchanged. What failed is that it was implemented
+around ONE FUNCTION — `findBannedConstructs` — while `ts.createSourceFile`, a recursive-descent
+parser running on author-controlled source, sat one line ABOVE the `try`. The substantive harm was
+never the exception and never the exit code: it is that `reportMeasured` is never REACHED, so the
+vacuity floor and the denominator floor are bypassed BY CONSTRUCTION while stdout stays silent, and
+Node's uncaught-exception code 1 is read by the D-12 contract as "a finding — the gate blocks". A
+check that never ran is reported as a check that found something.
+
+- **D-28: the `{0,1,2}` contract is held at TWO decided boundaries and nowhere else.** It makes
+  three sub-decisions.
+  - **(1) EVERYTHING this runnable does with a spec's bytes is inside ONE per-file boundary, and the
+    fix covers the CLASS rather than the call the review reproduced.** In `analyzeSpecs` one `try`
+    now encloses the read, the `ts.createSourceFile` call, the `parseDiagnostics` inspection and the
+    `findBannedConstructs` call. A file the parser cannot finish is a file this runnable did not
+    check, exactly like one it could not read: it is named on stderr, it does NOT increment
+    `visited`, and the denominator floor therefore reports the short scan set out loud. The four
+    could-not-run reasons stay distinguishable — unreadable, did not parse, the parse itself
+    faulted, could not be analysed — so a reader can tell which happened. `deriveSpecPaths`'s
+    directory `walk`, named by CR-15 as the SECOND unguarded self-recursion in the same file, is
+    de-recursed into an explicit worklist in the same edit, for the identical reason D-21 (1)
+    replaced BOTH self-recursive AST walks rather than only the one WR-19 named.
+  - **(2) `main`'s whole body is inside ONE process boundary that names the fault and returns 2.**
+    The `try` returns what the body returns, so a legitimate 0 and a legitimate 1 pass through
+    untouched and only a THROW becomes 2. The code is 2 rather than 1 because 1 means "a finding —
+    the gate blocks", which is a claim ABOUT THE SPECS, and a runnable that could not complete has
+    made no claim about them. `PROCESS_BOUNDARY_MARKER` is the reason string, distinct from every
+    per-file could-not-run reason. `MainDependencies` is the injected-dependency record that makes
+    the boundary REACHABLE by a case — the same seam, for the same stated reason, as
+    `analyzeSpecs`'s injectable `readFile`: a boundary nobody can reach is a boundary nobody has
+    tested. Every field defaults to the real function, so the CLI runs exactly the program it ran
+    before the record existed.
+  - **(3) The requirement is "the measurement reaches the stream ITS BRANCH writes to", published as
+    `MEASUREMENT_BRANCH_STREAMS` and READ OFF `reportMeasured` rather than imposed on it.**
+    `reportMeasured`'s two floors call `err(...)` and return 2; only the findings line and the pass
+    line call `out(...)`. So a could-not-run shape produces its measurement on STDERR with an EMPTY
+    stdout, by design. An earlier draft of this decision required a `visited/expected` line on
+    STDOUT for every could-not-run shape; that requirement is unsatisfiable without MOVING a floor's
+    output, and moving it would re-author the `scripts/vacuity.ts` mirror D-21 deliberately keeps.
+    The requirement was rewritten rather than the mechanism. `PATHOLOGICAL_INPUT_SHAPES` publishes
+    the corpus's coverage as a set — six shapes, generated at RUN TIME into a probe root removed in
+    a `finally`, because `tsconfig.fixtures.json` type-checks everything under the fixtures
+    directory and a 1,000-deep nesting or an invalid-UTF-8 file committed there would turn a
+    different gate red for a reason unrelated to the ban.
+  - **What D-28 does NOT establish.**
+    - A fault that terminates the process WITHOUT UNWINDING — an out-of-memory kill, or a signal —
+      is caught by no `try` and is outside both boundaries. It is disclosed by name in the recipe
+      rather than left implied.
+    - Whether the Windows leg of this behaviour matches the POSIX one is an open `UNKNOWN - verify`,
+      consistent with the standing portability posture.
+    - A could-not-run run is still a run that covered LESS THAN THE DERIVED SET, not a run that
+      proved anything. Exit 2 is never a pass, and the floors say so on stderr.
+    - `reportMeasured`'s own branch/stream design is the `scripts/vacuity.ts` mirror and is left
+      BYTE-UNCHANGED by this plan; a case asserts its four branches are still the same four with the
+      same two writing to `out` and the same two to `err`. A requirement that would have forced it to
+      change is a requirement this plan rewrote, never a mechanism it re-authored.
+    - The de-recursed directory walk covers the CLASS; whether the OLD recursive walk was reachable
+      to exhaustion is platform-dependent and was MEASURED rather than assumed — on this tree a
+      like-for-like recursive frame overflows around depth 8,000 while the path-length limit stops
+      directory descent at 476, so the exhaustion was not reachable here.
+  - **Reversibility: costly.** The two boundaries are now the exported contract the recipe quotes and
+    the corpus asserts. Reverting restores a runnable the round-5 verifier measured crashing at a
+    QUARTER of the previously-fixed depth, with both measurement floors bypassed and stdout silent.
+  - **Recorded in three places that must agree:** here, in the D-21 header block and the
+    `analyzeSpecs` / `main` docstrings in `scripts/runnable-ref/uat-spec-integrity.ts`, and in
+    `31-25-SUMMARY.md`'s key-decisions block.
+
 ### Claude's Discretion
 - Exact runnable file name and the exact wording of the two new loud-skip markers, as long as
   each is a single exported constant with a single emission point (the `uat-live.test.ts` shape).
