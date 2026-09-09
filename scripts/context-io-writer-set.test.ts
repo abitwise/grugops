@@ -3898,3 +3898,168 @@ describe("31-21 — the corrected workflow sentence names exactly the routes the
     ).toBe(false);
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// PART SIX-H — the decline clause ORDER is a DERIVED axis (31-22, WR-25 / D-25).
+//
+// WHY AN ORDER NEEDS AN AXIS AT ALL. The clause SET has been derived since 31-14 and its members and
+// cardinality are both asserted. A set says nothing about which member a caller is TOLD about when
+// an input fails two of them at once, and that is the whole content of the register: the caller is
+// told WHICH clause failed so it can act on the right one.
+//
+// WHAT WAS MEASURED. The order in the committed artifact put the ENVIRONMENT clause
+// (`human-stamp-not-gated-at-destination`) ahead of the OPERAND clause
+// (`origin-outside-trusted-store`). Under `human_admission: off` or an absent configuration — the
+// lean posture most repositories run — a caller naming a forged origin was told the DESTINATION's
+// dial was the problem. The workflow's remedy for that clause is to SET the destination dial, so a
+// caller following the message it was given WIDENS a gate in response to an origin fault. Measured
+// against the pre-31-22 committed `.js`, forged in-repository origin, one row per dial value:
+//
+//   off            -> human-stamp-not-gated-at-destination
+//   absent         -> human-stamp-not-gated-at-destination
+//   high-severity  -> PROMOTED          (CR-16 — the blocker this round's Task 1 closed)
+//   all            -> PROMOTED          (CR-16)
+//
+// WHAT IS DECIDED. The INPUT fault is the more specific answer, so the operand clause is evaluated
+// first. `unreadable-governance-config` stays above BOTH, and that is a precondition rather than an
+// ordering preference: a dial that cannot be read is a fail-closed refusal the route may not reason
+// past. And the order is DERIVED from the body with a transposed watched-fail mirror, so a later
+// edit cannot silently reorder the answer a caller is given.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+/** The ordered clause sequence, in source order, from the re-binding route's own parsed body. */
+function derivedDeclineOrder(sourcePath: string): string[] {
+  return deriveDeclineSites(sourcePath).sites.map((site) => site.key);
+}
+
+/**
+ * The decided ORDER, with the reason for every adjacency that is load-bearing.
+ *
+ * MEASURED on 2026-09-09 by running the derivation against the post-31-22 source and reading its
+ * output, then checked adjacency by adjacency against the argument:
+ *
+ *   1. `empty-source-id` — a re-binding names the note it re-binds. An input that names nothing is
+ *      not a re-binding at all, so nothing below it has a subject.
+ *   2. `unreadable-governance-config` — LOAD-BEARING, and a precondition rather than a preference. A
+ *      dial that cannot be read is UNKNOWN (D-14) and fails closed; the route may not reason past
+ *      it to reach a more specific answer, because every answer below it is computed against a dial.
+ *   3. `origin-outside-trusted-store` — LOAD-BEARING (WR-25). The operand fault is a statement about
+ *      the CALLER'S INPUT; the clause below it is a statement about the ENVIRONMENT. The input fault
+ *      is the more specific answer, and the environment clause's own workflow remedy is to SET the
+ *      destination dial — the wrong instruction to hand a caller whose origin is forged.
+ *   4. `human-stamp-not-gated-at-destination` — the environment clause, now below the operand.
+ *   5..8. the proof itself, in the only order it can run: the origin record must EXIST before it can
+ *      be live, and it must be live before its fields and body can be compared against.
+ *   9. `destination-id-occupied` — the destination is read only once every operand check has passed.
+ *   10. `unreadable-audit-ledger` — last, and still before any write (31-21, D-24 (2)).
+ */
+const EXPECTED_DECLINE_ORDER: readonly string[] = Object.freeze([
+  "empty-source-id",
+  "unreadable-governance-config",
+  "origin-outside-trusted-store",
+  "human-stamp-not-gated-at-destination",
+  "no-such-origin-note",
+  "origin-note-not-live",
+  "field-differs-from-origin",
+  "body-differs-from-origin",
+  "destination-id-occupied",
+  "unreadable-audit-ledger",
+]);
+
+/** The LENGTH, asserted separately: a REORDERED sequence and a RESIZED one are different events. */
+const EXPECTED_DECLINE_ORDER_LENGTH = 10;
+
+describe("31-22 — the decline clause ORDER is derived from the route's body, not left to reading order", () => {
+  it("PREMISE: the derivation found the route, its body, and at least one decline call", () => {
+    assertDeclinePremise(deriveDeclineSites(CONTEXT_IO_TS));
+  });
+
+  it("the derived clause SEQUENCE has the expected MEMBERS in the expected ORDER", () => {
+    expect(
+      derivedDeclineOrder(CONTEXT_IO_TS),
+      "the order a caller is told about its failure moved. The operand fault must precede the " +
+        "environment fault, because the workflow's remedy for the environment clause is to WIDEN " +
+        "the destination dial — which is the wrong instruction for a forged origin",
+    ).toEqual([...EXPECTED_DECLINE_ORDER]);
+  });
+
+  it("the derived clause SEQUENCE has the expected LENGTH", () => {
+    expect(derivedDeclineOrder(CONTEXT_IO_TS).length).toBe(EXPECTED_DECLINE_ORDER_LENGTH);
+  });
+
+  it("the ORDER's SET equals the derived decline SET, in BOTH directions", () => {
+    // The two axes are bound to each other. A clause added to the register without appearing in the
+    // body — or the converse — turns this red rather than leaving one axis to drift past the other.
+    expect([...derivedDeclineOrder(CONTEXT_IO_TS)].sort()).toEqual(derivedDeclineKeys(CONTEXT_IO_TS));
+    expect(new Set(EXPECTED_DECLINE_ORDER)).toEqual(new Set(EXPECTED_DECLINE_KEYS));
+    expect(EXPECTED_DECLINE_ORDER.length).toBe(EXPECTED_DECLINE_COUNT);
+  });
+
+  it("the PREMISE fires on a RENAMED route rather than the member comparison reporting an empty set", () => {
+    const mirror = mirrorOfContextIoTs(
+      (source) => {
+        expect(
+          source.split(REBINDING_DECLARATION_ANCHOR).length - 1,
+          "PREMISE: the route declaration anchor was not found exactly once",
+        ).toBe(1);
+        return source.replace(REBINDING_DECLARATION_ANCHOR, "export function notTheRoute(");
+      },
+      "ctx-io-order-premise-",
+    );
+    expect(() => assertDeclinePremise(deriveDeclineSites(mirror))).toThrow();
+    // …and the ORDER comparison on that same mirror is vacuous, which is exactly why the premise
+    // exists: an empty sequence would otherwise report "no clause out of order".
+    expect(derivedDeclineOrder(mirror)).toEqual([]);
+  });
+
+  it("a mirror with the TWO GUARD BLOCKS TRANSPOSED turns the ORDER assertion RED", () => {
+    // The pre-31-22 program for this axis and nothing else: the WHOLE operand guard and the WHOLE
+    // dial guard exchange positions, condition and body together. Swapping only the `if` lines would
+    // leave each `throw` where it was and reorder nothing, which is a mirror that proves nothing —
+    // it was written that way first and caught by this case's own length-and-sequence assertions.
+    const DIAL_ANCHOR = "  if (!isGatedNote(note.by, note.kind, govResult)) {";
+    const OPERAND_ANCHOR = "  if (!originIsTrusted(from)) {";
+    const BLOCK_END = "\n  }\n";
+
+    function blockAt(source: string, anchor: string, what: string): string {
+      expect(
+        source.split(anchor).length - 1,
+        `PREMISE: ${what}'s anchor was not found exactly once, so this mirror transposed nothing`,
+      ).toBe(1);
+      const from = source.indexOf(anchor);
+      const to = source.indexOf(BLOCK_END, from);
+      expect(to, `PREMISE: ${what}'s block had no closing brace at the expected indentation`).toBeGreaterThan(from);
+      return source.slice(from, to + BLOCK_END.length);
+    }
+
+    const mirror = mirrorOfContextIoTs((source) => {
+      const dial = blockAt(source, DIAL_ANCHOR, "the dial guard");
+      const operand = blockAt(source, OPERAND_ANCHOR, "the operand guard");
+      expect(
+        dial.includes("human-stamp-not-gated-at-destination"),
+        "PREMISE: the dial block does not carry its own clause key, so the swap moves the wrong text",
+      ).toBe(true);
+      expect(
+        operand.includes("origin-outside-trusted-store"),
+        "PREMISE: the operand block does not carry its own clause key",
+      ).toBe(true);
+      const SWAP = "/* __GSD_CLAUSE_TRANSPOSE__ */\n";
+      return source.replace(operand, SWAP).replace(dial, operand).replace(SWAP, dial);
+    }, "ctx-io-order-mirror-");
+
+    const transposed = derivedDeclineOrder(mirror);
+    expect(
+      transposed.length,
+      "the transposed mirror lost clauses rather than reordering them",
+    ).toBe(EXPECTED_DECLINE_ORDER_LENGTH);
+    expect(
+      transposed,
+      "the ORDER assertion still passes on a mirror with the two guard blocks transposed, so it " +
+        "is not a control",
+    ).not.toEqual([...EXPECTED_DECLINE_ORDER]);
+    expect(
+      transposed.indexOf("human-stamp-not-gated-at-destination"),
+      "the mirror did not actually put the dial clause first, so it is not the pre-31-22 program",
+    ).toBeLessThan(transposed.indexOf("origin-outside-trusted-store"));
+  });
+});

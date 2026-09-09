@@ -9453,6 +9453,62 @@ describe("31-22 — CR-16: the origin is recognised by SHAPE conjoined with ROOT
     ).not.toContain("trustedRepoRoot");
   });
 
+  it("WR-25 Test 2: an input that fails BOTH clauses is told about its ORIGIN, not the dial", () => {
+    // The caller-facing consequence of the order. Under the lean posture — the dial `off` — a caller
+    // naming a forged origin used to be told the DESTINATION's dial was the problem, and the
+    // workflow's remedy for that clause is to SET the dial. A caller following the message it was
+    // given widened a gate in response to an origin fault.
+    const proj = governanceRoot("p31-22-wr25-off-", { dial: "off" });
+    const scratch = governanceRoot("p31-22-wr25-scratch-");
+    const originStore = storeUnder(scratch);
+    const id = seedBytes(originStore);
+    const forged = join(proj, "tmp", "forged");
+    copyBytesInto(originStore, id, forged);
+    const out = promote(forged, destStore("p31-22-wr25-dest-"), id, proj);
+    expect(
+      out.threw,
+      "a caller whose ORIGIN is forged was told the destination's dial was the problem",
+    ).toContain("DECLINED (origin-outside-trusted-store)");
+    expect(out.threw).not.toContain("DECLINED (human-stamp-not-gated-at-destination)");
+  });
+
+  it("WR-25 Test 3: the dial clause is not WEAKENED — both directions are driven", () => {
+    const scratch = governanceRoot("p31-22-wr25-t3-scratch-");
+    const originStore = storeUnder(scratch);
+    const id = seedBytes(originStore);
+
+    // (a) a GATING dial and a forged origin: still the origin clause.
+    const gating = governanceRoot("p31-22-wr25-gating-", { dial: "high-severity" });
+    const forged = join(gating, "tmp", "forged");
+    copyBytesInto(originStore, id, forged);
+    expect(promote(forged, destStore("p31-22-wr25-t3a-"), id, gating).threw).toContain(
+      "DECLINED (origin-outside-trusted-store)",
+    );
+
+    // (b) a LEGITIMATE origin and a non-gating dial: still the dial clause.
+    const lean = governanceRoot("p31-22-wr25-lean-", { dial: "off" });
+    expect(promote(originStore, destStore("p31-22-wr25-t3b-"), id, lean).threw).toContain(
+      "DECLINED (human-stamp-not-gated-at-destination)",
+    );
+  });
+
+  it("WR-25 Test 4: `unreadable-governance-config` stays FIRST among the environment clauses", () => {
+    // Not an ordering preference but a precondition: a dial that cannot be read is UNKNOWN (D-14)
+    // and fails closed, so the route may not reason past it to a more specific answer.
+    const proj = governanceRoot("p31-22-wr25-unreadable-", { config: false });
+    mkdirSync(join(proj, ".grugops", "factory.config.json"), { recursive: true }); // a DIRECTORY
+    const scratch = governanceRoot("p31-22-wr25-t4-scratch-");
+    const originStore = storeUnder(scratch);
+    const id = seedBytes(originStore);
+    const forged = join(proj, "tmp", "forged");
+    copyBytesInto(originStore, id, forged);
+    expect(
+      promote(forged, destStore("p31-22-wr25-t4-"), id, proj).threw,
+      "an unreadable dial lost to a more specific answer. A fail-closed precondition the route " +
+        "may not reason past must win over every clause below it",
+    ).toContain("DECLINED (unreadable-governance-config)");
+  });
+
   it("MOVEMENT 4 — `18-context-compaction.md:56` is bound to a DRIVEN case, not read", () => {
     // A sentence whose truth is only READ is how `:75` came to be false in the first place. Each
     // clause of the corrected sentence is asserted against the behaviour it claims, in this case.
