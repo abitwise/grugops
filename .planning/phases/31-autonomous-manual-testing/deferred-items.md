@@ -87,3 +87,43 @@
   **Remedy when picked up:** one disposition file per owning plan — a `31-15.md` covering those ten
   clauses. Do NOT move `00-base.md`'s recorded base commit forward and do NOT narrow the watched
   corpus.
+
+## 31-20 (2026-09-09) — the round-5 closing re-measurement of the entries above
+
+Plan `31-20` changes **no** watched file and **no** source file. It re-measures the entries above so
+the next round compares against a live number rather than against the newest stale one.
+
+- **`npm run check:diff-disposition` — re-measured at `27f613a`: `75 finding(s) over 39 elements`.**
+  The gate reports `39 watched file(s) changed since 4d2b8f0; 2178 changed clause(s) derived; 1790
+  disposition row(s) across 20 file(s)`. Every finding, by the file it names:
+  `05-pr-quality-gate.md` (**38**), `06-uat-pack.md` (**25**), `16-context-read-write.md` (**10**),
+  `17-task-claim.md` (**2**).
+  **Reason for the change since the `31-18` entry (77 → 75):** two of the twelve findings that named
+  `16-context-read-write.md` are now covered — `31-19` rewrote those clauses and wrote rows for them,
+  taking that file from 12 to 10. Nothing else moved, because plan `31-20` touches no watched file.
+  **The round's four disposition files owe 0 for their own clauses:** `31-16.md` (15 rows),
+  `31-17.md` (14), `31-18.md` (30), `31-19.md` (16).
+  **Still open, and still owned elsewhere:** the 65 findings naming `05-pr-quality-gate.md`,
+  `06-uat-pack.md` and `17-task-claim.md` (plans `31-05`/`31-06`/`31-08`) and the 10 naming
+  `16-context-read-write.md` (plan `31-15`).
+  **Remedy when picked up:** unchanged — one disposition file per owning plan (`31-05.md`,
+  `31-06.md`, `31-08.md`, `31-15.md`). `00-base.md`'s recorded `base_commit` (`4d2b8f0`) was **not**
+  moved and the watched corpus was **not** narrowed; the gate's own message names both as clearing a
+  finding by deleting its evidence.
+
+- **`node scripts/validate-agent-factory.js` invocation contract — re-measured, unchanged.** Bare:
+  exit 1, `VALIDATE_KIT_ROOT is unset — refusing to default the kit root to '.' (C3)`. With
+  `VALIDATE_KIT_ROOT=$PWD`: exit 0, `ALL CHECKS PASSED`. Its own `SCOPE` line additionally discloses
+  that a repository-level `.grugops/factory.config.json` outside the kit tree is **not** examined
+  unless `VALIDATE_ROOT` is supplied — recorded here so the scope of the green is visible with the
+  green. Still an invocation contract rather than a structural failure; remedy unchanged.
+
+- **`scripts/freshness.test.ts` "Test 1 (control, real tree)" timeout — NOT re-measured this round,
+  and not closed.** The whole excluded-e2e suite is green at `27f613a` (62 files / 3702 passed / 2
+  skipped), which means the case did not fail on this run; whether it is inside or merely near its
+  5000 ms budget on this machine was not measured, so the entry stays `open` with its remedy
+  unchanged rather than being closed by a green suite that does not report per-case margins.
+
+- **The 77 owed diff-disposition clauses recorded by the `31-18` entry** are superseded as a COUNT by
+  the 75 measured above, and by nothing else: the entry's ownership analysis stands. A prior entry is
+  history and is not rewritten; both counts are on the page with the reason for the difference.

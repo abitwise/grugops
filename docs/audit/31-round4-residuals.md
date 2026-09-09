@@ -375,3 +375,178 @@ Pre-existing non-spec scratch files from earlier rounds remain under `.temp` (`a
 here so their presence is a recorded fact rather than an unexplained one.
 
 ---
+
+## 6. The one-commit gate record — measured, and recorded as a FLOOR
+
+### 6.1 The whole repository, at one commit, with a clean tree
+
+Every figure below was taken at commit **`27f613a`** (`27f613a31fa24bf775c3a3335e8711a51b1ae8e5`) —
+this plan's own Task-1 commit, which changes one file under `docs/audit/` and no source file. The
+source trees were verified untouched (`git status --porcelain -- scripts hooks agent-factory install`
+→ empty) and no probe artifact was on disk (§5).
+
+| # | Gate | Command | Terminal output line | Result |
+|---|---|---|---|---|
+| G1 | excluded-e2e regression suite | `npx vitest run --exclude '**/scripts/e2e/**'` | `Test Files 62 passed (62)` · `Tests 3702 passed \| 2 skipped (3704)` | ✓ exit 0 |
+| G2 | build | `npm run build` | `> tsc` (clean) | ✓ exit 0 |
+| G3 | typecheck (3 projects) | `npm run typecheck` | `tsc --noEmit && tsc -p tsconfig.tests.json && tsc -p tsconfig.fixtures.json` (clean) | ✓ exit 0 |
+| G4 | build parity | `npm run check:build-parity` | `Build parity: no tracked build output moved when tsc ran.` | ✓ exit 0 |
+| G5 | committed-`.js` freshness | `npm run freshness` | `All build outputs fresh: 60 committed .js file(s) match a rebuild of their sources.` | ✓ exit 0 |
+| G6 | foundation guards | `node scripts/check-foundation-guards.js` | `ALL CHECKS PASSED` | ✓ exit 0 |
+| G7 | UAT oracles | `node scripts/check-uat-oracles.js` | `ALL CHECKS PASSED` | ✓ exit 0 |
+| G8 | frozen floors + both hook suites | `npx vitest run --exclude '**/scripts/e2e/**' scripts/floor-invariance.test.ts hooks/guard.test.ts hooks/admission-guard.test.ts` | `Test Files 3 passed (3)` · `Tests 439 passed (439)` | ✓ exit 0 |
+| G9 | structure validator | `VALIDATE_KIT_ROOT=$PWD node scripts/validate-agent-factory.js` | `ALL CHECKS PASSED` | ✓ exit 0 |
+| G10 | diff disposition | `npm run check:diff-disposition` | `75 finding(s) over 39 elements` | ✗ exit 1 — **pre-existing debt, reconciled in §6.3** |
+
+**Freshness's committed-output count, stated as a number: 60.** Unchanged from the round-4
+verification's row 13 and from the review's baseline paragraph, and freshness additionally reports
+set equality with the filesystem walk (`0 committed at HEAD and absent on disk, 0 on disk and absent
+from HEAD`).
+
+**The suite moved as follows across the round**, each figure taken from the owning plan's own
+measurement and re-measured here at the end:
+
+| Point | Test files | Tests passed | Skipped |
+|---|---|---|---|
+| round-4 verification (`a16786b`) | 62 | 3566 | 2 |
+| after `31-16` (`bd38a2e`) | 62 | 3601 | 2 |
+| after `31-17` (`2f7c1c5`) | 62 | 3632 | 2 |
+| after `31-18` (`52d73ad`) | 62 | 3682 | 2 |
+| after `31-19` (`d8cd26c`) | 62 | 3702 | 2 |
+| **this round, re-measured at `27f613a`** | **62** | **3702** | **2** |
+
+The file count never moved off the 62 the round-4 verification measured; the test count rose by
+**136** across the round's four fix plans. The 2 skips are the pre-existing ones.
+
+### 6.2 The frozen floors, RE-MEASURED rather than assumed
+
+| Floor | Frozen value | Measured now | Equal? |
+|---|---|---|---|
+| the byte-frozen deploy guard | `FROZEN_GUARD_BLOB` = `669725bc1c616ab57123e22090d93d57eff1b001` (`scripts/floor-invariance.test.ts:245`) | `git hash-object hooks/guard.ts` → `669725bc1c616ab57123e22090d93d57eff1b001` | **yes** |
+
+`hooks/guard.ts` was not touched by this round and `FROZEN_GUARD_BLOB` was not re-based. The constant
+is at line **245** on this tree; the round-4 review quoted line **243** — the two-line drift is the
+paragraph `31-15` added beside it, and the VALUE is identical, so the freeze is intact and only the
+citation moved.
+
+**The WHOLE decider manifest was walked, not only the two entries this round moved.** A stale entry
+elsewhere is the same drift class, so the check is over the manifest as a whole:
+
+```
+premise: region found; 26 parsed entries == 26 64-hex literals in the region
+deciders in DECIDER_MANIFEST:                  2  (hooks/admission-guard.js: 13, hooks/guard.js: 13)
+ENTRIES CHECKED (the WHOLE manifest):          26
+distinct module files named:                   14
+MISMATCHES:                                    0
+```
+
+**26 entries checked. 0 mismatches.** The two entries this round moved, re-measured with `shasum
+-a 256` as a second independent instrument:
+
+```
+2ccb662815e1346c57ba1cb1f9f713d9b92fec3a241e3ce35b054a188671cfd6  scripts/context-io.js
+2107434e318ad4ead0279206361f7e7b05dddb1817e3fddd17f2f337c97d73a6  scripts/checkpoints.js
+```
+
+Both differ from the digests `31-REVIEW.md`'s `IN-11` recorded (`edd0d731…` and `19ac8f2e…`) and from
+the intermediate value `31-18-SUMMARY.md` recorded for `context-io.js` (`cc1ad162…`). That is the
+manifest being **moved with its artifact** across `31-18` and `31-19`, three times, never relaxed —
+no entry was removed and none widened to a wildcard.
+
+**This measurement's own harness produced a FALSE PASS on its first attempt, and it is recorded.**
+The first parse used a two-space closing-brace pattern taken from the `.ts` source; the emitted `.js`
+indents with four spaces, so the walk matched **zero** deciders and reported **`0 mismatches`** — a
+green result from an empty denominator. It was caught by a vacuity floor and a count equality added
+to the harness itself (`entries > 0`, and `parsed entries == 64-hex literals in the region`), not by
+noticing the number looked wrong. **This is the eighth logged instance in this phase of a
+verification harness producing a false result about its own premise**, and the seventh, in `31-16`,
+`31-17` and `31-18`, was the same shape: a mutation harness measuring a stale artifact. Asserting the
+harness's own premise is not optional bookkeeping on this phase; it is the difference between a
+measurement and a decoration.
+
+### 6.3 The pre-existing debt, reconciled against its real baseline
+
+`npm run check:diff-disposition` is **red**, and it was red before this round began. The reconciliation
+is against the counts `deferred-items.md` records, not against zero.
+
+**Measured now at `27f613a`:** `39 watched file(s) changed since 4d2b8f0; 2178 changed clause(s)
+derived; 1790 disposition row(s) across 20 file(s)` → **`75 finding(s) over 39 elements`**.
+
+**Every finding, by the file it names:**
+
+| File | Findings | Owner |
+|---|---|---|
+| `agent-factory/workflows/05-pr-quality-gate.md` | **38** | plan `31-05` / `31-06` / `31-08` (pre-existing) |
+| `agent-factory/workflows/06-uat-pack.md` | **25** | plan `31-05` / `31-06` / `31-08` (pre-existing) |
+| `agent-factory/workflows/16-context-read-write.md` | **10** | plan `31-15` |
+| `agent-factory/workflows/17-task-claim.md` | **2** | plan `31-05` / `31-06` / `31-08` (pre-existing) |
+| **total** | **75** | — |
+
+**The movement across the round, with every figure taken from the record that measured it:**
+
+| Point | Count | What moved it |
+|---|---|---|
+| `deferred-items.md`, `31-09` entry | 75 | after `31-09.md`'s 18 rows landed |
+| `deferred-items.md`, `31-14` entry | 65 over 39 elements | `31-14.md`'s 46 rows took `18-context-compaction.md` to 0 owed |
+| `deferred-items.md`, `31-18` entry | 77 | `31-15`'s workflow-16 edits entered the diff; identical before and after `31-18`'s own prose change |
+| `31-16` and `31-17` summaries | 77 before, 77 after (each) | neither touches a watched file; `browser-uat-recipe.md` is **outside** `safetySurfaceUnion()` |
+| `deferred-items.md`, `31-19` entry | 65 → 85 → **75** | `31-19.md`'s 16 rows cleared the 16 clauses `31-19` changed and cleared **none** of the 10 it did not |
+| **this round, re-measured** | **75** | **nothing** — plan `31-20` changes no watched file |
+
+**The reason for the change since the `31-18` entry (77 → 75) is stated rather than left implied.**
+Two of the 12 findings that named `16-context-read-write.md` in the `31-18` entry are now covered:
+`31-19` rewrote those clauses and wrote rows for them, taking that file from 12 to **10**. The
+remaining 10 belong to `31-15` and are unchanged. The four disposition files this round's plans
+added — `31-16.md` (15 rows), `31-17.md` (14), `31-18.md` (30), `31-19.md` (16) — carry **0 owed**
+for the clauses their own plans changed.
+
+**Two things this round deliberately did NOT do**, because the gate's own message names both as
+clearing a finding by deleting its evidence: `00-base.md`'s recorded `base_commit` (`4d2b8f0`) was
+**not moved**, and the watched corpus was **not narrowed**. The remedy remains what
+`deferred-items.md` has recorded since `31-09`: one disposition file per owning plan (`31-05.md`,
+`31-06.md`, `31-08.md`, `31-15.md`).
+
+**The structure validator's invocation contract**, exactly as `deferred-items.md` documents it:
+
+```
+node scripts/validate-agent-factory.js                     -> exit 1
+   ERROR  VALIDATE_KIT_ROOT is unset — refusing to default the kit root to '.' (C3)
+VALIDATE_KIT_ROOT=$PWD node scripts/validate-agent-factory.js -> exit 0, ALL CHECKS PASSED
+```
+
+Unchanged, and still an invocation contract rather than a structural failure. Its own `SCOPE` line
+additionally discloses that a repository-level `.grugops/factory.config.json` outside the kit tree
+was not examined unless `VALIDATE_ROOT` is supplied — recorded here so the scope of the green is
+visible with the green.
+
+### 6.4 The suite is a FLOOR, not proof — and this phase's own record is why
+
+**Everything in §6.1 is a floor. None of it is the closure argument.** The argument is §2 through §5.
+
+This is not a generic disclaimer. It is this phase's measured record, four rounds long:
+
+| Round | Suite result | Defects that round found | Defects the suite exercised |
+|---|---|---|---|
+| 1 | green | 3 planted constructs | **0** |
+| 2 | green | CR-05, CR-06 | **0** |
+| 3 | green | CR-07, WR-14, CR-08, WR-15 | **0** |
+| 4 | green (62 files / 3566 tests) | CR-09 ×2, CR-10, CR-11, WR-19, WR-20, WR-21 | **0** |
+
+`31-VERIFICATION.md` states it in its own words: *"The full excluded-e2e suite is green … and
+exercises NONE of the six new defects found this round — this project's standing doctrine that a
+green suite is not proof for a safety predicate holds for the FOURTH consecutive verification
+round on this phase."*
+
+The two predicate families this applies to are named, so the claim is bounded rather than universal:
+**(a)** the UAT-spec modifier ban in `scripts/runnable-ref/uat-spec-integrity.ts`, and **(b)** the
+admission / re-binding / governance-root mechanism in `scripts/context-io.ts` and
+`scripts/compactor.ts`. For those two families a green suite establishes that no PREVIOUSLY DERIVED
+case regressed. It establishes nothing about a case no derivation reaches — and every defect of all
+four rounds was exactly that case. `31-VERIFICATION.md`'s own artifact table says so of this round's
+two Criticals: *"both new Critical classes this round (CR-09, CR-11) sit outside what any of this
+phase's derivations currently enumerate."*
+
+**A reader who takes §6.1 as this round's closure argument has made the error this section exists to
+prevent.**
+
+---

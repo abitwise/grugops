@@ -137,3 +137,29 @@ flagged-unresolved.**
 - [ ] `nyquist_compliant: true` set in frontmatter
 
 **Approval:** pending
+
+---
+
+## Standing human-verification items — carried forward through gap-closure round 5
+
+> Recorded by plan `31-20` (the round-5 closing measurement) on 2026-09-09. **None of the four is
+> closed by this round, and none is dropped.** Every `UNKNOWN - verify` marker below is intact and
+> carried verbatim from `31-VERIFICATION.md`'s `human_verification:` block. A gap-closure plan may
+> not close a human-verification item, and an item closed by inference is not closed.
+
+**Carry-forward count: 4 items, unchanged, now carried through rounds 2, 3, 4 and this round's
+closing measurement (round 5).** The round-4 verification recorded them as "4 items, all pre-existing
+`UNKNOWN - verify` / manual-only items … none newly discovered by this verification, carried forward
+unchanged through rounds 2, 3 and 4". This round adds no item and closes none.
+
+| Id | Item | Expected | Why it is human-only | Status after round 5 |
+|---|---|---|---|---|
+| `R-01` | The attended Claude-in-Chrome lane opens under real interactive auth, pauses for a human on a login/challenge page, and produces only a human-stamped finding + artifact-ref (never a gate stamp). | The lane behaves as documented in `agent-factory/checklists/browser-uat-recipe.md`'s attended lane; no route to a `§14-gate` stamp is exercised in practice. | Requires an attended Claude Code session with the Claude-in-Chrome browser extension installed and a real interactive login. Not reachable in CI and not reachable on this box. | **OPEN — `UNKNOWN - verify`.** Carried unchanged through rounds 2, 3, 4, 5. `scripts/chrome-lane-bar.test.ts`'s **structural** bar is green (part of the 62-file suite re-measured in `docs/audit/31-round4-residuals.md` §6.1); the lane's real interactive behaviour is **not** inferred from the bar. |
+| `R-02` | The `claude auth status --json` fail-closed predicate (D-10) behaves correctly on an API-key-only box and under a long-lived setup token. | Both configurations are a loud skip naming the failing clause, never a silent open. | Research assumptions A2/A3 are `UNKNOWN - verify`; neither configuration is reachable without destroying this box's real credentials. | **OPEN — `UNKNOWN - verify`.** Carried unchanged through rounds 2, 3, 4, 5. |
+| `R-03` | Both browser-absence probe stages, and the whole spec-integrity runnable, on a **Windows** host. | Exit 2 with the browser-absent marker when browsers are missing; parser-absent marker when `typescript` cannot be resolved. | `UNKNOWN - verify` per the standing Windows posture (`.planning/WINDOWS.md`); not testable on darwin. | **OPEN — `UNKNOWN - verify`.** Carried unchanged through rounds 2, 3, 4, 5. Every probe in this round's pairing table ran on darwin only; the Windows leg of each is untouched. |
+| `R-04` | A host repository that installed grugops before this release re-runs the installer and picks up `tools/grugops/uat-spec-integrity.js`; the uninstaller removes it. | The new runnable is materialized on re-install and cleanly removed on uninstall. | Requires a second scratch repository with a prior grugops install at an earlier release; not exercised by the unit suite. | **OPEN — `UNKNOWN - verify`.** Carried unchanged through rounds 2, 3, 4, 5. |
+
+**What this round did to them: nothing, deliberately.** `31-20` runs no attended browser session, no
+alternative auth configuration, no Windows host and no second scratch repository. Each item is
+restated here so the next verification round finds them in a register rather than rediscovering them,
+and so that "carried forward" is a recorded fact with a count rather than an assumption.
