@@ -160,6 +160,71 @@ export const SKIPPED_DIRECTORIES = Object.freeze([
 // Reversibility: costly. The resolved-path spelling for a call link is now part of the exported
 // contract the recipe quotes and the corpus asserts, exactly as D-17's constants are.
 // ───────────────────────────────────────────────────────────────────────────────────────────────
+// ───────────────────────────────────────────────────────────────────────────────────────────────
+// D-20 (2026-09-09, gap-closure round 4, extending D-14 arm (c), D-17 and D-18; forced by CR-09,
+// CR-10 and IN-10 of 31-REVIEW.md and by gap 1 of 31-VERIFICATION.md round 4). This is the
+// runnable's mirror of the decision recorded in
+// .planning/phases/31-autonomous-manual-testing/31-CONTEXT.md; the two must agree.
+//
+// WHICH REGISTER FAILED. D-17 fixed MEMBERSHIP. D-18 fixed SHAPE RESOLUTION. The register that
+// failed this round is WHICH ARMS THE RESOLVED SHAPE IS COMPARED AGAINST. D-18 (1) inserts a `()`
+// marker segment into the resolved path and justified it for exactly ONE of the ban's three arms —
+// the head/tail arm, where the marker lands in a routing position D-17 had already decided is not
+// part of the membership question. The two WHOLE-PATH arms below compare the joined path as a
+// literal, and the marker adds a segment to that string. The round-4 verifier reproduced both
+// consequences against the committed .js at `0 findings over 1/1 uat specs checked`, exit 0:
+// `expect.configure({ retries: 2 }).soft(locator)` resolves to `expect.configure().soft`, which is
+// not a member of BANNED_EXACT_PATHS, and `expect.configure({ retries: 2 }).configure({ soft: true
+// })(locator)` resolves to `expect.configure().configure`, which is not a key of
+// BANNED_CONFIGURED_PATHS. Both are real soft assertions: the lane goes green BECAUSE the acceptance
+// criterion failed. A second, independent miss sat one axis over — a `TestInfo` binding reached
+// through the second callback parameter resolves cleanly to `testInfo.skip` and its head is simply
+// not a banned head.
+//
+// D-20 THEREFORE ADDS NO MEMBER TO ANY SET EITHER. It makes three decisions:
+//
+//   (1) A ROUTING LINK IS NOT PART OF THE MEMBERSHIP QUESTION FOR ANY ARM. `stripRoutingLinks` is
+//       the ONE answer to "what does a resolved path look like when a routing link is not part of
+//       the membership question", and BOTH whole-path arms obtain their operand from it. The
+//       head/tail arm is left exactly as D-17 left it, because there the property already holds by
+//       construction. A path whose FIRST segment carries the marker is returned UNCHANGED: there the
+//       marker IS the head — a user value was passed in — which is what keeps `expect(x).soft`
+//       (`expect().soft`) a different construct from `expect.configure().soft`, legitimate BY
+//       CONSTRUCTION and not by exception, exactly as D-18 (1) established.
+//
+//   (2) THE ENABLED-OPTION AXIS IS ASKED OF THE WHOLE MARKED CHAIN THE COMPARED PATH WAS FOLDED
+//       FROM, not of the outermost call alone. `chainEnabledOptionKeys` unions `enabledOptionKeys`
+//       over every call link in the callee chain, so a chain enabling the option at an INNER link is
+//       decided identically to one enabling it at the outer link. The reviewer named only the outer
+//       ordering; its mirror was measured as already refused, because the inner link is itself a
+//       separately visited call node — and that is precisely the structural coupling this fold
+//       removes, since the verdict must not DEPEND on which nodes the walk happens to visit.
+//
+//   (3) A TESTINFO BINDING REACHED THROUGH THE SECOND CALLBACK PARAMETER IS POSITIONAL, AND THE
+//       POSITION IS A LITERAL IN THE SOURCE TEXT. `deriveTestInfoParameterNames` reads the name of
+//       the SECOND parameter of the function passed as the second argument to a `test(...)`-headed
+//       call — the identical class of parse-only reasoning D-18 (3) uses on
+//       `ImportSpecifier.propertyName` — and `canonicaliseHeadSegment` rewrites such a head to the
+//       canonical `test.info()` accessor form D-18 (1) already decided, before membership is asked.
+//       `testInfo.skip` is therefore asked as `test.info().skip`.
+//
+// ONE FINDING PER CHAIN. Arm (c) now keys its emissions on the call's start position AND its
+// routing-stripped path, exactly as arms (a) and (b) key theirs on the head identifier's position.
+// Two links of one chain that fold to the same stripped path are one construct and are reported
+// once; the fold in (2) would otherwise report the converse ordering twice.
+//
+// WHAT D-20 DOES NOT ESTABLISH. The fixture-parameter derivation is NOT scope-aware: a second
+// parameter name that is also declared elsewhere in the file is canonicalised wherever it appears.
+// That is the same shadowing boundary WR-20 records for the rename map, it is owned by plan 31-17,
+// and it is NAMED in UNRESOLVABLE_CALLEE_RESIDUALS rather than left silent. A destructured second
+// parameter names no single identifier to rewrite and is NAMED there too. The head and tail sets are
+// still hand-authored, and the declared surface is still a hand transcription whose drift from the
+// released package stays an open `UNKNOWN - verify`.
+//
+// Reversibility: costly. The routing-stripped spelling the arms compare, and the canonical head a
+// fixture-parameter binding is asked as, are now part of the exported contract the recipe quotes and
+// the corpus asserts, exactly as D-17's and D-18's constants are.
+// ───────────────────────────────────────────────────────────────────────────────────────────────
 export const BANNED_MODIFIER_HEADS = Object.freeze(["test", "describe"]);
 export const BANNED_MODIFIER_TAILS = Object.freeze([
     "skip",
@@ -168,6 +233,35 @@ export const BANNED_MODIFIER_TAILS = Object.freeze([
     "fail",
 ]);
 export const BANNED_EXACT_PATHS = Object.freeze(["expect.soft"]);
+/**
+ * D-18 (1): the suffix `calleeDottedPath` appends to a segment folded from a CALL link. Exported so
+ * the recipe, the corpus and this file's own normaliser all read the marker from one source rather
+ * than each spelling it again.
+ */
+export const CALL_LINK_MARKER = "()";
+/**
+ * D-20 (1): THE ONE ANSWER to "what does a resolved path look like when a routing link is not part
+ * of the membership question", and the ONLY place that question is decided. Every arm that compares
+ * a WHOLE joined path against a ban set obtains its operand from here; the head/tail arm reads the
+ * un-normalised segments, because there the property already holds by construction (D-17).
+ *
+ * THE RULE, IN ONE SENTENCE. An INTERIOR segment carrying the call marker is a ROUTING link and is
+ * dropped, but a path whose FIRST segment carries the marker is returned unchanged, because there
+ * the marker IS the head — a user value was passed in, which is the fact that makes the marked-head
+ * assertion `expect(x).soft` a different construct from the interior-link `expect.configure().soft`.
+ *
+ * IT DECLINES NOTHING, and that is deliberate rather than incidental, exactly as it is for
+ * `canonicaliseHeadSegment`: every exit returns its input or a rewrite of its input, so the
+ * resolver's derived decline set stays exactly the set of positions where a path could not be
+ * produced in the first place.
+ */
+export function stripRoutingLinks(dottedPath) {
+    const segments = dottedPath.split(".");
+    // A path that is ONLY a marked head has no interior link to strip and must not become empty.
+    if (segments[0].endsWith(CALL_LINK_MARKER))
+        return dottedPath;
+    return segments.filter((s, i) => i === 0 || !s.endsWith(CALL_LINK_MARKER)).join(".");
+}
 /**
  * THE ONE MEMBERSHIP AUTHORITY. Answers whether a resolved dotted path is banned, and nothing else
  * in this file answers that question: the arm-(c) call site ASKS this function and performs no
@@ -182,8 +276,14 @@ export const BANNED_EXACT_PATHS = Object.freeze(["expect.soft"]);
 export function isBannedModifierPath(dottedPath) {
     if (dottedPath === null)
         return false;
-    if (BANNED_EXACT_PATHS.includes(dottedPath))
+    // A WHOLE-PATH ARM (D-20 (1)): it compares the joined path as a literal, so a routing call link
+    // would otherwise insert a segment and walk past it. `expect.configure().soft` IS `expect.soft`.
+    if (BANNED_EXACT_PATHS.includes(stripRoutingLinks(dottedPath)))
         return true;
+    // The HEAD/TAIL ARM, exactly as D-17 left it, and deliberately over the UN-normalised segments.
+    // It reads only the first and last segments, so an interior marked link is already routing-neutral
+    // here — and normalising the head would erase the marked-HEAD distinction that keeps
+    // `expect(x).soft` legitimate by construction.
     const segments = dottedPath.split(".");
     // A single segment is a plain call, not a modifier call: `test(...)` is the thing the gate runs.
     if (segments.length < 2)
@@ -209,9 +309,13 @@ export function isBannedModifierCall(dottedPath, enabledOptions) {
         return true;
     if (dottedPath === null || enabledOptions === null)
         return false;
-    if (!Object.prototype.hasOwnProperty.call(BANNED_CONFIGURED_PATHS, dottedPath))
+    // The second WHOLE-PATH ARM (D-20 (1)). Its presence check and its value read are two positions,
+    // and BOTH obtain their operand from the one normaliser: an arm whose presence check is normalised
+    // and whose value read is not would answer two different questions about the same path.
+    if (!Object.prototype.hasOwnProperty.call(BANNED_CONFIGURED_PATHS, stripRoutingLinks(dottedPath))) {
         return false;
-    return enabledOptions.has(BANNED_CONFIGURED_PATHS[dottedPath]);
+    }
+    return enabledOptions.has(BANNED_CONFIGURED_PATHS[stripRoutingLinks(dottedPath)]);
 }
 /**
  * D-18 (2): the dotted paths whose call is an escape only when an OPTION is enabled, mapped to the
@@ -650,6 +754,58 @@ export function enabledOptionKeys(ts, call) {
     return keys;
 }
 /**
+ * D-20 (2): the option keys the WHOLE MARKED CHAIN enables — the union of `enabledOptionKeys` over
+ * this call and over every call link folded into its resolved dotted path.
+ *
+ * WHY THE CHAIN AND NOT THE OUTERMOST CALL. After D-20 (1) the compared path can be folded from
+ * several links, and the pair D-18 (2) decides is a PATH PLUS AN ENABLED OPTION. Reading the option
+ * half from the outer link alone would decide `expect.configure({retries:2}).configure({soft:true})`
+ * and leave its mirror `expect.configure({soft:true}).configure({retries:2})` to be caught only
+ * because the inner link happens to be a separately visited call node. That dependency on WHICH
+ * NODES THE WALK VISITS is the same structural coupling CR-09 exploited one register over, so the
+ * fold removes it rather than relying on it. The mirror's status was MEASURED before the change, not
+ * assumed: it already exited 1, at the inner link.
+ *
+ * Returns `null` when no link in the chain carried a readable option literal at all — the state the
+ * membership authority answers `false` for. A call whose options could not be read is not thereby an
+ * escape, and the reasons a single link yields nothing are dispositioned at `enabledOptionKeys`'s
+ * own sites rather than restated here.
+ */
+export function chainEnabledOptionKeys(ts, call) {
+    const keys = new Set();
+    let readAnyLink = false;
+    let cur = call;
+    // The same step limit the two resolvers use: a pathological chain cannot spin.
+    for (let guard = 0; guard < 512; guard++) {
+        if (ts.isCallExpression(cur)) {
+            const own = enabledOptionKeys(ts, cur);
+            if (own !== null) {
+                readAnyLink = true;
+                for (const key of own)
+                    keys.add(key);
+            }
+            cur = cur.expression;
+            continue;
+        }
+        if (ts.isPropertyAccessExpression(cur) || ts.isElementAccessExpression(cur)) {
+            cur = cur.expression;
+            continue;
+        }
+        if (ts.isParenthesizedExpression(cur) || ts.isNonNullExpression(cur)) {
+            cur = cur.expression;
+            continue;
+        }
+        if (isTypeAssertionLike(ts, cur)) {
+            cur = cur.expression;
+            continue;
+        }
+        break;
+    }
+    if (!readAnyLink)
+        return null;
+    return keys;
+}
+/**
  * D-18 (3): the source file's `@playwright/test` import RENAMES, as local name -> imported name.
  *
  * Read from `ImportSpecifier.propertyName`, which is a literal already present in the source text —
@@ -748,6 +904,10 @@ export function findBannedConstructs(ts, sf, relPath) {
     // Arms (a) and (b) are keyed on the HEAD IDENTIFIER's position so a chained assertion reports
     // once. Arm (c) matches a single call shape and needs no such key.
     const reportedAssertionHeads = new Set();
+    // D-20 (2): the same idiom, for arm (c). Two links of ONE chain that fold to the same
+    // routing-stripped path are one construct, and the chain-wide option fold would otherwise report
+    // the converse configured ordering once at the inner link and once at the outer one.
+    const reportedModifierChains = new Set();
     const lineOf = (pos) => ts.getLineAndCharacterOfPosition(sf, pos).line + 1;
     // D-18 (3): the rename map is built ONCE PER SOURCE FILE, before the walk, and applied between
     // shape resolution and membership. Per-file is the correct scope because an import declaration's
@@ -762,19 +922,25 @@ export function findBannedConstructs(ts, sf, relPath) {
             // places for the answers to disagree, which is how CR-06 happened, and asking a rule about a
             // shape nobody resolved is how CR-07 happened.
             const dottedPath = canonicaliseHeadSegment(calleeDottedPath(ts, node.expression), renames);
-            if (isBannedModifierCall(dottedPath, enabledOptionKeys(ts, node))) {
+            if (isBannedModifierCall(dottedPath, chainEnabledOptionKeys(ts, node))) {
                 const pos = node.getStart(sf);
-                // ONE emission point, and ONE sentence true of the WHOLE banned family. It used to say the
-                // call "removes the scenario", which was true of `skip`/`only`/`fixme` and FALSE of the
-                // inverting `fail` that D-17 added: `fail` runs the scenario and reports a failing
-                // assertion as a pass. A finding that misstates what the construct does to the evidence is
-                // the claim-broader-than-the-mechanism defect this whole file exists to avoid, so the
-                // sentence names both harms rather than branching into a second emission point.
-                findings.push({
-                    pos,
-                    text: `${relPath}:${lineOf(pos)}: banned modifier call — \`${dottedPath}\` decides which ` +
-                        `scenarios the quality gate re-runs and how their results are read, so a green lane could certify a scenario nobody exercised or one whose acceptance criterion failed.`,
-                });
+                // D-20 (2): one finding per CHAIN. The key asks the same normaliser the arms ask; it decides
+                // no membership of its own.
+                const chainKey = `${pos}|${stripRoutingLinks(dottedPath)}`;
+                if (!reportedModifierChains.has(chainKey)) {
+                    reportedModifierChains.add(chainKey);
+                    // ONE emission point, and ONE sentence true of the WHOLE banned family. It used to say the
+                    // call "removes the scenario", which was true of `skip`/`only`/`fixme` and FALSE of the
+                    // inverting `fail` that D-17 added: `fail` runs the scenario and reports a failing
+                    // assertion as a pass. A finding that misstates what the construct does to the evidence is
+                    // the claim-broader-than-the-mechanism defect this whole file exists to avoid, so the
+                    // sentence names both harms rather than branching into a second emission point.
+                    findings.push({
+                        pos,
+                        text: `${relPath}:${lineOf(pos)}: banned modifier call — \`${dottedPath}\` decides which ` +
+                            `scenarios the quality gate re-runs and how their results are read, so a green lane could certify a scenario nobody exercised or one whose acceptance criterion failed.`,
+                    });
+                }
             }
             // ── arms (a) and (b): a caught or conditional assertion ─────────────────────────────────
             const head = calleeHeadIdentifier(ts, node.expression);

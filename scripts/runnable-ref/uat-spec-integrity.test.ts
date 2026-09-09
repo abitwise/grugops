@@ -2885,6 +2885,17 @@ describe("uat-spec-integrity — 31-13 CR-07: the resolver's DECLINE set, derive
       residual: R_NON_LITERAL_OPTION,
     },
 
+    // ── chainEnabledOptionKeys (31-16, D-20 (2)) ──────────────────────────────────────────────
+    "chainEnabledOptionKeys | Block>IfStatement | !readAnyLink | return null;": {
+      kind: "decided",
+      reason:
+        "NO LINK in the chain carried a readable option literal, so there is no option to consult " +
+        "and the membership authority correctly answers false. This exit PROPAGATES the per-link " +
+        "declines of enabledOptionKeys, each of which is dispositioned at its own site above; it " +
+        "opens no shape of its own, because a chain in which every link declined is a chain about " +
+        "which every link already said why.",
+    },
+
     // ── deriveImportRenames ───────────────────────────────────────────────────────────────────
     'deriveImportRenames | Block>IfStatement>Block | typeof isImportDeclaration !== "function" || typeof isNamedImports !== "function" || typeof isNamespaceImport !== "function" || typeof isImportSpecifier !== "function" | return null;':
       {
@@ -2951,7 +2962,9 @@ describe("uat-spec-integrity — 31-13 CR-07: the resolver's DECLINE set, derive
       "isBannedModifierCall",
       "calleeDottedPath",
       "canonicaliseHeadSegment",
-      "enabledOptionKeys",
+      // 31-16 (D-20 (2)): the option axis is now folded across the whole marked chain, so the arm-(c)
+      // condition asks the FOLD directly and reaches the per-link reader through it.
+      "chainEnabledOptionKeys",
       "deriveImportRenames",
     ]) {
       expect(roots, `${name} is not reached from the arm-(c) condition`).toContain(name);
@@ -2959,6 +2972,8 @@ describe("uat-spec-integrity — 31-13 CR-07: the resolver's DECLINE set, derive
     // …and the transitive half really closed over the call graph.
     expect(closure).toContain("isBannedModifierPath");
     expect(closure).toContain("isTypeAssertionLike");
+    expect(closure).toContain("enabledOptionKeys");
+    expect(closure).toContain("stripRoutingLinks");
   });
 
   it("the canonicaliser contributes ZERO decline sites — every exit returns its input", () => {
@@ -3517,6 +3532,12 @@ describe("uat-spec-integrity — 31-16 CR-09: a routing call link does not defea
     // A MARKED HEAD is a different fact and must SEPARATE, not merge: there a user value was passed
     // in, which is what makes `expect(x).soft` a different construct from `expect.configure().soft`.
     expect(stripRoutingLinks("expect().soft")).toBe("expect().soft");
+    // …and the separation is the WHOLE path's, not only the head segment's. A chain rooted at a
+    // marked head keeps every later link too, because each of those links operates on the value the
+    // head was handed rather than on the static binding the exact-path arm is about. Without this
+    // the head guard would be indistinguishable from the filter's own `i === 0` clause, and a mutant
+    // that deleted it would pass.
+    expect(stripRoutingLinks("expect().soft().toBe")).toBe("expect().soft().toBe");
     // …and a path that is ONLY a marked head has no interior link to strip, so it passes through
     // unchanged rather than becoming an empty path.
     expect(stripRoutingLinks("expect()")).toBe("expect()");
