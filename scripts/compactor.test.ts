@@ -2958,3 +2958,121 @@ describe("31-14 self-red-team — the legitimate input, under every dial and bot
     expect(existsSync(join(repoRoot, ".grugops", "audit", "admissions.jsonl"))).toBe(false);
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// 31-22 — CR-16 at the PUBLIC surface. The caller a host actually reaches is `compactor.promoteAdmitted`,
+// and the narrowing must hold THERE, not only inside the authority. The pass-through takes no
+// `repoRoot`, so every case below runs under the ambient project directory a real caller has.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+describe("31-22 — the narrowed origin rule holds at the compactor pass-through", () => {
+  const TASK = "T-1";
+  const BODY = "the disposed body";
+
+  function disposed(over: Partial<Parameters<typeof ctxio.appendNote>[1]> = {}) {
+    return {
+      kind: "finding",
+      by: "security-nfr",
+      at: "2026-09-09T02:00:00Z",
+      verified_by: "human:mallory",
+      confidence: "high",
+      refs: ["REQ-SEC-01"],
+      supersedes: null,
+      ...over,
+    } as Parameters<typeof ctxio.appendNote>[1];
+  }
+
+  function governanceRoot(prefix: string, opts: { marker?: boolean; config?: boolean } = {}): string {
+    const { marker = true, config = true } = opts;
+    const dir = freshTmp(prefix);
+    if (marker) mkdirSync(join(dir, ".git"), { recursive: true });
+    if (config) {
+      mkdirSync(join(dir, ".grugops"), { recursive: true });
+      writeFileSync(
+        join(dir, ".grugops", "factory.config.json"),
+        JSON.stringify(
+          { context: { human_admission: "high-severity", audit_retention: "retained" } },
+          null,
+          2,
+        ),
+      );
+    }
+    return dir;
+  }
+
+  function storeUnder(root: string): string {
+    const store = join(root, ".grugops", "context");
+    mkdirSync(store, { recursive: true });
+    return store;
+  }
+
+  function under<T>(projectDir: string, fn: () => T): T {
+    const previous = process.env.CLAUDE_PROJECT_DIR;
+    process.env.CLAUDE_PROJECT_DIR = projectDir;
+    try {
+      return fn();
+    } finally {
+      if (previous === undefined) delete process.env.CLAUDE_PROJECT_DIR;
+      else process.env.CLAUDE_PROJECT_DIR = previous;
+    }
+  }
+
+  function seedBytes(store: string): string {
+    const lean = freshTmp("c31-22-lean-");
+    mkdirSync(join(lean, ".grugops"), { recursive: true });
+    return ctxio.appendNote(TASK, disposed(), BODY, store, undefined, lean);
+  }
+
+  function copyBytesInto(fromStore: string, id: string, target: string): void {
+    mkdirSync(join(target, TASK, "notes"), { recursive: true });
+    writeFileSync(
+      join(target, TASK, "notes", `${id}.md`),
+      readFileSync(join(fromStore, TASK, "notes", `${id}.md`)),
+    );
+  }
+
+  function drive(proj: string, from: string, to: string, id: string): string | null {
+    return under(proj, () => {
+      try {
+        mod.promoteAdmitted(TASK, id, disposed(), BODY, from, to);
+        return null;
+      } catch (e) {
+        return (e as Error).message;
+      }
+    });
+  }
+
+  it("CONTROL: a cross-repository governed store still promotes through the pass-through", () => {
+    const proj = governanceRoot("c31-22-proj-");
+    const other = governanceRoot("c31-22-other-");
+    const origin = storeUnder(other);
+    const id = seedBytes(origin);
+    const dest = storeUnder(governanceRoot("c31-22-dest-"));
+    expect(drive(proj, origin, dest, id)).toBeNull();
+    expect(readdirSync(join(dest, TASK, "notes"))).toEqual([`${id}.md`]);
+  });
+
+  it("an ORDINARY directory under the ambient project root is refused at the pass-through", () => {
+    const proj = governanceRoot("c31-22-forge-proj-");
+    const scratch = governanceRoot("c31-22-forge-scratch-");
+    const originStore = storeUnder(scratch);
+    const id = seedBytes(originStore);
+    const forged = join(proj, "tmp", "forged");
+    copyBytesInto(originStore, id, forged);
+    const dest = storeUnder(governanceRoot("c31-22-forge-dest-"));
+    expect(drive(proj, forged, dest, id)).toContain("DECLINED (origin-outside-trusted-store)");
+    expect(existsSync(join(dest, TASK, "notes"))).toBe(false);
+  });
+
+  it("the SHAPED forgery one `mkdir -p` deeper is refused at the pass-through too", () => {
+    const proj = governanceRoot("c31-22-shaped-proj-");
+    const scratch = governanceRoot("c31-22-shaped-scratch-");
+    const originStore = storeUnder(scratch);
+    const id = seedBytes(originStore);
+    const forged = join(proj, "tmp", "forged", ".grugops", "context");
+    copyBytesInto(originStore, id, forged);
+    const dest = storeUnder(governanceRoot("c31-22-shaped-dest-"));
+    expect(drive(proj, forged, dest, id)).toContain("DECLINED (origin-outside-trusted-store)");
+    expect(existsSync(join(dest, TASK, "notes"))).toBe(false);
+  });
+});
