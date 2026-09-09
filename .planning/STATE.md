@@ -4,14 +4,14 @@ milestone: v2.1
 milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live Board
 current_phase: 31
 current_phase_name: Autonomous Manual Testing
-status: "Phase 31 gap-closure round 4 EXECUTED (31-16..31-20, all 5 plans, suite 3702 green) and VERIFIED (round 5, 2026-09-09): gaps_found 4/6 — every round-4 finding (CR-09, CR-10, CR-11, WR-17..WR-21, IN-10) independently re-reproduced CLOSED, but the round-4 code review filed 5 new Criticals the fixes themselves created and the verifier reproduced all 5: UATX-01 fails on CR-16 (originIsTrusted's second arm trusts ANY dir under the repo root, so the copy-in workaround workflow 18 calls refused promotes), CR-12 (CR-11's readFileSync at the single write chokepoint hangs on a FIFO), CR-13 (home-stop asked BEFORE inspecting, so a repo rooted at HOME never reads its own dial = WR-15 direction); UATX-06 fails on CR-14 (WR-20's declared-names census is file-scoped: one dead unrelated declaration disables the whole rename/namespace/fixture ban) and CR-15 (ts.createSourceFile sits outside the could-not-run boundary; 1000 nested parens crash uncaught). Same score as round 4, entirely new reasons, same two predicate families for the fifth straight round. Next: /gsd-plan-phase 31 --gaps (round 5 gap closure)"
+status: "Phase 31 gap-closure round 4 EXECUTED (31-16..31-20, all 5 plans, suite 3702 green) and VERIFIED (round 5, 2026-09-09): gaps_found 4/6 — every round-4 finding (CR-09, CR-10, CR-11, WR-17..WR-21, IN-10) independently re-reproduced CLOSED, but the round-4 code review filed 5 new Criticals the fixes themselves created and the verifier reproduced all 5: UATX-01 fails on CR-16 (originIsTrusted's second arm trusts ANY dir under the repo root, so the copy-in workaround workflow 18 calls refused promotes), CR-12 (CR-11's readFileSync at the single write chokepoint hangs on a FIFO), CR-13 (home-stop asked BEFORE inspecting, so a repo rooted at HOME never reads its own dial = WR-15 direction); UATX-06 fails on CR-14 (WR-20's declared-names census is file-scoped: one dead unrelated declaration disables the whole rename/namespace/fixture ban) and CR-15 (ts.createSourceFile sits outside the could-not-run boundary; 1000 nested parens crash uncaught). Same score as round 4, entirely new reasons, same two predicate families for the fifth straight round. Gap-closure round 5 PLANNED 2026-09-09: 6 plans 31-21..31-26 in 6 sequential waves (every plan appends its own D-24..D-28 to 31-CONTEXT.md). The configured sonnet plan-checker PASSED the first draft in 98s; an opus adversarial checker then found 4 blockers + 2 warnings with two measured reproductions (31-24 containment rule left the module-scope const testInfo evasion intact; 31-23 home rule adopted the dotfiles+shared-install shape; 31-21 inverted ledger order in one of two routes; 31-25 demanded stdout where reportMeasured writes stderr). Three revision iterations: 6 -> 4 -> 2 -> 0 blockers; the iteration-2 blocker was 31-23s own replacement conjunct being flippable by one mkdir or touch, closed by a zero-filesystem MODULE_OWN_CONFIG_POSITIONS path-equality rule; the iteration-3 blocker was a wave-boundary contradiction (31-22 CONTROL 5a asserted PROMOTE at wave 2 but only promotes after 31-23 at wave 3), closed by per-wave verdicts and a cardinality-1 intended-change list. Two residual warnings fixed by the orchestrator (relative-path domain for the kind shape predicate; PROBE 5 quotes 31-22-SUMMARY rather than a hand-held copy). Gates: requirements 6/6, decision coverage 23/23, verify-path and failing-direction probes 0/0 over 240 commands. Next: /gsd-execute-phase 31 --gaps-only"
 stopped_at: Completed 31-20-PLAN.md
-last_updated: "2026-09-09T12:56:45.194Z"
-state_head: 2e2c2dca9e42d4c5188c216fdce3bec061836718
+last_updated: "2026-09-09T16:21:13.385Z"
+state_head: c807a2f71dd6274e8696e6589e025cce4e00571b
 progress:
   total_phases: 9
   completed_phases: 6
-  total_plans: 196
+  total_plans: 202
   completed_plans: 195
   percent: 67
 last_activity: 2026-08-19
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-09-07 — after Phase 29.2)
 
 ## Current Position
 
-Phase: 31 (Autonomous Manual Testing) — EXECUTING
+Phase: 31 (autonomous-manual-testing) — READY TO EXECUTE
 Plan: 6 of 20
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
