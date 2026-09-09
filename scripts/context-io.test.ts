@@ -6678,6 +6678,161 @@ describe("31-15 — WR-15: the target repository's dial is read on every host", 
       ).toBe(false);
     }
   });
+
+  // ── 31-19 — WR-21: THE WALK STOPS WHERE THE DOCUMENTATION SAYS IT STOPS ───────────────────────
+  //
+  // WHAT THE ROUND-4 REVIEWER MEASURED (31-REVIEW.md WR-21). `projectRootFromWorkingDirectory`'s
+  // only stop conditions were a configuration found, an ancestor carrying `.git`, the filesystem
+  // root, and 64 ancestors. None of those is the user's home directory — while the function's own
+  // docstring said the walk "never continues past" a boundary so a resolution "can never reach a
+  // user's home directory", and `16-context-read-write.md` repeated it to every reader. Both are
+  // non-sequiturs: the marker stop fires only if some ancestor happens to carry `.git`.
+  //
+  // REPRODUCED AGAINST THE COMMITTED .js BEFORE ANY SOURCE CHANGE (quoted verbatim in
+  // 31-19-SUMMARY.md): with both project-directory variables removed and a working directory three
+  // levels below a home-directory-shaped ancestor carrying `.grugops/factory.config.json`, with no
+  // repository marker anywhere on the path, `trustedRepoRoot()` returned the planted ancestor and
+  // the dial read was that ancestor's `"all"`. A second probe drove an admission from the same shape
+  // and the GOV-02 event landed in the planted directory's own `.grugops/audit/admissions.jsonl`.
+  //
+  // WHY THAT SHAPE IS THE INSTALLER'S OWN. Under the shipped shared-install model the kit lives at
+  // `~/.grugops`, so a home-directory-shaped ancestor carrying exactly that path is what
+  // `install/install.ts` creates rather than a contrived tree.
+  describe("31-19 — WR-21: the walk stops at the user's home directory", () => {
+    /**
+     * A planted HOME-shaped ancestor carrying a configuration, with a working directory three levels
+     * below it and NO repository marker anywhere between the two — the reviewer's own shape.
+     */
+    function plantedHome(context: Record<string, unknown>, prefix = "p31-19-home-") {
+      const home = tmp15(prefix);
+      mkdirSync(join(home, ".grugops"), { recursive: true });
+      writeFileSync(join(home, ".grugops", "factory.config.json"), JSON.stringify({ context }));
+      const deep = join(home, "work", "scratch", "deep");
+      mkdirSync(deep, { recursive: true });
+      return { home, deep };
+    }
+
+    /**
+     * The environment a process has when `home` genuinely IS its user's home directory. Both names
+     * are set because `os.homedir()` reads `HOME` on POSIX and `USERPROFILE` on Windows, and a case
+     * that only sets the POSIX one would measure the platform rather than the stop.
+     */
+    function asHome(home: string): Record<string, string> {
+      return { HOME: home, USERPROFILE: home };
+    }
+
+    const LEDGER_RELPATH = [".grugops", "audit", "admissions.jsonl"] as const;
+
+    it("REPRODUCED: a home-shaped ancestor's configuration is NOT adopted, and the KIT answers", () => {
+      const { home, deep } = plantedHome({ human_admission: "all" });
+      // PREMISE, ASSERTED: the planted configuration really is readable and really does carry the
+      // active dial, so a case that answers the kit is answering it for the right reason.
+      const planted = mod.readGovernanceConfig(home);
+      expect(planted.source, "PREMISE: the planted configuration is not readable").toBe("ok");
+      expect(planted.config.human_admission).toBe("all");
+
+      const r = drive("trustedRepoRoot", { cwd: deep, env: asHome(home) });
+      expect(r.root, "the walk adopted a home-directory-shaped ancestor's configuration").toBe(KIT);
+      expect(r.message, "the dial read must be the kit's shipped lean posture").toContain(
+        "human_admission: off",
+      );
+    });
+
+    it("THE CONSEQUENCE: no GOV-02 event lands in the planted home directory's audit trail", () => {
+      const { home, deep } = plantedHome(
+        { human_admission: "high-severity", audit_retention: "retained" },
+        "p31-19-ledger-",
+      );
+      const ledger = join(home, ...LEDGER_RELPATH);
+      // PREMISE, ASSERTED: this root's dial really does retain, so a write reaching it WOULD be
+      // visible here. A case that cannot see the thing it forbids is not a case.
+      expect(mod.readGovernanceConfig(home).config.audit_retention).toBe("retained");
+      expect(existsSync(ledger)).toBe(false);
+
+      const r = drive("appendNote", { cwd: deep, env: asHome(home) });
+      expect(r.root).toBe(KIT);
+      expect(
+        existsSync(ledger),
+        "an admission driven from an unrelated working directory wrote a GOV-02 admission record " +
+          "into the planted home directory's committed audit trail",
+      ).toBe(false);
+    });
+
+    it("ADJACENCY: the home directory ITSELF is never adopted, even carrying a configuration", () => {
+      const { home } = plantedHome({ human_admission: "all" }, "p31-19-athome-");
+      const r = drive("trustedRepoRoot", { cwd: home, env: asHome(home) });
+      expect(r.root, "the home directory is a candidate the walk must never inspect").toBe(KIT);
+    });
+
+    it("ABOVE: an ANCESTOR of the home directory is never inspected either", () => {
+      const above = tmp15("p31-19-above-");
+      const home = join(above, "home");
+      mkdirSync(home, { recursive: true });
+      mkdirSync(join(above, ".grugops"), { recursive: true });
+      writeFileSync(
+        join(above, ".grugops", "factory.config.json"),
+        JSON.stringify({ context: { human_admission: "all" } }),
+      );
+      // The working directory IS the ancestor that carries the configuration, so nothing but the
+      // stop can prevent the adoption.
+      const r = drive("trustedRepoRoot", { cwd: above, env: asHome(home) });
+      expect(r.root, "a directory ABOVE the home directory was adopted").toBe(KIT);
+    });
+
+    it("THE REVIEW'S REQUESTED CASE: cwd below a planted ancestor config, no marker, answers the KIT", () => {
+      const above = tmp15("p31-19-requested-");
+      const home = join(above, "home");
+      mkdirSync(home, { recursive: true });
+      mkdirSync(join(above, ".grugops"), { recursive: true });
+      writeFileSync(
+        join(above, ".grugops", "factory.config.json"),
+        JSON.stringify({ context: { human_admission: "all" } }),
+      );
+      const deep = join(above, "a", "b", "c");
+      mkdirSync(deep, { recursive: true });
+      // PREMISE, ASSERTED: no repository marker anywhere between the working directory and the
+      // planted configuration, so the marker stop cannot be what decides this case.
+      for (const d of [deep, join(above, "a", "b"), join(above, "a"), above]) {
+        expect(existsSync(join(d, ".git")), `PREMISE: ${d} carries a repository marker`).toBe(false);
+      }
+      const r = drive("trustedRepoRoot", { cwd: deep, env: asHome(home) });
+      expect(r.root).toBe(KIT);
+      expect(r.message).toContain("human_admission: off");
+    });
+
+    it("CONTROL 3: a project that is a DIRECT CHILD of the home directory still resolves to itself", () => {
+      const home = tmp15("p31-19-childrepo-");
+      const project = join(home, "proj");
+      mkdirSync(join(project, ".grugops"), { recursive: true });
+      writeFileSync(
+        join(project, ".grugops", "factory.config.json"),
+        JSON.stringify({ context: ACTIVE }),
+      );
+      const src = join(project, "src");
+      mkdirSync(src, { recursive: true });
+      // At distance zero…
+      expect(drive("trustedRepoRoot", { cwd: project, env: asHome(home) }).root).toBe(project);
+      // …and from below. The home stop must bound the walk, not swallow the repository under it.
+      const r = drive("appendNote", { cwd: src, env: asHome(home) });
+      expect(r.root).toBe(project);
+      expect(r.verdict).toBe("refuse");
+      expect(r.message).toContain("human_admission: high-severity");
+    });
+
+    it("CONTROL 1 (WR-15 intact): the row-6 spot-check still refuses, naming the dial", () => {
+      const project = projectWith(ACTIVE, "p31-19-wr15-");
+      // Driven twice: once under the ambient home directory this suite runs with, and once under a
+      // home directory that is NOT an ancestor of the project. Neither may re-open WR-15.
+      for (const env of [{}, asHome(tmp15("p31-19-unrelated-home-"))]) {
+        const r = drive("appendNote", { cwd: project, env });
+        expect(r.root, "step 3 must still answer the project the working directory is in").toBe(
+          project,
+        );
+        expect(r.verdict).toBe("refuse");
+        expect(r.message).toContain("human_admission: high-severity");
+      }
+    });
+  });
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════════════════════
