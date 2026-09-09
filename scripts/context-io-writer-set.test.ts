@@ -2308,9 +2308,17 @@ function assertDeclinePremise(derived: DeclineDerivation): void {
  * MEASURED ON 2026-09-08 by running the derivation against the post-31-14 source and reading its
  * output. Six clauses: one for an unnameable source, one fail-closed governance read, two about the
  * origin record's existence and liveness, and two about the promoted note differing from it.
+ *
+ * MEASURED AGAIN, WITH THE REASON IT MOVED (31-18, CR-11): 6 -> 7. The derivation was re-run against
+ * the post-31-18 source and its output READ, rather than the constant being adjusted until the case
+ * passed. The new member is `destination-id-occupied`: the round-4 verifier reproduced a promotion
+ * REPLACING an already-admitted note at the destination, because the route took its write id from an
+ * argument and read nothing at the destination. The clause names the destructive case; identical
+ * destination bytes are the decided idempotent re-promotion and reach no clause at all.
  */
 const EXPECTED_DECLINE_KEYS = Object.freeze([
   "body-differs-from-origin",
+  "destination-id-occupied",
   "empty-source-id",
   "field-differs-from-origin",
   "no-such-origin-note",
@@ -2319,7 +2327,7 @@ const EXPECTED_DECLINE_KEYS = Object.freeze([
 ]);
 
 /** The cardinality, asserted separately: a re-worded clause and an ADDED clause are different events. */
-const EXPECTED_DECLINE_COUNT = 6;
+const EXPECTED_DECLINE_COUNT = 7;
 
 describe("31-14 — the re-binding proof's decline set is derived from its own body", () => {
   it("PREMISE: the parse found the route, it had a body, and it yielded decline sites", () => {
@@ -2603,6 +2611,24 @@ const DECLINE_PROBES: Readonly<Record<string, DeclineProbe>> = Object.freeze({
       };
     },
   },
+  "destination-id-occupied": {
+    drive: () => {
+      const repoRoot = activeDialRoot();
+      const { originRoot, id } = seedAdmittedOrigin(repoRoot, "ctx-io-decline-occupied-origin-");
+      const destRoot = freshTmp("ctx-io-decline-occupied-dest-");
+      // A DIFFERENT note ALREADY LIVING at the destination under the SAME id — the round-4
+      // verifier's staging, minus the forgery, because destroying an admitted note needs none. The
+      // promoted note still matches the ORIGIN exactly, so every earlier clause holds and this probe
+      // reaches the destination read rather than a field comparison.
+      const lean = freshTmp("ctx-io-decline-occupied-lean-");
+      mod.appendNote(REBIND_TASK, softNote(), "a different note entirely", destRoot, id, lean);
+      return {
+        destRoot,
+        run: () =>
+          mod.promoteAdmitted(REBIND_TASK, id, disposedFinding(), REBIND_BODY, originRoot, destRoot, repoRoot),
+      };
+    },
+  },
   "body-differs-from-origin": {
     drive: () => {
       const repoRoot = activeDialRoot();
@@ -2835,33 +2861,44 @@ describe("31-14 — the callers of both promotion routes are derived across file
   });
 });
 
-// ─── The SUMMARY's enumeration is bound to the derived set, by the suite rather than by hand. ───
-
-const PLAN_SUMMARY = join(
+// ─── The register's PROSE enumeration is bound to the derived set, by the suite, not by hand. ───
+//
+// RE-HOMED IN 31-18, WITH THE REASON. 31-14 bound this enumeration to `31-14-SUMMARY.md`. A plan
+// summary is a HISTORICAL record of what one round did, and the derived clause set is a STANDING
+// answer that every later round may move — so the binding made the current answer depend on a
+// document that must not be rewritten, and the only ways to keep it green were to falsify a
+// historical record or to weaken the check. Both are the failure this phase keeps paying for.
+//
+// The enumeration therefore lives where the current answer lives: the phase's DECISIONS file, beside
+// D-19 and its sub-decisions. `31-14-SUMMARY.md` keeps its own six-row table untouched as the
+// history of that round; this case no longer reads it. The fail-closed premise is unchanged — a
+// missing file or a renamed heading must not make the binding vacuous.
+const DECLINE_DISPOSITION_DOC = join(
   ROOT,
   ".planning",
   "phases",
   "31-autonomous-manual-testing",
-  "31-14-SUMMARY.md",
+  "31-CONTEXT.md",
 );
 
-/** The heading the SUMMARY's decline enumeration sits under, in one place so both sides agree. */
+/** The heading the decline enumeration sits under, in one place so both sides agree. */
 const SUMMARY_DECLINE_HEADING = "### Derived decline clauses and their dispositions";
 
-describe("31-14 — the SUMMARY's decline enumeration equals the derived set", () => {
-  it("the plan SUMMARY exists and carries the enumeration heading", () => {
-    // FAIL-CLOSED. A missing SUMMARY, or a renamed heading, must not make the binding below vacuous
+describe("31-14 — the register's decline enumeration equals the derived set", () => {
+  it("the disposition document exists and carries the enumeration heading", () => {
+    // FAIL-CLOSED. A missing document, or a renamed heading, must not make the binding below vacuous
     // — an empty enumeration equals an empty derived set and would report coverage that was never
     // written down.
     expect(
-      existsSync(PLAN_SUMMARY),
-      `the plan SUMMARY is absent at ${PLAN_SUMMARY}, so the enumeration this case binds cannot be read`,
+      existsSync(DECLINE_DISPOSITION_DOC),
+      `the disposition document is absent at ${DECLINE_DISPOSITION_DOC}, so the enumeration this ` +
+        `case binds cannot be read`,
     ).toBe(true);
-    expect(readFileSync(PLAN_SUMMARY, "utf8")).toContain(SUMMARY_DECLINE_HEADING);
+    expect(readFileSync(DECLINE_DISPOSITION_DOC, "utf8")).toContain(SUMMARY_DECLINE_HEADING);
   });
 
-  it("every derived decline clause is enumerated in the SUMMARY, and the SUMMARY names no other", () => {
-    const text = readFileSync(PLAN_SUMMARY, "utf8");
+  it("every derived decline clause is enumerated, and the document names no other", () => {
+    const text = readFileSync(DECLINE_DISPOSITION_DOC, "utf8");
     const section = text.slice(text.indexOf(SUMMARY_DECLINE_HEADING));
     const table = section.slice(0, section.indexOf("\n#", 1) === -1 ? undefined : section.indexOf("\n#", 1));
     const enumerated = [
@@ -2874,7 +2911,7 @@ describe("31-14 — the SUMMARY's decline enumeration equals the derived set", (
     ].sort();
     expect(
       enumerated,
-      "the SUMMARY's decline enumeration and the clauses derived from the route's own body " +
+      "the written decline enumeration and the clauses derived from the route's own body " +
         "disagree. A written disposition for a clause that no longer exists reads as coverage and " +
         "is not; a clause with no written disposition is the silence this plan exists to remove",
     ).toEqual(derivedDeclineKeys(CONTEXT_IO_TS));

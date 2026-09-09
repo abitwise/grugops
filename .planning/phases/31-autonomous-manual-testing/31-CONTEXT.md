@@ -304,6 +304,25 @@ FABRICATED `§14-gate` stamp, never a legitimate human one.
     `PROMOTE_ADMITTED_DECLINES` is exported from that module and its key set is asserted equal, in
     both directions, to the clause set derived from the route's own parsed body.
 
+### Derived decline clauses and their dispositions
+
+The STANDING enumeration of `PROMOTE_ADMITTED_DECLINES`, bound by `scripts/context-io-writer-set.ts`'s
+derived clause set in both directions. It lives here rather than in a plan summary because a summary
+records what one round did and this is the current answer, which a later round may move — 31-14
+originally bound it to `31-14-SUMMARY.md`, which left the current answer depending on a historical
+record nobody may rewrite. That summary keeps its own six-row table as the history of its round; this
+table is the one the suite reads.
+
+| Clause | Disposition |
+|---|---|
+| `empty-source-id` | Refuse. A re-binding names the note it re-binds; an empty id names nothing, so there is no origin record to prove anything against. |
+| `unreadable-governance-config` | Refuse, fail-closed (D-14). The dial is UNKNOWN, and this route skips only the arm the in-script tier cannot verify, never the authority. A genuinely ABSENT config is a different case and runs lean. |
+| `no-such-origin-note` | Refuse. With no note at the named id in the origin, nothing was ever admitted there; the promotion is a NEW admission and must take the full-admission route. |
+| `origin-note-not-live` | Refuse. The origin's deterministic replay folded the note out, so carrying it forward would re-admit a decision the origin already withdrew. |
+| `field-differs-from-origin` | Refuse. A re-binding is a FAITHFUL carry-forward; a note whose provenance changed is a new note, and a new note is a new admission. |
+| `body-differs-from-origin` | Refuse. A compaction that CHANGED the note is a new admission, decided by the full authority at the destination and honestly degraded when its stamp no longer cross-checks. |
+| `destination-id-occupied` | Refuse (31-18, CR-11). The destination already holds a DIFFERENT note under this id, and a write that replaced it would DELETE admitted evidence from the permanent audit trail rather than supersede it. Destination bytes IDENTICAL to the proven origin bytes are the decided idempotent re-promotion, which proceeds and reaches no clause. |
+
 #### Gap-closure decision — D-20 (2026-09-09, gap-closure round 4, plan 31-16)
 
 This is a GAP-CLOSURE decision recorded during execution, not an original user decision from the

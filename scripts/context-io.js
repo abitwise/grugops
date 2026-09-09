@@ -805,6 +805,35 @@ export function atomicWrite(finalPath, data) {
 // ancestor would pass containment — bounded by the same-uid direct-FS residual (the channel can only
 // atomicWrite a `.md`, never plant a symlink). The id is NOT inspected by validate(); this
 // path-containment is what catches a forged/precomputed id.
+//
+// ── APPEND-ONLY, ENFORCED HERE (31-18, CR-11). ──────────────────────────────────────────────────
+//
+// WHAT WAS WRONG, MEASURED RATHER THAN DESCRIBED. `appendNote`'s own justification comment says
+// "Writes one NEW file; never mutates a shared file (SCTX-04). The publish target is always unique,
+// so the cross-platform rename-onto-existing hazard does not apply to note publication." That was an
+// ASSUMPTION every writer happened to satisfy because it derived its id through `noteId`'s nonce —
+// not a property the write enforced. `promoteAdmitted` (31-14) then arrived taking its id from an
+// ARGUMENT, and the round-4 verifier reproduced the consequence against the committed `.js`: a
+// legitimate `observation` admitted into a shared context the ordinary way was silently REPLACED by
+// a forged `finding` under the same id, with the same id returned, nothing thrown, and no diagnostic
+// of any kind. The original note was not superseded and not folded out by replay — it was DELETED
+// from the permanent audit trail, and `render()`/`currentState()` reported only the replacement.
+//
+// WHY THE CHECK BELONGS AT THE CHOKEPOINT AND NOT IN THE ONE ROUTE THE REVIEWER REACHED. This
+// repository's own doctrine is to ask how a chokepoint is REACHED, not only what it refuses. A
+// destination read written into `promoteAdmitted` alone would close the route the reviewer walked
+// and leave the CAPABILITY intact for the next writer that accepts a caller-chosen id — which is
+// exactly the "fix the probe shape" pattern four rounds of this phase have paid for. Every note
+// write in this module passes through here, so the invariant closes the class.
+//
+// THE IDENTICAL-BYTES CASE IS DECIDED, NOT LEFT TO THE RENAME PRIMITIVE. A write whose bytes are
+// EXACTLY what the destination already holds PROCEEDS, as a no-op. The argument: the post-condition
+// the caller asked for already holds, there is no note to destroy, and the case is reachable without
+// any adversary — a re-run compaction promoting the same admitted note twice is an ordinary,
+// idempotent operation that must not become a refusal. Only a write that would CHANGE an existing
+// note's bytes is refused, and it is refused loudly. Returning early also means the rename primitive
+// is never asked to replace an existing file on this path, so `atomicWrite`'s Windows
+// unlink-then-rename branch stays what its own comment says it is: the derived-artifact path only.
 function writeNoteFile(notesDir, id, text) {
     const finalPath = join(notesDir, `${id}.md`);
     const resolvedDir = resolve(notesDir);
@@ -815,6 +844,23 @@ function writeNoteFile(notesDir, id, text) {
         throw new Error(`context-io.writeNoteFile: refusing to write — note id "${id}" resolves OUTSIDE the task ` +
             `notes directory (path containment violated: "${resolvedFinal}" is not strictly inside ` +
             `"${resolvedDir}"). No file was written. This is a path-traversal attempt (GAP-R6-1).`);
+    }
+    if (existsSync(resolvedFinal)) {
+        let existing = null;
+        try {
+            existing = readFileSync(resolvedFinal, "utf8");
+        }
+        catch {
+            // A path that exists and cannot be read is not something this write may replace. Falling
+            // through to the refusal below is the fail-closed answer; a rename would destroy it.
+            existing = null;
+        }
+        if (existing === text)
+            return; // the decided idempotent case: nothing to write, nothing to lose
+        throw new Error(`context-io.writeNoteFile: refusing to write — the destination already holds a DIFFERENT ` +
+            `note under id "${id}". The shared verified context is APPEND-ONLY (SCTX-04): a ` +
+            `supersession is a NEW note carrying a supersedes: field, never a rewrite of an existing ` +
+            `one. No file was written, and the note already at "${resolvedFinal}" is untouched (CR-11).`);
     }
     mkdirSync(notesDir, { recursive: true });
     atomicWrite(finalPath, text);
@@ -1135,6 +1181,12 @@ export const PROMOTE_ADMITTED_DECLINES = Object.freeze({
     "body-differs-from-origin": "The promoted body differs from the origin record's. A compaction that CHANGED the note is not " +
         "a re-binding — it is a new admission, decided by the full authority at the destination, and " +
         "honestly degraded when its stamp no longer cross-checks (Workflow 18 step 6).",
+    "destination-id-occupied": "The destination already holds a DIFFERENT note under this id. The shared verified context is " +
+        "APPEND-ONLY: a supersession is a NEW note, never a rewrite of an existing one, and a promotion " +
+        "that replaced a note would delete admitted evidence from the permanent audit trail rather " +
+        "than supersede it. Destination bytes IDENTICAL to the proven origin bytes are a different " +
+        "case and are decided as an idempotent re-promotion that proceeds — a re-run compaction has " +
+        "nothing to destroy — so this clause names only the destructive one.",
 });
 /**
  * Named residuals of this route: trust boundaries it does NOT close, each with its reason.
@@ -1250,6 +1302,23 @@ export function promoteAdmitted(task, sourceId, note, body, from, to, repoRoot =
     }
     if (candidateRecord.body !== originRecord.body) {
         throw declineRebinding("body-differs-from-origin", `The promoted body is not the body stored for "${sourceId}" at the origin.`);
+    }
+    // ── THE DESTINATION IS PART OF THE PROOF (31-18, CR-11). ──────────────────────────────────────
+    // Read the DESTINATION through the SAME reader the proof's left operand already uses, so "what is
+    // already there" has one answer rather than a second walk beside `readRawNotes`. The clause sits
+    // HERE — before the write chokepoint is reached — for the positional reason every other clause in
+    // this register sits where it does: "nothing was written" is then true by construction rather than
+    // by cleanup. The chokepoint enforces the same invariant for every writer (see writeNoteFile);
+    // this clause exists so the refusal is LEGIBLE where a reader of the register looks, and so the
+    // route names its own decision rather than inheriting a message about a filesystem primitive.
+    //
+    // Identical bytes are the DECIDED idempotent case and fall through to the write, which is itself a
+    // no-op there. A destination file that exists but does not PARSE is invisible to this reader — and
+    // is caught by the chokepoint, which compares bytes rather than records. Defense in depth, stated
+    // rather than assumed.
+    const destinationEntry = readRawNotes(task, to).find((raw) => raw.id === sourceId);
+    if (destinationEntry !== undefined && destinationEntry.text !== candidateText) {
+        throw declineRebinding("destination-id-occupied", `The destination already holds a DIFFERENT note under id "${sourceId}".`);
     }
     // EVERY CLAUSE HELD. Persist through the module-private pre-admitted route with the origin's frozen
     // id, so the destination file IS the origin file. This is the SECOND — and, by the derived caller
