@@ -3829,6 +3829,15 @@ describe("uat-spec-integrity — 31-16 CR-09: every arm that compares a resolved
     readonly fn: string;
     readonly banSet: string;
     readonly operand: string;
+    /**
+     * 31-24 (IN-12): the operand's SOURCE. IN-12 made each arm compute the normaliser ONCE into a
+     * local, so an arm's operand text became `normalised` rather than `stripRoutingLinks(path)` — and
+     * a check that looked for the normaliser's NAME in the operand text would have gone quietly
+     * false for every deduped arm. The operand is therefore FOLLOWED: an identifier that names a
+     * local of the same function is resolved to that local's initialiser text, so "this arm asks the
+     * one normaliser" stays the question being asked whether the call is written inline or once.
+     */
+    readonly operandSource: string;
     readonly signature: string;
   }
 
@@ -3886,8 +3895,25 @@ describe("uat-spec-integrity — 31-16 CR-09: every arm that compares a resolved
     // THE SECOND DERIVED AXIS: every position at which one of those constants is consulted, with the
     // OPERAND it is consulted about.
     const consumers: PathConsumer[] = [];
+    /** Every `const x = <init>` of ONE function body, so an operand identifier can be followed. */
+    const localsOf = (fn: import("typescript").FunctionDeclaration): Map<string, string> => {
+      const locals = new Map<string, string>();
+      const collect = (node: import("typescript").Node): void => {
+        if (
+          ts.isVariableDeclaration(node) &&
+          ts.isIdentifier(node.name) &&
+          node.initializer !== undefined
+        ) {
+          locals.set(node.name.text, collapseText(node.initializer.getText(sf)));
+        }
+        ts.forEachChild(node, collect);
+      };
+      if (fn.body !== undefined) collect(fn.body);
+      return locals;
+    };
     const walkFn = (
       fnName: string,
+      locals: ReadonlyMap<string, string>,
       node: import("typescript").Node,
     ): void => {
       if (ts.isIdentifier(node) && banSets.has(node.text)) {
@@ -3921,15 +3947,16 @@ describe("uat-spec-integrity — 31-16 CR-09: every arm that compares a resolved
             fn: fnName,
             banSet: node.text,
             operand: operandText,
+            operandSource: locals.get(operandText) ?? operandText,
             signature: `${fnName} | ${node.text} | ${collapseText(enclosing.getText(sf))}`,
           });
         }
       }
-      ts.forEachChild(node, (child) => walkFn(fnName, child));
+      ts.forEachChild(node, (child) => walkFn(fnName, locals, child));
     };
     for (const [name, fn] of functions) {
       if (fn.body === undefined) continue;
-      walkFn(name, fn.body);
+      walkFn(name, localsOf(fn), fn.body);
     }
 
     return {
@@ -3951,7 +3978,7 @@ describe("uat-spec-integrity — 31-16 CR-09: every arm that compares a resolved
   }
 
   const PATH_CONSUMER_DISPOSITIONS: Readonly<Record<string, ConsumerDisposition>> = Object.freeze({
-    "isBannedModifierPath | BANNED_EXACT_PATHS | BANNED_EXACT_PATHS.includes(stripRoutingLinks(dottedPath))":
+    "isBannedModifierPath | BANNED_EXACT_PATHS | BANNED_EXACT_PATHS.includes(normalised)":
       {
         kind: "normalised",
         reason:
@@ -3976,7 +4003,7 @@ describe("uat-spec-integrity — 31-16 CR-09: every arm that compares a resolved
           "segment of a chain is never a marked routing link, because a marker is only ever pushed " +
           "for a CallExpression link that some later segment is read off.",
       },
-    "isBannedModifierCall | BANNED_CONFIGURED_PATHS | Object.prototype.hasOwnProperty.call(BANNED_CONFIGURED_PATHS, stripRoutingLinks(dottedPath))":
+    "isBannedModifierCall | BANNED_CONFIGURED_PATHS | Object.prototype.hasOwnProperty.call(BANNED_CONFIGURED_PATHS, normalised)":
       {
         kind: "normalised",
         reason:
@@ -3984,13 +4011,15 @@ describe("uat-spec-integrity — 31-16 CR-09: every arm that compares a resolved
           "segment defeats it exactly as it defeats the exact-path arm. This is CR-09's second " +
           "variant, `expect.configure({retries:2}).configure({soft:true})(locator)`.",
       },
-    "isBannedModifierCall | BANNED_CONFIGURED_PATHS | BANNED_CONFIGURED_PATHS[stripRoutingLinks(dottedPath)]":
+    "isBannedModifierCall | BANNED_CONFIGURED_PATHS | BANNED_CONFIGURED_PATHS[normalised]":
       {
         kind: "normalised",
         reason:
           "The same whole-path arm's VALUE read. It is a separate position and is derived as one, " +
           "because an arm whose presence check is normalised and whose value read is not would " +
-          "answer two different questions about the same path.",
+          "answer two different questions about the same path. 31-24 (IN-12) made both positions " +
+          "read ONE local the arm initialises from the normaliser, so the two cannot drift apart " +
+          "when this function is next edited — which is the only way that reason could stop holding.",
       },
   });
 
@@ -4078,13 +4107,13 @@ describe("uat-spec-integrity — 31-16 CR-09: every arm that compares a resolved
       if (disposition.kind === "normalised") {
         normalised++;
         expect(
-          consumer.operand.includes(`${NORMALISER}(`),
+          consumer.operandSource.includes(`${NORMALISER}(`),
           `${consumer.signature}: dispositioned as normalised, but its operand \`${consumer.operand}\` ` +
-            `does not come from ${NORMALISER}`,
+            `resolves to \`${consumer.operandSource}\`, which does not come from ${NORMALISER}`,
         ).toBe(true);
       } else {
         expect(
-          consumer.operand.includes(`${NORMALISER}(`),
+          consumer.operandSource.includes(`${NORMALISER}(`),
           `${consumer.signature}: dispositioned as raw, but its operand DOES ask the normaliser`,
         ).toBe(false);
       }
@@ -5063,25 +5092,67 @@ describe("uat-spec-integrity — 31-17 WR-20: a head with a nearer declaration i
 
   // ── the control fixture on disk ───────────────────────────────────────────────────────────────
 
-  it("the shadowed-rename control fixture is on disk and reports ZERO findings", () => {
+  // 31-24 (WR-24): the fixture's contract became TWO-DIRECTIONAL. Region present -> exactly one
+  // finding; region removed -> zero. Under 31-17's file-scoped rule the region-present form reported
+  // ZERO, which is why the old single-direction control could not fail for CR-14's reason.
+  it("the UNION fixture is on disk and reports EXACTLY ONE finding with its region present", () => {
     const onDisk = readdirSync(FIXTURES).filter((n) => n.endsWith(".uat.spec.ts"));
-    expect(onDisk, "the control fixture is missing from the corpus").toContain(
+    expect(onDisk, "the union fixture is missing from the corpus").toContain(
       "shadowed-rename.uat.spec.ts",
     );
     const r = runCheck(mkTargetRepo({ "e2e/uat/subject.uat.spec.ts": "shadowed-rename.uat.spec.ts" }));
-    expect(r.status, `the control fixture is refused. stdout: ${r.stdout}`).toBe(0);
+    expect(r.status, `the union fixture was not refused. stdout: ${r.stdout}`).toBe(1);
+    expect(r.stdout).toContain("1 finding(s) over 1/1");
+    expect(r.stdout).toContain("test.skip");
+  });
+
+  it("the UNION fixture returns to ZERO findings once its marked region is removed", () => {
+    const r = runMutated("shadowed-rename.uat.spec.ts");
+    expect(r.status, `the mutated union fixture is still refused. stdout: ${r.stdout}`).toBe(0);
     expect(r.stdout).toContain("0 findings over 1/1");
   });
 
-  it("the control fixture carries NO mutation region — its contract is zero findings either way", () => {
+  it("the UNION fixture carries its mutation region and BOTH shadowing shapes", () => {
     const text = readFileSync(join(FIXTURES, "shadowed-rename.uat.spec.ts"), "utf8");
     expect(
-      text.split("\n").some((l) => l.trim().startsWith(`// ${MUTATE_START}`)),
-      "a control fixture with a mutation region would be asserted to be REFUSED before mutation",
-    ).toBe(false);
-    // …and it really carries the shadowing shape it claims, so it cannot pass for a trivial reason.
+      text.split("\n").filter((l) => l.trim().startsWith(`// ${MUTATE_START}`)).length,
+      "the union fixture must carry exactly one marked region — the genuine module-scope call",
+    ).toBe(1);
+    // …and it really carries both shadowing shapes it claims, so it cannot pass for a trivial reason.
     expect(text).toContain("import { test as it, expect }");
     expect(text).toContain("function inner(it:");
+    expect(text).toContain("function second(n: number, it:");
+  });
+
+  it("the UNION fixture DISCRIMINATES: under the file-scoped rule its region-present half is admitted", async () => {
+    const { deriveDeclaredBindings, canonicaliseHeadSegment } = await loadChecker();
+    const ts = hostTypeScript as typeof import("typescript");
+    const text = readFileSync(join(FIXTURES, "shadowed-rename.uat.spec.ts"), "utf8");
+    const sf = ts.createSourceFile("p.ts", text, ts.ScriptTarget.Latest, true);
+    const bindings = deriveDeclaredBindings(ts, sf);
+    expect(bindings, "PREMISE: the census degraded to null on the host's own parser").not.toBeNull();
+    const position = text.indexOf('it.skip("the invoice total is shown, removed"');
+    expect(position, "PREMISE: the marked region's genuine call is not in the fixture").toBeGreaterThan(
+      0,
+    );
+    const renames = new Map([["it", "test"]]);
+
+    // THE SHIPPED RULE: nothing binds `it` at the module-scope call, so the rewrite fires.
+    expect(canonicaliseHeadSegment("it.skip", renames, null, { bindings: bindings!, position })).toBe(
+      "test.skip",
+    );
+    // THE SEEDED FILE-SCOPED MUTANT: some record of `it` exists SOMEWHERE in the file — the two
+    // helpers' parameters — so a file-scoped rule suppresses and the construct is ADMITTED. That is
+    // the state 31-17 shipped, and it is what this fixture can now fail for.
+    expect(
+      bindings!.some((b) => b.name === "it"),
+      "PREMISE OF THE DISCRIMINATION: with no record of `it` anywhere, a file-scoped rule and the " +
+        "nearest-binding rule agree, and this fixture proves nothing about the choice",
+    ).toBe(true);
+    expect(
+      bindings!.some((b) => b.name === "it" && b.start <= position && position < b.end),
+      "and NO record of `it` contains the module-scope call, which is why the two rules differ here",
+    ).toBe(false);
   });
 
   it("the control fixture is covered by the fixtures typecheck target's include", () => {
@@ -5871,5 +5942,139 @@ describe("uat-spec-integrity — 31-24 CR-14/WR-23: a reference is decided by th
       "stopping a rewrite moves a BAN's answer from refused to accepted, which is the UNSAFE " +
         "direction; a header sentence claiming otherwise is what a future widening would cite",
     ).toBe(false);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// 31-24 IN-12 — THE NORMALISER RUNS ONCE PER ARM, INTO A LOCAL BOTH POSITIONS READ.
+//
+// `isBannedModifierCall`'s configured arm called `stripRoutingLinks` on the same input TWICE: once
+// in the presence check and once in the value read. The comment above it already made the argument —
+// both positions must obtain their operand from the ONE normaliser — but the code left two calls
+// that a later edit could change independently. Computing it once into a local is that argument
+// EXPRESSED, so the two positions cannot drift apart.
+//
+// The count is DERIVED from the module's own AST rather than grepped, so the dedupe cannot silently
+// regrow, and the findings are proven byte-identical over the whole fixture corpus and the
+// configured-arm spellings the register decides.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+describe("uat-spec-integrity — 31-24 IN-12: one normalisation per arm, derived from the parse", () => {
+  const ts = hostTypeScript as typeof import("typescript");
+  const CHECKER_TS = join(HERE, "uat-spec-integrity.ts");
+  const NORMALISER = "stripRoutingLinks";
+
+  /** How many times does each top-level function CALL the normaliser? Counted from the AST. */
+  function normaliserCallsByFunction(source: string): ReadonlyMap<string, number> {
+    const sf = ts.createSourceFile("c.ts", source, ts.ScriptTarget.Latest, true);
+    const counts = new Map<string, number>();
+    const functions: import("typescript").FunctionDeclaration[] = [];
+    const walkTop = (node: import("typescript").Node): void => {
+      if (ts.isFunctionDeclaration(node) && node.name !== undefined) functions.push(node);
+      ts.forEachChild(node, walkTop);
+    };
+    ts.forEachChild(sf, walkTop);
+    for (const fn of functions) {
+      if (fn.body === undefined) continue;
+      let calls = 0;
+      const scan = (node: import("typescript").Node): void => {
+        if (
+          ts.isCallExpression(node) &&
+          ts.isIdentifier(node.expression) &&
+          node.expression.text === NORMALISER
+        ) {
+          calls++;
+        }
+        ts.forEachChild(node, scan);
+      };
+      scan(fn.body);
+      if (calls > 0) counts.set(fn.name!.text, calls);
+    }
+    return counts;
+  }
+
+  it("every function that normalises does it EXACTLY ONCE, and the callers are derived", () => {
+    const counts = normaliserCallsByFunction(readFileSync(CHECKER_TS, "utf8"));
+    // PREMISE: a derivation that found no caller would satisfy every assertion below vacuously.
+    expect(counts.size, "PREMISE: no function calls the normaliser at all").toBeGreaterThan(0);
+    // MEASURED before this plan: isBannedModifierPath 1, isBannedModifierCall 2,
+    // findBannedConstructs 1. After: 1, 1, 1.
+    expect([...counts.keys()].sort()).toEqual([
+      "findBannedConstructs",
+      "isBannedModifierCall",
+      "isBannedModifierPath",
+    ]);
+    for (const [fn, calls] of counts) {
+      expect(calls, `${fn} normalises ${calls} time(s); one per arm is the decided shape`).toBe(1);
+    }
+  });
+
+  it("the SEEDED regrowth is caught: a second call in the configured arm moves the count to two", () => {
+    const source = readFileSync(CHECKER_TS, "utf8");
+    const anchor = "  return enabledOptions.has(BANNED_CONFIGURED_PATHS[normalised]);";
+    expect(
+      source.split(anchor).length - 1,
+      "PREMISE: the seed anchor was not found EXACTLY once, so the mirror is not the source plus " +
+        "one regrown call",
+    ).toBe(1);
+    const mutated = source.replace(
+      anchor,
+      "  return enabledOptions.has(BANNED_CONFIGURED_PATHS[stripRoutingLinks(dottedPath)]);",
+    );
+    const counts = normaliserCallsByFunction(mutated);
+    expect(
+      counts.get("isBannedModifierCall"),
+      "the derivation cannot see a regrown normalisation, so the count above is not a control",
+    ).toBe(2);
+  });
+
+  it("the SEEDED wrong local is caught: an arm reading a local NOT from the normaliser is unbound", () => {
+    // The dedupe replaced an inline `stripRoutingLinks(path)` with a LOCAL. A binding check that
+    // only looked for the normaliser's name in the operand TEXT would now pass for any local
+    // whatever, which would make the CR-09 guard vacuous. This case seeds exactly that: a local
+    // named `normalised` initialised from the RAW path.
+    const source = readFileSync(CHECKER_TS, "utf8");
+    const anchor = "  const normalised = stripRoutingLinks(dottedPath);\n  if (BANNED_EXACT_PATHS.includes(normalised)) return true;";
+    expect(
+      source.split(anchor).length - 1,
+      "PREMISE: the exact-path arm no longer has the shape this seed replaces",
+    ).toBe(1);
+    const mutated = source.replace(
+      anchor,
+      "  const normalised = dottedPath;\n  if (BANNED_EXACT_PATHS.includes(normalised)) return true;",
+    );
+    const sf = ts.createSourceFile("c.ts", mutated, ts.ScriptTarget.Latest, true);
+    // Resolve the arm's operand through the function's own locals, the same way the CR-09
+    // derivation does, and show the seeded local does NOT come from the normaliser.
+    let initialiser: string | undefined;
+    const scan = (node: import("typescript").Node): void => {
+      if (
+        ts.isVariableDeclaration(node) &&
+        ts.isIdentifier(node.name) &&
+        node.name.text === "normalised" &&
+        node.initializer !== undefined &&
+        initialiser === undefined
+      ) {
+        initialiser = node.initializer.getText(sf);
+      }
+      ts.forEachChild(node, scan);
+    };
+    ts.forEachChild(sf, scan);
+    expect(initialiser, "PREMISE: the seeded local is not in the mirror at all").toBeDefined();
+    expect(initialiser!.includes(`${NORMALISER}(`)).toBe(false);
+  });
+
+  it("the register's configured-path pair is unchanged by the dedupe", async () => {
+    const { BANNED_CONFIGURED_PATHS, isBannedModifierCall } = await loadChecker();
+    expect(BANNED_CONFIGURED_PATHS).toEqual({ "expect.configure": "soft" });
+    // Both whole-path spellings, through the deduped arm, still answer as they did. The paths are
+    // the ones `calleeDottedPath` really produces: the CALL-LINK marker is appended only when a
+    // LATER segment is read off the call, so a bare configured call resolves to `expect.configure`
+    // and never to `expect.configure()` — a mistake this case made once and the suite caught.
+    expect(isBannedModifierCall("expect.configure", new Set(["soft"]))).toBe(true);
+    expect(isBannedModifierCall("expect.configure", new Set(["retries"]))).toBe(false);
+    expect(isBannedModifierCall("expect.configure().configure", new Set(["soft"]))).toBe(true);
+    expect(isBannedModifierCall("expect.configure().soft", null)).toBe(true);
+    expect(isBannedModifierCall(null, new Set(["soft"]))).toBe(false);
   });
 });

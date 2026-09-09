@@ -1081,6 +1081,115 @@ what was decided in round 4 and what round 5 changed about it.
   - **Recorded in three places that must agree:** here, in the `trustedRepoRoot` resolution-order
     docstring in `scripts/context-io.ts`, and in `31-23-SUMMARY.md`'s key-decisions block.
 
+#### Gap-closure decision — D-27 (2026-09-09, gap-closure round 5, plan 31-24)
+
+**Forced by:** CR-14, WR-23, WR-24 and IN-12 of `31-REVIEW.md`, with CR-14 independently reproduced
+by `31-VERIFICATION.md` round 5 (behavioral spot-check row 10 and its control at row 11, the
+key-link row recording the census MISWIRED, and the anti-patterns row for `deriveDeclaredNames`).
+
+Reproduced against the committed `scripts/runnable-ref/uat-spec-integrity.js` before any source
+change, from a probe root under `.temp/31-24-probe/`. `import { test as it, expect }` plus
+`it.skip("scenario", async ({ page }) => { const it = 1; void it; ... })` reported `0 findings`, exit
+0. The identical file WITHOUT the dead `const` reported `1 finding(s)`, exit 1, naming `test.skip`.
+The namespace spelling and an index-0 helper parameter named `testInfo` gave the same pair of
+answers. WR-23's shape ran the other way: `function inner(n: number, it: { skip: ... })` inside a
+file that renames the framework import to `it` reported `1 finding(s)`, exit 1, naming `test.skip` —
+a construct absent from the file.
+
+**Which register failed — not membership (D-17), not shape resolution (D-18), not which arms
+(D-20), not the bound's unit (D-21 (1)), but the SCOPE of a suppression; then, one turn further in,
+WHICH of several in-scope bindings ANSWERS; and separately the POSITION an exemption names.**
+
+D-21 (2) established that the ONE canonicaliser must ask what a head is bound to, for every map that
+feeds it. That placement is right and is unchanged. What failed is the register the question was
+asked in: a per-file SET of names. For a BAN, returning a head unchanged means `it.skip` is asked as
+`it.skip`, whose head is not a banned head, so the construct is ADMITTED — and one dead declaration
+anywhere in a spec disabled the whole rename/namespace/fixture-parameter family for that file.
+
+**Narrowing file-scope membership to containment was NECESSARY and NOT SUFFICIENT, and that was
+MEASURED before this plan shipped.** Under a rule where ANY containing binding suppresses, the
+SourceFile contains every call, so `const testInfo = 1;` at module scope together with the ordinary
+`test("s", async ({ page }, testInfo) => testInfo.skip())` still reports `0 findings` at exit 0. The
+register that fixes it is RESOLUTION — innermost wins — rather than containment.
+
+- **D-27: a reference is resolved to the NEAREST binding of its name that lexically contains it, and
+  only THAT binding decides whether the canonicalisation is suppressed.** `deriveDeclaredNames` is
+  REPLACED by `deriveDeclaredBindings`, which returns an ordered list of
+  `{ name, start, end, suppresses }`; `resolveBinding(bindings, name, position)` is the ONE
+  resolution authority; and `canonicaliseHeadSegment` takes a `{ bindings, position }` PAIR and
+  consults that authority in place of a name-set membership test. It makes four sub-decisions.
+  - **(1) Innermost-binding resolution replaces file-scope membership, asked with the reference
+    POSITION, through one authority BOTH canonicalisations consume.** Among the records of a name
+    whose range contains the position, the one with the greatest `start` decides, tie-broken by the
+    smallest `end`. The rule keeps D-21 (2)'s placement — in the canonicaliser, before either map —
+    so a third map arriving later inherits it. The scope argument is a PAIR rather than two
+    parameters, so a caller that cannot produce a position cannot produce the argument either: a
+    file-level constant is not a position, and a zero sits inside the SourceFile's own range, which
+    under a hoisting module-scope binding suppresses every call in the file. Both callers pass the
+    `getStart(sf)` of the call they are deciding, and the caller count is asserted by a case that
+    parses the module rather than by a grep.
+  - **(2) Ranges are computed PER DECLARATION KIND, because the kinds disagree about where a binding
+    begins.** `var` bindings and function declarations HOIST: their range is the nearest enclosing
+    function-like node, or the SourceFile at module scope, in full, and a reference above them is
+    legitimately theirs. `let`, `const`, a binding element of either, and a class declaration's name
+    do NOT: the range starts at the declaration's own `getStart(sf)` and runs to the end of the
+    nearest enclosing block, loop or function. That is the temporal-dead-zone answer; it is also the
+    safe direction for a ban, and it is what stops `it.skip(...)` followed by a later `let it = 1;`
+    in the same block from being the same two-line evasion CR-14 was. A parameter, destructured or
+    not, ranges over its own function; a catch-clause binding ranges over its catch clause. An
+    import binding stays OUT of the list for the reason D-21 (2) already recorded.
+  - **(3) The TestInfo fixture-binding position is RECORDED as a NON-suppressing binding rather than
+    OMITTED, and the exemption stays a POSITION.** Omitting it makes the parameter invisible to
+    resolution, so an outer declaration of the same name becomes the nearest binding and suppresses
+    — which is exactly the module-scope evasion measured above. Recording it makes the parameter the
+    nearest binding, and it suppresses nothing. WR-23 narrows the position itself: index 1 of a
+    function that is ITSELF THE SECOND ARGUMENT of a call expression, which is where
+    `deriveTestInfoParameterNames` binds, rather than index 1 of ANY function-like node. It never
+    becomes membership of the map it constrains, so D-20 (3)'s fixed-point argument is preserved
+    exactly.
+  - **(4) The disclosure states the DIRECTION a suppression moves a BAN.** The D-21 header's
+    sentence "THE RULE IS MONOTONE IN THE SAFE DIRECTION" is corrected in the same edit as the
+    mechanism. Stopping a rewrite is the only direction in which this rule can change an answer, and
+    it changes it from REFUSED to ACCEPTED. What bounds the rule is the nearest-binding resolution,
+    not a claim about its direction. The corrected sentence, the rewritten
+    `UNRESOLVABLE_CALLEE_RESIDUALS` member and `browser-uat-recipe.md`'s boundary list all move
+    together, under the both-directions equality the suite already asserts.
+  - **The corpus can now fail in BOTH directions (WR-24).** `shadowed-rename.uat.spec.ts` was a
+    zero-findings control, so a fix that disabled the canonicalisation entirely kept it green —
+    which is the state 31-17 shipped. It gains a `MUTATE-REMOVE` region carrying a genuine
+    module-scope renamed modifier call: region present, exactly one finding; region removed, zero.
+    WR-23's second-parameter helper is added as a second control in the same file.
+  - **IN-12 is the same family, one register down.** `stripRoutingLinks` ran twice on one input
+    inside the configured arm. It now runs ONCE into a local both positions read, which is the
+    argument the existing comment already made, expressed so the two positions cannot drift apart.
+    The CR-09 path-consumer derivation was STRENGTHENED in the same edit rather than weakened by it:
+    it now FOLLOWS an operand identifier to the local's initialiser, because a check that looked for
+    the normaliser's name in the operand text would have gone quietly true for any local whatever.
+  - **What D-27 does NOT establish.**
+    - A module-scope declaration still reaches the WHOLE FILE wherever nothing nearer binds the
+      name. That is the correct half of the old file-scope rule and it is driven as its own case;
+      the stronger claim — that a module-scope declaration suppresses even where an inner binding
+      exists — is FALSE and is driven as the RED case that proves it.
+    - NO BINDER IS SHIPPED (D-13). Resolution is a RANGE test over positions the parse already
+      carries, not real name resolution. A `typeof`-guarded conditional declaration, a `with` block
+      and any other construct whose real binding a parser cannot see are outside what these ranges
+      decide. Disposition: disclosed in the exported register, quoted into the recipe.
+    - A parser that publishes no `NodeFlags`, no `getEnd` or none of the five declaration predicates
+      yields NO list at all, and the canonicaliser then applies no scope rule — the pre-D-21
+      behaviour. The flags are in the SAME guard rather than in a per-kind fallback on purpose:
+      guessing a declaration's kind would widen half the ranges in a file, and a wider range is a
+      wider suppression, which for a ban is the unsafe direction.
+    - A name shadowed ONLY at the fixture-binding position is still canonicalised. That is D-20 (3)'s
+      own recorded cost and it is unchanged.
+    - The head and tail sets are still hand-authored, and `R-07` — the declared surface's drift from
+      the released `@playwright/test` — is still an open `UNKNOWN - verify`.
+  - **Reversibility: costly.** The resolution rule is now part of the exported contract the recipe
+    quotes and the corpus asserts. Reverting restores a checker the round-5 verifier measured
+    ADMITTING `it.skip` at module scope because of a dead declaration in an unrelated block.
+  - **Recorded in three places that must agree:** here, in the D-21 header block and
+    `deriveDeclaredBindings` docstring in `scripts/runnable-ref/uat-spec-integrity.ts`, and in
+    `31-24-SUMMARY.md`'s key-decisions block.
+
 ### Claude's Discretion
 - Exact runnable file name and the exact wording of the two new loud-skip markers, as long as
   each is a single exported constant with a single emission point (the `uat-live.test.ts` shape).

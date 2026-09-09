@@ -370,7 +370,12 @@ export function isBannedModifierPath(dottedPath: string | null): dottedPath is s
   if (dottedPath === null) return false;
   // A WHOLE-PATH ARM (D-20 (1)): it compares the joined path as a literal, so a routing call link
   // would otherwise insert a segment and walk past it. `expect.configure().soft` IS `expect.soft`.
-  if (BANNED_EXACT_PATHS.includes(stripRoutingLinks(dottedPath))) return true;
+  //
+  // IN-12: the normaliser is computed ONCE PER ARM, into a local, and every position in the arm
+  // compares against THAT local. One arm, one normalised operand; a second call is a second chance
+  // for two positions to answer different questions about one path.
+  const normalised = stripRoutingLinks(dottedPath);
+  if (BANNED_EXACT_PATHS.includes(normalised)) return true;
   // The HEAD/TAIL ARM, exactly as D-17 left it, and deliberately over the UN-normalised segments.
   // It reads only the first and last segments, so an interior marked link is already routing-neutral
   // here — and normalising the head would erase the marked-HEAD distinction that keeps
@@ -406,12 +411,15 @@ export function isBannedModifierCall(
   // The second WHOLE-PATH ARM (D-20 (1)). Its presence check and its value read are two positions,
   // and BOTH obtain their operand from the one normaliser: an arm whose presence check is normalised
   // and whose value read is not would answer two different questions about the same path.
-  if (
-    !Object.prototype.hasOwnProperty.call(BANNED_CONFIGURED_PATHS, stripRoutingLinks(dottedPath))
-  ) {
+  //
+  // IN-12: that argument is now EXPRESSED rather than only stated. The normaliser runs ONCE, into a
+  // local, and both positions read that local — so the two cannot drift apart when this function is
+  // next edited, which is the only way the comment above could stop being true.
+  const normalised = stripRoutingLinks(dottedPath);
+  if (!Object.prototype.hasOwnProperty.call(BANNED_CONFIGURED_PATHS, normalised)) {
     return false;
   }
-  return enabledOptions.has(BANNED_CONFIGURED_PATHS[stripRoutingLinks(dottedPath)]);
+  return enabledOptions.has(BANNED_CONFIGURED_PATHS[normalised]);
 }
 
 /**
