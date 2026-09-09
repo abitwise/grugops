@@ -956,6 +956,131 @@ remedy for that clause is to WIDEN the dial.
   - **Recorded in three places that must agree:** here, in the D-19 route header in
     `scripts/context-io.ts`, and in `31-22-SUMMARY.md`'s key-decisions block.
 
+#### Gap-closure decision — D-26 (2026-09-09, gap-closure round 5, plan 31-23)
+
+**Forced by:** CR-13 of `31-REVIEW.md`, independently reproduced by `31-VERIFICATION.md` round 5
+(behavioral spot-check row 8 with its control at row 9, the `regressions:` entry for CR-13, the
+key-link row recording the walk MISWIRED, and the anti-patterns row at ~2598-2606).
+
+Reproduced against the committed `scripts/context-io.js` before any source change: with `HOME` set
+to a planted repository root carrying `.git` and `human_admission: high-severity`, both
+project-directory variables genuinely removed, and the working directory inside it,
+`trustedRepoRoot()` returned the KIT, the dial read `off`, and a self-stamped high-severity finding
+WROTE. The control one level below the real home resolved to the project and read `high-severity`.
+The two runs differ in nothing but whether the repository root is the home directory.
+
+**Which register failed — not the bound's EXISTENCE, and not which markers the set contains.**
+
+D-23 established that the walk must be bounded above; that is not in question and is re-measured
+intact. What failed is a different register: WHETHER A BOUND ON ASCENT MAY ALSO BOUND OBSERVATION.
+`31-19` asked `isAtOrAboveHome(dir, home)` BEFORE `dir` was inspected, at every step, so one
+predicate answered two questions — "may the walk climb here?" and "may the walk look here?" — and a
+repository whose root IS the home directory had its own marker and its own configuration skipped
+entirely. That is the WR-15 verdict direction, a configuration moving from refused to admitted, and
+on the four hosts D-12 names the in-script refusal is the only tier there is.
+
+**D-26 AMENDS one sentence of D-23 and leaves the rest standing.** D-23 says the walk "halts at the
+user's home directory and never inspects it or anything above it". The ascent halt STAYS. The
+blanket non-inspection DOES NOT. D-23 itself is left byte-unchanged: the amendment is recorded here
+as its own dated decision rather than edited into the sentence it corrects, so a reader can see both
+what was decided in round 4 and what round 5 changed about it.
+
+- **D-26: a bound on a SEARCH bounds the search, never the OBSERVATION. The user's home directory is
+  inspected exactly once and ends the walk either way, and it answers ONLY as a repository — a
+  version-control boundary marker, AND a carrying configuration candidate whose kind is the
+  repository STATE-PLANE position rather than the IN-KIT position, AND that candidate not being one
+  of the running module's OWN fallback candidate positions. Home never contributes to `nearest`.**
+  D-26 adds no case to `admit()`, does not touch its frozen byte-span, and does not touch
+  `hooks/guard.ts` (`FROZEN_GUARD_BLOB` is NOT re-based). It makes four sub-decisions.
+  - **(1) The predicate is SPLIT and the order is inspect-then-decide.** `isAtOrAboveHome` is
+    DELETED — a third predicate answering a question two now answer is the drift shape this module
+    keeps deleting. `isAboveHome` refuses a strict ancestor outright; `isHomeItself` is asked AFTER
+    the directory has been inspected. `HomeBoundary` carries two path sets and two identity sets,
+    and the degenerate-inode premise is re-checked for the split shape rather than inherited: where
+    a platform's inodes say nothing, BOTH identity sets are discarded and the spelling sets decide
+    alone.
+  - **(2) Home is adopted only as a REPOSITORY, never as a bare configuration position, and
+    `R-31-19-05` names the cost.** The review's own `Fix:` sketch is NOT adopted verbatim: it
+    assigns `nearest = dir` before asking whether `dir` is home and then returns `nearest`, so a
+    home directory carrying only a configuration would be ADOPTED on the way past — verbatim the
+    WR-21 hole `31-19` was convened to close, and the shape `~/.grugops/factory.config.json` has
+    under the shipped shared install. Hence the marker requirement, and hence home never entering
+    `nearest`.
+  - **(3) The carrying candidate must be the STATE-PLANE position and not one of the module's OWN.**
+    `governanceConfigCandidates` publishes TWO positions, and at `$HOME` the second is
+    `$HOME/agent-factory/config/factory.config.json` — a KIT's own configuration, the file every
+    vendored copy of this kit carries, and the exact position D-23 (4) already ruled must lose to a
+    repository root's own. At every ordinary directory that rule holds because a boundary ABOVE the
+    kit wins; at `$HOME` the walk ENDS, so nothing wins. The in-kit position is therefore excluded
+    BY POSITION through the new published `GOVERNANCE_CONFIG_CANDIDATE_KINDS`, and the running
+    module's own two candidates are excluded BY PATH EQUALITY through the new frozen
+    `MODULE_OWN_CONFIG_POSITIONS`, because the kit this reader ships in is not a project.
+  - **(4) EVERY input to the home rule beyond the walk's ordinary evidence is a path, a position or
+    a load-time constant — no filesystem probe under `$HOME`, no environment read — and the
+    ordinary evidence is PRICED in operations as `R-31-19-06` rather than defended.**
+    `MODULE_OWN_CONFIG_POSITIONS` is `governanceConfigCandidates(GOVERNANCE_FALLBACK_BASE)` resolved
+    once at load, and `GOVERNANCE_FALLBACK_BASE` is `join(import.meta.dirname, "..")` — a property
+    of WHICH PROGRAM IS RUNNING, not of the filesystem that program inspects. `GRUGOPS_HOME` is
+    deliberately read NOT AT ALL.
+  - **BOTH adversarial re-checks are recorded, not only the second.** Sub-decisions (3) and (4) were
+    forced by TWO successive re-checks of this plan BEFORE it executed, so the round-history law of
+    this phase — every round's fix creating the next round's Critical — was interrupted twice inside
+    the plan rather than once after it.
+    - The FIRST found that marker-plus-configuration alone lets a kit's own configuration govern a
+      project nested below home. That is sub-decision (3)'s reason.
+    - The draft that answered it did so with two `existsSync` probes under `$HOME/.grugops`, and the
+      SECOND measured both as caller-authorable in ONE operation, in OPPOSITE directions: creating
+      `<kitHome>/agent-factory` turned an ADOPTION into a REFUSAL — and a refusal at home returns
+      `nearest`, which with nothing remembered lands on `GOVERNANCE_FALLBACK_BASE`'s LEAN dial, so
+      CR-13's own measured harm came back by one `mkdir` — while creating `<kitHome>/install.json`
+      turned a REFUSAL into an ADOPTION. Reading that marker through its own parser is the same
+      one-write flip: `install/install.ts:597-620` makes every `InstallMarker` field optional, names
+      no TARGET, and accepts `{}` as valid. Sub-decision (4) is the rule written so a third turn has
+      nothing to find.
+    - The retracted claim is RETRACTED rather than inherited. The earlier draft argued that the
+      kit-ownership set "may only disqualify, never qualify", and that was false in both halves:
+      false in fact, because the `install.json` arm QUALIFIED a position the other conjuncts
+      refused; and false in principle, because a disqualification at home is not the safe direction.
+      `WR-15`'s monotone-in-the-safe-direction argument was written about the step-4 fallback and
+      does not transfer to a walk whose refusal LANDS on that fallback.
+  - **What D-26 does NOT establish.**
+    - `R-31-19-05` — a repository rooted at home carrying a configuration but NO version-control
+      marker is not adopted, and its dial is replaced by the kit's lean default. Disposition:
+      recorded, not closed. What would force it closed is an explicit opt-in the walk can read that
+      a caller cannot author, and explicitly NOT the installer's own marker.
+    - `R-31-19-06` — the two evidence conjuncts, PRICED in operations rather than in adjectives:
+      THREE against a bare home (`mkdir $HOME/.git`; `mkdir $HOME/.grugops`; write
+      `$HOME/.grugops/factory.config.json`), ONE against a home already carrying a dotfiles
+      checkout, and ONE for the converse gate LOWERING that predates this plan
+      (`mkdir $HOME/work/.git` ends the walk at an intermediate boundary carrying no configuration,
+      after which the answer degrades to the lean fallback). Both counts are driven by construction.
+      Disposition: accept, inside the class `R-31-15-01` already accepts.
+    - `R-31-19-07` — the exclusion compares LEXICAL path spellings. MEASURED on both axes its shape
+      sentence names: the exclusion HOLDS under a symlinked spelling (Node's ESM resolver realpaths
+      the module and `process.cwd()` returns the kernel's realpath, so both sides are already real)
+      and MISSES under a case-differing one on a case-insensitive filesystem, where the running
+      kit's own configuration is adopted over a project nested inside it — RED 2b's harm reached
+      through a spelling rather than through a position. Disposition: disclosed with its criterion.
+      The `dev:ino` alternative is refused because a single symlink makes it agree, and case-folding
+      the comparison is refused because an added refusal at home lands on the lean fallback.
+    - `R-31-19-01`'s still-open below-home question is untouched: a configuration at an ancestor
+      BELOW home still governs, which IS step 3 and is WR-15's closure.
+    - The DOTFILES-PLUS-SHARED-INSTALL tree is ADOPTED, and that is a DECIDED verdict rather than a
+      case that quietly changed. `$HOME` carries a marker and a state-plane configuration and
+      neither is this module's own position — the identical evidence, and the identical answer, the
+      walk gives for that tree one level BELOW home. A DEFAULT shared install creates NEITHER
+      artifact at `$HOME`: `copyKit` writes only `$GRUGOPS_HOME/agent-factory`, and
+      `seedState`/`writeMarker` write under `$TARGET/.grugops` only, which is `$HOME` exactly when
+      the user installed INTO home — the case that must be adopted.
+    - `GRUGOPS_HOME` is read NOT AT ALL, and treating it as additive-only would itself have been
+      unsound, for the same reason the retracted claim above was.
+  - **Reversibility: costly.** The stop set is a published authority the workflow prose is quoted
+    from and every consumer's root resolution depends on. Reverting restores a walk the round-5
+    verifier measured skipping a home-rooted repository's own dial in favour of the kit's lean
+    default.
+  - **Recorded in three places that must agree:** here, in the `trustedRepoRoot` resolution-order
+    docstring in `scripts/context-io.ts`, and in `31-23-SUMMARY.md`'s key-decisions block.
+
 ### Claude's Discretion
 - Exact runnable file name and the exact wording of the two new loud-skip markers, as long as
   each is a single exported constant with a single emission point (the `uat-live.test.ts` shape).

@@ -8074,11 +8074,16 @@ describe("31-15 — WR-15: the target repository's dial is read on every host", 
       // PREMISE: the configuration is real and carries the ACTIVE dial, so the kit answer below is
       // a REPLACEMENT of a live posture rather than an empty tree resolving to nothing.
       expect(mod.readGovernanceConfig(home).config.human_admission).toBe("high-severity");
-      const r = drive("appendNote", { cwd, env: asHome(home) });
-      expect(r.root).toBe(KIT);
-      expect(r.message, "the kit's shipped LEAN default replaced the home repository's dial").toContain(
+      const dial = drive("trustedRepoRoot", { cwd, env: asHome(home) });
+      expect(dial.root).toBe(KIT);
+      expect(dial.message, "the kit's shipped LEAN default replaced the home repository's dial").toContain(
         "human_admission: off",
       );
+      // AND THE VERDICT MOVES WITH IT: the self-stamped high-severity finding the home repository's
+      // own `high-severity` dial would have REFUSED is ADMITTED under the kit's `off`.
+      const r = drive("appendNote", { cwd, env: asHome(home) });
+      expect(r.root).toBe(KIT);
+      expect(r.verdict).toBe("write");
       expect(mod.TRUSTED_ROOT_RESIDUALS.map((x) => x.id)).toContain("R-31-19-05");
     });
 

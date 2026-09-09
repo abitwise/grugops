@@ -3545,6 +3545,68 @@ export const TRUSTED_ROOT_RESIDUALS = Object.freeze([
         what_would_force_it_closed: "A boundary predicate that enumerates no tools — a property every checkout root has and no " +
             "directory inside one has — which no artifact in this project can name today.",
     }),
+    Object.freeze({
+        id: "R-31-19-05",
+        shape: "A repository whose root IS the user's home directory and which carries its own governance " +
+            "configuration but NO version-control boundary marker is not adopted, and its dial is " +
+            "replaced by the kit's shipped lean default.",
+        reason: "A bare configuration position at the home directory is not evidence of a project, and " +
+            "adopting one on that evidence alone is precisely the WR-21 hole plan 31-19 closed — under " +
+            "the shipped shared-install model `~/.grugops/factory.config.json` is what the installer " +
+            "creates for a target seeded AT home, and it is indistinguishable at that position from a " +
+            "shared install's own state. The marker is what tells the two apart, and requiring it is the " +
+            "narrower of the two available errors.",
+        what_would_force_it_closed: "An explicit opt-in the walk can read that a caller cannot author. Explicitly NOT the " +
+            "installer's own `.grugops/install.json`: `install/install.ts:597-620` makes every " +
+            "`InstallMarker` field optional and names no TARGET, so the two-byte document `{}` is a " +
+            "schema-valid marker and a caller satisfies it in ONE write.",
+    }),
+    Object.freeze({
+        id: "R-31-19-06",
+        shape: "The home directory's adoption rests on two ordinary filesystem artifacts, so a process that " +
+            "can write under `$HOME` can MAKE home adoptable in THREE operations against a bare home — " +
+            "`mkdir $HOME/.git`; `mkdir $HOME/.grugops`; write `$HOME/.grugops/factory.config.json` — or " +
+            "in ONE against a home already carrying a dotfiles checkout. The converse is a ONE-operation " +
+            "gate LOWERING that predates this plan: `mkdir $HOME/work/.git` ends the walk at an " +
+            "intermediate boundary carrying no configuration, after which the answer degrades to " +
+            "`GOVERNANCE_FALLBACK_BASE`'s lean default.",
+        reason: "These are the walk's OWN evidence, applied identically at every directory; neither is " +
+            "introduced by plan 31-23, and both sit inside the capability `R-31-15-01` already accepts " +
+            "and `31-22`'s `T-31-18-01` prices the same way. The alternative considered and REJECTED was " +
+            "to distinguish the home directory by PROBING the filesystem under `$HOME`, which an " +
+            "adversarial re-check measured as a one-operation flip in BOTH directions — creating " +
+            "`<kitHome>/agent-factory` turned an adoption into a refusal whose answer is the kit's lean " +
+            "dial, and creating `<kitHome>/install.json` turned a refusal into an adoption — and which " +
+            "would therefore have handed the caller a switch rather than taken one away. A refusal at " +
+            "home is NOT the safe direction, because refusing home returns `nearest` and lands on the " +
+            "lean fallback; the price is therefore stated in both directions rather than as monotonicity " +
+            "in one.",
+        what_would_force_it_closed: "`R-31-15-01`'s own criterion and nothing narrower: a governance root the calling process " +
+            "cannot influence at all, resolved by the host from outside the agent's process tree and " +
+            "delivered through a channel the agent cannot write.",
+    }),
+    Object.freeze({
+        id: "R-31-19-07",
+        shape: "The exclusion of the running module's own candidate positions compares LEXICALLY RESOLVED " +
+            "path SPELLINGS, so the module's own position and the candidate the walk computes can name " +
+            "one directory with two strings and the exclusion misses. MEASURED on a case-insensitive " +
+            "filesystem: addressing this module through a case-differing spelling of its own root leaves " +
+            "`import.meta.dirname` carrying the caller's casing while `process.cwd()` returns the " +
+            "on-disk canonical casing, the equality misses, and the running kit's own configuration is " +
+            "adopted as the governance root over a project nested inside it. MEASURED on the SYMLINK " +
+            "axis in the same run: the exclusion HOLDS, because Node's ESM resolver realpaths a " +
+            "symlinked module specifier and `process.cwd()` returns the kernel's realpath, so both sides " +
+            "are already the real spelling.",
+        reason: "The alternative is a `dev:ino` comparison, which is a `statSync` on paths under `$HOME` " +
+            "that a SINGLE symlink can make agree — a one-operation flip in the gate-lowering direction, " +
+            "and therefore the defect this member exists instead of. Case-folding the comparison is " +
+            "refused for the converse reason: it would EXCLUDE more, and an added refusal at home lands " +
+            "on the lean fallback, so widening the exclusion lowers a gate exactly as narrowing it can. " +
+            "This is the same reasoning `R-31-19-03` records one register over, taken deliberately here " +
+            "rather than inherited.",
+        what_would_force_it_closed: "A canonical spelling for BOTH sides obtained from one resolver the caller cannot re-point, " +
+            "or the module's own position learned from the host rather than from `import.meta.dirname`.",
+    }),
 ]);
 /** The ceiling on a governance config read. Larger than any real config, small enough to bound. */
 const GOVERNANCE_CONFIG_MAX_BYTES = 8 * 1024 * 1024;
