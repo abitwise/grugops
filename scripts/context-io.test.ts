@@ -9358,13 +9358,40 @@ describe("31-22 — CR-16: the origin is recognised by SHAPE conjoined with ROOT
     const viaLink = join(linkHost, ".grugops", "context");
     const repoRoot = governanceRoot("p31-22-symlink-repo-");
     expect(promote(viaLink, destStore("p31-22-symlink-dest-"), id, repoRoot).threw).toBeNull();
-    // (b) a path whose TEXT has the shape but whose REALPATH does not: the link's own location is
-    //     what the rule reads, so a shaped link under an UNANCHORED directory is refused.
+    // (b) a shaped link under an UNANCHORED directory: the link's own location is what the rule
+    //     reads, so it is refused for where it sits rather than for what it points at.
     const loose = freshTmp("p31-22-symlink-loose-");
     mkdirSync(join(loose, ".grugops"), { recursive: true });
     symlinkSync(realStore, join(loose, ".grugops", "context"));
     expect(
       promote(join(loose, ".grugops", "context"), destStore("p31-22-symlink-dest2-"), id, repoRoot).threw,
+    ).toContain("DECLINED (origin-outside-trusted-store)");
+
+    // (c) THE ROW PROBE 3 FOUND AND R-31-22-03 NAMES: a link at an anchored, correctly-shaped
+    //     location whose REALPATH is an ordinary directory. It is ACCEPTED, because `resolve()` is
+    //     lexical. That is not a new capability — planting the link requires write access to a real
+    //     governance root's own `.grugops/`, which is the same authority as writing a note into its
+    //     `notes/` (T-31-14-03) — and it is recorded as a residual rather than left as a silence.
+    const ordinary = freshTmp("p31-22-symlink-ordinary-");
+    mkdirSync(join(ordinary, TASK, "notes"), { recursive: true });
+    writeFileSync(
+      join(ordinary, TASK, "notes", `${id}.md`),
+      readFileSync(join(realStore, TASK, "notes", `${id}.md`)),
+    );
+    const anchoredHost = governanceRoot("p31-22-symlink-anchored-");
+    mkdirSync(join(anchoredHost, ".grugops"), { recursive: true });
+    symlinkSync(ordinary, join(anchoredHost, ".grugops", "context"));
+    expect(
+      promote(join(anchoredHost, ".grugops", "context"), destStore("p31-22-symlink-dest3-"), id, repoRoot).threw,
+      "R-31-22-03 states this shape is ACCEPTED; if it now refuses, the residual is what to correct",
+    ).toBeNull();
+    expect(mod.PROMOTE_ADMITTED_RESIDUALS.join("\n")).toContain("R-31-22-03");
+
+    // (d) the CASE-DIFFERING spelling, which runs the other way: refused by name even where the
+    //     filesystem treats it as the same directory. A legitimate-looking spelling refused is the
+    //     safe direction, and it is a decision rather than an accident.
+    expect(
+      promote(join(anchoredHost, ".GRUGOPS", "context"), destStore("p31-22-symlink-dest4-"), id, repoRoot).threw,
     ).toContain("DECLINED (origin-outside-trusted-store)");
   });
 

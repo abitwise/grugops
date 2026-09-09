@@ -1796,6 +1796,22 @@ export const PROMOTE_ADMITTED_RESIDUALS: readonly string[] = Object.freeze([
     "BOUNDARY MARKER alone, which would drop the price of a forged origin from three operations to " +
     "two and is therefore refused. Disposition: accept, as the stated cost of pricing the residual " +
     "at three operations rather than one.",
+  "R-31-22-03 — the recognition rule is LEXICAL and CASE-SENSITIVE, and both halves of that are " +
+    "decided rather than accidental. `resolve()` normalises `.` and `..` segments and a trailing " +
+    "separator, so those spellings answer the same as the plain path — driven. It does NOT follow " +
+    "symlinks, so the rule reads the LINK'S OWN location: a symlink at `<root>/.grugops/context` is " +
+    "accepted for where it sits, whatever it points at, and a symlink whose text has the shape " +
+    "under an UNANCHORED directory is refused. Accepting the first is not a new capability. " +
+    "Planting that link requires write access to a real governance root's own `.grugops/` " +
+    "directory, which is the same authority as writing a note into its `notes/` — the standing " +
+    "T-31-14-03 residual, one indirection over — and Workflow 16 forbids hand-authoring a context " +
+    "path. The case sensitivity runs the OTHER way and is the safe direction: `<root>/.GRUGOPS/" +
+    "context` is refused by name even on a case-insensitive filesystem where it names the same " +
+    "directory, so a legitimate-looking spelling is refused rather than a forged one accepted. What " +
+    "would force the symlink half closed: comparing `realpathSync` rather than `resolve`, which " +
+    "would also refuse a store legitimately delivered by a symlink and is therefore a module-wide " +
+    "decision about every context root rather than this route's. Disposition: accept, bounded by " +
+    "T-31-14-03.",
   "R-31-22-02 — the DESTINATION argument `to` is caller-supplied and is NOT constrained by the " +
     "canonical form the origin must meet. The converse axis is decided rather than left silent: `to` " +
     "is not a proof OPERAND. Nothing read at the destination is evidence FOR the promotion — the " +
