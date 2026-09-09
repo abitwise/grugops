@@ -2838,7 +2838,7 @@ describe("uat-spec-integrity — 31-13 CR-07: the resolver's DECLINE set, derive
   const R_NON_IDENTIFIER_HEAD =
     "A callee whose head is not an identifier is not resolved: a call on an object literal, or on `this`. There is no head segment to read, so no membership question can be put.";
   const R_STEP_BOUND =
-    "A callee chain longer than the resolver's 512-step bound is not resolved. The bound is ONE allowance for a WHOLE resolution: every link spends a step, the descent into a call link included, so interleaving calls buys a chain no extra steps. It stops a pathological chain from spinning and from exhausting the interpreter. It is a stated LIMIT, not a silence. A chain that reaches it yields no path rather than a truncated one.";
+    "A callee chain longer than the resolver's 512-step bound is not resolved. The bound is ONE allowance for a WHOLE resolution. Every link spends a step, the descent into a call link included. Interleaving calls buys a chain no extra steps. The bound stops a pathological chain from spinning. It also stops one from exhausting the interpreter. It is a stated LIMIT, not a silence. A chain that reaches it yields no path rather than a truncated one.";
   const R_NON_LITERAL_OPTION =
     "An option is ENABLED only when the call's first argument is an object literal assigning it the `true` keyword. A variable argument enables nothing, and neither does a variable option value. This runnable parses and never evaluates.";
   const R_PARSER_PREDICATES =
@@ -2848,7 +2848,7 @@ describe("uat-spec-integrity — 31-13 CR-07: the resolver's DECLINE set, derive
   const R_DESTRUCTURED_FIXTURE_PARAM =
     "A TestInfo binding destructured in the callback's second parameter is not canonicalised: `test(\"a\", async ({ page }, { skip }) => skip());`. A binding pattern names no single identifier to rewrite, so there is no head segment to canonicalise.";
   const R_FILE_SCOPED_CANONICALISATION =
-    "The scope rule the canonicalisations ask is FILE-SCOPED, not lexically scoped. A head segment the file DECLARES — as a parameter, a `const`/`let`/`var` binding, a destructured binding element, a function name or a class name — is not rewritten through either map, and one such declaration anywhere in the file suppresses the rewrite for the whole file rather than for that declaration's own block. The one position that is NOT counted as a declaration is a function's SECOND parameter, because that is exactly where the TestInfo fixture map binds, so a name shadowed only at that position is still canonicalised. Real lexical scoping needs the binder this runnable deliberately does not ship (D-13).";
+    "The scope rule the canonicalisations ask is FILE-SCOPED, not lexically scoped. A head segment the file DECLARES is not rewritten through either map. The census counts a parameter, a `const`/`let`/`var` binding, a destructured binding element, a function name and a class name. One such declaration anywhere in the file suppresses the rewrite for the WHOLE file. It does not suppress it only inside that declaration's own block. The one position that is NOT counted is a function's SECOND parameter. The TestInfo fixture map binds at exactly that position. A name shadowed only there is still canonicalised. Real lexical scoping needs the binder this runnable deliberately does not ship (D-13).";
 
   const DECLINE_SITE_DISPOSITIONS: Readonly<Record<string, DeclineDisposition>> = Object.freeze({
     // ── calleeDottedPath ──────────────────────────────────────────────────────────────────────

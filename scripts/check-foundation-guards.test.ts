@@ -1904,8 +1904,20 @@ const SECTION_EXTENT_OWNER_COUNT = 1;
  *   second parameter is declared so those fixtures compile — which does not move this number,
  *   because it adds no file and `.d.ts` is excluded on both sides. It also edits
  *   `configured-soft.uat.spec.ts` in place, which adds no file either.
+ *
+ * 73 -> 74 (plan 31-17, closing WR-19 / WR-20 of 31-REVIEW.md, each independently reproduced in
+ * 31-VERIFICATION.md round 4), ONE further corpus file:
+ *   - `scripts/runnable-ref/fixtures/shadowed-rename.uat.spec.ts` — the FALSE-POSITIVE control for
+ *     the scope rule D-21 (2) added, carrying the legitimate spec the round-4 verifier reproduced
+ *     being REFUSED at exit 1 under a construct name absent from the file (a renamed framework
+ *     import plus an unrelated local binding of the same name). Its contract is the inverse of the
+ *     other fixtures': it holds NO mutation region and must stay at zero findings.
+ *   Same standing as the twelve corpus files above: it is not a tooling module, it is counted
+ *   anyway because this set is pinned equal to `git ls-files '*.ts'`, and a wider scan can only
+ *   find more. It declares no frontmatter parser and locates no section, so both owner answers are
+ *   unchanged. The same plan edits `uat-spec-integrity.ts` in place, which adds no file.
  */
-const NON_TEST_MODULE_COUNT = 73;
+const NON_TEST_MODULE_COUNT = 74;
 
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 // (Plan 29-40, gap G-29-1 of 29-UAT.md, closing V-29-35-01) THE FRONTMATTER-PARSER NAME OWNER SET.

@@ -401,6 +401,133 @@ the derived decline set nor the reverse partition could ever have named it.
     lists the fixture-parameter spelling among the refused constructs, and carries the residual
     register verbatim under the existing both-directions equality case.
 
+#### Gap-closure decision — D-21 (2026-09-09, gap-closure round 4 wave 2, plan 31-17)
+
+This is a GAP-CLOSURE decision recorded during execution, not an original user decision from the
+discussion. It sits BESIDE D-18 and D-20 and leaves both untouched; no existing decision above is
+edited, renumbered or deleted, and no member is added to any ban set.
+
+**Forced by:** WR-19 and WR-20 of `31-REVIEW.md`, each independently reproduced by
+`31-VERIFICATION.md` round 4 (behavioral spot-check rows 8 and 7, and the anti-patterns rows for the
+512-step guard and for `canonicaliseHeadSegment`).
+
+**Which register failed — twice, and neither is the register the previous three rounds fixed.**
+
+*WR-19: the UNIT of a bound, which changed when the code around it changed.* D-17 fixed MEMBERSHIP,
+D-18 fixed SHAPE RESOLUTION, D-20 fixed WHICH ARMS the shape is compared against. WR-19 is about
+none of those: the 512-step chain bound was written for a FLAT loop, and D-18 (1) made
+`calleeDottedPath` recursive without re-deriving it, so "512 steps per resolution" silently became
+"512 steps per recursion frame". The bound then bounded nothing. Reproduced against the committed
+`scripts/runnable-ref/uat-spec-integrity.js` at HEAD before any source change, in a probe repository
+under `.temp/` with a spec at `uat/p.uat.spec.ts` carrying a 4000-link call chain:
+
+```
+EXIT=1     stdout: (empty)
+stderr:    RangeError: Maximum call stack size exceeded
+               at calleeDottedPath (…/scripts/runnable-ref/uat-spec-integrity.js:686:33)
+```
+
+and instrumented through the same committed module, which is what shows the per-frame restart rather
+than inferring it: 600 pure property links resolved to `null`, while the SAME 600 links with 6 call
+links interleaved resolved to a 1216-character path with head `test`. The exit code stayed inside the
+D-12 contract's `{ 0, 1, 2 }` only because Node's uncaught-exception code is 1, which that contract
+reads as "a finding — the quality gate blocks". The substantive harm is that `reportMeasured` was
+NEVER REACHED, so the vacuity floor and the denominator floor — the two branches whose entire purpose
+is to make a check that did not run unreadable as a clean one — were bypassed BY CONSTRUCTION while
+stdout stayed silent. That is UATX-05's own contract failing on a reachable path, and it also made
+the residual sentence the recipe quotes verbatim false in both of its clauses.
+
+*WR-20: whether the name being rewritten is the name the map is about.* `canonicaliseHeadSegment`
+rewrote `segments[0]` whenever it was a key of a file-level map, with no scope analysis at all.
+Reproduced on the same probe shape, using the review's own spec:
+
+```
+UAT spec integrity: 1 finding(s) over 1/1 uat specs checked
+uat/p.uat.spec.ts:4: banned modifier call — `test.skip` decides which scenarios the quality gate
+re-runs and how their results are read, …
+EXIT=1
+```
+
+A legitimate spec was refused, and the finding named `test.skip` — a construct that does not appear
+in the file. The failure direction is a FALSE REFUSAL, which trains a reader to work around the
+checker rather than to trust it, and D-20 (3) had just added a SECOND map feeding that same
+canonicaliser, so a scope rule written for the import map alone would have been this exact defect one
+map over.
+
+- **D-21: the chain bound is ONE shared budget for a whole resolution and the walk that asks it uses
+  an explicit stack; and the ONE canonicaliser asks what a head is bound to, for every map that feeds
+  it.** D-21 adds no member to any ban set and makes two sub-decisions.
+  - **(1) One budget, one walk, one decided exit code.** `CALLEE_CHAIN_STEP_BOUND` is the ONE
+    authority for the bound's VALUE — asserted by a case that parses the runnable and counts the
+    numeric literal, so a second spelling of the number cannot appear — and `CalleeStepBudget` is the
+    ONE authority for its UNIT. `calleeDottedPath` threads a single budget through its own recursion
+    and charges the descent into a call link explicitly, so interleaving calls buys a chain no extra
+    steps and a chain that exhausts the allowance yields NO PATH rather than an exception. Bounding
+    the resolver is necessary and NOT sufficient, which is the part no review named: the tree walk
+    that ASKS the resolver was itself a recursive descent, as deep as whatever chain a spec author
+    writes, and no step budget could reach that cost. `forEachDescendant` replaces both
+    self-recursive walks with an explicit worklist, so the depth leaves the interpreter's stack
+    entirely and no new residual is created — every descendant is still visited exactly once, and
+    both callers are order-independent. Finally, a spec `findBannedConstructs` cannot finish is
+    recorded by `analyzeSpecs` as a COULD-NOT-RUN reason rather than allowed to escape as a throw:
+    the exit code is then inside `{ 0, 1, 2 }` BY DECISION on every path, and because such a file
+    does not increment `visited`, the denominator floor reports the short scan set out loud. Measured
+    after the change on the same 4000-link probe: `EXIT=0`, stdout
+    `UAT spec integrity: 0 findings over 1/1 uat specs checked`, stderr empty; and at 200000 links
+    the same. Mutation-proven in both halves — restoring the per-frame reset fails 4 of the new
+    cases, and restoring the recursive walk fails 3 (with the fail-closed boundary then holding the
+    contract at `EXIT=2` and naming the file, which is the layering working as designed).
+  - **(2) The scope rule lives in the canonicaliser and covers every map.** `deriveDeclaredNames` is
+    a per-source-file census of the names the file DECLARES — a parameter, a `const`/`let`/`var`
+    binding, a destructured binding element, a function name, a class name — every one a literal
+    already in the source text, which is the identical parse-only reasoning D-18 (3) and D-20 (3)
+    use. `canonicaliseHeadSegment` consults it BEFORE either map and returns its input unchanged for
+    a declared head, so the rule wins over BOTH maps; precedence is asserted as its own case rather
+    than left to reading order, and the canonicaliser keeps its property of declining nothing. The
+    rule is MONOTONE IN THE SAFE DIRECTION: it can only stop a rewrite, and only where the file's own
+    source text says the name is bound to something else — a spec that CALLS a renamed import does
+    not DECLARE that name. An import binding is deliberately NOT counted, and that direction is
+    asserted: a census counting import specifiers would make every rename shadow itself and the
+    canonicalisation would never fire, which is how a fix buys a green by doing nothing. A function's
+    SECOND parameter is exempt, because that is exactly where the TestInfo fixture map binds; the
+    exemption is stated as a POSITION rather than as membership of that map, so the census does not
+    depend on the map it constrains — a census derived from that map and then used to constrain it
+    would be a fixed point this runnable does not compute. Measured after the change on the review's
+    own spec: `0 findings over 1/1 uat specs checked`, `EXIT=0`. Mutation-proven twice: emptying the
+    census fails 11 cases, and dropping the second-parameter exemption fails 8 — including the 31-16
+    fixture-parameter cases, which is the proof that the exemption is scoped to exactly the position
+    it claims.
+  - **The sets stay DERIVED, and the numbers were re-measured rather than carried forward.** The
+    derived decline-site set moved from 16 to **17**; the one added site is
+    `deriveDeclaredNames`'s parser-predicate guard, dispositioned as a residual under the existing
+    parser-surface sentence. The residual register stays at **9** — two of its sentences were
+    REWRITTEN to be true of the changed mechanism, none was added or removed — and the two-axis
+    partition still sums to it. The derived path-consumer set stays at **5** and the reverse walk's
+    denominator at **26**; neither mechanism was touched. The watched-fail control still moves the
+    decline count by exactly one and arrives unbound.
+  - **What D-21 does NOT establish.** The scope rule is FILE-SCOPED, not lexically scoped: one
+    declaration anywhere in the file suppresses the rewrite for the WHOLE file, so a file that BOTH
+    declares the renamed name and genuinely calls the modifier through the rename is not refused.
+    That cost is asserted as a MEASURED case, not merely described, so it cannot quietly stop being
+    true. A name shadowed ONLY at a second-parameter position is still canonicalised. Both costs are
+    NAMED members of `UNRESOLVABLE_CALLEE_RESIDUALS` with reasons true of them and are quoted into
+    the recipe from that one source. The step bound remains a stated LIMIT — it is now honestly one
+    allowance for one resolution rather than one per frame. The head and tail sets are still
+    hand-authored, the declared surface is still a hand transcription whose drift from the released
+    package stays an open `UNKNOWN - verify` (`R-07`), and the reverse walk still reads no call
+    signature's return type or parameter list.
+  - **Reversibility: costly.** The bound's UNIT and the scope rule's file-scoped answer are now part
+    of the exported contract the recipe quotes and the corpus asserts. Reverting restores a resolver
+    the verifier measured crashing with an empty stdout on a reachable input — with both floors
+    bypassed — and a checker it measured refusing a legitimate spec while naming a construct that is
+    not in it.
+  - **Recorded in three places that must agree:** here, in the decision header of
+    `scripts/runnable-ref/uat-spec-integrity.ts`, and in `31-17-SUMMARY.md`'s key-decisions block.
+    `agent-factory/checklists/browser-uat-recipe.md` states the declared-name rule and its
+    file-scoped coarseness in clear voice, states that a spec the checker cannot finish analysing is
+    a could-not-run reason rather than an escaping throw, and carries the residual register verbatim
+    under the existing both-directions equality case.
+
 ### Claude's Discretion
 - Exact runnable file name and the exact wording of the two new loud-skip markers, as long as
   each is a single exported constant with a single emission point (the `uat-live.test.ts` shape).

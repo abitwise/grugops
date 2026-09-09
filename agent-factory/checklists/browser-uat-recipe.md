@@ -189,6 +189,20 @@ passed as the second argument to a `test(...)`-headed call is the TestInfo fixtu
 same path the call-link spelling produces, so the family has one spelling in the findings a reader
 sees. An import rename of the framework binding wins over a fixture parameter of the same name.
 
+NEITHER CANONICALISATION REWRITES A NAME THE FILE ITSELF DECLARES. Before either map is consulted,
+the head segment is checked against the names the spec declares — a parameter, a `const`, `let` or
+`var` binding, a destructured binding element, a function name or a class name. A file that renames
+the framework import to `it` and separately binds a local `it` is therefore not refused, and no
+finding names a construct the file does not contain. A spec that CALLS a renamed import does not
+DECLARE that name, so the rule can only stop a rewrite the source text itself contradicts.
+
+Read that rule as FILE-SCOPED and not as lexical scoping, because that is what it is. One
+declaration anywhere in the file suppresses the rewrite for the whole file, so a file that both
+declares the name and genuinely calls the modifier through the rename is not refused either. The one
+position that does not count as a declaration is a function's SECOND parameter, because that is
+exactly where the TestInfo fixture binding is read. Deciding which declaration a name belongs to at a
+given call site needs a binder this checker does not ship.
+
 **The modifier rule.** A modifier call is refused when the head segment of its dotted path is one of
 the banned head segments AND the tail segment is one of the banned modifier segments, or when the
 whole path is one of the banned exact paths. The segments in between — `describe`, `serial`,
@@ -239,11 +253,11 @@ Deliberately outside the rule, recorded here so the boundary is written down:
 - A member computed from a non-literal expression is not refused: `test[name](...)` where `name` is a variable. The member name is absent from the source text.
 - A rename or namespace that arrives through any module other than `@playwright/test` is not canonicalised: `import { test as it } from "./fixtures";` then `it.skip(...)`. Following a re-export across files needs module resolution this runnable does not ship, so the rename map is MODULE-SCOPED to the framework's own import declaration.
 - A callee whose head is not an identifier is not resolved: a call on an object literal, or on `this`. There is no head segment to read, so no membership question can be put.
-- A callee chain longer than the resolver's 512-step bound is not resolved. The bound is ONE allowance for a WHOLE resolution: every link spends a step, the descent into a call link included, so interleaving calls buys a chain no extra steps. It stops a pathological chain from spinning and from exhausting the interpreter. It is a stated LIMIT, not a silence. A chain that reaches it yields no path rather than a truncated one.
+- A callee chain longer than the resolver's 512-step bound is not resolved. The bound is ONE allowance for a WHOLE resolution. Every link spends a step, the descent into a call link included. Interleaving calls buys a chain no extra steps. The bound stops a pathological chain from spinning. It also stops one from exhausting the interpreter. It is a stated LIMIT, not a silence. A chain that reaches it yields no path rather than a truncated one.
 - An option is ENABLED only when the call's first argument is an object literal assigning it the `true` keyword. A variable argument enables nothing, and neither does a variable option value. This runnable parses and never evaluates.
 - A parser that does not expose the import, object-literal or function-like node predicates yields no rename canonicalisation, no option reading and no fixture-parameter canonicalisation. The parser is the TARGET repository's (D-13), so its surface is not this runnable's to assume. The resolver degrades to the pre-D-18 behaviour for those shapes rather than throwing outside the exit-code contract.
 - A TestInfo binding destructured in the callback's second parameter is not canonicalised: `test("a", async ({ page }, { skip }) => skip());`. A binding pattern names no single identifier to rewrite, so there is no head segment to canonicalise.
-- The scope rule the canonicalisations ask is FILE-SCOPED, not lexically scoped. A head segment the file DECLARES — as a parameter, a `const`/`let`/`var` binding, a destructured binding element, a function name or a class name — is not rewritten through either map, and one such declaration anywhere in the file suppresses the rewrite for the whole file rather than for that declaration's own block. The one position that is NOT counted as a declaration is a function's SECOND parameter, because that is exactly where the TestInfo fixture map binds, so a name shadowed only at that position is still canonicalised. Real lexical scoping needs the binder this runnable deliberately does not ship (D-13).
+- The scope rule the canonicalisations ask is FILE-SCOPED, not lexically scoped. A head segment the file DECLARES is not rewritten through either map. The census counts a parameter, a `const`/`let`/`var` binding, a destructured binding element, a function name and a class name. One such declaration anywhere in the file suppresses the rewrite for the WHOLE file. It does not suppress it only inside that declaration's own block. The one position that is NOT counted is a function's SECOND parameter. The TestInfo fixture map binds at exactly that position. A name shadowed only there is still canonicalised. Real lexical scoping needs the binder this runnable deliberately does not ship (D-13).
 - Completeness against the DECLARED framework surface is asserted in BOTH directions. Forward: every
   spelling the rule refuses is a construct that surface carries and that type-checks against it.
   Reverse: every member reached by walking that surface's declared types with the TypeScript checker
@@ -291,6 +305,13 @@ Widening the rule is a new decision and a gap-closure round, never a quiet edit 
 
 A could-not-run leaves the UAT `pending`. Exit 2 is never read as a pass, because a check that did
 not run has established nothing.
+
+A spec the checker cannot finish analysing is a could-not-run reason for that file, exactly like an
+unreadable or unparseable one. It is named on stderr, it does not count towards the visited total,
+and the short-scan-set floor then reports the run as covering less than the derived set. The checker
+holds these three codes by decision on every path it can take, including a pathological one: it does
+not exit through an uncaught exception, because an uncaught exception exits 1 and 1 means "a
+finding", which would report a check that never ran as a check that found something.
 
 ## The loud skips
 

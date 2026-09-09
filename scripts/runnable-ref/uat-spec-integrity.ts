@@ -230,6 +230,78 @@ export const SKIPPED_DIRECTORIES: readonly string[] = Object.freeze([
 // fixture-parameter binding is asked as, are now part of the exported contract the recipe quotes and
 // the corpus asserts, exactly as D-17's and D-18's constants are.
 // ───────────────────────────────────────────────────────────────────────────────────────────────
+// ───────────────────────────────────────────────────────────────────────────────────────────────
+// D-21 (2026-09-09, gap-closure round 4 wave 2, extending D-18 and D-20; forced by WR-19 and WR-20
+// of 31-REVIEW.md and by their independent reproduction in 31-VERIFICATION.md round 4). This is the
+// runnable's mirror of the decision recorded in
+// .planning/phases/31-autonomous-manual-testing/31-CONTEXT.md; the two must agree.
+//
+// WHICH REGISTER FAILED, TWICE, AND NEITHER IS THE ONE THE PREVIOUS ROUNDS FIXED.
+//
+//   WR-19 — THE UNIT OF A BOUND, WHICH CHANGED WHEN THE CODE AROUND IT CHANGED. The 512-step chain
+//   bound was written for a FLAT loop. D-18 (1) made `calleeDottedPath` recursive and did not
+//   re-derive it, so "512 steps per resolution" silently became "512 steps per recursion frame" and
+//   the bound stopped bounding. The cost was not slowness: a spec carrying a 4000-link call chain
+//   exhausted the interpreter's stack, and because nothing caught the RangeError, `reportMeasured`
+//   was NEVER REACHED — the vacuity floor and the denominator floor, the two branches whose whole
+//   purpose is to make a check that did not run unreadable as a clean one, were bypassed BY
+//   CONSTRUCTION while stdout stayed silent. The exit code was inside { 0, 1, 2 } only because
+//   Node's uncaught-exception code happens to be 1, which the D-12 contract reads as "a finding".
+//
+//   WR-20 — WHETHER THE NAME BEING REWRITTEN IS THE NAME THE MAP IS ABOUT. `canonicaliseHeadSegment`
+//   rewrote `segments[0]` whenever it was a key of a file-level map, with no scope analysis at all,
+//   so a legitimate spec that renamed the framework import to `it` and separately bound a local `it`
+//   was REFUSED — and the finding named `test.skip`, a construct absent from the file. The failure
+//   direction is a FALSE REFUSAL, which trains a reader to work around the checker, and D-20 (3)
+//   had just added a SECOND map feeding that same canonicaliser.
+//
+// D-21 ADDS NO MEMBER TO ANY BAN SET. It makes two decisions:
+//
+//   (1) THE CHAIN BOUND IS ONE SHARED BUDGET FOR A WHOLE RESOLUTION, AND THE WALK THAT ASKS IT USES
+//       AN EXPLICIT STACK. `CALLEE_CHAIN_STEP_BOUND` is the one authority for the VALUE, and
+//       `CalleeStepBudget` is the one authority for the UNIT: `calleeDottedPath` threads one budget
+//       through its own recursion and charges the descent into a call link explicitly, so
+//       interleaving calls buys a chain no extra steps. Bounding the resolver is necessary and NOT
+//       sufficient, which is why `forEachDescendant` replaced both self-recursive AST walks: the
+//       walk that ASKS the resolver was itself as deep as the chain a spec author writes, and no
+//       step budget could reach that cost. Finally, a spec `findBannedConstructs` cannot finish is
+//       a COULD-NOT-RUN reason recorded in `analyzeSpecs` rather than an escaping throw, so the exit
+//       code is inside the D-12 contract BY DECISION on every path — and a file that could not be
+//       analysed does not increment `visited`, so the denominator floor reports the short scan set.
+//
+//   (2) THE ONE CANONICALISER ASKS WHAT A HEAD IS BOUND TO, FOR EVERY MAP THAT FEEDS IT.
+//       `deriveDeclaredNames` is a per-source-file census of the names the file DECLARES — a
+//       parameter, a `const`/`let`/`var` binding, a destructured binding element, a function name, a
+//       class name — every one a literal in the source text, which is the same parse-only reasoning
+//       D-18 (3) and D-20 (3) use. `canonicaliseHeadSegment` consults it BEFORE either map and
+//       returns its input unchanged for a declared head, so the rule wins over BOTH maps and
+//       introduces no decline site of its own. Writing the rule inside either map's derivation would
+//       have been WR-20 one map over the moment a third map arrives. The rule is MONOTONE IN THE
+//       SAFE DIRECTION: it can only stop a rewrite, and only where the source text itself says the
+//       name is bound to something else. An import binding is deliberately NOT in the census — a
+//       census that counted import specifiers would make every rename shadow itself and the
+//       canonicalisation would never fire — and a function's SECOND parameter is exempt, because
+//       that is exactly where the TestInfo fixture map binds. The exemption is stated as a POSITION
+//       rather than as membership of that map, so the census does not depend on the map it
+//       constrains; a census derived from that map and then used to constrain it would be a fixed
+//       point this runnable does not compute.
+//
+// WHAT D-21 DOES NOT ESTABLISH. The scope rule is FILE-SCOPED, not lexically scoped: one declaration
+// anywhere in the file suppresses the rewrite for the whole file, so a file that BOTH declares the
+// renamed name and genuinely calls the modifier through the rename is not refused. A name shadowed
+// ONLY at a second-parameter position is still canonicalised. Both costs are NAMED in
+// UNRESOLVABLE_CALLEE_RESIDUALS with reasons true of them, quoted into the recipe from that one
+// source, and the file-scoped coarseness is asserted as a MEASURED case rather than described. The
+// step bound remains a stated limit; it is now honestly one allowance for one resolution. The head
+// and tail sets are still hand-authored, and the declared surface is still a hand transcription
+// whose drift from the released package stays an open `UNKNOWN - verify`.
+//
+// Reversibility: costly. The bound's UNIT — one allowance for a whole resolution rather than one per
+// frame — and the scope rule's file-scoped answer are now part of the exported contract the recipe
+// quotes and the corpus asserts. Reverting restores a resolver the verifier measured crashing with
+// an empty stdout on a reachable input, and a checker it measured refusing a legitimate spec while
+// naming a construct that is not in it.
+// ───────────────────────────────────────────────────────────────────────────────────────────────
 export const BANNED_MODIFIER_HEADS: readonly string[] = Object.freeze(["test", "describe"]);
 export const BANNED_MODIFIER_TAILS: readonly string[] = Object.freeze([
   "skip",
@@ -417,11 +489,11 @@ export const UNRESOLVABLE_CALLEE_RESIDUALS: readonly string[] = Object.freeze([
   "A callee whose head is not an identifier is not resolved: a call on an object literal, or on `this`. There is no head segment to read, so no membership question can be put.",
   // D-21 (1): the NUMBER is interpolated from its one authority rather than spelled a second time,
   // so the disclosed sentence cannot drift from the allowance the resolver actually spends.
-  `A callee chain longer than the resolver's ${CALLEE_CHAIN_STEP_BOUND}-step bound is not resolved. The bound is ONE allowance for a WHOLE resolution: every link spends a step, the descent into a call link included, so interleaving calls buys a chain no extra steps. It stops a pathological chain from spinning and from exhausting the interpreter. It is a stated LIMIT, not a silence. A chain that reaches it yields no path rather than a truncated one.`,
+  `A callee chain longer than the resolver's ${CALLEE_CHAIN_STEP_BOUND}-step bound is not resolved. The bound is ONE allowance for a WHOLE resolution. Every link spends a step, the descent into a call link included. Interleaving calls buys a chain no extra steps. The bound stops a pathological chain from spinning. It also stops one from exhausting the interpreter. It is a stated LIMIT, not a silence. A chain that reaches it yields no path rather than a truncated one.`,
   "An option is ENABLED only when the call's first argument is an object literal assigning it the `true` keyword. A variable argument enables nothing, and neither does a variable option value. This runnable parses and never evaluates.",
   "A parser that does not expose the import, object-literal or function-like node predicates yields no rename canonicalisation, no option reading and no fixture-parameter canonicalisation. The parser is the TARGET repository's (D-13), so its surface is not this runnable's to assume. The resolver degrades to the pre-D-18 behaviour for those shapes rather than throwing outside the exit-code contract.",
   "A TestInfo binding destructured in the callback's second parameter is not canonicalised: `test(\"a\", async ({ page }, { skip }) => skip());`. A binding pattern names no single identifier to rewrite, so there is no head segment to canonicalise.",
-  "The scope rule the canonicalisations ask is FILE-SCOPED, not lexically scoped. A head segment the file DECLARES — as a parameter, a `const`/`let`/`var` binding, a destructured binding element, a function name or a class name — is not rewritten through either map, and one such declaration anywhere in the file suppresses the rewrite for the whole file rather than for that declaration's own block. The one position that is NOT counted as a declaration is a function's SECOND parameter, because that is exactly where the TestInfo fixture map binds, so a name shadowed only at that position is still canonicalised. Real lexical scoping needs the binder this runnable deliberately does not ship (D-13).",
+  "The scope rule the canonicalisations ask is FILE-SCOPED, not lexically scoped. A head segment the file DECLARES is not rewritten through either map. The census counts a parameter, a `const`/`let`/`var` binding, a destructured binding element, a function name and a class name. One such declaration anywhere in the file suppresses the rewrite for the WHOLE file. It does not suppress it only inside that declaration's own block. The one position that is NOT counted is a function's SECOND parameter. The TestInfo fixture map binds at exactly that position. A name shadowed only there is still canonicalised. Real lexical scoping needs the binder this runnable deliberately does not ship (D-13).",
 ]);
 
 // D-13: the loud skip for an unresolvable parser. One frozen constant, ONE emission point, so a test
