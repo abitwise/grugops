@@ -2182,7 +2182,14 @@ describe("31-05 — the reachability remainder is written down", () => {
       `scripts/context-io.ts now imports [${bindings.join(", ")}] from node:fs. A binding was added ` +
         `or removed, so the write-primitive alphabet this file derives its residual over must be ` +
         `re-classified rather than assumed unchanged`,
-    ).toBe(15);
+      // 15 -> 14 (31-21, CR-12 / D-24), CLASSIFIED rather than bumped: `readFileSync` was REMOVED.
+      // Every read this module performs now goes through the single `readRegularFileOrNull`, which
+      // opens with O_NONBLOCK and refuses anything that is not a regular file, so the blocking
+      // primitive is not in scope to be reached for by accident. Its removal cannot add a write
+      // primitive — it was never one — so the residual this file derives is unaffected in the
+      // direction this assertion guards. Re-adding it is drift, and PART SIX-F's read-site axis is
+      // where that shows up as a named member rather than as a bare count.
+    ).toBe(14);
   });
 });
 
@@ -2329,6 +2336,9 @@ function assertDeclinePremise(derived: DeclineDerivation): void {
  * `human-stamp-not-gated-at-destination` (WR-18): the route read the governance configuration for
  * READABILITY only and never for its VALUE, so under a dial that gates nothing it carried a
  * human:NAME stamp forward that admitAndAppend refuses on the identical note.
+ * `unreadable-audit-ledger` (31-21, WR-22 (2)): the ledger look answered `false` for a ledger that
+ * was PRESENT and could not be read, and the route's response to "not recorded" is to APPEND — so a
+ * fail-open read manufactured the duplicate event keyed on one id that D-19 (4) exists to prevent.
  */
 const EXPECTED_DECLINE_KEYS = Object.freeze([
   "body-differs-from-origin",
@@ -2339,11 +2349,12 @@ const EXPECTED_DECLINE_KEYS = Object.freeze([
   "no-such-origin-note",
   "origin-note-not-live",
   "origin-outside-trusted-store",
+  "unreadable-audit-ledger",
   "unreadable-governance-config",
 ]);
 
 /** The cardinality, asserted separately: a re-worded clause and an ADDED clause are different events. */
-const EXPECTED_DECLINE_COUNT = 9;
+const EXPECTED_DECLINE_COUNT = 10;
 
 describe("31-14 — the re-binding proof's decline set is derived from its own body", () => {
   it("PREMISE: the parse found the route, it had a body, and it yielded decline sites", () => {
@@ -2403,17 +2414,31 @@ describe("31-14 — the re-binding proof's decline set is derived from its own b
   it("THE DERIVATION'S BOUND: every throw in the route goes through the decline helper, except the named guards", () => {
     // The walk sees a `throw declineRebinding(...)` and nothing else. A refusal spelled as a bare
     // `throw new Error(...)` would be a decline this derivation cannot see, so the count of such
-    // throws is asserted rather than described. ONE is expected: the type-narrowing guard on the
-    // composed candidate's parse, which is unreachable in practice and decides nothing about a
-    // caller's input.
+    // throws is asserted rather than described. TWO are expected, and each is an INTERNAL guard with
+    // a written reason rather than a decision about a caller's input:
+    //   1. the type-narrowing guard on the composed candidate's parse, unreachable in practice;
+    //   2. (31-21, WR-22) the id-identity guard: the GOV-02 ledger event is now appended BEFORE the
+    //      note is written, so the event is keyed on an id the write has not yet returned. The guard
+    //      asserts the two are the same object. It cannot fire for any caller input — the route
+    //      passes `sourceId` to the write and the write returns what it was given — and it exists so
+    //      that a future change letting the write mint its own id is caught rather than silently
+    //      de-keying an audit record from the note it records. A caller cannot reach it, so it is
+    //      not a decline and does not belong in the register.
+    // Both are asserted to SAY "internal", so a real refusal cannot hide in this allowance.
     const derived = deriveDeclineSites(CONTEXT_IO_TS);
     expect(
       derived.unhelpedThrows.length,
       `the re-binding route throws outside the decline helper: ${derived.unhelpedThrows.join(" | ")}. ` +
         `Each one is a refusal the derivation above cannot see, so it belongs in the register (and ` +
         `through the helper) or it needs a written reason for being an internal guard`,
-    ).toBe(1);
-    expect(derived.unhelpedThrows[0]).toContain("internal");
+    ).toBe(2);
+    for (const thrown of derived.unhelpedThrows) {
+      expect(
+        thrown,
+        "an unhelped throw in the re-binding route does not announce itself as an internal guard, " +
+          "so it is a refusal a caller can meet with no register entry and no written reason",
+      ).toContain("internal");
+    }
   });
 });
 
@@ -2673,6 +2698,31 @@ const DECLINE_PROBES: Readonly<Record<string, DeclineProbe>> = Object.freeze({
       // reaches the destination read rather than a field comparison.
       const lean = freshTmp("ctx-io-decline-occupied-lean-");
       mod.appendNote(REBIND_TASK, softNote(), "a different note entirely", destRoot, id, lean);
+      return {
+        destRoot,
+        run: () =>
+          mod.promoteAdmitted(REBIND_TASK, id, disposedFinding(), REBIND_BODY, originRoot, destRoot, repoRoot),
+      };
+    },
+  },
+  "unreadable-audit-ledger": {
+    drive: () => {
+      // A ledger that IS THERE and cannot be read — a DIRECTORY at the ledger position, chosen over
+      // a FIFO on purpose: a FIFO would have HUNG this in-process case before 31-21 and the
+      // directory reaches the same `fstat` refusal by the same rule, in bounded time, on every
+      // platform including the ones without mkfifo. The bounded FIFO cases live in
+      // `scripts/context-io.test.ts`, driven in a subprocess where a hang is a timeout rather than
+      // a wedged suite. Every earlier clause holds — the origin note is real, live and byte-equal,
+      // the dial gates and is readable — so this probe reaches the ledger look and nothing else.
+      const repoRoot = activeDialRoot();
+      const { originRoot, id } = seedAdmittedOrigin(repoRoot, "ctx-io-decline-ledger-origin-");
+      // The origin seed already admitted under `retained`, so a REGULAR ledger is sitting there.
+      // Replace it, so the position is occupied by something the reader must refuse rather than
+      // merely absent — "absent" is a different, legitimate case that returns false and proceeds.
+      const ledger = join(repoRoot, ".grugops", "audit", "admissions.jsonl");
+      rmSync(ledger, { force: true });
+      mkdirSync(ledger, { recursive: true });
+      const destRoot = freshTmp("ctx-io-decline-ledger-dest-");
       return {
         destRoot,
         run: () =>

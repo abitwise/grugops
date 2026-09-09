@@ -8490,3 +8490,172 @@ describe("31-21 CONTROL 4 — the governance-config reader answers identically a
     expect(g.source).toBe("unreadable");
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// 31-21 (CR-12, THE THIRD POSITION) — the note-DIRECTORY walk is a caller-influenced read too.
+//
+// FOUND BY PROBING BEYOND THE POSITION THE FINDING NAMED. CR-12 named two reads: the chokepoint's
+// destination read and `ledgerRecordsId`. Routing exactly those two through the one reader would
+// have satisfied the review and left D-24's own truth false — "EVERY read this module performs on a
+// caller-influenced filesystem position goes through ONE non-blocking regular-file reader". The
+// remaining `readFileSync` in `readRawNotes` reads every `*.md` a notes/ DIRECTORY lists, and the
+// contents of that directory are exactly what a caller can add a name to. Measured against the
+// built `.js` after the first two positions were closed:
+//
+//   mkfifo <ctx>/T-9/notes/20260909T070000Z-qe-observation-feedface.md
+//   timeout 10 node <probe>  -> EXIT=124, "READING …" then zero further bytes on either stream
+//
+// It is reached by `readContext`, `render`, `currentState` AND by `promoteAdmitted`'s
+// destination-liveness clause — so before this case a FIFO planted anywhere in a destination notes
+// directory wedged the promotion BEFORE the chokepoint could refuse anything.
+//
+// THE DISPOSITION IS SKIP, NOT THROW, AND IT IS A DECISION. This walk already skips a file that does
+// not parse rather than crashing the read, because one malformed file must not make a whole task's
+// context unreadable. A position occupied by a FIFO, a device or a directory is not a note by the
+// same argument, and throwing here would let one planted FIFO deny `render` and `currentState` for
+// the entire task — trading a hang for a denial one register over. The write side stays loud: the
+// chokepoint still REFUSES BY NAME at that position, so nothing can be written over it either.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+describe("31-21 — a non-regular file inside a notes/ directory is skipped, never waited on", () => {
+  const T = "T-9";
+  const PROBE_TIMEOUT_MS = 8000;
+
+  const WALK_DRIVER = (() => {
+    const file = join(freshTmp("p31-21-walk-driver-"), "walk.mjs");
+    writeFileSync(
+      file,
+      [
+        'import { pathToFileURL } from "node:url";',
+        "const [, , jsPath, ctx] = process.argv;",
+        "const io = await import(pathToFileURL(jsPath).href);",
+        "const out = { verdict: \"n/a\", ids: [], message: \"\" };",
+        "try {",
+        '  out.ids = io.readContext("' + T + '", ctx).map((r) => r.id).sort();',
+        '  out.verdict = "read";',
+        "} catch (e) {",
+        '  out.verdict = "threw";',
+        "  out.message = String(e && e.message ? e.message : e);",
+        "}",
+        "console.log(JSON.stringify(out));",
+      ].join("\n"),
+    );
+    return file;
+  })();
+
+  function walk(ctx: string): { timedOut: boolean; ms: number; verdict: string; ids: string[]; raw: string } {
+    const started = Date.now();
+    const r = spawnSync(process.execPath, [WALK_DRIVER, CONTEXT_IO_JS, ctx], {
+      encoding: "utf8",
+      timeout: PROBE_TIMEOUT_MS,
+      killSignal: "SIGKILL",
+    });
+    const ms = Date.now() - started;
+    const raw = (r.stdout ?? "") + (r.stderr ?? "");
+    const timedOut = r.signal === "SIGKILL";
+    let parsed: { verdict?: string; ids?: string[] } = {};
+    const line = (r.stdout ?? "").trim().split("\n").filter((l) => l.startsWith("{")).pop();
+    if (line !== undefined) {
+      try {
+        parsed = JSON.parse(line) as typeof parsed;
+      } catch {
+        /* the assertions report `raw` */
+      }
+    }
+    return { timedOut, ms, verdict: parsed.verdict ?? "", ids: parsed.ids ?? [], raw };
+  }
+
+  it("a FIFO named like a note does NOT wedge the walk; the real notes beside it still read", () => {
+    const ctx = join(freshTmp("p31-21-walk-"), ".grugops", "context");
+    const lean = freshTmp("p31-21-walk-lean-");
+    mkdirSync(join(lean, ".grugops"), { recursive: true });
+    mkdirSync(ctx, { recursive: true });
+    const real = mod.appendNote(
+      T,
+      {
+        kind: "observation",
+        by: "qe",
+        at: "2026-09-09T07:00:00Z",
+        verified_by: "",
+        confidence: "high",
+        refs: [],
+        supersedes: null,
+      } as Parameters<typeof mod.appendNote>[1],
+      "a genuine note beside the planted one",
+      ctx,
+      undefined,
+      lean,
+    );
+    const planted = join(ctx, T, "notes", "20260909T070000Z-qe-observation-feedface.md");
+    const r0 = spawnSync("mkfifo", [planted], { encoding: "utf8" });
+    expect(r0.status, `PREMISE: mkfifo failed (${r0.stderr ?? ""})`).toBe(0);
+
+    const r = walk(ctx);
+    expect(
+      r.timedOut,
+      `CR-12 IS OPEN at the notes walk: readContext did not answer within ${PROBE_TIMEOUT_MS}ms. ${r.raw}`,
+    ).toBe(false);
+    expect(r.ms).toBeLessThan(5000);
+    expect(r.verdict, `the walk threw instead of skipping: ${r.raw}`).toBe("read");
+    // The planted position is not a note and is skipped; the genuine note beside it is NOT lost.
+    expect(r.ids, "one planted FIFO made the whole task's context unreadable").toEqual([real]);
+  });
+
+  it("a DIRECTORY named like a note is skipped by the same rule", () => {
+    const ctx = join(freshTmp("p31-21-walkdir-"), ".grugops", "context");
+    const lean = freshTmp("p31-21-walkdir-lean-");
+    mkdirSync(join(lean, ".grugops"), { recursive: true });
+    mkdirSync(ctx, { recursive: true });
+    const real = mod.appendNote(
+      T,
+      {
+        kind: "observation",
+        by: "qe",
+        at: "2026-09-09T07:30:00Z",
+        verified_by: "",
+        confidence: "high",
+        refs: [],
+        supersedes: null,
+      } as Parameters<typeof mod.appendNote>[1],
+      "a genuine note beside a directory",
+      ctx,
+      undefined,
+      lean,
+    );
+    mkdirSync(join(ctx, T, "notes", "20260909T073000Z-qe-observation-deadd00d.md"), { recursive: true });
+    const r = walk(ctx);
+    expect(r.timedOut, `the directory case did not answer. ${r.raw}`).toBe(false);
+    expect(r.verdict, `the walk threw instead of skipping: ${r.raw}`).toBe("read");
+    expect(r.ids).toEqual([real]);
+  });
+
+  it("the destination-liveness clause cannot be wedged: a FIFO in the destination notes/ still refuses BY NAME", () => {
+    // The write side stays LOUD where the read side went quiet. A planted FIFO at exactly the id
+    // being promoted is invisible to the walk (it is not a note) and is refused at the chokepoint.
+    const ctx = join(freshTmp("p31-21-walkpromote-"), ".grugops", "context");
+    const lean = freshTmp("p31-21-walkpromote-lean-");
+    mkdirSync(join(lean, ".grugops"), { recursive: true });
+    const id = "20260909T074500Z-qe-observation-c0ffee01";
+    mkdirSync(join(ctx, T, "notes"), { recursive: true });
+    const r0 = spawnSync("mkfifo", [join(ctx, T, "notes", `${id}.md`)], { encoding: "utf8" });
+    expect(r0.status, `PREMISE: mkfifo failed (${r0.stderr ?? ""})`).toBe(0);
+    expect(() =>
+      mod.appendNote(
+        T,
+        {
+          kind: "observation",
+          by: "qe",
+          at: "2026-09-09T07:45:00Z",
+          verified_by: "",
+          confidence: "high",
+          refs: [],
+          supersedes: null,
+        } as Parameters<typeof mod.appendNote>[1],
+        "aimed at the planted position",
+        ctx,
+        id,
+        lean,
+      ),
+    ).toThrow(new RegExp(mod.NOTE_PATH_NOT_REGULAR_FILE_CLAUSE));
+  });
+});

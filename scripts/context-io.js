@@ -30,7 +30,12 @@
 // production; tests pass an explicit temp root.
 import { randomUUID } from "node:crypto";
 import { isEntrypoint } from "./is-entry.js";
-import { writeFileSync, appendFileSync, readFileSync, readdirSync, renameSync, unlinkSync, mkdirSync, existsSync, openSync, fstatSync, readSync, closeSync, statSync, realpathSync, constants as fsConstants, } from "node:fs";
+import { writeFileSync, appendFileSync, 
+// `readFileSync` is DELIBERATELY ABSENT from this import list (31-21, CR-12 / D-24). Every read
+// this module performs goes through `readRegularFileOrNull`, so the primitive that BLOCKS on a
+// non-regular file is not in scope to be reached for by accident. Re-adding it here is the drift
+// this module's derived read-site axis turns red.
+readdirSync, renameSync, unlinkSync, mkdirSync, existsSync, openSync, fstatSync, readSync, closeSync, statSync, realpathSync, constants as fsConstants, } from "node:fs";
 import { homedir } from "node:os";
 import { basename, dirname, join, resolve, sep } from "node:path";
 import { CHECKPOINTS, CHECKPOINT_DEFAULTS, DISPOSITIONS, STRICTEST_MATRIX, canonicalizeDisposition, } from "./checkpoints.js";
@@ -791,6 +796,118 @@ export function atomicWrite(finalPath, data) {
         }
     }
 }
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// THE ONE NON-BLOCKING FILE READER OF THIS MODULE (31-21, CR-12 / D-24).
+//
+// WHAT WAS WRONG, MEASURED RATHER THAN DESCRIBED. Round 4's CR-11 fix put a destination READ at
+// `writeNoteFile`, the module's single note-write chokepoint. The placement was right; the primitive
+// was not. `readFileSync` on a path that is not a regular file BLOCKS at `open(2)` with no timeout,
+// so ONE `mkfifo` at a note path wedged EVERY writer in this module — `appendNote`,
+// `appendPreAdmittedNote`, `admitAndAppend`, `promoteAdmitted`, `emitTrusted`, `emitVerdict` and
+// `emitCheckpointNote` all end here. Reproduced against the committed `scripts/context-io.js` before
+// any source change: `timeout 10 node <probe>` → EXIT=124, zero bytes of stdout, zero bytes of
+// stderr. A guard hook that emits a checkpoint note then hangs the tool call, and a PreToolUse hook
+// that never answers is, in this project's own measured words, the same event as an allow.
+//
+// WHY THIS IS AN EXTRACTION AND NOT A SECOND HABIT. The discipline below is not new: it is the body
+// of `readGovernanceConfigCandidate`, written 2,400 lines further down after plan 30-11 round 2
+// measured finding `RA1-2` — a FIFO at `<project>/.grugops/factory.config.json` producing no exit and
+// zero bytes on both streams at 20 seconds on BOTH committed guards. That reader's own header is the
+// argument for this one and is kept in place as the recorded origin of the rule. What CR-12 proves is
+// that a rule living inside one function is a HABIT: the next reader added to this module did not
+// inherit it. So the body moved UP here, `readGovernanceConfigCandidate` became a caller, and this
+// module now has exactly ONE non-blocking file read rather than two copies of one idea. The derived
+// read-site axis in `scripts/context-io-writer-set.test.ts` asserts that count with a seeded mirror,
+// so a third reader added later turns a case red before it can ship unguarded.
+//
+// THE CANONICAL FORM, AND WHY THE REFUSAL IS BY RULE. A caller-influenced read position may be
+// ABSENT, OR A REGULAR FILE. Every other shape — FIFO, character or block device, directory, socket,
+// present-and-unopenable — is refused in bounded time, by name, and the refusal NAMES the position.
+// The decision is made by `fstat` on the OPEN descriptor rather than by an enumeration of dangerous
+// file types, because an enumeration is a list that rots and this repository has paid for that shape
+// more than once. `fstat` through the descriptor also stats THROUGH a symlink, which is deliberate:
+// a file legitimately delivered through a symlink to a regular file still reads, and a symlink to a
+// FIFO is refused for what it POINTS AT rather than for being a symlink. `lstat` would refuse both,
+// which is a different and wrong rule.
+//
+// `O_NONBLOCK` is what makes the open itself safe: opening a FIFO for reading blocks until a writer
+// appears unless it is set. ENOENT is the ONLY error mapped to "nothing here"; every other open
+// failure is a position that IS occupied and could not be read, which fails CLOSED.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+/**
+ * The one shape a caller-influenced read position may legitimately have. Published as a string so
+ * every refusal below spells it once — the tests and the prose bind to this, not to a paraphrase.
+ */
+export const CANONICAL_READ_POSITION = "absent, or a regular file";
+/**
+ * The frozen clause a note-path refusal NAMES (31-21, CR-12). One spelling, so the cases in
+ * `scripts/context-io.test.ts` and any later prose bind to the same literal.
+ *
+ * It covers every non-canonical shape, INCLUDING a present-but-unopenable path: a position this
+ * write cannot read is not a position it may replace, and "not a readable regular file" is the one
+ * question the chokepoint asks. The underlying reason (`fifo`, `directory`, `EACCES`, …) is carried
+ * in the message beside the clause rather than fragmenting the clause into an enumeration.
+ */
+export const NOTE_PATH_NOT_REGULAR_FILE_CLAUSE = "note-path-not-a-regular-file";
+/**
+ * The ceiling on a NOTE-path read. STATED here rather than inherited from the configuration
+ * reader's 8 MiB by accident: a note and a governance config are different artifacts, and a shared
+ * constant would make one of the two ceilings a coincidence of refactoring.
+ */
+const NOTE_FILE_MAX_BYTES = 8 * 1024 * 1024;
+/**
+ * Read one filesystem position as text, or `null` when NOTHING is there.
+ *
+ * @param path      the position to read
+ * @param maxBytes  the size ceiling; a larger regular file is refused rather than read
+ * @param position  what this position IS, in the caller's words — it is quoted into every refusal,
+ *                  so a reader of the error learns which position was refused and why
+ *
+ * Returns `null` for ENOENT and ONLY for ENOENT. Throws — in bounded time — for every other shape.
+ */
+function readRegularFileOrNull(path, maxBytes, position) {
+    let fd;
+    try {
+        fd = openSync(path, fsConstants.O_RDONLY | fsConstants.O_NONBLOCK);
+    }
+    catch (e) {
+        const code = e.code;
+        if (code === "ENOENT")
+            return null; // genuinely nothing here
+        // Present and unopenable — EACCES, ELOOP, ENXIO (a socket), a dangling symlink's own ENOENT on
+        // the TARGET is reported as ENOENT by open(2) and is therefore correctly "nothing here". Fail
+        // closed, naming the position rather than surfacing a bare errno the caller cannot place.
+        throw new Error(`context-io: the ${position} "${path}" IS present and could not be opened (${code ?? "unknown"}) ` +
+            `— it is refused rather than read. The canonical form for this position is ` +
+            `${CANONICAL_READ_POSITION}.`);
+    }
+    try {
+        const st = fstatSync(fd);
+        if (!st.isFile()) {
+            throw new Error(`context-io: the ${position} "${path}" is not a regular file — it is refused rather than ` +
+                `read, because reading a FIFO, a device, a socket or a directory can block forever and a ` +
+                `program that never answers refuses nothing. The canonical form for this position is ` +
+                `${CANONICAL_READ_POSITION}.`);
+        }
+        if (st.size > maxBytes) {
+            throw new Error(`context-io: the ${position} "${path}" is ${st.size} bytes, above the ${maxBytes}-byte ` +
+                `ceiling — refused rather than read.`);
+        }
+        // The read is bounded by the size fstat just reported on this same descriptor.
+        const buf = Buffer.allocUnsafe(Number(st.size));
+        let off = 0;
+        while (off < buf.length) {
+            const n = readSync(fd, buf, off, buf.length - off, off);
+            if (n === 0)
+                break;
+            off += n;
+        }
+        return buf.subarray(0, off).toString("utf8");
+    }
+    finally {
+        closeSync(fd);
+    }
+}
 // ── writeNoteFile: the SINGLE note-file write chokepoint (path-containment, R6-1). ───────────────
 // GAP-R6-1 (Plan 25-12, the Phase-22 round-8 one-chokepoint lesson): the on-disk note filename is
 // `${id}.md`, and `id` is `${atCompact}-${by}-${kind}-${nonce}` (noteId) — so an agent-controlled
@@ -846,16 +963,30 @@ function writeNoteFile(notesDir, id, text) {
             `notes directory (path containment violated: "${resolvedFinal}" is not strictly inside ` +
             `"${resolvedDir}"). No file was written. This is a path-traversal attempt (GAP-R6-1).`);
     }
-    if (existsSync(resolvedFinal)) {
-        let existing = null;
-        try {
-            existing = readFileSync(resolvedFinal, "utf8");
-        }
-        catch {
-            // A path that exists and cannot be read is not something this write may replace. Falling
-            // through to the refusal below is the fail-closed answer; a rename would destroy it.
-            existing = null;
-        }
+    // THE DESTINATION READ GOES THROUGH THE ONE READER (31-21, CR-12 / D-24). The `existsSync` +
+    // `readFileSync` pair that stood here could BLOCK FOREVER on a note path occupied by anything that
+    // is not a regular file, and the path is caller-influenced: `promoteAdmitted` takes its id from
+    // `sourceId` outright and `appendNote`/`emitTrusted` accept a `precomputedId`, so an adversary who
+    // can plant one FIFO chooses which write wedges. The read is now bounded, and a position outside
+    // the canonical form is a NAMED refusal rather than a wait. `existsSync` is gone with it: "is
+    // something there" and "what does it hold" were two questions asked with two primitives, and the
+    // one reader answers both at once, with `null` meaning absent.
+    //
+    // A DIRECTORY AT THE NOTE PATH USED TO REFUSE FOR THE WRONG REASON, WHICH IS ALSO FIXED HERE. The
+    // pair above reached the APPEND-ONLY refusal for it: readFileSync threw EISDIR, the catch mapped it
+    // to null, and the message then said "the destination already holds a DIFFERENT note". The
+    // condition that actually held was never named. It is now.
+    let existing;
+    try {
+        existing = readRegularFileOrNull(resolvedFinal, NOTE_FILE_MAX_BYTES, "note destination");
+    }
+    catch (e) {
+        throw new Error(`context-io.writeNoteFile: refusing to write (${NOTE_PATH_NOT_REGULAR_FILE_CLAUSE}) — the ` +
+            `note destination "${resolvedFinal}" is not ${CANONICAL_READ_POSITION}, so it is REFUSED ` +
+            `rather than waited on and rather than replaced. No file was written. Underlying reason: ` +
+            `${e.message}`);
+    }
+    if (existing !== null) {
         if (existing === text)
             return; // the decided idempotent case: nothing to write, nothing to lose
         throw new Error(`context-io.writeNoteFile: refusing to write — the destination already holds a DIFFERENT ` +
@@ -1062,7 +1193,33 @@ function readRawNotes(task, contextRoot) {
     for (const file of readdirSync(notesDir)) {
         if (!file.endsWith(".md"))
             continue;
-        const text = readFileSync(join(notesDir, file), "utf8");
+        // THE THIRD CALLER-INFLUENCED READ POSITION IN THIS MODULE (31-21, CR-12 / D-24). CR-12 named
+        // the write chokepoint and the ledger look. This walk is the third: what it reads is whatever a
+        // notes/ DIRECTORY lists, and a directory's contents are exactly what a caller can add a name
+        // to. Measured with the first two positions already closed, a `mkfifo` at
+        // `<ctx>/<task>/notes/<anything>.md` still wedged `readContext`, `render`, `currentState` AND
+        // `promoteAdmitted`'s destination-liveness clause — CR-12 surviving at a position the finding
+        // did not name. Closing only the two named reads would have satisfied the review and left D-24's
+        // own rule false, which is the failure shape five rounds of this phase have paid for.
+        //
+        // THE DISPOSITION IS SKIP, AND IT IS A DECISION RATHER THAN A DEFAULT. This walk already skips a
+        // file that does not PARSE rather than crashing, because one malformed file must not make a
+        // whole task's context unreadable. A position occupied by a FIFO, a device or a directory is not
+        // a note by that same argument, so it is skipped by the same rule. Throwing here would let one
+        // planted FIFO deny `render` and `currentState` for the entire task — trading a hang for a
+        // denial one register over. The WRITE side stays loud: `writeNoteFile` refuses that position BY
+        // NAME, so nothing can be written over it and nothing is silently replaced. The residual — that
+        // a skip is quiet on a surface whose whole value is legibility — is named in D-24.
+        let text;
+        try {
+            const raw = readRegularFileOrNull(join(notesDir, file), NOTE_FILE_MAX_BYTES, "note file");
+            if (raw === null)
+                continue; // listed, then gone: a concurrent delete is not a note either
+            text = raw;
+        }
+        catch {
+            continue; // not a regular file, or unreadable: not a note, and never waited on
+        }
         const parsed = parseNote(text);
         if (!parsed)
             continue; // skip an unparseable file rather than crash the read
@@ -1241,6 +1398,14 @@ export const PROMOTE_ADMITTED_DECLINES = Object.freeze({
         "than supersede it. Destination bytes IDENTICAL to the proven origin bytes are a different " +
         "case and are decided as an idempotent re-promotion that proceeds — a re-run compaction has " +
         "nothing to destroy — so this clause names only the destructive one.",
+    "unreadable-audit-ledger": "The destination repository's GOV-02 audit ledger IS present and could not be read — it is not " +
+        "a regular file, or it could not be opened at all. An audit trail this route cannot read is an " +
+        "audit trail it cannot avoid duplicating: the route's response to \"no record\" is to APPEND, so " +
+        "answering \"no record\" for a ledger nobody could read would manufacture a second event keyed " +
+        "on one id — the duplicate 31-09 collapsed and the reason D-19 (4) appends nothing when the id " +
+        "is already there. Absent and unreadable are different facts with different safe answers: an " +
+        "absent ledger honestly records nothing, while an unknowable one is refused rather than guessed " +
+        "about. The refusal is decided BEFORE the note is written, and the position is named.",
 });
 /**
  * Named residuals of this route: trust boundaries it does NOT close, each with its reason.
@@ -1459,16 +1624,65 @@ export function promoteAdmitted(task, sourceId, note, body, from, to, repoRoot =
     // there, D-19 (4) stands unchanged and nothing is appended. When it is not, the event is appended
     // and marked `re_bound: true`, so it stays distinguishable from a fresh admission and the "no
     // duplicate keyed by the same id" property becomes intentional rather than accidental.
-    const persistedId = appendPreAdmittedNote(task, note, body, to, sourceId);
-    if (govResult.config.audit_retention === "retained" && !ledgerRecordsId(repoRoot, persistedId)) {
-        appendAuditLedger(repoRoot, {
-            id: persistedId,
-            kind: note.kind,
-            by: note.by,
-            at: note.at,
-            verified_by: note.verified_by,
-            confidence: note.confidence,
-        }, isHighSeverityRole(note.by), vb, true);
+    // ── THE LEDGER EVENT PRECEDES THE NOTE WRITE (31-21, WR-22 (1) / D-24). ───────────────────────
+    //
+    // THE ARGUMENT, WRITTEN ONCE, HERE. `admitAndAppend`'s gated branch is the other route that writes
+    // both a note and a ledger event, it is inverted for the same reason, and it points at this
+    // paragraph. The two steps CANNOT be made atomic: this module has no transaction, and a crash, a
+    // SIGINT or an ENOSPC between them is reachable in either order. So the ORDER is what decides
+    // WHICH asymmetry a reader of the audit trail can ever meet, and it is chosen deliberately rather
+    // than inherited from the sequence somebody typed first.
+    //
+    //   note first, then ledger  →  the destination holds a HUMAN-DISPOSED FINDING WITH NO LEDGER
+    //                               LINE. That is a repudiation: the trail cannot show who disposed
+    //                               a finding that is sitting in the shared verified context. It is
+    //                               the exact state `18-context-compaction.md` says can never happen,
+    //                               and the round-5 review MEASURED it with a FIFO at the ledger path
+    //                               (`timeout 15` → exit 124, the note already written).
+    //   ledger first, then note  →  the trail holds a line for a note that was not written. That is
+    //                               an OVER-RECORD: legible, self-evidently reconcilable against the
+    //                               notes directory, and it accuses nobody of nothing.
+    //
+    // An audit trail's conservative direction is to over-record, so the ledger goes first.
+    //
+    // NO VALUE IS CARRIED BACKWARDS. The persisted id on this route IS `sourceId` — the candidate was
+    // composed with it, the frozen creation-time identity is carried forward deliberately, and the
+    // function returns it. So every scalar the event needs is known before either step runs.
+    //
+    // THE LOOK IS FAIL-CLOSED (WR-22 (2)). `ledgerRecordsId` throws for a ledger that is present and
+    // unreadable rather than answering "not recorded", because the response to "not recorded" is to
+    // APPEND and a fail-open read would manufacture the duplicate D-19 (4) exists to prevent. The
+    // throw becomes a named decline here, raised before anything is written — so "nothing was
+    // written" stays true by construction rather than by cleanup, exactly like every clause above.
+    const persistedId = sourceId;
+    if (govResult.config.audit_retention === "retained") {
+        let alreadyRecorded;
+        try {
+            alreadyRecorded = ledgerRecordsId(repoRoot, persistedId);
+        }
+        catch (e) {
+            throw declineRebinding("unreadable-audit-ledger", `The ledger look for id "${persistedId}" failed: ${e.message}`);
+        }
+        // D-19 (4) UNCHANGED: when the id is already in the ledger, nothing is appended.
+        if (!alreadyRecorded) {
+            appendAuditLedger(repoRoot, {
+                id: persistedId,
+                kind: note.kind,
+                by: note.by,
+                at: note.at,
+                verified_by: note.verified_by,
+                confidence: note.confidence,
+            }, isHighSeverityRole(note.by), vb, true);
+        }
+    }
+    const writtenId = appendPreAdmittedNote(task, note, body, to, sourceId);
+    // The two ids are the same object by construction; asserting it here means a future change that
+    // let the write mint its own id would be caught rather than silently de-keying the ledger event
+    // this route already appended.
+    if (writtenId !== persistedId) {
+        throw new Error(`context-io.promoteAdmitted: internal — the persisted note id "${writtenId}" is not the id ` +
+            `"${persistedId}" the GOV-02 ledger event was keyed on. The audit record and the note must ` +
+            `share one identity.`);
     }
     return persistedId;
 }
@@ -1820,6 +2034,12 @@ const HIGH_SEVERITY_ROLES = ["security-nfr", "architect-design", "release-manage
 // end-to-end auditor trail (OQ-2). This is the governance RECORD ledger — NOT a note-body store and
 // NOT a compaction artifact (D-09): it never touches the compaction code path.
 const AUDIT_LEDGER_RELPATH = [".grugops", "audit", "admissions.jsonl"];
+/**
+ * The ceiling on a GOV-02 ledger read (31-21). Stated for this artifact rather than shared with the
+ * note or config ceilings: an append-only JSONL trail grows without bound in ordinary use, so its
+ * ceiling is a deliberate operational limit and not a copy of somebody else's number.
+ */
+const AUDIT_LEDGER_MAX_BYTES = 64 * 1024 * 1024;
 // ── admit: the context-aware admission cross-check (D-01/D-10 — the ONLY context-reading path). ──
 // Given a candidate note text for a task, run the structural validate() first; then, only when the
 // note is a `finding` carrying a §14-gate#<id> stamp, cross-check that <id> against a LIVE GREEN
@@ -2067,21 +2287,28 @@ function appendAuditLedger(repoRoot, scalars, isHighSeverity, verifiedBy, reBoun
  * therefore gain a high-severity human-disposed finding with no ledger line anywhere in it, which is
  * the repudiation shape this requirement exists to prevent. So the premise became a LOOK.
  *
- * A ledger that cannot be read answers "not recorded" rather than throwing: the caller's response to
- * both is to append, which is the conservative direction — a duplicate line is a legible redundancy,
- * a missing line is a silent gap in an audit trail.
+ * AN UNREADABLE LEDGER IS A REFUSAL, NOT A SILENCE (31-21, WR-22 (2) / D-24). This function used to
+ * answer `false` for an unreadable or EACCES ledger, on the reasoning that a duplicate line is a
+ * legible redundancy while a missing line is a silent gap. That reasoning inverted the direction it
+ * meant to take: the CALLER'S RESPONSE TO "not recorded" IS TO APPEND, so a fail-OPEN read
+ * MANUFACTURES the duplicate event keyed on one id that D-19 (4) exists to prevent — the exact
+ * duplicate 31-09 collapsed. "Absent" and "unreadable" are different questions with different safe
+ * answers: an absent ledger honestly records nothing about this id and returns `false`; a ledger
+ * that IS there and cannot be read is a fact this route does not know, and the safe answer to an
+ * unknowable audit trail is to REFUSE the write rather than to guess about it. The throw becomes
+ * `promoteAdmitted`'s `unreadable-audit-ledger` decline, raised before anything is written.
+ *
+ * The read goes through the module's ONE non-blocking reader, so the ledger path — like the note
+ * path — cannot block. Measured pre-fix with a FIFO at `<repoRoot>/.grugops/audit/admissions.jsonl`:
+ * `timeout 15` → exit 124, with the destination note ALREADY written.
  */
 function ledgerRecordsId(repoRoot, id) {
     const ledgerPath = join(repoRoot, AUDIT_LEDGER_RELPATH[0], AUDIT_LEDGER_RELPATH[1], AUDIT_LEDGER_RELPATH[2]);
-    if (!existsSync(ledgerPath))
+    // `null` is the ONLY absence: the ledger is genuinely not there, which records nothing about this
+    // id. Every other shape throws, in bounded time, and the caller declines on it.
+    const raw = readRegularFileOrNull(ledgerPath, AUDIT_LEDGER_MAX_BYTES, "GOV-02 audit ledger");
+    if (raw === null)
         return false;
-    let raw;
-    try {
-        raw = readFileSync(ledgerPath, "utf8");
-    }
-    catch {
-        return false;
-    }
     for (const line of raw.split("\n")) {
         if (line.trim() === "")
             continue;
@@ -2909,40 +3136,15 @@ function isExistingDirectory(path) {
     }
 }
 function readGovernanceConfigCandidate(path) {
-    let fd;
-    try {
-        fd = openSync(path, fsConstants.O_RDONLY | fsConstants.O_NONBLOCK);
-    }
-    catch (e) {
-        if (e.code === "ENOENT")
-            return null; // genuinely nothing here
-        throw e; // present and unopenable → the caller's unreadable branch (fail closed)
-    }
-    try {
-        const st = fstatSync(fd);
-        if (!st.isFile()) {
-            throw new Error(`context-io: the governance config position "${path}" is not a regular file — it is ` +
-                `refused rather than read, because reading a FIFO, a device or a directory can block ` +
-                `forever and a guard that never answers does not block anything.`);
-        }
-        if (st.size > GOVERNANCE_CONFIG_MAX_BYTES) {
-            throw new Error(`context-io: the governance config at "${path}" is ${st.size} bytes, above the ` +
-                `${GOVERNANCE_CONFIG_MAX_BYTES}-byte ceiling — refused rather than read.`);
-        }
-        // The read is bounded by the size fstat just reported on this same descriptor.
-        const buf = Buffer.allocUnsafe(Number(st.size));
-        let off = 0;
-        while (off < buf.length) {
-            const n = readSync(fd, buf, off, buf.length - off, off);
-            if (n === 0)
-                break;
-            off += n;
-        }
-        return buf.subarray(0, off).toString("utf8");
-    }
-    finally {
-        closeSync(fd);
-    }
+    // THE READER MOVED UP; THIS IS NOW A CALLER OF IT (31-21, CR-12 / D-24). The header above is kept
+    // in place because it is the RECORDED ORIGIN of the rule — `RA1-2`'s measurement is why the
+    // discipline exists at all. What round 5 proved is that a rule living inside one function is a
+    // HABIT rather than an authority: the destination read CR-11 added to `writeNoteFile` did not
+    // inherit it, and one `mkfifo` then wedged every writer in this module. So the body was lifted
+    // into `readRegularFileOrNull` above, and this module has ONE non-blocking read rather than two
+    // copies of one idea. A second copy of this discipline anywhere in this file is the drift shape
+    // the derived read-site axis in `scripts/context-io-writer-set.test.ts` turns red.
+    return readRegularFileOrNull(path, GOVERNANCE_CONFIG_MAX_BYTES, "governance config position");
 }
 export function readGovernanceConfig(repoRoot) {
     // An empty or whitespace-only root names nothing and falls back, exactly as an absent one does
@@ -3175,19 +3377,38 @@ repoRoot = trustedRepoRoot()) {
         const findings = validate(text);
         if (findings.length > 0)
             return { id: null, findings };
-        const persistedId = appendPreAdmittedNote(task, note, body, contextRoot, id);
-        // GOV-02 ledger (retained mode only): reuse the SAME private appendAuditLedger admit() uses —
-        // disposed_by derives from the human:NAME stamp; severity is the role classification (D-06).
+        // ── THE LEDGER EVENT PRECEDES THE NOTE WRITE HERE TOO (31-21, WR-22 (1) / D-24). ────────────
+        // THE SECOND ROUTE THAT WRITES BOTH, AND THE REASON IT IS INVERTED IN THE SAME CHANGE. The
+        // round-5 review named `promoteAdmitted` alone. This branch has the identical pair — a note
+        // write and a GOV-02 append with `disposed_by` derived from the very `human:NAME` stamp that
+        // makes the note human-disposed — so it produces verbatim the same "a destination holding a
+        // human-disposed finding with no ledger line" on any crash between the two steps. Inverting
+        // only the route a reviewer happened to walk would leave the corrected sentence in
+        // `agent-factory/workflows/18-context-compaction.md` FALSE at the other one: the claim
+        // outrunning the mechanism inside the edit that exists to stop it. The full argument for which
+        // asymmetry is the safe one is written ONCE, at `promoteAdmitted`'s ledger block above.
+        //
+        // NO VALUE IS CARRIED BACKWARDS. `id` is frozen by `noteId(note)` above, composed into `text`,
+        // and passed to `appendPreAdmittedNote` — which is what the branch's own comment already states
+        // it is frozen FOR. So the event is keyed on `id` and the append simply moves up.
         if (configResult.config.audit_retention === "retained") {
             const scalars = {
-                id: persistedId,
+                id,
                 kind: note.kind,
                 by: note.by,
                 at: note.at,
                 verified_by: note.verified_by,
                 confidence: note.confidence,
             };
+            // GOV-02 ledger (retained mode only): reuse the SAME private appendAuditLedger admit() uses —
+            // disposed_by derives from the human:NAME stamp; severity is the role classification (D-06).
             appendAuditLedger(repoRoot, scalars, isHighSeverityRole(note.by), vb);
+        }
+        const persistedId = appendPreAdmittedNote(task, note, body, contextRoot, id);
+        if (persistedId !== id) {
+            throw new Error(`context-io.admitAndAppend: internal — the persisted note id "${persistedId}" is not the ` +
+                `frozen id "${id}" the GOV-02 ledger event was keyed on. The audit record and the note ` +
+                `must share one identity.`);
         }
         return { id: persistedId, findings: [] };
     }
@@ -3229,6 +3450,30 @@ repoRoot = trustedRepoRoot()) {
 // ONE authority for the entrypoint predicate (round 4, `RA6-1`) — see scripts/is-entry.ts
 // for why a per-file spelling of it silently no-ops under a symlinked path.
 const isMain = isEntrypoint(import.meta.url);
+/**
+ * Read a note file named on the CLI, through the module's ONE reader (31-21, D-24).
+ *
+ * The last two caller-influenced read positions in this module are these two argv paths. Routing
+ * them here rather than exempting them is what makes D-24's rule TOTAL for this file: the derived
+ * read-site axis in `scripts/context-io-writer-set.test.ts` then has no survivor to argue about, and
+ * "every read goes through the one reader" is a count rather than a sentence with two footnotes.
+ * A missing file and a position that is not a regular file are different messages, both bounded.
+ */
+function readCliNoteFileOrExit(noteFile) {
+    let text;
+    try {
+        text = readRegularFileOrNull(noteFile, NOTE_FILE_MAX_BYTES, "note file named on the command line");
+    }
+    catch (e) {
+        console.error(e.message);
+        process.exit(1);
+    }
+    if (text === null) {
+        console.error(`context-io: no file at ${JSON.stringify(noteFile)}.`);
+        process.exit(1);
+    }
+    return text;
+}
 if (isMain) {
     const [cmd, ...rest] = process.argv.slice(2);
     try {
@@ -3238,7 +3483,7 @@ if (isMain) {
                 console.error("usage: context-io.js validate <noteFile>");
                 process.exit(1);
             }
-            const findings = validate(readFileSync(noteFile, "utf8"));
+            const findings = validate(readCliNoteFileOrExit(noteFile));
             if (findings.length > 0) {
                 for (const f of findings)
                     console.error(f);
@@ -3277,7 +3522,7 @@ if (isMain) {
                 process.exit(1);
             }
             const admitRoot = trustedRepoRoot();
-            const findings = admit(task, readFileSync(noteFile, "utf8"), join(admitRoot, ".grugops", "context"), admitRoot);
+            const findings = admit(task, readCliNoteFileOrExit(noteFile), join(admitRoot, ".grugops", "context"), admitRoot);
             if (findings.length > 0) {
                 for (const f of findings)
                     console.error(f);
