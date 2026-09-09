@@ -68,6 +68,9 @@ interface CheckerModule {
   // 31-12 (WR-13): the SHAPE resolver, read by the reverse cross-check so the fixture corpus is
   // parsed by the artifact that resolves callees in production rather than by a second reader.
   calleeDottedPath(ts: unknown, expr: unknown): string | null;
+  // 31-17 (D-21 (1)): the ONE authority for the chain bound's value, and the shared budget the
+  // resolution threads through its own recursion.
+  readonly CALLEE_CHAIN_STEP_BOUND: number;
   // 31-16 (D-20 (1)): the ONE marker-aware normaliser every whole-path arm asks.
   readonly CALL_LINK_MARKER: string;
   stripRoutingLinks(dottedPath: string): string;
@@ -4336,5 +4339,227 @@ describe("uat-spec-integrity — 31-16 CR-10: the TestInfo fixture parameter is 
       "the membership record still carries the sentence that dispositioned the fixture parameter " +
         "under the alias residual's disproved reason",
     ).toBe(false);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// 31-17 WR-19 — THE CHAIN BOUND IS ONE BUDGET FOR A WHOLE RESOLUTION, NOT ONE PER FRAME.
+//
+// WHICH REGISTER FAILED. D-18 (1) made `calleeDottedPath` RECURSIVE and did not re-derive the
+// 512-step bound that had been written for a flat loop. A bound whose UNIT is "steps in one loop"
+// silently became "steps per recursion frame" the moment a frame could start another frame, so the
+// exported residual the recipe quotes verbatim — "a chain that reaches it yields no path rather than
+// a truncated one" — stopped being true of the mechanism, in BOTH of its clauses.
+//
+// Measured against the committed .js at HEAD before any source change (probe repository under
+// `.temp/wr19-prefix/`, spec at `uat/p.uat.spec.ts`, `typescript` resolvable from the probe root,
+// a 4000-link call chain `chain.a().a()…`):
+//   EXIT=1   stdout: (empty)
+//   stderr:  RangeError: Maximum call stack size exceeded
+//                at calleeDottedPath (…/scripts/runnable-ref/uat-spec-integrity.js:686:33)
+// and instrumented through the committed module, which is what shows the bound restarting per frame:
+//   600 pure property links                       -> null
+//   the SAME 600 links, 6 call links interleaved  -> resolved, 1216 chars, head "test"
+//
+// WHY THE EXIT CODE IS NOT THE HARM. 1 is inside the D-12 contract only because Node's uncaught
+// exception code happens to be 1, which that contract reads as "a finding — the quality gate blocks".
+// The harm is that `reportMeasured` is NEVER REACHED, so the vacuity floor and the denominator floor
+// — the two branches whose whole purpose is to make a check that did not run unreadable as a clean
+// one — are bypassed by construction while stdout stays silent. Every case below therefore asserts
+// at the OUTPUT, not at the module: asserting the floors on the ordinary path only is exactly what
+// let this bypass exist.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+describe("uat-spec-integrity — 31-17 WR-19: a pathological chain is bounded, never fatal", () => {
+  const PATHOLOGICAL_LINKS = 4000;
+
+  /** The verifier's own probe spec: a call chain far longer than any bound, in a legitimate file. */
+  function pathologicalSpec(links = PATHOLOGICAL_LINKS): string {
+    return [
+      'import { test, expect } from "@playwright/test";',
+      "const chain: any = test;",
+      'test("a scenario", async ({ page }) => {',
+      `  chain${".a()".repeat(links)};`,
+      '  await expect(page.getByTestId("x")).toBeVisible();',
+      "});",
+      "",
+    ].join("\n");
+  }
+
+  const TRIVIAL_SPEC = [
+    'import { test, expect } from "@playwright/test";',
+    'test("a scenario", async ({ page }) => {',
+    '  await page.goto("/x");',
+    '  await expect(page.getByTestId("x")).toBeVisible();',
+    "});",
+    "",
+  ].join("\n");
+
+  function plant(root: string, relPath: string, body: string): void {
+    const dest = join(root, relPath);
+    mkdirSync(dirname(dest), { recursive: true });
+    writeFileSync(dest, body, "utf8");
+  }
+
+  /** Resolve one expression's callee through the COMMITTED module, the way production resolves it. */
+  async function pathOf(exprText: string): Promise<string | null> {
+    const { calleeDottedPath } = await loadChecker();
+    const ts = hostTypeScript as typeof import("typescript");
+    const sf = ts.createSourceFile("p.ts", `${exprText};`, ts.ScriptTarget.Latest, true);
+    const stmt = sf.statements[0] as import("typescript").ExpressionStatement;
+    const call = stmt.expression as import("typescript").CallExpression;
+    return calleeDottedPath(ts, call.expression);
+  }
+
+  // ── GREEN 1: the run REACHES the four-branch authority and prints its measurement ─────────────
+
+  it("a spec whose callee chain exceeds the bound prints the measurement line and exits inside the contract", () => {
+    const root = mkTargetRepo({});
+    plant(root, "e2e/uat/pathological.uat.spec.ts", pathologicalSpec());
+    const r = runCheck(root);
+
+    // The D-12 contract's three values, held BY DECISION rather than by an interpreter's default
+    // for an uncaught throw.
+    expect([0, 1, 2], `exit code outside the D-12 contract: ${r.status}`).toContain(r.status);
+    // The artifact the two floors exist to guarantee: a line naming BOTH counters, on stdout.
+    expect(
+      r.stdout,
+      `stdout carried no measurement line. stderr began: ${r.stderr.split("\n")[0]}`,
+    ).toContain("1/1 uat specs checked");
+    // …and no stack trace, which is what "bounded refusal" means as distinct from "crash".
+    expect(r.stderr).not.toContain("Maximum call stack size exceeded");
+    expect(r.stderr).not.toContain("RangeError");
+  });
+
+  // ── GREEN 2: the pathological callee yields NO PATH, so it accuses nobody ─────────────────────
+
+  it("the pathological callee yields no path, so the run attributes no finding to it", () => {
+    const root = mkTargetRepo({});
+    plant(root, "e2e/uat/pathological.uat.spec.ts", pathologicalSpec());
+    const r = runCheck(root, "--json");
+    expect(r.status, `expected a clean, bounded pass. stderr: ${r.stderr.split("\n")[0]}`).toBe(0);
+    expect(JSON.parse(r.stdout)).toEqual({ ok: true, findings: [] });
+  });
+
+  // ── GREEN 3: the DENOMINATOR floor is reachable with a pathological spec in the root ──────────
+  //
+  // This is the branch WR-19 records as bypassed BY CONSTRUCTION. Before the fix the run threw
+  // before `reportMeasured`, so no short-set diagnostic could ever be printed for a root that
+  // contained one of these specs — and the suite only ever asserted the floor on the ordinary path.
+  it("the short-set diagnostic still fires when one of the derived specs is the pathological one", async () => {
+    const { analyzeSpecs, reportMeasured } = await loadChecker();
+    const root = mkTargetRepo({});
+    plant(root, "e2e/uat/pathological.uat.spec.ts", pathologicalSpec());
+    plant(root, "e2e/uat/unreadable.uat.spec.ts", TRIVIAL_SPEC);
+
+    const analysis = analyzeSpecs(
+      root,
+      ["e2e/uat/pathological.uat.spec.ts", "e2e/uat/unreadable.uat.spec.ts"],
+      hostTypeScript,
+      (absPath: string) => {
+        if (absPath.endsWith("unreadable.uat.spec.ts")) throw new Error("forced read failure");
+        return readFileSync(absPath, "utf8");
+      },
+    );
+    // PREMISE: the pathological spec was really VISITED — if it had thrown, or been recorded as a
+    // could-not-run reason, this case would be asserting the floor over a root that never carried it.
+    expect(analysis.expected).toBe(2);
+    expect(analysis.visited, "the pathological spec was not visited, so the floor below is vacuous").toBe(1);
+
+    let out = "";
+    let err = "";
+    const code = reportMeasured(analysis, false, (s) => {
+      out += s;
+    }, (s) => {
+      err += s;
+    });
+    expect(code).toBe(2);
+    expect(err).toContain("visited 1 of 2");
+    expect(out).toBe("");
+  });
+
+  // ── ADJACENCY: two separate cases, so an off-by-one is visible ────────────────────────────────
+
+  it("ADJACENCY: a chain of EXACTLY the bound resolves", async () => {
+    const { CALLEE_CHAIN_STEP_BOUND } = await loadChecker();
+    expect(CALLEE_CHAIN_STEP_BOUND, "PREMISE: the bound is not exported as a number").toBe(512);
+    // The head identifier is itself one step, so a chain of exactly the bound carries bound-1 links.
+    const atBound = await pathOf(`test${".p".repeat(CALLEE_CHAIN_STEP_BOUND - 1)}()`);
+    expect(atBound, "a chain of exactly the bound must resolve").not.toBeNull();
+    expect(atBound!.split(".").length).toBe(CALLEE_CHAIN_STEP_BOUND);
+  });
+
+  it("ADJACENCY: a chain of the bound PLUS ONE yields no path", async () => {
+    const { CALLEE_CHAIN_STEP_BOUND } = await loadChecker();
+    expect(await pathOf(`test${".p".repeat(CALLEE_CHAIN_STEP_BOUND)}()`)).toBeNull();
+  });
+
+  // ── EMPTY / SINGLE: the budget is never consumed by a construct with no links ─────────────────
+
+  it("a zero-link and a single-link chain each resolve with the budget barely touched", async () => {
+    expect(await pathOf("test()")).toBe("test");
+    expect(await pathOf("test.skip()")).toBe("test.skip");
+  });
+
+  // ── CONTROL: the review's two module-level shapes, decided by ONE budget ──────────────────────
+
+  it("ONE BUDGET: interleaving call links no longer buys a chain more steps than a pure one", async () => {
+    // (1) 600 pure property links: over the bound, and the bound behaves as documented.
+    expect(await pathOf(`test${".p".repeat(600)}()`)).toBeNull();
+
+    // (2) the SAME 600 links with 6 call links interleaved. Before this plan the recursion restarted
+    // the allowance at every call link, so this resolved to a 1216-character path with head "test".
+    // With one shared budget it is the SAME chain and gets the SAME answer.
+    let expr = "test";
+    for (let i = 0; i < 600; i++) {
+      expr += ".p";
+      if ((i + 1) % 100 === 0) expr += "()";
+    }
+    expect(
+      await pathOf(`${expr}()`),
+      "a chain that interleaves call links resolved past the bound, so the allowance is still " +
+        "restarting per recursion frame",
+    ).toBeNull();
+  });
+
+  // ── ONE AUTHORITY for the bound's VALUE ───────────────────────────────────────────────────────
+
+  it("the bound's value has exactly ONE authority — no resolver carries a second literal", () => {
+    const source = readFileSync(join(HERE, "uat-spec-integrity.ts"), "utf8");
+    // The declaration itself is the one place the number is written.
+    const declarations = source.split(/export const CALLEE_CHAIN_STEP_BOUND\s*=\s*512;/).length - 1;
+    expect(declarations, "the bound is not declared exactly once as an exported constant").toBe(1);
+    // …and no OTHER site writes the number. A second literal is a second allowance with a second
+    // value the moment either one is edited, which is how the unit drifted in the first place.
+    const bareLiterals = source.split(/\b512\b/).length - 1;
+    expect(
+      bareLiterals,
+      "the literal 512 appears at more than the one declaration site, so the bound has a second " +
+        "authority that can drift from the first",
+    ).toBe(1);
+  });
+
+  // ── CONTROL (unmoved): the corpus the bound must not disturb ──────────────────────────────────
+
+  it("CONTROL: the refused modifier spellings and the clean corpus are unmoved by the budget", () => {
+    const refused = mkTargetRepo({});
+    plant(
+      refused,
+      "e2e/uat/subject.uat.spec.ts",
+      [
+        'import { test, expect } from "@playwright/test";',
+        'test.describe.serial.only("a group", () => {',
+        '  test("a scenario", async ({ page }) => {',
+        '    await expect(page.getByTestId("x")).toBeVisible();',
+        "  });",
+        "});",
+        "",
+      ].join("\n"),
+    );
+    expect(runCheck(refused).status).toBe(1);
+
+    const clean = mkTargetRepo({});
+    plant(clean, "e2e/uat/subject.uat.spec.ts", TRIVIAL_SPEC);
+    expect(runCheck(clean).status).toBe(0);
   });
 });
