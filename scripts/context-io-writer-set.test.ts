@@ -2309,12 +2309,14 @@ function assertDeclinePremise(derived: DeclineDerivation): void {
  * output. Six clauses: one for an unnameable source, one fail-closed governance read, two about the
  * origin record's existence and liveness, and two about the promoted note differing from it.
  *
- * MEASURED AGAIN, WITH THE REASON IT MOVED (31-18, CR-11): 6 -> 7. The derivation was re-run against
- * the post-31-18 source and its output READ, rather than the constant being adjusted until the case
- * passed. The new member is `destination-id-occupied`: the round-4 verifier reproduced a promotion
+ * MEASURED AGAIN, WITH THE REASON IT MOVED (31-18): 6 -> 8, in two steps, each derivation re-run
+ * against the post-change source and its output READ rather than the constant adjusted until the
+ * case passed. `destination-id-occupied` (CR-11): the round-4 verifier reproduced a promotion
  * REPLACING an already-admitted note at the destination, because the route took its write id from an
- * argument and read nothing at the destination. The clause names the destructive case; identical
- * destination bytes are the decided idempotent re-promotion and reach no clause at all.
+ * argument and read nothing at the destination — the clause names the destructive case, and
+ * identical destination bytes are the decided idempotent re-promotion that reaches no clause at all.
+ * `origin-outside-trusted-store` (WR-17): the proof's left operand was an unconstrained caller-named
+ * path, so the caller supplied the bytes its own write was judged against.
  */
 const EXPECTED_DECLINE_KEYS = Object.freeze([
   "body-differs-from-origin",
@@ -2323,11 +2325,12 @@ const EXPECTED_DECLINE_KEYS = Object.freeze([
   "field-differs-from-origin",
   "no-such-origin-note",
   "origin-note-not-live",
+  "origin-outside-trusted-store",
   "unreadable-governance-config",
 ]);
 
 /** The cardinality, asserted separately: a re-worded clause and an ADDED clause are different events. */
-const EXPECTED_DECLINE_COUNT = 7;
+const EXPECTED_DECLINE_COUNT = 8;
 
 describe("31-14 — the re-binding proof's decline set is derived from its own body", () => {
   it("PREMISE: the parse found the route, it had a body, and it yielded decline sites", () => {
@@ -2489,7 +2492,9 @@ const REBIND_BODY = "the disposed finding body";
 
 /** Seed an ORIGIN context holding the human-disposed finding, written the way the dial requires. */
 function seedAdmittedOrigin(repoRoot: string, prefix: string): { originRoot: string; id: string } {
-  const originRoot = freshTmp(prefix);
+  // A CONTEXT STORE, not an arbitrary temp dir: 31-18 (WR-17) constrained the proof's left operand,
+  // so an origin these probes name must be a location the module recognises.
+  const originRoot = livenessContextStore(prefix);
   const note = disposedFinding();
   const gated = mod.isGatedNote(note.by, note.kind, mod.readGovernanceConfig(repoRoot));
   const id = gated
@@ -2608,6 +2613,24 @@ const DECLINE_PROBES: Readonly<Record<string, DeclineProbe>> = Object.freeze({
             destRoot,
             repoRoot,
           ),
+      };
+    },
+  },
+  "origin-outside-trusted-store": {
+    drive: () => {
+      const repoRoot = activeDialRoot();
+      // An ORDINARY directory the caller authored and named — not a context store, not inside the
+      // root the module itself answers. The origin note is real and matches, so every LATER clause
+      // would hold: this probe reaches the operand constraint and nothing else.
+      const forged = freshTmp("ctx-io-decline-untrusted-origin-");
+      const lean = freshTmp("ctx-io-decline-untrusted-lean-");
+      const id = mod.appendNote(REBIND_TASK, disposedFinding(), REBIND_BODY, forged, undefined, lean);
+      expect(id, "PREMISE: the forged origin seed did not write").toBeTruthy();
+      const destRoot = freshTmp("ctx-io-decline-untrusted-dest-");
+      return {
+        destRoot,
+        run: () =>
+          mod.promoteAdmitted(REBIND_TASK, id, disposedFinding(), REBIND_BODY, forged, destRoot, repoRoot),
       };
     },
   },

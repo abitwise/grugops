@@ -2579,6 +2579,13 @@ describe("31-14 — compactor.promoteAdmitted: the proof-gated re-binding pass-t
     } as Parameters<typeof ctxio.appendNote>[1];
   }
 
+  /** A CONTEXT STORE — `<X>/.grugops/context`, the shape 31-18 (WR-17) requires of an origin. */
+  function contextStore(prefix: string): string {
+    const store = join(freshTmp(prefix), ".grugops", "context");
+    mkdirSync(store, { recursive: true });
+    return store;
+  }
+
   function cr08NoteFiles(root: string): string[] {
     const dir = join(root, CR08_TASK, "notes");
     return existsSync(dir) ? readdirSync(dir).sort() : [];
@@ -2652,7 +2659,7 @@ describe("31-14 — compactor.promoteAdmitted: the proof-gated re-binding pass-t
 
   it("CR-08 end-to-end through the compactor: the origin write is admitted and the promotion is NOT refused", () => {
     const repoRoot = projectWith({ human_admission: "high-severity", audit_retention: "retained" });
-    const originRoot = freshTmp("c31-14-origin-");
+    const originRoot = contextStore("c31-14-origin-");
     const destRoot = freshTmp("c31-14-dest-");
     const note = humanDisposedFinding();
 
@@ -2745,6 +2752,13 @@ describe("31-14 self-red-team — the legitimate input, under every dial and bot
     } as Parameters<typeof ctxio.appendNote>[1];
   }
 
+  /** A CONTEXT STORE — `<X>/.grugops/context`, the shape 31-18 (WR-17) requires of an origin. */
+  function rtContextStore(prefix: string): string {
+    const store = join(freshTmp(prefix), ".grugops", "context");
+    mkdirSync(store, { recursive: true });
+    return store;
+  }
+
   function rtNotes(root: string): string[] {
     const dir = join(root, RT_TASK, "notes");
     return existsSync(dir) ? readdirSync(dir).sort() : [];
@@ -2763,7 +2777,7 @@ describe("31-14 self-red-team — the legitimate input, under every dial and bot
 
   /** Seed the origin through the writer the dial makes correct — the module's own gated predicate. */
   function rtSeedOrigin(repoRoot: string): { originRoot: string; id: string } {
-    const originRoot = freshTmp("c31-14-rt-origin-");
+    const originRoot = rtContextStore("c31-14-rt-origin-");
     const note = rtDisposed();
     const gated = ctxio.isGatedNote(note.by, note.kind, ctxio.readGovernanceConfig(repoRoot));
     const id = gated

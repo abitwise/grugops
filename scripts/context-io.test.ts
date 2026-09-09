@@ -5603,6 +5603,20 @@ describe("31-14 — CR-08: a note a human already disposed promotes unchanged", 
     } as Parameters<typeof mod.appendNote>[1];
   }
 
+  /**
+   * A CONTEXT STORE — `<X>/.grugops/context`, the shape the module recognises.
+   *
+   * 31-18 (WR-17) constrained the proof's left operand: an ordinary directory a caller authored and
+   * named is no longer accepted as the origin, because a caller that supplies the bytes its own
+   * write is judged against has a flag wearing a filesystem path. These cases model what a real
+   * compaction actually names, which is what they should have modelled from the start.
+   */
+  function contextStore(prefix: string): string {
+    const store = join(freshTmp(prefix), ".grugops", "context");
+    mkdirSync(store, { recursive: true });
+    return store;
+  }
+
   function cr08NoteFiles(root: string, task = CR08_TASK): string[] {
     const dir = join(root, task, "notes");
     return existsSync(dir) ? readdirSync(dir).sort() : [];
@@ -5674,7 +5688,7 @@ describe("31-14 — CR-08: a note a human already disposed promotes unchanged", 
 
   it("GREEN 1: the identical note promotes through the proof-gated route and is BYTE-IDENTICAL at the destination", () => {
     const repoRoot = projectWith({ human_admission: "high-severity", audit_retention: "retained" });
-    const originRoot = freshTmp("p31-14-origin-");
+    const originRoot = contextStore("p31-14-origin-");
     const destRoot = freshTmp("p31-14-dest-");
     const note = humanDisposedFinding();
 
@@ -5723,7 +5737,7 @@ describe("31-14 — CR-08: a note a human already disposed promotes unchanged", 
   for (const dialCase of DIAL_CASES) {
     it(`GREEN 2 — the round-trip holds under ${dialCase.label}`, () => {
       const repoRoot = projectWith(dialCase.context);
-      const originRoot = freshTmp("p31-14-dial-origin-");
+      const originRoot = contextStore("p31-14-dial-origin-");
       const destRoot = freshTmp("p31-14-dial-dest-");
       const note = humanDisposedFinding();
       const originId = writeOrigin(note, repoRoot, originRoot);
@@ -5879,7 +5893,7 @@ describe("31-14 — CR-08: a note a human already disposed promotes unchanged", 
     const repoRoot = freshTmp("p31-14-unreadable-repo-");
     mkdirSync(join(repoRoot, ".grugops"), { recursive: true });
     writeFileSync(join(repoRoot, ".grugops", "factory.config.json"), "{ not valid json ]]]");
-    const originRoot = freshTmp("p31-14-unreadable-origin-");
+    const originRoot = contextStore("p31-14-unreadable-origin-");
     const destRoot = freshTmp("p31-14-unreadable-dest-");
     // The origin note is seeded through a READABLE root, so the only thing the destination read can
     // decide is the promotion.
@@ -5897,7 +5911,7 @@ describe("31-14 — CR-08: a note a human already disposed promotes unchanged", 
   //    and a second line keyed by the same id would be the duplicate 31-09 collapsed.
   it("D-19 ledger: under audit_retention retained, the promotion appends NO second admission event", () => {
     const repoRoot = projectWith({ human_admission: "high-severity", audit_retention: "retained" });
-    const originRoot = freshTmp("p31-14-ledger-origin-");
+    const originRoot = contextStore("p31-14-ledger-origin-");
     const destRoot = freshTmp("p31-14-ledger-dest-");
     const ledger = join(repoRoot, ".grugops", "audit", "admissions.jsonl");
     const note = humanDisposedFinding();
@@ -5918,7 +5932,7 @@ describe("31-14 — CR-08: a note a human already disposed promotes unchanged", 
 
   it("NO BOARD MOVE: the promotion writes ONE note and nothing else at the destination", () => {
     const repoRoot = projectWith({ human_admission: "high-severity", audit_retention: "retained" });
-    const originRoot = freshTmp("p31-14-board-origin-");
+    const originRoot = contextStore("p31-14-board-origin-");
     const destRoot = freshTmp("p31-14-board-dest-");
     const note = humanDisposedFinding();
     const originId = writeOrigin(note, repoRoot, originRoot);
@@ -7116,19 +7130,24 @@ describe("31-18 — WR-17: the proof's left operand comes from a location the mo
       source.indexOf("export const PROMOTE_ADMITTED_DECLINES"),
     );
     expect(header.length, "PREMISE: the D-19 header block was not found").toBeGreaterThan(500);
+    // A PROSE claim is read as prose: the comment markers and the line wrapping are stripped, so a
+    // reflow is not a red test and a claim cannot hide behind a line break either.
+    const claim = header.replace(/\n\s*\/\/ ?/g, " ").replace(/\s+/g, " ");
+    expect(claim.length, "PREMISE: the header normalised to nothing").toBeGreaterThan(500);
     // The part worth preserving: no parameter, option or flag skips the arm. Still true, still said.
-    expect(header).toContain("parameter, option or flag");
+    expect(claim).toContain("parameter, option or flag");
     // The repaired part: the header names the LOCATION the operand must come from.
     expect(
-      header,
+      claim,
       "the header does not say where the proof's operand must come from, so a future reader still " +
         "cannot tell what the mechanism trusts",
     ).toContain("a location this module has independent reason to trust");
+    expect(claim).toContain(".grugops/context");
     // The sentence the reviewer cited as untrue of the mechanism is gone, not merely softened.
     expect(
-      header,
+      claim,
       "the header still carries the sentence WR-17 measured as untrue of the mechanism",
-    ).not.toContain("is a proof over bytes that ALREADY EXIST at the origin:");
+    ).not.toContain("The only thing that skips the human-stamp arm is a proof over bytes that ALREADY EXIST at the origin:");
   });
 
   it("Test 6: no parameter was added that lets a caller widen the constraint", () => {

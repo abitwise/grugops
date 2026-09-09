@@ -322,6 +322,7 @@ table is the one the suite reads.
 | `field-differs-from-origin` | Refuse. A re-binding is a FAITHFUL carry-forward; a note whose provenance changed is a new note, and a new note is a new admission. |
 | `body-differs-from-origin` | Refuse. A compaction that CHANGED the note is a new admission, decided by the full authority at the destination and honestly degraded when its stamp no longer cross-checks. |
 | `destination-id-occupied` | Refuse (31-18, CR-11). The destination already holds a DIFFERENT note under this id, and a write that replaced it would DELETE admitted evidence from the permanent audit trail rather than supersede it. Destination bytes IDENTICAL to the proven origin bytes are the decided idempotent re-promotion, which proceeds and reaches no clause. |
+| `origin-outside-trusted-store` | Refuse (31-18, WR-17). The proof's left operand must resolve inside a location the module has independent reason to trust — a directory it recognises as a grugops context store, or a location reached from its own trusted-root answer. An ordinary directory a caller authored and named lets that caller supply the bytes its own write is judged against. What the shape-based recognition still leaves open is the named residual `T-31-18-01`. |
 
 #### Gap-closure decision — D-20 (2026-09-09, gap-closure round 4, plan 31-16)
 

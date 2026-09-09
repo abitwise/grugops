@@ -47,7 +47,7 @@ import {
   statSync,
   constants as fsConstants,
 } from "node:fs";
-import { dirname, join, resolve, sep } from "node:path";
+import { basename, dirname, join, resolve, sep } from "node:path";
 import {
   CHECKPOINTS,
   CHECKPOINT_DEFAULTS,
@@ -1317,11 +1317,30 @@ export function currentState(notes: NoteRecord[]): NoteRecord[] {
 // D-03 are untouched at the destination.
 //
 // A PROOF OVER BYTES, NEVER A FLAG. There is no "already admitted" parameter, option or flag — an
-// agent-settable one would be the elevation this whole mechanism exists to prevent (T-31-14-01). The
-// only thing that skips the human-stamp arm is a proof over bytes that ALREADY EXIST at the origin:
-// the named source note is LIVE in the origin's deterministic replay, and the promoted input
-// recomposes to exactly the record the store reads back there. A caller that cannot produce that
-// proof is DECLINED, naming the clause that failed, with nothing written.
+// agent-settable one would be the elevation this whole mechanism exists to prevent (T-31-14-01), and
+// no parameter added later may widen what the proof trusts. That part of this paragraph was true
+// when 31-14 wrote it and is still true.
+//
+// WHAT THE PROOF IS OVER, STATED AS THE CODE HAS IT (31-18, WR-17). The round-4 reviewer measured
+// the rest of this paragraph as untrue of the mechanism, and was right: the left operand was
+// `readRawNotes(task, from)` with `from` an ordinary unconstrained argument, so a caller that
+// authored a directory and named it produced any proof it wanted — the functional equivalent of the
+// flag the sentence above refused. The operand is now constrained. It must resolve inside a location
+// this module has independent reason to trust: a directory the module RECOGNISES as a grugops
+// context store — `<X>/.grugops/context`, the shape `DEFAULT_CONTEXT_ROOT` names and the only shape
+// the sanctioned writers create — or a location reached from `trustedRepoRoot()`, the module's own
+// answer to which root governs, which no caller supplies. Inside such a location the proof is what
+// it always was: the named source note is LIVE in the origin's deterministic replay, and the
+// promoted input recomposes to exactly the record the store reads back there. A caller that cannot
+// produce that proof, or that names an origin outside those locations, is DECLINED — naming the
+// clause that failed, with nothing written.
+//
+// WHY THE CONSTRAINT IS SHAPE-AND-ROOT AND NOT A REGISTRY, AND WHAT THAT COSTS. A cross-repository
+// compaction — an origin in one checkout, a destination in another — is a promotion a host genuinely
+// performs, and Workflow 18 names the origin context root as a caller-supplied argument for exactly
+// that reason. Requiring the origin to be the DESTINATION's own store would refuse it. So the
+// recognition is by shape, and what that leaves open is written down rather than waved away:
+// `T-31-18-01` in the residual register below, with what would force it closed.
 //
 // THE LEDGER BEHAVIOUR IS DECIDED, NOT INHERITED (D-19). A re-binding is not a new admission, so it
 // appends NO GOV-02 audit event: the origin's event already records the named human's disposition
@@ -1370,6 +1389,12 @@ export const PROMOTE_ADMITTED_DECLINES: Readonly<Record<string, string>> = Objec
     "The promoted body differs from the origin record's. A compaction that CHANGED the note is not " +
     "a re-binding — it is a new admission, decided by the full authority at the destination, and " +
     "honestly degraded when its stamp no longer cross-checks (Workflow 18 step 6).",
+  "origin-outside-trusted-store":
+    "The named origin does not resolve inside a location this module has independent reason to " +
+    "trust — neither a directory it recognises as a grugops context store nor a location reached " +
+    "from its own trusted-root answer. The proof's left operand is the origin's stored bytes, so an " +
+    "ordinary directory a caller authored and named would let that caller supply the very bytes its " +
+    "own write is judged against: a flag wearing a filesystem path.",
   "destination-id-occupied":
     "The destination already holds a DIFFERENT note under this id. The shared verified context is " +
     "APPEND-ONLY: a supersession is a NEW note, never a rewrite of an existing one, and a promotion " +
@@ -1388,11 +1413,50 @@ export const PROMOTE_ADMITTED_RESIDUALS: readonly string[] = Object.freeze([
     "detected. The origin store is trusted here exactly as far as every other reader trusts it; " +
     "workflows 16 and 18 forbid hand-authoring a context path, and the un-forgeable tier remains " +
     "the per-call admission-guard hook. Disposition: accept.",
+  "T-31-18-01 — the origin store is recognised by its SHAPE (a directory named `context` inside a " +
+    "directory named `.grugops`) or by sitting under `trustedRepoRoot()`, never by a registry. A " +
+    "caller that constructs that whole tree around notes it authored still presents a store this " +
+    "route accepts. The capability is KEPT deliberately: a cross-repository compaction is a " +
+    "promotion a host genuinely performs, and Workflow 18 names the origin context root as an " +
+    "argument for exactly that reason. What it costs is bounded by, and identical to, T-31-14-03 — " +
+    "this route trusts what a recognised store CONTAINS. What would force it closed: a store marker " +
+    "the sanctioned writer emits and this route verifies, or an explicit registry of origin stores a " +
+    "caller cannot author. Disposition: accept.",
   "R-37 — the compared field set is the store's own read-back projection (recordFromParsed) plus " +
     "the body. A frontmatter key the parser accepts and that projection drops is not compared — and " +
     "is also not read by admit(), render() or any other consumer, so the boundary is the store's " +
     "view of a note rather than this route's. Disposition: accept, bounded by that projection.",
 ]);
+
+/**
+ * Is `candidate` a directory this module RECOGNISES as a grugops context store?
+ *
+ * The shape is `<X>/.grugops/context` — exactly what `DEFAULT_CONTEXT_ROOT` names and the only
+ * shape the sanctioned writers create. It is a recognition rule, not an existence check: a store
+ * that is missing is a different case, decided one clause later by "no such origin note".
+ */
+function isRecognisedContextStore(candidate: string): boolean {
+  const resolved = resolve(candidate);
+  return basename(resolved) === "context" && basename(dirname(resolved)) === ".grugops";
+}
+
+/**
+ * Does the proof's left operand resolve inside a location this module has independent reason to
+ * trust? (31-18, WR-17.)
+ *
+ * TWO ARMS, AND WHY NEITHER IS THE CALLER'S TO CHOOSE. The first recognises a context store by its
+ * shape. The second asks `trustedRepoRoot()` — the module's OWN answer to which root governs, read
+ * from the ambient environment and the working directory, never from an argument. The route's
+ * `repoRoot` TEST SEAM is deliberately NOT consulted here: a caller that could supply both the
+ * governance root and the origin would be choosing the location its own proof is judged inside,
+ * which is the doctrine 30-11 and 31-09 both enforce, one register over.
+ */
+function originIsTrusted(from: string): boolean {
+  const resolvedFrom = resolve(from);
+  if (isRecognisedContextStore(resolvedFrom)) return true;
+  const trusted = resolve(trustedRepoRoot());
+  return resolvedFrom === trusted || resolvedFrom.startsWith(trusted + sep);
+}
 
 /** Build one decline, taking its reason from the single register above. */
 function declineRebinding(clause: string, detail: string): Error {
@@ -1464,6 +1528,18 @@ export function promoteAdmitted(
     throw declineRebinding(
       "unreadable-governance-config",
       "A governance configuration file exists at a standard location but could not be read or parsed.",
+    );
+  }
+
+  // THE OPERAND IS CONSTRAINED BEFORE IT IS READ (31-18, WR-17). A proof whose left operand the
+  // benefiting caller may author is a flag wearing a filesystem path. The origin must resolve inside
+  // a location this module has independent reason to trust; what that recognition still leaves open
+  // is the named residual T-31-18-01 rather than a silence.
+  if (!originIsTrusted(from)) {
+    throw declineRebinding(
+      "origin-outside-trusted-store",
+      `The origin "${resolve(from)}" is neither a recognised grugops context store nor inside the ` +
+        `root this module trusts.`,
     );
   }
 
