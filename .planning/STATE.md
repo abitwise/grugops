@@ -3,15 +3,15 @@ gsd_state_version: "1.0"
 milestone: v2.1
 milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live Board
 current_phase: 31
-current_phase_name: Autonomous Manual Testing
+current_phase_name: autonomous-manual-testing
 status: "Phase 31 gap-closure round 3 EXECUTED and VERIFIED (round 4, 2026-09-09): gaps_found 4/6 — every round-3 closure (CR-07, CR-08, WR-14, WR-15) re-verified intact, but the round-3 code review raised CR-09/CR-10/CR-11 + WR-17..WR-21 and the verifier independently reproduced all of them against the committed .js. UATX-01 fails on CR-11 (promoteAdmitted, new in 31-14, silently OVERWRITES a live admitted destination note with a caller-forged claim — no destination-liveness check); UATX-06 fails on CR-09/CR-10 (the () marker segment was reasoned about for one of the three ban-rule arms; the two whole-path arms compare a literal so chained expect.configure(...).soft / .configure({soft:true}) pass, and testInfo.skip() via the fixture parameter is never canonicalised). Score fell 5/6 -> 4/6 because CR-11 is a defect the round-3 fix CREATED. Next: /gsd-plan-phase 31 --gaps (round 4 gap closure)"
 stopped_at: Completed 31-15-PLAN.md
-last_updated: "2026-09-08T21:31:38.472Z"
-state_head: e45a116fc5c00643b2692f9c65eed412e3d09715
+last_updated: "2026-09-09T06:39:16.814Z"
+state_head: e3cdcda48cb62ab86582cb50c921ec8cc1ca4741
 progress:
   total_phases: 9
   completed_phases: 6
-  total_plans: 191
+  total_plans: 196
   completed_plans: 191
   percent: 67
 last_activity: 2026-08-19
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-09-07 — after Phase 29.2)
 
 ## Current Position
 
-Phase: 31 (Autonomous Manual Testing) — EXECUTING
+Phase: 31 (autonomous-manual-testing) — READY TO EXECUTE
 Plan: 15 of 15 (all plans have SUMMARYs; awaiting verification round 4)
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
