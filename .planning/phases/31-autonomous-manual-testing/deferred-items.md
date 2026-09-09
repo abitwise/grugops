@@ -77,8 +77,8 @@
   record, unchanged by this plan. The remaining **10 name `16-context-read-write.md` and belong to
   plan `31-15`**: the sentences stating steps 1, 2 and 4 of the resolution order, the
   `human_admission` dial paragraph, and the honest-degradation paragraph.
-  **Measured:** 65 before this plan's workflow edits, 86 with the edits and no rows, 75 with
-  `docs/audit/29-style-dispositions/31-19.md` in place — so this plan owes **0** for the 11 clauses
+  **Measured:** 65 before this plan's workflow edits, 85 with the edits and no rows, 75 with
+  `docs/audit/29-style-dispositions/31-19.md` in place — so this plan owes **0** for the 16 clauses
   it changed, and cleared none of the 10 it did not.
   **Why it was not fixed here:** unchanged from the `31-09` and `31-14` entries above — writing rows
   for another plan's clauses would put a `before`/`after` and a reason in the register that this

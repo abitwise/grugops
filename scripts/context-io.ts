@@ -3107,9 +3107,7 @@ export interface TrustedRootStopCondition {
 export const TRUSTED_ROOT_STOP_CONDITIONS: readonly TrustedRootStopCondition[] = Object.freeze([
   Object.freeze({
     id: "S-HOME",
-    sentence:
-      "The upward search never inspects the user's home directory, and never inspects any " +
-      "ancestor of it.",
+    sentence: "The upward search never inspects the user's home directory or any ancestor of it.",
   }),
   Object.freeze({
     id: "S-HOME-UNKNOWN",
@@ -3118,9 +3116,11 @@ export const TRUSTED_ROOT_STOP_CONDITIONS: readonly TrustedRootStopCondition[] =
   }),
   Object.freeze({
     id: "S-BOUNDARY",
-    sentence:
-      "The upward search ends at the first ancestor carrying a version-control marker, and that " +
-      "ancestor's own configuration wins over one nested below it.",
+    sentence: "The upward search ends at the first ancestor carrying a version-control marker.",
+  }),
+  Object.freeze({
+    id: "S-BOUNDARY-WINS",
+    sentence: "That ancestor's own configuration outranks one nested below it.",
   }),
   Object.freeze({
     id: "S-ROOT",

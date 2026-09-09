@@ -7162,7 +7162,7 @@ describe("31-15 — WR-15: the target repository's dial is read on every host", 
     // ban-rule constants (`scripts/runnable-ref/uat-spec-integrity.test.ts`).
 
     const WORKFLOW_16 = join(ROOT, "agent-factory", "workflows", "16-context-read-write.md");
-    const STOP_HEADING = "### Where the upward governance-root search stops";
+    const STOP_HEADING = "## Where the upward governance-root search stops";
 
     /** The region under one heading, ending at the next heading of the same or a higher level. */
     function extractSection(text: string, heading: string): string {
