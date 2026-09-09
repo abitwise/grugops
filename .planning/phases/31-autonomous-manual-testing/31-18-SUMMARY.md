@@ -116,13 +116,13 @@ metrics:
   tasks: 3
   files: 13
 
-commits: 7
+commits: 8
 plan_head_before: 261e096ce387c7daa7a955727018347ef89b694d
 
 actuals:
   tokens: 46551
   tasks: 3
-  commits: 7
+  commits: 8
 ---
 
 # Phase 31 Plan 18: Append-only at the point of effect, a trusted proof operand, and one answer per rule Summary
@@ -434,5 +434,6 @@ this plan for that reason).
 ## Self-Check: PASSED
 
 Created files verified present on disk (`31-18-SUMMARY.md`, `docs/audit/29-style-dispositions/31-18.md`);
-all 7 commits verified present in `git log --oneline --all`; `git rev-list --count 261e096..HEAD`
-returns **7**, matching the `commits:` frontmatter.
+all 7 production/SUMMARY commits verified present in `git log --oneline --all`;
+`git rev-list --count 261e096..HEAD` returns **8** with the final STATE/ROADMAP metadata commit
+included, matching the `commits:` frontmatter.
