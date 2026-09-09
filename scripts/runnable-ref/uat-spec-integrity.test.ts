@@ -129,6 +129,31 @@ interface CheckerModule {
     out: (s: string) => void,
     err: (s: string) => void,
   ): number;
+  // 31-25 (D-28): the process boundary, and the injected-dependency record that makes it reachable.
+  readonly PROCESS_BOUNDARY_MARKER: string;
+  main(
+    argv: readonly string[],
+    deps?: {
+      readonly deriveSpecPaths?: (repoRoot: string) => {
+        relPaths: readonly string[];
+        refusals: readonly string[];
+      };
+      readonly loadTypeScript?: (repoRoot: string) => unknown;
+      readonly analyzeSpecs?: (
+        repoRoot: string,
+        specRelPaths: readonly string[],
+        ts: unknown,
+      ) => SpecAnalysisView;
+      readonly reportMeasured?: (
+        m: { visited: number; expected: number; findings: readonly string[] },
+        wantJson: boolean,
+        out: (s: string) => void,
+        err: (s: string) => void,
+      ) => number;
+      readonly out?: (s: string) => void;
+      readonly err?: (s: string) => void;
+    },
+  ): number;
 }
 
 // The parser this repository provides, reached the same way the runnable reaches the target's.
@@ -6274,5 +6299,436 @@ describe("uat-spec-integrity — 31-24 PROBE 4: the assertion arms ask about a c
       ),
       "arms (a) and (b) refuse a CONTEXT, not a head; canonicalising the head must not change that",
     ).toEqual([]);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// 31-25 — CR-15: THE BOUNDARY IS ABOUT THE BYTES, NOT ABOUT ONE FUNCTION
+//
+// 31-17 closed WR-19 by bounding `calleeDottedPath`, de-recursing the AST walk and wrapping
+// `findBannedConstructs` in a could-not-run boundary. It left `ts.createSourceFile` — a
+// recursive-descent parser running on author-controlled source — ONE LINE ABOVE that `try`.
+//
+// Measured against the committed .js at HEAD BEFORE this plan's change (probe repository
+// `.temp/31-25-probe/`, spec at `uat/p.uat.spec.ts`, `typescript` resolvable from the probe root,
+// the review's own construct `const x: any = ((((…1…))));`):
+//
+//   depth  500 -> EXIT=0  stdout 57 bytes "UAT spec integrity: 0 findings over 1/1 uat specs checked"
+//                         stderr 0 bytes
+//   depth  630 -> EXIT=0  (the highest depth this tree's parser finishes — the adjacency pair's safe side)
+//   depth  631 -> EXIT=1  stdout 0 bytes   stderr 1474 bytes, RangeError at typescript.js token()
+//   depth 1000 -> EXIT=1  stdout 0 bytes   stderr 1474 bytes
+//                         first stderr line: …/node_modules/typescript/lib/typescript.js:33775
+//                         NO measurement line on EITHER stream (grep 'uat specs' -> 0)
+//   depth 2000 -> EXIT=1  identical
+//   depth 5000 -> EXIT=1  identical
+//
+// which is `31-VERIFICATION.md` behavioral spot-check row 12 exactly, reproduced on this tree.
+//
+// WHY THE EXIT CODE IS NOT THE HARM — the same sentence WR-19's own block above already carries,
+// and the reason THIS block exists one register over. 1 is inside the D-12 contract only because
+// Node's uncaught-exception code happens to be 1, which that contract reads as "a finding — the
+// gate blocks". The harm is that `reportMeasured` is NEVER REACHED, so the vacuity floor and the
+// denominator floor are bypassed BY CONSTRUCTION while stdout stays silent. A check that never ran
+// is reported as a check that found something.
+//
+// WHICH STREAM, PER BRANCH. `reportMeasured` has four branches and they do NOT all write to stdout:
+// the vacuity floor and the denominator floor call `err(...)` and return 2; only the findings line
+// and the pass line call `out(...)`. So a could-not-run shape produces its measurement on STDERR
+// with an EMPTY stdout, BY DESIGN — that design is the `scripts/vacuity.ts` mirror D-21 established
+// and this runnable cannot import. Every case below therefore asserts that the measurement REACHED
+// THE STREAM ITS BRANCH WRITES TO, never that "a measurement reached stdout".
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+describe("uat-spec-integrity — 31-25 CR-15: every exit passes through one decided boundary", () => {
+  /** The review's own probe construct, at a chosen nesting depth, in an otherwise legitimate file. */
+  function nestedSpec(depth: number): string {
+    return [
+      'import { test, expect } from "@playwright/test";',
+      `const x: any = ${"(".repeat(depth)}1${")".repeat(depth)};`,
+      'test("a scenario", async ({ page }) => {',
+      '  await expect(page.getByTestId("x")).toBeVisible();',
+      "});",
+      "",
+    ].join("\n");
+  }
+
+  const CLEAN_SPEC = [
+    'import { test, expect } from "@playwright/test";',
+    'test("a scenario", async ({ page }) => {',
+    '  await page.goto("/x");',
+    '  await expect(page.getByTestId("x")).toBeVisible();',
+    "});",
+    "",
+  ].join("\n");
+
+  /** A spec carrying a genuine arm-(c) finding, so CONTROL 3 can drive the findings branch. */
+  const FINDING_SPEC = [
+    'import { test, expect } from "@playwright/test";',
+    'test.skip("a scenario", async ({ page }) => {',
+    '  await expect(page.getByTestId("x")).toBeVisible();',
+    "});",
+    "",
+  ].join("\n");
+
+  function plant(root: string, relPath: string, body: string | Uint8Array): void {
+    const dest = join(root, relPath);
+    mkdirSync(dirname(dest), { recursive: true });
+    writeFileSync(dest, body);
+  }
+
+  // ── the adjacency pair, DISCOVERED rather than hard-coded ─────────────────────────────────────
+  //
+  // The depth at which a recursive-descent parser exhausts the interpreter's stack is a property of
+  // THIS machine's stack size, not of the checker. Hard-coding 1000 would make the corpus green on a
+  // host with a larger stack while asserting nothing. The pair is therefore bisected through the
+  // COMMITTED artifact, whose two decided outcomes are the bisection predicate: exit 0 (the parser
+  // finished) or anything else (it did not). The predicate is well-defined both BEFORE this plan's
+  // change (the other side is an uncaught exit 1) and after it (an exit 2 could-not-run), so the
+  // same discovery drives the RED measurement and the GREEN one.
+  let boundaryCache: { readonly safe: number; readonly overflow: number } | null = null;
+  function parseBoundary(): { readonly safe: number; readonly overflow: number } {
+    if (boundaryCache !== null) return boundaryCache;
+    const root = mkTargetRepo({});
+    const finishes = (depth: number): boolean => {
+      plant(root, "e2e/uat/nested.uat.spec.ts", nestedSpec(depth));
+      return runCheck(root).status === 0;
+    };
+    let lo = 1;
+    let hi = 512;
+    while (finishes(hi)) {
+      lo = hi;
+      hi *= 2;
+      if (hi > 1 << 17) {
+        throw new Error(
+          `premise failed: no nesting depth up to ${1 << 17} stopped the parser finishing, so this ` +
+            `machine cannot drive the shape CR-15 reproduces`,
+        );
+      }
+    }
+    while (hi - lo > 1) {
+      const mid = Math.floor((lo + hi) / 2);
+      if (finishes(mid)) lo = mid;
+      else hi = mid;
+    }
+    boundaryCache = { safe: lo, overflow: hi };
+    return boundaryCache;
+  }
+
+  // ── GREEN 1: the pathological parse is a COULD-NOT-RUN, and the vacuity floor speaks ──────────
+
+  it("GREEN 1: a spec the parser cannot finish exits 2 with the vacuity floor on stderr", () => {
+    const { overflow } = parseBoundary();
+    const root = mkTargetRepo({});
+    plant(root, "e2e/uat/nested.uat.spec.ts", nestedSpec(overflow));
+    const r = runCheck(root);
+
+    // PREMISE (the harness's own, asserted before the conclusion): the spec really is on disk at the
+    // generated size, and the run really derived exactly one spec from it.
+    expect(
+      readFileSync(join(root, "e2e/uat/nested.uat.spec.ts"), "utf8").length,
+      "the probe spec was not written, so every assertion below would be vacuous",
+    ).toBe(nestedSpec(overflow).length);
+
+    expect([0, 1, 2], `exit code outside the D-12 contract: ${r.status}`).toContain(r.status);
+    expect(r.status, `stderr began: ${r.stderr.split("\n")[0]}`).toBe(2);
+    // the per-file could-not-run reason, NAMING THE FILE
+    expect(r.stderr).toContain("e2e/uat/nested.uat.spec.ts");
+    // reportMeasured branch (1) — the VACUITY floor, on stderr, carrying the derived count
+    expect(r.stderr).toContain("ZERO uat specs were visited (1 derived)");
+    // …and stdout is EMPTY, which is branch (1)'s CORRECT output, not the unfixed defect
+    expect(r.stdout).toBe("");
+    // the fault never escapes: no interpreter default, no stack trace
+    expect(r.stderr).not.toContain("Maximum call stack size exceeded");
+    expect(r.stderr).not.toContain("RangeError");
+  });
+
+  // ── GREEN 1b: the DENOMINATOR floor is a DIFFERENT branch, and it is reached too ──────────────
+
+  it("GREEN 1b: the pathological spec alongside a clean one exits 2 with `visited 1 of 2` on stderr", () => {
+    const { overflow } = parseBoundary();
+    const root = mkTargetRepo({});
+    plant(root, "e2e/uat/nested.uat.spec.ts", nestedSpec(overflow));
+    plant(root, "e2e/uat/clean.uat.spec.ts", CLEAN_SPEC);
+    const r = runCheck(root);
+
+    expect([0, 1, 2]).toContain(r.status);
+    expect(r.status).toBe(2);
+    expect(r.stderr).toContain("visited 1 of 2 derived uat specs");
+    expect(r.stdout).toBe("");
+  });
+
+  // ── GREEN 2: BOTH SIDES of the adjacency, and the stream difference between them ─────────────
+
+  it("GREEN 2: the highest finishing depth passes on stdout; the next depth floors on stderr", () => {
+    const { safe, overflow } = parseBoundary();
+    expect(overflow - safe, "the bisection did not converge on an adjacent pair").toBe(1);
+
+    const safeRoot = mkTargetRepo({});
+    plant(safeRoot, "e2e/uat/nested.uat.spec.ts", nestedSpec(safe));
+    const safeRun = runCheck(safeRoot);
+    expect(safeRun.status, `depth ${safe} was expected to finish. stderr: ${safeRun.stderr.split("\n")[0]}`).toBe(0);
+    expect(safeRun.stdout).toContain("0 findings over 1/1 uat specs checked");
+    expect(safeRun.stderr).toBe("");
+
+    const overRoot = mkTargetRepo({});
+    plant(overRoot, "e2e/uat/nested.uat.spec.ts", nestedSpec(overflow));
+    const overRun = runCheck(overRoot);
+    expect(overRun.status).toBe(2);
+    expect(overRun.stderr).toContain("ZERO uat specs were visited (1 derived)");
+    expect(overRun.stdout).toBe("");
+  });
+
+  // ── GREEN 3: the PROCESS boundary, driven at three positions outside analyzeSpecs ─────────────
+  //
+  // `main`'s injected-dependency record is the same seam `analyzeSpecs`'s injectable `readFile` is,
+  // and it exists for the same stated reason: a boundary nobody can reach is a boundary nobody has
+  // tested. Every default is the real function; a caller that passes nothing gets today's program.
+
+  it("GREEN 3a: a fault BEFORE analyzeSpecs (in the spec derivation) exits 2 with a named reason", async () => {
+    const { main, PROCESS_BOUNDARY_MARKER } = await loadChecker();
+    const root = mkTargetRepo({});
+    plant(root, "e2e/uat/clean.uat.spec.ts", CLEAN_SPEC);
+    let err = "";
+    const code = main([root], {
+      deriveSpecPaths: () => {
+        throw new Error("forced derivation failure");
+      },
+      err: (s: string) => {
+        err += s;
+      },
+    });
+    expect(code).toBe(2);
+    expect(err).toContain(PROCESS_BOUNDARY_MARKER);
+    expect(err).toContain("forced derivation failure");
+  });
+
+  it("GREEN 3b: a fault INSIDE analyzeSpecs that escapes it exits 2 with a named reason", async () => {
+    const { main, PROCESS_BOUNDARY_MARKER } = await loadChecker();
+    const root = mkTargetRepo({});
+    plant(root, "e2e/uat/clean.uat.spec.ts", CLEAN_SPEC);
+    let err = "";
+    const code = main([root], {
+      analyzeSpecs: () => {
+        throw new Error("forced analysis failure");
+      },
+      err: (s: string) => {
+        err += s;
+      },
+    });
+    expect(code).toBe(2);
+    expect(err).toContain(PROCESS_BOUNDARY_MARKER);
+    expect(err).toContain("forced analysis failure");
+  });
+
+  it("GREEN 3c: a fault INSIDE reportMeasured exits 2 with the named reason INSTEAD of a measurement", async () => {
+    const { main, PROCESS_BOUNDARY_MARKER } = await loadChecker();
+    const root = mkTargetRepo({});
+    plant(root, "e2e/uat/clean.uat.spec.ts", CLEAN_SPEC);
+    let out = "";
+    let err = "";
+    const code = main([root], {
+      reportMeasured: () => {
+        throw new Error("forced report failure");
+      },
+      out: (s: string) => {
+        out += s;
+      },
+      err: (s: string) => {
+        err += s;
+      },
+    });
+    // This is the ONE shape for which the measurement requirement is VACUOUS: the function that
+    // writes every measurement is the function that threw, so no measurement can exist. What the
+    // case asserts instead is that the process boundary NAMED the fault rather than letting it
+    // escape as an interpreter default.
+    expect(code).toBe(2);
+    expect(out).toBe("");
+    expect(err).toContain(PROCESS_BOUNDARY_MARKER);
+    expect(err).toContain("forced report failure");
+  });
+
+  it("GREEN 3d: the process boundary returns the body's own value for a legitimate 0 and 1", async () => {
+    const { main } = await loadChecker();
+    const clean = mkTargetRepo({});
+    plant(clean, "e2e/uat/clean.uat.spec.ts", CLEAN_SPEC);
+    const finding = mkTargetRepo({});
+    plant(finding, "e2e/uat/finding.uat.spec.ts", FINDING_SPEC);
+    const sink = (): void => {};
+    expect(main([clean], { out: sink, err: sink }), "a clean run must still exit 0").toBe(0);
+    expect(main([finding], { out: sink, err: sink }), "a real finding must still exit 1").toBe(1);
+  });
+
+  // ── GREEN 4: the CLASS, not the call — the directory walk no longer recurses ──────────────────
+
+  it("GREEN 4: a directory tree as deep as this platform permits is derived without a throw", async () => {
+    const { deriveSpecPaths } = await loadChecker();
+    const root = mkTmp();
+    let rel = "uat";
+    mkdirSync(join(root, rel));
+    let fsDepth = 1;
+    for (; fsDepth < 4096; fsDepth++) {
+      const next = `${rel}/d`;
+      try {
+        mkdirSync(join(root, next));
+      } catch {
+        break;
+      }
+      rel = next;
+    }
+    // The FILE's own path must also fit inside the platform's limit, and it is longer than the
+    // directory's. Step back one level at a time until the spec can actually be written — measured:
+    // planting at the deepest MKDIR-able level throws ENAMETOOLONG in the harness, which would have
+    // read as a checker defect rather than a harness one.
+    while (fsDepth > 1) {
+      try {
+        plant(root, `${rel}/deep.uat.spec.ts`, CLEAN_SPEC);
+        break;
+      } catch {
+        rel = rel.slice(0, rel.lastIndexOf("/"));
+        fsDepth--;
+      }
+    }
+    expect(fsDepth, "no directory level accepted the spec, so the case below would be vacuous").toBeGreaterThan(1);
+
+    const derived = deriveSpecPaths(root);
+    expect(derived.refusals).toEqual([]);
+    expect(derived.relPaths).toEqual([`${rel}/deep.uat.spec.ts`]);
+
+    // THE RESIDUAL, MEASURED RATHER THAN ASSUMED. The de-recursion covers the CLASS; whether the
+    // OLD recursive walk was reachable to exhaustion is a separate, platform-dependent question and
+    // it is answered here by measurement rather than by silence. A like-for-like self-recursive
+    // frame (an entries array plus the loop the walk carries) is driven to its own overflow, and the
+    // deepest directory this platform's path limit permits is compared against it.
+    let recursionDepth = 0;
+    const likeForLikeWalk = (k: number): number => {
+      const entries = [{ name: "d" }, { name: "x.uat.spec.ts" }];
+      let last = "";
+      for (const e of entries) last = e.name;
+      recursionDepth = k;
+      return likeForLikeWalk(k + 1) + last.length;
+    };
+    try {
+      likeForLikeWalk(0);
+    } catch {
+      /* RangeError — the measurement is `recursionDepth` */
+    }
+    expect(
+      recursionDepth,
+      `a like-for-like recursive walk overflows at ${recursionDepth}; this platform permits ` +
+        `${fsDepth} directory levels`,
+    ).toBeGreaterThan(fsDepth);
+  });
+
+  // ── CONTROL 1: WR-19's own closure is re-measured intact ─────────────────────────────────────
+
+  it("CONTROL 1: the 4,000-link call chain still reports `0 findings over 1/1`, exit 0, stderr empty", () => {
+    const root = mkTargetRepo({});
+    plant(
+      root,
+      "e2e/uat/chain.uat.spec.ts",
+      [
+        'import { test, expect } from "@playwright/test";',
+        "const chain: any = test;",
+        'test("a scenario", async ({ page }) => {',
+        `  chain${".a()".repeat(4000)};`,
+        '  await expect(page.getByTestId("x")).toBeVisible();',
+        "});",
+        "",
+      ].join("\n"),
+    );
+    const r = runCheck(root);
+    expect(r.status).toBe(0);
+    expect(r.stdout).toContain("0 findings over 1/1 uat specs checked");
+    expect(r.stderr).toBe("");
+  });
+
+  // ── CONTROL 2: the two loud skips are unmoved and stay distinguishable ────────────────────────
+
+  it("CONTROL 2: each loud-skip marker still emits exactly once, distinguishable from a could-not-run", async () => {
+    const { PARSER_ABSENT_MARKER, BROWSER_ABSENT_MARKER } = await loadChecker();
+
+    const noParser = mkTargetRepo({}, false);
+    plant(noParser, "e2e/uat/clean.uat.spec.ts", CLEAN_SPEC);
+    const pr = runCheck(noParser);
+    expect(pr.status).toBe(2);
+    expect(pr.stderr.split(PARSER_ABSENT_MARKER).length - 1, "the parser marker must emit ONCE").toBe(1);
+
+    const noBrowser = mkTargetRepo({}, false);
+    plant(noBrowser, "e2e/uat/clean.uat.spec.ts", CLEAN_SPEC);
+    const br = runCheck(noBrowser, "--check-browser");
+    expect(br.status).toBe(2);
+    expect(br.stderr.split(BROWSER_ABSENT_MARKER).length - 1, "the browser marker must emit ONCE").toBe(1);
+
+    // Distinguishable from a could-not-run reason: neither marker carries the per-file wording, and
+    // the per-file wording carries neither marker.
+    expect(PARSER_ABSENT_MARKER).not.toContain("the check was NOT performed for that file");
+    expect(BROWSER_ABSENT_MARKER).not.toContain("the check was NOT performed for that file");
+    const { overflow } = parseBoundary();
+    const cnr = mkTargetRepo({});
+    plant(cnr, "e2e/uat/nested.uat.spec.ts", nestedSpec(overflow));
+    const cr = runCheck(cnr);
+    expect(cr.stderr).not.toContain(PARSER_ABSENT_MARKER);
+    expect(cr.stderr).not.toContain(BROWSER_ABSENT_MARKER);
+  });
+
+  // ── CONTROL 3: the ordinary path is unchanged ────────────────────────────────────────────────
+
+  it("CONTROL 3: a clean spec still exits 0 and a real finding still exits 1, each with its measurement", () => {
+    const clean = mkTargetRepo({});
+    plant(clean, "e2e/uat/clean.uat.spec.ts", CLEAN_SPEC);
+    const cr = runCheck(clean);
+    expect(cr.status).toBe(0);
+    expect(cr.stdout).toContain("0 findings over 1/1 uat specs checked");
+
+    const finding = mkTargetRepo({});
+    plant(finding, "e2e/uat/finding.uat.spec.ts", FINDING_SPEC);
+    const fr = runCheck(finding);
+    expect(fr.status).toBe(1);
+    expect(fr.stdout).toContain("finding(s) over 1/1 uat specs checked");
+  });
+
+  // ── EMPTY: a zero-byte spec is a file that WAS checked ────────────────────────────────────────
+
+  it("EMPTY: a zero-byte spec increments `visited`, contributes no finding and exits 0", async () => {
+    const { analyzeSpecs } = await loadChecker();
+    const root = mkTargetRepo({});
+    plant(root, "e2e/uat/empty.uat.spec.ts", "");
+    const analysis = analyzeSpecs(root, ["e2e/uat/empty.uat.spec.ts"], hostTypeScript);
+    expect(analysis.visited, "a zero-byte spec is a file that WAS checked, not one that could not be").toBe(1);
+    expect(analysis.errors).toEqual([]);
+    expect(analysis.findings).toEqual([]);
+
+    const r = runCheck(root);
+    expect(r.status).toBe(0);
+    expect(r.stdout).toContain("0 findings over 1/1 uat specs checked");
+  });
+
+  // ── ORDERING: the reason precedes reportMeasured's own output, on whichever stream ────────────
+
+  it("ORDERING: the per-file could-not-run reason precedes reportMeasured's output", () => {
+    const { overflow } = parseBoundary();
+
+    // (a) a could-not-run-only run: BOTH facts arrive on stderr, reason first.
+    const solo = mkTargetRepo({});
+    plant(solo, "e2e/uat/nested.uat.spec.ts", nestedSpec(overflow));
+    const sr = runCheck(solo);
+    const reasonAt = sr.stderr.indexOf("e2e/uat/nested.uat.spec.ts");
+    const floorAt = sr.stderr.indexOf("ZERO uat specs were visited");
+    expect(reasonAt, "the per-file reason is absent").toBeGreaterThanOrEqual(0);
+    expect(floorAt, "the vacuity floor is absent").toBeGreaterThanOrEqual(0);
+    expect(reasonAt, "a reader must see WHY before THAT").toBeLessThan(floorAt);
+
+    // (b) a mixed run that still reaches a STDOUT branch: the reason is on stderr, and it is written
+    //     before the process ever reaches the branch that writes to stdout.
+    const mixed = mkTargetRepo({});
+    plant(mixed, "e2e/uat/nested.uat.spec.ts", nestedSpec(overflow));
+    plant(mixed, "e2e/uat/clean.uat.spec.ts", CLEAN_SPEC);
+    const mr = runCheck(mixed);
+    expect(mr.stderr.indexOf("e2e/uat/nested.uat.spec.ts")).toBeGreaterThanOrEqual(0);
+    expect(
+      mr.stderr.indexOf("e2e/uat/nested.uat.spec.ts"),
+      "the reason must precede the denominator floor on the same stream",
+    ).toBeLessThan(mr.stderr.indexOf("visited 1 of 2"));
   });
 });
