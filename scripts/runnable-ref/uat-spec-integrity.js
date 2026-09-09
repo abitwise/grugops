@@ -389,7 +389,7 @@ export const UNRESOLVABLE_CALLEE_RESIDUALS = Object.freeze([
     "An option is ENABLED only when the call's first argument is an object literal assigning it the `true` keyword. A variable argument enables nothing, and neither does a variable option value. This runnable parses and never evaluates.",
     "A parser that does not expose the import, object-literal or function-like node predicates yields no rename canonicalisation, no option reading and no fixture-parameter canonicalisation. The parser is the TARGET repository's (D-13), so its surface is not this runnable's to assume. The resolver degrades to the pre-D-18 behaviour for those shapes rather than throwing outside the exit-code contract.",
     "A TestInfo binding destructured in the callback's second parameter is not canonicalised: `test(\"a\", async ({ page }, { skip }) => skip());`. A binding pattern names no single identifier to rewrite, so there is no head segment to canonicalise.",
-    "The import-rename and fixture-parameter canonicalisations are applied WITHOUT SCOPE ANALYSIS. A local binding that shadows a renamed import is canonicalised wherever it appears, and so is a name matching a fixture parameter. Deciding which declaration a name belongs to needs the binder this runnable deliberately does not ship (D-13).",
+    "The scope rule the canonicalisations ask is FILE-SCOPED, not lexically scoped. A head segment the file DECLARES — as a parameter, a `const`/`let`/`var` binding, a destructured binding element, a function name or a class name — is not rewritten through either map, and one such declaration anywhere in the file suppresses the rewrite for the whole file rather than for that declaration's own block. The one position that is NOT counted as a declaration is a function's SECOND parameter, because that is exactly where the TestInfo fixture map binds, so a name shadowed only at that position is still canonicalised. Real lexical scoping needs the binder this runnable deliberately does not ship (D-13).",
 ]);
 // D-13: the loud skip for an unresolvable parser. One frozen constant, ONE emission point, so a test
 // can assert the emitted text byte-for-byte. It names `typescript` and states the honest outcome.
@@ -970,7 +970,7 @@ export function deriveImportRenames(ts, sf) {
  * degrades to the pre-D-20 behaviour for this one shape rather than throwing outside the D-12 exit
  * codes.
  */
-export function deriveTestInfoParameterNames(ts, sf, renames) {
+export function deriveTestInfoParameterNames(ts, sf, renames, declaredNames = null) {
     const isArrowFunction = ts.isArrowFunction;
     const isFunctionExpression = ts.isFunctionExpression;
     if (typeof isArrowFunction !== "function" || typeof isFunctionExpression !== "function") {
@@ -979,7 +979,10 @@ export function deriveTestInfoParameterNames(ts, sf, renames) {
     const names = new Set();
     const visit = (node) => {
         if (ts.isCallExpression(node)) {
-            const callee = canonicaliseHeadSegment(calleeDottedPath(ts, node.expression), renames);
+            // D-21 (2): the scenario call's OWN head is asked through the same scope rule. A file that
+            // declares its renamed framework name locally does not have a Playwright scenario here, so it
+            // must not contribute a fixture-parameter binding either.
+            const callee = canonicaliseHeadSegment(calleeDottedPath(ts, node.expression), renames, null, declaredNames);
             if (callee === TEST_SCENARIO_PATH) {
                 const body = node.arguments[1];
                 if (body !== undefined && (isArrowFunction(body) || isFunctionExpression(body))) {
@@ -995,6 +998,93 @@ export function deriveTestInfoParameterNames(ts, sf, renames) {
     return names;
 }
 /**
+ * D-21 (2): the source file's DECLARED NAMES — the census the one canonicaliser asks before it
+ * rewrites a head segment through EITHER map.
+ *
+ * WHY THIS EXISTS. `canonicaliseHeadSegment` rewrote `segments[0]` whenever it was a key of a
+ * file-level map, with no scope analysis at all. A legitimate spec that renames the framework import
+ * to `it` and separately binds a local `it` was therefore REFUSED, and the finding named `test.skip`
+ * — a construct that does not appear in the file. The failure direction is a FALSE REFUSAL, which
+ * trains a reader to work around the checker, and 31-16 added a SECOND map feeding that same
+ * canonicaliser, so a scope rule written for the import map alone would be the same defect one map
+ * over. The rule therefore lives in the canonicaliser and this census is asked of every map.
+ *
+ * THE RULE IS MONOTONE IN THE SAFE DIRECTION. It can only STOP a rewrite, and the only rewrites it
+ * stops are ones where the file's own source text says the name is bound to something else. A spec
+ * that CALLS a renamed import does not DECLARE that name — an import binding is not in this census,
+ * which is asserted in both directions by the suite, because a census that counted import
+ * specifiers would make every rename shadow itself and the canonicalisation would never fire.
+ *
+ * WHAT IS COUNTED: a parameter, a `const`/`let`/`var` binding, a destructured binding element, a
+ * function declaration's name and a class declaration's name. Every one of them is a literal in the
+ * source text, which is the same parse-only reasoning D-18 (3) and D-20 (3) use; no binder and no
+ * type checker is involved, and none is shipped (D-13).
+ *
+ * THE ONE EXEMPTION, AND WHY IT IS A POSITION RATHER THAN A NAME. A parameter at index 1 of its
+ * function is NOT counted, because that position is exactly where `deriveTestInfoParameterNames`
+ * binds — counting it would suppress the very canonicalisation D-20 (3) decided and reopen CR-10.
+ * The exemption is stated as a POSITION and not as "a name in the fixture map" so that this census
+ * does not depend on the map it is meant to constrain: a census derived from that map, and then
+ * used to constrain it, would be a fixed point this runnable does not compute. The cost is that a
+ * name shadowed ONLY at a second-parameter position is still canonicalised, and that cost is a
+ * NAMED residual rather than a silence.
+ *
+ * THIS IS FILE-SCOPED, NOT LEXICALLY SCOPED, and that is stated plainly rather than dressed up: a
+ * declaration ANYWHERE in the file suppresses the rewrite for the WHOLE file. Real lexical scoping
+ * needs the binder D-13 forbids shipping. The coarseness is the residual.
+ *
+ * Returns `null` when the parser does not expose the declaration predicates — the canonicaliser then
+ * applies no scope rule at all, which is the pre-D-21 behaviour, rather than throwing outside the
+ * D-12 exit codes.
+ */
+export function deriveDeclaredNames(ts, sf) {
+    const isParameter = ts.isParameter;
+    const isVariableDeclaration = ts.isVariableDeclaration;
+    const isBindingElement = ts.isBindingElement;
+    const isFunctionDeclaration = ts.isFunctionDeclaration;
+    const isClassDeclaration = ts.isClassDeclaration;
+    if (typeof isParameter !== "function" ||
+        typeof isVariableDeclaration !== "function" ||
+        typeof isBindingElement !== "function" ||
+        typeof isFunctionDeclaration !== "function" ||
+        typeof isClassDeclaration !== "function") {
+        return null;
+    }
+    const names = new Set();
+    forEachDescendant(ts, sf, (node) => {
+        if (isParameter(node)) {
+            if (ts.isIdentifier(node.name) && !isFixtureBindingPosition(node))
+                names.add(node.name.text);
+        }
+        else if (isVariableDeclaration(node) || isBindingElement(node)) {
+            if (ts.isIdentifier(node.name))
+                names.add(node.name.text);
+        }
+        else if (isFunctionDeclaration(node) || isClassDeclaration(node)) {
+            const named = node.name;
+            if (named !== undefined && ts.isIdentifier(named))
+                names.add(named.text);
+        }
+    });
+    return names;
+}
+/**
+ * D-21 (2): is this parameter at the position the TestInfo fixture map binds — index 1 of its own
+ * function's parameter list? Read from the parameter's PARENT, which the walk sets because
+ * `createSourceFile` is called with `setParentNodes` true (the same fact `bannedContextOf` relies
+ * on). A parameter whose parent is not function-like, or which is not that parent's second, is an
+ * ordinary declaration and is counted.
+ */
+function isFixtureBindingPosition(param) {
+    const owner = param.parent;
+    if (owner === undefined)
+        return false;
+    const parameters = owner.parameters;
+    if (parameters === undefined)
+        return false;
+    return parameters[1] === param;
+}
+/**
  * D-18 (3): rewrite a resolved path's HEAD SEGMENT through the rename map, so `it.skip` is asked as
  * `test.skip` and a renamed head cannot defeat the head-set check.
  *
@@ -1004,10 +1094,16 @@ export function deriveTestInfoParameterNames(ts, sf, renames) {
  * be produced in the first place. A `null` path passes straight through, so the caller needs no null
  * comparison.
  */
-export function canonicaliseHeadSegment(dottedPath, renames, fixtureParams = null) {
+export function canonicaliseHeadSegment(dottedPath, renames, fixtureParams = null, declaredNames = null) {
     if (dottedPath === null)
         return dottedPath;
     const segments = dottedPath.split(".");
+    // D-21 (2): THE SCOPE RULE, ASKED ONCE FOR EVERY MAP. A head the file itself declares is left
+    // alone, whichever map would have rewritten it. Writing this rule inside either map's derivation
+    // would be the WR-20 defect one map over the moment a third map arrives, so it is asked here — the
+    // one place a head segment is rewritten at all — and its answer is asserted to win over BOTH.
+    if (declaredNames !== null && declaredNames.has(segments[0]))
+        return dottedPath;
     const imported = renames === null ? undefined : renames.get(segments[0]);
     if (imported !== undefined) {
         // PRECEDENCE, ASSERTED RATHER THAN LEFT TO READING ORDER (D-20 (3)). An import rename wins over
@@ -1057,9 +1153,13 @@ export function findBannedConstructs(ts, sf, relPath) {
     // shape resolution and membership. Per-file is the correct scope because an import declaration's
     // reach is the file it sits in.
     const renames = deriveImportRenames(ts, sf);
+    // D-21 (2): the declared-name census is built ONCE PER SOURCE FILE as well, and BEFORE the
+    // fixture-parameter map, because the scope rule constrains that map's own head canonicalisation
+    // too. Its exemption is a POSITION rather than a name, so it depends on nothing derived after it.
+    const declaredNames = deriveDeclaredNames(ts, sf);
     // D-20 (3): the fixture-parameter map is built ONCE PER SOURCE FILE too, and AFTER the rename map,
     // because a renamed framework binding must be canonicalised before its scenario calls are found.
-    const fixtureParams = deriveTestInfoParameterNames(ts, sf, renames);
+    const fixtureParams = deriveTestInfoParameterNames(ts, sf, renames, declaredNames);
     const visit = (node) => {
         if (ts.isCallExpression(node)) {
             // ── arm (c): a banned modifier call ────────────────────────────────────────────────────
@@ -1068,7 +1168,7 @@ export function findBannedConstructs(ts, sf, relPath) {
             // is the question put to isBannedModifierCall. Two places that decide one question are two
             // places for the answers to disagree, which is how CR-06 happened, and asking a rule about a
             // shape nobody resolved is how CR-07 happened.
-            const dottedPath = canonicaliseHeadSegment(calleeDottedPath(ts, node.expression), renames, fixtureParams);
+            const dottedPath = canonicaliseHeadSegment(calleeDottedPath(ts, node.expression), renames, fixtureParams, declaredNames);
             if (isBannedModifierCall(dottedPath, chainEnabledOptionKeys(ts, node))) {
                 const pos = node.getStart(sf);
                 // D-20 (2): one finding per CHAIN. The key asks the same normaliser the arms ask; it decides

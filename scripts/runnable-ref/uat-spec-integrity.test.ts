@@ -2847,8 +2847,8 @@ describe("uat-spec-integrity — 31-13 CR-07: the resolver's DECLINE set, derive
     "An aliased binding is not refused: `const t = test;` then a modifier call on `t`. The alias cannot be followed to its declaration without a type checker.";
   const R_DESTRUCTURED_FIXTURE_PARAM =
     "A TestInfo binding destructured in the callback's second parameter is not canonicalised: `test(\"a\", async ({ page }, { skip }) => skip());`. A binding pattern names no single identifier to rewrite, so there is no head segment to canonicalise.";
-  const R_UNSCOPED_CANONICALISATION =
-    "The import-rename and fixture-parameter canonicalisations are applied WITHOUT SCOPE ANALYSIS. A local binding that shadows a renamed import is canonicalised wherever it appears, and so is a name matching a fixture parameter. Deciding which declaration a name belongs to needs the binder this runnable deliberately does not ship (D-13).";
+  const R_FILE_SCOPED_CANONICALISATION =
+    "The scope rule the canonicalisations ask is FILE-SCOPED, not lexically scoped. A head segment the file DECLARES — as a parameter, a `const`/`let`/`var` binding, a destructured binding element, a function name or a class name — is not rewritten through either map, and one such declaration anywhere in the file suppresses the rewrite for the whole file rather than for that declaration's own block. The one position that is NOT counted as a declaration is a function's SECOND parameter, because that is exactly where the TestInfo fixture map binds, so a name shadowed only at that position is still canonicalised. Real lexical scoping needs the binder this runnable deliberately does not ship (D-13).";
 
   const DECLINE_SITE_DISPOSITIONS: Readonly<Record<string, DeclineDisposition>> = Object.freeze({
     // ── calleeDottedPath ──────────────────────────────────────────────────────────────────────
@@ -2929,6 +2929,18 @@ describe("uat-spec-integrity — 31-13 CR-07: the resolver's DECLINE set, derive
           "The TARGET repository's parser does not expose the function-like predicates, so no " +
           "fixture-parameter binding is collected in this run and the resolver degrades to the " +
           "pre-D-20 head reading for that one shape.",
+        residual: R_PARSER_PREDICATES,
+      },
+
+    // ── deriveDeclaredNames (31-17, D-21 (2)) ─────────────────────────────────────────────────
+    'deriveDeclaredNames | Block>IfStatement>Block | typeof isParameter !== "function" || typeof isVariableDeclaration !== "function" || typeof isBindingElement !== "function" || typeof isFunctionDeclaration !== "function" || typeof isClassDeclaration !== "function" | return null;':
+      {
+        kind: "residual",
+        reason:
+          "The TARGET repository's parser does not expose the declaration predicates, so no " +
+          "declared-name census is built in this run and the canonicaliser applies NO scope rule " +
+          "at all — the pre-D-21 behaviour, in which a shadowing local binding is canonicalised. " +
+          "It degrades rather than throwing, exactly as every other parser-surface guard here does.",
         residual: R_PARSER_PREDICATES,
       },
 
@@ -3130,12 +3142,15 @@ describe("uat-spec-integrity — 31-13 CR-07: the resolver's DECLINE set, derive
         "and its callback is found; what is absent is a single identifier to rewrite, because the " +
         "second parameter is a binding pattern. The resolver declines nothing here — the fixture " +
         "map simply gains no member — so this is a membership fact, not a resolution one.",
-      [R_UNSCOPED_CANONICALISATION]:
+      [R_FILE_SCOPED_CANONICALISATION]:
         "A MEMBERSHIP residual, and the one that runs the OTHER way: a path that resolves perfectly " +
-        "can be canonicalised on a name whose declaration is not the one the canonicalisation " +
-        "assumes, so a shadowing local binding is refused under a construct the file does not " +
-        "carry. It is WR-20 of 31-REVIEW.md, it is owned by plan 31-17, and 31-16 states the " +
-        "dependency here rather than assuming it away.",
+        "is DECLINED a rewrite because the file declares that name somewhere. 31-17 (D-21 (2)) " +
+        "closed WR-20 by asking that question in the ONE canonicaliser for BOTH maps, which turned " +
+        "the false refusal WR-20 measured into a bounded silence — the checker now says LESS than a " +
+        "lexically scoped one would, and says so here. What remains is the COARSENESS: file scope " +
+        "rather than block scope, and one exempt position (a function's second parameter, where the " +
+        "TestInfo map binds). The resolver declines nothing at either site, so this is a membership " +
+        "fact and not a resolution one.",
     });
 
     for (const residual of UNRESOLVABLE_CALLEE_RESIDUALS) {
@@ -4311,14 +4326,18 @@ describe("uat-spec-integrity — 31-16 CR-10: the TestInfo fixture parameter is 
   });
 
   // ── Test 6: the scope boundary is stated, not silent ─────────────────────────────────────────
-  it("the SHADOWING boundary is a named residual, owned by 31-17's WR-20 work", async () => {
+  it("the SHADOWING boundary is a named residual — CLOSED by 31-17 as a file-scoped rule", async () => {
     const { UNRESOLVABLE_CALLEE_RESIDUALS } = await loadChecker();
-    const scoped = UNRESOLVABLE_CALLEE_RESIDUALS.filter((r) => r.includes("WITHOUT SCOPE ANALYSIS"));
+    // 31-16 filed this as "the canonicalisations have no scope analysis, owned by 31-17". 31-17
+    // (D-21 (2)) decided it, so the register no longer discloses an ABSENT rule — it discloses the
+    // rule's COARSENESS. The case moves with the mechanism rather than being deleted, because the
+    // boundary is still a boundary and must still be exactly one named member.
+    const scoped = UNRESOLVABLE_CALLEE_RESIDUALS.filter((r) => r.includes("FILE-SCOPED"));
     expect(
       scoped.length,
-      "the canonicalisations are applied with no scope analysis and the register does not say so",
+      "the scope rule the canonicalisations ask is not named exactly once in the register",
     ).toBe(1);
-    expect(scoped[0]).toContain("shadows");
+    expect(scoped[0]).toContain("not rewritten through either map");
   });
 
   // ── Test 7: the disproved excuse is REMOVED, not relocated ────────────────────────────────────
@@ -4690,16 +4709,17 @@ describe("uat-spec-integrity — 31-17 WR-20: a head with a nearer declaration i
     ).toEqual([]);
   });
 
-  // ── Test 2: the MISLEADING MESSAGE is gone, proven on a run that still reports ────────────────
+  // ── Test 2: the census is PER NAME, not a global off switch ───────────────────────────────────
   //
-  // A zero-finding run makes "no finding names an absent construct" true vacuously. This case plants
-  // a GENUINE `test.skip` beside the shadowing binding, so the run still reports — and the assertion
-  // is that it reports the genuine one, at the genuine line, and reports it ONCE.
-  it("a genuine modifier beside the shadowing binding is still named, and named ONCE", () => {
+  // A zero-finding run makes "the misleading message is gone" true vacuously, and a scope rule that
+  // bought its zero by disabling the canonicalisation whenever the file declares ANYTHING would
+  // satisfy every case above. This one shadows a DIFFERENT name and asserts the genuine renamed
+  // modifier is still refused, named, and named exactly once at its own line.
+  it("a shadowing binding on ANOTHER name does not disarm the rename canonicalisation", () => {
     const findings = findingsOf(
       [
         'import { test as it, expect } from "@playwright/test";',
-        "function inner(it: { skip: (n: number) => number }) { return it.skip(1); }",
+        "function inner(helpers: { skip: (n: number) => number }) { return helpers.skip(1); }",
         'it.skip("a removed scenario", async ({ page }) => {',
         "  inner({ skip: (n: number) => n });",
         '  await expect(page.getByTestId("x")).toBeVisible();',
@@ -4711,6 +4731,31 @@ describe("uat-spec-integrity — 31-17 WR-20: a head with a nearer declaration i
     expect(findings[0]).toContain("test.skip");
     // …at the SCENARIO's line (3), never at the shadowed helper's line (2).
     expect(findings[0]).toContain("subject.uat.spec.ts:3:");
+  });
+
+  // ── Test 2b: THE COARSENESS, MEASURED rather than described ───────────────────────────────────
+  //
+  // The rule is FILE-SCOPED, so a file that BOTH declares the renamed name locally AND genuinely
+  // calls the modifier through that rename is NOT refused. That is a real cost and it is asserted
+  // here as a case, because a residual nobody exercised is a sentence rather than a boundary. It is
+  // the direction UATX-06 tolerates — the checker says less than it could, and says so out loud in
+  // the register and the recipe — as opposed to WR-20's direction, where it said something false.
+  it("THE COARSENESS: a file that both declares the name and genuinely uses it is not refused", () => {
+    expect(
+      findingsOf(
+        [
+          'import { test as it, expect } from "@playwright/test";',
+          "function inner(it: { skip: (n: number) => number }) { return it.skip(1); }",
+          'it.skip("a removed scenario", async ({ page }) => {',
+          "  inner({ skip: (n: number) => n });",
+          '  await expect(page.getByTestId("x")).toBeVisible();',
+          "});",
+          "",
+        ].join("\n"),
+      ),
+      "PREMISE OF THE RESIDUAL: if this ever starts reporting, the rule became lexically scoped and " +
+        "the register's file-scoped sentence is no longer true of the mechanism",
+    ).toEqual([]);
   });
 
   // ── Test 3: every genuine spelling 31-13 closed is still refused ──────────────────────────────
@@ -4923,7 +4968,7 @@ describe("uat-spec-integrity — 31-17 WR-20: a head with a nearer declaration i
     // The register must state what the rule DOES and what it does NOT claim: a declaration anywhere
     // in the file suppresses the rewrite for the whole file, which is not lexical scoping.
     expect(scoped[0]).toContain("anywhere in the file");
-    expect(scoped[0]).toContain("second");
+    expect(scoped[0]).toContain("SECOND parameter");
     expect(
       scoped[0].includes("WITHOUT SCOPE ANALYSIS"),
       "the register still says the canonicalisations have NO scope analysis, which is now false",
