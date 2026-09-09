@@ -68,6 +68,24 @@ interface CheckerModule {
   // 31-12 (WR-13): the SHAPE resolver, read by the reverse cross-check so the fixture corpus is
   // parsed by the artifact that resolves callees in production rather than by a second reader.
   calleeDottedPath(ts: unknown, expr: unknown): string | null;
+  // 31-16 (D-20 (1)): the ONE marker-aware normaliser every whole-path arm asks.
+  readonly CALL_LINK_MARKER: string;
+  stripRoutingLinks(dottedPath: string): string;
+  // 31-16 (D-20 (2)): the option axis folded across the whole marked chain.
+  enabledOptionKeys(ts: unknown, call: unknown): ReadonlySet<string> | null;
+  chainEnabledOptionKeys(ts: unknown, call: unknown): ReadonlySet<string> | null;
+  // 31-16 (D-20 (3)): the per-source-file TestInfo fixture-parameter binding map.
+  deriveTestInfoParameterNames(
+    ts: unknown,
+    sf: unknown,
+    renames: ReadonlyMap<string, string> | null,
+  ): ReadonlySet<string> | null;
+  canonicaliseHeadSegment(
+    dottedPath: string | null,
+    renames: ReadonlyMap<string, string> | null,
+    fixtureParams?: ReadonlySet<string> | null,
+  ): string | null;
+  readonly TEST_INFO_CANONICAL_HEAD: string;
   readonly UNRESOLVABLE_CALLEE_RESIDUALS: readonly string[];
   readonly SKIPPED_DIRECTORIES: readonly string[];
   emitLoudSkipIfBrowserUnusable(
@@ -3438,5 +3456,577 @@ describe("browser-uat-recipe.md — 31-13: the boundary list is the register plu
         `${key}: the reason is shorter than a sentence — a label is not a reason`,
       ).toBeGreaterThan(40);
     }
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// 31-16 CR-09 — A ROUTING CALL LINK MUST NOT DEFEAT A WHOLE-PATH ARM.
+//
+// WHICH REGISTER FAILED, AND WHY IT IS THE FOURTH RECURRENCE. D-17 fixed MEMBERSHIP. D-18 fixed
+// SHAPE RESOLUTION. The register that failed in round 4 is WHICH ARMS THE RESOLVED SHAPE IS COMPARED
+// AGAINST: D-18 (1) inserts a `()` marker segment into the resolved path and justified it for exactly
+// ONE of the ban's three arms — the head/tail arm, where the marker lands in a routing position D-17
+// had already decided is not part of the membership question. The two WHOLE-PATH arms
+// (`BANNED_EXACT_PATHS`, `BANNED_CONFIGURED_PATHS`) compare the marker-carrying path as a literal, so
+// one legitimate `.configure()` link inserts a segment and walks past both.
+//
+// Measured against the committed .js at HEAD before any source change (probe repository under
+// `.temp/`, spec at `uat/p.uat.spec.ts`, `typescript` resolvable from the probe root):
+//   expect.configure({ retries: 2 }).soft(locator).toBeVisible()            -> 0 findings, EXIT=0
+//   expect.configure({ retries: 2 }).configure({ soft: true })(locator)     -> 0 findings, EXIT=0
+// and instrumented through the committed module:
+//   "expect.configure().soft"       opts=null      -> banned: false
+//   "expect.configure().configure"  opts=["soft"]  -> banned: false
+//   "expect.configure"              opts=["soft"]  -> banned: true    (the only spelling decided)
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+describe("uat-spec-integrity — 31-16 CR-09: a routing call link does not defeat a whole-path arm", () => {
+  const IMPORT = 'import { test, expect } from "@playwright/test";';
+
+  function findingsOf(body: string): string[] {
+    const root = mkTargetRepo({});
+    const dest = join(root, "e2e", "uat", "subject.uat.spec.ts");
+    mkdirSync(dirname(dest), { recursive: true });
+    writeFileSync(dest, body, "utf8");
+    const r = runCheck(root, "--json");
+    if (r.status === 0) return [];
+    return (JSON.parse(r.stdout) as { findings: string[] }).findings;
+  }
+
+  function inScenario(...lines: string[]): string {
+    return [
+      IMPORT,
+      'test("a scenario", async ({ page }) => {',
+      ...lines.map((l) => `  ${l}`),
+      "});",
+      "",
+    ].join("\n");
+  }
+
+  // ── the normaliser's own rule, stated as cases in BOTH directions ────────────────────────────
+
+  it("the normaliser drops an INTERIOR marked link and keeps a MARKED HEAD distinct", async () => {
+    const { stripRoutingLinks, CALL_LINK_MARKER } = await loadChecker();
+    expect(CALL_LINK_MARKER, "PREMISE: the marker spelling moved").toBe("()");
+
+    // An interior marked link is ROUTING: it is dropped, so the whole-path arms see the construct.
+    expect(stripRoutingLinks("expect.configure().soft")).toBe("expect.soft");
+    expect(stripRoutingLinks("expect.configure().configure")).toBe("expect.configure");
+    expect(stripRoutingLinks("expect.configure().configure()")).toBe("expect");
+
+    // A MARKED HEAD is a different fact and must SEPARATE, not merge: there a user value was passed
+    // in, which is what makes `expect(x).soft` a different construct from `expect.configure().soft`.
+    expect(stripRoutingLinks("expect().soft")).toBe("expect().soft");
+    // …and a path that is ONLY a marked head has no interior link to strip, so it passes through
+    // unchanged rather than becoming an empty path.
+    expect(stripRoutingLinks("expect()")).toBe("expect()");
+
+    // A path with no marker at all is its own normal form.
+    expect(stripRoutingLinks("expect.soft")).toBe("expect.soft");
+    expect(stripRoutingLinks("test.describe.serial.only")).toBe("test.describe.serial.only");
+    expect(stripRoutingLinks("expect")).toBe("expect");
+  });
+
+  it("the marked HEAD and the interior marked LINK are decided differently, in both directions", async () => {
+    const { isBannedModifierPath } = await loadChecker();
+    // The interior link resolves to the same construct as the bare exact path…
+    expect(isBannedModifierPath("expect.configure().soft")).toBe(true);
+    expect(isBannedModifierPath("expect.soft")).toBe(true);
+    // …and the marked head does NOT, which is D-18 (1)'s by-construction legitimacy.
+    expect(isBannedModifierPath("expect().soft")).toBe(false);
+  });
+
+  // ── RED 1 and RED 2: the two spellings the round-4 verifier reproduced at exit 0 ──────────────
+
+  it("refuses expect.configure({ retries: 2 }).soft(...) — the chained soft assertion", () => {
+    const findings = findingsOf(
+      inScenario('await expect.configure({ retries: 2 }).soft(page.getByTestId("x")).toBeVisible();'),
+    );
+    expect(findings.length, "expected exactly one finding for the chained soft assertion").toBe(1);
+    expect(findings[0]).toContain("expect.configure().soft");
+    expect(findings[0]).toContain("banned modifier call");
+  });
+
+  it("refuses expect.configure({ retries: 2 }).configure({ soft: true })(...) — the chained pair", () => {
+    const findings = findingsOf(
+      inScenario(
+        'await expect.configure({ retries: 2 }).configure({ soft: true })(page.getByTestId("x")).toBeVisible();',
+      ),
+    );
+    expect(findings.length, "expected exactly one finding for the chained configured escape").toBe(1);
+    expect(findings[0]).toContain("expect.configure().configure");
+    expect(findings[0]).toContain("banned modifier call");
+  });
+
+  // ── GREEN 3: the converse ordering, which no review named ────────────────────────────────────
+  //
+  // MEASURED, not assumed: this ordering was ALREADY refused at exit 1 before this plan's change,
+  // because the inner link `expect.configure({ soft: true })` is itself a visited call node and the
+  // un-chained rule decides it. What this plan adds is that the OUTER link decides it too — the
+  // enabled-option axis is folded across the whole marked chain the compared path was folded from,
+  // so the verdict no longer DEPENDS on the inner link happening to be separately visited. That
+  // dependency is the same structural coupling CR-09 exploited one register over.
+  it("refuses the converse ordering — the soft option enabled at an INNER link", () => {
+    const findings = findingsOf(
+      inScenario(
+        'await expect.configure({ soft: true }).configure({ retries: 2 })(page.getByTestId("x")).toBeVisible();',
+      ),
+    );
+    expect(findings.length, "the converse ordering must be refused exactly once").toBe(1);
+    expect(findings[0]).toContain("banned modifier call");
+  });
+
+  it("the OUTER link of the converse chain is refused ON ITS OWN, by the folded option axis", async () => {
+    const { chainEnabledOptionKeys, isBannedModifierCall } = await loadChecker();
+    const tsApi = hostTypeScript as typeof import("typescript");
+    const sf = tsApi.createSourceFile(
+      "probe.ts",
+      "expect.configure({ soft: true }).configure({ retries: 2 })(locator);\n",
+      tsApi.ScriptTarget.Latest,
+      true,
+    );
+    const calls: import("typescript").CallExpression[] = [];
+    const visit = (n: import("typescript").Node): void => {
+      if (tsApi.isCallExpression(n)) calls.push(n);
+      tsApi.forEachChild(n, visit);
+    };
+    tsApi.forEachChild(sf, visit);
+    // PREMISE: the three links of the chain really are three call nodes.
+    expect(calls.length, "PREMISE: the chain did not parse into three call links").toBe(3);
+
+    // The OUTER link of the chain — `expect.configure({soft:true}).configure({retries:2})` — carries
+    // only an unrelated option of its own. Asked with the chain-wide fold it still sees `soft`.
+    const outerLink = calls.find(
+      (c) => c.getText(sf) === "expect.configure({ soft: true }).configure({ retries: 2 })",
+    );
+    expect(outerLink, "PREMISE: the outer link was not found in the parse").toBeDefined();
+    const folded = chainEnabledOptionKeys(tsApi, outerLink);
+    expect(folded, "the fold produced no option set for a chain that enables one").not.toBeNull();
+    expect([...(folded as ReadonlySet<string>)]).toContain("soft");
+    expect(isBannedModifierCall("expect.configure().configure", folded)).toBe(true);
+  });
+
+  // ── the controls: nothing legitimate is newly refused, nothing already closed regresses ───────
+
+  it("CONTROL 1: a chained AND INVOKED configure carrying only an unrelated option stays admitted", () => {
+    expect(
+      findingsOf(
+        inScenario('await expect.configure({ retries: 2 })(page.getByTestId("x")).toBeVisible();'),
+      ),
+      "the legitimate chained-and-invoked configure call must stay at zero findings — the rule is " +
+        "path PLUS enabled option, and a routing link must not turn it into a bare path ban",
+    ).toEqual([]);
+  });
+
+  it("CONTROL 2: the marked-head assertion expect(locator).soft stays admitted", async () => {
+    const { isBannedModifierPath, stripRoutingLinks } = await loadChecker();
+    expect(findingsOf([IMPORT, 'expect(locator).soft("still legitimate");', ""].join("\n"))).toEqual(
+      [],
+    );
+    expect(stripRoutingLinks("expect().soft")).toBe("expect().soft");
+    expect(isBannedModifierPath("expect().soft")).toBe(false);
+  });
+
+  it("CONTROL 3: the two round-3 closures the round-4 verification re-measured still hold", () => {
+    const unchained = findingsOf(
+      inScenario('await expect.configure({ soft: true })(page.getByTestId("x")).toBeVisible();'),
+    );
+    expect(unchained.length, "the un-chained configured-soft closure regressed").toBe(1);
+    expect(unchained[0]).toContain("expect.configure");
+
+    const callLink = findingsOf(
+      inScenario("test.info().skip();", 'await expect(page.getByTestId("x")).toBeVisible();'),
+    );
+    expect(callLink.length, "the bare call-link modifier closure regressed").toBe(1);
+    expect(callLink[0]).toContain("test.info().skip");
+  });
+
+  it("NO MEMBER IS ADDED TO ANY BAN SET — the four constants are byte-identical to HEAD", async () => {
+    const {
+      BANNED_MODIFIER_HEADS,
+      BANNED_MODIFIER_TAILS,
+      BANNED_EXACT_PATHS,
+      BANNED_CONFIGURED_PATHS,
+    } = await loadChecker();
+    expect(BANNED_MODIFIER_HEADS).toEqual(["test", "describe"]);
+    expect(BANNED_MODIFIER_TAILS).toEqual(["skip", "only", "fixme", "fail"]);
+    expect(BANNED_EXACT_PATHS).toEqual(["expect.soft"]);
+    expect(BANNED_CONFIGURED_PATHS).toEqual({ "expect.configure": "soft" });
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// 31-16 CR-09 — THE PATH-CONSUMER SET IS DERIVED, NOT REMEMBERED.
+//
+// WHY A DERIVATION AND NOT A THIRD HAND-WRITTEN STRIP. CR-09 exists because D-18 reasoned about the
+// marker for ONE arm and the other two compared a raw path. Writing the strip into two more arms
+// leaves the same drift axis: a FOURTH arm added later would compare a raw path again, and every
+// gate over it would stay green. So the set of arms that compare a resolved dotted path against a
+// ban set is read off the runnable's own AST, its CARDINALITY is asserted separately from its
+// MEMBERS, and each derived arm is bound either to "asks the normaliser" or to a written
+// disposition. An arm added outside the normaliser arrives unbound and reds the case naming itself.
+//
+// The ban-set NAMES are themselves derived — they are the module-level constants the two membership
+// authorities read — rather than typed as a literal list. Deriving one axis and hand-typing the
+// other is the exact half-fix this phase has already paid for.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+describe("uat-spec-integrity — 31-16 CR-09: every arm that compares a resolved path is derived", () => {
+  const ts = hostTypeScript as typeof import("typescript");
+  const CHECKER_TS = join(HERE, "uat-spec-integrity.ts");
+
+  /** The one normaliser every whole-path arm must obtain its operand from. */
+  const NORMALISER = "stripRoutingLinks";
+  /** The two functions that decide membership. The ban-set names are whatever THEY read. */
+  const MEMBERSHIP_AUTHORITIES = ["isBannedModifierPath", "isBannedModifierCall"];
+
+  interface PathConsumer {
+    readonly fn: string;
+    readonly banSet: string;
+    readonly operand: string;
+    readonly signature: string;
+  }
+
+  interface ConsumerDerivation {
+    readonly moduleConstants: readonly string[];
+    readonly banSets: readonly string[];
+    readonly authoritiesFound: readonly string[];
+    readonly consumers: readonly PathConsumer[];
+  }
+
+  function collapseText(text: string): string {
+    return text.replace(/\s+/g, " ").trim();
+  }
+
+  function deriveConsumers(sourcePath: string): ConsumerDerivation {
+    const sf = ts.createSourceFile(
+      "uat-spec-integrity.ts",
+      readFileSync(sourcePath, "utf8"),
+      ts.ScriptTarget.Latest,
+      true,
+    );
+
+    // Every module-level `const` name. A ban set is one of these, never a free identifier.
+    const moduleConstants = new Set<string>();
+    ts.forEachChild(sf, (node) => {
+      if (!ts.isVariableStatement(node)) return;
+      for (const decl of node.declarationList.declarations) {
+        if (ts.isIdentifier(decl.name)) moduleConstants.add(decl.name.text);
+      }
+    });
+
+    const functions = new Map<string, import("typescript").FunctionDeclaration>();
+    const walkTop = (node: import("typescript").Node): void => {
+      if (ts.isFunctionDeclaration(node) && node.name !== undefined) {
+        functions.set(node.name.text, node);
+      }
+      ts.forEachChild(node, walkTop);
+    };
+    ts.forEachChild(sf, walkTop);
+
+    // THE FIRST DERIVED AXIS: a ban set is a module constant one of the membership authorities reads.
+    const banSets = new Set<string>();
+    const authoritiesFound: string[] = [];
+    for (const name of MEMBERSHIP_AUTHORITIES) {
+      const fn = functions.get(name);
+      if (fn?.body === undefined) continue;
+      authoritiesFound.push(name);
+      const scan = (node: import("typescript").Node): void => {
+        if (ts.isIdentifier(node) && moduleConstants.has(node.text)) banSets.add(node.text);
+        ts.forEachChild(node, scan);
+      };
+      scan(fn.body);
+    }
+
+    // THE SECOND DERIVED AXIS: every position at which one of those constants is consulted, with the
+    // OPERAND it is consulted about.
+    const consumers: PathConsumer[] = [];
+    const walkFn = (
+      fnName: string,
+      node: import("typescript").Node,
+    ): void => {
+      if (ts.isIdentifier(node) && banSets.has(node.text)) {
+        const parent = node.parent as import("typescript").Node | undefined;
+        let enclosing: import("typescript").Node | undefined;
+        let operand: import("typescript").Node | undefined;
+        if (parent !== undefined && ts.isElementAccessExpression(parent) && parent.expression === node) {
+          enclosing = parent;
+          operand = parent.argumentExpression;
+        } else if (
+          parent !== undefined &&
+          ts.isPropertyAccessExpression(parent) &&
+          parent.expression === node &&
+          parent.parent !== undefined &&
+          ts.isCallExpression(parent.parent) &&
+          parent.parent.expression === parent &&
+          parent.parent.arguments.length > 0
+        ) {
+          enclosing = parent.parent;
+          operand = parent.parent.arguments[0];
+        } else if (parent !== undefined && ts.isCallExpression(parent)) {
+          const index = parent.arguments.indexOf(node as import("typescript").Expression);
+          if (index >= 0 && parent.arguments.length > index + 1) {
+            enclosing = parent;
+            operand = parent.arguments[index + 1];
+          }
+        }
+        if (enclosing !== undefined && operand !== undefined) {
+          const operandText = collapseText(operand.getText(sf));
+          consumers.push({
+            fn: fnName,
+            banSet: node.text,
+            operand: operandText,
+            signature: `${fnName} | ${node.text} | ${collapseText(enclosing.getText(sf))}`,
+          });
+        }
+      }
+      ts.forEachChild(node, (child) => walkFn(fnName, child));
+    };
+    for (const [name, fn] of functions) {
+      if (fn.body === undefined) continue;
+      walkFn(name, fn.body);
+    }
+
+    return {
+      moduleConstants: [...moduleConstants].sort(),
+      banSets: [...banSets].sort(),
+      authoritiesFound: authoritiesFound.sort(),
+      consumers: consumers.sort((a, b) => a.signature.localeCompare(b.signature)),
+    };
+  }
+
+  /**
+   * One entry per derived arm. `normalised` means the arm's operand is obtained from the one
+   * normaliser; `raw` means it deliberately reads the un-normalised segments, and the reason is
+   * written out rather than labelled.
+   */
+  interface ConsumerDisposition {
+    readonly kind: "normalised" | "raw";
+    readonly reason: string;
+  }
+
+  const PATH_CONSUMER_DISPOSITIONS: Readonly<Record<string, ConsumerDisposition>> = Object.freeze({
+    "isBannedModifierPath | BANNED_EXACT_PATHS | BANNED_EXACT_PATHS.includes(stripRoutingLinks(dottedPath))":
+      {
+        kind: "normalised",
+        reason:
+          "A WHOLE-PATH arm: it compares the joined path as a literal, so a marker segment inserted " +
+          "by a routing call link changes the string it is comparing. This is the arm CR-09 walked " +
+          "past with one legitimate `.configure()` link.",
+      },
+    "isBannedModifierPath | BANNED_MODIFIER_HEADS | BANNED_MODIFIER_HEADS.includes(segments[0])": {
+      kind: "raw",
+      reason:
+        "The HEAD/TAIL arm, left exactly as D-17 left it. It reads the first and last segments and " +
+        "ignores everything between them, so an interior marked link is already routing-neutral " +
+        "here — that is precisely the property D-18 (1) reasoned about, and it is true of THIS arm. " +
+        "Normalising the head would also erase the marked-HEAD distinction that keeps " +
+        "`expect(x).soft` legitimate by construction.",
+    },
+    "isBannedModifierPath | BANNED_MODIFIER_TAILS | BANNED_MODIFIER_TAILS.includes(segments[segments.length - 1])":
+      {
+        kind: "raw",
+        reason:
+          "The other half of the HEAD/TAIL arm, and the same decision for the same reason: the tail " +
+          "segment of a chain is never a marked routing link, because a marker is only ever pushed " +
+          "for a CallExpression link that some later segment is read off.",
+      },
+    "isBannedModifierCall | BANNED_CONFIGURED_PATHS | Object.prototype.hasOwnProperty.call(BANNED_CONFIGURED_PATHS, stripRoutingLinks(dottedPath))":
+      {
+        kind: "normalised",
+        reason:
+          "The second WHOLE-PATH arm: a Record lookup keyed by the joined path, so the marker " +
+          "segment defeats it exactly as it defeats the exact-path arm. This is CR-09's second " +
+          "variant, `expect.configure({retries:2}).configure({soft:true})(locator)`.",
+      },
+    "isBannedModifierCall | BANNED_CONFIGURED_PATHS | BANNED_CONFIGURED_PATHS[stripRoutingLinks(dottedPath)]":
+      {
+        kind: "normalised",
+        reason:
+          "The same whole-path arm's VALUE read. It is a separate position and is derived as one, " +
+          "because an arm whose presence check is normalised and whose value read is not would " +
+          "answer two different questions about the same path.",
+      },
+  });
+
+  function assertConsumerPremise(d: ConsumerDerivation): void {
+    expect(
+      d.moduleConstants.length,
+      "PREMISE: the parse of the runnable found no module-level constant at all",
+    ).toBeGreaterThan(0);
+    expect(
+      d.authoritiesFound,
+      "PREMISE: a membership authority is missing from the parse, so the ban-set axis was derived " +
+        "from fewer functions than it claims",
+    ).toEqual([...MEMBERSHIP_AUTHORITIES].sort());
+    expect(
+      d.banSets.length,
+      "PREMISE: the membership authorities read NO module constant, so the ban-set axis is empty " +
+        "and every binding below is vacuous",
+    ).toBeGreaterThan(0);
+    expect(
+      d.consumers.length,
+      "PREMISE: ZERO arms were derived. Either nothing compares a resolved path against a ban set, " +
+        "or the consumer matcher stopped matching the shape a comparison takes",
+    ).toBeGreaterThan(0);
+  }
+
+  it("the derivation's PREMISES hold before any binding is asserted", () => {
+    assertConsumerPremise(deriveConsumers(CHECKER_TS));
+  });
+
+  it("the BAN-SET axis is derived from the authorities, and its cardinality is asserted", async () => {
+    const { banSets } = deriveConsumers(CHECKER_TS);
+    const mod = (await import("./uat-spec-integrity.js")) as unknown as Record<string, unknown>;
+    // Both directions: every derived ban-set name is a real exported constant, and the four the
+    // recipe quotes by value are all present. Deriving the arms while hand-typing the SETS would be
+    // the same half-fix one axis over.
+    for (const name of banSets) {
+      expect(mod[name], `${name} is read as a ban set but is not exported`).toBeDefined();
+    }
+    expect(banSets).toEqual([
+      "BANNED_CONFIGURED_PATHS",
+      "BANNED_EXACT_PATHS",
+      "BANNED_MODIFIER_HEADS",
+      "BANNED_MODIFIER_TAILS",
+    ]);
+    expect(banSets.length, "the number of ban sets the membership authorities read CHANGED").toBe(4);
+  });
+
+  it("the derived path-consumer set has exactly the MEMBERS the binding record names", () => {
+    const { consumers } = deriveConsumers(CHECKER_TS);
+    expect(consumers.map((c) => c.signature)).toEqual(
+      Object.keys(PATH_CONSUMER_DISPOSITIONS).sort(),
+    );
+  });
+
+  it("the derived path-consumer set has the expected CARDINALITY", () => {
+    const { consumers } = deriveConsumers(CHECKER_TS);
+    // Asserted separately from the member list on purpose: an arm whose TEXT moved and an arm that
+    // was ADDED are different events and must not read as one failure.
+    expect(
+      consumers.length,
+      "the number of arms comparing a resolved dotted path against a ban set CHANGED",
+    ).toBe(Object.keys(PATH_CONSUMER_DISPOSITIONS).length);
+    expect(consumers.length, "the measured cardinality recorded in 31-16-SUMMARY.md").toBe(5);
+  });
+
+  it("every derived arm either ASKS THE NORMALISER or carries a written raw disposition", () => {
+    const { consumers } = deriveConsumers(CHECKER_TS);
+    const bound = Object.keys(PATH_CONSUMER_DISPOSITIONS);
+
+    const unbound = consumers.filter((c) => !bound.includes(c.signature));
+    expect(
+      unbound.map((c) => c.signature),
+      `${unbound.length} arm(s) compare a resolved path with no binding. An unbound arm is one that ` +
+        `nobody decided the marker question for — which is exactly the state CR-09 found the two ` +
+        `whole-path arms in.`,
+    ).toEqual([]);
+
+    let normalised = 0;
+    for (const consumer of consumers) {
+      const disposition = PATH_CONSUMER_DISPOSITIONS[consumer.signature];
+      expect(
+        disposition.reason.trim().length,
+        `${consumer.signature}: the disposition reason is shorter than a sentence — a label is not a reason`,
+      ).toBeGreaterThan(40);
+      if (disposition.kind === "normalised") {
+        normalised++;
+        expect(
+          consumer.operand.includes(`${NORMALISER}(`),
+          `${consumer.signature}: dispositioned as normalised, but its operand \`${consumer.operand}\` ` +
+            `does not come from ${NORMALISER}`,
+        ).toBe(true);
+      } else {
+        expect(
+          consumer.operand.includes(`${NORMALISER}(`),
+          `${consumer.signature}: dispositioned as raw, but its operand DOES ask the normaliser`,
+        ).toBe(false);
+      }
+    }
+    // PREMISE: a record in which nothing is normalised would satisfy the loop vacuously.
+    expect(normalised, "PREMISE: no derived arm asks the normaliser at all").toBeGreaterThan(0);
+  });
+
+  it("the normaliser contributes ZERO decline sites — every exit returns its input or a rewrite", () => {
+    // The same property canonicaliseHeadSegment carries, asserted for the same reason: the decline
+    // set must stay exactly the set of positions where no path could be produced in the first place.
+    const source = readFileSync(CHECKER_TS, "utf8");
+    const sf = ts.createSourceFile("c.ts", source, ts.ScriptTarget.Latest, true);
+    let fn: import("typescript").FunctionDeclaration | undefined;
+    const find = (node: import("typescript").Node): void => {
+      if (ts.isFunctionDeclaration(node) && node.name?.text === NORMALISER) fn = node;
+      ts.forEachChild(node, find);
+    };
+    ts.forEachChild(sf, find);
+    expect(fn, `PREMISE: ${NORMALISER} is not declared in the runnable`).toBeDefined();
+
+    const declines: string[] = [];
+    const scan = (node: import("typescript").Node): void => {
+      if (
+        ts.isReturnStatement(node) &&
+        node.expression !== undefined &&
+        node.expression.kind === ts.SyntaxKind.NullKeyword
+      ) {
+        declines.push(node.getText(sf));
+      }
+      ts.forEachChild(node, scan);
+    };
+    scan(fn!.body!);
+    expect(declines, `${NORMALISER} introduced a decline of its own`).toEqual([]);
+  });
+
+  // ── THE WATCHED FAIL: the derivation is a control, not a coincidence ─────────────────────────
+
+  const SEEDED_OPERAND = "SEEDED_RAW_PATH_CONTROL";
+  const SEED_ANCHOR = "  if (isBannedModifierPath(dottedPath)) return true;";
+
+  function mirrorWithSeededArm(): string {
+    const source = readFileSync(CHECKER_TS, "utf8");
+    expect(
+      source.split(SEED_ANCHOR).length - 1,
+      `PREMISE: the seed anchor was not found EXACTLY once, so the mirror is not the source plus ` +
+        `one arm — anchor: ${SEED_ANCHOR}`,
+    ).toBe(1);
+    expect(
+      source.includes(SEEDED_OPERAND),
+      "PREMISE: the seeded operand is ALREADY in the runnable, so its presence would prove nothing",
+    ).toBe(false);
+    const mutated = source.replace(
+      SEED_ANCHOR,
+      `${SEED_ANCHOR}\n  if (BANNED_EXACT_PATHS.includes(${SEEDED_OPERAND})) return true;`,
+    );
+    const path = join(mkTmp(), "uat-spec-integrity.ts");
+    writeFileSync(path, mutated, "utf8");
+    return path;
+  }
+
+  it("a SEEDED fourth arm outside the normaliser moves the count by exactly one and arrives UNBOUND", () => {
+    const before = deriveConsumers(CHECKER_TS);
+    const after = deriveConsumers(mirrorWithSeededArm());
+
+    // PREMISE: the mirror still derives the same two axes, or the count difference would be caused
+    // by a broken derivation rather than by the seed.
+    assertConsumerPremise(after);
+    expect(after.banSets).toEqual(before.banSets);
+
+    expect(
+      after.consumers.length,
+      "the seeded arm did not move the derived cardinality by exactly one",
+    ).toBe(before.consumers.length + 1);
+
+    const seeded = after.consumers.filter((c) => c.operand.includes(SEEDED_OPERAND));
+    expect(seeded.length, "the derivation did not see the seeded arm at all").toBe(1);
+    // NOTHING ELSE MOVED: the seeded arm is the ONLY difference.
+    expect(
+      after.consumers.filter((c) => !c.operand.includes(SEEDED_OPERAND)).map((c) => c.signature),
+    ).toEqual(before.consumers.map((c) => c.signature));
+
+    // …and it arrives UNBOUND and un-normalised, which is the behaviour a fourth raw arm would show.
+    const bound = Object.keys(PATH_CONSUMER_DISPOSITIONS);
+    const unbound = after.consumers.filter((c) => !bound.includes(c.signature));
+    expect(unbound.length).toBe(1);
+    expect(unbound[0].operand).toContain(SEEDED_OPERAND);
+    expect(unbound[0].operand.includes(`${NORMALISER}(`)).toBe(false);
   });
 });
