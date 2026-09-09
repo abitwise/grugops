@@ -26,7 +26,7 @@ affects: [31-VERIFICATION round 5, any later plan touching uat-spec-integrity, c
 actuals:
   tokens: 21164
   tasks: 3
-  commits: 4
+  commits: 6
 
 plan_head_before: 263d1a316175e040fa343de0311eb3a534babac2
 
@@ -215,11 +215,23 @@ Both readings are recorded; neither is chosen.
 3. **Task 3 — disposition every finding, write the residual register, leave the requirement rows** —
    `3f93e4b` (docs)
 
-**Commits:** `git rev-list --count 263d1a3..HEAD` = **3** at the moment this summary was written; the
-plan's full ledger span at close is **4**, the three task commits plus the single combined
-SUMMARY / STATE / ROADMAP metadata commit. `plan_head_before` is `263d1a3…`, persisted at
-`.git/gsd-plan-head-before-31-20`, and is the base `/gsd-verify-work` will re-measure from with the
-same instrument.
+**Commits — the ledger span, decomposed so the number is checkable rather than asserted.**
+`plan_head_before` is `263d1a3…`, persisted at `.git/gsd-plan-head-before-31-20`; it is the base
+`/gsd-verify-work` re-measures from with the same instrument. The span is **6**:
+
+| # | Commit | What it carries |
+|---|---|---|
+| 1 | `27f613a` | Task 1 — the pairing table |
+| 2 | `e870287` | Task 2 — the gate record, the frozen floors, `deferred-items.md`, `31-VALIDATION.md` |
+| 3 | `3f93e4b` | Task 3 — the ledger, the residual register, the requirement confirmation |
+| 4 | `7aff7f3` | this SUMMARY + `STATE.md` |
+| 5 | `0176db3` | the `ROADMAP.md` plan-progress sync (19/20 → 20/20, `31-20` `[x]`) and the correction of its stale "not yet executed" clause |
+| 6 | (this commit) | this correction: `actuals.commits` re-measured from 4 to 6 |
+
+**The `4` first written here was wrong and is corrected rather than left to be discovered.** It was
+written before the post-SUMMARY roadmap sync, and it assumed a single combined metadata commit where
+the sync and this correction are two. `commits:` is measured, never narrated — including when the
+measurement moves after the number is first written.
 
 ## The measurements, in one place
 
@@ -416,8 +428,9 @@ pairing table, §7 for the ledger, §9 for the residual register — and read **
 - `.planning/phases/31-autonomous-manual-testing/31-VALIDATION.md` — FOUND, carries the round-5
   carry-forward section with 4 `OPEN — UNKNOWN - verify` rows
 - commits `27f613a`, `e870287`, `3f93e4b` — all FOUND in `git log --oneline --all`
-- `git rev-list --count 263d1a3..HEAD` = **3** at summary-write, measured against the ledger base
-  persisted at `.git/gsd-plan-head-before-31-20`
+- `git rev-list --count 263d1a3..HEAD` = **3** at summary-write and **6** at close, measured against
+  the ledger base persisted at `.git/gsd-plan-head-before-31-20`; the decomposition is in
+  "Task Commits" above
 - `git diff --diff-filter=D --name-only 263d1a3..HEAD` — **empty**; no file was deleted
 - `git status --porcelain -- scripts hooks agent-factory install` — **empty**
 
