@@ -32,6 +32,7 @@ import {
   symlinkSync,
   rmSync,
   cpSync,
+  chmodSync,
   statSync,
   realpathSync,
 } from "node:fs";
@@ -8077,5 +8078,415 @@ describe("31-18 — WR-18: the dial's value decides, through the one gated autho
     const event = JSON.parse(line) as Record<string, unknown>;
     expect(Object.keys(event)).toEqual(["id", "kind", "by", "severity", "verified_by", "disposed_by", "at"]);
     expect("re_bound" in event).toBe(false);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// 31-21 (CR-12) — NO READ THIS MODULE PERFORMS ON A CALLER-INFLUENCED PATH MAY BLOCK.
+//
+// WHAT WAS WRONG, MEASURED RATHER THAN DESCRIBED. Round 4's CR-11 fix put a destination READ at
+// `writeNoteFile`, the module's single note-write chokepoint — correct in placement, and written as
+// an unguarded `existsSync` + `readFileSync` pair. `readFileSync` on a path that is not a regular
+// file BLOCKS at `open(2)` with no timeout, so a FIFO planted at a note path wedges EVERY writer in
+// the module. Reproduced against the COMMITTED scripts/context-io.js before any source change and
+// quoted verbatim in 31-21-SUMMARY.md:
+//
+//   1. appendNote(..., precomputedId="20260909T050000Z-qe-observation-deadbeef")  -> WROTE, EXIT=0
+//   2. mkfifo <ctx>/T-9/notes/20260909T050000Z-qe-observation-cafe0001.md
+//   3. timeout 10 node <probe> ...cafe0001  -> EXIT=124, stdout 0 bytes, stderr 0 bytes
+//
+// and the review's second probe, a FIFO at <repoRoot>/.grugops/audit/admissions.jsonl:
+//
+//   timeout 15 node <probe>  -> EXIT=124, stdout "SEEDED …/DEST-BEFORE []", stderr 0 bytes,
+//   destination at kill time: ["20260908T010000Z-security-nfr-finding-c50f73d4.md"] — the note was
+//   ALREADY WRITTEN and the ledger holds nothing, which is the repudiation shape
+//   18-context-compaction.md:83 claims can never happen.
+//
+// WHY EVERY CASE BELOW IS DRIVEN IN A SUBPROCESS UNDER A HARD TIMEOUT. The defect is a BLOCK. Driven
+// in-process a regression would hang the whole suite with zero bytes on both streams — the one
+// outcome this surface is audited against, reproduced by the test that exists to catch it. The
+// subprocess BOUNDS it, and `timedOut` is the failure signal: a case that times out is CR-12 open.
+//
+// THE REFUSAL IS BY RULE, NOT AN ENUMERATION OF DANGEROUS TYPES. `fstat` on the OPEN descriptor
+// decides; a FIFO, a directory and a character device are one case ("not the canonical form"), which
+// is why more than one shape is driven at the same position.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+describe("31-21 — CR-12: a non-regular file at a read position is refused in bounded time", () => {
+  const FIFO_TASK = "T-9";
+  const PROBE_TIMEOUT_MS = 8000;
+  /** The ceiling every bounded case is asserted under, in ms. A slower answer is still a hang. */
+  const BOUNDED_MS = 5000;
+
+  /**
+   * The driver a case spawns. It reaches the COMMITTED scripts/context-io.js — the artifact hosts
+   * and CI run — builds its own staging under one base directory, and prints ONE json line.
+   */
+  const FIFO_DRIVER = (() => {
+    const file = join(freshTmp("p31-21-driver-"), "fifo-driver.mjs");
+    writeFileSync(
+      file,
+      [
+        'import { mkdirSync, writeFileSync, existsSync, readdirSync } from "node:fs";',
+        'import { join } from "node:path";',
+        'import { pathToFileURL } from "node:url";',
+        "const [, , jsPath, mode, base, noteIdArg] = process.argv;",
+        "const io = await import(pathToFileURL(jsPath).href);",
+        "const TASK = " + JSON.stringify(FIFO_TASK) + ";",
+        "const out = { verdict: \"n/a\", message: \"\", notes: [], extra: \"\" };",
+        "const observation = {",
+        '  kind: "observation", by: "qe", at: "2026-09-09T05:00:00Z",',
+        '  verified_by: "", confidence: "medium", refs: [], supersedes: null,',
+        "};",
+        "const disposed = {",
+        '  kind: "finding", by: "security-nfr", at: "2026-09-08T01:00:00Z",',
+        '  verified_by: "human:alice", confidence: "high", refs: [], supersedes: null,',
+        "};",
+        "const lean = join(base, \"lean\");",
+        "mkdirSync(join(lean, \".grugops\"), { recursive: true });",
+        "try {",
+        '  if (mode === "note") {',
+        '    const ctx = join(base, "ctx");',
+        "    mkdirSync(join(ctx, TASK, \"notes\"), { recursive: true });",
+        '    out.message = io.appendNote(TASK, observation, "probe body", ctx, noteIdArg, lean);',
+        '    out.verdict = "write";',
+        '  } else if (mode === "promote") {',
+        '    const strict = join(base, "strict");',
+        '    mkdirSync(join(strict, ".grugops"), { recursive: true });',
+        '    writeFileSync(join(strict, ".grugops", "factory.config.json"), JSON.stringify({',
+        '      context: { human_admission: "high-severity", audit_retention: "retained" },',
+        "    }));",
+        '    const origin = join(base, "originproj", ".grugops", "context");',
+        '    const dest = join(base, "destproj", ".grugops", "context");',
+        "    mkdirSync(origin, { recursive: true });",
+        "    mkdirSync(dest, { recursive: true });",
+        '    const originId = io.appendNote(TASK, disposed, "the disposed body", origin, undefined, lean);',
+        "    out.extra = originId;",
+        '    out.message = io.promoteAdmitted(TASK, originId, disposed, "the disposed body", origin, dest, strict);',
+        '    out.verdict = "write";',
+        "  } else {",
+        '    throw new Error("unknown mode: " + mode);',
+        "  }",
+        "} catch (e) {",
+        '  out.verdict = "refuse";',
+        "  out.message = String(e && e.message ? e.message : e);",
+        "}",
+        "// The destination listing is taken AFTER the call either way, so a refusal that wrote",
+        "// something is visible rather than inferred.",
+        'const destNotes = mode === "promote"',
+        '  ? join(base, "destproj", ".grugops", "context", TASK, "notes")',
+        '  : join(base, "ctx", TASK, "notes");',
+        "out.notes = existsSync(destNotes) ? readdirSync(destNotes).sort() : [];",
+        "console.log(JSON.stringify(out));",
+      ].join("\n"),
+    );
+    return file;
+  })();
+
+  interface Driven {
+    readonly timedOut: boolean;
+    readonly ms: number;
+    readonly status: number | null;
+    readonly verdict: string;
+    readonly message: string;
+    readonly notes: readonly string[];
+    readonly extra: string;
+    readonly rawOut: string;
+    readonly rawErr: string;
+  }
+
+  function drive(mode: string, base: string, noteId?: string): Driven {
+    const started = Date.now();
+    const r = spawnSync(
+      process.execPath,
+      [FIFO_DRIVER, CONTEXT_IO_JS, mode, base, ...(noteId === undefined ? [] : [noteId])],
+      { encoding: "utf8", timeout: PROBE_TIMEOUT_MS, killSignal: "SIGKILL" },
+    );
+    const ms = Date.now() - started;
+    const rawOut = r.stdout ?? "";
+    const rawErr = r.stderr ?? "";
+    // A SIGKILL'd process printed nothing parseable — that IS the hang, and it is reported as one
+    // rather than crashing the case on a JSON parse error nobody can read.
+    const timedOut = r.signal === "SIGKILL" || (r.error as NodeJS.ErrnoException | undefined)?.code === "ETIMEDOUT";
+    let parsed: { verdict?: string; message?: string; notes?: string[]; extra?: string } = {};
+    const lastLine = rawOut.trim().split("\n").filter((l) => l.startsWith("{")).pop();
+    if (lastLine !== undefined) {
+      try {
+        parsed = JSON.parse(lastLine) as typeof parsed;
+      } catch {
+        /* left empty: the assertions below report the raw streams */
+      }
+    }
+    return {
+      timedOut,
+      ms,
+      status: r.status,
+      verdict: parsed.verdict ?? "",
+      message: parsed.message ?? "",
+      notes: parsed.notes ?? [],
+      extra: parsed.extra ?? "",
+      rawOut,
+      rawErr,
+    };
+  }
+
+  /** One base directory per case; the FIFO/directory/device is planted before the driver runs. */
+  function stagedNotePath(base: string, id: string): string {
+    const notes = join(base, "ctx", FIFO_TASK, "notes");
+    mkdirSync(notes, { recursive: true });
+    return join(notes, `${id}.md`);
+  }
+
+  function mkfifoAt(path: string): void {
+    const r = spawnSync("mkfifo", [path], { encoding: "utf8" });
+    expect(
+      r.status,
+      `PREMISE: mkfifo failed at ${path} (${r.stderr ?? ""}) — every FIFO case below would then ` +
+        "measure an ordinary absent path and pass vacuously",
+    ).toBe(0);
+    expect(statSync(path).isFIFO(), "PREMISE: the planted path is not a FIFO").toBe(true);
+  }
+
+  const FIFO_ID = "20260909T050000Z-qe-observation-cafe0001";
+
+  it("PREMISE: the same driver WRITES when the note path is absent (the control)", () => {
+    const base = freshTmp("p31-21-ctrl-");
+    const r = drive("note", base, "20260909T050000Z-qe-observation-deadbeef");
+    expect(r.timedOut, "PREMISE: even the control hung — the harness measures nothing").toBe(false);
+    expect(r.verdict, `control refused instead of writing: ${r.message}${r.rawErr}`).toBe("write");
+    expect(r.notes).toEqual(["20260909T050000Z-qe-observation-deadbeef.md"]);
+  });
+
+  it("GREEN 1: a FIFO at a note path is a NAMED refusal in bounded time, not a hang", () => {
+    const base = freshTmp("p31-21-fifo-note-");
+    const path = stagedNotePath(base, FIFO_ID);
+    mkfifoAt(path);
+    const r = drive("note", base, FIFO_ID);
+    expect(
+      r.timedOut,
+      `CR-12 IS OPEN: the note write did not answer within ${PROBE_TIMEOUT_MS}ms. ` +
+        `stdout=${JSON.stringify(r.rawOut)} stderr=${JSON.stringify(r.rawErr)}`,
+    ).toBe(false);
+    expect(r.ms, "the refusal was not bounded").toBeLessThan(BOUNDED_MS);
+    expect(r.verdict, `the FIFO note path was accepted: ${r.message}`).toBe("refuse");
+    expect(r.message).toContain(mod.NOTE_PATH_NOT_REGULAR_FILE_CLAUSE);
+    expect(r.message, "the refusal does not name the position it refused").toContain(path);
+    // Nothing was written: the position still holds the planted FIFO, not a note.
+    expect(statSync(path).isFIFO(), "the write replaced the planted FIFO").toBe(true);
+  });
+
+  it("GREEN 1b: a DIRECTORY at a note path is the SAME refusal — the rule is not a FIFO special case", () => {
+    const base = freshTmp("p31-21-dir-note-");
+    const id = "20260909T050000Z-qe-observation-cafe0002";
+    const path = stagedNotePath(base, id);
+    mkdirSync(path, { recursive: true });
+    const r = drive("note", base, id);
+    expect(r.timedOut, "the directory case did not answer").toBe(false);
+    expect(r.ms).toBeLessThan(BOUNDED_MS);
+    expect(r.verdict, `a directory at the note path was accepted: ${r.message}`).toBe("refuse");
+    expect(r.message).toContain(mod.NOTE_PATH_NOT_REGULAR_FILE_CLAUSE);
+    expect(statSync(path).isDirectory()).toBe(true);
+  });
+
+  it("GREEN 1c: a symlink to a CHARACTER DEVICE at a note path is the same refusal", () => {
+    const base = freshTmp("p31-21-dev-note-");
+    const id = "20260909T050000Z-qe-observation-cafe0003";
+    const path = stagedNotePath(base, id);
+    symlinkSync("/dev/zero", path);
+    const r = drive("note", base, id);
+    expect(r.timedOut, "the character-device case did not answer").toBe(false);
+    expect(r.ms).toBeLessThan(BOUNDED_MS);
+    expect(r.verdict, `a character device at the note path was accepted: ${r.message}`).toBe("refuse");
+    expect(r.message).toContain(mod.NOTE_PATH_NOT_REGULAR_FILE_CLAUSE);
+  });
+
+  it("GREEN 2: a FIFO at the GOV-02 ledger path DECLINES the promotion, and NO note is written", () => {
+    const base = freshTmp("p31-21-fifo-ledger-");
+    const audit = join(base, "strict", ".grugops", "audit");
+    mkdirSync(audit, { recursive: true });
+    mkfifoAt(join(audit, "admissions.jsonl"));
+    const r = drive("promote", base);
+    expect(
+      r.timedOut,
+      `CR-12 IS OPEN at the ledger: the promotion did not answer within ${PROBE_TIMEOUT_MS}ms. ` +
+        `stdout=${JSON.stringify(r.rawOut)} stderr=${JSON.stringify(r.rawErr)}`,
+    ).toBe(false);
+    expect(r.ms).toBeLessThan(BOUNDED_MS);
+    expect(r.verdict, `the unreadable ledger was treated as "no record": ${r.message}`).toBe("refuse");
+    expect(r.message).toContain("DECLINED (unreadable-audit-ledger)");
+    expect(r.message).toContain(mod.PROMOTE_ADMITTED_DECLINES["unreadable-audit-ledger"]);
+    expect(r.message).toContain("Nothing was written.");
+    // WR-22's whole point: the pre-fix run had ALREADY written the note before it wedged.
+    expect(
+      r.notes,
+      "the destination holds a human-disposed finding the ledger never recorded — WR-22 is open",
+    ).toEqual([]);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// 31-21 — the boundaries CR-11 fixed are RE-MEASURED unmoved, and the empty case is NAMED.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+describe("31-21 — the one reader did not move a boundary the previous round decided", () => {
+  const T = "T-511";
+
+  function contextStore(prefix: string): string {
+    const store = join(freshTmp(prefix), ".grugops", "context");
+    mkdirSync(store, { recursive: true });
+    return store;
+  }
+  function leanRoot(): string {
+    const dir = freshTmp("p31-21-lean-");
+    mkdirSync(join(dir, ".grugops"), { recursive: true });
+    return dir;
+  }
+
+  const observation = {
+    kind: "observation",
+    by: "qe",
+    at: "2026-09-09T06:00:00Z",
+    verified_by: "",
+    confidence: "high",
+    refs: [],
+    supersedes: null,
+  } as Parameters<typeof mod.appendNote>[1];
+
+  it("CONTROL 1: destination bytes EXACTLY equal to the candidate stay an idempotent no-op", () => {
+    const ctx = contextStore("p31-21-idem-");
+    const lean = leanRoot();
+    const id = mod.appendNote(T, observation, "the same body", ctx, undefined, lean);
+    const before = readFileSync(join(ctx, T, "notes", `${id}.md`), "utf8");
+    // The SAME bytes, written again through the same writer with the same id.
+    expect(mod.appendNote(T, observation, "the same body", ctx, id, lean)).toBe(id);
+    expect(readFileSync(join(ctx, T, "notes", `${id}.md`), "utf8")).toBe(before);
+    expect(readdirSync(join(ctx, T, "notes"))).toEqual([`${id}.md`]);
+  });
+
+  it("CONTROL 2: destination bytes that DIFFER under the same id still refuse, byte-unchanged", () => {
+    const ctx = contextStore("p31-21-appendonly-");
+    const lean = leanRoot();
+    const id = mod.appendNote(T, observation, "the original body", ctx, undefined, lean);
+    const before = readFileSync(join(ctx, T, "notes", `${id}.md`), "utf8");
+    expect(() => mod.appendNote(T, observation, "a DIFFERENT body", ctx, id, lean)).toThrow(
+      /APPEND-ONLY/,
+    );
+    expect(readFileSync(join(ctx, T, "notes", `${id}.md`), "utf8")).toBe(before);
+  });
+
+  it("EMPTY: a ZERO-BYTE existing note file is the append-only refusal, not the idempotent case", () => {
+    const ctx = contextStore("p31-21-empty-");
+    const lean = leanRoot();
+    const id = "20260909T060000Z-qe-observation-0000beef";
+    mkdirSync(join(ctx, T, "notes"), { recursive: true });
+    writeFileSync(join(ctx, T, "notes", `${id}.md`), "");
+    expect(statSync(join(ctx, T, "notes", `${id}.md`)).size).toBe(0);
+    expect(
+      () => mod.appendNote(T, observation, "a body", ctx, id, lean),
+      "a zero-byte destination read as the idempotent case and the write proceeded",
+    ).toThrow(/APPEND-ONLY/);
+    // Untouched: an empty file is still a note this write may not replace.
+    expect(statSync(join(ctx, T, "notes", `${id}.md`)).size).toBe(0);
+  });
+
+  it("EMPTY (converse): an ABSENT note path proceeds to the write", () => {
+    const ctx = contextStore("p31-21-absent-");
+    const lean = leanRoot();
+    const id = "20260909T060000Z-qe-observation-0000cafe";
+    expect(mod.appendNote(T, observation, "a body", ctx, id, lean)).toBe(id);
+    expect(existsSync(join(ctx, T, "notes", `${id}.md`))).toBe(true);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// 31-21 CONTROL 4 — the configuration reader's own behaviour survives the EXTRACTION byte for byte.
+//
+// The reader `readGovernanceConfigCandidate` implements is being lifted into one module-private
+// authority that `writeNoteFile` and `ledgerRecordsId` also call. An extraction that changed what
+// the CONFIG reader answers would trade CR-12 for a governance regression, so every arm of its
+// discipline is driven case by case here — the same five shapes the extracted reader must decide.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+describe("31-21 CONTROL 4 — the governance-config reader answers identically after the extraction", () => {
+  function projectRoot(prefix: string): string {
+    const dir = freshTmp(prefix);
+    mkdirSync(join(dir, ".grugops"), { recursive: true });
+    return dir;
+  }
+  const configPath = (root: string): string => join(root, ".grugops", "factory.config.json");
+
+  it("ENOENT: no config at any candidate position is ABSENT and runs lean, never `unreadable`", () => {
+    const root = projectRoot("p31-21-cfg-enoent-");
+    const g = mod.readGovernanceConfig(root);
+    expect(g.source).not.toBe("unreadable");
+    expect(g.config.human_admission).toBe("off");
+  });
+
+  it("a regular file reads: the dial it declares is the dial reported", () => {
+    const root = projectRoot("p31-21-cfg-ok-");
+    writeFileSync(
+      configPath(root),
+      JSON.stringify({ context: { human_admission: "high-severity", audit_retention: "retained" } }),
+    );
+    const g = mod.readGovernanceConfig(root);
+    expect(g.source).toBe("ok");
+    expect(g.config.human_admission).toBe("high-severity");
+    expect(g.config.audit_retention).toBe("retained");
+  });
+
+  it("a SYMLINK to a regular file still reads — fstat stats THROUGH the descriptor, deliberately", () => {
+    const root = projectRoot("p31-21-cfg-symlink-");
+    const real = join(freshTmp("p31-21-cfg-target-"), "real.json");
+    writeFileSync(real, JSON.stringify({ context: { human_admission: "all" } }));
+    symlinkSync(real, configPath(root));
+    const g = mod.readGovernanceConfig(root);
+    expect(g.source, "a config legitimately delivered through a symlink was refused").toBe("ok");
+    expect(g.config.human_admission).toBe("all");
+  });
+
+  it("EACCES: a present-but-unopenable config is `unreadable` (fail closed), never absent", () => {
+    const root = projectRoot("p31-21-cfg-eacces-");
+    writeFileSync(configPath(root), JSON.stringify({ context: { human_admission: "off" } }));
+    chmodSync(configPath(root), 0o000);
+    try {
+      // Running as root defeats mode bits entirely; the case then measures nothing and says so.
+      let openable = true;
+      try {
+        readFileSync(configPath(root), "utf8");
+      } catch {
+        openable = false;
+      }
+      if (openable) {
+        expect(
+          process.getuid?.(),
+          "PREMISE: a 000-mode file was readable and this process is not root — the case cannot run",
+        ).toBe(0);
+        return;
+      }
+      const g = mod.readGovernanceConfig(root);
+      expect(g.source).toBe("unreadable");
+      expect(g.config.checkpoints.protected_branch_merge).toBe("block");
+    } finally {
+      chmodSync(configPath(root), 0o600);
+    }
+  });
+
+  it("a FIFO at the config position is REFUSED (RA1-2) — `unreadable`, in bounded time", () => {
+    const root = projectRoot("p31-21-cfg-fifo-");
+    const r = spawnSync("mkfifo", [configPath(root)], { encoding: "utf8" });
+    expect(r.status, `PREMISE: mkfifo failed (${r.stderr ?? ""})`).toBe(0);
+    const started = Date.now();
+    const g = mod.readGovernanceConfig(root);
+    expect(Date.now() - started, "the config read was not bounded").toBeLessThan(5000);
+    expect(g.source).toBe("unreadable");
+    expect(g.config.checkpoints.protected_branch_merge).toBe("block");
+  });
+
+  it("OVERSIZE: a config above the ceiling is refused rather than read", () => {
+    const root = projectRoot("p31-21-cfg-big-");
+    // One byte over the stated 8 MiB ceiling; the refusal is the ceiling's, not the parser's.
+    writeFileSync(configPath(root), "x".repeat(8 * 1024 * 1024 + 1));
+    const g = mod.readGovernanceConfig(root);
+    expect(g.source).toBe("unreadable");
   });
 });
