@@ -6643,3 +6643,325 @@ describe("31-15 — WR-15: the target repository's dial is read on every host", 
     }
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// 31-18 — CR-11: a promotion may not DESTROY an already-admitted note in the shared context.
+//
+// WHAT THE ROUND-4 VERIFIER MEASURED (31-VERIFICATION.md behavioural spot-check row 9, 31-REVIEW.md
+// CR-11). `promoteAdmitted` takes its write id from `sourceId`, an ARGUMENT — every other writer in
+// this module derives its id through `noteId`'s collision nonce and can therefore only ever ADD a
+// file. The route reads nothing at the destination; `writeNoteFile` checked only path containment;
+// `atomicWrite` renames onto whatever is there. Reproduced against the COMMITTED .js before any
+// source change, and quoted verbatim in 31-18-SUMMARY.md:
+//
+//   1. legitimate note admitted the normal way -> 20260908T010000Z-qe-observation-bb6438d9
+//   2. forged note REUSING that id promoted    -> 20260908T010000Z-qe-observation-bb6438d9
+//      threw: null
+//   3. notes in the shared context: ["20260908T010000Z-qe-observation-bb6438d9.md"]  (still ONE file)
+//      kind: finding / by: security-nfr / verified_by: human:mallory
+//      "The login lane passed cleanly. Nothing to see here."
+//
+// The original admitted `observation` is gone from the permanent audit trail — not superseded, not
+// folded out by replay, DELETED, with no diagnostic of any kind.
+//
+// THE FIX IS AT THE POINT OF EFFECT, NOT IN THE ONE ROUTE THE REVIEWER REACHED. The append-only
+// property is enforced at `writeNoteFile`, the module's single note-write chokepoint, so the class
+// closes for every current and future writer; and the re-binding route ALSO declines by name, before
+// the chokepoint is reached, so a reader of `PROMOTE_ADMITTED_DECLINES` finds the refusal where they
+// look and "nothing was written" stays true by construction rather than by cleanup.
+//
+// WHY EVERY ORIGIN BELOW IS SHAPED `<dir>/.grugops/context`. Plan 31-18 task 2 constrains the proof's
+// left operand to a location the module has independent reason to trust (WR-17). Shaping the origins
+// here keeps these cases measuring the DESTINATION read — which is what CR-11 is about — rather than
+// flipping to the operand clause the moment that constraint lands.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+describe("31-18 — CR-11: a promotion cannot destroy admitted evidence", () => {
+  const CR11_TASK = "T-500";
+
+  /** A temp project root, optionally carrying a governance configuration at the repo-drop location. */
+  function projectWith(context: Record<string, unknown> | null): string {
+    const dir = freshTmp("p31-18-proj-");
+    if (context !== null) {
+      mkdirSync(join(dir, ".grugops"), { recursive: true });
+      writeFileSync(
+        join(dir, ".grugops", "factory.config.json"),
+        JSON.stringify({ context }, null, 2),
+      );
+    }
+    return dir;
+  }
+
+  /** A CONTEXT STORE — the shape the module recognises, not an arbitrary caller-named directory. */
+  function contextStore(prefix: string): string {
+    const store = join(freshTmp(prefix), ".grugops", "context");
+    mkdirSync(store, { recursive: true });
+    return store;
+  }
+
+  function noteFiles(root: string, task = CR11_TASK): string[] {
+    const dir = join(root, task, "notes");
+    return existsSync(dir) ? readdirSync(dir).sort() : [];
+  }
+
+  function noteText(root: string, id: string, task = CR11_TASK): string {
+    return readFileSync(join(root, task, "notes", `${id}.md`), "utf8");
+  }
+
+  const ORIGINAL_BODY = "The login lane FAILED on 3 of 5 scenarios.";
+  const FORGED_BODY = "The login lane passed cleanly. Nothing to see here.";
+
+  const observation = {
+    kind: "observation",
+    by: "qe",
+    at: "2026-09-08T01:00:00Z",
+    verified_by: "",
+    confidence: "high",
+    refs: [],
+    supersedes: null,
+  } as Parameters<typeof mod.appendNote>[1];
+
+  function forgedFinding(
+    over: Partial<Parameters<typeof mod.appendNote>[1]> = {},
+  ): Parameters<typeof mod.appendNote>[1] {
+    return {
+      kind: "finding",
+      by: "security-nfr",
+      at: "2026-09-08T01:00:00Z",
+      verified_by: "human:mallory",
+      confidence: "high",
+      refs: [],
+      supersedes: null,
+      ...over,
+    } as Parameters<typeof mod.appendNote>[1];
+  }
+
+  /**
+   * The verifier's four-step staging, reproduced exactly: a legitimate note admitted at the
+   * destination the ORDINARY way, then a forged note REUSING that id authored in a caller-controlled
+   * origin store, ready to promote.
+   */
+  function stageTheOverwrite(): {
+    strict: string;
+    dest: string;
+    origin: string;
+    id: string;
+    originalText: string;
+  } {
+    const strict = projectWith({ human_admission: "high-severity", audit_retention: "retained" });
+    const lean = projectWith(null);
+    const dest = contextStore("p31-18-shared-ctx-");
+    const id = mod.appendNote(CR11_TASK, observation, ORIGINAL_BODY, dest, undefined, strict);
+    expect(
+      id,
+      "PREMISE: the destination seed did not write, so nothing below measures an overwrite",
+    ).toBeTruthy();
+    const originalText = noteText(dest, id);
+    // The forged note is authored by the CALLER, in its own store, under the destination's id. It is
+    // seeded through the lean dial because that is the posture under which a caller can author a
+    // human-stamped finding at all — the T-31-14-03 hand-authored-origin residual, used deliberately.
+    const origin = contextStore("p31-18-forged-origin-");
+    mod.appendNote(CR11_TASK, forgedFinding(), FORGED_BODY, origin, id, lean);
+    expect(noteFiles(origin)).toEqual([`${id}.md`]);
+    return { strict, dest, origin, id, originalText };
+  }
+
+  it("PREMISE: no approval grant leaks in from the launching shell", () => {
+    expect(
+      process.env.GRUGOPS_ADMISSION_APPROVED_BY,
+      "PREMISE: an approval grant is present in this process env, so every seed below would be " +
+        "admitted for a reason this block does not control",
+    ).toBeUndefined();
+  });
+
+  it("GREEN 1: the verifier's own reproduction is REFUSED, by name, with nothing written", () => {
+    const { strict, dest, origin, id } = stageTheOverwrite();
+    let message = "";
+    let returned: string | null = null;
+    try {
+      returned = mod.promoteAdmitted(CR11_TASK, id, forgedFinding(), FORGED_BODY, origin, dest, strict);
+    } catch (e) {
+      message = (e as Error).message;
+    }
+    expect(
+      returned,
+      "the forged promotion SUCCEEDED — CR-11 is open: an admitted note was silently replaced",
+    ).toBeNull();
+    expect(message).toContain("DECLINED (destination-id-occupied)");
+    expect(message).toContain(mod.PROMOTE_ADMITTED_DECLINES["destination-id-occupied"]);
+    expect(message).toContain("Nothing was written.");
+  });
+
+  it("GREEN 2: after the refused promotion the destination's ORIGINAL note is byte-identical", () => {
+    const { strict, dest, origin, id, originalText } = stageTheOverwrite();
+    expect(() =>
+      mod.promoteAdmitted(CR11_TASK, id, forgedFinding(), FORGED_BODY, origin, dest, strict),
+    ).toThrow(/DECLINED \(destination-id-occupied\)/);
+    expect(noteFiles(dest)).toEqual([`${id}.md`]);
+    expect(
+      noteText(dest, id),
+      "the destination file's bytes moved even though the promotion was refused",
+    ).toBe(originalText);
+  });
+
+  it("GREEN 2b: render() and currentState() still report the ORIGINAL note after the refusal", () => {
+    const { strict, dest, origin, id } = stageTheOverwrite();
+    expect(() =>
+      mod.promoteAdmitted(CR11_TASK, id, forgedFinding(), FORGED_BODY, origin, dest, strict),
+    ).toThrow(/DECLINED \(destination-id-occupied\)/);
+    const live = mod.currentState(mod.readContext(CR11_TASK, dest));
+    expect(live).toHaveLength(1);
+    expect(live[0].id).toBe(id);
+    expect(live[0].kind).toBe("observation");
+    expect(live[0].by).toBe("qe");
+    expect(live[0].verified_by).toBe("");
+    expect(live[0].body).toBe(ORIGINAL_BODY);
+    mod.render(CR11_TASK, dest);
+    const index = readFileSync(join(dest, CR11_TASK, "index.md"), "utf8");
+    expect(index).toContain("observation");
+    expect(
+      index,
+      "the replay reports the forged replacement — the substrate lost a note without saying so",
+    ).not.toContain("human:mallory");
+  });
+
+  // ── THE DECIDED IDEMPOTENT CASE. Identical destination bytes are a re-run compaction, not an
+  //    overwrite: there is nothing to destroy, and the post-condition the caller wants already
+  //    holds. It PROCEEDS as a no-op, and the register says so rather than the rename primitive.
+  it("GREEN 3: promoting bytes IDENTICAL to what the destination holds is an idempotent no-op", () => {
+    const strict = projectWith({ human_admission: "high-severity", audit_retention: "retained" });
+    const origin = contextStore("p31-18-idem-origin-");
+    const dest = contextStore("p31-18-idem-dest-");
+    const disposed = forgedFinding({ verified_by: "human:alice" });
+    const originId = mod.admitAndAppend(CR11_TASK, disposed, "the disposed body", origin, strict)
+      .id as string;
+    expect(originId).toBeTruthy();
+
+    const first = mod.promoteAdmitted(CR11_TASK, originId, disposed, "the disposed body", origin, dest, strict);
+    expect(first).toBe(originId);
+    const afterFirst = noteText(dest, originId);
+
+    const second = mod.promoteAdmitted(CR11_TASK, originId, disposed, "the disposed body", origin, dest, strict);
+    expect(second, "the idempotent re-promotion was refused — the decided case did not hold").toBe(originId);
+    expect(noteFiles(dest)).toEqual([`${originId}.md`]);
+    expect(noteText(dest, originId)).toBe(afterFirst);
+  });
+
+  // ── CONTROL 1 — the ordinary path is unchanged. A first promotion into a destination holding no
+  //    note at that id still succeeds and still produces the origin file's bytes.
+  it("CONTROL 1: a promotion into an EMPTY destination still succeeds, byte-identically", () => {
+    const strict = projectWith({ human_admission: "high-severity", audit_retention: "retained" });
+    const origin = contextStore("p31-18-ctrl1-origin-");
+    const dest = contextStore("p31-18-ctrl1-dest-");
+    const disposed = forgedFinding({ verified_by: "human:alice" });
+    const originId = mod.admitAndAppend(CR11_TASK, disposed, "the disposed body", origin, strict)
+      .id as string;
+    const promoted = mod.promoteAdmitted(CR11_TASK, originId, disposed, "the disposed body", origin, dest, strict);
+    expect(promoted).toBe(originId);
+    expect(noteFiles(dest)).toEqual([`${originId}.md`]);
+    expect(noteText(dest, promoted)).toBe(noteText(origin, originId));
+  });
+
+  // ── CONTROL 2 — the entry set is unchanged. A §14-gate stamp and an artifact-ref never enter the
+  //    proof; they fall through to full admission and re-bind at the destination (UATX-04).
+  it("CONTROL 2: a §14-gate finding and an artifact-ref still fall through and re-bind at the destination", () => {
+    const strict = projectWith({ human_admission: "high-severity", audit_retention: "retained" });
+    const origin = contextStore("p31-18-ctrl2-origin-");
+    const withVerdict = contextStore("p31-18-ctrl2-green-");
+    const withoutVerdict = contextStore("p31-18-ctrl2-nogreen-");
+    const RUN = "RUN-31-18-CTRL2";
+    mod.emitVerdict(CR11_TASK, RUN, "clean", FIXTURE_GATE_SHA, withVerdict);
+
+    const gateFinding = forgedFinding({ by: "qe-e2e", verified_by: `§14-gate#${RUN}` });
+    const gateId = mod.promoteAdmitted(CR11_TASK, "no-such-origin-id", gateFinding, "b", origin, withVerdict, strict);
+    expect(gateId).toBeTruthy();
+    expect(gateId).not.toBe("no-such-origin-id");
+    expect(() =>
+      mod.promoteAdmitted(CR11_TASK, "no-such-origin-id", gateFinding, "b", origin, withoutVerdict, strict),
+    ).toThrow(/no live green §14-gate verdict found/);
+
+    const evidence = {
+      kind: "artifact-ref",
+      by: "qe-e2e",
+      at: "2026-09-08T02:30:00Z",
+      verified_by: "",
+      confidence: "high",
+      refs: ["tests/e2e/uat/TICKET-1.uat.spec.ts"],
+      supersedes: null,
+      sha: FIXTURE_GATE_SHA,
+      gate_run: RUN,
+      content_hash: "0123456789abcdef".repeat(4),
+    } as Parameters<typeof mod.appendNote>[1];
+    expect(
+      mod.promoteAdmitted(CR11_TASK, "no-such-origin-id", evidence, "b", origin, withVerdict, strict),
+    ).toBeTruthy();
+    expect(() =>
+      mod.promoteAdmitted(CR11_TASK, "no-such-origin-id", evidence, "b", origin, withoutVerdict, strict),
+    ).toThrow(/no live green §14-gate verdict found/);
+    expect(noteFiles(withoutVerdict)).toEqual([]);
+  });
+
+  // ── CONTROL 3 — round-3's closure is unmoved. The legitimately human-disposed note CR-08 was
+  //    about still promotes, and the fabricated §14-gate stamp is still refused through both routes.
+  it("CONTROL 3: the CR-08 legitimate promotion still succeeds and the fabricated stamp is still refused", () => {
+    const strict = projectWith({ human_admission: "high-severity", audit_retention: "retained" });
+    const origin = contextStore("p31-18-ctrl3-origin-");
+    const dest = contextStore("p31-18-ctrl3-dest-");
+    const disposed = forgedFinding({ verified_by: "human:alice" });
+    const originId = mod.admitAndAppend(CR11_TASK, disposed, "the disposed body", origin, strict).id as string;
+    expect(mod.promoteAdmitted(CR11_TASK, originId, disposed, "the disposed body", origin, dest, strict)).toBe(
+      originId,
+    );
+
+    const fabricated = forgedFinding({ by: "qe-e2e", verified_by: "§14-gate#fabricated-run-id" });
+    const destA = contextStore("p31-18-ctrl3-a-");
+    expect(() => mod.appendNote(CR11_TASK, fabricated, "b", destA, undefined, strict)).toThrow(
+      /no live green §14-gate verdict found/,
+    );
+    const destB = contextStore("p31-18-ctrl3-b-");
+    expect(() =>
+      mod.promoteAdmitted(CR11_TASK, "20260908T020000Z-qe-e2e-finding-deadbeef", fabricated, "b", origin, destB, strict),
+    ).toThrow(/no live green §14-gate verdict found/);
+    expect(noteFiles(destA)).toEqual([]);
+    expect(noteFiles(destB)).toEqual([]);
+  });
+
+  // ── THE INVARIANT AT THE POINT OF EFFECT. The clause above closes the route the reviewer reached;
+  //    this closes the CLASS. `appendNote` accepts a caller-chosen `precomputedId` and reaches the
+  //    same chokepoint, so it is driven at an occupied id directly — no re-binding involved.
+  it("THE CHOKEPOINT: appendNote at an OCCUPIED id is refused append-only, and the original survives", () => {
+    const lean = projectWith(null);
+    const dest = contextStore("p31-18-chokepoint-");
+    const id = mod.appendNote(CR11_TASK, observation, ORIGINAL_BODY, dest, undefined, lean);
+    const before = noteText(dest, id);
+    let message = "";
+    try {
+      mod.appendNote(
+        CR11_TASK,
+        { ...observation, by: "architect-design" } as Parameters<typeof mod.appendNote>[1],
+        "a different body entirely",
+        dest,
+        id,
+        lean,
+      );
+    } catch (e) {
+      message = (e as Error).message;
+    }
+    expect(message, "the write chokepoint accepted a rewrite of an existing note").toContain(
+      "APPEND-ONLY",
+    );
+    expect(message).toContain(id);
+    expect(noteFiles(dest)).toEqual([`${id}.md`]);
+    expect(noteText(dest, id)).toBe(before);
+  });
+
+  it("THE CHOKEPOINT: re-writing the IDENTICAL bytes is the decided no-op, not a refusal", () => {
+    const lean = projectWith(null);
+    const dest = contextStore("p31-18-chokepoint-idem-");
+    const id = mod.appendNote(CR11_TASK, observation, ORIGINAL_BODY, dest, undefined, lean);
+    const before = noteText(dest, id);
+    expect(mod.appendNote(CR11_TASK, observation, ORIGINAL_BODY, dest, id, lean)).toBe(id);
+    expect(noteFiles(dest)).toEqual([`${id}.md`]);
+    expect(noteText(dest, id)).toBe(before);
+  });
+});

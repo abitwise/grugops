@@ -2880,3 +2880,319 @@ describe("31-14 — the SUMMARY's decline enumeration equals the derived set", (
     ).toEqual(derivedDeclineKeys(CONTEXT_IO_TS));
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// PART SIX-E — the DESTINATION-LIVENESS axis (31-18, CR-11).
+//
+// THE AXIS NOBODY DROVE, AND WHY NO GREEN SUITE SAW CR-11. Every promotion probe in rounds 1 through
+// 4 of this phase promoted into a FRESH destination. So the question "what does this writer do when
+// the destination ALREADY holds a note at the id it is about to write?" was never asked of any
+// writer, and `promoteAdmitted` — the one writer that takes its id from an ARGUMENT rather than
+// deriving it — silently replaced an admitted note with no diagnostic, with a green suite.
+//
+// THE AXIS IS DERIVED, NOT LISTED. The writer set is the one PART ONE derives. Each writer's
+// destination-id SOURCE is derived too: a writer whose own body calls `noteId` mints its id behind a
+// `randomUUID` collision nonce and can only ever ADD a file; a writer that does not is taking its id
+// from somewhere else, which is the shape CR-11 is about. Both the membership and the classification
+// are asserted in BOTH directions with their cardinalities separate, so a new writer — of either
+// class — arrives as a failing derived case rather than as the next round's finding.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+/** The id-minting authority every derived-id writer calls. Named once so the derivation reads. */
+const ID_MINTER = "noteId";
+
+type DestinationIdSource = "derived" | "caller";
+
+/**
+ * THE FOURTH DERIVATION: how each derived note writer's destination id is decided.
+ *
+ * A writer whose own body calls the id minter derives its id; anything else takes it from a
+ * parameter or from a value a caller supplied. This reads the writer's OWN body rather than its
+ * closure, because a writer that reaches the minter only through a shared helper (`appendNote` and
+ * `promoteAdmitted` both reach it through `composeValidatedNote`) is passing that helper an id it
+ * was given — which is exactly the distinction the axis turns on.
+ */
+function deriveDestinationIdSources(sourcePath: string): Map<string, DestinationIdSource> {
+  const analysis = analyze(sourcePath);
+  const out = new Map<string, DestinationIdSource>();
+  for (const name of deriveNoteWriters(sourcePath)) {
+    out.set(name, (analysis.calls.get(name)?.has(ID_MINTER) ?? false) ? "derived" : "caller");
+  }
+  return out;
+}
+
+interface DestinationLivenessBinding {
+  /** How this writer's destination id is decided — asserted against the derivation above. */
+  readonly idSource: DestinationIdSource;
+  /** The written decision (or named residual) for this writer at an occupied destination. */
+  readonly reason: string;
+  /** Drive the writer into a destination that ALREADY holds a note. Returns nothing; it must write. */
+  readonly driveBesideExisting: (dest: string, task: string, repoRoot: string) => void;
+  /**
+   * Aim the writer at the OCCUPIED id itself. Present only for a caller-id writer — a derived-id
+   * writer cannot be aimed, which is precisely its binding. Returns the refusal message.
+   */
+  readonly aimAtOccupied?: (dest: string, task: string, repoRoot: string, occupied: string) => string;
+}
+
+const LIVENESS_TASK = "destination-liveness";
+const LIVENESS_BODY = "the note already living at the destination";
+
+/** Plant ONE note at a destination through the ordinary writer, and return its id and bytes. */
+function plantExistingNote(dest: string, repoRoot: string): { id: string; text: string } {
+  const id = mod.appendNote(LIVENESS_TASK, softNote(), LIVENESS_BODY, dest, undefined, repoRoot);
+  expect(id, "PREMISE: the destination seed did not write, so no case below faces a live note").toBeTruthy();
+  return { id, text: readFileSync(join(dest, LIVENESS_TASK, "notes", `${id}.md`), "utf8") };
+}
+
+const LIVENESS_CHECKPOINT_INPUT = {
+  checkpoint: "protected_branch_merge",
+  declared: "block",
+  effective: "block",
+  authorizedBy: null,
+  envVarName: "GRUGOPS_FLOOR_PROTECTED_BRANCH_MERGE",
+  outcome: "refused",
+  actionApproval: null,
+  actor: "tool=Bash session=s1",
+  command: "git push origin main",
+} as const;
+
+/**
+ * ONE BINDING PER DERIVED NOTE WRITER. Every member states what it does at a destination that
+ * already holds a note, and every member is DRIVEN there — never described.
+ */
+const DESTINATION_LIVENESS: Readonly<Record<string, DestinationLivenessBinding>> = Object.freeze({
+  admitAndAppend: {
+    idSource: "derived",
+    reason:
+      "Derives its id through noteId's randomUUID nonce in BOTH branches, so no caller can aim it " +
+      "at an occupied id: it can only ever ADD a file. Still subject to the append-only chokepoint.",
+    driveBesideExisting: (dest, task, repoRoot) => {
+      const result = mod.admitAndAppend(task, softNote({ at: "2026-09-08T04:00:00Z" }), "beside", dest, repoRoot);
+      expect(result.findings).toEqual([]);
+      expect(result.id).toBeTruthy();
+    },
+  },
+  appendNote: {
+    idSource: "caller",
+    reason:
+      "Accepts a caller-chosen precomputedId (the frozen-identity seam admitAndAppend and the " +
+      "re-binding route both use), so it CAN be aimed at an occupied id — and is refused there by " +
+      "the append-only chokepoint, with the existing note's bytes untouched.",
+    driveBesideExisting: (dest, task, repoRoot) => {
+      expect(mod.appendNote(task, softNote({ at: "2026-09-08T04:00:00Z" }), "beside", dest, undefined, repoRoot)).toBeTruthy();
+    },
+    aimAtOccupied: (dest, task, repoRoot, occupied) => {
+      try {
+        mod.appendNote(task, softNote({ by: "architect-design" }), "a different body", dest, occupied, repoRoot);
+      } catch (e) {
+        return (e as Error).message;
+      }
+      return "";
+    },
+  },
+  emitCheckpointNote: {
+    idSource: "derived",
+    reason:
+      "Derives its id through noteId inside the reserved-identity emitter; its inputs carry no id " +
+      "at all, so it can only ever ADD a file. Still subject to the append-only chokepoint.",
+    driveBesideExisting: (dest, task) => {
+      expect(mod.emitCheckpointNote({ ...LIVENESS_CHECKPOINT_INPUT }, dest, "2026-09-08T04:00:00Z", task)).toBeTruthy();
+    },
+  },
+  emitVerdict: {
+    idSource: "derived",
+    reason:
+      "Derives its NOTE id through noteId; the `id` it takes is the per-RUN gate id interpolated " +
+      "into a ref, never the destination filename. It can only ever ADD a file. Still subject to " +
+      "the append-only chokepoint.",
+    driveBesideExisting: (dest, task) => {
+      expect(
+        mod.emitVerdict(task, "RUN-31-18-LIVENESS", "clean", FABRICATED_SHA, dest, "2026-09-08T04:00:00Z"),
+      ).toBeTruthy();
+    },
+  },
+  promoteAdmitted: {
+    idSource: "caller",
+    reason:
+      "Takes its write id from sourceId, an argument — the CR-11 shape. It reads the destination " +
+      "through the same reader its proof uses and DECLINES destination-id-occupied before the " +
+      "chokepoint is reached, so nothing is written by construction rather than by cleanup.",
+    driveBesideExisting: (dest, task, repoRoot) => {
+      const origin = livenessContextStore("ctx-io-liveness-beside-origin-");
+      const note = disposedFinding({ at: "2026-09-08T04:00:00Z" });
+      const id = mod.admitAndAppend(task, note, "beside", origin, repoRoot).id as string;
+      expect(id).toBeTruthy();
+      expect(mod.promoteAdmitted(task, id, note, "beside", origin, dest, repoRoot)).toBe(id);
+    },
+    aimAtOccupied: (dest, task, repoRoot, occupied) => {
+      const origin = livenessContextStore("ctx-io-liveness-aimed-origin-");
+      const note = disposedFinding();
+      // The origin holds a DIFFERENT note under the destination's occupied id — the reviewer's own
+      // staging, minus the forgery, because the destruction does not need one.
+      const lean = freshTmp("ctx-io-liveness-lean-repo-");
+      mod.appendNote(task, note, "the origin body", origin, occupied, lean);
+      try {
+        mod.promoteAdmitted(task, occupied, note, "the origin body", origin, dest, repoRoot);
+      } catch (e) {
+        return (e as Error).message;
+      }
+      return "";
+    },
+  },
+});
+
+/** A CONTEXT STORE — the shape the module recognises, not an arbitrary caller-named directory. */
+function livenessContextStore(prefix: string): string {
+  const store = join(freshTmp(prefix), ".grugops", "context");
+  mkdirSync(store, { recursive: true });
+  return store;
+}
+
+/** The writers a caller can aim at a destination id. MEASURED, never widened to make a case pass. */
+const EXPECTED_CALLER_ID_WRITERS = Object.freeze(["appendNote", "promoteAdmitted"]);
+
+/** Its cardinality, asserted separately: a THIRD aimable writer is a decision, not a constant bump. */
+const EXPECTED_CALLER_ID_WRITER_COUNT = 2;
+
+describe("31-18 — the destination-liveness axis is derived, and every writer is driven at a live destination", () => {
+  it("PREMISE: the id-minter is a real declaration, so the classification below is not vacuous", () => {
+    const analysis = analyze(CONTEXT_IO_TS);
+    expect(
+      analysis.calls.has(ID_MINTER),
+      `PREMISE: no function named ${ID_MINTER} was declared, so every writer would classify as ` +
+        `"caller" for a reason that says nothing about how it mints an id`,
+    ).toBe(true);
+  });
+
+  it("the binding record's KEY SET equals the derived writer set, in BOTH directions", () => {
+    expect(
+      Object.keys(DESTINATION_LIVENESS).sort(),
+      "a derived note writer has no destination-liveness binding (or a binding names a writer the " +
+        "module no longer has). Every writer states what it does at a live destination, or the " +
+        "axis is not covered",
+    ).toEqual(deriveNoteWriters(CONTEXT_IO_TS));
+  });
+
+  it("the binding record has the expected COUNT", () => {
+    expect(Object.keys(DESTINATION_LIVENESS).length).toBe(EXPECTED_NOTE_WRITER_COUNT);
+  });
+
+  it("every binding's idSource equals the DERIVED classification", () => {
+    const derived = deriveDestinationIdSources(CONTEXT_IO_TS);
+    for (const [name, binding] of Object.entries(DESTINATION_LIVENESS)) {
+      expect(
+        binding.idSource,
+        `the destination-liveness binding for ${name} claims its id is ${binding.idSource}, and the ` +
+          `derivation from its own body says ${derived.get(name)}`,
+      ).toBe(derived.get(name));
+    }
+  });
+
+  it("the CALLER-id subset has the expected MEMBERS and COUNT", () => {
+    const derived = deriveDestinationIdSources(CONTEXT_IO_TS);
+    const callerIds = [...derived.entries()].filter(([, source]) => source === "caller").map(([n]) => n).sort();
+    expect(
+      callerIds,
+      "the set of writers a caller can aim at a chosen destination id moved. Each one can turn an " +
+        "append into a rewrite, so it needs an aimed case here — never a widened constant",
+    ).toEqual([...EXPECTED_CALLER_ID_WRITERS]);
+    expect(callerIds.length).toBe(EXPECTED_CALLER_ID_WRITER_COUNT);
+  });
+
+  it("every binding carries a non-empty written reason", () => {
+    for (const [name, binding] of Object.entries(DESTINATION_LIVENESS)) {
+      expect(binding.reason.length, `the binding for ${name} carries an empty reason`).toBeGreaterThan(60);
+    }
+  });
+
+  for (const name of Object.keys(DESTINATION_LIVENESS)) {
+    it(`${name}: writes BESIDE a pre-existing destination note and leaves it byte-identical`, () => {
+      const binding = DESTINATION_LIVENESS[name];
+      const repoRoot = repoWithGovernance({ human_admission: "high-severity", audit_retention: "retained" });
+      const dest = livenessContextStore(`ctx-io-liveness-beside-${name}-`);
+      const existing = plantExistingNote(dest, repoRoot);
+      binding.driveBesideExisting(dest, LIVENESS_TASK, repoRoot);
+      expect(
+        noteFileCount(dest, LIVENESS_TASK),
+        `${name} did not ADD beside the pre-existing note`,
+      ).toBe(2);
+      expect(
+        readFileSync(join(dest, LIVENESS_TASK, "notes", `${existing.id}.md`), "utf8"),
+        `${name} moved the bytes of a note it did not author`,
+      ).toBe(existing.text);
+    });
+  }
+
+  for (const name of EXPECTED_CALLER_ID_WRITERS) {
+    it(`${name}: AIMED at the occupied id, it refuses and the existing note survives`, () => {
+      const binding = DESTINATION_LIVENESS[name];
+      expect(binding.aimAtOccupied, `${name} is a caller-id writer with no aimed case`).toBeTypeOf("function");
+      const repoRoot = repoWithGovernance({ human_admission: "high-severity", audit_retention: "retained" });
+      const dest = livenessContextStore(`ctx-io-liveness-aimed-${name}-`);
+      const existing = plantExistingNote(dest, repoRoot);
+      const message = (binding.aimAtOccupied as NonNullable<typeof binding.aimAtOccupied>)(
+        dest,
+        LIVENESS_TASK,
+        repoRoot,
+        existing.id,
+      );
+      expect(
+        message,
+        `${name} was ADMITTED at an occupied destination id — an already-admitted note was replaced`,
+      ).not.toBe("");
+      expect(message).toContain(existing.id);
+      expect(noteFileCount(dest, LIVENESS_TASK), `${name} left a file behind`).toBe(1);
+      expect(
+        readFileSync(join(dest, LIVENESS_TASK, "notes", `${existing.id}.md`), "utf8"),
+        `${name} destroyed an already-admitted note at the destination`,
+      ).toBe(existing.text);
+    });
+  }
+
+  it("a derived-id writer cannot be AIMED at all — asserted, not assumed", () => {
+    const derived = deriveDestinationIdSources(CONTEXT_IO_TS);
+    const derivedIds = [...derived.entries()].filter(([, s]) => s === "derived").map(([n]) => n).sort();
+    expect(derivedIds.length).toBe(EXPECTED_NOTE_WRITER_COUNT - EXPECTED_CALLER_ID_WRITER_COUNT);
+    for (const name of derivedIds) {
+      expect(
+        DESTINATION_LIVENESS[name].aimAtOccupied,
+        `${name} derives its id, so an aimed case would be measuring something other than what it does`,
+      ).toBeUndefined();
+    }
+  });
+});
+
+// ─── PART SIX-E CONTROL — the axis DISCRIMINATES, watched failing. ─────────────────────────────
+
+describe("31-18 — the destination-liveness axis is a control, not a coincidence", () => {
+  it("a SEEDED caller-id writer moves the derived count by exactly one and arrives UNBOUND", () => {
+    const mirror = mirrorWithExtraWriter();
+    const before = deriveDestinationIdSources(CONTEXT_IO_TS);
+    const after = deriveDestinationIdSources(mirror);
+    expect(after.size).toBe(EXPECTED_NOTE_WRITER_COUNT + 1);
+    expect(after.size - before.size).toBe(1);
+    // The seeded writer takes `id` as a parameter and mints nothing, which is exactly the CR-11
+    // shape — so it classifies CALLER, and it is UNBOUND in the binding record.
+    expect(after.get(SEEDED_WRITER)).toBe("caller");
+    const callerIdsAfter = [...after.entries()].filter(([, s]) => s === "caller").map(([n]) => n).sort();
+    expect(callerIdsAfter.length).toBe(EXPECTED_CALLER_ID_WRITER_COUNT + 1);
+    const unbound = [...after.keys()].filter((n) => !(n in DESTINATION_LIVENESS));
+    expect(
+      unbound,
+      "the seeded writer was already bound, so the both-directions binding above could not have " +
+        "reported it as unbound",
+    ).toEqual([SEEDED_WRITER]);
+    // …and the same computation against the UN-SEEDED source finds nothing unbound, which is what
+    // makes the case above a control rather than a claim about mirrors in general.
+    expect([...before.keys()].filter((n) => !(n in DESTINATION_LIVENESS))).toEqual([]);
+  });
+
+  it("the non-note filesystem writer that CAN overwrite is still the disclosed residual", () => {
+    // `atomicWrite` renames onto whatever is there and is exported. It does not reach writeNoteFile,
+    // so the append-only chokepoint does not bind it — which is why it stays a NAMED residual here
+    // rather than a silence the next round finds.
+    expect(NON_NOTE_WRITER_RESIDUALS).toContain("atomicWrite");
+    expect(deriveNoteWriters(CONTEXT_IO_TS)).not.toContain("atomicWrite");
+  });
+});
