@@ -596,6 +596,15 @@ property of this mechanism, and the register must state only what the mechanism 
 | `grep -c '^#### Gap-closure decision — D-' 31-CONTEXT.md` | 10 → **11**, +1 |
 | `git diff 0f90a5b..HEAD --numstat -- 31-CONTEXT.md` | `109  0` — additions only |
 
+## A note on `requirements-completed`
+
+The frontmatter carries `requirements-completed: [UATX-06]` because that is this plan's own
+`requirements` field. `.planning/REQUIREMENTS.md` was NOT flipped: `ROADMAP.md` records that
+"UATX-01 and UATX-06 stay `[ ]` / Gaps Found throughout: only a verification round may flip them",
+and executing a gap-closure round is not verifying it. `state.requirements.mark-complete` did flip
+the checkbox and the traceability row; both were reverted by hand, and this is recorded here rather
+than left as a silent difference between two files.
+
 ## Known Stubs
 
 None. No stub, placeholder, TODO or skipped test was introduced by this plan.
