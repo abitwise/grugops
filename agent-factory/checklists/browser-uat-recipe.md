@@ -247,6 +247,10 @@ Refused in a `*.uat.spec.ts` file:
 - An `expect` call under an `if`, under an `else`, or inside a conditional expression.
 - An `expect` call as an operand of `||`, of `&&`, or of `??`.
 - An `expect` call reached through an optional call.
+- The four rows above read a CANONICALISED head, not the name written in the file. An import rename
+  (`import { expect as check }`) and a namespace (`import * as pw`) both resolve to `expect` before
+  the question is asked, and the same nearest-binding scope rule applies, so a local binding of the
+  renamed name is not an assertion head.
 - Any modifier call the rule above decides, including one reached through a call link
   (`test.info().skip(...)`), through a canonicalised import rename or namespace
   (`import { test as it }` / `import * as pw`), or through the TestInfo FIXTURE PARAMETER

@@ -5886,36 +5886,82 @@ describe("uat-spec-integrity — 31-24 CR-14/WR-23: a reference is decided by th
 
   // ── the canonicaliser's CALLERS, derived from the source rather than remembered ────────────────
 
-  it("the canonicaliser has EXACTLY TWO callers, and each passes a call-derived position", () => {
+  it("every canonicaliser caller supplies a CALL-DERIVED position, and the set is derived", () => {
     const sf = ts.createSourceFile(
       "uat-spec-integrity.ts",
       readFileSync(CHECKER_TS, "utf8"),
       ts.ScriptTarget.Latest,
       true,
     );
-    const callSites: string[] = [];
+    const collapse = (n: import("typescript").Node): string =>
+      n.getText(sf).replace(/\s+/g, " ").trim();
+
+    /** Every call of the canonicaliser, with the SCOPE ARGUMENT it supplies. */
+    const callSites: Array<{ readonly site: string; readonly scopeArg: string }> = [];
+    /** Every `const scope = …` in the module, so a caller that passes one can be followed. */
+    const scopeLocals: string[] = [];
     const walk = (node: import("typescript").Node): void => {
       if (
         ts.isCallExpression(node) &&
         ts.isIdentifier(node.expression) &&
         node.expression.text === "canonicaliseHeadSegment"
       ) {
-        callSites.push(node.getText(sf).replace(/\s+/g, " "));
+        callSites.push({
+          site: collapse(node),
+          scopeArg: node.arguments.length >= 4 ? collapse(node.arguments[3]) : "(absent)",
+        });
+      }
+      if (
+        ts.isVariableDeclaration(node) &&
+        ts.isIdentifier(node.name) &&
+        node.name.text === "scope" &&
+        node.initializer !== undefined
+      ) {
+        scopeLocals.push(collapse(node.initializer));
       }
       ts.forEachChild(node, walk);
     };
     ts.forEachChild(sf, walk);
+
+    // TWO callers, and PROBE 4 is why the number is asserted with its reason rather than as a
+    // number. The probe found the assertion arms reaching a membership question with a head the
+    // canonicaliser never saw, and a first fix added a THIRD caller inside `canonicalAssertionHead`.
+    // That caller was then DELETED: the arms ask about arm (c)'s own already-canonicalised
+    // `dottedPath`, which was measured to answer every shape the third caller answered. A caller
+    // arriving silently is the event this case exists to catch; a caller arriving with a reason is a
+    // decision, and this one was reversed on measurement rather than kept for symmetry.
     expect(
       callSites.length,
       `the canonicaliser's caller set changed. Sites: ${JSON.stringify(callSites, null, 2)}`,
     ).toBe(2);
-    for (const site of callSites) {
+
+    // PREMISE: exactly one `scope` local exists, and it is derived from a NODE's own start.
+    expect(scopeLocals.length, "the one `scope` local is missing or duplicated").toBe(1);
+    expect(
+      scopeLocals[0],
+      "the `scope` local must carry the position of the call being decided, never a constant",
+    ).toContain("node.getStart(sf)");
+
+    for (const { site, scopeArg } of callSites) {
+      const direct = scopeArg.includes("getStart(sf)");
+      const throughTheLocal = scopeArg === "scope";
       expect(
-        site,
-        "a caller that does not derive its position from a node cannot be passing the position of " +
-          "the call it is deciding about",
-      ).toContain("getStart(sf)");
+        direct || throughTheLocal,
+        `${site}: its scope argument is \`${scopeArg}\`, which is neither a call-derived position ` +
+          `nor the one \`scope\` local that carries one. A file-level constant is not a position.`,
+      ).toBe(true);
     }
+    // …and the assertion arms really consume arm (c)'s own canonicalised path, so the scope rule
+    // reaches them without a second canonicaliser call to keep in step.
+    const source = readFileSync(CHECKER_TS, "utf8").replace(/\s+/g, " ");
+    expect(
+      source,
+      "the assertion arms must ask about the ONE already-canonicalised path, not a raw head",
+    ).toContain("const assertionHead = canonicalAssertionHead(dottedPath);");
+    expect(
+      source.includes('head.text === "expect"'),
+      "the assertion arms are comparing a RAW head identifier again — the path PROBE 4 found",
+    ).toBe(false);
   });
 
   // ── the disclosure moved with the mechanism ────────────────────────────────────────────────────

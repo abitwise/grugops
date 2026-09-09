@@ -1774,6 +1774,51 @@ export function canonicaliseHeadSegment(
   return dottedPath;
 }
 
+/**
+ * D-27 (PROBE 4): the ASSERTION HEADS arms (a) and (b) refuse a context around — `expect` and the
+ * generic `assert` — and the ONE place that pair is written.
+ *
+ * `assert` is not a `@playwright/test` export, so no rename of this module can produce it; it is in
+ * the pair because D-14 named it and because another assertion library's `assert` can be imported
+ * into a spec file.
+ */
+const ASSERTION_HEADS: readonly string[] = Object.freeze(["expect", "assert"]);
+
+/**
+ * D-27 (PROBE 4): which assertion head, if any, is this call's callee — asked about the head the ONE
+ * canonicaliser has ALREADY seen, and about nothing else.
+ *
+ * ITS INPUT IS ARM (c)'s OWN `dottedPath`, which is `calleeDottedPath` put through
+ * `canonicaliseHeadSegment` with this call's position. So a rename (`check` -> `expect`), a
+ * namespace (`pw.expect` -> `expect`) and D-27's scope rule are all applied here for free, by
+ * construction, rather than by a second reading of the same maps.
+ *
+ * A SECOND ROUTE THROUGH THE HEAD IDENTIFIER WAS WRITTEN AND THEN DELETED, and the reason is
+ * recorded because it is the kind of redundancy that becomes a defect. It looked necessary: the
+ * OUTER link of a renamed chain resolves to `check().toBeVisible`, whose first segment carries the
+ * call marker and is not a key of the rename map. It is not, because the INNER link of that same
+ * chain is `check(...)`, which resolves to `expect`, and both links are visited — the arms record a
+ * head only when a banned CONTEXT is found, so a non-matching outer link consumes nothing. Driven
+ * against every shape where the two could differ (a computed member on the head, a chain past the
+ * step bound): in each one `calleeHeadIdentifier` declines exactly where `calleeDottedPath` does, so
+ * the second route added no answer and only a second place for the answers to disagree.
+ *
+ * IT DECLINES NOTHING THE ARMS DID NOT ALREADY DECLINE: `null` means "this callee is not an
+ * assertion head", which is what a non-matching raw identifier meant before. Returning the head
+ * rather than a boolean is what lets the caller keep D-14's distinction between `expect` — where a
+ * conditional context is also refused — and `assert`.
+ */
+function canonicalAssertionHead(dottedPath: string | null): string | null {
+  if (dottedPath === null) return null;
+  // THE FIRST SEGMENT, READ RAW, AND A MARKER STRIP THAT WAS WRITTEN AND THEN DELETED. The OUTER
+  // link of an assertion chain resolves to `expect().toBeVisible`, whose first segment carries the
+  // D-18 (1) call marker, so stripping it looked necessary. A mutation proof measured otherwise: the
+  // strip broke ZERO cases, because the INNER link of that same chain is `expect(...)`, whose first
+  // segment is the bare head, and both links are visited. A branch no case can reach is a branch
+  // nobody derived, so it is gone rather than kept for symmetry.
+  return ASSERTION_HEADS.includes(dottedPath.split(".")[0]) ? dottedPath.split(".")[0] : null;
+}
+
 /** The three assertion node kinds, each guarded because the target's parser may predate it. */
 function isTypeAssertionLike(ts: TsApi, node: TsNode): boolean {
   const predicates = [ts.isAsExpression, ts.isTypeAssertionExpression, ts.isSatisfiesExpression];
@@ -1818,12 +1863,15 @@ export function findBannedConstructs(ts: TsApi, sf: TsSourceFile, relPath: strin
       // places for the answers to disagree, which is how CR-06 happened, and asking a rule about a
       // shape nobody resolved is how CR-07 happened.
       // D-27: the scope argument carries THIS call's own position. A file-level constant here would
-      // give every call in the file one answer, which is CR-14 through the back door.
+      // give every call in the file one answer, which is CR-14 through the back door. It is a named
+      // local because BOTH arm families ask the canonicaliser with it — one position per call, asked
+      // once, rather than two spellings of the same position that a later edit could separate.
+      const scope = bindings === null ? null : { bindings, position: node.getStart(sf) };
       const dottedPath = canonicaliseHeadSegment(
         calleeDottedPath(ts, node.expression),
         renames,
         fixtureParams,
-        bindings === null ? null : { bindings, position: node.getStart(sf) },
+        scope,
       );
       if (isBannedModifierCall(dottedPath, chainEnabledOptionKeys(ts, node))) {
         const pos = node.getStart(sf);
@@ -1847,11 +1895,23 @@ export function findBannedConstructs(ts: TsApi, sf: TsSourceFile, relPath: strin
         }
       }
       // ── arms (a) and (b): a caught or conditional assertion ─────────────────────────────────
+      //
+      // D-27 / PROBE 4: THIS ARM FAMILY ASKS ITS MEMBERSHIP QUESTION ABOUT A CANONICALISED HEAD.
+      // It used to compare the RAW head identifier's text, which is the only path from a call
+      // expression to a membership question that did not go through the one canonicaliser — so
+      // `import { expect as check }` and `import * as pw` both defeated both arms at exit 0, which
+      // is WR-14's defect in the one family D-18 (3) never reached.
+      //
+      // ONE INPUT, THE ONE ALREADY CANONICALISED. The arms ask about arm (c)'s own `dottedPath`,
+      // which carries the rename map, the namespace drop and D-27's scope rule at THIS call's
+      // position. The head identifier is still read, but only for the position the per-assertion
+      // dedup keys on — never as a membership operand.
       const head = calleeHeadIdentifier(ts, node.expression);
-      if (head !== null && (head.text === "expect" || head.text === "assert")) {
+      const assertionHead = canonicalAssertionHead(dottedPath);
+      if (head !== null && assertionHead !== null) {
         const headPos = head.getStart(sf);
         if (!reportedAssertionHeads.has(headPos)) {
-          const context = bannedContextOf(ts, node, head.text === "expect");
+          const context = bannedContextOf(ts, node, assertionHead === "expect");
           if (context !== null) {
             reportedAssertionHeads.add(headPos);
             findings.push({
