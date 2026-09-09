@@ -853,6 +853,109 @@ outrunning the mechanism INSIDE the edit that exists to stop it.
   - **Recorded in three places that must agree:** here, in the `writeNoteFile` / one-reader header
     in `scripts/context-io.ts`, and in `31-21-SUMMARY.md`'s key-decisions block.
 
+#### Gap-closure decision — D-25 (2026-09-09, gap-closure round 5, plan 31-22)
+
+This is a GAP-CLOSURE decision recorded during execution, not an original user decision from the
+discussion. It sits BESIDE D-22 and D-24 and leaves D-01 through D-24 untouched. No existing
+decision above is edited, renumbered or deleted.
+
+**Forced by:** CR-16 and WR-25 of `31-REVIEW.md`, each independently reproduced by
+`31-VERIFICATION.md` round 5 (behavioral spot-check row 4 with controls at rows 5 and 6, the
+key-link row recording `originIsTrusted`'s second arm MISWIRED, and the anti-patterns row at
+`~1486-1491`). Both were re-reproduced on this tree against the committed `scripts/context-io.js`
+before any source change. Legitimately-obtained human-disposed bytes copied into
+`<proj>/tmp/forged/T-1/notes/` — an ordinary directory with no `.grugops/context` anywhere on the
+path — promoted into a fresh destination id: `promotedId` returned, `threw` null, the destination
+holding the file, and the destination repository's GOV-02 ledger gaining one `disposed_by` line.
+
+**Which register failed — the SHAPE the operand is recognised by, and then one turn further in.**
+
+Not membership, and not the operand's EXISTENCE: WR-17 fixed both in round 4. What failed is the
+shape the operand is RECOGNISED by. Round 4 left the recognition a DISJUNCTION — the store shape, OR
+a path at or under `trustedRepoRoot()` — and the agent that calls the route RUNS INSIDE the
+repository, so every directory it can create satisfied the second arm. The constraint excluded only
+origins outside the repository, which is not where a caller authoring its own proof would put one.
+
+Deleting that arm was NECESSARY AND NOT SUFFICIENT, which was measured before this plan shipped
+rather than discovered by the next round. `isRecognisedContextStore` is a two-component basename
+test, so `<proj>/tmp/forged/.grugops/context` is a recognised origin — the same caller, the same
+bytes, one `mkdir -p` further on. Driven against a scratch shape-only implementation of
+`originIsTrusted`, it promoted. Under a basename-only rule the workflow sentence being rewritten in
+the same plan could only have been NARROWED to "an ordinary directory"; it could not have been made
+true. The register that closes it is ROOT ANCHORING rather than shape.
+
+And separately: the ORDER in which a caller is told which clause failed. Measured order in the
+committed artifact put the ENVIRONMENT clause ahead of the OPERAND clause, so under the lean posture
+a caller naming a forged origin was told the destination's dial was the problem — and the workflow's
+remedy for that clause is to WIDEN the dial.
+
+- **D-25: a trusted proof origin has ONE recognised canonical form, and that form is a CONJUNCTION
+  rather than a disjunction of arms: the recognised store SHAPE, AND a governance root this module
+  resolves for itself from the one caller-supplied value. Everything else is refused BY NAME,
+  including a path inside this repository. The clause a caller is told about names the caller's own
+  INPUT before it names the caller's ENVIRONMENT.** D-25 adds no case to `admit()`, does not touch
+  its frozen byte-span, and does not touch `hooks/guard.ts` (`FROZEN_GUARD_BLOB` is NOT re-based).
+  It makes three sub-decisions.
+  - **(1) The root-proximity arm is DELETED, not narrowed.** Proximity to the root the CALLER is
+    already running inside is evidence of nothing. The review's narrowed alternative
+    (`resolvedFrom === resolve(join(trustedRepoRoot(), ".grugops", "context"))`) is deliberately NOT
+    kept as a second arm either: it is the AMBIENT special case of the anchoring conjunct, so
+    keeping it would be a second authority for a question the conjunct already answers — the drift
+    shape this module keeps deleting. `originIsTrusted` is now ONE `return` of a conjunction, and a
+    case parses the module and counts its return statements rather than reading it.
+  - **(2) The recognised form is conjoined with an INDEPENDENTLY-RESOLVED governance root.**
+    `originStoreIsRootAnchored` asks `projectRootFromWorkingDirectory` about the origin's grandparent
+    and requires the answer to BE that grandparent. This is not the doctrine the old two-arms
+    docstring rejects: there is still exactly ONE caller-supplied value, and the module decides for
+    itself whether that value's location is a governance root. A caller can move the origin; it
+    cannot move what the walk says about where the origin is. The distinction is written at the site
+    so a later reader does not mistake the two.
+  - **(3) The operand clause precedes the dial clause, and the ORDER is a DERIVED axis.**
+    `origin-outside-trusted-store` now sits immediately after `unreadable-governance-config` and
+    immediately before `human-stamp-not-gated-at-destination`. `unreadable-governance-config` stays
+    above both because an unreadable dial is a fail-closed PRECONDITION rather than an ordering
+    preference. PART SIX-H of `scripts/context-io-writer-set.test.ts` parses `promoteAdmitted`'s own
+    body, derives the ordered clause sequence, asserts its MEMBERS and its LENGTH, binds its SET
+    two-sidedly to the derived decline set, fires a PREMISE on a renamed route, and watches a mirror
+    with the two WHOLE guard blocks transposed fail.
+  - **The road not taken, recorded.** Keeping an arbitrary in-repository origin and REWRITING both
+    agent-facing sentences to match — the review's second acceptable outcome — is rejected. It would
+    have turned a stop condition into a disclosure on the register whose entire contract is that the
+    claim matches the mechanism, and it would have left the proof's left operand authored by the
+    benefiting caller, which is D-22's own prohibition one round later.
+  - **What D-25 does NOT establish.**
+    - The rewritten `T-31-18-01` — a caller that constructs a whole GOVERNANCE ROOT around notes it
+      authored still presents a store this route accepts. PRICED per position, measured rather than
+      assumed: THREE filesystem operations inside a repository (marker, configuration, store), each
+      proven load-bearing by a driven subtraction; TWO outside every repository, because a walk that
+      meets no boundary answers the nearest configuration it remembered. That second number is the
+      cross-repository capability the residual keeps. Disposition: accept.
+    - `R-31-22-01` — the narrowing's own COST, found by driving the legitimate input rather than
+      only the hostile one. A checkout carrying a `.grugops/context` store and NO governance
+      configuration is now refused as an ORIGIN, where the deleted arm accepted it by shape. Bounded
+      by the installer, which seeds `.grugops/factory.config.json` into every target it touches.
+      Disposition: accept, as the stated cost of pricing the residual at three operations.
+    - `R-31-22-02` — the DESTINATION axis. `to` is caller-supplied and is NOT constrained by the
+      same canonical form, because it is not a proof OPERAND: nothing read at the destination is
+      evidence FOR the promotion. Five destination shapes are driven and all five answers are the
+      decided ones. Disposition: accept, bounded by the append-only write chokepoint.
+    - The COUPLING to `31-23`. `originStoreIsRootAnchored` consumes
+      `projectRootFromWorkingDirectory`, which `31-23` rewrites in wave 3. CONTROL 5a — a home-rooted
+      project promoting from its own `$HOME/.grugops/context` — DECLINES at wave 2 and is EXPECTED to
+      become PROMOTE at wave 3. That single DECLINE -> PROMOTE movement is the sole member of
+      `31-23` PROBE 5's cross-plan intended-change list; CONTROL 5b is the unmoved control it is read
+      against.
+    - The SYMLINK answer. `resolve()` is LEXICAL, so the rule reads the link's OWN path components.
+      A symlink whose own location is a recognised, anchored store is accepted whatever it points at;
+      a shaped symlink under an unanchored directory is refused. Both are driven cases, and the
+      answer is a decision rather than an accident.
+  - **Reversibility: costly.** The recognition rule becomes the single published origin contract the
+    workflow prose is quoted against. Reverting restores an arm the round-5 verifier measured
+    accepting a caller-authored directory, which is verbatim the workaround the workflow calls
+    refused.
+  - **Recorded in three places that must agree:** here, in the D-19 route header in
+    `scripts/context-io.ts`, and in `31-22-SUMMARY.md`'s key-decisions block.
+
 ### Claude's Discretion
 - Exact runnable file name and the exact wording of the two new loud-skip markers, as long as
   each is a single exported constant with a single emission point (the `uat-live.test.ts` shape).

@@ -1402,6 +1402,26 @@ export function currentState(notes) {
 // reads back there. A caller that cannot produce that proof, or that names an origin outside that
 // one form, is DECLINED BY NAME — including an origin inside this repository.
 //
+// ── D-25 (2026-09-09, gap-closure round 5, plan 31-22) — a DATED SUB-DECISION beside D-22. ───
+//
+// D-25 leaves D-01 through D-24 untouched. Round 5 found two things about this route, both
+// reproduced against the committed `.js` before any change:
+//
+//   CR-16 — the operand constraint D-22 introduced was a DISJUNCTION whose second arm accepted any
+//     directory under `trustedRepoRoot()`. Closed below: one arm, two conjuncts, the root-proximity
+//     arm DELETED. The residual `T-31-18-01` is rewritten and PRICED; `R-31-22-01` states what the
+//     narrowing cost and `R-31-22-02` decides the converse destination axis.
+//   WR-25 — `origin-outside-trusted-store` was evaluated AFTER
+//     `human-stamp-not-gated-at-destination`, so a caller naming a forged origin under the lean
+//     posture was told the destination's DIAL was the problem, and the workflow's remedy for that
+//     clause is to WIDEN the dial. Closed by moving exactly one clause: the CALLER'S INPUT is named
+//     before the caller's ENVIRONMENT. `unreadable-governance-config` stays above both because a
+//     dial that cannot be read is a fail-closed precondition, not an ordering preference. The order
+//     is now a DERIVED axis (PART SIX-H) with a transposed watched-fail mirror.
+//
+// Recorded in three places that must agree: here, in `31-CONTEXT.md` beside D-24, and in
+// `31-22-SUMMARY.md`'s key-decisions block.
+//
 // ── 31-22 (CR-16) — WHY THE SECOND ARM IS GONE RATHER THAN NARROWED. ──────────────────────────
 //
 // Round 4 left the recognition as a DISJUNCTION: the shape, OR a path at or under
@@ -1721,6 +1741,31 @@ export function promoteAdmitted(task, sourceId, note, body, from, to, repoRoot =
     if (govResult === null || govResult.source === "unreadable") {
         throw declineRebinding("unreadable-governance-config", "A governance configuration file exists at a standard location but could not be read or parsed.");
     }
+    // ── THE OPERAND IS CONSTRAINED BEFORE IT IS READ, AND BEFORE THE DIAL IS CONSULTED. ──────────
+    //
+    // 31-18 (WR-17) added this clause; 31-22 (WR-25) MOVED it here and changed nothing else about it.
+    // A proof whose left operand the benefiting caller may author is a flag wearing a filesystem path.
+    // The origin must resolve inside the ONE canonical form this module recognises; what that still
+    // leaves open is the named residual T-31-18-01 rather than a silence.
+    //
+    // WHY IT SITS ABOVE THE DIAL CLAUSE — the argument, not the verdict. `origin-outside-trusted-store`
+    // is a statement about the CALLER'S INPUT. `human-stamp-not-gated-at-destination` is a statement
+    // about the ENVIRONMENT the caller is writing into. The input fault is the more specific answer,
+    // and the ordering matters because the register's whole contract is that a caller is told WHICH
+    // clause failed: the workflow's remedy for the environment clause is to SET the destination's
+    // `human_admission` dial, so a caller whose origin was forged and who was told about the dial
+    // would WIDEN a gate in response to an origin fault. Measured before the move, against the
+    // committed `.js`, with a forged in-repository origin: `off` and an absent configuration both
+    // answered the dial clause.
+    //
+    // WHY `unreadable-governance-config` STAYS ABOVE BOTH. That one is not an ordering preference but
+    // a PRECONDITION. A dial that cannot be read is UNKNOWN (D-14) and fails closed, and every answer
+    // below it — this clause included — is computed in a world where the dial has a known value. The
+    // route may not reason past a fail-closed refusal to reach a more specific one.
+    if (!originIsTrusted(from)) {
+        throw declineRebinding("origin-outside-trusted-store", `The origin "${resolve(from)}" is not a recognised grugops context store anchored to a ` +
+            `governance root this module resolves for itself.`);
+    }
     // ── THE DIAL'S VALUE DECIDES, THROUGH THE ONE AUTHORITY (31-18, WR-18). ───────────────────────
     //
     // WHAT WAS WRONG, MEASURED RATHER THAN DESCRIBED. The read above asked only whether the
@@ -1745,14 +1790,6 @@ export function promoteAdmitted(task, sourceId, note, body, from, to, repoRoot =
     if (!isGatedNote(note.by, note.kind, govResult)) {
         throw declineRebinding("human-stamp-not-gated-at-destination", `The destination's dial does not gate a "${note.kind}" authored by "${note.by}", so the ` +
             `"${vb}" disposition binds nothing there.`);
-    }
-    // THE OPERAND IS CONSTRAINED BEFORE IT IS READ (31-18, WR-17). A proof whose left operand the
-    // benefiting caller may author is a flag wearing a filesystem path. The origin must resolve inside
-    // a location this module has independent reason to trust; what that recognition still leaves open
-    // is the named residual T-31-18-01 rather than a silence.
-    if (!originIsTrusted(from)) {
-        throw declineRebinding("origin-outside-trusted-store", `The origin "${resolve(from)}" is not a recognised grugops context store anchored to a ` +
-            `governance root this module resolves for itself.`);
     }
     // THE PROOF'S LEFT OPERAND: the origin's own bytes, folded through the SAME deterministic replay
     // every other reader of that context uses. Without this read there is nothing to compare against,
