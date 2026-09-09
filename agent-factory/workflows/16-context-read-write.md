@@ -49,9 +49,10 @@ The three admission outcomes, stated once:
 
 ## Where the upward governance-root search stops
 
-Every stop condition of step 3's upward search, quoted from `TRUSTED_ROOT_STOP_CONDITIONS` in `scripts/context-io.ts`. `scripts/context-io.test.ts` asserts this list equal to that export in both directions. Neither can move without the other. The bound is the home-directory stop. It holds whatever markers a filesystem carries. The version-control markers say where a repository starts, which is a different question.
+Every stop condition of step 3's upward search, quoted from `TRUSTED_ROOT_STOP_CONDITIONS` in `scripts/context-io.ts`. `scripts/context-io.test.ts` asserts this list equal to that export in both directions. Neither can move without the other. The bound is the home-directory stop. It bounds ascent, not observation. The home directory itself is read once and answers only as a repository. It holds whatever markers a filesystem carries. The version-control markers say where a repository starts, which is a different question.
 
-- The upward search never inspects the user's home directory or any ancestor of it.
+- The upward search never inspects any ancestor of the user's home directory.
+- The user's home directory itself is inspected exactly once and ends the upward search either way. It is adopted only when it carries a version-control marker and its configuration sits at the repository state-plane position rather than the in-kit position. That candidate must also not be one of the running kit's own fallback candidate positions.
 - When the home directory cannot be determined, the upward search does not run at all.
 - The upward search ends at the first ancestor carrying a version-control marker.
 - That ancestor's own configuration outranks one nested below it.

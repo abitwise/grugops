@@ -6919,8 +6919,18 @@ describe("31-15 — WR-15: the target repository's dial is read on every host", 
       return dir;
     }
 
-    /** The home stop, and nothing else, removed. */
-    const HOME_STOP_ANCHOR = ["if (isAtOrAboveHome(dir, home))", "if (false)"] as const;
+    /**
+     * The home stop, and nothing else, removed.
+     *
+     * MOVED DELIBERATELY BY PLAN 31-23 (CR-13 / D-26), not relaxed. `isAtOrAboveHome` was ONE
+     * predicate answering two questions and is deleted; the walk now asks `isAboveHome` about
+     * CLIMBING and `isHomeItself` about the one directory it inspects last. Removing "the home
+     * stop" is therefore removing BOTH branches, and the mirror says so with two anchors whose
+     * occurrence counts are each asserted exactly, as before.
+     */
+    const HOME_STOP_ANCHOR = ["if (isAboveHome(dir, home))\n            return nearest;", "if (false)\n            return nearest;"] as const;
+    /** The second half of the same removal: the home directory treated as an ordinary ancestor. */
+    const HOME_SELF_ANCHOR = ["if (isHomeItself(dir, home)) {", "if (false) {"] as const;
     /** The home directory made undeterminable, and nothing else. */
     const HOME_UNKNOWN_ANCHOR = ["const named = namedHomeDirectory();", "const named = null;"] as const;
     /**
@@ -6930,7 +6940,7 @@ describe("31-15 — WR-15: the target repository's dial is read on every host", 
     const NEAREST_WINS_ANCHOR = ["nearest = dir;", "return dir;"] as const;
 
     it("MUTATION PROOF: with the home stop removed, the ancestor IS adopted and IS written to", () => {
-      const mutant = mirrorKit("p31-19-mutant-", [HOME_STOP_ANCHOR]);
+      const mutant = mirrorKit("p31-19-mutant-", [HOME_STOP_ANCHOR, HOME_SELF_ANCHOR]);
 
       // (a) THE WRONG DIAL. With the stop removed, the planted ancestor's `all` is what governs.
       const dialShape = plantedHome({ human_admission: "all" }, "p31-19-mutation-dial-");
@@ -7014,8 +7024,21 @@ describe("31-15 — WR-15: the target repository's dial is read on every host", 
       expect(r.verdict).toBe("refuse");
       expect(r.message).toContain("human_admission: high-severity");
 
-      // (b) The SAME directory, when it is the user's home directory: neither rule is reached.
-      expect(drive("trustedRepoRoot", { cwd: both, env: asHome(both) }).root).toBe(KIT);
+      // (b) The SAME directory, when it is the user's home directory.
+      //
+      // MOVED DELIBERATELY BY PLAN 31-23 (CR-13 / D-26), and the movement is the plan's own
+      // subject rather than a side effect. Under D-23 neither rule was reached, because the walk
+      // asked the home question BEFORE inspecting and answered the KIT — which for a repository
+      // whose ROOT IS the home directory is the kit's shipped LEAN default replacing the
+      // repository's own dial, the WR-15 verdict direction. Under D-26 the home directory is
+      // inspected exactly once and answers as a repository, because it carries a version-control
+      // marker AND a `repository-state-plane` configuration AND that candidate is not one of
+      // `MODULE_OWN_CONFIG_POSITIONS`. The verdict therefore moves from ADMITTED to REFUSED — the
+      // safe direction, which is why the monotonicity sweep below stays green.
+      const atHome = drive("appendNote", { cwd: both, env: asHome(both) });
+      expect(atHome.root, "a repository ROOTED AT the home directory must read its own dial").toBe(both);
+      expect(atHome.verdict).toBe("refuse");
+      expect(atHome.message).toContain("human_admission: high-severity");
     });
 
     it("the published step limit is the one the walk has, driven from the sentence itself", () => {
@@ -7042,7 +7065,7 @@ describe("31-15 — WR-15: the target repository's dial is read on every host", 
     it("MONOTONICITY: no configuration moved from REFUSED to ADMITTED against the pre-31-19 program", () => {
       // The comparison is against the program this change replaces, reconstructed by reverting the
       // two lines this plan added — not against a hand-written model of it.
-      const preFix = mirrorKit("p31-19-prefix-", [HOME_STOP_ANCHOR, NEAREST_WINS_ANCHOR]);
+      const preFix = mirrorKit("p31-19-prefix-", [HOME_STOP_ANCHOR, HOME_SELF_ANCHOR, NEAREST_WINS_ANCHOR]);
       const active = projectWith(ACTIVE, "p31-19-mono-active-");
       const activeAll = projectWith({ human_admission: "all" }, "p31-19-mono-all-");
       const lean = projectWith({ human_admission: "off" }, "p31-19-mono-lean-");
@@ -7267,7 +7290,6 @@ describe("31-15 — WR-15: the target repository's dial is read on every host", 
     }
 
     const LEAN = { human_admission: "off", audit_retention: "retained" } as const;
-    const LEDGER_RELPATH = [".grugops", "audit", "admissions.jsonl"] as const;
 
     function writeConfig(dir: string, rel: readonly string[], context: Record<string, unknown>): void {
       mkdirSync(join(dir, ...rel.slice(0, -1)), { recursive: true });
@@ -7520,7 +7542,13 @@ describe("31-15 — WR-15: the target repository's dial is read on every host", 
       const { home, cwd } = dotfilesWithSharedInstall("p31-23-inv3-");
       const elsewhere = tmp15("p31-23-inv3-elsewhere-");
       const seen: string[] = [];
-      for (const over of [{}, { GRUGOPS_HOME: elsewhere }, { GRUGOPS_HOME: "" }, { GRUGOPS_HOME: home }]) {
+      const sweep: Record<string, string>[] = [
+        {},
+        { GRUGOPS_HOME: elsewhere },
+        { GRUGOPS_HOME: "" },
+        { GRUGOPS_HOME: home },
+      ];
+      for (const over of sweep) {
         const r = drive("trustedRepoRoot", { cwd, env: { ...asHome(home), ...over } });
         seen.push(`${r.root}|${r.message}`);
       }
@@ -9996,20 +10024,29 @@ describe("31-22 — CR-16: the origin is recognised by SHAPE conjoined with ROOT
     ).toBeNull();
   });
 
-  it("CONTROL 5a (WAVE 2): a HOME-ROOTED project's own store DECLINES, and that is a property of the walk", () => {
+  it("CONTROL 5a (WAVE 3): a HOME-ROOTED project's own store PROMOTES — the DECLARED movement", () => {
     // `originStoreIsRootAnchored` asks `projectRootFromWorkingDirectory` about the origin's
     // GRANDPARENT, which for a home-rooted project's own store is `$HOME`. At THIS wave the walk is
     // still the unchanged one: it asks `isAtOrAboveHome` BEFORE it inspects, so it returns `nearest`
     // (null) at step 0 and never adopts home. MEASURED against the committed `.js` with both
     // project-directory variables removed: `trustedRepoRoot()` answered the KIT, not `$HOME`.
     //
-    // WAVE-3 EXPECTATION, STATED HERE: `31-23` rewrites that walk so a home carrying a marker AND a
-    // state-plane configuration IS adopted, at which point 5a becomes PROMOTE. That DECLINE ->
-    // PROMOTE movement is the SOLE member of `31-23` PROBE 5's cross-plan intended-change list.
+    // WAVE 3 IS NOW. `31-23` (CR-13 / D-26) rewrote that walk: the home directory is inspected
+    // exactly once and IS adopted when it carries a version-control marker AND a
+    // `repository-state-plane` configuration candidate AND that candidate is not one of
+    // `MODULE_OWN_CONFIG_POSITIONS`. This tree carries all three, so the origin's GRANDPARENT is
+    // the resolved root and the anchoring conjunct holds. Verdict: PROMOTE.
     //
-    // The wave-2 decline is a property of `projectRootFromWorkingDirectory`, NEVER a reason to
-    // weaken `originIsTrusted`: relaxing the anchoring conjunct to make this pass here would restore
-    // exactly the root-proximity admission CR-16 exists to delete. The repair path is `31-23`.
+    // THE MOVEMENT IS DECLARED, NOT TOLERATED. `31-22-SUMMARY.md`'s "CONTROL 5a / 5b" table states
+    // the wave-2 verdict `DECLINED (origin-outside-trusted-store)` and the wave-3 expectation
+    // **PROMOTE**, and names it the SOLE member of `31-23` PROBE 5's cross-plan intended-change
+    // list. `scripts/context-io-writer-set.test.ts` asserts that list's cardinality and member and
+    // reads the wave-2 row from the artifact `31-22` produced rather than from a restatement here.
+    //
+    // The wave-2 decline was a property of `projectRootFromWorkingDirectory`, NEVER of
+    // `originIsTrusted`: the repair was the walk, and weakening the anchoring conjunct to make this
+    // pass at wave 2 would have restored exactly the root-proximity admission CR-16 deleted. That
+    // is why 5b — the same store at a MARKER-LESS home — is still a DECLINE at both waves.
     const home = governanceRoot("p31-22-home-rooted-");
     mkdirSync(join(home, ".grugops", "agent-factory"), { recursive: true }); // a shared install beside it
     const origin = storeUnder(home);
@@ -10024,9 +10061,11 @@ describe("31-22 — CR-16: the origin is recognised by SHAPE conjoined with ROOT
       const out = promote(origin, destStore("p31-22-5a-dest-"), id, repoRoot);
       expect(
         out.threw,
-        "CONTROL 5a's WAVE-2 verdict moved. At wave 2 the unchanged walk never inspects home, so " +
-          "the anchoring conjunct cannot hold for a home-rooted project's own store",
-      ).toContain("DECLINED (origin-outside-trusted-store)");
+        "CONTROL 5a FAILED TO MOVE. The declared wave-2 -> wave-3 movement is DECLINE " +
+          "(origin-outside-trusted-store) -> PROMOTE; a decline here means `31-23`'s home rule did " +
+          "not adopt a home carrying a marker and a state-plane configuration",
+      ).toBeNull();
+      expect(out.promotedId, "the promotion wrote nothing").toBe(id);
     } finally {
       if (previousHome === undefined) delete process.env.HOME;
       else process.env.HOME = previousHome;

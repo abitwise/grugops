@@ -2868,6 +2868,37 @@ export function governanceConfigCandidates(base) {
     ];
 }
 /**
+ * WHAT EACH PUBLISHED CANDIDATE POSITION *IS*, PARALLEL TO THE LIST ABOVE (plan 31-23, CR-13's
+ * second adversarial re-check).
+ *
+ * ---------------------------------------------------------------------------------------------
+ * WHY A CLASSIFICATION AND NOT JUST AN ORDER. The two positions are not equivalent evidence, and
+ * everywhere but one directory that difference is already resolved for us.
+ *
+ *   `repository-state-plane` — `<base>/.grugops/factory.config.json`. This is what
+ *   `install/install.ts`'s `seedState` writes for a seeded TARGET (`agent-factory/seed/.grugops/`
+ *   copied to `join(TARGET, ".grugops", …)`). It is a REPOSITORY'S OWN governance posture.
+ *
+ *   `in-kit` — `<base>/agent-factory/config/factory.config.json`. This is A KIT'S OWN
+ *   configuration: the file every vendored copy of this kit carries, and the exact position
+ *   D-23 (4) already ruled must lose to a repository root's own.
+ *
+ * At every ordinary directory D-23 (4)'s boundary-wins rule keeps a kit's configuration from
+ * governing a host, because there is a boundary ABOVE it to lose to. At the user's home directory
+ * the walk ENDS — there is no boundary above — so the in-kit position must be excluded there BY
+ * POSITION. That is the only place this classification is consulted, and
+ * `scripts/context-io.test.ts` binds it to the list above on FOUR axes: index-for-index,
+ * cardinality, transposition, and a SHAPE PREDICATE over each candidate's own segments relative to
+ * its base. The shape axis is the one the other three leave open — an in-place RENAME of a
+ * candidate path moves neither index nor cardinality and leaves a kind sitting on a position it no
+ * longer describes.
+ * ---------------------------------------------------------------------------------------------
+ */
+export const GOVERNANCE_CONFIG_CANDIDATE_KINDS = Object.freeze([
+    "repository-state-plane",
+    "in-kit",
+]);
+/**
  * The same candidates as REPO-RELATIVE POSIX paths, for a consumer that must NAME the files rather
  * than read them — a mirror that copies them, a gate that reports one by path.
  *
@@ -2911,6 +2942,61 @@ export const GOVERNANCE_CONFIG_RELPATHS = governanceConfigCandidates("").map((p)
  */
 export const GOVERNANCE_FALLBACK_BASE = ROOT;
 /**
+ * THE RUNNING MODULE'S OWN TWO CANDIDATE POSITIONS, FROZEN AT LOAD (plan 31-23, CR-13's second
+ * adversarial re-check).
+ *
+ * ---------------------------------------------------------------------------------------------
+ * WHY THIS INPUT AND NOT A FILESYSTEM PROBE. The home rule below needs to know whether the
+ * candidate carrying the home directory's configuration is THIS KIT'S OWN. The draft that went to
+ * review answered that with two `existsSync` probes under `$HOME/.grugops`, and an adversarial
+ * re-check measured BOTH as caller-authorable in ONE operation, in OPPOSITE directions:
+ * `mkdir -p $HOME/.grugops/agent-factory` turned an ADOPTION into a REFUSAL — and a refusal at home
+ * returns `nearest`, which with nothing remembered lands on `GOVERNANCE_FALLBACK_BASE`, whose
+ * shipped dial is LEAN, so CR-13's own measured harm came back by one `mkdir` — while
+ * `touch $HOME/.grugops/install.json` turned a REFUSAL into an ADOPTION. Reading the installer's
+ * marker through its own parser is the same one-write flip: `install/install.ts:597-620` makes
+ * every `InstallMarker` field optional and names no TARGET, so the two-byte document `{}` parses
+ * as a valid marker. A conjunct a caller can flip is a switch this module would have handed it,
+ * whichever way it flips.
+ *
+ * WHAT THIS CONSTANT IS INSTEAD. `GOVERNANCE_FALLBACK_BASE` is `join(import.meta.dirname, "..")` —
+ * a property of WHICH PROGRAM IS RUNNING, not of the filesystem that program inspects. No `mkdir`,
+ * no `touch`, no write under `$HOME` or under the repository moves it. Moving it at all means
+ * running a DIFFERENT copy of this decider, which is the capability `DECIDER_MANIFEST` in
+ * `hooks/hook-entry.ts` already freezes and which this predicate is not the tier for.
+ *
+ * `process.env.GRUGOPS_HOME` is deliberately NOT read. It is caller-settable in ZERO operations, so
+ * a rule consulting it would be a rule the caller decides — the same flip, one register over.
+ *
+ * MEASURED, NOT ASSUMED (plan 31-23 MOVEMENT 0): the shipped kit carries no `scripts/` directory
+ * (`agent-factory/` holds `roles`, `workflows`, `checklists`, `contracts`, `config`, `packaging`,
+ * `seed`, `VERSION` and two markdown files), so an installed shared kit at `$GRUGOPS_HOME/agent-factory`
+ * does not contain this module at all. This base is therefore always a CHECKOUT root, and any
+ * derivation of a "kit home" from `dirname()` of it would be a derivation over a shape the
+ * installer never creates.
+ * ---------------------------------------------------------------------------------------------
+ */
+export const MODULE_OWN_CONFIG_POSITIONS = Object.freeze(governanceConfigCandidates(GOVERNANCE_FALLBACK_BASE).map((candidate) => resolve(candidate)));
+/**
+ * Whether the candidate carrying a HOME DIRECTORY'S configuration is a PROJECT'S own position.
+ *
+ * Two comparisons and no filesystem read. The in-kit position is excluded because D-23 (4) already
+ * ruled a vendored kit's configuration must lose to a repository root's own, and at `$HOME` there
+ * is no boundary above for it to lose to. The running module's own positions are excluded because
+ * the kit this reader ships in is not a project, and `$HOME` is the only directory where its own
+ * fallback candidate can also be a candidate the walk computes.
+ *
+ * The comparison is a LEXICAL path equality. What that leaves open — a case-insensitive or
+ * symlinked filesystem spelling one directory two ways — is named as `R-31-19-07` rather than
+ * closed with a `statSync` under `$HOME`, which a single symlink can make agree and which would be
+ * a one-operation flip in the gate-lowering direction.
+ */
+function homeConfigPositionIsProjectOwned(candidateIndex, candidatePath) {
+    if (GOVERNANCE_CONFIG_CANDIDATE_KINDS[candidateIndex] !== "repository-state-plane")
+        return false;
+    return !MODULE_OWN_CONFIG_POSITIONS.includes(resolve(candidatePath));
+}
+/**
  * THE PROJECT-DIRECTORY VARIABLES THE TRUSTED ROOT HONOURS, IN PRECEDENCE ORDER, NAMED ONCE
  * (plan 31-15, review finding WR-15).
  *
@@ -2943,8 +3029,10 @@ export const TRUSTED_ROOT_ENV_ORDER = Object.freeze([
  * so a resolution "can never reach a user's home directory". That only followed if some ancestor
  * happened to carry `.git`, and nothing guarantees one does — the round-4 reviewer reproduced the
  * walk climbing three ancestors into a home-directory-shaped directory and adopting its dial. The
- * BOUND is `isAtOrAboveHome` below: a property of the walk rather than of which tool the user
- * happens to run. This set decides where a REPOSITORY starts, which is a different question.
+ * BOUND is the `isAboveHome` / `isHomeItself` pair below: a property of the walk rather than of
+ * which tool the user happens to run. This set decides where a REPOSITORY starts, which is a
+ * different question — and at the home directory it is one of the three conjuncts that decides
+ * whether the home directory answers at all (plan 31-23 / D-26).
  *
  * WHY IT NAMES MORE THAN ONE SYSTEM. With `.git` alone, a Mercurial, Subversion, Jujutsu or Fossil
  * checkout was not a boundary at all, so the walk climbed straight out of it into whatever sat
@@ -3015,13 +3103,19 @@ function homeBoundary() {
         spellings.add(resolve(realpathSync(named)));
     }
     catch {
-        // The resolved spelling is what there is. The identity set below covers the rest.
+        // The resolved spelling is what there is. The identity sets below cover the rest.
     }
-    const paths = new Set();
-    const ids = new Set();
+    const selfPaths = new Set();
+    const selfIds = new Set();
+    const abovePaths = new Set();
+    const aboveIds = new Set();
     for (const start of spellings) {
         let dir = start;
         for (let step = 0; step < TRUSTED_ROOT_SEARCH_MAX_ANCESTORS; step++) {
+            // Step 0 is the home directory itself; every later step is a STRICT ancestor of it. The two
+            // are separate questions with separate answers, so they are separate sets.
+            const paths = step === 0 ? selfPaths : abovePaths;
+            const ids = step === 0 ? selfIds : aboveIds;
             paths.add(dir);
             const id = directoryIdentity(dir);
             if (id !== null)
@@ -3032,18 +3126,44 @@ function homeBoundary() {
             dir = parent;
         }
     }
-    // THE IDENTITY SET'S OWN PREMISE. Two directories that are demonstrably different must not carry
-    // the same identity. Where they do, the platform's identities say nothing and are dropped.
+    // THE IDENTITY SETS' OWN PREMISE, RE-CHECKED FOR THE SPLIT SHAPE RATHER THAN INHERITED FROM THE
+    // SINGLE ONE. Two directories that are demonstrably different must not carry the same identity.
+    // Where they do, the platform's identities say nothing and BOTH sets are dropped — the spelling
+    // sets then decide alone, exactly as before the split.
     const parent = dirname(named);
     const degenerate = parent !== named && directoryIdentity(parent) === directoryIdentity(named);
-    return { paths, ids: degenerate ? new Set() : ids };
+    return {
+        selfPaths,
+        selfIds: degenerate ? new Set() : selfIds,
+        abovePaths,
+        aboveIds: degenerate ? new Set() : aboveIds,
+    };
 }
-/** Whether `dir` IS the user's home directory or an ancestor of it — the directories never read. */
-function isAtOrAboveHome(dir, home) {
-    if (home.paths.has(dir))
+/**
+ * Whether `dir` is STRICTLY an ancestor of the user's home directory — the directories the walk
+ * never inspects at all.
+ *
+ * ---------------------------------------------------------------------------------------------
+ * WHY THIS IS SPLIT FROM THE PREDICATE BELOW (plan 31-23, review finding CR-13). 31-19 answered
+ * "may the walk climb here?" and "may the walk look here?" with ONE predicate, asked BEFORE the
+ * directory was inspected. A bound on a SEARCH must bound the search, not the OBSERVATION: a
+ * repository whose root IS the home directory had its own `.git` and its own
+ * `.grugops/factory.config.json` skipped entirely, and the answer fell through to the kit's lean
+ * default. That is a configuration moving from refused to admitted — the WR-15 direction.
+ * ---------------------------------------------------------------------------------------------
+ */
+function isAboveHome(dir, home) {
+    if (home.abovePaths.has(dir))
         return true;
     const id = directoryIdentity(dir);
-    return id !== null && home.ids.has(id);
+    return id !== null && home.aboveIds.has(id);
+}
+/** Whether `dir` IS the user's home directory — inspected exactly once, and the walk ends there. */
+function isHomeItself(dir, home) {
+    if (home.selfPaths.has(dir))
+        return true;
+    const id = directoryIdentity(dir);
+    return id !== null && home.selfIds.has(id);
 }
 /**
  * Step 3 of the resolution order: the configuration that governs `startDir`, or `null` when the
@@ -3056,11 +3176,48 @@ function isAtOrAboveHome(dir, home) {
  * `TRUSTED_ROOT_STOP_CONDITIONS`, and `agent-factory/workflows/16-context-read-write.md` is
  * asserted equal to that export in both directions.
  *
- * THE THREE RULES, AND THEIR PRECEDENCE, STATED RATHER THAN LEFT TO READING ORDER.
+ * THE FOUR RULES, AND THEIR PRECEDENCE, STATED RATHER THAN LEFT TO READING ORDER.
  *
- * 1. THE HOME STOP WINS OVER EVERYTHING. A directory that is the user's home directory, or an
- *    ancestor of it, is never inspected — not for a configuration, not for a marker. This is the
- *    bound WR-21 found claimed and absent.
+ * 1. THE BOUND BOUNDS ASCENT, NOT OBSERVATION (plan 31-23 / D-26, review finding CR-13; this
+ *    AMENDS D-23's "never inspects it or anything above it" — the halt stays, the blanket
+ *    non-inspection does not). A directory STRICTLY ABOVE the home directory is never inspected.
+ *    The home directory ITSELF is inspected exactly once, and the walk ends there either way.
+ * 1b. THE HOME DIRECTORY ANSWERS ONLY AS A REPOSITORY, ON THREE CONJUNCTS. It is adopted only when
+ *    it carries a version-control MARKER, AND the candidate carrying its configuration is the
+ *    `repository-state-plane` position rather than the `in-kit` one, AND that candidate is not a
+ *    member of `MODULE_OWN_CONFIG_POSITIONS`. It never becomes `nearest` on the way past.
+ *
+ *    WHY THE REVIEW'S OWN `Fix:` SKETCH IS NOT ADOPTED VERBATIM. It assigns `nearest = dir` before
+ *    asking whether `dir` is home and then returns `nearest`, so a home directory carrying only a
+ *    configuration would be ADOPTED on the way past — verbatim the WR-21 hole 31-19 was convened to
+ *    close. Hence the marker requirement, and hence home never entering `nearest`.
+ *
+ *    WHY MARKER-PLUS-CONFIGURATION IS STILL NOT ENOUGH. `governanceConfigCandidates` publishes TWO
+ *    positions, and at `$HOME` the second is `$HOME/agent-factory/config/factory.config.json` — a
+ *    KIT's own configuration, which D-23 (4) already ruled must lose to a repository root's own.
+ *    Everywhere else that rule holds because a boundary ABOVE the kit wins; at `$HOME` the walk
+ *    ends, so nothing wins, and a two-conjunct rule would let a kit's shipped LEAN default govern
+ *    every un-configured directory below home. That is WR-21's harm at the one position D-23 (4)
+ *    cannot reach.
+ *
+ *    WHY THE THIRD CONJUNCT IS A PATH EQUALITY AND NOT A PROBE — the paragraph a later reader most
+ *    needs. The draft that went to review answered the previous paragraph with two `existsSync`
+ *    probes under `$HOME/.grugops`, and BOTH were caller-authorable in ONE operation, in OPPOSITE
+ *    directions: creating `<kitHome>/agent-factory` turned an adoption into a refusal, whose answer
+ *    is `GOVERNANCE_FALLBACK_BASE`'s LEAN dial — CR-13's own measured harm restored by one `mkdir`
+ *    — and creating `<kitHome>/install.json` turned a refusal into an adoption. Reading that marker
+ *    through `install/install.ts:609`'s `readMarker` is the same one-write flip: every
+ *    `InstallMarker` field is optional, none names a TARGET, and `{}` parses as valid. A conjunct a
+ *    caller can flip is a switch, whichever way it flips. So the two added conjuncts decide by a
+ *    published POSITION and by a load-time MODULE CONSTANT, and read the filesystem not once.
+ *
+ *    WHY THE POSITION QUESTION IS ASKED ONLY AT HOME. Everywhere else D-23 (4)'s boundary-wins rule
+ *    already answers it, and asking it twice would be a second authority for one question — the
+ *    authority-duplication this module keeps deleting. The ordinary rules below therefore keep
+ *    using existence alone.
+ *
+ *    WHAT THE TWO REMAINING CONJUNCTS COST is priced in operations as `R-31-19-06`, not defended:
+ *    they are the walk's ORDINARY evidence, applied identically at every directory.
  * 2. A REPOSITORY ROOT'S OWN CONFIGURATION OUTRANKS ONE NESTED INSIDE IT (plan 31-19, the second
  *    half of WR-21). The reviewer named the nearest-wins rule running the other way: a vendored
  *    kit's `agent-factory/config/factory.config.json` — the SECOND published candidate, and the
@@ -3092,16 +3249,29 @@ function projectRootFromWorkingDirectory(startDir) {
         return null;
     let nearest = null;
     for (let step = 0; step < TRUSTED_ROOT_SEARCH_MAX_ANCESTORS; step++) {
-        if (isAtOrAboveHome(dir, home))
+        // RULE 1 — ASCENT IS BOUNDED. A STRICT ancestor of the home directory is refused outright,
+        // before any inspection. This half of the bound is unchanged by plan 31-23.
+        if (isAboveHome(dir, home))
             return nearest;
-        // `existsSync` is the right predicate here and its failure direction is the safe one: a
-        // position occupied by something that is not a readable regular file still ANSWERS this
-        // search, and `readGovernanceConfig` then maps it to `unreadable`, which is gate-or-stricter.
-        // A position that does not exist at all is not a configuration and the walk continues.
-        const carriesConfig = governanceConfigCandidates(dir).some((candidate) => existsSync(candidate));
+        // INSPECT FIRST, THEN DECIDE ABOUT CLIMBING. `existsSync` is the right predicate here and its
+        // failure direction is the safe one: a position occupied by something that is not a readable
+        // regular file still ANSWERS this search, and `readGovernanceConfig` then maps it to
+        // `unreadable`, which is gate-or-stricter. A position that does not exist at all is not a
+        // configuration and the walk continues. The carrying candidate's INDEX is kept, not just the
+        // boolean, because at the home directory WHICH position carries the configuration decides.
+        const candidates = governanceConfigCandidates(dir);
+        const carryingIndex = candidates.findIndex((candidate) => existsSync(candidate));
+        const carriesConfig = carryingIndex >= 0;
+        const isBoundary = REPO_BOUNDARY_MARKERS.some((marker) => existsSync(join(dir, marker)));
+        // RULE 1b — THE HOME DIRECTORY ANSWERS ONLY AS A REPOSITORY, AND ENDS THE WALK EITHER WAY. It
+        // never becomes `nearest`: `nearest` is not assigned on this path at all.
+        if (isHomeItself(dir, home)) {
+            const homeAnswersAsRepository = isBoundary && carriesConfig && homeConfigPositionIsProjectOwned(carryingIndex, candidates[carryingIndex]);
+            return homeAnswersAsRepository ? dir : nearest;
+        }
         if (carriesConfig && nearest === null)
             nearest = dir;
-        if (REPO_BOUNDARY_MARKERS.some((marker) => existsSync(join(dir, marker)))) {
+        if (isBoundary) {
             return carriesConfig ? dir : nearest;
         }
         const parent = dirname(dir);
@@ -3129,8 +3299,19 @@ function projectRootFromWorkingDirectory(startDir) {
  */
 export const TRUSTED_ROOT_STOP_CONDITIONS = Object.freeze([
     Object.freeze({
-        id: "S-HOME",
-        sentence: "The upward search never inspects the user's home directory or any ancestor of it.",
+        id: "S-HOME-ABOVE",
+        sentence: "The upward search never inspects any ancestor of the user's home directory.",
+    }),
+    Object.freeze({
+        id: "S-HOME-SELF",
+        // THREE SENTENCES, NOT ONE, AND THAT IS A CONSTRAINT RATHER THAN A STYLE CHOICE. This string is
+        // quoted VERBATIM into `agent-factory/workflows/16-context-read-write.md`, where WP-03 bounds a
+        // descriptive sentence at 25 words. A published stop that states two of the three conditions
+        // the walk applies is the drift WR-21 was, so the sentence count moves rather than the content.
+        sentence: "The user's home directory itself is inspected exactly once and ends the upward search " +
+            "either way. It is adopted only when it carries a version-control marker and its " +
+            "configuration sits at the repository state-plane position rather than the in-kit position. " +
+            "That candidate must also not be one of the running kit's own fallback candidate positions.",
     }),
     Object.freeze({
         id: "S-HOME-UNKNOWN",
@@ -3158,15 +3339,22 @@ export const TRUSTED_ROOT_STOP_CONDITIONS = Object.freeze([
  * resolution order below is plan 31-15, review finding WR-15; its BOUND is plan 31-19 / D-23,
  * review finding WR-21).
  *
- * D-23, MIRRORED HERE BECAUSE THIS IS ONE OF THE THREE PLACES THAT MUST AGREE. The bound on step 3
- * is a property of the WALK and not of which markers a filesystem happens to carry: the search
- * halts at the user's home directory and never inspects it or anything above it, an undeterminable
- * home stops the search rather than licensing an unbounded one, a repository root's own
- * configuration outranks one nested inside it, and the complete stop set is published once as
- * `TRUSTED_ROOT_STOP_CONDITIONS` with `agent-factory/workflows/16-context-read-write.md` asserted
- * equal to it in both directions. What D-23 does NOT establish is enumerated as `R-31-19-01`
- * through `R-31-19-04` in `TRUSTED_ROOT_RESIDUALS`. The other two places are
- * `.planning/phases/31-autonomous-manual-testing/31-CONTEXT.md` and `31-19-SUMMARY.md`.
+ * D-23 AS AMENDED BY D-26, MIRRORED HERE BECAUSE THIS IS ONE OF THE THREE PLACES THAT MUST AGREE.
+ * The bound on step 3 is a property of the WALK and not of which markers a filesystem happens to
+ * carry: the search HALTS at the user's home directory, an undeterminable home stops the search
+ * rather than licensing an unbounded one, a repository root's own configuration outranks one
+ * nested inside it, and the complete stop set is published once as `TRUSTED_ROOT_STOP_CONDITIONS`
+ * with `agent-factory/workflows/16-context-read-write.md` asserted equal to it in both directions.
+ *
+ * D-26 AMENDS ONE SENTENCE OF D-23 AND LEAVES THE REST STANDING. D-23 said the search "never
+ * inspects it or anything above it". The ASCENT halt stays; the blanket non-inspection does not.
+ * The home directory itself IS inspected, exactly once, and answers only as a repository — a
+ * version-control marker AND a `repository-state-plane` configuration candidate AND that candidate
+ * not being one of `MODULE_OWN_CONFIG_POSITIONS`. Every input to that rule beyond the walk's
+ * ordinary evidence is a path, a position or a load-time constant: no filesystem probe under
+ * `$HOME`, no environment read. What the two rules do NOT establish is enumerated as `R-31-19-01`
+ * through `R-31-19-07` in `TRUSTED_ROOT_RESIDUALS`. The other two places are
+ * `.planning/phases/31-autonomous-manual-testing/31-CONTEXT.md` and `31-23-SUMMARY.md`.
  *
  * Every consumer that needs "the root governance is read from" asks this, so there is one answer
  * rather than one per caller. It answers, in this order:
