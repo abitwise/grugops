@@ -38,6 +38,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
+import ts from "typescript";
 
 const ROOT = join(import.meta.dirname, "..");
 const CONTEXT_IO_JS = join(ROOT, "scripts", "context-io.js");
@@ -7166,5 +7167,338 @@ describe("31-18 — WR-17: the proof's left operand comes from a location the mo
       "the re-binding route's parameter list moved. A parameter a caller can set to widen what the " +
         "proof trusts is the settable flag the header says was refused",
     ).toEqual(["task", "sourceId", "note", "body", "from", "to", "repoRoot"]);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// 31-18 — WR-18: the dial's VALUE decides, through the ONE gated authority, and the ledger premise
+// is DECIDED rather than assumed.
+//
+// WHAT THE ROUND-4 REVIEWER MEASURED. `promoteAdmitted` read the governance configuration only to
+// ask whether it was READABLE — `govResult.config.human_admission` had zero occurrences in the
+// function body. So under `off`, and under an ABSENT config (the lean posture this project ships and
+// the one most repositories run), the route carried a `human:NAME` stamp forward and WROTE, while
+// `admitAndAppend` refused the IDENTICAL note at its W3 arm on the explicit ground that accepting a
+// human disposition on a non-gated entry "would forge a disposed_by audit record". Two routes, one
+// rule, two answers. Reproduced against the COMMITTED .js before any source change, quoted verbatim
+// in 31-18-SUMMARY.md:
+//
+//   DIAL = "high-severity"        isGatedNote=true   admitAndAppend WROTE        | promoteAdmitted WROTE
+//   DIAL = "all"                  isGatedNote=true   admitAndAppend WROTE        | promoteAdmitted WROTE
+//   DIAL = "off"                  isGatedNote=false  admitAndAppend REFUSED (W3) | promoteAdmitted WROTE
+//   DIAL = a present typo string  isGatedNote=true   admitAndAppend WROTE        | promoteAdmitted WROTE
+//   DIAL = a present NON-STRING   isGatedNote=true   admitAndAppend WROTE        | promoteAdmitted WROTE
+//   DIAL = ABSENT (no config)     isGatedNote=false  admitAndAppend REFUSED (W3) | promoteAdmitted WROTE
+//
+// AND THE SECOND HALF. The route appended NO GOV-02 event on the stated premise that "the origin's
+// event already records the named human's disposition FOR THIS EXACT ID". Nothing checked that
+// premise, and the review names three conditions under which it is false — a different `repoRoot`, a
+// write from before `audit_retention` was `retained`, or a hand-authored origin. An unchecked
+// premise carrying an audit claim is the repudiation shape UATX-01 exists to prevent.
+//
+// THE DIAL SET IS DERIVED FROM THE CONFIGURATION SOURCE. `isGatedNote` is the single-source gated
+// authority, and the values it discriminates are read off its own parsed body — never typed into
+// this file — plus the two structural postures the reader canonicalises (an ABSENT configuration,
+// and a PRESENT non-string). A dial value added later is driven automatically and moves a number.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+/**
+ * THE DIAL LITERALS the single-source gated authority itself discriminates, read off its own body.
+ *
+ * A `dial === "<literal>"` comparison inside `isGatedNote` is one value the authority decides by
+ * name. Anything else is the "any other PRESENT value" arm, which the postures below cover.
+ */
+function deriveDialLiterals(sourcePath: string): string[] {
+  const source = ts.createSourceFile(
+    "context-io.ts",
+    readFileSync(sourcePath, "utf8"),
+    ts.ScriptTarget.Latest,
+    true,
+  );
+  const out = new Set<string>();
+  let found = false;
+  for (const statement of source.statements) {
+    if (!ts.isFunctionDeclaration(statement) || statement.name?.text !== "isGatedNote") continue;
+    found = true;
+    const walk = (node: ts.Node): void => {
+      if (
+        ts.isBinaryExpression(node) &&
+        node.operatorToken.kind === ts.SyntaxKind.EqualsEqualsEqualsToken &&
+        ts.isIdentifier(node.left) &&
+        node.left.text === "dial" &&
+        ts.isStringLiteral(node.right)
+      ) {
+        out.add(node.right.text);
+      }
+      ts.forEachChild(node, walk);
+    };
+    if (statement.body) walk(statement.body);
+  }
+  expect(
+    found,
+    "PREMISE: no function named isGatedNote was declared, so the dial set derived below measured " +
+      "nothing at all and its emptiness would say nothing about the authority",
+  ).toBe(true);
+  return [...out].sort();
+}
+
+describe("31-18 — WR-18: the dial's value decides, through the one gated authority", () => {
+  const WR18_TASK = "TICKET-WR18";
+  const WR18_BODY = "the legitimate disposed body";
+  const CONTEXT_IO_TS_PATH = join(ROOT, "scripts", "context-io.ts");
+
+  function projectWith(context: Record<string, unknown> | null): string {
+    const dir = freshTmp("p31-18-wr18-proj-");
+    if (context !== null) {
+      mkdirSync(join(dir, ".grugops"), { recursive: true });
+      writeFileSync(join(dir, ".grugops", "factory.config.json"), JSON.stringify({ context }, null, 2));
+    }
+    return dir;
+  }
+
+  function contextStore(prefix: string): string {
+    const store = join(freshTmp(prefix), ".grugops", "context");
+    mkdirSync(store, { recursive: true });
+    return store;
+  }
+
+  function disposed(
+    over: Partial<Parameters<typeof mod.appendNote>[1]> = {},
+  ): Parameters<typeof mod.appendNote>[1] {
+    return {
+      kind: "finding",
+      by: "security-nfr",
+      at: "2026-09-08T02:00:00Z",
+      verified_by: "human:alice",
+      confidence: "high",
+      refs: ["REQ-SEC-01"],
+      supersedes: null,
+      ...over,
+    } as Parameters<typeof mod.appendNote>[1];
+  }
+
+  function noteFiles(root: string): string[] {
+    const dir = join(root, WR18_TASK, "notes");
+    return existsSync(dir) ? readdirSync(dir).sort() : [];
+  }
+
+  function seed(origin: string, repoRoot: string): string {
+    const note = disposed();
+    const gated = mod.isGatedNote(note.by, note.kind, mod.readGovernanceConfig(repoRoot));
+    const id = gated
+      ? (mod.admitAndAppend(WR18_TASK, note, WR18_BODY, origin, repoRoot).id as string)
+      : mod.appendNote(WR18_TASK, note, WR18_BODY, origin, undefined, repoRoot);
+    expect(id, "PREMISE: the origin seed did not write, so nothing below measures a promotion").toBeTruthy();
+    return id;
+  }
+
+  /**
+   * THE DIAL SET, DERIVED. Its members are the literals the gated authority discriminates plus the
+   * two structural postures the value reader canonicalises. Nothing here is typed out as a value.
+   */
+  function dialCases(): ReadonlyArray<{ label: string; context: Record<string, unknown> | null }> {
+    const literals = deriveDialLiterals(CONTEXT_IO_TS_PATH);
+    return [
+      ...literals.map((value) => ({ label: `human_admission: "${value}"`, context: { human_admission: value } })),
+      { label: "human_admission: a present value the authority names no arm for", context: { human_admission: "hihg-severity" } },
+      { label: "human_admission: a present NON-STRING (gate-or-stricter)", context: { human_admission: true } },
+      { label: "the configuration ABSENT entirely (the lean posture this project ships)", context: null },
+    ];
+  }
+
+  it("PREMISE: no approval grant leaks in from the launching shell", () => {
+    expect(process.env.GRUGOPS_ADMISSION_APPROVED_BY).toBeUndefined();
+  });
+
+  it("Test 3a: the dial LITERALS are derived from the authority's own body, MEMBERS asserted", () => {
+    expect(
+      deriveDialLiterals(CONTEXT_IO_TS_PATH),
+      "the values the single-source gated authority discriminates by name moved. Each one is a " +
+        "posture the promotion must be driven under, never a constant edited to match",
+    ).toEqual(["all", "high-severity", "off"]);
+  });
+
+  it("Test 3b: the derived dial set's CARDINALITY is asserted separately from its members", () => {
+    // Three named literals plus three structural postures the reader canonicalises. A dial value
+    // added later must move a NUMBER as well as a set — the two failures read differently.
+    expect(deriveDialLiterals(CONTEXT_IO_TS_PATH).length).toBe(3);
+    expect(dialCases().length).toBe(6);
+  });
+
+  for (const dialCase of dialCases()) {
+    it(`Test 1/2/5 — the two routes AGREE under ${dialCase.label}`, () => {
+      const repoRoot = projectWith(dialCase.context);
+      const gov = mod.readGovernanceConfig(repoRoot);
+      const gated = mod.isGatedNote("security-nfr", "finding", gov);
+      const origin = contextStore("p31-18-wr18-origin-");
+      const dest = contextStore("p31-18-wr18-dest-");
+      const id = seed(origin, repoRoot);
+
+      // What the COMBINER does with the identical note, measured rather than assumed.
+      const combiner = mod.admitAndAppend(WR18_TASK, disposed(), WR18_BODY, contextStore("p31-18-wr18-comb-"), repoRoot);
+      const combinerWrote = combiner.id !== null;
+      expect(
+        combinerWrote,
+        "PREMISE: the combiner's answer is the thing the promotion route must agree with",
+      ).toBe(gated);
+
+      // …and what the PROMOTION route does with it.
+      let promoted: string | null = null;
+      let message = "";
+      try {
+        promoted = mod.promoteAdmitted(WR18_TASK, id, disposed(), WR18_BODY, origin, dest, repoRoot);
+      } catch (e) {
+        message = (e as Error).message;
+      }
+
+      if (gated) {
+        // Test 5 — the CR-08 closure is unmoved: a gated note still promotes byte-identically.
+        expect(promoted, `the legitimate promotion was refused under ${dialCase.label}`).toBe(id);
+        expect(readFileSync(join(dest, WR18_TASK, "notes", `${id}.md`), "utf8")).toBe(
+          readFileSync(join(origin, WR18_TASK, "notes", `${id}.md`), "utf8"),
+        );
+      } else {
+        // Test 2 — the two routes now answer the same question the same way.
+        expect(
+          message,
+          `the promotion route carried a human:NAME stamp forward under ${dialCase.label}, which ` +
+            `the combiner refuses on the identical note. One rule, two answers`,
+        ).toContain("DECLINED (human-stamp-not-gated-at-destination)");
+        expect(message).toContain(mod.PROMOTE_ADMITTED_DECLINES["human-stamp-not-gated-at-destination"]);
+        // The clause's sentence names the SAME ground the combiner's W3 arm names.
+        expect(message).toContain("disposed_by");
+        expect(combiner.findings.join("\n")).toContain("disposed_by");
+        expect(noteFiles(dest)).toEqual([]);
+      }
+    });
+  }
+
+  it("Test 4: an UNREADABLE configuration still refuses on this route — the control is unchanged", () => {
+    const badRoot = freshTmp("p31-18-wr18-unreadable-");
+    mkdirSync(join(badRoot, ".grugops"), { recursive: true });
+    writeFileSync(join(badRoot, ".grugops", "factory.config.json"), "{ not valid json ]]]");
+    const goodRoot = projectWith({ human_admission: "high-severity", audit_retention: "git" });
+    const origin = contextStore("p31-18-wr18-unreadable-origin-");
+    const dest = contextStore("p31-18-wr18-unreadable-dest-");
+    const id = seed(origin, goodRoot);
+    expect(() =>
+      mod.promoteAdmitted(WR18_TASK, id, disposed(), WR18_BODY, origin, dest, badRoot),
+    ).toThrow(/DECLINED \(unreadable-governance-config\)/);
+    expect(noteFiles(dest)).toEqual([]);
+  });
+
+  it("Test 7: the gated predicate is composed in exactly ONE place — not a second time in this route", () => {
+    const source = readFileSync(CONTEXT_IO_TS_PATH, "utf8");
+    const start = source.indexOf("export function promoteAdmitted(");
+    const end = source.indexOf("\n// ── The green-verdict recognition contract", start);
+    expect(start, "PREMISE: the route's declaration was not found").toBeGreaterThan(-1);
+    expect(end, "PREMISE: the route's end anchor was not found").toBeGreaterThan(start);
+    const body = source
+      .slice(start, end)
+      .split("\n")
+      .filter((l) => !l.trim().startsWith("//"))
+      .join("\n");
+    expect(
+      body,
+      "the route does not ask the single-source gated authority, so whatever it decides about the " +
+        "dial is a SECOND composition of a predicate this module has already paid ten rounds for",
+    ).toContain("isGatedNote(");
+    expect(
+      body.split("isGatedNote(").length - 1,
+      "the route asks the gated authority more than once",
+    ).toBe(1);
+    expect(
+      body,
+      "the route reads the human_admission dial directly. The dial's value is consulted through " +
+        "isGatedNote, the one authority the combiner and the per-call hook both import — a local " +
+        "reconstruction is this module's named ten-round drift surface",
+    ).not.toContain("human_admission");
+  });
+
+  // ── THE LEDGER PREMISE, DECIDED (WR-18 (b)). The route no longer ASSUMES the origin's admission
+  //    recorded this id in the destination repository's ledger; it looks, and acts on the answer.
+  it("Test 6a: when the ledger ALREADY records the id, the promotion appends nothing (D-19 (4) intact)", () => {
+    const repoRoot = projectWith({ human_admission: "high-severity", audit_retention: "retained" });
+    const origin = contextStore("p31-18-wr18-ledger-a-origin-");
+    const dest = contextStore("p31-18-wr18-ledger-a-dest-");
+    const ledger = join(repoRoot, ".grugops", "audit", "admissions.jsonl");
+    const id = seed(origin, repoRoot);
+    const afterOrigin = readFileSync(ledger, "utf8").trim().split("\n").filter((l) => l.length > 0);
+    expect(afterOrigin).toHaveLength(1);
+    mod.promoteAdmitted(WR18_TASK, id, disposed(), WR18_BODY, origin, dest, repoRoot);
+    expect(
+      readFileSync(ledger, "utf8").trim().split("\n").filter((l) => l.length > 0),
+      "the re-binding appended a duplicate keyed by the origin's own id — the shape 31-09 collapsed",
+    ).toEqual(afterOrigin);
+  });
+
+  it("Test 6b: when the destination repository's ledger has NO event for the id, one is appended, marked re_bound", () => {
+    // The premise's THIRD failure condition from the review, driven: the origin write happened under
+    // a DIFFERENT repoRoot, so the destination repository's ledger records nothing about this id and
+    // would otherwise gain a high-severity human-disposed finding with no ledger line anywhere in it.
+    const originRepo = projectWith({ human_admission: "high-severity", audit_retention: "retained" });
+    const destRepo = projectWith({ human_admission: "high-severity", audit_retention: "retained" });
+    const origin = contextStore("p31-18-wr18-ledger-b-origin-");
+    const dest = contextStore("p31-18-wr18-ledger-b-dest-");
+    const id = seed(origin, originRepo);
+    const destLedger = join(destRepo, ".grugops", "audit", "admissions.jsonl");
+    expect(existsSync(destLedger), "PREMISE: the destination repository's ledger already exists").toBe(false);
+
+    expect(mod.promoteAdmitted(WR18_TASK, id, disposed(), WR18_BODY, origin, dest, destRepo)).toBe(id);
+    expect(
+      existsSync(destLedger),
+      "the destination repository gained a high-severity human-disposed finding with NO ledger " +
+        "line anywhere in it, on a premise nothing checked",
+    ).toBe(true);
+    const lines = readFileSync(destLedger, "utf8").trim().split("\n").filter((l) => l.length > 0);
+    expect(lines).toHaveLength(1);
+    const event = JSON.parse(lines[0]) as Record<string, unknown>;
+    expect(event.id).toBe(id);
+    expect(event.severity).toBe("high");
+    expect(event.disposed_by).toBe("human:alice");
+    expect(
+      event.re_bound,
+      "the appended event is indistinguishable from a FRESH admission, so the ledger now claims a " +
+        "disposition this repository never witnessed",
+    ).toBe(true);
+
+    // …and it is idempotent: a second promotion finds the id and appends nothing.
+    const dest2 = contextStore("p31-18-wr18-ledger-b-dest2-");
+    mod.promoteAdmitted(WR18_TASK, id, disposed(), WR18_BODY, origin, dest2, destRepo);
+    expect(readFileSync(destLedger, "utf8").trim().split("\n").filter((l) => l.length > 0)).toEqual(lines);
+  });
+
+  it("Test 6c: under the lean `git` retention neither route writes a ledger at all", () => {
+    const repoRoot = projectWith({ human_admission: "high-severity", audit_retention: "git" });
+    const origin = contextStore("p31-18-wr18-ledger-c-origin-");
+    const dest = contextStore("p31-18-wr18-ledger-c-dest-");
+    const id = seed(origin, repoRoot);
+    mod.promoteAdmitted(WR18_TASK, id, disposed(), WR18_BODY, origin, dest, repoRoot);
+    expect(existsSync(join(repoRoot, ".grugops", "audit", "admissions.jsonl"))).toBe(false);
+  });
+
+  it("Test 6d: a fresh admission's ledger line is BYTE-UNCHANGED — re_bound is absent, not false", () => {
+    // The eight-key line every prior admission produced must still be exactly that line, or the
+    // ledger's byte-reproducibility contract moved for every note in every repository.
+    const repoRoot = projectWith({ human_admission: "high-severity", audit_retention: "retained" });
+    const dest = contextStore("p31-18-wr18-ledger-d-dest-");
+    const id = mod.admitAndAppend(WR18_TASK, disposed(), WR18_BODY, dest, repoRoot).id as string;
+    const line = readFileSync(join(repoRoot, ".grugops", "audit", "admissions.jsonl"), "utf8").trim();
+    // The exact bytes, in the fixed key order the toJsonl discipline pins — not a field-by-field
+    // check, because what must not move is the LINE.
+    expect(line).toBe(
+      JSON.stringify({
+        id,
+        kind: "finding",
+        by: "security-nfr",
+        severity: "high",
+        verified_by: "human:alice",
+        disposed_by: "human:alice",
+        at: "2026-09-08T02:00:00Z",
+      }),
+    );
+    const event = JSON.parse(line) as Record<string, unknown>;
+    expect(Object.keys(event)).toEqual(["id", "kind", "by", "severity", "verified_by", "disposed_by", "at"]);
+    expect("re_bound" in event).toBe(false);
   });
 });
