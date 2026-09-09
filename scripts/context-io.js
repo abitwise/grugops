@@ -2661,7 +2661,18 @@ export const TRUSTED_ROOT_STOP_CONDITIONS = Object.freeze([
 ]);
 /**
  * THE ONE TRUSTED ROOT (plan 30-11 round 2, findings `RA2-1` and reviewer-1 observation 2; the
- * resolution order below is plan 31-15, review finding WR-15).
+ * resolution order below is plan 31-15, review finding WR-15; its BOUND is plan 31-19 / D-23,
+ * review finding WR-21).
+ *
+ * D-23, MIRRORED HERE BECAUSE THIS IS ONE OF THE THREE PLACES THAT MUST AGREE. The bound on step 3
+ * is a property of the WALK and not of which markers a filesystem happens to carry: the search
+ * halts at the user's home directory and never inspects it or anything above it, an undeterminable
+ * home stops the search rather than licensing an unbounded one, a repository root's own
+ * configuration outranks one nested inside it, and the complete stop set is published once as
+ * `TRUSTED_ROOT_STOP_CONDITIONS` with `agent-factory/workflows/16-context-read-write.md` asserted
+ * equal to it in both directions. What D-23 does NOT establish is enumerated as `R-31-19-01`
+ * through `R-31-19-04` in `TRUSTED_ROOT_RESIDUALS`. The other two places are
+ * `.planning/phases/31-autonomous-manual-testing/31-CONTEXT.md` and `31-19-SUMMARY.md`.
  *
  * Every consumer that needs "the root governance is read from" asks this, so there is one answer
  * rather than one per caller. It answers, in this order:

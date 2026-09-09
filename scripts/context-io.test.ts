@@ -7150,6 +7150,89 @@ describe("31-15 — WR-15: the target repository's dial is read on every host", 
         "the below-home answer is behaviour this suite asserts, so it must be a NAMED residual",
       ).toContain("R-31-19-01");
     });
+
+    // ── THE PROSE IS QUOTED FROM THE MECHANISM, IN BOTH DIRECTIONS ──────────────────────────────
+    //
+    // WR-21 is a CLAIM THAT OUTRAN ITS MECHANISM. Two sentences — the function's own docstring and
+    // `16-context-read-write.md`'s step-3 paragraph — both said the search could never reach a
+    // user's home directory, and neither was bound to anything that made it so. Correcting the
+    // sentences without binding them would leave the next drift equally unobserved, so the stop
+    // conditions are published once and the document is asserted equal to that publication in BOTH
+    // directions. This mirrors the discipline `browser-uat-recipe.md` already keeps against the
+    // ban-rule constants (`scripts/runnable-ref/uat-spec-integrity.test.ts`).
+
+    const WORKFLOW_16 = join(ROOT, "agent-factory", "workflows", "16-context-read-write.md");
+    const STOP_HEADING = "### Where the upward governance-root search stops";
+
+    /** The region under one heading, ending at the next heading of the same or a higher level. */
+    function extractSection(text: string, heading: string): string {
+      const lines = text.split("\n");
+      const start = lines.findIndex((l) => l.trimEnd() === heading);
+      if (start < 0) {
+        throw new Error(
+          `PREMISE: the anchor heading ${JSON.stringify(heading)} is absent from the workflow — ` +
+            "every assertion over the region would be vacuous",
+        );
+      }
+      const level = heading.slice(0, heading.indexOf(" ")).length;
+      let end = lines.length;
+      for (let i = start + 1; i < lines.length; i++) {
+        const m = /^(#{1,6}) /.exec(lines[i]);
+        if (m !== null && m[1].length <= level) {
+          end = i;
+          break;
+        }
+      }
+      return lines.slice(start, end).join("\n");
+    }
+
+    /** The stop sentences the document states, one per bullet in that region. */
+    function documentedStops(text: string): string[] {
+      const region = extractSection(text, STOP_HEADING);
+      // PREMISE: a bounded region. A reader that ran to end-of-file would silently adopt an
+      // unrelated later list — the failure mode plan 29 recorded against a section-anchored fence.
+      expect(region.length, "PREMISE: the extracted region is empty").toBeGreaterThan(0);
+      expect(
+        region.length,
+        "PREMISE: the extractor ran to end-of-file rather than to the next heading",
+      ).toBeLessThan(text.length);
+      return region
+        .split("\n")
+        .filter((l) => l.startsWith("- "))
+        .map((l) => l.slice(2).trim());
+    }
+
+    it("the workflow's stop list and the exported stop set agree, in BOTH directions", () => {
+      expect(Object.isFrozen(mod.TRUSTED_ROOT_STOP_CONDITIONS)).toBe(true);
+      const ids = mod.TRUSTED_ROOT_STOP_CONDITIONS.map((s) => s.id);
+      expect(new Set(ids).size, "two stop conditions share an id").toBe(ids.length);
+
+      const published = mod.TRUSTED_ROOT_STOP_CONDITIONS.map((s) => s.sentence);
+      const documented = documentedStops(readFileSync(WORKFLOW_16, "utf8"));
+      expect(documented.length, "PREMISE: the region lists no stop conditions").toBeGreaterThan(0);
+      // Forward: every stop the CODE has is named in the prose. Reverse: every stop the PROSE names
+      // the code has. A one-directional assertion passes while the prose claims a bound that is not
+      // there, which is exactly what WR-21 found.
+      expect([...documented].sort()).toEqual([...published].sort());
+      expect(documented).toHaveLength(published.length);
+    });
+
+    it("WATCHED FAIL: a stop seeded on either side breaks the equality, so it is a control", () => {
+      const whole = readFileSync(WORKFLOW_16, "utf8");
+      const published = mod.TRUSTED_ROOT_STOP_CONDITIONS.map((s) => s.sentence);
+
+      // (a) The DOCUMENT claims a stop the code does not have.
+      const seededDoc = whole.replace(
+        "- The upward search ends at the filesystem root.",
+        "- The upward search ends at the filesystem root.\n- The upward search ends at a mount point.",
+      );
+      expect(seededDoc, "PREMISE: the seed did not apply").not.toBe(whole);
+      expect([...documentedStops(seededDoc)].sort()).not.toEqual([...published].sort());
+
+      // (b) The CODE has a stop the document does not name.
+      const seededCode = [...published, "The upward search ends at a mount point."];
+      expect([...documentedStops(whole)].sort()).not.toEqual([...seededCode].sort());
+    });
   });
 });
 

@@ -641,6 +641,91 @@ benefiting caller authored, and carried a `human:NAME` stamp forward under a dia
     enumeration above is asserted equal, in both directions, to the clause set derived from the
     route's own parsed body.
 
+#### Gap-closure decision — D-23 (2026-09-09, gap-closure round 4 wave 4, plan 31-19)
+
+This is a GAP-CLOSURE decision recorded during execution, not an original user decision from the
+discussion. It sits BESIDE D-19 and D-22 and leaves D-01 through D-22 untouched. No existing
+decision above is edited, renumbered or deleted.
+
+**Forced by:** `WR-21` of `31-REVIEW.md` — the residue the round-3 review left when it closed
+`WR-15` — and the round-4 verification, which reproduced it independently and named it beside the
+two blockers. `31-15`'s own plan carried the prohibition "the resolution order must never resolve to
+a root ABOVE the repository boundary ... and never reaches a user's home directory" as a flagged,
+unverified statement. Round 4 verified it and found it false.
+
+**Which register failed.** A BOUND STATED IN PROSE AND NEVER EXPRESSED IN THE CODE. The upward
+search's only stop conditions were a configuration found, an ancestor carrying `.git`, the
+filesystem root, and 64 ancestors. None of those is the user's home directory — while the function's
+own docstring said the walk "never continues past" a boundary so a resolution "can never reach a
+user's home directory", and `agent-factory/workflows/16-context-read-write.md` repeated it. Both are
+non-sequiturs: the marker stop fires only if some ancestor happens to carry `.git`, and nothing
+guarantees one does. Measured against the committed `scripts/context-io.js` before any source
+change, with both project-directory variables removed and a working directory three levels below a
+home-directory-shaped ancestor carrying `.grugops/factory.config.json` and no marker on the path,
+`trustedRepoRoot()` returned the planted ancestor and read its `human_admission: "all"`; a second
+probe drove an admission from that shape and the GOV-02 event landed in the planted directory's own
+`.grugops/audit/admissions.jsonl`. Under the shipped shared-install model the kit lives at
+`~/.grugops`, so that ancestor shape is what the installer creates rather than a contrived tree.
+
+- **D-23: the bound on the governance-root search is a PROPERTY OF THE WALK, not of which markers a
+  filesystem happens to carry, and the prose that states it is quoted from the mechanism under an
+  asserted equality.** D-23 adds no case to `admit()`, does not touch its frozen human-stamp arm,
+  and does not touch `hooks/guard.ts`. It makes five sub-decisions.
+  - **(1) The walk halts at the user's home directory and never inspects it or anything above it.**
+    The code is made to match the documentation rather than the documentation weakened to match the
+    code, which is the direction the review offered as its first acceptable outcome. The comparison
+    is against the DIRECTORY and not a spelling of it: `dev:ino`, so a home reached through a
+    symlink or spelled with different case on a case-insensitive filesystem is still recognised — a
+    missed stop is the unsafe direction. The identity set's own premise is CHECKED rather than
+    assumed (the home directory's identity is compared with its parent's, and where they agree the
+    platform's identities are discarded and path spellings decide alone), because a platform with
+    degenerate identities would otherwise stop the walk at its first step and re-open WR-15 there.
+  - **(2) A home directory that cannot be determined stops the search rather than licensing an
+    unbounded one.** The answer degrades to the kit — the answer the pre-`31-15` program gave
+    unconditionally — which is the one outcome this case may not turn into a walk with no ceiling.
+  - **(3) The boundary set no longer depends on one tool being present.** `REPO_BOUNDARY_MARKERS`
+    names nine version-control markers rather than `.git` alone. It is recorded as CONTENT and not
+    as the bound. The road not taken is recorded with it: a non-VCS `.grugops` boundary was refused
+    because a sub-package carrying grugops STATE and no configuration would end the walk below the
+    repository whose dial governs and fall through to the kit's lean default — a configuration
+    moving from refused to admitted, which is the WR-15 defect itself.
+  - **(4) A repository root's own configuration outranks one nested inside it** — WR-21's second
+    half, DECIDED rather than named. A vendored kit's `agent-factory/config/factory.config.json`,
+    the second published candidate and the file every vendored copy of this kit carries, won over
+    the host repository's own for any process whose working directory sat under it. That is a
+    governance dial lowered by changing directory. Measured pre-fix: root `…/host/vendor/kit`, dial
+    `off`, a self-stamped high-severity finding WRITTEN; post-fix: root `…/host`, dial
+    `high-severity`, REFUSED naming the dial. Where the repository root carries no configuration the
+    nested one still answers, so nothing that resolved before resolves differently.
+  - **(5) The complete stop set is a FROZEN EXPORT and the protocol document is quoted from it.**
+    `TRUSTED_ROOT_STOP_CONDITIONS` publishes every stop once, with the step limit INTERPOLATED
+    rather than typed, and `scripts/context-io.test.ts` asserts the workflow's list set-equal to it
+    in BOTH directions with a watched-fail control seeding an extra stop on each side. This is the
+    structural half: WR-21 exists because a claim was free to outrun the mechanism, and correcting
+    the sentence without binding it would leave the next drift unobserved.
+  - **The road not taken, recorded.** The review's other acceptable outcome — leave the walk
+    unbounded and rewrite both sentences with a residual member — is rejected. The consequence is
+    not only a wrong dial: `trustedRepoRoot()` is the answer every consumer asks, so the audit
+    ledger writer lands in the adopted directory too, and one project's admission records would be
+    written into another's committed audit trail. A documented capability is still that capability.
+  - **What D-23 does NOT establish.** Four residuals are named in `TRUSTED_ROOT_RESIDUALS`, each
+    with its reason and its closing criterion. `R-31-19-01`: a configuration at an ancestor BELOW
+    the home directory, with no marker between, still governs — that IS step 3 and it is WR-15's
+    closure, so the review's `Fix:` sentence is satisfied for the shape the review reproduced (an
+    ancestor at or above the home directory) and refused below it. `R-31-19-02`: the home directory
+    is whatever `os.homedir()` names, an ambient value — the same shape as `R-31-15-03` one name
+    over, and a process that can set `HOME` can already set either project-directory variable.
+    `R-31-19-03`: on a platform with degenerate filesystem identities the stop compares path
+    spellings alone. `R-31-19-04`: the marker set is an open set, so a checkout whose marker is not
+    named is not recognised as a repository root. The register's cardinality (8) is asserted
+    separately from its members, and a watched-fail control proves the set-equality is a control.
+  - **Reversibility: costly.** The stop set becomes a published authority the protocol document is
+    quoted from, and every consumer's root resolution depends on the walk. Reverting restores a
+    program the round-4 verifier measured adopting a home-directory-shaped ancestor's configuration
+    and writing one project's admission records into another's audit trail.
+  - **Recorded in three places that must agree:** here, in the resolution-order docstring beside
+    `trustedRepoRoot` in `scripts/context-io.ts`, and in `31-19-SUMMARY.md`'s key-decisions block.
+
 ### Claude's Discretion
 - Exact runnable file name and the exact wording of the two new loud-skip markers, as long as
   each is a single exported constant with a single emission point (the `uat-live.test.ts` shape).

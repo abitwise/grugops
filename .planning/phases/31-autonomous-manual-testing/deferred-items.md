@@ -68,3 +68,22 @@
   prose change; the count is identical either way, and `agent-factory/workflows/18-context-compaction.md`
   went from 0 rows owed to 25 rows written and 0 owed. Pre-existing, unrelated to CR-11/WR-17/WR-18,
   and therefore left alone per the executor scope boundary. A later plan owns it.
+
+## 31-19 (2026-09-09) — out-of-scope discoveries
+
+- `npm run check:diff-disposition` reports **75 changed clauses with no disposition row** after this
+  plan's rows landed. 65 of them name `05-pr-quality-gate.md` (38), `06-uat-pack.md` (25) or
+  `17-task-claim.md` (2) — the pre-existing debt the `31-14` and `31-18` entries above already
+  record, unchanged by this plan. The remaining **10 name `16-context-read-write.md` and belong to
+  plan `31-15`**: the sentences stating steps 1, 2 and 4 of the resolution order, the
+  `human_admission` dial paragraph, and the honest-degradation paragraph.
+  **Measured:** 65 before this plan's workflow edits, 86 with the edits and no rows, 75 with
+  `docs/audit/29-style-dispositions/31-19.md` in place — so this plan owes **0** for the 11 clauses
+  it changed, and cleared none of the 10 it did not.
+  **Why it was not fixed here:** unchanged from the `31-09` and `31-14` entries above — writing rows
+  for another plan's clauses would put a `before`/`after` and a reason in the register that this
+  plan did not make and cannot vouch for. `31-15`'s sentences are still true after `31-19`; what
+  they lack is a disposition row, which is a record of a decision rather than a correction.
+  **Remedy when picked up:** one disposition file per owning plan — a `31-15.md` covering those ten
+  clauses. Do NOT move `00-base.md`'s recorded base commit forward and do NOT narrow the watched
+  corpus.
