@@ -129,8 +129,16 @@ interface CheckerModule {
     out: (s: string) => void,
     err: (s: string) => void,
   ): number;
-  // 31-25 (D-28): the process boundary, and the injected-dependency record that makes it reachable.
+  // 31-25 (D-28): the process boundary, the injected-dependency record that makes it reachable, the
+  // published corpus coverage, and the branch/stream table READ OFF reportMeasured.
   readonly PROCESS_BOUNDARY_MARKER: string;
+  readonly PATHOLOGICAL_INPUT_SHAPES: readonly string[];
+  readonly MEASUREMENT_BRANCH_STREAMS: Readonly<
+    Record<
+      "vacuity_floor" | "denominator_floor" | "findings" | "pass",
+      { readonly stream: "stdout" | "stderr"; readonly exitCode: number }
+    >
+  >;
   main(
     argv: readonly string[],
     deps?: {
@@ -6340,81 +6348,85 @@ describe("uat-spec-integrity — 31-24 PROBE 4: the assertion arms ask about a c
 // THE STREAM ITS BRANCH WRITES TO, never that "a measurement reached stdout".
 // ═══════════════════════════════════════════════════════════════════════════════════════════════
 
-describe("uat-spec-integrity — 31-25 CR-15: every exit passes through one decided boundary", () => {
-  /** The review's own probe construct, at a chosen nesting depth, in an otherwise legitimate file. */
-  function nestedSpec(depth: number): string {
-    return [
-      'import { test, expect } from "@playwright/test";',
-      `const x: any = ${"(".repeat(depth)}1${")".repeat(depth)};`,
-      'test("a scenario", async ({ page }) => {',
-      '  await expect(page.getByTestId("x")).toBeVisible();',
-      "});",
-      "",
-    ].join("\n");
-  }
+// The 31-25 helpers live at FILE SCOPE because two blocks below drive them — the CR-15 boundary
+// cases and the D-28 pathological corpus. A second copy of the adjacency bisection would be a second
+// authority for the same number, which is the set-literal drift this project keeps paying for.
 
-  const CLEAN_SPEC = [
+/** The review's own probe construct, at a chosen nesting depth, in an otherwise legitimate file. */
+function nestedSpec(depth: number): string {
+  return [
     'import { test, expect } from "@playwright/test";',
+    `const x: any = ${"(".repeat(depth)}1${")".repeat(depth)};`,
     'test("a scenario", async ({ page }) => {',
-    '  await page.goto("/x");',
     '  await expect(page.getByTestId("x")).toBeVisible();',
     "});",
     "",
   ].join("\n");
+}
 
-  /** A spec carrying a genuine arm-(c) finding, so CONTROL 3 can drive the findings branch. */
-  const FINDING_SPEC = [
-    'import { test, expect } from "@playwright/test";',
-    'test.skip("a scenario", async ({ page }) => {',
-    '  await expect(page.getByTestId("x")).toBeVisible();',
-    "});",
-    "",
-  ].join("\n");
+const CLEAN_SPEC = [
+  'import { test, expect } from "@playwright/test";',
+  'test("a scenario", async ({ page }) => {',
+  '  await page.goto("/x");',
+  '  await expect(page.getByTestId("x")).toBeVisible();',
+  "});",
+  "",
+].join("\n");
 
-  function plant(root: string, relPath: string, body: string | Uint8Array): void {
-    const dest = join(root, relPath);
-    mkdirSync(dirname(dest), { recursive: true });
-    writeFileSync(dest, body);
-  }
+/** A spec carrying a genuine arm-(c) finding, so CONTROL 3 can drive the findings branch. */
+const FINDING_SPEC = [
+  'import { test, expect } from "@playwright/test";',
+  'test.skip("a scenario", async ({ page }) => {',
+  '  await expect(page.getByTestId("x")).toBeVisible();',
+  "});",
+  "",
+].join("\n");
 
-  // ── the adjacency pair, DISCOVERED rather than hard-coded ─────────────────────────────────────
-  //
-  // The depth at which a recursive-descent parser exhausts the interpreter's stack is a property of
-  // THIS machine's stack size, not of the checker. Hard-coding 1000 would make the corpus green on a
-  // host with a larger stack while asserting nothing. The pair is therefore bisected through the
-  // COMMITTED artifact, whose two decided outcomes are the bisection predicate: exit 0 (the parser
-  // finished) or anything else (it did not). The predicate is well-defined both BEFORE this plan's
-  // change (the other side is an uncaught exit 1) and after it (an exit 2 could-not-run), so the
-  // same discovery drives the RED measurement and the GREEN one.
-  let boundaryCache: { readonly safe: number; readonly overflow: number } | null = null;
-  function parseBoundary(): { readonly safe: number; readonly overflow: number } {
-    if (boundaryCache !== null) return boundaryCache;
-    const root = mkTargetRepo({});
-    const finishes = (depth: number): boolean => {
-      plant(root, "e2e/uat/nested.uat.spec.ts", nestedSpec(depth));
-      return runCheck(root).status === 0;
-    };
-    let lo = 1;
-    let hi = 512;
-    while (finishes(hi)) {
-      lo = hi;
-      hi *= 2;
-      if (hi > 1 << 17) {
-        throw new Error(
-          `premise failed: no nesting depth up to ${1 << 17} stopped the parser finishing, so this ` +
-            `machine cannot drive the shape CR-15 reproduces`,
-        );
-      }
+function plant(root: string, relPath: string, body: string | Uint8Array): void {
+  const dest = join(root, relPath);
+  mkdirSync(dirname(dest), { recursive: true });
+  writeFileSync(dest, body);
+}
+
+// ── the adjacency pair, DISCOVERED rather than hard-coded ─────────────────────────────────────
+//
+// The depth at which a recursive-descent parser exhausts the interpreter's stack is a property of
+// THIS machine's stack size, not of the checker. Hard-coding 1000 would make the corpus green on a
+// host with a larger stack while asserting nothing. The pair is therefore bisected through the
+// COMMITTED artifact, whose two decided outcomes are the bisection predicate: exit 0 (the parser
+// finished) or anything else (it did not). The predicate is well-defined both BEFORE this plan's
+// change (the other side is an uncaught exit 1) and after it (an exit 2 could-not-run), so the
+// same discovery drives the RED measurement and the GREEN one.
+let boundaryCache: { readonly safe: number; readonly overflow: number } | null = null;
+function parseBoundary(): { readonly safe: number; readonly overflow: number } {
+  if (boundaryCache !== null) return boundaryCache;
+  const root = mkTargetRepo({});
+  const finishes = (depth: number): boolean => {
+    plant(root, "e2e/uat/nested.uat.spec.ts", nestedSpec(depth));
+    return runCheck(root).status === 0;
+  };
+  let lo = 1;
+  let hi = 512;
+  while (finishes(hi)) {
+    lo = hi;
+    hi *= 2;
+    if (hi > 1 << 17) {
+      throw new Error(
+        `premise failed: no nesting depth up to ${1 << 17} stopped the parser finishing, so this ` +
+          `machine cannot drive the shape CR-15 reproduces`,
+      );
     }
-    while (hi - lo > 1) {
-      const mid = Math.floor((lo + hi) / 2);
-      if (finishes(mid)) lo = mid;
-      else hi = mid;
-    }
-    boundaryCache = { safe: lo, overflow: hi };
-    return boundaryCache;
   }
+  while (hi - lo > 1) {
+    const mid = Math.floor((lo + hi) / 2);
+    if (finishes(mid)) lo = mid;
+    else hi = mid;
+  }
+  boundaryCache = { safe: lo, overflow: hi };
+  return boundaryCache;
+}
 
+describe("uat-spec-integrity — 31-25 CR-15: every exit passes through one decided boundary", () => {
   // ── GREEN 1: the pathological parse is a COULD-NOT-RUN, and the vacuity floor speaks ──────────
 
   it("GREEN 1: a spec the parser cannot finish exits 2 with the vacuity floor on stderr", () => {
@@ -6737,5 +6749,372 @@ describe("uat-spec-integrity — 31-25 CR-15: every exit passes through one deci
       mr.stderr.indexOf("e2e/uat/nested.uat.spec.ts"),
       "the reason must precede the denominator floor on the same stream",
     ).toBeLessThan(mr.stderr.indexOf("visited 1 of 2"));
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// 31-25 / D-28 — THE PARTITION, ASSERTED OVER A CORPUS RATHER THAN OVER ONE DEPTH
+//
+// CR-15 was found at depth 1,000 because a reviewer tried that depth. WR-19 was found at 4,000
+// links because a reviewer tried that shape. Neither shape was in the suite, and the suite was
+// green both times. What this block asserts is therefore not one input but a PUBLISHED SET of
+// shapes, bound in both directions so a shape can neither be added without a case nor a case
+// written without a shape.
+//
+// BOTH HALVES, AND WHICH STREAM. For every shape the case asserts (i) the exit code is a member of
+// { 0, 1, 2 } and (ii) the measurement carrying the visited and derived counts REACHED THE STREAM
+// ITS BRANCH WRITES TO. The second half is the one WR-19 and CR-15 both actually broke: in both,
+// the exit code was inside the partition by ACCIDENT, and the absence of ANY measurement on EITHER
+// stream is what made a check that never ran unreadable as such.
+//
+// WHY NOT "a measurement on stdout for every shape". `reportMeasured`'s two floors call `err(...)`
+// and return 2; only the findings line and the pass line call `out(...)`. That split is the
+// `scripts/vacuity.ts` mirror D-21 established and this runnable cannot import. A corpus demanding
+// stdout for a could-not-run shape would force this plan to MOVE a floor's output and re-author an
+// authority it does not own, in the course of fixing an unrelated boundary. The property CR-15
+// needs from `reportMeasured` is that it is REACHED; which of its four branches then speaks, and
+// where, is that function's decision, is READ OFF it into MEASUREMENT_BRANCH_STREAMS, and is
+// asserted unchanged by this plan.
+//
+// WHY THE CORPUS IS NOT A COMMITTED FIXTURE. tsconfig.fixtures.json type-checks everything under
+// scripts/runnable-ref/fixtures/. A 1,000-deep nesting, an invalid-UTF-8 file or a binary file
+// committed there would turn that gate red for a reason unrelated to the ban — and the cheapest way
+// to make it green again is to delete the fixture. Every shape is therefore generated at RUN TIME
+// into a probe root removed in a `finally`.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+describe("uat-spec-integrity — 31-25 D-28: the exit partition over a pathological corpus", () => {
+  const CORPUS_PARENT = join(tmpdir(), "grugops-uat-spec-integrity-corpus");
+
+  /** A probe root generated for ONE shape and removed unconditionally. */
+  function withProbeRoot<T>(fn: (root: string) => T): T {
+    mkdirSync(CORPUS_PARENT, { recursive: true });
+    const root = mkdtempSync(join(CORPUS_PARENT, "shape-"));
+    try {
+      writeFileSync(join(root, "package.json"), JSON.stringify({ name: "target", private: true }), "utf8");
+      symlinkSync(REPO_NODE_MODULES, join(root, "node_modules"), "dir");
+      return fn(root);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  }
+
+  type Branch = "vacuity_floor" | "denominator_floor" | "findings" | "pass";
+
+  /**
+   * One row per shape: the sentence the export publishes, the branch of `reportMeasured` the shape
+   * is DECLARED to reach, and the bytes that drive it. A shape whose measured branch differs from
+   * its declared one fails the case — it is never re-declared to match what it turned out to do.
+   */
+  interface ShapeCase {
+    readonly shape: string;
+    readonly branch: Branch;
+    readonly bytes: () => string | Uint8Array;
+  }
+
+  function shapeCases(): readonly ShapeCase[] {
+    const { overflow, safe } = parseBoundary();
+    const large: string[] = ['import { test, expect } from "@playwright/test";'];
+    for (let i = 0; i < 40000; i++) large.push(`const v${i} = ${i};`);
+    large.push(
+      'test("a scenario", async ({ page }) => {',
+      '  await expect(page.getByTestId("x")).toBeVisible();',
+      "});",
+      "",
+    );
+    const binary = new Uint8Array(4096);
+    for (let i = 0; i < binary.length; i++) binary[i] = (i * 97) % 256;
+
+    return [
+      {
+        shape: "a nesting depth the parser cannot finish",
+        branch: "vacuity_floor",
+        bytes: () => nestedSpec(overflow),
+      },
+      {
+        shape: "the adjacent nesting depth the parser does finish",
+        branch: "pass",
+        bytes: () => nestedSpec(safe),
+      },
+      {
+        shape: "a spec far larger than any ordinary one",
+        branch: "pass",
+        bytes: () => large.join("\n"),
+      },
+      {
+        shape: "a spec carrying invalid UTF-8 byte sequences",
+        branch: "vacuity_floor",
+        bytes: () =>
+          new Uint8Array([
+            ...new TextEncoder().encode(CLEAN_SPEC),
+            0xc3, 0x28, 0xa0, 0xa1, 0xe2, 0x28, 0xa1,
+          ]),
+      },
+      {
+        shape: "a spec opening with a byte-order mark",
+        branch: "pass",
+        bytes: () => new Uint8Array([0xef, 0xbb, 0xbf, ...new TextEncoder().encode(CLEAN_SPEC)]),
+      },
+      {
+        shape: "a spec whose bytes are binary",
+        branch: "vacuity_floor",
+        bytes: () => binary,
+      },
+    ];
+  }
+
+  /** Drive ONE shape through the committed .js and report what each stream carried. */
+  function driveShape(c: ShapeCase): {
+    readonly status: number | null;
+    readonly stdout: string;
+    readonly stderr: string;
+  } {
+    return withProbeRoot((root) => {
+      const body = c.bytes();
+      const rel = "e2e/uat/shape.uat.spec.ts";
+      mkdirSync(dirname(join(root, rel)), { recursive: true });
+      writeFileSync(join(root, rel), body);
+      // PROBE 5 — THE HARNESS'S OWN PREMISE, ASSERTED BEFORE THE CONCLUSION. A corpus whose specs
+      // were never written would satisfy the partition vacuously at 0/0.
+      const onDisk = readFileSync(join(root, rel));
+      const wanted = typeof body === "string" ? new TextEncoder().encode(body) : body;
+      expect(onDisk.length, `${c.shape}: the generated spec is not on disk at its generated size`).toBe(
+        wanted.length,
+      );
+      return runCheck(root);
+    });
+  }
+
+  /** The text a run of the checker carries that NAMES BOTH COUNTERS, per stream. */
+  function measurementOn(stream: string): string | null {
+    const line = stream
+      .split("\n")
+      .find(
+        (l) =>
+          l.includes("uat specs were visited") ||
+          l.includes("derived uat specs") ||
+          l.includes("uat specs checked"),
+      );
+    return line ?? null;
+  }
+
+  // ── Test 7 (the corpus's own premise) — asserted FIRST, because everything below reads it ─────
+
+  it("Test 7: PATHOLOGICAL_INPUT_SHAPES is non-empty and every member is driven by a case", async () => {
+    const { PATHOLOGICAL_INPUT_SHAPES } = await loadChecker();
+    expect(
+      PATHOLOGICAL_INPUT_SHAPES.length,
+      "a corpus over zero shapes would satisfy the partition vacuously",
+    ).toBeGreaterThan(0);
+    expect(new Set(PATHOLOGICAL_INPUT_SHAPES).size).toBe(PATHOLOGICAL_INPUT_SHAPES.length);
+
+    const driven = shapeCases().map((c) => c.shape);
+    // BOTH DIRECTIONS: a shape added to the export without a case, or a case written for a shape the
+    // export does not publish, turns this red.
+    expect([...PATHOLOGICAL_INPUT_SHAPES].sort()).toEqual([...driven].sort());
+  });
+
+  // ── Test 8b: reportMeasured is UNCHANGED, and the table was READ OFF it ───────────────────────
+
+  it("Test 8b: MEASUREMENT_BRANCH_STREAMS equals what reportMeasured actually does, in both directions", async () => {
+    const { reportMeasured, MEASUREMENT_BRANCH_STREAMS } = await loadChecker();
+
+    // Drive all four branches and OBSERVE which stream each writes to and what it returns.
+    const observed: Record<string, { stream: string; exitCode: number }> = {};
+    const drive = (
+      name: string,
+      m: { visited: number; expected: number; findings: readonly string[] },
+    ): void => {
+      let out = "";
+      let err = "";
+      const code = reportMeasured(m, false, (s) => {
+        out += s;
+      }, (s) => {
+        err += s;
+      });
+      expect(
+        out === "" ? err !== "" : err === "",
+        `${name}: reportMeasured wrote to BOTH streams or to NEITHER`,
+      ).toBe(true);
+      observed[name] = { stream: out === "" ? "stderr" : "stdout", exitCode: code };
+    };
+    drive("vacuity_floor", { visited: 0, expected: 1, findings: [] });
+    drive("denominator_floor", { visited: 1, expected: 2, findings: [] });
+    drive("findings", { visited: 1, expected: 1, findings: ["a finding"] });
+    drive("pass", { visited: 1, expected: 1, findings: [] });
+
+    // FOUR branches, the same four, with the same streams — so this plan is proven not to have
+    // re-authored the scripts/vacuity.ts mirror while satisfying a stream expectation.
+    expect(Object.keys(observed).sort()).toEqual(Object.keys(MEASUREMENT_BRANCH_STREAMS).sort());
+    expect(Object.keys(MEASUREMENT_BRANCH_STREAMS)).toHaveLength(4);
+    for (const [branch, seen] of Object.entries(observed)) {
+      const declared = MEASUREMENT_BRANCH_STREAMS[branch as Branch];
+      expect(declared, `MEASUREMENT_BRANCH_STREAMS does not map ${branch}`).toBeDefined();
+      expect(declared.stream, `${branch}: the published stream is not the one the branch writes to`).toBe(
+        seen.stream,
+      );
+      expect(declared.exitCode, `${branch}: the published exit code is not the one it returns`).toBe(
+        seen.exitCode,
+      );
+    }
+    const streams = Object.values(MEASUREMENT_BRANCH_STREAMS).map((v) => v.stream);
+    expect(streams.filter((v) => v === "stdout")).toHaveLength(2);
+    expect(streams.filter((v) => v === "stderr")).toHaveLength(2);
+  });
+
+  // ── Test 1 (the partition) plus Tests 2-6, one case per shape ────────────────────────────────
+
+  it("Test 1: every shape exits inside {0,1,2} with its measurement on its branch's stream", async () => {
+    const { MEASUREMENT_BRANCH_STREAMS } = await loadChecker();
+    const rows: string[] = [];
+    let stdoutShapes = 0;
+    let stderrShapes = 0;
+
+    for (const c of shapeCases()) {
+      const declared = MEASUREMENT_BRANCH_STREAMS[c.branch];
+      const r = driveShape(c);
+      expect([0, 1, 2], `${c.shape}: exit code outside the D-12 contract: ${r.status}`).toContain(r.status);
+      expect(r.status, `${c.shape}: declared branch ${c.branch}. stderr: ${r.stderr.split("\n")[0]}`).toBe(
+        declared.exitCode,
+      );
+
+      const onDeclared = measurementOn(declared.stream === "stdout" ? r.stdout : r.stderr);
+      const onOther = measurementOn(declared.stream === "stdout" ? r.stderr : r.stdout);
+      expect(
+        onDeclared,
+        `${c.shape}: NO measurement reached ${declared.stream}, the stream branch ${c.branch} writes ` +
+          `to. This is the half WR-19 and CR-15 both actually broke.`,
+      ).not.toBeNull();
+      expect(onOther, `${c.shape}: a measurement reached a stream its branch does not write to`).toBeNull();
+
+      if (declared.stream === "stdout") stdoutShapes++;
+      else stderrShapes++;
+      rows.push(`${c.shape} | ${c.branch} | ${declared.stream} | ${r.status} | ${onDeclared}`);
+    }
+
+    // The assertion is proven NOT trivially satisfiable by expecting one stream everywhere.
+    expect(stdoutShapes, "no shape lands on a stdout branch").toBeGreaterThan(0);
+    expect(stderrShapes, "no shape lands on a stderr branch").toBeGreaterThan(0);
+    expect(rows.length).toBe(shapeCases().length);
+  });
+
+  it("Test 2: the nesting adjacency pair straddles the boundary, one on each stream", () => {
+    const { safe, overflow } = parseBoundary();
+    expect(overflow - safe).toBe(1);
+    const below = driveShape({
+      shape: "the adjacent nesting depth the parser does finish",
+      branch: "pass",
+      bytes: () => nestedSpec(safe),
+    });
+    expect(below.status).toBe(0);
+    expect(below.stdout).toContain("0 findings over 1/1 uat specs checked");
+    const above = driveShape({
+      shape: "a nesting depth the parser cannot finish",
+      branch: "vacuity_floor",
+      bytes: () => nestedSpec(overflow),
+    });
+    expect(above.status).toBe(2);
+    expect(above.stderr).toContain("ZERO uat specs were visited (1 derived)");
+    expect(above.stdout).toBe("");
+  });
+
+  it("Test 4: an invalid-UTF-8 spec names the file in its could-not-run reason", () => {
+    const c = shapeCases().find((x) => x.shape === "a spec carrying invalid UTF-8 byte sequences")!;
+    const r = driveShape(c);
+    expect(r.status).toBe(2);
+    expect(r.stderr).toContain("e2e/uat/shape.uat.spec.ts");
+    expect(r.stderr).toContain("ZERO uat specs were visited (1 derived)");
+  });
+
+  it("Test 5: a leading BOM is a CHECKED file — visited 1, and its measurement reaches STDOUT", async () => {
+    const { analyzeSpecs } = await loadChecker();
+    const c = shapeCases().find((x) => x.shape === "a spec opening with a byte-order mark")!;
+    const r = driveShape(c);
+    expect(r.status).toBe(0);
+    expect(r.stdout).toContain("0 findings over 1/1 uat specs checked");
+    expect(r.stderr).toBe("");
+    // …and `visited` really is 1, read off the analysis rather than inferred from the exit code.
+    withProbeRoot((root) => {
+      const rel = "e2e/uat/shape.uat.spec.ts";
+      mkdirSync(dirname(join(root, rel)), { recursive: true });
+      writeFileSync(join(root, rel), c.bytes());
+      const analysis = analyzeSpecs(root, [rel], hostTypeScript);
+      expect(analysis.visited, "a BOM is a checked file, not one that could not be").toBe(1);
+      expect(analysis.errors).toEqual([]);
+    });
+  });
+
+  it("Test 9: every probe root the corpus creates is removed", () => {
+    for (const c of shapeCases()) driveShape(c);
+    mkdirSync(CORPUS_PARENT, { recursive: true });
+    expect(
+      readdirSync(CORPUS_PARENT),
+      "a probe root survived the corpus run, so the `finally` did not remove it",
+    ).toEqual([]);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// 31-25 — TEST 8: THE DISCLOSURE EQUALS THE MECHANISM
+//
+// The recipe paragraph 31-17 added asserted the checker "does not exit through an uncaught
+// exception, including a pathological one". That was false when it was written, and CR-15 measured
+// it false. The corrected paragraph names the TWO boundaries that hold the contract and DISCLOSES
+// what remains outside every boundary, and its shape list is bound to PATHOLOGICAL_INPUT_SHAPES in
+// both directions so the document and the corpus cannot drift apart.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+describe("browser-uat-recipe.md — 31-25: the exit-code paragraph equals the two boundaries", () => {
+  const RECIPE = join(REPO_ROOT, "agent-factory", "checklists", "browser-uat-recipe.md");
+  const LIST_OPENER =
+    "The partition is asserted over a corpus of pathological inputs generated at run time, one case per shape:";
+  const LIST_CLOSER = "Each case asserts both halves";
+
+  function shapeBullets(text: string): string[] {
+    const lines = text.split("\n");
+    const start = lines.findIndex((l) => l.trimEnd() === LIST_OPENER);
+    expect(
+      start,
+      "PREMISE: the shape list's opener is absent from the recipe, so the equality below would be " +
+        "over an empty list",
+    ).toBeGreaterThanOrEqual(0);
+    const end = lines.findIndex((l, i) => i > start && l.startsWith(LIST_CLOSER));
+    expect(end, "PREMISE: the shape list has no closing paragraph, so it ran to end-of-file").toBeGreaterThan(
+      start,
+    );
+    return lines
+      .slice(start + 1, end)
+      .filter((l) => l.startsWith("- "))
+      .map((l) => l.slice(2).trim());
+  }
+
+  it("Test 8: the recipe's shape list equals PATHOLOGICAL_INPUT_SHAPES in BOTH directions", async () => {
+    const { PATHOLOGICAL_INPUT_SHAPES } = await loadChecker();
+    const bullets = shapeBullets(readFileSync(RECIPE, "utf8"));
+    expect(bullets.length, "PREMISE: the shape list is empty").toBeGreaterThan(0);
+    expect([...bullets].sort()).toEqual([...PATHOLOGICAL_INPUT_SHAPES].sort());
+  });
+
+  it("SEEDED FAIL: a shape removed from the recipe list is caught", async () => {
+    const { PATHOLOGICAL_INPUT_SHAPES } = await loadChecker();
+    const text = readFileSync(RECIPE, "utf8");
+    const seeded = text.replace(`- ${PATHOLOGICAL_INPUT_SHAPES[0]}\n`, "");
+    expect(seeded, "the seed did not change the document, so the control proves nothing").not.toBe(text);
+    expect([...shapeBullets(seeded)].sort()).not.toEqual([...PATHOLOGICAL_INPUT_SHAPES].sort());
+  });
+
+  it("the paragraph names the two boundaries and DISCLOSES what sits outside them", () => {
+    const text = readFileSync(RECIPE, "utf8");
+    // the false absolute 31-17 added is gone
+    expect(
+      text,
+      "the recipe still asserts the absolute CR-15 measured false",
+    ).not.toContain("including a pathological one");
+    // the two boundaries, named
+    expect(text).toContain("Everything the checker does with a spec's bytes");
+    expect(text).toContain("The runnable's whole body is inside one boundary");
+    // the residual, disclosed by name rather than left implied
+    expect(text).toContain("terminates the process without unwinding");
+    expect(text).toContain("UNKNOWN - verify");
   });
 });
