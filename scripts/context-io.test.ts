@@ -5614,8 +5614,13 @@ describe("31-14 — CR-08: a note a human already disposed promotes unchanged", 
    * compaction actually names, which is what they should have modelled from the start.
    */
   function contextStore(prefix: string): string {
-    const store = join(freshTmp(prefix), ".grugops", "context");
+    // 31-22 (CR-16 / D-25): the origin rule is SHAPE conjoined with ROOT ANCHORING, so a store
+    // fixture must sit under a directory the module's own walk answers as a governance root.
+    const storeRoot = freshTmp(prefix);
+    mkdirSync(join(storeRoot, ".git"), { recursive: true });
+    const store = join(storeRoot, ".grugops", "context");
     mkdirSync(store, { recursive: true });
+    writeFileSync(join(storeRoot, ".grugops", "factory.config.json"), "{}");
     return store;
   }
 
@@ -7287,8 +7292,13 @@ describe("31-18 — CR-11: a promotion cannot destroy admitted evidence", () => 
 
   /** A CONTEXT STORE — the shape the module recognises, not an arbitrary caller-named directory. */
   function contextStore(prefix: string): string {
-    const store = join(freshTmp(prefix), ".grugops", "context");
+    // 31-22 (CR-16 / D-25): the origin rule is SHAPE conjoined with ROOT ANCHORING, so a store
+    // fixture must sit under a directory the module's own walk answers as a governance root.
+    const storeRoot = freshTmp(prefix);
+    mkdirSync(join(storeRoot, ".git"), { recursive: true });
+    const store = join(storeRoot, ".grugops", "context");
     mkdirSync(store, { recursive: true });
+    writeFileSync(join(storeRoot, ".grugops", "factory.config.json"), "{}");
     return store;
   }
 
@@ -7599,8 +7609,13 @@ describe("31-18 — WR-17: the proof's left operand comes from a location the mo
 
   /** A CONTEXT STORE the module recognises — `<X>/.grugops/context`. */
   function contextStore(prefix: string): string {
-    const store = join(freshTmp(prefix), ".grugops", "context");
+    // 31-22 (CR-16 / D-25): the origin rule is SHAPE conjoined with ROOT ANCHORING, so a store
+    // fixture must sit under a directory the module's own walk answers as a governance root.
+    const storeRoot = freshTmp(prefix);
+    mkdirSync(join(storeRoot, ".git"), { recursive: true });
+    const store = join(storeRoot, ".grugops", "context");
     mkdirSync(store, { recursive: true });
+    writeFileSync(join(storeRoot, ".grugops", "factory.config.json"), "{}");
     return store;
   }
 
@@ -7669,10 +7684,14 @@ describe("31-18 — WR-17: the proof's left operand comes from a location the mo
     );
   });
 
-  it("Test 3b: the OTHER arm — an origin reached from the module's own trusted-root answer", () => {
-    // A directory that is NOT shaped like a context store, but which sits inside the root
-    // `trustedRepoRoot()` itself answers. The module has independent reason to trust it: no caller
-    // chose it, the ambient project directory did.
+  it("Test 3b (INVERTED by 31-22, CR-16): the OTHER arm is DELETED — root proximity is refused", () => {
+    // THIS CASE ASSERTED THE OPPOSITE UNTIL 31-22, AND THAT IS THE POINT. Round 4 accepted an origin
+    // that is NOT shaped like a context store but sits inside the root `trustedRepoRoot()` answers,
+    // on the reasoning that "no caller chose it, the ambient project directory did". The round-5
+    // verifier measured what that reasoning missed: the agent that calls this route RUNS INSIDE the
+    // repository, so every directory it can create sits under that root. Proximity to a root the
+    // caller is already standing in is evidence of nothing, so the arm is DELETED rather than
+    // narrowed, and the same input is now refused BY NAME.
     const repoRoot = projectWith({ human_admission: "high-severity", audit_retention: "retained" });
     const origin = join(repoRoot, "some", "other", "store");
     mkdirSync(origin, { recursive: true });
@@ -7681,7 +7700,17 @@ describe("31-18 — WR-17: the proof's left operand comes from a location the mo
     process.env.CLAUDE_PROJECT_DIR = repoRoot;
     try {
       const id = seed(origin, repoRoot);
-      expect(mod.promoteAdmitted(WR17_TASK, id, disposed(), WR17_BODY, origin, dest, repoRoot)).toBe(id);
+      let message = "";
+      try {
+        mod.promoteAdmitted(WR17_TASK, id, disposed(), WR17_BODY, origin, dest, repoRoot);
+      } catch (e) {
+        message = (e as Error).message;
+      }
+      expect(
+        message,
+        "the root-proximity arm is back. It accepted any directory under the root the CALLER runs " +
+          "inside, which is verbatim the CR-16 reproduction",
+      ).toContain("DECLINED (origin-outside-trusted-store)");
     } finally {
       if (previous === undefined) delete process.env.CLAUDE_PROJECT_DIR;
       else process.env.CLAUDE_PROJECT_DIR = previous;
@@ -7835,8 +7864,13 @@ describe("31-18 — WR-18: the dial's value decides, through the one gated autho
   }
 
   function contextStore(prefix: string): string {
-    const store = join(freshTmp(prefix), ".grugops", "context");
+    // 31-22 (CR-16 / D-25): the origin rule is SHAPE conjoined with ROOT ANCHORING, so a store
+    // fixture must sit under a directory the module's own walk answers as a governance root.
+    const storeRoot = freshTmp(prefix);
+    mkdirSync(join(storeRoot, ".git"), { recursive: true });
+    const store = join(storeRoot, ".grugops", "context");
     mkdirSync(store, { recursive: true });
+    writeFileSync(join(storeRoot, ".grugops", "factory.config.json"), "{}");
     return store;
   }
 
@@ -8160,6 +8194,11 @@ describe("31-21 — CR-12: a non-regular file at a read position is refused in b
         '    const dest = join(base, "destproj", ".grugops", "context");',
         "    mkdirSync(origin, { recursive: true });",
         "    mkdirSync(dest, { recursive: true });",
+        "    // 31-22 (CR-16 / D-25): the origin is trusted by SHAPE conjoined with ROOT ANCHORING,",
+        "    // so the fixture's origin project must BE a governance root — a boundary marker and a",
+        "    // configuration — or this driver measures the origin clause instead of the ledger one.",
+        '    mkdirSync(join(base, "originproj", ".git"), { recursive: true });',
+        '    writeFileSync(join(base, "originproj", ".grugops", "factory.config.json"), "{}");',
         '    const originId = io.appendNote(TASK, disposed, "the disposed body", origin, undefined, lean);',
         "    out.extra = originId;",
         '    out.message = io.promoteAdmitted(TASK, originId, disposed, "the disposed body", origin, dest, strict);',
@@ -8332,8 +8371,13 @@ describe("31-21 — the one reader did not move a boundary the previous round de
   const T = "T-511";
 
   function contextStore(prefix: string): string {
-    const store = join(freshTmp(prefix), ".grugops", "context");
+    // 31-22 (CR-16 / D-25): the origin rule is SHAPE conjoined with ROOT ANCHORING, so a store
+    // fixture must sit under a directory the module's own walk answers as a governance root.
+    const storeRoot = freshTmp(prefix);
+    mkdirSync(join(storeRoot, ".git"), { recursive: true });
+    const store = join(storeRoot, ".grugops", "context");
     mkdirSync(store, { recursive: true });
+    writeFileSync(join(storeRoot, ".grugops", "factory.config.json"), "{}");
     return store;
   }
   function leanRoot(): string {
@@ -8949,8 +8993,13 @@ describe("31-22 — CR-16: the origin is recognised by SHAPE conjoined with ROOT
    * the named residual `R-31-22-02`, driven separately — so this helper stays a bare shape.
    */
   function destStore(prefix: string): string {
-    const store = join(freshTmp(prefix), ".grugops", "context");
+    // 31-22 (CR-16 / D-25): the origin rule is SHAPE conjoined with ROOT ANCHORING, so a store
+    // fixture must sit under a directory the module's own walk answers as a governance root.
+    const storeRoot = freshTmp(prefix);
+    mkdirSync(join(storeRoot, ".git"), { recursive: true });
+    const store = join(storeRoot, ".grugops", "context");
     mkdirSync(store, { recursive: true });
+    writeFileSync(join(storeRoot, ".grugops", "factory.config.json"), "{}");
     return store;
   }
 
@@ -9094,43 +9143,83 @@ describe("31-22 — CR-16: the origin is recognised by SHAPE conjoined with ROOT
     }
   });
 
-  it("CONTROL 1b: the residual's own CONSTRUCTED governance root promotes, and every operation in its price is load-bearing", () => {
-    // The accepted residual, OCCUPIED. Three operations: the marker, the configuration, the store.
-    const constructed = governanceRoot("p31-22-constructed-");
-    const origin = storeUnder(constructed);
+  it("CONTROL 1b: the residual's CONSTRUCTED governance root promotes, and its price is measured operation by operation", () => {
+    // The accepted residual, OCCUPIED — and PRICED at the position CR-16 is actually about: a
+    // forged root the calling agent builds INSIDE the repository it is running in. Three
+    // operations: the marker, the configuration, the store. Each subtraction is driven below and
+    // each one DECLINES, so the price is three rather than an adjective about being narrower.
+    const proj = governanceRoot("p31-22-c1b-proj-");
     const scratch = governanceRoot("p31-22-c1b-scratch-");
     const originStore = storeUnder(scratch);
     const id = seedBytes(originStore);
-    copyBytesInto(originStore, id, origin);
     const repoRoot = governanceRoot("p31-22-c1b-repo-");
-    const accepted = promote(origin, destStore("p31-22-c1b-dest-"), id, repoRoot);
+
+    /** Plant a forged root under `proj` with a chosen subset of the three operations. */
+    function forgedUnderProject(
+      name: string,
+      opts: { marker: boolean; config: boolean },
+    ): string {
+      const root = join(proj, "tmp", name);
+      mkdirSync(join(root, ".grugops"), { recursive: true });
+      if (opts.marker) mkdirSync(join(root, ".git"), { recursive: true });
+      if (opts.config) writeFileSync(join(root, ".grugops", "factory.config.json"), "{}");
+      const store = join(root, ".grugops", "context");
+      mkdirSync(store, { recursive: true });
+      copyBytesInto(originStore, id, store);
+      return store;
+    }
+
+    // ALL THREE — the residual's own shape. It promotes; that is the cost this plan accepted.
+    const whole = forgedUnderProject("whole", { marker: true, config: true });
     expect(
-      accepted.threw,
-      "the residual T-31-18-01 states this construction is accepted; it was refused, so the " +
-        "residual is priced wrong",
+      promote(whole, destStore("p31-22-c1b-dest-"), id, repoRoot).threw,
+      "T-31-18-01 states this construction is ACCEPTED; it was refused, so the residual is priced " +
+        "wrong in the other direction",
     ).toBeNull();
 
-    // SUBTRACTION A — the same tree WITHOUT the governance configuration. The walk reaches the
-    // boundary marker with `carriesConfig` false and returns `nearest` (null), not the forged root.
-    const noConfig = governanceRoot("p31-22-noconfig-", { config: false });
-    const noConfigOrigin = storeUnder(noConfig);
-    copyBytesInto(originStore, id, noConfigOrigin);
-    const a = promote(noConfigOrigin, destStore("p31-22-subA-dest-"), id, repoRoot);
+    // SUBTRACTION A — no configuration. The walk reaches the marker with `carriesConfig` false and
+    // returns `nearest` (null), not the forged root.
+    const noConfig = forgedUnderProject("no-config", { marker: true, config: false });
     expect(
-      a.threw,
-      "the configuration is not load-bearing: the same tree without it still promoted, so the " +
-        "residual's stated price of three operations is one too many",
+      promote(noConfig, destStore("p31-22-subA-dest-"), id, repoRoot).threw,
+      "the configuration is not load-bearing at this position, so the price is two, not three",
     ).toContain("DECLINED (origin-outside-trusted-store)");
 
-    // SUBTRACTION B — the same tree WITHOUT the boundary marker. The walk climbs past it.
-    const noMarker = governanceRoot("p31-22-nomarker-", { marker: false });
-    const noMarkerOrigin = storeUnder(noMarker);
-    copyBytesInto(originStore, id, noMarkerOrigin);
-    const b = promote(noMarkerOrigin, destStore("p31-22-subB-dest-"), id, repoRoot);
+    // SUBTRACTION B — no boundary marker. The walk climbs past the forged root and reaches the
+    // REPOSITORY's own boundary, which carries a configuration, so it answers the repository root.
+    const noMarker = forgedUnderProject("no-marker", { marker: false, config: true });
     expect(
-      b.threw,
-      "the boundary marker is not load-bearing: the same tree without it still promoted",
+      promote(noMarker, destStore("p31-22-subB-dest-"), id, repoRoot).threw,
+      "the boundary marker is not load-bearing at this position, so the price is two, not three",
     ).toContain("DECLINED (origin-outside-trusted-store)");
+  });
+
+  it("CONTROL 1b (the bar's OTHER position, measured rather than assumed): outside every repository the price is TWO operations", () => {
+    // THE MEASUREMENT THAT CORRECTED THIS PLAN'S OWN PREMISE. The plan asserted the marker is
+    // load-bearing everywhere. It is not. `projectRootFromWorkingDirectory` returns the remembered
+    // `nearest` when the walk runs out of ancestors WITHOUT meeting a boundary, so a forged root
+    // planted where NO ancestor carries a marker or a configuration is anchored on the
+    // configuration alone: two operations, not three.
+    //
+    // The bar is therefore stated per position rather than as one number: THREE operations inside a
+    // repository — which is the position CR-16 is about, because the calling agent runs inside one —
+    // and TWO outside every repository, which is the cross-repository capability T-31-18-01 keeps
+    // deliberately and prices in the same breath.
+    const loose = freshTmp("p31-22-c1b-loose-");
+    mkdirSync(join(loose, ".grugops"), { recursive: true });
+    writeFileSync(join(loose, ".grugops", "factory.config.json"), "{}"); // operation 1
+    const store = join(loose, ".grugops", "context");
+    mkdirSync(store, { recursive: true }); // operation 2
+    const scratch = governanceRoot("p31-22-loose-scratch-");
+    const originStore = storeUnder(scratch);
+    const id = seedBytes(originStore);
+    copyBytesInto(originStore, id, store);
+    const repoRoot = governanceRoot("p31-22-loose-repo-");
+    expect(
+      promote(store, destStore("p31-22-loose-dest-"), id, repoRoot).threw,
+      "the two-operation construction outside every repository was refused. The residual states it " +
+        "is accepted; if that changed, the residual is the thing to correct, not this case",
+    ).toBeNull();
   });
 
   it("CONTROL 5a (WAVE 2): a HOME-ROOTED project's own store DECLINES, and that is a property of the walk", () => {
@@ -9362,6 +9451,104 @@ describe("31-22 — CR-16: the origin is recognised by SHAPE conjoined with ROOT
       "the root-proximity arm is back: `trustedRepoRoot()` answers which root governs, and the " +
         "caller runs inside it, so proximity to it is evidence of nothing",
     ).not.toContain("trustedRepoRoot");
+  });
+
+  it("MOVEMENT 4 — `18-context-compaction.md:56` is bound to a DRIVEN case, not read", () => {
+    // A sentence whose truth is only READ is how `:75` came to be false in the first place. Each
+    // clause of the corrected sentence is asserted against the behaviour it claims, in this case.
+    const workflow = readFileSync(
+      join(ROOT, "agent-factory", "workflows", "18-context-compaction.md"),
+      "utf8",
+    );
+    expect(workflow).toContain("The route accepts one origin shape and no other.");
+    expect(workflow).toContain(
+      "The `.grugops` directory must sit directly under a directory the route independently resolves as a governance root.",
+    );
+    expect(workflow).toContain("The shape admits another repository's own store, and it excludes a subdirectory of this one.");
+    expect(workflow).toContain(
+      "The route refuses an ordinary directory whether or not that directory sits inside this repository.",
+    );
+
+    // CLAUSE "admits another repository's own store" — driven.
+    const other = governanceRoot("p31-22-w56-other-");
+    const otherStore = storeUnder(other);
+    const id = seedBytes(otherStore);
+    const repoRoot = governanceRoot("p31-22-w56-repo-");
+    expect(promote(otherStore, destStore("p31-22-w56-dest-"), id, repoRoot).threw).toBeNull();
+
+    // CLAUSE "excludes a subdirectory of this one" — driven with the SHAPED forgery, the only
+    // subdirectory that could be mistaken for a store.
+    const proj = governanceRoot("p31-22-w56-proj-");
+    const shaped = join(proj, "tmp", "forged", ".grugops", "context");
+    copyBytesInto(otherStore, id, shaped);
+    expect(promote(shaped, destStore("p31-22-w56-dest2-"), id, repoRoot).threw).toContain(
+      "DECLINED (origin-outside-trusted-store)",
+    );
+
+    // CLAUSE "refuses an ordinary directory whether or not it sits inside this repository" — both.
+    const insideOrdinary = join(proj, "tmp", "plain");
+    copyBytesInto(otherStore, id, insideOrdinary);
+    expect(promote(insideOrdinary, destStore("p31-22-w56-dest3-"), id, repoRoot).threw).toContain(
+      "DECLINED (origin-outside-trusted-store)",
+    );
+    const outsideOrdinary = freshTmp("p31-22-w56-outside-");
+    copyBytesInto(otherStore, id, outsideOrdinary);
+    expect(promote(outsideOrdinary, destStore("p31-22-w56-dest4-"), id, repoRoot).threw).toContain(
+      "DECLINED (origin-outside-trusted-store)",
+    );
+  });
+
+  it("MOVEMENT 4 — `18-context-compaction.md:75` KEEPS its claim, and discloses its bar in the same bullet", () => {
+    const workflow = readFileSync(
+      join(ROOT, "agent-factory", "workflows", "18-context-compaction.md"),
+      "utf8",
+    );
+    // The claim the review measured as FALSE is kept VERBATIM rather than weakened to match a
+    // shape test, because the anchoring conjunct is what makes it true.
+    expect(
+      workflow,
+      "the stop condition was narrowed instead of being made true. Under a shape-only rule it " +
+        "could only have been narrowed; the anchoring conjunct is what lets it stand as written",
+    ).toContain(
+      "Copying them is hand-authoring a context path by another name, and the constraint refuses it.",
+    );
+    // …and the disclosure of what it does NOT refuse, priced at both measured positions.
+    expect(workflow).toContain(
+      "Such a root is a version-control marker, a governance configuration and the store directory.",
+    );
+    expect(workflow).toContain(
+      "The cost is three filesystem operations inside this repository, and two outside every repository.",
+    );
+    expect(workflow).toContain("The residual `T-31-18-01` names that construction");
+
+    // THE CLAIM, DRIVEN: copying the notes into a directory does NOT make the promotion pass.
+    const proj = governanceRoot("p31-22-w75-proj-");
+    const scratch = governanceRoot("p31-22-w75-scratch-");
+    const originStore = storeUnder(scratch);
+    const id = seedBytes(originStore);
+    const repoRoot = governanceRoot("p31-22-w75-repo-");
+    for (const name of ["plain", join(".grugops", "context")]) {
+      const target = join(proj, "tmp", "copied", name);
+      copyBytesInto(originStore, id, target);
+      expect(
+        promote(target, destStore("p31-22-w75-dest-"), id, repoRoot).threw,
+        `copying the notes into ${name} made the promotion pass, so the :75 sentence is false`,
+      ).toContain("DECLINED (origin-outside-trusted-store)");
+    }
+
+    // THE DISCLOSURE, DRIVEN: the constructed governance root DOES pass, which is why the bullet
+    // names it rather than leaving an agent to discover it.
+    const forgedRoot = join(proj, "tmp", "governance-root");
+    mkdirSync(join(forgedRoot, ".git"), { recursive: true });
+    mkdirSync(join(forgedRoot, ".grugops"), { recursive: true });
+    writeFileSync(join(forgedRoot, ".grugops", "factory.config.json"), "{}");
+    const forgedStore = join(forgedRoot, ".grugops", "context");
+    mkdirSync(forgedStore, { recursive: true });
+    copyBytesInto(originStore, id, forgedStore);
+    expect(
+      promote(forgedStore, destStore("p31-22-w75-dest2-"), id, repoRoot).threw,
+      "the disclosed residual was refused, so the bullet discloses a bar that is not the real one",
+    ).toBeNull();
   });
 
   it("the rewritten T-31-18-01 states the CONSTRUCTED GOVERNANCE ROOT and PRICES it", () => {

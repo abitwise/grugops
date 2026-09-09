@@ -1592,21 +1592,42 @@ export function currentState(notes: NoteRecord[]): NoteRecord[] {
 // `readRawNotes(task, from)` with `from` an ordinary unconstrained argument, so a caller that
 // authored a directory and named it produced any proof it wanted — the functional equivalent of the
 // flag the sentence above refused. The operand is now constrained. It must resolve inside a location
-// this module has independent reason to trust: a directory the module RECOGNISES as a grugops
-// context store — `<X>/.grugops/context`, the shape `DEFAULT_CONTEXT_ROOT` names and the only shape
-// the sanctioned writers create — or a location reached from `trustedRepoRoot()`, the module's own
-// answer to which root governs, which no caller supplies. Inside such a location the proof is what
-// it always was: the named source note is LIVE in the origin's deterministic replay, and the
-// promoted input recomposes to exactly the record the store reads back there. A caller that cannot
-// produce that proof, or that names an origin outside those locations, is DECLINED — naming the
-// clause that failed, with nothing written.
+// this module has independent reason to trust, and that location has exactly ONE recognised
+// CANONICAL FORM: a directory the module RECOGNISES as a grugops context store —
+// `<X>/.grugops/context`, the shape `DEFAULT_CONTEXT_ROOT` names and the only shape the sanctioned
+// writers create — whose `<X>` this module's OWN root walk independently answers as a governance
+// root. Inside such a location the proof is what it always was: the named source note is LIVE in the
+// origin's deterministic replay, and the promoted input recomposes to exactly the record the store
+// reads back there. A caller that cannot produce that proof, or that names an origin outside that
+// one form, is DECLINED BY NAME — including an origin inside this repository.
 //
-// WHY THE CONSTRAINT IS SHAPE-AND-ROOT AND NOT A REGISTRY, AND WHAT THAT COSTS. A cross-repository
-// compaction — an origin in one checkout, a destination in another — is a promotion a host genuinely
-// performs, and Workflow 18 names the origin context root as a caller-supplied argument for exactly
-// that reason. Requiring the origin to be the DESTINATION's own store would refuse it. So the
-// recognition is by shape, and what that leaves open is written down rather than waved away:
-// `T-31-18-01` in the residual register below, with what would force it closed.
+// ── 31-22 (CR-16) — WHY THE SECOND ARM IS GONE RATHER THAN NARROWED. ──────────────────────────
+//
+// Round 4 left the recognition as a DISJUNCTION: the shape, OR a path at or under
+// `trustedRepoRoot()`. The agent that calls this route RUNS INSIDE the repository, so every
+// directory it can create satisfied the second arm. The round-5 verifier measured it: legitimately
+// obtained, human-disposed note bytes COPIED into an ordinary directory under the repository root
+// and promoted into a fresh destination id returned the id, threw nothing, left the destination
+// holding the file, and appended a `disposed_by` GOV-02 event. That is verbatim the action
+// `agent-factory/workflows/18-context-compaction.md` tells the agent is mechanically refused.
+//
+// And deleting the arm is NOT by itself enough, which was measured before it was deleted.
+// `isRecognisedContextStore` is a two-component basename test, so
+// `<proj>/tmp/forged/.grugops/context` is a recognised origin — the same caller, the same bytes, one
+// `mkdir -p` further on. Driven against a scratch shape-only implementation, it promoted. So the
+// surviving rule is a CONJUNCTION, and the second conjunct is what makes the workflow's stop
+// condition true as written rather than narrowed to match a spelling test.
+//
+// WHY THE CONSTRAINT IS SHAPE-AND-ANCHORING AND NOT A REGISTRY, AND WHAT THAT COSTS. A
+// cross-repository compaction — an origin in one checkout, a destination in another — is a promotion
+// a host genuinely performs, and Workflow 18 names the origin context root as a caller-supplied
+// argument for exactly that reason. Requiring the origin to be the DESTINATION's own store would
+// refuse it, and so would requiring it to be the PROCESS's own root. So the recognition is by shape
+// conjoined with an independently-resolved root, and what that leaves open is written down rather
+// than waved away, PRICED in operations rather than in adjectives: `T-31-18-01` in the residual
+// register below states its price per position, each operation proven load-bearing by subtraction,
+// with what would force it closed. `R-31-22-01` states what the narrowing COST, and `R-31-22-02`
+// states the converse destination axis this route deliberately does not constrain.
 //
 // THE LEDGER BEHAVIOUR IS DECIDED, NOT INHERITED (D-19). A re-binding is not a new admission, so it
 // appends NO GOV-02 audit event: the origin's event already records the named human's disposition
@@ -1686,11 +1707,15 @@ export const PROMOTE_ADMITTED_DECLINES: Readonly<Record<string, string>> = Objec
     "binding to carry, and the note is an ordinary new admission that must take the full-admission " +
     "route with an empty or §14-gate stamp.",
   "origin-outside-trusted-store":
-    "The named origin does not resolve inside a location this module has independent reason to " +
-    "trust — neither a directory it recognises as a grugops context store nor a location reached " +
-    "from its own trusted-root answer. The proof's left operand is the origin's stored bytes, so an " +
-    "ordinary directory a caller authored and named would let that caller supply the very bytes its " +
-    "own write is judged against: a flag wearing a filesystem path.",
+    "The named origin does not resolve inside the ONE location shape this module has independent " +
+    "reason to trust: a directory named `context` inside a directory named `.grugops`, sitting " +
+    "directly under a directory this module's own root walk independently answers as a governance " +
+    "root. The proof's left operand is the origin's stored bytes, so an ordinary directory a caller " +
+    "authored and named would let that caller supply the very bytes its own write is judged " +
+    "against: a flag wearing a filesystem path. Proximity to the root the CALLER is already running " +
+    "inside is not evidence — the agent that promotes runs inside the repository, so every " +
+    "directory it can create would satisfy such a rule, which is why the shape must be anchored to " +
+    "a root this module resolves for itself rather than to one the caller happens to stand in.",
   "destination-id-occupied":
     "The destination already holds a DIFFERENT note under this id. The shared verified context is " +
     "APPEND-ONLY: a supersession is a NEW note, never a rewrite of an existing one, and a promotion " +
@@ -1719,14 +1744,51 @@ export const PROMOTE_ADMITTED_RESIDUALS: readonly string[] = Object.freeze([
     "workflows 16 and 18 forbid hand-authoring a context path, and the un-forgeable tier remains " +
     "the per-call admission-guard hook. Disposition: accept.",
   "T-31-18-01 — the origin store is recognised by its SHAPE (a directory named `context` inside a " +
-    "directory named `.grugops`) or by sitting under `trustedRepoRoot()`, never by a registry. A " +
-    "caller that constructs that whole tree around notes it authored still presents a store this " +
-    "route accepts. The capability is KEPT deliberately: a cross-repository compaction is a " +
+    "directory named `.grugops`) CONJOINED with ROOT ANCHORING (that `.grugops` directory sits " +
+    "directly under a directory this module's own walk independently answers as a governance root), " +
+    "never by a registry. A caller that constructs a whole GOVERNANCE ROOT around notes it authored " +
+    "— a version-control marker, a governance configuration beneath it, and the `.grugops/context` " +
+    "store — still presents a store this route accepts. The price is stated PER POSITION, because " +
+    "it was measured rather than assumed. INSIDE a repository — the position CR-16 is about, since " +
+    "the agent that promotes runs inside one — it is three filesystem operations, named: `mkdir " +
+    "<forged>/.git`; write `<forged>/.grugops/factory.config.json`; `mkdir -p " +
+    "<forged>/.grugops/context`. Each of the three is load-bearing there and both subtractions are " +
+    "driven: without the configuration the walk answers `nearest` (null) rather than the forged " +
+    "root, and without the marker the walk climbs past and answers the REPOSITORY's own root. " +
+    "OUTSIDE every repository it is TWO operations — the configuration and the store — because the " +
+    "walk that meets no boundary at all answers the nearest configuration it remembered, which is " +
+    "the forged one. That second number is the cross-repository capability this residual keeps, " +
+    "priced in the same breath rather than left for a later round to discover. The capability is " +
+    "KEPT deliberately: a cross-repository compaction is a " +
     "promotion a host genuinely performs, and Workflow 18 names the origin context root as an " +
     "argument for exactly that reason. What it costs is bounded by, and identical to, T-31-14-03 — " +
-    "this route trusts what a recognised store CONTAINS. What would force it closed: a store marker " +
-    "the sanctioned writer emits and this route verifies, or an explicit registry of origin stores a " +
-    "caller cannot author. Disposition: accept.",
+    "this route trusts what a recognised, root-anchored store CONTAINS. What would force it closed: " +
+    "a store marker the sanctioned writer emits and this route verifies, or an explicit registry of " +
+    "origin stores a caller cannot author. Disposition: accept.",
+  "R-31-22-01 — the anchoring conjunct asks this module's own root walk, and that walk answers " +
+    "`nearest` at a repository boundary carrying NO governance configuration. So a checkout that " +
+    "has a `.grugops/context` store and no `factory.config.json` under it is refused as an ORIGIN, " +
+    "where the deleted root-proximity rule accepted it by shape alone. The cost is bounded by what " +
+    "the installer does: `install.js` seeds `.grugops/factory.config.json` into every target it " +
+    "touches, so this reaches only a repository whose store was created by the minimal " +
+    "markdown-copy path with no configuration ever written. Measured, not inferred — the case is " +
+    "driven in scripts/context-io.test.ts. What would force it closed: anchoring on a repository " +
+    "BOUNDARY MARKER alone, which would drop the price of a forged origin from three operations to " +
+    "two and is therefore refused. Disposition: accept, as the stated cost of pricing the residual " +
+    "at three operations rather than one.",
+  "R-31-22-02 — the DESTINATION argument `to` is caller-supplied and is NOT constrained by the " +
+    "canonical form the origin must meet. The converse axis is decided rather than left silent: `to` " +
+    "is not a proof OPERAND. Nothing read at the destination is evidence FOR the promotion — the " +
+    "destination read decides only whether an id is already occupied, and an occupied id DECLINES. " +
+    "A caller naming an ordinary directory as its destination is choosing where its own admitted " +
+    "evidence lands, which is the same authority `appendNote`'s `contextRoot` argument already " +
+    "carries and which Workflow 16 governs as hand-authoring a context path. Five destination " +
+    "shapes are driven in scripts/context-io.test.ts and all five answers are the decided ones. " +
+    "What would force it closed: the same store marker T-31-18-01 names, asked at the destination " +
+    "as well as the origin — which would also have to be asked of every other writer's " +
+    "`contextRoot`, and is therefore a module-wide decision rather than this route's. Disposition: " +
+    "accept, bounded by the append-only chokepoint that refuses a destructive write at any " +
+    "destination.",
   "R-37 — the compared field set is the store's own read-back projection (recordFromParsed) plus " +
     "the body. A frontmatter key the parser accepts and that projection drops is not compared — and " +
     "is also not read by admit(), render() or any other consumer, so the boundary is the store's " +
@@ -1739,6 +1801,11 @@ export const PROMOTE_ADMITTED_RESIDUALS: readonly string[] = Object.freeze([
  * The shape is `<X>/.grugops/context` — exactly what `DEFAULT_CONTEXT_ROOT` names and the only
  * shape the sanctioned writers create. It is a recognition rule, not an existence check: a store
  * that is missing is a different case, decided one clause later by "no such origin note".
+ *
+ * THIS IS HALF A RULE, AND THE OTHER HALF IS NOT OPTIONAL (31-22, CR-16). Read as a TRUST decision
+ * it is a two-component basename comparison, which `mkdir -p <anywhere>/.grugops/context` satisfies.
+ * `originIsTrusted` therefore conjoins it with `originStoreIsRootAnchored`, and a caller that reuses
+ * this predicate alone for a trust question has reproduced the defect CR-16 named.
  */
 function isRecognisedContextStore(candidate: string): boolean {
   const resolved = resolve(candidate);
@@ -1746,21 +1813,75 @@ function isRecognisedContextStore(candidate: string): boolean {
 }
 
 /**
- * Does the proof's left operand resolve inside a location this module has independent reason to
- * trust? (31-18, WR-17.)
+ * Is the directory the recognised store sits under one this module's OWN walk answers as a
+ * governance root? (31-22, CR-16 — the anchoring conjunct.)
  *
- * TWO ARMS, AND WHY NEITHER IS THE CALLER'S TO CHOOSE. The first recognises a context store by its
- * shape. The second asks `trustedRepoRoot()` — the module's OWN answer to which root governs, read
- * from the ambient environment and the working directory, never from an argument. The route's
- * `repoRoot` TEST SEAM is deliberately NOT consulted here: a caller that could supply both the
- * governance root and the origin would be choosing the location its own proof is judged inside,
- * which is the doctrine 30-11 and 31-09 both enforce, one register over.
+ * WHY A SHAPE TEST ALONE CANNOT CARRY THE CLAIM. `isRecognisedContextStore` is a two-component
+ * basename comparison, so `mkdir -p <anywhere>/.grugops/context` satisfies it. A rule any single
+ * `mkdir` satisfies is a spelling requirement, not a constraint on the caller — and
+ * `agent-factory/workflows/18-context-compaction.md`'s stop condition ("copying the origin notes
+ * into a directory to make the promotion pass ... the constraint refuses it") would be false the
+ * day it was written. So the recognised form is a CONJUNCTION, and this is its second conjunct.
+ *
+ * WHY THIS IS NOT THE DOCTRINE THE OLD TWO-ARMS DOCSTRING REJECTED — read this before concluding
+ * the doctrine was relaxed. That docstring refused to let a CALLER supply BOTH the governance root
+ * and the origin, because a caller choosing the location its own proof is judged inside decides its
+ * own case. Here there is still exactly ONE caller-supplied value. The module resolves the root FROM
+ * that value, by the same walk it uses everywhere else, and then asks whether the value's own
+ * location IS that root. No second argument exists, and the route's `repoRoot` TEST SEAM is still
+ * not consulted. A caller can move the origin; it cannot move what the walk says about where the
+ * origin is.
+ *
+ * WHAT IT COSTS, PRICED IN OPERATIONS, PER POSITION. Measured against the walk's behaviour at a
+ * repository boundary (`carriesConfig ? dir : nearest`) rather than reasoned about. INSIDE a
+ * repository — the position CR-16 is about, because the agent that promotes runs inside one — the
+ * construction that still satisfies this conjunct is EXACTLY THREE filesystem operations: a
+ * version-control marker at the forged root, a governance configuration under it, and the store
+ * directory itself. All three are load-bearing there, and both subtractions are driven in
+ * `scripts/context-io.test.ts`: drop the configuration and the walk meets the marker with
+ * `carriesConfig` false and answers `nearest` (null); drop the marker and the walk climbs past the
+ * forged root to the REPOSITORY's own boundary and answers that instead.
+ *
+ * OUTSIDE every repository the price is TWO, and saying so is the difference between a stated bar
+ * and an unstated one. A walk that meets no boundary at all runs out of ancestors and answers the
+ * `nearest` configuration it remembered, so a forged root planted where nothing above it carries a
+ * marker or a configuration is anchored on the configuration alone. That is the same construction
+ * as the cross-repository origin this rule deliberately keeps, which is why it is priced here
+ * rather than closed: closing it would refuse a compaction a host genuinely performs.
+ *
+ * Both numbers, not an adjective about them, are what `T-31-18-01` and the workflow's stop
+ * condition state.
+ */
+function originStoreIsRootAnchored(from: string): boolean {
+  const anchor = dirname(dirname(resolve(from)));
+  return projectRootFromWorkingDirectory(anchor) === anchor;
+}
+
+/**
+ * Does the proof's left operand resolve inside a location this module has independent reason to
+ * trust? (31-18 WR-17, narrowed by 31-22 CR-16 / D-25.)
+ *
+ * ONE ARM, TWO CONJUNCTS, AND THE ROOT-PROXIMITY ARM IS DELETED RATHER THAN NARROWED. The old second
+ * arm asked whether the origin sat at or under `trustedRepoRoot()`. The agent that calls this route
+ * RUNS INSIDE the repository, so every directory it can create satisfied that arm: the round-5
+ * verifier copied legitimately-obtained human-disposed bytes into an ordinary directory under the
+ * repository root and promoted them into a fresh destination id.
+ *
+ * The review's narrowed form — `resolvedFrom === resolve(join(trustedRepoRoot(), ".grugops",
+ * "context"))` — is deliberately NOT kept as a second arm. It is the AMBIENT special case of the
+ * anchoring conjunct above: the process's own governance root is one the walk answers, so its store
+ * passes the conjunction already. Keeping it would be a second authority for a question the
+ * conjunction answers, which is the drift shape this module keeps deleting.
+ *
+ * The emptiness conjunct is a NAMING precondition, not a third authority on trust: `resolve("")`
+ * answers the process's working directory, so an empty or whitespace-only origin would be judged
+ * against wherever the process happens to stand. It names nothing — the same `trim() !== ""`
+ * reasoning `trustedRepoRoot` already applies to its environment variables.
  */
 function originIsTrusted(from: string): boolean {
-  const resolvedFrom = resolve(from);
-  if (isRecognisedContextStore(resolvedFrom)) return true;
-  const trusted = resolve(trustedRepoRoot());
-  return resolvedFrom === trusted || resolvedFrom.startsWith(trusted + sep);
+  return (
+    from.trim() !== "" && isRecognisedContextStore(from) && originStoreIsRootAnchored(from)
+  );
 }
 
 /** Build one decline, taking its reason from the single register above. */
@@ -1872,8 +1993,8 @@ export function promoteAdmitted(
   if (!originIsTrusted(from)) {
     throw declineRebinding(
       "origin-outside-trusted-store",
-      `The origin "${resolve(from)}" is neither a recognised grugops context store nor inside the ` +
-        `root this module trusts.`,
+      `The origin "${resolve(from)}" is not a recognised grugops context store anchored to a ` +
+        `governance root this module resolves for itself.`,
     );
   }
 

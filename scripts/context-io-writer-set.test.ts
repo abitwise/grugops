@@ -3188,8 +3188,13 @@ const DESTINATION_LIVENESS: Readonly<Record<string, DestinationLivenessBinding>>
 
 /** A CONTEXT STORE — the shape the module recognises, not an arbitrary caller-named directory. */
 function livenessContextStore(prefix: string): string {
-  const store = join(freshTmp(prefix), ".grugops", "context");
+  // 31-22 (CR-16 / D-25): the origin rule is SHAPE conjoined with ROOT ANCHORING, so a store
+  // fixture must sit under a directory the module's own walk answers as a governance root.
+  const storeRoot = freshTmp(prefix);
+  mkdirSync(join(storeRoot, ".git"), { recursive: true });
+  const store = join(storeRoot, ".grugops", "context");
   mkdirSync(store, { recursive: true });
+  writeFileSync(join(storeRoot, ".grugops", "factory.config.json"), "{}");
   return store;
 }
 
