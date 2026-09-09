@@ -4063,3 +4063,284 @@ describe("31-22 — the decline clause ORDER is derived from the route's body, n
     ).toBeLessThan(transposed.indexOf("origin-outside-trusted-store"));
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// PART SIX-I — the RESOLUTION-SURFACE caller axis, derived ACROSS FILES (31-23, CR-13 / D-26).
+//
+// WHY THIS AXIS EXISTS. The round-5 verifier's own note names it as missing: none of the five new
+// Critical classes sat inside any axis this test derives. `31-23` rewrites the governance-root
+// walk, and every consumer of that answer inherits the change — `admit`, `admitAndAppend`,
+// `appendNote`'s default, `promoteAdmitted`'s default, `readGovernanceConfig`'s base and
+// `appendAuditLedger`'s write location, plus the cross-file consumers in `hooks/` and
+// `scripts/admission-server.ts`. A caller that lands or leaves is a decision with a written reason,
+// never a widened list, and the two NEW published constants are read at exactly one position each.
+//
+// The derivation is the same one PART SIX-D uses, aliases resolved, so a renamed binding is still
+// the same callee — and it is asserted by MEMBERS and by COUNT with a PREMISE and a seeded mirror,
+// because a set equality between two hand-maintained lists passes when BOTH move together.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Every `<file>::<site>` in the tracked corpus that names `exportName` from the module whose
+ * compiled specifier ends with `moduleSuffix`, aliases resolved.
+ *
+ * WHY THIS IS NOT PART SIX-D's `deriveRouteCallers`. That one walks a function declaration's BODY,
+ * which is the right scope for the promotion routes it derives and the WRONG one here: this
+ * module's own consumers reach the trusted root through a DEFAULT PARAMETER — `repoRoot =
+ * trustedRepoRoot()` — which lives in the parameter list, not the body. A derivation that cannot
+ * see the position the code actually uses reports coverage it does not have. So the whole
+ * declaration node is walked, module-scope references are attributed to `::<module>`, and the
+ * declaration of the name itself is not counted as a reference to it.
+ */
+function deriveSurfaceReferences(exportName: string, moduleSuffix: string): string[] {
+  const out: string[] = [];
+  for (const rel of trackedSources()) {
+    const source = ts.createSourceFile(
+      rel,
+      readFileSync(join(ROOT, rel), "utf8"),
+      ts.ScriptTarget.Latest,
+      true,
+    );
+    const aliases = new Set<string>();
+    const namespaces = new Set<string>();
+    const isDeclaring = rel.endsWith(moduleSuffix.replace(".js", ".ts"));
+    if (isDeclaring) aliases.add(exportName);
+    for (const statement of source.statements) {
+      // STATIC named imports and STATIC namespace imports.
+      if (ts.isImportDeclaration(statement) && ts.isStringLiteral(statement.moduleSpecifier)) {
+        if (!statement.moduleSpecifier.text.endsWith(moduleSuffix)) continue;
+        const named = statement.importClause?.namedBindings;
+        if (named && ts.isNamedImports(named)) {
+          for (const element of named.elements) {
+            if ((element.propertyName ?? element.name).text === exportName) aliases.add(element.name.text);
+          }
+        } else if (named && ts.isNamespaceImport(named)) {
+          namespaces.add(named.name.text);
+        }
+        continue;
+      }
+      // THE DYNAMIC NAMESPACE BINDING BOTH HOOKS USE:
+      //   let ioMod: typeof import("../scripts/context-io.js");
+      //   ioMod = await import("../scripts/context-io.js");
+      // A derivation that could not see this reported BOTH PreToolUse hooks as non-consumers of the
+      // trusted root, which is exactly the coverage-it-does-not-have failure this axis exists for.
+      if (ts.isVariableStatement(statement)) {
+        for (const decl of statement.declarationList.declarations) {
+          if (!ts.isIdentifier(decl.name)) continue;
+          const typeText = decl.type ? decl.type.getText(source) : "";
+          if (typeText.includes(moduleSuffix)) namespaces.add(decl.name.text);
+        }
+      }
+    }
+    // A DESTRUCTURING OFF A KNOWN NAMESPACE: `const { trustedRepoRoot } = ioMod;`
+    if (namespaces.size > 0) {
+      const destructure = (node: ts.Node): void => {
+        if (
+          ts.isVariableDeclaration(node) &&
+          ts.isObjectBindingPattern(node.name) &&
+          node.initializer !== undefined &&
+          ts.isIdentifier(node.initializer) &&
+          namespaces.has(node.initializer.text)
+        ) {
+          for (const element of node.name.elements) {
+            const source_ = element.propertyName ?? element.name;
+            if (ts.isIdentifier(source_) && source_.text === exportName && ts.isIdentifier(element.name)) {
+              aliases.add(element.name.text);
+            }
+          }
+        }
+        ts.forEachChild(node, destructure);
+      };
+      destructure(source);
+    }
+    if (aliases.size === 0 && namespaces.size === 0) continue;
+    const counted = (node: ts.Node, skipDeclarationNamed: boolean): number => {
+      let count = 0;
+      const walk = (n: ts.Node): void => {
+        // The DECLARATION of the name is not a reference to it.
+        if (
+          skipDeclarationNamed &&
+          ((ts.isFunctionDeclaration(n) && n.name?.text === exportName) ||
+            (ts.isVariableDeclaration(n) && ts.isIdentifier(n.name) && n.name.text === exportName))
+        ) {
+          if (ts.isVariableDeclaration(n) && n.initializer) walk(n.initializer);
+          else if (ts.isFunctionDeclaration(n) && n.body) walk(n.body);
+          return;
+        }
+        // `ioMod.trustedRepoRoot` — a property access off a known namespace binding.
+        if (
+          ts.isPropertyAccessExpression(n) &&
+          ts.isIdentifier(n.expression) &&
+          namespaces.has(n.expression.text) &&
+          n.name.text === exportName
+        ) {
+          count += 1;
+        }
+        if (ts.isIdentifier(n) && aliases.has(n.text)) count += 1;
+        ts.forEachChild(n, walk);
+      };
+      walk(node);
+      return count;
+    };
+    for (const statement of source.statements) {
+      if (ts.isImportDeclaration(statement)) continue;
+      if (ts.isFunctionDeclaration(statement) && statement.name) {
+        if (isDeclaring && statement.name.text === exportName) continue;
+        if (counted(statement, false) > 0) out.push(`${rel}::${statement.name.text}`);
+        continue;
+      }
+      if (counted(statement, isDeclaring) > 0) out.push(`${rel}::<module>`);
+    }
+  }
+  return [...new Set(out)].sort();
+}
+
+/** Every `<file>::<function>` in the tracked corpus whose body READS the module-level `constName`. */
+function deriveConstReaders(constName: string, moduleSuffix: string): string[] {
+  const out: string[] = [];
+  for (const rel of trackedSources()) {
+    const source = ts.createSourceFile(
+      rel,
+      readFileSync(join(ROOT, rel), "utf8"),
+      ts.ScriptTarget.Latest,
+      true,
+    );
+    const aliases = new Set<string>();
+    const isDeclaring = rel.endsWith(moduleSuffix.replace(".js", ".ts"));
+    if (isDeclaring) aliases.add(constName);
+    for (const statement of source.statements) {
+      if (!ts.isImportDeclaration(statement) || !ts.isStringLiteral(statement.moduleSpecifier)) continue;
+      if (!statement.moduleSpecifier.text.endsWith(moduleSuffix)) continue;
+      const named = statement.importClause?.namedBindings;
+      if (named && ts.isNamedImports(named)) {
+        for (const element of named.elements) {
+          if ((element.propertyName ?? element.name).text === constName) aliases.add(element.name.text);
+        }
+      }
+    }
+    if (aliases.size === 0) continue;
+    for (const statement of source.statements) {
+      if (!ts.isFunctionDeclaration(statement) || !statement.name || !statement.body) continue;
+      let count = 0;
+      const walk = (node: ts.Node): void => {
+        if (ts.isIdentifier(node) && aliases.has(node.text)) count += 1;
+        ts.forEachChild(node, walk);
+      };
+      walk(statement.body);
+      if (count > 0) out.push(`${rel}::${statement.name.text}`);
+    }
+  }
+  return out.sort();
+}
+
+/**
+ * MEASURED on 2026-09-10 against the tree `31-23` produced. Each entry is a `<file>::<site>` that
+ * consumes the resolution surface the home rule now decides.
+ *
+ * TWO MEMBERS A READER WILL EXPECT AND NOT FIND, recorded so their absence is a stated fact rather
+ * than a hole nobody checked.
+ *
+ *   `scripts/context-io.ts::admit` — its `repoRoot` default is `ROOT`, the KIT, NOT
+ *   `trustedRepoRoot()`. The production entry is the CLI `admit` verb, which resolves the trusted
+ *   root itself and passes it, and that call site is the `::<module>` member below. In-process
+ *   callers reach the parameter, which is the documented test seam (31-09 / WR-10).
+ *
+ *   `scripts/compactor.ts` — it never asks the trusted root at all; every root it uses arrives as
+ *   an argument from its own caller.
+ *
+ * Both hook members are `::<module>` because both hooks resolve the root at MODULE SCOPE — through
+ * a dynamically bound namespace (`ioMod`), which is why this axis resolves that binding rather than
+ * only static named imports.
+ */
+const EXPECTED_RESOLUTION_SURFACE: Readonly<Record<string, readonly string[]>> = Object.freeze({
+  trustedRepoRoot: Object.freeze([
+    "hooks/admission-guard.ts::<module>",
+    "hooks/guard.ts::<module>",
+    "scripts/admission-server.ts::handleProposeNote",
+    "scripts/context-io.ts::<module>",
+    "scripts/context-io.ts::admitAndAppend",
+    "scripts/context-io.ts::appendNote",
+    "scripts/context-io.ts::promoteAdmitted",
+  ]),
+  projectRootFromWorkingDirectory: Object.freeze([
+    "scripts/context-io.ts::originStoreIsRootAnchored",
+    "scripts/context-io.ts::trustedRepoRoot",
+  ]),
+  homeBoundary: Object.freeze(["scripts/context-io.ts::projectRootFromWorkingDirectory"]),
+  isAboveHome: Object.freeze(["scripts/context-io.ts::projectRootFromWorkingDirectory"]),
+  isHomeItself: Object.freeze(["scripts/context-io.ts::projectRootFromWorkingDirectory"]),
+  homeConfigPositionIsProjectOwned: Object.freeze([
+    "scripts/context-io.ts::projectRootFromWorkingDirectory",
+  ]),
+});
+
+/** The two NEW published constants, read at exactly one position each — the home rule's own. */
+const EXPECTED_CONSTANT_READERS: Readonly<Record<string, readonly string[]>> = Object.freeze({
+  GOVERNANCE_CONFIG_CANDIDATE_KINDS: Object.freeze([
+    "scripts/context-io.ts::homeConfigPositionIsProjectOwned",
+  ]),
+  MODULE_OWN_CONFIG_POSITIONS: Object.freeze([
+    "scripts/context-io.ts::homeConfigPositionIsProjectOwned",
+  ]),
+});
+
+describe("31-23 — PART SIX-I: the changed resolution surface has a DERIVED caller axis", () => {
+  it("PREMISE: the derivation finds the declarations at all, over a non-empty corpus", () => {
+    // A derivation over zero elements reports total coverage and has measured nothing. The premise
+    // is asserted before any member equality below, and it fires on a RENAMED declaration.
+    const io = readFileSync(join(ROOT, "scripts", "context-io.ts"), "utf8");
+    for (const name of Object.keys(EXPECTED_RESOLUTION_SURFACE)) {
+      expect(io, `PREMISE: ${name} is not declared in the module this axis derives from`).toContain(
+        `function ${name}(`,
+      );
+    }
+    for (const name of Object.keys(EXPECTED_CONSTANT_READERS)) {
+      expect(io, `PREMISE: ${name} is not declared`).toContain(`export const ${name}`);
+    }
+    expect(deriveSurfaceReferences("trustedRepoRoot", "context-io.js").length).toBeGreaterThan(0);
+    // A name the module does not declare derives an EMPTY set — which is what makes the assertions
+    // below meaningful rather than vacuously true of everything.
+    expect(deriveSurfaceReferences("thisRouteDoesNotExist", "context-io.js")).toEqual([]);
+    // AND THE DERIVATION SEES A DEFAULT-PARAMETER CALL SITE, which is the position this module's
+    // own consumers actually use. Asserted as a property rather than left as an implementation
+    // detail nobody checked.
+    expect(io).toContain("repoRoot: string = trustedRepoRoot()");
+    expect(deriveSurfaceReferences("trustedRepoRoot", "context-io.js")).toContain(
+      "scripts/context-io.ts::appendNote",
+    );
+  });
+
+  it("every caller of the changed resolution surface is derived, by MEMBERS and by COUNT", () => {
+    for (const [route, expected] of Object.entries(EXPECTED_RESOLUTION_SURFACE)) {
+      const derived = deriveSurfaceReferences(route, "context-io.js");
+      expect(
+        derived,
+        `a caller of ${route} landed or left. Every one of them inherits whatever the governance ` +
+          `walk answers, so a new caller is a decision with a written reason, never a widened list`,
+      ).toEqual([...expected]);
+      expect(derived, `${route}'s caller COUNT moved`).toHaveLength(expected.length);
+    }
+  });
+
+  it("the two NEW published constants are read at exactly one position each — the home rule's", () => {
+    for (const [name, expected] of Object.entries(EXPECTED_CONSTANT_READERS)) {
+      const derived = deriveConstReaders(name, "context-io.js");
+      expect(
+        derived,
+        `${name} gained or lost a reader. It is consulted by the home rule and by nothing else; a ` +
+          `second reader is a second authority for one question`,
+      ).toEqual([...expected]);
+      expect(derived).toHaveLength(1);
+    }
+  });
+
+  it("SEEDED MIRROR: one extra caller moves the count by exactly one", () => {
+    const derived = deriveSurfaceReferences("trustedRepoRoot", "context-io.js");
+    const seeded = [...derived, "scripts/seeded-consumer.ts::seededCaller"].sort();
+    expect(seeded).toHaveLength(derived.length + 1);
+    expect(
+      seeded,
+      "the seeded caller did not break the member equality, so the assertion above is not a control",
+    ).not.toEqual([...EXPECTED_RESOLUTION_SURFACE.trustedRepoRoot]);
+  });
+});

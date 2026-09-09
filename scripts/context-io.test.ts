@@ -6574,6 +6574,23 @@ describe("31-15 — WR-15: the target repository's dial is read on every host", 
     "R-31-19-04":
       "DISCLOSED — the marker set is content and not the bound; the home stop bounds the walk " +
       "whatever markers a filesystem carries.",
+    // ── Plan 31-23, CR-13 / D-26. ───────────────────────────────────────────────────────────────
+    "R-31-19-05":
+      "RECORDED, not closed — a bare configuration position at home is not evidence of a project, " +
+      "and adopting one on that evidence alone is the WR-21 hole 31-19 closed. What would force it " +
+      "closed is an explicit opt-in the walk can read that a caller cannot author, and explicitly " +
+      "NOT the installer's own marker, whose schema makes it forgeable in one write.",
+    "R-31-19-06":
+      "ACCEPTED and PRICED IN OPERATIONS rather than defended — three against a bare home, one " +
+      "against a home already carrying a dotfiles checkout, and one for the converse gate LOWERING " +
+      "that predates this plan. Both are the walk's own evidence applied identically at every " +
+      "directory, inside the class R-31-15-01 already accepts.",
+    "R-31-19-07":
+      "DISCLOSED with its criterion, and MEASURED on both axes rather than argued: the exclusion " +
+      "compares lexical path spellings, which HOLDS under a symlinked spelling on this filesystem " +
+      "and MISSES under a case-differing one. The alternative — a `dev:ino` comparison under " +
+      "`$HOME` — is a one-operation flip in the gate-lowering direction, which is the defect this " +
+      "member exists instead of.",
   };
 
   it("the round's written dispositions cover the register exactly — no member without one", () => {
@@ -6593,8 +6610,8 @@ describe("31-15 — WR-15: the target repository's dial is read on every host", 
       mod.TRUSTED_ROOT_RESIDUALS.length,
       "the residual register grew or shrank. That is a decision — record the disposition and move " +
         "this number deliberately, or remove the member",
-    ).toBe(8);
-    expect(Object.keys(RESIDUAL_DISPOSITIONS)).toHaveLength(8);
+    ).toBe(11);
+    expect(Object.keys(RESIDUAL_DISPOSITIONS)).toHaveLength(11);
   });
 
   // THE WATCHED FAILURE. The set-equality above is only a control if it FAILS on an unbound member.
@@ -8040,6 +8057,142 @@ describe("31-15 — WR-15: the target repository's dial is read on every host", 
       // GREEN 1 is untouched too.
       const row8 = homeRootedRepository("p31-23-mut4-row8-");
       expect(drive("appendNote", { cwd: row8.cwd, env: asHome(row8.home), kit: mutant }).root).toBe(row8.home);
+    });
+
+    // ── THE SHAPES THIS PLAN DOES NOT ADOPT ARRIVE AS OCCUPIED REGISTER MEMBERS ────────────────
+    //
+    // A gap in a safety predicate that arrives as a SILENCE is this repository's recorded failure
+    // mode. A gap that arrives as a MEMBER nobody can reach is the same failure one register over —
+    // so each of the three members added by this plan is DRIVEN, and R-31-19-06 is driven by
+    // CONSTRUCTION with its operation counts recorded as numbers.
+
+    it("R-31-19-05 OCCUPIED: a MARKER-LESS home repository is not adopted, and its dial is replaced", () => {
+      const home = tmp15("p31-23-r05-");
+      writeConfig(home, [".grugops", "factory.config.json"], ACTIVE);
+      const cwd = join(home, "src");
+      mkdirSync(cwd, { recursive: true });
+      // PREMISE: the configuration is real and carries the ACTIVE dial, so the kit answer below is
+      // a REPLACEMENT of a live posture rather than an empty tree resolving to nothing.
+      expect(mod.readGovernanceConfig(home).config.human_admission).toBe("high-severity");
+      const r = drive("appendNote", { cwd, env: asHome(home) });
+      expect(r.root).toBe(KIT);
+      expect(r.message, "the kit's shipped LEAN default replaced the home repository's dial").toContain(
+        "human_admission: off",
+      );
+      expect(mod.TRUSTED_ROOT_RESIDUALS.map((x) => x.id)).toContain("R-31-19-05");
+    });
+
+    it("R-31-19-05 THE CONSEQUENCE: no GOV-02 ledger line lands under the marker-less home", () => {
+      const home = tmp15("p31-23-r05-ledger-");
+      writeConfig(home, [".grugops", "factory.config.json"], {
+        human_admission: "off",
+        audit_retention: "retained",
+      });
+      const ledger = join(home, ".grugops", "audit", "admissions.jsonl");
+      // PREMISE, ASSERTED: this root's dial RETAINS, so a write reaching it would be visible here.
+      expect(mod.readGovernanceConfig(home).config.audit_retention).toBe("retained");
+      expect(existsSync(ledger)).toBe(false);
+      const cwd = join(home, "work");
+      mkdirSync(cwd, { recursive: true });
+      const r = drive("appendNote", { cwd, env: asHome(home) });
+      expect(r.verdict, "PREMISE: the note must be admitted, or no ledger line is written at all").toBe(
+        "write",
+      );
+      expect(
+        existsSync(ledger),
+        "an admission driven from the marker-less home shape wrote a GOV-02 record into that " +
+          "directory's committed audit trail — the blast radius that makes a wrong root more than " +
+          "a wrong dial",
+      ).toBe(false);
+    });
+
+    it("R-31-19-06 OCCUPIED BY CONSTRUCTION (a): THREE operations make a bare home adoptable", () => {
+      const home = tmp15("p31-23-r06a-");
+      const cwd = join(home, "work");
+      mkdirSync(cwd, { recursive: true });
+      expect(drive("trustedRepoRoot", { cwd, env: asHome(home) }).root).toBe(KIT);
+      let operations = 0;
+      mkdirSync(join(home, ".git"), { recursive: true });
+      operations++; // 1
+      mkdirSync(join(home, ".grugops"), { recursive: true });
+      operations++; // 2
+      writeFileSync(
+        join(home, ".grugops", "factory.config.json"),
+        JSON.stringify({ context: ACTIVE }),
+      );
+      operations++; // 3
+      expect(operations, "R-31-19-06's price is stated as a NUMBER, not as an adjective").toBe(3);
+      const after = drive("appendNote", { cwd, env: asHome(home) });
+      expect(after.root, "the three named operations did not move the verdict").toBe(home);
+      expect(after.verdict).toBe("refuse");
+      expect(mod.TRUSTED_ROOT_RESIDUALS.map((x) => x.id)).toContain("R-31-19-06");
+    });
+
+    it("R-31-19-06 OCCUPIED BY CONSTRUCTION (b): ONE operation degrades a governed answer to the kit", () => {
+      // The CONVERSE, which predates this plan and is measured here rather than discovered next
+      // round: an intermediate boundary carrying no configuration ends the walk, and the answer
+      // falls to GOVERNANCE_FALLBACK_BASE's lean dial. A refusal at a boundary is NOT the safe
+      // direction, which is why R-31-19-06 prices BOTH directions.
+      const { home } = homeRootedRepository("p31-23-r06b-");
+      const work = join(home, "work");
+      const proj = join(work, "proj");
+      mkdirSync(proj, { recursive: true });
+      expect(drive("trustedRepoRoot", { cwd: proj, env: asHome(home) }).root).toBe(home);
+      let operations = 0;
+      mkdirSync(join(work, ".git"), { recursive: true });
+      operations++; // 1
+      expect(operations).toBe(1);
+      const after = drive("trustedRepoRoot", { cwd: proj, env: asHome(home) });
+      expect(after.root, "the one named operation did not degrade the answer").toBe(KIT);
+      expect(after.message).toContain("human_admission: off");
+    });
+
+    it("R-31-19-07 OCCUPIED on BOTH axes its shape sentence names: the CASE cell and the SYMLINK cell", () => {
+      // THE MEASURED ANSWERS ON THIS FILESYSTEM, recorded whichever way they fall. The exclusion
+      // compares LEXICALLY RESOLVED path spellings, so its two sides can name one directory with
+      // two strings. Both sides are asked here rather than reasoned about.
+      const tree = tmp15("p31-23-r07-");
+      const kit = kitAt(join(tree, "kit"));
+      mkdirSync(join(kit, ".git"), { recursive: true });
+      writeConfig(kit, [".grugops", "factory.config.json"], LEAN);
+      const proj = join(kit, "proj");
+      writeConfig(proj, [".grugops", "factory.config.json"], ACTIVE);
+
+      // CELL 2 — the SYMLINK axis. `ln -s <kit> <tree>/link`, then the module, HOME and the working
+      // directory all addressed through that link. MEASURED: the exclusion HOLDS, because Node's
+      // ESM resolver realpaths a symlinked module specifier and `process.cwd()` returns the
+      // kernel's realpath, so BOTH sides are the real spelling before the equality is asked.
+      const link = join(tree, "link");
+      symlinkSync(kit, link);
+      const viaLink = drive("trustedRepoRoot", { cwd: join(link, "proj"), env: asHome(link), kit: link });
+      expect(
+        viaLink.root,
+        "the SYMLINK cell's measured verdict moved. R-31-19-07 records it as HOLDING; if that " +
+          "changed, the register member is the thing to correct, not this case",
+      ).toBe(proj);
+
+      // CELL 1 — the CASE axis. The module addressed through a case-differing spelling of its own
+      // root. MEASURED: the exclusion MISSES. `import.meta.dirname` preserves the caller's casing
+      // while `process.cwd()` returns the on-disk canonical casing, so `MODULE_OWN_CONFIG_POSITIONS`
+      // and the candidate the walk computes name ONE directory with TWO strings, and the running
+      // kit's own configuration is adopted as the governance root — RED 2b's harm reached through a
+      // spelling rather than through a position. The price is ONE operation: address the decider
+      // through a case-differing path. This is R-31-19-07 OCCUPIED, and it is a documented member
+      // rather than a surprise.
+      const upper = join(tree, "KIT");
+      if (!existsSync(join(upper, "scripts", "context-io.js"))) {
+        // A CASE-SENSITIVE filesystem cannot reach this cell at all. Recorded as unreachable HERE
+        // rather than silently skipped, so a run on such a host reports which cell it measured.
+        expect(existsSync(join(upper, "scripts", "context-io.js"))).toBe(false);
+        return;
+      }
+      const viaCase = drive("trustedRepoRoot", { cwd: join(upper, "proj"), env: asHome(upper), kit: upper });
+      expect(
+        viaCase.root,
+        "the CASE cell's measured verdict moved. R-31-19-07 records it as MISSING — the running " +
+          "kit's own root adopted — and a change here means the member is stale, not this case",
+      ).toBe(kit);
+      expect(mod.TRUSTED_ROOT_RESIDUALS.map((x) => x.id)).toContain("R-31-19-07");
     });
   });
 });
