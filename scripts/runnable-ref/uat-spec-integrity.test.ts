@@ -1587,6 +1587,20 @@ describe("uat-spec-integrity — 31-12 WR-13: the declared modifier surface, der
     expect(partition.refused.length + partition.dispositioned.length).toBe(paths.length);
   });
 
+  it("the walked denominator's CARDINALITY is the number this round MEASURED", async () => {
+    // 31-16: RE-MEASURED after the declared surface gained the TestInfo second callback parameter,
+    // never carried forward from the previous round's summary. The number did not move, and the
+    // reason it did not is a fact about the walk rather than a coincidence: adding a PARAMETER to a
+    // call signature adds no PROPERTY to any declared type, and `checker.getPropertiesOfType` reads
+    // properties only. A change that moved it would turn this red and have to say why.
+    const { isBannedModifierPath } = await loadChecker();
+    const { paths } = walk();
+    expect(paths.length, "the walked declared-surface denominator CHANGED").toBe(26);
+    const partition = partitionDeclaredSurface(paths, isBannedModifierPath);
+    expect(partition.refused.length, "the refused bucket's measured size CHANGED").toBe(14);
+    expect(partition.dispositioned.length, "the dispositioned bucket's measured size CHANGED").toBe(12);
+  });
+
   it("every dispositioned member carries a reason, and the record holds no member the surface lacks", () => {
     const { paths } = walk();
     const derived = new Set(paths);
@@ -2821,9 +2835,13 @@ describe("uat-spec-integrity — 31-13 CR-07: the resolver's DECLINE set, derive
   const R_NON_LITERAL_OPTION =
     "An option is ENABLED only when the call's first argument is an object literal assigning it the `true` keyword. A variable argument enables nothing, and neither does a variable option value. This runnable parses and never evaluates.";
   const R_PARSER_PREDICATES =
-    "A parser that does not expose the import or object-literal node predicates yields no rename canonicalisation and no option reading. The parser is the TARGET repository's (D-13), so its surface is not this runnable's to assume. The resolver degrades to the pre-D-18 behaviour for those shapes rather than throwing outside the exit-code contract.";
+    "A parser that does not expose the import, object-literal or function-like node predicates yields no rename canonicalisation, no option reading and no fixture-parameter canonicalisation. The parser is the TARGET repository's (D-13), so its surface is not this runnable's to assume. The resolver degrades to the pre-D-18 behaviour for those shapes rather than throwing outside the exit-code contract.";
   const R_ALIAS =
     "An aliased binding is not refused: `const t = test;` then a modifier call on `t`. The alias cannot be followed to its declaration without a type checker.";
+  const R_DESTRUCTURED_FIXTURE_PARAM =
+    "A TestInfo binding destructured in the callback's second parameter is not canonicalised: `test(\"a\", async ({ page }, { skip }) => skip());`. A binding pattern names no single identifier to rewrite, so there is no head segment to canonicalise.";
+  const R_UNSCOPED_CANONICALISATION =
+    "The import-rename and fixture-parameter canonicalisations are applied WITHOUT SCOPE ANALYSIS: a local binding that shadows a renamed import, or a name declared elsewhere in the file that matches a fixture parameter, is canonicalised wherever it appears. Deciding which declaration a name belongs to needs the binder this runnable deliberately does not ship (D-13).";
 
   const DECLINE_SITE_DISPOSITIONS: Readonly<Record<string, DeclineDisposition>> = Object.freeze({
     // ── calleeDottedPath ──────────────────────────────────────────────────────────────────────
@@ -2895,6 +2913,17 @@ describe("uat-spec-integrity — 31-13 CR-07: the resolver's DECLINE set, derive
         "opens no shape of its own, because a chain in which every link declined is a chain about " +
         "which every link already said why.",
     },
+
+    // ── deriveTestInfoParameterNames (31-16, D-20 (3)) ────────────────────────────────────────
+    'deriveTestInfoParameterNames | Block>IfStatement>Block | typeof isArrowFunction !== "function" || typeof isFunctionExpression !== "function" | return null;':
+      {
+        kind: "residual",
+        reason:
+          "The TARGET repository's parser does not expose the function-like predicates, so no " +
+          "fixture-parameter binding is collected in this run and the resolver degrades to the " +
+          "pre-D-20 head reading for that one shape.",
+        residual: R_PARSER_PREDICATES,
+      },
 
     // ── deriveImportRenames ───────────────────────────────────────────────────────────────────
     'deriveImportRenames | Block>IfStatement>Block | typeof isImportDeclaration !== "function" || typeof isNamedImports !== "function" || typeof isNamespaceImport !== "function" || typeof isImportSpecifier !== "function" | return null;':
@@ -3083,9 +3112,23 @@ describe("uat-spec-integrity — 31-13 CR-07: the resolver's DECLINE set, derive
       [R_ALIAS]:
         "A MEMBERSHIP residual, not a resolution one. The path resolves (`t.skip`); its head is " +
         "simply not a banned head, and binding a local name to its declaration needs the type " +
-        "checker D-13 forbids shipping. The same sentence covers a binding reached through a " +
-        "fixture parameter (`testInfo.skip()`), which is the shape 31-REVIEW.md listed for " +
-        "completeness. Asserted behaviourally by the alias/computed-member case earlier in this file.",
+        "checker D-13 forbids shipping. Asserted behaviourally by the alias/computed-member case " +
+        "earlier in this file. 31-16 (CR-10) REMOVED this sentence's claim to cover a binding " +
+        "reached through a fixture parameter: that shape is POSITIONAL, the position is a literal " +
+        "in the source text, and D-20 (3) decides it. A residual must state a reason true OF THE " +
+        "SHAPE IT NAMES, and sharing one sentence across two shapes is what made CR-10 invisible " +
+        "where the claim is made.",
+      [R_DESTRUCTURED_FIXTURE_PARAM]:
+        "A MEMBERSHIP residual with its OWN sentence, added by 31-16. The scenario call resolves " +
+        "and its callback is found; what is absent is a single identifier to rewrite, because the " +
+        "second parameter is a binding pattern. The resolver declines nothing here — the fixture " +
+        "map simply gains no member — so this is a membership fact, not a resolution one.",
+      [R_UNSCOPED_CANONICALISATION]:
+        "A MEMBERSHIP residual, and the one that runs the OTHER way: a path that resolves perfectly " +
+        "can be canonicalised on a name whose declaration is not the one the canonicalisation " +
+        "assumes, so a shadowing local binding is refused under a construct the file does not " +
+        "carry. It is WR-20 of 31-REVIEW.md, it is owned by plan 31-17, and 31-16 states the " +
+        "dependency here rather than assuming it away.",
     });
 
     for (const residual of UNRESOLVABLE_CALLEE_RESIDUALS) {
@@ -4247,8 +4290,13 @@ describe("uat-spec-integrity — 31-16 CR-10: the TestInfo fixture parameter is 
     // …and the excuse is gone from the test file's own membership record too, which is the only
     // place CR-10's disposition ever lived.
     const source = readFileSync(join(HERE, "uat-spec-integrity.test.ts"), "utf8");
+    // ASSEMBLED AT RUN TIME, never written as one literal: a scan whose needle is itself a literal
+    // in the scanned file can only ever report a hit, which would make this assertion unfailable.
+    const removedExcuse = ["The same sentence", "covers a binding reached", "through a fixture parameter"].join(
+      " ",
+    );
     expect(
-      source.includes("which is the shape 31-REVIEW.md listed for"),
+      source.includes(removedExcuse),
       "the membership record still carries the sentence that dispositioned the fixture parameter " +
         "under the alias residual's disproved reason",
     ).toBe(false);

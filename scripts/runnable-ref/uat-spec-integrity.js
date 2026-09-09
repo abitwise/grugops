@@ -335,6 +335,21 @@ export const BANNED_CONFIGURED_PATHS = Object.freeze({
 /** The module specifier a rename must arrive through for D-18 (3) to canonicalise it. */
 const PLAYWRIGHT_TEST_MODULE = "@playwright/test";
 /**
+ * D-20 (3): the resolved path of a plain scenario call — the one whose callback carries the TestInfo
+ * fixture in its SECOND parameter. It is the canonical spelling, so an import-renamed head
+ * (`it("a", ...)`) reaches it after D-18 (3)'s canonicalisation and needs no case of its own.
+ */
+const TEST_SCENARIO_PATH = "test";
+/**
+ * D-20 (3): the head segment a TestInfo fixture-parameter binding is rewritten to.
+ *
+ * It is the MARKED ACCESSOR FORM D-18 (1) already decided for this construct — `test.info()` — and
+ * not a new spelling nobody decided. `testInfo.skip` is therefore asked as `test.info().skip`, the
+ * exact path the corpus, the recipe and the round-3 closure already carry, so the family has ONE
+ * spelling in the findings a reader sees rather than two.
+ */
+export const TEST_INFO_CANONICAL_HEAD = `test.info${CALL_LINK_MARKER}`;
+/**
  * D-18 (3): the rename map's value for a NAMESPACE import local name. Spelled `*` because that is
  * how a namespace import is written in the source, and because `*` cannot collide with any imported
  * name: it is not a valid identifier, so no `import { X as y }` can ever produce it.
@@ -359,7 +374,9 @@ export const UNRESOLVABLE_CALLEE_RESIDUALS = Object.freeze([
     "A callee whose head is not an identifier is not resolved: a call on an object literal, or on `this`. There is no head segment to read, so no membership question can be put.",
     "A callee chain longer than the resolver's 512-step bound is not resolved. The bound stops a pathological chain from spinning. It is a stated LIMIT, not a silence. A chain that reaches it yields no path rather than a truncated one.",
     "An option is ENABLED only when the call's first argument is an object literal assigning it the `true` keyword. A variable argument enables nothing, and neither does a variable option value. This runnable parses and never evaluates.",
-    "A parser that does not expose the import or object-literal node predicates yields no rename canonicalisation and no option reading. The parser is the TARGET repository's (D-13), so its surface is not this runnable's to assume. The resolver degrades to the pre-D-18 behaviour for those shapes rather than throwing outside the exit-code contract.",
+    "A parser that does not expose the import, object-literal or function-like node predicates yields no rename canonicalisation, no option reading and no fixture-parameter canonicalisation. The parser is the TARGET repository's (D-13), so its surface is not this runnable's to assume. The resolver degrades to the pre-D-18 behaviour for those shapes rather than throwing outside the exit-code contract.",
+    "A TestInfo binding destructured in the callback's second parameter is not canonicalised: `test(\"a\", async ({ page }, { skip }) => skip());`. A binding pattern names no single identifier to rewrite, so there is no head segment to canonicalise.",
+    "The import-rename and fixture-parameter canonicalisations are applied WITHOUT SCOPE ANALYSIS: a local binding that shadows a renamed import, or a name declared elsewhere in the file that matches a fixture parameter, is canonicalised wherever it appears. Deciding which declaration a name belongs to needs the binder this runnable deliberately does not ship (D-13).",
 ]);
 // D-13: the loud skip for an unresolvable parser. One frozen constant, ONE emission point, so a test
 // can assert the emitted text byte-for-byte. It names `typescript` and states the honest outcome.
@@ -863,6 +880,53 @@ export function deriveImportRenames(ts, sf) {
     return renames;
 }
 /**
+ * D-20 (3): the source file's TestInfo FIXTURE-PARAMETER names — the local name bound to the
+ * TestInfo fixture by the SECOND parameter of the function passed as the SECOND argument to a
+ * `test(...)`-headed call.
+ *
+ * WHY THIS NEEDS NO TYPE CHECKER, WHICH IS THE SAME ARGUMENT D-18 (3) MAKES FOR
+ * `ImportSpecifier.propertyName`. The binding is POSITIONAL, and the position is a literal already
+ * present in the source text: Playwright hands the TestInfo fixture to the scenario body as its
+ * second parameter, so `test("a", async ({ page }, testInfo) => …)` carries both the framework call
+ * and the local name in one node. Nothing has to be followed to a declaration, and nothing is.
+ *
+ * THE HEAD IS CANONICALISED FIRST, so a renamed framework binding composes: `import { test as it }`
+ * followed by `it("a", async ({ page }, info) => …)` contributes `info`, because the callee's own
+ * path is asked as `test` before this derivation reads its arguments.
+ *
+ * A DESTRUCTURED SECOND PARAMETER CONTRIBUTES NOTHING, and that is a decision rather than an
+ * oversight: a binding pattern names no single identifier to rewrite, so there is no head segment to
+ * canonicalise. It is NAMED in UNRESOLVABLE_CALLEE_RESIDUALS with a reason true of it.
+ *
+ * Returns `null` when the parser does not expose the function-like predicates — the resolver then
+ * degrades to the pre-D-20 behaviour for this one shape rather than throwing outside the D-12 exit
+ * codes.
+ */
+export function deriveTestInfoParameterNames(ts, sf, renames) {
+    const isArrowFunction = ts.isArrowFunction;
+    const isFunctionExpression = ts.isFunctionExpression;
+    if (typeof isArrowFunction !== "function" || typeof isFunctionExpression !== "function") {
+        return null;
+    }
+    const names = new Set();
+    const visit = (node) => {
+        if (ts.isCallExpression(node)) {
+            const callee = canonicaliseHeadSegment(calleeDottedPath(ts, node.expression), renames);
+            if (callee === TEST_SCENARIO_PATH) {
+                const body = node.arguments[1];
+                if (body !== undefined && (isArrowFunction(body) || isFunctionExpression(body))) {
+                    const second = body.parameters[1];
+                    if (second !== undefined && ts.isIdentifier(second.name))
+                        names.add(second.name.text);
+                }
+            }
+        }
+        ts.forEachChild(node, visit);
+    };
+    ts.forEachChild(sf, visit);
+    return names;
+}
+/**
  * D-18 (3): rewrite a resolved path's HEAD SEGMENT through the rename map, so `it.skip` is asked as
  * `test.skip` and a renamed head cannot defeat the head-set check.
  *
@@ -872,22 +936,34 @@ export function deriveImportRenames(ts, sf) {
  * be produced in the first place. A `null` path passes straight through, so the caller needs no null
  * comparison.
  */
-export function canonicaliseHeadSegment(dottedPath, renames) {
-    if (dottedPath === null || renames === null)
+export function canonicaliseHeadSegment(dottedPath, renames, fixtureParams = null) {
+    if (dottedPath === null)
         return dottedPath;
     const segments = dottedPath.split(".");
-    const imported = renames.get(segments[0]);
-    if (imported === undefined)
-        return dottedPath;
-    if (imported === IMPORT_NAMESPACE_MARKER) {
-        // A namespace head is DROPPED: `pw.test.skip` is asked as `test.skip`. A bare `pw(...)` has no
-        // segment left to ask about, so it passes through unchanged rather than becoming an empty path.
-        if (segments.length < 2)
-            return dottedPath;
-        return segments.slice(1).join(".");
+    const imported = renames === null ? undefined : renames.get(segments[0]);
+    if (imported !== undefined) {
+        // PRECEDENCE, ASSERTED RATHER THAN LEFT TO READING ORDER (D-20 (3)). An import rename wins over
+        // a fixture-parameter binding of the same name: the rename is a FILE-SCOPED declaration, while a
+        // fixture parameter's real reach is one callback body and this derivation is deliberately not
+        // scope-aware. Both spellings of a banned tail are refused either way; what the precedence
+        // decides is which canonical path the finding NAMES.
+        if (imported === IMPORT_NAMESPACE_MARKER) {
+            // A namespace head is DROPPED: `pw.test.skip` is asked as `test.skip`. A bare `pw(...)` has no
+            // segment left to ask about, so it passes through unchanged rather than becoming an empty path.
+            if (segments.length < 2)
+                return dottedPath;
+            return segments.slice(1).join(".");
+        }
+        segments[0] = imported;
+        return segments.join(".");
     }
-    segments[0] = imported;
-    return segments.join(".");
+    // D-20 (3): a TestInfo fixture-parameter binding is asked as the marked accessor form D-18 (1)
+    // already decided, so `testInfo.skip` is asked as `test.info().skip`.
+    if (fixtureParams !== null && fixtureParams.has(segments[0])) {
+        segments[0] = TEST_INFO_CANONICAL_HEAD;
+        return segments.join(".");
+    }
+    return dottedPath;
 }
 /** The three assertion node kinds, each guarded because the target's parser may predate it. */
 function isTypeAssertionLike(ts, node) {
@@ -913,6 +989,9 @@ export function findBannedConstructs(ts, sf, relPath) {
     // shape resolution and membership. Per-file is the correct scope because an import declaration's
     // reach is the file it sits in.
     const renames = deriveImportRenames(ts, sf);
+    // D-20 (3): the fixture-parameter map is built ONCE PER SOURCE FILE too, and AFTER the rename map,
+    // because a renamed framework binding must be canonicalised before its scenario calls are found.
+    const fixtureParams = deriveTestInfoParameterNames(ts, sf, renames);
     const visit = (node) => {
         if (ts.isCallExpression(node)) {
             // ── arm (c): a banned modifier call ────────────────────────────────────────────────────
@@ -921,7 +1000,7 @@ export function findBannedConstructs(ts, sf, relPath) {
             // is the question put to isBannedModifierCall. Two places that decide one question are two
             // places for the answers to disagree, which is how CR-06 happened, and asking a rule about a
             // shape nobody resolved is how CR-07 happened.
-            const dottedPath = canonicaliseHeadSegment(calleeDottedPath(ts, node.expression), renames);
+            const dottedPath = canonicaliseHeadSegment(calleeDottedPath(ts, node.expression), renames, fixtureParams);
             if (isBannedModifierCall(dottedPath, chainEnabledOptionKeys(ts, node))) {
                 const pos = node.getStart(sf);
                 // D-20 (2): one finding per CHAIN. The key asks the same normaliser the arms ask; it decides

@@ -89,7 +89,7 @@ declare module "@playwright/test" {
    * condition-plus-description form.
    */
   export interface TestModifier {
-    (title: string, body: (args: TestArgs) => unknown): void;
+    (title: string, body: (args: TestArgs, testInfo: TestInfo) => unknown): void;
     (...args: readonly unknown[]): void;
   }
 
@@ -164,7 +164,19 @@ declare module "@playwright/test" {
   }
 
   export interface Test {
-    (title: string, body: (args: TestArgs) => unknown): void;
+    // 31-16 (D-20 (3), CR-10): the SECOND callback parameter is the TestInfo fixture, and
+    // declaring it is what keeps the FORWARD direction's premise true — every spelling the rule
+    // now refuses is a construct this surface carries and that type-checks against it. Playwright
+    // documents this as the primary way to reach the runtime modifiers; the round-4 verifier
+    // reproduced `testInfo.skip()` passing the committed checker at exit 0 through it.
+    //
+    // WHAT DECLARING IT COSTS. It adds no PROPERTY to any declared type, so the reverse walk's
+    // denominator is unchanged: `checker.getPropertiesOfType` descends declared property chains
+    // and reads no call signature's parameter list. The cardinality was re-measured after this
+    // change rather than carried over, and it did not move.
+    //
+    // `UNKNOWN - verify` at the same strength as the rest of this file: a hand transcription.
+    (title: string, body: (args: TestArgs, testInfo: TestInfo) => unknown): void;
     readonly skip: TestModifier;
     readonly only: TestModifier;
     readonly fixme: TestModifier;
