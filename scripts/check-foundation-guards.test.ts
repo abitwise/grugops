@@ -1889,8 +1889,23 @@ const SECTION_EXTENT_OWNER_COUNT = 1;
  *   unchanged. The same plan edits `playwright-test.d.ts` in place again — it declares `TestInfo`
  *   and `Expect.configure` so those fixtures compile — which does not move this number, because it
  *   adds no file and `.d.ts` is excluded on both sides.
+ *
+ * 72 -> 73 (plan 31-16, closing CR-09 / CR-10 / IN-10 and gap 1 of 31-VERIFICATION.md round 4), ONE
+ * further corpus file:
+ *   - `scripts/runnable-ref/fixtures/testinfo-fixture-param.uat.spec.ts` — the FIXTURE-PARAMETER
+ *     fixture, carrying the three TestInfo modifier spellings the round-4 verifier reproduced
+ *     passing at exit 0 through the second callback parameter (`testInfo.skip()`, `.fail()`,
+ *     `.fixme(true, "later")`), with a non-banned `testInfo.slow()` on the SAME binding as the
+ *     surviving control.
+ *   Same standing as the eleven corpus files above: it is not a tooling module, it is counted
+ *   anyway because this set is pinned equal to `git ls-files '*.ts'`, and a wider scan can only
+ *   find more. It declares no frontmatter parser and locates no section, so both owner answers are
+ *   unchanged. The same plan edits `playwright-test.d.ts` in place again — the scenario callback's
+ *   second parameter is declared so those fixtures compile — which does not move this number,
+ *   because it adds no file and `.d.ts` is excluded on both sides. It also edits
+ *   `configured-soft.uat.spec.ts` in place, which adds no file either.
  */
-const NON_TEST_MODULE_COUNT = 72;
+const NON_TEST_MODULE_COUNT = 73;
 
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 // (Plan 29-40, gap G-29-1 of 29-UAT.md, closing V-29-35-01) THE FRONTMATTER-PARSER NAME OWNER SET.

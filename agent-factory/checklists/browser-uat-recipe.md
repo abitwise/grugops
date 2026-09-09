@@ -160,14 +160,34 @@ A modifier call is recognised by its callee's DOTTED PATH, so `test.skip(...)`, 
 A callee chain containing a CALL resolves too, as its inner path plus a parenthesis marker segment.
 `test.info().skip(...)` is read as the path `test.info().skip`, whose head segment is `test` and
 whose tail segment is `skip`, so the modifier rule below refuses it with nothing added to any list.
-The marker occupies a routing position, which is what keeps a chained assertion legitimate:
-`expect(locator).soft` is read as `expect().soft`, whose head is the marked call rather than the bare
-`expect` binding, so it is neither a banned exact path nor a banned head.
+
+An INTERIOR marked segment is a ROUTING LINK, and it is not part of the membership question for ANY
+of the three arms below. The rule's head-and-tail arm reads only the first and last segments, so a
+routing link between them never mattered there. The two WHOLE-PATH arms — the banned exact paths and
+the banned configured calls — compare the joined path, so the interior routing links are removed
+before either arm is asked. `expect.configure({ retries: 2 }).soft(locator)` is therefore decided as
+`expect.soft`, and `expect.configure({ retries: 2 }).configure({ soft: true })(locator)` as
+`expect.configure` with `soft` enabled. One legitimate configuration link does not carry a soft
+assertion past the ban.
+
+A MARKED HEAD is a different construct, and it is what keeps a chained assertion legitimate. When the
+FIRST segment carries the marker, a user value was passed into the chain rather than a routing link
+being added to it, so nothing is removed: `expect(locator).soft` is read as `expect().soft`, whose
+head is the marked call rather than the bare `expect` binding, and it is neither a banned exact path
+nor a banned head. That separation is asserted in both directions —
+`expect.configure().soft` is refused and `expect().soft` is not.
 
 An import RENAME is canonicalised before the head segment is read, from the import declaration's own
 literal text. `import { test as it } from "@playwright/test";` followed by `it.skip(...)` is asked as
 `test.skip`, and `import * as pw from "@playwright/test";` followed by `pw.test.skip(...)` is asked
 as `test.skip` as well. The canonicalisation is scoped to that module specifier.
+
+A TESTINFO FIXTURE PARAMETER is canonicalised the same way, and for the same reason: the binding is
+positional and the position is a literal in the source text. The second parameter of the function
+passed as the second argument to a `test(...)`-headed call is the TestInfo fixture, so
+`test("a", async ({ page }, testInfo) => { testInfo.skip(); })` is asked as `test.info().skip` — the
+same path the call-link spelling produces, so the family has one spelling in the findings a reader
+sees. An import rename of the framework binding wins over a fixture parameter of the same name.
 
 **The modifier rule.** A modifier call is refused when the head segment of its dotted path is one of
 the banned head segments AND the tail segment is one of the banned modifier segments, or when the
@@ -201,9 +221,13 @@ Refused in a `*.uat.spec.ts` file:
 - An `expect` call as an operand of `||`, of `&&`, or of `??`.
 - An `expect` call reached through an optional call.
 - Any modifier call the rule above decides, including one reached through a call link
-  (`test.info().skip(...)`) or through a canonicalised import rename or namespace
-  (`import { test as it }` / `import * as pw`).
-- A configured soft assertion: `expect.configure({ soft: true })(...)`.
+  (`test.info().skip(...)`), through a canonicalised import rename or namespace
+  (`import { test as it }` / `import * as pw`), or through the TestInfo FIXTURE PARAMETER
+  (`test("a", async ({ page }, testInfo) => { testInfo.skip(); })`).
+- A configured soft assertion, whether or not a routing link stands between the configuration and the
+  assertion: `expect.configure({ soft: true })(...)`,
+  `expect.configure({ retries: 2 }).soft(...)`, and
+  `expect.configure({ retries: 2 }).configure({ soft: true })(...)`.
 
 Deliberately outside the rule, recorded here so the boundary is written down:
 
@@ -219,7 +243,7 @@ Deliberately outside the rule, recorded here so the boundary is written down:
 - An option is ENABLED only when the call's first argument is an object literal assigning it the `true` keyword. A variable argument enables nothing, and neither does a variable option value. This runnable parses and never evaluates.
 - A parser that does not expose the import, object-literal or function-like node predicates yields no rename canonicalisation, no option reading and no fixture-parameter canonicalisation. The parser is the TARGET repository's (D-13), so its surface is not this runnable's to assume. The resolver degrades to the pre-D-18 behaviour for those shapes rather than throwing outside the exit-code contract.
 - A TestInfo binding destructured in the callback's second parameter is not canonicalised: `test("a", async ({ page }, { skip }) => skip());`. A binding pattern names no single identifier to rewrite, so there is no head segment to canonicalise.
-- The import-rename and fixture-parameter canonicalisations are applied WITHOUT SCOPE ANALYSIS: a local binding that shadows a renamed import, or a name declared elsewhere in the file that matches a fixture parameter, is canonicalised wherever it appears. Deciding which declaration a name belongs to needs the binder this runnable deliberately does not ship (D-13).
+- The import-rename and fixture-parameter canonicalisations are applied WITHOUT SCOPE ANALYSIS. A local binding that shadows a renamed import is canonicalised wherever it appears, and so is a name matching a fixture parameter. Deciding which declaration a name belongs to needs the binder this runnable deliberately does not ship (D-13).
 - Completeness against the DECLARED framework surface is asserted in BOTH directions. Forward: every
   spelling the rule refuses is a construct that surface carries and that type-checks against it.
   Reverse: every member reached by walking that surface's declared types with the TypeScript checker
@@ -228,11 +252,17 @@ Deliberately outside the rule, recorded here so the boundary is written down:
   asserted equal to the walked set, and their sizes are asserted to sum to that set's count, so a
   member that arrives and is decided by neither turns the check red and names itself.
 - The reverse walk covers DECLARED PROPERTY CHAINS ONLY. It reads the properties of each declared
-  type and does not descend through a call signature's RETURN TYPE, so a call-link spelling such as
-  `test.info().skip` is outside its denominator until the walk is extended, even though the rule
-  refuses that spelling. What the walk does carry is the accessor — `test.info` — as a member it must
-  decide. Extending the walk to descend return types would move the denominator of every coverage
-  assertion above, so it is a separate decision rather than a quiet widening.
+  type, does not descend through a call signature's RETURN TYPE, and reads no call signature's
+  PARAMETER list, so a call-link spelling such as `test.info().skip` and a fixture-parameter spelling
+  such as `testInfo.skip` are both outside its denominator. What the walk does carry is the accessor
+  — `test.info` — as a member it must decide. Read this bullet as a statement about the DENOMINATOR
+  and about nothing else: whether the rule refuses a given call-link spelling is decided by the three
+  arms above, arm by arm, and this bullet makes no claim either way. Until round 4 it said the rule
+  refused every such spelling, which was true of the head-and-tail arm and false of the two
+  whole-path arms — the claim-broader-than-the-mechanism defect this recipe exists to prevent, made
+  in the very paragraph that discloses a boundary. Extending the walk to descend return types would
+  move the denominator of every coverage assertion above, so it is a separate decision rather than a
+  quiet widening.
 - The set of callee shapes the resolver still declines is DERIVED from the checker's own source
   rather than remembered: every position at which resolution ends without producing a path is read
   off the abstract syntax tree, its count is asserted, and each one is bound to a decided construct

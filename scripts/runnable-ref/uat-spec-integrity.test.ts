@@ -2841,7 +2841,7 @@ describe("uat-spec-integrity — 31-13 CR-07: the resolver's DECLINE set, derive
   const R_DESTRUCTURED_FIXTURE_PARAM =
     "A TestInfo binding destructured in the callback's second parameter is not canonicalised: `test(\"a\", async ({ page }, { skip }) => skip());`. A binding pattern names no single identifier to rewrite, so there is no head segment to canonicalise.";
   const R_UNSCOPED_CANONICALISATION =
-    "The import-rename and fixture-parameter canonicalisations are applied WITHOUT SCOPE ANALYSIS: a local binding that shadows a renamed import, or a name declared elsewhere in the file that matches a fixture parameter, is canonicalised wherever it appears. Deciding which declaration a name belongs to needs the binder this runnable deliberately does not ship (D-13).";
+    "The import-rename and fixture-parameter canonicalisations are applied WITHOUT SCOPE ANALYSIS. A local binding that shadows a renamed import is canonicalised wherever it appears, and so is a name matching a fixture parameter. Deciding which declaration a name belongs to needs the binder this runnable deliberately does not ship (D-13).";
 
   const DECLINE_SITE_DISPOSITIONS: Readonly<Record<string, DeclineDisposition>> = Object.freeze({
     // ── calleeDottedPath ──────────────────────────────────────────────────────────────────────
@@ -3347,22 +3347,57 @@ describe("uat-spec-integrity fixtures — 31-13: the call-link, rename and confi
     expect(r.stdout).toContain("0 findings over 1/1");
   });
 
-  it("configured-soft.uat.spec.ts reports exactly the planted escape", () => {
+  it("configured-soft.uat.spec.ts reports every planted escape, chained ones included", () => {
+    // 31-16 (CR-09 / IN-10): the region now carries the UN-CHAINED pair, both CHAINED spellings and
+    // the converse ordering, so the mutation contract proves the pair-decision for the shapes whose
+    // resolved path CARRIES a marker rather than only for the shape whose path does not.
     const findings = findingsFor("configured-soft.uat.spec.ts");
-    expect(findings.length).toBe(1);
-    expect(findings[0]).toContain("expect.configure");
+    expect(findings.length, "the measured finding count recorded in 31-16-SUMMARY.md").toBe(4);
+    const joined = findings.join("\n");
+    for (const path of [
+      "expect.configure",
+      "expect.configure().soft",
+      "expect.configure().configure",
+    ]) {
+      expect(joined, `${path} is absent from the findings`).toContain(path);
+    }
   });
 
-  it("configured-soft.uat.spec.ts's CONTROL survives: removing the escape leaves zero findings", () => {
+  it("configured-soft.uat.spec.ts's CONTROL survives: removing the escapes leaves zero findings", () => {
     // PREMISE: the legitimate configure call really is still in the file after the mutation, or the
-    // zero-finding verdict would be a statement about a file that no longer carries the control.
+    // zero-finding verdict would be a statement about a file that no longer carries the control —
+    // and it is now CHAINED AND INVOKED, the shape IN-10 required, so a fix that closed the escape
+    // by banning every path a routing link folds to would turn this red instead of passing.
     const mutated = withBannedConstructsRemoved("configured-soft.uat.spec.ts");
     expect(
       mutated,
       "PREMISE: the false-positive control left the fixture with its marked region",
-    ).toContain("expect.configure({ retries: 2 })");
+    ).toContain('expect.configure({ retries: 2 })(page.getByTestId("invoice-total"))');
 
     const r = runMutated("configured-soft.uat.spec.ts");
+    expect(r.status).toBe(0);
+    expect(r.stdout).toContain("0 findings over 1/1");
+  });
+
+  it("testinfo-fixture-param.uat.spec.ts reports one finding per planted fixture-parameter modifier", () => {
+    const findings = findingsFor("testinfo-fixture-param.uat.spec.ts");
+    expect(findings.length).toBe(3);
+    const joined = findings.join("\n");
+    for (const path of ["test.info().skip", "test.info().fail", "test.info().fixme"]) {
+      expect(joined, `${path} is absent from the findings`).toContain(path);
+    }
+  });
+
+  it("testinfo-fixture-param.uat.spec.ts's CONTROL survives: the non-banned member on the same binding", () => {
+    // PREMISE: the surviving scenario really does still call a member of the SAME binding, or the
+    // zero-finding verdict would prove nothing about the canonicalisation's precision.
+    const mutated = withBannedConstructsRemoved("testinfo-fixture-param.uat.spec.ts");
+    expect(
+      mutated,
+      "PREMISE: the non-banned TestInfo call left the fixture with its marked region",
+    ).toContain("testInfo.slow();");
+
+    const r = runMutated("testinfo-fixture-param.uat.spec.ts");
     expect(r.status).toBe(0);
     expect(r.stdout).toContain("0 findings over 1/1");
   });
@@ -3373,6 +3408,7 @@ describe("uat-spec-integrity fixtures — 31-13: the call-link, rename and confi
       "modifier-call-link.uat.spec.ts",
       "import-rename.uat.spec.ts",
       "configured-soft.uat.spec.ts",
+      "testinfo-fixture-param.uat.spec.ts",
     ]) {
       expect(onDisk, `${name} is not on disk`).toContain(name);
     }

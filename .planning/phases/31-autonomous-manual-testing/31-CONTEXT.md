@@ -304,6 +304,103 @@ FABRICATED `§14-gate` stamp, never a legitimate human one.
     `PROMOTE_ADMITTED_DECLINES` is exported from that module and its key set is asserted equal, in
     both directions, to the clause set derived from the route's own parsed body.
 
+#### Gap-closure decision — D-20 (2026-09-09, gap-closure round 4, plan 31-16)
+
+This is a GAP-CLOSURE decision recorded during execution, not an original user decision from the
+discussion. It sits BESIDE D-14 arm (c), D-17 and D-18 and leaves all three untouched; no existing
+decision above is edited, renumbered or deleted, and no member is added to any ban set.
+
+**Forced by:** CR-09 (both variants), CR-10 and IN-10 of `31-REVIEW.md`, and gap 1 of
+`31-VERIFICATION.md` round 4 (the truth beginning "UATX-06").
+
+**Which register failed.** D-17 fixed MEMBERSHIP. D-18 fixed SHAPE RESOLUTION. The register that
+failed this round is **which arms the resolved shape is compared against**, plus a **membership miss
+on a positional binding**. D-18 (1) inserts a `()` marker segment into the resolved path and
+justified it for exactly ONE of the ban's three arms — the head/tail arm, where the marker lands in a
+routing position D-17 had already decided is not part of the membership question. The two WHOLE-PATH
+arms compare the joined path as a literal, and the marker adds a segment to that string. Reproduced
+against the committed `scripts/runnable-ref/uat-spec-integrity.js` at HEAD before any source change,
+in a probe repository under `.temp/` with a spec at `uat/p.uat.spec.ts`:
+`expect.configure({ retries: 2 }).soft(locator).toBeVisible()` and
+`expect.configure({ retries: 2 }).configure({ soft: true })(locator).toBeVisible()` each reported
+`0 findings over 1/1 uat specs checked`, EXIT=0. Instrumented through the same committed module,
+`"expect.configure().soft"` and `"expect.configure().configure"` (with `soft` enabled) both answered
+`banned: false`, while the un-chained `"expect.configure"` answered `banned: true` — so the cause is
+MEASURED and not inferred. Separately, `testInfo.skip()` / `.fail()` / `.fixme(true, "later")`
+reached through the second callback parameter each reported `0 findings over 1/1`, EXIT=0: the path
+resolves perfectly to `testInfo.skip` and the head is simply not a banned head, which is why neither
+the derived decline set nor the reverse partition could ever have named it.
+
+- **D-20: a routing link is not part of the membership question for ANY arm, the enabled-option axis
+  is asked of the WHOLE marked chain, and a positional fixture binding is decided from the parse.**
+  D-20 adds no member to any set and makes three sub-decisions.
+  - **(1) One marker-aware normaliser, consumed by a DERIVED set of arms.** `stripRoutingLinks` is
+    the ONE answer to "what does a resolved path look like when a routing link is not part of the
+    membership question": an INTERIOR segment carrying the call marker is dropped, and a path whose
+    FIRST segment carries the marker is returned unchanged, because there the marker IS the head — a
+    user value was passed in. Both whole-path arms obtain their operand from it; the head/tail arm is
+    left exactly as D-17 left it, because there the property already holds by construction.
+    `expect(x).soft` therefore stays legitimate BY CONSTRUCTION and not by exception, and the
+    marked-HEAD/interior-LINK separation is asserted in both directions. The normaliser DECLINES
+    NOTHING — every exit returns its input or a rewrite of it — so the resolver's derived decline set
+    stays exactly the set of positions where no path could be produced.
+  - **(2) The option axis is folded across the chain, not read off the outer call.** The pair
+    D-18 (2) decides is a path plus an ENABLED option, and after (1) the compared path can be folded
+    from several links. `chainEnabledOptionKeys` unions the per-link readings, so a chain enabling
+    the option at an INNER link is decided identically to one enabling it at the outer link. The
+    converse ordering was MEASURED before the change rather than assumed: it already exited 1,
+    because the inner link is itself a separately visited call node. What the fold removes is the
+    DEPENDENCE of the verdict on which nodes the walk happens to visit — the same structural coupling
+    CR-09 exploited one register over. Arm (c) now reports ONE FINDING PER CHAIN, keyed on the call's
+    start position and its routing-stripped path, exactly as arms (a) and (b) key theirs on the head
+    identifier's position; without that key the fold would report the converse ordering twice.
+  - **(3) The TestInfo fixture-parameter binding is decided from the parse, in the one canonicaliser.**
+    `deriveTestInfoParameterNames` reads the NAME of the second parameter of the function passed as
+    the second argument to a `test(...)`-headed call, per source file, beside `deriveImportRenames`
+    and by the identical parse-only argument D-18 (3) makes for `ImportSpecifier.propertyName`: the
+    binding is POSITIONAL and the position is a literal already in the source text. The head is
+    rewritten to `TEST_INFO_CANONICAL_HEAD` — `test.info()`, the spelling D-18 (1) already decided —
+    rather than to a new spelling nobody decided, so `testInfo.skip` is asked as `test.info().skip`
+    and the family has one spelling in the findings a reader sees. `canonicaliseHeadSegment` keeps
+    its property of declining nothing. PRECEDENCE when a name is in BOTH maps is DECIDED and asserted
+    rather than left to reading order: the file-scoped import rename wins over the callback-scoped
+    fixture parameter. Both spellings of a banned tail are refused either way; what the precedence
+    decides is which canonical path the finding names.
+  - **The consumer set is DERIVED, and so is the ban-set axis.** The test suite parses the runnable's
+    own source, derives the ban sets as the module constants the two membership authorities read
+    (cardinality 4, asserted), and derives every position at which one of those constants is
+    consulted together with the OPERAND it is consulted about (cardinality 5, asserted separately
+    from the member list). Each derived arm is bound either to "asks the normaliser" or to a written
+    raw disposition. A seeded fourth arm outside the normaliser is watched moving the count by
+    exactly one and arriving unbound. Deriving the arms while hand-typing the SETS would have been
+    the same half-fix one axis over, which is why both axes are derived.
+  - **The disproved excuse is REMOVED, not relocated.** The sentence in
+    `scripts/runnable-ref/uat-spec-integrity.test.ts` that dispositioned the fixture-parameter
+    spelling under the alias residual's "cannot be followed to its declaration without a type
+    checker" reason is deleted. Two residuals with reasons TRUE OF THEIR OWN SHAPES replace it — a
+    destructured second parameter, and the scope-unawareness of both canonicalisations — and the
+    two-axis residual partition still sums.
+  - **What D-20 does NOT establish.** The fixture-parameter derivation is NOT scope-aware: a second
+    parameter name also declared elsewhere in the file is canonicalised wherever it appears. That is
+    the same shadowing boundary WR-20 records for the rename map, it is owned by plan `31-17`, and
+    31-16 states the dependency rather than assuming it away — it is a NAMED member of
+    `UNRESOLVABLE_CALLEE_RESIDUALS` and a quoted bullet in the recipe. A destructured second
+    parameter is named there too. The head and tail sets are still hand-authored, the declared
+    surface is still a hand transcription whose drift from the released package stays an open
+    `UNKNOWN - verify` (`R-07`), and the reverse walk still reads no call signature's return type or
+    parameter list, so neither a call-link nor a fixture-parameter spelling is inside its
+    denominator. WR-19's per-frame recursion bound is `31-17`'s work and is untouched here.
+  - **Reversibility: costly.** The routing-stripped spelling the arms compare, and the canonical head
+    a fixture-parameter binding is asked as, are now part of the exported contract the recipe quotes
+    and the corpus asserts, exactly as D-17's and D-18's constants are. Reverting restores arms the
+    verifier has measured as defeated by one legitimate call link, and a state in which Playwright's
+    primary documented spelling of the banned modifiers passes at exit 0.
+  - **Recorded in three places that must agree:** here, in the decision header of
+    `scripts/runnable-ref/uat-spec-integrity.ts`, and in `31-16-SUMMARY.md`'s key-decisions block.
+    `agent-factory/checklists/browser-uat-recipe.md` states the routing-link rule for all three arms,
+    lists the fixture-parameter spelling among the refused constructs, and carries the residual
+    register verbatim under the existing both-directions equality case.
+
 ### Claude's Discretion
 - Exact runnable file name and the exact wording of the two new loud-skip markers, as long as
   each is a single exported constant with a single emission point (the `uat-live.test.ts` shape).
