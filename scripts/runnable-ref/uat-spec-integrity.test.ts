@@ -2834,7 +2834,7 @@ describe("uat-spec-integrity — 31-13 CR-07: the resolver's DECLINE set, derive
   const R_NON_IDENTIFIER_HEAD =
     "A callee whose head is not an identifier is not resolved: a call on an object literal, or on `this`. There is no head segment to read, so no membership question can be put.";
   const R_STEP_BOUND =
-    "A callee chain longer than the resolver's 512-step bound is not resolved. The bound stops a pathological chain from spinning. It is a stated LIMIT, not a silence. A chain that reaches it yields no path rather than a truncated one.";
+    "A callee chain longer than the resolver's 512-step bound is not resolved. The bound is ONE allowance for a WHOLE resolution: every link spends a step, the descent into a call link included, so interleaving calls buys a chain no extra steps. It stops a pathological chain from spinning and from exhausting the interpreter. It is a stated LIMIT, not a silence. A chain that reaches it yields no path rather than a truncated one.";
   const R_NON_LITERAL_OPTION =
     "An option is ENABLED only when the call's first argument is an object literal assigning it the `true` keyword. A variable argument enables nothing, and neither does a variable option value. This runnable parses and never evaluates.";
   const R_PARSER_PREDICATES =
@@ -3169,7 +3169,7 @@ describe("uat-spec-integrity — 31-13 CR-07: the resolver's DECLINE set, derive
   /** The seeded branch's guard, distinctive enough that its signature cannot collide with a real one. */
   const SEEDED_GUARD = "cur === SEEDED_CONTROL_SENTINEL";
   /** The one-occurrence anchor the seeded mirror inserts after, inside calleeDottedPath's loop. */
-  const SEED_ANCHOR = "  for (let guard = 0; guard < 512; guard++) {\n    if (ts.isIdentifier(cur)) {";
+  const SEED_ANCHOR = "  for (; budget.left > 0; budget.left--) {\n    if (ts.isIdentifier(cur)) {";
 
   function mirrorWithSeededDecline(): string {
     const source = readFileSync(CHECKER_TS, "utf8");
@@ -3184,7 +3184,7 @@ describe("uat-spec-integrity — 31-13 CR-07: the resolver's DECLINE set, derive
     ).toBe(false);
     const mutated = source.replace(
       SEED_ANCHOR,
-      `  for (let guard = 0; guard < 512; guard++) {\n    if (${SEEDED_GUARD}) return null;\n    if (ts.isIdentifier(cur)) {`,
+      `  for (; budget.left > 0; budget.left--) {\n    if (${SEEDED_GUARD}) return null;\n    if (ts.isIdentifier(cur)) {`,
     );
     expect(
       mutated.split(SEEDED_GUARD).length - 1,
@@ -4524,19 +4524,86 @@ describe("uat-spec-integrity — 31-17 WR-19: a pathological chain is bounded, n
 
   // ── ONE AUTHORITY for the bound's VALUE ───────────────────────────────────────────────────────
 
-  it("the bound's value has exactly ONE authority — no resolver carries a second literal", () => {
+  it("the bound's value has exactly ONE authority — no resolver carries a second literal", async () => {
+    const { CALLEE_CHAIN_STEP_BOUND } = await loadChecker();
+    const ts = hostTypeScript as typeof import("typescript");
     const source = readFileSync(join(HERE, "uat-spec-integrity.ts"), "utf8");
-    // The declaration itself is the one place the number is written.
-    const declarations = source.split(/export const CALLEE_CHAIN_STEP_BOUND\s*=\s*512;/).length - 1;
-    expect(declarations, "the bound is not declared exactly once as an exported constant").toBe(1);
-    // …and no OTHER site writes the number. A second literal is a second allowance with a second
-    // value the moment either one is edited, which is how the unit drifted in the first place.
-    const bareLiterals = source.split(/\b512\b/).length - 1;
+    const sf = ts.createSourceFile("c.ts", source, ts.ScriptTarget.Latest, true);
+
+    // DERIVED FROM THE PARSE, NOT FROM THE TEXT. A substring scan would also count the number where
+    // it appears in PROSE — this file's own decision header explains what the unit used to be — and
+    // a check that reds on a comment is a check people learn to work around.
+    const literals: import("typescript").NumericLiteral[] = [];
+    const scan = (node: import("typescript").Node): void => {
+      if (ts.isNumericLiteral(node) && node.text === String(CALLEE_CHAIN_STEP_BOUND)) {
+        literals.push(node);
+      }
+      ts.forEachChild(node, scan);
+    };
+    ts.forEachChild(sf, scan);
+
     expect(
-      bareLiterals,
-      "the literal 512 appears at more than the one declaration site, so the bound has a second " +
-        "authority that can drift from the first",
+      literals.length,
+      `the bound's value is written as a numeric literal ${literals.length} time(s) in the ` +
+        `runnable's CODE. A second literal is a second allowance with a second value the moment ` +
+        `either one is edited, which is one half of how the unit drifted in the first place.`,
     ).toBe(1);
+
+    // …and the one literal is the exported declaration's initialiser, not some unrelated number
+    // that happens to share the value.
+    const declaration = literals[0].parent as import("typescript").Node;
+    expect(ts.isVariableDeclaration(declaration)).toBe(true);
+    expect(
+      (declaration as import("typescript").VariableDeclaration).name.getText(sf),
+    ).toBe("CALLEE_CHAIN_STEP_BOUND");
+  });
+
+  // ── FAIL-CLOSED: a spec the walk cannot finish is a COULD-NOT-RUN reason, never a pass ─────────
+  //
+  // The budget and the non-recursive walk are what stop the throw from happening. This case asserts
+  // what happens if one ever does anyway: the exit code must be inside the D-12 contract BY
+  // DECISION, and the spec must NOT be counted as visited — a file counted before the work is a
+  // file that can be counted as checked without having been.
+  it("a spec whose analysis throws is a could-not-run reason and never increments visited", async () => {
+    const { analyzeSpecs, reportMeasured } = await loadChecker();
+    const root = mkTargetRepo({});
+    plant(root, "e2e/uat/one.uat.spec.ts", TRIVIAL_SPEC);
+    plant(root, "e2e/uat/boom.uat.spec.ts", TRIVIAL_SPEC);
+
+    // A parser whose walk throws for exactly one file, injected as the `ts` argument so the failure
+    // lands inside findBannedConstructs rather than inside the reader.
+    const realTs = hostTypeScript as typeof import("typescript");
+    const throwingTs = {
+      ...realTs,
+      forEachChild(node: import("typescript").Node, cb: (c: import("typescript").Node) => void) {
+        const sf = node as import("typescript").SourceFile;
+        if (typeof sf.fileName === "string" && sf.fileName.endsWith("boom.uat.spec.ts")) {
+          throw new Error("forced walk failure");
+        }
+        return realTs.forEachChild(node, cb as never);
+      },
+    };
+
+    const analysis = analyzeSpecs(
+      root,
+      ["e2e/uat/boom.uat.spec.ts", "e2e/uat/one.uat.spec.ts"],
+      throwingTs,
+    );
+    expect(analysis.expected).toBe(2);
+    expect(analysis.visited, "the throwing spec must NOT be counted as visited").toBe(1);
+    expect(analysis.errors.join("\n")).toContain("boom.uat.spec.ts");
+    expect(analysis.errors.join("\n")).toContain("could not be analysed");
+
+    let out = "";
+    let err = "";
+    const code = reportMeasured(analysis, false, (s) => {
+      out += s;
+    }, (s) => {
+      err += s;
+    });
+    expect(code).toBe(2);
+    expect(err).toContain("visited 1 of 2");
+    expect(out).toBe("");
   });
 
   // ── CONTROL (unmoved): the corpus the bound must not disturb ──────────────────────────────────

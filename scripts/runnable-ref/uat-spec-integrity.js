@@ -359,6 +359,17 @@ export const TEST_INFO_CANONICAL_HEAD = `test.info${CALL_LINK_MARKER}`;
  * name to substitute.
  */
 const IMPORT_NAMESPACE_MARKER = "*";
+/**
+ * D-21 (1): THE ONE AUTHORITY for the chain bound's VALUE, in STEPS. Every resolver that walks a
+ * callee chain reads it from here and no resolver writes the number a second time — a second
+ * literal is a second allowance with a second value the moment either one is edited, which is one
+ * half of how WR-19 happened. The other half is the UNIT, which `CalleeStepBudget` below fixes.
+ */
+export const CALLEE_CHAIN_STEP_BOUND = 512;
+/** A fresh allowance for one whole resolution. Exported so a caller can measure what it spent. */
+export function newCalleeStepBudget() {
+    return { left: CALLEE_CHAIN_STEP_BOUND };
+}
 // The callee shapes the resolver CANNOT decide from the source text alone, exported as prose so the
 // recipe quotes the disclosed boundary from the same source as the decided rule. Resolving any of
 // them needs a type checker to follow a binding to its declaration or across a module, and this
@@ -372,7 +383,9 @@ export const UNRESOLVABLE_CALLEE_RESIDUALS = Object.freeze([
     "A member computed from a non-literal expression is not refused: `test[name](...)` where `name` is a variable. The member name is absent from the source text.",
     "A rename or namespace that arrives through any module other than `@playwright/test` is not canonicalised: `import { test as it } from \"./fixtures\";` then `it.skip(...)`. Following a re-export across files needs module resolution this runnable does not ship, so the rename map is MODULE-SCOPED to the framework's own import declaration.",
     "A callee whose head is not an identifier is not resolved: a call on an object literal, or on `this`. There is no head segment to read, so no membership question can be put.",
-    "A callee chain longer than the resolver's 512-step bound is not resolved. The bound stops a pathological chain from spinning. It is a stated LIMIT, not a silence. A chain that reaches it yields no path rather than a truncated one.",
+    // D-21 (1): the NUMBER is interpolated from its one authority rather than spelled a second time,
+    // so the disclosed sentence cannot drift from the allowance the resolver actually spends.
+    `A callee chain longer than the resolver's ${CALLEE_CHAIN_STEP_BOUND}-step bound is not resolved. The bound is ONE allowance for a WHOLE resolution: every link spends a step, the descent into a call link included, so interleaving calls buys a chain no extra steps. It stops a pathological chain from spinning and from exhausting the interpreter. It is a stated LIMIT, not a silence. A chain that reaches it yields no path rather than a truncated one.`,
     "An option is ENABLED only when the call's first argument is an object literal assigning it the `true` keyword. A variable argument enables nothing, and neither does a variable option value. This runnable parses and never evaluates.",
     "A parser that does not expose the import, object-literal or function-like node predicates yields no rename canonicalisation, no option reading and no fixture-parameter canonicalisation. The parser is the TARGET repository's (D-13), so its surface is not this runnable's to assume. The resolver degrades to the pre-D-18 behaviour for those shapes rather than throwing outside the exit-code contract.",
     "A TestInfo binding destructured in the callback's second parameter is not canonicalised: `test(\"a\", async ({ page }, { skip }) => skip());`. A binding pattern names no single identifier to rewrite, so there is no head segment to canonicalise.",
@@ -616,6 +629,38 @@ function bannedContextOf(ts, call, allowConditional) {
     return null;
 }
 /**
+ * D-21 (1): THE ONE WALK over a spec's descendants, and it uses an EXPLICIT STACK rather than the
+ * interpreter's.
+ *
+ * WHY THIS IS PART OF THE SAME FIX AS THE SHARED BUDGET. WR-19 reproduced a 4000-link call chain
+ * killing the process with `RangeError: Maximum call stack size exceeded`. Bounding the RESOLVER's
+ * recursion is necessary and is not sufficient: the tree walk that ASKS the resolver was itself a
+ * recursive descent, and a spec's AST is exactly as deep as the chain a spec author writes. A
+ * self-recursive `visit` therefore carried its own unbounded stack cost, one that no step budget
+ * could reach, and that cost is what a 4000-link chain actually paid.
+ *
+ * An explicit worklist removes the depth from the interpreter's stack entirely, so there is nothing
+ * left to bound here and no new residual is created: every descendant is still visited exactly once.
+ * ORDER IS NOT PART OF THE CONTRACT — the worklist is LIFO, and both callers are order-independent
+ * (arm (c) sorts its findings by source position before returning, and the fixture-parameter
+ * derivation accumulates into a set).
+ *
+ * The root itself is NOT visited, which is the behaviour `ts.forEachChild(sf, visit)` had.
+ */
+function forEachDescendant(ts, root, visit) {
+    const stack = [];
+    ts.forEachChild(root, (child) => {
+        stack.push(child);
+    });
+    while (stack.length > 0) {
+        const node = stack.pop();
+        visit(node);
+        ts.forEachChild(node, (child) => {
+            stack.push(child);
+        });
+    }
+}
+/**
  * The three logical operators of arm (b), compared against ts.SyntaxKind MEMBERS. The numeric token
  * values are NOT stable across TypeScript versions and are never compared against here.
  */
@@ -628,10 +673,14 @@ function isLogicalOperator(ts, kind) {
  * The head identifier of a callee chain: `expect(x).toBe(y)` and `expect(x)` share ONE `expect`
  * identifier node, which is what lets the caller report a single finding per assertion instead of
  * one per link in the chain.
+ *
+ * D-21 (1): this walk is FLAT — it never calls itself — so a loop counter really is one allowance
+ * for one whole resolution here and needs no threaded budget. What it must NOT have is a second
+ * spelling of the NUMBER, so it reads the one authority above.
  */
 function calleeHeadIdentifier(ts, expr) {
     let cur = expr;
-    for (let guard = 0; guard < 512; guard++) {
+    for (let guard = 0; guard < CALLEE_CHAIN_STEP_BOUND; guard++) {
         if (ts.isIdentifier(cur))
             return cur;
         if (ts.isCallExpression(cur)) {
@@ -680,14 +729,28 @@ function calleeHeadIdentifier(ts, expr) {
  * so the marker lands in the ROUTING position D-17 already decided is not part of the membership
  * question — and the D-17 rule refuses it with no new member in any set.
  *
+ * D-21 (1), CORRECTING THE UNIT OF THE BOUND THIS FUNCTION DOCUMENTS. The step allowance is ONE
+ * SHARED BUDGET for the whole resolution, threaded through the recursion above and decremented on
+ * every link INCLUDING the descent into a call link. It used to be a loop counter, which D-18 (1)
+ * left in place when it made this function recursive — so every frame started a fresh 512 and the
+ * bound stopped bounding anything. The cost was not a slow run: a 4000-link chain exhausted the
+ * interpreter's stack, and the uncaught RangeError meant `reportMeasured` was NEVER REACHED, so the
+ * vacuity floor and the denominator floor were bypassed by construction while stdout stayed silent.
+ * The residual sentence the recipe quotes — a chain that reaches the bound yields no path rather
+ * than a truncated one — is a claim about a WHOLE RESOLUTION, and only a shared budget makes it true.
+ *
+ * The default argument keeps every existing caller unchanged: a caller that passes no budget gets a
+ * fresh allowance, exactly as it got a fresh loop counter before.
+ *
  * The shapes it still cannot resolve are named in UNRESOLVABLE_CALLEE_RESIDUALS, and the test suite
  * derives this function's decline sites from its own AST and binds each one to that register.
  */
-export function calleeDottedPath(ts, expr) {
+export function calleeDottedPath(ts, expr, budget = newCalleeStepBudget()) {
     const segments = [];
     let cur = expr;
-    // The same step limit calleeHeadIdentifier uses: a pathological chain cannot spin.
-    for (let guard = 0; guard < 512; guard++) {
+    // ONE SHARED BUDGET (D-21 (1)): one step per link, spent by this loop and by the recursive
+    // descent below alike, so a pathological chain cannot spin AND cannot recurse past the allowance.
+    for (; budget.left > 0; budget.left--) {
         if (ts.isIdentifier(cur)) {
             segments.push(cur.text);
             segments.reverse();
@@ -699,9 +762,13 @@ export function calleeDottedPath(ts, expr) {
             continue;
         }
         if (ts.isCallExpression(cur)) {
+            // D-21 (1): THE DESCENT IS ITSELF A LINK, and it is charged here rather than by the loop's own
+            // update expression, which this branch never reaches. Without this decrement the budget would
+            // be threaded and never spent on the one edge that can recurse — the exact shape WR-19 found.
+            budget.left--;
             // D-18 (1). An inner path that does not resolve leaves the WHOLE path unresolved: a marker
             // over an unknown head would invent a segment the source text does not carry.
-            const inner = calleeDottedPath(ts, cur.expression);
+            const inner = calleeDottedPath(ts, cur.expression, budget);
             if (inner === null)
                 return null;
             segments.push(`${inner}()`);
@@ -792,8 +859,9 @@ export function chainEnabledOptionKeys(ts, call) {
     const keys = new Set();
     let readAnyLink = false;
     let cur = call;
-    // The same step limit the two resolvers use: a pathological chain cannot spin.
-    for (let guard = 0; guard < 512; guard++) {
+    // The same step limit the two resolvers use, read from its ONE authority (D-21 (1)). This walk is
+    // FLAT — it never calls itself — so a loop counter is one allowance for one whole fold here.
+    for (let guard = 0; guard < CALLEE_CHAIN_STEP_BOUND; guard++) {
         if (ts.isCallExpression(cur)) {
             const own = enabledOptionKeys(ts, cur);
             if (own !== null) {
@@ -921,9 +989,9 @@ export function deriveTestInfoParameterNames(ts, sf, renames) {
                 }
             }
         }
-        ts.forEachChild(node, visit);
     };
-    ts.forEachChild(sf, visit);
+    // D-21 (1): the one non-recursive walk. A deep spec must not cost interpreter stack here either.
+    forEachDescendant(ts, sf, visit);
     return names;
 }
 /**
@@ -1041,9 +1109,10 @@ export function findBannedConstructs(ts, sf, relPath) {
                 }
             }
         }
-        ts.forEachChild(node, visit);
     };
-    ts.forEachChild(sf, visit);
+    // D-21 (1): the one non-recursive walk. The findings are sorted by source position below, so the
+    // worklist's LIFO order is not part of what this function reports.
+    forEachDescendant(ts, sf, visit);
     findings.sort((x, y) => x.pos - y.pos);
     return findings.map((f) => f.text);
 }
@@ -1078,8 +1147,25 @@ export function analyzeSpecs(repoRoot, specRelPaths, ts, readFile = defaultReadF
             errors.push(`The UAT spec ${rel} did not parse (${diagnostics.length} parse diagnostic(s)); a file that cannot be parsed cannot be checked, so no verdict is reported for it.`);
             continue;
         }
-        visited++; // THE ONE increment site: it runs only when a file was really read and parsed.
-        findings.push(...findBannedConstructs(ts, sf, rel));
+        // D-21 (1): THE EXIT-CODE CONTRACT IS HELD BY DECISION, NOT BY THE INTERPRETER'S DEFAULT.
+        // WR-19 measured a spec whose shape made the walk throw: nothing was caught, `reportMeasured`
+        // was never reached, the two floors below were bypassed by construction, stdout stayed silent
+        // and the process exited 1 — which the D-12 contract reads as "a finding, the gate blocks".
+        // A spec this runnable cannot finish analysing is a COULD-NOT-RUN reason, exactly like an
+        // unreadable or unparseable one: it does not increment `visited`, so the denominator floor
+        // fires and the run says out loud that it covered less than it claims. The increment is placed
+        // AFTER the analysis for that reason — a file counted before the work is a file that can be
+        // counted as checked without having been.
+        let specFindings;
+        try {
+            specFindings = findBannedConstructs(ts, sf, rel);
+        }
+        catch (cause) {
+            errors.push(`The UAT spec ${rel} could not be analysed (${cause instanceof Error ? cause.message : String(cause)}); the check was NOT performed for that file, so this run covers less than the derived set.`);
+            continue;
+        }
+        visited++; // THE ONE increment site: it runs only when a file was really read, parsed and walked.
+        findings.push(...specFindings);
     }
     return { visited, expected, findings, errors };
 }
