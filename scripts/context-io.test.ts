@@ -5735,24 +5735,45 @@ describe("31-14 — CR-08: a note a human already disposed promotes unchanged", 
     { label: "the dial ABSENT (no configuration file at all)", context: null },
   ];
 
+  // WHAT 31-18 (WR-18) CHANGED HERE, AND WHY THIS IS NOT A RELAXATION. When this loop was written
+  // the promotion route read the governance configuration for READABILITY only, so it wrote under
+  // every dial — including the ones under which `admitAndAppend` REFUSES the identical note at its
+  // W3 arm, on the ground that a human disposition on a non-gated entry would forge a `disposed_by`
+  // audit record. Two routes, one rule, two answers. The route now asks the SAME single-source
+  // gated authority, so the invariant this loop holds is stated in the terms the module actually
+  // decides in: under a dial that GATES the note the round-trip holds byte-identically (round 3's
+  // CR-08 closure, unmoved), and under one that does not the promotion is declined by name with
+  // nothing written. The gating answer comes from `isGatedNote`, not from a list typed out here.
   for (const dialCase of DIAL_CASES) {
-    it(`GREEN 2 — the round-trip holds under ${dialCase.label}`, () => {
+    it(`GREEN 2 — the two routes agree under ${dialCase.label}`, () => {
       const repoRoot = projectWith(dialCase.context);
       const originRoot = contextStore("p31-14-dial-origin-");
       const destRoot = freshTmp("p31-14-dial-dest-");
       const note = humanDisposedFinding();
+      const gated = mod.isGatedNote(note.by, note.kind, mod.readGovernanceConfig(repoRoot));
       const originId = writeOrigin(note, repoRoot, originRoot);
-      const promotedId = mod.promoteAdmitted(
-        CR08_TASK,
-        originId,
-        note,
-        CR08_BODY,
-        originRoot,
-        destRoot,
-        repoRoot,
-      );
-      expect(promotedId).toBe(originId);
-      expect(cr08NoteText(destRoot, promotedId)).toBe(cr08NoteText(originRoot, originId));
+      if (gated) {
+        const promotedId = mod.promoteAdmitted(
+          CR08_TASK,
+          originId,
+          note,
+          CR08_BODY,
+          originRoot,
+          destRoot,
+          repoRoot,
+        );
+        expect(promotedId).toBe(originId);
+        expect(cr08NoteText(destRoot, promotedId)).toBe(cr08NoteText(originRoot, originId));
+        return;
+      }
+      expect(() =>
+        mod.promoteAdmitted(CR08_TASK, originId, note, CR08_BODY, originRoot, destRoot, repoRoot),
+      ).toThrow(/DECLINED \(human-stamp-not-gated-at-destination\)/);
+      expect(cr08NoteFiles(destRoot)).toEqual([]);
+      // …and the COMBINER refuses the identical note, which is the agreement this case is about.
+      const combiner = mod.admitAndAppend(CR08_TASK, note, CR08_BODY, freshTmp("p31-14-dial-comb-"), repoRoot);
+      expect(combiner.id).toBeNull();
+      expect(combiner.findings.join("\n")).toContain("disposed_by");
     });
   }
 

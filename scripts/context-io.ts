@@ -1348,6 +1348,29 @@ export function currentState(notes: NoteRecord[]): NoteRecord[] {
 // be a duplicate — the shape 31-09 collapsed rather than widened. Measured by a retained-mode case
 // rather than assumed.
 //
+// ── D-22 (2026-09-09, gap-closure round 4 wave 3, plan 31-18) — a DATED SUB-DECISION of D-19. ──
+//
+// D-22 extends D-19 (2), (3) and (4) and edits none of them. Round 4 found three things about this
+// route, all reproduced against the committed `.js` before any change:
+//
+//   CR-11 — it took its write id from `sourceId`, an ARGUMENT, and read nothing at the destination,
+//     so a promotion silently REPLACED an already-admitted note. Closed at the POINT OF EFFECT: the
+//     write chokepoint refuses a write onto an id whose destination bytes differ, so the class closes
+//     for every writer; identical bytes are the DECIDED idempotent re-promotion and proceed as a
+//     no-op; and this route ALSO declines `destination-id-occupied` by name, before the chokepoint.
+//   WR-17 — the proof's left operand was an unconstrained caller-supplied path. Closed above: the
+//     origin must resolve inside a location this module has independent reason to trust, with
+//     `T-31-18-01` naming what shape-based recognition still leaves open.
+//   WR-18 — the governance configuration was read for READABILITY and never for its VALUE, so this
+//     route carried a `human:NAME` stamp forward under a dial `admitAndAppend` refuses the identical
+//     note under. Closed by asking `isGatedNote` — the ONE gated authority, never a second local
+//     composition — and by turning D-19 (4)'s no-ledger premise into a LOOK at the destination
+//     repository's own ledger: nothing appended when the id is already recorded, one event marked
+//     `re_bound: true` when it is not.
+//
+// Recorded in three places that must agree: here, in `31-CONTEXT.md` beside D-19, and in
+// `31-18-SUMMARY.md`'s key-decisions block.
+//
 // NAMED RESIDUAL (T-31-14-03, disposition `accept`). The origin `notes/` directory is trusted here
 // exactly as far as every other reader of it is trusted: a note hand-written into that directory and
 // then promoted is a tampering this route does not close. Workflows 16 and 18 forbid hand-authoring a
@@ -1389,6 +1412,13 @@ export const PROMOTE_ADMITTED_DECLINES: Readonly<Record<string, string>> = Objec
     "The promoted body differs from the origin record's. A compaction that CHANGED the note is not " +
     "a re-binding — it is a new admission, decided by the full authority at the destination, and " +
     "honestly degraded when its stamp no longer cross-checks (Workflow 18 step 6).",
+  "human-stamp-not-gated-at-destination":
+    "The destination's governance dial does not gate this note, so a human:NAME disposition is not " +
+    "meaningful on it and accepting one would forge a disposed_by audit record — the identical " +
+    "ground admitAndAppend's W3 arm refuses the same note on. A re-binding carries forward the one " +
+    "binding the in-script tier cannot verify; where the destination gates nothing there is no such " +
+    "binding to carry, and the note is an ordinary new admission that must take the full-admission " +
+    "route with an empty or §14-gate stamp.",
   "origin-outside-trusted-store":
     "The named origin does not resolve inside a location this module has independent reason to " +
     "trust — neither a directory it recognises as a grugops context store nor a location reached " +
@@ -1531,6 +1561,35 @@ export function promoteAdmitted(
     );
   }
 
+  // ── THE DIAL'S VALUE DECIDES, THROUGH THE ONE AUTHORITY (31-18, WR-18). ───────────────────────
+  //
+  // WHAT WAS WRONG, MEASURED RATHER THAN DESCRIBED. The read above asked only whether the
+  // configuration was READABLE; `human_admission` had zero occurrences in this body. So under `off`,
+  // and under an ABSENT configuration — the lean posture this project ships and the one most
+  // repositories run — this route carried a `human:NAME` stamp forward and WROTE, while
+  // `admitAndAppend` refused the IDENTICAL note at its W3 arm on the explicit ground that accepting
+  // a human disposition on a non-gated entry would forge a `disposed_by` audit record. Two routes,
+  // one rule, two answers. Reproduced per dial value against the committed `.js` before this change.
+  //
+  // ASKED THROUGH `isGatedNote`, NEVER RECOMPOSED HERE. `isGatedNote` is the SINGLE-SOURCE gated
+  // decision the combiner and the 25-10 per-call hook both import, and the comment above it says why
+  // a second local composition of `((high-sev && active) || all)` is forbidden: that duplication was
+  // this module's ten-round drift surface. This route therefore asks it, once, and spells no dial
+  // value of its own — which is also what makes the derived dial set in the tests meaningful.
+  //
+  // WHY THIS IS NOT A RE-CLOSURE OF CR-08. Round 3's gap was a note a named human HAD disposed under
+  // a dial that gates it being refused at the destination. That case is exactly `gated === true`,
+  // and it still promotes, byte-identically, under every gating posture. What is refused here is the
+  // converse: a human disposition offered where the destination gates nothing, which is not a
+  // carried-forward binding at all.
+  if (!isGatedNote(note.by, note.kind, govResult)) {
+    throw declineRebinding(
+      "human-stamp-not-gated-at-destination",
+      `The destination's dial does not gate a "${note.kind}" authored by "${note.by}", so the ` +
+        `"${vb}" disposition binds nothing there.`,
+    );
+  }
+
   // THE OPERAND IS CONSTRAINED BEFORE IT IS READ (31-18, WR-17). A proof whose left operand the
   // benefiting caller may author is a flag wearing a filesystem path. The origin must resolve inside
   // a location this module has independent reason to trust; what that recognition still leaves open
@@ -1630,10 +1689,34 @@ export function promoteAdmitted(
   // id, so the destination file IS the origin file. This is the SECOND — and, by the derived caller
   // assertion in scripts/context-io-writer-set.test.ts, the last unannounced — caller of that route.
   //
-  // NO GOV-02 LEDGER EVENT (D-19). The origin's admission already recorded this exact id and the
-  // named human who disposed it. Appending here would key a second event to the same id: a duplicate,
-  // which is the shape 31-09 collapsed. A re-binding records no new admission because it decides none.
-  return appendPreAdmittedNote(task, note, body, to, sourceId);
+  // THE GOV-02 LEDGER PREMISE IS A LOOK, NOT AN ASSUMPTION (31-18, WR-18 (b)). D-19 (4) decided a
+  // re-binding appends no audit event, because the origin's admission already recorded this exact id
+  // and the named human who disposed it — a second line keyed by the same id would be the duplicate
+  // 31-09 collapsed. That reasoning is CORRECT wherever the premise holds, and nothing checked
+  // whether it held: the review named three conditions under which it does not (the origin write
+  // happened under a different repoRoot, or before `retained` was set, or through a hand-authored
+  // origin). So the route asks the destination repository's own ledger. When the id is already
+  // there, D-19 (4) stands unchanged and nothing is appended. When it is not, the event is appended
+  // and marked `re_bound: true`, so it stays distinguishable from a fresh admission and the "no
+  // duplicate keyed by the same id" property becomes intentional rather than accidental.
+  const persistedId = appendPreAdmittedNote(task, note, body, to, sourceId);
+  if (govResult.config.audit_retention === "retained" && !ledgerRecordsId(repoRoot, persistedId)) {
+    appendAuditLedger(
+      repoRoot,
+      {
+        id: persistedId,
+        kind: note.kind,
+        by: note.by,
+        at: note.at,
+        verified_by: note.verified_by,
+        confidence: note.confidence,
+      },
+      isHighSeverityRole(note.by),
+      vb,
+      true,
+    );
+  }
+  return persistedId;
 }
 
 // ── The green-verdict recognition contract (D-01/D-03) ──────────────────────────────────────────
@@ -2289,6 +2372,7 @@ function appendAuditLedger(
   scalars: Record<string, string>,
   isHighSeverity: boolean,
   verifiedBy: string,
+  reBound = false,
 ): void {
   const auditDir = join(repoRoot, AUDIT_LEDGER_RELPATH[0], AUDIT_LEDGER_RELPATH[1]);
   const ledgerPath = join(auditDir, AUDIT_LEDGER_RELPATH[2]);
@@ -2308,7 +2392,52 @@ function appendAuditLedger(
   };
   // Append-only: never truncate or rewrite a prior line. JSON.stringify of the literal above fixes
   // the key order, so the line is byte-reproducible (the toJsonl shape).
-  appendFileSync(ledgerPath, JSON.stringify(event) + "\n", "utf8");
+  //
+  // `re_bound` is APPENDED AFTER the fixed seven, and ONLY when a re-binding asked for it (31-18,
+  // WR-18). Every event a fresh admission writes therefore produces the identical seven-key line it
+  // produced before this change — the field is ABSENT rather than `false`, which is asserted
+  // byte-for-byte rather than claimed — while a re-bound event stays distinguishable from a fresh
+  // one for any reader of the ledger.
+  appendFileSync(
+    ledgerPath,
+    JSON.stringify(reBound ? { ...event, re_bound: true } : event) + "\n",
+    "utf8",
+  );
+}
+
+/**
+ * Does the destination repository's GOV-02 ledger already carry an event keyed by this note id?
+ *
+ * 31-18 (WR-18 (b)): D-19 (4) decided that a re-binding appends no audit event, on the premise that
+ * "the origin's admission already recorded this exact id and the named human who disposed it".
+ * NOTHING CHECKED THAT PREMISE, and the round-4 review named three conditions under which it is
+ * false — the origin write happened under a different `repoRoot`, or before `audit_retention` was
+ * `retained`, or through a hand-authored origin. In `retained` mode the destination repository could
+ * therefore gain a high-severity human-disposed finding with no ledger line anywhere in it, which is
+ * the repudiation shape this requirement exists to prevent. So the premise became a LOOK.
+ *
+ * A ledger that cannot be read answers "not recorded" rather than throwing: the caller's response to
+ * both is to append, which is the conservative direction — a duplicate line is a legible redundancy,
+ * a missing line is a silent gap in an audit trail.
+ */
+function ledgerRecordsId(repoRoot: string, id: string): boolean {
+  const ledgerPath = join(repoRoot, AUDIT_LEDGER_RELPATH[0], AUDIT_LEDGER_RELPATH[1], AUDIT_LEDGER_RELPATH[2]);
+  if (!existsSync(ledgerPath)) return false;
+  let raw: string;
+  try {
+    raw = readFileSync(ledgerPath, "utf8");
+  } catch {
+    return false;
+  }
+  for (const line of raw.split("\n")) {
+    if (line.trim() === "") continue;
+    try {
+      if ((JSON.parse(line) as { id?: unknown }).id === id) return true;
+    } catch {
+      continue; // an unparseable line records nothing about this id
+    }
+  }
+  return false;
 }
 
 // ── cell(): escape free-text before it enters a pipe-delimited markdown table cell (T-20-02). ───

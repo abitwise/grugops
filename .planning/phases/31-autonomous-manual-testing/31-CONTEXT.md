@@ -323,6 +323,7 @@ table is the one the suite reads.
 | `body-differs-from-origin` | Refuse. A compaction that CHANGED the note is a new admission, decided by the full authority at the destination and honestly degraded when its stamp no longer cross-checks. |
 | `destination-id-occupied` | Refuse (31-18, CR-11). The destination already holds a DIFFERENT note under this id, and a write that replaced it would DELETE admitted evidence from the permanent audit trail rather than supersede it. Destination bytes IDENTICAL to the proven origin bytes are the decided idempotent re-promotion, which proceeds and reaches no clause. |
 | `origin-outside-trusted-store` | Refuse (31-18, WR-17). The proof's left operand must resolve inside a location the module has independent reason to trust — a directory it recognises as a grugops context store, or a location reached from its own trusted-root answer. An ordinary directory a caller authored and named lets that caller supply the bytes its own write is judged against. What the shape-based recognition still leaves open is the named residual `T-31-18-01`. |
+| `human-stamp-not-gated-at-destination` | Refuse (31-18, WR-18). The destination's dial does not gate this note, so a `human:NAME` disposition is not meaningful on it and accepting one would forge a `disposed_by` audit record — the identical ground `admitAndAppend`'s W3 arm refuses the same note on. Under a dial that DOES gate the note the CR-08 promotion is unchanged. |
 
 #### Gap-closure decision — D-20 (2026-09-09, gap-closure round 4, plan 31-16)
 
@@ -547,6 +548,98 @@ map over.
     file-scoped coarseness in clear voice, states that a spec the checker cannot finish analysing is
     a could-not-run reason rather than an escaping throw, and carries the residual register verbatim
     under the existing both-directions equality case.
+
+#### Gap-closure decision — D-22 (2026-09-09, gap-closure round 4 wave 3, plan 31-18)
+
+This is a GAP-CLOSURE decision recorded during execution, not an original user decision from the
+discussion. It is a dated SUB-DECISION of D-19: it sits beside D-19's four sub-decisions, extends
+(2), (3) and (4), and leaves D-01 through D-21 untouched. No existing decision above is edited,
+renumbered or deleted.
+
+**Forced by:** `CR-11`, `WR-17` and `WR-18` of `31-REVIEW.md`, and the round-4 `UATX-01` gap of
+`31-VERIFICATION.md` (behavioural spot-check rows 9 and 10, the `regressions:` entry for CR-11, and
+the key-link rows recording the destination link MISSING and the proof's operand MISWIRED).
+
+**Which register failed.** For `CR-11`, an IDENTITY: `promoteAdmitted` took its write id from
+`sourceId`, an argument, where every other writer derives its id behind `noteId`'s collision nonce
+and can therefore only ever ADD a file — and the write never asked what was already there. The
+round-4 verifier reproduced the consequence against the committed `scripts/context-io.js` and
+`scripts/compactor.js`: a legitimate `observation` admitted into a shared destination the ordinary
+way was replaced byte-for-byte by a forged `finding` under the same id, the same id returned, nothing
+thrown, no diagnostic, and no admission check reached at all. The register nobody asked was the
+DESTINATION's own contents. Every promotion probe of rounds 1 through 4 promoted into a FRESH
+destination, which is why a green suite never saw it. For `WR-17` and `WR-18`, a READ TAKEN FOR
+EXISTENCE RATHER THAN FOR CONTENT: the proof's left operand was read from `from`, an unconstrained
+caller-supplied path, and the governance configuration was read only for whether it PARSED —
+`human_admission` had zero occurrences in the function body. So the route accepted bytes the
+benefiting caller authored, and carried a `human:NAME` stamp forward under a dial that
+`admitAndAppend` refuses the identical note under. One rule, two answers.
+
+- **D-22: the shared verified context is APPEND-ONLY as a property of the write, the proof's operand
+  is bytes the module has independent reason to trust, and the governance dial's VALUE decides
+  through the one gated authority.** D-22 adds no case to `admit()`, does not touch its frozen
+  human-stamp arm, and does not touch `hooks/guard.ts`. It makes five sub-decisions.
+  - **(1) The append-only invariant is enforced at the POINT OF EFFECT.** `writeNoteFile` — the
+    module's single note-write chokepoint — refuses a write onto an id whose destination bytes
+    DIFFER. The check is there rather than in the one route the reviewer reached because this
+    repository's doctrine is to ask how a chokepoint is REACHED, not only what it refuses: a check
+    written into `promoteAdmitted` alone would close that route and leave the capability for the next
+    writer that accepts a caller-chosen id. `appendNote`'s own append-only justification comment
+    stops being an assumption every writer happened to satisfy and becomes a property the write
+    enforces.
+  - **(2) The IDENTICAL-bytes case is decided, not defaulted.** A write whose bytes are exactly what
+    the destination already holds PROCEEDS, as a no-op. The post-condition the caller asked for
+    already holds, there is nothing to destroy, and the case is reachable without any adversary — a
+    re-run compaction promoting the same admitted note twice must not become a refusal. Because the
+    write returns early, `atomicWrite`'s rename is never asked to replace an existing note file, so
+    its Windows unlink-then-rename branch stays what its own comment says it is.
+  - **(3) The route ALSO declines by name.** `destination-id-occupied` joins
+    `PROMOTE_ADMITTED_DECLINES`, read through the SAME reader the proof's left operand uses and
+    positioned before the chokepoint, so "nothing was written" stays true by construction rather than
+    by cleanup and the refusal is legible where a reader of the register looks.
+  - **(4) The proof's left operand must resolve inside a location the module has independent reason
+    to trust** — a directory it RECOGNISES as a grugops context store (`<X>/.grugops/context`, the
+    shape `DEFAULT_CONTEXT_ROOT` names and the only shape the sanctioned writers create), or a
+    location reached from `trustedRepoRoot()`. The route's `repoRoot` TEST SEAM is deliberately NOT a
+    trusted base: a caller able to supply both the governance root and the origin would be choosing
+    the location its own proof is judged inside. No parameter is added, and a derived case pins the
+    route's parameter list so a widening one cannot arrive quietly. This extends D-19 (2).
+  - **(5) The dial's VALUE decides, through `isGatedNote`, and the ledger premise becomes a LOOK.**
+    The route asks the single-source gated authority the combiner and the 25-10 per-call hook both
+    import — never a second local composition, which is this module's named ten-round drift surface —
+    and declines `human-stamp-not-gated-at-destination` where the destination gates nothing, on the
+    identical ground W3 names. Under a dial that DOES gate the note the CR-08 promotion is unchanged.
+    And D-19 (4)'s no-ledger premise is checked rather than assumed: the route reads the destination
+    repository's own GOV-02 ledger, appends nothing when the id is already recorded (D-19 (4) intact),
+    and appends one event marked `re_bound: true` when it is not — so a `retained` destination can no
+    longer gain a high-severity human-disposed finding with no ledger line anywhere in it, while the
+    event stays distinguishable from a fresh admission. A fresh admission's seven-key line is
+    byte-unchanged, asserted rather than claimed. This extends D-19 (3) and (4).
+  - **The road not taken, recorded.** Requiring the origin to be the DESTINATION's own context store
+    is rejected: a cross-repository compaction — an origin in one checkout, a destination in another
+    — is a promotion a host genuinely performs, and Workflow 18 names the origin context root as an
+    argument for exactly that reason. Refusing the identical-bytes re-promotion is also rejected, for
+    the reason in (2). Turning the ledger premise into a NAMED RESIDUAL rather than a check was the
+    other acceptable outcome the review offered; the check was chosen because the destination
+    repository's ledger is a file this route already has the root for, so the premise cost one read.
+  - **What D-22 does NOT establish.** The origin store is recognised by its SHAPE or by sitting under
+    `trustedRepoRoot()`, never by a registry, so a caller that constructs that whole tree around notes
+    it authored still presents a store this route accepts (`T-31-18-01`, disposition accept, with
+    what would force it closed recorded in the register). That bound is identical to `T-31-14-03`:
+    this route trusts what a recognised store CONTAINS. `atomicWrite` remains exported, still renames
+    onto whatever is there, and does not reach `writeNoteFile`, so the append-only invariant does not
+    bind it — the disclosed `T-31-25` non-note-writer residual, unchanged. The compared field set is
+    still the store's own read-back projection plus the body (`R-37`). The route still moves no board
+    state and emits no verdict, so D-04's reservation cannot be reached through it.
+  - **Reversibility: costly.** The append-only property becomes an invariant of the write chokepoint
+    that every writer and Workflow 18 depend on, and the route's agreement with the combiner about
+    one rule becomes part of the contract that workflow prescribes. Reverting restores a module the
+    round-4 verifier measured silently deleting admitted evidence from the shared verified context,
+    and two routes that answer the same governance question differently.
+  - **Recorded in three places that must agree:** here, in the D-19 decision header beside the route
+    in `scripts/context-io.ts`, and in `31-18-SUMMARY.md`'s key-decisions block. The standing decline
+    enumeration above is asserted equal, in both directions, to the clause set derived from the
+    route's own parsed body.
 
 ### Claude's Discretion
 - Exact runnable file name and the exact wording of the two new loud-skip markers, as long as

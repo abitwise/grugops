@@ -1248,12 +1248,22 @@ export const WORKFLOW_STOP_HEADING = "## Stop conditions";
  * `## Stop conditions` sections, counted on the tree.
  *
  * This is the `ROLE_COUNT` / `WORKFLOW_COUNT` idiom, and it is here for the reason those exist:
- * enforcement is TWO-SIDED, so 37 is a failure and 39 is a failure. Bumping it is a deliberate act
- * that obliges the author to re-walk the tagging list. A derivation floored only against ZERO
- * happily reports a clean run over 20 of 38 bullets, and the eighteen it skipped are exactly the
- * ones an attacker would want skipped.
+ * enforcement is TWO-SIDED, so one under is a failure and one over is a failure. Bumping it is a
+ * deliberate act that obliges the author to re-walk the tagging list. A derivation floored only
+ * against ZERO happily reports a clean run over 20 of 38 bullets, and the ones it skipped are
+ * exactly the ones an attacker would want skipped.
+ *
+ * MEASURED, WITH THE REASON IT MOVED (31-18): 39 -> 42. Plan 31-18 closed CR-11, WR-17 and WR-18,
+ * each of which gives `promoteAdmitted` a refusal an agent can now meet, so
+ * `agent-factory/workflows/18-context-compaction.md` gained three stop conditions — a destination
+ * that already holds a different note under the promoted id, an origin that is not a context store
+ * the route recognises, and a destination dial that gates nothing. THE TAGGING LIST WAS RE-WALKED
+ * rather than the constant bumped: all three are stop-and-fix conditions whose remedy is stated in
+ * the bullet itself, exactly like that file's carve-out-checker bullet, so none of them carries a
+ * `checkpoint:` tag and the roster is unchanged. A stop condition that hands to a HUMAN is what
+ * earns a tag, and this round added none.
  */
-export const WORKFLOW_STOP_BULLET_COUNT = 39;
+export const WORKFLOW_STOP_BULLET_COUNT = 42;
 
 /**
  * The tag keyword, declared ONCE. Both patterns below are built from it, so the allow-list and the

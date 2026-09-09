@@ -2800,10 +2800,25 @@ describe("31-14 self-red-team — the legitimate input, under every dial and bot
 
   for (const dial of DIAL_VALUES) {
     for (const retention of RETENTIONS) {
-      it(`LEGITIMATE: the compactor's re-binding writes under human_admission ${dial.label}, audit_retention "${retention}"`, () => {
+      it(`LEGITIMATE: the compactor's re-binding agrees with the combiner under human_admission ${dial.label}, audit_retention "${retention}"`, () => {
+        // 31-18 (WR-18): the route asks the SAME gated authority the combiner asks. Under a dial
+        // that GATES the note the re-binding still writes byte-identically — round 3's CR-08
+        // closure, unmoved. Under one that does not, a human:NAME disposition binds nothing at the
+        // destination and the promotion is declined by name, exactly as the combiner refuses it.
+        // The branch is decided by the module's own predicate, never by a list typed out here.
         const repoRoot = rtProject({ human_admission: dial.value, audit_retention: retention });
         const { originRoot, id } = rtSeedOrigin(repoRoot);
         const destRoot = freshTmp("c31-14-rt-dest-");
+        const gated = ctxio.isGatedNote("security-nfr", "finding", ctxio.readGovernanceConfig(repoRoot));
+        if (!gated) {
+          expect(() =>
+            rtUnder(repoRoot, () =>
+              mod.promoteAdmitted(RT_TASK, id, rtDisposed(), RT_BODY, originRoot, destRoot),
+            ),
+          ).toThrow(/DECLINED \(human-stamp-not-gated-at-destination\)/);
+          expect(rtNotes(destRoot)).toEqual([]);
+          return;
+        }
         const promoted = rtUnder(repoRoot, () =>
           mod.promoteAdmitted(RT_TASK, id, rtDisposed(), RT_BODY, originRoot, destRoot),
         );
@@ -2816,15 +2831,21 @@ describe("31-14 self-red-team — the legitimate input, under every dial and bot
     }
   }
 
-  it("LEGITIMATE: the compactor's re-binding writes with the dial ABSENT (no configuration at all)", () => {
+  it("LEGITIMATE: with the dial ABSENT the re-binding is DECLINED, exactly as the combiner refuses it", () => {
+    // The lean posture this project ships, and the one WR-18 measured the two routes disagreeing
+    // under: the dial gates nothing, so a human:NAME disposition binds nothing at the destination.
     const repoRoot = rtProject(null);
     const { originRoot, id } = rtSeedOrigin(repoRoot);
     const destRoot = freshTmp("c31-14-rt-absent-dest-");
-    const promoted = rtUnder(repoRoot, () =>
-      mod.promoteAdmitted(RT_TASK, id, rtDisposed(), RT_BODY, originRoot, destRoot),
-    );
-    expect(promoted).toBe(id);
-    expect(rtNotes(destRoot)).toEqual([`${id}.md`]);
+    expect(() =>
+      rtUnder(repoRoot, () =>
+        mod.promoteAdmitted(RT_TASK, id, rtDisposed(), RT_BODY, originRoot, destRoot),
+      ),
+    ).toThrow(/DECLINED \(human-stamp-not-gated-at-destination\)/);
+    expect(rtNotes(destRoot)).toEqual([]);
+    const combiner = ctxio.admitAndAppend(RT_TASK, rtDisposed(), RT_BODY, freshTmp("c31-14-rt-absent-comb-"), repoRoot);
+    expect(combiner.id).toBeNull();
+    expect(combiner.findings.join("\n")).toContain("disposed_by");
   });
 
   it("LEGITIMATE: the unchanged full-admission route writes an admissible note of every kind", () => {

@@ -59,3 +59,12 @@
   plan's clauses would put a reason in the register that this plan cannot vouch for.
   **Remedy when picked up:** one disposition file per owning plan. Do NOT move `00-base.md`'s
   recorded base commit forward and do NOT narrow the watched corpus.
+
+## 31-18 (2026-09-09) — out-of-scope discoveries
+
+- `npm run check:diff-disposition` reports **77 changed clauses with no disposition row** across four
+  workflows this plan does not touch: `05-pr-quality-gate.md` (38), `06-uat-pack.md` (25),
+  `16-context-read-write.md` (12), `17-task-claim.md` (2). Measured before and after this plan's
+  prose change; the count is identical either way, and `agent-factory/workflows/18-context-compaction.md`
+  went from 0 rows owed to 25 rows written and 0 owed. Pre-existing, unrelated to CR-11/WR-17/WR-18,
+  and therefore left alone per the executor scope boundary. A later plan owns it.

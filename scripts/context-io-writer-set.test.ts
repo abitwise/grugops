@@ -2317,12 +2317,16 @@ function assertDeclinePremise(derived: DeclineDerivation): void {
  * identical destination bytes are the decided idempotent re-promotion that reaches no clause at all.
  * `origin-outside-trusted-store` (WR-17): the proof's left operand was an unconstrained caller-named
  * path, so the caller supplied the bytes its own write was judged against.
+ * `human-stamp-not-gated-at-destination` (WR-18): the route read the governance configuration for
+ * READABILITY only and never for its VALUE, so under a dial that gates nothing it carried a
+ * human:NAME stamp forward that admitAndAppend refuses on the identical note.
  */
 const EXPECTED_DECLINE_KEYS = Object.freeze([
   "body-differs-from-origin",
   "destination-id-occupied",
   "empty-source-id",
   "field-differs-from-origin",
+  "human-stamp-not-gated-at-destination",
   "no-such-origin-note",
   "origin-note-not-live",
   "origin-outside-trusted-store",
@@ -2330,7 +2334,7 @@ const EXPECTED_DECLINE_KEYS = Object.freeze([
 ]);
 
 /** The cardinality, asserted separately: a re-worded clause and an ADDED clause are different events. */
-const EXPECTED_DECLINE_COUNT = 8;
+const EXPECTED_DECLINE_COUNT = 9;
 
 describe("31-14 — the re-binding proof's decline set is derived from its own body", () => {
   it("PREMISE: the parse found the route, it had a body, and it yielded decline sites", () => {
@@ -2613,6 +2617,21 @@ const DECLINE_PROBES: Readonly<Record<string, DeclineProbe>> = Object.freeze({
             destRoot,
             repoRoot,
           ),
+      };
+    },
+  },
+  "human-stamp-not-gated-at-destination": {
+    drive: () => {
+      // The LEAN posture this project ships: no configuration at all, so the dial gates nothing and
+      // a human:NAME disposition binds nothing at the destination. Every later clause would hold —
+      // the origin note is real, live and byte-equal — so this probe reaches the dial and nothing else.
+      const repoRoot = freshTmp("ctx-io-decline-nongated-repo-");
+      const { originRoot, id } = seedAdmittedOrigin(repoRoot, "ctx-io-decline-nongated-origin-");
+      const destRoot = freshTmp("ctx-io-decline-nongated-dest-");
+      return {
+        destRoot,
+        run: () =>
+          mod.promoteAdmitted(REBIND_TASK, id, disposedFinding(), REBIND_BODY, originRoot, destRoot, repoRoot),
       };
     },
   },
