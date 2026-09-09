@@ -737,7 +737,7 @@ uncommitted.
 
 | check | result |
 |---|---|
-| `npx vitest run --exclude '**/scripts/e2e/**'` | **3777 passed, 2 skipped, 62 test files** (the one failure at the time of measurement was `hooks/hook-entry.ts has no uncommitted modification`, which passes once the manifest move is committed — re-run green at `d71b7a5`) |
+| `npx vitest run --exclude '**/scripts/e2e/**'` | **62 test files passed, 3778 passed, 2 skipped** — re-run after the final metadata commit, fully green |
 | `node scripts/check-foundation-guards.js` | `ALL CHECKS PASSED` |
 | `node scripts/check-uat-oracles.js` | `ALL CHECKS PASSED` |
 | `node scripts/check-imperative-lexicon.js` | `ALL CHECKS PASSED` |
