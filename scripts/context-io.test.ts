@@ -37,7 +37,7 @@ import {
   realpathSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { join, relative, resolve, sep } from "node:path";
 import { pathToFileURL } from "node:url";
 import ts from "typescript";
 
@@ -7238,6 +7238,780 @@ describe("31-15 — WR-15: the target repository's dial is read on every host", 
       // (b) The CODE has a stop the document does not name.
       const seededCode = [...published, "The upward search ends at a mount point."];
       expect([...documentedStops(whole)].sort()).not.toEqual([...seededCode].sort());
+    });
+  });
+
+  // ── 31-23 — CR-13: THE BOUND BOUNDS ASCENT, NOT INSPECTION ────────────────────────────────────
+  //
+  // WHAT THE ROUND-5 VERIFIER MEASURED (31-REVIEW.md CR-13, 31-VERIFICATION.md behavioural
+  // spot-check row 8 with its control at row 9). 31-19 closed WR-21 by halting the walk at the
+  // user's home directory. The halt is asked BEFORE `dir` is inspected, at every step, so a
+  // repository whose ROOT IS the home directory never has its own `.git` or its own
+  // `.grugops/factory.config.json` read at all. Reproduced against the COMMITTED .js before any
+  // source change, quoted verbatim in 31-23-SUMMARY.md:
+  //
+  //   HOME  = <planted>/home   (.git + .grugops/factory.config.json: human_admission high-severity)
+  //   root  = <kit>            dial = ok/off    self-stamped high-severity finding: WROTE
+  //   control one level below home (row 9): root = <project>, dial high-severity, REFUSED
+  //
+  // That is the WR-15 verdict direction — a configuration moving from refused to admitted.
+  //
+  // WHY THE REVIEW'S OWN `Fix:` SKETCH IS NOT ADOPTED VERBATIM. It sets `nearest = dir` before
+  // asking whether `dir` is home and then returns `nearest`, so a home carrying ONLY a
+  // configuration would be adopted on the way past — verbatim the WR-21 hole 31-19 closed. The
+  // adopted rule is strictly narrower on three counts, and each count has its own case below.
+  describe("31-23 — CR-13: the home directory is inspected, and answers only as a repository", () => {
+    /** The environment a process has when `home` genuinely IS its user's home directory. */
+    function asHome(home: string): Record<string, string> {
+      return { HOME: home, USERPROFILE: home };
+    }
+
+    const LEAN = { human_admission: "off", audit_retention: "retained" } as const;
+    const LEDGER_RELPATH = [".grugops", "audit", "admissions.jsonl"] as const;
+
+    function writeConfig(dir: string, rel: readonly string[], context: Record<string, unknown>): void {
+      mkdirSync(join(dir, ...rel.slice(0, -1)), { recursive: true });
+      writeFileSync(join(dir, ...rel), JSON.stringify({ context }, null, 2));
+    }
+
+    /**
+     * A KIT AT A CHOSEN PATH, optionally with named anchors reverted in its `scripts/context-io.js`.
+     * Choosing the path is what lets RED 2b put the RUNNING MODULE'S OWN `GOVERNANCE_FALLBACK_BASE`
+     * AT the planted home directory without touching a single tracked file.
+     */
+    function kitAt(dir: string, anchors: readonly (readonly [string, string])[] = []): string {
+      mkdirSync(dir, { recursive: true });
+      for (const sub of ["scripts", "hooks"]) {
+        cpSync(join(ROOT, sub), join(dir, sub), {
+          recursive: true,
+          filter: (src) => statSync(src).isDirectory() || src.endsWith(".js"),
+        });
+      }
+      mkdirSync(join(dir, "agent-factory", "config"), { recursive: true });
+      cpSync(
+        join(ROOT, "agent-factory", "config", "factory.config.json"),
+        join(dir, "agent-factory", "config", "factory.config.json"),
+      );
+      const target = join(dir, "scripts", "context-io.js");
+      let text = readFileSync(target, "utf8");
+      for (const [from, to] of anchors) {
+        expect(
+          text.split(from).length - 1,
+          `PREMISE: the anchor ${JSON.stringify(from)} was not found exactly once in the committed ` +
+            ".js, so the mirror is not the program it claims to be",
+        ).toBe(1);
+        text = text.split(from).join(to);
+      }
+      writeFileSync(target, text);
+      return dir;
+    }
+
+    function mirror(prefix: string, anchors: readonly (readonly [string, string])[]): string {
+      return kitAt(tmp15(prefix), anchors);
+    }
+
+    // ── THE NAMED ANCHORS. Each one reverts ONE conjunct and nothing else. ──────────────────────
+    //
+    // THE SCRATCH MARKER-PLUS-CONFIGURATION IMPLEMENTATION — the middle column of the summary's
+    // table, and the program this plan would have shipped if the second adversarial re-check had
+    // not happened. Both added conjuncts removed together; the home rule is then marker AND
+    // configuration alone.
+    const SCRATCH_MARKER_PLUS_CONFIG = [
+      "homeConfigPositionIsProjectOwned(carryingIndex, candidates[carryingIndex])",
+      "true",
+    ] as const;
+    /** MUTANT 1 — the MARKER requirement at home removed, and nothing else. */
+    const NO_MARKER_AT_HOME = [
+      "const homeAnswersAsRepository = isBoundary &&",
+      "const homeAnswersAsRepository = true &&",
+    ] as const;
+    /** MUTANT 2 — inspect-then-decide reverted: the home question asked BEFORE any inspection. */
+    const ASK_BEFORE_INSPECT = [
+      "if (isAboveHome(dir, home))",
+      "if (isAboveHome(dir, home) || isHomeItself(dir, home))",
+    ] as const;
+    /** MUTANT 3 — the candidate KIND conjunct removed, and nothing else. */
+    const NO_KIND_CONJUNCT = [
+      'if (GOVERNANCE_CONFIG_CANDIDATE_KINDS[candidateIndex] !== "repository-state-plane")',
+      "if (false)",
+    ] as const;
+    /** MUTANT 4 — the module's-own-position exclusion removed, and nothing else. */
+    const NO_MODULE_OWN_EXCLUSION = [
+      "return !MODULE_OWN_CONFIG_POSITIONS.includes(resolve(candidatePath));",
+      "return true;",
+    ] as const;
+
+    // ── THE TREES ───────────────────────────────────────────────────────────────────────────────
+
+    /** The verifier's row-8 shape: a repository whose ROOT IS the user's home directory. */
+    function homeRootedRepository(prefix = "p31-23-row8-", context: Record<string, unknown> = ACTIVE) {
+      const home = tmp15(prefix);
+      mkdirSync(join(home, ".git"), { recursive: true });
+      writeConfig(home, [".grugops", "factory.config.json"], context);
+      const cwd = join(home, "src");
+      mkdirSync(cwd, { recursive: true });
+      return { home, cwd };
+    }
+
+    /** RED 2: a VENDORED kit's own configuration occupying the in-kit candidate position at home. */
+    function vendoredKitAtHome(prefix = "p31-23-vendored-") {
+      const home = tmp15(prefix);
+      mkdirSync(join(home, ".git"), { recursive: true });
+      writeConfig(home, ["agent-factory", "config", "factory.config.json"], LEAN);
+      const proj = join(home, "work", "proj");
+      writeConfig(proj, [".grugops", "factory.config.json"], ACTIVE);
+      return { home, cwd: proj };
+    }
+
+    /** GREEN 1c / the re-check's tree (b): a dotfiles checkout with a shared install beside it. */
+    function dotfilesWithSharedInstall(prefix = "p31-23-dotfiles-") {
+      const home = tmp15(prefix);
+      mkdirSync(join(home, ".git"), { recursive: true });
+      mkdirSync(join(home, ".grugops", "agent-factory"), { recursive: true });
+      writeConfig(home, [".grugops", "factory.config.json"], LEAN);
+      const proj = join(home, "work", "proj");
+      mkdirSync(proj, { recursive: true });
+      return { home, cwd: proj };
+    }
+
+    // ── RED 1 / GREEN 1 — the blocker itself ────────────────────────────────────────────────────
+
+    it("GREEN 1 (CR-13 / row 8): a repository ROOTED AT HOME reads its OWN dial", () => {
+      const { home, cwd } = homeRootedRepository();
+      // PREMISE, ASSERTED: the planted configuration is readable and carries the active dial, so a
+      // case answering `home` is answering it for the right reason.
+      const planted = mod.readGovernanceConfig(home);
+      expect(planted.source, "PREMISE: the planted configuration is not readable").toBe("ok");
+      expect(planted.config.human_admission).toBe("high-severity");
+      // PREMISE, ASSERTED: the carrying candidate is the STATE-PLANE position and is NOT one of the
+      // running module's own fallback positions — the exact boundary between GREEN 1 and RED 2/2b.
+      const candidates = mod.governanceConfigCandidates(home);
+      expect(mod.GOVERNANCE_CONFIG_CANDIDATE_KINDS[0]).toBe("repository-state-plane");
+      expect(mod.MODULE_OWN_CONFIG_POSITIONS).not.toContain(resolve(candidates[0]));
+
+      const r = drive("appendNote", { cwd, env: asHome(home) });
+      expect(r.root, "the home-rooted repository's own root was skipped").toBe(home);
+      expect(r.verdict, "the self-stamped high-severity finding must be REFUSED there").toBe("refuse");
+      expect(r.message).toContain("human_admission: high-severity");
+    });
+
+    it("GREEN 1b (the home-rooted INSTALLED project): the installer's own marker is not consulted", () => {
+      // Seeded the way `install/install.ts` seeds a TARGET at `$HOME`: `copyKit` writes
+      // `$GRUGOPS_HOME/agent-factory`, `seedState` writes `$TARGET/.grugops/factory.config.json` and
+      // `writeMarker` writes `$TARGET/.grugops/install.json`. The two roots collide exactly when
+      // TARGET === $HOME, which is the case that must be ADOPTED.
+      const { home, cwd } = homeRootedRepository("p31-23-installed-");
+      mkdirSync(join(home, ".grugops", "agent-factory"), { recursive: true });
+      const marker = join(home, ".grugops", "install.json");
+      const verdicts: string[] = [];
+      for (const bytes of [
+        JSON.stringify({ kitVersion: "2.0.0", grugopsHome: join(home, ".grugops") }, null, 2),
+        null,
+        "{}",
+      ]) {
+        if (bytes === null) rmSync(marker, { force: true });
+        else writeFileSync(marker, bytes);
+        const r = drive("appendNote", { cwd, env: asHome(home) });
+        verdicts.push(`${r.root}|${r.verdict}`);
+      }
+      // ALL THREE IDENTICAL. `install/install.ts:597-620` makes every `InstallMarker` field optional
+      // and names no TARGET, so `{}` is a schema-valid marker a caller writes in one operation.
+      // Showing the verdict unmoved across present / absent / `{}` is what proves the marker is not
+      // consulted, rather than merely saying it is not.
+      expect(new Set(verdicts).size, `the installer's marker moved the verdict: ${verdicts.join(" ")}`).toBe(1);
+      expect(verdicts[0]).toBe(`${home}|refuse`);
+    });
+
+    it("GREEN 1c (the re-check's tree (b), DECIDED): dotfiles + a shared install resolve to HOME", () => {
+      // THE DECIDED VERDICT, stated as a choice. `$HOME` carries a version-control marker and a
+      // STATE-PLANE configuration, and neither is this module's own position — the identical
+      // evidence, and the identical answer, the walk gives for that tree one level BELOW home
+      // (R-31-19-01, verification row 9). Its cost is R-31-19-06's priced construction.
+      const { home, cwd } = dotfilesWithSharedInstall();
+      const r = drive("trustedRepoRoot", { cwd, env: asHome(home) });
+      expect(r.root).toBe(home);
+      expect(r.message).toContain("human_admission: off");
+    });
+
+    it("RED 2 (the VENDORED KIT at a home candidate position): the NESTED project's dial governs", () => {
+      // At every ordinary directory D-23 (4)'s boundary-wins rule keeps a kit's own configuration
+      // from governing a host, because there is a boundary ABOVE it to lose to. At `$HOME` the walk
+      // ENDS, so the in-kit position must be excluded BY POSITION instead.
+      const { home, cwd } = vendoredKitAtHome();
+      // The MARKER-PLUS-CONFIGURATION program — what this plan would have shipped with two
+      // conjuncts only — adopts `$HOME` and lets the KIT's lean dial govern the configured project.
+      const scratch = mirror("p31-23-scratch-vendored-", [SCRATCH_MARKER_PLUS_CONFIG]);
+      const before = drive("appendNote", { cwd, env: asHome(home), kit: scratch });
+      expect(before.root, "PREMISE: the scratch program must adopt home, or this case is empty").toBe(home);
+      expect(before.verdict).toBe("write");
+
+      const after = drive("appendNote", { cwd, env: asHome(home) });
+      expect(after.root, "a vendored kit's own configuration outranked a configured project").toBe(cwd);
+      expect(after.verdict).toBe("refuse");
+      expect(after.message).toContain("human_admission: high-severity");
+    });
+
+    it("RED 2b (the MODULE'S OWN position at home): the running kit is not a project", () => {
+      // The module tree is COPIED into the probe root so the running module's own
+      // `GOVERNANCE_FALLBACK_BASE` IS the planted home. This spelling is chosen deliberately over
+      // pointing HOME at the real checkout: the real checkout carries no state-plane configuration,
+      // and creating one would mutate a tracked tree to make a probe work.
+      const kit = kitAt(join(tmp15("p31-23-modown-"), "kit"));
+      mkdirSync(join(kit, ".git"), { recursive: true });
+      writeConfig(kit, [".grugops", "factory.config.json"], LEAN);
+      const proj = join(kit, "proj");
+      writeConfig(proj, [".grugops", "factory.config.json"], ACTIVE);
+
+      const scratchKit = kitAt(join(tmp15("p31-23-modown-scratch-"), "kit"), [SCRATCH_MARKER_PLUS_CONFIG]);
+      mkdirSync(join(scratchKit, ".git"), { recursive: true });
+      writeConfig(scratchKit, [".grugops", "factory.config.json"], LEAN);
+      const scratchProj = join(scratchKit, "proj");
+      writeConfig(scratchProj, [".grugops", "factory.config.json"], ACTIVE);
+
+      const before = drive("appendNote", { cwd: scratchProj, env: asHome(scratchKit), kit: scratchKit });
+      expect(before.root, "PREMISE: the scratch program must adopt its own kit root at home").toBe(scratchKit);
+      expect(before.verdict).toBe("write");
+
+      const after = drive("appendNote", { cwd: proj, env: asHome(kit), kit });
+      expect(after.root, "the running kit's own configuration outranked the project nested in it").toBe(proj);
+      expect(after.verdict).toBe("refuse");
+      expect(after.message).toContain("human_admission: high-severity");
+    });
+
+    it("GREEN 2 (WR-21 NOT reopened): a home carrying ONLY a configuration still answers the KIT", () => {
+      // The round-4 ADJUSTED spelling of docs/audit/31-round4-residuals.md §4.3, re-driven.
+      const home = tmp15("p31-23-wr21-");
+      writeConfig(home, [".grugops", "factory.config.json"], { human_admission: "all" });
+      const deep = join(home, "a", "b", "c");
+      mkdirSync(deep, { recursive: true });
+      const r = drive("trustedRepoRoot", { cwd: deep, env: asHome(home) });
+      expect(r.root, "a bare `~/.grugops` at home was adopted — WR-21 reopened").toBe(KIT);
+      expect(r.message).toContain("human_admission: off");
+    });
+
+    // ── THE INVARIANCE CASES: NO ARTIFACT A CALLER CREATES IN ONE OPERATION MOVES THE VERDICT ──
+
+    it("INVARIANCE 1: `mkdir -p $HOME/.grugops/agent-factory` does not move the verdict", () => {
+      const { home, cwd } = homeRootedRepository("p31-23-inv1-");
+      const before = drive("appendNote", { cwd, env: asHome(home) });
+      mkdirSync(join(home, ".grugops", "agent-factory"), { recursive: true }); // the ONE operation
+      const after = drive("appendNote", { cwd, env: asHome(home) });
+      // The retracted design turned exactly this `mkdir` into CR-13's own harm: it made the position
+      // "kit-owned", refused home, and dropped the answer to GOVERNANCE_FALLBACK_BASE's LEAN dial.
+      expect(`${after.root}|${after.verdict}`).toBe(`${before.root}|${before.verdict}`);
+      expect(after.root).toBe(home);
+      expect(after.verdict).toBe("refuse");
+    });
+
+    it("INVARIANCE 2: `touch $HOME/.grugops/install.json`, empty and `{}`, does not move the verdict", () => {
+      const { home, cwd } = dotfilesWithSharedInstall("p31-23-inv2-");
+      const seen: string[] = [];
+      const marker = join(home, ".grugops", "install.json");
+      seen.push(JSON.stringify(drive("trustedRepoRoot", { cwd, env: asHome(home) }).root));
+      writeFileSync(marker, ""); // the ONE operation
+      seen.push(JSON.stringify(drive("trustedRepoRoot", { cwd, env: asHome(home) }).root));
+      writeFileSync(marker, "{}"); // schema-valid for `install/install.ts:609`'s readMarker
+      seen.push(JSON.stringify(drive("trustedRepoRoot", { cwd, env: asHome(home) }).root));
+      expect(new Set(seen).size, `the installer's marker moved the verdict: ${seen.join(" ")}`).toBe(1);
+      expect(seen[0]).toBe(JSON.stringify(home));
+    });
+
+    it("INVARIANCE 3: GRUGOPS_HOME unset, redirected, empty and $HOME all give one verdict", () => {
+      const { home, cwd } = dotfilesWithSharedInstall("p31-23-inv3-");
+      const elsewhere = tmp15("p31-23-inv3-elsewhere-");
+      const seen: string[] = [];
+      for (const over of [{}, { GRUGOPS_HOME: elsewhere }, { GRUGOPS_HOME: "" }, { GRUGOPS_HOME: home }]) {
+        const r = drive("trustedRepoRoot", { cwd, env: { ...asHome(home), ...over } });
+        seen.push(`${r.root}|${r.message}`);
+      }
+      // The rule reads no environment variable. `process.env.GRUGOPS_HOME` is caller-settable in
+      // ZERO operations, so consulting it would be the same flip the two existence probes were.
+      expect(new Set(seen).size, `GRUGOPS_HOME moved the verdict: ${seen.join(" || ")}`).toBe(1);
+      expect(seen[0].startsWith(`${home}|`)).toBe(true);
+    });
+
+    // ── INVARIANCE 4 — DERIVED FROM THE SOURCE, NOT DRIVEN ─────────────────────────────────────
+    //
+    // A later edit that reintroduces a filesystem probe or an environment read into the home rule
+    // turns this red AT THE SOURCE rather than waiting for a round-6 reproduction.
+
+    const IO_TS = join(ROOT, "scripts", "context-io.ts");
+
+    /** The initializer text of `const NAME = …;`, asserted present exactly once. */
+    function soleInitializer(source: string, name: string): string | null {
+      const needle = `const ${name} =`;
+      const occurrences = source.split(needle).length - 1;
+      if (occurrences !== 1) return null;
+      const start = source.indexOf(needle) + needle.length;
+      const end = source.indexOf(";", start);
+      return end < 0 ? null : source.slice(start, end);
+    }
+
+    /** The whole body of a module-private function declaration, asserted present exactly once. */
+    function soleFunctionBody(source: string, name: string): string | null {
+      const needle = `function ${name}(`;
+      if (source.split(needle).length - 1 !== 1) return null;
+      const start = source.indexOf("{", source.indexOf(needle));
+      let depth = 0;
+      for (let i = start; i < source.length; i++) {
+        if (source[i] === "{") depth++;
+        else if (source[i] === "}") {
+          depth--;
+          if (depth === 0) return source.slice(start + 1, i);
+        }
+      }
+      return null;
+    }
+
+    /**
+     * The home branch's DECISION EXPRESSION with every local initializer substituted and the
+     * predicate's own body inlined — the transitive text the rule is assembled from. `null` when the
+     * branch cannot be located, so the PREMISE case below can fire rather than pass vacuously.
+     */
+    function homeDecisionClosure(source: string): string | null {
+      // SCOPED TO THE WALK'S OWN BODY. `const candidates =` occurs twice in this module — the second
+      // is `readGovernanceConfig`'s — so a whole-file search would report the wrong initializer or
+      // no initializer at all, and either way the assertion below would measure something else.
+      const walk = soleFunctionBody(source, "projectRootFromWorkingDirectory");
+      if (walk === null) return null;
+      let text = soleInitializer(walk, "homeAnswersAsRepository");
+      if (text === null) return null;
+      const call = "homeConfigPositionIsProjectOwned(carryingIndex, candidates[carryingIndex])";
+      const body = soleFunctionBody(source, "homeConfigPositionIsProjectOwned");
+      if (body === null || !text.includes(call)) return null;
+      text = text.split(call).join(`(${body})`);
+      for (const local of ["isBoundary", "carriesConfig", "carryingIndex", "candidates"]) {
+        const init = soleInitializer(walk, local);
+        if (init === null) return null;
+        text = text.replace(new RegExp(`\\b${local}\\b`, "g"), `(${init})`);
+      }
+      return text;
+    }
+
+    /** Every name declared at MODULE level in this file — derived, never typed. */
+    function moduleLevelNames(source: string): Set<string> {
+      const out = new Set<string>();
+      for (const m of source.matchAll(/^(?:export )?(?:const|function) ([A-Za-z_$][\w$]*)/gm)) {
+        out.add(m[1]);
+      }
+      return out;
+    }
+
+    function consultedNames(closure: string, source: string): string[] {
+      const declared = moduleLevelNames(source);
+      const seen = new Set<string>();
+      for (const m of closure.matchAll(/[A-Za-z_$][\w$]*/g)) {
+        if (declared.has(m[0])) seen.add(m[0]);
+      }
+      return [...seen].sort();
+    }
+
+    /** The FOUR published names the home rule is allowed to consult, and no fifth. */
+    const HOME_RULE_PUBLISHED_NAMES = Object.freeze([
+      "GOVERNANCE_CONFIG_CANDIDATE_KINDS",
+      "MODULE_OWN_CONFIG_POSITIONS",
+      "REPO_BOUNDARY_MARKERS",
+      "governanceConfigCandidates",
+    ]);
+
+    it("INVARIANCE 4 (PREMISE): the home branch is located, and a renamed branch is NOT", () => {
+      const source = readFileSync(IO_TS, "utf8");
+      expect(homeDecisionClosure(source), "PREMISE: the home branch was not found").not.toBeNull();
+      // A branch whose decision constant is renamed must be reported as ABSENT, never as an empty
+      // closure over which every assertion below would pass vacuously.
+      const renamed = source.split("const homeAnswersAsRepository =").join("const someOtherName =");
+      expect(renamed, "PREMISE: the rename did not apply").not.toBe(source);
+      expect(
+        homeDecisionClosure(renamed),
+        "the locator reports a branch that is no longer there — every assertion over it is vacuous",
+      ).toBeNull();
+      // And a module whose predicate declaration is gone is reported ABSENT too.
+      const noPredicate = source.split("function homeConfigPositionIsProjectOwned(").join("function gone(");
+      expect(homeDecisionClosure(noPredicate)).toBeNull();
+    });
+
+    it("INVARIANCE 4: the home rule consults the FOUR published names, by MEMBERS and by COUNT", () => {
+      const source = readFileSync(IO_TS, "utf8");
+      const closure = homeDecisionClosure(source);
+      expect(closure).not.toBeNull();
+      const consulted = consultedNames(closure as string, source);
+      expect(
+        consulted,
+        "the home rule's transitive closure consults a module-level name outside the four published " +
+          "ones. Every input to this rule beyond the walk's ordinary evidence must be a path, a " +
+          "position or a load-time constant",
+      ).toEqual([...HOME_RULE_PUBLISHED_NAMES]);
+      expect(consulted).toHaveLength(4);
+      // AND NO FILESYSTEM PROBE, NO ENVIRONMENT READ. `existsSync` is the walk's ORDINARY evidence
+      // and is priced as R-31-19-06; everything else here is the retracted design coming back.
+      for (const banned of [
+        "statSync",
+        "readFileSync",
+        "realpathSync",
+        "homedir",
+        "process.env",
+        "readdirSync",
+        "lstatSync",
+        "openSync",
+      ]) {
+        expect(
+          (closure as string).includes(banned),
+          `the home rule reads ${banned} — a conjunct a caller can flip is a switch, whichever way`,
+        ).toBe(false);
+      }
+    });
+
+    it("INVARIANCE 4 (SEEDED MIRROR): one added identifier moves the count by exactly one", () => {
+      const source = readFileSync(IO_TS, "utf8");
+      const closure = homeDecisionClosure(source) as string;
+      const seeded = `${closure} && TRUSTED_ROOT_ENV_ORDER.length > 0`;
+      const consulted = consultedNames(seeded, source);
+      expect(consulted).toHaveLength(HOME_RULE_PUBLISHED_NAMES.length + 1);
+      expect(consulted).toContain("TRUSTED_ROOT_ENV_ORDER");
+      expect(consulted).not.toEqual([...HOME_RULE_PUBLISHED_NAMES]);
+    });
+
+    // ── THE REMAINING GREENS AND THE CONTROLS ──────────────────────────────────────────────────
+
+    it("GREEN 3 (the MARKER-ONLY home): a home carrying `.git` and no configuration yields nearest", () => {
+      const home = tmp15("p31-23-markeronly-");
+      mkdirSync(join(home, ".git"), { recursive: true });
+      const below = join(home, "work");
+      writeConfig(below, [".grugops", "factory.config.json"], ACTIVE);
+      const deep = join(below, "a");
+      mkdirSync(deep, { recursive: true });
+      const r = drive("appendNote", { cwd: deep, env: asHome(home) });
+      expect(r.root, "a marker-only home must yield whatever was remembered below it").toBe(below);
+      expect(r.verdict).toBe("refuse");
+    });
+
+    it("GREEN 4 (home never becomes `nearest`): a config-only home, cwd far below, answers the KIT", () => {
+      const home = tmp15("p31-23-nevernearest-");
+      writeConfig(home, [".grugops", "factory.config.json"], { human_admission: "all" });
+      const deep = join(home, "a", "b", "c", "d");
+      mkdirSync(deep, { recursive: true });
+      // Asserted by the RESOLVED ANSWER for a working directory below home, never by inspecting a
+      // variable: if home had entered `nearest` on the way past, the answer would be `home`.
+      expect(drive("trustedRepoRoot", { cwd: deep, env: asHome(home) }).root).toBe(KIT);
+    });
+
+    it("CONTROL 1 (verification row 9 / R-31-19-01): the tree one level BELOW home is unmoved", () => {
+      const home = tmp15("p31-23-control1-");
+      const project = join(home, "proj");
+      mkdirSync(join(project, ".git"), { recursive: true });
+      writeConfig(project, [".grugops", "factory.config.json"], ACTIVE);
+      const src = join(project, "src");
+      mkdirSync(src, { recursive: true });
+      const r = drive("appendNote", { cwd: src, env: asHome(home) });
+      expect(r.root).toBe(project);
+      expect(r.verdict).toBe("refuse");
+      expect(r.message).toContain("human_admission: high-severity");
+      expect(
+        mod.TRUSTED_ROOT_RESIDUALS.map((x) => x.id),
+        "the below-home answer is DOCUMENTED behaviour, not a new finding",
+      ).toContain("R-31-19-01");
+    });
+
+    it("CONTROL 2 (31-15's own spot-check): an ordinary project's refusal still names the dial", () => {
+      const project = projectWith(ACTIVE, "p31-23-control2-");
+      for (const env of [{}, asHome(tmp15("p31-23-control2-home-"))]) {
+        const r = drive("appendNote", { cwd: project, env });
+        expect(r.root).toBe(project);
+        expect(r.verdict).toBe("refuse");
+        expect(r.message).toContain("human_admission: high-severity");
+      }
+    });
+
+    it("CONTROL 3 (a repository directly under home): still resolves to itself", () => {
+      const home = tmp15("p31-23-control3-");
+      const project = join(home, "proj");
+      writeConfig(project, [".grugops", "factory.config.json"], ACTIVE);
+      mkdirSync(join(project, "src"), { recursive: true });
+      expect(drive("trustedRepoRoot", { cwd: project, env: asHome(home) }).root).toBe(project);
+      expect(drive("appendNote", { cwd: join(project, "src"), env: asHome(home) }).root).toBe(project);
+    });
+
+    it("CONTROL 4 (strictly ABOVE home): a configuration at a strict ancestor is never inspected", () => {
+      const above = tmp15("p31-23-control4-");
+      const home = join(above, "home");
+      mkdirSync(home, { recursive: true });
+      mkdirSync(join(above, ".git"), { recursive: true });
+      writeConfig(above, [".grugops", "factory.config.json"], { human_admission: "all" });
+      // Even carrying BOTH a marker and a state-plane configuration — the evidence that adopts HOME
+      // — a strict ancestor is refused outright, because the bound on ASCENT is unchanged.
+      expect(drive("trustedRepoRoot", { cwd: above, env: asHome(home) }).root).toBe(KIT);
+      expect(drive("trustedRepoRoot", { cwd: home, env: asHome(home) }).root).toBe(KIT);
+    });
+
+    it("EMPTY: a home directory that cannot be determined still stops the search entirely", () => {
+      const mutant = mirror("p31-23-nohome-", [
+        ["const named = namedHomeDirectory();", "const named = null;"],
+      ]);
+      const project = projectWith(ACTIVE, "p31-23-nohome-proj-");
+      const src = join(project, "src");
+      mkdirSync(src, { recursive: true });
+      expect(drive("trustedRepoRoot", { cwd: src, kit: KIT }).root).toBe(project);
+      expect(
+        drive("trustedRepoRoot", { cwd: src, kit: mutant }).root,
+        "an undeterminable home must stop the search, never license an unbounded one",
+      ).toBe(mutant);
+    });
+
+    it("ADJACENCY: a SYMLINKED spelling of home is still recognised as home by the identity set", () => {
+      const base = tmp15("p31-23-symlink-");
+      const real = join(base, "real-home");
+      writeConfig(real, [".grugops", "factory.config.json"], { human_admission: "all" });
+      const deep = join(real, "a", "b");
+      mkdirSync(deep, { recursive: true });
+      const link = join(base, "link-home");
+      symlinkSync(real, link);
+      // HOME spelled through the link: the same directory under a different string. A text-only
+      // comparison would miss it, and a missed stop is the unsafe direction.
+      expect(drive("trustedRepoRoot", { cwd: deep, env: asHome(link) }).root).toBe(KIT);
+      expect(drive("trustedRepoRoot", { cwd: join(link, "a", "b"), env: asHome(real) }).root).toBe(KIT);
+    });
+
+    // ── THE PUBLISHED CLASSIFICATION, BOUND TO THE CANDIDATE LIST ON FOUR AXES ─────────────────
+
+    it("GOVERNANCE_CONFIG_CANDIDATE_KINDS is frozen and index-for-index with the candidate list", () => {
+      expect(Object.isFrozen(mod.GOVERNANCE_CONFIG_CANDIDATE_KINDS)).toBe(true);
+      const candidates = mod.governanceConfigCandidates("");
+      expect(
+        mod.GOVERNANCE_CONFIG_CANDIDATE_KINDS,
+        "a candidate without a kind, or a kind without a candidate — the home rule's meaning would " +
+          "change silently",
+      ).toHaveLength(candidates.length);
+      expect(mod.GOVERNANCE_CONFIG_CANDIDATE_KINDS[0]).toBe("repository-state-plane");
+      expect(mod.GOVERNANCE_CONFIG_CANDIDATE_KINDS[1]).toBe("in-kit");
+    });
+
+    /**
+     * The SHAPE predicate: a kind derived from ITS OWN candidate's segments RELATIVE TO THE BASE.
+     * Relative, never absolute — the base's own spelling may itself carry an `agent-factory`
+     * segment, and an absolute reading would then refuse a perfectly ordinary state-plane candidate.
+     */
+    function shapeKind(base: string, candidate: string): string | null {
+      const segments = relative(base, candidate).split(sep);
+      if (segments.length === 3 && segments[0] === "agent-factory" && segments[1] === "config") {
+        return "in-kit";
+      }
+      if (
+        segments.length === 2 &&
+        segments[0] === ".grugops" &&
+        !segments.includes("agent-factory")
+      ) {
+        return "repository-state-plane";
+      }
+      return null;
+    }
+
+    it("each kind is bound to a SHAPE PREDICATE over its own candidate's segments, every index", () => {
+      // Iterated rather than named, so a THIRD candidate arrives bound rather than unclassified.
+      let checked = 0;
+      for (const base of [tmp15("p31-23-shape-"), join(tmp15("p31-23-shape-kitbase-"), "agent-factory")]) {
+        const candidates = mod.governanceConfigCandidates(base);
+        expect(candidates).toHaveLength(mod.GOVERNANCE_CONFIG_CANDIDATE_KINDS.length);
+        candidates.forEach((candidate, i) => {
+          expect(
+            shapeKind(base, candidate),
+            `candidate ${String(i)} under ${base} carries a kind its own path shape does not support`,
+          ).toBe(mod.GOVERNANCE_CONFIG_CANDIDATE_KINDS[i]);
+          checked++;
+        });
+      }
+      expect(checked).toBe(4);
+    });
+
+    it("the `$HOME/agent-factory` BASE cell: its state-plane candidate is classified by the RELATIVE path", () => {
+      // The named cell that measures the domain choice rather than assuming it. An absolute reading
+      // would see an `agent-factory` segment in the BASE and refuse a legitimate state-plane
+      // candidate — the vendored-kit shape RED 2 drives, one directory over.
+      const base = join(tmp15("p31-23-shape-abs-"), "agent-factory");
+      const candidates = mod.governanceConfigCandidates(base);
+      expect(shapeKind(base, candidates[0])).toBe("repository-state-plane");
+      expect(candidates[0]).toContain(`agent-factory${sep}.grugops`);
+    });
+
+    it("WATCHED FAIL: a TRANSPOSED kind array breaks the index binding", () => {
+      const transposed = [...mod.GOVERNANCE_CONFIG_CANDIDATE_KINDS].reverse();
+      const base = tmp15("p31-23-transpose-");
+      const candidates = mod.governanceConfigCandidates(base);
+      const mismatched = candidates.filter((c, i) => shapeKind(base, c) !== transposed[i]);
+      expect(mismatched, "a transposed kind array passed the binding — it is not a control").toHaveLength(2);
+    });
+
+    it("WATCHED FAIL: an IN-PLACE RENAME breaks the SHAPE binding where index and cardinality stay green", () => {
+      // Index, cardinality and transposition are three drift axes and they are not all of them: an
+      // in-place rename moves none of the three and leaves a kind sitting on a position it no longer
+      // describes. This case shows the new axis DISCRIMINATES rather than duplicating one already
+      // asserted.
+      const base = tmp15("p31-23-rename-");
+      const renamed = [
+        join(base, ".grugops", "factory.config.json"),
+        join(base, "vendor-kit", "config", "factory.config.json"),
+      ];
+      // Index and cardinality are UNMOVED…
+      expect(renamed).toHaveLength(mod.GOVERNANCE_CONFIG_CANDIDATE_KINDS.length);
+      // …and the shape binding is RED.
+      expect(shapeKind(base, renamed[0])).toBe(mod.GOVERNANCE_CONFIG_CANDIDATE_KINDS[0]);
+      expect(
+        shapeKind(base, renamed[1]),
+        "a renamed candidate path kept its kind — the shape axis does not discriminate",
+      ).not.toBe(mod.GOVERNANCE_CONFIG_CANDIDATE_KINDS[1]);
+    });
+
+    it("MODULE_OWN_CONFIG_POSITIONS is exported, frozen, and derived from the RUNNING module", () => {
+      expect(Object.isFrozen(mod.MODULE_OWN_CONFIG_POSITIONS)).toBe(true);
+      expect(mod.MODULE_OWN_CONFIG_POSITIONS).toEqual(
+        mod.governanceConfigCandidates(mod.GOVERNANCE_FALLBACK_BASE).map((p: string) => resolve(p)),
+      );
+      // A property of WHICH PROGRAM IS RUNNING, not of the filesystem it inspects: no path under it
+      // needs to exist for the constant to hold.
+      expect(mod.MODULE_OWN_CONFIG_POSITIONS).toHaveLength(
+        mod.GOVERNANCE_CONFIG_CANDIDATE_KINDS.length,
+      );
+    });
+
+    // ── THE PUBLISHED STOP SET GAINED THE ASYMMETRY THE WALK NOW HAS ───────────────────────────
+
+    it("the stop set states BOTH home stops, and S-HOME-SELF carries all THREE conjuncts", () => {
+      const ids = mod.TRUSTED_ROOT_STOP_CONDITIONS.map((s: { id: string }) => s.id);
+      expect(ids).toContain("S-HOME-ABOVE");
+      expect(ids).toContain("S-HOME-SELF");
+      expect(ids, "the conflated single home stop must be gone, not kept beside the two").not.toContain("S-HOME");
+      expect(
+        mod.TRUSTED_ROOT_STOP_CONDITIONS.length,
+        "the stop set grew or shrank. That is a decision — move this number deliberately",
+      ).toBe(7);
+      const self = mod.TRUSTED_ROOT_STOP_CONDITIONS.find(
+        (s: { id: string }) => s.id === "S-HOME-SELF",
+      ) as { sentence: string };
+      // A published stop that states two of the three conditions the walk applies is the same class
+      // of drift WR-21 was: prose narrower or broader than the mechanism it claims to describe.
+      expect(self.sentence).toContain("version-control marker");
+      expect(self.sentence).toContain("state-plane");
+      expect(self.sentence).toContain("own fallback candidate positions");
+    });
+
+    it("the retired predicate is GONE from the source, not left beside the new pair", () => {
+      const live = readFileSync(IO_TS, "utf8")
+        .split("\n")
+        .filter((l) => !/^\s*[/*]/.test(l))
+        .join("\n");
+      expect(
+        live.split("isAtOrAboveHome").length - 1,
+        "a third predicate answering a question the two now answer is the drift shape this module " +
+          "keeps deleting",
+      ).toBe(0);
+    });
+
+    // ── MONOTONICITY: THE CONFIGURATION-RESOLUTION CORPUS PREDATING THIS ROUND ──────────────────
+
+    it("MONOTONICITY: no case moved from REFUSED to ADMITTED against the pre-31-23 program", () => {
+      // THE SET, STATED. This is the CONFIGURATION-RESOLUTION corpus predating this round. The
+      // cross-plan ORIGIN-RECOGNITION cases 31-22 added at wave 2 are PROBE 5's subject and are
+      // governed by its declared intended-change list, whose single member is 31-22 CONTROL 5a. The
+      // two sets are stated separately so this blanket claim cannot silently forbid the one movement
+      // this plan declares.
+      const preFix = mirror("p31-23-prefix-", [ASK_BEFORE_INSPECT]);
+      const active = projectWith(ACTIVE, "p31-23-mono-active-");
+      const activeAll = projectWith({ human_admission: "all" }, "p31-23-mono-all-");
+      const lean = projectWith({ human_admission: "off" }, "p31-23-mono-lean-");
+      const none = projectWith(null, "p31-23-mono-none-");
+      const unreadable = projectWithUnreadableConfig();
+      const empty = tmp15("p31-23-mono-empty-");
+      const cases = [
+        { name: "high-severity", project: active },
+        { name: "all", project: activeAll },
+        { name: "explicitly off", project: lean },
+        { name: "no configuration", project: none },
+        { name: "unreadable configuration", project: unreadable },
+        { name: "empty directory", project: empty },
+      ];
+      const moved: string[] = [];
+      let driven = 0;
+      for (const c of cases) {
+        for (const envName of [null, mod.TRUSTED_ROOT_ENV_ORDER[0], mod.TRUSTED_ROOT_ENV_ORDER[1]]) {
+          const env = envName === null ? {} : { [envName]: c.project };
+          const label = `${c.name}/${envName ?? "no variable"}`;
+          const before = drive("appendNote", { cwd: c.project, env, kit: preFix });
+          const after = drive("appendNote", { cwd: c.project, env, kit: KIT });
+          expect(
+            `${label}: ${before.verdict} -> ${after.verdict}`,
+            "a configuration moved from REFUSED to ADMITTED — the change is not monotone",
+          ).not.toBe(`${label}: refuse -> write`);
+          if (before.verdict !== after.verdict) moved.push(label);
+          driven++;
+        }
+      }
+      expect(moved).toEqual([]);
+      expect(driven, "the sweep drove no case").toBe(cases.length * 3);
+    });
+
+    // ── THE FIVE MUTATION PROOFS ───────────────────────────────────────────────────────────────
+
+    it("MUTATION 1: the MARKER requirement removed breaks GREEN 2 and GREEN 4, and nothing else", () => {
+      const mutant = mirror("p31-23-mut1-", [NO_MARKER_AT_HOME]);
+      // GREEN 2 — a home carrying ONLY a configuration is adopted, which is WR-21 restored.
+      const wr21 = tmp15("p31-23-mut1-wr21-");
+      writeConfig(wr21, [".grugops", "factory.config.json"], { human_admission: "all" });
+      const deep = join(wr21, "a", "b");
+      mkdirSync(deep, { recursive: true });
+      expect(drive("trustedRepoRoot", { cwd: deep, env: asHome(wr21), kit: mutant }).root).toBe(wr21);
+      expect(drive("trustedRepoRoot", { cwd: deep, env: asHome(wr21), kit: KIT }).root).toBe(KIT);
+      // GREEN 1 is UNTOUCHED — the marker conjunct is not the one that decides an adopted repository.
+      const row8 = homeRootedRepository("p31-23-mut1-row8-");
+      expect(drive("appendNote", { cwd: row8.cwd, env: asHome(row8.home), kit: mutant }).root).toBe(row8.home);
+    });
+
+    it("MUTATION 2: inspect-then-decide reverted breaks GREEN 1, and GREEN 2 stays green", () => {
+      const mutant = mirror("p31-23-mut2-", [ASK_BEFORE_INSPECT]);
+      const { home, cwd } = homeRootedRepository("p31-23-mut2-");
+      const r = drive("appendNote", { cwd, env: asHome(home), kit: mutant });
+      expect(r.root, "the reverted order must skip the home-rooted repository — that is CR-13").toBe(mutant);
+      expect(r.verdict).toBe("write");
+      // GREEN 2 is a case the reverted order still answers correctly, so the two conjuncts are not
+      // the same conjunct written twice.
+      const wr21 = tmp15("p31-23-mut2-wr21-");
+      writeConfig(wr21, [".grugops", "factory.config.json"], { human_admission: "all" });
+      const deep = join(wr21, "a");
+      mkdirSync(deep, { recursive: true });
+      expect(drive("trustedRepoRoot", { cwd: deep, env: asHome(wr21), kit: mutant }).root).toBe(mutant);
+    });
+
+    it("MUTATION 3: the KIND conjunct removed breaks RED 2 and NOT GREEN 1 / 1b / 1c", () => {
+      const mutant = mirror("p31-23-mut3-", [NO_KIND_CONJUNCT]);
+      const vendored = vendoredKitAtHome("p31-23-mut3-vendored-");
+      expect(
+        drive("appendNote", { cwd: vendored.cwd, env: asHome(vendored.home), kit: mutant }).root,
+        "removing the KIND conjunct must let the vendored kit's own configuration govern",
+      ).toBe(vendored.home);
+      // …and the three GREENs are untouched.
+      const row8 = homeRootedRepository("p31-23-mut3-row8-");
+      expect(drive("appendNote", { cwd: row8.cwd, env: asHome(row8.home), kit: mutant }).root).toBe(row8.home);
+      const dot = dotfilesWithSharedInstall("p31-23-mut3-dot-");
+      expect(drive("trustedRepoRoot", { cwd: dot.cwd, env: asHome(dot.home), kit: mutant }).root).toBe(dot.home);
+    });
+
+    it("MUTATION 4: the MODULE-OWN exclusion removed breaks RED 2b and NOT GREEN 1 or RED 2", () => {
+      const mutant = kitAt(join(tmp15("p31-23-mut4-"), "kit"), [NO_MODULE_OWN_EXCLUSION]);
+      mkdirSync(join(mutant, ".git"), { recursive: true });
+      writeConfig(mutant, [".grugops", "factory.config.json"], LEAN);
+      const proj = join(mutant, "proj");
+      writeConfig(proj, [".grugops", "factory.config.json"], ACTIVE);
+      expect(
+        drive("appendNote", { cwd: proj, env: asHome(mutant), kit: mutant }).root,
+        "removing the exclusion must let the RUNNING kit's own configuration govern its nested project",
+      ).toBe(mutant);
+      // RED 2 is UNTOUCHED — the KIND conjunct still refuses the vendored in-kit position, so the
+      // two conjuncts are not one conjunct written twice.
+      const vendored = vendoredKitAtHome("p31-23-mut4-vendored-");
+      expect(
+        drive("appendNote", { cwd: vendored.cwd, env: asHome(vendored.home), kit: mutant }).root,
+      ).toBe(vendored.cwd);
+      // GREEN 1 is untouched too.
+      const row8 = homeRootedRepository("p31-23-mut4-row8-");
+      expect(drive("appendNote", { cwd: row8.cwd, env: asHome(row8.home), kit: mutant }).root).toBe(row8.home);
     });
   });
 });
