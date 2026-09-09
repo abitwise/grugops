@@ -836,10 +836,18 @@ function playwrightBrowsersDirectory(): string | null {
 export function emitLoudSkipIfBrowserUnusable(
   repoRoot: string,
   probe: BrowserProbe = realBrowserProbe,
+  err: (s: string) => void = (s: string): void => {
+    process.stderr.write(s);
+  },
 ): boolean {
   const stage = probe(repoRoot);
   if (stage === null) return true;
-  process.stderr.write(`${BROWSER_ABSENT_MARKER} (${BROWSER_ABSENT_STAGES[stage]})\n`);
+  // 31-25 PROBE 1: the writer is the CALLER'S, not `process.stderr` directly. This was the one
+  // position in `main`'s body that wrote around its own output seam, so a probe that captured every
+  // other exit saw nothing here — and a seam with one hole is a seam that cannot answer "which
+  // stream did this branch write to" for the branch it does not cover. The default is the same
+  // writer it always used, so the CLI's bytes are unchanged.
+  err(`${BROWSER_ABSENT_MARKER} (${BROWSER_ABSENT_STAGES[stage]})\n`);
   return false;
 }
 
@@ -2257,7 +2265,7 @@ function runMain(
 
   // D-15 first when asked: if the lane cannot run the specs, saying anything about their contents
   // would invite the reader to treat a checked spec as an exercised one.
-  if (checkBrowser && !emitLoudSkipIfBrowserUnusable(repoRoot)) return 2;
+  if (checkBrowser && !emitLoudSkipIfBrowserUnusable(repoRoot, realBrowserProbe, err)) return 2;
 
   const derived = derive(repoRoot);
   if (derived.refusals.length > 0) {
