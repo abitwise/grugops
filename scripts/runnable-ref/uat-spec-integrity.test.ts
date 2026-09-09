@@ -87,11 +87,28 @@ interface CheckerModule {
     dottedPath: string | null,
     renames: ReadonlyMap<string, string> | null,
     fixtureParams?: ReadonlySet<string> | null,
-    declaredNames?: ReadonlySet<string> | null,
+    scope?: {
+      readonly bindings: readonly {
+        readonly name: string;
+        readonly start: number;
+        readonly end: number;
+        readonly suppresses: boolean;
+      }[];
+      readonly position: number;
+    } | null,
   ): string | null;
-  // 31-17 (D-21 (2)): the per-source-file census of names the file DECLARES, which is what the one
-  // canonicaliser asks before rewriting a head segment through EITHER map.
-  deriveDeclaredNames(ts: unknown, sf: unknown): ReadonlySet<string> | null;
+  // 31-24 (D-27): the per-source-file list of BINDINGS the file declares — each with the range its
+  // declaration KIND gives it and whether it suppresses — which the one canonicaliser resolves a
+  // reference against before rewriting a head segment through EITHER map.
+  deriveDeclaredBindings(
+    ts: unknown,
+    sf: unknown,
+  ): readonly {
+    readonly name: string;
+    readonly start: number;
+    readonly end: number;
+    readonly suppresses: boolean;
+  }[] | null;
   readonly TEST_INFO_CANONICAL_HEAD: string;
   readonly UNRESOLVABLE_CALLEE_RESIDUALS: readonly string[];
   readonly SKIPPED_DIRECTORIES: readonly string[];
@@ -2847,8 +2864,8 @@ describe("uat-spec-integrity — 31-13 CR-07: the resolver's DECLINE set, derive
     "An aliased binding is not refused: `const t = test;` then a modifier call on `t`. The alias cannot be followed to its declaration without a type checker.";
   const R_DESTRUCTURED_FIXTURE_PARAM =
     "A TestInfo binding destructured in the callback's second parameter is not canonicalised: `test(\"a\", async ({ page }, { skip }) => skip());`. A binding pattern names no single identifier to rewrite, so there is no head segment to canonicalise.";
-  const R_FILE_SCOPED_CANONICALISATION =
-    "The scope rule the canonicalisations ask is FILE-SCOPED, not lexically scoped. A head segment the file DECLARES is not rewritten through either map. The census counts a parameter, a `const`/`let`/`var` binding, a destructured binding element, a function name and a class name. One such declaration anywhere in the file suppresses the rewrite for the WHOLE file. It does not suppress it only inside that declaration's own block. The one position that is NOT counted is a function's SECOND parameter. The TestInfo fixture map binds at exactly that position. A name shadowed only there is still canonicalised. Real lexical scoping needs the binder this runnable deliberately does not ship (D-13).";
+  const R_NEAREST_BINDING_RESOLUTION =
+    "The scope rule the canonicalisations ask resolves a reference to the NEAREST binding of its name that contains it, and only that binding decides. The census counts a parameter, a `const`/`let`/`var` binding, a destructured binding element, a function name and a class name. An import binding is not counted at all. Ranges differ by KIND. A `var` binding and a function declaration hoist to their enclosing function. A `let`, a `const` and a class begin at their own declaration. A later declaration therefore does not suppress an earlier reference. A MODULE-scope declaration reaches the whole file except where an inner binding of the same name is nearer. The TestInfo fixture-binding position IS such an inner binding, recorded as NON-suppressing. A module-scope declaration of a fixture parameter's name therefore does not re-admit a banned modifier. No binder is shipped. The resolution is a RANGE test over positions the parse already carries, not real name resolution. A `typeof`-guarded conditional declaration and a `with` block are outside what these ranges decide. So is any other construct whose real binding a parser cannot see.";
 
   const DECLINE_SITE_DISPOSITIONS: Readonly<Record<string, DeclineDisposition>> = Object.freeze({
     // ── calleeDottedPath ──────────────────────────────────────────────────────────────────────
@@ -2932,15 +2949,19 @@ describe("uat-spec-integrity — 31-13 CR-07: the resolver's DECLINE set, derive
         residual: R_PARSER_PREDICATES,
       },
 
-    // ── deriveDeclaredNames (31-17, D-21 (2)) ─────────────────────────────────────────────────
-    'deriveDeclaredNames | Block>IfStatement>Block | typeof isParameter !== "function" || typeof isVariableDeclaration !== "function" || typeof isBindingElement !== "function" || typeof isFunctionDeclaration !== "function" || typeof isClassDeclaration !== "function" | return null;':
+    // ── deriveDeclaredBindings (31-24, D-27) ──────────────────────────────────────────────────
+    'deriveDeclaredBindings | Block>IfStatement>Block | typeof isParameter !== "function" || typeof isVariableDeclaration !== "function" || typeof isBindingElement !== "function" || typeof isFunctionDeclaration !== "function" || typeof isClassDeclaration !== "function" || ts.NodeFlags === undefined || typeof sf.getEnd !== "function" | return null;':
       {
         kind: "residual",
         reason:
-          "The TARGET repository's parser does not expose the declaration predicates, so no " +
-          "declared-name census is built in this run and the canonicaliser applies NO scope rule " +
-          "at all — the pre-D-21 behaviour, in which a shadowing local binding is canonicalised. " +
-          "It degrades rather than throwing, exactly as every other parser-surface guard here does.",
+          "The TARGET repository's parser does not expose the declaration predicates, the node " +
+          "flags that tell a hoisting `var` list from a `let`/`const` one, or `getEnd`, so no " +
+          "binding list is built in this run and the canonicaliser applies NO scope rule at all — " +
+          "the pre-D-21 behaviour, in which a shadowing local binding is canonicalised. It degrades " +
+          "rather than throwing, exactly as every other parser-surface guard here does. The flags " +
+          "and `getEnd` are in the SAME guard rather than in a per-kind fallback on purpose: " +
+          "guessing a declaration's kind would widen half the ranges in the file, and a wider range " +
+          "is a wider suppression, which for a BAN is the unsafe direction.",
         residual: R_PARSER_PREDICATES,
       },
 
@@ -3142,15 +3163,17 @@ describe("uat-spec-integrity — 31-13 CR-07: the resolver's DECLINE set, derive
         "and its callback is found; what is absent is a single identifier to rewrite, because the " +
         "second parameter is a binding pattern. The resolver declines nothing here — the fixture " +
         "map simply gains no member — so this is a membership fact, not a resolution one.",
-      [R_FILE_SCOPED_CANONICALISATION]:
+      [R_NEAREST_BINDING_RESOLUTION]:
         "A MEMBERSHIP residual, and the one that runs the OTHER way: a path that resolves perfectly " +
-        "is DECLINED a rewrite because the file declares that name somewhere. 31-17 (D-21 (2)) " +
-        "closed WR-20 by asking that question in the ONE canonicaliser for BOTH maps, which turned " +
-        "the false refusal WR-20 measured into a bounded silence — the checker now says LESS than a " +
-        "lexically scoped one would, and says so here. What remains is the COARSENESS: file scope " +
-        "rather than block scope, and one exempt position (a function's second parameter, where the " +
-        "TestInfo map binds). The resolver declines nothing at either site, so this is a membership " +
-        "fact and not a resolution one.",
+        "is DECLINED a rewrite because the NEAREST binding of its head contains the reference. " +
+        "31-17 (D-21 (2)) closed WR-20 by asking that question in the ONE canonicaliser for BOTH " +
+        "maps, and 31-24 (D-27) re-decided WHICH binding answers after the round-5 verifier " +
+        "measured what file scope cost: for a BAN a suppression is an ADMISSION, so one dead " +
+        "declaration anywhere in a spec disabled the whole rename/namespace/fixture-parameter " +
+        "family (CR-14). What remains is the RANGE test itself — no binder is shipped, so a " +
+        "construct whose real binding a parser cannot see is outside what these ranges decide. The " +
+        "resolver declines nothing at either site, so this is a membership fact and not a " +
+        "resolution one.",
     });
 
     for (const residual of UNRESOLVABLE_CALLEE_RESIDUALS) {
@@ -4326,18 +4349,19 @@ describe("uat-spec-integrity — 31-16 CR-10: the TestInfo fixture parameter is 
   });
 
   // ── Test 6: the scope boundary is stated, not silent ─────────────────────────────────────────
-  it("the SHADOWING boundary is a named residual — CLOSED by 31-17 as a file-scoped rule", async () => {
+  it("the SHADOWING boundary is a named residual — DECIDED by 31-24 as nearest-binding resolution", async () => {
     const { UNRESOLVABLE_CALLEE_RESIDUALS } = await loadChecker();
     // 31-16 filed this as "the canonicalisations have no scope analysis, owned by 31-17". 31-17
-    // (D-21 (2)) decided it, so the register no longer discloses an ABSENT rule — it discloses the
-    // rule's COARSENESS. The case moves with the mechanism rather than being deleted, because the
-    // boundary is still a boundary and must still be exactly one named member.
-    const scoped = UNRESOLVABLE_CALLEE_RESIDUALS.filter((r) => r.includes("FILE-SCOPED"));
+    // (D-21 (2)) decided it FILE-SCOPED, and 31-24 (D-27) re-decided it as nearest-binding
+    // resolution after the round-5 verifier measured what the file scope cost (CR-14). The case
+    // moves with the mechanism each time rather than being deleted, because the boundary is still a
+    // boundary and must still be exactly one named member.
+    const scoped = UNRESOLVABLE_CALLEE_RESIDUALS.filter((r) => r.includes("NEAREST binding"));
     expect(
       scoped.length,
       "the scope rule the canonicalisations ask is not named exactly once in the register",
     ).toBe(1);
-    expect(scoped[0]).toContain("not rewritten through either map");
+    expect(scoped[0]).toContain("only that binding decides");
   });
 
   // ── Test 7: the disproved excuse is REMOVED, not relocated ────────────────────────────────────
@@ -4733,28 +4757,54 @@ describe("uat-spec-integrity — 31-17 WR-20: a head with a nearer declaration i
     expect(findings[0]).toContain("subject.uat.spec.ts:3:");
   });
 
-  // ── Test 2b: THE COARSENESS, MEASURED rather than described ───────────────────────────────────
+  // ── Test 2b: THE UNION — one file that BOTH declares the name and calls the modifier ──────────
   //
-  // The rule is FILE-SCOPED, so a file that BOTH declares the renamed name locally AND genuinely
-  // calls the modifier through that rename is NOT refused. That is a real cost and it is asserted
-  // here as a case, because a residual nobody exercised is a sentence rather than a boundary. It is
-  // the direction UATX-06 tolerates — the checker says less than it could, and says so out loud in
-  // the register and the recipe — as opposed to WR-20's direction, where it said something false.
-  it("THE COARSENESS: a file that both declares the name and genuinely uses it is not refused", () => {
+  // THIS CASE REPLACES ONE THAT ASSERTED THE OPPOSITE. Under D-21 (2)'s FILE-SCOPED rule this exact
+  // file reported ZERO findings, and that zero was asserted green here under the heading "THE
+  // COARSENESS, MEASURED rather than described". The measurement was real; the behaviour was the
+  // wrong behaviour to have. CR-14 showed why: for a BAN, a suppression is an ADMISSION, so the
+  // "cost" the old case recorded was a two-line, deliberately-writable evasion of the whole
+  // rename/namespace/fixture-parameter family. D-27 resolves a reference to the NEAREST binding that
+  // contains it — the helper's parameter reaches the helper and no further — so the module-scope
+  // renamed modifier is refused while the helper's own call stays legitimate. The case is REPLACED
+  // rather than deleted: a case that vanishes is a case nobody re-derived.
+  it("THE UNION: a file that declares the name AND genuinely calls the modifier reports exactly one finding", () => {
+    const findings = findingsOf(
+      [
+        'import { test as it, expect } from "@playwright/test";',
+        "function inner(it: { skip: (n: number) => number }) { return it.skip(1); }",
+        'it.skip("a removed scenario", async ({ page }) => {',
+        "  inner({ skip: (n: number) => n });",
+        '  await expect(page.getByTestId("x")).toBeVisible();',
+        "});",
+        "",
+      ].join("\n"),
+    );
+    expect(
+      findings.length,
+      "PRE-D-27 MEASURED: `0 findings`, EXIT=0 — the helper's parameter suppressed the rewrite for " +
+        "the WHOLE file, including the module-scope call it does not contain",
+    ).toBe(1);
+    expect(findings[0]).toContain("test.skip");
+    // …at the SCENARIO's line (3), never at the shadowed helper's line (2).
+    expect(findings[0]).toContain("subject.uat.spec.ts:3:");
+  });
+
+  it("THE UNION's other half: the helper's OWN call is still legitimate and is not reported", () => {
+    // The same shape with the module-scope modifier removed. If this ever starts reporting, the
+    // narrowing overshot into WR-20's direction and the checker is refusing a legitimate spec.
     expect(
       findingsOf(
         [
           'import { test as it, expect } from "@playwright/test";',
           "function inner(it: { skip: (n: number) => number }) { return it.skip(1); }",
-          'it.skip("a removed scenario", async ({ page }) => {',
+          'it("a scenario", async ({ page }) => {',
           "  inner({ skip: (n: number) => n });",
           '  await expect(page.getByTestId("x")).toBeVisible();',
           "});",
           "",
         ].join("\n"),
       ),
-      "PREMISE OF THE RESIDUAL: if this ever starts reporting, the rule became lexically scoped and " +
-        "the register's file-scoped sentence is no longer true of the mechanism",
     ).toEqual([]);
   });
 
@@ -4831,22 +4881,36 @@ describe("uat-spec-integrity — 31-17 WR-20: a head with a nearer declaration i
 
   // ── Test 5: PRECEDENCE. The scope rule wins over BOTH maps ────────────────────────────────────
 
-  it("PRECEDENCE: a name in BOTH maps that also has a declaration is canonicalised by NEITHER", async () => {
+  it("PRECEDENCE: a name in BOTH maps whose NEAREST binding suppresses is canonicalised by NEITHER", async () => {
     const { canonicaliseHeadSegment, TEST_INFO_CANONICAL_HEAD } = await loadChecker();
     const renames = new Map([["shared", "test"]]);
     const fixtureParams = new Set(["shared"]);
-    const declared = new Set(["shared"]);
+    // D-27: the scope argument is a { bindings, position } PAIR. A caller that cannot produce a
+    // position cannot produce the pair, which is the structural half of "a constant is not a
+    // position".
+    const scope = {
+      bindings: [{ name: "shared", start: 0, end: 100, suppresses: true }],
+      position: 50,
+    };
 
-    // PREMISE: without the declaration, BOTH maps would have rewritten it — otherwise the case
+    // PREMISE: without a containing binding, BOTH maps would have rewritten it — otherwise the case
     // below asserts a no-op.
     expect(canonicaliseHeadSegment("shared.skip", renames, fixtureParams, null)).toBe("test.skip");
     expect(canonicaliseHeadSegment("shared.skip", null, fixtureParams, null)).toBe(
       `${TEST_INFO_CANONICAL_HEAD}.skip`,
     );
-    // …and with it, neither does.
-    expect(canonicaliseHeadSegment("shared.skip", renames, fixtureParams, declared)).toBe(
+    // …and with the nearest binding suppressing, neither does.
+    expect(canonicaliseHeadSegment("shared.skip", renames, fixtureParams, scope)).toBe(
       "shared.skip",
     );
+    // …while a position OUTSIDE that binding's range is decided by nothing, so both maps apply
+    // again. The suppression is a property of the REFERENCE, not of the file.
+    expect(
+      canonicaliseHeadSegment("shared.skip", renames, fixtureParams, {
+        ...scope,
+        position: 100,
+      }),
+    ).toBe("test.skip");
   });
 
   // ── Test 6: the rule's OWN SET, exercised one declaration kind at a time ──────────────────────
@@ -4886,8 +4950,8 @@ describe("uat-spec-integrity — 31-17 WR-20: a head with a nearer declaration i
     });
   }
 
-  it("the declared-name census really carries every kind the cases above exercise", async () => {
-    const { deriveDeclaredNames } = await loadChecker();
+  it("the declared-binding list really carries every kind the cases above exercise", async () => {
+    const { deriveDeclaredBindings } = await loadChecker();
     const ts = hostTypeScript as typeof import("typescript");
     const sf = ts.createSourceFile(
       "p.ts",
@@ -4904,15 +4968,24 @@ describe("uat-spec-integrity — 31-17 WR-20: a head with a nearer declaration i
       ts.ScriptTarget.Latest,
       true,
     );
-    const declared = deriveDeclaredNames(ts, sf);
+    const declared = deriveDeclaredBindings(ts, sf);
     expect(declared, "PREMISE: the census degraded to null on the host's own parser").not.toBeNull();
+    const names = declared!.map((b) => b.name);
     for (const name of ["alpha", "beta", "gamma", "delta", "epsilon", "zeta", "eta", "theta", "iota"]) {
-      expect([...declared!], `the census does not carry ${name}`).toContain(name);
+      expect(names, `the census does not carry ${name}`).toContain(name);
+    }
+    // …and every one of them is a SUPPRESSING record: the only non-suppressing position is the
+    // TestInfo fixture binding, which this source does not contain.
+    for (const binding of declared!) {
+      expect(binding.suppresses, `${binding.name} must be a suppressing record`).toBe(true);
+      expect(binding.end, `${binding.name} has an empty or inverted range`).toBeGreaterThan(
+        binding.start,
+      );
     }
   });
 
   it("the census does NOT count an import binding — an import is what the map is ABOUT", async () => {
-    const { deriveDeclaredNames } = await loadChecker();
+    const { deriveDeclaredBindings } = await loadChecker();
     const ts = hostTypeScript as typeof import("typescript");
     const sf = ts.createSourceFile(
       "p.ts",
@@ -4924,15 +4997,15 @@ describe("uat-spec-integrity — 31-17 WR-20: a head with a nearer declaration i
       ts.ScriptTarget.Latest,
       true,
     );
-    const declared = deriveDeclaredNames(ts, sf);
+    const declared = deriveDeclaredBindings(ts, sf);
     expect(declared).not.toBeNull();
     // If an import specifier counted as a declaration, EVERY rename would shadow itself and the
     // canonicalisation would never fire — the fix would have bought its correctness by doing nothing.
-    expect([...declared!]).toEqual([]);
+    expect(declared!.map((b) => b.name)).toEqual([]);
   });
 
-  it("the census does NOT count a SECOND-position parameter — that is the fixture map's own site", async () => {
-    const { deriveDeclaredNames } = await loadChecker();
+  it("the census RECORDS the fixture-binding position as NON-suppressing — 31-24 (D-27)", async () => {
+    const { deriveDeclaredBindings } = await loadChecker();
     const ts = hostTypeScript as typeof import("typescript");
     const sf = ts.createSourceFile(
       "p.ts",
@@ -4944,34 +5017,47 @@ describe("uat-spec-integrity — 31-17 WR-20: a head with a nearer declaration i
       ts.ScriptTarget.Latest,
       true,
     );
-    const declared = deriveDeclaredNames(ts, sf);
+    const declared = deriveDeclaredBindings(ts, sf);
     expect(declared).not.toBeNull();
+    const fixture = declared!.filter((b) => b.name === "testInfo");
+    // D-21 (2) OMITTED this position from the census. D-27 RECORDS it as non-suppressing instead,
+    // because omitting it makes the parameter invisible to resolution — so an outer declaration of
+    // the same name becomes the NEAREST binding and suppresses, which is the module-scope evasion
+    // the round-5 adversarial check measured (RED 5).
+    expect(fixture.length, "the fixture-binding position is not in the list at all").toBe(1);
     expect(
-      [...declared!],
+      fixture[0].suppresses,
       "the TestInfo binding position counted as a shadowing declaration, which would suppress the " +
         "very canonicalisation D-20 (3) decided and reopen CR-10",
-    ).not.toContain("testInfo");
-    // …and the FIRST parameter of the same callback still counts, so the exemption is a position
-    // and not a licence for every parameter.
-    expect([...declared!]).toContain("page");
+    ).toBe(false);
+    // …and the FIRST parameter of the same callback is an ordinary SUPPRESSING binding, so the
+    // exemption is a position and not a licence for every parameter.
+    const page = declared!.filter((b) => b.name === "page");
+    expect(page.length).toBe(1);
+    expect(page[0].suppresses).toBe(true);
   });
 
   // ── Test 7: the boundary is NAMED, and the register still binds in both directions ────────────
 
-  it("the file-scoped coarseness is a named residual with a reason true of it", async () => {
+  it("the resolution rule is a named residual with a reason true of it", async () => {
     const { UNRESOLVABLE_CALLEE_RESIDUALS } = await loadChecker();
-    const scoped = UNRESOLVABLE_CALLEE_RESIDUALS.filter((r) => r.includes("FILE-SCOPED"));
+    const scoped = UNRESOLVABLE_CALLEE_RESIDUALS.filter((r) => r.includes("NEAREST binding"));
     expect(
       scoped.length,
-      "the scope rule's coarseness is not a named member of the exported register",
+      "the scope rule's boundary is not a named member of the exported register",
     ).toBe(1);
-    // The register must state what the rule DOES and what it does NOT claim: a declaration anywhere
-    // in the file suppresses the rewrite for the whole file, which is not lexical scoping.
-    expect(scoped[0]).toContain("anywhere in the file");
-    expect(scoped[0]).toContain("SECOND parameter");
+    // The register must state what the rule DOES and what it does NOT claim: the nearest binding
+    // decides, the ranges differ by KIND, and no binder is shipped.
+    expect(scoped[0]).toContain("only that binding decides");
+    expect(scoped[0]).toContain("hoist to their enclosing function");
+    expect(scoped[0]).toContain("No binder is shipped");
     expect(
       scoped[0].includes("WITHOUT SCOPE ANALYSIS"),
       "the register still says the canonicalisations have NO scope analysis, which is now false",
+    ).toBe(false);
+    expect(
+      scoped[0].includes("WHOLE file"),
+      "the register still claims a file-scoped suppression, which is no longer the mechanism",
     ).toBe(false);
   });
 
@@ -5770,7 +5856,8 @@ describe("uat-spec-integrity — 31-24 CR-14/WR-23: a reference is decided by th
       1,
     );
     expect(scoped[0]).toContain("hoist");
-    expect(scoped[0]).toContain("no binder");
+    expect(scoped[0]).toContain("No binder is shipped");
+    expect(scoped[0]).toContain("NON-suppressing");
     expect(
       UNRESOLVABLE_CALLEE_RESIDUALS.some((r) => r.includes("FILE-SCOPED")),
       "the register still claims a file-scoped suppression, which is no longer the mechanism",

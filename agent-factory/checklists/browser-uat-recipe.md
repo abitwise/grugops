@@ -196,12 +196,25 @@ the framework import to `it` and separately binds a local `it` is therefore not 
 finding names a construct the file does not contain. A spec that CALLS a renamed import does not
 DECLARE that name, so the rule can only stop a rewrite the source text itself contradicts.
 
-Read that rule as FILE-SCOPED and not as lexical scoping, because that is what it is. One
-declaration anywhere in the file suppresses the rewrite for the whole file, so a file that both
-declares the name and genuinely calls the modifier through the rename is not refused either. The one
-position that does not count as a declaration is a function's SECOND parameter, because that is
-exactly where the TestInfo fixture binding is read. Deciding which declaration a name belongs to at a
-given call site needs a binder this checker does not ship.
+Read that rule as NEAREST-BINDING RESOLUTION and not as file scope, because that is what it is. A
+reference is decided by the innermost binding of its name whose range contains it, and only that
+binding decides — so a helper's own parameter reaches that helper and no further, and a file that
+both declares the name in a helper and genuinely calls the modifier at module scope IS refused, once,
+at the module-scope call. The ranges differ by declaration KIND: a `var` binding and a function
+declaration hoist to their enclosing function, so a reference above them is theirs; a `let`, a
+`const` and a class begin at their own declaration, so a later declaration does not suppress an
+earlier reference. A module-scope declaration reaches the whole file wherever nothing nearer binds
+the name. The TestInfo fixture binding — the second parameter of the function passed as a call's
+second argument — is recorded as a binding that suppresses NOTHING, which is what lets an inner
+fixture parameter beat an outer declaration of the same name.
+
+Read the direction honestly too. This rule can only STOP a rewrite, and for a ban stopping a rewrite
+moves the answer from refused to ACCEPTED, because a head that is not rewritten is not a banned head.
+It is not a safe-direction rule; what bounds it is the nearest-binding resolution above. No binder is
+shipped, so the resolution is a range test over positions the parse already carries rather than real
+name resolution, and the constructs that leaves undecided are named in the boundary list below.
+Widening the resolution — including letting an outer binding answer where an inner one exists — is a
+new decision and a gap-closure round, never a quiet edit.
 
 **The modifier rule.** A modifier call is refused when the head segment of its dotted path is one of
 the banned head segments AND the tail segment is one of the banned modifier segments, or when the
@@ -257,7 +270,7 @@ Deliberately outside the rule, recorded here so the boundary is written down:
 - An option is ENABLED only when the call's first argument is an object literal assigning it the `true` keyword. A variable argument enables nothing, and neither does a variable option value. This runnable parses and never evaluates.
 - A parser that does not expose the import, object-literal or function-like node predicates yields no rename canonicalisation, no option reading and no fixture-parameter canonicalisation. The parser is the TARGET repository's (D-13), so its surface is not this runnable's to assume. The resolver degrades to the pre-D-18 behaviour for those shapes rather than throwing outside the exit-code contract.
 - A TestInfo binding destructured in the callback's second parameter is not canonicalised: `test("a", async ({ page }, { skip }) => skip());`. A binding pattern names no single identifier to rewrite, so there is no head segment to canonicalise.
-- The scope rule the canonicalisations ask is FILE-SCOPED, not lexically scoped. A head segment the file DECLARES is not rewritten through either map. The census counts a parameter, a `const`/`let`/`var` binding, a destructured binding element, a function name and a class name. One such declaration anywhere in the file suppresses the rewrite for the WHOLE file. It does not suppress it only inside that declaration's own block. The one position that is NOT counted is a function's SECOND parameter. The TestInfo fixture map binds at exactly that position. A name shadowed only there is still canonicalised. Real lexical scoping needs the binder this runnable deliberately does not ship (D-13).
+- The scope rule the canonicalisations ask resolves a reference to the NEAREST binding of its name that contains it, and only that binding decides. The census counts a parameter, a `const`/`let`/`var` binding, a destructured binding element, a function name and a class name. An import binding is not counted at all. Ranges differ by KIND. A `var` binding and a function declaration hoist to their enclosing function. A `let`, a `const` and a class begin at their own declaration. A later declaration therefore does not suppress an earlier reference. A MODULE-scope declaration reaches the whole file except where an inner binding of the same name is nearer. The TestInfo fixture-binding position IS such an inner binding, recorded as NON-suppressing. A module-scope declaration of a fixture parameter's name therefore does not re-admit a banned modifier. No binder is shipped. The resolution is a RANGE test over positions the parse already carries, not real name resolution. A `typeof`-guarded conditional declaration and a `with` block are outside what these ranges decide. So is any other construct whose real binding a parser cannot see.
 - Completeness against the DECLARED framework surface is asserted in BOTH directions. Forward: every
   spelling the rule refuses is a construct that surface carries and that type-checks against it.
   Reverse: every member reached by walking that surface's declared types with the TypeScript checker

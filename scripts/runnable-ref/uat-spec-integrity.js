@@ -265,37 +265,51 @@ export const SKIPPED_DIRECTORIES = Object.freeze([
 //       analysed does not increment `visited`, so the denominator floor reports the short scan set.
 //
 //   (2) THE ONE CANONICALISER ASKS WHAT A HEAD IS BOUND TO, FOR EVERY MAP THAT FEEDS IT.
-//       `deriveDeclaredNames` is a per-source-file census of the names the file DECLARES — a
+//       `deriveDeclaredBindings` is a per-source-file list of the bindings the file DECLARES — a
 //       parameter, a `const`/`let`/`var` binding, a destructured binding element, a function name, a
 //       class name — every one a literal in the source text, which is the same parse-only reasoning
 //       D-18 (3) and D-20 (3) use. `canonicaliseHeadSegment` consults it BEFORE either map and
-//       returns its input unchanged for a declared head, so the rule wins over BOTH maps and
+//       returns its input unchanged for a bound head, so the rule wins over BOTH maps and
 //       introduces no decline site of its own. Writing the rule inside either map's derivation would
-//       have been WR-20 one map over the moment a third map arrives. The rule is MONOTONE IN THE
-//       SAFE DIRECTION: it can only stop a rewrite, and only where the source text itself says the
-//       name is bound to something else. An import binding is deliberately NOT in the census — a
-//       census that counted import specifiers would make every rename shadow itself and the
-//       canonicalisation would never fire — and a function's SECOND parameter is exempt, because
-//       that is exactly where the TestInfo fixture map binds. The exemption is stated as a POSITION
-//       rather than as membership of that map, so the census does not depend on the map it
-//       constrains; a census derived from that map and then used to constrain it would be a fixed
-//       point this runnable does not compute.
+//       have been WR-20 one map over the moment a third map arrives. An import binding is
+//       deliberately NOT counted — a census that counted import specifiers would make every rename
+//       shadow itself and the canonicalisation would never fire.
 //
-// WHAT D-21 DOES NOT ESTABLISH. The scope rule is FILE-SCOPED, not lexically scoped: one declaration
-// anywhere in the file suppresses the rewrite for the whole file, so a file that BOTH declares the
-// renamed name and genuinely calls the modifier through the rename is not refused. A name shadowed
-// ONLY at a second-parameter position is still canonicalised. Both costs are NAMED in
-// UNRESOLVABLE_CALLEE_RESIDUALS with reasons true of them, quoted into the recipe from that one
-// source, and the file-scoped coarseness is asserted as a MEASURED case rather than described. The
-// step bound remains a stated limit; it is now honestly one allowance for one resolution. The head
-// and tail sets are still hand-authored, and the declared surface is still a hand transcription
-// whose drift from the released package stays an open `UNKNOWN - verify`.
+//   D-27 (2026-09-09, gap-closure round 5) CORRECTS BOTH THE RULE'S SCOPE AND THE CLAIM MADE ABOUT
+//   IT. D-21 (2) shipped that census FILE-SCOPED and this header called the rule "monotone in the
+//   safe direction". Both were wrong, and the second is why the first survived review: stopping a
+//   rewrite is the only direction in which this rule can change an answer, and for a BAN it changes
+//   it from REFUSED to ACCEPTED, because a head that is not rewritten is not a banned head. The
+//   round-5 verifier measured the consequence — a dead `const it = 1;` in an unrelated callback took
+//   `it.skip(...)` at module scope from `1 finding(s)`/exit 1 to `0 findings`/exit 0 (CR-14). What
+//   bounds the rule is therefore not its direction but NEAREST-BINDING RESOLUTION: a reference is
+//   decided by the INNERMOST binding of its name whose range contains it, and only that binding.
+//   Ranges are computed PER DECLARATION KIND, because the kinds disagree about where a binding
+//   begins — `var` and function declarations hoist to their enclosing function, while `let`, `const`
+//   and class declarations begin at their own declaration. The TestInfo fixture-binding position is
+//   RECORDED as a NON-suppressing binding rather than omitted, which is what lets an inner fixture
+//   parameter beat an outer declaration of the same name; the exemption stays a POSITION, narrowed
+//   by WR-23 to index 1 of a function that is itself a call's SECOND ARGUMENT, and never becomes
+//   membership of the map it constrains. Widening that resolution — including letting an outer
+//   binding answer where an inner one exists — is a new decision and a gap-closure round.
+//
+// WHAT D-21 AND D-27 DO NOT ESTABLISH. No binder is shipped (D-13), so resolution is a RANGE test
+// over positions the parse already carries rather than real name resolution: a `typeof`-guarded
+// conditional declaration, a `with` block and any other construct whose real binding a parser cannot
+// see are outside what these ranges decide. A module-scope declaration still reaches the whole file
+// wherever nothing nearer binds the name. A name shadowed ONLY at the fixture-binding position is
+// still canonicalised. Every one of those costs is NAMED in UNRESOLVABLE_CALLEE_RESIDUALS with a
+// reason true of it, quoted into the recipe from that one source, and asserted as a MEASURED case
+// rather than described. The step bound remains a stated limit; it is now honestly one allowance for
+// one resolution. The head and tail sets are still hand-authored, and the declared surface is still a
+// hand transcription whose drift from the released package stays an open `UNKNOWN - verify`.
 //
 // Reversibility: costly. The bound's UNIT — one allowance for a whole resolution rather than one per
-// frame — and the scope rule's file-scoped answer are now part of the exported contract the recipe
+// frame — and the nearest-binding resolution rule are now part of the exported contract the recipe
 // quotes and the corpus asserts. Reverting restores a resolver the verifier measured crashing with
-// an empty stdout on a reachable input, and a checker it measured refusing a legitimate spec while
-// naming a construct that is not in it.
+// an empty stdout on a reachable input, a checker it measured refusing a legitimate spec while
+// naming a construct that is not in it, and a checker it measured ADMITTING `it.skip` at module
+// scope because of a dead declaration in an unrelated block.
 // ───────────────────────────────────────────────────────────────────────────────────────────────
 export const BANNED_MODIFIER_HEADS = Object.freeze(["test", "describe"]);
 export const BANNED_MODIFIER_TAILS = Object.freeze([
@@ -461,7 +475,7 @@ export const UNRESOLVABLE_CALLEE_RESIDUALS = Object.freeze([
     "An option is ENABLED only when the call's first argument is an object literal assigning it the `true` keyword. A variable argument enables nothing, and neither does a variable option value. This runnable parses and never evaluates.",
     "A parser that does not expose the import, object-literal or function-like node predicates yields no rename canonicalisation, no option reading and no fixture-parameter canonicalisation. The parser is the TARGET repository's (D-13), so its surface is not this runnable's to assume. The resolver degrades to the pre-D-18 behaviour for those shapes rather than throwing outside the exit-code contract.",
     "A TestInfo binding destructured in the callback's second parameter is not canonicalised: `test(\"a\", async ({ page }, { skip }) => skip());`. A binding pattern names no single identifier to rewrite, so there is no head segment to canonicalise.",
-    "The scope rule the canonicalisations ask is FILE-SCOPED, not lexically scoped. A head segment the file DECLARES is not rewritten through either map. The census counts a parameter, a `const`/`let`/`var` binding, a destructured binding element, a function name and a class name. One such declaration anywhere in the file suppresses the rewrite for the WHOLE file. It does not suppress it only inside that declaration's own block. The one position that is NOT counted is a function's SECOND parameter. The TestInfo fixture map binds at exactly that position. A name shadowed only there is still canonicalised. Real lexical scoping needs the binder this runnable deliberately does not ship (D-13).",
+    "The scope rule the canonicalisations ask resolves a reference to the NEAREST binding of its name that contains it, and only that binding decides. The census counts a parameter, a `const`/`let`/`var` binding, a destructured binding element, a function name and a class name. An import binding is not counted at all. Ranges differ by KIND. A `var` binding and a function declaration hoist to their enclosing function. A `let`, a `const` and a class begin at their own declaration. A later declaration therefore does not suppress an earlier reference. A MODULE-scope declaration reaches the whole file except where an inner binding of the same name is nearer. The TestInfo fixture-binding position IS such an inner binding, recorded as NON-suppressing. A module-scope declaration of a fixture parameter's name therefore does not re-admit a banned modifier. No binder is shipped. The resolution is a RANGE test over positions the parse already carries, not real name resolution. A `typeof`-guarded conditional declaration and a `with` block are outside what these ranges decide. So is any other construct whose real binding a parser cannot see.",
 ]);
 // D-13: the loud skip for an unresolvable parser. One frozen constant, ONE emission point, so a test
 // can assert the emitted text byte-for-byte. It names `typescript` and states the honest outcome.
@@ -1042,7 +1056,7 @@ export function deriveImportRenames(ts, sf) {
  * degrades to the pre-D-20 behaviour for this one shape rather than throwing outside the D-12 exit
  * codes.
  */
-export function deriveTestInfoParameterNames(ts, sf, renames, declaredNames = null) {
+export function deriveTestInfoParameterNames(ts, sf, renames, bindings = null) {
     const isArrowFunction = ts.isArrowFunction;
     const isFunctionExpression = ts.isFunctionExpression;
     if (typeof isArrowFunction !== "function" || typeof isFunctionExpression !== "function") {
@@ -1051,10 +1065,12 @@ export function deriveTestInfoParameterNames(ts, sf, renames, declaredNames = nu
     const names = new Set();
     const visit = (node) => {
         if (ts.isCallExpression(node)) {
-            // D-21 (2): the scenario call's OWN head is asked through the same scope rule. A file that
-            // declares its renamed framework name locally does not have a Playwright scenario here, so it
-            // must not contribute a fixture-parameter binding either.
-            const callee = canonicaliseHeadSegment(calleeDottedPath(ts, node.expression), renames, null, declaredNames);
+            // D-27: the scenario call's OWN head is asked through the same scope rule, AND with its own
+            // position. A file whose renamed framework name is bound at THIS call site does not have a
+            // Playwright scenario here, so it must not contribute a fixture-parameter binding either — but
+            // a declaration in some unrelated scope must not take the scenario away from it. The position
+            // is the CALL's `getStart(sf)`, never a file-level constant.
+            const callee = canonicaliseHeadSegment(calleeDottedPath(ts, node.expression), renames, null, bindings === null ? null : { bindings, position: node.getStart(sf) });
             if (callee === TEST_SCENARIO_PATH) {
                 const body = node.arguments[1];
                 if (body !== undefined && (isArrowFunction(body) || isFunctionExpression(body))) {
@@ -1069,47 +1085,205 @@ export function deriveTestInfoParameterNames(ts, sf, renames, declaredNames = nu
     forEachDescendant(ts, sf, visit);
     return names;
 }
+/** Does this node carry an ARRAY under this key? The parse-only stand-in for a node-kind predicate. */
+function hasArrayProperty(node, key) {
+    return Array.isArray(node[key]);
+}
 /**
- * D-21 (2): the source file's DECLARED NAMES — the census the one canonicaliser asks before it
- * rewrites a head segment through EITHER map.
+ * D-27: a node that BINDS PARAMETERS — a function declaration, a function expression, an arrow, a
+ * method, a constructor or an accessor. Read STRUCTURALLY, from the `parameters` array the parse
+ * already carries, rather than through six optional predicates the TARGET's parser may not publish.
+ */
+function isFunctionLikeNode(node) {
+    return hasArrayProperty(node, "parameters");
+}
+/** A node that holds a STATEMENT LIST — a block, a module block, the SourceFile, a switch's clauses. */
+function isStatementContainer(node) {
+    return hasArrayProperty(node, "statements") || hasArrayProperty(node, "clauses");
+}
+/**
+ * A `case`/`default` clause, recognised by its PARENT holding the clause list. A clause is not its
+ * own scope — the whole `CaseBlock` is — so the walk steps over it and stops at the block.
+ */
+function isSwitchClauseNode(node) {
+    return node.parent !== undefined && hasArrayProperty(node.parent, "clauses");
+}
+/** A `for`/`for-in`/`for-of`/`while` head, whose declaration list scopes to the loop and no further. */
+function isIterationLike(node) {
+    return node.statement !== undefined;
+}
+/** A `catch` clause: it carries a block AND the (possibly absent) binding the clause introduces. */
+function isCatchClauseNode(node) {
+    const record = node;
+    return record.block !== undefined && "variableDeclaration" in record;
+}
+/**
+ * A node's own range. The SourceFile is special-cased to START AT ZERO rather than at `getStart`,
+ * which skips leading trivia: a file that opens with a comment would otherwise have a module scope
+ * that does not contain its own first characters.
+ */
+function rangeOfNode(node, sf) {
+    return { start: node === sf ? 0 : node.getStart(sf), end: node.getEnd() };
+}
+/** The nearest ancestor that binds parameters, or `undefined` at module scope. */
+function enclosingFunctionLike(node) {
+    let cur = node.parent;
+    while (cur !== undefined) {
+        if (isFunctionLikeNode(cur))
+            return cur;
+        cur = cur.parent;
+    }
+    return undefined;
+}
+/** The nearest ancestor a `let`/`const`/class binding reaches the END of. The SourceFile at worst. */
+function enclosingScope(node, sf) {
+    let cur = node.parent;
+    while (cur !== undefined) {
+        if (isFunctionLikeNode(cur))
+            return cur;
+        if (isCatchClauseNode(cur))
+            return cur;
+        if (isStatementContainer(cur) && !isSwitchClauseNode(cur))
+            return cur;
+        if (isIterationLike(cur))
+            return cur;
+        cur = cur.parent;
+    }
+    return sf;
+}
+/** The PARAMETER this declaration belongs to — itself, or the one its binding pattern destructures. */
+function parameterOf(ts, node) {
+    const isParameter = ts.isParameter;
+    if (typeof isParameter !== "function")
+        return undefined;
+    let cur = node;
+    while (cur !== undefined) {
+        if (isParameter(cur))
+            return cur;
+        if (isFunctionLikeNode(cur) || isStatementContainer(cur))
+            return undefined;
+        cur = cur.parent;
+    }
+    return undefined;
+}
+/** The CATCH CLAUSE this declaration is the binding of, if it is one. */
+function enclosingCatchClause(node) {
+    let cur = node.parent;
+    while (cur !== undefined) {
+        if (isCatchClauseNode(cur))
+            return cur;
+        if (isFunctionLikeNode(cur) || isStatementContainer(cur))
+            return undefined;
+        cur = cur.parent;
+    }
+    return undefined;
+}
+/** The VariableDeclarationList this declaration belongs to — the node whose flags say `var` or not. */
+function declarationListOf(node) {
+    let cur = node;
+    while (cur !== undefined) {
+        if (hasArrayProperty(cur, "declarations"))
+            return cur;
+        if (isFunctionLikeNode(cur) || isStatementContainer(cur))
+            return undefined;
+        cur = cur.parent;
+    }
+    return undefined;
+}
+/** Does this declaration list HOIST? `var` does; `let` and `const` do not. */
+function listHoists(ts, list) {
+    const nodeFlags = ts.NodeFlags;
+    if (nodeFlags === undefined)
+        return false;
+    return ((list.flags ?? 0) & (nodeFlags.Let | nodeFlags.Const)) === 0;
+}
+/**
+ * D-27: THE ONE PLACE A BINDING'S RANGE IS COMPUTED, with an explicit arm PER KIND rather than one
+ * blanket walk to the nearest enclosing node — because the kinds do not agree about where a binding
+ * BEGINS, and a blanket rule would have to pick one of their answers for all of them.
  *
- * WHY THIS EXISTS. `canonicaliseHeadSegment` rewrote `segments[0]` whenever it was a key of a
- * file-level map, with no scope analysis at all. A legitimate spec that renames the framework import
- * to `it` and separately binds a local `it` was therefore REFUSED, and the finding named `test.skip`
- * — a construct that does not appear in the file. The failure direction is a FALSE REFUSAL, which
- * trains a reader to work around the checker, and 31-16 added a SECOND map feeding that same
- * canonicaliser, so a scope rule written for the import map alone would be the same defect one map
- * over. The rule therefore lives in the canonicaliser and this census is asked of every map.
+ *   PARAMETER (destructured or not) — its OWN function-like node, in full.
+ *   CATCH BINDING — the catch clause, and not a character further.
+ *   `var`, and a FUNCTION DECLARATION's own name — these HOIST, so the range is the nearest
+ *     enclosing function-like node (the SourceFile at module scope) IN FULL, and a reference ABOVE
+ *     the declaration is legitimately bound by it.
+ *   `let`, `const`, a binding element of either, and a CLASS declaration's name — these do NOT
+ *     hoist. The range STARTS at the declaration's own `getStart(sf)` and ends at the end of the
+ *     nearest enclosing block, loop or function. That is the temporal-dead-zone answer; it is also
+ *     the safe direction for a BAN, and it is what stops `it.skip(...)` followed by a later
+ *     `let it = 1;` in the same block from being a two-line evasion of exactly the kind CR-14 was.
  *
- * THE RULE IS MONOTONE IN THE SAFE DIRECTION. It can only STOP a rewrite, and the only rewrites it
- * stops are ones where the file's own source text says the name is bound to something else. A spec
- * that CALLS a renamed import does not DECLARE that name — an import binding is not in this census,
- * which is asserted in both directions by the suite, because a census that counted import
- * specifiers would make every rename shadow itself and the canonicalisation would never fire.
+ * The `arm` is returned rather than inferred, so the suite can assert WHICH rule decided a range
+ * instead of only asserting the two numbers it produced.
+ */
+export function bindingRangeFor(ts, sf, declaration) {
+    const parameter = parameterOf(ts, declaration);
+    if (parameter !== undefined) {
+        return { ...rangeOfNode(enclosingFunctionLike(parameter) ?? sf, sf), arm: "parameter" };
+    }
+    const catchClause = enclosingCatchClause(declaration);
+    if (catchClause !== undefined) {
+        return { ...rangeOfNode(catchClause, sf), arm: "catch" };
+    }
+    const isFunctionDeclaration = ts.isFunctionDeclaration;
+    if (typeof isFunctionDeclaration === "function" && isFunctionDeclaration(declaration)) {
+        return { ...rangeOfNode(enclosingFunctionLike(declaration) ?? sf, sf), arm: "hoisted" };
+    }
+    const list = declarationListOf(declaration);
+    if (list !== undefined && listHoists(ts, list)) {
+        return { ...rangeOfNode(enclosingFunctionLike(declaration) ?? sf, sf), arm: "hoisted" };
+    }
+    return {
+        start: (list ?? declaration).getStart(sf),
+        end: rangeOfNode(enclosingScope(declaration, sf), sf).end,
+        arm: "tdz",
+    };
+}
+/**
+ * D-27 (2026-09-09, gap-closure round 5): the source file's DECLARED BINDINGS — the ordered list the
+ * one canonicaliser resolves a reference against before it rewrites a head segment through EITHER
+ * map. It replaces D-21 (2)'s `deriveDeclaredNames`, which was a per-file SET of names.
+ *
+ * WHY THIS EXISTS, AND WHAT IT COST THE FIRST TIME. `canonicaliseHeadSegment` originally rewrote
+ * `segments[0]` whenever it was a key of a file-level map, with no scope analysis at all, so a
+ * legitimate spec that renames the framework import to `it` and separately binds a local `it` was
+ * REFUSED and the finding named `test.skip` — a construct absent from the file (WR-20). D-21 (2)
+ * closed that with a FILE-SCOPED census, and the round-5 verifier measured what the file scope then
+ * cost: a dead `const it = 1;` inside an unrelated callback turned `it.skip(...)` at module scope
+ * from `1 finding(s)`/exit 1 into `0 findings`/exit 0 (CR-14). One unrelated declaration anywhere in
+ * a spec disabled the entire rename/namespace/fixture-parameter ban family for that file.
+ *
+ * WHAT A SUPPRESSION DOES TO A BAN, STATED HONESTLY. This rule can only STOP a rewrite. For a ban,
+ * stopping a rewrite moves the answer from REFUSED to ACCEPTED, because a head that is not rewritten
+ * is not a banned head — so the direction it can change an answer in is the UNSAFE one, and calling
+ * it monotone in the safe direction (as this file did before D-27) is the sentence a future widening
+ * would cite. What bounds it is not its direction but the NEAREST-BINDING resolution below: a
+ * reference is decided by the innermost binding of its name that lexically contains it, and only
+ * that binding. Widening that resolution — including letting an outer binding answer where an inner
+ * one exists — is a new decision and a gap-closure round, never a quiet edit.
  *
  * WHAT IS COUNTED: a parameter, a `const`/`let`/`var` binding, a destructured binding element, a
  * function declaration's name and a class declaration's name. Every one of them is a literal in the
- * source text, which is the same parse-only reasoning D-18 (3) and D-20 (3) use; no binder and no
- * type checker is involved, and none is shipped (D-13).
+ * source text, which is the same parse-only reasoning D-18 (3) and D-20 (3) use; the ranges are
+ * `getStart`/`getEnd` on nodes this walk already visits. No binder and no type checker is involved,
+ * and none is shipped (D-13).
  *
- * THE ONE EXEMPTION, AND WHY IT IS A POSITION RATHER THAN A NAME. A parameter at index 1 of its
- * function is NOT counted, because that position is exactly where `deriveTestInfoParameterNames`
- * binds — counting it would suppress the very canonicalisation D-20 (3) decided and reopen CR-10.
- * The exemption is stated as a POSITION and not as "a name in the fixture map" so that this census
- * does not depend on the map it is meant to constrain: a census derived from that map, and then
- * used to constrain it, would be a fixed point this runnable does not compute. The cost is that a
- * name shadowed ONLY at a second-parameter position is still canonicalised, and that cost is a
- * NAMED residual rather than a silence.
+ * AN IMPORT BINDING IS DELIBERATELY NOT COUNTED — a census that counted import specifiers would make
+ * every rename shadow itself and the canonicalisation would never fire. That is asserted in both
+ * directions by the suite.
  *
- * THIS IS FILE-SCOPED, NOT LEXICALLY SCOPED, and that is stated plainly rather than dressed up: a
- * declaration ANYWHERE in the file suppresses the rewrite for the WHOLE file. Real lexical scoping
- * needs the binder D-13 forbids shipping. The coarseness is the residual.
+ * THE ONE NON-SUPPRESSING RECORD, AND WHY IT IS A POSITION RATHER THAN A NAME. A parameter at index
+ * 1 of a function that is itself the SECOND ARGUMENT of a call expression is recorded with
+ * `suppresses: false`, because that is exactly where `deriveTestInfoParameterNames` binds. The
+ * exemption is stated as a POSITION and not as "a name in the fixture map" so that this derivation
+ * does not depend on the map it is meant to constrain: a census derived from that map, and then used
+ * to constrain it, would be a fixed point this runnable does not compute (D-20 (3)).
  *
- * Returns `null` when the parser does not expose the declaration predicates — the canonicaliser then
- * applies no scope rule at all, which is the pre-D-21 behaviour, rather than throwing outside the
- * D-12 exit codes.
+ * Returns `null` when the parser does not expose the declaration predicates, the node flags or
+ * `getEnd` — the canonicaliser then applies no scope rule at all, which is the pre-D-21 behaviour,
+ * rather than throwing outside the D-12 exit codes.
  */
-export function deriveDeclaredNames(ts, sf) {
+export function deriveDeclaredBindings(ts, sf) {
     const isParameter = ts.isParameter;
     const isVariableDeclaration = ts.isVariableDeclaration;
     const isBindingElement = ts.isBindingElement;
@@ -1119,42 +1293,112 @@ export function deriveDeclaredNames(ts, sf) {
         typeof isVariableDeclaration !== "function" ||
         typeof isBindingElement !== "function" ||
         typeof isFunctionDeclaration !== "function" ||
-        typeof isClassDeclaration !== "function") {
+        typeof isClassDeclaration !== "function" ||
+        ts.NodeFlags === undefined ||
+        typeof sf.getEnd !== "function") {
         return null;
     }
-    const names = new Set();
+    const bindings = [];
+    const record = (name, declaration, suppresses) => {
+        const range = bindingRangeFor(ts, sf, declaration);
+        bindings.push({ name, start: range.start, end: range.end, suppresses });
+    };
     forEachDescendant(ts, sf, (node) => {
         if (isParameter(node)) {
-            if (ts.isIdentifier(node.name) && !isFixtureBindingPosition(node))
-                names.add(node.name.text);
+            if (ts.isIdentifier(node.name)) {
+                record(node.name.text, node, !isFixtureBindingPosition(ts, node));
+            }
         }
         else if (isVariableDeclaration(node) || isBindingElement(node)) {
             if (ts.isIdentifier(node.name))
-                names.add(node.name.text);
+                record(node.name.text, node, true);
         }
         else if (isFunctionDeclaration(node) || isClassDeclaration(node)) {
             const named = node.name;
             if (named !== undefined && ts.isIdentifier(named))
-                names.add(named.text);
+                record(named.text, node, true);
         }
     });
-    return names;
+    return bindings;
 }
 /**
- * D-21 (2): is this parameter at the position the TestInfo fixture map binds — index 1 of its own
- * function's parameter list? Read from the parameter's PARENT, which the walk sets because
- * `createSourceFile` is called with `setParentNodes` true (the same fact `bannedContextOf` relies
- * on). A parameter whose parent is not function-like, or which is not that parent's second, is an
- * ordinary declaration and is counted.
+ * D-27: THE ONE RESOLUTION AUTHORITY, and the ONE predicate both canonicalisations ask. Which
+ * binding of this NAME decides this POSITION?
+ *
+ * INNERMOST WINS: among the records of that name whose range contains the position, the one with the
+ * GREATEST start, tie-broken by the SMALLEST end. On an EXACT tie of both ends the NON-suppressing
+ * record wins, which is the ban's safe direction — an ambiguity can never become an admission. That
+ * tie is reachable: two parameters of one name are a duplicate binding a type checker would reject
+ * and `createSourceFile` accepts, because it does no binding.
+ *
+ * WHAT THIS DELIBERATELY IS NOT. It is not "does SOME containing binding of this name exist". That
+ * predicate cannot distinguish an inner fixture parameter from an outer `const`; it makes the OUTER
+ * one decide; and it is the resolution the round-5 adversarial check measured still admitting
+ * `testInfo.skip()` at module scope. Narrowing file-scope membership to containment was necessary
+ * and NOT sufficient.
+ *
+ * The comparison is INCLUSIVE at the start and EXCLUSIVE at the end, so a range ending exactly where
+ * a reference starts does not contain it and a range starting exactly at a reference does.
  */
-function isFixtureBindingPosition(param) {
+export function resolveBinding(bindings, name, position) {
+    let nearest;
+    for (const binding of bindings) {
+        if (binding.name !== name)
+            continue;
+        if (position < binding.start || position >= binding.end)
+            continue;
+        if (nearest === undefined) {
+            nearest = binding;
+            continue;
+        }
+        if (binding.start > nearest.start) {
+            nearest = binding;
+            continue;
+        }
+        if (binding.start < nearest.start)
+            continue;
+        if (binding.end < nearest.end) {
+            nearest = binding;
+            continue;
+        }
+        if (binding.end > nearest.end)
+            continue;
+        // AN EXACT TIE, decided in the ban's safe direction rather than left to the loop's order.
+        if (!binding.suppresses)
+            nearest = binding;
+    }
+    return nearest;
+}
+/**
+ * D-27 (WR-23): is this parameter at the position the TestInfo fixture map BINDS — index 1 of a
+ * function-like node that is ITSELF THE SECOND ARGUMENT of a call expression?
+ *
+ * D-21 (2) stated the exemption for index 1 of ANY function-like node, which is one position too
+ * wide: a helper whose second parameter shares a renamed import's local name was left out of the
+ * census, so the canonicalisation fired on it and the checker refused a legitimate spec while naming
+ * `test.skip`, a construct absent from the file. That is WR-20 verbatim, one register over.
+ *
+ * The narrowing is the SAME scoping rule as CR-14's fix and not a second rule: both say the
+ * exemption and the suppression must name the position they are actually about. The exemption stays
+ * a POSITION rather than becoming membership of the fixture map, so D-20 (3)'s fixed-point argument
+ * is preserved exactly.
+ *
+ * The parent chain is read directly, which `createSourceFile` populates because it is called with
+ * `setParentNodes` true (the same fact `bannedContextOf` relies on).
+ */
+function isFixtureBindingPosition(ts, param) {
     const owner = param.parent;
     if (owner === undefined)
         return false;
     const parameters = owner.parameters;
     if (parameters === undefined)
         return false;
-    return parameters[1] === param;
+    if (parameters[1] !== param)
+        return false;
+    const call = owner.parent;
+    if (call === undefined || !ts.isCallExpression(call))
+        return false;
+    return call.arguments[1] === owner;
 }
 /**
  * D-18 (3): rewrite a resolved path's HEAD SEGMENT through the rename map, so `it.skip` is asked as
@@ -1166,16 +1410,20 @@ function isFixtureBindingPosition(param) {
  * be produced in the first place. A `null` path passes straight through, so the caller needs no null
  * comparison.
  */
-export function canonicaliseHeadSegment(dottedPath, renames, fixtureParams = null, declaredNames = null) {
+export function canonicaliseHeadSegment(dottedPath, renames, fixtureParams = null, scope = null) {
     if (dottedPath === null)
         return dottedPath;
     const segments = dottedPath.split(".");
-    // D-21 (2): THE SCOPE RULE, ASKED ONCE FOR EVERY MAP. A head the file itself declares is left
-    // alone, whichever map would have rewritten it. Writing this rule inside either map's derivation
-    // would be the WR-20 defect one map over the moment a third map arrives, so it is asked here — the
-    // one place a head segment is rewritten at all — and its answer is asserted to win over BOTH.
-    if (declaredNames !== null && declaredNames.has(segments[0]))
-        return dottedPath;
+    // D-27: THE SCOPE RULE, ASKED ONCE FOR EVERY MAP, AND NOW ASKED WITH A POSITION. A head bound by
+    // the NEAREST declaration containing this reference is left alone, whichever map would have
+    // rewritten it; a declaration in some other scope does not answer at all. Writing this rule inside
+    // either map's derivation would be the WR-20 defect one map over the moment a third map arrives,
+    // so it is asked here — the one place a head segment is rewritten — and it wins over BOTH.
+    if (scope !== null) {
+        const nearest = resolveBinding(scope.bindings, segments[0], scope.position);
+        if (nearest !== undefined && nearest.suppresses)
+            return dottedPath;
+    }
     const imported = renames === null ? undefined : renames.get(segments[0]);
     if (imported !== undefined) {
         // PRECEDENCE, ASSERTED RATHER THAN LEFT TO READING ORDER (D-20 (3)). An import rename wins over
@@ -1225,13 +1473,14 @@ export function findBannedConstructs(ts, sf, relPath) {
     // shape resolution and membership. Per-file is the correct scope because an import declaration's
     // reach is the file it sits in.
     const renames = deriveImportRenames(ts, sf);
-    // D-21 (2): the declared-name census is built ONCE PER SOURCE FILE as well, and BEFORE the
+    // D-27: the declared-BINDING list is built ONCE PER SOURCE FILE as well, and BEFORE the
     // fixture-parameter map, because the scope rule constrains that map's own head canonicalisation
-    // too. Its exemption is a POSITION rather than a name, so it depends on nothing derived after it.
-    const declaredNames = deriveDeclaredNames(ts, sf);
+    // too. Its one non-suppressing record is a POSITION rather than a name, so it depends on nothing
+    // derived after it and the derivation order stays a fact rather than a fixed point.
+    const bindings = deriveDeclaredBindings(ts, sf);
     // D-20 (3): the fixture-parameter map is built ONCE PER SOURCE FILE too, and AFTER the rename map,
     // because a renamed framework binding must be canonicalised before its scenario calls are found.
-    const fixtureParams = deriveTestInfoParameterNames(ts, sf, renames, declaredNames);
+    const fixtureParams = deriveTestInfoParameterNames(ts, sf, renames, bindings);
     const visit = (node) => {
         if (ts.isCallExpression(node)) {
             // ── arm (c): a banned modifier call ────────────────────────────────────────────────────
@@ -1240,7 +1489,9 @@ export function findBannedConstructs(ts, sf, relPath) {
             // is the question put to isBannedModifierCall. Two places that decide one question are two
             // places for the answers to disagree, which is how CR-06 happened, and asking a rule about a
             // shape nobody resolved is how CR-07 happened.
-            const dottedPath = canonicaliseHeadSegment(calleeDottedPath(ts, node.expression), renames, fixtureParams, declaredNames);
+            // D-27: the scope argument carries THIS call's own position. A file-level constant here would
+            // give every call in the file one answer, which is CR-14 through the back door.
+            const dottedPath = canonicaliseHeadSegment(calleeDottedPath(ts, node.expression), renames, fixtureParams, bindings === null ? null : { bindings, position: node.getStart(sf) });
             if (isBannedModifierCall(dottedPath, chainEnabledOptionKeys(ts, node))) {
                 const pos = node.getStart(sf);
                 // D-20 (2): one finding per CHAIN. The key asks the same normaliser the arms ask; it decides
