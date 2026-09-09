@@ -5,9 +5,9 @@ milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live
 current_phase: 31
 current_phase_name: Autonomous Manual Testing
 status: "Phase 31 gap-closure round 3 EXECUTED and VERIFIED (round 4, 2026-09-09): gaps_found 4/6 — every round-3 closure (CR-07, CR-08, WR-14, WR-15) re-verified intact, but the round-3 code review raised CR-09/CR-10/CR-11 + WR-17..WR-21 and the verifier independently reproduced all of them against the committed .js. UATX-01 fails on CR-11 (promoteAdmitted, new in 31-14, silently OVERWRITES a live admitted destination note with a caller-forged claim — no destination-liveness check); UATX-06 fails on CR-09/CR-10 (the () marker segment was reasoned about for one of the three ban-rule arms; the two whole-path arms compare a literal so chained expect.configure(...).soft / .configure({soft:true}) pass, and testInfo.skip() via the fixture parameter is never canonicalised). Score fell 5/6 -> 4/6 because CR-11 is a defect the round-3 fix CREATED. Next: /gsd-plan-phase 31 --gaps (round 4 gap closure)"
-stopped_at: Completed 31-19-PLAN.md
-last_updated: "2026-09-09T11:32:00.156Z"
-state_head: 6e4c3a82b55557664cf9af51e23c13697c163184
+stopped_at: Completed 31-20-PLAN.md
+last_updated: "2026-09-09T12:09:54.353Z"
+state_head: 3f93e4b892daa3b17fb78019b9bad234e753c058
 progress:
   total_phases: 9
   completed_phases: 6
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-09-07 — after Phase 29.2)
 ## Current Position
 
 Phase: 31 (Autonomous Manual Testing) — EXECUTING
-Plan: 5 of 20
+Plan: 6 of 20
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 
@@ -452,6 +452,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 31 P17 | 52 min | 3 tasks | 8 files |
 | Phase 31 P18 | 2h 55m | 3 tasks | 13 files |
 | Phase 31 P19 | 50min | 3 tasks | 9 files |
+| Phase 31 P20 | 50 min | 3 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -1236,6 +1237,8 @@ Recent decisions affecting current work:
 - [Phase 31]: D-23 (31-19, WR-21): the bound on the governance-root search is a PROPERTY OF THE WALK — it halts at the user's home directory and never inspects it or anything above it — not a consequence of which markers a filesystem happens to carry.
 - [Phase 31]: D-23 (2): the complete stop set is a frozen export and workflow 16 is asserted set-equal to it in BOTH directions, so a claim can no longer outrun the mechanism it describes.
 - [Phase 31]: D-23 (3): a repository root's own configuration outranks one nested inside it, so a vendored kit's in-repo configuration no longer lowers a host repository's dial by cd.
+- [Phase 31]: Gap-closure round 4 closes with the round-4 evidence re-measured against the FINDINGS own probes rather than the fix plans fixtures: 31 reproductions paired at one commit, 35 disposition rows against 34 source items, and 24 residuals collected into docs/audit/31-round4-residuals.md. — The closure is structured reproductions-first and records the green suite as a FLOOR, because for four consecutive verification rounds on this phase the green suite exercised NONE of the defects that round found.
+- [Phase 31]: WR-21 is PARTIALLY closed and recorded as such: the at-or-above-home shape is closed, the below-home shape reproduces unchanged as residual R-31-19-01, and which of the two the round-4 verifier probed is UNKNOWN - verify because neither source document records whether HOME was overridden. — Closing the below-home shape would revert WR-15 own green control, so 31-19 chose WR-15 and wrote the disagreement down; a fifth verification round decides which the project wants.
 
 ### Pending Todos
 
@@ -1354,8 +1357,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-09-09T11:31:59.773Z
-Stopped at: Completed 31-19-PLAN.md
+Last session: 2026-09-09T12:09:07.518Z
+Stopped at: Completed 31-20-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
