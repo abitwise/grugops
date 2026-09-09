@@ -5006,3 +5006,783 @@ describe("uat-spec-integrity — 31-17 WR-20: a head with a nearer declaration i
     expect("shadowed-rename.uat.spec.ts".endsWith(".uat.spec.ts")).toBe(true);
   });
 });
+
+// ── 31-24 (CR-14 / WR-23): the suppression is decided by the NEAREST binding ────────────────────
+//
+// The surface this block reaches is DECLARED LOCALLY rather than added to `CheckerModule` above,
+// because the scope argument `canonicaliseHeadSegment` now takes is a `{ bindings, position }` PAIR
+// and not a name set: a caller that cannot produce a position cannot produce the pair either, which
+// is the structural half of T-31-24-06.
+interface DeclaredBindingView {
+  readonly name: string;
+  readonly start: number;
+  readonly end: number;
+  readonly suppresses: boolean;
+}
+interface BindingScopeView {
+  readonly bindings: readonly DeclaredBindingView[];
+  readonly position: number;
+}
+interface ScopeSurface {
+  deriveDeclaredBindings(ts: unknown, sf: unknown): readonly DeclaredBindingView[] | null;
+  resolveBinding(
+    bindings: readonly DeclaredBindingView[],
+    name: string,
+    position: number,
+  ): DeclaredBindingView | undefined;
+  canonicaliseHeadSegment(
+    dottedPath: string | null,
+    renames: ReadonlyMap<string, string> | null,
+    fixtureParams?: ReadonlySet<string> | null,
+    scope?: BindingScopeView | null,
+  ): string | null;
+  readonly TEST_INFO_CANONICAL_HEAD: string;
+  readonly UNRESOLVABLE_CALLEE_RESIDUALS: readonly string[];
+}
+
+async function loadScopeSurface(): Promise<ScopeSurface> {
+  return (await import("./uat-spec-integrity.js")) as unknown as ScopeSurface;
+}
+
+describe("uat-spec-integrity — 31-24 CR-14/WR-23: a reference is decided by the NEAREST binding", () => {
+  const ts = hostTypeScript as typeof import("typescript");
+  const CHECKER_TS = join(HERE, "uat-spec-integrity.ts");
+
+  /** Plant one or more specs in a fresh target repo and run the COMMITTED artifact over all of them. */
+  function runFiles(
+    files: Readonly<Record<string, string>>,
+    ...args: string[]
+  ): { status: number | null; stdout: string; stderr: string } {
+    const root = mkTargetRepo({});
+    for (const [rel, body] of Object.entries(files)) {
+      const dest = join(root, rel);
+      mkdirSync(dirname(dest), { recursive: true });
+      writeFileSync(dest, body, "utf8");
+    }
+    return runCheck(root, ...args);
+  }
+
+  function findingsOf(body: string): string[] {
+    const r = runFiles({ "e2e/uat/subject.uat.spec.ts": body }, "--json");
+    if (r.status === 0) return [];
+    return (JSON.parse(r.stdout) as { findings: string[] }).findings;
+  }
+
+  /** Parse a source text with the HOST parser and derive its bindings through the shipped authority. */
+  async function bindingsOf(source: string): Promise<readonly DeclaredBindingView[]> {
+    const { deriveDeclaredBindings } = await loadScopeSurface();
+    const sf = ts.createSourceFile("p.ts", source, ts.ScriptTarget.Latest, true);
+    const bindings = deriveDeclaredBindings(ts, sf);
+    expect(bindings, "PREMISE: the census degraded to null on the host's own parser").not.toBeNull();
+    return bindings!;
+  }
+
+  function only(
+    bindings: readonly DeclaredBindingView[],
+    name: string,
+  ): readonly DeclaredBindingView[] {
+    return bindings.filter((b) => b.name === name);
+  }
+
+  // ── RED 1..5: the four CR-14 spellings and WR-23, each reproduced against the committed .js ────
+  //
+  // Every body below was DRIVEN against the committed artifact at this plan's base commit and its
+  // pre-fix measurement recorded in 31-24-SUMMARY.md. A case whose pre-fix answer was not measured
+  // is a case that cannot tell a fix from a coincidence.
+
+  const RED_1 = [
+    'import { test as it, expect } from "@playwright/test";',
+    'it.skip("scenario", async ({ page }) => {',
+    "  const it = 1;",
+    "  void it;",
+    '  await expect(page.getByTestId("x")).toBeVisible();',
+    "});",
+    "",
+  ].join("\n");
+
+  const RED_2 = [
+    'import * as pw from "@playwright/test";',
+    'pw.test.skip("scenario", async ({ page }) => {',
+    "  const pw = 1;",
+    "  void pw;",
+    "  await pw;",
+    "});",
+    "",
+  ].join("\n");
+
+  const RED_3 = [
+    'import { test, expect } from "@playwright/test";',
+    "function helper(testInfo: number): number { return testInfo; }",
+    'test("scenario", async ({ page }, testInfo) => {',
+    "  void helper(1);",
+    "  testInfo.skip();",
+    '  await expect(page.getByTestId("x")).toBeVisible();',
+    "});",
+    "",
+  ].join("\n");
+
+  const RED_4 = [
+    'import { test as it, expect } from "@playwright/test";',
+    "function inner(n: number, it: { skip: (x: number) => number }): number { return it.skip(n); }",
+    'it("scenario", async ({ page }) => {',
+    "  void inner(1, { skip: (x: number) => x });",
+    '  await expect(page.getByTestId("x")).toBeVisible();',
+    "});",
+    "",
+  ].join("\n");
+
+  const RED_5_WITH_CONST = [
+    'import { test } from "@playwright/test";',
+    "const testInfo = 1;",
+    "void testInfo;",
+    'test("s", async ({ page }, testInfo) => testInfo.skip());',
+    "",
+  ].join("\n");
+
+  const RED_5_WITHOUT_CONST = [
+    'import { test } from "@playwright/test";',
+    'test("s", async ({ page }, testInfo) => testInfo.skip());',
+    "",
+  ].join("\n");
+
+  it("RED 1 (row 10): a dead inner `const it` no longer admits a module-scope renamed modifier", () => {
+    const findings = findingsOf(RED_1);
+    expect(
+      findings.length,
+      "PRE-FIX MEASURED: `0 findings`, EXIT=0 — one dead declaration in an unrelated block " +
+        "disabled the whole rename family for the file",
+    ).toBe(1);
+    expect(findings[0]).toContain("test.skip");
+    expect(findings[0]).toContain("subject.uat.spec.ts:2:");
+  });
+
+  it("RED 2: a dead inner `const pw` no longer admits a module-scope NAMESPACE modifier", () => {
+    const findings = findingsOf(RED_2);
+    expect(findings.length, "PRE-FIX MEASURED: `0 findings`, EXIT=0").toBe(1);
+    expect(findings[0]).toContain("test.skip");
+  });
+
+  it("RED 3: an index-0 helper parameter no longer admits the fixture-parameter spelling", () => {
+    const findings = findingsOf(RED_3);
+    expect(findings.length, "PRE-FIX MEASURED: `0 findings`, EXIT=0").toBe(1);
+    expect(findings[0]).toContain("test.info().skip");
+  });
+
+  it("RED 4 (WR-23): a helper's SECOND parameter sharing a renamed name is not a false refusal", () => {
+    expect(
+      findingsOf(RED_4),
+      "PRE-FIX MEASURED: `1 finding(s)`, EXIT=1, naming `test.skip` — a construct absent from " +
+        "the file, because the index-1 exemption was stated for ANY function-like node",
+    ).toEqual([]);
+  });
+
+  it("RED 5: a MODULE-SCOPE `const testInfo` no longer beats the fixture PARAMETER that shadows it", () => {
+    const findings = findingsOf(RED_5_WITH_CONST);
+    expect(
+      findings.length,
+      "PRE-FIX MEASURED: `0 findings`, EXIT=0. The reference is bound by the index-1 fixture " +
+        "PARAMETER, which is recorded as a NON-suppressing binding, so the module-scope `const` " +
+        "is never consulted. A rule under which ANY containing binding suppresses would leave " +
+        "this admitted — which is what the round-5 adversarial check measured.",
+    ).toBe(1);
+    expect(findings[0]).toContain("test.info().skip");
+  });
+
+  it("RED 5 PAIR: the declaration is the suppressing mechanism, measured as a pair in ONE run", () => {
+    const r = runFiles({
+      "e2e/uat/a.uat.spec.ts": RED_5_WITH_CONST,
+      "e2e/uat/b.uat.spec.ts": RED_5_WITHOUT_CONST,
+    });
+    // PRE-FIX MEASURED: `1 finding(s) over 2/2 uat specs checked`, EXIT=1, with ONLY uat/b named.
+    expect(r.stdout, `stdout: ${r.stdout}`).toContain("2 finding(s) over 2/2");
+    expect(r.stdout).toContain("uat/a.uat.spec.ts:4:");
+    expect(r.stdout).toContain("uat/b.uat.spec.ts:2:");
+    expect(r.status).toBe(1);
+  });
+
+  // ── RED 5b: the case DISCRIMINATES between the two candidate resolutions ───────────────────────
+  //
+  // A case that passes under both "innermost wins" and "any containing binding suppresses" would
+  // have let the wrong rule ship. This one is driven against a SEEDED any-containing mutant built
+  // from the shipped records, so the discrimination is measured rather than argued.
+  it("RED 5b: under an ANY-CONTAINING-BINDING resolver the same spec is still admitted", async () => {
+    const { resolveBinding } = await loadScopeSurface();
+    const bindings = await bindingsOf(RED_5_WITH_CONST);
+    const position = RED_5_WITH_CONST.indexOf("testInfo.skip()");
+    expect(position, "PREMISE: the reference is not in the source").toBeGreaterThan(0);
+
+    // The SHIPPED rule: the nearest binding is the fixture PARAMETER, which suppresses nothing.
+    const nearest = resolveBinding(bindings, "testInfo", position);
+    expect(nearest, "no binding of `testInfo` contains the reference").toBeDefined();
+    expect(nearest!.suppresses, "the nearest binding must be the non-suppressing fixture record").toBe(
+      false,
+    );
+
+    // THE SEEDED MUTANT: "does SOME containing binding of this name suppress?" — the resolution the
+    // adversarial check measured still admitting the construct.
+    const anyContaining = only(bindings, "testInfo").some(
+      (b) => b.start <= position && position < b.end && b.suppresses,
+    );
+    expect(
+      anyContaining,
+      "PREMISE OF THE DISCRIMINATION: if no containing binding suppresses, this case cannot tell " +
+        "the two candidate rules apart and proves nothing about the choice",
+    ).toBe(true);
+  });
+
+  // ── CONTROL 1..5: the prior closures are re-measured, not assumed ──────────────────────────────
+
+  it("CONTROL 1 (row 11): the declaration-free file is unmoved", () => {
+    const findings = findingsOf(
+      [
+        'import { test as it, expect } from "@playwright/test";',
+        'it.skip("scenario", async ({ page }) => {',
+        '  await expect(page.getByTestId("x")).toBeVisible();',
+        "});",
+        "",
+      ].join("\n"),
+    );
+    expect(findings.length).toBe(1);
+    expect(findings[0]).toContain("test.skip");
+  });
+
+  it("CONTROL 2 (row 1): expect.configure({retries:2}).soft still refuses", () => {
+    const findings = findingsOf(
+      [
+        'import { test, expect } from "@playwright/test";',
+        'test("s", async ({ page }) => {',
+        '  await expect.configure({ retries: 2 }).soft(page.getByTestId("x")).toBeVisible();',
+        "});",
+        "",
+      ].join("\n"),
+    );
+    expect(findings.length).toBe(1);
+    expect(findings[0]).toContain("expect.configure().soft");
+  });
+
+  it("CONTROL 3 (row 2): expect.configure({retries:2}).configure({soft:true}) still refuses", () => {
+    const findings = findingsOf(
+      [
+        'import { test, expect } from "@playwright/test";',
+        'test("s", async ({ page }) => {',
+        "  await expect.configure({ retries: 2 }).configure({ soft: true })" +
+          '(page.getByTestId("x")).toBeVisible();',
+        "});",
+        "",
+      ].join("\n"),
+    );
+    expect(findings.length).toBe(1);
+    expect(findings[0]).toContain("expect.configure().configure");
+  });
+
+  it("CONTROL 4 (row 3): the plain TestInfo fixture-parameter spelling still refuses", () => {
+    const findings = findingsOf(
+      [
+        'import { test, expect } from "@playwright/test";',
+        'test("s", async ({ page }, testInfo) => {',
+        "  testInfo.skip();",
+        '  await expect(page.getByTestId("x")).toBeVisible();',
+        "});",
+        "",
+      ].join("\n"),
+    );
+    expect(findings.length).toBe(1);
+    expect(findings[0]).toContain("test.info().skip");
+  });
+
+  it("CONTROL 5: WR-20's own legitimate spec still reports ZERO findings", () => {
+    expect(
+      findingsOf(
+        [
+          'import { test as it, expect } from "@playwright/test";',
+          'it("a", async ({ page }) => {',
+          "  const helpers = { skip: (n: number) => n };",
+          "  function inner(it: { skip: (n: number) => number }) { return it.skip(1); }",
+          "  inner(helpers);",
+          '  await expect(page.getByTestId("x")).toBeVisible();',
+          "});",
+          "",
+        ].join("\n"),
+      ),
+      "the narrowing must not re-open WR-20: an index-0 parameter is an ordinary suppressing binding",
+    ).toEqual([]);
+  });
+
+  // ── CONTROL 6: module scope reaches the whole file WHERE NOTHING NEARER BINDS ──────────────────
+  //
+  // The stronger claim — that a module-scope declaration suppresses even where an inner binding of
+  // the same name exists — is FALSE and is driven as RED 5. The two are separate cases so the
+  // distinction is on the record rather than inferred from one of them.
+  it("CONTROL 6: a module-scope declaration with NO inner binding suppresses throughout the file", () => {
+    expect(
+      findingsOf(
+        [
+          'import { test, expect } from "@playwright/test";',
+          "const testInfo = { skip: (): void => undefined };",
+          'test("a", async ({ page }, info) => {',
+          "  void info;",
+          "  testInfo.skip();",
+          '  await expect(page.getByTestId("x")).toBeVisible();',
+          "});",
+          "",
+        ].join("\n"),
+      ),
+      "the callback's index-1 parameter is `info`, so nothing nearer than the module-scope `const` " +
+        "binds `testInfo` and the module-scope record is the one that answers",
+    ).toEqual([]);
+  });
+
+  // ── CONTROL 7: the KIND matrix. Hoisting and TDZ give OPPOSITE answers above the declaration ───
+
+  const KIND_MATRIX: ReadonlyArray<{
+    readonly kind: string;
+    readonly lines: readonly string[];
+    readonly findings: number;
+  }> = [
+    {
+      kind: "var (HOISTS: a reference ABOVE the declaration IS suppressed)",
+      lines: [
+        "function wrap(): void {",
+        "  it.skip(1);",
+        "  var it = { skip: (n: number): number => n };",
+        "  void it;",
+        "}",
+        "void wrap;",
+      ],
+      findings: 0,
+    },
+    {
+      kind: "function declaration (HOISTS: a reference ABOVE the declaration IS suppressed)",
+      lines: [
+        "function wrap(): void {",
+        "  it.skip(1);",
+        "  function it(n: number): number { return n; }",
+        "  void it;",
+        "}",
+        "void wrap;",
+      ],
+      findings: 0,
+    },
+    {
+      kind: "let (TDZ: a reference ABOVE the declaration is NOT suppressed)",
+      lines: [
+        "function wrap(): void {",
+        "  it.skip(1);",
+        "  let it = { skip: (n: number): number => n };",
+        "  void it;",
+        "}",
+        "void wrap;",
+      ],
+      findings: 1,
+    },
+    {
+      kind: "const (TDZ: a reference ABOVE the declaration is NOT suppressed)",
+      lines: [
+        "function wrap(): void {",
+        "  it.skip(1);",
+        "  const it = { skip: (n: number): number => n };",
+        "  void it;",
+        "}",
+        "void wrap;",
+      ],
+      findings: 1,
+    },
+    {
+      kind: "class (TDZ: a reference ABOVE the declaration is NOT suppressed)",
+      lines: [
+        "function wrap(): void {",
+        "  it.skip(1);",
+        "  class it { static skip(n: number): number { return n; } }",
+        "  void it;",
+        "}",
+        "void wrap;",
+      ],
+      findings: 1,
+    },
+    {
+      kind: "a plain parameter (ranges over its OWN function)",
+      lines: [
+        "function inner(it: { skip: (n: number) => number }): number { return it.skip(1); }",
+        "void inner;",
+      ],
+      findings: 0,
+    },
+    {
+      kind: "a destructured parameter (ranges over its OWN function)",
+      lines: [
+        "function inner({ it }: { it: { skip: (n: number) => number } }): number { return it.skip(1); }",
+        "void inner;",
+      ],
+      findings: 0,
+    },
+    {
+      kind: "a destructured const binding element (TDZ: suppresses a reference BELOW it)",
+      lines: [
+        "const { it } = { it: { skip: (n: number): number => n } };",
+        "it.skip(1);",
+      ],
+      findings: 0,
+    },
+  ];
+
+  for (const row of KIND_MATRIX) {
+    it(`CONTROL 7 — DECLARATION KIND: ${row.kind}`, () => {
+      const findings = findingsOf(
+        [
+          'import { test as it, expect } from "@playwright/test";',
+          ...row.lines,
+          'test("a", async ({ page }) => {',
+          '  await expect(page.getByTestId("x")).toBeVisible();',
+          "});",
+          "",
+        ].join("\n"),
+      );
+      expect(findings.length, `${row.kind}: findings were ${JSON.stringify(findings)}`).toBe(
+        row.findings,
+      );
+    });
+  }
+
+  it("CONTROL 7 — a catch-clause binding suppresses INSIDE its catch block and not outside it", () => {
+    const findings = findingsOf(
+      [
+        'import { test as it, expect } from "@playwright/test";',
+        "function wrap(): void {",
+        "  try {",
+        '    throw new Error("x");',
+        "  } catch (it) {",
+        "    void (it as { skip?: unknown }).skip;",
+        "    (it as { skip: (n: number) => number }).skip(1);",
+        "  }",
+        "  it.skip(2);",
+        "}",
+        "void wrap;",
+        'test("a", async ({ page }) => {',
+        '  await expect(page.getByTestId("x")).toBeVisible();',
+        "});",
+        "",
+      ].join("\n"),
+    );
+    expect(
+      findings.length,
+      `the reference OUTSIDE the catch block must be the only finding. findings: ${JSON.stringify(findings)}`,
+    ).toBe(1);
+    expect(findings[0]).toContain("subject.uat.spec.ts:9:");
+  });
+
+  it("CONTROL 7 — an IMPORT binding is never in the census, so a rename never shadows itself", async () => {
+    const bindings = await bindingsOf(
+      [
+        'import { test as it, expect } from "@playwright/test";',
+        'import * as pw from "@playwright/test";',
+        "",
+      ].join("\n"),
+    );
+    expect(bindings.map((b) => b.name)).toEqual([]);
+  });
+
+  it("CONTROL 7 — the KIND matrix's ranges are DERIVED, one measured range per kind", async () => {
+    const source = [
+      "var alpha = 1;",
+      "function beta(): void {",
+      "  var gamma = 1;",
+      "  let delta = 2;",
+      "  void gamma;",
+      "  void delta;",
+      "}",
+      "const epsilon = 3;",
+      "class zeta {}",
+      "function eta(theta: number): number { return theta; }",
+      "",
+    ].join("\n");
+    const bindings = await bindingsOf(source);
+    const at = (name: string): DeclaredBindingView => {
+      const found = only(bindings, name);
+      expect(found.length, `expected exactly one binding named ${name}`).toBe(1);
+      return found[0];
+    };
+
+    // `var` at module scope HOISTS to the whole SourceFile, which starts at 0 by construction.
+    expect(at("alpha").start).toBe(0);
+    expect(at("alpha").end).toBe(source.length);
+    // `var` inside a function hoists to THAT function, not to the file.
+    expect(at("gamma").start).toBe(source.indexOf("function beta"));
+    // `let` inside the same function begins at its OWN declaration.
+    expect(at("delta").start).toBe(source.indexOf("let delta"));
+    expect(at("delta").end).toBeGreaterThan(source.indexOf("void delta"));
+    // A module-scope `const` and `class` begin at their own declaration and run to end of file.
+    expect(at("epsilon").start).toBe(source.indexOf("const epsilon"));
+    expect(at("epsilon").end).toBe(source.length);
+    expect(at("zeta").start).toBe(source.indexOf("class zeta"));
+    // A function declaration's own name hoists; a parameter ranges over its owning function.
+    expect(at("eta").start).toBe(0);
+    expect(at("theta").start).toBe(source.indexOf("function eta"));
+    // Every record of a plain declaration SUPPRESSES; only the fixture position does not.
+    for (const name of ["alpha", "gamma", "delta", "epsilon", "zeta", "eta", "theta"]) {
+      expect(at(name).suppresses, `${name} must be a suppressing record`).toBe(true);
+    }
+  });
+
+  it("CONTROL 7 — the fixture-binding position is RECORDED, as a NON-suppressing binding", async () => {
+    const source = [
+      'import { test } from "@playwright/test";',
+      'test("a", async ({ page }, testInfo) => { void page; void testInfo; });',
+      "",
+    ].join("\n");
+    const bindings = await bindingsOf(source);
+    const fixture = only(bindings, "testInfo");
+    expect(
+      fixture.length,
+      "OMITTING the fixture position makes the parameter INVISIBLE to resolution, so an outer " +
+        "declaration becomes the nearest binding and suppresses — which is RED 5",
+    ).toBe(1);
+    expect(fixture[0].suppresses).toBe(false);
+    // …and the FIRST parameter of the same callback is still an ordinary suppressing binding, so
+    // the exemption stays a POSITION rather than a licence for every parameter.
+    expect(only(bindings, "page").length).toBe(1);
+    expect(only(bindings, "page")[0].suppresses).toBe(true);
+  });
+
+  it("WR-23 — the exemption is index 1 of a function that is a CALL's SECOND ARGUMENT, nothing else", async () => {
+    const bindings = await bindingsOf(
+      [
+        "function inner(n: number, it: { skip: (x: number) => number }): number { return it.skip(n); }",
+        "void inner;",
+        "",
+      ].join("\n"),
+    );
+    const second = only(bindings, "it");
+    expect(second.length).toBe(1);
+    expect(
+      second[0].suppresses,
+      "index 1 of a FUNCTION DECLARATION is an ordinary parameter; exempting it re-opens WR-20 " +
+        "inside a helper, which is WR-23",
+    ).toBe(true);
+  });
+
+  // ── CONTROL 8: the tie rule, in the ban's safe direction ───────────────────────────────────────
+
+  it("CONTROL 8 — an EXACT range tie resolves to the NON-suppressing record", async () => {
+    const { resolveBinding } = await loadScopeSurface();
+    const suppressing: DeclaredBindingView = { name: "x", start: 10, end: 20, suppresses: true };
+    const permissive: DeclaredBindingView = { name: "x", start: 10, end: 20, suppresses: false };
+    // Both list orders give the same answer, so the rule is the comparator's and not the array's.
+    expect(resolveBinding([suppressing, permissive], "x", 15)!.suppresses).toBe(false);
+    expect(resolveBinding([permissive, suppressing], "x", 15)!.suppresses).toBe(false);
+  });
+
+  it("CONTROL 8 — the tie shape is REACHABLE: two parameters of one name, one at the fixture index", async () => {
+    const source = [
+      'import { test } from "@playwright/test";',
+      'test("s", function (testInfo, testInfo) { return testInfo.skip(); });',
+      "",
+    ].join("\n");
+    const bindings = await bindingsOf(source);
+    const records = only(bindings, "testInfo");
+    expect(
+      records.length,
+      "PREMISE: the parser must accept the duplicate parameter name — `createSourceFile` does no " +
+        "binding, so a declaration a type checker would reject still parses",
+    ).toBe(2);
+    expect(records[0].start).toBe(records[1].start);
+    expect(records[0].end).toBe(records[1].end);
+    expect(records.some((r) => r.suppresses)).toBe(true);
+    expect(records.some((r) => !r.suppresses)).toBe(true);
+    // …and the tie resolves in the ban's safe direction, end to end.
+    const findings = findingsOf(source);
+    expect(findings.length, `findings: ${JSON.stringify(findings)}`).toBe(1);
+    expect(findings[0]).toContain("test.info().skip");
+  });
+
+  // ── CONTROL 9: the derivation's LIST ORDER is not part of the answer ───────────────────────────
+
+  it("CONTROL 9 — shuffling the derived list changes no resolution answer", async () => {
+    const { resolveBinding } = await loadScopeSurface();
+    const source = RED_5_WITH_CONST;
+    const bindings = await bindingsOf(source);
+    const position = source.indexOf("testInfo.skip()");
+    const forward = resolveBinding(bindings, "testInfo", position);
+    const reversed = resolveBinding([...bindings].reverse(), "testInfo", position);
+    const rotated = resolveBinding([...bindings.slice(1), ...bindings.slice(0, 1)], "testInfo", position);
+    expect(forward).toBeDefined();
+    expect(reversed).toEqual(forward);
+    expect(rotated).toEqual(forward);
+  });
+
+  // ── EMPTY and ADJACENCY ────────────────────────────────────────────────────────────────────────
+
+  it("EMPTY — a file with NO declarations yields an empty list, which suppresses nothing", async () => {
+    const { resolveBinding } = await loadScopeSurface();
+    const bindings = await bindingsOf('import { test } from "@playwright/test";\nvoid test;\n');
+    expect(bindings).toEqual([]);
+    expect(resolveBinding(bindings, "test", 0)).toBeUndefined();
+  });
+
+  it("EMPTY — a parser without the declaration predicates yields null, which suppresses nothing", async () => {
+    const { deriveDeclaredBindings, canonicaliseHeadSegment } = await loadScopeSurface();
+    const sf = ts.createSourceFile("p.ts", "const it = 1;\n", ts.ScriptTarget.Latest, true);
+    const stripped = { ...(ts as unknown as Record<string, unknown>) };
+    delete stripped.isParameter;
+    expect(deriveDeclaredBindings(stripped, sf)).toBeNull();
+    // …and a null scope is the pre-D-21 behaviour: the rewrite is applied.
+    expect(canonicaliseHeadSegment("it.skip", new Map([["it", "test"]]), null, null)).toBe(
+      "test.skip",
+    );
+  });
+
+  it("ADJACENCY — a range that ENDS at the reference does not contain it (exclusive end)", async () => {
+    const { resolveBinding } = await loadScopeSurface();
+    const b: DeclaredBindingView = { name: "x", start: 0, end: 40, suppresses: true };
+    expect(resolveBinding([b], "x", 40)).toBeUndefined();
+    expect(resolveBinding([b], "x", 39)).toBe(b);
+  });
+
+  it("ADJACENCY — a range that STARTS at the reference DOES contain it (inclusive start)", async () => {
+    const { resolveBinding } = await loadScopeSurface();
+    const b: DeclaredBindingView = { name: "x", start: 40, end: 80, suppresses: true };
+    expect(resolveBinding([b], "x", 40)).toBe(b);
+    expect(resolveBinding([b], "x", 39)).toBeUndefined();
+  });
+
+  it("ADJACENCY — a range that STARTS where the reference ENDS does not contain its START", async () => {
+    const { resolveBinding } = await loadScopeSurface();
+    // The compared position is the CALL's own start, so a binding beginning at the call's END is
+    // strictly to its right and cannot contain it.
+    const callStart = 10;
+    const callEnd = 25;
+    const b: DeclaredBindingView = { name: "x", start: callEnd, end: 90, suppresses: true };
+    expect(resolveBinding([b], "x", callStart)).toBeUndefined();
+  });
+
+  it("ADJACENCY — a declaration and a reference in the SAME statement: the declaration contains it", () => {
+    // `let it = it.skip(1);` — the declaration's own start precedes the call's start, so the
+    // reference is inside the declaration's range and is suppressed. Driven rather than argued.
+    expect(
+      findingsOf(
+        [
+          'import { test as it, expect } from "@playwright/test";',
+          "function wrap(): void {",
+          "  let it = it.skip(1);",
+          "  void it;",
+          "}",
+          "void wrap;",
+          'test("a", async ({ page }) => {',
+          '  await expect(page.getByTestId("x")).toBeVisible();',
+          "});",
+          "",
+        ].join("\n"),
+      ),
+    ).toEqual([]);
+  });
+
+  // ── T-31-24-06: a file-level CONSTANT is not a position ────────────────────────────────────────
+
+  it("A CONSTANT IS NOT A POSITION — position 0 gives a different answer from the call's own", async () => {
+    const { canonicaliseHeadSegment } = await loadScopeSurface();
+    const source = [
+      'import { test as it, expect } from "@playwright/test";',
+      "function inner(it: { skip: (n: number) => number }): number { return it.skip(1); }",
+      'it.skip("a removed scenario", async ({ page }) => {',
+      "  void inner({ skip: (n: number): number => n });",
+      '  await expect(page.getByTestId("x")).toBeVisible();',
+      "});",
+      "",
+    ].join("\n");
+    const bindings = await bindingsOf(source);
+    const renames = new Map([["it", "test"]]);
+    const inHelper = source.indexOf("it.skip(1)");
+    const atModuleScope = source.indexOf('it.skip("a removed');
+    expect(inHelper).toBeGreaterThan(0);
+    expect(atModuleScope).toBeGreaterThan(inHelper);
+
+    // With each reference's OWN position the two answers DIFFER — which is the whole point.
+    expect(canonicaliseHeadSegment("it.skip", renames, null, { bindings, position: inHelper })).toBe(
+      "it.skip",
+    );
+    expect(
+      canonicaliseHeadSegment("it.skip", renames, null, { bindings, position: atModuleScope }),
+    ).toBe("test.skip");
+    // With a file-level constant BOTH become the answer for position 0, so the helper's legitimate
+    // call is refused: CR-14 through the back door.
+    expect(canonicaliseHeadSegment("it.skip", renames, null, { bindings, position: 0 })).toBe(
+      "test.skip",
+    );
+    // …and end to end, the same file reports exactly ONE finding, at the module-scope call.
+    expect(findingsOf(source).length).toBe(1);
+  });
+
+  it("A CONSTANT IS NOT A POSITION — a HOISTING module-scope binding makes position 0 suppress", async () => {
+    const { canonicaliseHeadSegment } = await loadScopeSurface();
+    const source = [
+      'import { test as it, expect } from "@playwright/test";',
+      "var it = { skip: (n: number): number => n };",
+      "void it;",
+      "",
+    ].join("\n");
+    const bindings = await bindingsOf(source);
+    // A module-scope `var` hoists to the SourceFile, whose range starts at 0, so a zero position
+    // sits inside it and suppresses every call in the file.
+    expect(
+      canonicaliseHeadSegment("it.skip", new Map([["it", "test"]]), null, { bindings, position: 0 }),
+    ).toBe("it.skip");
+  });
+
+  // ── the canonicaliser's CALLERS, derived from the source rather than remembered ────────────────
+
+  it("the canonicaliser has EXACTLY TWO callers, and each passes a call-derived position", () => {
+    const sf = ts.createSourceFile(
+      "uat-spec-integrity.ts",
+      readFileSync(CHECKER_TS, "utf8"),
+      ts.ScriptTarget.Latest,
+      true,
+    );
+    const callSites: string[] = [];
+    const walk = (node: import("typescript").Node): void => {
+      if (
+        ts.isCallExpression(node) &&
+        ts.isIdentifier(node.expression) &&
+        node.expression.text === "canonicaliseHeadSegment"
+      ) {
+        callSites.push(node.getText(sf).replace(/\s+/g, " "));
+      }
+      ts.forEachChild(node, walk);
+    };
+    ts.forEachChild(sf, walk);
+    expect(
+      callSites.length,
+      `the canonicaliser's caller set changed. Sites: ${JSON.stringify(callSites, null, 2)}`,
+    ).toBe(2);
+    for (const site of callSites) {
+      expect(
+        site,
+        "a caller that does not derive its position from a node cannot be passing the position of " +
+          "the call it is deciding about",
+      ).toContain("getStart(sf)");
+    }
+  });
+
+  // ── the disclosure moved with the mechanism ────────────────────────────────────────────────────
+
+  it("the residual register states the NEAREST-BINDING rule and no longer claims file scope", async () => {
+    const { UNRESOLVABLE_CALLEE_RESIDUALS } = await loadScopeSurface();
+    const scoped = UNRESOLVABLE_CALLEE_RESIDUALS.filter((r) => r.includes("NEAREST"));
+    expect(scoped.length, "the resolution rule is not a named member of the exported register").toBe(
+      1,
+    );
+    expect(scoped[0]).toContain("hoist");
+    expect(scoped[0]).toContain("no binder");
+    expect(
+      UNRESOLVABLE_CALLEE_RESIDUALS.some((r) => r.includes("FILE-SCOPED")),
+      "the register still claims a file-scoped suppression, which is no longer the mechanism",
+    ).toBe(false);
+  });
+
+  it("the D-21 header no longer calls the suppression MONOTONE IN THE SAFE DIRECTION", () => {
+    const source = readFileSync(CHECKER_TS, "utf8");
+    expect(
+      source.includes("MONOTONE IN THE SAFE DIRECTION"),
+      "stopping a rewrite moves a BAN's answer from refused to accepted, which is the UNSAFE " +
+        "direction; a header sentence claiming otherwise is what a future widening would cite",
+    ).toBe(false);
+  });
+});
