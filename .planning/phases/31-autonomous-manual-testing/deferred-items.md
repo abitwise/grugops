@@ -346,3 +346,86 @@ not, and the two that do not are named with an owner and their `UNKNOWN - verify
   **Criterion that closes it:** every `mkfifo` call site in a test module either constructs-or-skips
   with a recorded skip, or sits behind a `process.platform` guard whose skip is counted; asserted by
   a derived scan with the site count pinned two-sided.
+
+### 31-30 (2026-09-10) — the `check:diff-disposition` debt, PAID DOWN and re-measured
+
+**`npm run check:diff-disposition` — measured at `8cff6d8` before any row of this plan's Task 3
+landed: `112 finding(s) over 39 elements`, up from the `110` the `31-26` entry recorded.** The gate
+reports `39 watched file(s) changed since 4d2b8f0; 2250 changed clause(s) derived`. Every finding, by
+the file it names: `05-pr-quality-gate.md` (**38**), `18-context-compaction.md` (**31** — 22 with no
+row plus 9 FROZEN by `structuralSections`), `06-uat-pack.md` (**25**), `16-context-read-write.md`
+(**16**), `17-task-claim.md` (**2**).
+**Reason for 110 → 112:** this round's own waves 1-3. `31-27` and `31-29` each edited a watched
+workflow and each wrote its own disposition file, so their own clauses are covered; what moved the
+count is that `31-29`'s rewrite of `18-context-compaction.md:75`/`:83` made two more of `31-21`'s and
+`31-22`'s pre-existing clauses changed clauses of the range. Plan `31-30`'s own Task 1 edit added
+**4** clauses to `05-pr-quality-gate.md` (112 → 116) and `docs/audit/29-style-dispositions/31-30.md`
+covered all four (116 → 112), so this plan's own contribution to the debt is **zero**, measured by set
+difference rather than asserted.
+
+**After Task 3's three owed disposition files: `80 finding(s) over 39 elements`. The debt fell by
+32.**
+
+| File | round 5 (`78bdb27`) | this plan, before | this plan, after | Owner of what remains |
+|---|---|---|---|---|
+| `agent-factory/workflows/05-pr-quality-gate.md` | 38 | 38 | **38** | plans `31-04`, `31-05`, `31-06`, `31-08` (standing) |
+| `agent-factory/workflows/06-uat-pack.md` | 25 | 25 | **25** | plans `31-04`, `31-05`, `31-06`, `31-08` (standing) |
+| `agent-factory/workflows/16-context-read-write.md` | 16 | 16 | **10** | plan `31-15` (3 alone at line 22, 7 shared with `31-19` at line 32) |
+| `agent-factory/workflows/17-task-claim.md` | 2 | 2 | **2** | plans `31-05`/`31-06`/`31-08` (standing) |
+| `agent-factory/workflows/18-context-compaction.md` | 29 | 31 | **5** | plan `31-29` — see the NEW finding below |
+| **total** | **110** | **112** | **80** | |
+
+**The three files written, and how their rows were attributed.** `docs/audit/29-style-dispositions/31-21.md`
+(14 rows), `31-22.md` (12 rows, 6 of them carrying a filled `companion` cell for the frozen
+`## Stop conditions` section) and `31-23.md` (6 rows). **Attribution is DERIVED, never assumed:**
+`attributeClauses()` — the gate's own attribution, the same one `companionSatisfied` consults — was
+run over the watched corpus at `8cff6d8` and each undispositioned clause mapped to the carrier commits
+that changed it. `31-23`'s six carry `a38be64` alone. `31-22`'s twelve carry `12c7733`, six of them
+also carrying `31-29`'s commits because a one-line paragraph makes every clause on it a changed clause
+of every carrier that touched the line; those six are claimed on AUTHORSHIP and the reasoning is
+written into the file. `31-21`'s fourteen carry `b3f666f`/`8cde300` together with `31-29`'s commits,
+on the same basis. No clause was claimed whose carrier set did not include the named plan.
+
+**`00-base.md`'s recorded `base_commit` (`4d2b8f0`) was NOT moved and the watched corpus was NOT
+narrowed — the gate's own message names both as clearing a finding by deleting its evidence.** Both
+are now asserted by cases in `scripts/uat-gate-exit-contract.test.ts`: the base SHA is compared
+literally, and the gate's own reported `watched corpus: N markdown file(s)` is asserted at **40**.
+
+- **NEW: five of `31-29`'s disposition rows cover NOTHING, because they pack multiple sentences into
+  one `after` cell.** `docs/audit/29-style-dispositions/31-29.md` exists and carries six rows, so
+  `31-29` did write its file. Two of those rows have an `after` cell holding several sentences — the
+  three per-position price sentences in one, and the append-precedes-write pair in another.
+  `rowMatches()` compares `normalizeSentence(row.after)` against a SINGLE derived clause, so a
+  multi-sentence cell normalizes to one long string that matches no clause at all. Both rows are
+  substantively correct and both are ineffective at the gate. Measured: 5 clauses at
+  `18-context-compaction.md:75` (3, all FROZEN) and `:83` (2) whose only carrier is `31-29`.
+  **This is a CLASS, not one file's slip** — any row whose `before`/`after` is not exactly one clause
+  covers nothing, silently, while reading as work done.
+  **Owner:** plan `31-29` for its own five. **Criterion that closes it:** split each multi-sentence
+  `after` cell into one row per sentence, keeping the same rule, disposition and companion; and, for
+  the class, a derived check asserting that every row in the register matches at least one changed
+  clause — a row matching none is either stale or malformed, and today nothing says which.
+  **Why `31-30` did not fix it:** the register's contract is one file per plan, and a plan that edits
+  another plan's file is what that contract exists to prevent. `status: open`.
+
+### 31-30 (2026-09-10) — the harness-instance tally, CLOSED
+
+`docs/audit/31-round5-residuals.md` §9.4 recorded the phase's running count COLLIDED — `31-22-SUMMARY.md`
+and `31-25-SUMMARY.md` both claiming "the ninth logged instance" — and named the closing criterion:
+"one derived list of the instances, in one place, with the numbering read off that list rather than
+typed into each summary."
+**`docs/audit/harness-false-result-instances.md` is that list**: 13 rows, contiguous ordinals from 1,
+each naming the plan or document that recorded it, the premise that was false, how it was caught, and
+the ordinal that record CLAIMED. **No SUMMARY was edited** — `git diff --name-only b0232ae..HEAD --
+'.planning/phases/31-autonomous-manual-testing/*SUMMARY.md'` is empty over this whole plan, and a case
+asserts both summaries still say "ninth".
+Four cases in `scripts/uat-gate-exit-contract.test.ts` hold it: contiguity and uniqueness; the
+collision annotated with both summaries unrewritten; the scanned document set DERIVED with its
+cardinality asserted (31 documents — 29 summaries + 2 `docs/audit/31-*` files); and every
+ordinal-claiming sentence present, over a scan whose own vacuity floor is asserted (11 claims across
+6 documents measured at this commit).
+**What it does NOT settle, recorded in the list itself:** the pre-phase-31 project count is a
+different scope and is not reconciled; §9.4's claim that `31-23` recorded a further unnumbered
+instance could NOT be substantiated and is recorded as unsubstantiated rather than given an invented
+row; and a harness corrected silently leaves no citation, so the count is a floor rather than a total.
+`status: closed`.

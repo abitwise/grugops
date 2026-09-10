@@ -1599,6 +1599,124 @@ Critical appeared at the coordinate the fix did not reach.
     `governanceRootOf` / `writeNoteFile` header blocks in `scripts/context-io.ts`, and in
     `31-29-SUMMARY.md`'s key-decisions block.
 
+#### Gap-closure decision — D-32 (2026-09-10, gap-closure round 6, wave 4, plan 31-30)
+
+**Forced by:** four things at once, and two of them are corrections to what the phase's own record
+says rather than defects in the code.
+
+1. **`D-28`'s recorded non-establishment, at the one caller that can answer for it.** D-28's own
+   "what D-28 does NOT establish" block says a fault that terminates the process WITHOUT UNWINDING —
+   an out-of-memory kill, or a signal — is caught by no `try` and is outside both of its boundaries.
+   That is true and the runnable cannot fix it: a process killed by a signal runs no `catch` clause.
+   `agent-factory/workflows/05-pr-quality-gate.md` step 3 branched on exit codes `0`, `1` and `2` and
+   said nothing about a run that produced no exit code at all, so the outcome fell to whatever the
+   reading agent's default happened to be.
+2. **`R-03` was MIS-SCOPED in the record.** `31-round6-residual-dispositions.md` §F disposes it as
+   "Fix via CI — add a `windows-latest` job … ONE job closes R-03". **That job has existed since plan
+   `20-04`.** Writing a plan that added it again would have been a fabricated closure, which is the
+   one thing this phase's requirement is about.
+3. **`R-04` was never a human item.** Its `why_human` described a harness nobody had written — a
+   temporary home, an install, a home reshaped to the prior release, a second install, an idempotence
+   assertion and an uninstall — not a judgement no machine can make.
+4. **The round-5 closing measurement raised two findings it could not repair** (`docs/audit/31-round5-residuals.md`
+   §6.3 and §9.4): a `check:diff-disposition` debt grown to 110 with 35 owed by that round's own
+   plans, and a harness-instance tally in which two plans of one round both claimed the ninth
+   ordinal. A measurement plan that writes source has found a new defect, so both were deferred here.
+
+**Measured before anything was written, in every case.** The arm set derived from
+`05-pr-quality-gate.md`'s own prose had cardinality **3**; the runnable spawned against a 40-spec
+probe repository and killed mid-run reported `EXIT CODE: null`, `SIGNAL: "SIGKILL"`, zero bytes on
+both streams, and again the same under `SIGTERM`; no arm matched. The `windows-latest` leg's six
+existing steps were enumerated FROM the workflow file. The debt was re-measured at `112` before a row
+was written. The `.temp/` residue predicate was demonstrated inert with a file planted under it —
+`git check-ignore -v` naming `.gitignore:19`, `git status --short .temp` printing nothing, a real
+listing printing the file.
+
+- **D-32: a result nobody produced is never a result, and a record that names the wrong gap is
+  corrected before it is closed.** It makes five sub-decisions.
+  - **(1) A run that produced NO exit code is a fourth arm at the CALLER, not a fifth exit code at
+    the runnable.** `05-pr-quality-gate.md` step 3 gains a `no exit code` arm: the run died without
+    producing one, killed by a signal or by the operating system; it is recorded as could-not-run with
+    the signal named; it short-circuits to the blocked terminal result exactly as exit `2` does; and
+    it is never read as a pass and never read as a finding. The three existing arms' clause text is
+    BYTE-IDENTICAL after the change, asserted as a CONTROL case — the change is an addition to a
+    paragraph other gates bind to, never a rewrite of it. The arm set is DERIVED from the prose by
+    `scripts/uat-gate-exit-contract.test.ts`, fail-closed on an unresolvable region, and the
+    runnable's own reachable return values are derived from its syntax tree and asserted a SUBSET of
+    the numeric arms — so a fifth return added later with no caller arm turns the gate red, and a
+    return the walker cannot follow is red rather than silently dropped.
+  - **(2) A platform claim is a MEASUREMENT or a recorded skip, and never a green row.**
+    `scripts/check-platform-shapes.ts` drives the corpus on whatever platform the job runs on and
+    PRINTS the shapes it could not construct, with the shape, the position, the platform and the
+    reason. It runs on EVERY leg, because a skip list is a DIFFERENTIAL measurement and a list nobody
+    has watched be empty is a list nobody has watched. The Windows-scoped step sets
+    `GRUGOPS_PLATFORM_SHAPES_REQUIRE_SKIPS`, under which an EMPTY skip list is a FAILURE: a platform
+    with no primitive for a named pipe at a filesystem path that reports skipping nothing has reported
+    a green about work it did not do. Named pipes on Windows live in the `\\.\pipe\` namespace, so
+    the FIFO is POSIX-only and the DIRECTORY is the portable non-regular-file shape.
+  - **(3) A human item that describes a harness is a harness.** `R-04` is closed by five cases in
+    `install/install.test.ts` driving the real committed installer and uninstaller in throwaway homes.
+    The materialized set is compared as a SET with its cardinality, because two installs must produce
+    the same MEMBERS and the order `readdirSync` returns them in is not part of the contract.
+  - **(4) A debt is paid in the OWNING plan's file, with DERIVED attribution, and the measuring stick
+    does not move.** The three owed files are written by this plan and say so in their own first
+    section; every row's attribution comes from the gate's own `attributeClauses()` rather than from a
+    guess; and a clause whose carrier set does not include the named plan is recorded under "What is
+    NOT in this file" with its owner instead. `00-base.md`'s `base_commit` and the watched corpus's
+    cardinality are both asserted unchanged by cases, because the gate's own message names moving
+    either as clearing a finding by deleting its evidence.
+  - **(5) A tally becomes an INDEX by being ONE list, and a prior SUMMARY is never rewritten.**
+    `docs/audit/harness-false-result-instances.md` carries one row per instance with contiguous
+    ordinals from 1, and the ordinal is READ OFF it. The round-5 collision is ANNOTATED there —
+    `31-22-SUMMARY.md` and `31-25-SUMMARY.md` both still say "ninth", and a case asserts they do.
+    The gate scans a DERIVED document set with its cardinality asserted and its own vacuity floor
+    asserted, so a silently short scan is red rather than green.
+
+  - **What D-32 does NOT establish.**
+    - **`R-01` and `R-02` stay OPEN with their `UNKNOWN - verify` markers intact and a named human
+      owner.** The attended Chrome lane under real interactive auth needs an attended session with the
+      browser extension installed; the `claude auth status --json` predicate under API-key and
+      long-lived-token configurations needs credential configurations this box does not have. Neither
+      is closable by an agent and neither may be closed by argument.
+    - **The WINDOWS REMAINDER.** Everything `check-platform-shapes.js` measured, it measured on
+      **darwin**. What a Windows runner reports is NOT measurable from this box and is not claimed:
+      whether the FIFO and symlink shapes are skipped there; whether `BROWSER_ABSENT_MARKER`'s two
+      probe stages behave identically there (both are resolution-and-existence checks, which is an
+      ARGUMENT and not a measurement); whether `PARSER_ABSENT_MARKER` is reached there; and
+      `R-31-19-03` itself. This plan supplies the INSTRUMENT and the CI wiring, not the reading.
+    - **`R-31-19-03` is SHRUNK, not closed.** Its own register entry says it is measurable only on a
+      platform reporting degenerate directory identity and that no agent on darwin may close it by
+      argument. The new step prints `home`, its parent, both `dev:ino` values and a `degenerate YES/no`
+      verdict; on darwin the verdict is `no`. The Windows verdict, and whether `canonicalDirectoryPath`
+      answers correctly where the verdict is `YES`, are the remainder.
+    - **The debt is PAID DOWN, not paid off.** 112 → 80. What remains: 65 findings across
+      `05-pr-quality-gate.md`, `06-uat-pack.md` and `17-task-claim.md` owned by `31-04`/`31-05`/`31-06`/`31-08`;
+      10 in `16-context-read-write.md` owned by `31-15`; and 5 in `18-context-compaction.md` owned by
+      `31-29` through a NEW finding this plan raises — a disposition row whose `after` cell packs
+      MULTIPLE SENTENCES normalizes to a string matching no clause and covers nothing, silently, while
+      reading as work done. That is a CLASS and no derived check exists for it today.
+    - **Fourteen unguarded POSIX-only `mkfifo` constructions in this repository's test modules make
+      the Windows leg's suite step unreachable-green.** Measured on darwin from the SOURCE; what a
+      Windows run then does is NOT measurable from here and is NOT claimed. It is why the two new
+      steps sit BEFORE the vitest step. Pre-existing, in four modules this plan does not otherwise
+      touch, carried with an owner rather than fixed.
+    - **The instance list is a FLOOR, not a total.** A harness that produced a false result and was
+      silently corrected leaves no citation and cannot appear in it. And §9.4's claim that `31-23`
+      recorded a further unnumbered instance could NOT be substantiated; it is recorded as
+      unsubstantiated rather than given an invented row.
+    - **No requirement was flipped.** `UATX-02`, `UATX-03` and `UATX-05` are this plan's declared
+      requirements and none is marked complete: `.planning/ROADMAP.md` states in its own words that
+      only a verification round may flip one.
+  - **Reversibility: reversible.** The arm is an addition to a workflow paragraph, the CI steps are
+    additions to a job that already existed, the installer cases are cases, and the three disposition
+    files plus the instance list are records. Reverting restores a gate branch with no instruction for
+    a run that produced no result, a Windows leg whose remainder is an assumption, a human item that
+    was always a harness, and a tally that is not an index.
+  - **Recorded in four places that must agree:** here; in `05-pr-quality-gate.md`'s exit-code branch
+    and `browser-uat-recipe.md`'s pointer to it; in `scripts/check-platform-shapes.ts`'s header block
+    and `.github/workflows/ci.yml`'s two new step comments; and in `31-30-SUMMARY.md`'s key-decisions
+    block.
+
 ### Claude's Discretion
 - Exact runnable file name and the exact wording of the two new loud-skip markers, as long as
   each is a single exported constant with a single emission point (the `uat-live.test.ts` shape).

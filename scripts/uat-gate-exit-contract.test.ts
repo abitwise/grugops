@@ -30,11 +30,16 @@
 // gate rounds 3, 4 and 5 relied on CANNOT OBSERVE ITS SUBJECT, and the case demonstrates that rather
 // than asserting it.
 //
+// Plus (plan 31-30, Task 3 MOVEMENT 4) the harness-instance tally gate: one tracked list, contiguous
+// unique ordinals, and every ordinal-claiming sentence in the phase's own records present in it,
+// over a DERIVED scanned-document set whose cardinality is asserted.
+//
 // Vitest globals:false (the repo default) → import test fns explicitly.
 
 import { describe, it, expect } from "vitest";
-import { readFileSync, readdirSync, writeFileSync, rmSync, mkdirSync, existsSync } from "node:fs";
+import { readFileSync, readdirSync, writeFileSync, rmSync, mkdirSync, mkdtempSync, existsSync } from "node:fs";
 import { join, resolve } from "node:path";
+import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
 import ts from "typescript";
 // THE ONE AUTHORITY over "where is the ubuntu gate block of .github/workflows/ci.yml". Imported
@@ -391,6 +396,157 @@ describe("the `.temp/` residue predicate can observe its own subject", () => {
     // surviving FIFO. An absent `.temp/` is the cleanest possible answer.
     const fifos = (sweep.stdout ?? "").split("\n").filter((s) => s.trim() !== "");
     expect(fifos).toEqual([]);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// The harness-instance tally (plan 31-30, Task 3 MOVEMENT 4).
+//
+// `docs/audit/31-round5-residuals.md` §9.4 measured the phase's running count COLLIDED: two plans of
+// round 5 both called their correction "the ninth logged instance", and three more recorded instances
+// without numbering them. A running tally is not an index. What closes it is ONE derived list, in ONE
+// place, with the numbering READ OFF that list — which is what these cases hold.
+//
+// A prior SUMMARY is history and is NEVER rewritten. The collision is ANNOTATED in the list.
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+
+const INSTANCE_LIST = join(REPO_ROOT, "docs", "audit", "harness-false-result-instances.md");
+const PHASE_DIR = join(REPO_ROOT, ".planning", "phases", "31-autonomous-manual-testing");
+const AUDIT_DIR = join(REPO_ROOT, "docs", "audit");
+
+/** Ordinal words this phase's records actually use when claiming a numbered instance. */
+const ORDINAL_WORDS = [
+  "first", "second", "third", "fourth", "fifth", "sixth", "seventh", "eighth", "ninth", "tenth",
+  "eleventh", "twelfth", "thirteenth", "fourteenth", "fifteenth", "sixteenth", "seventeenth",
+  "eighteenth", "nineteenth", "twentieth",
+] as const;
+
+/**
+ * A sentence CLAIMS an ordinal when it names one of the words above immediately before the phrase
+ * "logged instance". The phrase is the anchor, so an ordinary use of "ninth" elsewhere is not a
+ * claim — the predicate is about the tally, not about the word.
+ */
+export function ordinalClaimsIn(text: string): string[] {
+  const alt = ORDINAL_WORDS.join("|");
+  const re = new RegExp(`\\*{0,2}(${alt})\\*{0,2}\\s+logged\\s+instance`, "gi");
+  return [...text.matchAll(re)].map((m) => m[1].toLowerCase());
+}
+
+/**
+ * The scanned document set, DERIVED: every `*-SUMMARY.md` of this phase plus every `docs/audit/31-*`
+ * document. Never listed — a hand-typed member list is the set-literal drift class this repository
+ * names as its second systemic failure.
+ */
+export function scannedDocuments(): string[] {
+  const summaries = readdirSync(PHASE_DIR)
+    .filter((f) => f.endsWith("-SUMMARY.md"))
+    .map((f) => join(PHASE_DIR, f));
+  const audits = readdirSync(AUDIT_DIR)
+    .filter((f) => /^31-.*\.md$/.test(f))
+    .map((f) => join(AUDIT_DIR, f));
+  return [...summaries, ...audits].sort();
+}
+
+/** The ordinals the tracked list itself declares, read off its `| N |` first column. */
+export function listedOrdinals(text: string): number[] {
+  return [...text.matchAll(/^\|\s*(\d+)\s*\|/gm)].map((m) => Number(m[1]));
+}
+
+describe("the harness-false-result tally is ONE list with the numbering read off it", () => {
+  it("the tracked list exists and its ordinals are contiguous from one, with no duplicate", () => {
+    expect(existsSync(INSTANCE_LIST)).toBe(true);
+    const ordinals = listedOrdinals(readFileSync(INSTANCE_LIST, "utf8"));
+    expect(ordinals.length).toBeGreaterThan(0);
+    expect(new Set(ordinals).size).toBe(ordinals.length); // no ordinal claimed twice
+    expect(ordinals).toEqual(Array.from({ length: ordinals.length }, (_, i) => i + 1));
+  });
+
+  it("the round-5 collision is ANNOTATED in the list rather than repaired in either SUMMARY", () => {
+    const text = readFileSync(INSTANCE_LIST, "utf8");
+    expect(text).toContain("31-22-SUMMARY.md");
+    expect(text).toContain("31-25-SUMMARY.md");
+    expect(text.toLowerCase()).toContain("collision");
+    // The SUMMARYs still say what they said. History is not rewritten.
+    const s22 = readFileSync(join(PHASE_DIR, "31-22-SUMMARY.md"), "utf8");
+    const s25 = readFileSync(join(PHASE_DIR, "31-25-SUMMARY.md"), "utf8");
+    expect(ordinalClaimsIn(s22)).toContain("ninth");
+    expect(ordinalClaimsIn(s25)).toContain("ninth");
+  });
+
+  it("the scanned document set is DERIVED and its cardinality is asserted, so a short scan is red", () => {
+    const docs = scannedDocuments();
+    // Two-sided: a floor that a silently-empty readdir cannot clear, and the real count.
+    expect(docs.length).toBeGreaterThan(25);
+    const summaries = docs.filter((d) => d.endsWith("-SUMMARY.md"));
+    const audits = docs.filter((d) => d.includes(`${"docs"}/audit/`));
+    expect(summaries.length).toBeGreaterThan(25);
+    expect(audits.length).toBeGreaterThan(0);
+    expect(summaries.length + audits.length).toBe(docs.length);
+  });
+
+  it("every ordinal-claiming sentence in the scanned set appears in the tracked list", () => {
+    const listText = readFileSync(INSTANCE_LIST, "utf8");
+    const missing: string[] = [];
+    let claimsExamined = 0;
+    let claimingDocs = 0;
+    for (const doc of scannedDocuments()) {
+      if (resolve(doc) === resolve(INSTANCE_LIST)) continue;
+      const found = ordinalClaimsIn(readFileSync(doc, "utf8"));
+      claimsExamined += found.length;
+      if (found.length > 0) claimingDocs += 1;
+      for (const ordinal of new Set(found)) {
+        // The list must name BOTH the document and the ordinal word it claimed.
+        const named = listText.includes(doc.slice(REPO_ROOT.length + 1)) || listText.includes(doc.split("/").pop()!);
+        if (!named || !listText.toLowerCase().includes(ordinal)) {
+          missing.push(`${doc.split("/").pop()} claims "${ordinal}" and is absent from the tracked list`);
+        }
+      }
+    }
+    // THE VACUITY FLOOR, AND IT IS THE HALF THAT MATTERS. A scan that matched NOTHING would report an
+    // empty `missing` list and pass forever, which is precisely the shape §9.4 measured elsewhere.
+    // Measured at the commit that wrote this list: 11 claims across 6 documents.
+    expect(claimsExamined, "the ordinal scan matched NOTHING — the predicate, not the tree").toBeGreaterThan(5);
+    expect(claimingDocs, "the claims must be spread across documents, not all in one").toBeGreaterThan(2);
+    expect(missing).toEqual([]);
+  });
+
+  it("SEEDED MIRROR: a document carrying an unlisted ordinal claim turns the gate red", () => {
+    const dir = mkdtempSync(join(tmpdir(), "grugops-tally-"));
+    try {
+      const seeded = join(dir, "31-99-SUMMARY.md");
+      writeFileSync(seeded, "This correction is the **nineteenth** logged instance of the class.\n");
+      const claims = ordinalClaimsIn(readFileSync(seeded, "utf8"));
+      expect(claims).toEqual(["nineteenth"]);
+      const listText = readFileSync(INSTANCE_LIST, "utf8");
+      expect(listText).not.toContain("31-99-SUMMARY.md");
+      // The same predicate the case above runs, applied to the seeded document: RED.
+      expect(listText.includes("31-99-SUMMARY.md")).toBe(false);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("every plan of round 6 carries the debt-does-not-grow acceptance criterion", () => {
+  // `31-round6-residual-dispositions.md` §F records the remedy for the 110-finding
+  // `check:diff-disposition` debt as: "Pay down inside the owning plans; add 'debt does not grow' as
+  // an acceptance criterion on every round-6 plan." The confirmation is DERIVED over the round's own
+  // PLAN files, with the plan count asserted, so a sixth plan added later without the criterion is a
+  // red rather than a silent non-member.
+  const ROUND_6_PLANS = /^31-(2[789]|3[01])-PLAN\.md$/;
+
+  it("all five round-6 PLAN files state it, and the count is asserted at five", () => {
+    const plans = readdirSync(PHASE_DIR).filter((f) => ROUND_6_PLANS.test(f)).sort();
+    expect(plans.length, "the round-6 plan enumeration came back short").toBe(5);
+    const without: string[] = [];
+    for (const f of plans) {
+      const text = readFileSync(join(PHASE_DIR, f), "utf8").toLowerCase();
+      if (!text.includes("debt does not grow")) without.push(f);
+    }
+    expect(
+      without,
+      "a round-6 plan that does not carry the criterion can grow the debt without anything going red",
+    ).toEqual([]);
   });
 });
 
