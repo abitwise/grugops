@@ -9139,7 +9139,17 @@ const censusRelationshipFindings = (c: TripwireCensus): string[] => {
 // the live census. Same DISCLOSED DEPARTURE as the 54 -> 55 bump above: it lands in the commit
 // after the one that added the module, because the module was committed before the full suite
 // surfaced this pin.
-const TRIPWIRE_MODULES = 56;
+//
+// 56 -> 57 (plan 31-27): ONE test module, `scripts/nonblocking-reader-parity.test.ts` — the derived
+// two-implementation axis binding `scripts/context-io.ts`'s non-blocking regular-file reader to the
+// one `hooks/hook-entry.ts` restates inline. The restatement exists because the wrapper may import
+// only `node:` builtins; the module exists because a second spelling of one rule is this
+// repository's recorded drift shape, and CR-17 is what that drift cost. A pin that surfaces a module
+// arriving is the correct thing to have fired here. Re-derived rather than incremented:
+// `ls scripts/*.test.ts | wc -l` reports 57 on this tree, agreeing with the live census. Same
+// DISCLOSED DEPARTURE as the two bumps above: it lands in the commit after the one that added the
+// module, because the module was committed before the full suite surfaced this pin.
+const TRIPWIRE_MODULES = 57;
 /**
  * Corpus-derived floors, expressed as RATES so the floor grows with the corpus it floors.
  * Each is set well below its measured live value: the point is to catch a measurement that
