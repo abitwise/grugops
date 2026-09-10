@@ -869,11 +869,65 @@ export const CANONICAL_READ_POSITION = "absent, or a regular file";
  */
 export const NOTE_PATH_NOT_REGULAR_FILE_CLAUSE = "note-path-not-a-regular-file";
 /**
- * The ceiling on a NOTE-path read. STATED here rather than inherited from the configuration
- * reader's 8 MiB by accident: a note and a governance config are different artifacts, and a shared
- * constant would make one of the two ceilings a coincidence of refactoring.
+ * The clause an over-ceiling REGULAR file at a note position NAMES (31-29, CR-19).
+ *
+ * WHY THIS EXISTS AS ITS OWN CLAUSE RATHER THAN SHARING THE SHAPE ONE. Until this plan, an
+ * over-ceiling note destination was refused through `NOTE_PATH_NOT_REGULAR_FILE_CLAUSE`, whose
+ * message asserts the position "is not absent, or a regular file". The round-6 verifier MEASURED
+ * that sentence against a 9,437,353-byte file that IS a regular file and recorded it as false. A
+ * refusal that misnames the condition it met is a fabricated claim about the mechanism — the same
+ * thing this repository forbids when it forbids a faked gate — and it is fixed as its own defect
+ * rather than as a wording tidy-up. Two conditions, two names, each true of the file it describes.
  */
-const NOTE_FILE_MAX_BYTES = 8 * 1024 * 1024;
+export const NOTE_ABOVE_CEILING_CLAUSE = "note-above-size-ceiling";
+/**
+ * The clause an over-ceiling GOV-02 ledger position NAMES (31-29, CR-19's second register).
+ */
+export const LEDGER_ABOVE_CEILING_CLAUSE = "audit-ledger-above-size-ceiling";
+/**
+ * The ceiling on a NOTE file, on BOTH sides. STATED here rather than inherited from the
+ * configuration reader's 8 MiB by accident: a note and a governance config are different artifacts,
+ * and a shared constant would make one of the two ceilings a coincidence of refactoring.
+ *
+ * ── EXPORTED, AND A BOUND IS OWNED BY THE SIDE THAT ADMITS (31-29, CR-19). ─────────────────────
+ *
+ * WHAT WAS WRONG, MEASURED RATHER THAN DESCRIBED. 31-21 (D-24) wired this ceiling into
+ * `readRegularFileOrNull` and into nothing else. The write side never consulted it, so the writer
+ * could CREATE an object its own readers were required to refuse. Reproduced against the committed
+ * `scripts/context-io.js` at HEAD, with the round-6 verifier's own probe spelling:
+ *
+ *   appendNote(task, note, "x".repeat(9 * 1024 * 1024), ctx, undefined, repo)
+ *     -> RETURNED id 20260910T000000Z-engineer-observation-3e67edaf, no diagnostic
+ *     -> the file on disk: 9,437,353 bytes, a regular file
+ *     -> readContext(task, ctx).length === 0
+ *
+ * The note is not corrupt, not refused and not logged — it is INVISIBLE, to `readContext`,
+ * `render`, `currentState`, `admit()`'s cross-check and `promoteAdmitted`'s liveness clause alike,
+ * because all five take that one reader's path. That is silent, permanent data loss on the shared
+ * verified context, which is this project's only memory between agents.
+ *
+ * THE RULE THE FIX INSTALLS, AS A PROPERTY RATHER THAN AS A PATCH. A bound is enforced on the side
+ * that ADMITS. The write side refuses an over-ceiling note at composition time, before anything is
+ * written; the read side keeps its own refusal, for a file it did not write; and BOTH sides read
+ * THIS ONE exported constant, so they cannot disagree by a byte. The export is what lets
+ * `scripts/context-io.test.ts` derive every ceiling-comparison site and assert each one reads this
+ * binding rather than a literal — a second spelling of a bound is the drift shape that produced
+ * CR-19 in the first place.
+ *
+ * NAMING NOTE for a reader arriving from the round-6 brief, which calls this constant
+ * `NOTE_MAX_BYTES`: it is this one. The existing spelling is KEPT rather than renamed, because a
+ * rename here would create the second spelling this module keeps deleting.
+ */
+export const NOTE_FILE_MAX_BYTES = 8 * 1024 * 1024;
+/** The error both filesystem authorities raise, carrying the condition it met. */
+export class ReadPositionRefusal extends Error {
+    condition;
+    constructor(condition, message) {
+        super(message);
+        this.name = "ReadPositionRefusal";
+        this.condition = condition;
+    }
+}
 /**
  * Read one filesystem position as text, or `null` when NOTHING is there.
  *
@@ -915,23 +969,49 @@ export const UNRECORDABLE_ADMISSION_REFUSAL = "An admission the audit trail cann
  * rather than waiting), `fstat` on the descriptor refuses everything that is not a regular file, and
  * `O_APPEND` keeps the append-only guarantee the ledger's own comment makes.
  */
-function appendRegularFileLine(path, line, position) {
+function appendRegularFileLine(path, line, position, maxBytes) {
     let fd;
     try {
         fd = openSync(path, fsConstants.O_WRONLY | fsConstants.O_APPEND | fsConstants.O_CREAT | fsConstants.O_NONBLOCK, 0o600);
     }
     catch (e) {
-        throw new Error(`context-io: the ${position} "${path}" could not be opened for append ` +
+        throw new ReadPositionRefusal("unopenable", `context-io: the ${position} "${path}" could not be opened for append ` +
             `(${e.code ?? "unknown"}) — it is refused rather than waited on. ` +
             `The canonical form for this position is ${CANONICAL_READ_POSITION}.`);
     }
     try {
         const st = fstatSync(fd);
         if (!st.isFile()) {
-            throw new Error(`context-io: the ${position} "${path}" is not a regular file — it is refused rather than ` +
+            throw new ReadPositionRefusal("not-a-regular-file", `context-io: the ${position} "${path}" is not a regular file — it is refused rather than ` +
                 `written, because writing to a FIFO or a device can block forever and a program that ` +
                 `never answers records nothing. The canonical form for this position is ` +
                 `${CANONICAL_READ_POSITION}.`);
+        }
+        // ── THE SAME RECONCILIATION, ONE REGISTER OVER (31-29, CR-19). ───────────────────────────────
+        //
+        // The append side carried NO ceiling while `ledgerRecordsId` carried 64 MiB, which is the note
+        // asymmetry exactly. Reproduced against the committed `.js`: with the ledger seeded to
+        // 67,264,512 bytes, `appendNote` under `audit_retention: retained` appended 178 further bytes
+        // and returned an id, and the very next read of that ledger refused it as above the
+        // 67,108,864-byte ceiling. An append that grows a trail past what any reader will read makes
+        // the trail unreadable and reports success for doing it.
+        //
+        // WHICH OF THE TWO OPTIONS WAS CHOSEN, AND WHY — recorded so a later reader meets a DECISION
+        // rather than an asymmetry. The alternative was to drop the read ceiling and STREAM the look
+        // line by line, which would let the ledger grow without bound. It is REJECTED: the ceiling is
+        // not a parser limitation, it is a deliberate operational limit on an append-only trail (see
+        // AUDIT_LEDGER_MAX_BYTES), and streaming would remove the limit rather than honour it. Bounding
+        // the APPEND keeps the trail inside the size every reader of it can handle, and it surfaces the
+        // exhaustion as a named refusal AT THE MOMENT A HUMAN CAN STILL ROTATE THE LEDGER — while
+        // streaming would surface it as an unbounded read the next time somebody looked.
+        //
+        // The fstat above is the one this check reads, so no new filesystem call enters the module.
+        const wouldBe = st.size + Buffer.byteLength(line, "utf8");
+        if (wouldBe > maxBytes) {
+            throw new ReadPositionRefusal("above-ceiling", `context-io: appending ${Buffer.byteLength(line, "utf8")} bytes to the ${position} ` +
+                `"${path}" would carry it to ${wouldBe} bytes, above the ${maxBytes}-byte ceiling — ` +
+                `refused rather than appended, because a trail grown past what its own readers will read ` +
+                `is a trail nobody can audit. Nothing was appended.`);
         }
         writeSync(fd, line, null, "utf8");
     }
@@ -964,21 +1044,26 @@ export function readRegularFileOrNull(path, maxBytes, position) {
         // Present and unopenable — EACCES, ELOOP, ENXIO (a socket), a dangling symlink's own ENOENT on
         // the TARGET is reported as ENOENT by open(2) and is therefore correctly "nothing here". Fail
         // closed, naming the position rather than surfacing a bare errno the caller cannot place.
-        throw new Error(`context-io: the ${position} "${path}" IS present and could not be opened (${code ?? "unknown"}) ` +
+        throw new ReadPositionRefusal("unopenable", `context-io: the ${position} "${path}" IS present and could not be opened (${code ?? "unknown"}) ` +
             `— it is refused rather than read. The canonical form for this position is ` +
             `${CANONICAL_READ_POSITION}.`);
     }
     try {
         const st = fstatSync(fd);
+        // TWO CONDITIONS, TWO NAMES (31-29, CR-19). The shape branch and the ceiling branch used to be
+        // reported to callers as one undifferentiated failure, so `writeNoteFile` published its SHAPE
+        // clause — "is not absent, or a regular file" — for a 9,437,353-byte REGULAR file. Each branch
+        // now carries the condition it actually met, and each caller names its own clause from it.
         if (!st.isFile()) {
-            throw new Error(`context-io: the ${position} "${path}" is not a regular file — it is refused rather than ` +
+            throw new ReadPositionRefusal("not-a-regular-file", `context-io: the ${position} "${path}" is not a regular file — it is refused rather than ` +
                 `read, because reading a FIFO, a device, a socket or a directory can block forever and a ` +
                 `program that never answers refuses nothing. The canonical form for this position is ` +
                 `${CANONICAL_READ_POSITION}.`);
         }
         if (st.size > maxBytes) {
-            throw new Error(`context-io: the ${position} "${path}" is ${st.size} bytes, above the ${maxBytes}-byte ` +
-                `ceiling — refused rather than read.`);
+            throw new ReadPositionRefusal("above-ceiling", `context-io: the ${position} "${path}" is ${st.size} bytes, above the ${maxBytes}-byte ` +
+                `ceiling — refused rather than read. It IS a regular file; what disqualifies it is its ` +
+                `size and nothing else.`);
         }
         // The read is bounded by the size fstat just reported on this same descriptor.
         const buf = Buffer.allocUnsafe(Number(st.size));
@@ -1063,15 +1148,50 @@ function writeNoteFile(notesDir, id, text) {
     // pair above reached the APPEND-ONLY refusal for it: readFileSync threw EISDIR, the catch mapped it
     // to null, and the message then said "the destination already holds a DIFFERENT note". The
     // condition that actually held was never named. It is now.
+    // ── THE BOUND IS OWNED BY THE SIDE THAT ADMITS (31-29, CR-19). ────────────────────────────────
+    //
+    // THE CANDIDATE'S OWN SIZE IS DECIDED HERE, BEFORE ANY DIRECTORY IS CREATED AND BEFORE ANY BYTE
+    // IS WRITTEN. Until this plan the ceiling lived on the read side alone, so this writer could
+    // create a note that `readContext`, `render`, `currentState`, `admit()`'s cross-check and
+    // `promoteAdmitted`'s liveness clause were all then REQUIRED to refuse — measured on the
+    // committed `.js` as a clean WROTE followed by a zero-length read of the same task.
+    //
+    // WHY THIS IS A PROPERTY AND NOT A PATCH. A writer that produces objects its own readers must
+    // reject has no coherent contract: either the object is admissible, in which case the reader is
+    // wrong to refuse it, or it is not, in which case the write was wrong to succeed. The side that
+    // ADMITS owns the bound, so the question is settled once, at composition, where "nothing was
+    // written" is true by construction rather than by cleanup. The read side KEEPS its own refusal —
+    // it must, because it reads files this module did not write — and both sides read the ONE
+    // exported `NOTE_FILE_MAX_BYTES`, so they cannot disagree by a byte.
+    //
+    // The check sits AFTER path containment deliberately: a traversal-bearing id is a security fault
+    // about WHERE, and it stays the first thing this chokepoint answers.
+    const candidateBytes = Buffer.byteLength(text, "utf8");
+    if (candidateBytes > NOTE_FILE_MAX_BYTES) {
+        throw new Error(`context-io.writeNoteFile: refusing to write (${NOTE_ABOVE_CEILING_CLAUSE}) — the composed ` +
+            `note under id "${id}" is ${candidateBytes} bytes, above the ${NOTE_FILE_MAX_BYTES}-byte ` +
+            `ceiling every reader of this store enforces. Writing it would create a note this module's ` +
+            `own readers are required to refuse, which is silent loss rather than storage. No file was ` +
+            `written and no directory was created.`);
+    }
     let existing;
     try {
         existing = readRegularFileOrNull(resolvedFinal, NOTE_FILE_MAX_BYTES, "note destination");
     }
     catch (e) {
-        throw new Error(`context-io.writeNoteFile: refusing to write (${NOTE_PATH_NOT_REGULAR_FILE_CLAUSE}) — the ` +
-            `note destination "${resolvedFinal}" is not ${CANONICAL_READ_POSITION}, so it is REFUSED ` +
-            `rather than waited on and rather than replaced. No file was written. Underlying reason: ` +
-            `${e.message}`);
+        // THE CLAUSE NAMES THE CONDITION THAT IS TRUE (31-29, CR-19). An over-ceiling REGULAR file gets
+        // the ceiling clause; every non-canonical SHAPE keeps the shape clause. Reported through the
+        // authority's own discriminant rather than by matching its message text.
+        const aboveCeiling = e instanceof ReadPositionRefusal && e.condition === "above-ceiling";
+        throw new Error(aboveCeiling
+            ? `context-io.writeNoteFile: refusing to write (${NOTE_ABOVE_CEILING_CLAUSE}) — the note ` +
+                `destination "${resolvedFinal}" IS a regular file, and it is above the ` +
+                `${NOTE_FILE_MAX_BYTES}-byte ceiling, so this write can neither read it to compare nor ` +
+                `replace it. No file was written. Underlying reason: ${e.message}`
+            : `context-io.writeNoteFile: refusing to write (${NOTE_PATH_NOT_REGULAR_FILE_CLAUSE}) — the ` +
+                `note destination "${resolvedFinal}" is not ${CANONICAL_READ_POSITION}, so it is REFUSED ` +
+                `rather than waited on and rather than replaced. No file was written. Underlying reason: ` +
+                `${e.message}`);
     }
     if (existing !== null) {
         if (existing === text)
@@ -2309,11 +2429,16 @@ const HIGH_SEVERITY_ROLES = ["security-nfr", "architect-design", "release-manage
 // NOT a compaction artifact (D-09): it never touches the compaction code path.
 const AUDIT_LEDGER_RELPATH = [".grugops", "audit", "admissions.jsonl"];
 /**
- * The ceiling on a GOV-02 ledger read (31-21). Stated for this artifact rather than shared with the
- * note or config ceilings: an append-only JSONL trail grows without bound in ordinary use, so its
- * ceiling is a deliberate operational limit and not a copy of somebody else's number.
+ * The ceiling on a GOV-02 ledger, on BOTH sides (31-21; reconciled by 31-29, CR-19). Stated for
+ * this artifact rather than shared with the note or config ceilings: an append-only JSONL trail
+ * grows in ordinary use, so its ceiling is a deliberate operational limit and not a copy of
+ * somebody else's number.
+ *
+ * EXPORTED for the same reason `NOTE_FILE_MAX_BYTES` is: the append side and the read side must
+ * read ONE binding, and the derived ceiling-site assertion in `scripts/context-io.test.ts` can only
+ * prove that about a name it can import.
  */
-const AUDIT_LEDGER_MAX_BYTES = 64 * 1024 * 1024;
+export const AUDIT_LEDGER_MAX_BYTES = 64 * 1024 * 1024;
 // ── admit: the context-aware admission cross-check (D-01/D-10 — the ONLY context-reading path). ──
 // Given a candidate note text for a task, run the structural validate() first; then, only when the
 // note is a `finding` carrying a §14-gate#<id> stamp, cross-check that <id> against a LIVE GREEN
@@ -2552,7 +2677,23 @@ function appendAuditLedger(repoRoot, scalars, isHighSeverity, verifiedBy, reBoun
     // MEASURED wedging both `admit` and `admitAndAppend` on a FIFO ledger at exit 124. The throw is
     // caught by each caller and turned into a REFUSAL: under `retained` the operator declared that
     // admissions are recorded, so an admission that cannot be recorded is not granted.
-    appendRegularFileLine(ledgerPath, JSON.stringify(reBound ? { ...event, re_bound: true } : event) + "\n", "GOV-02 audit ledger");
+    //
+    // THE APPEND IS BOUNDED BY THE SAME CONSTANT THE LOOK READS (31-29, CR-19). The ceiling refusal
+    // is republished here under this position's own clause, because a clause is a statement in the
+    // caller's register and `LEDGER_ABOVE_CEILING_CLAUSE` is what a reader of a ledger refusal looks
+    // up. The condition itself is decided once, by the write authority's fstat.
+    try {
+        appendRegularFileLine(ledgerPath, JSON.stringify(reBound ? { ...event, re_bound: true } : event) + "\n", "GOV-02 audit ledger", AUDIT_LEDGER_MAX_BYTES);
+    }
+    catch (e) {
+        if (e instanceof ReadPositionRefusal && e.condition === "above-ceiling") {
+            throw new Error(`context-io.appendAuditLedger: refusing to append (${LEDGER_ABOVE_CEILING_CLAUSE}) — the ` +
+                `GOV-02 audit ledger at "${ledgerPath}" is at or above the ${AUDIT_LEDGER_MAX_BYTES}-byte ` +
+                `ceiling every reader of it enforces, so a further line would grow a trail nobody can ` +
+                `read. Nothing was appended. Underlying reason: ${e.message}`);
+        }
+        throw e;
+    }
 }
 /**
  * Does the destination repository's GOV-02 ledger already carry an event keyed by this note id?

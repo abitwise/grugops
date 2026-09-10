@@ -43,6 +43,9 @@ import ts from "typescript";
 
 const ROOT = join(import.meta.dirname, "..");
 const CONTEXT_IO_JS = join(ROOT, "scripts", "context-io.js");
+// The SOURCE, for the derived ceiling-site axis (31-29). Behaviour is measured against the
+// committed `.js`; a derivation about how the module is WRITTEN must read the `.ts` it is written in.
+const CONTEXT_IO_TS = join(ROOT, "scripts", "context-io.ts");
 
 const tmpDirs: string[] = [];
 function freshTmp(prefix: string): string {
@@ -11129,5 +11132,574 @@ describe("31-27 S1 — the residual register is scoped BY HOST, member by member
         "DISPOSITION (plan 31-27): CLOSE",
       );
     }
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// PLAN 31-29 — CR-19: A BOUND IS OWNED BY THE SIDE THAT ADMITS.
+//
+// WHAT WAS WRONG, MEASURED AGAINST THE COMMITTED `.js` AT HEAD BEFORE ANY SOURCE CHANGED. 31-21
+// (D-24) gave this module one non-blocking regular-file reader WITH a size ceiling, and wired that
+// ceiling into the READ side and into nothing else. The round-6 verifier's own probe, re-driven
+// here verbatim:
+//
+//   body bytes = 9437184
+//   appendNote(...)              -> RETURNED id 20260910T000000Z-engineer-observation-3e67edaf
+//   notes dir listing            -> ["20260910T000000Z-engineer-observation-3e67edaf.md"]
+//   on-disk bytes = 9437353, isFile = true
+//   readContext(task, ctx).length -> 0
+//
+// The note is not corrupt, not refused and not logged. It is INVISIBLE to every reader — the same
+// one reader backs `readContext`, `render`, `currentState`, `admit()`'s cross-check and
+// `promoteAdmitted`'s liveness clause — permanently, on the only memory this project has between
+// agents. And the idempotent re-write of the IDENTICAL bytes was then refused like this:
+//
+//   clause: note-path-not-a-regular-file
+//   "... is not absent, or a regular file ..."
+//   stat:  isFile = true  isFIFO = false  isDirectory = false  size = 9437353
+//
+// which is false of the file it describes. A refusal that misnames its condition is a fabricated
+// claim about the mechanism, and it is fixed as its own defect rather than as a wording tidy-up.
+//
+// THE PROPERTY THESE CASES BIND. A bound is enforced on the side that ADMITS: a write that succeeds
+// may never produce an object a reader is required to refuse. Both sides read ONE exported
+// constant, so they cannot disagree by a byte — asserted at ceiling-1, ceiling and ceiling+1 on
+// EACH side rather than reasoned about.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+describe("31-29 — CR-19: the note ceiling is enforced on the side that ADMITS", () => {
+  const T = "T-529";
+
+  function contextStore(prefix: string, context: Record<string, string> = {}): { root: string; ctx: string } {
+    const root = freshTmp(prefix);
+    mkdirSync(join(root, ".git"), { recursive: true });
+    mkdirSync(join(root, ".grugops"), { recursive: true });
+    writeFileSync(join(root, ".grugops", "factory.config.json"), JSON.stringify({ context }));
+    const ctx = join(root, ".grugops", "context");
+    mkdirSync(ctx, { recursive: true });
+    return { root, ctx };
+  }
+
+  const observation = {
+    kind: "observation",
+    by: "engineer",
+    at: "2026-09-10T00:00:00Z",
+    verified_by: "",
+    confidence: "medium",
+    refs: [],
+    supersedes: null,
+  } as Parameters<typeof mod.appendNote>[1];
+
+  /** Four ids of IDENTICAL length, so the composed frontmatter overhead is the same for each. */
+  const CAL_ID = "20260910T000000Z-engineer-observation-aaaaaaa0";
+  const ADJ_IDS = [
+    "20260910T000000Z-engineer-observation-aaaaaaa1",
+    "20260910T000000Z-engineer-observation-aaaaaaa2",
+    "20260910T000000Z-engineer-observation-aaaaaaa3",
+  ] as const;
+
+  /**
+   * The composed-frontmatter overhead, MEASURED for an id of the adjacency ids' own length rather
+   * than assumed. An earlier spelling of this probe calibrated against an auto-generated id and
+   * mislabelled the whole triple by one byte — the id is interpolated into the note, so its LENGTH
+   * is part of the overhead.
+   */
+  function overheadFor(ctx: string, root: string): number {
+    mod.appendNote(T, observation, "y", ctx, CAL_ID, root);
+    return statSync(join(ctx, T, "notes", `${CAL_ID}.md`)).size - 2; // body "y" + its "\n"
+  }
+
+  it("RED-turned-GREEN: an over-ceiling note is REFUSED at composition, with NOTHING written", () => {
+    const { root, ctx } = contextStore("p31-29-ceiling-write-");
+    const notesDir = join(ctx, T, "notes");
+    let message = "";
+    try {
+      mod.appendNote(T, observation, "x".repeat(9 * 1024 * 1024), ctx, undefined, root);
+      expect.unreachable("the 9 MiB note was WRITTEN — CR-19 is back");
+    } catch (e) {
+      message = (e as Error).message;
+    }
+    expect(message).toContain(mod.NOTE_ABOVE_CEILING_CLAUSE);
+    expect(message).toContain("No file was written");
+    // ASSERTED BY A DIRECTORY LISTING, NOT BY THE RETURN VALUE. "Nothing was written" is a claim
+    // about the filesystem, so the filesystem is what answers it — and the refusal happens before
+    // `mkdirSync`, so not even the notes directory exists.
+    expect(existsSync(notesDir), "the notes directory was created by a refused write").toBe(false);
+    expect(existsSync(join(ctx, T)), "the task directory was created by a refused write").toBe(false);
+  });
+
+  it("ADJACENCY, WRITE side: ceiling-1 and ceiling are ADMITTED, ceiling+1 is REFUSED", () => {
+    const { root, ctx } = contextStore("p31-29-adj-write-");
+    const notesDir = join(ctx, T, "notes");
+    const overhead = overheadFor(ctx, root);
+    const CEIL = mod.NOTE_FILE_MAX_BYTES;
+    const targets = [CEIL - 1, CEIL, CEIL + 1] as const;
+    const results: string[] = [];
+    targets.forEach((total, i) => {
+      const id = ADJ_IDS[i] as string;
+      const bodyLen = total - overhead - 1; // the composer appends the body's trailing newline
+      try {
+        mod.appendNote(T, observation, "z".repeat(bodyLen), ctx, id, root);
+        const onDisk = statSync(join(notesDir, `${id}.md`)).size;
+        expect(onDisk, `the ${total}-byte target composed to ${onDisk} bytes`).toBe(total);
+        results.push("admitted");
+      } catch {
+        expect(existsSync(join(notesDir, `${id}.md`))).toBe(false);
+        results.push("refused");
+      }
+    });
+    expect(results).toEqual(["admitted", "admitted", "refused"]);
+  });
+
+  it("ADJACENCY, READ side: the SAME three sizes decide the SAME three ways", () => {
+    // Driven on planted regular files rather than through the writer, so the read side is measured
+    // INDEPENDENTLY of the write side. If the two ever disagree by a byte, this pair is what says so.
+    const dir = freshTmp("p31-29-adj-read-");
+    const CEIL = mod.NOTE_FILE_MAX_BYTES;
+    const results: string[] = [];
+    for (const total of [CEIL - 1, CEIL, CEIL + 1]) {
+      const p = join(dir, `${total}.md`);
+      writeFileSync(p, Buffer.alloc(total, 0x61));
+      try {
+        const text = mod.readRegularFileOrNull(p, CEIL, "note file");
+        expect(text).not.toBeNull();
+        expect((text as string).length).toBe(total);
+        results.push("admitted");
+      } catch (e) {
+        expect((e as { condition?: string }).condition).toBe("above-ceiling");
+        results.push("refused");
+      }
+      rmSync(p, { force: true });
+    }
+    expect(results, "the read side disagrees with the write side at the boundary").toEqual([
+      "admitted",
+      "admitted",
+      "refused",
+    ]);
+  });
+
+  it("THE CLAUSE NAMES THE CONDITION THAT IS TRUE: three shapes, two clauses, no false sentence", () => {
+    const shapes: ReadonlyArray<readonly [string, (p: string) => void, string]> = [
+      [
+        "an over-ceiling REGULAR file",
+        (p) => writeFileSync(p, Buffer.alloc(mod.NOTE_FILE_MAX_BYTES + 1, 0x61)),
+        mod.NOTE_ABOVE_CEILING_CLAUSE,
+      ],
+      ["a FIFO", (p) => execFileSync("mkfifo", [p]), mod.NOTE_PATH_NOT_REGULAR_FILE_CLAUSE],
+      ["a directory", (p) => mkdirSync(p, { recursive: true }), mod.NOTE_PATH_NOT_REGULAR_FILE_CLAUSE],
+    ];
+    for (const [label, plant, expectedClause] of shapes) {
+      const { root, ctx } = contextStore(`p31-29-clause-${label.replace(/[^a-z]/gi, "")}-`);
+      const id = "20260910T000000Z-engineer-observation-bbbbbbb1";
+      const notesDir = join(ctx, T, "notes");
+      mkdirSync(notesDir, { recursive: true });
+      const p = join(notesDir, `${id}.md`);
+      plant(p);
+      const st = statSync(p);
+      let message = "";
+      try {
+        mod.appendNote(T, observation, "a body", ctx, id, root);
+        expect.unreachable(`${label} at a note destination was WRITTEN OVER`);
+      } catch (e) {
+        message = (e as Error).message;
+      }
+      expect(message, `${label} named the wrong clause`).toContain(expectedClause);
+      // …and the message may not assert something FALSE of the file it describes. This is the half
+      // of CR-19 that is a fabricated claim rather than a lost note: the shape sentence says "is not
+      // absent, or a regular file", which was published for a 9,437,353-byte regular file.
+      if (st.isFile()) {
+        expect(
+          message,
+          `${label} IS a regular file and the refusal denied it`,
+        ).not.toContain("is not absent, or a regular file");
+        expect(message).toContain("IS a regular file");
+      }
+    }
+  });
+
+  it("EMPTY: a ZERO-BYTE note file is still the APPEND-ONLY refusal, not a ceiling case", () => {
+    // Named separately because zero is adjacent to nothing: it is neither the idempotent case (the
+    // bytes differ) nor a ceiling case (it is far below), and a ceiling added at the write side must
+    // not have moved it.
+    const { root, ctx } = contextStore("p31-29-empty-");
+    const id = "20260910T000000Z-engineer-observation-ccccccc1";
+    mkdirSync(join(ctx, T, "notes"), { recursive: true });
+    writeFileSync(join(ctx, T, "notes", `${id}.md`), "");
+    expect(statSync(join(ctx, T, "notes", `${id}.md`)).size).toBe(0);
+    expect(() => mod.appendNote(T, observation, "a body", ctx, id, root)).toThrow(/APPEND-ONLY/);
+    expect(statSync(join(ctx, T, "notes", `${id}.md`)).size).toBe(0);
+  });
+
+  it("CONTROL 1: identical bytes BELOW the ceiling remain the decided idempotent no-op", () => {
+    const { root, ctx } = contextStore("p31-29-control-idem-");
+    const id = mod.appendNote(T, observation, "the same body", ctx, undefined, root);
+    const before = readFileSync(join(ctx, T, "notes", `${id}.md`), "utf8");
+    expect(mod.appendNote(T, observation, "the same body", ctx, id, root)).toBe(id);
+    expect(readFileSync(join(ctx, T, "notes", `${id}.md`), "utf8")).toBe(before);
+  });
+
+  it("CONTROL 2: DIFFERENT bytes under one id still refuse, destination byte-unchanged (CR-11)", () => {
+    const { root, ctx } = contextStore("p31-29-control-appendonly-");
+    const id = mod.appendNote(T, observation, "the original body", ctx, undefined, root);
+    const before = readFileSync(join(ctx, T, "notes", `${id}.md`), "utf8");
+    expect(() => mod.appendNote(T, observation, "a DIFFERENT body", ctx, id, root)).toThrow(
+      /APPEND-ONLY/,
+    );
+    expect(readFileSync(join(ctx, T, "notes", `${id}.md`), "utf8")).toBe(before);
+  });
+});
+
+describe("31-29 — CR-19: the GOV-02 ledger's two sides agree at the boundary too", () => {
+  const T = "T-529L";
+
+  function retainedRepo(prefix: string): { root: string; ctx: string; ledger: string } {
+    const root = freshTmp(prefix);
+    mkdirSync(join(root, ".git"), { recursive: true });
+    mkdirSync(join(root, ".grugops", "audit"), { recursive: true });
+    writeFileSync(
+      join(root, ".grugops", "factory.config.json"),
+      JSON.stringify({ context: { audit_retention: "retained" } }),
+    );
+    const ctx = join(root, ".grugops", "context");
+    mkdirSync(ctx, { recursive: true });
+    return { root, ctx, ledger: join(root, ".grugops", "audit", "admissions.jsonl") };
+  }
+
+  const observation = {
+    kind: "observation",
+    by: "engineer",
+    at: "2026-09-10T00:00:00Z",
+    verified_by: "",
+    confidence: "medium",
+    refs: [],
+    supersedes: null,
+  } as Parameters<typeof mod.appendNote>[1];
+
+  it("RED-turned-GREEN: an append that would cross the ceiling is REFUSED, ledger byte-unchanged", () => {
+    // PRE-FIX, measured against the committed `.js`: with the ledger at 67,264,512 bytes the append
+    // succeeded (delta 178) and the very next read of that same ledger refused it as above the
+    // 67,108,864-byte ceiling. The append side carried no bound at all.
+    const { root, ctx, ledger } = retainedRepo("p31-29-ledger-ceiling-");
+    const CEIL = mod.AUDIT_LEDGER_MAX_BYTES;
+    writeFileSync(ledger, Buffer.alloc(CEIL - 10, 0x0a)); // 10 bytes of headroom; a line needs ~178
+    const before = statSync(ledger).size;
+    let message = "";
+    try {
+      mod.appendNote(T, observation, "a small body", ctx, undefined, root);
+      expect.unreachable("the append crossed the ledger ceiling and reported success");
+    } catch (e) {
+      message = (e as Error).message;
+    }
+    expect(message).toContain(mod.LEDGER_ABOVE_CEILING_CLAUSE);
+    expect(statSync(ledger).size, "the refused append still grew the ledger").toBe(before);
+  });
+
+  it("ADJACENCY: an append that lands EXACTLY at the ceiling is admitted", () => {
+    // The boundary is `would-be > ceiling`, not `>=`: a trail filled exactly to its limit is inside
+    // it. Driven rather than reasoned about, because an off-by-one here is a silently lost event.
+    const { root, ctx, ledger } = retainedRepo("p31-29-ledger-exact-");
+    // Measure one event line's length by appending into an EMPTY ledger first.
+    mod.appendNote(T, observation, "a small body", ctx, undefined, root);
+    const lineBytes = statSync(ledger).size;
+    expect(lineBytes).toBeGreaterThan(0);
+    // Now refill so that exactly one more line reaches the ceiling to the byte.
+    writeFileSync(ledger, Buffer.alloc(mod.AUDIT_LEDGER_MAX_BYTES - lineBytes, 0x0a));
+    const before = statSync(ledger).size;
+    expect(() =>
+      mod.appendNote(T, observation, "a small body", ctx, undefined, root),
+    ).not.toThrow();
+    expect(statSync(ledger).size).toBe(before + lineBytes);
+    expect(statSync(ledger).size).toBe(mod.AUDIT_LEDGER_MAX_BYTES);
+  });
+
+  it("the READ side refuses the same position with the same constant", () => {
+    const dir = freshTmp("p31-29-ledger-read-");
+    const p = join(dir, "admissions.jsonl");
+    writeFileSync(p, Buffer.alloc(mod.AUDIT_LEDGER_MAX_BYTES + 1, 0x0a));
+    expect(() =>
+      mod.readRegularFileOrNull(p, mod.AUDIT_LEDGER_MAX_BYTES, "GOV-02 audit ledger"),
+    ).toThrow(/above the \d+-byte ceiling/);
+  });
+
+  it("CONTROL: a FIFO at the ledger path still refuses by SHAPE, not by ceiling (31-21)", () => {
+    // MEASURED CORRECTION to this case's own first spelling, recorded rather than quietly amended.
+    // It expected the fstat SHAPE branch ("is not a regular file"). A FIFO with no reader never
+    // reaches that branch: `O_WRONLY | O_NONBLOCK` fails at open(2) with ENXIO, which is exactly
+    // what 31-21 built the non-blocking open FOR — the refusal is one branch EARLIER than assumed.
+    // The property this control exists to hold is unchanged and is what is asserted: the ledger's
+    // shape refusal is still reachable, still bounded, and is NOT the new ceiling clause.
+    const { root, ctx, ledger } = retainedRepo("p31-29-ledger-fifo-");
+    execFileSync("mkfifo", [ledger]);
+    let message = "";
+    try {
+      mod.appendNote(T, observation, "a body", ctx, undefined, root);
+      expect.unreachable("the FIFO ledger accepted an append");
+    } catch (e) {
+      message = (e as Error).message;
+    }
+    expect(message).toContain("could not be opened for append (ENXIO)");
+    expect(message).toContain(mod.UNRECORDABLE_ADMISSION_REFUSAL);
+    expect(message).not.toContain(mod.LEDGER_ABOVE_CEILING_CLAUSE);
+  });
+
+  it("CONTROL: a DIRECTORY at the ledger path reaches the fstat SHAPE branch (31-21, unmoved)", () => {
+    // The converse position, so the shape branch is proven REACHABLE rather than assumed dead after
+    // the ceiling branch landed beside it. A directory opens (EISDIR is raised on write, not open,
+    // on darwin) and is refused by fstat.
+    const { root, ctx, ledger } = retainedRepo("p31-29-ledger-dir-");
+    mkdirSync(ledger, { recursive: true });
+    let message = "";
+    try {
+      mod.appendNote(T, observation, "a body", ctx, undefined, root);
+      expect.unreachable("the directory ledger accepted an append");
+    } catch (e) {
+      message = (e as Error).message;
+    }
+    expect(message).toContain(mod.UNRECORDABLE_ADMISSION_REFUSAL);
+    expect(message).not.toContain(mod.LEDGER_ABOVE_CEILING_CLAUSE);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// PLAN 31-29 — the CEILING-SITE axis: both sides of a bound read ONE binding, never a literal.
+//
+// WHY AN AXIS AND NOT A REVIEW. CR-19 exists because a ceiling was stated in ONE place and consulted
+// in one of the two places that decide with it. The behavioural cases above prove the two sides
+// agree TODAY; this axis is what makes a second SPELLING of either ceiling a red test rather than
+// the next round's finding. It is the same shape as the module's other derived registers: the set is
+// derived from the source, its cardinality is asserted, and seeded mirrors prove it discriminates.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+/** A byte-ceiling operand is either a BINDING (an identifier) or a folded LITERAL (the defect). */
+interface CeilingSite {
+  readonly scope: string;
+  readonly via: string;
+  readonly text: string;
+  readonly kind: "binding" | "literal";
+}
+
+/** Fold a constant numeric expression — `8 * 1024 * 1024` is a literal ceiling, not a binding. */
+function foldConstNumber(node: ts.Node, sf: ts.SourceFile): number | null {
+  if (ts.isNumericLiteral(node)) return Number(node.text);
+  if (ts.isParenthesizedExpression(node)) return foldConstNumber(node.expression, sf);
+  if (ts.isBinaryExpression(node)) {
+    const l = foldConstNumber(node.left, sf);
+    const r = foldConstNumber(node.right, sf);
+    if (l === null || r === null) return null;
+    if (node.operatorToken.kind === ts.SyntaxKind.AsteriskToken) return l * r;
+    if (node.operatorToken.kind === ts.SyntaxKind.PlusToken) return l + r;
+    return null;
+  }
+  return null;
+}
+
+/**
+ * Every position in the module where a byte count is decided against a ceiling: a COMPARISON whose
+ * operand is ceiling-shaped, and the ceiling ARGUMENT of each of the two filesystem authorities.
+ *
+ * The walk is recursive from the SourceFile and attributes each site to its nearest named enclosing
+ * scope, so a ceiling compared inside an arrow, a class method or the entry block is seen — the
+ * blind spot WR-27 named in this file's sibling axis, not repeated here.
+ */
+function deriveCeilingSites(sourcePath: string): CeilingSite[] {
+  const sf = ts.createSourceFile(
+    "context-io.ts",
+    readFileSync(sourcePath, "utf8"),
+    ts.ScriptTarget.Latest,
+    true,
+  );
+  const MIB = 1024 * 1024;
+  const CEILING_ID = /MAX_BYTES$|^maxBytes$/;
+  const COMPARISONS = new Set<ts.SyntaxKind>([
+    ts.SyntaxKind.GreaterThanToken,
+    ts.SyntaxKind.GreaterThanEqualsToken,
+    ts.SyntaxKind.LessThanToken,
+    ts.SyntaxKind.LessThanEqualsToken,
+  ]);
+  /** The ceiling-carrying parameter position of each authority. */
+  const AUTHORITY_CEILING_ARG: Readonly<Record<string, number>> = {
+    readRegularFileOrNull: 1,
+    appendRegularFileLine: 3,
+  };
+  const ceilingShaped = (node: ts.Node): { kind: "binding" | "literal"; text: string } | null => {
+    if (ts.isIdentifier(node) && CEILING_ID.test(node.text)) {
+      return { kind: "binding", text: node.text };
+    }
+    const folded = foldConstNumber(node, sf);
+    if (folded !== null && folded >= MIB) return { kind: "literal", text: node.getText(sf) };
+    return null;
+  };
+  const sites: CeilingSite[] = [];
+  const walk = (node: ts.Node, scope: string): void => {
+    let inner = scope;
+    if (ts.isFunctionDeclaration(node) && node.name) inner = node.name.text;
+    else if (ts.isMethodDeclaration(node) && node.name) inner = node.name.getText(sf);
+    else if (
+      (ts.isArrowFunction(node) || ts.isFunctionExpression(node)) &&
+      ts.isVariableDeclaration(node.parent) &&
+      ts.isIdentifier(node.parent.name)
+    ) {
+      inner = node.parent.name.text;
+    }
+    if (ts.isBinaryExpression(node) && COMPARISONS.has(node.operatorToken.kind)) {
+      for (const side of [node.left, node.right]) {
+        const shaped = ceilingShaped(side);
+        if (shaped) sites.push({ scope: inner, via: "comparison", ...shaped });
+      }
+    }
+    if (ts.isCallExpression(node) && ts.isIdentifier(node.expression)) {
+      const idx = AUTHORITY_CEILING_ARG[node.expression.text];
+      const arg = idx === undefined ? undefined : node.arguments[idx];
+      if (arg) {
+        const shaped = ceilingShaped(arg);
+        sites.push({
+          scope: inner,
+          via: `${node.expression.text}#${idx}`,
+          // An argument that is NEITHER a known binding nor a folded constant is still recorded —
+          // as a literal — because an unrecognised ceiling expression is precisely the thing this
+          // axis must not wave through.
+          ...(shaped ?? { kind: "literal" as const, text: arg.getText(sf) }),
+        });
+      }
+    }
+    ts.forEachChild(node, (child) => walk(child, inner));
+  };
+  walk(sf, "(module)");
+  return sites.sort((a, b) =>
+    `${a.scope}:${a.via}:${a.text}`.localeCompare(`${b.scope}:${b.via}:${b.text}`),
+  );
+}
+
+const siteKey = (s: CeilingSite): string => `${s.scope}:${s.via}:${s.text}`;
+
+/** MEASURED, then written down. Nine positions decide with a ceiling; every one reads a binding. */
+const EXPECTED_CEILING_SITES: readonly string[] = Object.freeze([
+  "appendAuditLedger:appendRegularFileLine#3:AUDIT_LEDGER_MAX_BYTES",
+  "appendRegularFileLine:comparison:maxBytes",
+  "ledgerRecordsId:readRegularFileOrNull#1:AUDIT_LEDGER_MAX_BYTES",
+  "readCliNoteFileOrExit:readRegularFileOrNull#1:NOTE_FILE_MAX_BYTES",
+  "readGovernanceConfigCandidate:readRegularFileOrNull#1:GOVERNANCE_CONFIG_MAX_BYTES",
+  "readRawNotes:readRegularFileOrNull#1:NOTE_FILE_MAX_BYTES",
+  "readRegularFileOrNull:comparison:maxBytes",
+  "writeNoteFile:comparison:NOTE_FILE_MAX_BYTES",
+  "writeNoteFile:readRegularFileOrNull#1:NOTE_FILE_MAX_BYTES",
+]);
+
+/** The per-ceiling cardinalities, asserted SEPARATELY — a bound losing one side is its own event. */
+const EXPECTED_NOTE_CEILING_SITES = 4;
+const EXPECTED_LEDGER_CEILING_SITES = 2;
+
+describe("31-29 — every byte ceiling is ONE binding, read by both sides", () => {
+  it("PREMISE: the derivation actually found ceiling sites, on BOTH sides of BOTH ceilings", () => {
+    // ASSERT THE HARNESS'S OWN PREMISE. A derivation that parsed nothing returns an EMPTY set, and
+    // an empty set trivially satisfies "no site uses a literal" — the vacuous pass this repository
+    // has now recorded across five rounds. The premise is a failing assertion, not a note.
+    const derived = deriveCeilingSites(CONTEXT_IO_TS);
+    expect(derived.length, "PREMISE: ZERO ceiling sites were derived").toBeGreaterThan(0);
+    expect(
+      derived.some((s) => s.scope === "writeNoteFile" && s.via === "comparison"),
+      "PREMISE: the WRITE side's own ceiling comparison was not seen — CR-19's whole fix",
+    ).toBe(true);
+    expect(
+      derived.some((s) => s.scope === "readRegularFileOrNull" && s.via === "comparison"),
+      "PREMISE: the READ side's ceiling comparison was not seen",
+    ).toBe(true);
+    expect(
+      derived.some((s) => s.scope === "appendAuditLedger"),
+      "PREMISE: the ledger APPEND side's ceiling was not seen",
+    ).toBe(true);
+    expect(
+      derived.some((s) => s.scope === "ledgerRecordsId"),
+      "PREMISE: the ledger READ side's ceiling was not seen",
+    ).toBe(true);
+  });
+
+  it("EVERY ceiling site reads a BINDING — not one is a literal", () => {
+    const literals = deriveCeilingSites(CONTEXT_IO_TS).filter((s) => s.kind === "literal");
+    expect(
+      literals.map(siteKey),
+      "a byte ceiling is spelled as a literal somewhere in scripts/context-io.ts. A second " +
+        "spelling of a bound is how the write side and the read side came to disagree in CR-19: " +
+        "the writer created a 9 MiB note and every reader was then required to refuse it. Read the " +
+        "exported constant",
+    ).toEqual([]);
+  });
+
+  it("the derived ceiling-site set has the expected MEMBERS", () => {
+    expect(deriveCeilingSites(CONTEXT_IO_TS).map(siteKey)).toEqual([...EXPECTED_CEILING_SITES]);
+  });
+
+  it("the NOTE ceiling and the LEDGER ceiling each have their own asserted cardinality", () => {
+    const derived = deriveCeilingSites(CONTEXT_IO_TS);
+    expect(derived.filter((s) => s.text === "NOTE_FILE_MAX_BYTES")).toHaveLength(
+      EXPECTED_NOTE_CEILING_SITES,
+    );
+    expect(derived.filter((s) => s.text === "AUDIT_LEDGER_MAX_BYTES")).toHaveLength(
+      EXPECTED_LEDGER_CEILING_SITES,
+    );
+  });
+
+  it("both ceilings are EXPORTED, so the two sides can only be reading one object", () => {
+    expect(mod.NOTE_FILE_MAX_BYTES).toBe(8 * 1024 * 1024);
+    expect(mod.AUDIT_LEDGER_MAX_BYTES).toBe(64 * 1024 * 1024);
+  });
+});
+
+describe("31-29 — the ceiling-site axis is a control, not a coincidence", () => {
+  function mirror(prefix: string, transform: (src: string) => string): string {
+    const path = join(freshTmp(prefix), "context-io.ts");
+    writeFileSync(path, transform(readFileSync(CONTEXT_IO_TS, "utf8")));
+    return path;
+  }
+
+  it("a seeded NOTE-ceiling LITERAL moves the count by one AND is reported as a literal", () => {
+    const path = mirror(
+      "p31-29-ceiling-literal-",
+      (src) =>
+        src +
+        "\nfunction seededLiteralNoteCeiling(n: number): boolean {\n" +
+        "  return n > 8 * 1024 * 1024;\n}\n",
+    );
+    const derived = deriveCeilingSites(path);
+    expect(derived).toHaveLength(EXPECTED_CEILING_SITES.length + 1);
+    const seeded = derived.filter((s) => s.scope === "seededLiteralNoteCeiling");
+    expect(seeded).toHaveLength(1);
+    expect(seeded[0]?.kind).toBe("literal");
+  });
+
+  it("a seeded LEDGER-ceiling literal in an ARROW is seen too — the scope WR-27 named", () => {
+    // The sibling read-site axis walked only top-level function declarations. This one walks from
+    // the SourceFile, so a ceiling hidden one scope down is not a place a second spelling can live.
+    const path = mirror(
+      "p31-29-ceiling-arrow-",
+      (src) =>
+        src +
+        "\nconst seededArrowLedgerCeiling = (n: number): boolean => n >= 64 * 1024 * 1024;\n",
+    );
+    const derived = deriveCeilingSites(path);
+    expect(derived).toHaveLength(EXPECTED_CEILING_SITES.length + 1);
+    expect(derived.filter((s) => s.scope === "seededArrowLedgerCeiling")).toHaveLength(1);
+    expect(derived.find((s) => s.scope === "seededArrowLedgerCeiling")?.kind).toBe("literal");
+  });
+
+  it("THE CONVERSE: removing the write-side ceiling moves the count the other way", () => {
+    // A set that can only GROW silently is the set-literal drift this repository keeps deleting, so
+    // the derivation is watched failing in the shrinking direction too — and the shrink it is
+    // watched on is EXACTLY the CR-19 mutant: the write side's own ceiling comparison, deleted.
+    const anchor = "if (candidateBytes > NOTE_FILE_MAX_BYTES) {";
+    const src = readFileSync(CONTEXT_IO_TS, "utf8");
+    expect(
+      src.split(anchor).length - 1,
+      "PREMISE: the write-side ceiling anchor was not found exactly once, so this mirror removed nothing",
+    ).toBe(1);
+    const path = mirror("p31-29-ceiling-shrink-", (s) =>
+      s.replace(anchor, "if (candidateBytes < 0) {"),
+    );
+    const derived = deriveCeilingSites(path);
+    expect(derived).toHaveLength(EXPECTED_CEILING_SITES.length - 1);
+    expect(derived.map(siteKey)).not.toContain("writeNoteFile:comparison:NOTE_FILE_MAX_BYTES");
+    expect(derived.filter((s) => s.text === "NOTE_FILE_MAX_BYTES")).toHaveLength(
+      EXPECTED_NOTE_CEILING_SITES - 1,
+    );
   });
 });

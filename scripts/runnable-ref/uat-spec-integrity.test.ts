@@ -8583,7 +8583,11 @@ describe("uat-spec-integrity — 31-28 PROTOCOL: the seven points, against this 
     const built = createProgramForTarget(root, derived.map((rel) => join(root, rel)), ts);
     expect(built.ok, built.ok ? "" : built.cause).toBe(true);
     const included = new Set(
-      ((built as { readonly ok: true; readonly context: ProgramContextView }).context.program as {
+      // `ProgramContextView.program` declares only `getSourceFile`, so the widening to the
+      // file-LIST view goes through `unknown` — the form the checker itself names. Asserting the
+      // whole included set is the point of POINT 2, and the narrow view cannot express it.
+      ((built as { readonly ok: true; readonly context: ProgramContextView }).context
+        .program as unknown as {
         getSourceFiles(): readonly { readonly fileName: string }[];
       })
         .getSourceFiles()
