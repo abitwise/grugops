@@ -812,3 +812,438 @@ covering more than it was asked to. The defect this equality exists to catch is 
 raised row nobody covered — and that count is zero.
 
 ---
+
+## 10. The disposition ledger — one row per finding, per anti-pattern row, per `missing:` bullet, per dispositioned item
+
+**A row whose disposition is `closed` MUST cite a measurement taken in this session.** A row with no
+measurement says so in its own disposition cell.
+
+### 10.1 Block A — the twelve numbered findings of `31-REVIEW.md`
+
+Denominator DERIVED: `grep -cE '^### (CR|WR|IN)-[0-9]+:'` → **12**, equal to the frontmatter's
+declared `total: 12`. **12 rows.**
+
+| # | Finding | Owner | Disposition | The measurement that proves it |
+|---|---|---|---|---|
+| A1 | **CR-17** — the wrapper hashes thirteen agent-writable paths with a blocking read before the spawn its timeout bounds | `31-27` | **closed** | §2.1: all **13** derived manifest positions answer EXIT=0 in 46–50 ms with a named `manifest-path-not-a-regular-file` deny and **0 bytes on stderr** (was EXIT=124, 0 bytes both streams). The other decider's own position, the DIRECTORY shape and the fd-0 class all answer the same way; the never-closing stdin denies at 10,100 ms naming SIGTERM. Driven through the argv derived from `hooks/hooks.json` |
+| A2 | **CR-18** — a block-scoped function declaration is handed the whole module's range | `31-28` | **closed, with one named sub-item carried** | §2.2: the review's own three-line spelling moves `0 findings`/EXIT=0 → `1 finding(s)`/EXIT=1; the namespace spelling likewise; the block-scoped CLASS control is unmoved. **The ambient `declare const` spelling is UNMOVED at `0 findings`/EXIT=0 and is carried as `R-31-31-01` (§12.4)** — measured a curiosity the language refuses (`TS2440`), not a live bypass, and recorded rather than absorbed (§6.1) |
+| A3 | **CR-19** — the note ceiling is read-side only, so a 9 MiB note writes and reads back as zero | `31-29` | **closed** | §2.3: `appendNote` with a 9,437,184-byte body now REFUSES at the write side naming `note-above-size-ceiling` and stating *"No file was written and no directory was created"*; the idempotent re-write's clause names the true condition and says the destination **IS** a regular file; the small-note CONTROL writes and reads back 1 |
+| A4 | **CR-20** — the note is keyed on `to` and the ledger on `repoRoot`, two repositories for one action | `31-29` | **closed** | §2.3: the three-real-root promotion leaves the finding AND its GOV-02 event both in THIRD (notes 1, ledger 1) with DEST holding neither (notes `[]`, ledger ABSENT) — the exact inverse of the round-6 measurement. The legitimate same-root CONTROL still promotes with one ledger line, and an ungoverned `to` declines `destination-outside-governed-store` |
+| A5 | **CR-21** — the three-argument scenario overload hides a TestInfo modifier call | `31-28` | **closed** | §2.2: `test("scenario", { tag: "@smoke" }, async ({ page }, testInfo) => …)` moves `0 findings`/EXIT=0 → `1 finding(s)`/EXIT=1 naming `test.info().skip`, identical to the two-argument control's finding |
+| A6 | **WR-26** — the fixture exemption is wider than the map it exempts for | `31-28` | **closed** | §2.4: the review's own helper spec moves `1 finding(s)`/EXIT=1 (a false refusal naming a construct absent from the file) → **`0 findings`/EXIT=0** |
+| A7 | **WR-27** — the derived read-site axis walks only top-level functions | `31-29` | **closed** | §2.4: `deriveFsBlockingSites` now walks from the SourceFile with `ts.forEachChild` and attributes each site to its nearest named enclosing scope; the three mirrors the review seeded are watched-fail controls inside the green suite. Re-driven through the harness's own mirrors, which is stated in §1.2 rather than presented as an external probe |
+| A8 | **WR-28** — the forged-origin price says three and measures two | `31-29` | **closed** | §2.4: the two-operation forgery inside a `.git`-carrying repository with no `factory.config.json` still PROMOTES — the CAPABILITY is `T-31-18-01`, accepted by design — and the PRICE is now stated per position in `originStoreIsRootAnchored`'s docstring, in `T-31-18-01` and in `18-context-compaction.md:75`: *"Inside a repository that carries a governance configuration it is three filesystem operations. Inside a repository that carries a version-control marker and no configuration it is two. Outside every repository it is two."* |
+| A9 | **WR-29** — four could-not-run reasons claimed, three implemented | `31-28` | **closed** | §2.4: depth 630 answers `could not be PARSED (…); the parser itself faulted on this file`, distinct from the walk arm's `could not be analysed (…); the check was NOT performed for that file`. Four arms at `uat-spec-integrity.ts:2614`, `:2622`, `:2628`, `:2648`, pairwise distinct, plus a fifth for a parse whose diagnostics could not be INSPECTED |
+| A10 | **WR-30** — `using` classified as hoisting | `31-28` | **closed, and the Warning's own sketch measured a no-op for half of it** | §2.4: `using it = …` after a reference moves `0 findings`/EXIT=0 → `1 finding(s)`/EXIT=1. The `await using` half was **never** misclassified on typescript 6.0.3 (`AwaitUsing` = 6 carries the `Const` bit), so the review's proposed `?? 0` addition changes nothing there — §6.3 |
+| A11 | **IN-14** — one catch covers three facts; two residuals bound nowhere | `31-29` | **closed** | §2.5: `NOTE_SKIP_ARMS` is a published 3-member set and `render()` emits a conditional `## Skipped entries` table naming each entry's arm and detail — driven with one unparseable file and one FIFO beside one live note, yielding **2 entries, 2 distinct arms, 1 live note**. The register half is `WRITE_PATH_RESIDUALS`, exported with 5 members (§8.5) |
+| A12 | **IN-15** — one string split twice | `31-28` | **closed** | §2.5: `uat-spec-integrity.ts:2382` computes `const head = dottedPath.split(".")[0]` once and both positions read the local |
+
+**12 findings. 12 rows. 12 closed by measurement, of which 1 (A2) carries one named sub-item.** No
+row asserts a closure this round did not measure.
+
+### 10.2 Block B — the nine anti-pattern rows of `31-VERIFICATION.md`
+
+Denominator DERIVED: `awk` over the "Anti-Patterns Found" table → **9**. **9 rows.**
+
+| # | File / site | Disposition | Measurement |
+|---|---|---|---|
+| B1 | `hooks/hook-entry.ts` ~190 / ~237 — bare `readFileSync` ahead of the one bound that covers only `spawnSync` | **closed** | A1. Every manifest read goes through an inline non-blocking regular-file reader and the wrapper's own fd-0 read is **deleted** — fd 0 is inherited by the child `DECIDER_TIMEOUT_MS` bounds, measured at 10,100 ms |
+| B2 | `scripts/context-io.ts` — `NOTE_FILE_MAX_BYTES` gates the read side only | **closed** | A3. The write side owns the ceiling; both sides read the one exported constant (8,388,608) |
+| B3 | `scripts/context-io.ts` — `promoteAdmitted`'s ledger keys the GOV-02 event on `repoRoot` | **closed** | A4. `governanceRootOf(to)` binds both halves; `PROMOTE_ADMITTED_DECLINES` 10 → 11 with `destination-outside-governed-store` |
+| B4 | `scripts/runnable-ref/uat-spec-integrity.ts` — `resolveBinding`'s `hoisted` arm | **closed by DELETION** | A2. `resolveBinding`, `bindingRangeFor` and `listHoists` are gone; the ban is decided by symbol identity (D-30) |
+| B5 | `scripts/runnable-ref/uat-spec-integrity.ts` — `deriveTestInfoParameterNames` reads `arguments[1]` only | **closed** | A5. The fixture parameter is decided by its DECLARED TYPE at whatever position the overload set puts the body in; the recipe says so at `:185`, and *"No argument INDEX is read anywhere in this decision"* |
+| B6 | `scripts/context-io-writer-set.test.ts` — `deriveFsBlockingSites` walks only top-level function declarations | **closed** | A7 |
+| B7 | `scripts/context-io.ts` — `originStoreIsRootAnchored`'s docstring / `T-31-18-01`'s stated price | **closed, with the CAPABILITY kept and its bar re-priced** | A8 |
+| B8 | `agent-factory/workflows/18-context-compaction.md` line 83 | **closed** | Read from disk this session: the paragraph now says *"A re-binding derives the destination repository from the destination context store itself, and both halves of the action key on that one answer. The ledger it looks in and the ledger it appends to are that repository's, never a third one named separately. A destination that does not resolve to a governed store is refused by name before anything is written."* — every clause measured TRUE of the mechanism in A4 |
+| B9 | `agent-factory/checklists/browser-uat-recipe.md` lines ~204/277 and ~250-256 | **closed** | Read from disk this session: `:211` now states *"a `var` binding hoists to its enclosing function, while a function declaration, a `let`, a `const`, a class, a `using` and an `await using` are block-scoped and begin at their own declaration"* — the language's actual rule, covering CR-18 and WR-30; and `:185` states the TestInfo derivation by declared type at any position, covering CR-21 |
+
+**9 rows. 9 closed.**
+
+### 10.3 Block C — the six `missing:` bullets of `31-VERIFICATION.md`
+
+Denominator DERIVED: `awk` over the two `missing:` lists → **6**. **6 rows.**
+
+| # | Bullet (abridged) | Disposition | Measurement |
+|---|---|---|---|
+| C1 | Route `verifyDeciderClosure` and the fd-0 read through the same non-blocking discipline (restated inline, since this file may import only `node:` builtins), and add a case that plants a FIFO at a manifest path and asserts a bounded deny | **closed — BOTH halves, and the second half went further than asked** | A1. The reader is restated inline; the fd-0 read is **deleted** rather than guarded. `hooks/guard.test.ts` carries FIFO, DIRECTORY and UNIX-SOCKET cases at **every** manifest position plus the never-closing-stdin case, and `mkfifo` appears in that file 4 times against 2 at the round base |
+| C2 | Make the write side own `NOTE_FILE_MAX_BYTES`, give an over-ceiling REGULAR file its own decline clause, and apply the same reconciliation to the ledger's write/read asymmetry | **closed — all three** | A3 plus §8.5: `NOTE_ABOVE_CEILING_CLAUSE` and `LEDGER_ABOVE_CEILING_CLAUSE` are both exported and `AUDIT_LEDGER_MAX_BYTES` is reconciled with its own clause |
+| C3 | Derive the GOV-02 ledger's repository from `to` — **or**, if `to` is deliberately unconstrained, rewrite `R-31-22-02` and `18-context-compaction.md:83` — and add a case whose `to` and `repoRoot` are different roots | **closed — the FIRST branch taken, and the register rewritten anyway** | A4, B8. `governanceRootOf` derives the destination root; `R-31-22-02` is REWRITTEN with its id kept so existing citations resolve; `destination-outside-governed-store` cases number 3 in the suite against 0 at the round base |
+| C4 | Narrow the `hoisted` arm to the nearest enclosing BLOCK for a function declaration, keep the function-wide range for `var`, and treat an ambient (`declare`) binding as binding nothing at all | **closed for the first two; the third is MOOT BY DELETION with one named residual carried** | A2. There is no `hoisted` arm to narrow — the census is deleted and the checker owns scope, which is the stronger form of the ask. **The ambient half has no counterpart in the new design**: `declare const it` resolves to a real symbol the checker answers `foreign` for, so the outcome is unmoved at `0 findings`/EXIT=0. Carried as `R-31-31-01` (§12.4), with §6.1 stating why this document declines to call it closed |
+| C5 | Take the scenario body positionally rather than from `arguments[1]`, mirror the same rule in `isFixtureBindingPosition`, and add both Playwright overload forms to the corpus | **closed — all three** | A5, A6. Both overload forms report the identical finding; `31-28` additionally added the three-argument overload to `fixtures/playwright-test.d.ts`, without which the corpus row could not have measured anything |
+| C6 | Record both fixes as dated decisions beside D-27, add MUTATE-REMOVE corpus cases for each, and correct `browser-uat-recipe.md`'s two affected passages | **closed** | `D-30` is recorded in `31-CONTEXT.md`, in the module's own header block and in `31-28-SUMMARY.md`; the corpus carries `"CR-18": ["block-scoped function declaration (rename)", "block-scoped function declaration (namespace)", "ambient declare (rename)", "ambient declare (namespace)"]` as named rows plus the block-scoped-CLASS control; B9 records the two corrected passages |
+
+**6 rows. 6 closed, of which 1 (C4) carries one named sub-item.**
+
+### 10.4 Block D — every item of `31-round6-residual-dispositions.md`
+
+**The denominator is DERIVED from the document's tables, and it DISAGREES with the document's own
+prose. Both numbers are printed; neither is adjusted.**
+
+```
+$ awk over the six '### A.'..'### F.' tables, counting data rows
+  A. Governance root                11
+  B. Admission / promotion           6
+  C. UAT-spec modifier ban           9
+  D. Exit-code contract              5
+  E. 31-21 residuals                 5
+  F. Process / harness / human       7
+  DERIVED TOTAL ROWS: 43
+
+$ the same awk, classifying each row's bolded Disposition cell
+  Fix=22  Close=18  Open=3  unclassified=0  SUM=43
+
+$ the document's own summary line (line 20)
+  "34 items analysed. **19 fix, 13 close (accepted by design), 2 stay open**"
+```
+
+**43 ≠ 34, 22 ≠ 19, 18 ≠ 13 and 3 ≠ 2.** The gap is not explained by de-duplication: the only item
+carrying three rows is the Windows leg (`R-31-19-03` in §A, "Windows leg of the two-boundary
+behaviour" in §D, `R-03` in §F), and collapsing those three to one gives **41**, not 34. **This is
+recorded as a finding of this round with an owner (§13.8), not as a typo.** The ledger below is built
+on the DERIVED 43, because the tables are what a reader dispositions against.
+
+| # | Item | Dispositioned | Measured outcome |
+|---|---|---|---|
+| D-A1 | `R-31-15-01` cwd-controlling process picks the root | Fix (S1) | **NOT fully closed.** Tier 0 exists and wins where the host delivers it — driven (§3). `hosts: non-cc-hook-path` on the member, so the capability stands on four of five CLIs and on any direct `node scripts/context-io.js` invocation. Owner: the register |
+| D-A2 | `R-31-15-02` unconfigured repo resolves to kit lean default | Close | Member present, `hosts: all`. Accepted by design |
+| D-A3 | `R-31-15-03` ambient project-dir env vars | Fix (S1) | **NOT fully closed**, as D-A1. `hosts: non-cc-hook-path` |
+| D-A4 | `R-31-15-04` config above a nested repo is not found | Close | Member present, `hosts: all`. Deliberate mitigation of the home-walk threat |
+| D-A5 | `R-31-19-01` ancestor config below home governs | Close | Member present, `hosts: all`; re-driven as CR-13's CONTROL (§3) and unmoved |
+| D-A6 | `R-31-19-02` `HOME` is ambient | Fix (S1) | **NOT fully closed**, as D-A1. `hosts: non-cc-hook-path` |
+| D-A7 | `R-31-19-03` degenerate directory identity platforms | Open → `R-03` | **OPEN.** `31-30` encoded the Windows assertion on the pre-existing leg; the reading was not taken. `hosts: all` |
+| D-A8 | `R-31-19-04` unknown VCS marker set | Close | Member present, `hosts: all`. Open set is content, not mechanism (D-59) |
+| D-A9 | `R-31-19-05` home-rooted repo without VCS marker not adopted | Close | Member present, `hosts: all` |
+| D-A10 | `R-31-19-06` home made adoptable in 1–3 ops | Fix (S1) | **NOT fully closed**, as D-A1. `hosts: non-cc-hook-path` |
+| D-A11 | `R-31-19-07` case-differing spelling defeats the module-own exclusion | Fix now | **CLOSED.** Both sides canonicalise through one ladder (`canonicalDirectoryPath`, D-29 (4)); the canonicalisation is visible in CR-13's own answer (§6.4). Member kept with `hosts: all` because the comparison still exists off the hook path |
+| D-B1 | `T-31-14-03` hand-written origin note promoted undetected | Close, roadmap | Member of `PROMOTE_ADMITTED_RESIDUALS`. Accepted by design; needs a keyed note stamp. Owner: **next milestone** |
+| D-B2 | `T-31-18-01` constructed governance root around own notes | Close + docs fix | **Docs fix CLOSED and MEASURED** (A8): the two-operation forgery in a config-less repository is driven and the price is stated per position in all three artifacts. The CAPABILITY stays accepted |
+| D-B3 | `R-31-22-01` store without `factory.config.json` refused as origin | Close + docs | Member present; `18-context-compaction.md` states the cost per position, which is the same paragraph |
+| D-B4 | `R-31-22-02` destination `to` unconstrained | Fix with CR-20 | **CLOSED.** REWRITTEN by `31-29` with the id kept; CR-20 measured closed (A4); the new decline fires |
+| D-B5 | `R-31-22-03` symlink at a shaped, anchored location accepted | Close | Member present; `31-29` re-measured it against `31-27`'s canonicaliser and recorded it **unchanged** |
+| D-B6 | `R-37` compared field set = projection + body | Close | Member present, unchanged since round 1 |
+| D-C1 | `RR-01` aliased binding `const t = test` | Fix (S2) | **CLOSED.** Removed from the register with the mechanism; identity resolves the symbol |
+| D-C2 | `RR-02` computed member `test[name]` | Close | Member 1 of 6, unchanged. Named refusal |
+| D-C3 | `RR-03` rename/namespace through a non-framework module | Fix (S2) | **CLOSED.** Removed with the mechanism |
+| D-C4 | `RR-04` non-identifier head | Close | **REWRITTEN as `RR-04'`, not merely kept**: `31-28` measured that the checker resolves `({ test }).test.skip(...)` to the framework's own declaration, so identity now REFUSES it. The undecided half — a call on `this` — is the surviving member |
+| D-C5 | `RR-05` chain-step bound | Close (delete) | **DELETED with the recursion it bounded.** The module carries no `512` literal and no self-recursion |
+| D-C6 | `RR-06` option enabled only by literal `true` | Close | Member 2 of 6, unchanged. Parse-never-evaluate |
+| D-C7 | `RR-07` parser lacking predicates degrades to a weaker rule | Fix | **CLOSED**, replaced by `RR-11`. Measured (§1.3): a target the compiler cannot build a Program over answers `PROGRAM_UNAVAILABLE_REASON` at **EXIT=2**, never a silent pass |
+| D-C8 | `RR-08` destructured TestInfo in the 2nd param | Fix (S2) | **CLOSED.** Removed with the mechanism; the recipe states the destructured form resolves to the framework's own property |
+| D-C9 | `RR-09` nearest-binding scope rule | Fix (S2) | **CLOSED.** The census is deleted; CR-18 measured closed (A2) |
+| D-D1 | Non-unwinding fault (OOM kill, signal) at the §14 caller | Fix at the caller | **CLOSED.** `scripts/uat-gate-exit-contract.test.ts` — a new file this round — derives four arms from the prose and maps a signal death (`exitCode === null`) to could-not-run. Re-driven here: **32 passed** |
+| D-D2 | Windows leg of the two-boundary behaviour | Fix via CI | **OPEN.** Encoded, not observed — the same item as D-A7 and D-F3 |
+| D-D3 | De-recursed walk unreachable on darwin | Close | Accepted; a control correctly recorded as one |
+| D-D4 | `reportMeasured` deliberately unchanged | Close | Accepted, decided in D-28 (3); `MEASUREMENT_BRANCH_STREAMS` still **4** |
+| D-D5 | `WR-29` four reasons claimed, three implemented | Fix | **CLOSED.** Four pairwise-distinct sentences, measured (A9) |
+| D-E1 | `R-31-21-01` `atomicWrite` temp write unaimable | Close | Member 1 of `WRITE_PATH_RESIDUALS`. Accepted by design |
+| D-E2 | `R-31-21-02` non-regular file inside `notes/` skipped silently | Fix with IN-14 | **CLOSED.** Three named arms, counted, and REPORTED in `render` output — driven (A11) |
+| D-E3 | `R-31-21-03` plan premise (`appendFileSync` exits 0) | Close | Member 3. Measured false and closed in-plan in round 5; the id resolves to its measurement |
+| D-E4 | `R-31-21-04` derivations are syntactic | Fix with WR-27 | **CLOSED for the SCOPE half** (A7): the walk is recursive and scope-attributing. **The alias/computed-member half is accepted by design** and remains member 4 |
+| D-E5 | (register gap) four residuals live only in CONTEXT.md prose | Fix | **CLOSED.** `WRITE_PATH_RESIDUALS` is exported from `context-io.ts` with **5** members and the same two-sided binding test the other registers have (§8.5) |
+| D-F1 | `R-01` attended Chrome lane under real interactive auth | Open (human) | **OPEN.** No agent owner. `UNKNOWN - verify` intact |
+| D-F2 | `R-02` `claude auth status --json` under alternative credential configurations | Open (human) | **OPEN.** No agent owner. `UNKNOWN - verify` intact |
+| D-F3 | `R-03` Windows leg of every probe and of the runnable | Fix via CI | **NOT closed; SHRUNK to a stated remainder.** `31-30` added Windows-scoped steps to the **pre-existing** `windows-latest` leg with an asserted skip list, and recorded six rows as `UNKNOWN - verify` because the reading was never taken. Owner: a real `windows-latest` run |
+| D-F4 | `R-04` installer round-trip on a pre-existing host install | Fix | **CLOSED by harness.** `31-30` automated it with five measured outcomes (136 passed, 1 skipped). Its own remainder — that the round-trip runs on darwin — is `R-03`'s, not this item's |
+| D-F5 | `check:diff-disposition` debt | Fix | **NOT closed; REDUCED by 30**, 110 → 80 over 39 elements, base and corpus unmoved (§8.4). Owner: the five remaining `18-context-compaction.md` rows are `31-29`'s; the other 75 are pre-existing with named owners |
+| D-F6 | the inert `.temp/` residue predicate | Fix FIRST | **CLOSED.** `.temp/**` is in vitest's `exclude` and in the runnable's `SKIPPED_DIRECTORIES`; the predicate is a real listing, demonstrated observing a planted file the `git status` predicate cannot see (§7.2) |
+| D-F7 | the collided harness-instance ordinal | Fix (docs) | **CLOSED.** One tracked list at `docs/audit/harness-false-result-instances.md` with the numbering read off it and a suite gate asserting contiguity; **this round read ordinal 14 off it rather than typing one** (§7.4). No SUMMARY was rewritten |
+
+**43 derived rows. 43 ledger rows.** Of the 22 dispositioned **Fix**: **15 measured CLOSED**, **7
+recorded still open with an owner** (D-A1, D-A3, D-A6, D-A10 host-scoped; D-D2, D-F3 Windows;
+D-F5 the debt). Of the 18 dispositioned **Close**: **18 accepted by design**, each present in an
+exported register or deleted with the mechanism that needed it. Of the 3 dispositioned **Open**:
+**3 still open** (D-A7, D-F1, D-F2). **No FIX item whose measurement did not close it is recorded as
+closed because a plan ran.**
+
+---
+
+## 11. The ledger's own totals, stated as an equality
+
+**A ledger whose totals do not match the source documents' is SHORT, and being short silently is the
+class this phase keeps paying for.** So the totals are derived and stated rather than implied.
+
+| Source denominator | Declared / derived by | Value | Ledger block | Rows | Agree? |
+|---|---|---|---|---|---|
+| `31-REVIEW.md` numbered findings | its frontmatter (`critical: 5, warning: 5, info: 2, total: 12`) **and** `grep -cE '^### (CR\|WR\|IN)-[0-9]+:'` | **12** and **12** | §10.1 | **12** | **yes — declared and derived agree, and the ledger equals both** |
+| `31-VERIFICATION.md` "Anti-Patterns Found" rows | measured: `awk` over the table | **9** | §10.2 | **9** | **yes** |
+| `31-VERIFICATION.md` `missing:` bullets across both gap entries | measured: `awk` over the two lists | **6** | §10.3 | **6** | **yes** |
+| `31-VERIFICATION.md` "Behavioral Spot-Checks" rows | measured: `awk` over the table | **18** | §2–§4 | **18 driven, 0 not-driven** | **yes** |
+| `31-round6-residual-dispositions.md` items | **DERIVED**: `awk` over its six tables → **43** (Fix 22 / Close 18 / Open 3) | **43** | §10.4 | **43** | **yes against the DERIVED count** |
+| the same, as the document's own prose DECLARES it | its line 20 | **34** (19 / 13 / 2) | — | — | **NO — and the discrepancy is a finding, §13.8** |
+| **total dispositioned items** | | **70** source items | | **70** rows | **yes — no item without a row** |
+
+**Disposition mix across all four blocks, counted:**
+
+| Outcome | Count | Where |
+|---|---|---|
+| closed by a measurement taken in this session | **42** | 12 (Block A) + 9 (Block B) + 6 (Block C) + 15 (Block D's closed Fixes) |
+| accepted by design, kept as a named residual | **18** | Block D's Close dispositions |
+| carried OPEN with an owner and a criterion | **10** | Block D's 7 unclosed Fixes + 3 Opens |
+| **total** | **70** | equals the source denominator |
+
+**42 + 18 + 10 = 70. The equality balances.** Two of the closed rows (A2, C4) carry one named
+sub-item each — `R-31-31-01`, the ambient `declare` spelling — which is the same residual counted
+once in §12.4, not twice here.
+
+**Every `closed` row cites a measurement taken in this session.** No row says `UNKNOWN - verify` in
+its disposition cell, because no row in these four blocks was left unmeasured; the `UNKNOWN - verify`
+markers this round carries all belong to §12.6's human and platform items.
+
+---
+
+## 12. The round's residual register — every boundary round 6's four plans decided to leave open
+
+### 12.1 The governance root — `TRUSTED_ROOT_RESIDUALS`, 11 members, now scoped BY HOST
+
+The count did not move; the **scoping** did. Four members are now `hosts: non-cc-hook-path` — closed
+on the Claude Code hook path by tier 0 and open everywhere else — and seven are `hosts: all`.
+
+| Id | `hosts` | Why it is left open | What would force it closed |
+|---|---|---|---|
+| `R-31-15-01` | `non-cc-hook-path` | a process that controls the working directory picks the root; tier 0 removes the walk only where the host delivers the root | an un-forgeable root channel on the other four CLIs — none exists today |
+| `R-31-15-03` | `non-cc-hook-path` | the project-directory environment variables are ambient off the hook path | as above |
+| `R-31-19-02` | `non-cc-hook-path` | `HOME` is ambient | as above |
+| `R-31-19-06` | `non-cc-hook-path` | home can be made adoptable in 1–3 operations | as above; its closure criterion IS `R-31-15-01`'s |
+| `R-31-15-02` | `all` | an unconfigured repository resolves to the kit's lean default | nothing — accepted as correct behaviour |
+| `R-31-15-04` | `all` | a configuration above a nested repository is not found | nothing — the deliberate mitigation of the home-walk threat |
+| `R-31-19-01` | `all` | an ancestor configuration below home governs | nothing — refusing it reverts WR-15, and a `$HOME` writer is already a same-uid actor |
+| `R-31-19-03` | `all` | degenerate directory identity on platforms this box is not | **a reading taken off a real `windows-latest` run.** The instrument is wired (`31-30`); the reading is not taken |
+| `R-31-19-04` | `all` | the VCS marker set is an open set | nothing — an open-set totality is content, not mechanism (D-59) |
+| `R-31-19-05` | `all` | a home-rooted repository with no VCS marker is not adopted | nothing — the narrower of the two errors, and moot on the hook path after tier 0 |
+| `R-31-19-07` | `all` | **CLOSED as a bypass** by canonicalising both sides through one ladder; the member is kept because the comparison still exists off the hook path | nothing further |
+
+**Tier 0's own limits, from `31-27`'s record and stated here so they are not rediscovered:** it does
+not exist on four of five host CLIs; it closes nothing about an agent invoking
+`scripts/context-io.js` directly from its own Bash tool; and the trust in the delivered channel is
+exactly the wrapper's freeze plus the decider's hash verification.
+
+### 12.2 The admission / re-binding route — `PROMOTE_ADMITTED_RESIDUALS`, 6 members
+
+| Id | Why it is left open | What would force it closed |
+|---|---|---|
+| `T-31-14-03` | a note HAND-WRITTEN into an origin `notes/` directory and then promoted is not distinguishable from one the sanctioned writer produced | a keyed note stamp the sanctioned writer emits and this route verifies. **Owner: the next milestone.** No owner in this phase |
+| `T-31-18-01` | a constructed governance root around one's own notes presents a store the route accepts | as above. The PRICE is now stated per position and MEASURED (A8); the capability is unchanged |
+| `R-31-22-01` | a checkout with a store and no `factory.config.json` is refused as an origin | nothing — the cost of pricing the residual honestly; the manual-copy install path is documented in workflow 18 |
+| `R-31-22-02` | **REWRITTEN** by `31-29` with its id kept, so existing citations resolve; what remains open is stated in the member itself | — |
+| `R-31-22-03` | a symlink AT a shaped, anchored location resolves to its root and is accepted for where it SITS | planting it needs write access inside a real root, which is `T-31-14-03` one indirection over. Re-measured against `31-27`'s canonicaliser and **unchanged** |
+| `R-37` | the compared field set is the store's own read-back projection | nothing — a key the projection drops is read by no consumer |
+
+### 12.3 The write path — `WRITE_PATH_RESIDUALS`, 5 members (the register IN-14 asked for)
+
+| Id | Why it is left open | What would force it closed |
+|---|---|---|
+| `R-31-21-01` | `atomicWrite`'s `writeFileSync` is a blocking-capable call this module still makes | its destination carries a random UUID no caller can predict, so it is not aimable; the race is bounded by same-uid filesystem access (`T-31-25`) |
+| `R-31-21-02` | a non-regular file inside `notes/` is skipped | **the silence is closed** — the skip is now one of three named arms, counted and reported by `render` (A11). The SKIP itself is accepted |
+| `R-31-21-03` | plan 31-21's own premise about `appendFileSync` | measured false and closed in-plan in round 5; the id resolves to its measurement rather than to a gap |
+| `R-31-21-04` | the write-path derivations are SYNTACTIC | the SCOPE half is closed (A7). **The alias and computed-member half stays open**; its closure shape is the S2 type-checker cutover `31-28` landed for the modifier ban. **Owner: the next milestone**, named rather than assumed |
+| `R-31-29-01` | a note already on disk above the ceiling is refused everywhere and neither deleted nor rotated | nothing — the context is append-only and removing it would destroy evidence to tidy a listing |
+
+### 12.4 The UAT-spec modifier ban — `UNRESOLVABLE_CALLEE_RESIDUALS`, 6 members, plus one this document raises
+
+The register went **9 → 6**. Four members were removed with the mechanism that needed them
+(`RR-01`, `RR-03`, `RR-08`, `RR-09`), one was deleted with the recursion it bounded (`RR-05`), one
+was rewritten (`RR-04` → `RR-04'`), one was replaced (`RR-07` → `RR-11`), and two are new
+(`RR-10`, `RR-12`).
+
+| Id | Why it is left open | What would force it closed |
+|---|---|---|
+| `RR-02` | a member computed from a non-literal expression resolves to no symbol and the source carries no member name | a literal-typed `name`, which the checker could resolve — optional, and not attempted |
+| `RR-06` | an option enabled by anything other than the `true` keyword | nothing — this runnable parses and never evaluates, which is the right rule |
+| `RR-04'` | the undecided half of a non-identifier head: a call on `this`, or on an object whose member the checker cannot resolve | a resolution the compiler does not offer at that position |
+| `RR-10` | identity and spelling are TWO rules for one question, paired deliberately | one rule that loses no refusal the other makes. The pairing is bounded: the spelling rule is asked ONLY where identity produced no answer |
+| `RR-11` | a target whose TypeScript cannot create a Program makes NO claim, at exit 2 — and the granularity is WHOLE-RUN rather than per-file | a way to bind one file at a time, which the compiler's public API does not offer today. **Owner: the register** |
+| `RR-12` | the installed-package identity route is reasoned, not measured; only the ambient-declaration route is driven | `@playwright/test` installed here, which this repository's fixed dependency set forbids. `UNKNOWN - verify`, bound to `R-07`. **Owner: a human** |
+
+**`R-31-31-01` — RAISED BY THIS DOCUMENT, not by a fix plan, and NOT added to any exported register
+by this plan.** An ambient `declare const it: unknown;` beside `import { test as it }` reports
+`0 findings`/EXIT=0, unmoved from what `31-REVIEW.md` CR-18 point 3 measured. **Why it is not called
+closed:** the outcome is unchanged and no register member names it. **Why it is not called a
+blocker:** the file does not compile (`TS2440: Import declaration conflicts with local declaration of
+'it'`), so by `31-28`'s own recorded standard it is a curiosity rather than a bypass — and that
+standard is this round's, which is why the item is carried rather than dismissed. **What would force
+it closed:** either a corpus row driving it with the compile error asserted as the reason it cannot
+run, or a register member naming it. **Owner: round 7's fix plan.** This plan writes no source, so it
+is recorded here and repaired nowhere.
+
+**Two further open items `31-28` recorded, restated so they are looked up rather than rediscovered:**
+`R-07`, the declared surface's drift from the released `@playwright/test` — still `UNKNOWN - verify`,
+**owner a human**, and its cost went UP this round because `31-28` added a member to the
+transcription.
+
+### 12.5 The exit-code contract — `PATHOLOGICAL_INPUT_SHAPES` (6) and `MEASUREMENT_BRANCH_STREAMS` (4)
+
+| Shape | Why it is left open | What would force it closed |
+|---|---|---|
+| a fault that terminates the process WITHOUT unwinding (an OOM kill, a signal) | the runnable structurally cannot answer for it — a killed process runs no `catch` clause | **CLOSED AT THE CALLER** by `31-30`'s fourth arm: the §14 runner maps `exitCode === null` to could-not-run, never to pass. The runnable's own half stays open by construction |
+| the de-recursed walk's own depth, unreachable on darwin at 476 levels against ~8,075 frames | a control, correctly recorded as one | nothing |
+| `reportMeasured` deliberately unchanged | decided in D-28 (3) | nothing |
+| the parse-depth boundary's exact level | it is a property of the host's stack, not of the rule | nothing — but it MOVED this round from 630/631 to 629/630 (§6.5), so a record pinning the number rather than the property will read as a regression |
+| the Windows leg of the two-boundary behaviour | not measurable from darwin | a reading off a real `windows-latest` run |
+
+### 12.6 The process, harness and human items
+
+| Id | State | Owner | What would force it closed |
+|---|---|---|---|
+| `R-01` | **OPEN — `UNKNOWN - verify` intact.** The attended Claude-in-Chrome lane under real interactive auth | **a named human** | an attended Claude Code session with the browser extension installed and a real interactive login. `scripts/chrome-lane-bar.test.ts`'s **structural** bar is green as its own file (§5.2) and the lane's real behaviour is **not** inferred from it |
+| `R-02` | **OPEN — `UNKNOWN - verify` intact.** The `claude auth status --json` predicate under API-key and long-lived-token configurations | **a named human** | credential configurations this box does not have and cannot construct without destroying its real ones |
+| `R-03` | **OPEN, SHRUNK to a stated remainder.** `31-30` added Windows-scoped steps to the pre-existing `windows-latest` leg with an asserted skip list | **a real `windows-latest` run** | `31-30` records SIX rows as `UNKNOWN - verify`, including whether the FIFO and symlink shapes are skipped there, whether both browser-absence stages behave identically, and whether the leg can reach green at all. **The instrument is wired; the reading is not taken, and `31-30` says so in its own words** |
+| `R-04` | **CLOSED by harness**, with five measured outcomes (136 passed, 1 skipped) | — | — |
+| the `check:diff-disposition` debt | **OPEN at 80**, down 30 from 110 | five rows on `18-context-compaction.md` are **`31-29`'s**; the other 75 are pre-existing | a disposition row per clause. **Not repaired here**: writing rows for another plan's clauses puts a reason in the register this plan cannot vouch for |
+| the multi-sentence disposition-row CLASS | **OPEN.** A row whose `before`/`after` is not exactly one clause covers nothing, silently, while reading as work done, and no derived check catches it | **`31-29`**, criterion in `deferred-items.md` | a derived check that refuses a multi-sentence cell. Independently confirmed here: the gate names exactly 5 clauses on that file (§8.4) |
+| the **14 of 15** `mkfifo` call sites carrying no platform guard | **OPEN.** They call `execFileSync("mkfifo", …)` bare or assert `spawnSync(...).status === 0` as a PREMISE; on a Windows runner each is a failure rather than a skip | **their own plan** — `31-30` raised it and deliberately did not fix it | a platform guard at each site. `31-30` records that the SOURCE property is measured on darwin and what a Windows run then does is **not** measurable from here and is not claimed |
+| the harness-false-result tally | **CLOSED as a tally, OPEN as a phenomenon.** One tracked list, contiguous ordinals, a suite gate over it | — | nothing for the tally. **The phenomenon produced instance 14 in this very plan** (§7.4), so the discipline is still earning its place |
+| `R-07` / `RR-12` | **OPEN — `UNKNOWN - verify`.** The transcribed `@playwright/test` surface's drift from the released package | **a human** | the package installed here, which the fixed dependency set forbids |
+| the signed-note-stamp work | **OPEN, no owner in this phase** | **the next milestone** | it is `T-31-14-03`'s and `T-31-18-01`'s shared closure criterion |
+| a type-checker-backed resolution for `R-31-21-04`'s alias half | **OPEN** | **the next milestone** | the S2 cutover shape, applied to the write path |
+
+---
+
+## 13. What this round did NOT do
+
+Stated plainly, because a closure round's silences are what the next round pays for.
+
+1. **Two of the four human-verification items remain OPEN, and a third is open at a stated
+   remainder.** `R-01` (the attended Chrome lane under real interactive auth) and `R-02` (the auth
+   predicate under alternative credential configurations) are carried with their `UNKNOWN - verify`
+   markers intact and **named human owners**. `R-03` is SHRUNK by `31-30`'s harness work but is not
+   closed: six of its rows are `UNKNOWN - verify` because the reading was never taken. `R-04` **is**
+   closed, by a harness, with its five measured outcomes quoted. **Every probe in this document ran
+   on darwin 25.5.0 arm64 with Node v24.12.0 only.** No Windows measurement is claimed anywhere.
+2. **The `check:diff-disposition` debt is MEASURED, REDUCED and UNCLOSED** — 80 findings over 39
+   elements, down 30 from round 5's 110, with the base commit `4d2b8f0` and the 40-file watched
+   corpus both unmoved (§8.4). Five of the remaining findings are `31-29`'s own; the other 75 are
+   pre-existing with named owners. Not repaired here, for the standing reason.
+3. **Four `TRUSTED_ROOT_RESIDUALS` members are closed only on the Claude Code hook path.**
+   `R-31-15-01`, `R-31-15-03`, `R-31-19-02` and `R-31-19-06` carry `hosts: non-cc-hook-path`. On the
+   other four CLIs, and for any agent invoking `scripts/context-io.js` directly from its own Bash
+   tool, the capability is unchanged. **Tier 0 is a narrowing on one host, not a closure.**
+4. **`R-31-19-03` is not closed and is not closeable from this platform.**
+5. **The ambient `declare` spelling is UNMOVED**, and this document declines to call it closed on
+   this round's own standard (§6.1, §12.4). It is `R-31-31-01`, owner round 7.
+6. **The 14 unguarded `mkfifo` sites and the multi-sentence disposition-row class are raised and not
+   fixed** — both are `31-30`'s findings, carried with owners and criteria.
+7. **No source file, test file or configuration file was modified by this plan.** Asserted, range-pinned:
+   ```
+   $ git status --porcelain -- scripts hooks agent-factory install .github vitest.config.ts package.json    (empty)
+   $ git diff --name-only a6539e7..HEAD -- scripts hooks agent-factory install .github vitest.config.ts package.json    (empty)
+   ```
+   **The findings this round DID raise — §8.4's remaining debt, §6.5's moved boundary, §13.8's
+   unbalanced tally and §12.4's `R-31-31-01` — are therefore recorded with owners rather than
+   repaired.**
+8. **The round-6 dispositions file's own tally does not balance, and this round did not adjust it.**
+   Its prose declares 34 items (19 fix / 13 close / 2 open); its tables carry 43 (22 / 18 / 3), and
+   de-duplicating the one item that appears three times gives 41, not 34 (§10.4). **The ledger is
+   built on the derived 43.** Owner: whoever writes round 7's dispositions file, whose denominator
+   should be derived by command rather than typed. `31-round6-residual-dispositions.md` is history
+   and is not rewritten here.
+9. **No requirement was flipped** — §14.
+
+---
+
+## 14. The requirement rows, confirmed UNCHANGED
+
+**Only a verification round may flip a requirement. A gap-closure plan that flips one is certifying
+itself.** `.planning/ROADMAP.md` says so in its own words, quoted verbatim from the block that
+governs this round:
+
+> **The phase stays `In Progress` and UATX-01…UATX-06 stay `[ ]` / Gaps Found: only a verification
+> round may flip a requirement.**
+
+Confirmed by reading the files rather than by intent, and by a diff pinned to the ROUND base:
+
+```
+$ git diff --stat 77123aa..HEAD -- .planning/REQUIREMENTS.md
+(empty — byte-unchanged across the WHOLE round)
+
+$ grep -c '^- \[ \] \*\*UATX-0' .planning/REQUIREMENTS.md
+6
+
+$ .planning/REQUIREMENTS.md lines 120-125     all six still `- [ ]`
+$ .planning/REQUIREMENTS.md lines 212-217     all six still `Gaps Found`
+$ .planning/ROADMAP.md                        Phase 31 checkbox still unchecked; status row still `In Progress`
+```
+
+**`.planning/REQUIREMENTS.md` is byte-unchanged over the entire round even though one plan flipped a
+row mid-round.** `31-29`'s executor marked `UATX-01` complete and the flip was reverted in the same
+plan (`9edbe8e fix(31-29): revert UATX-01 to Gaps Found — only a verification round may flip it`).
+The net range diff is empty, which is the outcome the rule requires, and the fact that a revert was
+needed is recorded here rather than smoothed over — **this repository has now had two rounds in which
+the post-plan tooling flipped a requirement a gap-closure round may not flip.**
+
+`.planning/ROADMAP.md` DID change over the round, and the change is named so it is not mistaken for a
+requirement flip: the plan-progress row moved `26/26` → `30/31`, the round-6 plan block was updated
+from "NOT YET EXECUTED" to name which four executed, and five plan checkboxes were added under
+"Gap waves 15-19" (`31-27`…`31-30` checked, `31-31` unchecked). **No hunk touches the Phase 31
+checkbox line, the phase status cell, or any UATX row.** This plan runs
+`roadmap update-plan-progress` for the plan-count row and does **not** run
+`requirements.mark-complete` at all.
+
+### 14.1 The `.planning/STATE.md` write, VERIFIED rather than assumed
+
+This repository's state writer re-escapes backslashes on every write, and a pathological line there
+has previously combined with a superlinear guard predicate to turn a sub-second gate into a
+multi-minute one. So the write is measured afterwards rather than trusted:
+
+| Check | Command | Result |
+|---|---|---|
+| longest line in `.planning/STATE.md` | `awk '{ if (length($0) > m) { m = length($0); n = NR } } END { print m, n }'` | **7995 characters, at line 18** — `prior_activity_desc`, a pre-existing field this plan did not touch, unchanged from before the write. Bound: 20000. **PASS** |
+| the `status:` field this plan rewrote | the same `awk`, restricted to that line | **1838 characters**, DOWN from the 3756 it replaced. **PASS** |
+| backslash runs | `grep -c '\\\\'` | **0** — no quadruple-backslash run anywhere in the file. The replacement text was asserted to contain no `"` and no `\` **before** it was written, by the writer itself |
+| foundation guards AFTER the write | `node scripts/check-foundation-guards.js` | `ALL CHECKS PASSED`, exit 0, **0.211 s** wall clock. Bound: 5 s; the pathological signature this repository measured before is 60 s. **PASS** |
+| UAT oracles AFTER the write | `node scripts/check-uat-oracles.js` | `ALL CHECKS PASSED`, exit 0, **0.093 s** wall clock |
+| both guard suites AFTER the write | `npx vitest run … check-foundation-guards.test.ts floor-invariance.test.ts` | `Test Files 2 passed (2)` · `Tests 422 passed (422)`, 71.8 s |
+
+`.planning/STATE.md` names the next action as **a SEVENTH verification round**, in both `status:` and
+`stopped_at:`.
+
+---
+
+## 15. What the seventh verification round inherits
+
+- **§1** — the probe denominator DERIVED (18 spot-check rows + 5 review-only findings + 3 review-only
+  CR-18 variants = **26**), with the exclusions named, and **the probe-environment change this round
+  introduced**: an unequipped target now answers `PROGRAM_UNAVAILABLE_REASON` at exit 2, so a round-5
+  transcript re-run verbatim measures the parser's absence rather than the ban.
+- **§2** — every round-6 reproduction paired, none re-derived from a fix plan's fixture. All five
+  Criticals and all five Warnings **CLOSED by measurement**; both Info items closed.
+- **§3** — **14 round-5 controls re-driven in the modules round 6 edited: 13 UNMOVED, 1 boundary
+  moved by one level in the safe direction.** No round-5 closure was lost.
+- **§4** — the two spot-check counts stated apart: **6 rows carried a defect and all 6 moved; 12
+  passed and 11 are unmoved**, with the twelfth recorded as a three-way disagreement rather than as
+  an unmoved row. Three rows the round-6 verifier only REPORTED are DRIVEN here.
+- **§5** — the four SATISFIED requirements re-measured by their own mechanisms, including this plan's
+  own flagged assumption about UATX-04 and the one limit of that probe stated rather than absorbed.
+- **§6** — five disagreements and reclassifications, both values printed each time.
+- **§7** — the environment proven clean **by predicates that can observe it**, every harness's own
+  premise stated with the assertion that established it, and **one false result about a harness's own
+  premise logged as instance 14** — instance 4's exact shape, for the third time in this phase.
+- **§8** — the one-commit gate record: **25 rows from a list derived from `package.json`**, the suite
+  green at **64 files / 4128 passed / 2 skipped / 355 s**, the doctrine DERIVED rather than quoted,
+  the **whole 26-entry manifest** re-measured, **20 register cardinalities** read off the tree with
+  zero disagreements, and the debt at **80** (down 30) with the measuring stick unmoved.
+- **§9** — the no-silent-drop equality asserted as **COVERAGE**: 8 report rows, 8 covered, 0
+  uncovered, from 18 derived assumptions, with the 3 authored beyond the report named rather than
+  counted as drift.
+- **§10/§11** — **70** disposition rows against **70** source items, with the equality stated and
+  balancing (42 closed + 18 accepted + 10 carried).
+- **§12** — the residual register: **11** governance-root members with a `hosts` breakdown, **6**
+  admission-route members, **5** write-path members, **6** modifier-ban members plus one this
+  document raises, the exit-contract shapes, and **11** process/harness/human rows. Each with a
+  reason and a closing criterion.
+- **§13** — what was not done, nine items. **§14** — the requirement rows, left for the verifier.
+
+**The one thing this round most wants read first: §8.2.** For six consecutive rounds the phase has
+recorded "the green suite exercised none of the defects" as a quotation. This round DERIVES it: four
+of the five round-6 Criticals are decided today by constants and spellings that appeared **zero**
+times in the suite at the round base. A suite that never names a clause cannot assert it — and that,
+not the 4,128, is the number a seventh round should carry forward.
+
+**The second thing: §6.5.** A round-5 closure's own adjacency pair moved by one level because a later
+plan added a frame to the parse path. Nothing broke; a number that was pinned stopped matching. Any
+seventh-round row that re-runs a pinned depth, a pinned line number or a pinned byte count from an
+earlier record should expect this class and check the PROPERTY rather than the NUMBER.
+
+---
+
+_Written: 2026-09-10 · Plan `31-31` · Measured at `a6539e7` (reproductions, controls and gates), with
+every "over the round" range pinned to the round base `77123aa`_

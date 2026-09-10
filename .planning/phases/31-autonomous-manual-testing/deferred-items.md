@@ -457,3 +457,83 @@ row; and a harness corrected silently leaves no citation, so the count is a floo
   the one authority, the way plan `30-10` (finding B-1/B-5) published `GOVERNANCE_CONFIG_RELPATHS`
   after the same argument about a restated list — then a probe composes the fixture without spelling
   either literal, the AUTO-06 predicate is unmoved, and the position is restored here. `status: open`.
+
+---
+
+## 31-31 (2026-09-10) — the round-6 closing re-measurement of the entries above
+
+Recorded by the closing measurement of gap-closure round 6. **Nothing here is a new deferral of this
+plan's own making except where it says so.** Every figure is measured at commit `a6539e7`, with each
+"over the round" range pinned to the round base `77123aa`. The full record is
+`docs/audit/31-round6-residuals.md`.
+
+### The four standing human items, re-stated at their measured state
+
+- **`R-01`** — the attended Chrome lane under real interactive auth. **OPEN, unchanged**,
+  `UNKNOWN - verify` intact. **Owner: a named human.** The structural bar
+  (`scripts/chrome-lane-bar.test.ts`, 15 cases) is green and byte-untouched across the round; the
+  lane's real behaviour is not inferred from it.
+- **`R-02`** — the `claude auth status --json` predicate under API-key and long-lived-token
+  configurations. **OPEN, unchanged**, `UNKNOWN - verify` intact. **Owner: a named human.**
+- **`R-03`** — the Windows leg. **OPEN at the remainder `31-30` stated.** The instrument is wired on
+  the pre-existing `windows-latest` leg; the reading is not taken, and `31-30` records six rows as
+  `UNKNOWN - verify` in its own words. **Owner: a real `windows-latest` run.**
+- **`R-04`** — the installer round-trip. **CLOSED by harness** (`31-30`, five measured outcomes,
+  `136 passed, 1 skipped`). Re-stated here rather than re-derived. `status: closed`.
+
+### The disposition debt, re-measured
+
+`npm run check:diff-disposition` → **80 finding(s) over 39 elements**, base commit `4d2b8f0`,
+watched corpus **40** markdown files — the base and the corpus both **unmoved** from what `31-30`
+recorded. Down **30** from round 5's 110, and equal to `31-30`'s own end figure. Per-file:
+`05-pr-quality-gate.md` 38 · `06-uat-pack.md` 25 · `16-context-read-write.md` 10 ·
+`18-context-compaction.md` **5** · `17-task-claim.md` 2.
+
+**The five `18-context-compaction.md` rows independently confirm `31-30`'s unfixed finding.** Owner
+`31-29`; criterion: a `before`/`after` cell that is exactly one clause, plus a derived check that
+refuses a multi-sentence cell. Not repaired here — writing rows for another plan's clauses puts a
+reason in the register this plan cannot vouch for.
+
+### Carried forward unchanged from `31-30`, re-stated so they are looked up rather than rediscovered
+
+- **The multi-sentence disposition-row CLASS.** A row whose `before`/`after` is not exactly one
+  clause covers nothing, silently, while reading as work done. No derived check catches it. Owner
+  `31-29`.
+- **Fourteen of fifteen `mkfifo` call sites carry no platform guard.** Owner: their own plan.
+  `31-30` measured the SOURCE property on darwin and explicitly does not claim what a Windows run
+  then does.
+
+### Raised by this plan, with owners, and deliberately NOT repaired here
+
+- **`R-31-31-01` — the ambient `declare` spelling.** `declare const it: unknown;` beside
+  `import { test as it }` reports `0 findings`/EXIT=0, unmoved from `31-REVIEW.md` CR-18 point 3.
+  The file does not compile (`TS2440`), so by `31-28`'s own recorded standard it is a curiosity
+  rather than a bypass — and that standard is this round's, which is why the item is carried rather
+  than dismissed. No member of `UNRESOLVABLE_CALLEE_RESIDUALS` names it. **Owner: round 7's fix
+  plan.** Criterion: a corpus row driving it with the compile error asserted as the reason it cannot
+  run, or a register member naming it.
+- **The round-6 dispositions file's tally does not balance.**
+  `31-round6-residual-dispositions.md` declares "34 items analysed. 19 fix, 13 close, 2 stay open";
+  its six tables carry **43** rows (Fix 22 / Close 18 / Open 3), derived by command, and collapsing
+  the one item that appears three times gives 41, not 34. **Owner: whoever writes round 7's
+  dispositions file**, whose denominator should be DERIVED by command rather than typed. The
+  round-6 file is history and is not rewritten.
+- **The CR-15 parse-depth adjacency moved by one level**, 630/631 → **629/630**, bisected here. The
+  PROPERTY is unmoved (EXIT=2 with the named could-not-run reason and the vacuity floor, which is
+  never a pass); the NUMBER moved, consistent with `31-28`'s cutover adding a frame. **Owner: any
+  future record that pins the number rather than the property.**
+- **Spot-check row 6 of `31-VERIFICATION.md` round 6 is a three-way outlier**: it records depth 1,000
+  answering EXIT=0 where round 5's own closing measurement and this one both measure EXIT=2. Not
+  resolved by preference; both values printed in `docs/audit/31-round6-residuals.md` §6.5.
+- **Four `TRUSTED_ROOT_RESIDUALS` members are closed only on the Claude Code hook path**
+  (`hosts: non-cc-hook-path`): `R-31-15-01`, `R-31-15-03`, `R-31-19-02`, `R-31-19-06`. Tier 0 is a
+  narrowing on one host, not a closure. Owner: the register.
+
+### One harness false result, logged rather than absorbed
+
+Instance **14** in `docs/audit/harness-false-result-instances.md`, the ordinal READ OFF that list.
+The first CR-17 position derivation took its pattern from `hooks/hook-entry.ts` and ran it against
+the committed `hooks/hook-entry.js`, matched zero positions, and reported "0 of 0" as a pass shape —
+instance 4's exact shape for the third time in this phase. Caught by the printed denominator
+disagreeing with the printed position list; the derivation was rebuilt with a non-zero premise
+assertion rather than its output believed.

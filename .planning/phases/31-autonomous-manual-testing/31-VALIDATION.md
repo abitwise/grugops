@@ -188,3 +188,32 @@ closing measurement.** This round adds no item and closes none. Every probe reco
 alternative auth configuration, no Windows host and no second scratch repository. Restated here with
 an incremented carry-forward count so "carried forward" stays a recorded fact rather than an
 assumption.
+
+---
+
+## Standing human-verification items — carried forward through gap-closure round 7
+
+> Recorded by plan `31-31` (the closing measurement for gap-closure **round 6**) on 2026-09-10.
+> **Three of the four are carried with their `UNKNOWN - verify` markers intact; the fourth is CLOSED
+> by a harness, and its measurements are quoted.** A gap-closure plan may not close a
+> human-verification item by inference — `R-04` is closed because `31-30` AUTOMATED it, not because
+> anyone reasoned about it. This section does not rewrite the round-5 or round-6 sections above; it
+> follows them.
+
+**Carry-forward count, read from the section above and incremented once: 4 items were carried
+through rounds 2, 3, 4, 5 and 6. After this round's closing measurement the count is 3 CARRIED and
+1 CLOSED.** This round adds no item. Every probe recorded in `docs/audit/31-round6-residuals.md` ran
+on **darwin 25.5.0 arm64 with Node v24.12.0 only**.
+
+| Id | Item | Status after gap-closure round 6 | What this round measured that is NOT this item |
+|---|---|---|---|
+| `R-01` | The attended Claude-in-Chrome lane opens under real interactive auth, pauses for a human on a login/challenge page, and produces only a human-stamped finding + artifact-ref (never a gate stamp). | **OPEN — `UNKNOWN - verify`.** Carried unchanged through rounds 2, 3, 4, 5, 6 and this one. **Owner: a named human.** | `scripts/chrome-lane-bar.test.ts` was driven as its OWN file (`Test Files 1 passed`, `Tests 15 passed`) and is **byte-untouched across the whole round** (`git diff --name-only 77123aa..HEAD` empty) — `docs/audit/31-round6-residuals.md` §5.2. That is the **structural** bar. The lane's real interactive behaviour is **not** inferred from it. |
+| `R-02` | The `claude auth status --json` fail-closed predicate (D-10) behaves correctly on an API-key-only box and under a long-lived setup token. | **OPEN — `UNKNOWN - verify`.** Carried unchanged through rounds 2, 3, 4, 5, 6 and this one. **Owner: a named human.** | Nothing. No alternative auth configuration was constructed; doing so would destroy this box's real credentials. |
+| `R-03` | Both browser-absence probe stages, and the whole spec-integrity runnable, on a **Windows** host. | **OPEN — `UNKNOWN - verify`, SHRUNK to a stated remainder.** `31-30` added Windows-scoped steps to the **pre-existing** `windows-latest` leg with an asserted skip list, and recorded SIX rows as `UNKNOWN - verify` because the reading was never taken. **Owner: a real `windows-latest` run.** | `PARSER_ABSENT_MARKER` was driven directly (EXIT=2, single emission) and the whole gate battery re-run — **on darwin**. `31-30`'s own summary states that what a Windows run does is not measurable from here and is not claimed. |
+| `R-04` | A host repository that installed grugops before this release re-runs the installer and picks up `tools/grugops/uat-spec-integrity.js`; the uninstaller removes it. | **CLOSED — by harness, not by inference.** `31-30` automated the round-trip against a temporary `HOME` with **five measured outcomes** (`136 passed, 1 skipped`). | The closure's own remainder — that the round-trip ran on darwin — belongs to `R-03`, not to this item. |
+
+**What this round did to them: it closed none of them itself, deliberately.** `31-31` runs no
+attended browser session, no alternative auth configuration, no Windows host and no second scratch
+repository. `R-04`'s closure is `31-30`'s and is recorded here with the measurement that produced it.
+Restated with an incremented carry-forward count so "carried forward" stays a recorded fact rather
+than an assumption.
