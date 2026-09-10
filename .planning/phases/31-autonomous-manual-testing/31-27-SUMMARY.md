@@ -23,9 +23,12 @@ provides:
 affects: [31-28, 31-29, 31-30, 31-31, hook-entry, context-io, trusted-root]
 
 actuals:
-  tokens: 55769
+  # estimateTokens scale (chars/4) over the realized diff for the WHOLE plan range,
+  # 77123aa..HEAD — 287,697 chars. The code-only slice (excluding .planning/) is
+  # 213,067 chars = 53,266. Estimate was 90,000; the plan came in under it.
+  tokens: 71924
   tasks: 3
-  commits: 4
+  commits: 6
 plan_head_before: 77123aa8c66592f5bb85131d9fcb8bd3b18a3ea8
 
 tech-stack:
@@ -591,4 +594,4 @@ FOUND: 71242ab  feat(31-27): tier 0 — a governance root the host delivers, a r
 FOUND: f4dffd9  fix(31-27): the workflow prose obeys the writing profile, and the two pins move deliberately
 ```
 
-Measured commit count from the persisted ledger: `git rev-list --count 77123aa8c66592f5bb85131d9fcb8bd3b18a3ea8..HEAD` = **4**, matching `actuals.commits`.
+Measured commit count from the persisted ledger: `git rev-list --count 77123aa8c66592f5bb85131d9fcb8bd3b18a3ea8..HEAD` = **6**, matching `actuals.commits`. Four are production commits (`43dec42`, `f28aa9f`, `71242ab`, `f4dffd9`); two are the close-out docs commits this SUMMARY and the STATE/ROADMAP update require. The number is the measured one, not the flattering one.
