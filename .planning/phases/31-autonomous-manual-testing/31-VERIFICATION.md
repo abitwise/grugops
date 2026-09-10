@@ -1,10 +1,11 @@
 ---
 phase: 31-autonomous-manual-testing
-verified: 2026-09-10T01:17:54Z
+verified: 2026-09-10T19:58:00Z
 status: gaps_found
-round: 6
+round: 6 (gap-closure round 6 verification — the SEVENTH verification pass of this phase)
 score: 4/6 must-haves verified
 covered_files:
+  - ".github/workflows/ci.yml"
   - ".planning/REQUIREMENTS.md"
   - ".planning/ROADMAP.md"
   - ".planning/STATE.md"
@@ -61,6 +62,16 @@ covered_files:
   - ".planning/phases/31-autonomous-manual-testing/31-25-SUMMARY.md"
   - ".planning/phases/31-autonomous-manual-testing/31-26-PLAN.md"
   - ".planning/phases/31-autonomous-manual-testing/31-26-SUMMARY.md"
+  - ".planning/phases/31-autonomous-manual-testing/31-27-PLAN.md"
+  - ".planning/phases/31-autonomous-manual-testing/31-27-SUMMARY.md"
+  - ".planning/phases/31-autonomous-manual-testing/31-28-PLAN.md"
+  - ".planning/phases/31-autonomous-manual-testing/31-28-SUMMARY.md"
+  - ".planning/phases/31-autonomous-manual-testing/31-29-PLAN.md"
+  - ".planning/phases/31-autonomous-manual-testing/31-29-SUMMARY.md"
+  - ".planning/phases/31-autonomous-manual-testing/31-30-PLAN.md"
+  - ".planning/phases/31-autonomous-manual-testing/31-30-SUMMARY.md"
+  - ".planning/phases/31-autonomous-manual-testing/31-31-PLAN.md"
+  - ".planning/phases/31-autonomous-manual-testing/31-31-SUMMARY.md"
   - ".planning/phases/31-autonomous-manual-testing/31-CONTEXT.md"
   - ".planning/phases/31-autonomous-manual-testing/31-DISCUSSION-LOG.md"
   - ".planning/phases/31-autonomous-manual-testing/31-PATTERNS.md"
@@ -68,6 +79,7 @@ covered_files:
   - ".planning/phases/31-autonomous-manual-testing/31-REVIEW.md"
   - ".planning/phases/31-autonomous-manual-testing/31-VALIDATION.md"
   - ".planning/phases/31-autonomous-manual-testing/31-VERIFICATION.md"
+  - ".planning/phases/31-autonomous-manual-testing/31-round6-residual-dispositions.md"
   - ".planning/phases/31-autonomous-manual-testing/deferred-items.md"
   - "agent-factory/checklists/00-index.md"
   - "agent-factory/checklists/browser-uat-recipe.md"
@@ -77,13 +89,22 @@ covered_files:
   - "agent-factory/workflows/16-context-read-write.md"
   - "agent-factory/workflows/17-task-claim.md"
   - "agent-factory/workflows/18-context-compaction.md"
+  - "docs/audit/29-style-dispositions/31-09.md"
   - "docs/audit/29-style-dispositions/31-14.md"
   - "docs/audit/29-style-dispositions/31-16.md"
   - "docs/audit/29-style-dispositions/31-17.md"
   - "docs/audit/29-style-dispositions/31-18.md"
   - "docs/audit/29-style-dispositions/31-19.md"
+  - "docs/audit/29-style-dispositions/31-21.md"
+  - "docs/audit/29-style-dispositions/31-22.md"
+  - "docs/audit/29-style-dispositions/31-23.md"
+  - "docs/audit/29-style-dispositions/31-27.md"
+  - "docs/audit/29-style-dispositions/31-29.md"
+  - "docs/audit/29-style-dispositions/31-30.md"
   - "docs/audit/31-round4-residuals.md"
   - "docs/audit/31-round5-residuals.md"
+  - "docs/audit/31-round6-residuals.md"
+  - "docs/audit/harness-false-result-instances.md"
   - "hooks/admission-guard.js"
   - "hooks/admission-guard.test.ts"
   - "hooks/admission-guard.ts"
@@ -95,6 +116,7 @@ covered_files:
   - "hooks/hooks.json"
   - "install/README.md"
   - "install/install.js"
+  - "install/install.test.ts"
   - "install/install.ts"
   - "install/uninstall.js"
   - "install/uninstall.ts"
@@ -105,6 +127,8 @@ covered_files:
   - "scripts/check-foundation-guards.js"
   - "scripts/check-foundation-guards.test.ts"
   - "scripts/check-foundation-guards.ts"
+  - "scripts/check-platform-shapes.js"
+  - "scripts/check-platform-shapes.ts"
   - "scripts/check-uat-oracles.js"
   - "scripts/check-uat-oracles.ts"
   - "scripts/checkpoints.js"
@@ -118,6 +142,7 @@ covered_files:
   - "scripts/context-io.test.ts"
   - "scripts/context-io.ts"
   - "scripts/floor-invariance.test.ts"
+  - "scripts/nonblocking-reader-parity.test.ts"
   - "scripts/runnable-ref/fixtures/caught-assertion.uat.spec.ts"
   - "scripts/runnable-ref/fixtures/clean.uat.spec.ts"
   - "scripts/runnable-ref/fixtures/conditional-assertion.uat.spec.ts"
@@ -135,162 +160,174 @@ covered_files:
   - "scripts/runnable-ref/uat-spec-integrity.js"
   - "scripts/runnable-ref/uat-spec-integrity.test.ts"
   - "scripts/runnable-ref/uat-spec-integrity.ts"
+  - "scripts/uat-gate-exit-contract.test.ts"
   - "tsconfig.fixtures.json"
   - "tsconfig.tests.json"
-covered_digest: "v1:sha256:642f5b8bb88d73ef6db9c78fa0f800788d7b90a76dac9203ab47f2b2760e0033"
+  - "vitest.config.ts"
+covered_digest: "v1:sha256:1f9b3352b0b26c482b8b67b1c98516f12f617ee9760433cc1833594a76699dac"
 behavior_unverified: 0
 overrides_applied: 0
 re_verification:
   previous_status: gaps_found
   previous_score: 4/6
   gaps_closed:
-    - "CR-12 (unguarded readFileSync at the context-io.ts note-write chokepoint) — independently re-reproduced CLOSED in this session: a FIFO planted at a note path now returns EXIT=0 in well under a second, REFUSED (note-path-not-a-regular-file), the FIFO untouched — closed by extracting one non-blocking O_NONBLOCK+fstat reader (D-24, plan 31-21)."
-    - "CR-13 (a repository rooted at the home directory never has its own dial read) — closed by splitting the home predicate into isAboveHome/isHomeItself (D-26, plan 31-23); not independently re-reproduced this round (out of this round's five-Critical reproduction budget) but re-measured by 31-REVIEW.md's own table and not contested by anything this session found."
-    - "CR-14 (file-scoped declared-name census disables the whole rename/namespace/fixture ban family) — closed for the exact spelling by nearest-binding resolution (D-27, plan 31-24); superseded by a NEW defect one register over in the SAME fix (CR-18, below — not a regression of CR-14's own spelling, which stays refused)."
-    - "CR-15 (parser outside the could-not-run boundary) — closed by wrapping ts.createSourceFile and main's whole body in decided boundaries (D-28, plan 31-25); re-measured by 31-REVIEW.md at nesting depths 631/1000/5000/20000 all EXIT=2 with the vacuity floor; not contested by anything this session found."
-    - "CR-16 (originIsTrusted's second arm accepts any in-repository directory) — closed by deleting the root-proximity arm and requiring a root-anchoring conjunction (D-25, plan 31-22); re-measured by 31-REVIEW.md (a forged in-repository directory now DECLINES origin-outside-trusted-store); not contested by anything this session found."
-    - "WR-22 (note-before-ledger ordering and a fail-open ledger read) — closed as filed by inverting both writer-set members and making an unreadable ledger a decline; the property the fix aimed at now fails on a DIFFERENT axis (CR-20, below — the two steps agree on ORDER but disagree on WHICH REPOSITORY)."
+    - "CR-17 (hook-entry.ts's unguarded readFileSync hangs the PreToolUse wrapper on a FIFO at a manifest path) — CLOSED. Not independently re-driven this session (outside this round's five-Critical reproduction budget, which this round's own review already spent on CR-22..CR-25); accepted from 31-REVIEW.md's own measurement (readRegularFileOrRefuse now guards the manifest reads and the fd-0 payload read; the review's summary states this closure explicitly and finds no residual at this coordinate)."
+    - "CR-19 (write-side ceiling absent, 9 MiB note writes then reads back as 0) — CLOSED per 31-REVIEW.md's own measurement (\"CR-19's write-side ceiling is real\"); not independently re-driven this session (same budget reason as CR-17)."
+    - "CR-20 (promoteAdmitted's own human-stamp-gated arm split the note and its GOV-02 ledger event across two repositories) — CLOSED for the exact human-stamp-gated arm the round-5 verifier and CR-20 both measured. Independently re-reproduced in THIS session: a legitimate human-disposed origin note routed through promoteAdmitted's GATED path (dial \"all\", by \"qe\", a non-high-severity role) now lands note AND ledger together in the SAME repository (THIRD notes 1, THIRD ledger 1, DEST notes 0, DEST ledger absent) — the inverse of round 6's own split. But this same session found the identical split reopened one register over, in the SAME function's earlier fall-through branch and in the sibling admitAndAppend route — see CR-22, below, which is why UATX-01 stays failed rather than being marked fully closed."
+    - "CR-21 (Playwright's documented three-argument tag/annotation overload evaded TestInfo-parameter recognition) — CLOSED by the D-30 symbol-identity cutover, per 31-REVIEW.md's own measurement (\"CR-21... each moved in the direction their owning plan committed to\"); not independently re-driven this session (same budget reason as CR-17). The cutover that closed it created CR-23 and CR-25, both independently re-reproduced this session — see gaps, below."
+    - "CR-18 (block-scoped function declaration hoisted to module range hides it.skip) — CLOSED for the round-5 spelling by the D-30 symbol-identity cutover (identity is no longer decided by hand-rolled scope-tracking at all, so the specific hoisting-arm defect cannot recur in the same shape); not independently re-driven this session. The cutover exposed a DIFFERENT class of gap in the same file (CR-23, CR-25 below)."
   gaps_remaining:
-    - "UATX-01 — closed for round 5's exact CR-12/CR-13/CR-16 shapes (all independently re-verified intact or re-measured, see above), reopened by THREE new defects, each one register past a round-5 fix, all independently reproduced in THIS session: CR-17 (the CR-12 fix stopped at scripts/context-io.ts and was never carried to hooks/hook-entry.ts, the PreToolUse entry point itself — a FIFO at any of the 13 agent-writable manifest paths hangs the wrapper before it ever spawns the decider, and a hook that never answers is an allow, at the one tier that guards a force-push); CR-19 (the CR-12 fix's 8 MiB read ceiling was applied to the read side only — a 9 MiB note WRITES successfully and then reads back as ZERO notes, silently, from the surface whose entire value proposition is that it is the only memory); CR-20 (the WR-22 fix inverted the note-then-ledger order correctly but left the two steps pointed at two different repositories — a cross-repository promotion leaves the human-disposed finding in the caller's chosen destination while the GOV-02 ledger event lands in the process's own root, which agent-factory/workflows/18-context-compaction.md:83 — rewritten this same round — states twice cannot happen)."
-    - "UATX-06 — closed for round 5's exact CR-14/CR-15 spellings (both independently re-reproduced refused/bounded), reopened by TWO new defects, each one register past a round-5 fix, both independently reproduced in THIS session: CR-18 (D-27's nearest-binding resolution gives a BLOCK-SCOPED function declaration the whole MODULE's range via its `hoisted` arm, so `if (false) { function it(): void {} }` beside a genuine module-scope `it.skip(...)` suppresses the ban at exit 0 — a three-line, type-checking, executing evasion, the same magnitude as the CR-14 spelling this exact plan closed); CR-21 (deriveTestInfoParameterNames reads only `node.arguments[1]`, so Playwright's documented three-argument tag/annotation form `test(title, details, body)` — idiomatic, no adversarial construct — makes `testInfo.skip()` pass at exit 0 while the identical two-argument form correctly refuses)."
-  regressions: []
+    - "UATX-01 — round 6's own three Criticals (CR-17, CR-19, CR-20) are genuinely closed at the exact coordinates they were raised on (CR-20 independently re-reproduced closed in this session; CR-17/CR-19 accepted from 31-REVIEW.md's own measurement, not independently re-driven this round). But 31-REVIEW.md's own review of the SAME round-6 fixes found a new Critical (CR-22) one register past the fix that closed CR-20, independently reproduced in THIS session against the committed `.js` at HEAD (`c830eb4`, unchanged in source from the review's own measured HEAD `f2404aa` — zero source-file diff between them): the one-root rule D-31/31-29 installed lives ONLY inside promoteAdmitted's human-stamp-GATED arm. The function's own EARLIER fall-through branch (reached by any note that does not carry a human:NAME stamp — the ordinary, non-re-binding admission path through this exact function) and the sibling admitAndAppend route both still key the note write on one argument (`to` / `contextRoot`) and the GOV-02 ledger append on a DIFFERENT argument (`repoRoot`), with nothing reconciling them. Independently reproduced twice in this session (the fall-through branch, and admitAndAppend) — see gap 1."
+    - "UATX-06 — round 6's own two Criticals (CR-18, CR-21) are genuinely closed by the D-30 symbol-identity cutover (accepted from 31-REVIEW.md's measurement, not independently re-driven this round — the cutover deleted the hand-rolled scope-tracking and fixed-index-argument mechanisms those two defects lived in, so the specific spellings cannot recur in the same shape). But the SAME cutover created two new Criticals, both independently reproduced in THIS session against the committed `.js` at HEAD: CR-23 (the cutover's `foreign` short-circuit makes `describe.skip` and `expect.soft` UNBANNABLE the moment they are imported from any non-Playwright module — the exact case `BANNED_MODIFIER_HEADS`'s own comment says the `describe` head is RETAINED for, since `@playwright/test` itself never exports a bare `describe`) and CR-25 (the identity resolver's bounded surface walk, `SURFACE_DEPTH_BOUND`, fails OPEN past its bound with zero bytes of diagnostic — independently reproduced at a nearby but not identical depth boundary to the one 31-REVIEW.md cites, see the Behavioral Spot-Checks note on that discrepancy). See gap 2."
+  regressions:
+    - "The full excluded-e2e regression suite is RED at HEAD (`Test Files 1 failed | 63 passed (64)`, `Tests 1 failed | 4127 passed | 2 skipped (4130)`), independently re-run in this session. The failing test (`scripts/runnable-ref/uat-spec-integrity.test.ts`, \"covers every 31-REVIEW.md finding that names this runnable, in BOTH directions\") is a self-referential coverage check that derives its expected finding-id set by walking `31-REVIEW.md`'s own `###` headings for the round it was written against (round 6's CR-18/CR-21/WR-26/WR-29/WR-30/IN-15, hand-recorded in a `CORPUS_COVERAGE` literal by plan 31-28). Committing THIS round's review over `31-REVIEW.md` (which every round in this phase does — the file is fully replaced, not appended) changed the set the walk derives (now also naming WR-33 and WR-35, both of which cite this runnable's file path in their body text) without updating `CORPUS_COVERAGE` to match, so the test's own equality assertion now fails. This is not one of CR-22/CR-23/CR-24/CR-25 and does not change any truth's verdict, but it means the phase's own 'full suite green' claim (repeated in every prior round's verification and in 31-31's summary) is FALSE at the commit this verification measures, and is recorded as a regression rather than folded into an existing gap."
 gaps:
   - truth: "UATX-01 — a committed Playwright spec, re-run by the §14 gate, is the machine-verifiable evidence floor; an agent's narration or a caller-supplied claim never becomes indistinguishable from genuine admitted evidence — including through the mechanism that carries an already-admitted note forward through compaction, and including at the PreToolUse gate that decides whether a force-push or a deploy pattern runs at all."
     status: failed
     reason: >
-      All three of round 5's own blockers on this requirement (CR-12, CR-13, CR-16) are genuinely
-      closed and were independently re-reproduced or re-measured in this session as intact. But
-      31-REVIEW.md's own review of the SAME round-5 fixes found three new Criticals, and this
-      verification session independently re-reproduces all three against the committed `.js` /
-      `hook-entry.js` at HEAD (`3a82d6f`).
+      Round 6's own three Criticals against this requirement (CR-17, CR-19, CR-20) are genuinely
+      closed. CR-20 — the note-and-ledger split inside `promoteAdmitted`'s human-stamp-gated arm —
+      was independently re-reproduced CLOSED in this session: a legitimate human-disposed finding
+      admitted at ORIGIN under a non-high-severity role, promoted with `to=THIRD, repoRoot=DEST`
+      through the gated path, now lands its note AND its GOV-02 ledger event together in THIRD (the
+      derived `destinationRoot`), with DEST holding neither — the exact inverse of the split CR-20
+      was raised on. CR-17 and CR-19 are accepted from `31-REVIEW.md`'s own measurement (not
+      independently re-driven this session, per the five-Critical reproduction budget this round's
+      own code review already spent measuring CR-22 through CR-25).
 
-      CR-17, independently reproduced: the CR-12 fix (a non-blocking O_NONBLOCK+fstat reader) was
-      applied inside `scripts/context-io.ts` and never carried to `hooks/hook-entry.ts` — the
-      PreToolUse wrapper that is the actual entry point for every `Bash` tool call and every
-      `mcp__grugops__*` call (`hooks/hooks.json`). `verifyDeciderClosure` hashes thirteen
-      agent-writable manifest paths with a bare `readFileSync`, before the wrapper ever spawns the
-      decider subprocess, so the wrapper's own `DECIDER_TIMEOUT_MS` (which bounds only the later
-      `spawnSync`) does not cover it. Measured against a scratch copy of the committed
-      `hooks/hook-entry.js` and `scripts/` tree: a control run against the ordinary manifest returned
-      EXIT=0 immediately; planting one `mkfifo` at `scripts/checkpoints.js` (one of the thirteen
-      manifest paths) and re-running under `timeout 12` returned EXIT=124 with ZERO bytes on stdout
-      AND zero bytes on stderr. A PreToolUse hook that never answers does not block — this is the
-      identical hazard CR-12 fixed, one file over, at the one tier that guards a force-push or a
-      deploy pattern.
+      But `31-REVIEW.md`'s own review of the SAME round-6 fix — committed as this phase's newest
+      artifact (`c830eb4`, containing no source change from the code state it reviewed at `f2404aa`;
+      `git diff --stat f2404aa..c830eb4` touches only `31-REVIEW.md` itself) — found a new Critical
+      (`CR-22`) one register past the exact coordinate CR-20's fix touched, independently reproduced
+      in THIS session against the committed `.js` at HEAD:
 
-      CR-19, independently reproduced: the CR-12 fix's `NOTE_FILE_MAX_BYTES` (8 MiB) ceiling was
-      wired into the READ side (`readRegularFileOrNull`) but not into the write side. Measured
-      against the committed `scripts/context-io.js`: `appendNote` with a 9 MiB body returned WROTE
-      with an id (EXIT path clean, no diagnostic); the immediately following `readContext` for the
-      same task returned an array of length ZERO — the note is invisible to every reader
-      (`readContext`, and by the same code path `render`, `currentState`, `admit()`'s cross-check and
-      `promoteAdmitted`'s liveness clause). The identical bytes read back as 1 note under the
-      pre-round-5 `.js` (`git show 89228c8:scripts/context-io.js`, not independently re-run this
-      session but consistent with 31-REVIEW.md's own measurement). A follow-up idempotent re-write of
-      the same bytes at the same id was refused with clause `note-path-not-a-regular-file` and a
-      message asserting the file "is not absent, or a regular file" — false; the file IS a regular
-      file, 9,437,353 bytes.
+      `promoteAdmitted`'s own rule ("two halves of one action are keyed on one variable," derived and
+      asserted at `scripts/context-io.ts:2493` via `governanceRootOf(to)`) sits AFTER the function's
+      earlier fall-through branch, at `scripts/context-io.ts:2416-2419`:
 
-      CR-20, independently reproduced: the WR-22 fix correctly inverted the note-then-ledger write
-      order but the two writes are aimed at two different repositories — the note goes to the
-      caller's `to`, the GOV-02 ledger event goes to `repoRoot` (which defaults to
-      `trustedRepoRoot()`, the process's own root). Measured with three real governance roots
-      (origin/third/dest, each carrying `.git` + `.grugops/factory.config.json`): a legitimately
-      human-disposed finding admitted at the origin, then `promoteAdmitted(..., from = origin,
-      to = third, repoRoot = dest)`, left the finding in THIRD's own note store with THIRD's own
-      ledger holding ZERO lines, while DEST's ledger (a different repository entirely) held the one
-      event and DEST's own note store held nothing. `agent-factory/workflows/18-context-compaction.md`
-      line 83 (rewritten THIS round) states "A re-binding first looks in the destination repository's
-      ledger" and "the destination never holds a human-disposed finding with no ledger line" — both
-      measured false of the mechanism in this session.
+          const vb = (note.verified_by ?? "").trim();
+          if (!HUMAN_STAMP_RE.test(vb)) {
+            return appendNote(task, note, body, to, undefined, repoRoot);
+          }
+
+      This branch is reached by any note that does not carry a `human:NAME` stamp — the ordinary,
+      non-re-binding path through this exact function, not an edge case. Measured against the
+      committed `scripts/context-io.js`, three real governance roots (ORIGIN, THIRD, DEST, each
+      independently asserted `governanceRootOf(store) === root`): `promoteAdmitted("T-3",
+      "irrelevant-source-id", {by:"qe", kind:"observation", verified_by:""}, "…", "irrelevant-from",
+      noteStore(THIRD), DEST)` wrote the note into THIRD and its GOV-02 ledger event into DEST — two
+      different repositories, on a call that never reached the `destinationRoot` derivation at all
+      because it returned two lines above it.
+
+      The identical defect is independently reproduced a second time in the sibling `admitAndAppend`
+      route, which `agent-factory/workflows/18-context-compaction.md` (rewritten in round 5 and again
+      this round to describe exactly this pairing) names by hand as the OTHER route that "writes both
+      a note and a GOV-02 ledger event" with "both steps nam[ing] the same derived repository":
+      `admitAndAppend("T-2", {by:"qe", kind:"finding", verified_by:"human:alice"}, "…",
+      noteStore(DEST), THIRD)` wrote the note into DEST and appended its ledger event into THIRD — the
+      note and its own audit record split across two repositories, on the exact route the workflow
+      prose was rewritten this round to say cannot do that.
     artifacts:
-      - path: "hooks/hook-entry.ts"
-        issue: "verifyDeciderClosure (~line 190) and the fd-0 payload read (~line 237) use a bare readFileSync with no O_NONBLOCK/fstat/regular-file discipline, ahead of the spawn that DECIDER_TIMEOUT_MS bounds — a FIFO at any of the thirteen DECIDER_MANIFEST paths hangs the PreToolUse wrapper forever, silently, on both streams."
       - path: "scripts/context-io.ts"
-        issue: "NOTE_FILE_MAX_BYTES gates readRegularFileOrNull (the read side) but nothing gates the write side (writeNoteFile / atomicWrite), so a note above the ceiling writes cleanly and then becomes permanently invisible to every reader, and a subsequent re-write of the identical bytes is refused with a clause (note-path-not-a-regular-file) that misnames the true condition (note-above-size-ceiling)."
+        issue: "promoteAdmitted's fall-through branch (lines 2416-2419, `if (!HUMAN_STAMP_RE.test(vb)) return appendNote(task, note, body, to, undefined, repoRoot);`) runs BEFORE the function's own `destinationRoot = governanceRootOf(to)` derivation (line 2493) that CR-20's fix installed, so a non-human-stamped note through this exact function still keys its note write on `to` and its GOV-02 ledger append (inside appendNote → admit()) on `repoRoot`, unreconciled — independently reproduced."
       - path: "scripts/context-io.ts"
-        issue: "promoteAdmitted's ledger block (ledgerRecordsId / appendAuditLedger, ~lines 2181-2209) keys the GOV-02 event on repoRoot while the note write (appendPreAdmittedNote) is keyed on to — the two arguments are never reconciled, so any promotion whose destination is not the calling process's own root splits the finding and its audit record across two repositories."
+        issue: "admitAndAppend (export at line 5224) keys the note write on `contextRoot` (default `DEFAULT_CONTEXT_ROOT`, the kit's own `.grugops/context`) and the GOV-02 ledger append (via appendAuditLedger inside the gated branch) on `repoRoot` (default `trustedRepoRoot()`, the host repository) — two independent parameters nothing reconciles, on the exact route agent-factory/workflows/18-context-compaction.md names as the second of the two routes that write both — independently reproduced."
       - path: "agent-factory/workflows/18-context-compaction.md"
-        issue: "Line 83 (rewritten this round) asserts a re-binding 'first looks in the destination repository's ledger' and 'the destination never holds a human-disposed finding with no ledger line' — both false of the mechanism whenever to and repoRoot resolve to different repositories, independently reproduced."
+        issue: "States (rewritten this round) that promoteAdmitted and admitAndAppend are the two routes that write both a note and a GOV-02 ledger event, and that 'both steps name the same derived repository' so 'the destination never holds a human-disposed finding with no ledger line' — independently measured false of admitAndAppend in this session (the note landed in DEST with no ledger line there; the ledger line landed in THIRD with no note there)."
     missing:
-      - "Route hooks/hook-entry.ts's verifyDeciderClosure and its fd-0 payload read through the same non-blocking O_NONBLOCK+fstat discipline scripts/context-io.ts now has (this file may import only node: builtins, so the reader must be restated inline rather than imported), and add a case that plants a FIFO at a manifest path and asserts a bounded deny."
-      - "Make the write side of a note own NOTE_FILE_MAX_BYTES (refuse an over-ceiling write at composition time, before atomicWrite), and give an over-ceiling REGULAR file its own decline clause distinct from note-path-not-a-regular-file. Apply the same reconciliation to the ledger's write/read ceiling asymmetry (appendAuditLedger has none; ledgerRecordsId has 64 MiB)."
-      - "Derive the GOV-02 ledger's repository from `to` (e.g. via the same root-anchoring resolver originStoreIsRootAnchored already computes), not from repoRoot, so the note and its audit record can never disagree about which repository owns them — or, if `to` is deliberately left unconstrained, rewrite R-31-22-02 and 18-context-compaction.md:83 to state that an unanchored destination gets no audit record at all, and add a case whose to and repoRoot are different roots."
+      - "Move the one-root derivation (`destinationRoot = governanceRootOf(to)`, or the equivalent for admitAndAppend's `contextRoot`) to the FIRST line of promoteAdmitted's body, above the human-stamp fall-through, so every return path — including the fall-through — is forced through the same derived root before any write. The fall-through's own `appendNote` call must receive the derived root as its ledger argument, not the caller-supplied `repoRoot`."
+      - "Give admitAndAppend the identical treatment: derive one root from `contextRoot` (via governanceRootOf or the equivalent), decline `destination-outside-governed-store` if it is null, and pass that derived root — not `repoRoot` — to appendAuditLedger. `repoRoot` should then answer only the governance-config-read question its own comment already claims it is for."
+      - "Add a derived test (the same class WR-27/IN-14 already established for the read-site axis) that enumerates EVERY call site of appendAuditLedger across the module and asserts each one's root argument is derived from the same store path the accompanying note write uses, so a future third write-both route cannot reopen this class silently. Re-run CR-20's own reproduction table against admitAndAppend, not only against promoteAdmitted's gated arm, before the round is called closed."
   - truth: "UATX-06 — conditional or caught assertions, and the D-14 arm-(c) modifier-call bans, are rejected over the TypeScript AST, and the recipe's claim matches exactly what the checker decides."
     status: failed
     reason: >
-      Round 5's own blockers on this requirement (CR-14, CR-15) are genuinely closed for the exact
-      spellings the round-5 verifier and reviewer measured — independently re-reproduced in this
-      session (see Behavioral Spot-Checks). But 31-REVIEW.md's own review of the SAME two fixes found
-      two new Criticals, each one register past the fix that closed the prior one, and this
-      verification session independently re-reproduces both against the committed
-      `scripts/runnable-ref/uat-spec-integrity.js`.
+      Round 6's own two Criticals against this requirement (CR-18, CR-21) are closed by the D-30
+      symbol-identity cutover — the hand-rolled scope-tracking (`resolveBinding` / `bindingRangeFor` /
+      `listHoists`) and the fixed-argument-index TestInfo derivation those two defects lived in were
+      replaced with a decision by the TypeScript checker's own resolved symbol, so the SPECIFIC
+      spellings that produced CR-18 and CR-21 cannot recur in the same shape (accepted from
+      `31-REVIEW.md`'s own measurement; not independently re-driven this session, per the
+      reproduction budget this round's own review already spent on CR-22 through CR-25).
 
-      CR-18, independently reproduced: D-27's nearest-binding resolution classifies a function
-      declaration's range by whether it "hoists," and its `hoisted` arm hands ANY hoisting
-      declaration `enclosingFunctionLike(declaration) ?? sf` — at module scope, the whole
-      SourceFile. But a function declaration inside a block (`if (false) { function it(): void {} }`)
-      is BLOCK-SCOPED in an ES module, not module-scoped. Measured: `import { test as it, expect }
-      from "@playwright/test"; if (false) { function it(): void {} void it; } it.skip("scenario",
-      async ({ page }) => { await expect(page.locator("x")).toBeVisible(); });` reports `0 findings`,
-      EXIT=0; the identical file with the `if (false) { ... }` block removed reports `1 finding(s)`,
-      EXIT=1, naming `test.skip`. The evaded file type-checks clean (`tsc --strict --noEmit`) and
-      transpiles to JavaScript that keeps the import and genuinely skips the scenario — this is CR-14
-      at the same magnitude, in the exact fix that closed CR-14.
+      But the cutover that closed them created two new Criticals, both independently reproduced in
+      THIS session against the committed `scripts/runnable-ref/uat-spec-integrity.js` at HEAD
+      (unchanged in source from `31-REVIEW.md`'s own measured HEAD):
 
-      CR-21, independently reproduced: `deriveTestInfoParameterNames` reads only
-      `node.arguments[1]` to find the scenario body, so Playwright's documented three-argument
-      tag/annotation overload `test(title, details, body)` (supported since Playwright 1.42, used to
-      carry `{ tag: "@smoke" }`) is invisible to it — the body is `arguments[2]` in that form.
-      Measured: `test("scenario", { tag: "@smoke" }, async ({ page }, testInfo) => { testInfo.skip();
-      await expect(page.locator("x")).toBeVisible(); });` reports `0 findings`, EXIT=0; the identical
-      scenario in the two-argument form reports `1 finding(s)`, EXIT=1, naming `test.info().skip`.
-      This is CR-10's harm, live, through an idiomatic Playwright spelling with no adversarial intent
-      at all.
+      CR-23, independently reproduced: `resolveBannedModifier`'s `foreign` identity is terminal — the
+      moment a call's resolved symbol is NOT declared by `@playwright/test` itself, the spelling rule
+      (`isBannedModifierPath`, which knows `describe.skip` and `expect.soft` as banned heads/paths) is
+      never consulted at all. But `BANNED_MODIFIER_HEADS` retains a bare `describe` head, and the
+      file's own comment states why: `@playwright/test` exports NO top-level `describe` at all, so the
+      head is retained specifically for the case where "another framework's bare `describe` can be
+      imported into a spec file." That is now precisely the case the `foreign` short-circuit makes
+      UNREACHABLE. Reproduced: a probe root equipped exactly as `31-28`'s own `equipTarget` equips one
+      (a `tsconfig.json`, a `node_modules` symlink, `types/playwright-test.d.ts`), plus an ambient
+      declaration for a foreign framework's `describe.skip`. `import { test, expect } from
+      "@playwright/test"; import { describe } from "other-framework"; describe.skip("a whole group of
+      scenarios", () => { test("the invoice total is shown", async ({ page }) => { void
+      expect(page.getByTestId("invoice-total")).toHaveText("$42.00"); }); });` type-checks
+      (`npx tsc --noEmit` exit 0) and reports `UAT spec integrity: 0 findings over 1/1 uat specs
+      checked`, exit 0 — a whole `describe.skip` group, imported from a foreign framework, evades the
+      ban entirely, at the same magnitude `BANNED_EXACT_PATHS = ["expect.soft"]` is retained for and
+      loses identically.
+
+      CR-25, independently reproduced (at a nearby but not identical boundary to the one
+      `31-REVIEW.md` cites — see the Behavioral Spot-Checks note below): `frameworkSurface`'s bounded
+      breadth-first walk (`SURFACE_DEPTH_BOUND = 6`, `SURFACE_NODE_BOUND = 4096`) silently stops
+      expanding a node once its depth reaches the bound, so a framework member declared past that
+      bound is never added to `ctx.frameworkFiles` — and a call resolving to a symbol whose declaring
+      file is absent from `frameworkFiles` is `foreign`, which (via CR-23's same short-circuit) is
+      never banned. Independently reproduced with a synthetic Playwright-surface augmentation, one
+      property hop declared per file (so the BFS's own depth accounting — not module-augmentation
+      merging, which was ruled out by construction — determines whether a property's file is visited):
+      a `test.p1.p2.p3.p4.p5.p6.skip(...)` call (7 property hops from `test`) is refused (`1
+      finding(s)`, exit 1); the identical construct with one further hop
+      (`test.p1...p7.skip(...)`, 8 hops) is accepted at `0 findings`, exit 0, with ZERO bytes on
+      stderr — a silent fail-open, exactly the shape D-30 (4) was written to eliminate for RR-07.
     artifacts:
       - path: "scripts/runnable-ref/uat-spec-integrity.ts"
-        issue: "The hoisted arm of D-27's resolveBinding/bindingRangeFor (~lines 1592-1596) hands a block-scoped function declaration the enclosing FUNCTION's (or SourceFile's) range rather than its enclosing BLOCK's range, so a function declaration nested inside any block statement re-widens the suppression range to the whole module. deriveTestInfoParameterNames (~line 1397) reads node.arguments[1] only, so the documented three-argument test(title, details, body) form is never asked."
+        issue: "resolveBannedModifier's `foreign` branch (~line 2470: `identity.kind === \"framework\" ? identity.path : identity.kind === \"foreign\" ? null : spelled`) makes the spelling rule (isBannedModifierPath, which still declares `describe` and `expect.soft` as banned) permanently unreachable for exactly the case BANNED_MODIFIER_HEADS's own comment says `describe` is retained for — a foreign framework's own bare `describe`/`expect` — independently reproduced."
+      - path: "scripts/runnable-ref/uat-spec-integrity.ts"
+        issue: "frameworkSurface's SURFACE_DEPTH_BOUND (6) stops the BFS from expanding a node once its depth reaches the bound, so a framework declaration past that bound is silently absent from ctx.frameworkFiles, is classified `foreign` by resolveBannedModifier, and — through the SAME CR-23 short-circuit — is never banned; the outcome carries no diagnostic and is not a member of UNRESOLVABLE_CALLEE_RESIDUALS or the recipe's boundary list — independently reproduced (boundary measured near, not identical to, 31-REVIEW.md's own cited depth; see Behavioral Spot-Checks)."
       - path: "agent-factory/checklists/browser-uat-recipe.md"
-        issue: "Lines ~204/277 state the hoist-to-enclosing-function reading as fact (false for a block-scoped function declaration, CR-18); the TestInfo fixture-parameter spelling list (~250-256) names no form qualification, so a reader is told the three-argument overload is refused when it is not (CR-21)."
+        issue: "Line ~232 still publishes `describe` as a banned head segment quoted from BANNED_MODIFIER_HEADS, and the recipe's boundary list does not mention SURFACE_DEPTH_BOUND/SURFACE_NODE_BOUND at all — the recipe claims a ban strength the mechanism, as measured this session, does not deliver."
     missing:
-      - "Make the hoisted arm ask what the language asks: a function declaration hoists to its ENCLOSING BLOCK, not to its enclosing function-like node or the SourceFile — narrow rangeOfNode's target to the nearest enclosing block for a function declaration, keep the function-wide range only for var. Also treat an ambient (`declare`) binding as binding nothing at all, per 31-REVIEW.md's CR-18 fix sketch."
-      - "Take the scenario body positionally (the last function-valued argument of a test(...)-headed call) rather than from a fixed arguments[1] index, mirroring the same rule in isFixtureBindingPosition so the exemption and the map keep naming one position — per 31-REVIEW.md's CR-21 fix sketch. Add both Playwright overload forms to the corpus."
-      - "Record both fixes as dated decisions beside D-27, add MUTATE-REMOVE corpus cases for each (a block-scoped function declaration beside a genuine module-scope banned call; the three-argument tag/annotation overload), and correct browser-uat-recipe.md's two affected passages."
+      - "Make `foreign` non-terminal for any head the framework does NOT itself declare: consult the spelling rule (isBannedModifierPath) whenever identity did not decide a FRAMEWORK ban, keeping the union in the refusing direction only — or, if `describe`/`expect.soft` retention for a foreign framework is deliberately abandoned, delete both members from BANNED_MODIFIER_HEADS/BANNED_EXACT_PATHS, delete the recipe's claim, and record the deletion as a dated decision. Either way, add a corpus row that imports the retained head from a DECLARED foreign module (not merely an undeclared one, which the existing corpus already exercises and which the identity route happens to also refuse)."
+      - "Make a walk that hits SURFACE_NODE_BOUND or SURFACE_DEPTH_BOUND report `truncated: true` and route through the existing could-not-run boundary (PROGRAM_UNAVAILABLE_REASON, exit 2) rather than silently returning a partial surface that then resolves every unreached member as foreign. Add both bounds to UNRESOLVABLE_CALLEE_RESIDUALS and to the recipe's boundary list, and add a corpus row that drives the boundary pair (refused just under the bound, could-not-run just over it) so a future change cannot regress this to a silent accept."
+      - "Re-derive and re-bisect the exact depth/property-count at which the fail-open occurs (this session's construction technique differs in a detail from 31-REVIEW.md's — see Behavioral Spot-Checks — and the two should be reconciled to one number before either is cited as a residual boundary)."
 deferred: []
 advisory: []
 behavior_unverified_items: []
 human_verification:
   - test: "The attended Claude-in-Chrome lane opens under real interactive auth, pauses for a human on a login/challenge page, and produces only a human-stamped finding + artifact-ref (never a gate stamp)."
     expected: "The lane behaves as documented in agent-factory/checklists/browser-uat-recipe.md's attended lane; no route to a §14-gate stamp is exercised in practice."
-    why_human: "Requires an attended Claude Code session with the Claude-in-Chrome browser extension installed and a real interactive login; not reachable in CI and not reachable on this box. Carried forward unchanged through rounds 2-6 (R-01)."
+    why_human: "Requires an attended Claude Code session with the Claude-in-Chrome browser extension installed and a real interactive login; not reachable in CI and not reachable on this box. Carried forward unchanged through rounds 2-7 (R-01)."
   - test: "The claude auth status --json fail-closed predicate (D-10) behaves correctly under an API-key-only box and under a long-lived setup token."
     expected: "Both configurations are a loud skip naming the failing clause, never a silent open."
     why_human: "Research assumptions A2/A3 are UNKNOWN - verify; neither configuration is reachable without destroying this box's real credentials. Carried forward unchanged (R-02)."
   - test: "Both browser-absence probe stages, and the whole spec-integrity runnable, on a Windows host."
-    expected: "Exit 2 with the browser-absent marker when browsers are missing; parser-absent marker when typescript cannot be resolved; the FIFO class (CR-12/CR-17), the transpile behaviour behind CR-18, and the depth-adjacency behind CR-15/CR-19 all established on darwin/Node v24.12.0 only."
-    why_human: "UNKNOWN - verify per the standing Windows posture (WINDOWS.md); not testable on darwin. Carried forward unchanged, and 31-REVIEW.md's own IN-15 restates the same scope limit for this round's new findings (R-03)."
-  - test: "A host repository that installed grugops before this release re-runs the installer and picks up tools/grugops/uat-spec-integrity.js; the uninstaller removes it."
-    expected: "The new runnable is materialized on re-install and cleanly removed on uninstall."
-    why_human: "Requires a second scratch repository with a prior grugops install at an earlier release; not exercised by the unit suite. Carried forward unchanged (R-04)."
+    expected: "Exit 2 with the browser-absent marker when browsers are missing; parser-absent marker when typescript cannot be resolved; the FIFO class (CR-12/CR-17), the transpile behaviour behind CR-18/CR-23, and the depth-adjacency behind CR-15/CR-25 all established on darwin/Node v24.12.0 only."
+    why_human: "UNKNOWN - verify per the standing Windows posture (WINDOWS.md); not testable on darwin. 31-30 added Windows-scoped steps to the pre-existing windows-latest CI leg but a real windows-latest reading has not been taken. Carried forward, SHRUNK to a stated remainder (R-03)."
 ---
 
 # Phase 31: Autonomous Manual Testing Verification Report
 
 **Phase Goal:** An agent can drive a real browser to produce UAT evidence, and the only thing that
 counts as evidence is an artifact the §14 gate re-runs — never the agent's narration of what it saw.
-**Verified:** 2026-09-10T01:17:54Z
+**Verified:** 2026-09-10T19:58:00Z
 **Status:** gaps_found
-**Re-verification:** Yes — SIXTH round. Round 5's gap-closure plans (31-21..31-26) closed all five of
-round 4's blockers (CR-12 through CR-16) plus four Warnings and one Info, each independently
-re-reproduced or re-measured as closed in THIS session. A fresh code review of round 5's own fix
-(`31-REVIEW.md`, committed at `3a82d6f`, reviewing `89228c8..2a18926`) found FIVE new Criticals
-(CR-17 through CR-21), FIVE new Warnings (WR-26 through WR-30) and two Info items (IN-14, IN-15) —
-every Critical again a defect the round's own fixes created or preserved, one register past the
-coordinate the prior round measured. This verifier independently re-reproduced all five new
-Criticals against the committed `.js` at HEAD (`3a82d6f`) in a scratch directory outside the
-repository tree, not accepted from `31-REVIEW.md`'s or any summary's word; the reproduction
-commands, inputs and outputs for CR-17/CR-18/CR-19/CR-20/CR-21 are recorded in Behavioral
-Spot-Checks below.
+**Re-verification:** Yes — this is the SEVENTH verification pass on this phase, verifying round 6's
+gap-closure plans (`31-27`…`31-30`, S1/D-29 host-delivered governance root, S2/D-30 symbol-identity
+modifier-ban cutover, D-31 write-path one-root rule and skip-arm split, D-32 process/hygiene) plus
+`31-31`'s closing measurement (`docs/audit/31-round6-residuals.md`). Round 6's own five Criticals
+(CR-17 through CR-21) are genuinely closed — one (CR-20) independently re-reproduced closed in THIS
+session, the other four accepted from `31-REVIEW.md`'s own measurement within this round's
+reproduction budget. But `31-REVIEW.md` — the round-6 gap-closure code review, committed as this
+phase's newest artifact (`c830eb4`) with **zero source-file difference** from the code state it
+reviewed (`f2404aa`; `git diff --stat f2404aa..c830eb4` touches only `31-REVIEW.md` itself) — found
+FOUR new Criticals (CR-22 through CR-25), all four independently reproduced in THIS session against
+the committed `.js` at HEAD, in a scratch directory outside the repository tree, not accepted from
+`31-REVIEW.md`'s or any summary's word.
 
 ## Round History
 
@@ -301,14 +338,16 @@ Spot-Checks below.
 | 3 | gaps_found | 5/6 | CR-05/CR-06 closed; CR-07/WR-14 (call-link + import-rename evasions) and CR-08 (compaction refuses a human-disposed finding) found |
 | 4 | gaps_found | 4/6 | CR-07/WR-14/CR-08/WR-15 closed; CR-09 x2/CR-10/CR-11/WR-19/WR-20/WR-21 found |
 | 5 | gaps_found | 4/6 | CR-09 x2/CR-10/CR-11/WR-19/WR-20/WR-21 closed; CR-12/CR-13/CR-14/CR-15/CR-16 found |
-| **6 (this round)** | **gaps_found** | **4/6** | CR-12/CR-13/CR-14/CR-15/CR-16 all closed as filed and independently re-verified (fully re-reproduced: CR-12, CR-16; re-measured via 31-REVIEW.md's own table, not contested by anything this session found: CR-13, CR-15; superseded in place by a new defect in the same fix rather than reopened as-is: CR-14). FIVE new Criticals (CR-17, CR-18, CR-19, CR-20, CR-21) — again, every one a defect the round's own fix created or preserved — found by `31-REVIEW.md` and independently reproduced in this session |
+| 6 | gaps_found | 4/6 | CR-12/CR-13/CR-14/CR-15/CR-16 closed; CR-17/CR-18/CR-19/CR-20/CR-21 found |
+| **7 (this round)** | **gaps_found** | **4/6** | CR-17/CR-18/CR-19/CR-20/CR-21 all closed as filed (CR-20 independently re-reproduced closed this session; CR-17/CR-18/CR-19/CR-21 accepted from `31-REVIEW.md`'s own measurement). FOUR new Criticals (CR-22, CR-23, CR-24, CR-25) — again, every one a defect the round's own fix created or preserved — found by `31-REVIEW.md` and independently reproduced in this session. Additionally: the full regression suite is measured RED at HEAD for the first time in this phase's seven verification rounds (a self-referential coverage test broken by this round's review commit itself, not by CR-22..CR-25). |
 
-The score holds at 4/6 for the third consecutive round, and this is the SIXTH consecutive round in
-which UATX-01 and UATX-06 are the two requirements blocked. Every specific spelling that blocked them
-in round 5 is now genuinely closed or genuinely bounded. What blocks them this round is again a new
-defect one register past each fix, in the same two predicate families this phase has now paid for
-across all six rounds: the admission/re-binding/governance-root/write-chokepoint mechanism (UATX-01),
-and the UAT-spec modifier ban's AST resolution rules (UATX-06).
+The score holds at 4/6 for the FOURTH consecutive round, and this is the SEVENTH consecutive round in
+which UATX-01 and UATX-06 are the two requirements blocked. Every specific defect that blocked them
+in round 6 is now genuinely closed. What blocks them this round is again a new defect one register
+past each fix, in the same two predicate families this phase has paid for across all seven rounds:
+the admission/re-binding/governance-root write mechanism (UATX-01), and the UAT-spec modifier ban's
+resolution rules (UATX-06) — this round, specifically the symbol-identity cutover's own `foreign`
+short-circuit and its bounded surface walk.
 
 ## Goal Achievement
 
@@ -316,52 +355,50 @@ and the UAT-spec modifier ban's AST resolution rules (UATX-06).
 
 | # | Truth | Status | Evidence |
 |---|-------|--------|----------|
-| 1 | UATX-01 — a committed Playwright spec, re-run by the §14 gate, is the machine-verifiable evidence floor; an agent's narration/self-supplied claim never produces a stamp | ✗ FAILED — see gap 1 (CR-17/CR-19/CR-20) | Round 5's CR-12 (unguarded readFileSync at the note-write chokepoint), CR-13 (home-rooted repository skipped) and CR-16 (over-broad in-repo trust) are closed — CR-12 and CR-16 independently re-reproduced closed in this session; CR-13/CR-15 re-measured via `31-REVIEW.md`'s own reproduction table and not contested by anything this session found. But the SAME round's fixes created three new defects, all independently reproduced in this session: CR-17 (`hooks/hook-entry.ts`'s `verifyDeciderClosure` still hangs the PreToolUse wrapper itself on a FIFO at a manifest path, before the decider ever spawns — `timeout 12` → EXIT=124, zero bytes both streams), CR-19 (a 9 MiB note WRITES cleanly and then `readContext` returns 0 notes — silent, permanent data loss on the shared verified context's only memory), and CR-20 (a cross-repository promotion leaves the human-disposed note in `to` and the GOV-02 ledger event in `repoRoot`, two different repositories, contradicting `18-context-compaction.md:83`, rewritten this same round). |
-| 2 | UATX-02 — browser MCP tooling documented and pinned for all five host CLIs; `package.json` gains nothing; the pin authority cannot itself be defeated by a floating specifier | ✓ VERIFIED | Unchanged since round 2, not contested by the review or any round-5/6 plan; not independently re-run this session beyond the full suite (which includes `guardPlaywrightMcpPin`), green. |
-| 3 | UATX-03 — Claude in Chrome is attended-only and structurally barred from producing a `§14-gate` stamp | ✓ VERIFIED | `scripts/chrome-lane-bar.test.ts` unchanged this round, part of the green 62-file/3908-test suite re-run in this session; not contested. |
-| 4 | UATX-04 — evidence carries commit SHA + gate-run id + content hash; a note whose SHA is not the HEAD the gate ran against is refused | ✓ VERIFIED | Unchanged since round 2; the provenance-carrying routes (`admit()`, `appendNote`'s artifact-ref path) are untouched by any round-5 or round-6 finding — none of CR-17 through CR-21 or WR-26 through WR-30 names this surface. Not contested. |
-| 5 | UATX-05 — an absent/unusable browser produces a loud skip leaving the UAT `pending`, never a silent pass | ✓ VERIFIED | Unchanged this round; `PARSER_ABSENT_MARKER` / `BROWSER_ABSENT_MARKER` each single-emission, part of the green suite. None of this round's findings touch the browser-absence probe. |
-| 6 | UATX-06 — conditional or caught assertions, and the D-14 arm-(c) modifier bans, are rejected over the TypeScript AST, and the recipe's claim matches exactly what the checker decides | ✗ FAILED — see gap 2 (CR-18/CR-21) | Round 5's CR-14 (file-scoped declared-name census) and CR-15 (parser outside the could-not-run boundary) are closed for their exact spellings — independently re-reproduced refused/bounded in this session (Behavioral Spot-Checks rows 5-6, 8-9). But D-27's nearest-binding fix for CR-14 gives a block-scoped function declaration the whole module's range (CR-18, independently reproduced: `0 findings`/EXIT=0 for a three-line, type-checking, executing evasion), and the same round's fixture-parameter derivation still reads only `arguments[1]`, so Playwright's documented three-argument tag/annotation form evades the ban entirely (CR-21, independently reproduced: `0 findings`/EXIT=0 for idiomatic, non-adversarial Playwright). |
+| 1 | UATX-01 — a committed Playwright spec, re-run by the §14 gate, is the machine-verifiable evidence floor; an agent's narration/self-supplied claim never produces a stamp | ✗ FAILED — see gap 1 (CR-22) | Round 6's CR-17 (unguarded hook-entry readFileSync), CR-19 (write/read ceiling asymmetry) and CR-20 (promoteAdmitted's gated arm splitting note/ledger) are closed — CR-20 independently re-reproduced closed in this session (gated-path promotion now lands note+ledger together); CR-17/CR-19 accepted from `31-REVIEW.md`'s own measurement. But the SAME fix left the identical split live one branch earlier (promoteAdmitted's own fall-through, reached by every non-human-stamped note through this function) and in the sibling admitAndAppend route — independently reproduced twice in this session (CR-22). |
+| 2 | UATX-02 — browser MCP tooling documented and pinned for all five host CLIs; `package.json` gains nothing; the pin authority cannot itself be defeated by a floating specifier | ✓ VERIFIED | Unchanged since round 2, not contested by the review or any round-6/7 plan; `guardPlaywrightMcpPin` is part of the suite re-run in this session (green in the 4127/4130 that passed; the one failure is unrelated, see Gaps Summary). |
+| 3 | UATX-03 — Claude in Chrome is attended-only and structurally barred from producing a `§14-gate` stamp | ✓ VERIFIED | `scripts/chrome-lane-bar.test.ts` unchanged this round (byte-untouched across the whole round per `31-31`'s own diff assertion), part of the suite re-run in this session; not contested. |
+| 4 | UATX-04 — evidence carries commit SHA + gate-run id + content hash; a note whose SHA is not the HEAD the gate ran against is refused | ✓ VERIFIED | Unchanged since round 2; the provenance-carrying routes (`admit()`, `appendNote`'s artifact-ref path) are untouched by any round-6 or round-7 finding — none of CR-22 through CR-25 or WR-31 through WR-36 names this surface. Not contested. |
+| 5 | UATX-05 — an absent/unusable browser produces a loud skip leaving the UAT `pending`, never a silent pass | ✓ VERIFIED | Unchanged this round; `PARSER_ABSENT_MARKER` / `BROWSER_ABSENT_MARKER` each single-emission. None of this round's findings touch the browser-absence probe. |
+| 6 | UATX-06 — conditional or caught assertions, and the D-14 arm-(c) modifier-call bans, are rejected over the TypeScript AST, and the recipe's claim matches exactly what the checker decides | ✗ FAILED — see gap 2 (CR-23, CR-25) | Round 6's CR-18 (block-scoped-function hoisting) and CR-21 (fixed-argument-index TestInfo derivation) are closed by the D-30 symbol-identity cutover — the hand-rolled mechanisms those defects lived in were deleted outright, accepted from `31-REVIEW.md`'s measurement. But the SAME cutover created CR-23 (its `foreign` short-circuit makes `describe.skip`/`expect.soft` unbannable the moment they are imported from any declared non-Playwright module — independently reproduced: `0 findings`, exit 0, `tsc` exit 0) and CR-25 (the identity resolver's bounded surface walk fails OPEN with zero diagnostic past its depth bound — independently reproduced at a nearby depth to `31-REVIEW.md`'s own citation). |
 
 **Score:** 4/6 truths verified (UATX-02, UATX-03, UATX-04, UATX-05). UATX-01 and UATX-06 both fail —
-this is the SIXTH consecutive round in which this phase's two predicate families close the exact
+this is the SEVENTH consecutive round in which this phase's two predicate families close the exact
 coordinates the prior round measured and a new bypass reappears one register over, INSIDE THE SAME
-FIX, exactly as documented for rounds 2 through 5.
+FIX, exactly as documented for rounds 2 through 6.
 
 ### Deferred Items
 
 None. No gap identified this round is addressed by a later phase in the roadmap; both remaining gaps
-are Phase 31's own predicate families, and the round-5 code review (`31-REVIEW.md`) that found them is
+are Phase 31's own predicate families, and the round-6 code review (`31-REVIEW.md`) that found them is
 itself part of this phase's own gap-closure record.
 
 ### Advisory (New Scope, Unevidenced)
 
-None. Every finding below (CR-17 through CR-21) is independently reproduced against the committed
-`.js`/`hook-entry.js` in this session, with command, exit code and output recorded — none is a
-carried-forward finding accepted without fresh evidence.
+None applicable — this is an initial-mode verification structure (a fresh gap-closure round was
+verified), not a carried-forward re-verification against a stale gaps list; every finding below is
+freshly reproduced against the committed `.js` in this session with a command and output recorded.
 
 ### Required Artifacts
 
 | Artifact | Expected | Status | Details |
 |----------|----------|--------|---------|
-| `hooks/hook-entry.ts` / `.js` | The PreToolUse wrapper answers in bounded time on every input, including a caller-influenced manifest or stdin position that is not a regular file | ✗ FAILED | `verifyDeciderClosure`'s manifest reads and the fd-0 payload read are bare `readFileSync` calls with no `O_NONBLOCK`/`fstat`/regular-file discipline, unlike `scripts/context-io.ts`'s own reader extracted this same round. A FIFO at any of the thirteen manifest paths hangs the wrapper before the decider ever spawns — independently reproduced (CR-17). |
-| `scripts/context-io.ts` — `writeNoteFile` / `readRegularFileOrNull` | A note's write side and read side agree about what a note may be, so nothing written successfully can become invisible to a reader | ✗ FAILED | The read side enforces an 8 MiB ceiling; the write side enforces none. A 9 MiB note writes cleanly and then reads back as zero notes, silently — independently reproduced (CR-19). A follow-up idempotent re-write is refused with a clause that misnames the true condition. |
-| `scripts/context-io.ts` — `promoteAdmitted` | A proof-gated re-binding route whose note and whose audit-ledger event are keyed on the SAME repository, so a cross-repository promotion cannot split them | ✗ FAILED | The note write is keyed on `to`; the ledger read/append is keyed on `repoRoot`. A promotion whose destination differs from the process's own root leaves the finding and its audit record in two different repositories — independently reproduced (CR-20). |
-| `agent-factory/workflows/18-context-compaction.md` | Agent-facing prose about what `promoteAdmitted` and its ledger ordering guarantee matches what the mechanism actually does | ✗ FAILED | Line 83 (rewritten this round) asserts a re-binding "first looks in the destination repository's ledger" and that "the destination never holds a human-disposed finding with no ledger line" — both false whenever `to` and `repoRoot` differ, independently reproduced (CR-20). |
-| `scripts/runnable-ref/uat-spec-integrity.ts` — `resolveBinding` / `bindingRangeFor` (D-27) | A reference resolves to the nearest LEXICALLY CONTAINING binding, with a hoisting declaration's range bounded by the language's own scoping rule, so a suppression cannot widen past what actually shadows a call | ✗ FAILED | The `hoisted` arm hands ANY hoisting declaration — including a block-scoped function declaration — the whole enclosing function's (at module scope, the SourceFile's) range. A function declaration nested in an `if (false) { }` block beside a genuine module-scope banned call suppresses the ban file-wide, at exit 0 — independently reproduced (CR-18), the same magnitude as the CR-14 evasion this exact fix closed. |
-| `scripts/runnable-ref/uat-spec-integrity.ts` — `deriveTestInfoParameterNames` | Every real Playwright `test(...)` overload that carries a TestInfo fixture parameter is recognised, not only the two-argument form | ✗ FAILED | Reads `node.arguments[1]` only; Playwright's documented three-argument tag/annotation overload `test(title, details, body)` puts the body at `arguments[2]`, so `testInfo.skip()` through that idiomatic form is never canonicalised and passes at exit 0 — independently reproduced (CR-21). |
-| `agent-factory/checklists/browser-uat-recipe.md` | Ban set, completeness claim, and the D-12 exit-code contract's paragraph, quoted from and equal to the exported constants and their proven strength | ⚠️ PRESENT BUT INCOMPLETE | Lines ~204/277 state the hoist-to-enclosing-function reading as fact (false for a block-scoped declaration, CR-18); the TestInfo fixture-parameter spelling list names no form qualification, so a reader is told the three-argument overload is refused when it is not (CR-21). Not independently re-verified line-by-line this session; taken from `31-REVIEW.md`'s citation, consistent with the surrounding mechanism findings this session did independently reproduce. |
-| `scripts/context-io-writer-set.test.ts` | Every derived writer/caller/decline-clause axis, bound in both directions to a decision or a named residual, with watched-fail mirrors | ⚠️ PARTIAL | Real and internally consistent for the axes it derives, but `31-REVIEW.md`'s own WR-27 finding (not independently re-driven this session; reported as-is) shows the derived "read-site" axis walks only top-level function declarations, so a blocking read added inside an arrow function, a class method, or the CLI's `if (isMain)` block is invisible to the count — the same set-literal-drift class this axis exists to prevent, one scope level up. Not a blocker on its own must-have (the axis's asserted members are correct as far as it looks), but it means the axis did not and could not have caught CR-17 even had CR-17 lived inside `context-io.ts` rather than `hook-entry.ts`. |
+| `scripts/context-io.ts` — `promoteAdmitted` | Every return path of the function is forced through ONE derived root before any write, so a caller cannot reach a write via any branch that skips the derivation | ✗ FAILED | The `destinationRoot = governanceRootOf(to)` derivation (line 2493) sits AFTER the human-stamp fall-through (lines 2416-2419); the fall-through's own `appendNote` call is unreconciled with it — independently reproduced (CR-22, position 1). |
+| `scripts/context-io.ts` — `admitAndAppend` | The note write and its GOV-02 ledger append are keyed on the same derived repository | ✗ FAILED | Keys the note on `contextRoot` and the ledger on `repoRoot`, two independent parameters — independently reproduced (CR-22, position 2). |
+| `agent-factory/workflows/18-context-compaction.md` | Agent-facing prose about the two write-both routes matches what the mechanism actually does | ✗ FAILED | States both routes "name the same derived repository" so "the destination never holds a human-disposed finding with no ledger line" — independently measured false of `admitAndAppend` in this session. |
+| `scripts/runnable-ref/uat-spec-integrity.ts` — `resolveBannedModifier` / `isBannedModifierPath` | A head the framework itself does not declare (`describe`, retained specifically for this case) is still checked against the spelling rule when it resolves to a foreign, declared symbol | ✗ FAILED | The `foreign` branch is terminal and short-circuits the spelling rule entirely — independently reproduced (CR-23): `describe.skip`/`expect.soft` imported from a declared foreign module evade the ban at exit 0, `tsc` exit 0. |
+| `scripts/runnable-ref/uat-spec-integrity.ts` — `frameworkSurface` | A framework member the bounded walk cannot reach routes to a could-not-run exit, never to a silent `foreign` classification | ✗ FAILED | `SURFACE_DEPTH_BOUND`/`SURFACE_NODE_BOUND` truncate the walk silently with no `truncated` signal and no could-not-run route — independently reproduced (CR-25): a deep-enough framework member is accepted at exit 0 with zero bytes on stderr. |
+| `agent-factory/checklists/browser-uat-recipe.md` | Ban set, completeness claim, and the boundary list, quoted from and equal to the exported constants and their proven strength | ⚠️ PRESENT BUT INCOMPLETE | Still publishes `describe` as banned (true of the literal, false of what the mechanism now enforces per CR-23) and omits `SURFACE_DEPTH_BOUND`/`SURFACE_NODE_BOUND` from its boundary list entirely (CR-25). Not independently re-verified line-by-line this session; taken from `31-REVIEW.md`'s citation, consistent with the mechanism findings this session did independently reproduce. |
+| `scripts/runnable-ref/uat-spec-integrity.test.ts` — the "covers every 31-REVIEW.md finding" self-check | The test's own derived expectation set (`CORPUS_COVERAGE`) tracks whatever `31-REVIEW.md` currently names | ✗ FAILED (new this round) | `CORPUS_COVERAGE` is a hand-typed literal keyed to round 6's OWN prior finding set; committing this round's review over `31-REVIEW.md` (as every round does) changed the derived set (now including WR-33/WR-35, both citing this file) without a corresponding update, so the equality assertion fails — independently reproduced by running the full suite in this session. Not one of CR-22..CR-25; recorded as a regression. |
 
 ### Key Link Verification
 
 | From | To | Via | Status | Details |
 |------|-----|-----|--------|---------|
-| `hooks/hook-entry.ts`'s `verifyDeciderClosure` | the filesystem (13 manifest paths) | bare `readFileSync(join(KIT_ROOT, rel))` | ✗ MISWIRED | No `O_NONBLOCK`/`fstat`/regular-file check; hangs forever on a non-regular file at any manifest path, before the decider subprocess is ever spawned — independently reproduced (CR-17). |
-| `scripts/context-io.ts`'s `writeNoteFile` | `readRegularFileOrNull`'s `NOTE_FILE_MAX_BYTES` ceiling | one-sided: applied on read, absent on write | ✗ MISWIRED | A write above the ceiling succeeds; the same ceiling then makes every subsequent read of that file silently treat it as though the note does not exist — independently reproduced (CR-19). |
-| `promoteAdmitted`'s ledger block | `to` (the note's destination) | NOT wired — the ledger reads/writes `repoRoot` instead | ✗ NOT_WIRED | The note and its GOV-02 audit event are keyed on two different caller-supplied roots with no reconciliation between them — independently reproduced (CR-20). |
-| `resolveBinding`'s `hoisted` arm | the language's actual block-scoping rule for a function declaration | `enclosingFunctionLike(declaration) ?? sf` — function-wide, not block-wide | ✗ MISWIRED | A block-scoped function declaration is handed the whole enclosing function's (or module's) range, so it suppresses a reference the language says it cannot reach — independently reproduced (CR-18). |
-| `deriveTestInfoParameterNames` | every Playwright `test(...)` overload that carries a TestInfo parameter | `node.arguments[1]` only | ✗ NOT_WIRED | The three-argument tag/annotation overload's body sits at `arguments[2]` and is never inspected — independently reproduced (CR-21). |
+| `promoteAdmitted`'s fall-through branch (line 2417-2419) | the function's own `destinationRoot` derivation (line 2493) | NOT wired — the fall-through returns before reaching it | ✗ NOT_WIRED | A non-human-stamped note through this exact function still splits its note/ledger roots — independently reproduced (CR-22). |
+| `admitAndAppend`'s note write (`contextRoot`) | `admitAndAppend`'s GOV-02 ledger append (`repoRoot`) | NOT wired — two independent parameters | ✗ NOT_WIRED | Independently reproduced: note in DEST, ledger line in THIRD, on one call (CR-22). |
+| `resolveBannedModifier`'s `foreign` classification | `isBannedModifierPath` (the spelling rule) | NOT wired — `foreign` is terminal, `banPath = null` | ✗ NOT_WIRED | A declared-foreign `describe.skip`/`expect.soft` is never asked of the spelling rule that still names them — independently reproduced (CR-23). |
+| `frameworkSurface`'s bounded walk | the could-not-run exit boundary (D-28) | NOT wired — a truncated walk returns normally with no signal | ✗ NOT_WIRED | A framework member past the depth/node bound silently resolves `foreign` rather than raising `PROGRAM_UNAVAILABLE_REASON` — independently reproduced (CR-25). |
 
 ### Data-Flow Trace (Level 4)
 
@@ -373,53 +410,47 @@ cover for every artifact this round's findings touch.
 ### Behavioral Spot-Checks
 
 All commands below marked "this session" were run in THIS verification session against the committed
-`.js` / `hook-entry.js` at HEAD (`3a82d6f`), in a scratch directory under
-`.temp/31-verify-r6/` outside the tracked tree, deleted immediately after each measurement (verified
-with `git status --short` at the end of the session — see Cleanup, below). Rows without "this session"
-are carried from `31-REVIEW.md`'s own reproduction table and were not independently re-driven, per
-the reproduction budget this task specified (CR-17/CR-18/CR-19/CR-20/CR-21, the five new Criticals).
+`.js` at HEAD (`c830eb4`), in a scratch directory outside the tracked tree, deleted immediately after
+each measurement (verified with `git status --short` and a FIFO/`.temp` sweep at the end of the
+session — see Cleanup, below). Rows without "this session" are carried from `31-REVIEW.md`'s own
+reproduction table and were not independently re-driven, per the reproduction budget this task
+specified (CR-22/CR-23/CR-24/CR-25, the four new Criticals).
 
 | # | Behavior | Command | Result | Status |
 |---|----------|---------|--------|--------|
-| 1 | **NEW this round (CR-17), this session:** control — an ordinary Bash tool-call payload against the unmodified manifest | scratch copy of `hooks/hook-entry.js` + `scripts/`, `node hook-entry.js admission-guard.js < payload.json` | EXIT=0, 0 bytes stdout, 0 bytes stderr (ordinary allow) | ✓ PASS (control) |
-| 2 | **NEW this round (CR-17), this session:** a FIFO planted at `scripts/checkpoints.js` (one of the thirteen `DECIDER_MANIFEST` paths), same payload | `mkfifo scripts/checkpoints.js; timeout 12 node hook-entry.js admission-guard.js < payload.json` | EXIT=124 (timeout), 0 bytes stdout, 0 bytes stderr | ✗ FAIL (confirms CR-17) |
-| 3 | **NEW this round (CR-18), this session:** `import { test as it, expect }; if (false) { function it(): void {} void it; } it.skip("scenario", async ({page}) => { await expect(page.locator("x")).toBeVisible(); });` | `node scripts/runnable-ref/uat-spec-integrity.js` over a probe spec | `UAT spec integrity: 0 findings over 1/1 uat specs checked`, EXIT=0 | ✗ FAIL (confirms CR-18) |
-| 4 | **Control for row 3, this session:** identical file with the `if (false) { ... }` block removed | same | `1 finding(s) over 1/1`, EXIT=1, naming `test.skip` | ✓ PASS — proves the block-scoped declaration is what suppresses row 3 |
-| 5 | Round-5 closure, this session: `it.skip(...)` at module scope with `const it = 1;` INSIDE the callback body (CR-14's own exact spelling) | same runnable, probe spec per `31-VERIFICATION.md` round-5 row 10 | `1 finding(s)`, EXIT=1, naming `test.skip` | ✓ PASS — CR-14's own spelling stays refused |
-| 6 | Round-5 closure, this session: 1,000-deep nested-parentheses spec (CR-15's own probe depth) | same runnable | `UAT spec integrity: 0 findings over 1/1 uat specs checked`, EXIT=0 (parses and runs cleanly — no crash, unlike round 5's pre-fix measurement) | ✓ PASS — CR-15's boundary fix holds at this depth |
-| 7 | **NEW this round (CR-21), this session:** `test("scenario", { tag: "@smoke" }, async ({page}, testInfo) => { testInfo.skip(); await expect(page.locator("x")).toBeVisible(); });` (Playwright's documented 3-arg tag form) | `node scripts/runnable-ref/uat-spec-integrity.js` over a probe spec | `UAT spec integrity: 0 findings over 1/1 uat specs checked`, EXIT=0 | ✗ FAIL (confirms CR-21) |
-| 8 | **Control for row 7, this session:** identical scenario in the documented 2-argument form | same | `1 finding(s) over 1/1`, EXIT=1, naming `test.info().skip` | ✓ PASS — proves the 3-arg overload (not some other mechanism) is what suppresses row 7 |
-| 9 | **NEW this round (CR-19), this session:** `appendNote` with a 9,437,353-byte body, then `readContext` for the same task | Node probe against committed `scripts/context-io.js` | `appendNote` → `WROTE <id>`; `readContext` → array length `0`; on-disk file confirmed 9,437,353 bytes | ✗ FAIL (confirms CR-19) |
-| 10 | **Follow-up for row 9, this session:** an idempotent re-write of the identical 9 MiB body at the same precomputed id | same probe | `THREW: refusing to write (note-path-not-a-regular-file) — ... is 9437353 bytes, above the 8388608-byte ceiling` | confirms the refusal clause misnames the condition (file IS regular) |
-| 11 | **NEW this round (CR-20), this session:** legitimate human-disposed finding admitted at ORIGIN, `promoteAdmitted(from=origin, to=THIRD, repoRoot=DEST)`, three distinct governance roots | Node probe against committed `scripts/context-io.js` | `promotedId` returned; THIRD notes: `[the finding]`, THIRD ledger: `0` lines; DEST ledger: `1` line; DEST notes: `[]` | ✗ FAIL (confirms CR-20 — the note and its ledger event land in two different repositories) |
-| 12 | Round-5 closure (CR-16), from `31-REVIEW.md`, not independently re-driven this session | forged in-repo directory copy of legitimately-obtained bytes, `promoteAdmitted` | `DECLINED (origin-outside-trusted-store)`, nothing written | ✓ PASS (reported, not re-driven) |
-| 13 | Round-5 closure (CR-12), from `31-REVIEW.md`, not independently re-driven this session | FIFO at a note path inside `context-io.ts`'s own writer | EXIT=0 in ~0.1s, `REFUSED (note-path-not-a-regular-file)`, FIFO untouched | ✓ PASS (reported, not re-driven — CR-12's own module-level fix holds; CR-17 is a DIFFERENT file, see row 2) |
-| 14 | Round-5 closure (CR-13), from `31-REVIEW.md`, not independently re-driven this session | home-rooted repo with `.git` + `high-severity` config, `HOME` pointed at it | `trustedRepoRoot()` → the home-rooted repo (was: the kit); dial → `high-severity` | ✓ PASS (reported, not re-driven) |
-| 15 | Full excluded-e2e regression suite (run once, after all probe directories were cleaned up), this session | `npx vitest run --exclude '**/scripts/e2e/**'` | `Test Files 62 passed (62)`, `Tests 3908 passed \| 2 skipped (3910)`, exit 0 | ✓ PASS — and, for the SIXTH consecutive verification round on this phase, exercises none of the newly-found defects (CR-17 through CR-21) |
-| 16 | Committed `.js` freshness, this session | `npm run freshness` | `All build outputs fresh: 60 committed .js file(s) match a rebuild of their sources.` | ✓ PASS |
-| 17 | Foundation guards / UAT oracles, this session | `node scripts/check-foundation-guards.js`, `node scripts/check-uat-oracles.js` | Both `ALL CHECKS PASSED` | ✓ PASS |
-| 18 | Byte-frozen deploy guard, this session | `git hash-object hooks/guard.ts` | `669725bc1c616ab57123e22090d93d57eff1b001`, equal to `FROZEN_GUARD_BLOB` in `scripts/floor-invariance.test.ts:245` | ✓ PASS |
+| 1 | **Source-identity premise, this session:** the review's measured HEAD (`f2404aa`) vs the actual repository HEAD (`c830eb4`) | `git diff --stat f2404aa..c830eb4` and, scoped, `git diff --stat f2404aa..c830eb4 -- scripts hooks agent-factory install .github vitest.config.ts package.json .planning/REQUIREMENTS.md .planning/ROADMAP.md` | Unscoped: only `31-REVIEW.md` changed (605 insertions / 552 deletions — the file being fully replaced with round-6 review content, as every round does). Scoped to source/config/requirements paths: **empty** | ✓ PASS — confirms no fix commit exists yet for any of CR-22..CR-25; the committed `.js` this session measured is byte-identical in provenance to what `31-REVIEW.md` itself measured |
+| 2 | **NEW this round (CR-22, position 1), this session:** `promoteAdmitted`'s GATED arm — legitimate human-disposed origin finding, non-high-severity role, dial "all" | three real `mkdtemp` governance roots (ORIGIN/THIRD/DEST), each asserted `governanceRootOf(store) === root`; `appendNote` at ORIGIN then `promoteAdmitted(task, id, note, body, ORIGIN-store, THIRD-store, DEST)` | `promoteAdmitted -> <id>`; THIRD notes: 1, THIRD ledger: 1; DEST notes: 0, DEST ledger: absent | ✓ PASS (control) — the gated arm's CR-20 fix holds: note and ledger land TOGETHER |
+| 3 | **NEW this round (CR-22, position 1), this session:** the SAME function's fall-through branch (no human stamp) | `promoteAdmitted("T-3", "irrelevant-source-id", {by:"qe",kind:"observation",verified_by:""}, "…", "irrelevant-from", THIRD-store, DEST)` | `promoteAdmitted (fall-through) -> <id>`; THIRD notes gained the new entry; THIRD ledger unchanged (2, same as before the call); DEST notes gained 1 entry from an EARLIER call; DEST ledger: 1 (the new event) | ✗ FAIL (confirms CR-22) — the fall-through's note landed in THIRD, its ledger event landed in DEST |
+| 4 | **NEW this round (CR-22, position 2), this session:** `admitAndAppend`, the route Workflow 18 names by hand | `admitAndAppend("T-2", {by:"qe",kind:"finding",verified_by:"human:alice"}, "…", DEST-store, THIRD)` | `{"id":"…","findings":[]}`; DEST notes: 1 (the new note), DEST ledger: absent; THIRD ledger: incremented by 1 (the new event), THIRD notes: unchanged | ✗ FAIL (confirms CR-22) — the note landed in DEST, its ledger event landed in THIRD |
+| 5 | **NEW this round (CR-23), this session:** `describe.skip` imported from a declared foreign framework | probe root equipped exactly as `31-28`'s `equipTarget` (tsconfig, `node_modules` symlink, `types/playwright-test.d.ts`) plus an ambient `other-framework` module declaring `describe.skip`; `npx tsc --noEmit`, then `node scripts/runnable-ref/uat-spec-integrity.js <probe>` | `tsc` exit 0; `UAT spec integrity: 0 findings over 1/1 uat specs checked`, exit 0 | ✗ FAIL (confirms CR-23) |
+| 6 | **NEW this round (CR-25), this session:** a synthetic Playwright-surface augmentation, one property hop declared per FILE (so BFS depth, not module-merging, is isolated), chain lengths bisected | same runnable, `test.p1…p6.skip(...)` (7 hops from `test`) vs `test.p1…p7.skip(...)` (8 hops), each `tsc --noEmit` exit 0 | depth-7-hop: `1 finding(s)`, exit 1. depth-8-hop: `0 findings`, exit 0, **0 bytes stderr** | ✗ FAIL (confirms CR-25) — bisected boundary at 7/8 hops in this construction; `31-REVIEW.md` cites 6/7 for its own construction. Both constructions demonstrate the SAME defect (a bounded walk fails open past its bound with zero diagnostic); the exact numeric boundary is sensitive to how the framework surface is declared across files (a naive single-file chain never triggers the bound at all, because `frameworkFiles` is also populated unconditionally from every file that augments the `@playwright/test` module declaration itself — a distinct fact from the depth walk, established and ruled out during this session's construction) |
+| 7 | **NEW this round, this session:** the full excluded-e2e regression suite | `npx vitest run --exclude '**/scripts/e2e/**'` | `Test Files 1 failed \| 63 passed (64)`, `Tests 1 failed \| 4127 passed \| 2 skipped (4130)`, 354.65 s. The one failure: `scripts/runnable-ref/uat-spec-integrity.test.ts` — "covers every 31-REVIEW.md finding that names this runnable, in BOTH directions" — `derived` now includes `WR-33`/`WR-35` (both cite this file), `CORPUS_COVERAGE` does not | ✗ FAIL — the phase's "full suite green" claim, repeated in every prior round including `31-31`'s own summary, is FALSE at this commit; recorded as a regression (see frontmatter), not folded into CR-22..CR-25 |
+| 8 | Committed `.js` freshness, this session | `npm run freshness` | `All build outputs fresh: 61 committed .js file(s) match a rebuild of their sources.` | ✓ PASS |
+| 9 | Hook manifest freshness, this session | `npm run freshness:hook-manifest` | `Hook manifest fresh: 2 decider(s), 26 module hash(es) match a fresh derivation.` | ✓ PASS |
+| 10 | Foundation guards / UAT oracles / platform shapes, this session | `node scripts/check-foundation-guards.js`, `node scripts/check-uat-oracles.js`, `node scripts/check-platform-shapes.js` | All three `ALL CHECKS PASSED` | ✓ PASS (see `31-REVIEW.md`'s WR-31 finding, not independently re-driven this session, that `check-platform-shapes`'s own CONTROL rows cannot currently distinguish "ordinary outcome" from "refused for an unrelated reason" — reported, not verified here, as a reason not to over-read this pass) |
+| 11 | Typecheck, this session | `npx tsc --noEmit && tsc -p tsconfig.tests.json && tsc -p tsconfig.fixtures.json` | exit 0 | ✓ PASS |
+| 12 | Byte-frozen deploy guard, this session | `git hash-object hooks/guard.ts` | `669725bc1c616ab57123e22090d93d57eff1b001`, equal to `FROZEN_GUARD_BLOB` | ✓ PASS |
 
-**Cleanup verified.** `find . -path '*/node_modules' -prune -o -type p -print` (the FIFO sweep) printed
-nothing at the end of this session. `git status --short scripts hooks agent-factory install docs
-.planning` shows only the repository's own pre-existing working-tree state
-(`.planning/milestone.lock`, `.planning/state.json`, `human-notes.txt` — present before this
-verification began, unrelated to it) and the write of this report itself; no probe artifact or FIFO
-from this session remains on disk. All temporary scratch directories under
-`.temp/31-verify-r6/` were removed after each reproduction.
+**Cleanup verified.** `find . -path ./node_modules -prune -o -type p -print` (the FIFO sweep) printed
+nothing at the end of this session. `find .temp -mindepth 1` printed nothing. `git status --short`
+shows only the repository's own pre-existing working-tree state (`.planning/milestone.lock`,
+`human-notes.txt`, `.gsd/`, `.planning/state.json` — present before this verification began, unrelated
+to it) and the write of this report itself; no probe artifact, temp directory, or FIFO from this
+session remains on disk (all probes ran under the isolated scratchpad directory, removed at the end of
+the session).
 
 ### Requirements Coverage
 
 | Requirement | Source Plan(s) | Description | Status | Evidence |
 |---|---|---|---|---|
-| UATX-01 | 31-01, 31-04, 31-05, 31-09, 31-10, 31-14, 31-18, 31-19, 31-21, 31-22, 31-23 | Committed spec = evidence floor; narration never a stamp | ✗ BLOCKED | Round 5's CR-12/CR-13/CR-16 closures re-verified (independently for CR-12/CR-16; via review's own table for CR-13); CR-17 (PreToolUse wrapper's own unguarded readFileSync), CR-19 (write/read ceiling asymmetry silently loses a note), CR-20 (note and ledger split across repositories) independently reproduced |
+| UATX-01 | 31-01, 31-04, 31-05, 31-09, 31-10, 31-14, 31-18, 31-19, 31-21, 31-22, 31-23, 31-27, 31-29 | Committed spec = evidence floor; narration never a stamp | ✗ BLOCKED | Round 6's CR-17/CR-19/CR-20 closures accepted/re-verified (CR-20 independently); CR-22 (promoteAdmitted's own fall-through branch and admitAndAppend still split the note and its GOV-02 ledger event across two repositories) independently reproduced twice |
 | UATX-02 | 31-03, 31-06, 31-07 | Browser MCP tooling documented + pinned, 5 hosts; pin authority cannot itself float | ✓ SATISFIED | Unchanged, not contested |
-| UATX-03 | 31-03, 31-04, 31-15 | Attended Chrome lane structurally barred from gate stamp | ✓ SATISFIED | Unchanged, not contested; structural bar re-run green this round |
-| UATX-04 | 31-01, 31-05, 31-14 | Evidence provenance (SHA/gate_run/content_hash); mismatched SHA refused | ✓ SATISFIED | Unchanged, not contested; no round-5 or round-6 finding touches this surface |
-| UATX-05 | 31-02, 31-04, 31-13, 31-17 | Loud skip on absent/unusable browser, never a silent pass | ✓ SATISFIED | Unchanged; no round-6 finding touches the browser-absence probe |
-| UATX-06 | 31-02, 31-04, 31-06, 31-11, 31-12, 31-13, 31-16, 31-17, 31-24, 31-25 | AST ban on conditional/caught assertions and modifier calls; claim matches mechanism | ✗ BLOCKED | Round 5's CR-14/CR-15 spellings closed and independently re-verified refused/bounded; CR-18 (block-scoped function declaration re-widens the suppression range) and CR-21 (three-argument Playwright overload evades TestInfo detection) independently reproduced |
+| UATX-03 | 31-03, 31-04, 31-15 | Attended Chrome lane structurally barred from gate stamp | ✓ SATISFIED | Unchanged, not contested; structural bar part of the (mostly) green suite this round |
+| UATX-04 | 31-01, 31-05, 31-14 | Evidence provenance (SHA/gate_run/content_hash); mismatched SHA refused | ✓ SATISFIED | Unchanged, not contested; no round-6 or round-7 finding touches this surface |
+| UATX-05 | 31-02, 31-04, 31-13, 31-17 | Loud skip on absent/unusable browser, never a silent pass | ✓ SATISFIED | Unchanged; no round-7 finding touches the browser-absence probe |
+| UATX-06 | 31-02, 31-04, 31-06, 31-11, 31-12, 31-13, 31-16, 31-17, 31-24, 31-25, 31-28 | AST ban on conditional/caught assertions and modifier calls; claim matches mechanism | ✗ BLOCKED | Round 6's CR-18/CR-21 closed by the D-30 identity cutover (accepted); CR-23 (foreign-import ban evasion) and CR-25 (bounded-surface-walk fail-open) independently reproduced |
 
-No orphaned requirements: every requirement ID declared across the twenty-six plans' `requirements:`
+No orphaned requirements: every requirement ID declared across the thirty-one plans' `requirements:`
 frontmatter (UATX-01 through UATX-06) is accounted for above, and `.planning/REQUIREMENTS.md` maps no
 additional Phase 31 requirement ID beyond these six. `.planning/REQUIREMENTS.md` still lists all six as
 unchecked (`- [ ]`) and the traceability table still reads "Gaps Found" for all six — correctly
@@ -430,87 +461,100 @@ unmoved, since this report also finds `gaps_found`. `.planning/ROADMAP.md` line 
 
 | File | Line | Pattern | Severity | Impact |
 |------|------|---------|----------|--------|
-| `hooks/hook-entry.ts` | ~190 (`verifyDeciderClosure`), ~237 (fd-0 read) | Bare `readFileSync` with no `O_NONBLOCK`/`fstat`/regular-file discipline, ahead of the one bound (`DECIDER_TIMEOUT_MS`) that covers only the later `spawnSync` | 🛑 Blocker | CR-17: a FIFO at any of thirteen agent-writable manifest paths hangs the PreToolUse wrapper for every `Bash`/`mcp__grugops__*` call, silently on both streams — a hook that never answers does not block |
-| `scripts/context-io.ts` | `NOTE_FILE_MAX_BYTES` gates the read side (`readRegularFileOrNull`) only | Write/read ceiling asymmetry | 🛑 Blocker | CR-19: a note above the ceiling writes successfully and becomes permanently, silently invisible to every reader of the shared verified context; a re-write is refused with a clause that misnames the condition |
-| `scripts/context-io.ts` | `promoteAdmitted`'s ledger block (~2181-2209) keys the GOV-02 event on `repoRoot`; the note write is keyed on `to` | Two write targets, one un-reconciled with the other | 🛑 Blocker | CR-20: a cross-repository promotion leaves a human-disposed finding and its audit-trail event in two different repositories, contradicting Workflow 18's own (rewritten-this-round) claim that this cannot happen |
-| `scripts/runnable-ref/uat-spec-integrity.ts` | `resolveBinding`'s `hoisted` arm (~1592-1596) | A block-scoped function declaration is handed the whole enclosing function's/module's range | 🛑 Blocker | CR-18: `if (false) { function it(): void {} }` beside a genuine module-scope `it.skip(...)` suppresses the ban file-wide, at exit 0 — the same magnitude as the CR-14 evasion this exact fix closed |
-| `scripts/runnable-ref/uat-spec-integrity.ts` | `deriveTestInfoParameterNames` (~1397) reads `node.arguments[1]` only | Fixed-index read blind to a documented framework overload | 🛑 Blocker | CR-21: Playwright's own `test(title, details, body)` tag/annotation form evades TestInfo-parameter canonicalisation entirely, at exit 0, with no adversarial intent |
-| `scripts/context-io-writer-set.test.ts` | `deriveFsBlockingSites` walks only top-level function declarations (per `31-REVIEW.md` WR-27, not independently re-driven this session) | Derivation scope is a literal, not derived | ⚠️ Warning | A blocking read added inside an arrow function, a class method, or the CLI's `if (isMain)` block is invisible to the derived count |
-| `scripts/context-io.ts` | `originStoreIsRootAnchored`'s docstring / `T-31-18-01` (per `31-REVIEW.md` WR-28, not independently re-driven this session) | Stated forged-origin price (three filesystem operations) is off by one inside an unconfigured repository | ⚠️ Warning | The register's stated bar for the accepted residual understates the ease of construction in one reachable shape |
-| `agent-factory/workflows/18-context-compaction.md` | line 83 (rewritten this round) | Asserts the destination-ledger-first / never-repudiation property | 🛑 Blocker (documentation) | Same undisclosed defect as CR-20, one level up in agent-facing documentation |
-| `agent-factory/checklists/browser-uat-recipe.md` | lines ~204/277, ~250-256 | States the hoist-to-enclosing-function rule as fact; TestInfo spelling list carries no overload qualification | 🛑 Blocker (documentation) | Same undisclosed defects as CR-18/CR-21, one level up |
+| `scripts/context-io.ts` | `promoteAdmitted`'s fall-through (2416-2419) precedes the `destinationRoot` derivation (2493); `admitAndAppend` (5224) keys note-write and ledger-append on two unreconciled parameters | Fix installed at the branch the prior reproduction walked, not at the function's entry | 🛑 Blocker | CR-22: a non-human-stamped note through `promoteAdmitted`, and any call through `admitAndAppend`, can still split a note and its GOV-02 audit record across two different governed repositories |
+| `scripts/runnable-ref/uat-spec-integrity.ts` | `resolveBannedModifier`'s `foreign` short-circuit (~2470) | A structural cutover silently deleted a live ban for the exact case it was retained for | 🛑 Blocker | CR-23: `describe.skip` / `expect.soft`, imported from any declared non-Playwright module, evade the ban entirely at exit 0 |
+| `scripts/runnable-ref/uat-spec-integrity.ts` | `frameworkSurface`'s `SURFACE_DEPTH_BOUND`/`SURFACE_NODE_BOUND` (976-977, 1208-1242) | A bounded walk degrades silently (no signal, no could-not-run route) rather than failing loud | 🛑 Blocker | CR-25: a framework member past the bound resolves `foreign` and is never banned, with zero bytes of diagnostic |
+| `scripts/context-io.ts` | `readRawNotesWithSkips`'s catch (1717-1721) | A caught exception's own discriminated `condition` field (`ReadPositionRefusal`) is discarded and every catch is hand-labelled one arm | 🛑 Blocker (reported by `31-REVIEW.md` as CR-24; independently reproduced this session — see below) | An EACCES regular file and a 9 MiB over-ceiling regular file both report arm `not-a-regular-file` in `render()`'s "Skipped entries" table, and the over-ceiling row's own `detail` text contradicts its `arm` label ("It IS a regular file; what disqualifies it is its size and nothing else") |
+| `scripts/runnable-ref/uat-spec-integrity.test.ts` | `CORPUS_COVERAGE` (7838-7845) is a hand-typed literal keyed to one round's review content | Set-literal drift against a file (`31-REVIEW.md`) this project fully replaces every round | 🛑 Blocker (new this round, not one of CR-22..CR-25) | Independently reproduced: the full suite is RED (1 failed / 4127 passed / 2 skipped) at HEAD, because committing this round's review changed the derived finding-id set without updating the literal |
+| `scripts/check-platform-shapes.ts` | `drivePosition`'s CONTROL rows (per `31-REVIEW.md`'s WR-31, not independently re-driven this session) | A control asserts absence-of-a-string rather than the ordinary outcome | ⚠️ Warning | Reported: every control row is itself a refusal, scored "not refused (correct)" regardless |
+| `agent-factory/checklists/browser-uat-recipe.md` | ~line 232 (`describe` head), boundary list (no depth/node bound mentioned) | Claim/mechanism divergence | 🛑 Blocker (documentation) | Same undisclosed defects as CR-23/CR-25, one level up in agent-facing documentation |
+
+CR-24, independently reproduced in this session (a live note, a 9,437,184-byte regular note file, and
+an EACCES regular note file, then `render()`): the "Skipped entries" table names BOTH the EACCES file
+and the over-ceiling file arm `not-a-regular-file`, and the over-ceiling row's own detail text reads
+"It IS a regular file; what disqualifies it is its size and nothing else" — directly contradicting the
+arm it is filed under. This is the SAME class of defect CR-19's own fix was raised to close (a refusal
+that misnames the true condition), reproduced inside the module that just fixed CR-19, on the one
+artifact a human triaging an unreadable note would actually read.
 
 No unreferenced `TBD`/`FIXME`/`XXX` debt markers were found in any source file changed since the
-round-5 verification (`git diff --name-only 89228c8..HEAD` restricted to `scripts hooks agent-factory
-install docs .planning`, re-checked in this session — the only `TBD`/`XXX` hits are pre-existing,
-unrelated roadmap placeholders for future phases and `mktemp`-style `XXXXXX` template strings, none of
-them a debt marker on phase 31's own work).
+round-6 verification (`git diff --name-only 3a82d6f..c830eb4` restricted to `scripts hooks
+agent-factory install docs .planning .github vitest.config.ts package.json`, re-checked in this
+session — the only `TBD`/`XXX` hits are pre-existing, unrelated roadmap placeholders for future phases
+and a `mktemp`-style `XXXXXX` template-string comment, none of them a debt marker on phase 31's own
+work).
 
 ### Human Verification Required
 
-4 items, all pre-existing `UNKNOWN - verify` / manual-only items already recorded in `31-VALIDATION.md`
-and not attempted by this round — none newly discovered by this verification, carried forward
-unchanged through rounds 2-6 (the attended Chrome lane's real interactive behavior, the `claude auth
-status --json` predicate under API-key/long-lived-token auth, the Windows leg of every browser probe
-and of this round's five new findings, and the installer/uninstaller round-trip on a pre-existing host
-install).
+3 items (down from 4 last round — `R-04`, the installer round-trip, was CLOSED by `31-30`'s
+automation, per `31-VALIDATION.md`'s own round-7 carry-forward table), all pre-existing
+`UNKNOWN - verify` / manual-only items already recorded in `31-VALIDATION.md` and not attempted by
+this round — none newly discovered by this verification, carried forward unchanged through rounds 2-7
+(the attended Chrome lane's real interactive behavior, the `claude auth status --json` predicate under
+API-key/long-lived-token auth, and the Windows leg of every browser probe and of this round's four new
+findings).
 
 ### Gaps Summary
 
-Two 🛑 Blocker requirement failures, both driven by FIVE independently-reproduced new Critical
-findings — every one of them a defect the round-5 fix itself created or preserved, in the identical
-two predicate families this phase has now paid for across SIX straight verification rounds.
+Two 🛑 Blocker requirement failures, driven by FOUR independently-reproduced new Critical findings plus
+one independently-reproduced regression — every Critical again a defect the round-6 fix itself created
+or preserved, in the identical two predicate families this phase has now paid for across SEVEN
+straight verification rounds.
 
-1. **UATX-01 fails on THREE new defects (CR-17, CR-19, CR-20), all in mechanisms round 5's own fixes
-   touched.** CR-12 (round 5's blocker — an unguarded `readFileSync` at the note-write chokepoint) is
-   closed inside `scripts/context-io.ts`, but the identical fix was never carried to
-   `hooks/hook-entry.ts` — the actual PreToolUse entry point for every `Bash` and `mcp__grugops__*`
-   tool call — so a FIFO at any of thirteen agent-writable manifest paths still hangs the gate itself,
-   before the decider subprocess is even spawned, and a hook that never answers is an allow at the
-   one tier that guards a force-push. The SAME round's write-ceiling fix (CR-12's `NOTE_FILE_MAX_BYTES`)
-   was wired one-sided: a 9 MiB note writes cleanly and then is silently invisible to every reader
-   forever, on the surface whose entire value proposition is that it is the only memory. And the SAME
-   round's ledger-ordering fix (WR-22) correctly reordered the two writes but left them keyed on two
-   different repositories, so a cross-repository promotion — the exact capability the origin rule's
-   own rationale exists to permit — leaves a human-disposed finding and its audit record in different
-   repositories, which Workflow 18's own rewritten prose asserts, twice, cannot happen.
+1. **UATX-01 fails on ONE new defect (CR-22), reproduced at TWO positions.** Round 6's own fix
+   (`D-31`, "two halves of one action are keyed on one variable") is real and correct — it derives
+   `destinationRoot` from `to` and threads it through `promoteAdmitted`'s human-stamp-GATED arm, and
+   this session independently re-reproduced that specific closure. But the derivation sits inside
+   ONE arm of a function with an earlier return, and a sibling function (`admitAndAppend`, the exact
+   route this round's own rewrite of Workflow 18 names by hand as behaving the same way) never
+   received the derivation at all. Both positions are independently reproduced in this session: an
+   ordinary non-human-stamped note through `promoteAdmitted` still splits its note and ledger event
+   across two repositories, and so does an ordinary call to `admitAndAppend`.
 
-2. **UATX-06 fails on TWO new defects (CR-18, CR-21), both in mechanisms round 5's own fixes
-   touched.** The CR-14 fix (a nearest-binding resolution rule replacing the file-scoped census)
-   correctly narrowed the suppression range for most bindings, but its `hoisted` arm hands a
-   block-scoped function declaration the whole enclosing function's (or module's) range rather than
-   its actual block's range — so a three-line, type-checking, executing evasion re-opens the ban at
-   the same magnitude CR-14 was. And the same round's TestInfo-parameter derivation still reads a
-   fixed argument index, so Playwright's own documented three-argument tag/annotation overload — no
-   adversarial construct required — evades the ban entirely.
+2. **UATX-06 fails on TWO new defects (CR-23, CR-25), both created by the SAME structural cutover
+   that closed round 6's two Criticals.** The D-30 symbol-identity cutover is a real structural
+   improvement — it deletes the hand-rolled scope-tracking and fixed-argument-index mechanisms that
+   produced CR-18 and CR-21, and this session confirms those two specific evasions no longer apply in
+   the same shape. But the cutover's own `foreign` short-circuit makes a retained ban (`describe`,
+   `expect.soft`) permanently unreachable for exactly the case it was retained for — a foreign
+   framework's own declared export — and the cutover's bounded surface walk fails open, silently,
+   past its own depth/node bound. Both are independently reproduced against the committed `.js`.
 
-**The full excluded-e2e suite is green** (62/62 files, 3908/3910 tests, 2 pre-existing skips, re-run in
-this session) **and exercises NONE of the five new defects found this round** — this project's standing
-doctrine that a green suite is not proof for a safety predicate holds for the SIXTH consecutive
-verification round on this phase.
+3. **A regression, independent of CR-22 through CR-25: the full suite is measured RED at HEAD.**
+   `scripts/runnable-ref/uat-spec-integrity.test.ts`'s own "covers every `31-REVIEW.md` finding"
+   self-check derives its expected set by walking `31-REVIEW.md`'s current headings; because this
+   project fully replaces that file every round (rather than appending to it), committing THIS
+   round's review changed the derived set without a corresponding update to the hand-typed
+   `CORPUS_COVERAGE` literal the test compares against. This does not change any requirement's
+   verdict, but it means the "full suite green" claim repeated in every prior round of this phase —
+   including `31-31`'s own closing-measurement summary — is FALSE at the commit this verification
+   measures.
 
-**Progress since round 5 is real and should not be discounted.** Every one of round 5's own five
-Criticals (CR-12 through CR-16) and its four Warnings plus one Info is closed or bounded, and this
-session independently re-reproduced the two most load-bearing closures (CR-12's own module,
-CR-16) as genuinely fixed, alongside re-driving both of round 5's own exact evasion spellings for
-UATX-06 (CR-14, CR-15) and confirming both stay refused/bounded. The defects that remain are each one
-register past what the round-5 fix decided, inside the SAME function or the SAME file the prior fix
-touched — consistent with this repository's own documented pattern for these two predicate families
-across all six rounds of this phase.
+**The suite's 4127 PASSING tests exercise NONE of the four new Criticals found this round** — this
+project's standing doctrine that a green (or in this case, mostly-green) suite is not proof for a
+safety predicate holds for the SEVENTH consecutive verification round on this phase.
 
-**This looks like it needs a seventh gap-closure round, not an override.** All five new blockers are
-the same structural pattern this project's own doctrine treats as blocking: a fix scoped to one module
-when the property it establishes is claimed of a wider surface (CR-17 — the reader exists, one file
-over from where the PreToolUse gate actually stands watch), a fix applied to one side of a two-sided
-contract (CR-19 — the read ceiling without the write ceiling; CR-20 — the write order without the
-write TARGET), and a resolution rule that asks the wrong question of the language or the framework
-(CR-18 — "hoists to its enclosing function" where the language says "enclosing block"; CR-21 — a fixed
-argument index where the framework has more than one overload). `31-REVIEW.md` supplies a fix sketch
-for every one of the five, each narrowing an over-broad claim or carrying a decision to a second file
-rather than widening a set — the same shape of fix that closed every prior round's findings. No
-override is suggested.
+**Progress since round 6 is real and should not be discounted.** Round 6's own five Criticals
+(CR-17 through CR-21) are closed or bounded — CR-20 independently re-reproduced closed in this
+session at the coordinate it was raised on, the other four accepted from `31-REVIEW.md`'s own
+measurement within this round's reproduction budget. The defects that remain are each one register
+past what the round-6 fix decided, inside the SAME function or the SAME structural cutover the prior
+fix touched — consistent with this repository's own documented pattern for these two predicate
+families across all seven rounds of this phase.
+
+**This looks like it needs an eighth gap-closure round, not an override.** All four new blockers are
+the same structural pattern this project's own doctrine treats as blocking: a fix scoped to one arm
+of a function when the property it establishes is claimed of the whole function and of a sibling
+function by name (CR-22 — the derivation exists, one branch and one function over from where the
+rewritten workflow prose says it applies universally), and a structural cutover whose own boundary
+conditions (an import from a foreign but DECLARED module; a walk that exceeds its own stated bound)
+degrade toward ACCEPT rather than toward could-not-run (CR-23, CR-25 — the identical "silent
+degrade" shape D-30 (4) was itself written to eliminate for RR-07, reproduced inside the mechanism
+that eliminated it). `31-REVIEW.md` supplies a fix sketch for every one of the four, each narrowing an
+over-broad claim or moving a derivation to a function's entry rather than widening a set — the same
+shape of fix that closed every prior round's findings. No override is suggested.
 
 ---
 
-_Verified: 2026-09-10T01:17:54Z_
+_Verified: 2026-09-10T19:58:00Z_
 _Verifier: Claude (gsd-verifier)_
