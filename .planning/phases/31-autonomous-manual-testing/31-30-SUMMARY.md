@@ -31,7 +31,12 @@ actuals:
   # one deviation that removed a whole probe position.
   tokens: 49179
   tasks: 3
-  commits: 4
+  # MEASURED at the metadata commit, not narrated:
+  #   git rev-list --count b0232ae..39b2db3 -> 6
+  # Composition: 3 task commits + 1 deviation fix (96726c6) + this SUMMARY (67cdaee) +
+  # the state/roadmap commit (39b2db3). Written at 4 when the SUMMARY was first composed —
+  # the count is re-measured here so /gsd-verify-work's same-instrument check agrees.
+  commits: 6
 plan_head_before: b0232aeac0293b6b957f5d0bdbf352e8662552a8
 
 tech-stack:
@@ -226,6 +231,9 @@ status: complete
 2. **Task 2: the Windows leg drives the shapes, and R-04 stops being a human item** — `8cff6d8` (feat)
 3. **Task 3: pay the debt, index the tally, record D-32** — `382ef2b` (docs)
 4. **Deviation fix: drop the GOV-02 ledger position** — `96726c6` (fix)
+
+**Plan metadata:** `67cdaee` (this SUMMARY) and `39b2db3` (state + roadmap).
+**Measured total:** `git rev-list --count b0232ae..39b2db3` → **6**.
 
 ## Measured evidence
 
