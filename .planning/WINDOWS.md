@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 156
+open_count: 159
 waived_count: 0
 fixed_count: 4
-total_count: 160
-last_updated: 2026-09-10T13:43:11.171Z
+total_count: 163
+last_updated: 2026-09-10T14:35:33.564Z
 ---
 
 # Broken Windows Ledger
@@ -175,6 +175,9 @@ last_updated: 2026-09-10T13:43:11.171Z
 | 158 | 31 | unrun-verify | scripts/context-io.test.ts |  | 14 of 15 mkfifo call sites in test modules carry no platform guard, so the windows-latest vitest step is unreachable-green; measured from SOURCE on darwin, the Windows behaviour is UNKNOWN - verify | open |  | 2026-09-10T13:43:11.010Z |  |
 | 159 | 31 | deviation | docs/audit/29-style-dispositions/31-29.md |  | Two disposition rows pack multiple sentences into one after cell; rowMatches compares one normalized clause, so 5 clauses are covered by nothing while the rows read as work done | open |  | 2026-09-10T13:43:11.093Z |  |
 | 160 | 31 | unrun-verify | .github/workflows/ci.yml |  | R-03/R-31-19-03: the two new Windows-scoped shape steps are ENCODED but not observed — every measurement in 31-30 was taken on darwin and the Windows reading is UNKNOWN - verify | open |  | 2026-09-10T13:43:11.171Z |  |
+| 161 | 31 | deviation | docs/audit/31-round6-residuals.md |  | R-31-31-01 raised and NOT repaired: the ambient declare const spelling reports 0 findings/EXIT=0, unmoved from 31-REVIEW.md CR-18 point 3, and no UNRESOLVABLE_CALLEE_RESIDUALS member names it. Owner: round 7's fix plan. | open |  | 2026-09-10T14:35:33.403Z |  |
+| 162 | 31 | deviation | .planning/phases/31-autonomous-manual-testing/31-round6-residual-dispositions.md |  | The round-6 dispositions file declares 34 items (19 fix / 13 close / 2 open) while its six tables carry 43 (22/18/3); de-duplicating the one thrice-listed item gives 41. Derived by command. Owner: round 7's dispositions file. | open |  | 2026-09-10T14:35:33.484Z |  |
+| 163 | 31 | unrun-verify | docs/audit/31-round6-residuals.md |  | R-01, R-02 and R-03 remain UNKNOWN - verify: the attended Chrome lane under real interactive auth, the auth predicate under alternative credential configurations, and every Windows leg. Every probe in the round-6 closing measurement ran on darwin only. | open |  | 2026-09-10T14:35:33.564Z |  |
 
 ````json
 [
@@ -2096,6 +2099,42 @@ last_updated: 2026-09-10T13:43:11.171Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-09-10T13:43:11.171Z",
+    "resolved_at": null
+  },
+  {
+    "id": 161,
+    "kind": "deviation",
+    "phase": "31",
+    "file": "docs/audit/31-round6-residuals.md",
+    "line": null,
+    "description": "R-31-31-01 raised and NOT repaired: the ambient declare const spelling reports 0 findings/EXIT=0, unmoved from 31-REVIEW.md CR-18 point 3, and no UNRESOLVABLE_CALLEE_RESIDUALS member names it. Owner: round 7's fix plan.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-10T14:35:33.403Z",
+    "resolved_at": null
+  },
+  {
+    "id": 162,
+    "kind": "deviation",
+    "phase": "31",
+    "file": ".planning/phases/31-autonomous-manual-testing/31-round6-residual-dispositions.md",
+    "line": null,
+    "description": "The round-6 dispositions file declares 34 items (19 fix / 13 close / 2 open) while its six tables carry 43 (22/18/3); de-duplicating the one thrice-listed item gives 41. Derived by command. Owner: round 7's dispositions file.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-10T14:35:33.484Z",
+    "resolved_at": null
+  },
+  {
+    "id": 163,
+    "kind": "unrun-verify",
+    "phase": "31",
+    "file": "docs/audit/31-round6-residuals.md",
+    "line": null,
+    "description": "R-01, R-02 and R-03 remain UNKNOWN - verify: the attended Chrome lane under real interactive auth, the auth predicate under alternative credential configurations, and every Windows leg. Every probe in the round-6 closing measurement ran on darwin only.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-10T14:35:33.564Z",
     "resolved_at": null
   }
 ]
