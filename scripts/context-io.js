@@ -896,7 +896,7 @@ export const LEDGER_ABOVE_CEILING_CLAUSE = "audit-ledger-above-size-ceiling";
  * could CREATE an object its own readers were required to refuse. Reproduced against the committed
  * `scripts/context-io.js` at HEAD, with the round-6 verifier's own probe spelling:
  *
- *   appendNote(task, note, "x".repeat(9 * 1024 * 1024), ctx, undefined, repo)
+ *   the sanctioned writer, given a body of "x".repeat(9 * 1024 * 1024) — 9,437,184 bytes
  *     -> RETURNED id 20260910T000000Z-engineer-observation-3e67edaf, no diagnostic
  *     -> the file on disk: 9,437,353 bytes, a regular file
  *     -> readContext(task, ctx).length === 0
@@ -1667,6 +1667,19 @@ export const PROMOTE_ADMITTED_DECLINES = Object.freeze({
         "than supersede it. Destination bytes IDENTICAL to the proven origin bytes are a different " +
         "case and are decided as an idempotent re-promotion that proceeds — a re-run compaction has " +
         "nothing to destroy — so this clause names only the destructive one.",
+    "destination-outside-governed-store": "The destination does not resolve to a store this module recognises as belonging to a " +
+        "governance root — the same canonical form the origin must meet: a directory named `context` " +
+        "inside a directory named `.grugops`, sitting directly under a directory this module's own " +
+        "root walk independently answers as a governance root. The constraint is not about trusting " +
+        "the destination's CONTENTS, which no promotion reads as evidence. It is about naming the " +
+        "repository whose audit trail records the promotion. A note and its GOV-02 event are two " +
+        "halves of one action, and until this clause existed they were keyed on two different " +
+        "arguments: a finding landed in one repository's note store while its audit record landed in " +
+        "another's ledger, under a workflow sentence stating twice that it cannot happen. A store " +
+        "whose owning repository cannot be resolved is a store whose audit trail cannot be named, and " +
+        "a human disposition entering an unnameable trail is a repudiation waiting to be discovered. " +
+        "The alternative — promote anyway and record nothing — is REJECTED: it would make the " +
+        "workflow's guarantee true by weakening it.",
     "unreadable-audit-ledger": "The destination repository's GOV-02 audit ledger IS present and could not be read — it is not " +
         "a regular file, or it could not be opened at all. An audit trail this route cannot read is an " +
         "audit trail it cannot avoid duplicating: the route's response to \"no record\" is to APPEND, so " +
@@ -1691,16 +1704,23 @@ export const PROMOTE_ADMITTED_RESIDUALS = Object.freeze([
         "never by a registry. A caller that constructs a whole GOVERNANCE ROOT around notes it authored " +
         "— a version-control marker, a governance configuration beneath it, and the `.grugops/context` " +
         "store — still presents a store this route accepts. The price is stated PER POSITION, because " +
-        "it was measured rather than assumed. INSIDE a repository — the position CR-16 is about, since " +
-        "the agent that promotes runs inside one — it is three filesystem operations, named: `mkdir " +
+        "it was measured rather than assumed — and CORRECTED by plan 31-29 (WR-28), which measured a " +
+        "THIRD position the previous two-way split hid. The three constructions are `mkdir " +
         "<forged>/.git`; write `<forged>/.grugops/factory.config.json`; `mkdir -p " +
-        "<forged>/.grugops/context`. Each of the three is load-bearing there and both subtractions are " +
+        "<forged>/.grugops/context`. INSIDE a repository that carries a governance CONFIGURATION it is " +
+        "THREE filesystem operations: each of the three is load-bearing there and both subtractions are " +
         "driven: without the configuration the walk answers `nearest` (null) rather than the forged " +
         "root, and without the marker the walk climbs past and answers the REPOSITORY's own root. " +
+        "INSIDE a repository that carries a marker and NO configuration it is TWO — the configuration " +
+        "and the store — because the enclosing boundary carries no configuration, so the walk answers " +
+        "`nearest` (the forged configuration) with the forged marker ABSENT. The variable is the " +
+        "ENCLOSING repository's configuration, not the fact of being inside one, and the previous " +
+        "wording — three inside a repository — was measured FALSE at this position. " +
         "OUTSIDE every repository it is TWO operations — the configuration and the store — because the " +
         "walk that meets no boundary at all answers the nearest configuration it remembered, which is " +
-        "the forged one. That second number is the cross-repository capability this residual keeps, " +
-        "priced in the same breath rather than left for a later round to discover. The capability is " +
+        "the forged one. Those second and third numbers are the cross-repository capability this " +
+        "residual keeps, priced in the same breath rather than left for a later round to discover. All " +
+        "three positions are driven in scripts/context-io.test.ts. The capability is " +
         "KEPT deliberately: a cross-repository compaction is a " +
         "promotion a host genuinely performs, and Workflow 18 names the origin context root as an " +
         "argument for exactly that reason. What it costs is bounded by, and identical to, T-31-14-03 — " +
@@ -1734,19 +1754,31 @@ export const PROMOTE_ADMITTED_RESIDUALS = Object.freeze([
         "would also refuse a store legitimately delivered by a symlink and is therefore a module-wide " +
         "decision about every context root rather than this route's. Disposition: accept, bounded by " +
         "T-31-14-03.",
-    "R-31-22-02 — the DESTINATION argument `to` is caller-supplied and is NOT constrained by the " +
-        "canonical form the origin must meet. The converse axis is decided rather than left silent: `to` " +
-        "is not a proof OPERAND. Nothing read at the destination is evidence FOR the promotion — the " +
-        "destination read decides only whether an id is already occupied, and an occupied id DECLINES. " +
-        "A caller naming an ordinary directory as its destination is choosing where its own admitted " +
-        "evidence lands, which is the same authority `appendNote`'s `contextRoot` argument already " +
-        "carries and which Workflow 16 governs as hand-authoring a context path. Five destination " +
-        "shapes are driven in scripts/context-io.test.ts and all five answers are the decided ones. " +
-        "What would force it closed: the same store marker T-31-18-01 names, asked at the destination " +
-        "as well as the origin — which would also have to be asked of every other writer's " +
-        "`contextRoot`, and is therefore a module-wide decision rather than this route's. Disposition: " +
-        "accept, bounded by the append-only chokepoint that refuses a destructive write at any " +
-        "destination.",
+    "R-31-22-02 — REWRITTEN by plan 31-29 (CR-20 / D-31); the id is KEPT so existing citations " +
+        "resolve to the current disposition rather than to a superseded one. WHAT IT SAID: that the " +
+        "DESTINATION argument `to` was caller-supplied and NOT constrained by the canonical form the " +
+        "origin must meet, accepted on the reasoning that `to` is not a proof OPERAND. That reasoning " +
+        "was correct about EVIDENCE and silent about IDENTITY, and the round-6 verifier exploited the " +
+        "gap between them: nothing read at the destination is evidence for the promotion, but the " +
+        "destination still decides WHICH REPOSITORY'S AUDIT TRAIL records it, and that question had a " +
+        "second answer (`repoRoot`) which nothing reconciled. Measured with three real governance " +
+        "roots, the note landed in one repository and its GOV-02 event in another. WHAT THE " +
+        "CONSTRAINT IS NOW: `to` must resolve, through the one authority `governanceRootOf`, to a " +
+        "recognised store anchored to a governance root — D-25's canonical form, asked of the " +
+        "destination as well as the origin — and the derived root keys BOTH the ledger look and the " +
+        "ledger append. A `to` outside a governed store is the named `destination-outside-governed-" +
+        "store` decline, raised before anything is written. WHAT IT STILL DOES NOT ESTABLISH: the " +
+        "constraint names the destination's owning REPOSITORY; it does not authenticate the " +
+        "destination's CONTENTS, and a caller who can construct a governance root can present a " +
+        "destination this route accepts — at the same price, and bounded by the same residual, as " +
+        "T-31-18-01 states for the origin. It is also NOT asked of every other writer's `contextRoot`: " +
+        "`appendNote` still accepts any destination, so this is a property of the RE-BINDING route " +
+        "rather than of the module, and a promotion is where it matters because a promotion is what " +
+        "carries a human disposition across a repository boundary. WHAT WOULD FORCE THE REMAINDER " +
+        "CLOSED: the same store marker T-31-18-01 names — one the sanctioned writer emits and this " +
+        "route verifies — which would close the origin and destination halves together. Disposition: " +
+        "the IDENTITY half is CLOSED by D-31; the CONTENTS half is accepted, bounded by T-31-18-01 and " +
+        "by the append-only chokepoint that refuses a destructive write at any destination.",
     "R-37 — the compared field set is the store's own read-back projection (recordFromParsed) plus " +
         "the body. A frontmatter key the parser accepts and that projection drops is not compared — and " +
         "is also not read by admit(), render() or any other consumer, so the boundary is the store's " +
@@ -1788,29 +1820,81 @@ function isRecognisedContextStore(candidate) {
  * not consulted. A caller can move the origin; it cannot move what the walk says about where the
  * origin is.
  *
- * WHAT IT COSTS, PRICED IN OPERATIONS, PER POSITION. Measured against the walk's behaviour at a
- * repository boundary (`carriesConfig ? dir : nearest`) rather than reasoned about. INSIDE a
- * repository — the position CR-16 is about, because the agent that promotes runs inside one — the
- * construction that still satisfies this conjunct is EXACTLY THREE filesystem operations: a
- * version-control marker at the forged root, a governance configuration under it, and the store
- * directory itself. All three are load-bearing there, and both subtractions are driven in
- * `scripts/context-io.test.ts`: drop the configuration and the walk meets the marker with
- * `carriesConfig` false and answers `nearest` (null); drop the marker and the walk climbs past the
- * forged root to the REPOSITORY's own boundary and answers that instead.
- *
- * OUTSIDE every repository the price is TWO, and saying so is the difference between a stated bar
- * and an unstated one. A walk that meets no boundary at all runs out of ancestors and answers the
- * `nearest` configuration it remembered, so a forged root planted where nothing above it carries a
- * marker or a configuration is anchored on the configuration alone. That is the same construction
- * as the cross-repository origin this rule deliberately keeps, which is why it is priced here
- * rather than closed: closing it would refuse a compaction a host genuinely performs.
- *
- * Both numbers, not an adjective about them, are what `T-31-18-01` and the workflow's stop
- * condition state.
+ * WHAT IT COSTS, PRICED IN OPERATIONS, PER POSITION — see `governanceRootOf` below, which is the
+ * one authority that computes this and carries the measured table.
  */
 function originStoreIsRootAnchored(from) {
-    const anchor = dirname(dirname(resolve(from)));
-    return projectRootFromWorkingDirectory(anchor) === anchor;
+    return governanceRootOf(from) !== null;
+}
+/**
+ * WHICH REPOSITORY OWNS THIS CONTEXT STORE? The governed root, or `null` when there is none.
+ *
+ * ── ONE AUTHORITY FOR BOTH ENDS OF A PROMOTION (31-29, CR-20 / D-31). ─────────────────────────
+ *
+ * WHAT WAS WRONG, MEASURED RATHER THAN DESCRIBED. `promoteAdmitted` keyed its NOTE write on the
+ * caller's `to` and its GOV-02 ledger event on `repoRoot`, which defaults to the process's own
+ * governance root. Nothing reconciled the two. Reproduced against the committed
+ * `scripts/context-io.js` with THREE real governance roots, each carrying a version-control marker
+ * and a governance configuration — a legitimately human-disposed finding admitted at the origin and
+ * promoted with `from = origin, to = third, repoRoot = dest`:
+ *
+ *   | repository | notes present | ledger lines |
+ *   | origin     | the note      | 0            |
+ *   | third      | THE NOTE      | 0            |
+ *   | dest       | (none)        | 1            |
+ *
+ * The finding landed in THIRD's note store and its audit record landed in DEST's ledger. Two halves
+ * of one action, aimed at two different repositories — and
+ * `agent-factory/workflows/18-context-compaction.md` states, in the very paragraph rewritten the
+ * round before, that "a re-binding first looks in the destination repository's ledger" and that
+ * "the destination never holds a human-disposed finding with no ledger line". Both were measured
+ * FALSE of the mechanism, at exactly the sentences that exist to assert them.
+ *
+ * THE RULE THE FIX INSTALLS. TWO HALVES OF ONE ACTION ARE KEYED ON ONE VARIABLE. The repository
+ * that owns a store is DERIVED from the store path, here, once; the note write and the ledger event
+ * both key on that one answer; and a destination that resolves to no governed root is a NAMED
+ * decline evaluated before anything is written, never a promotion whose audit record lands
+ * elsewhere. `repoRoot` remains a parameter for the governance-dial read it was always for, and a
+ * case asserts it can no longer decide where an audit record lands.
+ *
+ * THE ANSWER IS A CONJUNCTION, and it is D-25's — the canonical origin form, now asked of the
+ * DESTINATION too, which D-25 left unconstrained as `R-31-22-02`. A recognised SHAPE alone is a
+ * two-component basename comparison that any single `mkdir -p` satisfies; ROOT ANCHORING alone
+ * would accept any directory under a real root. Both, or `null`.
+ *
+ * WHAT IT COSTS, PRICED IN OPERATIONS, PER POSITION (31-29, WR-28 — a CORRECTION). The price was
+ * stated as "three inside a repository, two outside every repository". The round-6 review measured
+ * a third position the two-way split hides, and this table is the measurement rather than the
+ * claim. The three constructions are a version-control marker at the forged root, a governance
+ * configuration under it, and the store directory itself; each row drops one and records the answer:
+ *
+ *   INSIDE a repository that carries a governance CONFIGURATION  -> THREE. All three are
+ *     load-bearing, and both subtractions are driven: without the configuration the walk meets the
+ *     marker with `carriesConfig` false and answers `nearest`; without the marker the walk climbs
+ *     past the forged root to the REPOSITORY's own boundary and answers that instead.
+ *   INSIDE a repository that carries a marker and NO configuration -> TWO. The marker is NOT
+ *     load-bearing here: the enclosing boundary carries no configuration, so the walk answers
+ *     `nearest` — the forged configuration — with the forged marker absent. This is the position
+ *     WR-28 named, and the reason the price is stated per position rather than as one number: the
+ *     enclosing repository's configuration is the variable, not the fact of being inside one.
+ *   OUTSIDE every repository -> TWO, for the same reason: a walk that meets no boundary at all
+ *     answers the `nearest` configuration it remembered, which is the forged one.
+ *
+ * All three numbers are driven in `scripts/context-io.test.ts`, and `T-31-18-01` and
+ * `18-context-compaction.md`'s stop condition state the same three. The capability is KEPT
+ * deliberately — a cross-repository compaction is a promotion a host genuinely performs — and what
+ * it costs is bounded by, and identical to, `T-31-14-03`.
+ */
+export function governanceRootOf(storePath) {
+    // The emptiness guard is a NAMING precondition, not a third authority on trust: `resolve("")`
+    // answers the process's working directory, so an empty path would be judged against wherever the
+    // process happens to stand. It names nothing.
+    if (storePath.trim() === "")
+        return null;
+    if (!isRecognisedContextStore(storePath))
+        return null;
+    const anchor = dirname(dirname(resolve(storePath)));
+    return projectRootFromWorkingDirectory(anchor) === anchor ? anchor : null;
 }
 /**
  * Does the proof's left operand resolve inside a location this module has independent reason to
@@ -1914,6 +1998,30 @@ export function promoteAdmitted(task, sourceId, note, body, from, to, repoRoot =
     if (!originIsTrusted(from)) {
         throw declineRebinding("origin-outside-trusted-store", `The origin "${resolve(from)}" is not a recognised grugops context store anchored to a ` +
             `governance root this module resolves for itself.`);
+    }
+    // ── THE DESTINATION NAMES ONE REPOSITORY, AND IT IS DERIVED (31-29, CR-20 / D-31). ────────────
+    //
+    // The note write and the GOV-02 ledger event are two halves of ONE action, and until this plan
+    // they were keyed on two different arguments that nothing reconciled — `to` and `repoRoot`. The
+    // owning repository is now DERIVED from `to`, once, here, and BOTH halves use this one answer.
+    //
+    // WHY THIS IS A DECLINE AND NOT A FALLBACK, WITH THE ALTERNATIVE NAMED AND REJECTED. The review
+    // offers a second disposition: leave `to` unconstrained and record that an unanchored destination
+    // simply gets no audit record. It is REJECTED. That would make the workflow's sentence true by
+    // WEAKENING the guarantee it describes — the claim-follows-mechanism move run backwards — and it
+    // would leave a human disposition sitting in a store whose audit trail cannot be named, which is
+    // the repudiation `audit_retention: retained` exists to prevent. A store whose owning repository
+    // cannot be resolved is a store whose audit trail cannot be named, and a human disposition
+    // entering an unnameable trail is a repudiation waiting to be discovered.
+    //
+    // IT SITS HERE, BESIDE THE ORIGIN CLAUSE, for the reason every clause in this register sits where
+    // it does: both are statements about the CALLER'S INPUT, they are decided before any write, and
+    // "nothing was written" stays true by construction rather than by cleanup. The origin clause is
+    // asked first because the proof's left operand is the more specific fault.
+    const destinationRoot = governanceRootOf(to);
+    if (destinationRoot === null) {
+        throw declineRebinding("destination-outside-governed-store", `The destination "${resolve(to)}" does not resolve to a governed store, so the repository ` +
+            `whose audit trail would record this promotion cannot be named.`);
     }
     // ── THE DIAL'S VALUE DECIDES, THROUGH THE ONE AUTHORITY (31-18, WR-18). ───────────────────────
     //
@@ -2050,16 +2158,20 @@ export function promoteAdmitted(task, sourceId, note, body, from, to, repoRoot =
     // written" stays true by construction rather than by cleanup, exactly like every clause above.
     const persistedId = sourceId;
     if (govResult.config.audit_retention === "retained") {
+        // BOTH HALVES KEY ON `destinationRoot` (31-29, CR-20). `repoRoot` decided this look and this
+        // append until round 6 measured the consequence: the note went to `to`'s store and the event
+        // went to `repoRoot`'s ledger, in two different repositories. `repoRoot` still answers the
+        // governance-dial question it was always for; it no longer answers WHERE the record lands.
         let alreadyRecorded;
         try {
-            alreadyRecorded = ledgerRecordsId(repoRoot, persistedId);
+            alreadyRecorded = ledgerRecordsId(destinationRoot, persistedId);
         }
         catch (e) {
             throw declineRebinding("unreadable-audit-ledger", `The ledger look for id "${persistedId}" failed: ${e.message}`);
         }
         // D-19 (4) UNCHANGED: when the id is already in the ledger, nothing is appended.
         if (!alreadyRecorded) {
-            appendAuditLedger(repoRoot, {
+            appendAuditLedger(destinationRoot, {
                 id: persistedId,
                 kind: note.kind,
                 by: note.by,

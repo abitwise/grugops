@@ -42,7 +42,7 @@ import {
   rmSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 
 const ROOT = join(import.meta.dirname, "..");
@@ -2349,6 +2349,7 @@ function assertDeclinePremise(derived: DeclineDerivation): void {
 const EXPECTED_DECLINE_KEYS = Object.freeze([
   "body-differs-from-origin",
   "destination-id-occupied",
+  "destination-outside-governed-store",
   "empty-source-id",
   "field-differs-from-origin",
   "human-stamp-not-gated-at-destination",
@@ -2360,7 +2361,7 @@ const EXPECTED_DECLINE_KEYS = Object.freeze([
 ]);
 
 /** The cardinality, asserted separately: a re-worded clause and an ADDED clause are different events. */
-const EXPECTED_DECLINE_COUNT = 10;
+const EXPECTED_DECLINE_COUNT = 11;
 
 describe("31-14 — the re-binding proof's decline set is derived from its own body", () => {
   it("PREMISE: the parse found the route, it had a body, and it yielded decline sites", () => {
@@ -2569,7 +2570,7 @@ const DECLINE_PROBES: Readonly<Record<string, DeclineProbe>> = Object.freeze({
     drive: () => {
       const repoRoot = activeDialRoot();
       const { originRoot } = seedAdmittedOrigin(repoRoot, "ctx-io-decline-empty-origin-");
-      const destRoot = freshTmp("ctx-io-decline-empty-dest-");
+      const destRoot = livenessContextStore("ctx-io-decline-empty-dest-");
       return {
         destRoot,
         run: () =>
@@ -2582,7 +2583,7 @@ const DECLINE_PROBES: Readonly<Record<string, DeclineProbe>> = Object.freeze({
       const goodRoot = activeDialRoot();
       const { originRoot } = seedAdmittedOrigin(goodRoot, "ctx-io-decline-unreadable-origin-");
       const badRoot = repoWithRawConfig("{ not valid json ]]]");
-      const destRoot = freshTmp("ctx-io-decline-unreadable-dest-");
+      const destRoot = livenessContextStore("ctx-io-decline-unreadable-dest-");
       return {
         destRoot,
         run: () =>
@@ -2602,7 +2603,7 @@ const DECLINE_PROBES: Readonly<Record<string, DeclineProbe>> = Object.freeze({
     drive: () => {
       const repoRoot = activeDialRoot();
       const { originRoot } = seedAdmittedOrigin(repoRoot, "ctx-io-decline-absent-origin-");
-      const destRoot = freshTmp("ctx-io-decline-absent-dest-");
+      const destRoot = livenessContextStore("ctx-io-decline-absent-dest-");
       return {
         destRoot,
         run: () =>
@@ -2630,7 +2631,7 @@ const DECLINE_PROBES: Readonly<Record<string, DeclineProbe>> = Object.freeze({
         ? mod.admitAndAppend(REBIND_TASK, successor, REBIND_BODY, originRoot, repoRoot).id
         : mod.appendNote(REBIND_TASK, successor, REBIND_BODY, originRoot, undefined, repoRoot);
       expect(wrote, "PREMISE: the superseding note did not write, so the origin note is still live").toBeTruthy();
-      const destRoot = freshTmp("ctx-io-decline-superseded-dest-");
+      const destRoot = livenessContextStore("ctx-io-decline-superseded-dest-");
       return {
         destRoot,
         run: () =>
@@ -2642,7 +2643,7 @@ const DECLINE_PROBES: Readonly<Record<string, DeclineProbe>> = Object.freeze({
     drive: () => {
       const repoRoot = activeDialRoot();
       const { originRoot, id } = seedAdmittedOrigin(repoRoot, "ctx-io-decline-field-origin-");
-      const destRoot = freshTmp("ctx-io-decline-field-dest-");
+      const destRoot = livenessContextStore("ctx-io-decline-field-dest-");
       return {
         destRoot,
         run: () =>
@@ -2667,7 +2668,7 @@ const DECLINE_PROBES: Readonly<Record<string, DeclineProbe>> = Object.freeze({
       // the origin note is real, live and byte-equal — so this probe reaches the dial and nothing else.
       const repoRoot = freshTmp("ctx-io-decline-nongated-repo-");
       const { originRoot, id } = seedAdmittedOrigin(repoRoot, "ctx-io-decline-nongated-origin-");
-      const destRoot = freshTmp("ctx-io-decline-nongated-dest-");
+      const destRoot = livenessContextStore("ctx-io-decline-nongated-dest-");
       return {
         destRoot,
         run: () =>
@@ -2685,7 +2686,7 @@ const DECLINE_PROBES: Readonly<Record<string, DeclineProbe>> = Object.freeze({
       const lean = freshTmp("ctx-io-decline-untrusted-lean-");
       const id = mod.appendNote(REBIND_TASK, disposedFinding(), REBIND_BODY, forged, undefined, lean);
       expect(id, "PREMISE: the forged origin seed did not write").toBeTruthy();
-      const destRoot = freshTmp("ctx-io-decline-untrusted-dest-");
+      const destRoot = livenessContextStore("ctx-io-decline-untrusted-dest-");
       return {
         destRoot,
         run: () =>
@@ -2697,7 +2698,7 @@ const DECLINE_PROBES: Readonly<Record<string, DeclineProbe>> = Object.freeze({
     drive: () => {
       const repoRoot = activeDialRoot();
       const { originRoot, id } = seedAdmittedOrigin(repoRoot, "ctx-io-decline-occupied-origin-");
-      const destRoot = freshTmp("ctx-io-decline-occupied-dest-");
+      const destRoot = livenessContextStore("ctx-io-decline-occupied-dest-");
       // A DIFFERENT note ALREADY LIVING at the destination under the SAME id — the round-4
       // verifier's staging, minus the forgery, because destroying an admitted note needs none. The
       // promoted note still matches the ORIGIN exactly, so every earlier clause holds and this probe
@@ -2708,6 +2709,31 @@ const DECLINE_PROBES: Readonly<Record<string, DeclineProbe>> = Object.freeze({
         destRoot,
         run: () =>
           mod.promoteAdmitted(REBIND_TASK, id, disposedFinding(), REBIND_BODY, originRoot, destRoot, repoRoot),
+      };
+    },
+  },
+  "destination-outside-governed-store": {
+    drive: () => {
+      // The destination is an ORDINARY directory: no recognised store shape, so no repository owns
+      // it and the audit trail that would record this promotion cannot be named (31-29, CR-20).
+      // Every earlier clause holds — the origin note is real, live and byte-equal, the dial gates
+      // and is readable — so this probe reaches the destination binding and nothing else.
+      const repoRoot = activeDialRoot();
+      const { originRoot, id } = seedAdmittedOrigin(repoRoot, "ctx-io-decline-ungoverned-origin-");
+      const destRoot = join(freshTmp("ctx-io-decline-ungoverned-dest-"), "notes-here");
+      mkdirSync(destRoot, { recursive: true });
+      return {
+        destRoot,
+        run: () =>
+          mod.promoteAdmitted(
+            REBIND_TASK,
+            id,
+            disposedFinding(),
+            REBIND_BODY,
+            originRoot,
+            destRoot,
+            repoRoot,
+          ),
       };
     },
   },
@@ -2725,10 +2751,16 @@ const DECLINE_PROBES: Readonly<Record<string, DeclineProbe>> = Object.freeze({
       // The origin seed already admitted under `retained`, so a REGULAR ledger is sitting there.
       // Replace it, so the position is occupied by something the reader must refuse rather than
       // merely absent — "absent" is a different, legitimate case that returns false and proceeds.
-      const ledger = join(repoRoot, ".grugops", "audit", "admissions.jsonl");
+      const destRoot = livenessContextStore("ctx-io-decline-ledger-dest-");
+      // AT THE DESTINATION'S OWN ROOT (31-29, CR-20 / D-31). This probe planted the unreadable
+      // ledger under `repoRoot` until round 6 measured that the two halves of a promotion named two
+      // different repositories. The route now looks in the ledger of the repository the DESTINATION
+      // resolves to, so that is the position this probe must occupy — planting it at `repoRoot`
+      // would leave the route reading a perfectly readable ledger and never reaching this clause.
+      const destLedgerRoot = dirname(dirname(destRoot));
+      const ledger = join(destLedgerRoot, ".grugops", "audit", "admissions.jsonl");
       rmSync(ledger, { force: true });
       mkdirSync(ledger, { recursive: true });
-      const destRoot = freshTmp("ctx-io-decline-ledger-dest-");
       return {
         destRoot,
         run: () =>
@@ -2740,7 +2772,7 @@ const DECLINE_PROBES: Readonly<Record<string, DeclineProbe>> = Object.freeze({
     drive: () => {
       const repoRoot = activeDialRoot();
       const { originRoot, id } = seedAdmittedOrigin(repoRoot, "ctx-io-decline-body-origin-");
-      const destRoot = freshTmp("ctx-io-decline-body-dest-");
+      const destRoot = livenessContextStore("ctx-io-decline-body-dest-");
       return {
         destRoot,
         run: () =>
@@ -2846,7 +2878,7 @@ describe("31-14 — every derived decline clause is reached by a probe, and writ
     // the legitimate input is driven too — the probe the round that created CR-08 never ran.
     const repoRoot = activeDialRoot();
     const { originRoot, id } = seedAdmittedOrigin(repoRoot, "ctx-io-decline-converse-origin-");
-    const destRoot = freshTmp("ctx-io-decline-converse-dest-");
+    const destRoot = livenessContextStore("ctx-io-decline-converse-dest-");
     const promoted = mod.promoteAdmitted(
       REBIND_TASK,
       id,
@@ -3957,6 +3989,7 @@ const EXPECTED_DECLINE_ORDER: readonly string[] = Object.freeze([
   "empty-source-id",
   "unreadable-governance-config",
   "origin-outside-trusted-store",
+  "destination-outside-governed-store",
   "human-stamp-not-gated-at-destination",
   "no-such-origin-note",
   "origin-note-not-live",
@@ -3967,7 +4000,7 @@ const EXPECTED_DECLINE_ORDER: readonly string[] = Object.freeze([
 ]);
 
 /** The LENGTH, asserted separately: a REORDERED sequence and a RESIZED one are different events. */
-const EXPECTED_DECLINE_ORDER_LENGTH = 10;
+const EXPECTED_DECLINE_ORDER_LENGTH = 11;
 
 describe("31-22 — the decline clause ORDER is derived from the route's body, not left to reading order", () => {
   it("PREMISE: the derivation found the route, its body, and at least one decline call", () => {
@@ -4263,7 +4296,11 @@ const EXPECTED_RESOLUTION_SURFACE: Readonly<Record<string, readonly string[]>> =
     "scripts/context-io.ts::promoteAdmitted",
   ]),
   projectRootFromWorkingDirectory: Object.freeze([
-    "scripts/context-io.ts::originStoreIsRootAnchored",
+    // 31-29 (CR-20 / D-31): the anchoring computation was FACTORED OUT of
+    // `originStoreIsRootAnchored` into `governanceRootOf`, so ONE authority answers "which
+    // repository owns this store" for the origin end and the destination end alike. The caller
+    // MOVED rather than multiplied — the count is still two — and this axis is what says so.
+    "scripts/context-io.ts::governanceRootOf",
     "scripts/context-io.ts::trustedRepoRoot",
   ]),
   homeBoundary: Object.freeze(["scripts/context-io.ts::projectRootFromWorkingDirectory"]),

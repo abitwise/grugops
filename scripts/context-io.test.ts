@@ -5619,6 +5619,10 @@ describe("31-14 — CR-08: a note a human already disposed promotes unchanged", 
   function contextStore(prefix: string): string {
     // 31-22 (CR-16 / D-25): the origin rule is SHAPE conjoined with ROOT ANCHORING, so a store
     // fixture must sit under a directory the module's own walk answers as a governance root.
+    // 31-29 (CR-20 / D-31): the DESTINATION is now bound by the same conjunction, because the root
+    // derived from it is what keys BOTH the note write and the GOV-02 ledger event. A bare temp
+    // directory was a legitimate destination before D-31 and is a named decline after it, so the
+    // promotion fixtures below stage their destinations through this same helper.
     const storeRoot = freshTmp(prefix);
     mkdirSync(join(storeRoot, ".git"), { recursive: true });
     const store = join(storeRoot, ".grugops", "context");
@@ -5699,7 +5703,7 @@ describe("31-14 — CR-08: a note a human already disposed promotes unchanged", 
   it("GREEN 1: the identical note promotes through the proof-gated route and is BYTE-IDENTICAL at the destination", () => {
     const repoRoot = projectWith({ human_admission: "high-severity", audit_retention: "retained" });
     const originRoot = contextStore("p31-14-origin-");
-    const destRoot = freshTmp("p31-14-dest-");
+    const destRoot = contextStore("p31-14-dest-");
     const note = humanDisposedFinding();
 
     const originId = writeOrigin(note, repoRoot, originRoot);
@@ -5757,7 +5761,7 @@ describe("31-14 — CR-08: a note a human already disposed promotes unchanged", 
     it(`GREEN 2 — the two routes agree under ${dialCase.label}`, () => {
       const repoRoot = projectWith(dialCase.context);
       const originRoot = contextStore("p31-14-dial-origin-");
-      const destRoot = freshTmp("p31-14-dial-dest-");
+      const destRoot = contextStore("p31-14-dial-dest-");
       const note = humanDisposedFinding();
       const gated = mod.isGatedNote(note.by, note.kind, mod.readGovernanceConfig(repoRoot));
       const originId = writeOrigin(note, repoRoot, originRoot);
@@ -5925,7 +5929,7 @@ describe("31-14 — CR-08: a note a human already disposed promotes unchanged", 
     mkdirSync(join(repoRoot, ".grugops"), { recursive: true });
     writeFileSync(join(repoRoot, ".grugops", "factory.config.json"), "{ not valid json ]]]");
     const originRoot = contextStore("p31-14-unreadable-origin-");
-    const destRoot = freshTmp("p31-14-unreadable-dest-");
+    const destRoot = contextStore("p31-14-unreadable-dest-");
     // The origin note is seeded through a READABLE root, so the only thing the destination read can
     // decide is the promotion.
     const goodRoot = projectWith({ human_admission: "high-severity", audit_retention: "git" });
@@ -5943,7 +5947,7 @@ describe("31-14 — CR-08: a note a human already disposed promotes unchanged", 
   it("D-19 ledger: under audit_retention retained, the promotion appends NO second admission event", () => {
     const repoRoot = projectWith({ human_admission: "high-severity", audit_retention: "retained" });
     const originRoot = contextStore("p31-14-ledger-origin-");
-    const destRoot = freshTmp("p31-14-ledger-dest-");
+    const destRoot = contextStore("p31-14-ledger-dest-");
     const ledger = join(repoRoot, ".grugops", "audit", "admissions.jsonl");
     const note = humanDisposedFinding();
     const originId = writeOrigin(note, repoRoot, originRoot);
@@ -5964,7 +5968,7 @@ describe("31-14 — CR-08: a note a human already disposed promotes unchanged", 
   it("NO BOARD MOVE: the promotion writes ONE note and nothing else at the destination", () => {
     const repoRoot = projectWith({ human_admission: "high-severity", audit_retention: "retained" });
     const originRoot = contextStore("p31-14-board-origin-");
-    const destRoot = freshTmp("p31-14-board-dest-");
+    const destRoot = contextStore("p31-14-board-dest-");
     const note = humanDisposedFinding();
     const originId = writeOrigin(note, repoRoot, originRoot);
     mod.promoteAdmitted(CR08_TASK, originId, note, CR08_BODY, originRoot, destRoot, repoRoot);
@@ -8936,6 +8940,23 @@ describe("31-18 — WR-18: the dial's value decides, through the one gated autho
     return store;
   }
 
+  /**
+   * The context store INSIDE a given governance root (31-29, CR-20 / D-31).
+   *
+   * WHY THE LEDGER CASES BELOW NEEDED THIS. They used to stage the destination store under a root
+   * of its own and pass a SEPARATE `repoRoot`, because the note keyed on `to` and the ledger keyed
+   * on `repoRoot` — which is the split CR-20 measured. Once both halves key on the root DERIVED
+   * from `to`, a case that inspects a ledger must put the destination store in the repository whose
+   * ledger it inspects, or it is asserting about a trail the promotion never touched. Test 6a in
+   * particular would otherwise have kept PASSING for the wrong reason: it asserts "nothing was
+   * appended" against a ledger the route had stopped writing to at all.
+   */
+  function storeIn(root: string): string {
+    const store = join(root, ".grugops", "context");
+    mkdirSync(store, { recursive: true });
+    return store;
+  }
+
   function disposed(
     over: Partial<Parameters<typeof mod.appendNote>[1]> = {},
   ): Parameters<typeof mod.appendNote>[1] {
@@ -9094,7 +9115,8 @@ describe("31-18 — WR-18: the dial's value decides, through the one gated autho
   it("Test 6a: when the ledger ALREADY records the id, the promotion appends nothing (D-19 (4) intact)", () => {
     const repoRoot = projectWith({ human_admission: "high-severity", audit_retention: "retained" });
     const origin = contextStore("p31-18-wr18-ledger-a-origin-");
-    const dest = contextStore("p31-18-wr18-ledger-a-dest-");
+    // The destination store lives IN the repository whose ledger this case inspects (D-31).
+    const dest = storeIn(repoRoot);
     const ledger = join(repoRoot, ".grugops", "audit", "admissions.jsonl");
     const id = seed(origin, repoRoot);
     const afterOrigin = readFileSync(ledger, "utf8").trim().split("\n").filter((l) => l.length > 0);
@@ -9113,7 +9135,9 @@ describe("31-18 — WR-18: the dial's value decides, through the one gated autho
     const originRepo = projectWith({ human_admission: "high-severity", audit_retention: "retained" });
     const destRepo = projectWith({ human_admission: "high-severity", audit_retention: "retained" });
     const origin = contextStore("p31-18-wr18-ledger-b-origin-");
-    const dest = contextStore("p31-18-wr18-ledger-b-dest-");
+    // The destination store lives IN the destination repository (D-31), which is what makes this
+    // case's own name — "the DESTINATION repository's ledger" — true of what it measures.
+    const dest = storeIn(destRepo);
     const id = seed(origin, originRepo);
     const destLedger = join(destRepo, ".grugops", "audit", "admissions.jsonl");
     expect(existsSync(destLedger), "PREMISE: the destination repository's ledger already exists").toBe(false);
@@ -9261,6 +9285,12 @@ describe("31-21 — CR-12: a non-regular file at a read position is refused in b
         "    // configuration — or this driver measures the origin clause instead of the ledger one.",
         '    mkdirSync(join(base, "originproj", ".git"), { recursive: true });',
         '    writeFileSync(join(base, "originproj", ".grugops", "factory.config.json"), "{}");',
+        "    // 31-29 (CR-20 / D-31): the DESTINATION is bound by the same conjunction, and the root",
+        "    // derived from it is the one whose GOV-02 ledger this route looks in and appends to. So",
+        "    // the fixture's destination project must BE a governance root too, and the unreadable",
+        "    // ledger this case plants belongs at ITS audit path rather than at `strict`'s.",
+        '    mkdirSync(join(base, "destproj", ".git"), { recursive: true });',
+        '    writeFileSync(join(base, "destproj", ".grugops", "factory.config.json"), "{}");',
         '    const originId = io.appendNote(TASK, disposed, "the disposed body", origin, undefined, lean);',
         "    out.extra = originId;",
         '    out.message = io.promoteAdmitted(TASK, originId, disposed, "the disposed body", origin, dest, strict);',
@@ -9403,7 +9433,8 @@ describe("31-21 — CR-12: a non-regular file at a read position is refused in b
 
   it("GREEN 2: a FIFO at the GOV-02 ledger path DECLINES the promotion, and NO note is written", () => {
     const base = freshTmp("p31-21-fifo-ledger-");
-    const audit = join(base, "strict", ".grugops", "audit");
+    // AT THE DESTINATION'S OWN ROOT (31-29, CR-20 / D-31) — the ledger the derived root names.
+    const audit = join(base, "destproj", ".grugops", "audit");
     mkdirSync(audit, { recursive: true });
     mkfifoAt(join(audit, "admissions.jsonl"));
     const r = drive("promote", base);
@@ -10468,7 +10499,17 @@ describe("31-22 — CR-16: the origin is recognised by SHAPE conjoined with ROOT
     ).toContain("DECLINED (origin-outside-trusted-store)");
   });
 
-  it("R-31-22-02: the DESTINATION axis is a NAMED residual, and the five shapes are driven", () => {
+  it("R-31-22-02 (CLOSED by 31-29, D-31): the five destination shapes, RE-DECIDED", () => {
+    // ── THE DISPOSITION THIS CASE RECORDS WAS REVERSED, AND THE REVERSAL IS THE POINT. ──────────
+    //
+    // Until 31-29 this case asserted that FOUR of these five shapes WRITE, on the published
+    // reasoning that `to` is not a proof OPERAND — nothing at the destination is evidence for the
+    // promotion. That reasoning was correct about EVIDENCE and silent about IDENTITY, and round 6
+    // exploited the gap: the destination still decides WHICH REPOSITORY'S AUDIT TRAIL records the
+    // promotion, and that question had a second answer (`repoRoot`) which nothing reconciled. With
+    // three real governance roots the note landed in one repository and its GOV-02 event in
+    // another. So `to` is now constrained by the SAME canonical form the origin must meet, and
+    // only the governed store promotes.
     const proj = governanceRoot("p31-22-dest-axis-");
     const origin = storeUnder(proj);
     const id = seedBytes(origin);
@@ -10489,17 +10530,35 @@ describe("31-22 — CR-16: the origin is recognised by SHAPE conjoined with ROOT
 
     const fileDest = join(freshTmp("p31-22-dax-file-"), "occupied");
     writeFileSync(fileDest, "not a directory\n");
-    results["path occupied by a regular file"] =
-      promote(origin, fileDest, id, proj).threw === null ? "PROMOTED" : "THREW";
+    results["path occupied by a regular file"] = promote(origin, fileDest, id, proj).threw ?? "PROMOTED";
 
-    // The DECIDED answer: four of the five WRITE, because `to` is not a proof operand — nothing at
-    // the destination is evidence for anything. That is the residual, named and published.
+    // ONE of the five writes. The other four are the NAMED decline, raised before anything is
+    // written — never a promotion whose audit record lands in a repository nobody named.
     expect(results["recognised store"]).toBe("PROMOTED");
-    expect(results["ordinary inside repo"]).toBe("PROMOTED");
-    expect(results["ordinary outside repo"]).toBe("PROMOTED");
-    expect(results["path that does not exist"]).toBe("PROMOTED");
-    expect(results["path occupied by a regular file"]).toBe("THREW");
-    expect(mod.PROMOTE_ADMITTED_RESIDUALS.join("\n")).toContain("R-31-22-02");
+    for (const shape of [
+      "ordinary inside repo",
+      "ordinary outside repo",
+      "path that does not exist",
+      "path occupied by a regular file",
+    ]) {
+      expect(results[shape], `${shape} was not refused by name`).toContain(
+        "DECLINED (destination-outside-governed-store)",
+      );
+    }
+    // …and nothing was written at any of them.
+    expect(existsSync(join(inRepo, TASK))).toBe(false);
+    expect(readdirSync(outside)).toEqual([]);
+    expect(existsSync(missing)).toBe(false);
+    expect(readFileSync(fileDest, "utf8")).toBe("not a directory\n");
+
+    // The residual keeps its ID and states what it now constrains and what it still does not.
+    const residual = mod.PROMOTE_ADMITTED_RESIDUALS.find((r) => r.startsWith("R-31-22-02"));
+    expect(residual, "R-31-22-02 left the register").toBeDefined();
+    expect(residual).toContain("REWRITTEN by plan 31-29");
+    expect(residual, "the rewrite does not say what remains open").toContain(
+      "WHAT IT STILL DOES NOT ESTABLISH",
+    );
+    expect(residual).toContain("IDENTITY half is CLOSED");
   });
 
   it("R-31-22-01: an unconfigured cross-repository store is refused, and the cost is a NAMED residual", () => {
@@ -10672,8 +10731,18 @@ describe("31-22 — CR-16: the origin is recognised by SHAPE conjoined with ROOT
     expect(workflow).toContain(
       "Such a root is a version-control marker, a governance configuration and the store directory.",
     );
+    // CORRECTED by 31-29 (WR-28). The two-way split hid a THIRD position: inside a repository that
+    // carries a version-control marker and NO governance configuration the price is TWO, not three,
+    // because the enclosing boundary carries no configuration and the walk answers `nearest` with
+    // the forged marker ABSENT. The variable is the ENCLOSING repository's configuration, not the
+    // fact of being inside one, so the price is stated per position rather than as one number.
     expect(workflow).toContain(
-      "The cost is three filesystem operations inside this repository, and two outside every repository.",
+      "The cost is stated per position, because the enclosing repository's configuration is what varies.",
+    );
+    expect(workflow).toContain(
+      "It is three filesystem operations inside a repository that carries a governance " +
+        "configuration, two inside a repository that carries a version-control marker and no " +
+        "configuration, and two outside every repository.",
     );
     expect(workflow).toContain("The residual `T-31-18-01` names that construction");
 
@@ -11700,6 +11769,430 @@ describe("31-29 — the ceiling-site axis is a control, not a coincidence", () =
     expect(derived.map(siteKey)).not.toContain("writeNoteFile:comparison:NOTE_FILE_MAX_BYTES");
     expect(derived.filter((s) => s.text === "NOTE_FILE_MAX_BYTES")).toHaveLength(
       EXPECTED_NOTE_CEILING_SITES - 1,
+    );
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// PLAN 31-29 — CR-20: TWO HALVES OF ONE ACTION ARE KEYED ON ONE VARIABLE.
+//
+// WHAT WAS WRONG, MEASURED AGAINST THE COMMITTED `.js` WITH THREE REAL GOVERNANCE ROOTS. The note
+// write was keyed on the caller's `to`; the GOV-02 ledger event was keyed on `repoRoot`, which
+// defaults to the process's own root. Nothing reconciled them. A legitimately human-disposed
+// finding, admitted at the origin and promoted with `from = origin, to = third, repoRoot = dest`:
+//
+//   | repository | notes present | ledger lines |
+//   | origin     | the note      | 0            |
+//   | third      | THE NOTE      | 0            |
+//   | dest       | (none)        | 1            |
+//
+// The finding landed in THIRD's note store and its audit record in DEST's ledger — while
+// `agent-factory/workflows/18-context-compaction.md` stated, in the paragraph rewritten the round
+// before, that "a re-binding first looks in the destination repository's ledger" and that "the
+// destination never holds a human-disposed finding with no ledger line". Both measured FALSE.
+//
+// THE PROPERTY THESE CASES BIND. The owning repository is DERIVED from the destination store,
+// once, through `governanceRootOf`, and BOTH halves key on that one answer. A destination outside a
+// governed store is a NAMED decline before anything is written — never a promotion whose audit
+// record lands elsewhere, and never a promotion with no audit record at all.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+describe("31-29 — CR-20: a promotion's note and its GOV-02 event name ONE repository", () => {
+  const TASK = "T-1";
+  const BODY = "the disposed body";
+
+  function disposed(): Parameters<typeof mod.appendNote>[1] {
+    return {
+      kind: "finding",
+      by: "security-nfr",
+      at: "2026-09-09T02:00:00Z",
+      verified_by: "human:mallory",
+      confidence: "high",
+      refs: ["REQ-SEC-01"],
+      supersedes: null,
+    } as Parameters<typeof mod.appendNote>[1];
+  }
+
+  /** A REAL governance root: a version-control marker and a governance configuration. */
+  function govRoot(prefix: string, opts: { marker?: boolean; config?: boolean } = {}): string {
+    const { marker = true, config = true } = opts;
+    const dir = freshTmp(prefix);
+    if (marker) mkdirSync(join(dir, ".git"), { recursive: true });
+    if (config) {
+      mkdirSync(join(dir, ".grugops"), { recursive: true });
+      writeFileSync(
+        join(dir, ".grugops", "factory.config.json"),
+        JSON.stringify({ context: { human_admission: "high-severity", audit_retention: "retained" } }),
+      );
+    }
+    return dir;
+  }
+  function storeUnder(root: string): string {
+    const store = join(root, ".grugops", "context");
+    mkdirSync(store, { recursive: true });
+    return store;
+  }
+  function noteFiles(store: string): string[] {
+    const dir = join(store, TASK, "notes");
+    return existsSync(dir) ? readdirSync(dir).sort() : [];
+  }
+  function ledgerLines(root: string): number {
+    const p = join(root, ".grugops", "audit", "admissions.jsonl");
+    return existsSync(p)
+      ? readFileSync(p, "utf8").split("\n").filter((l) => l.trim() !== "").length
+      : 0;
+  }
+  /** Human-disposed bytes obtained the ORDINARY way, under a SEPARATE lean root. */
+  function seedOrigin(store: string): string {
+    const lean = freshTmp("p31-29-lean-");
+    mkdirSync(join(lean, ".grugops"), { recursive: true });
+    const id = mod.appendNote(TASK, disposed(), BODY, store, undefined, lean);
+    expect(id, "PREMISE: the origin seed did not write, so nothing below measures a promotion").toBeTruthy();
+    return id;
+  }
+
+  it("GREEN 1+3: with `to` and `repoRoot` under DIFFERENT roots, BOTH halves follow `to`", () => {
+    const origin = govRoot("p31-29-origin-");
+    const third = govRoot("p31-29-third-");
+    const dest = govRoot("p31-29-dest-");
+    const originStore = storeUnder(origin);
+    const thirdStore = storeUnder(third);
+    storeUnder(dest);
+    const id = seedOrigin(originStore);
+
+    // `repoRoot` is deliberately a DIFFERENT root from the one `to` resolves to. Pre-fix this split
+    // the action in half; the audit record must now follow the DESTINATION.
+    expect(mod.promoteAdmitted(TASK, id, disposed(), BODY, originStore, thirdStore, dest)).toBe(id);
+
+    expect(noteFiles(thirdStore), "the note did not land in the destination").toEqual([`${id}.md`]);
+    expect(
+      ledgerLines(third),
+      "the destination repository holds the note and NO ledger line — the repudiation CR-20 measured",
+    ).toBe(1);
+    expect(
+      ledgerLines(dest),
+      "`repoRoot` still decided where the audit record landed — the two halves still name two repositories",
+    ).toBe(0);
+    expect(noteFiles(storeUnder(dest))).toEqual([]);
+    expect(ledgerLines(origin), "the origin's ledger moved").toBe(0);
+  });
+
+  it("GREEN 2: a `to` under NO governed root DECLINES by name, with nothing written anywhere", () => {
+    const origin = govRoot("p31-29-g2-origin-");
+    const originStore = storeUnder(origin);
+    const id = seedOrigin(originStore);
+    // An ordinary directory: the recognised SHAPE is absent, so no repository owns it.
+    const ungoverned = join(freshTmp("p31-29-ungoverned-"), "notes-here");
+    mkdirSync(ungoverned, { recursive: true });
+    const repoRoot = govRoot("p31-29-g2-repo-");
+    storeUnder(repoRoot);
+    const before = { origin: ledgerLines(origin), repo: ledgerLines(repoRoot) };
+
+    let message = "";
+    try {
+      mod.promoteAdmitted(TASK, id, disposed(), BODY, originStore, ungoverned, repoRoot);
+      expect.unreachable("a destination outside every governed store was promoted into");
+    } catch (e) {
+      message = (e as Error).message;
+    }
+    expect(message).toContain("destination-outside-governed-store");
+    expect(message).toContain("Nothing was written");
+    // The destination directory listing, quoted EMPTY.
+    expect(readdirSync(ungoverned)).toEqual([]);
+    // …and the ledger delta is zero in EVERY candidate repository, not just the one we expected.
+    expect(ledgerLines(origin) - before.origin).toBe(0);
+    expect(ledgerLines(repoRoot) - before.repo).toBe(0);
+  });
+
+  it("a store SHAPE under no governance root is refused too — the conjunction, not half of it", () => {
+    // The converse of the case above: the recognised `.grugops/context` shape IS present, but the
+    // directory it sits under is not a governance root. Shape alone is a `mkdir -p`.
+    const origin = govRoot("p31-29-g2b-origin-");
+    const originStore = storeUnder(origin);
+    const id = seedOrigin(originStore);
+    const bare = freshTmp("p31-29-bare-"); // no marker, no configuration
+    const shapedButUnanchored = join(bare, ".grugops", "context");
+    mkdirSync(shapedButUnanchored, { recursive: true });
+    const repoRoot = govRoot("p31-29-g2b-repo-");
+    expect(() =>
+      mod.promoteAdmitted(TASK, id, disposed(), BODY, originStore, shapedButUnanchored, repoRoot),
+    ).toThrow(/destination-outside-governed-store/);
+    expect(readdirSync(shapedButUnanchored)).toEqual([]);
+  });
+
+  it("`repoRoot` no longer appears in the ledger path composition — derived from the AST", () => {
+    // Asserted on the SOURCE rather than by reading it, because "the argument is gone" is exactly
+    // the kind of claim that survives a refactor as a comment while the call quietly comes back.
+    const sf = ts.createSourceFile(
+      "context-io.ts",
+      readFileSync(CONTEXT_IO_TS, "utf8"),
+      ts.ScriptTarget.Latest,
+      true,
+    );
+    let promote: ts.FunctionDeclaration | undefined;
+    const find = (n: ts.Node): void => {
+      if (ts.isFunctionDeclaration(n) && n.name?.text === "promoteAdmitted") promote = n;
+      ts.forEachChild(n, find);
+    };
+    ts.forEachChild(sf, find);
+    expect(promote, "PREMISE: promoteAdmitted was not found, so nothing below measured it").toBeDefined();
+
+    const ledgerArgs: string[] = [];
+    const walk = (n: ts.Node): void => {
+      if (ts.isCallExpression(n) && ts.isIdentifier(n.expression)) {
+        if (n.expression.text === "ledgerRecordsId" || n.expression.text === "appendAuditLedger") {
+          ledgerArgs.push(`${n.expression.text}(${n.arguments[0]?.getText(sf) ?? ""})`);
+        }
+      }
+      ts.forEachChild(n, walk);
+    };
+    walk((promote as ts.FunctionDeclaration).body as ts.Node);
+    expect(
+      ledgerArgs.length,
+      "PREMISE: neither ledger call was found inside promoteAdmitted",
+    ).toBe(2);
+    expect(ledgerArgs.sort()).toEqual([
+      "appendAuditLedger(destinationRoot)",
+      "ledgerRecordsId(destinationRoot)",
+    ]);
+  });
+
+  it("governanceRootOf is the ONE authority, and it answers for BOTH ends", () => {
+    const root = govRoot("p31-29-auth-");
+    const store = storeUnder(root);
+    expect(mod.governanceRootOf(store)).toBe(resolve(root));
+    // The three ways to not be a governed store, each answering null rather than throwing.
+    expect(mod.governanceRootOf("")).toBeNull();
+    expect(mod.governanceRootOf(join(root, "ordinary"))).toBeNull();
+    const bare = freshTmp("p31-29-auth-bare-");
+    const shaped = join(bare, ".grugops", "context");
+    mkdirSync(shaped, { recursive: true });
+    expect(mod.governanceRootOf(shaped)).toBeNull();
+  });
+
+  it("CONTROL 1 (CR-16 unmoved): an ordinary in-repository ORIGIN still declines, destination empty", () => {
+    const proj = govRoot("p31-29-c1-proj-");
+    const scratch = govRoot("p31-29-c1-scratch-");
+    const originStore = storeUnder(scratch);
+    const id = seedOrigin(originStore);
+    const forged = join(proj, "tmp", "forged");
+    mkdirSync(join(forged, TASK, "notes"), { recursive: true });
+    writeFileSync(
+      join(forged, TASK, "notes", `${id}.md`),
+      readFileSync(join(originStore, TASK, "notes", `${id}.md`)),
+    );
+    const destRoot = govRoot("p31-29-c1-dest-");
+    const dest = storeUnder(destRoot);
+    expect(() =>
+      mod.promoteAdmitted(TASK, id, disposed(), BODY, forged, dest, destRoot),
+    ).toThrow(/origin-outside-trusted-store/);
+    expect(noteFiles(dest)).toEqual([]);
+  });
+
+  it("CONTROL 2 (CR-11 unmoved): an OCCUPIED destination id declines, destination byte-unchanged", () => {
+    const origin = govRoot("p31-29-c2-origin-");
+    const originStore = storeUnder(origin);
+    const id = seedOrigin(originStore);
+    const destRoot = govRoot("p31-29-c2-dest-");
+    const dest = storeUnder(destRoot);
+    mkdirSync(join(dest, TASK, "notes"), { recursive: true });
+    // The occupant must PARSE and carry the SAME id, or `readRawNotes` names it something else and
+    // the route never reaches its own clause — it falls through to the chokepoint's append-only
+    // refusal instead. That is defence in depth working, but it is not what this control measures.
+    const occupant =
+      `---\nid: ${id}\nkind: observation\nby: qe\nat: 2026-09-09T01:00:00Z\n` +
+      `verified_by: \nconfidence: high\nrefs:\nsupersedes: \n---\n\nnot the promoted note\n`;
+    writeFileSync(join(dest, TASK, "notes", `${id}.md`), occupant);
+    expect(() =>
+      mod.promoteAdmitted(TASK, id, disposed(), BODY, originStore, dest, destRoot),
+    ).toThrow(/destination-id-occupied/);
+    expect(readFileSync(join(dest, TASK, "notes", `${id}.md`), "utf8")).toBe(occupant);
+  });
+
+  it("CONTROL 3 (CR-08 unmoved): the legitimate promotion still writes, `to` and the root agreeing", () => {
+    const origin = govRoot("p31-29-c3-origin-");
+    const originStore = storeUnder(origin);
+    const id = seedOrigin(originStore);
+    const destRoot = govRoot("p31-29-c3-dest-");
+    const dest = storeUnder(destRoot);
+    expect(mod.promoteAdmitted(TASK, id, disposed(), BODY, originStore, dest, destRoot)).toBe(id);
+    expect(noteFiles(dest)).toEqual([`${id}.md`]);
+    expect(ledgerLines(destRoot)).toBe(1);
+    expect(mod.governanceRootOf(dest)).toBe(resolve(destRoot));
+  });
+
+  it("CONTROL 4 (WR-22 fail-closed unmoved): an UNREADABLE destination ledger declines, nothing written", () => {
+    const origin = govRoot("p31-29-c4-origin-");
+    const originStore = storeUnder(origin);
+    const id = seedOrigin(originStore);
+    const destRoot = govRoot("p31-29-c4-dest-");
+    const dest = storeUnder(destRoot);
+    // A FIFO at the DESTINATION's ledger path — the ledger the derived root now names.
+    mkdirSync(join(destRoot, ".grugops", "audit"), { recursive: true });
+    execFileSync("mkfifo", [join(destRoot, ".grugops", "audit", "admissions.jsonl")]);
+    expect(() =>
+      mod.promoteAdmitted(TASK, id, disposed(), BODY, originStore, dest, destRoot),
+    ).toThrow(/unreadable-audit-ledger/);
+    expect(noteFiles(dest)).toEqual([]);
+    rmSync(join(destRoot, ".grugops", "audit", "admissions.jsonl"), { force: true });
+  });
+});
+
+describe("31-29 — WR-28: the forged-origin price is measured PER POSITION, and the three agree", () => {
+  const TASK = "T-1";
+  const BODY = "the disposed body";
+  function disposed(): Parameters<typeof mod.appendNote>[1] {
+    return {
+      kind: "finding",
+      by: "security-nfr",
+      at: "2026-09-09T02:00:00Z",
+      verified_by: "human:mallory",
+      confidence: "high",
+      refs: ["REQ-SEC-01"],
+      supersedes: null,
+    } as Parameters<typeof mod.appendNote>[1];
+  }
+  function configured(dir: string): void {
+    mkdirSync(join(dir, ".grugops"), { recursive: true });
+    writeFileSync(
+      join(dir, ".grugops", "factory.config.json"),
+      JSON.stringify({ context: { human_admission: "high-severity", audit_retention: "retained" } }),
+    );
+  }
+
+  /** Build a forged origin from a chosen SUBSET of the three constructions, and count them. */
+  function forge(
+    base: string,
+    opts: { marker: boolean; config: boolean },
+    bytes: Buffer,
+    id: string,
+  ): { store: string; ops: number } {
+    const f = join(base, `forged-${Math.random().toString(36).slice(2, 10)}`);
+    mkdirSync(f, { recursive: true });
+    let ops = 0;
+    if (opts.marker) {
+      mkdirSync(join(f, ".git"), { recursive: true });
+      ops++;
+    }
+    if (opts.config) {
+      configured(f);
+      ops++;
+    }
+    const store = join(f, ".grugops", "context");
+    mkdirSync(join(store, TASK, "notes"), { recursive: true });
+    writeFileSync(join(store, TASK, "notes", `${id}.md`), bytes);
+    ops++;
+    return { store, ops };
+  }
+
+  function accepted(originStore: string, id: string): boolean {
+    const destRoot = freshTmp("p31-29-wr28-dest-");
+    mkdirSync(join(destRoot, ".git"), { recursive: true });
+    configured(destRoot);
+    const dest = join(destRoot, ".grugops", "context");
+    mkdirSync(dest, { recursive: true });
+    try {
+      mod.promoteAdmitted(TASK, id, disposed(), BODY, originStore, dest, destRoot);
+      return true;
+    } catch (e) {
+      expect(
+        (e as Error).message,
+        "the refusal was not the ORIGIN clause, so this row measured something else",
+      ).toContain("origin-outside-trusted-store");
+      return false;
+    }
+  }
+
+  it("three positions, three prices: CONFIGURED repo 3, UNCONFIGURED repo 2, outside 2", () => {
+    // Legitimate human-disposed bytes to forge WITH.
+    const src = freshTmp("p31-29-wr28-src-");
+    mkdirSync(join(src, ".git"), { recursive: true });
+    configured(src);
+    const srcStore = join(src, ".grugops", "context");
+    mkdirSync(srcStore, { recursive: true });
+    const lean = freshTmp("p31-29-wr28-lean-");
+    mkdirSync(join(lean, ".grugops"), { recursive: true });
+    const id = mod.appendNote(TASK, disposed(), BODY, srcStore, undefined, lean);
+    const bytes = readFileSync(join(srcStore, TASK, "notes", `${id}.md`));
+
+    // POSITION A — inside a repository carrying a marker AND a governance configuration.
+    const posA = freshTmp("p31-29-wr28-posA-");
+    mkdirSync(join(posA, ".git"), { recursive: true });
+    configured(posA);
+    // POSITION B — inside a repository carrying a marker and NO configuration. WR-28's position.
+    const posB = freshTmp("p31-29-wr28-posB-");
+    mkdirSync(join(posB, ".git"), { recursive: true });
+    // POSITION C — outside every repository.
+    const posC = freshTmp("p31-29-wr28-posC-");
+
+    /** The CHEAPEST accepted construction at a position IS its price, measured by subtraction. */
+    function priceAt(base: string): number {
+      const full = forge(base, { marker: true, config: true }, bytes, id);
+      expect(accepted(full.store, id), "the full three-op construction was refused").toBe(true);
+      const noMarker = forge(base, { marker: false, config: true }, bytes, id);
+      if (accepted(noMarker.store, id)) return noMarker.ops;
+      const noConfig = forge(base, { marker: true, config: false }, bytes, id);
+      if (accepted(noConfig.store, id)) return noConfig.ops;
+      return full.ops;
+    }
+
+    expect(priceAt(posA), "inside a CONFIGURED repository the price is three").toBe(3);
+    expect(
+      priceAt(posB),
+      "inside an UNCONFIGURED repository the price is TWO — the position WR-28 named, and the " +
+        "one the old 'three inside this repository' wording was measured false at",
+    ).toBe(2);
+    expect(priceAt(posC), "outside every repository the price is two").toBe(2);
+  });
+
+  it("the three artifacts that carry the price all state the same three numbers", () => {
+    const residual = mod.PROMOTE_ADMITTED_RESIDUALS.find((r) => r.startsWith("T-31-18-01"));
+    expect(residual, "T-31-18-01 left the register").toBeDefined();
+    const source = readFileSync(CONTEXT_IO_TS, "utf8");
+    const workflow = readFileSync(
+      join(ROOT, "agent-factory", "workflows", "18-context-compaction.md"),
+      "utf8",
+    );
+    // Each artifact must name the CONFIGURED / UNCONFIGURED distinction, not one flat number.
+    for (const [label, text] of [
+      ["T-31-18-01", residual as string],
+      ["governanceRootOf's docstring", source],
+      ["18-context-compaction.md", workflow],
+    ] as const) {
+      expect(text, `${label} does not price the CONFIGURED position`).toMatch(
+        /three[\s\S]{0,120}configuration|configuration[\s\S]{0,120}three/i,
+      );
+      expect(text, `${label} does not price the UNCONFIGURED position WR-28 named`).toMatch(
+        /no configuration|NO configuration/,
+      );
+      expect(text, `${label} does not price the OUTSIDE position`).toMatch(
+        /outside every repository/i,
+      );
+    }
+  });
+});
+
+describe("31-29 — the two workflow sentences are TRUE of the mechanism", () => {
+  const workflow = () =>
+    readFileSync(join(ROOT, "agent-factory", "workflows", "18-context-compaction.md"), "utf8");
+
+  it("the ledger sentence describes the DERIVED destination, not a separately-named repository", () => {
+    const text = workflow();
+    // The pre-fix sentence asserted a destination lookup the mechanism did not perform.
+    expect(
+      text,
+      "the workflow still claims a bare 'destination repository's ledger' lookup, which was the " +
+        "sentence CR-20 measured false",
+    ).not.toContain("A re-binding first looks in the destination repository's ledger.");
+    expect(text).toContain("derives the destination repository from the destination context store");
+    expect(text).toContain("both halves of the action key on that one answer");
+    expect(text).toContain("refused by name before anything is written");
+  });
+
+  it("the never-holds sentence names the reason the mechanism now supports", () => {
+    expect(workflow()).toContain(
+      "because both steps name the same derived repository, the destination never holds a " +
+        "human-disposed finding with no ledger line",
     );
   });
 });

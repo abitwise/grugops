@@ -2665,7 +2665,7 @@ describe("31-14 — compactor.promoteAdmitted: the proof-gated re-binding pass-t
   it("CR-08 end-to-end through the compactor: the origin write is admitted and the promotion is NOT refused", () => {
     const repoRoot = projectWith({ human_admission: "high-severity", audit_retention: "retained" });
     const originRoot = contextStore("c31-14-origin-");
-    const destRoot = freshTmp("c31-14-dest-");
+    const destRoot = contextStore("c31-14-dest-");
     const note = humanDisposedFinding();
 
     const origin = ctxio.admitAndAppend(CR08_TASK, note, CR08_BODY, originRoot, repoRoot);
@@ -2818,7 +2818,7 @@ describe("31-14 self-red-team — the legitimate input, under every dial and bot
         // The branch is decided by the module's own predicate, never by a list typed out here.
         const repoRoot = rtProject({ human_admission: dial.value, audit_retention: retention });
         const { originRoot, id } = rtSeedOrigin(repoRoot);
-        const destRoot = freshTmp("c31-14-rt-dest-");
+        const destRoot = rtContextStore("c31-14-rt-dest-");
         const gated = ctxio.isGatedNote("security-nfr", "finding", ctxio.readGovernanceConfig(repoRoot));
         if (!gated) {
           expect(() =>
@@ -2846,7 +2846,7 @@ describe("31-14 self-red-team — the legitimate input, under every dial and bot
     // under: the dial gates nothing, so a human:NAME disposition binds nothing at the destination.
     const repoRoot = rtProject(null);
     const { originRoot, id } = rtSeedOrigin(repoRoot);
-    const destRoot = freshTmp("c31-14-rt-absent-dest-");
+    const destRoot = rtContextStore("c31-14-rt-absent-dest-");
     expect(() =>
       rtUnder(repoRoot, () =>
         mod.promoteAdmitted(RT_TASK, id, rtDisposed(), RT_BODY, originRoot, destRoot),
@@ -2861,7 +2861,7 @@ describe("31-14 self-red-team — the legitimate input, under every dial and bot
   it("LEGITIMATE: the unchanged full-admission route writes an admissible note of every kind", () => {
     // The converse of every refusal row: a route that refused everything would satisfy them all.
     const repoRoot = rtProject({ human_admission: "high-severity", audit_retention: "retained" });
-    const destRoot = freshTmp("c31-14-rt-promote-dest-");
+    const destRoot = rtContextStore("c31-14-rt-promote-dest-");
     const RUN = "RUN-31-14-RT";
     ctxio.emitVerdict(RT_TASK, RUN, "clean", GATE_RUN_SHA, destRoot);
     const written = ctxio.NOTE_KINDS.map((kind, index) =>
@@ -2903,8 +2903,12 @@ describe("31-14 self-red-team — the legitimate input, under every dial and bot
     ).toThrow(/no live green §14-gate verdict found/);
     expect(rtNotes(destA)).toEqual([]);
 
+    // B and C are RE-BINDING destinations, so 31-29 (D-31) requires them to be governed stores —
+    // otherwise each one reaches `destination-outside-governed-store` and this case stops measuring
+    // the clause it names. A and D reach `promote` and `appendNote`, whose destinations D-31 does
+    // not constrain, so they stay bare.
     // compactor.promoteAdmitted — a human stamp whose origin record says something else.
-    const destB = freshTmp("c31-14-rt-bad-b-");
+    const destB = rtContextStore("c31-14-rt-bad-b-");
     expect(() =>
       rtUnder(repoRoot, () =>
         mod.promoteAdmitted(RT_TASK, id, rtDisposed({ verified_by: "human:mallory" }), RT_BODY, originRoot, destB),
@@ -2913,7 +2917,7 @@ describe("31-14 self-red-team — the legitimate input, under every dial and bot
     expect(rtNotes(destB)).toEqual([]);
 
     // context-io.promoteAdmitted — the same route reached directly, with no admitted origin at all.
-    const destC = freshTmp("c31-14-rt-bad-c-");
+    const destC = rtContextStore("c31-14-rt-bad-c-");
     expect(() =>
       ctxio.promoteAdmitted(RT_TASK, "no-such-id", rtDisposed(), RT_BODY, originRoot, destC, repoRoot),
     ).toThrow(/DECLINED \(no-such-origin-note\)/);
@@ -2951,7 +2955,7 @@ describe("31-14 self-red-team — the legitimate input, under every dial and bot
     expect(event.severity).toBe("high");
     expect(event.disposed_by).toBe("human:alice");
 
-    const destRoot = freshTmp("c31-14-rt-ledger-dest-");
+    const destRoot = rtContextStore("c31-14-rt-ledger-dest-");
     rtUnder(repoRoot, () => mod.promoteAdmitted(RT_TASK, id, rtDisposed(), RT_BODY, originRoot, destRoot));
     expect(
       lines(),
@@ -2963,7 +2967,7 @@ describe("31-14 self-red-team — the legitimate input, under every dial and bot
   it("D-19 MEASURED: under the lean `git` retention, neither the origin write nor the promotion writes a ledger", () => {
     const repoRoot = rtProject({ human_admission: "high-severity", audit_retention: "git" });
     const { originRoot, id } = rtSeedOrigin(repoRoot);
-    const destRoot = freshTmp("c31-14-rt-ledger-git-dest-");
+    const destRoot = rtContextStore("c31-14-rt-ledger-git-dest-");
     rtUnder(repoRoot, () => mod.promoteAdmitted(RT_TASK, id, rtDisposed(), RT_BODY, originRoot, destRoot));
     expect(existsSync(join(repoRoot, ".grugops", "audit", "admissions.jsonl"))).toBe(false);
   });
