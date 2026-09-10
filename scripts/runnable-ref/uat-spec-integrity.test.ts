@@ -7484,3 +7484,718 @@ describe("uat-spec-integrity — 31-25 PROBES: how is this boundary REACHED, not
     expect(browserless.status).toBe(2);
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// 31-28 (Task 1) — THE ROUNDS-1-TO-6 EVASION CORPUS, DRIVEN AT THE ENTRY THE §14 GATE INVOKES
+//
+// WHAT THIS BLOCK IS. Every evasion spelling this phase's six rounds produced, driven through
+// `node <path>/uat-spec-integrity.js <repo-root>` — the exact invocation
+// `agent-factory/workflows/05-pr-quality-gate.md` names — with its real exit code and both streams
+// asserted. NOT ONE CASE BELOW IMPORTS A FUNCTION FROM THE MODULE to decide a ban. This phase's
+// recorded failure mode is a fix verified against its own predicate rather than at the coordinate
+// the gate asks, and it has produced a new Critical inside the previous round's fix six times.
+//
+// THIS BLOCK IS DELIBERATELY RED AT THE END OF TASK 1. Each case carries its POST-fix assertion, so
+// the corpus reproduces the findings against the committed `.js` at HEAD and turns green only when
+// the mechanism changes. A run in which every case below PASSES against the unmodified artifact
+// would mean the corpus does not reproduce anything, which is the failing direction that matters.
+//
+// WHERE THE TARGETS LIVE. Every root is an OS-temp-directory root, never one under `.temp/`. That
+// is a MEASURED requirement, not a preference: a probe root inside this repository is a directory
+// Node's module walk can climb out of, so a target built "without typescript" resolved
+// `<repo>/node_modules/typescript` and the parser-absent loud skip measured EXIT=1 instead of 2.
+// The premise was asserted, the harness was wrong, and the row was re-driven.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+/** A target repository whose spec content is GENERATED rather than copied from the fixtures dir. */
+function mkGeneratedTarget(
+  files: Record<string, string>,
+  opts: { readonly typescript?: "real" | "none" | "stub-no-import-predicates"; readonly tsconfig?: string } = {},
+): string {
+  const root = mkTmp();
+  writeFileSync(join(root, "package.json"), JSON.stringify({ name: "target", private: true }), "utf8");
+  const mode = opts.typescript ?? "real";
+  if (mode === "real") {
+    symlinkSync(REPO_NODE_MODULES, join(root, "node_modules"), "dir");
+  } else if (mode === "stub-no-import-predicates") {
+    // RR-07's shape: a module carrying EVERY predicate `loadTypeScriptFromTarget` validates and
+    // NONE of the import predicates `deriveImportRenames` needs.
+    //
+    // THE MEMBERS ARE REMOVED WITH `defineProperty`, NOT ASSIGNED OVER. The first version of this
+    // stub did `shim[k] = undefined` against a prototype whose members are ACCESSOR properties with
+    // no setter, which in a CommonJS (sloppy-mode) module is a SILENT NO-OP: the premise probe
+    // measured `typeof m.isImportDeclaration === "function"` after it, and the row reported a
+    // finding it could not have reported. The premise is asserted by the case itself, below.
+    const dir = join(root, "node_modules", "typescript");
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(
+      join(dir, "package.json"),
+      JSON.stringify({ name: "typescript", version: "0.0.0-stub", main: "index.js" }),
+      "utf8",
+    );
+    writeFileSync(
+      join(dir, "index.js"),
+      '"use strict";\n' +
+        `const real = require(${JSON.stringify(join(REPO_NODE_MODULES, "typescript"))});\n` +
+        "const shim = {};\n" +
+        "for (const k of Object.keys(real)) { try { shim[k] = real[k]; } catch { /* accessor threw */ } }\n" +
+        'for (const k of ["isImportDeclaration","isNamedImports","isNamespaceImport","isImportSpecifier"]) {\n' +
+        "  Object.defineProperty(shim, k, { value: undefined, enumerable: true, configurable: true, writable: true });\n" +
+        "}\n" +
+        "module.exports = shim;\n",
+      "utf8",
+    );
+  }
+  if (opts.tsconfig !== undefined) writeFileSync(join(root, "tsconfig.json"), opts.tsconfig, "utf8");
+  for (const [rel, body] of Object.entries(files)) plant(root, rel, body);
+  return root;
+}
+
+/** One generated spec at the canonical probe path, run at the entry. */
+function driveSpec(
+  spec: string,
+  opts: Parameters<typeof mkGeneratedTarget>[1] = {},
+  extraFiles: Record<string, string> = {},
+): { status: number | null; stdout: string; stderr: string } {
+  return runCheck(mkGeneratedTarget({ "e2e/uat/p.uat.spec.ts": spec, ...extraFiles }, opts));
+}
+
+const TAIL = '  await expect(page.getByTestId("invoice-total")).toHaveText("$42.00");';
+
+// ── MOVEMENT 1: the corpus's own denominator, DERIVED from the documents ──────────────────────
+
+const REVIEW_MD = join(
+  REPO_ROOT,
+  ".planning",
+  "phases",
+  "31-autonomous-manual-testing",
+  "31-REVIEW.md",
+);
+
+/**
+ * The findings of `31-REVIEW.md` that name THIS runnable — derived from the document's own `###`
+ * headings and its own file citations, never from a list typed into this file.
+ *
+ * A hand-typed list is the set-literal drift this project keeps paying for: it stays green while
+ * the document it claims to mirror moves. This walk reads the headings, attributes each body to the
+ * next heading, and keeps the ids whose body cites `scripts/runnable-ref/uat-spec-integrity.ts`.
+ */
+function reviewFindingsNamingThisRunnable(): readonly string[] {
+  const lines = readFileSync(REVIEW_MD, "utf8").split("\n");
+  const heads: { id: string; line: number }[] = [];
+  for (let i = 0; i < lines.length; i++) {
+    const m = /^### ((?:CR|WR|IN)-\d+):/.exec(lines[i]);
+    if (m !== null) heads.push({ id: m[1], line: i });
+  }
+  const owned: string[] = [];
+  for (let k = 0; k < heads.length; k++) {
+    const end = k + 1 < heads.length ? heads[k + 1].line : lines.length;
+    if (lines.slice(heads[k].line, end).join("\n").includes("scripts/runnable-ref/uat-spec-integrity.ts")) {
+      owned.push(heads[k].id);
+    }
+  }
+  return owned;
+}
+
+/**
+ * Which finding id, or which residual-register INDEX, each corpus row is a row FOR. The two axes
+ * are kept separate because they have separate derived denominators: the review's own headings, and
+ * the module's own exported register.
+ */
+const CORPUS_COVERAGE: Readonly<Record<string, readonly string[]>> = Object.freeze({
+  "CR-18": ["block-scoped function declaration (rename)", "block-scoped function declaration (namespace)", "ambient declare (rename)", "ambient declare (namespace)"],
+  "CR-21": ["the three-argument tag/annotation overload"],
+  "WR-26": ["a function expression at index 1 of a NON-test call's second argument"],
+  "WR-29": ["a parse fault and a walk fault reporting one sentence"],
+  "WR-30": ["`using`", "`await using`"],
+  "IN-15": ["canonicalAssertionHead splits the same string twice"],
+});
+
+/** One row per member of the exported residual register, keyed by that member's INDEX. */
+const RESIDUAL_COVERAGE: Readonly<Record<number, string>> = Object.freeze({
+  0: "RR-01 an aliased binding `const t = test;`",
+  1: "RR-02 a member computed from a non-literal expression",
+  2: "RR-03 a rename arriving through a module other than the framework",
+  3: "RR-04 a callee whose head is not an identifier",
+  4: "RR-05 a callee chain longer than the step bound",
+  5: "RR-06 an option enabled by something other than the `true` keyword",
+  6: "RR-07 a parser lacking predicates degrading to the pre-D-18 rule",
+  7: "RR-08 a TestInfo binding destructured in the callback's second parameter",
+  8: "RR-09 the nearest-binding scope rule",
+});
+
+describe("uat-spec-integrity — 31-28 MOVEMENT 1: the corpus's denominator is DERIVED, not typed", () => {
+  it("covers every 31-REVIEW.md finding that names this runnable, in BOTH directions", () => {
+    const derived = reviewFindingsNamingThisRunnable();
+    // The derivation's own premise, asserted before the conclusion: a walk that found no heading at
+    // all would make the equality below vacuously true.
+    expect(derived.length, "the review yielded no finding naming this runnable — the walk is wrong").toBeGreaterThan(0);
+    expect([...derived].sort()).toEqual(Object.keys(CORPUS_COVERAGE).sort());
+    for (const id of derived) {
+      expect(CORPUS_COVERAGE[id].length, `${id} is covered by no corpus row`).toBeGreaterThan(0);
+    }
+  });
+
+  it("covers every member of UNRESOLVABLE_CALLEE_RESIDUALS, by INDEX, in BOTH directions", async () => {
+    const { UNRESOLVABLE_CALLEE_RESIDUALS } = await loadChecker();
+    const indices = UNRESOLVABLE_CALLEE_RESIDUALS.map((_, i) => i);
+    expect(indices.length, "the register is empty — the equality below would be vacuous").toBeGreaterThan(0);
+    expect(Object.keys(RESIDUAL_COVERAGE).map(Number).sort((a, b) => a - b)).toEqual(indices);
+  });
+
+  it("the corpus carries AT LEAST as many rows as the two derivations produce", async () => {
+    const { UNRESOLVABLE_CALLEE_RESIDUALS } = await loadChecker();
+    const derivedRowCount =
+      Object.values(CORPUS_COVERAGE).reduce((n, v) => n + v.length, 0) +
+      UNRESOLVABLE_CALLEE_RESIDUALS.length;
+    // Recorded in 31-28-SUMMARY.md beside the documents each row came from. A corpus that quietly
+    // ran fewer spellings than the phase has produced is a red test rather than a green one.
+    //
+    // THE RUNNING COUNT IS DERIVED, NOT TALLIED. A `Set` filled by the cases as they execute is
+    // read in whatever order the runner chose, so this case could observe a nearly-empty set and
+    // pass — the vacuity shape this phase has recorded. The row ids are counted from THIS FILE's
+    // own AST instead, which is order-independent and cannot be inflated by a case that never ran.
+    expect(declaredCorpusRowIds().size, "the corpus runs fewer rows than the documents produce")
+      .toBeGreaterThanOrEqual(derivedRowCount);
+  });
+});
+
+/**
+ * Every DISTINCT row id this corpus drives, derived from this file's own AST by counting the
+ * `row("…")` call sites. Marking a row is what earns it a place in the denominator above.
+ */
+function declaredCorpusRowIds(): ReadonlySet<string> {
+  const ts = hostTypeScript as typeof import("typescript");
+  const src = readFileSync(join(HERE, "uat-spec-integrity.test.ts"), "utf8");
+  const sf = ts.createSourceFile("t.ts", src, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+  const ids = new Set<string>();
+  const walk = (n: import("typescript").Node): void => {
+    if (
+      ts.isCallExpression(n) &&
+      ts.isIdentifier(n.expression) &&
+      n.expression.text === "row" &&
+      n.arguments.length === 1 &&
+      ts.isStringLiteralLike(n.arguments[0])
+    ) {
+      ids.add((n.arguments[0] as import("typescript").StringLiteralLike).text);
+    }
+    ts.forEachChild(n, walk);
+  };
+  walk(sf);
+  return ids;
+}
+
+/** Marks a corpus row. The marker is what `declaredCorpusRowIds` counts. */
+function row(id: string): string {
+  return id;
+}
+
+// ── CR-18: a block-scoped function declaration, and the ambient `declare` spelling ─────────────
+
+describe("uat-spec-integrity — 31-28 CR-18: a BLOCK-SCOPED binding does not shadow a module-scope import", () => {
+  it("RED 1a: a block-scoped function declaration beside a module-scope `it.skip(...)` is REFUSED", () => {
+    row("RED-1a-CR18-block-rename");
+    // MEASURED against the committed .js at HEAD: `0 findings` / EXIT=0. The evading file
+    // type-checks CLEAN under `tsc --strict --noEmit` against this repository's own transcribed
+    // surface, and its transpiled JavaScript keeps the framework import — a LIVE bypass, not a
+    // parse curiosity. The checker resolves the callee head to the ImportSpecifier, so identity
+    // decides this row exactly.
+    const r = driveSpec(`import { test as it, expect } from "@playwright/test";
+if (false) {
+  function it(): void {}
+  void it;
+}
+it.skip("scenario", async ({ page }) => {
+${TAIL}
+});
+`);
+    expect(r.status).toBe(1);
+    expect(r.stdout).toContain("1 finding(s) over 1/1 uat specs checked");
+    expect(r.stdout).toContain("test.skip");
+  });
+
+  it("RED 1b: the namespace family, identically", () => {
+    row("RED-1b-CR18-block-namespace");
+    const r = driveSpec(`import * as pw from "@playwright/test";
+if (false) {
+  function pw(): void {}
+  void pw;
+}
+pw.test.skip("scenario", async ({ page }) => {
+  await pw.expect(page.getByTestId("invoice-total")).toHaveText("$42.00");
+});
+`);
+    expect(r.status).toBe(1);
+    expect(r.stdout).toContain("test.skip");
+  });
+
+  it("CONTROL 1: the SAME file without the block is refused BEFORE and AFTER", () => {
+    row("CTRL-1-CR18-without-the-block");
+    const r = driveSpec(`import { test as it, expect } from "@playwright/test";
+it.skip("scenario", async ({ page }) => {
+${TAIL}
+});
+`);
+    expect(r.status).toBe(1);
+    expect(r.stdout).toContain("test.skip");
+  });
+
+  it("CONTROL 2: a block-scoped CLASS is refused BEFORE and AFTER (the `tdz` arm's own control)", () => {
+    row("CTRL-2-CR18-block-scoped-class");
+    const r = driveSpec(`import { test as it, expect } from "@playwright/test";
+{
+  class it {}
+  void it;
+}
+it.skip("scenario", async ({ page }) => {
+${TAIL}
+});
+`);
+    expect(r.status).toBe(1);
+  });
+
+  it("RECORDED, NOT ASSERTED: the ambient `declare` spelling evades — and does NOT type-check", () => {
+    row("RED-2a-CR18-declare-rename");
+    row("RED-2b-CR18-declare-namespace");
+    // `declare const it: unknown;` beside the import reports `0 findings`/EXIT=0 — the review's
+    // third CR-18 spelling, reproduced. But `tsc --strict --noEmit` REFUSES the file with TS2440
+    // ("Import declaration conflicts with local declaration of 'it'"), so the spelling is a
+    // CURIOSITY rather than a live bypass: a spec that does not compile is a spec Playwright never
+    // runs. This case therefore asserts the fact that makes it a curiosity — that the language
+    // refuses the construct — and NOT a direction for the ban, because asserting a ban direction on
+    // input the language itself refuses would send the fix after a shape no author can ship.
+    const decl = `import { test as it, expect } from "@playwright/test";
+declare const it: unknown;
+it.skip("scenario", async ({ page }) => {
+${TAIL}
+});
+`;
+    const r = driveSpec(decl);
+    expect([0, 1, 2], "outside the D-12 contract").toContain(r.status);
+    const host = hostTypeScript as typeof import("typescript");
+    const dir = mkTmp();
+    const specPath = join(dir, "p.uat.spec.ts");
+    writeFileSync(specPath, decl, "utf8");
+    const program = host.createProgram([specPath, join(FIXTURES, "playwright-test.d.ts")], {
+      strict: true,
+      noEmit: true,
+      target: host.ScriptTarget.ES2022,
+      module: host.ModuleKind.ESNext,
+      moduleResolution: host.ModuleResolutionKind.Bundler,
+      skipLibCheck: true,
+    });
+    const codes = host
+      .getPreEmitDiagnostics(program)
+      .filter((d) => d.file?.fileName === specPath)
+      .map((d) => d.code);
+    expect(codes, "the ambient spelling was expected NOT to type-check (TS2440)").toContain(2440);
+  });
+});
+
+// ── CR-21: the scenario body is found by TYPE, never by a fixed argument index ─────────────────
+
+describe("uat-spec-integrity — 31-28 CR-21: every documented Playwright overload carries the ban", () => {
+  const THREE_ARG = `import { test, expect } from "@playwright/test";
+test("scenario", { tag: "@smoke" }, async ({ page }, testInfo) => {
+  testInfo.skip();
+${TAIL}
+});
+`;
+  const TWO_ARG = `import { test, expect } from "@playwright/test";
+test("scenario", async ({ page }, testInfo) => {
+  testInfo.skip();
+${TAIL}
+});
+`;
+
+  it("RED 3: the three-argument tag/annotation form is REFUSED, naming `test.info().skip`", () => {
+    row("RED-3-CR21-three-argument-overload");
+    // MEASURED against the committed .js: `0 findings` / EXIT=0, while the two-argument form
+    // reports `1 finding(s)` / EXIT=1. The form is idiomatic Playwright, documented since 1.42, and
+    // it type-checks CLEAN against a surface carrying that overload — the committed transcription's
+    // TS2554 is `R-07` drift, a fact about the transcription and not about the spelling. The
+    // checker gives the accessed object the declared type `TestInfo` and the member's declaration
+    // the framework's own file, so identity decides this row without reading an argument index.
+    const r = driveSpec(THREE_ARG);
+    expect(r.status).toBe(1);
+    expect(r.stdout).toContain("1 finding(s) over 1/1 uat specs checked");
+    expect(r.stdout).toContain("test.info().skip");
+  });
+
+  it("CONTROL 3: the two-argument form is refused BEFORE and AFTER", () => {
+    row("CTRL-3-CR21-two-argument-overload");
+    const r = driveSpec(TWO_ARG);
+    expect(r.status).toBe(1);
+    expect(r.stdout).toContain("test.info().skip");
+  });
+
+  it("the two forms produce an IDENTICAL finding, modulo the call's own line", () => {
+    row("RED-3b-CR21-overloads-agree");
+    const strip = (s: string): string => s.replace(/p\.uat\.spec\.ts:\d+/g, "p.uat.spec.ts:<line>");
+    expect(strip(driveSpec(THREE_ARG).stdout)).toBe(strip(driveSpec(TWO_ARG).stdout));
+  });
+});
+
+// ── WR-26: the exemption's position must be the map's own position, not a superset of it ───────
+
+describe("uat-spec-integrity — 31-28 WR-26: no false refusal one position over", () => {
+  it("RED 5: a function expression at index 1 of a NON-`test(...)` call's second argument is NOT refused", () => {
+    row("RED-5-WR26-second-argument-helper");
+    // MEASURED against the committed .js: `1 finding(s)` / EXIT=1 naming `test.skip` — a construct
+    // ABSENT from the file. A FALSE REFUSAL, the identical failure WR-20 and then WR-23 were each
+    // convened to close, reproducing verbatim one position over. The failure direction here is the
+    // one the recipe calls "worse than a missed one".
+    const r = driveSpec(`import { test as it, expect } from "@playwright/test";
+declare function helper(n: number, f: (a: number, b: { skip: (x: number) => number }) => number): void;
+helper(1, function (a, it) { return it.skip(a); });
+it("the invoice total is shown", async ({ page }) => {
+${TAIL}
+});
+`);
+    expect(r.status, `stdout: ${r.stdout}`).toBe(0);
+    expect(r.stdout).toContain("0 findings over 1/1 uat specs checked");
+  });
+
+  it("CONTROL A (WR-23): index 1 of an ordinary helper is not refused, BEFORE or AFTER", () => {
+    row("CTRL-A-WR23-index-1-helper");
+    const r = driveSpec(`import { test as it, expect } from "@playwright/test";
+function inner(n: number, it: { skip: (x: number) => number }): number {
+  return it.skip(n);
+}
+void inner;
+it("the invoice total is shown", async ({ page }) => {
+${TAIL}
+});
+`);
+    expect(r.status).toBe(0);
+  });
+
+  it("CONTROL B (WR-24): the union fixture reports its marked region, and ONLY it", () => {
+    row("CTRL-B-WR24-mutate-remove");
+    const present = runCheck(
+      mkTargetRepo({ "e2e/uat/p.uat.spec.ts": "shadowed-rename.uat.spec.ts" }),
+    );
+    expect(present.status).toBe(1);
+    expect(present.stdout).toContain("1 finding(s) over 1/1 uat specs checked");
+    const removed = runMutated("shadowed-rename.uat.spec.ts");
+    expect(removed.status, `stdout: ${removed.stdout}`).toBe(0);
+  });
+});
+
+// ── WR-30 and the `tdz` arm: RECORDED with the checker's own answer, for the S2 checkpoint ─────
+
+describe("uat-spec-integrity — 31-28 WR-30: `using` is classified by the ABSENCE of two flag bits", () => {
+  const usingSpec = (kw: "using" | "await using"): string =>
+    `import { test as it, expect } from "@playwright/test";
+${kw === "using" ? "function" : "async function"} wrapper(): ${kw === "using" ? "void" : "Promise<void>"} {
+  it.skip("scenario", async ({ page }) => {
+${TAIL}
+  });
+  ${kw} it = { ${kw === "using" ? "[Symbol.dispose]() {}" : "async [Symbol.asyncDispose]() {}"} };
+  void it;
+}
+void wrapper();
+`;
+
+  it("RECORDED: `using` suppresses and `await using` does NOT — the arm disagrees with itself", () => {
+    row("RED-4a-WR30-using");
+    row("RED-4b-WR30-await-using");
+    // MEASURED, and it corrects the finding's own text. `listHoists` asks
+    // `((flags & (Let | Const)) === 0)`. On this repository's parser (typescript 6.0.3):
+    //   Let = 1 · Const = 2 · Using = 4 · AwaitUsing = 6
+    // so `using` (4) answers TRUE — classified as hoisting, range widened to the enclosing function,
+    // the ban suppressed, `0 findings` / EXIT=0 — while `await using` (6, which CARRIES the Const
+    // bit) answers FALSE and is correctly ranged by the `tdz` arm: `1 finding(s)` / EXIT=1.
+    // WR-30's fix sketch adds `(nodeFlags.AwaitUsing ?? 0)` to the mask, which is a NO-OP for a
+    // spelling that was never misclassified. The defect is real and it is HALF the size the
+    // Warning states.
+    expect(driveSpec(usingSpec("using")).status).toBe(0);
+    expect(driveSpec(usingSpec("await using")).status).toBe(1);
+  });
+});
+
+// ── WR-29: four could-not-run reasons claimed, three implemented ───────────────────────────────
+
+describe("uat-spec-integrity — 31-28 WR-29: the four could-not-run reasons are four SENTENCES", () => {
+  it("RED 6: a fault raised inside the PARSE names the parse, not the walk", () => {
+    row("RED-6-WR29-parse-fault-sentence");
+    // MEASURED at the adjacent overflow depth: the fault is raised inside `ts.createSourceFile`,
+    // and the reason reported is "could not be analysed (Maximum call stack size exceeded)" — the
+    // WALK's sentence, byte-identical to what a walk fault produces. The module's own comment says
+    // the four reasons "stay DISTINGUISHABLE (unreadable · did not parse · the parse itself faulted
+    // · could not be analysed)". A reader cannot tell which happened, which is the one thing the
+    // sentence promises.
+    const { overflow } = parseBoundary();
+    const r = driveSpec(nestedSpec(overflow));
+    expect(r.status).toBe(2);
+    expect(r.stderr, "the parse fault still reports the walk's sentence").toMatch(/could not be PARSED/);
+  });
+});
+
+// ── IN-15: the assertion head's split is computed once ─────────────────────────────────────────
+
+describe("uat-spec-integrity — 31-28 IN-15: canonicalAssertionHead splits its input ONCE", () => {
+  it("RED 7: the split appears at most once inside the function, DERIVED from the module's own AST", () => {
+    row("RED-7-IN15-duplicate-split");
+    const ts = hostTypeScript as typeof import("typescript");
+    const src = readFileSync(join(HERE, "uat-spec-integrity.ts"), "utf8");
+    const sf = ts.createSourceFile("m.ts", src, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+    let body: string | null = null;
+    const walk = (n: import("typescript").Node): void => {
+      if (
+        ts.isFunctionDeclaration(n) &&
+        n.name !== undefined &&
+        n.name.text === "canonicalAssertionHead"
+      ) {
+        body = n.getText(sf);
+      }
+      ts.forEachChild(n, walk);
+    };
+    walk(sf);
+    expect(body, "canonicalAssertionHead was not found — the derivation is wrong").not.toBeNull();
+    const occurrences = (body as unknown as string).split('split(".")').length - 1;
+    expect(occurrences, "the same string is split twice in one expression").toBeLessThanOrEqual(1);
+  });
+});
+
+// ── the residual register, row by row, at the entry ────────────────────────────────────────────
+
+describe("uat-spec-integrity — 31-28: every member of the residual register, driven", () => {
+  it("RR-01: an aliased binding is REFUSED", () => {
+    row("RED-8-RR01-alias");
+    // MEASURED: `0 findings` / EXIT=0, type-checks CLEAN, keeps the import — a LIVE bypass. The
+    // checker gives `t` the declared type `Test` and `.skip`'s declaration the framework's own file.
+    const r = driveSpec(`import { test, expect } from "@playwright/test";
+const t = test;
+t.skip("scenario", async ({ page }) => {
+${TAIL}
+});
+`);
+    expect(r.status).toBe(1);
+  });
+
+  it("RR-02: a member computed from a variable stays a NAMED refusal (accepted by design)", async () => {
+    row("RED-9-RR02-computed-member");
+    const { UNRESOLVABLE_CALLEE_RESIDUALS } = await loadChecker();
+    const r = driveSpec(`import { test, expect } from "@playwright/test";
+const name = "skip" as const;
+test[name]("scenario", async ({ page }) => {
+${TAIL}
+});
+`);
+    expect(r.status).toBe(0);
+    expect(
+      UNRESOLVABLE_CALLEE_RESIDUALS.some((m) => m.includes("computed from a non-literal expression")),
+      "the shape passes and the register no longer names it — an undisclosed boundary",
+    ).toBe(true);
+  });
+
+  it("RR-03: a rename arriving through another module is REFUSED", () => {
+    row("RED-10-RR03-cross-module-reexport");
+    // MEASURED: `0 findings` / EXIT=0, type-checks CLEAN — a LIVE bypass. The checker follows the
+    // re-export: `.skip`'s declaration is the framework's own file and `it`'s type is `Test`.
+    const r = driveSpec(
+      `import { it } from "./local-frame";
+import { expect } from "@playwright/test";
+it.skip("scenario", async ({ page }) => {
+${TAIL}
+});
+`,
+      {},
+      { "e2e/uat/local-frame.ts": 'export { test as it } from "@playwright/test";\n' },
+    );
+    expect(r.status).toBe(1);
+  });
+
+  it("RR-04: a callee whose head is not an identifier stays a NAMED refusal (accepted by design)", async () => {
+    row("RED-11-RR04-non-identifier-head");
+    const { UNRESOLVABLE_CALLEE_RESIDUALS } = await loadChecker();
+    const r = driveSpec(`import { test, expect } from "@playwright/test";
+({ test }).test.skip("scenario", async ({ page }) => {
+${TAIL}
+});
+`);
+    expect(r.status).toBe(0);
+    expect(
+      UNRESOLVABLE_CALLEE_RESIDUALS.some((m) => m.includes("head is not an identifier")),
+      "the shape passes and the register no longer names it",
+    ).toBe(true);
+  });
+
+  it("RR-05: the chain-step bound is DELETED with the walk that needed it", async () => {
+    row("RED-12-RR05-chain-bound");
+    // MEASURED: a 600-link chain on the framework head reports `0 findings` / EXIT=0, while the
+    // IDENTICAL head at 3 links reports `1 finding(s)` / EXIT=1 — so the zero is caused by the
+    // BOUND and not by the head, which is what makes this row a row about the bound at all.
+    // Symbol resolution has no dotted-path walk, so the bound is removed rather than retained as a
+    // residual about a mechanism the module no longer has.
+    const mod = (await loadChecker()) as unknown as Record<string, unknown>;
+    expect(
+      Object.prototype.hasOwnProperty.call(mod, "CALLEE_CHAIN_STEP_BOUND"),
+      "the bound is still exported — a residual about a mechanism that should be gone",
+    ).toBe(false);
+  });
+
+  it("RR-06: an option enabled by a variable stays a NAMED refusal (accepted by design)", async () => {
+    row("RED-13-RR06-variable-option");
+    const { UNRESOLVABLE_CALLEE_RESIDUALS } = await loadChecker();
+    const r = driveSpec(`import { test, expect } from "@playwright/test";
+const on = true;
+test("scenario", async ({ page }) => {
+  await expect.configure({ soft: on })(page.getByTestId("invoice-total")).toBeVisible();
+});
+`);
+    expect(r.status).toBe(0);
+    expect(
+      UNRESOLVABLE_CALLEE_RESIDUALS.some((m) => m.includes("parses and never evaluates")),
+      "the shape passes and the register no longer names it",
+    ).toBe(true);
+  });
+
+  it("RR-07a: a parser that cannot answer is a LOUD SKIP, never a quieter ban", () => {
+    row("RED-14-RR07-parser-without-import-predicates");
+    // MEASURED: `0 findings` / EXIT=0 against a target whose `typescript` carries every VALIDATED
+    // predicate and none of the import predicates. The rename map is never built, `it.skip` is
+    // asked as `it.skip`, and the head is not a banned head — a SILENT DEGRADE to the pre-D-18
+    // rule. A smaller ban applied without saying so is a gate LOWERING, not a disclosed limit.
+    const root = mkGeneratedTarget(
+      {
+        "e2e/uat/p.uat.spec.ts": `import { test as it, expect } from "@playwright/test";
+it.skip("scenario", async ({ page }) => {
+${TAIL}
+});
+`,
+      },
+      { typescript: "stub-no-import-predicates" },
+    );
+    // THE HARNESS'S OWN PREMISE, asserted before the result: the stub really is missing the
+    // members. The first version of this stub silently kept them and the row measured a finding it
+    // could not have produced.
+    const probe = spawnSync(
+      "node",
+      [
+        "-e",
+        'const{createRequire}=require("node:module");const m=createRequire(process.argv[1])("typescript");' +
+          'console.log(["isImportDeclaration","isNamedImports","isNamespaceImport","isImportSpecifier"].every(k=>typeof m[k]==="undefined")&&typeof m.createSourceFile==="function");',
+        join(root, "package.json"),
+      ],
+      { encoding: "utf8" },
+    );
+    expect(probe.stdout.trim(), "the stub did not remove the predicates — every result below is vacuous").toBe("true");
+    const r = runCheck(root);
+    expect(r.status, `stdout: ${r.stdout}`).toBe(2);
+  });
+
+  it("RR-07b: a target with NO config file exits 2 with ONE named reason and an EMPTY stdout", async () => {
+    row("RED-15-RR07-no-config-file");
+    const mod = (await loadChecker()) as unknown as { PROGRAM_UNAVAILABLE_REASON?: string };
+    // MEASURED: today the config file is never consulted, so this target answers `1 finding(s)` /
+    // EXIT=1. After the cutover a Program cannot be created and the run has made NO claim.
+    const r = driveSpec(`import { test as it, expect } from "@playwright/test";
+it.skip("scenario", async ({ page }) => {
+${TAIL}
+});
+`);
+    expect(mod.PROGRAM_UNAVAILABLE_REASON, "the could-not-run reason is not exported").toBeTypeOf("string");
+    expect(r.status).toBe(2);
+    expect(r.stderr).toContain(mod.PROGRAM_UNAVAILABLE_REASON as string);
+    expect(r.stdout).toBe("");
+    expect(
+      r.stderr.split(mod.PROGRAM_UNAVAILABLE_REASON as string).length - 1,
+      "the reason must have ONE emission point",
+    ).toBe(1);
+  });
+
+  it("RR-07b': a target with an UNPARSEABLE config file is the SAME event", async () => {
+    row("RED-16-RR07-unparseable-config-file");
+    const mod = (await loadChecker()) as unknown as { PROGRAM_UNAVAILABLE_REASON?: string };
+    const r = driveSpec(
+      `import { test as it, expect } from "@playwright/test";
+it.skip("scenario", async ({ page }) => {
+${TAIL}
+});
+`,
+      { tsconfig: "{ this is not json" },
+    );
+    expect(r.status).toBe(2);
+    expect(r.stderr).toContain(mod.PROGRAM_UNAVAILABLE_REASON as string);
+    expect(r.stdout).toBe("");
+  });
+
+  it("RR-08: a destructured TestInfo binding is REFUSED", () => {
+    row("RED-17-RR08-destructured-testinfo");
+    // MEASURED: `0 findings` / EXIT=0, type-checks CLEAN — a LIVE bypass.
+    const r = driveSpec(`import { test, expect } from "@playwright/test";
+test("scenario", async ({ page }, { skip }) => {
+  skip();
+${TAIL}
+});
+`);
+    expect(r.status).toBe(1);
+  });
+
+  it("RR-09: a module-scope declaration of a fixture parameter's name does NOT re-admit (CONTROL)", () => {
+    row("RED-18-RR09-module-scope-fixture-name");
+    // MEASURED unmoved: D-27 (3) records the fixture-binding POSITION as a non-suppressing binding,
+    // so the parameter is the nearest binding and the outer declaration does not answer. `1
+    // finding(s)` / EXIT=1 BEFORE this plan, and it must stay that way.
+    const r = driveSpec(`import { test, expect } from "@playwright/test";
+const testInfo = 1;
+void testInfo;
+test("scenario", async ({ page }, testInfo) => {
+  testInfo.skip();
+${TAIL}
+});
+`);
+    expect(r.status).toBe(1);
+    expect(r.stdout).toContain("test.info().skip");
+  });
+});
+
+// ── CONTROL C and D: the prior rounds' closures, re-measured rather than assumed ───────────────
+
+describe("uat-spec-integrity — 31-28 CONTROLS: every prior closure, re-driven", () => {
+  it("CONTROL C: the depth adjacency reproduces, both sides, with their streams", () => {
+    row("CTRL-C-depth-adjacency");
+    const { safe, overflow } = parseBoundary();
+    expect(overflow - safe).toBe(1);
+    const s = driveSpec(nestedSpec(safe));
+    expect(s.status).toBe(0);
+    expect(s.stdout).toContain("0 findings over 1/1 uat specs checked");
+    expect(s.stderr).toBe("");
+    const o = driveSpec(nestedSpec(overflow));
+    expect(o.status).toBe(2);
+    expect(o.stdout).toBe("");
+    expect(o.stderr).toContain("ZERO uat specs were visited (1 derived)");
+  });
+
+  it("CONTROL D1: the vacuity floor on a zero-spec derivation, on the stream ITS branch writes to", () => {
+    row("CTRL-D1-vacuity-floor");
+    const r = runCheck(mkGeneratedTarget({}));
+    expect(r.status).toBe(2);
+    expect(r.stdout).toBe("");
+    expect(r.stderr).toContain("ZERO uat specs were visited (0 derived)");
+  });
+
+  it("CONTROL D2/D3: both loud-skip markers, each emitted EXACTLY once", async () => {
+    row("CTRL-D2-parser-absent");
+    row("CTRL-D3-browser-absent");
+    const { PARSER_ABSENT_MARKER, BROWSER_ABSENT_MARKER } = await loadChecker();
+    const spec = `import { test as it, expect } from "@playwright/test";
+it.skip("scenario", async ({ page }) => {
+${TAIL}
+});
+`;
+    const parserless = runCheck(mkGeneratedTarget({ "e2e/uat/p.uat.spec.ts": spec }, { typescript: "none" }));
+    expect(parserless.status).toBe(2);
+    expect(parserless.stderr.split(PARSER_ABSENT_MARKER).length - 1).toBe(1);
+    expect(parserless.stdout).toBe("");
+    const browserless = runCheck(
+      mkGeneratedTarget({ "e2e/uat/p.uat.spec.ts": spec }, { typescript: "none" }),
+      "--check-browser",
+    );
+    expect(browserless.status).toBe(2);
+    expect(browserless.stderr.split(BROWSER_ABSENT_MARKER).length - 1).toBe(1);
+    expect(browserless.stdout).toBe("");
+  });
+});

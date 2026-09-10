@@ -69,5 +69,25 @@ it("the invoice total is shown", async ({ page }) => {
     return it.skip(n);
   }
   second(1, helpers);
+  // WR-26's SHAPE, as a THIRD control, and the position D-27's narrowing did not reach. The
+  // exemption `isFixtureBindingPosition` grants is "index 1 of a function that is itself the SECOND
+  // ARGUMENT of a call" — of ANY call. The map it exempts for binds only under a `test(...)`-headed
+  // one. The two authorities are meant to name ONE position and they differ by exactly the set of
+  // non-`test(...)` calls that take a function as their second argument, which is what this control
+  // occupies: `it` is parameter index 1 of a function expression passed as `apply`'s second
+  // argument, `apply` is not `test`, and nothing framework-related happens here at all.
+  //
+  // MEASURED AGAINST THE COMMITTED .js BEFORE THIS PLAN'S CHANGE, in its own probe file:
+  //   UAT spec integrity: 1 finding(s) over 1/1 uat specs checked
+  //   e2e/uat/p.uat.spec.ts:3: banned modifier call — `test.skip` …
+  //   EXIT=1
+  // A FALSE REFUSAL naming `test.skip`, a construct absent from the file — the identical failure,
+  // with the identical misleading message, that WR-20 and then WR-23 were each convened to close.
+  function apply(n: number, f: (a: number, b: { skip: (x: number) => number }) => number): number {
+    return f(n, helpers);
+  }
+  apply(1, function (a, it) {
+    return it.skip(a);
+  });
   await expect(page.getByTestId("invoice-total")).toHaveText("$42.00");
 });
