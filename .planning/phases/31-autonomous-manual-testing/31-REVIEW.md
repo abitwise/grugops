@@ -1,637 +1,743 @@
 ---
 phase: 31-autonomous-manual-testing
-reviewed: 2026-09-09T15:45:00Z
+reviewed: 2026-09-10T04:05:00Z
 depth: standard
-files_reviewed: 25
+files_reviewed: 15
 files_reviewed_list:
   - agent-factory/checklists/browser-uat-recipe.md
   - agent-factory/workflows/16-context-read-write.md
   - agent-factory/workflows/18-context-compaction.md
-  - docs/audit/29-style-dispositions/31-16.md
-  - docs/audit/29-style-dispositions/31-17.md
-  - docs/audit/29-style-dispositions/31-18.md
-  - docs/audit/29-style-dispositions/31-19.md
-  - docs/audit/31-round4-residuals.md
+  - docs/audit/31-round5-residuals.md
   - hooks/hook-entry.js
   - hooks/hook-entry.ts
-  - scripts/check-foundation-guards.test.ts
-  - scripts/checkpoints.js
-  - scripts/checkpoints.ts
   - scripts/compactor.test.ts
   - scripts/context-io-writer-set.test.ts
   - scripts/context-io.js
   - scripts/context-io.test.ts
   - scripts/context-io.ts
-  - scripts/runnable-ref/fixtures/configured-soft.uat.spec.ts
-  - scripts/runnable-ref/fixtures/playwright-test.d.ts
   - scripts/runnable-ref/fixtures/shadowed-rename.uat.spec.ts
-  - scripts/runnable-ref/fixtures/testinfo-fixture-param.uat.spec.ts
   - scripts/runnable-ref/uat-spec-integrity.js
   - scripts/runnable-ref/uat-spec-integrity.test.ts
   - scripts/runnable-ref/uat-spec-integrity.ts
 findings:
   critical: 5
-  warning: 4
+  warning: 5
   info: 2
-  total: 11
+  total: 12
 status: issues_found
 ---
 
-# Phase 31: Code Review Report (incremental — gap-closure round 4, plans 31-16..31-20)
+# Phase 31: Code Review Report (incremental — gap-closure round 5, plans 31-21..31-26)
 
-**Reviewed:** 2026-09-09T15:45:00Z
+**Reviewed:** 2026-09-10T04:05:00Z
 **Depth:** standard
-**Scope:** `a16786b..HEAD` (19f72e1), the 25 source files listed above
-**Files Reviewed:** 25
+**Scope:** `89228c8..HEAD` (`2a18926`), the 15 source files listed above
+**Files Reviewed:** 15
 **Status:** issues_found
 
 ## Summary
 
-This round was convened to close CR-09 (the `()` marker defeating both whole-path arms), CR-10 (the
-`testInfo` fixture-parameter spelling), CR-11 (a promotion destroying a destination note), WR-17
-(the caller-supplied proof operand), WR-18 (the dial read for readability only), WR-19 (the
-per-frame step bound and the uncaught `RangeError`), WR-20 (the scope-blind canonicaliser), WR-21
-(the unbounded governance-root walk) and IN-10.
+This round was convened to close CR-12 (the `readFileSync` at the note-write chokepoint), CR-13 (the
+home-rooted repository never inspected), CR-14 (the file-scoped declared-name census), CR-15 (the
+parser outside the could-not-run boundary), CR-16 (the root-proximity arm of `originIsTrusted`),
+WR-22 (note-before-ledger and the fail-open ledger read), WR-23 (the too-wide fixture-binding
+position), WR-24 (the fixture that could not fail), WR-25 (the clause order) and IN-12.
 
-**All nine are closed as filed**, and every closure below was re-measured on this tree against the
-committed `.js`, not taken from a summary. Baseline health, measured here: `npm run freshness` →
-`All build outputs fresh: 60 committed .js file(s) match a rebuild of their sources.` (so the `.js`
-provably matches the `.ts` for every file in scope); `node scripts/check-foundation-guards.js` and
-`node scripts/check-uat-oracles.js` → `ALL CHECKS PASSED`; `npx vitest run` over
-`uat-spec-integrity.test.ts`, `context-io.test.ts`, `context-io-writer-set.test.ts` and
-`compactor.test.ts` → `Test Files 4 passed`, `Tests 937 passed`, exit 0 (one transient failure was
-my own probe contamination under `.temp/`; after cleanup, green — recorded because
-`docs/audit/31-round4-residuals.md` §5 names that exact hazard). `git status --porcelain -- scripts
-hooks agent-factory install docs` is empty at the end of this review; every probe directory was
-deleted.
+**All ten are closed as filed.** Every closure below was re-measured on this tree against the
+committed `.js`, not read from a summary. Baseline health, measured here: `npm run freshness` →
+`All build outputs fresh: 60 committed .js file(s) match a rebuild of their sources`;
+`node scripts/check-foundation-guards.js` and `node scripts/check-uat-oracles.js` → `ALL CHECKS
+PASSED`; `npx vitest run` over `context-io.test.ts`, `context-io-writer-set.test.ts`,
+`compactor.test.ts` and `uat-spec-integrity.test.ts` → `Test Files 4 passed`, `Tests 1143 passed`,
+exit 0. `git status --porcelain -- scripts hooks agent-factory install docs` is empty at the end of
+this review; every probe ran outside the repository tree.
 
-**Five new Criticals and four Warnings.** For the fifth consecutive round the pattern repeats
-exactly: **every one of this round's four fixes created or preserved a defect one register over,
-and the green suite exercises none of them.**
+**Five new Criticals and five Warnings. For the sixth consecutive round the pattern repeats: three
+of this round's five fixes created a defect one register over, and the 1,143-test suite exercises
+none of them.**
 
-- **The CR-11 fix put a `readFileSync` on the module's single note-write chokepoint.** A non-regular
-  file at a note path now makes **every note write in the module hang forever** with zero bytes on
-  both streams — the exact hazard `readGovernanceConfigCandidate`'s own 25-line comment 2,400 lines
-  below documents, measured and refuses (`scripts/context-io.ts:3382-3401`). Measured: `timeout 10
-  node …` → exit 124. Before this round the chokepoint never read the destination.
-- **The WR-21 fix reinstated the WR-15 defect at one position.** A repository whose root **is** the
-  user's home directory is never inspected, so its `human_admission: high-severity` dial is silently
-  replaced by the kit's lean default. Measured: the identical note is **WRITTEN** there and
-  **REFUSED** in a control tree one level below home. None of `R-31-19-01..04` names this.
-- **The WR-20 fix is a one-line, file-scoped off switch for both canonicalisations.** Measured:
-  `it.skip(...)` after `import { test as it }` plus a dead `const it = 1;` → `0 findings`, exit 0.
-  Same for a namespace import and for `testInfo.skip()`. WR-14's and CR-10's closures are each one
-  unrelated declaration away from being undone. It is disclosed as "coarseness" and asserted green
-  by `uat-spec-integrity.test.ts:4742`; the D-21 header calls it "MONOTONE IN THE SAFE DIRECTION",
-  which for a **ban** is inverted.
-- **The WR-19 fix guarded `findBannedConstructs` and left `ts.createSourceFile` outside the
-  boundary.** Measured: 1,000 nested parentheses — a quarter of the round-4 probe's depth —
-  reproduce WR-19 verbatim (uncaught `RangeError`, **empty stdout**, exit 1, no measurement line,
-  both floors bypassed), falsifying the recipe paragraph added this round at
-  `browser-uat-recipe.md:310-315`.
-- **The WR-17 fix does not constrain the operand for the ordinary in-repository case.** Measured: an
-  origin at `<repo>/tmp/forged` — an ordinary directory a caller authored, in the decline sentence's
-  own words — promotes a `human:mallory` finding **and** appends a `disposed_by` GOV-02 ledger line.
-  Workflow 18 tells the agent that copy is mechanically refused. It is not.
+- **The CR-12 fix was applied to `scripts/context-io.ts` and not carried to `hooks/hook-entry.ts`,
+  which is the PreToolUse entry point for every `Bash` tool call.** The wrapper hashes thirteen
+  agent-writable module paths with a bare `readFileSync` **before** it spawns anything, so the
+  10 s `DECIDER_TIMEOUT_MS` does not bound it. Measured on a copy of the committed `hook-entry.js`:
+  one `mkfifo` at a manifest path → `EXIT=124`, **zero bytes on stdout and stderr**. A PreToolUse
+  hook that never answers does not block. That is CR-12's exact class at the only tier that guards a
+  force-push (CR-17).
+- **The CR-14 fix replaced a file-scoped name set with a range-per-kind rule, and its `hoisted`
+  arm gives a BLOCK-SCOPED function declaration the whole module's range.** Measured:
+  `if (false) { function it(): void {} }` beside `import { test as it }` turns `it.skip("scenario",
+  …)` from `1 finding`/exit 1 into `0 findings`/exit 0. The file type-checks at `tsc --strict
+  --noEmit` exit 0 and transpiles to JavaScript that keeps the import, so the scenario is genuinely
+  skipped. CR-14 verbatim, one binding kind over (CR-18).
+- **The CR-12 fix introduced an 8 MiB read ceiling that the write path does not share.** Measured: a
+  9 MiB note is WRITTEN (exit 0, id returned) and then `readContext` returns **0 notes** — the note
+  is invisible to `render`, `currentState`, `admit()`'s cross-check and `promoteAdmitted`'s liveness
+  clause, silently. The same bytes read back as 1 note under the pre-round-5 `.js`. An idempotent
+  re-write is then refused with the clause `note-path-not-a-regular-file` and a sentence that is
+  false of the file (CR-19).
+- **The WR-22 fix inverted the two steps and left them pointed at two different repositories.** The
+  note goes to the caller's `to`; the GOV-02 event goes to `repoRoot`. Measured cross-repository
+  promotion: the destination store holds the `human:mallory` finding and **the destination
+  repository's ledger is ABSENT**, while the event landed in a third repository. Workflow 18's
+  paragraph — rewritten this round — states the opposite twice (CR-20).
+- **`testInfo.skip()` still passes at exit 0 through Playwright's documented three-argument scenario
+  form** `test(title, details, body)`, because `deriveTestInfoParameterNames` reads
+  `node.arguments[1]` only. Measured; the two-argument control is refused. No residual names it
+  (CR-21).
 
 No `<structural_findings>` block was supplied, so every finding is narrative. Numbering continues
-the existing sequences (`CR-12+`, `WR-22+`, `IN-12+`).
+the existing sequences (`CR-17+`, `WR-26+`, `IN-14+`).
 
 ## Prior findings status
 
 | Prior | Status | Evidence (measured on this tree, against the committed `.js`) |
 |---|---|---|
-| CR-09 `expect.configure({retries:2}).soft(...)` / `.configure({soft:true})(...)` pass at exit 0 | **closed** | Probe repo, `node scripts/runnable-ref/uat-spec-integrity.js <root>`: both → `1 finding(s) over 1/1`, EXIT=1, naming `expect.configure().soft` and `expect.configure().configure`. Control `expect.configure({retries:2})(locator)` chained and invoked → `0 findings`, EXIT=0. Closed **by rule**: `stripRoutingLinks` is one normaliser both whole-path arms read; no member added to any set |
-| CR-10 `testInfo.skip()` through the second callback parameter | **closed as filed; new bypass → CR-14** | `test("a", async ({page}, testInfo) => { testInfo.skip(); … })` → `1 finding(s)`, EXIT=1, naming `test.info().skip` — the same canonical path the call-link spelling produces. Closed from the parse (`deriveTestInfoParameterNames`), not by a new head member |
-| CR-11 a promotion silently overwrites an already-admitted destination note | **closed** | Legitimate `observation` admitted at the destination under id `…-qe-observation-a34610ba`; a forged `finding` reusing that id, authored in a recognised `.grugops/context` origin store, promoted → `DECLINED (destination-id-occupied)`; destination note still `kind: observation`. Closed at the point of effect (`writeNoteFile`) **and** named in the register — but see CR-12 for what the chokepoint read costs |
-| WR-17 the proof's left operand is bytes the caller supplies | **closed only for the out-of-repository case → CR-16** | Forged origin outside `.grugops/` and outside the trusted root → `DECLINED (origin-outside-trusted-store)`. An ordinary directory **inside** the repository root still passes; measured in CR-16 |
-| WR-18 the dial is read for readability, never for its value | **closed** | Destination dial `off`, note `by: security-nfr` / `kind: finding` / `verified_by: human:mallory` → `DECLINED (human-stamp-not-gated-at-destination)`; same note under `high-severity` → promotes. `isGatedNote` is asked once; no second local composition of the dial |
-| WR-19 the 512-step bound restarts per recursion frame; a deep chain kills the process | **closed as filed; the same harm survives one call over → CR-15** | 4000-link call chain `test.a()…skip()` → `0 findings over 1/1`, EXIT=0, stderr empty, measurement line printed. One shared `CalleeStepBudget`, an explicit-stack `forEachDescendant`, and a could-not-run `catch` around `findBannedConstructs` |
-| WR-20 a shadowing local binding is falsely refused | **closed as filed; the false refusal survives at one position → WR-23, and the fix opened CR-14** | The review's legitimate spec → `0 findings over 1/1`, EXIT=0 |
-| WR-21 the walk climbs into a home-directory-shaped ancestor | **closed for the shape the review reproduced; a new hole at one position → CR-13** | With `HOME` set so the planted ancestor **is** `os.homedir()`, `trustedRepoRoot()` returns the kit. `REPO_BOUNDARY_MARKERS` is 9 members, `TRUSTED_ROOT_STOP_CONDITIONS` publishes 6 stops, `TRUSTED_ROOT_RESIDUALS` carries 8, and `16-context-read-write.md:49-56` is asserted set-equal to the export in both directions with a seeded-fail control |
-| IN-10 the configured-soft control is never chained or invoked | **closed** | `configured-soft.uat.spec.ts:44` is now `await expect.configure({ retries: 2 })(page.getByTestId("invoice-total")).toBeVisible();`, and the `MUTATE-REMOVE` region carries all four escapes including the converse inner-link ordering |
-| IN-11 baseline / freeze consistency | **re-measured, unchanged** | `npm run freshness` 60/60 fresh, so the committed `.js` in scope matches its `.ts`. The two `DECIDER_MANIFEST` entries moved with their artifacts (`2107434e…` / `2ccb6628…`) |
-| IN-04, IN-06, IN-09 | **carried** | Unchanged this round |
+| CR-12 unguarded `readFileSync` at the note-write chokepoint | **closed in this module; survives at the hook wrapper → CR-17** | FIFO at `<ctx>/T-9/notes/<id>.md`, `timeout 10 node` → `EXIT=0` in 0.1 s, `REFUSED (note-path-not-a-regular-file)`, the FIFO untouched. Closed BY RULE: `readFileSync` and `appendFileSync` are gone from the module (asserted over the whole parse at `context-io-writer-set.test.ts`), and one `readRegularFileOrNull` / `appendRegularFileLine` pair carries the `O_NONBLOCK`+`fstat` discipline |
+| CR-13 a home-rooted repository never has its dial read | **closed** | Tree `<H>/.git` + `<H>/.grugops/factory.config.json {human_admission: high-severity}`, `HOME=<H>`, cwd `<H>/work/sub`, both project-directory variables removed: `trustedRepoRoot()` → `<H>` (was: the kit), and the self-stamped `security-nfr` finding → `admission REFUSED (human_admission: high-severity)`. Closed by splitting the predicate (`isAboveHome` / `isHomeItself`) so the bound bounds ASCENT, not OBSERVATION |
+| CR-14 the declared-name census is a file-scoped off switch | **closed as filed; new bypass → CR-18** | `it.skip(...)` at module scope with `const it = 1;` inside the callback → `1 finding(s)`, EXIT=1 (was: `0 findings`, EXIT=0). Namespace and fixture-parameter variants likewise refused |
+| CR-15 `ts.createSourceFile` outside the could-not-run boundary | **closed** | Nesting depths 631 / 1,000 / 5,000 / 20,000 → EXIT=**2**, stdout empty, stderr `The UAT spec … could not be analysed (Maximum call stack size exceeded)` **and** the vacuity floor. Depth 630 → EXIT=0 with the measurement line. `main`'s whole body is inside one boundary returning 2; the only `process.exit` takes `main`'s return value |
+| CR-16 `originIsTrusted`'s second arm accepts any in-repository directory | **closed** | Legitimately admitted `human:mallory` bytes copied to `<repo>/tmp/forged` → `DECLINED (origin-outside-trusted-store)`, nothing written. The root-proximity arm is deleted, not narrowed; the surviving rule is shape ∧ root-anchoring |
+| WR-22 note-before-ledger and the fail-open ledger read | **closed as filed; the claim fails on a different axis → CR-20** | `ledgerRecordsId` now throws for a present-and-unreadable ledger and the caller declines `unreadable-audit-ledger`; both `promoteAdmitted` and `admitAndAppend` append the event BEFORE the note, and both assert the written id equals the keyed id |
+| WR-23 the fixture exemption is index 1 of ANY function-like node | **closed as filed; survives one position over → WR-26** | The review's own spec (`function inner(n, it) { return it.skip(n); }`) → `0 findings`, EXIT=0 |
+| WR-24 the shadowed-rename fixture cannot fail for CR-14's reason | **closed** | `shadowed-rename.uat.spec.ts:46-52` now carries a `MUTATE-REMOVE` region holding one genuine module-scope `it.skip(...)`, asserted reported exactly once, with the removal half asserted at zero |
+| WR-25 the dial clause is evaluated before the operand clause | **closed** | Lean destination + forged origin → `DECLINED (origin-outside-trusted-store)`; lean destination + good origin → `DECLINED (human-stamp-not-gated-at-destination)`. Two-sided, measured |
+| IN-12 `stripRoutingLinks` computed three times | **closed** | One call per predicate (`uat-spec-integrity.ts:398`, `:439`); `:1920` is the dedup key in a different function |
+| IN-13 the two `UNKNOWN - verify` items | **answered** | `docs/audit/31-round5-residuals.md` §9.1 and §9.2 resolve them by name; §9.3 carries the reviewer's own one forward rather than absorbing it |
 
 ## Critical Issues
 
-### CR-12: the CR-11 fix put an unguarded `readFileSync` on the module's single note-write chokepoint, so a non-regular file at a note path makes **every note write hang forever** — the exact hazard this file documents, measured and refuses 2,400 lines below
+### CR-17: the CR-12 fix stopped at the module boundary — `hooks/hook-entry.ts` still hashes thirteen agent-writable paths with a bare `readFileSync` BEFORE the spawn, so one `mkfifo` hangs the PreToolUse guard for every `Bash` call and a hook that never answers is an allow
 
-**File:** `scripts/context-io.ts:982-985` (`if (existsSync(resolvedFinal)) { … existing =
-readFileSync(resolvedFinal, "utf8") }`), `:969-1002` (`writeNoteFile`, reached by `appendNote`,
-`appendPreAdmittedNote` and `emitTrusted`/`emitVerdict`/`emitCheckpointNote`), `:3382-3401` (the
-same file's `readGovernanceConfigCandidate` header — "WHY THIS IS NOT `existsSync` + `readFileSync`
-… **readFileSync on a path that is not a regular file BLOCKS** … no exit, zero bytes of stdout and
-zero bytes of stderr at 20 seconds … One allowed `mkfifo` turned BOTH guards off"), `:2425-2430`
-(`ledgerRecordsId`, the second new instance of the same pair, added by the WR-18 fix)
+**File:** `hooks/hook-entry.ts:190` (`readFileSync(join(KIT_ROOT, rel))` inside `verifyDeciderClosure`),
+`:226` (the verification runs before the spawn), `:237` (`readFileSync(0, "utf8")`),
+`:267` (`DECIDER_TIMEOUT_MS`, which bounds only `spawnSync`), `:143-175` (the thirteen manifest
+paths, eleven of them under `scripts/`), `hooks/hooks.json:8` and `:17` (this file is the PreToolUse
+entry for `Bash` and for every `mcp__grugops__*` tool), `scripts/context-io.ts:927-1000` (the
+non-blocking reader this round extracted and did not carry here)
 
-**Issue:** Before this round `writeNoteFile` never read the destination: it asserted path
-containment and called `atomicWrite`, which writes a temp file and renames over whatever is there.
-The CR-11 fix added a destination **read** at the chokepoint. `readFileSync` on a FIFO blocks at
-`open(2)` until a writer appears; there is no timeout, no `O_NONBLOCK`, and no regular-file check —
-all three of which this same module already implements, in the reader written 2,400 lines further
-down, for exactly this reason and after exactly this measurement.
+**Issue:** Round 5's whole argument for D-24 is written at `context-io.ts:944` — *"a rule living
+inside one function is a HABIT: the next reader added to this module did not inherit it."* The same
+sentence is true one file over, and the file it is true of is the one that decides whether a force
+push runs. `verifyDeciderClosure` reads every module in the decider's import closure with
+`readFileSync`. `readFileSync` on a path that is not a regular file blocks at `open(2)` with no
+timeout, no `O_NONBLOCK` and no `fstat`. The wrapper's only bound — `DECIDER_TIMEOUT_MS` — is an
+argument to `spawnSync`, which runs **after** the verification, so it bounds nothing here.
+
+The manifest paths are exactly the paths this file's own header names as agent-writable: *"an
+ordinary agent write to `scripts/checkpoints.js`, which matches no deploy pattern and carries no
+grant name."* Replacing one of them with a FIFO is the same one-file capability, one syscall over.
+
+**Reproduced on this tree**, against the committed `hooks/hook-entry.js`, copied to a scratch kit so
+nothing in the repository was touched:
+
+```
+mkfifo <kit>/hooks/admission-guard.js
+timeout 12 node <kit>/hooks/hook-entry.js admission-guard.js < payload.json
+    EXIT=124        stdout: 0 bytes        stderr: 0 bytes
+
+CONTROL — the same path as an ordinary (mismatched) regular file
+    EXIT=0, stdout carries the fail-closed deny naming the manifest mismatch, in ~0.1 s
+```
+
+Three things make this a BLOCKER:
+
+1. **It disarms the whole tier, not one call.** `hook-entry.js` is the PreToolUse command for
+   `matcher: "Bash"`. Once a FIFO sits at any manifest path, **every** Bash tool call in the session
+   waits out the host's hook timeout and is then allowed unchecked — including the `git push
+   --force` and deploy patterns `guard.js` exists to refuse. This file's own words: a hook that does
+   not answer "does not block".
+2. **It is silent on both streams**, which is the one outcome this surface is audited against, and
+   which the transcript renders as a hook that ran and said nothing.
+3. **The fix already exists, twelve hundred lines away, written this round.** `readRegularFileOrNull`
+   is `node:fs`-only, imports nothing from `scripts/`, and is therefore importable-by-copy into a
+   file whose import list must stay `node:` builtins.
+
+`readFileSync(0, "utf8")` at `:237` is the same primitive on the host's stdin: a parent that opens
+the pipe and never closes it wedges the wrapper identically. It is less reachable (the host owns
+fd 0) and is named here so the fix covers the class rather than the one call.
+
+**Fix:** Give the wrapper the same three lines the decider module now has, inline, so its import
+list stays `node:` builtins only:
+
+```ts
+function readRegularFileOrRefuse(path: string): Buffer {
+  // O_NONBLOCK so a FIFO at a manifest path returns a descriptor instead of waiting for a writer;
+  // fstat on THAT descriptor so anything that is not a regular file is a fail-closed deny, decided
+  // in bounded time. This is scripts/context-io.ts's readRegularFileOrNull, restated because this
+  // file may not import from scripts/ — the corruption class that reaches the decider.
+  const fd = openSync(path, fsConstants.O_RDONLY | fsConstants.O_NONBLOCK);
+  try {
+    const st = fstatSync(fd);
+    if (!st.isFile()) throw new Error(`"${path}" is not a regular file`);
+    const buf = Buffer.allocUnsafe(Number(st.size));
+    let off = 0;
+    while (off < buf.length) { const n = readSync(fd, buf, off, buf.length - off, off); if (n === 0) break; off += n; }
+    return buf.subarray(0, off);
+  } finally { closeSync(fd); }
+}
+```
+
+Route both `verifyDeciderClosure` and the fd-0 payload read through it, and bound the payload read
+(a short `O_NONBLOCK` read loop, or an explicit refusal) so the wrapper cannot wait on the host
+either. Then re-take `FROZEN_HOOK_ENTRY_LOGIC_SHA` in `scripts/floor-invariance.test.ts:842` — the
+freeze is change control, not a reason to leave a hang. Add a case that plants a FIFO at a manifest
+path and asserts a bounded deny, which is the shape neither `floor-invariance.test.ts` nor any
+round-5 probe exercises, because every one of them plants regular files.
+
+---
+
+### CR-18: D-27's `hoisted` arm gives a BLOCK-SCOPED function declaration the whole module's range, so a single `if (false) { function it(): void {} }` — which type-checks clean and emits real JavaScript that keeps the import — re-admits `it.skip(...)` at exit 0
+
+**File:** `scripts/runnable-ref/uat-spec-integrity.ts:1592` and `:1596` (the two `arm: "hoisted"`
+returns, both `rangeOfNode(enclosingFunctionLike(declaration) ?? sf, sf)`), `:1494-1502`
+(`enclosingFunctionLike`, which walks past every block), `:1552-1556` (`listHoists`),
+`:1708-1740` (`resolveBinding`, which then finds the module-wide range containing the call),
+`agent-factory/checklists/browser-uat-recipe.md:204` and `:277` ("A `var` binding and a function
+declaration hoist to their enclosing function")
+
+**Issue:** In an ES module — which every `*.uat.spec.ts` is — a function declaration inside a block
+is **block-scoped**. It does not shadow a module-scope import outside that block, and it does not
+collide with one. `bindingRangeFor` classifies it as hoisting and hands it
+`enclosingFunctionLike(declaration) ?? sf`, which at module scope is the SourceFile: the whole file.
+`resolveBinding` then returns it as the nearest containing binding for every reference in the file,
+and because it is a `suppresses: true` record, `canonicaliseHeadSegment` returns its input unchanged
+— so `it.skip` is asked as `it.skip`, whose head is not banned.
+
+**Reproduced on this tree**, against the committed `scripts/runnable-ref/uat-spec-integrity.js`:
+
+```ts
+import { test as it, expect } from "@playwright/test";
+if (false) {
+  function it(): void {}
+  void it;
+}
+it.skip("scenario", async ({ page }) => {
+  await expect(page.locator("x")).toBeVisible();
+});
+```
+```
+node scripts/runnable-ref/uat-spec-integrity.js <root>
+  -> UAT spec integrity: 0 findings over 1/1 uat specs checked      EXIT=0
+the SAME file without the `if (false)` block
+  -> 1 finding(s) ... `test.skip` ...                                EXIT=1
+
+the namespace family, identically:  import * as pw + `if (false) { function pw(): void {} }`
+  -> 0 findings over 1/1                                             EXIT=0
+
+CONTROL — a block-scoped CLASS (correctly ranged by the `tdz` arm)
+  { class it {} void it; }  -> 1 finding(s)                          EXIT=1
+```
+
+Four things make this a BLOCKER rather than a residual:
+
+1. **The evaded spec is legal and it runs.** `tsc --noEmit --strict --target es2022` over the file
+   against a transcribed `@playwright/test` surface exits **0** — no duplicate-identifier error.
+   `ts.transpileModule` emits `import { test as it, expect } from "@playwright/test";` unchanged
+   followed by `it.skip("scenario", …)`. The scenario is genuinely skipped, and the gate says
+   `0 findings`.
+2. **It is CR-14 at the same magnitude.** CR-14 was a two-line evasion of the whole
+   rename/namespace/fixture family; this is a three-line one, in the same file, reached because the
+   fix chose "enclosing function" where the language says "enclosing block".
+3. **`declare` is a second spelling of the same hole.** `declare const it: unknown;` at module scope
+   → `0 findings`/EXIT=0 for both the rename and the namespace families. An ambient declaration
+   binds nothing at runtime; the census records it as an ordinary suppressing binding because
+   nothing reads `modifiers` for `DeclareKeyword`.
+4. **The recipe now teaches the wrong rule as the rule.** `:204` and `:277` state the
+   hoist-to-enclosing-function reading as fact, so a reader who follows the document will not see
+   the block case as a defect.
+
+**Fix:** Make the `hoisted` arm ask what the language asks, and refuse to record a binding that
+binds nothing:
+
+```ts
+// A FUNCTION DECLARATION HOISTS TO ITS ENCLOSING *BLOCK*, not to its enclosing function: in a
+// module (always strict) `if (c) { function f() {} }` binds `f` in the block only. Using the
+// enclosing function-like node hands a block-scoped declaration the whole module's range, which for
+// a BAN is the accepting direction.
+if (typeof isFunctionDeclaration === "function" && isFunctionDeclaration(declaration)) {
+  return { ...rangeOfNode(enclosingScope(declaration, sf), sf), arm: "block-function" };
+}
+// `var` keeps the function-wide range; that one really does hoist.
+...
+// AN AMBIENT DECLARATION IS NOT A BINDING. `declare const/var/function` emits no JavaScript, so it
+// cannot shadow an import at run time and must not suppress a rewrite.
+if (hasDeclareModifier(ts, declaration)) return; // recorded nowhere
+```
+
+Add both shapes to the corpus — the block-scoped function beside a genuine module-scope
+`it.skip(...)`, and the `declare const` spelling — and assert each is reported once. Then correct
+`browser-uat-recipe.md:204` and `:277`, which currently state the defective rule.
+
+---
+
+### CR-19: the CR-12 fix put an 8 MiB ceiling on the READ side only, so a note this module writes successfully becomes silently invisible to every reader of the shared verified context — and the refusal a re-write then gets names a condition that is not true
+
+**File:** `scripts/context-io.ts:1008` (`NOTE_FILE_MAX_BYTES`), `:1111-1116` (the `st.size > maxBytes`
+throw), `:1500-1506` (`readRawNotes`, whose `catch { continue; }` swallows it), `:1203`
+(`writeNoteFile`'s destination read), `:1207-1214` (the refusal that names
+`note-path-not-a-regular-file` for it), `:2659` (`AUDIT_LEDGER_MAX_BYTES`), `:2951`, `:1740-1748`
+(the `unreadable-audit-ledger` decline sentence), `:903` (`atomicWrite`, which has no ceiling)
+
+**Issue:** `readRegularFileOrNull` refuses a regular file above the caller's ceiling. Every note read
+in this module passes the ceiling; **no note write does**. The two halves of the module therefore
+disagree about what a note may be, and the disagreement is resolved silently in the reader.
 
 **Reproduced on this tree**, against the committed `scripts/context-io.js`:
 
 ```
-1. io.appendNote(..., precomputedId="…-qe-observation-deadbeef")   -> wrote, EXIT=0     (control)
-2. mkfifo <ctx>/T-9/notes/20260909T050000Z-qe-observation-cafe0001.md
-3. io.appendNote(..., precomputedId="…-qe-observation-cafe0001")   -> EXIT=124 (timeout 10s)
-                                                                      stdout: empty, stderr: empty
+io.appendNote("T-1", {qe/observation}, "x".repeat(9*1024*1024), <ctx>, undefined, <root>)
+   -> WROTE 20260909T010000Z-qe-observation-01f5f2df          EXIT=0, no diagnostic
+
+io.readContext("T-1", <ctx>)
+   -> 0 note(s)                                                the note is GONE from the context
+
+the SAME bytes on disk, read with the PRE-ROUND-5 committed module (git archive 89228c8)
+   -> 1 note(s)                                                so this is a regression, not a bound
+
+io.appendNote(..., precomputedId = that id)   (the idempotent re-write of identical bytes)
+   -> REFUSED: "refusing to write (note-path-not-a-regular-file) — the note destination "…" is not
+      absent, or a regular file"
 ```
 
-The same hang was measured on `promoteAdmitted` through a FIFO at
-`<repoRoot>/.grugops/audit/admissions.jsonl` (`timeout 15` → exit 124) — there the note file had
-**already been written** before the process wedged, so the destination holds a human-disposed
-finding with no ledger line, which is precisely what `18-context-compaction.md:83` now claims can
-never happen. (The `appendFileSync` half of that path is pre-existing; the `readFileSync` in
-`ledgerRecordsId` is new this round.)
+Four things make this a BLOCKER:
 
-Four things make this a BLOCKER rather than a robustness note:
+1. **It is silent data loss on the surface whose entire value proposition is that it is the only
+   memory.** The note is invisible to `readContext`, `render`, `currentState`, `admit()`'s
+   §14-gate cross-check and `promoteAdmitted`'s destination-liveness clause. Nothing is logged; the
+   writer already returned success.
+2. **The refusal misnames the condition, on the register whose contract is that a caller is told
+   which clause failed.** The file IS a regular file. `NOTE_PATH_NOT_REGULAR_FILE_CLAUSE`'s own
+   docstring claims it "covers every non-canonical shape" — a size ceiling is not a shape, and
+   `CANONICAL_READ_POSITION` ("absent, or a regular file") is quoted into a message about a file
+   that meets it.
+3. **No residual names it.** `R-31-21-02` names a non-regular file inside `notes/`; `R-31-21-01`,
+   `R-31-21-03` and `R-31-21-04` name other things. `docs/audit/31-round5-residuals.md` §10.5 goes
+   as far as recording that these four live only in a planning document and bind no test — and none
+   of the four is this.
+4. **The ledger carries the identical asymmetry with a worse failure mode.** `appendRegularFileLine`
+   appends without a ceiling; `ledgerRecordsId` reads with a 64 MiB one, whose own comment concedes
+   the ledger "grows without bound in ordinary use". Past that point every `promoteAdmitted` under
+   `retained` declines permanently as `unreadable-audit-ledger`, whose register sentence
+   (`:1740`) asserts the ledger "is not a regular file, or it could not be opened at all" — both
+   false. Neither ceiling is driven by any case; `context-io.test.ts:9489` tests the config ceiling
+   only.
 
-1. **It is on the chokepoint, so it is on every writer.** `appendNote`, `admitAndAppend`,
-   `promoteAdmitted`, `emitVerdict` and `emitCheckpointNote` all end on this line. A guard hook that
-   emits a checkpoint note hangs the tool call; a PreToolUse hook that never answers is, in this
-   project's own measured words, "the same event as an allow".
-2. **The failure is silent on both streams.** No exception, no exit code, no diagnostic — the one
-   outcome this whole surface is audited against.
-3. **The path is caller-influenced.** `promoteAdmitted` takes its id from `sourceId` outright, and
-   `appendNote`/`emitTrusted` accept a `precomputedId`; `noteId` composes the rest from `at` and
-   `by`. An adversary who can plant one FIFO chooses which write wedges.
-4. **The fix already exists in this file.** `readGovernanceConfigCandidate` opens with `O_NONBLOCK`,
-   `fstat`s the descriptor, refuses anything that is not a regular file, and closes it. The
-   chokepoint needs the same three lines and got none of them.
-
-**Fix:** Read the destination through the same primitive the module already trusts, rather than a
-second habit:
+**Fix:** Make the write side own the ceiling, so the two halves cannot disagree, and split the
+clause so a refusal names what happened:
 
 ```ts
-// writeNoteFile: the destination read must not be able to block. A note path occupied by anything
-// that is not a REGULAR FILE is not something this write may replace and is not something it may
-// wait on — it is the fail-closed refusal below, decided in bounded time.
-const existing = readRegularFileOrNull(resolvedFinal); // O_NONBLOCK open + fstat + close, as
-                                                       // readGovernanceConfigCandidate already does
-if (existing !== null && existing === text) return;    // the decided idempotent case, unchanged
-if (existing !== null || pathIsOccupied(resolvedFinal)) throw /* append-only refusal */;
+// writeNoteFile: the ceiling is a property of a NOTE, so it is asserted where a note is created.
+if (Buffer.byteLength(text, "utf8") > NOTE_FILE_MAX_BYTES) {
+  throw new Error(`context-io.writeNoteFile: refusing to write (note-too-large) — …`);
+}
+// readRegularFileOrNull: an over-ceiling REGULAR FILE is its own clause, never the shape clause.
+export const NOTE_PATH_ABOVE_CEILING_CLAUSE = "note-above-size-ceiling";
 ```
 
-Factor that reader out of `readGovernanceConfigCandidate` so there is ONE non-blocking file read in
-this module rather than two habits, and route `ledgerRecordsId` through it too. Add a case that
-plants a FIFO at a note path and at the ledger path and asserts a bounded refusal — the shape this
-round's own probes never exercised, because every one of them wrote into a directory containing only
-regular files.
+`readRawNotes` must then distinguish "not a note" (skip) from "a note this reader cannot fully read"
+(a loud refusal, or at minimum a recorded diagnostic) — a note that was admitted and then vanishes
+is not the same event as a planted FIFO. Do the same at the ledger: bound the append, or drop the
+read ceiling and stream the look. Add a case at each ceiling, on both sides, which is the axis no
+round-5 probe drove because every one of them wrote small notes.
 
 ---
 
-### CR-13: the WR-21 fix reinstates the WR-15 defect at one position — a repository whose **root is the user's home directory** never has its dial read, so a self-stamped high-severity finding is WRITTEN where the identical tree one level lower REFUSES it
+### CR-20: the WR-22 fix inverted the two steps and left them aimed at two different repositories — the note goes to the caller's `to`, the GOV-02 event goes to `repoRoot`, so a cross-repository promotion leaves a human-disposed finding in a repository whose audit trail records nothing, which Workflow 18 states twice cannot happen
 
-**File:** `scripts/context-io.ts:3066` (`if (isAtOrAboveHome(dir, home)) return nearest;` — the home
-stop is asked **before** the directory is inspected for a configuration or a marker), `:3014-3018`
-(`isAtOrAboveHome`), `:3051-3080` (`projectRootFromWorkingDirectory`), `:3305-3325`
-(`R-31-19-01`, which names the ancestor-**below**-home case and not this one), `:3107-3140`
-(`TRUSTED_ROOT_STOP_CONDITIONS`), `agent-factory/workflows/16-context-read-write.md:54`,
-`scripts/context-io.ts:2892-2900` (the same file rejecting `.grugops` as a boundary marker because
-it "moves cases in the UNSAFE direction … a configuration moving from refused to admitted, which is
-the WR-15 defect this order exists to close")
+**File:** `scripts/context-io.ts:2181-2209` (the ledger block: `ledgerRecordsId(repoRoot, …)` then
+`appendAuditLedger(repoRoot, …)`), `:2210` (`appendPreAdmittedNote(task, note, body, to, sourceId)`
+— a different root), `:2947-2949` (`ledgerRecordsId` composes the path from `repoRoot`),
+`:1955` (`repoRoot: string = trustedRepoRoot()`), `:1810-1826` (`R-31-22-02`, which dispositions `to`
+as unconstrained and says nothing about the ledger),
+`agent-factory/workflows/18-context-compaction.md:83` ("A re-binding first looks in **the
+destination repository's** ledger" … "the destination never holds a human-disposed finding with no
+ledger line")
 
-**Issue:** `S-HOME` wins over `S-BOUNDARY`, and it wins *before* the directory is examined. A
-repository rooted at `$HOME` — a dotfiles checkout, or simply an agent run in the home directory —
-therefore has both its `.git` marker and its `.grugops/factory.config.json` skipped, and
-`trustedRepoRoot()` falls through to `GOVERNANCE_FALLBACK_BASE`, the kit, whose shipped dial is
-lean. That is the WR-15 verdict direction exactly: **a configuration moving from refused to
-admitted.**
+**Issue:** `promoteAdmitted` takes `from`, `to` and `repoRoot`. The note is written under `to`. The
+ledger is looked up and appended under `repoRoot`, which the public `compactor.promoteAdmitted`
+pass-through does not expose at all, so it is always `trustedRepoRoot()` — the repository the
+PROCESS is standing in. Whenever `to` is not that repository's own store — which is precisely the
+cross-repository compaction the origin rule's own rationale exists to permit ("a cross-repository
+compaction is a promotion a host genuinely performs") — the note and its audit record land in
+different repositories.
 
-**Reproduced on this tree**, both project-directory variables genuinely removed from the child
-environment, against the committed `scripts/context-io.js`:
+**Reproduced on this tree**, against the committed `scripts/context-io.js`, three real governance
+roots (`.git` + `.grugops/factory.config.json {human_admission: high-severity, audit_retention:
+retained}`):
 
 ```
-tree:   <H>/.git, <H>/.grugops/factory.config.json {human_admission: high-severity}, cwd <H>/work/sub
-HOME=<H>  (so <H> IS os.homedir())
-  trustedRepoRoot()  -> /Users/olgeroeselg/Projects/public/grugops     ← the KIT
-  dial               -> "off"   (source: ok)
-  appendNote(finding, by: security-nfr, verified_by: "human:mallory")  -> WROTE
-                        20260909T010000Z-security-nfr-finding-25aa82fe
+origin repo O (dial off)       -> appendNote          -> 20260909T033000Z-security-nfr-finding-c1a399ad
+promoteAdmitted(T-1, id, …, from = O/.grugops/context, to = THIRD/.grugops/context, repoRoot = DEST)
+   -> PROMOTED (no decline)
 
-CONTROL — the identical tree one level BELOW home (<H2>/proj/.git + <H2>/proj/.grugops/…), cwd <H2>/proj/work
-  appendNote(the SAME note)  -> REFUSED
-                        "admission REFUSED (human_admission: high-severity)"
+THIRD repo notes    : [ '20260909T033000Z-security-nfr-finding-c1a399ad.md' ]   ← the human-disposed finding
+THIRD repo ledger   : ABSENT                                                    ← no line, anywhere in it
+DEST  repo ledger   : 2 line(s)                                                 ← the event went here
+DEST  repo notes    : [ a DIFFERENT id ]                                        ← and not to this note
 ```
-
-The two runs differ in nothing but whether the repository root is the home directory.
 
 Three things make this a BLOCKER:
 
-1. **It is the defect WR-15 was convened to close, at a reachable position.** The whole point of
-   step 3 is that the TARGET repository's dial decides on the four non-CC hosts, where the in-script
-   refusal is the only tier available (D-12). Here it does not.
-2. **No residual names it.** `R-31-19-01` names a configuration at an ancestor **below** home;
-   `R-31-19-02` names `HOME` being process-settable; `R-31-19-03` names degenerate inodes;
-   `R-31-19-04` names an unknown VCS marker. A configuration **at** home is in none of them, and the
-   register's own contract is that "adding a member without dispositioning it turns a test red
-   rather than shipping quietly" — this arrived without a member at all.
-3. **The published prose reads the other way.** `16-context-read-write.md` now tells a reader the
-   third step is "the repository root's own configuration where the upward search reaches a
-   repository root", and lists `S-BOUNDARY` ("ends at the first ancestor carrying a version-control
-   marker") as a stop in its own right. For a home-rooted repository the search never reaches the
-   root and the marker is never seen.
+1. **It is a repudiation by construction, not by crash.** WR-22's version needed a FIFO or a SIGINT
+   between two steps. This one needs neither: every promotion whose destination is not the process's
+   own root produces it, deterministically.
+2. **Both agent-facing sentences are false, and both were WRITTEN THIS ROUND.** `:83` says the
+   re-binding "first looks in the destination repository's ledger" — it looks in `repoRoot`'s — and
+   then asserts the no-ledger-line state "never" happens. This is CR-16's shape one register over: a
+   claim the mechanism does not honour, on a register whose whole contract is that it does.
+3. **The `writtenId !== persistedId` guard at `:2211-2217` proves the authors were thinking about
+   exactly this class and asked the narrower question.** The two ids are checked for agreement; the
+   two ROOTS are not.
 
-**Fix:** Make the home stop asymmetric — refuse to climb **past** home, but let the home directory
-itself answer when it is the repository:
+**Fix:** Key the ledger on the destination the note is going to, and make the disagreement
+unrepresentable:
 
 ```ts
-for (let step = 0; step < TRUSTED_ROOT_SEARCH_MAX_ANCESTORS; step++) {
-  const isHome = isHomeItself(dir, home);
-  if (isAboveHome(dir, home)) return nearest;          // never inspect an ANCESTOR of home
-  const carriesConfig = governanceConfigCandidates(dir).some(existsSync);
-  if (carriesConfig && nearest === null) nearest = dir;
-  const isBoundary = REPO_BOUNDARY_MARKERS.some((m) => existsSync(join(dir, m)));
-  if (isBoundary) return carriesConfig ? dir : nearest;
-  if (isHome) return nearest;                          // home is inspected ONCE, then the walk ends
-  …
-}
+// The GOV-02 event records that a human disposition entered THIS store. The repository that owns
+// the store is the one whose trail must carry it, and that repository is derived from `to`, never
+// from where the process happens to be standing.
+const destinationRoot = governanceRootOf(to); // dirname(dirname(resolve(to))) — the anchoring
+                                              // conjunct `originStoreIsRootAnchored` already computes
+if (destinationRoot === null) throw declineRebinding("destination-outside-governed-store", …);
 ```
 
-That keeps the threat WR-21 named closed — `~/.grugops` alone, with no marker, is still not adopted,
-because the shared-install kit root carries no repository marker — while a genuine checkout rooted at
-`$HOME` governs itself. Whichever shape is chosen, it is a decision beside D-23 and needs a
-`R-31-19-05` member stating the cost, plus a case that plants `.git` **and** a strict dial at the
-home directory and asserts the answer.
+If `to` is genuinely to stay unconstrained, then `R-31-22-02` must be rewritten to state that an
+unanchored destination gets **no audit record at all**, and `18-context-compaction.md:83` must stop
+asserting the converse. Drive a case whose `to` is under a different root than `repoRoot` and assert
+where the line lands — the axis this round's cases never crossed, because every one of them passed a
+`to` under the same root as `repoRoot`.
 
 ---
 
-### CR-14: the D-21 (2) declared-name census is a **one-line, file-scoped off switch** for both canonicalisations, so WR-14's and CR-10's closures each evaporate on any spec carrying an unrelated declaration of the head name
+### CR-21: `testInfo.skip()` passes at exit 0 through Playwright's documented three-argument scenario form `test(title, details, body)`, because the fixture derivation reads `arguments[1]` and nothing else
 
-**File:** `scripts/runnable-ref/uat-spec-integrity.ts:1435` (`if (declaredNames !== null &&
-declaredNames.has(segments[0])) return dottedPath;` — the rule is asked once, before either map, for
-the WHOLE file), `:1369-1400` (`deriveDeclaredNames`, a file-level census), `:1341-1346` (the
-"MONOTONE IN THE SAFE DIRECTION" claim), `:289-297` (the D-21 header's "WHAT D-21 DOES NOT
-ESTABLISH"), `:262` (`UNRESOLVABLE_CALLEE_RESIDUALS`, the file-scoped member),
-`agent-factory/checklists/browser-uat-recipe.md:192-206`,
-`scripts/runnable-ref/uat-spec-integrity.test.ts:4742-4758` (the case that asserts this green)
+**File:** `scripts/runnable-ref/uat-spec-integrity.ts:1397` (`const body = node.arguments[1];`),
+`:1345-1370` (the D-20 (3) docstring, which states the binding as "the SECOND parameter of the
+function passed as the SECOND argument"), `:1754-1762` (`isFixtureBindingPosition`, which encodes the
+same assumption), `:262-300` (`UNRESOLVABLE_CALLEE_RESIDUALS`, which does not name it),
+`agent-factory/checklists/browser-uat-recipe.md:250-256`
 
-**Issue:** The census is a per-file set of every name the file declares, and the canonicaliser
-returns its input unchanged for any head in it. For a **ban**, returning the input unchanged means
-`it.skip` is asked as `it.skip`, whose head is not a banned head — so the construct is admitted.
-Suppressing a rewrite is not the safe direction here; it is the only direction in which this rule can
-change an answer, and it changes it from *refused* to *accepted*.
+**Issue:** Playwright has supported `test(title, details, body)` — the tag/annotation form — since
+1.42, and it is the spelling a spec uses to carry `{ tag: "@smoke" }`. In that form the scenario body
+is `arguments[2]`. `deriveTestInfoParameterNames` looks only at `arguments[1]`, finds an object
+literal, and contributes no fixture-parameter name, so `testInfo` is never canonicalised to
+`test.info()` and the ban never sees a banned head.
 
-**Reproduced on this tree**, against the committed `scripts/runnable-ref/uat-spec-integrity.js`:
+**Reproduced on this tree**, against the committed `.js`:
 
-```
-import { test as it, expect } from "@playwright/test";
-it.skip("scenario", async ({ page }) => {
-  const it = 1; void it;                            // ← a dead, unrelated declaration
+```ts
+import { test, expect } from "@playwright/test";
+test("scenario", { tag: "@smoke" }, async ({ page }, testInfo) => {
+  testInfo.skip();
   await expect(page.locator("x")).toBeVisible();
 });
-                                                    -> 0 findings over 1/1,  EXIT=0
-   the SAME file without `const it = 1;`            -> 1 finding(s),          EXIT=1 (`test.skip`)
+```
+```
+-> UAT spec integrity: 0 findings over 1/1 uat specs checked        EXIT=0
 
-import * as pw from "@playwright/test";
-pw.test.skip("scenario", async ({ page }) => { const pw = 1; void pw; … });
-                                                    -> 0 findings over 1/1,  EXIT=0
-
-import { test, expect } from "@playwright/test";
-function helper(testInfo: number) { return testInfo; }        // ← index-0 parameter, counted
-test("scenario", async ({ page }, testInfo) => { testInfo.skip(); … });
-                                                    -> 0 findings over 1/1,  EXIT=0
-   the SAME file without `helper`                   -> 1 finding(s),          EXIT=1 (`test.info().skip`)
+CONTROL — the identical file in the two-argument form
+-> 1 finding(s) ... `test.info().skip` ...                          EXIT=1
 ```
 
-**This is disclosed and it is asserted green** — the residual member at `:262` states the mechanism,
-the recipe repeats it at `:200-206`, and `uat-spec-integrity.test.ts:4742` drives the first shape and
-asserts `[]` under the header "THE COARSENESS, MEASURED rather than described". Three things make it
-a BLOCKER anyway:
+Three things make this a BLOCKER:
 
-1. **The disposition is unpriced.** The register says one declaration suppresses the rewrite for the
-   whole file; it does not say that this is a two-line, deliberately-writable evasion of the entire
-   rename/namespace/fixture-parameter family. WR-14 and CR-10 were each Critical; both are now one
-   dead `const` away from where they were before 31-13 and 31-16.
-2. **The header's direction claim is inverted.** `:1341` — "THE RULE IS MONOTONE IN THE SAFE
-   DIRECTION. It can only STOP a rewrite" — is the sentence a future reader will rely on when
-   deciding whether the census may be widened. Stopping a rewrite is the *unsafe* direction for a
-   ban, and the test comment beside it ("the checker says less than it could") states the fact while
-   the code comment states the opposite reading of it.
-3. **The register's own doctrine forbids this trade being made quietly.** `browser-uat-recipe.md:250`
-   — "Widening the rule is a new decision and a gap-closure round, never a quiet edit". Narrowing it
-   from three closed spellings to zero for any file that declares a name is the same magnitude of
-   change in the other direction, and it arrived inside a fix for a false positive.
+1. **It is CR-10's harm, live, with no adversarial construct at all.** The spec is idiomatic
+   Playwright that a UAT author writes to tag a scenario; nothing about it looks like an evasion.
+2. **The recipe promises the opposite.** `:250-256` lists "through the TestInfo FIXTURE PARAMETER"
+   among the spellings refused, with no form qualification.
+3. **The residual register does not carry it.** `UNRESOLVABLE_CALLEE_RESIDUALS` names a destructured
+   second parameter and a cross-file fixture-extension rename; the three-argument overload is in
+   neither, so a reader consulting the boundary list is told the boundary is somewhere it is not.
 
-**Fix:** Make the suppression as narrow as the false positive it exists for. The parse already
-carries enough to do it without a binder: suppress only when the declaration's **enclosing
-function/block encloses the call site**, which is a `getStart`/`getEnd` containment test on nodes the
-walk already visits:
+**Fix:** Take the body positionally from the end of the argument list rather than from a fixed index,
+which is what the framework's own overload set does:
 
 ```ts
-// A declaration suppresses a rewrite only for call sites INSIDE the declaration's own scope node.
-// deriveDeclaredNames records { name, start, end } of the enclosing function/block; the canonicaliser
-// is asked with the CALL's position and suppresses only when some record contains it.
-if (declaredNames.someContaining(segments[0], callStart)) return dottedPath;
+// D-20 (3): the scenario BODY is the last function-valued argument of a `test(...)`-headed call.
+// Playwright's overloads are `test(title, body)` and `test(title, details, body)`, so a fixed
+// index-1 read is blind to the tag/annotation form — measured admitting `testInfo.skip()` at exit 0.
+const body = [...node.arguments].reverse().find((a) => isArrowFunction(a) || isFunctionExpression(a));
 ```
 
-That refuses WR-20's spec (the `it` parameter's scope is `inner`, which does not contain the
-scenario call) and keeps `it.skip` at module scope refused. If the range test is judged too much,
-then the disposition must be re-taken explicitly: record it as a decision beside D-21, state in the
-recipe's "Deliberately outside the rule" list that **a spec author can disable the canonicalisation
-for a file with one declaration**, and correct `:1341` so it does not call a false-negative widening
-the safe direction.
-
----
-
-### CR-15: `ts.createSourceFile` sits **outside** the could-not-run boundary the WR-19 fix added, so WR-19's exact harm reproduces at a quarter of the round-4 probe's depth — and the recipe paragraph added this round asserts it cannot
-
-**File:** `scripts/runnable-ref/uat-spec-integrity.ts:1605` (the `createSourceFile` call, in no
-`try`), `:1613-1630` (the `try`/`catch` that covers `findBannedConstructs` alone), `:260-270` (D-21
-(1)'s claim that the exit code is "inside the D-12 contract BY DECISION on every path"),
-`agent-factory/checklists/browser-uat-recipe.md:309-315` ("The checker holds these three codes by
-decision on every path it can take, **including a pathological one**: it does not exit through an
-uncaught exception"), `:820-880` (`deriveSpecPaths`'s `walk`, a second self-recursive descent the
-fix did not touch)
-
-**Issue:** WR-19's harm was never "the resolver recurses" — it was "an uncaught throw means
-`reportMeasured` is never reached, so the vacuity floor and the denominator floor are bypassed by
-construction while stdout stays silent". The fix bounded the resolver, de-recursed the AST walk, and
-wrapped `findBannedConstructs`. It did not wrap the **parser**, which is a recursive-descent parser
-running on attacker-or-author-controlled source, one line above the `try`.
-
-**Reproduced on this tree**, against the committed `.js` (a spec containing
-`const x: any = ((((…1…))));`):
-
-```
-depth  500 nested parens -> UAT spec integrity: 0 findings over 1/1 uat specs checked   EXIT=0
-depth 1000 nested parens -> EXIT=1   stdout: (empty)
-                            stderr: RangeError: Maximum call stack size exceeded
-                                      at …/node_modules/typescript/lib/typescript.js:33775 token()
-depth 2000 / 5000        -> identical
-```
-
-Compare the WR-19 reproduction the same probe harness now returns for the closed shape: a 4000-link
-call chain → `0 findings over 1/1`, EXIT=0, stderr empty. **The bypass threshold moved from 4000 to
-1000, in the opposite direction from the fix.** Exit 1 is inside `{0,1,2}` only by the same accident
-WR-19 named — Node's uncaught-exception code — and the D-12 contract reads 1 as "a finding, the gate
-blocks", so a check that never ran is reported as a check that found something, with no
-`visited/expected` line to contradict it.
-
-`deriveSpecPaths`'s directory `walk` is the second unguarded self-recursion in the same file and is
-also outside any `try`; it is far less reachable, and it is named here so the fix covers the class
-rather than the one call.
-
-**Fix:** Move the boundary to the file, not to one function inside it:
-
-```ts
-// analyzeSpecs: EVERYTHING this runnable does with a spec's bytes is inside the could-not-run
-// boundary — the parse included. A file the parser cannot finish is a file we did not check.
-let specFindings: string[];
-try {
-  const sf = ts.createSourceFile(rel, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
-  const diagnostics = (sf as unknown as ParsedSourceFile).parseDiagnostics;
-  if (diagnostics !== undefined && diagnostics.length > 0) { errors.push(…); continue; }
-  specFindings = findBannedConstructs(ts, sf, rel);
-} catch (cause) { errors.push(…); continue; }
-```
-
-and wrap `main`'s body in one outer `try` returning 2, so the contract is held by decision at the
-process boundary as well as per file. Add a corpus/suite case at depth 1000 asserting a
-measurement line on stdout and an exit inside `{0,1,2}` — the shape neither this round's fixture nor
-its probes exercise, because both drive a deep **chain** and never a deep **nesting**. Then the
-recipe's paragraph is true as written.
-
----
-
-### CR-16: `originIsTrusted`'s second arm accepts **any directory under the repository root**, so the WR-17 closure does not hold for the ordinary in-repository case — and Workflow 18 tells the agent that the workaround is mechanically refused
-
-**File:** `scripts/context-io.ts:1486-1491` (`originIsTrusted` — `resolvedFrom === trusted ||
-resolvedFrom.startsWith(trusted + sep)`), `:1424-1429` (the `origin-outside-trusted-store` decline
-sentence: "an **ordinary directory a caller authored and named** would let that caller supply the
-very bytes its own write is judged against: a flag wearing a filesystem path"),
-`agent-factory/workflows/18-context-compaction.md:56` ("**It refuses an ordinary directory.**"),
-`:75` ("Never copy the origin notes into a directory to make the promotion pass. Copying them is
-hand-authoring a context path by another name, **and the constraint refuses it**."),
-`scripts/context-io.ts:1455-1470` (`T-31-18-01`, which does name the `trustedRepoRoot()` arm)
-
-**Issue:** The agent that calls `promoteAdmitted` runs **inside** the repository. Every directory it
-can create is therefore under `trustedRepoRoot()` and satisfies arm 2. The constraint the fix added
-excludes only origins outside the repository — which is not where a caller authoring its own proof
-would put one.
-
-**Reproduced on this tree**, against the committed `scripts/context-io.js` + `scripts/compactor.js`,
-`CLAUDE_PROJECT_DIR=<proj>`, dial `{human_admission: high-severity, audit_retention: retained}`:
-
-```
-1. well-formed bytes obtained in a scratch store   -> 20260909T020000Z-security-nfr-finding-a801a1f1
-2. those bytes COPIED to <proj>/tmp/forged/T-1/notes/   (an ordinary directory, no .grugops anywhere)
-3. comp.promoteAdmitted("T-1", id, note, body, "<proj>/tmp/forged", "<proj>/.grugops/context")
-     -> WROTE 20260909T020000Z-security-nfr-finding-a801a1f1     (no decline)
-   dest notes:  [ '20260909T020000Z-security-nfr-finding-a801a1f1.md' ]
-   dest ledger: 1 line   ({..., "disposed_by":"human:mallory", "re_bound":true})
-```
-
-Step 2 is verbatim the action `18-context-compaction.md:75` instructs the agent is refused. The WR-18
-fix additionally makes the forged promotion **append a `disposed_by` GOV-02 event** into the
-destination repository's committed audit trail — the record `admitAndAppend`'s W3 arm exists to
-prevent forging.
-
-`T-31-18-01` does name the `trustedRepoRoot()` arm and dispositions the shape-recognition capability
-`accept`. That makes the *capability* disclosed. What is not disclosed, and what makes this a
-BLOCKER rather than a residual, is that the two artifacts a reader and an **agent** actually consult
-— the decline sentence the caller is shown and the workflow's stop conditions — both assert the
-opposite of the measured behaviour, on a safety register whose entire contract is that the claim
-matches the mechanism.
-
-**Fix:** Either constrain arm 2 to the shape arm 1 already recognises —
-
-```ts
-function originIsTrusted(from: string): boolean {
-  const resolvedFrom = resolve(from);
-  if (isRecognisedContextStore(resolvedFrom)) return true;      // <X>/.grugops/context, anywhere
-  // arm 2, NARROWED: a context store reached from the module's own root, not any directory in it.
-  return resolvedFrom === resolve(join(trustedRepoRoot(), ".grugops", "context"));
-}
-```
-
-— which loses nothing (a cross-repository origin still matches arm 1 by shape); or, if an arbitrary
-in-repository origin is genuinely wanted, **rewrite both agent-facing sentences** so they say what
-the code does, and give the copy-the-notes-in workaround its own `PROMOTE_ADMITTED_RESIDUALS` member
-rather than leaving it as an instruction the mechanism does not honour. Whichever is chosen, drive a
-case whose origin is an ordinary directory *inside* the trusted root — the shape this round's probes
-never used, because every one of them forged outside it.
+and mirror the same rule in `isFixtureBindingPosition`, so the exemption and the map keep naming one
+position (see WR-26, which is the other half of that disagreement). Add both overload forms to the
+corpus and assert the finding is identical — a `test.info().skip` naming, once, at the call's line.
 
 ## Warnings
 
-### WR-22: the note write and the ledger append are two non-atomic steps, and the ledger read fails open, so `18-context-compaction.md`'s new "the destination never holds a human-disposed finding with no ledger line" is an assertion rather than a property
+### WR-26: `isFixtureBindingPosition` exempts index 1 of a function passed as the second argument of **any** call, while the map it exempts for binds only under a `test(...)`-headed one — so WR-23's false refusal reproduces verbatim one position over
 
-**File:** `scripts/context-io.ts:1704` (`appendPreAdmittedNote` — the note is written **first**),
-`:1705-1720` (the `ledgerRecordsId` + `appendAuditLedger` pair, second), `:2425-2442`
-(`ledgerRecordsId` returns `false` on any read failure), `agent-factory/workflows/18-context-compaction.md:83`
+**File:** `scripts/runnable-ref/uat-spec-integrity.ts:1754-1762` (`isFixtureBindingPosition`: the
+call's callee is never asked), `:1394-1400` (`deriveTestInfoParameterNames`, which requires
+`callee === TEST_SCENARIO_PATH`), `:1741-1753` (the docstring stating the narrowing),
+`agent-factory/checklists/browser-uat-recipe.md:204-212`
 
-**Issue:** Three separate ways the claim fails, one of them measured:
-
-1. **Measured.** With a FIFO at `<repoRoot>/.grugops/audit/admissions.jsonl`, the promotion writes
-   the note and then wedges (`timeout 15` → exit 124). The destination holds the human-disposed
-   finding; the ledger holds nothing. Any crash, `SIGINT` or ENOSPC between the two calls produces
-   the same state.
-2. **Fail-open read.** `ledgerRecordsId` returns `false` for an unreadable or EACCES ledger, so a
-   re-binding appends a **duplicate** event keyed on the same id — the exact duplicate 31-09
-   collapsed and the reason D-19 (4) gave for appending nothing.
-3. **Retention-gated.** The look and the append happen only under `audit_retention: "retained"`.
-   Under any other retention the sentence is vacuous, which the workflow paragraph does not say.
-
-**Fix:** Append the ledger event **before** the note write and make the note write the step that can
-fail (a ledger line for a note that was not written is an over-record, which is the safe direction
-for an audit trail); route `ledgerRecordsId` through the same non-blocking regular-file reader CR-12
-asks for and treat an unreadable ledger as a refusal rather than as "no record"; and scope the
-workflow sentence to `retained` explicitly.
-
----
-
-### WR-23: WR-20's false refusal survives verbatim wherever the shadowing binding sits at a function's **second** parameter — and the recipe paragraph added this round says it cannot
-
-**File:** `scripts/runnable-ref/uat-spec-integrity.ts:1405-1411` (`isFixtureBindingPosition` — index
-1 of **any** function-like node is exempt from the census, not only a `test(...)` scenario
-callback), `:1382` (the `!isFixtureBindingPosition(node)` guard), `:262` (the residual sentence, "A
-name shadowed only there is still canonicalised"),
-`agent-factory/checklists/browser-uat-recipe.md:192-197`
-
-**Issue:** The exemption is stated as a position so the census does not depend on the map it
-constrains — a sound argument — but the position is not narrowed to the callback the fixture map
-actually reads. Any helper whose second parameter shares a renamed import's local name reopens WR-20
-exactly.
+**Issue:** The two authorities are meant to name one position. They differ by exactly the set of
+non-`test(...)` calls that take a function as their second argument. In that set the parameter is
+recorded `suppresses: false` — so it suppresses nothing — while the map contributes nothing either,
+which leaves the rename map free to rewrite a legitimate local binding.
 
 **Reproduced on this tree:**
 
 ```ts
 import { test as it, expect } from "@playwright/test";
-function inner(n: number, it: { skip: (x: number) => number }): number {
-  return it.skip(n);                       // ← a LOCAL `it` at index 1
-}
+declare function helper(n: number, f: (a: number, b: { skip: (x: number) => number }) => number): void;
+helper(1, function (a, it) { return it.skip(a); });
 it("the invoice total is shown", async ({ page }) => {
-  inner(1, { skip: (x: number) => x });
   await expect(page.getByTestId("invoice-total")).toBeVisible();
 });
 ```
 ```
 UAT spec integrity: 1 finding(s) over 1/1 uat specs checked
-uat/p.uat.spec.ts:5: banned modifier call — `test.skip` decides which scenarios the quality gate re-runs …
+uat/p.uat.spec.ts:3: banned modifier call — `test.skip` …
 EXIT=1
 ```
 
 A legitimate spec is refused and the finding names `test.skip`, a construct absent from the file —
-the identical failure, with the identical misleading message, that WR-20 was convened to close. The
-recipe now states the opposite as an absolute: "A file that renames the framework import to `it` and
-separately binds a local `it` is therefore not refused, **and no finding names a construct the file
-does not contain**" (`:194-196`). That sentence is false of the file above.
+the identical failure, with the identical misleading message, that WR-20 and then WR-23 were each
+convened to close. The severity is bounded by rarity, which is why this is a Warning; the direction
+is a false refusal, which the recipe calls "worse than a missed one here".
 
-The severity is bounded by rarity, which is why this is a Warning and not a Blocker — but the
-direction is a false refusal, and CR-14's fix would extend the same code path.
-
-**Fix:** Narrow the exemption to the position the fixture map reads — index 1 of a function passed as
-the **second argument of a `test(...)`-headed call** — which `deriveTestInfoParameterNames` already
-locates and which keeps the exemption a position rather than a name:
+**Fix:** Ask the callee, so the exemption is the map's own position rather than a superset of it:
 
 ```ts
-function isFixtureBindingPosition(ts: TsApi, param: TsParameterDeclaration): boolean {
+function isFixtureBindingPosition(ts: TsApi, param: TsParameterDeclaration, scenarioCalls: ReadonlySet<TsNode>): boolean {
   const owner = param.parent as TsFunctionLikeExpression | undefined;
   if (owner?.parameters?.[1] !== param) return false;
-  const call = owner.parent;                       // the function must be a call's SECOND argument
-  return ts.isCallExpression(call) && call.arguments[1] === owner;
+  const call = owner.parent;
+  return call !== undefined && scenarioCalls.has(call);   // the SAME set deriveTestInfoParameterNames walks
 }
 ```
 
-and add the shape above to `shadowed-rename.uat.spec.ts` as a second control.
+The ordering problem this creates (the census is built before the map) is solved by deriving the
+scenario-call set once, from the rename map alone, and handing it to both — one authority, asked
+twice. Add this shape to `shadowed-rename.uat.spec.ts` as a third control.
 
 ---
 
-### WR-24: `shadowed-rename.uat.spec.ts` cannot fail for CR-14's reason — the corpus proves only the false-positive half of the scope rule, and the two halves live in different files
+### WR-27: the new "derived read-site axis" walks only top-level function declarations, so a blocking filesystem call added inside an arrow, a class method or the `if (isMain)` CLI block leaves the count at 5 and every assertion green — while the axis's own comment says a new one "anywhere in the module" turns it red
 
-**File:** `scripts/runnable-ref/fixtures/shadowed-rename.uat.spec.ts:31-42`,
-`scripts/runnable-ref/fixtures/import-rename.uat.spec.ts` (the "still refused" half, a file with no
-declaration), `scripts/runnable-ref/uat-spec-integrity.test.ts:4718-4733`
+**File:** `scripts/context-io-writer-set.test.ts:3388-3409` (`deriveFsBlockingSites`: `for (const
+statement of source.statements) { if (!ts.isFunctionDeclaration(statement) …) continue; … }`),
+`:3350-3371` (the axis's stated rule), `:3443` (`EXPECTED_FS_SITE_COUNT = 5`), `:3379-3386`
+(`FS_BLOCKING_PRIMITIVES`, a hand-typed alphabet), `scripts/context-io.ts:4592-4614` and `:4620-4675`
+(the `if (isMain)` block, which holds this module's two argv-derived read positions)
 
-**Issue:** The new fixture carries a renamed import, a shadowing declaration, and **no genuine
-renamed modifier call**. Its contract is "stay at zero findings", so a fix that disabled the
-canonicalisation entirely would keep it green — which is exactly the state CR-14 measures. The
-"STILL REFUSED" evidence lives in a *different* corpus file that contains no declaration, so the
-**union** — one file that both declares the name and genuinely calls the modifier through the
-rename — is never asserted anywhere in the corpus. This is round-3's IN-10 one fixture over: the
-control cannot fail for the reason the fixture exists.
+**Issue:** The axis exists because CR-12 proved that no existing derivation asked which primitive a
+read uses. Its own derivation asks that question of one syntactic position. Three positions in
+everyday use are invisible to it, and one of them is the CLI block this round explicitly routed
+through the reader to make D-24's rule "a count rather than a sentence with two footnotes".
 
-The suite does carry the union at `uat-spec-integrity.test.ts:4718-4733`, but that case shadows a
-**different** name (`helpers`), which is the easy direction; the same-name union is asserted at
-`:4742` as accepted rather than refused.
+**Measured on this tree**, running the harness's own derivation over three seeded mirrors of
+`scripts/context-io.ts`:
 
-**Fix:** Give the fixture a `MUTATE-REMOVE` region containing a genuine `it.skip(...)` at module
-scope alongside the shadowed helper, and assert it is still reported once — under CR-14's scope-aware
-fix that is the correct answer, and under the current file-scoped rule the fixture turns red, which
-is the point.
+```
+baseline                                            -> 5 sites
++ `export const sneaky = (p: string) => openSync(p, 0);`     -> 5 sites   (unchanged)
++ `writeFileSync(...)` inside the `if (isMain) {` block      -> 5 sites   (unchanged)
++ `export class Sneak { go(p) { return openSync(p, 0); } }`  -> 5 sites   (unchanged)
+```
+
+The companion assertion at `:3494-3512` ("readFileSync and appendFileSync are ABSENT from the module
+entirely") DOES walk the whole parse, so those two names are covered anywhere — but `openSync`,
+`readSync`, `writeSync` and `writeFileSync` are covered only inside a top-level `function`. This is
+the set-literal drift class one level up: the SET is derived, the SCOPE of the derivation is a
+literal.
+
+**Fix:** Walk from the SourceFile and attribute each site to its nearest named enclosing scope, so
+the derivation's scope is derived too:
+
+```ts
+function deriveFsBlockingSites(sourcePath: string): string[] {
+  const source = ts.createSourceFile(...);
+  const sites = new Set<string>();
+  const walk = (node: ts.Node, owner: string): void => {
+    const next = namedOwnerOf(node) ?? owner;              // function/method/arrow-const/`<module>`
+    if (ts.isCallExpression(node) && ts.isIdentifier(node.expression) && alphabet.has(node.expression.text)) {
+      sites.add(`${next}:${node.expression.text}`);
+    }
+    ts.forEachChild(node, (c) => walk(c, next));
+  };
+  ts.forEachChild(source, (c) => walk(c, "<module>"));
+  return [...sites].sort();
+}
+```
+
+and add the three seeded mirrors above as watched-fail controls, each asserting the count moves by
+one. The existing seeded control only ever appends a top-level `function`, which is the one shape
+the derivation already sees.
 
 ---
 
-### WR-25: the `promoteAdmitted` clause order puts the dial clause ahead of the operand clause, so an untrusted origin under a non-gating destination is reported as a dial problem and the workflow's copy-the-notes stop condition is never the message the agent sees
+### WR-28: the forged-origin price is TWO filesystem operations, not three, inside any repository that carries no `.grugops/factory.config.json` — and all three artifacts that state the price say three, with the subtraction proof asserted "driven"
 
-**File:** `scripts/context-io.ts:1587-1592` (`human-stamp-not-gated-at-destination`),
-`:1598-1605` (`origin-outside-trusted-store`, evaluated after),
-`agent-factory/workflows/18-context-compaction.md:75-77`,
-`docs/audit/31-round4-residuals.md` §4.4 (which records the same ordering as an `UNKNOWN - verify`
-disagreement with `31-18-SUMMARY.md`'s recorded post-fix table)
+**File:** `scripts/context-io.ts:1891-1894` (`originStoreIsRootAnchored`), `:1859-1889` (the
+docstring: "EXACTLY THREE filesystem operations … All three are load-bearing there, and both
+subtractions are driven"), `:1766-1790` (`T-31-18-01`, same number), `:3775-3789`
+(`projectRootFromWorkingDirectory`, whose boundary arm is `return carriesConfig ? dir : nearest`),
+`:1791-1802` (`R-31-22-01`, which itself records the config-less repository as reachable),
+`agent-factory/workflows/18-context-compaction.md:75`,
+`scripts/compactor.test.ts:3060-3078` (the fixture, which always plants a config)
 
-**Issue:** Measured order in the committed `.js`: `empty-source-id` →
-`unreadable-governance-config` → `human-stamp-not-gated-at-destination` →
-`origin-outside-trusted-store` → `no-such-origin-note` → … . So under `human_admission: off` or an
-absent configuration — the lean posture most repositories run — a caller that names a forged origin
-is told the **destination's dial** is the problem, and the workflow's remedy for that clause is
-"Promote it as a new admission with an empty or `§14-gate` stamp, or **set the destination's
-`human_admission` dial**". Following the message a non-gating destination gives you widens the dial
-in response to an origin fault.
+**Issue:** The three-operation claim rests on "drop the marker and the walk climbs past the forged
+root to the REPOSITORY's own boundary and answers that instead". It answers the repository's boundary
+only when that boundary `carriesConfig`. When it does not, the boundary arm returns `nearest` — the
+nearest remembered configuration, which is the forged one. So inside a repository with no governance
+configuration, the `.git` marker at the forged root is not load-bearing and the price drops to two.
+`R-31-22-01` names exactly that repository ("a checkout that has a `.grugops/context` store and no
+`factory.config.json`") as reachable through the minimal markdown-copy install path.
 
-The safety consequence is nil — all four dial values refuse — but the register's own reason for
-existing is that the caller is told **which** clause failed, and `31-18-SUMMARY.md`'s recorded WR-17
-table disagrees with the committed artifact on exactly these two rows.
+**Reproduced on this tree**, against the committed `.js` — two operations, no marker at the forged
+root:
 
-**Fix:** Evaluate the operand constraint before the dial: `origin-outside-trusted-store` is a
-statement about the caller's input and `human-stamp-not-gated-at-destination` is a statement about
-the environment, and the input fault is the more specific answer. Then reconcile
-`31-18-SUMMARY.md`'s table (or annotate it — a prior round's record is history and is never
-rewritten) and add a two-sided case asserting the order rather than leaving it to reading order.
+```
+repo/          .git                        (a repository, NO .grugops/factory.config.json)
+repo/tmp/forged/.grugops/context/T-1/notes/<id>.md      <- mkdir -p          (op 1)
+repo/tmp/forged/.grugops/factory.config.json            <- write            (op 2)
+
+promoteAdmitted(T-1, id, …, from = repo/tmp/forged/.grugops/context, to = DEST, repoRoot = DEST)
+   -> PROMOTED 20260909T060000Z-security-nfr-finding-4ba03e48
+   dest notes: [ '20260909T060000Z-security-nfr-finding-4ba03e48.md' ]
+```
+
+The safety consequence is bounded — the capability itself is `T-31-18-01`, accepted deliberately —
+but the register's stated bar is what a reader and a reviewer use to decide whether the residual is
+still acceptable, and it is off by one at a position the register itself names. The
+`compactor.test.ts` case that is supposed to hold this line (`the SHAPED forgery one mkdir -p deeper
+is refused`) plants a configuration at the project root in every fixture, so it cannot fail for this
+reason: the WR-24 pattern, one file over.
+
+**Fix:** State the price per position with the enclosing repository's configuration as the variable
+it actually is — "three inside a CONFIGURED repository, two inside an unconfigured one, two outside
+every repository" — in `originStoreIsRootAnchored`'s docstring, in `T-31-18-01` and in
+`18-context-compaction.md:75`. Add a case whose enclosing project root carries a `.git` and NO
+configuration and assert the two-operation forgery, so the number is measured rather than argued.
+
+---
+
+### WR-29: `analyzeSpecs` claims FOUR distinguishable could-not-run reasons and implements three — a parse fault reports the walk's sentence, measured
+
+**File:** `scripts/runnable-ref/uat-spec-integrity.ts:2043-2044` (the comment: "The four
+could-not-run reasons stay DISTINGUISHABLE (unreadable · did not parse · **the parse itself faulted**
+· could not be analysed)"), `:2046-2061` (one `try`, one `catch`, one message),
+`scripts/runnable-ref/uat-spec-integrity.test.ts:6455` (which asserts the walk's sentence for a
+parse fault and calls it "what makes the four could-not-run reasons distinguishable")
+
+**Issue:** CR-15's fix correctly widened the boundary to enclose `createSourceFile`. It did not add a
+branch to tell the two faults apart, and the comment says it did. Measured at nesting depth 631 — a
+fault raised inside `ts.createSourceFile`, not inside `findBannedConstructs`:
+
+```
+stderr: The UAT spec uat/p.uat.spec.ts could not be analysed (Maximum call stack size exceeded); …
+```
+
+That is byte-identical to what a walk fault produces. A reader cannot tell which happened, which is
+the one thing the sentence promises. The suite asserts the shared string and reads the pass as proof
+of the distinction, so the harness shares the comment's premise rather than testing it.
+
+**Fix:** Either make it true —
+
+```ts
+let sf: TsSourceFile;
+try { sf = ts.createSourceFile(rel, text, …); }
+catch (cause) { errors.push(`The UAT spec ${rel} could not be PARSED (${…}); …`); continue; }
+try { specFindings = findBannedConstructs(ts, sf, rel); }
+catch (cause) { errors.push(`The UAT spec ${rel} could not be ANALYSED (${…}); …`); continue; }
+```
+
+(both arms still inside the per-file boundary, so CR-15 stays closed) — or delete the fourth reason
+from the comment, from the test's justification and from any recipe sentence that repeats it. The
+former is preferable: the two faults have different fixes for a spec author.
+
+---
+
+### WR-30: `listHoists` tests only the `Let | Const` bits, so a `using` / `await using` declaration is classified as hoisting and its suppression range is widened to the whole enclosing function — the accepting direction for a ban
+
+**File:** `scripts/runnable-ref/uat-spec-integrity.ts:1552-1556` (`listHoists`:
+`((list.flags ?? 0) & (nodeFlags.Let | nodeFlags.Const)) === 0`), `:1596` (the `hoisted` arm it
+selects), `:1567-1575` (the docstring, which enumerates `var`, function declarations, `let`, `const`,
+binding elements and classes — and not `using`)
+
+**Issue:** `using x = …` and `await using x = …` are block-scoped exactly like `const`. Their
+`NodeFlags` bit is neither `Let` nor `Const`, so `listHoists` answers true and `bindingRangeFor`
+returns the enclosing function-like node in full. A `using` binding declared **after** a reference
+therefore suppresses that reference, which the `tdz` arm exists to prevent.
+
+**Reproduced on this tree:**
+
+```ts
+import { test as it, expect } from "@playwright/test";
+function wrapper() {
+  it.skip("scenario", async ({ page }: any) => { await expect(page.locator("x")).toBeVisible(); });
+  using it = { [Symbol.dispose]() {} };
+  void it;
+}
+wrapper();
+```
+```
+-> UAT spec integrity: 0 findings over 1/1 uat specs checked      EXIT=0
+```
+
+The escape is weaker than CR-18's — at run time that reference is a temporal-dead-zone error, so the
+spec would not execute — which is why this is a Warning. The classification error is the same one
+CR-18 is made of, in the arm beside it, and the fix is one expression.
+
+**Fix:** Decide the arm by what the declaration is, not by the absence of two bits:
+
+```ts
+// `using` and `await using` are BLOCK-SCOPED. Testing only for the absence of Let|Const classifies
+// them as `var`, which widens their suppression range to the enclosing function — for a BAN, the
+// accepting direction.
+const BLOCK_SCOPED = (nodeFlags.Let | nodeFlags.Const | (nodeFlags.Using ?? 0) | (nodeFlags.AwaitUsing ?? 0));
+return ((list.flags ?? 0) & BLOCK_SCOPED) === 0;
+```
+
+with the `?? 0` guards because the target repository's parser may predate those flags (D-13), and
+with a corpus case for each so the guard is measured rather than assumed.
 
 ## Info
 
-### IN-12: `isBannedModifierCall` calls `stripRoutingLinks` three times on the same input
+### IN-14: `readRawNotes`' single `catch { continue; }` covers three different facts with one silence, and two of the four `R-31-21-*` residuals exist in no artifact the suite can bind
 
-**File:** `scripts/runnable-ref/uat-spec-integrity.ts:359`, `:396`, `:400`
+**File:** `scripts/context-io.ts:1500-1506`, `docs/audit/31-round5-residuals.md` §10.5
 
-**Issue:** The presence check and the value read each recompute the normalised path, and the exact
-arm recomputes it a third time. The comment at `:392-395` explains correctly *why* both positions
-must read the one normaliser; computing it once into a local satisfies that argument and removes the
-chance of the two positions drifting apart when the function is next edited.
+**Issue:** The skip is a decision for a planted FIFO (`R-31-21-02`), and it is applied unchanged to
+an EACCES note, a note above the ceiling (CR-19) and a transient read fault. Three different facts,
+one behaviour, no diagnostic. The audit document's §10.5 already records the second half honestly:
+`R-31-21-01` appears once in a test message, `R-31-21-03` once in a source comment, and
+`R-31-21-02` and `R-31-21-04` "appear in neither" — so two dispositions carrying live behaviour bind
+no test at all, which the exported registers elsewhere in this module explicitly exist to prevent.
 
-**Fix:** `const compared = stripRoutingLinks(dottedPath);` once at the top of the pure-path arm, and
-once in `isBannedModifierCall`, then compare against `compared` at every position.
-
----
-
-### IN-13: `docs/audit/31-round4-residuals.md` is thorough and self-critical, and two of its own `UNKNOWN - verify` items are load-bearing for this review
-
-**File:** `docs/audit/31-round4-residuals.md` §4.3 (which spelling the round-4 verifier ran for
-WR-21), §4.4 (the clause-name disagreement), §6.2 (the eighth logged instance of a verification
-harness producing a false result about its own premise)
-
-**Issue:** Recorded, not a defect. §4.3's honesty is what let CR-13 be found: the document prints
-both readings of the WR-21 probe and chooses neither, and the reading it calls "closed" is the one
-this review confirms while the position it never asked about — a configuration **at** home rather
-than at an ancestor of it — is CR-13. §6.2's false-pass account (a two-space brace pattern matching
-zero deciders and reporting `0 mismatches`) is the correct instinct applied to the right target; the
-same instinct applied to `analyzeSpecs`'s boundary would have found CR-15.
-
-One `UNKNOWN - verify` for this round, stated rather than absorbed: I did not independently re-derive
-`WORKFLOW_STOP_BULLET_COUNT` 39→42 or `NON_TEST_MODULE_COUNT` 72→74. Both are asserted two-sidedly by
-the green suite and by the disposition files, and the comment beside each records the re-walk rather
-than a bump — but I read the argument, I did not re-run the derivation.
-
-**Fix:** None required.
+**Fix:** Give the residuals an exported register beside `PROMOTE_ADMITTED_RESIDUALS` and
+`TRUSTED_ROOT_RESIDUALS`, bound two-sidedly; and separate the skip's arms so a note that was admitted
+and is now unreadable is at minimum recorded rather than silently absent (this is CR-19's fix by
+another route).
 
 ---
 
-_Reviewed: 2026-09-09T15:45:00Z_
+### IN-15: `canonicalAssertionHead` splits the same string twice, and the round's audit record is the strongest artifact in the phase
+
+**File:** `scripts/runnable-ref/uat-spec-integrity.ts:1858` (`dottedPath.split(".")[0]` computed
+twice in one expression), `docs/audit/31-round5-residuals.md`
+
+**Issue:** The first half is a one-line tidy-up: `const head = dottedPath.split(".")[0];` then
+`ASSERTION_HEADS.includes(head) ? head : null`. The second half is recorded rather than a defect.
+`31-round5-residuals.md` is the best closure record this phase has produced — it derives its own
+probe denominator with commands, prints both sides of every disagreement instead of choosing, names
+its own harness's `.temp/` contamination hazard, reports the `check:diff-disposition` debt as LARGER
+than it found it with named owners, and states in §12 that it modified no source file. Its §10.5 is
+what let IN-14 above be written.
+
+One `UNKNOWN - verify` for this round, stated rather than absorbed: every measurement in this review
+ran on darwin/Node v24.12.0. The Windows leg of CR-17's FIFO class (named pipes have different open
+semantics), of CR-18's transpile behaviour, and of the depth-631 adjacency is not established here
+and is not claimed. It is the same `R-03` the audit document carries.
+
+**Fix:** None required for the second half.
+
+---
+
+_Reviewed: 2026-09-10T04:05:00Z_
 _Reviewer: Claude (gsd-code-reviewer)_
 _Depth: standard_
-_Diff base: a16786b_
+_Diff base: 89228c8_
