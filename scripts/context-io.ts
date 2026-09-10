@@ -1082,7 +1082,24 @@ function appendRegularFileLine(path: string, line: string, position: string): vo
   }
 }
 
-function readRegularFileOrNull(path: string, maxBytes: number, position: string): string | null {
+/**
+ * EXPORTED FOR THE PARITY AXIS, AND FOR NOTHING ELSE (plan 31-27).
+ *
+ * `hooks/hook-entry.ts` now RESTATES this rule inline, because that file may import only `node:`
+ * builtins — the import list is the whole reason the wrapper is a separate process, and importing
+ * from `scripts/` would hand the corruption class that reaches the decider a route into the wrapper.
+ * A restatement is a second implementation of ONE rule, which is this repository's recorded drift
+ * shape, so `scripts/nonblocking-reader-parity.test.ts` drives ONE shared file-shape corpus through
+ * BOTH and requires the same decision from each. That test must reach the REAL implementation rather
+ * than a copy of it, and a copy is exactly what a private function would have forced it to make.
+ * Every in-module caller still goes through this same function; the export adds a reader, not a
+ * second path.
+ */
+export function readRegularFileOrNull(
+  path: string,
+  maxBytes: number,
+  position: string,
+): string | null {
   let fd: number;
   try {
     fd = openSync(path, fsConstants.O_RDONLY | fsConstants.O_NONBLOCK);
