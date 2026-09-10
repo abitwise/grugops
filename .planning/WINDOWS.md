@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 152
+open_count: 156
 waived_count: 0
 fixed_count: 4
-total_count: 156
-last_updated: 2026-09-08T20:07:37.170Z
+total_count: 160
+last_updated: 2026-09-10T13:43:11.171Z
 ---
 
 # Broken Windows Ledger
@@ -171,6 +171,10 @@ last_updated: 2026-09-08T20:07:37.170Z
 | 154 | 31 | deviation | agent-factory/checklists/browser-uat-recipe.md |  | The reverse partition's walk covers declared PROPERTY CHAINS only; it does not descend through a call signature's return type, so a call-link spelling such as test.info().skip is outside its denominator though the rule refuses it | open |  | 2026-09-08T18:53:37.116Z |  |
 | 155 | 31 | unrun-verify | docs/audit/29-style-dispositions |  | check:diff-disposition exits non-zero for 65 pre-existing undispositioned clauses in 05-pr-quality-gate.md, 06-uat-pack.md and 17-task-claim.md; 31-14 covered all 46 of its own clauses in 18-context-compaction.md (was 10 findings, now 0) | open |  | 2026-09-08T20:07:37.086Z |  |
 | 156 | 31 | deviation | .planning/config.json |  | 31-14 committed on the default branch main: branching_strategy is none, use_worktrees is false, and no git.allow_default_branch_commits override is recorded in config.json | open |  | 2026-09-08T20:07:37.170Z |  |
+| 157 | 31 | deviation | scripts/check-platform-shapes.ts |  | GOV-02 ledger position dropped from the platform shape corpus — a governance-dial guard fired correctly; criterion in deferred-items.md | open |  | 2026-09-10T13:42:53.284Z |  |
+| 158 | 31 | unrun-verify | scripts/context-io.test.ts |  | 14 of 15 mkfifo call sites in test modules carry no platform guard, so the windows-latest vitest step is unreachable-green; measured from SOURCE on darwin, the Windows behaviour is UNKNOWN - verify | open |  | 2026-09-10T13:43:11.010Z |  |
+| 159 | 31 | deviation | docs/audit/29-style-dispositions/31-29.md |  | Two disposition rows pack multiple sentences into one after cell; rowMatches compares one normalized clause, so 5 clauses are covered by nothing while the rows read as work done | open |  | 2026-09-10T13:43:11.093Z |  |
+| 160 | 31 | unrun-verify | .github/workflows/ci.yml |  | R-03/R-31-19-03: the two new Windows-scoped shape steps are ENCODED but not observed — every measurement in 31-30 was taken on darwin and the Windows reading is UNKNOWN - verify | open |  | 2026-09-10T13:43:11.171Z |  |
 
 ````json
 [
@@ -2044,6 +2048,54 @@ last_updated: 2026-09-08T20:07:37.170Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-09-08T20:07:37.170Z",
+    "resolved_at": null
+  },
+  {
+    "id": 157,
+    "kind": "deviation",
+    "phase": "31",
+    "file": "scripts/check-platform-shapes.ts",
+    "line": null,
+    "description": "GOV-02 ledger position dropped from the platform shape corpus — a governance-dial guard fired correctly; criterion in deferred-items.md",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-10T13:42:53.284Z",
+    "resolved_at": null
+  },
+  {
+    "id": 158,
+    "kind": "unrun-verify",
+    "phase": "31",
+    "file": "scripts/context-io.test.ts",
+    "line": null,
+    "description": "14 of 15 mkfifo call sites in test modules carry no platform guard, so the windows-latest vitest step is unreachable-green; measured from SOURCE on darwin, the Windows behaviour is UNKNOWN - verify",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-10T13:43:11.010Z",
+    "resolved_at": null
+  },
+  {
+    "id": 159,
+    "kind": "deviation",
+    "phase": "31",
+    "file": "docs/audit/29-style-dispositions/31-29.md",
+    "line": null,
+    "description": "Two disposition rows pack multiple sentences into one after cell; rowMatches compares one normalized clause, so 5 clauses are covered by nothing while the rows read as work done",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-10T13:43:11.093Z",
+    "resolved_at": null
+  },
+  {
+    "id": 160,
+    "kind": "unrun-verify",
+    "phase": "31",
+    "file": ".github/workflows/ci.yml",
+    "line": null,
+    "description": "R-03/R-31-19-03: the two new Windows-scoped shape steps are ENCODED but not observed — every measurement in 31-30 was taken on darwin and the Windows reading is UNKNOWN - verify",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-10T13:43:11.171Z",
     "resolved_at": null
   }
 ]
