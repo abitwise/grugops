@@ -6,12 +6,12 @@ current_phase: 31
 current_phase_name: Autonomous Manual Testing
 status: "Phase 31 gap-closure round 6 EXECUTED IN FULL (31-27..31-31, all 5 plans, sequential on main) and CLOSED-OUT by the round-6 closing measurement 31-31 (2026-09-10). All five Criticals the round was convened to close are CLOSED BY MEASUREMENT and re-run with the FINDING documents' own probe spellings at one commit (a6539e7): CR-17 (13 of 13 derived manifest positions answer a bounded named deny in 46-50 ms with zero bytes on stderr, driven through the argv derived from hooks.json; the fd-0 class denies at 10,100 ms naming SIGTERM), CR-18 and CR-21 (both evasions move 0 findings/EXIT=0 to 1 finding/EXIT=1 under the D-30 symbol-identity cutover), CR-19 (a 9 MiB note is now REFUSED at the write side naming note-above-size-ceiling and nothing is written), CR-20 (the note and its GOV-02 event both land in the destination; a cross-root promotion no longer splits them). All five Warnings and both Info items closed. 14 round-5 controls re-driven in the modules round 6 edited: 13 UNMOVED, 1 boundary moved by one level in the safe direction. 70 disposition rows against 70 source items, balancing 42 closed + 18 accepted + 10 carried. The no-silent-drop equality is asserted as COVERAGE: 8 edge-coverage rows, 8 covered, 0 uncovered, from 18 derived assumptions. Suite green at 64 files / 4128 passed / 2 skipped, recorded as a FLOOR with the doctrine DERIVED rather than quoted - four of the five Criticals are decided today by constants that appeared ZERO times in the suite at the round base. Debt down 30 to 80, base and corpus unmoved. Frozen floors and all 26 DECIDER_MANIFEST entries re-measured whole. UATX-01..06 stay unchecked and Gaps Found, and the phase stays In Progress: only a verification round may flip a requirement, and a SEVENTH verification round has not run. Record: docs/audit/31-round6-residuals.md."
 stopped_at: "Completed 31-31-PLAN.md - the round-6 closing measurement. Next: a SEVENTH verification round (/gsd-verify-work 31). Open with owners: R-01 and R-02 need a named human; R-03 needs a reading off a real windows-latest run; R-31-31-01 (the ambient declare spelling) and the round-6 dispositions file's unbalanced tally are raised and deliberately unrepaired."
-last_updated: "2026-09-10T14:32:43.202Z"
-state_head: 2d426dcd5d924a03a60f46461054740c7097432e
+last_updated: "2026-09-10T19:45:29.530Z"
+state_head: 3b3fa09e62884b9052805e6f949320bc14edb4c5
 progress:
   total_phases: 9
   completed_phases: 6
-  total_plans: 207
+  total_plans: 214
   completed_plans: 206
   percent: 67
 last_activity: 2026-08-19
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-09-07 — after Phase 29.2)
 
 ## Current Position
 
-Phase: 31 (Autonomous Manual Testing) — EXECUTING
+Phase: 31 (Autonomous Manual Testing) — READY TO EXECUTE
 Plan: 5 of 31
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute

@@ -891,7 +891,7 @@ a caller naming a forged origin was told the destination's dial was the problem 
 remedy for that clause is to WIDEN the dial.
 
 - **D-25: a trusted proof origin has ONE recognised canonical form, and that form is a CONJUNCTION
-  rather than a disjunction of arms: the recognised store SHAPE, AND a governance root this module
+  rather than a disjunction of arms — the recognised store SHAPE, AND a governance root this module
   resolves for itself from the one caller-supplied value. Everything else is refused BY NAME,
   including a path inside this repository. The clause a caller is told about names the caller's own
   INPUT before it names the caller's ENVIRONMENT.** D-25 adds no case to `admit()`, does not touch
