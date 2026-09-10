@@ -60,8 +60,8 @@ AND its measured outcome. The counts below were measured with a command rather t
 | (e) | a finding carrying its own fenced measurement | `31-REVIEW.md` | **9** | `grep -c 'Reproduced on this tree\|Measured on this tree'` |
 
 The **(b)** count of 12 equals `31-REVIEW.md`'s own frontmatter (`critical: 5, warning: 5, info: 2,
-total: 12`), derived and quoted rather than only quoted. §9 carries one disposition row per member of
-(b), (c) and (d); §10 states the equality.
+total: 12`), derived and quoted rather than only quoted. §10 carries one disposition row per member of
+(b), (c) and (d); §11 states the equality.
 
 **The distinct probe denominator this session drove is 18 + 5 + 3 = 26**, composed as:
 
@@ -80,7 +80,7 @@ total: 12`), derived and quoted rather than only quoted. §9 carries one disposi
 
 - **`IN-14` and `IN-15` carry no fenced reproduction.** `IN-14` is an observation about one `catch`
   clause and two unregistered residuals; `IN-15` is a one-line tidy-up plus a paragraph praising the
-  round-5 record. Both are dispositioned in §9 against a measurement taken here, not against a
+  round-5 record. Both are dispositioned in §10 against a measurement taken here, not against a
   re-run probe.
 - **`WR-27`'s measurement is a HARNESS derivation, not a runnable probe.** The review measured
   `deriveFsBlockingSites` over three seeded mirrors. That function is private to
@@ -524,7 +524,7 @@ repository tree entirely, and its own FIFO sweep is clean after every position w
 | the CR-19 probe | a note UNDER the ceiling still writes through the same call | the CONTROL wrote and read back **1**, which is what caught the harness fault below |
 | the frozen-hook-entry re-measurement | normalising the manifest region actually REMOVES something | `normalised.length < src.length - 100` asserted; **26,223 of 29,048 bytes**, 2,825 removed |
 | the `DECIDER_MANIFEST` walk | the block is located and the entry count is non-zero | the walk exits non-zero on zero deciders; it reported **2 deciders, 26 entries** |
-| the coverage-equality derivation | the assumption count is read from the plan files, not from the plan's own prose | derived **18** across five files, printed row by row in §11 |
+| the coverage-equality derivation | the assumption count is read from the plan files, not from the plan's own prose | derived **18** across five files, printed row by row in §9 |
 
 ### 7.4 One false result about a harness's own premise, logged as instance 14
 
@@ -543,5 +543,272 @@ zero-length result) and re-run, giving 13.
 **This is the THIRD occurrence in this phase of instance 4's exact shape** — a walk whose pattern was
 taken from the `.ts` while the artifact it walked was the `.js`, reporting a vacuous pass. It is
 logged as row 14.
+
+---
+
+## 8. The one-commit gate record — measured, and recorded as a FLOOR
+
+### 8.1 The whole repository, at one commit, with a clean tree
+
+Every figure below was taken at commit **`a6539e7`**
+(`a6539e7471373de26fcd5478359a8cf47d29b579`) — the round's final source commit. The source trees were
+verified untouched (§7.1) and no probe artifact was on disk (§7.2). Node **v24.12.0**, darwin 25.5.0
+arm64.
+
+**The gate list is DERIVED from `package.json`'s scripts block, not typed.** `node -e` over
+`require("./package.json").scripts` reports **31** scripts. Three are excluded by name so the
+exclusion is not silent: `test` (it resolves to the bare `vitest run` that pulls in the live
+`claude --print` e2e lane — the project's standing convention forbids it), `test:e2e` (the same lane,
+named directly), and `count:lines` (`tokei`, a metric rather than a gate). Every `generate:*` script
+is a producer whose output its paired `freshness:*` gate checks, so the gate is run and the producer
+is not. **That leaves the 20 gate commands below plus the four non-`package.json` runnables the
+phase's own record has always included, for 24 rows.**
+
+| # | Gate | Command | Terminal output line | Result |
+|---|---|---|---|---|
+| G1 | excluded-e2e regression suite | `npx vitest run --exclude '**/scripts/e2e/**'` | `Test Files 64 passed (64)` · `Tests 4128 passed \| 2 skipped (4130)` | ✓ exit 0, **354.9 s** |
+| G2 | build | `npm run build` | `> tsc` (clean) | ✓ exit 0, 1 s |
+| G3 | typecheck (3 projects) | `npm run typecheck` | `tsc --noEmit && tsc -p tsconfig.tests.json && tsc -p tsconfig.fixtures.json` (clean) | ✓ exit 0, 4 s |
+| G4 | build parity | `npm run check:build-parity` | `Build parity: no tracked build output moved when tsc ran.` | ✓ exit 0 |
+| G5 | committed-`.js` freshness | `npm run freshness` | `All build outputs fresh: 61 committed .js file(s) match a rebuild of their sources.` | ✓ exit 0 |
+| G6 | hook-manifest freshness | `npm run freshness:hook-manifest` | `Hook manifest fresh: 2 decider(s), 26 module hash(es) match a fresh derivation.` | ✓ exit 0 |
+| G7 | catalog freshness | `npm run freshness:catalog` | `Catalog fresh: docs/catalog/README.md matches a fresh regeneration.` | ✓ exit 0 |
+| G8 | context freshness | `npm run freshness:context` | `Context fresh: no .grugops/context/ tree exists yet — nothing committed to drift (vacuous pass).` | ✓ exit 0 — **and the vacuity is stated by the gate itself** |
+| G9 | adapters freshness | `npm run freshness:adapters` | `Mirrored generator resolved model preset: none` | ✓ exit 0 |
+| G10 | skill-twins freshness | `npm run freshness:skill-twins` | `Skill twins fresh: 7 twin(s) compared in .claude/skills, 0 byte difference(s), directory listings set-equal.` | ✓ exit 0 |
+| G11 | guarantees freshness | `npm run freshness:guarantees` | `Guarantees fresh: docs/GUARANTEES.md matches a fresh regeneration.` | ✓ exit 0 |
+| G12 | queue freshness | `npm run freshness:queue` | `Now-running fresh: no .grugops/queue/claimed/ tree exists yet — nothing committed to drift (vacuous pass).` | ✓ exit 0 — vacuity stated |
+| G13 | traceability freshness | `npm run freshness:traceability` | `Traceability fresh: no .grugops/context/ notes tree exists yet — nothing committed to drift (vacuous pass).` | ✓ exit 0 — vacuity stated |
+| G14 | audit register | `npm run check:audit-register` | `ALL CHECKS PASSED` | ✓ exit 0 |
+| G15 | residual citations | `npm run check:residual-citations` | `ALL CHECKS PASSED` | ✓ exit 0 |
+| G16 | claim anchors | `npm run check:claim-anchors` | `ALL CHECKS PASSED` | ✓ exit 0 |
+| G17 | banned claims | `npm run check:banned-claims` | `ALL CHECKS PASSED` | ✓ exit 0 |
+| G18 | writing profile | `npm run check:imperative-lexicon` | `ALL CHECKS PASSED` | ✓ exit 0 |
+| G19 | NUL bytes | `npm run check:nul-bytes` | `ALL CHECKS PASSED` | ✓ exit 0 |
+| G20 | platform shapes (NEW this round, `31-30`) | `npm run check:platform-shapes` | `ALL CHECKS PASSED` | ✓ exit 0 |
+| G21 | public-docs vocabulary | `npm run check:public-docs` | `ALL CHECKS PASSED` | ✓ exit 0 |
+| G22 | foundation guards | `node scripts/check-foundation-guards.js` | `ALL CHECKS PASSED` | ✓ exit 0, **<1 s** |
+| G23 | UAT oracles | `node scripts/check-uat-oracles.js` | `ALL CHECKS PASSED` | ✓ exit 0, **<1 s** |
+| G24 | structure validator | `VALIDATE_KIT_ROOT=$PWD node scripts/validate-agent-factory.js` | `ALL CHECKS PASSED` | ✓ exit 0 |
+| G25 | diff disposition | `npm run check:diff-disposition` | `80 finding(s) over 39 elements` | ✗ exit 1 — **pre-existing debt that the round PAID DOWN; reconciled in §8.4** |
+
+**Freshness's committed-output count, stated as a number: 61.** Round 5 measured 60.
+`git diff --name-status 77123aa..HEAD -- '*.js'` adds exactly **one** file,
+`scripts/check-platform-shapes.js` (`31-30`), and the count moved with it.
+
+**A note on the suite log's own `FAIL` strings.** `grep -E '^\s*(FAIL|×)'` over the run log returns
+four lines. All four are the MESSAGES the derived guards emit for their own seeded mutants, asserted
+by passing watched-fail cases — the strings are the expected output, not a result. The summary line
+is unambiguous and is the row above: `Test Files 64 passed (64)`, exit 0. Recorded because a reader
+grepping the log for `FAIL` will find them.
+
+**The suite moved as follows across the round**, each figure taken from the owning plan's own
+measurement and re-measured here at the end:
+
+| Point | Test files | Tests passed | Skipped |
+|---|---|---|---|
+| round-6 verification (`3a82d6f`) | 62 | 3908 | 2 |
+| after `31-27` | 63 | 3992 | 2 |
+| after `31-28` | 63 | 4039 | 2 |
+| after `31-29` | 63 | 4091 | 2 |
+| after `31-30` | 64 | 4128 | 2 |
+| **this round, re-measured at `a6539e7`** | **64** | **4128** | **2** |
+
+The file count rose by **2** (`scripts/nonblocking-reader-parity.test.ts` from `31-27`,
+`scripts/uat-gate-exit-contract.test.ts` from `31-30`) and the test count by **220** across the
+round's four fix plans. The 2 skips are the pre-existing ones. **The end-of-round figure AGREES with
+`31-30`'s own.**
+
+### 8.2 The doctrine, stated BESIDE the green rather than instead of it
+
+**How many of round 6's five Critical defects did the green suite exercise before this round's
+fixes? ZERO — for the sixth consecutive round on this phase.** That is not quoted from the two
+documents that assert it; it is DERIVED, by asking whether the cases that catch each Critical today
+existed in the suite at the round base:
+
+```
+                                                                 at 77123aa   at HEAD
+CR-19   NOTE_ABOVE_CEILING_CLAUSE          in context-io.test.ts        0          2
+CR-20   destination-outside-governed-store in context-io.test.ts        0          3
+CR-20   governanceRootOf                   in context-io.test.ts        0          8
+CR-21   tag: "@smoke"       in runnable-ref/uat-spec-integrity.test.ts  0          2
+CR-17   mkfifo                             in hooks/guard.test.ts       2          4
+```
+
+**The constants and the spellings that decide four of the five did not appear anywhere in the suite
+at the round base.** A suite that never names a clause cannot assert it. Today the five Criticals are
+cited by name in the suite **7 / 4 / 10 / 12 / 6** times respectively. Round 5's own five Criticals
+were established as unexercised by the same argument in `docs/audit/31-round5-residuals.md` §6.2, and
+the round-6 verifier restates it in its own words for row 15:
+
+> for the SIXTH consecutive verification round on this phase, exercises none of the newly-found
+> defects (CR-17 through CR-21)
+
+**G1 above is a FLOOR. It is not the argument. The argument is §2, §3 and §4.**
+
+### 8.3 The frozen floors, RE-MEASURED rather than assumed
+
+| Floor | Expected | Measured | Verdict |
+|---|---|---|---|
+| `FROZEN_GUARD_BLOB` (`scripts/floor-invariance.test.ts:245`) | `669725bc1c616ab57123e22090d93d57eff1b001` | `git hash-object hooks/guard.ts` → `669725bc1c616ab57123e22090d93d57eff1b001` | **EQUAL.** `hooks/guard.ts` was not touched and the blob was not re-based |
+| `FROZEN_HOOK_ENTRY_LOGIC_SHA` (`:858`) | `e1ed0dc053f321dc54fa6a657cac6fdddf0816e839766f3e0c68ec5e3375cabc` | a fresh normalisation of `hooks/hook-entry.ts` with the manifest region replaced by `<MANIFEST REGION>` — **26,223 of 29,048 bytes, 2,825 removed** (the non-vacuity floor asserted first) → `e1ed0dc0…5cabc` | **EQUAL.** The baseline MOVED TWICE inside `31-27` (CR-17, then S1) and both re-takes are recorded in the constant's own history block with their intermediate values |
+
+**The `DECIDER_MANIFEST` was re-measured as a WHOLE — every entry of both deciders' closures, not
+only the entries this round moved**, because a stale entry elsewhere is the same class of drift:
+
+```
+decider hooks/admission-guard.js — 13 entr(ies)     13 yes, 0 no
+decider hooks/guard.js           — 13 entr(ies)     13 yes, 0 no
+TOTAL manifest entries: 26   matching current digest: 26   mismatched: 0
+```
+
+The walk asserts its own premise first (`exit 1` on zero deciders or zero entries) — the guard added
+after instance 4 of the harness-false-result list, and the guard this round's own instance 14 (§7.4)
+shows was still needed one level up. **26 entries, 26 matching, AGREES with `freshness:hook-manifest`'s
+independently derived `2 decider(s), 26 module hash(es)`.** `scripts/context-io.js`'s digest moved
+four times across the round (`31-29` records the chain `8625d976…` → `4035f1ab…` → `656688a3…` →
+`60f62a48…`); the value on the tree is `60f62a48…`, the end of that chain. **A digest moved with its
+artifact; none was relaxed.**
+
+### 8.4 The `check:diff-disposition` debt — RE-MEASURED, and the round PAID IT DOWN
+
+```
+$ npm run check:diff-disposition
+FAIL  diff disposition — changed watched file(s): 80 finding(s) over 39 elements
+      watched corpus: 40 markdown file(s) of the 41-entry LANG-03 safety-surface union …
+      frozen set: … 470 frozen clause(s), 55 frozen region(s); base 4d2b8f0
+```
+
+| Point | Findings | Elements | Source |
+|---|---|---|---|
+| round 5's closing measurement | **110** | 39 | `docs/audit/31-round5-residuals.md` §6.3 |
+| after `31-27` | 110 | 39 | `31-27-SUMMARY.md` — not greater |
+| after `31-28` | 103 | — | `31-28-SUMMARY.md` |
+| after `31-29` | 103 | — | `31-29-SUMMARY.md` |
+| after `31-30` | **80** | — | `31-30-SUMMARY.md` (`112 → 80`) |
+| **this round, re-measured** | **80** | **39** | here |
+
+**The debt FELL by 30 across the round and did not grow. The acceptance criterion is met: 80 ≤ 80.**
+
+**The measuring stick did not move.** Base commit `4d2b8f0` — the value `31-30` recorded. Watched
+corpus **40** markdown files — the value `31-30` recorded. Neither was narrowed and neither was moved
+forward, which the gate's own remedy text names as the two ways to clear a finding by deleting its
+evidence.
+
+**The per-file table, derived rather than described:**
+
+| File | Findings |
+|---|---|
+| `agent-factory/workflows/05-pr-quality-gate.md` | 38 |
+| `agent-factory/workflows/06-uat-pack.md` | 25 |
+| `agent-factory/workflows/16-context-read-write.md` | 10 |
+| `agent-factory/workflows/18-context-compaction.md` | **5** |
+| `agent-factory/workflows/17-task-claim.md` | 2 |
+| **total** | **80** |
+
+**The five rows on `18-context-compaction.md` are exactly the finding `31-30` raised and did not
+fix, independently confirmed here.** `31-30-SUMMARY.md` reports that two of `31-29`'s six disposition
+rows pack MULTIPLE SENTENCES into one `after` cell, so `rowMatches()` — which compares a normalised
+`after` against a SINGLE derived clause — matches nothing. The gate names five clauses on that file:
+three at `:75` (the per-position price, split into three sentences) and two at `:83` (the ledger
+paragraph, likewise). **The count matches the prediction exactly.** Owner `31-29`; the criterion is
+recorded in `deferred-items.md`. It is not repaired here, for the standing reason: writing rows for
+another plan's clauses puts a reason in the register this plan cannot vouch for.
+
+### 8.5 The exported register cardinalities, measured on this tree
+
+Each number was read from the **committed `.js`** by importing it from a non-entry module, not
+counted by eye, and compared to what the owning plan's SUMMARY recorded.
+
+| Register | Cardinality | Members / moved this round | vs. the owning SUMMARY |
+|---|---|---|---|
+| `TRUSTED_ROOT_RESIDUALS` | **11** | `R-31-15-01..04`, `R-31-19-01..07`; unchanged in COUNT, **re-scoped by host** by `31-27` | AGREES |
+| — its `hosts` breakdown | **4** `non-cc-hook-path`, **7** `all` | `R-31-15-01`, `R-31-15-03`, `R-31-19-02`, `R-31-19-06` are the four | AGREES with `31-27` ("4 non-cc-hook-path, 7 all") |
+| `TRUSTED_ROOT_TIERS` | **5** | tier 0 (host-delivered) NEW by `31-27`, then the four pre-existing tiers | AGREES |
+| `TRUSTED_ROOT_STOP_CONDITIONS` | **7** | unmoved from round 5 | AGREES |
+| `TRUSTED_ROOT_ENV_ORDER` | **2** | unmoved | — |
+| `HOST_DELIVERED_ROOT_ENV` | `GRUGOPS_HOST_DELIVERED_ROOT` | NEW by `31-27` | AGREES |
+| `PROMOTE_ADMITTED_RESIDUALS` | **6** | `T-31-14-03`, `T-31-18-01` (price corrected), `R-31-22-01`, `R-31-22-02` (**REWRITTEN** by `31-29`, id KEPT), `R-31-22-03`, `R-37` | AGREES |
+| `PROMOTE_ADMITTED_DECLINES` | **11** (10 → 11) | `destination-outside-governed-store` added by `31-29` | AGREES |
+| `WRITE_PATH_RESIDUALS` | **5** | `R-31-21-01..04` plus `R-31-29-01` (NEW) — the register IN-14 asked for, now exported and two-sidedly bound | AGREES with `31-29` |
+| `NOTE_SKIP_ARMS` | **3** | `unparseable`, `not-a-regular-file`, `vanished` — NEW by `31-29` (IN-14) | AGREES |
+| `NOTE_FILE_MAX_BYTES` | **8388608** | now enforced on BOTH sides; `31-29` records KEEPING this spelling rather than renaming it to the brief's `NOTE_MAX_BYTES` | AGREES |
+| `AUDIT_LEDGER_MAX_BYTES` | **67108864** | reconciled with `LEDGER_ABOVE_CEILING_CLAUSE` | AGREES |
+| the three note/ledger clauses | `note-path-not-a-regular-file`, `note-above-size-ceiling`, `audit-ledger-above-size-ceiling` | the middle one NEW by `31-29`, and it is the clause the CR-19 re-write now names | AGREES |
+| `REPO_BOUNDARY_MARKERS` | **9** | unmoved | — |
+| `GOVERNANCE_CONFIG_CANDIDATE_KINDS` | **2** | unmoved | — |
+| `MODULE_OWN_CONFIG_POSITIONS` | **2** | unmoved; both sides now canonicalised (`31-27`, R-31-19-07) | AGREES |
+| `UNRESOLVABLE_CALLEE_RESIDUALS` | **6** (9 → 6) | `RR-02`, `RR-06` unchanged; `RR-04'` rewritten; `RR-10`, `RR-11`, `RR-12` new; `RR-01`/`RR-03`/`RR-05`/`RR-07`/`RR-08`/`RR-09` **removed with the mechanism** | AGREES with `31-28` ("After (6)") |
+| `PATHOLOGICAL_INPUT_SHAPES` | **6** | unmoved from round 5 | AGREES |
+| `MEASUREMENT_BRANCH_STREAMS` | **4** | unmoved from round 5 | AGREES |
+| the non-blocking-reader implementation set | **2** | `scripts/context-io.ts` and `hooks/hook-entry.ts`, derived with two seeded mirrors moving it by one in each direction | AGREES with `31-27` D4 |
+
+**Every cardinality on this tree agrees with the number its owning SUMMARY recorded. Zero
+disagreements.**
+
+---
+
+## 9. The no-silent-drop equality, asserted as COVERAGE
+
+**A cardinality equality here would be false and self-invalidating**, so it is not the one asserted.
+The phase's edge-coverage report surfaced **eight** unresolved probe rows keyed by requirement id AND
+category. The round authored **eighteen** flagged assumptions across `31-27` through `31-31`. Several
+refine one report row; several cover categories the report did not raise. Asserting `18 == 8` would be
+asserting a claim that measures false.
+
+**The assertion is therefore: every report row is covered by at least one authored assumption, and no
+report row is covered by none.**
+
+### 9.1 The authored assumptions, DERIVED from the five plan files
+
+Read out of each plan's `## Edge probe assumptions` table by an `awk`/parser over the files
+themselves, not copied from any prose:
+
+| Plan | Count | Rows (requirement :: category) |
+|---|---|---|
+| `31-27` | **3** | UATX-01 :: unclassified ×3 |
+| `31-28` | **3** | UATX-06 :: unclassified ×3 |
+| `31-29` | **4** | UATX-01 :: adjacency, empty, ordering, unclassified |
+| `31-30` | **5** | UATX-02 :: adjacency, empty, ordering · UATX-03 :: unclassified · UATX-05 :: unclassified |
+| `31-31` | **3** | UATX-04 :: unclassified · UATX-01 :: unclassified · UATX-06 :: unclassified |
+| **DERIVED TOTAL** | **18** | 3 + 3 + 4 + 5 + 3 |
+
+The derived total **equals** the total the plan predicted (3 + 3 + 4 + 5 + 3 = 18), and the equality
+is between a measurement and a prediction rather than between a sentence and itself.
+
+### 9.2 The MAPPING, row by row
+
+The report's category spelling is `unclassified`; four plans spell it `unclassified — review
+manually`, which is the report's own suffix. The two are one category and are matched as one.
+
+| # | Report row (requirement :: category) | Covered by | Count |
+|---|---|---|---|
+| 1 | UATX-01 :: unclassified | `31-27` #1, #2, #3 · `31-29` #4 · `31-31` #2 | **5** |
+| 2 | UATX-02 :: adjacency | `31-30` #1 | **1** |
+| 3 | UATX-02 :: empty | `31-30` #2 | **1** |
+| 4 | UATX-02 :: ordering | `31-30` #3 | **1** |
+| 5 | UATX-03 :: unclassified | `31-30` #4 | **1** |
+| 6 | UATX-04 :: unclassified | `31-31` #1 | **1** |
+| 7 | UATX-05 :: unclassified | `31-30` #5 | **1** |
+| 8 | UATX-06 :: unclassified | `31-28` #1, #2, #3 · `31-31` #3 | **4** |
+
+### 9.3 The two asserted numbers
+
+- **Report rows covered by at least one authored flagged assumption: 8.** Required: 8. **✓**
+- **Report rows covered by NO authored flagged assumption: 0.** Required: 0. **✓**
+
+**No row is a silent drop. No row appears in no plan.**
+
+### 9.4 The three assumptions authored BEYOND what the report raised, named rather than counted as drift
+
+15 of the 18 map onto one of the eight rows (5 + 1 + 1 + 1 + 1 + 1 + 1 + 4 = 15). The remaining
+**three** are `31-29` #1, #2 and #3 — UATX-01 :: adjacency, empty and ordering — three categories the
+report did not raise for UATX-01 and which `31-29` authored anyway, because the write path it was
+fixing has an adjacency (the ceiling), an empty case (a zero-note store) and an ordering (ledger
+before note). **15 + 3 = 18, which balances against the derived total exactly.**
+
+**An authored total exceeding the raised total is EXPECTED and is not a defect.** It is a plan
+covering more than it was asked to. The defect this equality exists to catch is the converse — a
+raised row nobody covered — and that count is zero.
 
 ---
