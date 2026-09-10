@@ -6,8 +6,8 @@ current_phase: 31
 current_phase_name: Autonomous Manual Testing
 status: "Phase 31 gap-closure round 5 EXECUTED IN FULL (31-21..31-26, all 6 plans, sequential on main) and CLOSED-OUT by the round-6 closing measurement 31-26 (2026-09-10). All five Criticals the round was convened to close are independently re-reproduced CLOSED at ONE commit (78bdb27) against the committed .js, using the FINDING documents own probe spellings rather than the fix plans fixtures: CR-12 (a FIFO at a note path refuses by name in 43 ms at exit 0, was exit 124 with zero bytes on both streams; the ledger-path FIFO declines unreadable-audit-ledger in 59 ms with the destination EMPTY, was exit 124 with the note already written), CR-13 (a repository rooted at HOME now resolves to itself and reads high-severity, was the kit and off, and the self-stamped finding is REFUSED), CR-14 (all three review spellings that reported 0 findings at exit 0 now report 1 finding at exit 1, and all three controls unmoved), CR-15 (depth 1000 moves from exit 1 with empty stdout and no measurement to exit 2 with the named could-not-run reason AND the vacuity floor on stderr, zero escaping stack frames; the 630/631 adjacency reproduces exactly), CR-16 (an ordinary in-repository directory declines origin-outside-trusted-store with the destination empty and the ledger delta 0). All four Warnings and both Infos closed too. Sixteen of sixteen behavioral spot-checks driven: the five failing rows all MOVED, the eleven passing rows all UNMOVED, plus five review-only variants the verifier never ran, all five moved. IN-13 resolved BY NAME: round 4 measured the ADJUSTED WR-21 spelling (the ORIGINAL cannot reproduce WR-21 from inside a repository at all), and the clause-name disagreement is a TEMPORAL one that a per-dial table driven this session settles, with 31-18-SUMMARY.md left byte-unchanged. Gates at one commit: suite 62 files / 3908 passed / 2 skipped, build, typecheck, parity, freshness 60/60, foundation guards, UAT oracles, validator, fixtures and tests typecheck, and four text gates all green; the WHOLE 26-entry DECIDER_MANIFEST re-measured with 0 mismatches and its premise asserted; FROZEN_GUARD_BLOB and ADMIT_FROZEN_SHA256 both unchanged; package.json byte-unchanged. The green suite exercised ZERO of the round five Criticals for the fifth consecutive round, and is recorded as a FLOOR beside the reproductions rather than in place of them. THREE items raised and DEFERRED with owners and criteria, not fixed: check:diff-disposition re-measured at 110 findings (up from 75; the round added 35 across workflow 18 and workflow 16 and wrote no disposition file, owners 31-21 / 31-22 / 31-23); the .temp/ contamination hazard REPRODUCED in-session (a leftover probe spec was collected by vitest, two unrelated suite files failed and the run died on SIGSEGV exit 139, while git status --short .temp stayed silent because .temp/ is gitignored at .gitignore:19 - so the residue gate rounds 3, 4 and 5 relied on could never have fired); and R-31-21-01..04 held in 31-CONTEXT.md prose rather than in an exported two-sidedly-bound register. Record: docs/audit/31-round5-residuals.md - the paired ledger, 24 disposition rows against 24 source items, the residual register (11 governance-root, 6 admission-route, 9 modifier-ban, 4 exit-contract, 4 unregistered), and an index of all 30 self-red-team probes of which 7 found a defect. REQUIREMENTS UNMOVED: UATX-01..06 stay unchecked and Gaps Found and the Phase 31 checkbox stays unchecked, proven by a diff pinned to the round base 49dfa26. requirements.ready-ids reports 6/6 ready and the flip is WITHHELD, because ROADMAP.md reserves it - only a verification round may flip them, and executing a gap-closure round is not verifying it. Next: a SIXTH verification round (/gsd-verify-work 31)."
 stopped_at: Completed 31-26-PLAN.md — gap-closure round 5 closed out; next action is a SIXTH verification round
-last_updated: "2026-09-10T00:21:39.807Z"
-state_head: 451455737030b7c42053656578d5716324d91535
+last_updated: "2026-09-10T00:27:43.933Z"
+state_head: 19e548ed1f09f63fc431e5f96c6b2ea6fe806608
 progress:
   total_phases: 9
   completed_phases: 6
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-09-07 — after Phase 29.2)
 ## Current Position
 
 Phase: 31 (Autonomous Manual Testing) — EXECUTING
-Plan: 6 of 26
+Plan: 7 of 26
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 
@@ -458,6 +458,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 31 P23 | 1h 35m | 3 tasks | 8 files |
 | Phase 31 P24 | 1h10m | 3 tasks | 6 files |
 | Phase 31 P25 | 47 min | 3 tasks | 5 files |
+| Phase 31 P26 | ~1h20m | 3 tasks | 4 files |
 
 ## Accumulated Context
 
