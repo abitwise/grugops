@@ -419,3 +419,194 @@ $ npx vitest run --exclude '**/scripts/e2e/**' \
 ```
 
 Green in isolation, after cleanup, at `78bdb27`.
+
+---
+
+## 6. The one-commit gate record — measured, and recorded as a FLOOR
+
+### 6.1 The whole repository, at one commit, with a clean tree
+
+Every figure below was taken at commit **`78bdb27`**
+(`78bdb27e4a67b61ca2ab2673606b784429872957`) — the round's final source commit. The source trees
+were verified untouched (`git status --porcelain -- scripts hooks agent-factory install docs` →
+**empty**) and no probe artifact was on disk (§5). Node **v24.12.0**, darwin 25.5.0 arm64.
+
+| # | Gate | Command | Terminal output line | Result |
+|---|---|---|---|---|
+| G1 | excluded-e2e regression suite | `npx vitest run --exclude '**/scripts/e2e/**'` | `Test Files 62 passed (62)` · `Tests 3908 passed \| 2 skipped (3910)` | ✓ exit 0, 277.7 s |
+| G2 | build | `npm run build` | `> tsc` (clean) | ✓ exit 0 |
+| G3 | typecheck (3 projects) | `npm run typecheck` | `tsc --noEmit && tsc -p tsconfig.tests.json && tsc -p tsconfig.fixtures.json` (clean) | ✓ exit 0 |
+| G4 | build parity | `npm run check:build-parity` | `Build parity: no tracked build output moved when tsc ran.` | ✓ exit 0 |
+| G5 | committed-`.js` freshness | `npm run freshness` | `All build outputs fresh: 60 committed .js file(s) match a rebuild of their sources.` | ✓ exit 0 |
+| G6 | foundation guards | `node scripts/check-foundation-guards.js` | `ALL CHECKS PASSED` | ✓ exit 0, **0.20 s** |
+| G7 | UAT oracles | `node scripts/check-uat-oracles.js` | `ALL CHECKS PASSED` | ✓ exit 0 |
+| G8 | frozen floors + both hook suites | `npx vitest run … scripts/floor-invariance.test.ts hooks/guard.test.ts hooks/admission-guard.test.ts` | `Test Files 3 passed (3)` · `Tests 439 passed (439)` | ✓ exit 0 |
+| G9 | structure validator | `VALIDATE_KIT_ROOT=$PWD node scripts/validate-agent-factory.js` | `ALL CHECKS PASSED` | ✓ exit 0 |
+| G11 | fixtures + tests typecheck | `npx tsc -p tsconfig.fixtures.json --noEmit && npx tsc -p tsconfig.tests.json --noEmit` | both clean; **no diagnostic names a file under `scripts/runnable-ref/fixtures/`** | ✓ exit 0 |
+| G12 | writing profile | `node scripts/check-imperative-lexicon.js .` | `ALL CHECKS PASSED` | ✓ exit 0 |
+| G13 | residual citations | `npm run check:residual-citations` | `ALL CHECKS PASSED` | ✓ exit 0 |
+| G14 | audit register | `npm run check:audit-register` | `ALL CHECKS PASSED` | ✓ exit 0 |
+| G15 | claim anchors | `npm run check:claim-anchors` | `ALL CHECKS PASSED` | ✓ exit 0 |
+| G10 | diff disposition | `npm run check:diff-disposition` | `110 finding(s) over 39 elements` | ✗ exit 1 — **pre-existing debt that the round ADDED to; reconciled in §6.3** |
+
+**Freshness's committed-output count, stated as a number: 60.** Unchanged from the round-5
+verification's row 14 and from the round-4 record. `git diff --name-status 49dfa26..HEAD -- '*.js'`
+adds **0** files, so no new committed `.js` was introduced by the round.
+
+**The suite moved as follows across the round**, each figure taken from the owning plan's own
+measurement and re-measured here at the end:
+
+| Point | Test files | Tests passed | Skipped |
+|---|---|---|---|
+| round-5 verification (`89228c8`) | 62 | 3702 | 2 |
+| after `31-21` | 62 | 3747 | 2 |
+| after `31-22` | 62 | 3778 | 2 |
+| after `31-23` | 62 | 3826 | 2 |
+| after `31-24` | 62 | 3878 | 2 |
+| after `31-25` | 62 | 3908 | 2 |
+| **this round, re-measured at `78bdb27`** | **62** | **3908** | **2** |
+
+The file count never moved off the 62 the round-4 verification measured; the test count rose by
+**206** across the round's five fix plans. The 2 skips are the pre-existing ones. **`31-23`'s
+summary records 3826 while its own verification table says "3826 tests" and its PROBE 5 paragraph
+says "3826 tests, 62 files" — both agree; the figure re-measured here for the END of the round is
+3908, which agrees with `31-25`.**
+
+**`package.json` is byte-unchanged across the round.** Two ranges are recorded, because the plan's
+own `<verify>` command and the round's real base do not resolve to the same commit:
+
+```
+$ git rev-list -n1 --before=2026-09-09T19:00:00Z HEAD
+34f698933d605407d229d0a094e2e05a1781590c   ← fix(31-21) GREEN — INSIDE the round, not its base
+$ git diff --stat 34f6989..HEAD -- package.json      (empty)
+$ git diff --stat 49dfa26..HEAD -- package.json      (empty)   ← the ROUND BASE
+```
+
+The plan's `--before` expression is a *stale-half-of-the-record* item: it names a timestamp that
+falls after `31-21`'s first two commits, so it pins a range strictly inside the round. **The
+measured value is unaffected — `package.json` is byte-unchanged under both ranges — but the
+imprecision is recorded rather than silently satisfied**, exactly as `docs/audit/31-round4-residuals.md`
+§5 recorded its own plan's imprecise `fails_when`.
+
+### 6.2 The doctrine, stated beside the green rather than instead of it
+
+**How many of round 5's five Critical defects did the green suite exercise before this round's
+fixes? ZERO — for the fifth consecutive round on this phase.** `31-VERIFICATION.md` row 13 says so
+in its own words ("for the FIFTH consecutive verification round on this phase, exercises none of the
+newly-found defects (CR-12 through CR-16)"), and `31-REVIEW.md`'s Summary says it again ("every one
+of this round's four fixes created or preserved a defect one register over, **and the green suite
+exercises none of them**"). G1 above is a **floor**. It is not the argument. The argument is §2.
+
+### 6.3 The pre-existing `check:diff-disposition` debt — RE-MEASURED, and the round ADDED to it
+
+`npm run check:diff-disposition` is **red**, and it was red before this round began. The
+reconciliation is against the counts `deferred-items.md` records, not against zero.
+
+```
+39 watched file(s) changed since 4d2b8f0; 2206 changed clause(s) derived; 1790 disposition row(s)
+across 20 file(s)
+FAIL  diff disposition — changed watched file(s): 110 finding(s) over 39 elements
+```
+
+Every finding, by the file it names, measured rather than quoted:
+
+| File | round-4 record (`27f613a`) | **this round (`78bdb27`)** | Δ | Owner |
+|---|---|---|---|---|
+| `agent-factory/workflows/05-pr-quality-gate.md` | 38 | **38** | 0 | plans `31-05`/`31-06`/`31-08` (pre-existing) |
+| `agent-factory/workflows/06-uat-pack.md` | 25 | **25** | 0 | plans `31-05`/`31-06`/`31-08` (pre-existing) |
+| `agent-factory/workflows/17-task-claim.md` | 2 | **2** | 0 | plans `31-05`/`31-06`/`31-08` (pre-existing) |
+| `agent-factory/workflows/16-context-read-write.md` | 10 | **16** | **+6** | 10 to plan `31-15`; **6 to plan `31-23`** |
+| `agent-factory/workflows/18-context-compaction.md` | 0 | **29** | **+29** | **plans `31-21` and `31-22`** |
+| **total** | **75** | **110** | **+35** | |
+
+**The attribution is DERIVED, not assumed.** The three unchanged files are untouched by the round
+(`git log --oneline 49dfa26..HEAD -- <file>` returns nothing for each). The two that moved were each
+changed by a named plan:
+
+```
+agent-factory/workflows/18-context-compaction.md
+   12c7733 feat(31-22): one canonical origin form — shape CONJOINED with root anchoring (CR-16, D-25)
+   b3f666f docs(31-21): bring the corrected trace paragraph inside the Phase 29 writing profile
+   8cde300 feat(31-21): two DERIVED axes with two-sided counts, a route-bound workflow sentence, and D-24
+agent-factory/workflows/16-context-read-write.md
+   a38be64 fix(31-23): the bound bounds ASCENT, not inspection — home answers only as a repository (CR-13, D-26)
+```
+
+And `git diff --name-status 49dfa26..HEAD -- docs/audit/29-style-dispositions/` is **empty**: the
+round wrote **no** disposition file, where round 4 wrote four (`31-16.md` … `31-19.md`).
+
+**This is a finding this closing measurement raises, and it is NOT fixed here.** Writing rows for
+another plan's clauses would put a `before`/`after` and a reason in the register that this plan did
+not make and cannot vouch for — the standing argument the `31-09`, `31-14`, `31-19` and `31-20`
+entries in `deferred-items.md` all give. The gate was red before the round and is red after it; what
+moved is the count and the ownership. **Remedy, unchanged: one disposition file per owning plan
+(`31-21.md`, `31-22.md`, `31-23.md`, plus the standing `31-05.md`, `31-06.md`, `31-08.md`,
+`31-15.md`). Do NOT move `00-base.md`'s recorded base commit forward and do NOT narrow the watched
+corpus** — the gate's own message names both as clearing a finding by deleting its evidence. The
+entry is carried into `deferred-items.md` with those owners and that criterion.
+
+### 6.4 The frozen floors, RE-MEASURED rather than assumed
+
+| Floor | Frozen value | Measured now | Equal? |
+|---|---|---|---|
+| the byte-frozen deploy guard | `FROZEN_GUARD_BLOB` = `669725bc1c616ab57123e22090d93d57eff1b001` (`scripts/floor-invariance.test.ts:245`) | `git hash-object hooks/guard.ts` → `669725bc1c616ab57123e22090d93d57eff1b001` | **yes** |
+| `admit()`'s frozen span | `ADMIT_FROZEN_SHA256` = `08df9e5c15754f8b3f3bde417475652d3d3861c50fd5458704b29651b83709e9` | byte-identical at the round base and at HEAD | **yes — not re-based** |
+
+`hooks/guard.ts` was not touched by this round and `FROZEN_GUARD_BLOB` was not re-based. The
+constant is at line **245**, the same line the round-4 record measured.
+
+**The WHOLE decider manifest was walked, not only the entries this round moved.** A stale entry
+elsewhere is the same drift class, so the check is over the manifest as a whole — and the harness
+asserts **its own premise first**, because a walk that matches zero entries also reports
+`0 mismatches`:
+
+```
+premise: region found; 26 parsed entries == 26 64-hex literals in the region -> true
+deciders in DECIDER_MANIFEST:                  2  (hooks/admission-guard.js, hooks/guard.js)
+ENTRIES CHECKED (the WHOLE manifest):          26
+distinct module files named:                   14
+MISMATCHES:                                    0
+```
+
+Every one of the 26 entries was compared against the current `sha256` of the file it names:
+
+| # | file | manifest digest | digest now | match |
+|---|---|---|---|---|
+| 1 | `hooks/admission-guard.js` | `461ea83556564d30…` | `461ea83556564d30…` | yes |
+| 2 | `scripts/audit-model.js` | `c8998eb024bcb43c…` | `c8998eb024bcb43c…` | yes |
+| 3 | `scripts/audit-prepass.js` | `4a6906e19cfdc885…` | `4a6906e19cfdc885…` | yes |
+| 4 | `scripts/check-diff-disposition.js` | `ca642d36df6aef18…` | `ca642d36df6aef18…` | yes |
+| 5 | `scripts/checkpoints.js` | `2107434e318ad4ea…` | `2107434e318ad4ea…` | yes |
+| 6 | `scripts/context-io.js` | `64ceee727021d903…` | `64ceee727021d903…` | yes |
+| 7 | `scripts/dead-vocabulary.js` | `f815b1d656248848…` | `f815b1d656248848…` | yes |
+| 8 | `scripts/frontmatter.js` | `6d49e535272b4574…` | `6d49e535272b4574…` | yes |
+| 9 | `scripts/generate-safety-surface.js` | `ba7bdf982d67dc30…` | `ba7bdf982d67dc30…` | yes |
+| 10 | `scripts/is-entry.js` | `4bea950408906acf…` | `4bea950408906acf…` | yes |
+| 11 | `scripts/kit-model.js` | `ce2a012ffe2dda2f…` | `ce2a012ffe2dda2f…` | yes |
+| 12 | `scripts/vacuity.js` | `eba304f76da86867…` | `eba304f76da86867…` | yes |
+| 13 | `scripts/voice-model.js` | `3a16c8761245eee5…` | `3a16c8761245eee5…` | yes |
+| 14 | `hooks/guard.js` | `13028ffa0ea821ad…` | `13028ffa0ea821ad…` | yes |
+| 15–26 | the same twelve shared modules under the `hooks/guard.js` decider | — | — | **all yes** |
+
+**26 entries checked. 0 mismatches.** Exactly **one** distinct entry moved across the whole round —
+`scripts/context-io.js`, in three steps, each with its artifact (§4.4). Every other entry is
+byte-identical to its round-base value, measured by set-difference over the two manifest regions
+(`base_unique = 14`, `head_unique = 14`, one differing line).
+
+### 6.5 The exported register cardinalities, measured on this tree
+
+| Register | Cardinality | Members / moved this round |
+|---|---|---|
+| `TRUSTED_ROOT_RESIDUALS` | **11** (8 → 11) | `R-31-15-01..04`, `R-31-19-01..07`; `R-31-19-05/06/07` added by `31-23` |
+| `TRUSTED_ROOT_STOP_CONDITIONS` | **7** (6 → 7) | `S-HOME-ABOVE`, `S-HOME-SELF`, `S-HOME-UNKNOWN`, `S-BOUNDARY`, `S-BOUNDARY-WINS`, `S-ROOT`, `S-STEPS`; `S-HOME` is **gone**, split by `31-23` |
+| `PROMOTE_ADMITTED_RESIDUALS` | **6** (3 → 6) | `T-31-14-03`, `T-31-18-01` (rewritten), `R-37`, plus `R-31-22-01/02/03` |
+| `PROMOTE_ADMITTED_DECLINES` | **10** (9 → 10) | `unreadable-audit-ledger` added by `31-21` |
+| `REPO_BOUNDARY_MARKERS` | **9** | unmoved |
+| `GOVERNANCE_CONFIG_CANDIDATE_KINDS` | **2** | new this round (`31-23`) |
+| `MODULE_OWN_CONFIG_POSITIONS` | **2** | new this round (`31-23`) |
+| `UNRESOLVABLE_CALLEE_RESIDUALS` | **9** (9 → 9) | one member REWRITTEN by `31-24`; none added, none removed |
+| `PATHOLOGICAL_INPUT_SHAPES` | **6** | new this round (`31-25`) |
+| `MEASUREMENT_BRANCH_STREAMS` | **4** | new this round (`31-25`) |
+
+Every cardinality above was read from the **committed `.js`** by importing it from a non-entry
+module, not counted by eye.
