@@ -31,12 +31,26 @@ actuals:
   # one deviation that removed a whole probe position.
   tokens: 49179
   tasks: 3
-  # MEASURED at the metadata commit, not narrated:
-  #   git rev-list --count b0232ae..39b2db3 -> 6
-  # Composition: 3 task commits + 1 deviation fix (96726c6) + this SUMMARY (67cdaee) +
-  # the state/roadmap commit (39b2db3). Written at 4 when the SUMMARY was first composed —
-  # the count is re-measured here so /gsd-verify-work's same-instrument check agrees.
-  commits: 6
+  # MEASURED, and stated at its FIXED POINT so it stops moving.
+  #
+  # This number chases itself: every commit that corrects it is another commit. It was written
+  # at 4 (the count when the SUMMARY was composed), re-measured at 6 (after the SUMMARY and the
+  # state/roadmap commits), and 6 was already stale once the correction and the broken-windows
+  # ledger commits landed. So it is stated as the value it HAS once the commit carrying this
+  # note is in: `git rev-list --count b0232ae..HEAD` -> 9, checkable by anyone at any later HEAD
+  # because the base is pinned.
+  #
+  # Composition, in order:
+  #   49bb4cd  feat  task 1 — the gate's fourth arm
+  #   8cff6d8  feat  task 2 — the Windows leg and R-04
+  #   382ef2b  docs  task 3 — the debt, the tally, D-32
+  #   96726c6  fix   deviation 5/6 — the dropped ledger position and the call-site decision
+  #   67cdaee  docs  this SUMMARY
+  #   39b2db3  docs  state + roadmap
+  #   195fd83  docs  the first correction to this field
+  #   6a7b933  docs  the broken-windows ledger rows
+  #   (this)   docs  the fixed-point correction
+  commits: 9
 plan_head_before: b0232aeac0293b6b957f5d0bdbf352e8662552a8
 
 tech-stack:
@@ -232,8 +246,10 @@ status: complete
 3. **Task 3: pay the debt, index the tally, record D-32** — `382ef2b` (docs)
 4. **Deviation fix: drop the GOV-02 ledger position** — `96726c6` (fix)
 
-**Plan metadata:** `67cdaee` (this SUMMARY) and `39b2db3` (state + roadmap).
-**Measured total:** `git rev-list --count b0232ae..39b2db3` → **6**.
+**Plan metadata:** `67cdaee` (this SUMMARY), `39b2db3` (state + roadmap), `195fd83` and this
+commit (the `commits:` field, corrected to its fixed point), `6a7b933` (broken-windows ledger).
+**Measured total:** `git rev-list --count b0232ae..HEAD` → **9**, with the base pinned so the
+number stays checkable at any later HEAD. The full composition is listed in the `actuals` block.
 
 ## Measured evidence
 
