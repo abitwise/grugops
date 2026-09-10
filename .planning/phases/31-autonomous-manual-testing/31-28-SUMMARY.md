@@ -21,9 +21,9 @@ provides:
 affects: [31-29, 31-30, 31-31, browser-uat-recipe, uat-spec-integrity]
 
 actuals:
-  tokens: 97000
+  tokens: 107000
   tasks: 4
-  commits: 3
+  commits: 5
 plan_head_before: dc0d3527a4db14a47dce34aff0b7b86658606fb5
 
 tech-stack:
@@ -56,7 +56,11 @@ patterns-established:
   - "Derive the framework's declaration files and its canonical paths from ONE breadth-first walk of its own exports, so the ban's anchor and the finding's spelling cannot drift apart"
   - "When a resolver stops declining by returning `null`, the decline-site DERIVATION's own matcher is a new degree of freedom and must be widened with it"
 
-requirements-completed: [UATX-06]
+# UATX-06 is the requirement this plan works on, and it is DELIBERATELY NOT listed as completed.
+# `.planning/ROADMAP.md` §"Phase 31" states the rule in its own words: "UATX-01…UATX-06 stay `[ ]` /
+# Gaps Found: only a verification round may flip a requirement." Executing a gap-closure plan is not
+# verifying it. `31-31` is the closing measurement and a seventh verification round has not run.
+requirements-completed: []
 
 coverage:
   - id: D1
@@ -448,4 +452,5 @@ None. The trust boundaries this plan crosses are the ones `31-28-PLAN.md`'s thre
 - commit `d6f3367` — FOUND
 - commit `2cd5640` — FOUND
 - commit `89c63b1` — FOUND
-- `git rev-list --count dc0d352..HEAD` — **3**, matching `commits: 3` in the frontmatter
+- `git rev-list --count dc0d352..HEAD` — **5** after this plan's metadata commit lands, matching `commits: 5` in the frontmatter. MEASURED from the ledger at `.git/gsd-plan-head-before-31-28`, never narrated: `d6f3367` (Task 1), `2cd5640` (Task 3), `89c63b1` (Task 4), `1522a16` (this SUMMARY) and the metadata commit that carries this correction.
+- `actuals.tokens` — 107000, being `git diff dc0d352..HEAD -- scripts agent-factory .planning | wc -c` = 427,131 characters, divided by 4, on the same `estimateTokens` scale the plan's `estimate: 95000` used. The plan estimated 95,000 and the realized cost was ~107,000: a 13% overrun, recorded as measured rather than rounded toward the estimate.
