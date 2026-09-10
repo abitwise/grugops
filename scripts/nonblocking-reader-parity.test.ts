@@ -496,8 +496,13 @@ describe("31-27 — each ceiling is stated ONCE, in its own file, and they are N
   });
 
   it("the module's note ceiling is defined exactly once in scripts/context-io.ts", () => {
+    // 31-29 (CR-19 / D-31): the ceiling became an EXPORT, because a bound is owned by the side that
+    // admits and BOTH sides must read one binding. The `export` modifier is admitted here; what
+    // this case asserts is unchanged and is the thing that matters — the ceiling is defined ONCE.
+    // A second definition is how the write side and the read side came to disagree in the first
+    // place, and it stays the failure this case reports.
     const src = readFileSync(join(ROOT, "scripts", "context-io.ts"), "utf8");
-    const defs = [...src.matchAll(/^const NOTE_FILE_MAX_BYTES = .*$/gm)];
+    const defs = [...src.matchAll(/^(?:export )?const NOTE_FILE_MAX_BYTES = .*$/gm)];
     expect(defs.length, "the note ceiling is defined more than once, or not at all").toBe(1);
     expect(defs[0]?.[0]).toContain("8 * 1024 * 1024");
   });

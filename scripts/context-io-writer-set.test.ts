@@ -3417,7 +3417,34 @@ const FS_BLOCKING_PRIMITIVES: readonly string[] = Object.freeze([
   "writeSync",
 ]);
 
-/** Derive `enclosingFunction:primitive` for every blocking-capable filesystem call in the module. */
+/**
+ * Derive `enclosingScope:primitive` for every blocking-capable filesystem call in the module.
+ *
+ * ── THE WALK SEES EVERY SCOPE, AND UNTIL 31-29 IT SAW ONE (WR-27). ────────────────────────────
+ *
+ * WHAT WAS WRONG, MEASURED RATHER THAN DESCRIBED. This derivation iterated `source.statements` and
+ * descended only into TOP-LEVEL FUNCTION DECLARATIONS. Every other scope a call can live in was
+ * invisible to it — while the section comment above claims a new blocking call ANYWHERE in the
+ * module turns this axis red. Measured against the pre-fix derivation, with the module's real
+ * source and one seeded `openSync` per shape:
+ *
+ *   | seeded scope         | derived count | moved? |
+ *   | an ARROW function    | 5             | NO     |
+ *   | a CLASS method       | 5             | NO     |
+ *   | the CLI ENTRY block  | 5             | NO     |
+ *   | a TOP-LEVEL function | 6             | yes    |
+ *
+ * So the axis that exists to prevent set-literal drift was itself drifting, one scope level up: a
+ * `mkfifo`-wedgeable read added inside an arrow left every assertion green. That is CR-12's whole
+ * shape at the place built to catch it.
+ *
+ * THE FIX. The walk starts at the SourceFile and descends everywhere, carrying the NEAREST NAMED
+ * enclosing scope — a function declaration, a class method, a variable-declared arrow or function
+ * expression, else `<module>` for a call at the top level or inside the CLI entry block. The three
+ * shapes above each move the count by exactly one afterwards, driven as controls below. This
+ * matches `scripts/nonblocking-reader-parity.test.ts`'s recursive derivation rather than diverging
+ * from it, because two derivations of one question is the shape this file keeps deleting.
+ */
 function deriveFsBlockingSites(sourcePath: string): string[] {
   const source = ts.createSourceFile(
     "context-io.ts",
@@ -3427,19 +3454,28 @@ function deriveFsBlockingSites(sourcePath: string): string[] {
   );
   const alphabet = new Set(FS_BLOCKING_PRIMITIVES);
   const sites = new Set<string>();
-  for (const statement of source.statements) {
-    if (!ts.isFunctionDeclaration(statement) || !statement.name || !statement.body) continue;
-    const fn = statement.name.text;
-    const walk = (node: ts.Node): void => {
-      if (ts.isCallExpression(node) && ts.isIdentifier(node.expression)) {
-        if (alphabet.has(node.expression.text)) sites.add(`${fn}:${node.expression.text}`);
-      }
-      ts.forEachChild(node, walk);
-    };
-    walk(statement.body);
-  }
+  const walk = (node: ts.Node, scope: string): void => {
+    let inner = scope;
+    if (ts.isFunctionDeclaration(node) && node.name) inner = node.name.text;
+    else if (ts.isMethodDeclaration(node) && node.name) inner = node.name.getText(source);
+    else if (
+      (ts.isArrowFunction(node) || ts.isFunctionExpression(node)) &&
+      ts.isVariableDeclaration(node.parent) &&
+      ts.isIdentifier(node.parent.name)
+    ) {
+      inner = node.parent.name.text;
+    }
+    if (ts.isCallExpression(node) && ts.isIdentifier(node.expression)) {
+      if (alphabet.has(node.expression.text)) sites.add(`${inner}:${node.expression.text}`);
+    }
+    ts.forEachChild(node, (child) => walk(child, inner));
+  };
+  walk(source, MODULE_SCOPE);
   return [...sites].sort();
 }
+
+/** The owner a call with no named enclosing function is attributed to. */
+const MODULE_SCOPE = "<module>";
 
 /**
  * ONE WRITTEN DISPOSITION PER DERIVED SITE. The key set is asserted EQUAL to the derived set in both
@@ -3552,6 +3588,9 @@ describe("31-21 — every blocking-capable filesystem call is derived, and each 
 // ─── PART SIX-F (b) — the site axis DISCRIMINATES, watched failing in BOTH directions. ──────────
 
 const SEEDED_UNGUARDED_READER = "seededUnguardedReader";
+/** WR-27's three shapes, each named so its seeded site is identifiable in the derived set. */
+const SEEDED_ARROW_READER = "seededArrowReader";
+const SEEDED_METHOD_READER = "seededMethodReader";
 
 describe("31-21 — the filesystem-site axis is a control, not a coincidence", () => {
   it("ONE extra unguarded read moves the COUNT by exactly one and NAMES the seeded site", () => {
@@ -3567,6 +3606,89 @@ describe("31-21 — the filesystem-site axis is a control, not a coincidence", (
     expect(derived).toContain(`${SEEDED_UNGUARDED_READER}:openSync`);
     // …and it is NOT in the disposition register, which is the failure a reader would actually meet.
     expect(Object.keys(FS_SITE_DISPOSITIONS)).not.toContain(`${SEEDED_UNGUARDED_READER}:openSync`);
+  });
+
+  // ─── WR-27's three shapes, each a control that the OLD walk could not move. ──────────────────
+  //
+  // Measured against the pre-fix derivation, these three left the count at 5 while the top-level
+  // control moved it to 6. Each one is now asserted to move it by EXACTLY ONE and to name its own
+  // scope, so the axis's claim — a new blocking call anywhere in the module turns this red — is a
+  // measurement rather than a sentence.
+
+  it("WR-27 (a): a blocking call inside an ARROW moves the count by exactly one", () => {
+    const path = join(freshTmp("ctx-io-fs-site-arrow-"), "context-io.ts");
+    writeFileSync(
+      path,
+      readFileSync(CONTEXT_IO_TS, "utf8") +
+        `\nconst ${SEEDED_ARROW_READER} = (p: string): number => openSync(p, 0);\n`,
+    );
+    const derived = deriveFsBlockingSites(path);
+    expect(derived.length).toBe(EXPECTED_FS_SITE_COUNT + 1);
+    expect(derived).toContain(`${SEEDED_ARROW_READER}:openSync`);
+    expect(Object.keys(FS_SITE_DISPOSITIONS)).not.toContain(`${SEEDED_ARROW_READER}:openSync`);
+  });
+
+  it("WR-27 (b): a blocking call inside a CLASS METHOD moves the count by exactly one", () => {
+    const path = join(freshTmp("ctx-io-fs-site-method-"), "context-io.ts");
+    writeFileSync(
+      path,
+      readFileSync(CONTEXT_IO_TS, "utf8") +
+        `\nclass SeededReaderHolder {\n  ${SEEDED_METHOD_READER}(p: string): number {\n` +
+        `    return openSync(p, 0);\n  }\n}\nvoid SeededReaderHolder;\n`,
+    );
+    const derived = deriveFsBlockingSites(path);
+    expect(derived.length).toBe(EXPECTED_FS_SITE_COUNT + 1);
+    expect(derived).toContain(`${SEEDED_METHOD_READER}:openSync`);
+  });
+
+  it("WR-27 (c): a blocking call in the CLI ENTRY BLOCK moves the count by exactly one", () => {
+    // Attributed to `<module>`: an entry block has no named enclosing function, and inventing a
+    // name for it would be a scope the source does not have. What matters is that it is SEEN.
+    const path = join(freshTmp("ctx-io-fs-site-entry-"), "context-io.ts");
+    writeFileSync(
+      path,
+      readFileSync(CONTEXT_IO_TS, "utf8") +
+        `\nif (process.argv[1] && process.argv[1].endsWith("seeded-entry")) {\n` +
+        `  openSync(process.argv[2] as string, 0);\n}\n`,
+    );
+    const derived = deriveFsBlockingSites(path);
+    expect(derived.length).toBe(EXPECTED_FS_SITE_COUNT + 1);
+    expect(derived).toContain(`${MODULE_SCOPE}:openSync`);
+  });
+
+  it("CONTROL 2: the new walk's member set is a SUPERSET of the old walk's, losing nothing", () => {
+    // A walk that changed WHAT IT COUNTS must be legible rather than absorbed. The old walk is
+    // reproduced here verbatim and the two sets compared, so widening the walk can never be a way
+    // to quietly drop a site that used to be watched.
+    const source = ts.createSourceFile(
+      "context-io.ts",
+      readFileSync(CONTEXT_IO_TS, "utf8"),
+      ts.ScriptTarget.Latest,
+      true,
+    );
+    const alphabet = new Set(FS_BLOCKING_PRIMITIVES);
+    const oldWalk = new Set<string>();
+    for (const statement of source.statements) {
+      if (!ts.isFunctionDeclaration(statement) || !statement.name || !statement.body) continue;
+      const fn = statement.name.text;
+      const walk = (node: ts.Node): void => {
+        if (ts.isCallExpression(node) && ts.isIdentifier(node.expression)) {
+          if (alphabet.has(node.expression.text)) oldWalk.add(`${fn}:${node.expression.text}`);
+        }
+        ts.forEachChild(node, walk);
+      };
+      walk(statement.body);
+    }
+    const before = [...oldWalk].sort();
+    const after = deriveFsBlockingSites(CONTEXT_IO_TS);
+    expect(before.length, "PREMISE: the reproduced old walk found nothing").toBeGreaterThan(0);
+    for (const member of before) {
+      expect(after, `the widened walk LOST ${member}, which the old one watched`).toContain(member);
+    }
+    // MEASURED on this tree: the sets are IDENTICAL. Every blocking call the module has today
+    // already lived in a top-level function, so the fix widens what the axis CAN see without
+    // moving what it DOES see — no site is re-baselined, and the cardinality below is unchanged.
+    expect(after).toEqual(before);
   });
 
   it("the CONVERSE: removing an authority's own call moves the count the other way", () => {

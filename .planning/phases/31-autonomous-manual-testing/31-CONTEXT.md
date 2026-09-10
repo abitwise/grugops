@@ -1483,6 +1483,122 @@ Critical appeared at the coordinate the fix did not reach.
     `resolveBannedModifier` / `createProgramForTarget` docstrings in
     `scripts/runnable-ref/uat-spec-integrity.ts`, and in `31-28-SUMMARY.md`'s key-decisions block.
 
+- **D-31 (2026-09-10, gap-closure round 6, wave 3) — a bound is owned by the side that ADMITS, and
+  two halves of one action are keyed on ONE variable.**
+  - **What forced it.** `CR-19` and `CR-20` of `31-REVIEW.md`, both independently reproduced by
+    `31-VERIFICATION.md` round 6 against the committed `scripts/context-io.js`, plus `WR-27`,
+    `WR-28` and `IN-14`. And the six-round pattern this phase has now paid for every round: each
+    round's fix created the next round's Critical at the coordinate the fix did not reach. Round 5
+    gave this module one non-blocking regular-file reader with a size ceiling, and inverted the
+    note-then-ledger order at both derived routes. Both closures are real and are re-measured here
+    as controls. What each COST is what round 6 found.
+  - **Which register failed — and it was neither of the two that had already been re-derived.** Not
+    the reader, and not the order. The two questions nobody had asked of this module were **WHICH
+    SIDE OWNS A BOUND** and **WHICH VARIABLE KEYS AN ACTION**.
+  - **D-31 (1) — a bound is enforced on the side that ADMITS.** The ceiling was wired into
+    `readRegularFileOrNull` and into nothing else, so the writer could create an object every one
+    of its own readers was required to refuse. Measured: a 9 MiB note returned an id cleanly, landed
+    at 9,437,353 bytes, and the immediately following `readContext` for that task returned ZERO
+    notes — invisible to `readContext`, `render`, `currentState`, `admit()`'s cross-check and
+    `promoteAdmitted`'s liveness clause alike, permanently, on the only memory this project has
+    between agents. `writeNoteFile` now measures the composed candidate and refuses BEFORE
+    `mkdirSync` and `atomicWrite`; the read side keeps its own refusal for a file it did not write;
+    and BOTH read the one exported `NOTE_FILE_MAX_BYTES`. The same reconciliation is applied to
+    `AUDIT_LEDGER_MAX_BYTES`, where the read carried 64 MiB and the append carried nothing.
+  - **D-31 (2) — two halves of one action are keyed on ONE variable.** `promoteAdmitted` keyed its
+    note write on `to` and its GOV-02 event on `repoRoot`. Measured with three real governance
+    roots: the finding landed in THIRD's store and its audit record in DEST's ledger. The owning
+    repository is now DERIVED from the destination store through one exported authority,
+    `governanceRootOf`, which `originStoreIsRootAnchored` also calls — so the origin end and the
+    destination end ask one function rather than two spellings of one rule. Both halves key on that
+    answer. `repoRoot` still answers the governance dial; it no longer decides where a record lands,
+    and a case derives that from the module's own AST rather than by reading.
+  - **D-31 (3) — a refusal NAMES the condition that is true.** `CR-19`'s second half is a fabricated
+    claim, not a wording problem: an idempotent re-write of identical bytes was refused with
+    `note-path-not-a-regular-file` and a message asserting the position "is not absent, or a regular
+    file", which `stat` measures false of a 9,437,353-byte regular file. An over-ceiling REGULAR
+    file now carries `NOTE_ABOVE_CEILING_CLAUSE`, distinct from the shape clause, with the condition
+    carried on a discriminant so a caller names its own clause without matching on message text.
+  - **THE REJECTED ALTERNATIVE, NAMED.** The review offers a second disposition for `CR-20`: leave
+    `to` unconstrained, and record that an unanchored destination simply gets no audit record. It is
+    **REJECTED**. It would make the workflow's sentence true by WEAKENING the guarantee it
+    describes — the claim-follows-mechanism move run backwards — and it would leave a human
+    disposition sitting in a store whose audit trail cannot be named. A `to` outside a governed
+    store is a named decline, `destination-outside-governed-store`, raised before anything is
+    written.
+  - **`WR-28`, a CORRECTION rather than a closure.** The forged-origin price was stated as "three
+    filesystem operations inside this repository, and two outside every repository". Measured per
+    position by subtraction: **three** inside a repository carrying a governance CONFIGURATION,
+    **two** inside one carrying a version-control marker and NO configuration, **two** outside every
+    repository. The variable is the ENCLOSING repository's configuration, not the fact of being
+    inside one. All three numbers now appear identically in `T-31-18-01`, in `governanceRootOf`'s
+    docstring and in `18-context-compaction.md`, with a case asserting the three agree.
+  - **`IN-14` / `R-31-21-02`.** `readRawNotes`' single `catch { continue; }` covered three different
+    facts with one silence. Measured before the fix: a file that did not parse, a FIFO at a note
+    path, and a vanished entry all produced a zero-length read, zero rendered rows and no diagnostic.
+    They are three named arms (`NOTE_SKIP_ARMS`), the skipped entries are counted, and `render`
+    reports the count and the arm breakdown in a CONDITIONAL section — a task with nothing skipped
+    renders byte-for-byte what it rendered before.
+  - **`WR-27` — the axis that exists to catch drift was drifting.** `deriveFsBlockingSites`
+    descended only into TOP-LEVEL function declarations, while its own comment claimed a new
+    blocking call anywhere in the module turned it red. Measured: a seeded `openSync` inside an
+    arrow, inside a class method, and inside the CLI entry block each left the count at 5, while the
+    top-level control moved it to 6. The walk now starts at the SourceFile with nearest-named-scope
+    attribution, and the three shapes are seeded mirrors each moving the count by exactly one. The
+    member set before and after is IDENTICAL, so the fix widened what the axis CAN see without
+    re-baselining what it DOES see.
+  - **`WRITE_PATH_RESIDUALS`.** Round 5's own closing measurement recorded that the four
+    `R-31-21-*` residuals lived only in this document's prose, bound by no test, while the other
+    three registers each carry a two-sided binding. They are now an exported register with the same
+    interface shape, the same two-sided equality against the dispositions written below, and an
+    asserted cardinality.
+  - **The write path's residual dispositions, bound to `WRITE_PATH_RESIDUALS` in both directions:**
+    - `R-31-21-01` — `atomicWrite`'s `writeFileSync` is a blocking-capable call whose destination
+      carries a random UUID no caller can predict. CLOSE: accepted by design, an unaimable
+      destination, bounded by the standing same-uid `T-31-25` residual.
+    - `R-31-21-02` — the SKIP of a non-regular file inside `notes/` stays, because throwing would
+      let one planted FIFO deny `render` and `currentState` for a whole task. The LEGIBILITY half is
+      CLOSED by the three counted arms above.
+    - `R-31-21-03` — plan 31-21's own premise about `appendFileSync` was measured FALSE and CLOSED
+      in that same round; recorded here so the id resolves to its measurement rather than to a gap.
+    - `R-31-21-04` — the derivations are SYNTACTIC. The SCOPE half is CLOSED by `WR-27`'s recursive
+      walk. The alias and computed-member half is accepted, bounded behaviourally by the FIFO corpus
+      and the per-member transposed mirrors; a type-checker-backed resolution is the `S2` cutover
+      D-30 landed elsewhere, and applying it here is named as the NEXT MILESTONE's, not this phase's.
+    - `R-31-29-01` — NEW this round. A note already ON DISK above the ceiling is refused by every
+      reader and by the write side, and is neither deleted nor rotated: the shared verified context
+      is APPEND-ONLY, and a writer that removed an over-ceiling note would be destroying evidence to
+      tidy a listing. Accept; the condition is legible at every surface.
+  - **WHAT D-31 DOES NOT ESTABLISH.**
+    - **The destination constraint names a REPOSITORY, not a trustworthy destination.** It does not
+      authenticate the destination's CONTENTS, and a caller who can construct a governance root can
+      present a destination this route accepts — at the same price, and bounded by the same
+      residual, as `T-31-18-01` states for the origin.
+    - **It is NOT asked of every other writer's `contextRoot`.** `appendNote` still accepts any
+      destination. This is a property of the RE-BINDING route, not of the module, because a
+      promotion is what carries a human disposition across a repository boundary.
+    - **The ceilings are operational limits, not integrity guarantees.** They bound what a reader
+      will read; they say nothing about whether what it reads is true.
+    - **The three counted skip arms are reported in `index.md` and nowhere else.** A reader who
+      never opens the rendered index still learns nothing — a surfacing question for the workflows.
+    - **The Windows leg of everything above is `R-03` and is `31-30`'s to measure.**
+    - **A coordinate found rather than predicted, and DISCLOSED:** constraining `to` changed the
+      answer for fixtures across three suites that had staged bare temp directories as destinations.
+      Two of them were passing for the WRONG REASON and were re-aimed rather than re-baselined —
+      `WR-18`'s Test 6a asserted "nothing was appended" against a ledger the route had stopped
+      writing to at all, and the round-5 FIFO driver planted its unreadable ledger at `repoRoot`
+      rather than at the destination whose ledger the route now names.
+  - **Reversibility: costly.** The exported ceilings, the new clauses, the derived destination
+    binding and `WRITE_PATH_RESIDUALS` become part of the module's exported contract, of three
+    derived axes, and of the sentences `18-context-compaction.md` states. Reverting restores a
+    writer the round-6 verifier measured creating a note that disappeared from every reader with no
+    diagnostic, and a route it measured splitting a human-disposed finding and its audit record
+    across two different repositories — under a workflow sentence stating twice that it cannot
+    happen.
+  - **Recorded in three places that must agree:** here, in the `NOTE_FILE_MAX_BYTES` /
+    `governanceRootOf` / `writeNoteFile` header blocks in `scripts/context-io.ts`, and in
+    `31-29-SUMMARY.md`'s key-decisions block.
+
 ### Claude's Discretion
 - Exact runnable file name and the exact wording of the two new loud-skip markers, as long as
   each is a single exported constant with a single emission point (the `uat-live.test.ts` shape).

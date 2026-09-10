@@ -10739,11 +10739,15 @@ describe("31-22 — CR-16: the origin is recognised by SHAPE conjoined with ROOT
     expect(workflow).toContain(
       "The cost is stated per position, because the enclosing repository's configuration is what varies.",
     );
+    // Split into three sentences because WP-03 bounds a descriptive sentence at 25 words and the
+    // single-sentence form measured 30. The prose was split; the scan set was not narrowed.
     expect(workflow).toContain(
-      "It is three filesystem operations inside a repository that carries a governance " +
-        "configuration, two inside a repository that carries a version-control marker and no " +
-        "configuration, and two outside every repository.",
+      "Inside a repository that carries a governance configuration it is three filesystem operations.",
     );
+    expect(workflow).toContain(
+      "Inside a repository that carries a version-control marker and no configuration it is two.",
+    );
+    expect(workflow).toContain("Outside every repository it is two.");
     expect(workflow).toContain("The residual `T-31-18-01` names that construction");
 
     // THE CLAIM, DRIVEN: copying the notes into a directory does NOT make the promotion pass.
@@ -11648,7 +11652,10 @@ const EXPECTED_CEILING_SITES: readonly string[] = Object.freeze([
   "ledgerRecordsId:readRegularFileOrNull#1:AUDIT_LEDGER_MAX_BYTES",
   "readCliNoteFileOrExit:readRegularFileOrNull#1:NOTE_FILE_MAX_BYTES",
   "readGovernanceConfigCandidate:readRegularFileOrNull#1:GOVERNANCE_CONFIG_MAX_BYTES",
-  "readRawNotes:readRegularFileOrNull#1:NOTE_FILE_MAX_BYTES",
+  // 31-29 (IN-14): the walk was split into `readRawNotesWithSkips` (both views) and a
+  // `readRawNotes` that reads the notes view off it. The SITE moved with the walk; the count did
+  // not, because the split added a reader rather than a second read.
+  "readRawNotesWithSkips:readRegularFileOrNull#1:NOTE_FILE_MAX_BYTES",
   "readRegularFileOrNull:comparison:maxBytes",
   "writeNoteFile:comparison:NOTE_FILE_MAX_BYTES",
   "writeNoteFile:readRegularFileOrNull#1:NOTE_FILE_MAX_BYTES",
@@ -12190,9 +12197,247 @@ describe("31-29 — the two workflow sentences are TRUE of the mechanism", () =>
   });
 
   it("the never-holds sentence names the reason the mechanism now supports", () => {
+    // Two sentences, because WP-03 bounds a descriptive sentence at 25 words and the joined form
+    // measured 26. Both halves of the REASON survive the split, which is what the case is about.
     expect(workflow()).toContain(
-      "because both steps name the same derived repository, the destination never holds a " +
-        "human-disposed finding with no ledger line",
+      "The append precedes the write, and both steps name the same derived repository.",
     );
+    expect(workflow()).toContain(
+      "So the destination never holds a human-disposed finding with no ledger line.",
+    );
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// PLAN 31-29 — IN-14 / R-31-21-02: three different facts stop sharing one silence.
+//
+// WHAT WAS WRONG, MEASURED BEFORE THE CHANGE. `readRawNotes` covered three distinct events with one
+// `catch { continue; }`, and all three produced identical observable results:
+//
+//   | planted fact          | readContext len | render index.md rows | any diagnostic |
+//   | did not PARSE         | 0               | 0                    | NO             |
+//   | NOT A REGULAR FILE    | 0               | 0                    | NO             |
+//   | VANISHED (absent)     | 0               | 0                    | NO             |
+//
+// A note that was ADMITTED and has become unreadable is not the same event as a file that was never
+// a note, and neither is the same as a concurrent delete. The SKIP stays — throwing would let one
+// planted FIFO deny `render` and `currentState` for a whole task — but it is no longer silent.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+describe("31-29 — IN-14: a skipped entry is named by its arm, counted, and reported", () => {
+  const T = "T-529S";
+
+  function store(prefix: string): string {
+    const root = freshTmp(prefix);
+    mkdirSync(join(root, ".git"), { recursive: true });
+    mkdirSync(join(root, ".grugops"), { recursive: true });
+    writeFileSync(join(root, ".grugops", "factory.config.json"), "{}");
+    const ctx = join(root, ".grugops", "context");
+    mkdirSync(join(ctx, T, "notes"), { recursive: true });
+    return ctx;
+  }
+  const indexOf = (ctx: string): string => readFileSync(join(ctx, T, "index.md"), "utf8");
+
+  it("the three arms produce three DISTINCT observable results", () => {
+    const seen: Record<string, string> = {};
+    const cases: ReadonlyArray<readonly [string, string, (notesDir: string) => void]> = [
+      [
+        "unparseable",
+        "unparseable",
+        (d) => writeFileSync(join(d, "aaa.md"), "this is not a note at all\n"),
+      ],
+      ["not a regular file", "not-a-regular-file", (d) => execFileSync("mkfifo", [join(d, "aaa.md")])],
+      [
+        "over the ceiling",
+        "not-a-regular-file",
+        (d) => writeFileSync(join(d, "aaa.md"), Buffer.alloc(mod.NOTE_FILE_MAX_BYTES + 1, 0x61)),
+      ],
+    ];
+    for (const [label, arm, plant] of cases) {
+      const ctx = store(`p31-29-skip-${label.replace(/[^a-z]/gi, "")}-`);
+      plant(join(ctx, T, "notes"));
+      expect(mod.readContext(T, ctx), `${label} was returned as a note`).toEqual([]);
+      mod.render(T, ctx);
+      const md = indexOf(ctx);
+      expect(md, `${label} produced no skip report`).toContain("## Skipped entries");
+      expect(md).toContain("| aaa.md | " + arm + " |");
+      seen[label] = md.slice(md.indexOf("## Skipped entries"));
+    }
+    // DISTINCT: the unparseable arm and the non-regular arm are not the same text.
+    expect(seen["unparseable"]).not.toBe(seen["not a regular file"]);
+    expect(seen["unparseable"]).toContain("unparseable");
+    expect(seen["not a regular file"]).toContain("not-a-regular-file");
+    // …and the over-ceiling entry carries its BYTE COUNT, so "unreadable" is legible as a size.
+    expect(seen["over the ceiling"]).toMatch(/\d+ bytes, above the \d+-byte ceiling/);
+  });
+
+  it("the report names the COUNT, and the count is the number of skipped entries", () => {
+    const ctx = store("p31-29-skip-count-");
+    const notes = join(ctx, T, "notes");
+    writeFileSync(join(notes, "one.md"), "not a note\n");
+    writeFileSync(join(notes, "two.md"), "also not a note\n");
+    execFileSync("mkfifo", [join(notes, "three.md")]);
+    // …and ONE real note, so the report is not the whole output.
+    const id = mod.appendNote(
+      T,
+      {
+        kind: "observation",
+        by: "qe",
+        at: "2026-09-10T00:00:00Z",
+        verified_by: "",
+        confidence: "high",
+        refs: [],
+        supersedes: null,
+      } as Parameters<typeof mod.appendNote>[1],
+      "a real body",
+      ctx,
+      undefined,
+      freshTmp("p31-29-skip-lean-"),
+    );
+    expect(mod.readContext(T, ctx).map((n) => n.id)).toEqual([id]);
+    mod.render(T, ctx);
+    const md = indexOf(ctx);
+    expect(md).toContain("3 entries in this task's notes/ directory were not read as a note");
+    for (const f of ["one.md", "two.md", "three.md"]) expect(md).toContain(`| ${f} |`);
+  });
+
+  it("EMPTY: a notes/ directory with nothing in it renders NO skip section at all", () => {
+    // The conditional half of the property: a task with nothing skipped must render byte-for-byte
+    // what it rendered before this plan, or every existing index.md in the world has drifted.
+    const ctx = store("p31-29-skip-empty-");
+    expect(mod.readContext(T, ctx)).toEqual([]);
+    mod.render(T, ctx);
+    expect(indexOf(ctx)).not.toContain("## Skipped entries");
+  });
+
+  it("render stays BYTE-REPRODUCIBLE with skips present", () => {
+    const ctx = store("p31-29-skip-repro-");
+    const notes = join(ctx, T, "notes");
+    writeFileSync(join(notes, "zzz.md"), "not a note\n");
+    writeFileSync(join(notes, "aaa.md"), "also not a note\n");
+    mod.render(T, ctx);
+    const first = indexOf(ctx);
+    mod.render(T, ctx);
+    expect(indexOf(ctx), "two renders of one directory differed").toBe(first);
+    // Sorted within the arm, so the order is the directory's content rather than its listing order.
+    expect(first.indexOf("| aaa.md |")).toBeLessThan(first.indexOf("| zzz.md |"));
+  });
+
+  it("NOTE_SKIP_ARMS is exported and every arm is reachable — no arm is decoration", () => {
+    expect([...mod.NOTE_SKIP_ARMS]).toEqual(["unparseable", "not-a-regular-file", "vanished"]);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// PLAN 31-29 — WRITE_PATH_RESIDUALS: the register the write path did not have.
+//
+// Round 5's own closing measurement recorded the asymmetry: the four `R-31-21-*` residuals lived
+// only in `31-CONTEXT.md` prose, bound by no test, while `TRUSTED_ROOT_RESIDUALS` and
+// `PROMOTE_ADMITTED_RESIDUALS` each carry a two-sided binding. A residual a test cannot read is one
+// that ships quietly when somebody adds a fifth.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+describe("31-29 — the write path's residuals are an EXPORTED register, bound in both directions", () => {
+  const CONTEXT_DOC = join(
+    ROOT,
+    ".planning",
+    "phases",
+    "31-autonomous-manual-testing",
+    "31-CONTEXT.md",
+  );
+
+  /** The ids WRITTEN in the planning document, derived from its own text. */
+  function writtenIds(): string[] {
+    const text = readFileSync(CONTEXT_DOC, "utf8");
+    const ids = new Set<string>();
+    for (const m of text.matchAll(/`(R-31-(?:21|29)-\d{2})`/g)) ids.add(m[1] as string);
+    return [...ids].sort();
+  }
+
+  it("PREMISE: the document was read and it names residual ids at all", () => {
+    expect(existsSync(CONTEXT_DOC), `the disposition document is absent at ${CONTEXT_DOC}`).toBe(true);
+    expect(
+      writtenIds().length,
+      "PREMISE: ZERO residual ids were derived from 31-CONTEXT.md, so both directions below are vacuous",
+    ).toBeGreaterThan(0);
+  });
+
+  it("the register has the expected CARDINALITY, asserted separately from its members", () => {
+    expect(mod.WRITE_PATH_RESIDUALS).toHaveLength(5);
+  });
+
+  it("DIRECTION 1: every EXPORTED member has a WRITTEN disposition in 31-CONTEXT.md", () => {
+    const written = writtenIds();
+    for (const r of mod.WRITE_PATH_RESIDUALS) {
+      expect(
+        written,
+        `${r.id} is exported by the module and has no written disposition — the silence this ` +
+          `register exists to remove`,
+      ).toContain(r.id);
+    }
+  });
+
+  it("DIRECTION 2: every WRITTEN id is a member the module still exports", () => {
+    const exported = mod.WRITE_PATH_RESIDUALS.map((r) => r.id);
+    for (const id of writtenIds()) {
+      expect(
+        exported,
+        `${id} is dispositioned in 31-CONTEXT.md and is NOT in the register. A written disposition ` +
+          `for a residual that no longer exists reads as coverage and is not`,
+      ).toContain(id);
+    }
+  });
+
+  it("the interface SHAPE matches the other two registers, field for field", () => {
+    for (const r of mod.WRITE_PATH_RESIDUALS) {
+      expect(Object.keys(r).sort()).toEqual([
+        "id",
+        "reason",
+        "shape",
+        "what_would_force_it_closed",
+      ]);
+      expect(r.shape.length, `${r.id}'s shape is too short to be a situation`).toBeGreaterThan(40);
+      expect(r.reason.length, `${r.id}'s reason is too short to be an argument`).toBeGreaterThan(120);
+      expect(
+        r.what_would_force_it_closed.length,
+        `${r.id} states no criterion for closing it`,
+      ).toBeGreaterThan(40);
+    }
+  });
+
+  it("every member carries a WRITTEN disposition verdict, not just prose", () => {
+    for (const r of mod.WRITE_PATH_RESIDUALS) {
+      expect(r.reason, `${r.id} carries no DISPOSITION verdict`).toMatch(
+        /DISPOSITION \(plan 31-29\): (CLOSE|CLOSED|accept|the)/,
+      );
+    }
+  });
+
+  it("a SEEDED undispositioned member turns the equality RED", () => {
+    // The control: the binding must FAIL for a member nobody wrote a disposition for, or it is a
+    // loop that ran and proved nothing.
+    const seeded = [
+      ...mod.WRITE_PATH_RESIDUALS.map((r) => r.id),
+      "R-31-29-98", // never written to 31-CONTEXT.md
+    ];
+    const written = writtenIds();
+    expect(seeded.filter((id) => !written.includes(id))).toEqual(["R-31-29-98"]);
+  });
+
+  it("R-31-21-02 and R-31-21-04 record what THIS round closed, and what it did not", () => {
+    const byId = new Map(mod.WRITE_PATH_RESIDUALS.map((r) => [r.id, r] as const));
+    expect(byId.get("R-31-21-02")?.reason).toContain("LEGIBILITY half is CLOSED");
+    expect(byId.get("R-31-21-04")?.reason).toContain("SCOPE half is CLOSED");
+    expect(
+      byId.get("R-31-21-04")?.reason,
+      "the half that stays open is not named, so it reads as a full closure",
+    ).toContain("alias and computed-member half is");
+    expect(byId.get("R-31-21-03")?.reason).toContain("CLOSED by plan 31-21");
+  });
+
+  it("the NEW residual this round leaves is in the register, not only in a summary", () => {
+    const fresh = mod.WRITE_PATH_RESIDUALS.find((r) => r.id === "R-31-29-01");
+    expect(fresh, "this round left no new write-path residual, which would be a suspicious claim").toBeDefined();
+    expect(fresh?.reason).toContain("APPEND-ONLY");
   });
 });

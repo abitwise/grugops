@@ -1639,10 +1639,49 @@ interface RawNote {
   readonly parsed: ParsedFrontmatter;
 }
 
-function readRawNotes(task: string, contextRoot: string): RawNote[] {
+/**
+ * WHY AN ENTRY IN A `notes/` DIRECTORY WAS NOT RETURNED AS A NOTE (31-29, IN-14 / R-31-21-02).
+ *
+ * Three different facts used to share one `catch { continue; }` and one silence. They are not the
+ * same event and their operational answers differ:
+ *
+ *   `unparseable`  — a file that is not a note. Ordinary: an editor backup, a stray `.md`.
+ *   `not-a-regular-file` — a position occupied by a FIFO, a device or a directory. Somebody PUT
+ *                    that there; a note write never creates one.
+ *   `vanished`     — listed by `readdir` and gone by the time it was opened. A concurrent delete.
+ *
+ * The middle one is the one this distinction exists for. A note that was ADMITTED and has become
+ * unreadable is not the same event as a file that was never a note, and the shared verified
+ * context — the only memory this project has between agents — must not report the two as one
+ * silence. `render` now says how many entries were skipped and under which arm.
+ */
+export const NOTE_SKIP_ARMS = ["unparseable", "not-a-regular-file", "vanished"] as const;
+export type NoteSkipArm = (typeof NOTE_SKIP_ARMS)[number];
+
+/** One skipped entry, named by its file and the arm that skipped it. */
+export interface SkippedNoteEntry {
+  readonly file: string;
+  readonly arm: NoteSkipArm;
+  /** The underlying reason, for the arm that has one. Empty for the arms that do not. */
+  readonly detail: string;
+}
+
+interface RawNoteRead {
+  readonly notes: RawNote[];
+  readonly skipped: SkippedNoteEntry[];
+}
+
+/**
+ * The walk, returning BOTH what it read and what it skipped (31-29, IN-14).
+ *
+ * `readRawNotes` stays the notes-only view every existing caller uses, so this split adds a reader
+ * rather than a second walk — the thing this module's own comment two paragraphs up forbids.
+ */
+function readRawNotesWithSkips(task: string, contextRoot: string): RawNoteRead {
   assertSafeTask(task);
   const notesDir = join(contextRoot, task, "notes");
-  if (!existsSync(notesDir)) return [];
+  if (!existsSync(notesDir)) return { notes: [], skipped: [] };
+  const skipped: SkippedNoteEntry[] = [];
   const out: RawNote[] = [];
   for (const file of readdirSync(notesDir)) {
     if (!file.endsWith(".md")) continue;
@@ -1663,16 +1702,31 @@ function readRawNotes(task: string, contextRoot: string): RawNote[] {
     // denial one register over. The WRITE side stays loud: `writeNoteFile` refuses that position BY
     // NAME, so nothing can be written over it and nothing is silently replaced. The residual — that
     // a skip is quiet on a surface whose whole value is legibility — is named in D-24.
+    // THREE ARMS, EACH NAMED, EACH COUNTED (31-29, IN-14 / R-31-21-02). The disposition is still
+    // SKIP — throwing would let one planted FIFO deny `render` and `currentState` for a whole task,
+    // trading a hang for a denial one register over — but a skip is no longer SILENT.
     let text: string;
     try {
       const raw = readRegularFileOrNull(join(notesDir, file), NOTE_FILE_MAX_BYTES, "note file");
-      if (raw === null) continue; // listed, then gone: a concurrent delete is not a note either
+      if (raw === null) {
+        // Listed by `readdir`, absent by the time it was opened: a concurrent delete.
+        skipped.push({ file, arm: "vanished", detail: "" });
+        continue;
+      }
       text = raw;
-    } catch {
-      continue; // not a regular file, or unreadable: not a note, and never waited on
+    } catch (e) {
+      // Not a regular file, above the ceiling, or otherwise unopenable. Somebody PUT this here: a
+      // note write never creates one, and the write side refuses that position BY NAME.
+      skipped.push({ file, arm: "not-a-regular-file", detail: (e as Error).message });
+      continue;
     }
     const parsed = parseNote(text);
-    if (!parsed) continue; // skip an unparseable file rather than crash the read
+    if (!parsed) {
+      // A file that is never a note — an editor backup, a stray `.md`. One malformed file must not
+      // make a whole task's context unreadable, so it is skipped rather than thrown on.
+      skipped.push({ file, arm: "unparseable", detail: "" });
+      continue;
+    }
     // Prefer the explicit frozen `id:` field; fall back to the filename-derived id when absent (a
     // pre-id note). When BOTH are present they must agree — a frontmatter id diverging from its
     // filename is the on-disk signature of a tampered identity, so the filename (the storage key)
@@ -1681,7 +1735,12 @@ function readRawNotes(task: string, contextRoot: string): RawNote[] {
     const s = parsed.scalars;
     out.push({ id: s.id && s.id !== "" ? s.id : fileId, text, parsed });
   }
-  return out;
+  return { notes: out, skipped };
+}
+
+/** The notes-only view. Every existing caller reads this; the skips have their own reader. */
+function readRawNotes(task: string, contextRoot: string): RawNote[] {
+  return readRawNotesWithSkips(task, contextRoot).notes;
 }
 
 // ── recordFromParsed: the store's own read-back PROJECTION of a parsed note. ────────────────────
@@ -2030,6 +2089,144 @@ export const PROMOTE_ADMITTED_RESIDUALS: readonly string[] = Object.freeze([
     "the body. A frontmatter key the parser accepts and that projection drops is not compared — and " +
     "is also not read by admit(), render() or any other consumer, so the boundary is the store's " +
     "view of a note rather than this route's. Disposition: accept, bounded by that projection.",
+]);
+
+/**
+ * A WRITE-PATH residual: a trust boundary the note/ledger write path does NOT close.
+ *
+ * Same interface shape as `TrustedRootResidual`, deliberately — three registers answering one kind
+ * of question in three shapes is the drift this module keeps deleting.
+ */
+export interface WritePathResidual {
+  /** Stable identifier, cited from `31-21-SUMMARY.md`, `31-CONTEXT.md` and any later review. */
+  readonly id: string;
+  /** The shape, stated as the situation rather than as a verdict. */
+  readonly shape: string;
+  /** Why it is left open — the argument, not an assurance. */
+  readonly reason: string;
+  /** What would force it closed, so a later round has a criterion rather than an opinion. */
+  readonly what_would_force_it_closed: string;
+}
+
+/**
+ * THE WRITE PATH'S RESIDUALS, EXPORTED (31-29, R-31-21-04 / D-31).
+ *
+ * WHY THIS REGISTER EXISTS AT ALL. Round 5's own closing measurement recorded the asymmetry: the
+ * four `R-31-21-*` residuals lived ONLY in `31-CONTEXT.md` prose and in two incidental string
+ * occurrences, bound by no test — while `TRUSTED_ROOT_RESIDUALS` and `PROMOTE_ADMITTED_RESIDUALS`
+ * each carry a two-sided binding. A residual a test cannot read is a residual that ships quietly
+ * when somebody adds a fifth one, or deletes a disposition and leaves the id cited.
+ *
+ * The binding is the SAME two-sided one the other registers have — the written dispositions in
+ * `.planning/phases/31-autonomous-manual-testing/31-CONTEXT.md` asserted set-equal to this array in
+ * BOTH directions, plus an asserted cardinality — so an undispositioned member turns a test red
+ * rather than shipping.
+ */
+export const WRITE_PATH_RESIDUALS: readonly WritePathResidual[] = Object.freeze([
+  Object.freeze({
+    id: "R-31-21-01",
+    shape:
+      "`atomicWrite`'s `writeFileSync` is a blocking-capable call this module still makes.",
+    reason:
+      "It is NOT AIMABLE, and that is the whole disposition: the destination carries a random UUID " +
+      "no caller can predict and therefore no caller can pre-occupy, and the subsequent " +
+      "`renameSync` REPLACES the final path rather than opening it — rename does not block on a " +
+      "FIFO. What protects the final path is not this call but `writeNoteFile`'s append-only " +
+      "refusal one frame up. A caller who can WATCH the temp name appear and win the race between " +
+      "the write and the rename is already a same-uid direct-filesystem actor, which is the " +
+      "standing T-31-25 residual this module does not close and does not claim to. " +
+      "DISPOSITION (plan 31-29): CLOSE — accepted by design, an unaimable destination.",
+    what_would_force_it_closed:
+      "Nothing short of removing the temp-then-rename idiom, which would cost the atomicity the " +
+      "idiom exists for. The race is bounded by same-uid filesystem access, which is T-31-25.",
+  }),
+  Object.freeze({
+    id: "R-31-21-02",
+    shape:
+      "A non-regular file planted INSIDE a `notes/` directory is SKIPPED by the directory walk " +
+      "rather than refused loudly.",
+    reason:
+      "The SKIP is unchanged and is still the right disposition: throwing would let one planted " +
+      "FIFO deny `render` and `currentState` for an entire task, trading a hang for a denial one " +
+      "register over, and the write side stays loud because the chokepoint refuses that position " +
+      "BY NAME. What round 5 recorded as the cost — that the skip is quiet on a surface whose " +
+      "whole value is legibility — is what plan 31-29 CLOSED. The single `catch { continue; }` " +
+      "covered three different facts with one silence: a file that never was a note, a position " +
+      "occupied by something that is not a regular file, and a note that vanished between the " +
+      "listing and the read. Measured before the fix, all three produced a zero-length read, zero " +
+      "rendered rows and no diagnostic of any kind. They are now three NAMED arms " +
+      "(`NOTE_SKIP_ARMS`), the skipped entries are COUNTED, and `render` reports the count and the " +
+      "arm breakdown. DISPOSITION (plan 31-29): the LEGIBILITY half is CLOSED; the SKIP itself is " +
+      "accepted by design and is now a reported skip rather than a silent one.",
+    what_would_force_it_closed:
+      "The skip is deliberate and will not be closed. What remains is that a reader who never " +
+      "looks at `index.md` still learns nothing — a surfacing question for the workflows rather " +
+      "than for this module.",
+  }),
+  Object.freeze({
+    id: "R-31-21-03",
+    shape:
+      "Plan 31-21's own stated premise — that `appendFileSync` to a FIFO exits 0 immediately and " +
+      "silently discards the GOV-02 event — was FALSE on this tree.",
+    reason:
+      "Recorded as a residual by round 5 and CLOSED in the same round rather than carried. " +
+      "`appendFileSync` opens for WRITING, and opening a FIFO for writing BLOCKS until a reader " +
+      "appears: `timeout 10` produced exit 124 through BOTH `admit` and `admitAndAppend`, which " +
+      "is a fourth blocking position in CR-12's class reachable from two routes that consult no " +
+      "ledger and therefore inherit no read-side refusal. `appendRegularFileLine` replaced it, a " +
+      "FIFO now fails ENXIO in bounded time, and an admission that cannot be recorded under " +
+      "`retained` is REFUSED rather than granted unrecorded. " +
+      "DISPOSITION (plan 31-29): CLOSED by plan 31-21, recorded here so the id resolves to its " +
+      "measurement rather than to a gap.",
+    what_would_force_it_closed:
+      "Already closed. The measurement that closed it is the FIFO corpus in " +
+      "scripts/context-io.test.ts, driven in a subprocess where a hang is a timeout.",
+  }),
+  Object.freeze({
+    id: "R-31-21-04",
+    shape:
+      "The derivations behind the write-path axes are SYNTACTIC: they resolve a call by " +
+      "identifier, and the order axis excludes a note write that is the whole expression of a " +
+      "`return` statement.",
+    reason:
+      "NARROWED by plan 31-29 on its SCOPE half, and accepted on the rest. The scope half was a " +
+      "real defect, not a stated boundary: `deriveFsBlockingSites` descended only into TOP-LEVEL " +
+      "function declarations, so a blocking call inside an arrow, a class method or the CLI entry " +
+      "block left the count unmoved and every assertion green — while the axis's own comment " +
+      "claimed a new call ANYWHERE in the module turned it red (WR-27). The walk now starts at the " +
+      "SourceFile and attributes each site to its nearest named enclosing scope, with three seeded " +
+      "mirrors, one per shape, each moving the count by exactly one. The ALIAS and COMPUTED-MEMBER " +
+      "half is KEPT: widening a matcher once per counter-example is the failure this repository " +
+      "has paid for repeatedly, so the boundary is written down and watched BEHAVIOURALLY by the " +
+      "FIFO corpus and the per-member transposed mirrors. The tail-delegation exclusion is a " +
+      "DECISION rather than a limit — such a call returns before any ledger work in that function " +
+      "happens, so counting it would compare two steps that never run together. " +
+      "DISPOSITION (plan 31-29): the SCOPE half is CLOSED; the alias and computed-member half is " +
+      "accepted, bounded by the behavioural corpus.",
+    what_would_force_it_closed:
+      "A type-checker-backed resolution rather than a syntactic one, which is the S2 cutover plan " +
+      "31-28 landed for the modifier ban (D-30). Applying it here is a later decision, and it is " +
+      "named rather than assumed: OWNER is the next milestone, not this phase.",
+  }),
+  Object.freeze({
+    id: "R-31-29-01",
+    shape:
+      "The note ceiling and the ledger ceiling are enforced on both sides, and neither is " +
+      "enforced against a note that is already ON DISK above the ceiling.",
+    reason:
+      "The NEW residual this round leaves, recorded rather than discovered next round. A note " +
+      "written before this plan — or by a direct-filesystem actor — can sit at a note path above " +
+      "`NOTE_FILE_MAX_BYTES`. Every reader refuses it, which is correct and is now REPORTED as a " +
+      "`not-a-regular-file` skip arm with its byte count rather than as a silence, and the write " +
+      "side refuses to replace it under its own honest clause. What this module does NOT do is " +
+      "delete or rotate it: the shared verified context is APPEND-ONLY, and a writer that removed " +
+      "an over-ceiling note would be destroying evidence to tidy a listing. " +
+      "DISPOSITION (plan 31-29): accept. The condition is legible at every surface and destructive " +
+      "remedies are refused by design.",
+    what_would_force_it_closed:
+      "An operator-run rotation tool that archives an over-ceiling note rather than deleting it. " +
+      "It belongs outside this module, because a tool that removes notes is not a note writer.",
+  }),
 ]);
 
 /**
@@ -3309,7 +3506,10 @@ function toJsonl(n: NoteRecord): string {
 export function render(task: string, contextRoot: string = DEFAULT_CONTEXT_ROOT): void {
   assertSafeTask(task);
   const taskDir = join(contextRoot, task);
-  const all = readContext(task, contextRoot);
+  // ONE WALK, TWO VIEWS (31-29, IN-14). `render` reads the skips as well as the notes, so an entry
+  // that was in the directory and is not in the output is LEGIBLE rather than absent.
+  const read = readRawNotesWithSkips(task, contextRoot);
+  const all = read.notes.map((raw) => recordFromParsed(raw.parsed, raw.id));
 
   // Deterministic order for ALL notes (drives both the JSONL emit and the supersede fold).
   const ordered = [...all].sort((a, b) =>
@@ -3380,6 +3580,37 @@ export function render(task: string, contextRoot: string = DEFAULT_CONTEXT_ROOT)
         `| ${cell(n.at)} | ${cell(n.kind)} | ${cell(n.by)} | ${cell(supersededBy)} | ` +
           `${cell(bodyExcerpt(n.body))} |`,
       );
+    }
+  }
+  // ── SKIPPED ENTRIES ARE REPORTED, NOT SILENT (31-29, IN-14 / R-31-21-02). ──────────────────────
+  //
+  // Three different facts shared one `catch { continue; }` and produced one indistinguishable
+  // silence: a file that never was a note, a position occupied by something that is not a regular
+  // file, and a note that vanished between the listing and the read. Measured before this change —
+  // all three produced a zero-length read, zero rows and no diagnostic of any kind.
+  //
+  // The section is CONDITIONAL, so a task with nothing skipped renders byte-for-byte what it
+  // rendered before this plan. The arms are emitted in `NOTE_SKIP_ARMS` order and the files sorted
+  // within each, so the output stays byte-reproducible — `render`'s whole contract.
+  if (read.skipped.length > 0) {
+    md.push("");
+    md.push("## Skipped entries");
+    md.push("");
+    md.push(
+      `${read.skipped.length} entr${read.skipped.length === 1 ? "y" : "ies"} in this task's ` +
+        `notes/ directory ${read.skipped.length === 1 ? "was" : "were"} not read as a note. A ` +
+        `position occupied by something that is not a regular file is not the same event as a ` +
+        `file that was never a note, so each is named by its own arm.`,
+    );
+    md.push("");
+    md.push("| entry | arm | detail |");
+    md.push("| --- | --- | --- |");
+    for (const arm of NOTE_SKIP_ARMS) {
+      for (const entry of read.skipped
+        .filter((s) => s.arm === arm)
+        .sort((a, b) => a.file.localeCompare(b.file))) {
+        md.push(`| ${cell(entry.file)} | ${cell(entry.arm)} | ${cell(entry.detail)} |`);
+      }
     }
   }
   md.push(""); // trailing element → exactly one final "\n"
