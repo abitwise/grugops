@@ -344,6 +344,10 @@ What remains outside every boundary is a fault that terminates the process witho
 out-of-memory kill, or a signal. No `try` catches those, and the checker claims nothing about them.
 Whether the Windows leg of this behaviour matches the POSIX one is an open `UNKNOWN - verify`.
 
+The caller decides that outcome, because the runnable cannot. `agent-factory/workflows/05-pr-quality-gate.md`
+step 3 carries a fourth arm for a run with no exit code. It records could-not-run, naming the signal,
+and never a pass and never a finding.
+
 The partition is asserted over a corpus of pathological inputs generated at run time, one case per shape:
 
 - a nesting depth the parser cannot finish

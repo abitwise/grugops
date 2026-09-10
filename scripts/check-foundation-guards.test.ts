@@ -9149,7 +9149,18 @@ const censusRelationshipFindings = (c: TripwireCensus): string[] => {
 // `ls scripts/*.test.ts | wc -l` reports 57 on this tree, agreeing with the live census. Same
 // DISCLOSED DEPARTURE as the two bumps above: it lands in the commit after the one that added the
 // module, because the module was committed before the full suite surfaced this pin.
-const TRIPWIRE_MODULES = 57;
+//
+// 57 -> 58 (plan 31-30): ONE test module, `scripts/uat-gate-exit-contract.test.ts` — the §14 gate's
+// exit-code arms derived from `agent-factory/workflows/05-pr-quality-gate.md`'s own prose, bound to
+// the runnable's reachable return values derived from its syntax tree. It exists because `D-28`
+// recorded, in its own "what D-28 does NOT establish" block, that a non-unwinding fault is outside
+// both of its boundaries — and the runnable cannot answer for a signal death, so the CALLER does.
+// A pin that surfaces a module arriving is the correct thing to have fired here. Re-derived rather
+// than incremented: `ls scripts/*.test.ts | wc -l` reports 58 on this tree, agreeing with the live
+// census. UNLIKE the three bumps above, this one lands in the SAME commit as the module it counts:
+// the disclosed departure was a consequence of the pin surfacing late, and a commit that is green
+// at the commit is strictly better than one that is green at the next.
+const TRIPWIRE_MODULES = 58;
 /**
  * Corpus-derived floors, expressed as RATES so the floor grows with the corpus it floors.
  * Each is set well below its measured live value: the point is to catch a measurement that
