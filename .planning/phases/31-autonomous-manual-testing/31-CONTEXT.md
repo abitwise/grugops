@@ -1393,6 +1393,95 @@ Critical appeared at the coordinate the fix did not reach.
     `agent-factory/workflows/16-context-read-write.md` resolution-order section, and in
     `31-27-SUMMARY.md`'s key-decisions block.
 
+- **D-30 (2026-09-10, gap-closure round 6, wave 2; THE S2 CUTOVER) — the UAT-spec modifier ban is
+  decided by SYMBOL IDENTITY from the target repository's own TypeScript checker, not by spelling.**
+  Forced by CR-18, CR-21, WR-26, WR-29, WR-30 and IN-15 of `31-REVIEW.md`, by residual `RR-07`, and
+  by the six-round pattern behind all of them. Every one of those findings was independently
+  reproduced in `31-VERIFICATION.md` round 6 against the committed `.js`.
+  - **This decision was opened by a NAMED HUMAN, not by an executing agent.** `31-28-PLAN.md`
+    carried a `checkpoint:decision` in front of the deletion for exactly that reason, and the
+    choice — `cutover`, plus three sub-decisions — is quoted verbatim in `31-28-SUMMARY.md` before
+    any deletion appears in the record.
+  - **Which register failed.** Not membership (D-17). Not shape resolution (D-18). Not which arms
+    the resolved shape is compared against (D-20). Not the scope the census is asked over (D-27).
+    What failed is THE AUTHORITY those questions were put to. Every one of them was a question
+    about the TypeScript language — where does this name bind, which declaration does this
+    reference reach, what is the declared type of this callback parameter — and every one was
+    answered by a predicate hand-authored in the runnable. Round 5 shipped one such fix and
+    produced four Criticals inside it. Every member of `UNRESOLVABLE_CALLEE_RESIDUALS` ended with
+    the same four words: *without a type checker.*
+  - **The decision.** A banned call is one whose callee's resolved symbol is declared by the
+    framework ITSELF. `createProgramForTarget` builds a Program from the target's own `typescript`
+    — which D-13 already requires the target to ship — and `resolveBannedModifier` asks its checker
+    which symbol a callee is. Identity is anchored on the framework's DECLARATION FILES, derived by
+    walking its own exports, never on a module-specifier string. The membership question is then
+    put to the SAME `isBannedModifierCall` every other arm asks.
+  - **Sub-decision 1 (the human's words: "Keep TDZ rule beside identity").** Identity alone loses a
+    refusal D-27 measured and closed: `it.skip(...)` followed by a later `let it = 1;` gives the
+    checker no symbol at all. The declared-binding census therefore SURVIVES as a second rule, and
+    the pairing is bounded — the spelling rule is asked ONLY where identity returned `unresolved`,
+    never beside it — and disclosed as a residual of its own with the one direction in which it can
+    be wrong.
+  - **Sub-decision 2 (the human's words: "Route to could-not-run, exit 2").** A target whose
+    `@playwright/test` declarations do not resolve gives every callee no symbol, so the check would
+    pass everything. It exits 2 through the D-28 could-not-run boundary with
+    `PROGRAM_UNAVAILABLE_REASON` and its own cause, as does a target with no configuration file, an
+    unreadable or unparseable one, or a compiler that throws. This also closes `RR-07`: a parser
+    lacking predicates was a SILENT degrade to the pre-D-18 rule, and a smaller ban applied without
+    saying so is a gate lowering rather than a disclosed limit. The predicates join
+    `loadTypeScriptFromTarget`'s validated surface, so their absence is the existing loud skip.
+  - **Sub-decision 3 (the human's words: "Yes, fix in 31-28").** `.temp` joins
+    `SKIPPED_DIRECTORIES`, so probe residue cannot change what this repository's own gate measures.
+  - **Five approximations are DELETED, and two defects inside the sixth are FIXED rather than left
+    under identity's cover.** Deleted: `deriveTestInfoParameterNames`'s fixed-index body read
+    (CR-21), `isFixtureBindingPosition` (WR-26), `CALLEE_CHAIN_STEP_BOUND` with the recursion in
+    `calleeDottedPath` that needed it (`RR-05`), `newCalleeStepBudget` / `CalleeStepBudget`, and
+    `DeclaredBinding.suppresses` once its only false value went with the map it protected. Fixed
+    inside the surviving census: a function declaration hoists to its enclosing BLOCK, not to its
+    enclosing function (CR-18), and `using` / `await using` are BLOCK-SCOPED and are no longer
+    classified as hoisting (WR-30). "Another rule catches it" is the reasoning this phase has now
+    paid for six times.
+  - **The register shrank by MEASUREMENT, from nine members to six.** `RR-01`, `RR-03`, `RR-08` and
+    `RR-09` are CLOSED by the checker, each with a corpus row driven at the gate's own entry that
+    reported `0 findings`/EXIT=0 before and `1 finding(s)`/EXIT=1 after. `RR-05` was deleted with
+    its code. `RR-07` was replaced by the could-not-run member. `RR-04` was REWRITTEN rather than
+    removed: `({ test }).test.skip(...)` is now refused because the member's declaration is the
+    framework's, while a call on `this` is still undecided. Two members are NEW and disclose what
+    the cutover itself costs.
+  - **WHAT D-30 DOES NOT ESTABLISH.**
+    - **The three residuals kept as named refusals are accepted by design and are not gaps.** A
+      member computed from a non-literal expression (`test[name](...)`), an option enabled by
+      anything other than the `true` keyword, and the undecided half of a non-identifier head.
+    - **The cost and failure modes of creating a Program in a HOST repository are not established.**
+      Measured here: 0.03 s on this repository (zero specs derived, so the vacuity floor answers
+      before a Program is needed) and 0.27 s on a ten-spec probe repository. A host's own cost is
+      its own, and a large repository's is unmeasured.
+    - **The installed-package identity route is REASONED, not measured.** CLAUDE.md fixes the dev
+      dependency set at `{typescript, vitest}`, so `@playwright/test` cannot be installed here. The
+      ambient-declaration route is driven end to end; the `node_modules` route is an open
+      `UNKNOWN - verify` carried beside `R-07`.
+    - **The Windows leg of everything above is `R-03` and is `31-30`'s to measure.**
+    - **A coordinate MOVEMENT 2 surfaced and CLOSED, recorded because it was found rather than
+      predicted:** the decline-site derivation's own site MATCHER did not recognise the new
+      resolver's shape. `resolveBannedModifier` declines by returning a TAGGED RESULT, not `null`,
+      so the matcher derived ZERO sites inside the mechanism that now decides the ban and every
+      binding would have passed over it. The matcher was widened to recognise `undefined` and a
+      `kind`-tagged object literal, and the derived set grew from 14 to 28 with all 28 bound.
+    - **A coordinate MOVEMENT 2 surfaced and DISCLOSED rather than closed:** a spec whose shape
+      exhausts the compiler's BINDER blocks the WHOLE run rather than one file, because the binder
+      runs over every root file at once. A file's own PARSE stays per-file — the compiler host's
+      reader is wrapped — but this is coarser than D-28's boundary. It is a named register member
+      with a closure criterion: a way to bind one file at a time, which the compiler's public API
+      does not offer today.
+  - **Reversibility: ONE-WAY, which is why a human opened the door.** The runnable's public contract
+    grew — a target must now provide a `typescript` that can create a Program, and a repository with
+    no configuration file BLOCKS a gate that previously passed. The register shrank and
+    `browser-uat-recipe.md` quotes the smaller one. Reverting means restoring five hand-authored
+    predicates that produced four Criticals in a single round.
+  - **Recorded in three places that must agree:** here, in the D-30 header block plus the
+    `resolveBannedModifier` / `createProgramForTarget` docstrings in
+    `scripts/runnable-ref/uat-spec-integrity.ts`, and in `31-28-SUMMARY.md`'s key-decisions block.
+
 ### Claude's Discretion
 - Exact runnable file name and the exact wording of the two new loud-skip markers, as long as
   each is a single exported constant with a single emission point (the `uat-live.test.ts` shape).
