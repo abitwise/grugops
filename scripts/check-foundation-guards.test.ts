@@ -1916,8 +1916,19 @@ const SECTION_EXTENT_OWNER_COUNT = 1;
  *   anyway because this set is pinned equal to `git ls-files '*.ts'`, and a wider scan can only
  *   find more. It declares no frontmatter parser and locates no section, so both owner answers are
  *   unchanged. The same plan edits `uat-spec-integrity.ts` in place, which adds no file.
+ *
+ * 74 -> 75 (plan 31-30, closing `R-03`/`R-31-19-03`'s measurement half and `R-04`), ONE further
+ * TOOLING module — the first addition to this count that is a gate rather than a fixture:
+ *   - `scripts/check-platform-shapes.ts` — the shape corpus driven on whatever platform the CI job
+ *     runs on, with a LOUD, RECORDED skip list for the shapes that platform cannot construct. It
+ *     exists because the `windows-latest` leg has run since plan 20-04 while what it could not
+ *     construct was never a legible artifact, and because `R-31-19-03` is measurable only on a
+ *     platform reporting degenerate directory identity.
+ *   It declares no frontmatter parser and locates no section, so both owner answers are unchanged.
+ *   Re-derived rather than incremented: `git ls-files '*.ts'` minus the `.test.ts` and `.d.ts`
+ *   members reports 74 at the previous commit and 75 with this module tracked.
  */
-const NON_TEST_MODULE_COUNT = 74;
+const NON_TEST_MODULE_COUNT = 75;
 
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 // (Plan 29-40, gap G-29-1 of 29-UAT.md, closing V-29-35-01) THE FRONTMATTER-PARSER NAME OWNER SET.
@@ -2429,7 +2440,8 @@ describe("LANG-07: exactly ONE module owns the section-extent predicate (plan 29
     // independently — `ls scripts/*.ts` minus the `.test.ts` members reports 51 on this tree.
     // (`hooks/hook-entry.ts` moves the WHOLE-TREE count and not this one, because this pin is
     // `scripts/`-scoped — the two numbers are deliberately different questions.)
-    expect(flat.length, "the `scripts/`-scoped reader's own corpus").toBe(51);
+    // 51 → 52 (plan 31-30): `scripts/check-platform-shapes.ts`, the platform shape corpus.
+    expect(flat.length, "the `scripts/`-scoped reader's own corpus").toBe(52);
     let compared = 0;
     for (const n of flat) {
       for (const spec of ["frontmatter", "canonical-frontmatter", "audit-model"]) {
@@ -2447,7 +2459,8 @@ describe("LANG-07: exactly ONE module owns the section-extent predicate (plan 29
     // the assertion true by construction and blind to a corpus that silently shrank.
     // 47 → 48 (round 3): `check-residual-citations.ts`. 48 → 51 (round 4): `is-entry.ts`,
     // `generate-hook-manifest.ts`, `hook-manifest-freshness.ts`.
-    expect(compared, "the comparison must really have run over the whole corpus").toBe(51 * 3);
+    // 51 → 52 (plan 31-30): `check-platform-shapes.ts`.
+    expect(compared, "the comparison must really have run over the whole corpus").toBe(52 * 3);
     // NON-VACUITY: the comparison would be clean over two readers that both return nothing, so at
     // least one module must have produced a non-empty answer through the NEW reader.
     expect(
@@ -2621,7 +2634,8 @@ describe("LANG-07: exactly ONE module owns the section-extent predicate (plan 29
     expect(
       walked.filter((n) => n.startsWith("scripts/") && !n.slice(8).includes("/")).length,
       "…and the old non-recursive answer is a strict subset, stated as the number this widening moved off",
-    ).toBe(51);
+      // 51 → 52 (plan 31-30): `check-platform-shapes.ts`, the same module the flat reader gained.
+    ).toBe(52);
 
     // THE ELEMENT COUNT, DERIVED INDEPENDENTLY OF THE WALK THAT PRODUCES IT. A vacuity floor catches
     // an EMPTY denominator and has never caught a SILENTLY SHORT one, so the set is compared against
@@ -11222,7 +11236,13 @@ describe("guard_model_assignment (Phase 29.1, MODEL-03/MODEL-05)", () => {
   // MEASURED in this session (plan 29.1-24) rather than assumed: check-foundation-guards.test.ts and
   // skill-twins-freshness.test.ts. Pinned two-sided by `(r-class-authority)` so a third reader
   // arriving is a red rather than a silent pass.
-  const UBUNTU_BLOCK_READER_COUNT = 2;
+  // 2 → 3 (plan 31-30): `scripts/uat-gate-exit-contract.test.ts` joins the class. It asserts that
+  // this plan's two new shape steps were APPENDED to the pre-existing windows-latest leg and that
+  // the ubuntu-only block still carries its condition and is still LAST — both of which need the
+  // block's step name, so it imports the authority rather than spelling a locator of its own. The
+  // gate fired on that file's first draft, naming it as a non-member with its own copy of the name,
+  // which is this class working exactly as designed.
+  const UBUNTU_BLOCK_READER_COUNT = 3;
 
   // (Plan 29.1-19, R3-WR-01) THE SYNTHETIC FOLLOWING STEP THE RIGHT BOUND IS PROVEN AGAINST.
   //

@@ -37,6 +37,11 @@ import { readFileSync, readdirSync, writeFileSync, rmSync, mkdirSync, existsSync
 import { join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 import ts from "typescript";
+// THE ONE AUTHORITY over "where is the ubuntu gate block of .github/workflows/ci.yml". Imported
+// rather than restated: `(r-class-authority)` in scripts/check-foundation-guards.test.ts derives its
+// member set from THIS import and refuses any scripts/*.test.ts that spells the block's step name
+// with a locator of its own. It fired on this file's first draft, which is the gate working.
+import { UBUNTU_BLOCK_STEP_NAME, ciWorkflow } from "./ci-workflow.testkit.js";
 
 const REPO_ROOT = resolve(import.meta.dirname, "..");
 const WF05 = join(REPO_ROOT, "agent-factory", "workflows", "05-pr-quality-gate.md");
@@ -415,4 +420,179 @@ describe("the disposition register's measuring stick did not move", () => {
     // takes ~7 s on this machine. The budget is sized to the measured spawn cost, so a red here is
     // drift rather than the default 5 000 ms timeout.
   }, 60_000);
+});
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// The platform shape corpus (plan 31-30, Task 2 — R-03 / R-31-19-03).
+//
+// THE CORRECTION FIRST, because it is the substance. `.github/workflows/ci.yml` has carried a
+// `windows-latest` leg since plan 20-04. The round-6 disposition document proposes closing `R-03` by
+// "adding a windows-latest job"; adding a job that already exists would be a fabricated closure. So
+// these cases assert what the leg DOES run, that the new steps were APPENDED to it rather than
+// replacing anything, and that the Windows-scoped half really is Windows-scoped.
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+
+const SHAPE_GATE_JS = join(REPO_ROOT, "scripts", "check-platform-shapes.js");
+
+/** Every `- name:` step in the workflow, in order, with the `if:` condition that guards it. */
+export function ciSteps(text: string): Array<{ name: string; guard: string; run: string }> {
+  const lines = text.split("\n");
+  const out: Array<{ name: string; guard: string; run: string }> = [];
+  let cur: { name: string; guard: string; run: string } | null = null;
+  for (const raw of lines) {
+    const l = raw.trim();
+    if (l.startsWith("- name: ")) {
+      if (cur !== null) out.push(cur);
+      cur = { name: l.slice("- name: ".length), guard: "", run: "" };
+      continue;
+    }
+    if (cur === null) continue;
+    if (l.startsWith("if: ")) cur.guard = l.slice("if: ".length);
+    if (l.startsWith("run: ")) cur.run += `${l.slice("run: ".length)}\n`;
+    else if (l.startsWith("node ") || l.startsWith("npm ") || l.startsWith("npx ")) cur.run += `${l}\n`;
+  }
+  if (cur !== null) out.push(cur);
+  return out;
+}
+
+describe("R-03 — the windows-latest leg PRE-EXISTS this plan, and the shape steps were appended to it", () => {
+  const ci = ciWorkflow();
+
+  it("the matrix still declares BOTH legs — a removed Windows leg is the opposite of this plan", () => {
+    expect(ci).toContain("windows-latest");
+    const occurrences = (ci.match(/windows-latest/g) ?? []).length;
+    expect(occurrences).toBeGreaterThan(0);
+    expect(ci).toMatch(/os:\s*\[ubuntu-latest,\s*windows-latest\]/);
+  });
+
+  it("the PRE-EXISTING steps the Windows leg already ran are still there and still unguarded-or-non-ubuntu", () => {
+    // MEASURED FROM THE FILE, never asserted from memory. These are the steps a windows-latest run
+    // executed before this plan: checkout, node, npm ci, build, typecheck, vitest.
+    const steps = ciSteps(ci);
+    expect(steps.length).toBeGreaterThan(5);
+    const windowsReachable = steps.filter((s) => s.guard === "" || !s.guard.includes("== 'ubuntu-latest'"));
+    const names = windowsReachable.map((s) => s.name);
+    expect(names).toContain("Checkout");
+    expect(names).toContain("Setup Node 22");
+    expect(names.some((n) => n.startsWith("Install (dev deps only"))).toBe(true);
+    expect(names.some((n) => n.startsWith("Build (every other leg"))).toBe(true);
+    expect(names).toContain("Typecheck (shipped source + test-inclusive target)");
+    expect(names).toContain("Vitest (e2e lane excluded)");
+  });
+
+  it("the new corpus step runs on EVERY leg, so the empty half of the skip list is observed too", () => {
+    const steps = ciSteps(ci);
+    const corpus = steps.find((s) => s.name.startsWith("Platform shape corpus"));
+    expect(corpus).toBeDefined();
+    expect(corpus!.guard, "the differential measurement needs both platforms").toBe("");
+    expect(corpus!.run).toContain("node scripts/check-platform-shapes.js");
+  });
+
+  it("the Windows-scoped step IS Windows-scoped, and it demands a non-empty remainder", () => {
+    const steps = ciSteps(ci);
+    const win = steps.find((s) => s.name.startsWith("Windows shape remainder"));
+    expect(win).toBeDefined();
+    expect(win!.guard).toBe("matrix.os == 'windows-latest'");
+    expect(win!.run).toContain("node scripts/check-platform-shapes.js");
+    expect(ci).toContain("GRUGOPS_PLATFORM_SHAPES_REQUIRE_SKIPS");
+  });
+
+  it("no ubuntu-only gate was moved: the freshness/repo block is still ubuntu-scoped and still LAST", () => {
+    const steps = ciSteps(ci);
+    const block = steps.find((s) => s.name === UBUNTU_BLOCK_STEP_NAME);
+    expect(block).toBeDefined();
+    expect(block!.guard).toBe("matrix.os == 'ubuntu-latest'");
+    // Still the last step — `(r-bound-synthetic)` in check-foundation-guards.test.ts depends on it.
+    expect(steps[steps.length - 1]!.name).toBe(block!.name);
+    // The EARLIER ubuntu-only gate too, located by its own distinct name rather than by the block
+    // authority's prefix — they are two different steps and conflating them would assert nothing.
+    const freshnessFirst = steps.find((s) => s.name.includes("before any build"));
+    expect(freshnessFirst).toBeDefined();
+    expect(freshnessFirst!.guard).toBe("matrix.os == 'ubuntu-latest'");
+  });
+});
+
+describe("the skip list is a MEASURED artifact, not a printed line nobody reads", () => {
+  function runGate(env: Record<string, string> = {}): { status: number | null; out: string } {
+    const r = spawnSync("node", [SHAPE_GATE_JS], {
+      cwd: REPO_ROOT,
+      encoding: "utf8",
+      env: { ...process.env, ...env },
+      timeout: 120_000,
+    });
+    return { status: r.status, out: `${r.stdout ?? ""}${r.stderr ?? ""}` };
+  }
+
+  it("EMPTY on a platform that constructs every shape — and it SAYS SO rather than printing nothing", () => {
+    const r = runGate();
+    expect(r.status).toBe(0);
+    expect(r.out).toContain("SKIPPED SHAPES (0):");
+    expect(r.out).toContain("(none) — this platform constructed every shape in the corpus");
+    // The corpus really drove things; an empty skip list beside an empty driven list proves nothing.
+    expect(r.out).toMatch(/DRIVEN \((\d+)\):/);
+    const driven = Number(/DRIVEN \((\d+)\):/.exec(r.out)![1]);
+    expect(driven).toBeGreaterThan(10);
+  }, 180_000);
+
+  it("NON-EMPTY on a platform lacking a shape, and each entry names the shape AND the platform", () => {
+    // Darwin constructs every shape, so the absent-platform arm is reached through the disclosed
+    // test seam. Without it this arm would never execute anywhere a developer can watch it.
+    const r = runGate({ GRUGOPS_PLATFORM_SHAPES_FORCE_ABSENT: "FIFO" });
+    expect(r.status).toBe(0);
+    const m = /SKIPPED SHAPES \((\d+)\):/.exec(r.out);
+    expect(m).not.toBeNull();
+    expect(Number(m![1])).toBeGreaterThan(0);
+    for (const line of r.out.split("\n").filter((l) => l.trim().startsWith('shape="'))) {
+      expect(line).toContain('shape="FIFO"');
+      expect(line).toContain('position="');
+      expect(line).toContain(`platform=${process.platform}`);
+      expect(line.length).toBeGreaterThan(60); // it carries a reason, not just a name
+    }
+  }, 180_000);
+
+  it("a silent Windows remainder is RED: REQUIRE_SKIPS with an empty list fails the step", () => {
+    const r = runGate({ GRUGOPS_PLATFORM_SHAPES_REQUIRE_SKIPS: "1" });
+    expect(r.status).toBe(1);
+    expect(r.out).toContain("the skip list is EMPTY");
+    expect(r.out).toContain("CHECK(S) FAILED");
+  }, 180_000);
+
+  it("the exit-code contract and the R-31-19-03 identity measurement are both driven and printed", () => {
+    const r = runGate();
+    expect(r.out).toContain("spec-integrity exit contract");
+    expect(r.out).toContain("R-31-19-03 — directory identity on ");
+    expect(r.out).toMatch(/degenerate\s+(YES|no)/);
+  }, 180_000);
+});
+
+describe("the mkfifo call sites that make a Windows suite run unreachable are MEASURED, not asserted", () => {
+  // The finding is a property of the SOURCE, so darwin can measure it. What a Windows run then does
+  // is NOT measurable from here and is not claimed anywhere. Carried in deferred-items.md.
+  it("counts the unguarded POSIX-only FIFO constructions in the test corpus", () => {
+    const sites: string[] = [];
+    for (const dir of ["scripts", "hooks", "install"]) {
+      for (const f of readdirSync(join(REPO_ROOT, dir))) {
+        if (!f.endsWith(".test.ts")) continue;
+        readFileSync(join(REPO_ROOT, dir, f), "utf8")
+          .split("\n")
+          .forEach((l, i) => {
+            if (/["']mkfifo["']/.test(l)) sites.push(`${dir}/${f}:${String(i + 1)}`);
+          });
+      }
+    }
+    // The scan's own premise: a walk that found nothing would pass forever.
+    expect(sites.length, "the mkfifo scan found no call sites at all — the scan is broken").toBeGreaterThan(0);
+    // The one GUARDED site is the parity corpus's own shape, which returns false and skips.
+    const guarded = sites.filter((s) => s.startsWith("scripts/nonblocking-reader-parity.test.ts"));
+    expect(guarded.length).toBe(1);
+    // Recorded rather than thresholded: this number is a carried finding with an owner, not a gate
+    // this plan is closing. A rising count is visible in the diff of this assertion's message.
+    // eslint-disable-next-line no-console
+    console.log(
+      `[31-30] mkfifo call sites in test modules: ${String(sites.length)} ` +
+        `(${String(guarded.length)} guarded, ${String(sites.length - guarded.length)} unguarded)\n  ` +
+        sites.join("\n  "),
+    );
+    expect(sites.length - guarded.length).toBeGreaterThan(0);
+  });
 });

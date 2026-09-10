@@ -120,6 +120,53 @@ jobs:
       - name: Typecheck (shipped source + test-inclusive target)
         run: npm run typecheck
 
+      # ── R-03 / R-31-19-03 (plan 31-30, D-32): the shape corpus, DRIVEN ON THIS PLATFORM ────────
+      #
+      # THE FINDING THIS STEP LANDS AGAINST IS A CORRECTION TO THE RECORD, AND IT MATTERS MORE THAN
+      # THE STEP. `R-03` has been carried for five verification rounds as "the Windows leg of every
+      # browser probe and of the whole spec-integrity runnable", and the round-6 disposition document
+      # proposes closing it by "adding a `windows-latest` job". THAT JOB HAS EXISTED SINCE PLAN
+      # 20-04 — it is the leg this very matrix declares, and it already installs, builds, typechecks
+      # and runs the whole excluded-e2e suite. A plan that added a job which already exists would be
+      # a FABRICATED CLOSURE, which is the one thing this phase's requirement is about.
+      #
+      # What was actually missing is legibility, and it was measured rather than assumed. The shape
+      # corpus DOES run on the Windows leg (scripts/nonblocking-reader-parity.test.ts carries eight
+      # shapes with a platform-aware skip), but its skip list is buried inside a suite whose result
+      # is one pass/fail — so what the platform could not construct is not an artifact anybody reads.
+      #
+      # SECOND MEASURED FACT, AND IT IS WHY THIS STEP SITS *BEFORE* THE SUITE. Fourteen of the
+      # fifteen `mkfifo` call sites in this repository's test modules carry NO platform guard: they
+      # assert `spawnSync("mkfifo", …).status === 0` as a PREMISE or call `execFileSync` bare. On a
+      # Windows runner each is a failure rather than a skip. That was derived on darwin by scanning
+      # the test corpus — it is a property of the SOURCE, so it is measurable from here; what a
+      # Windows run then does is NOT measurable from here and is not claimed. It is carried in
+      # .planning/phases/31-autonomous-manual-testing/deferred-items.md with an owner. Placing this
+      # step ahead of the suite makes its result legible whatever the suite does afterwards.
+      #
+      # IT RUNS ON EVERY LEG ON PURPOSE. The skip list is a DIFFERENTIAL measurement: empty on a
+      # platform that can construct every shape, non-empty on one that cannot. Running it only on
+      # Windows would leave the empty half unobserved, and a list nobody has watched be empty is a
+      # list nobody has watched at all.
+      - name: Platform shape corpus, exit-code contract and directory identity (every leg)
+        run: node scripts/check-platform-shapes.js
+
+      # The WINDOWS-SCOPED half. With GRUGOPS_PLATFORM_SHAPES_REQUIRE_SKIPS set, an EMPTY skip list
+      # is a FAILURE: a platform with no primitive for a named pipe at a filesystem path that reports
+      # skipping nothing has reported a green about work it did not do. Named pipes on Windows live
+      # in the \\.\pipe\ namespace, so the FIFO is POSIX-only and the DIRECTORY is the portable
+      # non-regular-file shape. This is the assertion that turns the printed remainder into a
+      # measured one, and it is why `R-03` shrinks by exactly what was driven rather than by claim.
+      #
+      # EXEMPT FROM THE UBUNTU-ONLY SCOPING BELOW, DELIBERATELY. That scoping exists because the
+      # freshness gates diff PATH-SEPARATED output and drift across platforms. This step asserts
+      # BEHAVIOUR — a refusal named, a bound met, a remainder recorded — and compares no paths.
+      - name: Windows shape remainder is recorded, not silent (windows only)
+        if: matrix.os == 'windows-latest'
+        env:
+          GRUGOPS_PLATFORM_SHAPES_REQUIRE_SKIPS: "1"
+        run: node scripts/check-platform-shapes.js
+
       # Run the full vitest suite EXCLUDING the live claude-CLI e2e lane (scripts/e2e). That lane
       # spends tokens and can hang on an authed box; it is NOT a CI gate. On windows-latest this is
       # the step that exercises the SC-2 unlink-then-rename branch (paths normalized via node:path).

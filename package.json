@@ -20,6 +20,7 @@
     "check:imperative-lexicon": "tsc --outDir .tmp-build && node scripts/check-imperative-lexicon.js",
     "check:diff-disposition": "tsc --outDir .tmp-build && node scripts/check-diff-disposition.js",
     "check:nul-bytes": "tsc --outDir .tmp-build && node scripts/check-nul-bytes.js",
+    "check:platform-shapes": "tsc --outDir .tmp-build && node scripts/check-platform-shapes.js",
     "audit:prepass": "tsc --outDir .tmp-build && node scripts/audit-prepass.js",
     "generate:safety-surface": "tsc --outDir .tmp-build && node scripts/generate-safety-surface.js",
     "generate:catalog": "tsc --outDir .tmp-build && node scripts/generate-catalog.js",

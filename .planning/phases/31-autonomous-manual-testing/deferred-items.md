@@ -215,3 +215,134 @@ items this round raises. Each deferred item carries an OWNER and a CRITERION.
   `*.uat.spec.ts`, so it cannot contaminate a spec derivation — recorded as a named fact with an
   owner rather than left unexplained. `status: open`, owner `31-21`, criterion: a residue predicate
   derived from what a plan WROTE rather than from where it intended to write.
+
+## 31-30 (2026-09-10) — the round-6 wave-4 carry-forward, with two items CLOSED by harness
+
+Plan `31-30` is the first plan of any round to CLOSE a standing human-verification item by writing
+the harness that was missing, rather than by carrying it a sixth time. Two of the four move; two do
+not, and the two that do not are named with an owner and their `UNKNOWN - verify` markers intact.
+
+- **`R-01` — the attended Claude-in-Chrome lane under real interactive auth. OPEN, unchanged, quoted
+  verbatim from `31-VERIFICATION.md`'s `human_verification:` block.**
+  > The attended Claude-in-Chrome lane opens under real interactive auth, pauses for a human on a
+  > login/challenge page, and produces only a human-stamped finding + artifact-ref (never a gate
+  > stamp).
+  > **why_human:** Requires an attended Claude Code session with the Claude-in-Chrome browser
+  > extension installed and a real interactive login; not reachable in CI and not reachable on this
+  > box.
+  **Status:** `OPEN — UNKNOWN - verify`. Carried unchanged through rounds 2, 3, 4, 5 and 6.
+  **Owner:** a NAMED HUMAN with an attended Claude Code session and the browser extension installed —
+  the repository owner. No agent can close it, and none may close it by argument.
+  **What this plan did NOT do:** `scripts/chrome-lane-bar.test.ts`'s STRUCTURAL bar is green and runs
+  on both CI legs. The lane's real interactive behaviour is not inferred from it, here or anywhere.
+
+- **`R-02` — the `claude auth status --json` fail-closed predicate under alternative credential
+  configurations. OPEN, unchanged, quoted verbatim.**
+  > The claude auth status --json fail-closed predicate (D-10) behaves correctly under an
+  > API-key-only box and under a long-lived setup token.
+  > **why_human:** Research assumptions A2/A3 are UNKNOWN - verify; neither configuration is
+  > reachable without destroying this box's real credentials.
+  **Status:** `OPEN — UNKNOWN - verify`. Carried unchanged through rounds 2, 3, 4, 5 and 6.
+  **Owner:** a NAMED HUMAN with a box carrying an API-key-only configuration and a second carrying a
+  long-lived setup token. **Nothing was constructed this round**; doing so would destroy this box's
+  real credentials.
+
+- **`R-03` — the Windows leg. SHRUNK BY MEASUREMENT to a stated remainder; still OPEN.**
+  **The record was wrong about what was missing, and the correction matters more than the work.**
+  `31-round6-residual-dispositions.md` §F disposes `R-03` as "Fix via CI — add a `windows-latest` job
+  running `npx vitest run --exclude '**/scripts/e2e/**'` + freshness + foundation guards. ONE job
+  closes R-03…". **That job has existed since plan `20-04`.** `.github/workflows/ci.yml` declares
+  `os: [ubuntu-latest, windows-latest]`, and measured from the file the Windows leg already runs six
+  steps: `Checkout` (`fetch-depth: 0`), `Setup Node 22`, `Install (dev deps only — …)`,
+  `Build (every other leg — a compile; parity is asserted on ubuntu, see above)`,
+  `Typecheck (shipped source + test-inclusive target)` and `Vitest (e2e lane excluded)`. Adding a job
+  that already exists would have been a fabricated closure.
+  **What this plan added instead — two steps on the leg that exists:**
+  `Platform shape corpus, exit-code contract and directory identity (every leg)` (unguarded, so the
+  skip list is a DIFFERENTIAL measurement) and `Windows shape remainder is recorded, not silent
+  (windows only)` (`if: matrix.os == 'windows-latest'`, with
+  `GRUGOPS_PLATFORM_SHAPES_REQUIRE_SKIPS: "1"`, so an EMPTY skip list on Windows is a FAILURE).
+  Both sit BEFORE the vitest step, for the measured reason below. Neither ubuntu-only gate moved:
+  `Freshness gate before any build (ubuntu only)` and `Freshness gates + repo gates (ubuntu only)`
+  keep their conditions, and the latter is still the LAST step, which
+  `(r-bound-synthetic)` in `scripts/check-foundation-guards.test.ts` depends on.
+  **What the new steps drive, measured on darwin (`node scripts/check-platform-shapes.js`, exit 0,
+  17 rows):** the portable non-regular-file shape (a DIRECTORY) and the POSIX-only FIFO at three
+  positions — a note path, the GOV-02 audit ledger path and a `DECIDER_MANIFEST` module position —
+  each producing a NAMED refusal in bounded time; two CONTROLS at each position (an ordinary regular
+  file, and a symlink that RESOLVES to one) neither of which draws the refusal; the spec-integrity
+  runnable's exit-code contract over four could-not-run shapes, all `exit 2`, all inside `{0,1,2}`;
+  and the `R-31-19-03` directory-identity premise, printed with its measurement.
+  **The skip list, quoted from the darwin run:** `SKIPPED SHAPES (0):` / `(none) — this platform
+  constructed every shape in the corpus`. With the disclosed seam
+  `GRUGOPS_PLATFORM_SHAPES_FORCE_ABSENT=FIFO` the same run prints three entries, each naming the
+  shape, the position, the platform and the reason — so the non-empty arm is watched rather than
+  assumed.
+  **THE REMAINDER, STATED BY NAME.** Everything above was measured on **darwin only**. What a
+  Windows runner reports is not measurable from this box and is NOT claimed:
+  1. whether the FIFO shape is skipped there (expected — named pipes on Windows live in the
+     `\\.\pipe\` namespace and cannot be created at a filesystem path) and whether the symlink shape
+     is skipped there (it needs Developer Mode or `SeCreateSymbolicLink`);
+  2. whether `BROWSER_ABSENT_MARKER`'s two probe stages behave identically there — both are
+     resolution-and-existence checks, which is an ARGUMENT and not a measurement;
+  3. whether `PARSER_ABSENT_MARKER` is reached there;
+  4. `R-31-19-03` itself — see below.
+  **Owner:** the two new CI steps on the next `windows-latest` run, plus the standing human item.
+  **Criterion that closes it:** a Windows run of
+  `Windows shape remainder is recorded, not silent (windows only)` whose recorded skip list and
+  driven rows are read by a human and written into this file.
+
+- **`R-31-19-03` — degenerate directory identity. SHRUNK, NOT CLOSED.**
+  The residual's own register entry names `31-30`'s Windows leg as its owner and says plainly that it
+  "is measurable only on a platform whose filesystem reports degenerate directory identity, i.e.
+  Windows, so no agent running on darwin can close it by measurement and none may close it by
+  argument." This plan supplies the MEASUREMENT INSTRUMENT and nothing more: the new corpus step
+  prints `home`, its parent, both `dev:ino` values and a `degenerate YES/no` verdict on whatever
+  platform it runs on. Measured on darwin: `home /Users/olgeroeselg dev:ino=16777234:497384`,
+  `its parent /Users dev:ino=16777234:16989`, `degenerate no — the identity sets are trusted`.
+  **Remainder:** the Windows value, and whether `canonicalDirectoryPath` answers correctly where the
+  verdict is `YES`. **Owner:** the same Windows run. `status: open`.
+
+- **`R-04` — the installer round-trip on a pre-existing host install. CLOSED, by harness, with
+  measurements.**
+  It was never a human item. Its `why_human` read "Requires a second scratch repository with a prior
+  grugops install at an earlier release; not exercised by the unit suite" — a description of a
+  harness nobody had written, not of a judgement no machine can make. Five cases in
+  `install/install.test.ts` now drive the five outcomes against the REAL committed
+  `install/install.js` and `install/uninstall.js` in throwaway `mkdtemp` homes:
+  | # | Outcome | Measured |
+  |---|---|---|
+  | 1 | an install into an EMPTY temporary home | `readdirSync(home)` is `[]` before; installer exits `0`; the materialized SET has **3** members, equal to the derived `RUNNABLES` destinations |
+  | 2 | a second install is idempotent as a SET | set equality in both directions, cardinality **3 = 3**, and `tools/grugops/uat-spec-integrity.js` byte-identical across the two runs |
+  | 3 | an install over the PRIOR shape | the third runnable removed → premise asserted at **2**; re-install exits `0`; the file exists, is byte-identical to `scripts/runnable-ref/uat-spec-integrity.js`, the run prints `created … tools/grugops/uat-spec-integrity.js`, and the other two print `(target already has it — D-04)`; the set returns to **3** |
+  | 4 | the uninstaller removes it | exits `0`; the file is gone, `materializedSet` is `[]`, the run prints `tools/grugops/uat-spec-integrity.js (grugops runnable, byte-identical to source)`; `CLAUDE.md` and `plans/board.md` untouched |
+  | 5 | an uninstall from a home with NOTHING installed | exits `0`, a clean no-op: the content-addressed tree snapshot is byte-identical before and after |
+  `npx vitest run --exclude '**/scripts/e2e/**' install/install.test.ts` → **136 passed, 1 skipped**.
+  **What R-04's closure does NOT establish:** the round-trip runs on **darwin**. The same five cases
+  run on the `windows-latest` leg through the pre-existing vitest step, and that leg's result is part
+  of `R-03`'s remainder above rather than of this closure. `status: closed`.
+
+- **NEW, and the reason the two new CI steps sit BEFORE the vitest step: fourteen unguarded
+  POSIX-only `mkfifo` constructions make the Windows leg's suite step unreachable-green.**
+  **Measured on darwin** by scanning `scripts/*.test.ts`, `hooks/*.test.ts` and `install/*.test.ts`:
+  **15** `mkfifo` call sites, of which **1** is guarded (`scripts/nonblocking-reader-parity.test.ts:318`,
+  inside a `try` that returns `false` and produces a loud skip) and **14** are not — they either call
+  `execFileSync("mkfifo", …)` bare or assert `spawnSync("mkfifo", …).status === 0` as a PREMISE.
+  **Attribution is by FILE and by commit — a per-site attribution was NOT derived and is not
+  claimed.** `git log --oneline -S'mkfifo' -- <file>` reports:
+  `scripts/context-io.test.ts` (11 sites) moved by `6656e62` (`30-11`), `0b64074`/`34f6989`/`ee72409`
+  (`31-21`) and `043aa9f`/`a81ba78`/`daa5e58` (`31-29`); `hooks/guard.test.ts` (2 sites) by `6656e62`
+  (`30-11`) and `43dec42` (`31-27`); `hooks/admission-guard.test.ts` (1 site) by `6656e62` (`30-11`);
+  and the one GUARDED site, `scripts/nonblocking-reader-parity.test.ts`, by `f28aa9f` (`31-27`).
+  On a Windows runner each unguarded site is a failure rather than a skip.
+  **This is a property of the SOURCE, so darwin can measure it; what a Windows run then does is NOT
+  measurable from here and is NOT claimed.** The count is asserted and printed by a case in
+  `scripts/uat-gate-exit-contract.test.ts`.
+  **Why it was not fixed here:** it is pre-existing, it is in four test modules this plan does not
+  otherwise touch, and the executor scope boundary puts another plan's defect out of scope. Fixing it
+  is also not a one-line change: each site needs the parity corpus's construct-or-skip shape plus a
+  recorded skip, which is a plan.
+  **Owner:** unassigned — repository infrastructure, like the `.temp/` runner exclusion before it.
+  **Criterion that closes it:** every `mkfifo` call site in a test module either constructs-or-skips
+  with a recorded skip, or sits behind a `process.platform` guard whose skip is counted; asserted by
+  a derived scan with the site count pinned two-sided.

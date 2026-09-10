@@ -4977,4 +4977,123 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     // The adapter class is unaffected — the two derivations fail independently.
     expect(installedAdapters(target).length).toBe(17);
   });
+  // ── R-04 (plan 31-30) — THE INSTALLER ROUND-TRIP ON A PRE-EXISTING HOST INSTALL ───────────────
+  //
+  // `R-04` was carried as a HUMAN item through five verification rounds, on the stated reason that
+  // it "requires a second scratch repository with a prior grugops install at an earlier release;
+  // not exercised by the unit suite". That is a description of a HARNESS, not of a human judgement.
+  // A temporary home, an install, a home reshaped to the PRIOR release, a second install, an
+  // idempotence assertion, a materialization assertion and an uninstall are all mechanical. It was
+  // a human item because nobody had written the harness, and the harness is written here.
+  //
+  // WHAT "THE PRIOR SHAPE" MEANS, AND WHY IT IS CONSTRUCTED RATHER THAN CHECKED OUT. The release
+  // before Phase 31 shipped two runnables; Phase 31 added `tools/grugops/uat-spec-integrity.js` as
+  // the third. A host installed at that earlier release therefore carries the other two and not this
+  // one. Constructing that state by REMOVING the third from a completed install produces exactly the
+  // filesystem the question is about, without pinning the suite to a git tag that will move.
+  //
+  // THE SET IS COMPARED AS A SET, WITH ITS CARDINALITY (edge probe 3). Two installs must produce the
+  // same MEMBERS; the order `readdirSync` returns them in is not part of the contract, and asserting
+  // a sequence would make the case fail on a filesystem detail rather than on the property.
+  const PHASE31_RUNNABLE = RUNNABLE_RELS.find((r) => r.endsWith("uat-spec-integrity.js"))!;
+
+  /** The materialized runnable SET, read from the destination directory rather than from the map. */
+  function materializedSet(target: string): string[] {
+    const dir = join(target, "tools", "grugops");
+    return existsSync(dir) ? readdirSync(dir).sort() : [];
+  }
+
+  it("R-04 (1): an install into an EMPTY temporary home succeeds and materializes the whole set", () => {
+    const target = makeFixture();
+    const home = mkTmp(); // empty: nothing has ever been installed here
+    expect(readdirSync(home)).toEqual([]);
+    const r = runInstall(target, home);
+    expect(r.status).toBe(0);
+    const set = materializedSet(target);
+    expect(set.length).toBe(RUNNABLE_RELS.length);
+    expect(set).toEqual(RUNNABLE_RELS.map((rel) => rel.split("/").pop()!).sort());
+    expect(existsSync(join(target, PHASE31_RUNNABLE))).toBe(true);
+  });
+
+  it("R-04 (2): a second install is idempotent as a SET, and the cardinality is asserted", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    expect(runInstall(target, home).status).toBe(0);
+    const first = materializedSet(target);
+    const firstBytes = readFileSync(join(target, PHASE31_RUNNABLE));
+    expect(first.length).toBe(RUNNABLE_RELS.length);
+
+    expect(runInstall(target, home).status).toBe(0);
+    const second = materializedSet(target);
+    // SET equality in both directions plus the cardinality, so a derivation that silently shrank
+    // fails the count and not only the comparison.
+    expect(new Set(second)).toEqual(new Set(first));
+    expect(second.length).toBe(first.length);
+    expect(readFileSync(join(target, PHASE31_RUNNABLE))).toEqual(firstBytes);
+  });
+
+  it("R-04 (3): an install over the PRIOR shape materializes the Phase-31 runnable (the whole point)", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    expect(runInstall(target, home).status).toBe(0);
+
+    // Reshape the host to the release BEFORE Phase 31: the third runnable was never written there.
+    rmSync(join(target, PHASE31_RUNNABLE), { force: true });
+    const prior = materializedSet(target);
+    expect(prior.length, "PREMISE: the prior shape must be one runnable SHORT").toBe(
+      RUNNABLE_RELS.length - 1,
+    );
+    expect(prior).not.toContain(PHASE31_RUNNABLE.split("/").pop());
+
+    const r = runInstall(target, home);
+    expect(r.status).toBe(0);
+    expect(
+      existsSync(join(target, PHASE31_RUNNABLE)),
+      "a host installed before this release re-ran the installer and did NOT pick up the runnable " +
+        "the §14 gate invokes — which is exactly the question R-04 asks",
+    ).toBe(true);
+    // …and it is a byte-identical copy of the kit's committed source, not an empty placeholder.
+    expect(readFileSync(join(target, PHASE31_RUNNABLE), "utf8")).toBe(
+      readFileSync(join(REPO_ROOT, "scripts", "runnable-ref", "uat-spec-integrity.js"), "utf8"),
+    );
+    // The other two were left alone rather than rewritten — the run is additive, not a re-lay.
+    expect(materializedSet(target).length).toBe(RUNNABLE_RELS.length);
+    // The run SAYS which one it created and which two it left alone — a materialization nobody can
+    // read in the output is a materialization a host operator cannot confirm.
+    expect(r.stdout).toMatch(new RegExp(`created\\s+${PHASE31_RUNNABLE.replace(/[./]/g, "\\$&")}`));
+    for (const rel of RUNNABLE_RELS.filter((x) => x !== PHASE31_RUNNABLE)) {
+      expect(r.stdout).toContain(`${rel} (target already has it — D-04)`);
+    }
+  });
+
+  it("R-04 (4): the uninstaller removes the Phase-31 runnable it materialized", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    expect(runInstall(target, home).status).toBe(0);
+    expect(existsSync(join(target, PHASE31_RUNNABLE))).toBe(true);
+
+    const r = runUninstall(target, home);
+    expect(r.status).toBe(0);
+    expect(existsSync(join(target, PHASE31_RUNNABLE))).toBe(false);
+    expect(materializedSet(target)).toEqual([]);
+    expect(r.stdout).toContain(`${PHASE31_RUNNABLE} (grugops runnable, byte-identical to source)`);
+    // The user's own content is untouched — reversibility that destroys user data is not
+    // reversibility (CLAUDE.md installer constraint).
+    expect(readFileSync(join(target, "CLAUDE.md"), "utf8")).toContain("My own dev instructions");
+    expect(readFileSync(join(target, "plans", "board.md"), "utf8")).toBe("user board\n");
+  });
+
+  it("R-04 (5): an uninstall from a home with NOTHING installed is a clean no-op (edge probe 2)", () => {
+    const target = mkTmp();
+    const home = mkTmp();
+    writeFileSync(join(target, "CLAUDE.md"), "# User Project\n\nNothing was ever installed here.\n");
+    const before = snapshot(target);
+    expect(materializedSet(target)).toEqual([]);
+
+    const r = runUninstall(target, home);
+    // A no-op, not an error: an uninstall of nothing removes nothing and destroys nothing.
+    expect(r.status).toBe(0);
+    expect(snapshot(target)).toBe(before);
+    expect(readFileSync(join(target, "CLAUDE.md"), "utf8")).toContain("Nothing was ever installed here.");
+  });
 });
