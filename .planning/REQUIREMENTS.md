@@ -117,7 +117,7 @@ Each requirement maps to exactly one roadmap phase (27–33). REQ-IDs continue g
 
 ### UATX — Autonomous Manual Testing
 
-- [x] **UATX-01**: Playwright is the machine-verifiable evidence floor — the committed spec is the evidence, re-run by the existing §14 gate; an agent's narration or an MCP tool-call transcript is never a stamp.
+- [ ] **UATX-01**: Playwright is the machine-verifiable evidence floor — the committed spec is the evidence, re-run by the existing §14 gate; an agent's narration or an MCP tool-call transcript is never a stamp.
 - [ ] **UATX-02**: Browser MCP tooling is used to *author* specs, with `@playwright/mcp` pinned (pre-1.0) and documented for all five host CLIs.
 - [ ] **UATX-03**: Claude in Chrome is available as an optional, clearly-labelled `verified_by: <named human>` lane, and is structurally barred from producing a `§14-gate` stamp.
 - [ ] **UATX-04**: Evidence carries provenance — commit SHA + gate-run id + content hash — and a note whose SHA is not the HEAD the gate ran against is refused.
@@ -209,7 +209,7 @@ _Filled by the roadmapper 2026-07-28. Every requirement maps to exactly one phas
 | AUTO-05 | Phase 30 | Complete |
 | AUTO-06 | Phase 30 | Complete |
 | AUTO-07 | Phase 30 | Complete |
-| UATX-01 | Phase 31 | Complete |
+| UATX-01 | Phase 31 | Gaps Found |
 | UATX-02 | Phase 31 | Gaps Found |
 | UATX-03 | Phase 31 | Gaps Found |
 | UATX-04 | Phase 31 | Gaps Found |
