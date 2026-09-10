@@ -28,7 +28,7 @@ actuals:
   # is 238,343 chars = 59,585. Estimate was 90,000; the plan came in under it.
   tokens: 63122
   tasks: 3
-  commits: 3
+  commits: 6
 plan_head_before: e1ca8672bd67c0a9287ca5a4c7f903bca30e3960
 
 tech-stack:
@@ -189,7 +189,7 @@ status: complete
 - **Duration:** 78 min
 - **Tasks:** 3
 - **Files modified:** 12 (11 modified, 1 created)
-- **Commits:** 3
+- **Commits:** 6 (3 task commits, the SUMMARY, the state advance, and the UATX-01 revert)
 
 ## Accomplishments
 
