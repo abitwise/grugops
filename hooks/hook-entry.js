@@ -35,10 +35,99 @@
 // mechanisms, because the wrapper does not need to know how the child died.
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 import { spawnSync } from "node:child_process";
-import { readFileSync, writeSync, realpathSync } from "node:fs";
+import { closeSync, constants as fsConstants, fstatSync, openSync, readSync, realpathSync, writeSync, } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createHash } from "node:crypto";
+/**
+ * THE WRAPPER PERFORMS NO UNBOUNDED OPERATION BEFORE IT CAN ANSWER (plan 31-27, `CR-17`).
+ *
+ * ---------------------------------------------------------------------------------------------
+ * WHAT WENT WRONG, AND WHY IT IS A PROPERTY RATHER THAN A HABIT.
+ *
+ * `verifyDeciderClosure` below hashes every module in the decider's import closure — thirteen paths,
+ * eleven of them under `scripts/`, every one of them agent-writable by design; that is the whole
+ * reason the manifest exists. It read each one with a bare `readFileSync`. `readFileSync` opens
+ * WITHOUT `O_NONBLOCK`, and `open(2)` on a FIFO with no writer BLOCKS with no timeout. The
+ * verification runs BEFORE the `spawnSync` that `DECIDER_TIMEOUT_MS` bounds, so the wrapper's only
+ * bound covered none of it.
+ *
+ * Measured on the committed artifact, at all THIRTEEN positions, through the command derived from
+ * `hooks/hooks.json`: `timeout 12` -> EXIT=124, ZERO bytes on stdout and ZERO on stderr, against a
+ * control that returned EXIT=0 in 0.07 s. A PreToolUse hook that never answers does not block, and
+ * this is the tier that decides whether a force push or a deploy pattern runs at all.
+ *
+ * The rule is therefore stated as a PROPERTY OF THIS FILE and not as an enumeration of dangerous
+ * file types: **no unbounded operation before the wrapper can answer.** Two things establish it —
+ * every manifest read goes through the one reader below, and the wrapper's own fd-0 payload read is
+ * DELETED rather than guarded (see the `stdio` comment at the spawn).
+ *
+ * WHY THE READER IS RESTATED HERE INSTEAD OF IMPORTED. `scripts/context-io.ts` owns the same rule as
+ * `readRegularFileOrNull` (plan 31-21, D-24). This file may import only `node:` builtins — that
+ * import list is the entire reason the wrapper is a separate process, and importing from `scripts/`
+ * would hand the corruption class that reaches the decider a route into the wrapper. So this is a
+ * SECOND implementation of ONE rule, which is this repository's own recorded drift shape. The two
+ * are bound in both directions by `scripts/nonblocking-reader-parity.test.ts`: the set of files
+ * implementing the discipline is DERIVED from source and asserted to have exactly two members, and
+ * one shared file-shape corpus is required to produce the same decision from each. They are bound by
+ * a measurement, not by trust.
+ * ---------------------------------------------------------------------------------------------
+ */
+/**
+ * The ceiling on ONE manifest-module read. STATED here rather than inherited from
+ * `scripts/context-io.ts`'s note ceiling: a note and a hook module are different objects, and a
+ * shared constant would make one of the two numbers a coincidence of refactoring. The two are
+ * deliberately independent, and the parity test asserts each is stated ONCE rather than asserting
+ * they are equal.
+ */
+const HOOK_MODULE_MAX_BYTES = 8 * 1024 * 1024;
+/**
+ * The ONE spelling of the wrapper's non-regular-file refusal, so a corpus binds to a literal rather
+ * than to a sentence someone can rephrase.
+ */
+const MANIFEST_POSITION_NOT_REGULAR_FILE = "manifest-path-not-a-regular-file";
+/**
+ * Read one manifest position, in BOUNDED time, or refuse it by name.
+ *
+ * `O_NONBLOCK` so a FIFO at a manifest path returns a descriptor (or fails ENXIO) instead of waiting
+ * for a writer; `fstat` on THAT descriptor so anything which is not a regular file is refused rather
+ * than read, because reading a FIFO, a device, a socket or a directory can block forever; a stated
+ * ceiling so an enormous regular file is refused rather than buffered; a read loop bounded by the
+ * size `fstat` just reported on this same descriptor; and a `close` in a `finally` so a refusal
+ * cannot leak the descriptor it refused.
+ *
+ * An ENOENT or otherwise unopenable position is NOT caught here — it propagates to the caller's
+ * existing "could not be read" branch, because a module that is absent and a module the wrapper will
+ * not read whole are different events and both are denials.
+ */
+function readRegularFileOrRefuse(path) {
+    const fd = openSync(path, fsConstants.O_RDONLY | fsConstants.O_NONBLOCK);
+    try {
+        const st = fstatSync(fd);
+        if (!st.isFile()) {
+            const e = new Error(`"${path}" is not a regular file (${MANIFEST_POSITION_NOT_REGULAR_FILE})`);
+            e.grugopsKind = "not-regular";
+            throw e;
+        }
+        if (st.size > HOOK_MODULE_MAX_BYTES) {
+            const e = new Error(`"${path}" is ${String(st.size)} bytes, above the ${String(HOOK_MODULE_MAX_BYTES)}-byte ceiling`);
+            e.grugopsKind = "over-ceiling";
+            throw e;
+        }
+        const buf = Buffer.allocUnsafe(Number(st.size));
+        let off = 0;
+        while (off < buf.length) {
+            const n = readSync(fd, buf, off, buf.length - off, off);
+            if (n === 0)
+                break;
+            off += n;
+        }
+        return buf.subarray(0, off);
+    }
+    finally {
+        closeSync(fd);
+    }
+}
 /** `realpathSync` that falls back rather than throwing, so an unresolvable path is still attempted. */
 function realpathSyncSafe(p) {
     try {
@@ -178,11 +267,29 @@ function verifyDeciderClosure(entryRel) {
     // Only THIS decider's closure. The wrapper verifies the code it is about to run and says nothing
     // about a sibling decider it will not load.
     for (const [rel, want] of Object.entries(expected)) {
+        const position = join(KIT_ROOT, rel);
         let got;
         try {
-            got = createHash("sha256").update(readFileSync(join(KIT_ROOT, rel))).digest("hex");
+            // BOUNDED (plan 31-27, CR-17). The three ways this read can fail are three DIFFERENT events
+            // with three different messages, and all three are denials: a module that is absent cannot be
+            // hashed, a module that is not a regular file must not be waited on, and a module the wrapper
+            // will not read whole cannot be verified. Collapsing them into one message would tell a human
+            // repairing an installation nothing about what to repair.
+            got = createHash("sha256").update(readRegularFileOrRefuse(position)).digest("hex");
         }
         catch (e) {
+            const kind = e.grugopsKind;
+            if (kind === "not-regular") {
+                return (`the grugops hook module "${rel}" at "${position}" is not a regular file ` +
+                    `(${MANIFEST_POSITION_NOT_REGULAR_FILE}) — it is refused rather than waited on, because ` +
+                    `opening a FIFO, a device, a socket or a directory for reading can block forever and a ` +
+                    `PreToolUse hook that never answers does not block`);
+            }
+            if (kind === "over-ceiling") {
+                return (`the grugops hook module "${rel}" at "${position}" is above the ` +
+                    `${String(HOOK_MODULE_MAX_BYTES)}-byte ceiling this wrapper reads — it is refused rather ` +
+                    `than read, because a module the wrapper will not read whole is a module it cannot verify`);
+            }
             return `the grugops hook module "${rel}" could not be read (${e instanceof Error ? e.message : String(e)})`;
         }
         if (got !== want) {
@@ -217,13 +324,6 @@ if (mismatch !== null) {
         `trusting what the decider says about itself, because a corrupted dependency can say anything. ` +
         `A human must reinstall or rebuild grugops, then re-run.`);
 }
-let payload = "";
-try {
-    payload = readFileSync(0, "utf8");
-}
-catch {
-    payload = ""; // the decider fails closed on an unreadable payload; the wrapper does not second-guess
-}
 /**
  * The wrapper's bound on the decider, and how it relates to the HOST's own hook timeout.
  *
@@ -251,14 +351,29 @@ catch {
  */
 const DECIDER_TIMEOUT_MS = 10_000;
 const child = spawnSync(process.execPath, [decider], {
-    input: payload,
     encoding: "utf8",
     timeout: DECIDER_TIMEOUT_MS,
+    // fd 0 IS INHERITED, AND THE WRAPPER'S OWN READ OF IT IS GONE (plan 31-27, `CR-17`'s second half).
+    //
+    // This used to be a pipe fed from `input: payload`, where `payload` came from
+    // `readFileSync(0, "utf8")` a few lines above. That read waits for EOF on the host's stdin, and it
+    // happened BEFORE this spawn — so, exactly like the manifest reads, it sat outside the one bound
+    // this wrapper carries. Measured on the committed artifact: a parent that writes a complete,
+    // valid payload and never closes the pipe left the wrapper running past a 25 s harness bound with
+    // zero bytes on both streams; only the harness's SIGKILL ended it.
+    //
+    // THE DELETION IS THE FIX, AND IT IS NOT A SECOND GUARD. A read the wrapper does not perform
+    // cannot be a read the wrapper waits on. Both deciders already read fd 0 themselves, so inheriting
+    // it moves that read INTO the child — the one process `DECIDER_TIMEOUT_MS` already bounds. A stall
+    // on the host's stdin now arrives as SIGTERM on the child, and the existing `child.signal !== null`
+    // branch below turns it into the fail-closed deny with no new code path: the bound adds a value,
+    // not a branch. `hooks/guard.ts` is NOT touched by any of this.
+    //
     // stderr is inherited so the run banner (D-20) reaches the transcript from the decider itself,
     // unchanged and un-buffered by this wrapper. The wrapper adds no line of its own on a clean run.
     // fd 3 is the decider's private ALLOW channel. The host never sees it; the wrapper reads it to
     // tell "the decider allowed" from "the decider stopped", which exit 0 + empty stdout cannot.
-    stdio: ["pipe", "pipe", "inherit", "pipe"],
+    stdio: [0, "pipe", "inherit", "pipe"],
 });
 const stdout = child.stdout ?? "";
 if (child.signal !== null && child.signal !== undefined) {

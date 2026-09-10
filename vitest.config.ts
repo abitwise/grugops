@@ -9,7 +9,25 @@ export default defineConfig({
     // very constructs the checker exists to refuse. The default exclude list is SPREAD rather than
     // replaced, so node_modules/dist/etc. stay excluded — assigning `exclude` overrides the
     // defaults outright.
-    exclude: [...configDefaults.exclude, "**/scripts/runnable-ref/fixtures/**"],
+    //
+    // `**/.temp/**` is excluded for a MEASURED reason, not a tidiness one (plan 31-27, MOVEMENT 0).
+    // `.temp/` is this repository's scratch root for probes, and it is gitignored at `.gitignore:19`.
+    // Round 5 left a spec file under `.temp/`; the runner COLLECTED it — a scratch probe is a
+    // `*.test.ts`/`*.spec.ts` as far as the default include glob is concerned — and the run died on
+    // SIGSEGV. Every `git status`-based residue gate in rounds 3, 4 and 5 stayed silent about it,
+    // because a gitignored path is invisible to `git status`. So the residue predicate for a probe is
+    // a REAL listing (`find .temp -mindepth 1`) plus a FIFO sweep, and the runner is told not to
+    // collect from there at all.
+    //
+    // This stops COLLECTION only. It does NOT stop `scripts/freshness.test.ts` from using
+    // `.temp/freshness-clones/` as a working directory — that suite creates and reads real clones
+    // under `.temp/` from inside a test that lives in `scripts/`, and an exclude pattern governs
+    // which FILES vitest turns into test files, never which paths a running test may touch.
+    exclude: [
+      ...configDefaults.exclude,
+      "**/scripts/runnable-ref/fixtures/**",
+      "**/.temp/**",
+    ],
     // Several gate oracles (catalog-freshness, generate-catalog, freshness) exercise
     // the REAL working tree — regenerating the committed catalog, planting transient
     // drift into docs/catalog/README.md, or dropping a non-conforming file into

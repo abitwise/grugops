@@ -839,7 +839,18 @@ describe("30-11 round 3 — every spawn in the hook and floor tests is BOUNDED (
 // "the manifest was regenerated" the same event, and the freeze would stop meaning anything. So the
 // baseline is taken over the source with the manifest region NORMALISED OUT — the two stay different
 // events, and `npm run freshness:hook-manifest` is what holds the region itself.
-const FROZEN_HOOK_ENTRY_LOGIC_SHA = "5bfd5ba85a716dcd4383e819480edaf32bfeba58cadb3479089fd22e94777d9e";
+//
+// RE-TAKEN BY PLAN 31-27 (CR-17). A FREEZE IS CHANGE CONTROL AND NEVER A REASON TO LEAVE A HANG.
+// The wrapper's manifest reads went through a bare `readFileSync`, which blocks at `open(2)` on a
+// path that is not a regular file — measured at all thirteen `DECIDER_MANIFEST` positions through
+// the command derived from `hooks/hooks.json`: `timeout 12` -> EXIT=124, zero bytes on BOTH streams.
+// The fix routes every manifest read through an inline non-blocking regular-file reader and DELETES
+// the wrapper's own fd-0 read (fd 0 is inherited by the child `DECIDER_TIMEOUT_MS` already bounds).
+// The baseline MOVES with the artifact; it is not relaxed, and `hooks/guard.ts` is untouched.
+//
+//   old: 5bfd5ba85a716dcd4383e819480edaf32bfeba58cadb3479089fd22e94777d9e   (pre-31-27)
+//   new: b0629f092d6929ae4394741f4c4e6a335acb7f3bb15d642ba61c81571e34ff54   (this baseline)
+const FROZEN_HOOK_ENTRY_LOGIC_SHA = "b0629f092d6929ae4394741f4c4e6a335acb7f3bb15d642ba61c81571e34ff54";
 
 describe("30-11 round 3 — the hook ENTRY is frozen, and hooks.json names it", () => {
   it("hooks/hook-entry.ts's LOGIC matches its frozen hash (manifest region normalised out)", () => {

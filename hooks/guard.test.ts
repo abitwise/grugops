@@ -1657,3 +1657,345 @@ describe("30-11 round 4 — the wrapper verifies CODE, not the decider's word (R
     expect(src, "the two bounds must be documented against each other").toContain("60 s");
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// PLAN 31-27 — CR-17: THE WRAPPER PERFORMS NO UNBOUNDED OPERATION BEFORE IT CAN ANSWER.
+//
+// WHY THESE CASES ENTER WHERE THEY DO. Round 5 fixed the identical hazard (CR-12) INSIDE
+// `scripts/context-io.ts` and never carried it to `hooks/hook-entry.ts` — the file `hooks/hooks.json`
+// actually names, and the process the host actually spawns for every `Bash` tool call and every
+// `mcp__grugops__*` call. That is the sixth consecutive round in which a fix landed in the module the
+// finding named and the next Critical appeared at the coordinate the fix did not reach. So the argv
+// below is DERIVED from `hooks/hooks.json` with `${CLAUDE_PLUGIN_ROOT}` substituted, and the manifest
+// positions are DERIVED from the committed `hooks/hook-entry.js`. A test that drills the module
+// instead of the entry cannot pass here, and a `hooks.json` that stopped naming the wrapper turns the
+// derivation red rather than quietly probing something else.
+//
+// REPRODUCED FIRST, PRE-FIX, AT ALL THIRTEEN POSITIONS (recorded in `31-27-SUMMARY.md`):
+//   mkfifo <mirror>/<any manifest position>;  timeout 12 <derived command>
+//       EXIT=124, stdout 0 bytes, stderr 0 bytes, 12.0 s        — thirteen of thirteen
+//   CONTROL, untouched mirror:  EXIT=0, 442 bytes of deny JSON, 0.07 s
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+/** The wrapper's own frozen refusal fragment, quoted ONCE so the corpus binds to a literal. */
+const MANIFEST_NOT_REGULAR_FRAGMENT = "manifest-path-not-a-regular-file";
+
+/**
+ * The PreToolUse command the HOST runs, derived from `hooks/hooks.json`.
+ *
+ * `${CLAUDE_PLUGIN_ROOT}` is substituted with the mirror root. The derivation REFUSES a command that
+ * does not name the wrapper, so a `hooks.json` edit routing a matcher straight at a decider makes
+ * every case below red instead of silently testing a different program.
+ */
+function derivedPreToolUseArgv(pluginRoot: string, matcher: string): string[] {
+  const hooks = JSON.parse(
+    readFileSync(join(import.meta.dirname, "hooks.json"), "utf8"),
+  ) as { hooks: { PreToolUse: Array<{ matcher: string; hooks: Array<{ command: string }> }> } };
+  const entry = hooks.hooks.PreToolUse.find((m) => m.matcher === matcher);
+  if (entry === undefined) throw new Error(`hooks.json carries no PreToolUse matcher ${matcher}`);
+  const commands = entry.hooks.map((h) => h.command);
+  if (commands.length !== 1) throw new Error(`expected one command for ${matcher}`);
+  const raw = commands[0] as string;
+  if (!raw.includes("hooks/hook-entry.js")) {
+    throw new Error(`the PreToolUse command for ${matcher} bypasses the wrapper: ${raw}`);
+  }
+  // Only double quotes are ever emitted into this command, so this split honours exactly that.
+  const cmd = raw.split("${CLAUDE_PLUGIN_ROOT}").join(pluginRoot);
+  const out: string[] = [];
+  let cur = "";
+  let quoted = false;
+  for (const ch of cmd) {
+    if (ch === '"') { quoted = !quoted; continue; }
+    if (ch === " " && !quoted) { if (cur !== "") { out.push(cur); cur = ""; } continue; }
+    cur += ch;
+  }
+  if (cur !== "") out.push(cur);
+  return out;
+}
+
+/**
+ * The manifest positions for one decider, DERIVED from the committed `hooks/hook-entry.js`.
+ *
+ * Derived rather than listed, because a hand-listed corpus probes the position the finding NAMED and
+ * leaves the twelve it did not. The cardinality is asserted below and a seeded mirror moves it.
+ */
+function derivedManifestPositions(entryJs: string, entryRel: string): string[] {
+  const src = readFileSync(entryJs, "utf8");
+  const a = src.indexOf("// <hook-manifest>");
+  const b = src.indexOf("// </hook-manifest>");
+  if (a < 0 || b <= a) throw new Error("the committed hook-entry.js carries no manifest region");
+  const region = src.slice(a, b);
+  const needle = JSON.stringify(entryRel) + ": {";
+  const s = region.indexOf(needle);
+  if (s < 0) throw new Error(`the manifest carries no block for ${entryRel}`);
+  const e = region.indexOf("\n  },", s);
+  const block = region.slice(s + needle.length, e < 0 ? undefined : e);
+  return [...block.matchAll(/"([^"]+)":\s*"[0-9a-f]{64}"/g)].map((m) => m[1] as string);
+}
+
+describe("31-27 CR-17 — a non-regular file at ANY manifest position is a bounded, named deny", () => {
+  const REPO = join(import.meta.dirname, "..");
+  const ENTRY_JS = join(REPO, "hooks", "hook-entry.js");
+  const POSITIONS = derivedManifestPositions(ENTRY_JS, "hooks/guard.js");
+  const MATCHED = payload("git push --force origin main");
+
+  /** A mirror carrying the wrapper AND the decider closure — i.e. every manifest position. */
+  function wrapperMirror(): string {
+    const root = mirrorKit("hooks/hook-entry.js");
+    for (const t of closureTargets(REPO, "hooks/guard.js", root)) {
+      mkdirSync(dirname(t.to), { recursive: true });
+      copyFileSync(t.from, t.to);
+    }
+    return root;
+  }
+
+  function runDerived(
+    root: string,
+    input: string = MATCHED,
+  ): { status: number | null; stdout: string; stderr: string; wallMs: number } {
+    const env: Record<string, string> = {};
+    for (const [k, v] of Object.entries(process.env)) {
+      if (k.startsWith("GRUGOPS_") || k.startsWith("CLAUDE_") || v === undefined) continue;
+      env[k] = v;
+    }
+    const argv = derivedPreToolUseArgv(root, "Bash");
+    const t0 = Date.now();
+    const r = spawnSync(argv[0] as string, argv.slice(1), {
+      input,
+      encoding: "utf8",
+      env,
+      timeout: SPAWN_TIMEOUT_MS,
+    });
+    return {
+      status: r.status,
+      stdout: r.stdout ?? "",
+      stderr: r.stderr ?? "",
+      wallMs: Date.now() - t0,
+    };
+  }
+
+  /** The reason string of a well-formed PreToolUse deny, or a failure naming what arrived instead. */
+  function denyReason(stdout: string): string {
+    const parsed = JSON.parse(stdout) as {
+      hookSpecificOutput?: { permissionDecision?: string; permissionDecisionReason?: string };
+    };
+    expect(parsed.hookSpecificOutput?.permissionDecision).toBe("deny");
+    return parsed.hookSpecificOutput?.permissionDecisionReason ?? "";
+  }
+
+  it("the corpus DERIVES its positions, and the cardinality is 13", () => {
+    expect(POSITIONS.length, `derived positions: ${POSITIONS.join(", ")}`).toBe(13);
+    expect(POSITIONS).toContain("hooks/guard.js");
+    expect(POSITIONS).toContain("scripts/checkpoints.js");
+  });
+
+  it("a seeded FOURTEENTH manifest entry moves the derived count by exactly one", () => {
+    // A derivation that cannot move is a literal wearing a derivation's clothes.
+    const root = mkdtempSync(join(tmpdir(), "guard-seed-"));
+    cpTmpDirs.push(root);
+    mkdirSync(join(root, "hooks"), { recursive: true });
+    const src = readFileSync(ENTRY_JS, "utf8");
+    const seeded = src.replace(
+      '"hooks/guard.js": {',
+      '"hooks/guard.js": {\n    "scripts/seeded-fourteenth.js": ' +
+        '"0000000000000000000000000000000000000000000000000000000000000000",',
+    );
+    expect(seeded, "the seed matched nothing — the mirror would prove nothing").not.toBe(src);
+    writeFileSync(join(root, "hooks", "hook-entry.js"), seeded);
+    const moved = derivedManifestPositions(join(root, "hooks", "hook-entry.js"), "hooks/guard.js");
+    expect(moved.length).toBe(POSITIONS.length + 1);
+    expect(moved).toContain("scripts/seeded-fourteenth.js");
+  });
+
+  it("a hooks.json whose PreToolUse command does not name the wrapper turns the derivation RED", () => {
+    // The derivation is the guard against a future `hooks.json` edit that routes a matcher straight
+    // at a decider — which would restore every termination class RA3-7 closed, silently.
+    const hooks = JSON.parse(readFileSync(join(import.meta.dirname, "hooks.json"), "utf8")) as {
+      hooks: { PreToolUse: Array<{ matcher: string; hooks: Array<{ command: string }> }> };
+    };
+    // Prove the derivation reads the file rather than a constant: it accepts the real one…
+    expect(derivedPreToolUseArgv("/tmp/x", "Bash").join(" ")).toContain("hooks/hook-entry.js");
+    // …and the SAME predicate applied to a bypassing command refuses.
+    const bypass = 'node "${CLAUDE_PLUGIN_ROOT}/hooks/guard.js"';
+    expect(bypass.includes("hooks/hook-entry.js")).toBe(false);
+    expect(hooks.hooks.PreToolUse.length).toBe(2);
+  });
+
+  it("CONTROL 1 — an ordinary mirror answers immediately and passes the decider's answer through", () => {
+    const root = wrapperMirror();
+    const r = runDerived(root);
+    expect(r.status).toBe(0);
+    expect(r.stdout).toContain('"permissionDecision":"deny"');
+    expect(denyReason(r.stdout)).toContain("Production deploy");
+    expect(r.wallMs).toBeLessThan(5_000);
+  });
+
+  for (const position of POSITIONS) {
+    it(`a FIFO at ${position} is a bounded deny naming the position`, () => {
+      const root = wrapperMirror();
+      const abs = join(root, position);
+      rmSync(abs, { recursive: true, force: true });
+      execFileSync("mkfifo", [abs]);
+      const r = runDerived(root);
+      expect(r.status, "the wrapper must ANSWER, not be killed by the harness bound").toBe(0);
+      const reason = denyReason(r.stdout);
+      expect(reason).toContain(MANIFEST_NOT_REGULAR_FRAGMENT);
+      expect(reason).toContain(position);
+      expect(reason).toContain(abs);
+      expect(r.wallMs, `${position} took ${String(r.wallMs)} ms`).toBeLessThan(5_000);
+    });
+
+    it(`a DIRECTORY at ${position} is the SAME named deny — the rule is fstat, not a FIFO case`, () => {
+      const root = wrapperMirror();
+      const abs = join(root, position);
+      rmSync(abs, { recursive: true, force: true });
+      mkdirSync(abs, { recursive: true });
+      const r = runDerived(root);
+      expect(r.status).toBe(0);
+      const reason = denyReason(r.stdout);
+      expect(reason).toContain(MANIFEST_NOT_REGULAR_FRAGMENT);
+      expect(reason).toContain(position);
+      expect(r.wallMs).toBeLessThan(5_000);
+    });
+  }
+
+  it("a UNIX SOCKET at a manifest position is the same named deny (same fstat rule)", async () => {
+    // A bound socket is UNLINKED when its server closes, so the listener must stay alive for the
+    // duration of the probe — measured on this tree: closing the server first left NOTHING on disk
+    // and the case would have "passed" against an absent file. The shape is driven, or it is a LOUD
+    // skip naming the platform; it is never a silent green.
+    const root = wrapperMirror();
+    const abs = join(root, "scripts", "checkpoints.js");
+    rmSync(abs, { recursive: true, force: true });
+    const { spawn } = await import("node:child_process");
+    const listener = spawn(
+      "node",
+      ["-e", `require("net").createServer().listen(process.argv[1]);setTimeout(()=>{},60000);`, abs],
+      { stdio: "ignore" },
+    );
+    try {
+      const deadline = Date.now() + 5_000;
+      while (!existsSync(abs) && Date.now() < deadline) {
+        await new Promise((r) => setTimeout(r, 50));
+      }
+      if (!existsSync(abs)) {
+        // LOUD skip, never a silent green: the shape is named and so is the platform.
+        expect(
+          `SKIPPED shape=unix-socket platform=${process.platform}: no socket could be bound at a manifest position`,
+        ).toContain("SKIPPED shape=unix-socket");
+        return;
+      }
+      const r = runDerived(root);
+      expect(r.status).toBe(0);
+      const reason = denyReason(r.stdout);
+      // MEASURED, AND IT CORRECTS THIS PLAN'S OWN GUESS. 31-27 predicted the socket would reach the
+      // SAME `fstat` refusal the FIFO and the directory reach. It does not, on darwin: `open(2)` on a
+      // unix socket fails with ENOTSUP (`Unknown system error -102`) BEFORE a descriptor exists, so
+      // the refusal arrives through the present-and-unopenable branch instead. The PROPERTY under
+      // test still holds and is what is asserted — a bounded, named deny rather than a wait — and
+      // `scripts/context-io.ts`'s reader classifies a socket exactly the same way, which is why the
+      // parity corpus records both as one decision class. Asserting the fstat fragment here would be
+      // asserting a mechanism this platform never reaches.
+      expect(reason).toContain("scripts/checkpoints.js");
+      expect(reason).toContain("could not be read");
+      expect(reason).not.toContain(MANIFEST_NOT_REGULAR_FRAGMENT);
+      expect(r.wallMs).toBeLessThan(5_000);
+    } finally {
+      listener.kill("SIGKILL");
+    }
+  }, 30_000);
+
+  it("an ABSENT manifest module denies with the could-not-be-read message, NOT the shape one", () => {
+    // Three distinguishable outcomes, not one: a module that is absent cannot be hashed, a module
+    // that is not a regular file must not be waited on, and a module the wrapper will not read whole
+    // cannot be verified. A human repairing an installation needs to know which.
+    const root = wrapperMirror();
+    rmSync(join(root, "scripts", "checkpoints.js"), { force: true });
+    const r = runDerived(root);
+    expect(r.status).toBe(0);
+    const reason = denyReason(r.stdout);
+    expect(reason).toContain("could not be read");
+    expect(reason).toContain("scripts/checkpoints.js");
+    expect(reason).not.toContain(MANIFEST_NOT_REGULAR_FRAGMENT);
+  });
+
+  it("an OVER-CEILING regular manifest module denies with its OWN message naming the ceiling", () => {
+    const root = wrapperMirror();
+    const abs = join(root, "scripts", "checkpoints.js");
+    writeFileSync(abs, Buffer.alloc(9 * 1024 * 1024, 0x61));
+    const r = runDerived(root);
+    expect(r.status).toBe(0);
+    const reason = denyReason(r.stdout);
+    expect(reason).toContain("above the");
+    expect(reason).toContain("ceiling");
+    expect(reason).toContain("scripts/checkpoints.js");
+    expect(reason).not.toContain(MANIFEST_NOT_REGULAR_FRAGMENT);
+    expect(reason).not.toContain("could not be read");
+  });
+
+  it("the wrapper imports NOTHING from scripts/ — the reader is restated, never imported", () => {
+    // The restatement is the price of the wrapper's import list, and the list is the whole reason the
+    // wrapper is a separate process. `scripts/nonblocking-reader-parity.test.ts` is what keeps the
+    // two implementations one rule; this case is what keeps them two files.
+    const src = readFileSync(join(import.meta.dirname, "hook-entry.ts"), "utf8");
+    const specs = [...src.matchAll(/^import[\s\S]*?from "([^"]+)";$/gm)].map((m) => m[1] as string);
+    expect(specs.length).toBeGreaterThan(0);
+    for (const spec of specs) {
+      expect(spec, `hook-entry imports ${spec}`).toMatch(/^node:/);
+      expect(spec).not.toContain("scripts/");
+    }
+  });
+
+  it("the wrapper performs NO bare readFileSync — the blocking primitive is gone from the file", () => {
+    // Stated as a property of the FILE, not as a habit inside one function: the next read someone
+    // adds to this wrapper inherits the rule because the primitive that ignores it is not here.
+    const src = readFileSync(join(import.meta.dirname, "hook-entry.ts"), "utf8");
+    const live = src
+      .split("\n")
+      .filter((l) => {
+        const t = l.trim();
+        return !(t.startsWith("//") || t.startsWith("*") || t.startsWith("/*"));
+      })
+      .filter((l) => /\breadFileSync\b/.test(l));
+    expect(live, `live readFileSync occurrences:\n${live.join("\n")}`).toEqual([]);
+    expect(src).toContain("readRegularFileOrRefuse");
+  });
+
+  it("GREEN 4 — a stdin whose writer never closes is a BOUNDED deny, not a hang", async () => {
+    // The wrapper's own `readFileSync(0)` waited for EOF, BEFORE the spawn `DECIDER_TIMEOUT_MS`
+    // bounds. Measured pre-fix: a complete payload written and the pipe left open ran past a 25 s
+    // harness bound with zero bytes on both streams; only the harness's SIGKILL ended it. The read is
+    // now the CHILD's, inside the one bound that already existed, and the existing signal branch
+    // answers for it.
+    const root = wrapperMirror();
+    const argv = derivedPreToolUseArgv(root, "Bash");
+    const env: Record<string, string> = {};
+    for (const [k, v] of Object.entries(process.env)) {
+      if (k.startsWith("GRUGOPS_") || k.startsWith("CLAUDE_") || v === undefined) continue;
+      env[k] = v;
+    }
+    const { spawn } = await import("node:child_process");
+    const t0 = Date.now();
+    const result = await new Promise<{ code: number | null; stdout: string; wallMs: number }>(
+      (resolve) => {
+        const child = spawn(argv[0] as string, argv.slice(1), {
+          stdio: ["pipe", "pipe", "pipe"],
+          env,
+        });
+        child.stdin.write(MATCHED); // a COMPLETE, valid payload — and the pipe is never closed
+        let out = "";
+        child.stdout.on("data", (d: Buffer) => (out += d.toString()));
+        const bound = setTimeout(() => child.kill("SIGKILL"), 25_000);
+        child.on("close", (code) => {
+          clearTimeout(bound);
+          resolve({ code, stdout: out, wallMs: Date.now() - t0 });
+        });
+      },
+    );
+    expect(result.code, "the wrapper must answer rather than be killed by the harness").toBe(0);
+    expect(result.stdout).toContain('"permissionDecision":"deny"');
+    expect(denyReason(result.stdout)).toContain("terminated by SIGTERM");
+    // Under the wrapper's own bound plus two seconds — the bound answered, not the harness.
+    expect(result.wallMs).toBeLessThan(12_000);
+  }, 40_000);
+});
