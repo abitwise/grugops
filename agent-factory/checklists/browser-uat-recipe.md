@@ -182,39 +182,44 @@ literal text. `import { test as it } from "@playwright/test";` followed by `it.s
 `test.skip`, and `import * as pw from "@playwright/test";` followed by `pw.test.skip(...)` is asked
 as `test.skip` as well. The canonicalisation is scoped to that module specifier.
 
-A TESTINFO FIXTURE PARAMETER is canonicalised the same way, and for the same reason: the binding is
-positional and the position is a literal in the source text. The second parameter of the function
-passed as the second argument to a `test(...)`-headed call is the TestInfo fixture, so
-`test("a", async ({ page }, testInfo) => { testInfo.skip(); })` is asked as `test.info().skip` — the
-same path the call-link spelling produces, so the family has one spelling in the findings a reader
-sees. An import rename of the framework binding wins over a fixture parameter of the same name.
+A TESTINFO FIXTURE PARAMETER is decided by its DECLARED TYPE, at whatever argument position the
+framework's own overload set puts the scenario body in. Both
+`test("a", async ({ page }, testInfo) => { testInfo.skip(); })` and the three-argument tag form
+`test("a", { tag: "@smoke" }, async ({ page }, testInfo) => { testInfo.skip(); })` are asked as
+`test.info().skip` — the same path the call-link spelling produces, so the family has one spelling in
+the findings a reader sees. A DESTRUCTURED fixture is decided too:
+`async ({ page }, { skip }) => skip()` resolves to the property the pattern destructures, which is
+the framework's own. No argument INDEX is read anywhere in this decision.
 
-NEITHER CANONICALISATION REWRITES A NAME THE FILE ITSELF DECLARES. Before either map is consulted,
-the head segment is checked against the names the spec declares — a parameter, a `const`, `let` or
-`var` binding, a destructured binding element, a function name or a class name. A file that renames
-the framework import to `it` and separately binds a local `it` is therefore not refused, and no
-finding names a construct the file does not contain. A spec that CALLS a renamed import does not
-DECLARE that name, so the rule can only stop a rewrite the source text itself contradicts.
+THE BAN IS DECIDED BY SYMBOL IDENTITY, NOT BY SPELLING. The checker built from the target
+repository's own TypeScript is asked which symbol a callee resolves to, and a call is refused when
+that symbol's DECLARATION comes from the framework itself and its name is a member of the lists
+above. Identity is anchored on declaration FILES rather than on a module-specifier string, so a
+re-export chain through any number of local modules resolves and a local module that merely names
+itself `@playwright/test` does not. An alias (`const t = test;`), a renamed import, a namespace
+import, a block-scoped shadow and a cross-module re-export are therefore all decided the same way,
+because they all resolve to the same declaration.
 
-Read that rule as NEAREST-BINDING RESOLUTION and not as file scope, because that is what it is. A
-reference is decided by the innermost binding of its name whose range contains it, and only that
-binding decides — so a helper's own parameter reaches that helper and no further, and a file that
-both declares the name in a helper and genuinely calls the modifier at module scope IS refused, once,
-at the module-scope call. The ranges differ by declaration KIND: a `var` binding and a function
-declaration hoist to their enclosing function, so a reference above them is theirs; a `let`, a
-`const` and a class begin at their own declaration, so a later declaration does not suppress an
-earlier reference. A module-scope declaration reaches the whole file wherever nothing nearer binds
-the name. The TestInfo fixture binding — the second parameter of the function passed as a call's
-second argument — is recorded as a binding that suppresses NOTHING, which is what lets an inner
-fixture parameter beat an outer declaration of the same name.
+THE CHECKER'S ANSWER HAS THREE VALUES, AND THE MIDDLE ONE IS WHY A LEGITIMATE SPEC IS NOT REFUSED.
+When the symbol resolves to something the framework does NOT declare — a helper's own parameter, a
+local object with a `skip` member — the call is accepted and no further rule is consulted, so a
+helper whose parameter happens to share a renamed import's local name cannot be reported as a
+construct the file does not contain. When the checker resolves NOTHING at all, a second, older rule
+answers: the head segment is canonicalised through the framework's own import declarations unless the
+spec ITSELF declares that name nearer than the reference. That second rule is what still refuses a
+reference sitting above its own `let` or `const` declaration, and its ranges differ by declaration
+KIND — a `var` binding hoists to its enclosing function, while a function declaration, a `let`, a
+`const`, a class, a `using` and an `await using` are block-scoped and begin at their own declaration.
 
-Read the direction honestly too. This rule can only STOP a rewrite, and for a ban stopping a rewrite
-moves the answer from refused to ACCEPTED, because a head that is not rewritten is not a banned head.
-It is not a safe-direction rule; what bounds it is the nearest-binding resolution above. No binder is
-shipped, so the resolution is a range test over positions the parse already carries rather than real
-name resolution, and the constructs that leaves undecided are named in the boundary list below.
-Widening the resolution — including letting an outer binding answer where an inner one exists — is a
-new decision and a gap-closure round, never a quiet edit.
+Read the pairing honestly. Two rules answering one question is a shape this recipe's own history
+argues against, and it was kept anyway because identity alone would lose refusals the second rule
+makes. It is bounded: the second rule is asked ONLY where the first produced no answer, never beside
+it. It is named in the boundary list below, with the one direction in which it could be wrong.
+
+A TARGET THAT CANNOT ANSWER BLOCKS, IT DOES NOT PASS. A repository with no TypeScript configuration
+file, one the compiler cannot read or parse, a compiler that throws, or framework declarations that
+do not resolve, exits 2 with one named reason and an empty stdout. A check that could not run has
+made no claim about the specs, and it never quietly makes a smaller one.
 
 **The modifier rule.** A modifier call is refused when the head segment of its dotted path is one of
 the banned head segments AND the tail segment is one of the banned modifier segments, or when the
@@ -266,15 +271,12 @@ Deliberately outside the rule, recorded here so the boundary is written down:
 - An assertion inside a `finally` block is **not** refused; the third region of a `try` statement is
   named by no rule here.
 - A spec body carrying **zero** assertions is **not** refused; vacuous evidence is deferred.
-- An aliased binding is not refused: `const t = test;` then a modifier call on `t`. The alias cannot be followed to its declaration without a type checker.
-- A member computed from a non-literal expression is not refused: `test[name](...)` where `name` is a variable. The member name is absent from the source text.
-- A rename or namespace that arrives through any module other than `@playwright/test` is not canonicalised: `import { test as it } from "./fixtures";` then `it.skip(...)`. Following a re-export across files needs module resolution this runnable does not ship, so the rename map is MODULE-SCOPED to the framework's own import declaration.
-- A callee whose head is not an identifier is not resolved: a call on an object literal, or on `this`. There is no head segment to read, so no membership question can be put.
-- A callee chain longer than the resolver's 512-step bound is not resolved. The bound is ONE allowance for a WHOLE resolution. Every link spends a step, the descent into a call link included. Interleaving calls buys a chain no extra steps. The bound stops a pathological chain from spinning. It also stops one from exhausting the interpreter. It is a stated LIMIT, not a silence. A chain that reaches it yields no path rather than a truncated one.
+- A member computed from a non-literal expression is not decided by identity: `test[name](...)` where `name` is a variable. The checker resolves no symbol at that position. The call then falls to the spelling rule. That rule cannot read a member name the source text does not carry.
 - An option is ENABLED only when the call's first argument is an object literal assigning it the `true` keyword. A variable argument enables nothing, and neither does a variable option value. This runnable parses and never evaluates.
-- A parser that does not expose the import, object-literal or function-like node predicates yields no rename canonicalisation, no option reading and no fixture-parameter canonicalisation. The parser is the TARGET repository's (D-13), so its surface is not this runnable's to assume. The resolver degrades to the pre-D-18 behaviour for those shapes rather than throwing outside the exit-code contract.
-- A TestInfo binding destructured in the callback's second parameter is not canonicalised: `test("a", async ({ page }, { skip }) => skip());`. A binding pattern names no single identifier to rewrite, so there is no head segment to canonicalise.
-- The scope rule the canonicalisations ask resolves a reference to the NEAREST binding of its name that contains it, and only that binding decides. The census counts a parameter, a `const`/`let`/`var` binding, a destructured binding element, a function name and a class name. An import binding is not counted at all. Ranges differ by KIND. A `var` binding and a function declaration hoist to their enclosing function. A `let`, a `const` and a class begin at their own declaration. A later declaration therefore does not suppress an earlier reference. A MODULE-scope declaration reaches the whole file except where an inner binding of the same name is nearer. The TestInfo fixture-binding position IS such an inner binding, recorded as NON-suppressing. A module-scope declaration of a fixture parameter's name therefore does not re-admit a banned modifier. No binder is shipped. The resolution is a RANGE test over positions the parse already carries, not real name resolution. A `typeof`-guarded conditional declaration and a `with` block are outside what these ranges decide. So is any other construct whose real binding a parser cannot see.
+- IDENTITY AND SPELLING ARE TWO RULES FOR ONE QUESTION. The pairing is a decision rather than an oversight. Identity decides every call whose callee the checker resolves. `framework` refuses. `foreign` accepts. In both cases the spelling rule is not consulted. The spelling rule is the import and namespace rename map plus the declared-binding census. It is asked ONLY where the checker resolved no symbol at all. A temporal-dead-zone reference lives exactly there. Keeping it is what preserves D-27's refusals. It is also a second grammar. This file's own history says two grammars can drift apart. What would force it closed: a reproduced case in which the spelling rule REFUSES a construct identity would have called `foreign`. A refusal in that direction is the only way the pairing can be wrong.
+- A callee whose head is not an identifier is decided only where the checker resolves it. `({ test }).test.skip(...)` IS refused. Its member's declaration is the framework's own. A call on `this` yields no symbol and no head segment. So does a call on an object whose member the checker cannot resolve. No membership question can be put in either case.
+- A target repository whose TypeScript cannot create a Program makes NO claim about the specs. The causes are named: no configuration file, one that cannot be read, one that cannot be parsed, or a compiler that throws. It exits 2 with PROGRAM_UNAVAILABLE_REASON and its own cause. A target whose framework declarations do not resolve is the same event and the same exit code. Neither is a pass. Neither is a quieter ban. A smaller ban applied without saying so is a gate lowering. This member replaces exactly that silent degrade. THE GRANULARITY IS WHOLE-RUN. Whole-run is coarser than D-28's per-file boundary. A file's own PARSE stays per-file. The compiler host's reader is wrapped, so one unparseable spec is one could-not-run reason. The denominator floor then names it. The BINDER runs over every root file at once. A single spec whose shape exhausts it blocks the whole run rather than one file. The measurement used a 4,000-link call chain. Blocking is the fail-closed direction and it is never a pass. What would force it closed: a way to bind one file at a time. The compiler's public API does not offer one today.
+- Identity is decided against the framework's own DECLARATION FILES. The ambient-declaration route is MEASURED. The route means a `declare module "@playwright/test"` file inside the target's own program. The installed-package route is NOT measured here. In it those declarations arrive from `node_modules/@playwright/test`. It is reasoned from the same resolution the compiler performs. This repository's dependency set is fixed, so the package cannot be installed to measure it. It is an open `UNKNOWN - verify`, carried beside `R-07`.
 - Completeness against the DECLARED framework surface is asserted in BOTH directions. Forward: every
   spelling the rule refuses is a construct that surface carries and that type-checks against it.
   Reverse: every member reached by walking that surface's declared types with the TypeScript checker

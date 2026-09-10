@@ -58,6 +58,14 @@ export const SKIPPED_DIRECTORIES: readonly string[] = Object.freeze([
   ".git",
   "dist",
   "tools",
+  // D-30 (4): the scratch directory this repository's own probes generate into. A probe that leaves
+  // a spec behind changes what the repository's own gate MEASURES — the derived denominator moves,
+  // and a run that should report the zero-spec vacuity floor reports a finding instead. Skipping it
+  // is the same decision `dist` and `tools` already carry: a generated tree is not this
+  // repository's evidence. Round 5 measured the sibling harm (a stray spec under `.temp/` was
+  // collected by the test runner and the suite died on SIGSEGV); `31-27` closed that at the runner,
+  // and this closes it at the checker.
+  ".temp",
 ]);
 
 // D-14 arm (c), as decided by D-17: the banned member calls are a RULE over the resolved dotted
@@ -337,6 +345,91 @@ export const SKIPPED_DIRECTORIES: readonly string[] = Object.freeze([
 // naming a construct that is not in it, and a checker it measured ADMITTING `it.skip` at module
 // scope because of a dead declaration in an unrelated block.
 // ───────────────────────────────────────────────────────────────────────────────────────────────
+// ───────────────────────────────────────────────────────────────────────────────────────────────
+// D-30 (2026-09-10, gap-closure round 6; the S2 CUTOVER, taken by a NAMED HUMAN at this plan's
+// blocking checkpoint and quoted verbatim in 31-28-SUMMARY.md before any deletion). Forced by
+// CR-18, CR-21, WR-26, WR-29, WR-30, IN-15 and residual RR-07 of 31-REVIEW.md, each independently
+// reproduced in 31-VERIFICATION.md round 6. This is the runnable's mirror of the decision recorded
+// in .planning/phases/31-autonomous-manual-testing/31-CONTEXT.md; the two must agree.
+//
+// WHICH REGISTER FAILED. Not membership (D-17). Not shape resolution (D-18). Not which arms the
+// shape is compared against (D-20). Not the scope the census is asked over (D-27). What failed is
+// THE AUTHORITY THOSE QUESTIONS WERE PUT TO. Every one of them was a question about the TypeScript
+// LANGUAGE — where does this name bind, which declaration does this reference reach, what is the
+// declared type of this callback parameter — and every one of them was answered by a predicate
+// hand-authored in this file. Round 5 shipped one such fix and produced four Criticals in it: a
+// block-scoped function declaration was handed the whole module's range (CR-18); a `using`
+// declaration was classified as hoisting (WR-30); a fixture exemption was granted at a position
+// wider than the map it exempted for (WR-26); and the scenario body was read from a fixed argument
+// index the framework's own documented overload set contradicts (CR-21). Every member of
+// UNRESOLVABLE_CALLEE_RESIDUALS ended with the same four words: *without a type checker.*
+//
+// D-30 THEREFORE CHANGES THE AUTHORITY, NOT THE PREDICATE.
+//
+//   (1) A BANNED CALL IS ONE WHOSE CALLEE RESOLVES, BY SYMBOL IDENTITY, TO A MEMBER DECLARED BY THE
+//       FRAMEWORK ITSELF. `createProgramForTarget` builds a Program from the TARGET repository's own
+//       `typescript` (D-13 already REQUIRES the target to ship it, and `loadTypeScriptFromTarget`
+//       already resolves it), and `resolveBannedModifier` asks that Program's checker which symbol
+//       the callee is. Identity is decided against the framework's own DECLARATION FILES, never
+//       against a module-specifier string, so a re-export chain through any number of intermediate
+//       modules resolves and a local module that merely names itself `@playwright/test` does not.
+//       The membership question the identity path then asks is the SAME `isBannedModifierCall` —
+//       one membership authority, fed a path canonicalised by identity instead of by spelling.
+//
+//   (2) THE RESOLUTION IS TRI-STATE, AND THE MIDDLE STATE IS THE POINT. `framework` decides the
+//       ban. `foreign` — the checker resolved the symbol and it is NOT the framework's — decides
+//       NOT-banned and the spelling rule is never consulted, which is what makes WR-26's false
+//       refusal impossible rather than merely narrowed. `unresolved` — the checker has no symbol —
+//       falls through to the spelling rule below, which is where D-27's temporal-dead-zone refusals
+//       live.
+//
+//   (3) THE SPELLING RULE IS KEPT BESIDE IDENTITY, DELIBERATELY, AND THE PAIRING IS DISCLOSED. This
+//       is two grammars for one question, which this file's own history argues against — and it was
+//       chosen anyway, by the named human at the checkpoint, because identity ALONE loses a refusal
+//       D-27 measured and closed: `it.skip(...)` followed by a later `let it = 1;` in the same block
+//       gives the checker no symbol at all, so identity cannot decide it, while the declared-binding
+//       census can and does. The pairing is a UNION IN THE REFUSING DIRECTION ONLY, it is named in
+//       UNRESOLVABLE_CALLEE_RESIDUALS as a residual of its own, and it is bounded by (2): the
+//       spelling rule is asked only where identity returned no answer.
+//
+//   (4) A PROGRAM THAT CANNOT BE CREATED IS A CHECK THAT DID NOT RUN. RR-07 disclosed a SILENT
+//       degrade — a parser lacking predicates fell back to the pre-D-18 rule, a smaller ban applied
+//       without saying so, which is a gate LOWERING rather than a disclosed limit. A target with no
+//       configuration file, an unreadable or unparseable one, or a `typescript` whose Program throws
+//       now exits through the D-28 could-not-run boundary at exit 2 with PROGRAM_UNAVAILABLE_REASON
+//       and its own cause. The same decision covers the framework itself: a target whose
+//       `@playwright/test` declarations do not resolve gives every callee no symbol, so the check
+//       would pass everything — that too is a could-not-run, never a pass. And the predicate surface
+//       the spelling rule needs joins `loadTypeScriptFromTarget`'s VALIDATED list, so its absence is
+//       the existing loud skip rather than a quieter ban.
+//
+//   (5) FIVE APPROXIMATIONS ARE DELETED, AND TWO DEFECTS INSIDE THE SIXTH ARE FIXED RATHER THAN
+//       LEFT UNDER IDENTITY'S COVER. Deleted: the fixed-index scenario-body read
+//       (`deriveTestInfoParameterNames`), the fixture-position exemption
+//       (`isFixtureBindingPosition`), and the chain-step bound (`CALLEE_CHAIN_STEP_BOUND` with the
+//       recursion that needed it — `calleeDottedPath` now walks an explicit stack, so there is no
+//       frame to exhaust and no allowance to state). Fixed inside the surviving census: a FUNCTION
+//       DECLARATION hoists to its enclosing BLOCK, not to its enclosing function (CR-18), and a
+//       `using` / `await using` declaration is BLOCK-SCOPED and is no longer classified as hoisting
+//       (WR-30). Leaving those two under identity's cover would have been "another rule catches it",
+//       which is the reasoning this phase has now paid for six times.
+//
+// WHAT D-30 DOES NOT ESTABLISH. It does not make the reported SPELLING an authority: the finding's
+// dotted path is derived from the framework's own declared surface for a reader, and a misderived
+// path changes the text of a finding identity already decided, never the verdict. It does not
+// establish the cost or the failure modes of creating a Program in a large host repository — this
+// repository measured its own, and a host's is its own. It does not establish the resolved-package
+// route: `@playwright/test` cannot be installed here (CLAUDE.md fixes the dev dependency set), so
+// the ambient-declaration route is MEASURED and the node_modules route is reasoned — an open
+// `UNKNOWN - verify` carried beside `R-07`. It does not establish anything on Windows, which is
+// `R-03` and is `31-30`'s to measure. And it leaves RR-02, RR-04' and RR-06 as named refusals.
+//
+// Reversibility: ONE-WAY, and the checkpoint is why a human opened the door. The runnable's public
+// contract grew — a target must now provide a `typescript` that can create a Program, and a
+// repository with no configuration file BLOCKS a gate that previously passed. The register shrank
+// and `browser-uat-recipe.md` quotes the smaller one. Reverting means restoring five hand-authored
+// predicates that produced four Criticals in a single round.
+// ───────────────────────────────────────────────────────────────────────────────────────────────
 export const BANNED_MODIFIER_HEADS: readonly string[] = Object.freeze(["test", "describe"]);
 export const BANNED_MODIFIER_TAILS: readonly string[] = Object.freeze([
   "skip",
@@ -461,14 +554,6 @@ export const BANNED_CONFIGURED_PATHS: Readonly<Record<string, string>> = Object.
 
 /** The module specifier a rename must arrive through for D-18 (3) to canonicalise it. */
 const PLAYWRIGHT_TEST_MODULE = "@playwright/test";
-
-/**
- * D-20 (3): the resolved path of a plain scenario call — the one whose callback carries the TestInfo
- * fixture in its SECOND parameter. It is the canonical spelling, so an import-renamed head
- * (`it("a", ...)`) reaches it after D-18 (3)'s canonicalisation and needs no case of its own.
- */
-const TEST_SCENARIO_PATH = "test";
-
 /**
  * D-20 (3): the head segment a TestInfo fixture-parameter binding is rewritten to.
  *
@@ -490,53 +575,29 @@ export const TEST_INFO_CANONICAL_HEAD = `test.info${CALL_LINK_MARKER}`;
  */
 const IMPORT_NAMESPACE_MARKER = "*";
 
-/**
- * D-21 (1): THE ONE AUTHORITY for the chain bound's VALUE, in STEPS. Every resolver that walks a
- * callee chain reads it from here and no resolver writes the number a second time — a second
- * literal is a second allowance with a second value the moment either one is edited, which is one
- * half of how WR-19 happened. The other half is the UNIT, which `CalleeStepBudget` below fixes.
- */
-export const CALLEE_CHAIN_STEP_BOUND = 512;
-
-/**
- * D-21 (1): the bound's UNIT, made explicit as a value that can be THREADED.
- *
- * WHY A MUTABLE OBJECT AND NOT A COUNT PARAMETER. `calleeDottedPath` is recursive (D-18 (1)), and a
- * bound expressed as a loop counter is re-derived by every frame — which silently turned "512 steps
- * per resolution" into "512 steps per recursion frame" and made the residual sentence the recipe
- * quotes false in BOTH its clauses. One shared budget object, decremented on every link INCLUDING
- * the descent into a call link, restores the unit the sentence claims: the allowance belongs to the
- * WHOLE resolution, so interleaving call links can never buy a chain more steps than a flat one.
- */
-export interface CalleeStepBudget {
-  left: number;
-}
-
-/** A fresh allowance for one whole resolution. Exported so a caller can measure what it spent. */
-export function newCalleeStepBudget(): CalleeStepBudget {
-  return { left: CALLEE_CHAIN_STEP_BOUND };
-}
-
-// The callee shapes the resolver CANNOT decide from the source text alone, exported as prose so the
-// recipe quotes the disclosed boundary from the same source as the decided rule. Resolving any of
-// them needs a type checker to follow a binding to its declaration or across a module, and this
-// runnable deliberately ships no type checker (D-13): it resolves `typescript` from the TARGET
-// repository at run time and uses it to PARSE, never to check types. Each shape is therefore NAMED
-// here rather than left as a silence, and the test suite binds every one of them to a decline site
-// it DERIVES from this file's own AST — in both directions, so a residual naming a site the
-// resolver no longer has is caught the same way an undisclosed site is.
+// D-30: THE CALLEE SHAPES THIS RUNNABLE STILL CANNOT DECIDE, exported as prose so the recipe quotes
+// the disclosed boundary from the same source as the decided rule.
+//
+// THE REGISTER SHRANK BY MEASUREMENT, NOT BY ARGUMENT. Before this plan it held NINE members, every
+// one of them ending in the words *without a type checker*. The checker is now asked, so four of
+// them (an aliased binding, a rename through another module, a destructured TestInfo binding, and
+// the nearest-binding scope rule as the ban's only scope authority) are CLOSED — each by a corpus
+// row driven at the gate's own entry that reported `0 findings` / EXIT=0 before and `1 finding(s)` /
+// EXIT=1 after. A fifth (the chain-step bound) was DELETED WITH THE CODE THAT NEEDED IT. A sixth
+// (a parser lacking predicates) is no longer a silent degrade: the predicates are validated, so
+// their absence is the loud skip, and a Program that cannot be created is exit 2. The member below
+// that replaces it states the could-not-run route rather than the degrade.
+//
+// The suite binds every member to a decline site it DERIVES from this file's own AST, in both
+// directions, so a residual naming a site the resolver no longer has is caught the same way an
+// undisclosed site is.
 export const UNRESOLVABLE_CALLEE_RESIDUALS: readonly string[] = Object.freeze([
-  "An aliased binding is not refused: `const t = test;` then a modifier call on `t`. The alias cannot be followed to its declaration without a type checker.",
-  "A member computed from a non-literal expression is not refused: `test[name](...)` where `name` is a variable. The member name is absent from the source text.",
-  "A rename or namespace that arrives through any module other than `@playwright/test` is not canonicalised: `import { test as it } from \"./fixtures\";` then `it.skip(...)`. Following a re-export across files needs module resolution this runnable does not ship, so the rename map is MODULE-SCOPED to the framework's own import declaration.",
-  "A callee whose head is not an identifier is not resolved: a call on an object literal, or on `this`. There is no head segment to read, so no membership question can be put.",
-  // D-21 (1): the NUMBER is interpolated from its one authority rather than spelled a second time,
-  // so the disclosed sentence cannot drift from the allowance the resolver actually spends.
-  `A callee chain longer than the resolver's ${CALLEE_CHAIN_STEP_BOUND}-step bound is not resolved. The bound is ONE allowance for a WHOLE resolution. Every link spends a step, the descent into a call link included. Interleaving calls buys a chain no extra steps. The bound stops a pathological chain from spinning. It also stops one from exhausting the interpreter. It is a stated LIMIT, not a silence. A chain that reaches it yields no path rather than a truncated one.`,
+  "A member computed from a non-literal expression is not decided by identity: `test[name](...)` where `name` is a variable. The checker resolves no symbol at that position. The call then falls to the spelling rule. That rule cannot read a member name the source text does not carry.",
   "An option is ENABLED only when the call's first argument is an object literal assigning it the `true` keyword. A variable argument enables nothing, and neither does a variable option value. This runnable parses and never evaluates.",
-  "A parser that does not expose the import, object-literal or function-like node predicates yields no rename canonicalisation, no option reading and no fixture-parameter canonicalisation. The parser is the TARGET repository's (D-13), so its surface is not this runnable's to assume. The resolver degrades to the pre-D-18 behaviour for those shapes rather than throwing outside the exit-code contract.",
-  "A TestInfo binding destructured in the callback's second parameter is not canonicalised: `test(\"a\", async ({ page }, { skip }) => skip());`. A binding pattern names no single identifier to rewrite, so there is no head segment to canonicalise.",
-  "The scope rule the canonicalisations ask resolves a reference to the NEAREST binding of its name that contains it, and only that binding decides. The census counts a parameter, a `const`/`let`/`var` binding, a destructured binding element, a function name and a class name. An import binding is not counted at all. Ranges differ by KIND. A `var` binding and a function declaration hoist to their enclosing function. A `let`, a `const` and a class begin at their own declaration. A later declaration therefore does not suppress an earlier reference. A MODULE-scope declaration reaches the whole file except where an inner binding of the same name is nearer. The TestInfo fixture-binding position IS such an inner binding, recorded as NON-suppressing. A module-scope declaration of a fixture parameter's name therefore does not re-admit a banned modifier. No binder is shipped. The resolution is a RANGE test over positions the parse already carries, not real name resolution. A `typeof`-guarded conditional declaration and a `with` block are outside what these ranges decide. So is any other construct whose real binding a parser cannot see.",
+  "IDENTITY AND SPELLING ARE TWO RULES FOR ONE QUESTION. The pairing is a decision rather than an oversight. Identity decides every call whose callee the checker resolves. `framework` refuses. `foreign` accepts. In both cases the spelling rule is not consulted. The spelling rule is the import and namespace rename map plus the declared-binding census. It is asked ONLY where the checker resolved no symbol at all. A temporal-dead-zone reference lives exactly there. Keeping it is what preserves D-27's refusals. It is also a second grammar. This file's own history says two grammars can drift apart. What would force it closed: a reproduced case in which the spelling rule REFUSES a construct identity would have called `foreign`. A refusal in that direction is the only way the pairing can be wrong.",
+  "A callee whose head is not an identifier is decided only where the checker resolves it. `({ test }).test.skip(...)` IS refused. Its member's declaration is the framework's own. A call on `this` yields no symbol and no head segment. So does a call on an object whose member the checker cannot resolve. No membership question can be put in either case.",
+  "A target repository whose TypeScript cannot create a Program makes NO claim about the specs. The causes are named: no configuration file, one that cannot be read, one that cannot be parsed, or a compiler that throws. It exits 2 with PROGRAM_UNAVAILABLE_REASON and its own cause. A target whose framework declarations do not resolve is the same event and the same exit code. Neither is a pass. Neither is a quieter ban. A smaller ban applied without saying so is a gate lowering. This member replaces exactly that silent degrade. THE GRANULARITY IS WHOLE-RUN. Whole-run is coarser than D-28's per-file boundary. A file's own PARSE stays per-file. The compiler host's reader is wrapped, so one unparseable spec is one could-not-run reason. The denominator floor then names it. The BINDER runs over every root file at once. A single spec whose shape exhausts it blocks the whole run rather than one file. The measurement used a 4,000-link call chain. Blocking is the fail-closed direction and it is never a pass. What would force it closed: a way to bind one file at a time. The compiler's public API does not offer one today.",
+  "Identity is decided against the framework's own DECLARATION FILES. The ambient-declaration route is MEASURED. The route means a `declare module \"@playwright/test\"` file inside the target's own program. The installed-package route is NOT measured here. In it those declarations arrive from `node_modules/@playwright/test`. It is reasoned from the same resolution the compiler performs. This repository's dependency set is fixed, so the package cannot be installed to measure it. It is an open `UNKNOWN - verify`, carried beside `R-07`.",
 ]);
 
 // D-13: the loud skip for an unresolvable parser. One frozen constant, ONE emission point, so a test
@@ -567,6 +628,12 @@ interface TsNode {
   readonly kind: number;
   readonly parent?: TsNode;
   getStart(sourceFile?: TsSourceFile): number;
+  /**
+   * D-30 (1): the file a DECLARATION comes from. Identity is decided against declaration FILES, so
+   * this is the one accessor that turns a resolved symbol into the question "whose declaration is
+   * this?" — asked through the node, never through a path this file would have to reconstruct.
+   */
+  getSourceFile(): TsSourceFile;
   /**
    * D-27: the range test's other end. `getEnd` is the companion of `getStart` on every node the
    * parse produces, and it is read the same way — through the node, never through a numeric field
@@ -657,9 +724,6 @@ interface TsParameterDeclaration extends TsNode {
   /** An Identifier for a plain parameter; a binding PATTERN for a destructured one. */
   readonly name: TsNode;
 }
-interface TsFunctionLikeExpression extends TsNode {
-  readonly parameters: readonly TsParameterDeclaration[];
-}
 /** D-21 (2): a declaration that always names something — a variable or a binding element. */
 interface TsNamedDeclaration extends TsNode {
   /** An Identifier for a plain binding; a binding PATTERN for a destructured one. */
@@ -668,6 +732,56 @@ interface TsNamedDeclaration extends TsNode {
 /** D-21 (2): a declaration whose name is optional — a default-exported function or class. */
 interface TsOptionallyNamedDeclaration extends TsNode {
   readonly name?: TsNode;
+}
+
+// ── D-30 (1): the minimal structural view of the target's PROGRAM and CHECKER ──────────────────
+//
+// Declared with exactly the members `createProgramForTarget` and `resolveBannedModifier` call, for
+// the same reason the node view above is: the compiler is the TARGET's and its types cannot be
+// imported here without breaking the builtins-only rule this file exists to honour.
+
+/** Opaque to this runnable: it reads no compiler option, it only forwards the parsed record. */
+type TsCompilerOptions = Record<string, unknown>;
+
+/** The one host member this runnable overrides — so a per-file parse fault stays per-file. */
+interface TsCompilerHost {
+  getSourceFile(
+    fileName: string,
+    languageVersionOrOptions: unknown,
+    onError?: (message: string) => void,
+    shouldCreateNewSourceFile?: boolean,
+  ): TsSourceFile | undefined;
+}
+
+interface TsSymbol {
+  readonly name: string;
+  readonly flags: number;
+  readonly parent?: TsSymbol;
+  readonly declarations?: readonly TsNode[];
+  readonly valueDeclaration?: TsNode;
+}
+
+interface TsType {
+  readonly symbol?: TsSymbol;
+  readonly aliasSymbol?: TsSymbol;
+}
+
+interface TsTypeChecker {
+  getSymbolAtLocation(node: TsNode): TsSymbol | undefined;
+  getAliasedSymbol(symbol: TsSymbol): TsSymbol;
+  getTypeAtLocation(node: TsNode): TsType;
+  getTypeOfSymbolAtLocation(symbol: TsSymbol, node: TsNode): TsType;
+  getPropertiesOfType(type: TsType): readonly TsSymbol[];
+  getPropertyOfType(type: TsType, name: string): TsSymbol | undefined;
+  getSignaturesOfType(type: TsType, kind: number): readonly { getReturnType(): TsType }[];
+  getExportsOfModule(symbol: TsSymbol): readonly TsSymbol[];
+  getAmbientModules(): readonly TsSymbol[];
+}
+
+interface TsProgram {
+  getSourceFile(fileName: string): TsSourceFile | undefined;
+  getSourceFiles(): readonly TsSourceFile[];
+  getTypeChecker(): TsTypeChecker;
 }
 
 export interface TsApi {
@@ -700,37 +814,64 @@ export interface TsApi {
   readonly isAsExpression?: (n: TsNode) => boolean;
   readonly isTypeAssertionExpression?: (n: TsNode) => boolean;
   readonly isSatisfiesExpression?: (n: TsNode) => boolean;
-  // D-18 (2) and (3). Declared OPTIONAL for the SAME reason the three assertion predicates above
-  // are: the parser is the TARGET repository's, not this kit's, and a module missing one of them
-  // must degrade to "this shape is not canonicalised / not read" — a DISCLOSED residual — and never
-  // to a thrown TypeError, which would leave the process outside the D-12 contract's { 0, 1, 2 }.
-  // They are deliberately NOT added to loadTypeScriptFromTarget's unconditional validation list:
-  // their absence costs two resolvable shapes, not the whole walk, so it must not become a loud
-  // skip that puts the pass path out of reach.
-  readonly isObjectLiteralExpression?: (n: TsNode) => n is TsObjectLiteralExpression;
-  readonly isPropertyAssignment?: (n: TsNode) => n is TsPropertyAssignment;
-  readonly isImportDeclaration?: (n: TsNode) => n is TsImportDeclaration;
-  readonly isNamedImports?: (n: TsNode) => n is TsNamedImports;
-  readonly isNamespaceImport?: (n: TsNode) => n is TsNamespaceImport;
-  readonly isImportSpecifier?: (n: TsNode) => n is TsImportSpecifier;
-  // D-20 (3), OPTIONAL for the same reason as everything above it: a parser missing them costs the
-  // fixture-parameter canonicalisation — a DISCLOSED residual — and never a thrown TypeError.
-  readonly isArrowFunction?: (n: TsNode) => n is TsFunctionLikeExpression;
-  readonly isFunctionExpression?: (n: TsNode) => n is TsFunctionLikeExpression;
-  // D-21 (2), OPTIONAL for the same reason as everything above it: a parser missing one of them
-  // costs the DECLARED-NAME CENSUS — a DISCLOSED residual — and never a thrown TypeError. Absent
-  // census, the canonicaliser applies no scope rule at all, which is the pre-D-21 behaviour.
-  readonly isParameter?: (n: TsNode) => n is TsParameterDeclaration;
-  readonly isVariableDeclaration?: (n: TsNode) => n is TsNamedDeclaration;
-  readonly isBindingElement?: (n: TsNode) => n is TsNamedDeclaration;
-  readonly isFunctionDeclaration?: (n: TsNode) => n is TsOptionallyNamedDeclaration;
-  readonly isClassDeclaration?: (n: TsNode) => n is TsOptionallyNamedDeclaration;
-  // D-27, OPTIONAL for the same reason as everything above it. It is read at ONE site, to tell a
-  // `var` declaration list — which HOISTS, so a reference above it is legitimately its own — from a
-  // `let`/`const` one, which does not. A parser that does not publish it costs the whole census,
-  // exactly as an absent declaration predicate does, rather than costing the DISTINCTION: guessing
-  // the kind would widen half the ranges in the file, and a wider range is a wider suppression.
-  readonly NodeFlags?: { readonly Let: number; readonly Const: number };
+  // D-30 (4): THESE ARE NO LONGER OPTIONAL. They used to be, and their absence used to make the
+  // resolver fall back to the pre-D-18 rule — a SMALLER ban applied without saying so, which is
+  // RR-07 and which is a gate LOWERING rather than a disclosed limit. They now join
+  // `loadTypeScriptFromTarget`'s validated surface, so a target module missing one of them is the
+  // EXISTING loud skip at exit 2. No per-member fallback: guessing which half of a parser is
+  // present is the shape D-27 already refused for declaration kinds.
+  readonly isObjectLiteralExpression: (n: TsNode) => n is TsObjectLiteralExpression;
+  readonly isPropertyAssignment: (n: TsNode) => n is TsPropertyAssignment;
+  readonly isImportDeclaration: (n: TsNode) => n is TsImportDeclaration;
+  readonly isNamedImports: (n: TsNode) => n is TsNamedImports;
+  readonly isNamespaceImport: (n: TsNode) => n is TsNamespaceImport;
+  readonly isImportSpecifier: (n: TsNode) => n is TsImportSpecifier;
+  readonly isParameter: (n: TsNode) => n is TsParameterDeclaration;
+  readonly isVariableDeclaration: (n: TsNode) => n is TsNamedDeclaration;
+  readonly isBindingElement: (n: TsNode) => n is TsNamedDeclaration;
+  readonly isFunctionDeclaration: (n: TsNode) => n is TsOptionallyNamedDeclaration;
+  readonly isClassDeclaration: (n: TsNode) => n is TsOptionallyNamedDeclaration;
+  // D-27 / WR-30: read at ONE site, to tell a declaration list that HOISTS from one that is
+  // BLOCK-SCOPED. `Using` and `AwaitUsing` stay OPTIONAL members of this record because a parser
+  // predating explicit resource management publishes neither, and a spec written for that parser
+  // cannot contain the syntax either — so their absence costs nothing, unlike `Let`/`Const`.
+  readonly NodeFlags: {
+    readonly Let: number;
+    readonly Const: number;
+    readonly Using?: number;
+    readonly AwaitUsing?: number;
+  };
+  // ── D-30 (1): the Program and checker surface, all REQUIRED and all validated in one place ────
+  readonly createCompilerHost: (options: TsCompilerOptions, setParentNodes?: boolean) => TsCompilerHost;
+  readonly createProgram: (o: {
+    readonly rootNames: readonly string[];
+    readonly options: TsCompilerOptions;
+    readonly host?: TsCompilerHost;
+  }) => TsProgram;
+  readonly findConfigFile: (
+    searchPath: string,
+    fileExists: (f: string) => boolean,
+    configName?: string,
+  ) => string | undefined;
+  readonly readConfigFile: (
+    path: string,
+    readFile: (f: string) => string | undefined,
+  ) => { readonly config?: unknown; readonly error?: { readonly messageText?: unknown } };
+  readonly parseJsonConfigFileContent: (
+    json: unknown,
+    host: unknown,
+    basePath: string,
+  ) => {
+    readonly options: TsCompilerOptions;
+    readonly fileNames: readonly string[];
+    readonly errors: readonly { readonly messageText?: unknown }[];
+  };
+  readonly sys: {
+    readonly fileExists: (f: string) => boolean;
+    readonly readFile: (f: string) => string | undefined;
+  };
+  readonly SymbolFlags: { readonly Alias: number };
+  readonly SignatureKind: { readonly Call: number };
   readonly ScriptTarget: { readonly Latest: number };
   readonly ScriptKind: { readonly TS: number };
   readonly SyntaxKind: {
@@ -759,17 +900,55 @@ export function loadTypeScriptFromTarget(repoRoot: string): TsApi | null {
   try {
     const requireFromTarget = createRequire(join(repoRoot, "package.json"));
     const candidate = requireFromTarget("typescript") as Partial<TsApi>;
-    // The predicates the walk calls UNCONDITIONALLY are validated here. A module missing one of
-    // them cannot be walked, and a walk that throws mid-analysis would exit outside the D-12
-    // contract; an unusable parser is a LOUD SKIP, exactly like an absent one. The three
+    // The members this runnable calls UNCONDITIONALLY are validated here, in ONE place. A module
+    // missing one of them cannot be used, and a call that throws mid-analysis would exit outside
+    // the D-12 contract; an unusable parser is a LOUD SKIP, exactly like an absent one. The three
     // type-assertion predicates are NOT in this list — they are optional and guarded at their call
     // site, because their absence costs one resolvable callee shape rather than the whole walk.
+    //
+    // D-30 (4): THE LIST GREW, AND THE GROWTH IS THE FIX FOR RR-07. The import, object-literal,
+    // declaration and function-like predicates used to be optional and guarded at their call sites,
+    // where an absent one made the resolver fall back to the pre-D-18 rule — a smaller ban applied
+    // WITHOUT SAYING SO. A gate that quietly runs a weaker check is worse than one that says it
+    // could not run, so their absence is now the loud skip. The Program and checker members join
+    // them for the same reason and by the same argument.
+    const required: readonly string[] = [
+      "createSourceFile",
+      "forEachChild",
+      "getLineAndCharacterOfPosition",
+      "isElementAccessExpression",
+      "isStringLiteralLike",
+      "isObjectLiteralExpression",
+      "isPropertyAssignment",
+      "isImportDeclaration",
+      "isNamedImports",
+      "isNamespaceImport",
+      "isImportSpecifier",
+      "isParameter",
+      "isVariableDeclaration",
+      "isBindingElement",
+      "isFunctionDeclaration",
+      "isClassDeclaration",
+      "createCompilerHost",
+      "createProgram",
+      "findConfigFile",
+      "readConfigFile",
+      "parseJsonConfigFileContent",
+    ];
+    const record = candidate as unknown as Record<string, unknown>;
+    for (const member of required) {
+      if (typeof record[member] !== "function") return null;
+    }
+    // The three RECORD members the walk reads, checked the same way and in the same place: a
+    // missing `NodeFlags` costs the census's kind distinction, a missing `SymbolFlags` costs alias
+    // following, and a missing `sys` costs config reading. None of them may degrade quietly.
     if (
-      typeof candidate.createSourceFile !== "function" ||
-      typeof candidate.forEachChild !== "function" ||
-      typeof candidate.getLineAndCharacterOfPosition !== "function" ||
-      typeof candidate.isElementAccessExpression !== "function" ||
-      typeof candidate.isStringLiteralLike !== "function"
+      candidate.NodeFlags === undefined ||
+      candidate.SymbolFlags === undefined ||
+      candidate.SignatureKind === undefined ||
+      candidate.sys === undefined ||
+      typeof candidate.sys.fileExists !== "function" ||
+      typeof candidate.sys.readFile !== "function"
     ) {
       return null;
     }
@@ -777,6 +956,442 @@ export function loadTypeScriptFromTarget(repoRoot: string): TsApi | null {
   } catch {
     return null; // fail-closed → loud skip, never a pass
   }
+}
+
+// ── D-30 (1): the PROGRAM, the CHECKER, and identity ───────────────────────────────────────────
+
+/**
+ * D-30 (4): the ONE reason a run that could not create a Program emits, with ONE emission point so
+ * a case can assert it byte-for-byte and count its emissions.
+ *
+ * It is the D-28 could-not-run route, not a degrade. RR-07 disclosed the old behaviour honestly and
+ * the behaviour itself was wrong: a parser that could not answer made the resolver fall back to a
+ * SMALLER ban, applied without saying so. A check that could not run has made no claim about the
+ * specs, and it never quietly makes a smaller one.
+ */
+export const PROGRAM_UNAVAILABLE_REASON =
+  "COULD NOT RUN: the target repository's TypeScript could not create a program over the derived UAT specs, so the modifier ban could not be decided by symbol identity and NOTHING is claimed about the specs";
+
+/** The bounds the framework-surface walk runs under. Stated, so neither is a hidden allowance. */
+const SURFACE_NODE_BOUND = 4096;
+const SURFACE_DEPTH_BOUND = 6;
+
+/** A binding element, whose `propertyName` is the property a renamed destructuring came from. */
+interface TsBindingElement extends TsNode {
+  readonly name: TsNode;
+  readonly propertyName?: TsIdentifier;
+}
+
+/**
+ * D-30 (1): everything the identity rule needs about ONE target repository, built once per run.
+ *
+ * `frameworkFiles` and `typePaths` are DERIVED from the framework's own module symbol rather than
+ * hand-authored: the files are every file declaring anything reachable from the framework's
+ * exports, and the paths are the shortest route from an export to each declared type. That is what
+ * lets a finding NAME `test.info().skip` without this file carrying the string `TestInfo`.
+ */
+export interface ProgramContext {
+  readonly program: TsProgram;
+  readonly checker: TsTypeChecker;
+  readonly moduleSymbol: TsSymbol;
+  readonly frameworkFiles: ReadonlySet<string>;
+  readonly typePaths: ReadonlyMap<TsSymbol, string>;
+  /** Per-file parse faults the compiler host caught, keyed by the file name it was asked for. */
+  readonly parseFaults: ReadonlyMap<string, string>;
+}
+
+export type ProgramResult =
+  | { readonly ok: true; readonly context: ProgramContext }
+  | { readonly ok: false; readonly cause: string };
+
+/**
+ * D-30 (1): build a Program and a checker from the TARGET repository's own `typescript`.
+ *
+ * WHY THE HOST'S `getSourceFile` IS WRAPPED. `ts.createProgram` parses every root file EAGERLY, and
+ * `ts.createSourceFile` is a recursive-descent parser running on author-controlled source — the
+ * exact fact CR-15 was found on. Without this wrapper a single pathological spec would make program
+ * creation throw, and the whole run would report "could not create a program" instead of the
+ * per-file could-not-run reason D-28 decided. The wrapper keeps the parse boundary PER FILE: the
+ * faulting file gets no SourceFile, the Program is created, and `analyzeSpecs` reports that one
+ * file and increments nothing — so the denominator floor says out loud that the run covered less
+ * than it claims.
+ *
+ * ROOT NAMES ARE THE CONFIG'S FILES UNION THE DERIVED SPECS. A config that excludes the spec
+ * directory must not leave a spec UNCHECKED at exit 0, so the derived set is added rather than
+ * intersected. That union is also what keeps the file set the ban is decided over EQUAL to the file
+ * set the denominator floor counts.
+ */
+export function createProgramForTarget(
+  repoRoot: string,
+  specAbsPaths: readonly string[],
+  ts: TsApi,
+): ProgramResult {
+  let configPath: string | undefined;
+  try {
+    configPath = ts.findConfigFile(repoRoot, ts.sys.fileExists, "tsconfig.json");
+  } catch (cause) {
+    return { ok: false, cause: `the search for a TypeScript configuration file failed (${describeCause(cause)})` };
+  }
+  if (configPath === undefined) {
+    return {
+      ok: false,
+      cause: "no TypeScript configuration file was found at or above the repository root",
+    };
+  }
+  let options: TsCompilerOptions;
+  let configFileNames: readonly string[];
+  try {
+    const read = ts.readConfigFile(configPath, ts.sys.readFile);
+    if (read.error !== undefined) {
+      return { ok: false, cause: `${configPath} could not be read as a configuration file` };
+    }
+    const parsed = ts.parseJsonConfigFileContent(read.config, ts.sys, repoRoot);
+    if (parsed.errors.length > 0) {
+      return {
+        ok: false,
+        cause: `${configPath} did not parse (${parsed.errors.length} configuration error(s))`,
+      };
+    }
+    options = { ...parsed.options, noEmit: true };
+    configFileNames = parsed.fileNames;
+  } catch (cause) {
+    return { ok: false, cause: `${configPath} could not be parsed (${describeCause(cause)})` };
+  }
+
+  const parseFaults = new Map<string, string>();
+  let program: TsProgram;
+  try {
+    const host = ts.createCompilerHost(options, true);
+    const inner = host.getSourceFile.bind(host);
+    host.getSourceFile = (
+      fileName: string,
+      languageVersion: unknown,
+      onError?: (message: string) => void,
+      shouldCreate?: boolean,
+    ): TsSourceFile | undefined => {
+      try {
+        return inner(fileName, languageVersion, onError, shouldCreate);
+      } catch (cause) {
+        parseFaults.set(fileName, describeCause(cause));
+        return undefined;
+      }
+    };
+    const rootNames = [...new Set([...configFileNames, ...specAbsPaths])];
+    program = ts.createProgram({ rootNames, options, host });
+  } catch (cause) {
+    return { ok: false, cause: `the program could not be created (${describeCause(cause)})` };
+  }
+
+  let checker: TsTypeChecker;
+  try {
+    checker = program.getTypeChecker();
+  } catch (cause) {
+    return { ok: false, cause: `the type checker could not be obtained (${describeCause(cause)})` };
+  }
+
+  const moduleSymbol = frameworkModuleSymbol(ts, program, checker);
+  if (moduleSymbol === null) {
+    return {
+      ok: false,
+      cause: `the declarations of ${PLAYWRIGHT_TEST_MODULE} did not resolve, so no call could be decided by identity`,
+    };
+  }
+  const surface = frameworkSurface(ts, checker, moduleSymbol);
+  return {
+    ok: true,
+    context: {
+      program,
+      checker,
+      moduleSymbol,
+      frameworkFiles: surface.files,
+      typePaths: surface.typePaths,
+      parseFaults,
+    },
+  };
+}
+
+/** One sentence for a thrown cause, so every could-not-run reason reads the same way. */
+function describeCause(cause: unknown): string {
+  return cause instanceof Error ? cause.message : String(cause);
+}
+
+/**
+ * D-30 (1): the framework's MODULE SYMBOL, found the two ways a target can supply it.
+ *
+ * An AMBIENT declaration — a `declare module` block in a file the program includes — is found
+ * through the checker's ambient-module table. An INSTALLED package is found through an import
+ * declaration's own module specifier, which the checker resolves exactly as the compiler does. No
+ * specifier STRING is ever compared against a file path, which is what makes a local module that
+ * merely names itself as the framework a different module rather than an accepted one.
+ */
+function frameworkModuleSymbol(
+  ts: TsApi,
+  program: TsProgram,
+  checker: TsTypeChecker,
+): TsSymbol | null {
+  const quoted = `"${PLAYWRIGHT_TEST_MODULE}"`;
+  try {
+    for (const ambient of checker.getAmbientModules()) {
+      if (ambient.name === quoted) return ambient;
+    }
+  } catch {
+    /* an ambient table this parser does not publish is not an error; the import route follows */
+  }
+  for (const sf of program.getSourceFiles()) {
+    let found: TsSymbol | null = null;
+    try {
+      ts.forEachChild(sf, (node) => {
+        if (found !== null) return;
+        if (!ts.isImportDeclaration(node)) return;
+        if (!ts.isStringLiteralLike(node.moduleSpecifier)) return;
+        if (node.moduleSpecifier.text !== PLAYWRIGHT_TEST_MODULE) return;
+        const symbol = checker.getSymbolAtLocation(node.moduleSpecifier);
+        if (symbol !== undefined) found = symbol;
+      });
+    } catch {
+      continue;
+    }
+    if (found !== null) return found;
+  }
+  return null;
+}
+
+/**
+ * D-30 (1): the framework's DECLARATION FILES and the shortest path to each of its declared types,
+ * both DERIVED by walking the module's own exports.
+ *
+ * WHY BOTH COME FROM ONE WALK. The files answer the ban's question — is this member declared by the
+ * framework? — and the paths answer the reader's — what is this construct called? Deriving them
+ * separately would be two censuses of one surface, which is the shape this file's history argues
+ * against. The walk is BREADTH-FIRST, so the path recorded for a type is the shortest route an
+ * author could have written it by, and it is bounded in both size and depth so a large surface
+ * costs a stated amount rather than an open one.
+ */
+function frameworkSurface(
+  ts: TsApi,
+  checker: TsTypeChecker,
+  moduleSymbol: TsSymbol,
+): { readonly files: ReadonlySet<string>; readonly typePaths: ReadonlyMap<TsSymbol, string> } {
+  const files = new Set<string>();
+  const typePaths = new Map<TsSymbol, string>();
+  const addDeclarations = (symbol: TsSymbol): void => {
+    for (const declaration of symbol.declarations ?? []) {
+      try {
+        files.add(declaration.getSourceFile().fileName);
+      } catch {
+        /* a synthesised declaration carries no file; it cannot anchor identity either */
+      }
+    }
+  };
+  addDeclarations(moduleSymbol);
+
+  const queue: { readonly type: TsType; readonly path: string; readonly depth: number }[] = [];
+  try {
+    for (const exported of checker.getExportsOfModule(moduleSymbol)) {
+      addDeclarations(exported);
+      const declaration = exported.valueDeclaration ?? exported.declarations?.[0];
+      if (declaration === undefined) continue;
+      try {
+        queue.push({
+          type: checker.getTypeOfSymbolAtLocation(exported, declaration),
+          path: exported.name,
+          depth: 0,
+        });
+      } catch {
+        /* a type this checker cannot produce contributes no path and no file */
+      }
+    }
+  } catch {
+    return { files, typePaths };
+  }
+
+  for (let head = 0; head < queue.length && typePaths.size < SURFACE_NODE_BOUND; head++) {
+    const { type, path, depth } = queue[head];
+    const symbol = type.aliasSymbol ?? type.symbol;
+    if (symbol !== undefined) {
+      if (typePaths.has(symbol)) continue;
+      typePaths.set(symbol, path);
+      addDeclarations(symbol);
+    }
+    if (depth >= SURFACE_DEPTH_BOUND) continue;
+    try {
+      for (const property of checker.getPropertiesOfType(type)) {
+        addDeclarations(property);
+        const declaration = property.valueDeclaration ?? property.declarations?.[0];
+        if (declaration === undefined) continue;
+        try {
+          queue.push({
+            type: checker.getTypeOfSymbolAtLocation(property, declaration),
+            path: `${path}.${property.name}`,
+            depth: depth + 1,
+          });
+        } catch {
+          /* one unreadable property costs its own subtree, never the walk */
+        }
+      }
+      for (const signature of checker.getSignaturesOfType(type, ts.SignatureKind.Call)) {
+        queue.push({
+          type: signature.getReturnType(),
+          path: `${path}${CALL_LINK_MARKER}`,
+          depth: depth + 1,
+        });
+      }
+    } catch {
+      continue;
+    }
+  }
+  return { files, typePaths };
+}
+
+/**
+ * D-30 (2): what the checker says a call's callee IS.
+ *
+ *   `framework`  — the resolved symbol is declared by the framework itself. The `path` is the
+ *                  identity-canonical spelling the finding names, and the membership question is
+ *                  then put to the SAME `isBannedModifierCall` every other arm asks.
+ *   `foreign`    — the checker resolved the symbol and it is NOT the framework's. The call is not
+ *                  banned and the spelling rule is NOT consulted, which is what makes WR-26's false
+ *                  refusal impossible rather than merely narrower.
+ *   `unresolved` — the checker has no symbol at all. Only here does the spelling rule answer, and
+ *                  that is where D-27's temporal-dead-zone refusals live.
+ */
+export type ModifierIdentity =
+  | { readonly kind: "framework"; readonly path: string }
+  | { readonly kind: "foreign" }
+  | { readonly kind: "unresolved" };
+
+/**
+ * A DROP marker for a namespace head, so `pw.test.skip` is named `test.skip`. It carries a space so
+ * it cannot collide with any path an export name could produce.
+ */
+const IDENTITY_HEAD_DROP = " drop";
+
+/**
+ * D-30 (1) and (2): decide, by SYMBOL IDENTITY, what this call's callee is.
+ *
+ * A SYMBOL DECLARED IN MORE THAN ONE FILE, one of which is the framework's, is treated as the
+ * FRAMEWORK's. Declaration merging can add a member to the framework's own type from a local file,
+ * and for a ban the refusing direction is the safe one.
+ */
+export function resolveBannedModifier(
+  ts: TsApi,
+  ctx: ProgramContext,
+  call: TsCallExpression,
+): ModifierIdentity {
+  const callee = call.expression;
+  const checker = ctx.checker;
+  let symbol: TsSymbol | undefined;
+  try {
+    symbol = checker.getSymbolAtLocation(callee);
+  } catch {
+    return { kind: "unresolved" };
+  }
+  if (symbol === undefined) return { kind: "unresolved" };
+  symbol = followAlias(ts, checker, symbol);
+  symbol = throughBindingElement(ts, checker, symbol) ?? symbol;
+  const declarations = symbol.declarations ?? [];
+  if (declarations.length === 0) return { kind: "unresolved" };
+  let fromFramework = false;
+  for (const declaration of declarations) {
+    try {
+      if (ctx.frameworkFiles.has(declaration.getSourceFile().fileName)) fromFramework = true;
+    } catch {
+      /* a declaration with no file cannot anchor identity in either direction */
+    }
+  }
+  if (!fromFramework) return { kind: "foreign" };
+  return { kind: "framework", path: identityPath(ts, ctx, callee, symbol) };
+}
+
+/** Follow an import or export alias to the symbol it names. A non-alias is returned unchanged. */
+function followAlias(ts: TsApi, checker: TsTypeChecker, symbol: TsSymbol): TsSymbol {
+  if ((symbol.flags & ts.SymbolFlags.Alias) === 0) return symbol;
+  try {
+    return checker.getAliasedSymbol(symbol);
+  } catch {
+    return symbol;
+  }
+}
+
+/**
+ * D-30 (1), closing RR-08: a DESTRUCTURED binding names a LOCAL whose declaration is the spec file,
+ * so identity asked of it alone would answer `foreign` for `async ({ page }, { skip }) => skip()`.
+ * The symbol identity is about is the PROPERTY the pattern destructures, and the checker produces
+ * it from the pattern's own type — including for a renamed destructuring, where the property name
+ * and the local name differ.
+ */
+function throughBindingElement(
+  ts: TsApi,
+  checker: TsTypeChecker,
+  symbol: TsSymbol,
+): TsSymbol | undefined {
+  const declaration = symbol.declarations?.[0];
+  if (declaration === undefined || !ts.isBindingElement(declaration)) return undefined;
+  const pattern = declaration.parent;
+  if (pattern === undefined) return undefined;
+  const propertyName = (declaration as unknown as TsBindingElement).propertyName;
+  const wanted =
+    propertyName !== undefined && ts.isIdentifier(propertyName) ? propertyName.text : symbol.name;
+  try {
+    return checker.getPropertyOfType(checker.getTypeAtLocation(pattern), wanted);
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * D-30: the spelling a finding NAMES for a call identity has already decided.
+ *
+ * THIS IS A READER'S QUESTION, NOT AN AUTHORITY. The verdict was decided by the symbol; this only
+ * chooses what to call the construct, so a path derived wrongly here changes the TEXT of a finding
+ * and never whether there is one. The syntactic path is preferred when the source carries one, with
+ * its HEAD rewritten by identity, because that is the spelling an author recognises; a call whose
+ * source carries no readable head is named from the type that DECLARES the member.
+ */
+function identityPath(ts: TsApi, ctx: ProgramContext, callee: TsNode, symbol: TsSymbol): string {
+  const syntactic = calleeDottedPath(ts, callee);
+  if (syntactic !== null) {
+    const segments = syntactic.split(".");
+    if (segments.length >= 2 && !segments[0].endsWith(CALL_LINK_MARKER)) {
+      const head = calleeHeadIdentifier(ts, callee);
+      const rewritten = head === null ? null : identityHeadSegment(ts, ctx, head);
+      if (rewritten === IDENTITY_HEAD_DROP) return segments.slice(1).join(".");
+      if (rewritten !== null) {
+        segments[0] = rewritten;
+        return segments.join(".");
+      }
+      return syntactic;
+    }
+  }
+  const parent = symbol.parent;
+  if (parent !== undefined) {
+    // An EXPORT of the framework module is named by its EXPORT name, so `import { expect as check }`
+    // is asked and reported as `expect` rather than as the local spelling.
+    if (parent === ctx.moduleSymbol) return symbol.name;
+    const owner = ctx.typePaths.get(parent);
+    if (owner !== undefined) return `${owner}.${symbol.name}`;
+  }
+  return syntactic ?? symbol.name;
+}
+
+/** The head segment identity gives this callee: an export name, a DROP for a namespace, or null. */
+function identityHeadSegment(ts: TsApi, ctx: ProgramContext, head: TsNode): string | null {
+  const checker = ctx.checker;
+  try {
+    const symbol = checker.getSymbolAtLocation(head);
+    if (symbol !== undefined && followAlias(ts, checker, symbol) === ctx.moduleSymbol) {
+      return IDENTITY_HEAD_DROP;
+    }
+    const type = checker.getTypeAtLocation(head);
+    const typeSymbol = type.aliasSymbol ?? type.symbol;
+    if (typeSymbol !== undefined) {
+      const path = ctx.typePaths.get(typeSymbol);
+      if (path !== undefined) return path;
+    }
+  } catch {
+    return null;
+  }
+  return null;
 }
 
 // ── D-15: the two-stage, fail-closed, injectable browser probe ─────────────────────────────────
@@ -1080,13 +1695,13 @@ function isLogicalOperator(ts: TsApi, kind: number): boolean {
  * identifier node, which is what lets the caller report a single finding per assertion instead of
  * one per link in the chain.
  *
- * D-21 (1): this walk is FLAT — it never calls itself — so a loop counter really is one allowance
- * for one whole resolution here and needs no threaded budget. What it must NOT have is a second
- * spelling of the NUMBER, so it reads the one authority above.
+ * D-30 (5): this walk is FLAT and every step DESCENDS to a strict child of a finite parse tree, so
+ * it terminates without an allowance. It used to read the chain-step bound, which is why the bound
+ * had to be deleted here as well as in `calleeDottedPath` rather than only where WR-19 found it.
  */
 function calleeHeadIdentifier(ts: TsApi, expr: TsNode): TsIdentifier | null {
   let cur: TsNode = expr;
-  for (let guard = 0; guard < CALLEE_CHAIN_STEP_BOUND; guard++) {
+  for (;;) {
     if (ts.isIdentifier(cur)) return cur;
     if (ts.isCallExpression(cur)) {
       cur = cur.expression;
@@ -1102,7 +1717,6 @@ function calleeHeadIdentifier(ts: TsApi, expr: TsNode): TsIdentifier | null {
     }
     return null;
   }
-  return null;
 }
 
 /**
@@ -1151,20 +1765,37 @@ function calleeHeadIdentifier(ts: TsApi, expr: TsNode): TsIdentifier | null {
  * The shapes it still cannot resolve are named in UNRESOLVABLE_CALLEE_RESIDUALS, and the test suite
  * derives this function's decline sites from its own AST and binds each one to that register.
  */
-export function calleeDottedPath(
-  ts: TsApi,
-  expr: TsNode,
-  budget: CalleeStepBudget = newCalleeStepBudget(),
-): string | null {
-  const segments: string[] = [];
+export function calleeDottedPath(ts: TsApi, expr: TsNode): string | null {
+  // D-30 (5): AN EXPLICIT STACK, AND THEREFORE NO BOUND AT ALL. D-18 (1) made this walk recursive
+  // to fold a call link; D-21 (1) then had to thread a shared step budget through that recursion so
+  // a 4,000-link chain could not exhaust the interpreter. Both the recursion and the allowance are
+  // gone: `pending` holds the call-link descents this resolution still owes, the loop visits each
+  // AST node at most once, and a finite tree terminates without anything having to say how many
+  // links are too many. RR-05 — the residual that stated the allowance — leaves the register with
+  // the mechanism that needed it, rather than being carried as a limit about code the module no
+  // longer has.
+  //
+  // WHAT A `pending` FRAME IS. When the walk reaches a CallExpression it must resolve that call's
+  // OWN callee first and then fold the result into one marked segment. The frame records the
+  // segments collected so far, so the fold happens exactly where the recursion used to return.
+  const pending: string[][] = [];
+  let segments: string[] = [];
   let cur: TsNode = expr;
-  // ONE SHARED BUDGET (D-21 (1)): one step per link, spent by this loop and by the recursive
-  // descent below alike, so a pathological chain cannot spin AND cannot recurse past the allowance.
-  for (; budget.left > 0; budget.left--) {
+  for (;;) {
     if (ts.isIdentifier(cur)) {
       segments.push(cur.text);
       segments.reverse();
-      return segments.join(".");
+      let resolved = segments.join(".");
+      // Unwind every owed call-link descent, innermost first. D-18 (1): the inner path becomes ONE
+      // segment carrying the marker, in the ROUTING position D-17 already decided membership does
+      // not read.
+      while (pending.length > 0) {
+        const outer = pending.pop() as string[];
+        outer.push(`${resolved}${CALL_LINK_MARKER}`);
+        outer.reverse();
+        resolved = outer.join(".");
+      }
+      return resolved;
     }
     if (ts.isPropertyAccessExpression(cur)) {
       segments.push(cur.name.text);
@@ -1172,17 +1803,13 @@ export function calleeDottedPath(
       continue;
     }
     if (ts.isCallExpression(cur)) {
-      // D-21 (1): THE DESCENT IS ITSELF A LINK, and it is charged here rather than by the loop's own
-      // update expression, which this branch never reaches. Without this decrement the budget would
-      // be threaded and never spent on the one edge that can recurse — the exact shape WR-19 found.
-      budget.left--;
-      // D-18 (1). An inner path that does not resolve leaves the WHOLE path unresolved: a marker
-      // over an unknown head would invent a segment the source text does not carry.
-      const inner = calleeDottedPath(ts, cur.expression, budget);
-      if (inner === null) return null;
-      segments.push(`${inner}()`);
-      segments.reverse();
-      return segments.join(".");
+      // D-18 (1). An inner path that does not resolve leaves the WHOLE path unresolved — every
+      // `return null` below exits the loop outright, so no owed frame is ever folded over an
+      // unknown head, which would invent a segment the source text does not carry.
+      pending.push(segments);
+      segments = [];
+      cur = cur.expression;
+      continue;
     }
     if (ts.isElementAccessExpression(cur)) {
       const arg = cur.argumentExpression;
@@ -1202,7 +1829,6 @@ export function calleeDottedPath(
     }
     return null;
   }
-  return null;
 }
 
 /**
@@ -1221,11 +1847,11 @@ export function enabledOptionKeys(ts: TsApi, call: TsNode): ReadonlySet<string> 
   if (!ts.isCallExpression(call)) return null;
   const first = call.arguments[0];
   if (first === undefined) return null;
+  // D-30 (4): the two predicates are VALIDATED at load time, so their absence is the loud skip
+  // rather than a quieter option reading. The guard that used to stand here was a decline site
+  // bound to RR-07, and it is gone with the residual.
   const isObjectLiteral = ts.isObjectLiteralExpression;
   const isPropertyAssignment = ts.isPropertyAssignment;
-  if (typeof isObjectLiteral !== "function" || typeof isPropertyAssignment !== "function") {
-    return null;
-  }
   if (!isObjectLiteral(first)) return null;
   const keys = new Set<string>();
   for (const property of first.properties) {
@@ -1263,9 +1889,10 @@ export function chainEnabledOptionKeys(ts: TsApi, call: TsNode): ReadonlySet<str
   const keys = new Set<string>();
   let readAnyLink = false;
   let cur: TsNode = call;
-  // The same step limit the two resolvers use, read from its ONE authority (D-21 (1)). This walk is
-  // FLAT — it never calls itself — so a loop counter is one allowance for one whole fold here.
-  for (let guard = 0; guard < CALLEE_CHAIN_STEP_BOUND; guard++) {
+  // D-30 (5): FLAT, and every step DESCENDS to a strict child of a finite parse tree, so the fold
+  // terminates with no allowance to state. It read the chain-step bound before that bound was
+  // deleted with the recursion it existed for.
+  for (;;) {
     if (ts.isCallExpression(cur)) {
       const own = enabledOptionKeys(ts, cur);
       if (own !== null) {
@@ -1307,19 +1934,14 @@ export function chainEnabledOptionKeys(ts: TsApi, call: TsNode): ReadonlySet<str
  * Returns `null` when the parser does not expose the import predicates — the resolver then degrades
  * to the pre-D-18 behaviour for this one shape rather than throwing outside the D-12 exit codes.
  */
-export function deriveImportRenames(ts: TsApi, sf: TsSourceFile): ReadonlyMap<string, string> | null {
+export function deriveImportRenames(ts: TsApi, sf: TsSourceFile): ReadonlyMap<string, string> {
+  // D-30 (4): the four import predicates are VALIDATED at load time, so this derivation can no
+  // longer return `null` for an absent parser surface. The return type narrowed with the guard,
+  // which is what removes the decline site RR-07 was bound to instead of leaving a dead arm.
   const isImportDeclaration = ts.isImportDeclaration;
   const isNamedImports = ts.isNamedImports;
   const isNamespaceImport = ts.isNamespaceImport;
   const isImportSpecifier = ts.isImportSpecifier;
-  if (
-    typeof isImportDeclaration !== "function" ||
-    typeof isNamedImports !== "function" ||
-    typeof isNamespaceImport !== "function" ||
-    typeof isImportSpecifier !== "function"
-  ) {
-    return null;
-  }
   const renames = new Map<string, string>();
   ts.forEachChild(sf, (node) => {
     if (!isImportDeclaration(node)) return;
@@ -1346,68 +1968,6 @@ export function deriveImportRenames(ts: TsApi, sf: TsSourceFile): ReadonlyMap<st
 }
 
 /**
- * D-20 (3): the source file's TestInfo FIXTURE-PARAMETER names — the local name bound to the
- * TestInfo fixture by the SECOND parameter of the function passed as the SECOND argument to a
- * `test(...)`-headed call.
- *
- * WHY THIS NEEDS NO TYPE CHECKER, WHICH IS THE SAME ARGUMENT D-18 (3) MAKES FOR
- * `ImportSpecifier.propertyName`. The binding is POSITIONAL, and the position is a literal already
- * present in the source text: Playwright hands the TestInfo fixture to the scenario body as its
- * second parameter, so `test("a", async ({ page }, testInfo) => …)` carries both the framework call
- * and the local name in one node. Nothing has to be followed to a declaration, and nothing is.
- *
- * THE HEAD IS CANONICALISED FIRST, so a renamed framework binding composes: `import { test as it }`
- * followed by `it("a", async ({ page }, info) => …)` contributes `info`, because the callee's own
- * path is asked as `test` before this derivation reads its arguments.
- *
- * A DESTRUCTURED SECOND PARAMETER CONTRIBUTES NOTHING, and that is a decision rather than an
- * oversight: a binding pattern names no single identifier to rewrite, so there is no head segment to
- * canonicalise. It is NAMED in UNRESOLVABLE_CALLEE_RESIDUALS with a reason true of it.
- *
- * Returns `null` when the parser does not expose the function-like predicates — the resolver then
- * degrades to the pre-D-20 behaviour for this one shape rather than throwing outside the D-12 exit
- * codes.
- */
-export function deriveTestInfoParameterNames(
-  ts: TsApi,
-  sf: TsSourceFile,
-  renames: ReadonlyMap<string, string> | null,
-  bindings: readonly DeclaredBinding[] | null = null,
-): ReadonlySet<string> | null {
-  const isArrowFunction = ts.isArrowFunction;
-  const isFunctionExpression = ts.isFunctionExpression;
-  if (typeof isArrowFunction !== "function" || typeof isFunctionExpression !== "function") {
-    return null;
-  }
-  const names = new Set<string>();
-  const visit = (node: TsNode): void => {
-    if (ts.isCallExpression(node)) {
-      // D-27: the scenario call's OWN head is asked through the same scope rule, AND with its own
-      // position. A file whose renamed framework name is bound at THIS call site does not have a
-      // Playwright scenario here, so it must not contribute a fixture-parameter binding either — but
-      // a declaration in some unrelated scope must not take the scenario away from it. The position
-      // is the CALL's `getStart(sf)`, never a file-level constant.
-      const callee = canonicaliseHeadSegment(
-        calleeDottedPath(ts, node.expression),
-        renames,
-        null,
-        bindings === null ? null : { bindings, position: node.getStart(sf) },
-      );
-      if (callee === TEST_SCENARIO_PATH) {
-        const body = node.arguments[1];
-        if (body !== undefined && (isArrowFunction(body) || isFunctionExpression(body))) {
-          const second = body.parameters[1];
-          if (second !== undefined && ts.isIdentifier(second.name)) names.add(second.name.text);
-        }
-      }
-    }
-  };
-  // D-21 (1): the one non-recursive walk. A deep spec must not cost interpreter stack here either.
-  forEachDescendant(ts, sf, visit);
-  return names;
-}
-
-/**
  * D-27 (2026-09-09): ONE DECLARED BINDING — a name, the RANGE its declaration KIND gives it, and
  * whether that binding SUPPRESSES a canonicalisation.
  *
@@ -1424,8 +1984,6 @@ export interface DeclaredBinding {
   readonly start: number;
   /** EXCLUSIVE. A range that ends exactly where a reference starts does NOT contain it. */
   readonly end: number;
-  /** True for every ordinary declaration; false ONLY for the TestInfo fixture-binding position. */
-  readonly suppresses: boolean;
 }
 
 /**
@@ -1515,8 +2073,9 @@ function enclosingScope(node: TsNode, sf: TsSourceFile): TsNode {
 
 /** The PARAMETER this declaration belongs to — itself, or the one its binding pattern destructures. */
 function parameterOf(ts: TsApi, node: TsNode): TsNode | undefined {
+  // D-30 (4): `isParameter` is VALIDATED at load time, so the guard that used to stand here — a
+  // decline site bound to RR-07 — is gone with the residual.
   const isParameter = ts.isParameter;
-  if (typeof isParameter !== "function") return undefined;
   let cur: TsNode | undefined = node;
   while (cur !== undefined) {
     if (isParameter(cur)) return cur;
@@ -1548,11 +2107,25 @@ function declarationListOf(node: TsNode): TsNode | undefined {
   return undefined;
 }
 
-/** Does this declaration list HOIST? `var` does; `let` and `const` do not. */
+/**
+ * Does this declaration list HOIST? `var` does; `let`, `const`, `using` and `await using` do not.
+ *
+ * D-30 (5), CLOSING WR-30. This arm used to decide by the ABSENCE of two flag bits — `Let` and
+ * `Const` — which made every declaration kind TypeScript has added since, and every one it adds
+ * next, answer "hoists". Measured on this repository's parser (typescript 6.0.3): `Using` is 4 and
+ * carries neither bit, so a `using` declaration was classified as hoisting and its suppression
+ * range widened to the whole enclosing function, which for a BAN is the ACCEPTING direction.
+ * (`AwaitUsing` is 6, which carries the `Const` bit, so it was never misclassified — the Warning's
+ * own fix sketch would have been a no-op for that half. Measured, and recorded rather than
+ * repeated.) The mask now names every block-scoping flag the parser publishes, and the two
+ * explicit-resource-management flags stay OPTIONAL members of the record: a parser that predates
+ * them cannot parse the syntax either, so their absence costs nothing.
+ */
 function listHoists(ts: TsApi, list: TsNode): boolean {
   const nodeFlags = ts.NodeFlags;
-  if (nodeFlags === undefined) return false;
-  return ((list.flags ?? 0) & (nodeFlags.Let | nodeFlags.Const)) === 0;
+  const blockScoped =
+    nodeFlags.Let | nodeFlags.Const | (nodeFlags.Using ?? 0) | (nodeFlags.AwaitUsing ?? 0);
+  return ((list.flags ?? 0) & blockScoped) === 0;
 }
 
 /**
@@ -1588,8 +2161,15 @@ export function bindingRangeFor(
     return { ...rangeOfNode(catchClause, sf), arm: "catch" };
   }
   const isFunctionDeclaration = ts.isFunctionDeclaration;
-  if (typeof isFunctionDeclaration === "function" && isFunctionDeclaration(declaration)) {
-    return { ...rangeOfNode(enclosingFunctionLike(declaration) ?? sf, sf), arm: "hoisted" };
+  if (isFunctionDeclaration(declaration)) {
+    // D-30 (5), CLOSING CR-18. A FUNCTION DECLARATION hoists to its enclosing BLOCK, not to its
+    // enclosing FUNCTION. In an ES module a function declared inside `if (false) { … }` is
+    // block-scoped and binds nothing at module scope, and handing it the enclosing function-like
+    // node — the whole SourceFile at module scope — made a three-line dead block suppress a genuine
+    // module-scope banned call: `0 findings` / EXIT=1 became `0 findings` / EXIT=0. `enclosingScope`
+    // is the SAME authority the temporal-dead-zone arm already asks, so this arm now differs from
+    // that one only in WHERE THE RANGE STARTS, which is the only thing hoisting is about.
+    return { ...rangeOfNode(enclosingScope(declaration, sf), sf), arm: "hoisted" };
   }
   const list = declarationListOf(declaration);
   if (list !== undefined && listHoists(ts, list)) {
@@ -1637,50 +2217,37 @@ export function bindingRangeFor(
  *
  * THE ONE NON-SUPPRESSING RECORD, AND WHY IT IS A POSITION RATHER THAN A NAME. A parameter at index
  * 1 of a function that is itself the SECOND ARGUMENT of a call expression is recorded with
- * `suppresses: false`, because that is exactly where `deriveTestInfoParameterNames` binds. The
- * exemption is stated as a POSITION and not as "a name in the fixture map" so that this derivation
- * does not depend on the map it is meant to constrain: a census derived from that map, and then used
- * to constrain it, would be a fixed point this runnable does not compute (D-20 (3)).
+ * D-30 (5): THE ONE NON-SUPPRESSING RECORD IS GONE, WITH THE MAP IT CONSTRAINED. It existed to keep
+ * a TestInfo fixture parameter visible to `deriveTestInfoParameterNames`, and that derivation — the
+ * fixed-index read CR-21 was found on — has been deleted, because the checker answers the same
+ * question by TYPE and at every argument position the framework documents. An exemption whose only
+ * reason has been deleted is a superset of nothing, so every binding this census records now
+ * suppresses. WR-26 was that exemption granted one position too wide; identity now answers the call
+ * it mis-refused, and the exemption is not narrowed, it is removed.
  *
- * Returns `null` when the parser does not expose the declaration predicates, the node flags or
- * `getEnd` — the canonicaliser then applies no scope rule at all, which is the pre-D-21 behaviour,
- * rather than throwing outside the D-12 exit codes.
+ * D-30 (4): the declaration predicates and the node flags are VALIDATED at load time, so this
+ * derivation can no longer return `null` for an absent parser surface. The return type narrowed
+ * with the guard, which is what removes the decline site RR-07 was bound to.
  */
-export function deriveDeclaredBindings(
-  ts: TsApi,
-  sf: TsSourceFile,
-): readonly DeclaredBinding[] | null {
+export function deriveDeclaredBindings(ts: TsApi, sf: TsSourceFile): readonly DeclaredBinding[] {
   const isParameter = ts.isParameter;
   const isVariableDeclaration = ts.isVariableDeclaration;
   const isBindingElement = ts.isBindingElement;
   const isFunctionDeclaration = ts.isFunctionDeclaration;
   const isClassDeclaration = ts.isClassDeclaration;
-  if (
-    typeof isParameter !== "function" ||
-    typeof isVariableDeclaration !== "function" ||
-    typeof isBindingElement !== "function" ||
-    typeof isFunctionDeclaration !== "function" ||
-    typeof isClassDeclaration !== "function" ||
-    ts.NodeFlags === undefined ||
-    typeof sf.getEnd !== "function"
-  ) {
-    return null;
-  }
   const bindings: DeclaredBinding[] = [];
-  const record = (name: string, declaration: TsNode, suppresses: boolean): void => {
+  const record = (name: string, declaration: TsNode): void => {
     const range = bindingRangeFor(ts, sf, declaration);
-    bindings.push({ name, start: range.start, end: range.end, suppresses });
+    bindings.push({ name, start: range.start, end: range.end });
   };
   forEachDescendant(ts, sf, (node) => {
     if (isParameter(node)) {
-      if (ts.isIdentifier(node.name)) {
-        record(node.name.text, node, !isFixtureBindingPosition(ts, node));
-      }
+      if (ts.isIdentifier(node.name)) record(node.name.text, node);
     } else if (isVariableDeclaration(node) || isBindingElement(node)) {
-      if (ts.isIdentifier(node.name)) record(node.name.text, node, true);
+      if (ts.isIdentifier(node.name)) record(node.name.text, node);
     } else if (isFunctionDeclaration(node) || isClassDeclaration(node)) {
       const named = node.name;
-      if (named !== undefined && ts.isIdentifier(named)) record(named.text, node, true);
+      if (named !== undefined && ts.isIdentifier(named)) record(named.text, node);
     }
   });
   return bindings;
@@ -1727,39 +2294,12 @@ export function resolveBinding(
       nearest = binding;
       continue;
     }
-    if (binding.end > nearest.end) continue;
-    // AN EXACT TIE, decided in the ban's safe direction rather than left to the loop's order.
-    if (!binding.suppresses) nearest = binding;
+    // AN EXACT TIE OF BOTH ENDS. D-27 decided it in the ban's safe direction by preferring the
+    // NON-suppressing record; D-30 (5) deleted the only non-suppressing record there was, so the two
+    // tied records are now indistinguishable and the first one answers. Keeping a preference over a
+    // distinction that no longer exists would be a branch no input can reach.
   }
   return nearest;
-}
-
-/**
- * D-27 (WR-23): is this parameter at the position the TestInfo fixture map BINDS — index 1 of a
- * function-like node that is ITSELF THE SECOND ARGUMENT of a call expression?
- *
- * D-21 (2) stated the exemption for index 1 of ANY function-like node, which is one position too
- * wide: a helper whose second parameter shares a renamed import's local name was left out of the
- * census, so the canonicalisation fired on it and the checker refused a legitimate spec while naming
- * `test.skip`, a construct absent from the file. That is WR-20 verbatim, one register over.
- *
- * The narrowing is the SAME scoping rule as CR-14's fix and not a second rule: both say the
- * exemption and the suppression must name the position they are actually about. The exemption stays
- * a POSITION rather than becoming membership of the fixture map, so D-20 (3)'s fixed-point argument
- * is preserved exactly.
- *
- * The parent chain is read directly, which `createSourceFile` populates because it is called with
- * `setParentNodes` true (the same fact `bannedContextOf` relies on).
- */
-function isFixtureBindingPosition(ts: TsApi, param: TsParameterDeclaration): boolean {
-  const owner = param.parent as TsFunctionLikeExpression | undefined;
-  if (owner === undefined) return false;
-  const parameters = owner.parameters;
-  if (parameters === undefined) return false;
-  if (parameters[1] !== param) return false;
-  const call = owner.parent;
-  if (call === undefined || !ts.isCallExpression(call)) return false;
-  return call.arguments[1] === (owner as TsNode);
 }
 
 /**
@@ -1774,28 +2314,25 @@ function isFixtureBindingPosition(ts: TsApi, param: TsParameterDeclaration): boo
  */
 export function canonicaliseHeadSegment(
   dottedPath: string | null,
-  renames: ReadonlyMap<string, string> | null,
-  fixtureParams: ReadonlySet<string> | null = null,
+  renames: ReadonlyMap<string, string>,
   scope: BindingScope | null = null,
 ): string | null {
   if (dottedPath === null) return dottedPath;
   const segments = dottedPath.split(".");
-  // D-27: THE SCOPE RULE, ASKED ONCE FOR EVERY MAP, AND NOW ASKED WITH A POSITION. A head bound by
-  // the NEAREST declaration containing this reference is left alone, whichever map would have
-  // rewritten it; a declaration in some other scope does not answer at all. Writing this rule inside
-  // either map's derivation would be the WR-20 defect one map over the moment a third map arrives,
-  // so it is asked here — the one place a head segment is rewritten — and it wins over BOTH.
-  if (scope !== null) {
-    const nearest = resolveBinding(scope.bindings, segments[0], scope.position);
-    if (nearest !== undefined && nearest.suppresses) return dottedPath;
+  // D-27: THE SCOPE RULE, ASKED WITH THIS REFERENCE'S OWN POSITION. A head bound by the NEAREST
+  // declaration containing this reference is left alone; a declaration in some other scope does not
+  // answer at all. Writing this rule inside the map's own derivation would be the WR-20 defect one
+  // map over the moment a second map arrives, so it is asked here — the one place a head segment is
+  // rewritten by spelling.
+  //
+  // D-30 (3): this whole function now serves the SECOND rule only. Identity decides every call the
+  // checker can resolve, and the spelling rule is asked exclusively where it could not — which is
+  // where a temporal-dead-zone reference lives, and which is why the census survives the cutover.
+  if (scope !== null && resolveBinding(scope.bindings, segments[0], scope.position) !== undefined) {
+    return dottedPath;
   }
-  const imported = renames === null ? undefined : renames.get(segments[0]);
+  const imported = renames.get(segments[0]);
   if (imported !== undefined) {
-    // PRECEDENCE, ASSERTED RATHER THAN LEFT TO READING ORDER (D-20 (3)). An import rename wins over
-    // a fixture-parameter binding of the same name: the rename is a FILE-SCOPED declaration, while a
-    // fixture parameter's real reach is one callback body and this derivation is deliberately not
-    // scope-aware. Both spellings of a banned tail are refused either way; what the precedence
-    // decides is which canonical path the finding NAMES.
     if (imported === IMPORT_NAMESPACE_MARKER) {
       // A namespace head is DROPPED: `pw.test.skip` is asked as `test.skip`. A bare `pw(...)` has no
       // segment left to ask about, so it passes through unchanged rather than becoming an empty path.
@@ -1803,12 +2340,6 @@ export function canonicaliseHeadSegment(
       return segments.slice(1).join(".");
     }
     segments[0] = imported;
-    return segments.join(".");
-  }
-  // D-20 (3): a TestInfo fixture-parameter binding is asked as the marked accessor form D-18 (1)
-  // already decided, so `testInfo.skip` is asked as `test.info().skip`.
-  if (fixtureParams !== null && fixtureParams.has(segments[0])) {
-    segments[0] = TEST_INFO_CANONICAL_HEAD;
     return segments.join(".");
   }
   return dottedPath;
@@ -1856,7 +2387,11 @@ function canonicalAssertionHead(dottedPath: string | null): string | null {
   // strip broke ZERO cases, because the INNER link of that same chain is `expect(...)`, whose first
   // segment is the bare head, and both links are visited. A branch no case can reach is a branch
   // nobody derived, so it is gone rather than kept for symmetry.
-  return ASSERTION_HEADS.includes(dottedPath.split(".")[0]) ? dottedPath.split(".")[0] : null;
+  // IN-15: the split runs ONCE, into a local both positions read. The same string split twice in
+  // one expression is two chances for two readings of one path to disagree when this line is next
+  // edited, which is the identical argument IN-12 made for the routing normaliser.
+  const head = dottedPath.split(".")[0];
+  return ASSERTION_HEADS.includes(head) ? head : null;
 }
 
 /** The three assertion node kinds, each guarded because the target's parser may predate it. */
@@ -1869,7 +2404,12 @@ function isTypeAssertionLike(ts: TsApi, node: TsNode): boolean {
 }
 
 /** Every finding in one spec, in source order, as the union of all three arms. */
-export function findBannedConstructs(ts: TsApi, sf: TsSourceFile, relPath: string): string[] {
+export function findBannedConstructs(
+  ts: TsApi,
+  sf: TsSourceFile,
+  relPath: string,
+  ctx: ProgramContext,
+): string[] {
   const findings: Array<{ pos: number; text: string }> = [];
   // Arms (a) and (b) are keyed on the HEAD IDENTIFIER's position so a chained assertion reports
   // once. Arm (c) matches a single call shape and needs no such key.
@@ -1885,14 +2425,10 @@ export function findBannedConstructs(ts: TsApi, sf: TsSourceFile, relPath: strin
   // shape resolution and membership. Per-file is the correct scope because an import declaration's
   // reach is the file it sits in.
   const renames = deriveImportRenames(ts, sf);
-  // D-27: the declared-BINDING list is built ONCE PER SOURCE FILE as well, and BEFORE the
-  // fixture-parameter map, because the scope rule constrains that map's own head canonicalisation
-  // too. Its one non-suppressing record is a POSITION rather than a name, so it depends on nothing
-  // derived after it and the derivation order stays a fact rather than a fixed point.
+  // D-27: the declared-BINDING list is built ONCE PER SOURCE FILE as well. D-30 (3): both it and the
+  // rename map above now serve the SECOND rule only — the one asked where the checker resolved no
+  // symbol at all.
   const bindings = deriveDeclaredBindings(ts, sf);
-  // D-20 (3): the fixture-parameter map is built ONCE PER SOURCE FILE too, and AFTER the rename map,
-  // because a renamed framework binding must be canonicalised before its scenario calls are found.
-  const fixtureParams = deriveTestInfoParameterNames(ts, sf, renames, bindings);
 
   const visit = (node: TsNode): void => {
     if (ts.isCallExpression(node)) {
@@ -1906,18 +2442,38 @@ export function findBannedConstructs(ts: TsApi, sf: TsSourceFile, relPath: strin
       // give every call in the file one answer, which is CR-14 through the back door. It is a named
       // local because BOTH arm families ask the canonicaliser with it — one position per call, asked
       // once, rather than two spellings of the same position that a later edit could separate.
-      const scope = bindings === null ? null : { bindings, position: node.getStart(sf) };
-      const dottedPath = canonicaliseHeadSegment(
+      const scope = { bindings, position: node.getStart(sf) };
+      const spelled = canonicaliseHeadSegment(
         calleeDottedPath(ts, node.expression),
         renames,
-        fixtureParams,
         scope,
       );
-      if (isBannedModifierCall(dottedPath, chainEnabledOptionKeys(ts, node))) {
+      // D-30 (1) and (2): IDENTITY FIRST, AND ITS THREE ANSWERS ARE THREE DIFFERENT THINGS.
+      //
+      //   `framework`  — the checker resolved the callee to a member the framework itself declares.
+      //                  Its identity-canonical path is what the membership authority is asked
+      //                  about, and what a finding names.
+      //   `foreign`    — the checker resolved it and it is NOT the framework's. The ban operand is
+      //                  `null`, so the membership authority answers false and THE SPELLING RULE IS
+      //                  NOT CONSULTED. That is what makes WR-26's false refusal impossible rather
+      //                  than narrower: a helper parameter named like a renamed import can no longer
+      //                  be canonicalised into a construct the file does not contain.
+      //   `unresolved` — the checker has no symbol. Only here does the spelling rule answer, which
+      //                  is where D-27's temporal-dead-zone refusals live. The pairing is disclosed
+      //                  in UNRESOLVABLE_CALLEE_RESIDUALS as a residual of its own.
+      //
+      // The ARMS (a)/(b) operand is deliberately NOT the ban operand: an assertion head is not a
+      // framework-identity question — D-14 names the generic `assert`, which no framework declares —
+      // so those arms read the identity path when there is one and the spelled path otherwise.
+      const identity = resolveBannedModifier(ts, ctx, node);
+      const banPath =
+        identity.kind === "framework" ? identity.path : identity.kind === "foreign" ? null : spelled;
+      const dottedPath = identity.kind === "framework" ? identity.path : spelled;
+      if (isBannedModifierCall(banPath, chainEnabledOptionKeys(ts, node))) {
         const pos = node.getStart(sf);
         // D-20 (2): one finding per CHAIN. The key asks the same normaliser the arms ask; it decides
         // no membership of its own.
-        const chainKey = `${pos}|${stripRoutingLinks(dottedPath)}`;
+        const chainKey = `${pos}|${stripRoutingLinks(banPath)}`;
         if (!reportedModifierChains.has(chainKey)) {
           reportedModifierChains.add(chainKey);
           // ONE emission point, and ONE sentence true of the WHOLE banned family. It used to say the
@@ -1929,7 +2485,7 @@ export function findBannedConstructs(ts: TsApi, sf: TsSourceFile, relPath: strin
           findings.push({
             pos,
             text:
-              `${relPath}:${lineOf(pos)}: banned modifier call — \`${dottedPath}\` decides which ` +
+              `${relPath}:${lineOf(pos)}: banned modifier call — \`${banPath}\` decides which ` +
               `scenarios the quality gate re-runs and how their results are read, so a green lane could certify a scenario nobody exercised or one whose acceptance criterion failed.`,
           });
         }
@@ -2004,6 +2560,7 @@ export function analyzeSpecs(
   repoRoot: string,
   specRelPaths: readonly string[],
   ts: TsApi,
+  ctx: ProgramContext,
   readFile: (absPath: string) => string = defaultReadFile,
 ): SpecAnalysis {
   const expected = specRelPaths.length;
@@ -2042,9 +2599,23 @@ export function analyzeSpecs(
     //
     // The four could-not-run reasons stay DISTINGUISHABLE (unreadable · did not parse · the parse
     // itself faulted · could not be analysed), so a reader can tell which of them happened.
+    //
+    // D-30 / WR-29: THE FOUR REASONS ARE NOW FOUR SENTENCES. The module claimed four
+    // distinguishable outcomes and implemented three: a fault raised INSIDE the parser and a fault
+    // raised inside the WALK both reported the walk's sentence, byte-identical, so a reader could
+    // not tell which had happened — the one thing the claim promises. Each arm below has its own
+    // `try` and its own sentence, and a case DERIVES the four and asserts them pairwise distinct.
     let specFindings: string[];
+    let sf: TsSourceFile;
     try {
-      const sf = ts.createSourceFile(rel, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+      sf = ts.createSourceFile(rel, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+    } catch (cause) {
+      errors.push(
+        `The UAT spec ${rel} could not be PARSED (${describeCause(cause)}); the parser itself faulted on this file, so no verdict is reported for it.`,
+      );
+      continue;
+    }
+    try {
       const diagnostics = (sf as unknown as ParsedSourceFile).parseDiagnostics;
       if (diagnostics !== undefined && diagnostics.length > 0) {
         errors.push(
@@ -2052,10 +2623,29 @@ export function analyzeSpecs(
         );
         continue;
       }
-      specFindings = findBannedConstructs(ts, sf, rel);
     } catch (cause) {
       errors.push(
-        `The UAT spec ${rel} could not be analysed (${cause instanceof Error ? cause.message : String(cause)}); the check was NOT performed for that file, so this run covers less than the derived set.`,
+        `The UAT spec ${rel} could not have its parse INSPECTED (${describeCause(cause)}); the diagnostics this file produced could not be read, so no verdict is reported for it.`,
+      );
+      continue;
+    }
+    try {
+      // D-30 (1): the WALK runs over the PROGRAM's own source file, because that is the node tree
+      // the checker knows and identity is a question only the checker can answer. A spec the
+      // program does not carry — because its own parse faulted inside the compiler host — is the
+      // parse sentence again, at the one place that can tell.
+      const analysed = ctx.program.getSourceFile(join(repoRoot, rel));
+      if (analysed === undefined) {
+        const fault = ctx.parseFaults.get(join(repoRoot, rel));
+        errors.push(
+          `The UAT spec ${rel} could not be PARSED (${fault ?? "the program did not include it"}); the parser itself faulted on this file, so no verdict is reported for it.`,
+        );
+        continue;
+      }
+      specFindings = findBannedConstructs(ts, analysed, rel, ctx);
+    } catch (cause) {
+      errors.push(
+        `The UAT spec ${rel} could not be analysed (${describeCause(cause)}); the check was NOT performed for that file, so this run covers less than the derived set.`,
       );
       continue;
     }
@@ -2192,7 +2782,13 @@ export interface MainDependencies {
     repoRoot: string,
     specRelPaths: readonly string[],
     ts: TsApi,
+    ctx: ProgramContext,
   ) => SpecAnalysis;
+  readonly createProgram?: (
+    repoRoot: string,
+    specAbsPaths: readonly string[],
+    ts: TsApi,
+  ) => ProgramResult;
   readonly reportMeasured?: (
     m: { visited: number; expected: number; findings: readonly string[] },
     wantJson: boolean,
@@ -2245,6 +2841,7 @@ function runMain(
   const derive = deps.deriveSpecPaths ?? deriveSpecPaths;
   const loadParser = deps.loadTypeScript ?? loadTypeScriptFromTarget;
   const analyze = deps.analyzeSpecs ?? analyzeSpecs;
+  const buildProgram = deps.createProgram ?? createProgramForTarget;
   const report = deps.reportMeasured ?? reportMeasured;
 
   if (rootArg === undefined) {
@@ -2285,7 +2882,19 @@ function runMain(
     return 2;
   }
 
-  const analysis = analyze(repoRoot, derived.relPaths, ts);
+  // D-30 (4): the PROGRAM is created here, beside the parser-absent branch, so the two LOUD
+  // outcomes sit together and read the same way. A target that cannot create one — no configuration
+  // file, one that cannot be read or parsed, a compiler that throws, or framework declarations that
+  // do not resolve — exits 2 with ONE named reason and its own cause. This is NOT a degrade: RR-07
+  // recorded the resolver silently falling back to the pre-D-18 rule, and a smaller ban applied
+  // without saying so is a gate LOWERING rather than a disclosed limit.
+  const program = buildProgram(repoRoot, derived.relPaths.map((rel) => join(repoRoot, rel)), ts);
+  if (!program.ok) {
+    err(`${PROGRAM_UNAVAILABLE_REASON} (${program.cause})\n`);
+    return 2;
+  }
+
+  const analysis = analyze(repoRoot, derived.relPaths, ts, program.context);
   for (const e of analysis.errors) err(`${e}\n`);
   return report(analysis, wantJson, out, err);
 }

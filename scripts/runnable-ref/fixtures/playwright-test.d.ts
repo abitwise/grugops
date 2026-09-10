@@ -177,6 +177,28 @@ declare module "@playwright/test" {
     //
     // `UNKNOWN - verify` at the same strength as the rest of this file: a hand transcription.
     (title: string, body: (args: TestArgs, testInfo: TestInfo) => unknown): void;
+    // 31-28 (D-30, CR-21): the THREE-ARGUMENT TAG/ANNOTATION OVERLOAD, which Playwright has
+    // documented since 1.42 and which this transcription did not carry. Its absence was not a
+    // neutral simplification: the round-6 verifier planted `test("s", { tag: "@smoke" }, async
+    // ({ page }, testInfo) => { testInfo.skip(); … })` and the committed checker reported `0
+    // findings` at exit 0, because the derivation read the scenario body from argument index 1 and
+    // the body sits at index 2 in this form. With the overload absent, `testInfo` had no
+    // contextual type at all (TS2554 plus an implicit-any parameter), so the corpus row could not
+    // even have measured the fix. It is declared here so the FORWARD direction's premise stays
+    // true: every spelling the rule refuses is a construct this surface carries and that
+    // type-checks against it.
+    //
+    // WHAT DECLARING IT COSTS. An overload SIGNATURE adds no property to any declared type, so the
+    // reverse partition's denominator is unchanged. That was re-measured after this change rather
+    // than carried over, and it did not move.
+    //
+    // `UNKNOWN - verify` at the same strength as the rest of this file: a hand transcription, not
+    // a reading of the released package.
+    (
+      title: string,
+      details: { readonly tag?: string | readonly string[]; readonly annotation?: unknown },
+      body: (args: TestArgs, testInfo: TestInfo) => unknown,
+    ): void;
     readonly skip: TestModifier;
     readonly only: TestModifier;
     readonly fixme: TestModifier;

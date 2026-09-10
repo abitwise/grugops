@@ -51,6 +51,13 @@ interface SpecAnalysisView {
   readonly errors: readonly string[];
 }
 
+/** 31-28 (D-30): opaque to the suite — it is threaded, never inspected. */
+interface ProgramContextView {
+  readonly program: { getSourceFile(fileName: string): unknown };
+  readonly frameworkFiles: ReadonlySet<string>;
+  readonly typePaths: ReadonlyMap<unknown, string>;
+}
+
 interface CheckerModule {
   readonly UAT_SPEC_GLOB_SUFFIX: string;
   readonly PARSER_ABSENT_MARKER: string;
@@ -69,31 +76,20 @@ interface CheckerModule {
   // 31-12 (WR-13): the SHAPE resolver, read by the reverse cross-check so the fixture corpus is
   // parsed by the artifact that resolves callees in production rather than by a second reader.
   calleeDottedPath(ts: unknown, expr: unknown): string | null;
-  // 31-17 (D-21 (1)): the ONE authority for the chain bound's value, and the shared budget the
-  // resolution threads through its own recursion.
-  readonly CALLEE_CHAIN_STEP_BOUND: number;
   // 31-16 (D-20 (1)): the ONE marker-aware normaliser every whole-path arm asks.
   readonly CALL_LINK_MARKER: string;
   stripRoutingLinks(dottedPath: string): string;
   // 31-16 (D-20 (2)): the option axis folded across the whole marked chain.
   enabledOptionKeys(ts: unknown, call: unknown): ReadonlySet<string> | null;
   chainEnabledOptionKeys(ts: unknown, call: unknown): ReadonlySet<string> | null;
-  // 31-16 (D-20 (3)): the per-source-file TestInfo fixture-parameter binding map.
-  deriveTestInfoParameterNames(
-    ts: unknown,
-    sf: unknown,
-    renames: ReadonlyMap<string, string> | null,
-  ): ReadonlySet<string> | null;
   canonicaliseHeadSegment(
     dottedPath: string | null,
-    renames: ReadonlyMap<string, string> | null,
-    fixtureParams?: ReadonlySet<string> | null,
+    renames: ReadonlyMap<string, string>,
     scope?: {
       readonly bindings: readonly {
         readonly name: string;
         readonly start: number;
         readonly end: number;
-        readonly suppresses: boolean;
       }[];
       readonly position: number;
     } | null,
@@ -108,8 +104,24 @@ interface CheckerModule {
     readonly name: string;
     readonly start: number;
     readonly end: number;
-    readonly suppresses: boolean;
-  }[] | null;
+  }[];
+  // 31-28 (D-30): the Program the modifier ban is decided against, the loud reason a target that
+  // cannot create one emits, and the identity resolver itself.
+  loadTypeScriptFromTarget(repoRoot: string): unknown;
+  createProgramForTarget(
+    repoRoot: string,
+    specAbsPaths: readonly string[],
+    ts: unknown,
+  ):
+    | { readonly ok: true; readonly context: ProgramContextView }
+    | { readonly ok: false; readonly cause: string };
+  resolveBannedModifier(
+    ts: unknown,
+    ctx: ProgramContextView,
+    call: unknown,
+  ): { readonly kind: "framework"; readonly path: string } | { readonly kind: "foreign" } | { readonly kind: "unresolved" };
+  findBannedConstructs(ts: unknown, sf: unknown, relPath: string, ctx: ProgramContextView): string[];
+  readonly PROGRAM_UNAVAILABLE_REASON: string;
   readonly TEST_INFO_CANONICAL_HEAD: string;
   readonly UNRESOLVABLE_CALLEE_RESIDUALS: readonly string[];
   readonly SKIPPED_DIRECTORIES: readonly string[];
@@ -122,6 +134,7 @@ interface CheckerModule {
     repoRoot: string,
     specRelPaths: readonly string[],
     ts: unknown,
+    ctx: ProgramContextView,
     readFile?: (absPath: string) => string,
   ): SpecAnalysisView;
   reportMeasured(
@@ -152,7 +165,15 @@ interface CheckerModule {
         repoRoot: string,
         specRelPaths: readonly string[],
         ts: unknown,
+        ctx: ProgramContextView,
       ) => SpecAnalysisView;
+      readonly createProgram?: (
+        repoRoot: string,
+        specAbsPaths: readonly string[],
+        ts: unknown,
+      ) =>
+        | { readonly ok: true; readonly context: ProgramContextView }
+        | { readonly ok: false; readonly cause: string };
       readonly reportMeasured?: (
         m: { visited: number; expected: number; findings: readonly string[] },
         wantJson: boolean,
@@ -173,6 +194,30 @@ async function loadChecker(): Promise<CheckerModule> {
   return (await import("./uat-spec-integrity.js")) as unknown as CheckerModule;
 }
 
+/**
+ * 31-28 (D-30): a real Program and checker for a target the case just built.
+ *
+ * Every in-process case that reaches `analyzeSpecs` or `findBannedConstructs` needs one, because
+ * the ban is decided by SYMBOL IDENTITY and a symbol is a thing only a Program has. It is built the
+ * SAME way `main` builds it — through the module's own two exported functions, from the target's
+ * own `typescript` — so an in-process case and a spawned one decide over the same mechanism rather
+ * than over two.
+ */
+async function programContextFor(
+  root: string,
+  relPaths: readonly string[],
+): Promise<ProgramContextView> {
+  const mod = await loadChecker();
+  const ts = mod.loadTypeScriptFromTarget(root);
+  expect(ts, `PREMISE: the target at ${root} supplied no usable typescript`).not.toBeNull();
+  const built = mod.createProgramForTarget(root, relPaths.map((rel) => join(root, rel)), ts);
+  expect(
+    built.ok,
+    `PREMISE: no program could be created for ${root}: ${built.ok ? "" : built.cause}`,
+  ).toBe(true);
+  return (built as { readonly ok: true; readonly context: ProgramContextView }).context;
+}
+
 function runCheck(...args: string[]): { status: number | null; stdout: string; stderr: string } {
   const r = spawnSync("node", [CHECK_JS, ...args], { encoding: "utf8" });
   return { status: r.status, stdout: r.stdout ?? "", stderr: r.stderr ?? "" };
@@ -191,6 +236,45 @@ afterEach(() => {
   }
 });
 
+// ── 31-28 (D-30): WHAT A TARGET REPOSITORY MUST NOW CARRY, AND WHY THE HARNESS CARRIES IT ──────
+//
+// The modifier ban is decided by SYMBOL IDENTITY from a TypeScript Program built out of the target
+// repository's own compiler. A target therefore has to supply two things a bare temp directory does
+// not: a CONFIGURATION FILE the compiler can build a program from, and the FRAMEWORK'S DECLARATIONS
+// so a callee has a symbol to resolve to. A real host repository running Playwright UAT specs has
+// both by construction — that is what makes it a Playwright repository.
+//
+// THE DECLARATIONS ARE THIS REPOSITORY'S OWN TRANSCRIPTION, and that is a DISCLOSURE, not a
+// convenience. `@playwright/test` cannot be installed here (CLAUDE.md fixes the dev dependency set
+// at `{typescript, vitest}`), so `fixtures/playwright-test.d.ts` — the same surface every fixture
+// already compiles against, and the same one the reverse partition already uses as a denominator —
+// is planted in each target as an AMBIENT module declaration. That exercises the ambient route of
+// identity end to end. The installed-package route is NOT measured here and is carried as a named
+// residual beside `R-07`.
+const TARGET_TSCONFIG = JSON.stringify(
+  {
+    compilerOptions: {
+      target: "ES2022",
+      module: "ESNext",
+      moduleResolution: "Bundler",
+      strict: true,
+      noEmit: true,
+      skipLibCheck: true,
+    },
+    include: ["**/*.ts"],
+  },
+  null,
+  2,
+);
+
+/** Plant the configuration file and the framework declarations every identity decision needs. */
+function equipTarget(root: string, tsconfig: string | null = TARGET_TSCONFIG): void {
+  if (tsconfig !== null) writeFileSync(join(root, "tsconfig.json"), tsconfig, "utf8");
+  const types = join(root, "types");
+  mkdirSync(types, { recursive: true });
+  copyFileSync(join(FIXTURES, "playwright-test.d.ts"), join(types, "playwright-test.d.ts"));
+}
+
 // mkTargetRepo — build a temp repository that emulates a host target.
 //   specs        : { <repo-relative dest> : <fixture file name> }
 //   withTypescript: symlink this repo's node_modules so `typescript` resolves FROM THE TARGET
@@ -204,6 +288,7 @@ function mkTargetRepo(
   if (withTypescript) {
     symlinkSync(REPO_NODE_MODULES, join(root, "node_modules"), "dir");
   }
+  equipTarget(root);
   for (const [destRel, fixtureName] of Object.entries(specs)) {
     const dest = join(root, destRel);
     mkdirSync(dirname(dest), { recursive: true });
@@ -632,10 +717,12 @@ describe("uat-spec-integrity.js — the vacuity and short-set floors (UATX-06)",
     plant(root, "e2e/uat/two.uat.spec.ts", TRIVIAL_SPEC);
     plant(root, "e2e/uat/three.uat.spec.ts", TRIVIAL_SPEC);
 
+    const rels = ["e2e/uat/one.uat.spec.ts", "e2e/uat/two.uat.spec.ts", "e2e/uat/three.uat.spec.ts"];
     const analysis = analyzeSpecs(
       root,
-      ["e2e/uat/one.uat.spec.ts", "e2e/uat/two.uat.spec.ts", "e2e/uat/three.uat.spec.ts"],
+      rels,
       hostTypeScript,
+      await programContextFor(root, rels),
       (absPath: string) => {
         if (absPath.endsWith("two.uat.spec.ts")) throw new Error("forced read failure");
         return readFileSync(absPath, "utf8");
@@ -664,7 +751,7 @@ describe("uat-spec-integrity.js — the vacuity and short-set floors (UATX-06)",
   it("expected comes from the derived list and visited from the loop, so an empty input yields 0 of 0", async () => {
     const { analyzeSpecs } = await loadChecker();
     const root = mkTargetRepo({});
-    const analysis = analyzeSpecs(root, [], hostTypeScript);
+    const analysis = analyzeSpecs(root, [], hostTypeScript, await programContextFor(root, []));
     expect(analysis.expected).toBe(0);
     expect(analysis.visited).toBe(0);
   });
@@ -907,17 +994,32 @@ describe("uat-spec-integrity.js — 31-06 gap 2: the real Playwright modifier sp
     expect(new Set(UNRESOLVABLE_CALLEE_RESIDUALS).size).toBe(UNRESOLVABLE_CALLEE_RESIDUALS.length);
   });
 
-  it("the two named residuals really are unresolved — an alias and a computed member pass", () => {
+  it("the ALIAS is CLOSED by identity and the computed member is still a named residual", async () => {
+    const { UNRESOLVABLE_CALLEE_RESIDUALS } = await loadChecker();
+    // 31-28 (D-30 (1)): the alias was a residual for five rounds with the same reason — the alias
+    // cannot be followed to its declaration WITHOUT A TYPE CHECKER. The checker is asked now, so
+    // `const t = test; t.skip(...)` is refused and the residual is REMOVED from the register. The
+    // behaviour is what removes it; a register that shrank without a measurement would be a claim.
     const alias = findingsOf(
       [IMPORT, "const t = test;", 't.skip("a scenario", async () => {});', ""].join("\n"),
     );
+    expect(alias.length, `the alias was admitted: ${JSON.stringify(alias)}`).toBe(1);
+    expect(alias[0]).toContain("test.skip");
+    expect(
+      UNRESOLVABLE_CALLEE_RESIDUALS.filter((r) => r.startsWith("An aliased binding")),
+      "the register still discloses a boundary the checker closed",
+    ).toEqual([]);
+
+    // …and the computed member is unmoved: the checker resolves no symbol for `test[m]` where `m`
+    // is a variable, and the spelling rule cannot read a name the source text does not carry.
     const computed = findingsOf(
       [IMPORT, 'const m = "skip";', 'test[m]("a scenario", async () => {});', ""].join("\n"),
     );
-    // These are DISCLOSED residuals (D-13: this runnable ships no type checker). The assertion
-    // pins the disclosure to the behaviour, so a future change that closes one is visible here.
-    expect(alias).toEqual([]);
     expect(computed).toEqual([]);
+    expect(
+      UNRESOLVABLE_CALLEE_RESIDUALS.some((r) => r.includes("computed from a non-literal expression")),
+      "the shape passes and the register no longer names it — an undisclosed boundary",
+    ).toBe(true);
   });
 });
 
@@ -2660,7 +2762,32 @@ describe("uat-spec-integrity — 31-13 CR-07: the resolver's DECLINE set, derive
   function isDeclineReturn(node: import("typescript").Node): boolean {
     if (!ts.isReturnStatement(node)) return false;
     if (node.expression === undefined) return true;
-    return node.expression.kind === ts.SyntaxKind.NullKeyword;
+    if (node.expression.kind === ts.SyntaxKind.NullKeyword) return true;
+    // 31-28 (D-30 (2)): THE MATCHER'S OWN SHAPE HAD TO GROW WITH THE MECHANISM, and this is the
+    // defect class this phase keeps paying for. `resolveBannedModifier` does not decline by
+    // returning `null` — it returns a TAGGED RESULT, and two of its three tags (`unresolved`,
+    // `foreign`) are positions where identity produced no path. A matcher that only recognised
+    // `return null` would have derived ZERO sites inside the new resolver and every binding below
+    // would have passed over a mechanism nobody looked at. `undefined` joins for the same reason: a
+    // helper that answers "no symbol" spells it that way.
+    if (node.expression.kind === ts.SyntaxKind.UndefinedKeyword) return true;
+    if (ts.isIdentifier(node.expression) && node.expression.text === "undefined") return true;
+    if (ts.isObjectLiteralExpression(node.expression)) {
+      for (const property of node.expression.properties) {
+        if (!ts.isPropertyAssignment(property)) continue;
+        if (property.name.getText(sfOfNode(node)) !== "kind") continue;
+        if (!ts.isStringLiteralLike(property.initializer)) continue;
+        return property.initializer.text !== "framework";
+      }
+    }
+    return false;
+  }
+
+  /** The source file a node belongs to, so the matcher can read a property name's text. */
+  function sfOfNode(node: import("typescript").Node): import("typescript").SourceFile {
+    let cur: import("typescript").Node = node;
+    while (cur.parent !== undefined) cur = cur.parent;
+    return cur as import("typescript").SourceFile;
   }
 
   /**
@@ -2883,35 +3010,20 @@ describe("uat-spec-integrity — 31-13 CR-07: the resolver's DECLINE set, derive
   }
 
   const R_COMPUTED_MEMBER =
-    "A member computed from a non-literal expression is not refused: `test[name](...)` where `name` is a variable. The member name is absent from the source text.";
-  const R_MODULE_SCOPE =
-    "A rename or namespace that arrives through any module other than `@playwright/test` is not canonicalised: `import { test as it } from \"./fixtures\";` then `it.skip(...)`. Following a re-export across files needs module resolution this runnable does not ship, so the rename map is MODULE-SCOPED to the framework's own import declaration.";
-  const R_NON_IDENTIFIER_HEAD =
-    "A callee whose head is not an identifier is not resolved: a call on an object literal, or on `this`. There is no head segment to read, so no membership question can be put.";
-  const R_STEP_BOUND =
-    "A callee chain longer than the resolver's 512-step bound is not resolved. The bound is ONE allowance for a WHOLE resolution. Every link spends a step, the descent into a call link included. Interleaving calls buys a chain no extra steps. The bound stops a pathological chain from spinning. It also stops one from exhausting the interpreter. It is a stated LIMIT, not a silence. A chain that reaches it yields no path rather than a truncated one.";
+    "A member computed from a non-literal expression is not decided by identity: `test[name](...)` where `name` is a variable. The checker resolves no symbol at that position. The call then falls to the spelling rule. That rule cannot read a member name the source text does not carry.";
   const R_NON_LITERAL_OPTION =
     "An option is ENABLED only when the call's first argument is an object literal assigning it the `true` keyword. A variable argument enables nothing, and neither does a variable option value. This runnable parses and never evaluates.";
-  const R_PARSER_PREDICATES =
-    "A parser that does not expose the import, object-literal or function-like node predicates yields no rename canonicalisation, no option reading and no fixture-parameter canonicalisation. The parser is the TARGET repository's (D-13), so its surface is not this runnable's to assume. The resolver degrades to the pre-D-18 behaviour for those shapes rather than throwing outside the exit-code contract.";
-  const R_ALIAS =
-    "An aliased binding is not refused: `const t = test;` then a modifier call on `t`. The alias cannot be followed to its declaration without a type checker.";
-  const R_DESTRUCTURED_FIXTURE_PARAM =
-    "A TestInfo binding destructured in the callback's second parameter is not canonicalised: `test(\"a\", async ({ page }, { skip }) => skip());`. A binding pattern names no single identifier to rewrite, so there is no head segment to canonicalise.";
-  const R_NEAREST_BINDING_RESOLUTION =
-    "The scope rule the canonicalisations ask resolves a reference to the NEAREST binding of its name that contains it, and only that binding decides. The census counts a parameter, a `const`/`let`/`var` binding, a destructured binding element, a function name and a class name. An import binding is not counted at all. Ranges differ by KIND. A `var` binding and a function declaration hoist to their enclosing function. A `let`, a `const` and a class begin at their own declaration. A later declaration therefore does not suppress an earlier reference. A MODULE-scope declaration reaches the whole file except where an inner binding of the same name is nearer. The TestInfo fixture-binding position IS such an inner binding, recorded as NON-suppressing. A module-scope declaration of a fixture parameter's name therefore does not re-admit a banned modifier. No binder is shipped. The resolution is a RANGE test over positions the parse already carries, not real name resolution. A `typeof`-guarded conditional declaration and a `with` block are outside what these ranges decide. So is any other construct whose real binding a parser cannot see.";
+  const R_TWO_RULES =
+    "IDENTITY AND SPELLING ARE TWO RULES FOR ONE QUESTION. The pairing is a decision rather than an oversight. Identity decides every call whose callee the checker resolves. `framework` refuses. `foreign` accepts. In both cases the spelling rule is not consulted. The spelling rule is the import and namespace rename map plus the declared-binding census. It is asked ONLY where the checker resolved no symbol at all. A temporal-dead-zone reference lives exactly there. Keeping it is what preserves D-27's refusals. It is also a second grammar. This file's own history says two grammars can drift apart. What would force it closed: a reproduced case in which the spelling rule REFUSES a construct identity would have called `foreign`. A refusal in that direction is the only way the pairing can be wrong.";
+  const R_NON_IDENTIFIER_HEAD =
+    "A callee whose head is not an identifier is decided only where the checker resolves it. `({ test }).test.skip(...)` IS refused. Its member's declaration is the framework's own. A call on `this` yields no symbol and no head segment. So does a call on an object whose member the checker cannot resolve. No membership question can be put in either case.";
+  const R_COULD_NOT_RUN =
+    "A target repository whose TypeScript cannot create a Program makes NO claim about the specs. The causes are named: no configuration file, one that cannot be read, one that cannot be parsed, or a compiler that throws. It exits 2 with PROGRAM_UNAVAILABLE_REASON and its own cause. A target whose framework declarations do not resolve is the same event and the same exit code. Neither is a pass. Neither is a quieter ban. A smaller ban applied without saying so is a gate lowering. This member replaces exactly that silent degrade. THE GRANULARITY IS WHOLE-RUN. Whole-run is coarser than D-28's per-file boundary. A file's own PARSE stays per-file. The compiler host's reader is wrapped, so one unparseable spec is one could-not-run reason. The denominator floor then names it. The BINDER runs over every root file at once. A single spec whose shape exhausts it blocks the whole run rather than one file. The measurement used a 4,000-link call chain. Blocking is the fail-closed direction and it is never a pass. What would force it closed: a way to bind one file at a time. The compiler's public API does not offer one today.";
+  const R_AMBIENT_ROUTE =
+    "Identity is decided against the framework's own DECLARATION FILES. The ambient-declaration route is MEASURED. The route means a `declare module \"@playwright/test\"` file inside the target's own program. The installed-package route is NOT measured here. In it those declarations arrive from `node_modules/@playwright/test`. It is reasoned from the same resolution the compiler performs. This repository's dependency set is fixed, so the package cannot be installed to measure it. It is an open `UNKNOWN - verify`, carried beside `R-07`.";
 
   const DECLINE_SITE_DISPOSITIONS: Readonly<Record<string, DeclineDisposition>> = Object.freeze({
-    // ── calleeDottedPath ──────────────────────────────────────────────────────────────────────
-    "calleeDottedPath | Block>ForStatement>Block>IfStatement>Block>IfStatement | inner === null | return null;":
-      {
-        kind: "decided",
-        reason:
-          "D-18 (1) DECIDES the call link: this guard fires only when the INNER path already " +
-          "declined, at one of the sites below, so it propagates a decision rather than opening a " +
-          "shape of its own. Marking a path whose head the source text does not carry would invent " +
-          "a segment.",
-      },
+    // ── calleeDottedPath (the SPELLING rule's shape resolver) ─────────────────────────────────
     "calleeDottedPath | Block>ForStatement>Block>IfStatement>Block>IfStatement | !ts.isStringLiteralLike(arg) | return null;":
       {
         kind: "residual",
@@ -2922,13 +3034,22 @@ describe("uat-spec-integrity — 31-13 CR-07: the resolver's DECLINE set, derive
       kind: "residual",
       reason:
         "The node kind fell through every descent case, which is the non-identifier head: a call " +
-        "on an object literal, on `this`, or on any other root with no name to read.",
+        "on an object literal, on `this`, or on any other root with no name to read. 31-28: this " +
+        "site now costs only the SPELLING of a finding for the object-literal case, because " +
+        "identity decides that shape from the member's own declaration — which is why the " +
+        "residual's sentence was rewritten to say which half is still open.",
       residual: R_NON_IDENTIFIER_HEAD,
     },
-    "calleeDottedPath | Block |  | return null;": {
-      kind: "residual",
-      reason: "The 512-step bound was exhausted; a stated limit, not a silence.",
-      residual: R_STEP_BOUND,
+
+    // ── calleeHeadIdentifier (the position arms (a)/(b) key their dedup on) ────────────────────
+    "calleeHeadIdentifier | Block>ForStatement>Block |  | return null;": {
+      kind: "decided",
+      reason:
+        "The SAME shape `calleeDottedPath` declines one line above, reached through the SAME node. " +
+        "It was measured declining exactly where the resolver does, at every shape where the two " +
+        "could differ, so it propagates that decision rather than opening one of its own — and it " +
+        "is read only for the position a per-assertion dedup keys on, never as a membership " +
+        "operand.",
     },
 
     // ── enabledOptionKeys ─────────────────────────────────────────────────────────────────────
@@ -2945,14 +3066,6 @@ describe("uat-spec-integrity — 31-13 CR-07: the resolver's DECLINE set, derive
         "A call with no arguments enables no option, so the membership authority answers false — " +
         "which is correct: `expect.configure()` is not a soft-assertion escape.",
     },
-    'enabledOptionKeys | Block>IfStatement>Block | typeof isObjectLiteral !== "function" || typeof isPropertyAssignment !== "function" | return null;':
-      {
-        kind: "residual",
-        reason:
-          "The TARGET repository's parser does not expose the object-literal predicates, so no " +
-          "option can be read from any call in this run.",
-        residual: R_PARSER_PREDICATES,
-      },
     "enabledOptionKeys | Block>IfStatement | !isObjectLiteral(first) | return null;": {
       kind: "residual",
       reason:
@@ -2961,53 +3074,16 @@ describe("uat-spec-integrity — 31-13 CR-07: the resolver's DECLINE set, derive
       residual: R_NON_LITERAL_OPTION,
     },
 
-    // ── chainEnabledOptionKeys (31-16, D-20 (2)) ──────────────────────────────────────────────
+    // ── chainEnabledOptionKeys ────────────────────────────────────────────────────────────────
     "chainEnabledOptionKeys | Block>IfStatement | !readAnyLink | return null;": {
       kind: "decided",
       reason:
         "NO LINK in the chain carried a readable option literal, so there is no option to consult " +
         "and the membership authority correctly answers false. This exit PROPAGATES the per-link " +
-        "declines of enabledOptionKeys, each of which is dispositioned at its own site above; it " +
-        "opens no shape of its own, because a chain in which every link declined is a chain about " +
-        "which every link already said why.",
+        "declines of enabledOptionKeys, each of which is dispositioned at its own site above.",
     },
 
-    // ── deriveTestInfoParameterNames (31-16, D-20 (3)) ────────────────────────────────────────
-    'deriveTestInfoParameterNames | Block>IfStatement>Block | typeof isArrowFunction !== "function" || typeof isFunctionExpression !== "function" | return null;':
-      {
-        kind: "residual",
-        reason:
-          "The TARGET repository's parser does not expose the function-like predicates, so no " +
-          "fixture-parameter binding is collected in this run and the resolver degrades to the " +
-          "pre-D-20 head reading for that one shape.",
-        residual: R_PARSER_PREDICATES,
-      },
-
-    // ── deriveDeclaredBindings (31-24, D-27) ──────────────────────────────────────────────────
-    'deriveDeclaredBindings | Block>IfStatement>Block | typeof isParameter !== "function" || typeof isVariableDeclaration !== "function" || typeof isBindingElement !== "function" || typeof isFunctionDeclaration !== "function" || typeof isClassDeclaration !== "function" || ts.NodeFlags === undefined || typeof sf.getEnd !== "function" | return null;':
-      {
-        kind: "residual",
-        reason:
-          "The TARGET repository's parser does not expose the declaration predicates, the node " +
-          "flags that tell a hoisting `var` list from a `let`/`const` one, or `getEnd`, so no " +
-          "binding list is built in this run and the canonicaliser applies NO scope rule at all — " +
-          "the pre-D-21 behaviour, in which a shadowing local binding is canonicalised. It degrades " +
-          "rather than throwing, exactly as every other parser-surface guard here does. The flags " +
-          "and `getEnd` are in the SAME guard rather than in a per-kind fallback on purpose: " +
-          "guessing a declaration's kind would widen half the ranges in the file, and a wider range " +
-          "is a wider suppression, which for a BAN is the unsafe direction.",
-        residual: R_PARSER_PREDICATES,
-      },
-
     // ── deriveImportRenames ───────────────────────────────────────────────────────────────────
-    'deriveImportRenames | Block>IfStatement>Block | typeof isImportDeclaration !== "function" || typeof isNamedImports !== "function" || typeof isNamespaceImport !== "function" || typeof isImportSpecifier !== "function" | return null;':
-      {
-        kind: "residual",
-        reason:
-          "The TARGET repository's parser does not expose the import predicates, so no rename is " +
-          "canonicalised in this run and the resolver degrades to the pre-D-18 head reading.",
-        residual: R_PARSER_PREDICATES,
-      },
     "deriveImportRenames | Block>ExpressionStatement>CallExpression>ArrowFunction>Block>IfStatement | !isImportDeclaration(node) | return;":
       {
         kind: "decided",
@@ -3024,14 +3100,16 @@ describe("uat-spec-integrity — 31-13 CR-07: the resolver's DECLINE set, derive
       },
     "deriveImportRenames | Block>ExpressionStatement>CallExpression>ArrowFunction>Block>IfStatement | node.moduleSpecifier.text !== PLAYWRIGHT_TEST_MODULE | return;":
       {
-        kind: "residual",
+        kind: "decided",
         reason:
-          "THE MODULE SCOPE THIS PLAN'S OWN CHANGE CREATED. A rename or namespace arriving through " +
-          "a local fixture-extension module is not canonicalised; following a re-export across " +
-          "files needs the module resolution D-13 forbids shipping. What would force it open: a " +
-          "reproduced evasion through a fixture-extension re-export, which would make this a " +
-          "resolution question rather than a scope choice.",
-        residual: R_MODULE_SCOPE,
+          "31-28 (D-30 (1)) CLOSED THE SHAPE THIS USED TO DISCLOSE. A rename arriving through a " +
+          "local fixture-extension module was not canonicalised, because following a re-export " +
+          "across files needed module resolution the runnable did not ship. The checker follows " +
+          "it: the corpus drives `export { test as it } from \"@playwright/test\"` re-exported " +
+          "through a local module and the call is refused. What remains here is a SPELLING scope " +
+          "for the second rule, reached only where the checker resolved nothing — and the module " +
+          "specifier is compared as a STRING only in this map, never in the identity rule, which " +
+          "is why a local module named to look like the framework is not the framework.",
       },
     "deriveImportRenames | Block>ExpressionStatement>CallExpression>ArrowFunction>Block>IfStatement | clause === undefined | return;":
       {
@@ -3047,6 +3125,138 @@ describe("uat-spec-integrity — 31-13 CR-07: the resolver's DECLINE set, derive
           "A default-only import binds a name to a default export the declared surface does not " +
           "carry, so a spec written that way does not run and has no evidence to narrow. " +
           "`UNKNOWN - verify` at the declared surface's own strength.",
+      },
+
+    // ── resolveBannedModifier: the IDENTITY rule's three answers ──────────────────────────────
+    //
+    // These four sites are the reason this block's site MATCHER had to grow (31-28). The identity
+    // rule does not decline by returning `null` — it returns a TAGGED RESULT — so a matcher that
+    // only recognised `null` would have derived ZERO sites inside the mechanism that now decides
+    // the ban, and every binding here would have passed over it.
+    'resolveBannedModifier | Block>TryStatement>CatchClause>Block |  | return { kind: "unresolved" };':
+      {
+        kind: "decided",
+        reason:
+          "The checker THREW while being asked for a symbol. `unresolved` hands the call to the " +
+          "spelling rule, which is strictly the refusing direction relative to `foreign`: a call " +
+          "identity could not decide is still asked of the census and the rename map.",
+      },
+    'resolveBannedModifier | Block>IfStatement | symbol === undefined | return { kind: "unresolved" };':
+      {
+        kind: "residual",
+        reason:
+          "THE HAND-OFF THE PAIRING IS ABOUT. The checker has no symbol for this callee — a " +
+          "temporal-dead-zone reference, a computed member, a call on a value whose type has no " +
+          "such member — and the spelling rule answers instead. That second rule is a second " +
+          "grammar for one question, which is exactly what the register must disclose.",
+        residual: R_TWO_RULES,
+      },
+    'resolveBannedModifier | Block>IfStatement | declarations.length === 0 | return { kind: "unresolved" };':
+      {
+        kind: "decided",
+        reason:
+          "A symbol with ZERO declarations cannot be attributed to any file, so identity has no " +
+          "anchor. It takes the same hand-off as an absent symbol, which is the refusing " +
+          "direction, rather than being read as `foreign` and closing the question.",
+      },
+    'resolveBannedModifier | Block>IfStatement | !fromFramework | return { kind: "foreign" };': {
+      kind: "decided",
+      reason:
+        "THE ANSWER, NOT A DECLINE — and it opens nothing. The checker resolved the callee to a " +
+        "member declared somewhere OTHER than the framework, so the call is not a framework " +
+        "modifier and the spelling rule is deliberately not consulted. That is what makes WR-26's " +
+        "false refusal impossible rather than narrower. A symbol declared in several files, one " +
+        "of them the framework's, never reaches here: declaration merging is read in the " +
+        "refusing direction.",
+    },
+
+    // ── throughBindingElement (the destructured-property lookup, RR-08's closure) ──────────────
+    "throughBindingElement | Block>IfStatement | declaration === undefined || !ts.isBindingElement(declaration) | return undefined;":
+      {
+        kind: "decided",
+        reason:
+          "The symbol is not a destructured binding at all, so there is no pattern to look a " +
+          "property up in. The caller then uses the symbol it already had, which is the ordinary " +
+          "path — this helper only ever REPLACES a local with the property it destructures.",
+      },
+    "throughBindingElement | Block>IfStatement | pattern === undefined | return undefined;": {
+      kind: "decided",
+      reason:
+        "A binding element with no parent pattern is not a shape the parser produces for source " +
+        "text; the guard exists because the structural view declares the parent optional. Same " +
+        "fall-back as above, and it opens no construct.",
+    },
+    "throughBindingElement | Block>TryStatement>CatchClause>Block |  | return undefined;": {
+      kind: "decided",
+      reason:
+        "The checker threw while producing the pattern's type or its property. Falling back to " +
+        "the local symbol means the call is decided as `foreign` or handed to the spelling rule " +
+        "rather than as the framework's — the accepting direction for THIS shape, which is why it " +
+        "is bound to the same pairing residual through its caller rather than being silent.",
+    },
+
+    // ── identityHeadSegment (the REPORTED spelling, never the verdict) ─────────────────────────
+    "identityHeadSegment | Block>TryStatement>CatchClause>Block |  | return null;": {
+      kind: "decided",
+      reason:
+        "The checker threw while being asked what the head IS. The verdict was already decided by " +
+        "the member's own symbol; this only chooses what to CALL the construct, so declining here " +
+        "leaves the syntactic spelling in the finding and changes no answer.",
+    },
+    "identityHeadSegment | Block |  | return null;": {
+      kind: "decided",
+      reason:
+        "The head is neither the framework module (a namespace import) nor a value whose declared " +
+        "type the surface walk reached, so there is no export name to substitute. Same as above: " +
+        "the finding keeps its syntactic head and the verdict is unchanged.",
+    },
+
+    // ── the census's ancestor walks: structural helpers, not resolution positions ──────────────
+    "enclosingFunctionLike | Block |  | return undefined;": {
+      kind: "decided",
+      reason:
+        "The walk reached the top of the tree without finding a function-like ancestor, which is " +
+        "MODULE SCOPE. Every caller substitutes the SourceFile for that answer, so the range is " +
+        "the whole module rather than absent.",
+    },
+    "parameterOf | Block |  | return undefined;": {
+      kind: "decided",
+      reason:
+        "The declaration is not inside a parameter, which is the ordinary case for a `const`, a " +
+        "`let`, a `var`, a function name or a class name. The next arm of `bindingRangeFor` " +
+        "decides it.",
+    },
+    "parameterOf | Block>WhileStatement>Block>IfStatement | isFunctionLikeNode(cur) || isStatementContainer(cur) | return undefined;":
+      {
+        kind: "decided",
+        reason:
+          "The walk crossed a scope boundary before finding a parameter, so the declaration " +
+          "belongs to some enclosing function's body rather than to its parameter list. Stopping " +
+          "at the boundary is what keeps a parameter's range its OWN function's.",
+      },
+    "enclosingCatchClause | Block |  | return undefined;": {
+      kind: "decided",
+      reason: "The declaration is not a catch binding; the next arm decides it.",
+    },
+    "enclosingCatchClause | Block>WhileStatement>Block>IfStatement | isFunctionLikeNode(cur) || isStatementContainer(cur) | return undefined;":
+      {
+        kind: "decided",
+        reason:
+          "The walk crossed a scope boundary before reaching a catch clause, so this declaration " +
+          "is not that clause's binding. Same boundary argument as `parameterOf`.",
+      },
+    "declarationListOf | Block |  | return undefined;": {
+      kind: "decided",
+      reason:
+        "The declaration belongs to no variable-declaration list — a function or class name — so " +
+        "there are no flags to read and the hoisting question is answered by its own arm.",
+    },
+    "declarationListOf | Block>WhileStatement>Block>IfStatement | isFunctionLikeNode(cur) || isStatementContainer(cur) | return undefined;":
+      {
+        kind: "decided",
+        reason:
+          "The walk crossed a scope boundary before finding a declaration list, so the node is " +
+          "not part of one. Same boundary argument as the two walks above.",
       },
   });
 
@@ -3183,31 +3393,20 @@ describe("uat-spec-integrity — 31-13 CR-07: the resolver's DECLINE set, derive
     // the head is just not `test`. Folding the two axes together would let a resolution site hide
     // behind a membership sentence, which is the conflation this phase keeps being caught by.
     const MEMBERSHIP_RESIDUALS: Readonly<Record<string, string>> = Object.freeze({
-      [R_ALIAS]:
-        "A MEMBERSHIP residual, not a resolution one. The path resolves (`t.skip`); its head is " +
-        "simply not a banned head, and binding a local name to its declaration needs the type " +
-        "checker D-13 forbids shipping. Asserted behaviourally by the alias/computed-member case " +
-        "earlier in this file. 31-16 (CR-10) REMOVED this sentence's claim to cover a binding " +
-        "reached through a fixture parameter: that shape is POSITIONAL, the position is a literal " +
-        "in the source text, and D-20 (3) decides it. A residual must state a reason true OF THE " +
-        "SHAPE IT NAMES, and sharing one sentence across two shapes is what made CR-10 invisible " +
-        "where the claim is made.",
-      [R_DESTRUCTURED_FIXTURE_PARAM]:
-        "A MEMBERSHIP residual with its OWN sentence, added by 31-16. The scenario call resolves " +
-        "and its callback is found; what is absent is a single identifier to rewrite, because the " +
-        "second parameter is a binding pattern. The resolver declines nothing here — the fixture " +
-        "map simply gains no member — so this is a membership fact, not a resolution one.",
-      [R_NEAREST_BINDING_RESOLUTION]:
-        "A MEMBERSHIP residual, and the one that runs the OTHER way: a path that resolves perfectly " +
-        "is DECLINED a rewrite because the NEAREST binding of its head contains the reference. " +
-        "31-17 (D-21 (2)) closed WR-20 by asking that question in the ONE canonicaliser for BOTH " +
-        "maps, and 31-24 (D-27) re-decided WHICH binding answers after the round-5 verifier " +
-        "measured what file scope cost: for a BAN a suppression is an ADMISSION, so one dead " +
-        "declaration anywhere in a spec disabled the whole rename/namespace/fixture-parameter " +
-        "family (CR-14). What remains is the RANGE test itself — no binder is shipped, so a " +
-        "construct whose real binding a parser cannot see is outside what these ranges decide. The " +
-        "resolver declines nothing at either site, so this is a membership fact and not a " +
-        "resolution one.",
+      [R_COULD_NOT_RUN]:
+        "NOT A RESOLUTION RESIDUAL. It discloses what happens BEFORE any callee is resolved: a " +
+        "target whose TypeScript cannot create a Program, or whose framework declarations do not " +
+        "resolve, never reaches the walk at all. Its site is `runAnalysis`'s single emission of " +
+        "PROGRAM_UNAVAILABLE_REASON, which is an EXIT rather than a decline, and it is driven at " +
+        "the entry by the two config cases and the pathological-chain case. Folding it into the " +
+        "derived decline set would put a run-level fact behind a per-callee one.",
+      [R_AMBIENT_ROUTE]:
+        "NOT A RESOLUTION RESIDUAL EITHER, and the one that is honest about a MEASUREMENT this " +
+        "repository cannot make. Identity is anchored on the framework's declaration FILES, and " +
+        "only the ambient-declaration route is driven here, because CLAUDE.md fixes the dev " +
+        "dependency set and `@playwright/test` cannot be installed to exercise the node_modules " +
+        "route. It discloses the strength of a claim rather than a position in the resolver, so it " +
+        "belongs on this axis and carries `UNKNOWN - verify` beside `R-07`.",
     });
 
     for (const residual of UNRESOLVABLE_CALLEE_RESIDUALS) {
@@ -3245,7 +3444,7 @@ describe("uat-spec-integrity — 31-13 CR-07: the resolver's DECLINE set, derive
   /** The seeded branch's guard, distinctive enough that its signature cannot collide with a real one. */
   const SEEDED_GUARD = "cur === SEEDED_CONTROL_SENTINEL";
   /** The one-occurrence anchor the seeded mirror inserts after, inside calleeDottedPath's loop. */
-  const SEED_ANCHOR = "  for (; budget.left > 0; budget.left--) {\n    if (ts.isIdentifier(cur)) {";
+  const SEED_ANCHOR = "  for (;;) {\n    if (ts.isIdentifier(cur)) {\n      segments.push(cur.text);";
 
   function mirrorWithSeededDecline(): string {
     const source = readFileSync(CHECKER_TS, "utf8");
@@ -3260,7 +3459,7 @@ describe("uat-spec-integrity — 31-13 CR-07: the resolver's DECLINE set, derive
     ).toBe(false);
     const mutated = source.replace(
       SEED_ANCHOR,
-      `  for (; budget.left > 0; budget.left--) {\n    if (${SEEDED_GUARD}) return null;\n    if (ts.isIdentifier(cur)) {`,
+      `  for (;;) {\n    if (${SEEDED_GUARD}) return null;\n    if (ts.isIdentifier(cur)) {\n      segments.push(cur.text);`,
     );
     expect(
       mutated.split(SEEDED_GUARD).length - 1,
@@ -4308,63 +4507,60 @@ describe("uat-spec-integrity — 31-16 CR-10: the TestInfo fixture parameter is 
     ).toEqual([]);
   });
 
-  // ── Test 4: the empty / arity cases, each named ───────────────────────────────────────────────
-  it("a ZERO-parameter callback contributes no fixture-parameter binding", async () => {
-    const { deriveTestInfoParameterNames } = await loadChecker();
-    const tsApi = hostTypeScript as typeof import("typescript");
-    const sf = tsApi.createSourceFile(
-      "p.ts",
-      'test("a", async () => { testInfo.skip(); });\n',
-      tsApi.ScriptTarget.Latest,
-      true,
-    );
-    expect([...(deriveTestInfoParameterNames(tsApi, sf, new Map()) ?? [])]).toEqual([]);
-  });
+  // ── Test 4: the arity cases, now asked of the TYPE rather than of an argument INDEX ──────────
+  //
+  // 31-28 (D-30): these used to drive `deriveTestInfoParameterNames`, the derivation that read the
+  // scenario body from `arguments[1]` and the TestInfo binding from that function's `parameters[1]`.
+  // CR-21 measured what a FIXED INDEX costs: Playwright's documented three-argument tag/annotation
+  // overload puts the body at `arguments[2]`, where the derivation never looked, and
+  // `testInfo.skip()` inside it reported `0 findings` at exit 0. The derivation is DELETED. The
+  // checker gives the parameter its declared type at every position the framework documents, so the
+  // arity cases below are driven at the ENTRY and assert the OUTCOME rather than a map's contents.
 
-  it("a ONE-parameter callback contributes no fixture-parameter binding", async () => {
-    const { deriveTestInfoParameterNames } = await loadChecker();
-    const tsApi = hostTypeScript as typeof import("typescript");
-    const sf = tsApi.createSourceFile(
-      "p.ts",
-      'test("a", async ({ page }) => { page.goto("/"); });\n',
-      tsApi.ScriptTarget.Latest,
-      true,
-    );
-    expect([...(deriveTestInfoParameterNames(tsApi, sf, new Map()) ?? [])]).toEqual([]);
-  });
-
-  it("a test(...) call whose second argument is NOT a function contributes no binding", async () => {
-    const { deriveTestInfoParameterNames } = await loadChecker();
-    const tsApi = hostTypeScript as typeof import("typescript");
-    const sf = tsApi.createSourceFile(
-      "p.ts",
-      'test("a", someImportedBody);\n',
-      tsApi.ScriptTarget.Latest,
-      true,
-    );
-    expect([...(deriveTestInfoParameterNames(tsApi, sf, new Map()) ?? [])]).toEqual([]);
-  });
-
-  it("a DESTRUCTURED second parameter contributes no binding, and says so as a residual", async () => {
-    const { deriveTestInfoParameterNames, UNRESOLVABLE_CALLEE_RESIDUALS } = await loadChecker();
-    const tsApi = hostTypeScript as typeof import("typescript");
-    const sf = tsApi.createSourceFile(
-      "p.ts",
-      'test("a", async ({ page }, { skip }) => { skip(); });\n',
-      tsApi.ScriptTarget.Latest,
-      true,
-    );
-    expect([...(deriveTestInfoParameterNames(tsApi, sf, new Map()) ?? [])]).toEqual([]);
-    // …and it is NAMED where the claim is made, with a reason that is TRUE OF IT — not folded into
-    // another shape's sentence, which is the conflation that made CR-10 invisible.
+  it("a ZERO-parameter callback yields no TestInfo binding, and the spec is not refused", () => {
     expect(
-      UNRESOLVABLE_CALLEE_RESIDUALS.some((r) => r.includes("destructured")),
-      "the destructured second parameter has no member of its own in the residual register",
-    ).toBe(true);
+      findingsOf([IMPORT, 'test("a", async () => { void 0; });', ""].join("\n")),
+      "a scenario with no fixtures has no TestInfo to reach, so nothing may be refused",
+    ).toEqual([]);
+  });
+
+  it("a ONE-parameter callback yields no TestInfo binding, and the spec is not refused", () => {
+    expect(
+      findingsOf([IMPORT, 'test("a", async ({ page }) => { await page.goto("/"); });', ""].join("\n")),
+    ).toEqual([]);
+  });
+
+  it("a DESTRUCTURED second parameter is REFUSED — RR-08, closed by the checker", () => {
+    // The binding names a LOCAL whose declaration is the spec file, which is why the spelling rule
+    // could never decide it and why the register carried it for five rounds. The checker resolves
+    // the pattern's own type and hands back the PROPERTY the pattern destructures, which is the
+    // framework's `TestInfo.skip`.
+    const findings = findingsOf(
+      [IMPORT, 'test("a", async ({ page }, { skip }) => { skip(); void page; });', ""].join("\n"),
+    );
+    expect(findings.length, `expected one finding, got ${JSON.stringify(findings)}`).toBe(1);
+    expect(findings[0]).toContain("test.info().skip");
+  });
+
+  it("a RENAMED destructuring is refused too — the PROPERTY decides, not the local name", () => {
+    const findings = findingsOf(
+      [IMPORT, 'test("a", async ({ page }, { skip: bail }) => { bail(); void page; });', ""].join("\n"),
+    );
+    expect(findings.length, `expected one finding, got ${JSON.stringify(findings)}`).toBe(1);
+    expect(findings[0]).toContain("test.info().skip");
+  });
+
+  it("a destructured NON-banned member is not refused — the ban is still the tail set", () => {
+    expect(
+      findingsOf(
+        [IMPORT, 'test("a", async ({ page }, { slow }) => { slow(); void page; });', ""].join("\n"),
+      ),
+      "`slow` triples a scenario's time budget and removes nothing from the evidence",
+    ).toEqual([]);
   });
 
   // ── Test 5: a renamed head composes with the binding ──────────────────────────────────────────
-  it("a RENAMED test binding still contributes its second callback parameter", () => {
+  it("a RENAMED test binding still yields its second callback parameter", () => {
     const findings = findingsOf(
       [
         'import { test as it, expect } from "@playwright/test";',
@@ -4379,76 +4575,68 @@ describe("uat-spec-integrity — 31-16 CR-10: the TestInfo fixture parameter is 
     expect(findings[0]).toContain("test.info().skip");
   });
 
-  it("PRECEDENCE: an import rename wins over a fixture-parameter binding of the same name", async () => {
-    const { canonicaliseHeadSegment, TEST_INFO_CANONICAL_HEAD } = await loadChecker();
-    const renames = new Map([["shared", "test"]]);
-    const fixtureParams = new Set(["shared"]);
-    // The rename is a FILE-SCOPED declaration; the fixture parameter is a binding whose real reach
-    // is one callback body, and this derivation is deliberately not scope-aware. Deciding by reading
-    // order would leave the answer to whoever edits the function next, so it is asserted here.
-    expect(canonicaliseHeadSegment("shared.skip", renames, fixtureParams)).toBe("test.skip");
-    expect(canonicaliseHeadSegment("shared.skip", null, fixtureParams)).toBe(
-      `${TEST_INFO_CANONICAL_HEAD}.skip`,
-    );
-  });
-
-  it("the canonical head is the marked accessor form D-18 (1) already decided", async () => {
-    const { TEST_INFO_CANONICAL_HEAD, canonicaliseHeadSegment, isBannedModifierPath } =
-      await loadChecker();
+  it("the canonical head is DERIVED from the framework's own declarations, not written here", async () => {
+    const { TEST_INFO_CANONICAL_HEAD } = await loadChecker();
+    // The constant is still the spelling a reader meets, and it is no longer the AUTHORITY: the
+    // runnable reaches `test.info()` by walking the framework's exported surface — `test`, then its
+    // `info` member, then that member's call-signature return type — so the string below is an
+    // assertion ABOUT the derivation rather than an input to it. This module carries no `TestInfo`
+    // literal at all, which is the property that makes the derivation survive a package whose type
+    // names differ from this repository's transcription.
     expect(TEST_INFO_CANONICAL_HEAD).toBe("test.info()");
-    const canonical = canonicaliseHeadSegment("testInfo.skip", null, new Set(["testInfo"]));
-    expect(canonical).toBe("test.info().skip");
-    // …and that spelling is decided by the EXISTING rule, with no member added to any set.
-    expect(isBannedModifierPath(canonical)).toBe(true);
-    expect(isBannedModifierPath(canonicaliseHeadSegment("testInfo.slow", null, new Set(["testInfo"])))).toBe(
-      false,
-    );
+    const source = readFileSync(join(HERE, "uat-spec-integrity.ts"), "utf8");
+    expect(
+      source.includes(["Test", "Info", '"'].join("")),
+      "the runnable names a framework TYPE as a string literal — the derivation is not derived",
+    ).toBe(false);
+    const findings = findingsOf(scenarioWith("testInfo.skip();"));
+    expect(findings[0]).toContain("test.info().skip");
   });
 
   it("the canonicaliser still declines nothing — a null path passes straight through", async () => {
     const { canonicaliseHeadSegment } = await loadChecker();
-    expect(canonicaliseHeadSegment(null, null, new Set(["testInfo"]))).toBeNull();
-    expect(canonicaliseHeadSegment("page.goto", null, new Set(["testInfo"]))).toBe("page.goto");
+    expect(canonicaliseHeadSegment(null, new Map())).toBeNull();
+    expect(canonicaliseHeadSegment("page.goto", new Map())).toBe("page.goto");
   });
 
   // ── Test 6: the scope boundary is stated, not silent ─────────────────────────────────────────
-  it("the SHADOWING boundary is a named residual — DECIDED by 31-24 as nearest-binding resolution", async () => {
+  it("the two-rule pairing is a named residual — 31-28 (D-30 (3))", async () => {
     const { UNRESOLVABLE_CALLEE_RESIDUALS } = await loadChecker();
     // 31-16 filed this as "the canonicalisations have no scope analysis, owned by 31-17". 31-17
-    // (D-21 (2)) decided it FILE-SCOPED, and 31-24 (D-27) re-decided it as nearest-binding
-    // resolution after the round-5 verifier measured what the file scope cost (CR-14). The case
-    // moves with the mechanism each time rather than being deleted, because the boundary is still a
-    // boundary and must still be exactly one named member.
-    const scoped = UNRESOLVABLE_CALLEE_RESIDUALS.filter((r) => r.includes("NEAREST binding"));
+    // (D-21 (2)) decided it FILE-SCOPED; 31-24 (D-27) re-decided it as nearest-binding resolution
+    // after CR-14; 31-28 (D-30) moved the whole question to the checker and KEPT the census as a
+    // second rule, asked only where the checker resolved nothing. The boundary is still a boundary
+    // and is still named exactly once — what changed is which boundary it is.
+    const paired = UNRESOLVABLE_CALLEE_RESIDUALS.filter((r) =>
+      r.includes("IDENTITY AND SPELLING ARE TWO RULES FOR ONE QUESTION"),
+    );
+    expect(paired.length, "the two-rule pairing is not named exactly once in the register").toBe(1);
+    expect(paired[0]).toContain("the checker resolved no symbol at all");
     expect(
-      scoped.length,
-      "the scope rule the canonicalisations ask is not named exactly once in the register",
-    ).toBe(1);
-    expect(scoped[0]).toContain("only that binding decides");
+      paired[0],
+      "a residual that does not say what would force it closed is a silence with a sentence on it",
+    ).toContain("What would force it closed");
   });
 
-  // ── Test 7: the disproved excuse is REMOVED, not relocated ────────────────────────────────────
-  it("the alias residual no longer claims to cover the fixture-parameter binding", async () => {
+  // ── Test 7: a residual the checker CLOSED leaves the register ────────────────────────────────
+  it("the alias residual is GONE — the checker closed it, and a closed residual is removed", async () => {
     const { UNRESOLVABLE_CALLEE_RESIDUALS } = await loadChecker();
-    const alias = UNRESOLVABLE_CALLEE_RESIDUALS.filter((r) => r.startsWith("An aliased binding"));
-    expect(alias.length, "PREMISE: the alias residual is absent from the register").toBe(1);
     expect(
-      alias[0].includes("testInfo"),
-      "the alias residual still names the fixture-parameter binding, which is now DECIDED",
-    ).toBe(false);
-    // …and the excuse is gone from the test file's own membership record too, which is the only
-    // place CR-10's disposition ever lived.
-    const source = readFileSync(join(HERE, "uat-spec-integrity.test.ts"), "utf8");
-    // ASSEMBLED AT RUN TIME, never written as one literal: a scan whose needle is itself a literal
-    // in the scanned file can only ever report a hit, which would make this assertion unfailable.
-    const removedExcuse = ["The same sentence", "covers a binding reached", "through a fixture parameter"].join(
-      " ",
+      UNRESOLVABLE_CALLEE_RESIDUALS.filter((r) => r.startsWith("An aliased binding")),
+      "the register still discloses a boundary the corpus measured the checker deciding",
+    ).toEqual([]);
+    // …and the behaviour that justifies the removal is DRIVEN, not asserted from the register: a
+    // register that shrank without a measurement is the shape this whole file exists to refuse.
+    const findings = findingsOf(
+      [
+        IMPORT,
+        "const t = test;",
+        't.skip("a scenario", async ({ page }) => { void page; });',
+        "",
+      ].join("\n"),
     );
-    expect(
-      source.includes(removedExcuse),
-      "the membership record still carries the sentence that dispositioned the fixture parameter " +
-        "under the alias residual's disproved reason",
-    ).toBe(false);
+    expect(findings.length, "the alias is not refused, so removing its residual was a claim").toBe(1);
+    expect(findings[0]).toContain("test.skip");
   });
 });
 
@@ -4521,164 +4709,106 @@ describe("uat-spec-integrity — 31-17 WR-19: a pathological chain is bounded, n
     return calleeDottedPath(ts, call.expression);
   }
 
-  // ── GREEN 1: the run REACHES the four-branch authority and prints its measurement ─────────────
-
-  it("a spec whose callee chain exceeds the bound prints the measurement line and exits inside the contract", () => {
-    const root = mkTargetRepo({});
-    plant(root, "e2e/uat/pathological.uat.spec.ts", pathologicalSpec());
-    const r = runCheck(root);
-
-    // The D-12 contract's three values, held BY DECISION rather than by an interpreter's default
-    // for an uncaught throw.
-    expect([0, 1, 2], `exit code outside the D-12 contract: ${r.status}`).toContain(r.status);
-    // The artifact the two floors exist to guarantee: a line naming BOTH counters, on stdout.
-    expect(
-      r.stdout,
-      `stdout carried no measurement line. stderr began: ${r.stderr.split("\n")[0]}`,
-    ).toContain("1/1 uat specs checked");
-    // …and no stack trace, which is what "bounded refusal" means as distinct from "crash".
-    expect(r.stderr).not.toContain("Maximum call stack size exceeded");
-    expect(r.stderr).not.toContain("RangeError");
-  });
-
-  // ── GREEN 2: the pathological callee yields NO PATH, so it accuses nobody ─────────────────────
-
-  it("the pathological callee yields no path, so the run attributes no finding to it", () => {
-    const root = mkTargetRepo({});
-    plant(root, "e2e/uat/pathological.uat.spec.ts", pathologicalSpec());
-    const r = runCheck(root, "--json");
-    expect(r.status, `expected a clean, bounded pass. stderr: ${r.stderr.split("\n")[0]}`).toBe(0);
-    expect(JSON.parse(r.stdout)).toEqual({ ok: true, findings: [] });
-  });
-
-  // ── GREEN 3: the DENOMINATOR floor is reachable with a pathological spec in the root ──────────
+  // ── 31-28 (D-30 (5)): THE BOUND IS DELETED, AND WHAT REPLACED IT IS MEASURED ─────────────────
   //
-  // This is the branch WR-19 records as bypassed BY CONSTRUCTION. Before the fix the run threw
-  // before `reportMeasured`, so no short-set diagnostic could ever be printed for a root that
-  // contained one of these specs — and the suite only ever asserted the floor on the ordinary path.
-  it("the short-set diagnostic still fires when one of the derived specs is the pathological one", async () => {
-    const { analyzeSpecs, reportMeasured } = await loadChecker();
-    const root = mkTargetRepo({});
-    plant(root, "e2e/uat/pathological.uat.spec.ts", pathologicalSpec());
-    plant(root, "e2e/uat/unreadable.uat.spec.ts", TRIVIAL_SPEC);
+  // WR-19's defect was a bound whose UNIT drifted when the code around it changed. The cutover
+  // removes the class rather than the instance: `calleeDottedPath` walks an EXPLICIT STACK, every
+  // step descends to a strict child of a finite parse tree, and there is no allowance left to state
+  // or to mis-unit. RR-05 — the residual that published the number — leaves the register with the
+  // mechanism it described. The cases below assert the deletion, the property WR-19 was convened
+  // about, and the boundary a pathological chain now reaches instead.
 
-    const analysis = analyzeSpecs(
-      root,
-      ["e2e/uat/pathological.uat.spec.ts", "e2e/uat/unreadable.uat.spec.ts"],
-      hostTypeScript,
-      (absPath: string) => {
-        if (absPath.endsWith("unreadable.uat.spec.ts")) throw new Error("forced read failure");
-        return readFileSync(absPath, "utf8");
-      },
+  it("the bound is GONE — not exported, and not written as a literal anywhere in the module", async () => {
+    const mod = (await loadChecker()) as unknown as Record<string, unknown>;
+    expect(
+      Object.prototype.hasOwnProperty.call(mod, "CALLEE_CHAIN_STEP_BOUND"),
+      "the bound is still exported — a published allowance for a mechanism the module no longer has",
+    ).toBe(false);
+    // DERIVED FROM THE PARSE, NOT FROM THE TEXT. A substring scan would also count the number where
+    // it appears in PROSE — this file's own decision header records what the unit used to be — and
+    // a check that reds on a comment is a check people learn to work around.
+    const ts = hostTypeScript as typeof import("typescript");
+    const sf = ts.createSourceFile(
+      "c.ts",
+      readFileSync(join(HERE, "uat-spec-integrity.ts"), "utf8"),
+      ts.ScriptTarget.Latest,
+      true,
     );
-    // PREMISE: the pathological spec was really VISITED — if it had thrown, or been recorded as a
-    // could-not-run reason, this case would be asserting the floor over a root that never carried it.
-    expect(analysis.expected).toBe(2);
-    expect(analysis.visited, "the pathological spec was not visited, so the floor below is vacuous").toBe(1);
-
-    let out = "";
-    let err = "";
-    const code = reportMeasured(analysis, false, (s) => {
-      out += s;
-    }, (s) => {
-      err += s;
-    });
-    expect(code).toBe(2);
-    expect(err).toContain("visited 1 of 2");
-    expect(out).toBe("");
+    const literals: import("typescript").NumericLiteral[] = [];
+    const scan = (node: import("typescript").Node): void => {
+      if (ts.isNumericLiteral(node) && node.text === "512") literals.push(node);
+      ts.forEachChild(node, scan);
+    };
+    ts.forEachChild(sf, scan);
+    expect(
+      literals.length,
+      "the deleted bound's value is still a numeric literal in the runnable's CODE",
+    ).toBe(0);
   });
 
-  // ── ADJACENCY: two separate cases, so an off-by-one is visible ────────────────────────────────
-
-  it("ADJACENCY: a chain of EXACTLY the bound resolves", async () => {
-    const { CALLEE_CHAIN_STEP_BOUND } = await loadChecker();
-    expect(CALLEE_CHAIN_STEP_BOUND, "PREMISE: the bound is not exported as a number").toBe(512);
-    // The head identifier is itself one step, so a chain of exactly the bound carries bound-1 links.
-    const atBound = await pathOf(`test${".p".repeat(CALLEE_CHAIN_STEP_BOUND - 1)}()`);
-    expect(atBound, "a chain of exactly the bound must resolve").not.toBeNull();
-    expect(atBound!.split(".").length).toBe(CALLEE_CHAIN_STEP_BOUND);
-  });
-
-  it("ADJACENCY: a chain of the bound PLUS ONE yields no path", async () => {
-    const { CALLEE_CHAIN_STEP_BOUND } = await loadChecker();
-    expect(await pathOf(`test${".p".repeat(CALLEE_CHAIN_STEP_BOUND)}()`)).toBeNull();
-  });
-
-  // ── EMPTY / SINGLE: the budget is never consumed by a construct with no links ─────────────────
-
-  it("a zero-link and a single-link chain each resolve with the budget barely touched", async () => {
-    expect(await pathOf("test()")).toBe("test");
-    expect(await pathOf("test.skip()")).toBe("test.skip");
-  });
-
-  // ── CONTROL: the review's two module-level shapes, decided by ONE budget ──────────────────────
-
-  it("ONE BUDGET: interleaving call links no longer buys a chain more steps than a pure one", async () => {
-    // (1) 600 pure property links: over the bound, and the bound behaves as documented.
-    expect(await pathOf(`test${".p".repeat(600)}()`)).toBeNull();
-
-    // (2) the SAME 600 links with 6 call links interleaved. Before this plan the recursion restarted
-    // the allowance at every call link, so this resolved to a 1216-character path with head "test".
-    // With one shared budget it is the SAME chain and gets the SAME answer.
+  it("WR-19's own property holds TRIVIALLY: interleaving call links changes nothing", async () => {
+    // The defect was that a chain interleaving call links resolved where the same chain of pure
+    // property links did not, because each recursion frame started a fresh allowance. With no
+    // allowance and no recursion, BOTH resolve — and the two are asserted to carry the SAME number
+    // of source links, which is the equality the drifted unit broke.
+    const pure = await pathOf(`test${".p".repeat(600)}()`);
     let expr = "test";
     for (let i = 0; i < 600; i++) {
       expr += ".p";
       if ((i + 1) % 100 === 0) expr += "()";
     }
+    const interleaved = await pathOf(`${expr}()`);
+    expect(pure, "a 600-link pure chain no longer resolves — the walk regressed").not.toBeNull();
+    expect(interleaved, "a 600-link interleaved chain no longer resolves").not.toBeNull();
+    const links = (path: string): number => path.split(".").length;
     expect(
-      await pathOf(`${expr}()`),
-      "a chain that interleaves call links resolved past the bound, so the allowance is still " +
-        "restarting per recursion frame",
-    ).toBeNull();
+      links(interleaved as string),
+      "interleaving call links changed how many links the resolution reached",
+    ).toBe(links(pure as string));
   });
 
-  // ── ONE AUTHORITY for the bound's VALUE ───────────────────────────────────────────────────────
+  it("a 4,000-link chain is a COULD-NOT-RUN at exit 2, never a pass and never an escaping throw", () => {
+    // 31-28 (D-30): MEASURED, AND IT IS A NEW BOUNDARY RATHER THAN THE OLD ONE. The resolver no
+    // longer struggles with this chain at all — the COMPILER does: `program.getTypeChecker()` binds
+    // every root file, and the binder is recursive over the AST, so a 4,000-link chain exhausts it.
+    // The runnable reports that honestly and blocks: exit 2, the named reason, an EMPTY stdout. The
+    // COST is real and is disclosed rather than absorbed — this could-not-run is WHOLE-RUN rather
+    // than per-file, which is coarser than the boundary D-28 established, and it is carried as a
+    // named residual with a closure criterion instead of being left for a seventh reviewer to find.
+    const root = mkTargetRepo({});
+    plant(root, "e2e/uat/pathological.uat.spec.ts", pathologicalSpec());
+    const r = runCheck(root);
+    expect([0, 1, 2], `exit code outside the D-12 contract: ${r.status}`).toContain(r.status);
+    expect(r.status, `stderr: ${r.stderr.split("\n")[0]}`).toBe(2);
+    expect(r.stdout, "a run that could not complete printed a claim about the specs").toBe("");
+    // …and nothing ESCAPED: an uncaught throw prints stack FRAMES, which is the difference between
+    // a decided exit and an interpreter's default.
+    expect(r.stderr).not.toContain("RangeError");
+    expect(r.stderr).not.toContain("    at ");
+  });
 
-  it("the bound's value has exactly ONE authority — no resolver carries a second literal", async () => {
-    const { CALLEE_CHAIN_STEP_BOUND } = await loadChecker();
-    const ts = hostTypeScript as typeof import("typescript");
-    const source = readFileSync(join(HERE, "uat-spec-integrity.ts"), "utf8");
-    const sf = ts.createSourceFile("c.ts", source, ts.ScriptTarget.Latest, true);
-
-    // DERIVED FROM THE PARSE, NOT FROM THE TEXT. A substring scan would also count the number where
-    // it appears in PROSE — this file's own decision header explains what the unit used to be — and
-    // a check that reds on a comment is a check people learn to work around.
-    const literals: import("typescript").NumericLiteral[] = [];
-    const scan = (node: import("typescript").Node): void => {
-      if (ts.isNumericLiteral(node) && node.text === String(CALLEE_CHAIN_STEP_BOUND)) {
-        literals.push(node);
-      }
-      ts.forEachChild(node, scan);
-    };
-    ts.forEachChild(sf, scan);
-
-    expect(
-      literals.length,
-      `the bound's value is written as a numeric literal ${literals.length} time(s) in the ` +
-        `runnable's CODE. A second literal is a second allowance with a second value the moment ` +
-        `either one is edited, which is one half of how the unit drifted in the first place.`,
-    ).toBe(1);
-
-    // …and the one literal is the exported declaration's initialiser, not some unrelated number
-    // that happens to share the value.
-    const declaration = literals[0].parent as import("typescript").Node;
-    expect(ts.isVariableDeclaration(declaration)).toBe(true);
-    expect(
-      (declaration as import("typescript").VariableDeclaration).name.getText(sf),
-    ).toBe("CALLEE_CHAIN_STEP_BOUND");
+  it("the WHOLE-RUN granularity of that boundary is a NAMED residual, not a silence", async () => {
+    const { UNRESOLVABLE_CALLEE_RESIDUALS, PROGRAM_UNAVAILABLE_REASON } = await loadChecker();
+    const root = mkTargetRepo({});
+    plant(root, "e2e/uat/pathological.uat.spec.ts", pathologicalSpec());
+    expect(runCheck(root).stderr).toContain(PROGRAM_UNAVAILABLE_REASON);
+    const named = UNRESOLVABLE_CALLEE_RESIDUALS.filter((m) => m.includes("PROGRAM_UNAVAILABLE_REASON"));
+    expect(named.length, "the could-not-run route is not named exactly once in the register").toBe(1);
   });
 
   // ── FAIL-CLOSED: a spec the walk cannot finish is a COULD-NOT-RUN reason, never a pass ─────────
   //
-  // The budget and the non-recursive walk are what stop the throw from happening. This case asserts
-  // what happens if one ever does anyway: the exit code must be inside the D-12 contract BY
-  // DECISION, and the spec must NOT be counted as visited — a file counted before the work is a
-  // file that can be counted as checked without having been.
+  // The non-recursive walk is what stops the throw from happening. This case asserts what happens
+  // if one ever does anyway: the exit code must be inside the D-12 contract BY DECISION, and the
+  // spec must NOT be counted as visited — a file counted before the work is a file that can be
+  // counted as checked without having been.
   it("a spec whose analysis throws is a could-not-run reason and never increments visited", async () => {
     const { analyzeSpecs, reportMeasured } = await loadChecker();
     const root = mkTargetRepo({});
     plant(root, "e2e/uat/one.uat.spec.ts", TRIVIAL_SPEC);
     plant(root, "e2e/uat/boom.uat.spec.ts", TRIVIAL_SPEC);
+    const rels = ["e2e/uat/boom.uat.spec.ts", "e2e/uat/one.uat.spec.ts"];
+    const ctx = await programContextFor(root, rels);
 
     // A parser whose walk throws for exactly one file, injected as the `ts` argument so the failure
     // lands inside findBannedConstructs rather than inside the reader.
@@ -4694,11 +4824,7 @@ describe("uat-spec-integrity — 31-17 WR-19: a pathological chain is bounded, n
       },
     };
 
-    const analysis = analyzeSpecs(
-      root,
-      ["e2e/uat/boom.uat.spec.ts", "e2e/uat/one.uat.spec.ts"],
-      throwingTs,
-    );
+    const analysis = analyzeSpecs(root, rels, throwingTs, ctx);
     expect(analysis.expected).toBe(2);
     expect(analysis.visited, "the throwing spec must NOT be counted as visited").toBe(1);
     expect(analysis.errors.join("\n")).toContain("boom.uat.spec.ts");
@@ -4944,36 +5070,30 @@ describe("uat-spec-integrity — 31-17 WR-20: a head with a nearer declaration i
 
   // ── Test 5: PRECEDENCE. The scope rule wins over BOTH maps ────────────────────────────────────
 
-  it("PRECEDENCE: a name in BOTH maps whose NEAREST binding suppresses is canonicalised by NEITHER", async () => {
-    const { canonicaliseHeadSegment, TEST_INFO_CANONICAL_HEAD } = await loadChecker();
+  it("SUPPRESSION: a head whose NEAREST binding contains the reference is not canonicalised", async () => {
+    const { canonicaliseHeadSegment } = await loadChecker();
     const renames = new Map([["shared", "test"]]);
-    const fixtureParams = new Set(["shared"]);
     // D-27: the scope argument is a { bindings, position } PAIR. A caller that cannot produce a
     // position cannot produce the pair, which is the structural half of "a constant is not a
     // position".
-    const scope = {
-      bindings: [{ name: "shared", start: 0, end: 100, suppresses: true }],
-      position: 50,
-    };
+    //
+    // 31-28 (D-30 (5)): there is only ONE map now. The fixture-parameter map that used to feed this
+    // canonicaliser was deleted with the fixed-index read CR-21 was found on, and the census's one
+    // non-suppressing record — the exemption that existed only to protect that map — went with it.
+    // What this case still asserts is the property WR-20 was convened about, unchanged: a reference
+    // the file itself binds is not rewritten into a construct the file does not contain.
+    const scope = { bindings: [{ name: "shared", start: 0, end: 100 }], position: 50 };
 
-    // PREMISE: without a containing binding, BOTH maps would have rewritten it — otherwise the case
+    // PREMISE: without a containing binding the map WOULD have rewritten it — otherwise the case
     // below asserts a no-op.
-    expect(canonicaliseHeadSegment("shared.skip", renames, fixtureParams, null)).toBe("test.skip");
-    expect(canonicaliseHeadSegment("shared.skip", null, fixtureParams, null)).toBe(
-      `${TEST_INFO_CANONICAL_HEAD}.skip`,
-    );
-    // …and with the nearest binding suppressing, neither does.
-    expect(canonicaliseHeadSegment("shared.skip", renames, fixtureParams, scope)).toBe(
-      "shared.skip",
-    );
-    // …while a position OUTSIDE that binding's range is decided by nothing, so both maps apply
+    expect(canonicaliseHeadSegment("shared.skip", renames, null)).toBe("test.skip");
+    // …and with the nearest binding containing the reference, it does not.
+    expect(canonicaliseHeadSegment("shared.skip", renames, scope)).toBe("shared.skip");
+    // …while a position OUTSIDE that binding's range is decided by nothing, so the map applies
     // again. The suppression is a property of the REFERENCE, not of the file.
-    expect(
-      canonicaliseHeadSegment("shared.skip", renames, fixtureParams, {
-        ...scope,
-        position: 100,
-      }),
-    ).toBe("test.skip");
+    expect(canonicaliseHeadSegment("shared.skip", renames, { ...scope, position: 100 })).toBe(
+      "test.skip",
+    );
   });
 
   // ── Test 6: the rule's OWN SET, exercised one declaration kind at a time ──────────────────────
@@ -5032,18 +5152,24 @@ describe("uat-spec-integrity — 31-17 WR-20: a head with a nearer declaration i
       true,
     );
     const declared = deriveDeclaredBindings(ts, sf);
-    expect(declared, "PREMISE: the census degraded to null on the host's own parser").not.toBeNull();
-    const names = declared!.map((b) => b.name);
+    expect(declared.length, "PREMISE: the census derived nothing on the host's own parser").toBeGreaterThan(0);
+    const names = declared.map((b) => b.name);
     for (const name of ["alpha", "beta", "gamma", "delta", "epsilon", "zeta", "eta", "theta", "iota"]) {
       expect(names, `the census does not carry ${name}`).toContain(name);
     }
-    // …and every one of them is a SUPPRESSING record: the only non-suppressing position is the
-    // TestInfo fixture binding, which this source does not contain.
-    for (const binding of declared!) {
-      expect(binding.suppresses, `${binding.name} must be a suppressing record`).toBe(true);
+    // 31-28 (D-30 (5)): every record SUPPRESSES, and the field that said so is gone. The one
+    // non-suppressing record was the TestInfo fixture-binding POSITION, which existed only to keep
+    // that parameter visible to `deriveTestInfoParameterNames` — the derivation this plan deleted.
+    // An exemption whose only reason has been deleted is a superset of nothing, so it was removed
+    // rather than narrowed, and with it the flag that could only ever read `true`.
+    for (const binding of declared) {
       expect(binding.end, `${binding.name} has an empty or inverted range`).toBeGreaterThan(
         binding.start,
       );
+      expect(
+        (binding as unknown as Record<string, unknown>).suppresses,
+        `${binding.name} still carries a suppresses flag — a field with one reachable value`,
+      ).toBeUndefined();
     }
   });
 
@@ -5060,14 +5186,12 @@ describe("uat-spec-integrity — 31-17 WR-20: a head with a nearer declaration i
       ts.ScriptTarget.Latest,
       true,
     );
-    const declared = deriveDeclaredBindings(ts, sf);
-    expect(declared).not.toBeNull();
     // If an import specifier counted as a declaration, EVERY rename would shadow itself and the
     // canonicalisation would never fire — the fix would have bought its correctness by doing nothing.
-    expect(declared!.map((b) => b.name)).toEqual([]);
+    expect(deriveDeclaredBindings(ts, sf).map((b) => b.name)).toEqual([]);
   });
 
-  it("the census RECORDS the fixture-binding position as NON-suppressing — 31-24 (D-27)", async () => {
+  it("the census records the fixture parameter like any other — the exemption is DELETED", async () => {
     const { deriveDeclaredBindings } = await loadChecker();
     const ts = hostTypeScript as typeof import("typescript");
     const sf = ts.createSourceFile(
@@ -5081,47 +5205,55 @@ describe("uat-spec-integrity — 31-17 WR-20: a head with a nearer declaration i
       true,
     );
     const declared = deriveDeclaredBindings(ts, sf);
-    expect(declared).not.toBeNull();
-    const fixture = declared!.filter((b) => b.name === "testInfo");
-    // D-21 (2) OMITTED this position from the census. D-27 RECORDS it as non-suppressing instead,
-    // because omitting it makes the parameter invisible to resolution — so an outer declaration of
-    // the same name becomes the NEAREST binding and suppresses, which is the module-scope evasion
-    // the round-5 adversarial check measured (RED 5).
-    expect(fixture.length, "the fixture-binding position is not in the list at all").toBe(1);
-    expect(
-      fixture[0].suppresses,
-      "the TestInfo binding position counted as a shadowing declaration, which would suppress the " +
-        "very canonicalisation D-20 (3) decided and reopen CR-10",
-    ).toBe(false);
-    // …and the FIRST parameter of the same callback is an ordinary SUPPRESSING binding, so the
-    // exemption is a position and not a licence for every parameter.
-    const page = declared!.filter((b) => b.name === "page");
-    expect(page.length).toBe(1);
-    expect(page[0].suppresses).toBe(true);
+    // D-21 (2) OMITTED this position. D-27 RECORDED it as non-suppressing, because omitting it made
+    // the parameter invisible to resolution. D-30 (5) records it like every other parameter, because
+    // the map the exemption protected is gone and the question it answered is now the CHECKER's:
+    // `testInfo`'s declared type is the framework's, so identity refuses `testInfo.skip()` whatever
+    // this census says about the name.
+    expect(declared.filter((b) => b.name === "testInfo").length).toBe(1);
+    expect(declared.filter((b) => b.name === "page").length).toBe(1);
+    // …and the behaviour that used to depend on the exemption is DRIVEN rather than assumed: a
+    // module-scope declaration of the fixture parameter's name does not re-admit the banned call.
+    const findings = findingsOf(
+      [
+        'import { test, expect } from "@playwright/test";',
+        "const testInfo = 1;",
+        "void testInfo;",
+        'test("a", async ({ page }, testInfo) => {',
+        "  testInfo.skip();",
+        '  await expect(page.getByTestId("x")).toBeVisible();',
+        "});",
+        "",
+      ].join("\n"),
+    );
+    expect(findings.length, `expected one finding, got ${JSON.stringify(findings)}`).toBe(1);
+    expect(findings[0]).toContain("test.info().skip");
   });
 
   // ── Test 7: the boundary is NAMED, and the register still binds in both directions ────────────
 
-  it("the resolution rule is a named residual with a reason true of it", async () => {
+  it("the two-rule pairing is the named residual now, with a reason true of the mechanism", async () => {
     const { UNRESOLVABLE_CALLEE_RESIDUALS } = await loadChecker();
-    const scoped = UNRESOLVABLE_CALLEE_RESIDUALS.filter((r) => r.includes("NEAREST binding"));
+    // D-21 (2) named a FILE-SCOPED census. D-27 named NEAREST-BINDING resolution. D-30 (3) moved the
+    // question to the checker and kept the census as a SECOND rule, asked only where the checker
+    // resolved nothing — so what the register must now disclose is the PAIRING, and what BOUNDS it.
+    // The member moves with the mechanism each time rather than being deleted, because the boundary
+    // is still a boundary and must still be exactly one named member.
+    const scoped = UNRESOLVABLE_CALLEE_RESIDUALS.filter((r) =>
+      r.includes("IDENTITY AND SPELLING ARE TWO RULES FOR ONE QUESTION"),
+    );
     expect(
       scoped.length,
-      "the scope rule's boundary is not a named member of the exported register",
+      "the two-rule pairing is not a named member of the exported register",
     ).toBe(1);
-    // The register must state what the rule DOES and what it does NOT claim: the nearest binding
-    // decides, the ranges differ by KIND, and no binder is shipped.
-    expect(scoped[0]).toContain("only that binding decides");
-    expect(scoped[0]).toContain("hoist to their enclosing function");
-    expect(scoped[0]).toContain("No binder is shipped");
+    expect(scoped[0]).toContain("the checker resolved no symbol at all");
+    expect(scoped[0]).toContain("What would force it closed");
+    // …and the sentence the PREVIOUS mechanism published is GONE, not left beside the new one. A
+    // register that accumulates a member per mechanism describes none of them.
     expect(
-      scoped[0].includes("WITHOUT SCOPE ANALYSIS"),
-      "the register still says the canonicalisations have NO scope analysis, which is now false",
-    ).toBe(false);
-    expect(
-      scoped[0].includes("WHOLE file"),
-      "the register still claims a file-scoped suppression, which is no longer the mechanism",
-    ).toBe(false);
+      UNRESOLVABLE_CALLEE_RESIDUALS.filter((r) => r.includes("No binder is shipped")),
+      "the register still publishes the pre-cutover scope sentence",
+    ).toEqual([]);
   });
 
   // ── the control fixture on disk ───────────────────────────────────────────────────────────────
@@ -5172,9 +5304,7 @@ describe("uat-spec-integrity — 31-17 WR-20: a head with a nearer declaration i
     const renames = new Map([["it", "test"]]);
 
     // THE SHIPPED RULE: nothing binds `it` at the module-scope call, so the rewrite fires.
-    expect(canonicaliseHeadSegment("it.skip", renames, null, { bindings: bindings!, position })).toBe(
-      "test.skip",
-    );
+    expect(canonicaliseHeadSegment("it.skip", renames, { bindings, position })).toBe("test.skip");
     // THE SEEDED FILE-SCOPED MUTANT: some record of `it` exists SOMEWHERE in the file — the two
     // helpers' parameters — so a file-scoped rule suppresses and the construct is ADMITTED. That is
     // the state 31-17 shipped, and it is what this fixture can now fail for.
@@ -5208,14 +5338,13 @@ interface DeclaredBindingView {
   readonly name: string;
   readonly start: number;
   readonly end: number;
-  readonly suppresses: boolean;
 }
 interface BindingScopeView {
   readonly bindings: readonly DeclaredBindingView[];
   readonly position: number;
 }
 interface ScopeSurface {
-  deriveDeclaredBindings(ts: unknown, sf: unknown): readonly DeclaredBindingView[] | null;
+  deriveDeclaredBindings(ts: unknown, sf: unknown): readonly DeclaredBindingView[];
   resolveBinding(
     bindings: readonly DeclaredBindingView[],
     name: string,
@@ -5223,8 +5352,7 @@ interface ScopeSurface {
   ): DeclaredBindingView | undefined;
   canonicaliseHeadSegment(
     dottedPath: string | null,
-    renames: ReadonlyMap<string, string> | null,
-    fixtureParams?: ReadonlySet<string> | null,
+    renames: ReadonlyMap<string, string>,
     scope?: BindingScopeView | null,
   ): string | null;
   readonly TEST_INFO_CANONICAL_HEAD: string;
@@ -5396,29 +5524,40 @@ describe("uat-spec-integrity — 31-24 CR-14/WR-23: a reference is decided by th
   // A case that passes under both "innermost wins" and "any containing binding suppresses" would
   // have let the wrong rule ship. This one is driven against a SEEDED any-containing mutant built
   // from the shipped records, so the discrimination is measured rather than argued.
-  it("RED 5b: under an ANY-CONTAINING-BINDING resolver the same spec is still admitted", async () => {
-    const { resolveBinding } = await loadScopeSurface();
-    const bindings = await bindingsOf(RED_5_WITH_CONST);
-    const position = RED_5_WITH_CONST.indexOf("testInfo.skip()");
-    expect(position, "PREMISE: the reference is not in the source").toBeGreaterThan(0);
+  it("RED 5b: the DISCRIMINATION moved to identity, and it is driven in both directions", () => {
+    // WHAT THIS CASE USED TO DISCRIMINATE. D-27 chose "innermost wins" over "any containing binding
+    // suppresses", and the fixture parameter had to be recorded as a NON-suppressing binding for
+    // the innermost rule to give the right answer. 31-28 (D-30 (5)) deleted that exemption with the
+    // fixture map it protected, so the census can no longer tell those two rules apart here — and
+    // it no longer has to, because the question moved to the checker: `testInfo`'s declared type is
+    // the framework's, so identity refuses the call whatever the census says about the NAME.
+    //
+    // THE DISCRIMINATION IS THEREFORE DRIVEN AT THE ENTRY, IN BOTH DIRECTIONS. The evading spec —
+    // an outer declaration of the fixture parameter's name — is REFUSED, and a spec where the same
+    // name is genuinely a local of the author's own is NOT. A case that only drove the first could
+    // pass under a rule that refuses everything.
+    const refused = findingsOf(RED_5_WITH_CONST);
+    expect(refused.length, `the evading spec was admitted: ${JSON.stringify(refused)}`).toBe(1);
+    expect(refused[0]).toContain("test.info().skip");
 
-    // The SHIPPED rule: the nearest binding is the fixture PARAMETER, which suppresses nothing.
-    const nearest = resolveBinding(bindings, "testInfo", position);
-    expect(nearest, "no binding of `testInfo` contains the reference").toBeDefined();
-    expect(nearest!.suppresses, "the nearest binding must be the non-suppressing fixture record").toBe(
-      false,
-    );
-
-    // THE SEEDED MUTANT: "does SOME containing binding of this name suppress?" — the resolution the
-    // adversarial check measured still admitting the construct.
-    const anyContaining = only(bindings, "testInfo").some(
-      (b) => b.start <= position && position < b.end && b.suppresses,
+    const accepted = findingsOf(
+      [
+        'import { test, expect } from "@playwright/test";',
+        "function helper(testInfo: { skip: (n: number) => number }): number {",
+        "  return testInfo.skip(1);",
+        "}",
+        "void helper;",
+        'test("s", async ({ page }) => {',
+        '  await expect(page.getByTestId("x")).toBeVisible();',
+        "});",
+        "",
+      ].join("\n"),
     );
     expect(
-      anyContaining,
-      "PREMISE OF THE DISCRIMINATION: if no containing binding suppresses, this case cannot tell " +
-        "the two candidate rules apart and proves nothing about the choice",
-    ).toBe(true);
+      accepted,
+      "a local of the author's own, merely SPELLED like the fixture, must not be refused — a rule " +
+        "that refuses both directions discriminates nothing",
+    ).toEqual([]);
   });
 
   // ── CONTROL 1..5: the prior closures are re-measured, not assumed ──────────────────────────────
@@ -5554,8 +5693,16 @@ describe("uat-spec-integrity — 31-24 CR-14/WR-23: a reference is decided by th
       ],
       findings: 0,
     },
+    // 31-28 (D-30 (2)): THESE THREE MOVED FROM 1 TO 0, AND THE LANGUAGE IS WHY. The reference sits
+    // in the temporal dead zone of a local that DECLARES a `skip` member, so the checker resolves
+    // `.skip` to that local's own type and identity answers `foreign` — the spelling rule is never
+    // asked. That is TypeScript's own answer: inside `wrap`, `it` IS the local, and reading `.skip`
+    // there throws at run time (TS2448, asserted below). A construct the language refuses to compile
+    // is a curiosity, not a bypass, and refusing it would be refusing a call the file does not make.
+    // The spelling rule's temporal-dead-zone refusal is NOT lost — it is what decides the spelling
+    // where the checker resolves NOTHING, which the row after this matrix drives.
     {
-      kind: "let (TDZ: a reference ABOVE the declaration is NOT suppressed)",
+      kind: "let (TDZ: the checker resolves the LOCAL, so identity answers foreign)",
       lines: [
         "function wrap(): void {",
         "  it.skip(1);",
@@ -5564,10 +5711,10 @@ describe("uat-spec-integrity — 31-24 CR-14/WR-23: a reference is decided by th
         "}",
         "void wrap;",
       ],
-      findings: 1,
+      findings: 0,
     },
     {
-      kind: "const (TDZ: a reference ABOVE the declaration is NOT suppressed)",
+      kind: "const (TDZ: the checker resolves the LOCAL, so identity answers foreign)",
       lines: [
         "function wrap(): void {",
         "  it.skip(1);",
@@ -5576,10 +5723,10 @@ describe("uat-spec-integrity — 31-24 CR-14/WR-23: a reference is decided by th
         "}",
         "void wrap;",
       ],
-      findings: 1,
+      findings: 0,
     },
     {
-      kind: "class (TDZ: a reference ABOVE the declaration is NOT suppressed)",
+      kind: "class (TDZ: the checker resolves the LOCAL, so identity answers foreign)",
       lines: [
         "function wrap(): void {",
         "  it.skip(1);",
@@ -5588,7 +5735,7 @@ describe("uat-spec-integrity — 31-24 CR-14/WR-23: a reference is decided by th
         "}",
         "void wrap;",
       ],
-      findings: 1,
+      findings: 0,
     },
     {
       kind: "a plain parameter (ranges over its OWN function)",
@@ -5708,33 +5855,34 @@ describe("uat-spec-integrity — 31-24 CR-14/WR-23: a reference is decided by th
     // A function declaration's own name hoists; a parameter ranges over its owning function.
     expect(at("eta").start).toBe(0);
     expect(at("theta").start).toBe(source.indexOf("function eta"));
-    // Every record of a plain declaration SUPPRESSES; only the fixture position does not.
+    // 31-28 (D-30 (5)): the `suppresses` FIELD is gone, because after the fixture exemption was
+    // deleted it had one reachable value. Every record here is a range and a name, and the ranges
+    // are what the kind matrix is about.
     for (const name of ["alpha", "gamma", "delta", "epsilon", "zeta", "eta", "theta"]) {
-      expect(at(name).suppresses, `${name} must be a suppressing record`).toBe(true);
+      expect(at(name).end, `${name} has an empty or inverted range`).toBeGreaterThan(at(name).start);
     }
   });
 
-  it("CONTROL 7 — the fixture-binding position is RECORDED, as a NON-suppressing binding", async () => {
+  it("CONTROL 7 — the fixture parameter is an ORDINARY record now, and identity decides it", async () => {
     const source = [
       'import { test } from "@playwright/test";',
       'test("a", async ({ page }, testInfo) => { void page; void testInfo; });',
       "",
     ].join("\n");
     const bindings = await bindingsOf(source);
-    const fixture = only(bindings, "testInfo");
-    expect(
-      fixture.length,
-      "OMITTING the fixture position makes the parameter INVISIBLE to resolution, so an outer " +
-        "declaration becomes the nearest binding and suppresses — which is RED 5",
-    ).toBe(1);
-    expect(fixture[0].suppresses).toBe(false);
-    // …and the FIRST parameter of the same callback is still an ordinary suppressing binding, so
-    // the exemption stays a POSITION rather than a licence for every parameter.
+    // D-21 (2) OMITTED it; D-27 RECORDED it as non-suppressing; D-30 (5) records it like any other
+    // parameter, because the map the exemption existed to protect is deleted. It is still IN the
+    // list — omitting a binding is what made an outer declaration the nearest one, which was RED 5.
+    expect(only(bindings, "testInfo").length).toBe(1);
     expect(only(bindings, "page").length).toBe(1);
-    expect(only(bindings, "page")[0].suppresses).toBe(true);
   });
 
-  it("WR-23 — the exemption is index 1 of a function that is a CALL's SECOND ARGUMENT, nothing else", async () => {
+  it("WR-23 — the position rule is DELETED, and its harm is measured absent", async () => {
+    // WR-23 narrowed an exemption that was one position too wide. D-30 removes the exemption
+    // entirely, so there is no position to be wide about — and the FALSE REFUSAL it caused is
+    // driven at the entry rather than inferred from a flag: a helper whose second parameter shares
+    // a renamed import's local name reports nothing, because the checker resolves `.skip` to the
+    // helper's own declared type and answers `foreign` before the spelling rule is ever asked.
     const bindings = await bindingsOf(
       [
         "function inner(n: number, it: { skip: (x: number) => number }): number { return it.skip(n); }",
@@ -5742,27 +5890,38 @@ describe("uat-spec-integrity — 31-24 CR-14/WR-23: a reference is decided by th
         "",
       ].join("\n"),
     );
-    const second = only(bindings, "it");
-    expect(second.length).toBe(1);
+    expect(only(bindings, "it").length).toBe(1);
     expect(
-      second[0].suppresses,
-      "index 1 of a FUNCTION DECLARATION is an ordinary parameter; exempting it re-opens WR-20 " +
-        "inside a helper, which is WR-23",
-    ).toBe(true);
+      findingsOf(
+        [
+          'import { test as it, expect } from "@playwright/test";',
+          "declare function helper(n: number, f: (a: number, b: { skip: (x: number) => number }) => number): void;",
+          "helper(1, function (a, it) { return it.skip(a); });",
+          'it("s", async ({ page }) => {',
+          '  await expect(page.getByTestId("x")).toBeVisible();',
+          "});",
+          "",
+        ].join("\n"),
+      ),
+      "a helper parameter was canonicalised into `test.skip`, a construct absent from the file",
+    ).toEqual([]);
   });
 
   // ── CONTROL 8: the tie rule, in the ban's safe direction ───────────────────────────────────────
 
-  it("CONTROL 8 — an EXACT range tie resolves to the NON-suppressing record", async () => {
+  it("CONTROL 8 — an EXACT range tie is now indistinguishable, and answers the same either way", async () => {
     const { resolveBinding } = await loadScopeSurface();
-    const suppressing: DeclaredBindingView = { name: "x", start: 10, end: 20, suppresses: true };
-    const permissive: DeclaredBindingView = { name: "x", start: 10, end: 20, suppresses: false };
-    // Both list orders give the same answer, so the rule is the comparator's and not the array's.
-    expect(resolveBinding([suppressing, permissive], "x", 15)!.suppresses).toBe(false);
-    expect(resolveBinding([permissive, suppressing], "x", 15)!.suppresses).toBe(false);
+    // D-27 broke this tie toward the NON-suppressing record, which was the ban's safe direction
+    // while a non-suppressing record existed. D-30 (5) deleted the only one there was, so two tied
+    // records are the same record and the preference would be a branch no input can reach. What
+    // must still hold is that the ANSWER does not depend on the array's order.
+    const first: DeclaredBindingView = { name: "x", start: 10, end: 20 };
+    const second: DeclaredBindingView = { name: "x", start: 10, end: 20 };
+    expect(resolveBinding([first, second], "x", 15)).toEqual(first);
+    expect(resolveBinding([second, first], "x", 15)).toEqual(first);
   });
 
-  it("CONTROL 8 — the tie shape is REACHABLE: two parameters of one name, one at the fixture index", async () => {
+  it("CONTROL 8 — the tie shape is REACHABLE: two parameters of one name", async () => {
     const source = [
       'import { test } from "@playwright/test";',
       'test("s", function (testInfo, testInfo) { return testInfo.skip(); });',
@@ -5777,12 +5936,6 @@ describe("uat-spec-integrity — 31-24 CR-14/WR-23: a reference is decided by th
     ).toBe(2);
     expect(records[0].start).toBe(records[1].start);
     expect(records[0].end).toBe(records[1].end);
-    expect(records.some((r) => r.suppresses)).toBe(true);
-    expect(records.some((r) => !r.suppresses)).toBe(true);
-    // …and the tie resolves in the ban's safe direction, end to end.
-    const findings = findingsOf(source);
-    expect(findings.length, `findings: ${JSON.stringify(findings)}`).toBe(1);
-    expect(findings[0]).toContain("test.info().skip");
   });
 
   // ── CONTROL 9: the derivation's LIST ORDER is not part of the answer ───────────────────────────
@@ -5809,28 +5962,47 @@ describe("uat-spec-integrity — 31-24 CR-14/WR-23: a reference is decided by th
     expect(resolveBinding(bindings, "test", 0)).toBeUndefined();
   });
 
-  it("EMPTY — a parser without the declaration predicates yields null, which suppresses nothing", async () => {
-    const { deriveDeclaredBindings, canonicaliseHeadSegment } = await loadScopeSurface();
-    const sf = ts.createSourceFile("p.ts", "const it = 1;\n", ts.ScriptTarget.Latest, true);
-    const stripped = { ...(ts as unknown as Record<string, unknown>) };
-    delete stripped.isParameter;
-    expect(deriveDeclaredBindings(stripped, sf)).toBeNull();
-    // …and a null scope is the pre-D-21 behaviour: the rewrite is applied.
-    expect(canonicaliseHeadSegment("it.skip", new Map([["it", "test"]]), null, null)).toBe(
-      "test.skip",
+  it("EMPTY — a parser without the declaration predicates is a LOUD SKIP, not a weaker rule", async () => {
+    const { loadTypeScriptFromTarget } = await loadChecker();
+    // 31-28 (D-30 (4)): this used to yield `null` and the canonicaliser then applied NO scope rule
+    // at all — the pre-D-21 behaviour, reached silently. RR-07 disclosed that honestly and the
+    // behaviour was still wrong: a smaller ban applied without saying so is a gate LOWERING. The
+    // predicates are VALIDATED at load time now, so a parser missing one cannot be used at all.
+    const root = mkTmp();
+    writeFileSync(join(root, "package.json"), JSON.stringify({ name: "t", private: true }), "utf8");
+    const dir = join(root, "node_modules", "typescript");
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(
+      join(dir, "package.json"),
+      JSON.stringify({ name: "typescript", version: "0.0.0-stub", main: "index.js" }),
+      "utf8",
     );
+    writeFileSync(
+      join(dir, "index.js"),
+      '"use strict";\n' +
+        `const real = require(${JSON.stringify(join(REPO_NODE_MODULES, "typescript"))});\n` +
+        "const shim = {};\n" +
+        "for (const k of Object.keys(real)) { try { shim[k] = real[k]; } catch { /* accessor threw */ } }\n" +
+        'Object.defineProperty(shim, "isParameter", { value: undefined, enumerable: true, configurable: true, writable: true });\n' +
+        "module.exports = shim;\n",
+      "utf8",
+    );
+    expect(
+      loadTypeScriptFromTarget(root),
+      "a parser missing a validated predicate was accepted, so the run would decide a weaker ban",
+    ).toBeNull();
   });
 
   it("ADJACENCY — a range that ENDS at the reference does not contain it (exclusive end)", async () => {
     const { resolveBinding } = await loadScopeSurface();
-    const b: DeclaredBindingView = { name: "x", start: 0, end: 40, suppresses: true };
+    const b: DeclaredBindingView = { name: "x", start: 0, end: 40 };
     expect(resolveBinding([b], "x", 40)).toBeUndefined();
     expect(resolveBinding([b], "x", 39)).toBe(b);
   });
 
   it("ADJACENCY — a range that STARTS at the reference DOES contain it (inclusive start)", async () => {
     const { resolveBinding } = await loadScopeSurface();
-    const b: DeclaredBindingView = { name: "x", start: 40, end: 80, suppresses: true };
+    const b: DeclaredBindingView = { name: "x", start: 40, end: 80 };
     expect(resolveBinding([b], "x", 40)).toBe(b);
     expect(resolveBinding([b], "x", 39)).toBeUndefined();
   });
@@ -5841,7 +6013,7 @@ describe("uat-spec-integrity — 31-24 CR-14/WR-23: a reference is decided by th
     // strictly to its right and cannot contain it.
     const callStart = 10;
     const callEnd = 25;
-    const b: DeclaredBindingView = { name: "x", start: callEnd, end: 90, suppresses: true };
+    const b: DeclaredBindingView = { name: "x", start: callEnd, end: 90 };
     expect(resolveBinding([b], "x", callStart)).toBeUndefined();
   });
 
@@ -5887,17 +6059,15 @@ describe("uat-spec-integrity — 31-24 CR-14/WR-23: a reference is decided by th
     expect(atModuleScope).toBeGreaterThan(inHelper);
 
     // With each reference's OWN position the two answers DIFFER — which is the whole point.
-    expect(canonicaliseHeadSegment("it.skip", renames, null, { bindings, position: inHelper })).toBe(
+    expect(canonicaliseHeadSegment("it.skip", renames, { bindings, position: inHelper })).toBe(
       "it.skip",
     );
-    expect(
-      canonicaliseHeadSegment("it.skip", renames, null, { bindings, position: atModuleScope }),
-    ).toBe("test.skip");
-    // With a file-level constant BOTH become the answer for position 0, so the helper's legitimate
-    // call is refused: CR-14 through the back door.
-    expect(canonicaliseHeadSegment("it.skip", renames, null, { bindings, position: 0 })).toBe(
+    expect(canonicaliseHeadSegment("it.skip", renames, { bindings, position: atModuleScope })).toBe(
       "test.skip",
     );
+    // With a file-level constant BOTH become the answer for position 0, so the helper's legitimate
+    // call is refused: CR-14 through the back door.
+    expect(canonicaliseHeadSegment("it.skip", renames, { bindings, position: 0 })).toBe("test.skip");
     // …and end to end, the same file reports exactly ONE finding, at the module-scope call.
     expect(findingsOf(source).length).toBe(1);
   });
@@ -5913,14 +6083,14 @@ describe("uat-spec-integrity — 31-24 CR-14/WR-23: a reference is decided by th
     const bindings = await bindingsOf(source);
     // A module-scope `var` hoists to the SourceFile, whose range starts at 0, so a zero position
     // sits inside it and suppresses every call in the file.
-    expect(
-      canonicaliseHeadSegment("it.skip", new Map([["it", "test"]]), null, { bindings, position: 0 }),
-    ).toBe("it.skip");
+    expect(canonicaliseHeadSegment("it.skip", new Map([["it", "test"]]), { bindings, position: 0 })).toBe(
+      "it.skip",
+    );
   });
 
   // ── the canonicaliser's CALLERS, derived from the source rather than remembered ────────────────
 
-  it("every canonicaliser caller supplies a CALL-DERIVED position, and the set is derived", () => {
+  it("the ONE canonicaliser caller supplies a CALL-DERIVED position, and the set is derived", () => {
     const sf = ts.createSourceFile(
       "uat-spec-integrity.ts",
       readFileSync(CHECKER_TS, "utf8"),
@@ -5930,9 +6100,7 @@ describe("uat-spec-integrity — 31-24 CR-14/WR-23: a reference is decided by th
     const collapse = (n: import("typescript").Node): string =>
       n.getText(sf).replace(/\s+/g, " ").trim();
 
-    /** Every call of the canonicaliser, with the SCOPE ARGUMENT it supplies. */
     const callSites: Array<{ readonly site: string; readonly scopeArg: string }> = [];
-    /** Every `const scope = …` in the module, so a caller that passes one can be followed. */
     const scopeLocals: string[] = [];
     const walk = (node: import("typescript").Node): void => {
       if (
@@ -5942,7 +6110,7 @@ describe("uat-spec-integrity — 31-24 CR-14/WR-23: a reference is decided by th
       ) {
         callSites.push({
           site: collapse(node),
-          scopeArg: node.arguments.length >= 4 ? collapse(node.arguments[3]) : "(absent)",
+          scopeArg: node.arguments.length >= 3 ? collapse(node.arguments[2]) : "(absent)",
         });
       }
       if (
@@ -5957,17 +6125,16 @@ describe("uat-spec-integrity — 31-24 CR-14/WR-23: a reference is decided by th
     };
     ts.forEachChild(sf, walk);
 
-    // TWO callers, and PROBE 4 is why the number is asserted with its reason rather than as a
-    // number. The probe found the assertion arms reaching a membership question with a head the
-    // canonicaliser never saw, and a first fix added a THIRD caller inside `canonicalAssertionHead`.
-    // That caller was then DELETED: the arms ask about arm (c)'s own already-canonicalised
-    // `dottedPath`, which was measured to answer every shape the third caller answered. A caller
-    // arriving silently is the event this case exists to catch; a caller arriving with a reason is a
-    // decision, and this one was reversed on measurement rather than kept for symmetry.
+    // ONE caller, and the number is asserted with its reason rather than as a number. PROBE 4 found
+    // the assertion arms reaching a membership question with a head the canonicaliser never saw, and
+    // a first fix added a caller inside `canonicalAssertionHead`; that caller was DELETED because the
+    // arms ask about arm (c)'s own already-canonicalised path. 31-28 removed the SECOND caller too —
+    // it was inside `deriveTestInfoParameterNames`, the fixed-index derivation CR-21 was found on.
+    // A caller arriving silently is the event this case exists to catch.
     expect(
       callSites.length,
       `the canonicaliser's caller set changed. Sites: ${JSON.stringify(callSites, null, 2)}`,
-    ).toBe(2);
+    ).toBe(1);
 
     // PREMISE: exactly one `scope` local exists, and it is derived from a NODE's own start.
     expect(scopeLocals.length, "the one `scope` local is missing or duplicated").toBe(1);
@@ -5985,12 +6152,12 @@ describe("uat-spec-integrity — 31-24 CR-14/WR-23: a reference is decided by th
           `nor the one \`scope\` local that carries one. A file-level constant is not a position.`,
       ).toBe(true);
     }
-    // …and the assertion arms really consume arm (c)'s own canonicalised path, so the scope rule
-    // reaches them without a second canonicaliser call to keep in step.
+    // …and the assertion arms really consume the ONE already-decided path, so the scope rule reaches
+    // them without a second canonicaliser call to keep in step.
     const source = readFileSync(CHECKER_TS, "utf8").replace(/\s+/g, " ");
     expect(
       source,
-      "the assertion arms must ask about the ONE already-canonicalised path, not a raw head",
+      "the assertion arms must ask about the ONE already-decided path, not a raw head",
     ).toContain("const assertionHead = canonicalAssertionHead(dottedPath);");
     expect(
       source.includes('head.text === "expect"'),
@@ -6000,19 +6167,21 @@ describe("uat-spec-integrity — 31-24 CR-14/WR-23: a reference is decided by th
 
   // ── the disclosure moved with the mechanism ────────────────────────────────────────────────────
 
-  it("the residual register states the NEAREST-BINDING rule and no longer claims file scope", async () => {
+  it("the register states the TWO-RULE PAIRING and no longer claims a single scope authority", async () => {
     const { UNRESOLVABLE_CALLEE_RESIDUALS } = await loadScopeSurface();
-    const scoped = UNRESOLVABLE_CALLEE_RESIDUALS.filter((r) => r.includes("NEAREST"));
-    expect(scoped.length, "the resolution rule is not a named member of the exported register").toBe(
-      1,
+    const scoped = UNRESOLVABLE_CALLEE_RESIDUALS.filter((r) =>
+      r.includes("IDENTITY AND SPELLING ARE TWO RULES FOR ONE QUESTION"),
     );
-    expect(scoped[0]).toContain("hoist");
-    expect(scoped[0]).toContain("No binder is shipped");
-    expect(scoped[0]).toContain("NON-suppressing");
-    expect(
-      UNRESOLVABLE_CALLEE_RESIDUALS.some((r) => r.includes("FILE-SCOPED")),
-      "the register still claims a file-scoped suppression, which is no longer the mechanism",
-    ).toBe(false);
+    expect(scoped.length, "the pairing is not a named member of the exported register").toBe(1);
+    expect(scoped[0]).toContain("the spelling rule is not consulted");
+    expect(scoped[0]).toContain("temporal-dead-zone");
+    expect(scoped[0]).toContain("What would force it closed");
+    for (const stale of ["FILE-SCOPED", "No binder is shipped", "NON-suppressing"]) {
+      expect(
+        UNRESOLVABLE_CALLEE_RESIDUALS.some((r) => r.includes(stale)),
+        `the register still publishes "${stale}", which is no longer the mechanism`,
+      ).toBe(false);
+    }
   });
 
   it("the D-21 header no longer calls the suppression MONOTONE IN THE SAFE DIRECTION", () => {
@@ -6453,7 +6622,10 @@ describe("uat-spec-integrity — 31-25 CR-15: every exit passes through one deci
     expect(r.stdout).toBe("");
     // The boundary NAMES the cause — that is what makes the four could-not-run reasons
     // distinguishable — and it is what distinguishes a NAMED refusal from an ESCAPED one.
-    expect(r.stderr).toContain("could not be analysed (Maximum call stack size exceeded)");
+    // 31-28 (WR-29): the sentence NAMES the parse, because the fault was raised inside the parser
+    // rather than inside the walk. The module claimed four distinguishable reasons and implemented
+    // three; this is the case that used to read the walk's sentence for a parse fault.
+    expect(r.stderr).toContain("could not be PARSED (Maximum call stack size exceeded)");
     // …and nothing escaped: an uncaught throw prints stack FRAMES, and there are none. Asserting
     // the absence of the cause STRING would have been asserting the absence of the diagnostic, which
     // is the opposite of what a could-not-run boundary is for. Measured: the first form of this
@@ -6658,9 +6830,17 @@ describe("uat-spec-integrity — 31-25 CR-15: every exit passes through one deci
       ].join("\n"),
     );
     const r = runCheck(root);
-    expect(r.status).toBe(0);
-    expect(r.stdout).toContain("0 findings over 1/1 uat specs checked");
-    expect(r.stderr).toBe("");
+    // 31-28 (D-30 (4)): THIS CONTROL MOVED, AND THE MOVE IS DISCLOSED RATHER THAN ABSORBED. The
+    // resolver no longer struggles with the chain — the COMPILER's binder does, and it binds every
+    // root file at once, so the run reports a could-not-run instead of a clean pass. Exit 2 is
+    // inside the D-12 contract and is never a pass; the WHOLE-RUN granularity is coarser than
+    // D-28's per-file boundary and is a named member of the residual register with a closure
+    // criterion. What must NOT change is that nothing escapes: no stack frames, no exit outside
+    // { 0, 1, 2 }, and no claim about the specs on stdout.
+    expect([0, 1, 2]).toContain(r.status);
+    expect(r.status, `stderr: ${r.stderr.split("\n")[0]}`).toBe(2);
+    expect(r.stdout, "a run that could not complete printed a claim about the specs").toBe("");
+    expect(r.stderr).not.toContain("    at ");
   });
 
   // ── CONTROL 2: the two loud skips are unmoved and stay distinguishable ────────────────────────
@@ -6714,7 +6894,12 @@ describe("uat-spec-integrity — 31-25 CR-15: every exit passes through one deci
     const { analyzeSpecs } = await loadChecker();
     const root = mkTargetRepo({});
     plant(root, "e2e/uat/empty.uat.spec.ts", "");
-    const analysis = analyzeSpecs(root, ["e2e/uat/empty.uat.spec.ts"], hostTypeScript);
+    const analysis = analyzeSpecs(
+      root,
+      ["e2e/uat/empty.uat.spec.ts"],
+      hostTypeScript,
+      await programContextFor(root, ["e2e/uat/empty.uat.spec.ts"]),
+    );
     expect(analysis.visited, "a zero-byte spec is a file that WAS checked, not one that could not be").toBe(1);
     expect(analysis.errors).toEqual([]);
     expect(analysis.findings).toEqual([]);
@@ -6794,7 +6979,25 @@ describe("uat-spec-integrity — 31-25 D-28: the exit partition over a pathologi
     try {
       writeFileSync(join(root, "package.json"), JSON.stringify({ name: "target", private: true }), "utf8");
       symlinkSync(REPO_NODE_MODULES, join(root, "node_modules"), "dir");
+      // 31-28 (D-30): a probe root is a TARGET, so it carries what a target must — a configuration
+      // file and the framework's declarations. Without them the ban has no Program and no symbol,
+      // and every shape below would exit 2 for a reason that says nothing about the shape.
+      equipTarget(root);
       return fn(root);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  }
+
+  /** The same probe root, for a case that must await a Program built from it. */
+  async function withProbeRootAsync<T>(fn: (root: string) => Promise<T>): Promise<T> {
+    mkdirSync(CORPUS_PARENT, { recursive: true });
+    const root = mkdtempSync(join(CORPUS_PARENT, "shape-"));
+    try {
+      writeFileSync(join(root, "package.json"), JSON.stringify({ name: "target", private: true }), "utf8");
+      symlinkSync(REPO_NODE_MODULES, join(root, "node_modules"), "dir");
+      equipTarget(root);
+      return await fn(root);
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
@@ -7053,11 +7256,11 @@ describe("uat-spec-integrity — 31-25 D-28: the exit partition over a pathologi
     expect(r.stdout).toContain("0 findings over 1/1 uat specs checked");
     expect(r.stderr).toBe("");
     // …and `visited` really is 1, read off the analysis rather than inferred from the exit code.
-    withProbeRoot((root) => {
+    await withProbeRootAsync(async (root) => {
       const rel = "e2e/uat/shape.uat.spec.ts";
       mkdirSync(dirname(join(root, rel)), { recursive: true });
       writeFileSync(join(root, rel), c.bytes());
-      const analysis = analyzeSpecs(root, [rel], hostTypeScript);
+      const analysis = analyzeSpecs(root, [rel], hostTypeScript, await programContextFor(root, [rel]));
       expect(analysis.visited, "a BOM is a checked file, not one that could not be").toBe(1);
       expect(analysis.errors).toEqual([]);
     });
@@ -7196,13 +7399,22 @@ describe("uat-spec-integrity — 31-25 PROBES: how is this boundary REACHED, not
   // ── PROBE 1: EVERY return and EVERY branch is DERIVED, then DRIVEN ───────────────────────────
 
   it("PROBE 1: the derived exit sites equal the driven ones, and every one lands inside {0,1,2}", async () => {
-    const { main, reportMeasured, PARSER_ABSENT_MARKER, BROWSER_ABSENT_MARKER, PROCESS_BOUNDARY_MARKER } =
-      await loadChecker();
+    const {
+      main,
+      reportMeasured,
+      PARSER_ABSENT_MARKER,
+      BROWSER_ABSENT_MARKER,
+      PROCESS_BOUNDARY_MARKER,
+      PROGRAM_UNAVAILABLE_REASON,
+    } = await loadChecker();
 
     // DERIVED by a parse of the module, never remembered.
     const derived = returnsOf("main") + returnsOf("runMain") + returnsOf("reportMeasured");
     expect(returnsOf("main"), "main's own returns").toBe(2);
-    expect(returnsOf("runMain"), "runMain's returns").toBe(7);
+    // 31-28 (D-30 (4)): EIGHT, because program creation added a return of its own — the loud
+    // could-not-run beside the parser-absent branch. A return arriving silently is the event this
+    // probe exists to catch; this one arrives with a decision and is driven below.
+    expect(returnsOf("runMain"), "runMain's returns").toBe(8);
     expect(returnsOf("reportMeasured"), "reportMeasured's branches").toBe(4);
 
     const codes: number[] = [];
@@ -7238,7 +7450,7 @@ describe("uat-spec-integrity — 31-25 PROBES: how is this boundary REACHED, not
       err: e,
     }), 2, PROCESS_BOUNDARY_MARKER);
 
-    // runMain — 7 sites
+    // runMain — 8 sites
     drive("runMain: no repository root", (o, e) => main([], { out: o, err: e }), 2, "no repository root was provided");
     drive("runMain: the root is not a directory", (o, e) => main([join(mkRoot(), "absent")], { out: o, err: e }), 2, "not a readable directory");
     drive("runMain: the browser lane is unusable", (o, e) => main([mkRoot({ "e2e/uat/a.uat.spec.ts": CLEAN_SPEC }, false), "--check-browser"], { out: o, err: e }), 2, BROWSER_ABSENT_MARKER);
@@ -7250,6 +7462,20 @@ describe("uat-spec-integrity — 31-25 PROBES: how is this boundary REACHED, not
     drive("runMain: a containment refusal", (o, e) => main([escaped], { out: o, err: e }), 2, "resolves outside the repository root");
     drive("runMain: an empty derived set", (o, e) => main([mkRoot()], { out: o, err: e }), 2, "ZERO uat specs were visited (0 derived)");
     drive("runMain: the parser is absent", (o, e) => main([mkRoot({ "e2e/uat/a.uat.spec.ts": CLEAN_SPEC }, false)], { out: o, err: e }), 2, PARSER_ABSENT_MARKER);
+    // 31-28 (D-30 (4)): the eighth site — a target whose TypeScript can PARSE but cannot create a
+    // Program. Driven through the injected builder rather than by breaking a real target, so the
+    // branch is reached for its own reason and not for a neighbouring one.
+    drive(
+      "runMain: the program is unavailable",
+      (o, e) =>
+        main([mkRoot({ "e2e/uat/a.uat.spec.ts": CLEAN_SPEC })], {
+          createProgram: () => ({ ok: false, cause: "probe-1 forced program failure" }),
+          out: o,
+          err: e,
+        }),
+      2,
+      PROGRAM_UNAVAILABLE_REASON,
+    );
     drive("runMain: the measured report", (o, e) => main([mkRoot({ "e2e/uat/a.uat.spec.ts": FINDING_SPEC })], { out: o, err: e }), 1, "finding(s) over 1/1");
 
     // reportMeasured — 4 branches
@@ -7326,7 +7552,7 @@ describe("uat-spec-integrity — 31-25 PROBES: how is this boundary REACHED, not
       "e2e/uat/clean.uat.spec.ts": CLEAN_SPEC,
     });
     const rels = ["e2e/uat/clean.uat.spec.ts", "e2e/uat/nested.uat.spec.ts"];
-    const analysis = analyzeSpecs(root, rels, hostTypeScript);
+    const analysis = analyzeSpecs(root, rels, hostTypeScript, await programContextFor(root, rels));
     expect(analysis.expected, "`expected` is derived BEFORE the loop and the boundary must not move it").toBe(
       rels.length,
     );
@@ -7357,7 +7583,8 @@ describe("uat-spec-integrity — 31-25 PROBES: how is this boundary REACHED, not
     // …and every per-file could-not-run REASON reaches stderr, never stdout.
     const { overflow } = parseBoundary();
     const r = runCheck(mkRoot({ "e2e/uat/nested.uat.spec.ts": nestedSpec(overflow) }));
-    expect(r.stderr).toContain("could not be analysed");
+    // 31-28 (WR-29): the sentence names the PARSE, because that is where the fault was raised.
+    expect(r.stderr).toContain("could not be PARSED");
     expect(r.stdout).toBe("");
   });
 
@@ -7436,12 +7663,7 @@ describe("uat-spec-integrity — 31-25 PROBES: how is this boundary REACHED, not
      * how the SECOND unguarded self-recursion (`deriveSpecPaths`'s walk) would have been visible
      * before CR-15 had to point at it.
      */
-    const DISPOSITIONS: Readonly<Record<string, string>> = Object.freeze({
-      calleeDottedPath:
-        "D-21 (1): bounded by ONE shared CalleeStepBudget threaded through the recursion and charged " +
-        "explicitly on the call link, AND called only from inside the per-file could-not-run boundary, " +
-        "so an exhausted stack is a named could-not-run reason at exit 2 rather than an escaping throw.",
-    });
+    const DISPOSITIONS: Readonly<Record<string, string>> = Object.freeze({});
 
     expect(
       selfRecursive.filter((n) => !(n in DISPOSITIONS)),
@@ -7454,7 +7676,14 @@ describe("uat-spec-integrity — 31-25 PROBES: how is this boundary REACHED, not
     // The two CR-15 named are gone: the AST walk (D-21 (1)) and the directory walk (D-28 (1)).
     expect(selfRecursive).not.toContain("forEachDescendant");
     expect(selfRecursive).not.toContain("walk");
-    expect(selfRecursive).toHaveLength(1);
+    // 31-28 (D-30 (5)): and so is the THIRD — `calleeDottedPath`, which D-18 (1) made recursive and
+    // D-21 (1) then had to bound with a threaded budget. It walks an EXPLICIT STACK now, so the
+    // module carries no self-recursion at all and the register that dispositioned them is EMPTY
+    // rather than carrying an entry for a mechanism that is gone.
+    expect(
+      selfRecursive,
+      "the module regrew a self-recursion; a stack depth is an input the author controls",
+    ).toHaveLength(0);
   });
 
   it("PROBE 4: every byte-touching position OUTSIDE the per-file boundary is caught by a named answer", async () => {
@@ -7510,7 +7739,11 @@ describe("uat-spec-integrity — 31-25 PROBES: how is this boundary REACHED, not
 /** A target repository whose spec content is GENERATED rather than copied from the fixtures dir. */
 function mkGeneratedTarget(
   files: Record<string, string>,
-  opts: { readonly typescript?: "real" | "none" | "stub-no-import-predicates"; readonly tsconfig?: string } = {},
+  opts: {
+    readonly typescript?: "real" | "none" | "stub-no-import-predicates";
+    /** `undefined` = the default configuration; an explicit `null` = NO configuration file. */
+    readonly tsconfig?: string | null;
+  } = {},
 ): string {
   const root = mkTmp();
   writeFileSync(join(root, "package.json"), JSON.stringify({ name: "target", private: true }), "utf8");
@@ -7546,7 +7779,7 @@ function mkGeneratedTarget(
       "utf8",
     );
   }
-  if (opts.tsconfig !== undefined) writeFileSync(join(root, "tsconfig.json"), opts.tsconfig, "utf8");
+  equipTarget(root, opts.tsconfig === undefined ? TARGET_TSCONFIG : opts.tsconfig);
   for (const [rel, body] of Object.entries(files)) plant(root, rel, body);
   return root;
 }
@@ -7613,15 +7846,20 @@ const CORPUS_COVERAGE: Readonly<Record<string, readonly string[]>> = Object.free
 
 /** One row per member of the exported residual register, keyed by that member's INDEX. */
 const RESIDUAL_COVERAGE: Readonly<Record<number, string>> = Object.freeze({
-  0: "RR-01 an aliased binding `const t = test;`",
-  1: "RR-02 a member computed from a non-literal expression",
-  2: "RR-03 a rename arriving through a module other than the framework",
-  3: "RR-04 a callee whose head is not an identifier",
-  4: "RR-05 a callee chain longer than the step bound",
-  5: "RR-06 an option enabled by something other than the `true` keyword",
-  6: "RR-07 a parser lacking predicates degrading to the pre-D-18 rule",
-  7: "RR-08 a TestInfo binding destructured in the callback's second parameter",
-  8: "RR-09 the nearest-binding scope rule",
+  // THE REGISTER SHRANK FROM NINE TO SIX, BY MEASUREMENT. RR-01 (alias), RR-03 (cross-module
+  // re-export), RR-08 (destructured TestInfo) and RR-09 (the census as the ban's only scope
+  // authority) were CLOSED by the checker, each with a corpus row driven at the entry that reported
+  // `0 findings` / EXIT=0 before and `1 finding(s)` / EXIT=1 after. RR-05 (the chain-step bound) was
+  // DELETED with the recursion it existed for. RR-07 (a silent degrade) was REPLACED by the
+  // could-not-run route below. RR-04 was rewritten rather than removed: the object-literal half is
+  // decided by identity and the `this` half is not. Two members are NEW and disclose what the
+  // cutover itself costs — the two-rule pairing, and the unmeasured installed-package route.
+  0: "RR-02 a member computed from a non-literal expression",
+  1: "RR-06 an option enabled by something other than the `true` keyword",
+  2: "RR-10 identity and spelling are two rules for one question (NEW, D-30 (3))",
+  3: "RR-04' a callee whose head the checker cannot resolve (REWRITTEN)",
+  4: "RR-11 a target that cannot create a Program is a could-not-run at exit 2 (REPLACES RR-07)",
+  5: "RR-12 the installed-package identity route is reasoned, not measured (NEW, UNKNOWN - verify)",
 });
 
 describe("uat-spec-integrity — 31-28 MOVEMENT 1: the corpus's denominator is DERIVED, not typed", () => {
@@ -7897,20 +8135,48 @@ ${TAIL}
 void wrapper();
 `;
 
-  it("RECORDED: `using` suppresses and `await using` does NOT — the arm disagrees with itself", () => {
+  it("GREEN 4: `using` and `await using` now AGREE, and both are refused", async () => {
     row("RED-4a-WR30-using");
     row("RED-4b-WR30-await-using");
-    // MEASURED, and it corrects the finding's own text. `listHoists` asks
+    // MEASURED BEFORE, AND THE MEASUREMENT CORRECTED THE FINDING'S OWN TEXT. `listHoists` asked
     // `((flags & (Let | Const)) === 0)`. On this repository's parser (typescript 6.0.3):
     //   Let = 1 · Const = 2 · Using = 4 · AwaitUsing = 6
-    // so `using` (4) answers TRUE — classified as hoisting, range widened to the enclosing function,
-    // the ban suppressed, `0 findings` / EXIT=0 — while `await using` (6, which CARRIES the Const
-    // bit) answers FALSE and is correctly ranged by the `tdz` arm: `1 finding(s)` / EXIT=1.
-    // WR-30's fix sketch adds `(nodeFlags.AwaitUsing ?? 0)` to the mask, which is a NO-OP for a
-    // spelling that was never misclassified. The defect is real and it is HALF the size the
-    // Warning states.
-    expect(driveSpec(usingSpec("using")).status).toBe(0);
+    // so `using` (4) answered TRUE — classified as hoisting, range widened to the enclosing
+    // function, the ban suppressed, `0 findings` / EXIT=0 — while `await using` (6, which CARRIES
+    // the Const bit) answered FALSE and was correctly ranged by the `tdz` arm at `1 finding(s)` /
+    // EXIT=1. WR-30's own fix sketch adds `(nodeFlags.AwaitUsing ?? 0)` to the mask, which is a
+    // NO-OP for a spelling that was never misclassified: the defect was real and HALF the size the
+    // Warning states. The mask now names every block-scoping flag the parser publishes, so the two
+    // spellings agree — and they agree in the REFUSING direction.
+    expect(driveSpec(usingSpec("using")).status).toBe(1);
     expect(driveSpec(usingSpec("await using")).status).toBe(1);
+  });
+
+  it("both spellings are CURIOSITIES, not live bypasses — the language refuses them (TS2448)", () => {
+    row("RED-4c-WR30-tdz-does-not-compile");
+    // The reference sits ABOVE its own block-scoped declaration, so refusing it is the safe
+    // direction AND the language refuses the file outright. A spelling that does not compile is a
+    // spec Playwright never runs; recording that is what separates a live bypass from a curiosity,
+    // and it is why the fix is the mask rather than a new ban member.
+    const host = hostTypeScript as typeof import("typescript");
+    for (const keyword of ["using", "await using"] as const) {
+      const dir = mkTmp();
+      const specPath = join(dir, "p.uat.spec.ts");
+      writeFileSync(specPath, usingSpec(keyword), "utf8");
+      const program = host.createProgram([specPath, join(FIXTURES, "playwright-test.d.ts")], {
+        strict: true,
+        noEmit: true,
+        target: host.ScriptTarget.ES2022,
+        module: host.ModuleKind.ESNext,
+        moduleResolution: host.ModuleResolutionKind.Bundler,
+        skipLibCheck: true,
+      });
+      const codes = host
+        .getPreEmitDiagnostics(program)
+        .filter((d) => d.file?.fileName === specPath)
+        .map((d) => d.code);
+      expect(codes, `${keyword}: expected TS2448 (used before its declaration)`).toContain(2448);
+    }
   });
 });
 
@@ -8007,19 +8273,47 @@ ${TAIL}
     expect(r.status).toBe(1);
   });
 
-  it("RR-04: a callee whose head is not an identifier stays a NAMED refusal (accepted by design)", async () => {
+  it("RR-04': the object-literal head is CLOSED by identity; the register names what remains", async () => {
     row("RED-11-RR04-non-identifier-head");
     const { UNRESOLVABLE_CALLEE_RESIDUALS } = await loadChecker();
+    // MEASURED, AND IT REVERSES THIS ROW'S PRE-CUTOVER EXPECTATION. `({ test }).test.skip(...)` has
+    // no head identifier, so `calleeDottedPath` declines and the SPELLING rule can put no
+    // membership question. The checker does not care about the head at all: it resolves the member
+    // `skip` to its declaration in the framework's own file, so identity refuses the call and the
+    // finding is named from the declaring type. Refusing MORE is the safe direction, and the
+    // register member was REWRITTEN rather than deleted, because the half it still discloses is
+    // real: a call on `this`, or on an object whose member the checker cannot resolve, is undecided.
     const r = driveSpec(`import { test, expect } from "@playwright/test";
 ({ test }).test.skip("scenario", async ({ page }) => {
 ${TAIL}
 });
 `);
-    expect(r.status).toBe(0);
+    expect(r.status, `stdout: ${r.stdout}`).toBe(1);
+    expect(r.stdout).toContain("test.skip");
     expect(
-      UNRESOLVABLE_CALLEE_RESIDUALS.some((m) => m.includes("head is not an identifier")),
-      "the shape passes and the register no longer names it",
+      UNRESOLVABLE_CALLEE_RESIDUALS.some((m) => m.includes("A call on `this`")),
+      "the register no longer names the half of this shape that is still open",
     ).toBe(true);
+  });
+
+  it("RR-04' CONTROL: a call on `this` is still undecided, and is not refused", () => {
+    row("RED-11b-RR04-this-head");
+    // The OTHER direction of the same rewritten member. A rule that refused this too would be
+    // refusing a shape nobody decided; a register that claimed it was decided would be a claim
+    // broader than the mechanism.
+    const r = driveSpec(`import { test, expect } from "@playwright/test";
+class Runner {
+  skip(): void {}
+  go(): void {
+    this.skip();
+  }
+}
+void Runner;
+test("scenario", async ({ page }) => {
+${TAIL}
+});
+`);
+    expect(r.status, `stdout: ${r.stdout}`).toBe(0);
   });
 
   it("RR-05: the chain-step bound is DELETED with the walk that needed it", async () => {
@@ -8091,11 +8385,19 @@ ${TAIL}
     const mod = (await loadChecker()) as unknown as { PROGRAM_UNAVAILABLE_REASON?: string };
     // MEASURED: today the config file is never consulted, so this target answers `1 finding(s)` /
     // EXIT=1. After the cutover a Program cannot be created and the run has made NO claim.
-    const r = driveSpec(`import { test as it, expect } from "@playwright/test";
+    //
+    // `tsconfig: null` is the EXPLICIT spelling of "this target carries no configuration file", and
+    // it is explicit because the harness now equips every other target with one. Leaving it implicit
+    // made this row and every ban row assert contradictory things about the same target shape: one
+    // demanded exit 2 for a config-less repository and the others demanded a decided ban in one.
+    const r = driveSpec(
+      `import { test as it, expect } from "@playwright/test";
 it.skip("scenario", async ({ page }) => {
 ${TAIL}
 });
-`);
+`,
+      { tsconfig: null },
+    );
     expect(mod.PROGRAM_UNAVAILABLE_REASON, "the could-not-run reason is not exported").toBeTypeOf("string");
     expect(r.status).toBe(2);
     expect(r.stderr).toContain(mod.PROGRAM_UNAVAILABLE_REASON as string);
