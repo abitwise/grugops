@@ -848,9 +848,14 @@ describe("30-11 round 3 — every spawn in the hook and floor tests is BOUNDED (
 // the wrapper's own fd-0 read (fd 0 is inherited by the child `DECIDER_TIMEOUT_MS` already bounds).
 // The baseline MOVES with the artifact; it is not relaxed, and `hooks/guard.ts` is untouched.
 //
-//   old: 5bfd5ba85a716dcd4383e819480edaf32bfeba58cadb3479089fd22e94777d9e   (pre-31-27)
-//   new: b0629f092d6929ae4394741f4c4e6a335acb7f3bb15d642ba61c81571e34ff54   (this baseline)
-const FROZEN_HOOK_ENTRY_LOGIC_SHA = "b0629f092d6929ae4394741f4c4e6a335acb7f3bb15d642ba61c81571e34ff54";
+// Re-taken a SECOND time within plan 31-27, by its Task 3 (S1): the wrapper now also reads its own
+// host-built `CLAUDE_PROJECT_DIR`, shape-checks it, and sets `GRUGOPS_HOST_DELIVERED_ROOT` on the one
+// `spawnSync` it makes. Both re-takes are recorded, so the wrapper's logic history is legible.
+//
+//   pre-31-27:      5bfd5ba85a716dcd4383e819480edaf32bfeba58cadb3479089fd22e94777d9e
+//   31-27 Task 1:   b0629f092d6929ae4394741f4c4e6a335acb7f3bb15d642ba61c81571e34ff54  (CR-17)
+//   31-27 Task 3:   e1ed0dc053f321dc54fa6a657cac6fdddf0816e839766f3e0c68ec5e3375cabc  (this baseline, S1)
+const FROZEN_HOOK_ENTRY_LOGIC_SHA = "e1ed0dc053f321dc54fa6a657cac6fdddf0816e839766f3e0c68ec5e3375cabc";
 
 describe("30-11 round 3 — the hook ENTRY is frozen, and hooks.json names it", () => {
   it("hooks/hook-entry.ts's LOGIC matches its frozen hash (manifest region normalised out)", () => {

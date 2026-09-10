@@ -47,6 +47,18 @@ The three admission outcomes, stated once:
 - The result is high-stakes and not gate-adjudicable, or agents disagree and cannot resolve it → escalate to a named human (`human:<name>`); do not self-stamp. `checkpoint: escalate_unadjudicable_result`
 - The only way to record the result would be to hand-write the `.grugops/context/` path → stop; the sanctioned writer is `context-io.ts`.
 
+## The governance-root resolution order
+
+Every tier of the resolution order, quoted from `TRUSTED_ROOT_TIERS` in `scripts/context-io.ts`. `scripts/context-io.test.ts` asserts this list equal to that export in both directions — every tier the program publishes appears here, and every numbered tier line here is one the program has. Neither can move without the other, so a sixth tier cannot arrive in prose alone and a program tier cannot arrive undocumented.
+
+0. **Tier 0** — the root the HOST delivered, read from `GRUGOPS_HOST_DELIVERED_ROOT` on the decider's own spawn environment. Accepted only when it canonicalises to an existing directory that carries a version-control marker and is not the kit's own root; otherwise this tier answers nothing and the next one runs. This tier exists on the **Claude Code hook path only** — that host builds the environment of the hook subprocess it spawns, and `hooks/hook-entry.js` is byte-frozen and hash-verifies the decider before it runs, which is exactly what makes the channel one the agent cannot write. Codex, Gemini CLI, OpenCode and Copilot CLI deliver nothing here, and the tiers below are their answer.
+1. **Tier 1** — `CLAUDE_PROJECT_DIR` when present and non-empty after trimming, made absolute.
+2. **Tier 2** — `GRUGOPS_PROJECT_DIR`, the documented installer-set variable, under the same predicate.
+3. **Tier 3** — the configuration that governs the process working directory: the repository root's own where the upward search reaches a repository boundary carrying one, else the nearest ancestor carrying a factory configuration. Bounded above as the section below states.
+4. **Tier 4** — the shared kit this reader ships in, whose shipped dial is the lean default.
+
+**What tier 0 does not establish.** It closes the tier that decides whether a force push or a deploy pattern runs; it closes nothing about a process acting as itself. An agent that invokes `scripts/context-io.js` directly from its own Bash tool builds its own environment and can set that name — an already-accepted capability, recorded as `R-31-15-01`. Members of `TRUSTED_ROOT_RESIDUALS` that tier 0 closes on this host carry `hosts: non-cc-hook-path` and remain open on the four hosts where no such channel exists; members that stand everywhere carry `hosts: all`.
+
 ## Where the upward governance-root search stops
 
 Every stop condition of step 3's upward search, quoted from `TRUSTED_ROOT_STOP_CONDITIONS` in `scripts/context-io.ts`. `scripts/context-io.test.ts` asserts this list equal to that export in both directions. Neither can move without the other. The bound is the home-directory stop. It bounds ascent, not observation. The home directory itself is read once and answers only as a repository. It holds whatever markers a filesystem carries. The version-control markers say where a repository starts, which is a different question.

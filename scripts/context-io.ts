@@ -52,7 +52,7 @@ import {
   constants as fsConstants,
 } from "node:fs";
 import { homedir } from "node:os";
-import { basename, dirname, join, resolve, sep } from "node:path";
+import { basename, dirname, isAbsolute, join, resolve, sep } from "node:path";
 import {
   CHECKPOINTS,
   CHECKPOINT_DEFAULTS,
@@ -3450,8 +3450,75 @@ export const GOVERNANCE_FALLBACK_BASE: string = ROOT;
  * installer never creates.
  * ---------------------------------------------------------------------------------------------
  */
+/**
+ * ONE CANONICALISER, USED ON BOTH SIDES OF EVERY PATH COMPARISON THAT DECIDES SOMETHING (31-27).
+ *
+ * ---------------------------------------------------------------------------------------------
+ * WHAT IT CLOSES. `R-31-19-07`, which round 5 recorded OCCUPIED at a price of one filesystem
+ * operation. `MODULE_OWN_CONFIG_POSITIONS` was built with `resolve` and the candidate was compared
+ * with `resolve`, so a LEXICAL equality decided whether the running kit's own configuration was
+ * excluded. On a case-insensitive filesystem the two sides can spell ONE directory two ways, and
+ * then the exclusion misses.
+ *
+ * MEASURED on this tree, with the harness's own premise asserted first (`realpathSync.native`
+ * returning the same canonical path for both spellings, so "one directory, two strings" is
+ * established rather than assumed):
+ *
+ *   module addressed as <tmp>/KitRoot/scripts/context-io.js   -> excluded: TRUE
+ *   module addressed as <tmp>/kitroot/scripts/context-io.js   -> excluded: FALSE
+ *
+ * i.e. addressing the kit through a case-differing spelling of its own root leaves the running kit's
+ * configuration eligible to be adopted as the governance root over a project nested inside it.
+ *
+ * THE LADDER, STATED, THREE RUNGS AND A TAIL:
+ *   1. `realpathSync.native` — the KERNEL's own answer. On darwin it returns the ON-DISK casing,
+ *      which is precisely the authority a lexical comparison lacks.
+ *   2. `realpathSync` — the portable resolver, for a platform that exposes no native variant.
+ *   3. the deepest EXISTING ancestor, canonicalised by rungs 1-2, with the remainder re-joined.
+ *
+ * WHY RUNG 3 IS NOT A BARE `resolve`. The inputs this predicate is asked about are candidate
+ * POSITIONS — `<root>/.grugops/factory.config.json` and the in-kit position — and a candidate need
+ * not exist. `realpathSync` throws ENOENT on a path whose leaf is absent, so a bare `resolve` tail
+ * would leave the caller's spelling on exactly the inputs the exclusion is asked about, and the
+ * bypass would survive the fix. Canonicalising the deepest existing ancestor gives a position a
+ * canonical spelling before anything is written there. The recursion terminates at the filesystem
+ * root, where `dirname(p) === p`.
+ *
+ * WHY IDENTITY-BY-INODE IS NOT THE RULE CHOSEN HERE. A `dev:ino` comparison is a `statSync` on paths
+ * under `$HOME` that a SINGLE symlink can make agree — a one-operation flip in the gate-LOWERING
+ * direction, which is the defect `R-31-19-07` existed instead of. The dev/ino objection round 5
+ * recorded does not apply to canonicalisation: a symlink that makes a project root's canonical path
+ * equal the kit root also re-points the working directory, and a process that can re-point its own
+ * working directory is `R-31-15-01`'s already-accepted capability rather than a new one.
+ * ---------------------------------------------------------------------------------------------
+ */
+function canonicalDirectoryPath(candidate: string): string {
+  const abs = resolve(candidate);
+  const native = (realpathSync as { native?: (p: string) => string }).native;
+  if (typeof native === "function") {
+    try {
+      return native(abs);
+    } catch {
+      // fall to rung 2
+    }
+  }
+  try {
+    return realpathSync(abs);
+  } catch {
+    // fall to rung 3
+  }
+  const parent = dirname(abs);
+  if (parent === abs) return abs; // the filesystem root: nothing above it to canonicalise
+  return join(canonicalDirectoryPath(parent), basename(abs));
+}
+
 export const MODULE_OWN_CONFIG_POSITIONS: readonly string[] = Object.freeze(
-  governanceConfigCandidates(GOVERNANCE_FALLBACK_BASE).map((candidate) => resolve(candidate)),
+  // BOTH SIDES through the same authority (31-27, `R-31-19-07`). This side is canonicalised here;
+  // the candidate side is canonicalised in `homeConfigPositionIsProjectOwned` below. A comparison
+  // whose two sides are produced by two different functions is a comparison waiting to disagree.
+  governanceConfigCandidates(GOVERNANCE_FALLBACK_BASE).map((candidate) =>
+    canonicalDirectoryPath(candidate),
+  ),
 );
 
 /**
@@ -3463,14 +3530,17 @@ export const MODULE_OWN_CONFIG_POSITIONS: readonly string[] = Object.freeze(
  * the kit this reader ships in is not a project, and `$HOME` is the only directory where its own
  * fallback candidate can also be a candidate the walk computes.
  *
- * The comparison is a LEXICAL path equality. What that leaves open — a case-insensitive or
- * symlinked filesystem spelling one directory two ways — is named as `R-31-19-07` rather than
- * closed with a `statSync` under `$HOME`, which a single symlink can make agree and which would be
- * a one-operation flip in the gate-lowering direction.
+ * THE COMPARISON IS CANONICAL ON BOTH SIDES (31-27, closing `R-31-19-07`). It used to be a LEXICAL
+ * path equality, and a case-insensitive filesystem spelling one directory two ways defeated it in
+ * ONE operation — measured, and recorded at `canonicalDirectoryPath` above with the two compared
+ * strings. Both sides now pass through that one ladder: `MODULE_OWN_CONFIG_POSITIONS` at
+ * construction, the candidate here. It is still not a `statSync` under `$HOME` and still not a
+ * `dev:ino` identity — those are the one-operation flip in the gate-lowering direction this member
+ * existed instead of, and the argument is written out at the canonicaliser.
  */
 function homeConfigPositionIsProjectOwned(candidateIndex: number, candidatePath: string): boolean {
   if (GOVERNANCE_CONFIG_CANDIDATE_KINDS[candidateIndex] !== "repository-state-plane") return false;
-  return !MODULE_OWN_CONFIG_POSITIONS.includes(resolve(candidatePath));
+  return !MODULE_OWN_CONFIG_POSITIONS.includes(canonicalDirectoryPath(candidatePath));
 }
 
 /**
@@ -3876,6 +3946,97 @@ export const TRUSTED_ROOT_STOP_CONDITIONS: readonly TrustedRootStopCondition[] =
 ]);
 
 /**
+ * THE NAME THE HOST-DELIVERED GOVERNANCE ROOT ARRIVES UNDER (plan 31-27, structural fix S1).
+ *
+ * Deliberately DISTINCT from both members of `TRUSTED_ROOT_ENV_ORDER`. Those two are AMBIENT names:
+ * whatever process happens to be an ancestor set them, and `R-31-15-03` records exactly that. This
+ * one is set by the frozen PreToolUse wrapper on the environment of the ONE `spawnSync` it makes,
+ * from a value the HOST built. Sharing a spelling between the two channels would make them
+ * indistinguishable at the point of reading, which is the point at which the difference matters.
+ */
+export const HOST_DELIVERED_ROOT_ENV = "GRUGOPS_HOST_DELIVERED_ROOT";
+
+/**
+ * TIER 0 — the governance root as the HOST delivered it, or `null` (plan 31-27, S1).
+ *
+ * ---------------------------------------------------------------------------------------------
+ * WHY THIS TIER EXISTS AT ALL. Every member of `TRUSTED_ROOT_RESIDUALS` ends with the same
+ * `what_would_force_it_closed`: *a root the calling process cannot influence, resolved by the host
+ * from outside the agent's process tree and delivered through a channel the agent cannot write.*
+ * On Claude Code that channel exists. The host builds the environment of the hook subprocess it
+ * spawns, so `CLAUDE_PROJECT_DIR` as read INSIDE `hooks/hook-entry.ts` is host-built; the wrapper is
+ * byte-frozen under D-24 and hash-verifies the decider's whole import closure before the decider
+ * runs. The wrapper canonicalises and shape-checks that value and sets it here.
+ *
+ * IT IS A STRENGTHENING, AND THAT IS MEASURED RATHER THAN ARGUED. Today's tier 1 accepts ANY
+ * non-empty string after a trim and a `resolve`. Measured against the committed `.js` before this
+ * change, all three of these were ACCEPTED as the governance root:
+ *
+ *   CLAUDE_PROJECT_DIR = a REGULAR FILE                                      -> accepted
+ *   CLAUDE_PROJECT_DIR = an existing directory with NO version-control marker -> accepted
+ *   CLAUDE_PROJECT_DIR = the kit's OWN root                                   -> accepted
+ *
+ * Tier 0 refuses all three, and `scripts/context-io.test.ts` drives one value set through tier 1's
+ * predicate and tier 0's and asserts tier 0's accepted set is a STRICT SUBSET. A tier that admitted
+ * even one root the tier below refused would be a gate lowering, whatever else it fixed.
+ *
+ * WHAT IT DOES NOT ESTABLISH, STATED HERE RATHER THAN IMPLIED (see D-29):
+ *   - On Codex, Gemini CLI, OpenCode and Copilot CLI there is no such channel. Those hosts keep the
+ *     walk, and the affected register members are re-scoped `hosts: "non-cc-hook-path"` rather than
+ *     deleted.
+ *   - An agent invoking `scripts/context-io.js` DIRECTLY from its own Bash tool builds its own
+ *     environment and can set this name. That is `R-31-15-01`'s already-accepted capability, not a
+ *     new one. Tier 0 closes the tier that decides whether a force push or a deploy pattern runs. It
+ *     closes nothing about a process acting as itself.
+ * ---------------------------------------------------------------------------------------------
+ */
+export function hostDeliveredRoot(): string | null {
+  const raw = process.env[HOST_DELIVERED_ROOT_ENV];
+  if (typeof raw !== "string") return null;
+  const trimmed = raw.trim();
+  if (trimmed === "") return null;
+  // ABSOLUTE, tested on the value as delivered. A relative value would resolve against the reading
+  // process's working directory, which is the very input the delivered channel exists to bypass.
+  if (!isAbsolute(trimmed)) return null;
+  const canonical = canonicalDirectoryPath(trimmed);
+  let st: ReturnType<typeof statSync>;
+  try {
+    st = statSync(canonical);
+  } catch {
+    return null; // names nothing real
+  }
+  if (!st.isDirectory()) return null;
+  // A REPOSITORY, by the marker set the walk already publishes — one authority for "where a
+  // repository starts", never a second list here.
+  if (!REPO_BOUNDARY_MARKERS.some((marker) => existsSync(join(canonical, marker)))) return null;
+  // NOT the kit this module ships in. The kit is not a governed project, and adopting it is the
+  // shape D-23 (4) and CR-13 both already refuse one tier down.
+  if (canonical === canonicalDirectoryPath(GOVERNANCE_FALLBACK_BASE)) return null;
+  return canonical;
+}
+
+/**
+ * THE RESOLUTION ORDER, IN WORDS, PUBLISHED ONCE (plan 31-27).
+ *
+ * `agent-factory/workflows/16-context-read-write.md` is asserted equal to this array in BOTH
+ * directions, so the prose and the program cannot drift the way `TRUSTED_ROOT_STOP_CONDITIONS`
+ * already prevents for the walk's stop set. Restating the order in prose is how a fifth tier arrives
+ * documented as four.
+ */
+export const TRUSTED_ROOT_TIERS: readonly string[] = Object.freeze([
+  "0. The root the HOST delivered on this process's own spawn environment, under " +
+    "GRUGOPS_HOST_DELIVERED_ROOT, when it canonicalises to an existing directory that carries a " +
+    "version-control marker and is not the kit's own root. Available on the Claude Code hook path " +
+    "only, because that is the one host that builds the hook subprocess's environment.",
+  "1. CLAUDE_PROJECT_DIR when present and non-empty after trimming, made absolute.",
+  "2. GRUGOPS_PROJECT_DIR — the documented installer-set variable — under the same predicate.",
+  "3. The configuration that governs the process working directory: the repository root's own when " +
+    "the walk reaches a repository boundary carrying one, else the nearest ancestor carrying a " +
+    "factory configuration, bounded above by the user's home directory.",
+  "4. The kit this module ships in.",
+]);
+
+/**
  * THE ONE TRUSTED ROOT (plan 30-11 round 2, findings `RA2-1` and reviewer-1 observation 2; the
  * resolution order below is plan 31-15, review finding WR-15; its BOUND is plan 31-19 / D-23,
  * review finding WR-21).
@@ -3946,6 +4107,15 @@ export const TRUSTED_ROOT_STOP_CONDITIONS: readonly TrustedRootStopCondition[] =
  * verb, which used to read the root from `process.argv`.
  */
 export function trustedRepoRoot(): string {
+  // TIER 0, ABOVE THE LOOP AND ABOVE THE WALK (plan 31-27, S1). It is placed here rather than woven
+  // into the loop for two reasons. It is a DIFFERENT KIND of signal — a host-built channel, not an
+  // ambient name — and `TRUSTED_ROOT_ENV_ORDER` is the ambient precedence, which a delivered root
+  // does not belong inside. And the 31-15 monotonicity mirror reconstructs the pre-31-15 program by
+  // reverting exactly two anchors — the loop's first element and the walk call below — so a step
+  // added ABOVE them leaves that reconstruction intact rather than silently changing what the mirror
+  // compares against.
+  const delivered = hostDeliveredRoot();
+  if (delivered !== null) return delivered;
   for (const name of TRUSTED_ROOT_ENV_ORDER) {
     const fromEnv = process.env[name];
     if (typeof fromEnv === "string" && fromEnv.trim() !== "") return resolve(fromEnv.trim());
@@ -3979,6 +4149,23 @@ export interface TrustedRootResidual {
   readonly reason: string;
   /** What would force it closed, so a later round has a criterion rather than an opinion. */
   readonly what_would_force_it_closed: string;
+  /**
+   * WHICH HOSTS THIS MEMBER IS STILL OPEN ON (plan 31-27, S1).
+   *
+   * The register used to be ELEVEN UNDIFFERENTIATED ROWS, and six review rounds read it as eleven
+   * misses. It never was: some members are the CORRECT behaviour recorded so they stop reading as
+   * gaps, and — after tier 0 — four of them are closed on the one host that delivers a root the
+   * calling process cannot influence, and open on the four that do not.
+   *
+   * `"all"`         — the member stands on every host, whether by design or because nothing closes it.
+   * `"non-cc-hook-path"` — CLOSED on the Claude Code hook path by tier 0 (`hostDeliveredRoot`), and
+   *                  still open on Codex, Gemini CLI, OpenCode and Copilot CLI, where no host builds
+   *                  the environment of a grugops decider and the walk remains the answer.
+   *
+   * Never fake a passing gate: a member re-scoped by host states which host it is closed on AND
+   * which it is not.
+   */
+  readonly hosts: "all" | "non-cc-hook-path";
 }
 
 /**
@@ -3996,6 +4183,7 @@ export interface TrustedRootResidual {
 export const TRUSTED_ROOT_RESIDUALS: readonly TrustedRootResidual[] = Object.freeze([
   Object.freeze({
     id: "R-31-15-01",
+    hosts: "non-cc-hook-path",
     shape:
       "A process that can change its own working directory can decide which project's factory " +
       "configuration step 3 finds.",
@@ -4005,7 +4193,13 @@ export const TRUSTED_ROOT_RESIDUALS: readonly TrustedRootResidual[] = Object.fre
       "A process that can change its working directory can already set the step-1 or step-2 " +
       "variable in its own child environment, so this adds no capability. What the doctrine forbids " +
       "is a root chosen as an ARGUMENT, and no parameter is added. The un-forgeable tier remains the " +
-      "per-call admission hook, which reads the human's fresh session grant.",
+      "per-call admission hook, which reads the human's fresh session grant. FIX (S1, plan 31-27): " +
+      "CLOSED on the Claude Code hook path, where tier 0 reads a root the byte-frozen, " +
+      "decider-hash-verifying wrapper set on its own spawn environment from a HOST-BUILT value. It " +
+      "is NOT closed on Codex, Gemini CLI, OpenCode or Copilot CLI — no host there builds the " +
+      "environment of a grugops decider — and it is NOT closed for an agent invoking " +
+      "`scripts/context-io.js` directly from its own Bash tool, which builds its own environment; " +
+      "that is this member's own already-accepted capability, not a new one.",
     what_would_force_it_closed:
       "A root the calling process cannot influence at all — resolved by the host from outside the " +
       "agent's process tree and delivered through a channel the agent cannot write, as the per-call " +
@@ -4013,13 +4207,16 @@ export const TRUSTED_ROOT_RESIDUALS: readonly TrustedRootResidual[] = Object.fre
   }),
   Object.freeze({
     id: "R-31-15-02",
+    hosts: "all",
     shape:
       "A host repository that carries no factory configuration at any of the published candidate " +
       "positions resolves to the kit, whose shipped dial is lean.",
     reason:
       "This is the CORRECT answer and not a hole: a repository that configured nothing has expressed " +
       "no governance posture, and the kit's shipped default is the posture the project ships. It is " +
-      "recorded here because it reads like a miss to someone tracing WR-15 and is not one.",
+      "recorded here because it reads like a miss to someone tracing WR-15 and is not one. " +
+      "DISPOSITION (plan 31-27): CLOSE — accepted by design on every host, kept as a member so it " +
+      "stops being re-discovered as a gap. It is not an open miss and no round owes it a fix.",
     what_would_force_it_closed:
       "Nothing in this module. It would change only if the project decided an unconfigured " +
       "repository should be treated as stricter than the shipped default, which is a product " +
@@ -4027,32 +4224,43 @@ export const TRUSTED_ROOT_RESIDUALS: readonly TrustedRootResidual[] = Object.fre
   }),
   Object.freeze({
     id: "R-31-15-03",
+    hosts: "non-cc-hook-path",
     shape:
       "Both project-directory variables are ambient environment values; a process that controls its " +
       "own child environment sets what a child of it resolves.",
     reason:
       "Pre-existing and unchanged by this plan — step 1 has always had this property, and step 2 is " +
       "the same shape one name over. It is the reason the environment tier is documented as the " +
-      "weaker, non-mechanically-un-forgeable signal (D-05) rather than as the authority.",
+      "weaker, non-mechanically-un-forgeable signal (D-05) rather than as the authority. " +
+      "FIX (S1, plan 31-27): CLOSED on the Claude Code hook path, where tier 0 answers ABOVE this " +
+      "loop from a host-built channel, so neither ambient name is consulted at all. It is NOT " +
+      "closed on Codex, Gemini CLI, OpenCode or Copilot CLI, where these two names remain the " +
+      "answer and are exactly as ambient as this shape says.",
     what_would_force_it_closed:
       "The same thing that would close R-31-15-01: a governance root delivered outside the agent's " +
-      "process tree.",
+      "process tree — which tier 0 now IS, on the Claude Code hook path only.",
   }),
   Object.freeze({
     id: "R-31-15-04",
+    hosts: "all",
     shape:
       "A factory configuration held ABOVE a nested repository is not found from inside that nested " +
       "repository — the walk stops at the inner repository marker.",
     reason:
       "Deliberate, and it is threat T-31-15-03's mitigation rather than a side effect: an unbounded " +
       "walk reaches a user's home directory and a sibling checkout's dial. Stopping at the boundary " +
-      "is what makes the search safe to run from an arbitrary working directory.",
+      "is what makes the search safe to run from an arbitrary working directory. " +
+      "DISPOSITION (plan 31-27): CLOSE — accepted by design on every host. It is a mitigation, not " +
+      "an open miss, and it is kept as a member so it stops being re-read as one.",
     what_would_force_it_closed:
       "A published, explicit statement that an outer repository governs an inner one — which today " +
-      "no artifact in this project makes, and which would need its own decision record.",
+      "no artifact in this project makes, and which would need its own decision record. " +
+      "DISPOSITION (plan 31-27): CLOSE — accepted by design on every host, and deliberately so; it " +
+      "is threat T-31-15-03's mitigation and not an open miss.",
   }),
   Object.freeze({
     id: "R-31-19-01",
+    hosts: "all",
     shape:
       "A factory configuration held at an ancestor BELOW the user's home directory, with no " +
       "repository boundary marker between it and the working directory, governs any process whose " +
@@ -4064,7 +4272,10 @@ export const TRUSTED_ROOT_RESIDUALS: readonly TrustedRootResidual[] = Object.fre
       "a case answering the kit for a working directory below a planted ancestor configuration. " +
       "That case is asserted here for an ancestor AT OR ABOVE the home directory, which is the " +
       "shape the review actually reproduced; asserting it for an ancestor below the home directory " +
-      "would revert WR-15, so the difference is recorded rather than quietly taken.",
+      "would revert WR-15, so the difference is recorded rather than quietly taken. " +
+      "DISPOSITION (plan 31-27): CLOSE — accepted by design on every host. Refusing it reverts " +
+      "WR-15, and a process that can write under `$HOME` is already a same-uid actor. Not an open " +
+      "miss; kept so it stops reading as one.",
     what_would_force_it_closed:
       "A published statement that only a VERSION-CONTROLLED checkout may govern. That would make an " +
       "un-versioned project directory unreadable to the order, so it needs its own decision record: " +
@@ -4072,6 +4283,7 @@ export const TRUSTED_ROOT_RESIDUALS: readonly TrustedRootResidual[] = Object.fre
   }),
   Object.freeze({
     id: "R-31-19-02",
+    hosts: "non-cc-hook-path",
     shape:
       "The home directory the stop is measured against is whatever `os.homedir()` names, which " +
       "reads the ambient `HOME` or `USERPROFILE` value a process controls in its own child " +
@@ -4081,14 +4293,20 @@ export const TRUSTED_ROOT_RESIDUALS: readonly TrustedRootResidual[] = Object.fre
       "`HOME` can already set either project-directory variable, and those name the governance root " +
       "outright, so the stop adds no capability an adversary did not have. The stop exists against " +
       "the ORDINARY case the review reproduced — a legitimate shared install at `~/.grugops` " +
-      "adopted by a process that meant nothing by it — not against a process choosing its own root.",
+      "adopted by a process that meant nothing by it — not against a process choosing its own root. " +
+      "FIX (S1, plan 31-27): CLOSED on the Claude Code hook path, where tier 0 answers before the " +
+      "walk runs and `os.homedir()` is therefore never consulted. It is NOT closed on Codex, " +
+      "Gemini CLI, OpenCode or Copilot CLI, where the walk is the answer and this stop is real.",
     what_would_force_it_closed:
       "The same thing that would close R-31-15-01 and R-31-15-03: a governance root resolved by the " +
       "host from outside the agent's process tree and delivered through a channel the agent cannot " +
-      "write, as the per-call admission hook's session grant already is.",
+      "write, as the per-call admission hook's session grant already is — which tier 0 now IS, on " +
+      "the Claude Code hook path only. FIX (S1, plan 31-27): tier 0 answers before the walk, so " +
+      "`os.homedir()` is not consulted there at all. Still open on the four non-Claude-Code hosts.",
   }),
   Object.freeze({
     id: "R-31-19-03",
+    hosts: "all",
     shape:
       "On a platform whose filesystem reports no meaningful directory identity, the stop compares " +
       "path SPELLINGS alone, so the same home directory reached under an unusual spelling is not " +
@@ -4099,14 +4317,25 @@ export const TRUSTED_ROOT_RESIDUALS: readonly TrustedRootResidual[] = Object.fre
       "first step and hand every host on that platform the kit's lean default — a configuration " +
       "moving from refused to admitted, which is the WR-15 defect this order exists to close. The " +
       "premise is CHECKED rather than assumed: the home directory's identity is compared with its " +
-      "own parent's, and the identity set is discarded only where the two agree.",
+      "own parent's, and the identity set is discarded only where the two agree. " +
+      "DISPOSITION (plan 31-27): OPEN — the ONLY open member of this register. It is measurable " +
+      "only on a platform whose filesystem reports degenerate directory identity, i.e. Windows, so " +
+      "no agent running on darwin can close it by measurement and none may close it by argument. " +
+      "OWNER: `31-30`'s Windows leg, and the standing human item R-03. `canonicalDirectoryPath` " +
+      "(plan 31-27) is the second half of the criterion below, but whether it answers correctly on " +
+      "such a platform is UNMEASURED from here and is not claimed.",
     what_would_force_it_closed:
       "A per-platform identity primitive this module can trust, or a canonicalisation of both sides " +
       "through one resolver — either of which has to be MEASURED on that platform rather than " +
-      "reasoned about from this one.",
+      "reasoned about from this one. DISPOSITION (plan 31-27): OPEN, and it is the only member of " +
+      "this register that is. It is measurable only on Windows, so no agent on this platform can " +
+      "close it; it is owned by `31-30`'s Windows leg and by the standing human item R-03. " +
+      "`canonicalDirectoryPath` now exists and is the resolver the second half of the criterion " +
+      "names, but whether it answers on a degenerate-identity platform is unmeasured from here.",
   }),
   Object.freeze({
     id: "R-31-19-04",
+    hosts: "all",
     shape:
       "A version-control system whose checkout root carries a marker name absent from " +
       "`REPO_BOUNDARY_MARKERS` is not recognised as a repository root, so a configuration nested " +
@@ -4115,13 +4344,18 @@ export const TRUSTED_ROOT_RESIDUALS: readonly TrustedRootResidual[] = Object.fre
       "The marker set is CONTENT, and this project has learned that an open set cannot be claimed " +
       "closed. It is not load-bearing for the BOUND: the home stop bounds the walk whatever markers " +
       "a filesystem happens to carry, and this set decides only where a repository STARTS. What it " +
-      "leaves is the pre-31-19 nearest-wins answer, which is what every host had before this plan.",
+      "leaves is the pre-31-19 nearest-wins answer, which is what every host had before this plan. " +
+      "DISPOSITION (plan 31-27): CLOSE — an open set is CONTENT and not mechanism, which is the " +
+      "D-59 rule this project settled at the end of phase 27. Accepted by design, not an open miss.",
     what_would_force_it_closed:
       "A boundary predicate that enumerates no tools — a property every checkout root has and no " +
-      "directory inside one has — which no artifact in this project can name today.",
+      "directory inside one has — which no artifact in this project can name today. " +
+      "DISPOSITION (plan 31-27): CLOSE — an open set is CONTENT and not mechanism (the D-59 rule " +
+      "this project settled at the end of phase 27). It is accepted by design, not an open miss.",
   }),
   Object.freeze({
     id: "R-31-19-05",
+    hosts: "all",
     shape:
       "A repository whose root IS the user's home directory and which carries its own governance " +
       "configuration but NO version-control boundary marker is not adopted, and its dial is " +
@@ -4132,15 +4366,22 @@ export const TRUSTED_ROOT_RESIDUALS: readonly TrustedRootResidual[] = Object.fre
       "the shipped shared-install model `~/.grugops/factory.config.json` is what the installer " +
       "creates for a target seeded AT home, and it is indistinguishable at that position from a " +
       "shared install's own state. The marker is what tells the two apart, and requiring it is the " +
-      "narrower of the two available errors.",
+      "narrower of the two available errors. " +
+      "DISPOSITION (plan 31-27): CLOSE — accepted by design. It is moot on the Claude Code hook " +
+      "path after tier 0, which answers before the walk reaches home at all, and it stands " +
+      "unchanged on the four hosts where the walk is the answer.",
     what_would_force_it_closed:
       "An explicit opt-in the walk can read that a caller cannot author. Explicitly NOT the " +
       "installer's own `.grugops/install.json`: `install/install.ts:597-620` makes every " +
       "`InstallMarker` field optional and names no TARGET, so the two-byte document `{}` is a " +
-      "schema-valid marker and a caller satisfies it in ONE write.",
+      "schema-valid marker and a caller satisfies it in ONE write. " +
+      "DISPOSITION (plan 31-27): CLOSE — accepted by design; requiring the marker is the narrower " +
+      "of the two available errors. It is moot on the Claude Code hook path after tier 0, which " +
+      "answers before the walk reaches home at all, and it stands unchanged elsewhere.",
   }),
   Object.freeze({
     id: "R-31-19-06",
+    hosts: "non-cc-hook-path",
     shape:
       "The home directory's adoption rests on two ordinary filesystem artifacts, so a process that " +
       "can write under `$HOME` can MAKE home adoptable in THREE operations against a bare home — " +
@@ -4160,36 +4401,52 @@ export const TRUSTED_ROOT_RESIDUALS: readonly TrustedRootResidual[] = Object.fre
       "would therefore have handed the caller a switch rather than taken one away. A refusal at " +
       "home is NOT the safe direction, because refusing home returns `nearest` and lands on the " +
       "lean fallback; the price is therefore stated in both directions rather than as monotonicity " +
-      "in one.",
+      "in one. FIX (S1, plan 31-27): CLOSED on the Claude Code hook path — tier 0 answers before " +
+      "the walk, so no write under `$HOME` can reach a decision the walk never makes. It is NOT " +
+      "closed on Codex, Gemini CLI, OpenCode or Copilot CLI, where the walk is the answer and the " +
+      "prices stated above still stand exactly as written.",
     what_would_force_it_closed:
       "`R-31-15-01`'s own criterion and nothing narrower: a governance root the calling process " +
       "cannot influence at all, resolved by the host from outside the agent's process tree and " +
-      "delivered through a channel the agent cannot write.",
+      "delivered through a channel the agent cannot write — which tier 0 now IS, on the Claude " +
+      "Code hook path only. FIX (S1, plan 31-27): CLOSED there, because tier 0 answers before the " +
+      "walk and no `$HOME` write can reach a decision the walk never makes. Still open on the four " +
+      "non-Claude-Code hosts, where the walk is the answer and the price stated above still stands.",
   }),
   Object.freeze({
     id: "R-31-19-07",
+    hosts: "all",
     shape:
-      "The exclusion of the running module's own candidate positions compares LEXICALLY RESOLVED " +
-      "path SPELLINGS, so the module's own position and the candidate the walk computes can name " +
-      "one directory with two strings and the exclusion misses. MEASURED on a case-insensitive " +
-      "filesystem: addressing this module through a case-differing spelling of its own root leaves " +
-      "`import.meta.dirname` carrying the caller's casing while `process.cwd()` returns the " +
-      "on-disk canonical casing, the equality misses, and the running kit's own configuration is " +
-      "adopted as the governance root over a project nested inside it. MEASURED on the SYMLINK " +
-      "axis in the same run: the exclusion HOLDS, because Node's ESM resolver realpaths a " +
-      "symlinked module specifier and `process.cwd()` returns the kernel's realpath, so both sides " +
-      "are already the real spelling.",
+      "The exclusion of the running module's own candidate positions compared LEXICALLY RESOLVED " +
+      "path SPELLINGS, so the module's own position and the candidate the walk computes could name " +
+      "one directory with two strings and the exclusion missed. MEASURED on a case-insensitive " +
+      "filesystem: addressing this module through a case-differing spelling of its own root left " +
+      "`import.meta.dirname` carrying the caller's casing while the canonical candidate carried the " +
+      "on-disk casing, the equality missed, and the running kit's own configuration was eligible to " +
+      "be adopted as the governance root over a project nested inside it. MEASURED on the SYMLINK " +
+      "axis in the same run: the exclusion HELD, because Node's ESM resolver realpaths a symlinked " +
+      "module specifier.",
     reason:
-      "The alternative is a `dev:ino` comparison, which is a `statSync` on paths under `$HOME` " +
-      "that a SINGLE symlink can make agree — a one-operation flip in the gate-lowering direction, " +
-      "and therefore the defect this member exists instead of. Case-folding the comparison is " +
-      "refused for the converse reason: it would EXCLUDE more, and an added refusal at home lands " +
-      "on the lean fallback, so widening the exclusion lowers a gate exactly as narrowing it can. " +
-      "This is the same reasoning `R-31-19-03` records one register over, taken deliberately here " +
-      "rather than inherited.",
+      "CLOSED by plan 31-27, with the measurement that closed it rather than an assurance. BOTH " +
+      "sides of the comparison now pass through ONE canonicaliser, `canonicalDirectoryPath`, whose " +
+      "ladder is the kernel realpath variant, then the portable realpath, then the deepest EXISTING " +
+      "ancestor with the remainder re-joined — that tail is load-bearing, because a candidate " +
+      "POSITION need not exist and a bare `resolve` there would have left the caller's spelling on " +
+      "exactly the inputs this exclusion is asked about. THE MEASUREMENT, premise asserted first " +
+      "(`realpathSync.native` returning one canonical path for both spellings, so 'one directory, " +
+      "two strings' is established rather than assumed): before, the module addressed as " +
+      "<tmp>/KitRoot excluded its own position and the same module addressed as <tmp>/kitroot did " +
+      "NOT; after, both exclude it. This is NOT a `dev:ino` identity and NOT a `statSync` under " +
+      "`$HOME` — those are the one-operation flip in the gate-lowering direction this member " +
+      "previously existed instead of, and the argument is written out at the canonicaliser. It is " +
+      "also not a case-FOLDING comparison, which would EXCLUDE MORE and therefore lower a gate in " +
+      "the converse direction.",
     what_would_force_it_closed:
-      "A canonical spelling for BOTH sides obtained from one resolver the caller cannot re-point, " +
-      "or the module's own position learned from the host rather than from `import.meta.dirname`.",
+      "Nothing further on this axis: it is closed, on every host, by canonicalising both sides " +
+      "through one resolver the caller cannot re-point without also re-pointing its own working " +
+      "directory — which is `R-31-15-01`'s already-accepted capability. What remains UNMEASURED is " +
+      "the behaviour of that resolver on a platform whose filesystem reports degenerate directory " +
+      "identity, and that is `R-31-19-03`'s open item and its owner, not this one's.",
   }),
 ]);
 

@@ -1282,6 +1282,117 @@ check that never ran is reported as a check that found something.
     `analyzeSpecs` / `main` docstrings in `scripts/runnable-ref/uat-spec-integrity.ts`, and in
     `31-25-SUMMARY.md`'s key-decisions block.
 
+#### Gap-closure decision — D-29 (2026-09-10, gap-closure round 6, plan 31-27)
+
+**Forced by:** CR-17 of `31-REVIEW.md`, independently reproduced by `31-VERIFICATION.md` round 6
+against the committed `hooks/hook-entry.js` at HEAD (`3a82d6f`); and structural fix S1 of
+`31-round6-residual-dispositions.md`, together with `R-31-19-07`, which round 5 recorded OCCUPIED at
+a price of one filesystem operation.
+
+Reproduced in this plan against the committed artifacts before any source change, driven through the
+command DERIVED from `hooks/hooks.json` with `${CLAUDE_PLUGIN_ROOT}` substituted — never a retyped
+argv, because a test that drills the module instead of the entry is exactly what produced CR-17:
+
+| shape | positions | exit | stdout | stderr | wall |
+|---|---|---|---|---|---|
+| control, untouched mirror | — | 0 | 442 B deny | 27 B | 0.07 s |
+| FIFO at a manifest position | **13 of 13** | **124** | **0 B** | **0 B** | 12.0 s |
+| stdin whose writer never closes | — | killed by the harness at 25 s | 0 B | 0 B | >25 s |
+
+and, for the governance root, against the committed `scripts/context-io.js`:
+
+| input to today's tier 1 | verdict |
+|---|---|
+| `CLAUDE_PROJECT_DIR` = a REGULAR FILE | accepted as the governance root |
+| `CLAUDE_PROJECT_DIR` = a directory with NO version-control marker | accepted |
+| `CLAUDE_PROJECT_DIR` = the kit's OWN root | accepted |
+| the kit addressed through a case-differing spelling of its own root | the module-own exclusion MISSED (premise asserted first: `realpathSync.native` returned ONE canonical path for both spellings) |
+
+**Which register failed — not the RULE and not the FILE the rule was written in, but WHICH FILE THE
+RULE WAS CARRIED TO.** D-24 (plan 31-21) is right and is unchanged: every read on a caller-influenced
+position goes through one non-blocking regular-file reader. It was implemented in
+`scripts/context-io.ts` and never carried to `hooks/hook-entry.ts` — the file `hooks/hooks.json`
+names, the process the host spawns for every `Bash` tool call and every `mcp__grugops__*` call. This
+is the SIXTH consecutive round in which a fix landed in the module the finding named and the next
+Critical appeared at the coordinate the fix did not reach.
+
+- **D-29: the PreToolUse wrapper performs no unbounded operation before it can answer, and the
+  governance root gains a tier whose delivery channel the agent cannot write.** Four sub-decisions.
+  - **(1) The bounded-work rule is a PROPERTY OF THE WRAPPER, not a second habit inside it.** Every
+    manifest read goes through one inline `readRegularFileOrRefuse` — `O_NONBLOCK` open, `fstat` on
+    THAT descriptor, a stated `HOOK_MODULE_MAX_BYTES` ceiling, a bounded read, a `close` in a
+    `finally` — producing THREE distinguishable denials: absent, `manifest-path-not-a-regular-file`,
+    above-the-ceiling. And the wrapper's own fd-0 payload read is DELETED rather than guarded: fd 0
+    is inherited by the child that `DECIDER_TIMEOUT_MS` already bounds, so a stall on the host's
+    stdin becomes SIGTERM on a child and the existing `child.signal !== null` branch answers with no
+    new code path. A read the wrapper does not perform cannot be a read the wrapper waits on.
+  - **(2) The restatement is bound to the original by MEASUREMENT, not by trust.** The wrapper may
+    import only `node:` builtins, so the reader is restated inline rather than imported — a second
+    implementation of one rule, which is this repository's recorded drift shape.
+    `scripts/nonblocking-reader-parity.test.ts` therefore DERIVES the implementing-file set by a
+    structural question asked of every function-like node found by a RECURSIVE walk, asserts its
+    members and its cardinality of 2, and moves that count by exactly one in each direction with two
+    seeded mirrors; and it drives ONE shared eight-shape corpus through BOTH implementations,
+    requiring the same decision class from each. Measured on darwin: 8 driven, 0 skipped, 0
+    disagreements, max 51 ms.
+  - **(3) Tier 0 is a HOST-DELIVERED root, and it is a NARROWING that is measured rather than
+    argued.** `hooks/hook-entry.ts` reads its own host-built `CLAUDE_PROJECT_DIR`, shape-checks it
+    with builtins alone, and sets `GRUGOPS_HOST_DELIVERED_ROOT` on the ONE `spawnSync` it makes; an
+    unusable value delivers NOTHING rather than a bad value, and an ambient value under that name is
+    DELETED rather than inherited. `hostDeliveredRoot()` accepts only a canonical, absolute, existing
+    directory carrying a version-control marker that is not the kit's own root. A differential drives
+    one value set through tier 1's predicate and tier 0's: tier 1 accepts 6, tier 0 accepts 1, and
+    every value tier 0 accepts tier 1 already accepted. `TRUSTED_ROOT_TIERS` publishes the five-step
+    order and `agent-factory/workflows/16-context-read-write.md` is asserted equal to it in BOTH
+    directions.
+  - **(4) `R-31-19-07` is CLOSED by canonicalising BOTH sides through ONE ladder, and the register is
+    re-scoped BY HOST.** `canonicalDirectoryPath` is kernel realpath, then portable realpath, then
+    the deepest EXISTING ancestor with the remainder re-joined — that tail is load-bearing, because a
+    candidate position need not exist and a bare `resolve` there would have left the bypass open
+    after the "fix". `TrustedRootResidual` gains a `hosts` field: four members become
+    `non-cc-hook-path` (closed on the Claude Code hook path by tier 0, open on the other four hosts),
+    six keep `all` as written CLOSE dispositions, and `R-31-19-03` keeps `all` and stays the
+    register's ONLY OPEN item, owned by `31-30`'s Windows leg and the standing human item R-03.
+  - **D-29 AMENDS ONE CLAUSE OF D-26 AND LEAVES THE REST STANDING.** D-26 fixed the home rule's
+    published-name set at FOUR and BANNED `realpathSync` from that closure, because the design it
+    retracted PROBED the filesystem under `$HOME` and an adversarial re-check measured that probe as
+    a one-operation flip in BOTH directions. `canonicalDirectoryPath` is the FIFTH name and is not
+    that: it is a canonicalisation applied to both sides of one comparison, not a probe whose ANSWER
+    is a conjunct. The flip it does admit is MEASURED rather than argued away — a caller with write
+    access under `$HOME` can plant `$HOME/.grugops` as a symlink into the kit's own `.grugops`, and a
+    driven case shows the resulting governance VERDICT is identical to the control's, because the
+    symlink IS the kit's configuration and both answers read one file. Keeping the ban would have
+    meant keeping a measured, occupied bypass to preserve a rule written against a different
+    mechanism. Every other banned name stands.
+  - **What D-29 does NOT establish.**
+    - **Tier 0 does not exist on Codex, Gemini CLI, OpenCode or Copilot CLI.** No host there builds
+      the environment of a grugops decider, so the walk remains the answer and the four re-scoped
+      members are open on those hosts. The register says so member by member rather than globally.
+    - **It closes nothing about a process acting as itself.** An agent invoking
+      `scripts/context-io.js` directly from its own Bash tool builds its own environment and can set
+      `GRUGOPS_HOST_DELIVERED_ROOT`. That is `R-31-15-01`'s already-accepted capability, not a new
+      one. Tier 0 closes the tier that decides whether a force push or a deploy pattern runs.
+    - **The trust in the delivered channel is exactly the wrapper's freeze plus the decider's hash
+      verification, and nothing more.** If either is defeated the channel is worth what the defeating
+      capability is worth.
+    - **A unix socket is refused at `open(2)` with ENOTSUP on darwin, before either implementation
+      has a descriptor to `fstat`.** This plan predicted the `fstat` rule would answer it and the
+      corpus measured otherwise; it is recorded as its own decision class in BOTH implementations
+      rather than folded into the shape refusal. The Windows leg of the whole FIFO class remains
+      `UNKNOWN - verify`, consistent with the standing portability posture.
+    - **`R-31-19-03` is not closed and is not closeable from darwin.** Whether
+      `canonicalDirectoryPath` answers correctly on a degenerate-directory-identity platform is
+      UNMEASURED from here and is not claimed.
+  - **Reversibility: costly.** The wrapper's bounded-work property, its named refusal fragment, tier
+    0 and the `hosts` field are now the exported contract the corpus, the re-taken freeze and
+    `16-context-read-write.md` assert. Reverting restores a PreToolUse guard the round-6 verifier
+    measured returning nothing at all, on both streams, for one `mkfifo` at an ordinary agent-writable
+    path — and a resolution order whose highest tier accepts any non-empty string.
+  - **Recorded in three places that must agree:** here, in the `hooks/hook-entry.ts` header block
+    plus the `hostDeliveredRoot` / `canonicalDirectoryPath` docstrings and the
+    `agent-factory/workflows/16-context-read-write.md` resolution-order section, and in
+    `31-27-SUMMARY.md`'s key-decisions block.
+
 ### Claude's Discretion
 - Exact runnable file name and the exact wording of the two new loud-skip markers, as long as
   each is a single exported constant with a single emission point (the `uat-live.test.ts` shape).

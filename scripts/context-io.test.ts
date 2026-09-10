@@ -7375,8 +7375,12 @@ describe("31-15 — WR-15: the target repository's dial is read on every host", 
       "if (false)",
     ] as const;
     /** MUTANT 4 — the module's-own-position exclusion removed, and nothing else. */
+    // MOVED WITH THE EXPRESSION IT MUTATES (plan 31-27). Both sides of this comparison now pass
+    // through `canonicalDirectoryPath` — that IS the R-31-19-07 fix — so the anchor is the
+    // canonicalised call. The mutation's MEANING is unchanged: remove the module-own exclusion and
+    // the running kit's own configuration governs its nested project again.
     const NO_MODULE_OWN_EXCLUSION = [
-      "return !MODULE_OWN_CONFIG_POSITIONS.includes(resolve(candidatePath));",
+      "return !MODULE_OWN_CONFIG_POSITIONS.includes(canonicalDirectoryPath(candidatePath));",
       "return true;",
     ] as const;
 
@@ -7651,11 +7655,42 @@ describe("31-15 — WR-15: the target repository's dial is read on every host", 
       return [...seen].sort();
     }
 
-    /** The FOUR published names the home rule is allowed to consult, and no fifth. */
+    /**
+     * The published names the home rule is allowed to consult, and no further one.
+     *
+     * AMENDED DELIBERATELY BY PLAN 31-27, FROM FOUR TO FIVE, WITH THE REASON WRITTEN OUT.
+     *
+     * D-26 fixed this set at four and BANNED `realpathSync` from the closure, because the design it
+     * retracted probed the filesystem UNDER `$HOME` and an adversarial re-check measured that probe
+     * as a ONE-OPERATION flip in BOTH directions — `mkdir $HOME/.grugops/agent-factory` turned an
+     * adoption into a refusal (landing on the kit's lean dial), `touch $HOME/.grugops/install.json`
+     * turned a refusal into an adoption. A conjunct a caller can flip is a switch the module handed
+     * it.
+     *
+     * `canonicalDirectoryPath` is the FIFTH name, and it is not that. It is a CANONICALISATION
+     * applied to BOTH sides of one comparison, not a probe whose ANSWER is a conjunct. Its purpose
+     * is to close `R-31-19-07`, where the lexical comparison was itself defeated in ONE operation —
+     * addressing the kit through a case-differing spelling of its own root. Keeping the ban would
+     * have meant keeping a measured, occupied bypass in order to preserve a rule written against a
+     * different mechanism.
+     *
+     * THE FLIP IT DOES ADMIT IS MEASURED, NOT ARGUED AWAY — see the case immediately below. A caller
+     * with write access under `$HOME` can plant `$HOME/.grugops` as a symlink into the kit's own
+     * `.grugops`, which makes the canonical comparison agree and moves the answer from "home
+     * governs" to "the kit governs". Measured: the two answers then READ THE SAME FILE, because the
+     * symlink IS the kit's configuration, so the governance posture is byte-identical and no
+     * configuration moves from refused to admitted. That capability also already requires write
+     * access under `$HOME`, which is `R-31-19-06`'s priced capability and which admits the simpler
+     * attack of writing the dial directly.
+     *
+     * The rest of the ban stands unchanged: no `statSync`, no `readFileSync`, no `homedir`, no
+     * `process.env`, no `readdirSync`, no `lstatSync`, no `openSync` in this closure.
+     */
     const HOME_RULE_PUBLISHED_NAMES = Object.freeze([
       "GOVERNANCE_CONFIG_CANDIDATE_KINDS",
       "MODULE_OWN_CONFIG_POSITIONS",
       "REPO_BOUNDARY_MARKERS",
+      "canonicalDirectoryPath",
       "governanceConfigCandidates",
     ]);
 
@@ -7686,13 +7721,21 @@ describe("31-15 — WR-15: the target repository's dial is read on every host", 
           "ones. Every input to this rule beyond the walk's ordinary evidence must be a path, a " +
           "position or a load-time constant",
       ).toEqual([...HOME_RULE_PUBLISHED_NAMES]);
-      expect(consulted).toHaveLength(4);
+      expect(consulted).toHaveLength(5);
       // AND NO FILESYSTEM PROBE, NO ENVIRONMENT READ. `existsSync` is the walk's ORDINARY evidence
       // and is priced as R-31-19-06; everything else here is the retracted design coming back.
+      // `realpathSync` LEFT this list by plan 31-27, deliberately and with a measurement — the
+      // argument is written at HOME_RULE_PUBLISHED_NAMES above and the flip it admits is driven by
+      // the case below. It is reached ONLY through `canonicalDirectoryPath`, which is asserted:
+      expect(
+        (closure as string).includes("realpathSync") &&
+          !(closure as string).includes("canonicalDirectoryPath"),
+        "the home rule reaches realpathSync by some route OTHER than the one canonicaliser — that " +
+          "is the retracted probe design coming back under a new name",
+      ).toBe(false);
       for (const banned of [
         "statSync",
         "readFileSync",
-        "realpathSync",
         "homedir",
         "process.env",
         "readdirSync",
@@ -7704,6 +7747,45 @@ describe("31-15 — WR-15: the target repository's dial is read on every host", 
           `the home rule reads ${banned} — a conjunct a caller can flip is a switch, whichever way`,
         ).toBe(false);
       }
+    });
+
+    it("INVARIANCE 4 (31-27): the ONE flip the canonicaliser admits is MEASURED, and reads the same dial", () => {
+      // THE OBJECTION, DRIVEN RATHER THAN ANSWERED IN PROSE. Admitting `canonicalDirectoryPath` into
+      // the home rule's closure admits a filesystem call, and D-26 banned filesystem calls here
+      // because the retracted design's probe was a one-operation flip with a DIFFERENT governance
+      // posture on each side. So: perform the flip and measure both postures.
+      //
+      // The flip: `$HOME/.grugops` planted as a SYMLINK into the running kit's own `.grugops`. Under
+      // the lexical comparison the candidate `<home>/.grugops/factory.config.json` was not the kit's
+      // position, so home was project-owned and home governed. Under the canonical comparison it IS
+      // the kit's position, so home is refused and the kit governs.
+      const tree = tmp15("p31-27-flip-");
+      const kit = kitAt(join(tree, "kit"));
+      writeConfig(kit, [".grugops", "factory.config.json"], ACTIVE);
+      const home = join(tree, "home");
+      mkdirSync(join(home, ".git"), { recursive: true });
+      symlinkSync(join(kit, ".grugops"), join(home, ".grugops"));
+
+      const flipped = drive("appendNote", { cwd: home, env: asHome(home), kit });
+
+      // A CONTROL that reaches the kit by a route the flip has nothing to do with: the same kit,
+      // the same dial, a home carrying NO configuration at all.
+      const bareHome = join(tree, "bare");
+      mkdirSync(join(bareHome, ".git"), { recursive: true });
+      const control = drive("appendNote", { cwd: bareHome, env: asHome(bareHome), kit });
+
+      // THE MEASUREMENT: the flip moves WHICH ROOT IS NAMED and does NOT move the posture, because
+      // the symlink IS the kit's configuration — one file, read either way. No configuration moves
+      // from refused to admitted, which is the only direction that would make this a gate lowering.
+      expect(
+        flipped.verdict,
+        "the flip changed the governance VERDICT. If this is ever red, the canonicaliser IS the " +
+          "switch D-26 refused to hand a caller, and the fifth published name must come back out",
+      ).toBe(control.verdict);
+      expect(flipped.root, "the flipped tree resolves to the kit, whose dial is the symlink target").toBe(kit);
+      // And a caller who can plant that symlink can already write the dial directly — R-31-19-06's
+      // priced capability, not one this change created.
+      expect(mod.TRUSTED_ROOT_RESIDUALS.map((r) => r.id)).toContain("R-31-19-06");
     });
 
     it("INVARIANCE 4 (SEEDED MIRROR): one added identifier moves the count by exactly one", () => {
@@ -8152,7 +8234,7 @@ describe("31-15 — WR-15: the target repository's dial is read on every host", 
       expect(after.message).toContain("human_admission: off");
     });
 
-    it("R-31-19-07 OCCUPIED on BOTH axes its shape sentence names: the CASE cell and the SYMLINK cell", () => {
+    it("R-31-19-07 re-measured on BOTH axes: the SYMLINK cell still HOLDS, the CASE cell is CLOSED", () => {
       // THE MEASURED ANSWERS ON THIS FILESYSTEM, recorded whichever way they fall. The exclusion
       // compares LEXICALLY RESOLVED path spellings, so its two sides can name one directory with
       // two strings. Both sides are asked here rather than reasoned about.
@@ -8176,14 +8258,20 @@ describe("31-15 — WR-15: the target repository's dial is read on every host", 
           "changed, the register member is the thing to correct, not this case",
       ).toBe(proj);
 
-      // CELL 1 — the CASE axis. The module addressed through a case-differing spelling of its own
-      // root. MEASURED: the exclusion MISSES. `import.meta.dirname` preserves the caller's casing
-      // while `process.cwd()` returns the on-disk canonical casing, so `MODULE_OWN_CONFIG_POSITIONS`
-      // and the candidate the walk computes name ONE directory with TWO strings, and the running
-      // kit's own configuration is adopted as the governance root — RED 2b's harm reached through a
-      // spelling rather than through a position. The price is ONE operation: address the decider
-      // through a case-differing path. This is R-31-19-07 OCCUPIED, and it is a documented member
-      // rather than a surprise.
+      // CELL 1 — the CASE axis, CLOSED BY PLAN 31-27 AND RE-MEASURED HERE RATHER THAN DELETED.
+      //
+      // The module addressed through a case-differing spelling of its own root. BEFORE the fix the
+      // exclusion MISSED: `import.meta.dirname` preserved the caller's casing while the candidate
+      // the walk computes carried the on-disk casing, so `MODULE_OWN_CONFIG_POSITIONS` and that
+      // candidate named ONE directory with TWO strings, the equality missed, and the running kit's
+      // own configuration was adopted as the governance root over the project nested inside it —
+      // RED 2b's harm reached through a spelling instead of through a position, for the price of ONE
+      // operation. Measured on this tree before the change: `viaCase.root` was the KIT.
+      //
+      // AFTER: both sides pass through `canonicalDirectoryPath`, so the exclusion fires on either
+      // spelling and the NESTED PROJECT governs — the same answer the canonical spelling gives, which
+      // is the whole point of a canonical form. The case is kept and its expectation MOVED, because
+      // deleting the case that measured the bypass is how a closure stops being checkable.
       const upper = join(tree, "KIT");
       if (!existsSync(join(upper, "scripts", "context-io.js"))) {
         // A CASE-SENSITIVE filesystem cannot reach this cell at all. Recorded as unreachable HERE
@@ -8194,10 +8282,21 @@ describe("31-15 — WR-15: the target repository's dial is read on every host", 
       const viaCase = drive("trustedRepoRoot", { cwd: join(upper, "proj"), env: asHome(upper), kit: upper });
       expect(
         viaCase.root,
-        "the CASE cell's measured verdict moved. R-31-19-07 records it as MISSING — the running " +
-          "kit's own root adopted — and a change here means the member is stale, not this case",
-      ).toBe(kit);
-      expect(mod.TRUSTED_ROOT_RESIDUALS.map((x) => x.id)).toContain("R-31-19-07");
+        "the CASE cell is R-31-19-07's closure (plan 31-27): a case-differing spelling of the kit's " +
+          "own root must no longer defeat the module-own exclusion. The nested project governs on " +
+          "BOTH spellings, or the canonicaliser is not on both sides of the comparison",
+      ).toBe(proj);
+      // …and it is the SAME answer the canonical spelling gives. A closure that produced a third
+      // answer would be a different bug wearing the fix's clothes.
+      const viaCanonicalSpelling = drive("trustedRepoRoot", {
+        cwd: proj,
+        env: asHome(kit),
+        kit,
+      });
+      expect(viaCase.root).toBe(viaCanonicalSpelling.root);
+      const member = mod.TRUSTED_ROOT_RESIDUALS.find((x) => x.id === "R-31-19-07");
+      expect(member, "R-31-19-07 left the register instead of being rewritten as closed").toBeDefined();
+      expect(member?.reason).toContain("CLOSED by plan 31-27");
     });
   });
 });
@@ -10727,5 +10826,308 @@ describe("31-23 PROBE 5 — the cross-plan intended-change list is a declared se
     expect(WAVE3["31-22 CONTROL 5a"]).toBe(DECLARED_MOVEMENT["31-22 CONTROL 5a"].wave3);
     // 5b is the UNMOVED control the movement is read against.
     expect(WAVE2["31-22 CONTROL 5b"]).toBe(WAVE3["31-22 CONTROL 5b"]);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// PLAN 31-27 — TIER 0: A GOVERNANCE ROOT THE HOST DELIVERED (S1), AND THE REGISTER RE-SCOPED BY HOST.
+//
+// EVERY MEMBER of TRUSTED_ROOT_RESIDUALS ends with the same closing criterion: a root the calling
+// process cannot influence, resolved by the host from outside the agent's process tree, delivered
+// through a channel the agent cannot write. On Claude Code that channel exists — the host builds the
+// environment of the hook subprocess it spawns — and hooks/hook-entry.ts is byte-frozen and
+// hash-verifies the decider's whole import closure before the decider runs.
+//
+// THE RED RECORD, measured against the COMMITTED scripts/context-io.js BEFORE this change. All three
+// of these were ACCEPTED as the governance root by today's tier 1:
+//     CLAUDE_PROJECT_DIR = a REGULAR FILE                                        -> accepted
+//     CLAUDE_PROJECT_DIR = an existing directory with NO version-control marker  -> accepted
+//     CLAUDE_PROJECT_DIR = the kit's OWN root                                    -> accepted
+// Tier 0 is therefore a NARROWING, and that is asserted by a differential below rather than argued.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+describe("31-27 S1 — tier 0 admits strictly fewer roots than the tier it precedes", () => {
+  /** Run one expression against the COMMITTED .js in a child with a controlled environment. */
+  function inChild(expr: string, env: Record<string, string> = {}): unknown {
+    const clean: Record<string, string> = {};
+    for (const [k, v] of Object.entries(process.env)) {
+      if (k.startsWith("GRUGOPS_") || k.startsWith("CLAUDE_") || v === undefined) continue;
+      clean[k] = v;
+    }
+    const code =
+      `const m = await import(${JSON.stringify(pathToFileURL(CONTEXT_IO_JS).href)});` +
+      `const {resolve, isAbsolute} = await import("node:path");` +
+      `process.stdout.write(JSON.stringify(${expr}));`;
+    const r = spawnSync(process.execPath, ["--input-type=module", "-e", code], {
+      encoding: "utf8",
+      env: { ...clean, ...env },
+      timeout: 30_000,
+    });
+    if (r.status !== 0) throw new Error(`child failed: ${(r.stderr ?? "").slice(0, 500)}`);
+    return JSON.parse(r.stdout) as unknown;
+  }
+
+  /** A real repository: an existing directory carrying a version-control marker. */
+  function repo(prefix: string): string {
+    const d = freshTmp(prefix);
+    mkdirSync(join(d, ".git"), { recursive: true });
+    return d;
+  }
+
+  it("the delivered channel's NAME is distinct from both ambient names", () => {
+    // The two channels must not be confusable at the point of reading. That is the whole reason the
+    // wrapper sets a name of its own rather than re-exporting CLAUDE_PROJECT_DIR.
+    expect(mod.HOST_DELIVERED_ROOT_ENV).toBe("GRUGOPS_HOST_DELIVERED_ROOT");
+    expect([...mod.TRUSTED_ROOT_ENV_ORDER]).not.toContain(mod.HOST_DELIVERED_ROOT_ENV);
+  });
+
+  it("the wrapper's literal spelling of the delivered name AGREES with the module's constant", () => {
+    // hooks/hook-entry.ts may import only node: builtins, so it spells the name as a literal. Two
+    // spellings of one name is this repository's recorded drift shape; they are bound here.
+    const wrapper = readFileSync(join(ROOT, "hooks", "hook-entry.ts"), "utf8");
+    expect(wrapper).toContain(`const HOST_DELIVERED_ROOT_ENV = "${mod.HOST_DELIVERED_ROOT_ENV}"`);
+  });
+
+  const NULL_CASES: Array<[string, () => string | undefined]> = [
+    ["the name is ABSENT", () => undefined],
+    ["empty after trim", () => "   "],
+    ["a RELATIVE path", () => "some/relative/dir"],
+    ["a path that does not exist", () => join(freshTmp("p31-27-gone-"), "nothing-here")],
+    [
+      "an existing path that is NOT a directory",
+      () => {
+        const d = freshTmp("p31-27-file-");
+        const f = join(d, "a-regular-file");
+        writeFileSync(f, "x");
+        return f;
+      },
+    ],
+    ["a directory carrying NO version-control marker", () => freshTmp("p31-27-novcs-")],
+    ["the kit's OWN root", () => mod.GOVERNANCE_FALLBACK_BASE],
+  ];
+
+  for (const [label, make] of NULL_CASES) {
+    it(`hostDeliveredRoot() returns null when ${label}`, () => {
+      const value = make();
+      const env: Record<string, string> =
+        value === undefined ? {} : { [mod.HOST_DELIVERED_ROOT_ENV]: value };
+      expect(inChild("m.hostDeliveredRoot()", env)).toBeNull();
+    });
+  }
+
+  it("hostDeliveredRoot() ACCEPTS a canonical, existing, version-controlled directory", () => {
+    // The positive case, so the seven refusals above are not vacuously satisfied by a function that
+    // returns null for everything.
+    const r = repo("p31-27-ok-");
+    expect(inChild("m.hostDeliveredRoot()", { [mod.HOST_DELIVERED_ROOT_ENV]: r })).toBe(
+      realpathSync(r),
+    );
+  });
+
+  it("MONOTONICITY: tier 0's accepted set is a STRICT SUBSET of tier 1's, over one value set", () => {
+    // One value set, two predicates, measured — not two arguments about which is narrower.
+    const good = repo("p31-27-mono-repo-");
+    const noMarker = freshTmp("p31-27-mono-nomarker-");
+    const fileDir = freshTmp("p31-27-mono-filedir-");
+    const aFile = join(fileDir, "regular");
+    writeFileSync(aFile, "x");
+    const values: string[] = [
+      good,
+      noMarker,
+      aFile,
+      mod.GOVERNANCE_FALLBACK_BASE,
+      join(freshTmp("p31-27-mono-gone-"), "absent"),
+      "relative/path",
+      "   ",
+    ];
+
+    // TIER 1's predicate, quoted from the source it implements: present, non-empty after trim.
+    const tier1 = values.filter((v) => typeof v === "string" && v.trim() !== "");
+    // TIER 0's predicate, asked of the real program.
+    const tier0 = values.filter(
+      (v) => inChild("m.hostDeliveredRoot()", { [mod.HOST_DELIVERED_ROOT_ENV]: v }) !== null,
+    );
+
+    expect(tier1.length, `tier 1 accepted: ${JSON.stringify(tier1)}`).toBe(6);
+    expect(tier0.length, `tier 0 accepted: ${JSON.stringify(tier0)}`).toBe(1);
+    for (const accepted of tier0) {
+      expect(tier1, `tier 0 accepted ${accepted}, which tier 1 REFUSED — that is a gate LOWERING`)
+        .toContain(accepted);
+    }
+    expect(tier0.length).toBeLessThan(tier1.length); // STRICT subset
+  });
+
+  it("with NOTHING delivered, trustedRepoRoot() is the program it was before (the 4-host control)", () => {
+    // The four non-Claude-Code hosts deliver no such name. Driven case by case with the delivered
+    // name ABSENT, each answer asserted against what the pre-tier-0 order would give for the same
+    // input — tier 1 for a set variable, the kit for nothing at all.
+    const r = repo("p31-27-ctl-repo-");
+    expect(inChild("m.trustedRepoRoot()", { CLAUDE_PROJECT_DIR: r })).toBe(resolve(r));
+    expect(inChild("m.trustedRepoRoot()", { GRUGOPS_PROJECT_DIR: r })).toBe(resolve(r));
+    // Both set: tier 1 wins over tier 2, exactly as TRUSTED_ROOT_ENV_ORDER publishes.
+    const other = repo("p31-27-ctl-other-");
+    expect(inChild("m.trustedRepoRoot()", { CLAUDE_PROJECT_DIR: r, GRUGOPS_PROJECT_DIR: other })).toBe(
+      resolve(r),
+    );
+    // And a delivered name that is present but UNUSABLE falls through to exactly the same answers.
+    expect(
+      inChild("m.trustedRepoRoot()", {
+        [mod.HOST_DELIVERED_ROOT_ENV]: "not/absolute",
+        CLAUDE_PROJECT_DIR: r,
+      }),
+      "an unusable delivered value must deliver NOTHING, never a bad root",
+    ).toBe(resolve(r));
+  });
+
+  it("tier 0 OUTRANKS tier 1, which is the only reason it is a tier at all", () => {
+    const delivered = repo("p31-27-rank-delivered-");
+    const ambient = repo("p31-27-rank-ambient-");
+    expect(
+      inChild("m.trustedRepoRoot()", {
+        [mod.HOST_DELIVERED_ROOT_ENV]: delivered,
+        CLAUDE_PROJECT_DIR: ambient,
+      }),
+    ).toBe(realpathSync(delivered));
+  });
+
+  it("the canonicaliser's THREE rungs are each driven, and the rung this platform used is named", () => {
+    // Rung 1 (kernel realpath) — an EXISTING path resolves to its on-disk spelling.
+    const r = repo("p31-27-rung1-");
+    const viaRung1 = inChild("m.hostDeliveredRoot()", { [mod.HOST_DELIVERED_ROOT_ENV]: r });
+    expect(viaRung1).toBe(realpathSync.native(r));
+    expect(typeof (realpathSync as { native?: unknown }).native, "rung 1 is what darwin used").toBe(
+      "function",
+    );
+    // Rung 2 (portable realpath) — asserted to agree with rung 1 on an existing path, which is what
+    // makes it a legitimate fallback rather than a different rule.
+    expect(realpathSync(r)).toBe(realpathSync.native(r));
+    // Rung 3 (deepest EXISTING ancestor, remainder re-joined) — a NON-EXISTENT leaf under an
+    // existing, case-differently-spelled parent. This is the rung MODULE_OWN_CONFIG_POSITIONS
+    // actually reaches, because a candidate position need not exist; a bare `resolve` here is what
+    // would have left R-31-19-07 open after the "fix".
+    const positions = mod.MODULE_OWN_CONFIG_POSITIONS;
+    expect(positions.length).toBeGreaterThan(0);
+    // BOTH rungs are exercised by the real positions of this very checkout, and which one each
+    // position reaches is RECORDED rather than assumed: on this tree the in-kit position EXISTS
+    // (rungs 1-2) and the repository state-plane position does NOT (rung 3).
+    const absent = positions.filter((position) => !existsSync(position));
+    const present = positions.filter((position) => existsSync(position));
+    expect(absent.length, "rung 3 was not exercised by any real position on this tree")
+      .toBeGreaterThan(0);
+    expect(present.length, "rungs 1-2 were not exercised by any real position on this tree")
+      .toBeGreaterThan(0);
+    for (const position of positions) {
+      // Canonical means: the position's existing ancestry is the kernel's spelling of the kit root,
+      // whichever rung produced it. That is what a lexical `resolve` did NOT guarantee.
+      expect(position.startsWith(realpathSync.native(mod.GOVERNANCE_FALLBACK_BASE))).toBe(true);
+    }
+  });
+
+  it("TRUSTED_ROOT_TIERS names FIVE steps and is frozen", () => {
+    expect(Object.isFrozen(mod.TRUSTED_ROOT_TIERS)).toBe(true);
+    expect(mod.TRUSTED_ROOT_TIERS).toHaveLength(5);
+    expect(mod.TRUSTED_ROOT_TIERS[0]).toContain(mod.HOST_DELIVERED_ROOT_ENV);
+    // Each tier NAMES ITS OWN INDEX, so the array order and the published numbering cannot drift.
+    mod.TRUSTED_ROOT_TIERS.forEach((tier, i) => {
+      expect(tier.startsWith(`${String(i)}. `), `tier ${String(i)} does not name its index`).toBe(true);
+      expect(tier.length, `tier ${String(i)} states nothing`).toBeGreaterThan(25);
+    });
+  });
+
+  it("the workflow's published resolution order equals TRUSTED_ROOT_TIERS in BOTH directions", () => {
+    // BOTH DIRECTIONS, named: (a) every tier the program publishes appears in the prose, and (b)
+    // every numbered tier line the prose publishes is one the program has. One direction alone lets
+    // the prose grow a sixth tier, or lets the program grow one the prose never mentions.
+    const doc = readFileSync(
+      join(ROOT, "agent-factory", "workflows", "16-context-read-write.md"),
+      "utf8",
+    );
+    const proseTiers = [...doc.matchAll(/^ {0,3}(\d)\. \*\*Tier \1\*\* — (.+)$/gm)];
+    expect(proseTiers.length, "the workflow publishes no tier lines at all").toBe(5);
+    // (a) program -> prose
+    for (let i = 0; i < mod.TRUSTED_ROOT_TIERS.length; i++) {
+      expect(proseTiers[i]?.[1], `the prose is missing tier ${String(i)}`).toBe(String(i));
+    }
+    // (b) prose -> program
+    for (const m of proseTiers) {
+      const n = Number(m[1]);
+      expect(n, "the prose publishes a tier the program does not have").toBeLessThan(
+        mod.TRUSTED_ROOT_TIERS.length,
+      );
+    }
+    // The delivered name and the host scoping are both stated in the prose, not implied.
+    expect(doc).toContain(mod.HOST_DELIVERED_ROOT_ENV);
+    expect(doc).toContain("non-cc-hook-path");
+  });
+});
+
+describe("31-27 S1 — the residual register is scoped BY HOST, member by member", () => {
+  it("every member carries a `hosts` value from the published two", () => {
+    for (const r of mod.TRUSTED_ROOT_RESIDUALS) {
+      expect(["all", "non-cc-hook-path"], `${r.id} carries hosts=${String(r.hosts)}`).toContain(
+        r.hosts,
+      );
+    }
+  });
+
+  it("the host split has the counts this plan decided: 4 non-cc-hook-path, 7 all", () => {
+    const nonCc = mod.TRUSTED_ROOT_RESIDUALS.filter((r) => r.hosts === "non-cc-hook-path");
+    const all = mod.TRUSTED_ROOT_RESIDUALS.filter((r) => r.hosts === "all");
+    expect(nonCc.map((r) => r.id).sort()).toEqual([
+      "R-31-15-01",
+      "R-31-15-03",
+      "R-31-19-02",
+      "R-31-19-06",
+    ]);
+    expect(nonCc).toHaveLength(4);
+    expect(all).toHaveLength(7);
+    expect(nonCc.length + all.length).toBe(mod.TRUSTED_ROOT_RESIDUALS.length);
+  });
+
+  it("each non-cc-hook-path member NAMES the host it is closed on and the hosts it is not", () => {
+    // "Never fake a passing gate" — a member re-scoped by host has to say which host, in the reason,
+    // where a reader of the register sees it. A `hosts` field with silent prose is a claim.
+    for (const r of mod.TRUSTED_ROOT_RESIDUALS.filter((x) => x.hosts === "non-cc-hook-path")) {
+      expect(r.reason, `${r.id} does not name Claude Code`).toContain("Claude Code");
+      expect(
+        `${r.reason} ${r.what_would_force_it_closed}`,
+        `${r.id} does not name tier 0 as its closure`,
+      ).toContain("tier 0");
+    }
+  });
+
+  it("WATCHED FAIL: the host split is a CONTROL — a seeded member with a new value is reported", () => {
+    // The counts above only mean something if a member outside the published two turns them red.
+    const seeded = [
+      ...mod.TRUSTED_ROOT_RESIDUALS,
+      { id: "R-31-19-98", hosts: "windows-only" as unknown as "all" },
+    ];
+    const outside = seeded.filter((r) => r.hosts !== "all" && r.hosts !== "non-cc-hook-path");
+    expect(outside.map((r) => r.id)).toEqual(["R-31-19-98"]);
+    expect(seeded).toHaveLength(mod.TRUSTED_ROOT_RESIDUALS.length + 1);
+  });
+
+  it("R-31-19-07 is CLOSED and R-31-19-03 is the register's only OPEN item, with its owner named", () => {
+    const byId = new Map(mod.TRUSTED_ROOT_RESIDUALS.map((r) => [r.id, r] as const));
+    expect(byId.get("R-31-19-07")?.reason).toContain("CLOSED by plan 31-27");
+    const open = byId.get("R-31-19-03");
+    expect(open?.reason).toContain("OPEN");
+    expect(open?.reason, "an open item without an owner is a silence").toContain("31-30");
+    expect(open?.reason).toContain("R-03");
+    // …and it is the ONLY one. Every other member states CLOSE, a FIX, or is the closed 19-07.
+    const stillOpen = mod.TRUSTED_ROOT_RESIDUALS.filter((r) =>
+      /DISPOSITION \(plan 31-27\): OPEN/.test(r.reason),
+    );
+    expect(stillOpen.map((r) => r.id)).toEqual(["R-31-19-03"]);
+  });
+
+  it("the CLOSE dispositions this plan carries are each stated in the member itself", () => {
+    for (const id of ["R-31-15-02", "R-31-15-04", "R-31-19-01", "R-31-19-04", "R-31-19-05"]) {
+      const r = mod.TRUSTED_ROOT_RESIDUALS.find((x) => x.id === id);
+      expect(r, `${id} left the register`).toBeDefined();
+      expect(r?.reason, `${id} carries no written CLOSE disposition`).toContain(
+        "DISPOSITION (plan 31-27): CLOSE",
+      );
+    }
   });
 });

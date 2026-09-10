@@ -39,13 +39,15 @@ import { spawnSync } from "node:child_process";
 import {
   closeSync,
   constants as fsConstants,
+  existsSync,
   fstatSync,
   openSync,
   readSync,
   realpathSync,
+  statSync,
   writeSync,
 } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname, isAbsolute, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createHash } from "node:crypto";
 
@@ -253,7 +255,7 @@ const DECIDER_MANIFEST: Readonly<Record<string, Readonly<Record<string, string>>
     "scripts/audit-prepass.js": "4a6906e19cfdc885f838ef429854d09cd5786b4a78d490e3ccc38dd9491c98d2",
     "scripts/check-diff-disposition.js": "ca642d36df6aef18f12d5860affe2e2fb15a6e89ee55392124581bb51ec36bb4",
     "scripts/checkpoints.js": "2107434e318ad4ead0279206361f7e7b05dddb1817e3fddd17f2f337c97d73a6",
-    "scripts/context-io.js": "22e44a44708d89b87071ce53c0a93d514564febcc7a9a5a46dcfaee4b6f00229",
+    "scripts/context-io.js": "8625d9767f695a8b637fbd88d6787c64c99794b852332bf479ad73ad61756ea3",
     "scripts/dead-vocabulary.js": "f815b1d656248848702a358def8c3c88dc37f089f59aa671a444edd3731b8154",
     "scripts/frontmatter.js": "6d49e535272b457411277ff963f92722b0de38d15e0761dcb8ec93ca44878623",
     "scripts/generate-safety-surface.js": "ba7bdf982d67dc30169859ace1e3b7743c534a61d8756520fcd8e1b876380f6f",
@@ -268,7 +270,7 @@ const DECIDER_MANIFEST: Readonly<Record<string, Readonly<Record<string, string>>
     "scripts/audit-prepass.js": "4a6906e19cfdc885f838ef429854d09cd5786b4a78d490e3ccc38dd9491c98d2",
     "scripts/check-diff-disposition.js": "ca642d36df6aef18f12d5860affe2e2fb15a6e89ee55392124581bb51ec36bb4",
     "scripts/checkpoints.js": "2107434e318ad4ead0279206361f7e7b05dddb1817e3fddd17f2f337c97d73a6",
-    "scripts/context-io.js": "22e44a44708d89b87071ce53c0a93d514564febcc7a9a5a46dcfaee4b6f00229",
+    "scripts/context-io.js": "8625d9767f695a8b637fbd88d6787c64c99794b852332bf479ad73ad61756ea3",
     "scripts/dead-vocabulary.js": "f815b1d656248848702a358def8c3c88dc37f089f59aa671a444edd3731b8154",
     "scripts/frontmatter.js": "6d49e535272b457411277ff963f92722b0de38d15e0761dcb8ec93ca44878623",
     "scripts/generate-safety-surface.js": "ba7bdf982d67dc30169859ace1e3b7743c534a61d8756520fcd8e1b876380f6f",
@@ -361,6 +363,62 @@ if (mismatch !== null) {
 }
 
 /**
+ * THE HOST-DELIVERED GOVERNANCE ROOT (plan 31-27, structural fix S1).
+ *
+ * ---------------------------------------------------------------------------------------------
+ * WHY THIS FILE IS THE PLACE, AND THE ONLY PLACE.
+ *
+ * Every member of `scripts/context-io.ts`'s `TRUSTED_ROOT_RESIDUALS` ends with the same criterion:
+ * *a root the calling process cannot influence, resolved by the host from outside the agent's
+ * process tree and delivered through a channel the agent cannot write.* The wrapper is the one point
+ * in this process tree where that criterion is satisfiable. The HOST builds the environment of the
+ * hook subprocess it spawns, so `CLAUDE_PROJECT_DIR` read HERE is host-built and not something the
+ * agent's own tool calls composed. This file is byte-frozen under D-24, and it hash-verifies the
+ * decider's entire import closure above before the decider is allowed to run. Those two facts ARE
+ * the trust in this channel — nothing more, and the register says so rather than implying it.
+ *
+ * AN UNUSABLE VALUE DELIVERS NOTHING, NOT A BAD VALUE. The shape checks below are the ones a file
+ * limited to `node:` builtins can make: non-empty after a trim, absolute, an existing directory. When
+ * the host's value fails any of them the name is simply not set, and the decider answers from the
+ * tier below — which is the walk, the program that has always answered. Delivering a value that
+ * failed a check would be strictly worse than delivering none: the decider would then TRUST a tier
+ * the fallback would have answered correctly.
+ *
+ * THE NAME IS THE DECIDER'S, NOT THE HOST'S. `GRUGOPS_HOST_DELIVERED_ROOT` is spelled here as a
+ * literal — this file may import only `node:` builtins, so it cannot import the constant — and
+ * `scripts/context-io.test.ts` asserts the two spellings agree in both directions. It is deliberately
+ * distinct from `CLAUDE_PROJECT_DIR` and `GRUGOPS_PROJECT_DIR`, so the delivered channel and the
+ * ambient channel cannot be mistaken for one another at the point of reading.
+ * ---------------------------------------------------------------------------------------------
+ */
+const HOST_DELIVERED_ROOT_ENV = "GRUGOPS_HOST_DELIVERED_ROOT";
+
+function hostBuiltProjectRoot(): string | null {
+  const raw = process.env["CLAUDE_PROJECT_DIR"];
+  if (typeof raw !== "string") return null;
+  const trimmed = raw.trim();
+  if (trimmed === "" || !isAbsolute(trimmed)) return null;
+  const canonical = realpathSyncSafe(trimmed);
+  try {
+    if (!statSync(canonical).isDirectory()) return null;
+  } catch {
+    return null;
+  }
+  if (!existsSync(canonical)) return null;
+  return canonical;
+}
+
+const deliveredRoot = hostBuiltProjectRoot();
+const deciderEnv: NodeJS.ProcessEnv = { ...process.env };
+if (deliveredRoot !== null) {
+  deciderEnv[HOST_DELIVERED_ROOT_ENV] = deliveredRoot;
+} else {
+  // Never inherit a delivered name the wrapper did not itself establish: an ambient value under this
+  // spelling would otherwise be indistinguishable from a host-built one at the decider.
+  delete deciderEnv[HOST_DELIVERED_ROOT_ENV];
+}
+
+/**
  * The wrapper's bound on the decider, and how it relates to the HOST's own hook timeout.
  *
  * ---------------------------------------------------------------------------------------------
@@ -390,6 +448,8 @@ const DECIDER_TIMEOUT_MS = 10_000;
 const child = spawnSync(process.execPath, [decider], {
   encoding: "utf8",
   timeout: DECIDER_TIMEOUT_MS,
+  // The ONE call the delivered root is set on (plan 31-27, S1). Everything else is inherited.
+  env: deciderEnv,
   // fd 0 IS INHERITED, AND THE WRAPPER'S OWN READ OF IT IS GONE (plan 31-27, `CR-17`'s second half).
   //
   // This used to be a pipe fed from `input: payload`, where `payload` came from

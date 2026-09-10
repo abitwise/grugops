@@ -33,6 +33,7 @@ import {
   existsSync,
   chmodSync,
   cpSync,
+  realpathSync,
 } from "node:fs";
 import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
@@ -714,6 +715,26 @@ describe("guard.js — the RESIDUAL this phase discloses rather than closes (RES
  * scripts/js-import-closure.ts rather than listed here, because a hand-listed mirror that misses a
  * module reproduces "the module is missing" instead of whatever the case meant to reproduce.
  */
+/**
+ * Re-seal a mirrored kit's manifest so the wrapper's CODE check PASSES and the branch under test
+ * is the one actually exercised. HOISTED to module scope by plan 31-27 so the tier-0 delivery
+ * cases use the SAME helper rather than a second copy of it — a second copy of one rule is this
+ * repository's recorded drift shape.
+ */
+function resealAgainstMirror(root: string, rel: string): void {
+  // Re-seal by HASH rather than by rebuilding: the kit copy has no toolchain, and the property
+  // under test is the wrapper's behaviour once its code check passes, not the generator's.
+  const before = createHash("sha256")
+    .update(readFileSync(join(import.meta.dirname, "..", rel)))
+    .digest("hex");
+  const after = createHash("sha256").update(readFileSync(join(root, rel))).digest("hex");
+  const entry = join(root, "hooks", "hook-entry.js");
+  const src = readFileSync(entry, "utf8");
+  expect(src, "the manifest does not carry the pre-modification hash — reseal would be a no-op")
+    .toContain(before);
+  writeFileSync(entry, src.split(before).join(after));
+}
+
 function mirrorKit(entryRel: string): string {
   const root = mkdtempSync(join(tmpdir(), "guard-mirror-"));
   cpTmpDirs.push(root);
@@ -1559,19 +1580,7 @@ describe("30-11 round 4 — the wrapper verifies CODE, not the decider's word (R
    * That layering is real and worth stating — those two branches are defence in depth behind the code
    * check — but a case that cannot fail when its subject is removed is not testing its subject.
    */
-  function reseal(root: string, rel: string): void {
-    // Re-seal by HASH rather than by rebuilding: the kit copy has no toolchain, and the property
-    // under test is the wrapper's behaviour once its code check passes, not the generator's.
-    const before = createHash("sha256")
-      .update(readFileSync(join(import.meta.dirname, "..", rel)))
-      .digest("hex");
-    const after = createHash("sha256").update(readFileSync(join(root, rel))).digest("hex");
-    const entry = join(root, "hooks", "hook-entry.js");
-    const src = readFileSync(entry, "utf8");
-    expect(src, "the manifest does not carry the pre-modification hash — reseal would be a no-op")
-      .toContain(before);
-    writeFileSync(entry, src.split(before).join(after));
-  }
+  const reseal = resealAgainstMirror;
 
   function runEntry(root: string, input = MATCHED): { status: number | null; stdout: string } {
     const env: Record<string, string> = {};
@@ -1998,4 +2007,121 @@ describe("31-27 CR-17 — a non-regular file at ANY manifest position is a bound
     // Under the wrapper's own bound plus two seconds — the bound answered, not the harness.
     expect(result.wallMs).toBeLessThan(12_000);
   }, 40_000);
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// PLAN 31-27 S1 — THE WRAPPER DELIVERS A GOVERNANCE ROOT, OR IT DELIVERS NOTHING.
+//
+// The wrapper is the ONE point in this process tree where `TRUSTED_ROOT_RESIDUALS`'s closing
+// criterion is satisfiable: the HOST builds this process's environment, and this file is byte-frozen
+// and hash-verifies the decider's whole import closure before the decider runs. It reads the host's
+// own `CLAUDE_PROJECT_DIR`, shape-checks it with the builtins it is allowed, and sets
+// `GRUGOPS_HOST_DELIVERED_ROOT` on the ONE spawn it makes.
+//
+// AN UNUSABLE VALUE DELIVERS NOTHING, NOT A BAD VALUE — because a decider handed a bad root would
+// TRUST a tier the fallback would have answered correctly. That is asserted here, not argued.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+describe("31-27 S1 — the wrapper's host-delivered root, observed at the decider", () => {
+  const MATCHED = payload("git push --force origin main");
+
+  /** A decider that reports what the wrapper handed it, as a well-formed deny the wrapper passes on. */
+  const REPORTER =
+    'const v = process.env.GRUGOPS_HOST_DELIVERED_ROOT ?? "(absent)";\n' +
+    'process.stdout.write(JSON.stringify({hookSpecificOutput:{hookEventName:"PreToolUse",' +
+    'permissionDecision:"deny",permissionDecisionReason:"DELIVERED=" + v}}));\n';
+
+  function reporterKit(): string {
+    const root = mirrorKit("hooks/hook-entry.js");
+    for (const t of closureTargets(join(import.meta.dirname, ".."), "hooks/guard.js", root)) {
+      mkdirSync(dirname(t.to), { recursive: true });
+      copyFileSync(t.from, t.to);
+    }
+    writeFileSync(join(root, "hooks", "guard.js"), REPORTER);
+    // Re-seal, or the manifest check fires first and this case passes for the wrong reason.
+    resealAgainstMirror(root, "hooks/guard.js");
+    return root;
+  }
+
+  function run(root: string, extra: Record<string, string>): string {
+    const env: Record<string, string> = {};
+    for (const [k, v] of Object.entries(process.env)) {
+      if (k.startsWith("GRUGOPS_") || k.startsWith("CLAUDE_") || v === undefined) continue;
+      env[k] = v;
+    }
+    const r = spawnSync("node", [join(root, "hooks", "hook-entry.js"), "guard.js"], {
+      input: MATCHED,
+      encoding: "utf8",
+      env: { ...env, ...extra },
+      timeout: SPAWN_TIMEOUT_MS,
+    });
+    expect(r.status, "the wrapper must answer").toBe(0);
+    const parsed = JSON.parse(r.stdout ?? "") as {
+      hookSpecificOutput: { permissionDecisionReason: string };
+    };
+    return parsed.hookSpecificOutput.permissionDecisionReason;
+  }
+
+  it("PREMISE: the reporter decider is reached at all (a re-sealed kit, not a refused one)", () => {
+    const root = reporterKit();
+    expect(run(root, {}), "the manifest check fired instead — nothing below measures delivery")
+      .toContain("DELIVERED=");
+  });
+
+  it("a host value that shape-checks IS delivered, canonicalised", () => {
+    const root = reporterKit();
+    const project = mkdtempSync(join(tmpdir(), "guard-project-"));
+    cpTmpDirs.push(project);
+    mkdirSync(join(project, ".git"), { recursive: true });
+    expect(run(root, { CLAUDE_PROJECT_DIR: project })).toBe(`DELIVERED=${realpathSync(project)}`);
+  });
+
+  for (const [label, value] of [
+    ["absent", undefined],
+    ["empty after trim", "   "],
+    ["a RELATIVE path", "relative/dir"],
+    ["a path that does not exist", "/definitely/not/here/31-27"],
+  ] as const) {
+    it(`a host value that is ${label} delivers NOTHING`, () => {
+      const root = reporterKit();
+      const extra: Record<string, string> =
+        value === undefined ? {} : { CLAUDE_PROJECT_DIR: value };
+      expect(run(root, extra)).toBe("DELIVERED=(absent)");
+    });
+  }
+
+  it("a host value that is an existing REGULAR FILE delivers NOTHING", () => {
+    const root = reporterKit();
+    const dir = mkdtempSync(join(tmpdir(), "guard-notdir-"));
+    cpTmpDirs.push(dir);
+    const f = join(dir, "a-regular-file");
+    writeFileSync(f, "x");
+    expect(run(root, { CLAUDE_PROJECT_DIR: f })).toBe("DELIVERED=(absent)");
+  });
+
+  it("an AMBIENT delivered name the wrapper did not establish is DELETED, never inherited", () => {
+    // Otherwise a value spelled by any ancestor process would be indistinguishable, at the decider,
+    // from one the host built — which is the entire distinction tier 0 rests on.
+    const root = reporterKit();
+    const forged = mkdtempSync(join(tmpdir(), "guard-forged-"));
+    cpTmpDirs.push(forged);
+    mkdirSync(join(forged, ".git"), { recursive: true });
+    expect(
+      run(root, { GRUGOPS_HOST_DELIVERED_ROOT: forged }),
+      "the wrapper passed an ambient delivered name through — tier 0 would then trust a channel the " +
+        "agent's own process tree wrote",
+    ).toBe("DELIVERED=(absent)");
+  });
+
+  it("a forged ambient name is dropped even when the host ALSO delivers a real one", () => {
+    const root = reporterKit();
+    const real = mkdtempSync(join(tmpdir(), "guard-real-"));
+    const forged = mkdtempSync(join(tmpdir(), "guard-forged2-"));
+    cpTmpDirs.push(real, forged);
+    mkdirSync(join(real, ".git"), { recursive: true });
+    mkdirSync(join(forged, ".git"), { recursive: true });
+    expect(
+      run(root, { CLAUDE_PROJECT_DIR: real, GRUGOPS_HOST_DELIVERED_ROOT: forged }),
+    ).toBe(`DELIVERED=${realpathSync(real)}`);
+  });
 });
