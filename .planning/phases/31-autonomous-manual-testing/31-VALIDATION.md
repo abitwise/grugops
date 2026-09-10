@@ -163,3 +163,28 @@ unchanged through rounds 2, 3 and 4". This round adds no item and closes none.
 alternative auth configuration, no Windows host and no second scratch repository. Each item is
 restated here so the next verification round finds them in a register rather than rediscovering them,
 and so that "carried forward" is a recorded fact with a count rather than an assumption.
+
+---
+
+## Standing human-verification items — carried forward through gap-closure round 6
+
+> Recorded by plan `31-26` (the closing measurement for gap-closure **round 5**) on 2026-09-10.
+> **None of the four is closed by this round, and none is dropped.** Every `UNKNOWN - verify` marker
+> below is intact. A gap-closure plan may not close a human-verification item, and an item closed by
+> inference is not closed. This section does not rewrite the round-5 section above; it follows it.
+
+**Carry-forward count: 4 items, unchanged, now carried through rounds 2, 3, 4, 5 and this round's
+closing measurement.** This round adds no item and closes none. Every probe recorded in
+`docs/audit/31-round5-residuals.md` ran on **darwin 25.5.0 arm64 with Node v24.12.0 only**.
+
+| Id | Item | Status after gap-closure round 5 | What this round measured that is NOT this item |
+|---|---|---|---|
+| `R-01` | The attended Claude-in-Chrome lane opens under real interactive auth, pauses for a human on a login/challenge page, and produces only a human-stamped finding + artifact-ref (never a gate stamp). | **OPEN — `UNKNOWN - verify`.** Carried unchanged through rounds 2, 3, 4, 5 and this one. | `scripts/chrome-lane-bar.test.ts` was driven as its OWN file (`Test Files 1 passed`, `Tests 15 passed`) — `docs/audit/31-round5-residuals.md` §3.2. That is the **structural** bar. The lane's real interactive behaviour is **not** inferred from it. |
+| `R-02` | The `claude auth status --json` fail-closed predicate (D-10) behaves correctly on an API-key-only box and under a long-lived setup token. | **OPEN — `UNKNOWN - verify`.** Carried unchanged through rounds 2, 3, 4, 5 and this one. | Nothing. No alternative auth configuration was constructed; doing so would destroy this box's real credentials. |
+| `R-03` | Both browser-absence probe stages, and the whole spec-integrity runnable, on a **Windows** host. | **OPEN — `UNKNOWN - verify`.** Carried unchanged through rounds 2, 3, 4, 5 and this one. | `PARSER_ABSENT_MARKER` was driven directly and `BROWSER_ABSENT_MARKER` through its three suite cases (§3.4) — **on darwin**. `D-28` additionally publishes the two-boundary exit contract's Windows leg as an open `UNKNOWN - verify` in `browser-uat-recipe.md` itself, so this item now has a second, code-adjacent home. |
+| `R-04` | A host repository that installed grugops before this release re-runs the installer and picks up `tools/grugops/uat-spec-integrity.js`; the uninstaller removes it. | **OPEN — `UNKNOWN - verify`.** Carried unchanged through rounds 2, 3, 4, 5 and this one. | Nothing. `31-23`'s MOVEMENT 0 read `install/install.ts` to establish **what the installer writes where** (`copyKit` writes only `$GRUGOPS_HOME/agent-factory`; `seedState`/`writeMarker` write under `$TARGET/.grugops`) — that is a **reading of the source**, not an install round-trip, and it does not close this item. |
+
+**What this round did to them: nothing, deliberately.** `31-26` runs no attended browser session, no
+alternative auth configuration, no Windows host and no second scratch repository. Restated here with
+an incremented carry-forward count so "carried forward" stays a recorded fact rather than an
+assumption.

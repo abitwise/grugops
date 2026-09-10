@@ -610,3 +610,408 @@ byte-identical to its round-base value, measured by set-difference over the two 
 
 Every cardinality above was read from the **committed `.js`** by importing it from a non-entry
 module, not counted by eye.
+
+---
+
+## 7. The disposition ledger — one row per finding, per anti-pattern row, per `missing:` bullet
+
+**A row whose disposition is `closed` MUST cite a measurement taken in this session.** A row with no
+measurement says `UNKNOWN - verify` in its own disposition cell.
+
+### 7.1 Block A — the eleven numbered findings of `31-REVIEW.md`
+
+| # | Finding | Owner | Disposition | The measurement that proves it |
+|---|---|---|---|---|
+| A1 | **CR-12** — an unguarded `readFileSync` at the module's single note-write chokepoint hangs every writer on a FIFO | `31-21` | **closed** | §2.1 rows 6–8: the note-path FIFO refuses by name in **43 ms** at exit 0 (was exit 124 / 0 bytes); the ledger-path FIFO declines `unreadable-audit-ledger` in **59 ms** with the destination **empty** (was exit 124 with the note already written). Plus §6.5: `readFileSync(` occurs **0** times outside comments in `scripts/context-io.ts`. |
+| A2 | **CR-13** — the home stop is asked before `dir` is inspected, so a repository rooted at `$HOME` never reads its own dial | `31-23` | **closed** | §2.1 row 9: `trustedRepoRoot()` answers the planted home repository, `source: ok`, dial `high-severity`, and the self-stamped finding is REFUSED (was the KIT / `off` / WROTE). CONTROL unmoved. Plus §6.5: `isAtOrAboveHome` occurs **0** times outside comments; `TRUSTED_ROOT_STOP_CONDITIONS` is 7 with `S-HOME` gone. |
+| A3 | **CR-14** — the declared-names census is file-scoped, so one dead declaration disables the whole rename/namespace/fixture ban family | `31-24` | **closed** | §2.2 rows 4, 6, 7: all three spellings the review measured at `0 findings`/EXIT=0 — the renamed import with a dead inner `const it`, the namespace import with a dead inner `const pw`, and the index-0 helper parameter — now report `1 finding(s)`/EXIT=1, and all three controls are unmoved. |
+| A4 | **CR-15** — `ts.createSourceFile` sits outside the could-not-run boundary; 1,000 nested parens crash uncaught with empty stdout | `31-25` | **closed** | §2.2 rows 10–11: depth 1000 moves EXIT=1/stdout-empty/no-measurement → **EXIT=2** with the named could-not-run reason AND the vacuity floor on stderr, **0** escaping stack frames; the 630/631 adjacency and depths 500/2000/5000 all reproduce the decided answers. |
+| A5 | **CR-16** — `originIsTrusted`'s second arm trusts any directory under the repository root | `31-22` | **closed** | §2.1 row 1: the ordinary in-repository directory (`endsWith('.grugops/context') === false`) now declines `origin-outside-trusted-store` with `destNotes: []` and `ledgerDelta: 0` (was `promotedId` returned, `threw: null`, the file written). §9.2's per-dial table shows the same clause at **all four** dial values. |
+| A6 | **WR-22** — note write and ledger append are non-atomic, in the wrong order, with a fail-open ledger read | `31-21` | **closed** | §2.1 row 8: with a FIFO at the ledger path the promotion writes **nothing** (`DEST-BEFORE []` → `DEST-AFTER []`) and declines by name; the pre-fix behaviour left the note written and the ledger empty. §6.5: `PROMOTE_ADMITTED_DECLINES` 9 → **10** with `unreadable-audit-ledger`. The corrected trace paragraph is quoted in `18-context-compaction.md` and names both routes. |
+| A7 | **WR-23** — WR-20's false refusal survives when the shadowing binding is a function's second parameter | `31-24` | **closed** | §2.2 row 9: the review's own helper spec, verbatim, now reports `0 findings over 1/1`, **EXIT=0**, stderr 0 bytes — where it reported `1 finding(s)` naming `test.skip`, a construct absent from the file. |
+| A8 | **WR-24** — `shadowed-rename.uat.spec.ts` can only fail for the false-positive half | `31-24` | **closed** | Measured on disk this session: the fixture carries a `MUTATE-REMOVE-START` / `MUTATE-REMOVE-END` region (lines 46 and 52), so the union is asserted in both directions; the three cases that drive it are green inside G1. |
+| A9 | **WR-25** — the dial clause is evaluated before the operand clause, so an origin fault is reported as a dial problem | `31-22` | **closed** | §9.2's per-dial table, driven in this session: a forged origin names `origin-outside-trusted-store` at **every** dial value including `off` and `absent`, and a legitimate anchored origin still names `human-stamp-not-gated-at-destination` at `off`/`absent` — so the operand clause moved ahead without weakening the dial clause. §4.1 records the consequence for verification row 5. |
+| A10 | **IN-12** — `stripRoutingLinks` computed three times on one input | `31-24` | **closed** | Measured per function this session: `isBannedModifierPath` computes it **once** into `normalised` (`:398`); `isBannedModifierCall` computes it **once** into `normalised` (`:439`); the only other call is `findBannedConstructs`'s per-chain dedup key (`:1920`), a different consumer that decides no membership. Four occurrences in the file, **one per arm**. |
+| A11 | **IN-13** — two load-bearing `UNKNOWN - verify` items in `docs/audit/31-round4-residuals.md` | `31-26` (this plan) | **closed — both items resolved BY NAME** | §9. §4.3 is answered from `31-23` PROBE 6's three-spelling measurement plus verification rows 8 and 9; §4.4 is answered from a per-dial clause table **driven in this session**. `31-18-SUMMARY.md` is byte-unchanged (`git diff --stat 49dfa26..HEAD` empty; **0** commits touch it). IN-13's own `UNKNOWN - verify` about `WORKFLOW_STOP_BULLET_COUNT` and `NON_TEST_MODULE_COUNT` is **carried, not closed** — see §9.3. |
+
+**11 findings. 11 rows. 10 closed by measurement, 1 (A11) closed by resolving two items with one
+carried sub-item named in §9.3.** No row asserts a closure this round did not measure.
+
+### 7.2 Block B — the seven anti-pattern rows of `31-VERIFICATION.md`
+
+| # | File / site | Disposition | Measurement |
+|---|---|---|---|
+| B1 | `scripts/context-io.ts` `originIsTrusted` — second arm accepts any directory under `trustedRepoRoot()` | **closed** | A5. The arm is DELETED; the surviving rule is a conjunction and `originIsTrusted`'s body is one `return`, asserted by a parse. |
+| B2 | `scripts/context-io.ts` `writeNoteFile` — unguarded `readFileSync` at the chokepoint | **closed** | A1. `readFileSync(` is absent from the module (0 occurrences outside comments) and from its `node:fs` import list. |
+| B3 | `scripts/context-io.ts` `projectRootFromWorkingDirectory` — `isAtOrAboveHome` asked before inspection | **closed** | A2. `isAtOrAboveHome` is deleted (0 occurrences outside comments); the split pair `isAboveHome`/`isHomeItself` and the 7-member stop set are on the tree. |
+| B4 | `scripts/runnable-ref/uat-spec-integrity.ts` `deriveDeclaredNames` + the canonicaliser guard — file-scoped suppression | **closed** | A3. |
+| B5 | `scripts/runnable-ref/uat-spec-integrity.ts` `ts.createSourceFile` outside the `try` | **closed** | A4. |
+| B6 | `agent-factory/workflows/18-context-compaction.md:75` — asserts the copy-in workaround is "mechanically refused" | **closed, with the claim KEPT and its bar disclosed** | Read from disk this session: `:75` still says "Never copy the origin notes into a directory to make the promotion pass … the constraint refuses it", and now adds "Know what the constraint does not refuse, and at what cost … The cost is three filesystem operations inside this repository, and two outside every repository." §2.1 row 1 measures the claim TRUE for the ordinary-directory case. The residual `T-31-18-01` names the constructed-governance-root case (§10). |
+| B7 | `agent-factory/checklists/browser-uat-recipe.md:~309-315` — asserts the checker "does not exit through an uncaught exception, including a pathological one" | **closed** | Measured this session: `grep -c 'including a pathological one'` → **0**, and no line matches `does not exit through an uncaught exception`. The replacement paragraph names the two boundaries and discloses the non-unwinding fault as the residual. |
+
+### 7.3 Block C — the six `missing:` bullets of `31-VERIFICATION.md`
+
+| # | Bullet (abridged) | Disposition | Measurement |
+|---|---|---|---|
+| C1 | Narrow `originIsTrusted`'s second arm to the shape arm 1 recognises, **or** rewrite the decline sentence and give the workaround its own residual | **closed — BOTH halves done, not one** | The arm is deleted AND a conjunct added (A5); the two agent-facing sentences at `:56` and `:75` are rewritten (B6); and `T-31-18-01` is rewritten with the cost priced per position (§10). |
+| C2 | Read `writeNoteFile`'s destination through the same non-blocking primitive `readGovernanceConfigCandidate` implements | **closed** | A1 — one authority (`readRegularFileOrNull`) with five derived call sites, plus a second authority for the append. |
+| C3 | Make the home stop asymmetric, and record the choice as a decision beside D-23 with a new residual member | **closed** | A2 plus: `D-26` is present in `31-CONTEXT.md` (12 gap-closure decisions, `D-17`…`D-28`, measured by `grep -c`), and `TRUSTED_ROOT_RESIDUALS` gained `R-31-19-05`, `R-31-19-06` and `R-31-19-07` (8 → 11). |
+| C4 | Narrow the declared-names suppression to a containment test | **closed** | A3 — and `31-24` measured that plain containment alone was **not** sufficient (the module-scope `const testInfo` spelling), so the fixture position is recorded as a non-suppressing binding. |
+| C5 | Move the could-not-run boundary to wrap the parse, and wrap `main`'s body in one outer `try` returning 2 | **closed** | A4 plus `PROCESS_BOUNDARY_MARKER` present in the committed `.js` (`"UAT spec integrity: the runnable could not complete"`). |
+| C6 | Record both fixes as dated decisions beside D-20/D-21, add a `MUTATE-REMOVE` corpus case for each, and correct the recipe paragraph's absolute claim | **closed** | `D-27` and `D-28` present (§C3's `grep -c` → 12); the union fixture's `MUTATE-REMOVE` region (A8); `PATHOLOGICAL_INPUT_SHAPES` is a published 6-member set with the depth-1000 shape in it; the recipe's absolute is gone (B7). |
+
+---
+
+## 8. The ledger's own totals, stated as an equality
+
+**A ledger whose totals do not match the source documents' is SHORT, and being short silently is the
+class this phase keeps paying for.** So the totals are derived and stated rather than implied.
+
+| Source denominator | Declared / derived by | Value | Ledger block | Rows | Agree? |
+|---|---|---|---|---|---|
+| `31-REVIEW.md` numbered findings | its frontmatter (`critical: 5, warning: 4, info: 2, total: 11`) **and** `grep -cE '^### (CR\|WR\|IN)-[0-9]+:'` | **11** and **11** | §7.1 | **11** | **yes — the declared and the derived counts agree, and the ledger equals both** |
+| `31-VERIFICATION.md` "Anti-Patterns Found" rows | measured: `awk` over the table | **7** | §7.2 | **7** | **yes** |
+| `31-VERIFICATION.md` `missing:` bullets across both gap entries | measured: `awk` over the two `missing:` lists | **6** | §7.3 | **6** | **yes** |
+| `31-VERIFICATION.md` "Behavioral Spot-Checks" rows | measured: `awk` over the table | **16** | §2 | **16 driven, 0 not-driven** | **yes** |
+| **total dispositioned items** | | **24** source items | | **24** rows | **yes — no item without a row** |
+
+**Disposition mix, counted:** **23 closed** · **1 closed with one named sub-item carried**
+(A11 / IN-13's own `UNKNOWN - verify`, §9.3) · **0 partially closed** · **0 carried without a row**.
+
+**Every `closed` row cites a measurement taken in this session.** The one row that carries something
+says `UNKNOWN - verify` in the item it carries, by name.
+
+---
+
+## 9. IN-13's two items, RESOLVED BY NAME
+
+`31-REVIEW.md` IN-13 names three sections of `docs/audit/31-round4-residuals.md` and states that two
+of its `UNKNOWN - verify` items are **load-bearing for the review**. Both are answered here. Neither
+is absorbed, and `31-18-SUMMARY.md` is **not** rewritten.
+
+### 9.1 §4.3 — which spelling the round-4 verifier ran for WR-21
+
+**The round-4 record printed both readings and chose neither.** ORIGINAL = a planted ancestor merely
+*named* `home`, the real `HOME` untouched. ADJUSTED = `HOME` overridden so the planted ancestor **is**
+`os.homedir()`.
+
+`31-23` PROBE 6 drove **three** cells, not two, and that third cell is what settles it:
+
+| reading | driven input | post-fix answer |
+|---|---|---|
+| **ADJUSTED** | planted ancestor carrying ONLY a configuration; `HOME` overridden so it IS `os.homedir()` | root `<kit>`, dial `ok/off` — **WR-21 is not reopened** |
+| **ORIGINAL, driven INSIDE this checkout** | planted ancestor merely NAMED `home`, real `HOME` untouched, tree under `.temp/` | **the enclosing repository** — `S-BOUNDARY-WINS` fires first, so this reading **cannot reproduce WR-21 from inside a repository at all** |
+| **ORIGINAL, driven OUTSIDE every repository** | the same shape in an `mkdtemp` tree | the planted ancestor, dial `high-severity` — `R-31-19-01`'s documented below-home behaviour |
+
+**The settled reading: round 4 measured the ADJUSTED spelling.** `31-REVIEW.md`'s WR-21 transcript
+shows a path under a Claude scratchpad, and the round-4 document reasoned that such a path "is not
+under the real home directory" and therefore read literally as the ORIGINAL. The measurement
+disproves that inference: the ORIGINAL spelling, driven from inside a repository — which is where
+every round-4 probe ran — resolves to the *enclosing checkout*, not to the planted ancestor, so it
+could not have produced the transcript round 4 recorded. Only the ADJUSTED spelling produces it.
+
+**What remains, by name: `R-31-19-01`** — "a configuration at an ancestor BELOW the user's home
+directory, with no repository marker between it and the working directory, governs any process whose
+working directory is under it." It is a **live, documented residual with an owner** (`D-23`,
+extended by `D-26`), it is re-measured UNMOVED in §2.1's control row, and closing it would revert
+`WR-15`'s own green control. **The `UNKNOWN - verify` on WHICH SPELLING is closed. The residual it
+sat beside is not, and is not claimed to be.**
+
+### 9.2 §4.4 — the clause-name disagreement with `31-18-SUMMARY.md`'s recorded post-fix table
+
+The round-4 document printed both figures and chose neither:
+
+| Source | `off` row | `absent` row |
+|---|---|---|
+| `31-18-SUMMARY.md`, "WR-17 — the post-fix per-dial table" | `origin-outside-trusted-store` | `origin-outside-trusted-store` |
+| `docs/audit/31-round4-residuals.md`, re-measured at `263d1a3` | `human-stamp-not-gated-at-destination` | `human-stamp-not-gated-at-destination` |
+
+**The per-dial table, DRIVEN IN THIS SESSION against the committed `.js` at `78bdb27`**, with both
+operands varied so the two clauses are separable rather than confounded:
+
+| dial | FORGED in-repository origin | LEGITIMATE anchored origin |
+|---|---|---|
+| `off` | `origin-outside-trusted-store` | `human-stamp-not-gated-at-destination` |
+| absent | `origin-outside-trusted-store` | `human-stamp-not-gated-at-destination` |
+| `high-severity` | `origin-outside-trusted-store` | **PROMOTED** |
+| `all` | `origin-outside-trusted-store` | **PROMOTED** |
+
+**The answer, stated.** The two records were both true, of two different trees, and the round-4
+document's re-measurement is **vindicated**:
+
+- **Pre-fix**, at `263d1a3`, the dial clause ran first, so a forged origin under a non-gating dial
+  was told the *destination's dial* was the problem. That is exactly what the round-4 document
+  measured, and it is `WR-25` — the finding `31-REVIEW.md` filed against precisely those two rows,
+  **citing §4.4 by name as its own corroboration**.
+- **Post-fix**, at `78bdb27`, `31-22` moved one guard: the operand clause now precedes the dial
+  clause. The forged-origin column reads `origin-outside-trusted-store` at every dial — which is what
+  `31-18-SUMMARY.md`'s table said, arriving one round later by a different route.
+- The `high-severity` and `all` rows additionally show `CR-16`'s own closure in the same run: those
+  two cells were **PROMOTED** pre-fix (that IS CR-16) and are refused now.
+- **The dial clause is not weakened.** The right-hand column proves it: with a legitimate anchored
+  origin, `off` and `absent` still name `human-stamp-not-gated-at-destination`.
+
+**`31-18-SUMMARY.md` is byte-unchanged and is not rewritten.** Proof, recorded:
+
+```
+$ git diff --stat 49dfa26..HEAD -- .../31-18-SUMMARY.md    (empty)
+$ git log --oneline 49dfa26..HEAD -- .../31-18-SUMMARY.md | wc -l
+0
+```
+
+`31-22-SUMMARY.md` states the same posture in its own words ("`31-18-SUMMARY.md` was NOT modified. A
+prior round's record is history and is never rewritten"). **The reconciliation lives here, in this
+round's own record, and it is a temporal disagreement rather than a factual one.**
+
+### 9.3 IN-13's own `UNKNOWN - verify` — CARRIED BY NAME, not closed
+
+IN-13 records one `UNKNOWN - verify` of its own: the reviewer did not independently re-derive
+`WORKFLOW_STOP_BULLET_COUNT` 39→42 or `NON_TEST_MODULE_COUNT` 72→74.
+
+**This round did not re-derive them either, and says so rather than inheriting the green.** Both are
+asserted two-sidedly inside the green suite (G1), and `31-21` re-derived the stop-bullet count as
+**42, unmoved**, while `31-22` records **74** tracked non-test sources for its PROBE 1 derivation.
+Those are the *fix plans'* figures, taken by the same instrument the reviewer declined to re-run.
+
+**Disposition: `UNKNOWN - verify`, carried by name into §10's register.** What would close it: an
+independent re-derivation of both counts by a walk this document builds, rather than by the walk the
+assertion itself uses.
+
+### 9.4 §6.2 — the eighth-instance count, which IN-13 also names, is itself unreconciled
+
+`docs/audit/31-round4-residuals.md` §6.2 calls its false-pass "the eighth logged instance in this
+phase of a verification harness producing a false result about its own premise." IN-13 names §6.2 as
+the correct instinct applied to the right target.
+
+**Measured across this round's own summaries, the running count has collided.**
+`31-22-SUMMARY.md` calls its ORDER-mirror correction "the **ninth** logged instance";
+`31-25-SUMMARY.md` calls its PROBE 2(b) correction "the **ninth** logged instance". Two plans of the
+same round both claimed number nine, and `31-21`, `31-23` and `31-24` each recorded further
+instances without numbering them.
+
+**Recorded as a finding about the phase's own bookkeeping rather than repaired by assigning
+numbers this document cannot justify.** This document's own instance (§1.3, the top-level dial key)
+is therefore stated as **"at least the tenth"**, and the sixth round should treat the running count
+as an unreconciled tally, not as an index. What would close it: one derived list of the instances,
+in one place, with the numbering read off that list rather than typed into each summary.
+
+---
+
+## 10. The round's residual register — every boundary round 5's five plans decided to leave open
+
+**What this section is.** A residual is a boundary a plan looked at, decided about, and left open on
+purpose. The enforceable copies live in the code's own exported registers, where the suite binds them
+in both directions. **They are collected here so a reader has the whole set in one place.**
+
+### 10.1 The governance root — `TRUSTED_ROOT_RESIDUALS`, 11 members (8 pre-existing, 3 added by `31-23`)
+
+| Id | Shape | Why it is left open | Owner | What would force it closed |
+|---|---|---|---|---|
+| `R-31-15-01` … `R-31-15-04` | the four pre-existing members (cwd-controlling process; unconfigured host resolves to the kit; ambient project-directory variables; a configuration above a nested repository) | unchanged this round; each is re-stated in `docs/audit/31-round4-residuals.md` §9.2 | `D-15`, refined by `D-23` (5) | unchanged |
+| `R-31-19-01` | A configuration at an ancestor **below** the user's home directory, with no repository marker between it and the working directory, governs any process whose working directory is under it. | Refusing it would revert `WR-15`'s own green control. §9.1's `UNKNOWN - verify` about which spelling round 4 probed is now **closed**; the residual itself is **live** and re-measured UNMOVED in §2.1. | `D-23`, extended by `D-26` | a decision about which of `WR-15` and the review's `Fix:` sentence the project wants — **the sixth verification round's call, not a plan's** |
+| `R-31-19-02` / `R-31-19-03` / `R-31-19-04` | ambient `HOME`; degenerate directory identities; an unrecognised VCS marker | unchanged this round | `D-23` (1)(2)(3) | unchanged |
+| **`R-31-19-05`** | A repository whose root IS the home directory and which carries its own governance configuration but **no** version-control boundary marker is not adopted, and its dial is replaced by the kit's shipped lean default. | The marker conjunct is what keeps `WR-21`'s `~/.grugops`-alone hole closed. Dropping it re-opens `WR-21`; keeping it costs this shape. | `D-26` | a boundary signal for a home-rooted repository that a caller cannot create in one operation |
+| **`R-31-19-06`** | Home's adoption rests on two ordinary filesystem artifacts, so a process that can write under `$HOME` can MAKE home adoptable in **three** operations against a bare home, or **one** against a home already carrying a dotfiles checkout. The converse is a one-operation gate LOWERING that predates this plan. | Priced by CONSTRUCTION rather than described: both counts are performed and asserted as numbers by driven cases. A refusal at home lands on the kit's LEAN default, so refusing more is not automatically safer. | `D-26` (4) | a signal a process writing under `$HOME` cannot forge |
+| **`R-31-19-07`** | The module-own-position exclusion compares lexically resolved path SPELLINGS, so one directory addressed by two strings defeats it. | **OCCUPIED on the CASE axis** and **HOLDING on the SYMLINK axis**, both measured by `31-23` PROBE 2(f). Price: **one** operation — address the decider through a case-differing path. A `dev:ino` comparison is refused (a `statSync` under `$HOME` one symlink can make agree); case-folding is refused for the converse reason (it would exclude MORE, and an added refusal at home lands on the lean fallback). | `D-26` (3) | a directory-identity source a caller under `$HOME` cannot influence |
+
+### 10.2 The admission / re-binding route — `PROMOTE_ADMITTED_RESIDUALS`, 6 members (3 pre-existing, 3 added by `31-22`)
+
+| Id | Shape | Why it is left open | Owner | What would force it closed |
+|---|---|---|---|---|
+| `T-31-14-03` | A note HAND-WRITTEN into the origin `notes/` directory and then promoted is not detected. | unchanged; the origin store is trusted exactly as far as every other reader trusts it | `D-19` | a signed note format |
+| **`T-31-18-01`** (REWRITTEN by `31-22`) | The origin store is recognised by SHAPE **conjoined with** ROOT ANCHORING, never by a registry — so a caller that constructs a whole GOVERNANCE ROOT around notes it authored still presents a store this route accepts. | The price is stated **PER POSITION** because it was measured rather than assumed: **three** filesystem operations inside a repository (all three proven load-bearing by subtraction) and **two** outside every repository. The second number is a correction of this round's own plan text (`31-22` deviation 1). | `D-25` | a store marker the sanctioned writer emits and this route verifies, or a registry a caller cannot author |
+| **`R-31-22-01`** | The anchoring conjunct asks this module's own root walk, which answers `nearest` at a repository boundary carrying NO governance configuration — so a checkout with a `.grugops/context` store and no `factory.config.json` is refused as an ORIGIN, where the deleted arm accepted it by shape. | A capability the narrowing REMOVES, named because `31-22`'s own prohibition required it. Bounded by measurement: `install.js` seeds `.grugops/factory.config.json` into every target it touches, so this reaches only a store created by the minimal markdown-copy path. | `D-25` | anchoring on a boundary marker alone — **refused**, because it would drop the forged-origin price to two operations |
+| **`R-31-22-02`** | The DESTINATION argument `to` is caller-supplied and is NOT constrained by the canonical form. | Decided rather than left silent: `to` is not a proof OPERAND — nothing read at the destination is evidence FOR the promotion. Driven as `31-22` PROBE 2 across five destination shapes. | `D-25` | a decision that the destination is also an operand |
+| **`R-31-22-03`** | The recognition rule is LEXICAL and CASE-SENSITIVE. `resolve()` normalises `.`/`..`/trailing separators but does not follow symlinks, so a symlink at a correctly-shaped, anchored location whose realpath is an ordinary directory is ACCEPTED. | Not a new capability: planting that link needs write access to a real governance root's own `.grugops/`, which is `T-31-14-03` one indirection over. The case-differing spelling is refused by name, which is the safe direction. | `D-25` | comparing `realpathSync` rather than `resolve` — a module-wide decision about every context root |
+| `R-37` | The compared field set is the store's own read-back projection plus the body. | unchanged | `D-19` | widening the projection |
+
+### 10.3 The UAT-spec modifier ban — `UNRESOLVABLE_CALLEE_RESIDUALS`, 9 members (one REWRITTEN by `31-24`)
+
+The nine members are unchanged in count from round 4 (`RR-01` … `RR-09` in
+`docs/audit/31-round4-residuals.md` §9.1) with **one rewritten**: the former file-scope member
+(`RR-02`) now states the **NEAREST-BINDING** rule, and `31-24` asserts by test that it "no longer
+claims file scope". The residual's remaining clause — a **module-scope** declaration with no inner
+binding nearer still reaches the whole file — is measured with a bound `31-24` recorded rather than
+registered: a module-scope declaration of a name the file also IMPORTS is illegal TypeScript
+(`error TS2440`), so the rename and namespace families cannot be evaded that way in a spec that
+type-checks. **The fixture-parameter family has no such collision**, which is why the module-scope
+`const testInfo` spelling was the one that survived a plain containment rule.
+
+### 10.4 The exit-code contract — `31-25`'s residuals, published as prose and as two frozen sets
+
+| Shape | Why it is left open | Owner | What would force it closed |
+|---|---|---|---|
+| **A fault that terminates the process without unwinding** — an out-of-memory kill, or a signal. | No `try` catches those, and the checker claims nothing about them. Disclosed in the recipe paragraph verbatim rather than left as an absolute. | `D-28` | a supervisor outside the process |
+| **The Windows leg of the two-boundary behaviour** | `UNKNOWN - verify` per the standing `WINDOWS.md` posture; not testable on darwin. Every probe in this document ran on darwin only. | `D-28` | `R-03` (§12) |
+| **The de-recursed directory walk covers the CLASS without closing a reachable input on this platform** | Measured, not assumed: `mkdir` stops at **476** levels (`ENAMETOOLONG` at a 1015-byte path) while a like-for-like self-recursive frame overflows at **~8,075**. `31-25` records GREEN 4 as a control with its residual stated, not as a closure. | `D-28` | a platform whose path limit exceeds its stack limit |
+| **`reportMeasured`'s branch/stream design was deliberately NOT changed** | An earlier draft of `31-25` required a `visited/expected` line on STDOUT for every could-not-run shape. That is unsatisfiable without moving a floor's output, so **the requirement was rewritten, not the mechanism**; `reportMeasured` is byte-unchanged (1535 bytes, `sha256 e44820eb8e15fcc4` at both revisions). | `D-28` (3) | a decision to move a floor's stream |
+
+### 10.5 The `31-21` residuals — named in a DECISION, not in an exported register
+
+`31-21` names four residuals — `R-31-21-01` (`atomicWrite`'s unaimable temp write), `R-31-21-02` (a
+non-regular file inside `notes/` is skipped rather than refused loudly), `R-31-21-03` (the plan's own
+`appendFileSync` premise, **measured false and closed**), `R-31-21-04` (both derivations are
+syntactic).
+
+**Measured this session, and recorded as an asymmetry rather than as a defect.** Unlike
+`R-31-19-*` and `R-31-22-*`, these four are **not members of an exported register the suite binds
+two-sidedly.** They live in `31-CONTEXT.md`'s D-24 block (lines 813, 819, 826, 841). In the source
+tree `R-31-21-01` appears once, inside a test's message string
+(`scripts/context-io-writer-set.test.ts:3440`), and `R-31-21-03` once, inside a source comment
+(`scripts/context-io.ts:981`). `R-31-21-02` and `R-31-21-04` appear in neither.
+
+**Why this matters to the sixth round.** The register's own contract, quoted from
+`scripts/context-io.ts`, is that "adding a member without dispositioning it turns a test red rather
+than shipping quietly." Four residuals held only in a planning document have no such test.
+**Recorded, not fixed** — adding an exported register is a source change, and a closing measurement
+plan that writes source has found a new defect, which belongs in a new plan with its own RED-first
+reproduction.
+
+### 10.6 Two further residuals this round leaves, measured in §5 and §6
+
+| Shape | Owner | What would force it closed |
+|---|---|---|
+| **`.temp/` probe artifacts are invisible to the test runner's exclusion and can crash the suite.** Reproduced in-session (§5.3): a leftover `uat/*.uat.spec.ts` under `.temp/` was collected by vitest, two unrelated suite files reported failures, and the run died on SIGSEGV — while `git status --short .temp` stayed silent. | this round | excluding `.temp/` from the vitest include glob, or asserting the FIFO/probe-root sweep **before** every suite run |
+| **`31-21-derive-probe.mjs` survived under `.temp/` outside its plan's declared probe root** (§5.2), because the plan's residue predicate asked about a directory and never about a sibling. | `31-21` | a residue predicate derived from what the plan WROTE rather than from where it intended to write |
+
+---
+
+## 11. The aggregated self-red-team probe index — what round 5 already probed
+
+Each of the five fix plans ran the **six standing probes**. **5 × 6 = 30 probes, all run; "none" was
+never the answer to a probe that was not run.** This index exists so the sixth round can see what has
+already been asked before asking it again.
+
+| Plan | P1 — how is the gate REACHED | P2 — derive BOTH axes | P3 — what is the input ASSEMBLED from | P4 — at which POSITIONS is it asked | P5 — every declined shape with a LEGITIMATE input | P6 — pre-existing destination / re-derived mutants |
+|---|---|---|---|---|---|---|
+| `31-21` | PASS — 14 call sites derived, driven pre and post, 14/14 OK both | PASS — 3 positions × 5 shapes, 15/15 cells, slowest 14 ms | PASS — 4 symlink shapes, each asserted to RESOLVE to what the row claims | **FAIL → FIXED** (`R-31-21-03`: `appendFileSync` blocks; the plan's own premise was false) | PASS — 10 clauses, 10 legitimate inputs, 0 false refusals | PASS — 4 write sites × 3 pre-existing shapes, no hang |
+| `31-22` | PASS — caller cardinality 1, matching PART SIX-D | PASS — 5 destination shapes, all decided | **FAIL → FIXED** (`R-31-22-03`: the lexical/symlink row) | PASS — 9 positions enumerated, one asks the rule | PASS — 10 clauses, 10 legitimate inputs | PASS — CR-11's closure intact through the changed order |
+| `31-23` | PASS — 6 consumers driven pre and post, 0 moved | PASS — six axes incl. a **48-cell** cross-product, exactly 2 verdicts partitioned by candidate POSITION | **FAIL → FIXED** (`namedHomeDirectory`'s claim outran its mechanism) | PASS — 3 positions reach a config without the walk; each an existing residual or the documented test seam | PASS — 5 cases, 1 MOVED (`31-22` CONTROL 5a, the declared cross-plan member) | PASS — both §4.3 readings driven |
+| `31-24` | PASS — 8 legitimate specs pre and post, 0 false refusals introduced | PASS — 5 sub-axes (KINDS, exemption scope, ORDER, UNION, NESTING) | PASS — 6 shapes, the compared position is the call's own `getStart` in every one | **FAIL → FIXED** (arms (a)/(b) compared a RAW head; three spellings at exit 0) | PASS — 9 register members + a 9b clause, each matching its own sentence | PASS — 4 pre-existing mutants re-derived, none breaks fewer cases |
+| `31-25` | **FAIL → FIXED** (the browser loud skip wrote around `main`'s output seam); 13 exit sites derived, 13 driven | PASS after a harness fix (a child-derived depth consumed in-process) | PASS after a harness fix (two hand-typed marker literals) | PASS — 1 self-recursion left, with a disposition | PASS — 6 of 6 corpus cases carry a premise assertion | PASS — 7 mutants re-derived, none breaks fewer cases |
+
+**Probes run: 30. Probes that found a defect: 7** — `31-21` P4, `31-22` P3, `31-23` P3, `31-24` P4,
+`31-25` P1, plus `31-21`'s Task-1 discoveries (`readRawNotes`' walk and the two CLI argv reads).
+**Every one was fixed inside its own plan and re-probed.** Two of the seven — `31-24` P4's assertion
+arms and `31-25` P1's output seam — are **production** fixes for defects **no review named**.
+
+**The probe idiom that pays.** Across five plans the recurring winner is *drive the pre-fix tree as a
+control*: `31-21` P1's first run recorded 3 refusals on BOTH trees and would otherwise have read as
+"my fix broke a caller"; `31-24`'s mutation harness read a **stale artifact** as a passing mutant
+until the rebuilt `.js` was grepped for the mutant's own marker; `31-25` re-derived every anchor
+because `31-24` had moved the line numbers the plan cited.
+
+---
+
+## 12. What this round did NOT do
+
+Stated plainly, because a closure round's silences are what the next round pays for.
+
+1. **The four human-verification items remain OPEN.** `R-01` (the attended Chrome lane under real
+   interactive auth), `R-02` (the `claude auth status --json` predicate under API-key and
+   long-lived-token configurations), `R-03` (the Windows leg of every browser probe and of the whole
+   spec-integrity runnable), `R-04` (the installer round-trip on a pre-existing host install). Each
+   is carried forward with its `UNKNOWN - verify` marker intact and its carry-forward count updated
+   in `31-VALIDATION.md`. **None is closed by inference, and none is dropped.** Every probe in this
+   document ran on **darwin only**.
+2. **The `check:diff-disposition` debt is MEASURED, UNCLOSED, and LARGER than it was** — 110
+   findings over 39 elements, up from 75, with **35 of them owed by this round's own plans** and
+   named owners for each (§6.3). Not fixed here, for the standing reason: writing rows for another
+   plan's clauses puts a reason in the register this plan cannot vouch for.
+3. **`WR-21`'s below-home shape is not closed** and is not claimed as closed — `R-31-19-01` (§10.1).
+   The `UNKNOWN - verify` about which spelling round 4 probed **is** closed (§9.1); the residual it
+   sat beside is not.
+4. **IN-13's own `UNKNOWN - verify`** about `WORKFLOW_STOP_BULLET_COUNT` and `NON_TEST_MODULE_COUNT`
+   is **carried by name**, not closed (§9.3).
+5. **`R-31-19-07` is OCCUPIED on the CASE axis, not closed** — the running kit's own configuration
+   can be adopted over a project nested inside it for the price of one case-differing path (§10.1).
+6. **No source file was modified.** A closure plan that fixes something has found a new defect, and a
+   new defect belongs in a new plan with its own RED-first reproduction. Asserted:
+   `git status --porcelain -- scripts hooks agent-factory install` is empty at every commit of this
+   plan. **The two findings this round DID raise — §6.3's grown debt and §10.5's unregistered
+   `R-31-21-*` residuals — are therefore recorded with owners rather than repaired.**
+7. **No requirement was flipped** — §13.
+
+---
+
+## 13. The requirement rows, confirmed UNCHANGED
+
+**Only a verification round may flip a requirement. A gap-closure plan that flips one is certifying
+itself.** `.planning/ROADMAP.md` says so in its own words, quoted verbatim from the gap-closure
+blocks that govern this phase:
+
+> UATX-01, UATX-05 and UATX-06 stay `[ ]` / Gaps Found throughout: only a verification round may
+> flip them.
+
+> **The phase stays `In Progress`: executing a gap-closure round is not verifying it, and a fifth
+> verification round has not run.**
+
+Confirmed by reading the files rather than by intent, and by a diff pinned to the round base:
+
+```
+$ git diff --stat 49dfa26..HEAD -- .planning/REQUIREMENTS.md      (empty)
+$ git diff --stat 34f6989..HEAD -- .planning/REQUIREMENTS.md      (empty)   ← the plan's own range
+$ git diff 49dfa26..HEAD -- .planning/ROADMAP.md | grep '^[-+].*Phase 31: Autonomous Manual Testing'
+(no hunk touches the Phase 31 checkbox line)
+```
+
+`.planning/REQUIREMENTS.md`, lines 120–125 — all six still **unchecked**; lines 212–217 — all six
+still **`Gaps Found`**; `.planning/ROADMAP.md` line 100 — Phase 31 still **unchecked**.
+
+**`requirements.ready-ids` reports 6/6 ready**, because `31-26` is the last plan of this phase
+declaring them and no sibling now blocks the flip. **The flip is withheld anyway**, on the governing
+sentence above. `31-24-SUMMARY.md` records the same decision after its own tooling flipped two rows
+and they were reverted by hand; this plan does not run `requirements.mark-complete` at all.
+
+### 13.1 The `.planning/STATE.md` write, VERIFIED rather than assumed
+
+This repository's state writer re-escapes backslashes on every write, and a pathological line there
+has previously combined with a superlinear guard predicate to turn a sub-second gate into a
+multi-minute one. So the write is measured afterwards rather than trusted:
+
+| Check | Command | Result |
+|---|---|---|
+| longest line in `.planning/STATE.md` | `awk '{ if (length($0) > m) { m = length($0); n = NR } } END { print m, n }'` | **7995 characters, at line 18** — `prior_activity_desc`, a pre-existing field this plan did not touch. The `status:` field this plan rewrote is **3756** characters. Bound: 20000. **PASS.** |
+| backslash runs | `grep -c '\\\\\\\\'` | **0** — no quadruple-backslash run anywhere in the file. The replacement text was asserted to contain no `"` and no `\` before it was written. |
+| foundation guards AFTER the write | `node scripts/check-foundation-guards.js` | `ALL CHECKS PASSED`, exit 0, **0.21 s** wall clock. Bound: 5 s. **PASS.** |
+| UAT oracles AFTER the write | `node scripts/check-uat-oracles.js` | `ALL CHECKS PASSED`, exit 0, **0.10 s** wall clock. |
+
+`.planning/STATE.md` names the next action as **a SIXTH verification round**, in both `status:` and
+`stopped_at:`.
+
+---
+
+## 14. What the sixth verification round inherits
+
+- **§2** — every round-5 reproduction paired, none re-derived from a fix plan's fixture: **16** of
+  **16** spot-checks driven (5 moved, 11 unmoved), plus **5** review-only variants the verifier never
+  ran, all 5 moved.
+- **§3** — the four SATISFIED requirements re-measured by their own mechanisms rather than inherited.
+- **§4** — four disagreements, both figures printed: the row-5 clause name, the index-0 line number,
+  the row-12 byte/char count, and the manifest digest chain.
+- **§5** — the measurement environment proven clean **by predicates that can observe it**, and the
+  `git status`-based `.temp/` gate recorded as having been **inert in every previous round** — with
+  the hazard **reproduced in-session**, a SIGSEGV run and a clean run at the same commit.
+- **§6** — the one-commit gate record with the doctrine sentence beside it, the WHOLE 26-entry
+  manifest re-measured, and the `check:diff-disposition` debt re-measured at **110** with the round's
+  own **+35** attributed by name.
+- **§7/§8** — **24** disposition rows against **24** source items, with the equality stated.
+- **§9** — **IN-13's two items resolved by name**, its own sub-item carried by name, and the
+  phase's collided harness-instance count recorded.
+- **§10** — the residual register: **11** governance-root members, **6** admission-route members,
+  **9** modifier-ban members, **4** exit-contract residuals, **4** `31-21` residuals that no exported
+  register holds, and **2** this round's own measurements added. Each with a reason and a closing
+  criterion.
+- **§11** — **30** self-red-team probes indexed, **7** of which found a defect.
+- **§12** — what was not done. **§13** — the requirement rows, left for the verifier.
+
+**The one thing this round most wants read first: §5.3.** The `.temp/` contamination hazard is not a
+theoretical risk carried forward from round 4 — it is reproduced here, with a contaminated run and a
+clean run at the same commit, and the gate three rounds relied on to catch it was **silent the whole
+time**. Any sixth-round figure taken without the FIFO sweep and the per-plan probe-root existence
+tests is a figure taken with an instrument this document has now shown to be blind.
+
+---
+
+_Written: 2026-09-10 · Plan `31-26` · Measured at `78bdb27` (reproductions and gates), with every
+"over the round" range pinned to the round base `49dfa26`_

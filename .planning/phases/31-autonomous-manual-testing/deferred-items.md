@@ -127,3 +127,91 @@ the next round compares against a live number rather than against the newest sta
 - **The 77 owed diff-disposition clauses recorded by the `31-18` entry** are superseded as a COUNT by
   the 75 measured above, and by nothing else: the entry's ownership analysis stands. A prior entry is
   history and is not rewritten; both counts are on the page with the reason for the difference.
+
+## 31-26 (2026-09-10) — the round-6 closing re-measurement, and the deferral posture stated
+
+**The posture, stated explicitly: nothing found by gap-closure round 5 is deferred past this round.**
+All eleven findings of `31-REVIEW.md` (CR-12..CR-16, WR-22..WR-25, IN-12, IN-13), all seven
+anti-pattern rows and all six `missing:` bullets of `31-VERIFICATION.md` carry a disposition backed
+by a measurement in `docs/audit/31-round5-residuals.md` §7. **24 source items, 24 rows, 0 items
+without a row.** Plan `31-26` changes **no** watched file and **no** source file.
+
+The entries below are the pre-existing items re-measured, plus the **three** genuinely deferred
+items this round raises. Each deferred item carries an OWNER and a CRITERION.
+
+- **`npm run check:diff-disposition` — re-measured at `78bdb27`: `110 finding(s) over 39 elements`,
+  up from the `75` the `31-20` entry recorded. DEFERRED, with owners.**
+  The gate reports `39 watched file(s) changed since 4d2b8f0; 2206 changed clause(s) derived; 1790
+  disposition row(s) across 20 file(s)`. Every finding, by the file it names:
+  `05-pr-quality-gate.md` (**38**), `18-context-compaction.md` (**29**), `06-uat-pack.md` (**25**),
+  `16-context-read-write.md` (**16**), `17-task-claim.md` (**2**).
+  **Reason for the change since the `31-20` entry (75 → 110):** the round's own plans changed two
+  watched workflow files and wrote **no** disposition file. Attribution is DERIVED, not assumed —
+  `git log --oneline 49dfa26..HEAD -- <file>` names the commits, and
+  `git diff --name-status 49dfa26..HEAD -- docs/audit/29-style-dispositions/` is **empty**:
+  - `18-context-compaction.md`: **0 → 29**, owed by **`31-21`** (`8cde300`, `b3f666f`) and
+    **`31-22`** (`12c7733`).
+  - `16-context-read-write.md`: **10 → 16**, of which 10 stay owed by `31-15` and **6 by `31-23`**
+    (`a38be64`).
+  - The other three files are untouched by the round; their 65 findings are the standing
+    `31-05`/`31-06`/`31-08` debt, unchanged.
+  **Owner:** plans `31-21`, `31-22` and `31-23` for the 35 new ones; `31-05`, `31-06`, `31-08` and
+  `31-15` for the standing 75.
+  **Criterion that closes it:** one disposition file per owning plan under
+  `docs/audit/29-style-dispositions/` — `31-21.md`, `31-22.md`, `31-23.md`, plus the standing
+  `31-05.md`, `31-06.md`, `31-08.md`, `31-15.md` — each naming its own clauses with the rule and the
+  reason. **Do NOT move `00-base.md`'s recorded `base_commit` (`4d2b8f0`) forward and do NOT narrow
+  the watched corpus**; the gate's own message names both as clearing a finding by deleting its
+  evidence.
+  **Why `31-26` did not fix it:** unchanged from the `31-09`, `31-14`, `31-19` and `31-20` entries —
+  writing rows for another plan's clauses puts a `before`/`after` and a reason in the register that
+  this plan did not make and cannot vouch for.
+
+- **`.temp/` probe artifacts are collected by the test runner and can kill a suite run. DEFERRED,
+  with a criterion.**
+  **Measured in-session** (`docs/audit/31-round5-residuals.md` §5.3): with one leftover
+  `uat/*.uat.spec.ts` under `.temp/`, `npx vitest run --exclude '**/scripts/e2e/**'` collected it as
+  a test file, two unrelated suite files reported failures (`uat-spec-integrity.test.ts` 1,
+  `hooks/guard.test.ts` 5) and the process died on **SIGSEGV, exit 139**, with no `Test Files`
+  summary line printed. After `rm -rf` of the probe root the identical command at the identical
+  commit returned `62 passed` / `3908 passed | 2 skipped`, exit 0. **`git status --short .temp` was
+  silent throughout**, because `.temp/` is gitignored at `.gitignore:19` — so the residue gate rounds
+  3, 4 and 5 relied on could never have fired.
+  **Owner:** unassigned — this is repository infrastructure, not a Phase 31 predicate.
+  **Criterion that closes it:** `.temp/` excluded from the vitest include glob (so a probe artifact
+  cannot be collected at all), **or** the FIFO sweep plus the per-plan probe-root existence tests run
+  as a precondition of every suite run. **Not fixed here:** both are source/config changes, and a
+  closing measurement plan that writes source has found a new defect, which belongs in its own plan.
+
+- **`R-31-21-01` … `R-31-21-04` are held in a planning document, not in an exported register.
+  DEFERRED, with a criterion.**
+  Measured (`docs/audit/31-round5-residuals.md` §10.5): unlike `TRUSTED_ROOT_RESIDUALS` and
+  `PROMOTE_ADMITTED_RESIDUALS`, which the suite binds two-sidedly, `31-21`'s four residuals live in
+  `31-CONTEXT.md`'s D-24 block (lines 813, 819, 826, 841). In the source tree `R-31-21-01` appears
+  once inside a test's message string and `R-31-21-03` once inside a source comment; `R-31-21-02` and
+  `R-31-21-04` appear in neither. The register's own contract — "adding a member without
+  dispositioning it turns a test red rather than shipping quietly" — has no purchase on them.
+  **Owner:** plan `31-21`.
+  **Criterion that closes it:** an exported residual register for the filesystem-primitive family,
+  bound in both directions by a case, with these four as its members. **Not fixed here** for the same
+  reason as above.
+
+- **`node scripts/validate-agent-factory.js` invocation contract — re-measured, unchanged.** With
+  `VALIDATE_KIT_ROOT=$PWD`: exit 0, `ALL CHECKS PASSED`. Its own `SCOPE` line still discloses that a
+  repository-level `.grugops/factory.config.json` outside the kit tree is **not** examined unless
+  `VALIDATE_ROOT` is supplied. Still an invocation contract rather than a structural failure; remedy
+  unchanged. `status: open`.
+
+- **`scripts/freshness.test.ts` "Test 1 (control, real tree)" timeout — NOT re-measured this round,
+  and not closed.** The whole excluded-e2e suite is green at `78bdb27` (62 files / 3908 passed / 2
+  skipped), which means the case did not fail on this run; whether it is inside or merely near its
+  5000 ms budget on this machine was not measured, so the entry stays `open` with its remedy
+  unchanged rather than being closed by a green suite that does not report per-case margins.
+
+- **`.temp/31-21-derive-probe.mjs` survived its plan's cleanup.** Measured: `.temp/` holds 58
+  entries, 57 of which pre-date this round's first fix commit (`0b64074`, 2026-09-09T21:18:33+03:00);
+  the one exception has mtime `2026-09-09T22:02:38Z` and was written by plan `31-21` **outside** its
+  declared single probe root, so `test ! -e .temp/31-21-probe` passed over it. It is a `.mjs`, not a
+  `*.uat.spec.ts`, so it cannot contaminate a spec derivation — recorded as a named fact with an
+  owner rather than left unexplained. `status: open`, owner `31-21`, criterion: a residue predicate
+  derived from what a plan WROTE rather than from where it intended to write.
