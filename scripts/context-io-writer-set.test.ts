@@ -122,8 +122,28 @@ const NON_NOTE_WRITER_RESIDUALS = Object.freeze(["atomicWrite"]);
  * re-binding route's entry set (a gate stamp, an empty stamp) takes full admission there, which is
  * how a promoted `finding` and `artifact-ref` keep being re-bound at the destination. It is a place
  * an artifact-ref can be authored, so it is counted here exactly like the other four.
+ *
+ * MEASURED AGAIN, WITH THE REASON IT MOVED (31-30): 5 -> 6, and the DECISION this pin exists to
+ * force was made rather than the constant bumped. The sixth occurrence is in
+ * `scripts/check-platform-shapes.ts`, inside the source of the child-process driver that module
+ * writes to a temp file — the shape corpus needs a real note write at a real note path to have
+ * anything to refuse, and an unbounded read at a FIFO would hang the gate itself if it were driven
+ * in process.
+ *
+ * IS IT A PLACE AN `artifact-ref` COULD BE AUTHORED? Yes, and that is why it is COUNTED here rather
+ * than excluded. What bounds it is not this pin: the driver's destination is a `mkdtemp` root under
+ * the OS temp directory, removed in the module's own `finally`, and the note it composes is a
+ * `kind: observation` with no `refs`. It reaches `appendNote` through the SAME authority every other
+ * caller does — the admission check is not bypassed and no module-private route is used.
+ *
+ * WHY IT IS IN A NON-TEST SOURCE AT ALL, WHICH IS THE REAL QUESTION. `scripts/context-io.test.ts`
+ * has an equivalent driver and does not appear here, because this scan excludes `.test.ts`. The
+ * platform-shape corpus must run as a CI STEP on the `windows-latest` leg, before the vitest step
+ * and independently of it — that is the whole point of plan 31-30's R-03 work — so it cannot live in
+ * a test module. The cost is one more counted call site; the alternative was a Windows measurement
+ * that only runs if the suite does.
  */
-const EXPECTED_APPEND_NOTE_CALL_SITES = 5;
+const EXPECTED_APPEND_NOTE_CALL_SITES = 6;
 
 /** Files under agent-factory/ whose prose names `appendNote`. */
 const EXPECTED_AGENT_FACTORY_MENTIONS = 4;

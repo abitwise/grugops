@@ -30,9 +30,11 @@
 // framework, no network and no new dependency.
 //
 // WHAT IT DRIVES.
-//   - The PORTABLE non-regular-file shape — a DIRECTORY — at three positions: a note path, the
-//     GOV-02 audit ledger path, and a `DECIDER_MANIFEST` module position. Each must produce a NAMED
-//     refusal in bounded time.
+//   - The PORTABLE non-regular-file shape — a DIRECTORY — at two positions: a note path and a
+//     `DECIDER_MANIFEST` module position. Each must produce a NAMED refusal in bounded time. The
+//     GOV-02 audit ledger path was a THIRD position and was dropped; the reason is recorded in full
+//     above `runManifestPosition` below, and it is a derived guard firing correctly rather than an
+//     omission.
 //   - The CONTROL at each position: the ordinary shape, which must NOT be refused by the
 //     not-a-regular-file clause. A run that refuses everything proves nothing.
 //   - The spec-integrity runnable's exit-code contract: every could-not-run drive must exit `2`, and
@@ -62,9 +64,6 @@ import {
 import { homedir, tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { closureTargets } from "./js-import-closure.js";
-// The writer's ONE spelling of its unrecordable-admission refusal, imported rather than restated: a
-// paraphrase in this file would keep passing after the module's sentence moved.
-import { UNRECORDABLE_ADMISSION_REFUSAL } from "./context-io.js";
 
 const ROOT = join(import.meta.dirname, "..");
 const CONTEXT_IO_JS = join(ROOT, "scripts", "context-io.js");
@@ -393,37 +392,28 @@ function runNotePosition(): void {
   });
 }
 
-function runLedgerPosition(): void {
-  drivePosition("GOV-02 audit ledger path", (shape) => {
-    const base = tmpRoot("grugops-shape-ledger-");
-    // The GOV-02 ledger append is reached only under `audit_retention: retained`, so the governing
-    // configuration is written before the shape is planted. Without it the driver writes the note
-    // and never touches the ledger, and every row below would pass without the position being
-    // driven at all — a check that did not run, wearing a pass.
-    mkdirSync(join(base, ".grugops"), { recursive: true });
-    writeFileSync(
-      join(base, ".grugops", "factory.config.json"),
-      JSON.stringify({ context: { human_admission: "high-severity", audit_retention: "retained" } }),
-    );
-    const audit = join(base, ".grugops", "audit");
-    mkdirSync(audit, { recursive: true });
-    const at = join(audit, "admissions.jsonl");
-    rmSync(at, { recursive: true, force: true });
-    const made = shape.make(at);
-    const driver = writeContextDriver(base);
-    return {
-      made,
-      run: () => driveContextIo(driver, base, "20260910T000000Z-qe-observation-cafe0002"),
-      // THE CLAUSE IS THE AUTHORITY'S; THE SPELLING HERE IS THE WRITER'S, ON PURPOSE.
-      // `LEDGER_PATH_NOT_REGULAR_FILE_CLAUSE` is what `admit()` throws with. `appendNote` catches
-      // that and converts it into its OWN documented refusal — the one `UNRECORDABLE_ADMISSION_REFUSAL`
-      // spells — because "is this note admissible" and "can the admission be recorded" are two
-      // questions and this repository refuses to flatten them. So the assertion is written against
-      // the sentence the driven route actually emits.
-      refusalClause: UNRECORDABLE_ADMISSION_REFUSAL,
-    };
-  });
-}
+// THE GOV-02 AUDIT LEDGER POSITION IS DELIBERATELY NOT DRIVEN HERE, AND THE REASON IS A GUARD THAT
+// FIRED CORRECTLY (plan 31-30, Task 2, recorded as a deviation).
+//
+// The first draft of this module drove the ledger path as a third position. Reaching
+// `appendAuditLedger` at all requires a governing configuration with `audit_retention` retained, so
+// the fixture spelled a `factory.config.json` path and both governance dial names. That made this
+// module a config-path SITE and a governance-dial mention, and three derived cases in
+// `scripts/context-io.test.ts` went red — the AUTO-06 assertion admits EXACTLY ONE governance-dial
+// reader, `scripts/context-io.ts`, with no annotation escape.
+//
+// THE GUARD IS RIGHT AND THE POSITION IS THE THING THAT MOVES. This module does not read a dial; it
+// writes a fixture. The predicate cannot tell those apart, and widening it — or publishing a new
+// export from a safety module so a probe can compose a fixture — would be adding a shipped surface
+// for a test, which the register's own annotations warn against. So the position is dropped rather
+// than smuggled past the scan.
+//
+// WHAT COVERS IT INSTEAD, STATED SO THE GAP IS NOT SILENT. `scripts/context-io.test.ts` drives a
+// FIFO and a directory at the GOV-02 ledger path on every CI leg, through the pre-existing vitest
+// step. What is LOST is this module's legible, printed, per-position record for that path — which
+// matters most on the platform this whole step exists for. Carried in `deferred-items.md` with an
+// owner and a criterion: publish the two dial key names from the one authority the way plan 30-10
+// published `GOVERNANCE_CONFIG_RELPATHS`, then restore the position here.
 
 function runManifestPosition(): void {
   drivePosition("DECIDER_MANIFEST module path", (shape) => {
@@ -526,7 +516,6 @@ function main(): number {
   );
   try {
     runNotePosition();
-    runLedgerPosition();
     runManifestPosition();
     runExitCodeContract();
     measureDirectoryIdentity();

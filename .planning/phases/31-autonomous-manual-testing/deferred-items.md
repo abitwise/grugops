@@ -267,16 +267,18 @@ not, and the two that do not are named with an owner and their `UNKNOWN - verify
   keep their conditions, and the latter is still the LAST step, which
   `(r-bound-synthetic)` in `scripts/check-foundation-guards.test.ts` depends on.
   **What the new steps drive, measured on darwin (`node scripts/check-platform-shapes.js`, exit 0,
-  17 rows):** the portable non-regular-file shape (a DIRECTORY) and the POSIX-only FIFO at three
-  positions — a note path, the GOV-02 audit ledger path and a `DECIDER_MANIFEST` module position —
-  each producing a NAMED refusal in bounded time; two CONTROLS at each position (an ordinary regular
+  13 rows):** the portable non-regular-file shape (a DIRECTORY) and the POSIX-only FIFO at two
+  positions — a note path and a `DECIDER_MANIFEST` module position — each producing a NAMED refusal
+  in bounded time. **A THIRD position, the GOV-02 audit ledger path, was driven by the first draft
+  and DROPPED**; the row count was 17 with it. The reason is a derived guard firing correctly and is
+  recorded in full in its own entry below. What the two surviving positions drive: two CONTROLS at each position (an ordinary regular
   file, and a symlink that RESOLVES to one) neither of which draws the refusal; the spec-integrity
   runnable's exit-code contract over four could-not-run shapes, all `exit 2`, all inside `{0,1,2}`;
   and the `R-31-19-03` directory-identity premise, printed with its measurement.
   **The skip list, quoted from the darwin run:** `SKIPPED SHAPES (0):` / `(none) — this platform
   constructed every shape in the corpus`. With the disclosed seam
-  `GRUGOPS_PLATFORM_SHAPES_FORCE_ABSENT=FIFO` the same run prints three entries, each naming the
-  shape, the position, the platform and the reason — so the non-empty arm is watched rather than
+  `GRUGOPS_PLATFORM_SHAPES_FORCE_ABSENT=FIFO` the same run prints `SKIPPED SHAPES (2):` — one entry
+  per position — each naming the shape, the position, the platform and the reason — so the non-empty arm is watched rather than
   assumed.
   **THE REMAINDER, STATED BY NAME.** Everything above was measured on **darwin only**. What a
   Windows runner reports is not measurable from this box and is NOT claimed:
@@ -429,3 +431,29 @@ different scope and is not reconciled; §9.4's claim that `31-23` recorded a fur
 instance could NOT be substantiated and is recorded as unsubstantiated rather than given an invented
 row; and a harness corrected silently leaves no citation, so the count is a floor rather than a total.
 `status: closed`.
+
+- **NEW (raised by `31-30` itself): the GOV-02 audit-ledger position was DROPPED from
+  `scripts/check-platform-shapes.ts`, because a derived guard fired correctly.**
+  The first draft of that module drove three positions — a note path, the GOV-02 audit ledger path
+  and a `DECIDER_MANIFEST` module position. Reaching `appendAuditLedger` at all requires a governing
+  configuration with `audit_retention` retained, so the fixture spelled a `factory.config.json` path
+  and both governance dial names. **Measured:** three cases in `scripts/context-io.test.ts` went red —
+  `the derived site count equals the pinned count`, `the derived set and the annotated set agree` and
+  `exactly ONE site is the governance reader, and it is scripts/context-io.ts (AUTO-06)`. The last of
+  those admits EXACTLY ONE governance-dial reader and has no annotation escape.
+  **The guard is right and the position is what moved.** The module does not READ a dial; it writes a
+  fixture, and the predicate cannot tell those apart. Widening the predicate, or publishing a new
+  export from a safety module so a probe can compose a fixture, would be adding a shipped surface for
+  a test — which `CONFIG_PATH_SITES`'s own annotations warn against. Hiding the fixture bytes in a
+  `.json` the scan does not read would clear the gate without answering the question it asks. So the
+  position was dropped rather than smuggled past the scan, and the module's driven-row count fell
+  from **17 to 13**.
+  **What covers it instead, so the gap is not silent:** `scripts/context-io.test.ts` drives a FIFO
+  and a directory at the GOV-02 ledger path on every CI leg, through the pre-existing vitest step.
+  What is LOST is `check-platform-shapes`'s legible, printed, per-position record for that path —
+  which matters most on the platform this whole step exists for, and which the vitest step may not
+  even reach on Windows for the `mkfifo` reason recorded above.
+  **Owner:** unassigned. **Criterion that closes it:** publish the two governance dial KEY NAMES from
+  the one authority, the way plan `30-10` (finding B-1/B-5) published `GOVERNANCE_CONFIG_RELPATHS`
+  after the same argument about a restated list — then a probe composes the fixture without spelling
+  either literal, the AUTO-06 predicate is unmoved, and the position is restored here. `status: open`.
