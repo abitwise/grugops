@@ -1,0 +1,8 @@
+{
+  "command": "npx vitest run --exclude '**/scripts/e2e/**' scripts/check-platform-shapes.test.ts",
+  "exitCode": 1,
+  "output": "TAP version 13\n1..6\nok 1 - 31-36 WR-31 — the CONTROL rows can observe the property they claim PREMISE: the corpus, its CONTROLS and the positions were actually derived from the module\nok 2 - 31-36 WR-31 — the CONTROL rows can observe the property they claim PREMISE: the fail-closed marker the gate classifies on exists in the committed wrapper\nnot ok 3 - 31-36 WR-31 — the CONTROL rows can observe the property they claim the ordinary run reports an ORDINARY OUTCOME for every CONTROL row, at every position\nok 4 - 31-36 WR-31 — the CONTROL rows can observe the property they claim CONTROL: the refusal-expecting rows are unmoved — every one is a named refusal\nnot ok 5 - 31-36 WR-31 — the CONTROL rows can observe the property they claim the CONTROL can report RED: the pre-fix staging turns the gate red, naming both verdicts\nnot ok 6 - 31-36 IN-18 — the forced-absent seam skips WITHOUT constructing the shape with every shape forced absent, the positions record their skips without planting anything\n# tests 6\n# pass 3\n# fail 3\n",
+  "targetTest": "31-36 WR-31 — the CONTROL rows can observe the property they claim the CONTROL can report RED: the pre-fix staging turns the gate red, naming both verdicts",
+  "targetFile": "scripts/check-platform-shapes.test.ts",
+  "adapter": "The classifier parses node:test TAP; this repository runs vitest. The TAP body is DERIVED from the same run's --reporter=json transcript: one ok/not-ok line per executed assertionResult plus the three summary counters. No line is hand-written and no count is re-typed. Disclosed per the plan's TDD rules."
+}
