@@ -125,11 +125,17 @@ interface CheckerModule {
   readonly TEST_INFO_CANONICAL_HEAD: string;
   readonly UNRESOLVABLE_CALLEE_RESIDUALS: readonly string[];
   readonly SKIPPED_DIRECTORIES: readonly string[];
+  readonly SKIPPED_DIRECTORY_DISCLOSURE_MARKER: string;
+  renderSkippedDirectoryDisclosure(hits: Readonly<Record<string, number>>): string | null;
   emitLoudSkipIfBrowserUnusable(
     repoRoot: string,
     probe?: (repoRoot: string) => "parser_package" | "browser_binaries" | null,
   ): boolean;
-  deriveSpecPaths(repoRoot: string): { relPaths: readonly string[]; refusals: readonly string[] };
+  deriveSpecPaths(repoRoot: string): {
+    relPaths: readonly string[];
+    refusals: readonly string[];
+    skippedDirectoryHits: Readonly<Record<string, number>>;
+  };
   analyzeSpecs(
     repoRoot: string,
     specRelPaths: readonly string[],
@@ -9021,5 +9027,170 @@ describe("uat-spec-integrity — 31-28: the five approximations are GONE, derive
       const needle = `"${parts.join("")}"`;
       expect(source.includes(needle), `the module carries the type literal ${needle}`).toBe(false);
     }
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// 31-32 (Task 3) — WR-35: A NARROWED INPUT BOUNDARY THAT SAYS SO, plus IN-16 and IN-17.
+//
+// `SKIPPED_DIRECTORIES` is the walk's INPUT BOUNDARY, and `install/install.ts` materializes this
+// runnable into EVERY host at `tools/grugops/uat-spec-integrity.js`, so the boundary is a shipped
+// rule rather than a local habit. Neither floor in `reportMeasured` can see it: `expected` and
+// `visited` shrink TOGETHER, so a run over a silently narrowed tree prints the same clean pass as a
+// run over the whole tree.
+//
+// MEASURED at the round-7 base, once per member, against the committed `.js`:
+//   [none]         EXIT=0  stdout=58B  stderr=0B
+//   [.temp]        EXIT=0  stdout=58B  stderr=0B
+//   [node_modules] EXIT=0  stdout=58B  stderr=0B
+//   [.git]         EXIT=0  stdout=58B  stderr=0B
+//   [dist]         EXIT=0  stdout=58B  stderr=0B
+//   [tools]        EXIT=0  stdout=58B  stderr=0B
+// Six runs, one of them over a tree with nothing hidden and five over trees with a spec hidden,
+// and no reader can tell them apart. THE INDISTINGUISHABILITY IS THE FINDING.
+//
+// D-33 (5): the disposition is DISCLOSURE, never a revert. `.temp` was placed in the set by D-30
+// sub-decision 3 in a named human's own words, and reverting a human's decision inside a fix plan
+// is the move this phase forbids.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+/**
+ * A probe target whose `node_modules` is a REAL directory holding a symlink to this repository's
+ * `typescript` package.
+ *
+ * `mkGeneratedTarget` symlinks the whole `node_modules`, and a SYMLINKED directory is decided by
+ * the walk's symbolic-link branch rather than by `SKIPPED_DIRECTORIES` — so a probe built that way
+ * could never exercise the `node_modules` MEMBER of the boundary. Every member is driven through
+ * one shape here, so the disclosure is not measured on four members and assumed on the fifth.
+ */
+function mkSkipProbeTarget(hiddenUnder: string | null): string {
+  const root = mkTmp();
+  writeFileSync(join(root, "package.json"), JSON.stringify({ name: "target", private: true }), "utf8");
+  mkdirSync(join(root, "node_modules"), { recursive: true });
+  symlinkSync(join(REPO_NODE_MODULES, "typescript"), join(root, "node_modules", "typescript"), "dir");
+  equipTarget(root);
+  plant(root, "e2e/uat/visible.uat.spec.ts", CLEAN_SPEC);
+  if (hiddenUnder !== null) plant(root, `${hiddenUnder}/e2e/uat/hidden.uat.spec.ts`, CLEAN_SPEC);
+  return root;
+}
+
+describe("uat-spec-integrity — 31-32 WR-35: the walk's input boundary DISCLOSES what it narrowed", () => {
+  it("names EVERY member of SKIPPED_DIRECTORIES and its hit count, one member per probe", async () => {
+    const { SKIPPED_DIRECTORIES, SKIPPED_DIRECTORY_DISCLOSURE_MARKER } = await loadChecker();
+    // The set this case iterates is the EXPORTED one, and its own premise is asserted before the
+    // conclusion: an empty boundary would make the loop below run zero times and pass.
+    expect(SKIPPED_DIRECTORIES.length, "the boundary is empty — the loop below would be vacuous")
+      .toBeGreaterThan(0);
+    const baseline = runCheck(mkSkipProbeTarget(null));
+    for (const member of SKIPPED_DIRECTORIES) {
+      const r = runCheck(mkSkipProbeTarget(member));
+      expect(r.stderr, `${member}: the skip is not disclosed`).toContain(
+        SKIPPED_DIRECTORY_DISCLOSURE_MARKER,
+      );
+      expect(r.stderr, `${member}: the disclosure does not name the directory`).toContain(member);
+      expect(r.stderr, `${member}: the disclosure does not carry the hit count`).toContain(
+        `${member}=1`,
+      );
+      // The DISCLOSURE IS NOT A RESULT. The exit code and the stdout the gate branches on are
+      // byte-identical to the run with nothing hidden.
+      expect(r.status, `${member}: the exit code moved`).toBe(baseline.status);
+      expect(r.stdout, `${member}: stdout moved`).toBe(baseline.stdout);
+    }
+  });
+
+  it("a run with NOTHING skipped grows no line — stderr stays empty and stdout is the pass line", () => {
+    const r = runCheck(mkSkipProbeTarget(null));
+    expect(r.status).toBe(0);
+    expect(r.stderr, "a clean run grew a disclosure line").toBe("");
+    expect(r.stdout).toBe("UAT spec integrity: 0 findings over 1/1 uat specs checked\n");
+  });
+
+  it("the disclosure moves no finding count and no exit code on the FINDING path either", () => {
+    const banned = [
+      'import { test, expect } from "@playwright/test";',
+      'test.skip("a scenario", async ({ page }) => {',
+      '  await page.goto("/x");',
+      '  await expect(page.getByTestId("x")).toBeVisible();',
+      "});",
+      "",
+    ].join("\n");
+    const withSkip = mkSkipProbeTarget(".temp");
+    plant(withSkip, "e2e/uat/banned.uat.spec.ts", banned);
+    const without = mkSkipProbeTarget(null);
+    plant(without, "e2e/uat/banned.uat.spec.ts", banned);
+    const a = runCheck(withSkip);
+    const b = runCheck(without);
+    expect(b.status, "the control run did not report the finding").toBe(1);
+    expect(a.status).toBe(b.status);
+    expect(a.stdout).toBe(b.stdout);
+    expect(a.stderr, "the skipped run did not disclose").not.toBe("");
+    expect(b.stderr, "the clean-boundary run grew a line").toBe("");
+  });
+
+  it("the renderer emits NOTHING for an empty hit set, and a deterministic line for a non-empty one", async () => {
+    const { renderSkippedDirectoryDisclosure } = await loadChecker();
+    expect(renderSkippedDirectoryDisclosure({}), "an empty hit set produced a line").toBeNull();
+    const line = renderSkippedDirectoryDisclosure({ tools: 2, ".temp": 1 });
+    expect(line).not.toBeNull();
+    // ONE line, and ordered by NAME rather than by insertion, so two runs over the same tree emit
+    // the same bytes whatever order the directory listing arrived in.
+    expect((line as string).endsWith("\n")).toBe(true);
+    expect((line as string).trimEnd().includes("\n"), "the disclosure is more than one line").toBe(false);
+    expect(line).toBe(renderSkippedDirectoryDisclosure({ ".temp": 1, tools: 2 }));
+    expect((line as string).indexOf(".temp=1")).toBeLessThan((line as string).indexOf("tools=2"));
+  });
+
+  it("deriveSpecPaths COUNTS the skips it takes, so the count has one origin", async () => {
+    const { deriveSpecPaths } = await loadChecker();
+    const root = mkTmp();
+    writeFileSync(join(root, "package.json"), "{}", "utf8");
+    plant(root, "e2e/uat/real.uat.spec.ts", CLEAN_SPEC);
+    plant(root, "dist/e2e/uat/one.uat.spec.ts", CLEAN_SPEC);
+    plant(root, "packages/a/dist/e2e/uat/two.uat.spec.ts", CLEAN_SPEC);
+    plant(root, ".temp/e2e/uat/three.uat.spec.ts", CLEAN_SPEC);
+    const d = deriveSpecPaths(root);
+    expect(d.relPaths).toEqual(["e2e/uat/real.uat.spec.ts"]);
+    // The count is of ENTRIES the walk refused to descend into, which is why `dist` reads 2: the
+    // boundary was reached twice, at two different depths.
+    expect(d.skippedDirectoryHits).toEqual({ dist: 2, ".temp": 1 });
+  });
+});
+
+describe("uat-spec-integrity — 31-32 IN-16 / IN-17: a dead export and a spliced sentence are GONE", () => {
+  it("IN-16: TEST_INFO_CANONICAL_HEAD is absent from the source, the committed .js and this file", () => {
+    const scanned = [
+      join(HERE, "uat-spec-integrity.ts"),
+      join(HERE, "uat-spec-integrity.js"),
+      join(HERE, "uat-spec-integrity.test.ts"),
+    ].map((f) => ({ file: f, text: readFileSync(f, "utf8") }));
+    // THE SEARCH'S OWN DENOMINATOR, ASSERTED BEFORE THE CONCLUSION. A grep over three files that
+    // were all empty or unreadable would report "absent" about a search it never performed.
+    expect(scanned.length, "the scan set is empty").toBe(3);
+    for (const { file, text } of scanned) {
+      expect(text.length, `${file} is empty — the scan below would be vacuous`).toBeGreaterThan(0);
+    }
+    // The needle is ASSEMBLED, never written whole: a scan whose needle is a literal in a scanned
+    // file always hits, and this test file is one of the scanned files.
+    const needle = ["TEST", "INFO", "CANONICAL", "HEAD"].join("_");
+    for (const { file, text } of scanned) {
+      expect(text.includes(needle), `${file} still carries the dead export ${needle}`).toBe(false);
+    }
+  });
+
+  it("IN-17: the deriveDeclaredBindings doc block carries no orphaned clause", () => {
+    const source = readFileSync(join(HERE, "uat-spec-integrity.ts"), "utf8");
+    const start = source.indexOf("THE ONE NON-SUPPRESSING RECORD");
+    expect(start, "the paragraph IN-17 names was not found — the scan is wrong").toBeGreaterThan(-1);
+    const end = source.indexOf("export function deriveDeclaredBindings", start);
+    expect(end, "the doc block's owning declaration was not found").toBeGreaterThan(start);
+    const block = source.slice(start, end);
+    expect(block.length, "the doc block is empty").toBeGreaterThan(0);
+    // The superseded paragraph was cut mid-clause and the D-30 (5) heading spliced onto its tail.
+    // In a file whose doc blocks ARE the decision record, a half-deleted sentence reads as a
+    // statement.
+    expect(
+      block.includes(["is recorded", "with"].join(" ")),
+      "the orphaned clause IN-17 names survives in the doc block",
+    ).toBe(false);
   });
 });
