@@ -3030,7 +3030,7 @@ describe("uat-spec-integrity — 31-13 CR-07: the resolver's DECLINE set, derive
   const R_NON_LITERAL_OPTION =
     "An option is ENABLED only when the call's first argument is an object literal assigning it the `true` keyword. A variable argument enables nothing, and neither does a variable option value. This runnable parses and never evaluates.";
   const R_TWO_RULES =
-    "IDENTITY AND SPELLING ARE TWO RULES FOR ONE QUESTION. The pairing is a decision rather than an oversight. D-35 RE-TOOK this member against its own stated closing criterion, which asked for a reproduced case in which the spelling rule REFUSES a construct identity would have called foreign. Two were reproduced. A `describe.skip` group and an `expect.soft` assertion, each imported from a DECLARED non-Playwright module, each accepted at exit 0 by identity and each refused by spelling. The answer was not to delete one of the two rules. It was to split the terminal arm in four. `framework` refuses. `foreign-local` accepts and the spelling rule is not consulted, which is what keeps a helper's own parameter from being canonicalised into a construct the file does not contain. `foreign-declared` and `unresolved` both ASK the spelling rule. So the second grammar is now asked at MORE positions than before, not fewer: where a callee's declaration comes from another module's declaration surface, and where the checker resolved no symbol at all. A temporal-dead-zone reference lives exactly in the second. Keeping the pairing is what preserves D-27's refusals, and it is still two grammars for one question, which this file's own history says can drift apart. What would force it closed: a reproduced case in which the spelling rule refuses a construct identity would have called `foreign-local`. A refusal in that direction is still the only way the pairing can be wrong.";
+    "IDENTITY AND SPELLING ARE TWO RULES FOR ONE QUESTION. The pairing is a decision rather than an oversight. D-35 RE-TOOK this member against its own stated closing criterion. The criterion asked for a reproduced case in which the spelling rule REFUSES a construct identity would have called foreign. Two were reproduced. One was a `describe.skip` group. The other was an `expect.soft` assertion. Each arrived from a DECLARED non-Playwright module. Each was accepted at exit 0 by identity and refused by spelling. The answer was not to delete one of the two rules. The answer was to split the terminal arm in four. `framework` refuses. `foreign-local` accepts and the spelling rule is not consulted. A local binding is never canonicalised into a construct the file does not contain. `foreign-declared` and `unresolved` both ASK the spelling rule. So the second grammar is now asked at MORE positions than before, not fewer. It is asked where a callee's declaration comes from another module's declaration surface. It is also asked where the checker resolved no symbol at all. A temporal-dead-zone reference lives exactly in the second position. Keeping the pairing is what preserves D-27's refusals. It is still two grammars for one question. This file's own history says two grammars can drift apart. What would force it closed: a reproduced case in which the spelling rule refuses a construct identity would have called `foreign-local`. A refusal in that direction is still the only way the pairing can be wrong.";
   const R_NON_IDENTIFIER_HEAD =
     "A callee whose head is not an identifier is decided only where the checker resolves it. `({ test }).test.skip(...)` IS refused. Its member's declaration is the framework's own. A call on `this` yields no symbol and no head segment. So does a call on an object whose member the checker cannot resolve. No membership question can be put in either case.";
   const R_COULD_NOT_RUN =
@@ -3039,7 +3039,7 @@ describe("uat-spec-integrity — 31-13 CR-07: the resolver's DECLINE set, derive
     "Identity is decided against the framework's own DECLARATION FILES. The ambient-declaration route is MEASURED. The route means a `declare module \"@playwright/test\"` file inside the target's own program. The installed-package route is NOT measured here. In it those declarations arrive from `node_modules/@playwright/test`. It is reasoned from the same resolution the compiler performs. This repository's dependency set is fixed, so the package cannot be installed to measure it. It is an open `UNKNOWN - verify`, carried beside `R-07`.";
 
   const R_HAND_DECLARED =
-    "A HEAD THE SPEC FILE HAND-DECLARES FOR ITSELF is not decided. D-35 splits a non-framework callee by whether a declaration comes from another module's surface. A `declare module` block counts. A declaration file counts. A `declare const describe: { skip(...): void }` written inside the spec's own source counts as NEITHER. So it answers `foreign-local` and the call is accepted at exit 0. MEASURED, on a file that type-checks clean. This is not closed because the shape is structurally IDENTICAL to the control that keeps WR-26 closed. Both resolve to a property signature of an anonymous type literal inside a `declare` statement. Any predicate that refuses the one refuses the other, and a false refusal naming a construct the file does not contain is the failure this family has already paid for three times. What would force it closed: a discriminant that separates a hand-declared module-scope head from a helper's own parameter type WITHOUT reading the head's NAME, since reading the name would make the ban set decide its own scope.";
+    "A HEAD THE SPEC FILE HAND-DECLARES FOR ITSELF is not decided. D-35 splits a non-framework callee by declaration provenance. A `declare module` block counts as another module's surface. A declaration file counts as one too. A `declare const describe: { skip(...): void }` written inside the spec's own source counts as NEITHER. So it answers `foreign-local` and the call is accepted at exit 0. MEASURED, on a file that type-checks clean. The shape stays open because it is structurally IDENTICAL to the control that keeps WR-26 closed. Both resolve to a property signature of an anonymous type literal inside a `declare` statement. A predicate that refuses the one refuses the other. A false refusal names a construct the file does not contain. Such a refusal is a failure this family has already paid for three times. What would force it closed: a discriminant separating a hand-declared module-scope head from a helper's own parameter type. Reading the head's NAME is not available, because the ban set would then decide its own scope.";
 
   const DECLINE_SITE_DISPOSITIONS: Readonly<Record<string, DeclineDisposition>> = Object.freeze({
     // ── calleeDottedPath (the SPELLING rule's shape resolver) ─────────────────────────────────
@@ -7871,8 +7871,14 @@ const TAIL = '  await expect(page.getByTestId("invoice-total")).toHaveText("$42.
  *
  * What it does NOT claim: that any particular finding is covered. It bounds deletion; it does not
  * bind content.
+ *
+ * 31-34 (2026-09-11): RE-MEASURED from this file's own AST at the commit that added CR-23's rows,
+ * 33 -> 45. The old value was not wrong, it was STALE: a floor left where it was while twelve rows
+ * landed above it would silently permit those twelve to be deleted again. Raising it is what keeps
+ * the floor's only failure direction — UNDER-claiming — from becoming a standing allowance. The
+ * number is derived by `declaredCorpusRowIds().size`, not counted by hand.
  */
-const CORPUS_ROW_FLOOR = 33;
+const CORPUS_ROW_FLOOR = 45;
 
 /** One row per member of the exported residual register, keyed by that member's INDEX. */
 const RESIDUAL_COVERAGE: Readonly<Record<number, string>> = Object.freeze({
@@ -9492,5 +9498,118 @@ ${TAIL}
 `);
     expect(r.status, `stdout: ${r.stdout}`).toBe(0);
     expect(r.stdout).toContain("0 findings over 1/1 uat specs checked");
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// 31-34 (Task 3) — A PUBLISHED BAN MEMBER MUST BE REACHABLE, NOT MERELY PUBLISHED
+//
+// The recipe's ban set was already asserted EQUAL to the exported constants in both directions, and
+// that equality was GREEN throughout CR-23: `describe` was in the constant, `describe` was in the
+// recipe, and the mechanism could not reach it for the one case it was retained for. Membership
+// equality cannot see reachability. It is the wrong question asked very carefully.
+//
+// THIS IS THE SECOND BINDING, AND IT IS KEYED THROUGH THE `row(…)` MARKER RATHER THAN A LIST.
+// For every head the recipe publishes there must be a corpus row that DRIVES that head to a REFUSAL
+// at the runnable's own entry. The expected side is DERIVED from the exported constants, so a head
+// added to the rule without a row is red here; the actual side is DERIVED from this file's own AST,
+// so a row deleted to reach green is red too. Neither side is typed out.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+/** The row id a published ban head must carry, spelled in ONE place so neither side re-types it. */
+function reachRowIdForHead(head: string): string {
+  return `REACH-HEAD-${head}`;
+}
+/** The same, for a published whole-path member. */
+function reachRowIdForPath(path: string): string {
+  return `REACH-PATH-${path}`;
+}
+
+describe("uat-spec-integrity — 31-34: every PUBLISHED ban member has a REFUSING corpus row", () => {
+  // The two rows the binding below requires for the heads the rule publishes today. Each drives its
+  // head through a DECLARED foreign module — the provenance arm D-35 added — because that is the
+  // spelling a retained head exists for and the one the corpus could not observe before.
+  it("REACH `test`: the published head refused through a declared foreign module", () => {
+    row("REACH-HEAD-test");
+    const r = driveSpec(
+      `import { expect } from "@playwright/test";
+import { test } from "reach-other-framework";
+
+test.skip("a scenario nobody runs", () => {
+  void expect;
+});
+`,
+      {},
+      {
+        "types/reach-other-framework.d.ts":
+          "export declare const test: {\n" +
+          "  (title: string, body: () => void): void;\n" +
+          "  skip(title: string, body: () => void): void;\n" +
+          "};\n",
+      },
+    );
+    expect(r.status, `the published head \`test\` was not refused. stdout: ${r.stdout}`).toBe(1);
+    expect(r.stdout).toContain("`test.skip`");
+  });
+
+  it("REACH `describe`: the published head refused through a declared foreign module", () => {
+    row("REACH-HEAD-describe");
+    const r = runCheck(
+      mkTargetRepo({ "e2e/uat/subject.uat.spec.ts": "foreign-describe.uat.spec.ts" }),
+    );
+    expect(r.status, `the published head \`describe\` was not refused. stdout: ${r.stdout}`).toBe(1);
+    expect(r.stdout).toContain("`describe.skip`");
+  });
+
+  it("REACH `expect.soft`: the published exact path refused through a declared foreign library", () => {
+    row("REACH-PATH-expect.soft");
+    const r = runCheck(
+      mkTargetRepo({ "e2e/uat/subject.uat.spec.ts": "foreign-soft-assert.uat.spec.ts" }),
+    );
+    expect(r.status, `the published path \`expect.soft\` was not refused. stdout: ${r.stdout}`).toBe(1);
+    expect(r.stdout).toContain("`expect.soft`");
+  });
+
+  it("THE BINDING: every published head and exact path carries a refusing row, both sides derived", async () => {
+    const { BANNED_MODIFIER_HEADS, BANNED_EXACT_PATHS } = await loadChecker();
+    const declared = declaredCorpusRowIds();
+
+    // PREMISES, asserted before the conclusion. An empty constant would make the loop vacuous, and
+    // an empty row census would make it fail for the wrong reason — this phase has logged six
+    // instances of a harness reporting a false result from an unasserted premise.
+    expect(BANNED_MODIFIER_HEADS.length, "PREMISE: the published head set is empty").toBeGreaterThan(0);
+    expect(BANNED_EXACT_PATHS.length, "PREMISE: the published exact-path set is empty").toBeGreaterThan(0);
+    expect(declared.size, "PREMISE: the row census found no rows at all").toBeGreaterThan(0);
+
+    const missing: string[] = [];
+    for (const head of BANNED_MODIFIER_HEADS) {
+      if (!declared.has(reachRowIdForHead(head))) missing.push(reachRowIdForHead(head));
+    }
+    for (const path of BANNED_EXACT_PATHS) {
+      if (!declared.has(reachRowIdForPath(path))) missing.push(reachRowIdForPath(path));
+    }
+    expect(
+      missing,
+      `a ban member is PUBLISHED with no corpus row that drives it to a refusal: ${missing.join(", ")}. ` +
+        "Membership equality between the recipe and the constant cannot see this — it was green " +
+        "for the whole of CR-23, over a head the mechanism could not reach.",
+    ).toEqual([]);
+  });
+
+  it("THE SEEDED FAIL: a published-but-unrowed member is caught, so the binding is not vacuous", async () => {
+    const { BANNED_MODIFIER_HEADS } = await loadChecker();
+    const declared = declaredCorpusRowIds();
+    // The watched fail, run in-process rather than by editing the constant: a head this rule does
+    // NOT publish stands in for one added without a row. If the binding above could pass with a
+    // member absent from the census, this case would pass too — and it must not.
+    const seeded = "suite";
+    expect(
+      BANNED_MODIFIER_HEADS.includes(seeded),
+      "PREMISE: the seeded head is already published, so it cannot stand in for an unrowed one",
+    ).toBe(false);
+    expect(
+      declared.has(reachRowIdForHead(seeded)),
+      "PREMISE: the seeded head already has a row, so the check below would be vacuous",
+    ).toBe(false);
   });
 });

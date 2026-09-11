@@ -1927,8 +1927,29 @@ const SECTION_EXTENT_OWNER_COUNT = 1;
  *   It declares no frontmatter parser and locates no section, so both owner answers are unchanged.
  *   Re-derived rather than incremented: `git ls-files '*.ts'` minus the `.test.ts` and `.d.ts`
  *   members reports 74 at the previous commit and 75 with this module tracked.
+ *
+ * 75 -> 78 (plan 31-34, closing `CR-23`), THREE further CORPUS files, none of them tooling:
+ *   - `scripts/runnable-ref/fixtures/foreign-describe.uat.spec.ts` — a `describe.skip` GROUP whose
+ *     binding is imported from a DECLARED foreign module. `@playwright/test` exports no top-level
+ *     `describe`, so the head `BANNED_MODIFIER_HEADS` retains exists for exactly this spelling, and
+ *     the `D-30 (2)` terminal `foreign` arm had made it unreachable. Measured accepted at exit 0
+ *     before `D-35`, on a file that type-checks clean.
+ *   - `scripts/runnable-ref/fixtures/foreign-soft-assert.uat.spec.ts` — the same, for `expect.soft`
+ *     imported from a foreign assertion library. It is the instance a head-declared exemption was
+ *     measured NOT to close, because `@playwright/test` DOES declare `expect`.
+ *   - `scripts/runnable-ref/fixtures/local-helper-head.uat.spec.ts` — WR-26's control, carrying the
+ *     inverse contract of the two above: NO mutation region, and it must stay at zero findings in
+ *     the same run in which they are refused.
+ *   The fourth file that plan adds, `fixtures/foreign-framework.d.ts`, is a `.d.ts` and is excluded
+ *   by the walk's own filter, which is why the count moves by three rather than four.
+ *   Same standing as the corpus files above: none is a tooling module, and each is counted anyway
+ *   because this set is pinned equal to `git ls-files '*.ts'`. None declares a frontmatter parser
+ *   and none locates a section, so both owner answers are unchanged. The same plan edits
+ *   `uat-spec-integrity.ts` and `browser-uat-recipe.md` in place, which adds no file.
+ *   Re-derived rather than incremented: `git ls-files '*.ts'` minus the `.test.ts` and `.d.ts`
+ *   members reports 75 at the round-7 base and 78 with these three tracked.
  */
-const NON_TEST_MODULE_COUNT = 75;
+const NON_TEST_MODULE_COUNT = 78;
 
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 // (Plan 29-40, gap G-29-1 of 29-UAT.md, closing V-29-35-01) THE FRONTMATTER-PARSER NAME OWNER SET.
