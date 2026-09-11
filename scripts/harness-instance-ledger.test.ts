@@ -45,6 +45,18 @@ const PHASE_DIR = join(ROOT, ".planning", "phases", "31-autonomous-manual-testin
 /** A backticked span that is a repo-relative path citation, with or without a `:line` suffix. */
 const PATH_SPAN = /^[A-Za-z0-9._/-]+\.(?:ts|js|md|json)(?::\d+)?$/;
 
+/**
+ * A backticked span that is one of this repository's own IDS rather than a mechanism.
+ *
+ * `WR-34`, `CR-18`, `D-30 (5)`, `R-31-31-01`, `AUTO-06`, `UATX-01`, `31-36` — a finding, a decision,
+ * a residual, a requirement or a plan. A citation points AT a record; it makes no claim about what
+ * any file contains, so requiring it to be greppable in the evidence would test the wrong thing.
+ * The shape is the repository's whole id vocabulary — letters-then-digits or plan-then-plan — and
+ * NOT a list of the ids that happen to appear in the ledger today. The excluded count is PRINTED
+ * below, so an exclusion that quietly grew is visible rather than inferred from a pass.
+ */
+const ID_SPAN = /^(?:[A-Z][A-Za-z]{0,5}|\d{2})(?:-\d{1,3}){1,3}(?:\s*\(\d+\))?$/;
+
 interface LedgerRow {
   readonly ordinal: number;
   /** Every cell, in order: plan/document, harness, false premise, how caught, claimed ordinal. */
@@ -91,7 +103,12 @@ function namedFiles(row: LedgerRow): { resolved: string[]; unresolved: string[] 
 
 /** The mechanisms a row CLAIMS, read from its `How it was caught` column only. */
 function claimedMechanisms(row: LedgerRow): string[] {
-  return spansOf(row.cells[3] ?? "").filter((s) => !PATH_SPAN.test(s));
+  return spansOf(row.cells[3] ?? "").filter((s) => !PATH_SPAN.test(s) && !ID_SPAN.test(s));
+}
+
+/** The id citations a row makes in that same column — counted so the exclusion stays visible. */
+function citedIds(row: LedgerRow): string[] {
+  return spansOf(row.cells[3] ?? "").filter((s) => ID_SPAN.test(s));
 }
 
 describe("31-37 WR-34 — the harness-instance ledger's own premise is asserted before it is believed", () => {
@@ -128,11 +145,13 @@ describe("31-37 WR-34 — the harness-instance ledger's own premise is asserted 
     let checked = 0;
     let exemptNoClaim = 0;
     let exemptNoFile = 0;
+    let excludedIds = 0;
     const offenders: string[] = [];
 
     for (const row of rows) {
       const { resolved } = namedFiles(row);
       const mechanisms = claimedMechanisms(row);
+      excludedIds += citedIds(row).length;
       if (resolved.length === 0) {
         // A row that names no readable file makes no checkable claim ABOUT THE TREE. It is counted,
         // never silently skipped: an exempt count that quietly grew would empty this axis.
@@ -160,6 +179,7 @@ describe("31-37 WR-34 — the harness-instance ledger's own premise is asserted 
       `[31-37 ledger premise] mechanism claims checked = ${String(checked)}; ` +
         `rows exempt for claiming no mechanism = ${String(exemptNoClaim)}; ` +
         `rows exempt for naming no readable file = ${String(exemptNoFile)}; ` +
+        `id citations excluded = ${String(excludedIds)}; ` +
         `rows total = ${String(rows.length)}`,
     );
     // THE FLOOR, ASSERTED BEFORE THE VERDICT. Every row could be exempt and this axis would still

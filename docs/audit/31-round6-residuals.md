@@ -383,15 +383,59 @@ than narrowing it. **✓ SATISFIED, unmoved.**
 
 ## 6. The disagreements and the reclassifications, recorded rather than absorbed
 
-### 6.1 The ambient `declare` spelling — the mechanism the `missing:` bullet named is GONE, and the outcome it was about is UNMOVED
+### 6.1 The ambient `declare` spelling — the mechanism is LIVE and NARROWED, and the outcome it was about is UNMOVED
+
+> **CORRECTED 2026-09-11 by plan `31-37`, forced by `WR-33` of `31-REVIEW.md`.** The paragraph below
+> originally read: *"The first half is closed by deletion: `31-28` removed `resolveBinding`,
+> `bindingRangeFor` and `listHoists` outright and decides the ban by symbol identity, so there is no
+> `hoisted` arm to narrow."* **All three symbols are live.** That was not a typo: this section used
+> the claimed deletion as the REASON it dispositioned the `missing:` bullet's second half as *"the
+> mechanism the bullet named is GONE"*, so the disposition rested on a fact false of the tree and is
+> re-taken below against a measurement. The heading is corrected with it. Nothing else in §6 is
+> touched, and no `*-SUMMARY.md`, `31-REVIEW.md` or `31-VERIFICATION.md` is edited — a prior round's
+> record is history.
 
 `31-VERIFICATION.md` gap 2's first `missing:` bullet asks for two things: narrow the `hoisted` arm to
 the enclosing block, **and** *"treat an ambient (`declare`) binding as binding nothing at all"*.
 
-The first half is closed by deletion: `31-28` removed `resolveBinding`, `bindingRangeFor` and
-`listHoists` outright and decides the ban by symbol identity, so there is no `hoisted` arm to narrow.
-The second half has **no corresponding mechanism in the new design** — an ambient `declare const it`
-is a real declaration the checker resolves, and identity answers `foreign` for it.
+**MEASURED AT PLAN `31-37`'s COMMIT, each grep's hit count printed before any conclusion was drawn
+from it** (`scripts/runnable-ref/uat-spec-integrity.ts`; line numbers are this tree's, not round 6's —
+`31-34` moved them):
+
+```
+grep -c resolveBinding    -> 2   declaration live at :2669  (export function resolveBinding)
+grep -c bindingRangeFor   -> 2   declaration live at :2546  (export function bindingRangeFor)
+grep -c listHoists        -> 2   declaration live at :2520  (function listHoists)
+
+grep -c deriveTestInfoParameterNames -> 4   NO declaration; 4 comment-only mentions
+grep -c isFixtureBindingPosition     -> 1   NO declaration; 1 comment-only mention
+grep -c CALLEE_CHAIN_STEP_BOUND      -> 2   NO declaration; 2 comment-only mentions
+```
+
+The three symbols `D-30 (5)` actually deleted are `deriveTestInfoParameterNames`,
+`isFixtureBindingPosition` and `CALLEE_CHAIN_STEP_BOUND`.
+
+**The `hoisted` arm is LIVE and NARROWED, not gone.** `bindingRangeFor` still has it, in two places,
+and `D-30 (5)` is the change that narrowed the first of them rather than removing either:
+
+- `:2568` — a FUNCTION DECLARATION takes `enclosingScope(declaration, sf)`, the nearest enclosing
+  BLOCK. The comment at that line names `D-30 (5), CLOSING CR-18` and states the measurement: handing
+  it the enclosing function-like node turned `0 findings`/EXIT=1 into `0 findings`/EXIT=0.
+- `:2572` — a `var` declaration list still takes `enclosingFunctionLike(declaration) ?? sf`, the
+  function-wide range, which is the half the bullet asked to KEEP.
+
+**THE DISPOSITION, RE-TAKEN AGAINST THE MECHANISM THAT EXISTS.** The bullet asks for three things,
+and they are answered separately because the tree answers them separately:
+
+| the bullet's ask | disposition at this commit | the measurement it rests on |
+|---|---|---|
+| narrow the `hoisted` arm to the nearest enclosing BLOCK for a function declaration | **CLOSED BY IMPLEMENTATION**, not by deletion | `bindingRangeFor:2568` calls `enclosingScope`; `RED 1a` and `RED 1b` in `scripts/runnable-ref/uat-spec-integrity.test.ts` drive the block-scoped rename and namespace spellings and both are REFUSED (`1 finding(s)`, EXIT=1) — re-driven green at this commit |
+| keep the function-wide range for `var` | **CLOSED BY IMPLEMENTATION** | `bindingRangeFor:2572` calls `enclosingFunctionLike`; `listHoists` is the live predicate that selects it |
+| treat an ambient (`declare`) binding as binding nothing at all | **CARRIED as `R-31-31-01`, owner round 7** — and carried for a DIFFERENT reason than this section first gave | the mechanism is live, so the ask is NOT moot; `declare const it: unknown;` beside `import { test as it }` still reports `0 findings`/EXIT=0, and `tsc --strict --noEmit` still refuses the file with `TS2440`. The case `RECORDED, NOT ASSERTED: the ambient declare spelling evades — and does NOT type-check` drives both halves and is green at this commit |
+
+The second half's outcome is unmoved from what the review measured. What changes here is the REASON:
+it is carried because the construct is one the language refuses to compile and no member of
+`UNRESOLVABLE_CALLEE_RESIDUALS` names it — **not** because the mechanism it asks about was deleted.
 
 **Measured:** `declare const it: unknown;` beside `import { test as it }` reports `0 findings`,
 EXIT=0 — the same answer the review recorded. **Measured further, which the review did not:** the
@@ -826,7 +870,7 @@ declared `total: 12`. **12 rows.**
 | # | Finding | Owner | Disposition | The measurement that proves it |
 |---|---|---|---|---|
 | A1 | **CR-17** — the wrapper hashes thirteen agent-writable paths with a blocking read before the spawn its timeout bounds | `31-27` | **closed** | §2.1: all **13** derived manifest positions answer EXIT=0 in 46–50 ms with a named `manifest-path-not-a-regular-file` deny and **0 bytes on stderr** (was EXIT=124, 0 bytes both streams). The other decider's own position, the DIRECTORY shape and the fd-0 class all answer the same way; the never-closing stdin denies at 10,100 ms naming SIGTERM. Driven through the argv derived from `hooks/hooks.json` |
-| A2 | **CR-18** — a block-scoped function declaration is handed the whole module's range | `31-28` | **closed, with one named sub-item carried** | §2.2: the review's own three-line spelling moves `0 findings`/EXIT=0 → `1 finding(s)`/EXIT=1; the namespace spelling likewise; the block-scoped CLASS control is unmoved. **The ambient `declare const` spelling is UNMOVED at `0 findings`/EXIT=0 and is carried as `R-31-31-01` (§12.4)** — measured a curiosity the language refuses (`TS2440`), not a live bypass, and recorded rather than absorbed (§6.1) |
+| A2 | **CR-18** — a block-scoped function declaration is handed the whole module's range | `31-28` | **closed, with one named sub-item carried** | §2.2: the review's own three-line spelling moves `0 findings`/EXIT=0 → `1 finding(s)`/EXIT=1; the namespace spelling likewise; the block-scoped CLASS control is unmoved. **The ambient `declare const` spelling is UNMOVED at `0 findings`/EXIT=0 and is carried as `R-31-31-01` (§12.4)** — measured a curiosity the language refuses (`TS2440`), not a live bypass, and recorded rather than absorbed (§6.1). **CORRECTED 2026-09-11 by `31-37` (`WR-33`): §6.1's re-taken disposition is the authority for this row** |
 | A3 | **CR-19** — the note ceiling is read-side only, so a 9 MiB note writes and reads back as zero | `31-29` | **closed** | §2.3: `appendNote` with a 9,437,184-byte body now REFUSES at the write side naming `note-above-size-ceiling` and stating *"No file was written and no directory was created"*; the idempotent re-write's clause names the true condition and says the destination **IS** a regular file; the small-note CONTROL writes and reads back 1 |
 | A4 | **CR-20** — the note is keyed on `to` and the ledger on `repoRoot`, two repositories for one action | `31-29` | **closed** | §2.3: the three-real-root promotion leaves the finding AND its GOV-02 event both in THIRD (notes 1, ledger 1) with DEST holding neither (notes `[]`, ledger ABSENT) — the exact inverse of the round-6 measurement. The legitimate same-root CONTROL still promotes with one ledger line, and an ungoverned `to` declines `destination-outside-governed-store` |
 | A5 | **CR-21** — the three-argument scenario overload hides a TestInfo modifier call | `31-28` | **closed** | §2.2: `test("scenario", { tag: "@smoke" }, async ({ page }, testInfo) => …)` moves `0 findings`/EXIT=0 → `1 finding(s)`/EXIT=1 naming `test.info().skip`, identical to the two-argument control's finding |
@@ -868,7 +912,7 @@ Denominator DERIVED: `awk` over the two `missing:` lists → **6**. **6 rows.**
 | C1 | Route `verifyDeciderClosure` and the fd-0 read through the same non-blocking discipline (restated inline, since this file may import only `node:` builtins), and add a case that plants a FIFO at a manifest path and asserts a bounded deny | **closed — BOTH halves, and the second half went further than asked** | A1. The reader is restated inline; the fd-0 read is **deleted** rather than guarded. `hooks/guard.test.ts` carries FIFO, DIRECTORY and UNIX-SOCKET cases at **every** manifest position plus the never-closing-stdin case, and `mkfifo` appears in that file 4 times against 2 at the round base |
 | C2 | Make the write side own `NOTE_FILE_MAX_BYTES`, give an over-ceiling REGULAR file its own decline clause, and apply the same reconciliation to the ledger's write/read asymmetry | **closed — all three** | A3 plus §8.5: `NOTE_ABOVE_CEILING_CLAUSE` and `LEDGER_ABOVE_CEILING_CLAUSE` are both exported and `AUDIT_LEDGER_MAX_BYTES` is reconciled with its own clause |
 | C3 | Derive the GOV-02 ledger's repository from `to` — **or**, if `to` is deliberately unconstrained, rewrite `R-31-22-02` and `18-context-compaction.md:83` — and add a case whose `to` and `repoRoot` are different roots | **closed — the FIRST branch taken, and the register rewritten anyway** | A4, B8. `governanceRootOf` derives the destination root; `R-31-22-02` is REWRITTEN with its id kept so existing citations resolve; `destination-outside-governed-store` cases number 3 in the suite against 0 at the round base |
-| C4 | Narrow the `hoisted` arm to the nearest enclosing BLOCK for a function declaration, keep the function-wide range for `var`, and treat an ambient (`declare`) binding as binding nothing at all | **closed for the first two; the third is MOOT BY DELETION with one named residual carried** | A2. There is no `hoisted` arm to narrow — the census is deleted and the checker owns scope, which is the stronger form of the ask. **The ambient half has no counterpart in the new design**: `declare const it` resolves to a real symbol the checker answers `foreign` for, so the outcome is unmoved at `0 findings`/EXIT=0. Carried as `R-31-31-01` (§12.4), with §6.1 stating why this document declines to call it closed |
+| C4 | Narrow the `hoisted` arm to the nearest enclosing BLOCK for a function declaration, keep the function-wide range for `var`, and treat an ambient (`declare`) binding as binding nothing at all | **closed for the first two BY IMPLEMENTATION; the third is CARRIED as `R-31-31-01` — corrected 2026-09-11, see the cell to the right** | A2. **CORRECTED 2026-09-11 by `31-37` (`WR-33`); §6.1's re-taken disposition supersedes this cell.** This cell read *"There is no `hoisted` arm to narrow — the census is deleted and the checker owns scope"*, which is false of the tree: `bindingRangeFor`'s `hoisted` arm is live at `:2568` and `:2572`, and `D-30 (5)` NARROWED the first rather than deleting either. The first two asks are therefore **closed by implementation**, not moot by deletion. The ambient half is carried as `R-31-31-01` (§12.4) because the construct does not compile (`TS2440`), not because its mechanism is gone; the outcome is unmoved at `0 findings`/EXIT=0 |
 | C5 | Take the scenario body positionally rather than from `arguments[1]`, mirror the same rule in `isFixtureBindingPosition`, and add both Playwright overload forms to the corpus | **closed — all three** | A5, A6. Both overload forms report the identical finding; `31-28` additionally added the three-argument overload to `fixtures/playwright-test.d.ts`, without which the corpus row could not have measured anything |
 | C6 | Record both fixes as dated decisions beside D-27, add MUTATE-REMOVE corpus cases for each, and correct `browser-uat-recipe.md`'s two affected passages | **closed** | `D-30` is recorded in `31-CONTEXT.md`, in the module's own header block and in `31-28-SUMMARY.md`; the corpus carries `"CR-18": ["block-scoped function declaration (rename)", "block-scoped function declaration (namespace)", "ambient declare (rename)", "ambient declare (namespace)"]` as named rows plus the block-scoped-CLASS control; B9 records the two corrected passages |
 
@@ -929,7 +973,7 @@ on the DERIVED 43, because the tables are what a reader dispositions against.
 | D-C6 | `RR-06` option enabled only by literal `true` | Close | Member 2 of 6, unchanged. Parse-never-evaluate |
 | D-C7 | `RR-07` parser lacking predicates degrades to a weaker rule | Fix | **CLOSED**, replaced by `RR-11`. Measured (§1.3): a target the compiler cannot build a Program over answers `PROGRAM_UNAVAILABLE_REASON` at **EXIT=2**, never a silent pass |
 | D-C8 | `RR-08` destructured TestInfo in the 2nd param | Fix (S2) | **CLOSED.** Removed with the mechanism; the recipe states the destructured form resolves to the framework's own property |
-| D-C9 | `RR-09` nearest-binding scope rule | Fix (S2) | **CLOSED.** The census is deleted; CR-18 measured closed (A2) |
+| D-C9 | `RR-09` nearest-binding scope rule | Fix (S2) | **CLOSED.** `D-21 (2)`'s file-scoped name census (`deriveDeclaredNames`) is deleted — `grep -c declaredBindings` over the runnable returns **0** at `31-37`'s commit; CR-18 measured closed (A2). **ANNOTATED 2026-09-11 by `31-37` (`WR-33`), not re-verdicted:** the NEAREST-BINDING rule itself is live — `resolveBinding` is asked at `:2725` and `deriveDeclaredBindings` records every binding through `bindingRangeFor` at `:2634`. `D-30 (3)` says so in the source (*"which is why the census survives the cutover"*). Read "the census is deleted" as the file-scoped SET, never as the scope rule. §6.1 carries the re-taken disposition |
 | D-D1 | Non-unwinding fault (OOM kill, signal) at the §14 caller | Fix at the caller | **CLOSED.** `scripts/uat-gate-exit-contract.test.ts` — a new file this round — derives four arms from the prose and maps a signal death (`exitCode === null`) to could-not-run. Re-driven here: **32 passed** |
 | D-D2 | Windows leg of the two-boundary behaviour | Fix via CI | **OPEN.** Encoded, not observed — the same item as D-A7 and D-F3 |
 | D-D3 | De-recursed walk unreachable on darwin | Close | Accepted; a control correctly recorded as one |
