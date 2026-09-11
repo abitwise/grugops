@@ -35,8 +35,15 @@
 //     GOV-02 audit ledger path was a THIRD position and was dropped; the reason is recorded in full
 //     above `runManifestPosition` below, and it is a derived guard firing correctly rather than an
 //     omission.
-//   - The CONTROL at each position: the ordinary shape, which must NOT be refused by the
-//     not-a-regular-file clause. A run that refuses everything proves nothing.
+//   - The CONTROL at each position: the ordinary shape, which must produce THAT POSITION'S ORDINARY
+//     OUTCOME — a `write` at the note path, the decider's own `answered` decision at the manifest
+//     path — and which must not be refused by the not-a-regular-file clause. A run that refuses
+//     everything proves nothing, and until plan 31-36 this module could not tell the difference:
+//     it asked only whether one refusal CLAUSE was absent, so BOTH controls at BOTH positions were
+//     refusals for other reasons and all four printed `not refused (correct)` beside
+//     `ALL CHECKS PASSED` (`WR-31`). The control now asserts its ordinary verdict POSITIVELY, the
+//     staging makes that verdict reachable, and `GRUGOPS_PLATFORM_SHAPES_STALE_CONTROL` restores the
+//     pre-fix staging so the control's RED path is drivable rather than argued.
 //   - The spec-integrity runnable's exit-code contract: every could-not-run drive must exit `2`, and
 //     every exit code must be a member of `{0,1,2}`.
 //   - The directory-identity premise behind `R-31-19-03`, MEASURED on this platform: the home
@@ -53,16 +60,18 @@
 // Clear professional voice throughout (CLAUDE.md hard rule for tooling and safety surfaces).
 
 import { spawnSync } from "node:child_process";
+import { randomBytes } from "node:crypto";
 import {
   mkdirSync,
   mkdtempSync,
+  readFileSync,
   rmSync,
   statSync,
   symlinkSync,
   writeFileSync,
 } from "node:fs";
 import { homedir, tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { dirname, extname, join } from "node:path";
 import { closureTargets } from "./js-import-closure.js";
 
 const ROOT = join(import.meta.dirname, "..");
@@ -95,9 +104,68 @@ export const FORCE_ABSENT_ENV = "GRUGOPS_PLATFORM_SHAPES_FORCE_ABSENT";
  */
 export const REQUIRE_SKIPS_ENV = "GRUGOPS_PLATFORM_SHAPES_REQUIRE_SKIPS";
 
+/**
+ * TEST SEAM — restore the PRE-FIX staging, so the CONTROL's RED path is drivable (plan 31-36,
+ * `WR-31`).
+ *
+ * With this set, each position plants its CONTROL shapes with EMPTY bytes rather than with the
+ * content an ordinary file at that position holds. That is exactly the staging round 7's review
+ * measured: the manifest control then draws a frozen-manifest deny, the note control draws a
+ * `destination already holds a DIFFERENT note` refusal, and NEITHER produces its position's ordinary
+ * outcome.
+ *
+ * The argument for a seam is the one `FORCE_ABSENT_ENV` already makes, one register over: a control
+ * whose red path nobody has watched is a control nobody has watched. Scoring the CONTROL by the
+ * ABSENCE of a single refusal clause is what let four rows that were all refusals print
+ * `not refused (correct)` beside `ALL CHECKS PASSED` for a whole round. Production callers set
+ * nothing and the staging is the ordinary one.
+ */
+export const STALE_CONTROL_ENV = "GRUGOPS_PLATFORM_SHAPES_STALE_CONTROL";
+
+/**
+ * The wrapper's own fail-closed marker, which is what tells the two manifest-position outcomes apart.
+ *
+ * `hooks/hook-entry.js` exits 0 whether it passed the decider's decision through or refused with its
+ * own fail-closed deny — so `exit 0` alone cannot distinguish "the position produced its ordinary
+ * outcome" from "the wrapper refused to run the decider at all". Every fail-closed refusal in the
+ * wrapper and in the guard opens with this marker and the decider's own decisions do not, so it is
+ * the discriminant. The premise that it OCCURS in the committed artifact is asserted in `main`
+ * below, because a discriminant absent from what it classifies can only ever report one class.
+ */
+const FAIL_CLOSED_PREFIX = "Blocked (fail-closed):";
+
+/** The outcome a CONTROL row reports when its position produced the ordinary outcome. */
+const ORDINARY_OUTCOME = "ordinary outcome (correct)";
+
+/** The two position labels, stated once so the per-position premise below can select their rows. */
+const NOTE_POSITION = "note path";
+const MANIFEST_POSITION_LABEL = "DECIDER_MANIFEST module path";
+
 function forcedAbsent(): ReadonlySet<string> {
   const raw = process.env[FORCE_ABSENT_ENV] ?? "";
   return new Set(raw.split(",").map((s) => s.trim()).filter((s) => s !== ""));
+}
+
+function staleControl(): boolean {
+  return (process.env[STALE_CONTROL_ENV] ?? "") !== "";
+}
+
+/**
+ * Where a symlink shape puts its target, KEEPING THE POSITION'S EXTENSION.
+ *
+ * Measured while closing `WR-31`: the target used to be `<at>.platform-shape-target`, and at the
+ * `DECIDER_MANIFEST` position the decider resolves the symlink and then `import()`s the realpath —
+ * which Node refuses with `Unknown file extension ".platform-shape-target"`. The symlink CONTROL
+ * there therefore drew a fail-closed deny for a reason that has nothing to do with the rule under
+ * test, and the clause-absence check scored it `not refused (correct)`. The marker goes BEFORE the
+ * extension so the target is still an ordinary module at a module position and an ordinary note at
+ * a note position.
+ */
+function symlinkTargetFor(at: string): string {
+  const ext = extname(at);
+  return ext === ""
+    ? `${at}.platform-shape-target`
+    : `${at.slice(0, at.length - ext.length)}.platform-shape-target${ext}`;
 }
 
 /** The exit-code contract the §14 gate branches on. Stated once, read by the assertions below. */
@@ -115,6 +183,13 @@ export interface DriveRow {
   readonly shape: string;
   readonly outcome: string;
   readonly ms: number;
+  /**
+   * The RAW verdict the position produced, carried so `main` can assert that the verdict classifier
+   * actually DISCRIMINATED on this run rather than reporting one class to everything. It is not
+   * printed: the printed table is the record earlier rounds compare against, and the refusal rows'
+   * text is deliberately unmoved.
+   */
+  readonly verdict: string;
 }
 
 const skips: SkipEntry[] = [];
@@ -146,7 +221,17 @@ export interface Shape {
    */
   readonly expectsNotRegularFileRefusal: boolean;
   readonly reasonWhenAbsent: string;
-  make(at: string): boolean;
+  /**
+   * Construct the shape at `at`.
+   *
+   * `ordinary` is THE BYTES AN ORDINARY REGULAR FILE AT THIS POSITION HOLDS, supplied by the
+   * position rather than by the corpus. A shape that creates a regular file writes them; a directory
+   * and a FIFO ignore them. Without this the two regular-file CONTROLS were planted EMPTY, which at
+   * the manifest position is a frozen-manifest mismatch and at the note position is a destination
+   * holding a different note — so the ordinary outcome was UNREACHABLE at both and the control could
+   * only ever be scored by what it was not (plan 31-36, `WR-31`).
+   */
+  make(at: string, ordinary: Buffer): boolean;
 }
 
 export const SHAPES: readonly Shape[] = Object.freeze([
@@ -155,9 +240,9 @@ export const SHAPES: readonly Shape[] = Object.freeze([
     portable: true,
     expectsNotRegularFileRefusal: false,
     reasonWhenAbsent: "every platform can write a regular file",
-    make(at: string): boolean {
+    make(at: string, ordinary: Buffer): boolean {
       mkdirSync(dirname(at), { recursive: true });
-      writeFileSync(at, "");
+      writeFileSync(at, ordinary);
       return true;
     },
   },
@@ -196,11 +281,11 @@ export const SHAPES: readonly Shape[] = Object.freeze([
     reasonWhenAbsent:
       "Windows requires Developer Mode or the SeCreateSymbolicLink privilege, so an unprivileged " +
       "runner cannot create one",
-    make(at: string): boolean {
+    make(at: string, ordinary: Buffer): boolean {
       try {
         mkdirSync(dirname(at), { recursive: true });
-        const target = `${at}.platform-shape-target`;
-        writeFileSync(target, "");
+        const target = symlinkTargetFor(at);
+        writeFileSync(target, ordinary);
         symlinkSync(target, at);
         return true;
       } catch {
@@ -309,18 +394,29 @@ function driveHookEntry(mirrorRoot: string): Driven {
   } catch {
     reason = stdout;
   }
+  // THE VERDICT DISCRIMINATES WHICH TIER ANSWERED, not merely whether the process exited 0.
+  //
+  // The wrapper exits 0 both when it passes the decider's own decision through and when it refuses
+  // with its own fail-closed deny, so `status === 0 ? "answered"` reported `answered` for a
+  // frozen-manifest refusal — and a CONTROL asserting that verdict would have stayed green over the
+  // exact staging `WR-31` measured. The ordinary outcome at this position is the DECIDER's decision.
+  let verdict: string;
+  if (r.signal !== null) verdict = `signal=${String(r.signal)}`;
+  else if (r.status === null) verdict = "no-answer";
+  else if (r.status !== 0) verdict = `status=${String(r.status)}`;
+  else verdict = reason.startsWith(FAIL_CLOSED_PREFIX) ? "fail-closed" : "answered";
   return {
     timedOut: r.signal === "SIGKILL",
     ms,
-    verdict: r.status === 0 ? "answered" : `status=${String(r.status)}`,
+    verdict,
     message: reason,
   };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 
-function record(position: string, shape: Shape, outcome: string, ms: number): void {
-  rows.push({ position, shape: shape.name, outcome, ms });
+function record(position: string, shape: Shape, outcome: string, ms: number, verdict: string): void {
+  rows.push({ position, shape: shape.name, outcome, ms, verdict });
 }
 
 function skip(position: string, shape: Shape): void {
@@ -332,15 +428,31 @@ function skip(position: string, shape: Shape): void {
   });
 }
 
-function drivePosition(
-  position: string,
-  plant: (shape: Shape) => { made: boolean; run: () => Driven; refusalClause: string },
-): void {
+interface Staged {
+  readonly made: boolean;
+  readonly run: () => Driven;
+  readonly refusalClause: string;
+  /**
+   * The verdict THIS POSITION produces for a shape it does not refuse — `write` at the note
+   * position, `answered` at the manifest position. The CONTROL asserts equality against it, which is
+   * the whole of `WR-31`'s fix: the absence of one refusal clause is not evidence that the ordinary
+   * outcome happened.
+   */
+  readonly controlVerdict: string;
+}
+
+function drivePosition(position: string, plant: (shape: Shape) => Staged): void {
   const forced = forcedAbsent();
   for (const shape of SHAPES) {
-    const staged = forced.has(shape.name)
-      ? { ...plant(shape), made: false }
-      : plant(shape);
+    if (forced.has(shape.name)) {
+      // THE SEAM SKIPS WITHOUT CONSTRUCTING (plan 31-36, `IN-18`). It used to call `plant(shape)`
+      // and discard the result — which ran `shape.make`, and at the manifest position built a whole
+      // hook mirror, on the way to throwing it away. The seam stands in for "this platform cannot
+      // construct it", and a seam that constructs first does not exercise the path it represents.
+      skip(position, shape);
+      continue;
+    }
+    const staged = plant(shape);
     if (!staged.made) {
       skip(position, shape);
       continue;
@@ -351,18 +463,29 @@ function drivePosition(
         `${position} / ${shape.name}: NO ANSWER within ${DRIVE_TIMEOUT_MS} ms. An unbounded read at ` +
           "a non-regular file is the defect this corpus exists to catch.",
       );
-      record(position, shape, "HUNG", d.ms);
+      record(position, shape, "HUNG", d.ms, d.verdict);
       continue;
     }
     const namedRefusal = d.message.includes(staged.refusalClause);
     if (!shape.expectsNotRegularFileRefusal) {
-      if (namedRefusal) {
+      // THE CONTROL ASSERTS ITS POSITION'S ORDINARY OUTCOME, POSITIVELY (plan 31-36, `WR-31`).
+      //
+      // The clause-absence check is KEPT as an additional condition — it names the specific wrong
+      // refusal when that is what happened — but it is no longer the only one. On its own it could
+      // not tell "the position produced its ordinary outcome" from "the position refused for a
+      // DIFFERENT reason", and round 7 measured a whole run in which every one of these rows was a
+      // refusal and every one of them was scored correct.
+      const ordinary = d.verdict === staged.controlVerdict;
+      if (!ordinary || namedRefusal) {
         failures.push(
-          `${position} / ${shape.name}: this CONTROL was refused with "${staged.refusalClause}". ` +
-            "A corpus that refuses a shape which resolves to a regular file has measured nothing.",
+          `${position} / ${shape.name}: the CONTROL did not produce its position's ordinary ` +
+            `outcome (verdict=${d.verdict}, expected ${staged.controlVerdict}` +
+            `${namedRefusal ? `; it was refused with "${staged.refusalClause}"` : ""}). ` +
+            "A corpus in which every shape is refused has measured nothing. " +
+            `message=${d.message.slice(0, 200)}`,
         );
       }
-      record(position, shape, namedRefusal ? "REFUSED (wrong)" : "not refused (correct)", d.ms);
+      record(position, shape, ordinary && !namedRefusal ? ORDINARY_OUTCOME : "REFUSED (wrong)", d.ms, d.verdict);
       continue;
     }
     if (!namedRefusal) {
@@ -371,23 +494,74 @@ function drivePosition(
           `verdict=${d.verdict} message=${d.message.slice(0, 200)}`,
       );
     }
-    record(position, shape, namedRefusal ? "named refusal" : "NOT REFUSED", d.ms);
+    record(position, shape, namedRefusal ? "named refusal" : "NOT REFUSED", d.ms, d.verdict);
   }
 }
 
+/**
+ * A FRESH, UNOCCUPIED note id per run. Nothing in the corpus depends on the id's value, and a fixed
+ * one is a standing invitation for a previous run's residue to decide this run's outcome.
+ */
+function freshNoteId(): string {
+  const t = new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d+Z$/, "Z");
+  return `${t}-qe-observation-${randomBytes(4).toString("hex")}`;
+}
+
+/**
+ * THE BYTES AN ORDINARY NOTE AT THIS POSITION HOLDS, composed by the real writer rather than typed.
+ *
+ * `writeNoteFile` decides the identical-bytes case explicitly: a write whose bytes are EXACTLY what
+ * the destination already holds proceeds as a no-op. So a CONTROL planted with the note the driver
+ * is about to write produces the position's ordinary outcome — a `write` — while a CONTROL planted
+ * EMPTY draws `the destination already holds a DIFFERENT note`, which is what round 7 measured and
+ * what the clause-absence check scored `not refused (correct)`.
+ *
+ * The bytes are composed by DRIVING THE WRITER once into a throwaway store, never by restating its
+ * format here: a second spelling of a composed note would rot exactly the way this phase's other
+ * findings describe. If that compose does not itself produce a write, the ordinary outcome is not
+ * knowable and this function throws rather than returning bytes nobody measured.
+ */
+function composeOrdinaryNote(id: string): Buffer {
+  const base = tmpRoot("grugops-shape-note-compose-");
+  const driver = writeContextDriver(base);
+  const d = driveContextIo(driver, base, id);
+  if (d.verdict !== "write") {
+    throw new Error(
+      `the note position's ORDINARY content could not be composed (verdict=${d.verdict} ` +
+        `message=${d.message.slice(0, 300)}). Without it the CONTROL has no ordinary outcome to ` +
+        "assert, and a control that cannot state what it expects is the defect this gate reports.",
+    );
+  }
+  return readFileSync(join(base, "ctx", "T-shape", "notes", `${id}.md`));
+}
+
+/**
+ * The position's ordinary bytes, computed AT MOST ONCE and only when a shape is actually planted.
+ *
+ * Laziness is `IN-18`'s rule applied to this plan's own addition: a position whose every shape is
+ * skipped must construct nothing, and composing a note by driving the writer is construction. The
+ * seam's empty staging needs no computation at all.
+ */
+function ordinaryBytes(compute: () => Buffer): () => Buffer {
+  let cached: Buffer | undefined;
+  return () => (cached ??= staleControl() ? Buffer.alloc(0) : compute());
+}
+
 function runNotePosition(): void {
-  drivePosition("note path", (shape) => {
+  const id = freshNoteId();
+  const planted = ordinaryBytes(() => composeOrdinaryNote(id));
+  drivePosition(NOTE_POSITION, (shape) => {
     const base = tmpRoot("grugops-shape-note-");
-    const id = "20260910T000000Z-qe-observation-cafe0001";
     const at = join(base, "ctx", "T-shape", "notes", `${id}.md`);
     mkdirSync(dirname(at), { recursive: true });
     rmSync(at, { recursive: true, force: true });
-    const made = shape.make(at);
+    const made = shape.make(at, planted());
     const driver = writeContextDriver(base);
     return {
       made,
       run: () => driveContextIo(driver, base, id),
       refusalClause: "note-path-not-a-regular-file",
+      controlVerdict: "write",
     };
   });
 }
@@ -416,15 +590,22 @@ function runNotePosition(): void {
 // published `GOVERNANCE_CONFIG_RELPATHS`, then restore the position here.
 
 function runManifestPosition(): void {
-  drivePosition("DECIDER_MANIFEST module path", (shape) => {
+  // THE BYTES AN ORDINARY MODULE AT THIS POSITION HOLDS: the module `DECIDER_MANIFEST` names, copied
+  // byte for byte. The CONTROL used to be planted EMPTY, which is a frozen-manifest MISMATCH — so
+  // the wrapper fail-closed before it ever reached the decider, and the clause-absence check scored
+  // that refusal `not refused (correct)`. The mirror lives under this run's scratch root only and is
+  // removed with it; the repository's own hook tree is never written.
+  const planted = ordinaryBytes(() => readFileSync(join(ROOT, MANIFEST_POSITION)));
+  drivePosition(MANIFEST_POSITION_LABEL, (shape) => {
     const mirror = hookMirror();
     const at = join(mirror, MANIFEST_POSITION);
     rmSync(at, { recursive: true, force: true });
-    const made = shape.make(at);
+    const made = shape.make(at, planted());
     return {
       made,
       run: () => driveHookEntry(mirror),
       refusalClause: "manifest-path-not-a-regular-file",
+      controlVerdict: "answered",
     };
   });
 }
@@ -469,7 +650,13 @@ function runExitCodeContract(): void {
       );
       continue;
     }
-    rows.push({ position: "spec-integrity exit contract", shape: c.name, outcome: `exit ${String(r.status)}`, ms: 0 });
+    rows.push({
+      position: "spec-integrity exit contract",
+      shape: c.name,
+      outcome: `exit ${String(r.status)}`,
+      ms: 0,
+      verdict: `exit ${String(r.status)}`,
+    });
   }
 }
 
@@ -504,6 +691,7 @@ function measureDirectoryIdentity(): void {
     shape: `${process.platform} home vs parent`,
     outcome: degenerate ? "degenerate" : "distinct",
     ms: 0,
+    verdict: degenerate ? "degenerate" : "distinct",
   });
 }
 
@@ -547,6 +735,59 @@ function main(): number {
   // THE VACUITY FLOOR. A corpus that drove nothing is a check that did not run, never a pass.
   if (rows.length === 0) {
     failures.push("the corpus drove ZERO shapes at ZERO positions — this check did not run");
+  }
+
+  // ── THE HARNESS'S OWN PREMISES, ASSERTED BEFORE ITS ANSWER IS READ (plan 31-36). ─────────────
+  //
+  // This repository has logged fourteen instances of a verification harness producing a false
+  // result, and the standing rule from that log is that a control which cannot observe the property
+  // it claims has measured nothing. Three premises decide whether the rows above mean anything:
+  //
+  //   1. EVERY SHAPE WAS ACCOUNTED FOR AT EVERY POSITION. The count is derived from the corpus,
+  //      independently of the loop that consumes it — an empty denominator is caught by the vacuity
+  //      floor above, and a SILENTLY SHORT one is caught here.
+  //   2. THE MANIFEST POSITION'S VERDICT CLASSIFIER DISCRIMINATED. The wrapper exits 0 on both its
+  //      ordinary answer and its own fail-closed refusal, so a run in which every row carried the
+  //      same verdict would leave the CONTROL's equality trivially satisfiable.
+  //   3. THE DISCRIMINANT EXISTS IN WHAT IT CLASSIFIES. A marker absent from the committed wrapper
+  //      can only ever report one class.
+  for (const position of [NOTE_POSITION, MANIFEST_POSITION_LABEL]) {
+    const drivenHere = rows.filter((r) => r.position === position);
+    const skippedHere = skips.filter((s) => s.position === position);
+    if (drivenHere.length + skippedHere.length !== SHAPES.length) {
+      failures.push(
+        `${position}: the corpus has ${String(SHAPES.length)} shapes, and this position accounted ` +
+          `for ${String(drivenHere.length)} driven + ${String(skippedHere.length)} skipped. A ` +
+          "position that silently drove fewer shapes than the corpus holds has measured less than " +
+          "it reports.",
+      );
+    }
+  }
+  const manifestRows = rows.filter((r) => r.position === MANIFEST_POSITION_LABEL);
+  if (manifestRows.length > 0) {
+    const classes = new Set(manifestRows.map((r) => r.verdict));
+    if (classes.size < 2) {
+      failures.push(
+        `${MANIFEST_POSITION_LABEL}: every driven row carried the same verdict ` +
+          `(${[...classes].join(", ")}). The verdict classifier did not DISCRIMINATE on this run, ` +
+          "so the CONTROL's equality against it is satisfiable by a classifier that answers one " +
+          "thing to everything.",
+      );
+    }
+  }
+  try {
+    if (!readFileSync(join(ROOT, HOOK_ENTRY_REL), "utf8").includes(FAIL_CLOSED_PREFIX)) {
+      failures.push(
+        `the fail-closed discriminant "${FAIL_CLOSED_PREFIX}" does not occur in ${HOOK_ENTRY_REL}. ` +
+          "The manifest position's verdict classifier can then never report the fail-closed class, " +
+          "and the CONTROL that asserts against it is vacuous.",
+      );
+    }
+  } catch (cause) {
+    failures.push(
+      `${HOOK_ENTRY_REL} could not be read to assert the verdict classifier's own premise ` +
+        `(${cause instanceof Error ? cause.message : String(cause)}).`,
+    );
   }
 
   // THE WINDOWS-SCOPED ASSERTION (see REQUIRE_SKIPS_ENV). A platform that cannot construct a FIFO

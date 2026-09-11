@@ -63,6 +63,27 @@ function derive(): { shapes: DerivedShape[]; positions: string[] } {
   );
   const shapes: DerivedShape[] = [];
   const positions: string[] = [];
+  // A position label may be written at the call site or held in a `const NAME = "…"` above it. Both
+  // are the same fact; a derivation that only accepts one spelling goes SILENTLY SHORT the day the
+  // other is used, which is what the PREMISE case below exists to catch.
+  const stringConsts = new Map<string, string>();
+  const collectConsts = (node: ts.Node): void => {
+    if (
+      ts.isVariableDeclaration(node) &&
+      ts.isIdentifier(node.name) &&
+      node.initializer !== undefined &&
+      ts.isStringLiteral(node.initializer)
+    ) {
+      stringConsts.set(node.name.text, node.initializer.text);
+    }
+    ts.forEachChild(node, collectConsts);
+  };
+  collectConsts(source);
+  const asLabel = (arg: ts.Expression): string | undefined => {
+    if (ts.isStringLiteral(arg)) return arg.text;
+    if (ts.isIdentifier(arg)) return stringConsts.get(arg.text);
+    return undefined;
+  };
   const walk = (node: ts.Node): void => {
     // A corpus entry: an object literal carrying BOTH `name` and `expectsNotRegularFileRefusal`.
     if (ts.isObjectLiteralExpression(node)) {
@@ -83,10 +104,10 @@ function derive(): { shapes: DerivedShape[]; positions: string[] } {
       ts.isCallExpression(node) &&
       ts.isIdentifier(node.expression) &&
       node.expression.text === "drivePosition" &&
-      node.arguments[0] !== undefined &&
-      ts.isStringLiteral(node.arguments[0])
+      node.arguments[0] !== undefined
     ) {
-      positions.push((node.arguments[0] as ts.StringLiteral).text);
+      const label = asLabel(node.arguments[0]);
+      if (label !== undefined) positions.push(label);
     }
     ts.forEachChild(node, walk);
   };
@@ -209,7 +230,7 @@ describe("31-36 WR-31 — the CONTROL rows can observe the property they claim",
       `the gate exited ${String(run.status)} with the pre-fix staging restored. A control that ` +
         `cannot report red has not been fixed.\n${run.stdout}`,
     ).toBe(1);
-    expect(run.stdout).toContain("a corpus in which every shape is refused has measured nothing");
+    expect(run.stdout).toContain("A corpus in which every shape is refused has measured nothing");
     for (const position of POSITIONS) {
       expect(
         run.stdout,
