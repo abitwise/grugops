@@ -1791,7 +1791,12 @@ file.
   MEASURED from this file's own AST at this commit. It is a hand-typed number and it is disclosed as
   one. It is not a mirror of a moving set: it can only be wrong by under-claiming, and it turns red
   when a row is deleted, which is the fail-closed direction. The measured value at this commit is
-  34 distinct row ids — more than double the floor the deleted derivation produced.
+  **33** distinct row ids — more than double the floor the deleted derivation produced. The number
+  comes from the AST walk `declaredCorpusRowIds()` performs, not from a grep: a grep over
+  `row("…")` reports 34 because two of those occurrences sit inside DOC COMMENTS, and the walk does
+  not count a comment. The first draft of this block carried the grep's 34 and is corrected here,
+  recorded rather than silently overwritten, because a floor typed one above the measurement is a
+  floor that is red on the day it is written.
 
 - **D-33 (4) — the removal is proven STRUCTURALLY, from the file's own syntax tree, not by grep over
   prose.** A case parses `scripts/runnable-ref/uat-spec-integrity.test.ts` with the host TypeScript

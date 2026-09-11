@@ -7795,54 +7795,39 @@ function driveSpec(
 
 const TAIL = '  await expect(page.getByTestId("invoice-total")).toHaveText("$42.00");';
 
-// ── MOVEMENT 1: the corpus's own denominator, DERIVED from the documents ──────────────────────
-
-const REVIEW_MD = join(
-  REPO_ROOT,
-  ".planning",
-  "phases",
-  "31-autonomous-manual-testing",
-  "31-REVIEW.md",
-);
+// ── MOVEMENT 1: the corpus's own denominator ─────────────────────────────────────────────────
+//
+// D-33 (1), 2026-09-11 — WHAT USED TO BE HERE, AND WHY IT IS GONE. This section carried a second
+// derivation: `reviewFindingsNamingThisRunnable()` walked `31-REVIEW.md`'s own `###` headings and
+// the equality below compared them against `CORPUS_COVERAGE`, a hand-typed object literal. A named
+// human answered `remove-axis` to the `checkpoint:decision` plan 31-32 put in front of this edit,
+// refusing both `freeze-manifest` and `derive-both-keep-review`, and the axis is deleted.
+//
+// THE REMOVAL IS A GATE LOWERING AND IS RECORDED AS ONE. Until this edit, a review finding naming
+// this runnable that no corpus row covered turned the suite RED on every run. Nothing observes that
+// relationship now; `31-38`, this round's closing measurement, asserts it ONCE PER ROUND instead.
+// A one-shot a plan takes can be skipped, and skipping it leaves no red. That weakness is the
+// substance of the lowering, and D-33 in `31-CONTEXT.md` writes it down in full.
+//
+// WHAT FORCED IT. This project REPLACES `31-REVIEW.md` at every gap-closure round rather than
+// appending to it, so the expected side was recomputed from a document that moves under the test.
+// Measured at the round-7 base: the suite was RED on a commit that changed zero source bytes, the
+// derived set reading `CR-23 CR-25 IN-16 IN-17 WR-33 WR-35` against a literal reading
+// `CR-18 CR-21 IN-15 WR-26 WR-29 WR-30`.
 
 /**
- * The findings of `31-REVIEW.md` that name THIS runnable — derived from the document's own `###`
- * headings and its own file citations, never from a list typed into this file.
+ * D-33 (3): the row floor the deleted derivation used to supply half of, MEASURED from this file's
+ * own AST at the commit that removed it (2026-09-11) rather than dropped.
  *
- * A hand-typed list is the set-literal drift this project keeps paying for: it stays green while
- * the document it claims to mirror moves. This walk reads the headings, attributes each body to the
- * next heading, and keeps the ids whose body cites `scripts/runnable-ref/uat-spec-integrity.ts`.
+ * It is a hand-typed number and it is disclosed as one. It is NOT a mirror of a moving set: it can
+ * only be wrong by UNDER-claiming, and it turns red when a row is deleted, which is the fail-closed
+ * direction. Deleting `CORPUS_COVERAGE` without it would have dropped the floor from 16 to 6 in
+ * silence — a second lowering nobody chose.
+ *
+ * What it does NOT claim: that any particular finding is covered. It bounds deletion; it does not
+ * bind content.
  */
-function reviewFindingsNamingThisRunnable(): readonly string[] {
-  const lines = readFileSync(REVIEW_MD, "utf8").split("\n");
-  const heads: { id: string; line: number }[] = [];
-  for (let i = 0; i < lines.length; i++) {
-    const m = /^### ((?:CR|WR|IN)-\d+):/.exec(lines[i]);
-    if (m !== null) heads.push({ id: m[1], line: i });
-  }
-  const owned: string[] = [];
-  for (let k = 0; k < heads.length; k++) {
-    const end = k + 1 < heads.length ? heads[k + 1].line : lines.length;
-    if (lines.slice(heads[k].line, end).join("\n").includes("scripts/runnable-ref/uat-spec-integrity.ts")) {
-      owned.push(heads[k].id);
-    }
-  }
-  return owned;
-}
-
-/**
- * Which finding id, or which residual-register INDEX, each corpus row is a row FOR. The two axes
- * are kept separate because they have separate derived denominators: the review's own headings, and
- * the module's own exported register.
- */
-const CORPUS_COVERAGE: Readonly<Record<string, readonly string[]>> = Object.freeze({
-  "CR-18": ["block-scoped function declaration (rename)", "block-scoped function declaration (namespace)", "ambient declare (rename)", "ambient declare (namespace)"],
-  "CR-21": ["the three-argument tag/annotation overload"],
-  "WR-26": ["a function expression at index 1 of a NON-test call's second argument"],
-  "WR-29": ["a parse fault and a walk fault reporting one sentence"],
-  "WR-30": ["`using`", "`await using`"],
-  "IN-15": ["canonicalAssertionHead splits the same string twice"],
-});
+const CORPUS_ROW_FLOOR = 33;
 
 /** One row per member of the exported residual register, keyed by that member's INDEX. */
 const RESIDUAL_COVERAGE: Readonly<Record<number, string>> = Object.freeze({
@@ -7863,17 +7848,6 @@ const RESIDUAL_COVERAGE: Readonly<Record<number, string>> = Object.freeze({
 });
 
 describe("uat-spec-integrity — 31-28 MOVEMENT 1: the corpus's denominator is DERIVED, not typed", () => {
-  it("covers every 31-REVIEW.md finding that names this runnable, in BOTH directions", () => {
-    const derived = reviewFindingsNamingThisRunnable();
-    // The derivation's own premise, asserted before the conclusion: a walk that found no heading at
-    // all would make the equality below vacuously true.
-    expect(derived.length, "the review yielded no finding naming this runnable — the walk is wrong").toBeGreaterThan(0);
-    expect([...derived].sort()).toEqual(Object.keys(CORPUS_COVERAGE).sort());
-    for (const id of derived) {
-      expect(CORPUS_COVERAGE[id].length, `${id} is covered by no corpus row`).toBeGreaterThan(0);
-    }
-  });
-
   it("covers every member of UNRESOLVABLE_CALLEE_RESIDUALS, by INDEX, in BOTH directions", async () => {
     const { UNRESOLVABLE_CALLEE_RESIDUALS } = await loadChecker();
     const indices = UNRESOLVABLE_CALLEE_RESIDUALS.map((_, i) => i);
@@ -7881,20 +7855,22 @@ describe("uat-spec-integrity — 31-28 MOVEMENT 1: the corpus's denominator is D
     expect(Object.keys(RESIDUAL_COVERAGE).map(Number).sort((a, b) => a - b)).toEqual(indices);
   });
 
-  it("the corpus carries AT LEAST as many rows as the two derivations produce", async () => {
+  it("the corpus carries AT LEAST as many rows as the register produces, and never fewer than the D-33 floor", async () => {
     const { UNRESOLVABLE_CALLEE_RESIDUALS } = await loadChecker();
-    const derivedRowCount =
-      Object.values(CORPUS_COVERAGE).reduce((n, v) => n + v.length, 0) +
-      UNRESOLVABLE_CALLEE_RESIDUALS.length;
-    // Recorded in 31-28-SUMMARY.md beside the documents each row came from. A corpus that quietly
-    // ran fewer spellings than the phase has produced is a red test rather than a green one.
-    //
+    // The surviving derivation's own premise, asserted before the conclusion: an empty register
+    // would make the first floor below vacuous.
+    expect(UNRESOLVABLE_CALLEE_RESIDUALS.length, "the register is empty — the floor below would be vacuous")
+      .toBeGreaterThan(0);
     // THE RUNNING COUNT IS DERIVED, NOT TALLIED. A `Set` filled by the cases as they execute is
     // read in whatever order the runner chose, so this case could observe a nearly-empty set and
     // pass — the vacuity shape this phase has recorded. The row ids are counted from THIS FILE's
     // own AST instead, which is order-independent and cannot be inflated by a case that never ran.
-    expect(declaredCorpusRowIds().size, "the corpus runs fewer rows than the documents produce")
-      .toBeGreaterThanOrEqual(derivedRowCount);
+    const declared = declaredCorpusRowIds().size;
+    expect(declared, "the corpus runs fewer rows than the residual register has members")
+      .toBeGreaterThanOrEqual(UNRESOLVABLE_CALLEE_RESIDUALS.length);
+    // D-33 (3): the half the removed review derivation used to supply, kept as a monotone floor.
+    expect(declared, "a corpus row was deleted — the floor D-33 (3) measured at 2026-09-11 moved down")
+      .toBeGreaterThanOrEqual(CORPUS_ROW_FLOOR);
   });
 
   // D-33 (4), 2026-09-11. The structural half of the `remove-axis` decision a named human took in
