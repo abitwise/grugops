@@ -9161,6 +9161,46 @@ describe("uat-spec-integrity — 31-32 WR-35: the walk's input boundary DISCLOSE
   });
 });
 
+describe("browser-uat-recipe.md — 31-32: the published input boundary equals the exported one", () => {
+  const RECIPE = join(REPO_ROOT, "agent-factory", "checklists", "browser-uat-recipe.md");
+
+  it("the recipe's quoted SKIPPED_DIRECTORIES equals the exported constant, in both directions", async () => {
+    const { SKIPPED_DIRECTORIES } = await loadChecker();
+    const whole = readFileSync(RECIPE, "utf8");
+    // PREMISE, asserted before the conclusion: the document was read and is not empty.
+    expect(whole.length, "PREMISE: the recipe is empty").toBeGreaterThan(0);
+    expect(SKIPPED_DIRECTORIES.length, "PREMISE: the boundary is empty").toBeGreaterThan(0);
+    // The SAME strict grammar the ban set's four quoted lists are read by: the one line quoting the
+    // constant's NAME in backticks, read from after its LAST colon, every backtick span a value.
+    // Substring search would let `dist` count as present because `dist/e2e` appears elsewhere.
+    const lines = whole.split("\n").filter((l) => l.includes("`SKIPPED_DIRECTORIES`"));
+    expect(lines.length, "PREMISE: the recipe quotes the constant on other than exactly one line")
+      .toBe(1);
+    const tail = lines[0].slice(lines[0].lastIndexOf(":") + 1);
+    const quoted = [...new Set([...tail.matchAll(/`([^`]+)`/g)].map((m) => m[1]))].sort();
+    expect(quoted, "the recipe's published boundary and the decided one disagree")
+      .toEqual([...SKIPPED_DIRECTORIES].sort());
+  });
+
+  it("the recipe carries the disclosure marker BY VALUE, so the claim cannot drift from the emission", async () => {
+    const { SKIPPED_DIRECTORY_DISCLOSURE_MARKER } = await loadChecker();
+    const whole = readFileSync(RECIPE, "utf8");
+    expect(whole.length, "PREMISE: the recipe is empty").toBeGreaterThan(0);
+    expect(SKIPPED_DIRECTORY_DISCLOSURE_MARKER.length, "PREMISE: the marker is empty")
+      .toBeGreaterThan(0);
+    // The recipe states the PROPERTY rather than re-typing the sentence, so what is bound here is
+    // that the document says a line is emitted on stderr naming each skipped directory and its
+    // count, and that the runnable's own emission carries the same head.
+    for (const claim of [
+      "One line on stderr names each skipped directory and its hit count.",
+      "The line appears only when the walk skipped something.",
+      "The disclosure moves no exit code and no finding count.",
+    ]) {
+      expect(whole, `the recipe does not publish: ${claim}`).toContain(claim);
+    }
+  });
+});
+
 describe("uat-spec-integrity — 31-32 IN-16 / IN-17: a dead export and a spliced sentence are GONE", () => {
   it("IN-16: the dead canonical-head export is absent from the source, the committed .js and this file", () => {
     const scanned = [
