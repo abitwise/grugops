@@ -30,7 +30,7 @@ affects:
 actuals:
   tokens: 23041
   tasks: 3
-  commits: 6
+  commits: 8
 plan_head_before: ad6bfe5e475a4e319bba84752feebd9279c05b80
 tech-stack:
   added: []
@@ -182,7 +182,9 @@ case that asks its own premise.
 
 - **Duration:** 48 minutes
 - **Tasks:** 3
-- **Commits:** 6 (measured `git rev-list --count ad6bfe5..HEAD`)
+- **Commits:** 8 — MEASURED `git rev-list --count ad6bfe5..HEAD` at this plan's final metadata
+  commit, the same instrument `31-33` used (six task commits, the SUMMARY commit, and the plan
+  metadata commit)
 - **Realized diff:** 92,167 chars (83,540 excluding rebuilt `.js`) → `estimateTokens` 23,041 against
   a plan estimate of 90,000. The estimate was ~4x high: the plan budgeted for a structural rewrite of
   two predicates, and what the tree actually needed was two conditions, one comment block, one tier
