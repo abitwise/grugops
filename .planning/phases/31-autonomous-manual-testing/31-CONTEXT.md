@@ -2485,3 +2485,154 @@ file.
 
   `docs/audit/harness-false-result-instances.md` is byte-unchanged by this plan — row 13's
   correction is `31-37`'s to make — as are `.planning/REQUIREMENTS.md` and `.planning/ROADMAP.md`.
+
+#### Gap-closure decision — D-38 (2026-09-11, gap-closure round 7, wave 6, plan 31-37)
+
+- **What forced it.** `WR-36`, `WR-33` and `WR-34` of `31-REVIEW.md`, each re-measured in this plan's
+  own scratch against the committed artifacts before any byte moved.
+  - `WR-36`: `hooks/hook-entry.ts`'s `hostBuiltProjectRoot` applied three conditions — non-empty
+    after a trim, absolute, an existing directory — under a comment saying those were *"the ones a
+    file limited to `node:` builtins can make"*. That reason is false of the file: `existsSync` is
+    imported at `:42` and used at `:407`, and the reader's two further conditions are `node:fs` plus
+    `node:path` operations. Measured END-TO-END through BOTH `hooks/hooks.json` PreToolUse commands,
+    with the corpus size printed before any conclusion: **corpus 13, delivered 8, refused 5,
+    DISAGREEMENTS 4** on each route — a directory with no version-control marker, a symlink to one,
+    a directory nested inside a repository, and the kit's own root were all DELIVERED here and
+    DISCARDED by `hostDeliveredRoot`.
+  - `WR-36`, second half: `TRUSTED_ROOT_TIERS[0]` described tier 0 as a channel the agent cannot
+    write and said nothing about where its VALUE comes from. On the Claude Code hook path that value
+    is `CLAUDE_PROJECT_DIR` — the tier-1 AMBIENT name — promoted by the wrapper.
+  - `WR-33`: `docs/audit/31-round6-residuals.md` §6.1 stated `31-28` removed `resolveBinding`,
+    `bindingRangeFor` and `listHoists` outright. Re-measured at this commit with each grep's hit
+    count printed first: all three are LIVE (`:2669`, `:2546`, `:2520`), and the three symbols
+    `D-30 (5)` actually deleted are `deriveTestInfoParameterNames`, `isFixtureBindingPosition` and
+    `CALLEE_CHAIN_STEP_BOUND` (comment-only mentions remain: 4, 1 and 2).
+  - `WR-34`: `docs/audit/harness-false-result-instances.md` row 13 recorded a fixture change that was
+    REVERTED — the GOV-02 ledger position was dropped, deliberately, with its own comment.
+
+- **Which register failed.** Not the resolution ORDER, and not the tier SET. Both are unchanged by
+  this plan and their five-tier cardinality is re-asserted. What failed is that **two implementations
+  of ONE predicate were never BOUND** — the wrapper validates and the reader validates, each with its
+  own condition list, and nothing held them together, so a later narrowing of the reader would have
+  gone unnoticed. That is this phase's recorded set-literal drift class, one register over. And
+  separately, **two audit records stated facts nobody re-measured** — in the two documents a round-8
+  reader starts from.
+
+- **THE DECISION, IN TWO PARTS.**
+  1. **A DELIVERING SIDE'S ACCEPT SET IS ASSERTED A SUBSET OF THE CONSUMING SIDE'S, OVER ONE SHARED
+     CORPUS.** The wrapper gains the version-control-marker condition and the not-the-kit-root
+     condition, composed from `node:fs` and `node:path` only, with the marker list spelled locally
+     and DERIVED back out of the wrapper's own syntax tree by `scripts/context-io.test.ts`, which
+     asserts it equal to `REPO_BOUNDARY_MARKERS` in both directions, cardinality included — the same
+     discipline `HOST_DELIVERED_ROOT_ENV` already carried. One candidate corpus is then driven
+     END-TO-END through each `hooks/hooks.json` route and through the reader of the SAME kit, and no
+     candidate the wrapper accepts may be one the reader discards. Measured after the fix: **corpus
+     13, delivered 4, refused 9, disagreements 0** on both routes. The route set is DERIVED from
+     `hooks/hooks.json` with its cardinality asserted, so a third PreToolUse entry cannot arrive
+     unprobed; the shipped source files naming the delivered channel are derived too, and asserted to
+     be exactly `hooks/hook-entry.ts` and `scripts/context-io.ts`.
+     Watched RED by seeding a narrowing of the READER (accept only `.git`): both route cases turned
+     red naming the `.hg` and `_FOSSIL_` rows, the mutant's marker was found in the rebuilt `.js`
+     first, and it was reverted. Seven adversarial probes against the binding itself — the kit root
+     through a symlink, a dangling `.git`, a `.git` that is a FILE, a `.git` that is a FIFO, a
+     `CLAUDE_PROJECT_DIR` that IS a FIFO, a `..`-terminated path and a directory name containing a
+     newline — found **0 bypasses**, all bounded at 48–78 ms.
+  2. **A RECORD THAT CLAIMS A MECHANISM IS CHECKABLE AGAINST THE TREE IT NAMES.**
+     `scripts/harness-instance-ledger.test.ts` parses the ledger, derives per row the files it names
+     and the mechanisms it claims, and asserts each claim is findable in the evidence that row itself
+     named. Denominators are asserted and PRINTED before any verdict — rows 14, file citations 20,
+     mechanism claims checked 11, exempt-no-claim 8, exempt-no-file 0, id citations excluded 4 —
+     because a green from an empty denominator is instance 4 and instance 14 of that very list. It
+     DISCRIMINATES in both directions: a seeded row claiming an absent mechanism turns it red naming
+     the row; a seeded row claiming a present one keeps it green with the checked count rising
+     11 → 12. Both seeds were reverted.
+
+- **THE AMENDMENT TO D-29, STATED RATHER THAN LEFT AS TWO DECISIONS DISAGREEING.** D-29 (3) says
+  *"`hostDeliveredRoot()` accepts only a canonical, absolute, existing directory carrying a
+  version-control marker that is not the kit's own root"* and describes the wrapper as shape-checking
+  its value *"with builtins alone"*. **D-38 amends that clause: the wrapper applies THE SAME five
+  conditions, not a weaker three, and the two sides are bound by one shared corpus rather than by two
+  condition lists that happen to agree.** D-29's differential — tier 1 accepts 6, tier 0 accepts 1 —
+  stands unmoved and is re-measured here. `TRUSTED_ROOT_TIERS[0]` additionally states its PROVENANCE:
+  on the Claude Code hook path the delivered value is derived from `CLAUDE_PROJECT_DIR`, the tier-1
+  ambient name, promoted by the frozen wrapper, and the channel is one the agent cannot write because
+  the HOST builds that subprocess's environment and the wrapper is byte-frozen — **not because the
+  name is a second variable.** `agent-factory/workflows/16-context-read-write.md` moves with it and
+  the both-directions binding is re-driven.
+
+- **WHAT D-38 DOES NOT ESTABLISH.**
+  - **The four non-Claude-Code hosts still have no delivered channel.** Codex, Gemini CLI, OpenCode
+    and Copilot CLI deliver nothing under this name, and the `TRUSTED_ROOT_RESIDUALS` members scoped
+    `hosts: non-cc-hook-path` are unchanged in membership and in wording. Tier 0 is a narrowing on
+    one host; this plan narrows it further on that one host and closes nothing elsewhere.
+  - **It closes nothing about a process acting as itself.** An agent invoking `scripts/context-io.js`
+    directly from its own Bash tool builds its own environment. That is `R-31-15-01`'s
+    already-accepted capability, exactly as D-29 recorded.
+  - **It does not close a TOCTOU race.** The wrapper canonicalises and probes, then the reader
+    canonicalises and probes again; a filesystem mutated between the two is a shape neither side
+    measures, and it is not claimed closed here.
+  - **The Windows leg stays `R-03`.** Every measurement in this plan ran on darwin 25.5.0 arm64 with
+    Node v24.12.0. No Windows reading is claimed.
+  - **It does not restore the GOV-02 ledger position.** Row 13 now RECORDS the removal and points at
+    the restore criterion in `deferred-items.md`; the position stays dropped and the AUTO-06 scan is
+    untouched.
+  - **It does not move a requirement checkbox, a traceability row or the phase checkbox.** Only a
+    verification round may do that. `UATX-01` through `UATX-06` stay unchecked and `Gaps Found`.
+
+- **Reversibility: COSTLY for part 1, REVERSIBLE for part 2.** Part 1 narrows the wrapper's accept
+  set and moves two frozen baselines. Reverting restores a tier-0 channel validated more weakly than
+  the reader that consumes it, under a comment stating a reason measured false. Part 2 is two
+  corrected documents and one new test; reverting restores a register that states a mechanism is
+  present where it is not, and a disposition resting on a deletion that did not happen.
+
+- **The three places that must agree.**
+  1. `hostBuiltProjectRoot` and `hostDeliveredRoot` — one shared candidate corpus, driven end-to-end
+     through every `hooks/hooks.json` route and through the reader of the same kit, with the
+     wrapper's accept set inside the reader's and the corpus's own non-vacuity asserted first.
+  2. `TRUSTED_ROOT_TIERS` and `agent-factory/workflows/16-context-read-write.md` — the existing
+     both-directions binding, now carrying the provenance sentence, at five tiers.
+  3. Each row of `docs/audit/harness-false-result-instances.md` and the tree it names — every
+     claimed mechanism greppable in the evidence the row itself cited, with the row denominator and
+     the exempt counts printed first.
+
+- **THE FROZEN BASELINES THIS PLAN MOVED, FLOORS FIRST.** `FROZEN_HOOK_ENTRY_LOGIC_SHA` is re-taken
+  for the third time. The normalisation's byte counts were printed and the removed count asserted
+  non-zero BEFORE the digest was read — total 32182, normalised 29357, **removed 2825** — and the
+  constant's history block is extended rather than relaxed:
+  `e1ed0dc0…` (31-27 Task 3, S1) → `006cdb0f45d017f050f78c1424f636f700fc72b378723799cee4e1820904330d`.
+  The `DECIDER_MANIFEST` is re-derived and re-measured **WHOLE**: 2 deciders, 13 module hashes each,
+  **26 of 26 positions matching**, 0 moved, 0 unreadable. `hooks/guard.ts` is byte-unchanged and
+  hashes to `669725bc1c616ab57123e22090d93d57eff1b001`.
+
+- **D-29'S OWN BOUND, RE-DRIVEN BECAUSE THIS PLAN ADDED FILESYSTEM WORK TO THE COORDINATE IT WAS
+  CONVENED ON.** The `CR-17` reproduction was re-driven at this commit with the positions DERIVED
+  from the committed `hooks/hook-entry.js` (14 deduplicated, non-zero asserted) and the argv DERIVED
+  from `hooks/hooks.json`:
+
+  ```
+  CONTROL  ordinary payload, unmodified manifest        EXIT=0   107 ms  442 B stdout   27 B stderr
+  FIFO at each of the 13 positions in the Bash decider's
+  own closure                                           EXIT=0   27-40 ms  named DENY   0 B stderr
+  FIFO at hooks/admission-guard.js (the OTHER decider)  EXIT=0    68 ms   ordinary deny
+        — correct: the wrapper verifies only the closure of the decider it is about to run
+  CONTROL  CLAUDE_PROJECT_DIR = a real repository       EXIT=0    63 ms
+  CLAUDE_PROJECT_DIR whose .git is a FIFO               EXIT=0    62 ms   — the added probe is
+        access(2)-shaped and opens nothing, so it cannot wait for a writer
+  ```
+
+  `31-31` recorded 13 of 13 positions answering EXIT=0 in 46–50 ms, against round 6's EXIT=124 with
+  zero bytes on both streams. The bound is unmoved; the slowest reading here is 68 ms.
+
+- **THE ROUND'S RUNNING GATES, RE-MEASURED AT THIS PLAN'S CLOSING COMMIT.**
+
+  | Gate | `31-31` (round-6 close) | `31-36` | here (`31-37`) |
+  |---|---|---|---|
+  | `npm run check:diff-disposition` | 80 finding(s) over 39 elements | 78 over 39 | **78 over 39** — this plan's three added clauses in `16-context-read-write.md` are dispositioned in `docs/audit/29-style-dispositions/31-37.md`, so the count moved 78 → 81 → 78. Zero growth. The gate exits 1 while the standing debt is non-zero, which is the round's state rather than a regression. |
+  | `npm run freshness` | 61 committed `.js` | 61 committed `.js` | **61 committed `.js` fresh**, set equality with the walk 0/0 |
+  | `npm run freshness:hook-manifest` | 2 decider(s), 26 module hash(es) | 2 decider(s), 26 module hash(es) | **2 decider(s), 26 module hash(es)** — re-derived after the wrapper changed |
+  | `node scripts/check-foundation-guards.js` | `ALL CHECKS PASSED` | `ALL CHECKS PASSED` | **`ALL CHECKS PASSED`** |
+  | `node scripts/check-uat-oracles.js` | `ALL CHECKS PASSED` | `ALL CHECKS PASSED` | **`ALL CHECKS PASSED`** |
+  | `node scripts/check-platform-shapes.js` | — | `ALL CHECKS PASSED` | **`ALL CHECKS PASSED`** |
+
+  `.planning/REQUIREMENTS.md` and `.planning/ROADMAP.md` are byte-unchanged by this plan, and so are
+  `31-REVIEW.md`, `31-VERIFICATION.md` and every `*-SUMMARY.md` of this phase.
