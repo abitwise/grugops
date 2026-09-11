@@ -3754,6 +3754,7 @@ describe("browser-uat-recipe.md — 31-13: the boundary list is the register plu
     "derived-decline-set": "States that the decline set is derived and bound, which is what makes the list above trustworthy.",
     "declared-surface-not-package": "The hand-transcription `UNKNOWN - verify`; a limit of the DENOMINATOR, not a declined callee shape.",
     "walk-depth-bound": "The reverse walk's depth bound; again a limit of the denominator.",
+    "skipped-directories": "31-32 / WR-35 / D-33 (5): the walk's INPUT BOUNDARY and its disclosure. It is a limit of the DENOMINATOR rather than a declined callee shape, and it is the one limit neither floor in `reportMeasured` can see, because the derived count and the visited count shrink together.",
   });
 
   /** The opening words that identify each non-residual bullet. Matched as a prefix, never as a substring. */
@@ -3766,6 +3767,7 @@ describe("browser-uat-recipe.md — 31-13: the boundary list is the register plu
     "derived-decline-set": "The set of callee shapes the resolver still declines is DERIVED",
     "declared-surface-not-package": "The declared surface is **not** the released package",
     "walk-depth-bound": "The walk that produces the reverse half's denominator",
+    "skipped-directories": "Directory names the walk never descends into",
   });
 
   it("the boundary list PARTITIONS into register members and the bounded remainder", async () => {
@@ -9191,13 +9193,20 @@ describe("browser-uat-recipe.md — 31-32: the published input boundary equals t
     // The recipe states the PROPERTY rather than re-typing the sentence, so what is bound here is
     // that the document says a line is emitted on stderr naming each skipped directory and its
     // count, and that the runnable's own emission carries the same head.
+    //
+    // WHITESPACE IS FOLDED FIRST. The claim lives inside a wrapped bullet, so a raw substring
+    // search would be asserting about the line width the document happens to be wrapped at.
+    const folded = whole.replace(/\s+/g, " ");
+    expect(folded.length, "PREMISE: the folded recipe is empty").toBeGreaterThan(0);
     for (const claim of [
       "One line on stderr names each skipped directory and its hit count.",
       "The line appears only when the walk skipped something.",
       "The disclosure moves no exit code and no finding count.",
     ]) {
-      expect(whole, `the recipe does not publish: ${claim}`).toContain(claim);
+      expect(folded, `the recipe does not publish: ${claim}`).toContain(claim);
     }
+    // …and the runnable's OWN emission head is published verbatim by the constant that emits it.
+    expect(SKIPPED_DIRECTORY_DISCLOSURE_MARKER.startsWith("UAT spec integrity:")).toBe(true);
   });
 });
 

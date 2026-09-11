@@ -312,13 +312,14 @@ Deliberately outside the rule, recorded here so the boundary is written down:
   truncation is a failed premise rather than a shorter set. A modifier family declared deeper than
   the bound would be outside the measurement.
 - Directory names the walk never descends into, quoted from `SKIPPED_DIRECTORIES`: `node_modules`, `.git`, `dist`, `tools`, `.temp`.
-- A uat spec under one of those names is not counted. It leaves the derived total before the total is reported.
-- Neither floor can see that. The derived count and the visited count shrink together.
-- So the runnable says what it skipped. One line on stderr names each skipped directory and its hit count.
-- The line carries names and counts. It carries no path and no file content.
-- The line appears only when the walk skipped something. A run that skipped nothing emits the bytes it emitted before.
-- The disclosure moves no exit code and no finding count. It is a disclosure, never a result.
-- `.temp` is this repository's own scratch name. The runnable ships to every host, so the narrowing is disclosed rather than assumed.
+  A uat spec under one of those names is not counted. It leaves the derived total before the total is
+  reported. Neither floor can see that. The derived count and the visited count shrink together. So
+  the runnable says what it skipped. One line on stderr names each skipped directory and its hit
+  count. The line carries names and counts. It carries no path and no file content. The line appears
+  only when the walk skipped something. A run that skipped nothing emits the bytes it emitted before.
+  The disclosure moves no exit code and no finding count. It is a disclosure, never a result. `.temp`
+  is this repository's own scratch name. The runnable ships to every host, so the narrowing is
+  disclosed rather than assumed.
 
 Widening the rule is a new decision and a gap-closure round, never a quiet edit to the checker.
 
