@@ -2108,3 +2108,117 @@ file.
 
 *Phase: 31-autonomous-manual-testing*
 *Context gathered: 2026-09-07*
+
+#### Gap-closure decision — D-35 (2026-09-11, gap-closure round 7, wave 3, plan 31-34)
+
+- **What forced it.** `CR-23` of `31-REVIEW.md`, in BOTH of its instances, independently reproduced
+  by `31-VERIFICATION.md` round 7 against the committed `scripts/runnable-ref/uat-spec-integrity.js`
+  and re-reproduced in this plan's own scratch before any source byte was touched. `D-30 (2)` made
+  the identity answer `foreign` TERMINAL — `banPath = identity.kind === "framework" ? identity.path
+  : identity.kind === "foreign" ? null : spelled` — and `@playwright/test` declares no top-level
+  `describe`, so a REAL `describe` is always `foreign`. The head `BANNED_MODIFIER_HEADS` retains for
+  "another framework's bare `describe` imported into a spec file" was dead for exactly that case.
+  The same held for `BANNED_EXACT_PATHS = ["expect.soft"]` whenever `expect` came from another
+  assertion library.
+- **Which register failed — and it was neither membership nor resolution.** The constants were
+  correct. The resolver was correct. What failed was the WIRING between the identity answer and the
+  spelling rule, and the fact that a published ban member became UNREACHABLE without anyone saying
+  so. The recipe went on publishing `describe` as a banned head, quoted by value from the exported
+  constant, over a mechanism that could no longer reach it.
+- **Why the suite was green over a ban that was off.** The corpus drove `describe.skip` where
+  `describe` is UNDECLARED — the one spelling the identity route declines anyway, so the spelling
+  rule answered and the row refused. Re-measured here at the entry: `1 finding(s)`, `EXIT=1` — and
+  `tsc --noEmit` **exit 2** on that same file (`TS2593: Cannot find name 'describe'`). The row that
+  kept the suite green rests on a construct the language refuses to compile. A corpus that drives
+  the spelling a head does NOT exist for is a denominator that cannot observe the property it claims.
+
+- **THE HUMAN'S ANSWER, VERBATIM (2026-09-11).**
+
+  ```
+  split-foreign-by-provenance
+  ```
+
+  A named human answered the `checkpoint:decision` this plan's Task 1 put in front of the edit,
+  refusing the two options below.
+
+- **THE TWO OPTIONS REFUSED, WITH THEIR MEASURED CONSEQUENCES.**
+  - `union-head-declared-exemption` (Option A — the review's own literal sketch: consult the
+    spelling rule whenever identity did not decide a FRAMEWORK ban, re-narrowing WR-26 to heads the
+    framework DOES declare). **MEASURED SHORTFALL, which is why it was presented as closing one of
+    two instances:** `@playwright/test` does not declare `describe`, so the `describe.skip` instance
+    closes — but it DOES declare `expect`, so under a head-declared exemption the
+    `expect.soft`-from-another-assertion-library instance stays OPEN at exit 0. Its literal form
+    additionally false-refuses a project's own `./helpers` module exporting a binding named
+    `describe` with a `skip` member.
+  - `delete-retained-members` (Option C — abandon the retention in the open: `describe` leaves
+    `BANNED_MODIFIER_HEADS`, `expect.soft` leaves `BANNED_EXACT_PATHS`, both leave the recipe). A
+    disclosed gate LOWERING, and one that would also remove today's live refusal on the
+    undeclared-`describe` row.
+
+- **THE DISCRIMINANT IS THE EXECUTOR'S CHOICE, NOT THE HUMAN'S, AND IS RECORDED AS SUCH.** The human
+  named the OPTION and named no discriminant. Option B's plan text sketched one — "imported from a
+  module versus declared locally" — and that literal reading was MEASURED WRONG in this session: it
+  false-refuses a project's own `./helpers.ts` exporting a head-named binding, which is an import.
+  An ambient-block-only reading was measured wrong in the other direction: it misses the
+  declaration-FILE shape a `node_modules` package or a hand-written `types/*.d.ts` produces. The
+  form implemented is the one that got every probed arm right:
+
+  > **`foreign` splits by DECLARATION PROVENANCE.** A resolved non-framework callee is
+  > `foreign-declared` when ANY of its declarations comes from another module's DECLARATION SURFACE
+  > — a `declare module "…"` block, or a declaration file (`.d.ts`). It is `foreign-local` when
+  > every declaration is in the program's own authored source. `foreign-declared` hands the call to
+  > the spelling rule; `foreign-local` does not, which is what keeps WR-26's false refusal
+  > impossible rather than merely narrower.
+
+  A symbol declared in several places, one of them a declaration surface, is read as
+  `foreign-declared` — the refusing direction, the same way declaration merging into the framework's
+  own type is read.
+
+- **THE PROBE TABLE THE DISCRIMINANT WAS CHOSEN ON.** Every arm driven at the runnable's own entry
+  against an equipped target, each with its own `tsc --noEmit` exit code, before and after:
+
+  | Arm | Shape | Before | `tsc` | After | Correct? |
+  |---|---|---|---|---|---|
+  | ambient module block | `declare module "other-framework"` exporting `describe.skip` | `0 findings` EXIT=0 | 0 | `1 finding(s)` EXIT=1 | refuse |
+  | ambient module block | `declare module "other-assert"` exporting `expect.soft` | `0 findings` EXIT=0 | 0 | `1 finding(s)` EXIT=1 | refuse |
+  | declaration FILE | `types/other-framework.d.ts`, relative import | `0 findings` EXIT=0 | 0 | `1 finding(s)` EXIT=1 | refuse |
+  | local source module | `./helpers.ts` exporting `describe.skip` | `0 findings` EXIT=0 | 0 | `0 findings` EXIT=0 | accept |
+  | local binding (WR-26) | `helper(1, function (a, it) { return it.skip(a); })` | `0 findings` EXIT=0 | 0 | `0 findings` EXIT=0 | accept |
+  | undeclared | bare `describe.skip`, no declaration at all | `1 finding(s)` EXIT=1 | **2** | `1 finding(s)` EXIT=1 | refuse |
+  | framework | `test.skip` from `@playwright/test` | `1 finding(s)` EXIT=1 | 0 | `1 finding(s)` EXIT=1 | refuse |
+
+- **WHAT D-35 DOES NOT ESTABLISH.**
+  - **It does not decide a head the spec file hand-declares for itself.** `declare const describe: {
+    skip(…): void }` written INSIDE a `.ts` spec is neither a `declare module` block nor a
+    declaration file, so it stays `foreign-local` and is ACCEPTED. MEASURED in this session: `0
+    findings`, `EXIT=0`, `tsc --noEmit` exit 0 — a live, type-checking shape. It is not closed here
+    because the shape is structurally identical to WR-26's own control — both resolve to a
+    `PropertySignature` of an anonymous type literal inside a `declare` statement — so any predicate
+    that refuses one refuses the other. It is DISCLOSED as a register member rather than absorbed.
+  - **It does not exempt a project's own `.d.ts`.** A repository that hand-writes
+    `types/anything.d.ts` declaring a binding named `test` or `describe` with a banned tail is now
+    REFUSED. That is a widening in the refusing direction and it is stated rather than discovered.
+  - **It does not measure the installed-package route.** `@playwright/test` cannot be installed here
+    (CLAUDE.md fixes the dev dependency set), so the `node_modules` shape remains the open
+    `UNKNOWN - verify` carried beside `R-07`. The declaration-FILE arm this decision adds is the
+    same arm that route would travel, and it IS measured — on a `.d.ts` inside the target's own
+    program rather than under `node_modules`.
+  - **It does not move a requirement checkbox, a traceability row or the phase checkbox.** Only a
+    verification round may do that.
+  - **The Windows leg is `R-03`** and remains this phase's standing remainder.
+
+- **Reversibility: ONE-WAY.** The shipped runnable's promise about a whole family of constructs
+  changes, and `browser-uat-recipe.md` publishes that promise to every host the installer
+  materializes into. Reverting restores a state in which a `describe.skip` group or an
+  `expect.soft` assertion, imported from any DECLARED non-Playwright module, is accepted at exit 0
+  by a gate whose own documentation says otherwise.
+
+- **The three places that must agree, asserted in both directions.**
+  1. `resolveBannedModifier`'s published identity vocabulary and the `banPath` wiring that CONSUMES
+     it — `ModifierIdentity`'s arms are a runtime constant and the consumer reads the arm from that
+     constant rather than from a hand-typed literal.
+  2. `BANNED_MODIFIER_HEADS` / `BANNED_EXACT_PATHS` and `agent-factory/checklists/browser-uat-recipe.md`'s
+     published ban set — already asserted equal in both directions, now joined by a second binding:
+     every published head must carry a REFUSING corpus row, keyed through the `row(…)` marker.
+  3. `UNRESOLVABLE_CALLEE_RESIDUALS` and the recipe's boundary list — verbatim, in both directions,
+     including the two members this decision rewrites and adds.
