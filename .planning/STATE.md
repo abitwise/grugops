@@ -6,12 +6,12 @@ current_phase: 31
 current_phase_name: Autonomous Manual Testing
 status: "Phase 31 gap-closure round 7 EXECUTED IN FULL (31-32..31-38, seven plans, sequential on main) and CLOSED-OUT by the round-7 closing measurement 31-38 (2026-09-11). Measured at one commit (3baab0d) against the committed .js with the finding documents own probe spellings. CLOSED by measurement: CR-22 at three of four positions (the fall-through and admitAndAppend now land a note and its GOV-02 event in ONE repository; an ungoverned destination is DECLINED), CR-23 at four positions including both halves of the D-35 discriminant (a declared-foreign describe.skip and expect.soft move 0 findings/EXIT=0 to 1 finding/EXIT=1 with tsc exit 0), CR-24 (an EACCES file reports unopenable and a 9 MiB file reports above-ceiling, arms 3 to 5 spread from the authority), CR-25 (a truncated walk exits 2 with a named cause where it used to accept at exit 0 with zero bytes of stderr), WR-31, WR-32, WR-33, WR-34, WR-36, IN-16, IN-17, IN-18, and the suite REGRESSION. CARRIED with owners: WR-35 (the .temp narrowing is DISCLOSED, not reverted, per D-33 (5)), R-31-33-02 (CR-22 position 4, not drivable from outside the module), and the index-signature shape. 14 round-6 control rows re-driven, all UNMOVED - including the four closures (CR-17, CR-18, CR-19, CR-21) the round-7 verifier accepted rather than measured. The suite was RED at the round base and is GREEN here: 66 files, 4208 passed, 2 skipped, exit 0, recorded as a FLOOR - two of the four Criticals were decided by constants appearing ZERO times in any test file at that base. Frozen floors and all 26 DECIDER_MANIFEST entries re-measured whole. The D-33 coverage one-shot is asserted with both sides derived: 5 of 5 under one predicate, 2 of 5 under a stricter one, disagreement named and carried. Disposition debt 78, down 2. UATX-01..06 stay unchecked and Gaps Found, and the phase stays In Progress: only a verification round may flip a requirement, and an EIGHTH verification round has not run. Record: docs/audit/31-round7-residuals.md."
 stopped_at: Completed 31-38-PLAN.md
-last_updated: "2026-09-11T18:58:32.496Z"
-state_head: 2f8b2bc50b22a48ba00a17884918309427a6a2e2
+last_updated: "2026-09-11T20:52:18.086Z"
+state_head: 245019df4ce5d53158ea9d0e88bae05bcda3e6ff
 progress:
   total_phases: 9
   completed_phases: 6
-  total_plans: 214
+  total_plans: 220
   completed_plans: 214
   percent: 67
 last_activity: 2026-08-19
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-09-07 — after Phase 29.2)
 
 ## Current Position
 
-Phase: 31 (Autonomous Manual Testing) — EXECUTING
+Phase: 31 (Autonomous Manual Testing) — READY TO EXECUTE
 Plan: 8 of 38
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
