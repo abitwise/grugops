@@ -2257,6 +2257,11 @@ file.
   3. **The walk's SEEDING failure joins the same record.** A checker that throws from
      `getExportsOfModule` used to return an empty surface through a bare `catch`; it is now the
      third arm of one truncation vocabulary rather than the one silent early return left behind.
+  4. **A standard-library CONTAINER is descended into by its TYPE ARGUMENTS, never by its own
+     members.** This refinement exists because refinement (2) CREATED a regression and this plan's
+     own adversarial probe measured it — see below. A checker that does not publish
+     `getTypeArguments` is the fourth truncation arm, `container-unreadable`, rather than a quietly
+     narrower walk.
 
 - **THE MEASUREMENT THAT CHANGED THE SHAPE OF THE FIX, and it was not in the plan.** Before any
   narrowing, over the transcribed surface this repository itself ships:
@@ -2293,6 +2298,22 @@ file.
   failure for that spelling. The defect was MASKED, not closed — the alias-headed construction is
   the same defect with the mask removed, and it is a corpus row.
 
+- **THE PROBE OF THIS PLAN'S OWN FIX, AND THE REGRESSION IT FOUND.** Three adversarial probes were
+  run against the fix before it was called done, each asking one question: can a framework
+  declaration be left UNREACHED without the walk reporting a truncation?
+  - **A framework type behind a standard-library container** (`Held[]` on the framework's own
+    `Test`). REPRODUCED: accepted at exit 0 with the narrowing in and `tsc --noEmit` exit 0 — and
+    REFUSED at exit 1 by the artifact at this plan's base. **A regression this plan created**, in
+    the direction that turns a ban off, predicted by the member that disclosed it and then measured
+    rather than left as prose. CLOSED by refinement (4), and kept closed by a corpus row.
+  - **A framework member behind an INDEX SIGNATURE.** REPRODUCED at exit 0 — and reproduced
+    identically at this plan's base, so it is pre-existing. NOT closed: it is the register member
+    named above, with a driven row.
+  - **The walk's inner catches** (`getPropertiesOfType` or `getTypeOfSymbolAtLocation` throwing).
+    Read rather than reproduced: a checker that throws there is a compiler fault this repository
+    cannot synthesise. They remain a silent-subtree shape, and they are recorded as an open item for
+    the next verification round rather than claimed closed.
+
 - **The operational price, named rather than discovered.** A target whose framework surface is deep
   enough to leave anything unexpanded at the bound now BLOCKS a gate that previously passed. In the
   probe family the refusing band moved down from "seven hops refused" to "five hops refused, six
@@ -2306,12 +2327,15 @@ file.
     beside the installed-package member. The headroom numbers above are measurements of the
     TRANSCRIBED surface this repository ships and of nothing else. No claim is made about the
     magnitude on the `node_modules` route.
-  - **It does not reach a framework type that is only behind a standard-library container.** A
-    `TestInfo[]` or a `Promise<TestInfo>` is no longer descended into, so a member declared only
-    there is absent from the surface and a call on it answers foreign — accepted, with nothing
-    emitted at run time. That is the cost of refinement (2) and it is a NAMED register member with
-    a closure criterion, not a silence. The route is reasoned, not measured: no member of the
-    transcribed surface sits behind a container.
+  - **It does not reach a framework member behind an INDEX SIGNATURE.** The walk reads each type's
+    declared PROPERTIES and an index signature is not one, so a `skip` behind
+    `[key: string]: Modifier` is outside the surface at ANY depth: no bound is reached and nothing
+    is truncated. MEASURED at `0 findings` / `EXIT=0` on a file that type-checks clean, and
+    MEASURED IDENTICALLY against the artifact at this plan's base — a pre-existing remainder rather
+    than a cost of this decision. It is a named register member with a closure criterion and its own
+    corpus row, and the row asserts the ACCEPT so the disclosure cannot quietly stop being true. The
+    `test`-headed and `describe`-headed spellings are still refused by the spelling rule, which
+    bounds it.
   - **It does not raise either bound.** Raising a bound is not a substitute for reporting that it
     was reached, and no bound value moved in this plan.
   - **It does not move a requirement checkbox, a traceability row or the phase checkbox.** Only a

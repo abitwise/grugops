@@ -549,3 +549,22 @@ assertion rather than its output believed.
   means walking several earlier plans' clauses and writing their rows, which is a documentation pass
   of its own, and the gate's own remedy text forbids the two shortcuts (narrowing the corpus, moving
   the recorded base). status: open
+
+- **`frameworkSurface`'s inner catches are a silent-subtree shape** (found by plan `31-35`'s own
+  adversarial probe of its own fix, by reading rather than by reproduction). `D-36` made every arm
+  that STOPS the walk report itself — both bounds, and the seeding failure — but two `catch` blocks
+  inside the walk still swallow a subtree with no signal: the one around `getPropertiesOfType` /
+  `getSignaturesOfType` (`catch { continue; }`) and the per-property one around
+  `getTypeOfSymbolAtLocation`. A checker that throws at either leaves framework declarations
+  unreached exactly as a reached bound does, and the run reports a verdict anyway. NOT reproduced:
+  making a real checker throw there needs a compiler fault this repository cannot synthesise, and a
+  fix asserted against an unreproducible premise is the shape this phase keeps logging. Out of scope
+  for `31-35`, whose finding is the BOUNDS. status: open
+
+- **A framework member behind an INDEX SIGNATURE is accepted** (plan `31-35`'s probe; measured at
+  exit 0 at HEAD *and* at the plan's base `140fbf4`, so pre-existing). It is DISCLOSED as a member of
+  `UNRESOLVABLE_CALLEE_RESIDUALS` with a closure criterion and driven by the corpus row
+  `CR25-INDEX-SIGNATURE-open`, which is why it is a remainder rather than an undisclosed defect.
+  Closing it means reading a type's INDEX INFOS beside its properties, which widens the walked set
+  and therefore moves the denominator of every coverage assertion — a separate decision, exactly as
+  the recipe says descending return types is. status: open

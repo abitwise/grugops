@@ -614,7 +614,7 @@ export const UNRESOLVABLE_CALLEE_RESIDUALS = Object.freeze([
     // appeared here or in the recipe, and a bound that was REACHED turned the ban off in silence.
     "THE FRAMEWORK-SURFACE WALK IS BOUNDED IN DEPTH. `SURFACE_DEPTH_BOUND` is six property-or-call links from an export. A bound that is reached is a check that did not run. A node left unexpanded at that depth means framework declarations the walk never reached. A call on one of them would have been decided as foreign rather than by identity. Foreign is accept. So a reached bound is never a verdict. The run takes the could-not-run route the Program member above already names, at exit 2. Its own cause is `SURFACE_TRUNCATED_CAUSE`. That cause names both bound values and the bound that stopped the walk. A LEAF at the bound is not a truncation. A node carrying no properties and no call signatures cut nothing off. Reporting one would make every run that merely reached a `void` return a could-not-run. MEASURED against the transcribed surface this repository ships: seventeen recorded paths, deepest at depth two. The bound is not near it. The INSTALLED package is a different surface and is not measured here, because the dependency set is fixed. That magnitude is an open `UNKNOWN - verify`, carried beside the installed-package member above. What would force it closed: a walk whose cost does not grow with the declared surface. A measurement over a real installed `@playwright/test` showing the bound is never approached would close it too.",
     "THE FRAMEWORK-SURFACE WALK IS BOUNDED IN SIZE. `SURFACE_NODE_BOUND` is 4096 distinct declared types. The bound used to sit in the walk's own loop condition, where a walk that stopped read as a walk that finished. It is now an explicit stop that records itself. It takes the same route the depth bound takes: exit 2 with the truncation cause. The cause names the bound reached. It is the SAME signal from a different limit. A surface that is wide rather than deep leaves exactly as many declarations unreached. MEASURED against the transcribed surface this repository ships: seventeen types against a bound of 4096. What would force it closed: the same measurement over a real installed `@playwright/test` surface, which cannot be taken here.",
-    "THE COMPILER'S OWN STANDARD LIBRARY IS NOT THE FRAMEWORK, and the walk stops at its edge. Before D-36 it did not. Sixteen of the seventeen files identity was decided against were `node_modules/typescript/lib/*.d.ts`. The depth budget was being spent on `String`, `Number`, `Array` and `Promise` rather than on the framework. Narrowing it is what leaves the two bounds any headroom at all. What the narrowing COSTS is this member. A framework type reachable ONLY through a standard-library container, such as a `TestInfo[]` or a `Promise<TestInfo>`, is no longer reached that way. A member declared only behind one is absent from the surface. A call on it answers foreign and is accepted. Nothing is emitted at run time to say so. The route is reasoned rather than measured: no member of the transcribed surface sits behind a container. What would force it closed: descending into a container's TYPE ARGUMENTS while still refusing the container's own members. The structural view of the checker this runnable declares does not read type arguments today.",
+    "A FRAMEWORK MEMBER REACHABLE ONLY THROUGH AN INDEX SIGNATURE is not decided by identity. The surface walk reads each type's declared PROPERTIES, and an index signature is not one of them. A `skip` behind `[key: string]: Modifier` is therefore absent from the surface at ANY depth. No bound is reached, nothing is truncated, and the call answers foreign, which is accept. MEASURED at `0 findings` and EXIT=0 on a file that type-checks clean. MEASURED IDENTICALLY at the commit BEFORE D-36, so it is not a cost of that decision's narrowing. What is open is the alias-headed spelling. The `test`-headed and `describe`-headed spellings are still refused by the spelling rule on head and tail alone. What would force it closed: reading a type's INDEX INFOS beside its properties. The structural view of the checker this runnable declares does not read them today.",
 ]);
 // D-13: the loud skip for an unresolvable parser. One frozen constant, ONE emission point, so a test
 // can assert the emitted text byte-for-byte. It names `typescript` and states the honest outcome.
@@ -734,6 +734,10 @@ export const SURFACE_TRUNCATION_REACHED = Object.freeze({
     // with no signal exactly as the two bounds did. An arm that stops the walk belongs where the
     // other arms that stop the walk are, or the next reader has two places to look.
     "exports-unreadable": "the framework module's own export list, which this checker could not enumerate",
+    // Also not a bound. A checker that cannot be asked what a standard-library container HOLDS leaves
+    // every framework type behind one unreached, and that is the same event as a bound: declarations
+    // the walk did not get to. It is loud rather than quietly narrower.
+    "container-unreadable": "a standard-library container whose type arguments this checker does not publish, so what it holds could not be reached",
 });
 /** Every way the walk can stop early, DERIVED from the record above rather than re-typed. */
 export const SURFACE_TRUNCATION_ARMS = Object.freeze(Object.keys(SURFACE_TRUNCATION_REACHED));
@@ -992,8 +996,22 @@ function frameworkSurface(ts, program, checker, moduleSymbol) {
             // than absorbed — a framework type reachable ONLY through a library container (`TestInfo[]`,
             // `Promise<TestInfo>`) is no longer reached through that route, and that is a named member of
             // `UNRESOLVABLE_CALLEE_RESIDUALS` rather than a silence.
-            if (isStandardLibraryOnly(symbol))
+            if (isStandardLibraryOnly(symbol)) {
+                // …BUT WHAT A CONTAINER HOLDS CAN STILL BE THE FRAMEWORK'S. `TestInfo[]` and
+                // `Promise<TestInfo>` are declared by the library; the type they hold is not. MEASURED
+                // against the committed artifact when this arm was a bare `continue`: a `skip` behind a
+                // `Held[]` on the framework's own `Test` type was ACCEPTED at exit 0 where the pre-D-36
+                // walk refused it — a regression the narrowing itself introduced, in the direction that
+                // turns a ban off. Only the type ARGUMENTS are queued. The container's own members are
+                // still not walked, so the budget stays where the narrowing put it.
+                const held = containerTypeArguments(checker, type);
+                if (held === null)
+                    truncated ??= "container-unreadable";
+                else
+                    for (const arg of held)
+                        queue.push({ type: arg, path, depth: depth + 1 });
                 continue;
+            }
             typePaths.set(symbol, path);
             addDeclarations(symbol);
         }
@@ -1038,6 +1056,27 @@ function frameworkSurface(ts, program, checker, moduleSymbol) {
         }
     }
     return { files, typePaths, truncated };
+}
+/**
+ * D-36: the types a standard-library container HOLDS, or `null` when this checker cannot be asked.
+ *
+ * `null` is the LOUD answer and it is reserved for exactly one case: a checker that does not
+ * publish the member at all. A checker that publishes it answers `[]` for a type that is not a
+ * reference, so an ordinary `string` costs one call and no special case. A THROW is read as "this
+ * type holds nothing" rather than as a truncation, because the alternative — treating every
+ * unreadable type as a stopped walk — would block runs on the ordinary shapes this call is made
+ * over, and a gate that always blocks is a gate nobody reads.
+ */
+function containerTypeArguments(checker, type) {
+    const probe = checker.getTypeArguments;
+    if (typeof probe !== "function")
+        return null;
+    try {
+        return probe.call(checker, type) ?? [];
+    }
+    catch {
+        return [];
+    }
 }
 /**
  * D-36: would expanding this node have reached anything? Asked ONLY at the depth bound, to tell a

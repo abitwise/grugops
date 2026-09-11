@@ -3056,8 +3056,8 @@ describe("uat-spec-integrity — 31-13 CR-07: the resolver's DECLINE set, derive
   const R_NODE_BOUND =
     "THE FRAMEWORK-SURFACE WALK IS BOUNDED IN SIZE. `SURFACE_NODE_BOUND` is 4096 distinct declared types. The bound used to sit in the walk's own loop condition, where a walk that stopped read as a walk that finished. It is now an explicit stop that records itself. It takes the same route the depth bound takes: exit 2 with the truncation cause. The cause names the bound reached. It is the SAME signal from a different limit. A surface that is wide rather than deep leaves exactly as many declarations unreached. MEASURED against the transcribed surface this repository ships: seventeen types against a bound of 4096. What would force it closed: the same measurement over a real installed `@playwright/test` surface, which cannot be taken here.";
 
-  const R_LIBRARY_CONTAINER =
-    "THE COMPILER'S OWN STANDARD LIBRARY IS NOT THE FRAMEWORK, and the walk stops at its edge. Before D-36 it did not. Sixteen of the seventeen files identity was decided against were `node_modules/typescript/lib/*.d.ts`. The depth budget was being spent on `String`, `Number`, `Array` and `Promise` rather than on the framework. Narrowing it is what leaves the two bounds any headroom at all. What the narrowing COSTS is this member. A framework type reachable ONLY through a standard-library container, such as a `TestInfo[]` or a `Promise<TestInfo>`, is no longer reached that way. A member declared only behind one is absent from the surface. A call on it answers foreign and is accepted. Nothing is emitted at run time to say so. The route is reasoned rather than measured: no member of the transcribed surface sits behind a container. What would force it closed: descending into a container's TYPE ARGUMENTS while still refusing the container's own members. The structural view of the checker this runnable declares does not read type arguments today.";
+  const R_INDEX_SIGNATURE =
+    "A FRAMEWORK MEMBER REACHABLE ONLY THROUGH AN INDEX SIGNATURE is not decided by identity. The surface walk reads each type's declared PROPERTIES, and an index signature is not one of them. A `skip` behind `[key: string]: Modifier` is therefore absent from the surface at ANY depth. No bound is reached, nothing is truncated, and the call answers foreign, which is accept. MEASURED at `0 findings` and EXIT=0 on a file that type-checks clean. MEASURED IDENTICALLY at the commit BEFORE D-36, so it is not a cost of that decision's narrowing. What is open is the alias-headed spelling. The `test`-headed and `describe`-headed spellings are still refused by the spelling rule on head and tail alone. What would force it closed: reading a type's INDEX INFOS beside its properties. The structural view of the checker this runnable declares does not read them today.";
 
   const DECLINE_SITE_DISPOSITIONS: Readonly<Record<string, DeclineDisposition>> = Object.freeze({
     // ── calleeDottedPath (the SPELLING rule's shape resolver) ─────────────────────────────────
@@ -3473,13 +3473,14 @@ describe("uat-spec-integrity — 31-13 CR-07: the resolver's DECLINE set, derive
         "It is recorded separately because the two bounds have different remedies and a reader who " +
         "meets one needs to know which one stopped the walk. Driven at the entry by the wide-surface " +
         "row, whose cause names the NODE bound by value.",
-      [R_LIBRARY_CONTAINER]:
+      [R_INDEX_SIGNATURE]:
         "NOT A RESOLUTION RESIDUAL. 31-35 (D-36). The checker resolves the callee perfectly; what " +
-        "the member discloses is a member the SURFACE does not contain, because the walk stops at " +
-        "the standard library's edge and a framework type behind a library container is reached by " +
-        "no other route. It belongs on this axis for the same reason the ambient-route member does: " +
-        "it states the strength of a claim rather than a position in the resolver, and the route is " +
-        "reasoned rather than measured.",
+        "the member discloses is a member the SURFACE does not contain, because the walk reads " +
+        "declared properties and an index signature is not one. It belongs on this axis for the " +
+        "same reason the hand-declared-head member does: it states the reach of a claim rather " +
+        "than a position in the resolver. Unlike the ambient-route member it is MEASURED, at the " +
+        "entry, and measured the same at the commit before D-36 — so the disclosure is not a cost " +
+        "that decision introduced.",
       [R_HAND_DECLARED]:
         "NOT A RESOLUTION RESIDUAL. 31-34 (D-35). The checker resolves this callee perfectly — " +
         "there is no decline anywhere in the resolver — and the identity rule ANSWERS " +
@@ -7915,10 +7916,11 @@ const TAIL = '  await expect(page.getByTestId("invoice-total")).toHaveText("$42.
  * the floor's only failure direction — UNDER-claiming — from becoming a standing allowance. The
  * number is derived by `declaredCorpusRowIds().size`, not counted by hand.
  *
- * 31-35 (2026-09-11): RE-MEASURED again at the commit that added CR-25's rows, 45 -> 53, by the
- * same derivation and for the same reason.
+ * 31-35 (2026-09-11): RE-MEASURED again at the commit that added CR-25's rows, 45 -> 55, by the
+ * same derivation and for the same reason. Two of the eleven rows come from this plan's own
+ * adversarial probe of its own fix rather than from the finding it was written for.
  */
-const CORPUS_ROW_FLOOR = 53;
+const CORPUS_ROW_FLOOR = 55;
 
 /** One row per member of the exported residual register, keyed by that member's INDEX. */
 const RESIDUAL_COVERAGE: Readonly<Record<number, string>> = Object.freeze({
@@ -7942,13 +7944,16 @@ const RESIDUAL_COVERAGE: Readonly<Record<number, string>> = Object.freeze({
   6: "RR-13 a head the spec file hand-`declare`s for itself (NEW, D-35)",
   // 31-35 (D-36): TEN. CR-25 found the walk's own two bounds failing OPEN — a bound that was
   // reached returned a partial surface with no signal, and every declaration past it resolved
-  // `foreign`, which is accept. Both bounds are now published members, and so is the cost of the
-  // narrowing that gave them any headroom: the walk no longer descends into the compiler's own
-  // standard library, and a framework type reachable only through a library container is the one
-  // shape that narrowing does not reach.
+  // `foreign`, which is accept. Both bounds are now published members. The third member is a
+  // DIFFERENT shape in the same family, found by this plan's own adversarial probe and measured
+  // identically at the commit before it: a member behind an INDEX SIGNATURE is outside the walked
+  // set at any depth, so no bound is reached and nothing is truncated. The probe's other finding —
+  // a framework type behind a standard-library container, which the walk's narrowing had made
+  // unreachable — is CLOSED rather than disclosed, by descending into a container's type
+  // arguments, and has a corpus row instead of a member.
   7: "RR-14 the surface walk's DEPTH bound, reached is could-not-run (NEW, D-36)",
   8: "RR-15 the surface walk's NODE bound, reached is could-not-run (NEW, D-36)",
-  9: "RR-16 a framework type reachable only through a standard-library container (NEW, D-36)",
+  9: "RR-16 a framework member reachable only through an INDEX SIGNATURE (NEW, D-36)",
 });
 
 describe("uat-spec-integrity — 31-28 MOVEMENT 1: the corpus's denominator is DERIVED, not typed", () => {
@@ -9989,6 +9994,94 @@ ${TAIL}
     const { SURFACE_TRUNCATED_CAUSE } = await loadChecker();
     expect(r.stderr).toContain(SURFACE_TRUNCATED_CAUSE);
     expect(r.stderr).toContain("NODE bound");
+  });
+
+  it("THE NARROWING'S OWN REGRESSION: a framework member behind a LIBRARY CONTAINER is still refused", async () => {
+    row("CR25-CONTAINER-still-refused");
+    // FOUND BY THIS PLAN'S OWN ADVERSARIAL PROBE, and it was a regression this plan CREATED. With
+    // the standard-library narrowing in and nothing else, `t.many[0].skip(...)` behind a `Held[]`
+    // declared on the framework's own `Test` type was ACCEPTED at exit 0 — measured, `tsc --noEmit`
+    // exit 0 — where the artifact at the plan's base REFUSED it at exit 1. The walk now descends
+    // into a container's type ARGUMENTS, never into the container's own members, so what a library
+    // type HOLDS stays the framework's while the depth budget stays narrow. This row is the control
+    // that keeps the trade honest: delete the descent and it reds.
+    const r = driveSpec(
+      `import { test, expect } from "@playwright/test";
+
+const t = test;
+
+t.many[0].skip("the skipped scenario", () => {});
+
+test("a scenario", async ({ page }) => {
+${TAIL}
+});
+`,
+      {},
+      {
+        "types/held-surface.d.ts":
+          'declare module "@playwright/test" {\n  interface Test {\n    readonly many: GrugHeld[];\n  }\n}\n',
+        "types/held-1.d.ts":
+          "interface GrugHeld {\n  readonly skip: (title: string, body: () => unknown) => void;\n}\n",
+      },
+    );
+    expect(
+      r.status,
+      `a framework member behind a library container was accepted. stdout: ${r.stdout}`,
+    ).toBe(1);
+    expect(r.stdout).toContain("1 finding(s) over 1/1 uat specs checked");
+    expect(r.stdout).toContain("test.many.skip");
+  });
+
+  it("THE DISCLOSED REMAINDER: a member behind an INDEX SIGNATURE is accepted, and says so nowhere", async () => {
+    row("CR25-INDEX-SIGNATURE-open");
+    // The register member this row exists for, driven rather than asserted as prose. The walk reads
+    // declared PROPERTIES; an index signature is not one, so the member is outside the surface at
+    // ANY depth — no bound is reached and nothing is truncated. MEASURED IDENTICALLY against the
+    // artifact at this plan's base (`0 findings`, EXIT=0, `tsc --noEmit` exit 0), which is what
+    // makes it a pre-existing remainder rather than a cost of D-36's narrowing.
+    //
+    // THE ROW ASSERTS THE ACCEPT ON PURPOSE. A disclosed shape whose behaviour nothing observes is
+    // a disclosure that can quietly stop being true; this one reds if the shape is ever closed
+    // without the member being retired with it.
+    const idx = {
+      "types/idx-surface.d.ts":
+        'declare module "@playwright/test" {\n  interface Test {\n    readonly bag: GrugBag;\n  }\n}\n',
+      "types/idx-1.d.ts": "interface GrugBag {\n  [key: string]: GrugMod;\n}\n",
+      "types/idx-2.d.ts":
+        "interface GrugMod {\n  readonly skip: (title: string, body: () => unknown) => void;\n}\n",
+    };
+    const aliased = driveSpec(
+      `import { test, expect } from "@playwright/test";
+
+const t = test;
+
+t.bag.anything.skip("the skipped scenario", () => {});
+
+test("a scenario", async ({ page }) => {
+${TAIL}
+});
+`,
+      {},
+      idx,
+    );
+    expect(aliased.status, `stdout: ${aliased.stdout} stderr: ${aliased.stderr}`).toBe(0);
+    expect(aliased.stdout).toContain("0 findings over 1/1 uat specs checked");
+    // …and the HALF that is not open, in the same construction: the spelling rule still refuses the
+    // `test`-headed spelling on head and tail alone, which is what bounds the disclosure.
+    const plain = driveSpec(
+      `import { test, expect } from "@playwright/test";
+
+test.bag.anything.skip("the skipped scenario", () => {});
+
+test("a scenario", async ({ page }) => {
+${TAIL}
+});
+`,
+      {},
+      idx,
+    );
+    expect(plain.status, `stdout: ${plain.stdout}`).toBe(1);
+    expect(plain.stdout).toContain("`test.bag.anything.skip`");
   });
 
   it("HEADROOM: the compiler's own library is not the framework's surface", async () => {
