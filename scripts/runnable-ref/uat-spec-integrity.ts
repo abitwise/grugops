@@ -388,12 +388,24 @@ export const SKIPPED_DIRECTORIES: readonly string[] = Object.freeze([
 //       The membership question the identity path then asks is the SAME `isBannedModifierCall` —
 //       one membership authority, fed a path canonicalised by identity instead of by spelling.
 //
-//   (2) THE RESOLUTION IS TRI-STATE, AND THE MIDDLE STATE IS THE POINT. `framework` decides the
-//       ban. `foreign` — the checker resolved the symbol and it is NOT the framework's — decides
+//   (2) THE RESOLUTION IS FOUR-STATE, AND THE TWO MIDDLE STATES ARE THE POINT. `framework` decides
+//       the ban. `unresolved` — the checker has no symbol — falls through to the spelling rule
+//       below, which is where D-27's temporal-dead-zone refusals live. Between them sit the two
+//       arms D-35 (2026-09-11) split a single terminal `foreign` answer into.
+//
+//       `foreign-local` — every declaration is in the program's OWN authored source — decides
 //       NOT-banned and the spelling rule is never consulted, which is what makes WR-26's false
-//       refusal impossible rather than merely narrowed. `unresolved` — the checker has no symbol —
-//       falls through to the spelling rule below, which is where D-27's temporal-dead-zone refusals
-//       live.
+//       refusal impossible rather than merely narrowed.
+//
+//       `foreign-declared` — at least one declaration comes from another module's DECLARATION
+//       SURFACE, a `declare module "…"` block or a declaration file — hands the call to the
+//       spelling rule. WHY THAT ARM HAD TO EXIST: `@playwright/test` exports no top-level
+//       `describe`, so a REAL `describe` is always non-framework, and a single terminal `foreign`
+//       answer made `BANNED_MODIFIER_HEADS`'s retained `describe` dead for EXACTLY the case its own
+//       comment retains it for — another framework's bare `describe` imported into a spec file. The
+//       same held for `expect.soft` whenever `expect` came from another assertion library. Both
+//       were reproduced at this runnable's own entry, at `0 findings` / exit 0, on files that
+//       type-check clean. That is `CR-23`, and a named human chose this split in front of the edit.
 //
 //   (3) THE SPELLING RULE IS KEPT BESIDE IDENTITY, DELIBERATELY, AND THE PAIRING IS DISCLOSED. This
 //       is two grammars for one question, which this file's own history argues against — and it was
@@ -605,10 +617,11 @@ const IMPORT_NAMESPACE_MARKER = "*";
 export const UNRESOLVABLE_CALLEE_RESIDUALS: readonly string[] = Object.freeze([
   "A member computed from a non-literal expression is not decided by identity: `test[name](...)` where `name` is a variable. The checker resolves no symbol at that position. The call then falls to the spelling rule. That rule cannot read a member name the source text does not carry.",
   "An option is ENABLED only when the call's first argument is an object literal assigning it the `true` keyword. A variable argument enables nothing, and neither does a variable option value. This runnable parses and never evaluates.",
-  "IDENTITY AND SPELLING ARE TWO RULES FOR ONE QUESTION. The pairing is a decision rather than an oversight. Identity decides every call whose callee the checker resolves. `framework` refuses. `foreign` accepts. In both cases the spelling rule is not consulted. The spelling rule is the import and namespace rename map plus the declared-binding census. It is asked ONLY where the checker resolved no symbol at all. A temporal-dead-zone reference lives exactly there. Keeping it is what preserves D-27's refusals. It is also a second grammar. This file's own history says two grammars can drift apart. What would force it closed: a reproduced case in which the spelling rule REFUSES a construct identity would have called `foreign`. A refusal in that direction is the only way the pairing can be wrong.",
+  "IDENTITY AND SPELLING ARE TWO RULES FOR ONE QUESTION. The pairing is a decision rather than an oversight. D-35 RE-TOOK this member against its own stated closing criterion, which asked for a reproduced case in which the spelling rule REFUSES a construct identity would have called foreign. Two were reproduced. A `describe.skip` group and an `expect.soft` assertion, each imported from a DECLARED non-Playwright module, each accepted at exit 0 by identity and each refused by spelling. The answer was not to delete one of the two rules. It was to split the terminal arm in four. `framework` refuses. `foreign-local` accepts and the spelling rule is not consulted, which is what keeps a helper's own parameter from being canonicalised into a construct the file does not contain. `foreign-declared` and `unresolved` both ASK the spelling rule. So the second grammar is now asked at MORE positions than before, not fewer: where a callee's declaration comes from another module's declaration surface, and where the checker resolved no symbol at all. A temporal-dead-zone reference lives exactly in the second. Keeping the pairing is what preserves D-27's refusals, and it is still two grammars for one question, which this file's own history says can drift apart. What would force it closed: a reproduced case in which the spelling rule refuses a construct identity would have called `foreign-local`. A refusal in that direction is still the only way the pairing can be wrong.",
   "A callee whose head is not an identifier is decided only where the checker resolves it. `({ test }).test.skip(...)` IS refused. Its member's declaration is the framework's own. A call on `this` yields no symbol and no head segment. So does a call on an object whose member the checker cannot resolve. No membership question can be put in either case.",
   "A target repository whose TypeScript cannot create a Program makes NO claim about the specs. The causes are named: no configuration file, one that cannot be read, one that cannot be parsed, or a compiler that throws. It exits 2 with PROGRAM_UNAVAILABLE_REASON and its own cause. A target whose framework declarations do not resolve is the same event and the same exit code. Neither is a pass. Neither is a quieter ban. A smaller ban applied without saying so is a gate lowering. This member replaces exactly that silent degrade. THE GRANULARITY IS WHOLE-RUN. Whole-run is coarser than D-28's per-file boundary. A file's own PARSE stays per-file. The compiler host's reader is wrapped, so one unparseable spec is one could-not-run reason. The denominator floor then names it. The BINDER runs over every root file at once. A single spec whose shape exhausts it blocks the whole run rather than one file. The measurement used a 4,000-link call chain. Blocking is the fail-closed direction and it is never a pass. What would force it closed: a way to bind one file at a time. The compiler's public API does not offer one today.",
   "Identity is decided against the framework's own DECLARATION FILES. The ambient-declaration route is MEASURED. The route means a `declare module \"@playwright/test\"` file inside the target's own program. The installed-package route is NOT measured here. In it those declarations arrive from `node_modules/@playwright/test`. It is reasoned from the same resolution the compiler performs. This repository's dependency set is fixed, so the package cannot be installed to measure it. It is an open `UNKNOWN - verify`, carried beside `R-07`.",
+  "A HEAD THE SPEC FILE HAND-DECLARES FOR ITSELF is not decided. D-35 splits a non-framework callee by whether a declaration comes from another module's surface. A `declare module` block counts. A declaration file counts. A `declare const describe: { skip(...): void }` written inside the spec's own source counts as NEITHER. So it answers `foreign-local` and the call is accepted at exit 0. MEASURED, on a file that type-checks clean. This is not closed because the shape is structurally IDENTICAL to the control that keeps WR-26 closed. Both resolve to a property signature of an anonymous type literal inside a `declare` statement. Any predicate that refuses the one refuses the other, and a false refusal naming a construct the file does not contain is the failure this family has already paid for three times. What would force it closed: a discriminant that separates a hand-declared module-scope head from a helper's own parameter type WITHOUT reading the head's NAME, since reading the name would make the ban set decide its own scope.",
 ]);
 
 // D-13: the loud skip for an unresolvable parser. One frozen constant, ONE emission point, so a test
@@ -666,6 +679,16 @@ interface TsNode {
 }
 interface TsSourceFile extends TsNode {
   readonly fileName: string;
+  /**
+   * D-35: one half of the `foreign` discriminant. A DECLARATION FILE is another module's published
+   * surface — what a package ships, and what a target's own `types/` directory holds — as opposed
+   * to source the program itself authors. Read through the parser's own flag rather than by
+   * matching a `.d.ts` suffix on `fileName`, because the suffix is a convention and the flag is the
+   * compiler's own answer. Declared OPTIONAL and compared against `true` so a parser that does not
+   * publish it degrades to "not a declaration file", which leaves the ambient-module half to answer
+   * and never throws mid-analysis.
+   */
+  readonly isDeclarationFile?: boolean;
 }
 interface TsIdentifier extends TsNode {
   readonly text: string;
@@ -688,6 +711,16 @@ interface TsElementAccessExpression extends TsNode {
 }
 interface TsStringLiteralLike extends TsNode {
   readonly text: string;
+}
+/**
+ * D-35: the other half of the `foreign` discriminant. A `declare module "…"` block declares ANOTHER
+ * module's surface from inside a file the program already has, which is how a target supplies a
+ * framework it has not installed — the exact route this repository's own fixture corpus uses. Its
+ * `name` is a STRING LITERAL for an external module and an identifier for a namespace, and only the
+ * string-literal form is a module declaration in the sense this discriminant is about.
+ */
+interface TsModuleDeclaration extends TsNode {
+  readonly name: TsNode;
 }
 interface TsTryStatement extends TsNode {
   readonly tryBlock: TsNode;
@@ -823,6 +856,14 @@ export interface TsApi {
   isNonNullExpression(n: TsNode): n is TsUnaryLike;
   isElementAccessExpression(n: TsNode): n is TsElementAccessExpression;
   isStringLiteralLike(n: TsNode): n is TsStringLiteralLike;
+  /**
+   * D-35: read at ONE site, to tell a declaration inside a `declare module "…"` block from one in
+   * the program's own source. It is REQUIRED and validated with the rest, by the same argument
+   * D-30 (4) made: a guarded absence here would silently return every foreign callee to the
+   * terminal arm, which is a SMALLER ban applied without saying so, and a gate that quietly runs a
+   * weaker check is worse than one that says it could not run.
+   */
+  readonly isModuleDeclaration: (n: TsNode) => n is TsModuleDeclaration;
   // The three type-assertion node predicates are declared OPTIONAL on purpose. They arrived in the
   // public API later than the rest of this surface (`isSatisfiesExpression` in 4.9,
   // `isTypeAssertionExpression` as the rename of `isTypeAssertion`), and the parser is the TARGET's,
@@ -947,6 +988,8 @@ export function loadTypeScriptFromTarget(repoRoot: string): TsApi | null {
       "isBindingElement",
       "isFunctionDeclaration",
       "isClassDeclaration",
+      // D-35: the provenance half of the split `foreign` answer. Required for the reason above.
+      "isModuleDeclaration",
       "createCompilerHost",
       "createProgram",
       "findConfigFile",
@@ -1262,21 +1305,65 @@ function frameworkSurface(
 }
 
 /**
- * D-30 (2): what the checker says a call's callee IS.
+ * D-35 (2026-09-11): THE ONE AUTHORITY FOR THE IDENTITY VOCABULARY, AND FOR WHAT EACH ANSWER IS
+ * CONSUMED AS. Each arm maps to the SOURCE of the ban operand its answer produces, and the arm-(c)
+ * call site reads its operand from this record rather than from a hand-typed conditional.
  *
- *   `framework`  — the resolved symbol is declared by the framework itself. The `path` is the
- *                  identity-canonical spelling the finding names, and the membership question is
- *                  then put to the SAME `isBannedModifierCall` every other arm asks.
- *   `foreign`    — the checker resolved the symbol and it is NOT the framework's. The call is not
- *                  banned and the spelling rule is NOT consulted, which is what makes WR-26's false
- *                  refusal impossible rather than merely narrower.
- *   `unresolved` — the checker has no symbol at all. Only here does the spelling rule answer, and
- *                  that is where D-27's temporal-dead-zone refusals live.
+ * WHY IT IS A RECORD AND NOT A TERNARY AT THE CALL SITE. `CR-23` is the defect of an arm whose
+ * meaning changed while the expression that CONSUMED it did not — the resolver grew a terminal
+ * `foreign` answer, and the recipe went on publishing a ban that answer had made unreachable. The
+ * same failure one register over is `CR-24`, where a caller DISCARDED the discriminant its own
+ * authority raised. An arm added to this record without a consumption rule does not compile, and an
+ * arm consumed by a rule this record does not carry does not compile either.
+ *
+ *   `"identity"` — ask the membership authority about the path IDENTITY derived.
+ *   `"spelled"`  — ask it about the path the SPELLING rule derived.
+ *   `"none"`     — do not ask. The operand is `null` and the call is accepted.
+ */
+export const IDENTITY_BAN_OPERAND = Object.freeze({
+  framework: "identity",
+  "foreign-declared": "spelled",
+  "foreign-local": "none",
+  unresolved: "spelled",
+} as const);
+
+/** Every arm the identity rule may answer, DERIVED from the record above rather than re-typed. */
+export const MODIFIER_IDENTITY_ARMS: readonly string[] = Object.freeze(
+  Object.keys(IDENTITY_BAN_OPERAND),
+);
+
+export type ModifierIdentityKind = keyof typeof IDENTITY_BAN_OPERAND;
+
+/**
+ * D-30 (2), split by D-35: what the checker says a call's callee IS. FOUR answers, not three.
+ *
+ *   `framework`        — the resolved symbol is declared by the framework itself. The `path` is the
+ *                        identity-canonical spelling the finding names, and the membership question
+ *                        is put to the SAME `isBannedModifierCall` every other arm asks.
+ *   `foreign-declared` — the checker resolved the symbol, it is NOT the framework's, and at least
+ *                        one of its declarations comes from ANOTHER MODULE'S DECLARATION SURFACE: a
+ *                        `declare module "…"` block, or a declaration file. That is another
+ *                        framework's or another library's own export, so the SPELLING rule answers
+ *                        — which is what keeps `describe` and `expect.soft` reachable for exactly
+ *                        the case `BANNED_MODIFIER_HEADS`'s own comment retains them for.
+ *   `foreign-local`    — the checker resolved it to a declaration in the program's OWN authored
+ *                        source: a parameter, a local variable, a local function, a helper module
+ *                        the project wrote. The spelling rule is NOT consulted, which is what makes
+ *                        WR-26's false refusal impossible rather than merely narrower. A helper
+ *                        parameter named like a renamed import can still never be canonicalised
+ *                        into a construct the file does not contain.
+ *   `unresolved`       — the checker has no symbol at all. The spelling rule answers here too, and
+ *                        that is where D-27's temporal-dead-zone refusals live.
+ *
+ * THE DISCRIMINANT IS PROVENANCE, AND THAT CHOICE IS RECORDED RATHER THAN ASSUMED. "Imported versus
+ * declared locally" was measured WRONG in both directions: a project's own `./helpers` module IS an
+ * import, and a `node_modules` package's declarations arrive from a FILE rather than from an
+ * ambient block. D-35 in `31-CONTEXT.md` carries the seven-arm probe table the form was chosen on,
+ * including the one shape it deliberately does NOT close.
  */
 export type ModifierIdentity =
   | { readonly kind: "framework"; readonly path: string }
-  | { readonly kind: "foreign" }
-  | { readonly kind: "unresolved" };
+  | { readonly kind: Exclude<ModifierIdentityKind, "framework"> };
 
 /**
  * A DROP marker for a namespace head, so `pw.test.skip` is named `test.skip`. It carries a space so
@@ -1317,8 +1404,65 @@ export function resolveBannedModifier(
       /* a declaration with no file cannot anchor identity in either direction */
     }
   }
-  if (!fromFramework) return { kind: "foreign" };
+  if (!fromFramework) {
+    // D-35: the `foreign` answer SPLITS here, by declaration provenance. The refusing direction is
+    // taken on a symbol declared in several places — the same way declaration merging into the
+    // framework's own type is read a few lines above — because a member added to another module's
+    // published surface from a local file is still that module's member.
+    for (const declaration of declarations) {
+      if (fromDeclarationSurface(ts, declaration)) return { kind: "foreign-declared" };
+    }
+    return { kind: "foreign-local" };
+  }
   return { kind: "framework", path: identityPath(ts, ctx, callee, symbol) };
+}
+
+/**
+ * D-35: is this declaration part of ANOTHER MODULE'S PUBLISHED SURFACE, rather than of the
+ * program's own authored source?
+ *
+ * TWO ARMS, AND BOTH ARE NEEDED — that is the whole substance of the discriminant's form.
+ *   (a) A DECLARATION FILE. What an installed package ships, and what a target's own `types/`
+ *       directory holds. An ambient-block-only rule would miss it, and it is the arm the
+ *       `node_modules` route travels.
+ *   (b) A `declare module "…"` BLOCK. How a target supplies a framework it has not installed, which
+ *       is the route this repository's own corpus must use because CLAUDE.md fixes the dev
+ *       dependency set. A declaration-file-only rule would miss a block written in a `.ts`.
+ *
+ * WHAT IT DELIBERATELY DOES NOT ANSWER TRUE FOR: a declaration merely sitting in some `declare`
+ * statement. `declare function helper(n: number, f: (a: number, b: { skip: … }) => number)` in a
+ * spec's own source declares a LOCAL helper, and the `skip` the checker resolves there is a member
+ * of an anonymous type literal that helper's own signature spells — WR-26's control exactly. A rule
+ * reading the parser's ambient-context flag would refuse it, which is the fourth false refusal this
+ * family has been asked to pay for. The cost of the narrower rule is that a head a spec file
+ * hand-`declare`s for itself stays accepted; it is DISCLOSED in `UNRESOLVABLE_CALLEE_RESIDUALS`
+ * and driven by its own corpus row rather than absorbed.
+ *
+ * IT DECLINES NOTHING. Every exit is an ANSWER — `true` or `false` — so this helper opens no shape
+ * of its own, and the derived decline-site census stays the set of positions where a symbol or a
+ * path could not be produced at all.
+ */
+function fromDeclarationSurface(ts: TsApi, declaration: TsNode): boolean {
+  // ARM (a). Compared against `true` rather than read as truthy: the member is optional on the
+  // hand-declared structural view, and a parser that omits it must fall to arm (b) rather than
+  // throw. A parser that omits it AND publishes no ambient blocks cannot reach this code at all,
+  // because `isModuleDeclaration` is validated at load and its absence is the loud skip.
+  try {
+    if (declaration.getSourceFile().isDeclarationFile === true) return true;
+  } catch {
+    /* a synthesised declaration carries no file; arm (b) still gets its chance */
+  }
+  // ARM (b). The ancestor walk is bounded by the tree's own height and terminates at the root,
+  // whose `parent` is undefined. Only a STRING-LITERAL name is a module declaration in the sense
+  // this discriminant is about: an identifier name is a namespace, which is ordinary local code.
+  for (let node: TsNode | undefined = declaration; node !== undefined; node = node.parent) {
+    try {
+      if (ts.isModuleDeclaration(node) && ts.isStringLiteralLike(node.name)) return true;
+    } catch {
+      /* one unreadable ancestor costs its own step, never the walk */
+    }
+  }
+  return false;
 }
 
 /** Follow an import or export alias to the symbol it names. A non-alias is returned unchanged. */
@@ -1333,7 +1477,8 @@ function followAlias(ts: TsApi, checker: TsTypeChecker, symbol: TsSymbol): TsSym
 
 /**
  * D-30 (1), closing RR-08: a DESTRUCTURED binding names a LOCAL whose declaration is the spec file,
- * so identity asked of it alone would answer `foreign` for `async ({ page }, { skip }) => skip()`.
+ * so identity asked of it alone would answer `foreign-local` for `async ({ page }, { skip }) =>
+ * skip()`.
  * The symbol identity is about is the PROPERTY the pattern destructures, and the checker produces
  * it from the pattern's own type — including for a renamed destructuring, where the property name
  * and the local name differ.
@@ -2499,26 +2644,30 @@ export function findBannedConstructs(
         renames,
         scope,
       );
-      // D-30 (1) and (2): IDENTITY FIRST, AND ITS THREE ANSWERS ARE THREE DIFFERENT THINGS.
+      // D-30 (1) and (2), SPLIT BY D-35: IDENTITY FIRST, AND ITS FOUR ANSWERS ARE FOUR DIFFERENT
+      // THINGS. The answers themselves are documented once, on `IDENTITY_BAN_OPERAND` and
+      // `ModifierIdentity`; what is decided HERE is only which path the membership authority is
+      // asked about.
       //
-      //   `framework`  — the checker resolved the callee to a member the framework itself declares.
-      //                  Its identity-canonical path is what the membership authority is asked
-      //                  about, and what a finding names.
-      //   `foreign`    — the checker resolved it and it is NOT the framework's. The ban operand is
-      //                  `null`, so the membership authority answers false and THE SPELLING RULE IS
-      //                  NOT CONSULTED. That is what makes WR-26's false refusal impossible rather
-      //                  than narrower: a helper parameter named like a renamed import can no longer
-      //                  be canonicalised into a construct the file does not contain.
-      //   `unresolved` — the checker has no symbol. Only here does the spelling rule answer, which
-      //                  is where D-27's temporal-dead-zone refusals live. The pairing is disclosed
-      //                  in UNRESOLVABLE_CALLEE_RESIDUALS as a residual of its own.
+      // THE OPERAND IS READ FROM THE AUTHORITY, NOT RE-DECIDED HERE. This expression used to be a
+      // nested ternary naming each arm, and CR-23 is exactly what that costs: the resolver's
+      // `foreign` answer changed meaning, the ternary did not, and a published ban member became
+      // UNREACHABLE while the recipe went on publishing it. An arm added to the vocabulary without
+      // a consumption rule now fails to compile instead of silently falling into `spelled` or into
+      // `null` — which are the accepting and the refusing direction respectively, so guessing is
+      // not safe in either direction.
       //
       // The ARMS (a)/(b) operand is deliberately NOT the ban operand: an assertion head is not a
       // framework-identity question — D-14 names the generic `assert`, which no framework declares —
       // so those arms read the identity path when there is one and the spelled path otherwise.
       const identity = resolveBannedModifier(ts, ctx, node);
+      const operand = IDENTITY_BAN_OPERAND[identity.kind];
       const banPath =
-        identity.kind === "framework" ? identity.path : identity.kind === "foreign" ? null : spelled;
+        operand === "identity"
+          ? (identity as { readonly path: string }).path
+          : operand === "spelled"
+            ? spelled
+            : null;
       const dottedPath = identity.kind === "framework" ? identity.path : spelled;
       if (isBannedModifierCall(banPath, chainEnabledOptionKeys(ts, node))) {
         const pos = node.getStart(sf);

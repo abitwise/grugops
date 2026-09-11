@@ -3030,13 +3030,16 @@ describe("uat-spec-integrity — 31-13 CR-07: the resolver's DECLINE set, derive
   const R_NON_LITERAL_OPTION =
     "An option is ENABLED only when the call's first argument is an object literal assigning it the `true` keyword. A variable argument enables nothing, and neither does a variable option value. This runnable parses and never evaluates.";
   const R_TWO_RULES =
-    "IDENTITY AND SPELLING ARE TWO RULES FOR ONE QUESTION. The pairing is a decision rather than an oversight. Identity decides every call whose callee the checker resolves. `framework` refuses. `foreign` accepts. In both cases the spelling rule is not consulted. The spelling rule is the import and namespace rename map plus the declared-binding census. It is asked ONLY where the checker resolved no symbol at all. A temporal-dead-zone reference lives exactly there. Keeping it is what preserves D-27's refusals. It is also a second grammar. This file's own history says two grammars can drift apart. What would force it closed: a reproduced case in which the spelling rule REFUSES a construct identity would have called `foreign`. A refusal in that direction is the only way the pairing can be wrong.";
+    "IDENTITY AND SPELLING ARE TWO RULES FOR ONE QUESTION. The pairing is a decision rather than an oversight. D-35 RE-TOOK this member against its own stated closing criterion, which asked for a reproduced case in which the spelling rule REFUSES a construct identity would have called foreign. Two were reproduced. A `describe.skip` group and an `expect.soft` assertion, each imported from a DECLARED non-Playwright module, each accepted at exit 0 by identity and each refused by spelling. The answer was not to delete one of the two rules. It was to split the terminal arm in four. `framework` refuses. `foreign-local` accepts and the spelling rule is not consulted, which is what keeps a helper's own parameter from being canonicalised into a construct the file does not contain. `foreign-declared` and `unresolved` both ASK the spelling rule. So the second grammar is now asked at MORE positions than before, not fewer: where a callee's declaration comes from another module's declaration surface, and where the checker resolved no symbol at all. A temporal-dead-zone reference lives exactly in the second. Keeping the pairing is what preserves D-27's refusals, and it is still two grammars for one question, which this file's own history says can drift apart. What would force it closed: a reproduced case in which the spelling rule refuses a construct identity would have called `foreign-local`. A refusal in that direction is still the only way the pairing can be wrong.";
   const R_NON_IDENTIFIER_HEAD =
     "A callee whose head is not an identifier is decided only where the checker resolves it. `({ test }).test.skip(...)` IS refused. Its member's declaration is the framework's own. A call on `this` yields no symbol and no head segment. So does a call on an object whose member the checker cannot resolve. No membership question can be put in either case.";
   const R_COULD_NOT_RUN =
     "A target repository whose TypeScript cannot create a Program makes NO claim about the specs. The causes are named: no configuration file, one that cannot be read, one that cannot be parsed, or a compiler that throws. It exits 2 with PROGRAM_UNAVAILABLE_REASON and its own cause. A target whose framework declarations do not resolve is the same event and the same exit code. Neither is a pass. Neither is a quieter ban. A smaller ban applied without saying so is a gate lowering. This member replaces exactly that silent degrade. THE GRANULARITY IS WHOLE-RUN. Whole-run is coarser than D-28's per-file boundary. A file's own PARSE stays per-file. The compiler host's reader is wrapped, so one unparseable spec is one could-not-run reason. The denominator floor then names it. The BINDER runs over every root file at once. A single spec whose shape exhausts it blocks the whole run rather than one file. The measurement used a 4,000-link call chain. Blocking is the fail-closed direction and it is never a pass. What would force it closed: a way to bind one file at a time. The compiler's public API does not offer one today.";
   const R_AMBIENT_ROUTE =
     "Identity is decided against the framework's own DECLARATION FILES. The ambient-declaration route is MEASURED. The route means a `declare module \"@playwright/test\"` file inside the target's own program. The installed-package route is NOT measured here. In it those declarations arrive from `node_modules/@playwright/test`. It is reasoned from the same resolution the compiler performs. This repository's dependency set is fixed, so the package cannot be installed to measure it. It is an open `UNKNOWN - verify`, carried beside `R-07`.";
+
+  const R_HAND_DECLARED =
+    "A HEAD THE SPEC FILE HAND-DECLARES FOR ITSELF is not decided. D-35 splits a non-framework callee by whether a declaration comes from another module's surface. A `declare module` block counts. A declaration file counts. A `declare const describe: { skip(...): void }` written inside the spec's own source counts as NEITHER. So it answers `foreign-local` and the call is accepted at exit 0. MEASURED, on a file that type-checks clean. This is not closed because the shape is structurally IDENTICAL to the control that keeps WR-26 closed. Both resolve to a property signature of an anonymous type literal inside a `declare` statement. Any predicate that refuses the one refuses the other, and a false refusal naming a construct the file does not contain is the failure this family has already paid for three times. What would force it closed: a discriminant that separates a hand-declared module-scope head from a helper's own parameter type WITHOUT reading the head's NAME, since reading the name would make the ban set decide its own scope.";
 
   const DECLINE_SITE_DISPOSITIONS: Readonly<Record<string, DeclineDisposition>> = Object.freeze({
     // ── calleeDottedPath (the SPELLING rule's shape resolver) ─────────────────────────────────
@@ -3175,16 +3178,33 @@ describe("uat-spec-integrity — 31-13 CR-07: the resolver's DECLINE set, derive
           "anchor. It takes the same hand-off as an absent symbol, which is the refusing " +
           "direction, rather than being read as `foreign` and closing the question.",
       },
-    'resolveBannedModifier | Block>IfStatement | !fromFramework | return { kind: "foreign" };': {
-      kind: "decided",
-      reason:
-        "THE ANSWER, NOT A DECLINE — and it opens nothing. The checker resolved the callee to a " +
-        "member declared somewhere OTHER than the framework, so the call is not a framework " +
-        "modifier and the spelling rule is deliberately not consulted. That is what makes WR-26's " +
-        "false refusal impossible rather than narrower. A symbol declared in several files, one " +
-        "of them the framework's, never reaches here: declaration merging is read in the " +
-        "refusing direction.",
-    },
+    'resolveBannedModifier | Block>IfStatement>Block>ForOfStatement>Block>IfStatement | fromDeclarationSurface(ts, declaration) | return { kind: "foreign-declared" };':
+      {
+        kind: "decided",
+        reason:
+          "THE ANSWER, NOT A DECLINE, and D-35's whole substance. The checker resolved the callee " +
+          "to a member declared somewhere OTHER than the framework, and at least one of those " +
+          "declarations comes from another module's DECLARATION SURFACE — a `declare module` " +
+          "block, or a declaration file. That is another framework's or another library's own " +
+          "export, so the call is handed to the SPELLING rule rather than accepted. It opens " +
+          "nothing: the rule it hands to is the one that answers, and the register's two-rule " +
+          "pairing member discloses that hand-off in both of the positions it now happens at. " +
+          "Declaration merging is read in the REFUSING direction here too — one surface " +
+          "declaration among several is enough.",
+      },
+    'resolveBannedModifier | Block>IfStatement>Block | !fromFramework | return { kind: "foreign-local" };':
+      {
+        kind: "decided",
+        reason:
+          "THE ANSWER, NOT A DECLINE — and it opens nothing. Every declaration of this symbol is " +
+          "in the program's OWN authored source: a parameter, a local variable, a local function, " +
+          "a helper module the project wrote. The call is not a framework modifier and the " +
+          "spelling rule is deliberately not consulted. That is what makes WR-26's false refusal " +
+          "impossible rather than narrower, and it is driven by the local-helper control in the " +
+          "same run as D-35's refusing rows. The one construct it accepts that a reader might " +
+          "expect refused — a head the spec file hand-`declare`s for itself — is a NAMED member " +
+          "of the register rather than a silence.",
+      },
 
     // ── throughBindingElement (the destructured-property lookup, RR-08's closure) ──────────────
     "throughBindingElement | Block>IfStatement | declaration === undefined || !ts.isBindingElement(declaration) | return undefined;":
@@ -3423,6 +3443,14 @@ describe("uat-spec-integrity — 31-13 CR-07: the resolver's DECLINE set, derive
         "dependency set and `@playwright/test` cannot be installed to exercise the node_modules " +
         "route. It discloses the strength of a claim rather than a position in the resolver, so it " +
         "belongs on this axis and carries `UNKNOWN - verify` beside `R-07`.",
+      [R_HAND_DECLARED]:
+        "NOT A RESOLUTION RESIDUAL. 31-34 (D-35). The checker resolves this callee perfectly — " +
+        "there is no decline anywhere in the resolver — and the identity rule ANSWERS " +
+        "`foreign-local`, which is an accept. What the member discloses is the BOUNDARY of the " +
+        "discriminant that produced that answer: a `declare const` written in the spec's own " +
+        "source is neither a `declare module` block nor a declaration file. It belongs on this " +
+        "axis for the same reason the alias residual does, and it is driven by its own corpus row " +
+        "at the entry rather than asserted as prose.",
     });
 
     for (const residual of UNRESOLVABLE_CALLEE_RESIDUALS) {
@@ -7862,6 +7890,10 @@ const RESIDUAL_COVERAGE: Readonly<Record<number, string>> = Object.freeze({
   3: "RR-04' a callee whose head the checker cannot resolve (REWRITTEN)",
   4: "RR-11 a target that cannot create a Program is a could-not-run at exit 2 (REPLACES RR-07)",
   5: "RR-12 the installed-package identity route is reasoned, not measured (NEW, UNKNOWN - verify)",
+  // 31-34 (D-35): SEVEN. The split of the terminal `foreign` arm closed two reproduced instances
+  // and left one shape open in the same family, so the register grew by exactly the shape the
+  // change did not reach rather than absorbing it.
+  6: "RR-13 a head the spec file hand-`declare`s for itself (NEW, D-35)",
 });
 
 describe("uat-spec-integrity — 31-28 MOVEMENT 1: the corpus's denominator is DERIVED, not typed", () => {
@@ -9016,15 +9048,16 @@ describe("uat-spec-integrity — 31-28: the five approximations are GONE, derive
     }
   });
 
-  it("the residual register's new CARDINALITY is six, down from nine", async () => {
+  it("the residual register's CARDINALITY is seven — nine before the cutover, six after it, plus D-35's", async () => {
     const { UNRESOLVABLE_CALLEE_RESIDUALS } = await loadChecker();
     // Asserted as its own case with its own message: a member REWORDED and a member REMOVED are
     // different events and must not read as one failure. The old number is written here so the
     // shrink is a measurement in the record rather than a fact only a reader of two commits knows.
     expect(
       UNRESOLVABLE_CALLEE_RESIDUALS.length,
-      "the residual register's size changed; it was 9 before this plan and 6 after",
-    ).toBe(6);
+      "the residual register's size changed; it was 9 before the 31-28 cutover, 6 after it, and 7 " +
+        "after 31-34 (D-35) disclosed the one shape the split does not reach",
+    ).toBe(7);
   });
 
   it("the module names no framework TYPE as a string literal — identity is DERIVED", () => {

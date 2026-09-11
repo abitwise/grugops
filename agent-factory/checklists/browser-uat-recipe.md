@@ -200,21 +200,37 @@ itself `@playwright/test` does not. An alias (`const t = test;`), a renamed impo
 import, a block-scoped shadow and a cross-module re-export are therefore all decided the same way,
 because they all resolve to the same declaration.
 
-THE CHECKER'S ANSWER HAS THREE VALUES, AND THE MIDDLE ONE IS WHY A LEGITIMATE SPEC IS NOT REFUSED.
-When the symbol resolves to something the framework does NOT declare — a helper's own parameter, a
-local object with a `skip` member — the call is accepted and no further rule is consulted, so a
-helper whose parameter happens to share a renamed import's local name cannot be reported as a
-construct the file does not contain. When the checker resolves NOTHING at all, a second, older rule
-answers: the head segment is canonicalised through the framework's own import declarations unless the
-spec ITSELF declares that name nearer than the reference. That second rule is what still refuses a
-reference sitting above its own `let` or `const` declaration, and its ranges differ by declaration
-KIND — a `var` binding hoists to its enclosing function, while a function declaration, a `let`, a
-`const`, a class, a `using` and an `await using` are block-scoped and begin at their own declaration.
+THE CHECKER'S ANSWER HAS FOUR VALUES, AND THE TWO MIDDLE ONES ARE THE WHOLE DIFFERENCE BETWEEN A
+LEGITIMATE SPEC AND A DISABLED ONE. When the symbol resolves to something the framework does NOT
+declare, the next question is WHERE that symbol is declared.
+
+If every declaration is in the program's own authored source — a helper's own parameter, a local
+object with a `skip` member, a helper module the project wrote — the call is accepted and no further
+rule is consulted, so a helper whose parameter happens to share a renamed import's local name cannot
+be reported as a construct the file does not contain.
+
+If any declaration comes from ANOTHER MODULE'S DECLARATION SURFACE — a `declare module "…"` block, or
+a declaration file — the call is handed to the rule below. That is another framework's or another
+assertion library's own export, and it is the case the banned head `describe` exists for at all:
+`@playwright/test` publishes no top-level `describe`, so the head is retained for a `describe`
+imported from somewhere else. The same holds for `expect.soft` when `expect` comes from an assertion
+library that is not Playwright's. A soft assertion records a failure and lets the scenario report
+PASS, so a green lane certifies a scenario whose acceptance criterion failed; which library it came
+from changes nothing about that.
+
+When the checker resolves NOTHING at all, the same second rule answers: the head segment is
+canonicalised through the framework's own import declarations unless the spec ITSELF declares that
+name nearer than the reference. That second rule is what still refuses a reference sitting above its
+own `let` or `const` declaration, and its ranges differ by declaration KIND — a `var` binding hoists
+to its enclosing function, while a function declaration, a `let`, a `const`, a class, a `using` and
+an `await using` are block-scoped and begin at their own declaration.
 
 Read the pairing honestly. Two rules answering one question is a shape this recipe's own history
 argues against, and it was kept anyway because identity alone would lose refusals the second rule
-makes. It is bounded: the second rule is asked ONLY where the first produced no answer, never beside
-it. It is named in the boundary list below, with the one direction in which it could be wrong.
+makes — and, since 2026-09-11, because identity alone was measured LOSING the two refusals above. It
+is bounded: the second rule is asked at exactly two of the four answers, and never beside the other
+two. It is named in the boundary list below, with the one direction in which it could be wrong, and
+so is the one shape this split deliberately does not reach.
 
 A TARGET THAT CANNOT ANSWER BLOCKS, IT DOES NOT PASS. A repository with no TypeScript configuration
 file, one the compiler cannot read or parse, a compiler that throws, or framework declarations that
@@ -273,10 +289,11 @@ Deliberately outside the rule, recorded here so the boundary is written down:
 - A spec body carrying **zero** assertions is **not** refused; vacuous evidence is deferred.
 - A member computed from a non-literal expression is not decided by identity: `test[name](...)` where `name` is a variable. The checker resolves no symbol at that position. The call then falls to the spelling rule. That rule cannot read a member name the source text does not carry.
 - An option is ENABLED only when the call's first argument is an object literal assigning it the `true` keyword. A variable argument enables nothing, and neither does a variable option value. This runnable parses and never evaluates.
-- IDENTITY AND SPELLING ARE TWO RULES FOR ONE QUESTION. The pairing is a decision rather than an oversight. Identity decides every call whose callee the checker resolves. `framework` refuses. `foreign` accepts. In both cases the spelling rule is not consulted. The spelling rule is the import and namespace rename map plus the declared-binding census. It is asked ONLY where the checker resolved no symbol at all. A temporal-dead-zone reference lives exactly there. Keeping it is what preserves D-27's refusals. It is also a second grammar. This file's own history says two grammars can drift apart. What would force it closed: a reproduced case in which the spelling rule REFUSES a construct identity would have called `foreign`. A refusal in that direction is the only way the pairing can be wrong.
+- IDENTITY AND SPELLING ARE TWO RULES FOR ONE QUESTION. The pairing is a decision rather than an oversight. D-35 RE-TOOK this member against its own stated closing criterion, which asked for a reproduced case in which the spelling rule REFUSES a construct identity would have called foreign. Two were reproduced. A `describe.skip` group and an `expect.soft` assertion, each imported from a DECLARED non-Playwright module, each accepted at exit 0 by identity and each refused by spelling. The answer was not to delete one of the two rules. It was to split the terminal arm in four. `framework` refuses. `foreign-local` accepts and the spelling rule is not consulted, which is what keeps a helper's own parameter from being canonicalised into a construct the file does not contain. `foreign-declared` and `unresolved` both ASK the spelling rule. So the second grammar is now asked at MORE positions than before, not fewer: where a callee's declaration comes from another module's declaration surface, and where the checker resolved no symbol at all. A temporal-dead-zone reference lives exactly in the second. Keeping the pairing is what preserves D-27's refusals, and it is still two grammars for one question, which this file's own history says can drift apart. What would force it closed: a reproduced case in which the spelling rule refuses a construct identity would have called `foreign-local`. A refusal in that direction is still the only way the pairing can be wrong.
 - A callee whose head is not an identifier is decided only where the checker resolves it. `({ test }).test.skip(...)` IS refused. Its member's declaration is the framework's own. A call on `this` yields no symbol and no head segment. So does a call on an object whose member the checker cannot resolve. No membership question can be put in either case.
 - A target repository whose TypeScript cannot create a Program makes NO claim about the specs. The causes are named: no configuration file, one that cannot be read, one that cannot be parsed, or a compiler that throws. It exits 2 with PROGRAM_UNAVAILABLE_REASON and its own cause. A target whose framework declarations do not resolve is the same event and the same exit code. Neither is a pass. Neither is a quieter ban. A smaller ban applied without saying so is a gate lowering. This member replaces exactly that silent degrade. THE GRANULARITY IS WHOLE-RUN. Whole-run is coarser than D-28's per-file boundary. A file's own PARSE stays per-file. The compiler host's reader is wrapped, so one unparseable spec is one could-not-run reason. The denominator floor then names it. The BINDER runs over every root file at once. A single spec whose shape exhausts it blocks the whole run rather than one file. The measurement used a 4,000-link call chain. Blocking is the fail-closed direction and it is never a pass. What would force it closed: a way to bind one file at a time. The compiler's public API does not offer one today.
 - Identity is decided against the framework's own DECLARATION FILES. The ambient-declaration route is MEASURED. The route means a `declare module "@playwright/test"` file inside the target's own program. The installed-package route is NOT measured here. In it those declarations arrive from `node_modules/@playwright/test`. It is reasoned from the same resolution the compiler performs. This repository's dependency set is fixed, so the package cannot be installed to measure it. It is an open `UNKNOWN - verify`, carried beside `R-07`.
+- A HEAD THE SPEC FILE HAND-DECLARES FOR ITSELF is not decided. D-35 splits a non-framework callee by whether a declaration comes from another module's surface. A `declare module` block counts. A declaration file counts. A `declare const describe: { skip(...): void }` written inside the spec's own source counts as NEITHER. So it answers `foreign-local` and the call is accepted at exit 0. MEASURED, on a file that type-checks clean. This is not closed because the shape is structurally IDENTICAL to the control that keeps WR-26 closed. Both resolve to a property signature of an anonymous type literal inside a `declare` statement. Any predicate that refuses the one refuses the other, and a false refusal naming a construct the file does not contain is the failure this family has already paid for three times. What would force it closed: a discriminant that separates a hand-declared module-scope head from a helper's own parameter type WITHOUT reading the head's NAME, since reading the name would make the ban set decide its own scope.
 - Completeness against the DECLARED framework surface is asserted in BOTH directions. Forward: every
   spelling the rule refuses is a construct that surface carries and that type-checks against it.
   Reverse: every member reached by walking that surface's declared types with the TypeScript checker
