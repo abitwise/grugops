@@ -237,6 +237,15 @@ file, one the compiler cannot read or parse, a compiler that throws, or framewor
 do not resolve, exits 2 with one named reason and an empty stdout. A check that could not run has
 made no claim about the specs, and it never quietly makes a smaller one.
 
+A SURFACE THE WALK COULD NOT FINISH IS THE SAME EVENT. Identity is decided against the framework's
+declaration files, and those files are found by walking the framework's own exported surface under
+the two bounds the boundary list below publishes by value. If the walk stops at either bound, some
+of the framework's declarations were never reached, and a call on one of them would have been
+decided as foreign — accepted — with nothing said. So the run exits 2 with the truncation cause
+instead, which names both bounds and which one stopped the walk. What a reader does with it is what
+they do with every exit 2: the UAT stays `pending`, the scenario is not signed off, and the reason
+is recorded. It is a loud skip, never a pass.
+
 **The modifier rule.** A modifier call is refused when the head segment of its dotted path is one of
 the banned head segments AND the tail segment is one of the banned modifier segments, or when the
 whole path is one of the banned exact paths. The segments in between — `describe`, `serial`,

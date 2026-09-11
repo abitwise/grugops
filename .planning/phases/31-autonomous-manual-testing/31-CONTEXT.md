@@ -2222,3 +2222,114 @@ file.
      every published head must carry a REFUSING corpus row, keyed through the `row(…)` marker.
   3. `UNRESOLVABLE_CALLEE_RESIDUALS` and the recipe's boundary list — verbatim, in both directions,
      including the two members this decision rewrites and adds.
+
+#### Gap-closure decision — D-36 (2026-09-11, gap-closure round 7, wave 4, plan 31-35)
+
+- **What forced it.** `CR-25` of `31-REVIEW.md`, independently reproduced and bisected TWICE — by
+  `31-REVIEW.md`'s own code review and by `31-VERIFICATION.md` round 7's Behavioral Spot-Check row 6
+  — and re-reproduced in this plan's own scratch against the committed `.js` before any source byte
+  moved. `frameworkSurface` walks the framework's declared surface breadth-first under
+  `SURFACE_NODE_BOUND = 4096` and `SURFACE_DEPTH_BOUND = 6`, and when it reached either it returned a
+  PARTIAL surface with no signal. A declaration file the walk never reached is absent from
+  `ctx.frameworkFiles`, so `resolveBannedModifier` answers `foreign` for every call on it — accept.
+  The function's own comment claimed the bounds mean a large surface `costs a stated amount rather
+  than an open one`. The amount was the ban.
+
+- **Which register failed.** Not membership, not resolution, and not the identity vocabulary D-35
+  had just split. What failed was the DIRECTION a bound degrades in, and the fact that a bound which
+  had been reached was reported NOWHERE: neither `UNRESOLVABLE_CALLEE_RESIDUALS` nor the recipe's
+  boundary list mentioned either bound. This is D-30 (4)'s own doctrine for RR-07 — *a smaller ban
+  applied without saying so is a gate LOWERING rather than a disclosed limit* — failing inside the
+  mechanism that replaced RR-07.
+
+- **THE DECISION.** A BOUND THAT IS REACHED IS A CHECK THAT DID NOT RUN. The walk records which
+  limit stopped it; `createProgramForTarget` turns that into `ok: false` with an exported cause
+  (`SURFACE_TRUNCATED_CAUSE`) naming both bound values and the one reached; the run takes the
+  EXISTING could-not-run boundary at exit 2. No new exit code and no second boundary — D-28 holds
+  the `{0,1,2}` contract at two decided boundaries and this is a new CAUSE at one of them.
+  Three refinements are part of the decision rather than incidental to it:
+  1. **A LEAF at the bound is not a truncation.** A node with no properties and no call signatures
+     cut nothing off. Without this, every run that merely reached a `void` return at depth six would
+     be a could-not-run. The predicate fails CLOSED: a checker that throws for either question
+     answers "expandable".
+  2. **The walk stops at the STANDARD LIBRARY's edge.** See the measurement below. Without this the
+     decision above would have been unshippable.
+  3. **The walk's SEEDING failure joins the same record.** A checker that throws from
+     `getExportsOfModule` used to return an empty surface through a bare `catch`; it is now the
+     third arm of one truncation vocabulary rather than the one silent early return left behind.
+
+- **THE MEASUREMENT THAT CHANGED THE SHAPE OF THE FIX, and it was not in the plan.** Before any
+  narrowing, over the transcribed surface this repository itself ships:
+
+  ```
+  frameworkFiles = 17   — SIXTEEN of them node_modules/typescript/lib/*.d.ts
+  typePaths      = 79
+  deepest path   = expect().toHaveText().__@toStringTag@52.length.toString   — SIX links
+  ```
+
+  The depth bound was therefore ALREADY being reached on an ORDINARY run, by walking `String`,
+  `Number`, `Array` and `Promise`. The headroom this plan set out to measure was not thin, it was
+  ZERO, and a truncation route added without refinement (2) would have turned EVERY run into a
+  could-not-run at exit 2. After the narrowing: **1 framework file, 17 recorded paths, deepest at
+  depth 2** — against bounds of 4096 and 6.
+
+- **THE RECONCILED BOUNDARY NUMBER, WITH ITS CONSTRUCTION.** The construction is written into
+  `uat-spec-integrity.test.ts`'s own block header and is: one `interface GrugDeep<i>` per FILE, an
+  augmenting file that hangs the chain off the framework's `Test` type, and a LOCAL-ALIAS head
+  (`const t = test`). In THIS construction the pre-fix flip pair is **7 hops refused / 8 hops
+  accepted at exit 0 with ZERO bytes on stderr**, `tsc --noEmit` exit 0 for both — which is
+  `31-VERIFICATION.md` row 6's number, not `31-REVIEW.md`'s 6/7. Both prior measurements are
+  correct about their own layouts and both demonstrate the same defect; neither prior document is
+  edited. The difference is WHERE the last hop's `skip` is declared: a `skip` sharing a file with
+  the interface that owns it is reached when that interface is VISITED (depth ≤ 6), one hop later
+  than a `skip` whose file is reached only when its owner is EXPANDED (depth < 6). The confound both
+  prior rounds name is re-established BY MEASUREMENT here: the same chain with every hop in ONE file
+  refused at every length to eleven hops, because `frameworkFiles` holds FILES.
+
+- **A SECOND RECONCILIATION THE PLAN DID NOT ANTICIPATE.** With a plain `test` head, CR-25's filed
+  spelling no longer reproduces at this base: measured at chain lengths 6 through 9, `1 finding(s)`
+  / `EXIT=1` at EVERY length. D-35's `foreign-declared` arm asks the SPELLING rule, and
+  `test`…`skip` is banned on head and tail alone, so the spelling rule backstops the identity
+  failure for that spelling. The defect was MASKED, not closed — the alias-headed construction is
+  the same defect with the mask removed, and it is a corpus row.
+
+- **The operational price, named rather than discovered.** A target whose framework surface is deep
+  enough to leave anything unexpanded at the bound now BLOCKS a gate that previously passed. In the
+  probe family the refusing band moved down from "seven hops refused" to "five hops refused, six
+  and beyond could-not-run". That price is exactly what D-30's reversibility paragraph already
+  accepted for the could-not-run route, and it is the fail-closed direction UATX-05 names.
+
+- **WHAT D-36 DOES NOT ESTABLISH.**
+  - **It does not measure the INSTALLED package's surface.** `@playwright/test` cannot be installed
+    here (CLAUDE.md fixes the dev dependency set at `{typescript, vitest}`), so whether a real
+    released Playwright surface approaches either bound is an open `UNKNOWN - verify`, carried
+    beside the installed-package member. The headroom numbers above are measurements of the
+    TRANSCRIBED surface this repository ships and of nothing else. No claim is made about the
+    magnitude on the `node_modules` route.
+  - **It does not reach a framework type that is only behind a standard-library container.** A
+    `TestInfo[]` or a `Promise<TestInfo>` is no longer descended into, so a member declared only
+    there is absent from the surface and a call on it answers foreign — accepted, with nothing
+    emitted at run time. That is the cost of refinement (2) and it is a NAMED register member with
+    a closure criterion, not a silence. The route is reasoned, not measured: no member of the
+    transcribed surface sits behind a container.
+  - **It does not raise either bound.** Raising a bound is not a substitute for reporting that it
+    was reached, and no bound value moved in this plan.
+  - **It does not move a requirement checkbox, a traceability row or the phase checkbox.** Only a
+    verification round may do that.
+  - **The Windows leg is `R-03`** and remains this phase's standing remainder.
+
+- **Reversibility: COSTLY, one-way in the blocking direction.** The runnable's public contract grows:
+  a target whose framework surface exceeds a bound now blocks. Reverting restores a bounded walk
+  that turns the ban off past its own bound with zero bytes of diagnostic — and, because refinement
+  (2) travels with it, restores a walk that spends its whole depth budget inside the compiler's
+  standard library.
+
+- **The three places that must agree, asserted in both directions.**
+  1. `frameworkSurface`'s truncation vocabulary and the cause `createProgramForTarget` returns —
+    `SURFACE_TRUNCATION_REACHED` is one record, `SURFACE_TRUNCATION_ARMS` is derived from it, and an
+    arm without a sentence does not compile.
+  2. `UNRESOLVABLE_CALLEE_RESIDUALS` and the recipe's boundary list — verbatim, in both directions,
+    now including the two bounds and the narrowing's cost. Watched RED in BOTH directions at this
+    plan's close (a member with no bullet; a bullet with no member) and reverted.
+  3. The published bounds and the corpus — the boundary PAIR is driven at the runnable's own entry,
+    refused just under and could-not-run just over, so the direction cannot regress to an accept.
