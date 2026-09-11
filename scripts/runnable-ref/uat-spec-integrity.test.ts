@@ -60,6 +60,14 @@ interface ProgramContextView {
 
 interface CheckerModule {
   readonly UAT_SPEC_GLOB_SUFFIX: string;
+  // 31-35 (D-36): the framework-surface walk's two bounds, the vocabulary for WHICH one stopped the
+  // walk, and the one sentence a stopped walk returns as its could-not-run cause.
+  readonly SURFACE_NODE_BOUND: number;
+  readonly SURFACE_DEPTH_BOUND: number;
+  readonly SURFACE_TRUNCATION_REACHED: Readonly<Record<string, string>>;
+  readonly SURFACE_TRUNCATION_ARMS: readonly string[];
+  readonly SURFACE_TRUNCATED_CAUSE: string;
+  surfaceTruncatedCause(reached: string): string;
   readonly PARSER_ABSENT_MARKER: string;
   readonly BROWSER_ABSENT_MARKER: string;
   readonly BROWSER_ABSENT_STAGES: Readonly<Record<"parser_package" | "browser_binaries", string>>;
@@ -9611,5 +9619,305 @@ test.skip("a scenario nobody runs", () => {
       declared.has(reachRowIdForHead(seeded)),
       "PREMISE: the seeded head already has a row, so the check below would be vacuous",
     ).toBe(false);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// 31-35 (CR-25 / D-36) — A BOUND THAT IS REACHED IS A CHECK THAT DID NOT RUN
+//
+// `frameworkSurface` walks the framework's declared surface breadth-first under two bounds
+// (`SURFACE_NODE_BOUND`, `SURFACE_DEPTH_BOUND`) and, before this plan, returned a PARTIAL surface
+// with no signal when it reached either. A declaration the walk never reached is absent from
+// `ctx.frameworkFiles`, so `resolveBannedModifier` answers `foreign` for every call on it — and a
+// bound that is reached becomes a ban that is off. The function's own comment claimed the bounds
+// mean a large surface "costs a stated amount rather than an open one". The amount was the ban.
+//
+// THE CONSTRUCTION, WRITTEN DOWN, BECAUSE THE NUMBER IS A PROPERTY OF IT. Two prior rounds bisected
+// this defect and cited two different boundaries (`31-REVIEW.md` 6/7, `31-VERIFICATION.md` 7/8)
+// because they declared the surface across files differently. The construction below is ONE layout,
+// stated here in full, and every number in this block belongs to it:
+//
+//   types/deep-surface.d.ts   `declare module "@playwright/test" { interface Test { readonly deep:
+//                             GrugDeep1 } }` — the AUGMENTING file, and the only one of these files
+//                             that is in `frameworkFiles` unconditionally (it declares the module).
+//   types/deep-<i>.d.ts       ONE global `interface GrugDeep<i>` per FILE, i = 1..j. Each carries
+//                             `readonly p: GrugDeep<i+1>`, except the last, which carries `skip`.
+//   e2e/uat/p.uat.spec.ts     `const t = test;` then `t.deep.p…p.skip("…", () => {})`.
+//
+// WHY ONE INTERFACE PER FILE. `frameworkFiles` holds FILES, so a chain whose hops all live in one
+// file is added whole the moment the walk reaches the first of them — the depth bound is never the
+// variable. That confound is MEASURED below rather than assumed, and it is the fact
+// `31-VERIFICATION.md` spot-check row 6 records as ruled out by construction.
+//
+// WHY THE HEAD IS A LOCAL ALIAS. `D-35` (31-34) made the `foreign-declared` arm ASK the spelling
+// rule, and the spelling rule refuses `test.<anything>.skip` on head and tail alone. Measured at
+// this plan's base, with a plain `test` head, at chain lengths 6 through 9: `1 finding(s)` / EXIT=1
+// at EVERY length — the spelling rule backstops the identity failure, so CR-25's literal shape no
+// longer reproduces as filed. `const t = test` is not an import rename, so the spelling rule reads
+// the head `t`, which is in no ban set; identity rewrites the same head to `test` from the walked
+// surface. That is the pair: identity refuses it, spelling does not, and the bound decides which
+// one answers.
+//
+// THE RE-BISECTION, at the base (`140fbf4`), per-file layout, alias head. Every row's own
+// `tsc --noEmit` over the probe target exited 0, so no row rests on a construct the language
+// refuses:
+//
+//   j  hops  callee                             tsc  stdout                        exit  stderr
+//   3  4     t.deep.p.p.skip                    0    1 finding(s) over 1/1          1     0 bytes
+//   4  5     t.deep.p.p.p.skip                  0    1 finding(s) over 1/1          1     0 bytes
+//   5  6     t.deep.p.p.p.p.skip                0    1 finding(s) over 1/1          1     0 bytes
+//   6  7     t.deep.p.p.p.p.p.skip              0    1 finding(s) over 1/1          1     0 bytes
+//   7  8     t.deep.p.p.p.p.p.p.skip            0    0 findings over 1/1            0     0 bytes
+//   8  9     t.deep.p.p.p.p.p.p.p.skip          0    0 findings over 1/1            0     0 bytes
+//   9  10    t.deep.p.p.p.p.p.p.p.p.skip        0    0 findings over 1/1            0     0 bytes
+//
+// THE FLIP PAIR IS j=6 / j=7 — seven hops refused, eight hops accepted at exit 0 with ZERO bytes on
+// stderr. In THIS construction the boundary is 7/8 hops after `test`, which is `31-VERIFICATION.md`
+// row 6's number and not `31-REVIEW.md`'s 6/7. Both prior measurements are correct about their own
+// layouts and both demonstrate the same defect; neither prior document is edited. The difference is
+// WHERE the last hop's interface is declared: a `skip` declared in the same file as the interface
+// that owns it is reached when that interface is VISITED (depth <= 6), one hop later than a `skip`
+// whose file is reached only when its owner is EXPANDED (depth < 6).
+//
+// THE CONFOUND, MEASURED AT THE BASE rather than argued: the SAME chain at j=6..8 with every
+// interface in ONE file reported `1 finding(s)` / EXIT=1 at every length. A single-file chain never
+// reaches the bound, so the FILE LAYOUT is the variable and the bisection above means what it says.
+//
+// WHAT THE FIX CHANGES, AND THE PRICE IT CHARGES (D-36, plan 31-35 Task 2). A walk that stopped
+// early reports `truncated` and the run exits 2 with its own cause. The refusing half therefore
+// moves DOWN: a chain long enough to leave anything unexpanded at the bound is now a could-not-run
+// rather than a refusal, so j=5 and j=6 — refused at the base — become exit 2. That is the
+// operational price D-30's reversibility paragraph already accepted for this route: a gate that
+// blocks is not a gate that passes quietly over a check it did not run.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+/** The file that hangs the probe chain off the framework's own `Test` type. It augments the module. */
+const DEEP_AUGMENT =
+  'declare module "@playwright/test" {\n  interface Test {\n    readonly deep: GrugDeep1;\n  }\n}\n';
+
+/** One `interface GrugDeep<i>`: a `p` hop, or the terminal `skip` when it is the last. */
+function deepInterface(i: number, last: number): string {
+  return i < last
+    ? `interface GrugDeep${i} {\n  readonly p: GrugDeep${i + 1};\n}\n`
+    : `interface GrugDeep${i} {\n  readonly skip: (title: string, body: () => unknown) => void;\n}\n`;
+}
+
+/** The chain's declaration files, in the layout named. See the block header for why layout matters. */
+function deepSurfaceFiles(j: number, layout: "per-file" | "single-file"): Record<string, string> {
+  const files: Record<string, string> = { "types/deep-surface.d.ts": DEEP_AUGMENT };
+  if (layout === "per-file") {
+    for (let i = 1; i <= j; i++) files[`types/deep-${i}.d.ts`] = deepInterface(i, j);
+  } else {
+    let all = "";
+    for (let i = 1; i <= j; i++) all += deepInterface(i, j);
+    files["types/deep-all.d.ts"] = all;
+  }
+  return files;
+}
+
+/** The spec: `j` hops after `test`, through a local alias head or the plain framework head. */
+function deepChainSpec(j: number, head: "alias" | "plain"): string {
+  const chain = ["deep", ...Array(j - 1).fill("p"), "skip"].join(".");
+  return `import { test, expect } from "@playwright/test";
+
+${head === "alias" ? "const t = test;\n\n" : ""}${head === "alias" ? "t" : "test"}.${chain}("the skipped scenario", () => {});
+
+test("a scenario", async ({ page }) => {
+${TAIL}
+});
+`;
+}
+
+/** Drive one member of the chain family at the runnable's own entry, in an equipped probe root. */
+function driveDeepChain(
+  j: number,
+  layout: "per-file" | "single-file" = "per-file",
+  head: "alias" | "plain" = "alias",
+): { status: number | null; stdout: string; stderr: string } {
+  return driveSpec(deepChainSpec(j, head), {}, deepSurfaceFiles(j, layout));
+}
+
+describe("uat-spec-integrity — 31-35 CR-25: a truncated framework walk is a COULD-NOT-RUN", () => {
+  it("UNDER the bound: the chain is REFUSED by identity, at exit 1", () => {
+    row("CR25-UNDER-BOUND-refused");
+    // The refusing half of the boundary PAIR. The head is a local alias, so the SPELLING rule reads
+    // `t` and bans nothing; this refusal is identity's, over a surface the walk reached whole.
+    const r = driveDeepChain(4);
+    expect(r.status, `the under-bound chain was not refused. stdout: ${r.stdout}`).toBe(1);
+    expect(r.stdout).toContain("1 finding(s) over 1/1 uat specs checked");
+    // The identity-canonical spelling, with the local alias head rewritten from the walked surface.
+    expect(r.stdout).toContain("test.deep.p.p.p.skip");
+  });
+
+  it("OVER the bound: the walk stops early and the run COULD NOT RUN, at exit 2", async () => {
+    row("CR25-OVER-BOUND-could-not-run");
+    // MEASURED at this plan's base (`140fbf4`) at this exact length: `0 findings over 1/1 uat specs
+    // checked`, EXIT=0, ZERO bytes on stderr, `tsc --noEmit` EXIT=0. A live bypass that type-checks
+    // clean, and the one an eight-hop framework surface buys anywhere.
+    const r = driveDeepChain(7);
+    expect(
+      r.status,
+      `a walk that stopped at its own bound reported a verdict anyway. stdout: ${r.stdout} stderr: ${r.stderr}`,
+    ).toBe(2);
+    const { PROGRAM_UNAVAILABLE_REASON, SURFACE_TRUNCATED_CAUSE } = await loadChecker();
+    expect(r.stderr).toContain(PROGRAM_UNAVAILABLE_REASON);
+    expect(r.stderr).toContain(SURFACE_TRUNCATED_CAUSE);
+    // WHICH bound, named. A cause that says only "a bound" leaves a reader to guess which limit to
+    // raise, and the two have different remedies.
+    expect(r.stderr).toContain("DEPTH bound");
+    // A could-not-run is NOT a refusal: it claims nothing about the specs, so it reports no count.
+    expect(
+      r.stdout.includes("finding(s)"),
+      `a could-not-run reported findings. stdout: ${r.stdout}`,
+    ).toBe(false);
+  });
+
+  it("THE DIRECTION: the band never regresses to an ACCEPT, at any chain length", async () => {
+    row("CR25-BAND-no-accept");
+    // The pair proves two points; this proves the SHAPE between and beyond them. A single-sided row
+    // proves the refusal and says nothing about what happens past it, which is exactly the shape
+    // this defect lived in. Every length is either a refusal or a could-not-run — never a pass.
+    const seen: Record<number, number | null> = {};
+    for (const j of [3, 4, 5, 6, 7, 8]) {
+      const r = driveDeepChain(j);
+      seen[j] = r.status;
+      expect([1, 2], `chain length ${j} was ACCEPTED. stdout: ${r.stdout}`).toContain(r.status);
+      // D-28's partition, re-measured on this new outcome rather than assumed.
+      expect([0, 1, 2], `chain length ${j} left the D-12 contract`).toContain(r.status);
+    }
+    // MONOTONE: once the walk starts stopping early it does not start finishing again.
+    const lengths = Object.keys(seen).map(Number).sort((a, b) => a - b);
+    let sawTwo = false;
+    for (const j of lengths) {
+      if (seen[j] === 2) sawTwo = true;
+      else
+        expect(sawTwo, `chain length ${j} refused AFTER a longer-reaching length could not run`).toBe(
+          false,
+        );
+    }
+  });
+
+  it("THE CONFOUND: the report does not depend on how the surface is declared across FILES", async () => {
+    row("CR25-CONFOUND-single-file-layout");
+    // MEASURED at the base: this same chain, with every hop declared in ONE file, reported `1
+    // finding(s)` / EXIT=1 at j=6, 7 and 8 — the bound was never reached, because `frameworkFiles`
+    // holds FILES and one file is added whole. That is why the bisection above is a statement about
+    // a LAYOUT and why the layout is written down. After D-36 the walk still stops at its bound
+    // here, and it says so: the report is about the WALK, not about the file layout.
+    const r = driveDeepChain(7, "single-file");
+    expect(
+      r.status,
+      `the single-file layout hid the truncation. stdout: ${r.stdout} stderr: ${r.stderr}`,
+    ).toBe(2);
+    const { SURFACE_TRUNCATED_CAUSE } = await loadChecker();
+    expect(r.stderr).toContain(SURFACE_TRUNCATED_CAUSE);
+  });
+
+  it("THE SPELLING BACKSTOP: a plain `test` head is refused by SPELLING, so CR-25's filed shape is not the live one", async () => {
+    row("CR25-SPELLING-BACKSTOP-plain-head");
+    // MEASURED at the base at j=6..9 with a plain `test` head: `1 finding(s)` / EXIT=1 at every
+    // length. D-35's `foreign-declared` arm asks the spelling rule, and `test`…`skip` is banned on
+    // head and tail alone — so the identity failure was INVISIBLE through this spelling. Recording
+    // it is the difference between "the defect is closed" and "one spelling of it was masked by a
+    // second rule": the alias-headed row above is the same defect with the mask removed.
+    const r = driveDeepChain(7, "per-file", "plain");
+    expect(
+      r.status,
+      `the plain-headed chain still reported a verdict over a walk that stopped early — at the base ` +
+        `this was EXIT=1, a refusal the SPELLING rule produced over an identity answer that had ` +
+        `already failed. stdout: ${r.stdout} stderr: ${r.stderr}`,
+    ).toBe(2);
+    const { SURFACE_TRUNCATED_CAUSE } = await loadChecker();
+    expect(r.stderr).toContain(SURFACE_TRUNCATED_CAUSE);
+  });
+
+  it("PREMISE: both members of the flip pair TYPE-CHECK, so neither rests on a refused construct", () => {
+    row("CR25-PREMISE-pair-typechecks");
+    const host = hostTypeScript as typeof import("typescript");
+    for (const j of [4, 7]) {
+      const dir = mkTmp();
+      const files = { ...deepSurfaceFiles(j, "per-file"), "p.uat.spec.ts": deepChainSpec(j, "alias") };
+      const roots: string[] = [join(FIXTURES, "playwright-test.d.ts")];
+      for (const [rel, body] of Object.entries(files)) {
+        const abs = join(dir, rel.replace("types/", ""));
+        mkdirSync(dirname(abs), { recursive: true });
+        writeFileSync(abs, body, "utf8");
+        roots.push(abs);
+      }
+      const program = host.createProgram(roots, {
+        strict: true,
+        noEmit: true,
+        target: host.ScriptTarget.ES2022,
+        module: host.ModuleKind.ESNext,
+        moduleResolution: host.ModuleResolutionKind.Bundler,
+        skipLibCheck: true,
+      });
+      const diagnostics = host.getPreEmitDiagnostics(program);
+      expect(
+        diagnostics.map((d) => `${d.file?.fileName}: TS${d.code}`),
+        `chain length ${j} does not type-check — the measurement would be about the compiler, not the ban`,
+      ).toEqual([]);
+    }
+  });
+
+  it("THE NODE BOUND sets the same signal as the DEPTH bound, driven by a WIDE surface", async () => {
+    row("CR25-NODE-BOUND-could-not-run");
+    // Driven by CONSTRUCTION rather than through an injected bound: 4,200 distinct declared types at
+    // depth two, so `typePaths` exhausts `SURFACE_NODE_BOUND` (4096) long before the depth bound is
+    // in reach. The spec is CLEAN — the point is that a run whose surface was not fully walked makes
+    // no claim about the specs even when it found nothing, which is the whole difference between a
+    // could-not-run and a pass. MEASURED at the base: `0 findings` / EXIT=0 / 0 bytes on stderr.
+    const WIDE = 4200;
+    let widest = "interface GrugWide {\n";
+    for (let i = 0; i < WIDE; i++) widest += `  readonly m${i}: GrugW${i};\n`;
+    widest += "}\n";
+    for (let i = 0; i < WIDE; i++) widest += `interface GrugW${i} { readonly v${i}: string; }\n`;
+    const r = driveSpec(
+      `import { test, expect } from "@playwright/test";
+
+test("a scenario", async ({ page }) => {
+${TAIL}
+});
+`,
+      {},
+      {
+        "types/wide-surface.d.ts":
+          'declare module "@playwright/test" {\n  interface Test {\n    readonly wide: GrugWide;\n  }\n}\n',
+        "types/wide-all.d.ts": widest,
+      },
+    );
+    expect(
+      r.status,
+      `the node bound was reached and the run reported a verdict anyway. stdout: ${r.stdout}`,
+    ).toBe(2);
+    const { SURFACE_TRUNCATED_CAUSE } = await loadChecker();
+    expect(r.stderr).toContain(SURFACE_TRUNCATED_CAUSE);
+    expect(r.stderr).toContain("NODE bound");
+  });
+
+  it("HEADROOM: the compiler's own library is not the framework's surface", async () => {
+    row("CR25-LIB-NOT-FRAMEWORK");
+    // MEASURED at the base, over the transcribed surface this repository ships:
+    //   typePaths.size = 79      frameworkFiles = 17, SIXTEEN of them node_modules/typescript/lib/*
+    //   deepest recorded path = `expect().toHaveText().__@toStringTag@52.length.toString` — SIX
+    //   property-and-call links, which IS `SURFACE_DEPTH_BOUND`.
+    // So the depth bound was already being reached on an ORDINARY run, by walking `String`,
+    // `Number`, `Array` and `Promise`. A truncation route added without narrowing the walk would
+    // have turned EVERY run into a could-not-run: the headroom was not thin, it was zero, and the
+    // reason was that the budget was being spent outside the framework entirely.
+    const root = mkTargetRepo({ "e2e/uat/subject.uat.spec.ts": "clean.uat.spec.ts" });
+    const ctx = await programContextFor(root, ["e2e/uat/subject.uat.spec.ts"]);
+    expect(ctx.frameworkFiles.size, "PREMISE: the framework file set is empty").toBeGreaterThan(0);
+    const lib = [...ctx.frameworkFiles].filter((f) => /[\\/]typescript[\\/]lib[\\/]/.test(f));
+    expect(
+      lib,
+      `the compiler's own standard library is counted as the framework's declaration surface: ${lib.join(", ")}`,
+    ).toEqual([]);
+    // …and the walk now has room: the numbers this plan's headroom claim is made of.
+    expect(ctx.typePaths.size, "PREMISE: the walk recorded no paths at all").toBeGreaterThan(0);
+    expect(
+      ctx.typePaths.size,
+      "the transcribed surface is within a factor of four of the node bound — the headroom claim is stale",
+    ).toBeLessThan(1024);
   });
 });
