@@ -537,3 +537,15 @@ the committed `hooks/hook-entry.js`, matched zero positions, and reported "0 of 
 instance 4's exact shape for the third time in this phase. Caught by the printed denominator
 disagreeing with the printed position list; the derivation was rebuilt with a non-zero premise
 assertion rather than its output believed.
+
+## Deferred Items
+
+- `npm run check:diff-disposition` is a **pre-existing FAIL** on this tree, unrelated to plan 31-33.
+  It compares against the recorded base `4d2b8f0` and reports 78 findings over 39 elements after this
+  plan (80 at the round-7 base `78a9d16`, and the count 31-31 recorded and 31-32 re-measured). Every
+  remaining finding names a clause in a file this plan did not touch — `05-pr-quality-gate.md`,
+  `17-task-claim.md`, and the frozen `## Stop conditions` region of `18-context-compaction.md` that
+  `31-29` wrote. Zero findings name a clause plan 31-33 authored. Out of scope here: clearing them
+  means walking several earlier plans' clauses and writing their rows, which is a documentation pass
+  of its own, and the gate's own remedy text forbids the two shortcuts (narrowing the corpus, moving
+  the recorded base). status: open
