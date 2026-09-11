@@ -2357,3 +2357,131 @@ file.
     plan's close (a member with no bullet; a bullet with no member) and reverted.
   3. The published bounds and the corpus — the boundary PAIR is driven at the runnable's own entry,
     refused just under and could-not-run just over, so the direction cannot regress to an accept.
+
+#### Gap-closure decision — D-37 (2026-09-11, gap-closure round 7, wave 5, plan 31-36)
+
+- **What forced it.** `WR-31`, `WR-32` and `IN-18` of `31-REVIEW.md`, each re-driven in this plan's
+  own scratch against the committed artifacts before any source byte moved.
+  - `WR-31`: `scripts/check-platform-shapes.ts`'s own header states that the CONTROL at each
+    position "must NOT be refused by the not-a-regular-file clause" and that "a run that refuses
+    everything proves nothing". The implemented check asked only whether one refusal CLAUSE STRING
+    was absent, and `d.verdict` was computed and never asserted. Re-measured here with the module's
+    own plants: at the `DECIDER_MANIFEST` position the CONTROL drew
+    `Blocked (fail-closed): the grugops hook module "scripts/checkpoints.js" does not match the
+    frozen manifest`; at the note position it drew `context-io.writeNoteFile: refusing to write —
+    the destination already holds a DIFFERENT note under id "…"`. The gate printed
+    `not refused (correct)` for **all four** control rows and `ALL CHECKS PASSED`, exit 0.
+  - `IN-18`: `const staged = forced.has(shape.name) ? { ...plant(shape), made: false } : plant(shape)`
+    ran `plant(shape)` for a shape it had already decided to skip. Observed from outside the module
+    with every shape forced absent: **8 position plants appeared under the scratch root** (four
+    `grugops-shape-note-*`, four `grugops-shape-hook-*`, each hook mirror a whole import-closure
+    copy) before the results were discarded.
+  - `WR-32`: `bodyImplementsDiscipline` recognised the refusal by ONE syntactic shape and both
+    mutation mirrors were written in that shape. The predicate transcribed verbatim and applied to
+    three semantically identical spellings answered
+    `{"nb":true,"ds":true,"rf":false,"th":true,"all":false}` for `st.isFile() === false`, for
+    `st.isFile() !== true` and for a negated `if`/`else` with the `throw` in the else branch — `rf`
+    false in every one, so none joins `IMPLEMENTING` and the cardinality assertion stays green at 2.
+    Separately, an untracked implementation written into the real `scripts/` tree was absent from
+    `candidateSources`'s 128-file census while present on disk.
+
+- **Which register failed.** Not either harness's RULE. `check-platform-shapes` drives the right
+  positions and `nonblocking-reader-parity` binds the right two implementations; both rules are
+  unchanged by this plan. What failed is whether each harness can OBSERVE the property it reports
+  on — a control that asserts an ABSENCE, and a predicate whose mirrors are written in its own
+  spelling. This is the class `docs/audit/harness-false-result-instances.md` records fourteen times,
+  and row 13 records the disagreement between a control and a refusing shape as exactly the signal
+  that caught a dropped position. These two surviving positions could not produce that signal.
+
+- **THE DECISION, IN TWO PARTS.**
+  1. **A CONTROL ASSERTS ITS POSITION'S ORDINARY OUTCOME POSITIVELY, AND ITS RED PATH IS DRIVEN.**
+     Each position carries a `controlVerdict` — `write` at the note path, `answered` at the manifest
+     path — and the control asserts the measured verdict EQUALS it; the clause-absence check is kept
+     as an additional condition rather than as the only one. The staging is corrected so that
+     verdict is REACHABLE: the manifest position plants the bytes of the module `DECIDER_MANIFEST`
+     names, and the note position plants the note the driver is about to write, composed by driving
+     the real writer into a throwaway store rather than by restating its format. Because the wrapper
+     exits 0 both when it passes the decider's decision through and when it fail-closes,
+     `status === 0` is not the discriminant: the verdict classifier reads the wrapper's own
+     fail-closed marker, and the premise that the marker OCCURS in the committed artifact is
+     asserted before the classifier's answer is read. `GRUGOPS_PLATFORM_SHAPES_STALE_CONTROL`
+     restores the pre-fix staging so the red path is a thing that runs, not a thing that is argued:
+     driven, it reports `verdict=refuse, expected write` at the note position,
+     `verdict=fail-closed, expected answered` at the manifest position, and `5 CHECK(S) FAILED` at
+     exit 1. And the forced-absent seam now skips WITHOUT planting — re-observed, **0 position
+     plants** where there were 8.
+  2. **AN ACCEPTED-SPELLING SET AND ITS MIRROR SET ARE ONE DERIVATION.** `REFUSAL_SPELLINGS`
+     enumerates the accepted spellings; the predicate asks the SEMANTIC question over all of them —
+     does this function branch on `fstat`'s regular-file answer and throw on the not-regular side —
+     and the mutation mirrors are GENERATED by iterating that same list, with a case asserting the
+     ids the mirrors actually drove ARE the enumerated ids. Watched red by generating over a proper
+     subset: the census case then names exactly the spelling nothing exercised. The input boundary
+     becomes the UNION of `git ls-files "*.ts"` and a real filesystem walk of `scripts/`, `hooks/`
+     and `install/`, with a case asserting the two censuses agree over the walk's own roots and
+     naming any path present in one and absent from the other.
+
+- **THE VISIBILITY WIDENED; THE BASELINE DID NOT MOVE.** Derived over the real tree, three ways:
+
+  ```
+  tracked census 128 files   walked census 127 files (scripts, hooks, install)   union 128 files
+  pre-fix predicate  / tracked-only  = ["hooks/hook-entry.ts","scripts/context-io.ts"]
+  post-fix predicate / tracked-only  = ["hooks/hook-entry.ts","scripts/context-io.ts"]
+  post-fix predicate / two-source    = ["hooks/hook-entry.ts","scripts/context-io.ts"]
+  ```
+
+  The same two files in every cell. This is the property `WR-27`'s own fix established for the
+  sibling axis: what the axis CAN see grew, what it DOES see did not.
+
+- **A DEFECT THE REVIEW DID NOT NAME, FOUND BY MAKING THE ORDINARY OUTCOME REACHABLE.** The symlink
+  CONTROL's target was `<at>.platform-shape-target`. At the manifest position the decider resolves
+  the symlink and `import()`s the realpath, which Node refuses with
+  `Unknown file extension ".platform-shape-target"` — so that control drew a fail-closed deny for a
+  reason with nothing to do with the rule under test, and the clause-absence check scored it
+  `not refused (correct)` too. The marker now goes BEFORE the extension. Correct bytes alone would
+  not have fixed that row, and only a POSITIVE assertion surfaced it.
+
+- **WHAT D-37 DOES NOT ESTABLISH.**
+  - **It does not restore the GOV-02 ledger position.** That position stays DROPPED with its
+    explanatory comment byte-unchanged and its restore criterion in `deferred-items.md` untouched.
+    Nothing here is smuggled past the AUTO-06 governance-dial scan.
+  - **It does not claim the accepted-spelling set is TOTAL.** Four spellings are enumerated and the
+    predicate accepts those four; a fifth spelling of a regular-file refusal is a spelling this axis
+    still walks past. What changed is that the accepted set is now NAMED and its mirrors are
+    generated from it, so widening it is one edit rather than two that can drift. This is the
+    open-set posture `D-59` settled for the sibling problem in Phase 29: the enumeration is content
+    with a disclosed limit, not a decidable totality.
+  - **It does not make an untracked implementation a passing state.** The union CONSIDERS it and the
+    agreement case REPORTS it; a tree carrying an untracked `.ts` under the walk roots turns that
+    case red, by design.
+  - **It does not measure anything on Windows.** `R-03` remains this phase's standing remainder, and
+    a shape this platform cannot construct stays a recorded SKIP with its reason.
+  - **It does not move a requirement checkbox, a traceability row or the phase checkbox.** Only a
+    verification round may do that. `UATX-01` through `UATX-06` stay unchecked and `Gaps Found`.
+
+- **Reversibility: REVERSIBLE.** Harness staging, one added assertion, and a test-local predicate
+  with its input boundary. Reverting restores a gate that prints `ALL CHECKS PASSED` over four rows
+  that are all refusals, and an axis that a third implementation spelled differently — or left
+  untracked — walks past.
+
+- **The three places that must agree.**
+  1. Each position's `controlVerdict` and the verdict its driver actually produces — asserted
+     positively per row, and the classifier's own premises (every shape accounted for at every
+     position; the manifest position produced more than one verdict class; the fail-closed marker
+     occurs in the committed wrapper) asserted before any row is read.
+  2. `REFUSAL_SPELLINGS` and the mirrors — one list, iterated to generate the mirrors, with the
+     driven ids compared back to it. Neither can go short alone.
+  3. The tracked census and the filesystem walk — two independently derived lists, unioned for the
+     derivation and compared to each other for the disclosure.
+
+- **THE ROUND'S RUNNING GATES, RE-MEASURED AT THIS PLAN'S CLOSING COMMIT.**
+
+  | Gate | `31-31` (round-6 close) | here |
+  |---|---|---|
+  | `npm run check:diff-disposition` | 80 finding(s) over 39 elements | **78 over 39** — and **78 over 39 measured at this plan's base `4a67f3f`** in a detached worktree, so this plan moved it by ZERO. The 80 → 78 drop belongs to `31-32`…`31-35`. The gate exits 1 while the debt is non-zero, which is the round's standing state rather than a regression. |
+  | `npm run freshness` | 61 committed `.js` | **61 committed `.js` fresh**, set equality with the walk 0/0 |
+  | `npm run freshness:hook-manifest` | 2 decider(s), 26 module hash(es) | **2 decider(s), 26 module hash(es)** |
+  | `node scripts/check-foundation-guards.js` | `ALL CHECKS PASSED` | **`ALL CHECKS PASSED`** |
+  | `node scripts/check-uat-oracles.js` | `ALL CHECKS PASSED` | **`ALL CHECKS PASSED`** |
+
+  `docs/audit/harness-false-result-instances.md` is byte-unchanged by this plan — row 13's
+  correction is `31-37`'s to make — as are `.planning/REQUIREMENTS.md` and `.planning/ROADMAP.md`.
