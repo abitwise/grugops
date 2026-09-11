@@ -1115,10 +1115,37 @@ function sitesTrippedBy(message: string): string[] {
 
 /** Prepare one probe's world: a fresh context, its seeded state, and its governance root. */
 function stageProbe(probe: RefusalProbe, prefix: string): { contextRoot: string; task: string; repoRoot: string } {
-  const contextRoot = freshTmp(prefix);
+  // RE-AIMED, NOT RE-BASELINED (31-33, CR-22 / D-34). This staged a BARE `mkdtemp` directory as the
+  // destination, which `promoteAdmitted` used to accept because its destination clause sat BELOW
+  // the human-stamp fall-through and the fall-through returned above it. With the derivation moved
+  // to the function's entry — which is the fix — a bare directory is now refused by name, and every
+  // `promoteAdmitted` cell in the matrix would report the destination clause instead of the family
+  // it claims to exercise. The fixture was passing for the wrong reason: it exercised the families
+  // through a destination the route was never supposed to accept.
+  //
+  // THE STORE IS STAGED INSIDE THE PROBE'S OWN GOVERNANCE ROOT, which is the sharper re-aim and not
+  // merely a passing one. `promoteAdmitted`'s fall-through now carries the DERIVED destination root
+  // into the full-admission route, so a probe whose dial lives in a repository the store does not
+  // belong to would have its dial ignored — S7 (an unparseable configuration) and S8 (an active
+  // high-severity dial) both measured exactly that. Putting the store inside the repository whose
+  // dial the probe stages is the property this plan installs, expressed in the fixture: one
+  // repository owns the store, its dial, and its ledger.
+  //
+  // THE TWO CONSTRUCTIONS `governanceRootOf` REQUIRES ARE ADDED ONLY WHEN ABSENT: a version-control
+  // marker, and a governance configuration under the root. A probe that already staged its own
+  // configuration (S7's unparseable one, S8's active dial) keeps it byte-for-byte — the `{}` below
+  // lands only where there was none, and an ABSENT configuration and an empty one both read as the
+  // lean default, so no cell's dial moves.
+  const repoRoot = probe.repoRoot ? probe.repoRoot() : freshTmp(prefix);
+  if (!existsSync(join(repoRoot, ".git"))) mkdirSync(join(repoRoot, ".git"), { recursive: true });
+  mkdirSync(join(repoRoot, ".grugops"), { recursive: true });
+  if (!existsSync(join(repoRoot, ".grugops", "factory.config.json"))) {
+    writeFileSync(join(repoRoot, ".grugops", "factory.config.json"), "{}");
+  }
+  const contextRoot = join(repoRoot, ".grugops", "context");
+  mkdirSync(contextRoot, { recursive: true });
   const task = "matrix-task";
   if (probe.seed) probe.seed(contextRoot, task);
-  const repoRoot = probe.repoRoot ? probe.repoRoot() : freshTmp("ctx-io-probe-leanrepo-");
   return { contextRoot, task, repoRoot };
 }
 
@@ -2574,6 +2601,27 @@ function activeDialRoot(): string {
   return repoWithGovernance({ human_admission: "high-severity", audit_retention: "retained" });
 }
 
+/**
+ * The governed context store BELONGING TO `root` (31-33, CR-22 / D-34).
+ *
+ * `promoteAdmitted` now derives the destination's owning repository at its ENTRY and carries that
+ * answer onto every return path, the fall-through included. A fixture that staged a bare `mkdtemp`
+ * directory as the destination and its dial in an unrelated repository was therefore testing a
+ * shape the route no longer accepts, and — on the fall-through — a dial the route no longer reads.
+ * Staging the store INSIDE the dial's own root is the property this plan installs, written as a
+ * fixture: one repository owns the store, its dial and its ledger.
+ */
+function storeInside(root: string): string {
+  if (!existsSync(join(root, ".git"))) mkdirSync(join(root, ".git"), { recursive: true });
+  mkdirSync(join(root, ".grugops"), { recursive: true });
+  if (!existsSync(join(root, ".grugops", "factory.config.json"))) {
+    writeFileSync(join(root, ".grugops", "factory.config.json"), "{}");
+  }
+  const store = join(root, ".grugops", "context");
+  mkdirSync(store, { recursive: true });
+  return store;
+}
+
 interface DeclineProbe {
   /** Run the probe; it must throw. Returns the destination root so files can be counted. */
   readonly drive: () => { destRoot: string; run: () => string };
@@ -2858,7 +2906,7 @@ describe("31-14 — every derived decline clause is reached by a probe, and writ
   it("a note carrying a §14-gate stamp falls THROUGH to full admission, and is refused there without a verdict", () => {
     const repoRoot = activeDialRoot();
     const originRoot = freshTmp("ctx-io-entry-gate-origin-");
-    const destRoot = freshTmp("ctx-io-entry-gate-dest-");
+    const destRoot = storeInside(repoRoot); // 31-33: the destination belongs to the dial's repository
     const gateStamped = disposedFinding({ by: "qe-e2e", verified_by: "§14-gate#no-such-run" });
     let message = "";
     try {
@@ -2878,7 +2926,7 @@ describe("31-14 — every derived decline clause is reached by a probe, and writ
     // the proof route's carried-forward frozen id.
     const repoRoot = freshTmp("ctx-io-entry-soft-repo-"); // no config → the lean dial
     const originRoot = freshTmp("ctx-io-entry-soft-origin-");
-    const destRoot = freshTmp("ctx-io-entry-soft-dest-");
+    const destRoot = storeInside(repoRoot); // 31-33: the destination belongs to the dial's repository
     const id = mod.promoteAdmitted(
       REBIND_TASK,
       "no-such-origin-id",
@@ -3924,7 +3972,7 @@ describe("31-21 — the order axis is a control at EVERY member, not a coinciden
     // balanced, so the mirror is the pre-31-21 program for this route rather than a broken parse.
     const path = mirrorWithTransposedOrder(
       "admitAndAppend",
-      "appendAuditLedger(repoRoot, scalars, isHighSeverityRole(note.by), vb);",
+      "appendAuditLedger(ledgerRoot, scalars, isHighSeverityRole(note.by), vb);",
       "    const persistedId = appendPreAdmittedNote(task, note, body, contextRoot, id);\n" +
         "    if (persistedId !== id) {",
     );
@@ -3953,7 +4001,7 @@ describe("31-21 — the order axis is a control at EVERY member, not a coinciden
 
   it("the CONVERSE: deleting a member's ledger call moves the cardinality to 1", () => {
     const src = readFileSync(CONTEXT_IO_TS, "utf8");
-    const anchor = "appendAuditLedger(repoRoot, scalars, isHighSeverityRole(note.by), vb);";
+    const anchor = "appendAuditLedger(ledgerRoot, scalars, isHighSeverityRole(note.by), vb);";
     expect(
       src.split(anchor).length - 1,
       "PREMISE: the shrink anchor was not found exactly once, so this mirror deleted nothing",
@@ -4112,6 +4160,18 @@ function derivedDeclineOrder(sourcePath: string): string[] {
  * MEASURED on 2026-09-09 by running the derivation against the post-31-22 source and reading its
  * output, then checked adjacency by adjacency against the argument:
  *
+ *   0. `destination-outside-governed-store` — MOVED TO THE FRONT by plan 31-33 (CR-22 / D-34), and
+ *      the move is the fix rather than a preference. Its derivation sits at the function's ENTRY
+ *      now, above the human-stamp fall-through, because round 7 measured the consequence of it
+ *      sitting below one: the fall-through RETURNED two lines above the derivation, so the property
+ *      "two halves of one action key on one variable" was simply not true on the ordinary path
+ *      through that function. A property claimed of a function is established at the function's
+ *      entry or it is not established, and the derivation cannot sit at the entry while its own
+ *      decline sits eight clauses down. What the move COSTS is this adjacency: a caller whose
+ *      destination is ungoverned AND whose source id is empty is now told about the destination.
+ *      That is the right answer for the same reason `origin-outside-trusted-store` precedes the
+ *      dial clause — the destination is the one input every path below writes into, and a caller
+ *      told to fix a source id would fix it and meet this clause anyway.
  *   1. `empty-source-id` — a re-binding names the note it re-binds. An input that names nothing is
  *      not a re-binding at all, so nothing below it has a subject.
  *   2. `unreadable-governance-config` — LOAD-BEARING, and a precondition rather than a preference. A
@@ -4128,10 +4188,10 @@ function derivedDeclineOrder(sourcePath: string): string[] {
  *   10. `unreadable-audit-ledger` — last, and still before any write (31-21, D-24 (2)).
  */
 const EXPECTED_DECLINE_ORDER: readonly string[] = Object.freeze([
+  "destination-outside-governed-store",
   "empty-source-id",
   "unreadable-governance-config",
   "origin-outside-trusted-store",
-  "destination-outside-governed-store",
   "human-stamp-not-gated-at-destination",
   "no-such-origin-note",
   "origin-note-not-live",

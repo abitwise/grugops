@@ -5813,7 +5813,10 @@ describe("31-14 — CR-08: a note a human already disposed promotes unchanged", 
   it("CR-05 probe 2: the same fabricated stamp through the NEW route with an unbacked sourceId is refused, zero files", () => {
     const repoRoot = projectWith({ human_admission: "high-severity", audit_retention: "retained" });
     const originRoot = freshTmp("p31-14-cr05-b-origin-");
-    const destRoot = freshTmp("p31-14-cr05-b-dest-");
+    // RE-AIMED (31-33): the fall-through this probe exercises now sits behind the entry-level
+    // destination clause, so a bare temp directory would report THAT clause instead of the
+    // authority's refusal this case is about.
+    const destRoot = contextStore("p31-14-cr05-b-dest-");
     const fabricated = humanDisposedFinding({
       by: "qe-e2e",
       verified_by: "§14-gate#fabricated-run-id",
@@ -5845,8 +5848,11 @@ describe("31-14 — CR-08: a note a human already disposed promotes unchanged", 
   it("a §14-gate-stamped finding does NOT take the proof route — it re-admits at the destination against a live green verdict there", () => {
     const repoRoot = projectWith({ human_admission: "high-severity", audit_retention: "retained" });
     const originRoot = freshTmp("p31-14-prov-a-origin-");
-    const withVerdict = freshTmp("p31-14-prov-a-green-");
-    const withoutVerdict = freshTmp("p31-14-prov-a-nogreen-");
+    // RE-AIMED (31-33, CR-22 / D-34): a destination is now a GOVERNED store on every path through
+    // the route, the fall-through this case is about included. A bare temp directory was accepted
+    // only because the destination clause sat below the fall-through's own return.
+    const withVerdict = contextStore("p31-14-prov-a-green-");
+    const withoutVerdict = contextStore("p31-14-prov-a-nogreen-");
     const RUN = "RUN-31-14-PROV";
     mod.emitVerdict(CR08_TASK, RUN, "clean", FIXTURE_GATE_SHA, withVerdict);
     const gateFinding = humanDisposedFinding({
@@ -5884,8 +5890,11 @@ describe("31-14 — CR-08: a note a human already disposed promotes unchanged", 
   it("an artifact-ref does NOT take the proof route — its gate_run is re-bound at the destination", () => {
     const repoRoot = projectWith({ human_admission: "high-severity", audit_retention: "retained" });
     const originRoot = freshTmp("p31-14-prov-b-origin-");
-    const withVerdict = freshTmp("p31-14-prov-b-green-");
-    const withoutVerdict = freshTmp("p31-14-prov-b-nogreen-");
+    // RE-AIMED (31-33, CR-22 / D-34): a destination is now a GOVERNED store on every path through
+    // the route, the fall-through this case is about included. A bare temp directory was accepted
+    // only because the destination clause sat below the fall-through's own return.
+    const withVerdict = contextStore("p31-14-prov-b-green-");
+    const withoutVerdict = contextStore("p31-14-prov-b-nogreen-");
     const RUN = "RUN-31-14-AR";
     mod.emitVerdict(CR08_TASK, RUN, "clean", FIXTURE_GATE_SHA, withVerdict);
     const evidence = {
@@ -5944,25 +5953,43 @@ describe("31-14 — CR-08: a note a human already disposed promotes unchanged", 
   // ── D-19's LEDGER BEHAVIOUR, MEASURED. A re-binding is not a new admission, so it appends NO
   //    audit event: the origin's event already records the human's disposition for this exact id,
   //    and a second line keyed by the same id would be the duplicate 31-09 collapsed.
-  it("D-19 ledger: under audit_retention retained, the promotion appends NO second admission event", () => {
+  it("D-19 ledger: under audit_retention retained, the promotion appends NO second event in the ORIGIN's repository", () => {
+    // RE-AIMED, AND THE OLD AIM WAS VACUOUS (31-33, CR-22 / D-34). This case read ONE ledger —
+    // `repoRoot`'s — and asserted it did not grow. Post-`D-31` the promotion's event goes to the
+    // DESTINATION's derived root, so that assertion could not fail whatever the route did; and
+    // post-this-plan the ORIGIN write's event goes to the origin's own derived root, so the file it
+    // read did not exist at all. Both halves are now measured where they actually land, which is
+    // what makes the no-duplicate claim a measurement rather than a tautology.
     const repoRoot = projectWith({ human_admission: "high-severity", audit_retention: "retained" });
     const originRoot = contextStore("p31-14-ledger-origin-");
     const destRoot = contextStore("p31-14-ledger-dest-");
-    const ledger = join(repoRoot, ".grugops", "audit", "admissions.jsonl");
+    const ledgerOf = (store: string): string[] => {
+      const path = join(mod.governanceRootOf(store) as string, ".grugops", "audit", "admissions.jsonl");
+      if (!existsSync(path)) return [];
+      return readFileSync(path, "utf8").trim().split("\n").filter((l) => l.length > 0);
+    };
     const note = humanDisposedFinding();
     const originId = writeOrigin(note, repoRoot, originRoot);
-    const afterOrigin = readFileSync(ledger, "utf8").trim().split("\n").filter((l) => l.length > 0);
-    expect(afterOrigin).toHaveLength(1);
+    const afterOrigin = ledgerOf(originRoot);
+    expect(afterOrigin, "the origin's admission was not recorded in the origin's own repository").toHaveLength(1);
     expect(JSON.parse(afterOrigin[0]).id).toBe(originId);
     expect(JSON.parse(afterOrigin[0]).disposed_by).toBe("human:alice");
 
     mod.promoteAdmitted(CR08_TASK, originId, note, CR08_BODY, originRoot, destRoot, repoRoot);
-    const afterPromote = readFileSync(ledger, "utf8").trim().split("\n").filter((l) => l.length > 0);
     expect(
-      afterPromote,
-      "the re-binding appended a SECOND admission event for the same note id — a duplicate keyed " +
-        "by the origin's own id, which is the shape 31-09 collapsed rather than widened",
+      ledgerOf(originRoot),
+      "the re-binding appended a SECOND admission event in the ORIGIN's repository for the same " +
+        "note id — a duplicate keyed by the origin's own id, which is the shape 31-09 collapsed",
     ).toEqual(afterOrigin);
+    // …and the destination's own ledger gained exactly ONE event, marked `re_bound`, because its
+    // ledger did not already record this id. That is D-19 (4)'s other half, and it is where the
+    // event belongs: the note landed in the destination's store.
+    const atDestination = ledgerOf(destRoot);
+    expect(atDestination).toHaveLength(1);
+    expect(JSON.parse(atDestination[0]).id).toBe(originId);
+    expect(JSON.parse(atDestination[0]).re_bound).toBe(true);
+    // …and `repoRoot`, which decided only the DIAL, holds no ledger at all.
+    expect(existsSync(join(repoRoot, ".grugops", "audit", "admissions.jsonl"))).toBe(false);
   });
 
   it("NO BOARD MOVE: the promotion writes ONE note and nothing else at the destination", () => {
@@ -6134,7 +6161,7 @@ describe("31-15 — WR-15: the target repository's dial is read on every host", 
         DRIVER,
         opts.kit ?? KIT,
         consumer,
-        opts.ctxRoot ?? tmp15("p31-15-ctx-"),
+        opts.ctxRoot ?? governedStore15("p31-15-ctx-"),
         opts.originRoot ?? tmp15("p31-15-origin-"),
         opts.sourceId ?? "20260908T020000Z-security-nfr-finding-absent",
       ],
@@ -6145,6 +6172,24 @@ describe("31-15 — WR-15: the target repository's dial is read on every host", 
       throw new Error(`driver produced no result for ${consumer}: ${(r.stdout ?? "") + (r.stderr ?? "")}`);
     }
     return JSON.parse(line) as Driven;
+  }
+
+  /**
+   * A GOVERNED context store for the driver's destination argument (31-33, CR-22 / D-34).
+   *
+   * This was a bare `mkdtemp` directory, which `promoteAdmitted` accepted only because its
+   * destination clause sat BELOW the human-stamp fall-through. With the derivation and its decline
+   * at the function's entry, a bare directory is refused by name and the D-14 arm this case is
+   * about is never reached — so the fixture stages a real store rather than the case being relaxed.
+   */
+  function governedStore15(prefix: string): string {
+    const root = tmp15(prefix);
+    mkdirSync(join(root, ".git"), { recursive: true });
+    mkdirSync(join(root, ".grugops"), { recursive: true });
+    writeFileSync(join(root, ".grugops", "factory.config.json"), "{}");
+    const store = join(root, ".grugops", "context");
+    mkdirSync(store, { recursive: true });
+    return store;
   }
 
   /** A temp project carrying a governance configuration at the repo-drop position. */
@@ -9113,19 +9158,37 @@ describe("31-18 — WR-18: the dial's value decides, through the one gated autho
   // ── THE LEDGER PREMISE, DECIDED (WR-18 (b)). The route no longer ASSUMES the origin's admission
   //    recorded this id in the destination repository's ledger; it looks, and acts on the answer.
   it("Test 6a: when the ledger ALREADY records the id, the promotion appends nothing (D-19 (4) intact)", () => {
+    // RE-AIMED, AND THE OLD CONSTRUCTION IS NOW UNREACHABLE BY DESIGN (31-33, CR-22 / D-34). This
+    // case used to seed the origin under `repoRoot` and read `repoRoot`'s ledger, on the premise
+    // that the ORIGIN's own admission had recorded this id in the repository the promotion later
+    // looks in. After this plan an admission is recorded in the repository that OWNS the store it
+    // wrote into, and a governance root owns exactly ONE store (`<root>/.grugops/context`) — so an
+    // origin and a destination in the SAME repository is not a shape that exists. The property
+    // D-19 (4) states is reached instead by the construction that does exist: promote TWICE. The
+    // first promotion appends the re_bound event; the second meets a ledger that already records
+    // the id and must append nothing.
     const repoRoot = projectWith({ human_admission: "high-severity", audit_retention: "retained" });
     const origin = contextStore("p31-18-wr18-ledger-a-origin-");
     // The destination store lives IN the repository whose ledger this case inspects (D-31).
     const dest = storeIn(repoRoot);
     const ledger = join(repoRoot, ".grugops", "audit", "admissions.jsonl");
+    const lines = (): string[] =>
+      existsSync(ledger)
+        ? readFileSync(ledger, "utf8").trim().split("\n").filter((l) => l.length > 0)
+        : [];
     const id = seed(origin, repoRoot);
-    const afterOrigin = readFileSync(ledger, "utf8").trim().split("\n").filter((l) => l.length > 0);
-    expect(afterOrigin).toHaveLength(1);
+    expect(lines(), "PREMISE: the destination repository already held a ledger line").toHaveLength(0);
+
+    mod.promoteAdmitted(WR18_TASK, id, disposed(), WR18_BODY, origin, dest, repoRoot);
+    const afterFirst = lines();
+    expect(afterFirst, "the first promotion did not record the re-binding it performed").toHaveLength(1);
+    expect(JSON.parse(afterFirst[0]).id).toBe(id);
+
     mod.promoteAdmitted(WR18_TASK, id, disposed(), WR18_BODY, origin, dest, repoRoot);
     expect(
-      readFileSync(ledger, "utf8").trim().split("\n").filter((l) => l.length > 0),
+      lines(),
       "the re-binding appended a duplicate keyed by the origin's own id — the shape 31-09 collapsed",
-    ).toEqual(afterOrigin);
+    ).toEqual(afterFirst);
   });
 
   it("Test 6b: when the destination repository's ledger has NO event for the id, one is appended, marked re_bound", () => {
@@ -9179,9 +9242,15 @@ describe("31-18 — WR-18: the dial's value decides, through the one gated autho
     // The eight-key line every prior admission produced must still be exactly that line, or the
     // ledger's byte-reproducibility contract moved for every note in every repository.
     const repoRoot = projectWith({ human_admission: "high-severity", audit_retention: "retained" });
+    // RE-AIMED (31-33, CR-22 / D-34): the gated branch now records the admission in the repository
+    // that OWNS the store it wrote the note into, so the line is read there. `repoRoot` still
+    // answers the dial that made the note gated, and holds no ledger of its own.
     const dest = contextStore("p31-18-wr18-ledger-d-dest-");
     const id = mod.admitAndAppend(WR18_TASK, disposed(), WR18_BODY, dest, repoRoot).id as string;
-    const line = readFileSync(join(repoRoot, ".grugops", "audit", "admissions.jsonl"), "utf8").trim();
+    const destRepo = mod.governanceRootOf(dest) as string;
+    expect(destRepo, "PREMISE: the destination store resolves to no repository").toBeTruthy();
+    expect(existsSync(join(repoRoot, ".grugops", "audit", "admissions.jsonl"))).toBe(false);
+    const line = readFileSync(join(destRepo, ".grugops", "audit", "admissions.jsonl"), "utf8").trim();
     // The exact bytes, in the fixed key order the toJsonl discipline pins — not a field-by-field
     // check, because what must not move is the LINE.
     expect(line).toBe(
@@ -12346,11 +12415,18 @@ describe("31-29 — the write path's residuals are an EXPORTED register, bound i
     "31-CONTEXT.md",
   );
 
-  /** The ids WRITTEN in the planning document, derived from its own text. */
+  /**
+   * The ids WRITTEN in the planning document, derived from its own text.
+   *
+   * The plan-number alternation GREW in 31-33 (CR-22 / D-34) because that plan left two new
+   * write-path residuals. It is widened rather than made generic on purpose: a pattern matching any
+   * `R-31-NN-NN` would also sweep in the trusted-root and re-binding registers, and DIRECTION 2
+   * below would then report every one of THEIR ids as an un-exported member of THIS register.
+   */
   function writtenIds(): string[] {
     const text = readFileSync(CONTEXT_DOC, "utf8");
     const ids = new Set<string>();
-    for (const m of text.matchAll(/`(R-31-(?:21|29)-\d{2})`/g)) ids.add(m[1] as string);
+    for (const m of text.matchAll(/`(R-31-(?:21|29|33)-\d{2})`/g)) ids.add(m[1] as string);
     return [...ids].sort();
   }
 
@@ -12363,7 +12439,11 @@ describe("31-29 — the write path's residuals are an EXPORTED register, bound i
   });
 
   it("the register has the expected CARDINALITY, asserted separately from its members", () => {
-    expect(mod.WRITE_PATH_RESIDUALS).toHaveLength(5);
+    // MEASURED, WITH THE REASON IT MOVED (31-33): 5 -> 7. The two new members are `R-31-33-01` (an
+    // append reached THROUGH the byte-frozen authority still follows the caller's `repoRoot`) and
+    // `R-31-33-02` (the default context root is the kit's store while the default ledger root is the
+    // host repository). Both are DRIVEN by a case in this file, so neither is prose.
+    expect(mod.WRITE_PATH_RESIDUALS).toHaveLength(7);
   });
 
   it("DIRECTION 1: every EXPORTED member has a WRITTEN disposition in 31-CONTEXT.md", () => {
@@ -12407,8 +12487,11 @@ describe("31-29 — the write path's residuals are an EXPORTED register, bound i
 
   it("every member carries a WRITTEN disposition verdict, not just prose", () => {
     for (const r of mod.WRITE_PATH_RESIDUALS) {
+      // The plan-number alternation GREW in 31-33, for the same reason the id pattern above did:
+      // a residual is dispositioned by the plan that LEAVES it, and a regex naming one plan would
+      // silently require every later plan's residuals to be back-dated to that one.
       expect(r.reason, `${r.id} carries no DISPOSITION verdict`).toMatch(
-        /DISPOSITION \(plan 31-29\): (CLOSE|CLOSED|accept|the)/,
+        /DISPOSITION \(plan 31-(?:29|33)\): (CLOSE|CLOSED|accept|the)/,
       );
     }
   });
@@ -12643,56 +12726,97 @@ describe("31-33 — CR-22: one repository per action, derived at the ENTRY of ev
     ).toEqual({ notes: 0, ledger: null });
   });
 
-  it("POSITION 3b (admitAndAppend, NON-gated): the same, on the branch that routes through admit()", () => {
-    const T = "T-533D";
-    const THIRD = premise("THIRD", governed("p31-33-p3b-third-", "off"));
-    const DEST = premise("DEST", governed("p31-33-p3b-dest-", "off"));
-    const roots = { THIRD, DEST };
-    const before = census(T, roots);
+  it("GREEN 3: a deliberately DIFFERENT repoRoot can no longer move a record, at the three aimable appends", () => {
+    // The three GOV-02 appends this module can AIM are `promoteAdmitted`'s two arms and
+    // `admitAndAppend`'s gated branch — each an `appendAuditLedger` call site in this module's own
+    // body. Each is driven here with a `repoRoot` deliberately under a DIFFERENT repository from
+    // the store the note enters, and the record is asserted to follow the store.
+    const HOME = premise("HOME", governed("p31-33-g3-home-", "all"));
+    const ELSEWHERE = premise("ELSEWHERE", governed("p31-33-g3-elsewhere-", "all"));
 
-    const r = mod.admitAndAppend(T, plainNote(), "a body", DEST.store, THIRD.root);
-    expect(r.findings, `admitAndAppend refused: ${r.findings.join(" / ")}`).toEqual([]);
-    const after = census(T, roots);
+    // (a) the fall-through arm.
+    const Ta = "T-533E1";
+    mod.promoteAdmitted(Ta, "irrelevant", plainNote(), "a body", "irrelevant-from", HOME.store, ELSEWHERE.root);
     expect(
-      { notes: notesIn(DEST, T), ledger: ledgerIn(DEST) },
-      `the note and its own audit record are in two different repositories. before: ${before} — ` +
-        `after: ${after}`,
+      { notes: notesIn(HOME, Ta), ledger: ledgerIn(HOME) },
+      "the fall-through's record did not follow the store it wrote the note into",
     ).toEqual({ notes: 1, ledger: 1 });
-    expect({ notes: notesIn(THIRD, T), ledger: ledgerIn(THIRD) }).toEqual({ notes: 0, ledger: null });
-  });
 
-  it("POSITION 4 (the DEFAULT arguments): the ledger root is DERIVED from the call's own store", () => {
-    // The fourth position is about the DEFAULTS, which on this box resolve to one directory: the kit
-    // IS the host repository here, so a behavioural probe of the two defaults cannot tell a
-    // derivation from a coincidence. What IS observable, and is what the position is really about,
-    // is WHICH VALUE the default names. So it is measured on the module's own source: the ledger
-    // root each write-both route defaults to is derived from that call's own `contextRoot`, never
-    // from `repoRoot`. Under the shipped shared-install model (`~/.grugops` kit + per-repo state)
-    // those are different directories, which is what makes the pre-fix default a split rather than
-    // a test-seam artifact.
-    const source = readFileSync(CONTEXT_IO_TS, "utf8");
-    const derivedDefault = "governanceRootOf(contextRoot) ?? repoRoot";
+    // (b) the gated re-binding arm.
+    const Tb = "T-533E2";
+    const ORIGIN = premise("ORIGIN", governed("p31-33-g3-origin-", "all"));
+    const disposed = plainNote({ kind: "finding", verified_by: "human:alice" });
+    const sourceId = mod.appendNote(Tb, disposed, "a body", ORIGIN.store, undefined, ORIGIN.root);
+    mod.promoteAdmitted(Tb, sourceId, disposed, "a body", ORIGIN.store, HOME.store, ELSEWHERE.root);
+    expect({ notes: notesIn(HOME, Tb), ledger: ledgerIn(HOME) }).toEqual({ notes: 1, ledger: 2 });
+
+    // (c) admitAndAppend's gated branch.
+    const Tc = "T-533E3";
+    const r = mod.admitAndAppend(Tc, disposed, "a body", HOME.store, ELSEWHERE.root);
+    expect(r.findings, `admitAndAppend refused: ${r.findings.join(" / ")}`).toEqual([]);
+    expect({ notes: notesIn(HOME, Tc), ledger: ledgerIn(HOME) }).toEqual({ notes: 1, ledger: 3 });
+
+    // …and across all three, the caller's repoRoot holds NOTHING.
     expect(
-      source.split(derivedDefault).length - 1,
-      "the ledger root is not defaulted from the call's own contextRoot at BOTH write-both routes",
-    ).toBe(2);
+      { notes: notesIn(ELSEWHERE, Ta) + notesIn(ELSEWHERE, Tb) + notesIn(ELSEWHERE, Tc), ledger: ledgerIn(ELSEWHERE) },
+      "a caller-supplied repoRoot still decided where a record landed at one of the three aimable appends",
+    ).toEqual({ notes: 0, ledger: null });
   });
 
-  it("GREEN 3: a deliberately DIFFERENT repoRoot can no longer move a record, on any route", () => {
-    const T = "T-533E";
-    const HOME = premise("HOME", governed("p31-33-g3-home-", "off"));
-    const ELSEWHERE = premise("ELSEWHERE", governed("p31-33-g3-elsewhere-", "off"));
+  it("R-31-33-01 DISCLOSED: an append reached THROUGH the frozen authority still follows repoRoot", () => {
+    // THE BOUNDARY THIS PLAN DOES NOT CLOSE, DRIVEN RATHER THAN DESCRIBED. `admit()` takes ONE root
+    // and uses it for the dial read AND the GOV-02 append, and its bytes are frozen. So the two
+    // appends reached through it — `appendNote`'s, and `admitAndAppend`'s NON-gated branch — still
+    // key on the caller's `repoRoot`. A case that asserted the opposite would be a fabricated
+    // closure; a silence would be the next round's finding. It is measured here, under its own id.
+    const T = "T-533D";
+    const HOME = premise("HOME", governed("p31-33-res-home-", "off"));
+    const ELSEWHERE = premise("ELSEWHERE", governed("p31-33-res-elsewhere-", "off"));
 
-    const id = mod.appendNote(T, plainNote(), "a body", HOME.store, undefined, ELSEWHERE.root);
-    expect(id).toBeTruthy();
+    mod.appendNote(T, plainNote(), "a body", HOME.store, undefined, ELSEWHERE.root);
     expect(
       { notes: notesIn(HOME, T), ledger: ledgerIn(HOME) },
-      "appendNote's record did not follow the store it wrote the note into",
-    ).toEqual({ notes: 1, ledger: 1 });
+      "R-31-33-01 has CLOSED — the residual register now over-states the boundary and must be corrected",
+    ).toEqual({ notes: 1, ledger: null });
+    expect({ notes: notesIn(ELSEWHERE, T), ledger: ledgerIn(ELSEWHERE) }).toEqual({ notes: 0, ledger: 1 });
+
+    // …and the register says so, in both directions: the residual is published with its cost.
+    const residual = mod.WRITE_PATH_RESIDUALS.find((r) => r.id === "R-31-33-01");
+    expect(residual, "the boundary is driven by a case and named nowhere a reader looks").toBeDefined();
+    expect(residual?.reason).toContain("ADMIT_FROZEN_SHA256");
+  });
+
+  it("POSITION 4 (the DEFAULT arguments): MEASURED, and recorded as R-31-33-02 rather than claimed closed", () => {
+    // The fourth position is about the DEFAULTS. On this box the kit IS the host repository, so both
+    // defaults resolve to ONE directory and the split is not observable here — stated as such rather
+    // than reported as a pass. What is asserted is the reconstruction's own premise (the module
+    // still spells both defaults the way this measurement reads them) and that the boundary is
+    // PUBLISHED with its cost rather than left as a silence.
+    const source = readFileSync(CONTEXT_IO_TS, "utf8");
     expect(
-      { notes: notesIn(ELSEWHERE, T), ledger: ledgerIn(ELSEWHERE) },
-      "appendNote's caller-supplied repoRoot still decided where the record landed",
-    ).toEqual({ notes: 0, ledger: null });
+      source.split('const DEFAULT_CONTEXT_ROOT = join(ROOT, ".grugops", "context");').length - 1,
+      "PREMISE: the note-root default is no longer the kit's own store, so this measurement reads " +
+        "a rule the module no longer has",
+    ).toBe(1);
+    expect(
+      source.split("repoRoot: string = trustedRepoRoot(),").length - 1,
+      "PREMISE: the ledger-root default is no longer the host repository",
+    ).toBeGreaterThanOrEqual(2);
+
+    const kitRoot = ROOT;
+    const kitStore = join(kitRoot, ".grugops", "context");
+    const noteOwner = mod.governanceRootOf(kitStore);
+    const ledgerOwner = mod.trustedRepoRoot();
+    // The measurement itself, recorded either way — a COINCIDENCE on this box is not a guarantee.
+    if (noteOwner !== ledgerOwner) {
+      expect(
+        noteOwner,
+        "the two defaults diverge ON THIS BOX, which makes the split directly observable here",
+      ).toBe(ledgerOwner);
+    }
+    const residual = mod.WRITE_PATH_RESIDUALS.find((r) => r.id === "R-31-33-02");
+    expect(residual, "position 4 is neither closed nor published, which is the silence this phase forbids").toBeDefined();
+    expect(residual?.reason).toContain("not closed inside plan 31-33");
   });
 
   it("CONTROL 1 (CR-20 unmoved): the GATED promotion still lands both halves in the derived destination", () => {

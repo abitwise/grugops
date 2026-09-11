@@ -1862,6 +1862,86 @@ file.
   `agent-factory/checklists/browser-uat-recipe.md`'s boundary list, with its row in
   `docs/audit/29-style-dispositions/31-32.md`; and in `31-32-SUMMARY.md`'s key-decisions block.
 
+#### Gap-closure decision — D-34 (2026-09-11, gap-closure round 7, wave 2, plan 31-33)
+
+- **What forced it.** `CR-22` and `CR-24` of `31-REVIEW.md`, both independently reproduced by
+  `31-VERIFICATION.md` round 7 against the committed `scripts/context-io.js`, and both re-reproduced
+  in this plan's own scratch before any source was touched. And the seventh instance of this phase's
+  recorded generator: the round-6 fix created the round-7 Critical at the coordinate the fix did not
+  reach.
+- **Which register failed — and it was neither the rule nor the order.** `D-31 (2)`'s rule and
+  `D-24`'s order are both correct and are both re-measured here as controls. The two questions
+  nobody had asked were **WHERE a property claimed of a FUNCTION is installed** and **WHICH SET a
+  property claimed of a SET is asserted over**.
+- **D-34 (1) — a property claimed of a FUNCTION is established at the function's ENTRY.**
+  `31-29` installed `destinationRoot = governanceRootOf(to)` nineteen lines BELOW
+  `promoteAdmitted`'s own human-stamp fall-through, so the ORDINARY path through that function —
+  a note carrying no `human:NAME` stamp — RETURNED two lines above the derivation and keyed its note
+  write on `to` while its GOV-02 event went to `repoRoot`. Reproduced here with three real
+  governance roots, each asserted `governanceRootOf(store) === root` before any result was read:
+  THIRD held the note with no ledger line, DEST held the ledger line with no note. The derivation
+  and its named decline are now the FIRST thing the body does after `assertSafeTask`, there is no
+  return between the function's first line and them, and the fall-through carries the derived root
+  into the full-admission route. `admitAndAppend`'s gated branch — the other route
+  `18-context-compaction.md` names by hand, and the one the review measured splitting a
+  human-disposed finding from its own audit record — derives the same answer at ITS entry and
+  appends there instead of at `repoRoot`.
+- **WHAT THE CLAUSE ORDER COST, STATED RATHER THAN SLIPPED IN.** `destination-outside-governed-store`
+  now precedes every other decline, including `unreadable-governance-config` and
+  `origin-outside-trusted-store`, which `WR-25` deliberately ordered. The derivation cannot sit at
+  the entry while its own decline sits eight clauses down, and an entry-level property is worth more
+  than a clause adjacency: a caller told about its destination is told the truth about the one input
+  every path below writes into, and a caller who fixes a source id would meet this clause anyway.
+  The order is asserted from the route's own parsed body, and the new adjacency carries its reason
+  in `EXPECTED_DECLINE_ORDER`'s docstring.
+- **D-34 (2) — a property claimed of a SET is asserted over a set DERIVED from the module's AST.**
+  `CR-24`'s half is the same shape one register over: `readRawNotesWithSkips` discarded the
+  `ReadPositionRefusal.condition` discriminant `D-31 (3)` created for exactly that caller, and
+  hand-labelled three conditions with one arm. See plan `31-33`'s task 2 for the arm set's binding.
+- **THE REJECTED ALTERNATIVE STAYS REJECTED.** An unanchored destination is a NAMED DECLINE, never
+  a promotion that quietly records nothing. `D-31`'s reason is unchanged and is restated at the
+  clause: making a workflow sentence true by weakening the guarantee it describes is the
+  claim-follows-mechanism move run backwards.
+- **A SECOND REJECTED ALTERNATIVE, WITH THE NUMBER THAT REJECTED IT.** The review's own fix asks for
+  a ledger-root parameter on `appendNote`, `admitAndAppend` AND `admit`. `admit()` is byte-frozen
+  (`ADMIT_FROZEN_SHA256`) and takes ONE root for both its governance-dial read and its GOV-02
+  append, so routing the record through a derived root necessarily routes the DIAL through it too.
+  MEASURED rather than argued: that change turns 63 existing cases RED on the DIAL, not on the
+  ledger, because they use `repoRoot` as the dial seam over a governed store. A second measurement
+  ruled out the adjacent alternative of refusing an ungoverned `contextRoot` at those two writers:
+  the suite presents one to `appendNote` 121 times and to `admitAndAppend` 26 times, and refusing
+  them reverses `D-31`'s deliberate decision that the destination constraint is the RE-BINDING
+  route's property and not the module's. Both are recorded here with their numbers rather than taken
+  silently, and the exposure that remains is `R-31-33-01`.
+- **The write path's residual dispositions, bound to `WRITE_PATH_RESIDUALS` in both directions:**
+  - `R-31-33-01` — every GOV-02 append reached THROUGH `admit()` is keyed on `admit()`'s one root
+    parameter, so a direct caller that deliberately hands `appendNote` — or `admitAndAppend`'s
+    non-gated branch — a `contextRoot` under one repository and a `repoRoot` under another still
+    splits the two halves. ACCEPT and DISCLOSE, driven by its own case. What would close it is a
+    deliberate unfreeze of `admit()` giving it a ledger root distinct from its dial root, re-based
+    with the reason written at the freeze — the shape that freeze has been re-based under five
+    times before.
+  - `R-31-33-02` — `CR-22`'s fourth position. With NO arguments the note lands in the KIT's own
+    store and the GOV-02 event under the HOST repository. MEASURED on this tree: the two coincide
+    on this box, so the split is NOT observable here, and under the shipped shared-install model
+    they are different directories. ACCEPT and DISCLOSE: closing it means DECIDING which repository
+    the default names, and either answer reverses a prior decision with a written reason —
+    deriving the dial root from the kit store reverses `WR-10`, and re-pointing
+    `DEFAULT_CONTEXT_ROOT` at the host repository moves every READER's default with it.
+- **WHAT D-34 DOES NOT ESTABLISH.**
+  - **It does not make every GOV-02 append follow a derived root.** Three of them do — the two arms
+    of `promoteAdmitted` and `admitAndAppend`'s gated branch, each an `appendAuditLedger` call this
+    module can aim. The appends inside `admit()` do not; that is `R-31-33-01`.
+  - **It does not close the DEFAULT split.** That is `R-31-33-02`, measured and published.
+  - **It does not authenticate a destination's CONTENTS**, at the same price and bounded by the same
+    residual `D-31` already stated for the origin.
+  - **The Windows leg of everything above is `R-03`** and remains this phase's standing remainder.
+- **Reversibility: costly.** The entry-level derivation, the moved clause order and the two new
+  residuals become part of the module's exported contract and of three derived axes. Reverting
+  restores a route the round-7 verifier measured splitting a note and its own audit record across
+  two repositories on the ORDINARY path through it, under a workflow sentence stating twice that it
+  cannot happen.
+
 ### Claude's Discretion
 - Exact runnable file name and the exact wording of the two new loud-skip markers, as long as
   each is a single exported constant with a single emission point (the `uat-live.test.ts` shape).

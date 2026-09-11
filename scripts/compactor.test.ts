@@ -2693,8 +2693,10 @@ describe("31-14 — compactor.promoteAdmitted: the proof-gated re-binding pass-t
   it("CR-05 stays closed through the compactor: a fabricated §14-gate stamp is refused on BOTH routes, zero files", () => {
     const repoRoot = projectWith({ human_admission: "high-severity", audit_retention: "retained" });
     const originRoot = freshTmp("c31-14-cr05-origin-");
-    const destA = freshTmp("c31-14-cr05-a-");
-    const destB = freshTmp("c31-14-cr05-b-");
+    // RE-AIMED (31-33): `promoteAdmitted` now refuses an ungoverned destination on EVERY path,
+    // the fall-through this case drives included, so the destinations are real governed stores.
+    const destA = contextStore("c31-14-cr05-a-");
+    const destB = contextStore("c31-14-cr05-b-");
     const fabricated = humanDisposedFinding({
       by: "qe-e2e",
       verified_by: "§14-gate#fabricated-run-id",
@@ -2941,9 +2943,15 @@ describe("31-14 self-red-team — the legitimate input, under every dial and bot
   it("D-19 MEASURED: under retained, an origin-write-then-promote leaves exactly ONE ledger event", () => {
     // The answer is measured rather than inherited: D-19 states a re-binding records no new
     // admission, because the origin's event already keys this exact id.
+    // RE-AIMED (31-33, CR-22 / D-34): the origin's own admission is recorded in the repository that
+    // OWNS the origin store, not in the `repoRoot` that answered the dial. Reading `repoRoot`'s
+    // ledger here read a file the route no longer writes — and, before this plan, an event whose
+    // note was in a different repository, which is the split CR-22 names.
     const repoRoot = rtProject({ human_admission: "high-severity", audit_retention: "retained" });
     const { originRoot, id } = rtSeedOrigin(repoRoot);
-    const ledgerPath = join(repoRoot, ".grugops", "audit", "admissions.jsonl");
+    const originRepo = ctxio.governanceRootOf(originRoot) as string;
+    expect(originRepo, "PREMISE: the origin store resolves to no repository").toBeTruthy();
+    const ledgerPath = join(originRepo, ".grugops", "audit", "admissions.jsonl");
     const lines = (): string[] =>
       existsSync(ledgerPath)
         ? readFileSync(ledgerPath, "utf8").trim().split("\n").filter((l) => l.length > 0)
