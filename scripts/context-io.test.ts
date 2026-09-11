@@ -12932,3 +12932,354 @@ describe("31-33 — CR-22: one repository per action, derived at the ENTRY of ev
     }
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// PLAN 31-33 — CR-24 AND THE SKIPPED-ENTRIES FINDING: A SKIPPED ENTRY NAMES THE CONDITION THAT IS
+// TRUE, AND THE PUBLISHED ARM SET IS BOUND TO THE AUTHORITY THAT RAISES THE CONDITIONS.
+//
+// WHAT WAS WRONG, MEASURED RATHER THAN DESCRIBED. `31-29`/`D-31 (3)` created
+// `ReadPositionRefusal.condition` with a stated reason: "carrying the condition on the error is what
+// lets a caller name its own clause WITHOUT re-deriving the fact". `writeNoteFile` reads it.
+// `readRawNotesWithSkips` — the caller `IN-14` was raised about — discarded it and hand-labelled
+// every catch `not-a-regular-file`. Reproduced against the committed `.js` at the round-7 base:
+//
+//   NOTE_SKIP_ARMS = [ 'unparseable', 'not-a-regular-file', 'vanished' ]
+//   | …-acce0001.md | not-a-regular-file | …IS present and could not be opened (EACCES)… |
+//   | …-fifo0001.md | not-a-regular-file | …is not a regular file…                        |
+//   | …-over0001.md | not-a-regular-file | …It IS a regular file; what disqualifies it is its size…|
+//
+//   stat of the over-ceiling plant: isFile=true size=8388609 (ceiling 8388608)
+//
+// Three conditions under one arm, and the third row's own detail column contradicts its arm column —
+// on the ONE artefact a human triaging a note that was admitted and has become unreadable will read.
+// And the suite ENCODED it: the case titled "the three arms produce three DISTINCT observable
+// results" expected two of its three cases to be `not-a-regular-file` and never compared the pair
+// that actually collapsed. A distinctness claim that omits the colliding pair is the assertion the
+// collision hid behind.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+describe("31-33 — CR-24: a skipped entry is named by the condition that is TRUE of it", () => {
+  const T = "T-533S";
+
+  function store(prefix: string): string {
+    const root = freshTmp(prefix);
+    mkdirSync(join(root, ".git"), { recursive: true });
+    mkdirSync(join(root, ".grugops"), { recursive: true });
+    writeFileSync(join(root, ".grugops", "factory.config.json"), "{}");
+    const ctx = join(root, ".grugops", "context");
+    mkdirSync(join(ctx, T, "notes"), { recursive: true });
+    return ctx;
+  }
+  const indexOf = (ctx: string): string => readFileSync(join(ctx, T, "index.md"), "utf8");
+  const skipSection = (md: string): string =>
+    md.indexOf("## Skipped entries") < 0 ? "" : md.slice(md.indexOf("## Skipped entries"));
+  const rowFor = (md: string, file: string): string =>
+    skipSection(md)
+      .split("\n")
+      .find((l) => l.startsWith(`| ${file} |`)) ?? "";
+  const armOf = (md: string, file: string): string => (rowFor(md, file).split("|")[2] ?? "").trim();
+  const detailOf = (md: string, file: string): string => (rowFor(md, file).split("|")[3] ?? "").trim();
+
+  /**
+   * ONE PLANT PER ARM. Each is named by the condition it MEETS, and each is driven through the
+   * authority itself below so the expected arm is the authority's own answer rather than this
+   * file's opinion about the plant.
+   */
+  const PLANTS: ReadonlyArray<readonly [string, string, (p: string) => void]> = Object.freeze([
+    ["unparseable", "aa-unparseable.md", (p) => writeFileSync(p, "this is not a note at all\n")],
+    [
+      "unopenable",
+      "bb-unopenable.md",
+      (p) => {
+        writeFileSync(p, "whatever\n");
+        chmodSync(p, 0o000);
+      },
+    ],
+    ["not-a-regular-file", "cc-fifo.md", (p) => execFileSync("mkfifo", [p])],
+    [
+      "above-ceiling",
+      "dd-overceiling.md",
+      (p) => writeFileSync(p, Buffer.alloc(mod.NOTE_FILE_MAX_BYTES + 1, 0x61)),
+    ],
+    ["vanished", "ee-dangling-symlink.md", (p) => symlinkSync(join(p, "..", "no-such-target"), p)],
+  ]);
+
+  /** The EACCES plant only proves anything where `chmod 000` actually denies THIS process a read. */
+  function eaccesIsDenied(path: string): boolean {
+    try {
+      readFileSync(path, "utf8");
+      return false;
+    } catch (e) {
+      return (e as NodeJS.ErrnoException).code === "EACCES";
+    }
+  }
+
+  it("PREMISE: `chmod 000` denies a read to this process, so the unopenable arm is measurable here", () => {
+    const probe = join(freshTmp("p31-33-eacces-premise-"), "denied");
+    writeFileSync(probe, "x");
+    chmodSync(probe, 0o000);
+    const denied = eaccesIsDenied(probe);
+    chmodSync(probe, 0o600);
+    // A root-equivalent process reads it anyway. Recorded `UNKNOWN - verify` rather than reported as
+    // passing — the plan's own precondition, honoured rather than assumed.
+    expect(
+      denied,
+      "UNKNOWN - verify: this process reads a `chmod 000` regular file, so the `unopenable` arm " +
+        "cannot be measured on this box and its cases below prove nothing about it",
+    ).toBe(true);
+  });
+
+  it("every planted condition reports its OWN arm, read from the authority's discriminant", () => {
+    for (const [arm, file, plant] of PLANTS) {
+      const ctx = store(`p31-33-arm-${arm}-`);
+      const notes = join(ctx, T, "notes");
+      const path = join(notes, file);
+      plant(path);
+      // THE AUTHORITY'S OWN ANSWER FOR THIS EXACT POSITION, asked directly. The rendered arm is
+      // then compared against a fact the module decided, never against this file's expectation of
+      // what the plant ought to be — which is what makes a row that contradicts its own detail
+      // impossible rather than merely unlikely.
+      let authority: string;
+      try {
+        authority =
+          mod.readRegularFileOrNull(path, mod.NOTE_FILE_MAX_BYTES, "note file") === null
+            ? "vanished"
+            : "(read as a note)";
+      } catch (e) {
+        authority = (e as { condition?: string }).condition ?? "(not a ReadPositionRefusal)";
+      }
+      if (arm !== "unparseable") {
+        expect(authority, `the authority does not name ${arm} for this plant`).toBe(arm);
+      }
+      mod.render(T, ctx);
+      const md = indexOf(ctx);
+      expect(md, `${arm} produced no skip report`).toContain("## Skipped entries");
+      expect(
+        armOf(md, file),
+        `the ${arm} plant is filed under a different arm. Row: ${rowFor(md, file)}`,
+      ).toBe(arm);
+      if (arm !== "unparseable" && arm !== "vanished") {
+        // …and the detail is the AUTHORITY's own message for that position, so a detail that
+        // contradicts its arm is not a thing this table can render.
+        let message = "";
+        try {
+          mod.readRegularFileOrNull(path, mod.NOTE_FILE_MAX_BYTES, "note file");
+        } catch (e) {
+          message = (e as Error).message;
+        }
+        expect(detailOf(md, file), `the ${arm} row's detail is not the authority's own message`).toBe(
+          message.replace(/\|/g, "\\|"),
+        );
+      }
+      if (arm === "unopenable") chmodSync(path, 0o600);
+    }
+  });
+
+  it("the FULL pairwise cross product of arms produces DISTINCT rendered rows", () => {
+    // The assertion the collision hid behind. The case this replaces drove three plants, expected
+    // TWO of them to share one arm, and never compared `over the ceiling` against `not a regular
+    // file` — the one pair that had actually collapsed.
+    const rendered = new Map<string, string>();
+    for (const [arm, file, plant] of PLANTS) {
+      const ctx = store(`p31-33-cross-${arm}-`);
+      const path = join(ctx, T, "notes", file);
+      plant(path);
+      mod.render(T, ctx);
+      // THE ARM CELL IS WHAT IS COMPARED, and that is the whole point. Comparing the WHOLE rendered
+      // row would pass on the pre-fix module, because two conditions filed under ONE arm still carry
+      // different detail text — which is exactly how a collapsed arm reads as distinct to a test and
+      // as identical to the human who scans the arm column. The axis that collapsed is the axis
+      // asserted.
+      rendered.set(arm, armOf(indexOf(ctx), file));
+      if (arm === "unopenable") chmodSync(path, 0o600);
+    }
+    const arms = PLANTS.map(([arm]) => arm);
+    let pairs = 0;
+    for (const a of arms) {
+      for (const b of arms) {
+        if (a === b) continue;
+        pairs += 1;
+        expect(
+          rendered.get(a),
+          `the ${a} plant and the ${b} plant are filed under the SAME arm ` +
+            `("${rendered.get(a)}"), so a human triaging an unreadable note is pointed at one ` +
+            `cause for two different events`,
+        ).not.toBe(rendered.get(b));
+      }
+    }
+    expect(pairs, "the cross product compared fewer pairs than the arm cardinality implies").toBe(
+      arms.length * (arms.length - 1),
+    );
+  });
+
+  it("NO rendered row's detail contradicts its arm — asserted as a property over every arm", () => {
+    const ctx = store("p31-33-contradiction-");
+    const notes = join(ctx, T, "notes");
+    const opened: string[] = [];
+    for (const [arm, file, plant] of PLANTS) {
+      plant(join(notes, file));
+      if (arm === "unopenable") opened.push(join(notes, file));
+    }
+    mod.render(T, ctx);
+    const md = indexOf(ctx);
+    for (const [arm, file] of PLANTS) {
+      const detail = detailOf(md, file);
+      if (detail === "") continue;
+      // THE PROPERTY: the detail in a row is the AUTHORITY's own message, so the arm the row is
+      // filed under must be the condition that authority named for that same position. Checked
+      // against the authority's discriminant rather than against a list of message strings, so it
+      // cannot go stale when a message is reworded — and compared against the RENDERED arm, not
+      // against this file's expectation of the plant, which is what makes it a property of the
+      // TABLE rather than of the fixture.
+      let authorityArm = "";
+      try {
+        mod.readRegularFileOrNull(join(notes, file), mod.NOTE_FILE_MAX_BYTES, "note file");
+      } catch (e) {
+        authorityArm = (e as { condition?: string }).condition ?? "";
+      }
+      if (authorityArm === "") continue;
+      expect(
+        armOf(md, file),
+        `the row for ${file} is filed under "${armOf(md, file)}" while the authority that produced ` +
+          `its detail named "${authorityArm}" — the arm column and the detail column contradict ` +
+          `each other. Row: ${rowFor(md, file)}`,
+      ).toBe(authorityArm);
+    }
+    for (const p of opened) chmodSync(p, 0o600);
+  });
+
+  /**
+   * The authority's published condition set, read through the module's own surface.
+   *
+   * Reached through a cast and a PREMISE rather than a direct property access: an export that is
+   * absent must fail as "the harness measured nothing", never as an empty set that trivially
+   * satisfies every both-directions claim below. This repository has recorded a false
+   * verification-harness premise in six instances across four rounds.
+   */
+  const readPositionConditions = (): readonly string[] =>
+    (mod as unknown as { READ_POSITION_CONDITIONS?: readonly string[] }).READ_POSITION_CONDITIONS ??
+    [];
+
+  it("NOTE_SKIP_ARMS and ReadPositionCondition are bound in BOTH directions, with a cardinality", () => {
+    const conditions = [...readPositionConditions()];
+    expect(
+      conditions.length,
+      "PREMISE: the module publishes NO condition set, so both directions below are vacuous",
+    ).toBeGreaterThan(0);
+    const arms = [...mod.NOTE_SKIP_ARMS];
+    // DIRECTION 1 — every condition the authority raises has an arm.
+    for (const c of conditions) {
+      expect(arms, `the authority raises "${c}" and no arm publishes it`).toContain(c);
+    }
+    // DIRECTION 2 — every arm that is not a condition is one of the reader's own two.
+    const readerOwned = arms.filter((a) => !(conditions as string[]).includes(a));
+    expect(
+      readerOwned.sort(),
+      "an arm exists that neither the authority raises nor the reader owns",
+    ).toEqual(["unparseable", "vanished"]);
+    // THE CARDINALITY, asserted separately: a RESIZED set and a REMEMBERED set are different events.
+    expect(conditions).toHaveLength(3);
+    expect(arms).toHaveLength(5);
+    expect(arms.length).toBe(conditions.length + readerOwned.length);
+  });
+
+  it("the arm set is DERIVED from the condition set in the source, not typed out beside it", () => {
+    // The structural half. Two literals that happen to agree today are the set-literal drift this
+    // repository has a named failure class for, so the binding is a SPREAD of the authority's own
+    // constant and a mirror that replaces it with the same three literals turns this red.
+    const source = readFileSync(CONTEXT_IO_TS, "utf8");
+    const decl = source.slice(source.indexOf("export const NOTE_SKIP_ARMS"));
+    const initializer = decl.slice(0, decl.indexOf("\n"));
+    expect(
+      initializer,
+      "NOTE_SKIP_ARMS does not spread READ_POSITION_CONDITIONS, so the two sets are two literals " +
+        "that agree today and drift tomorrow",
+    ).toContain("...READ_POSITION_CONDITIONS");
+  });
+
+  it("a SEEDED sixth condition moves the derived arm count by exactly one", () => {
+    // Derived from the SOURCE, so the mirror needs no compile. The seeded condition enters the
+    // authority's own constant, and the arm set must grow with it because it spreads that constant.
+    const source = readFileSync(CONTEXT_IO_TS, "utf8");
+    const anchor = 'export const READ_POSITION_CONDITIONS = [';
+    expect(
+      source.split(anchor).length - 1,
+      "PREMISE: the authority's condition constant was not found exactly once, so this mirror " +
+        "seeded nothing",
+    ).toBe(1);
+    const deriveArms = (text: string): string[] => {
+      const cStart = text.indexOf(anchor) + anchor.length;
+      const conditions = text
+        .slice(cStart, text.indexOf("]", cStart))
+        .split(",")
+        .map((m) => m.trim().replace(/^"|"$/g, ""))
+        .filter((m) => m !== "");
+      const aAnchor = "export const NOTE_SKIP_ARMS = [";
+      const aStart = text.indexOf(aAnchor) + aAnchor.length;
+      const armSource = text.slice(aStart, text.indexOf("]", aStart));
+      return armSource
+        .split(",")
+        .flatMap((m) => {
+          const t = m.trim();
+          if (t === "...READ_POSITION_CONDITIONS") return conditions;
+          return t === "" ? [] : [t.replace(/^"|"$/g, "")];
+        })
+        .filter((m) => m !== "");
+    };
+    const before = deriveArms(source);
+    expect(before, "PREMISE: the derivation read no arms at all").toHaveLength(5);
+    const after = deriveArms(source.replace(anchor, `${anchor}"seeded-sixth-condition", `));
+    expect(after).toHaveLength(before.length + 1);
+    expect(after).toContain("seeded-sixth-condition");
+    expect(after.filter((a) => a !== "seeded-sixth-condition")).toEqual(before);
+  });
+
+  it("the `vanished` docstring names BOTH conditions that reach it, not only a concurrent delete", () => {
+    const source = readFileSync(CONTEXT_IO_TS, "utf8");
+    const start = source.indexOf("`vanished`");
+    expect(start, "PREMISE: the vanished arm's docstring was not found").toBeGreaterThan(-1);
+    const block = source.slice(start, start + 900);
+    expect(
+      block,
+      "the docstring describes only a concurrent delete, while a DANGLING SYMLINK at a note path " +
+        "reaches ENOENT on its target and is reported under this same arm",
+    ).toMatch(/dangling symlink/i);
+  });
+
+  it("CONTROL 2: the counted-entries report still counts the number of skipped entries", () => {
+    const ctx = store("p31-33-count-");
+    const notes = join(ctx, T, "notes");
+    const opened: string[] = [];
+    for (const [arm, file, plant] of PLANTS) {
+      plant(join(notes, file));
+      if (arm === "unopenable") opened.push(join(notes, file));
+    }
+    mod.render(T, ctx);
+    expect(indexOf(ctx)).toContain("5 entries in this task's notes/ directory were not read as a note");
+    for (const p of opened) chmodSync(p, 0o600);
+  });
+
+  it("CONTROL 3 (R-31-21-02 unmoved): one planted FIFO does not deny render or currentState", () => {
+    const ctx = store("p31-33-skipdisposition-");
+    const id = mod.appendNote(
+      T,
+      {
+        kind: "observation",
+        by: "qe",
+        at: "2026-09-11T00:00:00Z",
+        verified_by: "",
+        confidence: "high",
+        refs: [],
+        supersedes: null,
+      } as Parameters<typeof mod.appendNote>[1],
+      "a real body",
+      ctx,
+      undefined,
+      resolve(join(ctx, "..", "..")),
+    );
+    execFileSync("mkfifo", [join(ctx, T, "notes", "zz-fifo.md")]);
+    expect(mod.readContext(T, ctx).map((n) => n.id)).toEqual([id]);
+    expect(() => mod.render(T, ctx)).not.toThrow();
+    expect(indexOf(ctx)).toContain("| a real body |");
+  });
+});
