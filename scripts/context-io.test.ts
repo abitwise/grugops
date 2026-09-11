@@ -11523,9 +11523,18 @@ describe("31-37 WR-36 — one shared candidate corpus, the wrapper's accept set 
   });
 
   it("the wrapper's STATED REASON is true of the file it is written in", () => {
-    const src = readFileSync(join(ROOT, "hooks", "hook-entry.ts"), "utf8");
-    // The false sentence, quoted from the pre-fix file, is GONE. It said the three checks were "the
-    // ones a file limited to `node:` builtins can make", which `existsSync` at :42 already disproves.
+    // Read with comment wrapping NORMALISED OUT: the claim is a sentence, and where a comment
+    // happens to break a line is not a property of the claim. Anchoring to a line break would make
+    // a reflow a red test and a rewritten reason a green one, which is backwards.
+    const src = readFileSync(join(ROOT, "hooks", "hook-entry.ts"), "utf8")
+      .split(/\n\s*\*/)
+      .join(" ")
+      .split(/\s+/)
+      .join(" ");
+    expect(src.length, "the normalisation emptied the file").toBeGreaterThan(1000);
+    // The false sentence, quoted from the pre-fix file, is GONE as a STATED REASON. It said the three
+    // checks were the ones a file limited to `node:` builtins can make, which `existsSync` imported
+    // at the top of that same file and used below already disproves.
     expect(
       src,
       "the wrapper still states a reason measured false: existsSync is imported and used here",

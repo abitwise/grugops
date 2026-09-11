@@ -4087,7 +4087,11 @@ export const TRUSTED_ROOT_TIERS = Object.freeze([
     "0. The root the HOST delivered on this process's own spawn environment, under " +
         "GRUGOPS_HOST_DELIVERED_ROOT, when it canonicalises to an existing directory that carries a " +
         "version-control marker and is not the kit's own root. Available on the Claude Code hook path " +
-        "only, because that is the one host that builds the hook subprocess's environment.",
+        "only, because that is the one host that builds the hook subprocess's environment. Its VALUE on " +
+        "that path is derived from CLAUDE_PROJECT_DIR — the tier-1 ambient name — read inside the frozen " +
+        "PreToolUse wrapper and promoted under this name. The channel is one the agent cannot write " +
+        "because the HOST builds that subprocess's environment and the wrapper is byte-frozen, not " +
+        "because the name is a second variable.",
     "1. CLAUDE_PROJECT_DIR when present and non-empty after trimming, made absolute.",
     "2. GRUGOPS_PROJECT_DIR — the documented installer-set variable — under the same predicate.",
     "3. The configuration that governs the process working directory: the repository root's own when " +

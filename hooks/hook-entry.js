@@ -232,7 +232,7 @@ const DECIDER_MANIFEST = {
         "scripts/audit-prepass.js": "4a6906e19cfdc885f838ef429854d09cd5786b4a78d490e3ccc38dd9491c98d2",
         "scripts/check-diff-disposition.js": "ca642d36df6aef18f12d5860affe2e2fb15a6e89ee55392124581bb51ec36bb4",
         "scripts/checkpoints.js": "2107434e318ad4ead0279206361f7e7b05dddb1817e3fddd17f2f337c97d73a6",
-        "scripts/context-io.js": "909b4771c2e4d977d9682e0e24405c26709b19c180ccf0ae6a6b7f41912248a4",
+        "scripts/context-io.js": "342d7391a9967152ef16bd5bd599c2098b1967324992301b8d5e8b4d3f4a5a6c",
         "scripts/dead-vocabulary.js": "f815b1d656248848702a358def8c3c88dc37f089f59aa671a444edd3731b8154",
         "scripts/frontmatter.js": "6d49e535272b457411277ff963f92722b0de38d15e0761dcb8ec93ca44878623",
         "scripts/generate-safety-surface.js": "ba7bdf982d67dc30169859ace1e3b7743c534a61d8756520fcd8e1b876380f6f",
@@ -247,7 +247,7 @@ const DECIDER_MANIFEST = {
         "scripts/audit-prepass.js": "4a6906e19cfdc885f838ef429854d09cd5786b4a78d490e3ccc38dd9491c98d2",
         "scripts/check-diff-disposition.js": "ca642d36df6aef18f12d5860affe2e2fb15a6e89ee55392124581bb51ec36bb4",
         "scripts/checkpoints.js": "2107434e318ad4ead0279206361f7e7b05dddb1817e3fddd17f2f337c97d73a6",
-        "scripts/context-io.js": "909b4771c2e4d977d9682e0e24405c26709b19c180ccf0ae6a6b7f41912248a4",
+        "scripts/context-io.js": "342d7391a9967152ef16bd5bd599c2098b1967324992301b8d5e8b4d3f4a5a6c",
         "scripts/dead-vocabulary.js": "f815b1d656248848702a358def8c3c88dc37f089f59aa671a444edd3731b8154",
         "scripts/frontmatter.js": "6d49e535272b457411277ff963f92722b0de38d15e0761dcb8ec93ca44878623",
         "scripts/generate-safety-surface.js": "ba7bdf982d67dc30169859ace1e3b7743c534a61d8756520fcd8e1b876380f6f",
@@ -339,12 +339,33 @@ if (mismatch !== null) {
  * decider's entire import closure above before the decider is allowed to run. Those two facts ARE
  * the trust in this channel — nothing more, and the register says so rather than implying it.
  *
- * AN UNUSABLE VALUE DELIVERS NOTHING, NOT A BAD VALUE. The shape checks below are the ones a file
- * limited to `node:` builtins can make: non-empty after a trim, absolute, an existing directory. When
- * the host's value fails any of them the name is simply not set, and the decider answers from the
- * tier below — which is the walk, the program that has always answered. Delivering a value that
- * failed a check would be strictly worse than delivering none: the decider would then TRUST a tier
- * the fallback would have answered correctly.
+ * AN UNUSABLE VALUE DELIVERS NOTHING, NOT A BAD VALUE. When the host's value fails any condition
+ * below the name is simply not set, and the decider answers from the tier below — which is the walk,
+ * the program that has always answered. Delivering a value that failed a check would be strictly
+ * worse than delivering none: the decider would then TRUST a tier the fallback would have answered
+ * correctly.
+ *
+ * THE CONDITIONS ARE THE READER'S OWN, AND THAT IS A MEASUREMENT RATHER THAN A CLAIM (plan 31-37,
+ * `WR-36`). Until this plan there were three of them — non-empty after a trim, absolute, an existing
+ * directory — under a sentence saying they were the ones a file limited to `node:` builtins can make.
+ * That reason was FALSE of this file: `existsSync` is imported at the top of it and used below, and
+ * both remaining conditions are `node:fs` plus `node:path` operations. Measured end-to-end through
+ * BOTH `hooks/hooks.json` commands, four candidates in a thirteen-shape corpus were DELIVERED here
+ * and DISCARDED by `hostDeliveredRoot`: a directory with no version-control marker, a symlink to one,
+ * a directory nested inside a repository, and the kit's own root. The gap was benign only because the
+ * reader re-checks, and nothing held the two together — so a later narrowing of the reader would have
+ * gone unnoticed.
+ *
+ * The two further conditions are therefore applied HERE, and the pair is BOUND rather than aligned:
+ * `scripts/context-io.test.ts` drives ONE shared candidate corpus through this wrapper end-to-end and
+ * through the reader of the SAME kit, and asserts that no candidate this wrapper accepts is one that
+ * reader would discard. No difference remains on the accept set.
+ *
+ * D-29'S BOUND IS UNMOVED, AND THAT IS RE-DRIVEN RATHER THAN ARGUED. The work added here is at most
+ * nine `existsSync` probes on the candidate's own children plus one `realpathSync` — `access(2)`- and
+ * `stat(2)`-shaped calls that open nothing, so none of them can wait for a writer the way `open(2)`
+ * on a FIFO does. The `CR-17` reproduction is re-driven against this change, with its exit code, its
+ * elapsed time and both stream byte counts recorded beside `31-31`'s.
  *
  * THE NAME IS THE DECIDER'S, NOT THE HOST'S. `GRUGOPS_HOST_DELIVERED_ROOT` is spelled here as a
  * literal — this file may import only `node:` builtins, so it cannot import the constant — and
@@ -354,6 +375,26 @@ if (mismatch !== null) {
  * ---------------------------------------------------------------------------------------------
  */
 const HOST_DELIVERED_ROOT_ENV = "GRUGOPS_HOST_DELIVERED_ROOT";
+/**
+ * WHERE A REPOSITORY STARTS, SPELLED HERE AS A LITERAL for the same reason the env name above is.
+ *
+ * `scripts/context-io.ts` owns the authority as `REPO_BOUNDARY_MARKERS`; this file may import only
+ * `node:` builtins, so it cannot import that constant. A second hand-kept spelling of one set is this
+ * repository's recorded drift shape, so it is BOUND rather than trusted: `scripts/context-io.test.ts`
+ * derives THIS list from this file's own syntax tree and asserts it equal to the module's export in
+ * both directions, cardinality included.
+ */
+const REPO_BOUNDARY_MARKERS = Object.freeze([
+    ".git", // Git
+    ".hg", // Mercurial
+    ".svn", // Subversion
+    ".bzr", // Bazaar
+    "_darcs", // Darcs
+    ".jj", // Jujutsu
+    ".pijul", // Pijul
+    ".fslckout", // Fossil, POSIX checkout marker
+    "_FOSSIL_", // Fossil, Windows checkout marker
+]);
 function hostBuiltProjectRoot() {
     const raw = process.env["CLAUDE_PROJECT_DIR"];
     if (typeof raw !== "string")
@@ -370,6 +411,15 @@ function hostBuiltProjectRoot() {
         return null;
     }
     if (!existsSync(canonical))
+        return null;
+    // A REPOSITORY, by the marker set the reader applies. Bounded: at most one `access(2)`-shaped probe
+    // per marker, on the candidate's own children, opening nothing.
+    if (!REPO_BOUNDARY_MARKERS.some((marker) => existsSync(join(canonical, marker))))
+        return null;
+    // NOT the kit this wrapper ships in. The kit is not a governed project; delivering it would hand
+    // the decider the kit's own lean default wearing the name of a host-resolved project root, which
+    // is the shape `D-23 (4)` and `CR-13` both already refuse one tier down.
+    if (canonical === realpathSyncSafe(KIT_ROOT))
         return null;
     return canonical;
 }

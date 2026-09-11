@@ -852,10 +852,25 @@ describe("30-11 round 3 — every spawn in the hook and floor tests is BOUNDED (
 // host-built `CLAUDE_PROJECT_DIR`, shape-checks it, and sets `GRUGOPS_HOST_DELIVERED_ROOT` on the one
 // `spawnSync` it makes. Both re-takes are recorded, so the wrapper's logic history is legible.
 //
+// RE-TAKEN A THIRD TIME BY PLAN 31-37 (WR-36), 2026-09-11. The wrapper's validation of the host's
+// `CLAUDE_PROJECT_DIR` was strictly WEAKER than the reader's: measured end-to-end through both
+// `hooks/hooks.json` commands, four candidates in a thirteen-shape corpus were delivered here and
+// discarded by `hostDeliveredRoot` — a directory with no version-control marker, a symlink to one, a
+// directory nested inside a repository, and the kit's own root. The wrapper now applies the marker
+// condition and the not-the-kit-root condition, spelled from `node:` builtins, and the two sides are
+// bound by one shared corpus in `scripts/context-io.test.ts`. A FREEZE IS CHANGE CONTROL AND NEVER A
+// REASON TO LEAVE A GAP: the baseline MOVES with the artifact and is never relaxed, and
+// `hooks/guard.ts` is untouched.
+//
+// THE NON-VACUITY FLOOR, MEASURED BEFORE THE DIGEST WAS READ, at this plan's commit:
+//   total bytes 32182, normalised bytes 29357, REMOVED 2825 — non-zero, and past the 100-byte floor
+//   the case below asserts. A normalisation that removed nothing would be hashing the whole file.
+//
 //   pre-31-27:      5bfd5ba85a716dcd4383e819480edaf32bfeba58cadb3479089fd22e94777d9e
 //   31-27 Task 1:   b0629f092d6929ae4394741f4c4e6a335acb7f3bb15d642ba61c81571e34ff54  (CR-17)
-//   31-27 Task 3:   e1ed0dc053f321dc54fa6a657cac6fdddf0816e839766f3e0c68ec5e3375cabc  (this baseline, S1)
-const FROZEN_HOOK_ENTRY_LOGIC_SHA = "e1ed0dc053f321dc54fa6a657cac6fdddf0816e839766f3e0c68ec5e3375cabc";
+//   31-27 Task 3:   e1ed0dc053f321dc54fa6a657cac6fdddf0816e839766f3e0c68ec5e3375cabc  (S1)
+//   31-37 Task 1:   006cdb0f45d017f050f78c1424f636f700fc72b378723799cee4e1820904330d  (this baseline, WR-36)
+const FROZEN_HOOK_ENTRY_LOGIC_SHA = "006cdb0f45d017f050f78c1424f636f700fc72b378723799cee4e1820904330d";
 
 describe("30-11 round 3 — the hook ENTRY is frozen, and hooks.json names it", () => {
   it("hooks/hook-entry.ts's LOGIC matches its frozen hash (manifest region normalised out)", () => {
