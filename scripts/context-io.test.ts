@@ -35,11 +35,16 @@ import {
   chmodSync,
   statSync,
   realpathSync,
+  copyFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, relative, resolve, sep } from "node:path";
+import { dirname, join, relative, resolve, sep } from "node:path";
 import { pathToFileURL } from "node:url";
 import ts from "typescript";
+// 31-37 (WR-36): the mirrored kit the delivered-root parity corpus drives is built from the DERIVED
+// import closure, never from a hand-listed file set — a mirror that misses a module reproduces "the
+// module is missing" instead of the property under test.
+import { closureTargets } from "./js-import-closure.js";
 
 const ROOT = join(import.meta.dirname, "..");
 const CONTEXT_IO_JS = join(ROOT, "scripts", "context-io.js");
@@ -11203,6 +11208,346 @@ describe("31-27 S1 — tier 0 admits strictly fewer roots than the tier it prece
     // The delivered name and the host scoping are both stated in the prose, not implied.
     expect(doc).toContain(mod.HOST_DELIVERED_ROOT_ENV);
     expect(doc).toContain("non-cc-hook-path");
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// PLAN 31-37 — WR-36: THE DELIVERING SIDE NEVER DELIVERS WHAT THE CONSUMING SIDE DISCARDS.
+//
+// `hooks/hook-entry.ts` and `scripts/context-io.ts` hold TWO implementations of ONE predicate — "is
+// this candidate a governance root worth trusting". Until this plan the wrapper applied three
+// conditions and the reader five, nothing bound the pair, and the wrapper's own comment gave a
+// reason for the gap that is false of the file: `existsSync` is imported at `hooks/hook-entry.ts:42`
+// and used at `:407`, and both further conditions are `node:fs` plus `node:path` operations.
+//
+// THE RED RECORD, measured END-TO-END through both `hooks/hooks.json` commands before this change,
+// with the corpus size printed before any conclusion was read:
+//
+//   CORPUS SIZE = 13, on each of the two routes; DISAGREEING ROWS = 4 on each
+//     existing dir, NO version-control marker           wrapper delivers -> reader DISCARDS
+//     the KIT's own root (carries .git)                 wrapper delivers -> reader DISCARDS
+//     symlink -> dir with NO marker                     wrapper delivers -> reader DISCARDS
+//     existing dir INSIDE a repo, no marker of its own  wrapper delivers -> reader DISCARDS
+//
+// The consequence was benign only because the reader re-checks. Nothing held the two together, so a
+// later narrowing of the reader would have gone unnoticed — which is this repository's own recorded
+// set-literal drift shape, one register over.
+//
+// WHY BOTH SIDES ARE ASKED OF THE SAME KIT. The wrapper is driven inside a mirrored kit, so its
+// `KIT_ROOT` is the mirror. Asking the committed reader in the REPOSITORY would then compare two
+// different kit roots, and the "kit's own root" row would disagree for a reason that is an artifact
+// of the harness rather than a property of the program. Both sides are therefore asked of the
+// MIRROR, and the mirror's reader is asserted byte-identical to the committed one first.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+describe("31-37 WR-36 — one shared candidate corpus, the wrapper's accept set INSIDE the reader's", () => {
+  /** A decider that reports what the wrapper handed it, as a deny the wrapper passes through. */
+  const REPORTER =
+    'const v = process.env.GRUGOPS_HOST_DELIVERED_ROOT ?? "(absent)";\n' +
+    'process.stdout.write(JSON.stringify({hookSpecificOutput:{hookEventName:"PreToolUse",' +
+    'permissionDecision:"deny",permissionDecisionReason:"DELIVERED=" + v}}));\n';
+
+  /**
+   * A mirrored kit whose decider REPORTS the delivered name, re-sealed so the wrapper's own code
+   * check passes and the branch under test is the one actually exercised.
+   */
+  function reporterKit(deciderRel: string): string {
+    const root = freshTmp("p31-37-kit-");
+    for (const rel of ["hooks/hook-entry.js", deciderRel]) {
+      for (const t of closureTargets(ROOT, rel, root)) {
+        mkdirSync(dirname(t.to), { recursive: true });
+        copyFileSync(t.from, t.to);
+      }
+    }
+    // THE HARNESS'S OWN PREMISE, ASSERTED. Both predicates are asked of THIS kit; if the mirrored
+    // reader were not the committed reader, every agreement below would be about a copy.
+    const committed = createHash("sha256").update(readFileSync(CONTEXT_IO_JS)).digest("hex");
+    const mirrored = createHash("sha256")
+      .update(readFileSync(join(root, "scripts", "context-io.js")))
+      .digest("hex");
+    expect(mirrored, "the mirrored reader is not the committed reader").toBe(committed);
+
+    const before = createHash("sha256").update(readFileSync(join(ROOT, deciderRel))).digest("hex");
+    writeFileSync(join(root, deciderRel), REPORTER);
+    const after = createHash("sha256").update(readFileSync(join(root, deciderRel))).digest("hex");
+    const entry = join(root, "hooks", "hook-entry.js");
+    const src = readFileSync(entry, "utf8");
+    expect(src, "the manifest lacks the pre-modification hash — reseal would be a no-op").toContain(
+      before,
+    );
+    writeFileSync(entry, src.split(before).join(after));
+    // The kit carries a version-control marker of its own, so the "kit's own root" candidate is
+    // refused for BEING THE KIT and not merely for lacking a marker.
+    mkdirSync(join(root, ".git"), { recursive: true });
+    return root;
+  }
+
+  function scrubbedEnv(): Record<string, string> {
+    const env: Record<string, string> = {};
+    for (const [k, v] of Object.entries(process.env)) {
+      if (k.startsWith("GRUGOPS_") || k.startsWith("CLAUDE_") || v === undefined) continue;
+      env[k] = v;
+    }
+    return env;
+  }
+
+  const HOOKS = JSON.parse(readFileSync(join(ROOT, "hooks", "hooks.json"), "utf8")) as {
+    hooks: { PreToolUse: Array<{ matcher: string; hooks: Array<{ command: string }> }> };
+  };
+
+  /** The argv a host actually runs for one PreToolUse route, derived from `hooks/hooks.json`. */
+  function routeArgv(routeIndex: number, kitRoot: string): string[] {
+    const raw = HOOKS.hooks.PreToolUse[routeIndex]?.hooks[0]?.command ?? "";
+    expect(raw, `PreToolUse route ${String(routeIndex)} bypasses the wrapper: ${raw}`).toContain(
+      "hooks/hook-entry.js",
+    );
+    const cmd = raw.split("${CLAUDE_PLUGIN_ROOT}").join(kitRoot);
+    const argv: string[] = [];
+    let cur = "";
+    let quoted = false;
+    for (const ch of cmd) {
+      if (ch === '"') { quoted = !quoted; continue; }
+      if (ch === " " && !quoted) { if (cur !== "") { argv.push(cur); cur = ""; } continue; }
+      cur += ch;
+    }
+    if (cur !== "") argv.push(cur);
+    return argv;
+  }
+
+  /** What the WRAPPER delivered, observed at the decider it spawns. `null` = it delivered nothing. */
+  function wrapperDelivers(argv: string[], candidate: string | undefined): string | null {
+    const extra: Record<string, string> =
+      candidate === undefined ? {} : { CLAUDE_PROJECT_DIR: candidate };
+    const r = spawnSync(argv[0] as string, argv.slice(1), {
+      input: JSON.stringify({ tool_input: { command: "git push --force origin main" } }),
+      encoding: "utf8",
+      env: { ...scrubbedEnv(), ...extra },
+      timeout: 20_000,
+    });
+    expect(r.status, `the wrapper did not ANSWER: ${(r.stderr ?? "").slice(0, 300)}`).toBe(0);
+    const reason = (
+      JSON.parse(r.stdout ?? "") as { hookSpecificOutput: { permissionDecisionReason: string } }
+    ).hookSpecificOutput.permissionDecisionReason;
+    expect(reason, "the reporter decider was not reached — nothing here measures delivery").toContain(
+      "DELIVERED=",
+    );
+    const v = reason.slice(reason.indexOf("DELIVERED=") + "DELIVERED=".length);
+    return v === "(absent)" ? null : v;
+  }
+
+  /** What the READER of the SAME kit decides about that delivered value. */
+  function readerAccepts(kitRoot: string, value: string): string | null {
+    const code =
+      `const m = await import(${JSON.stringify(
+        pathToFileURL(join(kitRoot, "scripts", "context-io.js")).href,
+      )});` + `process.stdout.write(JSON.stringify(m.hostDeliveredRoot()));`;
+    const r = spawnSync(process.execPath, ["--input-type=module", "-e", code], {
+      encoding: "utf8",
+      env: { ...scrubbedEnv(), GRUGOPS_HOST_DELIVERED_ROOT: value },
+      timeout: 30_000,
+    });
+    expect(r.status, `the reader child failed: ${(r.stderr ?? "").slice(0, 300)}`).toBe(0);
+    return JSON.parse(r.stdout) as string | null;
+  }
+
+  /** ONE corpus, built once per route because three of its shapes are relative to the kit. */
+  function corpus(kitRoot: string): Array<[string, string | undefined]> {
+    const bare = freshTmp("p31-37-nomarker-");
+    const fileHost = freshTmp("p31-37-file-");
+    const aFile = join(fileHost, "regular");
+    writeFileSync(aFile, "x");
+    const git = freshTmp("p31-37-git-");
+    mkdirSync(join(git, ".git"), { recursive: true });
+    const hg = freshTmp("p31-37-hg-");
+    mkdirSync(join(hg, ".hg"), { recursive: true });
+    const fossil = freshTmp("p31-37-fossil-");
+    writeFileSync(join(fossil, "_FOSSIL_"), "x");
+    const gone = join(freshTmp("p31-37-gone-"), "absent");
+    const symRepo = join(freshTmp("p31-37-symrepo-"), "link");
+    symlinkSync(git, symRepo);
+    const symBare = join(freshTmp("p31-37-symbare-"), "link");
+    symlinkSync(bare, symBare);
+    const outer = freshTmp("p31-37-nested-");
+    mkdirSync(join(outer, ".git"), { recursive: true });
+    const nested = join(outer, "pkg");
+    mkdirSync(nested);
+    return [
+      ["absent (name unset)", undefined],
+      ["whitespace only", "   "],
+      ["relative path", "some/relative/dir"],
+      ["absolute, does not exist", gone],
+      ["absolute, an existing REGULAR FILE", aFile],
+      ["existing dir, NO version-control marker", bare],
+      ["existing dir WITH .git", git],
+      ["existing dir WITH .hg", hg],
+      ["existing dir WITH _FOSSIL_", fossil],
+      ["the KIT's own root (carries .git)", kitRoot],
+      ["symlink -> dir WITH .git", symRepo],
+      ["symlink -> dir with NO marker", symBare],
+      ["existing dir INSIDE a repo, no marker of its own", nested],
+    ];
+  }
+
+  /**
+   * EVERY ROUTE THAT DELIVERS A ROOT, DERIVED FROM `hooks/hooks.json` RATHER THAN LISTED.
+   *
+   * A hand-typed route list is the set-literal drift this phase keeps recording. The count is
+   * asserted against the file, so a third PreToolUse entry cannot arrive unprobed.
+   */
+  const ROUTES: ReadonlyArray<readonly [number, string]> = Object.freeze([
+    [0, "hooks/guard.js"],
+    [1, "hooks/admission-guard.js"],
+  ]);
+
+  it("the probed route set IS the hooks.json route set — no route delivers a root unprobed", () => {
+    expect(HOOKS.hooks.PreToolUse.length, "hooks.json publishes no PreToolUse route at all")
+      .toBeGreaterThan(0);
+    expect(
+      ROUTES.length,
+      "hooks.json carries a PreToolUse route this case never drives a corpus through",
+    ).toBe(HOOKS.hooks.PreToolUse.length);
+    for (const [i, decider] of ROUTES) {
+      expect(HOOKS.hooks.PreToolUse[i]?.hooks[0]?.command).toContain(decider.split("/")[1] as string);
+    }
+  });
+
+  for (const [routeIndex, deciderRel] of ROUTES) {
+    const matcher = HOOKS.hooks.PreToolUse[routeIndex]?.matcher ?? "(none)";
+    it(`route ${String(routeIndex)} (${matcher}): no candidate the wrapper delivers is one the reader discards`, () => {
+      const kit = reporterKit(deciderRel);
+      const argv = routeArgv(routeIndex, kit);
+      const cases = corpus(kit);
+
+      // NON-VACUITY FIRST, and printed: a conclusion drawn from an empty corpus is the vacuity
+      // shape this repository's own ledger records.
+      expect(cases.length, "the corpus is EMPTY — every conclusion below would be vacuous")
+        .toBeGreaterThan(0);
+
+      const rows = cases.map(([label, value]) => {
+        const delivered = wrapperDelivers(argv, value);
+        return {
+          label,
+          delivered,
+          reader: delivered === null ? null : readerAccepts(kit, delivered),
+        };
+      });
+
+      const accepted = rows.filter((r) => r.delivered !== null);
+      const refused = rows.filter((r) => r.delivered === null);
+      // A wrapper that delivered NOTHING for everything would satisfy a subset claim vacuously, and
+      // a wrapper that delivered EVERYTHING would mean the corpus exercises no refusal at all.
+      expect(accepted.length, "the wrapper accepted nothing — the subset holds vacuously")
+        .toBeGreaterThan(0);
+      expect(refused.length, "the wrapper refused nothing — no refusing shape was exercised")
+        .toBeGreaterThan(0);
+
+      const disagreements = rows.filter((r) => r.delivered !== null && r.reader === null);
+      // eslint-disable-next-line no-console
+      console.log(
+        `[31-37 delivered-root parity] route=${String(routeIndex)} matcher=${matcher} ` +
+          `corpus=${String(cases.length)} delivered=${String(accepted.length)} ` +
+          `refused=${String(refused.length)} disagreements=${String(disagreements.length)}\n` +
+          rows
+            .map(
+              (r) =>
+                `  ${r.label.padEnd(50)} wrapper=${(r.delivered === null ? "nothing" : "delivers").padEnd(9)} ` +
+                `reader=${r.delivered === null ? "(not asked)" : r.reader === null ? "DISCARDS" : "accepts"}`,
+            )
+            .join("\n"),
+      );
+      expect(
+        disagreements.map((r) => r.label),
+        "the wrapper delivered a root the reader DISCARDS. A tier that delivers a value the " +
+          "consuming side would reject is a gate lowering whatever else it fixes.",
+      ).toEqual([]);
+    }, 120_000);
+  }
+
+  it("the wrapper's marker spelling AGREES with REPO_BOUNDARY_MARKERS in BOTH directions", () => {
+    // The wrapper may import only `node:` builtins, so it spells the marker set as a literal — the
+    // same discipline the delivered env name already carries, and the same binding.
+    const src = readFileSync(join(ROOT, "hooks", "hook-entry.ts"), "utf8");
+    const sf = ts.createSourceFile("hook-entry.ts", src, ts.ScriptTarget.Latest, true);
+    const spelled: string[] = [];
+    let found = false;
+    const visit = (n: ts.Node): void => {
+      if (
+        ts.isVariableDeclaration(n) &&
+        ts.isIdentifier(n.name) &&
+        n.name.text === "REPO_BOUNDARY_MARKERS" &&
+        n.initializer !== undefined
+      ) {
+        found = true;
+        const collect = (x: ts.Node): void => {
+          if (ts.isStringLiteral(x)) spelled.push(x.text);
+          ts.forEachChild(x, collect);
+        };
+        collect(n.initializer);
+      }
+      ts.forEachChild(n, visit);
+    };
+    visit(sf);
+    expect(found, "the wrapper declares no REPO_BOUNDARY_MARKERS of its own").toBe(true);
+    expect(spelled.length, "the wrapper's marker list is EMPTY").toBeGreaterThan(0);
+    const authority = [...mod.REPO_BOUNDARY_MARKERS];
+    expect([...spelled].sort(), "wrapper -> module: the wrapper spells a marker the module lacks")
+      .toEqual([...authority].sort());
+    expect(spelled.length, "the two lists disagree in CARDINALITY").toBe(authority.length);
+  });
+
+  it("the delivered name is set at exactly ONE site, before exactly ONE spawn", () => {
+    // Both hooks.json routes traverse the same wrapper. That is only true while the wrapper has one
+    // place it composes the decider's environment and one place it spawns.
+    const src = readFileSync(join(ROOT, "hooks", "hook-entry.ts"), "utf8");
+    expect([...src.matchAll(/deciderEnv\[HOST_DELIVERED_ROOT_ENV\] = /g)].length).toBe(1);
+    expect([...src.matchAll(/delete deciderEnv\[HOST_DELIVERED_ROOT_ENV\]/g)].length).toBe(1);
+    expect([...src.matchAll(/[^.\w]spawnSync\(/g)].length).toBe(1);
+  });
+
+  it("no OTHER shipped source names the delivered channel — the delivering set is derived", () => {
+    // A second file that set this name would be a second delivery route, and the corpus above would
+    // never see it. The set is derived from the tree rather than trusted.
+    const roots = ["hooks", "scripts"];
+    const naming: string[] = [];
+    for (const dir of roots) {
+      for (const f of readdirSync(join(ROOT, dir))) {
+        if (!f.endsWith(".ts") || f.endsWith(".test.ts") || f.endsWith(".testkit.ts")) continue;
+        const rel = `${dir}/${f}`;
+        if (readFileSync(join(ROOT, rel), "utf8").includes("GRUGOPS_HOST_DELIVERED_ROOT")) {
+          naming.push(rel);
+        }
+      }
+    }
+    expect(naming.length, "no shipped source names the delivered channel at all").toBeGreaterThan(0);
+    expect(naming.sort()).toEqual(["hooks/hook-entry.ts", "scripts/context-io.ts"]);
+  });
+
+  it("the wrapper's STATED REASON is true of the file it is written in", () => {
+    const src = readFileSync(join(ROOT, "hooks", "hook-entry.ts"), "utf8");
+    // The false sentence, quoted from the pre-fix file, is GONE. It said the three checks were "the
+    // ones a file limited to `node:` builtins can make", which `existsSync` at :42 already disproves.
+    expect(
+      src,
+      "the wrapper still states a reason measured false: existsSync is imported and used here",
+    ).not.toContain("The shape checks below are the ones a file");
+    // And the replacement's claim is ANCHORED to the measurement above rather than left as prose.
+    expect(src).toContain("no candidate this wrapper accepts is one that reader would discard");
+  });
+
+  it("TRUSTED_ROOT_TIERS[0] states where its VALUE comes from, not only what the NAME is", () => {
+    // The tier read as a channel the agent cannot write, while on the Claude Code hook path its
+    // value is derived from CLAUDE_PROJECT_DIR — the tier-1 AMBIENT name — promoted by the wrapper.
+    // A reader was left to infer a separate channel. The provenance is stated, so nothing is inferred.
+    const tier0 = mod.TRUSTED_ROOT_TIERS[0] ?? "";
+    expect(tier0).toContain("CLAUDE_PROJECT_DIR");
+    expect(tier0).toContain("derived");
+    const doc = readFileSync(
+      join(ROOT, "agent-factory", "workflows", "16-context-read-write.md"),
+      "utf8",
+    );
+    expect(doc, "the workflow publishes the tier without its provenance").toContain(
+      "CLAUDE_PROJECT_DIR",
+    );
   });
 });
 
