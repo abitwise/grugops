@@ -272,12 +272,23 @@ const TARGET_TSCONFIG = JSON.stringify(
   2,
 );
 
-/** Plant the configuration file and the framework declarations every identity decision needs. */
+/**
+ * Plant the configuration file and the framework declarations every identity decision needs.
+ *
+ * 31-34 (D-35): it plants a SECOND ambient surface, `foreign-framework.d.ts`, declaring two modules
+ * that are NOT `@playwright/test`. CR-23's rows drive the retained ban heads through those modules,
+ * which is the spelling those heads exist for. It is planted for EVERY target rather than for the
+ * CR-23 rows only, so there is ONE equipping authority and no row can be read from a root equipped
+ * differently from the one the precondition describes — a false premise this phase has logged six
+ * times. Every pre-existing row was re-driven after the change and reported the same counts; the
+ * modules it declares are imported by exactly the fixtures that name them.
+ */
 function equipTarget(root: string, tsconfig: string | null = TARGET_TSCONFIG): void {
   if (tsconfig !== null) writeFileSync(join(root, "tsconfig.json"), tsconfig, "utf8");
   const types = join(root, "types");
   mkdirSync(types, { recursive: true });
   copyFileSync(join(FIXTURES, "playwright-test.d.ts"), join(types, "playwright-test.d.ts"));
+  copyFileSync(join(FIXTURES, "foreign-framework.d.ts"), join(types, "foreign-framework.d.ts"));
 }
 
 // mkTargetRepo — build a temp repository that emulates a host target.
@@ -9246,5 +9257,207 @@ describe("uat-spec-integrity — 31-32 IN-16 / IN-17: a dead export and a splice
       block.includes(["is recorded", "with"].join(" ")),
       "the orphaned clause IN-17 names survives in the doc block",
     ).toBe(false);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// 31-34 (CR-23 / D-35) — A BAN THE FRAMEWORK DOES NOT OWN, DRIVEN THROUGH THE SPELLING IT EXISTS FOR
+//
+// `BANNED_MODIFIER_HEADS` retains a bare `describe` and the constant's own comment says why:
+// `@playwright/test` exports no top-level `describe`, so the head is kept for ANOTHER framework's
+// bare `describe` imported into a spec file. `D-30 (2)` then made the `foreign` identity answer
+// TERMINAL, and that is EXACTLY the case it made unreachable. The same held for `expect.soft`
+// whenever `expect` came from another assertion library.
+//
+// WHY THE SUITE WAS GREEN OVER A BAN THAT WAS OFF. Every row that drove `describe.skip` spelled
+// `describe` as an UNDECLARED name — the one spelling the identity route declines anyway, so the
+// spelling rule answered and the row refused. The corpus never drove the spelling the head exists
+// for. It does now, and the undeclared row is kept beside it rather than replaced.
+//
+// D-35's DISCRIMINANT, DRIVEN ARM BY ARM. `foreign` splits by DECLARATION PROVENANCE: a resolved
+// non-framework callee is `foreign-declared` when any of its declarations comes from a
+// `declare module "…"` block or from a declaration file, and `foreign-local` otherwise. Every arm
+// below is driven at the runnable's own ENTRY — and so is their UNION, because a widening measured
+// one arm at a time is a widening nobody measured in the direction it can be wrong.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+describe("uat-spec-integrity — 31-34 CR-23: the retained head, through a DECLARED foreign module", () => {
+  it("RED 1: a `describe.skip` GROUP imported from an ambient foreign module is REFUSED", () => {
+    row("RED-1-CR23-foreign-describe-group");
+    // MEASURED against the committed .js before D-35, in an equipped probe root:
+    //   `0 findings over 1/1 uat specs checked` / EXIT=0, with `tsc --noEmit` EXIT=0.
+    // A live bypass that type-checks clean: the whole group's scenario never runs and the gate
+    // reports green over it.
+    const r = runCheck(mkTargetRepo({ "e2e/uat/subject.uat.spec.ts": "foreign-describe.uat.spec.ts" }));
+    expect(r.status, `the foreign describe group was accepted. stdout: ${r.stdout}`).toBe(1);
+    expect(r.stdout).toContain("1 finding(s) over 1/1 uat specs checked");
+    // ONE spelling, the one a reader meets elsewhere for this construct.
+    expect(r.stdout).toContain("`describe.skip`");
+  });
+
+  it("RED 2: an `expect.soft` assertion imported from an ambient foreign assertion library is REFUSED", () => {
+    row("RED-2-CR23-foreign-soft-assert");
+    // MEASURED against the committed .js before D-35: `0 findings` / EXIT=0, `tsc --noEmit` EXIT=0.
+    // THIS is the instance Option A was measured NOT to close: `@playwright/test` declares `expect`,
+    // so a head-declared exemption would have left it open at exit 0.
+    const r = runCheck(
+      mkTargetRepo({ "e2e/uat/subject.uat.spec.ts": "foreign-soft-assert.uat.spec.ts" }),
+    );
+    expect(r.status, `the foreign soft assertion was accepted. stdout: ${r.stdout}`).toBe(1);
+    expect(r.stdout).toContain("1 finding(s) over 1/1 uat specs checked");
+    expect(r.stdout).toContain("`expect.soft`");
+  });
+
+  it("CONTROL (WR-26): the local-helper fixture is NOT refused — the union stays in one direction", () => {
+    row("CTRL-CR23-local-helper-head");
+    const r = runCheck(
+      mkTargetRepo({ "e2e/uat/subject.uat.spec.ts": "local-helper-head.uat.spec.ts" }),
+    );
+    expect(r.status, `a local binding was refused as another framework's export. stdout: ${r.stdout}`)
+      .toBe(0);
+    expect(r.stdout).toContain("0 findings over 1/1 uat specs checked");
+  });
+
+  it("THE UNION: both refusing fixtures and the WR-26 control in ONE run", () => {
+    row("UNION-CR23-refusing-plus-control");
+    // The binding the plan was built for. A widening proven one arm at a time has not been proven
+    // in the direction it can be wrong: the control must stay silent in the SAME run in which the
+    // refusing rows speak, over the SAME program, with the SAME ambient surfaces present.
+    const r = runCheck(
+      mkTargetRepo({
+        "e2e/uat/a.uat.spec.ts": "foreign-describe.uat.spec.ts",
+        "e2e/uat/b.uat.spec.ts": "foreign-soft-assert.uat.spec.ts",
+        "e2e/uat/c.uat.spec.ts": "local-helper-head.uat.spec.ts",
+      }),
+    );
+    expect(r.status, `stdout: ${r.stdout}`).toBe(1);
+    expect(r.stdout).toContain("2 finding(s) over 3/3 uat specs checked");
+    expect(r.stdout).toContain("a.uat.spec.ts");
+    expect(r.stdout).toContain("b.uat.spec.ts");
+    // The control's own file is named by NO finding. Asserted by name rather than by count, because
+    // a count can be right while the findings sit on the wrong file.
+    expect(
+      r.stdout.includes("c.uat.spec.ts"),
+      `the WR-26 control produced a finding. stdout: ${r.stdout}`,
+    ).toBe(false);
+  });
+
+  // ── EVERY ARM OF THE DISCRIMINANT, AND WHAT EACH ONE IS ─────────────────────────────────────
+
+  it("ARM `foreign-declared` (a DECLARATION FILE, no ambient block): REFUSED", () => {
+    row("ARM-CR23-declaration-file");
+    // The arm an ambient-block-only discriminant would have MISSED, and the one the installed
+    // package route travels: declarations arriving from a `.d.ts` FILE rather than from a
+    // `declare module "…"` block. Measured here on a `.d.ts` inside the target's own program,
+    // because `@playwright/test` cannot be installed (CLAUDE.md fixes the dev dependency set) —
+    // the `node_modules` shape itself stays the open `UNKNOWN - verify` beside `R-07`.
+    const r = driveSpec(
+      `import { test, expect } from "@playwright/test";
+import { describe } from "../../types/local-other-framework";
+
+describe.skip("the group", () => {
+  test("a scenario", async ({ page }) => {
+${TAIL}
+  });
+});
+`,
+      {},
+      {
+        "types/local-other-framework.d.ts":
+          "export declare const describe: {\n" +
+          "  (title: string, body: () => void): void;\n" +
+          "  skip(title: string, body: () => void): void;\n" +
+          "};\n",
+      },
+    );
+    expect(r.status, `a declaration-file head was accepted. stdout: ${r.stdout}`).toBe(1);
+    expect(r.stdout).toContain("`describe.skip`");
+  });
+
+  it("ARM `foreign-local` (a LOCAL SOURCE MODULE the project authored): NOT refused", () => {
+    row("ARM-CR23-local-source-module");
+    // The arm the plan's LITERAL sketch of Option B — "imported from a module versus declared
+    // locally" — was measured to get WRONG. This head IS imported, and it is the project's own
+    // helper written in the program's own `.ts` source. Refusing it would be the fourth false
+    // refusal in this family's history.
+    const r = driveSpec(
+      `import { test, expect } from "@playwright/test";
+import { describe } from "../helpers";
+
+describe.skip("a local helper that is nobody's test framework", () => {
+  void 0;
+});
+
+test("the invoice total is shown", async ({ page }) => {
+${TAIL}
+});
+`,
+      {},
+      {
+        "e2e/helpers.ts":
+          "export const describe = {\n" +
+          "  skip(title: string, body: () => void): void {\n" +
+          "    void title;\n" +
+          "    void body;\n" +
+          "  },\n" +
+          "};\n",
+      },
+    );
+    expect(r.status, `a project's own helper module was refused. stdout: ${r.stdout}`).toBe(0);
+    expect(r.stdout).toContain("0 findings over 1/1 uat specs checked");
+  });
+
+  it("ARM `unresolved` (an UNDECLARED head): still REFUSED, unmoved by D-35", () => {
+    row("ARM-CR23-undeclared-head");
+    // The spelling the corpus was already driving, kept rather than replaced — it is why the suite
+    // was green over a ban that was off, and a widening that quietly dropped it would be a lowering
+    // wearing a fix's clothes. Its own `tsc --noEmit` exit code is 2 (`TS2593: Cannot find name
+    // 'describe'`), recorded in D-35: the row that carried this family rests on a construct the
+    // language refuses to compile, which is precisely why it could not observe the property.
+    const r = driveSpec(`import { test, expect } from "@playwright/test";
+describe.skip("the group", () => {
+  void 0;
+});
+test("the invoice total is shown", async ({ page }) => {
+${TAIL}
+});
+`);
+    expect(r.status, `stdout: ${r.stdout}`).toBe(1);
+    expect(r.stdout).toContain("`describe.skip`");
+  });
+
+  it("ARM `framework` (the primary framework's own export): still REFUSED, unmoved by D-35", () => {
+    row("ARM-CR23-framework-head");
+    const r = driveSpec(`import { test, expect } from "@playwright/test";
+test.skip("the invoice total is shown", async ({ page }) => {
+${TAIL}
+});
+`);
+    expect(r.status, `stdout: ${r.stdout}`).toBe(1);
+    expect(r.stdout).toContain("`test.skip`");
+  });
+
+  it("ARM `foreign-local` (a head the SPEC ITSELF `declare`s): NOT refused — the DISCLOSED shape", () => {
+    row("ARM-CR23-locally-declared-head");
+    // THE BOUNDARY D-35 DOES NOT CLOSE, driven so it is a measured row rather than a sentence.
+    // `declare const describe` written inside a `.ts` spec is neither a `declare module` block nor
+    // a declaration file, so it stays `foreign-local` and is ACCEPTED at exit 0 — with `tsc
+    // --noEmit` exit 0, so it is a live shape and not a parse curiosity.
+    //
+    // It is NOT closed here because it is structurally IDENTICAL to WR-26's own control: both
+    // resolve to a `PropertySignature` of an anonymous type literal inside a `declare` statement, so
+    // any predicate that refuses this one refuses the control too. Disclosed in
+    // `UNRESOLVABLE_CALLEE_RESIDUALS` rather than absorbed, and bound to that member below.
+    const r = driveSpec(`import { test, expect } from "@playwright/test";
+declare const describe: { skip(title: string, body: () => void): void };
+describe.skip("the group", () => {
+  void 0;
+});
+test("the invoice total is shown", async ({ page }) => {
+${TAIL}
+});
+`);
+    expect(r.status, `stdout: ${r.stdout}`).toBe(0);
+    expect(r.stdout).toContain("0 findings over 1/1 uat specs checked");
   });
 });

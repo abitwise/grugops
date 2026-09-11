@@ -21,6 +21,13 @@
 // declaration of the surface this corpus uses. Read that file's header before trusting it: its
 // drift from the upstream package is an open `UNKNOWN - verify`.
 //
+// 31-34 (D-35): it ALSO checks against `scripts/runnable-ref/fixtures/foreign-framework.d.ts`, the
+// ambient surface of two modules that are NOT `@playwright/test`. CR-23's corpus rows drive a
+// `describe.skip` group and an `expect.soft` assertion whose bindings come from those modules, which
+// is the spelling the retained ban heads exist for. Those declarations are a SHAPE, not a
+// transcription of any shipped library — read that file's header before reading them as anything
+// else.
+//
 // This target sets `noEmit` and emits nothing at all. It is wired into `npm run typecheck`, so a
 // fixture regression fails the same command CI and every plan's verify step already run.
 {
@@ -30,7 +37,8 @@
   },
   "include": [
     "scripts/runnable-ref/fixtures/**/*.uat.spec.ts",
-    "scripts/runnable-ref/fixtures/playwright-test.d.ts"
+    "scripts/runnable-ref/fixtures/playwright-test.d.ts",
+    "scripts/runnable-ref/fixtures/foreign-framework.d.ts"
   ],
   "exclude": ["node_modules", ".tmp-build"]
 }
