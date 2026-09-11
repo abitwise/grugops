@@ -49,6 +49,18 @@ export const UAT_SPEC_GLOB_SUFFIX = ".uat.spec.ts";
 // in one of these is not counted, because a dependency's or a build output's spec is not this
 // repository's evidence. Both sides of this boundary are tested — a spec under node_modules is not
 // counted, and a spec in a legitimate deeply-nested uat/ directory is.
+//
+// D-33 (5) (WR-35): THIS BOUNDARY IS DISCLOSED, BECAUSE NEITHER FLOOR CAN SEE IT. The two floors in
+// `reportMeasured` compare `visited` against `expected`, and a directory this set removes shrinks
+// BOTH — so a run over a silently narrowed tree prints the same clean pass as a run over the whole
+// tree. Measured: six probe repositories, one with nothing hidden and five with a spec hidden under
+// one member each, all reported EXIT=0 with 58 bytes of stdout and 0 bytes of stderr. No reader
+// could tell them apart. `install/install.ts` materializes this runnable into every host at
+// `tools/grugops/uat-spec-integrity.js`, so this set is a SHIPPED rule and a host's denominator is
+// what it narrows. The walk therefore COUNTS what it refused to descend into and the runnable emits
+// one line naming each directory and its hit count — see `renderSkippedDirectoryDisclosure`. The
+// line is emitted only when something was skipped, so a clean run does not grow a line, and it
+// changes no exit code and no finding count.
 export const SKIPPED_DIRECTORIES = Object.freeze([
     "node_modules",
     ".git",
@@ -544,15 +556,14 @@ export const BANNED_CONFIGURED_PATHS = Object.freeze({
 });
 /** The module specifier a rename must arrive through for D-18 (3) to canonicalise it. */
 const PLAYWRIGHT_TEST_MODULE = "@playwright/test";
-/**
- * D-20 (3): the head segment a TestInfo fixture-parameter binding is rewritten to.
- *
- * It is the MARKED ACCESSOR FORM D-18 (1) already decided for this construct — `test.info()` — and
- * not a new spelling nobody decided. `testInfo.skip` is therefore asked as `test.info().skip`, the
- * exact path the corpus, the recipe and the round-3 closure already carry, so the family has ONE
- * spelling in the findings a reader sees rather than two.
+/*
+ * IN-16 (D-33 (6)), 2026-09-11: the TestInfo canonical-head export stood here. It was the segment
+ * `canonicaliseHeadSegment` rewrote a TestInfo fixture-parameter binding to, and D-30 (5) deleted
+ * `deriveTestInfoParameterNames` — the only thing that read it. Its last consumer was a test
+ * asserting its literal value, a live assertion over a dead binding. The spelling it carried is not
+ * lost: identity reaches `test.info()` by walking the framework's own exported surface, which is
+ * where that name is now decided.
  */
-export const TEST_INFO_CANONICAL_HEAD = `test.info${CALL_LINK_MARKER}`;
 /**
  * D-18 (3): the rename map's value for a NAMESPACE import local name. Spelled `*` because that is
  * how a namespace import is written in the source, and because `*` cannot collide with any imported
@@ -589,6 +600,11 @@ export const UNRESOLVABLE_CALLEE_RESIDUALS = Object.freeze([
 ]);
 // D-13: the loud skip for an unresolvable parser. One frozen constant, ONE emission point, so a test
 // can assert the emitted text byte-for-byte. It names `typescript` and states the honest outcome.
+/**
+ * D-33 (5): the head of the skipped-directory disclosure line, exported so the browser-UAT recipe
+ * quotes it BY VALUE and a case can bind the claim to the emission rather than to a re-typed string.
+ */
+export const SKIPPED_DIRECTORY_DISCLOSURE_MARKER = "UAT spec integrity: the walk SKIPPED directory entries by name:";
 export const PARSER_ABSENT_MARKER = "SKIPPED: the target repository does not provide typescript — UAT specs NOT checked; the UAT status stays pending";
 // D-15: the loud skip for an unusable browser lane. One marker, one frozen record of exactly two
 // stage clauses, ONE emission point.
@@ -1146,6 +1162,9 @@ export function deriveSpecPaths(repoRoot) {
     }
     const relPaths = [];
     const refusals = [];
+    // D-33 (5): the skip COUNT has one origin — the branch that takes the skip. A second tally
+    // computed anywhere else would be a second authority for one number.
+    const skippedDirectoryHits = {};
     // TWO containment predicates, because there are two kinds of path here and comparing one against
     // the other's root is a false refusal. A path the walk BUILT is lexical, and belongs against the
     // lexically resolved root. A path realpathSync RETURNED has had every link expanded, and belongs
@@ -1189,8 +1208,10 @@ export function deriveSpecPaths(repoRoot) {
                 continue;
             }
             if (entry.isDirectory()) {
-                if (SKIPPED_DIRECTORIES.includes(entry.name))
+                if (SKIPPED_DIRECTORIES.includes(entry.name)) {
+                    skippedDirectoryHits[entry.name] = (skippedDirectoryHits[entry.name] ?? 0) + 1;
                     continue;
+                }
                 pending.push({ absDir: abs, relDir: rel });
                 continue;
             }
@@ -1208,7 +1229,26 @@ export function deriveSpecPaths(repoRoot) {
         }
     }
     relPaths.sort();
-    return { relPaths, refusals };
+    return { relPaths, refusals, skippedDirectoryHits };
+}
+/**
+ * D-33 (5): the single line that discloses what the walk's INPUT BOUNDARY removed from this run.
+ *
+ * Returns `null` for an empty hit set, which is what keeps a run with nothing skipped BYTE-IDENTICAL
+ * to what it emitted before this disclosure existed. A clean run must not grow a line.
+ *
+ * The line carries directory NAMES and COUNTS and nothing else — never a path and never a file's
+ * contents — because a name already appears in the exported constant the browser-UAT recipe
+ * publishes, while a path would disclose the host's tree. The names are ordered by NAME rather than
+ * by the order the directory listing arrived in, so two runs over the same tree emit the same bytes.
+ */
+export function renderSkippedDirectoryDisclosure(hits) {
+    const names = Object.keys(hits).sort();
+    if (names.length === 0)
+        return null;
+    const pairs = names.map((n) => `${n}=${hits[n]}`).join(", ");
+    return (`${SKIPPED_DIRECTORY_DISCLOSURE_MARKER} ${pairs} — these directory names are the walk's input ` +
+        `boundary, so nothing under them is in the derived total this run reports.\n`);
 }
 /** D-05: a UAT spec lives under a `uat` path segment. The segment comparison is exact. */
 function hasUatSegment(relPath) {
@@ -1803,8 +1843,6 @@ export function bindingRangeFor(ts, sf, declaration) {
  * every rename shadow itself and the canonicalisation would never fire. That is asserted in both
  * directions by the suite.
  *
- * THE ONE NON-SUPPRESSING RECORD, AND WHY IT IS A POSITION RATHER THAN A NAME. A parameter at index
- * 1 of a function that is itself the SECOND ARGUMENT of a call expression is recorded with
  * D-30 (5): THE ONE NON-SUPPRESSING RECORD IS GONE, WITH THE MAP IT CONSTRAINED. It existed to keep
  * a TestInfo fixture parameter visible to `deriveTestInfoParameterNames`, and that derivation — the
  * fixed-index read CR-21 was found on — has been deleted, because the checker answers the same
@@ -2332,6 +2370,13 @@ function runMain(argv, deps, out, err) {
     if (checkBrowser && !emitLoudSkipIfBrowserUnusable(repoRoot, realBrowserProbe, err))
         return 2;
     const derived = derive(repoRoot);
+    // D-33 (5) (WR-35): emitted HERE — immediately after the derivation and before every branch that
+    // can return — so a narrowed denominator is legible whatever outcome the run reaches, including
+    // the could-not-run ones. It is `null` when nothing was skipped, and a run that skipped nothing
+    // therefore emits exactly the bytes it emitted before this line existed.
+    const disclosure = renderSkippedDirectoryDisclosure(derived.skippedDirectoryHits);
+    if (disclosure !== null)
+        err(disclosure);
     if (derived.refusals.length > 0) {
         for (const r of derived.refusals)
             err(`${r}\n`);

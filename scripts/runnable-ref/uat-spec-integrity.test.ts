@@ -122,7 +122,6 @@ interface CheckerModule {
   ): { readonly kind: "framework"; readonly path: string } | { readonly kind: "foreign" } | { readonly kind: "unresolved" };
   findBannedConstructs(ts: unknown, sf: unknown, relPath: string, ctx: ProgramContextView): string[];
   readonly PROGRAM_UNAVAILABLE_REASON: string;
-  readonly TEST_INFO_CANONICAL_HEAD: string;
   readonly UNRESOLVABLE_CALLEE_RESIDUALS: readonly string[];
   readonly SKIPPED_DIRECTORIES: readonly string[];
   readonly SKIPPED_DIRECTORY_DISCLOSURE_MARKER: string;
@@ -4581,15 +4580,15 @@ describe("uat-spec-integrity — 31-16 CR-10: the TestInfo fixture parameter is 
     expect(findings[0]).toContain("test.info().skip");
   });
 
-  it("the canonical head is DERIVED from the framework's own declarations, not written here", async () => {
-    const { TEST_INFO_CANONICAL_HEAD } = await loadChecker();
-    // The constant is still the spelling a reader meets, and it is no longer the AUTHORITY: the
-    // runnable reaches `test.info()` by walking the framework's exported surface — `test`, then its
-    // `info` member, then that member's call-signature return type — so the string below is an
-    // assertion ABOUT the derivation rather than an input to it. This module carries no `TestInfo`
-    // literal at all, which is the property that makes the derivation survive a package whose type
-    // names differ from this repository's transcription.
-    expect(TEST_INFO_CANONICAL_HEAD).toBe("test.info()");
+  it("the canonical head is DERIVED from the framework's own declarations, not written here", () => {
+    // IN-16 (D-33 (6)), 2026-09-11: this case used to open by destructuring the canonical-head
+    // EXPORT and asserting its literal value. D-30 (5) deleted the derivation that read it, so the
+    // assertion was the binding's only remaining consumer — a live assertion over a dead export.
+    // Both are gone. What the case asserts now is the DERIVATION: the runnable reaches
+    // `test.info()` by walking the framework's exported surface — `test`, then its `info` member,
+    // then that member's call-signature return type — and it carries no `TestInfo` literal at all,
+    // which is the property that makes the derivation survive a package whose type names differ
+    // from this repository's transcription.
     const source = readFileSync(join(HERE, "uat-spec-integrity.ts"), "utf8");
     expect(
       source.includes(["Test", "Info", '"'].join("")),
@@ -5361,7 +5360,6 @@ interface ScopeSurface {
     renames: ReadonlyMap<string, string>,
     scope?: BindingScopeView | null,
   ): string | null;
-  readonly TEST_INFO_CANONICAL_HEAD: string;
   readonly UNRESOLVABLE_CALLEE_RESIDUALS: readonly string[];
 }
 
@@ -9099,7 +9097,11 @@ describe("uat-spec-integrity — 31-32 WR-35: the walk's input boundary DISCLOSE
   });
 
   it("a run with NOTHING skipped grows no line — stderr stays empty and stdout is the pass line", () => {
-    const r = runCheck(mkSkipProbeTarget(null));
+    // `mkGeneratedTarget` SYMLINKS `node_modules`, and a symbolic link is decided by the walk's
+    // symbolic-link branch rather than at the `SKIPPED_DIRECTORIES` boundary — so this target skips
+    // NOTHING. `mkSkipProbeTarget` cannot be used here: its `node_modules` is a real directory,
+    // which the boundary legitimately refuses and which the disclosure therefore legitimately names.
+    const r = runCheck(mkGeneratedTarget({ "e2e/uat/visible.uat.spec.ts": CLEAN_SPEC }));
     expect(r.status).toBe(0);
     expect(r.stderr, "a clean run grew a disclosure line").toBe("");
     expect(r.stdout).toBe("UAT spec integrity: 0 findings over 1/1 uat specs checked\n");
@@ -9116,8 +9118,11 @@ describe("uat-spec-integrity — 31-32 WR-35: the walk's input boundary DISCLOSE
     ].join("\n");
     const withSkip = mkSkipProbeTarget(".temp");
     plant(withSkip, "e2e/uat/banned.uat.spec.ts", banned);
-    const without = mkSkipProbeTarget(null);
-    plant(without, "e2e/uat/banned.uat.spec.ts", banned);
+    // The control skips NOTHING — a symlinked `node_modules`, so the boundary is never reached.
+    const without = mkGeneratedTarget({
+      "e2e/uat/banned.uat.spec.ts": banned,
+      "e2e/uat/visible.uat.spec.ts": CLEAN_SPEC,
+    });
     const a = runCheck(withSkip);
     const b = runCheck(without);
     expect(b.status, "the control run did not report the finding").toBe(1);
@@ -9157,7 +9162,7 @@ describe("uat-spec-integrity — 31-32 WR-35: the walk's input boundary DISCLOSE
 });
 
 describe("uat-spec-integrity — 31-32 IN-16 / IN-17: a dead export and a spliced sentence are GONE", () => {
-  it("IN-16: TEST_INFO_CANONICAL_HEAD is absent from the source, the committed .js and this file", () => {
+  it("IN-16: the dead canonical-head export is absent from the source, the committed .js and this file", () => {
     const scanned = [
       join(HERE, "uat-spec-integrity.ts"),
       join(HERE, "uat-spec-integrity.js"),
