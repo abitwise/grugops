@@ -1717,6 +1717,146 @@ listing printing the file.
     and `.github/workflows/ci.yml`'s two new step comments; and in `31-30-SUMMARY.md`'s key-decisions
     block.
 
+#### Gap-closure decision — D-33 (2026-09-11, gap-closure round 7, wave 1, plan 31-32)
+
+**This decision was opened by a NAMED HUMAN, not by an executing agent.** `31-32-PLAN.md` carried a
+`checkpoint:decision` rated `one-way` in front of the edit for exactly that reason. The answer,
+given on 2026-09-11, verbatim and in full:
+
+> remove-axis
+
+The two options REFUSED were `freeze-manifest` — which the plan itself recommended, and which would
+have created `docs/audit/31-review-corpus-manifest.md` as a frozen expected-side authority — and
+`derive-both-keep-review`, which would have kept the suite reading `31-REVIEW.md`. Neither was
+taken. The executing agent implements the answer, not the recommendation.
+
+**What forced it, re-measured in this session before the decision was presented and again before
+this block was written.** The full excluded-e2e suite was RED at the round base. The single failing
+case was the review-coverage self-check in `scripts/runnable-ref/uat-spec-integrity.test.ts`, and
+the commit that turned it red changed zero source bytes:
+
+```
+$ npx vitest run --exclude '**/scripts/e2e/**' scripts/runnable-ref/uat-spec-integrity.test.ts
+ FAIL  scripts/runnable-ref/uat-spec-integrity.test.ts > uat-spec-integrity — 31-28 MOVEMENT 1: the
+       corpus's denominator is DERIVED, not typed > covers every 31-REVIEW.md finding that names
+       this runnable, in BOTH directions
+AssertionError: expected [ 'CR-23', 'CR-25', 'IN-16', …(3) ] to deeply equal
+                         [ 'CR-18', 'CR-21', 'IN-15', …(3) ]
+- Expected: CR-18, CR-21, IN-15, WR-26, WR-29, WR-30
++ Received: CR-23, CR-25, IN-16, IN-17, WR-33, WR-35
+ Test Files  1 failed (1)      Tests  1 failed | 324 passed (325)
+```
+
+The received set is round 7's review; the expected set is round 5's `CORPUS_COVERAGE` literal.
+
+**Which register failed.** Not the covered side, and not the comparison. What failed is the
+ORACLE'S INPUT. `reviewFindingsNamingThisRunnable()` recomputed the expected set by walking
+`31-REVIEW.md`'s current `###` headings, and this project REPLACES that document at every
+gap-closure round rather than appending to it — `git diff --stat f2404aa..c830eb4` is 605 insertions
+and 552 deletions on that file alone. A test whose expected value is recomputed from an artifact
+that is rewritten under it has no oracle, and every later plan in round 7 verifies against this same
+file.
+
+- **D-33 (1) — the review-to-corpus coverage axis is REMOVED from the continuously-run suite. This
+  is a GATE LOWERING, and it is recorded as one.** Stated plainly, with nothing softened: this
+  phase had a check that bound its review record to its test corpus on every run, and after this
+  plan it does not. Until this change, a finding raised in `31-REVIEW.md` that named
+  `scripts/runnable-ref/uat-spec-integrity.ts` and that no corpus row covered turned the suite red.
+  After this change nothing in the suite observes that relationship. A finding can now be raised,
+  and a round can now close, with no corpus row covering it and with every test green. That is
+  strictly less checking than the tree carried before, it was chosen deliberately by a named human
+  over two alternatives that preserved the axis, and this project's own doctrine — D-30
+  sub-decision 2's sentence, *"a smaller ban applied without saying so is a gate lowering rather
+  than a disclosed limit"* — requires it to be written down as a lowering rather than as a cleanup.
+  It is written down here as a lowering.
+
+  What is deleted: `REVIEW_MD`, `reviewFindingsNamingThisRunnable()`, the `CORPUS_COVERAGE` literal,
+  and the case `covers every 31-REVIEW.md finding that names this runnable, in BOTH directions`.
+  No corpus row is deleted and no row id changes.
+
+- **D-33 (2) — the obligation the removal creates is HANDED TO A NAMED PLAN, not dropped.** Plan
+  `31-38`, this round's closing measurement, asserts the review-to-corpus coverage ONCE PER ROUND as
+  a recorded one-shot: it derives the set of `31-REVIEW.md` findings that name this runnable, states
+  which corpus rows cover each, and records any finding with no covering row as an open item with an
+  owner. A one-shot taken by a plan is weaker than a check taken on every run — it can be skipped,
+  and skipping it leaves no red — and that weakness is the substance of the lowering in (1). It is
+  named here so that a later reader can see whether the obligation was met rather than infer it.
+
+- **D-33 (3) — the corpus's row-count floor is kept, and the half of it that the removal took away
+  is replaced by a MONOTONE floor rather than by nothing.** The third case of the `31-28 MOVEMENT 1`
+  block computed its floor as `CORPUS_COVERAGE`'s row total plus the residual register's length —
+  16 rows. Deleting `CORPUS_COVERAGE` would have dropped that floor to 6 in silence, which is a
+  second lowering nobody chose. The case instead keeps its derived half (the residual register's
+  own length, with its vacuity premise asserted first) and adds `CORPUS_ROW_FLOOR`, the row count
+  MEASURED from this file's own AST at this commit. It is a hand-typed number and it is disclosed as
+  one. It is not a mirror of a moving set: it can only be wrong by under-claiming, and it turns red
+  when a row is deleted, which is the fail-closed direction. The measured value at this commit is
+  34 distinct row ids — more than double the floor the deleted derivation produced.
+
+- **D-33 (4) — the removal is proven STRUCTURALLY, from the file's own syntax tree, not by grep over
+  prose.** A case parses `scripts/runnable-ref/uat-spec-integrity.test.ts` with the host TypeScript
+  and asserts that no string literal in it equals `31-REVIEW.md`, after asserting its own walk saw a
+  non-zero number of string literals. A later edit that re-points any assertion at the per-round
+  rewritten review document turns that case red. This is what stops the axis from being re-added by
+  accident under a different name.
+
+- **D-33 (5) — a narrowed INPUT BOUNDARY is DISCLOSED rather than reverted (WR-35).** `.temp` stays
+  in `SKIPPED_DIRECTORIES`. It was put there by D-30 sub-decision 3 in a named human's own words —
+  *"Yes, fix in 31-28"* — and reverting a human's decision inside a fix plan is the move this phase
+  forbids. What changes is that the walk now COUNTS what it skipped and the runnable SAYS so: one
+  line on stderr naming each skipped directory and its hit count, emitted only when at least one
+  entry was skipped. The reason is a property of the constant rather than a note about `.temp`:
+  `SKIPPED_DIRECTORIES` is the walk's input boundary, the installer materializes this runnable into
+  every host at `tools/grugops/uat-spec-integrity.js`, and both floors in `reportMeasured` are blind
+  to it because `expected` and `visited` shrink together. A boundary that narrows a host's
+  denominator must be legible at the surface that reports the result.
+
+  **The rejected alternative, named with its reason.** WR-35's first remedy — revert `.temp` from
+  `SKIPPED_DIRECTORIES` and keep the closure at the runner, where `vitest.config.ts`'s
+  `**/.temp/**` exclude already sits — is REJECTED. It would reverse a named human's sub-decision
+  inside an agent-authored fix plan, and it would reopen the harm round 5 measured: a stray spec
+  left under `.temp/` by this repository's own probes changes what this repository's own gate
+  measures. Disclosure closes the review's finding without touching the human's decision.
+
+- **D-33 (6) — a dead export and a half-deleted sentence are removed rather than carried (IN-16,
+  IN-17).** `TEST_INFO_CANONICAL_HEAD`'s only remaining reader was a test asserting its literal
+  value, a live assertion over a dead binding; the export and the assertion go together. The
+  orphaned `is recorded with` clause in `deriveDeclaredBindings`'s doc block is deleted and the
+  D-30 (5) paragraph stands as its own sentence. Neither touches a decision. Both are recorded as
+  hygiene with the review's own citation.
+
+- **What D-33 does NOT establish.**
+  - **It does not establish that the coverage relationship holds.** It establishes only where the
+    relationship is now asserted — once per round, by `31-38` — and that nothing asserts it
+    continuously. At the moment this block is written, round 7's six findings naming this runnable
+    (`CR-23`, `CR-25`, `IN-16`, `IN-17`, `WR-33`, `WR-35`) are covered by no corpus row, because
+    their fix plans have not run. That is the state the removed case was reporting.
+  - **It does not make the deleted case's complaint false.** The case was correct that the sets
+    differed. What was wrong was the instrument, not the reading.
+  - **`CORPUS_ROW_FLOOR` is a floor, not a coverage claim.** A corpus can satisfy it while covering
+    nothing a review raised. It bounds deletion; it does not bind content.
+  - **The disclosure line makes no claim about what a host SHOULD skip.** It reports what this
+    runnable did skip. Whether `.temp` belongs in a kit-shipped boundary at all is left open, with
+    WR-35's own first remedy recorded above as the rejected alternative rather than as a closed
+    question.
+  - **The Windows behaviour of the disclosure line is not measured.** It is a stderr write with no
+    path separator in it, which is an ARGUMENT and not a measurement. It joins the phase's standing
+    Windows remainder.
+  - **No requirement was flipped.** `UATX-01` through `UATX-06` stay unchecked in
+    `.planning/REQUIREMENTS.md`, the Phase 31 checkbox stays unchecked in `.planning/ROADMAP.md`,
+    and every traceability row still reads `Gaps Found`. Only a verification round may flip one.
+
+- **Reversibility: ONE-WAY for (1), reversible for the rest.** Restoring the deleted axis means
+  restoring a test whose expected set is recomputed from a document this project replaces every
+  round — a test that is RED at every round boundary by construction, which is the state measured at
+  this round's base. The disclosure line is additive and emitted only on a non-empty skip set; the
+  two deletions are hygiene.
+
+- **Recorded in four places that must agree:** here; in the `SKIPPED_DIRECTORIES` comment block and
+  the disclosure emission site in `scripts/runnable-ref/uat-spec-integrity.ts`; in
+  `agent-factory/checklists/browser-uat-recipe.md`'s boundary list, with its row in
+  `docs/audit/29-style-dispositions/31-32.md`; and in `31-32-SUMMARY.md`'s key-decisions block.
+
 ### Claude's Discretion
 - Exact runnable file name and the exact wording of the two new loud-skip markers, as long as
   each is a single exported constant with a single emission point (the `uat-live.test.ts` shape).
