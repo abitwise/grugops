@@ -610,6 +610,11 @@ export const UNRESOLVABLE_CALLEE_RESIDUALS = Object.freeze([
     "A target repository whose TypeScript cannot create a Program makes NO claim about the specs. The causes are named: no configuration file, one that cannot be read, one that cannot be parsed, or a compiler that throws. It exits 2 with PROGRAM_UNAVAILABLE_REASON and its own cause. A target whose framework declarations do not resolve is the same event and the same exit code. Neither is a pass. Neither is a quieter ban. A smaller ban applied without saying so is a gate lowering. This member replaces exactly that silent degrade. THE GRANULARITY IS WHOLE-RUN. Whole-run is coarser than D-28's per-file boundary. A file's own PARSE stays per-file. The compiler host's reader is wrapped, so one unparseable spec is one could-not-run reason. The denominator floor then names it. The BINDER runs over every root file at once. A single spec whose shape exhausts it blocks the whole run rather than one file. The measurement used a 4,000-link call chain. Blocking is the fail-closed direction and it is never a pass. What would force it closed: a way to bind one file at a time. The compiler's public API does not offer one today.",
     "Identity is decided against the framework's own DECLARATION FILES. The ambient-declaration route is MEASURED. The route means a `declare module \"@playwright/test\"` file inside the target's own program. The installed-package route is NOT measured here. In it those declarations arrive from `node_modules/@playwright/test`. It is reasoned from the same resolution the compiler performs. This repository's dependency set is fixed, so the package cannot be installed to measure it. It is an open `UNKNOWN - verify`, carried beside `R-07`.",
     "A HEAD THE SPEC FILE HAND-DECLARES FOR ITSELF is not decided. D-35 splits a non-framework callee by declaration provenance. A `declare module` block counts as another module's surface. A declaration file counts as one too. A `declare const describe: { skip(...): void }` written inside the spec's own source counts as NEITHER. So it answers `foreign-local` and the call is accepted at exit 0. MEASURED, on a file that type-checks clean. The shape stays open because it is structurally IDENTICAL to the control that keeps WR-26 closed. Both resolve to a property signature of an anonymous type literal inside a `declare` statement. A predicate that refuses the one refuses the other. A false refusal names a construct the file does not contain. Such a refusal is a failure this family has already paid for three times. What would force it closed: a discriminant separating a hand-declared module-scope head from a helper's own parameter type. Reading the head's NAME is not available, because the ban set would then decide its own scope.",
+    // D-36 (2026-09-11, CR-25): THE WALK'S OWN LIMITS, published. Before this plan neither bound
+    // appeared here or in the recipe, and a bound that was REACHED turned the ban off in silence.
+    "THE FRAMEWORK-SURFACE WALK IS BOUNDED IN DEPTH. `SURFACE_DEPTH_BOUND` is six property-or-call links from an export. A bound that is reached is a check that did not run. A node left unexpanded at that depth means framework declarations the walk never reached, and a call on one of them would have been decided as foreign rather than by identity. Foreign is accept. So a reached bound is never a verdict. The run takes the could-not-run route the Program member above already names, at exit 2, with `SURFACE_TRUNCATED_CAUSE` as its own cause, which names both bound values and which bound stopped the walk. A LEAF at the bound is not a truncation. A node carrying no properties and no call signatures cut nothing off. Reporting one would make every run that merely reached a `void` return a could-not-run. MEASURED against the transcribed surface this repository ships: seventeen recorded paths, deepest at depth two. The bound is not near it. The INSTALLED package is a different surface and is not measured here, because the dependency set is fixed. That magnitude is an open `UNKNOWN - verify`, carried beside the installed-package member above. What would force it closed: a walk whose cost does not grow with the declared surface, or a measurement over a real installed `@playwright/test` showing the bound is never approached.",
+    "THE FRAMEWORK-SURFACE WALK IS BOUNDED IN SIZE. `SURFACE_NODE_BOUND` is 4096 distinct declared types. The bound used to sit in the walk's own loop condition, where a walk that stopped was indistinguishable from a walk that finished. It is now an explicit stop that records itself, and it takes the same route the depth bound takes: exit 2 with the truncation cause naming the bound reached. It is the SAME signal from a different limit, because a surface that is wide rather than deep leaves exactly as many declarations unreached. MEASURED against the transcribed surface this repository ships: seventeen types against a bound of 4096. What would force it closed: the same measurement over a real installed `@playwright/test` surface, which cannot be taken here.",
+    "THE COMPILER'S OWN STANDARD LIBRARY IS NOT THE FRAMEWORK, and the walk stops at its edge. Before D-36 it did not: sixteen of the seventeen files identity was decided against were `node_modules/typescript/lib/*.d.ts`, and the depth budget was being spent on `String`, `Number`, `Array` and `Promise` rather than on the framework. Narrowing it is what leaves the two bounds any headroom at all. What the narrowing COSTS is this member. A framework type reachable ONLY through a standard-library container, such as a `TestInfo[]` or a `Promise<TestInfo>`, is no longer reached through that route. A member declared only behind one is absent from the surface, so a call on it answers foreign and is accepted, and nothing is emitted at run time to say so. The route is reasoned rather than measured: no member of the transcribed surface sits behind a container. What would force it closed: descending into a container's TYPE ARGUMENTS while still refusing the container's own members. The structural view of the checker this runnable declares does not read type arguments today.",
 ]);
 // D-13: the loud skip for an unresolvable parser. One frozen constant, ONE emission point, so a test
 // can assert the emitted text byte-for-byte. It names `typescript` and states the honest outcome.
@@ -706,9 +711,47 @@ export function loadTypeScriptFromTarget(repoRoot) {
  * specs, and it never quietly makes a smaller one.
  */
 export const PROGRAM_UNAVAILABLE_REASON = "COULD NOT RUN: the target repository's TypeScript could not create a program over the derived UAT specs, so the modifier ban could not be decided by symbol identity and NOTHING is claimed about the specs";
-/** The bounds the framework-surface walk runs under. Stated, so neither is a hidden allowance. */
-const SURFACE_NODE_BOUND = 4096;
-const SURFACE_DEPTH_BOUND = 6;
+/**
+ * D-36 (2026-09-11): the bounds the framework-surface walk runs under. EXPORTED, because a bound
+ * nobody can read is a bound nobody can check the published boundary list against.
+ *
+ * They were stated in a comment before this plan and that was not enough: the comment claimed a
+ * large surface "costs a stated amount rather than an open one", and the amount it actually cost
+ * was the ban turning OFF for every declaration the walk never reached (`CR-25`). A bound that is
+ * reached is a check that did not run, and it now says so — see `SURFACE_TRUNCATED_CAUSE`.
+ */
+export const SURFACE_NODE_BOUND = 4096;
+export const SURFACE_DEPTH_BOUND = 6;
+/**
+ * D-36: WHICH bound was reached, and the words the cause names it by. ONE record, so an arm added
+ * here without a sentence does not compile and a sentence with no arm cannot be written.
+ */
+export const SURFACE_TRUNCATION_REACHED = Object.freeze({
+    "node-bound": `the NODE bound (${SURFACE_NODE_BOUND} distinct declared types)`,
+    "depth-bound": `the DEPTH bound (${SURFACE_DEPTH_BOUND} property or call links from an export)`,
+    // NOT a bound, and it is in this record anyway. The walk's SEEDING can fail too: a checker that
+    // throws from `getExportsOfModule` leaves the surface empty, which returned a partial surface
+    // with no signal exactly as the two bounds did. An arm that stops the walk belongs where the
+    // other arms that stop the walk are, or the next reader has two places to look.
+    "exports-unreadable": "the framework module's own export list, which this checker could not enumerate",
+});
+/** Every way the walk can stop early, DERIVED from the record above rather than re-typed. */
+export const SURFACE_TRUNCATION_ARMS = Object.freeze(Object.keys(SURFACE_TRUNCATION_REACHED));
+/**
+ * D-36: the ONE sentence a truncated walk returns as its could-not-run cause. Exported so the
+ * recipe and the residual register quote it rather than restate it.
+ *
+ * It names both bound VALUES, because a reader who meets this line needs to know what was exceeded,
+ * and it names the consequence, because "the surface was truncated" alone does not tell a reader
+ * that the ban would otherwise have been decided by a WEAKER rule on every member past the bound.
+ */
+export const SURFACE_TRUNCATED_CAUSE = `the ${PLAYWRIGHT_TEST_MODULE} declared surface was not fully walked (node bound ` +
+    `${SURFACE_NODE_BOUND}, depth bound ${SURFACE_DEPTH_BOUND}), so some framework declarations were ` +
+    `never reached and every call on them would have been decided as foreign rather than by identity`;
+/** The cause the run emits, naming the bound that was reached. ONE authority for both arms. */
+export function surfaceTruncatedCause(reached) {
+    return `${SURFACE_TRUNCATED_CAUSE}; what stopped the walk was ${SURFACE_TRUNCATION_REACHED[reached]}`;
+}
 /**
  * D-30 (1): build a Program and a checker from the TARGET repository's own `typescript`.
  *
@@ -794,7 +837,15 @@ export function createProgramForTarget(repoRoot, specAbsPaths, ts) {
             cause: `the declarations of ${PLAYWRIGHT_TEST_MODULE} did not resolve, so no call could be decided by identity`,
         };
     }
-    const surface = frameworkSurface(ts, checker, moduleSymbol);
+    const surface = frameworkSurface(ts, program, checker, moduleSymbol);
+    // D-36 (CR-25): A BOUND THAT IS REACHED IS A CHECK THAT DID NOT RUN. The walk stopped early, so
+    // some of the framework's declarations are absent from the surface below, and every call on one
+    // of them would have answered `foreign` — accept — with nothing said. That is RR-07's silent
+    // degrade one register over, and it takes RR-07's route out: the could-not-run boundary D-28
+    // already decided, at exit 2, with its own named cause. No new exit code and no second boundary.
+    if (surface.truncated !== null) {
+        return { ok: false, cause: surfaceTruncatedCause(surface.truncated) };
+    }
     return {
         ok: true,
         context: {
@@ -867,11 +918,14 @@ function frameworkModuleSymbol(ts, program, checker) {
  * author could have written it by, and it is bounded in both size and depth so a large surface
  * costs a stated amount rather than an open one.
  */
-function frameworkSurface(ts, checker, moduleSymbol) {
+function frameworkSurface(ts, program, checker, moduleSymbol) {
     const files = new Set();
     const typePaths = new Map();
+    let truncated = null;
     const addDeclarations = (symbol) => {
         for (const declaration of symbol.declarations ?? []) {
+            if (isDefaultLibraryDeclaration(program, declaration))
+                continue;
             try {
                 files.add(declaration.getSourceFile().fileName);
             }
@@ -879,6 +933,13 @@ function frameworkSurface(ts, checker, moduleSymbol) {
                 /* a synthesised declaration carries no file; it cannot anchor identity either */
             }
         }
+    };
+    /** A symbol every one of whose declarations is the COMPILER'S OWN library. See D-36 below. */
+    const isStandardLibraryOnly = (symbol) => {
+        const declarations = symbol.declarations ?? [];
+        if (declarations.length === 0)
+            return false;
+        return declarations.every((d) => isDefaultLibraryDeclaration(program, d));
     };
     addDeclarations(moduleSymbol);
     const queue = [];
@@ -901,19 +962,52 @@ function frameworkSurface(ts, checker, moduleSymbol) {
         }
     }
     catch {
-        return { files, typePaths };
+        return { files, typePaths, truncated: "exports-unreadable" };
     }
-    for (let head = 0; head < queue.length && typePaths.size < SURFACE_NODE_BOUND; head++) {
+    for (let head = 0; head < queue.length; head++) {
+        // D-36: the NODE bound moves OUT of the loop condition and into an explicit break that records
+        // itself. In the condition it was indistinguishable from a walk that finished — which is how a
+        // partial surface reached `resolveBannedModifier` wearing a complete one's clothes.
+        if (typePaths.size >= SURFACE_NODE_BOUND) {
+            truncated ??= "node-bound";
+            break;
+        }
         const { type, path, depth } = queue[head];
         const symbol = type.aliasSymbol ?? type.symbol;
         if (symbol !== undefined) {
             if (typePaths.has(symbol))
                 continue;
+            // D-36: the COMPILER'S OWN LIBRARY is not the framework, and walking it was not free.
+            //
+            // MEASURED, before this line existed, over the transcribed surface this repository ships:
+            // `frameworkFiles` held SEVENTEEN files, sixteen of them `node_modules/typescript/lib/*.d.ts`,
+            // and the walk reached `expect().toHaveText().__@toStringTag@52.length.toString` — depth SIX,
+            // the depth bound, on an ORDINARY run. The budget both bounds exist to spend on the
+            // framework's surface was being spent on `String`, `Number`, `Array` and `Promise`, and the
+            // bound was therefore reached by every target: a truncation route added without this line
+            // would have turned EVERY run into a could-not-run at exit 2.
+            //
+            // It is also a narrowing of identity, in the refusing direction: a callee resolving to a
+            // standard-library declaration is no longer `framework`. What it COSTS is disclosed rather
+            // than absorbed — a framework type reachable ONLY through a library container (`TestInfo[]`,
+            // `Promise<TestInfo>`) is no longer reached through that route, and that is a named member of
+            // `UNRESOLVABLE_CALLEE_RESIDUALS` rather than a silence.
+            if (isStandardLibraryOnly(symbol))
+                continue;
             typePaths.set(symbol, path);
             addDeclarations(symbol);
         }
-        if (depth >= SURFACE_DEPTH_BOUND)
+        // D-36: the DEPTH bound stops expanding this node, and that is a check that did not run — but
+        // ONLY IF THERE WAS SOMETHING LEFT TO EXPAND. A node with no properties and no call signatures
+        // is a LEAF: the walk cut nothing off at it, and reporting a truncation there would make every
+        // run that merely reached a `void` return at the bound a could-not-run. The question asked is
+        // the one the report claims to answer — were framework declarations left unreached? — rather
+        // than the cheaper one, did the counter hit its limit.
+        if (depth >= SURFACE_DEPTH_BOUND) {
+            if (hasExpandableMembers(ts, checker, type))
+                truncated ??= "depth-bound";
             continue;
+        }
         try {
             for (const property of checker.getPropertiesOfType(type)) {
                 addDeclarations(property);
@@ -943,7 +1037,51 @@ function frameworkSurface(ts, checker, moduleSymbol) {
             continue;
         }
     }
-    return { files, typePaths };
+    return { files, typePaths, truncated };
+}
+/**
+ * D-36: would expanding this node have reached anything? Asked ONLY at the depth bound, to tell a
+ * walk that was CUT from a walk that arrived at a leaf.
+ *
+ * FAIL CLOSED. A checker that throws for either question answers `true`, so an unreadable node at
+ * the bound is reported as a truncation rather than assumed to be a leaf. Assuming a leaf is the
+ * fail-OPEN direction: it would return the run to a pass over a surface nobody finished walking.
+ */
+function hasExpandableMembers(ts, checker, type) {
+    try {
+        if (checker.getPropertiesOfType(type).length > 0)
+            return true;
+    }
+    catch {
+        return true;
+    }
+    try {
+        return checker.getSignaturesOfType(type, ts.SignatureKind.Call).length > 0;
+    }
+    catch {
+        return true;
+    }
+}
+/**
+ * D-36: is this declaration part of the COMPILER'S OWN standard library?
+ *
+ * FAIL TOWARDS WALKING, WHICH IS FAIL TOWARDS THE LOUD OUTCOME. A parser whose Program does not
+ * publish `isSourceFileDefaultLibrary` answers `false` here, so the walk descends into the library
+ * exactly as it did before D-36, reaches the depth bound, and the run exits 2 with the truncation
+ * cause. That is a could-not-run, not a pass and not a quieter ban — the direction D-30 (4) chose
+ * for every other unavailable-parser shape. Answering `true` on an unreadable probe would be the
+ * opposite: a silently NARROWER walk, which is the fail-open this member exists to close.
+ */
+function isDefaultLibraryDeclaration(program, declaration) {
+    const probe = program.isSourceFileDefaultLibrary;
+    if (typeof probe !== "function")
+        return false;
+    try {
+        return probe.call(program, declaration.getSourceFile()) === true;
+    }
+    catch {
+        return false;
+    }
 }
 /**
  * D-35 (2026-09-11): THE ONE AUTHORITY FOR THE IDENTITY VOCABULARY, AND FOR WHAT EACH ANSWER IS

@@ -3049,6 +3049,16 @@ describe("uat-spec-integrity — 31-13 CR-07: the resolver's DECLINE set, derive
   const R_HAND_DECLARED =
     "A HEAD THE SPEC FILE HAND-DECLARES FOR ITSELF is not decided. D-35 splits a non-framework callee by declaration provenance. A `declare module` block counts as another module's surface. A declaration file counts as one too. A `declare const describe: { skip(...): void }` written inside the spec's own source counts as NEITHER. So it answers `foreign-local` and the call is accepted at exit 0. MEASURED, on a file that type-checks clean. The shape stays open because it is structurally IDENTICAL to the control that keeps WR-26 closed. Both resolve to a property signature of an anonymous type literal inside a `declare` statement. A predicate that refuses the one refuses the other. A false refusal names a construct the file does not contain. Such a refusal is a failure this family has already paid for three times. What would force it closed: a discriminant separating a hand-declared module-scope head from a helper's own parameter type. Reading the head's NAME is not available, because the ban set would then decide its own scope.";
 
+  // 31-35 (D-36): the surface walk's own limits, and the cost of narrowing it.
+  const R_DEPTH_BOUND =
+    "THE FRAMEWORK-SURFACE WALK IS BOUNDED IN DEPTH. `SURFACE_DEPTH_BOUND` is six property-or-call links from an export. A bound that is reached is a check that did not run. A node left unexpanded at that depth means framework declarations the walk never reached, and a call on one of them would have been decided as foreign rather than by identity. Foreign is accept. So a reached bound is never a verdict. The run takes the could-not-run route the Program member above already names, at exit 2, with `SURFACE_TRUNCATED_CAUSE` as its own cause, which names both bound values and which bound stopped the walk. A LEAF at the bound is not a truncation. A node carrying no properties and no call signatures cut nothing off. Reporting one would make every run that merely reached a `void` return a could-not-run. MEASURED against the transcribed surface this repository ships: seventeen recorded paths, deepest at depth two. The bound is not near it. The INSTALLED package is a different surface and is not measured here, because the dependency set is fixed. That magnitude is an open `UNKNOWN - verify`, carried beside the installed-package member above. What would force it closed: a walk whose cost does not grow with the declared surface, or a measurement over a real installed `@playwright/test` showing the bound is never approached.";
+
+  const R_NODE_BOUND =
+    "THE FRAMEWORK-SURFACE WALK IS BOUNDED IN SIZE. `SURFACE_NODE_BOUND` is 4096 distinct declared types. The bound used to sit in the walk's own loop condition, where a walk that stopped was indistinguishable from a walk that finished. It is now an explicit stop that records itself, and it takes the same route the depth bound takes: exit 2 with the truncation cause naming the bound reached. It is the SAME signal from a different limit, because a surface that is wide rather than deep leaves exactly as many declarations unreached. MEASURED against the transcribed surface this repository ships: seventeen types against a bound of 4096. What would force it closed: the same measurement over a real installed `@playwright/test` surface, which cannot be taken here.";
+
+  const R_LIBRARY_CONTAINER =
+    "THE COMPILER'S OWN STANDARD LIBRARY IS NOT THE FRAMEWORK, and the walk stops at its edge. Before D-36 it did not: sixteen of the seventeen files identity was decided against were `node_modules/typescript/lib/*.d.ts`, and the depth budget was being spent on `String`, `Number`, `Array` and `Promise` rather than on the framework. Narrowing it is what leaves the two bounds any headroom at all. What the narrowing COSTS is this member. A framework type reachable ONLY through a standard-library container, such as a `TestInfo[]` or a `Promise<TestInfo>`, is no longer reached through that route. A member declared only behind one is absent from the surface, so a call on it answers foreign and is accepted, and nothing is emitted at run time to say so. The route is reasoned rather than measured: no member of the transcribed surface sits behind a container. What would force it closed: descending into a container's TYPE ARGUMENTS while still refusing the container's own members. The structural view of the checker this runnable declares does not read type arguments today.";
+
   const DECLINE_SITE_DISPOSITIONS: Readonly<Record<string, DeclineDisposition>> = Object.freeze({
     // ── calleeDottedPath (the SPELLING rule's shape resolver) ─────────────────────────────────
     "calleeDottedPath | Block>ForStatement>Block>IfStatement>Block>IfStatement | !ts.isStringLiteralLike(arg) | return null;":
@@ -3451,6 +3461,25 @@ describe("uat-spec-integrity — 31-13 CR-07: the resolver's DECLINE set, derive
         "dependency set and `@playwright/test` cannot be installed to exercise the node_modules " +
         "route. It discloses the strength of a claim rather than a position in the resolver, so it " +
         "belongs on this axis and carries `UNKNOWN - verify` beside `R-07`.",
+      [R_DEPTH_BOUND]:
+        "NOT A RESOLUTION RESIDUAL. 31-35 (D-36). It discloses what happens BEFORE any callee is " +
+        "resolved, exactly as the could-not-run member above does: the framework's surface is " +
+        "walked once per run, and a walk that stopped at its depth bound has left declarations " +
+        "unreached for every callee the run will later ask about. Its site is the walk's own depth " +
+        "check, which sets a flag `createProgramForTarget` turns into an EXIT rather than a " +
+        "decline, and it is driven at the entry by the boundary-pair rows.",
+      [R_NODE_BOUND]:
+        "NOT A RESOLUTION RESIDUAL, and the same event as the member above from the other limit. " +
+        "It is recorded separately because the two bounds have different remedies and a reader who " +
+        "meets one needs to know which one stopped the walk. Driven at the entry by the wide-surface " +
+        "row, whose cause names the NODE bound by value.",
+      [R_LIBRARY_CONTAINER]:
+        "NOT A RESOLUTION RESIDUAL. 31-35 (D-36). The checker resolves the callee perfectly; what " +
+        "the member discloses is a member the SURFACE does not contain, because the walk stops at " +
+        "the standard library's edge and a framework type behind a library container is reached by " +
+        "no other route. It belongs on this axis for the same reason the ambient-route member does: " +
+        "it states the strength of a claim rather than a position in the resolver, and the route is " +
+        "reasoned rather than measured.",
       [R_HAND_DECLARED]:
         "NOT A RESOLUTION RESIDUAL. 31-34 (D-35). The checker resolves this callee perfectly — " +
         "there is no decline anywhere in the resolver — and the identity rule ANSWERS " +
@@ -7885,8 +7914,11 @@ const TAIL = '  await expect(page.getByTestId("invoice-total")).toHaveText("$42.
  * landed above it would silently permit those twelve to be deleted again. Raising it is what keeps
  * the floor's only failure direction — UNDER-claiming — from becoming a standing allowance. The
  * number is derived by `declaredCorpusRowIds().size`, not counted by hand.
+ *
+ * 31-35 (2026-09-11): RE-MEASURED again at the commit that added CR-25's rows, 45 -> 53, by the
+ * same derivation and for the same reason.
  */
-const CORPUS_ROW_FLOOR = 45;
+const CORPUS_ROW_FLOOR = 53;
 
 /** One row per member of the exported residual register, keyed by that member's INDEX. */
 const RESIDUAL_COVERAGE: Readonly<Record<number, string>> = Object.freeze({
@@ -7908,6 +7940,15 @@ const RESIDUAL_COVERAGE: Readonly<Record<number, string>> = Object.freeze({
   // and left one shape open in the same family, so the register grew by exactly the shape the
   // change did not reach rather than absorbing it.
   6: "RR-13 a head the spec file hand-`declare`s for itself (NEW, D-35)",
+  // 31-35 (D-36): TEN. CR-25 found the walk's own two bounds failing OPEN — a bound that was
+  // reached returned a partial surface with no signal, and every declaration past it resolved
+  // `foreign`, which is accept. Both bounds are now published members, and so is the cost of the
+  // narrowing that gave them any headroom: the walk no longer descends into the compiler's own
+  // standard library, and a framework type reachable only through a library container is the one
+  // shape that narrowing does not reach.
+  7: "RR-14 the surface walk's DEPTH bound, reached is could-not-run (NEW, D-36)",
+  8: "RR-15 the surface walk's NODE bound, reached is could-not-run (NEW, D-36)",
+  9: "RR-16 a framework type reachable only through a standard-library container (NEW, D-36)",
 });
 
 describe("uat-spec-integrity — 31-28 MOVEMENT 1: the corpus's denominator is DERIVED, not typed", () => {
@@ -8609,6 +8650,46 @@ describe("uat-spec-integrity — 31-28 PROTOCOL: the seven points, against this 
     return cases;
   }
 
+  /**
+   * 31-35: every function in THIS file that reaches the committed `.js`, DERIVED by fixed point
+   * from the one function that spawns it rather than remembered as a list.
+   *
+   * The seed is SPAWN-SHAPED, not name-shaped: a function whose own body passes `CHECK_JS` to
+   * `spawnSync`. The closure then adds any function that calls one already in the set. A helper
+   * introduced above therefore joins the set on the commit that introduces it, and a helper renamed
+   * does not silently drop out — which is what a hand-typed list of four names could not do.
+   */
+  function spawningHelperNames(): ReadonlySet<string> {
+    const tsApi = hostTypeScript as typeof import("typescript");
+    const src = readFileSync(join(HERE, "uat-spec-integrity.test.ts"), "utf8");
+    const sf = tsApi.createSourceFile("t.ts", src, tsApi.ScriptTarget.Latest, true);
+    const bodies = new Map<string, string>();
+    const collect = (n: import("typescript").Node): void => {
+      if (tsApi.isFunctionDeclaration(n) && n.name !== undefined && n.body !== undefined) {
+        bodies.set(n.name.text, n.body.getText(sf));
+      }
+      tsApi.forEachChild(n, collect);
+    };
+    tsApi.forEachChild(sf, collect);
+    expect(bodies.size, "PREMISE: the walk found no function declaration in this file").toBeGreaterThan(0);
+    const named = new Set<string>();
+    for (const [name, body] of bodies) {
+      if (/\bspawnSync\(/.test(body) && /\bCHECK_JS\b/.test(body)) named.add(name);
+    }
+    expect(named.size, "PREMISE: no function in this file spawns the committed artifact").toBeGreaterThan(0);
+    for (let grew = true; grew; ) {
+      grew = false;
+      for (const [name, body] of bodies) {
+        if (named.has(name)) continue;
+        if ([...named].some((h) => new RegExp(`\\b${h}\\(`).test(body))) {
+          named.add(name);
+          grew = true;
+        }
+      }
+    }
+    return named;
+  }
+
   // ── POINT 1: EVERY assertion is driven at the ENTRY the §14 gate invokes ─────────────────────
 
   it("POINT 1: no corpus row decides a ban without spawning the committed .js", () => {
@@ -8617,8 +8698,15 @@ describe("uat-spec-integrity — 31-28 PROTOCOL: the seven points, against this 
     // count below zero for a reason that says nothing about the corpus.
     expect(cases.length, "PREMISE: the walk found no row-marked case at all").toBeGreaterThan(20);
 
+    // 31-35: THE SPAWNING-HELPER SET IS DERIVED, NOT TYPED. It used to be a four-name literal
+    // (`driveSpec`, `runCheck`, `findingsOf`, `runMutated`), and a fifth helper added above would
+    // have made every row that used it read as an offender — a set-literal drifting against the
+    // authority it claims to mirror, which is a failure class this phase has logged by name. The
+    // set is now closed by fixed point from the ONE function that spawns the committed artifact.
+    const helpers = spawningHelperNames();
+    expect(helpers.size, "PREMISE: the spawning-helper closure found nothing").toBeGreaterThan(1);
     const spawns = (body: string): boolean =>
-      /\bdriveSpec\(|\brunCheck\(|\bfindingsOf\(|\brunMutated\(/.test(body);
+      [...helpers].some((h) => new RegExp(`\\b${h}\\(`).test(body));
     // A row DECIDES A BAN when it reads an exit code or a findings line. A row that only inspects
     // the module's exported surface — "this constant is gone", "this register names this shape" —
     // decides no ban and needs no spawn, so it is not counted.
@@ -9062,16 +9150,24 @@ describe("uat-spec-integrity — 31-28: the five approximations are GONE, derive
     }
   });
 
-  it("the residual register's CARDINALITY is seven — nine before the cutover, six after it, plus D-35's", async () => {
+  it("the residual register's CARDINALITY is ten — nine before the cutover, six after it, then D-35's and D-36's three", async () => {
     const { UNRESOLVABLE_CALLEE_RESIDUALS } = await loadChecker();
     // Asserted as its own case with its own message: a member REWORDED and a member REMOVED are
     // different events and must not read as one failure. The old number is written here so the
     // shrink is a measurement in the record rather than a fact only a reader of two commits knows.
+    //
+    // 31-35 (D-36): SEVEN -> TEN. The walk's two bounds became members because CR-25 measured them
+    // failing OPEN — a bound that was reached returned a partial surface with no signal — and the
+    // third member is what the narrowing those bounds needed COSTS: the walk no longer descends
+    // into the compiler's own standard library, so a framework type reachable only through a
+    // library container is not reached at all. A register that grew by the shapes a fix does not
+    // reach is the same discipline D-35 applied when it grew by one.
     expect(
       UNRESOLVABLE_CALLEE_RESIDUALS.length,
-      "the residual register's size changed; it was 9 before the 31-28 cutover, 6 after it, and 7 " +
-        "after 31-34 (D-35) disclosed the one shape the split does not reach",
-    ).toBe(7);
+      "the residual register's size changed; it was 9 before the 31-28 cutover, 6 after it, 7 " +
+        "after 31-34 (D-35) disclosed the one shape the split does not reach, and 10 after 31-35 " +
+        "(D-36) published the surface walk's two bounds and the cost of narrowing it",
+    ).toBe(10);
   });
 
   it("the module names no framework TYPE as a string literal — identity is DERIVED", () => {
