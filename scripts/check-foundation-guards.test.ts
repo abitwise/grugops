@@ -9205,7 +9205,19 @@ const censusRelationshipFindings = (c: TripwireCensus): string[] => {
 // here. Re-derived rather than incremented: `ls scripts/*.test.ts | wc -l` reports 59 on this tree,
 // agreeing with the live census. Like the bump above, it lands in the SAME commit as the module it
 // counts is first observed by the full suite.
-const TRIPWIRE_MODULES = 59;
+//
+// 59 -> 60 (plan 31-37): ONE test module, `scripts/harness-instance-ledger.test.ts` — the derived
+// premise case for `docs/audit/harness-false-result-instances.md`. It exists because `WR-34` measured
+// that ledger's row 13 claiming a fixture change that had been REVERTED: the register this phase
+// created so a later reader has one authoritative list stated a mechanism present where the tree does
+// not carry it, which is the same class of defect the register exists to record. The new module
+// derives, per row, the files the row names and the mechanisms it claims, and asserts each claim is
+// findable in the evidence that row itself cited — with the row denominator, the checked-claim count
+// and the exempt counts printed before any verdict. A pin that surfaces a module arriving is the
+// correct thing to have fired here. Re-derived rather than incremented:
+// `ls scripts/*.test.ts | wc -l` reports 60 on this tree, agreeing with the live census. Like the two
+// bumps above it lands in the SAME commit as the run in which the full suite first observed it.
+const TRIPWIRE_MODULES = 60;
 /**
  * Corpus-derived floors, expressed as RATES so the floor grows with the corpus it floors.
  * Each is set well below its measured live value: the point is to catch a measurement that
