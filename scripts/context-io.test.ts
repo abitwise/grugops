@@ -12441,3 +12441,370 @@ describe("31-29 — the write path's residuals are an EXPORTED register, bound i
     expect(fresh?.reason).toContain("APPEND-ONLY");
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// PLAN 31-33 — CR-22: ONE REPOSITORY PER ACTION, DERIVED AT THE **ENTRY** OF EVERY ROUTE THAT
+// WRITES A NOTE AND ITS GOV-02 LEDGER EVENT.
+//
+// WHAT WAS WRONG, MEASURED RATHER THAN DESCRIBED. `31-29`/`D-31 (2)` states its rule as a property
+// of an ACTION — two halves of one action are keyed on ONE variable — and installed it NINETEEN
+// LINES BELOW `promoteAdmitted`'s own human-stamp fall-through. Reproduced against the committed
+// `.js` at the round-7 base, with three real governance roots each asserted
+// `governanceRootOf(store) === root` before any result was read:
+//
+//   | position                                             | note landed in | GOV-02 event landed in |
+//   | promoteAdmitted fall-through, to=THIRD repoRoot=DEST | THIRD          | DEST                   |
+//   | the same call with an UNGOVERNED destination         | UNGOV          | DEST                   |
+//   | admitAndAppend, contextRoot=DEST repoRoot=THIRD      | DEST           | THIRD                  |
+//
+// A property claimed of a FUNCTION is established at the function's ENTRY, above every branch, or
+// it is not established: a return that precedes the derivation is a path on which the property is
+// simply not true. These cases drive every position and read the note count AND the ledger line
+// count in ALL THREE roots after each call — a probe that reads only the root it expects cannot see
+// the split at all.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+interface GovernedRoot {
+  readonly root: string;
+  readonly store: string;
+}
+
+describe("31-33 — CR-22: one repository per action, derived at the ENTRY of every write-both route", () => {
+  function governed(prefix: string, dial: string, retention = "retained"): GovernedRoot {
+    const root = freshTmp(prefix);
+    mkdirSync(join(root, ".git"), { recursive: true });
+    mkdirSync(join(root, ".grugops"), { recursive: true });
+    writeFileSync(
+      join(root, ".grugops", "factory.config.json"),
+      JSON.stringify({ context: { human_admission: dial, audit_retention: retention } }),
+    );
+    const store = join(root, ".grugops", "context");
+    mkdirSync(store, { recursive: true });
+    return { root, store };
+  }
+
+  /** A store-SHAPED directory with no governance root above it: `governanceRootOf` answers null. */
+  function ungoverned(prefix: string): GovernedRoot {
+    const root = freshTmp(prefix);
+    const store = join(root, ".grugops", "context");
+    mkdirSync(store, { recursive: true });
+    return { root, store };
+  }
+
+  /**
+   * ASSERT THE HARNESS'S OWN PREMISE, PER ROOT, BEFORE ANY RESULT IS READ. This repository has
+   * recorded a FALSE verification-harness premise in six instances across four rounds, and both
+   * `31-REVIEW.md` and `31-VERIFICATION.md` print this exact line before their own measurements.
+   */
+  function premise(label: string, g: GovernedRoot): GovernedRoot {
+    expect(
+      mod.governanceRootOf(g.store),
+      `PREMISE: ${label} is not a governance root the module resolves for itself, so every count ` +
+        `read out of it below would be a measurement of the fixture rather than of the module`,
+    ).toBe(g.root);
+    return g;
+  }
+
+  const notesIn = (g: GovernedRoot, task: string): number => {
+    const d = join(g.store, task, "notes");
+    return existsSync(d) ? readdirSync(d).filter((f) => f.endsWith(".md")).length : 0;
+  };
+  /** `null` is ABSENT — a ledger that was never created records nothing rather than zero lines. */
+  const ledgerIn = (g: GovernedRoot): number | null => {
+    const p = join(g.root, ".grugops", "audit", "admissions.jsonl");
+    if (!existsSync(p)) return null;
+    return readFileSync(p, "utf8").split("\n").filter((l) => l.trim() !== "").length;
+  };
+  /** The THREE-ROOT census: what a probe that reads only its expected root cannot see. */
+  function census(task: string, roots: Readonly<Record<string, GovernedRoot>>): string {
+    return Object.entries(roots)
+      .map(([name, g]) => `${name} notes=${notesIn(g, task)} ledger=${ledgerIn(g) ?? "ABSENT"}`)
+      .join(" | ");
+  }
+
+  const plainNote = (over: Record<string, unknown> = {}): Parameters<typeof mod.appendNote>[1] =>
+    ({
+      kind: "observation",
+      by: "qe",
+      at: "2026-09-11T00:00:00Z",
+      verified_by: "",
+      confidence: "high",
+      refs: [],
+      supersedes: null,
+      ...over,
+    }) as Parameters<typeof mod.appendNote>[1];
+
+  it("POSITION 1 (the fall-through): the note and its GOV-02 event land in the SAME repository", () => {
+    const T = "T-533A";
+    const ORIGIN = premise("ORIGIN", governed("p31-33-p1-origin-", "all"));
+    const THIRD = premise("THIRD", governed("p31-33-p1-third-", "all"));
+    const DEST = premise("DEST", governed("p31-33-p1-dest-", "all"));
+    const roots = { ORIGIN, THIRD, DEST };
+    const before = census(T, roots);
+
+    // A note carrying NO human:NAME stamp — the ordinary path through this exact function, not an
+    // edge case. It returns two lines above the derivation the round-6 fix installed.
+    const id = mod.promoteAdmitted(
+      T,
+      "irrelevant-source-id",
+      plainNote(),
+      "a body",
+      "irrelevant-from",
+      THIRD.store,
+      DEST.root,
+    );
+    expect(id, "the fall-through wrote nothing at all, so there is no split to measure").toBeTruthy();
+
+    const after = census(T, roots);
+    expect(
+      { notes: notesIn(THIRD, T), ledger: ledgerIn(THIRD) },
+      `the note and its own audit record are in two different repositories. before: ${before} — ` +
+        `after: ${after}`,
+    ).toEqual({ notes: 1, ledger: 1 });
+    expect(
+      { notes: notesIn(DEST, T), ledger: ledgerIn(DEST) },
+      `the caller's repoRoot still MOVED a record. before: ${before} — after: ${after}`,
+    ).toEqual({ notes: 0, ledger: null });
+    expect({ notes: notesIn(ORIGIN, T), ledger: ledgerIn(ORIGIN) }).toEqual({ notes: 0, ledger: null });
+  });
+
+  it("POSITION 2 (an UNGOVERNED destination): a NAMED decline, raised before anything is written", () => {
+    const T = "T-533B";
+    const THIRD = premise("THIRD", governed("p31-33-p2-third-", "all"));
+    const DEST = premise("DEST", governed("p31-33-p2-dest-", "all"));
+    const UNGOV = ungoverned("p31-33-p2-ungov-");
+    expect(
+      mod.governanceRootOf(UNGOV.store),
+      "PREMISE: the ungoverned fixture resolves to a governance root after all",
+    ).toBeNull();
+    const before = census(T, { THIRD, DEST });
+
+    // ON THE FALL-THROUGH PATH — the path CR-22 position 2 reproduced.
+    let message = "";
+    try {
+      mod.promoteAdmitted(T, "irrelevant-source-id", plainNote(), "a body", "irrelevant-from", UNGOV.store, DEST.root);
+      message = "(no throw)";
+    } catch (e) {
+      message = (e as Error).message;
+    }
+    expect(message).toContain("DECLINED (destination-outside-governed-store)");
+    expect(message).toContain(mod.PROMOTE_ADMITTED_DECLINES["destination-outside-governed-store"]);
+    expect(message).toContain("Nothing was written.");
+
+    // …AND ON THE GATED PATH, which reaches the same entry-level derivation.
+    let gatedMessage = "";
+    try {
+      mod.promoteAdmitted(
+        T,
+        "irrelevant-source-id",
+        plainNote({ kind: "finding", verified_by: "human:alice" }),
+        "a body",
+        "irrelevant-from",
+        UNGOV.store,
+        DEST.root,
+      );
+      gatedMessage = "(no throw)";
+    } catch (e) {
+      gatedMessage = (e as Error).message;
+    }
+    expect(gatedMessage).toContain("DECLINED (destination-outside-governed-store)");
+
+    // NOTHING WAS WRITTEN — the destination directory is empty and every candidate ledger is
+    // unchanged, asserted over ALL of them rather than over the one the call named.
+    expect(notesIn(UNGOV, T), "a note landed in a store whose owning repository cannot be named").toBe(0);
+    expect(existsSync(join(UNGOV.store, T)), "the decline created the task directory").toBe(false);
+    expect(census(T, { THIRD, DEST }), `a ledger moved on a declined call. before: ${before}`).toBe(before);
+  });
+
+  it("POSITION 3 (admitAndAppend): the note and its GOV-02 event land in the SAME repository", () => {
+    const T = "T-533C";
+    const THIRD = premise("THIRD", governed("p31-33-p3-third-", "all"));
+    const DEST = premise("DEST", governed("p31-33-p3-dest-", "all"));
+    const roots = { THIRD, DEST };
+    const before = census(T, roots);
+
+    const r = mod.admitAndAppend(
+      T,
+      plainNote({ kind: "finding", verified_by: "human:alice" }),
+      "a body",
+      DEST.store,
+      THIRD.root,
+    );
+    expect(r.findings, `admitAndAppend refused: ${r.findings.join(" / ")}`).toEqual([]);
+    const after = census(T, roots);
+    expect(
+      { notes: notesIn(DEST, T), ledger: ledgerIn(DEST) },
+      `the human-disposed finding and its own audit record are in two different repositories. ` +
+        `before: ${before} — after: ${after}`,
+    ).toEqual({ notes: 1, ledger: 1 });
+    expect(
+      { notes: notesIn(THIRD, T), ledger: ledgerIn(THIRD) },
+      `the caller's repoRoot still MOVED a record. before: ${before} — after: ${after}`,
+    ).toEqual({ notes: 0, ledger: null });
+  });
+
+  it("POSITION 3b (admitAndAppend, NON-gated): the same, on the branch that routes through admit()", () => {
+    const T = "T-533D";
+    const THIRD = premise("THIRD", governed("p31-33-p3b-third-", "off"));
+    const DEST = premise("DEST", governed("p31-33-p3b-dest-", "off"));
+    const roots = { THIRD, DEST };
+    const before = census(T, roots);
+
+    const r = mod.admitAndAppend(T, plainNote(), "a body", DEST.store, THIRD.root);
+    expect(r.findings, `admitAndAppend refused: ${r.findings.join(" / ")}`).toEqual([]);
+    const after = census(T, roots);
+    expect(
+      { notes: notesIn(DEST, T), ledger: ledgerIn(DEST) },
+      `the note and its own audit record are in two different repositories. before: ${before} — ` +
+        `after: ${after}`,
+    ).toEqual({ notes: 1, ledger: 1 });
+    expect({ notes: notesIn(THIRD, T), ledger: ledgerIn(THIRD) }).toEqual({ notes: 0, ledger: null });
+  });
+
+  it("POSITION 4 (the DEFAULT arguments): the ledger root is DERIVED from the call's own store", () => {
+    // The fourth position is about the DEFAULTS, which on this box resolve to one directory: the kit
+    // IS the host repository here, so a behavioural probe of the two defaults cannot tell a
+    // derivation from a coincidence. What IS observable, and is what the position is really about,
+    // is WHICH VALUE the default names. So it is measured on the module's own source: the ledger
+    // root each write-both route defaults to is derived from that call's own `contextRoot`, never
+    // from `repoRoot`. Under the shipped shared-install model (`~/.grugops` kit + per-repo state)
+    // those are different directories, which is what makes the pre-fix default a split rather than
+    // a test-seam artifact.
+    const source = readFileSync(CONTEXT_IO_TS, "utf8");
+    const derivedDefault = "governanceRootOf(contextRoot) ?? repoRoot";
+    expect(
+      source.split(derivedDefault).length - 1,
+      "the ledger root is not defaulted from the call's own contextRoot at BOTH write-both routes",
+    ).toBe(2);
+  });
+
+  it("GREEN 3: a deliberately DIFFERENT repoRoot can no longer move a record, on any route", () => {
+    const T = "T-533E";
+    const HOME = premise("HOME", governed("p31-33-g3-home-", "off"));
+    const ELSEWHERE = premise("ELSEWHERE", governed("p31-33-g3-elsewhere-", "off"));
+
+    const id = mod.appendNote(T, plainNote(), "a body", HOME.store, undefined, ELSEWHERE.root);
+    expect(id).toBeTruthy();
+    expect(
+      { notes: notesIn(HOME, T), ledger: ledgerIn(HOME) },
+      "appendNote's record did not follow the store it wrote the note into",
+    ).toEqual({ notes: 1, ledger: 1 });
+    expect(
+      { notes: notesIn(ELSEWHERE, T), ledger: ledgerIn(ELSEWHERE) },
+      "appendNote's caller-supplied repoRoot still decided where the record landed",
+    ).toEqual({ notes: 0, ledger: null });
+  });
+
+  it("CONTROL 1 (CR-20 unmoved): the GATED promotion still lands both halves in the derived destination", () => {
+    const T = "T-533F";
+    const ORIGIN = premise("ORIGIN", governed("p31-33-c1-origin-", "all"));
+    const THIRD = premise("THIRD", governed("p31-33-c1-third-", "all"));
+    const DEST = premise("DEST", governed("p31-33-c1-dest-", "all"));
+    const note = plainNote({ kind: "finding", verified_by: "human:alice" });
+    const sourceId = mod.appendNote(T, note, "a body", ORIGIN.store, undefined, ORIGIN.root);
+    const before = census(T, { THIRD, DEST });
+
+    const id = mod.promoteAdmitted(T, sourceId, note, "a body", ORIGIN.store, THIRD.store, DEST.root);
+    expect(id).toBe(sourceId);
+    const after = census(T, { THIRD, DEST });
+    expect(
+      { notes: notesIn(THIRD, T), ledger: ledgerIn(THIRD) },
+      `CR-20 reopened. before: ${before} — after: ${after}`,
+    ).toEqual({ notes: 1, ledger: 1 });
+    expect({ notes: notesIn(DEST, T), ledger: ledgerIn(DEST) }).toEqual({ notes: 0, ledger: null });
+  });
+
+  it("CONTROL 3 (CR-11 unmoved): an OCCUPIED destination id still declines, byte-unchanged", () => {
+    const T = "T-533G";
+    const ORIGIN = premise("ORIGIN", governed("p31-33-c3-origin-", "all"));
+    const DEST = premise("DEST", governed("p31-33-c3-dest-", "all"));
+    const note = plainNote({ kind: "finding", verified_by: "human:alice" });
+    const sourceId = mod.appendNote(T, note, "a body", ORIGIN.store, undefined, ORIGIN.root);
+    // Occupy the destination id with DIFFERENT bytes.
+    mod.appendNote(T, note, "a DIFFERENT body", DEST.store, sourceId, DEST.root);
+    const occupiedPath = join(DEST.store, T, "notes", `${sourceId}.md`);
+    const bytesBefore = readFileSync(occupiedPath, "utf8");
+
+    let message = "";
+    try {
+      mod.promoteAdmitted(T, sourceId, note, "a body", ORIGIN.store, DEST.store, DEST.root);
+      message = "(no throw)";
+    } catch (e) {
+      message = (e as Error).message;
+    }
+    expect(message).toContain("DECLINED (destination-id-occupied)");
+    expect(readFileSync(occupiedPath, "utf8"), "the occupied destination note was rewritten").toBe(
+      bytesBefore,
+    );
+  });
+
+  it("CONTROL 4 (CR-16 unmoved): an ordinary directory as ORIGIN still declines by name", () => {
+    const T = "T-533H";
+    const DEST = premise("DEST", governed("p31-33-c4-dest-", "all"));
+    const plainOrigin = freshTmp("p31-33-c4-plainorigin-");
+    let message = "";
+    try {
+      mod.promoteAdmitted(
+        T,
+        "some-id",
+        plainNote({ kind: "finding", verified_by: "human:alice" }),
+        "a body",
+        plainOrigin,
+        DEST.store,
+        DEST.root,
+      );
+      message = "(no throw)";
+    } catch (e) {
+      message = (e as Error).message;
+    }
+    expect(message).toContain("DECLINED (origin-outside-trusted-store)");
+  });
+
+  it("CONTROL 2 (D-24 / WR-22 unmoved): the GOV-02 append still PRECEDES the note write, per route", () => {
+    // The order is proven by its observable consequence rather than by reading the source: plant an
+    // unwritable GOV-02 ledger at the DERIVED root, and a route whose append runs FIRST refuses with
+    // NOTHING on disk. A route that wrote the note first would leave the note behind.
+    for (const [label, drive] of [
+      [
+        "admitAndAppend (gated)",
+        (g: GovernedRoot, T: string): string => {
+          const r = mod.admitAndAppend(
+            T,
+            plainNote({ kind: "finding", verified_by: "human:alice" }),
+            "a body",
+            g.store,
+            g.root,
+          );
+          return r.findings.join(" / ");
+        },
+      ],
+      [
+        "appendNote",
+        (g: GovernedRoot, T: string): string => {
+          try {
+            mod.appendNote(T, plainNote(), "a body", g.store, undefined, g.root);
+            return "(no refusal)";
+          } catch (e) {
+            return (e as Error).message;
+          }
+        },
+      ],
+    ] as const) {
+      const T = "T-533I";
+      const G = premise(label, governed(`p31-33-c2-${label.replace(/[^a-z]/gi, "")}-`, "all"));
+      const audit = join(G.root, ".grugops", "audit");
+      mkdirSync(audit, { recursive: true });
+      // A DIRECTORY at the ledger path: present, and not a regular file, so the append refuses.
+      mkdirSync(join(audit, "admissions.jsonl"), { recursive: true });
+      const message = drive(G, T);
+      expect(message, `${label} did not refuse an unwritable GOV-02 ledger`).toContain(
+        mod.UNRECORDABLE_ADMISSION_REFUSAL,
+      );
+      expect(
+        notesIn(G, T),
+        `${label} wrote the note BEFORE the ledger append: the store holds a note the trail never ` +
+          `recorded, which is the repudiation D-24 inverted the order to prevent`,
+      ).toBe(0);
+    }
+  });
+});
