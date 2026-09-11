@@ -919,6 +919,23 @@ export const LEDGER_ABOVE_CEILING_CLAUSE = "audit-ledger-above-size-ceiling";
  * rename here would create the second spelling this module keeps deleting.
  */
 export const NOTE_FILE_MAX_BYTES = 8 * 1024 * 1024;
+/**
+ * The CONDITION a read/append position refusal met, as a discriminant the caller can branch on.
+ *
+ * ONE AUTHORITY FOR THE CONDITION, ONE REGISTER PER POSITION FOR THE NAME (31-29, CR-19). The two
+ * authorities below decide WHAT is true of a position; each CALLER owns the clause it publishes for
+ * that position, because a clause is a statement in the caller's own register. Carrying the
+ * condition on the error is what lets `writeNoteFile` and `appendAuditLedger` name their own clause
+ * WITHOUT re-deriving the fact — the alternative, matching on the message text, would make a
+ * refusal's wording load-bearing and is exactly the fragility this module keeps deleting.
+ *
+ * PUBLISHED AS A VALUE, NOT ONLY AS A TYPE (31-33, CR-24 / D-34). A union type is erased from the
+ * compiled `.js`, so nothing downstream could BIND to it: `NOTE_SKIP_ARMS` was a second hand-typed
+ * literal beside this one, and the two disagreed — three conditions filed under one arm — while both
+ * read as complete. The conditions are a runtime array now and the type is derived FROM it, so the
+ * authority that raises a condition and the register that publishes an arm for it are one object.
+ */
+export const READ_POSITION_CONDITIONS = ["unopenable", "not-a-regular-file", "above-ceiling"];
 /** The error both filesystem authorities raise, carrying the condition it met. */
 export class ReadPositionRefusal extends Error {
     condition;
@@ -1422,19 +1439,37 @@ repoRoot = trustedRepoRoot()) {
  * WHY AN ENTRY IN A `notes/` DIRECTORY WAS NOT RETURNED AS A NOTE (31-29, IN-14 / R-31-21-02).
  *
  * Three different facts used to share one `catch { continue; }` and one silence. They are not the
- * same event and their operational answers differ:
+ * same event and their operational answers differ. `31-29` split them into three arms — and then
+ * hand-typed those three beside an authority that raises THREE CONDITIONS OF ITS OWN, so the split
+ * stopped one register short of the facts. The arms are:
  *
- *   `unparseable`  — a file that is not a note. Ordinary: an editor backup, a stray `.md`.
- *   `not-a-regular-file` — a position occupied by a FIFO, a device or a directory. Somebody PUT
- *                    that there; a note write never creates one.
- *   `vanished`     — listed by `readdir` and gone by the time it was opened. A concurrent delete.
+ *   `unparseable`  — READER-OWNED. A file that is not a note. Ordinary: an editor backup, a stray
+ *                    `.md`. No filesystem authority refuses it; this walk decides it.
+ *   `unopenable`   — RAISED BY THE AUTHORITY. Present and it could not be opened at all: EACCES,
+ *                    ELOOP, ENXIO. A permission bit or a socket, not a shape and not a size.
+ *   `not-a-regular-file` — RAISED BY THE AUTHORITY. A position occupied by a FIFO, a device or a
+ *                    directory. Somebody PUT that there; a note write never creates one.
+ *   `above-ceiling` — RAISED BY THE AUTHORITY. It IS a regular file, and it is larger than
+ *                    `NOTE_FILE_MAX_BYTES`. What disqualifies it is its size and nothing else.
+ *   `vanished`     — READER-OWNED. Two conditions reach this arm. A file listed by `readdir` and
+ *                    gone by the time it was opened — a concurrent delete — AND a DANGLING SYMLINK
+ *                    at a note path, whose `open(2)` reports ENOENT for the TARGET, which this
+ *                    module's one reader correctly answers as "nothing here".
  *
- * The middle one is the one this distinction exists for. A note that was ADMITTED and has become
- * unreadable is not the same event as a file that was never a note, and the shared verified
- * context — the only memory this project has between agents — must not report the two as one
- * silence. `render` now says how many entries were skipped and under which arm.
+ * WHY THE SET IS DERIVED RATHER THAN TYPED OUT (31-33, CR-24 / D-34). The three arms `31-29`
+ * published were a SECOND literal beside `READ_POSITION_CONDITIONS`, and the two disagreed while
+ * both read as complete: `readRawNotesWithSkips` discarded the discriminant `D-31 (3)` created for
+ * exactly that caller and hand-labelled every catch `not-a-regular-file`. Reproduced against the
+ * committed `.js`: an EACCES regular file and an 8,388,609-byte regular file both rendered under
+ * `not-a-regular-file`, and the second row's own detail text — "It IS a regular file; what
+ * disqualifies it is its size and nothing else" — contradicted the arm it was filed under, on the
+ * one artefact a human triaging an unreadable admitted note actually reads. So the arm set SPREADS
+ * the authority's own constant. A sixth condition cannot arrive filed under a fifth arm's name,
+ * because there is no second list for it to be absent from.
+ *
+ * `render` reports how many entries were skipped and under which arm, in this order.
  */
-export const NOTE_SKIP_ARMS = ["unparseable", "not-a-regular-file", "vanished"];
+export const NOTE_SKIP_ARMS = ["unparseable", ...READ_POSITION_CONDITIONS, "vanished"];
 /**
  * The walk, returning BOTH what it read and what it skipped (31-29, IN-14).
  *
@@ -1475,16 +1510,33 @@ function readRawNotesWithSkips(task, contextRoot) {
         try {
             const raw = readRegularFileOrNull(join(notesDir, file), NOTE_FILE_MAX_BYTES, "note file");
             if (raw === null) {
-                // Listed by `readdir`, absent by the time it was opened: a concurrent delete.
+                // `open(2)` answered ENOENT. Two conditions reach here and the arm's docstring names both:
+                // a file listed by `readdir` and deleted before it was opened, and a DANGLING SYMLINK whose
+                // ENOENT is about its target.
                 skipped.push({ file, arm: "vanished", detail: "" });
                 continue;
             }
             text = raw;
         }
         catch (e) {
-            // Not a regular file, above the ceiling, or otherwise unopenable. Somebody PUT this here: a
-            // note write never creates one, and the write side refuses that position BY NAME.
-            skipped.push({ file, arm: "not-a-regular-file", detail: e.message });
+            // ── THE ARM IS READ FROM THE AUTHORITY, NEVER RE-DERIVED HERE (31-33, CR-24 / D-34). ──────
+            //
+            // `D-31 (3)` put the condition on the error with a stated reason: "carrying the condition on
+            // the error is what lets a caller name its own clause WITHOUT re-deriving the fact." This
+            // caller — the one `IN-14` was raised about — discarded it and hand-labelled all three
+            // conditions `not-a-regular-file`. A caller that re-labels every condition with one arm has
+            // re-derived the fact, and re-derived it WRONGLY, on the one surface whose whole stated value
+            // is legibility: the row a human reads when a note that was admitted has become unreadable.
+            // Reproduced before the fix — an EACCES file and an 8,388,609-byte REGULAR file both filed
+            // under `not-a-regular-file`, the second row's detail contradicting its own arm.
+            //
+            // THE FALLBACK IS ONE EXPLICITLY NAMED ARM, not a label per catch. Anything reaching here
+            // that is not a `ReadPositionRefusal` — an EIO from `fstat`, an allocation failure — is a
+            // position that could not be opened or read as far as this walk is concerned, which is what
+            // `unopenable` means. Naming it once is the difference between a fallback and a second
+            // classifier.
+            const arm = e instanceof ReadPositionRefusal ? e.condition : "unopenable";
+            skipped.push({ file, arm, detail: e.message });
             continue;
         }
         const parsed = parseNote(text);
@@ -1930,7 +1982,9 @@ export const WRITE_PATH_RESIDUALS = Object.freeze([
         reason: "The NEW residual this round leaves, recorded rather than discovered next round. A note " +
             "written before this plan — or by a direct-filesystem actor — can sit at a note path above " +
             "`NOTE_FILE_MAX_BYTES`. Every reader refuses it, which is correct and is now REPORTED as a " +
-            "`not-a-regular-file` skip arm with its byte count rather than as a silence, and the write " +
+            "`above-ceiling` skip arm with its byte count rather than as a silence — that arm was " +
+            "`not-a-regular-file` until 31-33 corrected it (CR-24), which is the condition that is " +
+            "actually true of an over-ceiling REGULAR file — and the write " +
             "side refuses to replace it under its own honest clause. What this module does NOT do is " +
             "delete or rotate it: the shared verified context is APPEND-ONLY, and a writer that removed " +
             "an over-ceiling note would be destroying evidence to tidy a listing. " +

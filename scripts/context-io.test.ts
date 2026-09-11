@@ -12308,6 +12308,12 @@ describe("31-29 — IN-14: a skipped entry is named by its arm, counted, and rep
   const indexOf = (ctx: string): string => readFileSync(join(ctx, T, "index.md"), "utf8");
 
   it("the three arms produce three DISTINCT observable results", () => {
+    // CORRECTED, NOT RE-BASELINED (31-33, CR-24 / D-34). This case EXPECTED two of its three plants
+    // to share arm `not-a-regular-file` — so its own distinctness assertions compared `unparseable`
+    // against `not a regular file` and never compared the pair that had actually collapsed. The
+    // over-ceiling row now reports the condition that is true of it. The FULL pairwise cross product
+    // over all five arms lives in the `31-33 — CR-24` block below; this case keeps its original
+    // three plants so the 31-29 closure it was written for stays driven at its own coordinates.
     const seen: Record<string, string> = {};
     const cases: ReadonlyArray<readonly [string, string, (notesDir: string) => void]> = [
       [
@@ -12318,7 +12324,7 @@ describe("31-29 — IN-14: a skipped entry is named by its arm, counted, and rep
       ["not a regular file", "not-a-regular-file", (d) => execFileSync("mkfifo", [join(d, "aaa.md")])],
       [
         "over the ceiling",
-        "not-a-regular-file",
+        "above-ceiling",
         (d) => writeFileSync(join(d, "aaa.md"), Buffer.alloc(mod.NOTE_FILE_MAX_BYTES + 1, 0x61)),
       ],
     ];
@@ -12393,7 +12399,18 @@ describe("31-29 — IN-14: a skipped entry is named by its arm, counted, and rep
   });
 
   it("NOTE_SKIP_ARMS is exported and every arm is reachable — no arm is decoration", () => {
-    expect([...mod.NOTE_SKIP_ARMS]).toEqual(["unparseable", "not-a-regular-file", "vanished"]);
+    // MEASURED, WITH THE REASON IT MOVED (31-33): 3 -> 5. The published set was a SECOND literal
+    // beside `READ_POSITION_CONDITIONS`, and the two disagreed while both read as complete. It now
+    // spreads the authority's own constant, so the members below are the authority's three
+    // conditions plus the reader's own two, in render order. Every one of the five is PLANTED and
+    // driven in the `31-33 — CR-24` block below, which is what keeps "no arm is decoration" true.
+    expect([...mod.NOTE_SKIP_ARMS]).toEqual([
+      "unparseable",
+      "unopenable",
+      "not-a-regular-file",
+      "above-ceiling",
+      "vanished",
+    ]);
   });
 });
 
