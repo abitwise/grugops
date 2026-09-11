@@ -1,32 +1,25 @@
 ---
 phase: 31-autonomous-manual-testing
-reviewed: 2026-09-10T19:35:00Z
+reviewed: 2026-09-11T20:05:00Z
 depth: standard
-round: 6 (gap-closure code review; plans 31-27 … 31-31)
-diff_base: 3a82d6f50bdbb7707cb458330e587b35fd07ae78
-head: f2404aa7c59b1c908abfaa42a925801767e14b6d
-files_reviewed: 36
+files_reviewed: 33
 files_reviewed_list:
-  - .github/workflows/ci.yml
   - agent-factory/checklists/browser-uat-recipe.md
-  - agent-factory/workflows/05-pr-quality-gate.md
   - agent-factory/workflows/16-context-read-write.md
   - agent-factory/workflows/18-context-compaction.md
-  - docs/audit/29-style-dispositions/31-21.md
-  - docs/audit/29-style-dispositions/31-22.md
-  - docs/audit/29-style-dispositions/31-23.md
-  - docs/audit/29-style-dispositions/31-27.md
-  - docs/audit/29-style-dispositions/31-29.md
-  - docs/audit/29-style-dispositions/31-30.md
+  - docs/audit/29-style-dispositions/31-32.md
+  - docs/audit/29-style-dispositions/31-33.md
+  - docs/audit/29-style-dispositions/31-34.md
+  - docs/audit/29-style-dispositions/31-35.md
+  - docs/audit/29-style-dispositions/31-37.md
   - docs/audit/31-round6-residuals.md
+  - docs/audit/31-round7-residuals.md
   - docs/audit/harness-false-result-instances.md
-  - hooks/guard.test.ts
   - hooks/hook-entry.js
   - hooks/hook-entry.ts
-  - install/install.test.ts
-  - package.json
   - scripts/check-foundation-guards.test.ts
   - scripts/check-platform-shapes.js
+  - scripts/check-platform-shapes.test.ts
   - scripts/check-platform-shapes.ts
   - scripts/compactor.test.ts
   - scripts/context-io-writer-set.test.ts
@@ -34,763 +27,386 @@ files_reviewed_list:
   - scripts/context-io.test.ts
   - scripts/context-io.ts
   - scripts/floor-invariance.test.ts
+  - scripts/harness-instance-ledger.test.ts
   - scripts/nonblocking-reader-parity.test.ts
-  - scripts/runnable-ref/fixtures/playwright-test.d.ts
-  - scripts/runnable-ref/fixtures/shadowed-rename.uat.spec.ts
+  - scripts/runnable-ref/fixtures/foreign-describe.uat.spec.ts
+  - scripts/runnable-ref/fixtures/foreign-framework.d.ts
+  - scripts/runnable-ref/fixtures/foreign-soft-assert.uat.spec.ts
+  - scripts/runnable-ref/fixtures/local-helper-head.uat.spec.ts
   - scripts/runnable-ref/uat-spec-integrity.js
   - scripts/runnable-ref/uat-spec-integrity.test.ts
   - scripts/runnable-ref/uat-spec-integrity.ts
-  - scripts/uat-gate-exit-contract.test.ts
-  - vitest.config.ts
+  - tsconfig.fixtures.json
 findings:
-  critical: 4
+  critical: 2
   warning: 6
   info: 3
-  total: 13
+  total: 11
 status: issues_found
 ---
 
-# Phase 31: Code Review Report — gap-closure round 6
+# Phase 31: Code Review Report (gap-closure round 7)
 
-**Reviewed:** 2026-09-10T19:35:00Z
-**Depth:** standard (with adversarial reproduction)
-**Files Reviewed:** 36 (26 source, 10 documentation/audit)
-**Measured at:** `f2404aa`, working tree clean over `scripts hooks agent-factory docs .github vitest.config.ts package.json`
+**Reviewed:** 2026-09-11T20:05:00Z
+**Depth:** standard
+**Files Reviewed:** 33
 **Status:** issues_found
-**Numbering:** continues the round-5 review — next Critical `CR-22`, next Warning `WR-31`, next Info `IN-16`.
 
 ## Summary
 
-Round 6's four fix plans land real closures. `CR-17` is genuinely closed at the wrapper entry
-(`readRegularFileOrRefuse` + the deleted fd-0 read), `CR-19`'s write-side ceiling is real,
-`WR-30`'s `using`/`await using` flag mask is correct, `IN-15` is done, and `31-30`'s Windows steps
-and `§14` signal arm are honest work. Freshness (61 outputs), the hook manifest (2 deciders / 26
-hashes) and `check-foundation-guards` all pass, and the two new test files are green.
+Round 7 landed seven plans (31-32 … 31-38) against CR-22..CR-25, WR-31..WR-36 and IN-16..IN-18.
+The mechanical baselines this review re-took itself, rather than reading off a summary:
 
-**And the round produced four Criticals at coordinates the round's own fixes did not reach — the
-seventh consecutive repetition of this phase's recorded shape.** Every one is reproduced below with
-a command and its output:
+- **Build parity — CLEAN.** `tsc --outDir <tmp>` then `cmp` against the committed output:
+  `hooks/hook-entry.js`, `scripts/context-io.js`, `scripts/check-platform-shapes.js` and
+  `scripts/runnable-ref/uat-spec-integrity.js` are byte-identical to a build of their `.ts`.
+- **Suite — GREEN.** `npx vitest run --exclude '**/scripts/e2e/**'` → `Test Files 66 passed (66)`,
+  `Tests 4208 passed | 2 skipped (4210)`, exit 0. The round-6 review-coupled regression is gone.
+- **`node scripts/check-platform-shapes.js` — EXIT 0**, `DRIVEN (13)`, all four CONTROL rows now
+  print `ordinary outcome (correct)`.
 
-1. **`CR-22`** — `CR-20`'s "two halves of one action key on ONE variable" was installed *inside*
-   `promoteAdmitted`'s human-stamp arm. The **fall-through branch of the same function**, and both
-   other note-and-ledger routes, still key the note on `to`/`contextRoot` and the ledger on
-   `repoRoot`. Reproduced: note in THIRD, ledger line in DEST. `admitAndAppend` — the route
-   `18-context-compaction.md` *names by hand* in the sentence rewritten this round — reproduces it
-   verbatim.
-2. **`CR-23`** — the D-30 identity cutover **deleted two live bans**. `describe.skip` and
-   `expect.soft` reached through a non-Playwright import resolve `foreign`, so the spelling rule is
-   never consulted. Pre-cutover `EXIT=1` → post-cutover `EXIT=0`, both type-checking. This is
-   exactly the closing criterion `UNRESOLVABLE_CALLEE_RESIDUALS` member 3 writes for itself.
-3. **`CR-25`** — `frameworkSurface`'s `SURFACE_DEPTH_BOUND = 6` is a **silent fail-OPEN**. Bisected:
-   a framework member at chain depth 6 is refused (`EXIT=1`); the identical construct at depth 7 is
-   accepted (`EXIT=0`), zero bytes of stderr, no could-not-run reason. D-30 (4) exists to delete
-   exactly "a smaller ban applied without saying so".
-4. **`CR-24`** — the `ReadPositionRefusal` discriminant `31-29` created so a caller could name the
-   true condition is **ignored by the caller it was created for**: `render()`'s new
-   `## Skipped entries` table labels an over-ceiling *regular* file and an EACCES *regular* file
-   both as arm `not-a-regular-file`, and `scripts/context-io.test.ts:12250` encodes it.
+A green suite over a safety invariant is this repository's recorded failure mode, and it held again.
+Both Criticals below were REPRODUCED against the committed `.js` at this commit, and both are
+consequences of THIS ROUND's fixes:
 
-The recurring generator this round is unchanged and worth naming: **a fix installed at the branch
-the reproduction walked rather than at the function's entry, and a new authority whose bounds and
-`catch` arms degrade toward ACCEPT rather than toward could-not-run.** Two of the four Criticals
-(`CR-23`, `CR-25`) were *created by* the round's own structural cutover; one (`CR-22`) was left one
-`if` above the fix; one (`CR-24`) was created by the fix for the finding it repeats.
+- `CR-26` — CR-22's own split (note in one repository, GOV-02 record in another) is still reachable
+  on `admitAndAppend`'s gated branch, because the new derivation there is `governanceRootOf(contextRoot)
+  ?? repoRoot` — a **fail-open**, where the sibling route `promoteAdmitted` **declines** the identical
+  input by name. One fix, two arms, two opposite dispositions, and the falling-open arm is the one
+  `agent-factory/workflows/18-context-compaction.md` now claims derives its root "above every branch".
+- `CR-27` — `promoteAdmitted`'s fall-through now hands `destinationRoot` to `appendNote` as its
+  governance root, so the **caller-supplied destination decides which repository's governance
+  configuration adjudicates the admission**. Measured: a caller whose own governance root carries an
+  unreadable configuration — the D-14 fail-closed refusal — gets the note WRITTEN by naming a
+  destination in another governed store. The function's own new docstring says `repoRoot` "ANSWERS
+  THE GOVERNANCE DIAL AND NOTHING ELSE … on any path this function takes"; on the fall-through it
+  answers nothing.
 
-Three of the round's own audit artifacts also state facts that are false of the finished tree
-(`WR-33`, `WR-34`), and the round's two new derived-set gates (`check-platform-shapes` controls,
-`nonblocking-reader-parity` implementing-file set) are each defeated by a spelling their own
-predicate does not enumerate (`WR-31`, `WR-32`).
+The identity/spelling work (D-35, D-36) is the strongest part of the round: the `foreign` split is
+argued from measured cases in both directions, the new bounds report themselves, and the fixtures
+drive the retained heads through the spelling they exist for. The residual register and the recipe
+stay bound in both directions (`SKIPPED_DIRECTORIES`, the truncation causes, the residual↔decline-site
+partition all re-checked here). The remaining findings on that runnable are about **totality claims**
+that the mechanism does not carry (`WR-37`) and a new binding whose denominator is two of four
+published ban sets (`WR-38`).
 
----
+Already-published residuals (`R-31-33-01`, `R-31-33-02`, `RR-13`, the index-signature member, the
+inner catch blocks) were checked against the tree and are NOT re-filed — except `R-31-33-02`, whose
+published text is now factually wrong about the gated branch (`WR-39`).
 
 ## Critical Issues
 
-### CR-22: `CR-20`'s one-root rule stops at the branch the reproduction walked — the note and its GOV-02 ledger event still land in two different repositories
+### CR-26: `admitAndAppend`'s gated branch falls OPEN to `repoRoot`, so CR-22's split is still reachable
 
-**File:** `scripts/context-io.ts:2419` (the fall-through), `:2673-2691` (the fixed arm), `:5312`
-(`admitAndAppend`), `:3355` (`admit`)
-
-**Issue:**
-`D-31` states the rule as a property: *"TWO HALVES OF ONE ACTION ARE KEYED ON ONE VARIABLE."* It is
-implemented only *after* `promoteAdmitted`'s human-stamp gate. Nineteen lines above the fix sits:
-
-```ts
-const vb = (note.verified_by ?? "").trim();
-if (!HUMAN_STAMP_RE.test(vb)) {
-  return appendNote(task, note, body, to, undefined, repoRoot);   // :2419
-}
-```
-
-`appendNote` writes the note under `contextRoot` (= `to`) and calls `admit(task, text, contextRoot,
-repoRoot)`, which appends the GOV-02 event under `repoRoot` (`:3355`). Neither
-`destination-outside-governed-store` nor `governanceRootOf` is consulted on this path at all.
-
-**Reproduced on this tree** (committed `scripts/context-io.js`, three real governance roots, each
-asserted `governanceRootOf(store) === root` before any result was read):
-
-```
-premise ORIGIN: governanceRootOf(store) === root -> true
-premise THIRD:  governanceRootOf(store) === root -> true
-premise DEST:   governanceRootOf(store) === root -> true
-origin write id: 20260910T033000Z-qe-observation-ceb9432e
-promoteAdmitted("T-1", id, <no human stamp>, from=ORIGIN, to=THIRD, repoRoot=DEST)
-  -> 20260910T033000Z-qe-observation-c39296b9
-THIRD notes: [ '…-c39296b9.md' ]  THIRD ledger: ABSENT
-DEST  notes: []                   DEST  ledger: 1
-```
-
-That is **byte-for-byte the table `CR-20` was raised on**, produced by the same exported function
-after the fix.
-
-**Second position — the destination-governed clause is absent too.** With `to` pointed at a plain
-directory that `governanceRootOf` answers `null` for:
-
-```
-premise: governanceRootOf(UNGOV) -> null
-promoteAdmitted into an UNGOVERNED destination -> 20260910T033000Z-qe-observation-9ad0ccf7
-UNGOV notes: [ '…-9ad0ccf7.md' ]
-DEST ledger: 1
-```
-
-A note is written into a store whose owning repository cannot be named, and its audit record lands
-in a third one — the exact state the decline register's own reason says it exists to prevent.
-
-**Third position — `admitAndAppend`, the route the workflow names by hand.**
-`agent-factory/workflows/18-context-compaction.md` was rewritten this round to say: *"two routes
-write both a note and a GOV-02 ledger event. The routes are the re-binding route (`promoteAdmitted`)
-and the admit-then-persist route (`admitAndAppend`). … The append precedes the write, and **both
-steps name the same derived repository**. So the destination never holds a human-disposed finding
-with no ledger line."* Measured:
-
-```
-admitAndAppend("T-1", {verified_by:"human:alice", by:"security-nfr"}, contextRoot=DEST/.grugops/context, repoRoot=LEDGERROOT)
-  -> {"id":"20260910T033000Z-security-nfr-finding-7924971a","findings":[]}
-DEST       notes: [ '…-7924971a.md' ]  ledger: ABSENT
-LEDGERROOT notes: []                   ledger: 1
-```
-
-The destination holds a human-disposed finding with no ledger line. The sentence rewritten this
-round to describe the fix is false at the route it names.
-
-**Fourth position — the DEFAULT arguments.** `DEFAULT_CONTEXT_ROOT = join(ROOT, ".grugops",
-"context")` where `ROOT = join(import.meta.dirname, "..")` (the **kit**), while `repoRoot` defaults
-to `trustedRepoRoot()` (the **host repository**). Under the shipped shared-install model
-(`~/.grugops` kit + per-repo state) these are different directories, so a caller passing *nothing*
-gets the split. This position pre-dates round 6, but it is the same defect and it means the split is
-the module's default rather than a test-seam artifact.
-
-**Fix:** move the rule to the function's entry rather than to one arm. `promoteAdmitted` should
-derive `destinationRoot = governanceRootOf(to)` and decline `destination-outside-governed-store`
-**before** the `HUMAN_STAMP_RE` gate, and pass `destinationRoot` (not `repoRoot`) as the ledger root
-on every path it takes:
-
-```ts
-export function promoteAdmitted(task, sourceId, note, body, from, to, repoRoot = trustedRepoRoot()) {
-  assertSafeTask(task);
-  // ONE derivation, above every branch — the destination names one repository for the whole call.
-  const destinationRoot = governanceRootOf(to);
-  if (destinationRoot === null) {
-    throw declineRebinding("destination-outside-governed-store", …);
-  }
-  const vb = (note.verified_by ?? "").trim();
-  if (!HUMAN_STAMP_RE.test(vb)) {
-    // the ledger root is the DESTINATION's, not the caller's dial root
-    return appendNote(task, note, body, to, undefined, repoRoot, destinationRoot);
-  }
-  …
-}
-```
-
-and give `appendNote` / `admitAndAppend` / `admit` a ledger-root parameter that **defaults to
-`governanceRootOf(contextRoot)`** rather than to `repoRoot`, so `repoRoot` answers only the dial
-question its own comment says it is for. Then add the derived assertion this class needs: a test
-that enumerates *every* call site of `appendAuditLedger` and asserts each one's root argument is
-derived from the same store path the accompanying note write uses — a set derived from the AST, not
-three hand-checked positions.
-
----
-
-### CR-23: the identity cutover silently deleted two live bans — `describe.skip` and `expect.soft` reached through any non-Playwright import are now accepted at exit 0
-
-**File:** `scripts/runnable-ref/uat-spec-integrity.ts:2472-2477` (the `foreign` short-circuit),
-`:433` (`BANNED_MODIFIER_HEADS`), `:440` (`BANNED_EXACT_PATHS`),
-`agent-factory/checklists/browser-uat-recipe.md:232-234`
+**File:** `scripts/context-io.ts:5399` (derivation), `scripts/context-io.ts:5480` (the append)
 
 **Issue:**
-D-30 (2) makes `foreign` terminal:
+The round's fix derives the ledger root at the function's entry and then discards the failure:
 
 ```ts
-const identity = resolveBannedModifier(ts, ctx, node);
-const banPath =
-  identity.kind === "framework" ? identity.path : identity.kind === "foreign" ? null : spelled;
+const ledgerRoot = governanceRootOf(contextRoot) ?? repoRoot;
 ```
 
-`isBannedModifierCall(null, …)` is `false`, so for any callee the checker resolves to a
-non-Playwright declaration **the spelling rule is never asked**. But `BANNED_MODIFIER_HEADS`
-contains `describe`, and the file's own comment states why:
+When `contextRoot` does not resolve to a governed store, `ledgerRoot` silently becomes the caller's
+`repoRoot` — which is precisely the pre-fix program, and precisely the split CR-22 named. The sibling
+route decides the identical input the opposite way: `promoteAdmitted` (line 2553) throws
+`destination-outside-governed-store` and writes nothing, and `scripts/context-io.test.ts`'s
+`POSITION 2` case asserts that decline. `POSITION 3` (the `admitAndAppend` case) drives only a
+GOVERNED destination, so the fall-open has no case at all.
 
-> The bare-`describe` head is RETAINED: `@playwright/test` exports no top-level `describe`, **but
-> another framework's bare `describe` can be imported into a spec file, and D-14 names it.**
+REPRODUCED against the committed `scripts/context-io.js` at this commit, premises asserted first:
 
-Since `@playwright/test` never declares `describe`, a *real* `describe` is always `foreign` — so the
-member is dead for exactly the case it is retained for. The same argument holds for
-`BANNED_EXACT_PATHS = ["expect.soft"]` when `expect` comes from any other assertion library.
+```
+PREMISE governanceRootOf(THIRD.store) = /var/folders/…/cr22-third-eQHVSo   (= THIRD.root)
+PREMISE governanceRootOf(UNGOV.store) = null
+admitAndAppend("T-REPRO1", {kind:finding, verified_by:"human:alice"}, "a body", UNGOV.store, THIRD.root)
+  -> {"id":"20260911T000000Z-qe-finding-d5db5afc","findings":[]}
+UNGOV notes= 1 ledger= null
+THIRD notes= 0 ledger= 1
+```
 
-**Reproduced on this tree.** Probe root equipped exactly as `31-28`'s `equipTarget` equips one
-(`tsconfig.json`, `node_modules` symlink, `types/playwright-test.d.ts`), plus one extra ambient
-module for the foreign framework. Spec:
+A human-disposed finding in one store, its GOV-02 audit record in a different repository — the exact
+sentence `18-context-compaction.md` was corrected to claim is impossible. Reachability is honest:
+production callers (`scripts/admission-server.ts:180`) pass `contextRoot = join(trustedRepoRoot(),
+".grugops","context")` and `repoRoot = trustedRepoRoot()`, so the two agree today. That is the same
+reachability profile CR-22 itself had when this round classified it Critical and claimed it closed.
+
+**Fix:** make the two arms agree. Either decline, as the sibling route does, or derive once and
+refuse to write when the derivation fails:
 
 ```ts
-import { test, expect } from "@playwright/test";
-import { describe } from "other-framework";
-describe.skip("a whole group of scenarios", () => {
-  test("the invoice total is shown", async ({ page }) => {
-    void expect(page.getByTestId("invoice-total")).toHaveText("$42.00");
-  });
-});
-```
-
-```
-$ node scripts/runnable-ref/uat-spec-integrity.js <probe>
-UAT spec integrity: 0 findings over 1/1 uat specs checked
-EXIT=0
-$ npx tsc --noEmit -p <probe>/tsconfig.json          # the file is legal TypeScript
-TSC EXIT=0
-$ node <git show 77123aa:…/uat-spec-integrity.js> <probe>      # the PRE-CUTOVER control
-UAT spec integrity: 1 finding(s) over 1/1 uat specs checked
-uat/p.uat.spec.ts:3: banned modifier call — `describe.skip` …
-PRE-CUTOVER EXIT=1
-```
-
-Second instance, same class — `expect.soft` from `other-assert`:
-
-```
-$ node scripts/runnable-ref/uat-spec-integrity.js <probe>   -> 0 findings, EXIT=0
-$ node <pre-cutover>.js <probe>                             -> 1 finding(s), `expect.soft`, EXIT=1
-$ npx tsc --noEmit -p <probe>/tsconfig.json                 -> TSC EXIT=0
-```
-
-A soft assertion in *any* framework makes a green lane certify a scenario whose acceptance criterion
-failed — the harm the tail set exists for, undecided again.
-
-**Why the suite is green.** `directRuleSpellings` (`uat-spec-integrity.test.ts:917`) generates
-`describe.skip` and drives it in a spec where `describe` is **undeclared**. Measured: an *undeclared*
-`describe.skip` still refuses (`1 finding(s)`, `EXIT=1`) because the checker resolves nothing and the
-spelling rule answers. So the corpus exercises the only spelling of this head that the identity route
-declines, and never the spelling the head is documented to exist for.
-
-**This is the residual's own stated closing criterion.** `UNRESOLVABLE_CALLEE_RESIDUALS[2]` writes:
-*"What would force it closed: a reproduced case in which the spelling rule REFUSES a construct
-identity would have called `foreign`."* Two are reproduced above.
-
-**Also a claim/mechanism divergence:** `browser-uat-recipe.md:232` still publishes
-`` `test`, `describe` `` as the banned head segments quoted from `BANNED_MODIFIER_HEADS`. The recipe
-claims a ban the mechanism no longer applies.
-
-**Fix:** `foreign` may not be terminal for a head the framework does not declare at all. Either
-
-```ts
-// the spelling rule is consulted whenever identity did NOT decide a FRAMEWORK ban,
-// and the union stays in the refusing direction only
-const banPath = identity.kind === "framework" ? identity.path : spelled;
-```
-
-— restoring the union (and re-narrowing WR-26's false refusal with the `foreign`-scoped exemption
-only for heads the framework *does* declare) — or delete `describe` from
-`BANNED_MODIFIER_HEADS`/`expect.soft` from `BANNED_EXACT_PATHS`, delete them from the recipe, and
-record the deletion as a decision. **Silently keeping a published member the mechanism cannot reach
-is the one option that is not available.** Whichever is chosen, add a corpus row per banned head that
-imports the head from a *declared foreign* module, so the suite exercises the spelling the head is
-retained for rather than the one that happens to be undeclared.
-
----
-
-### CR-25: `SURFACE_DEPTH_BOUND` is a silent fail-OPEN — a framework member seven property links deep is accepted at exit 0, with zero bytes of diagnostic
-
-**File:** `scripts/runnable-ref/uat-spec-integrity.ts:977` (`SURFACE_DEPTH_BOUND = 6`), `:976`
-(`SURFACE_NODE_BOUND = 4096`), `:1170-1256` (`frameworkSurface`), `:1298-1305`
-(`resolveBannedModifier`'s `fromFramework` test)
-
-**Issue:**
-Identity is anchored on `ctx.frameworkFiles`, which `frameworkSurface` builds by a **bounded**
-breadth-first walk:
-
-```ts
-for (let head = 0; head < queue.length && typePaths.size < SURFACE_NODE_BOUND; head++) {
-  …
-  if (depth >= SURFACE_DEPTH_BOUND) continue;   // ← the walk stops, silently
-```
-
-A declaration file the walk never reaches is absent from `frameworkFiles`, so
-`resolveBannedModifier` sets `fromFramework = false` and returns **`foreign`** — accept, and the
-spelling rule is skipped (CR-23's short-circuit). Neither bound is reported, neither raises a
-could-not-run reason, and neither is a member of `UNRESOLVABLE_CALLEE_RESIDUALS`. The comment claims
-the bounds mean *"a large surface costs a stated amount rather than an open one"*; the cost is not an
-amount, it is **the ban turning off**.
-
-**Reproduced and bisected on this tree.** A framework surface declaring one property level per file,
-ending in `skip`, with a spec calling the full chain. Every probe type-checks (`tsc --noEmit`
-exit 0):
-
-```
-chain depth 3  tsc=0  -> UAT spec integrity: 1 finding(s) over 1/1 uat specs checked
-chain depth 4  tsc=0  -> UAT spec integrity: 1 finding(s) over 1/1 uat specs checked
-chain depth 5  tsc=0  -> UAT spec integrity: 1 finding(s) over 1/1 uat specs checked
-chain depth 6  tsc=0  -> UAT spec integrity: 1 finding(s) over 1/1 uat specs checked
-chain depth 7  tsc=0  -> UAT spec integrity: 0 findings over 1/1 uat specs checked
-chain depth 8  tsc=0  -> UAT spec integrity: 0 findings over 1/1 uat specs checked
-
-$ node …/uat-spec-integrity.js <depth 6>  >/dev/null 2>/tmp/e6 ; echo $? ; wc -c </tmp/e6
-1
-0
-$ node …/uat-spec-integrity.js <depth 7>  >/dev/null 2>/tmp/e7 ; echo $? ; wc -c </tmp/e7
-0
-0
-```
-
-`test.a.b.c.d.e.f.skip` is refused. `test.a.b.c.d.e.f.g.skip` is a pass, at exit 0, with **zero
-bytes on stderr**. Same declaring authority, same construct, same modifier — the only variable is
-depth.
-
-**Why this matters beyond the synthetic probe.** D-30 (4)'s whole argument is that RR-07's silent
-degrade — *"a smaller ban applied without saying so … is a gate LOWERING rather than a disclosed
-limit"* — must become a loud `PROGRAM_UNAVAILABLE_REASON` at exit 2. The new mechanism reintroduces
-the identical degrade one register over. And unlike RR-07 it is not disclosed anywhere: the recipe's
-boundary list and `UNRESOLVABLE_CALLEE_RESIDUALS` both omit it. Whether real `@playwright/test`
-declarations exceed either bound is `UNKNOWN - verify` (the package cannot be installed here per
-CLAUDE.md), which is precisely why the bound must not fail open.
-
-**Fix:** a bound that is reached is a check that did not run.
-
-```ts
-let truncated = false;
-for (let head = 0; head < queue.length; head++) {
-  if (typePaths.size >= SURFACE_NODE_BOUND) { truncated = true; break; }
-  const { type, path, depth } = queue[head];
-  …
-  if (depth >= SURFACE_DEPTH_BOUND) { truncated = true; continue; }
-  …
-}
-return { files, typePaths, truncated };
-```
-
-and in `createProgramForTarget`:
-
-```ts
-if (surface.truncated) {
+const ledgerRoot = governanceRootOf(contextRoot);
+if (ledgerRoot === null) {
   return {
-    ok: false,
-    cause:
-      `the ${PLAYWRIGHT_TEST_MODULE} declared surface exceeded this runnable's walk bounds ` +
-      `(node bound ${SURFACE_NODE_BOUND}, depth bound ${SURFACE_DEPTH_BOUND}), so some framework ` +
-      `declarations were never reached and every call on them would resolve as foreign`,
+    id: null,
+    findings: [
+      `admission REFUSED: the context store "${resolve(contextRoot)}" does not resolve to a ` +
+        `governed store, so the repository whose audit trail would record this admission cannot ` +
+        `be named. No note was written.`,
+    ],
   };
 }
 ```
 
-so the outcome is the existing exit-2 could-not-run route rather than a pass. Both bounds then also
-need a member in `UNRESOLVABLE_CALLEE_RESIDUALS` and the recipe's boundary list (the register asserts
-set-equality in both directions, so the member is not optional), plus a corpus row driving the
-boundary pair (depth 6 refuses / depth 7 exits 2) so it cannot regress to an accept.
+If the fall-open is deliberate (an ungoverned store legitimately keeping no ledger), then the
+non-gated `admit()` route must answer the same way, the arm must be published in
+`WRITE_PATH_RESIDUALS` with the shape and the measurement above, and `18-context-compaction.md`'s
+"Each route derives the owning repository from the context store it writes the note into" must be
+narrowed to the governed case. Silence is the one disposition this round's own reasoning forbids.
 
 ---
 
-### CR-24: the `ReadPositionRefusal` discriminant is ignored by the caller it was created for — `render()` reports an over-ceiling REGULAR file as `not-a-regular-file`
+### CR-27: the fall-through's governance dial moved from the trusted root to the caller-supplied destination
 
-**File:** `scripts/context-io.ts:1718-1723` (`readRawNotesWithSkips`'s catch), `:1658`
-(`NOTE_SKIP_ARMS`), `:1642-1656` (the docstring), `scripts/context-io.test.ts:12240-12271` (the test
-that encodes it)
+**File:** `scripts/context-io.ts:2577`
 
 **Issue:**
-`31-29` created `ReadPositionCondition = "unopenable" | "not-a-regular-file" | "above-ceiling"` with
-this stated reason:
-
-> ONE AUTHORITY FOR THE CONDITION, ONE REGISTER PER POSITION FOR THE NAME. … Carrying the condition
-> on the error is what lets `writeNoteFile` and `appendAuditLedger` name their own clause WITHOUT
-> re-deriving the fact.
-
-`writeNoteFile` reads it (`:1367`). `appendRegularFileLine` raises it. **`readRawNotesWithSkips` —
-the caller `IN-14` was raised about — does not**:
+The fall-through used to read the dial from the caller's `repoRoot` (default `trustedRepoRoot()` —
+WR-10's "ONE trusted dial answer every tier asks"). It now reads it from a value DERIVED FROM `to`:
 
 ```ts
-} catch (e) {
-  // Not a regular file, above the ceiling, or otherwise unopenable. …
-  skipped.push({ file, arm: "not-a-regular-file", detail: (e as Error).message });
-  continue;
-}
+return appendNote(task, note, body, to, undefined, destinationRoot);
 ```
 
-Three conditions, one arm — the very collapse `NOTE_SKIP_ARMS`'s docstring says it exists to end
-(*"Three different facts used to share one `catch { continue; }` and one silence. They are not the
-same event and their operational answers differ."*).
+`appendNote`'s sixth parameter is not only a ledger address: it is handed straight to
+`admit(task, text, contextRoot, repoRoot)` (line 1623), which is the authority that decides the D-01,
+D-03, D-04 and **D-14 (unreadable governance configuration → fail closed)** families. So the
+repository whose configuration adjudicates the admission is now named by the caller's destination
+argument.
 
-**Reproduced on this tree.** One live note, one 9 MiB regular note file, one `chmod 000` regular note
-file, then `render()`:
+REPRODUCED against the committed `scripts/context-io.js`, with the control beside it:
 
 ```
-NOTE_SKIP_ARMS = [ 'unparseable', 'not-a-regular-file', 'vanished' ]
+PREMISE governanceRootOf(DEST.store) === DEST.root : true
+TRUSTED/.grugops/factory.config.json = "{ this is not json"   (D-14 must refuse)
 
-## Skipped entries
-
-2 entries in this task's notes/ directory were not read as a note. A position occupied by something
-that is not a regular file is not the same event as a file that was never a note, so each is named
-by its own arm.
-
-| entry | arm | detail |
-| …-acce0001.md | not-a-regular-file | context-io: the note file "…" IS present and could not be opened (EACCES) … |
-| …-over0001.md | not-a-regular-file | context-io: the note file "…" is 9437184 bytes, above the … ceiling … |
+promoteAdmitted("T-DIAL",  …, to = DEST.store,    repoRoot = TRUSTED.root) -> WROTE 20260911T000000Z-qe-observation-ca9a3594   (notes in DEST: 1)
+promoteAdmitted("T-DIAL2", …, to = TRUSTED.store, repoRoot = TRUSTED.root) -> REFUSED: "admission REFUSED (UNKNOWN - verify): a governance …"
 ```
 
-The second row's own `detail` column contradicts its `arm` column — the reader's message says *"It IS
-a regular file; what disqualifies it is its size and nothing else."* That is `CR-19`'s defect
-verbatim (*"a refusal that misnames the condition it met is a fabricated claim about the
-mechanism"*), reproduced inside the fix for `CR-19`, on a surface whose whole stated value is
-legibility. It is the one artefact a human triaging a note that was admitted and has become
-unreadable will read, and it points them at a FIFO when the cause is a permission bit or a size
-ceiling.
+The same note, the same caller, the same unreadable configuration: refused when the destination is
+the caller's own store, admitted when the destination names another governed store. This is the
+production shape, not a test seam — `scripts/compactor.ts:630` forwards only six arguments, so
+`repoRoot` is always the default trusted root and `to` is always agent-supplied. `governanceRootOf`
+requires only a `<dir>/.grugops/context` path whose parent the walk answers as a root, which an agent
+that can `mkdir` a `.git` marker and a configuration can construct (both reproductions above did
+exactly that, under the system temp directory).
 
-**The suite encodes the bug.** `scripts/context-io.test.ts:12240`, titled *"the three arms produce
-three DISTINCT observable results"*, drives three cases and expects **two of them** to be arm
-`not-a-regular-file` (`:12249` and `:12252`). Its distinctness assertions compare `unparseable`
-against `not a regular file` and never compare `over the ceiling` against `not a regular file` — so
-the pair that collapsed is the one pair the test does not assert apart.
+It also contradicts the docstring the same plan added at line 2505: "`repoRoot` … IT ANSWERS THE
+GOVERNANCE DIAL AND NOTHING ELSE … on any path this function takes", and the doctrine stated at
+`originIsTrusted` (line 2459): "a caller choosing the location its own proof is judged inside decides
+its own case".
 
-**Fix:** name the arm from the discriminant, and grow the published arm set to match the conditions
-the authority actually raises.
+**Fix:** separate the two questions rather than collapsing them onto one argument. The record must
+follow `destinationRoot` (CR-22's fix, which is right); the DIAL must keep answering from the trusted
+root:
 
 ```ts
-export const NOTE_SKIP_ARMS = [
-  "unparseable", "not-a-regular-file", "above-ceiling", "unopenable", "vanished",
-] as const;
-…
-} catch (e) {
-  const arm: NoteSkipArm =
-    e instanceof ReadPositionRefusal
-      ? (e.condition as NoteSkipArm)          // the authority already decided; do not re-derive
-      : "unopenable";
-  skipped.push({ file, arm, detail: (e as Error).message });
-  continue;
-}
+// the dial stays where every tier asks it; the record follows the destination
+return appendNote(task, note, body, to, undefined, repoRoot, /* ledgerRoot */ destinationRoot);
 ```
 
-Then rewrite `:12240` so each of the five conditions is planted and asserted onto its **own** arm,
-and add the missing pairwise-distinctness assertion over the *full* cross product rather than over
-the two the current test happens to compare. Also correct the `vanished` docstring: a **dangling
-symlink** at a note path reaches ENOENT on the target and is reported as `vanished` ("a concurrent
-delete"), which is a second condition sharing that arm's name.
-
----
+i.e. give `appendNote`/`admit` a ledger-root parameter distinct from the governance-dial root — the
+same unfreeze `R-31-33-01` already names as the cost of finishing this fix. If instead the destination
+SHOULD answer the dial, that is a decision that reverses WR-10 and needs a dated human decision, a
+residual, and a re-statement of the `repoRoot` docstring; it cannot arrive as an argument swap inside
+a plan whose subject was where the ledger line lands.
 
 ## Warnings
 
-### WR-31: every CONTROL row in `check-platform-shapes` is actually a refusal, scored "not refused (correct)" — the control cannot observe the property it claims
+### WR-37: `SURFACE_TRUNCATION_ARMS` claims to be every early stop; four exception routes stop the walk silently
 
-**File:** `scripts/check-platform-shapes.ts:340-361` (`drivePosition`), `:151-160`
-(`ordinary regular file (CONTROL)`), `:192-206` (`symlink to a regular file (CONTROL)`)
+**File:** `scripts/runnable-ref/uat-spec-integrity.ts:1343-1441`, `:1454-1462`
 
-**Issue:**
-The module's header states the control's purpose: *"The CONTROL at each position: the ordinary shape,
-which must NOT be refused by the not-a-regular-file clause. **A run that refuses everything proves
-nothing.**"* The implemented check is only
+**Issue:** D-36's published register is introduced as "Every way the walk can stop early, DERIVED from
+the record above rather than re-typed", and the residual reasons that a stop means "framework
+declarations the walk never reached. A call on one of them would have been decided as foreign … Foreign
+is accept. So a reached bound is never a verdict." Four routes produce exactly that consequence and
+record nothing:
 
-```ts
-const namedRefusal = d.message.includes(staged.refusalClause);
-if (!shape.expectsNotRegularFileRefusal) {
-  if (namedRefusal) failures.push(…);
-  record(position, shape, namedRefusal ? "REFUSED (wrong)" : "not refused (correct)", d.ms);
-  continue;
-}
-```
+- `:1353-1355` — an export whose `getTypeOfSymbolAtLocation` throws: `/* a type this checker cannot produce contributes no path and no file */`. That export's whole subtree is unreachable.
+- `:1426-1428` — a property whose type throws: that property's subtree is unreachable.
+- `:1437-1439` — `} catch { continue; }` around the property and call-signature loops: the node's entire expansion is dropped.
+- `:1459-1461` — `containerTypeArguments` returns `[]` on a throw, so a container whose arguments cannot be read is treated as holding nothing; the `container-unreachable` arm is reached only when the method is ABSENT.
 
-`d.verdict` (`"write"` / `"answered"`) is computed and then never asserted, so "the position produced
-its ordinary outcome" and "the position refused for a *different* reason" are indistinguishable.
+`hasExpandableMembers` (`:1472`) fails CLOSED on the same class of throw, with the reason written out,
+which makes the asymmetry a decision nobody recorded rather than a considered pair.
 
-**Measured on this tree** — both controls, at both positions, are refusals:
-
-```
-# DECIDER_MANIFEST position, "ordinary regular file (CONTROL)" planted exactly as SHAPES[0].make does
-status= 0 signal= null
-stdout= {"hookSpecificOutput":{…"permissionDecision":"deny","permissionDecisionReason":
-  "Blocked (fail-closed): the grugops hook module \"scripts/checkpoints.js\" does not match the
-   frozen manifest — it has been modified since this wrapper was built. …"}}
-
-# note position, same shape
-verdict=refuse
-   context-io.writeNoteFile: refusing to write — the destination already holds a DIFFERENT note
-   under id "20260910T000000Z-qe-observation-cafe0001". …
-```
-
-The gate nevertheless prints `not refused (correct)` for all four control rows and
-`ALL CHECKS PASSED`. Note that the disagreement between a control and a refusing shape is *exactly*
-the signal `docs/audit/harness-false-result-instances.md` row 13 records as what caught the dropped
-GOV-02 position — and it is the signal these two surviving positions cannot produce.
-
-**Fix:** assert the control's ordinary outcome positively, not the absence of one string.
-
-```ts
-if (!shape.expectsNotRegularFileRefusal) {
-  const ok = d.verdict === staged.controlVerdict;   // "write" | "answered", per position
-  if (!ok || namedRefusal) {
-    failures.push(
-      `${position} / ${shape.name}: the CONTROL did not produce its ordinary outcome ` +
-        `(verdict=${d.verdict}, expected ${staged.controlVerdict}) — a corpus in which every shape ` +
-        `is refused has measured nothing.`,
-    );
-  }
-  record(position, shape, ok ? "ordinary outcome (correct)" : "REFUSED (wrong)", d.ms);
-  continue;
-}
-```
-
-For the manifest position that means planting a byte-identical copy of `scripts/checkpoints.js`
-rather than an empty file; for the note position it means using a fresh, unoccupied note id.
-
-### WR-32: the "exactly TWO implementations" derivation recognises one hand-typed spelling of the refusal, over `git ls-files` only
-
-**File:** `scripts/nonblocking-reader-parity.test.ts:112-121` (`refusesNonRegular`), `:148-155`
-(`candidateSources`), `:192-203` (the members/cardinality assertions)
-
-**Issue:**
-`bodyImplementsDiscipline` requires four facts, one of which is recognised by a single syntactic
-shape — a `PrefixUnaryExpression` with `ExclamationToken` over a `.isFile()` call:
-
-```ts
-if (ts.isPropertyAccessExpression(node.expression) && node.expression.name.text === "isFile"
-    && node.parent !== undefined && ts.isPrefixUnaryExpression(node.parent)
-    && node.parent.operator === ts.SyntaxKind.ExclamationToken) refusesNonRegular = true;
-```
-
-Both mutation mirrors are written in that exact spelling (the seed at `:212-224` writes
-`if (!st.isFile()) throw …`; the LOSES-refusal mirror at `:239` replaces the literal
-`"if (!st.isFile()) {"`), so both prove only that the predicate recognises itself.
-
-**Measured** — the same predicate, transcribed verbatim and applied to a semantically identical third
-implementation spelled `st.isFile() === false`:
-
-```
-{"nb":true,"ds":true,"rf":false,"th":true,"all":false}
-```
-
-`rf` is false, so the file never joins `IMPLEMENTING` and the cardinality assertion stays green at 2.
-Secondly, `candidateSources` uses `git ls-files "*.ts"` — an **untracked** third implementation is
-invisible to the derivation, which is the same blindness `vitest.config.ts`'s own new comment records
-for the `git status` residue predicate.
-
-**Fix:** recognise the refusal semantically rather than by one operator. Ask whether the function
-*branches on* `fstat`'s `isFile()` result at all and throws on one side of that branch — e.g. accept
-`PrefixUnaryExpression(!)`, `BinaryExpression(=== false / !== true)` and a negated `if/else` with a
-`throw` in the else — and add a mirror per accepted spelling, seeded from a list the assertion itself
-enumerates. For the input boundary, union `git ls-files` with a real filesystem walk of `*.ts` under
-`scripts/`, `hooks/` and `install/`, and assert the two lists agree (a tracked-only census that goes
-short is the recorded failure shape).
-
-### WR-33: `docs/audit/31-round6-residuals.md` §6.1 states three functions were deleted; all three are live, and that false premise is the round's stated reason for not closing the CR-18 `missing:` bullet
-
-**File:** `docs/audit/31-round6-residuals.md:390-392`
-
-**Issue:** §6.1 reads:
-
-> The first half is closed by deletion: `31-28` removed `resolveBinding`, `bindingRangeFor` and
-> `listHoists` outright and decides the ban by symbol identity, **so there is no `hoisted` arm to
-> narrow.**
-
-**Measured at HEAD:**
-
-```
-$ grep -c resolveBinding   scripts/runnable-ref/uat-spec-integrity.ts   -> 2   (:2275 declaration)
-$ grep -c bindingRangeFor  scripts/runnable-ref/uat-spec-integrity.ts   -> 2   (:2150 declaration)
-$ grep -c listHoists       scripts/runnable-ref/uat-spec-integrity.ts   -> 2   (:2124 declaration)
-```
-
-All three are live and reached by the spelling rule that D-30 (3) deliberately **kept**, and
-`bindingRangeFor`'s hoisting arm (`var` / function declaration) is still there — D-30 (5) *fixed* it,
-it did not delete it. The three functions D-30 (5) actually deleted are
-`deriveTestInfoParameterNames`, `isFixtureBindingPosition` and `CALLEE_CHAIN_STEP_BOUND` (verified:
-comment-only mentions remain).
-
-This is not a typo: §6.1 uses the claimed deletion as the reason the round dispositions the CR-18
-`missing:` bullet as *"the mechanism the bullet named is GONE"* rather than closing it. The
-disposition rests on a fact that is false of the tree.
-
-**Fix:** correct §6.1 to name the three symbols that were actually deleted, state that the `hoisted`
-arm is live and narrowed rather than gone, and re-take the disposition of the CR-18 `missing:`
-bullet's second half against the mechanism that exists.
-
-### WR-34: `harness-false-result-instances.md` row 13 describes a fix that is not in the tree
-
-**File:** `docs/audit/harness-false-result-instances.md:44`,
-`scripts/check-platform-shapes.ts:400-417`
-
-**Issue:** row 13's "How it was caught" column ends:
-
-> … **the fixture now writes** `context: { human_admission: "high-severity", audit_retention:
-> "retained" }` before the shape is planted
-
-`check-platform-shapes.ts` does the opposite — the position was **dropped**:
-
-> THE GOV-02 AUDIT LEDGER POSITION IS DELIBERATELY NOT DRIVEN HERE … So the position is dropped
-> rather than smuggled past the scan.
-
-`grep -c factory.config.json scripts/check-platform-shapes.ts` finds the string only inside that
-explanatory comment. The tally — the artifact this round created so a later reader has one
-authoritative list — records a remedy that was reverted, in the row describing this round's own
-harness fault.
-
-**Fix:** rewrite row 13's catch column to record what was actually done (the position was removed,
-`scripts/context-io.test.ts` covers it, and the restore criterion is carried in
-`deferred-items.md`), and add the derived check the file's own premise needs: assert that every
-mechanism a row *claims* is present is greppable in the tree it names.
-
-### WR-35: `.temp` in `SKIPPED_DIRECTORIES` bakes this repository's scratch convention into a kit-shipped runnable, silently narrowing every host's denominator
-
-**File:** `scripts/runnable-ref/uat-spec-integrity.ts:56-69`
-
-**Issue:** `SKIPPED_DIRECTORIES` is the walk's input boundary for **every host repository** the
-installer materializes the runnable into (`tools/grugops/uat-spec-integrity.js`). `.temp` was added
-for a reason entirely local to grugops — *"the scratch directory this repository's own probes
-generate into"*. A host repository that legitimately keeps specs under a `.temp` segment loses them
-from `derived.relPaths` before `expected` is computed, so **neither floor in `reportMeasured` can
-fire**: `expected` and `visited` both shrink together and the run prints a clean pass over a set that
-silently went short. The comparison drawn in the comment (`dist`, `tools`) does not carry — those are
-build/output conventions, `.temp` is one repository's probe habit.
-
-**Fix:** the runnable's own probe hygiene belongs in the probe harness, not in a rule shipped to every
-host. Either revert `.temp` from `SKIPPED_DIRECTORIES` and keep the closure at the runner (which
-`vitest.config.ts`'s `**/.temp/**` exclude already does), or make the skip set configurable and
-**report** it — emit the skipped directory names and their hit counts on stderr, so a host can see
-that its derived set was narrowed rather than infer it from a pass.
-
-### WR-36: `hooks/hook-entry.ts`'s delivered-root validation is strictly weaker than the reader's, and the stated reason for the gap is not the real one
-
-**File:** `hooks/hook-entry.ts:396-409` (`hostBuiltProjectRoot`), `scripts/context-io.ts:4514-4537`
-(`hostDeliveredRoot`)
-
-**Issue:** The wrapper says of its shape checks:
-
-> The shape checks below are the ones **a file limited to `node:` builtins can make**: non-empty
-> after a trim, absolute, an existing directory.
-
-That reason is false — `existsSync` is already imported at `:42` and the two further conditions the
-reader applies (a version-control marker under the candidate; the candidate is not the kit's own
-root) are `node:fs` + `node:path` operations the wrapper can make. The consequence today is benign
-(`hostDeliveredRoot` re-checks both on the reading side, so an unqualified value is discarded there),
-but the two sides now validate different sets with a stated-but-untrue justification, and the pair is
-bound by nothing: nothing asserts that the wrapper's accept set is a superset of the reader's, so a
-later narrowing of the reader would go unnoticed.
-
-Separately, the wrapper promotes `CLAUDE_PROJECT_DIR` — the tier-**1** ambient name — into
-`GRUGOPS_HOST_DELIVERED_ROOT`, the tier-**0** name whose register entry says it is *"a channel the
-agent cannot write."* The effect is nil today because tiers 0/1/2 are all consulted above the walk,
-but the register's sentence describes the *name*, not the *value's provenance*, and the value's
-provenance is an ambient variable.
-
-**Fix:** apply the marker and not-the-kit-root conditions in the wrapper too (they are three lines of
-`node:` builtins), correct the comment to state the real reason for any remaining difference, and add
-a derived case that drives one shared candidate corpus through `hostBuiltProjectRoot` and
-`hostDeliveredRoot` and asserts the wrapper never delivers a value the reader would reject — the same
-both-directions binding `scripts/nonblocking-reader-parity.test.ts` already provides for the reader
-pair. Amend `TRUSTED_ROOT_TIERS[0]` to say that on the Claude Code hook path the delivered value is
-*derived from the host-built `CLAUDE_PROJECT_DIR` of the hook subprocess*, so a reader is not left to
-infer a separate channel.
+**Fix:** route these through the same flag: `truncated ??= "surface-unreadable"`, add that arm to
+`SURFACE_TRUNCATION_REACHED` (the cause string and the recipe bullet follow automatically), and drive
+it with a stub checker that throws at each of the four positions. If the fail-open is deliberate
+because a throw here is ordinary, say so in `UNRESOLVABLE_CALLEE_RESIDUALS` with the measurement — the
+register is the file's own standard for a boundary that is chosen rather than overlooked.
 
 ---
+
+### WR-38: the new "a published ban member must be REACHABLE" binding covers two of the four published ban sets
+
+**File:** `scripts/runnable-ref/uat-spec-integrity.test.ts:9678-9707`
+
+**Issue:** The binding derives its expected side from `BANNED_MODIFIER_HEADS` and
+`BANNED_EXACT_PATHS` only. `BANNED_MODIFIER_TAILS` (`skip`, `only`, `fixme`, `fail`) and
+`BANNED_CONFIGURED_PATHS` (`expect.configure` → `soft`) are published ban members — the recipe quotes
+all four lists by value, and the membership-equality test asserts all four — with no reachability
+row. CR-23 was exactly "a published member the mechanism cannot reach while equality stays green";
+the fix closes that on the head axis and leaves the tail and configured-path axes open. Concretely,
+only `skip` is driven by a REACH row; `only`, `fixme` and `fail` have no row keyed to the constant, so
+a future narrowing that made one of them unreachable would repeat CR-23 with the same green suite.
+
+**Fix:** derive the expected side from all four published sets — e.g. require
+`REACH-TAIL-<tail>` for every `BANNED_MODIFIER_TAILS` member and `REACH-CONFIGURED-<path>` for every
+key of `BANNED_CONFIGURED_PATHS` — and add the four missing rows. The seeded-fail case should be
+extended to a seeded tail as well, so the new axis is proven non-vacuous the same way the head axis is.
+
+---
+
+### WR-39: `R-31-33-02`'s published text is now false for the branch this round changed
+
+**File:** `scripts/context-io.ts:2317-2339`
+
+**Issue:** The residual states: "With NO arguments, the note lands in `DEFAULT_CONTEXT_ROOT` … while
+the GOV-02 event lands under `trustedRepoRoot()`, the HOST repository." After `:5399`, the gated
+branch's event lands under `governanceRootOf(DEFAULT_CONTEXT_ROOT) ?? trustedRepoRoot()` — i.e. under
+the KIT's own repository whenever the kit store resolves, which is the opposite of what the residual
+publishes. The residual is the artifact the next round starts from; a residual that describes the
+pre-fix mechanism hands that round a false premise, which is the class
+`docs/audit/harness-false-result-instances.md` exists to record (row 13 is the same defect).
+
+**Fix:** re-word `R-31-33-02` to state the post-fix behaviour per branch — the gated branch follows
+the store's derived root (or `repoRoot` when the store is ungoverned — see CR-26), the non-gated
+branch still reaches the ledger through `admit(repoRoot)` — and keep the "which repository is the
+default owner" decision as the thing that is actually open.
+
+---
+
+### WR-40: `18-context-compaction.md` states an entry-derivation property the mechanism does not have on both routes
+
+**File:** `agent-factory/workflows/18-context-compaction.md:83`
+
+**Issue:** The corrected paragraph reads "Each route derives the owning repository from the context
+store it writes the note into. Both halves of the action key on that one answer. The derivation sits
+at the route's entry, above every branch that route takes." Measured on the committed `.js`: false for
+`admitAndAppend`'s gated branch whenever the store is ungoverned (CR-26), and false for its non-gated
+branch always — that one reaches the ledger through `admit(…, repoRoot)`, which the source itself
+names as residual `R-31-33-01`. The paragraph's later sentence ("An ordinary admission carrying no
+human disposition records itself in the repository whose dial admitted it") softens the second case
+but does not retract the universal claim, and nothing covers the first. This is the
+claim-outruns-mechanism shape the phase exists to close, in the document the phase edited to close it.
+
+**Fix:** state the mechanism per route and per branch, with the residual named inline — e.g. "The
+re-binding route derives it at its entry and refuses a destination it cannot resolve. The
+admit-then-persist route derives it at its entry for the human-disposed branch; an ordinary admission
+records itself through the admission authority under the caller's repository argument (`R-31-33-01`)."
+Then re-run whatever binding asserts this paragraph against the source.
+
+---
+
+### WR-41: the note-position CONTROL's "ordinary outcome" is only "`appendNote` did not throw"
+
+**File:** `scripts/check-platform-shapes.ts:307-327`, `:478-489`
+
+**Issue:** WR-31's fix asserts the control's verdict POSITIVELY, and at the manifest position it
+genuinely discriminates (`fail-closed` vs `answered`, with the discriminant's own presence asserted in
+`main`). At the note position the driver sets `verdict = "write"` on any non-throwing call
+(`:318`) — so `d.verdict === "write"` is "the writer did not refuse", which is what the old
+clause-absence check already implied at that position. Worse, the new ordinary staging plants bytes
+IDENTICAL to what the writer would write (`composeOrdinaryNote`), so the control passes through
+`writeNoteFile`'s identical-bytes NO-OP branch: nothing is written at the planted position and the
+disk is never inspected. The row nevertheless prints `ordinary outcome (correct)`.
+
+The gain over the old check is real but narrower than the header claims — a driver that crashes
+without printing JSON now yields `verdict === ""` and fails.
+
+**Fix:** make the note-position verdict carry what actually happened — e.g. have the driver report
+`written` vs `identical-no-op` (it can `statSync` the target's mtime/size before and after, or read
+the returned id and compare the file's bytes) — and assert the planted position holds the composed
+note after the drive. A control that cannot observe its own effect is the premise this module's own
+header says it will not ship.
+
+---
+
+### WR-42: the entry-level destination decline widens the refusal set of the fall-through path, with the cost unrecorded
+
+**File:** `scripts/context-io.ts:2553-2560`
+
+**Issue:** Moving `governanceRootOf(to)` above the human-stamp fall-through does more than reorder
+clauses: the fall-through previously RETURNED before this check, so a destination store outside a
+governed repository was accepted there. It is now refused. The round's own fixtures record the
+consequence candidly (`scripts/context-io-writer-set.test.ts:1118-1147`, `scripts/compactor.test.ts:2696`
+— several cases were re-staged because "a bare directory is now refused by name"), which is evidence
+the accepted-input set moved, not just the clause order. The refusing direction is the safe one and
+`18-context-compaction.md` does disclose it, but `WRITE_PATH_RESIDUALS` records no member for it and
+the shared-install shape was not measured: a kit-side store at `~/.grugops/.grugops/context` has no
+governance configuration and no VCS marker written by `install/install.ts` (which seeds
+`.grugops/factory.config.json` into the TARGET, `install/install.ts:1343`), so `governanceRootOf`
+would answer `null` there and every promotion into it would throw. Whether any shipped flow promotes
+into a kit-side store is `UNKNOWN - verify`.
+
+**Fix:** measure the shared-install default (`~/.grugops` kit beside a separate host repository) against
+this clause and record the answer; if promotions into a kit-side store are reachable, either exempt
+them or state the refusal as a residual with its remedy. Either way add a `WRITE_PATH_RESIDUALS` member
+naming the widened refusal, so the next round does not rediscover it as a false refusal.
 
 ## Info
 
-### IN-16: `TEST_INFO_CANONICAL_HEAD` outlived its mechanism and is now asserted only by a test
+### IN-19: the skipped-directory disclosure fires on essentially every real host run, on the could-not-run stream
 
-**File:** `scripts/runnable-ref/uat-spec-integrity.ts:565`
+**File:** `scripts/runnable-ref/uat-spec-integrity.ts:3266-3271`
 
-**Issue:** The export existed as the head `canonicaliseHeadSegment` rewrote a TestInfo
-fixture-parameter binding to. D-30 (5) deleted `deriveTestInfoParameterNames`, and nothing in the
-runnable reads the constant any more:
-
-```
-$ grep -rn TEST_INFO_CANONICAL_HEAD --include=*.ts --include=*.js --include=*.md . | grep -v node_modules
-scripts/runnable-ref/uat-spec-integrity.js:555:  export const TEST_INFO_CANONICAL_HEAD = …
-scripts/runnable-ref/uat-spec-integrity.ts:565:  export const TEST_INFO_CANONICAL_HEAD = …
-scripts/runnable-ref/uat-spec-integrity.test.ts:4586: expect(TEST_INFO_CANONICAL_HEAD).toBe("test.info()")
-```
-
-Its only remaining consumer is a test asserting its literal value — a live assertion over a dead
-binding.
-
-**Fix:** delete the export and the assertion, or (if the spelling is genuinely load-bearing for the
-findings a reader sees) re-point the identity path's `test.info()` naming at it so the constant has
-one production reader again.
-
-### IN-17: a doc block in `deriveDeclaredBindings` is spliced mid-sentence
-
-**File:** `scripts/runnable-ref/uat-spec-integrity.ts:2218-2220`
-
-**Issue:**
+**Issue:** The disclosure is emitted whenever ANY member of `SKIPPED_DIRECTORIES` was encountered, and
+`.git` and `node_modules` are present at the root of virtually every host repository. Measured on this
+repository at this commit:
 
 ```
- * THE ONE NON-SUPPRESSING RECORD, AND WHY IT IS A POSITION RATHER THAN A NAME. A parameter at index
- * 1 of a function that is itself the SECOND ARGUMENT of a call expression is recorded with
- * D-30 (5): THE ONE NON-SUPPRESSING RECORD IS GONE, WITH THE MAP IT CONSTRAINED. …
+$ node scripts/runnable-ref/uat-spec-integrity.js .   → exit 2
+stderr: UAT spec integrity: the walk SKIPPED directory entries by name: .git=1, .temp=1, node_modules=1 — …
 ```
 
-The superseded paragraph is cut mid-clause ("is recorded with") and the D-30 (5) heading is spliced
-onto its tail. In a file where the doc blocks are treated as the decision record, a half-deleted
-sentence reads as a statement.
+So the "a clean run does not grow a line" property holds only for a probe tree with none of the five
+names, not for a host; the recipe's measured CONTROL (0 bytes) is not representative. The line also
+lands on the stream the D-12 contract reserves for could-not-run reasons ("stderr → every could-not-run
+reason"), where a workflow-05 reader is trained to treat output as a loud skip. The counts are of
+DIRECTORIES skipped, not of specs hidden, so `.temp=1` (the case WR-35 is about) reads the same as the
+two always-present benign names.
 
-**Fix:** delete the orphaned clause; keep the D-30 (5) paragraph as its own sentence.
-
-### IN-18: `drivePosition` constructs a shape it has already decided to skip
-
-**File:** `scripts/check-platform-shapes.ts:342-345`
-
-**Issue:**
-
-```ts
-const staged = forced.has(shape.name) ? { ...plant(shape), made: false } : plant(shape);
-```
-
-When the `FORCE_ABSENT_ENV` seam names a shape, `plant(shape)` still runs — which calls
-`shape.make(at)`, and for the manifest position also builds a whole `hookMirror()` — and the result
-is then discarded. The seam is meant to make the SKIP arm reachable; constructing the shape first
-means the seam does not exercise the "this platform cannot construct it" path it stands in for.
-
-**Fix:**
-
-```ts
-const staged = forced.has(shape.name)
-  ? { made: false, run: () => { throw new Error("forced absent"); }, refusalClause: "" }
-  : plant(shape);
-```
+**Fix:** either keep the disclosure but state in the recipe that it is emitted on nearly every host run
+and that the count is of directory entries, not of hidden specs; or emit it only for names whose skip
+could plausibly hide this repository's own evidence, with the omitted names still listed once in the
+recipe.
 
 ---
 
-## Verification notes
+### IN-20: a CONTROL whose verdict is neither ordinary nor a refusal is recorded as `REFUSED (wrong)`
 
-- Every reproduction above was run at `f2404aa` against the **committed `.js`** artifacts, with
-  `git status --porcelain -- scripts hooks agent-factory docs .github` empty before and after.
-- All AST probe roots were equipped exactly as `31-28`'s `equipTarget` equips one (`tsconfig.json`
-  `ES2022`/`ESNext`/`Bundler`/`strict`/`skipLibCheck` with `include: ["**/*.ts"]`, a `node_modules`
-  symlink to this repository's, and `fixtures/playwright-test.d.ts` under `types/`), per
-  `docs/audit/31-round6-residuals.md` §1.3. Every AST probe additionally records its `tsc --noEmit`
-  exit code, so no finding rests on a construct the language refuses to compile.
-- All `context-io` probes ran against roots created with `mkdtemp`, each asserted
-  `governanceRootOf(store) === root` before any result was read.
-- Probe residue: `.temp/` was swept with a real listing (`find .temp -mindepth 1`) — empty — and
-  `git status` over the source paths is clean.
-- Green baselines confirmed and NOT treated as evidence of correctness: `npm run freshness`
-  (61 outputs), `npm run freshness:hook-manifest` (2 deciders / 26 hashes),
-  `node scripts/check-foundation-guards.js` (`ALL CHECKS PASSED`),
-  `node scripts/check-platform-shapes.js` (`ALL CHECKS PASSED`), and
-  `npx vitest run scripts/uat-gate-exit-contract.test.ts scripts/nonblocking-reader-parity.test.ts`
-  (48 passed). **None of these exercised any of the four Criticals above**, which is the seventh
-  consecutive round in this phase for which that is true.
-- `UNKNOWN - verify`: whether the real `@playwright/test` declared surface exceeds
-  `SURFACE_DEPTH_BOUND` or `SURFACE_NODE_BOUND` cannot be measured here (CLAUDE.md fixes the
-  dependency set). `CR-25`'s finding is about the bound's **direction**, which is measured; its
-  magnitude on the installed-package route is not.
-- `UNKNOWN - verify`: the Windows behaviour of `check-platform-shapes.js` (symlink privilege,
-  `mkfifo` absence) is reasoned from the source and not driven — no Windows host was available.
+**File:** `scripts/check-platform-shapes.ts:488`
+
+**Issue:** `record(position, shape, ordinary && !namedRefusal ? ORDINARY_OUTCOME : "REFUSED (wrong)", …)`
+labels every non-ordinary outcome a refusal. A driver that crashed (`verdict === ""`), a `no-answer`
+or a `status=N` all print `REFUSED (wrong)` in the table earlier rounds compare against — a wrong
+diagnosis in the record, even though the `failures` entry beside it carries the true verdict.
+
+**Fix:** `record(..., ordinary && !namedRefusal ? ORDINARY_OUTCOME : namedRefusal ? "REFUSED (wrong)" : \`NOT ORDINARY (${d.verdict})\`, ...)`.
 
 ---
 
-_Reviewed: 2026-09-10T19:35:00Z_
+### IN-21: the ledger test's partition assertion is true by construction
+
+**File:** `scripts/harness-instance-ledger.test.ts:188-189`
+
+**Issue:**
+```ts
+expect(exemptNoClaim + exemptNoFile + rows.filter((r) => claimedMechanisms(r).length > 0 && namedFiles(r).resolved.length > 0).length)
+  .toBe(rows.length);
+```
+The three terms are "no files", "files but no mechanisms" and "files and mechanisms" — a partition of
+`rows` by construction, so the equality cannot fail for any input. It reads as the vacuity floor the
+file's header promises, beside the one that does work (`expect(checked).toBeGreaterThan(0)`).
+
+**Fix:** assert the counts the file actually cares about — e.g. a floor on `checked` relative to
+`rows.length`, and a ceiling on `exemptNoFile` — or drop the line so the real floor is not diluted.
+
+---
+
+_Reviewed: 2026-09-11T20:05:00Z_
 _Reviewer: Claude (gsd-code-reviewer)_
-_Depth: standard (adversarial, with reproduction)_
+_Depth: standard_
