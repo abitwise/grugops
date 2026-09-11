@@ -5,17 +5,17 @@ milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live
 current_phase: 31
 current_phase_name: Autonomous Manual Testing
 status: "Phase 31 gap-closure round 7 EXECUTED IN FULL (31-32..31-38, seven plans, sequential on main) and CLOSED-OUT by the round-7 closing measurement 31-38 (2026-09-11). Measured at one commit (3baab0d) against the committed .js with the finding documents own probe spellings. CLOSED by measurement: CR-22 at three of four positions (the fall-through and admitAndAppend now land a note and its GOV-02 event in ONE repository; an ungoverned destination is DECLINED), CR-23 at four positions including both halves of the D-35 discriminant (a declared-foreign describe.skip and expect.soft move 0 findings/EXIT=0 to 1 finding/EXIT=1 with tsc exit 0), CR-24 (an EACCES file reports unopenable and a 9 MiB file reports above-ceiling, arms 3 to 5 spread from the authority), CR-25 (a truncated walk exits 2 with a named cause where it used to accept at exit 0 with zero bytes of stderr), WR-31, WR-32, WR-33, WR-34, WR-36, IN-16, IN-17, IN-18, and the suite REGRESSION. CARRIED with owners: WR-35 (the .temp narrowing is DISCLOSED, not reverted, per D-33 (5)), R-31-33-02 (CR-22 position 4, not drivable from outside the module), and the index-signature shape. 14 round-6 control rows re-driven, all UNMOVED - including the four closures (CR-17, CR-18, CR-19, CR-21) the round-7 verifier accepted rather than measured. The suite was RED at the round base and is GREEN here: 66 files, 4208 passed, 2 skipped, exit 0, recorded as a FLOOR - two of the four Criticals were decided by constants appearing ZERO times in any test file at that base. Frozen floors and all 26 DECIDER_MANIFEST entries re-measured whole. The D-33 coverage one-shot is asserted with both sides derived: 5 of 5 under one predicate, 2 of 5 under a stricter one, disagreement named and carried. Disposition debt 78, down 2. UATX-01..06 stay unchecked and Gaps Found, and the phase stays In Progress: only a verification round may flip a requirement, and an EIGHTH verification round has not run. Record: docs/audit/31-round7-residuals.md."
-stopped_at: Completed 31-37-PLAN.md
-last_updated: "2026-09-11T18:04:23.827Z"
-state_head: 42960b35e8b221cca95a5752e63881125945016f
+stopped_at: Completed 31-38-PLAN.md
+last_updated: "2026-09-11T18:58:32.496Z"
+state_head: 2f8b2bc50b22a48ba00a17884918309427a6a2e2
 progress:
   total_phases: 9
   completed_phases: 6
   total_plans: 214
-  completed_plans: 213
+  completed_plans: 214
   percent: 67
 last_activity: 2026-08-19
-prior_activity_desc: "Phase 27 gap-closure round 8 COMPLETE (27-45, 27-46; D-53). Full narration lives in the Phase 27 artifacts and in docs/audit/; shortened here by plan 31-38 because this single line measured 7995 characters, above the 4000-character ceiling a pathological STATE line has previously crossed to turn a sub-second guard into a multi-minute one."
+prior_activity_desc: Phase 27 gap-closure round 8 COMPLETE (27-45, 27-46; D-53). Full narration lives in the Phase 27 artifacts and in docs/audit/; shortened here by plan 31-38 because this single line measured 7995 characters, above the 4000-character ceiling a pathological STATE line has previously crossed to turn a sub-second guard into a multi-minute one.
 last_activity_desc: "Phase 29 CLOSED by user decision (D-59, reversing D-29): LANG-04's conformance prohibition is held as CONTENT — the claim registry and the honesty floor — with guard_banned_claims a disclosed drift backstop, not the mechanism that makes a totality true. Eight verification rounds established that a totality over an open set of phrasings is not a decidable predicate; D-55 had already ended at a per-line predicate, so the totality was already content-held on the tree while LANG-04's text still said a mechanism held it. Round-8 review CR-02 (the narrowed sentence printed above the findings contradicting it) FIXED at 4c6a76a, watched failing against the pre-fix build and asserted in both directions; two existing cases whose premise the change invalidated were repaired, not weakened. CR-01 (freshness.ts working-tree arm fail-opens, reproduced) carried as V-29-59-03 — a build-parity defect plan 29-59 itself recorded as named by no LANG requirement. CR-03/04/05 carried with owners in docs/audit/29-round8-residuals.md section 10. The round-8 verifier's gaps_found verdict is left standing and annotated rather than rewritten: it verified LANG-04's previous text. All 8 LANG requirements Complete. 15 repo gates green, 52 files / 2140 passed / 2 skipped. Next: Phase 29.1 (per-role model assignment)."
 ---
 
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-09-07 — after Phase 29.2)
 ## Current Position
 
 Phase: 31 (Autonomous Manual Testing) — EXECUTING
-Plan: 7 of 38
+Plan: 8 of 38
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 
@@ -469,6 +469,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 31 P35 | 83m | 3 tasks | 8 files |
 | Phase 31 P36 | 47m | 3 tasks | 8 files |
 | Phase 31 P37 | 48m | 3 tasks | 13 files |
+| Phase 31 P38 | 36m | 3 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -1390,8 +1391,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-09-11T18:04:01.061Z
-Stopped at: Completed 31-37-PLAN.md
+Last session: 2026-09-11T18:58:32.103Z
+Stopped at: Completed 31-38-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
