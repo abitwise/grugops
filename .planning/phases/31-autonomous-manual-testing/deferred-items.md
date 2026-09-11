@@ -568,3 +568,110 @@ assertion rather than its output believed.
   Closing it means reading a type's INDEX INFOS beside its properties, which widens the walked set
   and therefore moves the denominator of every coverage assertion — a separate decision, exactly as
   the recipe says descending return types is. status: open
+
+---
+
+## 31-38 (2026-09-11) — the round-7 closing re-measurement of the entries above
+
+Measured at `3baab0d`, against the committed `.js`, tree clean before and after. Full record:
+`docs/audit/31-round7-residuals.md`. **This plan wrote no source and repaired nothing it found.**
+
+### The three standing human items, re-stated at their measured state
+
+- **`R-01`** — the attended Chrome lane under real interactive auth. **OPEN, unchanged.**
+  `scripts/chrome-lane-bar.test.ts` is byte-untouched across the whole round and green in the suite;
+  that is the structural bar and not the lane. Owner: a named human. `status: open`.
+- **`R-02`** — the `claude auth status --json` predicate under API-key and long-lived-token auth.
+  **OPEN, unchanged.** No alternative configuration was constructed. Owner: a named human.
+  `status: open`.
+- **`R-03`** — the Windows leg. **OPEN, and LARGER by four shapes** — this round's `CR-22`, `CR-23`,
+  `CR-24` and `CR-25` reproductions are all established on darwin 25.5.0 arm64 / Node v24.12.0 only.
+  Owner: a real `windows-latest` run. `status: open`.
+- **`R-04`** — the installer round-trip. **CLOSED by harness** (`31-30`). Re-stated, not re-derived,
+  not re-opened. `status: closed`.
+
+### The disposition debt, re-measured
+
+- `npm run check:diff-disposition` → **`78 finding(s) over 39 elements`**, exit 1. 80 at the round-6
+  close and at the round-7 base (`78a9d16`); 78 after `31-33`; **78 here** — down 2 over the round,
+  still open. Every remaining finding names a clause in a file this round did not author. The gate's
+  own remedy forbids narrowing the corpus and moving the base. Owner: unassigned. `status: open`.
+
+### Carried forward unchanged, re-stated so they are looked up rather than rediscovered
+
+- **The multi-sentence disposition-row CLASS.** A row whose `before`/`after` is not exactly one
+  clause covers nothing, silently. No derived check catches it. Owner `31-29`. `status: open`.
+- **Fourteen of fifteen `mkfifo` call sites carry no platform guard.** Owner: their own plan.
+  `status: open`.
+- **The GOV-02 audit-ledger position dropped from `check-platform-shapes`.** Criterion unchanged:
+  publish the two governance dial KEY NAMES from the one authority, the way `30-10` published
+  `GOVERNANCE_CONFIG_RELPATHS`, so a probe composes the fixture without spelling either literal and
+  the AUTO-06 predicate is unmoved. Owner: unassigned. `status: open`.
+- **Four `TRUSTED_ROOT_RESIDUALS` members are closed only on the Claude Code hook path**
+  (`hosts: non-cc-hook-path`): `R-31-15-01`, `R-31-15-03`, `R-31-19-02`, `R-31-19-06`. Re-measured
+  this round: still 4 of 11. Owner: the register. `status: open`.
+- **`R-31-31-01` — the ambient `declare const it: unknown;` spelling.** Re-driven here:
+  `0 findings`, EXIT=0, **`tsc` EXIT=2** (`TS2440`). Unmoved in both directions. No round-7 plan took
+  it; `31-34` recorded the neighbouring spec-local shape as `RR-13` instead. Owner: still round 8's
+  fix plan. `status: open`.
+- **`R-31-33-01` and `R-31-33-02`** — the two write-path boundaries `31-33` published rather than
+  claimed, now members of `WRITE_PATH_RESIDUALS` (7). `R-31-33-02` is **not drivable from outside the
+  module**: `DEFAULT_CONTEXT_ROOT` is not exported and observing the split needs a shared-install
+  layout. Owner: `31-33`, published. `status: open`.
+- **`RR-13`** — a head the spec file hand-`declare`s for itself stays accepted, because the shape is
+  structurally identical to `WR-26`'s own control. Owner: `31-34`, published. `status: open`.
+- **`frameworkSurface`'s two inner `catch` blocks** and **the INDEX-SIGNATURE shape** — both entered
+  above by `31-35`, both re-measured here and unchanged (the index-signature shape drives
+  `0 findings`/EXIT=0 with `tsc` exit 0, exactly as its corpus row asserts). `status: open`.
+- **The installed-package magnitude behind `SURFACE_DEPTH_BOUND` (6) and `SURFACE_NODE_BOUND`
+  (4096).** `UNKNOWN - verify` — `CLAUDE.md` fixes the dependency set, so `@playwright/test` cannot
+  be installed here. `D-36` closed the bound's DIRECTION; its magnitude on the installed-package
+  route is not established. Owner: unassigned. `status: open`.
+- **`.temp` in `SKIPPED_DIRECTORIES`** (`WR-35`). The narrowing is retained by `D-33 (5)` and
+  DISCLOSED rather than reverted — measured this round: a target carrying a spec under a `.temp`
+  segment emits the named marker with per-directory hit counts on stderr, and a target with no hit
+  emits zero bytes. Criterion: a named human re-taking `D-30`'s sub-decision 3, or a per-host
+  configurable skip set. Owner: `31-32`, published. `status: open`.
+
+### Raised by this plan, with owners, and deliberately NOT repaired here
+
+- **The review-to-corpus coverage obligation `D-33 (2)` handed here is a ONE-SHOT, and its predicate
+  over-includes.** Asserted once in `docs/audit/31-round7-residuals.md` §9 with both sides derived.
+  Under the STRICT predicate (a finding naming the runnable must be cited by a `row()`-marked case)
+  it is **2 of 5**; under the WEAKER one (cited by SOME `it()` case) it is **5 of 5**. The gap is
+  exactly `WR-35`, `IN-16` and `IN-17` — findings whose closure is a stderr line, an ABSENCE and a
+  doc-block edit, none of which a UAT spec can drive. **Neither predicate is derived from a rule
+  that separates row-shaped findings from the rest**, which is the same hand-maintained-set shape
+  that produced the regression `D-33` deleted. Owner: **round 8's planner**. Criterion: a derived
+  "this finding is drivable as a UAT spec" rule, so the denominator is the coverable set rather than
+  the naming set. `status: open`.
+- **`31-REVIEW.md`'s `## Skipped entries` block is a MARKDOWN-PARSE ARTIFACT, not a finding.** It is
+  a `##` heading inside a fenced `render()` transcript in `CR-24` (fence `:430`–`:442`). A scanner
+  that does not strip fences reports a fourteenth finding that no document filed; this round's
+  convening brief carried it as one. Fixed here by stripping fences before the heading scan;
+  **recorded so round 8 does not carry the phantom forward.** Owner: any future derivation over
+  `31-REVIEW.md` headings. `status: open` (as a standing scanning rule, not a defect in the tree).
+- **`.planning/STATE.md`'s `prior_activity_desc` was a 7 995-character single line.** Measured before
+  this plan's write; it is stale Phase-27 narration, superseded twice. It exceeds the 4 000-character
+  ceiling this plan's own verify asserts, and this repository has previously combined a pathological
+  STATE line with a superlinear guard predicate to turn a sub-second gate into a multi-minute one.
+  Shortened to a pointer by this plan and recorded as a deviation. Owner: the state writer.
+  `status: closed` for this occurrence; the writer's behaviour is unchanged.
+
+### Harness false results, logged rather than absorbed
+
+- **Instance 15** (ordinal read off `docs/audit/harness-false-result-instances.md`, whose last row is
+  14). The first `admitAndAppend` probe wrote its governance dial at the WRONG KEY —
+  `{ "human_admission": … }` at the config root instead of `{ "context": { "human_admission": … } }`.
+  Every dial value then produced the identical `admission REFUSED (W3)` and ZERO files on disk, which
+  reads exactly like a closure of `CR-22` position 3 and is not one. Caught by driving all three dial
+  values and observing they could not be told apart. Not written into the ledger file by this plan —
+  this plan writes no source and `scripts/harness-instance-ledger.test.ts` derives its premises from
+  that file's rows. **Owner: round 8's fix plan**, which should append it with the derived-premise
+  case green. `status: open`.
+- **A second, self-inflicted one, logged for the same reason.** This session's first full-suite run
+  went RED on `POINT 7: no probe root is left under '.temp'` — because THIS session's AST probe roots
+  were still sitting under `.temp/31-38-probe/`. The suite was measuring the measurement. Probe
+  residue was removed and the suite re-run clean. It is also why §7.2 of the record states that the
+  `.temp`/FIFO sweep must be taken AFTER the suite and prints the mid-flight readings that prove it.
+  `status: closed`.

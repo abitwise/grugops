@@ -217,3 +217,38 @@ attended browser session, no alternative auth configuration, no Windows host and
 repository. `R-04`'s closure is `31-30`'s and is recorded here with the measurement that produced it.
 Restated with an incremented carry-forward count so "carried forward" stays a recorded fact rather
 than an assumption.
+
+---
+
+## Standing human-verification items — carried forward through gap-closure round 8
+
+> Recorded by plan `31-38` (the closing measurement for gap-closure **round 7**) on 2026-09-11.
+> **All three remaining items are carried with their `UNKNOWN - verify` markers intact. None is
+> closed, and none is dropped.** `R-04` stays CLOSED where `31-30`'s harness closed it, and is not
+> re-opened or re-argued here. A gap-closure plan may not close a human-verification item by
+> inference. This section does not rewrite the round-5, round-6 or round-7 sections above; it
+> follows them.
+
+**Carry-forward count, read from the section above and incremented once: after round 6's closing
+measurement the count was 3 CARRIED and 1 CLOSED. After this round's closing measurement it is
+still 3 CARRIED and 1 CLOSED.** This round adds no item and closes none. Every probe recorded in
+`docs/audit/31-round7-residuals.md` ran on **darwin 25.5.0 arm64 with Node v24.12.0 only**.
+
+| Id | Item | Status after gap-closure round 7 | Owner | What this round measured that is NOT this item |
+|---|---|---|---|---|
+| `R-01` | The attended Claude-in-Chrome lane opens under real interactive auth, pauses for a human on a login/challenge page, and produces only a human-stamped finding + artifact-ref (never a gate stamp). | **OPEN — `UNKNOWN - verify`.** Carried unchanged through rounds 2, 3, 4, 5, 6, 7 and this one. | **a named human** with the Claude-in-Chrome extension installed and a real interactive login | `scripts/chrome-lane-bar.test.ts` is **byte-untouched across the whole round** (`git diff --name-only d484b9e..HEAD` does not name it) and green inside the 66-file suite — `docs/audit/31-round7-residuals.md` §5. That is the **structural** bar. The lane's real interactive behaviour is **not** inferred from it. |
+| `R-02` | The `claude auth status --json` fail-closed predicate (D-10) behaves correctly under an API-key-only box and under a long-lived setup token. | **OPEN — `UNKNOWN - verify`.** Carried unchanged through rounds 2, 3, 4, 5, 6, 7 and this one. Research assumptions A2/A3 remain unverified. | **a named human** on a box whose credentials can be reconfigured | Nothing. No alternative auth configuration was constructed; doing so would destroy this box's real credentials. |
+| `R-03` | Both browser-absence probe stages, and the whole spec-integrity runnable, on a **Windows** host. | **OPEN — `UNKNOWN - verify`, at the remainder `31-30` stated and now LARGER by four shapes.** The instrument is wired on the pre-existing `windows-latest` leg; the reading has still not been taken. | **a real `windows-latest` run** | `node scripts/check-uat-oracles.js` and the whole gate battery re-run — **on darwin**. This round ADDS four shapes to the Windows remainder: the `CR-23` foreign-import positions, the `CR-25` truncation route, the `CR-24` skip-arm rendering and the `CR-22` entry-derived write path. Every one is established on darwin/Node v24.12.0 only. Fourteen of fifteen `mkfifo` call sites still carry no platform guard. |
+| `R-04` | A host repository that installed grugops before this release re-runs the installer and picks up `tools/grugops/uat-spec-integrity.js`; the uninstaller removes it. | **CLOSED — by harness (`31-30`), not by inference.** Re-stated, not re-derived, and not re-opened. | — | Nothing in this round touched the installer round-trip. |
+
+**What this round did to them: nothing, deliberately.** `31-38` runs no attended browser session, no
+alternative auth configuration, no Windows host and no second scratch repository. Restated here with
+the carry-forward count read off the section above so "carried forward" stays a recorded fact rather
+than an assumption.
+
+**Test-infrastructure reading at this round's closing commit (`3baab0d`):**
+`npx vitest run --exclude '**/scripts/e2e/**'` → `Test Files 66 passed (66)`,
+`Tests 4208 passed | 2 skipped (4210)`, 426.55 s, exit 0. The round BASE (`d484b9e`) was measured
+**RED** by `31-VERIFICATION.md` row 7 (`1 failed | 63 passed`, `1 failed | 4127 passed | 2 skipped`);
+`31-32` fixed it under `D-33`. Both readings are recorded in
+`docs/audit/31-round7-residuals.md` §8.1.
