@@ -9195,7 +9195,17 @@ const censusRelationshipFindings = (c: TripwireCensus): string[] => {
 // census. UNLIKE the three bumps above, this one lands in the SAME commit as the module it counts:
 // the disclosed departure was a consequence of the pin surfacing late, and a commit that is green
 // at the commit is strictly better than one that is green at the next.
-const TRIPWIRE_MODULES = 58;
+//
+// 58 -> 59 (plan 31-36): ONE test module, `scripts/check-platform-shapes.test.ts` — the drivers for
+// the shape corpus's CONTROL rows and for its forced-absent seam. It exists because `WR-31` measured
+// every CONTROL row in that gate being a refusal and being scored `not refused (correct)`: the
+// control was scored by the ABSENCE of one clause string, so it could not tell an ordinary outcome
+// from a refusal for another reason, and a control whose RED path has never been driven is a premise
+// nobody has asserted. A pin that surfaces a module arriving is the correct thing to have fired
+// here. Re-derived rather than incremented: `ls scripts/*.test.ts | wc -l` reports 59 on this tree,
+// agreeing with the live census. Like the bump above, it lands in the SAME commit as the module it
+// counts is first observed by the full suite.
+const TRIPWIRE_MODULES = 59;
 /**
  * Corpus-derived floors, expressed as RATES so the floor grows with the corpus it floors.
  * Each is set well below its measured live value: the point is to catch a measurement that

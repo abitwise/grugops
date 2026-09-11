@@ -43,6 +43,7 @@ import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  readdirSync,
   rmSync,
   symlinkSync,
   writeFileSync,
@@ -63,6 +64,135 @@ const io: typeof import("./context-io.js") = await import(
 // ═══════════════════════════════════════════════════════════════════════════════════════════════
 
 /**
+ * THE ACCEPTED SPELLINGS OF THE REFUSAL, ENUMERATED ONCE (plan 31-36, `WR-32`).
+ *
+ * Until this plan the refusal was recognised by ONE syntactic shape — a `!` prefix over an
+ * `.isFile()` call — and BOTH mutation mirrors were written in that same shape, so both proved only
+ * that the predicate recognises ITSELF. Measured: the transcribed predicate applied to a
+ * semantically identical implementation spelled `st.isFile() === false` answered
+ * `{"nb":true,"ds":true,"rf":false,"th":true,"all":false}`, so the file never joined `IMPLEMENTING`
+ * and the cardinality assertion stayed green at 2. `st.isFile() !== true` and a negated `if`/`else`
+ * with the `throw` in the else branch answered the same.
+ *
+ * THIS LIST IS THE SINGLE DERIVATION BEHIND BOTH AXES. The predicate accepts every spelling in it,
+ * and the mutation mirrors are GENERATED from it — one per entry — rather than written beside it. A
+ * hand-written mirror set beside a hand-written accepted set is two literals that drift
+ * independently, which is this phase's other recorded failure class. The `it` that drives each
+ * mirror records its id, and a case below asserts the driven set IS this set.
+ */
+interface RefusalSpelling {
+  readonly id: string;
+  /** How the refusal reads, for the failure message. */
+  readonly reads: string;
+  /** The refusal, rendered into a body that already holds `st` from `fstatSync(fd)`. */
+  readonly render: () => string;
+}
+
+const REFUSAL_SPELLINGS: readonly RefusalSpelling[] = Object.freeze([
+  {
+    id: "negated-call",
+    reads: "if (!st.isFile()) throw",
+    render: () => '    if (!st.isFile()) throw new Error("not a regular file");',
+  },
+  {
+    id: "equals-false",
+    reads: "if (st.isFile() === false) throw",
+    render: () => '    if (st.isFile() === false) throw new Error("not a regular file");',
+  },
+  {
+    id: "not-equals-true",
+    reads: "if (st.isFile() !== true) throw",
+    render: () => '    if (st.isFile() !== true) throw new Error("not a regular file");',
+  },
+  {
+    id: "else-branch",
+    reads: "if (st.isFile()) { … } else { throw }",
+    render: () =>
+      [
+        "    if (st.isFile()) {",
+        "      void st;",
+        "    } else {",
+        '      throw new Error("not a regular file");',
+        "    }",
+      ].join("\n"),
+  },
+]);
+
+/** A `throw` anywhere in this statement, not descending into a nested function-like. */
+function containsThrow(node: ts.Node): boolean {
+  let found = false;
+  const walk = (n: ts.Node): void => {
+    if (found) return;
+    if (
+      n !== node &&
+      (ts.isFunctionDeclaration(n) ||
+        ts.isFunctionExpression(n) ||
+        ts.isArrowFunction(n) ||
+        ts.isMethodDeclaration(n))
+    ) {
+      return;
+    }
+    if (ts.isThrowStatement(n)) {
+      found = true;
+      return;
+    }
+    ts.forEachChild(n, walk);
+  };
+  walk(node);
+  return found;
+}
+
+/**
+ * THE SEMANTIC QUESTION, asked of one `isFile()` call: which branch does this function take when the
+ * descriptor is NOT a regular file?
+ *
+ * The call is climbed outward through the operators that only change POLARITY — parentheses, `!`,
+ * and a strict or loose comparison against a boolean literal — until an `if` is reached whose
+ * condition is what was climbed to. The branch returned is the one taken when `isFile()` is FALSE.
+ * `undefined` means the call does not decide a branch at all, which is not a refusal however the
+ * rest of the function is written.
+ */
+function branchWhenNotRegular(call: ts.Node): ts.Statement | undefined {
+  let node: ts.Node = call;
+  // True while the climbed expression is TRUE exactly when `isFile()` is true.
+  let trueWhenRegular = true;
+  for (;;) {
+    const parent: ts.Node | undefined = node.parent;
+    if (parent === undefined) return undefined;
+    if (ts.isParenthesizedExpression(parent)) {
+      node = parent;
+      continue;
+    }
+    if (ts.isPrefixUnaryExpression(parent) && parent.operator === ts.SyntaxKind.ExclamationToken) {
+      trueWhenRegular = !trueWhenRegular;
+      node = parent;
+      continue;
+    }
+    if (ts.isBinaryExpression(parent)) {
+      const other = parent.left === node ? parent.right : parent.left;
+      const op = parent.operatorToken.kind;
+      const equality =
+        op === ts.SyntaxKind.EqualsEqualsEqualsToken || op === ts.SyntaxKind.EqualsEqualsToken;
+      const inequality =
+        op === ts.SyntaxKind.ExclamationEqualsEqualsToken || op === ts.SyntaxKind.ExclamationEqualsToken;
+      const literalTrue = other.kind === ts.SyntaxKind.TrueKeyword;
+      const literalFalse = other.kind === ts.SyntaxKind.FalseKeyword;
+      if ((equality || inequality) && (literalTrue || literalFalse)) {
+        // `=== true` and `!== false` keep the polarity; `=== false` and `!== true` flip it.
+        if ((equality && literalFalse) || (inequality && literalTrue)) trueWhenRegular = !trueWhenRegular;
+        node = parent;
+        continue;
+      }
+      return undefined;
+    }
+    if (ts.isIfStatement(parent) && parent.expression === node) {
+      return trueWhenRegular ? parent.elseStatement : parent.thenStatement;
+    }
+    return undefined;
+  }
+}
+
+/**
  * Does this function-like node IMPLEMENT the non-blocking regular-file discipline?
  *
  * The question is structural and is asked of the node's OWN body — the walk stops at any nested
@@ -73,7 +203,10 @@ const io: typeof import("./context-io.js") = await import(
  *   1. a call to `openSync` whose argument list mentions the non-blocking flag bit,
  *   2. a call to `fstatSync` (the stat is on the DESCRIPTOR, which is the point — a path stat can be
  *      raced, and a path stat does not stop `open(2)` from having already blocked),
- *   3. a refusal: a `throw` reachable from a negated `isFile()` test.
+ *   3. a refusal, asked as what the function DOES rather than as which operator it used: the
+ *      function branches on `fstat`'s regular-file answer and THROWS on the not-a-regular-file side
+ *      of that branch. `WR-32` measured the previous one-operator recognition walking straight past
+ *      three semantically identical spellings.
  */
 function bodyImplementsDiscipline(fn: ts.SignatureDeclaration): boolean {
   const body = (fn as { body?: ts.Node }).body;
@@ -110,15 +243,12 @@ function bodyImplementsDiscipline(fn: ts.SignatureDeclaration): boolean {
         nonBlockingOpen = true;
       }
       if (callee === "fstatSync") descriptorStat = true;
-      // `!st.isFile()` — the refusal predicate, however the descriptor variable is named.
-      if (
-        ts.isPropertyAccessExpression(node.expression) &&
-        node.expression.name.text === "isFile" &&
-        node.parent !== undefined &&
-        ts.isPrefixUnaryExpression(node.parent) &&
-        node.parent.operator === ts.SyntaxKind.ExclamationToken
-      ) {
-        refusesNonRegular = true;
+      // THE REFUSAL, RECOGNISED BY WHAT IT MEANS. However the descriptor variable is named and
+      // however the test is spelled, the question is the same: when this descriptor is NOT a regular
+      // file, does control reach a `throw`?
+      if (ts.isPropertyAccessExpression(node.expression) && node.expression.name.text === "isFile") {
+        const branch = branchWhenNotRegular(node);
+        if (branch !== undefined && containsThrow(branch)) refusesNonRegular = true;
       }
     }
     if (ts.isThrowStatement(node)) sawThrow = true;
@@ -146,13 +276,63 @@ function everyFunctionLike(source: ts.SourceFile): ts.SignatureDeclaration[] {
   return out;
 }
 
-/** The repo-relative `.ts` files a derivation may consider. Tracked sources only, tests included. */
-function candidateSources(root: string): string[] {
-  const tracked = execFileSync("git", ["ls-files", "*.ts"], { cwd: root, encoding: "utf8" })
+/**
+ * THE INPUT BOUNDARY IS DERIVED FROM TWO INDEPENDENT SOURCES (plan 31-36, `WR-32`).
+ *
+ * `git ls-files` alone cannot see an UNTRACKED third implementation, and a derivation that cannot
+ * see a member has not measured a cardinality — it has measured its own census. `vitest.config.ts`
+ * records the same blindness one register over for the `git status` residue predicate, where a
+ * gitignored path was invisible to every residue gate in three rounds and the remedy was a REAL
+ * listing.
+ *
+ * So both lists are computed: the tracked one, and a real filesystem walk of the three directories
+ * this repository's runnable code lives in. The CANDIDATES are their UNION — the walk alone would
+ * miss a tracked file whose directory the roots do not cover — and a case below asserts the two
+ * AGREE over the walk's own roots, naming any path present in one and absent from the other.
+ */
+const WALK_ROOTS: readonly string[] = Object.freeze(["scripts", "hooks", "install"]);
+
+function excludedFromCensus(rel: string): boolean {
+  return rel.includes("node_modules") || rel.includes("runnable-ref/fixtures/");
+}
+
+/** Repo-relative `.ts` paths git knows about, tests included. */
+function trackedSources(root: string): string[] {
+  return execFileSync("git", ["ls-files", "*.ts"], { cwd: root, encoding: "utf8" })
     .split("\n")
     .map((l) => l.trim())
-    .filter((l) => l !== "" && !l.includes("node_modules") && !l.includes("runnable-ref/fixtures/"));
-  return tracked;
+    .filter((l) => l !== "" && !excludedFromCensus(l))
+    .sort();
+}
+
+/** Repo-relative `.ts` paths a REAL listing of `WALK_ROOTS` finds, tracked or not. */
+function walkedSources(root: string): string[] {
+  const out: string[] = [];
+  const descend = (rel: string): void => {
+    let entries;
+    try {
+      entries = readdirSync(join(root, rel), { withFileTypes: true });
+    } catch {
+      return; // a root this checkout does not have is not a finding; the tracked list still covers it
+    }
+    for (const e of entries) {
+      const child = `${rel}/${e.name}`;
+      if (e.name.startsWith(".") || excludedFromCensus(child)) continue;
+      if (e.isDirectory()) descend(child);
+      else if (e.isFile() && e.name.endsWith(".ts")) out.push(child);
+    }
+  };
+  for (const r of WALK_ROOTS) descend(r);
+  return out.sort();
+}
+
+function underWalkRoots(rel: string): boolean {
+  return WALK_ROOTS.some((r) => rel.startsWith(`${r}/`));
+}
+
+/** The repo-relative `.ts` files a derivation may consider: the UNION of the two censuses. */
+function candidateSources(root: string): string[] {
+  return [...new Set([...trackedSources(root), ...walkedSources(root)])].sort();
 }
 
 /** The DERIVED set of files implementing the discipline, repo-relative and sorted. */
@@ -172,8 +352,36 @@ function deriveImplementingFiles(root: string, files: string[]): string[] {
   return [...hits].sort();
 }
 
+const TRACKED = trackedSources(ROOT);
+const WALKED = walkedSources(ROOT);
 const CANDIDATES = candidateSources(ROOT);
 const IMPLEMENTING = deriveImplementingFiles(ROOT, CANDIDATES);
+
+/**
+ * A third implementation of the discipline, spelled the way `spelling` spells its refusal.
+ *
+ * One source for every mirror, so a mirror can differ from its sibling ONLY in the refusal — which
+ * is the variable under test. The seed is a real implementation rather than a marker string, because
+ * the derivation asks a structural question and a marker would prove nothing.
+ */
+function seededThirdImplementation(spelling: RefusalSpelling): string {
+  return [
+    'import { openSync, fstatSync, closeSync, constants as fsConstants } from "node:fs";',
+    "export function seededReader(path: string): void {",
+    "  const fd = openSync(path, fsConstants.O_RDONLY | fsConstants.O_NONBLOCK);",
+    "  try {",
+    "    const st = fstatSync(fd);",
+    spelling.render(),
+    "  } finally {",
+    "    closeSync(fd);",
+    "  }",
+    "}",
+    "",
+  ].join("\n");
+}
+
+/** Which accepted spellings a mirror actually DROVE. Compared to the enumeration below. */
+const drivenSpellings = new Set<string>();
 
 const tmpRoots: string[] = [];
 afterAll(() => {
@@ -189,6 +397,27 @@ describe("31-27 — the non-blocking read rule has exactly TWO implementations, 
     expect(CANDIDATES).toContain("hooks/hook-entry.ts");
   });
 
+  it("PREMISE: the candidate list is TWO independently derived censuses, and they agree", () => {
+    // Each census is asserted non-vacuous on its own first: a union in which one side silently
+    // returned nothing still looks like a full list, and "the two agree" would then be a statement
+    // about one of them.
+    expect(TRACKED.length, "`git ls-files` listed no .ts sources at all").toBeGreaterThan(20);
+    expect(WALKED.length, `a real listing of ${WALK_ROOTS.join(", ")} found no .ts sources`).toBeGreaterThan(10);
+    const trackedHere = TRACKED.filter(underWalkRoots);
+    const onlyOnDisk = WALKED.filter((f) => !trackedHere.includes(f));
+    const onlyInGit = trackedHere.filter((f) => !WALKED.includes(f));
+    expect(
+      onlyOnDisk,
+      `present under ${WALK_ROOTS.join(", ")} on disk and INVISIBLE to \`git ls-files\`: ` +
+        `${onlyOnDisk.join(", ")}. An untracked implementation is a real implementation; the union ` +
+        "above DOES consider it, and this case is how it stops being silent.",
+    ).toEqual([]);
+    expect(
+      onlyInGit,
+      `tracked and absent from a real listing: ${onlyInGit.join(", ")}`,
+    ).toEqual([]);
+  });
+
   it("the derived implementing-file set has the expected MEMBERS", () => {
     expect(
       IMPLEMENTING,
@@ -202,21 +431,62 @@ describe("31-27 — the non-blocking read rule has exactly TWO implementations, 
     expect(IMPLEMENTING.length).toBe(2);
   });
 
-  it("a seeded THIRD implementation moves the derived count 2 -> 3", () => {
-    const root = mkdtempSync(join(ROOT, ".temp", "31-27-parity-seed3-"));
+  // ONE MIRROR PER ACCEPTED SPELLING, GENERATED FROM THE SAME LIST THE PREDICATE ACCEPTS. Writing
+  // the mirrors beside the list instead of from it is what let `WR-32` ship two mirrors in the
+  // predicate's own operator: both moved the count, and both proved only that the predicate
+  // recognises itself.
+  for (const spelling of REFUSAL_SPELLINGS) {
+    it(`a seeded THIRD implementation spelled "${spelling.reads}" moves the derived count 2 -> 3`, () => {
+      const root = mkdtempSync(join(ROOT, ".temp", `31-36-parity-seed3-${spelling.id}-`));
+      tmpRoots.push(root);
+      mkdirSync(join(root, "scripts"), { recursive: true });
+      writeFileSync(
+        join(root, "scripts", "seeded-third-reader.ts"),
+        seededThirdImplementation(spelling),
+      );
+      const seeded = deriveImplementingFiles(root, ["scripts/seeded-third-reader.ts"]);
+      expect(
+        seeded,
+        `the refusal spelled "${spelling.reads}" was NOT recognised. A predicate that reads one ` +
+          "operator, mirrored by seeds written in that operator, has proven only that it recognises " +
+          "itself — and a third implementation spelled differently is a third spelling of one rule " +
+          "that will drift, invisibly.",
+      ).toEqual(["scripts/seeded-third-reader.ts"]);
+      const withSeed = [...IMPLEMENTING, ...seeded].sort();
+      expect(withSeed.length, "2 -> 3").toBe(3);
+      // SHOWN RED: with the seed present, the MEMBERS assertion above does not hold. A mirror that
+      // moves a count without reddening the assertion the count feeds is a mirror that proves
+      // nothing.
+      expect(withSeed).not.toEqual(["hooks/hook-entry.ts", "scripts/context-io.ts"]);
+      drivenSpellings.add(spelling.id);
+    });
+  }
+
+  it("every ENUMERATED spelling was driven by a mirror — the two sets are one derivation", () => {
+    // BOTH AXES DERIVED FROM ONE LIST. The accepted set and the mirror set cannot go short
+    // independently: the mirrors are generated by iterating this list, and the ids the mirrors
+    // actually recorded are compared back to it. Watched red by generating over a proper subset —
+    // the driven set then names exactly the spelling nothing exercised.
+    expect(REFUSAL_SPELLINGS.length, "no refusal spelling is enumerated at all").toBeGreaterThan(3);
+    expect([...drivenSpellings].sort()).toEqual(REFUSAL_SPELLINGS.map((s) => s.id).sort());
+    expect(drivenSpellings.size).toBe(REFUSAL_SPELLINGS.length);
+  });
+
+  it("CONTROL: a function that stats the descriptor but THROWS ON NOTHING is not counted", () => {
+    // The widening must not accept a function that fails to refuse. This is the other side of the
+    // same rule and it is what stops "recognise it semantically" from becoming "recognise anything".
+    const root = mkdtempSync(join(ROOT, ".temp", "31-36-parity-nothrow-"));
     tmpRoots.push(root);
     mkdirSync(join(root, "scripts"), { recursive: true });
-    // A third file that spells the discipline. The seed is a real implementation, not a marker
-    // string, because the derivation asks a structural question and a marker would prove nothing.
     writeFileSync(
       join(root, "scripts", "seeded-third-reader.ts"),
       [
         'import { openSync, fstatSync, closeSync, constants as fsConstants } from "node:fs";',
-        "export function seededReader(path: string): void {",
+        "export function seededReader(path: string): boolean {",
         "  const fd = openSync(path, fsConstants.O_RDONLY | fsConstants.O_NONBLOCK);",
         "  try {",
         "    const st = fstatSync(fd);",
-        '    if (!st.isFile()) throw new Error("not a regular file");',
+        "    return st.isFile();",
         "  } finally {",
         "    closeSync(fd);",
         "  }",
@@ -224,13 +494,37 @@ describe("31-27 — the non-blocking read rule has exactly TWO implementations, 
         "",
       ].join("\n"),
     );
-    const seeded = deriveImplementingFiles(root, ["scripts/seeded-third-reader.ts"]);
-    expect(seeded).toEqual(["scripts/seeded-third-reader.ts"]);
-    const withSeed = [...IMPLEMENTING, ...seeded].sort();
-    expect(withSeed.length, "2 -> 3").toBe(3);
-    // SHOWN RED: with the seed present, the MEMBERS assertion above does not hold. A mirror that
-    // moves a count without reddening the assertion the count feeds is a mirror that proves nothing.
-    expect(withSeed).not.toEqual(["hooks/hook-entry.ts", "scripts/context-io.ts"]);
+    expect(
+      deriveImplementingFiles(root, ["scripts/seeded-third-reader.ts"]),
+      "a reader that REPORTS the shape without refusing it does not implement the discipline",
+    ).toEqual([]);
+  });
+
+  it("CONTROL: a function that refuses a non-regular file but opens BLOCKING is not counted", () => {
+    const root = mkdtempSync(join(ROOT, ".temp", "31-36-parity-blocking-"));
+    tmpRoots.push(root);
+    mkdirSync(join(root, "scripts"), { recursive: true });
+    writeFileSync(
+      join(root, "scripts", "seeded-third-reader.ts"),
+      [
+        'import { openSync, fstatSync, closeSync, constants as fsConstants } from "node:fs";',
+        "export function seededReader(path: string): void {",
+        "  const fd = openSync(path, fsConstants.O_RDONLY);",
+        "  try {",
+        "    const st = fstatSync(fd);",
+        '    if (st.isFile() === false) throw new Error("not a regular file");',
+        "  } finally {",
+        "    closeSync(fd);",
+        "  }",
+        "}",
+        "",
+      ].join("\n"),
+    );
+    expect(
+      deriveImplementingFiles(root, ["scripts/seeded-third-reader.ts"]),
+      "the refusal is not the whole rule: `open(2)` without the non-blocking flag has ALREADY " +
+        "blocked by the time there is a descriptor to stat",
+    ).toEqual([]);
   });
 
   it("a seeded implementation that LOSES its regular-file refusal moves the count 2 -> 1", () => {
@@ -252,6 +546,35 @@ describe("31-27 — the non-blocking read rule has exactly TWO implementations, 
     expect(withoutSeed).toEqual(["scripts/context-io.ts"]);
     // SHOWN RED: with the refusal gone the MEMBERS assertion above does not hold either.
     expect(withoutSeed).not.toEqual(["hooks/hook-entry.ts", "scripts/context-io.ts"]);
+  });
+
+  it("an UNTRACKED third implementation under scripts/ is visible to the derivation", () => {
+    // `WR-32`'s third measurement, now a case. The file is written into the REAL `scripts/` tree,
+    // because the blindness under test is a property of `git ls-files` over the real tree and a
+    // temporary root would not reproduce it. It is removed in a `finally`.
+    const rel = "scripts/31-36-untracked-parity-probe.ts";
+    const abs = join(ROOT, rel);
+    expect(existsSync(abs), "the probe path is occupied — refusing to overwrite it").toBe(false);
+    try {
+      writeFileSync(abs, seededThirdImplementation(REFUSAL_SPELLINGS[0] as RefusalSpelling));
+      // WATCHED RED FOR THE AGREEMENT CASE ABOVE: this is exactly the disagreement it reports.
+      expect(trackedSources(ROOT), "git cannot see an untracked file, which is the point").not.toContain(rel);
+      expect(walkedSources(ROOT), "a real listing sees it").toContain(rel);
+      expect(candidateSources(ROOT), "and the UNION considers it").toContain(rel);
+      const derived = deriveImplementingFiles(ROOT, candidateSources(ROOT));
+      expect(
+        derived.length,
+        `the derived implementing-file set did not move for an untracked third implementation. A ` +
+          `census that cannot see a member has not measured a cardinality. derived=${derived.join(", ")}`,
+      ).toBe(IMPLEMENTING.length + 1);
+      expect(derived).toContain(rel);
+    } finally {
+      rmSync(abs, { force: true });
+    }
+    expect(existsSync(abs), "the probe file survived the case").toBe(false);
+    // AND THE BASELINE DID NOT MOVE: widening what the axis CAN see is not re-baselining what it
+    // DOES see.
+    expect(deriveImplementingFiles(ROOT, candidateSources(ROOT))).toEqual(IMPLEMENTING);
   });
 });
 
