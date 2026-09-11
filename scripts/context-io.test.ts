@@ -12260,9 +12260,21 @@ describe("31-29 — the two workflow sentences are TRUE of the mechanism", () =>
       "the workflow still claims a bare 'destination repository's ledger' lookup, which was the " +
         "sentence CR-20 measured false",
     ).not.toContain("A re-binding first looks in the destination repository's ledger.");
-    expect(text).toContain("derives the destination repository from the destination context store");
-    expect(text).toContain("both halves of the action key on that one answer");
+    // WIDENED BY 31-33 (CR-22 / D-34), not relaxed. `31-29` scoped this sentence to the re-binding
+    // route; round 7 measured the OTHER named route splitting the two halves, so the sentence now
+    // names the property rather than one of its two holders. The clause the case pins moves with it.
+    expect(text).toContain("Each route derives the owning repository from the context store it writes the note into.");
+    // Sentence-cased because the clause was SPLIT: the joined form measured 26 words against WP-03's
+    // 25-word descriptive bound, exactly as 31-29's own two ledger sentences did. The prose was
+    // split rather than the corpus narrowed.
+    expect(text).toContain("Both halves of the action key on that one answer.");
     expect(text).toContain("refused by name before anything is written");
+    // …and the POSITION of the derivation is stated, which is the sentence whose absence let a
+    // correct derivation sit below a return for a whole round.
+    expect(text).toContain("The derivation sits at the route's entry, above every branch that route takes.");
+    expect(text).toContain(
+      "The re-binding route refuses it on every path, including the one that falls through to a new admission.",
+    );
   });
 
   it("the never-holds sentence names the reason the mechanism now supports", () => {
@@ -13139,7 +13151,10 @@ describe("31-33 — CR-24: a skipped entry is named by the condition that is TRU
     }
     mod.render(T, ctx);
     const md = indexOf(ctx);
-    for (const [arm, file] of PLANTS) {
+    // The PLANT's own expected arm is deliberately NOT read in this loop. The property is about the
+    // TABLE — the arm column against the detail column — so introducing the fixture's expectation
+    // here would let a row that agrees with the fixture and contradicts itself pass.
+    for (const [, file] of PLANTS) {
       const detail = detailOf(md, file);
       if (detail === "") continue;
       // THE PROPERTY: the detail in a row is the AUTHORITY's own message, so the arm the row is

@@ -1936,11 +1936,56 @@ file.
   - **It does not authenticate a destination's CONTENTS**, at the same price and bounded by the same
     residual `D-31` already stated for the origin.
   - **The Windows leg of everything above is `R-03`** and remains this phase's standing remainder.
-- **Reversibility: costly.** The entry-level derivation, the moved clause order and the two new
-  residuals become part of the module's exported contract and of three derived axes. Reverting
-  restores a route the round-7 verifier measured splitting a note and its own audit record across
-  two repositories on the ORDINARY path through it, under a workflow sentence stating twice that it
-  cannot happen.
+- **D-34 (3) — the arm set is bound to the authority that raises the conditions.** `CR-24` and the
+  Skipped-entries finding. `D-31 (3)` put the condition on the error so a caller could name its own
+  clause WITHOUT re-deriving the fact; `readRawNotesWithSkips` — the caller `IN-14` was raised
+  about — discarded the discriminant and hand-labelled every catch `not-a-regular-file`. Reproduced
+  against the committed `.js`: an EACCES regular file, a FIFO and an 8,388,609-byte REGULAR file all
+  rendered under one arm, and the third row's own detail text ("It IS a regular file; what
+  disqualifies it is its size and nothing else") contradicted the arm it was filed under — on the
+  ONE artefact a human triaging an admitted-then-unreadable note reads. `READ_POSITION_CONDITIONS`
+  is a runtime constant now, `ReadPositionCondition` is derived FROM it, and `NOTE_SKIP_ARMS`
+  SPREADS it: `["unparseable", "unopenable", "not-a-regular-file", "above-ceiling", "vanished"]`.
+  The catch reads the arm from the discriminant with ONE explicitly named fallback. The `vanished`
+  docstring names both conditions that reach it — a concurrent delete AND a dangling symlink's
+  ENOENT on its target.
+- **AND THE SUITE HAD ENCODED THE BUG.** The case titled "the three arms produce three DISTINCT
+  observable results" EXPECTED two of its three plants to share one arm, so its distinctness
+  assertions compared `unparseable` against `not a regular file` and never compared the pair that
+  had actually collapsed. A distinctness claim that omits the colliding pair is the assertion the
+  collision hid behind. The full ordered cross product over all five arms is asserted now, over the
+  ARM CELL rather than the whole row — comparing whole rows PASSES on the pre-fix module, because
+  two conditions under one arm still carry different detail text.
+- **THE WORKFLOW SENTENCE IS CORRECTED BY MOVING THE MECHANISM.** `18-context-compaction.md`'s two
+  ledger sentences — "The append precedes the write, and both steps name the same derived
+  repository. So the destination never holds a human-disposed finding with no ledger line." — are
+  NOT reworded. They were measured false of `admitAndAppend` and are true of it now because D-34 (1)
+  moved the derivation to that route's entry. What the paragraph gains is what it did not yet
+  state: that BOTH named routes derive it, that the derivation sits above every branch, that the
+  re-binding route refuses an ungoverned destination on every path, what the caller's repository
+  argument answers, and — as a disclosure rather than a guarantee — where an ordinary admission
+  carrying no human disposition still records itself. Every changed clause carries a row in
+  `docs/audit/29-style-dispositions/31-33.md`.
+- **AMENDMENT — D-31's `NOT ESTABLISHED` bullet, corrected rather than left contradicted.** D-31
+  recorded: "It is NOT asked of every other writer's `contextRoot`. `appendNote` still accepts any
+  destination. This is a property of the RE-BINDING route, not of the module." That bullet STANDS
+  as to the DECLINE — `appendNote` still accepts any destination, and `R-31-33-01` records the
+  measured reason (121 call sites) it was not changed. It is AMENDED as to WHERE the re-binding
+  route's own property holds: D-31 left it true of one arm, and D-34 makes it a property of the
+  whole function, established at its entry, with no return between the function's first line and
+  the derivation. The two decisions do not disagree; D-34 narrows what D-31's bullet was actually
+  about.
+- **Reversibility: costly.** The entry-level derivation, the moved clause order, the grown
+  `NOTE_SKIP_ARMS` and the two new residuals become part of the module's exported contract and of
+  four derived axes. `NOTE_SKIP_ARMS` is read by a rendered artefact, so reverting changes
+  `index.md` for any task with a skipped entry — back to a table that points a human at a FIFO when
+  the cause is a permission bit or a size ceiling. Reverting the rest restores a route the round-7
+  verifier measured splitting a note and its own audit record across two repositories on the
+  ORDINARY path through it, under a workflow sentence stating twice that it cannot happen.
+- **Recorded in four places that must agree:** here; in the `promoteAdmitted` entry block, the
+  `NOTE_SKIP_ARMS` docstring and the `WRITE_PATH_RESIDUALS` entries in `scripts/context-io.ts`; in
+  `agent-factory/workflows/18-context-compaction.md`'s ledger paragraph, with its rows in
+  `docs/audit/29-style-dispositions/31-33.md`; and in `31-33-SUMMARY.md`'s key-decisions block.
 
 ### Claude's Discretion
 - Exact runnable file name and the exact wording of the two new loud-skip markers, as long as
