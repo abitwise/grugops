@@ -7896,6 +7896,37 @@ describe("uat-spec-integrity — 31-28 MOVEMENT 1: the corpus's denominator is D
     expect(declaredCorpusRowIds().size, "the corpus runs fewer rows than the documents produce")
       .toBeGreaterThanOrEqual(derivedRowCount);
   });
+
+  // D-33 (4), 2026-09-11. The structural half of the `remove-axis` decision a named human took in
+  // front of plan 31-32. The axis this block used to carry read `31-REVIEW.md` at run time, and
+  // this project REPLACES that document at every gap-closure round rather than appending to it, so
+  // the expected value moved under the test: it went RED at the round-7 base on a commit that
+  // changed zero source bytes. Removing the reading is the decision; THIS case is what stops the
+  // reading from coming back under another name, and it is derived from this file's own syntax tree
+  // rather than by grep over prose, because a comment naming the document is not a read of it.
+  it("D-33 (4): no string literal in this file names `31-REVIEW.md` — the oracle cannot move under the corpus", () => {
+    const ts = hostTypeScript as typeof import("typescript");
+    const src = readFileSync(join(HERE, "uat-spec-integrity.test.ts"), "utf8");
+    const sf = ts.createSourceFile("t.ts", src, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+    const literals: string[] = [];
+    const walk = (n: import("typescript").Node): void => {
+      if (ts.isStringLiteralLike(n)) literals.push(n.text);
+      ts.forEachChild(n, walk);
+    };
+    walk(sf);
+    // The walk's OWN premise, asserted before the conclusion: a walk that found no string literal
+    // at all would make the absence below vacuously true.
+    expect(literals.length, "the walk found no string literal in this file — the derivation is wrong")
+      .toBeGreaterThan(0);
+    // The banned name is ASSEMBLED rather than written, for the one reason that matters: a case
+    // that spelled it whole would carry the very literal it refuses and could never pass.
+    const rewrittenReviewDoc = ["31", "REVIEW.md"].join("-");
+    expect(
+      literals.filter((l) => l === rewrittenReviewDoc),
+      `a string literal naming ${rewrittenReviewDoc} survives in this file — an oracle that reads a ` +
+        "per-round-rewritten planning artifact is an oracle that moves under the test",
+    ).toEqual([]);
+  });
 });
 
 /**
