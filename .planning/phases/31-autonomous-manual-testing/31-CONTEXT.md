@@ -2964,3 +2964,67 @@ file.
 - **Recorded in four places that must agree:** here; in `scripts/context-io.ts` (the register's own
   block and its three entries); in `scripts/context-io-writer-set.test.ts`'s PART SIX-J; and in
   `31-40-SUMMARY.md`'s key-decisions block.
+
+#### Gap-closure decision — D-41 (2026-09-13, gap-closure round 9, wave 10, plan 31-41)
+
+- **The write path's residual dispositions, bound to `WRITE_PATH_RESIDUALS` in both directions and
+  watched failing in both directions.** The two-sided equality this register has carried since
+  `31-29` asks whether every member is DISPOSITIONED. It never asked whether any member is TRUE,
+  which is how `R-31-33-02` came to publish a mechanism that left the tree in `31-39` and stayed
+  published through two rounds. A third side is added: one PROBE per member, taking a reading at run
+  time, with the reading asserted to agree with the fact the member's own text states, and the
+  pairing itself bound in both directions with a cardinality.
+  - `R-31-21-01` — `atomicWrite`'s `writeFileSync` is a blocking-capable call this module still
+    makes, and its destination carries a random UUID no caller can pre-occupy. ACCEPT by design.
+    Probe: the call and the replacing `renameSync` are read out of the function's own body.
+  - `R-31-21-02` — a non-regular file planted inside a `notes/` directory is SKIPPED by the walk
+    rather than thrown on, and the skip is now a REPORTED one. Probe: a directory planted at a
+    `.md` position inside `notes/`; the reader returns the real note and does not throw.
+  - `R-31-21-03` — plan `31-21`'s own premise was measured FALSE and CLOSED in the same round.
+    Probe: the GOV-02 ledger position occupied by something that is not a regular file; the
+    admission is refused in bounded time, naming the canonical form, with nothing written.
+  - `R-31-21-04` — the write-path derivations are SYNTACTIC; the SCOPE half is closed and the alias
+    and computed-member half is accepted. Probe: the axis resolves calls by identifier and no type
+    checker appears anywhere in it.
+  - `R-31-29-01` — a note already ON DISK above the ceiling is refused by every reader and never
+    deleted or rotated, because the shared verified context is append-only. Probe: an over-ceiling
+    read is refused and the file is still on disk afterwards.
+  - `R-31-33-01` — RE-WORDED into two halves under one id, the id KEPT so every prior citation
+    still resolves. The CLOSED half is the two shapes the original text named, each read in three
+    roots. WHAT REMAINS is the freedom the closure cost: the ledger owner is a PARAMETER now, and a
+    direct caller supplying it explicitly still lands the note in one repository and its record in
+    another — reproduced, not inferred. Bounded by the `31-40` census, which reads that argument
+    position. Its `what_would_force_it_closed` no longer names the unfreeze `31-39` already took.
+  - `R-31-33-02` — RE-WORDED against the mechanism that is in the tree, PER BRANCH. The record
+    follows the STORE on `appendNote`, on both of `admitAndAppend`'s branches and on both of
+    `promoteAdmitted`'s; what still reads `trustedRepoRoot()` is the DIAL, which is `WR-10` working
+    as decided. The measured fact that the two defaults COINCIDE on this box is kept, and the
+    decision that is genuinely open — which repository the no-argument default NAMES — is left
+    exactly as open as it was, with `D-34`'s reason for not taking it inside a gap-closure plan
+    restated rather than re-argued.
+  - `R-31-41-01` — NEW. The refusal set `D-34 (1)`'s clause move WIDENED at `promoteAdmitted`'s
+    fall-through: a destination outside a governed repository was accepted on that path and is
+    refused by name now. The refusal is not re-decided — `D-31`'s REJECTED ALTERNATIVE stands — and
+    what the entry adds is the input set, measured, plus the shared-install answer below.
+  - `R-31-41-02` — NEW, and the converse face of the same clause. `D-39 (3)` SCOPED the
+    unnameable-owner refusal to the retention guard, so under any other `audit_retention` value the
+    same store is WRITTEN with no record anywhere and no refusal. Measured on both sides of the
+    scope. ACCEPT and disclose: nothing lands in the wrong repository because nothing is recorded,
+    and what is left open is that a note can sit in a store this module cannot attribute.
+- **THE SHARED-INSTALL SHAPE IS MEASURED, AND `WR-42`'s REASONING WAS WRONG.** The finding argued
+  that a kit-side store at `~/.grugops/.grugops/context` has no configuration and no version-control
+  marker, so the resolver would answer `null` and every promotion into it would throw, and closed
+  `UNKNOWN - verify`. Driven against a kit home the COMMITTED `install/install.js` created:
+  `copyKit` copies the source's `agent-factory/` tree to `resolve(GRUGOPS_HOME, "agent-factory")`,
+  and that tree carries `config/factory.config.json` — the `in-kit` position of
+  `governanceConfigCandidates` relative to the kit home. The walk remembers it as `nearest`, the
+  home directory ends the walk without answering as a repository, and `nearest` is returned. So the
+  resolver answers the KIT HOME, the anchoring conjunct holds, and a promotion into a kit-side store
+  is ACCEPTED. A control with that one file absent answers `null` and refuses by name, so the
+  positive reading is attributable to the file the installer copies rather than to the walk. Two
+  further readings bound the shape: the installer creates NO context store under either root, and it
+  materializes no `scripts/context-io.js` under the kit home, so `DEFAULT_CONTEXT_ROOT` never names
+  a kit-side store on an installed host. The reachability half is DERIVED from the existing
+  cross-file caller derivation rather than re-implemented: the re-binding route has exactly **one**
+  in-repo caller and it FORWARDS the destination its own caller supplies, so a kit-side destination
+  is expressible and arrives as a new caller rather than as a changed constraint.

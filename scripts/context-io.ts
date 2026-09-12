@@ -2399,12 +2399,30 @@ export const WRITE_PATH_RESIDUALS: readonly WritePathResidual[] = Object.freeze(
   Object.freeze({
     id: "R-31-33-01",
     shape:
-      "Every GOV-02 append this module reaches THROUGH `admit()` is keyed on `admit()`'s one root " +
-      "parameter, which also answers the governance dial. A DIRECT caller that deliberately hands " +
-      "`appendNote` — or `admitAndAppend`'s non-gated branch — a `contextRoot` under one " +
-      "repository and a `repoRoot` under another still lands the note in the first and its record " +
-      "in the second.",
+      "The repository whose audit trail records an admission is a PARAMETER of every write-path " +
+      "entry point. Its DEFAULT is derived from the store the note lands in, so the two halves of " +
+      "one action follow each other with no argument supplied — and a direct caller that supplies " +
+      "that argument EXPLICITLY still lands the note in one repository and its GOV-02 record in " +
+      "another.",
     reason:
+      "TWO HALVES UNDER ONE ID, EACH WITH ITS OWN MEASUREMENT (plan 31-41, WR-39's class). The id " +
+      "is KEPT rather than retired because prior documents, summaries and two cases cite it, and " +
+      "renaming it would orphan those citations. " +
+      "THE CLOSED HALF. The two shapes this entry's ORIGINAL text named are closed, each read off " +
+      "disk in three roots rather than argued: `appendNote(store = HOME, dial = ELSEWHERE)` lands " +
+      "`{notes:1, ledger:1}` in HOME and `{notes:0, ledger:ABSENT}` in ELSEWHERE, and " +
+      "`admitAndAppend`'s non-gated branch reads the same way. " +
+      "WHAT REMAINS, WITH ITS OWN REPRODUCTION. Separating the dial from the record is what closed " +
+      "those two, and it COST a new degree of freedom: `appendNote` grew a seventh parameter and " +
+      "`admit()` a fifth, and a parameter is a value a caller may supply. Measured on this tree: " +
+      "`appendNote(store = H2, dial = H2, ledgerOwner = actionOwnerRoot(E2))` lands `{notes:1, " +
+      "ledger:ABSENT}` in H2 and `{notes:0, ledger:1}` in E2. The freedom is not silent — the " +
+      "`31-40` census reads the ledger argument position and a new site supplying it divergently " +
+      "must earn a `ROOT_DIVERGENCE_DISPOSITIONS` entry — but it is a freedom, and it is named here " +
+      "rather than inherited by implication from the closed half. " +
+      "DISPOSITION (plan 31-41): the DEFAULT-SPLIT half is CLOSED; the EXPLICIT-ARGUMENT half is " +
+      "accepted, bounded by the census that enumerates the sites that could exhibit it. " +
+      "THE CLOSURE ITSELF, AS PLAN 31-39 RECORDED IT: " +
       "CLOSED by plan 31-39 (CR-27 / D-39), and the closure is recorded here rather than left as a " +
       "register entry that over-states a boundary the module no longer has. `admit()` was " +
       "DELIBERATELY UNFROZEN under the dated human decision D-39 and given a ledger-owner parameter " +
@@ -2430,34 +2448,130 @@ export const WRITE_PATH_RESIDUALS: readonly WritePathResidual[] = Object.freeze(
       "DISPOSITION (plan 31-33): accept and disclose, with the cost stated rather than the finding " +
       "declared closed past the coordinate the mechanism actually reaches.",
     what_would_force_it_closed:
-      "A deliberate unfreeze of `admit()` that gives it a ledger-root parameter DISTINCT from its " +
-      "governance-dial root, re-baselining `ADMIT_FROZEN_SHA256` with the reason written at the " +
-      "freeze — the same shape the freeze has been re-based under five times before — so the " +
-      "record can follow the derived root while the dial stays where each caller aims it.",
+      "The criterion this field named — a deliberate unfreeze giving `admit()` a ledger root " +
+      "distinct from its dial root — has been MET, by plan 31-39, and a field that keeps naming a " +
+      "met criterion states no open question. The criterion for the half that REMAINS is different " +
+      "and is not met: removing the ledger-owner PARAMETER from `appendNote` entirely, so its one " +
+      "in-module caller cannot name a repository its own store does not derive. That is expressible " +
+      "— `promoteAdmitted`'s fall-through passes `actionOwnerRoot(to)` at a position whose default " +
+      "is already `actionOwnerRoot(contextRoot)` over the same `to`, so the argument is redundant " +
+      "THERE — and it is not expressible at `admit()`, where `admitAndAppend`'s non-gated branch " +
+      "genuinely needs a ledger owner its dial root does not answer. A signature change to a " +
+      "byte-frozen authority is a dated decision, not a gap-closure edit.",
   }),
   Object.freeze({
     id: "R-31-33-02",
     shape:
-      "With NO arguments, the note lands in `DEFAULT_CONTEXT_ROOT` — the KIT's own store " +
-      "(`join(ROOT, \".grugops\", \"context\")`) — while the GOV-02 event lands under " +
-      "`trustedRepoRoot()`, the HOST repository.",
+      "With NO arguments, the note and its GOV-02 record both land in `DEFAULT_CONTEXT_ROOT`'s own " +
+      "repository — the KIT's (`join(ROOT, \".grugops\", \"context\")`) — while the governance DIAL " +
+      "that decides whether the note may land at all is read from `trustedRepoRoot()`, the HOST " +
+      "repository. One write, two repositories: the one that adjudicates it and the one that holds " +
+      "it.",
     reason:
-      "CR-22's fourth position, MEASURED on this tree and recorded rather than claimed closed. On " +
-      "this box the kit IS the host repository, so both defaults resolve to one directory and the " +
-      "split is NOT observable here; under the shipped shared-install model (`~/.grugops` kit + " +
-      "per-repo state) they are different directories and the two halves diverge. It is not closed " +
-      "inside plan 31-33 because closing it means DECIDING which repository the default names, and " +
+      "CR-22's fourth position, RE-STATED PER BRANCH against the post-31-39 tree (plan 31-41, " +
+      "WR-39). THE PUBLISHED TEXT WAS MEASURED FALSE OF THE MECHANISM and is corrected here rather " +
+      "than left standing: it said the GOV-02 event lands under `trustedRepoRoot()`. That was true " +
+      "of the pre-31-39 program. It is not true of this one, on any branch. " +
+      "PER BRANCH, WITH NO ARGUMENTS SUPPLIED: `appendNote` defaults its ledger owner to " +
+      "`actionOwnerRoot(contextRoot)`, so the record follows the STORE. `admitAndAppend` derives " +
+      "one `actionOwner` at its entry and hands it to BOTH branches — the gated branch consumes it " +
+      "at its own retention guard, the non-gated branch hands it to `admit()` as that authority's " +
+      "ledger owner — so both follow the STORE too. `promoteAdmitted` derives the destination's " +
+      "owner above every branch, including the fall-through. What still reads `trustedRepoRoot()` " +
+      "on every one of those paths is the DIAL, and that is `WR-10` working as decided rather than " +
+      "a defect. " +
+      "THE MEASURED FACT ABOUT THIS BOX IS KEPT: here the kit IS the host repository, so " +
+      "`governanceRootOf(DEFAULT_CONTEXT_ROOT)` and `trustedRepoRoot()` coincide and the split is " +
+      "NOT observable; under the shipped shared-install model (`~/.grugops` kit + per-repo state) " +
+      "they are different directories and the dial and the write diverge. " +
+      "WHAT IS STILL OPEN IS THE SAME DECISION IT ALWAYS WAS, and it is not closed inside plan " +
+      "31-33 or since, because closing it means DECIDING which repository the default names, and " +
       "either answer reverses a prior decision that has a written reason: deriving `repoRoot` from " +
       "the kit store reverses `WR-10`, which made the host repository the ONE trusted dial answer " +
       "every tier asks, while re-pointing `DEFAULT_CONTEXT_ROOT` at the host repository moves every " +
       "READER's default with it and is a decision about where the shared verified context lives. " +
-      "DISPOSITION (plan 31-33): accept and disclose. A product decision with a written reason is " +
-      "not a bug fix, and taking it silently inside a gap-closure plan is the move this phase " +
-      "forbids.",
+      "DISPOSITION (plan 31-41): accept and disclose, with the mechanism re-stated. A product " +
+      "decision with a written reason is not a bug fix, and taking it silently inside a gap-closure " +
+      "plan is the move this phase forbids.",
     what_would_force_it_closed:
       "A dated decision naming ONE repository as the default owner of the shared verified context, " +
       "applied to the readers' defaults and the writers' in the same change, with the `WR-10` dial " +
       "answer restated against it.",
+  }),
+  Object.freeze({
+    id: "R-31-41-01",
+    shape:
+      "Moving the destination decline above `promoteAdmitted`'s human-stamp fall-through WIDENED " +
+      "the refused input set. A destination outside a governed repository was ACCEPTED on that " +
+      "path before plan 31-33 and is refused by name now — an input set that moved, not a clause " +
+      "that was reordered.",
+    reason:
+      "PUBLISHED BECAUSE THE ROUND THAT WIDENED IT RECORDED THE CONSEQUENCE EVERYWHERE BUT HERE " +
+      "(plan 31-41, WR-42). Round 7's own fixtures re-staged several cases with the note that a " +
+      "bare directory is now refused by name, which is evidence the ACCEPTED-INPUT set moved rather " +
+      "than the clause order — and no register member said so, so a later round reading the " +
+      "refusal cold would meet it as a false refusal. " +
+      "THE REFUSAL ITSELF IS NOT RE-DECIDED HERE. It is `D-31`'s own named decline, moved above the " +
+      "fall-through by `D-34 (1)`; `D-31`'s REJECTED ALTERNATIVE stands, because leaving an " +
+      "unanchored destination to get no audit record would make a workflow sentence true by " +
+      "weakening the guarantee it describes. What this entry adds is the INPUT SET, measured: a " +
+      "bare directory and a store-SHAPED directory outside every governed repository are both " +
+      "declined `destination-outside-governed-store` at the fall-through. " +
+      "THE SHARED-INSTALL SHAPE IS MEASURED RATHER THAN REASONED ABOUT, and the reasoning it " +
+      "replaces was WRONG. `WR-42` argued that a kit-side store at `~/.grugops/.grugops/context` " +
+      "has no configuration and no version-control marker, so the resolver would answer `null` and " +
+      "every promotion into it would throw, and closed `UNKNOWN - verify`. Driven against a kit " +
+      "home the COMMITTED `install/install.js` created: `copyKit` copies the source's " +
+      "`agent-factory/` tree to `resolve(GRUGOPS_HOME, \"agent-factory\")`, and that tree carries " +
+      "`config/factory.config.json` — which relative to the kit home is the `in-kit` position of " +
+      "`governanceConfigCandidates`. The upward walk remembers it as `nearest`, the home directory " +
+      "ends the walk without answering as a repository, and `nearest` is returned. So the resolver " +
+      "answers the KIT HOME, the root-anchoring conjunct holds, and a promotion into a kit-side " +
+      "store is ACCEPTED. A control with that one file absent answers `null` and refuses by name, " +
+      "so the positive reading is attributable to the file the installer copies and not to the " +
+      "walk. Two further readings bound the shape: the installer creates NO context store under " +
+      "either root, and it materializes no `scripts/context-io.js` under the kit home — so " +
+      "`DEFAULT_CONTEXT_ROOT` never NAMES a kit-side store on an installed host. " +
+      "DISPOSITION (plan 31-41): accept the widened refusal and publish it. The shape most likely " +
+      "to meet it does not meet it, and the shapes that do are ungoverned directories, which is " +
+      "the input the decline exists for.",
+    what_would_force_it_closed:
+      "A shipped flow that promotes into a store whose owning repository this module cannot name — " +
+      "at which point the disposition is an exemption with its own reason or a refusal with a " +
+      "remedy, not a silent widening. The re-binding route's in-repo caller set is derived across " +
+      "the tracked corpus and its one member FORWARDS the destination its own caller supplies, so " +
+      "such a flow arrives as a new caller rather than as a changed constraint.",
+  }),
+  Object.freeze({
+    id: "R-31-41-02",
+    shape:
+      "The unnameable-owner refusal sits at the RETENTION GUARD, so under any `audit_retention` " +
+      "value other than `retained` a note whose store's owning repository cannot be named is " +
+      "WRITTEN rather than refused — with no GOV-02 record anywhere and no refusal.",
+    reason:
+      "THE NEW RESIDUAL THIS ROUND LEAVES, and it is the converse face of `R-31-41-01` rather than " +
+      "a second subject. `D-39 (3)` SCOPED the refusal deliberately, on a reading neither finding " +
+      "document took: a note and a GOV-02 record are two halves of ONE action only when a record is " +
+      "actually written, so under the lean value the action has one half and there are no two " +
+      "halves to split across two repositories. That reading is what let `CR-26` close WITHOUT " +
+      "refusing every ungoverned `contextRoot` — an unscoped refusal `D-34` had already measured at " +
+      "121 `appendNote` and 26 `admitAndAppend` call sites. " +
+      "MEASURED ON THIS TREE, both sides of the scope: `appendNote` into a store-shaped directory " +
+      "outside every governed repository, under `audit_retention: git`, WROTE the note, created no " +
+      "ledger in any root and refused nothing; the identical store under `retained` was REFUSED " +
+      "`destination-outside-governed-store`. " +
+      "WHY IT IS A RESIDUAL AND NOT A DEFECT. Nothing is recorded in the wrong repository, because " +
+      "nothing is recorded. What is left open is narrower and is stated rather than implied: a note " +
+      "can sit in a store this module cannot attribute to a repository, and no surface says so at " +
+      "the time of the write. " +
+      "DISPOSITION (plan 31-41): accept and disclose, with the scope stated as a scope rather than " +
+      "carried inside a decision block nobody reading the register would find.",
+    what_would_force_it_closed:
+      "A decision that the ATTRIBUTION of a store to a repository is a precondition of writing into " +
+      "it at all, independent of whether a record follows — which is the unscoped refusal `D-34` " +
+      "priced and rejected, and would need its own dated decision and that measured cost paid " +
+      "again. A cheaper partial: `render` reporting an unattributable store the way it already " +
+      "reports a skipped entry, which makes the condition legible without moving a refusal.",
   }),
 ]);
 
