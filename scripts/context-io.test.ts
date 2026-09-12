@@ -14395,4 +14395,655 @@ describe("31-39 — CR-26 / CR-27: one owner authority, and a dial root distinct
     expect(message).toContain("UNKNOWN - verify");
     expect({ dest: notesIn39(DEST, TL), trusted: notesIn39(TRUSTED, TL) }).toEqual({ dest: 0, trusted: 0 });
   });
+
+  // ═════════════════════════════════════════════════════════════════════════════════════════════
+  // PLAN 31-39 TASK 3 — THE CROSS PRODUCT OVER EVERY ARM THAT CAN REACH A GOV-02 APPEND.
+  //
+  // WHY A MATRIX AND NOT MORE CASES. Eight consecutive gap-closure rounds of this phase each closed
+  // a Critical in this predicate family and created the next one ONE ARM OVER: a rule installed on
+  // the arm a reproduction happened to walk, while the sibling arm kept the old program. Every one
+  // of those rounds had a green suite. What none of them had was a set of arms DERIVED from the
+  // module rather than typed out, driven at every input that decides the answer, with the arms'
+  // answers compared against EACH OTHER.
+  //
+  // THE ROW SET IS DERIVED, AND ITS CARDINALITY IS ASSERTED. A row is a CALL SITE from which a
+  // GOV-02 append is reachable, attributed to its nearest named enclosing scope. Reachability is the
+  // transitive closure over the module's own call graph, so an arm that reaches the ledger through
+  // two hops is a row exactly as one that calls `appendAuditLedger` directly. A future third route,
+  // or a future third branch inside an existing route, joins this matrix BY EXISTING.
+  //
+  // THE WALK STARTS AT THE SOURCE FILE, NOT AT TOP-LEVEL FUNCTION DECLARATIONS. `WR-27` already
+  // corrected exactly that limitation once in this module's sibling derivation: a walk that only
+  // enumerates `source.statements` cannot see an append inside a class method, an arrow function or
+  // a nested block, and a set that cannot see a member is a set whose completeness claim is about
+  // the walk rather than about the module. The three shapes are seeded as controls below.
+  //
+  // THE TAIL-DELEGATION EXCLUSION IS DELIBERATELY ABSENT HERE, AND A FUTURE READER MUST NOT RE-ADD
+  // IT FOR SYMMETRY. The sibling ORDER axis (`31-21`, in `scripts/context-io-writer-set.test.ts`)
+  // excludes a note write that is the whole expression of a `return`, because such a call returns
+  // before any ledger work in its own function happens — which is correct FOR AN ORDERING QUESTION.
+  // `promoteAdmitted`'s fall-through is exactly that shape, `return appendNote(...)`, and it is the
+  // precise coordinate CR-27 lives at. An axis assembled from another axis's input is this phase's
+  // recorded failure shape; this axis asks a REACHABILITY question and excludes nothing.
+  // ═════════════════════════════════════════════════════════════════════════════════════════════
+
+  const LEDGER_APPEND = "appendAuditLedger";
+
+  interface LedgerArm {
+    /** `${scope}::${callee}#${nth}` — stable across reordering, unique per call site. */
+    readonly key: string;
+    readonly scope: string;
+    readonly callee: string;
+  }
+
+  /** The nearest enclosing scope a reader would NAME this call as living in. */
+  function nearestNamedScope(node: ts.Node): string {
+    let n: ts.Node | undefined = node.parent;
+    while (n) {
+      if (ts.isFunctionDeclaration(n) && n.name) return n.name.text;
+      if (ts.isMethodDeclaration(n) && ts.isIdentifier(n.name)) return n.name.text;
+      if (ts.isFunctionExpression(n) || ts.isArrowFunction(n)) {
+        const p: ts.Node = n.parent;
+        if (ts.isVariableDeclaration(p) && ts.isIdentifier(p.name)) return p.name.text;
+        if (ts.isPropertyAssignment(p) && ts.isIdentifier(p.name)) return p.name.text;
+        if (ts.isPropertyDeclaration(p) && ts.isIdentifier(p.name)) return p.name.text;
+      }
+      n = n.parent;
+    }
+    return "<module>";
+  }
+
+  /** Every call site from which a GOV-02 append is reachable, derived from `source`. */
+  function deriveLedgerArms(source: ts.SourceFile): LedgerArm[] {
+    const callsBy = new Map<string, string[]>();
+    const walk = (node: ts.Node): void => {
+      if (ts.isCallExpression(node) && ts.isIdentifier(node.expression)) {
+        const scope = nearestNamedScope(node);
+        const list = callsBy.get(scope);
+        if (list) list.push(node.expression.text);
+        else callsBy.set(scope, [node.expression.text]);
+      }
+      ts.forEachChild(node, walk);
+    };
+    walk(source);
+    // The transitive closure: a scope reaches the ledger when it calls it, or calls something that
+    // does. Iterated to a fixed point rather than assumed to be one hop deep.
+    const reaching = new Set<string>([LEDGER_APPEND]);
+    for (let changed = true; changed; ) {
+      changed = false;
+      for (const [scope, callees] of callsBy) {
+        if (reaching.has(scope)) continue;
+        if (callees.some((c) => reaching.has(c))) {
+          reaching.add(scope);
+          changed = true;
+        }
+      }
+    }
+    const arms: LedgerArm[] = [];
+    for (const [scope, callees] of callsBy) {
+      const nth = new Map<string, number>();
+      for (const callee of callees) {
+        if (!reaching.has(callee)) continue;
+        const n = (nth.get(callee) ?? 0) + 1;
+        nth.set(callee, n);
+        arms.push({ key: `${scope}::${callee}#${n}`, scope, callee });
+      }
+    }
+    return arms.sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
+  }
+
+  function derivedArms(): LedgerArm[] {
+    return deriveLedgerArms(sourceFile39());
+  }
+
+  /**
+   * The derived cardinality, MEASURED on 2026-09-12 and moved with a reason, never bumped.
+   *
+   * Seven call sites reach a GOV-02 append: `admit`'s own `appendAuditLedger`; `appendNote`'s call
+   * to `admit`; `admitAndAppend`'s gated `appendAuditLedger` and its non-gated `admit`;
+   * `promoteAdmitted`'s gated `appendAuditLedger` and its fall-through `appendNote`; and the CLI
+   * `admit` verb's module-level call.
+   */
+  const EXPECTED_LEDGER_ARM_COUNT = 7;
+
+
+  type StoreShape = "governed" | "ungoverned";
+  type Retention = "retained" | "git";
+  type Disposition = "wrote" | "refused";
+
+  interface CellWorld {
+    readonly store: string;
+    readonly dial: Root39;
+    /** Every root the cell created, so a reading can never be taken from one root alone. */
+    readonly roots: Record<string, Root39>;
+  }
+
+  interface ArmDriver {
+    /** The dial value this arm needs in order to REACH its own call site at all. */
+    readonly humanAdmission: string;
+    /** Drive the arm with the input it exists to serve. */
+    readonly legitimate: (w: CellWorld, task: string) => Disposition;
+    /** Drive the arm with an input it must refuse for a reason unrelated to the owner rule. */
+    readonly attack: (w: CellWorld, task: string) => Disposition;
+  }
+
+  /**
+   * One cell's world: a dial root carrying the row's dial and the cell's retention, and a store of
+   * the cell's SHAPE — either inside that dial root (governed) or under no nameable repository.
+   */
+  function cellWorld(prefix: string, dial: string, retention: Retention, shape: StoreShape): CellWorld {
+    const dialRoot = governed39(prefix + "dial-", dial, retention);
+    if (shape === "governed") {
+      return { store: dialRoot.store, dial: dialRoot, roots: { DIAL: dialRoot } };
+    }
+    const ungov = ungoverned39(prefix + "ungov-");
+    return { store: ungov.store, dial: dialRoot, roots: { DIAL: dialRoot, UNGOV: ungov } };
+  }
+
+  const gatedRoutineFinding = (): Parameters<typeof mod.appendNote>[1] =>
+    ({
+      kind: "finding", by: "qe", at: "2026-09-12T00:00:00.000Z",
+      verified_by: "human:alice", confidence: "high", refs: [], supersedes: null,
+    }) as Parameters<typeof mod.appendNote>[1];
+
+  /** A note whose §14-gate stamp names a run no live green verdict certifies — refused by D-01. */
+  const fabricatedStamp = (): Parameters<typeof mod.appendNote>[1] =>
+    ({
+      kind: "finding", by: "qe", at: "2026-09-12T00:00:00.000Z",
+      verified_by: "§14-gate#no-such-gate-run", confidence: "high", refs: [], supersedes: null,
+    }) as Parameters<typeof mod.appendNote>[1];
+
+  function ranAndWrote(fn: () => unknown): Disposition {
+    try {
+      return fn() === null ? "refused" : "wrote";
+    } catch {
+      return "refused";
+    }
+  }
+
+  const noteTextOf = (note: Parameters<typeof mod.appendNote>[1], body: string): string => {
+    const n = note as unknown as Record<string, string>;
+    return [
+      "---", `kind: ${n.kind}`, `by: ${n.by}`, `at: ${n.at}`,
+      `verified_by: ${n.verified_by}`, `confidence: ${n.confidence}`, "refs:", "supersedes: ",
+      "---", "", body, "",
+    ].join("\n");
+  };
+
+  /**
+   * ONE DRIVER PER DERIVED ARM. The key set is asserted EQUAL to the derived set before any cell
+   * runs, so an arm with no driver is a reader-legible failure rather than a loop that skips it.
+   */
+  const ARM_DRIVERS: Readonly<Record<string, ArmDriver>> = Object.freeze({
+    "admit::appendAuditLedger#1": {
+      humanAdmission: "off",
+      legitimate: (w, task) =>
+        mod.admit(task, noteTextOf(unstamped39(), "a body"), w.store, w.dial.root, mod.actionOwnerRoot(w.store))
+          .length === 0
+          ? "wrote"
+          : "refused",
+      attack: (w, task) =>
+        mod.admit(task, noteTextOf(fabricatedStamp(), "a body"), w.store, w.dial.root, mod.actionOwnerRoot(w.store))
+          .length === 0
+          ? "wrote"
+          : "refused",
+    },
+    "appendNote::admit#1": {
+      humanAdmission: "off",
+      legitimate: (w, task) =>
+        ranAndWrote(() => mod.appendNote(task, unstamped39(), "a body", w.store, undefined, w.dial.root)),
+      attack: (w, task) =>
+        ranAndWrote(() => mod.appendNote(task, fabricatedStamp(), "a body", w.store, undefined, w.dial.root)),
+    },
+    "admitAndAppend::appendAuditLedger#1": {
+      // `all` gates every finding, so the GATED branch — the one holding this call site — is the
+      // branch a finding takes.
+      humanAdmission: "all",
+      legitimate: (w, task) =>
+        ranAndWrote(() => mod.admitAndAppend(task, gatedRoutineFinding(), "a body", w.store, w.dial.root).id),
+      attack: (w, task) =>
+        ranAndWrote(() =>
+          mod.admitAndAppend(
+            task,
+            { ...(gatedRoutineFinding() as object), verified_by: "human:" } as Parameters<typeof mod.appendNote>[1],
+            "a body",
+            w.store,
+            w.dial.root,
+          ).id,
+        ),
+    },
+    "admitAndAppend::admit#1": {
+      // `off` gates nothing, so a note takes the NON-GATED branch and reaches the authority.
+      humanAdmission: "off",
+      legitimate: (w, task) =>
+        ranAndWrote(() => mod.admitAndAppend(task, unstamped39(), "a body", w.store, w.dial.root).id),
+      attack: (w, task) =>
+        ranAndWrote(() => mod.admitAndAppend(task, fabricatedStamp(), "a body", w.store, w.dial.root).id),
+    },
+    "promoteAdmitted::appendAuditLedger#1": {
+      // The re-binding arm: a human-disposed note the destination's dial gates, proven against a
+      // real origin record.
+      humanAdmission: "all",
+      legitimate: (w, task) => {
+        const origin = governed39("p31-39-mx-origin-", "all", "git");
+        const note = gatedRoutineFinding();
+        const sourceId = mod.appendNote(task, note, "a body", origin.store, undefined, origin.root);
+        return ranAndWrote(() =>
+          mod.promoteAdmitted(task, sourceId, note, "a body", origin.store, w.store, w.dial.root),
+        );
+      },
+      attack: (w, task) => {
+        // A re-binding naming an origin id no origin record carries — the proof's left operand is
+        // absent, which the route refuses for a reason that is not the owner rule.
+        const origin = governed39("p31-39-mx-origin-atk-", "all", "git");
+        return ranAndWrote(() =>
+          mod.promoteAdmitted(task, "no-such-origin-id", gatedRoutineFinding(), "a body", origin.store, w.store, w.dial.root),
+        );
+      },
+    },
+    "promoteAdmitted::appendNote#1": {
+      // The fall-through: a note carrying NO human disposition is not this route's business and
+      // takes the full-admission route. This is the coordinate CR-27 lived at.
+      humanAdmission: "off",
+      legitimate: (w, task) =>
+        ranAndWrote(() =>
+          mod.promoteAdmitted(task, "irrelevant-source-id", unstamped39(), "a body", "irrelevant-from", w.store, w.dial.root),
+        ),
+      attack: (w, task) =>
+        ranAndWrote(() =>
+          mod.promoteAdmitted(task, "irrelevant-source-id", fabricatedStamp(), "a body", "irrelevant-from", w.store, w.dial.root),
+        ),
+    },
+  });
+
+  /**
+   * The arms whose cells are DISPOSITIONED rather than driven, each with a POSITIVE parsed-source
+   * proof of the impossibility. A silence, an `it.skip` and a quietly absent key are the same thing.
+   */
+  const ARM_DISPOSITIONS: Readonly<Record<string, { reason: string; prove: () => void }>> = Object.freeze({
+    "<module>::admit#1": {
+      reason:
+        "the CLI `admit` verb CANNOT NAME TWO REPOSITORIES, by construction, so no cell of this " +
+        "matrix is expressible on it. It derives one local from `trustedRepoRoot()` and passes that " +
+        "same local as BOTH the context store's base and the dial root — which is plan 30-11's own " +
+        "fix (`RA2-1`): the governance root is deliberately not an argument on the surface the four " +
+        "non-Claude-Code CLIs use. A store shape and a dial root that disagree is the input this " +
+        "matrix varies, and this route accepts no input that can express it.",
+      prove: () => {
+        const source = sourceFile39();
+        let found = false;
+        const walk = (node: ts.Node): void => {
+          if (
+            ts.isCallExpression(node) &&
+            ts.isIdentifier(node.expression) &&
+            node.expression.text === "admit" &&
+            nearestNamedScope(node) === "<module>"
+          ) {
+            found = true;
+            const args = node.arguments.map((a) => a.getText(source).replace(/\s+/g, " "));
+            expect(args.length, "the CLI admit call's arity moved").toBeGreaterThanOrEqual(4);
+            // POSITIVE: the store argument is BUILT FROM the same local the dial argument IS.
+            expect(
+              args[2],
+              "the CLI's context store is no longer derived from the same local as its dial root, " +
+                "so this route CAN now name two repositories and owes every cell a driven row",
+            ).toContain("admitRoot");
+            expect(args[3], "the CLI's dial root is no longer that local").toBe("admitRoot");
+          }
+          ts.forEachChild(node, walk);
+        };
+        walk(source);
+        expect(found, "PREMISE: no module-level admit() call was found, so this disposition names nothing").toBe(true);
+        // …and the local is the trusted answer, not something a caller supplies.
+        expect(readFileSync(CONTEXT_IO_TS, "utf8")).toContain("const admitRoot = trustedRepoRoot();");
+      },
+    },
+  });
+
+
+  /**
+   * THE PERMITTED ASYMMETRIES, WITH THEIR REASONS, READ FROM HERE AND NEVER FROM A LITERAL IN A CASE.
+   *
+   * The union assertion below compares the arms' dispositions for the IDENTICAL input shape and
+   * requires them to agree. Where two arms legitimately differ, the difference is recorded HERE with
+   * the decision that made it — so WIDENING an asymmetry costs an edit to this register, which a
+   * reviewer meets, rather than a quietly relaxed comparison inside a case.
+   */
+  const ARM_ASYMMETRY_REGISTER: Readonly<Record<string, string>> = Object.freeze({
+    "promoteAdmitted::appendAuditLedger#1|ungoverned|git":
+      "STRICTER BY A DECIDED MARGIN (D-31, restated by D-39). The re-binding route refuses an " +
+      "unnameable destination UNCONDITIONALLY, including under the lean retention value where no " +
+      "record would be written at all. That is not the bookkeeping question the owner rule answers; " +
+      "it is a TRUST question — carrying a human disposition across a repository boundary into a " +
+      "store whose audit trail cannot be named is a repudiation waiting to be discovered, and D-31 " +
+      "rejected `promote anyway and record nothing` as making the workflow's guarantee true by " +
+      "weakening it. The other arms admit here because the action has only one half.",
+    "promoteAdmitted::appendNote#1|ungoverned|git":
+      "The same decided margin as the gated arm above, on the same route: the destination clause is " +
+      "established at the function's ENTRY, above every branch (D-34 (1)), so the fall-through " +
+      "inherits the unconditional refusal. That entry-level property is itself the fix CR-22 " +
+      "required, and an exemption for this branch would re-open it.",
+  });
+
+  const SHAPES: readonly StoreShape[] = ["governed", "ungoverned"];
+  const RETENTIONS: readonly Retention[] = ["retained", "git"];
+
+  describe("31-39 Task 3 — the derived cross product: every arm, both store shapes, both retention values", () => {
+    it("PREMISE: the derivation found the module, its call graph, and at least one ledger-reaching arm", () => {
+      const source = sourceFile39();
+      expect(source.statements.length, "PREMISE: the parse yielded no statements at all").toBeGreaterThan(0);
+      expect(
+        derivedArms().length,
+        "PREMISE: ZERO ledger-reaching call sites were derived. Either nothing in this module can " +
+          "reach a GOV-02 append, or the walk stopped matching the shape those calls take — and " +
+          "every claim below would be vacuously true of an empty set",
+      ).toBeGreaterThan(0);
+    });
+
+    it("the derived arm set has the expected CARDINALITY", () => {
+      expect(
+        derivedArms().length,
+        "a call site from which a GOV-02 append is reachable was ADDED to or REMOVED from this " +
+          "module. That is a new arm on which the one-repository-per-action rule must hold, and it " +
+          "owes this matrix a driven row or a dispositioned one — it is a decision with a written " +
+          "reason, never a bumped constant. Eight consecutive rounds of this phase each closed this " +
+          "family's Critical on one arm and created the next one on the arm beside it",
+      ).toBe(EXPECTED_LEDGER_ARM_COUNT);
+    });
+
+    it("every derived arm has either a driver or a disposition, in BOTH directions", () => {
+      const derived = derivedArms().map((a) => a.key).sort();
+      const covered = [...Object.keys(ARM_DRIVERS), ...Object.keys(ARM_DISPOSITIONS)].sort();
+      expect(
+        covered,
+        "a derived arm has no driver and no disposition (or a driver names an arm the module no " +
+          "longer has). The set this matrix reasons over is the DERIVED one in both directions",
+      ).toEqual(derived);
+    });
+
+    it("the derivation's WALK starts at the source file: a seeded append in an arrow, a class method and a nested block each moves the count by one", () => {
+      // THE SCOPE LIMITATION `WR-27` CORRECTED ONCE ALREADY, ASSERTED RATHER THAN AVOIDED. A walk
+      // over `source.statements` alone cannot see any of these three, and would report the same
+      // count for all four sources — which is a completeness claim about the walk, not the module.
+      const base = readFileSync(CONTEXT_IO_TS, "utf8");
+      const baseline = deriveLedgerArms(
+        ts.createSourceFile("context-io.ts", base, ts.ScriptTarget.Latest, true),
+      ).length;
+      expect(baseline, "PREMISE: the baseline derivation is empty").toBeGreaterThan(0);
+      const seeds: Readonly<Record<string, string>> = {
+        "an ARROW FUNCTION": `function seededArrowHost(): void {\n  const f = () => { ${LEDGER_APPEND}("", {}, false, ""); };\n  void f;\n}\n`,
+        "a CLASS METHOD": `class SeededHost {\n  seededMethod(): void { ${LEDGER_APPEND}("", {}, false, ""); }\n}\nvoid SeededHost;\n`,
+        "a NESTED BLOCK": `function seededBlockHost(): void {\n  { { ${LEDGER_APPEND}("", {}, false, ""); } }\n}\n`,
+      };
+      for (const [label, seed] of Object.entries(seeds)) {
+        const seeded = deriveLedgerArms(
+          ts.createSourceFile("context-io.ts", base + "\n" + seed, ts.ScriptTarget.Latest, true),
+        ).length;
+        expect(
+          seeded - baseline,
+          `a reachable GOV-02 append seeded inside ${label} did not move the derived arm count by ` +
+            `exactly one, so this derivation cannot see that shape and its completeness claim is ` +
+            `about the walk rather than about the module`,
+        ).toBe(1);
+      }
+    });
+
+    it("the tail-delegation exclusion is ABSENT, and the fall-through is therefore IN the set", () => {
+      // The coordinate CR-27 lived at is `return appendNote(...)` — the whole expression of a
+      // return. The sibling ORDER axis excludes that shape deliberately and correctly for ITS
+      // question; inheriting the exclusion here would delete the row this matrix most needs.
+      expect(
+        derivedArms().map((a) => a.key),
+        "the fall-through arm is not in the derived set. If a tail-delegation exclusion was added " +
+          "for symmetry with the order axis, it deleted the exact coordinate CR-27 was filed at",
+      ).toContain("promoteAdmitted::appendNote#1");
+    });
+
+    for (const dispositionKey of Object.keys(ARM_DISPOSITIONS)) {
+      it(`${dispositionKey}: DISPOSITIONED, and the impossibility is PROVEN off the parsed source`, () => {
+        expect(derivedArms().map((a) => a.key)).toContain(dispositionKey);
+        ARM_DISPOSITIONS[dispositionKey].prove();
+      });
+    }
+  });
+
+
+  /** Every reading a cell takes: the disposition, and the note/ledger counts in EVERY root it made. */
+  interface CellReading {
+    readonly disposition: Disposition;
+    readonly census: string;
+    readonly world: CellWorld;
+    readonly task: string;
+  }
+
+  function runCell(armKey: string, shape: StoreShape, retention: Retention, input: "legitimate" | "attack"): CellReading {
+    const driver = ARM_DRIVERS[armKey];
+    const task = `T-MX-${armKey.replace(/[^A-Za-z0-9]/g, "")}-${shape}-${retention}-${input}`.slice(0, 60);
+    const world = cellWorld(
+      `p31-39-mx-${shape}-${retention}-${input}-`,
+      driver.humanAdmission,
+      retention,
+      shape,
+    );
+    const disposition = driver[input](world, task);
+    // EVERY root the cell created is read, never only the one the cell expects: a probe that reads
+    // one root cannot see a split, which is the defect this whole matrix exists to catch.
+    const census = Object.entries(world.roots)
+      .map(([n, g]) => `${n} notes=${notesIn39(g, task)} ledger=${ledgerIn39(g) ?? "ABSENT"}`)
+      .join(" | ");
+    return { disposition, census, world, task };
+  }
+
+  describe("31-39 Task 3 — every cell, driven twice, read in every root", () => {
+    for (const arm of derivedArms()) {
+      if (!(arm.key in ARM_DRIVERS)) continue;
+      for (const shape of SHAPES) {
+        for (const retention of RETENTIONS) {
+          it(`${arm.key} × ${shape} × ${retention}: the legitimate input and the attack shape both resolve`, () => {
+            const legit = runCell(arm.key, shape, retention, "legitimate");
+            const attack = runCell(arm.key, shape, retention, "attack");
+
+            // THE ATTACK IS ALWAYS REFUSED. Each arm's attack carries a fault unrelated to the owner
+            // rule (a fabricated gate stamp, a malformed disposition, an absent origin record), so a
+            // cell in which it WROTE is a refusal family this fix moved and was not aimed at.
+            expect(
+              attack.disposition,
+              `the attack shape was ADMITTED at ${arm.key} × ${shape} × ${retention}. ` +
+                `census: ${attack.census}`,
+            ).toBe("refused");
+
+            // THE LEGITIMATE INPUT IS NOT ASSUMED REFUSED EITHER. A matrix that only drove attacks
+            // could not tell a fix from a route that refuses everything — the vacuity this phase has
+            // logged. The governed cells must ADMIT; the ungoverned+retained cells must refuse,
+            // which IS the D-39 rule; the ungoverned+lean cells are where the arms may legitimately
+            // disagree, and that disagreement is settled by the union assertion below.
+            if (shape === "governed") {
+              expect(
+                legit.disposition,
+                `the legitimate input was REFUSED at ${arm.key} × ${shape} × ${retention}, which is ` +
+                  `a route that refuses what it exists to serve. census: ${legit.census}`,
+              ).toBe("wrote");
+            } else if (retention === "retained") {
+              expect(
+                legit.disposition,
+                `an unnameable owner was ADMITTED under retained retention at ${arm.key}, so a note ` +
+                  `and its own GOV-02 record are separable across two repositories again. ` +
+                  `census: ${legit.census}`,
+              ).toBe("refused");
+              expect(
+                legit.census,
+                `something was written on a refused call at ${arm.key} × ${shape} × ${retention}`,
+              ).not.toContain("notes=1");
+            }
+
+            // THE CONVERSE, ASSERTED AND NOT INFERRED. A fix that refused everything would pass a
+            // refusal-only matrix, so every cell whose answer is "written" reads the note back OFF
+            // DISK and parses it. `admit()` decides admissibility and writes no note, so its own row
+            // asserts the ledger line instead — the effect that arm actually has.
+            if (legit.disposition === "wrote") {
+              const owner = legit.world.roots.DIAL;
+              if (arm.scope === "admit") {
+                expect(
+                  ledgerIn39(owner),
+                  `${arm.key} reported an admission with no GOV-02 line in the owning repository. ` +
+                    `census: ${legit.census}`,
+                ).toBe(retention === "retained" ? 1 : null);
+              } else {
+                const dir = join(legit.world.store, legit.task, "notes");
+                const files = existsSync(dir) ? readdirSync(dir).filter((f) => f.endsWith(".md")) : [];
+                expect(
+                  files.length,
+                  `${arm.key} reported a write with no note on disk. census: ${legit.census}`,
+                ).toBe(1);
+                expect(
+                  mod.parseNote(readFileSync(join(dir, files[0]), "utf8")),
+                  `${arm.key} wrote bytes that do not parse as a note`,
+                ).not.toBeNull();
+              }
+            }
+          });
+        }
+      }
+    }
+  });
+
+  describe("31-39 Task 3 — the UNION of the arms, compared pairwise for the identical input shape", () => {
+    for (const shape of SHAPES) {
+      for (const retention of RETENTIONS) {
+        it(`${shape} × ${retention}: every arm answers the same way, or the register says why not`, () => {
+          const observed = new Map<string, Disposition>();
+          for (const arm of derivedArms()) {
+            if (!(arm.key in ARM_DRIVERS)) continue;
+            observed.set(arm.key, runCell(arm.key, shape, retention, "legitimate").disposition);
+          }
+          expect(
+            observed.size,
+            "PREMISE: no arm was driven for this shape, so the union below compares nothing",
+          ).toBeGreaterThan(1);
+
+          const keys = [...observed.keys()];
+          for (let i = 0; i < keys.length; i++) {
+            for (let j = i + 1; j < keys.length; j++) {
+              const a = keys[i];
+              const b = keys[j];
+              if (observed.get(a) === observed.get(b)) continue;
+              // THEY DISAGREE. The register must name at least one of them WITH a reason — read
+              // from the register, never from a literal here, so widening the asymmetry costs an
+              // edit a reviewer meets.
+              const reasonA = ARM_ASYMMETRY_REGISTER[`${a}|${shape}|${retention}`];
+              const reasonB = ARM_ASYMMETRY_REGISTER[`${b}|${shape}|${retention}`];
+              const reason = reasonA ?? reasonB;
+              expect(
+                reason,
+                `two arms answer the IDENTICAL input shape differently and no decision says they ` +
+                  `may: ${a} -> ${observed.get(a)} vs ${b} -> ${observed.get(b)} at ${shape} × ` +
+                  `${retention}. That divergence is this phase's recorded failure shape: a rule ` +
+                  `installed on the arm a reproduction walked, while the arm beside it kept the old ` +
+                  `program. Either make them agree, or record the asymmetry with the decision that ` +
+                  `permits it`,
+              ).toBeDefined();
+              expect((reason as string).length, "the permitted asymmetry carries an empty reason").toBeGreaterThan(80);
+            }
+          }
+        });
+      }
+    }
+
+
+    it("every register entry is EXERCISED: the cell it exempts really does disagree with another arm", () => {
+      // A REGISTER ENTRY THAT NOTHING EXERCISES IS A STANDING PERMISSION NOBODY IS USING, and a
+      // standing permission is what the next divergence hides behind. MEASURED rather than argued:
+      // emptying this register turns the `ungoverned × git` union case RED naming
+      // `admit::appendAuditLedger#1 -> wrote vs promoteAdmitted::appendAuditLedger#1 -> refused`,
+      // so the entries below are load-bearing today. This case is what keeps them load-bearing:
+      // an entry whose cell has come to AGREE with every other arm must be deleted, not left
+      // standing as a permission for a future divergence that has nothing to do with it.
+      expect(
+        Object.keys(ARM_ASYMMETRY_REGISTER).length,
+        "PREMISE: the register is empty, so this case asserts nothing",
+      ).toBeGreaterThan(0);
+      for (const key of Object.keys(ARM_ASYMMETRY_REGISTER)) {
+        const [armKey, shape, retention] = key.split("|") as [string, StoreShape, Retention];
+        const mine = runCell(armKey, shape, retention, "legitimate").disposition;
+        const others = derivedArms()
+          .map((a) => a.key)
+          .filter((k) => k !== armKey && k in ARM_DRIVERS)
+          .map((k) => runCell(k, shape, retention, "legitimate").disposition);
+        expect(
+          others.length,
+          `PREMISE: no other arm was driven at ${shape} × ${retention}, so "${key}" cannot be shown ` +
+            `to disagree with anything`,
+        ).toBeGreaterThan(0);
+        expect(
+          others.some((d) => d !== mine),
+          `the register exempts "${key}" but that cell now AGREES with every other arm. A standing ` +
+            `permission nobody exercises is where the next divergence hides — delete the entry`,
+        ).toBe(true);
+      }
+    });
+
+    it("the asymmetry register is not a blanket exemption: every entry names a derived arm and a real cell", () => {
+      const armKeys = new Set(derivedArms().map((a) => a.key));
+      for (const key of Object.keys(ARM_ASYMMETRY_REGISTER)) {
+        const [armKey, shape, retention] = key.split("|");
+        expect(armKeys, `the register exempts "${armKey}", which is not a derived arm`).toContain(armKey);
+        expect(SHAPES as readonly string[]).toContain(shape);
+        expect(RETENTIONS as readonly string[]).toContain(retention);
+      }
+      expect(
+        Object.keys(ARM_ASYMMETRY_REGISTER).length,
+        "every cell of the matrix is exempted, which would make the union assertion vacuous",
+      ).toBeLessThan(Object.keys(ARM_DRIVERS).length * SHAPES.length * RETENTIONS.length);
+    });
+  });
+
+  describe("31-39 Task 3 — the matrix DISCRIMINATES, watched failing against two confirmed mirrors", () => {
+    it("MIRROR 1: restoring the nullish fallback moves admitAndAppend's gated cell from refused to wrote", async () => {
+      const mutant = await mirrorWithReverted(
+        "p31-39-mx-mirror-fallback-",
+        "const actionOwner = actionOwnerRoot(contextRoot);",
+        "const actionOwner = (() => { const r = governanceRootOf(contextRoot); " +
+          "return r === null ? { answered: true, root: repoRoot } : { answered: true, root: r }; })();",
+      );
+      // THE NAMED CELL: `admitAndAppend::appendAuditLedger#1` × ungoverned × retained, whose live
+      // answer the matrix above asserts is `refused`.
+      const world = cellWorld("p31-39-mx-m1-", "all", "retained", "ungoverned");
+      const task = "T-MX-MIRROR1";
+      const live = ranAndWrote(() =>
+        mod.admitAndAppend(task, gatedRoutineFinding(), "a body", world.store, world.dial.root).id,
+      );
+      expect(live, "the live artifact's answer for the named cell moved").toBe("refused");
+      const mirrored = ranAndWrote(() =>
+        mutant.admitAndAppend(task, gatedRoutineFinding(), "a body", world.store, world.dial.root).id,
+      );
+      expect(
+        mirrored,
+        "the mirror answered the named cell the same way the live artifact does, so this matrix " +
+          "would not have caught the fallback returning — it is not discriminating at this cell",
+      ).toBe("wrote");
+    });
+
+    it("MIRROR 2: swapping the dial and ledger arguments back moves the fall-through's D-14 cell from refused to wrote", async () => {
+      const mutant = await mirrorWithReverted(
+        "p31-39-mx-mirror-dial-",
+        "return appendNote(task, note, body, to, undefined, repoRoot, destinationOwner);",
+        "return appendNote(task, note, body, to, undefined, destinationOwner.root);",
+      );
+      const TRUSTED = premise39("TRUSTED", unparseable39("p31-39-mx-m2-trusted-"));
+      const DEST = premise39("DEST", governed39("p31-39-mx-m2-dest-", "off", "retained"));
+      const task = "T-MX-MIRROR2";
+      const live = ranAndWrote(() =>
+        mod.promoteAdmitted(task, "src-id", unstamped39(), "a body", "irrelevant-from", DEST.store, TRUSTED.root),
+      );
+      expect(live, "the live artifact's answer for the named cell moved").toBe("refused");
+      const mirrored = ranAndWrote(() =>
+        mutant.promoteAdmitted(task, "src-id", unstamped39(), "a body", "irrelevant-from", DEST.store, TRUSTED.root),
+      );
+      expect(
+        mirrored,
+        "the mirror answered the named cell the same way the live artifact does, so this matrix " +
+          "would not have caught the dial and the record being collapsed back onto one argument",
+      ).toBe("wrote");
+    });
+  });
 });
