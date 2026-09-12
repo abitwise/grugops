@@ -4290,8 +4290,18 @@ const COMPACTION_WORKFLOW = join(ROOT, "agent-factory", "workflows", "18-context
 /** The heading whose paragraph carries the claim, in one place so both sides agree. */
 const TRACE_UPDATES_HEADING = "## Trace updates";
 
-function traceUpdatesParagraph(): string {
-  const text = readFileSync(COMPACTION_WORKFLOW, "utf8");
+/**
+ * The paragraph, located in ARBITRARY TEXT (31-41).
+ *
+ * PARAMETERIZED SO THE LOCATOR'S SCOPE CAN BE ASSERTED RATHER THAN ASSUMED. A section-anchored
+ * prose reader that searches past its own section adopts an unrelated later block, and this
+ * repository has already measured that defect in a different guard: a fence reader anchored at a
+ * heading and searching to EOF took in a block that belonged to something else. This locator ends
+ * at the next `\n## `, which BOUNDS it — but "it looks bounded" is a reading of the code, and the
+ * case below plants a decoy block carrying route-shaped prose AFTER the section and reads the
+ * answer instead.
+ */
+function traceUpdatesParagraphIn(text: string): string {
   const start = text.indexOf(TRACE_UPDATES_HEADING);
   expect(
     start,
@@ -4301,6 +4311,10 @@ function traceUpdatesParagraph(): string {
   const rest = text.slice(start + TRACE_UPDATES_HEADING.length);
   const end = rest.indexOf("\n## ");
   return end === -1 ? rest : rest.slice(0, end);
+}
+
+function traceUpdatesParagraph(): string {
+  return traceUpdatesParagraphIn(readFileSync(COMPACTION_WORKFLOW, "utf8"));
 }
 
 describe("31-21 — the corrected workflow sentence names exactly the routes the derivation returns", () => {
@@ -4349,6 +4363,106 @@ describe("31-21 — the corrected workflow sentence names exactly the routes the
       paragraph,
       "the paragraph does not disclose that under any other retention value it says nothing",
     ).toContain("any other `audit_retention` value");
+  });
+
+  it("the paragraph states each BRANCH's answer, and asserts no property of every route (31-41)", () => {
+    // WR-40 measured the previous text false at one branch and silent at another, because it stated
+    // a UNIVERSAL: "Each route derives…", "Both halves… key on that one answer", "The derivation
+    // sits at the route's entry, above every branch that route takes". A universal is falsified by
+    // one branch, and two of the four falsified it. The rewrite states each branch's own answer, so
+    // the three sentences that carried the universal must be GONE rather than softened — a hedged
+    // version of a false universal reproduces the finding one adverb over.
+    const paragraph = traceUpdatesParagraph();
+    for (const universal of [
+      "Each route derives the owning repository from the context store it writes the note into.",
+      "Both halves of the action key on that one answer.",
+      "The derivation sits at the route's entry, above every branch that route takes.",
+      "An ordinary admission carrying no human disposition records itself in the repository whose dial admitted it.",
+    ]) {
+      expect(
+        paragraph,
+        `the paragraph still carries a sentence WR-40 measured false or silent at a branch: ` +
+          `"${universal}"`,
+      ).not.toContain(universal);
+    }
+    // …and the four branches each have their own statement, named as the branch rather than as a route.
+    for (const branch of [
+      "Its gated arm writes the note into that store",
+      "Its fall-through carries the same answer into a new admission",
+      "Its gated branch writes the note into that store",
+      "Its non-gated branch hands the same answer to the admission authority",
+    ]) {
+      expect(paragraph, `no statement for the branch: "${branch}"`).toContain(branch);
+    }
+    // Every remaining residual is named INLINE, at the sentence it qualifies, by its id.
+    for (const residual of ["`R-31-33-01`", "`R-31-33-02`", "`R-31-41-01`", "`R-31-41-02`"]) {
+      expect(
+        paragraph,
+        `${residual} is not named in the paragraph, so an agent reading the workflow learns the ` +
+          `boundary only by finding a register`,
+      ).toContain(residual);
+    }
+    // The order guarantee and the over-record asymmetry are carried forward in substance.
+    expect(paragraph).toContain("The append precedes the write on both routes.");
+    expect(paragraph).toContain("So the destination never holds a human-disposed finding with no ledger line.");
+  });
+
+  it("the imperative restatement AGREES with the paragraph: the destination decline has a stop condition", () => {
+    // A document that contradicts itself is the same claim-outruns-mechanism defect at a smaller
+    // scale. The `## Stop conditions` section is the imperative restatement of the rules the
+    // paragraph describes, and it was SILENT about the one decline every path of the re-binding
+    // route now raises — so a reader following only the stop conditions would not know to stop.
+    const text = readFileSync(COMPACTION_WORKFLOW, "utf8");
+    const start = text.indexOf("## Stop conditions");
+    expect(start, "FAIL-CLOSED PREMISE: the stop conditions section was not found").toBeGreaterThan(-1);
+    const rest = text.slice(start + "## Stop conditions".length);
+    const end = rest.indexOf("\n## ");
+    const section = end === -1 ? rest : rest.slice(0, end);
+    expect(section.trim().length, "PREMISE: the stop conditions section is empty").toBeGreaterThan(200);
+    expect(
+      section,
+      "the stop conditions say nothing about a destination that resolves to no governed store, " +
+        "which every path of the re-binding route refuses",
+    ).toContain("The destination does not resolve to a governed store");
+    expect(
+      section,
+      "the stop condition does not carry the scope the paragraph states, so the two disagree about " +
+        "the lean retention value",
+    ).toContain("`R-31-41-02`");
+  });
+
+  it("LOCATOR SCOPE: a decoy block planted AFTER the section does not enter the paragraph (31-41)", () => {
+    // THE SCOPE IS ASSERTED, NOT ASSUMED. A reader anchored at a heading and searching to EOF adopts
+    // an unrelated later block; this locator ends at the next `\n## `, and this case reads that
+    // answer rather than the code. The decoy carries ROUTE-SHAPED prose — a route name and a
+    // residual id — so a locator that over-reached would swallow text the binding above trusts.
+    const live = readFileSync(COMPACTION_WORKFLOW, "utf8");
+    const DECOY = [
+      "",
+      "## Decoy section planted by a test",
+      "",
+      "The someOtherRoute route derives the owning repository from the context store it writes the",
+      "note into. `R-31-99-99` records a boundary that does not exist.",
+      "",
+    ].join("\n");
+    const mirrored = `${live}${DECOY}`;
+    expect(
+      mirrored === live,
+      "PREMISE: the mirror is byte-identical to the live document, so it planted no decoy",
+    ).toBe(false);
+    expect(mirrored, "PREMISE: the decoy text is not in the mirror at all").toContain("someOtherRoute");
+
+    const fromMirror = traceUpdatesParagraphIn(mirrored);
+    expect(
+      fromMirror,
+      "the locator reached PAST its own section and adopted the planted block — the defect this " +
+        "repository has already measured in a different guard, reproduced here",
+    ).not.toContain("someOtherRoute");
+    expect(fromMirror).not.toContain("R-31-99-99");
+    // …and the mirror's paragraph is otherwise the live one, so the case above is about SCOPE and
+    // not about the locator having failed to find anything at all.
+    expect(fromMirror).toBe(traceUpdatesParagraph());
+    expect(fromMirror.trim().length).toBeGreaterThan(200);
   });
 
   it("a mirror of the paragraph with one route name removed FAILS the binding", () => {

@@ -12783,29 +12783,40 @@ describe("31-29 — the two workflow sentences are TRUE of the mechanism", () =>
       "the workflow still claims a bare 'destination repository's ledger' lookup, which was the " +
         "sentence CR-20 measured false",
     ).not.toContain("A re-binding first looks in the destination repository's ledger.");
-    // WIDENED BY 31-33 (CR-22 / D-34), not relaxed. `31-29` scoped this sentence to the re-binding
-    // route; round 7 measured the OTHER named route splitting the two halves, so the sentence now
-    // names the property rather than one of its two holders. The clause the case pins moves with it.
-    expect(text).toContain("Each route derives the owning repository from the context store it writes the note into.");
-    // Sentence-cased because the clause was SPLIT: the joined form measured 26 words against WP-03's
-    // 25-word descriptive bound, exactly as 31-29's own two ledger sentences did. The prose was
-    // split rather than the corpus narrowed.
-    expect(text).toContain("Both halves of the action key on that one answer.");
+    // RE-POINTED BY 31-41 (WR-40 / D-41), DELIBERATELY — and the reason is this case's own subject.
+    //
+    // `31-29` scoped the derivation sentence to the re-binding route. `31-33` WIDENED it into a
+    // property of "each route", and pinned three universals here: `Each route derives the owning
+    // repository from the context store it writes the note into.`, `Both halves of the action key
+    // on that one answer.` and `The derivation sits at the route's entry, above every branch that
+    // route takes.` Round 8 then measured them FALSE at `admitAndAppend`'s gated branch whenever
+    // the store is ungoverned, and FALSE ALWAYS at its non-gated branch.
+    //
+    // A UNIVERSAL IS FALSIFIED BY ONE BRANCH, so the sentences are DELETED rather than softened and
+    // this case pins the PER-BRANCH statements that replace them. The property it exists to assert
+    // is unchanged — the destination's own repository is derived and both halves key on it — and it
+    // is now asserted four times, once per branch, which is the granularity at which it is true.
+    // `scripts/context-io-writer-set.test.ts` asserts the three deleted universals are ABSENT, so
+    // they cannot return without turning that case red.
+    expect(text).toContain("The re-binding route resolves the destination store's owning repository at its entry.");
+    expect(text).toContain("Its gated arm writes the note into that store and the event into that repository's ledger.");
+    expect(text).toContain("The admit-then-persist route resolves its own store's owning repository at its entry.");
+    expect(text).toContain("Its gated branch writes the note into that store and the event into that repository's ledger.");
+    expect(text).toContain("Its non-gated branch hands the same answer to the admission authority");
     expect(text).toContain("refused by name before anything is written");
-    // …and the POSITION of the derivation is stated, which is the sentence whose absence let a
-    // correct derivation sit below a return for a whole round.
-    expect(text).toContain("The derivation sits at the route's entry, above every branch that route takes.");
-    expect(text).toContain(
-      "The re-binding route refuses it on every path, including the one that falls through to a new admission.",
-    );
+    // …and the fall-through — the ORDINARY path, and the branch CR-27 was filed at — states both
+    // its landing answer and its refusal answer, which is what the deleted scope sentence conflated.
+    expect(text).toContain("Its fall-through carries the same answer into a new admission");
+    expect(text).toContain("The same refusal fires on that path.");
   });
 
   it("the never-holds sentence names the reason the mechanism now supports", () => {
-    // Two sentences, because WP-03 bounds a descriptive sentence at 25 words and the joined form
-    // measured 26. Both halves of the REASON survive the split, which is what the case is about.
-    expect(workflow()).toContain(
-      "The append precedes the write, and both steps name the same derived repository.",
-    );
+    // The ORDER half is carried forward unchanged in substance and is what makes the over-record the
+    // only reachable asymmetry. Its second clause — `and both steps name the same derived
+    // repository` — was dropped by 31-41 because each branch above now states that for itself, and a
+    // fact stated once per branch AND again as a summary is a summary that can go stale alone. That
+    // is exactly how the sentence this case's sibling used to pin came to be measured false.
+    expect(workflow()).toContain("The append precedes the write on both routes.");
     expect(workflow()).toContain(
       "So the destination never holds a human-disposed finding with no ledger line.",
     );

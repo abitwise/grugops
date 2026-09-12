@@ -2967,6 +2967,99 @@ file.
 
 #### Gap-closure decision — D-41 (2026-09-13, gap-closure round 9, wave 10, plan 31-41)
 
+- **WHAT FORCED IT.** Three Warnings and one `artifacts:` row, all one shape. `WR-40`: the ledger
+  paragraph of `agent-factory/workflows/18-context-compaction.md` states a UNIVERSAL entry-derivation
+  property — "Each route derives the owning repository from the context store it writes the note
+  into", "Both halves of the action key on that one answer", "The derivation sits at the route's
+  entry, above every branch that route takes" — which round 8 measured FALSE at `admitAndAppend`'s
+  gated branch whenever the store is ungoverned and FALSE ALWAYS at its non-gated branch. `WR-39`:
+  the published residual `R-31-33-02` describes the PRE-`31-39` mechanism, and a residual is the
+  artefact the next round starts from. `WR-42`: moving the destination decline above
+  `promoteAdmitted`'s fall-through WIDENED the refused input set, with no register member for it and
+  the shared-install shape left `UNKNOWN - verify`. The `artifacts:` row asks for the same paragraph.
+  This is the claim-outrunning-the-mechanism shape the phase exists to close, recurring in the very
+  document the phase edited to close it, for the second consecutive round.
+- **D-41 (1) — A CLAIM IS CORRECTED BY MOVING THE MECHANISM WHERE THE MECHANISM CAN MOVE, AND BY
+  STATING IT PER ROUTE AND PER BRANCH WHERE IT CANNOT.** `D-34` established the first half and it
+  stands: `D-31`'s REJECTED ALTERNATIVE — making a workflow sentence true by weakening the guarantee
+  it describes — is still rejected, and nothing here weakens a guarantee. What `D-34` did not state
+  is the second half. A mechanism with four branches cannot be described by a sentence about all
+  four, because one branch falsifies it; round 8 found two that did. The honest form is one statement
+  per branch, and the three universals are DELETED rather than softened, because a hedged version of
+  a false universal reproduces the finding one adverb over.
+- **D-41 (2) — A FOURTH SENTENCE WAS FALSE, AND IT WAS THE DISCLOSURE ITSELF.** `An ordinary
+  admission carrying no human disposition records itself in the repository whose dial admitted it.`
+  was `31-33`'s honest publication of `R-31-33-01` — correct when written, and false the moment
+  `31-39` closed the shape it disclosed. A disclosure is a claim, and it goes stale exactly the way
+  a guarantee does. It is re-pointed at the half that REMAINS rather than deleted, because deleting
+  it would leave the closure reading as total.
+- **D-41 (3) — THE REGISTER GAINS A THIRD SIDE, BECAUSE TWO-SIDEDNESS ASKS THE WRONG QUESTION.** The
+  binding `31-29` installed asserts every member is DISPOSITIONED — a question about two id sets. It
+  never asks whether any member is TRUE, which is why `R-31-33-02` could publish a departed mechanism
+  through two rounds with the binding green, the cardinality asserted and a seeded control passing.
+  One PROBE per member now takes a reading at run time and the reading is asserted to agree with the
+  fact the member's own text states; the pairing is bound in both directions with a cardinality. The
+  two CONVERSE mirrors are added in the same change, because the existing seeded control watched one
+  direction fail for a member that was never real and watched the other direction not at all.
+- **D-41 (4) — THE BINDING CASE'S LOCATOR SCOPE IS ASSERTED RATHER THAN READ.** A section-anchored
+  prose reader that searches past its own section adopts an unrelated later block, and this project
+  measured that defect in a different guard during Phase 29. The locator here ends at the next `##`,
+  which BOUNDS it — and "it looks bounded" is a reading of the code. A decoy block carrying
+  route-shaped prose and a fabricated residual id is planted AFTER the section in a mirror confirmed
+  different from the live file, and the case is shown to read the intended block.
+- **D-41 (5) — THE IMPERATIVE RESTATEMENT IS RECONCILED, AND `## Stop conditions` IS FROZEN, SO EACH
+  ADDED CLAUSE CARRIES A COMPANION.** The section said nothing about the one decline every path of
+  the re-binding route raises, so an agent following only the stop conditions would not know to stop
+  for it. A document silent where its own paragraph speaks is the same defect at a smaller scale. The
+  five added clauses each carry a `companion` cell naming the frozen section and the reason, per
+  `docs/audit/29-style-dispositions/README.md`'s contract — which permits the change and refuses it
+  without the companion.
+- **REJECTED ALTERNATIVES.**
+  - **Softening the three universals rather than deleting them** — REJECTED by name. "Each route
+    generally derives…" is the same claim with an adverb, and the finding would be re-filed against
+    the adverb.
+  - **Deleting `R-31-33-01` and `R-31-33-02` and filing fresh ids** — REJECTED. Prior documents,
+    summaries and cases cite both. A renamed id orphans every citation, and an orphaned citation is
+    how a boundary becomes invisible.
+  - **Recording `R-31-41-01` without measuring the shared-install shape** — REJECTED. The review's
+    own reasoning about that shape was WRONG, and a register entry inheriting it would publish the
+    opposite of the tree's behaviour. `UNKNOWN - verify` is the honest answer when a shape cannot be
+    staged; it is not the honest answer when it can.
+  - **Converting `EXPECTED_APPEND_NOTE_CALL_SITES` to a syntax-tree axis** — REJECTED HERE, recorded
+    with its coordinate. This plan's own prose raised that axis from 6 to 8 by spelling `appendNote`
+    followed by an open parenthesis inside two string literals, and the axis counts TEXT. The prose
+    was reworded and the count returned to 6 with nothing weakened; converting the axis is a change
+    to a derived axis this plan was not convened to move, and it is named in `deferred-items.md` with
+    an owner and a closing criterion rather than taken silently.
+- **WHAT D-41 DOES NOT ESTABLISH.**
+  - **It does not change any write-path behaviour.** No branch, no refusal, no parameter and no
+    default moves in this plan. Every production change it rests on landed in `31-39`. What changes
+    is what is SAID about them, and what a test can falsify about what is said.
+  - **It does not close the DEFAULT split.** `R-31-33-02` stands, re-worded. The decision it waits on
+    — which repository the no-argument default NAMES — is exactly as open as `D-34` left it.
+  - **It does not close `R-31-33-01`.** The half `31-39` closed is recorded as closed with its
+    measurement; the half that REMAINS is the freedom that closure cost, and it is bounded by the
+    `31-40` census rather than by a guarantee.
+  - **It does not authenticate a destination's CONTENTS.** Unchanged from `D-31`, `D-39` and `D-40`,
+    carried as `T-31-18-01` / `T-31-39-04`, and now named INLINE in the stop condition's remedy so a
+    reader meets the price at the sentence that could otherwise read as permission.
+  - **It does not make an agent READ the workflow.** Every role points at this file, and nothing in
+    this kit can make an agent obey a pointer. The boundary is legible; being read is the host's.
+  - **The Windows leg of everything above is `R-03`** and remains this phase's standing remainder.
+    Every reading here was taken on darwin.
+  - **It does not flip a requirement.** `UATX-01` through `UATX-06` stay UNCHECKED, every
+    traceability row still reads `Gaps Found`, and Phase 31 stays In Progress. Only a verification
+    round may change that, and this phase has now had eight rounds in which the executing round
+    believed it had closed one.
+- **Reversibility: cheap on the module, costly on the claim.** Two new register members and two
+  re-worded ones enter `WRITE_PATH_RESIDUALS`, and one new probe table and three new cases enter the
+  suite. No production behaviour is reverted by reverting this plan. What reverting costs is the
+  paragraph: it restores three sentences round 8 measured false at two of four branches, and a
+  disclosure that stopped being true in the round that fixed what it disclosed.
+- **Recorded in four places that must agree:** here; in `scripts/context-io.ts` (the four register
+  entries); in `agent-factory/workflows/18-context-compaction.md`'s ledger paragraph and stop
+  conditions, with their rows in `docs/audit/29-style-dispositions/31-41.md`; and in
+  `31-41-SUMMARY.md`'s key-decisions block.
 - **The write path's residual dispositions, bound to `WRITE_PATH_RESIDUALS` in both directions and
   watched failing in both directions.** The two-sided equality this register has carried since
   `31-29` asks whether every member is DISPOSITIONED. It never asked whether any member is TRUE,
