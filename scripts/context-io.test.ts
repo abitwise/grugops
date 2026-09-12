@@ -12975,11 +12975,32 @@ describe("31-29 — the write path's residuals are an EXPORTED register, bound i
    * `R-31-NN-NN` would also sweep in the trusted-root and re-binding registers, and DIRECTION 2
    * below would then report every one of THEIR ids as an un-exported member of THIS register.
    */
-  function writtenIds(): string[] {
-    const text = readFileSync(CONTEXT_DOC, "utf8");
+  /**
+   * The same derivation, PARAMETERIZED over the text (31-41).
+   *
+   * IT IS A FUNCTION OF A STRING SO A MIRROR CAN BE JUDGED BY THE SAME RULE. The two converse cases
+   * below remove one written disposition and one exported member respectively, and a derivation that
+   * could only read the live file would leave those mirrors judged by a second, hand-written rule —
+   * which is the two-statements-of-one-question shape this module keeps deleting.
+   */
+  function writtenIdsIn(text: string): string[] {
     const ids = new Set<string>();
-    for (const m of text.matchAll(/`(R-31-(?:21|29|33)-\d{2})`/g)) ids.add(m[1] as string);
+    for (const m of text.matchAll(/`(R-31-(?:21|29|33|41)-\d{2})`/g)) ids.add(m[1] as string);
     return [...ids].sort();
+  }
+
+  function writtenIds(): string[] {
+    return writtenIdsIn(readFileSync(CONTEXT_DOC, "utf8"));
+  }
+
+  /** DIRECTION 1 as a pure rule over two id sets: exported members nobody wrote a disposition for. */
+  function orphanedMembers(exported: readonly string[], written: readonly string[]): string[] {
+    return exported.filter((id) => !written.includes(id)).sort();
+  }
+
+  /** DIRECTION 2 as the same kind of rule: written dispositions naming no exported member. */
+  function orphanedDispositions(exported: readonly string[], written: readonly string[]): string[] {
+    return written.filter((id) => !exported.includes(id)).sort();
   }
 
   it("PREMISE: the document was read and it names residual ids at all", () => {
@@ -12995,7 +13016,15 @@ describe("31-29 — the write path's residuals are an EXPORTED register, bound i
     // append reached THROUGH the byte-frozen authority still follows the caller's `repoRoot`) and
     // `R-31-33-02` (the default context root is the kit's store while the default ledger root is the
     // host repository). Both are DRIVEN by a case in this file, so neither is prose.
-    expect(mod.WRITE_PATH_RESIDUALS).toHaveLength(7);
+    //
+    // MEASURED AGAIN, WITH THE REASON IT MOVED (31-41): 7 -> 9. `R-31-41-01` is the refusal set
+    // `31-33`'s own clause MOVE widened at `promoteAdmitted`'s fall-through — a destination outside
+    // a governed repository was accepted on that path and is now refused by name — which shipped
+    // with no register member at all (`WR-42`). `R-31-41-02` is the converse face of the same
+    // clause: `D-39 (3)` SCOPED the unnameable-owner refusal to the retention guard, so under any
+    // other `audit_retention` value the same store is written rather than refused. Both are DRIVEN
+    // by the probe pairing below, so neither is prose.
+    expect(mod.WRITE_PATH_RESIDUALS).toHaveLength(9);
   });
 
   it("DIRECTION 1: every EXPORTED member has a WRITTEN disposition in 31-CONTEXT.md", () => {
@@ -13043,7 +13072,7 @@ describe("31-29 — the write path's residuals are an EXPORTED register, bound i
       // a residual is dispositioned by the plan that LEAVES it, and a regex naming one plan would
       // silently require every later plan's residuals to be back-dated to that one.
       expect(r.reason, `${r.id} carries no DISPOSITION verdict`).toMatch(
-        /DISPOSITION \(plan 31-(?:29|33)\): (CLOSE|CLOSED|accept|the)/,
+        /DISPOSITION \(plan 31-(?:29|33|41)\): (CLOSE|CLOSED|accept|the)/,
       );
     }
   });
@@ -13074,6 +13103,75 @@ describe("31-29 — the write path's residuals are an EXPORTED register, bound i
     const fresh = mod.WRITE_PATH_RESIDUALS.find((r) => r.id === "R-31-29-01");
     expect(fresh, "this round left no new write-path residual, which would be a suspicious claim").toBeDefined();
     expect(fresh?.reason).toContain("APPEND-ONLY");
+  });
+
+  // ── THE TWO CONVERSE MIRRORS (31-41). ────────────────────────────────────────────────────────
+  //
+  // WHY THE SEEDED CASE ABOVE IS NOT ENOUGH. `a SEEDED undispositioned member turns the equality
+  // RED` appends an id to a COPY of the exported list and checks the set difference. It watches
+  // DIRECTION 1 fail for a member that was never real, and it watches nothing at all in the other
+  // direction — a deleted disposition leaving a cited id dangling is the failure this register's own
+  // docstring names FIRST, and no case drove it. The two mirrors below drive both directions against
+  // the LIVE artefacts: one removes a written disposition from a mirror of the planning document,
+  // the other removes an exported member from a mirror of the register.
+  //
+  // EACH MIRROR IS CONFIRMED DIFFERENT FROM THE LIVE FILE BEFORE ANY RESULT IS READ. This repository
+  // has recorded a false verification-harness premise in a documented run of instances across four
+  // rounds, and a mirror that silently changed nothing reports "the binding holds" for the one input
+  // it was built to reject.
+
+  it("CONVERSE 1: a mirror of 31-CONTEXT.md with ONE written disposition removed names the orphaned member", () => {
+    const live = readFileSync(CONTEXT_DOC, "utf8");
+    const VICTIM = "R-31-41-01";
+    expect(
+      writtenIdsIn(live),
+      `PREMISE: ${VICTIM} is not written in the live document, so this mirror removes nothing`,
+    ).toContain(VICTIM);
+
+    const mirrored = live.split(`\`${VICTIM}\``).join("`R-31-41-REMOVED`");
+    expect(
+      mirrored === live,
+      "PREMISE: the mirror is byte-identical to the live document, so the reading below is the " +
+        "live reading wearing a mirror's name",
+    ).toBe(false);
+    expect(
+      writtenIdsIn(mirrored),
+      "PREMISE: the mirrored text still derives the id it was built to remove",
+    ).not.toContain(VICTIM);
+
+    const exported = mod.WRITE_PATH_RESIDUALS.map((r) => r.id);
+    expect(
+      orphanedMembers(exported, writtenIdsIn(live)),
+      "the LIVE document leaves an exported member undispositioned",
+    ).toEqual([]);
+    expect(
+      orphanedMembers(exported, writtenIdsIn(mirrored)),
+      "the binding did NOT name the orphaned member, so DIRECTION 1 is a loop that ran and proved " +
+        "nothing",
+    ).toEqual([VICTIM]);
+  });
+
+  it("CONVERSE 2: a mirror of the register with ONE member removed names the orphaned disposition", () => {
+    const VICTIM = "R-31-41-02";
+    const exported = mod.WRITE_PATH_RESIDUALS.map((r) => r.id);
+    expect(exported, `PREMISE: ${VICTIM} is not an exported member`).toContain(VICTIM);
+
+    const mirrored = exported.filter((id) => id !== VICTIM);
+    expect(
+      mirrored.length,
+      "PREMISE: the mirrored register is the same size as the live one, so it removed nothing",
+    ).toBe(exported.length - 1);
+
+    const written = writtenIds();
+    expect(
+      orphanedDispositions(exported, written),
+      "the LIVE register leaves a written disposition naming no member",
+    ).toEqual([]);
+    expect(
+      orphanedDispositions(mirrored, written),
+      "the binding did NOT name the orphaned disposition — a written disposition for a residual " +
+        "that no longer exists reads as coverage and is not",
+    ).toEqual([VICTIM]);
   });
 });
 
@@ -13350,6 +13448,59 @@ describe("31-33 — CR-22: one repository per action, derived at the ENTRY of ev
     expect(residual?.reason).toContain("ADMIT_FROZEN_SHA256");
   });
 
+  it("R-31-33-01's REMAINING half (31-41): the ledger owner is a PARAMETER, and an explicit one still splits", () => {
+    // WHY THIS CASE EXISTS AND WHY THE ENTRY IS NARROWED RATHER THAN DELETED. `31-39` closed the two
+    // shapes `R-31-33-01`'s published text names — a direct caller diverging `appendNote`'s store
+    // from its dial root, and `admitAndAppend`'s non-gated branch — and the case above drives the
+    // first of them. What the closure COST is a new degree of freedom: separating the dial from the
+    // record gave `appendNote` a SEVENTH parameter and `admit()` a FIFTH, and a parameter is a value
+    // a caller may supply. The DEFAULT follows the store; an EXPLICIT argument does not have to.
+    //
+    // A residual whose closed half is recorded and whose remaining half is inherited by implication
+    // is the shape `WR-39` names one register over. So the remaining half is stated with ITS OWN
+    // reproduction, taken here, rather than left for a tenth round to rediscover as a false closure.
+    const T = "T-533D-REMAIN";
+    const STORE = premise("STORE", governed("p31-41-remain-store-", "off"));
+    const OTHER = premise("OTHER", governed("p31-41-remain-other-", "off"));
+
+    // The DEFAULT, first — the closed half, re-read here so the two readings sit side by side.
+    mod.appendNote(T, plainNote(), "a body", STORE.store, undefined, STORE.root);
+    expect({ notes: notesIn(STORE, T), ledger: ledgerIn(STORE) }).toEqual({ notes: 1, ledger: 1 });
+
+    // The EXPLICIT seventh argument, naming a repository the store does not derive.
+    const T2 = `${T}-2`;
+    mod.appendNote(
+      T2,
+      plainNote(),
+      "a body",
+      STORE.store,
+      undefined,
+      STORE.root,
+      mod.actionOwnerRoot(OTHER.store),
+    );
+    expect(
+      { notes: notesIn(STORE, T2), ledger: ledgerIn(STORE) },
+      "the explicit ledger owner did not move the record, so the remaining half this entry " +
+        "publishes is not reproducible and the entry over-states a boundary the module does not have",
+    ).toEqual({ notes: 1, ledger: 1 });
+    expect(
+      { notes: notesIn(OTHER, T2), ledger: ledgerIn(OTHER) },
+      "the record did not land in the repository the explicit argument named",
+    ).toEqual({ notes: 0, ledger: 1 });
+
+    // …and the entry says BOTH halves, each in its own words.
+    const residual = mod.WRITE_PATH_RESIDUALS.find((r) => r.id === "R-31-33-01");
+    expect(
+      residual?.reason,
+      "the entry does not name the half that REMAINS, so its closed half reads as a full closure",
+    ).toContain("WHAT REMAINS");
+    expect(
+      residual?.what_would_force_it_closed,
+      "the closing criterion still names the unfreeze `31-39` already took, which is a criterion " +
+        "that has been MET sitting in the field that exists to name one that has not",
+    ).not.toContain("A deliberate unfreeze of `admit()`");
+  });
+
   it("POSITION 4 (the DEFAULT arguments): MEASURED, and recorded as R-31-33-02 rather than claimed closed", () => {
     // The fourth position is about the DEFAULTS. On this box the kit IS the host repository, so both
     // defaults resolve to ONE directory and the split is not observable here — stated as such rather
@@ -13381,6 +13532,38 @@ describe("31-33 — CR-22: one repository per action, derived at the ENTRY of ev
     const residual = mod.WRITE_PATH_RESIDUALS.find((r) => r.id === "R-31-33-02");
     expect(residual, "position 4 is neither closed nor published, which is the silence this phase forbids").toBeDefined();
     expect(residual?.reason).toContain("not closed inside plan 31-33");
+
+    // ── THE PUBLISHED TEXT MUST DESCRIBE THE MECHANISM THAT IS IN THE TREE (31-41, WR-39). ──────
+    //
+    // The entry's own `shape` said the GOV-02 event lands under `trustedRepoRoot()`, the HOST
+    // repository. That was true of the pre-`31-39` program and is false of this one: the record
+    // follows `actionOwnerRoot(contextRoot)` on both write-both routes and on both of the
+    // admit-then-persist route's branches. A residual is the artefact the next round STARTS from, so
+    // one describing a pre-fix mechanism hands that round a false premise — which is the class
+    // `docs/audit/harness-false-result-instances.md` exists to record.
+    //
+    // ASSERTED AS A PROPERTY OF THE MODULE, NOT AS A SENTENCE THE ENTRY HAPPENS TO CONTAIN: the
+    // no-argument DEFAULT of the ledger owner is derived from the store, read off the source.
+    expect(
+      source.split("ledgerOwner: ActionOwner = actionOwnerRoot(contextRoot),").length - 1,
+      "PREMISE: the ledger-owner default is no longer derived from this writer's own store, so the " +
+        "re-worded entry below would be describing a mechanism that is not in the tree either",
+    ).toBe(1);
+    expect(
+      residual?.shape,
+      "the entry still publishes the PRE-31-39 mechanism — that the record follows the dial root " +
+        "rather than the store's derived owner",
+    ).not.toContain("the GOV-02 event lands under");
+    expect(
+      residual?.reason,
+      "the entry does not state where the record lands on each branch of the tree it is published " +
+        "against, which is what WR-39 asked for",
+    ).toContain("PER BRANCH");
+    expect(
+      residual?.reason,
+      "the measured statement that the two defaults COINCIDE on this box was dropped in the " +
+        "re-wording, which is WR-39 committed in the other direction",
+    ).toMatch(/coincide/);
   });
 
   it("CONTROL 1 (CR-20 unmoved): the GATED promotion still lands both halves in the derived destination", () => {
@@ -15045,5 +15228,492 @@ describe("31-39 — CR-26 / CR-27: one owner authority, and a dial root distinct
           "would not have caught the dial and the record being collapsed back onto one argument",
       ).toBe("wrote");
     });
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// PLAN 31-41 — EVERY PUBLISHED RESIDUAL'S SHAPE IS PAIRED WITH A PROBE THAT DRIVES IT.
+//
+// WHAT THIS CLOSES, STATED AS THE THING THAT KEPT HAPPENING. `WR-39` is a published residual whose
+// text describes the mechanism that was in the tree BEFORE the round that fixed it. Nothing turned
+// red, because the binding this register already carried asks whether every member is DISPOSITIONED
+// — a question about two id sets — and never whether any member is TRUE. A register can be
+// two-sided, cardinality-asserted and completely wrong about what the module does.
+//
+// SO THE THIRD SIDE IS ADDED HERE: each member is paired with a PROBE that takes a reading at run
+// time, and the reading is asserted to AGREE with the fact the member's own text states. The pairing
+// itself is bound in both directions with a cardinality, so a tenth member cannot arrive with no
+// probe and a deleted member cannot leave a probe naming nothing.
+//
+// A PROBE IS A READING, NOT A RE-STATEMENT. Where the member is about BEHAVIOUR the probe drives the
+// committed artifact and reads the filesystem. Where the member is about how the module is WRITTEN —
+// a call this module still makes, a derivation that resolves by identifier — the probe reads the
+// source it is a statement about. Neither kind is allowed to be "the entry says so".
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+describe("31-41 — every published write-path residual is paired with a probe that drives it", () => {
+  interface ProbeRoot {
+    readonly root: string;
+    readonly store: string;
+  }
+
+  function governed41(prefix: string, dial: string, retention: string): ProbeRoot {
+    const root = freshTmp(prefix);
+    mkdirSync(join(root, ".git"), { recursive: true });
+    mkdirSync(join(root, ".grugops"), { recursive: true });
+    writeFileSync(
+      join(root, ".grugops", "factory.config.json"),
+      JSON.stringify({ context: { human_admission: dial, audit_retention: retention } }),
+    );
+    const store = join(root, ".grugops", "context");
+    mkdirSync(store, { recursive: true });
+    return { root, store };
+  }
+
+  /** A store-SHAPED directory with no governance root above it: `governanceRootOf` answers null. */
+  function ungoverned41(prefix: string): ProbeRoot {
+    const root = freshTmp(prefix);
+    const store = join(root, ".grugops", "context");
+    mkdirSync(store, { recursive: true });
+    return { root, store };
+  }
+
+  function premise41(label: string, g: ProbeRoot): ProbeRoot {
+    expect(
+      mod.governanceRootOf(g.store),
+      `PREMISE: ${label} is not a governance root the module resolves for itself, so every reading ` +
+        `taken from it below would measure the fixture rather than the module`,
+    ).toBe(g.root);
+    return g;
+  }
+
+  const notes41 = (g: ProbeRoot, task: string): number => {
+    const d = join(g.store, task, "notes");
+    return existsSync(d) ? readdirSync(d).filter((f) => f.endsWith(".md")).length : 0;
+  };
+  const ledger41 = (g: ProbeRoot): number | null => {
+    const p = join(g.root, ".grugops", "audit", "admissions.jsonl");
+    if (!existsSync(p)) return null;
+    return readFileSync(p, "utf8").split("\n").filter((l) => l.trim() !== "").length;
+  };
+  const note41 = (over: Record<string, unknown> = {}): Parameters<typeof mod.appendNote>[1] =>
+    ({
+      kind: "observation",
+      by: "qe",
+      at: "2026-09-11T00:00:00Z",
+      verified_by: "",
+      confidence: "high",
+      refs: [],
+      supersedes: null,
+      ...over,
+    }) as Parameters<typeof mod.appendNote>[1];
+
+  const MODULE_SOURCE = readFileSync(CONTEXT_IO_TS, "utf8");
+  const WRITER_SET_TEST = join(ROOT, "scripts", "context-io-writer-set.test.ts");
+
+  /** The body of a named top-level function, read out of the module's own source. */
+  function bodyOf(name: string): string {
+    const anchor = `function ${name}(`;
+    const from = MODULE_SOURCE.indexOf(anchor);
+    expect(from, `PREMISE: ${name} was not found in the module source`).toBeGreaterThan(-1);
+    const open = MODULE_SOURCE.indexOf("{", MODULE_SOURCE.indexOf(")", from));
+    let depth = 0;
+    for (let i = open; i < MODULE_SOURCE.length; i++) {
+      if (MODULE_SOURCE[i] === "{") depth += 1;
+      else if (MODULE_SOURCE[i] === "}") {
+        depth -= 1;
+        if (depth === 0) return MODULE_SOURCE.slice(open, i + 1);
+      }
+    }
+    throw new Error(`PREMISE: ${name}'s body had no closing brace`);
+  }
+
+  interface MemberProbe {
+    /** What the probe observes, in one line — printed in the failure so the reading is legible. */
+    readonly what: string;
+    /** The reading itself, taken at run time. */
+    readonly observe: () => string;
+    /** The reading the member's own text commits it to. */
+    readonly agrees: string;
+  }
+
+  /**
+   * ONE PROBE PER MEMBER. The key set is asserted equal to the register's in BOTH directions below,
+   * so this table cannot fall behind the register and the register cannot outrun this table.
+   */
+  const MEMBER_PROBES: Readonly<Record<string, MemberProbe>> = {
+    "R-31-21-01": {
+      what: "`atomicWrite` still makes a blocking-capable `writeFileSync` call, and still REPLACES the final path by rename",
+      observe: () => {
+        const body = bodyOf("atomicWrite");
+        return `writeFileSync=${body.includes("writeFileSync(tmp")} renameSync=${body.includes("renameSync(tmp")}`;
+      },
+      agrees: "writeFileSync=true renameSync=true",
+    },
+    "R-31-21-02": {
+      what: "a non-regular file planted inside a `notes/` directory is SKIPPED by the walk rather than thrown on",
+      observe: () => {
+        const g = premise41("SKIP", governed41("p31-41-skip-", "off", "git"));
+        const id = mod.appendNote("T-41-SKIP", note41(), "a body", g.store, undefined, g.root);
+        mkdirSync(join(g.store, "T-41-SKIP", "notes", "planted.md"), { recursive: true });
+        const records = mod.readContext("T-41-SKIP", g.store);
+        return `threw=false records=${records.length} planted-present=${records.some((r) => r.id !== id)}`;
+      },
+      agrees: "threw=false records=1 planted-present=false",
+    },
+    "R-31-21-03": {
+      what: "an admission that cannot be RECORDED under `retained` is refused in bounded time rather than granted unrecorded",
+      observe: () => {
+        const g = premise41("LEDGER", governed41("p31-41-ledger-", "off", "retained"));
+        // The ledger POSITION occupied by something that is not a regular file — the same class of
+        // position plan 31-21's own premise was wrong about, driven without a FIFO so the reading is
+        // the same on every platform this suite runs on.
+        mkdirSync(join(g.root, ".grugops", "audit", "admissions.jsonl"), { recursive: true });
+        const started = Date.now();
+        try {
+          mod.appendNote("T-41-LEDGER", note41(), "a body", g.store, undefined, g.root);
+          return "wrote";
+        } catch (e) {
+          const bounded = Date.now() - started < 5000;
+          // THE READING IS THE RESIDUAL'S OWN PROPERTY, NOT A CLAUSE KEY. `R-31-21-03` is about a
+          // ledger append that BLOCKED — the plan's premise was that it exited 0 and discarded the
+          // event, and the measurement was exit 124 at ten seconds. So the fact to observe is that
+          // this position is refused rather than WAITED ON, which is the sentence the module emits;
+          // the clause constant belongs to the read side and does not reach this message.
+          const notWaitedOn = (e as Error).message.includes("refused rather than waited on");
+          const namesCanonicalForm = (e as Error).message.includes(mod.CANONICAL_READ_POSITION);
+          return (
+            `refused bounded=${bounded} not-waited-on=${notWaitedOn} ` +
+            `names-canonical-form=${namesCanonicalForm} wrote=${notes41(g, "T-41-LEDGER") > 0}`
+          );
+        }
+      },
+      agrees: "refused bounded=true not-waited-on=true names-canonical-form=true wrote=false",
+    },
+    "R-31-21-04": {
+      what: "the write-path derivations resolve a call SYNTACTICALLY, by identifier, with no type checker anywhere in the axis",
+      observe: () => {
+        const text = readFileSync(WRITER_SET_TEST, "utf8");
+        const byIdentifier = (text.match(/ts\.isIdentifier\(/g) ?? []).length;
+        const typeChecker =
+          (text.match(/createProgram\(/g) ?? []).length + (text.match(/getTypeChecker\(/g) ?? []).length;
+        return `by-identifier=${byIdentifier > 0} type-checker=${typeChecker > 0}`;
+      },
+      agrees: "by-identifier=true type-checker=false",
+    },
+    "R-31-29-01": {
+      what: "a note already ON DISK above the ceiling is REFUSED by the reader rather than read, deleted or rotated",
+      observe: () => {
+        const dir = freshTmp("p31-41-ceiling-");
+        const p = join(dir, "over.md");
+        writeFileSync(p, "x".repeat(64));
+        try {
+          mod.readRegularFileOrNull(p, 10, "a note");
+          return "read";
+        } catch (e) {
+          const m = (e as Error).message;
+          return `refused above-ceiling=${m.includes("above the 10-byte ceiling")} still-on-disk=${existsSync(p)}`;
+        }
+      },
+      agrees: "refused above-ceiling=true still-on-disk=true",
+    },
+    "R-31-33-01": {
+      what: "the DEFAULT ledger owner follows the store (closed), and an EXPLICIT ledger-owner argument still splits (remaining)",
+      observe: () => {
+        const S = premise41("STORE", governed41("p31-41-r3301-store-", "off", "retained"));
+        const O = premise41("OTHER", governed41("p31-41-r3301-other-", "off", "retained"));
+        mod.appendNote("T-41-DEF", note41(), "a body", S.store, undefined, O.root);
+        const defaultFollowsStore = notes41(S, "T-41-DEF") === 1 && ledger41(S) === 1 && ledger41(O) === null;
+        mod.appendNote("T-41-EXP", note41(), "a body", S.store, undefined, S.root, mod.actionOwnerRoot(O.store));
+        const explicitSplits = notes41(S, "T-41-EXP") === 1 && ledger41(O) === 1;
+        return `default-follows-store=${defaultFollowsStore} explicit-splits=${explicitSplits}`;
+      },
+      agrees: "default-follows-store=true explicit-splits=true",
+    },
+    "R-31-33-02": {
+      what: "the two no-argument defaults on THIS box, and where the record lands relative to the note's own store",
+      observe: () => {
+        const kitStore = join(ROOT, ".grugops", "context");
+        const coincide = mod.governanceRootOf(kitStore) === mod.trustedRepoRoot();
+        const recordFollowsStore =
+          MODULE_SOURCE.includes("ledgerOwner: ActionOwner = actionOwnerRoot(contextRoot),");
+        return `defaults-coincide-on-this-box=${coincide} record-default-follows-store=${recordFollowsStore}`;
+      },
+      agrees: "defaults-coincide-on-this-box=true record-default-follows-store=true",
+    },
+    "R-31-41-01": {
+      what: "the re-binding route's FALL-THROUGH refuses an ungoverned destination BY NAME — the input set 31-33's clause move widened",
+      observe: () => {
+        const DIAL = premise41("DIAL", governed41("p31-41-widen-dial-", "off", "retained"));
+        const bare = freshTmp("p31-41-widen-bare-");
+        const shaped = ungoverned41("p31-41-widen-shaped-");
+        const drive = (to: string): string => {
+          try {
+            mod.promoteAdmitted("T-41-WIDE", "irrelevant", note41(), "a body", "irrelevant-from", to, DIAL.root);
+            return "accepted";
+          } catch (e) {
+            return (e as Error).message.includes(mod.UNNAMEABLE_OWNER_CLAUSE) ? "refused-by-name" : "refused-other";
+          }
+        };
+        return `bare=${drive(bare)} store-shaped=${drive(shaped.store)}`;
+      },
+      agrees: "bare=refused-by-name store-shaped=refused-by-name",
+    },
+    "R-31-41-02": {
+      what: "the SCOPE D-39 (3) took: the unnameable-owner refusal sits at the retention guard, so the lean value writes the same store",
+      observe: () => {
+        const LEAN = premise41("LEAN", governed41("p31-41-lean-", "off", "git"));
+        const RETAINED = premise41("RETAINED", governed41("p31-41-retained-", "off", "retained"));
+        const UNGOV = ungoverned41("p31-41-lean-ungov-");
+        expect(
+          mod.governanceRootOf(UNGOV.store),
+          "PREMISE: the ungoverned store resolves to a root, so neither reading below is about an " +
+            "unnameable owner at all",
+        ).toBeNull();
+        let lean: string;
+        try {
+          mod.appendNote("T-41-LEAN", note41(), "a body", UNGOV.store, undefined, LEAN.root);
+          lean = existsSync(join(UNGOV.root, ".grugops", "audit", "admissions.jsonl")) ? "wrote+ledger" : "wrote+no-ledger";
+        } catch {
+          lean = "refused";
+        }
+        let retained: string;
+        try {
+          mod.appendNote("T-41-RET", note41(), "a body", UNGOV.store, undefined, RETAINED.root);
+          retained = "wrote";
+        } catch (e) {
+          retained = (e as Error).message.includes(mod.UNNAMEABLE_OWNER_CLAUSE) ? "refused-by-name" : "refused-other";
+        }
+        return `lean=${lean} retained=${retained}`;
+      },
+      agrees: "lean=wrote+no-ledger retained=refused-by-name",
+    },
+  };
+
+  it("PREMISE: the probe table and the register name the SAME members, in both directions", () => {
+    const exported = mod.WRITE_PATH_RESIDUALS.map((r) => r.id).sort();
+    const probed = Object.keys(MEMBER_PROBES).sort();
+    expect(
+      probed.filter((id) => !exported.includes(id)),
+      "a probe names a residual the module no longer exports — a reading nobody's claim depends on",
+    ).toEqual([]);
+    expect(
+      exported.filter((id) => !probed.includes(id)),
+      "a published residual has NO probe, so its text is a claim this suite cannot falsify — which " +
+        "is exactly how WR-39's residual came to describe a mechanism that was not in the tree",
+    ).toEqual([]);
+    // The cardinality is asserted separately: a swapped pair moves neither direction above.
+    expect(probed.length).toBe(mod.WRITE_PATH_RESIDUALS.length);
+    expect(probed.length).toBe(9);
+  });
+
+  for (const [id, probe] of Object.entries(MEMBER_PROBES)) {
+    it(`${id}'s published shape AGREES with the reading its probe takes`, () => {
+      const member = mod.WRITE_PATH_RESIDUALS.find((r) => r.id === id);
+      expect(member, `PREMISE: ${id} is not an exported member, so this reading pairs with nothing`).toBeDefined();
+      expect(
+        probe.observe(),
+        `${id} publishes a shape the tree does not have. The probe observes: ${probe.what}`,
+      ).toBe(probe.agrees);
+    });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// PLAN 31-41 — THE SHARED-INSTALL SHAPE THE WIDENED REFUSAL LANDS ON, MEASURED (WR-42).
+//
+// WHAT THE REVIEW REASONED, AND WHY IT IS MEASURED HERE INSTEAD. `WR-42` observed that moving the
+// destination decline above `promoteAdmitted`'s human-stamp fall-through WIDENED the refused input
+// set, and reasoned about the shape most likely to meet it: a kit-side store at
+// `~/.grugops/.grugops/context`, which "has no governance configuration and no VCS marker written by
+// `install/install.ts`", so `governanceRootOf` "would answer `null` there and every promotion into
+// it would throw". The finding closes `UNKNOWN - verify`.
+//
+// THE REASONING IS WRONG ON THIS TREE, AND ONLY A MEASUREMENT COULD SAY SO. `install/install.ts`'s
+// `copyKit` copies the SOURCE's `agent-factory/` tree to `KIT_ROOT = resolve(GRUGOPS_HOME,
+// "agent-factory")`, and that tree carries `config/factory.config.json` — which relative to the kit
+// home is the `in-kit` position of `governanceConfigCandidates`, a PUBLISHED governance-config
+// candidate. The upward walk remembers it as `nearest`, the home directory ends the walk without
+// answering as a repository, and `nearest` is returned. So the kit home IS a governance root, the
+// kit-side store DOES resolve, and a promotion into it is ACCEPTED rather than refused.
+//
+// THE CASE DRIVES THE COMMITTED INSTALLER RATHER THAN STAGING THE LAYOUT BY HAND, because the
+// question is precisely WHICH ROOT receives which file, and a hand-staged answer to that question is
+// the assumption under test wearing a fixture's clothes.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+describe("31-41 — the shared-install shape is MEASURED against the widened refusal (WR-42)", () => {
+  it("the three readings are taken against a kit home the COMMITTED installer created", () => {
+    const home = freshTmp("p31-41-sharedinstall-");
+    const kitHome = join(home, ".grugops");
+    const target = join(home, "hostrepo");
+    mkdirSync(join(target, ".git"), { recursive: true });
+
+    const installed = spawnSync(
+      "node",
+      [join(ROOT, "install", "install.js"), "--yes"],
+      {
+        encoding: "utf8",
+        maxBuffer: 32 * 1024 * 1024,
+        env: {
+          ...process.env,
+          INSTALL_MODE: "copy",
+          GRUGOPS_SRC: ROOT,
+          GRUGOPS_HOME: kitHome,
+          TARGET: target,
+        },
+      },
+    );
+    expect(
+      installed.status,
+      `PREMISE: the committed installer did not complete, so nothing below is a reading of the ` +
+        `shipped layout. stderr: ${installed.stderr}`,
+    ).toBe(0);
+
+    // THE STAGING'S OWN PREMISES, READ OFF THE INSTALLED TREE rather than asserted from the source.
+    const inKitConfig = join(kitHome, "agent-factory", "config", "factory.config.json");
+    expect(
+      existsSync(inKitConfig),
+      "PREMISE: the kit home carries no in-kit configuration, so the walk's answer below is about a " +
+        "layout the installer does not produce",
+    ).toBe(true);
+    expect(
+      existsSync(join(kitHome, ".grugops", "factory.config.json")),
+      "PREMISE: the kit home carries a repository-state-plane configuration too, which would make " +
+        "the reading below indifferent to WHICH position answers",
+    ).toBe(false);
+    expect(
+      existsSync(join(kitHome, "scripts", "context-io.js")),
+      "PREMISE: the installer materialized the writer under the kit home, which would make " +
+        "`DEFAULT_CONTEXT_ROOT` name a kit-side store on an installed host — a different question " +
+        "from the one this case answers",
+    ).toBe(false);
+    expect(
+      existsSync(join(kitHome, ".grugops", "context")),
+      "PREMISE: the installer created a kit-side context store, so the store below is not the " +
+        "absent-by-default shape the review described",
+    ).toBe(false);
+    expect(
+      existsSync(join(target, ".grugops", "factory.config.json")),
+      "PREMISE: the TARGET received no repository-state-plane configuration, so the two-root shape " +
+        "this case is about was not produced",
+    ).toBe(true);
+
+    // ── THE THREE READINGS, taken in a CHILD whose HOME is the scratch root. The walk's home stop
+    //    is decided by `os.homedir()`, so the reading must be taken where that answer is the
+    //    fixture's — and taken in a child rather than by mutating this process's environment.
+    const kitStore = join(kitHome, ".grugops", "context");
+    const driver = join(home, "reading.mjs");
+    writeFileSync(
+      driver,
+      [
+        `const mod = await import(${JSON.stringify(pathToFileURL(CONTEXT_IO_JS).href)});`,
+        `const kitStore = ${JSON.stringify(kitStore)};`,
+        `const host = ${JSON.stringify(target)};`,
+        `const note = { kind: "observation", by: "qe", at: "2026-09-11T00:00:00Z", verified_by: "", confidence: "high", refs: [], supersedes: null };`,
+        `let rebinding;`,
+        `try { rebinding = "accepted:" + mod.promoteAdmitted("T-41-SI", "irrelevant", note, "a body", "irrelevant-from", kitStore, host); }`,
+        `catch (e) { rebinding = e.message.includes(mod.UNNAMEABLE_OWNER_CLAUSE) ? "refused-by-name" : "refused-other"; }`,
+        `console.log(JSON.stringify({`,
+        `  home: (await import("node:os")).homedir(),`,
+        `  resolverAnswer: mod.governanceRootOf(kitStore),`,
+        `  anchoringConjunct: mod.governanceRootOf(kitStore) !== null,`,
+        `  rebinding,`,
+        `}));`,
+      ].join("\n"),
+    );
+    const read = spawnSync("node", [driver], {
+      encoding: "utf8",
+      maxBuffer: 32 * 1024 * 1024,
+      env: { ...process.env, HOME: home },
+    });
+    expect(read.status, `PREMISE: the reading driver failed. stderr: ${read.stderr}`).toBe(0);
+    const answer = JSON.parse(read.stdout.trim().split("\n").pop() as string) as {
+      home: string;
+      resolverAnswer: string | null;
+      anchoringConjunct: boolean;
+      rebinding: string;
+    };
+    expect(
+      realpathSync(answer.home),
+      "PREMISE: the child's home directory is not the fixture's, so the walk's home stop is bounded " +
+        "somewhere this reading says nothing about",
+    ).toBe(realpathSync(home));
+
+    // READING 1 — the resolver's answer for the kit-side store.
+    expect(
+      answer.resolverAnswer === null ? null : realpathSync(answer.resolverAnswer),
+      "the kit-side store does not resolve to a governed root — WR-42's reasoning would then be " +
+        "correct, and the register entry must be re-worded to say so",
+    ).toBe(realpathSync(kitHome));
+    // READING 2 — the root-anchoring conjunct for the kit directory.
+    expect(answer.anchoringConjunct).toBe(true);
+    // READING 3 — the re-binding route's answer for a promotion whose destination is that store.
+    expect(
+      answer.rebinding.startsWith("accepted:"),
+      `a promotion into the installer's own kit-side store was ${answer.rebinding}, so the widened ` +
+        `refusal DOES fire on the shipped layout and R-31-41-01's disposition is the wrong one`,
+    ).toBe(true);
+  });
+
+  it("the CONTROL discriminates: without the in-kit configuration the same store is refused BY NAME", () => {
+    // WHICH CONJUNCT ANSWERS, isolated rather than inferred. The reading above is only informative
+    // if the opposite staging gives the opposite answer; otherwise it reports a property of the walk
+    // rather than a property of the shipped kit layout.
+    const home = freshTmp("p31-41-sharedinstall-ctl-");
+    const kitHome = join(home, ".grugops");
+    const kitStore = join(kitHome, ".grugops", "context");
+    mkdirSync(kitStore, { recursive: true });
+    const target = join(home, "hostrepo");
+    mkdirSync(join(target, ".git"), { recursive: true });
+    mkdirSync(join(target, ".grugops"), { recursive: true });
+    writeFileSync(
+      join(target, ".grugops", "factory.config.json"),
+      JSON.stringify({ context: { human_admission: "off", audit_retention: "retained" } }),
+    );
+    expect(
+      existsSync(join(kitHome, "agent-factory", "config", "factory.config.json")),
+      "PREMISE: the control staged an in-kit configuration, so it is not the control",
+    ).toBe(false);
+
+    const driver = join(home, "reading.mjs");
+    writeFileSync(
+      driver,
+      [
+        `const mod = await import(${JSON.stringify(pathToFileURL(CONTEXT_IO_JS).href)});`,
+        `const kitStore = ${JSON.stringify(kitStore)};`,
+        `const note = { kind: "observation", by: "qe", at: "2026-09-11T00:00:00Z", verified_by: "", confidence: "high", refs: [], supersedes: null };`,
+        `let rebinding;`,
+        `try { rebinding = "accepted"; mod.promoteAdmitted("T-41-SI-CTL", "irrelevant", note, "a body", "irrelevant-from", kitStore, ${JSON.stringify(target)}); }`,
+        `catch (e) { rebinding = e.message.includes(mod.UNNAMEABLE_OWNER_CLAUSE) ? "refused-by-name" : "refused-other"; }`,
+        `console.log(JSON.stringify({ resolverAnswer: mod.governanceRootOf(kitStore), rebinding }));`,
+      ].join("\n"),
+    );
+    const read = spawnSync("node", [driver], {
+      encoding: "utf8",
+      maxBuffer: 32 * 1024 * 1024,
+      env: { ...process.env, HOME: home },
+    });
+    expect(read.status, `PREMISE: the control driver failed. stderr: ${read.stderr}`).toBe(0);
+    const answer = JSON.parse(read.stdout.trim().split("\n").pop() as string) as {
+      resolverAnswer: string | null;
+      rebinding: string;
+    };
+    expect(
+      answer.resolverAnswer,
+      "the control resolved a root without any configuration under the kit home, so the positive " +
+        "reading above is not attributable to the in-kit configuration the installer copies",
+    ).toBeNull();
+    expect(answer.rebinding).toBe("refused-by-name");
+  });
+
+  it("R-31-41-01 records the measured answer rather than the review's reasoned one", () => {
+    const member = mod.WRITE_PATH_RESIDUALS.find((r) => r.id === "R-31-41-01");
+    expect(member, "the widened refusal has no register member at all, which is WR-42's ask").toBeDefined();
+    expect(
+      member?.reason,
+      "the entry does not carry the shared-install measurement, so the next round inherits the " +
+        "`UNKNOWN - verify` this plan was convened to answer",
+    ).toContain("SHARED-INSTALL");
   });
 });

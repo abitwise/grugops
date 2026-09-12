@@ -1,0 +1,53 @@
+{
+  "what": "RED transcript for plan 31-41 Task 1 — the re-worded/new write-path register assertions and the per-member probe pairing, committed BEFORE the register is re-worded, so nine cases fail on the planned behaviour and on nothing else.",
+  "taken_at_commit": "686b70e",
+  "command": "npx vitest run --exclude '**/scripts/e2e/**' scripts/context-io.test.ts scripts/context-io-writer-set.test.ts",
+  "exit_code": 1,
+  "target_tests": [
+    "31-29 — the write path's residuals are an EXPORTED register, bound in both directions > the register has the expected CARDINALITY, asserted separately from its members",
+    "31-29 — the write path's residuals are an EXPORTED register, bound in both directions > CONVERSE 1: a mirror of 31-CONTEXT.md with ONE written disposition removed names the orphaned member",
+    "31-29 — the write path's residuals are an EXPORTED register, bound in both directions > CONVERSE 2: a mirror of the register with ONE member removed names the orphaned disposition",
+    "31-33 — CR-22 > R-31-33-01's REMAINING half (31-41): the ledger owner is a PARAMETER, and an explicit one still splits",
+    "31-33 — CR-22 > POSITION 4 (the DEFAULT arguments): MEASURED, and recorded as R-31-33-02 rather than claimed closed",
+    "31-41 — every published write-path residual is paired with a probe that drives it > PREMISE: the probe table and the register name the SAME members, in both directions",
+    "31-41 — every published write-path residual is paired with a probe that drives it > R-31-41-01's published shape AGREES with the reading its probe takes",
+    "31-41 — every published write-path residual is paired with a probe that drives it > R-31-41-02's published shape AGREES with the reading its probe takes",
+    "31-41 — the shared-install shape is MEASURED against the widened refusal (WR-42) > R-31-41-01 records the measured answer rather than the review's reasoned one"
+  ],
+  "expected_result": "scripts/context-io.ts re-words R-31-33-01 into a CLOSED half and a REMAINING half under one id, re-states R-31-33-02 per branch against the post-31-39 tree, and adds R-31-41-01 (the widened refusal at promoteAdmitted's fall-through, with the shared-install answer) and R-31-41-02 (the lean-retention scope D-39 (3) took). 31-CONTEXT.md gains the matching written dispositions. All nine cases then pass.",
+  "actual_result": "Test Files 1 failed | 1 passed (2). Tests 9 failed | 843 passed (852). Every failure names a register member that does not exist yet or a re-worded clause that is not there yet: 'expected 7 to be 9', 'PREMISE: R-31-41-01 is not written in the live document', 'PREMISE: R-31-41-02 is not an exported member', 'the entry does not name the half that REMAINS', 'the entry still publishes the PRE-31-39 mechanism', 'a published residual has NO probe'.",
+  "why_this_is_an_INTENTIONAL_red": "843 cases pass in the same run, including BOTH halves of this plan's own measurement work: the shared-install three-reading case against a kit home the committed installer created, its discriminating control, and the reachability derivation reusing deriveRouteCallers. Six of the nine per-member probes also pass against the EXISTING register members. So the files parse, discover their tests and run them; the only failures are assertions about text the GREEN step writes. This is not a syntax error, a zero-discovery run, a fixture crash or an unrelated assertion.",
+  "premises_asserted_before_any_result_was_read": {
+    "WRITE_PATH_RESIDUALS members at the RED base": 7,
+    "per-member probes paired at the RED base": 9,
+    "probes passing against existing members at the RED base": 6,
+    "npm run freshness at the RED base": "all 61 committed .js fresh"
+  },
+  "measurements_taken_before_any_re-wording": {
+    "READING A (R-31-33-02, no arguments)": "governanceRootOf(DEFAULT_CONTEXT_ROOT) = /Users/olgeroeselg/Projects/public/grugops; trustedRepoRoot() = the same directory; the two COINCIDE on this box, so the split is not observable here. actionOwnerRoot(DEFAULT_CONTEXT_ROOT) = {answered:true, root:<repo>}, so the RECORD follows the STORE and no longer follows trustedRepoRoot() — the published text was measured FALSE about the mechanism.",
+    "READING B1 (R-31-33-01, appendNote store!=dial)": "appendNote(store=HOME, dial=ELSEWHERE) -> HOME {notes:1, ledger:1}, ELSEWHERE {notes:0, ledger:ABSENT} — CLOSED.",
+    "READING B2 (R-31-33-01, admitAndAppend non-gated)": "admitAndAppend(store=HOME, dial=ELSEWHERE) -> HOME {notes:1, ledger:2}, ELSEWHERE {notes:0, ledger:ABSENT} — CLOSED.",
+    "READING B3 (R-31-33-01, the REMAINING half)": "appendNote(store=H2, dial=H2, EXPLICIT ledgerOwner=actionOwnerRoot(E2)) -> H2 {notes:1, ledger:ABSENT}, E2 {notes:0, ledger:1} — the separation created a caller-supplyable seventh argument, and an explicit one still splits the two halves.",
+    "READING C (WR-42, the widened refusal)": "promoteAdmitted fall-through with a BARE directory destination -> DECLINED (destination-outside-governed-store); with a store-SHAPED directory outside every governed repository -> the same decline. Both refused by name.",
+    "READING D (R-31-41-02, the lean-retention scope)": "appendNote into an ungoverned store under audit_retention 'git' -> WROTE, notes=1, no ledger anywhere, no refusal. The identical store under 'retained' -> REFUSED (destination-outside-governed-store).",
+    "SHARED-INSTALL READINGS (WR-42's UNKNOWN - verify)": "Against a kit home created by the COMMITTED install/install.js (GRUGOPS_HOME=<scratch>/.grugops, TARGET=<scratch>/hostrepo, HOME=<scratch>): the kit home contains exactly `agent-factory/`, carries agent-factory/config/factory.config.json (the in-kit published candidate), carries NO .grugops/factory.config.json, NO scripts/context-io.js and NO context store. READING 1 governanceRootOf(<kit>/.grugops/context) = <kit> (NOT null). READING 2 root-anchoring conjunct = true. READING 3 promoteAdmitted(to=kit-side store) = ACCEPTED. CONTROL with the in-kit configuration removed: resolver = null and the identical promotion is refused by name."
+  },
+  "gate_attempted": {
+    "command": "node ~/.claude/gsd-core/bin/gsd-tools.cjs check tdd-red-evidence <record.json>",
+    "verdict": "INVALID_RED",
+    "reason": "invalid_record",
+    "measured_gate_output": {
+      "evidence.tests": 0,
+      "evidence.pass": 0,
+      "evidence.fail": 0,
+      "evidence.target_test": "",
+      "record.exit_code": null,
+      "message": "INVALID_RED (invalid_record): GREEN blocked. Fix the RED phase — only an intentional failure of target test \"\" authorizes production edits."
+    },
+    "why_this_is_a_HARNESS_limitation_and_not_an_invalid_RED": "TWO harness facts, both measured on this box rather than inherited. (1) The gate reads a record schema this phase does not write: it expects a SINGULAR `target_test` and a top-level `exit_code` it can parse, and this phase has recorded a `target_tests` ARRAY since 31-35 because every RED here fails a SET of cases rather than one. With `target_test` empty the gate fail-closes to `invalid_record` before it ever reads a transcript. (2) Even with a conforming record the transcript is unreadable to it: the parser reads node:test's '# tests / # pass / # fail' TAP summary lines, and `npx vitest run --reporter=tap` emits none — MEASURED on this run's own transcript, `grep -c '^# tests'` = 0. TDD_MODE was false for this plan, so this gate is not the authorizing gate for GREEN here; it is recorded as attempted WITH ITS MEASURED VERDICT rather than silently skipped, and no verdict was fabricated.",
+    "discrepancy_with_the_prior_record": "`31-40-task1-red.json` records this gate returning `zero_tests_discovered`. Re-run today against that same file it returns `invalid_record` — the schema arm fires first, before the transcript arm the earlier record described. The earlier record is left as written and the difference is recorded here rather than resolved in either direction, because a harness record is evidence about a run and not a standing claim.",
+    "measured_tap_facts": {
+      "lines matching '^# tests'": 0
+    }
+  }
+}

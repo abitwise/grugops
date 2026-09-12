@@ -3244,6 +3244,62 @@ describe("31-14 — the callers of both promotion routes are derived across file
     ]);
   });
 
+  // ── THE REACHABILITY QUESTION WR-42 LEFT `UNKNOWN - verify` (31-41). ──────────────────────────
+  //
+  // The shared-install READINGS are taken in `scripts/context-io.test.ts` against a kit home the
+  // committed installer created. This is the second half of that measurement and it lives HERE for
+  // one reason: the cross-file caller derivation it needs already exists, twelve lines above, and
+  // the plan's own rule is that it is REUSED rather than re-implemented. A second walk asking "who
+  // calls the re-binding route" would be two statements of one question — this repository's named
+  // failure class, arriving inside the measurement written to close a finding about it.
+  //
+  // WHAT IS DERIVED AND WHAT IS READ. The caller SET and its CARDINALITY come from
+  // `deriveRouteCallers`; no caller name is typed into an assertion here that the case above does
+  // not already bind. What is READ is each caller's own signature: whether the destination it
+  // supplies is a value IT chooses or a parameter it forwards.
+  it("REACHABILITY (31-41, WR-42): the re-binding route's callers forward the destination, so a kit-side store is expressible", () => {
+    const callers = deriveRouteCallers("promoteAdmitted", "context-io.js");
+    expect(
+      callers.length,
+      "PREMISE: the derivation returned no callers, so every statement below is vacuous",
+    ).toBeGreaterThan(0);
+    // The CARDINALITY is stated, from the derivation rather than from a reading of the tree.
+    expect(callers.length).toBe(EXPECTED_REBINDING_CALLERS.length);
+
+    // For each derived caller, read whether the destination it hands the route is one of its OWN
+    // parameters — a value its caller supplies — or a value it computes and therefore constrains.
+    const forwarding: string[] = [];
+    for (const handle of callers) {
+      const [rel, fn] = handle.split("::") as [string, string];
+      const source = ts.createSourceFile(rel, readFileSync(join(ROOT, rel), "utf8"), ts.ScriptTarget.Latest, true);
+      const decl = source.statements.find(
+        (s): s is ts.FunctionDeclaration => ts.isFunctionDeclaration(s) && s.name?.text === fn,
+      );
+      expect(decl, `PREMISE: ${handle} did not resolve back to a function declaration`).toBeDefined();
+      const params = new Set((decl as ts.FunctionDeclaration).parameters.map((p) => p.name.getText(source)));
+      // The destination is the SIXTH argument of the route (`to`), read positionally from the call.
+      let destinationIsForwardedParameter = false;
+      const walk = (node: ts.Node): void => {
+        if (ts.isCallExpression(node) && ts.isIdentifier(node.expression)) {
+          const arg = node.arguments[5];
+          if (arg !== undefined && ts.isIdentifier(arg) && params.has(arg.text)) {
+            destinationIsForwardedParameter = true;
+          }
+        }
+        ts.forEachChild(node, walk);
+      };
+      if ((decl as ts.FunctionDeclaration).body) walk((decl as ts.FunctionDeclaration).body as ts.Node);
+      if (destinationIsForwardedParameter) forwarding.push(handle);
+    }
+
+    expect(
+      forwarding,
+      "no in-repo caller forwards the destination unchanged, which would mean this repository " +
+        "CONSTRAINS every destination a promotion can name — a far stronger answer than the one " +
+        "R-31-41-01 records, and one that must be measured before it is published",
+    ).toEqual([...EXPECTED_REBINDING_CALLERS]);
+  });
+
   it("the derivation RESOLVES ALIASES — a name-matching search would miss the one real caller", () => {
     // The compactor imports the route as `ctxPromoteAdmitted`. This case exists so the derivation's
     // alias handling is a measured property rather than an implementation detail nobody checked:
