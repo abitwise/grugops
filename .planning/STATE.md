@@ -5,9 +5,9 @@ milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live
 current_phase: 31
 current_phase_name: Autonomous Manual Testing
 status: "Phase 31 gap-closure round 9 IN PROGRESS: 31-39 of 6 plans (31-39..31-44) EXECUTED 2026-09-12, sequential on main. 31-39 closed CR-26 and CR-27, the two Criticals round 8 reproduced against the committed .js at f698bec and which round 7 own CR-22 fix had created - the EIGHTH consecutive round in this predicate family. It does not fix two coordinates: it removes the freedom that produced them. ONE authority (actionOwnerRoot) answers which repository owns an action and answers with a discriminated ActionOwner carrying no null member, so falling open costs an explicit branch a reviewer meets; governanceRootOf went from three direct callers (including both write-both routes, which decided a null two opposite ways) to exactly two. The governance DIAL root and the LEDGER owner are now two parameters on admit/appendNote/admitAndAppend - D-31 and WR-10 RESTORED, not reversed - paid for by a deliberate admit() unfreeze authorised by the developer at a blocking checkpoint (D-39), reversing plan 31-33 own prohibition. ADMIT_FROZEN_SHA256 re-baselined to bb920698..81cd, the SIXTH re-base (the plan text said seventh and was measured wrong). The freeze extraction was itself caught DEGENERATING mid-change - an inline object default put a brace in the parameter list and collapsed the frozen span from 12,394 bytes of body to 1,885 of parameter list - and is hardened in both halves. R-31-33-01 CLOSED, recording its own closure, with its driving case inverted rather than deleted. A DERIVED cross-product matrix now covers 7 arms from which a GOV-02 append is reachable, 24 driven cells, each driven twice (legitimate input beside the attack) and read in every root, with the union of the arms asserted pairwise and the permitted asymmetry read from a register proven exercised. Fallout measured and classified: 44 red - 13 staging, 3 expectations genuinely inverted, 28 a derived axis growing 8 to 9 sites; no assertion weakened. Suite 66 files / 4262 passed / 2 skipped, 13 repo gates green, disposition debt unchanged at 78 over 39. UATX-01..06 stay unchecked and Gaps Found and the phase stays In Progress: only a verification round may flip a requirement, and this phase has had eight rounds in which the executing round believed it had closed one. Next: 31-40 (the derived divergence census). Round-7 record: docs/audit/31-round7-residuals.md."
-stopped_at: Completed 31-39-PLAN.md
-last_updated: "2026-09-12T20:02:32.192Z"
-state_head: 2b6e2556e75ca559de0f94d78dcd9922c100aa06
+stopped_at: Completed 31-40-PLAN.md
+last_updated: "2026-09-12T21:24:45.992Z"
+state_head: 217c89336a476058e67faeeffa0fd250b21753f9
 progress:
   total_phases: 9
   completed_phases: 6
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-09-07 — after Phase 29.2)
 ## Current Position
 
 Phase: 31 (Autonomous Manual Testing) — EXECUTING
-Plan: 40 of 44
+Plan: 41 of 44
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 
@@ -471,6 +471,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 31 P37 | 48m | 3 tasks | 13 files |
 | Phase 31 P38 | 36m | 3 tasks | 4 files |
 | Phase 31 P39 | 6h 24m | 3 tasks | 8 files |
+| Phase 31 P40 | 2h 5m | 3 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -1275,6 +1276,8 @@ Recent decisions affecting current work:
 - [Phase 31]: D-37 (31-36): a control asserts its position's ordinary outcome POSITIVELY and its RED path is DRIVEN; an accepted-spelling set and its mutation mirrors are ONE derivation; an input boundary is two independently derived censuses, unioned and compared. — WR-31 measured all four CONTROL rows of check-platform-shapes being refusals and being scored `not refused (correct)` beside ALL CHECKS PASSED: the check asked only whether one refusal CLAUSE STRING was absent, so an ordinary outcome and a refusal for a different reason were indistinguishable. IN-18 measured the forced-absent seam planting 8 shapes it had already decided to skip. WR-32 measured the parity axis recognising the refusal by ONE operator, with both its mirrors written in that operator, and its census blind to an untracked implementation. Neither harness's RULE failed; what failed is whether each can OBSERVE the property it reports on - the class harness-false-result-instances.md records fourteen times. Two further defects were found by measuring before implementing: `exit 0` is not the discriminant at the manifest position (the wrapper exits 0 for both its ordinary answer and its own fail-closed deny), and the symlink CONTROL's target filename broke that position for a reason unrelated to the rule. The visibility widened while the baseline did not move: IMPLEMENTING is the same two files under all three derivations.
 - [Phase 31]: D-38: a delivering side's accept set is asserted a SUBSET of the consuming side's over ONE shared corpus, and a record that claims a mechanism is checkable against the tree it names. Amends D-29 (3): the PreToolUse wrapper applies the reader's SAME five conditions, not a weaker three. — WR-36 measured 4 of 13 candidates delivered by hooks/hook-entry.ts and discarded by hostDeliveredRoot, on both hooks.json PreToolUse routes, under a stated reason that existsSync at :42 disproves. WR-33 and WR-34 measured two of this round's own audit records stating facts false of the tree. Nothing bound the two predicates and nothing checked the records, so both classes were invisible while every test stayed green.
 - [Phase 31]: D-39 (2026-09-12, round 9, plan 31-39): ONE authority answers which repository owns an action, returning a discriminated `ActionOwner` with no null member, so a consumer cannot fall open without an explicit branch; the governance DIAL root and the LEDGER owner become two parameters on `admit`/`appendNote`/`admitAndAppend`, restoring D-31/WR-10 rather than reversing it. Taken by the developer at a blocking checkpoint, because it reverses plan 31-33's own prohibition on unfreezing `admit()`. — CR-26 and CR-27 were both created by round 7's fix for CR-22 — the EIGHTH consecutive round in this predicate family. The generator is that each round installed its rule as an EXPRESSION AT A CALL SITE, which is where the next consumer picks its own fallback. `ADMIT_FROZEN_SHA256` re-baselined to bb920698…81cd, the SIXTH re-base (the plan text's "seventh" was measured wrong), with R-31-39-01 at the freeze. The freeze extraction was ALSO caught degenerating onto a parameter default mid-change (12,394 body bytes -> 1,885 of parameter list) and is hardened in both halves.
+- [Phase 31]: D-40: the root-argument census — the set of places a write path can aim the governance dial or the audit record somewhere other than its own derived answer is DERIVED from source across the 78 tracked .ts files, COUNTED (10 sites, 2 divergences), and DISPOSITIONED from a vocabulary closed at three members, with the sibling axis tail-delegation exclusion deliberately absent because it is CR-27 own coordinate. — Round 8 asked for a census over appendNote repoRoot argument; the census is deliberately WIDER, over both the dial and the ledger argument of all four entry points, because CR-26 and CR-27 are one defect on two different arguments and a census over one would have reported green over the other.
+- [Phase 31]: D-40 (7): both harness false results round 8 handed forward become rows 15 and 16 of docs/audit/harness-false-result-instances.md, ordinals read off the table; the self-inflicted one is judged a row from its PREMISE rather than its verdict, with the alternative reading written into the file notes rather than left silent. — Silence is the one disposition this round forbids: an instance carried a second time without a written judgement is how the phase running tally drifted in the first place.
 
 ### Pending Todos
 
@@ -1393,8 +1396,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-09-12T20:01:24.108Z
-Stopped at: Completed 31-39-PLAN.md
+Last session: 2026-09-12T21:24:19.137Z
+Stopped at: Completed 31-40-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
