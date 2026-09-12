@@ -1059,8 +1059,20 @@ export const WORKFLOW_STOP_HEADING = "## Stop conditions";
  * the bullet itself, exactly like that file's carve-out-checker bullet, so none of them carries a
  * `checkpoint:` tag and the roster is unchanged. A stop condition that hands to a HUMAN is what
  * earns a tag, and this round added none.
+ *
+ * MEASURED AGAIN, WITH THE REASON IT MOVED (31-41): 42 -> 43. Plan `31-41` reconciled
+ * `agent-factory/workflows/18-context-compaction.md`'s imperative restatement with its rewritten
+ * ledger paragraph. The section was SILENT about the one decline every path of the re-binding route
+ * raises — a destination that resolves to no governed store — so an agent following only the stop
+ * conditions would not know to stop for it. One bullet, and this axis caught it, which is what the
+ * two-sidedness is for: the prose edit moved a number the plan's own `files_modified` did not name.
+ * THE TAGGING LIST WAS RE-WALKED rather than the constant bumped. The new bullet is a
+ * stop-and-fix whose remedy is stated in the bullet itself — name a destination inside a governed
+ * repository, and never build one around the bytes — so it hands to no human, carries no
+ * `checkpoint:` tag, and the roster is unchanged. It sits beside the three `31-18` added for the
+ * same reason and under the same test.
  */
-export const WORKFLOW_STOP_BULLET_COUNT = 42;
+export const WORKFLOW_STOP_BULLET_COUNT = 43;
 /**
  * The tag keyword, declared ONCE. Both patterns below are built from it, so the allow-list and the
  * scope selector can never come to disagree about which word they are talking about.
