@@ -2716,3 +2716,128 @@ file.
   governance dial through the caller-supplied destination is a reversal of `D-31` and `WR-10` and
   would need its own dated human decision. This decision RESTORES the trusted dial answer; it does
   not reverse it.
+
+- **WHICH REGISTER FAILED — AND IT WAS NEITHER OF THE TWO THE LAST EIGHT ROUNDS FIXED.** `D-31 (2)`'s
+  rule (two halves of one action key on ONE variable) is correct and is re-measured here as a
+  control. `D-34 (1)`'s placement (a property claimed of a FUNCTION is established at its ENTRY) is
+  correct and is unchanged. What failed is one level up from both: **each round installed its rule as
+  an EXPRESSION AT A CALL SITE, and an expression at a call site is a place where the next consumer
+  gets to choose its own fallback.** Round 7 wrote `governanceRootOf(contextRoot) ?? repoRoot` —
+  one derivation, immediately followed by a decision to discard its failure — and the sibling route
+  answered the identical input the opposite way. Eight rounds have now recorded that consumers use
+  the freedom a `string | null` answer hands them.
+- **D-39 (1) — THE SHAPE, NOT THE POSITION, IS THE FIX.** `actionOwnerRoot` is the ONE answer to
+  "which repository owns an action whose note lands in this store", and it answers a DISCRIMINATED
+  `ActionOwner` with exactly two members, NO null member and NO optional field on either. The point
+  is not that the authority is in a better place; it is that `actionOwnerRoot(x) ?? y` does not
+  type-check and `actionOwnerRoot(x) || y` is not a narrowing anyone writes by accident. Falling open
+  now costs an explicit `if (!owner.answered)` branch a reviewer meets. The authority adds NO second
+  rule — it calls `governanceRootOf` and shapes the answer — and `governanceRootOf` now has exactly
+  TWO direct callers, the origin-anchoring predicate and this authority, neither of them a write-both
+  route. All three properties (the union's arity, the absence of a null member or an optional field,
+  the ban on a fallback expression at any call site, and the caller count) are **asserted from the
+  module's own syntax tree**, with the call-site count asserted non-zero so the ban cannot pass
+  vacuously.
+- **D-39 (2) — THE GOVERNANCE DIAL AND THE AUDIT RECORD ARE TWO QUESTIONS, SO THEY GET TWO
+  PARAMETERS, AND `admit()` IS DELIBERATELY UNFROZEN TO SAY SO.** `repoRoot` answers the DIAL and
+  nothing else: it decides whether a note may land at all, and therefore decides where NOTHING lands.
+  It stays `WR-10`'s ONE trusted answer every tier asks, and `D-31` is RESTORED rather than reversed.
+  The LEDGER address is a second parameter, defaulting to the answered owner of the dial root on
+  `admit()` (so every existing three- and four-argument caller is byte-behaviour-unchanged) and to
+  the owner of its OWN store on `appendNote` (so the record follows the note). `promoteAdmitted`'s
+  fall-through passes the caller's trusted root as the dial and the derived destination as the ledger
+  owner — which keeps `CR-22`'s closure while removing `CR-27`. The unfreeze REVERSES plan `31-33`'s
+  own stated prohibition, deliberately and on a named human's authority, because `R-31-33-01` had
+  already published it as the only thing that closes this class. `ADMIT_FROZEN_SHA256` re-locks at
+  `bb920698…81cd` (prior `08df9e5c…09e9`) under the record `R-31-39-01`, which lists all five prior
+  baselines with their reasons. `R-31-33-01` records its own closure in
+  `WRITE_PATH_RESIDUALS`, and the case that DROVE that residual is INVERTED rather than deleted.
+- **AND THE FREEZE'S OWN EXTRACTION WAS MEASURED DEGENERATING DURING THIS CHANGE.** The new parameter's
+  default was first written as an inline object literal, `{ answered: true, root: repoRoot }`. That
+  put a brace in `admit()`'s PARAMETER LIST, and the extraction takes the first `{` after the
+  declaration and brace-counts from there: the "frozen span" silently collapsed from 12,394 bytes of
+  function BODY to 1,885 bytes of parameter list, and the freeze would have re-locked GREEN over a
+  span containing not one of the four refusal families it exists to pin. **A freeze that can be
+  emptied by a brace is not a freeze.** Both halves are fixed rather than one: the module uses a
+  named constructor so no brace enters the parameter list, and the extraction now walks the parameter
+  list to its closing parenthesis first and ASSERTS that what it extracted is the body (it starts at
+  the declaration, reaches `assertSafeTask`, the D-14 governance read and the retention guard, and
+  ends on the body's closing brace). On any source whose parameter list carries no brace — every
+  prior revision — the hardened extraction yields the identical span, so it is not itself a re-base.
+- **D-39 (3) — THE RULE IS CONSUMED AT THE POINT OF EFFECT AND DERIVED AT EACH ROUTE'S ENTRY.** A note
+  and a GOV-02 record are two halves of ONE action **only when a record is actually written**, which
+  is `audit_retention: retained`. So the refusal for an unnameable owner sits at the retention guard
+  — the one site that appends — while the DERIVATION stays at each route's entry, above every branch,
+  which is `D-34 (1)` unchanged. This is what closes `CR-26` WITHOUT unconditionally refusing every
+  ungoverned `contextRoot`. **The reading that decided the scope is one neither finding document
+  took:** under the lean retention value the same call writes the note and NO ledger line in ANY
+  root, so the action has one half and there are no two halves to split. That reading is recorded in
+  the RED transcript, is asserted UNCHANGED by a case that says so explicitly, and is the cell where
+  the union matrix's only permitted asymmetry lives.
+- **THE REJECTED ALTERNATIVES, WITH THE NUMBERS THAT REJECTED THEM.**
+  - **Refusing every ungoverned `contextRoot` unconditionally** — `D-34` measured it at 121
+    `appendNote` and 26 `admitAndAppend` call sites and rejected it; `D-39` narrows to the retention
+    guard instead, and the SCOPED form's cost was measured on this tree before it was taken: 12
+    distinct test cases reach the condition (the upper bound recorded at Task 1), of which **8
+    actually required re-staging** and **3 were expectations the fix genuinely inverted**.
+  - **Accepting and publishing the fail-open** (round 8's second offered disposition) — REJECTED by
+    the developer at the Task 1 checkpoint. `D-31`'s own REJECTED ALTERNATIVE paragraph already
+    argued it: making a workflow sentence true by weakening the guarantee it describes is the
+    claim-follows-mechanism move run backwards. It also does not close `CR-27`, which needs the
+    dial and the record separated under either disposition.
+  - **Routing the dial through the caller-supplied destination** — NOT on the table. It reverses
+    `D-31` and `WR-10` and would need its own dated human decision.
+  - **Resolving every module-local call when deriving a refusal site's signature** (needed because
+    the shared refusal sentence lives in a helper, so the un-widened walk gives it an EMPTY
+    signature, and `matchesSite(message, [])` is true for every message) — TRIED AND MEASURED WRONG
+    HERE, before the narrow rule was written: it re-identified FOUR existing sites, because
+    `${verdictStampFor(id)}` began contributing `#` to their signatures, which is exactly the
+    value-dependence that walk's own docstring says the drop exists to prevent. The rule that shipped
+    distinguishes by POSITION, not by callee: an element that IS a call composes the whole SENTENCE
+    and is followed through; a call INSIDE an expression composes a VALUE and is dropped.
+- **D-39 (4) — THE ARM SET IS DERIVED, DRIVEN AT EVERY DECIDING INPUT, AND ITS ARMS ARE COMPARED
+  AGAINST EACH OTHER.** A row is a call site from which a GOV-02 append is reachable, over the
+  transitive closure of the module's own call graph, attributed to its nearest named enclosing scope:
+  seven on this tree. The walk starts at the SOURCE FILE, asserted by three seeded controls (an arrow
+  function, a class method and a nested block each move the count by exactly one) — the `WR-27` scope
+  limitation, closed rather than re-learned. **The sibling order axis's tail-delegation exclusion is
+  deliberately ABSENT**, with the reason in the derivation's docstring and its own case, because that
+  exclusion would delete `promoteAdmitted`'s fall-through, which is the exact coordinate `CR-27` was
+  filed at; an axis assembled from another axis's input is this phase's recorded failure shape. Every
+  cell is driven at the full cross product of the two inputs that decide the answer (store shape ×
+  retention), twice — the LEGITIMATE input beside the attack — and every cell reads note counts and
+  ledger line counts in EVERY root it created. The CONVERSE is asserted: every "written" cell reads
+  the note back off disk and parses it, so a fix that refused everything could not pass. The UNION is
+  asserted pairwise, and a disagreement must be named in an exported register WITH the decision that
+  permits it. **The register is proven load-bearing in both directions:** emptying it turns the
+  `ungoverned × lean` union case RED naming the real divergence, and a permanent case asserts every
+  entry is EXERCISED, so an exemption whose cell has come to agree with every other arm must be
+  deleted rather than left standing as a permission for a future divergence.
+- **WHAT D-39 DOES NOT ESTABLISH.**
+  - **It does not authenticate a destination's CONTENTS.** The destination constraint names a
+    REPOSITORY, not a trustworthy one: an agent that can `mkdir` a version-control marker and a
+    readable configuration can construct one. Pre-existing, priced per position, carried unchanged as
+    `T-31-18-01` / `D-31`'s stated residual and as `T-31-39-04`.
+  - **It does not close the DEFAULT split.** `R-31-33-02` stands: with no arguments the note lands in
+    the KIT's store while the GOV-02 event lands under `trustedRepoRoot()`. On this box the two
+    coincide, so the split is not observable here; under the shipped shared-install model they are
+    different directories. Closing it means DECIDING which repository the default names, which
+    reverses a prior decision either way.
+  - **It does not make the CLI `admit` verb expressible in the matrix.** That arm derives one local
+    from `trustedRepoRoot()` and passes it as both the store's base and the dial root, so a store and
+    a dial root that disagree is an input it accepts no way of expressing. Dispositioned with a
+    positive parsed-source proof rather than skipped.
+  - **It does not flip a requirement.** `UATX-01` through `UATX-06` stay UNCHECKED, every
+    traceability row still reads `Gaps Found`, and Phase 31 stays In Progress. Only a verification
+    round may change that, and this phase has now had eight rounds in which the executing round
+    believed it had closed one.
+  - **The Windows leg of everything above is `R-03`** and remains this phase's standing remainder.
+- **Reversibility: costly.** Two new parameters, one new exported type, one new exported authority,
+  two new exported constants and a sixth freeze re-base all enter the module's exported contract and
+  four derived axes. Reverting restores a route round 8 measured splitting a human-disposed finding
+  from its own audit record across two repositories, and a governance dial a caller could re-aim by
+  naming a destination.
+- **Recorded in four places that must agree:** here; in `scripts/context-io.ts` (the authority's own
+  block, `admit()`'s and `appendNote()`'s parameter blocks, `admitAndAppend`'s entry, and the
+  `R-31-33-01` closure in `WRITE_PATH_RESIDUALS`); in `scripts/context-io.test.ts`'s freeze prose as
+  the record `R-31-39-01`; and in `31-39-SUMMARY.md`'s key-decisions block.
