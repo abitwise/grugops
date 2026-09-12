@@ -2461,6 +2461,176 @@ export const WRITE_PATH_RESIDUALS: readonly WritePathResidual[] = Object.freeze(
   }),
 ]);
 
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// THE ROOT-DIVERGENCE REGISTER (31-40) — a disposition for every place a write path aims the
+// governance DIAL or the audit RECORD somewhere other than the answer its own inputs derive.
+//
+// WHY IT EXISTS, STATED AS THE THING THAT KEEPS HAPPENING. Eight consecutive gap-closure rounds of
+// this phase closed a Critical at the coordinate it was filed at and met the next one A REGISTER
+// OVER. `CR-26` and `CR-27` are ONE defect on TWO DIFFERENT ARGUMENTS of the same call: one aimed
+// the record at a root it could not name and fell open to the dial, the other aimed the dial at a
+// destination the caller chose. `31-39` removed the freedom that produced both. This register is
+// the other half: the SET of places that could still exhibit it, derived from source and counted by
+// `scripts/context-io-writer-set.test.ts`'s census, with a written disposition per member — because
+// a rule that holds at the two sites a reviewer read is exactly the rule that produced `CR-26`.
+//
+// THE VOCABULARY IS CLOSED AT THREE, AND THE TYPE IS DERIVED FROM THE CONSTANT. A literal union
+// would be a second statement of the vocabulary that only a compiler can read, and this module has
+// paid for two-statements-of-one-question often enough. `ROOT_DIVERGENCE_KINDS` is the vocabulary;
+// `RootDivergenceKind` is made of it; the census asserts both the cardinality and the derivation. A
+// fourth kind cannot be filed, which is the point — a shape that is none of the three is a
+// DECISION, and a decision does not arrive as a fourth string typed into a diff.
+//
+// `derived-and-refusing` IS UNOCCUPIED ON THIS TREE, DELIBERATELY. Both write-both routes derive
+// their owner and refuse when they cannot name one — but they do that from their OWN inputs, so
+// they are not divergences and need no entry. The kind exists for the site that legitimately aims a
+// root somewhere other than its caller's trusted one AND refuses when the derivation fails: a
+// divergence that is not a defect. Naming it now is cheaper than inventing a name for it later,
+// under the pressure of a round that has already found the site.
+//
+// WHAT A SOURCE CENSUS CANNOT SEE IS A MEMBER TOO. `scripts/check-platform-shapes.ts` assembles a
+// write-path call as the TEXT of a temp module; on this tree it is a string, and no AST walk over
+// this repository will ever report it. It is `visible_to_census: false` here rather than left for
+// round 9 to discover, so the accepted boundary has a COORDINATE instead of a category.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+/**
+ * THE CLOSED VOCABULARY of dispositions a root divergence may carry.
+ *
+ * A runtime constant rather than a bare type union, so the vocabulary is ONE object a compiler and
+ * a test can both read. `RootDivergenceKind` is derived from it below.
+ */
+export const ROOT_DIVERGENCE_KINDS = Object.freeze([
+  /** The site derives its own answer and REFUSES when it cannot name one — a divergence, not a defect. */
+  "derived-and-refusing",
+  /** The site's action writes NO audit record at all, so it has one half rather than two to split. */
+  "one-half-action",
+  /** The site is published as a residual, with its reproduction and what would force it closed. */
+  "published-residual",
+] as const);
+
+export type RootDivergenceKind = (typeof ROOT_DIVERGENCE_KINDS)[number];
+
+/**
+ * A ROOT-DIVERGENCE disposition: one call site that supplies a governance-dial or ledger-owner
+ * argument from something other than the answer its own inputs derive, and why that is accepted.
+ *
+ * Same interface shape as `WritePathResidual`, deliberately — a stable id, the shape stated as a
+ * situation, the reason as an argument rather than an assurance, and what would force it closed —
+ * plus the two fields a census needs: the divergence KIND and the SITE HANDLE the census produces.
+ *
+ * `visible_to_census` is the seventh field and it is not decoration. The census-to-register equality
+ * runs in BOTH directions, so an entry naming a site the census cannot find would fail the converse
+ * direction — and the one site that matters most is precisely a call assembled at run time as text,
+ * which no syntax-tree walk can find. The flag scopes the converse to the entries a census CAN
+ * confirm, while keeping the invisible one published rather than dropped.
+ */
+export interface RootDivergenceDisposition {
+  /** Stable identifier, cited from `31-40-SUMMARY.md`, `31-CONTEXT.md` and any later review. */
+  readonly id: string;
+  /** The census handle: `<file>::<nearest named scope>#<entry>@<n>`. */
+  readonly site: string;
+  /** Which of the three dispositions this divergence carries. */
+  readonly kind: RootDivergenceKind;
+  /** Whether a syntax-tree census over this repository's sources can find the site at all. */
+  readonly visible_to_census: boolean;
+  /** The shape, stated as the situation rather than as a verdict. */
+  readonly shape: string;
+  /** Why it is accepted — the argument, not an assurance, quoting the site rather than paraphrasing it. */
+  readonly reason: string;
+  /** What would force it closed, so a later round has a criterion rather than an opinion. */
+  readonly what_would_force_it_closed: string;
+}
+
+/**
+ * EVERY DIVERGING CALL SITE ON THIS TREE, MEASURED 2026-09-12 over 78 tracked `.ts` sources.
+ *
+ * Ten call sites reach a write-path entry point; two of them diverge, both on the DIAL axis, both
+ * in the Tier-1 oracle; one more exists that the census cannot see and is published here anyway.
+ */
+export const ROOT_DIVERGENCE_DISPOSITIONS: readonly RootDivergenceDisposition[] = Object.freeze([
+  Object.freeze({
+    id: "RD-31-40-01",
+    site: "scripts/check-uat-oracles.ts::equivDoWork#appendNote@1",
+    kind: "one-half-action" as RootDivergenceKind,
+    visible_to_census: true,
+    shape:
+      "The Tier-1 dual-path-equivalence oracle's first per-task write supplies `appendNote`'s " +
+      "governance-dial argument from a temp directory the oracle itself creates, rather than from " +
+      "the ambient trusted root every other tier asks.",
+    reason:
+      "QUOTED FROM THE CALL SITE, because a disposition that paraphrases its own site is a second " +
+      "statement of it: `The 6th argument is the governance root: a Tier-1 oracle decides " +
+      "admission against a root it` `owns, never against whatever repository the ambient order " +
+      "resolves (IN-08).` The function's own block states the consequence the divergence exists " +
+      "for: `A TIER-1 ORACLE NEVER WRITES TO A HOST REPOSITORY'S LEDGER (plan 31-15, IN-08). Both " +
+      "writes below` take that explicit root. IT IS A ONE-HALF ACTION, and that is why it cannot " +
+      "split anything: the root is a fresh `mkdtempSync` directory carrying no factory " +
+      "configuration, so `readGovernanceConfig` answers the module's own defaults, " +
+      "`audit_retention` is not `retained`, and NO GOV-02 record is written at all. There is one " +
+      "half — the note — so there are not two halves to key on two repositories. The census case " +
+      "MEASURES that default rather than believing this sentence. " +
+      "DISPOSITION (plan 31-40): accept — a deliberate divergence whose action has no second half.",
+    what_would_force_it_closed:
+      "The oracle's governance root acquiring a configuration with `audit_retention: retained`, " +
+      "which would give the write a second half and therefore a repository to split it across. " +
+      "The restore criterion for the dropped GOV-02 platform-shape position in `deferred-items.md` " +
+      "is the same shape and would be the likely occasion.",
+  }),
+  Object.freeze({
+    id: "RD-31-40-02",
+    site: "scripts/check-uat-oracles.ts::equivDoWork#appendNote@2",
+    kind: "one-half-action" as RootDivergenceKind,
+    visible_to_census: true,
+    shape:
+      "The same oracle's second per-task write — the seeded admitted claim — supplies the same " +
+      "oracle-owned governance root at the same argument position, inside the same `try`/`finally` " +
+      "whose `rmSync` removes it.",
+    reason:
+      "QUOTED FROM THE CALL SITE: `Same governance root, same reason (IN-08): this fixture's " +
+      "admission is decided against a root` `this function created and will remove, so no host " +
+      "repository's ledger records it.` It is a SEPARATE register entry rather than a footnote on " +
+      "the first because the census enumerates SITES, and a register that dispositioned one site " +
+      "per reason would let a second site inherit a disposition nobody re-read. The one-half " +
+      "argument is identical and is measured identically: the root is the same unconfigured temp " +
+      "directory, so the module's defaults apply and no GOV-02 record is written. " +
+      "DISPOSITION (plan 31-40): accept — the same deliberate divergence, at a second site, " +
+      "written out rather than assumed to travel.",
+    what_would_force_it_closed:
+      "The same criterion as `RD-31-40-01`: a configuration under the oracle's own root that turns " +
+      "retention on and gives the action a second half.",
+  }),
+  Object.freeze({
+    id: "RD-31-40-03",
+    site: "scripts/check-platform-shapes.ts::writeContextDriver#appendNote@text",
+    kind: "published-residual" as RootDivergenceKind,
+    visible_to_census: false,
+    shape:
+      "The platform-shapes gate BUILDS a write-path call as the text of a temp ES module and drives " +
+      "it in a child process, supplying the child's own temp base directory as the governance-dial " +
+      "argument — a divergence that exists at run time and is a string at rest.",
+    reason:
+      "THE CENSUS CANNOT SEE IT, AND THAT IS THE DISCLOSURE RATHER THAN THE DEFECT. The driver is " +
+      "assembled inside `function writeContextDriver(dir: string): string {`, where the call is an " +
+      "array of string literals joined with newlines; a syntax-tree walk over this repository sees " +
+      "a string, never a call expression, so no census the census's own technique can build will " +
+      "ever report it. What it passes is measurable by reading: the store argument is `base` " +
+      "joined with the context subpath, the precomputed id is `noteId`, and the sixth argument — " +
+      "the governance dial — is `base` itself, the child's temp root. It is SAFE HERE for a reason " +
+      "that is a property of the position and not of the census: the child runs against roots the " +
+      "gate creates under the system temp directory, drives the committed artifact, and asserts a " +
+      "shape rather than admitting anything into a repository. It is published because the next " +
+      "round is entitled to a coordinate rather than a category. " +
+      "DISPOSITION (plan 31-40): accept and disclose — a run-time divergence a source census " +
+      "cannot enumerate, named at its site.",
+    what_would_force_it_closed:
+      "Either the driver becoming real code the census can walk — a committed fixture module " +
+      "imported by the gate rather than a string it writes — or a second census that parses the " +
+      "assembled text as TypeScript before it is written, which is a parser this repository does " +
+      "not have and should not grow for one site.",
+  }),
+]);
+
 /**
  * Is `candidate` a directory this module RECOGNISES as a grugops context store?
  *
