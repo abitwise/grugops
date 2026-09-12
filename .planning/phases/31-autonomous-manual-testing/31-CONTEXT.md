@@ -2841,3 +2841,126 @@ file.
   block, `admit()`'s and `appendNote()`'s parameter blocks, `admitAndAppend`'s entry, and the
   `R-31-33-01` closure in `WRITE_PATH_RESIDUALS`); in `scripts/context-io.test.ts`'s freeze prose as
   the record `R-31-39-01`; and in `31-39-SUMMARY.md`'s key-decisions block.
+
+#### Gap-closure decision — D-40 (2026-09-13, gap-closure round 9, wave 9, plan 31-40)
+
+- **WHAT FORCED IT.** `31-VERIFICATION.md` round 8's THIRD `missing:` bullet asks for "a derived test
+  enumerating every call site that supplies `appendNote`'s `repoRoot` argument from a value other than
+  the caller's own trusted root", with each site's disposition compared against the sibling
+  write-both route's — "so a future third write-both route … cannot reopen this class silently a
+  ninth time". Plan `31-39` closed the two COORDINATES round 8 measured. This decision closes the
+  CLASS: the set of places that can exhibit it is now DERIVED from source across files, COUNTED, and
+  DISPOSITIONED from a closed vocabulary, rather than walked by whichever reviewer happens to look.
+  Round 8 also handed forward two harness false results by name; both are dispositioned here.
+- **D-40 (1) — TWO AXES, BECAUSE THE TWO CRITICALS ARE ONE DEFECT ON TWO DIFFERENT ARGUMENTS.** The
+  DIAL axis asks which sites aim the governance dial somewhere other than their own trusted root —
+  `CR-27`'s shape. The LEDGER axis asks which sites aim the audit record somewhere other than the
+  owner derived from that call's own note store — `CR-26`'s shape. A census over ONE argument would
+  have found one of them and reported green over the other, which is the "same class one register
+  over" sentence this phase has now written eight times. The bullet names `appendNote`'s `repoRoot`
+  alone; the census is deliberately WIDER than the bullet, because the bullet's own reachability
+  argument (`scripts/compactor.ts` forwards only six arguments, so the dial is always the default
+  trusted root while the destination is always agent-supplied) is an argument about the CORPUS.
+- **D-40 (2) — THE ENTRY POINTS AND THEIR ARGUMENT POSITIONS ARE DERIVED, NEVER TYPED.** A write-path
+  entry point is an exported function of `scripts/context-io.ts` taking BOTH a governance-dial
+  parameter and a destination-store parameter: `admit`, `admitAndAppend`, `appendNote`,
+  `promoteAdmitted` — four, asserted. The store conjunct is load-bearing: `readGovernanceConfig` takes
+  a dial root and writes nothing, and a census about writes that enrolled a pure reader would be
+  measuring the wrong set. The POSITIONS are derived too, because `31-39` moved both — `appendNote`
+  grew a seventh parameter and `admit` a fifth — and a census carrying hand-written indices would
+  have read the wrong argument while staying green, which is this repository's second named failure
+  class arriving inside the axis built to close it.
+- **D-40 (3) — THE TAIL-DELEGATION EXCLUSION IS DELIBERATELY ABSENT, AND `CR-27` IS THE REASON.** The
+  sibling note-then-ledger ORDER axis excludes a note write that is the whole expression of a
+  `return` statement, correctly: on that path no ledger work in the enclosing function runs at all.
+  `promoteAdmitted`'s fall-through IS that shape and IS the line `CR-27` was filed on. A census that
+  inherited the sibling's exclusion would have deleted its own defect's coordinate before looking —
+  "ask what the predicate's INPUT is ASSEMBLED from", this phase's recorded failure shape. The flag
+  is RECORDED so a reader can see the shape and never consumed as an exclusion; the absence is stated
+  in the derivation's own docstring with `CR-27` named, and a case asserts the fall-through PRESENT.
+- **D-40 (4) — THE VOCABULARY IS CLOSED AT THREE, AND THE TYPE IS MADE OF THE CONSTANT.**
+  `ROOT_DIVERGENCE_KINDS` is the vocabulary; `RootDivergenceKind` is `(typeof
+  ROOT_DIVERGENCE_KINDS)[number]`; the census asserts both the cardinality and the derivation, so the
+  compiler and the test read ONE object. Three rather than an open set, with each member's reason:
+  `derived-and-refusing` (a site that derives its own answer and refuses when it cannot name one —
+  a divergence that is not a defect), `one-half-action` (a site whose action writes no audit record
+  at all, so there is one half rather than two to split), `published-residual` (a site published with
+  its reproduction). A fourth kind cannot be filed, which is the point: a shape that is none of the
+  three is a DECISION, and a decision does not arrive as a fourth string typed into a diff.
+  `derived-and-refusing` is UNOCCUPIED on this tree and that is deliberate — both write-both routes
+  derive and refuse, but from their OWN inputs, so they are not divergences and need no entry.
+- **D-40 (5) — WHAT THIS TREE ACTUALLY MEASURED, rather than what was expected.** 78 tracked `.ts`
+  sources (tests and declaration files excluded), 4 entry points, **10** call sites, **2**
+  divergences — both the Tier-1 oracle's per-task writes, both on the DIAL axis, both filed
+  `one-half-action` with the reason QUOTED from their own call-site comments rather than paraphrased.
+  Three register entries in total, the third being the site the census cannot see. The owner
+  authority has **3** call sites and not one is the operand of a default expression. Seeded mirrors,
+  each anchored and each confirmed different from the live source: top-level control 10 → 11, arrow
+  10 → 11, class method 10 → 11, non-top-level block 10 → 11; the restored `||` fallback moves the
+  ban's offender set from `[]` to exactly `scripts/context-io.ts::promoteAdmitted#actionOwnerRoot@1`;
+  the dispositionless site moves the divergence set to 3 and the unregistered set from `[]` to
+  exactly the seeded handle. The non-top-level-block shape is not hypothetical: `context-io.ts`'s own
+  CLI `admit` call lives inside `if (isMain)` and is a census member on this tree today, so the
+  earlier shape of walk would have missed a production call site that exists.
+- **D-40 (6) — `IN-21`'s FLOOR IS REMOVED RATHER THAN REPAIRED.** Its three terms partition the row
+  set by construction, so it held for every possible input, including the ones the file exists to
+  reject. The property it reached for is already true of the counting authority by construction. What
+  replaced it is a FLOOR (substantiated claims must exceed the rows making no checkable claim) and a
+  CEILING (at most half the rows may name no readable evidence), both sides measured at run time from
+  the parsed rows, both watched failing against confirmed mirrors. The review's remedy names a mirror
+  "whose rows all name evidence"; on this tree every row already does — the live no-evidence count is
+  **0**, asserted as the mirrors' anchor — so that direction reproduces the live reading and moves
+  nothing. The mirror is written in the direction that MOVES, and the substitution is recorded here
+  rather than left as an unexplained difference from the remedy.
+- **D-40 (7) — BOTH CARRIED HARNESS FALSE RESULTS BECOME ROWS, INCLUDING THE ONE THAT COULD HAVE BEEN
+  ARGUED AWAY.** Rows **15** and **16** of `docs/audit/harness-false-result-instances.md`, ordinals
+  READ OFF the table. Row 15's raising record claimed **15** and the table offered **15**; the
+  agreement is printed in the row's own column rather than assumed. Row 16 is the self-inflicted one,
+  and round 8's record offered the reading that a harness measuring its own residue is not a false
+  premise about the subject. The judgement taken is that it IS a row, argued from the PREMISE rather
+  than the verdict: the harness's premise was "the `.temp` tree I am reading belongs to the subject",
+  and that premise was false. The alternative reading is written into the file's notes, so the next
+  reader disagrees with an argument rather than with a silence.
+- **REJECTED ALTERNATIVES.**
+  - **A census restricted to `appendNote`'s `repoRoot`, as the bullet literally words it** —
+    REJECTED. `CR-26` lived on `admitAndAppend`'s ledger derivation and `CR-27` on `promoteAdmitted`'s
+    fall-through; a census scoped to the argument of the third route would have found neither at the
+    coordinate it was filed at. The bullet's wording names the instance; the class is wider.
+  - **A hand-typed list of the five files a reviewer read** — REJECTED by name. That is the
+    set-literal drift class, which is this repository's second named systemic failure and the shape
+    that produced both Criticals. The corpus is `git ls-files '*.ts'` at run time with a floor.
+  - **Reusing the sibling order axis's derivation** — REJECTED, see D-40 (3). It would have been less
+    code and would have deleted `CR-27`'s coordinate.
+  - **An OPEN kind vocabulary** — REJECTED. An open set lets the next round file a fourth
+    disposition at the diff, which is precisely how "accept and disclose" becomes "accept".
+  - **Refusing the two oracle divergences instead of dispositioning them** — REJECTED. They are
+    deliberate, their reason is written at their own call site, and a Tier-1 oracle deciding admission
+    against a root it owns is `IN-08`'s closure, not a defect. A census that refused them would be
+    read around rather than obeyed.
+- **WHAT D-40 DOES NOT ESTABLISH.**
+  - **A census over SOURCE cannot see a divergence assembled at RUN TIME.**
+    `scripts/check-platform-shapes.ts` builds a write-path call as the TEXT of a temp module and
+    passes the child's own temp base as the dial; on this tree it is a string, and no AST walk over
+    this repository will report it. Published as `RD-31-40-03` with `visible_to_census: false`, so the
+    accepted boundary has a coordinate rather than a category. The complementary coverage is the
+    behavioural cross product `D-39 (4)` installed.
+  - **The register names REPOSITORIES, not trustworthy ones.** Unchanged from `D-31` and `D-39`: an
+    agent that can `mkdir` a version-control marker and a readable configuration can construct one.
+    Carried as `T-31-18-01` / `T-31-39-04`.
+  - **The binding resolution is ONE HOP, in source order.** `const repoRoot = trustedRepoRoot();`
+    above a call is resolved; a value assembled through two bindings reads as a divergence and has to
+    earn a register entry. That is the safe direction for a default and it is stated rather than
+    discovered.
+  - **The Windows leg of everything above is `R-03`** and remains this phase's standing remainder.
+  - **It does not flip a requirement.** `UATX-01` through `UATX-06` stay UNCHECKED, every
+    traceability row still reads `Gaps Found`, and Phase 31 stays In Progress. Only a verification
+    round may change that, and this phase has now had eight rounds in which the executing round
+    believed it had closed one.
+- **Reversibility: moderate.** Two new exported constants, one new exported type and one new exported
+  interface enter `scripts/context-io.ts`'s contract, and one new derived part enters
+  `scripts/context-io-writer-set.test.ts`. No production behaviour changes: this plan adds no branch,
+  no refusal and no parameter. Reverting costs the enumeration, not a guarantee — which is exactly
+  why reverting it is how a ninth recurrence would become invisible again.
+- **Recorded in four places that must agree:** here; in `scripts/context-io.ts` (the register's own
+  block and its three entries); in `scripts/context-io-writer-set.test.ts`'s PART SIX-J; and in
+  `31-40-SUMMARY.md`'s key-decisions block.
