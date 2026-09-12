@@ -340,6 +340,13 @@ Deliberately outside the rule, recorded here so the boundary is written down:
   bound is stated in the harness with its reason and the walk asserts it reached that bound, so a
   truncation is a failed premise rather than a shorter set. A modifier family declared deeper than
   the bound would be outside the measurement.
+- Every way the framework-surface walk can stop early, quoted from `SURFACE_TRUNCATION_ARMS`: `node-bound`, `depth-bound`, `exports-unreadable`, `container-unreadable`, `surface-unreadable`.
+  Each arm names one event and each reaches the same could-not-run exit with its own cause. Two are
+  bounds and three are a checker that could not answer. The positions inside the walk that can reach
+  them are DERIVED from the walk's own syntax tree rather than remembered, and each one is published
+  with the arm it takes, so a position added without a decision turns the census red naming itself.
+  Nothing in the walk swallows a checker throw and carries on: that was true of five positions until
+  `31-42`, and the count of arms here equals the count the checker carries.
 - Directory names the walk never descends into, quoted from `SKIPPED_DIRECTORIES`: `node_modules`, `.git`, `dist`, `tools`, `.temp`.
   A uat spec under one of those names is not counted. It leaves the derived total before the total is
   reported. Neither floor can see that. The derived count and the visited count shrink together. So

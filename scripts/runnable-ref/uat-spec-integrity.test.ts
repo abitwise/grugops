@@ -3839,6 +3839,7 @@ describe("browser-uat-recipe.md — 31-13: the boundary list is the register plu
     "declared-surface-not-package": "The hand-transcription `UNKNOWN - verify`; a limit of the DENOMINATOR, not a declined callee shape.",
     "walk-depth-bound": "The reverse walk's depth bound; again a limit of the denominator.",
     "skipped-directories": "31-32 / WR-35 / D-33 (5): the walk's INPUT BOUNDARY and its disclosure. It is a limit of the DENOMINATOR rather than a declined callee shape, and it is the one limit neither floor in `reportMeasured` can see, because the derived count and the visited count shrink together.",
+    "surface-truncation-arms": "31-42 / WR-37 / D-42: the ARMS a stopped walk reports, published by value beside the positions that reach them. It is a statement about the walk's own completeness record rather than a declined callee shape — every arm here is LOUD, which is what makes it the opposite of a residual.",
   });
 
   /** The opening words that identify each non-residual bullet. Matched as a prefix, never as a substring. */
@@ -3852,6 +3853,7 @@ describe("browser-uat-recipe.md — 31-13: the boundary list is the register plu
     "declared-surface-not-package": "The declared surface is **not** the released package",
     "walk-depth-bound": "The walk that produces the reverse half's denominator",
     "skipped-directories": "Directory names the walk never descends into",
+    "surface-truncation-arms": "Every way the framework-surface walk can stop early",
   });
 
   it("the boundary list PARTITIONS into register members and the bounded remainder", async () => {

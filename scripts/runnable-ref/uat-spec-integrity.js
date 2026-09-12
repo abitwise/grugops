@@ -738,9 +738,83 @@ export const SURFACE_TRUNCATION_REACHED = Object.freeze({
     // every framework type behind one unreached, and that is the same event as a bound: declarations
     // the walk did not get to. It is loud rather than quietly narrower.
     "container-unreadable": "a standard-library container whose type arguments this checker does not publish, so what it holds could not be reached",
+    // 31-42 (WR-37). Also not a bound, and it is here because a MEASUREMENT rather than an argument
+    // put it here. FIVE positions inside this walk caught a checker throw and carried on — four the
+    // review named and one it did not — and every one of them costs the same thing the two bounds
+    // cost: framework declarations the walk never reached, each of whose calls would then have been
+    // decided as foreign, which is accept. The sibling position that fails CLOSED on the same class
+    // of throw (`hasExpandableMembers`) had its reason written out while these five had none, and one
+    // walk with two opposite dispositions for one event is a pair nobody decided. They now take the
+    // route the other arms take. The positions are not remembered here: they are DERIVED from this
+    // function's own syntax tree, published in `SURFACE_SWALLOW_SITES` below, and a sixth swallow
+    // arriving without a decision turns the census red naming itself.
+    "surface-unreadable": "a declaration this checker could not read, so the subtree hanging off it was never walked",
 });
 /** Every way the walk can stop early, DERIVED from the record above rather than re-typed. */
 export const SURFACE_TRUNCATION_ARMS = Object.freeze(Object.keys(SURFACE_TRUNCATION_REACHED));
+/**
+ * 31-42 (WR-37, D-42): EVERY POSITION INSIDE THE FRAMEWORK-SURFACE WALK THAT CATCHES AN EXCEPTION
+ * AND DOES NOT RE-RAISE IT, each decided by exactly one of an ARM above or a member of
+ * `UNRESOLVABLE_CALLEE_RESIDUALS`.
+ *
+ * WHY THIS RECORD EXISTS BESIDE THE ARM RECORD. `SURFACE_TRUNCATION_ARMS` is derived from
+ * `SURFACE_TRUNCATION_REACHED`'s keys and is introduced as "every way the walk can stop early". The
+ * derivation is real; its SUBJECT was a record somebody wrote. A completeness claim assembled from
+ * attention rather than from code is an assurance, and round 8 found four positions it had missed.
+ * The harness derives the site set from THIS FUNCTION'S OWN SYNTAX TREE — the walk's call closure,
+ * every catch that continues or substitutes — asserts its cardinality, and compares it against the
+ * keys below IN BOTH DIRECTIONS. A position added without an entry turns the census red naming
+ * itself; an entry naming a position the walk no longer has is stale and turns it red too.
+ *
+ * THE ID. `<nearest enclosing named scope>#<ordinal within that scope, in source order>`, so a
+ * handler inside the declaration-adding helper is filed under that helper rather than under the
+ * function containing it. The ordinal moves when a position is inserted above it, which is the
+ * fail-closed direction: a re-ordering is a re-decision.
+ *
+ * WHAT IS NOT HERE: a kept fail-open. Every position was decided against a measurement rather than
+ * against an argument — 26 genuine walks of this repository's own corpus with a counter injected at
+ * each position, ZERO throws at all nine — so none of the five that failed open had a number
+ * supporting the silence, and all five are now loud. A future position whose fail-open IS supported
+ * by a number carries `residual` instead of `arm`, and the number goes in its register member.
+ */
+export const SURFACE_SWALLOW_SITES = Object.freeze({
+    "addDeclarations#1": {
+        arm: "surface-unreadable",
+        what: "a declaration whose own source file the checker threw on; before 31-42 the walk recorded NO framework file at all and reported a complete surface",
+    },
+    "frameworkSurface#1": {
+        arm: "surface-unreadable",
+        what: "an exported symbol whose type the checker could not produce; the export's whole subtree is unreachable",
+    },
+    "frameworkSurface#2": {
+        arm: "exports-unreadable",
+        what: "the framework module's export list, which the checker could not enumerate; recorded since D-36",
+    },
+    "frameworkSurface#3": {
+        arm: "surface-unreadable",
+        what: "a property whose type the checker could not produce; that property's subtree is unreachable",
+    },
+    "frameworkSurface#4": {
+        arm: "surface-unreadable",
+        what: "a node whose properties or call signatures the checker threw on; the node's entire expansion is dropped",
+    },
+    "containerTypeArguments#1": {
+        arm: "container-unreadable",
+        what: "a standard-library container whose type arguments the checker threw on; what it holds could not be reached, which is the event the arm already named for a checker that cannot be asked at all",
+    },
+    "hasExpandableMembers#1": {
+        arm: "depth-bound",
+        what: "FAILS CLOSED: a node at the depth bound whose properties cannot be read answers `expandable`, so an unreadable node is reported as a truncation rather than assumed to be a leaf",
+    },
+    "hasExpandableMembers#2": {
+        arm: "depth-bound",
+        what: "FAILS CLOSED: the same, for the node's call signatures",
+    },
+    "isDefaultLibraryDeclaration#1": {
+        arm: "depth-bound",
+        what: "FAILS TOWARDS WALKING: a library probe that throws answers `false`, so the walk descends, reaches a bound and says so, rather than narrowing itself in silence",
+    },
+});
 /**
  * D-36: the ONE sentence a truncated walk returns as its could-not-run cause. Exported so the
  * recipe and the residual register quote it rather than restate it.
@@ -942,7 +1016,14 @@ export function frameworkSurface(ts, program, checker, moduleSymbol) {
                 files.add(declaration.getSourceFile().fileName);
             }
             catch {
-                /* a synthesised declaration carries no file; it cannot anchor identity either */
+                // 31-42 (WR-37), `addDeclarations#1` — THE FIFTH SWALLOW, which no review named. The old
+                // comment read "a synthesised declaration carries no file; it cannot anchor identity
+                // either", and that is true of a SYNTHESISED declaration and says nothing about one whose
+                // file the checker THREW on. MEASURED through the walk's own seam before this line existed:
+                // a checker that throws here returned `files: 0` with `truncated: null` — a surface holding
+                // not one framework declaration file, reported as complete, with every call on it then
+                // answering foreign. That is the loudest of the five and it was the quietest.
+                truncated ??= "surface-unreadable";
             }
         }
     };
@@ -969,7 +1050,9 @@ export function frameworkSurface(ts, program, checker, moduleSymbol) {
                 });
             }
             catch {
-                /* a type this checker cannot produce contributes no path and no file */
+                // 31-42 (WR-37), `frameworkSurface#1` — the EXPORT's whole subtree is unreachable. MEASURED
+                // before this line: `truncated: null`, `paths: 0`.
+                truncated ??= "surface-unreadable";
             }
         }
     }
@@ -1048,7 +1131,11 @@ export function frameworkSurface(ts, program, checker, moduleSymbol) {
                     });
                 }
                 catch {
-                    /* one unreadable property costs its own subtree, never the walk */
+                    // 31-42 (WR-37), `frameworkSurface#3` — "costs its own subtree, never the walk" named the
+                    // cost correctly and drew the wrong conclusion from it: a subtree the walk never reached
+                    // is exactly what the two bounds report, so it is the same event and it takes the same
+                    // route. MEASURED before this line: `truncated: null`, `paths: 1`.
+                    truncated ??= "surface-unreadable";
                 }
             }
             for (const signature of checker.getSignaturesOfType(type, ts.SignatureKind.Call)) {
@@ -1060,6 +1147,10 @@ export function frameworkSurface(ts, program, checker, moduleSymbol) {
             }
         }
         catch {
+            // 31-42 (WR-37), `frameworkSurface#4` — the node's ENTIRE expansion, every property and every
+            // call signature, dropped while the walk carried on as if it had run. MEASURED before this
+            // line: `truncated: null`, `paths: 1`.
+            truncated ??= "surface-unreadable";
             continue;
         }
     }
@@ -1068,12 +1159,22 @@ export function frameworkSurface(ts, program, checker, moduleSymbol) {
 /**
  * D-36: the types a standard-library container HOLDS, or `null` when this checker cannot be asked.
  *
- * `null` is the LOUD answer and it is reserved for exactly one case: a checker that does not
- * publish the member at all. A checker that publishes it answers `[]` for a type that is not a
- * reference, so an ordinary `string` costs one call and no special case. A THROW is read as "this
- * type holds nothing" rather than as a truncation, because the alternative — treating every
- * unreadable type as a stopped walk — would block runs on the ordinary shapes this call is made
- * over, and a gate that always blocks is a gate nobody reads.
+ * `null` is the LOUD answer. It is reached two ways: a checker that does not publish the member at
+ * all, and a checker that publishes it and THROWS. A checker that publishes it and answers returns
+ * `[]` for a type that is not a reference, so an ordinary `string` costs one call and no special
+ * case.
+ *
+ * 31-42 (WR-37), `containerTypeArguments#1`: THE THROW USED TO ANSWER `[]`, which reads as "this
+ * type holds nothing" — a container whose contents could not be read, treated as empty, so every
+ * framework type behind it left the surface with nothing said. The docstring that stood here
+ * ARGUED for that: "treating every unreadable type as a stopped walk would block runs on the
+ * ordinary shapes this call is made over, and a gate that always blocks is a gate nobody reads."
+ * The argument is answered by a NUMBER rather than by a counter-argument. MEASURED over 26 genuine
+ * walks of this repository's own corpus — sixteen fixture specs, seven deep property chains, a
+ * 4,200-type wide surface, an index-signature probe and a container probe — with a counter injected
+ * into every derived swallow position: this position threw ZERO times. The shapes the argument was
+ * about do not throw; they answer. So the throw is what it always was, a container whose contents
+ * could not be reached, and it takes the arm that already names that event.
  */
 function containerTypeArguments(checker, type) {
     const probe = checker.getTypeArguments;
@@ -1083,7 +1184,7 @@ function containerTypeArguments(checker, type) {
         return probe.call(checker, type) ?? [];
     }
     catch {
-        return [];
+        return null;
     }
 }
 /**
