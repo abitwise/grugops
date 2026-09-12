@@ -13669,3 +13669,237 @@ describe("31-33 — CR-24: a skipped entry is named by the condition that is TRU
     expect(indexOf(ctx)).toContain("| a real body |");
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// PLAN 31-39 — CR-26 / CR-27: ONE AUTHORITY FOR "WHICH REPOSITORY OWNS THIS ACTION", AND TWO
+// SEPARATE PARAMETERS FOR THE TWO SEPARATE QUESTIONS.
+//
+// WHAT WAS WRONG, REPRODUCED AGAINST THE COMMITTED `.js` BEFORE ANY SOURCE WAS TOUCHED. The full
+// RED transcript, with every premise line and the all-root counts, is committed at
+// `.planning/phases/31-autonomous-manual-testing/red-evidence/31-39-task2-red.json` (taken at
+// `adeb45c`). The readings it recorded:
+//
+//   | probe                                                    | returned | all-root counts after            |
+//   | RED1 admitAndAppend(UNGOV.store, THIRD.root) [retained]  | an id    | UNGOV notes=1 ledger=ABSENT      |
+//   |                                                          |          | THIRD notes=0 ledger=1           |
+//   | RED3 the same call at THIRDLEAN [audit_retention: git]   | an id    | UNGOV notes=1, NO ledger anywhere|
+//   | RED2 ATTACK promoteAdmitted(to=DEST, repoRoot=TRUSTED)   | an id    | DEST notes=1 ledger=1            |
+//   | RED2 CONTROL the same call with to=TRUSTED.store         | REFUSED  | nothing written                  |
+//
+// RED1 is CR-26: a human-disposed finding in one repository with its own GOV-02 audit record in
+// another, on the route `18-context-compaction.md` names by hand as writing both together. RED2 is
+// CR-27: `TRUSTED`'s own governance configuration EXISTS and is unparseable — the shape D-14
+// requires a fail-closed refusal for — and naming a different, permissively-configured destination
+// LAUNDERS the admission past it. The pair IS the finding: same note, same caller, same unreadable
+// trusted configuration, two different answers.
+//
+// RED3 IS THE READING NEITHER FINDING DOCUMENT TOOK, and it is why the refusal is SCOPED rather
+// than unconditional: under the lean retention value no ledger line is written in any root, so
+// there is no second half and therefore no two halves to split. The rule is consumed at the POINT
+// OF EFFECT — the retention guard — while the DERIVATION stays at each route's entry, which is
+// D-34 (1) unchanged. The adjacent unscoped alternative is the one D-34 measured at 121 `appendNote`
+// and 26 `admitAndAppend` call sites and rejected.
+//
+// EVERY CASE BELOW READS THE NOTE COUNT AND THE LEDGER LINE COUNT IN EVERY ROOT IT CREATED, never
+// only in the root it expects: a probe that reads one root cannot see a split.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+describe("31-39 — CR-26 / CR-27: one owner authority, and a dial root distinct from a ledger root", () => {
+  interface Root39 {
+    readonly root: string;
+    readonly store: string;
+  }
+
+  function governed39(prefix: string, dial: string, retention: string): Root39 {
+    const root = freshTmp(prefix);
+    mkdirSync(join(root, ".git"), { recursive: true });
+    mkdirSync(join(root, ".grugops"), { recursive: true });
+    writeFileSync(
+      join(root, ".grugops", "factory.config.json"),
+      JSON.stringify({ context: { human_admission: dial, audit_retention: retention } }),
+    );
+    const store = join(root, ".grugops", "context");
+    mkdirSync(store, { recursive: true });
+    return { root, store };
+  }
+
+  /** A governance root whose configuration EXISTS and cannot be parsed — the D-14 fail-closed shape. */
+  function unparseable39(prefix: string): Root39 {
+    const root = freshTmp(prefix);
+    mkdirSync(join(root, ".git"), { recursive: true });
+    mkdirSync(join(root, ".grugops"), { recursive: true });
+    writeFileSync(join(root, ".grugops", "factory.config.json"), "{ this is not json");
+    const store = join(root, ".grugops", "context");
+    mkdirSync(store, { recursive: true });
+    return { root, store };
+  }
+
+  /** A store-SHAPED directory with no governance root above it: the owner cannot be named. */
+  function ungoverned39(prefix: string): Root39 {
+    const holder = join(freshTmp(prefix), "plain");
+    const store = join(holder, ".grugops", "context");
+    mkdirSync(store, { recursive: true });
+    return { root: holder, store };
+  }
+
+  /** ASSERT THE HARNESS'S OWN PREMISE, PER ROOT, BEFORE ANY RESULT IS READ (six false-result instances). */
+  function premise39(label: string, g: Root39): Root39 {
+    expect(
+      mod.governanceRootOf(g.store),
+      `PREMISE: ${label} is not a governance root the module resolves for itself, so every count ` +
+        `read out of it below would measure the fixture rather than the module`,
+    ).toBe(g.root);
+    return g;
+  }
+
+  const notesIn39 = (g: Root39, task: string): number => {
+    const d = join(g.store, task, "notes");
+    return existsSync(d) ? readdirSync(d).filter((f) => f.endsWith(".md")).length : 0;
+  };
+  /** `null` is ABSENT — a ledger never created records nothing rather than zero lines. */
+  const ledgerIn39 = (g: Root39): number | null => {
+    const p = join(g.root, ".grugops", "audit", "admissions.jsonl");
+    if (!existsSync(p)) return null;
+    return readFileSync(p, "utf8").split("\n").filter((l) => l.trim() !== "").length;
+  };
+  function census39(task: string, roots: Readonly<Record<string, Root39>>): string {
+    return Object.entries(roots)
+      .map(([n, g]) => `${n} notes=${notesIn39(g, task)} ledger=${ledgerIn39(g) ?? "ABSENT"}`)
+      .join(" | ");
+  }
+
+  const gatedFinding39 = (): Parameters<typeof mod.appendNote>[1] =>
+    ({
+      kind: "finding",
+      by: "security-nfr",
+      at: "2026-09-12T00:00:00.000Z",
+      verified_by: "human:alice",
+      confidence: "high",
+      refs: [],
+      supersedes: null,
+    }) as Parameters<typeof mod.appendNote>[1];
+
+  const unstamped39 = (): Parameters<typeof mod.appendNote>[1] =>
+    ({
+      kind: "observation",
+      by: "qe",
+      at: "2026-09-12T00:00:00.000Z",
+      verified_by: "",
+      confidence: "high",
+      refs: [],
+      supersedes: null,
+    }) as Parameters<typeof mod.appendNote>[1];
+
+  it("RED 1 (CR-26): an unnameable owner under RETAINED retention REFUSES, and nothing lands in any root", () => {
+    const T = "T-3931A";
+    const THIRD = premise39("THIRD", governed39("p31-39-r1-third-", "high-severity", "retained"));
+    const UNGOV = ungoverned39("p31-39-r1-ungov-");
+    expect(
+      mod.governanceRootOf(UNGOV.store),
+      "PREMISE: the ungoverned fixture resolves to a governance root after all",
+    ).toBeNull();
+    expect(
+      mod.readGovernanceConfig(THIRD.root).config.audit_retention,
+      "PREMISE: the dial root is not under retained retention, so this case cannot reach the guard",
+    ).toBe("retained");
+    const roots = { THIRD, UNGOV };
+    const before = census39(T, roots);
+
+    const r = mod.admitAndAppend(T, gatedFinding39(), "a body", UNGOV.store, THIRD.root);
+
+    expect(
+      r.id,
+      `the route still ADMITTED. RED transcript recorded id + UNGOV notes=1 / THIRD ledger=1. ` +
+        `before: ${before} — after: ${census39(T, roots)}`,
+    ).toBeNull();
+    // The refusal is read from the SHARED constants, never matched as free text.
+    expect(r.findings.join("\n")).toContain(mod.UNNAMEABLE_OWNER_CLAUSE);
+    expect(r.findings.join("\n")).toContain(mod.unnameableOwnerRefusal(UNGOV.store));
+    // NOTHING WAS WRITTEN, asserted in EVERY candidate root rather than in the one the call named.
+    expect(notesIn39(UNGOV, T), "a note landed in a store whose owning repository cannot be named").toBe(0);
+    expect(
+      census39(T, roots),
+      `a note or a ledger line moved on a refused call. before: ${before}`,
+    ).toBe(before);
+  });
+
+  it("RED 2 (CR-27): a destination naming a permissive store no longer launders the trusted root's D-14 refusal", () => {
+    const T = "T-3932A";
+    const TRUSTED = premise39("TRUSTED", unparseable39("p31-39-r2-trusted-"));
+    const DEST = premise39("DEST", governed39("p31-39-r2-dest-", "off", "retained"));
+    const ORIGIN = premise39("ORIGIN", governed39("p31-39-r2-origin-", "off", "git"));
+    expect(
+      mod.readGovernanceConfig(TRUSTED.root).source,
+      "PREMISE: the trusted root's configuration is readable, so D-14 is not even in play here",
+    ).toBe("unreadable");
+    expect(
+      mod.readGovernanceConfig(DEST.root).source,
+      "PREMISE: the destination's configuration is not readable, so the attack has nothing to launder through",
+    ).toBe("ok");
+    const roots = { TRUSTED, DEST, ORIGIN };
+    const before = census39(T, roots);
+
+    // THE CONTROL FIRST — it is what asserts the unparseability premise BEHAVIOURALLY rather than
+    // by reading the fixture back.
+    let controlMessage = "(no throw)";
+    try {
+      mod.promoteAdmitted(T, "src-id", unstamped39(), "a body", ORIGIN.store, TRUSTED.store, TRUSTED.root);
+    } catch (e) {
+      controlMessage = (e as Error).message;
+    }
+    expect(controlMessage, "the CONTROL did not refuse, so the D-14 premise is not established").toContain(
+      "UNKNOWN - verify",
+    );
+
+    // THE ATTACK — the identical call with the destination pointed at a DIFFERENT, permissive store.
+    let attackMessage = "(no throw)";
+    try {
+      mod.promoteAdmitted(T, "src-id", unstamped39(), "a body", ORIGIN.store, DEST.store, TRUSTED.root);
+    } catch (e) {
+      attackMessage = (e as Error).message;
+    }
+    expect(
+      attackMessage,
+      `the attack WROTE. RED transcript recorded an id and DEST notes=1 ledger=1. ` +
+        `before: ${before} — after: ${census39(T, roots)}`,
+    ).toContain("UNKNOWN - verify");
+    // SAME NOTE, SAME CALLER, SAME UNREADABLE TRUSTED CONFIGURATION, SAME ANSWER — the property
+    // CR-27 measured absent. Compared from the two OBSERVED refusals, not against a literal.
+    expect(
+      attackMessage.includes("UNKNOWN - verify") && controlMessage.includes("UNKNOWN - verify"),
+      "the two calls answered the identical shape differently",
+    ).toBe(true);
+    expect(census39(T, roots), `something was written on a refused call. before: ${before}`).toBe(before);
+  });
+
+  it("RED 3 (the lean-retention reading): unchanged by the scoped disposition — no record, so no split", () => {
+    // NEITHER FINDING DOCUMENT TOOK THIS READING, and it is the one that decides whether the
+    // refusal must be unconditional. Under the lean value no ledger line is written in any root, so
+    // the action has only ONE half and there is nothing to key on a second repository. The refusal
+    // is therefore scoped to the retention guard — the point of effect — and this case says so
+    // explicitly rather than leaving it untested.
+    const T = "T-3933A";
+    const LEAN = premise39("LEAN", governed39("p31-39-r3-lean-", "high-severity", "git"));
+    const UNGOV = ungoverned39("p31-39-r3-ungov-");
+    expect(mod.governanceRootOf(UNGOV.store)).toBeNull();
+    expect(
+      mod.readGovernanceConfig(LEAN.root).config.audit_retention,
+      "PREMISE: the dial root is not lean, so this case is not measuring the lean reading at all",
+    ).toBe("git");
+    const roots = { LEAN, UNGOV };
+
+    const r = mod.admitAndAppend(T, gatedFinding39(), "a body", UNGOV.store, LEAN.root);
+
+    expect(
+      r.findings,
+      `the lean reading changed: ${r.findings.join(" / ")}. The RED transcript recorded an id and ` +
+        `UNGOV notes=1 with no ledger in any root.`,
+    ).toEqual([]);
+    expect(r.id).toBeTruthy();
+    expect(notesIn39(UNGOV, T)).toBe(1);
+    expect(
+      { lean: ledgerIn39(LEAN), ungov: ledgerIn39(UNGOV) },
+      "a ledger line appeared under the lean retention value, which would make this the wrong scope",
+    ).toEqual({ lean: null, ungov: null });
+  });
+});

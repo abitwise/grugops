@@ -1,0 +1,297 @@
+{
+  "what": "RED transcript for plan 31-39 Task 2 — CR-26 and CR-27 reproduced against the COMMITTED scripts/context-io.js BEFORE any source was touched, at their own spellings from 31-REVIEW.md and 31-VERIFICATION.md round 8.",
+  "taken_at_commit": "adeb45c",
+  "artifact_driven": "scripts/context-io.js (the committed build output — never the .ts)",
+  "artifact_sha256": "342d7391a9967152ef16bd5bd599c2098b1967324992301b8d5e8b4d3f4a5a6c",
+  "driver": "a scratch ESM driver run from OUTSIDE the repository tree; every root mkdtemp under the OS temp dir; deleted after use",
+  "reading_rule": "every probe records the note count AND the ledger line count in EVERY root the probe created, never only in the root the finding names — a probe that reads one root cannot see a split.",
+  "premises_asserted_before_any_result_was_read": {
+    "governanceRootOf(THIRD.store)": "/var/folders/y3/c2txpd5d6tv9wgxtq1wn0skh0000gn/T/cr26-third-vawH1l",
+    "THIRD.root": "/var/folders/y3/c2txpd5d6tv9wgxtq1wn0skh0000gn/T/cr26-third-vawH1l",
+    "THIRD resolves": true,
+    "governanceRootOf(UNGOV.store)": null,
+    "UNGOV unresolvable": true,
+    "governanceRootOf(THIRDLEAN.store) === THIRDLEAN.root": true,
+    "governanceRootOf(DEST.store)": "/var/folders/y3/c2txpd5d6tv9wgxtq1wn0skh0000gn/T/cr27-dest-fMNUv0",
+    "DEST resolves": true,
+    "governanceRootOf(TRUSTED.store) === TRUSTED.root": true,
+    "retention@THIRD": "retained",
+    "human_admission@THIRD": "high-severity",
+    "retention@THIRDLEAN": "git",
+    "source@TRUSTED (must be 'unreadable' for D-14)": "unreadable",
+    "source@DEST": "ok",
+    "retention@DEST": "retained"
+  },
+  "probes": [
+    {
+      "name": "RED1 CR-26 admitAndAppend(UNGOV.store, THIRD.root) [retained]",
+      "task": "T-REPRO1",
+      "returned": {
+        "id": "20260912T000000Z-security-nfr-finding-6dc5ff5d",
+        "findings": []
+      },
+      "threw": null,
+      "all_root_counts_before": {
+        "THIRD": {
+          "notes": 0,
+          "ledger": null
+        },
+        "UNGOV": {
+          "notes": 0,
+          "ledger": null
+        },
+        "THIRDLEAN": {
+          "notes": 0,
+          "ledger": null
+        },
+        "TRUSTED": {
+          "notes": 0,
+          "ledger": null
+        },
+        "DEST": {
+          "notes": 0,
+          "ledger": null
+        },
+        "ORIGIN": {
+          "notes": 0,
+          "ledger": null
+        }
+      },
+      "all_root_counts_after": {
+        "THIRD": {
+          "notes": 0,
+          "ledger": 1
+        },
+        "UNGOV": {
+          "notes": 1,
+          "ledger": null
+        },
+        "THIRDLEAN": {
+          "notes": 0,
+          "ledger": null
+        },
+        "TRUSTED": {
+          "notes": 0,
+          "ledger": null
+        },
+        "DEST": {
+          "notes": 0,
+          "ledger": null
+        },
+        "ORIGIN": {
+          "notes": 0,
+          "ledger": null
+        }
+      }
+    },
+    {
+      "name": "RED3 admitAndAppend(UNGOV.store, THIRDLEAN.root) [lean/git]",
+      "task": "T-REPRO3",
+      "returned": {
+        "id": "20260912T000000Z-security-nfr-finding-b0b3a8aa",
+        "findings": []
+      },
+      "threw": null,
+      "all_root_counts_before": {
+        "THIRD": {
+          "notes": 0,
+          "ledger": 1
+        },
+        "UNGOV": {
+          "notes": 0,
+          "ledger": null
+        },
+        "THIRDLEAN": {
+          "notes": 0,
+          "ledger": null
+        },
+        "TRUSTED": {
+          "notes": 0,
+          "ledger": null
+        },
+        "DEST": {
+          "notes": 0,
+          "ledger": null
+        },
+        "ORIGIN": {
+          "notes": 0,
+          "ledger": null
+        }
+      },
+      "all_root_counts_after": {
+        "THIRD": {
+          "notes": 0,
+          "ledger": 1
+        },
+        "UNGOV": {
+          "notes": 1,
+          "ledger": null
+        },
+        "THIRDLEAN": {
+          "notes": 0,
+          "ledger": null
+        },
+        "TRUSTED": {
+          "notes": 0,
+          "ledger": null
+        },
+        "DEST": {
+          "notes": 0,
+          "ledger": null
+        },
+        "ORIGIN": {
+          "notes": 0,
+          "ledger": null
+        }
+      }
+    },
+    {
+      "name": "RED2 ATTACK promoteAdmitted(to=DEST.store, repoRoot=TRUSTED.root)",
+      "task": "T-DIAL",
+      "returned": "20260912T000000Z-qe-observation-a3d92868",
+      "threw": null,
+      "all_root_counts_before": {
+        "THIRD": {
+          "notes": 0,
+          "ledger": 1
+        },
+        "UNGOV": {
+          "notes": 0,
+          "ledger": null
+        },
+        "THIRDLEAN": {
+          "notes": 0,
+          "ledger": null
+        },
+        "TRUSTED": {
+          "notes": 0,
+          "ledger": null
+        },
+        "DEST": {
+          "notes": 0,
+          "ledger": null
+        },
+        "ORIGIN": {
+          "notes": 0,
+          "ledger": null
+        }
+      },
+      "all_root_counts_after": {
+        "THIRD": {
+          "notes": 0,
+          "ledger": 1
+        },
+        "UNGOV": {
+          "notes": 0,
+          "ledger": null
+        },
+        "THIRDLEAN": {
+          "notes": 0,
+          "ledger": null
+        },
+        "TRUSTED": {
+          "notes": 0,
+          "ledger": null
+        },
+        "DEST": {
+          "notes": 1,
+          "ledger": 1
+        },
+        "ORIGIN": {
+          "notes": 0,
+          "ledger": null
+        }
+      }
+    },
+    {
+      "name": "RED2 CONTROL promoteAdmitted(to=TRUSTED.store, repoRoot=TRUSTED.root)",
+      "task": "T-DIAL2",
+      "returned": null,
+      "threw": "context-io.appendNote: refusing to write a note the admission authority did not accept. Nothing was written:\nadmission REFUSED (UNKNOWN - verify): a governance configuration file exists at a standard location but could not be read or parsed, so the human_admission dial is UNKNOWN. This admission is refused and nothing is written — no note, no audit-ledger event — and the finding stays \"UNKNOWN - verify\" until a human repairs the configuration. An unreadable dial is never degraded to the lean \"off\" default; reading it as off is the fail-open this refusal closes (D-14). A genuinely ABSENT config is a different case and still runs lean.",
+      "all_root_counts_before": {
+        "THIRD": {
+          "notes": 0,
+          "ledger": 1
+        },
+        "UNGOV": {
+          "notes": 0,
+          "ledger": null
+        },
+        "THIRDLEAN": {
+          "notes": 0,
+          "ledger": null
+        },
+        "TRUSTED": {
+          "notes": 0,
+          "ledger": null
+        },
+        "DEST": {
+          "notes": 0,
+          "ledger": 1
+        },
+        "ORIGIN": {
+          "notes": 0,
+          "ledger": null
+        }
+      },
+      "all_root_counts_after": {
+        "THIRD": {
+          "notes": 0,
+          "ledger": 1
+        },
+        "UNGOV": {
+          "notes": 0,
+          "ledger": null
+        },
+        "THIRDLEAN": {
+          "notes": 0,
+          "ledger": null
+        },
+        "TRUSTED": {
+          "notes": 0,
+          "ledger": null
+        },
+        "DEST": {
+          "notes": 0,
+          "ledger": 1
+        },
+        "ORIGIN": {
+          "notes": 0,
+          "ledger": null
+        }
+      }
+    }
+  ],
+  "verdicts": {
+    "RED1 (CR-26)": "CONFIRMS the defect. An id is returned; the note lands in UNGOV (0->1 notes, ledger stays absent) and its GOV-02 record lands in THIRD (notes stay 0, ledger null->1). A human-disposed finding and its own audit record, split across two repositories, on the route 18-context-compaction.md names by hand as writing both together.",
+    "RED3 (lean retention, the reading neither document took)": "No ledger line is written in ANY root; only the note lands in UNGOV. There is no second half, so there are no two halves to split. THIS IS THE READING THAT DECIDES SCOPED vs UNCONDITIONAL: the refusal belongs at the point of effect (the retention guard), not at every ungoverned contextRoot — which is the adjacent alternative D-34 measured at 121 appendNote and 26 admitAndAppend call sites and rejected.",
+    "RED2 ATTACK (CR-27)": "CONFIRMS the defect. TRUSTED.root carries a governance configuration that EXISTS and is unparseable (source == \"unreadable\"), which D-14 requires a fail-closed refusal for. Naming DEST.store as the destination ADMITS the write: an id is returned and DEST gains one note and one ledger line.",
+    "RED2 CONTROL": "The identical call with the destination pointed at TRUSTED own store REFUSES with the D-14 fail-closed message. Same note, same caller, same unreadable trusted configuration, two different answers — the pair IS the finding."
+  },
+  "roots": {
+    "THIRD": {
+      "root": "/var/folders/y3/c2txpd5d6tv9wgxtq1wn0skh0000gn/T/cr26-third-vawH1l",
+      "store": "/var/folders/y3/c2txpd5d6tv9wgxtq1wn0skh0000gn/T/cr26-third-vawH1l/.grugops/context"
+    },
+    "UNGOV": {
+      "root": "/var/folders/y3/c2txpd5d6tv9wgxtq1wn0skh0000gn/T/cr26-ungov-qKIZkE/plain",
+      "store": "/var/folders/y3/c2txpd5d6tv9wgxtq1wn0skh0000gn/T/cr26-ungov-qKIZkE/plain/.grugops/context"
+    },
+    "THIRDLEAN": {
+      "root": "/var/folders/y3/c2txpd5d6tv9wgxtq1wn0skh0000gn/T/cr26-thirdlean-n3bCvm",
+      "store": "/var/folders/y3/c2txpd5d6tv9wgxtq1wn0skh0000gn/T/cr26-thirdlean-n3bCvm/.grugops/context"
+    },
+    "TRUSTED": {
+      "root": "/var/folders/y3/c2txpd5d6tv9wgxtq1wn0skh0000gn/T/cr27-trusted-0gFKL3",
+      "store": "/var/folders/y3/c2txpd5d6tv9wgxtq1wn0skh0000gn/T/cr27-trusted-0gFKL3/.grugops/context"
+    },
+    "DEST": {
+      "root": "/var/folders/y3/c2txpd5d6tv9wgxtq1wn0skh0000gn/T/cr27-dest-fMNUv0",
+      "store": "/var/folders/y3/c2txpd5d6tv9wgxtq1wn0skh0000gn/T/cr27-dest-fMNUv0/.grugops/context"
+    },
+    "ORIGIN": {
+      "root": "/var/folders/y3/c2txpd5d6tv9wgxtq1wn0skh0000gn/T/cr27-origin-Znzelk",
+      "store": "/var/folders/y3/c2txpd5d6tv9wgxtq1wn0skh0000gn/T/cr27-origin-Znzelk/.grugops/context"
+    }
+  }
+}
