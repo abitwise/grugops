@@ -4,15 +4,15 @@ milestone: v2.1
 milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live Board
 current_phase: 31
 current_phase_name: Autonomous Manual Testing
-status: "Phase 31 gap-closure round 7 EXECUTED IN FULL (31-32..31-38, seven plans, sequential on main) and CLOSED-OUT by the round-7 closing measurement 31-38 (2026-09-11). Measured at one commit (3baab0d) against the committed .js with the finding documents own probe spellings. CLOSED by measurement: CR-22 at three of four positions (the fall-through and admitAndAppend now land a note and its GOV-02 event in ONE repository; an ungoverned destination is DECLINED), CR-23 at four positions including both halves of the D-35 discriminant (a declared-foreign describe.skip and expect.soft move 0 findings/EXIT=0 to 1 finding/EXIT=1 with tsc exit 0), CR-24 (an EACCES file reports unopenable and a 9 MiB file reports above-ceiling, arms 3 to 5 spread from the authority), CR-25 (a truncated walk exits 2 with a named cause where it used to accept at exit 0 with zero bytes of stderr), WR-31, WR-32, WR-33, WR-34, WR-36, IN-16, IN-17, IN-18, and the suite REGRESSION. CARRIED with owners: WR-35 (the .temp narrowing is DISCLOSED, not reverted, per D-33 (5)), R-31-33-02 (CR-22 position 4, not drivable from outside the module), and the index-signature shape. 14 round-6 control rows re-driven, all UNMOVED - including the four closures (CR-17, CR-18, CR-19, CR-21) the round-7 verifier accepted rather than measured. The suite was RED at the round base and is GREEN here: 66 files, 4208 passed, 2 skipped, exit 0, recorded as a FLOOR - two of the four Criticals were decided by constants appearing ZERO times in any test file at that base. Frozen floors and all 26 DECIDER_MANIFEST entries re-measured whole. The D-33 coverage one-shot is asserted with both sides derived: 5 of 5 under one predicate, 2 of 5 under a stricter one, disagreement named and carried. Disposition debt 78, down 2. UATX-01..06 stay unchecked and Gaps Found, and the phase stays In Progress: only a verification round may flip a requirement, and an EIGHTH verification round has not run. Record: docs/audit/31-round7-residuals.md."
-stopped_at: Completed 31-38-PLAN.md
-last_updated: "2026-09-11T20:52:18.086Z"
-state_head: 245019df4ce5d53158ea9d0e88bae05bcda3e6ff
+status: "Phase 31 gap-closure round 9 IN PROGRESS: 31-39 of 6 plans (31-39..31-44) EXECUTED 2026-09-12, sequential on main. 31-39 closed CR-26 and CR-27, the two Criticals round 8 reproduced against the committed .js at f698bec and which round 7 own CR-22 fix had created - the EIGHTH consecutive round in this predicate family. It does not fix two coordinates: it removes the freedom that produced them. ONE authority (actionOwnerRoot) answers which repository owns an action and answers with a discriminated ActionOwner carrying no null member, so falling open costs an explicit branch a reviewer meets; governanceRootOf went from three direct callers (including both write-both routes, which decided a null two opposite ways) to exactly two. The governance DIAL root and the LEDGER owner are now two parameters on admit/appendNote/admitAndAppend - D-31 and WR-10 RESTORED, not reversed - paid for by a deliberate admit() unfreeze authorised by the developer at a blocking checkpoint (D-39), reversing plan 31-33 own prohibition. ADMIT_FROZEN_SHA256 re-baselined to bb920698..81cd, the SIXTH re-base (the plan text said seventh and was measured wrong). The freeze extraction was itself caught DEGENERATING mid-change - an inline object default put a brace in the parameter list and collapsed the frozen span from 12,394 bytes of body to 1,885 of parameter list - and is hardened in both halves. R-31-33-01 CLOSED, recording its own closure, with its driving case inverted rather than deleted. A DERIVED cross-product matrix now covers 7 arms from which a GOV-02 append is reachable, 24 driven cells, each driven twice (legitimate input beside the attack) and read in every root, with the union of the arms asserted pairwise and the permitted asymmetry read from a register proven exercised. Fallout measured and classified: 44 red - 13 staging, 3 expectations genuinely inverted, 28 a derived axis growing 8 to 9 sites; no assertion weakened. Suite 66 files / 4262 passed / 2 skipped, 13 repo gates green, disposition debt unchanged at 78 over 39. UATX-01..06 stay unchecked and Gaps Found and the phase stays In Progress: only a verification round may flip a requirement, and this phase has had eight rounds in which the executing round believed it had closed one. Next: 31-40 (the derived divergence census). Round-7 record: docs/audit/31-round7-residuals.md."
+stopped_at: Completed 31-39-PLAN.md
+last_updated: "2026-09-12T20:02:32.192Z"
+state_head: 2b6e2556e75ca559de0f94d78dcd9922c100aa06
 progress:
   total_phases: 9
   completed_phases: 6
   total_plans: 220
-  completed_plans: 214
+  completed_plans: 215
   percent: 67
 last_activity: 2026-08-19
 prior_activity_desc: Phase 27 gap-closure round 8 COMPLETE (27-45, 27-46; D-53). Full narration lives in the Phase 27 artifacts and in docs/audit/; shortened here by plan 31-38 because this single line measured 7995 characters, above the 4000-character ceiling a pathological STATE line has previously crossed to turn a sub-second guard into a multi-minute one.
@@ -30,8 +30,8 @@ See: .planning/PROJECT.md (updated 2026-09-07 — after Phase 29.2)
 
 ## Current Position
 
-Phase: 31 (Autonomous Manual Testing) — READY TO EXECUTE
-Plan: 8 of 38
+Phase: 31 (Autonomous Manual Testing) — EXECUTING
+Plan: 40 of 44
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 
@@ -470,6 +470,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 31 P36 | 47m | 3 tasks | 8 files |
 | Phase 31 P37 | 48m | 3 tasks | 13 files |
 | Phase 31 P38 | 36m | 3 tasks | 4 files |
+| Phase 31 P39 | 6h 24m | 3 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -1273,6 +1274,7 @@ Recent decisions affecting current work:
 - [Phase 31]: D-36 (31-35): a bound that is REACHED is a check that did not run — frameworkSurface records which limit stopped it and the run exits 2 through the existing could-not-run boundary, never a silent accept — CR-25 was reproduced and bisected three times (two prior rounds, plus this plan at its own base): past SURFACE_DEPTH_BOUND the walk returned a partial surface with no signal and every unreached framework declaration resolved foreign — accept — at exit 0 with zero bytes on stderr. Two refinements were forced by measurement rather than by the plan: the depth bound was ALREADY reached on an ordinary run because the walk descended into typescript/lib (16 of 17 framework files), so the walk now stops at the standard library's edge; and that narrowing created a regression (a framework type behind a library container became unreachable) which this plan's own adversarial probe measured against the base artifact and closed by descending into a container's type arguments only. The installed-package magnitude stays UNKNOWN - verify.
 - [Phase 31]: D-37 (31-36): a control asserts its position's ordinary outcome POSITIVELY and its RED path is DRIVEN; an accepted-spelling set and its mutation mirrors are ONE derivation; an input boundary is two independently derived censuses, unioned and compared. — WR-31 measured all four CONTROL rows of check-platform-shapes being refusals and being scored `not refused (correct)` beside ALL CHECKS PASSED: the check asked only whether one refusal CLAUSE STRING was absent, so an ordinary outcome and a refusal for a different reason were indistinguishable. IN-18 measured the forced-absent seam planting 8 shapes it had already decided to skip. WR-32 measured the parity axis recognising the refusal by ONE operator, with both its mirrors written in that operator, and its census blind to an untracked implementation. Neither harness's RULE failed; what failed is whether each can OBSERVE the property it reports on - the class harness-false-result-instances.md records fourteen times. Two further defects were found by measuring before implementing: `exit 0` is not the discriminant at the manifest position (the wrapper exits 0 for both its ordinary answer and its own fail-closed deny), and the symlink CONTROL's target filename broke that position for a reason unrelated to the rule. The visibility widened while the baseline did not move: IMPLEMENTING is the same two files under all three derivations.
 - [Phase 31]: D-38: a delivering side's accept set is asserted a SUBSET of the consuming side's over ONE shared corpus, and a record that claims a mechanism is checkable against the tree it names. Amends D-29 (3): the PreToolUse wrapper applies the reader's SAME five conditions, not a weaker three. — WR-36 measured 4 of 13 candidates delivered by hooks/hook-entry.ts and discarded by hostDeliveredRoot, on both hooks.json PreToolUse routes, under a stated reason that existsSync at :42 disproves. WR-33 and WR-34 measured two of this round's own audit records stating facts false of the tree. Nothing bound the two predicates and nothing checked the records, so both classes were invisible while every test stayed green.
+- [Phase 31]: D-39 (2026-09-12, round 9, plan 31-39): ONE authority answers which repository owns an action, returning a discriminated `ActionOwner` with no null member, so a consumer cannot fall open without an explicit branch; the governance DIAL root and the LEDGER owner become two parameters on `admit`/`appendNote`/`admitAndAppend`, restoring D-31/WR-10 rather than reversing it. Taken by the developer at a blocking checkpoint, because it reverses plan 31-33's own prohibition on unfreezing `admit()`. — CR-26 and CR-27 were both created by round 7's fix for CR-22 — the EIGHTH consecutive round in this predicate family. The generator is that each round installed its rule as an EXPRESSION AT A CALL SITE, which is where the next consumer picks its own fallback. `ADMIT_FROZEN_SHA256` re-baselined to bb920698…81cd, the SIXTH re-base (the plan text's "seventh" was measured wrong), with R-31-39-01 at the freeze. The freeze extraction was ALSO caught degenerating onto a parameter default mid-change (12,394 body bytes -> 1,885 of parameter list) and is hardened in both halves.
 
 ### Pending Todos
 
@@ -1391,8 +1393,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-09-11T18:58:32.103Z
-Stopped at: Completed 31-38-PLAN.md
+Last session: 2026-09-12T20:01:24.108Z
+Stopped at: Completed 31-39-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
