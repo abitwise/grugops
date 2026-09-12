@@ -787,10 +787,14 @@ function replaceExactlyOnce(
   anchor: string,
   replacement: string,
   what: string,
+  // 31-40: the mirrored file is a PARAMETER rather than a sentence. PART SIX-J mirrors
+  // `scripts/compactor.ts` as well, and a premise message naming the wrong file is a false premise
+  // about the harness printed at the moment the harness is being doubted.
+  file = "scripts/context-io.ts",
 ): string {
   expect(
     source.split(anchor).length - 1,
-    `PREMISE: the anchor for ${what} was not found EXACTLY ONCE in scripts/context-io.ts, so the ` +
+    `PREMISE: the anchor for ${what} was not found EXACTLY ONCE in ${file}, so the ` +
       `mutation mutated nothing and the case built on it proves nothing — anchor: ${anchor}`,
   ).toBe(1);
   const mutated = source.replace(anchor, replacement);
@@ -816,15 +820,17 @@ function insertExactlyOnceAfter(
   anchor: string,
   insertion: string,
   what: string,
+  /** 31-40: the mirrored file, for the same reason `replaceExactlyOnce` takes one. */
+  file = "scripts/context-io.ts",
 ): string {
   expect(
     source.split(anchor).length - 1,
-    `PREMISE: the anchor for ${what} was not found EXACTLY ONCE in scripts/context-io.ts, so the ` +
+    `PREMISE: the anchor for ${what} was not found EXACTLY ONCE in ${file}, so the ` +
       `insertion landed nowhere or in more than one place — anchor: ${anchor}`,
   ).toBe(1);
   expect(
     source.includes(insertion),
-    `PREMISE: the text ${what} inserts was ALREADY present in scripts/context-io.ts, so its ` +
+    `PREMISE: the text ${what} inserts was ALREADY present in ${file}, so its ` +
       `presence afterwards would prove nothing`,
   ).toBe(false);
   const mutated = source.replace(anchor, `${anchor}${insertion}`);
@@ -4763,5 +4769,830 @@ describe("31-23 — PART SIX-I: the changed resolution surface has a DERIVED cal
       seeded,
       "the seeded caller did not break the member equality, so the assertion above is not a control",
     ).not.toEqual([...EXPECTED_RESOLUTION_SURFACE.trustedRepoRoot]);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// PART SIX-J — THE ROOT-ARGUMENT CENSUS (31-40, round 8's THIRD `missing:` bullet).
+//
+// WHAT THIS AXIS IS FOR, STATED AS THE THING THAT KEEPS HAPPENING. Eight consecutive gap-closure
+// rounds of this phase have closed a Critical at the coordinate it was filed at and met the next
+// one A REGISTER OVER. Round 7 installed the one-repository rule as an expression at ONE call
+// site; round 8 reproduced `governanceRootOf(contextRoot) ?? repoRoot` at the sibling call site
+// (`CR-26`) and a caller-supplied destination answering the governance dial at a THIRD
+// (`CR-27`). `31-39` removed the freedom that produced both — one owner authority, a discriminated
+// answer with no null member, and two parameters for the two questions. This axis is what makes a
+// NINTH recurrence impossible to land in silence: the set of places that can exhibit it is
+// DERIVED, COUNTED and DISPOSITIONED rather than walked by whichever reviewer happens to look.
+//
+// TWO AXES, BECAUSE THE TWO CRITICALS ARE ONE DEFECT ON TWO DIFFERENT ARGUMENTS. The DIAL axis
+// asks which call sites aim the governance dial somewhere other than their own trusted root — that
+// is `CR-27`'s shape. The LEDGER axis asks which call sites aim the audit RECORD somewhere other
+// than the owner derived from that call's own note store — that is `CR-26`'s shape. A census over
+// one argument would have found one of them and reported green over the other.
+//
+// THE TAIL-DELEGATION EXCLUSION IS DELIBERATELY ABSENT, AND THAT IS THE POINT (see the derivation's
+// own docstring). PART SIX-G's order axis EXCLUDES a note write that is the whole expression of a
+// `return` statement, for a reason that is correct there and would be fatal here:
+// `promoteAdmitted`'s fall-through IS that shape, and it is the exact coordinate `CR-27` lived at.
+// An axis assembled from another axis's input, inheriting its exclusions, is this phase's recorded
+// failure shape — ask what the predicate's INPUT is ASSEMBLED from.
+//
+// THE WALK STARTS AT THE SOURCE FILE. `WR-27` measured what a top-level-function-only walk costs in
+// this very module: a seeded call inside an arrow, inside a class method and inside an entry block
+// each left the count UNMOVED while the axis's comment claimed a new call anywhere turned it red.
+// The census attributes every call to its NEAREST NAMED ENCLOSING SCOPE and is driven by three
+// seeded mirrors, one per shape, each moving the count by exactly one. It is not theoretical here:
+// `scripts/context-io.ts`'s CLI `admit` call lives inside the `if (isMain)` entry block, so the old
+// shape of walk would not have seen a production call site that exists on this tree today.
+//
+// WHAT IT CANNOT SEE, NAMED RATHER THAN IMPLIED. A syntax-tree census sees calls that are CODE. The
+// write-path call `scripts/check-platform-shapes.ts` assembles as the TEXT of a temp module is a
+// string on this tree, and no AST walk over this repository will ever report it. It is not left for
+// round 9 to discover: it is a member of `ROOT_DIVERGENCE_DISPOSITIONS` with `visible_to_census:
+// false`, carrying what it passes and why the census misses it, so the accepted boundary has a
+// COORDINATE rather than a category.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+/** The governance-DIAL parameter's name on every write-path entry point. */
+const DIAL_PARAM = "repoRoot";
+/** The LEDGER-owner parameter's name, where the entry point has one. */
+const LEDGER_PARAM = "ledgerOwner";
+/** The destination-store parameter's two spellings: `contextRoot` everywhere, `to` on the re-binding route. */
+const STORE_PARAMS: readonly string[] = Object.freeze(["contextRoot", "to"]);
+/** The ONE authority that answers which repository owns an action (31-39, D-39). */
+const OWNER_AUTHORITY = "actionOwnerRoot";
+/** The ONE trusted dial answer every tier asks (WR-10). */
+const TRUSTED_ROOT_CALL = "trustedRepoRoot()";
+
+interface WritePathEntrySpec {
+  /** Argument position that answers the governance dial. */
+  readonly dialIndex: number;
+  /** Argument position naming the store the note lands in. */
+  readonly storeIndex: number;
+  /** Argument position naming the repository whose ledger records it, or null where the entry derives it. */
+  readonly ledgerIndex: number | null;
+}
+
+/**
+ * THE ENTRY POINTS, AND THEIR ARGUMENT POSITIONS, DERIVED FROM THE MODULE'S OWN DECLARATIONS.
+ *
+ * A write-path entry point is an EXPORTED function of `scripts/context-io.ts` that takes BOTH a
+ * governance-dial parameter and a destination-store parameter. Both halves are load-bearing:
+ * `readGovernanceConfig` takes a dial root and writes nothing, so the store conjunct is what keeps
+ * a pure reader out of a census about writes.
+ *
+ * THE POSITIONS ARE NEVER TYPED. `31-39` moved them — `appendNote` grew a seventh parameter and
+ * `admit` a fifth — and a census carrying hand-written indices would have read the wrong argument
+ * while staying green, which is this repository's second named failure class arriving inside the
+ * axis built to close it.
+ */
+function deriveWritePathEntries(sourceText: string): Map<string, WritePathEntrySpec> {
+  const source = ts.createSourceFile("context-io.ts", sourceText, ts.ScriptTarget.Latest, true);
+  const out = new Map<string, WritePathEntrySpec>();
+  for (const statement of source.statements) {
+    if (!ts.isFunctionDeclaration(statement) || !statement.name) continue;
+    const exported = (statement.modifiers ?? []).some(
+      (m) => m.kind === ts.SyntaxKind.ExportKeyword,
+    );
+    if (!exported) continue;
+    const names = statement.parameters.map((p) => p.name.getText(source));
+    const dialIndex = names.indexOf(DIAL_PARAM);
+    const storeIndex = names.findIndex((n) => STORE_PARAMS.includes(n));
+    if (dialIndex < 0 || storeIndex < 0) continue;
+    const ledger = names.indexOf(LEDGER_PARAM);
+    out.set(statement.name.text, {
+      dialIndex,
+      storeIndex,
+      ledgerIndex: ledger < 0 ? null : ledger,
+    });
+  }
+  return out;
+}
+
+interface RootArgumentSite {
+  /** `<file>::<nearest named scope>#<entry>@<n>` — unique, so a failing assertion names ONE site. */
+  readonly handle: string;
+  readonly file: string;
+  readonly scope: string;
+  readonly entry: string;
+  /** The expression supplied for the governance-dial argument, or null when the call omits it. */
+  readonly dial: string | null;
+  /** The expression supplied at the destination-store position, or null when the call omits it. */
+  readonly store: string | null;
+  /** The expression supplied for the ledger-owner argument, or null when absent or unavailable. */
+  readonly ledger: string | null;
+  /** RECORDED, AND NOT USED TO EXCLUDE ANYTHING — see the derivation's docstring and CR-27. */
+  readonly tailDelegation: boolean;
+  /** Whether the enclosing function declares a governance-dial parameter of its own. */
+  readonly scopeHasDialParam: boolean;
+  /** Whether the enclosing function declares a ledger-owner parameter of its own. */
+  readonly scopeHasLedgerParam: boolean;
+  /** The initializer text of the binding the dial argument names, when it names one. */
+  readonly dialBinding: string | null;
+  /** The initializer text of the binding the ledger argument names, when it names one. */
+  readonly ledgerBinding: string | null;
+}
+
+/** The scope a call with no named enclosing function is attributed to. Same spelling PART SIX-F uses. */
+const CENSUS_MODULE_SCOPE = "<module>";
+
+/**
+ * EVERY CALL to a write-path entry point in one tracked source, with the expression supplied for
+ * the DIAL argument and the expression supplied for the LEDGER argument.
+ *
+ * THE WALK STARTS AT THE SOURCE FILE, carrying the nearest named enclosing scope — a function
+ * declaration, a class method, a variable-declared arrow or function expression, else `<module>`.
+ * `WR-27` measured, in this same module, that a walk descending only into top-level function
+ * declarations leaves three whole shapes invisible while its comment claims otherwise.
+ *
+ * THE TAIL-DELEGATION FLAG IS RECORDED AND NEVER CONSUMED AS AN EXCLUSION, AND `CR-27` IS THE
+ * REASON. PART SIX-G's order axis excludes a note write that is the whole expression of a `return`
+ * statement, because on that path no ledger work in the enclosing function happens at all and the
+ * two offsets it compares would never run together. That reasoning is right THERE and is fatal
+ * HERE: `promoteAdmitted`'s fall-through — `return appendNote(task, note, body, to, undefined,
+ * repoRoot, destinationOwner);` — is exactly that shape, and it is the line `CR-27` was filed on. A
+ * census that inherited the sibling axis's exclusion would have deleted its own defect's coordinate
+ * before looking. The flag is kept so a reader can SEE the shape, never to drop it.
+ *
+ * ALIASES ARE RESOLVED through the import clause's own `propertyName`, the way PART SIX-D's
+ * cross-file caller derivation resolves them. This is not decoration: `scripts/compactor.ts`
+ * imports the re-binding route as `ctxPromoteAdmitted`, and — the sharper case —
+ * `scripts/canonical-frontmatter.ts` EXPORTS AN UNRELATED FUNCTION ALSO CALLED `admit`, which four
+ * tracked sources call. A name-matching search would enrol every one of them in a census about
+ * governance roots they have nothing to do with.
+ *
+ * BINDINGS ARE RESOLVED ONE HOP, IN SOURCE ORDER. `const repoRoot = trustedRepoRoot();` two lines
+ * above a call is the production shape at `scripts/admission-server.ts`, and treating it as a
+ * divergence would fill the register with entries for sites that agree. The bound is stated: one
+ * hop, file-wide, last binding before the call wins. A value assembled through two bindings reads
+ * as a divergence and has to earn a register entry — which is the safe direction for a default.
+ */
+function deriveRootArgumentSites(
+  rel: string,
+  sourceText: string,
+  entries: ReadonlyMap<string, WritePathEntrySpec>,
+): RootArgumentSite[] {
+  const source = ts.createSourceFile(rel, sourceText, ts.ScriptTarget.Latest, true);
+  const declaring = rel === "scripts/context-io.ts";
+  const aliases = new Map<string, string>();
+  if (declaring) for (const name of entries.keys()) aliases.set(name, name);
+  for (const statement of source.statements) {
+    if (!ts.isImportDeclaration(statement) || !ts.isStringLiteral(statement.moduleSpecifier)) continue;
+    if (!statement.moduleSpecifier.text.endsWith("context-io.js")) continue;
+    const named = statement.importClause?.namedBindings;
+    if (!named || !ts.isNamedImports(named)) continue;
+    for (const element of named.elements) {
+      const real = (element.propertyName ?? element.name).text;
+      if (entries.has(real)) aliases.set(element.name.text, real);
+    }
+  }
+  if (aliases.size === 0) return [];
+
+  const bindings = new Map<string, string>();
+  const ordinals = new Map<string, number>();
+  const sites: RootArgumentSite[] = [];
+  const walk = (node: ts.Node, scope: string, fn: ts.SignatureDeclarationBase | null): void => {
+    let innerScope = scope;
+    let innerFn = fn;
+    if (ts.isFunctionDeclaration(node) && node.name) {
+      innerScope = node.name.text;
+      innerFn = node;
+    } else if (ts.isMethodDeclaration(node) && node.name) {
+      innerScope = node.name.getText(source);
+      innerFn = node;
+    } else if (
+      (ts.isArrowFunction(node) || ts.isFunctionExpression(node)) &&
+      ts.isVariableDeclaration(node.parent) &&
+      ts.isIdentifier(node.parent.name)
+    ) {
+      innerScope = node.parent.name.text;
+      innerFn = node;
+    }
+    if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.initializer) {
+      bindings.set(node.name.text, node.initializer.getText(source));
+    }
+    if (ts.isCallExpression(node) && ts.isIdentifier(node.expression) && aliases.has(node.expression.text)) {
+      const entry = aliases.get(node.expression.text) as string;
+      const spec = entries.get(entry) as WritePathEntrySpec;
+      const args = node.arguments;
+      const at = (index: number | null): string | null =>
+        index !== null && index < args.length ? (args[index] as ts.Expression).getText(source) : null;
+      const stem = `${rel}::${innerScope}#${entry}`;
+      const n = (ordinals.get(stem) ?? 0) + 1;
+      ordinals.set(stem, n);
+      const params = innerFn ? innerFn.parameters.map((p) => p.name.getText(source)) : [];
+      const dial = at(spec.dialIndex);
+      const ledger = at(spec.ledgerIndex);
+      sites.push({
+        handle: `${stem}@${String(n)}`,
+        file: rel,
+        scope: innerScope,
+        entry,
+        dial,
+        store: at(spec.storeIndex),
+        ledger,
+        tailDelegation: ts.isReturnStatement(node.parent) && node.parent.expression === node,
+        scopeHasDialParam: params.includes(DIAL_PARAM),
+        scopeHasLedgerParam: params.includes(LEDGER_PARAM),
+        dialBinding: dial !== null ? (bindings.get(dial) ?? null) : null,
+        ledgerBinding: ledger !== null ? (bindings.get(ledger) ?? null) : null,
+      });
+    }
+    ts.forEachChild(node, (child) => walk(child, innerScope, innerFn));
+  };
+  walk(source, CENSUS_MODULE_SCOPE, null);
+  return sites;
+}
+
+/**
+ * The corpus: every tracked `.ts` source that is not a test and not a declaration file.
+ *
+ * DERIVED FROM `git ls-files`, NEVER FROM A LIST OF FILENAMES. The bullet this axis answers says
+ * "ENUMERATED FROM SOURCE across files"; a typed list of the five files a reviewer happened to read
+ * is the same defect one register over, and it is the defect that produced `CR-26` and `CR-27`.
+ */
+function censusCorpus(): string[] {
+  return trackedFiles("*.ts")
+    .filter((p) => !p.endsWith(".test.ts") && !p.endsWith(".d.ts"))
+    .sort();
+}
+
+/**
+ * A FLOOR on the corpus, not an equality. MEASURED at the commit that wrote this axis: 78 files. A
+ * count BELOW this means the listing went short — the vacuous-green shape that is rows 4 and 14 of
+ * this phase's own false-result ledger — while a count above it is somebody adding a source, which
+ * is not an event this axis has an opinion about.
+ */
+const CENSUS_CORPUS_FLOOR = 70;
+
+/** The whole census, with zero or more files' text replaced by a mirror's. */
+function censusSites(overrides: ReadonlyMap<string, string> = new Map()): RootArgumentSite[] {
+  const entryText = overrides.get("scripts/context-io.ts") ?? readFileSync(CONTEXT_IO_TS, "utf8");
+  const entries = deriveWritePathEntries(entryText);
+  const out: RootArgumentSite[] = [];
+  for (const rel of censusCorpus()) {
+    const text = overrides.get(rel) ?? readFileSync(join(ROOT, rel), "utf8");
+    out.push(...deriveRootArgumentSites(rel, text, entries));
+  }
+  return out.sort((a, b) => (a.handle < b.handle ? -1 : a.handle > b.handle ? 1 : 0));
+}
+
+// ─── THE CLASSIFICATION, WRITTEN AS WHAT AGREEMENT LOOKS LIKE. ─────────────────────────────────
+//
+// Both rules below state the POSITIVE case and treat everything else as a divergence. An inverted
+// match — "diverges when the expression is one of these bad shapes" — is the enumerate-the-bad
+// shape this module has now paid for four times: a new spelling slips through by not being on the
+// list, which is precisely how `?? repoRoot` arrived at a second call site after the first was
+// fixed. A shape nobody anticipated is a divergence BY DEFAULT here, and has to earn its entry.
+
+/** The dial agrees when it is absent, is the enclosing scope's own dial parameter, or is the trusted root. */
+function dialAgrees(site: RootArgumentSite): boolean {
+  if (site.dial === null) return true;
+  if (site.scopeHasDialParam && site.dial === DIAL_PARAM) return true;
+  if (site.dial === TRUSTED_ROOT_CALL) return true;
+  return site.dialBinding === TRUSTED_ROOT_CALL;
+}
+
+/** The ledger agrees when it is absent, is the scope's own ledger parameter, or is the derived owner of THIS call's store. */
+function ledgerAgrees(site: RootArgumentSite): boolean {
+  if (site.ledger === null) return true;
+  if (site.scopeHasLedgerParam && site.ledger === LEDGER_PARAM) return true;
+  if (site.store === null) return false;
+  const derived = `${OWNER_AUTHORITY}(${site.store})`;
+  return site.ledger === derived || site.ledgerBinding === derived;
+}
+
+/** The DIVERGING sites, on either axis, with the axis named — the set the register must disposition. */
+function censusDivergences(sites: readonly RootArgumentSite[]): string[] {
+  return sites
+    .filter((s) => !dialAgrees(s) || !ledgerAgrees(s))
+    .map((s) => s.handle)
+    .sort();
+}
+
+/**
+ * THE MEMBERS, MEASURED on 2026-09-12 over 78 tracked sources. Ten call sites reach a write-path
+ * entry point on this tree. The list is asserted as a SET; the cardinality is asserted separately,
+ * because "a member changed" and "a site landed" are different events and must read differently.
+ */
+const EXPECTED_CENSUS_SITES: readonly string[] = Object.freeze([
+  "scripts/admission-server.ts::handleProposeNote#admitAndAppend@1",
+  "scripts/check-uat-oracles.ts::equivDoWork#appendNote@1",
+  "scripts/check-uat-oracles.ts::equivDoWork#appendNote@2",
+  "scripts/compactor.ts::promote#appendNote@1",
+  "scripts/compactor.ts::promoteAdmitted#promoteAdmitted@1",
+  "scripts/compactor.ts::reVerify#admit@1",
+  "scripts/context-io.ts::<module>#admit@1",
+  "scripts/context-io.ts::admitAndAppend#admit@1",
+  "scripts/context-io.ts::appendNote#admit@1",
+  "scripts/context-io.ts::promoteAdmitted#appendNote@1",
+]);
+
+const EXPECTED_CENSUS_SITE_COUNT = 10;
+
+/** The four entry points, measured: the exported functions taking BOTH a dial root and a store. */
+const EXPECTED_WRITE_PATH_ENTRIES: readonly string[] = Object.freeze([
+  "admit",
+  "admitAndAppend",
+  "appendNote",
+  "promoteAdmitted",
+]);
+
+/** The DIVERGING members, measured: the two Tier-1 oracle writes, both on the DIAL axis. */
+const EXPECTED_CENSUS_DIVERGENCES: readonly string[] = Object.freeze([
+  "scripts/check-uat-oracles.ts::equivDoWork#appendNote@1",
+  "scripts/check-uat-oracles.ts::equivDoWork#appendNote@2",
+]);
+
+/** The fall-through `CR-27` lived at — asserted PRESENT, because the sibling axis would drop it. */
+const CR27_SITE = "scripts/context-io.ts::promoteAdmitted#appendNote@1";
+
+describe("31-40 — the root-argument census is derived across files, on BOTH arguments", () => {
+  it("PREMISE: the corpus was listed, the entry points parsed, and the walk found call sites", () => {
+    // ASSERT THE HARNESS'S OWN PREMISE, FIRST AND FOR A STATED REASON. A census that listed no
+    // files, or derived no entry points, returns an EMPTY set — and an empty set satisfies every
+    // membership claim below trivially. A green from an empty denominator is instance 4 and
+    // instance 14 of `docs/audit/harness-false-result-instances.md`, in this phase, three times.
+    const corpus = censusCorpus();
+    expect(
+      corpus.length,
+      `PREMISE: the tracked-source listing returned ${String(corpus.length)} files, below the ` +
+        `floor of ${String(CENSUS_CORPUS_FLOOR)} measured when this axis was written. A SHORTER ` +
+        `corpus means the scan went short and every membership claim below is drawn over a subset ` +
+        `nobody chose`,
+    ).toBeGreaterThanOrEqual(CENSUS_CORPUS_FLOOR);
+
+    const entries = deriveWritePathEntries(readFileSync(CONTEXT_IO_TS, "utf8"));
+    expect(
+      [...entries.keys()].sort(),
+      "the set of exported functions taking BOTH a governance-dial root and a destination store " +
+        "moved. That set IS the census's alphabet, so a member arriving or leaving changes what " +
+        "every case below is a statement about",
+    ).toEqual([...EXPECTED_WRITE_PATH_ENTRIES]);
+    for (const [name, spec] of entries) {
+      expect(spec.dialIndex, `PREMISE: no dial position derived for ${name}`).toBeGreaterThanOrEqual(0);
+      expect(spec.storeIndex, `PREMISE: no store position derived for ${name}`).toBeGreaterThanOrEqual(0);
+    }
+
+    const sites = censusSites();
+    expect(
+      sites.length,
+      "PREMISE: ZERO write-path call sites were derived over the whole corpus, so the membership, " +
+        "the cardinality and the disposition equality below are all vacuous",
+    ).toBeGreaterThan(0);
+    // eslint-disable-next-line no-console
+    console.log(
+      `[31-40 census premise] tracked sources = ${String(corpus.length)}; entry points = ` +
+        `${String(entries.size)}; call sites = ${String(sites.length)}; divergences = ` +
+        `${String(censusDivergences(sites).length)}`,
+    );
+  });
+
+  it("the census has the expected MEMBERS", () => {
+    expect(
+      censusSites().map((s) => s.handle),
+      "a call site that can aim the governance dial or the audit record landed in or left the " +
+        "corpus. Each one is a place the two halves of one action can be split across two " +
+        "repositories, which is the defect this phase has now closed at three separate coordinates",
+    ).toEqual([...EXPECTED_CENSUS_SITES]);
+  });
+
+  it("the census has the expected COUNT, asserted separately from the membership", () => {
+    expect(censusSites()).toHaveLength(EXPECTED_CENSUS_SITE_COUNT);
+  });
+
+  it("the LEDGER axis keeps the tail delegation the sibling order axis drops — CR-27's coordinate", () => {
+    // THE ONE ASSERTION THAT WOULD HAVE CAUGHT THE INHERITANCE. PART SIX-G excludes a note write
+    // that is the whole expression of a `return`; `promoteAdmitted`'s fall-through IS that shape and
+    // IS where `CR-27` lived. If some later edit assembles this census from that axis's input, this
+    // case goes red before the exclusion can delete the defect's own coordinate again.
+    const site = censusSites().find((s) => s.handle === CR27_SITE);
+    expect(site, `the fall-through ${CR27_SITE} is not a census member at all`).toBeDefined();
+    expect(
+      (site as RootArgumentSite).tailDelegation,
+      "the fall-through is no longer a tail delegation, so the exclusion this case guards against " +
+        "would no longer bite here — re-derive which shape now carries CR-27's coordinate",
+    ).toBe(true);
+    expect(
+      (site as RootArgumentSite).ledger,
+      "the fall-through supplies no ledger argument. CR-22's closure is that the RECORD follows the " +
+        "derived destination; an absent argument means it follows the entry's own default instead",
+    ).not.toBeNull();
+  });
+
+  it("the DIVERGING set has the expected members, on both axes", () => {
+    expect(
+      censusDivergences(censusSites()),
+      "a call site began, or stopped, aiming the dial or the record somewhere other than the " +
+        "answer its own inputs derive. Every divergence needs a written disposition; a new one is " +
+        "a decision, never a widened list",
+    ).toEqual([...EXPECTED_CENSUS_DIVERGENCES]);
+  });
+});
+
+// ─── PART SIX-J (b) — every divergence carries a DISPOSITION from a CLOSED vocabulary. ─────────
+//
+// A census that only COUNTS hands the next round a number. The bullet asks for more: each
+// divergence must carry a written disposition, and the vocabulary of dispositions must be closed,
+// so a shape that is none of the three cannot be filed under a fourth name invented at the diff.
+//
+// BOTH DIRECTIONS, BECAUSE A REGISTER THAT CAN ONLY GROW SILENTLY IS THE DRIFT THIS AXIS DELETES.
+// Direction 1: a diverging site with no entry fails, naming the site — so a future third write-both
+// route cannot arrive dispositionless. Direction 2: an entry naming a site the census no longer
+// finds fails — so a deleted call site cannot leave a stale disposition behind reading as coverage.
+
+/** The file a site handle names, which is the file its register entry must quote from. */
+function fileOfHandle(handle: string): string {
+  return handle.split("::")[0] as string;
+}
+
+/**
+ * A backticked span long enough to be a QUOTATION rather than an identifier.
+ *
+ * The rule the register is held to is "quoted from the site's own comment, not paraphrased", and a
+ * rule nobody can run is an assurance. So every long backticked span in an entry's reason is
+ * required to occur VERBATIM in the file its site names. Short spans (`repoRoot`, `appendNote`) are
+ * identifiers a reason legitimately mentions without quoting anything, and the threshold is where
+ * this repository's identifiers stop and its sentences start.
+ */
+const QUOTATION_MIN_CHARS = 40;
+
+describe("31-40 — every census divergence carries a written disposition, and every entry names a site", () => {
+  it("the kind vocabulary is CLOSED at three members, by a constant the type is derived from", () => {
+    // A TYPE ALONE CANNOT BE ASKED AT RUN TIME. `RootDivergenceKind` is derived from the exported
+    // constant rather than written as a literal union, so the vocabulary is one object both a
+    // compiler and this case can read — and widening it costs an edit to the thing the type is made
+    // of, not a fourth arm quietly added to a union nobody counts.
+    expect(
+      mod.ROOT_DIVERGENCE_KINDS,
+      "the closed kind vocabulary is not exported at all",
+    ).toBeDefined();
+    expect(mod.ROOT_DIVERGENCE_KINDS).toHaveLength(3);
+    expect([...mod.ROOT_DIVERGENCE_KINDS].sort()).toEqual([
+      "derived-and-refusing",
+      "one-half-action",
+      "published-residual",
+    ]);
+    const source = readFileSync(CONTEXT_IO_TS, "utf8");
+    expect(
+      source,
+      "the exported kind TYPE no longer derives from the exported kind CONSTANT, so the compiler " +
+        "and this case are reading two different vocabularies — which is the two-authorities-for-" +
+        "one-question shape this module keeps deleting",
+    ).toContain("export type RootDivergenceKind = (typeof ROOT_DIVERGENCE_KINDS)[number];");
+  });
+
+  it("the register's interface SHAPE is the write-path residual's, plus the kind and the site", () => {
+    expect(mod.ROOT_DIVERGENCE_DISPOSITIONS.length).toBeGreaterThan(0);
+    for (const entry of mod.ROOT_DIVERGENCE_DISPOSITIONS) {
+      expect(Object.keys(entry).sort()).toEqual([
+        "id",
+        "kind",
+        "reason",
+        "shape",
+        "site",
+        "visible_to_census",
+        "what_would_force_it_closed",
+      ]);
+      expect(
+        [...mod.ROOT_DIVERGENCE_KINDS].includes(entry.kind),
+        `${entry.id} carries the kind "${entry.kind}", which is outside the closed vocabulary`,
+      ).toBe(true);
+      expect(entry.shape.length, `${entry.id}'s shape is too short to be a situation`).toBeGreaterThan(40);
+      expect(entry.reason.length, `${entry.id}'s reason is too short to be an argument`).toBeGreaterThan(120);
+      expect(
+        entry.what_would_force_it_closed.length,
+        `${entry.id} states no criterion for closing it`,
+      ).toBeGreaterThan(40);
+    }
+  });
+
+  it("DIRECTION 1: every DIVERGING census site has a register entry, looked up by handle", () => {
+    const registered = new Set(mod.ROOT_DIVERGENCE_DISPOSITIONS.map((e) => e.site));
+    const undispositioned = censusDivergences(censusSites()).filter((h) => !registered.has(h));
+    expect(
+      undispositioned,
+      `a call site aims the governance dial or the audit record somewhere other than the answer ` +
+        `its own inputs derive, and NOBODY WROTE DOWN WHY: ${undispositioned.join(", ")}`,
+    ).toEqual([]);
+  });
+
+  it("DIRECTION 2: every census-visible register entry names a site the census still finds", () => {
+    const found = new Set(censusSites().map((s) => s.handle));
+    const stale = mod.ROOT_DIVERGENCE_DISPOSITIONS.filter(
+      (e) => e.visible_to_census && !found.has(e.site),
+    ).map((e) => `${e.id} -> ${e.site}`);
+    expect(
+      stale,
+      `a register entry dispositions a call site the census no longer finds. A written disposition ` +
+        `for a site that does not exist READS as coverage and is not: ${stale.join(", ")}`,
+    ).toEqual([]);
+  });
+
+  it("the register has the expected CARDINALITY, and one entry per diverging site plus the invisible one", () => {
+    expect(mod.ROOT_DIVERGENCE_DISPOSITIONS).toHaveLength(3);
+    const visible = mod.ROOT_DIVERGENCE_DISPOSITIONS.filter((e) => e.visible_to_census);
+    expect(visible.map((e) => e.site).sort()).toEqual([...EXPECTED_CENSUS_DIVERGENCES]);
+    const invisible = mod.ROOT_DIVERGENCE_DISPOSITIONS.filter((e) => !e.visible_to_census);
+    expect(
+      invisible.map((e) => e.site),
+      "the site a syntax-tree census cannot see is no longer named in the register. It does not " +
+        "stop existing when the entry goes; it stops being disclosed",
+    ).toEqual(["scripts/check-platform-shapes.ts::writeContextDriver#appendNote@text"]);
+  });
+
+  it("every entry's REASON quotes its own site's file rather than paraphrasing it", () => {
+    // The acceptance rule made runnable. The two oracle entries are required to carry the reason
+    // written at their own call site; this asserts the quotation is a quotation, in every entry,
+    // including the one the census cannot see — whose coordinate is checkable even though its call
+    // is not.
+    let quotations = 0;
+    const missing: string[] = [];
+    for (const entry of mod.ROOT_DIVERGENCE_DISPOSITIONS) {
+      const rel = fileOfHandle(entry.site);
+      expect(
+        existsSync(join(ROOT, rel)),
+        `${entry.id} names ${rel}, which is not a file in this tree`,
+      ).toBe(true);
+      const text = readFileSync(join(ROOT, rel), "utf8");
+      for (const m of entry.reason.matchAll(/`([^`]+)`/g)) {
+        const span = m[1] as string;
+        if (span.length < QUOTATION_MIN_CHARS) continue;
+        quotations += 1;
+        if (!text.includes(span)) missing.push(`${entry.id}: ${span.slice(0, 90)}`);
+      }
+    }
+    expect(
+      quotations,
+      "NO entry quoted anything at all, so this case measured nothing — the vacuity shape the " +
+        "premise cases above exist to refuse",
+    ).toBeGreaterThan(0);
+    expect(
+      missing,
+      `a register entry attributes words to a file that does not contain them:\n${missing.join("\n")}`,
+    ).toEqual([]);
+  });
+
+  it("the one-half-action claim is MEASURED, not asserted: an ungoverned root keeps no ledger", () => {
+    // A REASON IS AN ARGUMENT, AND AN ARGUMENT CAN BE CHECKED. Both oracle entries are filed as
+    // `one-half-action` because the governance root they name is a fresh temp directory with no
+    // configuration, so the module's own defaults apply and no GOV-02 record is written at all.
+    // That is a fact about this module, so it is read off the module rather than believed.
+    const fresh = freshTmp("ctx-io-census-lean-");
+    const read = mod.readGovernanceConfig(fresh);
+    expect(
+      read.config.audit_retention,
+      "an unconfigured root now retains an audit ledger, so the `one-half-action` disposition on " +
+        "the two oracle sites is no longer true and both need re-classifying",
+    ).not.toBe("retained");
+    const halves = mod.ROOT_DIVERGENCE_DISPOSITIONS.filter((e) => e.kind === "one-half-action");
+    expect(halves.length, "no entry is filed as a one-half action, so the claim above is idle").toBe(2);
+  });
+});
+
+// ─── PART SIX-J (c) — the FALLBACK SHAPE is banned by derivation, over the whole corpus. ────────
+//
+// `CR-26` was one token: `governanceRootOf(contextRoot) ?? repoRoot`. `31-39` made the shape
+// unspellable at the type level and pinned it inside `scripts/context-io.ts`. This is the same ban
+// over the CORPUS, with its CARDINALITY asserted — because a ban over a set whose size nobody
+// checks is a ban over whatever the walk happened to find, and "whatever the walk happened to find"
+// is how a call-site rule came to hold at one site and not its sibling in the first place.
+
+interface AuthorityCallSite {
+  readonly handle: string;
+  /** The default expression this call is an operand of, when it is one. */
+  readonly defaultOperand: string | null;
+}
+
+/** Every call to the owning-repository authority in the corpus, with any default expression it feeds. */
+function deriveAuthorityCallSites(
+  overrides: ReadonlyMap<string, string> = new Map(),
+): AuthorityCallSite[] {
+  const out: AuthorityCallSite[] = [];
+  for (const rel of censusCorpus()) {
+    const text = overrides.get(rel) ?? readFileSync(join(ROOT, rel), "utf8");
+    const source = ts.createSourceFile(rel, text, ts.ScriptTarget.Latest, true);
+    const aliases = new Set<string>();
+    if (rel === "scripts/context-io.ts") aliases.add(OWNER_AUTHORITY);
+    for (const statement of source.statements) {
+      if (!ts.isImportDeclaration(statement) || !ts.isStringLiteral(statement.moduleSpecifier)) continue;
+      if (!statement.moduleSpecifier.text.endsWith("context-io.js")) continue;
+      const named = statement.importClause?.namedBindings;
+      if (!named || !ts.isNamedImports(named)) continue;
+      for (const element of named.elements) {
+        if ((element.propertyName ?? element.name).text === OWNER_AUTHORITY) aliases.add(element.name.text);
+      }
+    }
+    if (aliases.size === 0) continue;
+    const ordinals = new Map<string, number>();
+    const walk = (node: ts.Node, scope: string): void => {
+      let inner = scope;
+      if (ts.isFunctionDeclaration(node) && node.name) inner = node.name.text;
+      else if (ts.isMethodDeclaration(node) && node.name) inner = node.name.getText(source);
+      else if (
+        (ts.isArrowFunction(node) || ts.isFunctionExpression(node)) &&
+        ts.isVariableDeclaration(node.parent) &&
+        ts.isIdentifier(node.parent.name)
+      ) {
+        inner = node.parent.name.text;
+      }
+      if (ts.isCallExpression(node) && ts.isIdentifier(node.expression) && aliases.has(node.expression.text)) {
+        const stem = `${rel}::${inner}#${OWNER_AUTHORITY}`;
+        const n = (ordinals.get(stem) ?? 0) + 1;
+        ordinals.set(stem, n);
+        const parent = node.parent;
+        let operand: string | null = null;
+        if (
+          ts.isBinaryExpression(parent) &&
+          (parent.operatorToken.kind === ts.SyntaxKind.QuestionQuestionToken ||
+            parent.operatorToken.kind === ts.SyntaxKind.BarBarToken)
+        ) {
+          operand = parent.getText(source).replace(/\s+/g, " ").slice(0, 120);
+        } else if (ts.isConditionalExpression(parent)) {
+          operand = parent.getText(source).replace(/\s+/g, " ").slice(0, 120);
+        }
+        out.push({ handle: `${stem}@${String(n)}`, defaultOperand: operand });
+      }
+      ts.forEachChild(node, (child) => walk(child, inner));
+    };
+    walk(source, CENSUS_MODULE_SCOPE);
+  }
+  return out.sort((a, b) => (a.handle < b.handle ? -1 : a.handle > b.handle ? 1 : 0));
+}
+
+/** MEASURED: the three consumers of the one owner authority. `31-39` left `governanceRootOf` two. */
+const EXPECTED_AUTHORITY_CALL_SITES: readonly string[] = Object.freeze([
+  "scripts/context-io.ts::admitAndAppend#actionOwnerRoot@1",
+  "scripts/context-io.ts::appendNote#actionOwnerRoot@1",
+  "scripts/context-io.ts::promoteAdmitted#actionOwnerRoot@1",
+]);
+
+describe("31-40 — no consumer of the owning-repository authority carries a default of its own", () => {
+  it("the authority's call sites are derived over the corpus, by MEMBERS and by COUNT", () => {
+    const derived = deriveAuthorityCallSites();
+    expect(
+      derived.map((s) => s.handle),
+      "a consumer of the one owner authority landed or left. Each one is a place a null could be " +
+        "given a meaning of its own, which is the freedom 31-39 removed and this ban keeps removed",
+    ).toEqual([...EXPECTED_AUTHORITY_CALL_SITES]);
+    expect(derived).toHaveLength(EXPECTED_AUTHORITY_CALL_SITES.length);
+  });
+
+  it("NOT ONE of them is the operand of a nullish, logical-or or conditional default", () => {
+    const offenders = deriveAuthorityCallSites()
+      .filter((s) => s.defaultOperand !== null)
+      .map((s) => `${s.handle}: ${String(s.defaultOperand)}`);
+    expect(
+      offenders,
+      `a consumer of the owner authority carries its own fallback. That is the single line CR-26 ` +
+        `was raised on, and the whole point of a discriminated answer is that falling open costs ` +
+        `an explicit branch a reviewer meets:\n${offenders.join("\n")}`,
+    ).toEqual([]);
+  });
+});
+
+// ─── PART SIX-J (d) — the census DISCRIMINATES, watched failing against five confirmed mirrors. ─
+//
+// WHY FIVE, AND WHY THESE FIVE. Three prove the WALK sees more than top-level function
+// declarations — `WR-27` measured, in this same module, that the earlier shape of walk left an
+// arrow, a class method and an entry block invisible while its comment claimed otherwise. One
+// proves the FALLBACK BAN can go red. One proves the DISPOSITION equality can go red. A derivation
+// nobody has watched fail is a derivation whose green means nothing, which is the sentence this
+// phase has now written eight times.
+//
+// EVERY MIRROR IS ANCHORED, AND THE ANCHOR IS ASSERTED TO OCCUR EXACTLY ONCE BEFORE THE EDIT. A
+// mutation that matched nothing produces an unmutated copy, and a case built on "the mirror differs
+// by one edit" would then be measuring the live source while saying otherwise — which is instance 3
+// and instance 9 of this phase's own false-result ledger.
+
+/** A complete top-level statement, so an insertion AFTER it lands at the top level and parses. */
+const CENSUS_MIRROR_ANCHOR = "  return appendNote(task, note, body, contextRoot);\n}";
+const COMPACTOR_TS = join(ROOT, "scripts", "compactor.ts");
+const COMPACTOR_REL = "scripts/compactor.ts";
+
+/** The compactor's live text, read per mirror so each mirror is the source plus exactly ONE edit. */
+function compactorSource(): string {
+  return readFileSync(COMPACTOR_TS, "utf8");
+}
+
+/** A census over a corpus in which exactly one file has been replaced by a mirror of itself. */
+function censusWith(rel: string, text: string): RootArgumentSite[] {
+  return censusSites(new Map([[rel, text]]));
+}
+
+/** One seeded scope mirror: the compactor plus one extra write-path call in the named shape. */
+function seededScopeMirror(insertion: string, what: string): string {
+  const live = compactorSource();
+  const mirrored = insertExactlyOnceAfter(live, CENSUS_MIRROR_ANCHOR, insertion, what, COMPACTOR_REL);
+  expect(
+    mirrored === live,
+    `PREMISE: the mirror for ${what} is byte-identical to the live source, so anything read off it ` +
+      `is a reading of the live tree wearing a mirror's name`,
+  ).toBe(false);
+  return mirrored;
+}
+
+describe("31-40 — the census walk starts at the SOURCE FILE, proven one scope shape at a time", () => {
+  it("the top-level CONTROL: a seeded top-level writer moves the count by exactly one", () => {
+    const seeded = seededScopeMirror(
+      `\n\nfunction seededTopLevelWriter(t: string, n: NoteInput, b: string, c: string): string {\n` +
+        `  return appendNote(t, n, b, c);\n}\nvoid seededTopLevelWriter;\n`,
+      "the top-level control",
+    );
+    const derived = censusWith(COMPACTOR_REL, seeded);
+    expect(derived).toHaveLength(EXPECTED_CENSUS_SITE_COUNT + 1);
+    expect(derived.map((s) => s.handle)).toContain(
+      "scripts/compactor.ts::seededTopLevelWriter#appendNote@1",
+    );
+  });
+
+  it("WR-27 (a): a seeded writer inside an ARROW moves the count by exactly one", () => {
+    const seeded = seededScopeMirror(
+      `\n\nconst seededArrowWriter = (t: string, n: NoteInput, b: string, c: string): string =>\n` +
+        `  appendNote(t, n, b, c);\nvoid seededArrowWriter;\n`,
+      "the WR-27 (a) arrow mirror",
+    );
+    const derived = censusWith(COMPACTOR_REL, seeded);
+    expect(derived).toHaveLength(EXPECTED_CENSUS_SITE_COUNT + 1);
+    expect(derived.map((s) => s.handle)).toContain(
+      "scripts/compactor.ts::seededArrowWriter#appendNote@1",
+    );
+  });
+
+  it("WR-27 (b): a seeded writer inside a CLASS METHOD moves the count by exactly one", () => {
+    const seeded = seededScopeMirror(
+      `\n\nclass SeededWriterHolder {\n` +
+        `  seededMethodWriter(t: string, n: NoteInput, b: string, c: string): string {\n` +
+        `    return appendNote(t, n, b, c);\n  }\n}\nvoid SeededWriterHolder;\n`,
+      "the WR-27 (b) class-method mirror",
+    );
+    const derived = censusWith(COMPACTOR_REL, seeded);
+    expect(derived).toHaveLength(EXPECTED_CENSUS_SITE_COUNT + 1);
+    expect(derived.map((s) => s.handle)).toContain(
+      "scripts/compactor.ts::seededMethodWriter#appendNote@1",
+    );
+  });
+
+  it("WR-27 (c): a seeded writer inside a NON-TOP-LEVEL BLOCK moves the count by exactly one", () => {
+    // Attributed to `<module>`: an entry block has no named enclosing function, and inventing a name
+    // for it would be a scope the source does not have. What matters is that it is SEEN — and it is
+    // not hypothetical, because `scripts/context-io.ts`'s own CLI `admit` call lives in exactly this
+    // shape and is a census member on this tree today.
+    const seeded = seededScopeMirror(
+      `\n\nif (process.argv[1] !== undefined && process.argv[1].endsWith("seeded-census-entry")) {\n` +
+        `  appendNote("T-seeded", { kind: "observation", by: "qe", at: "", verified_by: "",\n` +
+        `    confidence: "high", refs: [], supersedes: null }, "body", "seeded-context-root");\n}\n`,
+      "the WR-27 (c) entry-block mirror",
+    );
+    const derived = censusWith(COMPACTOR_REL, seeded);
+    expect(derived).toHaveLength(EXPECTED_CENSUS_SITE_COUNT + 1);
+    expect(derived.map((s) => s.handle)).toContain("scripts/compactor.ts::<module>#appendNote@1");
+  });
+});
+
+describe("31-40 — the fallback ban and the disposition equality are each watched failing", () => {
+  it("a mirror RESTORING a default at one authority call site turns the ban RED", () => {
+    const live = readFileSync(CONTEXT_IO_TS, "utf8");
+    const mirrored = replaceExactlyOnce(
+      live,
+      "const destinationOwner = actionOwnerRoot(to);",
+      "const destinationOwner = actionOwnerRoot(to) || answeredOwner(repoRoot);",
+      "the restored CR-26 fallback",
+    );
+    expect(
+      mirrored === live,
+      "PREMISE: the fallback mirror is byte-identical to the live source",
+    ).toBe(false);
+    const offenders = deriveAuthorityCallSites(new Map([["scripts/context-io.ts", mirrored]]))
+      .filter((s) => s.defaultOperand !== null)
+      .map((s) => s.handle);
+    expect(
+      offenders,
+      "restoring CR-26's own expression at a call site did NOT trip the ban, so the ban above is a " +
+        "sentence rather than a measurement",
+    ).toEqual(["scripts/context-io.ts::promoteAdmitted#actionOwnerRoot@1"]);
+    // …and the LIVE tree is clean, so the two readings are distinguishable rather than both green.
+    expect(deriveAuthorityCallSites().filter((s) => s.defaultOperand !== null)).toEqual([]);
+  });
+
+  it("a mirror adding a DIVERGING call site with no register entry turns the disposition case RED", () => {
+    const seeded = seededScopeMirror(
+      `\n\nexport function seededDivergentWriter(t: string, n: NoteInput, b: string): string {\n` +
+        `  return appendNote(t, n, b, "seeded-context-root", undefined, "/seeded/divergent/root");\n}\n`,
+      "the dispositionless-divergence mirror",
+    );
+    const sites = censusWith(COMPACTOR_REL, seeded);
+    const handle = "scripts/compactor.ts::seededDivergentWriter#appendNote@1";
+    expect(
+      censusDivergences(sites),
+      "the seeded site aims the dial at a root of its own and was NOT classified as a divergence",
+    ).toEqual([...EXPECTED_CENSUS_DIVERGENCES, handle].sort());
+    const registered = new Set(mod.ROOT_DIVERGENCE_DISPOSITIONS.map((e) => e.site));
+    expect(
+      censusDivergences(sites).filter((h) => !registered.has(h)),
+      "a diverging site with no register entry did not fail DIRECTION 1, so that equality cannot " +
+        "stop a future write-both route arriving dispositionless",
+    ).toEqual([handle]);
   });
 });

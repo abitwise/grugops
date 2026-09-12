@@ -1,0 +1,38 @@
+{
+  "what": "RED transcript for plan 31-40 Task 1 \u2014 the root-argument census axis committed BEFORE the divergence register exists, so the eight disposition cases fail on the planned behaviour and not on anything else.",
+  "taken_at_commit": "23f6348",
+  "command": "npx vitest run --exclude '**/scripts/e2e/**' scripts/context-io-writer-set.test.ts",
+  "exit_code": 1,
+  "target_tests": [
+    "31-40 \u2014 every census divergence carries a written disposition, and every entry names a site > the kind vocabulary is CLOSED at three members, by a constant the type is derived from",
+    "31-40 \u2014 every census divergence carries a written disposition, and every entry names a site > the register's interface SHAPE is the write-path residual's, plus the kind and the site",
+    "31-40 \u2014 every census divergence carries a written disposition, and every entry names a site > DIRECTION 1: every DIVERGING census site has a register entry, looked up by handle",
+    "31-40 \u2014 every census divergence carries a written disposition, and every entry names a site > DIRECTION 2: every census-visible register entry names a site the census still finds",
+    "31-40 \u2014 every census divergence carries a written disposition, and every entry names a site > the register has the expected CARDINALITY, and one entry per diverging site plus the invisible one",
+    "31-40 \u2014 every census divergence carries a written disposition, and every entry names a site > every entry's REASON quotes its own site's file rather than paraphrasing it",
+    "31-40 \u2014 every census divergence carries a written disposition, and every entry names a site > the one-half-action claim is MEASURED, not asserted: an ungoverned root keeps no ledger",
+    "31-40 \u2014 the fallback ban and the disposition equality are each watched failing > a mirror adding a DIVERGING call site with no register entry turns the disposition case RED"
+  ],
+  "expected_result": "scripts/context-io.ts exports ROOT_DIVERGENCE_KINDS (three members), the RootDivergenceKind type derived from it, and ROOT_DIVERGENCE_DISPOSITIONS carrying one entry per diverging census site plus the one site a syntax-tree census cannot see; all eight cases then pass.",
+  "actual_result": "Tests 8 failed | 183 passed (191). Every failure names mod.ROOT_DIVERGENCE_KINDS or mod.ROOT_DIVERGENCE_DISPOSITIONS as undefined \u2014 'the closed kind vocabulary is not exported at all: expected undefined to be defined', then TypeErrors reading .length/.map/.filter of undefined on the register.",
+  "why_this_is_an_INTENTIONAL_red": "The 183 passing cases include the entire census derivation this task also adds \u2014 the corpus premise, the member set, the cardinality, the CR-27 tail-delegation member, the divergence set, the four seeded scope mirrors and the fallback ban with its restored-default mirror. So the file parses, discovers its tests and runs them; the only failures are the eight assertions about the register the GREEN step adds. This is not a syntax error, a zero-discovery run, a fixture crash or an unrelated assertion.",
+  "premises_asserted_before_any_result_was_read": {
+    "tracked .ts sources scanned": 78,
+    "write-path entry points derived": 4,
+    "census call sites derived": 10,
+    "census divergences derived": 2,
+    "owner-authority call sites derived": 3
+  },
+  "gate_attempted": {
+    "command": "node ~/.claude/gsd-core/bin/gsd-tools.cjs check tdd-red-evidence <record.json>",
+    "verdict": "INVALID_RED",
+    "reason": "zero_tests_discovered",
+    "why_this_is_a_HARNESS_limitation_and_not_an_invalid_RED": "The gate's parser is parseNodeTestSummary, which reads node:test's '# tests / # pass / # fail' TAP summary lines. This repository runs vitest; `npx vitest run --reporter=tap` emits `1..1`, a nested `not ok` tree and NO '# tests' line at all (`grep -c '^# tests'` over the transcript = 0), so the parser reports tests=0 and the classifier fail-closes to zero_tests_discovered before it can look at the target test. MEASURED, not assumed: the same transcript's `tapFailedTestNames` returned exactly one entry, the FILE name, which is also why the fixture_or_load_failure arm would have fired next. The plan's own type is `execute` and TDD_MODE was false for this run, so this gate is not the authorizing gate for GREEN here; it is recorded as attempted and as inapplicable rather than silently skipped, and no verdict was fabricated.",
+    "measured_tap_facts": {
+      "lines matching '^# tests'": 0,
+      "failing test names the parser returned": [
+        "scripts/context-io-writer-set.test.ts"
+      ]
+    }
+  }
+}
