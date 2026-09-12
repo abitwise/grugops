@@ -2293,24 +2293,86 @@ describe("30-03 D-13 — the derived, pinned set of config-resolving sites", () 
 // SHA that differs from the one claimed. The pre-existing behavioral cases for findings, the
 // governance dial and the ledger are asserted UNCHANGED above, so the span change is strictly the
 // added branch. The freeze RE-LOCKS at the new baseline, so any FUTURE drift still goes RED.
-describe("context-io.ts — W-B admit() mechanical byte-freeze (Plan 25-09; re-baselined 25-13, 30-03, 31-01)", () => {
-  // The pinned baseline: sha256 of admit()'s function span. RE-PINNED TWICE in Plan 31-01: first for
-  // the deliberate D-03 unfreeze described above (ee418ce3…f06f), then for the red-team round-1
-  // ambiguity arm — two live green verdicts sharing one per-run id have no single SHA to bind to, so
-  // the branch refuses instead of resolving the question by replay order. admit() must hash to this
-  // exactly; the prior baselines were ee418ce3…f06f (31-01 D-03), 760319ff…2876 (30-03 D-12 reader
-  // rename), ae159bb3…5551 (30-03 D-14), dbf66ac7…ebf7 (25-13) and b7998cbd…be3d (pre-25-13).
+//
+// PLAN 31-39 DELIBERATE UNFREEZE + RE-BASELINE — THE RECORD `R-31-39-01` (D-39). This is the SIXTH
+// re-base of this freeze, and the count is stated because plan 31-39's own text said "seventh" and
+// was measured wrong: the prose below records FIVE prior baselines, which is five transitions, so
+// this one is the sixth. The discrepancy is written down rather than resolved silently in either
+// direction.
+//
+// WHAT WAS UNFROZEN, AND WHY IT COULD NOT BE AVOIDED. Round 8 reproduced CR-27 against the committed
+// `.js`: `admit()` took ONE root and used it for the governance-DIAL read AND for the GOV-02 append,
+// so `promoteAdmitted`'s fall-through — which correctly aims the RECORD at its derived destination
+// (CR-22's fix) — moved the DIAL with it. A trusted root whose own configuration EXISTS and cannot
+// be parsed, the shape D-14 requires a fail-closed refusal for, ADMITTED the write when the caller
+// named a different, permissively-configured destination, and REFUSED the identical note when the
+// destination was the caller's own store. `R-31-33-01` had already published that exposure and named
+// this exact unfreeze as the only thing that closes it; plan 31-33's own prohibitions forbade taking
+// it, so the authorisation came from a named human at plan 31-39's Task 1 checkpoint (D-39), not
+// from a plan author.
+//
+// WHAT CHANGED IN THE SPAN. `admit()` gains a FIFTH parameter — a ledger owner of type `ActionOwner`
+// — whose default is the answered owner of its own `repoRoot`, so every existing three- and
+// four-argument caller is byte-behaviour-unchanged. The D-14 governance read, the D-04 branch and
+// every one of the four refusal families still read `repoRoot`: the dial does not move. The only
+// behavioural addition is at the retention guard, the one site that appends, where an UNANSWERABLE
+// ledger owner now refuses the admission with the one shared sentence both write-both routes emit.
+// The pre-existing behavioural cases for findings, the governance dial and the ledger are asserted
+// UNCHANGED elsewhere in this file, so the span change is strictly the added parameter and the added
+// refusal. The freeze RE-LOCKS at the new baseline, so any FUTURE drift still goes RED.
+//
+// AND THE EXTRACTION ITSELF WAS MEASURED DEGENERATING DURING THIS CHANGE, WHICH IS WHY IT IS
+// HARDENED BELOW. The new parameter's default was first spelled as an inline object literal,
+// `{ answered: true, root: repoRoot }`. That put a brace in the PARAMETER LIST, and the extraction
+// takes the first `{` after the declaration and brace-counts from there — so the "frozen span"
+// silently became 1,885 bytes of parameter list instead of 12,394 bytes of function body, and the
+// freeze would have re-locked GREEN on a span containing not one of the four refusal families it
+// exists to pin. A freeze that can be emptied by a brace is not a freeze. Both halves are fixed:
+// the module uses a named constructor so no brace enters the parameter list, and the extraction
+// below skips the parameter list explicitly and ASSERTS that what it extracted is the body.
+describe("context-io.ts — W-B admit() mechanical byte-freeze (Plan 25-09; re-baselined 25-13, 30-03, 31-01, 31-39)", () => {
+  // The pinned baseline: sha256 of admit()'s function span. RE-BASELINED BY PLAN 31-39 (D-39) for
+  // the deliberate dial/record unfreeze described above — the SIXTH re-base. admit() must hash to
+  // this exactly; the FIVE prior baselines, newest first, were:
+  //   08df9e5c…09e9  (31-01, the red-team round-1 ambiguity arm)
+  //   ee418ce3…f06f  (31-01, D-03's artifact-ref commit binding)
+  //   760319ff…2876  (30-03, D-12's reader rename)
+  //   ae159bb3…5551  (30-03, D-14's unreadable-config refusal)
+  //   dbf66ac7…ebf7  (25-13)
+  //   b7998cbd…be3d  (pre-25-13, the original pin)
+  // — which is six VALUES and therefore five transitions, so the value below is the sixth.
   const ADMIT_FROZEN_SHA256 =
-    "08df9e5c15754f8b3f3bde417475652d3d3861c50fd5458704b29651b83709e9";
+    "bb920698c1e4e321805209f7be0ccfee663ca851733c4ae369fd0781faef81cd";
 
-  // Extract the span `export function admit(` … matching `}` by brace-counting (the SAME extraction the
-  // baseline was captured with). Reads the committed .ts source (the freeze is on the source of truth).
+
+  // Extract the span `export function admit(` … matching `}` by brace-counting. HARDENED BY PLAN
+  // 31-39 (see the block above for the measurement that forced it): the scan for the body's opening
+  // brace starts AFTER the parameter list's closing parenthesis, so a brace inside a parameter
+  // default cannot silently become the span. On a source whose parameter list contains no brace —
+  // which is every prior revision of this module — this yields byte-for-byte the same span the
+  // original extraction did, so the hardening is not itself a re-baseline.
+  // Reads the committed .ts source (the freeze is on the source of truth).
   function extractAdmitSpan(src: string): string {
     const start = src.indexOf("export function admit(");
     if (start < 0) throw new Error("admit() not found in context-io.ts");
+    // Walk the parameter list to its matching `)`, so the body's `{` is the next one after it.
+    let parens = 0;
+    let paramsEnd = -1;
+    for (let i = src.indexOf("(", start); i < src.length; i++) {
+      const c = src[i];
+      if (c === "(") parens++;
+      else if (c === ")") {
+        parens--;
+        if (parens === 0) {
+          paramsEnd = i;
+          break;
+        }
+      }
+    }
+    if (paramsEnd < 0) throw new Error("admit() parameter list not closed (unbalanced span)");
     let depth = 0;
     let end = -1;
-    for (let i = src.indexOf("{", start); i < src.length; i++) {
+    for (let i = src.indexOf("{", paramsEnd); i < src.length; i++) {
       const c = src[i];
       if (c === "{") depth++;
       else if (c === "}") {
@@ -2324,6 +2386,24 @@ describe("context-io.ts — W-B admit() mechanical byte-freeze (Plan 25-09; re-b
     if (end < 0) throw new Error("admit() closing brace not found (unbalanced span)");
     return src.slice(start, end + 1);
   }
+
+  it("the extracted span IS the function BODY, not a parameter default (the 31-39 degeneration)", () => {
+    // THE FREEZE'S OWN PREMISE, ASSERTED RATHER THAN ASSUMED. A hash is a faithful pin of whatever
+    // it was taken over, and during plan 31-39 the extraction was MEASURED collapsing onto a
+    // parameter default — 1,885 bytes that contained none of the four refusal families. The
+    // markers below are the authority's own first statement and its admitted-path tail, so a span
+    // that stops short of either is reported here instead of re-locking green on nothing.
+    const span = extractAdmitSpan(readFileSync(join(ROOT, "scripts", "context-io.ts"), "utf8"));
+    expect(span.startsWith("export function admit("), "the span no longer starts at the declaration").toBe(true);
+    expect(span, "the span does not reach the authority's first statement").toContain("assertSafeTask(task);");
+    expect(span, "the span does not reach the D-14 governance read the freeze exists to pin").toContain(
+      "readGovernanceConfig(repoRoot)",
+    );
+    expect(span, "the span does not reach the GOV-02 retention guard").toContain(
+      'gov.audit_retention === "retained"',
+    );
+    expect(span.trimEnd().endsWith("}"), "the span does not end on the body's closing brace").toBe(true);
+  });
 
   it("admit()'s function span byte-hash equals the pinned pre-25-09 baseline (frozen, not green-inferred)", () => {
     const src = readFileSync(join(ROOT, "scripts", "context-io.ts"), "utf8");
@@ -2448,8 +2528,16 @@ describe("context-io.js — admitAndAppend (structured-channel persist arbiter, 
   });
 
   it("GATED + valid human:NAME (high-severity dial): persists ONE note stamped human:alice and ledgers disposed_by:human:alice (retained)", () => {
-    const contextRoot = freshTmp("aaa-gated-ok-ctx-");
     const repoRoot = repoWithGovernance({ human_admission: "high-severity", audit_retention: "retained" });
+    // RE-STAGED, NEVER RE-BASELINED (31-39, CR-26 / D-39). This staged the note's store as a BARE
+    // temp directory while the dial root retained admissions, so the note and its own GOV-02
+    // record were aimed at two different repositories — the split CR-26 reproduced, which the
+    // module now refuses. The fixture was passing for the reason the fix removes. The store is
+    // staged INSIDE the repository whose dial the case sets, which is the property this plan
+    // installs expressed in the fixture: one repository owns the store, its dial and its ledger.
+    // No assertion below is weakened.
+    const contextRoot = join(repoRoot, ".grugops", "context");
+    mkdirSync(contextRoot, { recursive: true });
     const task = "aaa-gated-ok";
     const note = baseNote({ kind: "finding", by: "security-nfr", verified_by: "human:alice" });
     const res = mod.admitAndAppend(task, note, "a high-severity finding, disposed by a human", contextRoot, repoRoot);
@@ -5123,13 +5211,21 @@ describe("31-05 gap 1 — appendNote routes an artifact-ref through the single a
   // So the count asserted below is ONE, and the day it becomes two again is a day this case goes red
   // on purpose.
   it("R-21 CLOSED: one artifact-ref through admitAndAppend records exactly ONE retained ledger event", () => {
-    const contextRoot = freshTmp("p31-05-ledger-");
     const repoRoot = freshTmp("p31-05-ledger-repo-");
     mkdirSync(join(repoRoot, ".grugops"), { recursive: true });
     writeFileSync(
       join(repoRoot, ".grugops", "factory.config.json"),
       JSON.stringify({ context: { human_admission: "off", audit_retention: "retained" } }),
     );
+    // RE-STAGED, NEVER RE-BASELINED (31-39, CR-26 / D-39). This staged the note's store as a BARE
+    // temp directory while the dial root retained admissions, so the note and its own GOV-02
+    // record were aimed at two different repositories — the split CR-26 reproduced, which the
+    // module now refuses. The fixture was passing for the reason the fix removes. The store is
+    // staged INSIDE the repository whose dial the case sets, which is the property this plan
+    // installs expressed in the fixture: one repository owns the store, its dial and its ledger.
+    // No assertion below is weakened.
+    const contextRoot = join(repoRoot, ".grugops", "context");
+    mkdirSync(contextRoot, { recursive: true });
     mod.emitVerdict(REPRO_TASK, "RUN-A", "clean", P31_SHA_A, contextRoot);
     const res = mod.admitAndAppend(REPRO_TASK, evidence(), "body", contextRoot, repoRoot);
     expect(res.id).toBeTruthy();
@@ -5477,13 +5573,19 @@ describe("31-09 — WR-10: one governance root for the writer and the hook", () 
       // whose governance root must have the SAME one trusted answer, so its seam moved in the same
       // change as the caller — exactly as 31-09 moved appendNote's and admitAndAppend's together,
       // and for the same reason (moving one and not the others re-introduces the divergence).
-      const anchor = "repoRoot = trustedRepoRoot())";
+      // RE-STAGED (31-39). The anchor carried a trailing `)` and therefore encoded "…and it is the
+      // LAST parameter", which was incidental rather than intended. `appendNote` now takes a
+      // seventh parameter after it, so the trailing paren matched 2 of the 3 defaults — and the
+      // PREMISE fired rather than the control passing on a partial mutation, which is the premise
+      // doing its job. The anchor now names the default itself; the count is still asserted at
+      // exactly three and at zero after the reversion.
+      const anchor = "repoRoot = trustedRepoRoot()";
       expect(
         text.split(anchor).length - 1,
         "PREMISE: the trustedRepoRoot default was not found exactly three times in the committed " +
           ".js, so the reversion mutated something other than the three writer defaults",
       ).toBe(3);
-      text = text.split(anchor).join("repoRoot = ROOT)");
+      text = text.split(anchor).join("repoRoot = ROOT");
       expect(text.includes(anchor)).toBe(false);
     }
     // Point the mirror's relative imports at the REAL sibling modules, so the copy is the same
@@ -5528,13 +5630,21 @@ describe("31-09 — WR-10: one governance root for the writer and the hook", () 
   // safety fix — and the residual is recorded as a failing-on-change ASSERTION rather than a
   // sentence, so the day it moves is a day this case goes red on purpose.
   it("IN-04 DISCLOSED: a refused write leaves the admission's ledger event behind (extra line, never missing)", () => {
-    const contextRoot = freshTmp("p31-09-in04-ctx-");
     const repoRoot = freshTmp("p31-09-in04-repo-");
     mkdirSync(join(repoRoot, ".grugops"), { recursive: true });
     writeFileSync(
       join(repoRoot, ".grugops", "factory.config.json"),
       JSON.stringify({ context: { human_admission: "off", audit_retention: "retained" } }),
     );
+    // RE-STAGED, NEVER RE-BASELINED (31-39, CR-26 / D-39). This staged the note's store as a BARE
+    // temp directory while the dial root retained admissions, so the note and its own GOV-02
+    // record were aimed at two different repositories — the split CR-26 reproduced, which the
+    // module now refuses. The fixture was passing for the reason the fix removes. The store is
+    // staged INSIDE the repository whose dial the case sets, which is the property this plan
+    // installs expressed in the fixture: one repository owns the store, its dial and its ledger.
+    // No assertion below is weakened.
+    const contextRoot = join(repoRoot, ".grugops", "context");
+    mkdirSync(contextRoot, { recursive: true });
     // A traversal-bearing precomputedId is admitted by admit() (it is not a note field) and refused
     // by the write chokepoint — the exact ordering IN-04 names.
     expect(() =>
@@ -7027,12 +7137,35 @@ describe("31-15 — WR-15: the target repository's dial is read on every host", 
 
       // (b) THE WRONG AUDIT TRAIL. The dial is `off` here so the note is ADMITTED and the GOV-02
       // event is actually written — which is the only way this case can see where it lands.
+      //
+      // RE-STAGED (31-39, CR-27 / D-39), AND THE RE-STAGE IS THE CONSEQUENCE ITSELF. Until this
+      // plan, adopting the wrong dial root also aimed the RECORD at it, so this half could read the
+      // planted home's own audit trail. The dial and the record are now two separate answers: the
+      // dial still decides WHETHER anything is recorded, and the record follows the owner of the
+      // store the note landed in. Reading the planted home's trail would therefore report an absent
+      // ledger under BOTH programs and pass for a reason that says nothing about the home stop. So
+      // the store is staged in a governance root of its own BELOW the home directory, and the
+      // consequence is measured where the record now lands — with the planted home's own trail
+      // asserted empty under both programs as a strictly additional claim.
       const { home, deep } = plantedHome(
         { human_admission: "off", audit_retention: "retained" },
         "p31-19-mutation-ledger-",
       );
-      const ledger = join(home, ...LEDGER_RELPATH);
-      const before = drive("appendNote", { cwd: deep, env: asHome(home), kit: mutant });
+      const storeRoot = join(home, "work", "store");
+      mkdirSync(join(storeRoot, ".git"), { recursive: true });
+      mkdirSync(join(storeRoot, ".grugops"), { recursive: true });
+      writeFileSync(join(storeRoot, ".grugops", "factory.config.json"), "{}");
+      const ctxRoot = join(storeRoot, ".grugops", "context");
+      mkdirSync(ctxRoot, { recursive: true });
+      // PREMISE, ASSERTED: the store's owner is the root this case is about to read, or the counts
+      // below would be taken from a repository the record was never aimed at.
+      expect(
+        mod.governanceRootOf(ctxRoot),
+        "PREMISE: the staged store does not resolve to the root this case reads its ledger from",
+      ).toBe(storeRoot);
+      const ledger = join(storeRoot, ...LEDGER_RELPATH);
+      const homeLedger = join(home, ...LEDGER_RELPATH);
+      const before = drive("appendNote", { cwd: deep, env: asHome(home), ctxRoot, kit: mutant });
       expect(before.root).toBe(home);
       expect(before.verdict, "PREMISE: the note must be admitted, or no ledger line is written").toBe(
         "write",
@@ -7040,14 +7173,19 @@ describe("31-15 — WR-15: the target repository's dial is read on every host", 
       expect(existsSync(ledger), "PREMISE: the mutant must reach the ledger, or the case is empty").toBe(
         true,
       );
-      rmSync(join(home, ".grugops", "audit"), { recursive: true, force: true });
+      rmSync(join(storeRoot, ".grugops", "audit"), { recursive: true, force: true });
 
-      // The committed program does neither.
-      const after = drive("appendNote", { cwd: deep, env: asHome(home), kit: KIT });
+      // The committed program does neither: it answers the KIT, whose dial is lean, so no GOV-02
+      // event is written at all — not in the store's repository and not in the planted home's.
+      const after = drive("appendNote", { cwd: deep, env: asHome(home), ctxRoot, kit: KIT });
       expect(after.root).toBe(KIT);
       expect(after.verdict).toBe("write");
       expect(
         existsSync(ledger),
+        "the committed program recorded a GOV-02 event under a dial it never adopted",
+      ).toBe(false);
+      expect(
+        existsSync(homeLedger),
         "a GOV-02 admission record landed in an unrelated home directory's audit trail",
       ).toBe(false);
     });
@@ -8808,7 +8946,14 @@ describe("31-18 — WR-17: the proof's left operand comes from a location the mo
     // repository, so every directory it can create sits under that root. Proximity to a root the
     // caller is already standing in is evidence of nothing, so the arm is DELETED rather than
     // narrowed, and the same input is now refused BY NAME.
-    const repoRoot = projectWith({ human_admission: "high-severity", audit_retention: "retained" });
+    // RE-STAGED (31-39, CR-26 / D-39). The retention value here was INCIDENTAL to the clause this
+    // case is about: what it measures is `origin-outside-trusted-store`, and the origin is
+    // deliberately a directory that is NOT a context store — which is exactly the shape whose
+    // owning repository cannot be named, so under `retained` the SEED can no longer be written at
+    // all and the case would never reach its own subject. The dial that decides this case is
+    // `human_admission`, and it is unchanged; only the recording dial moves, to the lean default.
+    // No assertion below is weakened.
+    const repoRoot = projectWith({ human_admission: "high-severity" });
     const origin = join(repoRoot, "some", "other", "store");
     mkdirSync(origin, { recursive: true });
     const dest = contextStore("p31-18-wr17-trusted-dest-");
@@ -9916,7 +10061,15 @@ describe("31-21 — a non-regular GOV-02 ledger position refuses the ADMISSION, 
         'writeFileSync(join(strict, ".grugops", "factory.config.json"), JSON.stringify({',
         '  context: { human_admission: "high-severity", audit_retention: "retained" },',
         "}));",
-        'const ctx = join(base, "proj", ".grugops", "context");',
+        // RE-STAGED (31-39, CR-26 / D-39): the note's store is a GOVERNED store now. It was a bare
+        // directory under base/proj, so its owning repository could not be named while the dial
+        // root retained admissions — the shape CR-26 reproduced and the module now refuses. The
+        // DIAL is still read from strict, which is what this describe is about.
+        'const proj = join(base, "proj");',
+        'mkdirSync(join(proj, ".git"), { recursive: true });',
+        'mkdirSync(join(proj, ".grugops"), { recursive: true });',
+        'writeFileSync(join(proj, ".grugops", "factory.config.json"), "{}");',
+        'const ctx = join(proj, ".grugops", "context");',
         "mkdirSync(ctx, { recursive: true });",
         "const gated = {",
         '  kind: "finding", by: "security-nfr", at: "2026-09-09T09:00:00Z",',
@@ -9995,10 +10148,20 @@ describe("31-21 — a non-regular GOV-02 ledger position refuses the ADMISSION, 
 
   function stageFifoLedger(prefix: string): string {
     const base = freshTmp(prefix);
-    const audit = join(base, "strict", ".grugops", "audit");
-    mkdirSync(audit, { recursive: true });
-    const r = spawnSync("mkfifo", [join(audit, "admissions.jsonl")], { encoding: "utf8" });
-    expect(r.status, `PREMISE: mkfifo failed (${r.stderr ?? ""})`).toBe(0);
+    // RE-STAGED (31-39, CR-27 / D-39), AND STRICTLY STRONGER THAN BEFORE. The dial root and the
+    // repository whose audit trail records an admission are now two separate answers: the WRITERS
+    // aim the record at the owner of the store they write into (base/proj), while a RAW
+    // four-argument admit() still defaults it to its own dial root (base/strict). A fixture that
+    // planted the non-regular position at only one of them would leave whichever route aims at the
+    // other silently unprobed — reporting a bounded refusal it never actually reached. So the FIFO
+    // is planted at EVERY position a route in this describe can reach, which is a fixture that
+    // cannot under-probe rather than one aimed at the route that happens to be running.
+    for (const owner of ["strict", "proj"]) {
+      const audit = join(base, owner, ".grugops", "audit");
+      mkdirSync(audit, { recursive: true });
+      const r = spawnSync("mkfifo", [join(audit, "admissions.jsonl")], { encoding: "utf8" });
+      expect(r.status, `PREMISE: mkfifo failed at ${owner} (${r.stderr ?? ""})`).toBe(0);
+    }
     return base;
   }
 
@@ -10060,10 +10223,16 @@ describe("31-21 — a non-regular GOV-02 ledger position refuses the ADMISSION, 
       "admit",
     );
     expect(r.notes).toHaveLength(1);
+    // THE RECORD FOLLOWS THE STORE'S OWNER NOW, NOT THE DIAL ROOT (31-39, D-39). The dial is still
+    // strict's — it is what turned recording on — but the repository whose audit trail holds the
+    // line is the one that owns the store the note landed in. Reading the old position here would
+    // report an absent ledger and read as a regression when the record simply moved, so the path
+    // moves with the property and every assertion below is unchanged.
     const ledger = readFileSync(
-      join(base, "strict", ".grugops", "audit", "admissions.jsonl"),
+      join(base, "proj", ".grugops", "audit", "admissions.jsonl"),
       "utf8",
     ).trim();
+
     expect(ledger.split("\n")).toHaveLength(1);
     expect((JSON.parse(ledger) as { disposed_by?: string }).disposed_by).toBe("human:alice");
   });
@@ -13146,12 +13315,18 @@ describe("31-33 — CR-22: one repository per action, derived at the ENTRY of ev
     ).toEqual({ notes: 0, ledger: null });
   });
 
-  it("R-31-33-01 DISCLOSED: an append reached THROUGH the frozen authority still follows repoRoot", () => {
-    // THE BOUNDARY THIS PLAN DOES NOT CLOSE, DRIVEN RATHER THAN DESCRIBED. `admit()` takes ONE root
-    // and uses it for the dial read AND the GOV-02 append, and its bytes are frozen. So the two
-    // appends reached through it — `appendNote`'s, and `admitAndAppend`'s NON-gated branch — still
-    // key on the caller's `repoRoot`. A case that asserted the opposite would be a fabricated
-    // closure; a silence would be the next round's finding. It is measured here, under its own id.
+  it("R-31-33-01 CLOSED (31-39): the append reached THROUGH the authority now follows the STORE", () => {
+    // THIS CASE ASSERTED THE OPPOSITE UNTIL 31-39, AND THAT INVERSION IS THE POINT. Plan 31-33 could
+    // not aim the appends reached through `admit()`, because that authority took ONE root for both
+    // its governance-dial read and its GOV-02 append and its bytes were frozen. It published the
+    // exposure as `R-31-33-01` and drove it with a case rather than leaving it as prose — and the
+    // `what_would_force_it_closed` clause named exactly what closed it: a deliberate unfreeze giving
+    // `admit()` a ledger owner DISTINCT from its dial root, re-baselined with the reason written at
+    // the freeze. Plan 31-39 took that unfreeze under the dated human decision D-39.
+    //
+    // So the SAME call that used to split the two halves now keeps them together. The dial is still
+    // the caller's `repoRoot` — that is D-31 / WR-10 and it does not move — and the record follows
+    // the owner of the store the note landed in.
     const T = "T-533D";
     const HOME = premise("HOME", governed("p31-33-res-home-", "off"));
     const ELSEWHERE = premise("ELSEWHERE", governed("p31-33-res-elsewhere-", "off"));
@@ -13159,13 +13334,19 @@ describe("31-33 — CR-22: one repository per action, derived at the ENTRY of ev
     mod.appendNote(T, plainNote(), "a body", HOME.store, undefined, ELSEWHERE.root);
     expect(
       { notes: notesIn(HOME, T), ledger: ledgerIn(HOME) },
-      "R-31-33-01 has CLOSED — the residual register now over-states the boundary and must be corrected",
-    ).toEqual({ notes: 1, ledger: null });
-    expect({ notes: notesIn(ELSEWHERE, T), ledger: ledgerIn(ELSEWHERE) }).toEqual({ notes: 0, ledger: 1 });
+      "the note and its own GOV-02 record are in two different repositories again — R-31-33-01 has " +
+        "RE-OPENED, which is the split CR-22 and CR-26 were both raised on",
+    ).toEqual({ notes: 1, ledger: 1 });
+    expect(
+      { notes: notesIn(ELSEWHERE, T), ledger: ledgerIn(ELSEWHERE) },
+      "the caller's DIAL root still MOVED a record, which is the defect this closure removes",
+    ).toEqual({ notes: 0, ledger: null });
 
-    // …and the register says so, in both directions: the residual is published with its cost.
+    // …and the register says so, in both directions: the residual records its own closure rather
+    // than over-stating a boundary the module no longer has.
     const residual = mod.WRITE_PATH_RESIDUALS.find((r) => r.id === "R-31-33-01");
-    expect(residual, "the boundary is driven by a case and named nowhere a reader looks").toBeDefined();
+    expect(residual, "the residual vanished rather than recording its closure").toBeDefined();
+    expect(residual?.reason).toContain("CLOSED by plan 31-39");
     expect(residual?.reason).toContain("ADMIT_FROZEN_SHA256");
   });
 
@@ -13897,9 +14078,321 @@ describe("31-39 — CR-26 / CR-27: one owner authority, and a dial root distinct
     ).toEqual([]);
     expect(r.id).toBeTruthy();
     expect(notesIn39(UNGOV, T)).toBe(1);
+    // READ IN EVERY ROOT THE CASE CREATED, not only in the one it expects: the whole point of this
+    // reading is that NO root gained a ledger line, and a probe that looked at one could not say so.
     expect(
-      { lean: ledgerIn39(LEAN), ungov: ledgerIn39(UNGOV) },
+      census39(T, roots),
       "a ledger line appeared under the lean retention value, which would make this the wrong scope",
-    ).toEqual({ lean: null, ungov: null });
+    ).toBe("LEAN notes=0 ledger=ABSENT | UNGOV notes=1 ledger=ABSENT");
+  });
+
+  /**
+   * A MIRROR of the REBUILT artifact with ONE decision reverted, and its DIFFERENCE confirmed.
+   *
+   * A mutant that mutated nothing is the failure this repository has logged six times across four
+   * rounds: the case reports green, the reader concludes the fix is watched failing, and nothing was
+   * ever watched. So the anchor's occurrence count is asserted exactly BEFORE the substitution, the
+   * mirrored bytes are asserted DIFFERENT from the live artifact's, and only then is any result
+   * read. The mirror's relative imports are re-pointed at the real sibling modules, so the copy is
+   * the same program minus the one reverted decision rather than a differently-wired one.
+   */
+  async function mirrorWithReverted(
+    prefix: string,
+    anchor: string,
+    replacement: string,
+  ): Promise<typeof import("./context-io.js")> {
+    const live = readFileSync(CONTEXT_IO_JS, "utf8");
+    expect(
+      live.split(anchor).length - 1,
+      "PREMISE: the anchor was not found exactly once in the REBUILT scripts/context-io.js, so this " +
+        "mirror reverted nothing and every result read from it would be a result about the live " +
+        "program wearing a mirror's file name",
+    ).toBe(1);
+    let text = live.split(anchor).join(replacement);
+    expect(text, "PREMISE: the mirror is byte-identical to the live artifact").not.toBe(live);
+    text = text.replace(
+      /from "\.\/([A-Za-z0-9._-]+\.js)"/g,
+      (_m, file: string) => `from "${pathToFileURL(join(ROOT, "scripts", file)).href}"`,
+    );
+    const dir = freshTmp(prefix);
+    mkdirSync(join(dir, "scripts"), { recursive: true });
+    const path = join(dir, "scripts", "context-io.js");
+    writeFileSync(path, text);
+    return (await import(pathToFileURL(path).href)) as typeof import("./context-io.js");
+  }
+
+
+  // ── THE SHAPE IS ASSERTED FROM THE MODULE'S OWN SYNTAX TREE, NOT BY READING IT. ───────────────
+  //
+  // The whole of D-39's argument is that the ANSWER'S SHAPE, not its position, is what stops the
+  // next consumer falling open. A shape claim that only a reader checks is the claim eight rounds of
+  // this phase have each re-learned is worth nothing, so it is parsed.
+  function sourceFile39(): ts.SourceFile {
+    return ts.createSourceFile(
+      "context-io.ts",
+      readFileSync(CONTEXT_IO_TS, "utf8"),
+      ts.ScriptTarget.Latest,
+      true,
+    );
+  }
+
+  it("ActionOwner has exactly two members, no null member, and no optional field on either", () => {
+    const source = sourceFile39();
+    const decl = source.statements.find(
+      (st): st is ts.TypeAliasDeclaration =>
+        ts.isTypeAliasDeclaration(st) && st.name.text === "ActionOwner",
+    );
+    expect(decl, "PREMISE: no ActionOwner type alias was declared, so nothing below measures a shape").toBeDefined();
+    const alias = decl as ts.TypeAliasDeclaration;
+    expect(
+      ts.isUnionTypeNode(alias.type),
+      "ActionOwner is no longer a union, so there is no discriminant for a consumer to branch on",
+    ).toBe(true);
+    const members = (alias.type as ts.UnionTypeNode).types;
+    expect(
+      members.length,
+      "the owner union's arity moved. A third member is a third thing a consumer must handle and " +
+        "needs its own decision; a second member's removal is the fallback returning",
+    ).toBe(2);
+    for (const member of members) {
+      expect(
+        member.kind === ts.SyntaxKind.NullKeyword || member.kind === ts.SyntaxKind.UndefinedKeyword,
+        "ActionOwner gained a null or undefined member — which is exactly the `string | null` shape " +
+          "D-39 replaced, because it hands every consumer a default to pick",
+      ).toBe(false);
+      expect(
+        ts.isTypeLiteralNode(member),
+        "an ActionOwner member is no longer an object type, so its fields cannot be checked",
+      ).toBe(true);
+      for (const prop of (member as ts.TypeLiteralNode).members) {
+        expect(
+          ts.isPropertySignature(prop) && prop.questionToken === undefined,
+          "an ActionOwner field is OPTIONAL. An optional field is a null member spelled differently: " +
+            "a consumer can read it as absent and supply its own value with no branch a reviewer sees",
+        ).toBe(true);
+      }
+    }
+  });
+
+  it("no consumer of the owner authority carries a fallback expression of its own", () => {
+    // THE BAN IS DERIVED, NOT REVIEWED. CR-26 was literally `governanceRootOf(contextRoot) ?? repoRoot`
+    // — one token of fallback at one call site. This walks every call to the authority and asserts
+    // that not one of them is the left operand of `??` or `||`, and that none is the condition or a
+    // branch of a conditional default. The call sites are COUNTED too, so a ban that stopped finding
+    // any call site cannot pass vacuously.
+    const source = sourceFile39();
+    const offenders: string[] = [];
+    let callSites = 0;
+    const walk = (node: ts.Node): void => {
+      if (
+        ts.isCallExpression(node) &&
+        ts.isIdentifier(node.expression) &&
+        node.expression.text === "actionOwnerRoot"
+      ) {
+        callSites += 1;
+        const parent = node.parent;
+        if (
+          ts.isBinaryExpression(parent) &&
+          (parent.operatorToken.kind === ts.SyntaxKind.QuestionQuestionToken ||
+            parent.operatorToken.kind === ts.SyntaxKind.BarBarToken)
+        ) {
+          offenders.push(parent.getText(source).replace(/\s+/g, " ").slice(0, 120));
+        }
+        if (ts.isConditionalExpression(parent)) {
+          offenders.push(parent.getText(source).replace(/\s+/g, " ").slice(0, 120));
+        }
+      }
+      ts.forEachChild(node, walk);
+    };
+    walk(source);
+    expect(
+      callSites,
+      "PREMISE: ZERO calls to the owner authority were found, so this ban measured nothing at all",
+    ).toBeGreaterThan(0);
+    expect(
+      offenders,
+      "a consumer of the owner authority carries its own fallback. That is the single line CR-26 " +
+        "was raised on, and the point of the discriminated answer is that falling open must cost an " +
+        "explicit branch a reviewer meets",
+    ).toEqual([]);
+  });
+
+  it("governanceRootOf has exactly TWO direct callers, and neither is a write-both route", () => {
+    // ONE AUTHORITY MEANS ONE PLACE THE QUESTION IS ASKED. Before this plan the resolver was called
+    // directly from BOTH write-both routes, which is what gave each of them its own chance to decide
+    // what a null meant — and they decided it two opposite ways. The callers are derived and
+    // ATTRIBUTED to their enclosing function, so a third one cannot arrive unnoticed.
+    const source = sourceFile39();
+    const callers: string[] = [];
+    for (const statement of source.statements) {
+      if (!ts.isFunctionDeclaration(statement) || !statement.name || !statement.body) continue;
+      const name = statement.name.text;
+      const walk = (node: ts.Node): void => {
+        if (
+          ts.isCallExpression(node) &&
+          ts.isIdentifier(node.expression) &&
+          node.expression.text === "governanceRootOf"
+        ) {
+          callers.push(name);
+        }
+        ts.forEachChild(node, walk);
+      };
+      walk(statement.body);
+    }
+    expect(
+      callers.sort(),
+      "the set of functions that ask the root resolver DIRECTLY moved. A write-both route asking it " +
+        "again is the shape CR-26 and CR-22 were both raised on: a resolver that answers null hands " +
+        "its caller a decision, and the two routes took opposite ones",
+    ).toEqual(["actionOwnerRoot", "originStoreIsRootAnchored"]);
+  });
+
+  it("admit()'s dial reads repoRoot while its record follows the ledger owner — two repositories, one call", () => {
+    // THE SEPARATION, DRIVEN RATHER THAN READ. One call names TWO different repositories: the dial
+    // root carries an ACTIVE high-severity dial, and the ledger owner is somewhere else entirely.
+    // Both halves are read: the D-04 refusal must come from the DIAL root, and the record must land
+    // in the LEDGER owner.
+    const DIAL = premise39("DIAL", governed39("p31-39-split-dial-", "high-severity", "retained"));
+    const RECORD = premise39("RECORD", governed39("p31-39-split-record-", "off", "git"));
+
+    // (a) THE DIAL still answers from `repoRoot`, IN THE SAME CALL that aims the record elsewhere.
+    // Driven through the AUTHORITY directly rather than through `admitAndAppend`, because the
+    // combiner's own gated arm answers a high-severity finding before `admit()` is reached (the
+    // standing `admitAndAppend::S8` disposition) — so a refusal from the combiner would not tell
+    // this case which root the authority's D-04 branch read.
+    const T = "T-3934A";
+    // The gate cross-check is deliberately SATISFIED by a real seeded verdict, so the DIAL is the
+    // only thing left to decide this note — the same isolation the writer-set S8 probe uses.
+    mod.emitVerdict(T, "RUN-3934", "clean", "0".repeat(40), DIAL.store);
+    const highSevText = [
+      "---", "kind: finding", "by: security-nfr", "at: 2026-09-12T00:00:00.000Z",
+      "verified_by: \u00a714-gate#RUN-3934", "confidence: high", "refs:", "supersedes: ", "---", "", "a body", "",
+    ].join("\n");
+    const refused = mod.admit(T, highSevText, DIAL.store, DIAL.root, mod.actionOwnerRoot(RECORD.store));
+    expect(
+      refused.join("\n"),
+      "the D-04 branch no longer reads the DIAL parameter — a caller aiming the record moved the " +
+        "dial with it, which is CR-27 re-opened",
+    ).toContain("human_admission: high-severity");
+    // …and the refusal wrote nothing into EITHER repository, which is what "the dial decides where
+    // nothing lands" means.
+    expect({ dial: ledgerIn39(DIAL), record: ledgerIn39(RECORD) }).toEqual({ dial: null, record: null });
+
+    // (b) THE RECORD follows the ledger owner. Same authority, a dial root whose own retention is
+    // `retained`, and an explicit ledger owner naming a DIFFERENT repository.
+    const TR = "T-3934B";
+    const soft = unstamped39();
+    const text = [
+      "---", "kind: observation", "by: qe", "at: 2026-09-12T00:00:00.000Z",
+      "verified_by: ", "confidence: high", "refs:", "supersedes: ", "---", "", "a body", "",
+    ].join("\n");
+    void soft;
+    const findings = mod.admit(TR, text, DIAL.store, DIAL.root, mod.actionOwnerRoot(RECORD.store));
+    expect(findings, `the split-root admission was refused: ${findings.join(" / ")}`).toEqual([]);
+    expect(
+      { dial: ledgerIn39(DIAL), record: ledgerIn39(RECORD) },
+      "the record did not follow the ledger owner — the two questions are one parameter again",
+    ).toEqual({ dial: null, record: 1 });
+  });
+
+  it("both write-both routes name the SAME clause for an unnameable owner, read from the constant", () => {
+    // COMPARED AGAINST THE SHARED CONSTANT, NEVER AGAINST EACH OTHER'S LITERALS. Two refusals that
+    // happen to read alike are two spellings waiting to drift; what this asserts is that each is
+    // derived from the one exported name.
+    const T = "T-3935A";
+    const RETAINED = premise39("RETAINED", governed39("p31-39-clause-retained-", "high-severity", "retained"));
+    const UNGOV = ungoverned39("p31-39-clause-ungov-");
+    expect(mod.governanceRootOf(UNGOV.store)).toBeNull();
+
+    const fromAdmitAndAppend = mod.admitAndAppend(T, gatedFinding39(), "a body", UNGOV.store, RETAINED.root)
+      .findings.join("\n");
+    let fromPromoteAdmitted = "(no throw)";
+    try {
+      mod.promoteAdmitted(T, "src-id", unstamped39(), "a body", UNGOV.store, UNGOV.store, RETAINED.root);
+    } catch (e) {
+      fromPromoteAdmitted = (e as Error).message;
+    }
+
+    for (const [route, observed] of [
+      ["admitAndAppend", fromAdmitAndAppend],
+      ["promoteAdmitted", fromPromoteAdmitted],
+    ] as const) {
+      expect(observed, `${route} did not name the shared clause for an unnameable owner`).toContain(
+        mod.UNNAMEABLE_OWNER_CLAUSE,
+      );
+      expect(
+        observed,
+        `${route} does not carry the shared written reason, so the two routes' refusals are two ` +
+          `independent sentences that can drift apart`,
+      ).toContain(mod.PROMOTE_ADMITTED_DECLINES[mod.UNNAMEABLE_OWNER_CLAUSE]);
+    }
+  });
+
+  it("MUTANT: restoring the nullish fallback at the gated branch re-opens CR-26, and RED 1 goes red on it", async () => {
+    // The pre-31-39 program for this one line and nothing else. `??` on a discriminated answer does
+    // not type-check in the source, which is the shape of the fix — so the revert is expressed
+    // against the BUILT artifact, where the discriminant is an ordinary object and the old program
+    // is spellable again.
+    const mutant = await mirrorWithReverted(
+      "p31-39-mutant-fallback-",
+      "const actionOwner = actionOwnerRoot(contextRoot);",
+      "const actionOwner = (() => { const r = governanceRootOf(contextRoot); " +
+        "return r === null ? { answered: true, root: repoRoot } : { answered: true, root: r }; })();",
+    );
+
+    const T = "T-3931M";
+    const THIRD = premise39("THIRD", governed39("p31-39-mut-third-", "high-severity", "retained"));
+    const UNGOV = ungoverned39("p31-39-mut-ungov-");
+    expect(mod.governanceRootOf(UNGOV.store)).toBeNull();
+
+    // ON THE MUTANT: the split is back — an id is returned, the note lands in the ungoverned store
+    // and its GOV-02 record lands in the caller's repository. Exactly the RED transcript's reading.
+    const mutantResult = mutant.admitAndAppend(T, gatedFinding39(), "a body", UNGOV.store, THIRD.root);
+    expect(
+      mutantResult.id,
+      "the mutant REFUSED too, so this mirror is not discriminating and the case below proves nothing",
+    ).toBeTruthy();
+    expect(
+      { third: { notes: notesIn39(THIRD, T), ledger: ledgerIn39(THIRD) }, ungov: { notes: notesIn39(UNGOV, T), ledger: ledgerIn39(UNGOV) } },
+      "the mutant did not reproduce CR-26's split, so the fallback is not what this case thinks it is",
+    ).toEqual({ third: { notes: 0, ledger: 1 }, ungov: { notes: 1, ledger: null } });
+
+    // ON THE LIVE ARTIFACT, at the same shape and a fresh task: nothing anywhere.
+    const TL = "T-3931L";
+    const live = mod.admitAndAppend(TL, gatedFinding39(), "a body", UNGOV.store, THIRD.root);
+    expect(live.id).toBeNull();
+    expect(live.findings.join("\n")).toContain(mod.UNNAMEABLE_OWNER_CLAUSE);
+    expect({ notes: notesIn39(UNGOV, TL), third: notesIn39(THIRD, TL) }).toEqual({ notes: 0, third: 0 });
+  });
+
+  it("MUTANT: swapping the dial and ledger arguments back at the fall-through re-opens CR-27", async () => {
+    const mutant = await mirrorWithReverted(
+      "p31-39-mutant-dial-",
+      "return appendNote(task, note, body, to, undefined, repoRoot, destinationOwner);",
+      "return appendNote(task, note, body, to, undefined, destinationOwner.root);",
+    );
+
+    const T = "T-3932M";
+    const TRUSTED = premise39("TRUSTED", unparseable39("p31-39-mut-trusted-"));
+    const DEST = premise39("DEST", governed39("p31-39-mut-dest-", "off", "retained"));
+    const ORIGIN = premise39("ORIGIN", governed39("p31-39-mut-origin-", "off", "git"));
+    expect(mod.readGovernanceConfig(TRUSTED.root).source).toBe("unreadable");
+
+    // ON THE MUTANT: the caller-supplied destination answers the dial, so the D-14 refusal at the
+    // trusted root is routed around and the note is WRITTEN.
+    const id = mutant.promoteAdmitted(T, "src-id", unstamped39(), "a body", ORIGIN.store, DEST.store, TRUSTED.root);
+    expect(id, "the mutant refused too, so this mirror is not discriminating").toBeTruthy();
+    expect(notesIn39(DEST, T)).toBe(1);
+
+    // ON THE LIVE ARTIFACT, same shape, fresh task: refused, with nothing written anywhere.
+    const TL = "T-3932L";
+    let message = "(no throw)";
+    try {
+      mod.promoteAdmitted(TL, "src-id", unstamped39(), "a body", ORIGIN.store, DEST.store, TRUSTED.root);
+    } catch (e) {
+      message = (e as Error).message;
+    }
+    expect(message).toContain("UNKNOWN - verify");
+    expect({ dest: notesIn39(DEST, TL), trusted: notesIn39(TRUSTED, TL) }).toEqual({ dest: 0, trusted: 0 });
   });
 });

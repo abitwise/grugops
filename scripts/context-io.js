@@ -1364,17 +1364,38 @@ export function appendNote(task, note, body, contextRoot = DEFAULT_CONTEXT_ROOT,
 // under the shipped shared-install model (`~/.grugops` kit + per-repo state) are different
 // directories. Plan 30-11 removed exactly this seam from the production `admit` verb for exactly
 // this reason: an admission may not point governance at a root the caller chose.
-// ONE PARAMETER, TWO HALVES — AND THAT IS THE POINT, NOT THE DEFECT (31-33, CR-22 / D-34).
-// `repoRoot` answers the governance dial AND names the repository whose GOV-02 ledger records
-// the admission, because `admit()` — this writer's authority — takes one root and uses it for
-// both, and `admit()` is byte-frozen (`ADMIT_FROZEN_SHA256`). D-31 (2)'s rule is that two halves
-// of one action key on ONE VARIABLE, and here they do. What a CALLER must therefore not do is
-// hand this writer a `contextRoot` under one repository and a `repoRoot` under another: the note
-// would land in the first and its record in the second. `promoteAdmitted`'s fall-through used to
-// do exactly that and no longer does — it passes the root DERIVED from its own destination. The
-// remaining exposure, for a direct caller that diverges the two deliberately, is the named
-// residual `R-31-33-01`, which states what closing it would cost.
-repoRoot = trustedRepoRoot()) {
+// ONE PARAMETER, TWO HALVES — AND THAT WAS THE DEFECT, NOT THE POINT (31-39, CR-27 / D-39).
+// THIS BLOCK PREVIOUSLY CLAIMED THE OPPOSITE, and the claim was measured false at the round-8
+// base: because `admit()` used this one root for the governance-dial read AND for the GOV-02
+// append, aiming the RECORD necessarily aimed the DIAL, so `promoteAdmitted`'s fall-through —
+// which correctly aims the record at its own destination — handed the caller's destination the
+// power to decide whose configuration adjudicates the admission. A trusted root whose own
+// configuration existed and could not be parsed, which D-14 requires a fail-closed refusal for,
+// ADMITTED the write when a different, permissively-configured destination was named.
+//
+// SO THE TWO QUESTIONS NOW HAVE TWO PARAMETERS, and this one answers only the first.
+// `repoRoot` ANSWERS THE GOVERNANCE DIAL AND NOTHING ELSE: it decides whether this note may land
+// at all, and therefore decides where NOTHING lands. It stays the ONE trusted answer every tier
+// asks (WR-10) — the same reader `hooks/guard.ts`, `hooks/admission-guard.ts`,
+// `scripts/admission-server.ts` and the CLI `admit` verb consult. It is still a TEST SEAM
+// (31-09, WR-10): production callers pass NOTHING. A caller-chosen default of `ROOT` meant the
+// hook refused on the host repository's dial while this writer consulted the kit's, which under
+// the shipped shared-install model (`~/.grugops` kit + per-repo state) are different directories.
+repoRoot = trustedRepoRoot(), 
+// …AND THIS ONE NAMES THE REPOSITORY WHOSE AUDIT TRAIL RECORDS THE ADMISSION.
+//
+// ITS DEFAULT IS THE OWNER OF THIS WRITER'S OWN STORE, NEVER THE DIAL ROOT. `D-31 (2)`'s rule is
+// that two halves of one action key on ONE answer, and the half this writer actually performs is
+// the note write into `contextRoot` — so the record follows the note by default, and a caller
+// that hands this writer a `contextRoot` under one repository and a `repoRoot` under another no
+// longer splits them. That is `R-31-33-01` CLOSED, by the deliberate `admit()` unfreeze
+// `R-31-39-01` records.
+//
+// WHEN ITS OWNER CANNOT BE ANSWERED, AND A RECORD WOULD ACTUALLY BE WRITTEN, THE ADMISSION IS
+// REFUSED — by `admit()`'s retention guard, which is the point of effect, with the same clause
+// the re-binding route raises for the same input shape. Under the lean retention value nothing is
+// recorded, so nothing is refused: see the guard's own block for why the scope is there.
+ledgerOwner = actionOwnerRoot(contextRoot)) {
     const { id, text } = composeValidatedNote(task, note, body, precomputedId);
     // ── 31-09 (CR-05): the admission authority is consulted for EVERY note this writer takes. ───────
     //
@@ -1418,7 +1439,7 @@ repoRoot = trustedRepoRoot()) {
     // fails CLOSED, and nothing is written: this call sits before the chokepoint.
     let admission;
     try {
-        admission = admit(task, text, contextRoot, repoRoot);
+        admission = admit(task, text, contextRoot, repoRoot, ledgerOwner);
     }
     catch (e) {
         throw new Error(`context-io.appendNote: refusing to write — the admission could not be decided or could not ` +
@@ -1598,7 +1619,60 @@ export function currentState(notes) {
     const superseded = new Set(ordered.map((n) => n.supersedes).filter((x) => x !== null && x !== ""));
     return ordered.filter((n) => !superseded.has(n.id));
 }
-// ═══════════════════════════════════════════════════════════════════════════════════════════════
+/**
+ * The answered owner of a root this module ALREADY TRUSTS — a constructor, never a resolver.
+ *
+ * IT IS MODULE-PRIVATE, AND THAT IS THE WHOLE OF ITS SAFETY. It answers `answered` for whatever it
+ * is handed, so it is NOT an answer to "which repository owns this store" and must never be used as
+ * one. Its single caller is `admit()`'s ledger-owner DEFAULT, where the value is the governance
+ * dial root the caller already established — so the default reproduces the pre-31-39 behaviour
+ * exactly and every three- and four-argument caller is byte-behaviour-unchanged.
+ *
+ * IT EXISTS RATHER THAN AN INLINE OBJECT LITERAL FOR A MEASURED REASON. Spelling the default as
+ * `{ answered: true, root: repoRoot }` put a brace in `admit()`'s PARAMETER LIST, and
+ * `ADMIT_FROZEN_SHA256`'s extraction takes the first `{` after the declaration and brace-counts
+ * from there. Measured on this tree before it was fixed: the frozen span collapsed from 12,394
+ * bytes of function BODY to 1,885 bytes of parameter list, and the freeze would have re-locked on a
+ * span that no longer contained a single one of the four refusal families it exists to pin. The
+ * extraction is hardened in `scripts/context-io.test.ts` as well — both halves, because either
+ * alone leaves the other free to reintroduce it.
+ */
+function answeredOwner(root) {
+    return { answered: true, root };
+}
+/** The ONE answer. It adds no rule of its own; `governanceRootOf` decides, this shapes. */
+export function actionOwnerRoot(contextRoot) {
+    const root = governanceRootOf(contextRoot);
+    if (root === null)
+        return { answered: false, store: contextRoot };
+    return { answered: true, root };
+}
+/**
+ * The ONE clause name for "the repository that owns this action cannot be named".
+ *
+ * IT IS THE SAME CLAUSE THE RE-BINDING ROUTE ALREADY RAISES, deliberately: the two write-both
+ * routes answer one input shape, so they name one clause. `PROMOTE_ADMITTED_DECLINES` keys off
+ * this constant rather than repeating the literal, and the derived clause axis in
+ * `scripts/context-io-writer-set.test.ts` asserts the register's key set equal to the keys parsed
+ * out of the route's own body in BOTH directions — so this constant drifting from the literal at
+ * the throw site turns that axis red rather than producing two silently different spellings.
+ */
+export const UNNAMEABLE_OWNER_CLAUSE = "destination-outside-governed-store";
+/**
+ * The ONE refusal sentence body for an unnameable owner, emitted by every route that would
+ * otherwise write a GOV-02 record into a repository it cannot name.
+ *
+ * Both write-both routes consume THIS, so they cannot drift into two spellings of one refusal: the
+ * re-binding route reaches it through `declineRebinding`'s register lookup and the admit-and-append
+ * route returns it directly, and both therefore carry the clause name AND the register's written
+ * reason.
+ */
+export function unnameableOwnerRefusal(store) {
+    return (`admission REFUSED (${UNNAMEABLE_OWNER_CLAUSE}): the context store "${resolve(store)}" does ` +
+        `not resolve to a governed store, so the repository whose audit trail would record this ` +
+        `admission cannot be named. No note was written. ` +
+        PROMOTE_ADMITTED_DECLINES[UNNAMEABLE_OWNER_CLAUSE]);
+}
 // 31-14 (D-19) — promotion of an ALREADY-ADMITTED note is a RE-BINDING, decided by a PROOF.
 //
 // THE GAP THIS CLOSES, MEASURED RATHER THAN DESCRIBED. 31-09 made `appendNote` consult the
@@ -1770,7 +1844,7 @@ export const PROMOTE_ADMITTED_DECLINES = Object.freeze({
         "than supersede it. Destination bytes IDENTICAL to the proven origin bytes are a different " +
         "case and are decided as an idempotent re-promotion that proceeds — a re-run compaction has " +
         "nothing to destroy — so this clause names only the destructive one.",
-    "destination-outside-governed-store": "The destination does not resolve to a store this module recognises as belonging to a " +
+    [UNNAMEABLE_OWNER_CLAUSE]: "The destination does not resolve to a store this module recognises as belonging to a " +
         "governance root — the same canonical form the origin must meet: a directory named `context` " +
         "inside a directory named `.grugops`, sitting directly under a directory this module's own " +
         "root walk independently answers as a governance root. The constraint is not about trusting " +
@@ -2000,7 +2074,17 @@ export const WRITE_PATH_RESIDUALS = Object.freeze([
             "`appendNote` — or `admitAndAppend`'s non-gated branch — a `contextRoot` under one " +
             "repository and a `repoRoot` under another still lands the note in the first and its record " +
             "in the second.",
-        reason: "The NEW residual this round leaves, recorded rather than discovered next round. CR-22's " +
+        reason: "CLOSED by plan 31-39 (CR-27 / D-39), and the closure is recorded here rather than left as a " +
+            "register entry that over-states a boundary the module no longer has. `admit()` was " +
+            "DELIBERATELY UNFROZEN under the dated human decision D-39 and given a ledger-owner parameter " +
+            "DISTINCT from its governance-dial root — exactly what the `what_would_force_it_closed` " +
+            "clause below named — so `appendNote` now defaults the record to the owner of its OWN store " +
+            "and `admitAndAppend` hands both branches one derived owner. A caller that diverges " +
+            "`contextRoot` and `repoRoot` no longer splits the two halves: the note and its GOV-02 " +
+            "record both follow the store. `ADMIT_FROZEN_SHA256` re-locks at the new baseline under the " +
+            "record `R-31-39-01`, which is the SIXTH re-base and lists all five prior baselines. " +
+            "THE ORIGINAL TEXT, KEPT SO THE CLOSURE CAN BE READ AGAINST WHAT IT CLOSED: " +
+            "The NEW residual this round leaves, recorded rather than discovered next round. CR-22's " +
             "three independently-reproduced positions are CLOSED: `promoteAdmitted` derives the owning " +
             "repository at its ENTRY and passes it on every return path including the fall-through, and " +
             "`admitAndAppend`'s gated branch appends to the derived root rather than to `repoRoot`. " +
@@ -2234,11 +2318,21 @@ export function promoteAdmitted(task, sourceId, note, body, from, to, repoRoot =
     // behind a branch again, and an ENTRY-level property is worth more than a clause ordering: a
     // caller told `destination-outside-governed-store` is told the truth about the destination it
     // named, and the origin clause still fires for every call whose destination resolves.
-    const destinationRoot = governanceRootOf(to);
-    if (destinationRoot === null) {
-        throw declineRebinding("destination-outside-governed-store", `The destination "${resolve(to)}" does not resolve to a governed store, so the repository ` +
-            `whose audit trail would record this promotion cannot be named.`);
+    //
+    // IT IS THE ONE AUTHORITY, CONSUMED WITH AN EXPLICIT BRANCH (31-39, D-39). The answer arrives as
+    // a discriminated `ActionOwner` with no null member, so this route cannot fall open to some other
+    // root by writing `?? repoRoot` — which is exactly what the sibling route did, and exactly what
+    // round 8 reproduced. THE CLAUSE NAME IS SPELLED AS A STRING LITERAL HERE ON PURPOSE:
+    // `scripts/context-io-writer-set.test.ts` parses this route's own body for the first argument of
+    // every `declineRebinding` call, and `UNNAMEABLE_OWNER_CLAUSE` is bound to it from the other
+    // side — the register keys off the constant, and the register's key set is asserted equal to the
+    // parsed set in BOTH directions. The two spellings cannot drift without turning that axis red.
+    const destinationOwner = actionOwnerRoot(to);
+    if (!destinationOwner.answered) {
+        throw declineRebinding("destination-outside-governed-store", `The destination "${resolve(destinationOwner.store)}" does not resolve to a governed store, ` +
+            `so the repository whose audit trail would record this promotion cannot be named.`);
     }
+    const destinationRoot = destinationOwner.root;
     // ── THE ENTRY SET, DECIDED FIRST AND NAMED. ────────────────────────────────────────────────────
     // This route exists for ONE question the frozen arm cannot answer: is this human disposition the
     // same one a human already placed at the origin? A note that carries no human disposition stamp
@@ -2254,7 +2348,14 @@ export function promoteAdmitted(task, sourceId, note, body, from, to, repoRoot =
     // property the entry established; passing `repoRoot` is precisely what CR-22 measured.
     const vb = (note.verified_by ?? "").trim();
     if (!HUMAN_STAMP_RE.test(vb)) {
-        return appendNote(task, note, body, to, undefined, destinationRoot);
+        // THE DIAL AND THE RECORD ARE AIMED SEPARATELY, AND THAT IS THE WHOLE OF CR-27 (31-39, D-39).
+        // The sixth argument answers the governance DIAL and is the CALLER'S OWN trusted root — the one
+        // every tier asks (WR-10). The seventh names the repository whose audit trail records the
+        // admission and is the answered owner of the derived destination, which is CR-22's closure and
+        // must survive this fix. Passing `destinationRoot` as the dial, as this line did until now, let
+        // a caller-supplied destination decide whose configuration adjudicates the admission: a
+        // fail-closed D-14 refusal at the trusted root was routed around by naming a permissive one.
+        return appendNote(task, note, body, to, undefined, repoRoot, destinationOwner);
     }
     // ── FROM HERE ON THE NOTE CLAIMS TO BE A RE-BINDING, AND MUST PROVE IT. ────────────────────────
     // Every clause below DECLINES before the write chokepoint is reached, so "nothing was written" is
@@ -2860,7 +2961,30 @@ export const AUDIT_LEDGER_MAX_BYTES = 64 * 1024 * 1024;
 //
 // repoRoot resolves BOTH the governance config (readGovernanceConfig) AND the audit-ledger location;
 // it defaults to the script's own repo root (ROOT). Tests pass an explicit temp root.
-export function admit(task, text, contextRoot = DEFAULT_CONTEXT_ROOT, repoRoot = ROOT) {
+export function admit(task, text, contextRoot = DEFAULT_CONTEXT_ROOT, repoRoot = ROOT, 
+// ── THE DIAL AND THE RECORD ARE TWO QUESTIONS, AND THEY NOW HAVE TWO PARAMETERS (31-39, CR-27 /
+// D-39). `repoRoot` above answers the governance DIAL and nothing else: it decides whether this
+// note may land at all, and therefore decides where NOTHING lands. This parameter names the
+// repository whose audit trail RECORDS the admission once the dial has said yes.
+//
+// WHY THEY WERE ONE, AND WHAT THAT COST, MEASURED. Until this plan `repoRoot` answered both, and
+// `R-31-33-01` published the exposure with the price of closing it written at the freeze.
+// `promoteAdmitted`'s fall-through then aimed the RECORD at its derived destination — correct,
+// and CR-22's fix — and the DIAL rode the same argument and moved with it. Reproduced at the
+// round-8 base: a trusted root whose own configuration EXISTS and is unparseable, which D-14
+// requires a fail-closed refusal for, ADMITTED the write when the caller named a different,
+// permissively-configured destination, and REFUSED the identical note when the destination was
+// the caller's own store.
+//
+// THE DEFAULT IS THE ANSWERED OWNER OF THE DIAL ROOT, so every existing three- and
+// four-argument caller keeps its exact present behaviour: the record follows `repoRoot` unless a
+// caller deliberately names somewhere else. That is what makes this unfreeze byte-behaviour-safe
+// for every call site that does not opt in.
+//
+// A CALLER MAY AIM THIS AND MAY NOT AIM THE DIAL. Routing the dial through a caller-supplied
+// destination reverses `D-31` and `WR-10` and would need its own dated human decision; D-39
+// RESTORES the trusted dial answer rather than reversing it.
+ledgerOwner = answeredOwner(repoRoot)) {
     assertSafeTask(task);
     // Structural gate first: a structurally invalid note is never admitted (D-11 strict-reject).
     const findings = validate(text);
@@ -3032,8 +3156,24 @@ export function admit(task, text, contextRoot = DEFAULT_CONTEXT_ROOT, repoRoot =
     // Admission is decided (no findings remain → admitted). Under audit_retention: retained, append ONE
     // fixed-key JSONL event recording the admission RECORD — never the note body (D-09), never the
     // compaction path. Under git (lean default) write nothing new.
+    //
+    // THE OWNER IS CONSUMED HERE, AT THE POINT OF EFFECT, AND DERIVED AT EACH ROUTE'S ENTRY (31-39,
+    // D-39). A note and a GOV-02 record are two halves of ONE action only when a record is actually
+    // written, and that is exactly `audit_retention: retained`. So the refusal for an unnameable
+    // owner belongs at THIS line rather than at the entry: under the lean value nothing is recorded,
+    // the action has one half, and there are no two halves to key on two repositories — measured, at
+    // the round-8 base, as "no ledger line in ANY root". The DERIVATION still sits at each route's
+    // entry, above every branch, which is `D-34 (1)` unchanged.
+    //
+    // WHY IT IS SCOPED AT ALL, WITH THE NUMBER THAT SCOPED IT. Refusing every ungoverned
+    // `contextRoot` unconditionally is the adjacent alternative `D-34` measured at 121 `appendNote`
+    // and 26 `admitAndAppend` call sites and rejected. The scoped form's own cost was measured
+    // against this tree before it was taken and is recorded in `D-39`.
     if (gov.audit_retention === "retained") {
-        appendAuditLedger(repoRoot, scalars, isHighSeverity, vb);
+        if (!ledgerOwner.answered) {
+            return [unnameableOwnerRefusal(ledgerOwner.store)];
+        }
+        appendAuditLedger(ledgerOwner.root, scalars, isHighSeverity, vb);
     }
     return [];
 }
@@ -4709,13 +4849,23 @@ repoRoot = trustedRepoRoot()) {
     // entry or it is not established. `repoRoot` still answers the governance DIAL below; it no
     // longer decides where the gated branch's record lands.
     //
-    // WHAT IT DOES NOT REACH, NAMED RATHER THAN LEFT SILENT. The GATED branch appends through
-    // `appendAuditLedger` DIRECTLY, so this plan can aim it. The NON-GATED branch appends through
-    // `admit()`, whose single root parameter answers both the dial read and the append and whose
-    // bytes are frozen (`ADMIT_FROZEN_SHA256`). Aiming that one would move the DIAL with it, and the
-    // existing suite uses `repoRoot` as the dial seam over a governed store 63 times. That exposure
-    // is the named residual `R-31-33-01`, which states what closing it would cost.
-    const ledgerRoot = governanceRootOf(contextRoot) ?? repoRoot;
+    // WHAT IT USED TO DISCARD, AND WHY THAT WAS THE WHOLE OF CR-26 (31-39, D-39). This line read
+    // `governanceRootOf(contextRoot) ?? repoRoot`, which is a derivation followed immediately by a
+    // decision to ignore its failure: when `contextRoot` did not resolve to a governed store the
+    // record silently followed the caller's dial root instead. That is the pre-fix program and the
+    // exact split CR-22 was raised on, still reachable — while the sibling route `promoteAdmitted`
+    // DECLINED the identical input shape by name. One input, two routes, two opposite dispositions.
+    //
+    // THE FALLBACK IS NOT NARROWED, IT IS UNSPELLABLE NOW. `actionOwnerRoot` answers a discriminated
+    // `ActionOwner` with no null member, so there is nothing for `??` to coalesce and falling open
+    // would cost an explicit branch a reviewer meets. The UNION of this route's two branches now
+    // answers one way, because both consume this one value.
+    //
+    // BOTH BRANCHES REACH THE LEDGER THROUGH IT. The gated branch appends through
+    // `appendAuditLedger` directly and consumes it at its own retention guard; the NON-GATED branch
+    // hands it to `admit()` as that authority's ledger owner, which is the deliberate unfreeze
+    // `R-31-39-01` records and the closure of `R-31-33-01`.
+    const actionOwner = actionOwnerRoot(contextRoot);
     // Decide GATED via the SINGLE-SOURCE predicate (W-A) — NOT a local reconstruction; the SAME
     // isGatedNote the 25-10 per-call hook imports. The discriminated read fails closed on an unreadable
     // config (gate-or-stricter, SC3).
@@ -4775,6 +4925,16 @@ repoRoot = trustedRepoRoot()) {
         // and passed to `appendPreAdmittedNote` — which is what the branch's own comment already states
         // it is frozen FOR. So the event is keyed on `id` and the append simply moves up.
         if (configResult.config.audit_retention === "retained") {
+            // THE POINT OF EFFECT, AND THE SAME DISPOSITION THE SIBLING ROUTE TAKES (31-39, CR-26 /
+            // D-39). A record is about to be written, so this action genuinely has two halves; if the
+            // repository that owns them cannot be named, NOTHING is written and the refusal carries the
+            // one shared clause and the one shared sentence `promoteAdmitted` raises for the identical
+            // input shape. Under the lean retention value this guard is not entered at all, which is why
+            // the refusal is scoped here rather than at the entry — see `admit()`'s own guard for the
+            // measurement that decided the scope.
+            if (!actionOwner.answered) {
+                return { id: null, findings: [unnameableOwnerRefusal(actionOwner.store)] };
+            }
             const scalars = {
                 id,
                 kind: note.kind,
@@ -4795,7 +4955,7 @@ repoRoot = trustedRepoRoot()) {
                 // round 7 measured the consequence: the note went to `contextRoot`'s store and the event
                 // went to `repoRoot`'s ledger, in two different repositories. `repoRoot` still answers the
                 // governance-dial read above; it no longer answers WHERE the record lands.
-                appendAuditLedger(ledgerRoot, scalars, isHighSeverityRole(note.by), vb);
+                appendAuditLedger(actionOwner.root, scalars, isHighSeverityRole(note.by), vb);
             }
             catch (e) {
                 return {
@@ -4841,10 +5001,14 @@ repoRoot = trustedRepoRoot()) {
     // returns findings rather than throwing because that is its contract.
     let findings;
     try {
-        // THROUGH `repoRoot`, AND THAT IS THE RESIDUAL `R-31-33-01` NAMES (31-33, CR-22). This branch
-        // reaches the ledger through the byte-frozen authority rather than through `appendAuditLedger`
-        // directly, and that authority's ONE root parameter answers the dial as well as the append.
-        findings = admit(task, text, contextRoot, repoRoot);
+        // THROUGH THE AUTHORITY, WITH THE DIAL AND THE RECORD AIMED SEPARATELY (31-39, D-39). This
+        // branch reaches the ledger through the byte-frozen authority rather than through
+        // `appendAuditLedger` directly. Until this plan that authority took ONE root for both the dial
+        // read and the append, so this branch could not be aimed without moving the dial — the exposure
+        // `R-31-33-01` published. `admit()` is now deliberately unfrozen (`R-31-39-01`) and takes a
+        // ledger owner distinct from its dial root, so the SAME `actionOwner` the gated branch consumes
+        // is handed here and the union of the two branches answers one way.
+        findings = admit(task, text, contextRoot, repoRoot, actionOwner);
     }
     catch (e) {
         return {

@@ -383,6 +383,63 @@ function refusalSignature(chunks: readonly string[]): string {
 }
 
 /**
+ * A refusal site's static chunks, resolving an ELEMENT THAT IS ENTIRELY A SENTENCE HELPER (31-39).
+ *
+ * WHY THE WIDENING IS EXACTLY THIS NARROW, AND WHY THE OBVIOUS WIDER ONE IS WRONG. `admit()`'s
+ * unnameable-owner refusal returns the ONE shared sentence both write-both routes emit, which by
+ * construction lives in a helper rather than at the site — that sharing is the point of
+ * `unnameableOwnerRefusal`, because two literals would be two spellings of one refusal waiting to
+ * drift. Read by the un-widened walk, that site's chunk list is EMPTY, and `refusalSignature([])`
+ * is `""`. An empty signature is not a small inaccuracy: `matchesSite(message, [])` is TRUE for
+ * every message, an empty key would become a `REFUSAL_FAMILY_LABELS` entry, and a SECOND such site
+ * would collide with it silently. A floor that catches an EMPTY denominator but not a silently
+ * short one is not a floor, which is this repository's own standing lesson.
+ *
+ * THE WIDER RULE WAS TRIED AND MEASURED WRONG, HERE, BEFORE THIS ONE WAS WRITTEN. Resolving EVERY
+ * module-local call — including one inside a template interpolation — re-identified FOUR existing
+ * sites, because `${verdictStampFor(id)}` began contributing `#` to their signatures. That is
+ * precisely the value-dependence `refusalStaticChunks`'s own docstring says the drop exists to
+ * prevent. So the rule distinguishes the two cases by POSITION rather than by callee: an element
+ * that IS a call composes the whole SENTENCE and is followed through; a call INSIDE an expression
+ * composes a VALUE inside a sentence and is dropped, exactly as before.
+ *
+ * THE BOUND, STATED: the callee must be a plain identifier naming a top-level function IN THE SAME
+ * FILE whose body has exactly one return statement, and the follow-through does not recurse. Every
+ * other shape contributes nothing and is covered by residual `R-35`.
+ */
+function sentenceHelperReturns(source: ts.SourceFile): Map<string, ts.Expression> {
+  const out = new Map<string, ts.Expression>();
+  for (const statement of source.statements) {
+    if (!ts.isFunctionDeclaration(statement) || !statement.name || !statement.body) continue;
+    const returns: ts.ReturnStatement[] = [];
+    const collect = (n: ts.Node): void => {
+      if (ts.isReturnStatement(n)) returns.push(n);
+      ts.forEachChild(n, collect);
+    };
+    collect(statement.body);
+    const only = returns[0];
+    if (returns.length === 1 && only && only.expression) out.set(statement.name.text, only.expression);
+  }
+  return out;
+}
+
+function refusalStaticChunksResolved(
+  node: ts.ArrayLiteralExpression,
+  source: ts.SourceFile,
+): string[] {
+  const helpers = sentenceHelperReturns(source);
+  const out: string[] = [];
+  for (const element of node.elements) {
+    const helperBody =
+      ts.isCallExpression(element) && ts.isIdentifier(element.expression)
+        ? helpers.get(element.expression.text)
+        : undefined;
+    for (const chunk of refusalStaticChunks(helperBody ?? element)) out.push(chunk);
+  }
+  return out;
+}
+
+/**
  * THE SECOND DERIVATION: one signature per refusal site in the admission authority's own body.
  *
  * A refusal site is a `return` whose argument is an array literal with at least one element — the
@@ -414,7 +471,7 @@ function deriveAdmitRefusalSites(sourcePath: string): AdmitRefusalDerivation {
         ts.isArrayLiteralExpression(node.expression) &&
         node.expression.elements.length > 0
       ) {
-        const chunks = refusalStaticChunks(node.expression);
+        const chunks = refusalStaticChunksResolved(node.expression, source);
         sites.push({ signature: refusalSignature(chunks), chunks });
       }
       ts.forEachChild(node, walk);
@@ -534,6 +591,12 @@ const REFUSAL_SITE_SPECS: readonly RefusalSiteSpec[] = Object.freeze([
     signature:
       "admission REFUSED (human_admission: ): a high-severity governance entry authored by \"\" (security, architecture, or release) Admission is refused until a named human disposes it through the hook. This is the in-script defense-in-depth tier; on Claude Code the un-forgeable gate is the separate admission-guard hook.",
   },
+  {
+    key: "S9",
+    family: "D-39 — a GOV-02 record would be written and the owning repository cannot be named",
+    signature:
+      "admission REFUSED (): the context store \"\" does not resolve to a governed store, so the repository whose audit trail would record this admission cannot be named. No note was written.",
+  },
 ]);
 
 /** The expected member set, sorted — the second axis, on the same footing as EXPECTED_NOTE_WRITERS. */
@@ -556,8 +619,19 @@ const REFUSAL_FAMILY_LABELS: Readonly<Record<string, string>> = Object.freeze(
  * read off the parse on 2026-09-08: one structural no-fence return, one D-01 gate-stamp cross-check,
  * four D-03 evidence-binding arms, one D-14 unreadable-config refusal, one D-04 high-severity
  * refusal.
+ *
+ * MOVED 8 -> 9 ON 2026-09-12 BY PLAN 31-39 (CR-26 / D-39), WITH THE REASON WRITTEN HERE RATHER THAN
+ * THE CONSTANT BUMPED. The authority gained a NINTH reason a note can be refused, and it is a
+ * decision a named human took at a checkpoint: under `audit_retention: retained` a GOV-02 record is
+ * about to be written, so the action genuinely has two halves, and when the repository that owns
+ * them cannot be named the admission is REFUSED rather than split across two repositories. The new
+ * site is S9. Every writer in the matrix below owes it a row, and it has one — driven at
+ * `appendNote` and `admitAndAppend`, dispositioned with a positive parsed-source proof at
+ * `promoteAdmitted`, which refuses the identical input shape EARLIER and STRICTER by its own
+ * clause. Read off the parse after the fix, with the other eight signatures asserted BYTE-IDENTICAL
+ * across the change so that an ADDED site could not be confused with a re-worded one.
  */
-const EXPECTED_ADMIT_REFUSAL_SITE_COUNT = 8;
+const EXPECTED_ADMIT_REFUSAL_SITE_COUNT = 9;
 
 /**
  * THE DERIVATION'S BOUNDARY, WRITTEN DOWN RATHER THAN LEFT AS A SILENCE.
@@ -1018,6 +1092,32 @@ interface RefusalProbe {
   readonly seed?: (contextRoot: string, task: string) => void;
   /** The governance root the site needs; a fresh empty root (the lean dial) when absent. */
   readonly repoRoot?: () => string;
+  /**
+   * The context store, when the site is ABOUT the store's owner differing from the dial root (31-39).
+   *
+   * WHY THIS OVERRIDE EXISTS AND WHY IT IS NOT A LOOSENING. `stageProbe` puts every store INSIDE
+   * its probe's governance root, deliberately — that is the property plan 31-33 installed and the
+   * re-aim its own comment records. S9 is the one site whose PRECONDITION is that the store's owner
+   * cannot be named at all, so a probe that staged it under the dial root could not reach the site
+   * by construction, and the union assertion would report it unreachable rather than uncovered. The
+   * override is therefore the only way this site is probed honestly; every other probe leaves it
+   * absent and keeps the co-located staging unchanged.
+   */
+  readonly store?: (repoRoot: string) => string;
+  /**
+   * The LEDGER OWNER the site needs as the authority's fifth argument (31-39).
+   *
+   * WHY A SITE CAN NEED ONE. `admit()`'s ledger-owner parameter DEFAULTS to the answered owner of
+   * its own dial root, deliberately, so that every pre-31-39 three- and four-argument caller keeps
+   * its exact behaviour. S9's precondition is therefore not expressible in a four-argument call at
+   * all: the site fires only when the owner handed in cannot be named, which a caller has to
+   * SUPPLY. The writers supply it by construction — `appendNote` defaults it to the owner of its
+   * OWN store and `admitAndAppend` derives it at its entry — so the writer cells reach the site
+   * with no override. This field exists so the DIRECT-authority discrimination check can reach it
+   * too, rather than the site being quietly declared unreachable because one probe shape could not
+   * express its precondition.
+   */
+  readonly ledgerOwner?: (contextRoot: string) => Parameters<typeof mod.admit>[4];
 }
 
 const REFUSAL_PROBE_SPECS: Readonly<Record<string, RefusalProbe>> = Object.freeze({
@@ -1060,6 +1160,23 @@ const REFUSAL_PROBE_SPECS: Readonly<Record<string, RefusalProbe>> = Object.freez
       softNote({ kind: "finding", by: "security-nfr", verified_by: "§14-gate#RUN-HIGHSEV" }),
     seed: (contextRoot, task) => seedGreenVerdict(contextRoot, task, "RUN-HIGHSEV"),
     repoRoot: () => repoWithGovernance({ human_admission: "high-severity" }),
+  },
+  // D-39: the dial root records admissions (`retained`), and the STORE the note would land in
+  // belongs to no repository this module can name. A SOFT kind, so no stamp arm and no gating arm
+  // can answer first and the retention guard is the only thing left to decide it.
+  S9: {
+    note: () => softNote(),
+    repoRoot: () => repoWithGovernance({ audit_retention: "retained" }),
+    store: () => {
+      const holder = join(freshTmp("ctx-io-probe-S9-ungoverned-"), "plain");
+      const store = join(holder, ".grugops", "context");
+      mkdirSync(store, { recursive: true });
+      return store;
+    },
+    // The fifth argument the writers supply by construction. Derived through the module's OWN
+    // authority rather than hand-built, so a probe cannot assert against a shape the module no
+    // longer produces.
+    ledgerOwner: (contextRoot) => mod.actionOwnerRoot(contextRoot),
   },
 });
 
@@ -1142,7 +1259,7 @@ function stageProbe(probe: RefusalProbe, prefix: string): { contextRoot: string;
   if (!existsSync(join(repoRoot, ".grugops", "factory.config.json"))) {
     writeFileSync(join(repoRoot, ".grugops", "factory.config.json"), "{}");
   }
-  const contextRoot = join(repoRoot, ".grugops", "context");
+  const contextRoot = probe.store ? probe.store(repoRoot) : join(repoRoot, ".grugops", "context");
   mkdirSync(contextRoot, { recursive: true });
   const task = "matrix-task";
   if (probe.seed) probe.seed(contextRoot, task);
@@ -1209,7 +1326,9 @@ describe("31-10 — the probe set is proven to trip every reachable refusal site
       const probe = REFUSAL_PROBES[signature];
       const { contextRoot, task, repoRoot } = stageProbe(probe, `ctx-io-probe-${siteKeyOf(signature)}-`);
       const text = probe.rawText ?? (await composedNoteText((probe.note as () => Parameters<typeof mod.appendNote>[1])()));
-      const findings = mod.admit(task, text, contextRoot, repoRoot);
+      const findings = probe.ledgerOwner
+        ? mod.admit(task, text, contextRoot, repoRoot, probe.ledgerOwner(contextRoot))
+        : mod.admit(task, text, contextRoot, repoRoot);
       expect(
         findings.length,
         `the probe for ${siteKeyOf(signature)} was ADMITTED by the authority — it trips nothing, so ` +
@@ -1235,7 +1354,9 @@ describe("31-10 — the probe set is proven to trip every reachable refusal site
       const probe = REFUSAL_PROBE_SPECS[key];
       const { contextRoot, task, repoRoot } = stageProbe(probe, `ctx-io-unreachable-${key}-`);
       const text = probe.rawText ?? (await composedNoteText((probe.note as () => Parameters<typeof mod.appendNote>[1])()));
-      const findings = mod.admit(task, text, contextRoot, repoRoot);
+      const findings = probe.ledgerOwner
+        ? mod.admit(task, text, contextRoot, repoRoot, probe.ledgerOwner(contextRoot))
+        : mod.admit(task, text, contextRoot, repoRoot);
       // POSITIVE, not an absence: the input IS refused, and the refusal is the OTHER authority's.
       expect(findings.length, `${key}: ${reason}`).toBeGreaterThan(0);
       const joined = findings.join("\n");
@@ -1302,7 +1423,7 @@ function delegatingReturnPrecedes(signature: string): boolean {
         } else if (
           ts.isArrayLiteralExpression(node.expression) &&
           node.expression.elements.length > 0 &&
-          refusalSignature(refusalStaticChunks(node.expression)) === signature
+          refusalSignature(refusalStaticChunksResolved(node.expression, source)) === signature
         ) {
           siteAt = node.getStart(source);
         }
@@ -1394,6 +1515,67 @@ const SITE_WIDE_DISPOSITIONS: Readonly<Record<string, CellDisposition>> = Object
 
 /** `${writer}::${siteKey}` → a disposition for one specific cell. */
 const CELL_DISPOSITIONS: Readonly<Record<string, CellDisposition>> = Object.freeze({
+  "promoteAdmitted::S9": {
+    reason:
+      "the SAME route refuses the identical input shape EARLIER and STRICTER, by its own clause, so " +
+      "the authority is never asked. S9's precondition is a store whose owning repository cannot be " +
+      "named; the re-binding route DECLINES exactly that shape at its entry with " +
+      "`destination-outside-governed-store`, above every branch and before anything is written, so " +
+      "no input can carry it as far as the retention guard. THE ASYMMETRY IS DECIDED, NOT " +
+      "ACCIDENTAL (31-39, D-39): the re-binding route's refusal is UNCONDITIONAL because carrying " +
+      "a human disposition across a repository boundary is a TRUST question, while S9 is the " +
+      "bookkeeping question of where a record lands and is therefore scoped to the retention value " +
+      "that actually writes one. Recorded as refused-by-a-stricter-clause rather than counted as " +
+      "evidence that this site fired, which is exactly the pass this file refuses to grant.",
+    prove: (writer, siteKey) => {
+      // POSITIVE, off the parsed source: the route's entry decline names the SAME clause constant
+      // the S9 sentence names, and it is the FIRST clause the route can raise.
+      expect(
+        mod.UNNAMEABLE_OWNER_CLAUSE,
+        "the shared clause constant no longer names the clause the re-binding route declines, so " +
+          "the two routes no longer answer this shape with one name and this disposition's " +
+          "premise is gone",
+      ).toBe("destination-outside-governed-store");
+      expect(
+        derivedDeclineOrder(CONTEXT_IO_TS)[0],
+        writer +
+          "'s unnameable-destination decline is no longer its FIRST clause, so an input can now " +
+          "reach further into the route and this cell may be drivable after all",
+      ).toBe(mod.UNNAMEABLE_OWNER_CLAUSE);
+      // …and the site this cell is dispositioned FOR is still the one the handle names.
+      const spec = REFUSAL_SITE_SPECS.find((sp) => sp.key === siteKey) as RefusalSiteSpec;
+      expect(
+        derivedRefusalSignatures(CONTEXT_IO_TS),
+        siteKey + " is no longer a derived refusal site, so this disposition names nothing",
+      ).toContain(spec.signature);
+      // …and the refusal the route ACTUALLY raises for this shape is OBSERVED, not assumed: it is a
+      // decline naming the shared clause, and it is NOT the authority's S9 sentence.
+      const holder = join(freshTmp("ctx-io-s9-disposition-"), "plain");
+      const ungoverned = join(holder, ".grugops", "context");
+      mkdirSync(ungoverned, { recursive: true });
+      let observed = "(no throw)";
+      try {
+        mod.promoteAdmitted(
+          "matrix-task",
+          "no-such-origin-id",
+          softNote(),
+          PROBE_BODY,
+          ungoverned,
+          ungoverned,
+          repoWithGovernance({ audit_retention: "retained" }),
+        );
+      } catch (e) {
+        observed = (e as Error).message;
+      }
+      expect(observed).toContain("DECLINED (" + mod.UNNAMEABLE_OWNER_CLAUSE + ")");
+      expect(
+        sitesTrippedBy(observed),
+        writer +
+          " now answers this shape with the authority's own S9 sentence, so the cell is drivable " +
+          "and owes a behavioural row instead of this disposition",
+      ).not.toContain(spec.signature);
+    },
+  },
   "admitAndAppend::S8": {
     reason:
       "a DIFFERENT authority refuses first. The combiner routes a note through isGatedNote, and a " +
@@ -1727,7 +1909,7 @@ describe("31-10 — the converse: a clean note of every kind still writes", () =
 // EXPRESSION rather than to the declaration, which is the part these two mutations actually need
 // and the part that does not move when the statement around it changes. The one-occurrence PREMISE
 // below is what caught the drift rather than a case silently measuring the live module.
-const AUTHORITY_CALL = "admission = admit(task, text, contextRoot, repoRoot);";
+const AUTHORITY_CALL = "admission = admit(task, text, contextRoot, repoRoot, ledgerOwner);";
 
 /**
  * The mutation that RE-INTRODUCES the deleted kind axis (31-09).
@@ -3972,7 +4154,7 @@ describe("31-21 — the order axis is a control at EVERY member, not a coinciden
     // balanced, so the mirror is the pre-31-21 program for this route rather than a broken parse.
     const path = mirrorWithTransposedOrder(
       "admitAndAppend",
-      "appendAuditLedger(ledgerRoot, scalars, isHighSeverityRole(note.by), vb);",
+      "appendAuditLedger(actionOwner.root, scalars, isHighSeverityRole(note.by), vb);",
       "    const persistedId = appendPreAdmittedNote(task, note, body, contextRoot, id);\n" +
         "    if (persistedId !== id) {",
     );
@@ -4001,7 +4183,7 @@ describe("31-21 — the order axis is a control at EVERY member, not a coinciden
 
   it("the CONVERSE: deleting a member's ledger call moves the cardinality to 1", () => {
     const src = readFileSync(CONTEXT_IO_TS, "utf8");
-    const anchor = "appendAuditLedger(ledgerRoot, scalars, isHighSeverityRole(note.by), vb);";
+    const anchor = "appendAuditLedger(actionOwner.root, scalars, isHighSeverityRole(note.by), vb);";
     expect(
       src.split(anchor).length - 1,
       "PREMISE: the shrink anchor was not found exactly once, so this mirror deleted nothing",
