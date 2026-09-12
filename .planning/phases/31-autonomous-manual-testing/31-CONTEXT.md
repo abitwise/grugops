@@ -2636,3 +2636,83 @@ file.
 
   `.planning/REQUIREMENTS.md` and `.planning/ROADMAP.md` are byte-unchanged by this plan, and so are
   `31-REVIEW.md`, `31-VERIFICATION.md` and every `*-SUMMARY.md` of this phase.
+
+#### Gap-closure decision — D-39 (2026-09-12, gap-closure round 9, wave 8, plan 31-39)
+
+- **THE DISPOSITION IS THE DEVELOPER'S, TAKEN AT A CHECKPOINT, NOT THIS PLAN'S AUTHOR'S.** Plan
+  `31-39`'s Task 1 is a blocking `checkpoint:decision` for one reason: `31-VERIFICATION.md` round 8
+  offered TWO dispositions for `CR-26`, and closing `CR-27` at all requires unfreezing `admit()` —
+  which plan `31-33`'s own prohibitions explicitly FORBADE. A plan cannot authorise the reversal of
+  another plan's stated prohibition, and taking one of two offered dispositions inside a diff is how
+  round 7 arrived at a governance dial routed through the caller's destination inside a plan whose
+  stated subject was where a ledger line lands. The answer below was given by the developer on
+  2026-09-12, verbatim as recorded, after the two measurements Task 1 required were taken against
+  THIS tree rather than against round 7's numbers:
+
+  > 1. Disposition: **refuse** (Option A). Both write-both routes refuse an unnameable owner under
+  > `audit_retention: retained` via one shared clause constant; `admit()` is unfrozen and given a
+  > ledger-owner parameter distinct from its dial root; `ADMIT_FROZEN_SHA256` is re-baselined with
+  > R-31-39-01 written at the freeze.
+  > 2. `appendNote` route: **IN scope**. MOVEMENT 4's default (`actionOwnerRoot(contextRoot)`)
+  > stands. One rule, both routes. Re-stage the ≤12 affected test cases onto governed temp stores;
+  > never re-baseline an assertion to make it pass.
+  > 3. Re-base count: record this as the **sixth** re-base, per the freeze prose's five recorded
+  > baselines. R-31-39-01 must list all five prior baselines. Note the plan text's off-by-one
+  > ("seventh") in SUMMARY.md as a deviation/observation; do not adopt it.
+
+- **THE TWO MEASUREMENTS THE DECISION WAS TAKEN AGAINST, WITH THE COMMANDS THAT PRODUCED THEM.**
+  - **Option A's scoped cost is 12 distinct test cases, not `D-34`'s 121 and 26.** `D-34`'s numbers
+    are STATIC call-site counts for the UNSCOPED refusal (refuse every ungoverned `contextRoot`).
+    Option A's refusal is SCOPED — an unnameable owner AND `audit_retention: retained` — so the cost
+    was measured DYNAMICALLY rather than inferred from the static number. A behaviour-preserving
+    probe was inserted into a copy of the committed `scripts/context-io.js` at the two entry sites
+    that consume the owning root (`appendNote`'s `admit()` call and `admitAndAppend`'s entry),
+    logging every call where `governanceRootOf(contextRoot) === null` AND
+    `readGovernanceConfig(repoRoot).config.audit_retention === "retained"`; then
+    `npx vitest run --exclude '**/scripts/e2e/**'` was run TWICE with the probe live (15 hits both
+    runs: 8 `admitAndAppend`, 7 `appendNote`), and the file was restored byte-identically
+    (`sha256 342d7391a9967152ef16bd5bd599c2098b1967324992301b8d5e8b4d3f4a5a6c`, `git diff` clean).
+    **Result: 12 distinct test cases across `scripts/context-io.test.ts` (10) and
+    `scripts/compactor.test.ts` (2)** — 7 through `admitAndAppend`, 6 through `appendNote`, one
+    (`compactor.test.ts:2895`) through both.
+  - **THE PROBE'S OWN PREMISE WAS ASSERTED BEFORE ANY COUNT WAS READ**, because a dead probe reports
+    zero and a zero would have read as "Option A is free". It was smoke-driven against a live
+    `mkdtemp` pair with `governanceRootOf(THIRD.store) === THIRD.root`,
+    `governanceRootOf(UNGOV) === null` and retention `retained` asserted first, and emitted exactly
+    one line. Three hits carried no `*.test.ts` stack frame (a spawned `ledger.mjs` driver); they
+    were NOT left inferred — a third targeted run of that describe alone produced exactly 3 hits
+    over its 4 cases, which resolves the attribution, the fourth case driving raw `admit()` and
+    correctly touching no probe site.
+  - **12 IS AN UPPER BOUND ON THE RED SET, NOT THE RED SET**, and it is recorded as a bound rather
+    than as a cost. Reaching the condition is not the same as changing an observed outcome: several
+    of these cases already end in a refusal for an unrelated reason (`W3`, the fabricated-stamp
+    probe, the two FIFO-ledger refusals), and the probe sits at each route's ENTRY, above branches
+    some of them return from. The number that actually turned red is measured in `31-39-SUMMARY.md`
+    beside this one.
+  - **THE `appendNote` ROUTE WAS SURFACED AT THE CHECKPOINT RATHER THAN DECIDED IN THE DIFF.** Six of
+    the twelve cases reach the condition through `appendNote`, because `MOVEMENT 4`'s new seventh
+    parameter defaults to `actionOwnerRoot(contextRoot)` — the owner of its OWN store. Option A's
+    prose names only `admitAndAppend`'s gated branch and `admit()`'s retention guard, so whether
+    `appendNote` was in scope was a real ambiguity and not a detail. The developer answered IN
+    scope, one rule for both routes.
+  - **The freeze is live and locked at this commit, asserted rather than assumed.** `admit()`'s span
+    was re-extracted from `scripts/context-io.ts` with the same brace-counting extraction the
+    baseline was captured with (12,394 bytes) and re-hashed: the fresh hash equals the pin
+    `08df9e5c15754f8b3f3bde417475652d3d3861c50fd5458704b29651b83709e9` exactly. A re-base is
+    therefore a real re-base.
+  - **THE COUNT OF PRIOR RE-BASELINES IS FIVE, AND THE PLAN TEXT SAYING SIX IS WRONG.** The freeze
+    prose records five prior values — `b7998cbd…be3d` (pre-25-13), `dbf66ac7…ebf7` (25-13),
+    `ae159bb3…5551` (30-03 `D-14`), `760319ff…2876` (30-03 `D-12` reader rename) and `ee418ce3…f06f`
+    (31-01 `D-03`) — so five transitions have occurred and this one is the SIXTH. `R-31-33-01` and
+    `D-34` both say "five times before" and are correct; `31-39-PLAN.md`'s Task 1 context and its
+    Option A say "six times… the seventh" and are off by one. The discrepancy is recorded rather
+    than silently resolved in either direction, because `R-31-39-01`'s prose is required to list
+    every prior baseline and would otherwise ship a wrong count into the freeze itself.
+  - **The round base is green, measured at `54ea410` with the restored artifact**, so the cost above
+    is a cost against a green floor and not against an already-red suite:
+    `npx vitest run --exclude '**/scripts/e2e/**'` → 66 files, 4208 passed, 2 skipped, exit 0.
+
+- **WHAT WAS NOT ON THE TABLE, RE-STATED SO IT CANNOT ARRIVE LATER AS AN ARGUMENT SWAP.** Routing the
+  governance dial through the caller-supplied destination is a reversal of `D-31` and `WR-10` and
+  would need its own dated human decision. This decision RESTORES the trusted dial answer; it does
+  not reverse it.
