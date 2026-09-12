@@ -675,3 +675,23 @@ Measured at `3baab0d`, against the committed `.js`, tree clean before and after.
   residue was removed and the suite re-run clean. It is also why §7.2 of the record states that the
   `.temp`/FIFO sweep must be taken AFTER the suite and prints the mid-flight readings that prove it.
   `status: closed`.
+
+### Recorded by plan 31-41 — a derived axis that counts TEXT, not calls
+
+- **`EXPECTED_APPEND_NOTE_CALL_SITES` is a regex over source TEXT, so PROSE naming the writer reads
+  as a call site.** The axis in `scripts/context-io-writer-set.test.ts` counts
+  `/appendNote\(/g` across every tracked non-test source under `scripts/`, `hooks/` and `install/`.
+  Plan `31-41` wrote two reproductions into `WRITE_PATH_RESIDUALS`' prose that spelled
+  `appendNote(` inside a string literal, and the count moved **6 → 8** — a real red raised by two
+  comments. MEASURED, not inferred: rewording the two strings so the reproduction does not spell the
+  open parenthesis returned the count to **6** with no constant bumped and no assertion weakened.
+  The axis's own message says the count is "a decision rather than a bumped constant", and that
+  posture is right; what is disclosed here is that its INPUT is text, so a false positive is
+  expressible by writing a sentence. The sibling axes this phase built since `31-40` parse the
+  source into a syntax tree and match call EXPRESSIONS, which is the shape that has no such reading.
+  Converting this one is a change to a derived axis `31-41` was not convened to move, so it is named
+  with its coordinate rather than taken silently. **Owner: whichever plan next touches PART FIVE of
+  `scripts/context-io-writer-set.test.ts`.** What would force it closed: the axis parsing its corpus
+  with `ts.createSourceFile` and counting `ts.isCallExpression` nodes whose callee identifier is
+  `appendNote`, with the existing seeded mirror re-pointed at a real call rather than a substring.
+  `status: open`.

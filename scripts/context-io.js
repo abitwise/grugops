@@ -2078,13 +2078,13 @@ export const WRITE_PATH_RESIDUALS = Object.freeze([
             "is KEPT rather than retired because prior documents, summaries and two cases cite it, and " +
             "renaming it would orphan those citations. " +
             "THE CLOSED HALF. The two shapes this entry's ORIGINAL text named are closed, each read off " +
-            "disk in three roots rather than argued: `appendNote(store = HOME, dial = ELSEWHERE)` lands " +
+            "disk in three roots rather than argued: `appendNote` with store = HOME and dial = ELSEWHERE lands " +
             "`{notes:1, ledger:1}` in HOME and `{notes:0, ledger:ABSENT}` in ELSEWHERE, and " +
             "`admitAndAppend`'s non-gated branch reads the same way. " +
             "WHAT REMAINS, WITH ITS OWN REPRODUCTION. Separating the dial from the record is what closed " +
             "those two, and it COST a new degree of freedom: `appendNote` grew a seventh parameter and " +
             "`admit()` a fifth, and a parameter is a value a caller may supply. Measured on this tree: " +
-            "`appendNote(store = H2, dial = H2, ledgerOwner = actionOwnerRoot(E2))` lands `{notes:1, " +
+            "`appendNote` with store = H2, dial = H2 and an explicit ledger owner naming E2 lands `{notes:1, " +
             "ledger:ABSENT}` in H2 and `{notes:0, ledger:1}` in E2. The freedom is not silent — the " +
             "`31-40` census reads the ledger argument position and a new site supplying it divergently " +
             "must earn a `ROOT_DIVERGENCE_DISPOSITIONS` entry — but it is a freedom, and it is named here " +
