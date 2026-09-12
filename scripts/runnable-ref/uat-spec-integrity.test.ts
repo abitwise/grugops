@@ -9634,21 +9634,132 @@ ${TAIL}
 // so a row deleted to reach green is red too. Neither side is typed out.
 // ═══════════════════════════════════════════════════════════════════════════════════════════════
 
-/** The row id a published ban head must carry, spelled in ONE place so neither side re-types it. */
-function reachRowIdForHead(head: string): string {
-  return `REACH-HEAD-${head}`;
-}
-/** The same, for a published whole-path member. */
-function reachRowIdForPath(path: string): string {
-  return `REACH-PATH-${path}`;
+/**
+ * 31-42 (WR-38): THE PUBLISHED BAN-SET FAMILY, DERIVED FROM THE MODULE'S OWN EXPORTS.
+ *
+ * WHAT WAS WRONG WITH IMPORTING TWO CONSTANTS BY NAME. The binding below is the one that answers
+ * "is every published ban member REACHABLE?", and until this plan its expected side was built from
+ * `BANNED_MODIFIER_HEADS` and `BANNED_EXACT_PATHS`, named. `BANNED_MODIFIER_TAILS` and
+ * `BANNED_CONFIGURED_PATHS` are published too — the recipe quotes all four lists by value and the
+ * membership-equality case asserts all four — and neither contributed a required row. Three of the
+ * four tails and the whole configured-path axis therefore had no row keyed to their constant, which
+ * is `CR-23`'s exact shape still open on two axes: a published member the mechanism cannot reach,
+ * with membership equality green throughout.
+ *
+ * HOW THE FAMILY IS DERIVED. Start at `isBannedModifierCall` — D-18's ONE membership authority, the
+ * function the arm-(c) call site asks — follow its call closure inside the module, and collect every
+ * EXPORTED module-level constant those functions reference whose initializer is a frozen collection.
+ * A fifth published ban set joins this family by BEING CONSULTED, not by being remembered: a
+ * constant nobody asks is not a ban set, and a ban set the authority asks cannot hide from this
+ * derivation. `CALL_LINK_MARKER` is referenced by the same closure and is excluded by the shape
+ * filter, which is the discrimination that keeps the family from being "every constant nearby".
+ *
+ * THE TWO SHAPES ARE HANDLED BY SHAPE, never by name. A frozen ARRAY publishes its string elements;
+ * a frozen OBJECT publishes its keys — `BANNED_CONFIGURED_PATHS` maps a dotted path to the option
+ * that enables it, so the PATH is the published member and the option is the pair's other half.
+ */
+interface BanSet {
+  readonly name: string;
+  readonly shape: "array" | "object";
+  readonly members: readonly string[];
 }
 
-describe("uat-spec-integrity — 31-34: every PUBLISHED ban member has a REFUSING corpus row", () => {
-  // The two rows the binding below requires for the heads the rule publishes today. Each drives its
-  // head through a DECLARED foreign module — the provenance arm D-35 added — because that is the
-  // spelling a retained head exists for and the one the corpus could not observe before.
+function deriveBanSetFamily(): readonly BanSet[] {
+  const ts = hostTypeScript as typeof import("typescript");
+  const src = readFileSync(join(HERE, "uat-spec-integrity.ts"), "utf8");
+  const sf = ts.createSourceFile("m.ts", src, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+
+  const fns = new Map<string, import("typescript").FunctionDeclaration>();
+  const exportedConsts = new Map<string, import("typescript").VariableDeclaration>();
+  for (const st of sf.statements) {
+    if (ts.isFunctionDeclaration(st) && st.name !== undefined) fns.set(st.name.text, st);
+    if (ts.isVariableStatement(st)) {
+      const isExported = (st.modifiers ?? []).some((m) => m.kind === ts.SyntaxKind.ExportKeyword);
+      if (!isExported) continue;
+      for (const d of st.declarationList.declarations) {
+        if (ts.isIdentifier(d.name)) exportedConsts.set(d.name.text, d);
+      }
+    }
+  }
+
+  const seen = new Set<string>();
+  const referenced = new Set<string>();
+  const pending = [MEMBERSHIP_AUTHORITY];
+  while (pending.length > 0) {
+    const name = pending.pop() as string;
+    if (seen.has(name)) continue;
+    const fn = fns.get(name);
+    if (fn === undefined) continue;
+    seen.add(name);
+    const collect = (n: import("typescript").Node): void => {
+      if (ts.isIdentifier(n)) {
+        if (fns.has(n.text)) pending.push(n.text);
+        if (exportedConsts.has(n.text)) referenced.add(n.text);
+      }
+      ts.forEachChild(n, collect);
+    };
+    collect(fn);
+  }
+
+  const family: BanSet[] = [];
+  for (const name of [...referenced].sort()) {
+    const init = exportedConsts.get(name)?.initializer;
+    if (init === undefined || !ts.isCallExpression(init)) continue;
+    const callee = init.expression;
+    const frozen =
+      ts.isPropertyAccessExpression(callee) &&
+      ts.isIdentifier(callee.expression) &&
+      callee.expression.text === "Object" &&
+      callee.name.text === "freeze" &&
+      init.arguments.length === 1;
+    if (!frozen) continue;
+    const arg = init.arguments[0];
+    if (ts.isArrayLiteralExpression(arg)) {
+      family.push({
+        name,
+        shape: "array",
+        members: arg.elements.filter(ts.isStringLiteralLike).map((e) => e.text),
+      });
+    } else if (ts.isObjectLiteralExpression(arg)) {
+      family.push({
+        name,
+        shape: "object",
+        members: arg.properties
+          .filter(ts.isPropertyAssignment)
+          .map((pa) => (ts.isStringLiteralLike(pa.name) ? pa.name.text : pa.name.getText(sf))),
+      });
+    }
+  }
+  return family;
+}
+
+/** D-18's ONE membership authority. The family derivation starts here; nothing else names a set. */
+const MEMBERSHIP_AUTHORITY = "isBannedModifierCall";
+
+/**
+ * The row id a published ban member must carry, derived from the CONSTANT that publishes it and the
+ * member itself, in ONE place so neither side re-types it.
+ *
+ * 31-42: it takes the set NAME rather than a per-axis prefix somebody chose. The three prefixes
+ * that stood here (`REACH-HEAD-`, `REACH-PATH-`, and the two the fix suggested) were a hand-made
+ * mapping from four constants to four words, which is one more set literal to keep in step — and
+ * it is why a fifth ban set would have needed a fifth prefix before it could have a row. The id
+ * now follows the constant, so a set added to the module joins this binding by existing.
+ */
+function reachRowId(setName: string, member: string): string {
+  return `REACH-${setName}-${member}`;
+}
+
+describe("uat-spec-integrity — 31-34/31-42: every PUBLISHED ban member has a REFUSING corpus row", () => {
+  // Each row drives its member to a refusal at the runnable's own entry. The two HEAD rows and the
+  // exact-path row drive theirs through a DECLARED foreign module — the provenance arm D-35 added —
+  // because that is the spelling a retained head exists for and the one the corpus could not
+  // observe before. The tail rows drive theirs through the framework's OWN declared surface, which
+  // is the route identity decides, and the shared-resolution case below then re-drives one member
+  // of every set through a declared-foreign binding so no set's rule can bypass the resolution
+  // while its membership stays green.
   it("REACH `test`: the published head refused through a declared foreign module", () => {
-    row("REACH-HEAD-test");
+    row("REACH-BANNED_MODIFIER_HEADS-test");
     const r = driveSpec(
       `import { expect } from "@playwright/test";
 import { test } from "reach-other-framework";
@@ -9671,7 +9782,7 @@ test.skip("a scenario nobody runs", () => {
   });
 
   it("REACH `describe`: the published head refused through a declared foreign module", () => {
-    row("REACH-HEAD-describe");
+    row("REACH-BANNED_MODIFIER_HEADS-describe");
     const r = runCheck(
       mkTargetRepo({ "e2e/uat/subject.uat.spec.ts": "foreign-describe.uat.spec.ts" }),
     );
@@ -9680,7 +9791,7 @@ test.skip("a scenario nobody runs", () => {
   });
 
   it("REACH `expect.soft`: the published exact path refused through a declared foreign library", () => {
-    row("REACH-PATH-expect.soft");
+    row("REACH-BANNED_EXACT_PATHS-expect.soft");
     const r = runCheck(
       mkTargetRepo({ "e2e/uat/subject.uat.spec.ts": "foreign-soft-assert.uat.spec.ts" }),
     );
@@ -9688,23 +9799,47 @@ test.skip("a scenario nobody runs", () => {
     expect(r.stdout).toContain("`expect.soft`");
   });
 
-  it("THE BINDING: every published head and exact path carries a refusing row, both sides derived", async () => {
-    const { BANNED_MODIFIER_HEADS, BANNED_EXACT_PATHS } = await loadChecker();
+  it("THE BINDING: every member of every PUBLISHED ban set carries a refusing row, both sides derived", async () => {
+    row("REACH-BINDING-family-derived");
+    const family = deriveBanSetFamily();
     const declared = declaredCorpusRowIds();
+    const mod = await loadChecker();
 
-    // PREMISES, asserted before the conclusion. An empty constant would make the loop vacuous, and
-    // an empty row census would make it fail for the wrong reason — this phase has logged six
-    // instances of a harness reporting a false result from an unasserted premise.
-    expect(BANNED_MODIFIER_HEADS.length, "PREMISE: the published head set is empty").toBeGreaterThan(0);
-    expect(BANNED_EXACT_PATHS.length, "PREMISE: the published exact-path set is empty").toBeGreaterThan(0);
+    // PREMISES, asserted before the conclusion. A vacuous family or an empty row census would make
+    // the loop below pass for the wrong reason — this phase has logged six instances of a harness
+    // reporting a false result from an unasserted premise.
+    expect(family.length, "PREMISE: the derived ban-set family is empty").toBeGreaterThan(0);
+    expect(
+      family.length,
+      "the number of PUBLISHED ban sets the membership authority consults has changed. A set added " +
+        "is a new axis this binding must cover; a set removed is a ban the recipe may still quote. " +
+        "Re-derive, decide the new set, and move this number — never the other way round.",
+    ).toBe(4);
+    for (const set of family) {
+      expect(set.members.length, `PREMISE: the published set ${set.name} is empty`).toBeGreaterThan(0);
+    }
     expect(declared.size, "PREMISE: the row census found no rows at all").toBeGreaterThan(0);
 
-    const missing: string[] = [];
-    for (const head of BANNED_MODIFIER_HEADS) {
-      if (!declared.has(reachRowIdForHead(head))) missing.push(reachRowIdForHead(head));
+    // THE DERIVATION IS ABOUT THE LIVE MODULE, not about a source file that happens to sit beside
+    // it: every derived set is also an export of the committed artifact, with the same members.
+    for (const set of family) {
+      const live = (mod as unknown as Record<string, unknown>)[set.name];
+      expect(live, `${set.name}: the derived set is not an export of the committed .js`).toBeDefined();
+      const liveMembers = Array.isArray(live)
+        ? [...(live as readonly string[])].sort()
+        : Object.keys(live as Record<string, string>).sort();
+      expect(
+        liveMembers,
+        `${set.name}: the members read off the source and the members the artifact publishes disagree`,
+      ).toEqual([...set.members].sort());
     }
-    for (const path of BANNED_EXACT_PATHS) {
-      if (!declared.has(reachRowIdForPath(path))) missing.push(reachRowIdForPath(path));
+
+    const missing: string[] = [];
+    for (const set of family) {
+      for (const member of set.members) {
+        const id = reachRowId(set.name, member);
+        if (!declared.has(id)) missing.push(id);
+      }
     }
     expect(
       missing,
@@ -9714,21 +9849,157 @@ test.skip("a scenario nobody runs", () => {
     ).toEqual([]);
   });
 
-  it("THE SEEDED FAIL: a published-but-unrowed member is caught, so the binding is not vacuous", async () => {
-    const { BANNED_MODIFIER_HEADS } = await loadChecker();
+  it("THE CONVERSE: a REACH row naming a member no published set contains turns the census red", () => {
+    row("REACH-CONVERSE-no-stale-row");
+    const family = deriveBanSetFamily();
     const declared = declaredCorpusRowIds();
-    // The watched fail, run in-process rather than by editing the constant: a head this rule does
-    // NOT publish stands in for one added without a row. If the binding above could pass with a
-    // member absent from the census, this case would pass too — and it must not.
-    const seeded = "suite";
+    expect(family.length, "PREMISE: the derived family is empty").toBeGreaterThan(0);
+    expect(declared.size, "PREMISE: the row census is empty").toBeGreaterThan(0);
+
+    const legitimate = new Set<string>();
+    for (const set of family) for (const m of set.members) legitimate.add(reachRowId(set.name, m));
+    // Every row whose id opens with the reachability prefix and names a set-and-member pair must be
+    // one of those. A row that pads the census makes the binding above pass for a reason nobody
+    // chose, which is the direction a green suite cannot otherwise see.
+    const reachRows = [...declared].filter(
+      (id) => id.startsWith("REACH-BANNED_") && !legitimate.has(id),
+    );
     expect(
-      BANNED_MODIFIER_HEADS.includes(seeded),
-      "PREMISE: the seeded head is already published, so it cannot stand in for an unrowed one",
-    ).toBe(false);
+      reachRows,
+      `a reachability row names a member no published ban set contains: ${reachRows.join(", ")}. ` +
+        "Either the set that published it was narrowed and the row is stale, or the row was " +
+        "invented to fill the census.",
+    ).toEqual([]);
+    // …and the floor that keeps this direction from being vacuous: the legitimate ids are actually
+    // present, so `reachRows` being empty is not "there are no REACH rows at all".
+    const present = [...legitimate].filter((id) => declared.has(id));
+    expect(present.length, "PREMISE: not one legitimate reachability row is declared").toBe(
+      legitimate.size,
+    );
+  });
+
+  it("THE SHARED RESOLUTION: one member of EVERY set, driven through a DECLARED FOREIGN binding", () => {
+    row("REACH-SHARED-RESOLUTION-foreign");
+    // The claim the family derivation makes is that ONE identity resolution applies to all four
+    // sets. That claim is CHECKED here rather than quoted: a set whose rule bypassed the resolution
+    // would pass the membership equality above and fail below. Each drive binds its head to a module
+    // that is NOT `@playwright/test`, declared in the target's own `types/` — the `foreign-declared`
+    // provenance arm, and the spelling CR-23 was filed about.
+
+    // BANNED_MODIFIER_HEADS + BANNED_MODIFIER_TAILS, together: `describe` is the head, `only` the
+    // tail, and the binding comes from the ambient `other-framework` module every target is equipped
+    // with.
+    const headAndTail = driveSpec(
+      `import { test, expect } from "@playwright/test";
+import { describe } from "other-framework";
+
+describe.only("refunds, run alone", () => {
+  void 0;
+});
+
+test("the invoice total is shown", async ({ page }) => {
+${TAIL}
+});
+`,
+    );
     expect(
-      declared.has(reachRowIdForHead(seeded)),
-      "PREMISE: the seeded head already has a row, so the check below would be vacuous",
-    ).toBe(false);
+      headAndTail.status,
+      `a declared-foreign \`describe.only\` was accepted. stdout: ${headAndTail.stdout}`,
+    ).toBe(1);
+    expect(headAndTail.stdout).toContain("`describe.only`");
+
+    // BANNED_EXACT_PATHS: `expect.soft` through the ambient `other-assert` module.
+    const exactPath = driveSpec(
+      `import { test } from "@playwright/test";
+import { expect } from "other-assert";
+
+test("the invoice total is shown", async ({ page }) => {
+  const total = await page.getByTestId("invoice-total").textContent();
+  expect.soft(total).toBe("$42.00");
+  expect(total).toBe("$42.00");
+});
+`,
+    );
+    expect(
+      exactPath.status,
+      `a declared-foreign \`expect.soft\` was accepted. stdout: ${exactPath.stdout}`,
+    ).toBe(1);
+    expect(exactPath.stdout).toContain("`expect.soft`");
+
+    // BANNED_CONFIGURED_PATHS: the PAIR, through a declared foreign assertion library. The ambient
+    // surface every target carries declares no `configure` member — it is the SHAPE of the ban, not
+    // a transcription of any library — so this drive declares the one it needs in the target's own
+    // `types/`, which is the same `foreign-declared` provenance the two above use.
+    const configured = driveSpec(
+      `import { test } from "@playwright/test";
+import { expect } from "reach-other-configure";
+
+test("the invoice total is shown", async ({ page }) => {
+  const total = await page.getByTestId("invoice-total").textContent();
+  expect.configure({ soft: true })(total).toBe("$42.00");
+  expect(total).toBe("$42.00");
+});
+`,
+      {},
+      {
+        "types/reach-other-configure.d.ts":
+          'declare module "reach-other-configure" {\n' +
+          "  interface ReachAssertions {\n" +
+          "    toBe(expected: unknown): void;\n" +
+          "  }\n" +
+          "  interface ReachExpect {\n" +
+          "    (actual: unknown): ReachAssertions;\n" +
+          "    configure(options: { readonly soft?: boolean; readonly retries?: number }): ReachExpect;\n" +
+          "  }\n" +
+          "  export const expect: ReachExpect;\n" +
+          "}\n",
+      },
+    );
+    expect(
+      configured.status,
+      `a declared-foreign \`expect.configure({ soft: true })\` was accepted. stdout: ${configured.stdout}`,
+    ).toBe(1);
+    expect(configured.stdout).toContain("`expect.configure");
+  });
+
+  it("THE SEEDED FAIL: a published-but-unrowed member is caught on BOTH the head and the tail axis", async () => {
+    row("REACH-SEEDED-FAIL-two-axes");
+    const { BANNED_MODIFIER_HEADS, BANNED_MODIFIER_TAILS } = await loadChecker();
+    const family = deriveBanSetFamily();
+    const declared = declaredCorpusRowIds();
+    expect(family.length, "PREMISE: the derived family is empty").toBeGreaterThan(0);
+
+    // Run IN-PROCESS rather than by editing a published constant: a member the rule does NOT publish
+    // stands in for one added without a row. If the binding above could pass with a member absent
+    // from the census, the seeded member would pass too — and it must not. `31-42` extends this to
+    // the TAIL axis, so the axis that had one row for four members is proven non-vacuous the same
+    // way the head axis is.
+    const seeded: readonly { readonly set: string; readonly member: string; readonly published: readonly string[] }[] = [
+      { set: "BANNED_MODIFIER_HEADS", member: "suite", published: BANNED_MODIFIER_HEADS },
+      { set: "BANNED_MODIFIER_TAILS", member: "quarantine", published: BANNED_MODIFIER_TAILS },
+    ];
+    for (const { set, member, published } of seeded) {
+      expect(
+        family.some((f) => f.name === set),
+        `PREMISE: ${set} is not in the derived family, so the seed below stands in for nothing`,
+      ).toBe(true);
+      expect(
+        published.includes(member),
+        `PREMISE: the seeded member \`${member}\` is already published in ${set}, so it cannot stand in for an unrowed one`,
+      ).toBe(false);
+      expect(
+        declared.has(reachRowId(set, member)),
+        `PREMISE: the seeded member \`${member}\` already has a row, so the check below would be vacuous`,
+      ).toBe(false);
+      // The seeded member, put through the SAME expected-side construction the binding uses: it is
+      // required and it is missing, so the binding's own failure condition is reachable.
+      const wouldBeMissing = [reachRowId(set, member)].filter((id) => !declared.has(id));
+      expect(
+        wouldBeMissing,
+        `the binding's failure condition is unreachable for ${set}: a member with no row was not ` +
+          "reported as missing, so the axis cannot fail and proves nothing",
+      ).toEqual([reachRowId(set, member)]);
+    }
   });
 });
 

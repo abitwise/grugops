@@ -1,0 +1,29 @@
+{
+  "what": "RED transcript for plan 31-42 Task 2 (WR-38) — the reachability binding's expected side derived from the module's own published ban-set FAMILY, committed BEFORE the rows and the fixture that make the new axes reachable, so two cases fail on the planned behaviour and on nothing else.",
+  "taken_at_commit": "8734734",
+  "command": "npx vitest run --exclude '**/scripts/e2e/**' scripts/runnable-ref/uat-spec-integrity.test.ts",
+  "exit_code": 1,
+  "target_tests": [
+    "31-34/31-42: every PUBLISHED ban member has a REFUSING corpus row > THE BINDING: every member of every PUBLISHED ban set carries a refusing row, both sides derived",
+    "31-34/31-42: every PUBLISHED ban member has a REFUSING corpus row > THE CONVERSE: a REACH row naming a member no published set contains turns the census red"
+  ],
+  "expected_result": "A new corpus fixture `scripts/runnable-ref/fixtures/reach-modifier-tails.uat.spec.ts` drives all four published modifier tails on a published head through the framework's own declared surface, and five new corpus rows are declared — one per tail and one for the configured path, keyed to the constant that publishes them. Both cases then pass.",
+  "actual_result": "Test Files 1 failed (1). Tests 2 failed | 373 passed (375). The binding names FIVE published ban members with no corpus row: REACH-BANNED_CONFIGURED_PATHS-expect.configure, REACH-BANNED_MODIFIER_TAILS-skip, REACH-BANNED_MODIFIER_TAILS-only, REACH-BANNED_MODIFIER_TAILS-fixme, REACH-BANNED_MODIFIER_TAILS-fail. The converse case fails its own vacuity floor: 3 of the 8 legitimate reachability ids are declared.",
+  "why_this_is_an_INTENTIONAL_red": "373 cases pass in the same run, including this task's own derivation work: the family PREMISE (four published sets, each non-empty, each an export of the committed .js with matching members), the two head rows and the exact-path row under their new derived ids, the shared-resolution case driving one member of every set through a declared-foreign binding, and the two-axis seeded fail. So the family derivation runs, resolves against the live artifact and drives real refusals; the only failures are the two assertions about rows the GREEN step adds. This is not a syntax error, a zero-discovery run or an unrelated assertion. `npm run typecheck` exits 0 at this commit.",
+  "premises_asserted_before_any_result_was_read": {
+    "derived ban-set family cardinality": 4,
+    "family members, derived from the module's source and cross-checked against the committed .js": {
+      "BANNED_CONFIGURED_PATHS": ["expect.configure"],
+      "BANNED_EXACT_PATHS": ["expect.soft"],
+      "BANNED_MODIFIER_HEADS": ["test", "describe"],
+      "BANNED_MODIFIER_TAILS": ["skip", "only", "fixme", "fail"]
+    },
+    "required reachability rows the family produces": 8,
+    "declared corpus rows at the RED base": 68,
+    "REACH rows at the RED base": ["REACH-HEAD-test", "REACH-HEAD-describe", "REACH-PATH-expect.soft"],
+    "required rows MISSING at the pre-task base 8734734, measured by re-deriving the census from that commit's own test file": "8 of 8 — every id under the derived naming, because the three that existed carried hand-made per-axis prefixes"
+  },
+  "what_the_derivation_replaces": "Two constants imported BY NAME (`BANNED_MODIFIER_HEADS`, `BANNED_EXACT_PATHS`) and two hand-made row-id prefixes (`REACH-HEAD-`, `REACH-PATH-`). The family is now derived by starting at `isBannedModifierCall` — D-18's one membership authority — following its call closure inside the module, and collecting every EXPORTED constant those functions reference whose initializer is a frozen collection. `CALL_LINK_MARKER` is referenced by the same closure and is excluded by the shape filter, which is the discrimination that keeps the family from being 'every constant nearby'. The row id is `REACH-<constant>-<member>`, so a fifth published ban set joins the binding by being consulted rather than by somebody remembering a fifth prefix.",
+  "a_defect_this_task_found_in_its_own_first_attempt": "The four tail rows were first written as a `for` loop over the tails with a computed row id. The corpus census is derived from this file's AST by reading `row(\"…\")` call sites whose single argument is a STRING LITERAL, so a computed id is invisible to it: the drives ran, refused their members, and the binding still reported all four tails unrowed. Measured, then fixed by writing the four rows out. The comment above them records the reason so the next reader does not re-introduce it.",
+  "not_verified_by_this_red": "That the four published tails are reachable through a DECLARED FOREIGN binding individually. The shared-resolution case drives one member of each of the four sets that way (`describe.only` through the ambient `other-framework`, `expect.soft` through `other-assert`, `expect.configure({ soft: true })` through a declared module in the target's own types/), which is what the plan asks; per-tail foreign coverage is not claimed."
+}
