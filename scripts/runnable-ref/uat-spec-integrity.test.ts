@@ -66,6 +66,13 @@ interface CheckerModule {
   readonly SURFACE_DEPTH_BOUND: number;
   readonly SURFACE_TRUNCATION_REACHED: Readonly<Record<string, string>>;
   readonly SURFACE_TRUNCATION_ARMS: readonly string[];
+  // 31-42 (WR-37): every position inside the framework-surface walk that catches an exception
+  // without re-raising it, each decided by an ARM of the record above or by a published residual.
+  // The census that reads it DERIVES its own expected side from the module's syntax tree, so this
+  // record is the decided side and never the oracle.
+  readonly SURFACE_SWALLOW_SITES: Readonly<
+    Record<string, { readonly arm?: string; readonly residual?: string; readonly what: string }>
+  >;
   readonly SURFACE_TRUNCATED_CAUSE: string;
   surfaceTruncatedCause(reached: string): string;
   readonly PARSER_ABSENT_MARKER: string;
@@ -10108,5 +10115,536 @@ ${TAIL}
       ctx.typePaths.size,
       "the transcribed surface is within a factor of four of the node bound — the headroom claim is stale",
     ).toBeLessThan(1024);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// 31-42 (WR-37 / D-42) — EVERY POSITION THE WALK CAN STOP AT IS DERIVED FROM THE WALK
+//
+// `SURFACE_TRUNCATION_ARMS` is introduced in the module as "Every way the walk can stop early,
+// DERIVED from the record above rather than re-typed". The derivation is real and it is over the
+// wrong thing: `SURFACE_TRUNCATION_REACHED` is HAND-AUTHORED, so the arms are derived from the
+// sentences somebody wrote rather than from the positions the walk actually stops at. Round 8's
+// `WR-37` named FOUR exception routes that swallow a subtree and record nothing. Deriving the set
+// from the walk's own syntax tree finds NINE positions, of which FIVE fail open — the fifth being
+// the declaration-adding helper's own catch, which no review named.
+//
+// WHY THE DERIVATION IS OVER A CALL CLOSURE RATHER THAN OVER ONE FUNCTION BODY. `WR-37`'s own
+// fourth position lives in `containerTypeArguments`, which is a module-level function the walk
+// CALLS. A derivation scoped to `frameworkSurface`'s body would miss it, and a derivation scoped to
+// a hand-named list of helpers would be the set-literal drift this repository keeps paying for. The
+// closure starts at the walk and follows every call to a module-level function declaration, so a
+// helper extracted out of the walk tomorrow stays inside the census by construction.
+//
+// WHY ROUND 8 LEFT IT OPEN, AND WHAT CHANGED. `31-VERIFICATION.md` recorded `WR-37` as "not
+// independently exploitable this session (requires a TypeScript-checker throw this repository
+// cannot synthesise)". A residual whose only defence is that nobody built the probe is a residual
+// nobody has tested. The probe is a SUBSTITUTE CHECKER that throws at one chosen position, driven
+// through the walk's own entry — the same seam `main` already offers through its `deps` record.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+/** The walk this census is about. Named once; the closure derivation starts here. */
+const SURFACE_WALK_ENTRY = "frameworkSurface";
+
+/** One position inside the walk that catches an exception and does not re-raise it. */
+interface SwallowSite {
+  readonly id: string;
+  readonly scope: string;
+  readonly kind: "catch-and-continue" | "catch-and-substitute" | "catch-and-break";
+  readonly line: number;
+  readonly body: string;
+}
+
+/**
+ * Every swallow position inside the framework-surface walk, DERIVED from the module's own syntax
+ * tree rather than read off a record somebody wrote.
+ *
+ * A position qualifies when it catches an exception and either continues (an empty handler or an
+ * explicit `continue`) or returns a value in place of the one it could not produce. A handler that
+ * re-raises is not a swallow: the caller still learns the walk failed.
+ *
+ * The id is `<nearest enclosing named scope>#<ordinal within that scope, in source order>`, so a
+ * position added, removed or moved between scopes changes the census and the closure case below
+ * names it. Attribution to the nearest NAMED scope is what keeps a handler inside a nested arrow —
+ * the declaration-adding helper — from being filed under the function that contains it.
+ */
+function deriveSurfaceSwallowSites(): readonly SwallowSite[] {
+  const ts = hostTypeScript as typeof import("typescript");
+  const src = readFileSync(join(HERE, "uat-spec-integrity.ts"), "utf8");
+  const sf = ts.createSourceFile("m.ts", src, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+
+  const declared = new Map<string, import("typescript").FunctionDeclaration>();
+  for (const st of sf.statements) {
+    if (ts.isFunctionDeclaration(st) && st.name !== undefined) declared.set(st.name.text, st);
+  }
+
+  // THE WALK'S CALL CLOSURE, derived. Start at the walk and follow every call to a module-level
+  // function declaration, transitively.
+  const closure = new Set<string>();
+  const pending = [SURFACE_WALK_ENTRY];
+  while (pending.length > 0) {
+    const name = pending.pop() as string;
+    if (closure.has(name)) continue;
+    const fn = declared.get(name);
+    if (fn === undefined) continue;
+    closure.add(name);
+    const collect = (n: import("typescript").Node): void => {
+      if (ts.isCallExpression(n) && ts.isIdentifier(n.expression) && declared.has(n.expression.text)) {
+        pending.push(n.expression.text);
+      }
+      ts.forEachChild(n, collect);
+    };
+    collect(fn);
+  }
+
+  const nearestNamedScope = (node: import("typescript").Node): string => {
+    let cur: import("typescript").Node | undefined = node.parent;
+    while (cur !== undefined) {
+      if (ts.isFunctionDeclaration(cur) && cur.name !== undefined) return cur.name.text;
+      if (
+        (ts.isArrowFunction(cur) || ts.isFunctionExpression(cur)) &&
+        cur.parent !== undefined &&
+        ts.isVariableDeclaration(cur.parent) &&
+        ts.isIdentifier(cur.parent.name)
+      ) {
+        return cur.parent.name.text;
+      }
+      cur = cur.parent;
+    }
+    return "<module>";
+  };
+
+  const classify = (cc: import("typescript").CatchClause): SwallowSite["kind"] | null => {
+    let sawThrow = false;
+    let sawReturn = false;
+    let sawBreak = false;
+    const walk = (n: import("typescript").Node): void => {
+      // A nested function's own control flow belongs to that function, never to this handler.
+      if (ts.isFunctionDeclaration(n) || ts.isArrowFunction(n) || ts.isFunctionExpression(n)) return;
+      if (ts.isThrowStatement(n)) sawThrow = true;
+      if (ts.isReturnStatement(n)) sawReturn = true;
+      if (ts.isBreakStatement(n)) sawBreak = true;
+      ts.forEachChild(n, walk);
+    };
+    for (const st of cc.block.statements) walk(st);
+    if (sawThrow) return null;
+    if (sawReturn) return "catch-and-substitute";
+    if (sawBreak) return "catch-and-break";
+    return "catch-and-continue";
+  };
+
+  const found: Omit<SwallowSite, "id">[] = [];
+  for (const name of closure) {
+    const walk = (n: import("typescript").Node): void => {
+      if (ts.isCatchClause(n)) {
+        const kind = classify(n);
+        if (kind !== null) {
+          found.push({
+            scope: nearestNamedScope(n),
+            kind,
+            line: sf.getLineAndCharacterOfPosition(n.getStart(sf)).line + 1,
+            body: n.block.getText(sf).replace(/\s+/g, " ").trim(),
+          });
+        }
+      }
+      ts.forEachChild(n, walk);
+    };
+    walk(declared.get(name) as import("typescript").Node);
+  }
+
+  found.sort((a, b) => a.line - b.line);
+  const ordinal = new Map<string, number>();
+  return found.map((s) => {
+    const n = (ordinal.get(s.scope) ?? 0) + 1;
+    ordinal.set(s.scope, n);
+    return { ...s, id: `${s.scope}#${n}` };
+  });
+}
+
+/**
+ * The four positions `31-REVIEW.md`'s `WR-37` names, HAND-TYPED — because the review's list is
+ * hand-typed by definition and that is the point.
+ *
+ * It is NOT an oracle. It is the thing the derivation is tested AGAINST: a derivation that merely
+ * reproduced this list would not have been tested, and a derivation that finds more is the whole
+ * reason to derive. Read every assertion over it as "the review's attention was a SUBSET", never as
+ * "the review's attention was the answer".
+ */
+const REVIEW_WR37_NAMED_SITES: readonly string[] = Object.freeze([
+  "frameworkSurface#1",
+  "frameworkSurface#3",
+  "frameworkSurface#4",
+  "containerTypeArguments#1",
+]);
+
+// ── the substitute checker: the instrument round 8's residual was defended by the absence of ────
+
+/** Which position the substitute checker throws from. `null` drives the walk with nothing failing. */
+type StubKnob =
+  | "addDeclarations-getSourceFile"
+  | "exports-of-module"
+  | "seed-type-of-symbol"
+  | "property-type-of-symbol"
+  | "properties-of-type"
+  | "type-arguments"
+  | "expandable-properties"
+  | "expandable-signatures"
+  | "is-default-library"
+  | null;
+
+interface StubWalkResult {
+  readonly truncated: string | null;
+  readonly files: number;
+  readonly paths: number;
+}
+
+/**
+ * Drive the walk with a substitute checker over a synthetic chain of `chain` linked types.
+ *
+ * `libAt` marks one chain member as declared by the compiler's own library, which is the ONLY route
+ * that reaches the container helper. `throwAtIndex` restricts the expandable-member knobs to the
+ * node AT the depth bound, so they exercise the fail-CLOSED pair rather than the expansion step.
+ */
+async function runStubWalk(
+  knob: StubKnob,
+  opts: {
+    readonly chain?: number;
+    readonly libAt?: number | null;
+    readonly throwAtIndex?: number;
+  } = {},
+): Promise<StubWalkResult> {
+  const mod = await loadChecker();
+  const chain = opts.chain ?? 2;
+  const libAt = opts.libAt ?? null;
+  const throwAtIndex = opts.throwAtIndex ?? -1;
+
+  const mkDecl = (name: string): { getSourceFile(): unknown } => ({
+    getSourceFile(): unknown {
+      if (knob === "addDeclarations-getSourceFile") throw new Error(`stub: ${name} has no source file`);
+      return { fileName: `stub/${name}.d.ts`, __name: name };
+    },
+  });
+  const mkSymbol = (name: string): Record<string, unknown> => {
+    const d = mkDecl(name);
+    return { name, declarations: [d], valueDeclaration: d };
+  };
+
+  const types: { __i: number; symbol: Record<string, unknown> }[] = [];
+  for (let i = 0; i <= chain; i++) types.push({ __i: i, symbol: mkSymbol(`Grug${i}`) });
+  const props = new Map<number, Record<string, unknown>>();
+  const nextOf = new Map<Record<string, unknown>, { __i: number }>();
+  for (let i = 0; i < chain; i++) {
+    const p = mkSymbol(`p${i}`);
+    props.set(i, p);
+    nextOf.set(p, types[i + 1]);
+  }
+  const exportSymbol = mkSymbol("rootExport");
+
+  const checker = {
+    getExportsOfModule(): unknown[] {
+      if (knob === "exports-of-module") throw new Error("stub: exports");
+      return [exportSymbol];
+    },
+    getTypeOfSymbolAtLocation(symbol: Record<string, unknown>): unknown {
+      if (symbol === exportSymbol) {
+        if (knob === "seed-type-of-symbol") throw new Error("stub: seed");
+        return types[0];
+      }
+      if (knob === "property-type-of-symbol") throw new Error("stub: property type");
+      return nextOf.get(symbol) ?? types[chain];
+    },
+    getPropertiesOfType(type: { __i: number }): unknown[] {
+      if (knob === "properties-of-type") throw new Error("stub: properties");
+      if (knob === "expandable-properties" && type.__i === throwAtIndex) {
+        throw new Error("stub: expandable properties");
+      }
+      const p = props.get(type.__i);
+      return p === undefined ? [] : [p];
+    },
+    getSignaturesOfType(type: { __i: number }): unknown[] {
+      if (knob === "expandable-signatures" && type.__i === throwAtIndex) {
+        throw new Error("stub: expandable signatures");
+      }
+      return [];
+    },
+    getTypeArguments(): unknown[] {
+      if (knob === "type-arguments") throw new Error("stub: type arguments");
+      return [];
+    },
+  };
+
+  // The library probe is WITHHELD for the declaration knob on purpose: with it present, one throw
+  // from `getSourceFile` would trip two derived sites at once and the drive would not be about one
+  // position. Absent, `isDefaultLibraryDeclaration` returns on its `typeof` guard without a catch.
+  const program: Record<string, unknown> = {};
+  if (knob !== "addDeclarations-getSourceFile") {
+    program.isSourceFileDefaultLibrary = (sf: { __name?: string }): boolean => {
+      if (knob === "is-default-library") throw new Error("stub: library probe");
+      return libAt !== null && sf.__name === `Grug${libAt}`;
+    };
+  }
+
+  const walked = (
+    mod as unknown as {
+      frameworkSurface(
+        ts: unknown,
+        program: unknown,
+        checker: unknown,
+        moduleSymbol: unknown,
+      ): {
+        readonly files: ReadonlySet<string>;
+        readonly typePaths: ReadonlyMap<unknown, string>;
+        readonly truncated: string | null;
+      };
+    }
+  ).frameworkSurface({ SignatureKind: { Call: 0 } }, program, checker, mkSymbol("module"));
+
+  return { truncated: walked.truncated, files: walked.files.size, paths: walked.typePaths.size };
+}
+
+describe("uat-spec-integrity — 31-42 WR-37: the walk's swallow sites are DERIVED from the walk", () => {
+  it("PREMISE: the derivation finds sites at all, and finds MORE than the review's hand-typed four", () => {
+    row("WR37-PREMISE-derived-site-census");
+    const sites = deriveSurfaceSwallowSites();
+
+    // FLOOR FIRST. A derivation that found nothing would make every case below vacuous, and this
+    // phase has logged six instances of a harness reporting a false result from an unasserted
+    // premise.
+    expect(sites.length, "PREMISE: the derivation found no swallow sites at all").toBeGreaterThan(0);
+
+    // PRINTED, because the plan's whole claim is about WHICH positions exist and a reader of the
+    // run has to be able to see them without re-deriving.
+    console.log(
+      `31-42 derived swallow sites (${sites.length}):\n` +
+        sites.map((s) => `  ${s.id.padEnd(32)} L${String(s.line).padEnd(5)} ${s.kind.padEnd(20)} ${s.body.slice(0, 80)}`).join("\n"),
+    );
+
+    expect(
+      sites.length,
+      "the number of positions inside the framework-surface walk that catch an exception without " +
+        "re-raising it has CHANGED. A position added is a new way for the walk to stop with nothing " +
+        "recorded; a position removed means one fewer, and either way the closure case below and " +
+        "`SURFACE_SWALLOW_SITES` must be re-decided together. Re-derive, decide the new position, " +
+        "and move this number — never the other way round.",
+    ).toBe(9);
+
+    // The review's four are a SUBSET, and saying so is the result rather than the assumption.
+    const ids = new Set(sites.map((s) => s.id));
+    for (const named of REVIEW_WR37_NAMED_SITES) {
+      expect(ids.has(named), `the review named ${named} and the derivation does not find it`).toBe(true);
+    }
+    expect(
+      sites.length,
+      "the derivation merely reproduced the review's hand-typed list, which is the one outcome " +
+        "that would mean it had not been tested",
+    ).toBeGreaterThan(REVIEW_WR37_NAMED_SITES.length);
+  });
+
+  it("THE CLOSURE: every derived site has an ARM or a REGISTER ENTRY, in BOTH directions", async () => {
+    row("WR37-CLOSURE-arm-or-register");
+    const { SURFACE_SWALLOW_SITES, SURFACE_TRUNCATION_ARMS, UNRESOLVABLE_CALLEE_RESIDUALS } =
+      await loadChecker();
+    const sites = deriveSurfaceSwallowSites();
+
+    expect(sites.length, "PREMISE: the derivation found no sites").toBeGreaterThan(0);
+    expect(SURFACE_TRUNCATION_ARMS.length, "PREMISE: the arm record is empty").toBeGreaterThan(0);
+    expect(
+      UNRESOLVABLE_CALLEE_RESIDUALS.length,
+      "PREMISE: the residual register is empty",
+    ).toBeGreaterThan(0);
+
+    const derived = new Set(sites.map((s) => s.id));
+    const published = new Set(Object.keys(SURFACE_SWALLOW_SITES));
+
+    // FORWARD: a position the walk can stop at that nobody decided.
+    const undecided = [...derived].filter((id) => !published.has(id));
+    expect(
+      undecided,
+      `${undecided.length} position(s) where the framework-surface walk can stop early carry ` +
+        `neither an arm in the published truncation record nor an entry in the published residual ` +
+        `register: ${undecided.join(", ")}. That is WR-37 exactly — a completeness record ` +
+        `assembled from attention rather than from the code.`,
+    ).toEqual([]);
+
+    // CONVERSE: an entry naming a position the derivation does not find is STALE and fails too. A
+    // record that can be padded is a record that can be made green by writing a sentence.
+    const stale = [...published].filter((id) => !derived.has(id));
+    expect(
+      stale,
+      `${stale.length} published swallow-site entr(ies) name a position the walk no longer has: ` +
+        `${stale.join(", ")}. A stale entry pads the census and makes the forward direction pass ` +
+        `for a reason nobody chose.`,
+    ).toEqual([]);
+
+    // …and each entry's DISPOSITION is an arm this module publishes or a register member, verbatim.
+    const arms = new Set<string>(SURFACE_TRUNCATION_ARMS);
+    const register = new Set<string>(UNRESOLVABLE_CALLEE_RESIDUALS);
+    for (const [id, disposition] of Object.entries(SURFACE_SWALLOW_SITES)) {
+      const d = disposition as { readonly arm?: string; readonly residual?: string; readonly what?: string };
+      const hasArm = typeof d.arm === "string";
+      const hasResidual = typeof d.residual === "string";
+      expect(
+        hasArm !== hasResidual,
+        `${id}: a swallow site is decided by exactly one of an arm or a published residual, never ` +
+          `both and never neither`,
+      ).toBe(true);
+      expect(typeof d.what, `${id}: the entry carries no description`).toBe("string");
+      if (hasArm) {
+        expect(arms.has(d.arm as string), `${id}: the arm \`${d.arm}\` is not a published arm`).toBe(true);
+      } else {
+        expect(
+          register.has(d.residual as string),
+          `${id}: the residual is not a verbatim member of UNRESOLVABLE_CALLEE_RESIDUALS`,
+        ).toBe(true);
+      }
+    }
+  });
+
+  it("CONTROL: an unobstructed stub walk finishes, and a LEAF at the depth bound is not a truncation", async () => {
+    row("WR37-CONTROL-unobstructed-walk");
+    const { SURFACE_DEPTH_BOUND } = await loadChecker();
+    expect(SURFACE_DEPTH_BOUND, "PREMISE: the depth bound is not the number this drive assumes").toBe(6);
+    // Nothing throws: the walk completes and records the chain.
+    const shallow = await runStubWalk(null, { chain: 2 });
+    expect(shallow.truncated, "an unobstructed walk reported a truncation").toBeNull();
+    expect(shallow.paths, "an unobstructed walk recorded no paths").toBeGreaterThan(0);
+    // A chain whose last node sits AT the bound with nothing left to expand cut nothing off.
+    const leaf = await runStubWalk(null, { chain: 6 });
+    expect(leaf.truncated, "a LEAF at the depth bound was reported as a truncation").toBeNull();
+    // One hop further and the node at the bound still has a property: that IS a cut.
+    const cut = await runStubWalk(null, { chain: 7 });
+    expect(cut.truncated, "a node CUT at the depth bound was not reported").toBe("depth-bound");
+  });
+
+  it("CONTROL: the fail-CLOSED pair still answers `expandable` when it cannot read the node", async () => {
+    row("WR37-CONTROL-fail-closed-pair");
+    // The asymmetry WR-37 names is the ARGUMENT for this plan, so the safe half of it is re-driven
+    // rather than assumed. Both knobs throw at the node sitting exactly AT the bound, in the chain
+    // whose unobstructed reading is `null` — so the truncation below is the throw's doing and not
+    // the chain's.
+    const propsThrow = await runStubWalk("expandable-properties", { chain: 6, throwAtIndex: 6 });
+    expect(
+      propsThrow.truncated,
+      "a node at the depth bound whose PROPERTIES could not be read was assumed to be a leaf",
+    ).toBe("depth-bound");
+    const sigsThrow = await runStubWalk("expandable-signatures", { chain: 6, throwAtIndex: 6 });
+    expect(
+      sigsThrow.truncated,
+      "a node at the depth bound whose CALL SIGNATURES could not be read was assumed to be a leaf",
+    ).toBe("depth-bound");
+  });
+
+  it("SITE `frameworkSurface#2`: a checker that cannot enumerate the module's exports already RECORDS", async () => {
+    row("WR37-SITE-exports-unreadable");
+    // The one swallow position that had an arm before this plan. It is driven here so the census's
+    // forward direction rests on a driven site rather than on a record entry alone.
+    const r = await runStubWalk("exports-of-module", { chain: 2 });
+    expect(r.truncated).toBe("exports-unreadable");
+  });
+
+  it("SITE `addDeclarations#1`: a declaration whose file cannot be read stops the walk LOUDLY", async () => {
+    row("WR37-SITE-addDeclarations");
+    // THE FIFTH SWALLOW, which `31-REVIEW.md` does not name. MEASURED against the committed .js
+    // before this plan's fix: `truncated: null`, `files: 0` — a walk that recorded NOT ONE framework
+    // declaration file and reported a complete surface. Every call would then resolve `foreign`,
+    // which is accept: the ban off, silently, over the whole surface.
+    const r = await runStubWalk("addDeclarations-getSourceFile", { chain: 2 });
+    expect(
+      r.truncated,
+      "a declaration the checker could not place in a file left the walk silent",
+    ).toBe("surface-unreadable");
+  });
+
+  it("SITE `frameworkSurface#1`: an EXPORT whose type cannot be produced stops the walk LOUDLY", async () => {
+    row("WR37-SITE-seed-type");
+    // Pre-fix reading, committed .js: `truncated: null`, `paths: 0`. The export's whole subtree is
+    // unreachable and the surface says it is complete.
+    const r = await runStubWalk("seed-type-of-symbol", { chain: 2 });
+    expect(r.truncated, "an unreadable export type left the walk silent").toBe("surface-unreadable");
+  });
+
+  it("SITE `frameworkSurface#3`: a PROPERTY whose type cannot be produced stops the walk LOUDLY", async () => {
+    row("WR37-SITE-property-type");
+    // Pre-fix reading, committed .js: `truncated: null`, `paths: 1`.
+    const r = await runStubWalk("property-type-of-symbol", { chain: 2 });
+    expect(r.truncated, "an unreadable property type left the walk silent").toBe("surface-unreadable");
+  });
+
+  it("SITE `frameworkSurface#4`: an EXPANSION that throws stops the walk LOUDLY", async () => {
+    row("WR37-SITE-expansion");
+    // Pre-fix reading, committed .js: `truncated: null`, `paths: 1`. The node's entire expansion —
+    // every property and every call signature — is dropped and the walk continues as if it had run.
+    const r = await runStubWalk("properties-of-type", { chain: 2 });
+    expect(r.truncated, "a dropped expansion left the walk silent").toBe("surface-unreadable");
+  });
+
+  it("SITE `containerTypeArguments#1`: a container whose arguments THROW is the same event as one that cannot be asked", async () => {
+    row("WR37-SITE-container-arguments");
+    // Pre-fix reading, committed .js: `truncated: null`. The helper's docstring ARGUED for this
+    // fail-open — "treating every unreadable type as a stopped walk would block runs on the ordinary
+    // shapes this call is made over, and a gate that always blocks is a gate nobody reads". The
+    // argument is answered by a NUMBER rather than by a counter-argument: measured over 26 genuine
+    // walks of this repository's own corpus (16 fixtures, seven deep chains, a 4,200-type wide
+    // surface, an index-signature probe and a container probe), that position threw ZERO times.
+    const control = await runStubWalk(null, { chain: 3, libAt: 1 });
+    expect(control.truncated, "PREMISE: the container route itself reports a truncation").toBeNull();
+    const r = await runStubWalk("type-arguments", { chain: 3, libAt: 1 });
+    expect(
+      r.truncated,
+      "a container whose type arguments the checker threw on was treated as holding nothing",
+    ).toBe("container-unreadable");
+  });
+
+  it("SITE `isDefaultLibraryDeclaration#1`: an unreadable library probe still FAILS TOWARDS WALKING", async () => {
+    row("WR37-SITE-library-probe");
+    // The remaining fail-CLOSED site, re-driven as a control. Answering `true` on an unreadable
+    // probe would be a silently NARROWER walk; answering `false` descends, reaches the bound and
+    // says so. Unchanged by this plan, and driven so that "unchanged" is a reading.
+    const r = await runStubWalk("is-default-library", { chain: 7 });
+    expect(r.truncated, "an unreadable library probe narrowed the walk in silence").toBe("depth-bound");
+    const control = await runStubWalk(null, { chain: 7 });
+    expect(r.truncated, "the probe's throw changed the walk's answer").toBe(control.truncated);
+  });
+});
+
+describe("browser-uat-recipe.md — 31-42: the published truncation arms equal the decided ones", () => {
+  const RECIPE = join(REPO_ROOT, "agent-factory", "checklists", "browser-uat-recipe.md");
+
+  it("the recipe's quoted SURFACE_TRUNCATION_ARMS equals the exported record, in both directions", async () => {
+    row("WR37-RECIPE-arms-both-directions");
+    const { SURFACE_TRUNCATION_ARMS, SURFACE_TRUNCATION_REACHED } = await loadChecker();
+    const whole = readFileSync(RECIPE, "utf8");
+    expect(whole.length, "PREMISE: the recipe is empty").toBeGreaterThan(0);
+    expect(SURFACE_TRUNCATION_ARMS.length, "PREMISE: the arm record is empty").toBeGreaterThan(0);
+    // The SAME strict grammar the ban sets and the input boundary are read by: the one line quoting
+    // the constant's NAME in backticks, read from after its LAST colon, every backtick span a value.
+    const lines = whole.split("\n").filter((l) => l.includes("`SURFACE_TRUNCATION_ARMS`"));
+    expect(lines.length, "PREMISE: the recipe quotes the constant on other than exactly one line").toBe(1);
+    const tail = lines[0].slice(lines[0].lastIndexOf(":") + 1);
+    const quoted = [...new Set([...tail.matchAll(/`([^`]+)`/g)].map((m) => m[1]))].sort();
+    expect(quoted, "the recipe's published truncation arms and the decided ones disagree").toEqual(
+      [...SURFACE_TRUNCATION_ARMS].sort(),
+    );
+    // …and the COUNT, stated separately so a reader who counts causes in the recipe and arms in the
+    // record meets the same number. `SURFACE_TRUNCATION_ARMS` is derived from the record's keys, so
+    // this is the record's own cardinality reaching the document.
+    expect(quoted.length, "the recipe publishes a different number of arms than the record carries").toBe(
+      Object.keys(SURFACE_TRUNCATION_REACHED).length,
+    );
+  });
+
+  it("every published arm's SENTENCE is reachable through the one cause authority", async () => {
+    row("WR37-RECIPE-cause-per-arm");
+    const { SURFACE_TRUNCATION_ARMS, SURFACE_TRUNCATION_REACHED, surfaceTruncatedCause, SURFACE_TRUNCATED_CAUSE } =
+      await loadChecker();
+    expect(SURFACE_TRUNCATION_ARMS.length, "PREMISE: the arm record is empty").toBeGreaterThan(0);
+    for (const arm of SURFACE_TRUNCATION_ARMS) {
+      const cause = surfaceTruncatedCause(arm);
+      expect(cause.startsWith(SURFACE_TRUNCATED_CAUSE), `${arm}: the cause does not carry the one sentence`).toBe(true);
+      expect(cause, `${arm}: the cause does not name the arm's own words`).toContain(
+        SURFACE_TRUNCATION_REACHED[arm],
+      );
+      expect((SURFACE_TRUNCATION_REACHED[arm] ?? "").length, `${arm}: the arm carries an empty sentence`).toBeGreaterThan(0);
+    }
   });
 });

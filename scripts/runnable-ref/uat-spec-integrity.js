@@ -921,8 +921,16 @@ function frameworkModuleSymbol(ts, program, checker) {
  * against. The walk is BREADTH-FIRST, so the path recorded for a type is the shortest route an
  * author could have written it by, and it is bounded in both size and depth so a large surface
  * costs a stated amount rather than an open one.
+ *
+ * 31-42 (WR-37): EXPORTED, as a test seam and for one reason. Round 8 recorded WR-37 as "not
+ * independently exploitable this session (requires a TypeScript-checker throw this repository
+ * cannot synthesise)" — a residual whose only defence was that nobody had built the instrument.
+ * The instrument is a substitute checker that throws at one chosen position, and it needs this
+ * function reachable. It is the SAME seam `main` already offers through its `deps` record and
+ * `createProgramForTarget` through its `ts` argument: one entry, driven with a different checker,
+ * never a second code path.
  */
-function frameworkSurface(ts, program, checker, moduleSymbol) {
+export function frameworkSurface(ts, program, checker, moduleSymbol) {
     const files = new Set();
     const typePaths = new Map();
     let truncated = null;

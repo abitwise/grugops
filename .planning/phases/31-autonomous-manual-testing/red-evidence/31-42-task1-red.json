@@ -1,0 +1,59 @@
+{
+  "what": "RED transcript for plan 31-42 Task 1 (WR-37) — the derived swallow-site census, its arm-or-register closure, and one stub-checker drive per derived site, committed BEFORE the walk records anything at those positions, so seven cases fail on the planned behaviour and on nothing else.",
+  "taken_at_commit": "71a4009",
+  "command": "npx vitest run --exclude '**/scripts/e2e/**' scripts/runnable-ref/uat-spec-integrity.test.ts",
+  "exit_code": 1,
+  "target_tests": [
+    "31-42 WR-37: the walk's swallow sites are DERIVED from the walk > THE CLOSURE: every derived site has an ARM or a REGISTER ENTRY, in BOTH directions",
+    "31-42 WR-37 > SITE `addDeclarations#1`: a declaration whose file cannot be read stops the walk LOUDLY",
+    "31-42 WR-37 > SITE `frameworkSurface#1`: an EXPORT whose type cannot be produced stops the walk LOUDLY",
+    "31-42 WR-37 > SITE `frameworkSurface#3`: a PROPERTY whose type cannot be produced stops the walk LOUDLY",
+    "31-42 WR-37 > SITE `frameworkSurface#4`: an EXPANSION that throws stops the walk LOUDLY",
+    "31-42 WR-37 > SITE `containerTypeArguments#1`: a container whose arguments THROW is the same event as one that cannot be asked",
+    "browser-uat-recipe.md — 31-42 > the recipe's quoted SURFACE_TRUNCATION_ARMS equals the exported record, in both directions"
+  ],
+  "expected_result": "scripts/runnable-ref/uat-spec-integrity.ts gains a `surface-unreadable` arm in SURFACE_TRUNCATION_REACHED, routes the five fail-open swallow positions to an arm (four to `surface-unreadable`, the container helper to `container-unreadable` by returning null on a throw), and publishes SURFACE_SWALLOW_SITES with one entry per derived position. browser-uat-recipe.md gains one line quoting SURFACE_TRUNCATION_ARMS by value. All seven cases then pass.",
+  "actual_result": "Test Files 1 failed (1). Tests 7 failed | 366 passed (373). Every failure names the planned behaviour and nothing else: five read `expected null to be 'surface-unreadable'` or `'container-unreadable'` (the fail-open, observed); the closure case fails because SURFACE_SWALLOW_SITES does not exist yet; the recipe case fails its own PREMISE (`expected +0 to be 1` — the recipe quotes the constant on zero lines).",
+  "why_this_is_an_INTENTIONAL_red": "366 cases pass in the same run, including six of this plan's own new cases: the derived-census PREMISE (which reports NINE sites and prints them), the unobstructed-walk control, the leaf-at-the-bound control, the fail-CLOSED pair control, the already-recorded `frameworkSurface#2` drive, and the per-arm cause binding. So the file parses, discovers its tests, builds a working substitute checker and drives the walk through the new seam; the only failures are assertions about behaviour the GREEN step adds. This is not a syntax error, a zero-discovery run, a fixture crash or an unrelated assertion. `npm run typecheck` exits 0 at this commit.",
+  "premises_asserted_before_any_result_was_read": {
+    "whole-suite baseline at the RED base (npx vitest run --exclude '**/scripts/e2e/**')": "66 files, 4305 passed, 2 skipped, exit 0",
+    "derived swallow-site count": 9,
+    "positions 31-REVIEW.md WR-37 names by hand": 4,
+    "derived sites the review does NOT name": 5,
+    "SURFACE_DEPTH_BOUND asserted before the depth drives": 6
+  },
+  "the_derived_site_census_printed_by_the_run": [
+    "addDeclarations#1                L1337  catch-and-continue   { /* a synthesised declaration carries no file; it cannot anchor identity either */ }",
+    "frameworkSurface#1               L1362  catch-and-continue   { /* a type this checker cannot produce contributes no path and no file */ }",
+    "frameworkSurface#2               L1366  catch-and-substitute { return { files, typePaths, truncated: \"exports-unreadable\" }; }",
+    "frameworkSurface#3               L1434  catch-and-continue   { /* one unreadable property costs its own subtree, never the walk */ }",
+    "frameworkSurface#4               L1445  catch-and-continue   { continue; }",
+    "containerTypeArguments#1         L1467  catch-and-substitute { return []; }",
+    "hasExpandableMembers#1           L1483  catch-and-substitute { return true; }",
+    "hasExpandableMembers#2           L1488  catch-and-substitute { return true; }",
+    "isDefaultLibraryDeclaration#1    L1508  catch-and-substitute { return false; }"
+  ],
+  "per_site_RED_readings_taken_through_the_new_seam_before_any_fix": {
+    "note": "truncated / framework files recorded / type paths recorded, driven through the exported frameworkSurface with a substitute checker throwing at exactly one position.",
+    "addDeclarations#1": "truncated=null, files=0, paths=3 — a walk that recorded NOT ONE framework declaration file and reported a complete surface",
+    "frameworkSurface#1 (seed type)": "truncated=null, files=2, paths=0",
+    "frameworkSurface#2 (exports)": "truncated=exports-unreadable, files=1, paths=0 — ALREADY RECORDED before this plan",
+    "frameworkSurface#3 (property type)": "truncated=null, files=4, paths=1",
+    "frameworkSurface#4 (expansion)": "truncated=null, files=3, paths=1",
+    "containerTypeArguments#1": "truncated=null, files=4, paths=1",
+    "hasExpandableMembers#1": "truncated=depth-bound, files=15, paths=7 — FAIL-CLOSED, unchanged by this plan",
+    "hasExpandableMembers#2": "truncated=depth-bound, files=15, paths=7 — FAIL-CLOSED, unchanged by this plan",
+    "isDefaultLibraryDeclaration#1": "truncated=depth-bound, files=15, paths=7 — fail towards walking, unchanged by this plan",
+    "CONTROL no knob, chain 2": "truncated=null, files=7, paths=3",
+    "CONTROL no knob, chain 6 (leaf at the bound)": "truncated=null, files=15, paths=7",
+    "CONTROL no knob, chain 7 (node cut at the bound)": "truncated=depth-bound, files=15, paths=7",
+    "CONTROL no knob, library container present": "truncated=null, files=4, paths=1"
+  },
+  "the_measurement_that_decides_each_kept_fail_open": {
+    "instrument": "a copy of scripts/runnable-ref/uat-spec-integrity.ts with a counter injected as the first statement of every derived catch block, transpiled and driven through createProgramForTarget over genuine target repositories built the way the suite builds them",
+    "corpus": "26 genuine walks — 16 fixture specs from scripts/runnable-ref/fixtures/, seven deep property chains (j=3..9, per-file layout), a 4,200-type wide surface, an index-signature probe and a library-container probe",
+    "result": "ZERO throws at all nine positions, on every walk",
+    "what_it_decides": "containerTypeArguments's docstring argued its fail-open was needed because 'treating every unreadable type as a stopped walk would block runs on the ordinary shapes this call is made over'. The number does not support the argument: the position threw zero times. Every fail-open site is therefore routed to a loud arm and NO fail-open is kept, so no new member is added to UNRESOLVABLE_CALLEE_RESIDUALS."
+  },
+  "not_verified_by_this_red": "That a REAL TypeScript checker ever throws at any of the nine positions. The stub is the instrument; the 26-walk measurement says the real one did not throw once. Whether a host's checker can be made to throw there remains UNKNOWN - verify, and it is exactly why the positions are now loud rather than silent."
+}
