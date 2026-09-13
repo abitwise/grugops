@@ -695,3 +695,24 @@ Measured at `3baab0d`, against the committed `.js`, tree clean before and after.
   with `ts.createSourceFile` and counting `ts.isCallExpression` nodes whose callee identifier is
   `appendNote`, with the existing seeded mirror re-pointed at a real call rather than a substring.
   `status: open`.
+
+## From plan 31-42 (gap-closure round 9, wave 11)
+
+- **`agent-factory/workflows/05-pr-quality-gate.md` step 3 publishes a narrower exit-2 claim than the
+  checker carries.** It reads "Two conditions produce exit `2`, and each one emits its own
+  distinctly-marked loud skip". `scripts/runnable-ref/uat-spec-integrity.js` reaches exit 2 from at
+  least six: an unresolvable parser (`PARSER_ABSENT_MARKER`), an unusable browser lane
+  (`BROWSER_ABSENT_MARKER`), a Program that cannot be created (`PROGRAM_UNAVAILABLE_REASON`), a
+  framework-surface walk that stopped early (`SURFACE_TRUNCATED_CAUSE`, four arms as of `D-42`), a
+  containment refusal from the spec walk, and a zero-element derivation. This is the same
+  claim-outruns-mechanism shape `UATX-06` exists to close, one document over.
+  - **Why it is not fixed in `31-42`:** that workflow is inside the `LANG-03` watched corpus, so
+    every changed clause owes a disposition row, and the sentence sits in a region neighbouring a
+    frozen section, so a change there owes a companion edit too. `31-42` was convened for the checker
+    and its recipe, and widening into a watched workflow inside a gap-closure plan is the
+    incrementalism this phase's own rules refuse.
+  - **Owner:** the next plan that edits `05-pr-quality-gate.md` for any reason.
+  - **Closing criterion:** the workflow states the exit-2 condition as a RULE rather than a count —
+    "any condition the checker names on stderr with its own marker" — or the count is derived from
+    the checker's own published cause set and bound in both directions, with disposition rows.
+  - **Recorded by:** `D-42`'s `does not establish` section.

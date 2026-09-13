@@ -140,6 +140,13 @@ interface CheckerModule {
   readonly UNRESOLVABLE_CALLEE_RESIDUALS: readonly string[];
   readonly SKIPPED_DIRECTORIES: readonly string[];
   readonly SKIPPED_DIRECTORY_DISCLOSURE_MARKER: string;
+  // 31-42 (IN-19): the walk's input boundary PARTITIONED by whether a skip at that name could
+  // plausibly hide this repository's own UAT evidence. Both halves are derived from the boundary by
+  // filtering the class record, never typed beside it.
+  readonly SKIPPED_DIRECTORY_COUNT_MEANING: string;
+  readonly SKIPPED_DIRECTORY_DISCLOSURE_CLASS: Readonly<Record<string, string>>;
+  readonly DISCLOSED_SKIPPED_DIRECTORIES: readonly string[];
+  readonly UNDISCLOSED_SKIPPED_DIRECTORIES: readonly string[];
   renderSkippedDirectoryDisclosure(hits: Readonly<Record<string, number>>): string | null;
   emitLoudSkipIfBrowserUnusable(
     repoRoot: string,
@@ -9251,14 +9258,20 @@ function mkSkipProbeTarget(hiddenUnder: string | null): string {
 }
 
 describe("uat-spec-integrity — 31-32 WR-35: the walk's input boundary DISCLOSES what it narrowed", () => {
-  it("names EVERY member of SKIPPED_DIRECTORIES and its hit count, one member per probe", async () => {
-    const { SKIPPED_DIRECTORIES, SKIPPED_DIRECTORY_DISCLOSURE_MARKER } = await loadChecker();
-    // The set this case iterates is the EXPORTED one, and its own premise is asserted before the
-    // conclusion: an empty boundary would make the loop below run zero times and pass.
-    expect(SKIPPED_DIRECTORIES.length, "the boundary is empty — the loop below would be vacuous")
-      .toBeGreaterThan(0);
+  it("names EVERY DISCLOSED member of SKIPPED_DIRECTORIES and its hit count, one member per probe", async () => {
+    const { DISCLOSED_SKIPPED_DIRECTORIES, SKIPPED_DIRECTORY_DISCLOSURE_MARKER } = await loadChecker();
+    // The set this case iterates is the EXPORTED, DERIVED half, and its own premise is asserted
+    // before the conclusion: an empty half would make the loop below run zero times and pass.
+    //
+    // 31-42 (IN-19): it used to iterate the WHOLE boundary. The disclosure now fires only for the
+    // half whose skip could plausibly hide this repository's own evidence; the other half's
+    // behaviour is the converse case below, so no member falls out of both.
+    expect(
+      DISCLOSED_SKIPPED_DIRECTORIES.length,
+      "the disclosed half is empty — the loop below would be vacuous",
+    ).toBeGreaterThan(0);
     const baseline = runCheck(mkSkipProbeTarget(null));
-    for (const member of SKIPPED_DIRECTORIES) {
+    for (const member of DISCLOSED_SKIPPED_DIRECTORIES) {
       const r = runCheck(mkSkipProbeTarget(member));
       expect(r.stderr, `${member}: the skip is not disclosed`).toContain(
         SKIPPED_DIRECTORY_DISCLOSURE_MARKER,
@@ -9272,6 +9285,75 @@ describe("uat-spec-integrity — 31-32 WR-35: the walk's input boundary DISCLOSE
       expect(r.status, `${member}: the exit code moved`).toBe(baseline.status);
       expect(r.stdout, `${member}: stdout moved`).toBe(baseline.stdout);
     }
+  });
+
+  it("31-42 (IN-19): the OMITTED half is still SKIPPED and still COUNTED, and grows no line", async () => {
+    row("IN19-omitted-half-silent-but-counted");
+    const { UNDISCLOSED_SKIPPED_DIRECTORIES, SKIPPED_DIRECTORY_DISCLOSURE_MARKER, deriveSpecPaths } =
+      await loadChecker();
+    expect(
+      UNDISCLOSED_SKIPPED_DIRECTORIES.length,
+      "PREMISE: the omitted half is empty — this case would be vacuous",
+    ).toBeGreaterThan(0);
+    const baseline = runCheck(mkSkipProbeTarget(null));
+    for (const member of UNDISCLOSED_SKIPPED_DIRECTORIES) {
+      const root = mkSkipProbeTarget(member);
+      const r = runCheck(root);
+      // NOT DISCLOSED: meeting this name grows no line at all.
+      expect(
+        r.stderr.includes(SKIPPED_DIRECTORY_DISCLOSURE_MARKER),
+        `${member}: an omitted name still grew a disclosure line — the partition is not reaching the emission`,
+      ).toBe(false);
+      expect(r.status, `${member}: the exit code moved`).toBe(baseline.status);
+      expect(r.stdout, `${member}: stdout moved`).toBe(baseline.stdout);
+      // …AND STILL SKIPPED, AND STILL COUNTED. Omitting a name from the DISCLOSURE is not omitting
+      // it from the boundary: the walk still refuses to descend, and `deriveSpecPaths` still records
+      // the hit, so the count keeps its one origin and a later plan can widen the disclosure without
+      // re-deriving anything.
+      const d = deriveSpecPaths(root);
+      expect(
+        d.skippedDirectoryHits[member],
+        `${member}: the walk no longer counts a skip it still takes`,
+      ).toBe(1);
+      expect(
+        d.relPaths,
+        `${member}: a spec under an omitted name entered the derived set`,
+      ).toEqual(["e2e/uat/visible.uat.spec.ts"]);
+    }
+  });
+
+  it("31-42 (IN-19): the partition is DERIVED — its union is the boundary and its halves are disjoint", async () => {
+    row("IN19-partition-union-and-disjoint");
+    const {
+      SKIPPED_DIRECTORIES,
+      DISCLOSED_SKIPPED_DIRECTORIES,
+      UNDISCLOSED_SKIPPED_DIRECTORIES,
+      SKIPPED_DIRECTORY_DISCLOSURE_CLASS,
+    } = await loadChecker();
+    expect(SKIPPED_DIRECTORIES.length, "PREMISE: the boundary is empty").toBeGreaterThan(0);
+    expect(DISCLOSED_SKIPPED_DIRECTORIES.length, "PREMISE: the disclosed half is empty").toBeGreaterThan(0);
+    expect(UNDISCLOSED_SKIPPED_DIRECTORIES.length, "PREMISE: the omitted half is empty").toBeGreaterThan(0);
+
+    // UNION: a watched name added without a class falls out of BOTH halves and is caught here, which
+    // is the whole reason the halves are derived from the published set rather than typed beside it.
+    expect(
+      [...DISCLOSED_SKIPPED_DIRECTORIES, ...UNDISCLOSED_SKIPPED_DIRECTORIES].sort(),
+      "a watched directory name is in neither half of the disclosure partition — it would be skipped " +
+        "silently AND left out of the recipe's omitted list, which is the one outcome this partition exists to prevent",
+    ).toEqual([...SKIPPED_DIRECTORIES].sort());
+
+    // DISJOINT: no name is in both halves, so the emission condition cannot be true and false at once.
+    const both = DISCLOSED_SKIPPED_DIRECTORIES.filter((n) =>
+      UNDISCLOSED_SKIPPED_DIRECTORIES.includes(n),
+    );
+    expect(both, `a watched name is in BOTH halves: ${both.join(", ")}`).toEqual([]);
+
+    // …and the CLASS record carries no key the boundary lacks — the padding direction. A class for a
+    // name nobody skips is a decision about nothing, and it would make the union pass by accident.
+    expect(
+      Object.keys(SKIPPED_DIRECTORY_DISCLOSURE_CLASS).sort(),
+      "the disclosure class record and the walk's input boundary name different sets",
+    ).toEqual([...SKIPPED_DIRECTORIES].sort());
   });
 
   it("a run with NOTHING skipped grows no line — stderr stays empty and stdout is the pass line", () => {
@@ -9313,6 +9395,18 @@ describe("uat-spec-integrity — 31-32 WR-35: the walk's input boundary DISCLOSE
   it("the renderer emits NOTHING for an empty hit set, and a deterministic line for a non-empty one", async () => {
     const { renderSkippedDirectoryDisclosure } = await loadChecker();
     expect(renderSkippedDirectoryDisclosure({}), "an empty hit set produced a line").toBeNull();
+    // 31-42 (IN-19): a hit set holding ONLY omitted names is the same event as an empty one — which
+    // is nearly every host run, and the reason the line stopped meaning anything.
+    expect(
+      renderSkippedDirectoryDisclosure({ node_modules: 1, ".git": 1 }),
+      "a hit set of only omitted names produced a line",
+    ).toBeNull();
+    // …and a MIXED set names the disclosed half only.
+    const mixed = renderSkippedDirectoryDisclosure({ node_modules: 1, ".git": 1, ".temp": 1 });
+    expect(mixed, "a mixed hit set produced no line").not.toBeNull();
+    expect((mixed as string).includes("node_modules")).toBe(false);
+    expect((mixed as string).includes(".git=")).toBe(false);
+    expect((mixed as string)).toContain(".temp=1");
     const line = renderSkippedDirectoryDisclosure({ tools: 2, ".temp": 1 });
     expect(line).not.toBeNull();
     // ONE line, and ordered by NAME rather than by insertion, so two runs over the same tree emit
@@ -9360,6 +9454,59 @@ describe("browser-uat-recipe.md — 31-32: the published input boundary equals t
       .toEqual([...SKIPPED_DIRECTORIES].sort());
   });
 
+  it("31-42 (IN-19): the recipe's quoted PARTITION halves equal the exported ones, both directions", async () => {
+    row("IN19-RECIPE-partition-both-directions");
+    const { DISCLOSED_SKIPPED_DIRECTORIES, UNDISCLOSED_SKIPPED_DIRECTORIES } = await loadChecker();
+    const whole = readFileSync(RECIPE, "utf8");
+    expect(whole.length, "PREMISE: the recipe is empty").toBeGreaterThan(0);
+    // The SAME strict grammar the ban sets and the boundary itself are read by. Both halves are read
+    // back, so the omitted half is published by a value read from the partition rather than typed.
+    for (const [name, published] of [
+      ["DISCLOSED_SKIPPED_DIRECTORIES", DISCLOSED_SKIPPED_DIRECTORIES],
+      ["UNDISCLOSED_SKIPPED_DIRECTORIES", UNDISCLOSED_SKIPPED_DIRECTORIES],
+    ] as const) {
+      expect(published.length, `PREMISE: ${name} is empty`).toBeGreaterThan(0);
+      const lines = whole.split("\n").filter((l) => l.includes(`\`${name}\``));
+      expect(
+        lines.length,
+        `PREMISE: the recipe quotes ${name} on other than exactly one line`,
+      ).toBe(1);
+      const tail = lines[0].slice(lines[0].lastIndexOf(":") + 1);
+      const quoted = [...new Set([...tail.matchAll(/`([^`]+)`/g)].map((m) => m[1]))].sort();
+      expect(quoted, `the recipe's published ${name} and the decided one disagree`).toEqual(
+        [...published].sort(),
+      );
+    }
+  });
+
+  it("31-42 (IN-19): the recipe carries the COUNT MEANING by value, so the line and the claim agree", async () => {
+    row("IN19-RECIPE-count-meaning");
+    const { SKIPPED_DIRECTORY_COUNT_MEANING } = await loadChecker();
+    const whole = readFileSync(RECIPE, "utf8");
+    expect(whole.length, "PREMISE: the recipe is empty").toBeGreaterThan(0);
+    expect(
+      SKIPPED_DIRECTORY_COUNT_MEANING.length,
+      "PREMISE: the exported sentence is empty",
+    ).toBeGreaterThan(0);
+    // The recipe states the same fact in its own prose rather than pasting the sentence, so this
+    // binds the CLAIM rather than the bytes: both must say the counts are of directory entries and
+    // both must refuse the reading that they are hidden specs.
+    const normalise = (t: string): string => t.replace(/\s+/g, " ").toLowerCase();
+    const recipe = normalise(whole);
+    for (const phrase of ["directory entries the walk refused to descend into", "never a count of specs hidden"]) {
+      expect(recipe, `the recipe does not state: ${phrase}`).toContain(phrase);
+    }
+    expect(
+      normalise(SKIPPED_DIRECTORY_COUNT_MEANING),
+      "the emitted sentence does not say what the numbers count",
+    ).toContain("directory entries the walk refused to descend into");
+    // …and the EMISSION carries it, so the reader who never opens the recipe meets the same fact.
+    const r = runCheck(mkSkipProbeTarget(".temp"));
+    expect(r.stderr, "the emitted disclosure does not say what its numbers count").toContain(
+      SKIPPED_DIRECTORY_COUNT_MEANING,
+    );
+  });
+
   it("the recipe carries the disclosure marker BY VALUE, so the claim cannot drift from the emission", async () => {
     const { SKIPPED_DIRECTORY_DISCLOSURE_MARKER } = await loadChecker();
     const whole = readFileSync(RECIPE, "utf8");
@@ -9374,9 +9521,15 @@ describe("browser-uat-recipe.md — 31-32: the published input boundary equals t
     // search would be asserting about the line width the document happens to be wrapped at.
     const folded = whole.replace(/\s+/g, " ");
     expect(folded.length, "PREMISE: the folded recipe is empty").toBeGreaterThan(0);
+    //
+    // 31-42 (IN-19): TWO OF THESE THREE CLAIMS MOVED WITH THE MECHANISM, and they are updated here
+    // rather than relaxed. "each skipped directory" and "when the walk skipped something" were true
+    // of the pre-partition emission and became false the moment the disclosure narrowed to the half
+    // whose skip could hide this repository's own evidence. A hedge would have reproduced IN-19 one
+    // adverb over; what the document says now is what the runnable now does, on both counts.
     for (const claim of [
-      "One line on stderr names each skipped directory and its hit count.",
-      "The line appears only when the walk skipped something.",
+      "One line on stderr names each disclosed skipped directory and its hit count.",
+      "The line appears only when a disclosed name was met.",
       "The disclosure moves no exit code and no finding count.",
     ]) {
       expect(folded, `the recipe does not publish: ${claim}`).toContain(claim);

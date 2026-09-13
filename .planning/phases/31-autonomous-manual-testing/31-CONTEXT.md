@@ -3121,3 +3121,144 @@ file.
   cross-file caller derivation rather than re-implemented: the re-binding route has exactly **one**
   in-repo caller and it FORWARDS the destination its own caller supplies, so a kit-side destination
   is expressible and arrives as a new caller rather than as a changed constraint.
+
+
+#### Gap-closure decision — D-42 (2026-09-13, gap-closure round 9, wave 11, plan 31-42)
+
+- **WHAT FORCED IT.** Two Warnings and one Info from round 8, all on the UAT spec-integrity checker,
+  and all one shape: a published claim whose subject is somebody's attention rather than the code.
+  `WR-37`: `SURFACE_TRUNCATION_ARMS` is introduced as "Every way the walk can stop early, DERIVED
+  from the record above rather than re-typed", and the record it derives from is HAND-AUTHORED — so
+  the derivation is over the sentences somebody wrote, and the review found four exception routes
+  inside the walk that swallow a subtree and record nothing. `WR-38`: the reachability binding
+  `31-34` added — the one direction membership equality cannot see, and `CR-23`'s own direction —
+  derived its expected side from two of the four published ban sets, leaving three of the four
+  modifier tails and the whole configured-path axis with no row keyed to their constant. `IN-19`:
+  the skipped-directory disclosure fires on essentially every host run, on the stream the D-12
+  contract reserves for could-not-run reasons, and the recipe's published zero-byte CONTROL was
+  measured on a probe tree carrying none of the watched names.
+- **D-42 (1) — A COMPLETENESS RECORD IS DERIVED FROM THE POSITIONS IT DESCRIBES, NEVER FROM A RECORD
+  THAT MERELY LOOKS DERIVED.** `SURFACE_TRUNCATION_ARMS` was a real derivation over the wrong
+  subject, which is the most expensive kind: a reader who checks that the constant is computed stops
+  checking. The walk's swallow-site set is now derived from the walk's own syntax tree — its CALL
+  CLOSURE, every `catch` that continues or substitutes a value — its cardinality is asserted, and
+  every derived site must carry an arm in the published truncation record or an entry in the
+  published residual register, IN BOTH DIRECTIONS so a stale entry reds as loudly as a missing one.
+  **THE NUMBER: the derivation finds NINE positions where `31-REVIEW.md`'s `WR-37` names FOUR.** The
+  review's four are a strict subset. The fifth fail-open is the declaration-adding helper's own
+  catch, which no review named and which measured worst of the five: a checker throwing there
+  returned a surface holding NOT ONE framework declaration file, reported as complete, with every
+  call on it then answering `foreign`, which is accept.
+- **D-42 (2) — A FAIL-OPEN THAT IS KEPT IS PUBLISHED WITH A NUMBER, AND AN ARGUMENT WITHOUT A NUMBER
+  IS NOT A DISPOSITION.** `containerTypeArguments`'s docstring ARGUED for its fail-open: "treating
+  every unreadable type as a stopped walk would block runs on the ordinary shapes this call is made
+  over, and a gate that always blocks is a gate nobody reads." The argument is answered by a
+  measurement rather than by a counter-argument. **THE NUMBER: over 26 genuine walks of this
+  repository's own corpus — sixteen fixture specs, seven deep property chains, a 4,200-type wide
+  surface, an index-signature probe and a container probe, with a counter injected into every derived
+  catch position — every one of the nine positions threw ZERO times.** The shapes the argument was
+  about do not throw; they answer. So no fail-open is kept, all five are routed loud, and
+  `UNRESOLVABLE_CALLEE_RESIDUALS` is UNCHANGED at ten. The rule stands for the next position: a kept
+  fail-open carries its throw count in its register entry, and silence is not a disposition.
+- **D-42 (3) — THE INSTRUMENT A RESIDUAL IS DEFENDED BY THE ABSENCE OF IS THE INSTRUMENT THAT ROUND
+  OWES.** `31-VERIFICATION.md` round 8 recorded `WR-37` as "not independently exploitable this
+  session (requires a TypeScript-checker throw this repository cannot synthesise)". A residual whose
+  only defence is that nobody built the probe is a residual nobody has tested. The probe is a
+  SUBSTITUTE CHECKER that throws from exactly one chosen position, driven through a newly exported
+  `frameworkSurface` — one seam, the same kind `main` already offers through its `deps` record, never
+  a second code path. Every derived site is driven, with the pre-fix and post-fix readings both
+  recorded in `red-evidence/31-42-task1-red.json`.
+- **D-42 (4) — A BINDING'S EXPECTED SIDE IS DERIVED FROM THE FAMILY THE AUTHORITY CONSULTS, NOT FROM
+  CONSTANTS IMPORTED BY NAME.** The reachability binding now starts at `isBannedModifierCall` —
+  `D-18`'s one membership authority — follows its call closure inside the module, and collects every
+  EXPORTED constant those functions reference whose initializer is a frozen collection.
+  **THE NUMBER: the family's cardinality is FOUR, with EIGHT members, and the required-row set grew
+  from three rows under two hand-made prefixes to eight rows keyed to the constant that publishes
+  each member.** `CALL_LINK_MARKER` is referenced by the same closure and is excluded by the shape
+  filter, which is the discrimination that keeps the family from being "every constant nearby". The
+  row id is `REACH-<constant>-<member>`, so a fifth published ban set joins this binding by being
+  CONSULTED rather than by somebody remembering a fifth prefix. Five rows were added — the four
+  published modifier tails and the configured path — with one new corpus fixture,
+  `reach-modifier-tails.uat.spec.ts`; `fixme` and `fail` were called by NO fixture before this plan.
+- **D-42 (5) — A DISCLOSURE THAT FIRES EVERY TIME DISCLOSES NOTHING, SO THE WATCHED NAMES ARE
+  PARTITIONED BY THE QUESTION THE DISCLOSURE EXISTS TO ANSWER.** `D-33 (5)`'s purpose is to make a
+  NARROWED DENOMINATOR legible. The question that serves it is narrow — could a skip at THIS name
+  plausibly hide THIS repository's own UAT evidence? — and the five watched names split cleanly on
+  it. `dist`, `tools` and `.temp` are paths under the host's own control where a spec can genuinely
+  land; `node_modules` is a dependency tree the host does not author and `.git` is an object store,
+  and both are present at the root of virtually every repository, which is why the line fired on
+  virtually every run. Both halves are DERIVED from `SKIPPED_DIRECTORIES` by filtering a published
+  class record, with the union asserted equal to the boundary and the halves asserted disjoint, so a
+  sixth watched name lands in one half or turns the case red. **THE OMISSION IS NOT AN ERASURE:** an
+  omitted name is still skipped, still counted by `deriveSpecPaths`, and listed once in
+  `browser-uat-recipe.md` by a value read from the partition.
+- **D-42 (6) — THE STREAM STAYS, AND THE SHARING IS STATED RATHER THAN LEFT TO BE DISCOVERED.** Read
+  against the written contract rather than by preference. The module's own D-12 block reserves
+  "stderr → every could-not-run reason, including both loud-skip markers"; `agent-factory/workflows/
+  05-pr-quality-gate.md` step 3 instructs the reader to "Branch on the exit code", not on the
+  presence of stderr bytes. So the mis-reading `IN-19` describes is possible from the contract and is
+  not what the workflow tells a reader to do. Moving the line to stdout would put a NON-RESULT on the
+  stream that contract reserves for the result and the audit trail, and would change the pass line a
+  host's tooling reads. **Decision: it stays on stderr**, the recipe now says plainly that it shares
+  a stream with could-not-run reasons and that the EXIT CODE — which the disclosure never moves — is
+  how a reader tells them apart, and no case asserting the stream contract is touched.
+- **D-42 (7) — THE COUNTED THING IS NAMED IN THE LINE A READER MEETS.** The numbers are directory
+  ENTRIES the walk refused to descend into. They are not specs hidden under them, and the runnable
+  cannot know that number because it did not look. That sentence is now EMITTED, exported as
+  `SKIPPED_DIRECTORY_COUNT_MEANING`, and bound to the recipe's own statement of the same fact.
+- **THE TWO HOST READINGS THIS CORRECTION IS MADE AGAINST**, both taken before anything was decided,
+  both on darwin at the round-9 base:
+  - **This repository, which is a host.** `node scripts/runnable-ref/uat-spec-integrity.js .` →
+    EXIT 2, **0 bytes on stdout**, **366 bytes on stderr** — 217 of them the disclosure, naming
+    `.git=1, .temp=1, node_modules=1`, and 149 the zero-specs could-not-run reason. After the
+    partition, the same command writes the disclosure for `.temp=1` alone.
+  - **A probe tree carrying none of the watched names as a real directory**, equipped with the
+    transcribed surface and a SYMLINKED `node_modules` (a symlink is decided by the walk's
+    symbolic-link branch, never at this boundary) → EXIT 0, **58 bytes on stdout** (the pass line),
+    **0 bytes on stderr**. This is the reading the recipe's CONTROL published as if it were a host's.
+    It is true, and it is a probe.
+- **WHAT D-42 DOES NOT ESTABLISH.**
+  - **It does not establish that a real TypeScript checker ever throws at any of the nine
+    positions.** The stub is the instrument; the 26-walk measurement says the real one did not throw
+    once. Whether a host's checker can be made to throw there is an open `UNKNOWN - verify`, and it
+    is exactly why the positions are now LOUD rather than silent: the residual is survivable because
+    reaching one costs a could-not-run rather than a quiet accept.
+  - **It does not measure the INSTALLED-PACKAGE surface's magnitude.** Standing `UNKNOWN - verify`
+    carried from `D-36` and unchanged: this repository's dependency set is fixed at
+    `{typescript, vitest}`, so `@playwright/test` cannot be installed to measure what its real
+    declared surface costs the walk's two bounds. Re-stated here rather than inherited silently.
+  - **It does not re-check the hand-transcribed declaration corpus against upstream.**
+    `fixtures/playwright-test.d.ts` and `fixtures/foreign-framework.d.ts` are hand transcriptions and
+    their drift from a released Playwright — and from any real second framework — is `R-07`'s open
+    `UNKNOWN - verify`. The new fixture compiles against that same transcription and inherits its
+    standing exactly.
+  - **It does not close the tail axis through a declared-foreign binding member by member.** The
+    shared-resolution case drives ONE member of each of the four published sets through a
+    declared-foreign binding, which is what the plan asked and what answers `CR-23`'s shape. Per-tail
+    foreign coverage is not claimed.
+  - **It does not correct `agent-factory/workflows/05-pr-quality-gate.md`'s own narrower claim.**
+    Step 3 states "Two conditions produce exit `2`, and each one emits its own distinctly-marked loud
+    skip". The checker now reaches exit 2 from more than two conditions — an unresolvable parser, an
+    unusable browser lane, a Program that cannot be created, a walk that stopped early, a containment
+    refusal and a zero-element derivation. That is the same claim-outruns-mechanism shape one
+    document over. It is NOT fixed here: that workflow is inside the `LANG-03` watched corpus and
+    its `## Stop conditions` section is frozen, so the edit owes disposition rows and a companion
+    edit, and this plan was convened for the checker. Recorded in `deferred-items.md` with an owner.
+  - **The Windows leg of everything above is `R-03`** and remains this phase's standing remainder.
+    Every reading here was taken on darwin.
+  - **It does not flip a requirement.** `UATX-01` through `UATX-06` stay UNCHECKED, every
+    traceability row still reads `Gaps Found`, and Phase 31 stays In Progress. `UATX-06` was verified
+    for the first time in round 8, and that verdict is a reading of round 7's tree rather than a
+    licence to flip a box here. Only a verification round may change that, and this phase has now had
+    eight rounds in which the executing round believed it had closed one.
+- **Reversibility: cheap on the module, costly on the record.** One arm, one published site record,
+  one published partition and one exported sentence enter the module; one fixture and twenty-two
+  corpus rows enter the suite. Reverting restores five positions where the walk stops with nothing
+  said, a reachability binding blind to half its own subject, and a disclosure that fires on nearly
+  every host run on the stream reserved for could-not-run reasons. No production BEHAVIOUR outside
+  this checker is touched, and no exit code the D-12 contract publishes moves.
+- **Recorded in five places that must agree:** here; in `scripts/runnable-ref/uat-spec-integrity.ts`
+  (the new arm, `SURFACE_SWALLOW_SITES`, the disclosure class and its two derived halves); in
+  `scripts/runnable-ref/uat-spec-integrity.test.ts` (the derived censuses and their both-direction
+  bindings); in `agent-factory/checklists/browser-uat-recipe.md`, with its rows in
+  `docs/audit/29-style-dispositions/31-42.md`; and in `31-42-SUMMARY.md`'s key-decisions block.

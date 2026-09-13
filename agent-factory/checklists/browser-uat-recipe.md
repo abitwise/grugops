@@ -350,12 +350,39 @@ Deliberately outside the rule, recorded here so the boundary is written down:
 - Directory names the walk never descends into, quoted from `SKIPPED_DIRECTORIES`: `node_modules`, `.git`, `dist`, `tools`, `.temp`.
   A uat spec under one of those names is not counted. It leaves the derived total before the total is
   reported. Neither floor can see that. The derived count and the visited count shrink together. So
-  the runnable says what it skipped. One line on stderr names each skipped directory and its hit
-  count. The line carries names and counts. It carries no path and no file content. The line appears
-  only when the walk skipped something. A run that skipped nothing emits the bytes it emitted before.
-  The disclosure moves no exit code and no finding count. It is a disclosure, never a result. `.temp`
-  is this repository's own scratch name. The runnable ships to every host, so the narrowing is
-  disclosed rather than assumed.
+  the runnable says what it skipped. The disclosure moves no exit code and no finding count. It is a
+  disclosure, never a result. The runnable ships to every host, so the narrowing is disclosed rather
+  than assumed.
+  The names the disclosure NAMES, quoted from `DISCLOSED_SKIPPED_DIRECTORIES`: `dist`, `tools`, `.temp`.
+  The names it OMITS, quoted from `UNDISCLOSED_SKIPPED_DIRECTORIES`: `node_modules`, `.git`.
+  The split is by one question. Could a skip at this name plausibly hide THIS repository's own uat
+  evidence? The first three are paths under the host's own control where a spec can genuinely land. A
+  build step can copy one into its output. The installer materialises the kit into `tools/grugops/`. A
+  probe can write one into the scratch root, which round 5 measured happening. The last two cannot
+  hide the host's own evidence. `node_modules` is a dependency tree the host does not author, so a
+  spec under it is a package's file and not this repository's. `.git` is an object store and not a
+  working tree. Both halves are derived from the published boundary rather than listed beside it, and
+  their union is asserted equal to it, so a sixth watched name lands in one half or turns the check
+  red. An omitted name is still skipped and still counted. Only the line is narrower.
+  One line on stderr names each disclosed skipped directory and its hit count. The line carries names
+  and counts. It carries no path and no file content. Each number counts DIRECTORY ENTRIES the walk
+  refused to descend into. It is never a count of specs hidden under them, and the runnable does not
+  know that number, because it did not look. The line appears only when a disclosed name was met.
+  A run that met none of them emits the bytes it emitted before.
+  The stream is shared, and that is stated rather than left to be discovered. This line lands on
+  stderr, which the invocation contract above reserves for every could-not-run reason. A reader tells
+  them apart by the EXIT CODE, which the disclosure never moves. Workflow 05 already branches on the
+  exit code and not on the presence of stderr bytes, so a run that exits `0` with this line on stderr
+  is a pass with a narrowed denominator and never a skip. Keeping it here is a decision. Moving it to
+  stdout would put a non-result on the stream that contract reserves for the result and the audit
+  trail, and would change the pass line a host's tooling reads.
+  MEASURED on grugops's own repository, which is a host: before this narrowing, `node
+  tools/grugops/uat-spec-integrity.js .` wrote 217 bytes of disclosure naming `.git=1, .temp=1,
+  node_modules=1`; after it, it writes the disclosure for `.temp=1` alone. The zero-byte CONTROL this
+  paragraph used to publish was taken on a probe tree carrying none of the five names, and is
+  repeated here as what it is: an equipped probe with a symlinked `node_modules` exits `0` with 58
+  bytes of pass line and 0 bytes on stderr. Both readings are true. Only one of them is a host, and
+  the claim is now made against both.
 
 Widening the rule is a new decision and a gap-closure round, never a quiet edit to the checker.
 

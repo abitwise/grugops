@@ -80,6 +80,71 @@ export const SKIPPED_DIRECTORIES: readonly string[] = Object.freeze([
   ".temp",
 ]);
 
+/**
+ * 31-42 (IN-19, D-42): WHICH WATCHED NAMES THE DISCLOSURE ACTUALLY DISCLOSES, and why the set is
+ * SMALLER than the set the walk skips.
+ *
+ * WHAT WAS WRONG. `D-33 (5)` emits one line whenever ANY member above was met. `node_modules` and
+ * `.git` sit at the root of virtually every repository, so the line fired on essentially every host
+ * run. MEASURED on this repository at the round-9 base: `node scripts/runnable-ref/uat-spec-integrity.js .`
+ * → exit 2, 0 bytes on stdout, 217 bytes of disclosure on stderr naming `.git=1, .temp=1,
+ * node_modules=1`. The recipe's published CONTROL — "a run that skipped nothing emits the bytes it
+ * emitted before" — was measured on a probe tree carrying none of the five names (exit 0, 58 bytes
+ * of pass line, 0 bytes on stderr), which is a true reading of a probe and not of a host. A
+ * disclosure that fires every time discloses nothing; it becomes the line a reader learns to skip
+ * past, which is the opposite of what `D-33 (5)` was for.
+ *
+ * WHAT THE PARTITION IS FOR. `D-33 (5)`'s purpose is to make a NARROWED DENOMINATOR legible: the
+ * derived count and the visited count shrink together, so neither floor in `reportMeasured` can see
+ * a spec that left the tree at this boundary. The question that serves that purpose is therefore
+ * narrow — could a skip at THIS name plausibly hide THIS repository's own UAT evidence? — and it is
+ * the question this record answers, name by name.
+ *
+ * `dist`, `tools` and `.temp` are paths under the host's own control where a `*.uat.spec.ts` can
+ * genuinely land: a build step copying a spec into its output, the installer materialising the kit
+ * into `tools/grugops/`, a probe writing into the scratch root. Round 5 measured that last one
+ * happening. A spec at any of them leaves the denominator without the host choosing it, which is
+ * exactly the event worth a line.
+ *
+ * `node_modules` and `.git` cannot hide the host's OWN evidence. `node_modules` is a dependency
+ * tree the host does not author — a spec under it belongs to a package, and counting it would move
+ * this repository's denominator by somebody else's file. `.git` is an object store, not a working
+ * tree; it holds no readable `*.uat.spec.ts` at all. They are also the two names present in nearly
+ * every repository, which is why the line fired on nearly every run.
+ *
+ * THE OMISSION IS NOT AN ERASURE. Both names stay in `SKIPPED_DIRECTORIES`, both are still counted
+ * by the walk, and both are listed once in `browser-uat-recipe.md` by a value read from this
+ * partition. What changes is only whether meeting one grows a line.
+ */
+export const SKIPPED_DIRECTORY_DISCLOSURE_CLASS: Readonly<
+  Record<string, "could-hide-evidence" | "cannot-hide-evidence">
+> = Object.freeze({
+  node_modules: "cannot-hide-evidence",
+  ".git": "cannot-hide-evidence",
+  dist: "could-hide-evidence",
+  tools: "could-hide-evidence",
+  ".temp": "could-hide-evidence",
+});
+
+/**
+ * The two halves, DERIVED from `SKIPPED_DIRECTORIES` by filtering rather than typed beside it.
+ *
+ * Deriving both from the published set is what makes a SIXTH watched name land in one half or fall
+ * out of BOTH — never quietly into the disclosed one and never quietly out of the disclosure. The
+ * harness asserts the union equals `SKIPPED_DIRECTORIES` and the intersection is empty, so a name
+ * added above without a class here turns that case red naming itself.
+ */
+export const DISCLOSED_SKIPPED_DIRECTORIES: readonly string[] = Object.freeze(
+  SKIPPED_DIRECTORIES.filter((n) => SKIPPED_DIRECTORY_DISCLOSURE_CLASS[n] === "could-hide-evidence"),
+);
+
+/** The other half, derived the same way. Listed in the recipe so nothing becomes invisible. */
+export const UNDISCLOSED_SKIPPED_DIRECTORIES: readonly string[] = Object.freeze(
+  SKIPPED_DIRECTORIES.filter(
+    (n) => SKIPPED_DIRECTORY_DISCLOSURE_CLASS[n] === "cannot-hide-evidence",
+  ),
+);
+
 // D-14 arm (c), as decided by D-17: the banned member calls are a RULE over the resolved dotted
 // path, never an enumerable list of dotted paths. The browser-UAT recipe quotes the three constants
 // below BY VALUE and states the rule in prose, so the documented claim and the decided rule have a
@@ -637,6 +702,14 @@ export const UNRESOLVABLE_CALLEE_RESIDUALS: readonly string[] = Object.freeze([
  */
 export const SKIPPED_DIRECTORY_DISCLOSURE_MARKER =
   "UAT spec integrity: the walk SKIPPED directory entries by name:";
+
+/**
+ * 31-42 (IN-19): the sentence that says WHAT the counts count, exported for the same reason the
+ * marker is — so the recipe quotes it rather than restating it, and one case binds the claim to the
+ * emission.
+ */
+export const SKIPPED_DIRECTORY_COUNT_MEANING =
+  "Each number is a count of DIRECTORY ENTRIES the walk refused to descend into, never a count of uat specs hidden under them; the walk did not look inside, so it does not know that number.";
 
 export const PARSER_ABSENT_MARKER =
   "SKIPPED: the target repository does not provide typescript — UAT specs NOT checked; the UAT status stays pending";
@@ -2068,8 +2141,13 @@ export function deriveSpecPaths(repoRoot: string): SpecDerivation {
 /**
  * D-33 (5): the single line that discloses what the walk's INPUT BOUNDARY removed from this run.
  *
- * Returns `null` for an empty hit set, which is what keeps a run with nothing skipped BYTE-IDENTICAL
- * to what it emitted before this disclosure existed. A clean run must not grow a line.
+ * Returns `null` when nothing DISCLOSABLE was hit, which is what keeps a run with nothing skipped
+ * BYTE-IDENTICAL to what it emitted before this disclosure existed. A clean run must not grow a line.
+ *
+ * 31-42 (IN-19): the hit set is FILTERED to `DISCLOSED_SKIPPED_DIRECTORIES` here, at the one place
+ * the line is built, so the emission CONDITION follows the partition automatically rather than
+ * being decided a second time at the call site. A run that met only `node_modules` and `.git` —
+ * which is nearly every host run — therefore emits nothing at all.
  *
  * The line carries directory NAMES and COUNTS and nothing else — never a path and never a file's
  * contents — because a name already appears in the exported constant the browser-UAT recipe
@@ -2079,12 +2157,21 @@ export function deriveSpecPaths(repoRoot: string): SpecDerivation {
 export function renderSkippedDirectoryDisclosure(
   hits: Readonly<Record<string, number>>,
 ): string | null {
-  const names = Object.keys(hits).sort();
+  const disclosed = new Set<string>(DISCLOSED_SKIPPED_DIRECTORIES);
+  const names = Object.keys(hits)
+    .filter((n) => disclosed.has(n))
+    .sort();
   if (names.length === 0) return null;
   const pairs = names.map((n) => `${n}=${hits[n]}`).join(", ");
   return (
     `${SKIPPED_DIRECTORY_DISCLOSURE_MARKER} ${pairs} — these directory names are the walk's input ` +
-    `boundary, so nothing under them is in the derived total this run reports.\n`
+    `boundary, so nothing under them is in the derived total this run reports. ` +
+    // 31-42 (IN-19): WHAT THE NUMBERS COUNT, in the line a reader meets rather than only in the
+    // recipe. They are directory ENTRIES the walk refused to descend into. `dist=2` means the
+    // boundary was reached twice, at two places in the tree; it does NOT mean two uat specs were
+    // hidden, and the runnable cannot know how many were — it did not look. A reader who takes the
+    // count for a spec count reads a disclosure as a finding.
+    `${SKIPPED_DIRECTORY_COUNT_MEANING}\n`
   );
 }
 
