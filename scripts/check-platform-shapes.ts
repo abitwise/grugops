@@ -60,7 +60,7 @@
 // Clear professional voice throughout (CLAUDE.md hard rule for tooling and safety surfaces).
 
 import { spawnSync } from "node:child_process";
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import {
   mkdirSync,
   mkdtempSync,
@@ -72,6 +72,7 @@ import {
 } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { dirname, extname, join } from "node:path";
+import { isEntrypoint } from "./is-entry.js";
 import { closureTargets } from "./js-import-closure.js";
 
 const ROOT = join(import.meta.dirname, "..");
@@ -123,6 +124,83 @@ export const REQUIRE_SKIPS_ENV = "GRUGOPS_PLATFORM_SHAPES_REQUIRE_SKIPS";
 export const STALE_CONTROL_ENV = "GRUGOPS_PLATFORM_SHAPES_STALE_CONTROL";
 
 /**
+ * TEST SEAM — replace the NOTE position's in-child driver with a NAMED MIRROR (plan 31-43, `WR-41`).
+ *
+ * The two seams above make a skip list and a stale staging watchable. This one makes the DRIVER
+ * watchable: a control is only a control if a driver that reports the right answer for the wrong
+ * reason turns it red, and no staging can produce that — the defect lives in what the driver
+ * REPORTS, not in what the position HOLDS.
+ *
+ * The mirror replaces the driver used for the STAGED drives only. `composeOrdinaryNote` keeps the
+ * module's own driver, because it is this module's instrument for composing the position's ordinary
+ * bytes rather than the driver under test; a mirror that broke the compose would stop every note row
+ * from being driven at all, which measures nothing.
+ *
+ * An UNKNOWN kind is a FAILURE, never a silent fall-through to the ordinary program: a typo that
+ * quietly ran the shipped driver would print a green about a mirror nobody ran.
+ */
+export const MIRROR_DRIVER_ENV = "GRUGOPS_PLATFORM_SHAPES_MIRROR_DRIVER";
+
+/** Every mirror this module knows how to build. Closed, and asserted against the seam's input. */
+export const MIRROR_DRIVER_KINDS = Object.freeze([
+  /** Reports the write value and performs no write — the `WR-41` reading, as a driver. */
+  "reports-write-without-writing",
+  /** Writes DIFFERENT bytes at the target and reports the no-op — only a disk read catches it. */
+  "overwrites-the-target-and-reports-a-no-op",
+] as const);
+export type MirrorDriverKind = (typeof MIRROR_DRIVER_KINDS)[number];
+
+/**
+ * THE CLOSED VOCABULARY OF OUTCOMES A POSITION'S DRIVER CAN REPORT (plan 31-43, `WR-41` / `IN-20`).
+ *
+ * Until this plan the note position's driver set `verdict = "write"` on any non-throwing call, so
+ * the CONTROL's positive assertion amounted to "the writer did not refuse" — and because the
+ * ordinary staging plants bytes IDENTICAL to what the writer would write, every ordinary drive went
+ * through `writeNoteFile`'s decided identical-bytes NO-OP branch. Measured at the round-9 base: the
+ * target's bytes, size, inode and modification time were ALL unchanged across the drive, and the row
+ * printed its ordinary-outcome label anyway.
+ *
+ * So an outcome now names WHAT HAPPENED. `write` and `identical-no-op` are different members
+ * because the difference between them exists only on disk, and the driver observes the target's own
+ * state to tell them apart. The set is closed and exported so the printed label can be DERIVED from
+ * it rather than chosen by a two-way test over one condition (`IN-20`): a third outcome cannot
+ * arrive wearing a second outcome's name.
+ */
+export const PLATFORM_SHAPE_OUTCOMES = Object.freeze([
+  /** The note position: bytes landed at the target that were not there before. */
+  "write",
+  /** The note position: the writer proceeded and the target's bytes are exactly what they were. */
+  "identical-no-op",
+  /** The note position: the call returned and the target holds nothing. */
+  "no-write",
+  /** The position refused: the call threw. */
+  "refuse",
+  /** The manifest position: the DECIDER's own decision came back through the wrapper. */
+  "answered",
+  /** The manifest position: the WRAPPER refused to run the decider at all. */
+  "fail-closed",
+  /** The child produced no exit code at all. */
+  "no-answer",
+  /** The child exited non-zero without reporting — a driver that crashed. */
+  "nonzero-exit",
+  /** The child was killed by a signal other than this harness's own timeout kill. */
+  "signalled",
+  /** The child exited zero and reported nothing this harness could read. */
+  "crashed",
+  /** The child reported a token outside this vocabulary. It is named, never mapped onto a member. */
+  "unclassifiable",
+] as const);
+export type PlatformShapeOutcome = (typeof PLATFORM_SHAPE_OUTCOMES)[number];
+
+const OUTCOME_SET: ReadonlySet<string> = new Set<string>(PLATFORM_SHAPE_OUTCOMES);
+
+function asOutcome(reported: string | undefined): PlatformShapeOutcome | null {
+  return reported !== undefined && OUTCOME_SET.has(reported)
+    ? (reported as PlatformShapeOutcome)
+    : null;
+}
+
+/**
  * The wrapper's own fail-closed marker, which is what tells the two manifest-position outcomes apart.
  *
  * `hooks/hook-entry.js` exits 0 whether it passed the decider's decision through or refused with its
@@ -135,7 +213,22 @@ export const STALE_CONTROL_ENV = "GRUGOPS_PLATFORM_SHAPES_STALE_CONTROL";
 const FAIL_CLOSED_PREFIX = "Blocked (fail-closed):";
 
 /** The outcome a CONTROL row reports when its position produced the ordinary outcome. */
-const ORDINARY_OUTCOME = "ordinary outcome (correct)";
+export const ORDINARY_OUTCOME = "ordinary outcome (correct)";
+
+/**
+ * The note position's own not-a-regular-file clause, spelled ONCE.
+ *
+ * It is both the clause the refusal rows are scored against and the clause a mirror must be able to
+ * produce; two spellings of it would let one of those drift while the other stayed green.
+ */
+const NOTE_REFUSAL_CLAUSE = "note-path-not-a-regular-file";
+
+/** The harness's own read of the planted position, quoted by the message it raises. */
+const PLANTED_CONTENTS_CLAUSE = "the planted position does not hold the bytes that were planted there";
+
+function digest(b: Buffer): string {
+  return createHash("sha256").update(b).digest("hex");
+}
 
 /** The two position labels, stated once so the per-position premise below can select their rows. */
 const NOTE_POSITION = "note path";
@@ -148,6 +241,19 @@ function forcedAbsent(): ReadonlySet<string> {
 
 function staleControl(): boolean {
   return (process.env[STALE_CONTROL_ENV] ?? "") !== "";
+}
+
+/**
+ * The mirror this run was asked for, or `null` for the shipped driver.
+ *
+ * An unknown name returns the sentinel `"?"` rather than `null`, so the caller can FAIL on it. The
+ * alternative — treating a typo as "no mirror" — would run the ordinary program and report a green
+ * about a mirror that was never built.
+ */
+function mirrorKind(): MirrorDriverKind | null | "?" {
+  const raw = (process.env[MIRROR_DRIVER_ENV] ?? "").trim();
+  if (raw === "") return null;
+  return (MIRROR_DRIVER_KINDS as readonly string[]).includes(raw) ? (raw as MirrorDriverKind) : "?";
 }
 
 /**
@@ -301,36 +407,125 @@ export const SHAPES: readonly Shape[] = Object.freeze([
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 
 /**
- * The in-child driver for the two `scripts/context-io.js` positions. Written to a temp file rather
- * than passed with `-e`, so the quoting is not a second thing that can go wrong across platforms.
+ * THE IN-CHILD DRIVER FOR THE `scripts/context-io.js` NOTE POSITION, WHICH OBSERVES ITS OWN EFFECT.
+ *
+ * Written to a temp file rather than passed with `-e`, so the quoting is not a second thing that can
+ * go wrong across platforms.
+ *
+ * WHY IT SNAPSHOTS THE TARGET (plan 31-43, `WR-41`). The previous driver set `verdict = "write"` on
+ * any non-throwing call. That is "the writer did not refuse", which is what the clause-absence check
+ * it replaced already implied at this position — and the ordinary staging plants bytes IDENTICAL to
+ * what the writer would write, so the call takes `writeNoteFile`'s decided identical-bytes NO-OP
+ * branch and nothing is written. Measured at the round-9 base: bytes, size, inode and mtime all
+ * unchanged across the drive, row printed `ordinary outcome (correct)`.
+ *
+ * So the child reads the TARGET ITSELF, before and after, and reports what it observed. `statSync`
+ * does not block on a non-regular file and the bytes are read ONLY when the position is a regular
+ * file, so this keeps the bound the whole corpus rests on: an unbounded read at a planted FIFO would
+ * hang this gate rather than report on it.
  */
-function writeContextDriver(dir: string): string {
-  const file = join(dir, "platform-shape-driver.mjs");
-  writeFileSync(
-    file,
-    [
-      'const [, , ioPath, base, noteId] = process.argv;',
-      'const io = await import(new URL("file://" + ioPath.split("\\\\").join("/")).href);',
-      'const out = { verdict: "", message: "" };',
-      "try {",
-      '  io.appendNote("T-shape", { kind: "observation", by: "qe", refs: [] }, "body",',
-      '    base + "/ctx", noteId, base);',
-      '  out.verdict = "write";',
-      "} catch (e) {",
-      '  out.verdict = "refuse";',
-      "  out.message = String(e && e.message ? e.message : e);",
+function contextDriverBody(mirror: MirrorDriverKind | null): string {
+  const preamble = [
+    "const [, , ioPath, base, noteId] = process.argv;",
+    'const fs = await import("node:fs");',
+    'const crypto = await import("node:crypto");',
+    'const target = base + "/ctx/T-shape/notes/" + noteId + ".md";',
+    "// The target's own state. `sha` stays null for a position that is not a regular file, which is",
+    "// how the bound is kept: a FIFO is STATTED, never read.",
+    "const snap = () => {",
+    "  try {",
+    "    const s = fs.statSync(target);",
+    "    if (!s.isFile()) return { present: true, sha: null };",
+    '    return { present: true, sha: crypto.createHash("sha256").update(fs.readFileSync(target)).digest("hex") };',
+    "  } catch {",
+    "    return { present: false, sha: null };",
+    "  }",
+    "};",
+  ];
+  if (mirror === "reports-write-without-writing") {
+    return [
+      ...preamble,
+      "// MIRROR: reports the write value and performs no write. This is the WR-41 reading itself,",
+      "// expressed as a driver, so the CONTROL that must catch it is watched catching it.",
+      "const before = snap();",
+      'console.log(JSON.stringify({ verdict: "write", message: "MIRROR reports-write-without-writing: no call was made; before.sha=" + String(before.sha) }));',
+    ].join("\n");
+  }
+  if (mirror === "overwrites-the-target-and-reports-a-no-op") {
+    return [
+      ...preamble,
+      "// MIRROR: writes DIFFERENT bytes at the target and reports the identical-bytes no-op. The",
+      "// driver's report and the target's state disagree, and only the harness's own read of the",
+      "// planted position can see it.",
+      "//",
+      "// It writes ONLY at a regular file: writing at a planted FIFO would block until this",
+      "// harness's own kill, which turns a fast seeded red into a twenty-second timeout row and",
+      "// tells nobody anything about the CONTROL this mirror exists to move.",
+      "const before = snap();",
+      "if (before.sha !== null) {",
+      '  fs.writeFileSync(target, "MIRROR overwrites-the-target-and-reports-a-no-op\\n");',
+      '  console.log(JSON.stringify({ verdict: "identical-no-op", message: "MIRROR overwrites-the-target-and-reports-a-no-op: the target was rewritten and a no-op reported" }));',
+      "} else {",
+      '  console.log(JSON.stringify({ verdict: "refuse", message: "MIRROR overwrites-the-target-and-reports-a-no-op: the target is not a regular file, so this mirror wrote nothing" }));',
       "}",
-      "console.log(JSON.stringify(out));",
-    ].join("\n"),
-  );
+    ].join("\n");
+  }
+  return [
+    ...preamble,
+    'const io = await import(new URL("file://" + ioPath.split("\\\\").join("/")).href);',
+    "const before = snap();",
+    'const out = { verdict: "", message: "" };',
+    "try {",
+    '  io.appendNote("T-shape", { kind: "observation", by: "qe", refs: [] }, "body",',
+    '    base + "/ctx", noteId, base);',
+    "  const after = snap();",
+    "  // WHAT HAPPENED AT THE TARGET, not whether an exception escaped.",
+    '  if (!after.present) out.verdict = "no-write";',
+    '  else if (!before.present) out.verdict = "write";',
+    '  else if (before.sha === null || after.sha === null) out.verdict = "write";',
+    '  else out.verdict = before.sha === after.sha ? "identical-no-op" : "write";',
+    '  out.message = "before=" + String(before.sha) + " after=" + String(after.sha);',
+    "} catch (e) {",
+    '  out.verdict = "refuse";',
+    "  out.message = String(e && e.message ? e.message : e);",
+    "}",
+    "console.log(JSON.stringify(out));",
+  ].join("\n");
+}
+
+function writeContextDriver(dir: string, mirror: MirrorDriverKind | null = null): string {
+  const file = join(dir, "platform-shape-driver.mjs");
+  writeFileSync(file, contextDriverBody(mirror));
   return file;
 }
 
 interface Driven {
   readonly timedOut: boolean;
   readonly ms: number;
-  readonly verdict: string;
+  readonly outcome: PlatformShapeOutcome;
   readonly message: string;
+}
+
+/**
+ * Classify a child that was supposed to REPORT an outcome.
+ *
+ * The process-level arms come first, because a child that never got to report cannot have its
+ * silence read as any of the reporting outcomes. A token outside the vocabulary is `unclassifiable`
+ * rather than being mapped onto the nearest member: naming the wrong condition is the defect
+ * `IN-20` is about, one register over.
+ */
+function reportedOutcome(
+  signal: NodeJS.Signals | null,
+  status: number | null,
+  reported: string | undefined,
+): PlatformShapeOutcome {
+  if (signal !== null) return "signalled";
+  if (status === null) return "no-answer";
+  const named = asOutcome(reported);
+  if (named !== null) return named;
+  if (reported !== undefined && reported !== "") return "unclassifiable";
+  if (status !== 0) return "nonzero-exit";
+  return "crashed";
 }
 
 function driveContextIo(driver: string, base: string, noteId: string): Driven {
@@ -347,13 +542,13 @@ function driveContextIo(driver: string, base: string, noteId: string): Driven {
     try {
       parsed = JSON.parse(line) as typeof parsed;
     } catch {
-      /* left empty on purpose: the caller reports the raw streams through `verdict` staying "" */
+      /* left empty on purpose: the caller reports the raw streams and the outcome is classified */
     }
   }
   return {
     timedOut: r.signal === "SIGKILL",
     ms,
-    verdict: parsed.verdict ?? "",
+    outcome: reportedOutcome(r.signal, r.status, parsed.verdict),
     message: parsed.message ?? `${r.stdout ?? ""}${r.stderr ?? ""}`,
   };
 }
@@ -400,15 +595,23 @@ function driveHookEntry(mirrorRoot: string): Driven {
   // with its own fail-closed deny, so `status === 0 ? "answered"` reported `answered` for a
   // frozen-manifest refusal — and a CONTROL asserting that verdict would have stayed green over the
   // exact staging `WR-31` measured. The ordinary outcome at this position is the DECIDER's decision.
-  let verdict: string;
-  if (r.signal !== null) verdict = `signal=${String(r.signal)}`;
-  else if (r.status === null) verdict = "no-answer";
-  else if (r.status !== 0) verdict = `status=${String(r.status)}`;
-  else verdict = reason.startsWith(FAIL_CLOSED_PREFIX) ? "fail-closed" : "answered";
+  //
+  // THE OUTCOME COMES FROM THE CLOSED VOCABULARY (plan 31-43, `IN-20`). It used to be assembled as
+  // `status=${N}` / `signal=${S}` — free text, which the printed label then could not be derived
+  // from. The detail survives in `message`; the CLASS is a vocabulary member.
+  const outcome: PlatformShapeOutcome = reportedOutcome(
+    r.signal,
+    r.status,
+    r.signal === null && r.status === 0
+      ? reason.startsWith(FAIL_CLOSED_PREFIX)
+        ? "fail-closed"
+        : "answered"
+      : undefined,
+  );
   return {
     timedOut: r.signal === "SIGKILL",
     ms,
-    verdict,
+    outcome,
     message: reason,
   };
 }
@@ -433,12 +636,26 @@ interface Staged {
   readonly run: () => Driven;
   readonly refusalClause: string;
   /**
-   * The verdict THIS POSITION produces for a shape it does not refuse — `write` at the note
-   * position, `answered` at the manifest position. The CONTROL asserts equality against it, which is
-   * the whole of `WR-31`'s fix: the absence of one refusal clause is not evidence that the ordinary
-   * outcome happened.
+   * The outcome THIS POSITION produces for a CONTROL shape — the identical-bytes NO-OP at the note
+   * position, the decider's own `answered` decision at the manifest position. The CONTROL asserts
+   * equality against it.
+   *
+   * `WR-31` established the positive assertion; plan 31-43 supplies the observation it was missing
+   * at the note position. `write` was the value there, and the driver set it on any non-throwing
+   * call while the staging guaranteed a no-op — so the equality held over a drive that did nothing.
+   * The expected value is now the outcome the staging actually produces, and the driver reports it
+   * from the target's own state.
    */
-  readonly controlVerdict: string;
+  readonly controlOutcome: PlatformShapeOutcome;
+  /**
+   * THE HARNESS'S OWN READ OF THE PLANTED POSITION, taken after every CONTROL drive.
+   *
+   * Not redundant with the outcome, and this is the whole point of `WR-41`: the staging deliberately
+   * plants the bytes the writer would write, so a conclusion derived from the call alone cannot tell
+   * a write from a no-op, and a driver is free to report anything. This reads the disk. It returns a
+   * failure message, or `null` when the position holds what it was planted with.
+   */
+  readonly verifyAfter?: () => string | null;
 }
 
 function drivePosition(position: string, plant: (shape: Shape) => Staged): void {
@@ -463,7 +680,7 @@ function drivePosition(position: string, plant: (shape: Shape) => Staged): void 
         `${position} / ${shape.name}: NO ANSWER within ${DRIVE_TIMEOUT_MS} ms. An unbounded read at ` +
           "a non-regular file is the defect this corpus exists to catch.",
       );
-      record(position, shape, "HUNG", d.ms, d.verdict);
+      record(position, shape, "HUNG", d.ms, d.outcome);
       continue;
     }
     const namedRefusal = d.message.includes(staged.refusalClause);
@@ -475,26 +692,35 @@ function drivePosition(position: string, plant: (shape: Shape) => Staged): void 
       // not tell "the position produced its ordinary outcome" from "the position refused for a
       // DIFFERENT reason", and round 7 measured a whole run in which every one of these rows was a
       // refusal and every one of them was scored correct.
-      const ordinary = d.verdict === staged.controlVerdict;
-      if (!ordinary || namedRefusal) {
+      //
+      // AND THE HARNESS READS THE PLANTED POSITION ITSELF (plan 31-43, `WR-41`). The driver's report
+      // is the only thing the harness would otherwise see, and at this position the staging plants
+      // exactly what the writer would write — so a report is not evidence that anything happened
+      // there. This read is the harness's own observation of its own effect, which the module header
+      // says it will not ship a control without.
+      const contentsProblem = staged.verifyAfter?.() ?? null;
+      if (contentsProblem !== null) failures.push(`${position} / ${shape.name}: ${contentsProblem}`);
+      const outcomeMatched = d.outcome === staged.controlOutcome;
+      const ordinary = outcomeMatched && !namedRefusal && contentsProblem === null;
+      if (!outcomeMatched || namedRefusal) {
         failures.push(
           `${position} / ${shape.name}: the CONTROL did not produce its position's ordinary ` +
-            `outcome (verdict=${d.verdict}, expected ${staged.controlVerdict}` +
+            `outcome (verdict=${d.outcome}, expected ${staged.controlOutcome}` +
             `${namedRefusal ? `; it was refused with "${staged.refusalClause}"` : ""}). ` +
             "A corpus in which every shape is refused has measured nothing. " +
             `message=${d.message.slice(0, 200)}`,
         );
       }
-      record(position, shape, ordinary && !namedRefusal ? ORDINARY_OUTCOME : "REFUSED (wrong)", d.ms, d.verdict);
+      record(position, shape, ordinary && !namedRefusal ? ORDINARY_OUTCOME : "REFUSED (wrong)", d.ms, d.outcome);
       continue;
     }
     if (!namedRefusal) {
       failures.push(
         `${position} / ${shape.name}: expected a refusal naming "${staged.refusalClause}", got ` +
-          `verdict=${d.verdict} message=${d.message.slice(0, 200)}`,
+          `verdict=${d.outcome} message=${d.message.slice(0, 200)}`,
       );
     }
-    record(position, shape, namedRefusal ? "named refusal" : "NOT REFUSED", d.ms, d.verdict);
+    record(position, shape, namedRefusal ? "named refusal" : "NOT REFUSED", d.ms, d.outcome);
   }
 }
 
@@ -522,12 +748,20 @@ function freshNoteId(): string {
  * knowable and this function throws rather than returning bytes nobody measured.
  */
 function composeOrdinaryNote(id: string): Buffer {
+  // THE COMPOSE USES THE MODULE'S OWN DRIVER, NEVER A MIRROR. This is the instrument that produces
+  // the position's ordinary bytes, not the driver under test; a mirror here would stop every note
+  // row from being driven at all, and a corpus that drove nothing measures nothing.
+  //
+  // It is also the one drive in this module that observes a REAL write: the store is empty, so the
+  // target is absent before the call and present after, and the outcome is `write` rather than the
+  // `identical-no-op` the staged CONTROL drives produce. The two outcomes are therefore both
+  // exercised on every ordinary run, by the same driver, from the target's own state.
   const base = tmpRoot("grugops-shape-note-compose-");
   const driver = writeContextDriver(base);
   const d = driveContextIo(driver, base, id);
-  if (d.verdict !== "write") {
+  if (d.outcome !== "write") {
     throw new Error(
-      `the note position's ORDINARY content could not be composed (verdict=${d.verdict} ` +
+      `the note position's ORDINARY content could not be composed (verdict=${d.outcome} ` +
         `message=${d.message.slice(0, 300)}). Without it the CONTROL has no ordinary outcome to ` +
         "assert, and a control that cannot state what it expects is the defect this gate reports.",
     );
@@ -547,7 +781,7 @@ function ordinaryBytes(compute: () => Buffer): () => Buffer {
   return () => (cached ??= staleControl() ? Buffer.alloc(0) : compute());
 }
 
-function runNotePosition(): void {
+function runNotePosition(mirror: MirrorDriverKind | null): void {
   const id = freshNoteId();
   const planted = ordinaryBytes(() => composeOrdinaryNote(id));
   drivePosition(NOTE_POSITION, (shape) => {
@@ -556,14 +790,46 @@ function runNotePosition(): void {
     mkdirSync(dirname(at), { recursive: true });
     rmSync(at, { recursive: true, force: true });
     const made = shape.make(at, planted());
-    const driver = writeContextDriver(base);
+    const driver = writeContextDriver(base, mirror);
     return {
       made,
       run: () => driveContextIo(driver, base, id),
-      refusalClause: "note-path-not-a-regular-file",
-      controlVerdict: "write",
+      refusalClause: NOTE_REFUSAL_CLAUSE,
+      // THE STAGING PLANTS WHAT THE WRITER WOULD WRITE, SO THE ORDINARY OUTCOME IS THE NO-OP. The
+      // identical-bytes case is decided explicitly by `writeNoteFile` and is the ordinary,
+      // idempotent operation at this position; expecting `write` here expected an effect the
+      // staging makes impossible, which is why the old expectation could only ever be satisfied by
+      // a driver that reported on the absence of a throw (plan 31-43, `WR-41`).
+      controlOutcome: "identical-no-op",
+      verifyAfter: () => plantedContents(at, planted()),
     };
   });
+}
+
+/**
+ * Does the planted position still hold the bytes that were planted there?
+ *
+ * Read from the harness's own side, outside the child, after the drive. Only CONTROL shapes reach
+ * this — a regular file or a symlink resolving to one — so the read is bounded by the shape rather
+ * than by a timeout.
+ */
+function plantedContents(at: string, expected: Buffer): string | null {
+  let actual: Buffer;
+  try {
+    actual = readFileSync(at);
+  } catch (cause) {
+    return (
+      `after the drive ${PLANTED_CONTENTS_CLAUSE} — it could not be read at all ` +
+      `(${cause instanceof Error ? cause.message : String(cause)}).`
+    );
+  }
+  if (actual.equals(expected)) return null;
+  return (
+    `after the drive ${PLANTED_CONTENTS_CLAUSE} — it holds ${String(actual.length)} byte(s) with ` +
+    `sha256=${digest(actual)}, where ${String(expected.length)} byte(s) with sha256=` +
+    `${digest(expected)} were planted. The driver's own report cannot see this: the staging plants ` +
+    "exactly what the writer would write."
+  );
 }
 
 // THE GOV-02 AUDIT LEDGER POSITION IS DELIBERATELY NOT DRIVEN HERE, AND THE REASON IS A GUARD THAT
@@ -605,7 +871,12 @@ function runManifestPosition(): void {
       made,
       run: () => driveHookEntry(mirror),
       refusalClause: "manifest-path-not-a-regular-file",
-      controlVerdict: "answered",
+      controlOutcome: "answered",
+      // ONE CONVENTION IN THIS MODULE, NOT TWO. This position's driver already reports what happened
+      // rather than that nothing threw, and it is the half of `WR-31`'s fix that was genuine — but
+      // the disk read is cheap and the question is the same one, so it is asked here too: after the
+      // drive the planted module must still be the module that was planted.
+      verifyAfter: () => plantedContents(at, planted()),
     };
   });
 }
@@ -702,8 +973,41 @@ function main(): number {
     `[check_platform_shapes] platform=${process.platform} node=${process.version}\n` +
       "the shape corpus, driven on this platform, with a recorded skip list (plan 31-30, R-03)\n",
   );
+
+  // THE MIRROR, IF ONE WAS ASKED FOR, IS DECLARED AND PROVED DIFFERENT BEFORE ANY ROW IS DRIVEN.
+  //
+  // "Watched failing" only means something when the artifact that produced the red is known to be a
+  // different artifact from the one that ships. The two digests are printed so the difference is a
+  // reading rather than an assumption, and a mirror that turned out to be byte-identical to the
+  // live driver is a FAILURE — it would have measured nothing while looking like a red.
+  const requested = mirrorKind();
+  const mirror = requested === "?" ? null : requested;
+  if (requested === "?") {
+    failures.push(
+      `${MIRROR_DRIVER_ENV} names "${process.env[MIRROR_DRIVER_ENV] ?? ""}", which is not one of ` +
+        `${JSON.stringify(MIRROR_DRIVER_KINDS)}. A typo that quietly ran the shipped driver would ` +
+        "print a green about a mirror nobody built.",
+    );
+  } else if (mirror !== null) {
+    const ordinaryDigest = digest(Buffer.from(contextDriverBody(null), "utf8"));
+    const mirrorDigest = digest(Buffer.from(contextDriverBody(mirror), "utf8"));
+    process.stdout.write(
+      "\nMIRROR ACTIVE — the note position's driver is a MIRROR, not this module's own driver.\n" +
+        `  kind             ${mirror}\n` +
+        `  ordinary driver  sha256=${ordinaryDigest}\n` +
+        `  mirror driver    sha256=${mirrorDigest}\n` +
+        `  differ           ${ordinaryDigest === mirrorDigest ? "NO" : "yes"}\n`,
+    );
+    if (ordinaryDigest === mirrorDigest) {
+      failures.push(
+        `the mirror "${mirror}" is BYTE-IDENTICAL to the module's own driver, so any red it ` +
+          "produces is a red about the shipped program rather than about a seeded defect.",
+      );
+    }
+  }
+
   try {
-    runNotePosition();
+    runNotePosition(mirror);
     runManifestPosition();
     runExitCodeContract();
     measureDirectoryIdentity();
@@ -815,4 +1119,13 @@ function main(): number {
   return 0;
 }
 
-process.exit(main());
+// Entry check: true only when this module was launched directly (not imported), through the ONE
+// spelling `scripts/is-entry.ts` owns (`RA6-1`). It is what lets this file PUBLISH its outcome
+// vocabulary and its label derivation — a module that calls `process.exit` at load cannot be asked
+// what its own vocabulary is, so every expectation about it would have to be a second hand-typed
+// spelling, which is the set-literal drift class this phase has already paid for twice. The guard
+// fails towards running: `isEntrypoint` realpath-resolves both sides, so a symlinked invocation
+// path is the same answer as a direct one and the silent-no-op shape is unreachable.
+if (isEntrypoint(import.meta.url)) {
+  process.exit(main());
+}

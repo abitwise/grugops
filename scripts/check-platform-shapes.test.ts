@@ -246,7 +246,13 @@ describe("31-36 WR-31 — the CONTROL rows can observe the property they claim",
       ).toContain(`${position} / `);
     }
     // The message names the MEASURED verdict and the EXPECTED one, per the class this closes.
-    expect(run.stdout).toMatch(/verdict=refuse, expected write/);
+    //
+    // THE NOTE POSITION'S EXPECTED OUTCOME CHANGED IN PLAN 31-43 (`WR-41`), DELIBERATELY. It read
+    // `expected write` until round 9, and `write` was unreachable at this position: the ordinary
+    // staging plants exactly the bytes the writer would write, so every ordinary drive takes
+    // `writeNoteFile`'s decided identical-bytes NO-OP branch. The expectation now names the outcome
+    // the staging actually produces, and the driver reports it from the target's own state.
+    expect(run.stdout).toMatch(/verdict=refuse, expected identical-no-op/);
     expect(run.stdout).toMatch(/verdict=fail-closed, expected answered/);
   });
 });
