@@ -5,14 +5,14 @@ milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live
 current_phase: 31
 current_phase_name: Autonomous Manual Testing
 status: "Phase 31 gap-closure round 9 IN PROGRESS: 31-39 of 6 plans (31-39..31-44) EXECUTED 2026-09-12, sequential on main. 31-39 closed CR-26 and CR-27, the two Criticals round 8 reproduced against the committed .js at f698bec and which round 7 own CR-22 fix had created - the EIGHTH consecutive round in this predicate family. It does not fix two coordinates: it removes the freedom that produced them. ONE authority (actionOwnerRoot) answers which repository owns an action and answers with a discriminated ActionOwner carrying no null member, so falling open costs an explicit branch a reviewer meets; governanceRootOf went from three direct callers (including both write-both routes, which decided a null two opposite ways) to exactly two. The governance DIAL root and the LEDGER owner are now two parameters on admit/appendNote/admitAndAppend - D-31 and WR-10 RESTORED, not reversed - paid for by a deliberate admit() unfreeze authorised by the developer at a blocking checkpoint (D-39), reversing plan 31-33 own prohibition. ADMIT_FROZEN_SHA256 re-baselined to bb920698..81cd, the SIXTH re-base (the plan text said seventh and was measured wrong). The freeze extraction was itself caught DEGENERATING mid-change - an inline object default put a brace in the parameter list and collapsed the frozen span from 12,394 bytes of body to 1,885 of parameter list - and is hardened in both halves. R-31-33-01 CLOSED, recording its own closure, with its driving case inverted rather than deleted. A DERIVED cross-product matrix now covers 7 arms from which a GOV-02 append is reachable, 24 driven cells, each driven twice (legitimate input beside the attack) and read in every root, with the union of the arms asserted pairwise and the permitted asymmetry read from a register proven exercised. Fallout measured and classified: 44 red - 13 staging, 3 expectations genuinely inverted, 28 a derived axis growing 8 to 9 sites; no assertion weakened. Suite 66 files / 4262 passed / 2 skipped, 13 repo gates green, disposition debt unchanged at 78 over 39. UATX-01..06 stay unchecked and Gaps Found and the phase stays In Progress: only a verification round may flip a requirement, and this phase has had eight rounds in which the executing round believed it had closed one. Next: 31-40 (the derived divergence census). Round-7 record: docs/audit/31-round7-residuals.md."
-stopped_at: Completed 31-41-PLAN.md
-last_updated: "2026-09-12T23:03:00.137Z"
-state_head: 336bb206b45a5daafd261f06ce7d967720919b2a
+stopped_at: Completed 31-42-PLAN.md
+last_updated: "2026-09-13T00:41:52.352Z"
+state_head: 4217d2c14c9e77e793122d022383a209a9a27d62
 progress:
   total_phases: 9
   completed_phases: 6
   total_plans: 220
-  completed_plans: 217
+  completed_plans: 218
   percent: 67
 last_activity: 2026-08-19
 prior_activity_desc: Phase 27 gap-closure round 8 COMPLETE (27-45, 27-46; D-53). Full narration lives in the Phase 27 artifacts and in docs/audit/; shortened here by plan 31-38 because this single line measured 7995 characters, above the 4000-character ceiling a pathological STATE line has previously crossed to turn a sub-second guard into a multi-minute one.
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-09-07 — after Phase 29.2)
 ## Current Position
 
 Phase: 31 (Autonomous Manual Testing) — EXECUTING
-Plan: 42 of 44
+Plan: 43 of 44
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 
@@ -473,6 +473,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 31 P39 | 6h 24m | 3 tasks | 8 files |
 | Phase 31 P40 | 2h 5m | 3 tasks | 9 files |
 | Phase 31 P41 | 1h 30m | 3 tasks | 13 files |
+| Phase 31 P42 | 1h 35m | 3 tasks | 11 files |
 
 ## Accumulated Context
 
@@ -1282,6 +1283,13 @@ Recent decisions affecting current work:
 - [Phase 31]: D-41: a claim is corrected by MOVING the mechanism where it can move, and by stating it PER ROUTE AND PER BRANCH where it cannot — D-34 stated only the first half, and round 8 measured three universals false at two of four branches — A mechanism with four branches cannot be described by a sentence about all four: one branch falsifies it. The three universals were DELETED rather than softened, because a hedged false universal reproduces the finding one adverb over. A fourth sentence was false and it was the DISCLOSURE itself — 31-33 publication of R-31-33-01 went stale in the round that closed what it disclosed.
 - [Phase 31]: D-41 (3): a register two-sided id binding asks whether a member is DISPOSITIONED, never whether it is TRUE — WRITE_PATH_RESIDUALS gains a PROBE per member, plus both converse mirrors — R-31-33-02 published a departed mechanism through two rounds with the binding green, the cardinality asserted and a seeded control passing. Each member now carries a probe that takes a reading at run time, asserted to agree with the fact the member text states, bound in both directions with a cardinality.
 - [Phase 31]: WR-42 reasoning was measured WRONG: the shared-install kit-side store DOES resolve to a governed root, so the widened refusal does not fire on the shipped layout — Driven against a kit home the COMMITTED install.js created: copyKit copies the source agent-factory tree to GRUGOPS_HOME/agent-factory, and that tree carries config/factory.config.json — the in-kit published candidate relative to the kit home. The walk remembers it as nearest and the home stop returns it. Resolver answers the kit home, anchoring conjunct true, promotion ACCEPTED. A control with that one file absent answers null and refuses by name. The installer also materializes no writer and creates no store under the kit home.
+- [Phase 31]: D-42 (1): a completeness record is DERIVED from the positions it describes — the walk's swallow-site census finds NINE positions where 31-REVIEW.md's WR-37 names four
+- [Phase 31]: D-42 (2): a kept fail-open is published with a NUMBER; measured ZERO throws at all nine positions over 26 genuine walks, so no fail-open is kept and UNRESOLVABLE_CALLEE_RESIDUALS is unchanged at ten
+- [Phase 31]: D-42 (3): the instrument a residual is defended by the absence of is the instrument that round owes — a substitute checker through one exported frameworkSurface seam
+- [Phase 31]: D-42 (4): a binding's expected side is derived from the ban-set FAMILY the membership authority consults — four sets, eight members, eight rows keyed to the constant that publishes each
+- [Phase 31]: D-42 (5): the watched directory names are partitioned by whether a skip there could hide THIS repository's own evidence, both halves derived from the published set with union and disjointness asserted
+- [Phase 31]: D-42 (6): the skipped-directory disclosure STAYS on stderr, decided against the written contract, with the stream sharing and the exit-code discriminator stated in the recipe
+- [Phase 31]: D-42 (7): the counted thing is named in the emitted line — directory entries the walk refused to descend into, never specs hidden under them
 
 ### Pending Todos
 
@@ -1400,8 +1408,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-09-12T23:02:26.682Z
-Stopped at: Completed 31-41-PLAN.md
+Last session: 2026-09-13T00:40:47.490Z
+Stopped at: Completed 31-42-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
