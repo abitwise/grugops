@@ -2,19 +2,19 @@
 gsd_state_version: "1.0"
 milestone: v2.1
 milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live Board
-current_phase: 31
-current_phase_name: Autonomous Manual Testing
-status: "Phase 31 gap-closure round 9 EXECUTED and FENCED: all 6 plans (31-39..31-44) complete, sequential on main. The developer decided 2026-09-12 that Phase 31 ends at this round whatever the next verification says, so every remaining finding is an accepted-open residual. CLOSED BY MEASUREMENT at 6e95edc, each at the original document's own spelling: all 11 findings of 31-REVIEW.md (CR-26, CR-27, WR-37..WR-42, IN-19..IN-21), all 3 missing: bullets, all 5 anti-pattern rows, 3 non-verified artifact rows and both NOT_WIRED key links. 30 derived items, 30 disposition rows, 0 uncovered, 0 orphan rows - both sides measured at run time. CONTROLS: 30 rows over CR-17..CR-25, 29 driven and 29 UNMOVED, 1 (CR-22 position 4) named not-driven with its reason. RAISED AND NOT REPAIRED: CR-28 - a RENAMED import from a declared-foreign module is accepted at exit 0 (reproduced, tsc exit 0, both bounding controls driven; no corpus row drives the shape), the ninth occurrence of this phase's fix-creates-successor pattern. CARRIED with owners: R-01/R-02/R-03 (a named human, a named human, a windows-latest run), the review-to-corpus one-shot not re-taken, EXPECTED_APPEND_NOTE_CALL_SITES counting text, 05-pr-quality-gate.md's exit-2 claim, 31-43-SUMMARY.md's requirements-completed outrunning the tree. Suite 66 files / 4349 passed / 2 skipped / exit 0; 15 repo gates green, check:diff-disposition unmoved at 78 over 39. FROZEN FLOORS all equal: guard.ts 669725bc, hook-entry logic 006cdb0f, DECIDER_MANIFEST whole (2 deciders, 26 entries, 0 missing, 0 mismatch), and ADMIT_FROZEN_SHA256 bb920698..81cd, the SIXTH re-base, prior value 08df9e5c..09e9. UATX-01..06 stay unchecked, all six traceability rows stay Gaps Found and the phase stays In Progress - only a verification round may flip a requirement. Round-9 record: docs/audit/31-round8-residuals.md."
-stopped_at: Completed 31-44-PLAN.md
+current_phase: 32
+current_phase_name: Board Projector & CLI Dashboard
+status: "Phase 31 CLOSED 2026-09-13 by user override D-44 (round-9 verification gaps_found 4/6 left standing; CR-28..CR-31 + WR-43..WR-47 accepted open). Next: Phase 32 — Board Projector & CLI Dashboard, not yet planned. Standing rule: four-round gap-closure cap on every later phase."
+stopped_at: Phase 31 closed by override; Phase 32 not started
 last_updated: "2026-09-13T02:41:23.689Z"
 state_head: 84b502e
 progress:
   total_phases: 9
-  completed_phases: 6
+  completed_phases: 7
   total_plans: 220
   completed_plans: 220
-  percent: 67
-last_activity: 2026-08-19
+  percent: 78
+last_activity: 2026-09-13
 prior_activity_desc: Phase 27 gap-closure round 8 COMPLETE (27-45, 27-46; D-53). Full narration lives in the Phase 27 artifacts and in docs/audit/; shortened here by plan 31-38 because this single line measured 7995 characters, above the 4000-character ceiling a pathological STATE line has previously crossed to turn a sub-second guard into a multi-minute one.
 last_activity_desc: "Phase 29 CLOSED by user decision (D-59, reversing D-29): LANG-04's conformance prohibition is held as CONTENT — the claim registry and the honesty floor — with guard_banned_claims a disclosed drift backstop, not the mechanism that makes a totality true. Eight verification rounds established that a totality over an open set of phrasings is not a decidable predicate; D-55 had already ended at a per-line predicate, so the totality was already content-held on the tree while LANG-04's text still said a mechanism held it. Round-8 review CR-02 (the narrowed sentence printed above the findings contradicting it) FIXED at 4c6a76a, watched failing against the pre-fix build and asserted in both directions; two existing cases whose premise the change invalidated were repaired, not weakened. CR-01 (freshness.ts working-tree arm fail-opens, reproduced) carried as V-29-59-03 — a build-parity defect plan 29-59 itself recorded as named by no LANG requirement. CR-03/04/05 carried with owners in docs/audit/29-round8-residuals.md section 10. The round-8 verifier's gaps_found verdict is left standing and annotated rather than rewritten: it verified LANG-04's previous text. All 8 LANG requirements Complete. 15 repo gates green, 52 files / 2140 passed / 2 skipped. Next: Phase 29.1 (per-role model assignment)."
 ---
@@ -26,12 +26,12 @@ last_activity_desc: "Phase 29 CLOSED by user decision (D-59, reversing D-29): LA
 See: .planning/PROJECT.md (updated 2026-09-07 — after Phase 29.2)
 
 **Core value:** A user installs grugops on top of the coding-agent CLI they already run, types `/grug`, and gets a disciplined delivery team — a visible board, a shared context where nothing is written until it is *verified*, and an auditable requirement→code→test→release trail — entirely as readable markdown, with humans always holding merge and deploy. The v2.0 differentiator: **"verified" means passed the §14 behavior gate**, recorded as a `verified_by` stamp the writing agent cannot forge or self-set.
-**Current focus:** Phase 31 — Autonomous Manual Testing
+**Current focus:** Phase 32 — Board Projector & CLI Dashboard (next: `/gsd-discuss-phase 32` or `/gsd-plan-phase 32`)
 
 ## Current Position
 
-Phase: 31 (Autonomous Manual Testing) — IN PROGRESS, gap-closure round 9 FENCED
-Plan: 44 of 44 (all executed; the phase is closed by user override, not by a verification round)
+Phase: 32 (Board Projector & CLI Dashboard) — NOT STARTED. Phase 31 CLOSED 2026-09-13 by user override D-44 (see ROADMAP Phase 31 note and 31-CONTEXT.md).
+Plan: 0 of 0 (Phase 32 unplanned)
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 

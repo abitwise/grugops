@@ -3377,3 +3377,37 @@ file.
   vocabulary, the derivation, the two premises and the mirror seam); in
   `scripts/check-platform-shapes.test.ts` (the export probe, the per-label cases and the live-coverage
   case); and in `31-43-SUMMARY.md`'s key-decisions block.
+
+#### Phase close — D-44 (ruled by Olger Oeselg, 2026-09-13, after gap-closure round 9)
+
+- **D-44 (ruled by Olger Oeselg, 2026-09-13): Phase 31 CLOSES with round-9's four Criticals and five Warnings ACCEPTED AND OPEN, not closed. This is a user override of a `gaps_found` verdict, and it is recorded as one.**
+  **What is being accepted.** The NINTH verification (`31-VERIFICATION.md`, 2026-09-13) returned
+  `gaps_found` **4/6**. `UATX-02`, `UATX-03`, `UATX-04`, `UATX-05` are verified. `UATX-01` fails on
+  **CR-31** (`scripts/context-io.ts`, `admitAndAppend`'s gated branch never calls `admit()`, so an
+  unreadable trusted governance configuration is read off the lean default: note written, no ledger,
+  no refusal). `UATX-06` fails on **CR-28 / CR-29 / CR-30** (`scripts/runnable-ref/uat-spec-integrity.ts`,
+  `deriveImportRenames` follows renames only from `@playwright/test`, so a renamed or namespace import
+  from a declared-foreign module evades the modifier ban and the caught/conditional-assertion arms).
+  **WR-43 … WR-47** (`31-REVIEW.md`, round 9) are accepted open with them. Every item carries its
+  file:line, its reaching input shape and its closing criterion in `31-VERIFICATION.md` (gaps) and
+  `31-REVIEW.md`; `docs/audit/31-round8-residuals.md` is the round's closing measurement and the
+  place the CR-28 recurrence was first caught. `Owner: unassigned` for every row until a later phase
+  claims it.
+  **Why the phase closes rather than running a round 10.** The developer measured the phase on
+  2026-09-12: 4 original plans against 40 gap-closure plans, 285 of the milestone's 482 commits, nine
+  verification rounds, and — for the ninth consecutive round — the Critical that closed the round was
+  created by the previous round's fix, always inside two predicate families (`context-io`'s
+  one-repository-per-action rule; `uat-spec-integrity`'s spelling rule). The phase's own deliverable
+  (browser-driven UAT, `UATX-01 … UATX-06`) has not moved since round 1; the rounds have hardened the
+  shared-context admission path, which is Phase 25's and Phase 30's artifact. The lesson this project
+  already recorded as D-59 — an open-set totality claim is content, not mechanism, and an adversarial
+  verifier of one never converges — applies here. Phase 27 closed at round 12 by override; Phase 29.1
+  at round 5 by override (`D-29.1-19`); Phase 30 was fenced at a four-round cap. Phase 31 is fenced
+  at round 9.
+  **Standing rule adopted with this decision:** every later phase inherits Phase 30's **four-round
+  gap-closure cap**, stated at planning time; the fourth round's verification is terminal and routes
+  to an override decision like this one, never to a fifth round.
+  **What this does NOT do.** `UATX-01` and `UATX-06` stay UNCHECKED in `.planning/REQUIREMENTS.md`;
+  their traceability rows read `Gaps Found — accepted open by override (D-44)`. No finding is
+  re-labelled closed. `31-VERIFICATION.md` stands as written. The Phase 31 checkbox in `ROADMAP.md`
+  is marked with the override named beside it, in the shape `Phase 29.1` used.

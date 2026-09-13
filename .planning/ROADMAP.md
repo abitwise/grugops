@@ -97,7 +97,7 @@ Full phase details + milestone summary: `milestones/v2.0-ROADMAP.md` · requirem
 - [x] **Phase 29.1: Per-Role Model Assignment** *(INSERTED — CLOSED 2026-09-03 by user override D-29.1-19; round-5 verification stands at `gaps_found`, three blockers ACCEPTED OPEN as ledger rows 105-107)* — a stronger model where judgment lives and a cheaper one for execution, set on the config dial and emitted into every generated adapter, with zero-config byte-identical to today's
 - [x] **Phase 29.2: Model Assignment Delivery Path** *(INSERTED — split out of 29.1 by D-17)* — how a per-repo `models` block actually reaches an installed target's adapters; until it lands, the block is **inert for an installed repo** and 29.1 says so (completed 2026-09-07)
 - [x] **Phase 30: Per-Checkpoint Autonomy Matrix** — every human stop enumerated and dialable, the four safety floors lowerable only behind two keys, with mechanical claim-dropping (completed 2026-09-07)
-- [ ] **Phase 31: Autonomous Manual Testing** — browser-driven UAT where the committed Playwright spec is the evidence and the agent's narration never is
+- [x] **Phase 31: Autonomous Manual Testing** *(CLOSED 2026-09-13 by user override D-44; round-9 verification stands at `gaps_found` 4/6, CR-28…CR-31 + WR-43…WR-47 ACCEPTED OPEN, UATX-01/UATX-06 unchecked)* — browser-driven UAT where the committed Playwright spec is the evidence and the agent's narration never is
 - [ ] **Phase 32: Board Projector & CLI Dashboard** — one board-grammar authority emitting a typed snapshot, rendered live by a read-only terminal dashboard
 - [ ] **Phase 33: Live Capture & Windows Portability** — the captured live run that proves spawning and discharges GAP-D1, plus a green `windows-latest` leg
 
@@ -962,6 +962,15 @@ Plans:
 **Research flag:** plan with `--research-phase`. The two-key floor-lowering mechanism and the `test_integrity`-to-point-of-effect move both touch `emitVerdict()`, a byte-frozen safety path, and deserve their own red-team round separate from the rest of the phase.
 
 ### Phase 31: Autonomous Manual Testing
+
+> **CLOSED 2026-09-13 BY USER OVERRIDE — not by a passing verification.** `31-VERIFICATION.md` (round 9)
+> returned `gaps_found` **4/6** and that verdict is left standing, unedited. UATX-02…UATX-05 are verified;
+> UATX-01 fails on **CR-31** (`admitAndAppend`'s gated branch never applies D-14) and UATX-06 on
+> **CR-28 / CR-29 / CR-30** (`deriveImportRenames` follows renames only from `@playwright/test`). Olger Oeselg
+> accepted them open, with WR-43…WR-47, under **D-44** (`31-CONTEXT.md`), after nine rounds in which each
+> round's fix created the next Critical inside the same two predicate families. Each item's file:line,
+> reaching input and closing criterion is in `31-VERIFICATION.md` and `31-REVIEW.md`; `Owner: unassigned`.
+> **Standing rule adopted with D-44: every later phase carries a four-round gap-closure cap.**
 
 **Goal**: An agent can drive a real browser to produce UAT evidence, and the only thing that counts as evidence is an artifact the §14 gate re-runs — never the agent's narration of what it saw.
 **Depends on**: Phase 30 (browser evidence enters through the verify-before-write path, and Phase 30 is where that path's dialability is settled; evidence written against a floor whose semantics change a phase later would have to be re-derived)
