@@ -1122,9 +1122,30 @@ Round 8 delivered the FIRST closure of UATX-06's predicate family in eight round
   4. The dashboard **cannot** write: an import-graph guard proves its module tree holds no mutating `node:fs` symbol, so read-only is mechanically enforced rather than asserted in prose. (DASH-06)
   5. `--json`, `--once`, and non-TTY modes work for CI and piping; the renderer degrades **visibly** rather than showing a confident wrong board; the snapshot shape is stable enough for a future web renderer to consume unchanged; and the dashboard adds **zero** runtime dependencies and opens no listening socket this milestone. (DASH-07, DASH-08)
 
-**Plans**: TBD
+**Plans**: 8 plans, planned 2026-09-13. Tracer-first: plan `32-01` wires one path through every layer (contract → pure grammar → read seam → `--once --json`) and is verified end-to-end before any expansion task. The remaining seven expand out from that proven slice across four waves.
 
-**Research flag:** plan with `--research-phase`. The board ticket-row grammar is genuinely unmeasured in the wild (only two disagreeing HTML-comment examples exist) — sample real agent-written board rows before freezing the grammar, or the parser becomes a de-facto spec agents then drift away from.
+Plans:
+**Wave 1**
+
+- [ ] 32-01-PLAN.md — TRACER: `agent-factory/contracts/board.md` (headings + rows), the pure `board-model.ts` grammar, the `board-read.ts` seam, and `board-dashboard.ts --once --json` proven end-to-end against the real kit board [DASH-01, DASH-02, DASH-03, DASH-07, DASH-08]
+
+**Wave 2** *(blocked on 32-01)*
+
+- [ ] 32-02-PLAN.md — the total line partition (`updates`, `preamble`, `nonColumnSections`, `unparsed`), bounds and truncation for a 380 KB board, and the completed normative contract incl. the old spec's dashboards non-goal reconciliation [DASH-01, DASH-02, DASH-08]
+- [ ] 32-03-PLAN.md — read-verify-reread with per-source staleness and a last-good carry-forward, the four remaining join sources with the queue tamper rule ported verbatim, and the directory watch + debounce + mandatory poll floor + driven re-arm [DASH-03, DASH-04, DASH-05]
+
+**Wave 3** *(32-04 blocked on 32-02; 32-05 on 32-02+32-03; 32-06 on 32-01+32-03)*
+
+- [ ] 32-04-PLAN.md — the corpus as data (141 live rows admitted by named disposition + a mutation half refused), the two real boards trimmed into `scripts/fixtures/board-replay/`, the no-op-stripper discrimination with a recorded RED baseline, and the seven-axis parse oracle [DASH-02]
+- [ ] 32-05-PLAN.md — `joinSnapshot` and the closed seven-kind `conflicts[]` set, the `scripts/fixtures/board-snapshot/` tree manufacturing all seven kinds, and the byte-for-byte `schemaVersion: 1` golden [DASH-03, DASH-08]
+- [ ] 32-06-PLAN.md — the DASH-06 import-graph guard: AST-derived closure and symbol sets with premise assertions, the module ban, two planted mirrors proving it can fail, and `check:dashboard-readonly` as one authority [DASH-06, DASH-08]
+
+**Wave 4** *(32-07 blocked on 32-03+32-05; 32-08 on 32-02+32-05)*
+
+- [ ] 32-07-PLAN.md — the full D-17 frame with the stale badge and the `claimed / counted / limit` disagreement, ANSI sanitization of every cell, the TTY and non-TTY branches, and the `--json`/`--once`/NDJSON exit contract measured from a spawned process [DASH-05, DASH-07]
+- [ ] 32-08-PLAN.md — the validator's inline column parser deleted and imported from `board-model.js` against an eight-fixture RED/GREEN baseline, both board twins' comment rewritten with their column table frozen, and the phase-close gate sweep with both absences asserted [DASH-01, DASH-08]
+
+**Research flag (discharged):** the board ticket-row grammar is now measured — 141 rows across five sources in `32-RESEARCH.md` §Measured Board Corpus. The measurement contradicted D-01's anchored form (103/141), which the user resolved as D-22's opaque `trailer` (141/141).
 
 **Windows caveat (honest, not a defect):** the `fs.watch` behavior this phase depends on is only *proven* on Windows once Phase 33 turns the `windows-latest` leg green. Until then this phase's Windows claim stays `UNKNOWN - verify` rather than asserted. This is a terminal renderer only — no web or frontend surface; the web renderer is explicitly deferred.
 
