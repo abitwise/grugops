@@ -227,6 +227,14 @@ boards, 2026-09-13):**
   not import `context-io.ts` or `claim.ts` wholesale (both export writers); it re-implements or imports
   only their pure readers, and the guard is what makes that a mechanical rule.
 
+### Plan-time amendments (2026-09-13, from 32-RESEARCH.md measurements)
+- **D-22: A row carries an opaque `trailer` after the parenthetical.** Measured: D-01's anchored regex admits 103/141 real rows (2/16 on the dogfood board) because 14 rows carry prose after the closing paren. The row grammar splits at the first `  (`, balanced-paren scans to the matching `)`, and keeps everything after it as `trailer: string | null`. Nothing inside `meta` or `trailer` is parsed. D-01 is amended, not replaced: `- [ID] title` stays the only grammar. Rejected: keeping the anchored form and refusing 38 real rows as non-conforming.
+  — **Reversibility:** costly — `trailer` joins the `schemaVersion: 1` shape (D-19); it is removable later by tightening, never by reinterpretation.
+- **D-23: The fs-touching read seam is a named `scripts/board-read.ts`.** `board-model.ts` stays pure (D-15) and a test asserts its import closure contains no `node:fs` at all; `board-read.ts` owns read-verify-reread (D-11) and is the explicit subject of the DASH-06 guard together with `board-dashboard.ts`. Rejected: folding the reader into `board-dashboard.ts`.
+  — **Reversibility:** reversible — module layout only.
+- **D-24: The line partition is total via `preamble` and `nonColumnSections[]`.** Lines before the first column heading land in `preamble` (string[]); non-column `##` sections such as `## Notes (...)` land in `nonColumnSections[]` as `{heading, lines}`. Every input line lands in exactly one of column rows, `epicRows[]`, `updates`, `preamble`, `nonColumnSections[]`, or `unparsed[]` (oracle invariant I1). The kit board's own `_Updated: <ISO date> by <role>_` placeholder is preamble, not an unparsed line. Rejected: dumping 176 chess-board preamble lines into `unparsed[]`.
+  — **Reversibility:** costly — two fields join the `schemaVersion: 1` shape (D-19).
+
 ### Claude's Discretion
 
 - Exact regexes and the fuzz generator's axes, as long as they are derived from
