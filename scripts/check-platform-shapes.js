@@ -132,6 +132,18 @@ export const MIRROR_DRIVER_KINDS = Object.freeze([
     "reports-write-without-writing",
     /** Writes DIFFERENT bytes at the target and reports the no-op — only a disk read catches it. */
     "overwrites-the-target-and-reports-a-no-op",
+    /** Removes the target and reports what it then observed: a call that returned with nothing there. */
+    "deletes-the-target-and-reports-what-it-observed",
+    /** Refuses, quoting this position's OWN clause — the one case that is a real refusal of a CONTROL. */
+    "reports-the-positions-own-refusal-clause",
+    /** Throws, so the child exits non-zero having printed no report. */
+    "crashes-without-printing",
+    /** Exits zero having printed nothing this harness can read. */
+    "exits-silently-without-reporting",
+    /** Kills itself with a signal that is NOT this harness's own timeout kill. */
+    "signals-itself",
+    /** Reports a token outside the vocabulary, which must be NAMED rather than mapped onto a member. */
+    "reports-a-token-outside-the-vocabulary",
 ]);
 /**
  * THE CLOSED VOCABULARY OF OUTCOMES A POSITION'S DRIVER CAN REPORT (plan 31-43, `WR-41` / `IN-20`).
@@ -192,6 +204,69 @@ function asOutcome(reported) {
 const FAIL_CLOSED_PREFIX = "Blocked (fail-closed):";
 /** The outcome a CONTROL row reports when its position produced the ordinary outcome. */
 export const ORDINARY_OUTCOME = "ordinary outcome (correct)";
+/**
+ * The label a CONTROL row reports when the position refused it BY THE POSITION'S OWN CLAUSE.
+ *
+ * It is a wrong outcome for a CONTROL shape, and it is a REAL refusal — which is exactly why it
+ * keeps this name and nothing else may borrow it (plan 31-43, `IN-20`).
+ */
+export const CONTROL_NAMED_REFUSAL_LABEL = "REFUSED (wrong)";
+/** A refusal-expecting shape that refused by name, and one that did not. */
+export const NAMED_REFUSAL_LABEL = "named refusal";
+export const NOT_REFUSED_LABEL = "NOT REFUSED";
+/** A drive that produced no answer inside the bound. */
+export const HUNG_LABEL = "HUNG";
+/** The opening of every label that names the outcome a CONTROL row actually produced. */
+export const NOT_ORDINARY_PREFIX = "NOT ORDINARY (";
+/** The label naming a single outcome. One derivation, so a label cannot be typed beside an outcome. */
+export function notOrdinaryLabel(outcome) {
+    return `${NOT_ORDINARY_PREFIX}${outcome})`;
+}
+/**
+ * THE PRINTED LABEL FOR A CONTROL ROW, DERIVED FROM THE OUTCOME THAT HAPPENED (plan 31-43, `IN-20`).
+ *
+ * It used to be `ordinary && !namedRefusal ? ORDINARY_OUTCOME : "REFUSED (wrong)"` — a TWO-WAY choice
+ * over one condition, so every outcome that was not the expected one printed the REFUSAL label. A
+ * crashed driver, a `no-answer` and a status-bearing answer all read `REFUSED (wrong)` in the table
+ * two verification rounds compare against. The failure entry beside each row already carried the
+ * true verdict, so the record contradicted itself and the louder half was the wrong one.
+ *
+ * A RECORD NAMES THE CONDITION THAT IS TRUE. That rule is not new here: `D-31 (3)` established it
+ * one module over for a refusal MESSAGE, carried on a discriminant rather than matched on message
+ * text. A label applied to everything that is not the expected outcome is a fabricated diagnosis
+ * rather than a summary, and this repository's own doctrine is that a row whose reading could not be
+ * taken prints THAT, not a label.
+ *
+ * The derivation is total over the vocabulary by construction — the label is built FROM the outcome
+ * — so a new outcome cannot silently borrow another outcome's name. `CONTROL_OUTCOME_LABELS` below
+ * publishes the resulting set, and the gate asserts its cardinality against the vocabulary in both
+ * directions before any row is read.
+ */
+export function controlOutcomeLabel(outcome, expected, namedRefusal, 
+// THE HARNESS'S OWN READ OF THE PLANTED POSITION IS AN INPUT, NOT AN AFTERTHOUGHT (`WR-41`). A
+// driver whose report the disk contradicts must not print the ordinary label: the row would then
+// say one thing while the failure entry beside it said another, which is the defect one register
+// over. It prints the outcome the driver REPORTED, under a name that says it was not ordinary.
+contentsAgree = true) {
+    if (outcome === expected && !namedRefusal && contentsAgree)
+        return ORDINARY_OUTCOME;
+    if (namedRefusal)
+        return CONTROL_NAMED_REFUSAL_LABEL;
+    return notOrdinaryLabel(outcome);
+}
+/** Every label a CONTROL row can print: the two fixed ones, and one per outcome. */
+export const CONTROL_OUTCOME_LABELS = Object.freeze([
+    ORDINARY_OUTCOME,
+    CONTROL_NAMED_REFUSAL_LABEL,
+    ...PLATFORM_SHAPE_OUTCOMES.map(notOrdinaryLabel),
+]);
+/** Every label ANY corpus row can print. The refusal-expecting rows' three are unmoved by design. */
+export const ROW_LABELS = Object.freeze([
+    ...CONTROL_OUTCOME_LABELS,
+    NAMED_REFUSAL_LABEL,
+    NOT_REFUSED_LABEL,
+    HUNG_LABEL,
+]);
 /**
  * The note position's own not-a-regular-file clause, spelled ONCE.
  *
@@ -384,6 +459,58 @@ function contextDriverBody(mirror) {
             "}",
         ].join("\n");
     }
+    if (mirror === "deletes-the-target-and-reports-what-it-observed") {
+        return [
+            ...preamble,
+            "// MIRROR: removes the target, then reports what it observed. The call returned and the",
+            "// position holds nothing — an outcome with its own name, which the pre-31-43 record",
+            "// printed as a refusal.",
+            "fs.rmSync(target, { recursive: true, force: true });",
+            "const after = snap();",
+            'console.log(JSON.stringify({ verdict: after.present ? "write" : "no-write", message: "MIRROR deletes-the-target-and-reports-what-it-observed" }));',
+        ].join("\n");
+    }
+    if (mirror === "reports-the-positions-own-refusal-clause") {
+        return [
+            ...preamble,
+            "// MIRROR: refuses with the note position's OWN clause. This is the one arm in which a CONTROL",
+            "// row's refusal label is the true diagnosis, so it is the arm that keeps that label honest.",
+            `console.log(JSON.stringify({ verdict: "refuse", message: "MIRROR reports-the-positions-own-refusal-clause: ${NOTE_REFUSAL_CLAUSE} — fabricated by this harness's own mirror, not raised by the writer" }));`,
+        ].join("\n");
+    }
+    if (mirror === "crashes-without-printing") {
+        return [
+            ...preamble,
+            "// MIRROR: throws. The child exits non-zero having printed no report.",
+            'throw new Error("MIRROR crashes-without-printing");',
+        ].join("\n");
+    }
+    if (mirror === "exits-silently-without-reporting") {
+        return [
+            ...preamble,
+            "// MIRROR: exits ZERO having printed nothing. Distinct from the crash above: a clean exit and",
+            "// no report is a different condition from a non-zero exit, and each is named as itself.",
+            "process.exit(0);",
+        ].join("\n");
+    }
+    if (mirror === "signals-itself") {
+        return [
+            ...preamble,
+            "// MIRROR: dies by a signal that is NOT this harness's own timeout kill, so the row is a",
+            "// signalled outcome rather than the HUNG row a SIGKILL would produce.",
+            "setTimeout(() => { /* hold the loop open long enough for the signal to land */ }, 5000);",
+            'process.kill(process.pid, "SIGTERM");',
+        ].join("\n");
+    }
+    if (mirror === "reports-a-token-outside-the-vocabulary") {
+        return [
+            ...preamble,
+            "// MIRROR: reports a token that is not a vocabulary member. It must be NAMED as unclassifiable",
+            "// rather than mapped onto the nearest member — a third outcome may not wear a second",
+            "// outcome's name.",
+            'console.log(JSON.stringify({ verdict: "a-token-this-harness-never-defined", message: "MIRROR reports-a-token-outside-the-vocabulary" }));',
+        ].join("\n");
+    }
     return [
         ...preamble,
         'const io = await import(new URL("file://" + ioPath.split("\\\\").join("/")).href);',
@@ -550,7 +677,7 @@ function drivePosition(position, plant) {
         if (d.timedOut) {
             failures.push(`${position} / ${shape.name}: NO ANSWER within ${DRIVE_TIMEOUT_MS} ms. An unbounded read at ` +
                 "a non-regular file is the defect this corpus exists to catch.");
-            record(position, shape, "HUNG", d.ms, d.outcome);
+            record(position, shape, HUNG_LABEL, d.ms, d.outcome);
             continue;
         }
         const namedRefusal = d.message.includes(staged.refusalClause);
@@ -572,7 +699,6 @@ function drivePosition(position, plant) {
             if (contentsProblem !== null)
                 failures.push(`${position} / ${shape.name}: ${contentsProblem}`);
             const outcomeMatched = d.outcome === staged.controlOutcome;
-            const ordinary = outcomeMatched && !namedRefusal && contentsProblem === null;
             if (!outcomeMatched || namedRefusal) {
                 failures.push(`${position} / ${shape.name}: the CONTROL did not produce its position's ordinary ` +
                     `outcome (verdict=${d.outcome}, expected ${staged.controlOutcome}` +
@@ -580,14 +706,18 @@ function drivePosition(position, plant) {
                     "A corpus in which every shape is refused has measured nothing. " +
                     `message=${d.message.slice(0, 200)}`);
             }
-            record(position, shape, ordinary && !namedRefusal ? ORDINARY_OUTCOME : "REFUSED (wrong)", d.ms, d.outcome);
+            // THE LABEL IS DERIVED FROM THE OUTCOME, NOT CHOSEN BY A TWO-WAY TEST (plan 31-43, `IN-20`).
+            // `ordinary` carries the harness's own contents observation as well, so a driver whose report
+            // the disk contradicts prints the outcome it reported under a NOT-ORDINARY name rather than
+            // the ordinary one — the row and the failure entry beside it then say the same thing.
+            record(position, shape, controlOutcomeLabel(d.outcome, staged.controlOutcome, namedRefusal, contentsProblem === null), d.ms, d.outcome);
             continue;
         }
         if (!namedRefusal) {
             failures.push(`${position} / ${shape.name}: expected a refusal naming "${staged.refusalClause}", got ` +
                 `verdict=${d.outcome} message=${d.message.slice(0, 200)}`);
         }
-        record(position, shape, namedRefusal ? "named refusal" : "NOT REFUSED", d.ms, d.outcome);
+        record(position, shape, namedRefusal ? NAMED_REFUSAL_LABEL : NOT_REFUSED_LABEL, d.ms, d.outcome);
     }
 }
 /**
@@ -917,6 +1047,84 @@ function main() {
     catch (cause) {
         failures.push(`${HOOK_ENTRY_REL} could not be read to assert the verdict classifier's own premise ` +
             `(${cause instanceof Error ? cause.message : String(cause)}).`);
+    }
+    // ── THE LABEL SET'S CARDINALITY, ASSERTED AGAINST THE VOCABULARY IN BOTH DIRECTIONS (`IN-20`). ──
+    //
+    // The printed table is the record two verification rounds compare against, so the labels in it are
+    // load-bearing evidence. They are DERIVED from the outcome vocabulary, and a derivation is only
+    // trustworthy while it stays total and injective: an outcome with no label of its own would have
+    // to borrow another's, and a label owned by two outcomes would name neither. Both are checked from
+    // the published objects rather than from a count typed beside them.
+    {
+        const expectedCardinality = PLATFORM_SHAPE_OUTCOMES.length + 2;
+        if (CONTROL_OUTCOME_LABELS.length !== expectedCardinality) {
+            failures.push(`the CONTROL label set holds ${String(CONTROL_OUTCOME_LABELS.length)} label(s) where the ` +
+                `vocabulary implies ${String(expectedCardinality)} (one per outcome, plus the ordinary ` +
+                "and named-refusal labels). A label set that is not the vocabulary's own size means some " +
+                "outcome prints a name that is not its own.");
+        }
+        if (new Set(CONTROL_OUTCOME_LABELS).size !== CONTROL_OUTCOME_LABELS.length) {
+            failures.push("the CONTROL label set repeats a label, so at least two outcomes share a name.");
+        }
+        for (const outcome of PLATFORM_SHAPE_OUTCOMES) {
+            const label = notOrdinaryLabel(outcome);
+            if (!CONTROL_OUTCOME_LABELS.includes(label)) {
+                failures.push(`the outcome "${outcome}" has no label in the published CONTROL label set.`);
+            }
+            if (!label.includes(outcome)) {
+                failures.push(`the label for the outcome "${outcome}" does not name it: "${label}".`);
+            }
+        }
+        for (const label of CONTROL_OUTCOME_LABELS) {
+            if (label === ORDINARY_OUTCOME || label === CONTROL_NAMED_REFUSAL_LABEL)
+                continue;
+            const owners = PLATFORM_SHAPE_OUTCOMES.filter((o) => notOrdinaryLabel(o) === label);
+            if (owners.length !== 1) {
+                failures.push(`the label "${label}" belongs to ${String(owners.length)} outcomes, so it names none of ` +
+                    "them exactly.");
+            }
+        }
+        // No published label may END another: every reader of this table — including the cases that
+        // assert against it — anchors on the label that closes a row.
+        for (const a of ROW_LABELS) {
+            for (const b of ROW_LABELS) {
+                if (a !== b && b.endsWith(a)) {
+                    failures.push(`the label "${a}" is a suffix of the label "${b}", so a row ending in "${b}" reads as both.`);
+                }
+            }
+        }
+    }
+    // ── EVERY ROW'S LABEL AGREES WITH THE RECORD BESIDE IT (`IN-20`). ────────────────────────────
+    //
+    // The review's point was that the TRUE verdict was already present, in the failure entry beside a
+    // wrong label. So the two are asserted to say the same thing: an expected label with a failure
+    // recorded beside it, or an unexpected label with none, is itself reported. The failures are
+    // collected before they are added, so this premise reads the record it is judging, not its own
+    // additions.
+    {
+        const besideRow = (position, shape) => failures.filter((f) => f.startsWith(`${position} / ${shape}: `));
+        const disagreements = [];
+        for (const r of rows) {
+            if (r.position !== NOTE_POSITION && r.position !== MANIFEST_POSITION_LABEL)
+                continue;
+            const beside = besideRow(r.position, r.shape);
+            const expectedLabel = r.outcome === ORDINARY_OUTCOME || r.outcome === NAMED_REFUSAL_LABEL;
+            if (expectedLabel && beside.length > 0) {
+                disagreements.push(`${r.position} / ${r.shape}: the row prints "${r.outcome}" while ` +
+                    `${String(beside.length)} failure(s) are recorded beside it.`);
+            }
+            else if (!expectedLabel && beside.length === 0) {
+                disagreements.push(`${r.position} / ${r.shape}: the row prints "${r.outcome}" and NO failure is recorded ` +
+                    "beside it, so the table reports a fault the record does not.");
+            }
+            else if (r.outcome.startsWith(NOT_ORDINARY_PREFIX) &&
+                !beside.some((f) => f.includes(`verdict=${r.verdict}`))) {
+                disagreements.push(`${r.position} / ${r.shape}: the row prints "${r.outcome}" and no failure beside it ` +
+                    `names verdict=${r.verdict}.`);
+            }
+        }
+        for (const d of disagreements)
+            failures.push(d);
     }
     // THE WINDOWS-SCOPED ASSERTION (see REQUIRE_SKIPS_ENV). A platform that cannot construct a FIFO
     // and reports skipping nothing has reported a green about work it did not do.

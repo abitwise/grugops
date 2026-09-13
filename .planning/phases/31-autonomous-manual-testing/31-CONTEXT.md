@@ -3262,3 +3262,118 @@ file.
   `scripts/runnable-ref/uat-spec-integrity.test.ts` (the derived censuses and their both-direction
   bindings); in `agent-factory/checklists/browser-uat-recipe.md`, with its rows in
   `docs/audit/29-style-dispositions/31-42.md`; and in `31-42-SUMMARY.md`'s key-decisions block.
+
+
+#### Gap-closure decision — D-43 (2026-09-13, gap-closure round 9, wave 12, plan 31-43)
+
+- **WHAT FORCED IT.** One Warning and one Info from round 8, both on `scripts/check-platform-shapes.ts`,
+  and both one shape: a RECORD REPORTING A CONCLUSION IT DID NOT MEASURE. `WR-41`: at the note
+  position the driver set `verdict = "write"` on any non-throwing call, so asserting that verdict
+  POSITIVELY — `31-36`'s `WR-31` fix — amounted to "the writer did not refuse", which is what the
+  clause-absence check it replaced already implied THERE. And the ordinary staging plants bytes
+  IDENTICAL to what the writer would write, so the drive passes through `writeNoteFile`'s decided
+  identical-bytes NO-OP branch: nothing is written at the planted position, the disk is never
+  inspected, and the row prints `ordinary outcome (correct)`. `IN-20`: the printed label was
+  `ordinary && !namedRefusal ? ORDINARY_OUTCOME : "REFUSED (wrong)"`, a two-way choice over one
+  condition, so a crashed driver, a no-answer and a status-bearing answer ALL printed the refusal
+  label — a wrong diagnosis in the table two rounds compare against, beside a failure entry that
+  carried the true verdict.
+- **THE READING THIS DECISION IS MADE AGAINST**, taken at the round-9 base (`072e542`) BEFORE anything
+  was changed, by reproducing the module's own note-position ordinary staging against the committed
+  `scripts/context-io.js`:
+  - note id `20260913T005235Z-qe-observation-7223f262`, ordinary content **162 bytes**
+  - driver reported **`write`**; the row printed **`ordinary outcome (correct)`**
+  - **before**: size 162, inode 217606675, mtime `2026-09-13T00:52:35.370Z`,
+    sha256 `2f60f0bbda45c28727c3f5a2d05b0976e368027def4192858d4984b5268f8c98`
+  - **after**: size 162, inode 217606675, mtime `2026-09-13T00:52:35.370Z`, the SAME sha256
+  - **changed**: bytes no · size no · inode no · mtime no · ctime no
+  Nothing was written at the planted position, and the harness never looked.
+- **D-43 (1) — A CONTROL OBSERVES ITS OWN EFFECT; "THE CALL DID NOT THROW" IS NOT EVIDENCE THAT THE
+  CALL DID ANYTHING.** The in-child driver now snapshots the TARGET ITSELF before and after the call
+  and reports what happened there — `write`, `identical-no-op`, `no-write` — from the target's own
+  state. `statSync` does not block on a non-regular file and the bytes are read only when the
+  position IS a regular file, so the bound every drive rests on is unchanged. **AND THE HARNESS
+  READS THE PLANTED POSITION FROM ITS OWN SIDE** after every CONTROL drive: the staging deliberately
+  plants what the writer would write, so a report — from a driver the harness itself wrote — is not
+  evidence that anything happened. `WR-31`'s fix was genuine at the MANIFEST position, where the
+  verdict discriminates the wrapper's own fail-closed deny from the decider's answer; that half is
+  unchanged and re-driven rather than re-designed.
+- **D-43 (2) — THE NOTE POSITION'S ORDINARY OUTCOME IS THE IDENTICAL-BYTES NO-OP, AND SAYING SO IS
+  THE POINT.** `write` was UNREACHABLE at that position under its own staging. An expectation that
+  the staging cannot produce can only ever be satisfied by a driver reporting on the absence of a
+  throw, which is exactly what happened. The expected outcome now names what the staging produces.
+  The one drive in this module that DOES observe a real write is `composeOrdinaryNote`'s, into an
+  empty store — so both outcomes are exercised on every ordinary run, by the same driver, from the
+  target's own state.
+- **D-43 (3) — A RECORD NAMES THE CONDITION THAT IS TRUE, AND THE LABEL IS DERIVED FROM THE OUTCOME.**
+  The same rule `D-31 (3)` established one module over for a refusal MESSAGE, applied to a printed
+  label. `PLATFORM_SHAPE_OUTCOMES` publishes the closed vocabulary — **eleven** members — and
+  `controlOutcomeLabel` builds the label FROM the outcome, so a third outcome cannot arrive wearing a
+  second outcome's name. `CONTROL_OUTCOME_LABELS` holds **thirteen** labels (the ordinary label, the
+  named-refusal label, and one per outcome); `ROW_LABELS` holds **sixteen** (those plus the three
+  refusal-row labels, whose text is deliberately unmoved). The gate itself asserts the cardinality
+  against the vocabulary **in both directions** — every outcome has a label, every label belongs to
+  exactly one outcome — and asserts that no published label is a SUFFIX of another, because every
+  reader of this table anchors on the label that closes a row.
+- **D-43 (4) — THE ROW AND THE FAILURE ENTRY BESIDE IT MUST SAY THE SAME THING.** The review's point
+  was that the true verdict was ALREADY present, beside a wrong label. The gate now reports the
+  disagreement itself: an expected label with a failure recorded beside it, or an unexpected label
+  with none, or a `NOT ORDINARY (x)` whose neighbouring entry does not name `verdict=x`, each becomes
+  a named failure. A driver whose report the disk CONTRADICTS therefore prints the outcome it
+  reported under a not-ordinary name rather than the ordinary one, so the two halves of the record
+  cannot disagree by construction.
+- **D-43 (5) — A LABEL NOBODY HAS WATCHED BEING PRINTED IS A LABEL NOBODY HAS WATCHED.** A named
+  mirror seam (`GRUGOPS_PLATFORM_SHAPES_MIRROR_DRIVER`, **eight** kinds) replaces the note position's
+  in-child driver, and the gate PRINTS both drivers' sha256 digests and whether they differ — so
+  "watched failing" is a reading rather than an assumption, and a mirror that turned out identical to
+  the live driver is itself a failure. An UNKNOWN kind is a failure too, never a silent fall-through
+  to the shipped program. The compose drive keeps the module's own driver, because it is the
+  instrument that produces the position's ordinary bytes rather than the driver under test.
+- **THE CHANGED LABEL SEMANTICS, STATED EXPLICITLY — READ THIS BEFORE COMPARING TRANSCRIPTS ACROSS
+  THIS COMMIT.**
+  | Label | Before this plan it meant | After this plan it means |
+  |---|---|---|
+  | `ordinary outcome (correct)` (note position) | the driver's call did not throw | the driver observed the position's ordinary outcome AT THE TARGET, and the harness read the planted position and found the composed note |
+  | `ordinary outcome (correct)` (manifest position) | the wrapper returned the decider's own decision | unchanged, plus the harness's read of the planted module |
+  | `REFUSED (wrong)` | EVERY outcome that was not the expected one, including a crash, a no-answer and a non-zero exit | ONLY a CONTROL refused by that position's own named clause |
+  | `NOT ORDINARY (<outcome>)` | did not exist | the outcome the driver actually reported, named |
+  | `named refusal` / `NOT REFUSED` / `HUNG` | unchanged | unchanged |
+  **THE TWO RECORDS THAT QUOTE ROWS UNDER THE OLD MEANING** are
+  `docs/audit/31-round6-residuals.md` (which quotes the even older `not refused (correct)`) and
+  `docs/audit/31-round7-residuals.md` (rows 5, G9 and the `WR-31` row, which quote
+  `ordinary outcome (correct)` for all four CONTROL rows). Those readings were TRUE of the tree they
+  were taken on. A round comparing them against a transcript taken after this commit is comparing two
+  different claims, and the later one is the stronger: the same four rows now also assert an observed
+  effect and a disk read.
+- **WHAT D-43 DOES NOT ESTABLISH.**
+  - **It does not establish that this module proves the ABSENCE of shapes it does not drive.** It
+    drives four shapes at two positions, with a printed skip list. The GOV-02 audit-ledger position
+    is still dropped for the reason recorded above `runManifestPosition`, and that remains carried in
+    `deferred-items.md` with its restore criterion.
+  - **Two of the thirteen CONTROL labels are NOT watched live**, and that is disclosed rather than
+    papered over: `NOT ORDINARY (answered)` would need the manifest position's own ordinary outcome
+    to arrive where it is wrong, and `NOT ORDINARY (no-answer)` would need a child producing neither
+    an exit code nor a signal, which no driver mirror can arrange. Both are driven through the
+    module's own exported derivation instead, and the live-coverage case asserts that these two are
+    the ONLY unwatched labels — so a fourteenth label that cannot be driven turns that case red
+    rather than quietly joining them. What would force them closed: a mirror seam at the MANIFEST
+    position (the note-position seam does not reach it), and a child the harness can suspend without
+    killing.
+  - **It does not re-verify `WR-31`'s manifest half by new evidence.** That half is re-driven
+    unchanged, and its discriminant and the discriminant's own presence assertion are untouched.
+  - **The Windows leg is `R-03`**, this phase's standing remainder. Every reading here was taken on
+    darwin, and this module exists precisely because the Windows leg's skip list is the thing nobody
+    can read from here.
+  - **It does not flip a requirement.** `UATX-01` through `UATX-06` stay UNCHECKED, every
+    traceability row still reads `Gaps Found`, and Phase 31 stays In Progress.
+- **Reversibility: cheap on the module, costly on the record.** One observing driver, one disk read,
+  one derived label set, two cardinality premises and eight mirror kinds enter the module; thirteen
+  cases enter the suite. Reverting restores a control that reports on the absence of a throw over a
+  staging that guarantees a no-op, and a table in which every non-ordinary outcome is called a
+  refusal. No production behaviour outside this gate is touched: the module drives committed
+  artifacts in child processes under the system temp directory and writes nothing into any
+  repository.
+- **Recorded in four places that must agree:** here; in `scripts/check-platform-shapes.ts` (the
+  vocabulary, the derivation, the two premises and the mirror seam); in
+  `scripts/check-platform-shapes.test.ts` (the export probe, the per-label cases and the live-coverage
+  case); and in `31-43-SUMMARY.md`'s key-decisions block.
