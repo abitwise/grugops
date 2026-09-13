@@ -77,7 +77,7 @@ boards, 2026-09-13):**
 
 ### Row grammar canonical form (DASH-01, DASH-02)
 
-- **D-01: Only `- [ID] title` is grammar; the parenthetical is one opaque `meta: string`.** The
+- **D-01: Only `- [ID] title` is grammar; the parenthetical is one opaque `meta` string.** The
   canonical row is `^- \[<ID>\] <title>(  \((<meta>)\))?$` with the two-space gap before the
   parenthetical. Nothing inside `meta` is parsed, no key:value hints are extracted, so all four
   observed real-world shapes are legal and none becomes the de-facto spec. A row with no parenthetical
@@ -86,13 +86,13 @@ boards, 2026-09-13):**
   — **Reversibility:** costly — `meta` is part of the `schemaVersion: 1` snapshot shape (D-19); adding
   structured fields later is additive, but reinterpreting `meta` breaks the golden fixture and any
   consumer.
-- **D-02: The ID is bounded by `^[A-Z][A-Z0-9]*-\d+$`, and when `factory.config.json#id_prefix` is
-  present the prefix must equal it.** Rows whose prefix is `EPIC` or `FEAT` are a second named class
+- **D-02: The ID is bounded by a strict PREFIX-number regex, and when `factory.config.json#id_prefix` is
+  present the prefix must equal it.** The regex is `^[A-Z][A-Z0-9]*-\d+$`. Rows whose prefix is `EPIC` or `FEAT` are a second named class
   (`epicRows[]`), not tickets, and are not joined against `plans/tickets/`. Any other bracket content
   makes the line `unparsed`. Rejected: any `PREFIX-number` with no config read; the shipped
   `[A-Z]{3}-\d{3}` shape only (the chess board is already at `ABC-117`).
 - **D-03: A comment-aware pre-pass strips every `<!-- … -->` (including multi-line) before any heading
-  or row scan; `_Updated:` lines are their own class.** The board's 48-line documentation block and its
+  or row scan; `_Updated` lines are their own class.** The board's 48-line documentation block and its
   mini-board are therefore invisible to the grammar by construction, not by indentation. A line matching
   the canonical `_Updated: YYYY-MM-DD by <actor>` prefix becomes an `updates[]` entry `{date, actor, text}`;
   a non-matching `_Updated:` line is `unparsed`. **The parse-oracle fuzz suite's adversarial corpus MUST
@@ -143,7 +143,7 @@ boards, 2026-09-13):**
 ### Conflicts & stale semantics (DASH-03, DASH-04, DASH-05)
 
 - **D-10: `conflicts[]` has exactly these kinds, as a closed `as const` set with a two-sided count
-  test:** `board-vs-ticket` (row under column X, ticket file says `column:` Y or `status !== kebab(column)`),
+  test.** `board-vs-ticket` (row under column X, ticket file says `column:` Y or `status !== kebab(column)`),
   `ticket-unplaced` (ticket file with no board row), `ticket-duplicated` (same ID under two or more
   headings; the row renders in both, the conflict names both), `row-without-file` (board row with no
   `plans/tickets/<ID>.md`; the row still renders), `wip-limit`, `wip-count`, `column-missing` (D-08/D-09).
@@ -167,7 +167,7 @@ boards, 2026-09-13):**
   existing yields `queue: {present: false}` and renders as "no queue" with no badge; `plans/tickets/`
   empty is `tickets: []`. ENOENT on a file seen at the previous read, EACCES, and a torn read are
   `stale`. Rejected: any missing source is stale (every fresh repo shows STALE forever).
-- **D-14: Poll floor 10 seconds (user's call: "tasks don't move that fast").** Directory-level
+- **D-14: Poll floor 10 seconds (the user's call, "tasks don't move that fast").** Directory-level
   `fs.watch` on `plans/`, `plans/tickets/`, `.grugops/queue/{pending,claimed,done}/`, `.grugops/context/`
   triggers an immediate debounced (250 ms) re-read, so the poll is the safety net for an orphaned
   watch (the atomic-rename path) or a filesystem without events, not the primary refresh path. The
@@ -181,11 +181,10 @@ boards, 2026-09-13):**
 - **D-15: Two modules, one boundary.** `scripts/board-model.ts` is pure: parse + join + conflict
   derivation, no `process`, no rendering, no timers. `scripts/board-dashboard.ts` owns argv, the watch
   loop, TTY detection and rendering. The validator imports only `board-model.js`.
-- **D-16: Invocation is `node scripts/board-dashboard.js [repoRoot]` plus an npm script
-  (`"dashboard": "tsc --outDir .tmp-build && node scripts/board-dashboard.js"`).** No new `/grug` skill,
+- **D-16: Invocation is `node scripts/board-dashboard.js [repoRoot]` plus an npm `dashboard` script.** The npm script is `"dashboard": "tsc --outDir .tmp-build && node scripts/board-dashboard.js"`. No new `/grug` skill,
   no installer shim, no adapter change this phase; the byte-gated skill-twin set and every derived count
   that pins it are untouched. Uses `isEntrypoint(import.meta.url)` and the `main(argv) => code` shape.
-- **D-17: Live terminal layout, top to bottom:** header line (repo root, mode lean/enterprise from
+- **D-17: Live terminal layout, top to bottom.** header line (repo root, mode lean/enterprise from
   config, last read time, `STALE` badge per D-12, conflict count, `LARGE BOARD` warning per D-20);
   columns in contract flow order with `live/limit` (or `claimed n / counted m / limit k` on a `wip-count`
   conflict) and rows as `ID  title` truncated to terminal width, empty columns collapsed to one line,
@@ -199,7 +198,7 @@ boards, 2026-09-13):**
   with `--once` implied unless `--watch` is also given, in which case it emits one JSON document per
   line (NDJSON) per re-read. Diagnostics go to stderr. Exit 2 only for usage errors and an unreadable
   `repoRoot`. Terminal rendering never happens when stdout is not a TTY.
-- **D-19: The snapshot shape is stabilized by `schemaVersion: 1`, an exported TS type, and a
+- **D-19: The snapshot shape is stabilized by a `schemaVersion` of 1, an exported TS type, and a
   fixture-pinned golden test.** `FactorySnapshot` and the D-11 result type are exported from
   `board-model.ts`; a committed fixture tree under `scripts/fixtures/` (a board with all seven conflict
   kinds, epic rows, `_Updated:` lines, unparsed prose, the HTML doc block, tickets, a queue and a

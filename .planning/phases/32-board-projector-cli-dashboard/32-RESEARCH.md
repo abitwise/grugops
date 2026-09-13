@@ -1064,7 +1064,9 @@ Actionable directives extracted from `./CLAUDE.md` that bind this phase. The pla
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED at plan time, 2026-09-13)
+
+> Q1 -> D-22 (opaque `trailer`), Q2 -> D-23 (`scripts/board-read.ts`), Q3 -> D-24 (`preamble` + `nonColumnSections[]`) — recorded in 32-CONTEXT.md as plan-time amendments. Q4 -> 32-06 (vitest wrapper), Q5 -> 32-06 (closure-side pin blocking, node-side count version-labelled), Q6 -> 32-04 (trimmed replay boards), Q7 -> 32-01/32-02 (`agent-factory/contracts/board.md` reconciliation).
 
 1. **Does D-01 admit a `trailer`, or does it refuse 27% of the live corpus?** (BLOCKING — the answer changes `schemaVersion: 1`, which D-19 records as one-way)
    - What we know: the anchored form admits 103/141 rows (73.0%), and 2/16 on the dogfood board. A first-`  (`+balanced-scan variant with an opaque `trailer` admits 141/141 and captures `meta` on 140/141. Both keep "nothing inside the parenthetical is parsed."
