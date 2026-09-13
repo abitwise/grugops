@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 160
+open_count: 164
 waived_count: 0
 fixed_count: 4
-total_count: 164
-last_updated: 2026-09-13T01:39:15.934Z
+total_count: 168
+last_updated: 2026-09-13T03:03:13.631Z
 ---
 
 # Broken Windows Ledger
@@ -179,6 +179,10 @@ last_updated: 2026-09-13T01:39:15.934Z
 | 162 | 31 | deviation | .planning/phases/31-autonomous-manual-testing/31-round6-residual-dispositions.md |  | The round-6 dispositions file declares 34 items (19 fix / 13 close / 2 open) while its six tables carry 43 (22/18/3); de-duplicating the one thrice-listed item gives 41. Derived by command. Owner: round 7's dispositions file. | open |  | 2026-09-10T14:35:33.484Z |  |
 | 163 | 31 | unrun-verify | docs/audit/31-round6-residuals.md |  | R-01, R-02 and R-03 remain UNKNOWN - verify: the attended Chrome lane under real interactive auth, the auth predicate under alternative credential configurations, and every Windows leg. Every probe in the round-6 closing measurement ran on darwin only. | open |  | 2026-09-10T14:35:33.564Z |  |
 | 164 | 31 | unrun-verify | scripts/check-platform-shapes.ts |  | Two of the thirteen CONTROL labels — NOT ORDINARY (answered) and NOT ORDINARY (no-answer) — are not watched live; they are driven through the module's exported derivation only (D-43) | open |  | 2026-09-13T01:39:15.934Z |  |
+| 165 | 31 | stub | scripts/runnable-ref/uat-spec-integrity.ts |  | CR-28: a RENAMED import from a declared-foreign module is accepted at exit 0 — deriveImportRenames collects renames only from @playwright/test, so the foreign-declared arm's spelled operand is the LOCAL name; reproduced at 6e95edc, recorded in docs/audit/31-round8-residuals.md section 5, NOT repaired | open |  | 2026-09-13T02:40:34.587Z |  |
+| 166 | 31 | unrun-verify | docs/audit/31-round8-residuals.md |  | The review-to-corpus coverage one-shot (D-33 (2)) was NOT re-taken in gap-closure round 9; its predicate still reads 2/5 strict and 5/5 weak, with no derived drivability rule | open |  | 2026-09-13T02:40:43.836Z |  |
+| 167 | 31 | deviation | .planning/phases/31-autonomous-manual-testing/31-43-SUMMARY.md |  | requirements-completed: [UATX-01, UATX-04] asserts a completion the eighth verification round withheld; the four sibling summaries wrote [] and the requirement rows are byte-unchanged | open |  | 2026-09-13T02:40:43.924Z |  |
+| 168 | 31 | unrun-verify | scripts/runnable-ref/uat-spec-integrity.test.ts |  | 31-25 CR-15 GREEN 1 times out at the 5000ms default under load (red on one of three full-suite runs; green alone and on an unloaded machine) — spawn-heavy case needs an explicit testTimeout | open |  | 2026-09-13T03:03:13.631Z |  |
 
 ````json
 [
@@ -2148,6 +2152,54 @@ last_updated: 2026-09-13T01:39:15.934Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-09-13T01:39:15.934Z",
+    "resolved_at": null
+  },
+  {
+    "id": 165,
+    "kind": "stub",
+    "phase": "31",
+    "file": "scripts/runnable-ref/uat-spec-integrity.ts",
+    "line": null,
+    "description": "CR-28: a RENAMED import from a declared-foreign module is accepted at exit 0 — deriveImportRenames collects renames only from @playwright/test, so the foreign-declared arm's spelled operand is the LOCAL name; reproduced at 6e95edc, recorded in docs/audit/31-round8-residuals.md section 5, NOT repaired",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-13T02:40:34.587Z",
+    "resolved_at": null
+  },
+  {
+    "id": 166,
+    "kind": "unrun-verify",
+    "phase": "31",
+    "file": "docs/audit/31-round8-residuals.md",
+    "line": null,
+    "description": "The review-to-corpus coverage one-shot (D-33 (2)) was NOT re-taken in gap-closure round 9; its predicate still reads 2/5 strict and 5/5 weak, with no derived drivability rule",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-13T02:40:43.836Z",
+    "resolved_at": null
+  },
+  {
+    "id": 167,
+    "kind": "deviation",
+    "phase": "31",
+    "file": ".planning/phases/31-autonomous-manual-testing/31-43-SUMMARY.md",
+    "line": null,
+    "description": "requirements-completed: [UATX-01, UATX-04] asserts a completion the eighth verification round withheld; the four sibling summaries wrote [] and the requirement rows are byte-unchanged",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-13T02:40:43.924Z",
+    "resolved_at": null
+  },
+  {
+    "id": 168,
+    "kind": "unrun-verify",
+    "phase": "31",
+    "file": "scripts/runnable-ref/uat-spec-integrity.test.ts",
+    "line": null,
+    "description": "31-25 CR-15 GREEN 1 times out at the 5000ms default under load (red on one of three full-suite runs; green alone and on an unloaded machine) — spawn-heavy case needs an explicit testTimeout",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-13T03:03:13.631Z",
     "resolved_at": null
   }
 ]

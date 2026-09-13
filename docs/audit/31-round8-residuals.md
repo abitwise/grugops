@@ -629,6 +629,45 @@ counted by eye, and compared to the number `docs/audit/31-round7-residuals.md` �
 **Every difference is attributed to the plan that made it. No register moved without a plan naming
 it, and no cardinality this round recorded disagrees with its owning SUMMARY.**
 
+### 8.6 The suite was run THREE times, and one of the three was RED — recorded, not re-rolled away
+
+The plan for this document requires the suite re-run after its last planning-artifact write. That
+second full run went **RED**, and it is recorded here with its cause rather than replaced by the run
+that followed it.
+
+| # | When | Result | Exit |
+|---|---|---|---|
+| 1 | before the record was written (§8.1) | `Test Files 66 passed (66)` · `Tests 4349 passed \| 2 skipped (4351)` · 470.42 s | **0** |
+| 2 | with `docs/audit/31-round8-residuals.md`, `31-VALIDATION.md`, `deferred-items.md` and `.planning/STATE.md` on disk | **`Test Files 1 failed \| 65 passed (66)`** · **`Tests 1 failed \| 4348 passed \| 2 skipped (4351)`** · 494.62 s | **1** |
+| 3 | the same tree, on an unloaded machine | `Test Files 66 passed (66)` · `Tests 4349 passed \| 2 skipped (4351)` · 474.71 s | **0** |
+
+**The one failure, verbatim:**
+
+```
+FAIL  scripts/runnable-ref/uat-spec-integrity.test.ts > uat-spec-integrity — 31-25 CR-15:
+      every exit passes through one decided boundary
+      > GREEN 1: a spec the parser cannot finish exits 2 with the vacuity floor on stderr
+Error: Test timed out in 5000ms.
+```
+
+**It is a load-dependent TIMEOUT, not a content failure, and the discrimination was driven rather
+than argued.** The case spawns a child process to parse a deliberately pathological spec; run 2
+started while a prior full run's processes were still winding down. Driven alone immediately
+afterwards, the same file reports `Test Files 1 passed (1)`, `Tests 385 passed (385)` in 111.22 s.
+Run 3, on an unloaded machine over a byte-identical tree, is green at **exactly run 1's counts**.
+
+**It is not caused by anything this round wrote.** The case reads no planning artifact — it builds a
+target repository and parses an overflow spec — so the "a docs-only commit reds the suite" mechanism
+this phase carried at round 7 is not what happened. It is the **same spawn-heavy-timeout class**
+`.planning/STATE.md` already carries for `scripts/freshness.test.ts`'s control case and for Phase
+25's `floor-invariance.test.ts`, both of which are recorded as needing an explicit larger
+`testTimeout`. This occurrence is appended to `deferred-items.md` with an owner rather than repaired,
+because this plan writes no source and no test.
+
+**The green in §8.1 stands on runs 1 and 3, and the red is printed beside them.** A round that reran
+until it liked the number and reported only that number would be doing the thing this document exists
+to prevent.
+
 ---
 ## 9. The disposition ledger — one row per item, over a DERIVED denominator
 
@@ -804,3 +843,134 @@ parameter, the nine-position swallow census, the partitioned skipped-directory d
 unportable, and they are the ones `R-03` has named since round 5.
 
 ---
+## 11. The requirement rows, confirmed UNCHANGED
+
+```
+$ git diff --stat 54ea410..HEAD -- .planning/REQUIREMENTS.md
+(empty — byte-unchanged over the whole round)
+
+$ sed -n '120,125p' .planning/REQUIREMENTS.md
+- [ ] **UATX-01**: …   - [ ] **UATX-02**: …   - [ ] **UATX-03**: …
+- [ ] **UATX-04**: …   - [ ] **UATX-05**: …   - [ ] **UATX-06**: …
+
+$ sed -n '212,217p' .planning/REQUIREMENTS.md
+| UATX-01 | Phase 31 | Gaps Found |   | UATX-02 | Phase 31 | Gaps Found |
+| UATX-03 | Phase 31 | Gaps Found |   | UATX-04 | Phase 31 | Gaps Found |
+| UATX-05 | Phase 31 | Gaps Found |   | UATX-06 | Phase 31 | Gaps Found |
+
+$ sed -n '100p' .planning/ROADMAP.md
+- [ ] **Phase 31: Autonomous Manual Testing** — browser-driven UAT where the committed Playwright
+      spec is the evidence and the agent's narration never is
+
+$ grep -n '31. Autonomous Manual Testing' .planning/ROADMAP.md
+1173:| 31. Autonomous Manual Testing | v2.1 | 43/44 | In Progress|  |
+```
+
+(The six requirement bullets and the six traceability rows are shown three-to-a-line above for page
+width; each is its own line in the file, and `git diff` over the whole round is empty, which is the
+load-bearing reading.)
+
+- `UATX-01` … `UATX-06` are all `- [ ]` at `.planning/REQUIREMENTS.md:120-125` — **unchecked.**
+- All six traceability rows at `:212-217` read `| UATX-0N | Phase 31 | Gaps Found |` — **unchanged.**
+- `.planning/ROADMAP.md:100` reads `- [ ] **Phase 31: Autonomous Manual Testing**` — **unchecked**,
+  status `In Progress`.
+- The ROADMAP's only movement over the round is its plan-progress counters and the five per-plan
+  checkboxes, measured by `git diff 54ea410..HEAD -- .planning/ROADMAP.md`: **7 changed lines — the
+  `Plans:` counter, the phase-table counter (`38/38` → `43/44`), and `31-39`…`31-43`'s own
+  `- [ ]` → `- [x]`. Not one of them is the phase checkbox.**
+
+**Only a verification round may flip a requirement**, and this phase has now had eight rounds in
+which the executing round believed it had closed one. **This round is fenced by a developer decision,
+not by a verification verdict** — so the rows above pass out of the phase exactly as they are, and
+whatever closes Phase 31 will be a user override rather than a green ninth verification.
+`31-43-SUMMARY.md`'s `requirements-completed` field disagrees with these readings and is recorded as a
+disagreement in §6.4 rather than acted on.
+
+### 11.1 The `.planning/STATE.md` write, VERIFIED rather than assumed
+
+This repository's state writer re-escapes backslashes on every write, and a pathological line there
+has previously combined with a superlinear guard predicate to turn a sub-second gate into a
+multi-minute one. **Both readings were taken AFTER the write:**
+
+```
+longest line: 2524 characters, at line 65   (ceiling used by 31-38: 4000)
+longest consecutive-backslash run: 2 (at line 1062)
+this plan's own `status:` line: 1855 characters   (the line it replaced: 2524)
+```
+
+Neither reading is pathological. **The file's longest line is NOT this plan's**: line 65 is a
+pre-existing Phase-27 narrative line (`Round 5 wave 3: **27-35 closes CR-02 …**`) that this plan did
+not write and did not touch. The line this plan DID write is the `status:` field, at **1855**
+characters — shorter than the 2524-character line it replaced, and well under the 4000-character
+ceiling `31-38` established by measurement. `prior_activity_desc` remains the pointer `31-38`
+shortened it to.
+
+---
+
+## 12. What this round did NOT do
+
+1. **It did not re-drive `WR-37`'s throwing-stub seam outside the suite**, because that means
+   re-authoring `runStubWalk` and this plan writes no source and no test (§1.2). The derived site
+   census and every site's arm ARE measured from the committed `.js`.
+2. **It did not drive `CR-22` position 4**, for the reason re-measured in §3: `DEFAULT_CONTEXT_ROOT`
+   is not exported and the split needs a shared-install layout. It is `R-31-33-02`.
+3. **It did not re-run the round-base suite at `54ea410`.** The pre-round figure is quoted from
+   `31-VERIFICATION.md` row 7 (`66 passed / 4208 passed / 2 skipped / exit 0` at `f698bec`), which is
+   this table's convention.
+4. **It did not repair anything it found.** `CR-28` (§5) is reproduced, its mechanism read from
+   source, and left standing with an owner — the standing rule `docs/audit/31-round5-residuals.md`
+   §12 item 6 established and every closing plan since has inherited.
+5. **It did not flip a requirement checkbox, a traceability row or the phase checkbox** (§11). It did
+   not flip a `UATX-0N` box on the strength of the closures in §2 either, and the fence does not
+   change that: a fence is a decision to stop measuring, not a verdict.
+6. **It did not rewrite any prior round's SUMMARY, PLAN, REVIEW, VERIFICATION or audit record.** Where
+   this round disagrees with one — `WR-42`'s reasoning, `CR-17`'s byte count,
+   `31-43-SUMMARY.md`'s `requirements-completed` — both values are printed and the disagreement is a
+   row in §6.
+7. **It did not record a new decision id.** A closing measurement decides nothing. `CR-28` is a
+   finding, not a decision.
+8. **It did not re-take the review-to-corpus coverage one-shot** (`D-33 (2)`). That omission is
+   disclosed as `DF-1` in §9.2 and as an entry in §10.3, not absorbed.
+
+---
+
+## 13. What the ninth verification round inherits — and what the fence means for it
+
+1. **Eleven findings, three `missing:` bullets, five anti-pattern rows, three non-verified artifact
+   rows and two `NOT_WIRED` key links — all CLOSED by measurement at one commit**, each paired with
+   the pre-round figure from the document that raised it, each driven at that document's own
+   spelling.
+2. **Thirty control rows over `CR-17`…`CR-25`, twenty-nine driven and twenty-nine UNMOVED** —
+   including the four (`CR-22`, `CR-23`, `CR-24`, `CR-25`) that round 8 confirmed by source-read
+   only, and the five round-6 closures inside modules this round edited.
+3. **A green suite recorded as a floor, with the doctrine stated beside it** — `+141` tests over the
+   round, and `CR-28` live inside it.
+4. **Every frozen floor re-measured whole**, including all 26 `DECIDER_MANIFEST` entries and the
+   deliberately re-baselined admission freeze printed beside its prior value.
+5. **A disposition-coverage equality with both sides derived and both directions checked** — 30/30/0,
+   plus zero orphan rows.
+6. **A residual register with an owner and a closing condition per entry** (§10), written as
+   accepted-open residuals because the phase is fenced here.
+7. **One NEW Critical, `CR-28`, raised and deliberately unrepaired** (§5) — the ninth consecutive
+   occurrence of this phase's recorded pattern, and the first one recorded by the closing measurement
+   itself rather than by the round after it.
+
+**Nine rounds, nine times the pattern held: a fix created or preserved its successor's defect.** This
+round's fixes are measured against controls covering every prior closure in every module they
+touched, and they hold. That is evidence about this round. `CR-28` is the evidence about the pattern.
+
+**What the fence means.** The developer decided on 2026-09-12 that Phase 31 ends here regardless of
+the next verification's score. So a ninth verification round, if one is run, is reading a record of a
+phase that is closing rather than deciding whether it may. Its useful question is not "did round 9
+close its findings" — §2 and §9 answer that with measurements — but **"what is leaving this phase
+open, and is the register in §10 honest about it."** Seven items are carried there with named owners;
+`CR-28`, `R-01`, `R-02` and `R-03` are the ones a reader should look at first. **`UATX-01` through
+`UATX-06` are still unchecked and every traceability row still reads `Gaps Found`, and this document
+does not ask for that to change.**
+
+---
+
+_Written 2026-09-13 by plan `31-44`, the closing measurement for gap-closure round 9._
+_Measured at `6e95edcce3da04cd19c8d0b6b9253cf45ed986e0` on darwin 25.5.0 arm64, Node v24.12.0._
+_Phase 31 is FENCED at this round by the developer's decision of 2026-09-12. Every open item above is
+an accepted-open residual, and not one of them is presented as closed._

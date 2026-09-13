@@ -716,3 +716,147 @@ Measured at `3baab0d`, against the committed `.js`, tree clean before and after.
     "any condition the checker names on stderr with its own marker" — or the count is derived from
     the checker's own published cause set and bound in both directions, with disposition rows.
   - **Recorded by:** `D-42`'s `does not establish` section.
+
+## 31-44 (2026-09-13) — the round-9 closing re-measurement of the entries above
+
+Appended by plan `31-44`, the closing measurement for gap-closure round 9, measured at commit
+`6e95edc` on darwin 25.5.0 arm64 / Node v24.12.0. **Not one earlier line of this file is edited.**
+
+**THIS ROUND IS THE FENCE.** The developer decided on 2026-09-12 that Phase 31 ends at gap-closure
+round 9 regardless of the next verification's score. Every item below that is not CLOSED is therefore
+an **accepted-open residual** leaving the phase open, with a named owner and a closing criterion —
+not a queue entry for a round 10. **No open item below is presented as closed.**
+
+### The three standing human items, re-stated at their measured state
+
+- **`R-01`** — the attended Chrome lane under real interactive auth. **OPEN, unchanged.**
+  `scripts/chrome-lane-bar.test.ts` is byte-untouched across the whole round
+  (`git diff --name-only 54ea410..HEAD` does not name it) and green inside the 66-file suite. That is
+  the STRUCTURAL bar; the lane's real interactive behaviour is not inferred from it.
+  Owner: **a named human**. `status: open`.
+- **`R-02`** — the `claude auth status --json` predicate under API-key and long-lived-token auth.
+  **OPEN, unchanged.** Nothing was constructed; doing so would destroy this box's real credentials.
+  Owner: **a named human** on a box whose credentials can be reconfigured. `status: open`.
+- **`R-03`** — the Windows leg. **OPEN, and LARGER by five shapes** — this round adds the entry-level
+  owner refusal on both write-both routes, the split dial/ledger parameter, the nine-position swallow
+  census, the partitioned skipped-directory disclosure, and `CR-28`'s renamed declared-foreign import.
+  Every reading in `docs/audit/31-round8-residuals.md` was taken on darwin. The `CR-17` control rows
+  there are `mkfifo`-based, and fourteen of fifteen `mkfifo` call sites still carry no platform guard.
+  Owner: **a real `windows-latest` run**. `status: open`.
+- **`R-04`** — the installer round-trip. **CLOSED by harness (`31-30`)**, re-stated and not re-derived.
+  This round DID run the committed `install/install.js`, but into a FRESH scratch kit home for
+  `WR-42`'s shared-install reading only — not an upgrade round-trip, and it does not bear on `R-04`.
+
+### The disposition debt, re-measured
+
+`npm run check:diff-disposition` → **78 finding(s) over 39 elements**, exit 1. Readings: round-7 close
+78 · after `31-39` 78 · after `31-41` 78 (which measured 78 → 102 → 78 inside its own run) · **here,
+at `6e95edc`, 78**. **Unmoved across the whole round; five plans added zero.** The gate's own remedy
+text forbids the two shortcuts — narrowing the watched corpus and moving the recorded base — because
+each clears a finding by deleting its evidence. Owner: unassigned. `status: open`.
+
+### Items CLOSED this round that a prior round had deferred
+
+- **Instance 15's ledger row.** `31-38` deferred appending it, naming **round 8's fix plan** as owner.
+  **CLOSED**: `docs/audit/harness-false-result-instances.md` measures **16** rows at this commit (14
+  at the round-7 close); `31-40` appended instances 15 and 16, both ordinals read off the table, with
+  the derived-premise case green in this round's suite run. `status: closed`.
+- **The fenced-heading scanning rule.** `31-38` recorded it so round 8 would not carry the phantom
+  `## Skipped entries` finding forward. **APPLIED here and its effect printed**: `31-REVIEW.md` scans
+  to 15 headings before stripping and 15 after — **delta 0** — recorded as applied-and-empty rather
+  than dropped (`docs/audit/31-round8-residuals.md` §1.1, §9.1). `render()` still emits that heading,
+  re-driven in §3, so the rule stays live whether or not it bites. It remains a **standing scanning
+  rule**, not a tree defect. `status: open` as a rule.
+
+### Raised by this plan, with owners, and deliberately NOT repaired here
+
+- **`CR-28` — a RENAMED import from a DECLARED-FOREIGN module is accepted at exit 0.** Critical by the
+  same standard `CR-23` was filed under. REPRODUCED at `6e95edc` against the committed
+  `scripts/runnable-ref/uat-spec-integrity.js`, in equipped probe roots outside the tree, on files
+  that `tsc --noEmit` accepts at exit 0:
+  `import { expect as soften } from "other-assert"; soften.soft(1).toBe(1)` → `0 findings`, EXIT=0;
+  `import { describe as grouping } from "other-framework"; grouping.skip(…)` → `0 findings`, EXIT=0.
+  Both bounding CONTROLS drive the other way: the un-renamed foreign spelling refuses (EXIT=1), and a
+  renamed FRAMEWORK import refuses and is reported as `test.skip` (EXIT=1). **Mechanism, read from
+  source:** `IDENTITY_BAN_OPERAND` gives the `foreign-declared` arm the operand `"spelled"`, and
+  `deriveImportRenames` collects a rename only where
+  `node.moduleSpecifier.text === PLAYWRIGHT_TEST_MODULE` — so a rename of any other module is absent
+  from the map and the authority is asked about the LOCAL name. The module filter was correct while
+  `foreign` was TERMINAL and became load-bearing the moment `D-35` made `foreign-declared` ask the
+  spelling rule. **Why the suite is green over it:** measured — no fixture contains a renamed
+  declared-foreign import, and `31-42`'s eight `REACH-*` rows drive every published member through a
+  declared-foreign module by its OWN name. **Not a published residual:** of
+  `UNRESOLVABLE_CALLEE_RESIDUALS`' ten members, one mentions an alias and it is the index-signature
+  member, about a different shape. **Owner: unassigned at the fence.** What would force it closed: a
+  rename resolution that is not scoped to one module — resolving the head through the DECLARATION the
+  checker already found rather than through an import-specifier table keyed on the framework's module
+  specifier. Every widening of this rule has cost this family a false refusal before, so it is a
+  decision and not a patch. `status: open`.
+- **`31-43-SUMMARY.md` carries `requirements-completed: [UATX-01, UATX-04]` while the tree says
+  otherwise.** Measured across the round: `31-39`, `31-40`, `31-41` and `31-42` all wrote
+  `requirements-completed: []`; `31-43` is the one that did not. `.planning/REQUIREMENTS.md` is
+  byte-unchanged over the whole round, all six `UATX-0N` are `- [ ]` and all six traceability rows
+  read `Gaps Found`, so **no checkbox moved** — what moved is a machine-readable claim in a committed
+  artifact asserting a completion the EIGHTH verification round explicitly withheld (`UATX-01` is the
+  requirement it blocked on). **The prior record is NOT rewritten**; the disagreement is recorded in
+  `docs/audit/31-round8-residuals.md` §6.4 and §10.3. Owner: a verification round, or a plan that owns
+  that artifact. `status: open`.
+- **The review-to-corpus coverage one-shot (`D-33 (2)`) was NOT re-taken this round.** `31-38`
+  deferred it naming **round 8's planner** as owner. `31-44` was convened for a DISPOSITION-coverage
+  equality over a different denominator, and no plan of this round took the review-to-corpus one; no
+  derived "this finding is drivable as a UAT spec" rule exists, so the predicate still reads 2/5
+  strict and 5/5 weak. **Disclosed rather than quietly dropped.** Owner: unassigned at the fence.
+  Criterion unchanged. `status: open`.
+- **`EXPECTED_APPEND_NOTE_CALL_SITES` still counts TEXT, not calls.** Re-measured at **6**, unmoved;
+  no plan of this round touched that axis. Owner unchanged: whichever plan next touches PART FIVE of
+  `scripts/context-io-writer-set.test.ts`. `status: open`.
+- **`05-pr-quality-gate.md` step 3's narrower exit-2 claim is now WIDER than when it was filed.**
+  `31-42` recorded the workflow's "Two conditions produce exit `2`" against a checker reaching it from
+  at least six; `D-42` then took `SURFACE_TRUNCATION_REACHED` from 4 arms to 5, so the gap grew inside
+  the same round that recorded it. Owner unchanged: the next plan that edits that workflow.
+  `status: open`.
+
+### Harness false results, logged rather than absorbed
+
+- **Instance 17** (the ordinal is READ OFF `docs/audit/harness-false-result-instances.md`, whose
+  ordinals scan contiguously 1…16 at this commit). **This session's first `context-io` probe built its
+  note object without `refs`.** `composeNote` threw
+  `TypeError: Cannot read properties of undefined (reading 'length')`, and the probe's catch-all
+  classifier PRINTED that as `REFUSED: note.refs is not iterable` — a harness defect wearing a
+  refusal's clothes, which is exactly the shape that reads like a closure of `CR-26` and `CR-27`.
+  **Caught because the CONTROL rows, which must WRITE, "refused" too.** The classifier was narrowed to
+  re-throw `TypeError` and the note object given its `refs` field, and only then was any result read.
+  It is the same class as instances 4, 14 and 15 — an input that never reached the code under test,
+  producing a pass-shaped output. **Not written into the ledger file by this plan** — this plan writes
+  no source, and `scripts/harness-instance-ledger.test.ts` derives its premises from that file's rows.
+  **Owner: whichever plan next edits `docs/audit/harness-false-result-instances.md`**, which should
+  append it with the derived-premise case green. `status: open`.
+- **Instance 18, the second one this session, same class one register over.** The probe's note/ledger
+  COUNTERS read the wrong directories: notes land under `<store>/<task>/notes/` and the GOV-02 ledger
+  under `<root>/.grugops/audit/admissions.jsonl`, and the first counters looked at `<store>/notes/`
+  and three wrong ledger paths. Every row then read `notes= 0 ledger= null` — including the CONTROL
+  rows — which reads exactly like "nothing was written anywhere", the shape a split-repository finding
+  would also produce. **Caught by the same discrimination: a counter that can never be non-zero cannot
+  observe a split.** Corrected until a CONTROL read `notes= 1 ledger= 1`, and only then was any probe
+  row read. It is why every `context-io` row in `docs/audit/31-round8-residuals.md` §2 and §3 prints a
+  CONTROL that writes. `status: closed` for this occurrence.
+
+### Also raised by plan 31-44 — a spawn-heavy case that times out under load
+
+- **`scripts/runnable-ref/uat-spec-integrity.test.ts` > `31-25 CR-15` > `GREEN 1: a spec the parser
+  cannot finish exits 2 with the vacuity floor on stderr` TIMED OUT at 5000 ms** on this plan's
+  SECOND full-suite run (`Test Files 1 failed | 65 passed (66)`, `Tests 1 failed | 4348 passed | 2
+  skipped`, exit 1), which was started while a prior full run's processes were still winding down.
+  **Discriminated by driving, not by argument:** the same file run ALONE immediately afterwards
+  reports `Test Files 1 passed (1)`, `Tests 385 passed (385)` in 111.22 s, and a third full run over
+  a byte-identical tree on an unloaded machine is green at exactly the first run's counts
+  (`66 passed`, `4349 passed | 2 skipped`, exit 0). The case spawns a child to parse a deliberately
+  pathological spec and reads no planning artifact, so this is NOT the "a docs-only commit reds the
+  suite" mechanism this phase carried at round 7. It is the **same spawn-heavy-timeout class**
+  `.planning/STATE.md` already carries for `scripts/freshness.test.ts`'s control case and for Phase
+  25's `floor-invariance.test.ts`. **All three readings are recorded in
+  `docs/audit/31-round8-residuals.md` §8.6, including the red one.** Not repaired here: this plan
+  writes no source and no test. **Owner: whichever plan next edits
+  `scripts/runnable-ref/uat-spec-integrity.test.ts`.** What would force it closed: an explicit
+  `testTimeout` on the spawn-heavy cases sized from a measured worst case under load, rather than the
+  5000 ms default. `status: open`.

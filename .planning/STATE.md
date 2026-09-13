@@ -4,15 +4,15 @@ milestone: v2.1
 milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live Board
 current_phase: 31
 current_phase_name: Autonomous Manual Testing
-status: "Phase 31 gap-closure round 9 IN PROGRESS: 31-39 of 6 plans (31-39..31-44) EXECUTED 2026-09-12, sequential on main. 31-39 closed CR-26 and CR-27, the two Criticals round 8 reproduced against the committed .js at f698bec and which round 7 own CR-22 fix had created - the EIGHTH consecutive round in this predicate family. It does not fix two coordinates: it removes the freedom that produced them. ONE authority (actionOwnerRoot) answers which repository owns an action and answers with a discriminated ActionOwner carrying no null member, so falling open costs an explicit branch a reviewer meets; governanceRootOf went from three direct callers (including both write-both routes, which decided a null two opposite ways) to exactly two. The governance DIAL root and the LEDGER owner are now two parameters on admit/appendNote/admitAndAppend - D-31 and WR-10 RESTORED, not reversed - paid for by a deliberate admit() unfreeze authorised by the developer at a blocking checkpoint (D-39), reversing plan 31-33 own prohibition. ADMIT_FROZEN_SHA256 re-baselined to bb920698..81cd, the SIXTH re-base (the plan text said seventh and was measured wrong). The freeze extraction was itself caught DEGENERATING mid-change - an inline object default put a brace in the parameter list and collapsed the frozen span from 12,394 bytes of body to 1,885 of parameter list - and is hardened in both halves. R-31-33-01 CLOSED, recording its own closure, with its driving case inverted rather than deleted. A DERIVED cross-product matrix now covers 7 arms from which a GOV-02 append is reachable, 24 driven cells, each driven twice (legitimate input beside the attack) and read in every root, with the union of the arms asserted pairwise and the permitted asymmetry read from a register proven exercised. Fallout measured and classified: 44 red - 13 staging, 3 expectations genuinely inverted, 28 a derived axis growing 8 to 9 sites; no assertion weakened. Suite 66 files / 4262 passed / 2 skipped, 13 repo gates green, disposition debt unchanged at 78 over 39. UATX-01..06 stay unchecked and Gaps Found and the phase stays In Progress: only a verification round may flip a requirement, and this phase has had eight rounds in which the executing round believed it had closed one. Next: 31-40 (the derived divergence census). Round-7 record: docs/audit/31-round7-residuals.md."
-stopped_at: Completed 31-43-PLAN.md
-last_updated: "2026-09-13T01:41:50.369Z"
-state_head: 51ca034e7cb59f73339b2a5ba6f073c75fda07cb
+status: "Phase 31 gap-closure round 9 EXECUTED and FENCED: all 6 plans (31-39..31-44) complete, sequential on main. The developer decided 2026-09-12 that Phase 31 ends at this round whatever the next verification says, so every remaining finding is an accepted-open residual. CLOSED BY MEASUREMENT at 6e95edc, each at the original document's own spelling: all 11 findings of 31-REVIEW.md (CR-26, CR-27, WR-37..WR-42, IN-19..IN-21), all 3 missing: bullets, all 5 anti-pattern rows, 3 non-verified artifact rows and both NOT_WIRED key links. 30 derived items, 30 disposition rows, 0 uncovered, 0 orphan rows - both sides measured at run time. CONTROLS: 30 rows over CR-17..CR-25, 29 driven and 29 UNMOVED, 1 (CR-22 position 4) named not-driven with its reason. RAISED AND NOT REPAIRED: CR-28 - a RENAMED import from a declared-foreign module is accepted at exit 0 (reproduced, tsc exit 0, both bounding controls driven; no corpus row drives the shape), the ninth occurrence of this phase's fix-creates-successor pattern. CARRIED with owners: R-01/R-02/R-03 (a named human, a named human, a windows-latest run), the review-to-corpus one-shot not re-taken, EXPECTED_APPEND_NOTE_CALL_SITES counting text, 05-pr-quality-gate.md's exit-2 claim, 31-43-SUMMARY.md's requirements-completed outrunning the tree. Suite 66 files / 4349 passed / 2 skipped / exit 0; 15 repo gates green, check:diff-disposition unmoved at 78 over 39. FROZEN FLOORS all equal: guard.ts 669725bc, hook-entry logic 006cdb0f, DECIDER_MANIFEST whole (2 deciders, 26 entries, 0 missing, 0 mismatch), and ADMIT_FROZEN_SHA256 bb920698..81cd, the SIXTH re-base, prior value 08df9e5c..09e9. UATX-01..06 stay unchecked, all six traceability rows stay Gaps Found and the phase stays In Progress - only a verification round may flip a requirement. Round-9 record: docs/audit/31-round8-residuals.md."
+stopped_at: Completed 31-44-PLAN.md
+last_updated: "2026-09-13T02:41:23.689Z"
+state_head: 84b502e
 progress:
   total_phases: 9
   completed_phases: 6
   total_plans: 220
-  completed_plans: 219
+  completed_plans: 220
   percent: 67
 last_activity: 2026-08-19
 prior_activity_desc: Phase 27 gap-closure round 8 COMPLETE (27-45, 27-46; D-53). Full narration lives in the Phase 27 artifacts and in docs/audit/; shortened here by plan 31-38 because this single line measured 7995 characters, above the 4000-character ceiling a pathological STATE line has previously crossed to turn a sub-second guard into a multi-minute one.
@@ -30,8 +30,8 @@ See: .planning/PROJECT.md (updated 2026-09-07 — after Phase 29.2)
 
 ## Current Position
 
-Phase: 31 (Autonomous Manual Testing) — EXECUTING
-Plan: 44 of 44
+Phase: 31 (Autonomous Manual Testing) — IN PROGRESS, gap-closure round 9 FENCED
+Plan: 44 of 44 (all executed; the phase is closed by user override, not by a verification round)
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 
@@ -475,6 +475,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 31 P41 | 1h 30m | 3 tasks | 13 files |
 | Phase 31 P42 | 1h 35m | 3 tasks | 11 files |
 | Phase 31 P43 | 2h 5m | 2 tasks | 11 files |
+| Phase 31 P44 | 2h 10m | 3 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -1410,8 +1411,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-09-13T01:41:42.096Z
-Stopped at: Completed 31-43-PLAN.md
+Last session: 2026-09-13T02:41:23.211Z
+Stopped at: Completed 31-44-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
