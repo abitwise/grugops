@@ -1,0 +1,46 @@
+{
+  "what": "RED transcript for plan 31-43 Task 1 (WR-41) — the note-position CONTROL must observe its own effect. The cases are committed BEFORE the driver observes anything, so five fail on the planned behaviour and on nothing else.",
+  "taken_at_commit": "072e542",
+  "command": "npx vitest run --exclude '**/scripts/e2e/**' scripts/check-platform-shapes.test.ts",
+  "exit_code": 1,
+  "target_tests": [
+    "31-43 WR-41 — the note-position CONTROL observes its own effect > PREMISE: the gate's outcome vocabulary is readable, and importing it does NOT run the gate",
+    "31-43 WR-41 > PREMISE: the note position's expected CONTROL outcome is the identical-bytes NO-OP",
+    "31-43 WR-41 > MIRROR: a driver that reports the write value WITHOUT WRITING turns the note CONTROL red",
+    "31-43 WR-41 > MIRROR: a driver that OVERWRITES the target and reports a no-op is caught by the harness's own read",
+    "31-43 WR-41 > CONTROL: under a note-position mirror the MANIFEST position is untouched and still ordinary"
+  ],
+  "expected_result": "scripts/check-platform-shapes.ts publishes a closed outcome vocabulary (PLATFORM_SHAPE_OUTCOMES), has its in-child note driver observe the target's own state across the call and report `write` versus `identical-no-op`, reads the planted position itself after every CONTROL drive, gains a named mirror seam that prints both driver digests, and runs its CLI behind the repository's one entrypoint predicate so its vocabulary can be read rather than re-spelled. All five cases then pass.",
+  "actual_result": "Test Files 1 failed (1). Tests 5 failed | 7 passed (12). Every failure names the planned behaviour and nothing else: the export probe reports `importing scripts/check-platform-shapes.js RAN THE GATE` (the module calls process.exit(main()) at load); the expected-outcome premise reads `expected write` where the fix must read `expected identical-no-op`; and the three mirror cases fail on the missing digest block (`expected '' to match /^[0-9a-f]{64}$/`) because the mirror seam does not exist yet — the gate ignored the env var and exited 0 with ALL CHECKS PASSED.",
+  "why_this_is_an_INTENTIONAL_red": "Seven cases pass in the same run, including the two 31-36 premises, the ordinary-run CONTROL case, the refusal-row case, the pre-fix staging case, the IN-18 forced-absent case and this plan's own new `the ordinary run still exits zero with every refusal row refusing by its own clause` control. So the file parses, discovers its tests, spawns the artifact and reads its table; the only failures are assertions about behaviour the GREEN step adds. This is not a syntax error, a zero-discovery run, a fixture crash or an unrelated assertion. `npm run typecheck` exits 0 at this commit.",
+  "premises_asserted_before_any_result_was_read": {
+    "whole-module baseline at the RED base (node scripts/check-platform-shapes.js)": "exit 0, DRIVEN (13), SKIPPED SHAPES (0), all four CONTROL rows printed `ordinary outcome (correct)`",
+    "npm run freshness at the RED base": "All build outputs fresh: 61 committed .js file(s) match a rebuild of their sources",
+    "one gate run costs": "2.09 s real, so the eight mirror runs this plan adds are affordable inside the suite"
+  },
+  "the_MOVEMENT_1_reading_this_plan_exists_for": {
+    "how_it_was_taken": "A standalone probe reproducing the module's own note-position ORDINARY staging against the committed scripts/context-io.js: compose the note by driving the writer into a throwaway store, plant those exact bytes at the note position in a fresh store, read the target's stat and bytes immediately before and immediately after the drive.",
+    "note_id": "20260913T005235Z-qe-observation-7223f262",
+    "ordinary_bytes": 162,
+    "verdict_reported_by_the_driver": "write",
+    "label_the_row_printed_at_the_previous_commit": "ordinary outcome (correct)",
+    "before": {
+      "size": 162,
+      "ino": "217606675",
+      "mtimeISO": "2026-09-13T00:52:35.370Z",
+      "sha256": "2f60f0bbda45c28727c3f5a2d05b0976e368027def4192858d4984b5268f8c98"
+    },
+    "after": {
+      "size": 162,
+      "ino": "217606675",
+      "mtimeISO": "2026-09-13T00:52:35.370Z",
+      "sha256": "2f60f0bbda45c28727c3f5a2d05b0976e368027def4192858d4984b5268f8c98"
+    },
+    "bytes_changed": false,
+    "size_changed": false,
+    "inode_changed": false,
+    "mtime_changed": false,
+    "reading": "Nothing was written at the planted position. The driver reported `write` because the call did not throw, and the row printed its ordinary-outcome label. A control that cannot observe its own effect is the premise this module's own header says it will not ship."
+  },
+  "note_on_the_tooling": "`gsd_run check tdd-red-evidence` cannot parse vitest's reporter output, so this file records the MEASURED red rather than a tool verdict. The counts and quoted messages above are copied from the run, never composed."
+}
