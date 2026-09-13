@@ -252,3 +252,51 @@ than an assumption.
 **RED** by `31-VERIFICATION.md` row 7 (`1 failed | 63 passed`, `1 failed | 4127 passed | 2 skipped`);
 `31-32` fixed it under `D-33`. Both readings are recorded in
 `docs/audit/31-round7-residuals.md` §8.1.
+
+---
+
+## Standing human-verification items — carried forward through gap-closure round 9
+
+> Appended by plan `31-44` (the closing measurement for gap-closure round 9), 2026-09-13, measured at
+> commit `6e95edc` on darwin 25.5.0 arm64 / Node v24.12.0.
+>
+> **All three remaining items are carried with their `UNKNOWN - verify` markers intact. None is
+> closed by this round, none is closed by inference, and none is dropped.** `R-04` stays CLOSED by
+> harness (`31-30`) and is re-stated rather than re-derived.
+>
+> **This round is the FENCE.** The developer decided on 2026-09-12 that Phase 31 ends at gap-closure
+> round 9 regardless of the next verification's score. The three items below therefore pass out of
+> this phase **still open**, to a named human and a `windows-latest` run respectively. They are not
+> queue entries for a round 10; there is no round 10.
+
+**Carry-forward count, read from the section above and incremented once: after round 8's closing
+measurement the count was 3 CARRIED and 1 CLOSED. After this round's closing measurement it is
+still 3 CARRIED and 1 CLOSED.** This round adds no item to the list and closes none. Every probe
+recorded in `docs/audit/31-round8-residuals.md` ran on **darwin 25.5.0 arm64 with Node v24.12.0
+only**.
+
+| Id | Item | Status after gap-closure round 9 | Owner | What this round measured that is NOT this item |
+|---|---|---|---|---|
+| `R-01` | The attended Claude-in-Chrome lane opens under real interactive auth, pauses for a human on a login/challenge page, and produces only a human-stamped finding + artifact-ref (never a gate stamp). | **OPEN — `UNKNOWN - verify`.** Carried unchanged through rounds 2, 3, 4, 5, 6, 7, 8 and this one. | **a named human** with the Claude-in-Chrome extension installed and a real interactive login | `scripts/chrome-lane-bar.test.ts` is **byte-untouched across the whole round** (`git diff --name-only 54ea410..HEAD` does not name it) and green inside the 66-file suite — `docs/audit/31-round8-residuals.md` §8.1. That is the **structural** bar. The lane's real interactive behaviour is **not** inferred from it. |
+| `R-02` | The `claude auth status --json` fail-closed predicate (D-10) behaves correctly under an API-key-only box and under a long-lived setup token. | **OPEN — `UNKNOWN - verify`.** Carried unchanged through rounds 2, 3, 4, 5, 6, 7, 8 and this one. Research assumptions A2/A3 remain unverified. | **a named human** on a box whose credentials can be reconfigured | Nothing. No alternative auth configuration was constructed; doing so would destroy this box's real credentials. |
+| `R-03` | Both browser-absence probe stages, and the whole spec-integrity runnable, on a **Windows** host. | **OPEN — `UNKNOWN - verify`, at the remainder `31-30` stated and now LARGER by five more shapes.** The instrument is wired on the pre-existing `windows-latest` leg; the reading has still not been taken. | **a real `windows-latest` run** | `node scripts/check-uat-oracles.js`, `node scripts/check-foundation-guards.js`, `node scripts/check-platform-shapes.js` and the whole gate battery re-run — **on darwin**. This round ADDS five shapes to the Windows remainder: the entry-level owner refusal on both write-both routes, the split dial/ledger parameter, the nine-position swallow census, the partitioned skipped-directory disclosure, and `CR-28`'s renamed declared-foreign import. Every one is established on darwin/Node v24.12.0 only. Fourteen of fifteen `mkfifo` call sites still carry no platform guard, and the `CR-17` control rows in `docs/audit/31-round8-residuals.md` §3 are `mkfifo`-based. |
+| `R-04` | A host repository that installed grugops before this release re-runs the installer and picks up `tools/grugops/uat-spec-integrity.js`; the uninstaller removes it. | **CLOSED — by harness (`31-30`), not by inference.** Re-stated, not re-derived, and not re-opened. | — | This round DID run the committed `install/install.js` into a scratch kit home — but for `WR-42`'s shared-install reading only (`docs/audit/31-round8-residuals.md` §2.3), against a FRESH target, not a pre-existing install. It is not an upgrade round-trip and does not bear on this item. |
+
+### Newly unverifiable on this box, recorded by this round rather than left implicit
+
+| Id | Item | Why it cannot be verified here | Owner |
+|---|---|---|---|
+| `R-05` | Whether a real TypeScript checker ever throws at any of `frameworkSurface`'s **nine** derived swallow positions. | `UNKNOWN - verify`. `D-42` measured **zero** throws over 26 genuine walks and drives each position with a substitute checker; a real compiler fault cannot be synthesised here. Survivable because reaching one now costs a could-not-run rather than a quiet accept. | a host whose own checker throws at a named position |
+| `R-06` | The magnitude of the **installed** `@playwright/test` declared surface against `SURFACE_DEPTH_BOUND` (6) and `SURFACE_NODE_BOUND` (4096). | `UNKNOWN - verify`, standing since `D-36`. `CLAUDE.md` fixes the dependency set at `{typescript, vitest}`, so the package cannot be installed to measure it. The bounds' DIRECTION is closed and re-measured (`docs/audit/31-round8-residuals.md` §3); their magnitude on the installed-package route is not. | a host with `@playwright/test` actually installed |
+| `R-08` | The two CONTROL labels `NOT ORDINARY (answered)` and `NOT ORDINARY (no-answer)` printed by a LIVE drive. | `answered` is the manifest position's own ordinary outcome and the mirror seam replaces the note position's driver only; `no-answer` needs a child producing neither an exit code nor a signal, which no driver mirror can arrange. Both are driven through the exported derivation and a live-coverage case asserts they are the ONLY two unwatched, so a fourteenth undrivable label reds rather than joining them quietly. Recorded in `.planning/WINDOWS.md` as `unrun-verify` by `31-43`. | a mirror seam at the manifest position, plus a child the harness can suspend without killing |
+
+**What this round did to `R-01`, `R-02` and `R-03`: nothing, deliberately.** `31-44` runs no attended
+browser session, no alternative auth configuration and no Windows host. The carry-forward count is
+read off the section above so "carried forward" stays a recorded fact rather than an assumption.
+
+**Test-infrastructure reading at this round's closing commit (`6e95edc`):**
+`npx vitest run --exclude '**/scripts/e2e/**'` → `Test Files 66 passed (66)`,
+`Tests 4349 passed | 2 skipped (4351)`, 470.42 s, exit 0. The round BASE's own reading is not re-taken
+here; `31-VERIFICATION.md` row 7 records `66 passed / 4208 passed / 2 skipped / exit 0` at `f698bec`,
+which is this round's pre-round figure. Both readings are recorded in
+`docs/audit/31-round8-residuals.md` §8.1 and §8.2.

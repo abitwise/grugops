@@ -421,6 +421,31 @@ refusals — including on the rows that are supposed to WRITE. **Caught because 
 too**, which is the same discrimination test round 7's instance 15 was caught by. It is logged rather
 than absorbed, and it is why every `context-io` row in §2 and §3 prints a CONTROL that writes.
 
+### 6.4 One of the round's five SUMMARIES claims two requirements complete; the tree says otherwise
+
+Measured across the round's five summaries:
+
+```
+31-39: requirements-completed: []
+31-40: requirements-completed: []
+31-41: requirements-completed: []
+31-42: requirements-completed: []
+31-43: requirements-completed: [UATX-01, UATX-04]
+```
+
+`31-43-SUMMARY.md` is the one whose frontmatter asserts two requirements COMPLETE. Every other
+summary of the round wrote `[]`, and each of the five says in its own prose that it flips no
+requirement. **The tree agrees with the four and not with the one**: `.planning/REQUIREMENTS.md` is
+byte-unchanged over the whole round, all six `UATX-0N` are `- [ ]`, and all six traceability rows
+read `Gaps Found` (§11). So no box moved — what moved is a machine-readable claim in a committed
+artifact, asserting a completion the eighth verification round explicitly withheld (`UATX-01` is the
+requirement it blocked on).
+
+**Both values are printed and `31-43-SUMMARY.md` is NOT edited** — a prior round's record is history.
+The disagreement is a row here and an entry in §10, because a `requirements-completed` field is read
+by tooling, and a field that outruns its mechanism is the exact shape this phase exists to close, one
+artifact over.
+
 ---
 
 ## 7. The measurement environment, proven clean by predicates that can OBSERVE it
@@ -603,5 +628,179 @@ counted by eye, and compared to the number `docs/audit/31-round7-residuals.md` �
 
 **Every difference is attributed to the plan that made it. No register moved without a plan naming
 it, and no cardinality this round recorded disagrees with its owning SUMMARY.**
+
+---
+## 9. The disposition ledger — one row per item, over a DERIVED denominator
+
+### 9.1 The derivation rule, and the fence-stripping it depends on
+
+The denominator is **not** a list somebody kept. It is scanned out of the two source documents and
+the deferred record at run time, by the script printed in §9.4, under seven shapes:
+
+| Key | Shape | Where |
+|---|---|---|
+| `CR-NN` / `WR-NN` / `IN-NN` | a numbered finding heading | `31-REVIEW.md`, **fenced blocks stripped first** |
+| `AP-N` | an Anti-Patterns row | `31-VERIFICATION.md` |
+| `MB-N` | a `missing:` bullet | `31-VERIFICATION.md` |
+| `RA-N` | a Required Artifacts row NOT marked VERIFIED | `31-VERIFICATION.md` |
+| `KL-N` | a Key Link row marked `NOT_WIRED` | `31-VERIFICATION.md` |
+| `GR-N` | a `gaps_remaining:` entry | `31-VERIFICATION.md` |
+| `DF-N` | a deferred item whose owner names round 8's fix plan, round 8's planner or round 9 | `deferred-items.md` |
+
+**The fenced blocks are stripped before the heading scan, and the reason is a defect this phase has
+already paid for.** A `##` heading inside a fenced transcript is a markdown-parse artifact, not a
+finding; round 7's review carried `## Skipped entries` inside `CR-24`'s `render()` transcript and the
+convening brief of the round after it counted a fourteenth finding that no document filed. The
+stripping is applied here and its effect is printed (§1.1): **delta 0 on this review.** Applied and
+empty is the honest reading, and it is recorded as such rather than dropped.
+
+**Dispositions.** `CLOSED` — the item is closed and the row cites the reproduction row in §2/§3 that
+measures it. `DECIDED-AND-NAMED` — the item is not a defect to close; the decision and its reason are
+named. `CARRIED` — the item is open, with an owner and a criterion, and (this phase being fenced at
+this round) it is an **accepted-open residual** rather than a queue entry.
+
+### 9.2 The rows
+
+| Item | What it is | Disposition | The measurement, or the reason |
+|---|---|---|---|
+| **CR-26** | `admitAndAppend`'s gated branch falls OPEN to `repoRoot` | **CLOSED** | §2.1 row 1 — the call refuses by name, `id: null`, zero notes in both roots; §2.1 row 2's CONTROL still writes. The `?? repoRoot` fallback is unspellable: `actionOwnerRoot` answers a discriminated `ActionOwner` with no null member (`D-39`) |
+| **CR-27** | the fall-through's governance dial moved to the caller-supplied destination | **CLOSED** | §2.2 rows 1–2 — the probe and its CONTROL now answer identically under the same unreadable trusted configuration; the asymmetry that WAS the finding is gone |
+| **WR-37** | `SURFACE_TRUNCATION_ARMS` claimed to be every early stop; four routes stopped silently | **CLOSED** | §2.3 — `SURFACE_SWALLOW_SITES` derived at **9** positions (the review named 4), every one naming its arm, `surface-unreadable` added to a 5-arm truncation set. The throwing-stub seam is named as not re-driven outside the suite (§1.2), and the `WR37-SITE-*` corpus rows are green in §8.1 |
+| **WR-38** | the reachability binding covered 2 of 4 published ban sets | **CLOSED** | §2.3 — **8** member rows over **4** sets, each id derived from the publishing CONSTANT's own name, matching the 2+4+1+1 members read from the committed `.js` |
+| **WR-39** | `R-31-33-02`'s published text was false for the branch the round changed | **CLOSED** | §2.3 — the member's `shape`, read from the committed `.js`, now states the post-fix behaviour |
+| **WR-40** | `18-context-compaction.md` stated a universal entry-derivation property | **CLOSED** | §2.3 — the paragraph is per route and per branch, with four residual ids inline; the universal sentence greps to 0 |
+| **WR-41** | the note-position CONTROL's "ordinary outcome" was only "did not throw" | **CLOSED** | §2.3 — the driver reports `identical-no-op` vs `write` from the target's own before/after digests, the harness reads the planted position through `verifyAfter`, and the gate exits 0 with four `ordinary outcome (correct)` rows |
+| **WR-42** | the widened refusal's cost unrecorded; the shared-install shape unmeasured | **CLOSED**, with a disagreement | §2.3 and §6.1 — `R-31-41-01` published; the shared-install answer re-driven here (`governanceRootOf(<kit>/.grugops/context)` = the kit home, CONTROL = `null`). The finding's ask was right; its stated consequence was measurably wrong |
+| **IN-19** | the skipped-directory disclosure fired on essentially every host run | **CLOSED** | §2.4 — the host run at this commit names `.temp=1` only, and the emitted line names what the count counts |
+| **IN-20** | a CONTROL that is neither ordinary nor a refusal printed `REFUSED (wrong)` | **CLOSED** | §2.4 — 11-member outcome vocabulary, 13 CONTROL labels, `controlOutcomeLabel` returns `NOT ORDINARY (<outcome>)` for every non-ordinary outcome |
+| **IN-21** | the ledger test's partition assertion was true by construction | **CLOSED** | §2.4 — the expression is gone (`toBe(rows.length)` greps to 0), its removal recorded in place, and two floors that CAN fail stand in its place |
+| **AP-1** | anti-pattern: `admitAndAppend`'s gated branch derives `?? repoRoot` | **CLOSED** | the same measurement as **CR-26** (§2.1) |
+| **AP-2** | anti-pattern: the fall-through passes `destinationRoot` into the one dial-and-ledger parameter | **CLOSED** | the same measurement as **CR-27** (§2.2); the parameter is now two parameters (§2.2 row 3) |
+| **AP-3** | anti-pattern: four exception-throw sites swallow a subtree without setting `truncated` | **CLOSED** | the same measurement as **WR-37** (§2.3) — and the derivation found nine sites, not four |
+| **AP-4** | anti-pattern: the reachability binding derives from 2 of 4 published ban constants | **CLOSED** | the same measurement as **WR-38** (§2.3) |
+| **AP-5** | anti-pattern: the two-route ledger paragraph states a universal property | **CLOSED** | the same measurement as **WR-39**/**WR-40** (§2.3) |
+| **MB-1** | make `admitAndAppend`'s gated-branch derivation agree with `promoteAdmitted`'s | **CLOSED** | §2.1 row 3 — both routes decline, and they decline through ONE exported clause constant rather than two spellings |
+| **MB-2** | separate the governance-DIAL question from the ledger-RECORD question at the fall-through | **CLOSED** | §2.2 row 3 — `admit()` and `appendNote()` each take a `ledgerOwner` distinct from `repoRoot`; the unfreeze is the dated decision `D-39` and the freeze is re-baselined (§8.3) |
+| **MB-3** | a derived test enumerating every call site supplying the root from a non-trusted value | **CLOSED** | §2.2 row 4 — `ROOT_DIVERGENCE_DISPOSITIONS` (3) bound to a derived census in both directions, with the one site a syntax-tree census cannot see given a COORDINATE rather than an omission |
+| **RA-1** | Required Artifact ⚠️ PARTIAL — `promoteAdmitted`'s return paths | **CLOSED** | §3 (`CR-22` positions 1, 2 and the CONTROL, re-driven) and §2.2 — every return path reaches a write only through the entry-derived owner, and the dial no longer rides the destination |
+| **RA-2** | Required Artifact ✗ FAILED — `admitAndAppend`'s note/ledger keying | **CLOSED** | §2.1 and §3 (`CR-22` position 3) — the ungoverned case refuses, the governed case writes both halves into one repository |
+| **RA-3** | Required Artifact ⚠️ PARTIAL — `18-context-compaction.md`'s agent-facing prose | **CLOSED** | §2.3 (`WR-40`) — read line by line in this session, per route and per branch, with the residuals named inline |
+| **KL-1** | Key Link ✗ NOT_WIRED — the fall-through to the trusted governance dial | **CLOSED** | §2.2 rows 1–2 — wired, and demonstrated by the pair of drives rather than by a source read |
+| **KL-2** | Key Link ✗ NOT_WIRED — `admitAndAppend`'s gated branch to the sibling's disposition | **CLOSED** | §2.1 row 3 — wired through `UNNAMEABLE_OWNER_CLAUSE`, one constant both routes consume |
+| **GR-1** | `gaps_remaining` — UATX-01, blocked by CR-26 and CR-27 | **DECIDED-AND-NAMED** | Both named defects are CLOSED by measurement above. **The requirement row is NOT flipped by this document**: only a verification round may do that, and this phase is fenced at this round, so `UATX-01` stays `- [ ]` and its traceability row stays `Gaps Found` (§11). What this round establishes about `UATX-01` is that `CR-26` and `CR-27` are gone and that `CR-28` (§5) is live in the adjacent requirement family |
+| **DF-1** | the review-to-corpus coverage one-shot (`D-33 (2)`), and its over-inclusive predicate. Owner: round 8's planner | **CARRIED** | **NOT re-taken this round, and that is disclosed rather than quietly dropped.** `31-44` was convened for a disposition-coverage equality (§9.3), which is a different equality over a different denominator; no plan of this round took the review-to-corpus one-shot, and no derived "this finding is drivable as a UAT spec" rule exists. Owner: unassigned at the fence. Criterion unchanged — a derived drivability rule, so the denominator is the coverable set rather than the naming set. §10 |
+| **DF-2** | the fenced-heading scanning rule. Owner: any future derivation over `31-REVIEW.md` headings | **DECIDED-AND-NAMED** | Applied here, with its effect printed: 15 headings before stripping, 15 after, **delta 0** (§1.1, §9.1). It is a standing scanning RULE rather than a defect in the tree, and it stays one |
+| **DF-3** | harness false-result instance 15, to be appended to the ledger. Owner: round 8's fix plan | **CLOSED** | `docs/audit/harness-false-result-instances.md` measured at **16** rows (was 14 at the round-7 close); `31-40` appended instances 15 and 16, both ordinals read off the table, with the derived-premise case green in §8.1 |
+| **DF-4** | `EXPECTED_APPEND_NOTE_CALL_SITES` counts source TEXT, not call expressions. Owner: whichever plan next touches PART FIVE of `scripts/context-io-writer-set.test.ts` | **CARRIED** | Re-measured at **6**, unmoved. No plan of this round touched that axis. Criterion unchanged: parse the corpus with `ts.createSourceFile` and count call expressions, with the seeded mirror re-pointed at a real call. §10 |
+| **DF-5** | `05-pr-quality-gate.md` step 3 publishes a narrower exit-2 claim than the checker carries. Owner: the next plan that edits that workflow | **CARRIED** | Unmoved, and **wider than when it was filed**: `D-42` added `surface-unreadable` to `SURFACE_TRUNCATION_REACHED`, so the arms behind `SURFACE_TRUNCATED_CAUSE` went 4 → 5 while the workflow still reads "Two conditions produce exit `2`". Criterion unchanged: state the condition as a RULE, or derive the count from the checker's own published cause set. §10 |
+
+**No row asserts a closure this round did not measure.** Every `CLOSED` row above names a §2 or §3
+row, a register read from the committed `.js`, or a command whose output is quoted in this document.
+`WR-37`'s row says in its own text which half was derived and which half was not re-driven here.
+
+### 9.3 The coverage equality, with BOTH sides measured at run time
+
+Neither side of the equality below is typed into this document as an expected value. The LEFT side is
+scanned out of the source documents by the script in §9.4; the RIGHT side is parsed out of §9.2's own
+rows in this file. **Both derivations throw on a zero count**, so the equality cannot close over an
+empty set — which is the vacuity this phase has logged twice as a harness false result.
+
+```
+$ node coverage.mjs
+DERIVED item count                          : 30
+DERIVED member list                         : CR-26 CR-27 WR-37 WR-38 WR-39 WR-40 WR-41 WR-42
+                                              IN-19 IN-20 IN-21 AP-1 AP-2 AP-3 AP-4 AP-5
+                                              MB-1 MB-2 MB-3 RA-1 RA-2 RA-3 KL-1 KL-2 GR-1
+                                              DF-1 DF-2 DF-3 DF-4 DF-5
+rows parsed from the written ledger         : 30
+items covered by at least one written row   : 30
+items covered by NO written row             : 0 (none)
+rows naming an item the scan did not derive : 0 (none)
+EQUALITY CLOSES
+```
+
+(The member list is one line in the real output; it is wrapped above for page width and nothing else
+in the transcript is altered.)
+
+| Number | Value | How it was taken |
+|---|---|---|
+| the DERIVED item count | **30** | seven scans over `31-REVIEW.md` (fences stripped), `31-VERIFICATION.md` and `deferred-items.md`, §9.1 |
+| items covered by at least one authored disposition | **30** | the first-cell key of every `\| **XX-N** \|` row inside §9.2, intersected with the derived set |
+| items covered by NO authored disposition | **0** | the derived set minus the row-key set |
+
+The third number is the one that matters and it is **zero**. A fourth number is printed beside them —
+**rows naming an item the scan did not derive: 0** — because a coverage equality that only checks one
+direction closes just as happily over a row for an item nobody filed.
+
+### 9.4 The script, so the equality is re-runnable rather than asserted
+
+The derivation ran from the session scratchpad, outside the tracked tree. It reads three planning
+documents and this record, strips fenced blocks before any heading scan, throws on either side being
+empty, and prints all four numbers plus the member list. Its seven shapes are the table in §9.1; its
+row parser is the regular expression `^\| \*\*([A-Z]{2}-\d+)\*\* \|` over §9.2 only. **No count in it
+is typed**: the item ordinals `AP-N`, `MB-N`, `RA-N`, `KL-N`, `GR-N` and `DF-N` are assigned by
+enumeration order over what the scan finds, so a source document gaining or losing an item moves the
+LEFT side and reds the equality rather than passing quietly.
+
+---
+
+## 10. The round's residual register — every boundary this round leaves open
+
+**This phase is FENCED at this round.** Each entry below is therefore an **accepted-open residual**:
+the developer's decision of 2026-09-12 is that Phase 31 closes at gap-closure round 9 whatever the
+next verification says, so "what would force it closed" describes the condition rather than a
+scheduled plan. **No entry here is closed, and none is presented as closed.**
+
+### 10.1 The write path
+
+| Id | Boundary | Why it is open | What would force it closed | Owner |
+|---|---|---|---|---|
+| `R-31-33-01` (remaining half) | the repository whose audit trail records an admission is a PARAMETER of every write-path entry point, and an explicit one can still differ from the caller's trusted root | The half `D-39`'s unfreeze closed is the COLLAPSE — dial and record are now two parameters. What the unfreeze cost is a second aimable argument. It is bounded by `31-40`'s derived census, which reads that argument position and makes a new diverging site owe a written disposition | removing the parameter from `appendNote`, whose one in-module caller passes a value identical to the default — expressible there and NOT at `admit()`, where `admitAndAppend`'s non-gated branch genuinely needs an owner its dial root does not answer. A signature change to a re-frozen authority is a dated decision | `31-41`, published |
+| `R-31-33-02` | the DEFAULT arguments' owner is undecided: with no arguments the note and its GOV-02 record both land in the KIT's repository while the dial reads the host | Re-worded by `31-41`, not closed. **NOT DRIVEN here** for the reason re-measured in §3: `DEFAULT_CONTEXT_ROOT` is not exported (`false`), and observing the split needs a `~/.grugops` kit beside a separate host repository | a dated decision naming ONE repository as the default owner of the shared verified context, applied to readers' and writers' defaults in the same change, with `WR-10` restated against it | `31-33` / `31-41`, published |
+| `R-31-41-01` | the widened refusal: moving the destination decline above the human-stamp fall-through grew the refused input set | The refusing direction is the safe one and the member now names it. **The shared-install shape is MEASURED, not assumed** (§2.3, §6.1): the kit-side store DOES resolve, because `copyKit` copies the in-kit configuration, so the widened refusal does not fire on the shipped shape. What stays open is that a kit-side destination is *expressible* by a host workflow | a shipped flow that promotes into a store the resolver declines — which would arrive as a new caller rather than as a changed constraint | `31-41`, published |
+| `R-31-41-02` | the unnameable-owner refusal is scoped to the RETENTION GUARD, so under any `audit_retention` other than `retained` a note whose store cannot be attributed is written | `D-39 (3)`'s deliberate scope: under the lean value no record is written at all, so nothing lands in the wrong repository. What is open is that a note can sit in a store this module cannot attribute, with no surface saying so at write time | a decision that attribution is a precondition of writing at all — the unscoped refusal `D-34` priced at 121 + 26 call sites and rejected. A cheaper partial: `render` reporting an unattributable store the way it reports a skipped entry | `31-41`, published |
+| `RD-31-40-03` | the write-path call `check-platform-shapes` assembles as module TEXT is invisible to any syntax-tree census | A census sees calls that are CODE. This one is a string at rest. It is given a COORDINATE (`visible_to_census: false`) rather than a category, so the register names the blind spot instead of omitting it | the driver becoming a committed fixture module the gate imports, or a second census that parses the assembled text as TypeScript before it is written | `31-40`, published |
+| `T-31-18-01` / `T-31-39-04` | a destination's CONTENTS are not authenticated — the constraint names a REPOSITORY, not a trustworthy one | Pre-existing and priced per position (`D-31`). An agent that can `mkdir` a version-control marker and a readable configuration can construct one. Now named INLINE in the stop condition's remedy so a reader meets the price at the sentence that could read as permission | a trust decision about destination provenance that does not rest on filesystem shape | the register |
+| the census's ONE-HOP binding resolution | a value assembled through two bindings reads as a divergence and must earn a register entry | The safe direction for a default. `const repoRoot = trustedRepoRoot();` above a call is the production shape | a real site whose agreement is only expressible through two hops — which arrives as a red DIRECTION 1 | `31-40` |
+| `derived-and-refusing` is an unoccupied kind | no site on this tree derives its own root AND refuses while diverging from its caller's trusted root | Naming it now is cheaper than inventing a name under the pressure of a round that has already found the site | a site of that shape landing | `31-40` |
+
+### 10.2 The UAT-spec modifier ban
+
+| Item | Why it is open | What would force it closed | Owner |
+|---|---|---|---|
+| **`CR-28` — a RENAMED import from a declared-foreign module is accepted at exit 0** | **RAISED BY THIS DOCUMENT (§5) AND DELIBERATELY NOT REPAIRED.** `deriveImportRenames` collects a rename only from `@playwright/test`; the `foreign-declared` arm's operand is the SPELLED path; so `import { describe as grouping } from "other-framework"; grouping.skip(…)` is asked about `grouping.skip`, which is not a published ban member. REPRODUCED at this commit on files that `tsc --noEmit` accepts at exit 0, with both bounding CONTROLS driven. No corpus row drives the shape (measured: zero renamed declared-foreign imports in the fixtures), so the suite is green over it | a rename map that is not scoped to one module — i.e. resolving the head through the DECLARATION the checker already found rather than through an import-specifier table keyed on the framework's module specifier. Every widening of this rule has cost this family a false refusal before, so it is a decision and not a patch | **raised here, unrepaired; owner unassigned at the fence** |
+| the nine swallow positions' **kept fail-opens** | **None was kept, and the number is the disposition.** `D-42 (2)` measured **ZERO** throws at all nine positions over 26 genuine walks, and every position is routed to a named arm (§2.3). What stays `UNKNOWN - verify` is whether a REAL checker ever throws at one | a reproduced throw from a host's own checker at a named position | `31-42`, published |
+| the INSTALLED-PACKAGE surface's magnitude behind `SURFACE_DEPTH_BOUND` (6) and `SURFACE_NODE_BOUND` (4096) | Standing `UNKNOWN - verify`. `CLAUDE.md` fixes the dependency set at `{typescript, vitest}`, so `@playwright/test` cannot be installed to measure what its real declared surface costs the two bounds. `D-36` closed the bounds' DIRECTION (a reached bound is exit 2, re-measured in §3); the MAGNITUDE on the installed-package route is not established | a measurement on a host with `@playwright/test` actually installed, or a walk whose cost does not grow with the surface | unassigned; `UNKNOWN - verify` |
+| the hand-transcribed declaration corpus's drift from upstream (`R-07`) | `fixtures/playwright-test.d.ts` and `fixtures/foreign-framework.d.ts` are hand transcriptions; `31-42`'s new fixture compiles against the same transcription and inherits its standing exactly | an installed package to derive the surface from | `31-42`, published |
+| `RR-13` — a head the spec file hand-`declare`s for itself stays accepted | the shape is structurally IDENTICAL to `WR-26`'s own control, which the phase pays a false refusal for every time it widens this rule | a discriminant separating a spec-local `declare const describe` from a helper's own parameter type, without re-opening the false refusal | `31-34`, published |
+| the INDEX-SIGNATURE shape (`t.bag.anything.skip` accepted at exit 0) | pre-existing; the walk reads declared PROPERTIES and an index signature is not one. **RE-DRIVEN here at the corpus row's own spelling: `0 findings`, EXIT=0, `tsc` exit 0** — and the plain-`test`-headed bounding half still refuses (§3) | reading a type's INDEX INFOS beside its properties, which widens the walked set and moves the denominator of every coverage assertion | `31-35`, published |
+| `R-31-31-01` — the ambient `declare const it: unknown;` spelling | re-driven here: `0 findings`, EXIT=0, **`tsc` EXIT=2**. By `31-28`'s own recorded standard a construct the language refuses is a curiosity rather than a bypass — and that standard is this phase's, which is why it is carried rather than dismissed | a corpus row driving it with the compile error asserted as the reason it cannot run, or a register member naming it | carried from `31-31`; taken by no plan of this round |
+| **per-tail coverage through a declared-foreign binding** | `31-42`'s shared-resolution case drives ONE member of each of the four sets that way; per-tail foreign coverage is not claimed. `CR-28` (§5) is what that uncovered axis looks like one register over | a per-tail drive through a declared-foreign binding, renamed and un-renamed | `31-42`, published |
+
+### 10.3 The harness, the gates and the records
+
+| Item | Why it is open | What would force it closed | Owner |
+|---|---|---|---|
+| **the changed platform-shapes LABEL SEMANTICS** (`D-43`) | The CONTROL rows' printed labels no longer mean what they meant in rounds 6 and 7. `ordinary outcome (correct)` at the note position now means the IDENTICAL-BYTES NO-OP was observed at the target, not that the call did not throw, and a non-ordinary non-refusal now prints `NOT ORDINARY (<outcome>)` where it printed `REFUSED (wrong)`. **A transcript in `docs/audit/31-round6-residuals.md` or `31-round7-residuals.md` is therefore NOT comparable line-for-line with one taken here** | nothing — this is a deliberate semantic change with a disclosed comparison warning, and the warning is the closure | `31-43` (`D-43`), published |
+| **2 of the 13 CONTROL labels are not watched live** — `NOT ORDINARY (answered)` and `NOT ORDINARY (no-answer)` | `answered` is the manifest position's own ordinary outcome and the mirror seam replaces the note position's driver only; `no-answer` needs a child producing neither an exit code nor a signal. Both are driven through the exported derivation, and a live-coverage case asserts these two are the ONLY unwatched labels, so a fourteenth undrivable label reds rather than joining them quietly | a mirror seam at the manifest position, and a child the harness can suspend without killing. Recorded in `.planning/WINDOWS.md` (`unrun-verify`) | `31-43`, published |
+| the GOV-02 audit-ledger position dropped from `check-platform-shapes` | a derived guard (AUTO-06, "exactly ONE governance-dial reader") fires correctly: the module writes a fixture, does not read a dial, and the predicate cannot tell those apart. The position was dropped rather than smuggled past the scan | publish the two governance dial KEY NAMES from the one authority, the way `30-10` published `GOVERNANCE_CONFIG_RELPATHS` | unassigned; carried since `31-30` |
+| the `reports-the-positions-own-refusal-clause` mirror FABRICATES the clause | the only way a CONTROL shape draws this position's not-a-regular-file refusal; a regular file and a symlink resolving to one never do. It exercises the harness's classification path, not the writer's refusal | a staging mirror planting a dangling symlink at a CONTROL position | `31-43`, published |
+| **`check:diff-disposition` — 78 findings over 39 elements** | Pre-existing; **unmoved across this whole round** (§8.4: round-7 close 78, after `31-39` 78, after `31-41` 78, here 78). Clearing it means walking several earlier plans' clauses and writing their rows, and the gate's own remedy text forbids the two shortcuts — narrowing the watched corpus and moving the recorded base, each of which clears a finding by deleting its evidence | a documentation pass over `05-pr-quality-gate.md`, `17-task-claim.md` and `18-context-compaction.md`'s frozen region | unassigned |
+| **`DF-1` — the review-to-corpus coverage one-shot was NOT re-taken this round** | `D-33` deleted the self-referential axis and handed the obligation to each round's closing measurement as a one-shot. `31-44` asserts a DISPOSITION-coverage equality (§9.3), which is a different equality over a different denominator, and no plan of this round took the review-to-corpus one. Its predicate also over-includes: 2/5 under the strict reading, 5/5 under the weak one | a derived "this finding is drivable as a UAT spec" rule, so the denominator is the coverable set — then the one-shot can be asserted without choosing between two predicates | unassigned; raised by `31-38`, unmoved |
+| **`DF-4` — `EXPECTED_APPEND_NOTE_CALL_SITES` counts TEXT, not calls** | Re-measured at 6, unmoved. Its INPUT is source text, so a false positive is expressible by writing a sentence — `31-41` measured the count move 6 → 8 → 6 on two prose strings alone. Its sibling axes since `31-40` parse the source into a syntax tree | the axis parsing its corpus with `ts.createSourceFile` and counting call expressions whose callee is `appendNote`, with the seeded mirror re-pointed at a real call | whichever plan next touches PART FIVE of `scripts/context-io-writer-set.test.ts` |
+| **`DF-5` — `05-pr-quality-gate.md`'s narrower exit-2 claim** | Unmoved, and WIDER than when filed: `D-42` took the truncation arms 4 → 5, so the workflow's "Two conditions produce exit `2`" is further from the mechanism than it was. Not fixed in `31-42` or `31-43` because that workflow is in the `LANG-03` watched corpus with a frozen neighbouring section, so the edit owes disposition rows and a companion edit | the workflow stating the condition as a RULE — "any condition the checker names on stderr with its own marker" — or the count derived from the checker's own published cause set and bound in both directions | the next plan that edits that workflow |
+| **`31-43-SUMMARY.md`'s `requirements-completed: [UATX-01, UATX-04]`** | **Raised by this document (§6.4).** It is the one summary of the round asserting a completion the eighth verification round withheld; the other four wrote `[]` and the tree agrees with the four. **The prior record is not rewritten** — the disagreement is recorded here instead | a verification round granting those requirements, or the field being corrected by a plan that owns that artifact. Neither is this document's to do | raised here; unassigned at the fence |
+| the multi-sentence disposition-row CLASS | a row whose `before`/`after` is not exactly one clause covers nothing, silently, while reading as work done. No derived check catches it | a derived check over disposition-row shape | `31-29` |
+| fourteen of fifteen `mkfifo` call sites carry no platform guard | measured as a SOURCE property on darwin; what a Windows run then does is explicitly not claimed | a `windows-latest` reading | their own plan |
+| four `TRUSTED_ROOT_RESIDUALS` are closed only on the Claude Code hook path | `hosts: non-cc-hook-path` — tier 0 is a narrowing on ONE host, not a closure | a delivered-root channel on the other four host CLIs | the register |
+
+### 10.4 The Windows remainder
+
+Every probe in this document ran on **darwin 25.5.0 arm64, Node v24.12.0, and nowhere else.** The
+Windows leg of each is `UNKNOWN - verify` and belongs to `R-03` (§11). **This round adds five shapes
+to that remainder**: the entry-level owner refusal on both write-both routes, the split dial/ledger
+parameter, the nine-position swallow census, the partitioned skipped-directory disclosure, and
+`CR-28`'s renamed declared-foreign import. The `mkfifo`-based probes in §3 are the ones most obviously
+unportable, and they are the ones `R-03` has named since round 5.
 
 ---
