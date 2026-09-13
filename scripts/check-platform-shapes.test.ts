@@ -20,12 +20,18 @@
 // `GRUGOPS_PLATFORM_SHAPES_STALE_CONTROL` seam, and with the forced-absent seam — and asserts what
 // each run must report.
 //
-// EVERY EXPECTATION IS DERIVED FROM THE MODULE'S OWN SYNTAX TREE, NOT TYPED BESIDE IT. The corpus's
-// shape names, which of them are CONTROLS, and the position labels are read out of
-// `check-platform-shapes.ts` with the TypeScript parser. A hand-typed expectation is a second
+// EVERY EXPECTATION IS DERIVED FROM THE MODULE'S OWN SYNTAX TREE OR FROM ITS OWN EXPORTS, NOT TYPED
+// BESIDE IT. The corpus's shape names, which of them are CONTROLS, and the position labels are read
+// out of `check-platform-shapes.ts` with the TypeScript parser. A hand-typed expectation is a second
 // literal that drifts from the first while both stay green, which is this phase's other recorded
-// failure class. The module cannot be IMPORTED for these facts — it is a CLI that calls
-// `process.exit(main())` at load — so the tree is read and the artifact is spawned.
+// failure class.
+//
+// THE MODULE WAS NOT IMPORTABLE UNTIL PLAN 31-43 and this header said so: it called
+// `process.exit(main())` at load, so the tree was read and the artifact was spawned, and nothing
+// else was possible. It now runs its CLI behind the ONE entrypoint predicate `scripts/is-entry.ts`
+// owns, which is why the outcome vocabulary and the label derivation below can be ASKED of the
+// committed `.js` rather than re-spelled here. That the import does not run the gate is itself
+// asserted, before any answer it gives is read.
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 
 import { describe, it, expect } from "vitest";
@@ -331,6 +337,7 @@ interface ExportProbe {
   readonly parsed: boolean;
   readonly outcomes: string[];
   readonly labels: string[];
+  readonly rowLabels: string[];
   readonly ordinaryLabel: string;
   readonly namedRefusalLabel: string;
   readonly mirrorKinds: string[];
@@ -361,6 +368,7 @@ function probeExports(): ExportProbe {
     "console.log('PROBE ' + JSON.stringify({",
     "  outcomes,",
     "  labels: Array.from(m.CONTROL_OUTCOME_LABELS ?? []),",
+    "  rowLabels: Array.from(m.ROW_LABELS ?? []),",
     "  ordinaryLabel: m.ORDINARY_OUTCOME ?? '',",
     "  namedRefusalLabel: m.CONTROL_NAMED_REFUSAL_LABEL ?? '',",
     "  mirrorKinds: Array.from(m.MIRROR_DRIVER_KINDS ?? []),",
@@ -395,6 +403,7 @@ function probeExports(): ExportProbe {
     parsed,
     outcomes: body.outcomes ?? [],
     labels: body.labels ?? [],
+    rowLabels: body.rowLabels ?? [],
     ordinaryLabel: body.ordinaryLabel ?? "",
     namedRefusalLabel: body.namedRefusalLabel ?? "",
     mirrorKinds: body.mirrorKinds ?? [],
@@ -431,8 +440,14 @@ function mirrorDigests(run: Run): { ordinary: string; mirror: string; differ: st
  * from the one that ships. The gate prints both digests; nothing below reads a row until they have
  * been compared here.
  */
+const MIRROR_RUNS = new Map<string, Run>();
+
 function runMirror(kind: string): Run {
-  const run = runGate({ [MIRROR_DRIVER_ENV]: kind });
+  let run = MIRROR_RUNS.get(kind);
+  if (run === undefined) {
+    run = runGate({ [MIRROR_DRIVER_ENV]: kind });
+    MIRROR_RUNS.set(kind, run);
+  }
   const d = mirrorDigests(run);
   expect(d.ordinary, `the gate did not print the ordinary driver's digest:\n${run.stdout}`).toMatch(
     /^[0-9a-f]{64}$/,
@@ -557,5 +572,268 @@ describe("31-43 WR-41 — the note-position CONTROL observes its own effect", ()
         expect(row.trimEnd().endsWith("named refusal"), `"${row.trim()}"`).toBe(true);
       }
     }
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// 31-43 `IN-20` — A RECORD NAMES THE CONDITION THAT IS TRUE.
+//
+// The printed label was `ordinary && !namedRefusal ? ORDINARY_OUTCOME : "REFUSED (wrong)"` — a
+// two-way choice over one condition, so EVERY outcome that was not the expected one printed the
+// refusal label. A crashed driver, a no-answer and a status-bearing answer all read `REFUSED
+// (wrong)` in the table two verification rounds compare against: a WRONG DIAGNOSIS in the record,
+// even though the failure entry beside it carried the true verdict. That is the class `D-31 (3)`
+// already closed once in this repository, one module over, for a refusal MESSAGE.
+//
+// The label is now DERIVED from the outcome the driver reported, over the closed vocabulary Task 1
+// published, with the label set's cardinality asserted against that vocabulary in BOTH directions —
+// so a third outcome cannot arrive wearing a second outcome's name. Each label is driven by a case
+// that produces exactly that outcome, live wherever a mirror can reach it and through the module's
+// own exported derivation where no staging on this platform can.
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+
+/** The label a row printed, chosen from the module's OWN published set rather than parsed by hand. */
+function labelOfRow(run: Run, position: string, shape: string, rowLabels: string[]): string {
+  const row = corpusRows(run).find((l) => l.startsWith(`  ${position} `) && l.includes(shape));
+  if (row === undefined) return "";
+  const trimmed = row.trimEnd();
+  const hits = rowLabels.filter((l) => trimmed.endsWith(l));
+  // Exactly one, because no published label is a suffix of another — asserted in the premise below.
+  return hits.length === 1 ? (hits[0] as string) : `UNRECOGNISED("${trimmed}")`;
+}
+
+/** Every corpus row's label must agree with the failure entries recorded beside it. */
+function agreementProblems(run: Run, probe: ExportProbe): string[] {
+  const problems: string[] = [];
+  const expected = new Set([probe.ordinaryLabel, "named refusal"]);
+  const fails = failLines(run);
+  for (const row of corpusRows(run)) {
+    const trimmed = row.trimEnd();
+    const position = POSITIONS.find((p) => trimmed.startsWith(`  ${p} `));
+    if (position === undefined) continue;
+    const label = probe.rowLabels.filter((l) => trimmed.endsWith(l));
+    if (label.length !== 1) {
+      problems.push(`a row printed a label outside the module's published set: "${trimmed}"`);
+      continue;
+    }
+    const printed = label[0] as string;
+    // "Beside it" = a failure entry opening with this row's own `position / shape:` coordinate.
+    // The position-level premises (`position: …`) carry no ` / ` and are correctly excluded.
+    const beside = fails.filter((f) => {
+      if (!f.startsWith(`${position} / `)) return false;
+      const end = f.indexOf(": ");
+      if (end < 0) return false;
+      return trimmed.includes(f.slice(position.length + 3, end));
+    });
+    if (expected.has(printed)) {
+      if (beside.length > 0) {
+        problems.push(`"${trimmed}" printed an EXPECTED label beside ${String(beside.length)} failure(s)`);
+      }
+      continue;
+    }
+    if (beside.length === 0) {
+      problems.push(`"${trimmed}" printed "${printed}" and NO failure was recorded beside it`);
+      continue;
+    }
+    if (printed.startsWith("NOT ORDINARY (")) {
+      const outcome = printed.slice("NOT ORDINARY (".length, -1);
+      if (!beside.some((f) => f.includes(`verdict=${outcome}`))) {
+        problems.push(
+          `"${trimmed}" printed "${printed}" and no failure beside it names verdict=${outcome}`,
+        );
+      }
+    }
+  }
+  return problems;
+}
+
+describe("31-43 IN-20 — the printed label is derived from the outcome that happened", () => {
+  it("PREMISE: the label set is DERIVED from the vocabulary, with its cardinality asserted both ways", () => {
+    const probe = probeExports();
+    expect(probe.parsed, `the export probe printed nothing readable:\n${probe.raw}`).toBe(true);
+    expect(
+      probe.labels.length,
+      "the CONTROL label set is not the ordinary label, the refusal label and one label per outcome",
+    ).toBe(probe.outcomes.length + 2);
+    expect(new Set(probe.labels).size, "the label set repeats a label").toBe(probe.labels.length);
+    // FORWARD: every outcome has a label of its own.
+    const byOutcome = new Map(probe.derived.map((d) => [d.outcome, d.asMismatch]));
+    for (const outcome of probe.outcomes) {
+      const label = byOutcome.get(outcome);
+      expect(label, `outcome "${outcome}" has no label`).toBeDefined();
+      expect(probe.labels, `the label for "${outcome}" is not in the published label set`).toContain(
+        label,
+      );
+      expect(label, `the label for "${outcome}" does not name it`).toContain(outcome);
+    }
+    // BACKWARD: every label belongs to exactly one outcome, or is one of the two fixed labels.
+    for (const label of probe.labels) {
+      if (label === probe.ordinaryLabel || label === probe.namedRefusalLabel) continue;
+      const owners = probe.derived.filter((d) => d.asMismatch === label);
+      expect(owners.length, `the label "${label}" belongs to ${String(owners.length)} outcomes`).toBe(1);
+    }
+    // NO PUBLISHED LABEL IS A SUFFIX OF ANOTHER. Every row assertion in this file anchors on the
+    // label ENDING the row, so a label that ended another would make those assertions ambiguous.
+    for (const a of probe.rowLabels) {
+      for (const b of probe.rowLabels) {
+        if (a === b) continue;
+        expect(b.endsWith(a), `the label "${a}" is a suffix of "${b}"`).toBe(false);
+      }
+    }
+    expect(probe.rowLabels.length, "ROW_LABELS is not the CONTROL labels plus the refusal-row labels").toBe(
+      probe.labels.length + 3,
+    );
+  });
+
+  it("ONE CASE PER LABEL: the module's own derivation produces exactly that label for that outcome", () => {
+    // The derivation is asked, per outcome, for all three of its arms. This is the case that covers
+    // every label including the ones no staging on this platform can reach; the cases below then
+    // drive the reachable ones end to end, through the artifact, against a seeded mirror.
+    const probe = probeExports();
+    expect(probe.derived.length, "the derivation was not exported").toBe(probe.outcomes.length);
+    for (const d of probe.derived) {
+      expect(d.asExpected, `the ordinary arm for "${d.outcome}"`).toBe(probe.ordinaryLabel);
+      expect(d.asNamedRefusal, `the named-refusal arm for "${d.outcome}"`).toBe(probe.namedRefusalLabel);
+      expect(d.asMismatch, `the mismatch arm for "${d.outcome}"`).toBe(`NOT ORDINARY (${d.outcome})`);
+    }
+  });
+
+  it("MIRROR: a driver that CRASHES without printing does not print the refusal label", () => {
+    // The heart of IN-20: this row read `REFUSED (wrong)` before this plan, for a driver that never
+    // refused anything.
+    const run = runMirror("crashes-without-printing");
+    const probe = probeExports();
+    expect(run.status, `the gate exited ${String(run.status)}:\n${run.stdout}`).toBe(1);
+    const label = labelOfRow(run, NOTE_POSITION_LABEL, CONTROL_SHAPES[0] as string, probe.rowLabels);
+    expect(label, "a crashed driver was recorded as a refusal").not.toBe(probe.namedRefusalLabel);
+    expect(label).toBe("NOT ORDINARY (nonzero-exit)");
+  });
+
+  it("MIRROR: a driver that exits zero and reports NOTHING is named as that", () => {
+    const run = runMirror("exits-silently-without-reporting");
+    const probe = probeExports();
+    expect(labelOfRow(run, NOTE_POSITION_LABEL, CONTROL_SHAPES[0] as string, probe.rowLabels)).toBe(
+      "NOT ORDINARY (crashed)",
+    );
+  });
+
+  it("MIRROR: a driver killed by a signal is named as that, not as a refusal", () => {
+    const run = runMirror("signals-itself");
+    const probe = probeExports();
+    expect(labelOfRow(run, NOTE_POSITION_LABEL, CONTROL_SHAPES[0] as string, probe.rowLabels)).toBe(
+      "NOT ORDINARY (signalled)",
+    );
+  });
+
+  it("MIRROR: a call that returns with NOTHING at the target is named as that", () => {
+    const run = runMirror("deletes-the-target-and-reports-what-it-observed");
+    const probe = probeExports();
+    expect(labelOfRow(run, NOTE_POSITION_LABEL, CONTROL_SHAPES[0] as string, probe.rowLabels)).toBe(
+      "NOT ORDINARY (no-write)",
+    );
+  });
+
+  it("MIRROR: a token outside the vocabulary is NAMED, never mapped onto a member", () => {
+    // "a third outcome cannot arrive wearing a second outcome's name", driven.
+    const run = runMirror("reports-a-token-outside-the-vocabulary");
+    const probe = probeExports();
+    expect(labelOfRow(run, NOTE_POSITION_LABEL, CONTROL_SHAPES[0] as string, probe.rowLabels)).toBe(
+      "NOT ORDINARY (unclassifiable)",
+    );
+  });
+
+  it("MIRROR: a CONTROL genuinely refused by this position's own clause prints the refusal label", () => {
+    const run = runMirror("reports-the-positions-own-refusal-clause");
+    const probe = probeExports();
+    expect(labelOfRow(run, NOTE_POSITION_LABEL, CONTROL_SHAPES[0] as string, probe.rowLabels)).toBe(
+      probe.namedRefusalLabel,
+    );
+  });
+
+  it("MIRROR: the two WR-41 mirrors print the outcome they produced, not the refusal label", () => {
+    const probe = probeExports();
+    expect(
+      labelOfRow(
+        runMirror("reports-write-without-writing"),
+        NOTE_POSITION_LABEL,
+        CONTROL_SHAPES[0] as string,
+        probe.rowLabels,
+      ),
+    ).toBe("NOT ORDINARY (write)");
+    expect(
+      labelOfRow(
+        runMirror("overwrites-the-target-and-reports-a-no-op"),
+        NOTE_POSITION_LABEL,
+        CONTROL_SHAPES[0] as string,
+        probe.rowLabels,
+      ),
+    ).toBe("NOT ORDINARY (identical-no-op)");
+  });
+
+  it("the pre-fix staging's two CONTROL rows name the outcomes they actually produced", () => {
+    const run = runGate({ [STALE_CONTROL_ENV]: "1" });
+    const probe = probeExports();
+    expect(labelOfRow(run, NOTE_POSITION_LABEL, CONTROL_SHAPES[0] as string, probe.rowLabels)).toBe(
+      "NOT ORDINARY (refuse)",
+    );
+    expect(
+      labelOfRow(run, MANIFEST_POSITION_LABEL, CONTROL_SHAPES[0] as string, probe.rowLabels),
+    ).toBe("NOT ORDINARY (fail-closed)");
+  });
+
+  it("EVERY row's label agrees with the failure entries recorded beside it, in every run", () => {
+    // The review's point was that the true verdict was ALREADY there, beside a wrong label. So the
+    // two are asserted to agree: an expected label with a failure beside it, or an unexpected label
+    // with none, is itself reported.
+    const probe = probeExports();
+    const runs: Array<[string, Run]> = [
+      ["ordinary", runGate({})],
+      ["stale-control", runGate({ [STALE_CONTROL_ENV]: "1" })],
+      ...probe.mirrorKinds.map((k): [string, Run] => [k, runMirror(k)]),
+    ];
+    const problems: string[] = [];
+    for (const [name, run] of runs) {
+      for (const p of agreementProblems(run, probe)) problems.push(`${name}: ${p}`);
+    }
+    expect(problems, `a printed label disagrees with the record beside it:\n${problems.join("\n")}`).toEqual(
+      [],
+    );
+  });
+
+  it("COVERAGE: every label was WATCHED live except the two this platform cannot stage", () => {
+    // Derive what was watched rather than asserting a hand-kept list. The two undriven labels are
+    // named here so a new label that cannot be driven fails this case instead of quietly joining
+    // them. `answered` is the MANIFEST position's own ordinary outcome and no note-position mirror
+    // can produce it at a position that expects it to be wrong; `no-answer` needs a child that
+    // produces no exit code and no signal, which no driver mirror can arrange.
+    const probe = probeExports();
+    const DISCLOSED_UNDRIVEN = ["NOT ORDINARY (answered)", "NOT ORDINARY (no-answer)"];
+    const watched = new Set<string>();
+    const runs = [
+      runGate({}),
+      runGate({ [STALE_CONTROL_ENV]: "1" }),
+      ...probe.mirrorKinds.map((k) => runMirror(k)),
+    ];
+    for (const run of runs) {
+      for (const row of corpusRows(run)) {
+        const trimmed = row.trimEnd();
+        for (const l of probe.rowLabels) if (trimmed.endsWith(l)) watched.add(l);
+      }
+    }
+    const unwatched = probe.labels.filter((l) => !watched.has(l)).sort();
+    expect(
+      unwatched,
+      "the set of labels no run produced is not the disclosed pair. A label nobody has watched " +
+        "being printed is a label nobody has watched at all.",
+    ).toEqual([...DISCLOSED_UNDRIVEN].sort());
+  });
+
+  it("COVERAGE: every mirror kind the module publishes was driven by a case above", () => {
+    // The set-literal rule applied to this file's own seams: derive the published set, assert the
+    // driven set covers it. Runs last on purpose — it reads what the cases above drove.
+    const probe = probeExports();
+    expect(probe.mirrorKinds.length, "no mirror kinds are published").toBeGreaterThan(5);
+    const undriven = probe.mirrorKinds.filter((k) => !MIRROR_RUNS.has(k));
+    expect(undriven, `these published mirror kinds no case drives:\n${undriven.join("\n")}`).toEqual([]);
   });
 });

@@ -1,0 +1,39 @@
+{
+  "what": "RED transcript for plan 31-43 Task 2 (IN-20) — the printed outcome label must be DERIVED from the outcome the driver reported, over a closed vocabulary whose cardinality is asserted in both directions, with one case per label. Committed BEFORE the derivation exists, so thirteen cases fail on the planned behaviour and on nothing else.",
+  "taken_at_commit": "719eb4d",
+  "command": "npx vitest run --exclude '**/scripts/e2e/**' scripts/check-platform-shapes.test.ts",
+  "exit_code": 1,
+  "target_tests": [
+    "31-43 IN-20 > PREMISE: the label set is DERIVED from the vocabulary, with its cardinality asserted both ways",
+    "31-43 IN-20 > ONE CASE PER LABEL: the module's own derivation produces exactly that label for that outcome",
+    "31-43 IN-20 > MIRROR: a driver that CRASHES without printing does not print the refusal label",
+    "31-43 IN-20 > MIRROR: a driver that exits zero and reports NOTHING is named as that",
+    "31-43 IN-20 > MIRROR: a driver killed by a signal is named as that, not as a refusal",
+    "31-43 IN-20 > MIRROR: a call that returns with NOTHING at the target is named as that",
+    "31-43 IN-20 > MIRROR: a token outside the vocabulary is NAMED, never mapped onto a member",
+    "31-43 IN-20 > MIRROR: a CONTROL genuinely refused by this position's own clause prints the refusal label",
+    "31-43 IN-20 > MIRROR: the two WR-41 mirrors print the outcome they produced, not the refusal label",
+    "31-43 IN-20 > the pre-fix staging's two CONTROL rows name the outcomes they actually produced",
+    "31-43 IN-20 > EVERY row's label agrees with the failure entries recorded beside it, in every run",
+    "31-43 IN-20 > COVERAGE: every label was WATCHED live except the two this platform cannot stage",
+    "31-43 IN-20 > COVERAGE: every mirror kind the module publishes was driven by a case above"
+  ],
+  "expected_result": "scripts/check-platform-shapes.ts publishes CONTROL_OUTCOME_LABELS and ROW_LABELS, derives every non-ordinary CONTROL label from the reported outcome via an exported `controlOutcomeLabel`, asserts the label set's cardinality against PLATFORM_SHAPE_OUTCOMES in both directions inside the gate itself, asserts each printed row's label against the failure entries beside it, and publishes six further mirror kinds so every reachable label is watched being printed. All thirteen cases then pass.",
+  "actual_result": "Test Files 1 failed (1). Tests 13 failed | 12 passed (25). Every failure names the planned behaviour and nothing else: `the CONTROL label set … expected +0 to be 13` and `the derivation was not exported: expected +0 to be 11` (neither export exists); six mirror cases fail on `the gate did not print the ordinary driver's digest` (the six new mirror kinds are not published, so the seam rejects them); two label cases read `UNRECOGNISED(\"  note path …\")` because the row prints `REFUSED (wrong)` — the exact IN-20 defect; the agreement case reports a printed label disagreeing with the record beside it; the live-coverage case reports an EMPTY unwatched set against the disclosed pair; and the mirror-coverage case reads `expected 2 to be greater than 5`.",
+  "why_this_is_an_INTENTIONAL_red": "Twelve cases pass in the same run — the two 31-36 premises, the 31-36 ordinary/refusal/stale cases, the 31-36 IN-18 case, and all six of this plan's Task 1 cases including both WR-41 mirrors. So the file parses, discovers its tests, imports the artifact's exports in a child, spawns the gate eleven times and reads its table; the only failures are assertions about behaviour the GREEN step adds. This is not a syntax error, a zero-discovery run, a fixture crash or an unrelated assertion. `npm run typecheck` exits 0 at this commit.",
+  "premises_asserted_before_any_result_was_read": {
+    "the gate at the RED base (node scripts/check-platform-shapes.js)": "exit 0, ALL CHECKS PASSED — Task 1's work is green before Task 2's cases are added",
+    "outcome vocabulary published by Task 1": 11,
+    "expected label-set cardinality (2 fixed + one per outcome)": 13,
+    "mirror kinds published at the RED base": 2
+  },
+  "the_IN-20_reading_this_task_exists_for": {
+    "cited_expression": "record(position, shape, ordinary && !namedRefusal ? ORDINARY_OUTCOME : \"REFUSED (wrong)\", d.ms, d.outcome)",
+    "measured_at_the_RED_base": [
+      "GRUGOPS_PLATFORM_SHAPES_MIRROR_DRIVER=reports-write-without-writing → the note CONTROL row printed `REFUSED (wrong)` for outcome `write`, beside a failure entry reading `verdict=write, expected identical-no-op`",
+      "GRUGOPS_PLATFORM_SHAPES_STALE_CONTROL=1 → both CONTROL rows printed `REFUSED (wrong)`, one for outcome `refuse` and one for outcome `fail-closed`"
+    ],
+    "reading": "Every outcome that is not the expected one printed the refusal label, so a crashed driver, a no-answer and a genuine refusal are indistinguishable in the table two rounds compare against — a wrong diagnosis in the record, even though the failure entry beside it carried the true verdict."
+  },
+  "note_on_the_tooling": "`gsd_run check tdd-red-evidence` cannot parse vitest's reporter output, so this file records the MEASURED red rather than a tool verdict. The counts and quoted messages above are copied from the run, never composed."
+}
