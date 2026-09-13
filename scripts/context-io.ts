@@ -2716,7 +2716,11 @@ export const ROOT_DIVERGENCE_DISPOSITIONS: readonly RootDivergenceDisposition[] 
   }),
   Object.freeze({
     id: "RD-31-40-03",
-    site: "scripts/check-platform-shapes.ts::writeContextDriver#appendNote@text",
+    // THE COORDINATE MOVED IN PLAN 31-43 AND THE ENTRY MOVED WITH IT (`WR-41`). The assembled call
+    // used to live in `writeContextDriver`; that function now only writes what `contextDriverBody`
+    // composes, because the body has mirror arms. A published coordinate that names the function it
+    // used to be in is a residual nobody can find, which is the same defect as not publishing it.
+    site: "scripts/check-platform-shapes.ts::contextDriverBody#appendNote@text",
     kind: "published-residual" as RootDivergenceKind,
     visible_to_census: false,
     shape:
@@ -2725,7 +2729,8 @@ export const ROOT_DIVERGENCE_DISPOSITIONS: readonly RootDivergenceDisposition[] 
       "argument — a divergence that exists at run time and is a string at rest.",
     reason:
       "THE CENSUS CANNOT SEE IT, AND THAT IS THE DISCLOSURE RATHER THAN THE DEFECT. The driver is " +
-      "assembled inside `function writeContextDriver(dir: string): string {`, where the call is an " +
+      "assembled inside `function contextDriverBody(mirror: MirrorDriverKind | null): string {`, " +
+      "where the call is an " +
       "array of string literals joined with newlines; a syntax-tree walk over this repository sees " +
       "a string, never a call expression, so no census the census's own technique can build will " +
       "ever report it. What it passes is measurable by reading: the store argument is `base` " +

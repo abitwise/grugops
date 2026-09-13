@@ -5469,7 +5469,9 @@ describe("31-40 — every census divergence carries a written disposition, and e
       invisible.map((e) => e.site),
       "the site a syntax-tree census cannot see is no longer named in the register. It does not " +
         "stop existing when the entry goes; it stops being disclosed",
-    ).toEqual(["scripts/check-platform-shapes.ts::writeContextDriver#appendNote@text"]);
+      // The coordinate moved in plan 31-43 (`WR-41`): the assembled call now lives in
+      // `contextDriverBody`, which `writeContextDriver` writes out. The entry followed it.
+    ).toEqual(["scripts/check-platform-shapes.ts::contextDriverBody#appendNote@text"]);
   });
 
   it("every entry's REASON quotes its own site's file rather than paraphrasing it", () => {
