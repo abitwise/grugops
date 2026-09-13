@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 159
+open_count: 160
 waived_count: 0
 fixed_count: 4
-total_count: 163
-last_updated: 2026-09-10T14:35:33.564Z
+total_count: 164
+last_updated: 2026-09-13T01:39:15.934Z
 ---
 
 # Broken Windows Ledger
@@ -178,6 +178,7 @@ last_updated: 2026-09-10T14:35:33.564Z
 | 161 | 31 | deviation | docs/audit/31-round6-residuals.md |  | R-31-31-01 raised and NOT repaired: the ambient declare const spelling reports 0 findings/EXIT=0, unmoved from 31-REVIEW.md CR-18 point 3, and no UNRESOLVABLE_CALLEE_RESIDUALS member names it. Owner: round 7's fix plan. | open |  | 2026-09-10T14:35:33.403Z |  |
 | 162 | 31 | deviation | .planning/phases/31-autonomous-manual-testing/31-round6-residual-dispositions.md |  | The round-6 dispositions file declares 34 items (19 fix / 13 close / 2 open) while its six tables carry 43 (22/18/3); de-duplicating the one thrice-listed item gives 41. Derived by command. Owner: round 7's dispositions file. | open |  | 2026-09-10T14:35:33.484Z |  |
 | 163 | 31 | unrun-verify | docs/audit/31-round6-residuals.md |  | R-01, R-02 and R-03 remain UNKNOWN - verify: the attended Chrome lane under real interactive auth, the auth predicate under alternative credential configurations, and every Windows leg. Every probe in the round-6 closing measurement ran on darwin only. | open |  | 2026-09-10T14:35:33.564Z |  |
+| 164 | 31 | unrun-verify | scripts/check-platform-shapes.ts |  | Two of the thirteen CONTROL labels — NOT ORDINARY (answered) and NOT ORDINARY (no-answer) — are not watched live; they are driven through the module's exported derivation only (D-43) | open |  | 2026-09-13T01:39:15.934Z |  |
 
 ````json
 [
@@ -2135,6 +2136,18 @@ last_updated: 2026-09-10T14:35:33.564Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-09-10T14:35:33.564Z",
+    "resolved_at": null
+  },
+  {
+    "id": 164,
+    "kind": "unrun-verify",
+    "phase": "31",
+    "file": "scripts/check-platform-shapes.ts",
+    "line": null,
+    "description": "Two of the thirteen CONTROL labels — NOT ORDINARY (answered) and NOT ORDINARY (no-answer) — are not watched live; they are driven through the module's exported derivation only (D-43)",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-13T01:39:15.934Z",
     "resolved_at": null
   }
 ]
