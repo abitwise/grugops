@@ -1948,8 +1948,25 @@ const SECTION_EXTENT_OWNER_COUNT = 1;
  *   `uat-spec-integrity.ts` and `browser-uat-recipe.md` in place, which adds no file.
  *   Re-derived rather than incremented: `git ls-files '*.ts'` minus the `.test.ts` and `.d.ts`
  *   members reports 75 at the round-7 base and 78 with these three tracked.
+ *
+ * 78 -> 79 (plan 31-42, closing `WR-38` of 31-REVIEW.md round 8), ONE further CORPUS file, not
+ * tooling:
+ *   - `scripts/runnable-ref/fixtures/reach-modifier-tails.uat.spec.ts` — one call per PUBLISHED
+ *     member of `BANNED_MODIFIER_TAILS`, on a published head, through the framework's own declared
+ *     surface. `WR-38` is that three of the four published tails had no corpus row keyed to their
+ *     constant: `only` was reached incidentally by two fixtures written for other reasons, and
+ *     `fixme` and `fail` were called by NO fixture at all, so a narrowing that made either
+ *     unreachable would have repeated `CR-23` with the same green suite. It carries a mutation
+ *     region, so the mutation contract proves its four findings are its four planted constructs.
+ *   Same standing as the corpus files above: it is not a tooling module, it is counted anyway
+ *   because this set is pinned equal to `git ls-files '*.ts'`, and a wider scan can only find more.
+ *   It declares no frontmatter parser and locates no section, so both owner answers are unchanged.
+ *   The same plan edits `uat-spec-integrity.ts` and `browser-uat-recipe.md` in place, which adds no
+ *   file.
+ *   Re-derived rather than incremented: `git ls-files '*.ts'` minus the `.test.ts` and `.d.ts`
+ *   members reports 78 at the round-9 base and 79 with this fixture tracked.
  */
-const NON_TEST_MODULE_COUNT = 78;
+const NON_TEST_MODULE_COUNT = 79;
 
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 // (Plan 29-40, gap G-29-1 of 29-UAT.md, closing V-29-35-01) THE FRONTMATTER-PARSER NAME OWNER SET.

@@ -7928,8 +7928,16 @@ const TAIL = '  await expect(page.getByTestId("invoice-total")).toHaveText("$42.
  * 31-35 (2026-09-11): RE-MEASURED again at the commit that added CR-25's rows, 45 -> 55, by the
  * same derivation and for the same reason. Two of the eleven rows come from this plan's own
  * adversarial probe of its own fix rather than from the finding it was written for.
+ *
+ * 31-42 (2026-09-13): RE-MEASURED again, 55 -> 77, by `declaredCorpusRowIds().size` at the commit
+ * that closed WR-37 and WR-38. The twenty-two rows are twelve from the derived swallow-site census
+ * — one per position the walk can stop at, plus its controls — and ten from the reachability
+ * binding's move to a family-derived expected side, which RENAMED the three rows that existed and
+ * added five members and two directions that had none. A floor left at 55 while twenty-two rows
+ * landed above it would silently permit those twenty-two to be deleted again, which is the standing
+ * reason this number is re-measured rather than carried.
  */
-const CORPUS_ROW_FLOOR = 55;
+const CORPUS_ROW_FLOOR = 77;
 
 /** One row per member of the exported residual register, keyed by that member's INDEX. */
 const RESIDUAL_COVERAGE: Readonly<Record<number, string>> = Object.freeze({
@@ -9797,6 +9805,69 @@ test.skip("a scenario nobody runs", () => {
     );
     expect(r.status, `the published path \`expect.soft\` was not refused. stdout: ${r.stdout}`).toBe(1);
     expect(r.stdout).toContain("`expect.soft`");
+  });
+
+  it("REACH `expect.configure`: the published configured path refused when its option is enabled", () => {
+    row("REACH-BANNED_CONFIGURED_PATHS-expect.configure");
+    // The PAIR, not the path: the fixture also carries the LEGITIMATE `expect.configure({ retries:
+    // 2 })` spelling outside its mutation region, so this refusal cannot be a bare path ban.
+    const r = runCheck(
+      mkTargetRepo({ "e2e/uat/subject.uat.spec.ts": "configured-soft.uat.spec.ts" }),
+    );
+    expect(
+      r.status,
+      `the published configured path \`expect.configure\` was not refused. stdout: ${r.stdout}`,
+    ).toBe(1);
+    expect(r.stdout).toContain("`expect.configure");
+  });
+
+  // ── the TAIL axis, which had one row for four published members ───────────────────────────────
+  //
+  // `31-42` (WR-38): `skip` was driven by a row, `only` was reached incidentally by two fixtures
+  // written for other reasons, and `fixme` and `fail` were called by NO fixture at all. Each now
+  // drives its own member on a published head, through the framework's own declared surface, from
+  // ONE fixture whose mutation contract proves the four findings are the four planted constructs.
+  // WRITTEN OUT, NOT LOOPED, and the reason is mechanical rather than stylistic: the row census is
+  // derived from this file's own AST by reading `row("…")` call sites whose single argument is a
+  // STRING LITERAL. A computed id — `row(`REACH-…-${tail}`)` — is invisible to that derivation, so a
+  // looped row would drive its member and still read as unrowed. Measured: the looped form left all
+  // four tails reported missing by the binding below.
+  const TAIL_ROOT = (): string =>
+    mkTargetRepo({ "e2e/uat/subject.uat.spec.ts": "reach-modifier-tails.uat.spec.ts" });
+
+  /** One tail drive: the fixture is refused and the refusal names that tail's own spelling. */
+  function driveTail(tail: string): void {
+    const r = runCheck(TAIL_ROOT());
+    expect(r.status, `the published tail \`${tail}\` was not refused. stdout: ${r.stdout}`).toBe(1);
+    expect(
+      r.stdout,
+      `the refusal does not name the tail's own spelling \`test.${tail}\``,
+    ).toContain(`\`test.${tail}\``);
+  }
+
+  it("REACH `skip`: the published modifier tail refused on a published head", () => {
+    row("REACH-BANNED_MODIFIER_TAILS-skip");
+    driveTail("skip");
+  });
+
+  it("REACH `only`: the published modifier tail refused on a published head", () => {
+    row("REACH-BANNED_MODIFIER_TAILS-only");
+    driveTail("only");
+  });
+
+  it("REACH `fixme`: the published modifier tail refused on a published head", () => {
+    row("REACH-BANNED_MODIFIER_TAILS-fixme");
+    // NO fixture called this spelling before `31-42`. `WR-38` is precisely that: a published member
+    // the corpus never drove, while membership equality stayed green over it.
+    driveTail("fixme");
+  });
+
+  it("REACH `fail`: the published modifier tail refused on a published head", () => {
+    row("REACH-BANNED_MODIFIER_TAILS-fail");
+    // The INVERTING modifier, and the one whose effect on the evidence is strictly worse than
+    // `skip`: the scenario is not removed, it is reported as a pass when its assertion failed. Also
+    // called by no fixture before `31-42`.
+    driveTail("fail");
   });
 
   it("THE BINDING: every member of every PUBLISHED ban set carries a refusing row, both sides derived", async () => {
