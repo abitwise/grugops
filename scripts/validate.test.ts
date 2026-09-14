@@ -128,13 +128,16 @@ describe("scripts/fixtures/ splits into validator repositories and everything el
   });
 
   it("pins each half's size, so a silent entrant moves a number rather than nothing", () => {
-    expect(FIXTURE_REPOS.length, "validator fixture repositories").toBe(8);
+    // 8 until plan 32-12, which adds the three ticket-grammar DISAGREEMENT repositories
+    // (bad-ticket-body-column, bad-ticket-no-region, bad-ticket-duplicate-key) — one per point
+    // where the validator's deleted local reader and `parseTicketDocument` answered differently.
+    expect(FIXTURE_REPOS.length, "validator fixture repositories").toBe(11);
     expect(NON_REPO_FIXTURE_DIRS.length, "directories that are deliberately not repositories").toBe(2);
     expect(
       FIXTURE_CONFIG_DIRS.length,
       "directories carrying a factory config — one more than the repository set, because " +
         "board-snapshot carries a config the board projector reads and no AGENTS.md",
-    ).toBe(9);
+    ).toBe(12);
   });
 
   it("gives every declared non-repository a REASON, not merely a name", () => {
@@ -603,7 +606,7 @@ describe("each deliberately-broken fixture still fails for EXACTLY its own reaso
   //
   // `bad-config-no-mode` is the one fixture whose OWN defect is a configuration key, so its expected
   // configuration-finding count is 1 and the others' is 0. Stating that per row — rather than
-  // exempting the fixture from the check — keeps the assertion honest for all eight.
+  // exempting the fixture from the check — keeps the assertion honest for all eleven.
   const INTENT: ReadonlyArray<readonly [string, RegExp, number, number]> = [
     // [fixture, its intended finding, expected config findings, expected bare exit status]
     ["bad-role-missing-section", /Hard limits/i, 0, 1],
@@ -612,6 +615,13 @@ describe("each deliberately-broken fixture still fails for EXACTLY its own reaso
     ["bad-ticket-mismatch", /status/i, 0, 1],
     ["bad-ticket-bad-column", /not a board column/i, 0, 1],
     ["bad-workflow-no-commit", /Commit/i, 0, 1],
+    // The three plan 32-12 disagreement repositories, at their PRE-CUTOVER answers. Two of them
+    // exit 0 today because the deleted local reader accepted a document `parseTicketDocument`
+    // refuses; the third exits 1 on a column it read out of the ticket's prose. All three rows
+    // move in plan 32-12's Task 2, and the move IS the deliverable.
+    ["bad-ticket-body-column", /not a board column/i, 0, 1],
+    ["bad-ticket-no-region", /ALL CHECKS PASSED/i, 0, 0],
+    ["bad-ticket-duplicate-key", /ALL CHECKS PASSED/i, 0, 0],
     // `good` has no defect: its intent is that NOTHING is found, so its row asserts the absence of
     // any finding rather than the presence of one. `warn-only-no-trace` exits 0 bare but must still
     // EMIT its warning — asserting only its exit status would pass over a run that found nothing.
@@ -623,7 +633,7 @@ describe("each deliberately-broken fixture still fails for EXACTLY its own reaso
     // Two-sided, so neither a fixture added without a row nor a row naming a deleted fixture can
     // hide. The disk side is discovered; the table side is written. Equality is the assertion.
     expect(INTENT.map(([f]) => f).sort()).toEqual(FIXTURE_REPOS);
-    expect(FIXTURE_REPOS.length).toBe(8);
+    expect(FIXTURE_REPOS.length).toBe(11);
   });
 
   it.each(INTENT)(
@@ -661,8 +671,8 @@ describe("validate-agent-factory.ts — the legal key set is IMPORTED, never res
 
 describe("the retired key is gone from every shipped and fixture config surface (D-05)", () => {
   // The surface set is DISCOVERED, never listed: the two shipped JSON twins plus one JSON per
-  // fixture repository found by reading the fixture directory. The count is asserted so a ninth
-  // fixture added later cannot slip through un-scanned.
+  // fixture repository found by reading the fixture directory. The count is asserted so a
+  // thirteenth fixture added later cannot slip through un-scanned.
   const fixtureDirs = FIXTURE_CONFIG_DIRS;
 
   const surfaces = [
@@ -671,8 +681,8 @@ describe("the retired key is gone from every shipped and fixture config surface 
     ...fixtureDirs.map((d) => fixtureConfigOf(d)),
   ];
 
-  it("the discovered surface set is the nine fixture configs plus the two shipped twins", () => {
-    expect(fixtureDirs.length).toBe(9);
+  it("the discovered surface set is the twelve fixture configs plus the two shipped twins", () => {
+    expect(fixtureDirs.length).toBe(12);
     expect(surfaces.length).toBe(fixtureDirs.length + 2);
     for (const s of surfaces) expect(existsSync(s), `${s} is missing`).toBe(true);
   });
@@ -1358,5 +1368,66 @@ describe("validate-agent-factory.js — one board grammar (plan 32-08, DASH-01 /
     expect(out(mismatch)).toContain(
       'plans/tickets/ABC-001.md: status "in-review" does not match column "In Development" (expected kebab "in-development")',
     );
+  });
+});
+
+// ── The three points where the two ticket-frontmatter readers disagreed (plan 32-12, CR-06) ──────
+//
+// Phase 32's verification found that plan 32-08's cutover was only half done: `board-model.ts`'s
+// docblock said the validator's own `column:`/`status:` regex pair had been deleted in favour of
+// `parseTicketDocument`, and the pair was still there, used by `checkTickets()`. Two readers of one
+// ticket key is the drift class DASH-01 exists to close — `npm run` validation and the dashboard
+// could report different columns for the same ticket.
+//
+// The two readers disagreed by CONSTRUCTION on exactly three inputs, and each of the three is a
+// fixture repository carrying one ticket that isolates it. These cases pin the validator's verdict
+// on each; `.planning/phases/32-board-projector-cli-dashboard/32-12-RED-baseline.txt` records both
+// readers' answers on the same three documents, measured before anything was deleted.
+describe("validate-agent-factory.js — the ticket grammar's three disagreement points (plan 32-12)", () => {
+  // DISAGREEMENT 1 — a `column:` line in the PROSE BODY, and a second inside a fenced block.
+  //
+  // The region is well formed and carries no `column:` key at all. The deleted reader's
+  // `/^column:\s*(.+)$/m` had no region bound, so it walked past the closing `---` and answered
+  // with the first key line it met anywhere in the file — a value the ticket's author wrote as
+  // prose. `parseTicketDocument` reads only between the first two delimiters, so it answers
+  // `column: null` and the membership rule has nothing to run against.
+  it("BODY MATCH: a `column:` line in the prose decides the verdict (pre-cutover answer)", () => {
+    const r = runFixture(join(FIX, "bad-ticket-body-column"));
+    expect(
+      out(r),
+      "the DELETED local reader produced this: `Phantom Column` appears nowhere in the ticket's " +
+        "frontmatter region, only in its prose body and in a fenced example",
+    ).toMatch(/column "Phantom Column" is not a board column/);
+    expect(r.status).not.toBe(0);
+  });
+
+  // DISAGREEMENT 2 — no frontmatter region at all.
+  //
+  // The document is plain markdown with two key lines in its prose. The deleted reader accepted it
+  // and found both values legitimate, so the validator passed a document that has no frontmatter.
+  // `parseTicketDocument` refuses it with `no-opening-delimiter`.
+  it("NO REGION: a document with no frontmatter passes both ticket rules (pre-cutover answer)", () => {
+    const r = runFixture(join(FIX, "bad-ticket-no-region"));
+    expect(
+      r.status,
+      "the DELETED local reader read `column:`/`status:` out of a document that never opened a " +
+        "frontmatter region, and both values happened to be legitimate",
+    ).toBe(0);
+    expect(out(r)).not.toMatch(/no-opening-delimiter/);
+  });
+
+  // DISAGREEMENT 3 — the `column:` key written twice, with different values.
+  //
+  // The deleted reader's `.match()` returns the FIRST match and discards the rest, so the document
+  // was read as though its second column line did not exist. `parseTicketDocument` refuses a
+  // document that expresses two values for one key.
+  it("DUPLICATE KEY: the first of two column lines wins silently (pre-cutover answer)", () => {
+    const r = runFixture(join(FIX, "bad-ticket-duplicate-key"));
+    expect(
+      r.status,
+      "the DELETED local reader took `In Development` — the first of the two — and said nothing " +
+        "about the second",
+    ).toBe(0);
+    expect(out(r)).not.toMatch(/duplicate-key/);
   });
 });

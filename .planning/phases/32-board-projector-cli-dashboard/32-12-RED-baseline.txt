@@ -1,0 +1,93 @@
+32-12 RED BASELINE — the two ticket-frontmatter readers measured against each other
+===================================================================================
+
+Recorded BEFORE any deletion, against the committed build at 839cbe33 (plan 32-10's
+close-out commit). The point of this file is the DISAGREEMENT: if the two columns of the
+table below agreed on a row, that row's fixture would be measuring nothing and would have
+had to be rebuilt before the cutover.
+
+Two readers were live on the tree at this moment:
+
+  A  `frontMatter()` in scripts/validate-agent-factory.ts:716-723, used by `checkTickets()`
+     at :742.  Two line-anchored regexes, `/^column:\s*(.+)$/m` and `/^status:\s*(.+)$/m`,
+     applied to the WHOLE document with no region bound.
+
+  B  `parseTicketDocument()` in scripts/board-model.ts:895-1010.  Reads only the region
+     between the first two `---` lines, refuses anything outside the closed form by name.
+
+THE THREE-ROW TABLE
+-------------------
+
+  Fixture                    | Reader A (validate-agent-factory) | Reader B (parseTicketDocument)
+  ---------------------------+-----------------------------------+------------------------------------
+  bad-ticket-body-column     | column="Phantom Column"           | ADMITTED, column=null,
+                             | status="phantom-column"           | status="phantom-column"
+                             | (read out of the PROSE BODY)      | (the region carries no column key)
+  ---------------------------+-----------------------------------+------------------------------------
+  bad-ticket-no-region       | column="In Development"           | REFUSED code=no-opening-delimiter
+                             | status="in-development"           | "a ticket document opens with a `---`
+                             | (read out of plain markdown       |  line and this one opens with
+                             |  with no frontmatter at all)      |  `# ABC-001 fixture ticket (no fron…`"
+  ---------------------------+-----------------------------------+------------------------------------
+  bad-ticket-duplicate-key   | column="In Development"           | REFUSED code=duplicate-key
+                             | status="in-development"           | "`column` is written twice, so the
+                             | (FIRST of the two column lines,   |  document expresses two values for
+                             |  second silently discarded)       |  one key"
+
+Every row differs. Reader A's column differs from reader B's on row 1; rows 2 and 3 are a
+value against a refusal.
+
+HOW EACH COLUMN WAS PRODUCED
+----------------------------
+
+Reader A, replayed byte-for-byte from its two regexes over the same fixture files:
+
+    $ node -e '
+      const {readFileSync}=require("node:fs");
+      for (const d of ["bad-ticket-body-column","bad-ticket-no-region","bad-ticket-duplicate-key"]) {
+        const text=readFileSync(`scripts/fixtures/${d}/plans/tickets/ABC-001.md`,"utf8");
+        const col=text.match(/^column:\s*(.+)$/m); const st=text.match(/^status:\s*(.+)$/m);
+        console.log(`${d}: column=${JSON.stringify(col?col[1].trim():null)} status=${JSON.stringify(st?st[1].trim():null)}`);
+      }'
+    bad-ticket-body-column: column="Phantom Column" status="phantom-column"
+    bad-ticket-no-region: column="In Development" status="in-development"
+    bad-ticket-duplicate-key: column="In Development" status="in-development"
+
+Reader B, called directly on the same three files through the committed
+scripts/board-model.js:
+
+    bad-ticket-body-column: ADMITTED column=null status="phantom-column"
+    bad-ticket-no-region: REFUSED code=no-opening-delimiter reason=a ticket document opens with a `---` line and this one opens with `# ABC-001 fixture ticket (no frontmatter`
+    bad-ticket-duplicate-key: REFUSED code=duplicate-key reason=`column` is written twice, so the document expresses two values for one key
+
+THE SPAWNED VALIDATOR'S VERDICT ON EACH FIXTURE, BEFORE THE CUTOVER
+-------------------------------------------------------------------
+
+    $ VALIDATE_KIT_ROOT=<fixture> VALIDATE_ROOT=<fixture> node scripts/validate-agent-factory.js
+
+  bad-ticket-body-column     bare exit 1   --strict exit 1
+      ERROR    plans/tickets/ABC-001.md: column "Phantom Column" is not a board column
+      1 ERROR(S)
+      -- a column read out of the ticket's PROSE decided the validator's verdict.
+
+  bad-ticket-no-region       bare exit 0   --strict exit 0
+      ALL CHECKS PASSED
+      -- a document with no frontmatter region passed both ticket rules on values read
+         out of its prose.
+
+  bad-ticket-duplicate-key   bare exit 0   --strict exit 0
+      ALL CHECKS PASSED
+      -- a document expressing two columns passed, on the first of the two, with no
+         finding about the duplication.
+
+WHAT THE CUTOVER IS EXPECTED TO CHANGE (asserted in Task 2, not here)
+--------------------------------------------------------------------
+
+  bad-ticket-body-column     1 -> 0        the prose and fenced column lines stop deciding
+                                           anything; the region carries no column, so the
+                                           membership rule has nothing to run against.
+  bad-ticket-no-region       0 -> nonzero  refused by code `no-opening-delimiter`.
+  bad-ticket-duplicate-key   0 -> nonzero  refused by code `duplicate-key`.
+
+Note that one of the three moves TOWARD exit 0. A cutover measured only by "more things
+fail now" would have missed it.
