@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 169
+open_count: 170
 waived_count: 0
 fixed_count: 4
-total_count: 173
-last_updated: 2026-09-14T08:16:38.060Z
+total_count: 174
+last_updated: 2026-09-14T09:54:08.226Z
 ---
 
 # Broken Windows Ledger
@@ -188,6 +188,7 @@ last_updated: 2026-09-14T08:16:38.060Z
 | 171 | 32 | stub | scripts/board-read.ts |  | reads are a single guarded readFileSync; the read-verify-reread and last-good carry-forward D-11 requires land in plan 32-03 (plan-declared functionality gap) | open |  | 2026-09-14T08:16:32.109Z |  |
 | 172 | 32 | stub | scripts/board-dashboard.ts |  | the frame is the thin D-17 skeleton; the stale badge, conflict list, Now-running block, width truncation and TTY redraw land in plan 32-07 (plan-declared functionality gap) | open |  | 2026-09-14T08:16:32.268Z |  |
 | 173 | 32 | stub | scripts/board-dashboard.ts |  | The watch flag is accepted, reported on stderr and not honoured; the watch loop, the debounce and the poll land in plan 32-03 (plan-declared functionality gap) | open |  | 2026-09-14T08:16:38.060Z |  |
+| 174 | 32 | deviation | scripts/board-read.ts |  | STALE_REASONS is five, not the plan-stated four: unreadable (a partial parse) shipped in 32-01 and dropping it would regress the malformed-dial path | open |  | 2026-09-14T09:54:08.226Z |  |
 
 ````json
 [
@@ -2265,6 +2266,18 @@ last_updated: 2026-09-14T08:16:38.060Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-09-14T08:16:38.060Z",
+    "resolved_at": null
+  },
+  {
+    "id": 174,
+    "kind": "deviation",
+    "phase": "32",
+    "file": "scripts/board-read.ts",
+    "line": null,
+    "description": "STALE_REASONS is five, not the plan-stated four: unreadable (a partial parse) shipped in 32-01 and dropping it would regress the malformed-dial path",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-14T09:54:08.226Z",
     "resolved_at": null
   }
 ]
