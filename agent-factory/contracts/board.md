@@ -97,8 +97,10 @@ agent-written boards, the builder specification, and the worked examples in this
 
 ### Identifiers
 
-An identifier matches `^[A-Z][A-Z0-9]*-\d+$`. Where `factory.config.json` carries `id_prefix`, a
-ticket identifier's prefix equals that value. Any other bracket content makes the line unparsed.
+An identifier opens with a capital letter, continues in capitals and digits, and ends in a hyphen
+followed by digits. `ABC-014`, `DOG-001` and `EPIC-006` are identifiers. Where
+`factory.config.json` carries `id_prefix`, a ticket identifier's prefix equals that value. Any
+other bracket content makes the line unparsed.
 
 Identifiers prefixed `EPIC` or `FEAT` are a **second class**. They record epics and features rather
 than tickets, they are collected separately, and they are never joined against `plans/tickets/`.
@@ -121,24 +123,180 @@ A line matching `_Updated: <YYYY-MM-DD> by <actor>` is an update entry carrying 
 and the remaining text. An `_Updated:` line in any other shape is an unparsed line. Update entries
 are their own class, so they never become rows.
 
+## Sections and the line partition
+
+Every line of a board document lands in exactly one bucket. The partition is total and disjoint,
+and `scripts/board-model.test.ts` asserts both halves over counts derived independently of the
+parser's own loop.
+
+| Bucket | What lands there |
+|--------|------------------|
+| `columns[].rows` | A legal ticket row under a column heading. |
+| `epicRows` | A legal epic or feature row under a column heading. |
+| `updates` | A canonical update line, wherever it appears. |
+| `preamble` | A content line before the first level-two heading. |
+| `nonColumnSections[].lines` | A content line inside a non-column section. |
+| `unparsed` | Anything else with content, reported by line number. |
+| no bucket | A blank line, and every level-two heading line. |
+
+The parser applies these rules in order:
+
+- A level-two heading is never content. A column heading opens a column, and any other level-two
+  heading opens a non-column section. Either one closes whatever was open before it.
+- A heading at level three opens nothing, so it becomes a content line of the current section.
+- A blank line is never content.
+- A canonical update line is an update entry wherever it appears.
+- A legal row under a column heading becomes a ticket row or an epic row.
+- A legal row outside every column is an unparsed line carrying a null column.
+- Every remaining content line is classed by position. Inside a non-column section it is a section
+  line, before the first heading it is a preamble line, and inside a column it is unparsed.
+
+`preamble` ends at the first level-two heading rather than at the first column heading. A document
+whose only heading is `## Notes (bootstrap, 2026-06-05)` carries no columns at all, and its prose
+belongs to that named section.
+
+One shape is named here as **not yet grammar**, so a reader meets it as a decision rather than as a
+defect: a bullet nested beneath a ticket row is an unparsed line. A nesting grammar was considered
+and not written this phase.
+
 ## Conflicts
 
-Filled by plan 32-02.
+A conflict is a disagreement between two sources that describe the same thing. The projector
+reports every conflict and resolves none. Silent resolution is how a board and a ticket file drift
+apart with nobody told.
+
+There are exactly seven kinds. The set is closed, and an eighth kind is a decision recorded here
+first.
+
+| Kind | Raised when |
+|------|-------------|
+| `board-vs-ticket` | A ticket file names a different column, or a status that does not match. |
+| `ticket-unplaced` | A ticket file exists with no row on the board. |
+| `ticket-duplicated` | One identifier carries rows under two or more headings. |
+| `row-without-file` | A board row names an identifier with no ticket file. |
+| `wip-limit` | A heading's stated limit differs from the configured limit. |
+| `wip-count` | A heading's claimed live number differs from the rows counted. |
+| `column-missing` | A configured column has no heading on the board. |
+
+Every conflict carries the same payload: a `kind`, an optional `ticketId`, an optional `column`, an
+`expected` value, an `actual` value, and a `source` naming where the expectation came from.
+
+A duplicated row renders under both headings, and the conflict names both. A row with no ticket
+file still renders. The projector never hides a line in order to report a conflict about it.
+
+Unparsed lines are not conflicts. They are a parser outcome rather than a disagreement between two
+sources, so they live in `unparsed[]` and the renderer counts them per column.
+
+### The column set
+
+The board's headings decide which columns exist and in what order. `agent-factory/config/factory.config.json`
+supplies the expected limit per column under `wip_limits`. A heading whose limit differs from that
+dial raises `wip-limit`, and a dial column with no heading raises `column-missing`. A heading column
+absent from the dial is legal, because an unlimited column and the Blocked column carry no limit.
+
+### WIP counting
+
+A limited heading states a live number and a limit. The live number is compared to the rows counted
+under that heading, and a disagreement raises `wip-count`. Nothing is corrected. The renderer shows
+the claimed number, the counted number and the limit together, so a human sees which one to fix.
+
+Epic rows are a separate class, so they never count toward a column's WIP number.
 
 ## Staleness
 
-Filled by plan 32-02.
+Reading a source produces one of three outcomes, and the three are distinct.
+
+| Outcome | Meaning |
+|---------|---------|
+| `ok` | The source was read cleanly, and the value is current. |
+| `stale` | The source could not be read cleanly, so the previous good value is carried. |
+| `unavailable` | The source is absent. The arm carries no value at all. |
+
+The joined sources are `board`, `tickets`, `queue`, `context`, `traceability` and `config`. Each
+carries its own `readAt` timestamp and its own `stale` record, which names a reason and the time of
+the last good read. Staleness is per source, so a missing queue directory never hides a fresh board.
+
+The header shows one badge naming every stale source and the age of its last good read. The
+`--json` document carries the same per-source fields, so a pipeline sees what a terminal reader
+sees.
+
+**Absent is a legitimate state, and unreadable is stale.** A repository with no `.grugops/`
+directory has no queue, which renders as "no queue" with no badge. An empty `plans/tickets/`
+directory is an empty ticket list. A file that existed at the previous read and is now missing is
+stale, as is a permission error and a torn read. In each of those cases the previous good value is
+carried, and the badge says so.
+
+There is no empty-board output state distinct from zero rows under real headings. A board whose
+columns are all empty renders its columns with zero counts. A board that could not be read is stale
+or unavailable, and the reader is told which of the two it is.
 
 ## Bounds
 
-Filled by plan 32-02.
+A large board degrades visibly. It is never refused, and no row is ever dropped.
 
-## Reconciliation
+Two ceilings are measured on every parse, each in a stated unit:
 
-Filled by plan 32-02.
+| Ceiling | Unit | Value |
+|---------|------|-------|
+| Board size | UTF-8 bytes of the input as given | 1,048,576 |
+| Longest line | UTF-16 code units | 65,536 |
 
-## Relationship to the builder specification
+Passing either ceiling sets `bounds.exceeded`, and the header reports the measured size. A byte
+count and a code-unit count disagree on any board carrying characters outside Latin-1, so each
+number states its own unit. The snapshot carries both numbers unrounded, and only the header's
+rendering rounds them for a human.
 
-`docs/initial/agent_factory_builder_spec_v2.md` lists "web UI, dashboards" among its non-goals. The
-projector this contract serves is a read-only terminal renderer plus a JSON document. It opens no
-socket, it serves no page, and it writes no file. The non-goal stands unchanged.
+Three opaque strings are held to a cap of 1,024 UTF-16 code units: a row's `meta`, a row's
+`trailer`, and an update entry's `text` together with its `actor`. A string held at its cap ends in
+a single-character ellipsis, and the record carrying it sets `truncated`. A cut lands before a
+surrogate pair rather than between its halves, so no lone surrogate reaches a terminal.
+
+A row's title is not capped. The title is what identifies the row to a human, and the long line
+measured in the corpus was a parenthetical rather than a title.
+
+These four numbers are decisions rather than tuning knobs. Raising one to accommodate a board that
+grew is the move this contract refuses. The board is trimmed or split instead, and the projector's
+job is to make the growth visible.
+
+### The WIP number
+
+A heading's WIP numbers are read as base-ten integers from an anchored digits-only shape. A heading
+whose number is not a base-ten integer fails the heading form, so it opens no column and its rows
+become unparsed lines. The number is never rounded, and it is never coerced to zero. A refusal a
+reader can see beats a number nobody wrote.
+
+## Reconciliation and non-goals
+
+`docs/initial/agent_factory_builder_spec_v2.md` lists `web UI, dashboards, SaaS platform` among its
+out-of-scope items. This contract serves a read-only terminal projector over files that already
+exist on disk. It is not a web UI, not a hosted service, and not a listening socket. It opens no
+port, it serves no page, and it writes no file.
+
+`.planning/REQUIREMENTS.md` records the same boundary from the other side. A web renderer over the
+published snapshot shape sits under future requirements, deliberately deferred. A write-capable
+dashboard and any listening socket sit under the explicit out-of-scope exclusions for this
+milestone. The builder specification's non-goal therefore stands unchanged.
+
+That specification also shows a board example that disagrees with this grammar, and agents read it.
+Its `## Blocked (2)` heading is **documented non-grammar**. The heading matches none of the three
+forms, so it opens no column, and the rows beneath it become unparsed lines the renderer counts and
+shows. Those rows are legal row shapes in themselves; what refuses them is the heading above them.
+
+The refusal is loud by design. The alternative is a parser widened once per counter-example until
+it admits everything and discriminates nothing.
+
+## Provenance
+
+This document is the single authority the board grammar derives from.
+
+- `scripts/board-model.ts` is the only sanctioned reader of a board. It cites this contract in its
+  header, and it states in code the shapes this document states in prose. No regular expression is
+  restated here, because two spellings of one grammar is the drift class this repository has
+  already paid for.
+- The parse-oracle corpus derives its legal and illegal axes from the shapes named here. A legal
+  axis is a shape this document admits, and an illegal axis is a shape this document refuses.
+- The committed golden snapshot derives its fields from the shapes named here. A field the golden
+  carries is a field this document states.
+
+A newly admitted shape is recorded here first and implemented afterwards. A counter-example this
+grammar refuses is a decision to take, never a pattern to widen.
