@@ -827,6 +827,99 @@ describe("32-06 — the guard discriminates: both halves are shown to fail", () 
     );
   });
 
+  it("a namespace DESTRUCTURE of node:fs is REFUSED, not invisible (CR-01)", () => {
+    // THE FINDING THIS CASE EXISTS FOR, verbatim from the verifier's own probe
+    // (32-VERIFICATION.md, CR-01 transcript): an ordinary two-line ESM pattern shipped a module
+    // that writes AND deletes files past a fully green guard. The old derivation named an fs symbol
+    // only on a DIRECT member access, so the destructuring bind below contributed nothing to
+    // `fsSymbols` and nothing to `opaqueFsAcquisitions`, the pinned closure count did not move, and
+    // `npm run check:dashboard-readonly` exited 0 over `nuke`.
+    withLiveMirror(
+      {
+        module: "scripts/board-read.js",
+        appendSource:
+          'import * as fsns from "node:fs";\n' +
+          "const { writeFileSync, rmSync } = fsns;\n" +
+          'export function nuke(p) { writeFileSync(p, "x"); rmSync(p); }',
+      },
+      (mirrorRoot) => {
+        const facts = analyzeClosure(mirrorRoot, DASHBOARD_ENTRY);
+        expect(
+          facts.opaqueFsAcquisitions.length,
+          "a closure module bound node:fs as a namespace and then READ that binding by a route " +
+            "other than a member access. The symbols behind such a read cannot be named " +
+            "syntactically, so the acquisition must be REFUSED — this is the exact shape that " +
+            "shipped a full writer past a green guard (CR-01). Collected instead: " +
+            `[${facts.opaqueFsAcquisitions.join(" | ")}], fsSymbols [${facts.fsSymbols.join(", ")}]`,
+        ).toBeGreaterThan(0);
+        expect(facts.opaqueFsAcquisitions.join("\n")).toContain("scripts/board-read.js");
+      },
+    );
+  });
+
+  it("POSITIVE CONTROL: a DIRECT member access on an fs namespace is still admitted and still named", () => {
+    // Without this case the rule above could refuse EVERY namespace and still look right. The guard
+    // refuses escapes, not namespaces: `readFileSync` is already one of the six, so a correct rule
+    // moves nothing at all.
+    withLiveMirror(
+      {
+        module: "scripts/board-read.js",
+        appendSource:
+          'import * as fsns from "node:fs";\n' +
+          'export const readViaNamespace = (p) => fsns.readFileSync(p, "utf8");',
+      },
+      (mirrorRoot) => {
+        const facts = analyzeClosure(mirrorRoot, DASHBOARD_ENTRY);
+        expect(
+          facts.opaqueFsAcquisitions,
+          "a DIRECT member access on an fs namespace is the ONE admitted use of the binding. " +
+            "Refusing it would red the live closure the moment anybody wrote the legitimate shape, " +
+            "the rule would be loosened under that pressure, and the result would be weaker than " +
+            "the rule it replaced",
+        ).toEqual([]);
+        expect(facts.fsSymbols).toContain("readFileSync");
+        expect(facts.fsSymbols).toEqual([...EXPECTED_CLOSURE_FS_SYMBOLS]);
+        expect(facts.fsSymbols.length).toBe(EXPECTED_CLOSURE_FS_SYMBOL_COUNT);
+      },
+    );
+  });
+
+  it("a STRING-LITERAL element access on an fs namespace still names its symbol", () => {
+    // The element-access arm is UNCHANGED by the canonical form: a literal key still names, and the
+    // new rule is a UNION with it rather than a replacement for it.
+    withLiveMirror(
+      {
+        module: "scripts/board-read.js",
+        appendSource:
+          'import * as fsns from "node:fs";\n' +
+          'export const statViaKey = (p) => fsns["statSync"](p);',
+      },
+      (mirrorRoot) => {
+        const facts = analyzeClosure(mirrorRoot, DASHBOARD_ENTRY);
+        expect(facts.opaqueFsAcquisitions).toEqual([]);
+        expect(facts.fsSymbols).toContain("statSync");
+        expect(facts.fsSymbols.length).toBe(EXPECTED_CLOSURE_FS_SYMBOL_COUNT);
+      },
+    );
+  });
+
+  it("a COMPUTED element access on an fs namespace is still refused (the older arm survives the union)", () => {
+    withLiveMirror(
+      {
+        module: "scripts/board-read.js",
+        appendSource:
+          'import * as fsns from "node:fs";\n' +
+          'const key = "writeFileSync";\n' +
+          'export const w = (p) => fsns[key](p, "x");',
+      },
+      (mirrorRoot) => {
+        const facts = analyzeClosure(mirrorRoot, DASHBOARD_ENTRY);
+        expect(facts.opaqueFsAcquisitions.length).toBeGreaterThan(0);
+        expect(facts.opaqueFsAcquisitions.join("\n")).toContain("scripts/board-read.js");
+      },
+    );
+  });
+
   it("the scratch root is left with no mirror residue", () => {
     // A real LISTING, not `git status`: `.temp/` is gitignored, so a git-based residue check is
     // blind to exactly the directory the mirrors live in (the round-5 lesson recorded in

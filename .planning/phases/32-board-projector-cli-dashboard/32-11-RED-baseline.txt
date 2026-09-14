@@ -1,0 +1,93 @@
+32-11 RED BASELINE — CR-01, the DASH-06 guard is green over a module that writes and deletes files
+====================================================================================================
+
+Captured 2026-09-15 on node 24.12.0, vitest 4.1.8, at HEAD 69821292 (before any 32-11 change to the
+derivation). Two measurements, in the order that matters: FIRST the shipped gate run end-to-end over
+a full writer, THEN the derivation's own sets reported by the new case that will close it.
+
+A baseline that does not show a GREEN GUARD over a FULL WRITER has not reproduced the finding. This
+one does.
+
+
+MEASUREMENT 1 — the shipped gate, exit 0, over a module that writes and deletes
+--------------------------------------------------------------------------------
+
+The verifier's exact probe (32-VERIFICATION.md CR-01 transcript) appended to the COMMITTED build
+output `scripts/board-read.js` — the artifact this guard actually walks — and the named gate run:
+
+    // ── CR-01 PROBE (temporary plant, reverted immediately after this measurement) ──
+    import * as fsns from "node:fs";
+    const { writeFileSync, rmSync } = fsns;
+    export function nuke(p) { writeFileSync(p, "x"); rmSync(p); }
+
+    $ npm run check:dashboard-readonly
+
+    > check:dashboard-readonly
+    > npx vitest run scripts/board-readonly.test.ts
+
+     RUN  v4.1.8 /Users/olgeroeselg/Projects/public/grugops
+
+    board-readonly: mutating fs symbols 57 (stem-matched 60 minus 3 named exclusions) on node 24.12.0
+
+     Test Files  1 passed (1)
+          Tests  24 passed (24)
+       Start at  01:50:58
+       Duration  531ms
+
+    exit=0
+
+`scripts/board-read.js` is a module of the dashboard's import closure (the closure is exactly
+`scripts/board-dashboard.js`, `scripts/board-model.js`, `scripts/board-read.js`, `scripts/is-entry.js`,
+`scripts/kit-model.js`). With `nuke` in it the projector can truncate and delete any path it is
+handed, and the phase's load-bearing mechanical safety control reported 24 passed and exit 0.
+
+The plant was reverted with `git checkout -- scripts/board-read.js`; `git status --short scripts/`
+is empty afterwards and `cmp` against the pre-plant copy returns 0.
+
+
+MEASUREMENT 2 — the derivation's own sets, reported by the guard itself
+--------------------------------------------------------------------------------
+
+Rather than re-implementing the AST walk in a throwaway script (a second authority for one
+predicate — the Phase 29 failure this repository has already paid for), the new discrimination case
+plants the same snippet into a MIRROR built from the live sources at test time and prints the sets
+the SHIPPED derivation collected. Against the UNCHANGED derivation:
+
+    $ npm run check:dashboard-readonly
+
+     ❯ scripts/board-readonly.test.ts (28 tests | 1 failed) 226ms
+         × a namespace DESTRUCTURE of node:fs is REFUSED, not invisible (CR-01) 14ms
+
+     FAIL  scripts/board-readonly.test.ts > 32-06 — the guard discriminates: both halves are shown
+     to fail > a namespace DESTRUCTURE of node:fs is REFUSED, not invisible (CR-01)
+     AssertionError: a closure module bound node:fs as a namespace and then READ that binding by a
+     route other than a member access. The symbols behind such a read cannot be named syntactically,
+     so the acquisition must be REFUSED — this is the exact shape that shipped a full writer past a
+     green guard (CR-01). Collected instead: [], fsSymbols [existsSync, readFileSync, readdirSync,
+     realpathSync, statSync, watch]: expected 0 to be greater than 0
+
+     Test Files  1 failed (1)
+          Tests  1 failed | 27 passed (28)
+
+    exit=1
+
+  • `opaqueFsAcquisitions` = []            — nothing was refused
+  • `fsSymbols` = the SAME six as the unplanted tree — the pinned two-sided count does not move
+  • `bareSpecifiers` gains `node:fs`, which the closure already imports, so no ban notices either
+
+This is the verifier's reproduction, re-derived here by the file's own shipped logic rather than by
+a copy of it.
+
+
+THE RED IS INTENTIONAL, AND THE OTHER THREE CASES ARE THE PROOF OF THAT
+--------------------------------------------------------------------------------
+
+The same commit adds three cases that PASS against the unchanged derivation:
+
+  ✓ POSITIVE CONTROL: a DIRECT member access on an fs namespace is still admitted and still named
+  ✓ a STRING-LITERAL element access on an fs namespace still names its symbol
+  ✓ a COMPUTED element access on an fs namespace is still refused (the older arm survives the union)
+
+So the failure above is the TARGET assertion failing on the planned behaviour — not a syntax error,
+not a fixture crash, not a zero-test discovery, and not a collapse that would have reddened
+everything. 27 of 28 cases pass; exactly one fails, and it is the one naming CR-01.
