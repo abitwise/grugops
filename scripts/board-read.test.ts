@@ -1498,3 +1498,126 @@ describe("board-read — every valid encoding round-trips byte for byte (plan 32
     expect(withBom, "a fixture carries a BOM — the premise above is no longer true").toEqual([]);
   });
 });
+
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+// PLAN 32-09 — THE ADVERSARIAL RE-RUN: THE SAME DEFECT ONE REGISTER DOWN.
+//
+// The first fix for CR-02 gated the presence-dependent conflicts on an `ok` tickets SOURCE. Re-running
+// the verifier's own reproduction against that fix, with the DIRECTORY readable and ONE ticket FILE at
+// mode 000, reproduced the defect intact: the source read `ok`, the gate did not fire, and the
+// projector again asserted that a file which exists does not. This repository has recorded "the fix
+// created the next bypass" in eight consecutive rounds of an earlier phase; these cases are the probe
+// that found this one, kept so the class stays closed rather than the instance.
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+
+describe("board-read — a per-ENTRY read failure degrades the whole source (plan 32-09)", () => {
+  it.skipIf(IS_ROOT)("marks tickets stale and derives NO row-without-file when ONE ticket file is denied", () => {
+    withTempTree((dir) => {
+      plantBoard(dir, TICKETED_BOARD);
+      const denied = plantTicketDoc(dir, "ABC-101", "Backlog", "backlog");
+      plantTicketDoc(dir, "ABC-102", "Done", "done");
+      chmodSync(denied, 0o000);
+      try {
+        const result = readSnapshot(dir);
+        // PREMISE: the DIRECTORY still lists cleanly, so this case is about the file and not about
+        // the listing the earlier block already covers.
+        expect(
+          readdirSync(join(dir, "plans", "tickets")).sort(),
+          "PREMISE: the directory listing failed, so this case is measuring the CR-02 path again " +
+            "rather than the one register below it",
+        ).toEqual(["ABC-101.md", "ABC-102.md"]);
+
+        expect(
+          result.snapshot.sources.tickets.source,
+          "the record set is incomplete for the same reason a bounded listing's is — one of its " +
+            "files could not be read — so it carries the same answer",
+        ).toBe("stale");
+        expect(
+          result.snapshot.sources.tickets.source === "stale"
+            ? result.snapshot.sources.tickets.stale.reason
+            : null,
+          "the badge names the CAUSE, so a human is sent to the right file",
+        ).toBe("eacces");
+        expect(
+          result.conflicts.filter((c) =>
+            (PRESENCE_DEPENDENT_CONFLICT_KINDS as readonly string[]).includes(c.kind),
+          ),
+          "`no ticket file carries that identifier` about a file this process could not open is " +
+            "the CR-02 fabrication, one register down",
+        ).toEqual([]);
+        expect(result.readErrors.filter((e) => e.source === "tickets").length).toBe(1);
+        // The value is still CARRIED: the ticket that WAS readable is in it. A stale source that
+        // dropped what it had would trade a fabrication for an erasure.
+        const carried =
+          result.snapshot.sources.tickets.source === "unavailable"
+            ? []
+            : result.snapshot.sources.tickets.value;
+        expect(carried.map((t) => t.id)).toEqual(["ABC-102"]);
+      } finally {
+        chmodSync(denied, 0o644);
+      }
+    });
+  });
+
+  it("leaves the tickets source `ok` when a document is REFUSED rather than unreadable", () => {
+    // THE DISCRIMINATION. A refused document is the contract's stated behaviour: the bytes WERE
+    // read, the grammar declined them by name, and the refusal is in `readErrors` with its code.
+    // Degrading the source for a refusal would badge every tree carrying one malformed ticket and
+    // would move the committed golden — so the rule is about obtaining bytes, not about admission.
+    withTempTree((dir) => {
+      plantBoard(dir, TICKETED_BOARD);
+      plantTicketDoc(dir, "ABC-102", "Done", "done");
+      plantTicket(dir, "ABC-101.md", "no frontmatter at all, so the grammar refuses this document\n");
+      const result = readSnapshot(dir);
+      expect(result.snapshot.sources.tickets.source).toBe("ok");
+      expect(
+        result.readErrors.filter((e) => e.source === "tickets").length,
+        "PREMISE: nothing was refused, so this case measured no refusal at all",
+      ).toBe(1);
+    });
+  });
+
+  it.skipIf(IS_ROOT)("marks the queue stale when ONE claim record is denied", () => {
+    withTempTree((dir) => {
+      plantBoard(dir, ONE_COLUMN);
+      const claimPath = plantClaim(dir, "abc-104-implement", CLAIM_BODY);
+      plantClaim(dir, "abc-106-implement", CLAIM_BODY);
+      chmodSync(claimPath, 0o000);
+      try {
+        const result = readSnapshot(dir);
+        expect(
+          result.snapshot.sources.queue.source,
+          "an unreadable claim record left the queue `ok`, so the frame said 'this is everything " +
+            "that is running' about a stage it had only partly read",
+        ).toBe("stale");
+        expect(result.readErrors.filter((e) => e.source === "queue").length).toBe(1);
+        const rows =
+          result.snapshot.sources.queue.source === "unavailable"
+            ? []
+            : result.snapshot.sources.queue.value;
+        expect(rows.map((r) => r.task), "the record that WAS readable is still carried").toEqual([
+          "abc-106-implement",
+        ]);
+      } finally {
+        chmodSync(claimPath, 0o644);
+      }
+    });
+  });
+
+  it("leaves the queue `ok` for a TAMPERED claim record, which was read and refused by name", () => {
+    withTempTree((dir) => {
+      plantBoard(dir, ONE_COLUMN);
+      plantClaim(
+        dir,
+        "abc-105-tampered",
+        "by: software-engineer\nat: 2026-09-14T09:00:00.000Z\nat: 2026-09-14T09:00:01.000Z\n",
+      );
+      const result = readSnapshot(dir);
+      expect(result.snapshot.sources.queue.source).toBe("ok");
+      expect(
+        result.readErrors.filter((e) => e.source === "queue" && e.code === "tampered").length,
+        "PREMISE: the tampered record was not reached, so this case measured nothing",
+      ).toBe(1);
+    });
+  });
+});

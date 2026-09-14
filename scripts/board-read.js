@@ -201,14 +201,22 @@ export function settleSource(source, path, outcome, previous, readAt, fallback) 
     if (outcome.kind === "value") {
         return { state: { source: "ok", value: outcome.value, readAt }, error: null };
     }
-    if (outcome.kind === "bounded") {
+    if (outcome.kind === "bounded" || outcome.kind === "partial") {
         return {
             state: {
                 source: "stale",
                 value: outcome.value,
                 readAt,
-                stale: { reason: "bounded", since: sinceOf(previous, readAt) },
+                stale: {
+                    // `bounded` is the pinned-reason special case of `partial`; the reason rides the arm.
+                    reason: outcome.kind === "bounded" ? "bounded" : outcome.reason,
+                    since: sinceOf(previous, readAt),
+                },
             },
+            // NO ERROR HERE, and that is deliberate for both arms: the value IS this pass's, and the
+            // per-entry failure that made it incomplete has already been reported by the caller, which is
+            // the only place that knows WHICH entry failed. Adding one here would report the same failure
+            // twice under two different paths.
             error: null,
         };
     }
@@ -564,6 +572,8 @@ function readTicketsSource(root, readAt, previous, seam) {
     }
     const records = [];
     const errors = [];
+    /** The reason of the FIRST per-file read failure, or null when every file's bytes arrived. */
+    let firstReadFailure = null;
     // Sorted, so two runs over the same directory produce the same order whatever the filesystem's
     // listing order happens to be. A frame that reshuffles on every re-read is a frame nobody can read.
     for (const name of [...listing.names].sort()) {
@@ -575,6 +585,12 @@ function readTicketsSource(root, readAt, previous, seam) {
         const read = readVerifyReread(path, READ_RETRY_BOUND, seam);
         if (!read.ok) {
             errors.push({ source: "tickets", path, code: read.code, message: read.message });
+            // A TICKET FILE WHOSE BYTES COULD NOT BE OBTAINED MAKES THE RECORD SET INCOMPLETE (plan 32-09).
+            // Recorded rather than only reported, because `joinSnapshot`'s presence gate reads the SOURCE
+            // STATE: with the source left `ok`, a row naming this ticket is still reported as having no
+            // ticket file — the CR-02 fabrication, surviving one register down from the directory.
+            if (firstReadFailure === null)
+                firstReadFailure = read.reason;
             continue;
         }
         const admission = parseTicketDocument(read.text);
@@ -594,7 +610,9 @@ function readTicketsSource(root, readAt, previous, seam) {
     }
     const outcome = listing.bounded
         ? { kind: "bounded", value: records }
-        : { kind: "value", value: records };
+        : firstReadFailure !== null
+            ? { kind: "partial", value: records, reason: firstReadFailure }
+            : { kind: "value", value: records };
     return settledFrom(settleSource("tickets", dir, outcome, previous, readAt), errors);
 }
 // ── queue (T-32-05, T-32-03) ─────────────────────────────────────────────────────────────────────
@@ -656,6 +674,8 @@ function readQueueSource(root, readAt, previous, seam) {
     const claimedBounded = listing.kind === "listed" && listing.bounded;
     const rows = [];
     const errors = [];
+    /** The reason of the FIRST per-record read failure, or null when every record's bytes arrived. */
+    let firstReadFailure = null;
     for (const task of claimedNames) {
         // Defensive: never read through an unsafe segment. Skipped BEFORE any filesystem access.
         if (!isSafeTaskName(task))
@@ -669,6 +689,11 @@ function readQueueSource(root, readAt, previous, seam) {
         const read = readVerifyReread(claimMd, READ_RETRY_BOUND, seam);
         if (!read.ok) {
             errors.push({ source: "queue", path: claimMd, code: read.code, message: read.message });
+            // The same rule the tickets reader applies: a claim record whose bytes could not be obtained
+            // makes the row set incomplete, and "nothing is claimed" is then a claim this reader cannot
+            // make. A TAMPERED record is NOT this — it was read, and it is refused by name.
+            if (firstReadFailure === null)
+                firstReadFailure = read.reason;
             continue;
         }
         const atLineCount = (read.text.match(AT_KEY_LINE) ?? []).length;
@@ -692,7 +717,9 @@ function readQueueSource(root, readAt, previous, seam) {
     rows.sort((a, b) => (a.at !== b.at ? a.at.localeCompare(b.at) : a.task.localeCompare(b.task)));
     const outcome = claimedBounded
         ? { kind: "bounded", value: rows }
-        : { kind: "value", value: rows };
+        : firstReadFailure !== null
+            ? { kind: "partial", value: rows, reason: firstReadFailure }
+            : { kind: "value", value: rows };
     return settledFrom(settleSource("queue", queueRoot, outcome, previous, readAt), errors);
 }
 /**
@@ -724,6 +751,8 @@ function readContextSource(root, readAt, previous, seam) {
     }
     const tasks = [];
     const errors = [];
+    /** The reason of the FIRST per-task read failure, or null when every task's bytes arrived. */
+    let firstReadFailure = null;
     for (const name of [...listing.names].sort()) {
         if (!isSafeTaskName(name))
             continue;
@@ -749,6 +778,9 @@ function readContextSource(root, readAt, previous, seam) {
                     code: err.code ?? "unreadable",
                     message: `${taskDir} could not be inspected (${err.code ?? "unreadable"}): ${err.message}`,
                 });
+                if (firstReadFailure === null) {
+                    firstReadFailure = err.code === "EACCES" || err.code === "EPERM" ? "eacces" : "unreadable";
+                }
             }
             continue;
         }
@@ -759,6 +791,11 @@ function readContextSource(root, readAt, previous, seam) {
         if (!read.ok) {
             if (read.reason !== "enoent") {
                 errors.push({ source: "context", path: indexPath, code: read.code, message: read.message });
+                // An `index.jsonl` that is ABSENT is not a fault — it is a derived artifact whose freshness
+                // `npm run freshness:context` owns, and the task is reported with zero notes. An index whose
+                // bytes could not be OBTAINED is a different answer, and the badge says so.
+                if (firstReadFailure === null)
+                    firstReadFailure = read.reason;
             }
             tasks.push({ task: name, noteCount: 0, liveCount: 0, latestAt: null, latestKind: null });
             continue;
@@ -799,7 +836,9 @@ function readContextSource(root, readAt, previous, seam) {
     }
     const outcome = listing.bounded
         ? { kind: "bounded", value: tasks }
-        : { kind: "value", value: tasks };
+        : firstReadFailure !== null
+            ? { kind: "partial", value: tasks, reason: firstReadFailure }
+            : { kind: "value", value: tasks };
     return settledFrom(settleSource("context", dir, outcome, previous, readAt), errors);
 }
 // ── traceability (D-03) ──────────────────────────────────────────────────────────────────────────

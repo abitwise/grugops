@@ -156,6 +156,26 @@ export type SourceOutcome<T> =
   | { readonly kind: "value"; readonly value: T }
   /** The walk hit `MAX_WALK_ENTRIES`; `value` is what was gathered before the bound. */
   | { readonly kind: "bounded"; readonly value: T }
+  /**
+   * The listing succeeded and an ENTRY INSIDE IT could not be read (plan 32-09).
+   *
+   * `value` is what was gathered — real, and not all of it, exactly like `bounded`, which is this
+   * arm with its reason pinned to one case. It is a SEPARATE arm because the reason differs per
+   * failure (`eacces`, `torn`, `unreadable`) and a badge that named the wrong cause would send a
+   * human to the wrong file.
+   *
+   * WHY A PER-ENTRY READ FAILURE HAS TO DEGRADE THE WHOLE SOURCE. The first fix for CR-02 gated the
+   * presence-dependent conflicts on an `ok` tickets source, and an adversarial re-run of the
+   * verifier's own reproduction one register over found the defect intact: with the DIRECTORY
+   * readable and ONE ticket file at mode 000, the source still read `ok`, so the gate did not fire
+   * and the projector again asserted that a file which exists does not. The record set is
+   * incomplete for the same reason a bounded listing's is, so it carries the same answer.
+   *
+   * A REFUSED DOCUMENT IS NOT THIS. `parseTicketDocument` declining a document is the contract's
+   * stated behaviour — the bytes were read, the grammar refused them by name, and the refusal is in
+   * `readErrors` with its code. Only a failure to OBTAIN the bytes lands here.
+   */
+  | { readonly kind: "partial"; readonly value: T; readonly reason: StaleReason }
   | { readonly kind: "absent" }
   | {
       readonly kind: "failed";
@@ -310,14 +330,22 @@ export function settleSource<T>(
   if (outcome.kind === "value") {
     return { state: { source: "ok", value: outcome.value, readAt }, error: null };
   }
-  if (outcome.kind === "bounded") {
+  if (outcome.kind === "bounded" || outcome.kind === "partial") {
     return {
       state: {
         source: "stale",
         value: outcome.value,
         readAt,
-        stale: { reason: "bounded", since: sinceOf(previous, readAt) },
+        stale: {
+          // `bounded` is the pinned-reason special case of `partial`; the reason rides the arm.
+          reason: outcome.kind === "bounded" ? "bounded" : outcome.reason,
+          since: sinceOf(previous, readAt),
+        },
       },
+      // NO ERROR HERE, and that is deliberate for both arms: the value IS this pass's, and the
+      // per-entry failure that made it incomplete has already been reported by the caller, which is
+      // the only place that knows WHICH entry failed. Adding one here would report the same failure
+      // twice under two different paths.
       error: null,
     };
   }
@@ -794,6 +822,8 @@ function readTicketsSource(
 
   const records: TicketRecord[] = [];
   const errors: ReadError[] = [];
+  /** The reason of the FIRST per-file read failure, or null when every file's bytes arrived. */
+  let firstReadFailure: StaleReason | null = null;
   // Sorted, so two runs over the same directory produce the same order whatever the filesystem's
   // listing order happens to be. A frame that reshuffles on every re-read is a frame nobody can read.
   for (const name of [...listing.names].sort()) {
@@ -804,6 +834,11 @@ function readTicketsSource(
     const read = readVerifyReread(path, READ_RETRY_BOUND, seam);
     if (!read.ok) {
       errors.push({ source: "tickets", path, code: read.code, message: read.message });
+      // A TICKET FILE WHOSE BYTES COULD NOT BE OBTAINED MAKES THE RECORD SET INCOMPLETE (plan 32-09).
+      // Recorded rather than only reported, because `joinSnapshot`'s presence gate reads the SOURCE
+      // STATE: with the source left `ok`, a row naming this ticket is still reported as having no
+      // ticket file — the CR-02 fabrication, surviving one register down from the directory.
+      if (firstReadFailure === null) firstReadFailure = read.reason;
       continue;
     }
     const admission = parseTicketDocument(read.text);
@@ -824,7 +859,9 @@ function readTicketsSource(
 
   const outcome: SourceOutcome<readonly TicketRecord[]> = listing.bounded
     ? { kind: "bounded", value: records }
-    : { kind: "value", value: records };
+    : firstReadFailure !== null
+      ? { kind: "partial", value: records, reason: firstReadFailure }
+      : { kind: "value", value: records };
   return settledFrom(settleSource("tickets", dir, outcome, previous, readAt), errors);
 }
 
@@ -898,6 +935,8 @@ function readQueueSource(
   const claimedBounded = listing.kind === "listed" && listing.bounded;
   const rows: QueueRow[] = [];
   const errors: ReadError[] = [];
+  /** The reason of the FIRST per-record read failure, or null when every record's bytes arrived. */
+  let firstReadFailure: StaleReason | null = null;
 
   for (const task of claimedNames) {
     // Defensive: never read through an unsafe segment. Skipped BEFORE any filesystem access.
@@ -910,6 +949,10 @@ function readQueueSource(
     const read = readVerifyReread(claimMd, READ_RETRY_BOUND, seam);
     if (!read.ok) {
       errors.push({ source: "queue", path: claimMd, code: read.code, message: read.message });
+      // The same rule the tickets reader applies: a claim record whose bytes could not be obtained
+      // makes the row set incomplete, and "nothing is claimed" is then a claim this reader cannot
+      // make. A TAMPERED record is NOT this — it was read, and it is refused by name.
+      if (firstReadFailure === null) firstReadFailure = read.reason;
       continue;
     }
 
@@ -936,7 +979,9 @@ function readQueueSource(
 
   const outcome: SourceOutcome<readonly QueueRow[]> = claimedBounded
     ? { kind: "bounded", value: rows }
-    : { kind: "value", value: rows };
+    : firstReadFailure !== null
+      ? { kind: "partial", value: rows, reason: firstReadFailure }
+      : { kind: "value", value: rows };
   return settledFrom(settleSource("queue", queueRoot, outcome, previous, readAt), errors);
 }
 
@@ -987,6 +1032,8 @@ function readContextSource(
 
   const tasks: ContextTaskState[] = [];
   const errors: ReadError[] = [];
+  /** The reason of the FIRST per-task read failure, or null when every task's bytes arrived. */
+  let firstReadFailure: StaleReason | null = null;
   for (const name of [...listing.names].sort()) {
     if (!isSafeTaskName(name)) continue;
     const taskDir = childPath(root, dir, name);
@@ -1009,6 +1056,9 @@ function readContextSource(
           code: err.code ?? "unreadable",
           message: `${taskDir} could not be inspected (${err.code ?? "unreadable"}): ${err.message}`,
         });
+        if (firstReadFailure === null) {
+          firstReadFailure = err.code === "EACCES" || err.code === "EPERM" ? "eacces" : "unreadable";
+        }
       }
       continue;
     }
@@ -1019,6 +1069,10 @@ function readContextSource(
     if (!read.ok) {
       if (read.reason !== "enoent") {
         errors.push({ source: "context", path: indexPath, code: read.code, message: read.message });
+        // An `index.jsonl` that is ABSENT is not a fault — it is a derived artifact whose freshness
+        // `npm run freshness:context` owns, and the task is reported with zero notes. An index whose
+        // bytes could not be OBTAINED is a different answer, and the badge says so.
+        if (firstReadFailure === null) firstReadFailure = read.reason;
       }
       tasks.push({ task: name, noteCount: 0, liveCount: 0, latestAt: null, latestKind: null });
       continue;
@@ -1064,7 +1118,9 @@ function readContextSource(
 
   const outcome: SourceOutcome<readonly ContextTaskState[]> = listing.bounded
     ? { kind: "bounded", value: tasks }
-    : { kind: "value", value: tasks };
+    : firstReadFailure !== null
+      ? { kind: "partial", value: tasks, reason: firstReadFailure }
+      : { kind: "value", value: tasks };
   return settledFrom(settleSource("context", dir, outcome, previous, readAt), errors);
 }
 
