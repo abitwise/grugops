@@ -289,6 +289,71 @@ export type FactoryConfigView = {
   readonly wipLimits: Readonly<Record<string, number>>;
 };
 
+// ── The four joined sources beside the board and the dial (D-12) ─────────────────────────────────
+//
+// DECLARED HERE FOR THE REASON `SourceState` IS: `FactorySnapshot` embeds one per source, and the
+// snapshot is the published shape (D-19), which carries no I/O. `scripts/board-read.ts` — the module
+// that PRODUCES them — re-exports each as its own published surface. Declaring them in both is the
+// set-literal drift class this repository has already paid for.
+//
+// Each is a PROJECTION, not a copy of the file it came from. The dashboard joins and renders; it is
+// not a second store, and a field nothing renders is a field that goes stale unnoticed.
+
+/** One ticket under `plans/tickets/`, as the ONE frontmatter authority admitted it. */
+export type TicketRecord = {
+  /** The file name relative to `plans/tickets/`, which is the only identity the reader can trust. */
+  readonly file: string;
+  /** `name` from the admitted frontmatter when it carries one, else the file's stem. */
+  readonly id: string;
+  /** `description` from the admitted frontmatter, or "" when the document carries none. */
+  readonly title: string;
+};
+
+/** One claimed task, as `scripts/claim.ts`'s reader half would have trusted it. */
+export type QueueRow = {
+  readonly task: string;
+  readonly by: string;
+  readonly at: string;
+};
+
+/** One row of `plans/traceability.md`, beneath its real header and outside its own comment. */
+export type TraceRow = {
+  readonly ticket: string;
+  readonly title: string;
+  readonly status: string;
+  /** Every cell in document order, so plan 32-05 can cross-check a column this shape did not name. */
+  readonly cells: readonly string[];
+};
+
+/** One task's presence and current state under `.grugops/context/`, WITHOUT any note body (D-17). */
+export type ContextTaskState = {
+  readonly task: string;
+  /** Every note the index records, superseded ones included. */
+  readonly noteCount: number;
+  /** The notes left after the supersede fold — the CURRENT state, by the `currentState` rule. */
+  readonly liveCount: number;
+  /** The `at` of the most recent live note, or null when the task has none. */
+  readonly latestAt: string | null;
+  /** The `kind` of the most recent live note, or null when the task has none. */
+  readonly latestKind: string | null;
+};
+
+/**
+ * The value each source carries when it carries one.
+ *
+ * TYPED PER SOURCE RATHER THAN AS `unknown`, so plan 32-07's renderer reads a ticket list as a
+ * ticket list. A `Record<SourceName, SourceState<unknown>>` would have forced every consumer to cast,
+ * and a cast is a place where a source can be read as the wrong shape without the compiler saying so.
+ */
+export type SourceValues = {
+  readonly board: BoardModel;
+  readonly tickets: readonly TicketRecord[];
+  readonly queue: readonly QueueRow[];
+  readonly context: readonly ContextTaskState[];
+  readonly traceability: readonly TraceRow[];
+  readonly config: FactoryConfigView;
+};
+
 /**
  * The published snapshot (D-19). `schemaVersion` is the contract a future web renderer consumes;
  * `board` is the joined board model; `sources` carries one read state per joined source so a single
@@ -307,7 +372,7 @@ export type FactorySnapshot = {
   readonly board: BoardModel | null;
   readonly config: FactoryConfigView | null;
   readonly sources: Readonly<{
-    readonly [K in SourceName]: SourceState<unknown>;
+    readonly [K in SourceName]: SourceState<SourceValues[K]>;
   }>;
 };
 

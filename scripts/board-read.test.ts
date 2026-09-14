@@ -423,11 +423,41 @@ describe("readSnapshot — the carry-forward is threaded, not module state (D-11
           "case measured nothing about per-source staleness",
       ).toBe("stale");
       expect(board.source).toBe("ok");
+      expect(
+        Object.prototype.hasOwnProperty.call(board, "stale"),
+        "the board carries NO stale field at all — the badge is per source, and a board nobody " +
+          "failed to read has nothing to badge",
+      ).toBe(false);
       expect(board.source === "ok" ? board.readAt : "").toBe(result.snapshot.generatedAt);
       expect(result.snapshot.board?.columns.length).toBe(2);
       // The top-level discriminant still degrades — one stale source is visible at the top — but
       // the board's OWN state is untouched, which is what D-12 rejected whole-snapshot staleness for.
       expect(result.source).toBe("stale");
+    });
+  });
+
+  it("marks a source `unreadable` when the bytes ARRIVED and the content did not parse (D-11)", () => {
+    withTempTree((dir) => {
+      plantBoard(dir, TWO_COLUMNS);
+      mkdirSync(join(dir, "agent-factory", "config"), { recursive: true });
+      const dial = join(dir, "agent-factory", "config", "factory.config.json");
+      writeFileSync(dial, '{ "mode": "lean" }', "utf8");
+      const first = readSnapshot(dir);
+      expect(
+        first.snapshot.config?.mode,
+        "PREMISE: the first read did not produce a usable dial, so the second read has nothing to " +
+          "contrast a partial parse against",
+      ).toBe("lean");
+
+      writeFileSync(dial, '{ "mode": "lea', "utf8");
+      const second = readSnapshot(dir, first);
+      const config = second.snapshot.sources.config;
+      expect(config.source).toBe("stale");
+      // A PARTIAL PARSE is its own reason: the file was there and the bytes arrived, so calling it
+      // `enoent` or `torn` would send a human to look for a problem that is not the one they have.
+      expect(config.source === "stale" ? config.stale.reason : "").toBe("unreadable");
+      expect(second.snapshot.config?.mode).toBe("lean");
+      expect(second.readErrors.map((e) => e.source)).toEqual(["config"]);
     });
   });
 
