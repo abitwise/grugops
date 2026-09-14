@@ -273,6 +273,15 @@ None - no external service configuration required.
 - **One manual-only verification is outstanding for the phase:** the live TTY redraw, recorded in `32-VALIDATION.md` with its instructions (`npm run dashboard` in a real terminal, edit `plans/board.md` in another window, confirm the frame refreshes within ~1 s without flicker). It is `human_judgment: true` in the coverage block above and is NOT claimed by any case.
 - **Windows `fs.watch` remains `UNKNOWN - verify`** (Phase 33 / CAP-02). Nothing here asserts it; the mandatory poll floor is the fallback by construction.
 
+## Self-Check: PASSED
+
+Measured, not asserted:
+
+- `scripts/board-dashboard.test.ts`, `32-07-RED-baseline.txt`, `32-07-GREEN-proof.txt` and this file all exist on disk.
+- All five task commits resolve: `56272cc1`, `dc257361`, `32d9674e`, `25d9d6be`, `c96bc62d`.
+- `git rev-list --count 204f78c6..HEAD` read **5** at the instant this file was written, which is the number in the `commits:` frontmatter. The close-out commits carrying this SUMMARY and the STATE/ROADMAP update are on top of that base and raise the live count to 7 — the frontmatter figure is the production-commit measurement, taken at SUMMARY-write time per the convention.
+- Plan-level verification, re-run at the end: full suite `74 files, 4679 passed, 2 skipped`; `check:dashboard-readonly` 24 passed; `npm run typecheck && npm run build && npm run check:build-parity` clean; `npm run freshness` — 65 committed `.js` match a rebuild; `git status --porcelain scripts/fixtures/` empty; `git diff --exit-code -- package.json package-lock.json` clean.
+
 ---
 *Phase: 32-board-projector-cli-dashboard*
 *Completed: 2026-09-14*

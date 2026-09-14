@@ -1122,7 +1122,7 @@ Round 8 delivered the FIRST closure of UATX-06's predicate family in eight round
   4. The dashboard **cannot** write: an import-graph guard proves its module tree holds no mutating `node:fs` symbol, so read-only is mechanically enforced rather than asserted in prose. (DASH-06)
   5. `--json`, `--once`, and non-TTY modes work for CI and piping; the renderer degrades **visibly** rather than showing a confident wrong board; the snapshot shape is stable enough for a future web renderer to consume unchanged; and the dashboard adds **zero** runtime dependencies and opens no listening socket this milestone. (DASH-07, DASH-08)
 
-**Plans**: 6/8 plans executed, planned 2026-09-13. Tracer-first: plan `32-01` wires one path through every layer (contract → pure grammar → read seam → `--once --json`) and is verified end-to-end before any expansion task. The remaining seven expand out from that proven slice across four waves.
+**Plans**: 7/8 plans executed, planned 2026-09-13. Tracer-first: plan `32-01` wires one path through every layer (contract → pure grammar → read seam → `--once --json`) and is verified end-to-end before any expansion task. The remaining seven expand out from that proven slice across four waves.
 
 Plans:
 **Wave 1**
@@ -1142,7 +1142,7 @@ Plans:
 
 **Wave 4** *(32-07 blocked on 32-03+32-05; 32-08 on 32-02+32-05)*
 
-- [ ] 32-07-PLAN.md — the full D-17 frame with the stale badge and the `claimed / counted / limit` disagreement, ANSI sanitization of every cell, the TTY and non-TTY branches, and the `--json`/`--once`/NDJSON exit contract measured from a spawned process [DASH-05, DASH-07]
+- [x] 32-07-PLAN.md — the full D-17 frame with the stale badge and the `claimed / counted / limit` disagreement, ANSI sanitization of every cell, the TTY and non-TTY branches, and the `--json`/`--once`/NDJSON exit contract measured from a spawned process [DASH-05, DASH-07]
 - [ ] 32-08-PLAN.md — the validator's inline column parser deleted and imported from `board-model.js` against an eight-fixture RED/GREEN baseline, both board twins' comment rewritten with their column table frozen, and the phase-close gate sweep with both absences asserted [DASH-01, DASH-08]
 
 **Research flag (discharged):** the board ticket-row grammar is now measured — 141 rows across five sources in `32-RESEARCH.md` §Measured Board Corpus. The measurement contradicted D-01's anchored form (103/141), which the user resolved as D-22's opaque `trailer` (141/141).
@@ -1201,7 +1201,7 @@ Plans:
 | 29.2. Model Assignment Delivery Path | v2.1 | 6/6 | Complete    | 2026-09-07 |
 | 30. Per-Checkpoint Autonomy Matrix | v2.1 | 11/11 | Complete    | 2026-09-07 |
 | 31. Autonomous Manual Testing | v2.1 | 44/44 | In Progress|  |
-| 32. Board Projector & CLI Dashboard | v2.1 | 6/8 | In Progress|  |
+| 32. Board Projector & CLI Dashboard | v2.1 | 7/8 | In Progress|  |
 | 33. Live Capture & Windows Portability | v2.1 | 0/TBD | Not started | - |
 
 **Totals:** 33 phases · **4 milestones shipped** (v1.0 + v1.1 + v1.2 + v2.0) · **1 active** (v2.1, phases 27–33).
