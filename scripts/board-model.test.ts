@@ -1207,3 +1207,232 @@ describe("board-model — the configured id prefix is enforced by the parse, not
     ).toEqual(["ABC-001", "XYZ-001"]);
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// PLAN 32-05 TASK 3 — THE COMMITTED GOLDEN FREEZES `schemaVersion: 1` (D-19, DASH-08).
+//
+// WHY A GOLDEN AND NOT MORE ASSERTIONS. The cases above assert PROPERTIES of the join: seven kinds,
+// one order, nothing resolved silently. None of them pins the SHAPE — the field names a future web
+// renderer reads, which DASH-08 promises it can consume unchanged. A property suite stays green
+// through a rename. A committed golden does not.
+//
+// THE TIMESTAMPS ARE NORMALIZED BEFORE COMPARISON, AND THAT IS NOT A WEAKENING. A golden embedding
+// the wall clock fails on its second run, so it gets hand-edited, so within a week it means nothing.
+// The comparison is over the SHAPE and the VALUES that are functions of the committed inputs; the
+// minute the test ran is not one of those. The same applies to the absolute repository path, which
+// differs on every machine.
+//
+// THE INVENTORY CASE IS THE ONE THAT MATTERS MOST. Research measured that no real board produces a
+// WIP mismatch, so a suite that never asserted the seven-kind inventory would report green over a
+// golden holding five kinds and nobody would know. It derives the kind set FROM THE GOLDEN FILE —
+// not from the live read — and asserts equality with `CONFLICT_KINDS` in both directions, behind a
+// PREMISE assertion that the file parsed and its `conflicts[]` is non-empty.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+import { existsSync, writeFileSync } from "node:fs";
+import { readSnapshot } from "./board-read.js";
+
+const FIXTURE_DIR = join(ROOT, "scripts", "fixtures", "board-snapshot");
+const GOLDEN_PATH = join(FIXTURE_DIR, "expected-snapshot.json");
+
+/** The one placeholder every wall-clock field is normalized to. */
+const FIXED_INSTANT = "1970-01-01T00:00:00.000Z";
+
+/** The one placeholder every absolute repository path is normalized to. */
+const FIXED_ROOT = "<fixture-root>";
+
+/** Every key whose value is a wall clock rather than a function of the committed inputs. */
+const INSTANT_KEYS = new Set(["readAt", "generatedAt", "since"]);
+
+/**
+ * Normalize a read result into the value the golden freezes.
+ *
+ * Two substitutions and no others: a wall-clock field becomes `FIXED_INSTANT`, and any string
+ * carrying the fixture's absolute path — `repoRoot`, a `readErrors[].path`, a message quoting one —
+ * has that prefix replaced. Everything else is compared exactly, which is the whole point.
+ */
+function normalize(value: unknown, key: string | null, root: string): unknown {
+  if (typeof value === "string") {
+    if (key !== null && INSTANT_KEYS.has(key)) return FIXED_INSTANT;
+    return value.split(root).join(FIXED_ROOT);
+  }
+  if (Array.isArray(value)) return value.map((v) => normalize(v, null, root));
+  if (value !== null && typeof value === "object") {
+    const out: Record<string, unknown> = {};
+    // SORTED KEYS, so the serialized bytes do not depend on insertion order anywhere in the tree.
+    for (const k of Object.keys(value as Record<string, unknown>).sort()) {
+      out[k] = normalize((value as Record<string, unknown>)[k], k, root);
+    }
+    return out;
+  }
+  return value;
+}
+
+/** Serialize the fixture read deterministically: sorted keys, two-space indent, one trailing LF. */
+function serializeFixture(): string {
+  const result = readSnapshot(FIXTURE_DIR);
+  // The RESOLVED root, because `readSnapshot` resolves symlinks and `/var` is `/private/var` here.
+  const root = result.snapshot.repoRoot;
+  return `${JSON.stringify(normalize(result, null, root), null, 2)}\n`;
+}
+
+/** The first line at which two documents differ, with both lines, so a failure can be acted on. */
+function firstDifference(a: string, b: string): string {
+  const left = a.split("\n");
+  const right = b.split("\n");
+  for (let i = 0; i < Math.max(left.length, right.length); i++) {
+    if (left[i] === right[i]) continue;
+    return (
+      `first difference at line ${i + 1}\n` +
+      `  rendered: ${left[i] ?? "<end of document>"}\n` +
+      `  golden:   ${right[i] ?? "<end of document>"}`
+    );
+  }
+  return "the documents are equal line by line but differ in length";
+}
+
+/**
+ * The committed golden's bytes, or `""` when the file is absent.
+ *
+ * ABSENCE IS A LEGIBLE ASSERTION FAILURE, NEVER A COLLECTION CRASH. A bare `readFileSync` at module
+ * scope turns a missing golden into "no tests ran", which reports as a broken suite rather than as
+ * the one thing that is actually wrong — and a run that executed nothing cannot prove anything about
+ * the shape. Each case below asserts the golden is present, naming the regeneration command.
+ */
+function loadGolden(): string {
+  return existsSync(GOLDEN_PATH) ? readFileSync(GOLDEN_PATH, "utf8") : "";
+}
+
+const GOLDEN_ABSENT =
+  "PREMISE: scripts/fixtures/board-snapshot/expected-snapshot.json is absent or empty, so every " +
+  "assertion below would measure nothing. Regenerate it with the command in that fixture's " +
+  "README.md: npm run build && GRUGOPS_UPDATE_BOARD_GOLDEN=1 npx vitest run " +
+  "--exclude '**/scripts/e2e/**' scripts/board-model.test.ts -t \"golden\"";
+
+describe("board-model — the committed golden freezes schemaVersion 1 byte for byte (D-19)", () => {
+  const rendered = serializeFixture();
+
+  // THE REGENERATION SEAM. Production callers set nothing; the comparison below is what runs in CI.
+  // `scripts/fixtures/board-snapshot/README.md` names the exact command, so a legitimate shape
+  // change is a one-command operation rather than a hand edit that erodes the golden's meaning.
+  if (process.env["GRUGOPS_UPDATE_BOARD_GOLDEN"] === "1") {
+    writeFileSync(GOLDEN_PATH, rendered, "utf8");
+  }
+
+  const goldenText = loadGolden();
+
+  it("renders the committed fixture tree to the committed golden, byte for byte", () => {
+    expect(goldenText.length, GOLDEN_ABSENT).toBeGreaterThan(1000);
+    expect(
+      rendered.length,
+      "PREMISE: the serializer produced an empty document, so the comparison below would compare " +
+        "nothing against nothing",
+    ).toBeGreaterThan(1000);
+    expect(rendered, firstDifference(rendered, goldenText)).toBe(goldenText);
+  });
+
+  it("serializes to identical bytes when run a second time in one process", () => {
+    const second = serializeFixture();
+    expect(
+      second,
+      "a second read produced different bytes, so something outside the committed inputs — a wall " +
+        "clock, a filesystem listing order, an object key order — reached the golden",
+    ).toBe(rendered);
+  });
+
+  it("carries the fixed placeholder in every wall-clock field, never a real timestamp", () => {
+    expect(goldenText.length, GOLDEN_ABSENT).toBeGreaterThan(1000);
+    const instants: string[] = [];
+    const walk = (v: unknown, k: string | null): void => {
+      if (typeof v === "string") {
+        if (k !== null && INSTANT_KEYS.has(k)) instants.push(v);
+        return;
+      }
+      if (Array.isArray(v)) {
+        for (const e of v) walk(e, null);
+        return;
+      }
+      if (v !== null && typeof v === "object") {
+        for (const [kk, vv] of Object.entries(v as Record<string, unknown>)) walk(vv, kk);
+      }
+    };
+    walk(JSON.parse(goldenText), null);
+    expect(
+      instants.length,
+      "PREMISE: the golden carries no wall-clock field at all, so this case measured nothing",
+    ).toBeGreaterThan(0);
+    expect(new Set(instants), "a real timestamp reached the golden").toEqual(
+      new Set([FIXED_INSTANT]),
+    );
+    expect(goldenText, "an absolute repository path reached the golden").not.toMatch(/"\/[^"]*"/);
+  });
+
+  it("holds a distinct conflict-kind set equal to CONFLICT_KINDS, asserted in both directions", () => {
+    expect(goldenText.length, GOLDEN_ABSENT).toBeGreaterThan(1000);
+    const golden = JSON.parse(goldenText) as { conflicts: { kind: string }[] };
+    expect(
+      Array.isArray(golden.conflicts) && golden.conflicts.length > 0,
+      "PREMISE: the golden did not parse, or its `conflicts[]` is empty — the inventory below " +
+        "would then be an assertion over nothing, which is exactly the vacuous green this case " +
+        "exists to make impossible",
+    ).toBe(true);
+
+    const inGolden = new Set(golden.conflicts.map((c) => c.kind));
+    const declared = new Set<string>(CONFLICT_KINDS);
+
+    expect(
+      [...declared].filter((k) => !inGolden.has(k)),
+      "a DECLARED conflict kind that no committed fixture reaches. The comparison for that kind " +
+        "ships unexercised, which is the set-literal drift class this repository has already paid " +
+        "for — add the shape to scripts/fixtures/board-snapshot/ that manufactures it",
+    ).toEqual([]);
+    expect(
+      [...inGolden].filter((k) => !declared.has(k)),
+      "the golden carries a kind CONFLICT_KINDS does not declare",
+    ).toEqual([]);
+    expect(inGolden.size).toBe(CONFLICT_KIND_COUNT);
+  });
+
+  it("pins the published schemaVersion, which no change may move without the golden moving with it", () => {
+    expect(goldenText.length, GOLDEN_ABSENT).toBeGreaterThan(1000);
+    const golden = JSON.parse(goldenText) as { snapshot: { schemaVersion: number } };
+    expect(
+      golden.snapshot.schemaVersion,
+      "the golden's schemaVersion and the module's disagree. Changing either one requires bumping " +
+        "SCHEMA_VERSION and regenerating scripts/fixtures/board-snapshot/expected-snapshot.json in " +
+        "the SAME commit (D-19) — the published shape is what DASH-08 promises a future web " +
+        "renderer consumes unchanged",
+    ).toBe(SCHEMA_VERSION);
+    expect(SCHEMA_VERSION, "the published shape is version 1").toBe(1);
+  });
+
+  it("populates every bucket of the partition, so the golden is not a narrow slice", () => {
+    expect(goldenText.length, GOLDEN_ABSENT).toBeGreaterThan(1000);
+    const golden = JSON.parse(goldenText) as {
+      snapshot: {
+        board: {
+          columns: { rows: unknown[] }[];
+          epicRows: unknown[];
+          updates: unknown[];
+          preamble: unknown[];
+          nonColumnSections: unknown[];
+          unparsed: unknown[];
+        };
+      };
+      readErrors: unknown[];
+    };
+    const b = golden.snapshot.board;
+    expect(b.columns.length, "columns").toBeGreaterThan(4);
+    expect(b.columns.flatMap((c) => c.rows).length, "ticket rows").toBeGreaterThan(4);
+    expect(b.epicRows.length, "epic rows").toBeGreaterThan(0);
+    expect(b.updates.length, "update entries").toBeGreaterThan(0);
+    expect(b.preamble.length, "preamble lines").toBeGreaterThan(0);
+    expect(b.nonColumnSections.length, "non-column sections").toBeGreaterThan(0);
+    expect(b.unparsed.length, "unparsed lines").toBeGreaterThan(0);
+    expect(
+      golden.readErrors.length,
+      "the tampered claim record's skip must be REACHED by the committed fixture, not only by a " +
+        "unit test",
+    ).toBeGreaterThan(0);
+  });
+});
