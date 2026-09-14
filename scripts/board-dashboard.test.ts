@@ -22,9 +22,18 @@
 
 import { describe, it, expect, vi, afterAll, afterEach } from "vitest";
 import { spawn, spawnSync } from "node:child_process";
-import { appendFileSync, cpSync, mkdtempSync, realpathSync, rmSync } from "node:fs";
+import {
+  appendFileSync,
+  cpSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import * as ts from "typescript";
 
 import {
   CLEAR_SCREEN,
@@ -980,5 +989,379 @@ describe("board-dashboard — two dashboards on one tree share nothing (edge: co
       (r) => (JSON.parse(r.out) as { snapshot: { generatedAt: string } }).snapshot.generatedAt,
     );
     expect(generatedAt.every((g) => typeof g === "string" && g !== "")).toBe(true);
+  });
+});
+
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+// PLAN 32-13 TASK 1 — CR-05: THE STDERR CHANNEL IS THE SAME TERMINAL, AND IT CARRIES THE UNTRUSTED
+// CONTENT.
+//
+// WHAT THE FINDING WAS. The T-32-06 sanitizer was applied at every string that reaches STDOUT in the
+// frame. That is a true statement about stdout and it was the wrong boundary: `readError.message`
+// carries bytes read out of a board or ticket file, the root-refusal line carries the raw `repoRoot`
+// argument, and both go to stderr — which on an interactive run is the same terminal emulator, and
+// is the channel a human watching a live dashboard actually reads. The reviewer retitled the window
+// and cleared the screen from a ticket file and again from argv.
+//
+// WHAT THIS HALF DECIDES. Three things, and they are different questions:
+//
+//   • THE EFFECT — a spawned process is driven with a planted OSC/CSI sequence and the captured
+//     stderr is measured for control code points. This is the only half that observes what a
+//     terminal would be handed.
+//   • THE ABSENCE OF A SECOND AUTHORITY — the module's own AST is walked and every stderr write
+//     expression in it is collected. A chokepoint holds only while it is the ONLY site, so the count
+//     is pinned two-sided AND the surviving site's enclosing function is named. A count of one in
+//     the wrong function is still a bypass.
+//   • THE OVER-REMOVAL DIRECTION — a positive control asserting that ordinary non-ASCII text
+//     survives. A sanitizer that deleted the diagnostic would satisfy every assertion above while
+//     destroying the thing the operator needs.
+//
+// THE MEASURING INSTRUMENT IS DELIBERATELY INDEPENDENT OF THE IMPLEMENTATION. `controlCodePoints`
+// below re-spells the range rather than importing `board-dashboard.ts`'s own `CONTROL_CODE_POINTS`.
+// Importing it would make every assertion here circular: a regression that widened the module's
+// class would widen the measurement in the same commit and the cases would stay green. This is the
+// one place in this file where a second spelling is the point rather than the defect.
+//
+// AND IT COUNTS CODE POINTS, NOT BYTES. The diagnostic's own em dash is UTF-8 `E2 80 94`, whose
+// continuation bytes sit inside the C1 BYTE range. A raw-byte count would report a nonzero control
+// tally for a line carrying no control character at all — an instrument that cannot return zero
+// measures nothing.
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+
+/**
+ * C0, DEL and C1 — the same range the module removes, spelled here independently on purpose, and
+ * written with `\u` escapes so this source file carries no control byte of its own for
+ * `scripts/check-nul-bytes.ts` to trip over.
+ */
+const CONTROL_CODE_POINT = /[\u0000-\u001F\u007F-\u009F]/;
+
+/**
+ * Every control code point in the text, EXCLUDING the newlines that separate diagnostic lines.
+ *
+ * The newline is the WRITER's structure rather than the content's: `warn` terminates each line it is
+ * given, and a newline inside the text a caller passes is removed by the sanitizer like any other C0
+ * code point, so a line boundary in the captured stream is always one the module put there.
+ */
+function controlCodePoints(text: string): readonly string[] {
+  const hits: string[] = [];
+  for (const ch of text) {
+    if (ch === "\n") continue;
+    if (CONTROL_CODE_POINT.test(ch)) {
+      hits.push(`U+${(ch.codePointAt(0) as number).toString(16).toUpperCase().padStart(4, "0")}`);
+    }
+  }
+  return hits;
+}
+
+const OSC_TITLE = `${ESC}]0;PWNED${BEL}`;
+const CSI_CLEAR = `${ESC}[2J`;
+
+/** A ticket whose FIRST line is not a `---` delimiter, so the grammar quotes it back on stderr. */
+function plantFirstLine(dir: string, id: string, firstLine: string): void {
+  writeFileSync(
+    join(dir, "plans", "tickets", `${id}.md`),
+    `${firstLine}\n---\nid: ${id}\ncolumn: Backlog\nstatus: ready\n---\n`,
+    "utf8",
+  );
+}
+
+// ── The AST census: exactly one stderr write expression, and it is inside `warn` ──────────────────
+
+/** One collected stderr write expression, with the two facts the pin is about. */
+type StderrWriteSite = {
+  readonly line: number;
+  readonly enclosingFunction: string;
+  readonly text: string;
+};
+
+type StderrCensus = {
+  readonly sites: readonly StderrWriteSite[];
+  /**
+   * Every acquisition of a stderr write capability this SYNTACTIC pass cannot name a call site for:
+   * `const { write } = io.stderr`, `const w = process.stderr.write`, or a computed member access on
+   * a stderr channel. Each is a route to the channel that the site collector would never see, so
+   * each is collected and asserted absent rather than silently producing a short site list. This is
+   * the CR-01 shape one register over — a namespace destructure that contributed nothing to the set
+   * a guard pinned, and left that guard green over a module that wrote and deleted files.
+   */
+  readonly opaque: readonly string[];
+  /** Top-level statement count. Zero means the parse read nothing and every claim below is vacuous. */
+  readonly statements: number;
+  readonly parseErrors: readonly string[];
+};
+
+function parseModule(label: string, text: string): ts.SourceFile {
+  return ts.createSourceFile(label, text, ts.ScriptTarget.Latest, true);
+}
+
+/** The nearest enclosing function-like node's name, or a named marker when there is none. */
+function enclosingFunctionName(node: ts.Node): string {
+  for (let cur: ts.Node | undefined = node.parent; cur !== undefined; cur = cur.parent) {
+    if (ts.isFunctionDeclaration(cur)) return cur.name?.text ?? "<anonymous function>";
+    if (ts.isMethodDeclaration(cur)) return ts.isIdentifier(cur.name) ? cur.name.text : "<method>";
+    if (ts.isFunctionExpression(cur) || ts.isArrowFunction(cur)) {
+      const owner = cur.parent;
+      if (owner !== undefined && ts.isVariableDeclaration(owner) && ts.isIdentifier(owner.name)) {
+        return owner.name.text;
+      }
+      if (owner !== undefined && ts.isPropertyAssignment(owner) && ts.isIdentifier(owner.name)) {
+        return owner.name.text;
+      }
+      return "<anonymous function>";
+    }
+  }
+  return "<module top level>";
+}
+
+/**
+ * Collect every expression in a module that writes to a stderr channel.
+ *
+ * BOTH SPELLINGS, AND THE BINDINGS THAT REACH THEM. `io.stderr.write(...)` and
+ * `process.stderr.write(...)` are the two that exist today, and a collector that knew only one of
+ * them would be a collector a future edit could walk around by choosing the other. They share one
+ * shape — a `.write` call on a member access named `stderr` — so both are found by one rule rather
+ * than by two hand-typed patterns. A LOCAL BINDING of the channel (`const err = io.stderr`,
+ * `const { stderr } = io`) is tracked in a first pass and counted in the second, because a name is
+ * how a write site stops looking like one.
+ *
+ * The analyzer takes a PARSED SOURCE FILE rather than a path, so the discrimination probe below can
+ * run it over a constructed module without touching the disk, and so it cannot be handed its own
+ * file by accident.
+ */
+function stderrWriteCensus(source: ts.SourceFile): StderrCensus {
+  const parseErrors = (
+    (source as unknown as { parseDiagnostics?: readonly ts.Diagnostic[] }).parseDiagnostics ?? []
+  ).map((d) => ts.flattenDiagnosticMessageText(d.messageText, " "));
+
+  const stderrBindings = new Set<string>();
+  const opaque: string[] = [];
+  const sites: StderrWriteSite[] = [];
+
+  const namesStderrMember = (node: ts.Node): boolean => {
+    if (ts.isPropertyAccessExpression(node)) return node.name.text === "stderr";
+    if (ts.isElementAccessExpression(node)) {
+      const key = node.argumentExpression;
+      return ts.isStringLiteralLike(key) && key.text === "stderr";
+    }
+    return false;
+  };
+
+  const isStderrChannel = (node: ts.Node): boolean =>
+    namesStderrMember(node) || (ts.isIdentifier(node) && stderrBindings.has(node.text));
+
+  const record = (node: ts.CallExpression): void => {
+    sites.push({
+      line: source.getLineAndCharacterOfPosition(node.getStart(source)).line + 1,
+      enclosingFunction: enclosingFunctionName(node),
+      text: node.getText().replace(/\s+/g, " ").slice(0, 120),
+    });
+  };
+
+  // PASS ONE — the bindings. A channel that has been given a name is still the channel.
+  const collectBindings = (node: ts.Node): void => {
+    if (ts.isVariableDeclaration(node) && node.initializer !== undefined) {
+      const init = node.initializer;
+      const initIsChannel =
+        namesStderrMember(init) || (ts.isIdentifier(init) && stderrBindings.has(init.text));
+      if (ts.isIdentifier(node.name)) {
+        if (initIsChannel) {
+          stderrBindings.add(node.name.text);
+        } else if (
+          ts.isPropertyAccessExpression(init) &&
+          init.name.text === "write" &&
+          namesStderrMember(init.expression)
+        ) {
+          // `const w = io.stderr.write` — the capability, detached from any call this pass can see.
+          opaque.push(node.getText());
+        }
+      } else if (ts.isObjectBindingPattern(node.name)) {
+        if (initIsChannel) {
+          // `const { write } = io.stderr` — the CR-01 shape: the write reached by a destructure.
+          opaque.push(node.getText());
+        }
+        for (const element of node.name.elements) {
+          const key = element.propertyName ?? element.name;
+          const keyText = ts.isIdentifier(key) || ts.isStringLiteralLike(key) ? key.text : null;
+          if (keyText === "stderr" && ts.isIdentifier(element.name)) {
+            stderrBindings.add(element.name.text);
+          }
+        }
+      }
+    }
+    ts.forEachChild(node, collectBindings);
+  };
+  collectBindings(source);
+
+  // PASS TWO — the call sites.
+  const collectSites = (node: ts.Node): void => {
+    if (ts.isCallExpression(node)) {
+      const callee = node.expression;
+      if (ts.isPropertyAccessExpression(callee) && callee.name.text === "write") {
+        if (isStderrChannel(callee.expression)) record(node);
+      } else if (ts.isElementAccessExpression(callee) && isStderrChannel(callee.expression)) {
+        const key = callee.argumentExpression;
+        if (ts.isStringLiteralLike(key)) {
+          if (key.text === "write") record(node);
+        } else {
+          // A computed member on the channel: this pass cannot say which method it reaches.
+          opaque.push(node.getText());
+        }
+      }
+    }
+    ts.forEachChild(node, collectSites);
+  };
+  collectSites(source);
+
+  return { sites, opaque, statements: source.statements.length, parseErrors };
+}
+
+const DASHBOARD_TS = join(ROOT, "scripts", "board-dashboard.ts");
+
+/**
+ * How many expressions in `scripts/board-dashboard.ts` write to stderr.
+ *
+ * ONE IS A DECISION, and it is the decision CR-05 cost this phase a verification round to reach.
+ * Before it there were six, each formatting its own line, and the sanitizer the module's header
+ * described was applied at none of them. A second write site is a second authority for "what may
+ * reach the operator's terminal", and this repository has paid five gap-closure rounds to learn that
+ * two authorities for one predicate disagree. Raising this number is that decision being RECORDED —
+ * here, and in the phase context — never a constant being bumped to make a suite green.
+ */
+const STDERR_WRITE_SITE_COUNT = 1;
+
+/** The function the one surviving site must live in. A count of one elsewhere is still a bypass. */
+const STDERR_CHOKEPOINT = "warn";
+
+describe("board-dashboard — the stderr write-site census is derived from the module (CR-05)", () => {
+  it("PREMISE: the parse read the module and reported no syntactic error", () => {
+    const census = stderrWriteCensus(parseModule(DASHBOARD_TS, readFileSync(DASHBOARD_TS, "utf8")));
+    expect(census.parseErrors).toEqual([]);
+    expect(
+      census.statements,
+      "PREMISE: the AST walk over scripts/board-dashboard.ts found (almost) no top-level " +
+        "statements, so every claim below would be a claim about an empty parse",
+    ).toBeGreaterThanOrEqual(10);
+  });
+
+  it("PREMISE: the collector finds every spelling, and refuses the routes it cannot name", () => {
+    // The discrimination. Without it, "exactly one site" is equally true of a collector that can
+    // never say yes — and a census that cannot fail proves nothing about the file it walked.
+    const census = stderrWriteCensus(
+      parseModule(
+        "probe.ts",
+        [
+          "function a(io) { io.stderr.write('x'); }",
+          "function b() { process.stderr.write('y'); }",
+          "function c(io) { const err = io.stderr; err.write('z'); }",
+          "function d(io) { const { stderr } = io; stderr.write('w'); }",
+          "function e(io) { io.stdout.write('not stderr'); }",
+        ].join("\n"),
+      ),
+    );
+    expect(
+      census.sites.map((s) => s.enclosingFunction),
+      "the member spelling, the global-process spelling, the aliased channel and the destructured " +
+        "channel are all write sites; the stdout call is not",
+    ).toEqual(["a", "b", "c", "d"]);
+
+    const opaqueProbe = stderrWriteCensus(
+      parseModule(
+        "opaque.ts",
+        [
+          "function f(io) { const { write } = io.stderr; write('x'); }",
+          "function g() { const w = process.stderr.write; w('y'); }",
+          "function h(io, k) { io.stderr[k]('z'); }",
+        ].join("\n"),
+      ),
+    );
+    expect(
+      opaqueProbe.opaque.length,
+      "a detached write capability and a computed member must be REFUSED rather than silently " +
+        "producing a short site list — the CR-01 shape, one register over",
+    ).toBe(3);
+  });
+
+  it("pins the stderr write-site count two-sided at one, inside `warn`", () => {
+    const census = stderrWriteCensus(parseModule(DASHBOARD_TS, readFileSync(DASHBOARD_TS, "utf8")));
+    // Printed on every run: the number this pin is about is visible without reading the assertion.
+    console.log(
+      `[32-13] stderr write sites in scripts/board-dashboard.ts: ${census.sites.length} — ` +
+        census.sites.map((s) => `${s.enclosingFunction}:${s.line}`).join(", "),
+    );
+
+    expect(
+      census.opaque,
+      "the module acquired a stderr write capability by a route this census cannot name a call " +
+        "site for; the chokepoint claim below would be a claim about the sites it happened to see",
+    ).toEqual([]);
+
+    expect(
+      census.sites.map((s) => `${s.enclosingFunction}:${s.line} ${s.text}`),
+      "scripts/board-dashboard.ts writes to stderr from more than one place. Every diagnostic this " +
+        "module emits must pass through `warn`, because stderr is the same terminal emulator as " +
+        "stdout on an interactive run and it is the channel carrying file content and raw argv " +
+        "(CR-05). A second write site is a second authority and a decision somebody records",
+    ).toHaveLength(STDERR_WRITE_SITE_COUNT);
+
+    expect(
+      census.sites.map((s) => s.enclosingFunction),
+      "a count of one in the WRONG function is still a bypass: the surviving site must be the " +
+        "sanitizing chokepoint itself",
+    ).toEqual([STDERR_CHOKEPOINT]);
+  });
+});
+
+describe("board-dashboard — content and argv reach stderr INERT (CR-05, T-32-06)", () => {
+  it("strips an OSC title and a screen-clear planted in a ticket's first line, keeping the refusal", () => {
+    withFixtureCopy((dir) => {
+      plantFirstLine(dir, "ABC-900", `${OSC_TITLE}${CSI_CLEAR}not a delimiter`);
+      const r = spawnDashboard([dir, "--once", "--json"]);
+      expect(r.code).toBe(0);
+      expect(
+        r.err,
+        "PREMISE: the planted ticket produced no refusal at all, so the emptiness measured below " +
+          "would be the emptiness of a run that had nothing to sanitize",
+      ).toContain("no-opening-delimiter");
+      expect(r.err, "the refusal must still NAME the file a human has to go and fix").toContain(
+        "ABC-900.md",
+      );
+      expect(
+        controlCodePoints(r.err),
+        "a control code point read out of a ticket file reached the operator's terminal",
+      ).toEqual([]);
+      expect(
+        () => JSON.parse(r.out) as unknown,
+        "the JSON document on stdout is unaffected: it was never the live channel",
+      ).not.toThrow();
+    });
+  });
+
+  it("strips an OSC sequence carried in the repoRoot argument, keeping the refusal", () => {
+    const r = spawnDashboard([`no${OSC_TITLE}such`, "--once"]);
+    expect(r.code).toBe(2);
+    expect(
+      r.err,
+      "PREMISE: the bad root produced no refusal line, so there is nothing to have sanitized",
+    ).toContain("does not resolve");
+    expect(
+      controlCodePoints(r.err),
+      "a control code point carried in argv reached the operator's terminal",
+    ).toEqual([]);
+  });
+
+  it("POSITIVE CONTROL: ordinary non-ASCII text survives to stderr unchanged", () => {
+    withFixtureCopy((dir) => {
+      // An em dash, an accented letter and an emoji. `sanitizeCell` removes control code points; a
+      // sanitizer that also removed legible ones would pass every assertion above by destroying the
+      // diagnostic the operator needs.
+      plantFirstLine(dir, "ABC-901", "Ticket — café \u{1F3AF} not a delimiter");
+      const r = spawnDashboard([dir, "--once", "--json"]);
+      expect(r.code).toBe(0);
+      expect(r.err).toContain("no-opening-delimiter");
+      expect(r.err, "an em dash is not a control character").toContain("—");
+      expect(r.err, "an accented letter is not a control character").toContain("café");
+      expect(r.err, "an emoji is not a control character").toContain("\u{1F3AF}");
+      expect(controlCodePoints(r.err)).toEqual([]);
+    });
   });
 });

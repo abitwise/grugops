@@ -1,0 +1,117 @@
+32-13 RED BASELINE — CR-05 reproduced against the COMMITTED artifact
+====================================================================
+
+Tree:     grugops @ 169c4e39 (before any 32-13 edit)
+Binary:   scripts/board-dashboard.js as committed
+Date:     2026-09-14T22:15:20Z
+Node:     v24.12.0
+
+WHAT IS BEING MEASURED, AND WHY IT IS CODE POINTS RATHER THAN BYTES
+-------------------------------------------------------------------
+The count below is of CONTROL CODE POINTS in the DECODED captured stderr — C0
+(U+0000..U+001F) minus the line-terminating newline the writer adds, DEL
+(U+007F), and C1 (U+0080..U+009F). A raw-byte count is the wrong instrument
+here: the diagnostic's own em dash is UTF-8 E2 80 94, whose continuation bytes
+sit inside the C1 byte range, so a byte count would report a nonzero "control"
+tally for a line carrying no control character at all. A baseline measured with
+an instrument that cannot return zero measures nothing.
+
+Counter: node count-controls.mjs <file>   (source reproduced at the tail)
+
+(a) CONTENT-SOURCED — an OSC window-title sequence and a screen-clear CSI
+    sequence in a ticket's FIRST line
+-------------------------------------------------------------------------
+  cp -R scripts/fixtures/board-snapshot $SCRATCH/t1
+  printf '\033]0;PWNED\007\033[2Jnot a delimiter\n---\nid: ABC-900\ncolumn: Backlog\nstatus: ready\n---\n' \
+    > $SCRATCH/t1/plans/tickets/ABC-900.md
+  node scripts/board-dashboard.js $SCRATCH/t1 --once --json 2> err-content.txt >/dev/null
+
+  captured stderr, first line, through `cat -v`:
+
+    board-dashboard: tickets at $SCRATCH/t1/plans/tickets/ABC-900.md M-bM-^@M-^T
+    no-opening-delimiter: a ticket document opens with a `---` line and this one
+    opens with `^[]0;PWNED^G^[[2Jnot a delimiter`
+
+  controlCodePoints = 3   [U+001B U+0007 U+001B]
+
+  Those three are the OSC introducer, its BEL terminator and the CSI introducer,
+  carried verbatim from a file the projector was asked to read. On an interactive
+  run this retitles the window and clears the screen.
+
+(b) ARGV-SOURCED — an OSC sequence inside the `repoRoot` argument
+------------------------------------------------------------------
+  ARG="$(printf 'no\033]0;PWNED\007such')"
+  node scripts/board-dashboard.js "$ARG" --once 2> err-argv.txt >/dev/null
+
+  captured stderr, through `cat -v`:
+
+    board-dashboard: board-read: the repository root
+    /Users/.../grugops/no^[]0;PWNED^Gsuch does not resolve (ENOENT: no such file
+    or directory, lstat '/Users/.../grugops/no^[]0;PWNED^Gsuch'). Refusing to
+    report a snapshot for a tree that was never read.
+
+  controlCodePoints = 4   [U+001B U+0007 U+001B U+0007]
+
+  Four rather than two because the refusal quotes the unvalidated argument twice
+  — once in its own sentence and once inside the errno's `lstat` text. A fix
+  applied at the message-construction site would have had to find both; the fix
+  this plan applies is at the WRITE site, so the number of quotations does not
+  matter.
+
+VERDICT
+-------
+Both reproductions are NONZERO, so both reproduce the finding. The failing
+assertions the fix must turn green are the two "no control code point reaches
+stderr" cases in scripts/board-dashboard.test.ts, and the census case pinning
+the module's stderr write-site count at 1.
+
+The `--json` document on stdout was and remains valid JSON in both runs:
+`JSON.stringify` escapes C0. That is the accident CR-05 names — it is not a
+control, and it does not cover stderr, which is the channel a human watching a
+live dashboard reads.
+
+COUNTER SOURCE (count-controls.mjs)
+-----------------------------------
+  import { readFileSync } from "node:fs";
+  const text = readFileSync(process.argv[2], "utf8");
+  const hits = [];
+  for (const ch of text) {
+    const cp = ch.codePointAt(0);
+    if (ch === "\n") continue;
+    if ((cp >= 0x00 && cp <= 0x1f) || (cp >= 0x7f && cp <= 0x9f)) {
+      hits.push("U+" + cp.toString(16).toUpperCase().padStart(4, "0"));
+    }
+  }
+  console.log(`${process.argv[2]}: controlCodePoints=${hits.length} [${hits.join(" ")}]`);
+
+RED AS THE SUITE SEES IT
+------------------------
+  npx vitest run --exclude '**/scripts/e2e/**' scripts/board-dashboard.test.ts
+
+  Test Files  1 failed (1)
+       Tests  3 failed | 35 passed (38)
+
+The three failures are the three target assertions, each failing on the planned
+behaviour rather than on a load error:
+
+  1. "pins the stderr write-site count two-sided at one, inside `warn`"
+     toHaveLength(STDERR_WRITE_SITE_COUNT)  expected 1, received 6
+     — six stderr write expressions in scripts/board-dashboard.ts: emit's
+       read-error loop, refresh's catch, run's usage path, run's root-refusal
+       catch, main's catch, and the entry tail's process.stderr.write.
+
+  2. "strips an OSC title and a screen-clear planted in a ticket's first line"
+     expected [ 'U+001B', 'U+0007', 'U+001B' ] to deeply equal []
+
+  3. "strips an OSC sequence carried in the repoRoot argument"
+     expected [ 'U+001B', 'U+0007', 'U+001B', 'U+0007' ] to deeply equal []
+
+The 35 that PASS on this same run include the census's own two premise cases —
+the parse read the module, and the collector finds the member spelling, the
+global-process spelling, the aliased channel and the destructured channel while
+refusing the three routes it cannot name a call site for. A census that could
+not say yes would make failure 1 meaningless, so those two passing is part of
+what makes this a valid RED rather than a nonzero exit.
+
+`npx tsc -p tsconfig.tests.json` exits 0 on this tree: the RED is an assertion
+failure, not a compile error.
