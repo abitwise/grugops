@@ -5,14 +5,14 @@ milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live
 current_phase: 32
 current_phase_name: Board Projector & CLI Dashboard
 status: "Phase 31 CLOSED 2026-09-13 by user override D-44 (round-9 verification gaps_found 4/6 left standing; CR-28..CR-31 + WR-43..WR-47 accepted open). Next: Phase 32 — Board Projector & CLI Dashboard, not yet planned. Standing rule: four-round gap-closure cap on every later phase."
-stopped_at: Completed 32-09-PLAN.md
-last_updated: "2026-09-14T20:40:04.171Z"
-state_head: 6ac59fcfaf1df5b7c4ba84f88c212a077af397ce
+stopped_at: Completed 32-10-PLAN.md (CR-04 containment closed)
+last_updated: "2026-09-14T21:24:04.699Z"
+state_head: 66dcf508c30e61e81485c95cfd4656c2569201f8
 progress:
   total_phases: 9
   completed_phases: 6
   total_plans: 234
-  completed_plans: 229
+  completed_plans: 230
   percent: 67
 last_activity: 2026-09-13
 prior_activity_desc: Phase 27 gap-closure round 8 COMPLETE (27-45, 27-46; D-53). Full narration lives in the Phase 27 artifacts and in docs/audit/; shortened here by plan 31-38 because this single line measured 7995 characters, above the 4000-character ceiling a pathological STATE line has previously crossed to turn a sub-second guard into a multi-minute one.
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-09-07 — after Phase 29.2)
 ## Current Position
 
 Phase: 32 (Board Projector & CLI Dashboard) — EXECUTING
-Plan: 2 of 14
+Plan: 3 of 14
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 
@@ -485,6 +485,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 32 P07 | 36 min | 3 tasks | 7 files |
 | Phase 32 P08 | 42 min | 3 tasks | 13 files |
 | Phase 32 P09 | 38 min | 3 tasks | 13 files |
+| Phase 32 P10 | 30 min | 3 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -1319,6 +1320,10 @@ Recent decisions affecting current work:
 - [Phase 32]: The TTY and non-TTY paths are ONE renderer with two styling constants, never two implementations; a case asserts the styled frame is byte-identical to the plain one once SGR sequences are stripped
 - [Phase 32]: truncateCell models code units and surrogate pairs only; grapheme clusters and east-asian width are deliberately not modelled and the boundary is written into the docblock
 - [Phase 32]: When a task ships no production code, its green cases are proven to discriminate by planting defects into the committed .js and reverting them - three probes, each reddening the case that claims to catch it
+- [Phase 32]: Containment is decided on realpathSync at ONE authority (insideRoot) and the REAL path is what the caller opens — A check made on a lexical spelling is not a check: resolve() does not follow symlinks and readFileSync does. Returning the resolved path also closes the swap window between the check and the read.
+- [Phase 32]: An ENOENT target is placed by its deepest REAL ancestor, never admitted on ENOENT alone — Admitting on ENOENT alone admits an out-of-tree path that merely does not exist yet, so the check expires the moment the attacker creates the file.
+- [Phase 32]: A containment refusal carries OUTSIDE-ROOT; a resolution failure carries its errno — Collapsing both into one code is the CR-02 discarded-errno defect one register over. A 32-09 case caught it on the first build.
+- [Phase 32]: The hard-link shape is an accepted, recorded residual rather than a closed one — No path-based rule can refuse a hard link, and nlink greater than 1 was declined as a heuristic. Logged open in .planning/WINDOWS.md for human disposition.
 
 ### Pending Todos
 
@@ -1379,6 +1384,7 @@ None yet.
 - Plan 29.1-23 must_haves truth 1 is NOT satisfied as written: resolveModels still throws on four input classes (WINDOWS row 95, deferred-items D-29.1-23-01). Round-5 verification should treat the totality claim as open and rule on whether it is held as a mechanism at all.
 - check:diff-disposition exits 1 on five Phase-31 workflow documents (pre-existing, verified at 6d59ed1e); CI runs it at ci.yml:473 so it will red a Phase 32 PR until disposition rows land under docs/audit/29-style-dispositions/
 - check:nul-bytes is RED on .planning/phases/32-board-projector-cli-dashboard/32-REVIEW.md (literal ESC 0x1b at line 404, from commit 730ff88f). Pre-existing, deferred by plan 32-09; blocks a clean full-suite run.
+- OPEN RESIDUAL (32-10): a hard link inside the repository to an inode named outside it is read by the board projector. No path-based rule can refuse it; nlink>1 was declined as a heuristic. Logged in .planning/WINDOWS.md; needs human risk acceptance before ship.
 
 ### Quick Tasks Completed
 
@@ -1439,8 +1445,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-09-14T20:39:57.071Z
-Stopped at: Completed 32-09-PLAN.md
+Last session: 2026-09-14T21:24:04.321Z
+Stopped at: Completed 32-10-PLAN.md (CR-04 containment closed)
 Resume file: None
 
 ## Operator Next Steps
