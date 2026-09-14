@@ -1,0 +1,93 @@
+32-03 RED BASELINE — the debounce discriminated against a NO-OP, before the window landed
+=========================================================================================
+
+Captured FIRST, before the debounce was written (the 22-08 / 22-09 RED -> GREEN
+discipline, in the row format 25-05-RED-baseline.txt and 25-06-RED-baseline.txt
+established). Companion file: 32-03-GREEN-proof.txt.
+
+WHAT IS UNDER TEST, AND WHY IT NEEDS A BASELINE AT ALL.
+
+D-14 gives the board projector a 250 ms debounce between a filesystem event and a
+re-read. A debounce is the kind of mechanism whose test passes whether or not the
+mechanism exists: a case that fires one event, advances the clock and asserts one
+read is GREEN against a no-op debounce as well, because one event produces one read
+either way. So the case that pins the debounce has to be a case a no-op FAILS, and
+this file is the measurement that it does.
+
+THE MEASUREMENT THE DEBOUNCE EXISTS FOR (32-RESEARCH.md §Filesystem Watching,
+probed this session on darwin 25.5.0 / Node v24.12.0):
+
+    after direct write   -> dir: ["change:wtest","change:wtest","rename:board.md","rename:board.md"]
+    after tmp+rename #1  -> dir: ["rename:board.md.tmp-1","rename:board.md","rename:board.md"]
+    380 KB single write  -> 2 directory events
+
+One plain write produced FOUR directory events. Without a debounce the dashboard
+re-reads the whole tree two to four times per change. The debounce defends against
+that MULTIPLICITY, not against volume — which is why the discriminating case fires
+five events inside one window rather than one large one.
+
+THE MUTATION.
+
+`scripts/board-dashboard.ts`, `createLoop`'s `schedule()`, built and run with the
+debounce replaced by a direct call:
+
+    function schedule(): void {
+      // RED BASELINE (plan 32-03 task 3): the debounce is a NO-OP here on purpose.
+      refresh();
+    }
+
+Everything else in the loop is the shipped implementation: the six directory
+watches, the mandatory poll floor, the single-flight refresh, the re-arm path and
+the NDJSON emit. Only the window is absent.
+
+THE RUN.
+
+    $ npx vitest run --exclude '**/scripts/e2e/**' scripts/board-watch.test.ts
+    exit 1 — 22 tests, 21 pass, 1 fail
+
+----------------------------------------------------------------------------------------
+THE ONE FAILING CASE — and it is the debounce's own
+----------------------------------------------------------------------------------------
+
+not ok 8 - board-dashboard — the debounce (D-14, T-32-13)
+           > coalesces FIVE events inside the window into exactly ONE re-read
+
+    AssertionError: nothing has been read yet: the debounce window has not closed,
+    and a re-read per event is the two-to-four-reads-per-change behaviour this
+    window exists to remove: expected 5 to be +0
+      actual:   5
+      expected: 0
+    at scripts/board-watch.test.ts:278
+
+Five events delivered ten milliseconds apart produced FIVE reads before the window
+had closed. The shipped debounce produces zero reads at that point and exactly one
+after `DEBOUNCE_MS`.
+
+----------------------------------------------------------------------------------------
+THE TWENTY-ONE PASSING CASES — what this baseline does NOT claim
+----------------------------------------------------------------------------------------
+
+Every other case in the file passed against the no-op. That is not a weakness of
+those cases; it is the measurement that this file's single failing row is the one
+that binds the debounce, and that the other twenty-one bind something else:
+
+  ok  1-4   the watched-directory set: the two-sided count pin, the six D-14 names
+            against the sources they feed, and the absence of the recursive option
+  ok  5-7   arming: one watcher per existing directory, a later appearance armed on
+            a poll tick, and each directory armed exactly once
+  ok  9-10  a burst AFTER the window re-reads again; a listener invoked with a null
+            `filename` still re-reads (Node reports none on some Linux systems)
+  ok 11-14  the mandatory poll: a re-read with every watcher closed and none
+            re-armed, the period repeating, the `--interval` override, and stop()
+            clearing both timers
+  ok 15-16  the re-arm path, driven through GRUGOPS_BOARD_FORCE_WATCH_ERROR because
+            a macOS directory watch survives deletion and would never reach this arm
+  ok 17-18  single-flight: a reentrant trigger never starts a second read, and two
+            triggers produce two sequential COMPLETE snapshots
+  ok 19-21  `--json --watch` NDJSON: one whole document per line, `run` routing into
+            a live loop with --watch and into one document without it
+  ok 22     the compiled `.js` driven as a child across two poll periods, interrupted
+            with SIGINT: every stdout line parses, exit 0
+
+RED evidence record verified: RED_EVIDENCE_OK (target_test_failed), exit 1, 22 tests,
+1 failing, the failing test distinctly named and equal to the target.

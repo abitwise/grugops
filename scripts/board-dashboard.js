@@ -23,9 +23,22 @@
 // sequence would otherwise repaint, retitle or mislead the terminal of whoever ran the dashboard.
 //
 // IMPORT DISCIPLINE for a runnable `scripts/*.ts` (`scripts/check-platform-shapes.ts`): node
-// builtins plus relative `./*.js`, nothing else. This module needs no builtin at all.
+// builtins plus relative `./*.js`, nothing else. The two `node:fs` symbols this module holds —
+// `watch` and `existsSync` — are READ-ONLY: neither creates, moves, truncates or removes anything.
+// The dashboard's whole point is that it cannot write, and DASH-06's guard (plan 32-06) proves that
+// over the compiled closure by deriving the MUTATING symbol set rather than by matching a hand-typed
+// allow-list, so a read-only symbol entering here does not move the guard's answer.
+//
+// WINDOWS `fs.watch` BEHAVIOUR IS `UNKNOWN - verify` (Phase 33 / CAP-02). Node documents that on
+// Windows events may not be emitted at all, that a watched directory that is moved or renamed emits
+// nothing, and that deleting one reports EPERM. None of that can be DEMONSTRATED from this tree —
+// the `windows-latest` CI leg is Phase 33 work — so nothing here asserts it. The MANDATORY poll
+// floor is the fallback by construction: a platform that emits no events at all still re-reads every
+// `POLL_FLOOR_MS`, because the poll is the safety net rather than the optimisation.
 //
 // Voice: CLEAR PROFESSIONAL VOICE throughout (CLAUDE.md hard rule — this is a trace surface).
+import { existsSync, watch } from "node:fs";
+import { join } from "node:path";
 import { readSnapshot } from "./board-read.js";
 import { isEntrypoint } from "./is-entry.js";
 // ── The timing constants plan 32-03 wires (D-14) ─────────────────────────────────────────────────
@@ -188,6 +201,230 @@ function renderFrame(result) {
     }
     return `${lines.join("\n")}\n`;
 }
+// ── The watch loop (D-14) ────────────────────────────────────────────────────────────────────────
+//
+// THE SIX DIRECTORIES, EXPLICITLY, AND NEVER A RECURSIVE WATCH. `recursive` is the platform-variable
+// part of `fs.watch`: it is supported on macOS and Windows and throws
+// `ERR_FEATURE_UNAVAILABLE_ON_PLATFORM` where it is not. D-14's explicit list exists to avoid that
+// question entirely, at the cost of naming the directories here.
+//
+// DIRECTORY-LEVEL, NOT FILE-LEVEL, AND THE REASON WAS MEASURED. A probe this session (RESEARCH
+// §Filesystem Watching) armed both kinds on the same target: the FILE watch died after the first
+// atomic rename and missed every later change, because it is bound to the replaced inode. grugops's
+// own `atomicWrite` writes a temp sibling and renames it, so a file-level watch on a board this kit
+// maintains is orphaned by the kit's own write path. The directory watch survived every operation.
+//
+// `agent-factory/config/factory.config.json` IS DELIBERATELY NOT WATCHED. D-14's list does not name
+// it, and the dial changes when a human edits it rather than when work moves; the mandatory poll
+// picks it up within one period.
+const WATCH_DIRS = [
+    { rel: "plans", source: "board" },
+    { rel: "plans/tickets", source: "tickets" },
+    { rel: ".grugops/queue/pending", source: "queue" },
+    { rel: ".grugops/queue/claimed", source: "queue" },
+    { rel: ".grugops/queue/done", source: "queue" },
+    { rel: ".grugops/context", source: "context" },
+];
+export { WATCH_DIRS };
+/** The two-sided pin. A seventh watched directory is a D-14 decision, never a bumped constant. */
+export const WATCH_DIR_COUNT = 6;
+/**
+ * TEST SEAM — name a watched directory whose watcher throws on its first event.
+ *
+ * WHY A SEAM RATHER THAN A PLATFORM. D-14 requires that a watcher which errors is closed, noted in
+ * `readErrors` and re-armed on the next poll. RESEARCH measured that on macOS a directory watch
+ * SURVIVES deletion and recreation (FSEvents is path-keyed), so on the developer's machine the
+ * error arm is unreachable and would ship having never executed. On Linux the same operation orphans
+ * an inotify watch — but a test that only runs the arm on one platform is a test that proves nothing
+ * on the other, and the arm is the whole point.
+ *
+ * The value is a comma-separated list of `WATCH_DIRS` relative names. Production callers set nothing
+ * and the value is empty, so the CLI runs exactly the program it ran before the seam existed
+ * (`scripts/check-platform-shapes.ts`'s sentence, one register over).
+ */
+export const FORCE_WATCH_ERROR_ENV = "GRUGOPS_BOARD_FORCE_WATCH_ERROR";
+export function defaultDeps() {
+    return {
+        // NO `recursive` OPTION. See the WATCH_DIRS docblock.
+        watch: (dir, listener) => watch(dir, listener),
+        exists: existsSync,
+        read: readSnapshot,
+    };
+}
+/**
+ * Build the loop. It arms nothing and reads nothing until `armAll` / `refresh` are called.
+ *
+ * ONE `refresh()`, TWO TRIGGERS. The debounced watch callback and the poll tick call the same
+ * function, so there is one code path from "something happened" to "the screen is current". Two
+ * paths would be two places for the emit contract to drift, and the poll path is the one that runs
+ * when the watch path is broken — which is exactly when a divergence would be invisible.
+ *
+ * `refresh()` IS SINGLE-FLIGHT. `readSnapshot` is synchronous, so the only way a trigger arrives
+ * while a read is in flight is REENTRANTLY — a watch event delivered from inside the read, or a poll
+ * tick on a fake-timer clock. The guard sets a re-run flag instead of starting a second read, so two
+ * overlapping triggers produce two sequential COMPLETE snapshots and never an interleaved one.
+ */
+export function createLoop(options, io, deps) {
+    const watchers = new Map();
+    const errors = [];
+    const forced = new Set((process.env[FORCE_WATCH_ERROR_ENV] ?? "")
+        .split(",")
+        .map((s) => s.trim())
+        .filter((s) => s !== ""));
+    const forcedAlreadyFired = new Set();
+    let debounce = null;
+    let poll = null;
+    let previous;
+    let inFlight = false;
+    let rerun = false;
+    function noteWatchError(rel, source, e) {
+        errors.push({
+            source,
+            path: rel,
+            code: "watch",
+            message: `the watch on ${rel} failed (${e.message}). It is closed and will be re-armed on the next ` +
+                `poll tick; the mandatory poll keeps the screen current in the meantime.`,
+        });
+    }
+    function closeWatcher(rel) {
+        const w = watchers.get(rel);
+        if (w === undefined)
+            return;
+        try {
+            w.close();
+        }
+        catch {
+            /* a handle that cannot be closed is already gone */
+        }
+        watchers.delete(rel);
+    }
+    function arm(entry) {
+        const { rel, source } = entry;
+        if (watchers.has(rel))
+            return;
+        const dir = join(options.repoRoot, rel);
+        if (!deps.exists(dir))
+            return; // it may appear later; a poll tick will arm it then
+        try {
+            const handle = deps.watch(dir, () => {
+                // The `filename` argument is IGNORED ENTIRELY. Node documents it as null on some Linux
+                // systems, so a re-read that depends on it is a re-read that silently stops happening.
+                if (forced.has(rel) && !forcedAlreadyFired.has(rel)) {
+                    forcedAlreadyFired.add(rel);
+                    closeWatcher(rel);
+                    noteWatchError(rel, source, new Error(`forced by ${FORCE_WATCH_ERROR_ENV}`));
+                    return;
+                }
+                schedule();
+            });
+            handle.on("error", (e) => {
+                closeWatcher(rel);
+                noteWatchError(rel, source, e);
+            });
+            watchers.set(rel, handle);
+        }
+        catch (e) {
+            noteWatchError(rel, source, e);
+        }
+    }
+    function armAll() {
+        for (const entry of WATCH_DIRS)
+            arm(entry);
+    }
+    /**
+     * Coalesce a burst into one re-read.
+     *
+     * A single plain write produced FOUR directory events on macOS in this session's probe, and a
+     * 380 KB write produced two. The debounce defends against that multiplicity rather than against
+     * volume, and the window is the D-14 number.
+     */
+    function schedule() {
+        // RED BASELINE (plan 32-03 task 3): the debounce is a NO-OP here on purpose. Every event calls
+        // refresh directly, which is the two-to-four-reads-per-change behaviour the measured probe
+        // recorded. The next commit replaces this with the DEBOUNCE_MS window.
+        refresh();
+    }
+    function emit(result) {
+        // The watch failures ride in the SAME `readErrors` list as the read failures, so a consumer
+        // reading the JSON document sees "the low-latency path for the queue is down" in the one place
+        // it already looks for what the projector could not do.
+        const withWatch = errors.length === 0 ? result : { ...result, readErrors: [...result.readErrors, ...errors] };
+        for (const readError of withWatch.readErrors) {
+            io.stderr.write(`board-dashboard: ${readError.source} at ${readError.path} — ${readError.code}: ` +
+                `${readError.message}\n`);
+        }
+        if (options.json) {
+            // ONE COMPLETE DOCUMENT PER LINE (D-18). `JSON.stringify` emits no newline of its own, so the
+            // line boundary is the document boundary and a consumer can split on it.
+            io.stdout.write(`${JSON.stringify(withWatch)}\n`);
+            return;
+        }
+        io.stdout.write(renderFrame(withWatch));
+    }
+    function refresh() {
+        if (inFlight) {
+            rerun = true;
+            return;
+        }
+        inFlight = true;
+        try {
+            do {
+                rerun = false;
+                let result;
+                try {
+                    result = deps.read(options.repoRoot, previous);
+                }
+                catch (e) {
+                    // The root went away under a running loop. A named line on stderr, the previous frame left
+                    // standing, and the loop keeps polling — the tree may come back.
+                    io.stderr.write(`board-dashboard: ${e.message}\n`);
+                    return;
+                }
+                previous = result;
+                emit(result);
+            } while (rerun);
+        }
+        finally {
+            inFlight = false;
+            rerun = false;
+        }
+    }
+    function start(pollMs) {
+        // THE POLL IS MANDATORY AND CANNOT BE DISABLED. No flag sets it to zero or to Infinity: it is the
+        // safety net for a watch orphaned by an atomic rename and for a filesystem that emits no events
+        // at all (Windows may emit none — `UNKNOWN - verify`, Phase 33 / CAP-02). A dashboard whose only
+        // refresh path is the watch is a dashboard that can look live and be frozen.
+        poll = setInterval(() => {
+            armAll();
+            refresh();
+        }, pollMs);
+    }
+    function stop() {
+        if (debounce !== null) {
+            clearTimeout(debounce);
+            debounce = null;
+        }
+        if (poll !== null) {
+            clearInterval(poll);
+            poll = null;
+        }
+        for (const rel of [...watchers.keys()])
+            closeWatcher(rel);
+    }
+    return {
+        armAll,
+        schedule,
+        refresh,
+        start,
+        seed: (result) => {
+            previous = result;
+        },
+        emit,
+        stop,
+        watchedDirs: () => [...watchers.keys()],
+        watchErrors: () => [...errors],
+    };
+}
 // ── The entry point ──────────────────────────────────────────────────────────────────────────────
 function defaultIo() {
     return {
@@ -197,48 +434,59 @@ function defaultIo() {
     };
 }
 /**
- * Run one invocation and return its exit code.
+ * Run one invocation: either to completion, or into a live loop.
  *
- * THIS TASK PRINTS EXACTLY ONE FRAME OR ONE DOCUMENT, ALWAYS. The watch loop lands in plan 32-03,
- * and a request for it is answered on stderr rather than silently ignored — a tool that accepts
- * `--watch` and quietly prints one frame is a tool that lies about what it did. The stdout channel
- * is unaffected either way, so wiring the loop later changes no output contract.
+ * THIS IS THE FUNCTION THE PROCESS ENTRY POINT CALLS, and the only one that can hand back a running
+ * loop. `main` is the one-shot contract beside it.
  */
-export function main(argv, io = defaultIo()) {
+export function run(argv, io = defaultIo(), deps = defaultDeps()) {
     const parsed = parseArgs(argv);
     if (parsed.kind === "help") {
         io.stdout.write(`${USAGE}\n`);
-        return 0;
+        return { kind: "exit", code: 0 };
     }
     if (parsed.kind === "usage") {
         io.stderr.write(`${parsed.message}\n`);
-        return EXIT_USAGE;
+        return { kind: "exit", code: EXIT_USAGE };
     }
     const options = parsed.options;
-    let result;
+    let first;
     try {
-        result = readSnapshot(options.repoRoot);
+        first = deps.read(options.repoRoot);
     }
     catch (e) {
-        // A NAMED ONE-LINE MESSAGE ON STDERR, NEVER A STACK ON STDOUT (T-32-08).
+        // A NAMED ONE-LINE MESSAGE ON STDERR, NEVER A STACK ON STDOUT (T-32-08). An unreadable root is
+        // exit 2 whether or not a loop was asked for: there is nothing to watch.
         io.stderr.write(`board-dashboard: ${e.message}\n`);
-        return EXIT_USAGE;
+        return { kind: "exit", code: EXIT_USAGE };
     }
     // D-18: `--json` implies `--once` unless `--watch` is also given, and a non-TTY stdout implies it
-    // too. The live redraw is the only branch that does not, and it lands in plan 32-03.
+    // too. A TTY with no flags at all is the live view.
     const loopRequested = options.watch || (io.isTty && !options.once && !options.json);
-    if (loopRequested) {
-        io.stderr.write("board-dashboard: the watch loop lands in plan 32-03. Printing one frame and exiting 0.\n");
+    const loop = createLoop(options, io, deps);
+    loop.seed(first);
+    loop.emit(first);
+    if (!loopRequested) {
+        return { kind: "exit", code: 0 };
     }
-    for (const readError of result.readErrors) {
-        io.stderr.write(`board-dashboard: ${readError.source} at ${readError.path} — ${readError.code}: ` +
-            `${readError.message}\n`);
-    }
-    if (options.json) {
-        io.stdout.write(`${JSON.stringify(result)}\n`);
-        return 0;
-    }
-    io.stdout.write(renderFrame(result));
+    loop.armAll();
+    loop.start(options.intervalMs ?? POLL_FLOOR_MS);
+    return { kind: "running", loop };
+}
+/**
+ * Run ONE invocation and return its exit code.
+ *
+ * THE ONE-SHOT CONTRACT. Every caller that wants a frame and a code uses this: the `--once` path,
+ * the `--json` path, and every case that captures output through an injected io. When the arguments
+ * ask for a loop, this function stops the loop it armed and returns 0 rather than leaving timers and
+ * watch handles behind for a caller that has no way to close them. The PROCESS entry point below
+ * calls `run` instead, because it is the only caller that can own a live loop.
+ */
+export function main(argv, io = defaultIo()) {
+    const result = run(argv, io);
+    if (result.kind === "exit")
+        return result.code;
+    result.loop.stop();
     return 0;
 }
 // The tail mirrors `scripts/coordinator-resolution-precheck.ts:589-600`: the code initialises to the
@@ -246,13 +494,21 @@ export function main(argv, io = defaultIo()) {
 // detection in this tree — a hand-rolled comparison reads FALSE under a symlinked invocation path,
 // and the module then exits 0 having printed nothing, which a caller reads as a pass.
 if (isEntrypoint(import.meta.url)) {
-    let code = EXIT_USAGE;
     try {
-        code = main(process.argv.slice(2));
+        const result = run(process.argv.slice(2));
+        if (result.kind === "exit") {
+            process.exit(result.code);
+        }
+        // A LOOP IS RUNNING AND THE PROCESS MUST NOT EXIT. The watch handles and the poll interval keep
+        // the event loop alive; SIGINT is the way out, and it closes every handle and clears both timers
+        // before exiting 0 so no partial frame and no partial JSON document is left on stdout.
+        process.on("SIGINT", () => {
+            result.loop.stop();
+            process.exit(0);
+        });
     }
     catch (e) {
         process.stderr.write(`board-dashboard: ${e.message}\n`);
-        code = EXIT_USAGE;
+        process.exit(EXIT_USAGE);
     }
-    process.exit(code);
 }

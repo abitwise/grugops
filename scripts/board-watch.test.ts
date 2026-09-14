@@ -1,0 +1,575 @@
+// board-watch.test.ts — the refresh loop: what triggers a re-read, and what a broken trigger costs.
+//
+// WHAT THIS FILE IS. Plan 32-03 task 3 gives the dashboard a directory-level watch, a 250 ms
+// debounce and a MANDATORY 10-second poll that share exactly one re-read path. The cases below drive
+// that loop with an injected watcher and vitest's fake timers, because the alternative — arming a
+// real `fs.watch` and sleeping — is a test that passes on an idle machine and fails on a loaded one.
+// The `LoopDeps` seam exists for exactly that reason and production passes nothing through it.
+//
+// THE TWO ARMS THIS FILE EXISTS FOR. Both were measured this session (RESEARCH §Filesystem Watching)
+// rather than assumed:
+//   1. A single plain write produced FOUR directory events on macOS. Without the debounce the
+//      re-read fires two to four times per change, so the coalescing case is the one this file's
+//      RED baseline discriminates against a no-op debounce.
+//   2. On macOS a directory watch SURVIVES deletion and recreation, so the "a watcher errored,
+//      close it and re-arm it on the next poll" arm is unreachable on the developer's machine. It is
+//      driven through the named `GRUGOPS_BOARD_FORCE_WATCH_ERROR` seam instead of through a platform
+//      behaviour, so the arm is exercised wherever this suite runs.
+//
+// NOTHING HERE ASSERTS WINDOWS SEMANTICS. `fs.watch` on Windows is `UNKNOWN - verify` pending
+// Phase 33 / CAP-02 (32-VALIDATION.md), and a case that asserted it from darwin would be a case
+// asserting a platform it never ran on.
+//
+// Vitest `globals: false` (the repo default) → the test functions are imported explicitly.
+
+import { describe, it, expect, vi, afterEach } from "vitest";
+import { spawn } from "node:child_process";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
+import {
+  DEBOUNCE_MS,
+  FORCE_WATCH_ERROR_ENV,
+  POLL_FLOOR_MS,
+  WATCH_DIRS,
+  WATCH_DIR_COUNT,
+  createLoop,
+  run,
+} from "./board-dashboard.js";
+import type { DashboardIo, Loop, LoopDeps, Options } from "./board-dashboard.js";
+import type { SnapshotResult } from "./board-read.js";
+
+const ROOT = join(import.meta.dirname, "..");
+const DASHBOARD_JS = join(ROOT, "scripts", "board-dashboard.js");
+const REPO = "/repo";
+
+/** A snapshot result with no value in any source — the loop under test never reads a real tree. */
+function stubResult(n: number): SnapshotResult {
+  const absent = { source: "unavailable", present: false } as const;
+  return {
+    source: "unavailable",
+    snapshot: {
+      schemaVersion: 1,
+      repoRoot: REPO,
+      generatedAt: `2026-09-14T09:00:${String(n).padStart(2, "0")}.000Z`,
+      board: null,
+      config: null,
+      sources: {
+        board: absent,
+        tickets: absent,
+        queue: absent,
+        context: absent,
+        traceability: absent,
+        config: absent,
+      },
+    },
+    conflicts: [],
+    readErrors: [],
+  };
+}
+
+type FakeWatcher = {
+  readonly dir: string;
+  readonly fire: (eventType: string, filename: string | null) => void;
+  error: ((e: Error) => void) | null;
+  closed: boolean;
+};
+
+type Harness = {
+  readonly loop: Loop;
+  readonly watchers: FakeWatcher[];
+  readonly out: () => string;
+  readonly err: () => string;
+  readonly writes: () => readonly string[];
+  readonly reads: () => number;
+  readonly maxDepth: () => number;
+  readonly present: Set<string>;
+  readonly onRead: (fn: ((loop: Loop, n: number) => void) | null) => void;
+};
+
+/** Build a loop over an injected watcher, an injected existence check and an injected read. */
+function harness(partial: Partial<Options> = {}, presentDirs: readonly string[] = []): Harness {
+  const options: Options = {
+    repoRoot: REPO,
+    once: false,
+    json: false,
+    watch: true,
+    intervalMs: null,
+    ...partial,
+  };
+  const stdoutWrites: string[] = [];
+  let err = "";
+  const io: DashboardIo = {
+    stdout: {
+      write: (s: string) => {
+        stdoutWrites.push(s);
+        return true;
+      },
+    },
+    stderr: {
+      write: (s: string) => {
+        err += s;
+        return true;
+      },
+    },
+    isTty: false,
+  };
+
+  const watchers: FakeWatcher[] = [];
+  const present = new Set(presentDirs.map((d) => join(REPO, d)));
+  let reads = 0;
+  let depth = 0;
+  let maxDepth = 0;
+  let onRead: ((loop: Loop, n: number) => void) | null = null;
+
+  const deps: LoopDeps = {
+    watch: (dir, listener) => {
+      const w: FakeWatcher = { dir, fire: listener, error: null, closed: false };
+      watchers.push(w);
+      return {
+        close: () => {
+          w.closed = true;
+        },
+        on: (_event, handler) => {
+          w.error = handler;
+          return undefined;
+        },
+      };
+    },
+    exists: (p) => present.has(p),
+    read: () => {
+      depth += 1;
+      maxDepth = Math.max(maxDepth, depth);
+      reads += 1;
+      const n = reads;
+      try {
+        onRead?.(loop, n);
+        return stubResult(n);
+      } finally {
+        depth -= 1;
+      }
+    },
+  };
+
+  const loop = createLoop(options, io, deps);
+  return {
+    loop,
+    watchers,
+    out: () => stdoutWrites.join(""),
+    err: () => err,
+    writes: () => [...stdoutWrites],
+    reads: () => reads,
+    maxDepth: () => maxDepth,
+    present,
+    onRead: (fn) => {
+      onRead = fn;
+    },
+  };
+}
+
+/** The live watcher for a relative directory, or undefined when none is armed. */
+function liveWatcher(h: Harness, rel: string): FakeWatcher | undefined {
+  return h.watchers.find((w) => w.dir === join(REPO, rel) && !w.closed);
+}
+
+afterEach(() => {
+  vi.useRealTimers();
+  delete process.env[FORCE_WATCH_ERROR_ENV];
+});
+
+describe("board-dashboard — the watched directory set (D-14)", () => {
+  it("pins the watched-directory count two-sided against the derived list", () => {
+    expect(WATCH_DIR_COUNT).toBe(WATCH_DIRS.length);
+  });
+
+  it("pins the watched-directory count at six", () => {
+    expect(
+      WATCH_DIRS.length,
+      "a seventh watched directory is a D-14 DECISION recorded in the phase context, never a " +
+        "bumped constant: each watch is the low-latency path for a named source, and a directory " +
+        "nobody assigned a source to is a watch whose failure has nowhere to be reported",
+    ).toBe(6);
+  });
+
+  it("names exactly the six directories D-14 lists, each against the source it feeds", () => {
+    expect(WATCH_DIRS.map((d) => d.rel)).toEqual([
+      "plans",
+      "plans/tickets",
+      ".grugops/queue/pending",
+      ".grugops/queue/claimed",
+      ".grugops/queue/done",
+      ".grugops/context",
+    ]);
+    expect(WATCH_DIRS.map((d) => d.source)).toEqual([
+      "board",
+      "tickets",
+      "queue",
+      "queue",
+      "queue",
+      "context",
+    ]);
+  });
+
+  it("never passes the recursive watch option — the platform-variable part of the API", () => {
+    // `recursive: true` throws ERR_FEATURE_UNAVAILABLE_ON_PLATFORM where it is unsupported, which is
+    // precisely why D-14 names six directories instead of one tree.
+    const src = readFileSync(join(ROOT, "scripts", "board-dashboard.ts"), "utf8");
+    const code = src
+      .split("\n")
+      .filter((l) => !l.trimStart().startsWith("//") && !l.trimStart().startsWith("*"));
+    expect(code.filter((l) => l.includes("recursive"))).toEqual([]);
+  });
+});
+
+describe("board-dashboard — arming (D-14)", () => {
+  it("arms one watcher per EXISTING directory and silently skips one that is not there", () => {
+    const h = harness({}, ["plans", "plans/tickets"]);
+    h.loop.armAll();
+    expect(h.loop.watchedDirs()).toEqual(["plans", "plans/tickets"]);
+    expect(h.loop.watchErrors()).toEqual([]);
+  });
+
+  it("arms a directory that APPEARS later, on a poll tick", () => {
+    vi.useFakeTimers();
+    const h = harness({}, ["plans"]);
+    h.loop.armAll();
+    h.loop.start(POLL_FLOOR_MS);
+    expect(
+      h.loop.watchedDirs(),
+      "PREMISE: the loop armed something other than the one directory that existed, so the case " +
+        "below cannot tell an appearance from a re-arm",
+    ).toEqual(["plans"]);
+
+    // The queue appears — an agent claimed the first task on a tree that had never run one.
+    h.present.add(join(REPO, ".grugops/queue/claimed"));
+    vi.advanceTimersByTime(POLL_FLOOR_MS);
+
+    expect(h.loop.watchedDirs()).toEqual(["plans", ".grugops/queue/claimed"]);
+    h.loop.stop();
+  });
+
+  it("arms each directory ONCE, however many poll ticks pass", () => {
+    vi.useFakeTimers();
+    const h = harness({}, ["plans"]);
+    h.loop.armAll();
+    h.loop.start(POLL_FLOOR_MS);
+    vi.advanceTimersByTime(POLL_FLOOR_MS * 3);
+    expect(h.watchers.length).toBe(1);
+    h.loop.stop();
+  });
+});
+
+describe("board-dashboard — the debounce (D-14, T-32-13)", () => {
+  it("coalesces FIVE events inside the window into exactly ONE re-read", () => {
+    vi.useFakeTimers();
+    const h = harness({}, ["plans"]);
+    h.loop.armAll();
+    const w = liveWatcher(h, "plans");
+    expect(w, "PREMISE: no watcher was armed on plans/, so no event below was delivered").toBeDefined();
+
+    for (let i = 0; i < 5; i += 1) {
+      w?.fire("change", "board.md");
+      vi.advanceTimersByTime(10);
+    }
+    expect(
+      h.reads(),
+      "nothing has been read yet: the debounce window has not closed, and a re-read per event is " +
+        "the two-to-four-reads-per-change behaviour this window exists to remove",
+    ).toBe(0);
+
+    vi.advanceTimersByTime(DEBOUNCE_MS);
+    expect(h.reads()).toBe(1);
+    h.loop.stop();
+  });
+
+  it("re-reads AGAIN for a burst that arrives after the window closed", () => {
+    vi.useFakeTimers();
+    const h = harness({}, ["plans"]);
+    h.loop.armAll();
+    const w = liveWatcher(h, "plans");
+    w?.fire("change", "board.md");
+    vi.advanceTimersByTime(DEBOUNCE_MS);
+    w?.fire("change", "board.md");
+    vi.advanceTimersByTime(DEBOUNCE_MS);
+    expect(h.reads()).toBe(2);
+    h.loop.stop();
+  });
+
+  it("re-reads for a listener invoked with a NULL filename (Node reports none on some Linux)", () => {
+    vi.useFakeTimers();
+    const h = harness({}, ["plans"]);
+    h.loop.armAll();
+    const w = liveWatcher(h, "plans");
+    // The listener ignores both arguments. A re-read that depended on `filename` would be a re-read
+    // that silently stops happening on a platform Node documents as reporting none.
+    w?.fire("rename", null);
+    vi.advanceTimersByTime(DEBOUNCE_MS);
+    expect(h.reads()).toBe(1);
+    h.loop.stop();
+  });
+});
+
+describe("board-dashboard — the mandatory poll floor (D-14)", () => {
+  it("re-reads on the poll tick with EVERY watcher closed and none re-armed", () => {
+    vi.useFakeTimers();
+    const h = harness({}, ["plans", ".grugops/context"]);
+    h.loop.armAll();
+    h.loop.start(POLL_FLOOR_MS);
+    expect(
+      h.loop.watchedDirs().length,
+      "PREMISE: nothing was armed, so 'every watcher is closed' is true of a loop that never " +
+        "watched anything",
+    ).toBe(2);
+
+    // Close every watcher through its own error path, then make every directory report itself
+    // absent so the poll tick cannot re-arm any of them. What is left is the poll, alone.
+    for (const w of [...h.watchers]) w.error?.(new Error("driven"));
+    h.present.clear();
+    expect(h.loop.watchedDirs()).toEqual([]);
+
+    const before = h.reads();
+    vi.advanceTimersByTime(POLL_FLOOR_MS);
+    expect(h.reads()).toBe(before + 1);
+    h.loop.stop();
+  });
+
+  it("keeps polling — the floor is a period, not a single shot", () => {
+    vi.useFakeTimers();
+    const h = harness({}, []);
+    h.loop.start(POLL_FLOOR_MS);
+    vi.advanceTimersByTime(POLL_FLOOR_MS * 3);
+    expect(h.reads()).toBe(3);
+    h.loop.stop();
+  });
+
+  it("polls at the `--interval` override rather than at the floor", () => {
+    vi.useFakeTimers();
+    const h = harness({ intervalMs: 1_000 }, []);
+    h.loop.start(1_000);
+    vi.advanceTimersByTime(2_000);
+    expect(h.reads()).toBe(2);
+    h.loop.stop();
+  });
+
+  it("stops both timers and closes every watcher on stop", () => {
+    vi.useFakeTimers();
+    const h = harness({}, ["plans"]);
+    h.loop.armAll();
+    h.loop.start(POLL_FLOOR_MS);
+    h.loop.stop();
+
+    expect(h.watchers.every((w) => w.closed)).toBe(true);
+    const before = h.reads();
+    vi.advanceTimersByTime(POLL_FLOOR_MS * 2);
+    expect(h.reads()).toBe(before);
+  });
+});
+
+describe("board-dashboard — a watcher that errors is closed, noted and re-armed (D-14)", () => {
+  it("closes the watcher, names the directory in readErrors, and re-arms it on the next poll", () => {
+    vi.useFakeTimers();
+    process.env[FORCE_WATCH_ERROR_ENV] = "plans";
+    const h = harness({}, ["plans"]);
+    h.loop.armAll();
+    h.loop.start(POLL_FLOOR_MS);
+    const armed = liveWatcher(h, "plans");
+    expect(
+      armed,
+      "PREMISE: the seam prevented the watcher from being armed at all, so nothing below measured " +
+        "an ERROR on a live watch",
+    ).toBeDefined();
+
+    armed?.fire("change", "board.md");
+
+    expect(armed?.closed).toBe(true);
+    expect(h.loop.watchedDirs()).toEqual([]);
+    const noted = h.loop.watchErrors();
+    expect(noted.length).toBe(1);
+    expect(noted[0]?.path).toBe("plans");
+    expect(noted[0]?.source).toBe("board");
+    expect(noted[0]?.code).toBe("watch");
+
+    vi.advanceTimersByTime(POLL_FLOOR_MS);
+    expect(
+      h.loop.watchedDirs(),
+      "the re-arm is what makes a transient watch failure transient rather than permanent",
+    ).toEqual(["plans"]);
+    h.loop.stop();
+  });
+
+  it("carries the watch failure into the emitted document, not only into the loop's own list", () => {
+    vi.useFakeTimers();
+    process.env[FORCE_WATCH_ERROR_ENV] = "plans";
+    const h = harness({ json: true }, ["plans"]);
+    h.loop.armAll();
+    liveWatcher(h, "plans")?.fire("change", null);
+    h.loop.refresh();
+
+    const line = h.writes()[h.writes().length - 1] ?? "";
+    const parsed = JSON.parse(line) as { readErrors: { path: string; code: string }[] };
+    expect(parsed.readErrors.map((e) => e.code)).toContain("watch");
+  });
+});
+
+describe("board-dashboard — refresh is single-flight (edge: concurrency)", () => {
+  it("does not start a second read inside the first, and produces two COMPLETE snapshots", () => {
+    const h = harness({ json: true }, []);
+    // A trigger arriving while a read is in flight. `readSnapshot` is synchronous, so the only way
+    // that happens is reentrantly — which is exactly what a watch event delivered from inside the
+    // read, or a poll tick on the same turn, would look like.
+    h.onRead((loop, n) => {
+      if (n === 1) loop.refresh();
+    });
+
+    h.loop.refresh();
+
+    expect(h.reads()).toBe(2);
+    expect(
+      h.maxDepth(),
+      "a second read STARTED while the first was in flight: the snapshots can interleave, and the " +
+        "document on stdout may describe two different trees at once",
+    ).toBe(1);
+
+    const lines = h.writes();
+    expect(lines.length).toBe(2);
+    for (const line of lines) {
+      expect(() => JSON.parse(line) as unknown).not.toThrow();
+    }
+    // The reads happened in order and each was emitted whole before the next began.
+    const first = JSON.parse(lines[0] as string) as { snapshot: { generatedAt: string } };
+    const second = JSON.parse(lines[1] as string) as { snapshot: { generatedAt: string } };
+    expect(first.snapshot.generatedAt < second.snapshot.generatedAt).toBe(true);
+  });
+
+  it("coalesces a THIRD trigger arriving during the re-run into the same re-run", () => {
+    const h = harness({ json: true }, []);
+    h.onRead((loop, n) => {
+      if (n <= 2) loop.refresh();
+    });
+    h.loop.refresh();
+    expect(h.reads()).toBe(3);
+    expect(h.maxDepth()).toBe(1);
+  });
+});
+
+describe("board-dashboard — `--json --watch` emits NDJSON (D-18)", () => {
+  it("writes one COMPLETE JSON document per line per re-read, and nothing else on stdout", () => {
+    vi.useFakeTimers();
+    const h = harness({ json: true }, ["plans"]);
+    h.loop.armAll();
+    h.loop.start(POLL_FLOOR_MS);
+    vi.advanceTimersByTime(POLL_FLOOR_MS * 3);
+    h.loop.stop();
+
+    const lines = h.out().split("\n").filter((l) => l !== "");
+    expect(lines.length).toBe(3);
+    for (const line of lines) {
+      const parsed = JSON.parse(line) as { snapshot: { schemaVersion: number } };
+      expect(parsed.snapshot.schemaVersion).toBe(1);
+    }
+    // Every write ended in exactly one newline, so the line boundary IS the document boundary.
+    expect(h.writes().every((w) => w.endsWith("\n") && !w.slice(0, -1).includes("\n"))).toBe(true);
+  });
+
+  it("routes `run` with --watch into a live loop rather than into one frame", () => {
+    vi.useFakeTimers();
+    let reads = 0;
+    const out: string[] = [];
+    const io: DashboardIo = {
+      stdout: {
+        write: (s: string) => {
+          out.push(s);
+          return true;
+        },
+      },
+      stderr: { write: () => true },
+      isTty: false,
+    };
+    const deps: LoopDeps = {
+      watch: () => ({ close: () => undefined, on: () => undefined }),
+      exists: () => false,
+      read: () => {
+        reads += 1;
+        return stubResult(reads);
+      },
+    };
+
+    const result = run([REPO, "--json", "--watch", "--interval", "1000"], io, deps);
+    expect(result.kind).toBe("running");
+    if (result.kind !== "running") return;
+
+    expect(out.length, "the first frame is emitted before the loop starts waiting").toBe(1);
+    vi.advanceTimersByTime(2_000);
+    expect(out.length).toBe(3);
+    result.loop.stop();
+  });
+
+  it("routes `run` WITHOUT --watch to one document and an exit code", () => {
+    let reads = 0;
+    const out: string[] = [];
+    const io: DashboardIo = {
+      stdout: {
+        write: (s: string) => {
+          out.push(s);
+          return true;
+        },
+      },
+      stderr: { write: () => true },
+      isTty: false,
+    };
+    const deps: LoopDeps = {
+      watch: () => ({ close: () => undefined, on: () => undefined }),
+      exists: () => false,
+      read: () => {
+        reads += 1;
+        return stubResult(reads);
+      },
+    };
+
+    const result = run([REPO, "--json", "--once"], io, deps);
+    expect(result.kind).toBe("exit");
+    expect(result.kind === "exit" ? result.code : -1).toBe(0);
+    expect(out.length).toBe(1);
+  });
+});
+
+describe("board-dashboard — the process contract under --watch, driven as a child (D-18)", () => {
+  it(
+    "emits only complete JSON documents across two poll periods and exits 0 on SIGINT",
+    async () => {
+      const child = spawn(
+        process.execPath,
+        [DASHBOARD_JS, ".", "--json", "--watch", "--interval", "1000"],
+        { cwd: ROOT },
+      );
+      let out = "";
+      let err = "";
+      child.stdout.setEncoding("utf8");
+      child.stderr.setEncoding("utf8");
+      child.stdout.on("data", (c: string) => {
+        out += c;
+      });
+      child.stderr.on("data", (c: string) => {
+        err += c;
+      });
+
+      const code = await new Promise<number | null>((resolve) => {
+        setTimeout(() => child.kill("SIGINT"), 2_300);
+        child.on("close", (c) => resolve(c));
+      });
+
+      const lines = out.split("\n").filter((l) => l !== "");
+      expect(
+        lines.length,
+        `PREMISE: the child produced fewer than two frames in two poll periods, so "every line is a ` +
+          `complete document" describes almost nothing. stderr was: ${err.slice(0, 400)}`,
+      ).toBeGreaterThanOrEqual(3);
+      for (const line of lines) {
+        const parsed = JSON.parse(line) as { snapshot: { schemaVersion: number } };
+        expect(parsed.snapshot.schemaVersion).toBe(1);
+      }
+      expect(code).toBe(0);
+    },
+    15_000,
+  );
+});
