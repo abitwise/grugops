@@ -5,15 +5,15 @@ milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live
 current_phase: 32
 current_phase_name: Board Projector & CLI Dashboard
 status: "Phase 31 CLOSED 2026-09-13 by user override D-44 (round-9 verification gaps_found 4/6 left standing; CR-28..CR-31 + WR-43..WR-47 accepted open). Next: Phase 32 — Board Projector & CLI Dashboard, not yet planned. Standing rule: four-round gap-closure cap on every later phase."
-stopped_at: Completed 32-10-PLAN.md (CR-04 containment closed)
-last_updated: "2026-09-14T21:24:04.699Z"
-state_head: 66dcf508c30e61e81485c95cfd4656c2569201f8
+stopped_at: Completed 32-12-PLAN.md (CR-06 second grammar + false docblock closed)
+last_updated: "2026-09-14T22:04:50.974Z"
+state_head: 16983f13c98e40e999cf3b692dc4b20efee0ce27
 progress:
   total_phases: 9
-  completed_phases: 6
+  completed_phases: 30
   total_plans: 234
-  completed_plans: 230
-  percent: 67
+  completed_plans: 231
+  percent: 99
 last_activity: 2026-09-13
 prior_activity_desc: Phase 27 gap-closure round 8 COMPLETE (27-45, 27-46; D-53). Full narration lives in the Phase 27 artifacts and in docs/audit/; shortened here by plan 31-38 because this single line measured 7995 characters, above the 4000-character ceiling a pathological STATE line has previously crossed to turn a sub-second guard into a multi-minute one.
 last_activity_desc: "Phase 29 CLOSED by user decision (D-59, reversing D-29): LANG-04's conformance prohibition is held as CONTENT — the claim registry and the honesty floor — with guard_banned_claims a disclosed drift backstop, not the mechanism that makes a totality true. Eight verification rounds established that a totality over an open set of phrasings is not a decidable predicate; D-55 had already ended at a per-line predicate, so the totality was already content-held on the tree while LANG-04's text still said a mechanism held it. Round-8 review CR-02 (the narrowed sentence printed above the findings contradicting it) FIXED at 4c6a76a, watched failing against the pre-fix build and asserted in both directions; two existing cases whose premise the change invalidated were repaired, not weakened. CR-01 (freshness.ts working-tree arm fail-opens, reproduced) carried as V-29-59-03 — a build-parity defect plan 29-59 itself recorded as named by no LANG requirement. CR-03/04/05 carried with owners in docs/audit/29-round8-residuals.md section 10. The round-8 verifier's gaps_found verdict is left standing and annotated rather than rewritten: it verified LANG-04's previous text. All 8 LANG requirements Complete. 15 repo gates green, 52 files / 2140 passed / 2 skipped. Next: Phase 29.1 (per-role model assignment)."
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-09-07 — after Phase 29.2)
 ## Current Position
 
 Phase: 32 (Board Projector & CLI Dashboard) — EXECUTING
-Plan: 3 of 14
+Plan: 4 of 14
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 
@@ -486,6 +486,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 32 P08 | 42 min | 3 tasks | 13 files |
 | Phase 32 P09 | 38 min | 3 tasks | 13 files |
 | Phase 32 P10 | 30 min | 3 tasks | 7 files |
+| Phase 32 P12 | 30 min | 3 tasks | 11 files |
 
 ## Accumulated Context
 
@@ -1324,6 +1325,7 @@ Recent decisions affecting current work:
 - [Phase 32]: An ENOENT target is placed by its deepest REAL ancestor, never admitted on ENOENT alone — Admitting on ENOENT alone admits an out-of-tree path that merely does not exist yet, so the check expires the moment the attacker creates the file.
 - [Phase 32]: A containment refusal carries OUTSIDE-ROOT; a resolution failure carries its errno — Collapsing both into one code is the CR-02 discarded-errno defect one register over. A 32-09 case caught it on the first build.
 - [Phase 32]: The hard-link shape is an accepted, recorded residual rather than a closed one — No path-based rule can refuse a hard link, and nlink greater than 1 was declined as a heuristic. Logged open in .planning/WINDOWS.md for human disposition.
+- [Phase 32]: CR-06 closed structurally: the validator's second ticket-frontmatter reader is DELETED and checkTickets() routed through parseTicketDocument, with the single-authority claim DERIVED by a recursive census over scripts/*.ts (150 files, carrier asserted by name) plus a discrimination case planting the removed reader — A comment asserting a state of the tree is what let CR-06 survive a code review and a green suite; the claim is now delegated to a derived census rather than asserted in prose. The board-model.ts docblock no longer promises a future commit.
 
 ### Pending Todos
 
@@ -1445,8 +1447,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-09-14T21:24:04.321Z
-Stopped at: Completed 32-10-PLAN.md (CR-04 containment closed)
+Last session: 2026-09-14T22:04:30.005Z
+Stopped at: Completed 32-12-PLAN.md (CR-06 second grammar + false docblock closed)
 Resume file: None
 
 ## Operator Next Steps

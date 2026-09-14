@@ -1149,7 +1149,7 @@ Plans:
 
 - [x] 32-09-PLAN.md — CR-02 + CR-03: a three-armed directory listing whose EACCES/ENOTDIR/EMFILE failures reach the stale badge and `readErrors`, `joinSnapshot` gated against deriving presence-dependent conflicts from a non-`ok` tickets source, and a tear detector that compares raw bytes and reports a decode failure as `unreadable` [DASH-03, DASH-04, DASH-05]
 - [x] 32-10-PLAN.md — CR-04 (security blocker): one `realpathSync`-based containment authority called by both path constructors, per-entry refusals surfaced as path-only `readErrors`, a per-source guard so one refusal never blanks the other five, and a six-case legitimate-input battery [DASH-03, DASH-05]
-- [ ] 32-12-PLAN.md — CR-06: three disagreement fixtures with a recorded before/after table, the validator's second ticket-frontmatter reader deleted and `checkTickets()` routed through `parseTicketDocument`, and a glob-derived single-authority census plus the corrected docblock [DASH-01, DASH-02]
+- [x] 32-12-PLAN.md — CR-06: three disagreement fixtures with a recorded before/after table, the validator's second ticket-frontmatter reader deleted and `checkTickets()` routed through `parseTicketDocument`, and a glob-derived single-authority census plus the corrected docblock [DASH-01, DASH-02]
 - [ ] 32-13-PLAN.md — CR-05 + the NDJSON documentation defect: one sanitizing stderr chokepoint with an AST-derived site census, and the three "exactly one JSON document" sentences corrected and anchored to measured line counts [DASH-07, DASH-08]
 - [ ] 32-11-PLAN.md — CR-01: the DASH-06 guard's canonical form (an fs namespace binding may only be the object of a member access), fourteen escape spellings enumerated as data with a two-sided pin, and the guard bound to `check:build-parity`. Runs after the other fixes so it is proved against the closure that ships [DASH-06, DASH-08]
 - [ ] 32-14-PLAN.md — adversarial self-review: every verifier transcript re-run against the rebuilt `.js`, a written answer per gate to how it is REACHED, a reachability table over every new refusal branch, and a `package.json`-derived gate sweep [DASH-01..DASH-08]
@@ -1210,7 +1210,7 @@ Plans:
 | 29.2. Model Assignment Delivery Path | v2.1 | 6/6 | Complete    | 2026-09-07 |
 | 30. Per-Checkpoint Autonomy Matrix | v2.1 | 11/11 | Complete    | 2026-09-07 |
 | 31. Autonomous Manual Testing | v2.1 | 44/44 | In Progress|  |
-| 32. Board Projector & CLI Dashboard | v2.1 | 10/14 | In Progress|  |
+| 32. Board Projector & CLI Dashboard | v2.1 | 11/14 | In Progress|  |
 | 33. Live Capture & Windows Portability | v2.1 | 0/TBD | Not started | - |
 
 **Totals:** 33 phases · **4 milestones shipped** (v1.0 + v1.1 + v1.2 + v2.0) · **1 active** (v2.1, phases 27–33).
