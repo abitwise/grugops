@@ -22,6 +22,7 @@
 // Vitest `globals: false` (the repo default) → the test functions are imported explicitly.
 
 import { describe, it, expect } from "vitest";
+import ts from "typescript";
 import {
   appendFileSync,
   chmodSync,
@@ -32,6 +33,7 @@ import {
   realpathSync,
   rmSync,
   statSync,
+  symlinkSync,
   unlinkSync,
   writeFileSync,
 } from "node:fs";
@@ -1024,6 +1026,294 @@ describe("board-read — a denied `plans/tickets/` is stale, not absent (plan 32
       const tickets =
         result.snapshot.sources.tickets.source === "ok" ? result.snapshot.sources.tickets.value : [];
       expect(tickets.map((t) => t.id).sort()).toEqual(["ABC-101", "ABC-102"]);
+    });
+  });
+});
+
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+// PLAN 32-09 TASK 2 — THE SWALLOW CENSUS, DERIVED FROM THE FILE RATHER THAN TYPED OUT.
+//
+// CR-02 was ONE bare `catch` that discarded the value it caught. The defect class is not that clause;
+// it is that a clause like it can be added to this module and nothing says so. So the census below is
+// derived by parsing `scripts/board-read.ts` with the `typescript` package — the idiom
+// `scripts/board-readonly.test.ts` already uses — and the count is pinned two-sided with a message
+// that reads as a decision. A future swallow in the read seam is then something somebody RECORDS,
+// not a constant somebody bumps.
+//
+// THE HARNESS ASSERTS ITS OWN PREMISE. A pin of zero is satisfied equally by "there are no swallows"
+// and by "the walk found no clauses at all", and this repository has recorded a false
+// verification-harness premise six times across four rounds. So the TOTAL clause count is asserted
+// non-trivial first: a census that found nothing measures nothing.
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+
+/** One catch clause, with the two facts the census is about. */
+type CatchFacts = { readonly line: number; readonly discardsValue: boolean };
+
+/**
+ * Every `catch` clause in a file, and whether each DISCARDS the value it caught.
+ *
+ * Discarding means one of two things, and both are counted: the clause declares no binding at all
+ * (`catch {`), or it binds a name that no identifier inside the block ever reads. The second half
+ * matters because `catch (e) { continue; }` swallows exactly as completely as `catch { continue; }`
+ * and would otherwise pass a census that only looked for the missing binding.
+ */
+function catchCensus(absPath: string): readonly CatchFacts[] {
+  const text = readFileSync(absPath, "utf8");
+  const source = ts.createSourceFile(absPath, text, ts.ScriptTarget.Latest, true);
+  const out: CatchFacts[] = [];
+
+  const visit = (node: ts.Node): void => {
+    if (ts.isCatchClause(node)) {
+      const decl = node.variableDeclaration;
+      let discardsValue = true;
+      if (decl !== undefined && ts.isIdentifier(decl.name)) {
+        const bound = decl.name.text;
+        let reads = 0;
+        const countReads = (n: ts.Node): void => {
+          if (ts.isIdentifier(n) && n.text === bound && n !== decl.name) reads += 1;
+          ts.forEachChild(n, countReads);
+        };
+        countReads(node.block);
+        discardsValue = reads === 0;
+      }
+      out.push({
+        line: source.getLineAndCharacterOfPosition(node.getStart(source)).line + 1,
+        discardsValue,
+      });
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(source);
+  return out;
+}
+
+const READ_SEAM_PATH = join(ROOT, "scripts", "board-read.ts");
+
+/**
+ * How many `catch` clauses in the read seam discard the value they caught.
+ *
+ * ZERO IS A DECISION, and it is the decision CR-02 cost this phase a verification round to reach. A
+ * discarded errno is an answer the reader gives without having one: `listDirectoryBounded` returned
+ * "the directory is not there" for a directory it could not open, and the projector then asserted
+ * that seven ticket files did not exist. Every failure in this module now reports WHICH errno it met.
+ *
+ * Adding a swallow here is legitimate ONLY when the errno being swallowed is named in a comment
+ * beside the clause together with why silence is right — the ENOENT race at the context task stat is
+ * the shape that qualifies, and it binds and inspects the error rather than discarding it. Raising
+ * this number is that decision being recorded, never a constant being bumped to make a suite green.
+ */
+const READ_SEAM_VALUE_DISCARDING_CATCHES = 0;
+
+describe("board-read — the swallow census is derived from the file (plan 32-09, CR-02)", () => {
+  it("PREMISE: the parse found a non-trivial number of catch clauses", () => {
+    const census = catchCensus(READ_SEAM_PATH);
+    expect(
+      census.length,
+      "PREMISE: the AST walk over scripts/board-read.ts found (almost) no catch clauses, so the " +
+        "pin below would be satisfied by a census that measured nothing — the vacuous green this " +
+        "repository has recorded a false harness premise for six times",
+    ).toBeGreaterThanOrEqual(5);
+  });
+
+  it("pins the value-discarding catch count two-sided", () => {
+    const discarding = catchCensus(READ_SEAM_PATH).filter((c) => c.discardsValue);
+    expect(
+      discarding.map((c) => `line ${c.line}`),
+      "a `catch` in the read seam discards the value it caught. Every failure this module meets " +
+        "must name its errno, because a discarded errno is how EACCES became 'the directory is " +
+        "not there' and the projector fabricated seven findings (CR-02). Swallowing is legitimate " +
+        "only with the specific errno named in a comment beside the clause and a reason silence " +
+        "is right — which is a DECISION recorded here and in the phase context, never a bumped " +
+        "constant",
+    ).toEqual([]);
+    expect(discarding.length).toBe(READ_SEAM_VALUE_DISCARDING_CATCHES);
+  });
+
+  it("PREMISE: the census detects a planted swallow of BOTH shapes", () => {
+    // The discrimination. Without it, "zero swallows" is equally true of a predicate that can never
+    // say yes — and a census that cannot fail is a census that proves nothing about the file.
+    withTempTree((dir) => {
+      const probe = join(dir, "probe.ts");
+      writeFileSync(
+        probe,
+        "export function a(): void { try { a(); } catch { /* bare */ } }\n" +
+          "export function b(): void { try { b(); } catch (e) { /* bound, never read */ } }\n" +
+          "export function c(): void { try { c(); } catch (e) { console.log(e); } }\n",
+        "utf8",
+      );
+      const census = catchCensus(probe);
+      expect(census.length, "three clauses were planted").toBe(3);
+      expect(
+        census.filter((c) => c.discardsValue).length,
+        "the bare clause AND the bound-but-never-read clause are both swallows",
+      ).toBe(2);
+    });
+  });
+});
+
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+// PLAN 32-09 TASK 2 — THE REMAINING CONSUMERS OF THE LISTING, AND THE LEGITIMATE-INPUT PROBES.
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+
+/** The claimed-stage directory, planted through this file's existing `plantClaim`. */
+function plantClaimedStage(dir: string, task: string, body: string): string {
+  plantClaim(dir, task, body);
+  return join(dir, ".grugops", "queue", "claimed");
+}
+
+const CLAIM_BODY = "by: software-engineer\nat: 2026-09-14T09:00:00.000Z\n";
+
+describe("board-read — an unreadable claimed stage is stale, not 'nothing claimed' (plan 32-09)", () => {
+  it.skipIf(IS_ROOT)("badges the queue source and names the errno once", () => {
+    withTempTree((dir) => {
+      plantBoard(dir, ONE_COLUMN);
+      const claimedDir = plantClaimedStage(dir, "abc-104-implement", CLAIM_BODY);
+      chmodSync(claimedDir, 0o000);
+      try {
+        const result = readSnapshot(dir);
+        expect(
+          result.snapshot.sources.queue.source,
+          "an unreadable claimed stage rendered as 'nothing claimed' — the CR-02 swallow one " +
+            "source over, and the one a human watching a live run would act on",
+        ).not.toBe("ok");
+        const queueErrors = result.readErrors.filter((e) => e.source === "queue");
+        expect(queueErrors.length).toBe(1);
+        expect(queueErrors[0]?.code).toBe("EACCES");
+      } finally {
+        chmodSync(claimedDir, 0o755);
+      }
+    });
+  });
+
+  it("keeps today's answer for an ABSENT claimed stage under a PRESENT queue (D-13)", () => {
+    // The legitimate input the fix must not turn into a fault: a queue directory that exists and has
+    // claimed nothing yet is an empty queue, with no badge and no error.
+    withTempTree((dir) => {
+      plantBoard(dir, ONE_COLUMN);
+      mkdirSync(join(dir, ".grugops", "queue", "pending"), { recursive: true });
+      const result = readSnapshot(dir);
+      expect(result.snapshot.sources.queue.source).toBe("ok");
+      expect(
+        result.snapshot.sources.queue.source === "ok" ? result.snapshot.sources.queue.value : null,
+      ).toEqual([]);
+      expect(result.readErrors.filter((e) => e.source === "queue")).toEqual([]);
+    });
+  });
+});
+
+describe("board-read — an unreadable context directory is stale, not empty (plan 32-09)", () => {
+  it.skipIf(IS_ROOT)("badges the context source when `.grugops/context` itself denies the listing", () => {
+    withTempTree((dir) => {
+      plantBoard(dir, ONE_COLUMN);
+      const contextDir = join(dir, ".grugops", "context");
+      mkdirSync(join(contextDir, "abc-104-implement"), { recursive: true });
+      chmodSync(contextDir, 0o000);
+      try {
+        const result = readSnapshot(dir);
+        expect(result.snapshot.sources.context.source).not.toBe("ok");
+        const contextErrors = result.readErrors.filter((e) => e.source === "context");
+        expect(contextErrors.length).toBe(1);
+        expect(contextErrors[0]?.code).toBe("EACCES");
+      } finally {
+        chmodSync(contextDir, 0o755);
+      }
+    });
+  });
+
+  it.skipIf(IS_ROOT)("names a task directory whose own mode denies the stat, rather than skipping it", () => {
+    withTempTree((dir) => {
+      plantBoard(dir, ONE_COLUMN);
+      const contextDir = join(dir, ".grugops", "context");
+      const taskDir = join(contextDir, "abc-104-implement");
+      mkdirSync(taskDir, { recursive: true });
+      // Denying the PARENT is what makes the stat of the child fail with EACCES while the listing
+      // of the parent still succeeds — the exact shape the bare `catch` at the stat swallowed.
+      chmodSync(contextDir, 0o444);
+      try {
+        const result = readSnapshot(dir);
+        const contextErrors = result.readErrors.filter((e) => e.source === "context");
+        expect(
+          contextErrors.length,
+          "a permission-denied context task was invisible: the stat's bare `catch` called every " +
+            "failure 'it went away between the listing and the stat', which is true only of ENOENT",
+        ).toBe(1);
+        expect(contextErrors[0]?.message).toContain(taskDir);
+        expect(contextErrors[0]?.code).toBe("EACCES");
+      } finally {
+        chmodSync(contextDir, 0o755);
+      }
+    });
+  });
+
+  it("stays SILENT about a task directory that is genuinely gone at the stat (ENOENT)", () => {
+    // A dangling symlink stats as ENOENT, which is the race the original comment described and the
+    // one case where silence is right: the entry went away between the listing and the stat, the
+    // next re-read will say so, and reporting it would make a live dashboard noisy about a file
+    // nobody misses.
+    withTempTree((dir) => {
+      plantBoard(dir, ONE_COLUMN);
+      const contextDir = join(dir, ".grugops", "context");
+      mkdirSync(contextDir, { recursive: true });
+      symlinkSync(join(dir, "no-such-target"), join(contextDir, "abc-999-vanished"));
+      const result = readSnapshot(dir);
+      expect(
+        result.readErrors.filter((e) => e.source === "context"),
+        "an ENOENT at the stat is a real race and stays silent — the swallow that survives is the " +
+          "one whose errno is named",
+      ).toEqual([]);
+      expect(result.snapshot.sources.context.source).toBe("ok");
+    });
+  });
+});
+
+describe("board-read — the legitimate inputs the fix must not turn into faults (D-13)", () => {
+  it("reports NO error and NO stale source for a tree with no `.grugops/` at all", () => {
+    withTempTree((dir) => {
+      plantBoard(dir, ONE_COLUMN);
+      const result = readSnapshot(dir);
+      // BOTH HALVES, because either alone is satisfiable by a reader that is broken the other way:
+      // an empty `readErrors` is true of a reader that reports nothing, and "no stale source" is
+      // true of a reader that calls everything ok.
+      expect(result.readErrors, "D-13: an absent `.grugops/` says nothing on stderr").toEqual([]);
+      const staleNames = Object.entries(result.snapshot.sources)
+        .filter(([, s]) => s.source === "stale")
+        .map(([name]) => name);
+      expect(staleNames, "a fresh checkout showing a badge it can do nothing about").toEqual([]);
+      expect(result.snapshot.sources.queue.source).toBe("unavailable");
+      expect(result.snapshot.sources.context.source).toBe("unavailable");
+      expect(result.source, "the board is readable, so the frame is trustworthy").toBe("ok");
+    });
+  });
+
+  it("reports an EMPTY `plans/tickets/` as `ok` with no badge and no error", () => {
+    withTempTree((dir) => {
+      plantBoard(dir, ONE_COLUMN);
+      mkdirSync(join(dir, "plans", "tickets"), { recursive: true });
+      const result = readSnapshot(dir);
+      expect(result.snapshot.sources.tickets.source).toBe("ok");
+      expect(
+        result.snapshot.sources.tickets.source === "ok"
+          ? result.snapshot.sources.tickets.value
+          : null,
+      ).toEqual([]);
+      expect(result.readErrors.filter((e) => e.source === "tickets")).toEqual([]);
+    });
+  });
+
+  it("still marks tickets `bounded` above MAX_WALK_ENTRIES, carrying what it gathered", () => {
+    withTempTree((dir) => {
+      plantBoard(dir, ONE_COLUMN);
+      const ticketsDir = join(dir, "plans", "tickets");
+      mkdirSync(ticketsDir, { recursive: true });
+      for (let i = 0; i <= MAX_WALK_ENTRIES; i += 1) {
+        writeFileSync(join(ticketsDir, `ABC-${String(i).padStart(5, "0")}.md`), "x", "utf8");
+      }
+      const tickets = readSnapshot(dir).snapshot.sources.tickets;
+      expect(
+        tickets.source,
+        "the bounded arm rides the `listed` case and must survive the three-arm split",
+      ).toBe("stale");
+      expect(tickets.source === "stale" ? tickets.stale.reason : null).toBe("bounded");
     });
   });
 });
