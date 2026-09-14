@@ -2,52 +2,57 @@
 _Updated: <ISO date> by <role>_
 
 <!--
-  FORMAT — read before you move a ticket. (clear voice; this is a technical file, not a role prompt.)
+  FORMAT — read before you move a ticket. Clear voice: this is a technical file, not a role prompt.
 
-  plans/board.md is grugops's SINGLE SOURCE OF WIP TRUTH. Every ticket sits in exactly one
-  column. Each column has a definition (ENTRY MEANS), an EXIT OWNER (the role that signs off
-  to move the ticket out), and a WIP limit (max tickets allowed in that column at once). The
-  Orchestrator refuses to pull new work past a WIP limit without a written reason.
+  plans/board.md is grugops's SINGLE SOURCE OF WIP TRUTH. Every ticket sits in exactly one column.
+  Each column has a definition (ENTRY MEANS), an EXIT OWNER (the role that signs off to move the
+  ticket out), and a WIP limit. The Orchestrator refuses to pull work past a limit without a
+  written reason.
 
-  WIP NUMBERS COME FROM CONFIG. The per-column limits shown in each heading are the lean
-  DEFAULTS, sourced from `agent-factory/config/factory.config.json#wip_limits`. Edit the dial,
-  not this file, to change a limit — then update the heading to match. The two must agree.
-  In lean mode the In Security/NFR and Ready to Release columns may be skipped unless a
-  trigger fires (the columns still exist; they just stay empty).
+  THE NORMATIVE GRAMMAR IS `agent-factory/contracts/board.md`, and its only sanctioned reader is
+  `scripts/board-model.ts`. What follows is the short agent-facing copy of that contract. Where the
+  two disagree the contract wins, and this block is the thing to fix.
 
-  HEADING FORMAT (spec §6.1): each column is an H2 heading carrying its live/limit WIP count,
-  e.g. `## In Development (WIP 1/3)` — the left number is how many tickets are in the column
-  now, the right number is the limit from config. Unlimited columns read `(WIP unlimited)`;
-  Blocked is visible and time-tracked (no WIP limit) and reads `(visible, time-tracked)`.
+  HEADINGS. A column heading is an H2 whose suffix is one of exactly THREE forms:
 
-  TICKET ROWS: this board ships EMPTY — column structure only, ZERO live ticket rows. It is a
-  clean append target. Roles append a one-line ticket row under the matching column as work
-  moves, e.g. (this is a comment, NOT a live row — the generic `ABC-` prefix shows format only):
+    ## In Development (WIP 1/3)         limited   — live count left, config limit right
+    ## Backlog (WIP unlimited)          unlimited
+    ## Blocked (visible, time-tracked)  blocked   — this exact name, and no WIP limit
 
-    ## In Development (WIP 1/3)
-    - [ABC-014] Asset allocation chart  (owner: Software Engineer, since: 2026-06-01)
+  An H2 with any other suffix opens NO column: `## Columns (spec §6.1)` and `## Conventions` are
+  ordinary sections, not empty columns. An H3 never opens a column. A heading starts at column one.
 
-    ## In Review (WIP 1/3)
-    - [ABC-012] Portfolio FX conversion  (PR: #41, QE: running)
+  ROWS. A ticket row is `- [<ID>] <title>`, and everything after the title is opaque:
 
-  BOARD <-> TICKET CONTRACT: each ticket file (`plans/tickets/<prefix>-xxx.md`) carries a
-  status line in its front matter so the board column and the ticket never disagree (spec §6.1).
-  The shape (example only, NOT a live ticket):
+    - [ABC-014] Asset allocation chart  (owner: Software Engineer, since: 2026-06-01)  — in flight
 
-    status: in-development
-    column: In Development
-    size: M
-    priority: P2
-    epic: EPIC-003
-    feature: FEAT-007
+  The parenthetical opens at the first TWO-SPACE gap followed by `(` and runs to its balanced
+  close; whatever remains after that is a trailer. Nothing inside either is interpreted, so both
+  may carry whatever a role finds useful. A SINGLE space before `(` belongs to the title instead,
+  which is what lets a title such as `Login 500 (env not loaded)` stay one title.
 
-  A ticket's `column:` value MUST equal the board column it sits under, and `status:` is the
-  kebab-case form of that column. The validator can check the two for drift.
+  IDS. `ABC-014` — a capital letter, capitals and digits, a hyphen, then digits. `EPIC-006` and
+  `FEAT-007` are a SECOND CLASS: they record epics and features, they are never joined against
+  `plans/tickets/`, and they never count toward a column's WIP number.
 
-  CADENCE: this board ships the Kanban columns (the default cadence, `cadence=kanban`). The
-  scrum overlay (sprint goal / committed backlog / burndown) lives in `plans/sprints/SPRINT-xx.md`
-  and is NOT pre-rendered here. The sizing, priority, and Blocked conventions below are shared
-  by BOTH cadences.
+  UPDATES. `_Updated: <YYYY-MM-DD> by <actor>`. Any other shape is reported as an unparsed line.
+
+  WIP NUMBERS COME FROM CONFIG. The per-column limits in each heading are the lean DEFAULTS,
+  sourced from `agent-factory/config/factory.config.json#wip_limits`. Edit the dial, then update
+  the heading to match — the two must agree. In lean mode the In Security/NFR and Ready to Release
+  columns may stay empty unless a trigger fires; the columns still exist.
+
+  BOARD <-> TICKET. Each ticket file (`plans/tickets/<prefix>-xxx.md`) carries `column:` equal to
+  the board column it sits under, and `status:` as the kebab-case form of that column
+  (`In Development` -> `in-development`). The validator reports drift between the two.
+
+  THIS BLOCK IS NOT LIVE STATE. Every `<!-- … -->` span is blanked before the board is parsed, so
+  the example above is invisible to the parser whether or not it is indented. The indentation is
+  kept because it reads better; it is no longer what keeps the example out of the board.
+
+  CADENCE: the Kanban columns ship by default (`cadence=kanban`). The scrum overlay — sprint goal,
+  committed backlog, burndown — lives in `plans/sprints/SPRINT-xx.md` and is not pre-rendered here.
+  The sizing, priority and Blocked conventions below are shared by both cadences.
 -->
 
 ## Columns (spec §6.1)

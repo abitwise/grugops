@@ -413,13 +413,32 @@ describe("board-corpus — provenance", () => {
 // that as a field, and asserting the field two-sided, is what stops the third block from reading as
 // a third piece of evidence for a claim it does not support. The evidence for that claim lives in
 // the un-indented mutation replayed in the discrimination proof below.
-const DOC_BLOCKS = [
-  { rel: "plans/board.md", from: 4, to: 51, carriesBoardShape: true },
-  { rel: "agent-factory/seed/plans/board.md", from: 4, to: 51, carriesBoardShape: true },
-  { rel: "plans/traceability.md", from: 4, to: 34, carriesBoardShape: false },
+//
+// THE SPAN IS DERIVED, NOT TYPED (plan 32-08). These three pairs of line numbers used to be
+// literals — `plans/board.md` was `from: 4, to: 51`. Plan 32-08 rewrote that comment to state the
+// canonical heading and row forms, the block grew by five lines, and the PREMISE case below failed
+// on `:51 should close it` for a reason that had nothing to do with what it measures. A hand-typed
+// span over a file another plan is expected to edit is the set-literal drift class in miniature:
+// it goes stale on the first legitimate edit and reports the staleness as a defect. The span is now
+// read off the file, and the PREMISE case still asserts both ends independently, so a file that
+// carries no comment at all is a failure rather than an empty slice nobody notices.
+const DOC_BLOCK_FILES = [
+  { rel: "plans/board.md", carriesBoardShape: true },
+  { rel: "agent-factory/seed/plans/board.md", carriesBoardShape: true },
+  { rel: "plans/traceability.md", carriesBoardShape: false },
 ] as const;
 
-/** One documentation block, sliced by the line numbers the plan names. */
+/** The first `<!--` … `-->` span of a file, as 1-based inclusive line numbers. */
+function firstCommentSpan(rel: string): { from: number; to: number } {
+  const lines = readFileSync(join(ROOT, rel), "utf8").split("\n");
+  const from = lines.findIndex((l) => l === "<!--");
+  const to = from === -1 ? -1 : lines.findIndex((l, i) => i > from && l === "-->");
+  return { from: from + 1, to: to + 1 };
+}
+
+const DOC_BLOCKS = DOC_BLOCK_FILES.map((b) => ({ ...b, ...firstCommentSpan(b.rel) }));
+
+/** One documentation block, sliced by the line numbers derived from the file. */
 function readBlock(rel: string, from: number, to: number): string {
   const lines = readFileSync(join(ROOT, rel), "utf8").split("\n");
   return lines.slice(from - 1, to).join("\n");
@@ -428,6 +447,11 @@ function readBlock(rel: string, from: number, to: number): string {
 describe("board-corpus — a documentation block is not live state (D-03)", () => {
   it("PREMISE: each cited block really is a comment, opening on its first line and closing on its last", () => {
     for (const b of DOC_BLOCKS) {
+      // A derived span can be EMPTY where a typed one could only be wrong. Refuse the empty case by
+      // name, so "no comment in this file" never degrades into a zero-column assertion over zero
+      // lines — which would pass, and would measure nothing.
+      expect(b.from, `${b.rel} carries no \`<!--\` line`).toBeGreaterThan(0);
+      expect(b.to, `${b.rel}'s comment never closes`).toBeGreaterThan(b.from);
       const lines = readBlock(b.rel, b.from, b.to).split("\n");
       expect(lines[0], `${b.rel}:${b.from} should open the comment`).toBe("<!--");
       expect(lines[lines.length - 1], `${b.rel}:${b.to} should close it`).toBe("-->");
