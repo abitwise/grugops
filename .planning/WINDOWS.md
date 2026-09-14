@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 164
+open_count: 169
 waived_count: 0
 fixed_count: 4
-total_count: 168
-last_updated: 2026-09-13T03:03:13.631Z
+total_count: 173
+last_updated: 2026-09-14T08:16:38.060Z
 ---
 
 # Broken Windows Ledger
@@ -183,6 +183,11 @@ last_updated: 2026-09-13T03:03:13.631Z
 | 166 | 31 | unrun-verify | docs/audit/31-round8-residuals.md |  | The review-to-corpus coverage one-shot (D-33 (2)) was NOT re-taken in gap-closure round 9; its predicate still reads 2/5 strict and 5/5 weak, with no derived drivability rule | open |  | 2026-09-13T02:40:43.836Z |  |
 | 167 | 31 | deviation | .planning/phases/31-autonomous-manual-testing/31-43-SUMMARY.md |  | requirements-completed: [UATX-01, UATX-04] asserts a completion the eighth verification round withheld; the four sibling summaries wrote [] and the requirement rows are byte-unchanged | open |  | 2026-09-13T02:40:43.924Z |  |
 | 168 | 31 | unrun-verify | scripts/runnable-ref/uat-spec-integrity.test.ts |  | 31-25 CR-15 GREEN 1 times out at the 5000ms default under load (red on one of three full-suite runs; green alone and on an unloaded machine) — spawn-heavy case needs an explicit testTimeout | open |  | 2026-09-13T03:03:13.631Z |  |
+| 169 | 32 | stub | scripts/board-model.ts |  | parseBoard returns updates, nonColumnSections, unparsed and bounds as empty or zero values; plan 32-02 fills them (plan-declared functionality gap) | open |  | 2026-09-14T08:16:31.933Z |  |
+| 170 | 32 | stub | scripts/board-read.ts |  | readSnapshot returns the unavailable arm for tickets, queue, context and traceability without reading them; plan 32-03 reads them (plan-declared functionality gap) | open |  | 2026-09-14T08:16:32.020Z |  |
+| 171 | 32 | stub | scripts/board-read.ts |  | reads are a single guarded readFileSync; the read-verify-reread and last-good carry-forward D-11 requires land in plan 32-03 (plan-declared functionality gap) | open |  | 2026-09-14T08:16:32.109Z |  |
+| 172 | 32 | stub | scripts/board-dashboard.ts |  | the frame is the thin D-17 skeleton; the stale badge, conflict list, Now-running block, width truncation and TTY redraw land in plan 32-07 (plan-declared functionality gap) | open |  | 2026-09-14T08:16:32.268Z |  |
+| 173 | 32 | stub | scripts/board-dashboard.ts |  | The watch flag is accepted, reported on stderr and not honoured; the watch loop, the debounce and the poll land in plan 32-03 (plan-declared functionality gap) | open |  | 2026-09-14T08:16:38.060Z |  |
 
 ````json
 [
@@ -2200,6 +2205,66 @@ last_updated: 2026-09-13T03:03:13.631Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-09-13T03:03:13.631Z",
+    "resolved_at": null
+  },
+  {
+    "id": 169,
+    "kind": "stub",
+    "phase": "32",
+    "file": "scripts/board-model.ts",
+    "line": null,
+    "description": "parseBoard returns updates, nonColumnSections, unparsed and bounds as empty or zero values; plan 32-02 fills them (plan-declared functionality gap)",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-14T08:16:31.933Z",
+    "resolved_at": null
+  },
+  {
+    "id": 170,
+    "kind": "stub",
+    "phase": "32",
+    "file": "scripts/board-read.ts",
+    "line": null,
+    "description": "readSnapshot returns the unavailable arm for tickets, queue, context and traceability without reading them; plan 32-03 reads them (plan-declared functionality gap)",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-14T08:16:32.020Z",
+    "resolved_at": null
+  },
+  {
+    "id": 171,
+    "kind": "stub",
+    "phase": "32",
+    "file": "scripts/board-read.ts",
+    "line": null,
+    "description": "reads are a single guarded readFileSync; the read-verify-reread and last-good carry-forward D-11 requires land in plan 32-03 (plan-declared functionality gap)",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-14T08:16:32.109Z",
+    "resolved_at": null
+  },
+  {
+    "id": 172,
+    "kind": "stub",
+    "phase": "32",
+    "file": "scripts/board-dashboard.ts",
+    "line": null,
+    "description": "the frame is the thin D-17 skeleton; the stale badge, conflict list, Now-running block, width truncation and TTY redraw land in plan 32-07 (plan-declared functionality gap)",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-14T08:16:32.268Z",
+    "resolved_at": null
+  },
+  {
+    "id": 173,
+    "kind": "stub",
+    "phase": "32",
+    "file": "scripts/board-dashboard.ts",
+    "line": null,
+    "description": "The watch flag is accepted, reported on stderr and not honoured; the watch loop, the debounce and the poll land in plan 32-03 (plan-declared functionality gap)",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-14T08:16:38.060Z",
     "resolved_at": null
   }
 ]
