@@ -865,6 +865,175 @@ function withLiveMirror(
   }
 }
 
+/**
+ * THE ESCAPE SHAPES, HELD AS DATA (32-11).
+ *
+ * A hand-maintained list of `it(…)` blocks is the set-literal drift class this repository has
+ * already paid for — seven granted role names against zero adapter files, green throughout
+ * ([[grugops-set-literal-drift]]). So the spellings are ROWS, the block below is one iteration over
+ * them, and adding a spelling is adding a row.
+ *
+ * Every row is a DISTINCT SPELLING of the same escape: a module that binds `node:fs` (or
+ * `node:fs/promises`) and then reaches a writer through it by a route that is not a direct member
+ * access. One predicate decides all of them — after planting, `analyzeClosure` returns a non-empty
+ * `opaqueFsAcquisitions` naming the planted module — and it is the SAME predicate PART ONE's premise
+ * case asserts against the live tree, so the discrimination and the live assertion cannot drift
+ * apart.
+ *
+ * Row 10 (the computed element access) was refused BEFORE 32-11 by the older element-access arm. It
+ * is kept in the enumeration so that what is tested is the UNION of the old arm and the new rule,
+ * not the new rule alone.
+ */
+const NAMESPACE_ESCAPE_SHAPES = Object.freeze([
+  {
+    name: "destructuring bind of two writers from a namespace",
+    appendSource:
+      'import * as fsns from "node:fs";\n' +
+      "const { writeFileSync, rmSync } = fsns;\n" +
+      'export const escape01 = (p) => { writeFileSync(p, "x"); rmSync(p); };',
+  },
+  {
+    name: "rest-element destructure of a namespace",
+    appendSource:
+      'import * as fsns from "node:fs";\n' +
+      "const { readFileSync: readAlias, ...restOfFs } = fsns;\n" +
+      'export const escape02 = (p) => { void readAlias; return restOfFs.writeFileSync(p, "x"); };',
+  },
+  {
+    name: "plain alias assignment of the namespace to another identifier",
+    appendSource:
+      'import * as fsns from "node:fs";\n' +
+      "const aliasedFs = fsns;\n" +
+      'export const escape03 = (p) => aliasedFs.writeFileSync(p, "x");',
+  },
+  {
+    name: "the namespace passed as a call argument",
+    appendSource:
+      'import * as fsns from "node:fs";\n' +
+      'const writeThrough = (mod, p) => mod.writeFileSync(p, "x");\n' +
+      "export const escape04 = (p) => writeThrough(fsns, p);",
+  },
+  {
+    name: "object spread of the namespace into a literal",
+    appendSource:
+      'import * as fsns from "node:fs";\n' +
+      "const spreadFs = { ...fsns };\n" +
+      'export const escape05 = (p) => spreadFs.writeFileSync(p, "x");',
+  },
+  {
+    name: "the namespace inside an array literal",
+    appendSource:
+      'import * as fsns from "node:fs";\n' +
+      "const fsSlots = [fsns];\n" +
+      'export const escape06 = (p) => fsSlots[0].writeFileSync(p, "x");',
+  },
+  {
+    name: "the namespace as a shorthand property of an object literal",
+    appendSource:
+      'import * as fsns from "node:fs";\n' +
+      "const bag = { fsns };\n" +
+      'export const escape07 = (p) => bag.fsns.writeFileSync(p, "x");',
+  },
+  {
+    name: "Object.values over the namespace",
+    appendSource:
+      'import * as fsns from "node:fs";\n' +
+      "export const escape08 = (p) => Object.values(fsns)[0](p);",
+  },
+  {
+    name: "Reflect.get over the namespace with a string key",
+    appendSource:
+      'import * as fsns from "node:fs";\n' +
+      'export const escape09 = (p) => Reflect.get(fsns, "writeFileSync")(p, "x");',
+  },
+  {
+    name: "element access with a COMPUTED key (refused before 32-11; kept so the UNION is tested)",
+    appendSource:
+      'import * as fsns from "node:fs";\n' +
+      'const computedKey = "writeFileSync";\n' +
+      'export const escape10 = (p) => fsns[computedKey](p, "x");',
+  },
+  {
+    name: "a re-export of the namespace binding",
+    appendSource: 'import * as fsns from "node:fs";\nexport { fsns as escape11 };',
+  },
+  {
+    name: "the namespace returned from an exported arrow function",
+    appendSource: 'import * as fsns from "node:fs";\nexport const escape12 = () => fsns;',
+  },
+  {
+    name: "a DEFAULT import of node:fs destructured (the esModuleInterop spelling)",
+    appendSource:
+      'import fsDefault from "node:fs";\n' +
+      "const { writeFileSync: writeViaDefault } = fsDefault;\n" +
+      'export const escape13 = (p) => writeViaDefault(p, "x");',
+  },
+  {
+    name: "a namespace import of node:fs/promises destructured (the second module identity)",
+    appendSource:
+      'import * as fspns from "node:fs/promises";\n' +
+      "const { writeFile } = fspns;\n" +
+      'export const escape14 = (p) => writeFile(p, "x");',
+  },
+]);
+
+/**
+ * The cardinality of the enumeration. A FIFTEENTH spelling is a DECISION recorded as a row above
+ * with its name, never a constant somebody bumps — the same posture as the stem-exclusion count and
+ * the two banned-module counts.
+ */
+const NAMESPACE_ESCAPE_SHAPE_COUNT = 14;
+
+/**
+ * THE ACQUISITION SHAPES — a SECOND table, deliberately not fifteen more rows of the first.
+ *
+ * These are not namespace escapes: no namespace binding exists in any of them. They are the other
+ * way a module obtains `node:fs` — hand a module identity to something and get the module back —
+ * and they are refused by `collectSpecifiers` rather than by the canonical form. Keeping them in
+ * their own table with their own pin is what lets the first table's count stay exactly the number of
+ * namespace-escape spellings.
+ *
+ * Rows 1-3 were already refused before 32-11; the prose claim in this file's docblock that they were
+ * is now a row each, because a claim without a case is the thing 32-11 exists to remove. Rows 4-6
+ * are refused by the generalised argument arm added in 32-11 (deviation, Rule 2): none of them
+ * spells `require` or `import` at the call site, and all three return the real `node:fs`.
+ */
+const ACQUISITION_SHAPES = Object.freeze([
+  {
+    name: "require(\"node:fs\") — refused by the require arm of collectSpecifiers",
+    appendSource:
+      'import { createRequire } from "node:module";\n' +
+      "const require = createRequire(import.meta.url);\n" +
+      'export const acquire01 = (p) => require("node:fs").writeFileSync(p, "x");',
+  },
+  {
+    name: 'export * from "node:fs" — refused by the export arm of collectSpecifiers',
+    appendSource: 'export * from "node:fs";',
+  },
+  {
+    name: 'await import("node:fs") — refused by the dynamic-import arm of collectSpecifiers',
+    appendSource: 'const acquired03 = await import("node:fs");\nvoid acquired03;',
+  },
+  {
+    name: "createRequire(url)(\"node:fs\") — the require alias that never spells `require`",
+    appendSource:
+      'import { createRequire } from "node:module";\n' +
+      'export const acquire04 = (p) => createRequire(import.meta.url)("node:fs").writeFileSync(p, "x");',
+  },
+  {
+    name: 'process.getBuiltinModule("node:fs") — no module-system call at all',
+    appendSource:
+      'export const acquire05 = (p) => process.getBuiltinModule("node:fs").writeFileSync(p, "x");',
+  },
+  {
+    name: 'process.binding("fs") — the legacy internal binding',
+    appendSource: 'export const acquire06 = () => process.binding("fs");',
+  },
+]);
+
+/** The cardinality of the acquisition table. A seventh route is a decision, recorded as a row. */
+const ACQUISITION_SHAPE_COUNT = 6;
+
 describe("32-06 — the guard discriminates: both halves are shown to fail", () => {
   it("CONTROL: an UNPLANTED mirror of the live closure is still green", () => {
     // Without this, a red against a planted mirror could be caused by the mirroring itself rather
@@ -1054,6 +1223,112 @@ describe("32-06 — the guard discriminates: both halves are shown to fail", () 
             "the symbol set, where the mutating-set intersection would then ask whether the string " +
             '"default" is a writer and answer no',
         ).not.toContain("default");
+      },
+    );
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────────────────────────
+  // THE ENUMERATION (32-11). Both tables are asserted non-empty and pinned two-sided BEFORE the
+  // iterations claim anything, because an emptiness claim over an empty denominator is the
+  // false-green this repository has recorded six instances of.
+  // ─────────────────────────────────────────────────────────────────────────────────────────────
+
+  it("PREMISE: both escape tables are non-empty before any iteration over them claims anything", () => {
+    expect(
+      NAMESPACE_ESCAPE_SHAPES.length,
+      "PREMISE: the namespace-escape table is EMPTY, so the block below iterates over nothing and " +
+        "every refusal it appears to prove was never asked for",
+    ).toBeGreaterThan(0);
+    expect(
+      ACQUISITION_SHAPES.length,
+      "PREMISE: the acquisition table is EMPTY, so the same block proves nothing about require, " +
+        "export *, dynamic import, or the three non-module-system routes",
+    ).toBeGreaterThan(0);
+  });
+
+  it("the namespace-escape table has exactly fourteen rows", () => {
+    expect(
+      NAMESPACE_ESCAPE_SHAPES.length,
+      "a FIFTEENTH namespace-escape spelling is a DECISION: it belongs in NAMESPACE_ESCAPE_SHAPES " +
+        "as a named row with the source that spells it, so the enumeration and the count move " +
+        "together. It is never a bumped constant",
+    ).toBe(NAMESPACE_ESCAPE_SHAPE_COUNT);
+    expect(
+      ACQUISITION_SHAPES.length,
+      "a SEVENTH acquisition route is a DECISION, recorded as a row in ACQUISITION_SHAPES with the " +
+        "source that reaches node:fs through it",
+    ).toBe(ACQUISITION_SHAPE_COUNT);
+  });
+
+  it("no two rows in either table share a name", () => {
+    // A table whose rows silently collapse is a table that tests fewer things than it counts: two
+    // identically-named `it(…)` blocks still both run, but a reader counting names in the reporter
+    // would credit the enumeration with coverage it does not have.
+    for (const [label, rows] of [
+      ["NAMESPACE_ESCAPE_SHAPES", NAMESPACE_ESCAPE_SHAPES],
+      ["ACQUISITION_SHAPES", ACQUISITION_SHAPES],
+    ] as const) {
+      const names = rows.map((row) => row.name);
+      expect(
+        new Set(names).size,
+        `${label} carries duplicate row names, so its cardinality overstates what it tests`,
+      ).toBe(names.length);
+      for (const name of names) expect(name.trim().length).toBeGreaterThan(0);
+    }
+  });
+
+  for (const shape of NAMESPACE_ESCAPE_SHAPES) {
+    it(`namespace escape is REFUSED: ${shape.name}`, () => {
+      withLiveMirror(
+        { module: "scripts/board-read.js", appendSource: shape.appendSource },
+        (mirrorRoot) => {
+          const facts = analyzeClosure(mirrorRoot, DASHBOARD_ENTRY);
+          expect(
+            facts.opaqueFsAcquisitions.length,
+            `the escape spelling "${shape.name}" was NOT refused. It reaches every writer in ` +
+              "node:fs without naming one, so a guard that neither names it nor refuses it is " +
+              `green over a writer. Collected: [${facts.opaqueFsAcquisitions.join(" | ")}]`,
+          ).toBeGreaterThan(0);
+          expect(facts.opaqueFsAcquisitions.join("\n")).toContain("scripts/board-read.js");
+        },
+      );
+    });
+  }
+
+  for (const shape of ACQUISITION_SHAPES) {
+    it(`fs acquisition is REFUSED: ${shape.name}`, () => {
+      withLiveMirror(
+        { module: "scripts/board-read.js", appendSource: shape.appendSource },
+        (mirrorRoot) => {
+          const facts = analyzeClosure(mirrorRoot, DASHBOARD_ENTRY);
+          expect(
+            facts.opaqueFsAcquisitions.length,
+            `the acquisition route "${shape.name}" was NOT refused. Collected: ` +
+              `[${facts.opaqueFsAcquisitions.join(" | ")}]`,
+          ).toBeGreaterThan(0);
+          expect(facts.opaqueFsAcquisitions.join("\n")).toContain("scripts/board-read.js");
+        },
+      );
+    });
+  }
+
+  it("CONTROL: a call carrying a NON-fs string literal is neither refused nor read as an import", () => {
+    // The generalised argument arm refuses a call whose string argument is an fs module IDENTITY. It
+    // must not also turn every string argument into a module specifier: if it did, a harmless
+    // `["net", "http"].join()` would red the DASH-08 socket ban, the arm would be loosened under
+    // that pressure, and the result would be weaker than the arm it replaced.
+    withLiveMirror(
+      {
+        module: "scripts/board-read.js",
+        appendSource:
+          'export const harmless = () => ["net", "http", "child_process"].join(",");\n' +
+          'export const alsoHarmless = (p) => String(p).padEnd(4, "fsx");',
+      },
+      (mirrorRoot) => {
+        const facts = analyzeClosure(mirrorRoot, DASHBOARD_ENTRY);
+        expect(facts.opaqueFsAcquisitions).toEqual([]);
+        expect(bannedModulesReached(facts)).toEqual([]);
+        expect(facts.fsSymbols).toEqual([...EXPECTED_CLOSURE_FS_SYMBOLS]);
       },
     );
   });
