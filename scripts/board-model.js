@@ -61,6 +61,27 @@ export const LONG_LINE_CHARS = 65_536;
 export const MAX_META_CHARS = 1_024;
 /** The same cap, applied to an update entry's `text` and its `actor`. */
 export const MAX_UPDATE_TEXT_CHARS = 1_024;
+/** The single-character marker a shortened string ends with. */
+const ELLIPSIS = "…";
+/**
+ * Shorten `value` to `cap` UTF-16 code units, ending in a single-character marker.
+ *
+ * THE CUT LANDS BEFORE A SURROGATE PAIR, NEVER BETWEEN ITS HALVES. Slicing a JavaScript string at
+ * an arbitrary index can leave a lone surrogate, which is not a character in any encoding and which
+ * a terminal renders as a replacement glyph — a board whose meta ends in a broken code point looks
+ * like a parser defect rather than like a stated bound.
+ *
+ * The result is at most `cap` code units: `cap - 1` of content plus the one-unit marker.
+ */
+function truncateAt(value, cap) {
+    if (value.length <= cap)
+        return { value, cut: false };
+    let end = cap - 1;
+    const lead = value.charCodeAt(end - 1);
+    if (lead >= 0xd800 && lead <= 0xdbff)
+        end -= 1;
+    return { value: value.slice(0, end) + ELLIPSIS, cut: true };
+}
 // ── Column headings (D-05) ───────────────────────────────────────────────────────────────────────
 //
 // EXACTLY THREE LEGAL SUFFIXES. Each pattern is anchored at both ends and is applied to the
@@ -227,6 +248,24 @@ export const kebab = (s) => s
     .trim()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
+/**
+ * A row's two opaque strings, each held to `MAX_META_CHARS` (D-20).
+ *
+ * The title is NOT bounded here. It is the one piece of a row a human reads to know which ticket
+ * the line is about, and the measured corpus carries no long one — the 34,494-character line is a
+ * parenthetical, not a title. Bounding it would shorten the field that identifies the row in order
+ * to defend against a shape nothing writes.
+ */
+function boundRow(parts) {
+    const meta = parts.meta === null ? null : truncateAt(parts.meta, MAX_META_CHARS);
+    const trailer = truncateAt(parts.trailer, MAX_META_CHARS);
+    return {
+        title: parts.title,
+        meta: meta === null ? null : meta.value,
+        trailer: trailer.value,
+        truncated: (meta?.cut ?? false) || trailer.cut,
+    };
+}
 function matchRow(line) {
     const row = ROW.exec(line);
     if (row === null)
@@ -270,6 +309,7 @@ function matchRow(line) {
 export function parseBoard(text) {
     const normalized = text.split("\r\n").join("\n");
     const lines = stripHtmlComments(normalized).split("\n");
+    const bounds = measure(text, normalized);
     const columns = [];
     const epicRows = [];
     const preamble = [];
@@ -317,17 +357,12 @@ export function parseBoard(text) {
                 unparsed.push({ line: lineNo, text: raw, column: null });
                 continue;
             }
+            const bounded = boundRow(row.parts);
             if (row.isEpic) {
-                epicRows.push({
-                    ...row.parts,
-                    id: row.id,
-                    line: lineNo,
-                    column: column.name,
-                    truncated: false,
-                });
+                epicRows.push({ ...bounded, id: row.id, line: lineNo, column: column.name });
                 continue;
             }
-            column.rows.push({ ...row.parts, id: row.id, line: lineNo, truncated: false });
+            column.rows.push({ ...bounded, id: row.id, line: lineNo });
             continue;
         }
         if (section !== null) {
@@ -359,7 +394,38 @@ export function parseBoard(text) {
             lines: s.lines,
         })),
         unparsed,
-        bounds: { boardBytes: 0, longestLine: 0, exceeded: false },
+        bounds,
+    };
+}
+/**
+ * Measure the input, in the two units the contract names (D-20).
+ *
+ * `boardBytes` is the UTF-8 BYTE length of the input AS GIVEN, before CRLF normalization — the
+ * number a human reads off `ls -l`, and the number a header claiming `380 KB` has to mean.
+ * `longestLine` is a UTF-16 CODE-UNIT count over the normalized lines. The two units disagree on a
+ * board carrying any character outside Latin-1, which is exactly why each is stated rather than
+ * left for a reader to infer.
+ *
+ * Neither number is rounded here. The header's human-readable rendering rounds; the snapshot field
+ * carries what was measured.
+ */
+function measure(text, normalized) {
+    const boardBytes = Buffer.byteLength(text, "utf8");
+    let longestLine = 0;
+    let start = 0;
+    for (;;) {
+        const nl = normalized.indexOf("\n", start);
+        const end = nl === -1 ? normalized.length : nl;
+        if (end - start > longestLine)
+            longestLine = end - start;
+        if (nl === -1)
+            break;
+        start = nl + 1;
+    }
+    return {
+        boardBytes,
+        longestLine,
+        exceeded: boardBytes > LARGE_BOARD_BYTES || longestLine > LONG_LINE_CHARS,
     };
 }
 /**
@@ -374,11 +440,16 @@ export function matchUpdateLine(line, lineNo) {
     const m = UPDATED.exec(line);
     if (m === null)
         return null;
+    // BOTH the text and the actor are bounded, because the actor is a suffix of the text. The
+    // measured 34,494-character line on a real board is an update line, so bounding only the text
+    // would leave the whole of that line reachable through the field beside it.
+    const text = truncateAt(line, MAX_UPDATE_TEXT_CHARS);
+    const actor = truncateAt(m[2].replace(/_$/, "").trim(), MAX_UPDATE_TEXT_CHARS);
     return {
         date: m[1],
-        actor: m[2].replace(/_$/, "").trim(),
-        text: line,
+        actor: actor.value,
+        text: text.value,
         line: lineNo,
-        truncated: false,
+        truncated: text.cut || actor.cut,
     };
 }

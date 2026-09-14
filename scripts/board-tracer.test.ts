@@ -289,6 +289,9 @@ describe("board-model — the row grammar (D-01 as amended by D-22)", () => {
         meta: "PR: #41, QE: running",
         trailer: "",
         line: 2,
+        // Added by plan 32-02: a row records whether either opaque string was shortened at its
+        // D-20 cap. A row inside the caps carries false, and the row is present either way.
+        truncated: false,
       },
     ]);
   });
