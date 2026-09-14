@@ -1,0 +1,88 @@
+32-04 GREEN PROOF — both halves replay, and the strip is a control
+==================================================================
+
+Companion to 32-04-RED-baseline.txt, which was captured first. This file records
+the same file passing against the UNMUTATED build, so the pair says the assertion
+discriminates rather than that it is merely green.
+
+    npx vitest run --exclude '**/scripts/e2e/**' scripts/board-corpus.test.ts --reporter=verbose
+
+    Test Files  1 passed (1)
+         Tests  34 passed (34)
+
+THE THIRTY-FOUR CASES.
+
+    board-corpus — the harness's own premises
+      the corpus loaded, and its own count agrees with its length
+      the replay's denominator is the corpus, derived by the loop rather than read off it
+      every kind is represented, so no half of the corpus is silently empty
+      at least four mutations are comment-strip mutations, the shapes nothing on disk carries
+      every row's declared disposition is a member of the closed set
+      every frame is pinned and every one of them is exercised, in both directions
+      the declared sources and the cited sources agree in BOTH directions
+      the live ticket rows still total 141, split as the research measurement recorded
+      every row id is unique, so a failure message names one row rather than a class
+
+    board-corpus — the LIVE half is admitted, each row into its named bucket
+      replays every live row to exactly the disposition the contract assigns it
+      places every measured ticket row in a column rather than on the findings list
+
+    board-corpus — the MUTATION half is refused, each row into its named bucket
+      replays every mutation row to exactly the disposition the contract assigns it
+      lets NO mutation reach a live bucket
+      refuses the mutations into MORE THAN ONE bucket, so the refusal is named and not blanket
+
+    board-corpus — the CONTROL half records where prose and shipped code part
+      replays every control row to exactly the disposition declared for it
+      captures a parenthetical after TWO spaces and not after one or a tab
+      agrees with every declared expectedMeta, over a denominator derived independently
+
+    board-corpus — every disposition is REACHED, in both directions
+      reaches every declared disposition and declares every reached one
+      names the rows that carry each disposition, so a bucket held up by one row is visible
+
+    board-corpus — provenance
+      finds every transcribed board row in the committed fixture it cites
+      keeps the bound-case line whole in the fixture while the corpus row carries only its head
+      records no path under anybody's home directory in any committed artifact of this plan
+
+    board-corpus — a documentation block is not live state (D-03)
+      each cited block really is a comment, opening on its first line and closing on its last
+      which blocks carry a board shape is MEASURED, and two of the three do
+      gives plans/board.md's documentation block zero columns, zero rows and zero updates
+      gives agent-factory/seed/plans/board.md's block zero columns, zero rows and zero updates
+      gives plans/traceability.md's block zero columns, zero rows and zero updates
+
+    board-corpus — the comment strip is a CONTROL, not a coincidence
+      the pre-pass is called from exactly ONE site, in the source and in its build alike
+      the mutation changes the pre-pass call and NOTHING else
+      the mirror agrees with the shipped parser on a document carrying NO comment
+      the un-indented mutation is IN the mirror's replay set, asserted rather than assumed
+      MEASURES THE VACUITY: the three transcribed blocks yield zero columns EVEN WITH the strip removed
+      DISCRIMINATES: the un-indented mutation turns the zero-columns claim RED against the mirror
+      DISCRIMINATES: every comment-strip mutation changes bucket against the mirror, or names itself
+
+WHAT THE PAIR SAYS THAT NEITHER FILE SAYS ALONE.
+
+The RED baseline removed the pre-pass from the committed build and measured six
+corpus rows changing disposition, three of them into `row`. This run measures
+those same six rows landing where the contract puts them. Between the two, the
+`blanked` bucket is shown to be a consequence of the pre-pass and of nothing
+else — which is the claim the D-03 case has been making since plan 32-01 without
+any evidence behind it.
+
+The vacuity case in the last block is deliberately asserted GREEN in both runs.
+All three transcribed documentation blocks yield zero columns whether the
+pre-pass runs or not, so that measurement is stable across the mutation and is
+recorded as a standing fact rather than as a regression. It is the reason the
+mutation half exists.
+
+CORPUS TOTALS AT THIS COMMIT.
+
+    167 rows  =  148 live  +  13 mutation  +  6 control
+    141 of the live rows are the measured ticket rows:
+        113 chess  +  16 dogfood  +  8 builder specification  +  3 + 1 worked examples
+    9 dispositions declared, 9 reached, compared in both directions
+    11 frames declared, 11 exercised, compared in both directions
+    8 sources declared, 8 cited, compared in both directions, all resolving on disk
+    129 transcribed rows found in the committed fixture they cite

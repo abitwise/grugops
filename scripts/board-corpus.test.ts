@@ -25,9 +25,10 @@
 // the research measurement so a corpus that lost a whole source fails by name rather than by a
 // smaller green number.
 
-import { describe, it, expect } from "vitest";
-import { readFileSync } from "node:fs";
+import { describe, it, expect, afterAll } from "vitest";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { tmpdir } from "node:os";
 
 import { parseBoard } from "./board-model.js";
 import type { BoardModel } from "./board-model.js";
@@ -459,4 +460,228 @@ describe("board-corpus — a documentation block is not live state (D-03)", () =
       expect(model.updates.length, "updates").toBe(0);
     });
   }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// PART FIVE — THE DISCRIMINATION PROOF.
+//
+// Part four is worth nothing on its own, and research measured exactly how much: with the comment
+// pre-pass DELETED ENTIRELY, all three documentation blocks still yield zero columns, because every
+// mini-board inside every one of them happens to be four-space indented and the anchored heading
+// scan refuses an indented heading by itself. A correct implementation and a no-op are
+// indistinguishable on the transcribed corpus.
+//
+// So the mirror below is built FROM THE LIVE SOURCE — the `mirrorWithExtraWriter` idiom from
+// `scripts/context-io-writer-set.test.ts`, applied to this phase's highest-value assertion — with
+// the pre-pass call replaced by an identity function and nothing else touched. It then measures two
+// things that are both findings:
+//
+//   * the three transcribed blocks STILL yield zero columns through the mirror, so the corpus this
+//     phase inherited could never have caught a deleted stripper; and
+//   * the UN-INDENTED mutation does not, so the assertion is able to fail and this is the one input
+//     that makes it.
+//
+// A strip test that passes on its first run with no red baseline recorded is precisely the warning
+// sign research names. `32-04-RED-baseline.txt` records the mirror's failing output and
+// `32-04-GREEN-proof.txt` records the passing run.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+const MODEL_JS = join(ROOT, "scripts", "board-model.js");
+const MODEL_TS = join(ROOT, "scripts", "board-model.ts");
+
+/** The ONE call site of the comment pre-pass, spelled identically in the source and in its build. */
+const PREPASS_CALL = "stripHtmlComments(normalized)";
+
+const tmpDirs: string[] = [];
+function freshTmp(prefix: string): string {
+  const d = mkdtempSync(join(tmpdir(), prefix));
+  tmpDirs.push(d);
+  return d;
+}
+afterAll(() => {
+  for (const d of tmpDirs) rmSync(d, { recursive: true, force: true });
+});
+
+const occurrences = (haystack: string, needle: string): number => haystack.split(needle).length - 1;
+
+/**
+ * A copy of the shipped parser whose comment pre-pass is an identity function.
+ *
+ * Built from the live build rather than from a fixture, so it cannot drift away from the thing it
+ * copies. Nothing else in the module is altered: `stripHtmlComments` is still exported and still
+ * correct, it is simply no longer the thing `parseBoard` runs.
+ */
+function mirrorWithNoOpStripper(): string {
+  const dir = freshTmp("board-model-noop-mirror-");
+  const path = join(dir, "board-model.js");
+  const live = readFileSync(MODEL_JS, "utf8");
+  const mutated =
+    live.replace(PREPASS_CALL, "identityStrip(normalized)") +
+    "\n// The no-op pre-pass this mirror exists to measure. It is the whole of the mutation.\n" +
+    "function identityStrip(text) {\n  return text;\n}\n";
+  writeFileSync(path, mutated);
+  return path;
+}
+
+type ParseFn = (text: string) => BoardModel;
+
+async function loadMirror(): Promise<ParseFn> {
+  const mod = (await import(mirrorWithNoOpStripper())) as { parseBoard: ParseFn };
+  return mod.parseBoard;
+}
+
+const UNINDENTED_MUTATION_ID = "mut-comment-unindented";
+
+describe("board-corpus — the comment strip is a CONTROL, not a coincidence", () => {
+  it("PREMISE: the pre-pass is called from exactly ONE site, in the source and in its build alike", () => {
+    expect(
+      occurrences(readFileSync(MODEL_TS, "utf8"), PREPASS_CALL),
+      "the mirror rewrites one call site. Two sites in the source means the mirror below would " +
+        "neuter one and leave the other, and a half-mutated mirror proves nothing",
+    ).toBe(1);
+    expect(
+      occurrences(readFileSync(MODEL_JS, "utf8"), PREPASS_CALL),
+      "the committed build is what vitest imports. A count that agrees with the source only by " +
+        "coincidence would let a stale build mirror bytes nobody wrote",
+    ).toBe(1);
+  });
+
+  it("PREMISE: the mutation changes the pre-pass call and NOTHING else", () => {
+    const live = readFileSync(MODEL_JS, "utf8");
+    const mirrored = readFileSync(mirrorWithNoOpStripper(), "utf8");
+    expect(occurrences(mirrored, PREPASS_CALL), "the mirror still calls the real pre-pass").toBe(0);
+    expect(occurrences(mirrored, "identityStrip(normalized)"), "the mirror's replacement call").toBe(1);
+    expect(
+      mirrored.startsWith(live.replace(PREPASS_CALL, "identityStrip(normalized)")),
+      "the mirror must be the live build with one call rewritten, plus an appended identity " +
+        "function — any other difference makes a failure below attributable to something else",
+    ).toBe(true);
+  });
+
+  it("PREMISE: the mirror agrees with the shipped parser on a document carrying NO comment", () => {
+    const mirror = mirrorWithNoOpStripper();
+    return import(mirror).then((mod) => {
+      const parse = (mod as { parseBoard: ParseFn }).parseBoard;
+      const doc = [
+        "# Board",
+        "_Updated: 2026-09-14 by Orchestrator",
+        "## Backlog (WIP unlimited)",
+        "- [ABC-014] Asset allocation chart  (owner: Software Engineer)",
+        "## Notes (bootstrap, 2026-06-05)",
+        "Prose under a non-column heading.",
+      ].join("\n");
+      expect(
+        JSON.stringify(parse(doc)),
+        "with no comment in the input the two must be indistinguishable, or a difference below " +
+          "could be any difference rather than THE difference",
+      ).toBe(JSON.stringify(parseBoard(doc)));
+    });
+  });
+
+  it("PREMISE: the un-indented mutation is IN the mirror's replay set, asserted rather than assumed", () => {
+    const row = rowById(UNINDENTED_MUTATION_ID);
+    expect(row, "the one input that discriminates has left the corpus").toBeDefined();
+    expect((row as CorpusRow).frame, "it must sit in the un-indented comment frame").toBe(
+      "commentUnindented",
+    );
+    expect((row as CorpusRow).expectedDisposition, "its declared bucket").toBe("blanked");
+    const framed = frameDocument(row as CorpusRow);
+    expect(
+      framed.text.split("\n")[2],
+      "the frame's mini-board heading must carry NO leading whitespace, or the anchored scan " +
+        "refuses it on its own and the mutation stops discriminating",
+    ).toBe("## In Development (WIP 1/3)");
+  });
+
+  it("MEASURES THE VACUITY: the three transcribed blocks yield zero columns EVEN WITH the strip removed", async () => {
+    const parse = await loadMirror();
+    const still: string[] = [];
+    for (const b of DOC_BLOCKS) {
+      const model = parse(readBlock(b.rel, b.from, b.to));
+      if (model.columns.length === 0) still.push(b.rel);
+    }
+    expect(
+      still,
+      "this is the finding, asserted rather than narrated: the corpus this phase inherited passes " +
+        "its own highest-value case against a parser with no comment pre-pass at all",
+    ).toEqual(DOC_BLOCKS.map((b) => b.rel));
+  });
+
+  it("DISCRIMINATES: the un-indented mutation turns the zero-columns claim RED against the mirror", async () => {
+    const parse = await loadMirror();
+    const row = rowById(UNINDENTED_MUTATION_ID) as CorpusRow;
+    const { text, subjectLine } = frameDocument(row);
+
+    // The frame closes its comment and then opens ONE real column, so the shipped parser is
+    // expected to find exactly that one and no rows at all. Asserting zero columns here would be
+    // asserting against the frame rather than against the comment.
+    const shipped = parseBoard(text);
+    expect(
+      shipped.columns.map((c) => c.name),
+      "the shipped parser sees only the frame's own column; the comment contributes nothing",
+    ).toEqual(["Backlog"]);
+    expect(
+      shipped.columns.reduce((a, c) => a + c.rows.length, 0) + shipped.epicRows.length,
+      "the shipped parser: zero rows from inside a comment",
+    ).toBe(0);
+
+    const mirrored = parse(text);
+    expect(
+      mirrored.columns.map((c) => c.name),
+      "THE PROOF THE ASSERTION CAN FAIL: with an identity pre-pass the mini-board's heading opens a " +
+        "SECOND, live column, so the claim above is a claim about the pre-pass and not about the " +
+        "anchored heading scan",
+    ).toEqual(["In Development", "Backlog"]);
+    expect(
+      mirrored.columns.reduce((a, c) => a + c.rows.length, 0) + mirrored.epicRows.length,
+      "and the documented example is filed as a live ticket row",
+    ).toBe(1);
+
+    const rawLine = text.split("\n")[subjectLine - 1] as string;
+    expect(
+      dispositionOf(shipped, subjectLine, rawLine),
+      "the shipped disposition of the mutation's own line",
+    ).toBe("blanked");
+    expect(
+      dispositionOf(mirrored, subjectLine, rawLine),
+      "the mirrored disposition of the same line — a documentation example promoted to live state",
+    ).toBe("row");
+  });
+
+  it("DISCRIMINATES: every comment-strip mutation changes bucket against the mirror, or names itself", async () => {
+    const parse = await loadMirror();
+    const moved: string[] = [];
+    const unmoved: string[] = [];
+    for (const row of rowsOfKind("mutation")) {
+      if (!row.frame.startsWith("comment")) continue;
+      const { text, subjectLine } = frameDocument(row);
+      const rawLine = text.split("\n")[subjectLine - 1] as string;
+      const before = dispositionOf(parseBoard(text), subjectLine, rawLine);
+      const after = dispositionOf(parse(text), subjectLine, rawLine);
+      (before === after ? unmoved : moved).push(`${row.id}: ${before} -> ${after}`);
+    }
+    expect(
+      moved.length + unmoved.length,
+      "PREMISE: no comment-strip mutation was replayed through the mirror",
+    ).toBe(5);
+    expect(
+      moved.sort(),
+      "EVERY comment mutation moves, and the MOVE IS NOT THE POINT — the destination is. Only the " +
+        "un-indented shapes reach `row`, which is live state a human reads as work in flight. The " +
+        "two indented shapes land in `preamble`, still refused, which is precisely why they cannot " +
+        "stand in for the un-indented one and why a corpus of transcribed comments proves nothing",
+    ).toEqual([
+      "mut-comment-indent-tab: blanked -> preamble",
+      "mut-comment-indent1: blanked -> preamble",
+      "mut-comment-inside-column: blanked -> row",
+      "mut-comment-unindented: blanked -> row",
+      "mut-comment-unterminated: blanked -> row",
+    ]);
+    expect(
+      moved.filter((m) => m.endsWith("-> row")).length,
+      "three of the five reach LIVE state against a no-op pre-pass; a corpus carrying none of them " +
+        "would report green over a parser with no comment defence at all",
+    ).toBe(3);
+    expect(unmoved, "a comment mutation whose bucket the mirror did not change at all").toEqual([]);
+  });
 });
