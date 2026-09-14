@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 173
+open_count: 174
 waived_count: 0
 fixed_count: 4
-total_count: 177
-last_updated: 2026-09-14T20:33:15.766Z
+total_count: 178
+last_updated: 2026-09-14T21:20:37.534Z
 ---
 
 # Broken Windows Ledger
@@ -192,6 +192,7 @@ last_updated: 2026-09-14T20:33:15.766Z
 | 175 | 32 | deviation | agent-factory/contracts/board.md |  | The contract's identifier rule requires a ticket prefix equal to factory.config.json#id_prefix, but scripts/board-model.ts is pure and reads no config, so it enforces only the identifier SHAPE. Recorded as scripts/board-corpus.ts row ctl-id-disagreeing-prefix; the prefix comparison belongs to the join layer that holds the dial. | open |  | 2026-09-14T10:54:07.185Z |  |
 | 176 | 32 | lint-warning | docs/audit/29-style-dispositions/00-base.md |  | check:diff-disposition exits 1 on five Phase-31 workflow documents; pre-existing, verified identical at 6d59ed1e | open |  | 2026-09-14T13:45:35.380Z |  |
 | 177 | 32 | lint-warning | .planning/phases/32-board-projector-cli-dashboard/32-REVIEW.md | 404 | check:nul-bytes RED — literal ESC (0x1b) in the review document; pre-existing from commit 730ff88f, deferred by plan 32-09 as out of scope | open |  | 2026-09-14T20:33:15.766Z |  |
+| 178 | 32 | deviation | scripts/board-read.ts |  | Hard-link residual (plan 32-10, CR-04): a hard link inside the repository to an inode whose other name is outside it is READ, because its path resolves inside the root. No path-based rule can refuse it; nlink>1 was declined as a heuristic. Measured, pinned by a mechanism test, and recorded in insideRoot's docblock, the board contract and 32-10-GREEN-proof.txt. | open |  | 2026-09-14T21:20:37.534Z |  |
 
 ````json
 [
@@ -2317,6 +2318,19 @@ last_updated: 2026-09-14T20:33:15.766Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-09-14T20:33:15.766Z",
+    "resolved_at": null,
+    "milestone": "v2.1"
+  },
+  {
+    "id": 178,
+    "kind": "deviation",
+    "phase": "32",
+    "file": "scripts/board-read.ts",
+    "line": null,
+    "description": "Hard-link residual (plan 32-10, CR-04): a hard link inside the repository to an inode whose other name is outside it is READ, because its path resolves inside the root. No path-based rule can refuse it; nlink>1 was declined as a heuristic. Measured, pinned by a mechanism test, and recorded in insideRoot's docblock, the board contract and 32-10-GREEN-proof.txt.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-14T21:20:37.534Z",
     "resolved_at": null,
     "milestone": "v2.1"
   }
