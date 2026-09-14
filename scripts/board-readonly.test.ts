@@ -337,19 +337,22 @@ function analyzeModule(absPath: string, label: string): ModuleFacts {
       ts.isIdentifier(node.expression) &&
       fsNamespaceBindings.has(node.expression.text)
     ) {
-      // `fsns.default` is the CJS module object — ANOTHER namespace. Every member read off it is a
-      // property access whose own expression is not an identifier, so this pass would name nothing
-      // behind `fsns.default.writeFileSync`. Refused rather than named (deviation, Rule 2).
-      if (node.name.text === "default") opaqueFsAcquisitions.push(briefly(node.getText()));
-      else fsSymbols.add(node.name.text);
+      // `fsns.default` and `fsns.promises` are THEMSELVES namespaces holding the whole writer set.
+      // Every member read off one of them is a property access whose own expression is not an
+      // identifier, so this pass would name `default`/`promises` and nothing behind it. Refused
+      // rather than named (deviation, Rule 2), over a set DERIVED from the runtime.
+      if (NAMESPACE_REENTRY_MEMBERS.includes(node.name.text)) {
+        opaqueFsAcquisitions.push(briefly(node.getText()));
+      } else fsSymbols.add(node.name.text);
     } else if (
       ts.isElementAccessExpression(node) &&
       ts.isIdentifier(node.expression) &&
       fsNamespaceBindings.has(node.expression.text)
     ) {
       const key = literalText(node.argumentExpression);
-      if (key === null || key === "default") opaqueFsAcquisitions.push(briefly(node.getText()));
-      else fsSymbols.add(key);
+      if (key === null || NAMESPACE_REENTRY_MEMBERS.includes(key)) {
+        opaqueFsAcquisitions.push(briefly(node.getText()));
+      } else fsSymbols.add(key);
     } else if (
       ts.isIdentifier(node) &&
       fsNamespaceBindings.has(node.text) &&
@@ -516,6 +519,33 @@ const STEM_FALSE_POSITIVES = Object.freeze(["openAsBlob", "opendir", "opendirSyn
  */
 const STEM_FALSE_POSITIVE_COUNT = 3;
 
+/**
+ * THE NAMESPACE RE-ENTRY MEMBERS — DERIVED FROM THE RUNTIME, never typed out (32-11).
+ *
+ * Some members of the `node:fs` namespace are themselves namespaces holding the whole writer set:
+ * `fsns.promises.writeFile(p, "x")` and `fsns.default.writeFileSync(p, "x")` both write, and both
+ * reach the writer through a SECOND member access whose own expression is not an identifier — which
+ * this pass does not follow. Measured before this rule existed: a mirror planted with
+ * `fsns.promises.writeFile` produced `opaqueFsAcquisitions: []` and a mutating-symbol intersection
+ * of `[]`, i.e. the case that names the danger stayed green. (The two-sided closure pin did move,
+ * because `promises` entered `fsSymbols` — but a cardinality pin catching a writer by accident is
+ * not the same as the intersection deciding it.)
+ *
+ * So a member access naming a re-entry is REFUSED rather than named. The set is derived by asking
+ * the runtime which object-valued members of `node:fs` carry a mutating symbol as a function, so a
+ * future Node adding a third one is covered without anybody editing this file — the set-literal
+ * drift class this repository has already paid for ([[grugops-set-literal-drift]]).
+ */
+function namespaceReentryMembers(): readonly string[] {
+  const found = new Set<string>();
+  for (const [key, value] of Object.entries(nodeFs as unknown as Record<string, unknown>)) {
+    if (value === null || typeof value !== "object") continue;
+    const inner = value as Record<string, unknown>;
+    if (MUTATING_FS_SYMBOLS.some((symbol) => typeof inner[symbol] === "function")) found.add(key);
+  }
+  return [...found].sort();
+}
+
 /** The ambiguous pair that stays IN the mutating set, by decision rather than by omission. */
 const AMBIGUOUS_RETAINED = Object.freeze(["open", "openSync"]);
 
@@ -523,6 +553,9 @@ const STEM_MATCHED_FS_SYMBOLS = stemMatchedRuntimeSymbols();
 const MUTATING_FS_SYMBOLS = Object.freeze(
   STEM_MATCHED_FS_SYMBOLS.filter((name) => !STEM_FALSE_POSITIVES.includes(name)),
 );
+
+/** Derived, not typed: the `node:fs` members that are themselves namespaces holding the writers. */
+const NAMESPACE_REENTRY_MEMBERS = Object.freeze(namespaceReentryMembers());
 
 // The runtime-side observation, PRINTED AND VERSION-LABELLED on every run rather than pinned across
 // Node majors. A reader comparing a CI log against a local log can see at a glance whether a
@@ -1203,32 +1236,56 @@ describe("32-06 — the guard discriminates: both halves are shown to fail", () 
     );
   });
 
-  it("a member access naming `default` RE-ENTERS a namespace and is refused (deviation, Rule 2)", () => {
-    // `fsns.default` is the CJS module object under esModuleInterop — another namespace, and every
-    // member read off it (`fsns.default.writeFileSync`) is a property access whose own expression is
-    // not an identifier, so the pass would name `default` and nothing behind it. The plant below is
-    // a working writer; without this refusal the only thing that reddens it is the pin moving by the
-    // accidental member name `default`, which is a coincidence rather than a mechanism.
-    withLiveMirror(
-      {
-        module: "scripts/board-read.js",
-        appendSource:
-          'import * as fsns from "node:fs";\n' +
-          'export const nukeViaDefault = (p) => fsns.default.writeFileSync(p, "x");',
-      },
-      (mirrorRoot) => {
-        const facts = analyzeClosure(mirrorRoot, DASHBOARD_ENTRY);
-        expect(facts.opaqueFsAcquisitions.length).toBeGreaterThan(0);
-        expect(facts.opaqueFsAcquisitions.join("\n")).toContain("scripts/board-read.js");
-        expect(
-          facts.fsSymbols,
-          "`default` must not be NAMED as an fs symbol: naming it would put a namespace object in " +
-            "the symbol set, where the mutating-set intersection would then ask whether the string " +
-            '"default" is a writer and answer no',
-        ).not.toContain("default");
-      },
-    );
+  it("PREMISE: the derived namespace re-entry set is non-empty and holds both known re-entries", () => {
+    // Derived by asking the runtime, so a future Node adding a third re-entry is covered without
+    // an edit here. Asserted non-empty because a refusal over an empty set refuses nothing, and
+    // asserted to hold the two this repository has actually measured, because a derivation that
+    // silently stopped finding them would leave the refusal below green and vacuous.
+    expect(
+      NAMESPACE_REENTRY_MEMBERS.length,
+      "PREMISE: no member of node:fs was derived as a namespace re-entry on node " +
+        `${process.versions.node}, so the refusal of `.concat(
+          "`fsns.promises` / `fsns.default` refuses nothing at all",
+        ),
+    ).toBeGreaterThan(0);
+    for (const member of ["default", "promises"]) {
+      expect(
+        NAMESPACE_REENTRY_MEMBERS,
+        `"${member}" is a member of node:fs whose own object carries the writer set, and the ` +
+          "derivation no longer finds it. Either the runtime changed shape or the derivation broke; " +
+          "either way a writer is reachable through it with nothing refusing the route",
+      ).toContain(member);
+    }
   });
+
+  for (const member of ["default", "promises"]) {
+    it(`a member access naming \`${member}\` RE-ENTERS a namespace and is refused (deviation, Rule 2)`, () => {
+      // Both plants are working writers. MEASURED before this rule existed (recorded in
+      // 32-11-GREEN-proof.txt): `fsns.promises.writeFile` produced `opaqueFsAcquisitions: []` AND a
+      // mutating-symbol intersection of `[]` — the case that names the danger stayed green, and the
+      // only thing that moved was the cardinality pin gaining the member name `promises`. A pin
+      // catching a writer by accident is not the same as the intersection deciding it.
+      withLiveMirror(
+        {
+          module: "scripts/board-read.js",
+          appendSource:
+            'import * as fsns from "node:fs";\n' +
+            `export const nukeVia_${member} = (p) => fsns.${member}.writeFileSync(p, "x");`,
+        },
+        (mirrorRoot) => {
+          const facts = analyzeClosure(mirrorRoot, DASHBOARD_ENTRY);
+          expect(facts.opaqueFsAcquisitions.length).toBeGreaterThan(0);
+          expect(facts.opaqueFsAcquisitions.join("\n")).toContain("scripts/board-read.js");
+          expect(
+            facts.fsSymbols,
+            `"${member}" must not be NAMED as an fs symbol: naming it would put a namespace object ` +
+              "in the symbol set, where the mutating-set intersection would then ask whether the " +
+              `string "${member}" is a writer and answer no`,
+          ).not.toContain(member);
+        },
+      );
+    });
+  }
 
   // ─────────────────────────────────────────────────────────────────────────────────────────────
   // THE ENUMERATION (32-11). Both tables are asserted non-empty and pinned two-sided BEFORE the

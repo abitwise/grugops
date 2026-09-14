@@ -140,3 +140,40 @@ rather than an implication a reader has to notice:
     `npm run check:build-parity` (measured: the string is present in the workflow file, at the
     "Build parity" step around line 102). This is NOT `UNKNOWN - verify` — the CI wiring was located
     and read.
+
+
+6. ADDENDUM — A SECOND BYPASS OF THE SAME CLASS, FOUND BY PROBING AND CLOSED
+--------------------------------------------------------------------------------
+
+After the three planned tasks were green, the enumerated escape surface was probed for shapes the
+new rule still admits. One was live:
+
+    import * as fsns from "node:fs";
+    export const viaPromises = (p) => fsns.promises.writeFile(p, "x");
+
+MEASURED against the post-task-3 derivation (scratch probe, deleted afterwards):
+
+    PROBE opaque=[]
+    PROBE fsSymbols=["existsSync","promises","readFileSync","readdirSync","realpathSync","statSync","watch"]
+    PROBE mutatingReached=[]
+
+`fsns.promises` is a DIRECT member access, so the canonical form admitted it; the writer sits behind
+a SECOND member access whose own expression is not an identifier, which this pass does not follow.
+Nothing was refused and the mutating-symbol intersection — the case that names the danger — stayed
+EMPTY. The only thing that moved was the two-sided cardinality pin, which gained the member name
+`promises`. A pin catching a writer by accident is not the same as the intersection deciding it.
+
+CLOSED the same way as the rest: a member access naming a NAMESPACE RE-ENTRY is refused. The
+re-entry set is DERIVED from the runtime — the object-valued members of `node:fs` that carry a
+mutating symbol as a function — rather than typed out, so a future Node adding a third is covered
+without an edit. On node 24.12.0 the derivation yields exactly ["default", "promises"] (the third
+object-valued member, `constants`, carries no writer and is correctly not in it).
+
+MUTANT D — the re-entry refusal deleted, everything else intact:
+
+          Tests  2 failed | 55 passed (57)
+
+    exactly the two re-entry cases failed. Everything else, including the positive control and the
+    fourteen escape rows, still passed.
+
+Final gate after the addendum: `npm run check:dashboard-readonly` → 57 passed, exit 0.
