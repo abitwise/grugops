@@ -446,13 +446,38 @@ function anchorAbsentTarget(root, target) {
  *      CONTENT. That is the entire finding: content crossed this boundary and left through a field
  *      that is printed to stderr every frame and published in `--json`.
  *
- * SYMLINK INSTALLS (D-05, plan 32-10 Task 3). `install/install.ts` supports an opt-in `--symlink`
- * mode, so a target repository can carry `agent-factory/` as a link into a shared kit. Under that
- * shape `FIXED_SUBPATHS.config` resolves outside the root and is REFUSED — measured, not assumed:
- * the config source then shows a visible `readErrors` entry with code `OUTSIDE-ROOT` and falls back
- * to the LEAN view, which is the answer CLAUDE.md C6 already defines for "no usable dial", and
- * `install.ts` records that `agent-factory/config` is deliberately absent from the installed kit
- * anyway. A refused dial degrades to lean; it never silently reads a file outside the tree.
+ * SYMLINK INSTALLS ARE THE ONE DELIBERATE BEHAVIOUR CHANGE, AND IT IS MEASURED (D-05, plan 32-10).
+ * `install/install.ts` supports an opt-in `--symlink` install mode — copy is the default — so a
+ * target repository CAN carry `agent-factory/` as a link into a shared kit. Under that shape
+ * `FIXED_SUBPATHS.config` resolves outside the root and is REFUSED. The outcome was measured rather
+ * than assumed (`scripts/board-read.test.ts`, "a SYMLINK-INSTALLED `agent-factory/` degrades to
+ * lean, visibly"): the config source settles `stale` carrying the LEAN view, ONE `readErrors` entry
+ * with code `OUTSIDE-ROOT` names the refusal, the overall discriminant degrades to `stale`, and no
+ * byte of the outside dial reaches the document.
+ *
+ * THE BOUNDARY THIS FUNCTION ENFORCES IS OVER PATHS, AND ONE SHAPE SITS OUTSIDE IT — MEASURED, NOT
+ * INFERRED (plan 32-10). A HARD LINK created inside the tree to an inode whose other name is outside
+ * it is NOT refused, and the probe that measured this leaked its marker on both channels. There is
+ * no path-based rule that could refuse it: a hard link is not a reference to another path, it IS a
+ * directory entry for the inode, so `realpathSync` correctly reports a location inside the root and
+ * there is no second path to compare against. Refusing on `nlink > 1` was considered and declined —
+ * it is a heuristic over a legitimate filesystem property, and this repository has recorded that a
+ * heuristic in place of a structural rule is the shape that produces the next round's bypass.
+ *
+ * WHAT BOUNDS THAT RESIDUAL. Creating the link requires write access to the tree, which is the same
+ * access that would let an attacker paste the bytes into a ticket file directly; hard links cannot
+ * cross a filesystem; and both Linux (`fs.protected_hardlinks`, on by default) and macOS restrict
+ * linking to files the caller may already read. It is recorded here, in this phase's SUMMARY and in
+ * `.planning/WINDOWS.md` rather than described as closed. `scripts/board-read.test.ts` pins the
+ * MECHANISM — that `realpathSync` of a hard link answers with the in-tree path — so the day that
+ * changes, the suite says so.
+ *
+ * THAT DEGRADATION IS ACCEPTABLE FOR TWO REASONS ALREADY ON THE RECORD, not a rule widened to fit
+ * an expectation. `install.ts` states that `agent-factory/config` is deliberately ABSENT from the
+ * installed kit — the dial is seeded at `.grugops/factory.config.json` — so the linked shape usually
+ * has nothing at this path to read. And `config` is the ONE source with a defined `fallback`,
+ * because CLAUDE.md C6 defines what the kit does with no usable dial. A refused dial degrades to
+ * lean, visibly; it never silently reads a file outside the tree.
  */
 function insideRoot(root, target, what) {
     let real;

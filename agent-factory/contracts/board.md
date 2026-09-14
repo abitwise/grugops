@@ -295,6 +295,18 @@ trustworthy. A file whose bytes are not valid UTF-8 is `unreadable`, not torn, b
 modified it — the bytes arrived and the content cannot be used. It is reported on the first read and
 not re-read, since the bytes will not decode differently on a second attempt.
 
+**Every path the projector reads is resolved to its real location and asserted inside the repository
+root before it is opened, and a path that resolves outside the root is refused and reported rather
+than read.** Resolution follows every link in the path, so a linked directory and a linked file are
+the same question. A link whose target is inside the root is read normally, and a path that does not
+exist is absent rather than refused.
+
+**A refusal names the entry path and the destination it resolved to, and never quotes the content of
+a file outside the root.** The refusal appears as a read error against the one source it belongs to,
+which is stale for as long as the refusal stands; the other sources are unaffected. The rule is over
+PATHS: a hard link created inside the repository to a file whose other name is outside it is a path
+inside the root and is read, which the projector records rather than claims to prevent.
+
 There is no empty-board output state distinct from zero rows under real headings. A board whose
 columns are all empty renders its columns with zero counts. A board that could not be read is stale
 or unavailable, and the reader is told which of the two it is.

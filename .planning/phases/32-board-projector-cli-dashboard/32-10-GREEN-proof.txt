@@ -1,0 +1,162 @@
+32-10 GREEN PROOF — CR-04 closed, measured against 32-10-RED-baseline.txt
+Recorded: 2026-09-14T21:12Z, against the rebuilt scripts/board-dashboard.js and
+scripts/board-read.js (npm run build; npm run check:build-parity green).
+
+Read this beside 32-10-RED-baseline.txt. The commands are the same script, the tree shape is the
+same, and the marker token is the same. The difference between the two files is the evidence.
+
+═══════════════════════════════════════════════════════════════════════════════════════════════
+PART ONE — THE VERIFIER'S CR-04 TRANSCRIPT, RE-RUN AGAINST THE FIX
+═══════════════════════════════════════════════════════════════════════════════════════════════
+
+    $ ln -sf "$WORK/outside-secret.txt" t1/plans/tickets/ZZZ-999.md
+    $ node scripts/board-dashboard.js t1 --once --json >stdout.json 2>stderr.txt
+    exit: 0
+
+    $ grep -c 'SECRET-TOKEN-abc123' stdout.json   # stdout channel
+    0                                             # RED baseline: 1
+    $ grep -c 'SECRET-TOKEN-abc123' stderr.txt    # stderr channel
+    0                                             # RED baseline: 1
+
+    $ grep -o 'SECRET-TOKEN-abc123[^"]*' stdout.json | head -3
+    (no output)
+
+THE REFUSAL THAT REPLACED IT — VISIBLE, AND PATH-ONLY:
+
+    $ grep -o 'ZZZ-999.*' stderr.txt | head -3
+    ZZZ-999.md — OUTSIDE-ROOT: board-read: the directory entry
+    .../t1/plans/tickets/ZZZ-999.md resolves to .../outside-secret.txt, which is outside the
+    repository root .../t1. Reading through a link that leaves the tree is refused. No byte of
+    that file's content is quoted here, because its content reaching this message is the finding.
+
+    $ node -e '...'   # the readErrors entries for the tickets source
+    [
+      {
+        "source": "tickets",
+        "path": ".../t1/plans/tickets/ZZZ-999.md",
+        "code": "OUTSIDE-ROOT",
+        "message": "board-read: the directory entry .../t1/plans/tickets/ZZZ-999.md resolves to
+                    .../outside-secret.txt, which is outside the repository root .../t1. ..."
+      }
+    ]
+    tickets source state: "stale"       # RED baseline: "ok"
+
+The refusal names the ENTRY and the DESTINATION and nothing else. The tickets source is `stale`
+rather than `ok`, so the header carries a badge and the operator is told the projector did not
+read everything it was asked to.
+
+═══════════════════════════════════════════════════════════════════════════════════════════════
+PART TWO — THE ANCESTOR CASE
+═══════════════════════════════════════════════════════════════════════════════════════════════
+
+    $ ln -sfn "$WORK/elsewhere" t1/plans     # the ANCESTOR directory is the link
+    $ node scripts/board-dashboard.js t1 --once --json >stdout.json 2>stderr.txt
+    exit: 0
+    $ grep -c 'OUTSIDE-BOARD-xyz789' stdout.json
+    0                                        # RED baseline: 1
+
+    board source state: unavailable          # RED baseline: ok
+    board columns: []                        # RED baseline: ["OUTSIDE-BOARD-xyz789"]
+
+    readErrors (codes and sources):
+      board        OUTSIDE-ROOT   plans/board.md resolves to .../elsewhere/board.md
+      tickets      OUTSIDE-ROOT   plans/tickets resolves to .../elsewhere/tickets
+      traceability OUTSIDE-ROOT   plans/traceability.md does not exist and its nearest existing
+                                  parent is outside the repository root
+      queue        tampered       (the fixture's own pre-existing finding, unchanged)
+
+THE THIRD ENTRY IS THE ARM THE PLAN'S OWN SKETCH WOULD HAVE LEFT OPEN. `plans/traceability.md`
+does not exist under the linked directory, so `realpathSync` answers ENOENT. Admitting on ENOENT
+alone — which is what the sketched arm 2 said — would have admitted it, and the check would then
+expire the moment the attacker created the file. The implemented arm asks the question about the
+deepest ANCESTOR that does exist, so an absent path under an out-of-tree parent is refused now
+rather than read later. (It is also what keeps `repoSubpath(root, "../escape")` refused, which the
+pre-existing `scripts/board-tracer.test.ts` case asserts.)
+
+The queue and context sources under `.grugops/` are untouched: one linked ancestor refuses the
+three sources that live under it and leaves the rest readable (D-12).
+
+═══════════════════════════════════════════════════════════════════════════════════════════════
+PART THREE — THE ADVERSARIAL BATTERY (probed, not assumed)
+═══════════════════════════════════════════════════════════════════════════════════════════════
+
+One tree, five shapes planted at once under `plans/tickets/`, one run of the shipped CLI:
+
+    shape                                       marker on stdout / stderr   readErrors code
+    ------------------------------------------  -------------------------   ---------------
+    RELATIVE symlink (../../../rel-target.md)   0 / 0                       OUTSIDE-ROOT
+    symlink CHAIN (link → link → outside)       0 / 0                       OUTSIDE-ROOT
+    symlinked DIRECTORY named `DIR-1.md`        0 / 0                       OUTSIDE-ROOT
+    self-referential symlink LOOP               n/a                         ELOOP
+    HARD LINK to a file outside the tree        1 / 1                       (not refused)
+
+    tickets source: "stale", value ["ABC-101"]  — the legitimate ticket beside all five survives.
+
+THE LOOP IS REPORTED UNDER ITS OWN ERRNO, NOT AS AN ESCAPE. `ELOOP` is a path this module cannot
+resolve; an escape is a path that resolves somewhere it may not go. Collapsing the two into one
+code would be CR-02's discarded errno, one register over.
+
+THE HARD LINK IS NOT CLOSED, AND THAT IS RECORDED RATHER THAN LEFT TO BE FOUND. A hard link is not
+a reference to another path — it IS a directory entry for the inode — so `realpathSync` correctly
+answers with a location inside the root and there is no second path to compare against. No
+path-based rule can refuse it. Refusing on `nlink > 1` was considered and declined: it is a
+heuristic over a legitimate filesystem property, and this repository's own record is that a
+heuristic in place of a structural rule is the shape that produces the next round's bypass.
+
+Bounded by: creating the link requires write access to the tree, which is the same access that
+would let an attacker paste the bytes into a ticket file directly; hard links cannot cross a
+filesystem; and both Linux (`fs.protected_hardlinks`, on by default) and macOS restrict linking to
+files the caller may already read. It is recorded in `insideRoot`'s docblock, in
+`agent-factory/contracts/board.md` § Staleness, in 32-10-SUMMARY.md and in `.planning/WINDOWS.md`,
+and `scripts/board-read.test.ts` pins the MECHANISM so the day the platform changes, the suite
+says so.
+
+═══════════════════════════════════════════════════════════════════════════════════════════════
+PART FOUR — THE LEGITIMATE INPUTS STILL READ, AND THE ONE DELIBERATE CHANGE
+═══════════════════════════════════════════════════════════════════════════════════════════════
+
+Six legitimate shapes, each asserting a POSITIVE outcome rather than the absence of a throw
+(`scripts/board-read.test.ts`, "the legitimate shapes containment must not turn into faults"):
+
+  1. fresh checkout with no `.grugops/`      → queue/context absent, readErrors [], no badge, `ok`
+  2. empty `plans/tickets/`                  → tickets `ok` with an empty list, no badge
+  3. repository root reached through a link  → repoRoot resolved, every source `ok`, readErrors []
+  4. relative `repoRoot` argument (`.`)      → resolved, board `ok`, readErrors []
+  5. in-root symlinked DIRECTORY             → tickets `ok`, both tickets joined
+  6. the committed fixture tree              → no OUTSIDE-ROOT refusal, conflicts still derived
+
+  plus: an in-root symlinked FILE is admitted and joined; a DANGLING link (target inside OR
+  outside) is answered ENOENT, not refused.
+
+THE ONE DELIBERATE BEHAVIOUR CHANGE, MEASURED: a `--symlink`-installed `agent-factory/` (D-05)
+puts `FIXED_SUBPATHS.config` outside the root, so the dial is refused. Measured outcome — config
+source `stale` carrying the LEAN view `{mode: null, idPrefix: null, wipLimits: {}}`, one
+`readErrors` entry with code `OUTSIDE-ROOT`, overall discriminant `stale`, and no byte of the
+outside dial in the document. A refused dial degrades to lean, visibly. `install.ts` already
+records that `agent-factory/config` is deliberately absent from the installed kit, and `config` is
+the one source with a defined fallback because CLAUDE.md C6 defines what the kit does with no
+usable dial.
+
+═══════════════════════════════════════════════════════════════════════════════════════════════
+PART FIVE — THE COMMANDS
+═══════════════════════════════════════════════════════════════════════════════════════════════
+
+    $ npx vitest run --exclude '**/scripts/e2e/**' scripts/board-read.test.ts
+      board-read routing census: 17 read-primitive call sites,
+        producers [anchorAbsentTarget, childPath, insideRoot, repoSubpath, resolveRepoRoot],
+        path helpers [gatherFile, listDirectoryBounded, readVerifyReread]
+      Test Files  1 passed (1)
+           Tests  103 passed (103)
+
+    $ npm run build && npm run typecheck && npm run check:build-parity
+      Build parity: no tracked build output moved when tsc ran.
+
+    $ npm run check:dashboard-readonly
+      board-readonly: mutating fs symbols 57 (stem-matched 60 minus 3 named exclusions)
+      Tests  24 passed (24)      # the DASH-06 closure pin did not move
+
+    $ VALIDATE_KIT_ROOT=. node scripts/validate-agent-factory.js
+      ALL CHECKS PASSED
+
+    $ git diff --exit-code -- scripts/fixtures/board-snapshot/expected-snapshot.json
+      (no output — the golden is byte-identical)

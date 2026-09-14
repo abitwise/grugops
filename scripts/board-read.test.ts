@@ -26,6 +26,7 @@ import ts from "typescript";
 import {
   appendFileSync,
   chmodSync,
+  linkSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -51,6 +52,7 @@ import {
   readSnapshot,
   readVerifyReread,
   settleSource,
+  unreadableSources,
 } from "./board-read.js";
 import { MAX_WALK_ENTRIES } from "./kit-model.js";
 import type { SnapshotResult, SourceState } from "./board-read.js";
@@ -2411,6 +2413,328 @@ describe("board-read — the guard catches containment refusals and nothing else
       );
       expect(found.length, "the refusal became the tickets source's own readErrors entry").toBe(1);
       expect(settled.snapshot.sources.board.source, "the other sources are untouched").toBe("ok");
+    });
+  });
+});
+
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+// PLAN 32-10 TASK 3 — THE LEGITIMATE-INPUT BATTERY (T-32-10-04).
+//
+// THIS IS THE HALF THAT STOPS THE FIX FROM BECOMING THE NEXT ROUND'S GAP. A containment rule that
+// also refuses absent paths, dangling links, in-root links, a symlinked repository root or a
+// relative root argument is a rule the field turns off — it gets reverted under pressure until it
+// stops refusing anything, and then the traversal is back with a test suite asserting it is fixed.
+//
+// EVERY CASE ASSERTS A POSITIVE OUTCOME. "Nothing threw" is satisfied by a reader that returns six
+// empty sources, which is precisely the blanked snapshot D-11 forbids. So each one names a source
+// that must be `ok`, or a value that must be present.
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+
+describe("board-read — the legitimate shapes containment must not turn into faults (plan 32-10)", () => {
+  it("1. a fresh checkout with no `.grugops/` at all: absent, no badge, no error (D-13)", () => {
+    withEscapeTree(({ dir }) => {
+      plantBoard(dir, TICKETED_BOARD);
+      plantTicketDoc(dir, "ABC-101", "Backlog", "backlog");
+      plantTicketDoc(dir, "ABC-102", "Done", "done");
+
+      const result = readSnapshot(dir);
+      expect(result.snapshot.sources.board.source).toBe("ok");
+      expect(result.snapshot.sources.tickets.source).toBe("ok");
+      expect(result.snapshot.sources.queue.source).toBe("unavailable");
+      expect(result.snapshot.sources.context.source).toBe("unavailable");
+      expect(
+        result.readErrors,
+        "D-13 verbatim: a path nobody has written yet is a legitimate state and says nothing on " +
+          "stderr. Containment now runs on EVERY path, so this is re-asserted after the change",
+      ).toEqual([]);
+      expect(
+        unreadableSources(result.snapshot.sources, result.readErrors),
+        "no badge — an absent source is badged nowhere",
+      ).toEqual([]);
+      expect(result.source).toBe("ok");
+    });
+  });
+
+  it("2. an EMPTY `plans/tickets/`: tickets `ok`, empty list, no badge", () => {
+    withEscapeTree(({ dir }) => {
+      plantBoard(dir, ONE_COLUMN);
+      mkdirSync(join(dir, "plans", "tickets"), { recursive: true });
+
+      const result = readSnapshot(dir);
+      expect(result.snapshot.sources.tickets.source).toBe("ok");
+      expect(
+        result.snapshot.sources.tickets.source === "ok" ? result.snapshot.sources.tickets.value : null,
+        "an empty ticket directory is an empty ticket list, not a fault",
+      ).toEqual([]);
+      expect(result.readErrors).toEqual([]);
+    });
+  });
+
+  it("3. a repository root reached through a SYMLINKED PATH still reads every source", () => {
+    // The macOS `/tmp` shape, and the case that fails if containment compared a REAL target against
+    // an UNRESOLVED root. `resolveRepoRoot` already realpaths the root; `insideRoot` realpaths the
+    // target; both sides must be real or every source under a linked root is refused at once.
+    withEscapeTree(({ dir, outsideDir }) => {
+      plantBoard(dir, TICKETED_BOARD);
+      plantTicketDoc(dir, "ABC-101", "Backlog", "backlog");
+      const linkToRoot = join(outsideDir, "link-to-root");
+      symlinkSync(dir, linkToRoot);
+
+      const result = readSnapshot(linkToRoot);
+      expect(
+        result.snapshot.repoRoot,
+        "PREMISE: the root was not resolved, so this case is not testing a linked root",
+      ).toBe(realpathSync(dir));
+      expect(result.snapshot.sources.board.source).toBe("ok");
+      expect(result.snapshot.sources.tickets.source).toBe("ok");
+      expect(
+        result.readErrors,
+        "a link the OPERATOR followed to reach their own repository is not an escape",
+      ).toEqual([]);
+    });
+  });
+
+  it("4. a RELATIVE `repoRoot` argument still resolves and still reads", () => {
+    withEscapeTree(({ dir }) => {
+      plantBoard(dir, TICKETED_BOARD);
+      plantTicketDoc(dir, "ABC-101", "Backlog", "backlog");
+      const cwd = process.cwd();
+      try {
+        process.chdir(dir);
+        const result = readSnapshot(".");
+        expect(result.snapshot.repoRoot).toBe(realpathSync(dir));
+        expect(result.snapshot.sources.board.source).toBe("ok");
+        expect(result.readErrors).toEqual([]);
+      } finally {
+        process.chdir(cwd);
+      }
+    });
+  });
+
+  it("5. an IN-ROOT symlinked DIRECTORY (`plans/tickets` → `plans/tickets-real/`) still reads", () => {
+    withEscapeTree(({ dir }) => {
+      plantBoard(dir, TICKETED_BOARD);
+      const real = join(dir, "plans", "tickets-real");
+      mkdirSync(real, { recursive: true });
+      for (const [id, column, status] of [
+        ["ABC-101", "Backlog", "backlog"],
+        ["ABC-102", "Done", "done"],
+      ] as const) {
+        writeFileSync(
+          join(real, `${id}.md`),
+          `---\nid: ${id}\ntitle: ${id} title\nstatus: ${status}\ncolumn: ${column}\n---\n\n# ${id}\n`,
+          "utf8",
+        );
+      }
+      symlinkSync(real, join(dir, "plans", "tickets"));
+
+      const result = readSnapshot(dir);
+      expect(
+        result.readErrors,
+        "a DIRECTORY link inside the tree is the same admitted shape a file link inside it is",
+      ).toEqual([]);
+      expect(result.snapshot.sources.tickets.source).toBe("ok");
+      const tickets =
+        result.snapshot.sources.tickets.source === "unavailable"
+          ? []
+          : result.snapshot.sources.tickets.value;
+      expect(tickets.map((t) => t.id).sort()).toEqual(["ABC-101", "ABC-102"]);
+    });
+  });
+
+  it("6. the committed fixture tree reads with no refusal and no fabricated finding", () => {
+    // The byte-for-byte authority is `scripts/board-model.test.ts`'s golden case and
+    // `git diff --exit-code -- scripts/fixtures/board-snapshot/expected-snapshot.json`. What is
+    // asserted HERE is the property this change could have broken: containment now runs on every
+    // path in a tree that contains no link at all, so nothing in it may be refused.
+    const result = readSnapshot(join(ROOT, "scripts", "fixtures", "board-snapshot"));
+    expect(
+      result.readErrors.filter((e) => e.code === "OUTSIDE-ROOT"),
+      "containment refused something in a fixture that has no symlink in it",
+    ).toEqual([]);
+    expect(result.snapshot.sources.board.source).toBe("ok");
+    expect(result.snapshot.sources.tickets.source).toBe("ok");
+    expect(result.snapshot.sources.config.source).toBe("ok");
+    expect(
+      result.conflicts.length,
+      "PREMISE: the fixture produced no conflicts at all, so it is not the fixture this case is about",
+    ).toBeGreaterThan(0);
+  });
+});
+
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+// PLAN 32-10 TASK 3 — THE ONE DELIBERATE BEHAVIOUR CHANGE, MEASURED RATHER THAN DISCOVERED.
+//
+// `install/install.ts` supports an opt-in `--symlink` install mode (D-05; copy is the default), so a
+// target repository CAN carry `agent-factory/` as a link into a shared kit. Under that shape
+// `FIXED_SUBPATHS.config` resolves outside the root and is refused. That is a behaviour change, and
+// the plan's instruction was to MEASURE it and write the measurement down rather than to widen the
+// rule until the expectation came true.
+//
+// TWO FACTS WERE ALREADY ESTABLISHED AND ARE STATED HERE RATHER THAN RE-LITIGATED:
+//   • `install/install.ts` records that `agent-factory/config` is deliberately ABSENT from the
+//     installed kit — the dial is seeded at `.grugops/factory.config.json` instead — so the linked
+//     shape usually has nothing at this path to read in the first place.
+//   • `config` is the ONE source with a defined `fallback` (the lean view), because CLAUDE.md C6
+//     defines what the kit does with no usable dial. A refused dial therefore degrades to LEAN,
+//     which is a supported state, rather than to nothing.
+//
+// MEASURED OUTCOME (this case, run against the built module): the config source settles `stale` with
+// the LEAN view as its value, one `readErrors` entry with code `OUTSIDE-ROOT` names the refusal, the
+// overall discriminant degrades to `stale`, and no byte of the outside dial reaches the document.
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+
+describe("board-read — a SYMLINK-INSTALLED `agent-factory/` degrades to lean, visibly (plan 32-10)", () => {
+  it("refuses the out-of-tree dial, shows the lean view, and says so in readErrors", () => {
+    withEscapeTree(({ dir, outsideDir }) => {
+      plantBoard(dir, TICKETED_BOARD);
+      const kitConfig = join(outsideDir, "kit", "config");
+      mkdirSync(kitConfig, { recursive: true });
+      writeFileSync(
+        join(kitConfig, "factory.config.json"),
+        `{"mode":"enterprise","id_prefix":"${ESCAPE_MARKER}","wip_limits":{"In Development":2}}\n`,
+        "utf8",
+      );
+      symlinkSync(join(outsideDir, "kit"), join(dir, "agent-factory"));
+
+      const result = readSnapshot(dir);
+
+      expect(
+        JSON.stringify(result),
+        "the dial outside the tree was read and published",
+      ).not.toContain(ESCAPE_MARKER);
+      const config = result.snapshot.sources.config;
+      expect(
+        config.source,
+        "MEASURED: a refused dial is stale carrying the lean view, never a silent read and never " +
+          "a dead projector",
+      ).toBe("stale");
+      expect(
+        config.source === "unavailable" ? null : config.value,
+        "MEASURED: the LEAN view — CLAUDE.md C6's answer for 'no usable dial'",
+      ).toEqual({ mode: null, idPrefix: null, wipLimits: {} });
+      expect(
+        result.readErrors.filter((e) => e.source === "config" && e.code === "OUTSIDE-ROOT").length,
+        "MEASURED: the degradation is VISIBLE — a silent fallback to lean would be the same " +
+          "confident-wrong output the badge exists to prevent",
+      ).toBe(1);
+      expect(result.source, "MEASURED: the overall discriminant degrades").toBe("stale");
+      // The board beside it is untouched: this is one source's finding.
+      expect(result.snapshot.sources.board.source).toBe("ok");
+    });
+  });
+});
+
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+// PLAN 32-10 TASK 3 — THE ADVERSARIAL BATTERY, AND THE ONE SHAPE THAT IS NOT CLOSED.
+//
+// This repository's own record is that a fix creates the next bypass, so the rule is probed from the
+// shapes an attacker actually has rather than from the one the reproduction used: a RELATIVE link, a
+// link CHAIN, a linked DIRECTORY wearing a ticket's name, and a symlink LOOP.
+//
+// AND ONE SHAPE IS NOT CLOSED, WHICH IS WRITTEN DOWN RATHER THAN LEFT TO BE FOUND. A hard link
+// inside the tree to an inode whose other name is outside it is read. There is no path-based rule
+// that could refuse it — a hard link is not a reference to another path, it IS a directory entry for
+// the inode — so the case below pins the MECHANISM and names the residual instead of asserting a
+// containment this module does not have.
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+
+describe("board-read — the adversarial shapes, probed rather than assumed (plan 32-10)", () => {
+  it("refuses a RELATIVE symlink that climbs out of the tree", () => {
+    withEscapeTree(({ dir, outsideFile }) => {
+      plantBoard(dir, TICKETED_BOARD);
+      plantTicketDoc(dir, "ABC-101", "Backlog", "backlog");
+      // `../../elsewhere/outside-secret.txt` from `plans/tickets/` — a spelling that never mentions
+      // an absolute path, which is the shape a lexical check is most likely to be written against.
+      symlinkSync(
+        join("..", "..", relative(dir, outsideFile)),
+        join(dir, "plans", "tickets", "REL-1.md"),
+      );
+      const result = readSnapshot(dir);
+      expect(JSON.stringify(result)).not.toContain(ESCAPE_MARKER);
+      expect(
+        result.readErrors.filter((e) => e.code === "OUTSIDE-ROOT").length,
+        "a relative link and an absolute one resolve to the same place, so they are one question",
+      ).toBe(1);
+    });
+  });
+
+  it("refuses a symlink CHAIN whose final hop leaves the tree", () => {
+    withEscapeTree(({ dir, outsideDir, outsideFile }) => {
+      plantBoard(dir, TICKETED_BOARD);
+      plantTicketDoc(dir, "ABC-101", "Backlog", "backlog");
+      const hop = join(outsideDir, "hop.md");
+      symlinkSync(outsideFile, hop);
+      symlinkSync(hop, join(dir, "plans", "tickets", "CHAIN-1.md"));
+      const result = readSnapshot(dir);
+      expect(JSON.stringify(result)).not.toContain(ESCAPE_MARKER);
+      expect(result.readErrors.filter((e) => e.code === "OUTSIDE-ROOT").length).toBe(1);
+    });
+  });
+
+  it("refuses a symlinked DIRECTORY wearing a ticket's name", () => {
+    withEscapeTree(({ dir, outsideDir }) => {
+      plantBoard(dir, TICKETED_BOARD);
+      plantTicketDoc(dir, "ABC-101", "Backlog", "backlog");
+      const outDir = join(outsideDir, "a-whole-directory");
+      mkdirSync(outDir, { recursive: true });
+      writeFileSync(join(outDir, "inside.md"), `${ESCAPE_MARKER}\n`, "utf8");
+      symlinkSync(outDir, join(dir, "plans", "tickets", "DIR-1.md"));
+      const result = readSnapshot(dir);
+      expect(JSON.stringify(result)).not.toContain(ESCAPE_MARKER);
+      expect(result.readErrors.filter((e) => e.code === "OUTSIDE-ROOT").length).toBe(1);
+    });
+  });
+
+  it("reports a symlink LOOP under its own errno, not as an escape", () => {
+    // ELOOP is a path this module cannot resolve, which is a different finding from a path that
+    // resolves somewhere it may not go. Reporting both under one code is CR-02's discarded errno.
+    withEscapeTree(({ dir }) => {
+      plantBoard(dir, TICKETED_BOARD);
+      plantTicketDoc(dir, "ABC-101", "Backlog", "backlog");
+      const loop = join(dir, "plans", "tickets", "LOOP-1.md");
+      symlinkSync(loop, loop);
+      const result = readSnapshot(dir);
+      const codes = result.readErrors.filter((e) => e.source === "tickets").map((e) => e.code);
+      expect(codes, "the errno itself, never a collapsed placeholder").toEqual(["ELOOP"]);
+      const tickets =
+        result.snapshot.sources.tickets.source === "unavailable"
+          ? []
+          : result.snapshot.sources.tickets.value;
+      expect(tickets.map((t) => t.id), "the readable ticket beside it survives").toEqual(["ABC-101"]);
+    });
+  });
+
+  it("RECORDS the hard-link residual: a path-based rule cannot see it, and that is measured", () => {
+    withEscapeTree(({ dir, outsideFile }) => {
+      plantBoard(dir, TICKETED_BOARD);
+      const hard = join(dir, "plans", "tickets", "HARD-1.md");
+      mkdirSync(join(dir, "plans", "tickets"), { recursive: true });
+      linkSync(outsideFile, hard);
+
+      // THE MECHANISM, PINNED. This is why no path rule can refuse it: the second name IS the file,
+      // so its real location is inside the root and there is no other path to compare against. If
+      // this assertion ever fails, the platform changed and the residual can be revisited.
+      expect(
+        realpathSync(hard),
+        "PREMISE: the hard link did not behave as a hard link on this filesystem, so the residual " +
+          "recorded below is not the thing this case measured",
+      ).toBe(hard);
+      expect(relative(realpathSync(dir), realpathSync(hard)).startsWith("..")).toBe(false);
+
+      // THE MEASURED CONSEQUENCE, STATED RATHER THAN ASSERTED AWAY. The content IS read. It is
+      // recorded in `insideRoot`'s docblock, in this phase's SUMMARY and in `.planning/WINDOWS.md`.
+      const result = readSnapshot(dir);
+      expect(
+        JSON.stringify(result).includes(ESCAPE_MARKER),
+        "MEASURED RESIDUAL (plan 32-10): a hard link inside the tree to an inode named outside it " +
+          "is read, because its path is inside the root. Refusing on `nlink > 1` was declined as a " +
+          "heuristic over a legitimate filesystem property. Bounded by: creating the link needs " +
+          "write access to the tree (the same access that would let an attacker paste the bytes " +
+          "into a ticket directly), hard links cannot cross a filesystem, and both Linux and macOS " +
+          "restrict linking to files the caller may already read. If this flips to `false`, the " +
+          "residual closed and the record should be updated rather than left saying otherwise",
+      ).toBe(true);
     });
   });
 });
