@@ -28,9 +28,19 @@
 // root — never a path derived from any file's content. The rule is this repository's own, recorded
 // at `scripts/claim.ts:38-44` ("The queue root is never derived from argv / env / a queue file's
 // content as an absolute path") and at `scripts/kit-model.ts` ("Fixed literal subpaths — never
-// argv/env/content-derived"). Every target is additionally asserted inside the resolved root before
-// it is read, using the refusal shape of `scripts/js-import-closure.ts:74-98`: the walk refuses
-// rather than returning short, because a short answer reads as a clean one.
+// argv/env/content-derived"). Every target is additionally RESOLVED TO ITS REAL LOCATION and
+// asserted inside the resolved root before it is read, at ONE authority — `insideRoot` below — using
+// the refusal shape of `scripts/js-import-closure.ts:74-98`: the walk refuses rather than returning
+// short, because a short answer reads as a clean one.
+//
+// THAT SENTENCE USED TO BE FALSE, AND THE PLACE IT WAS FALSE IS WHY THE AUTHORITY EXISTS (plan
+// 32-10, CR-04). The containment test compared a path `resolve()` had normalised LEXICALLY, and
+// `resolve()` does not follow symlinks while `readFileSync` does. A link planted at
+// `plans/tickets/ZZZ-999.md` therefore passed the test by SPELLING and was opened by its TARGET, and
+// the first characters of that target came back out in `readErrors[].message` — a field printed to
+// stderr on every frame and embedded in the published `--json` document. `realpathSync` resolves
+// every ANCESTOR link as well as the leaf, so a symlinked `plans/` directory and a symlinked ticket
+// file are one question asked once, at one place.
 //
 // Voice: CLEAR PROFESSIONAL VOICE throughout (CLAUDE.md hard rule — this is a trace surface).
 
@@ -41,7 +51,7 @@ import {
   realpathSync,
   statSync,
 } from "node:fs";
-import { join, relative, resolve, sep } from "node:path";
+import { dirname, join, relative, resolve, sep } from "node:path";
 
 import {
   joinSnapshot,
@@ -405,10 +415,32 @@ function sinceOf<T>(previous: SourceState<T> | undefined, readAt: string): strin
 
 /** Thrown when the seam meets a root it cannot vouch for. Never swallowed into a short result. */
 export class BoardReadError extends Error {
-  constructor(message: string) {
+  /**
+   * The code the refusal is reported under, so a caught refusal keeps the fact it was thrown with.
+   *
+   * WITHOUT THIS FIELD THE CATCH IS A SWALLOW ONE REGISTER UP (plan 32-10). `guarded` turns a thrown
+   * refusal into a `readErrors` entry, and an entry whose code is a constant would report a denied
+   * mode and a link out of the tree under the same word — which is CR-02's discarded errno wearing a
+   * different hat. `OUTSIDE-ROOT` for an escape, the errno for a resolution failure.
+   */
+  readonly code: string;
+
+  constructor(message: string, code: string = "unreadable") {
     super(message);
     this.name = "BoardReadError";
+    this.code = code;
   }
+}
+
+/**
+ * The stale reason an errno answers to — ONE spelling, read by every site that meets an errno.
+ *
+ * The mapping was written out by hand at three sites before this (plan 32-10), and three copies of a
+ * two-branch rule is the set-literal drift class this repository has already paid for: a fourth site
+ * added later gets whichever copy its author happened to read.
+ */
+function staleReasonForCode(code: string | undefined): StaleReason {
+  return code === "EACCES" || code === "EPERM" ? "eacces" : "unreadable";
 }
 
 // ── The joined sources (D-12) ────────────────────────────────────────────────────────────────────
@@ -534,22 +566,167 @@ export function resolveRepoRoot(repoRoot: string): string {
 }
 
 /**
+ * The code every containment refusal carries, at both path authorities and at `guarded`.
+ *
+ * A LITERAL DECLARED ONCE rather than spelled at each site: a consumer filtering `readErrors` for
+ * escapes asks one question, and three hand-typed copies of a code string is the set-literal drift
+ * class this repository has already paid for. It is NOT a sixth `StaleReason` — the reason is the
+ * published `unreadable`, because the bytes were not obtained, which is the sentence that reason
+ * already defines. `STALE_REASONS` stays at five.
+ */
+const OUTSIDE_ROOT = "OUTSIDE-ROOT";
+
+/** A containment decision: the REAL path to open, or a path-only refusal with its own code. */
+type Containment =
+  | { readonly ok: true; readonly real: string }
+  | { readonly ok: false; readonly code: string; readonly message: string };
+
+/** `target` is inside `root` — strictly inside, so the root itself is not one of its own children. */
+function isWithinRoot(root: string, target: string): boolean {
+  const rel = relative(root, target);
+  return rel !== "" && rel !== ".." && !rel.startsWith(`..${sep}`);
+}
+
+/**
+ * For a target that does not exist: the deepest ANCESTOR that does, resolved, with the missing tail
+ * put back on — or `null` when no ancestor can be vouched for.
+ *
+ * WHY THE ANCESTOR IS ASKED AT ALL. `realpathSync` on an absent path throws `ENOENT` and tells us
+ * nothing about WHERE the path would have been. Answering "absent, therefore fine" on that alone
+ * admits `../escape` (which is outside and merely does not exist yet) and, worse, admits
+ * `plans/board.md` under a `plans` that is a link out of the tree: the read then returns ENOENT
+ * today and reads the attacker's file the moment they create it, which is a check that expires. So
+ * the question is asked about the nearest real ancestor, and the caller applies the same containment
+ * test to the composed path.
+ *
+ * An ancestor that fails for any errno OTHER than `ENOENT` — a denied mode, a symlink cycle — is an
+ * ancestor this function cannot vouch for, and it returns `null` rather than guessing.
+ */
+function anchorAbsentTarget(
+  root: string,
+  target: string,
+): { readonly ok: true; readonly real: string } | { readonly ok: false; readonly code: string } {
+  let probe = dirname(target);
+  for (;;) {
+    let probeReal: string;
+    try {
+      probeReal = realpathSync(probe);
+    } catch (e) {
+      const err = e as NodeJS.ErrnoException;
+      const parent = dirname(probe);
+      if (err.code === "ENOENT" && parent !== probe) {
+        probe = parent;
+        continue;
+      }
+      // NOT `OUTSIDE-ROOT`. An ancestor this process cannot open is a permission finding, and
+      // reporting it as an escape would send an operator looking for an attacker instead of a mode.
+      return { ok: false, code: err.code ?? "unreadable" };
+    }
+    // The ancestor may BE the root — `plans/` under a tree with no `plans/` yet anchors on the root
+    // itself, which is the ordinary fresh-checkout shape and is legitimate.
+    if (probeReal !== root && !isWithinRoot(root, probeReal)) return { ok: false, code: OUTSIDE_ROOT };
+    return { ok: true, real: resolve(probeReal, relative(probe, target)) };
+  }
+}
+
+/**
+ * THE ONE PLACE THIS MODULE DECIDES WHETHER A PATH IS INSIDE THE TREE (plan 32-10, CR-04).
+ *
+ * `root` has ALREADY been through `realpathSync` at `resolveRepoRoot`, and this function puts the
+ * target through it too — so both sides of the comparison are real paths and the comparison means
+ * something for the first time. Resolving the FULL target resolves every ancestor link as well as
+ * the leaf, which is why a symlinked `plans/` directory and a symlinked `plans/tickets/ZZZ-999.md`
+ * are not two rules.
+ *
+ * THREE ARMS, EACH NAMED:
+ *
+ *   1. The path resolves and the real location is inside the root → admitted, carrying the REAL
+ *      path. The caller opens THAT, not the spelling it started with: opening a second path that
+ *      merely spells the same thing is how a check made before a link swap stops being a check.
+ *
+ *   2. The path does not exist (`ENOENT`) → the question is asked about its deepest real ancestor
+ *      (above), and an anchored answer inside the root is ADMITTED as the caller's own ENOENT arm to
+ *      answer. Refusing here would turn every absent optional source into a fault — the D-13
+ *      regression this repository has already paid for once — and a dangling symlink lands here and
+ *      is answered as absent, which is what it is.
+ *
+ *   3. Anything else — a resolved location outside the root, an unvouchable ancestor, an `ELOOP`
+ *      cycle, a denied mode on the way down → REFUSED, with a message naming the entry, the
+ *      destination it resolved to, and the root. THE MESSAGE CARRIES NO BYTE OF THE TARGET'S
+ *      CONTENT. That is the entire finding: content crossed this boundary and left through a field
+ *      that is printed to stderr every frame and published in `--json`.
+ *
+ * SYMLINK INSTALLS (D-05, plan 32-10 Task 3). `install/install.ts` supports an opt-in `--symlink`
+ * mode, so a target repository can carry `agent-factory/` as a link into a shared kit. Under that
+ * shape `FIXED_SUBPATHS.config` resolves outside the root and is REFUSED — measured, not assumed:
+ * the config source then shows a visible `readErrors` entry with code `OUTSIDE-ROOT` and falls back
+ * to the LEAN view, which is the answer CLAUDE.md C6 already defines for "no usable dial", and
+ * `install.ts` records that `agent-factory/config` is deliberately absent from the installed kit
+ * anyway. A refused dial degrades to lean; it never silently reads a file outside the tree.
+ */
+function insideRoot(root: string, target: string, what: string): Containment {
+  let real: string;
+  try {
+    real = realpathSync(target);
+  } catch (e) {
+    const err = e as NodeJS.ErrnoException;
+    if (err.code !== "ENOENT") {
+      return {
+        ok: false,
+        code: err.code ?? "unreadable",
+        message:
+          `board-read: ${what} ${target} could not be resolved to a real location ` +
+          `(${err.code ?? "unreadable"}). Refusing to read a path this module cannot place inside ` +
+          `the repository root ${root}.`,
+      };
+    }
+    const anchored = anchorAbsentTarget(root, target);
+    if (!anchored.ok) {
+      return {
+        ok: false,
+        code: anchored.code,
+        message:
+          anchored.code === OUTSIDE_ROOT
+            ? `board-read: ${what} ${target} does not exist and its nearest existing parent is ` +
+              `outside the repository root ${root}. Refusing to read through a path that leaves ` +
+              `the tree, including one whose target has not been created yet.`
+            : `board-read: ${what} ${target} does not exist and a parent of it could not be ` +
+              `inspected (${anchored.code}), so this module cannot place it inside the repository ` +
+              `root ${root}.`,
+      };
+    }
+    real = anchored.real;
+  }
+  if (!isWithinRoot(root, real)) {
+    return {
+      ok: false,
+      code: OUTSIDE_ROOT,
+      message:
+        `board-read: ${what} ${target} resolves to ${real}, which is outside the repository root ` +
+        `${root}. Reading through a link that leaves the tree is refused. No byte of that file's ` +
+        `content is quoted here, because its content reaching this message is the finding.`,
+    };
+  }
+  return { ok: true, real };
+}
+
+/**
  * Join a FIXED LITERAL subpath against the resolved root, asserting it stays inside.
  *
- * The assertion is the `js-import-closure.ts:74-82` shape. It is kept even though every caller in
- * this module passes a literal from `FIXED_SUBPATHS`: the guard costs one string comparison, and it
- * is what stops a future edit from threading a content-derived name through this one chokepoint.
+ * The assertion is `insideRoot` — the module's single containment authority — rather than a second
+ * spelling of the same comparison. It is kept even though every caller in this module passes a
+ * literal from `FIXED_SUBPATHS`: the guard costs one resolution, and it is what stops a future edit
+ * from threading a content-derived name through this one chokepoint.
+ *
+ * A REFUSAL HERE IS ONE SOURCE'S FINDING, NOT THE END OF THE SNAPSHOT. It throws, and `guarded`
+ * below turns the throw into that source's own stale arm — because a refusal that blanks the other
+ * five sources costs more than the attack it answers (T-32-10-03, D-12).
  */
 export function repoSubpath(root: string, relPath: string): string {
   const target = resolve(join(root, relPath));
-  const rel = relative(root, target);
-  if (rel === "" || rel === ".." || rel.startsWith(`..${sep}`)) {
-    throw new BoardReadError(
-      `board-read: the subpath ${relPath} resolves to ${target}, which is outside the repository ` +
-        `root ${root}. Refusing to read a path outside the tree.`,
-    );
-  }
-  return target;
+  const contained = insideRoot(root, target, `the subpath ${relPath} at`);
+  if (!contained.ok) throw new BoardReadError(contained.message, contained.code);
+  return contained.real;
 }
 
 /**
@@ -608,8 +785,12 @@ export function listDirectoryBounded(dir: string): BoundedListing {
     const err = e as NodeJS.ErrnoException;
     const code = err.code ?? "";
     if (code === "ENOENT") return { kind: "absent" };
-    const reason: StaleReason = code === "EACCES" || code === "EPERM" ? "eacces" : "unreadable";
-    return { kind: "failed", reason, code: code || "unreadable", message: err.message };
+    return {
+      kind: "failed",
+      reason: staleReasonForCode(code),
+      code: code || "unreadable",
+      message: err.message,
+    };
   }
   const names = entries.filter((n) => !n.includes(".tmp-"));
   if (names.length > MAX_WALK_ENTRIES) {
@@ -666,22 +847,113 @@ function settledFrom<T>(
 }
 
 /**
- * Join ONE directory entry against its directory, refusing anything that is not a plain segment.
+ * Run ONE source's reader, turning a containment refusal into THAT source's stale arm (plan 32-10).
+ *
+ * WHY A REFUSAL MUST NOT BE FATAL. `repoSubpath` throws, which is right — a fixed subpath that
+ * leaves the tree is a tree this module cannot vouch for. But `readSnapshot` calls six readers in a
+ * row, so an unguarded throw from the first one ends the snapshot and blanks the other five: a
+ * single hostile entry would take the whole dashboard down, which costs more than the attack it
+ * answers (T-32-10-03). D-12 is explicit that staleness is PER SOURCE with one badge, so a refused
+ * source is one badge over five readable ones.
+ *
+ * ONLY `BoardReadError` IS CAUGHT, AND EVERYTHING ELSE IS RETHROWN. This helper exists to localize a
+ * containment refusal. Widening it into a catch-all would hide the next real defect exactly the way
+ * the bare `catch` plan 32-09 removed hid this one — the swallow census in
+ * `scripts/board-read.test.ts` pins that at zero, and this clause binds and inspects what it caught.
+ *
+ * THE REPORTED PATH IS THE LEXICAL JOIN, NEVER THE RESOLVED ONE. The whole reason this arm is
+ * running is that the resolved location is somewhere this module refused to go; naming the source's
+ * own subpath tells the operator which source is dark without publishing where the link pointed a
+ * second time (the refusal message already names it once, by design).
+ */
+function guarded<T>(
+  source: SourceName,
+  root: string,
+  readAt: string,
+  previous: SourceState<T> | undefined,
+  read: () => Settled<T>,
+  fallback?: T,
+): Settled<T> {
+  try {
+    return read();
+  } catch (e) {
+    if (!(e instanceof BoardReadError)) throw e;
+    const path = join(root, FIXED_SUBPATHS[source]);
+    return settledFrom(
+      settleSource(
+        source,
+        path,
+        {
+          kind: "failed",
+          reason: staleReasonForCode(e.code),
+          code: e.code,
+          message: e.message,
+        },
+        previous,
+        readAt,
+        fallback,
+      ),
+    );
+  }
+}
+
+/**
+ * Join ONE directory entry against its directory, refusing anything that is not a plain segment AND
+ * anything that resolves out of the tree.
  *
  * `name` is the only content-derived path input this module has: it comes from a `readdirSync` of a
  * fixed-literal directory, and a directory entry is attacker-influenced whenever an agent can write
  * into the tree (T-32-03). `readdirSync` cannot return a separator, `.` or `..` today — the refusals
  * below are for the day the listing comes from somewhere else, which is the day they matter, and a
  * rule added after that day is a rule added after the traversal.
+ *
+ * IT RETURNS A DISCRIMINATED RESULT RATHER THAN `string | null` (plan 32-10, CR-04). A `null` return
+ * is indistinguishable from "this entry is uninteresting", which is precisely why the traversal that
+ * met the escape was SILENT about it: every caller wrote `if (path === null) continue;`. A refusal
+ * now carries a code and a path-only message, so the caller can report it as that source's own
+ * `readErrors` entry and a human watching the screen is told an entry left the tree.
  */
-function childPath(root: string, dir: string, name: string): string | null {
+export type ChildPath =
+  | { readonly ok: true; readonly path: string }
+  | {
+      readonly ok: false;
+      /** `unsafe-name` for a segment nobody vouched for; `OUTSIDE-ROOT` for a containment refusal. */
+      readonly code: string;
+      readonly message: string;
+      /**
+       * The path that was refused, as this authority SPELLED it — never as it resolved.
+       *
+       * It rides on the refusal so a caller can report the finding without composing a path of its
+       * own. That is not tidiness: every `join` a caller performs against a directory is a read
+       * target this module's censuses have to reason about, and a reporting join is
+       * indistinguishable from a reading one to anything that reads the file. The authority that
+       * computed the path is the one that names it.
+       */
+      readonly target: string;
+    };
+
+export function childPath(root: string, dir: string, name: string): ChildPath {
+  // THE SEGMENT REJECTIONS STAY FIRST, AND THAT ORDER IS THE RULE. They run before any filesystem
+  // access, which is what stops a name nobody vouched for from ever reaching a `join`.
   if (name === "" || name === "." || name === ".." || name.includes("/") || name.includes("\\")) {
-    return null;
+    return {
+      ok: false,
+      code: "unsafe-name",
+      // NOT a composed path: the segment is exactly what is being refused, so composing it with its
+      // directory here would perform the `join` this arm exists to prevent.
+      target: dir,
+      message:
+        `board-read: the directory entry \`${name}\` under ${dir} is not a plain path segment. ` +
+        `It is refused before any filesystem access, so a name nobody vouched for never reaches a ` +
+        `join.`,
+    };
   }
   const target = resolve(join(dir, name));
-  const rel = relative(root, target);
-  if (rel === "" || rel === ".." || rel.startsWith(`..${sep}`)) return null;
-  return target;
+  const contained = insideRoot(root, target, "the directory entry");
+  if (!contained.ok) {
+    return { ok: false, code: contained.code, message: contained.message, target };
+  }
+  return { ok: true, path: contained.real };
 }
 
 /**
@@ -828,8 +1100,20 @@ function readTicketsSource(
   // listing order happens to be. A frame that reshuffles on every re-read is a frame nobody can read.
   for (const name of [...listing.names].sort()) {
     if (!name.endsWith(".md")) continue;
-    const path = childPath(root, dir, name);
-    if (path === null) continue;
+    const child = childPath(root, dir, name);
+    // A REFUSED ENTRY IS A FINDING, NOT A SKIP (plan 32-10, CR-04). The silent `continue` this
+    // replaced is what made the escape invisible on the one channel that could have reported it.
+    if (!child.ok) {
+      errors.push({
+        source: "tickets",
+        path: child.target,
+        code: child.code,
+        message: child.message,
+      });
+      if (firstReadFailure === null) firstReadFailure = staleReasonForCode(child.code);
+      continue;
+    }
+    const path = child.path;
 
     const read = readVerifyReread(path, READ_RETRY_BOUND, seam);
     if (!read.ok) {
@@ -941,9 +1225,34 @@ function readQueueSource(
   for (const task of claimedNames) {
     // Defensive: never read through an unsafe segment. Skipped BEFORE any filesystem access.
     if (!isSafeTaskName(task)) continue;
-    const taskDir = childPath(root, claimedDir, task);
-    if (taskDir === null) continue;
-    const claimMd = join(taskDir, "claim.md");
+    const taskChild = childPath(root, claimedDir, task);
+    if (!taskChild.ok) {
+      errors.push({
+        source: "queue",
+        path: taskChild.target,
+        code: taskChild.code,
+        message: taskChild.message,
+      });
+      if (firstReadFailure === null) firstReadFailure = staleReasonForCode(taskChild.code);
+      continue;
+    }
+    const taskDir = taskChild.path;
+    // THE `claim.md` LITERAL GOES THROUGH THE SAME AUTHORITY (plan 32-10, CR-04). It used to be a
+    // bare `join` against the task directory, which meant a symlinked `claim.md` inside an otherwise
+    // legitimate claimed task escaped the rule every other read obeys. The argument for exempting a
+    // literal is the argument that produced the defect in `repoSubpath`.
+    const claimChild = childPath(root, taskDir, "claim.md");
+    if (!claimChild.ok) {
+      errors.push({
+        source: "queue",
+        path: claimChild.target,
+        code: claimChild.code,
+        message: claimChild.message,
+      });
+      if (firstReadFailure === null) firstReadFailure = staleReasonForCode(claimChild.code);
+      continue;
+    }
+    const claimMd = claimChild.path;
     if (!existsSync(claimMd)) continue;
 
     const read = readVerifyReread(claimMd, READ_RETRY_BOUND, seam);
@@ -1036,8 +1345,18 @@ function readContextSource(
   let firstReadFailure: StaleReason | null = null;
   for (const name of [...listing.names].sort()) {
     if (!isSafeTaskName(name)) continue;
-    const taskDir = childPath(root, dir, name);
-    if (taskDir === null) continue;
+    const taskChild = childPath(root, dir, name);
+    if (!taskChild.ok) {
+      errors.push({
+        source: "context",
+        path: taskChild.target,
+        code: taskChild.code,
+        message: taskChild.message,
+      });
+      if (firstReadFailure === null) firstReadFailure = staleReasonForCode(taskChild.code);
+      continue;
+    }
+    const taskDir = taskChild.path;
     let isDirectory = false;
     try {
       isDirectory = statSync(taskDir).isDirectory();
@@ -1056,15 +1375,27 @@ function readContextSource(
           code: err.code ?? "unreadable",
           message: `${taskDir} could not be inspected (${err.code ?? "unreadable"}): ${err.message}`,
         });
-        if (firstReadFailure === null) {
-          firstReadFailure = err.code === "EACCES" || err.code === "EPERM" ? "eacces" : "unreadable";
-        }
+        if (firstReadFailure === null) firstReadFailure = staleReasonForCode(err.code);
       }
       continue;
     }
     if (!isDirectory) continue;
 
-    const indexPath = join(taskDir, "index.jsonl");
+    // THE `index.jsonl` LITERAL GOES THROUGH THE SAME AUTHORITY, for the reason recorded at the
+    // queue reader's `claim.md` (plan 32-10, CR-04).
+    const indexChild = childPath(root, taskDir, "index.jsonl");
+    if (!indexChild.ok) {
+      errors.push({
+        source: "context",
+        path: indexChild.target,
+        code: indexChild.code,
+        message: indexChild.message,
+      });
+      if (firstReadFailure === null) firstReadFailure = staleReasonForCode(indexChild.code);
+      tasks.push({ task: name, noteCount: 0, liveCount: 0, latestAt: null, latestKind: null });
+      continue;
+    }
+    const indexPath = indexChild.path;
     const read = readVerifyReread(indexPath, READ_RETRY_BOUND, seam);
     if (!read.ok) {
       if (read.reason !== "enoent") {
@@ -1234,18 +1565,29 @@ export function readSnapshot(
 
   // THE DIAL IS READ FIRST, and the order is load-bearing rather than cosmetic: `id_prefix` is part
   // of what a conforming row identifier means (D-02), so the board parse needs the dial's value.
-  const config = readConfigSource(root, readAt, before?.config, seam);
-  const board = readBoardSource(
-    root,
-    readAt,
-    before?.board,
-    seam,
-    sourceValue(config.state)?.idPrefix ?? null,
+  // EVERY SOURCE READ IS WRAPPED (plan 32-10). `repoSubpath` throws on a containment refusal, and
+  // six unguarded calls in a row means the FIRST refusal blanks the other five — D-12 says staleness
+  // is per source with one badge, so a refused source is one badge over five readable ones. The
+  // wrapper count is pinned against `SOURCE_NAMES.length` by a census derived from this file.
+  const config = guarded("config", root, readAt, before?.config, () =>
+    readConfigSource(root, readAt, before?.config, seam),
+    LEAN_CONFIG_VIEW,
   );
-  const tickets = readTicketsSource(root, readAt, before?.tickets, seam);
-  const queue = readQueueSource(root, readAt, before?.queue, seam);
-  const context = readContextSource(root, readAt, before?.context, seam);
-  const traceability = readTraceabilitySource(root, readAt, before?.traceability, seam);
+  const board = guarded("board", root, readAt, before?.board, () =>
+    readBoardSource(root, readAt, before?.board, seam, sourceValue(config.state)?.idPrefix ?? null),
+  );
+  const tickets = guarded("tickets", root, readAt, before?.tickets, () =>
+    readTicketsSource(root, readAt, before?.tickets, seam),
+  );
+  const queue = guarded("queue", root, readAt, before?.queue, () =>
+    readQueueSource(root, readAt, before?.queue, seam),
+  );
+  const context = guarded("context", root, readAt, before?.context, () =>
+    readContextSource(root, readAt, before?.context, seam),
+  );
+  const traceability = guarded("traceability", root, readAt, before?.traceability, () =>
+    readTraceabilitySource(root, readAt, before?.traceability, seam),
+  );
 
   const sources = {
     board: board.state,
