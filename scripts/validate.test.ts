@@ -52,6 +52,69 @@ const ROOT = join(import.meta.dirname, "..");
 const VALIDATOR_JS = join(ROOT, "scripts", "validate-agent-factory.js");
 const FIX = join(ROOT, "scripts", "fixtures");
 
+// ── What counts as a validator fixture REPOSITORY ────────────────────────────────────────────────
+//
+// `scripts/fixtures/` used to hold nothing but validator fixture repositories, so "every directory
+// under it" and "every fixture repository" were the same set and the two discoveries below read
+// `readdirSync` directly. Plan 32-04 added `board-replay/`, which carries two trimmed markdown
+// boards and no `agent-factory/` tree at all — it is a replay corpus for the board grammar, not a
+// repository the validator can be pointed at. Running the validator on it, or looking for a
+// `factory.config.json` inside it, asks a question it has no answer to.
+//
+// So the set is derived by the PROPERTY that makes a member a member — it carries the config file
+// every fixture repository carries — and BOTH halves of the split are pinned. A new fixture
+// repository still fails the two-sided intent check below; a new non-repository directory has to be
+// named here with its reason, so neither can be added silently.
+const fixtureEntries = readdirSync(FIX, { withFileTypes: true })
+  .filter((e) => e.isDirectory())
+  .map((e) => e.name)
+  .sort();
+
+const fixtureConfigOf = (name: string): string =>
+  join(FIX, name, "agent-factory/config/factory.config.json");
+
+/** Directories under `scripts/fixtures/` that ARE validator fixture repositories. */
+const FIXTURE_REPOS = fixtureEntries.filter((name) => existsSync(fixtureConfigOf(name)));
+
+/** Directories under `scripts/fixtures/` that are NOT, each named with the reason it is not. */
+const NON_REPO_FIXTURE_DIRS: ReadonlyArray<readonly [string, string]> = [
+  [
+    "board-replay",
+    "plan 32-04's trimmed transcriptions of the two real agent-written boards, replayed by " +
+      "scripts/board-corpus.test.ts. Two markdown files and no agent-factory/ tree.",
+  ],
+];
+
+describe("scripts/fixtures/ splits into validator repositories and everything else", () => {
+  it("accounts for every directory on disk, in both halves, with no overlap", () => {
+    expect(
+      [...FIXTURE_REPOS, ...NON_REPO_FIXTURE_DIRS.map(([n]) => n)].sort(),
+      "a directory in neither half is a directory nobody classified; a directory in both is a " +
+        "classification that contradicts itself",
+    ).toEqual(fixtureEntries);
+    expect(
+      FIXTURE_REPOS.filter((n) => NON_REPO_FIXTURE_DIRS.some(([m]) => m === n)),
+      "no directory may sit in both halves",
+    ).toEqual([]);
+  });
+
+  it("pins each half's size, so a silent entrant moves a number rather than nothing", () => {
+    expect(FIXTURE_REPOS.length, "validator fixture repositories").toBe(8);
+    expect(NON_REPO_FIXTURE_DIRS.length, "directories that are deliberately not repositories").toBe(1);
+  });
+
+  it("gives every declared non-repository a REASON, not merely a name", () => {
+    for (const [name, reason] of NON_REPO_FIXTURE_DIRS) {
+      expect(existsSync(join(FIX, name)), `${name} is declared but not on disk`).toBe(true);
+      expect(
+        existsSync(fixtureConfigOf(name)),
+        `${name} carries a fixture config after all, so it belongs in the repository half`,
+      ).toBe(false);
+      expect(reason.length, `${name} is exempted with no reason recorded`).toBeGreaterThan(40);
+    }
+  });
+});
+
 const tmpDirs: string[] = [];
 afterAll(() => {
   for (const d of tmpDirs) rmSync(d, { recursive: true, force: true });
@@ -522,12 +585,8 @@ describe("each deliberately-broken fixture still fails for EXACTLY its own reaso
   it("the intent table names EVERY fixture repository on disk, and no other", () => {
     // Two-sided, so neither a fixture added without a row nor a row naming a deleted fixture can
     // hide. The disk side is discovered; the table side is written. Equality is the assertion.
-    const onDisk = readdirSync(FIX, { withFileTypes: true })
-      .filter((e) => e.isDirectory())
-      .map((e) => e.name)
-      .sort();
-    expect(INTENT.map(([f]) => f).sort()).toEqual(onDisk);
-    expect(onDisk.length).toBe(8);
+    expect(INTENT.map(([f]) => f).sort()).toEqual(FIXTURE_REPOS);
+    expect(FIXTURE_REPOS.length).toBe(8);
   });
 
   it.each(INTENT)(
@@ -567,15 +626,12 @@ describe("the retired key is gone from every shipped and fixture config surface 
   // The surface set is DISCOVERED, never listed: the two shipped JSON twins plus one JSON per
   // fixture repository found by reading the fixture directory. The count is asserted so a ninth
   // fixture added later cannot slip through un-scanned.
-  const fixtureDirs = readdirSync(FIX, { withFileTypes: true })
-    .filter((e) => e.isDirectory())
-    .map((e) => e.name)
-    .sort();
+  const fixtureDirs = FIXTURE_REPOS;
 
   const surfaces = [
     join(ROOT, "agent-factory/config/factory.config.json"),
     join(ROOT, "agent-factory/seed/.grugops/factory.config.json"),
-    ...fixtureDirs.map((d) => join(FIX, d, "agent-factory/config/factory.config.json")),
+    ...fixtureDirs.map((d) => fixtureConfigOf(d)),
   ];
 
   it("the discovered surface set is the eight fixture repositories plus the two shipped twins", () => {
