@@ -2067,6 +2067,8 @@ describe("30-03 D-13 — the derived, pinned set of config-resolving sites", () 
       "structure validator: reads the shipped kit config to assert it parses and carries mode/cadence/autonomy.",
     "scripts/guarantees-freshness.ts":
       "the guarantees drift gate (plan 30-07): COPIES whichever candidate exists into its temp mirror and refuses if none did. It opens no config for a value and parses no JSON; it moves bytes so the mirrored render reads the same matrix the real tree does.",
+    "scripts/board-read.ts":
+      "the board projector's read seam (plan 32-01): reads `mode`, `id_prefix` and `wip_limits` so the dashboard can SHOW the dial and cross-check the board's WIP numbers against it. A NON-GOVERNANCE dial reader — it decides nothing, it renders. A malformed dial marks the source stale and the projection continues; AUTO-06's single governance reader is untouched.",
   };
 
   /**
@@ -2094,7 +2096,7 @@ describe("30-03 D-13 — the derived, pinned set of config-resolving sites", () 
    * generator — and it stays a member only because it names `factory.config.json` in its own
    * refusal text, which is the predicate's deliberate superset behaviour.
    */
-  const CONFIG_PATH_SITE_COUNT = 9;
+  const CONFIG_PATH_SITE_COUNT = 10;
 
   /**
    * Refuse a zero-length set BY NAME rather than reporting a pass over nothing. This mirrors

@@ -1985,8 +1985,18 @@ const SECTION_EXTENT_OWNER_COUNT = 1;
  *   files and hands them to `parseBoard`.
  *   Re-derived rather than incremented: `git ls-files '*.ts'` minus the `.test.ts` and `.d.ts`
  *   members reports 81 with this module tracked.
+ *
+ * 81 -> 82 (plan 32-01, task 3), ONE TOOLING MODULE:
+ *   - `scripts/board-dashboard.ts` — the board projector's CLI (DASH-07). It owns argv, stdout
+ *     discipline and exit codes, and it is the entry the DASH-06 import-graph guard walks in plan
+ *     32-06.
+ *   BOTH OWNER ANSWERS ARE UNCHANGED, AND THAT WAS CHECKED RATHER THAN ASSUMED. It declares no
+ *   function named for the frontmatter parser, and it locates no section: it reads a snapshot and
+ *   renders it.
+ *   Re-derived rather than incremented: `git ls-files '*.ts'` minus the `.test.ts` and `.d.ts`
+ *   members reports 82 with this module tracked.
  */
-const NON_TEST_MODULE_COUNT = 81;
+const NON_TEST_MODULE_COUNT = 82;
 
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 // (Plan 29-40, gap G-29-1 of 29-UAT.md, closing V-29-35-01) THE FRONTMATTER-PARSER NAME OWNER SET.
@@ -2504,7 +2514,9 @@ describe("LANG-07: exactly ONE module owns the section-extent predicate (plan 29
     // three empty comparisons here and cannot make the agreement above vacuous on its own.
     // 53 → 54 (plan 32-01, task 2): `scripts/board-read.ts`, the fs-touching seam. It imports
     // `./board-model.js` and `./kit-model.js` and neither of the three specs compared below.
-    expect(flat.length, "the `scripts/`-scoped reader's own corpus").toBe(54);
+    // 54 → 55 (plan 32-01, task 3): `scripts/board-dashboard.ts`, the CLI. It imports
+    // `./board-read.js` and `./is-entry.js` and neither of the three specs compared below.
+    expect(flat.length, "the `scripts/`-scoped reader's own corpus").toBe(55);
     let compared = 0;
     for (const n of flat) {
       for (const spec of ["frontmatter", "canonical-frontmatter", "audit-model"]) {
@@ -2524,7 +2536,8 @@ describe("LANG-07: exactly ONE module owns the section-extent predicate (plan 29
     // `generate-hook-manifest.ts`, `hook-manifest-freshness.ts`.
     // 51 → 52 (plan 31-30): `check-platform-shapes.ts`.
     // 52 → 53 (plan 32-01, task 1): `board-model.ts`. 53 → 54 (plan 32-01, task 2): `board-read.ts`.
-    expect(compared, "the comparison must really have run over the whole corpus").toBe(54 * 3);
+    // 54 → 55 (plan 32-01, task 3): `board-dashboard.ts`.
+    expect(compared, "the comparison must really have run over the whole corpus").toBe(55 * 3);
     // NON-VACUITY: the comparison would be clean over two readers that both return nothing, so at
     // least one module must have produced a non-empty answer through the NEW reader.
     expect(
@@ -2701,7 +2714,8 @@ describe("LANG-07: exactly ONE module owns the section-extent predicate (plan 29
       // 51 → 52 (plan 31-30): `check-platform-shapes.ts`, the same module the flat reader gained.
       // 52 → 53 (plan 32-01, task 1): `board-model.ts`, the same module the flat reader gained.
       // 53 → 54 (plan 32-01, task 2): `board-read.ts`, the same module the flat reader gained.
-    ).toBe(54);
+      // 54 → 55 (plan 32-01, task 3): `board-dashboard.ts`, the same module the flat reader gained.
+    ).toBe(55);
 
     // THE ELEMENT COUNT, DERIVED INDEPENDENTLY OF THE WALK THAT PRODUCES IT. A vacuity floor catches
     // an EMPTY denominator and has never caught a SILENTLY SHORT one, so the set is compared against
