@@ -109,3 +109,36 @@ The in-suite mirrors are written under `.temp/board-readonly/`, removed in each 
 `finally`, and the parent removed in `afterAll`. Because `.temp/` is gitignored, the residue
 predicate is a REAL LISTING of that directory rather than a `git status` read — the guard's
 own final case asserts it is empty.
+
+------------------------------------------------------------------------------------------
+ADDENDUM — the run after the named command was wired (task 3)
+------------------------------------------------------------------------------------------
+
+The case list above was captured at 22 cases, before task 3 added the two that assert the
+ABSENCE of a dependency change rather than merely refraining from making one:
+
+    ✓ package.json still has no `dependencies` key
+    ✓ the check:dashboard-readonly entry runs exactly this file
+
+Final state, through the named command rather than through a bare vitest invocation:
+
+    $ npm run check:dashboard-readonly
+    > npx vitest run scripts/board-readonly.test.ts
+
+    board-readonly: mutating fs symbols 57 (stem-matched 60 minus 3 named exclusions) on node 24.12.0
+
+     Test Files  1 passed (1)
+          Tests  24 passed (24)
+
+And the whole repository suite, with this module in it:
+
+    $ npx vitest run --exclude '**/scripts/e2e/**'
+
+     Test Files  73 passed (73)
+          Tests  4647 passed | 2 skipped (4649)
+
+One structural pin moved in the same commit as that run: `TRIPWIRE_MODULES` in
+`scripts/check-foundation-guards.test.ts`, 66 -> 67, because a test module landed. It was
+re-derived (`ls scripts/*.test.ts | wc -l` → 67) rather than incremented, and it was moved
+only after that module's other 285 cases had read the new file and reported zero findings.
+A count pin surfacing a module's arrival is the pin working, not the pin being in the way.
