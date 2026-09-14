@@ -1,0 +1,95 @@
+32-04 RED BASELINE — the comment pre-pass, measured by removing it
+=================================================================
+
+Captured BEFORE the discrimination case was claimed to pass, in the row format
+25-05-RED-baseline.txt, 25-06-RED-baseline.txt and 32-03-RED-baseline.txt
+established. Companion file: 32-04-GREEN-proof.txt.
+
+WHY THIS CASE NEEDED A BASELINE MORE THAN ANY OTHER IN THE PHASE.
+
+D-03 asks the corpus to feed the board's own documentation block to the parser
+and assert zero columns, zero rows and zero updates. 32-RESEARCH.md Pitfall 2
+measured what that assertion is worth on the artifacts this repository actually
+carries:
+
+    with the comment strip removed entirely, the assertion STILL PASSES on
+    plans/board.md, on agent-factory/seed/plans/board.md, on the chess board and
+    on the dogfood board — because every mini-board inside every one of those
+    comments happens to be four-space indented, and the anchored heading scan
+    refuses an indented heading on its own.
+
+A correct implementation and a no-op are therefore indistinguishable on a
+transcribed corpus. A strip test that passes on its first run with no red
+recorded is the warning sign research names, and this file is the measurement
+that the case can fail.
+
+THE MUTATION.
+
+    scripts/board-model.js, the committed build vitest imports, at its single
+    pre-pass call site:
+
+        -    const lines = stripHtmlComments(normalized).split("\n");
+        +    const lines = normalized.split("\n");
+
+    Nothing else changed. `stripHtmlComments` is still exported and still
+    correct; it is simply no longer the thing `parseBoard` runs. The file was
+    restored with `git checkout -- scripts/board-model.js` and compared byte for
+    byte against a pre-mutation copy before anything was committed.
+
+WHAT WENT RED, PER CORPUS ROW.
+
+`npx vitest run --exclude '**/scripts/e2e/**' scripts/board-corpus.test.ts`
+
+    Test Files  1 failed (1)
+         Tests  10 failed | 24 passed (34)
+
+Six of the 167 corpus rows changed disposition. The corpus names each one:
+
+    live-comment-mini-board-kit    expected blanked            got preamble
+    mut-comment-unindented         expected blanked            got row
+    mut-comment-indent1            expected blanked            got preamble
+    mut-comment-indent-tab         expected blanked            got preamble
+    mut-comment-unterminated       expected blanked            got row
+    mut-comment-inside-column      expected blanked            got row
+
+THREE OF THEM REACH `row`. That is live state: a documented example, an
+uncommitted draft under an unclosed opener, and a mid-board annotation, each
+filed as a ticket a human reads as work in flight. The projector would be
+reporting state nobody wrote.
+
+The failing cases, by name:
+
+     1. the LIVE half > replays every live row to exactly the disposition the contract assigns it
+     2. the MUTATION half > replays every mutation row to exactly the disposition the contract assigns it
+     3. the MUTATION half > lets NO mutation reach a live bucket
+     4. the MUTATION half > refuses the mutations into MORE THAN ONE bucket
+     5. every disposition is REACHED > reaches every declared disposition and declares every reached one
+     6. every disposition is REACHED > names the rows that carry each disposition
+     7. the comment strip is a CONTROL > PREMISE: the pre-pass is called from exactly ONE site
+     8. the comment strip is a CONTROL > PREMISE: the mutation changes the pre-pass call and NOTHING else
+     9. the comment strip is a CONTROL > DISCRIMINATES: the un-indented mutation turns the claim RED
+    10. the comment strip is a CONTROL > DISCRIMINATES: every comment-strip mutation changes bucket
+
+Cases 7 and 8 are the mirror's own premises firing, which is correct: with the
+call site already neutered in the build, there is no call left for the mirror to
+rewrite, and a mirror that silently rewrote nothing would be a mirror that proved
+nothing.
+
+WHAT DID **NOT** GO RED, AND WHY IT IS THE POINT OF THIS FILE.
+
+    plans/board.md:4-51                          columns=0 rows=0 updates=0
+    agent-factory/seed/plans/board.md:4-51       columns=0 rows=0 updates=0
+    plans/traceability.md:4-34                   columns=0 rows=0 updates=0
+
+All three documentation blocks still yield zero columns, zero rows and zero
+updates with no comment pre-pass at all. Research's measurement reproduces
+exactly. The D-03 case asserted over transcribed artifacts alone is GREEN against
+a parser with no comment defence, and would have stayed green through any future
+regression that deleted the pre-pass.
+
+The two indented mutations move to `preamble` rather than to `row`, so they are
+still refused — which is precisely why they cannot stand in for the un-indented
+one. The single input that separates a working pre-pass from a no-op is a shape
+that exists nowhere on disk and had to be DERIVED from the contract's refusal
+rules. That derivation is the mutation half of scripts/board-corpus.ts, and this
+baseline is what says it earns its place.
