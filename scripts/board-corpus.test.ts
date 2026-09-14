@@ -532,7 +532,7 @@ async function loadMirror(): Promise<ParseFn> {
 
 const UNINDENTED_MUTATION_ID = "mut-comment-unindented";
 
-describe("board-corpus — the comment strip is a CONTROL, not a coincidence", () => {
+describe("board-corpus — the comment strip discriminates: a CONTROL, not a coincidence", () => {
   it("PREMISE: the pre-pass is called from exactly ONE site, in the source and in its build alike", () => {
     expect(
       occurrences(readFileSync(MODEL_TS, "utf8"), PREPASS_CALL),

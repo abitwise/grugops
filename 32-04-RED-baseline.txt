@@ -65,10 +65,10 @@ The failing cases, by name:
      4. the MUTATION half > refuses the mutations into MORE THAN ONE bucket
      5. every disposition is REACHED > reaches every declared disposition and declares every reached one
      6. every disposition is REACHED > names the rows that carry each disposition
-     7. the comment strip is a CONTROL > PREMISE: the pre-pass is called from exactly ONE site
-     8. the comment strip is a CONTROL > PREMISE: the mutation changes the pre-pass call and NOTHING else
-     9. the comment strip is a CONTROL > DISCRIMINATES: the un-indented mutation turns the claim RED
-    10. the comment strip is a CONTROL > DISCRIMINATES: every comment-strip mutation changes bucket
+     7. the comment strip discriminates > PREMISE: the pre-pass is called from exactly ONE site
+     8. the comment strip discriminates > PREMISE: the mutation changes the pre-pass call and NOTHING else
+     9. the comment strip discriminates > DISCRIMINATES: the un-indented mutation turns the claim RED
+    10. the comment strip discriminates > DISCRIMINATES: every comment-strip mutation changes bucket
 
 Cases 7 and 8 are the mirror's own premises firing, which is correct: with the
 call site already neutered in the build, there is no call left for the mirror to
