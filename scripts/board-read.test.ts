@@ -1317,3 +1317,174 @@ describe("board-read — the legitimate inputs the fix must not turn into faults
     });
   });
 });
+
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+// PLAN 32-09 TASK 3 — THE TEAR DETECTOR MEASURES TEARING (CR-03).
+//
+// The agreement test compared a DECODED string's re-encoded length against two stats. `readFileSync`
+// with an encoding substitutes U+FFFD for each invalid byte, so a file carrying one stray 0xE9 could
+// never satisfy it: the reader reported `torn` — a statement about a writer — for a file nothing was
+// writing, and burned three reads and six stats doing it on every poll.
+//
+// The cases below are a DISCRIMINATION, not a single assertion. A fix that simply deleted the size
+// comparison would pass "the non-UTF-8 file is not torn" and fail the repository: the real tear must
+// still be detected, and every valid encoding must still round-trip byte for byte.
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+
+/** Write raw bytes with no encoding argument, so an invalid sequence survives to disk. */
+function plantBytes(dir: string, name: string, bytes: Buffer): string {
+  const path = join(dir, name);
+  writeFileSync(path, bytes);
+  return path;
+}
+
+/** Valid ASCII with exactly one Latin-1 `0xE9` — a stray byte from a bad merge or an old editor. */
+const ONE_INVALID_BYTE = Buffer.concat([
+  Buffer.from("# Board\n## Backlog (WIP unlimited)\n- [ABC-101] caf", "utf8"),
+  Buffer.from([0xe9]),
+  Buffer.from(" latin1 title\n", "utf8"),
+]);
+
+describe("board-read — a non-decodable file is `unreadable`, never `torn` (plan 32-09, CR-03)", () => {
+  it("PREMISE: the planted file really is invalid UTF-8", () => {
+    // Without this, "reason unreadable" is equally true of a file that decodes fine and fails for
+    // some other reason, and the case below would measure nothing about encoding.
+    let threw = false;
+    try {
+      new TextDecoder("utf-8", { fatal: true }).decode(ONE_INVALID_BYTE);
+    } catch {
+      threw = true;
+    }
+    expect(threw, "PREMISE: the fixture bytes decode cleanly, so this block measures nothing").toBe(
+      true,
+    );
+  });
+
+  it("reports reason `unreadable` with code `ENCODING`, not a torn read", () => {
+    withTempTree((dir) => {
+      const path = plantBytes(dir, "board.md", ONE_INVALID_BYTE);
+      const read = readVerifyReread(path);
+      expect(read.ok).toBe(false);
+      expect(
+        read.ok === false ? read.reason : null,
+        "`torn` is a statement about a WRITER. Nothing wrote this file, so reporting it torn is a " +
+          "diagnosis of an event that did not happen",
+      ).toBe("unreadable");
+      expect(read.ok === false ? read.code : null).toBe("ENCODING");
+    });
+  });
+
+  it("reads the file EXACTLY ONCE — a decode failure is not retried", () => {
+    withTempTree((dir) => {
+      const path = plantBytes(dir, "board.md", ONE_INVALID_BYTE);
+      let attempts = 0;
+      readVerifyReread(path, READ_RETRY_BOUND, {
+        betweenReadAndStat: () => {
+          attempts += 1;
+        },
+      });
+      expect(
+        attempts,
+        "the bytes will not become decodable on attempt two, and a live screen paying three reads " +
+          "and six stats per source per refresh forever is the second half of what made this " +
+          "defect expensive",
+      ).toBe(1);
+      expect(READ_RETRY_BOUND, "PREMISE: the bound is above one, so 'once' is a real distinction").
+        toBeGreaterThan(1);
+    });
+  });
+
+  it("STILL reports `torn` for a file that is genuinely modified under every read", () => {
+    // The discrimination the whole task turns on: correcting the detector must not delete it.
+    withTempTree((dir) => {
+      const path = plantBoard(dir, ONE_COLUMN);
+      let attempts = 0;
+      const read = readVerifyReread(path, READ_RETRY_BOUND, {
+        betweenReadAndStat: () => {
+          attempts += 1;
+          appendFileSync(path, `- [ABC-${attempts}] written under the read\n`, "utf8");
+        },
+      });
+      expect(attempts, "PREMISE: the seam never fired, so no tear was driven").toBe(
+        READ_RETRY_BOUND,
+      );
+      expect(read.ok).toBe(false);
+      expect(read.ok === false ? read.reason : null).toBe("torn");
+      expect(read.ok === false ? read.code : null).toBe("TORN");
+    });
+  });
+});
+
+describe("board-read — every valid encoding round-trips byte for byte (plan 32-09, CR-03)", () => {
+  const roundTrips: readonly { readonly name: string; readonly bytes: Buffer }[] = [
+    { name: "pure ASCII", bytes: Buffer.from("## Backlog (WIP unlimited)\n- [ABC-001] plain\n") },
+    {
+      name: "multi-byte UTF-8 (a 3-byte em dash and a 4-byte emoji)",
+      bytes: Buffer.from("## Backlog (WIP unlimited)\n- [ABC-001] an em dash — and \u{1F600}\n"),
+    },
+    {
+      name: "CRLF line endings",
+      bytes: Buffer.from("## Backlog (WIP unlimited)\r\n- [ABC-001] windows\r\n"),
+    },
+  ];
+
+  for (const { name, bytes } of roundTrips) {
+    it(`returns text that re-encodes to the exact bytes on disk — ${name}`, () => {
+      withTempTree((dir) => {
+        const path = plantBytes(dir, "board.md", bytes);
+        const read = readVerifyReread(path);
+        expect(read.ok, `${name} was refused`).toBe(true);
+        const text = read.ok === true ? read.text : "";
+        expect(
+          Buffer.from(text, "utf8").equals(bytes),
+          "the returned text does not re-encode to the bytes on disk. A multi-byte sequence is " +
+            "where a size comparison against a DECODED length goes wrong, so this is the case " +
+            "that fails if the agreement test ever measures characters again",
+        ).toBe(true);
+      });
+    });
+  }
+
+  it("KEEPS a leading UTF-8 BOM in the returned text (`ignoreBOM: true` is load-bearing)", () => {
+    // `TextDecoder` strips a leading byte-order mark by DEFAULT and Node's own utf8 file read does
+    // not. Without `ignoreBOM: true` this change would silently alter the first line of any board a
+    // Windows editor saved — a behaviour change nobody asked for, smuggled in under a bug fix.
+    withTempTree((dir) => {
+      const bytes = Buffer.concat([
+        Buffer.from([0xef, 0xbb, 0xbf]),
+        Buffer.from("## Backlog (WIP unlimited)\n- [ABC-001] saved by a windows editor\n", "utf8"),
+      ]);
+      const path = plantBytes(dir, "board.md", bytes);
+      const read = readVerifyReread(path);
+      expect(read.ok).toBe(true);
+      const text = read.ok === true ? read.text : "";
+      expect(
+        text.charCodeAt(0),
+        "the BOM was stripped, so the first line of every BOM-carrying board changed under a fix " +
+          "that was supposed to change only the failure path",
+      ).toBe(0xfeff);
+      expect(Buffer.from(text, "utf8").equals(bytes)).toBe(true);
+    });
+  });
+
+  it("PREMISE: no file in scripts/fixtures/ carries a BOM today", () => {
+    // Which is exactly why the regression above would have shipped unnoticed. Recorded as a measured
+    // premise rather than asserted in a docblock nobody re-runs.
+    const withBom: string[] = [];
+    const walk = (d: string): void => {
+      for (const entry of readdirSync(d, { withFileTypes: true })) {
+        const p = join(d, entry.name);
+        if (entry.isDirectory()) {
+          walk(p);
+          continue;
+        }
+        const head = readFileSync(p).subarray(0, 3);
+        if (head.length === 3 && head[0] === 0xef && head[1] === 0xbb && head[2] === 0xbf) {
+          withBom.push(p);
+        }
+      }
+    };
+    walk(join(ROOT, "scripts", "fixtures"));
+    expect(withBom, "a fixture carries a BOM — the premise above is no longer true").toEqual([]);
+  });
+});

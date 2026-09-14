@@ -98,6 +98,60 @@ substantive claim the criterion was written to pin — no `readErrors` entry for
 permission failure — is measured directly by the `select(.source == "tickets")` count above, and it
 is 0. The post-fix criterion is read the same way: exactly one entry whose `source` is `tickets`.
 
+
 ## CR-03 — a single non-UTF-8 byte is reported as a torn read
 
-(recorded in Task 3, below)
+Recorded: 2026-09-14T20:13:56Z
+Artifact under test: the COMMITTED scripts/board-read.js at 6eaecfcb —
+tasks 1 and 2 of this plan did not touch `readVerifyReread`, so this is the defect as it stood.
+
+No fixture file carrying the invalid byte is committed. This repository's recorded lesson is
+that a file one tool classifies as binary is a file `grep` silently reports zero matches in, so
+the byte is written at test time into a temp tree and never enters the tracked corpus.
+
+$ cat cr03-red.mjs   # writes one 0xE9 among valid ASCII, then reads it once, with nothing writing
+    import { mkdtempSync, writeFileSync, realpathSync, rmSync } from "node:fs";
+    import { tmpdir } from "node:os";
+    import { join } from "node:path";
+    import { readVerifyReread, READ_RETRY_BOUND } from "scripts/board-read.js";
+    
+    const dir = mkdtempSync(join(realpathSync(tmpdir()), "grugops-32-09-cr03-"));
+    const path = join(dir, "board.md");
+    // Valid ASCII except for ONE Latin-1 0xE9. Written as a Buffer with no encoding argument,
+    // so the invalid byte survives to disk rather than being re-encoded.
+    const bytes = Buffer.concat([
+      Buffer.from("# Board\n## Backlog (WIP unlimited)\n- [ABC-101] caf", "utf8"),
+      Buffer.from([0xe9]),
+      Buffer.from(" latin1 title\n", "utf8"),
+    ]);
+    writeFileSync(path, bytes);
+    let attempts = 0;
+    const read = readVerifyReread(path, READ_RETRY_BOUND, { betweenReadAndStat: () => { attempts += 1; } });
+    console.log("bytes on disk:", bytes.length, "  first invalid byte at offset:", bytes.indexOf(0xe9));
+    console.log("nothing is writing this file: it was written once and never touched again");
+    console.log("result:", JSON.stringify(read.ok ? { ok: true, textLength: read.text.length } : { ok: false, reason: read.reason, code: read.code }));
+    console.log("seam fired (read attempts):", attempts, "of a retry bound of", READ_RETRY_BOUND);
+    if (!read.ok) console.log("message:", read.message.replace(dir, "<tmp>"));
+    rmSync(dir, { recursive: true, force: true });
+
+$ node cr03-red.mjs
+    bytes on disk: 65   first invalid byte at offset: 50
+    nothing is writing this file: it was written once and never touched again
+    result: {"ok":false,"reason":"torn","code":"TORN"}
+    seam fired (read attempts): 3 of a retry bound of 3
+    message: board-read: <tmp>/board.md changed under every one of 3 read attempts, so no read of it is trustworthy. The previous good value is kept and the source is marked stale.
+
+### What this baseline measures, stated exactly
+
+  * The file was written ONCE and nothing touched it again, so there is no writer and no tear.
+  * `readVerifyReread` nevertheless returns reason `torn` with code `TORN`, and its message asserts
+    the file "changed under every one of 3 read attempts" — a fabricated diagnosis of a writer that
+    does not exist, which CLAUDE.md's no-fabrication rule refuses before it is a bug.
+  * The seam fired THREE times: every refresh of a live dashboard costs 3 reads and 6 stats for a
+    file that can never satisfy the test, forever, on a mandatory 10-second poll.
+
+The mechanism is the third comparison in the agreement test:
+`after.size === Buffer.byteLength(text, "utf8")`, where `text` came from
+`readFileSync(path, "utf8")` — which replaces each invalid byte with U+FFFD (3 bytes). 65 bytes on
+disk decode to a string that re-encodes to 67, so the sizes can never agree. The tear detector was
+measuring the decoder, not the writer.
