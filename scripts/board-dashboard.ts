@@ -83,6 +83,14 @@ export type DashboardIo = {
   readonly stdout: { write(chunk: string): unknown };
   readonly stderr: { write(chunk: string): unknown };
   readonly isTty: boolean;
+  /**
+   * The terminal width, or `undefined` when the caller has none.
+   *
+   * `process.stdout.columns` IS UNDEFINED ON A PIPE, which is the common case for a `--once` run in
+   * CI. It arrives here rather than being read inside the renderer, because the renderer is pure
+   * (D-15) and because a width that comes from a parameter is a width a case can name.
+   */
+  readonly columns?: number | undefined;
 };
 
 const USAGE = [
@@ -721,11 +729,18 @@ export function createLoop(options: Options, io: DashboardIo, deps: LoopDeps): L
     }
     if (options.json) {
       // ONE COMPLETE DOCUMENT PER LINE (D-18). `JSON.stringify` emits no newline of its own, so the
-      // line boundary is the document boundary and a consumer can split on it.
+      // line boundary is the document boundary and a consumer can split on it. The whole document is
+      // BUFFERED and written in ONE call, so an interrupted run cannot leave a half-written line a
+      // consumer would fail to parse (T-32-23).
       io.stdout.write(`${JSON.stringify(withWatch)}\n`);
       return;
     }
-    io.stdout.write(renderFrame(withWatch));
+    // THE TTY BRANCH IS THE SAME RENDERER WITH DIFFERENT CONSTANTS (D-17, D-18). A redirected run
+    // passes the empty style and never clears, so a pipe receives plain text with no escape byte;
+    // a terminal gets the redraw and the minimal ANSI. Two renderers would be two authorities for
+    // one predicate, free to disagree about a frame nobody compares side by side.
+    const frame = renderFrame(withWatch, io.columns, io.isTty ? STYLE : PLAIN_STYLE);
+    io.stdout.write(io.isTty ? `${CLEAR_SCREEN}${frame}` : frame);
   }
 
   function refresh(): void {
@@ -800,6 +815,9 @@ function defaultIo(): DashboardIo {
     stdout: process.stdout,
     stderr: process.stderr,
     isTty: process.stdout.isTTY === true,
+    // `undefined` on a pipe, which is the common case in CI. The renderer falls back to
+    // `DEFAULT_WIDTH` rather than to whatever a runtime happened to guess.
+    columns: process.stdout.columns,
   };
 }
 
@@ -873,10 +891,43 @@ export function run(
  * calls `run` instead, because it is the only caller that can own a live loop.
  */
 export function main(argv: readonly string[], io: DashboardIo = defaultIo()): number {
-  const result = run(argv, io);
-  if (result.kind === "exit") return result.code;
-  result.loop.stop();
-  return 0;
+  try {
+    const result = run(argv, io);
+    if (result.kind === "exit") return result.code;
+    result.loop.stop();
+    return 0;
+  } catch (e) {
+    // ONE NAMED LINE ON STDERR, NEVER A STACK (T-32-08). The last bytes a piped consumer reads are
+    // the ones it is most likely to log, paste into an issue, or match on. A raw Node stack there
+    // leaks absolute paths and module layout and tells the caller nothing it can act on, so the
+    // message is flattened to a single line and the exit code carries the rest.
+    io.stderr.write(`board-dashboard: ${oneLine(e)}\n`);
+    return EXIT_USAGE;
+  }
+}
+
+/** Whatever was thrown, as ONE line: a multi-line message is still one failure to report. */
+function oneLine(e: unknown): string {
+  const message = e instanceof Error ? e.message : String(e);
+  return message.replace(/\s+/g, " ").trim();
+}
+
+/**
+ * The interrupt contract, as a FUNCTION rather than as a closure inside the entry tail.
+ *
+ * A CLOSURE IN THE TAIL IS UNREACHABLE FROM A CASE. The tail runs only under `isEntrypoint`, so the
+ * only way to observe it is to spawn a process and signal it — which proves the exit code and
+ * proves nothing about whether the watch handles were closed or the timers cleared before the
+ * process went away. As a function it is drivable with a fake loop, and the spawned-process case in
+ * task 3 still pins the code a shell sees.
+ *
+ * NOTHING PARTIAL IS FLUSHED. `stop()` clears the debounce and the poll and closes every watcher;
+ * there is no buffered frame to write out, because each frame and each JSON document is written in
+ * a single call (T-32-23).
+ */
+export function handleInterrupt(loop: Loop, exit: (code: number) => void): void {
+  loop.stop();
+  exit(0);
 }
 
 // The tail mirrors `scripts/coordinator-resolution-precheck.ts:589-600`: the code initialises to the
@@ -893,8 +944,7 @@ if (isEntrypoint(import.meta.url)) {
     // the event loop alive; SIGINT is the way out, and it closes every handle and clears both timers
     // before exiting 0 so no partial frame and no partial JSON document is left on stdout.
     process.on("SIGINT", () => {
-      result.loop.stop();
-      process.exit(0);
+      handleInterrupt(result.loop, (code) => process.exit(code));
     });
   } catch (e) {
     process.stderr.write(`board-dashboard: ${(e as Error).message}\n`);

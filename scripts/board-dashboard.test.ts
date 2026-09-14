@@ -20,11 +20,23 @@
 //
 // Vitest `globals: false` (the repo default) → the test functions are imported explicitly.
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import { realpathSync } from "node:fs";
 import { join } from "node:path";
 
-import { renderFrame } from "./board-dashboard.js";
+import {
+  CLEAR_SCREEN,
+  INTERVAL_HARD_FLOOR_MS,
+  PLAIN_STYLE,
+  POLL_FLOOR_MS,
+  STYLE,
+  createLoop,
+  handleInterrupt,
+  main,
+  renderFrame,
+  run,
+} from "./board-dashboard.js";
+import type { DashboardIo, LoopDeps, Options, WatchHandle } from "./board-dashboard.js";
 import { CONFLICT_KINDS, SOURCE_NAMES, readSnapshot } from "./board-read.js";
 import type { SnapshotResult, SourceName } from "./board-read.js";
 import type {
@@ -387,5 +399,302 @@ describe("board-dashboard — renderFrame is PURE (D-15, D-17)", () => {
     ).toBe(true);
     expect(after).toBe(before);
     expect(renderFrame(result, 200)).toBe(before);
+  });
+});
+
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+// TASK 2 — THE MODES AND THE EXIT CONTRACT (D-17, D-18, T-32-08, T-32-10).
+//
+// THE EXIT CODE IS NOT THE STATE CHANNEL. A stale board and a conflicted board both exit 0, because
+// what they have to say is IN the frame and in the JSON document. Exit 2 is reserved for exactly two
+// conditions — a usage error and an unreadable root — and the cases below pin both directions: the
+// two that DO exit 2, and the two states that deliberately do NOT.
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+
+type Captured = { out: string; err: string; code: number };
+
+/** A capturing io. `columns` is the width the renderer is handed; a pipe reports none. */
+function captureIo(isTty: boolean, columns?: number): DashboardIo & { readonly seen: Captured } {
+  const seen: Captured = { out: "", err: "", code: -1 };
+  return {
+    seen,
+    stdout: {
+      write: (s: string) => {
+        seen.out += s;
+        return true;
+      },
+    },
+    stderr: {
+      write: (s: string) => {
+        seen.err += s;
+        return true;
+      },
+    },
+    isTty,
+    ...(columns === undefined ? {} : { columns }),
+  };
+}
+
+/** Call `main` with a capturing io and return everything the invocation produced. */
+function runMain(argv: readonly string[], isTty: boolean, columns?: number): Captured {
+  const io = captureIo(isTty, columns);
+  const code = main(argv, io);
+  return { ...io.seen, code };
+}
+
+/** `LoopDeps` over a constructed result: no filesystem, no watcher, no clock. */
+function stubDeps(result: SnapshotResult, onRead?: () => void): LoopDeps {
+  return {
+    watch: () => ({ close: () => undefined, on: () => undefined }) as WatchHandle,
+    exists: () => false,
+    read: () => {
+      onRead?.();
+      return result;
+    },
+  };
+}
+
+/** Every ANSI SGR sequence, so a styled frame can be compared against its plain twin. */
+const SGR = new RegExp(`${ESC}\\[[0-9;]*m`, "g");
+
+afterEach(() => {
+  vi.useRealTimers();
+});
+
+describe("board-dashboard — the render modes (D-17, D-18)", () => {
+  it("clears the screen exactly once, writes one frame and exits 0 on a TTY --once run", () => {
+    const r = runMain([FIXTURE, "--once"], true);
+    expect(r.code).toBe(0);
+    expect(r.out.startsWith(CLEAR_SCREEN)).toBe(true);
+    expect(r.out.split(CLEAR_SCREEN).length - 1).toBe(1);
+    expect(r.out).toContain("grugops board");
+  });
+
+  it("writes one frame with NO escape byte and exits 0 on a non-tty --once run (D-18)", () => {
+    const r = runMain([FIXTURE, "--once"], false);
+    expect(r.code).toBe(0);
+    expect(r.out.includes(ESC)).toBe(false);
+    expect(r.out).toContain("grugops board");
+  });
+
+  it("treats a non-TTY run with NO flags as --once: one frame, exit 0 (D-18)", () => {
+    const r = runMain([FIXTURE], false);
+    expect(r.code).toBe(0);
+    expect(r.out.includes(ESC)).toBe(false);
+    expect((r.out.match(/grugops board/g) ?? []).length).toBe(1);
+  });
+
+  it("writes exactly ONE JSON document and exits 0 for --json on a TTY — --json implies --once", () => {
+    const r = runMain([FIXTURE, "--json"], true);
+    expect(r.code).toBe(0);
+    expect(
+      r.out.includes(CLEAR_SCREEN),
+      "a screen clear inside a JSON document is a document a consumer cannot parse",
+    ).toBe(false);
+    const parsed = JSON.parse(r.out) as { snapshot: { schemaVersion: number } };
+    expect(parsed.snapshot.schemaVersion).toBe(1);
+  });
+
+  it("writes one COMPLETE JSON document per line per re-read under --json --watch (D-18)", () => {
+    vi.useFakeTimers();
+    const io = captureIo(false);
+    const deps = stubDeps(makeResult({}));
+    const started = run(["/repo", "--json", "--watch", "--interval", "1000"], io, deps);
+    expect(started.kind).toBe("running");
+    if (started.kind !== "running") return;
+
+    vi.advanceTimersByTime(2_000);
+    started.loop.stop();
+
+    const lines = io.seen.out.split("\n").filter((l) => l !== "");
+    expect(
+      lines.length,
+      "PREMISE: fewer than two documents were emitted, so 'every line is complete' says almost nothing",
+    ).toBeGreaterThanOrEqual(3);
+    for (const line of lines) {
+      expect(() => JSON.parse(line) as unknown).not.toThrow();
+    }
+  });
+
+  it("renders the TTY and non-TTY frames through the SAME renderer, identical once the style is empty", () => {
+    const result = fixtureResult();
+    const styled = renderFrame(result, 120, STYLE);
+    const plain = renderFrame(result, 120, PLAIN_STYLE);
+    expect(
+      styled,
+      "PREMISE: the styled frame is byte-identical to the plain one, so the comparison below " +
+        "would pass over a renderer that never applied a style at all",
+    ).not.toBe(plain);
+    expect(styled.replace(SGR, "")).toBe(plain);
+  });
+
+  it("falls back to 80 columns when the io reports no width, and honours one when it does", () => {
+    const narrow = runMain([FIXTURE, "--once"], false).out;
+    const wide = runMain([FIXTURE, "--once"], false, 200).out;
+    // The header is deliberately exempt from truncation: it carries the badge that says the frame
+    // is not to be trusted, and a cut badge is worse than a wrapped line.
+    const body = (frame: string): string[] => frameLines(frame).slice(1);
+
+    expect(
+      body(narrow).some((l) => l.endsWith("…")),
+      "PREMISE: nothing in the fixture frame is longer than 80 columns, so the fallback below is " +
+        "asserted over a frame no width could have changed",
+    ).toBe(true);
+    expect(Math.max(...body(narrow).map((l) => l.length))).toBeLessThanOrEqual(80);
+    expect(Math.max(...body(wide).map((l) => l.length))).toBeGreaterThan(80);
+  });
+});
+
+describe("board-dashboard — the exit contract (D-18, T-32-08, T-32-10)", () => {
+  it("exits 0 for a STALE result and exits 0 for a CONFLICTED result — the code is not the channel", () => {
+    const stale = makeResult({
+      source: "stale",
+      sources: { board: staleSince("2026-09-14T11:00:00.000Z", "torn") },
+    });
+    const conflicted = makeResult({
+      conflicts: [
+        {
+          kind: "wip-count",
+          column: "In Development",
+          expected: "claimed 2, limit 3",
+          actual: "counted 3",
+          source: "board",
+        },
+      ],
+    });
+
+    for (const [name, result] of [
+      ["stale", stale],
+      ["conflicted", conflicted],
+    ] as const) {
+      const io = captureIo(false);
+      const outcome = run(["/repo", "--once"], io, stubDeps(result));
+      expect(outcome.kind).toBe("exit");
+      expect(
+        outcome.kind === "exit" ? outcome.code : -1,
+        `a ${name} board still exits 0: what it has to say is in the frame, and a consumer that ` +
+          `pipes the output should not have to decide whether a nonzero code meant "the board says ` +
+          `something" or "the tool broke"`,
+      ).toBe(0);
+    }
+  });
+
+  it("exits 2 with a named one-line stderr message and an EMPTY stdout for an unreadable repoRoot", () => {
+    const r = runMain([join(ROOT, "no", "such", "tree"), "--once"], false);
+    expect(r.code).toBe(2);
+    expect(r.out).toBe("");
+    expect(r.err).toContain("no/such/tree");
+    expect(r.err).not.toContain("    at ");
+  });
+
+  it("exits 2 with the usage on stderr and an EMPTY stdout for an unknown flag", () => {
+    const r = runMain([FIXTURE, "--nonsense"], false);
+    expect(r.code).toBe(2);
+    expect(r.out).toBe("");
+    expect(r.err).toContain("--nonsense");
+    expect(r.err).toContain("usage:");
+  });
+
+  it("exits 2 and NAMES the 1000 ms floor for --interval below it, non-integer and negative alike", () => {
+    for (const bad of ["999", "0", "abc", "1e4", "1000.5", "-1"]) {
+      const r = runMain([FIXTURE, "--interval", bad], false);
+      expect(r.code, `--interval ${bad} must be refused rather than coerced`).toBe(2);
+      expect(r.out).toBe("");
+      expect(
+        r.err,
+        `--interval ${bad} was refused without naming the ${INTERVAL_HARD_FLOOR_MS} ms floor, so ` +
+          `the message does not tell the caller what a legal value is`,
+      ).toContain(String(INTERVAL_HARD_FLOOR_MS));
+    }
+  });
+
+  it("exits 2 with exactly ONE named stderr line when an exception escapes inside main (T-32-08)", () => {
+    const seen = { err: "", out: "" };
+    const io: DashboardIo = {
+      stdout: {
+        write: () => {
+          throw new Error("the pipe closed\nwith a second line");
+        },
+      },
+      stderr: {
+        write: (s: string) => {
+          seen.err += s;
+          return true;
+        },
+      },
+      isTty: false,
+    };
+
+    let escaped = false;
+    let code = -1;
+    try {
+      code = main(["--help"], io);
+    } catch {
+      escaped = true;
+    }
+
+    expect(
+      escaped,
+      "an exception that escapes `main` reaches the runtime's default handler, which prints a raw " +
+        "stack — the last bytes a piped consumer reads (T-32-08)",
+    ).toBe(false);
+    expect(code).toBe(2);
+    expect(seen.out).toBe("");
+    expect(seen.err.trimEnd().split("\n").length).toBe(1);
+    expect(seen.err).toContain("board-dashboard");
+  });
+});
+
+describe("board-dashboard — SIGINT closes the loop rather than the process mid-frame", () => {
+  it("closes every watcher, clears both timers and exits 0 on interrupt", () => {
+    vi.useFakeTimers();
+    const closed: boolean[] = [];
+    let reads = 0;
+    const options: Options = {
+      repoRoot: "/repo",
+      once: false,
+      json: true,
+      watch: true,
+      intervalMs: null,
+    };
+    const deps: LoopDeps = {
+      watch: () => {
+        const at = closed.push(false) - 1;
+        return {
+          close: () => {
+            closed[at] = true;
+          },
+          on: () => undefined,
+        } as WatchHandle;
+      },
+      exists: () => true,
+      read: () => {
+        reads += 1;
+        return makeResult({});
+      },
+    };
+
+    const loop = createLoop(options, captureIo(false), deps);
+    loop.armAll();
+    loop.start(POLL_FLOOR_MS);
+    expect(
+      closed.length,
+      "PREMISE: no watcher was armed, so 'every watcher is closed' is true of a loop that never " +
+        "watched anything",
+    ).toBeGreaterThan(0);
+
+    const exits: number[] = [];
+    handleInterrupt(loop, (c) => exits.push(c));
+
+    expect(closed.every((c) => c)).toBe(true);
+    expect(exits).toEqual([0]);
+
+    const before = reads;
+    vi.advanceTimersByTime(POLL_FLOOR_MS * 3);
+    expect(
+      reads,
+      "the poll interval survived the interrupt, so the process would keep re-reading a tree " +
+        "nobody is watching any more",
+    ).toBe(before);
   });
 });
