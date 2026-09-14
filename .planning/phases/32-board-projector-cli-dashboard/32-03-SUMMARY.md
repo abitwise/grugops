@@ -24,7 +24,7 @@ affects: [32-04, 32-05, 32-06, 32-07, 32-08]
 actuals:
   tokens: 32600
   tasks: 3
-  commits: 8
+  commits: 11
 plan_head_before: 56e5e894a6593e2e409d99edfa7a19c794678d1a
 
 tech-stack:
@@ -252,6 +252,10 @@ status: complete
 6. **Task 3 (GREEN): the 250 ms debounce** — `fdf8cc7e` (feat)
 7. **Derived-set pin moves** — `14c7aae5` (test)
 8. **Docblocks in the present tense** — `8e4ad2a4` (refactor)
+
+9. **Plan metadata** — `12ed8627` (docs)
+10. **The defect-ledger entry for deviation 1** — `2575d63c` (docs)
+11. **The measured commit count** — this commit, which is the eleventh and says so
 
 Each RED run was verified with `gsd-tools check tdd-red-evidence` and returned `RED_EVIDENCE_OK` (target_test_failed) before its GREEN commit was written.
 
