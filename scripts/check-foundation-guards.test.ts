@@ -9355,7 +9355,19 @@ const censusRelationshipFindings = (c: TripwireCensus): string[] => {
 // Re-derived rather than incremented: `ls scripts/*.test.ts | wc -l` reports 67 on this tree,
 // agreeing with the live census, and the bump lands in the SAME commit as the run in which the full
 // suite first observed the module.
-const TRIPWIRE_MODULES = 67;
+//
+// 67 -> 68 (plan 32-07, tasks 1 to 3): ONE test module, `scripts/board-dashboard.test.ts` — the
+// D-17 frame and the D-18 process contract. Its direct-call half renders constructed snapshot
+// results at named widths; its spawned-process half drives the compiled `scripts/board-dashboard.js`
+// as a child and asserts what a CI consumer receives on each stream and in the exit code. It is a
+// genuine test module rather than a corpus file, so a pin that surfaced it arriving is the correct
+// thing to have fired. The bump was made AFTER the run that fired it, in which this module's other
+// 285 cases had already read the new file and reported zero findings — the pin moved because a
+// module landed, not to make a red go away.
+// Re-derived rather than incremented: `ls scripts/*.test.ts | wc -l` reports 68 on this tree,
+// agreeing with the live census, and the bump lands in the SAME commit as the run in which the full
+// suite first observed the module.
+const TRIPWIRE_MODULES = 68;
 /**
  * Corpus-derived floors, expressed as RATES so the floor grows with the corpus it floors.
  * Each is set well below its measured live value: the point is to catch a measurement that
