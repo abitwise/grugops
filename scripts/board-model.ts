@@ -212,12 +212,18 @@ export type FactoryConfigView = {
  * The published snapshot (D-19). `schemaVersion` is the contract a future web renderer consumes;
  * `board` is the joined board model; `sources` carries one read state per joined source so a single
  * missing `.grugops/` cannot hide a fresh board (D-12).
+ *
+ * `board` IS NULLABLE, AND THE NULL IS THE POINT. D-11 forbids "an empty board" as an output state
+ * distinct from "zero rows under real headings". A non-nullable `BoardModel` here would force a
+ * caller with no readable board to synthesize an empty one, which is exactly the confusion the
+ * `unavailable` arm above exists to make unrepresentable. `board` is `null` if and only if
+ * `sources.board` is `unavailable`, and the top-level result discriminant says so first.
  */
 export type FactorySnapshot = {
   readonly schemaVersion: number;
   readonly repoRoot: string;
   readonly generatedAt: string;
-  readonly board: BoardModel;
+  readonly board: BoardModel | null;
   readonly config: FactoryConfigView | null;
   readonly sources: Readonly<{
     readonly [K in SourceName]: SourceState<unknown>;

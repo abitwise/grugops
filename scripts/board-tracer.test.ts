@@ -348,3 +348,206 @@ describe("board-model — kebab, the ONE spelling (D-06)", () => {
     expect(kebab("Ready for UAT")).toBe("ready-for-uat");
   });
 });
+
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+// TASK 2 — THE READ SEAM (`scripts/board-read.ts`, D-23).
+//
+// `board-model.ts` is pure by construction and this module is where the filesystem is touched, so
+// the purity claim is an IMPORT EDGE a guard can check rather than a sentence in a docblock. The
+// cases below drive the discriminated result (D-11), the realpath-once root resolution (T-32-03),
+// and the distinction between an ABSENT source and a STALE one (D-13).
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, symlinkSync, realpathSync } from "node:fs";
+import { tmpdir } from "node:os";
+
+import {
+  BoardReadError,
+  FIXED_SUBPATHS,
+  SOURCE_COUNT,
+  SOURCE_NAMES,
+  listDirectoryBounded,
+  readSnapshot,
+  repoSubpath,
+  resolveRepoRoot,
+} from "./board-read.js";
+
+/** A scratch tree that is always removed, whatever the case does with it. */
+function withTempTree(run: (dir: string) => void): void {
+  const dir = mkdtempSync(join(realpathSync(tmpdir()), "grugops-board-"));
+  try {
+    run(dir);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+describe("board-read — the source set (D-12)", () => {
+  it("pins the source count two-sided against the derived tuple", () => {
+    expect(SOURCE_COUNT).toBe(SOURCE_NAMES.length);
+  });
+
+  it("pins the source count at six", () => {
+    expect(
+      SOURCE_NAMES.length,
+      "a seventh joined source is a DECISION recorded in the phase context and in " +
+        "agent-factory/contracts/board.md, never a bumped constant",
+    ).toBe(6);
+  });
+
+  it("names every joined source exactly once", () => {
+    expect([...SOURCE_NAMES]).toEqual([
+      "board",
+      "tickets",
+      "queue",
+      "context",
+      "traceability",
+      "config",
+    ]);
+    expect(new Set(SOURCE_NAMES).size).toBe(SOURCE_NAMES.length);
+  });
+
+  it("joins only FIXED LITERAL subpaths — no path is derived from any file's content (ASVS V12)", () => {
+    expect(FIXED_SUBPATHS.board).toBe("plans/board.md");
+    expect(FIXED_SUBPATHS.config).toBe("agent-factory/config/factory.config.json");
+    expect(FIXED_SUBPATHS.tickets).toBe("plans/tickets");
+    expect(FIXED_SUBPATHS.queue).toBe(".grugops/queue");
+    expect(FIXED_SUBPATHS.context).toBe(".grugops/context");
+    expect(FIXED_SUBPATHS.traceability).toBe("plans/traceability.md");
+    expect(Object.keys(FIXED_SUBPATHS).length).toBe(SOURCE_COUNT);
+  });
+});
+
+describe("board-read — root resolution (T-32-03)", () => {
+  it("resolves the root ONCE through realpath, so a symlinked invocation is the same answer", () => {
+    withTempTree((dir) => {
+      const link = join(dir, "link");
+      const real = join(dir, "real");
+      mkdirSync(real);
+      symlinkSync(real, link);
+      expect(resolveRepoRoot(link)).toBe(realpathSync(real));
+    });
+  });
+
+  it("refuses an unresolvable root BY NAME rather than returning a snapshot", () => {
+    const missing = join(realpathSync(tmpdir()), "grugops-board-no-such-root-32-01");
+    expect(() => resolveRepoRoot(missing)).toThrow(BoardReadError);
+    expect(() => resolveRepoRoot(missing)).toThrow(missing);
+    expect(() => readSnapshot(missing)).toThrow(BoardReadError);
+  });
+
+  it("refuses a root that resolves to a FILE rather than a directory", () => {
+    withTempTree((dir) => {
+      const f = join(dir, "not-a-directory");
+      writeFileSync(f, "x", "utf8");
+      expect(() => resolveRepoRoot(f)).toThrow(BoardReadError);
+    });
+  });
+
+  it("refuses a target that escapes the resolved root, before any read", () => {
+    withTempTree((dir) => {
+      const root = resolveRepoRoot(dir);
+      expect(() => repoSubpath(root, "../escape")).toThrow(BoardReadError);
+      expect(() => repoSubpath(root, "..")).toThrow(BoardReadError);
+      expect(repoSubpath(root, "plans/board.md")).toBe(join(root, "plans/board.md"));
+    });
+  });
+});
+
+describe("board-read — the discriminated result on THIS repository (D-11, D-13)", () => {
+  it("reads the real board and reports an `ok` result", () => {
+    const result = readSnapshot(ROOT);
+    expect(
+      result.snapshot.repoRoot,
+      "PREMISE: the snapshot did not record the repository root, so every finding below describes " +
+        "a tree nobody identified",
+    ).toBe(realpathSync(ROOT));
+    expect(result.source).toBe("ok");
+    expect(result.snapshot.sources.board.source).toBe("ok");
+    expect(result.snapshot.board?.columns.length).toBe(13);
+    expect(result.readErrors).toEqual([]);
+  });
+
+  it("reports an ABSENT `.grugops/` as unavailable, never as stale (D-13)", () => {
+    const queue = readSnapshot(ROOT).snapshot.sources.queue;
+    expect(queue.source).toBe("unavailable");
+    // The `unavailable` arm carries NO value. "Render an empty board because the file was missing"
+    // is unrepresentable rather than merely discouraged.
+    expect(Object.prototype.hasOwnProperty.call(queue, "value")).toBe(false);
+    expect(queue.source === "unavailable" ? queue.present : true).toBe(false);
+  });
+
+  it("reads the config dial and reports its mode", () => {
+    const result = readSnapshot(ROOT);
+    expect(result.snapshot.sources.config.source).toBe("ok");
+    expect(result.snapshot.config?.mode).toBe("lean");
+    expect(result.snapshot.config?.idPrefix).toBe("ABC");
+    expect(result.snapshot.config?.wipLimits["In Development"]).toBe(3);
+  });
+
+  it("stamps the published schema version on the snapshot (D-19)", () => {
+    expect(readSnapshot(ROOT).snapshot.schemaVersion).toBe(1);
+  });
+});
+
+describe("board-read — a tree with no board (D-11)", () => {
+  it("returns an UNAVAILABLE result, never an `ok` result with zero columns", () => {
+    withTempTree((dir) => {
+      const result = readSnapshot(dir);
+      expect(result.source).toBe("unavailable");
+      expect(result.snapshot.sources.board.source).toBe("unavailable");
+      expect(result.snapshot.board).toBeNull();
+    });
+  });
+
+  it("reads a board that IS present under a tree with no config", () => {
+    withTempTree((dir) => {
+      mkdirSync(join(dir, "plans"), { recursive: true });
+      writeFileSync(
+        join(dir, "plans", "board.md"),
+        "## Backlog (WIP unlimited)\n- [ABC-014] Asset allocation chart\n",
+        "utf8",
+      );
+      const result = readSnapshot(dir);
+      expect(result.source).toBe("ok");
+      expect(result.snapshot.board?.columns.map((c) => c.name)).toEqual(["Backlog"]);
+      expect(result.snapshot.sources.config.source).toBe("unavailable");
+      expect(result.snapshot.config).toBeNull();
+    });
+  });
+
+  it("marks a MALFORMED config stale and keeps going, rather than throwing (T-32-09)", () => {
+    withTempTree((dir) => {
+      mkdirSync(join(dir, "plans"), { recursive: true });
+      writeFileSync(join(dir, "plans", "board.md"), "## Done (WIP unlimited)\n", "utf8");
+      mkdirSync(join(dir, "agent-factory", "config"), { recursive: true });
+      writeFileSync(join(dir, "agent-factory", "config", "factory.config.json"), "{ not json", "utf8");
+
+      const result = readSnapshot(dir);
+      expect(result.source).toBe("stale");
+      expect(result.snapshot.sources.config.source).toBe("stale");
+      expect(result.snapshot.board?.columns.length).toBe(1);
+      expect(result.readErrors.map((e) => e.source)).toEqual(["config"]);
+    });
+  });
+});
+
+describe("board-read — bounded directory listing (D-14, RESEARCH pitfall 5)", () => {
+  it("filters a `.tmp-` sibling EXPLICITLY, never incidentally by extension", () => {
+    withTempTree((dir) => {
+      writeFileSync(join(dir, "ABC-001.md"), "x", "utf8");
+      writeFileSync(join(dir, "board.md.tmp-4242-1-abcdef01"), "x", "utf8");
+      const listed = listDirectoryBounded(dir);
+      expect(listed.names).toEqual(["ABC-001.md"]);
+      expect(listed.bounded).toBe(false);
+    });
+  });
+
+  it("reports an ABSENT directory rather than throwing", () => {
+    withTempTree((dir) => {
+      const listed = listDirectoryBounded(join(dir, "no-such-directory"));
+      expect(listed.present).toBe(false);
+      expect(listed.names).toEqual([]);
+    });
+  });
+});
