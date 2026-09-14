@@ -1232,3 +1232,131 @@ describe("30-10 R4 — R6-1 and R6-2: one supplied-root expression, one base ide
     expect(o).toMatch(/replace, not merge/);
   });
 });
+
+// ── Plan 32-08 (DASH-01 / D-06): the validator reads the ONE board grammar ───────────────────────
+//
+// `checkTickets()` used to carry its own two-line column parser. That made `scripts/board-model.ts`
+// the authority for the projector and `validate-agent-factory.ts` the authority for the validator —
+// two spellings of one grammar, free to disagree, and a disagreement between two parsers is
+// invisible until it has already misreported the board. The helper is deleted and the validator
+// imports `boardHasColumn` / `parseBoard` / `kebab` from `./board-model.js`.
+//
+// The extraction is not a byte-for-byte port. D-06 says "semantics preserved, defects fixed,
+// deviations NAMED", and the two named deviations are the two RED cases below. Each one changes
+// what the validator reports, so each is asserted end to end against the spawned validator rather
+// than against the module in isolation — the module already has its own pins in
+// scripts/board-tracer.test.ts, and a pin there would not have noticed the validator still holding
+// its own copy.
+describe("validate-agent-factory.js — one board grammar (plan 32-08, DASH-01 / D-06)", () => {
+  /** A hermetic kit whose board and single ticket are exactly the shapes a case names. */
+  function kitWithBoardAndTicket(board: string, ticket: string): string {
+    const d = copyGoodKit(true);
+    writeFileSync(join(d, "plans", "board.md"), board);
+    writeFileSync(join(d, "plans", "tickets", "TST-001.md"), ticket);
+    return d;
+  }
+
+  // DEVIATION 1 — the suffix strip widens from the single `(WIP …)` form to D-05's three forms.
+  //
+  // Before: `boardColumnName` stripped `\s*\(WIP[^)]*\)\s*$`, which does not match
+  // `(visible, time-tracked)`, so the column name stayed `Blocked (visible, time-tracked)` and a
+  // ticket in the Blocked column was reported as being in no board column at all. The kit's OWN
+  // board carries that heading, so the defect was live on every repository the kit installs.
+  it("DEVIATION 1: `## Blocked (visible, time-tracked)` names the column `Blocked`", () => {
+    const kit = kitWithBoardAndTicket(
+      "# Board (fixture)\n\n## Ready (WIP 0/8)\n\n## Blocked (visible, time-tracked)\n",
+      "---\ncolumn: Blocked\nstatus: blocked\n---\n# TST-001\n",
+    );
+    const r = runFixture(kit);
+    expect(
+      out(r),
+      "the Blocked heading must normalize to `Blocked`, so a ticket in it is IN a board column",
+    ).not.toMatch(/not a board column/i);
+    expect(r.status, "a traceability WARNING is the only finding, so the bare exit is 0").toBe(0);
+  });
+
+  // DEVIATION 2 — a `##` heading whose suffix is none of the three forms opens NO column.
+  //
+  // Before: the strip removed nothing from `## Columns (spec §6.1)` and the trim left the whole
+  // string, so the validator believed in a phantom column literally named `Columns (spec §6.1)`.
+  // A ticket could claim it and pass membership. The kit's own board carries that heading too.
+  it("DEVIATION 2: `## Columns (spec §6.1)` opens no column, so a ticket claiming it is refused", () => {
+    const kit = kitWithBoardAndTicket(
+      "# Board (fixture)\n\n## Ready (WIP 0/8)\n\n## Columns (spec §6.1)\n",
+      "---\ncolumn: Columns (spec §6.1)\nstatus: columns-spec-6-1\n---\n# TST-001\n",
+    );
+    const r = runFixture(kit);
+    expect(out(r), "a non-canonical suffix must not create a phantom column").toMatch(
+      /column "Columns \(spec §6\.1\)" is not a board column/,
+    );
+    expect(r.status).not.toBe(0);
+  });
+
+  // The WR-03 counterexample, pinned through the IMPORT PATH rather than through the deleted
+  // helper. This case was already green before the extraction — it is a regression pin, not a
+  // discrimination, and 32-08-GREEN-proof.txt records it as such.
+  it("WR-03 stays pinned: column `In` does not match `## In Development (WIP 0/3)`", () => {
+    const kit = kitWithBoardAndTicket(
+      "# Board (fixture)\n\n## In Development (WIP 0/3)\n",
+      "---\ncolumn: In\nstatus: in\n---\n# TST-001\n",
+    );
+    const r = runFixture(kit);
+    expect(out(r), "a bare prefix match would have accepted `In`").toMatch(
+      /column "In" is not a board column/,
+    );
+    expect(r.status).not.toBe(0);
+  });
+
+  // The source-shape half. A behavioural case proves the validator AGREES with board-model today;
+  // it cannot prove the validator has no second copy that merely happens to agree. These two
+  // negative greps do, and they are run over the COMMENT-STRIPPED source so the explanatory prose
+  // above the import (which necessarily quotes the deleted spelling) cannot satisfy them.
+  describe("no second spelling of the grammar survives in the validator source", () => {
+    const VALIDATOR_TS = join(ROOT, "scripts", "validate-agent-factory.ts");
+    const codeOf = (p: string): string =>
+      readFileSync(p, "utf8")
+        .split("\n")
+        .filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l))
+        .join("\n");
+
+    it("declares no local `boardColumnName` — the helper is imported, not restated", () => {
+      expect(codeOf(VALIDATOR_TS)).not.toMatch(/const boardColumnName\s*=/);
+    });
+
+    it("carries no bare prefix-match membership spelling", () => {
+      // `startsWith("## " + col + " ")` is the pre-WR-03 defect. Asserting the STEM rather than the
+      // full expression refuses the whole family, including a re-spelling with different spacing.
+      expect(codeOf(VALIDATOR_TS)).not.toContain('startsWith("## "');
+    });
+
+    it("imports the grammar from ./board-model.js", () => {
+      const code = codeOf(VALIDATOR_TS);
+      expect(code).toMatch(/import\s*{[^}]*\bboardHasColumn\b[^}]*}\s*from\s*"\.\/board-model\.js"/s);
+      expect(code).toMatch(/import\s*{[^}]*\bparseBoard\b[^}]*}\s*from\s*"\.\/board-model\.js"/s);
+      expect(code).toMatch(/import\s*{[^}]*\bkebab\b[^}]*}\s*from\s*"\.\/board-model\.js"/s);
+    });
+
+    it("`kebab` has exactly ONE declaration across the validator and board-model", () => {
+      // The rule `kebab(column) === status` is what joins a board column to a ticket status. Two
+      // spellings of it is the set-literal drift class this milestone exists to close.
+      const decls = [VALIDATOR_TS, join(ROOT, "scripts", "board-model.ts")]
+        .map((p) => (codeOf(p).match(/const kebab\s*=/g) ?? []).length)
+        .reduce((a, b) => a + b, 0);
+      expect(decls, "one grammar, one spelling of its kebab rule").toBe(1);
+    });
+  });
+
+  // The two board↔ticket message strings are a published surface: two cases in this file assert
+  // their text, and a reworded message is a behaviour change nobody asked for. Pinning them here
+  // makes the requirement explicit rather than incidental to the fixture cases.
+  it("keeps both board↔ticket messages byte-identical through the extraction", () => {
+    const bad = runFixture(join(FIX, "bad-ticket-bad-column"));
+    expect(out(bad)).toContain(
+      'plans/tickets/ABC-001.md: column "Nonexistent Column" is not a board column',
+    );
+    const mismatch = runFixture(join(FIX, "bad-ticket-mismatch"));
+    expect(out(mismatch)).toContain(
+      'plans/tickets/ABC-001.md: status "in-review" does not match column "In Development" (expected kebab "in-development")',
+    );
+  });
+});

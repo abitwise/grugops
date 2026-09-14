@@ -1,0 +1,189 @@
+32-08 RED BASELINE — one board grammar, RED against the validator's own second copy
+==================================================================================
+
+Captured BEFORE the extraction, in the row format 32-03-RED-baseline.txt, 32-04-RED-baseline.txt,
+32-06-RED-baseline.txt and 32-07-RED-baseline.txt established.
+Companion file: 32-08-GREEN-proof.txt.
+
+WHY THIS FILE EXISTS AT ALL.
+
+`checkTickets()` returns at `scripts/validate-agent-factory.ts:723` when `plans/tickets/` holds no
+markdown file, and on this tree it holds only a `.gitkeep`. So the ENTIRE board-reading path of the
+validator is dead code on the live repository: `VALIDATE_KIT_ROOT=. node
+scripts/validate-agent-factory.js` exercises none of the code this plan deletes, and would print
+`ALL CHECKS PASSED` whether the extraction preserved the semantics or destroyed them. The eight
+fixture repositories under `scripts/fixtures/` are the only evidence a regression would leave, and a
+sweep captured AFTER the edit is not a baseline. Both halves are recorded below: the eight-tree
+sweep, and the six assertions that had to fail first.
+
+COMMAND, TREE AND EXIT CODE.
+
+    HEAD                6d59ed1e (docs(32-07): record plan completion in state, roadmap and requirements)
+    working tree        scripts/validate.test.ts — new describe block, plan 32-08's six cases plus
+                        two regression pins
+                        scripts/validate-agent-factory.ts — UNCHANGED: the two locally declared
+                        column helpers still at :735-741, the local `kebab` still at :250-256
+    command             npx vitest run --exclude '**/scripts/e2e/**' scripts/validate.test.ts
+    exit code           1
+    result              99 tests | 6 failed
+
+---------------------------------------------------------------------------------------------------
+1. EVERY FAILURE IS AN ASSERTION ON THE PLANNED BEHAVIOUR, NOT A CRASH
+---------------------------------------------------------------------------------------------------
+
+The distinction is the whole point of a baseline: a syntax error, a failed import or a fixture crash
+also exits non-zero, and none of them authorises the GREEN that follows. Each line below is the
+runner's own text.
+
+    AssertionError: the Blocked heading must normalize to `Blocked`, so a ticket in it is IN a
+      board column: expected '  SCOPE    governance configurations …' not to match
+      /not a board column/i
+    AssertionError: a non-canonical suffix must not create a phantom column: expected
+      'ALL CHECKS PASSED\n  SCOPE    governa…' to match
+      /column "Columns \(spec §6\.1\)" is no…/
+    AssertionError: expected '\nimport { readFileSync, existsSync, …' not to match
+      /const boardColumnName\s*=/
+    AssertionError: expected '\nimport { readFileSync, existsSync, …' not to contain
+      'startsWith("## "'
+    AssertionError: expected '\nimport { readFileSync, existsSync, …' to match
+      /import\s*{[^}]*\bboar…/board-model\.js"
+    AssertionError: one grammar, one spelling of its kebab rule: expected 2 to be 1
+      // Object.is equality
+
+The first two are BEHAVIOURAL, measured end to end against the spawned validator on a hermetic kit,
+and each is one of the two deliberate deviations D-06 requires to be named rather than discovered:
+
+    DEVIATION 1   `## Blocked (visible, time-tracked)` — the old strip removed `\s*\(WIP[^)]*\)\s*$`
+                  and nothing else, so the column name stayed `Blocked (visible, time-tracked)` and
+                  a ticket with `column: Blocked` was reported as being in NO board column. The
+                  kit's own board carries that heading, so the defect shipped to every install.
+    DEVIATION 2   `## Columns (spec §6.1)` — the old strip removed nothing and the trim kept the
+                  whole string, so the validator believed in a phantom column of that literal name
+                  and a ticket could claim it and pass membership. The kit's own board carries that
+                  heading too.
+
+The last four are STRUCTURAL: a behavioural case can prove the validator AGREES with
+`scripts/board-model.ts` today, but it cannot prove the validator holds no second copy that merely
+happens to agree. The negative greps run over the comment-stripped source, so the explanatory prose
+that necessarily quotes the deleted spelling cannot satisfy them.
+
+---------------------------------------------------------------------------------------------------
+2. TWO CASES WERE ALREADY GREEN, AND THAT IS RECORDED RATHER THAN CLAIMED AS A DISCRIMINATION
+---------------------------------------------------------------------------------------------------
+
+    "WR-03 stays pinned: column `In` does not match `## In Development (WIP 0/3)`"
+    "keeps both board↔ticket messages byte-identical through the extraction"
+
+Both pass on the pre-extraction tree, because the WR-03 hardening and the two message strings are
+exactly what the extraction must PRESERVE. They are regression pins, not discriminations, and
+counting them as evidence that the extraction worked would be counting the absence of a change as
+proof of a change.
+
+---------------------------------------------------------------------------------------------------
+3. THE EIGHT-FIXTURE SWEEP, PRE-EXTRACTION
+---------------------------------------------------------------------------------------------------
+
+Every validator fixture repository under `scripts/fixtures/` — the eight directories carrying both a
+factory config and an AGENTS.md, the set `scripts/validate.test.ts` pins at 8 — run bare and again
+under `--strict`, against the COMMITTED `scripts/validate-agent-factory.js`. Sixteen blocks. The
+post-extraction sweep in 32-08-GREEN-proof.txt is compared against this text block by block.
+
+    for n in <the eight>; do for flag in bare strict; do
+      VALIDATE_KIT_ROOT=scripts/fixtures/$n VALIDATE_ROOT=scripts/fixtures/$n \
+        node scripts/validate-agent-factory.js [--strict]
+    done; done
+
+--- bad-config-no-mode [bare] exit=1
+  SCOPE    governance configurations examined: agent-factory/config/factory.config.json
+  ERROR    agent-factory/config/factory.config.json: missing or empty required key "mode"
+1 ERROR(S)
+
+--- bad-config-no-mode [strict] exit=1
+  SCOPE    governance configurations examined: agent-factory/config/factory.config.json
+  ERROR    agent-factory/config/factory.config.json: missing or empty required key "mode"
+1 ERROR(S) (--strict: warnings promoted)
+
+--- bad-plugin-noname [bare] exit=1
+  SCOPE    governance configurations examined: agent-factory/config/factory.config.json
+  ERROR    .claude-plugin/plugin.json: missing or empty required field "name"
+1 ERROR(S)
+
+--- bad-plugin-noname [strict] exit=1
+  SCOPE    governance configurations examined: agent-factory/config/factory.config.json
+  ERROR    .claude-plugin/plugin.json: missing or empty required field "name"
+1 ERROR(S) (--strict: warnings promoted)
+
+--- bad-role-missing-section [bare] exit=1
+  SCOPE    governance configurations examined: agent-factory/config/factory.config.json
+  ERROR    agent-factory/roles/orchestrator.md: missing required role section "## Hard limits"
+1 ERROR(S)
+
+--- bad-role-missing-section [strict] exit=1
+  SCOPE    governance configurations examined: agent-factory/config/factory.config.json
+  ERROR    agent-factory/roles/orchestrator.md: missing required role section "## Hard limits"
+1 ERROR(S) (--strict: warnings promoted)
+
+--- bad-ticket-bad-column [bare] exit=1
+  SCOPE    governance configurations examined: agent-factory/config/factory.config.json
+  ERROR    plans/tickets/ABC-001.md: column "Nonexistent Column" is not a board column
+1 ERROR(S)
+
+--- bad-ticket-bad-column [strict] exit=1
+  SCOPE    governance configurations examined: agent-factory/config/factory.config.json
+  ERROR    plans/tickets/ABC-001.md: column "Nonexistent Column" is not a board column
+1 ERROR(S) (--strict: warnings promoted)
+
+--- bad-ticket-mismatch [bare] exit=1
+  SCOPE    governance configurations examined: agent-factory/config/factory.config.json
+  ERROR    plans/tickets/ABC-001.md: status "in-review" does not match column "In Development" (expected kebab "in-development")
+  WARNING  plans/tickets/ABC-001.md: no traceability row for ticket "ABC-001"
+1 ERROR(S)
+
+--- bad-ticket-mismatch [strict] exit=1
+  SCOPE    governance configurations examined: agent-factory/config/factory.config.json
+  ERROR    plans/tickets/ABC-001.md: status "in-review" does not match column "In Development" (expected kebab "in-development")
+  WARNING  plans/tickets/ABC-001.md: no traceability row for ticket "ABC-001"
+2 ERROR(S) (--strict: warnings promoted)
+
+--- bad-workflow-no-commit [bare] exit=1
+  SCOPE    governance configurations examined: agent-factory/config/factory.config.json
+  ERROR    agent-factory/workflows/04-ticket-to-pr.md: missing required "## Commit" section
+1 ERROR(S)
+
+--- bad-workflow-no-commit [strict] exit=1
+  SCOPE    governance configurations examined: agent-factory/config/factory.config.json
+  ERROR    agent-factory/workflows/04-ticket-to-pr.md: missing required "## Commit" section
+1 ERROR(S) (--strict: warnings promoted)
+
+--- good [bare] exit=0
+  SCOPE    governance configurations examined: agent-factory/config/factory.config.json
+ALL CHECKS PASSED
+
+--- good [strict] exit=0
+  SCOPE    governance configurations examined: agent-factory/config/factory.config.json
+ALL CHECKS PASSED
+
+--- warn-only-no-trace [bare] exit=0
+  SCOPE    governance configurations examined: agent-factory/config/factory.config.json
+  WARNING  plans/tickets/ABC-002.md: no traceability row for ticket "ABC-002"
+ALL CHECKS PASSED
+
+--- warn-only-no-trace [strict] exit=1
+  SCOPE    governance configurations examined: agent-factory/config/factory.config.json
+  WARNING  plans/tickets/ABC-002.md: no traceability row for ticket "ABC-002"
+1 ERROR(S) (--strict: warnings promoted)
+
+---------------------------------------------------------------------------------------------------
+4. WHAT THIS SWEEP CAN AND CANNOT SEE
+---------------------------------------------------------------------------------------------------
+
+Recorded here rather than left for a reader to discover: all eight fixture boards carry the SAME
+four headings — `## Ready (WIP 0/8)`, `## In Development (WIP 0/3)`, `## In Review (WIP 0/3)`,
+`## Done (WIP unlimited)`. Every one of the four is legal under both the old strip and D-05's three
+forms. So neither named deviation can appear in this sweep: no fixture board carries a Blocked
+heading or a non-canonical `##` suffix.
+
+That makes the expected post-extraction sweep byte-identical in all sixteen blocks, and it makes the
+sweep a REGRESSION instrument rather than a deviation instrument. The two deviations are measured by
+the two behavioural cases in section 1, on boards built for the purpose. Reading a zero-difference
+sweep as "the deviations did not happen" would invert what it measures.
