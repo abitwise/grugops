@@ -1167,16 +1167,18 @@ describe("D-64 cutover: the spawn verdict is rendered by the canonical admission
       cutover.length,
       "no module imports ./canonical-frontmatter.js — the cutover did not happen",
     ).toBeGreaterThan(0);
-    // ENTRANT (plan 32-03, task 2): `board-read.ts`. The board projector's read seam admits every
-    // `plans/tickets/*.md` through `admit` / `admittedValuesFor` rather than growing a second
-    // frontmatter grammar of its own — which is the outcome this derived set exists to observe, so
-    // the pin firing on its arrival is the correct thing to have happened. It renders no spawn
-    // verdict: it reads `name` and `description` off an admitted ticket and takes NOTHING from the
-    // demoted parser, so the per-module assertion below covers it unchanged. Re-derived rather than
-    // appended blind: the filter reports exactly these three on this tree, and the entry lands in
-    // the same commit as the run that first observed it.
+    // DEPARTURE (plan 32-05, task 1): `board-read.ts` entered this set in plan 32-03 and LEAVES it
+    // here. That plan routed `plans/tickets/*.md` through `admit` and recorded the consequence
+    // rather than smoothing it over: `CANONICAL_SCHEMA` is the KIT ADAPTER schema, so every
+    // ticket-shaped document was refused with `unknown-key` and `board-vs-ticket` could never be
+    // derived. Plan 32-05 answered the question the honest way — the TICKET is a second document
+    // class with its own closed key set, admitted by `parseTicketDocument` in the pure board module,
+    // and the spawn-grant authority is left untouched rather than widened to carry ticket keys.
+    // `board-read.ts` therefore imports nothing from `./canonical-frontmatter.js` any more, renders
+    // no spawn verdict, and takes nothing from the demoted parser. Re-derived rather than edited
+    // blind: the filter reports exactly these two on this tree, and the removal lands in the same
+    // commit as the run that first observed it.
     expect(cutover).toEqual([
-      "board-read.ts",
       "check-foundation-guards.ts",
       "coordinator-resolution-precheck.ts",
     ]);

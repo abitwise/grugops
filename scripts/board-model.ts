@@ -299,14 +299,18 @@ export type FactoryConfigView = {
 // Each is a PROJECTION, not a copy of the file it came from. The dashboard joins and renders; it is
 // not a second store, and a field nothing renders is a field that goes stale unnoticed.
 
-/** One ticket under `plans/tickets/`, as the ONE frontmatter authority admitted it. */
+/** One ticket under `plans/tickets/`, as `parseTicketDocument` below admitted it. */
 export type TicketRecord = {
   /** The file name relative to `plans/tickets/`, which is the only identity the reader can trust. */
   readonly file: string;
-  /** `name` from the admitted frontmatter when it carries one, else the file's stem. */
+  /** `id` from the admitted frontmatter when it carries one, else the file's stem. */
   readonly id: string;
-  /** `description` from the admitted frontmatter, or "" when the document carries none. */
+  /** `title` from the admitted frontmatter, or "" when the document carries none. */
   readonly title: string;
+  /** `column` from the admitted frontmatter, or null when the document carries none. */
+  readonly column: string | null;
+  /** `status` from the admitted frontmatter, or null when the document carries none. */
+  readonly status: string | null;
 };
 
 /** One claimed task, as `scripts/claim.ts`'s reader half would have trusted it. */
@@ -561,14 +565,44 @@ function boundRow(parts: RowParts): RowParts & { readonly truncated: boolean } {
 /** A legal row, decomposed — or `null` when the line is not a row at all. */
 type RowMatch = { readonly id: string; readonly parts: RowParts; readonly isEpic: boolean };
 
-function matchRow(line: string): RowMatch | null {
+/**
+ * The ticket identifier's prefix — everything before the final hyphen of an already-matched ID.
+ *
+ * Only ever applied to a string that `TICKET_ID` has already admitted, so the hyphen it looks for
+ * is guaranteed present and the result is guaranteed to be capitals and digits.
+ */
+function idPrefixOf(id: string): string {
+  return id.slice(0, id.lastIndexOf("-"));
+}
+
+/**
+ * Decompose a row, honouring the configured identifier prefix (D-02).
+ *
+ * THE PREFIX RULE IS ENFORCED BY THE PARSE RATHER THAN BY AN EIGHTH CONFLICT KIND. The contract
+ * says a bracket carrying anything other than a conforming identifier makes the line unparsed, and
+ * `factory.config.json#id_prefix` is part of what "conforming" means. Plan 32-04 found that the
+ * pure parser could not enforce it because it holds no dial; the answer is that the dial's VALUE is
+ * passed in by the read seam, not that the parser reads a file. The module stays pure, and the
+ * refusal stays loud — a foreign-prefix row is reported with its line number rather than joined.
+ *
+ * EPIC AND FEATURE IDENTIFIERS ARE EXEMPT. They are a second class (D-02) with their own fixed
+ * prefixes, so a project prefix has nothing to say about them.
+ */
+function matchRow(line: string, idPrefix: string | null): RowMatch | null {
   const row = ROW.exec(line);
   if (row === null) return null;
   const id = row[1] as string;
   if (EPIC_ID.test(id)) return { id, parts: splitRow(row[2] as string), isEpic: true };
-  if (TICKET_ID.test(id)) return { id, parts: splitRow(row[2] as string), isEpic: false };
-  return null;
+  if (!TICKET_ID.test(id)) return null;
+  if (idPrefix !== null && idPrefix !== "" && idPrefixOf(id) !== idPrefix) return null;
+  return { id, parts: splitRow(row[2] as string), isEpic: false };
 }
+
+/** What `parseBoard` needs from outside the document it is parsing. */
+export type ParseOptions = {
+  /** `factory.config.json#id_prefix`, as the read seam found it. `null` means no dial value. */
+  readonly idPrefix?: string | null;
+};
 
 /**
  * Parse a board document into the `schemaVersion: 1` model.
@@ -599,7 +633,8 @@ function matchRow(line: string): RowMatch | null {
  * all, and its prose belongs to that named section rather than to an unnamed preamble that would
  * then carry two unrelated kinds of line.
  */
-export function parseBoard(text: string): BoardModel {
+export function parseBoard(text: string, options: ParseOptions = {}): BoardModel {
+  const idPrefix = options.idPrefix ?? null;
   const normalized = text.split("\r\n").join("\n");
   const lines = stripHtmlComments(normalized).split("\n");
   const bounds = measure(text, normalized);
@@ -650,7 +685,7 @@ export function parseBoard(text: string): BoardModel {
       continue;
     }
 
-    const row = matchRow(raw);
+    const row = matchRow(raw, idPrefix);
     if (row !== null) {
       if (column === null) {
         unparsed.push({ line: lineNo, text: raw, column: null });
@@ -753,4 +788,463 @@ export function matchUpdateLine(line: string, lineNo: number): UpdateEntry | nul
     line: lineNo,
     truncated: text.cut || actor.cut,
   };
+}
+
+// ── The ticket document (plan 32-05, D-10) ───────────────────────────────────────────────────────
+//
+// WHY A TICKET GRAMMAR LIVES HERE AND NOT IN `scripts/canonical-frontmatter.ts`.
+//
+// Plan 32-03 routed `plans/tickets/*.md` through `admit` and RECORDED the problem rather than
+// smoothing it over: `CANONICAL_SCHEMA` is the KIT ADAPTER schema (`name`, `description`, `tools`,
+// …), so a ticket carrying `status:` or `column:` is refused with `unknown-key`. A projector that
+// refuses every real ticket cannot derive `board-vs-ticket` at all, so the question had to be
+// answered here. Three answers were considered:
+//
+//   * WIDEN `CANONICAL_SCHEMA` to carry the ticket keys. REFUSED. That constant is the spawn-grant
+//     authority closed at Phase 27 round 12; adding keys to it widens the set of documents the
+//     spawn gate admits, for a reason that has nothing to do with spawning.
+//   * ADD a second `admit` entry point taking a widened alphabet. REFUSED. `AdmitOptions` can only
+//     NARROW, by construction rather than by convention, and that structural property is the thing
+//     a reader checks from the type alone. A widening entry point beside it contradicts it. It
+//     would also be REQUIRED: the canonical plain-scalar alphabet carries no `/`, and this kit's
+//     own configured column `In Security/NFR` does, so every ticket in that column would be refused.
+//   * LEAVE tickets refused with `unknown-key`. REFUSED. It makes `board-vs-ticket` underivable and
+//     reports a schema mismatch as if it were a malformed document.
+//
+// So the TICKET is a second DOCUMENT CLASS with its own closed key set, admitted here — in the
+// module that already owns every other shape the projector reads, and that imports nothing at all.
+// This ADDS no spelling: `scripts/validate-agent-factory.ts:712-719` already reads a ticket's
+// `column:` and `status:` with its own regex pair, and plan 32-08 deletes that pair in favour of
+// this function, exactly as D-06 does for `boardColumnName` and `boardHasColumn`. The canonical
+// frontmatter authority keeps the document class it was built for and is not touched.
+//
+// THE POSTURE IS THE SAME ONE THE REST OF THIS MODULE TAKES: a small canonical form is admitted and
+// every other byte is refused BY NAME. An unknown key is refused rather than ignored, because
+// ignoring an unknown key is how a document grows a second place to hide a value.
+
+/**
+ * The closed ticket key set, stated in `agent-factory/contracts/board.md` § Ticket documents.
+ *
+ * Exported as a readonly array so a consumer can ITERATE it. A ninth key added here without a
+ * contract sentence and a document that reaches it is the set-literal drift class this repository
+ * has already paid for once, with seven granted names and zero resolving files.
+ */
+export const TICKET_KEYS = [
+  "id",
+  "title",
+  "status",
+  "column",
+  "size",
+  "priority",
+  "epic",
+  "feature",
+] as const;
+
+/** TWO-SIDED, and a change here is a decision recorded in the contract first. */
+export const TICKET_KEY_COUNT = 8;
+
+export type TicketKey = (typeof TICKET_KEYS)[number];
+
+/**
+ * The closed set of reasons a ticket document is refused, each a distinct sentence.
+ *
+ *   no-opening-delimiter  the document does not open with a `---` line
+ *   no-closing-delimiter  the region opens and never closes
+ *   unknown-key           a key outside TICKET_KEYS, refused rather than ignored
+ *   duplicate-key         one key written twice, so the document expresses two values
+ *   unrecognized-line     a line inside the region that is not `key: value` or `key:`
+ *   control-character     a byte no terminal renders and no human wrote deliberately
+ */
+export const TICKET_REFUSAL_CODES = [
+  "no-opening-delimiter",
+  "no-closing-delimiter",
+  "unknown-key",
+  "duplicate-key",
+  "unrecognized-line",
+  "control-character",
+] as const;
+
+/** TWO-SIDED. A seventh refusal reason is a decision, never a bumped constant. */
+export const TICKET_REFUSAL_CODE_COUNT = 6;
+
+export type TicketRefusalCode = (typeof TICKET_REFUSAL_CODES)[number];
+
+/** Every admitted key's value; a key the document does not carry reads `null`. */
+export type TicketDocument = Readonly<Record<TicketKey, string | null>>;
+
+export type TicketAdmission =
+  | { readonly ok: true; readonly value: TicketDocument }
+  | { readonly ok: false; readonly code: TicketRefusalCode; readonly reason: string };
+
+const TICKET_DELIMITER = "---";
+const TICKET_KEY_LINE = /^([A-Za-z_][A-Za-z0-9_-]*):(?: (.*))?$/;
+// A C0 control other than newline, plus DEL. A tab is caught by the key pattern rather than trimmed.
+const TICKET_CONTROL = /[\x00-\x09\x0b-\x1f\x7f]/;
+
+const ticketRefusal = (code: TicketRefusalCode, reason: string): TicketAdmission => ({
+  ok: false,
+  code,
+  reason,
+});
+
+/**
+ * Admit a ticket document, or refuse it by name.
+ *
+ * The region is the bytes between the first `---` line and the next one. Only the region is read:
+ * the body beneath it is the ticket's prose and is never interpreted, exactly as a row's `meta` and
+ * `trailer` are never interpreted.
+ */
+export function parseTicketDocument(text: string): TicketAdmission {
+  const normalized = text.split("\r\n").join("\n");
+  const lines = normalized.split("\n");
+  if (lines[0] !== TICKET_DELIMITER) {
+    return ticketRefusal(
+      "no-opening-delimiter",
+      "a ticket document opens with a `---` line and this one opens with " +
+        `\`${(lines[0] ?? "").slice(0, 40)}\``,
+    );
+  }
+
+  let close = -1;
+  for (let i = 1; i < lines.length; i++) {
+    if (lines[i] === TICKET_DELIMITER) {
+      close = i;
+      break;
+    }
+  }
+  if (close === -1) {
+    return ticketRefusal(
+      "no-closing-delimiter",
+      "the frontmatter region opens with `---` and no later line closes it, so where the region " +
+        "ends is a guess",
+    );
+  }
+
+  const values: Record<string, string | null> = {};
+  for (let i = 1; i < close; i++) {
+    const line = lines[i] as string;
+    if (line.trim() === "") continue;
+    if (TICKET_CONTROL.test(line)) {
+      return ticketRefusal(
+        "control-character",
+        `line ${i + 1} carries a control character, which no terminal renders and no human wrote ` +
+          "deliberately",
+      );
+    }
+    const m = TICKET_KEY_LINE.exec(line);
+    if (m === null) {
+      return ticketRefusal(
+        "unrecognized-line",
+        `line ${i + 1} is \`${line.slice(0, 60)}\`, which is neither \`key: value\` nor \`key:\``,
+      );
+    }
+    const key = m[1] as string;
+    if (!(TICKET_KEYS as readonly string[]).includes(key)) {
+      return ticketRefusal(
+        "unknown-key",
+        `line ${i + 1} carries the key \`${key}\`, which is outside the closed ticket key set ` +
+          `(${TICKET_KEYS.join(", ")}). A new key is recorded in agent-factory/contracts/board.md ` +
+          "first; an unknown key is refused rather than ignored, because ignoring one is how a " +
+          "document grows a second place to hide a value",
+      );
+    }
+    if (Object.prototype.hasOwnProperty.call(values, key)) {
+      return ticketRefusal(
+        "duplicate-key",
+        `\`${key}\` is written twice, so the document expresses two values for one key`,
+      );
+    }
+    const raw = m[2];
+    values[key] = raw === undefined || raw.trim() === "" ? null : raw.trim();
+  }
+
+  const value = Object.fromEntries(
+    TICKET_KEYS.map((k) => [k, values[k] ?? null]),
+  ) as TicketDocument;
+  return { ok: true, value };
+}
+
+// ── Conflicts (D-08, D-09, D-10) ─────────────────────────────────────────────────────────────────
+//
+// THE SET IS CLOSED AT SEVEN AND THE SEVEN ARE THE ONES `agent-factory/contracts/board.md`
+// § Conflicts NAMES IN PROSE. The contract states them and this module states them in code, with no
+// third spelling anywhere. The order below is the contract's order, and it is load-bearing:
+// `conflicts[]` is sorted by kind in DECLARATION order, so reshuffling this array silently reorders
+// the committed golden.
+//
+// Exported as a readonly array so a consumer can ITERATE it — the golden's inventory case walks this
+// array and asserts the fixture reaches every member. A kind added here without a fixture that
+// reaches it is the set-literal drift class this repository has already paid for once.
+
+export const CONFLICT_KINDS = [
+  "board-vs-ticket",
+  "ticket-unplaced",
+  "ticket-duplicated",
+  "row-without-file",
+  "wip-limit",
+  "wip-count",
+  "column-missing",
+] as const;
+
+/**
+ * TWO-SIDED, and the message reads as a decision rather than as a bumped constant. An eighth kind is
+ * recorded in `agent-factory/contracts/board.md` first, bumps `SCHEMA_VERSION`, and regenerates
+ * `scripts/fixtures/board-snapshot/expected-snapshot.json` — all in one commit (D-10, D-19).
+ */
+export const CONFLICT_KIND_COUNT = 7;
+
+export type ConflictKind = (typeof CONFLICT_KINDS)[number];
+
+/**
+ * A disagreement between two sources, surfaced rather than resolved (D-10).
+ *
+ * `source` names WHERE THE EXPECTATION CAME FROM, never where the disagreement was noticed. A
+ * ticket file that names a column expects the board to place it there, so the source is `tickets`;
+ * a dial that names a limit expects the heading to state it, so the source is `config`.
+ */
+export type Conflict = {
+  readonly kind: ConflictKind;
+  readonly ticketId?: string;
+  readonly column?: string;
+  readonly expected: string;
+  readonly actual: string;
+  readonly source: SourceName;
+};
+
+/** The value a source carries, or null when it is unavailable. Declared once; both modules use it. */
+export function sourceValue<T>(state: SourceState<T>): T | null {
+  return state.source === "unavailable" ? null : state.value;
+}
+
+/**
+ * Everything `joinSnapshot` reads: the six already-read source states, plus the two scalars the
+ * reader alone knows.
+ *
+ * THE SIX ARRIVE AS STATES RATHER THAN AS VALUES, so "what is the value of this source" is answered
+ * in exactly one place (`sourceValue`) rather than once per call site.
+ */
+export type JoinInputs = {
+  readonly repoRoot: string;
+  readonly generatedAt: string;
+  readonly sources: FactorySnapshot["sources"];
+};
+
+export type JoinResult = {
+  readonly snapshot: FactorySnapshot;
+  readonly conflicts: readonly Conflict[];
+};
+
+/** A conflict plus the line it was derived from — the sort's last key, never an emitted field. */
+type SortableConflict = { readonly conflict: Conflict; readonly line: number };
+
+/** One ticket row's placement on the board. Epic rows never appear here (D-02). */
+type Placement = { readonly id: string; readonly column: string; readonly line: number };
+
+/**
+ * Join the six read sources into the published snapshot and derive every conflict.
+ *
+ * THIS FUNCTION READS NOTHING. It is a pure function of already-read values, which is what makes the
+ * committed golden a byte-for-byte function of its committed inputs (D-15, D-19). It also means no
+ * board byte can reach a filesystem path from here: this module imports neither `node:fs` nor
+ * `node:path`, so the ticket lookup below is a match against the ticket LIST the reader produced,
+ * never a path built from a bracket's contents (T-32-02).
+ *
+ * NOTHING IS RESOLVED SILENTLY. Every disagreement becomes a `conflicts[]` entry, and no row's
+ * column and no ticket's status is ever rewritten. A duplicated row renders under both headings; a
+ * row with no ticket file still renders. The projector never hides a line in order to report a
+ * conflict about it.
+ *
+ * A BOARD THAT COULD NOT BE READ PRODUCES NO CONFLICTS. With `sources.board` unavailable there is
+ * nothing for a ticket to disagree WITH, and reporting every ticket as `ticket-unplaced` would
+ * restate one missing source as a hundred disagreements the badge already reports once.
+ */
+export function joinSnapshot(inputs: JoinInputs): JoinResult {
+  const { sources } = inputs;
+  const board = sourceValue(sources.board);
+  const config = sourceValue(sources.config);
+  const tickets = sourceValue(sources.tickets) ?? [];
+
+  const snapshot: FactorySnapshot = {
+    schemaVersion: SCHEMA_VERSION,
+    repoRoot: inputs.repoRoot,
+    generatedAt: inputs.generatedAt,
+    board,
+    config,
+    sources,
+  };
+
+  if (board === null) return { snapshot, conflicts: [] };
+
+  const found: SortableConflict[] = [];
+  const add = (line: number, conflict: Conflict): void => {
+    found.push({ line, conflict });
+  };
+
+  // Every ticket row on the board, in document order. Epic rows are a SEPARATE CLASS (D-02): they
+  // are never joined against `plans/tickets/` and never counted toward a column's WIP number, so
+  // they are absent from this index by construction rather than filtered out of each derivation.
+  const placements: Placement[] = [];
+  for (const column of board.columns) {
+    for (const row of column.rows) {
+      placements.push({ id: row.id, column: column.name, line: row.line });
+    }
+  }
+
+  const byId = new Map<string, Placement[]>();
+  for (const p of placements) {
+    const list = byId.get(p.id);
+    if (list === undefined) byId.set(p.id, [p]);
+    else list.push(p);
+  }
+
+  const ticketById = new Map<string, TicketRecord>();
+  for (const t of tickets) if (!ticketById.has(t.id)) ticketById.set(t.id, t);
+
+  // ── board-vs-ticket, arm one: the ticket file names a different column ─────────────────────────
+  for (const p of placements) {
+    const t = ticketById.get(p.id);
+    if (t === undefined || t.column === null) continue;
+    if (t.column === p.column) continue;
+    add(p.line, {
+      kind: "board-vs-ticket",
+      ticketId: p.id,
+      column: p.column,
+      expected: t.column,
+      actual: p.column,
+      source: "tickets",
+    });
+  }
+
+  // ── board-vs-ticket, arm two: the status is not the kebab form of the column ───────────────────
+  //
+  // The rule is `kebab(column) === status`, the SAME rule `scripts/validate-agent-factory.ts:747`
+  // applies, through the single `kebab` spelling that lives in this module (D-06). A second spelling
+  // of one rule is the drift class; there is no second spelling.
+  for (const t of tickets) {
+    if (t.column === null || t.status === null) continue;
+    const expected = kebab(t.column);
+    if (expected === t.status) continue;
+    add(byId.get(t.id)?.[0]?.line ?? 0, {
+      kind: "board-vs-ticket",
+      ticketId: t.id,
+      column: t.column,
+      expected,
+      actual: t.status,
+      source: "tickets",
+    });
+  }
+
+  // ── ticket-unplaced: a ticket file with no row ─────────────────────────────────────────────────
+  for (const t of tickets) {
+    if (byId.has(t.id)) continue;
+    add(0, {
+      kind: "ticket-unplaced",
+      ticketId: t.id,
+      expected: "a row on the board",
+      actual: `no row names ${t.id}`,
+      source: "tickets",
+    });
+  }
+
+  // ── ticket-duplicated: one identifier carrying two or more rows ────────────────────────────────
+  //
+  // Two rows under the SAME heading are two rows, not one. Counting DISTINCT columns here would
+  // silently dedupe an adjacent pair, which is the shape a copy-paste slip produces and therefore
+  // the one a human most needs told about.
+  for (const [id, list] of byId) {
+    if (list.length < 2) continue;
+    add(list[0]?.line ?? 0, {
+      kind: "ticket-duplicated",
+      ticketId: id,
+      column: list[0]?.column ?? "",
+      expected: "one row on the board",
+      actual: list.map((p) => p.column).join(", "),
+      source: "board",
+    });
+  }
+
+  // ── row-without-file: a row naming an identifier with no ticket file ───────────────────────────
+  const reportedMissing = new Set<string>();
+  for (const p of placements) {
+    if (ticketById.has(p.id) || reportedMissing.has(p.id)) continue;
+    reportedMissing.add(p.id);
+    add(p.line, {
+      kind: "row-without-file",
+      ticketId: p.id,
+      column: p.column,
+      expected: `plans/tickets/${p.id}.md`,
+      actual: "no ticket file carries that identifier",
+      source: "board",
+    });
+  }
+
+  // ── The column cross-check (D-08) ─────────────────────────────────────────────────────────────
+  //
+  // THE BOARD'S HEADINGS DECIDE WHICH COLUMNS EXIST AND IN WHAT ORDER. The dial supplies the
+  // expected limit and nothing else. A heading column absent from the dial is LEGAL — an unlimited
+  // column and the Blocked column carry no limit — and is noted by its own `kind` in the column
+  // record rather than raised as a conflict.
+  const wipLimits = config?.wipLimits ?? {};
+  for (const column of board.columns) {
+    const configured = Object.prototype.hasOwnProperty.call(wipLimits, column.name)
+      ? wipLimits[column.name]
+      : undefined;
+
+    if (configured !== undefined && column.limit !== null && column.limit !== configured) {
+      add(column.line, {
+        kind: "wip-limit",
+        column: column.name,
+        expected: String(configured),
+        actual: String(column.limit),
+        source: "config",
+      });
+    }
+
+    // ── wip-count (D-09): the claimed live number against the rows counted ───────────────────────
+    //
+    // NOTHING IS CORRECTED. Both numbers and the limit ride in the conflict, so the renderer can
+    // show `claimed 2 / counted 3 / limit 3` and a human sees which of the three to fix.
+    if (column.claimedLive !== null && column.claimedLive !== column.rows.length) {
+      add(column.line, {
+        kind: "wip-count",
+        column: column.name,
+        expected: `claimed ${column.claimedLive}, limit ${column.limit ?? "none"}`,
+        actual: `counted ${column.rows.length}`,
+        source: "board",
+      });
+    }
+  }
+
+  // ── column-missing: a configured column with no heading ────────────────────────────────────────
+  const headingNames = new Set(board.columns.map((c) => c.name));
+  for (const name of Object.keys(wipLimits)) {
+    if (headingNames.has(name)) continue;
+    add(0, {
+      kind: "column-missing",
+      column: name,
+      expected: `a heading for the configured column ${name}`,
+      actual: "no heading on the board opens that column",
+      source: "config",
+    });
+  }
+
+  // ── The total order ───────────────────────────────────────────────────────────────────────────
+  //
+  // Kind in declaration order, then ticket id, then column, then the line the conflict came from. A
+  // golden whose order depends on a filesystem listing or on an object's key order is a golden that
+  // fails on somebody else's machine for a reason nobody can act on.
+  const rank = (k: ConflictKind): number => CONFLICT_KINDS.indexOf(k);
+  const sorted = [...found].sort((a, b) => {
+    const byKind = rank(a.conflict.kind) - rank(b.conflict.kind);
+    if (byKind !== 0) return byKind;
+    const byTicket = (a.conflict.ticketId ?? "").localeCompare(b.conflict.ticketId ?? "");
+    if (byTicket !== 0) return byTicket;
+    const byColumn = (a.conflict.column ?? "").localeCompare(b.conflict.column ?? "");
+    if (byColumn !== 0) return byColumn;
+    if (a.line !== b.line) return a.line - b.line;
+    // Last resort, so two conflicts identical on every key above still order deterministically.
+    return a.conflict.expected.localeCompare(b.conflict.expected);
+  });
+
+  return { snapshot, conflicts: sorted.map((s) => s.conflict) };
 }

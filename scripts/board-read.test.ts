@@ -508,9 +508,15 @@ function pathRecorder(): { seam: { betweenReadAndStat: (p: string) => void }; pa
   return { seam: { betweenReadAndStat: (p: string) => void paths.push(p) }, paths };
 }
 
-const ADMITTED_TICKET = "---\nname: ABC-014\ndescription: Asset allocation chart\n---\n\nBody.\n";
+// A ticket written in the canonical TICKET form (plan 32-05). The kit-adapter schema is a
+// DIFFERENT document class: `name`/`description` belong to an adapter, `id`/`title`/`status`/
+// `column` belong to a ticket, and `scripts/board-model.ts`'s `parseTicketDocument` is the one
+// authority for this class. The reason that question was answered here rather than by widening
+// `CANONICAL_SCHEMA` is recorded above that function.
+const ADMITTED_TICKET =
+  "---\nid: ABC-014\ntitle: Asset allocation chart\nstatus: in-development\ncolumn: In Development\n---\n\nBody.\n";
 
-describe("board-read — tickets, through the ONE frontmatter authority (D-03, T-32-11)", () => {
+describe("board-read — tickets, through the ONE ticket-document authority (D-03, T-32-11)", () => {
   it("admits a conforming ticket and joins it", () => {
     withTempTree((dir) => {
       plantBoard(dir, ONE_COLUMN);
@@ -520,7 +526,13 @@ describe("board-read — tickets, through the ONE frontmatter authority (D-03, T
       const tickets = result.snapshot.sources.tickets;
       expect(tickets.source).toBe("ok");
       expect(tickets.source === "ok" ? tickets.value : []).toEqual([
-        { file: "ABC-014.md", id: "ABC-014", title: "Asset allocation chart" },
+        {
+          file: "ABC-014.md",
+          id: "ABC-014",
+          title: "Asset allocation chart",
+          status: "in-development",
+          column: "In Development",
+        },
       ]);
       expect(result.readErrors).toEqual([]);
     });
@@ -530,9 +542,10 @@ describe("board-read — tickets, through the ONE frontmatter authority (D-03, T
     withTempTree((dir) => {
       plantBoard(dir, ONE_COLUMN);
       plantTicket(dir, "ABC-014.md", ADMITTED_TICKET);
-      // `status` is outside CANONICAL_SCHEMA, so the ONE authority refuses the document with
-      // `unknown-key`. The projector does not become a second frontmatter grammar to rescue it.
-      plantTicket(dir, "ABC-015.md", "---\nname: ABC-015\nstatus: ready\n---\n");
+      // `tools` is outside the closed ticket key set, so the ONE ticket authority refuses the
+      // document with `unknown-key` rather than ignoring the key. Ignoring an unknown key is how a
+      // document grows a second place to hide a value.
+      plantTicket(dir, "ABC-015.md", "---\nid: ABC-015\ntools: Bash\n---\n");
 
       const result = readSnapshot(dir);
       const tickets = result.snapshot.sources.tickets;

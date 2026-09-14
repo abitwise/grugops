@@ -43,11 +43,17 @@ import {
 } from "node:fs";
 import { join, relative, resolve, sep } from "node:path";
 
-import { SCHEMA_VERSION, parseBoard, stripHtmlComments } from "./board-model.js";
-import { admit, admittedValuesFor } from "./canonical-frontmatter.js";
+import {
+  joinSnapshot,
+  parseBoard,
+  parseTicketDocument,
+  sourceValue,
+  stripHtmlComments,
+} from "./board-model.js";
 import { MAX_WALK_ENTRIES } from "./kit-model.js";
 import type {
   BoardModel,
+  Conflict,
   ContextTaskState,
   FactoryConfigView,
   FactorySnapshot,
@@ -66,14 +72,25 @@ import type {
 // class this repository has already paid for. It is published from here because this is the module
 // that PRODUCES it.
 export type {
+  Conflict,
+  ConflictKind,
   ContextTaskState,
   QueueRow,
   SourceName,
   SourceState,
   StaleReason,
+  TicketDocument,
   TicketRecord,
   TraceRow,
 } from "./board-model.js";
+
+// ── The conflict set (D-10) ──────────────────────────────────────────────────────────────────────
+//
+// DECLARED IN THE PURE MODULE AND RE-EXPORTED HERE, for the reason recorded above the `SourceState`
+// re-export. `joinSnapshot` derives the conflicts and it lives beside the grammar it compares
+// against; this module PRODUCES the six source states the join takes, so this is where the set and
+// its cardinality are published to a consumer of the read seam.
+export { CONFLICT_KINDS, CONFLICT_KIND_COUNT } from "./board-model.js";
 
 // ── The stale-reason set (D-11, D-12) ────────────────────────────────────────────────────────────
 //
@@ -357,22 +374,6 @@ export type ReadError = {
 };
 
 /**
- * A disagreement between two sources, surfaced rather than resolved (D-10).
- *
- * PLAN 32-05 CLOSES THE `kind` SET. It lands there as a closed `as const` set with a two-sided count
- * test, together with the seven-kind golden fixture. The field list is fixed in `schemaVersion: 1`
- * from this commit, so closing the set later adds no field and moves no boundary.
- */
-export type Conflict = {
-  readonly kind: string;
-  readonly ticketId?: string;
-  readonly column?: string;
-  readonly expected: string;
-  readonly actual: string;
-  readonly source: SourceName;
-};
-
-/**
  * The discriminated read result (D-11), following Phase 30 D-12.
  *
  * The top-level discriminant is the BOARD's state, degraded by the config's. A source that is
@@ -543,11 +544,6 @@ function childPath(root: string, dir: string, name: string): string | null {
   return target;
 }
 
-/** The value a settled state carries, or null on the `unavailable` arm. Used for the flat fields. */
-function valueOrNull<T>(state: SourceState<T>): T | null {
-  return state.source === "unavailable" ? null : state.value;
-}
-
 /**
  * Gather one FILE source: read it through `readVerifyReread`, then parse it.
  *
@@ -591,10 +587,16 @@ function readBoardSource(
   readAt: string,
   previous: SourceState<BoardModel> | undefined,
   seam: ReadSeam,
+  idPrefix: string | null,
 ): Settled<BoardModel> {
   const path = repoSubpath(root, FIXED_SUBPATHS.board);
+  // THE DIAL IS READ FIRST AND ITS VALUE IS PASSED IN. `id_prefix` is part of what a conforming
+  // identifier means (D-02), and the pure module holds no dial, so the seam that reads the dial is
+  // the one that hands the value over. A row whose prefix disagrees is reported as an unparsed line
+  // — the contract's own answer — rather than as an eighth conflict kind (D-10 closes the set).
+  const parse = (text: string): BoardModel => parseBoard(text, { idPrefix });
   return settledFrom(
-    settleSource("board", path, gatherFile(path, seam, parseBoard), previous, readAt),
+    settleSource("board", path, gatherFile(path, seam, parse), previous, readAt),
   );
 }
 
@@ -642,21 +644,19 @@ function configView(raw: Record<string, unknown>): FactoryConfigView {
 // ── tickets (D-03, T-32-11) ──────────────────────────────────────────────────────────────────────
 
 /**
- * Read every `*.md` under `plans/tickets/` through the ONE frontmatter authority.
+ * Read every `*.md` under `plans/tickets/` through the ticket grammar in the pure module.
  *
- * THE ADMISSION IS `scripts/canonical-frontmatter.ts`'s, NOT THIS MODULE'S. That module imports no
- * `node:fs` and no `node:path` (measured: its only import is `./frontmatter.js`, which imports
- * nothing), so it composes into this seam without widening the closure the DASH-06 guard walks. A
- * document it refuses is recorded in `readErrors` with its refusal CODE and is not joined — the
- * board projector does not become a second frontmatter grammar, because a second grammar is a second
- * place a document can mean two things.
+ * THE OPEN QUESTION PLAN 32-03 RECORDED IS ANSWERED HERE, AND THE ANSWER IS A DOCUMENT CLASS RATHER
+ * THAN A WIDENED SCHEMA. That plan routed tickets through `admit` and wrote down the consequence:
+ * `CANONICAL_SCHEMA` is the KIT ADAPTER schema, so every real ticket was refused with `unknown-key`
+ * and `board-vs-ticket` could never be derived. `scripts/board-model.ts`'s `parseTicketDocument`
+ * admits the ticket key set the contract states, in the same refuse-by-name posture, and the
+ * canonical frontmatter authority keeps the document class it was built for untouched. The three
+ * alternatives and the reason each was refused are recorded above that function.
  *
- * NOTE FOR THE PHASE, RECORDED RATHER THAN SMOOTHED OVER: `CANONICAL_SCHEMA` is the KIT ADAPTER
- * schema (`name`, `description`, `tools`, …). A ticket that carries ticket-shaped keys is refused
- * with `unknown-key` and named on stderr rather than silently defaulted, which is the honest answer
- * for a reader with one authority — the alternative is a second schema nobody decided on. This tree
- * carries no tickets at all today (`plans/tickets/` holds only `.gitkeep`), so nothing is refused
- * here yet; widening or splitting the schema is a DECISION for a later plan, not a paraphrase here.
+ * A refused document is recorded in `readErrors` with its refusal CODE and is not joined. The
+ * projector still does not become a second frontmatter grammar for the ADAPTER class — it reads a
+ * different class of document, whose grammar lives in exactly one place.
  */
 function readTicketsSource(
   root: string,
@@ -684,15 +684,19 @@ function readTicketsSource(
       errors.push({ source: "tickets", path, code: read.code, message: read.message });
       continue;
     }
-    const admission = admit(read.text);
+    const admission = parseTicketDocument(read.text);
     if (!admission.ok) {
       errors.push({ source: "tickets", path, code: admission.code, message: admission.reason });
       continue;
     }
     records.push({
       file: name,
-      id: admittedValuesFor(admission.value, "name")[0] ?? name.slice(0, -".md".length),
-      title: admittedValuesFor(admission.value, "description")[0] ?? "",
+      // THE FILE STEM IS THE FALLBACK IDENTITY, because the file name is the only identity a reader
+      // can trust when the document does not state one — the same rule the validator applies.
+      id: admission.value.id ?? name.slice(0, -".md".length),
+      title: admission.value.title ?? "",
+      column: admission.value.column,
+      status: admission.value.status,
     });
   }
 
@@ -1016,8 +1020,16 @@ export function readSnapshot(
   const readAt = new Date().toISOString();
   const before = previous?.snapshot.sources;
 
-  const board = readBoardSource(root, readAt, before?.board, seam);
+  // THE DIAL IS READ FIRST, and the order is load-bearing rather than cosmetic: `id_prefix` is part
+  // of what a conforming row identifier means (D-02), so the board parse needs the dial's value.
   const config = readConfigSource(root, readAt, before?.config, seam);
+  const board = readBoardSource(
+    root,
+    readAt,
+    before?.board,
+    seam,
+    sourceValue(config.state)?.idPrefix ?? null,
+  );
   const tickets = readTicketsSource(root, readAt, before?.tickets, seam);
   const queue = readQueueSource(root, readAt, before?.queue, seam);
   const context = readContextSource(root, readAt, before?.context, seam);
@@ -1032,14 +1044,10 @@ export function readSnapshot(
     config: config.state,
   };
 
-  const snapshot: FactorySnapshot = {
-    schemaVersion: SCHEMA_VERSION,
-    repoRoot: root,
-    generatedAt: readAt,
-    board: valueOrNull(board.state),
-    config: valueOrNull(config.state),
-    sources,
-  };
+  // THE JOIN IS THE PURE MODULE'S. This function reads; it does not compare. `joinSnapshot` takes
+  // the six settled states and returns the published snapshot together with every conflict, which
+  // is what makes the committed golden a byte-for-byte function of its committed inputs (D-19).
+  const joined = joinSnapshot({ repoRoot: root, generatedAt: readAt, sources });
 
   // In SOURCE_NAMES order, so the stderr summary reads the same way twice and a consumer diffing two
   // runs sees a changed finding rather than a reshuffled list.
@@ -1054,9 +1062,8 @@ export function readSnapshot(
 
   return {
     source: deriveOverallSource(sources),
-    snapshot,
-    // PLAN 32-05 DERIVES THE CONFLICTS. The board alone cannot disagree with anything yet.
-    conflicts: [],
+    snapshot: joined.snapshot,
+    conflicts: joined.conflicts,
     readErrors,
   };
 }
