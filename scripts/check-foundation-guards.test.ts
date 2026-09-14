@@ -2004,8 +2004,21 @@ const SECTION_EXTENT_OWNER_COUNT = 1;
  *   renders it.
  *   Re-derived rather than incremented: `git ls-files '*.ts'` minus the `.test.ts` and `.d.ts`
  *   members reports 82 with this module tracked.
+ *
+ * 82 -> 83 (plan 32-04, task 1), ONE CORPUS MODULE:
+ *   - `scripts/board-corpus.ts` — the board-grammar replay corpus (DASH-02): 167 rows carrying the
+ *     141 measured live ticket rows, the mutations derived from the contract's refusal rules, and
+ *     the controls where the contract's prose and the shipped grammar part. It is pure data plus its
+ *     own integrity throw and a provenance resolver; it imports nothing from `board-model.ts`,
+ *     because a corpus that imported the module it exists to measure could not be evidence about it.
+ *   BOTH OWNER ANSWERS ARE UNCHANGED, AND THAT WAS CHECKED RATHER THAN ASSUMED. It declares no
+ *   function named for the frontmatter parser. `frameDocument` BUILDS a document from a line and a
+ *   frame name; it locates nothing in a document it was given, so it carries no section EXTENT and
+ *   is not a second owner of the LANG-07 predicate.
+ *   Re-derived rather than incremented: `git ls-files '*.ts'` minus the `.test.ts` and `.d.ts`
+ *   members reports 83 with this module tracked.
  */
-const NON_TEST_MODULE_COUNT = 82;
+const NON_TEST_MODULE_COUNT = 83;
 
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 // (Plan 29-40, gap G-29-1 of 29-UAT.md, closing V-29-35-01) THE FRONTMATTER-PARSER NAME OWNER SET.
@@ -2525,7 +2538,11 @@ describe("LANG-07: exactly ONE module owns the section-extent predicate (plan 29
     // `./board-model.js` and `./kit-model.js` and neither of the three specs compared below.
     // 54 → 55 (plan 32-01, task 3): `scripts/board-dashboard.ts`, the CLI. It imports
     // `./board-read.js` and `./is-entry.js` and neither of the three specs compared below.
-    expect(flat.length, "the `scripts/`-scoped reader's own corpus").toBe(55);
+    // 55 → 56 (plan 32-04, task 1): `scripts/board-corpus.ts`, the DASH-02 replay corpus. It
+    // imports only `node:fs` and `node:path` — deliberately NOT `./board-model.js`, since a corpus
+    // that imported the module it measures could not be evidence about it — so it contributes three
+    // empty comparisons here and cannot make the agreement above vacuous on its own.
+    expect(flat.length, "the `scripts/`-scoped reader's own corpus").toBe(56);
     let compared = 0;
     for (const n of flat) {
       for (const spec of ["frontmatter", "canonical-frontmatter", "audit-model"]) {
@@ -2546,7 +2563,8 @@ describe("LANG-07: exactly ONE module owns the section-extent predicate (plan 29
     // 51 → 52 (plan 31-30): `check-platform-shapes.ts`.
     // 52 → 53 (plan 32-01, task 1): `board-model.ts`. 53 → 54 (plan 32-01, task 2): `board-read.ts`.
     // 54 → 55 (plan 32-01, task 3): `board-dashboard.ts`.
-    expect(compared, "the comparison must really have run over the whole corpus").toBe(55 * 3);
+    // 55 → 56 (plan 32-04, task 1): `board-corpus.ts`, three specs per module as ever.
+    expect(compared, "the comparison must really have run over the whole corpus").toBe(56 * 3);
     // NON-VACUITY: the comparison would be clean over two readers that both return nothing, so at
     // least one module must have produced a non-empty answer through the NEW reader.
     expect(
@@ -2724,7 +2742,9 @@ describe("LANG-07: exactly ONE module owns the section-extent predicate (plan 29
       // 52 → 53 (plan 32-01, task 1): `board-model.ts`, the same module the flat reader gained.
       // 53 → 54 (plan 32-01, task 2): `board-read.ts`, the same module the flat reader gained.
       // 54 → 55 (plan 32-01, task 3): `board-dashboard.ts`, the same module the flat reader gained.
-    ).toBe(55);
+      // 55 → 56 (plan 32-04, task 1): `board-corpus.ts`, the same module entering this
+      // `scripts/`-scoped enumeration as it entered the one above.
+    ).toBe(56);
 
     // THE ELEMENT COUNT, DERIVED INDEPENDENTLY OF THE WALK THAT PRODUCES IT. A vacuity floor catches
     // an EMPTY denominator and has never caught a SILENTLY SHORT one, so the set is compared against
@@ -9312,7 +9332,17 @@ const censusRelationshipFindings = (c: TripwireCensus): string[] => {
 // Re-derived rather than incremented: `ls scripts/*.test.ts | wc -l` reports 64 on this tree,
 // agreeing with the live census, and the bump lands in the SAME commit as the run in which the full
 // suite first observed the modules.
-const TRIPWIRE_MODULES = 64;
+//
+// 64 -> 66 (plan 32-04, tasks 2 and 3), TWO TEST MODULES. `scripts/board-corpus.test.ts` replays
+// both halves of the DASH-02 corpus — every live row admitted into its named bucket, every mutation
+// refused into its named bucket — and proves the comment pre-pass can fail, against a mirror built
+// from the live build with that one call rewritten. `scripts/board-oracle.test.ts` sweeps the same
+// grammar across an 18,144-cell seven-axis cross product and asserts I1 through I5 over every cell.
+// Both are genuine test modules rather than corpus files; the corpus itself is the separate
+// `scripts/board-corpus.ts`, which is why it moved NON_TEST_MODULE_COUNT and not this pin.
+// Re-derived rather than incremented: `ls scripts/*.test.ts | wc -l` reports 66 on this tree, and
+// the bump lands in the SAME commit as the run in which the full suite first observed the modules.
+const TRIPWIRE_MODULES = 66;
 /**
  * Corpus-derived floors, expressed as RATES so the floor grows with the corpus it floors.
  * Each is set well below its measured live value: the point is to catch a measurement that
