@@ -32,6 +32,34 @@ import { existsSync, readFileSync, readdirSync, realpathSync, statSync, } from "
 import { join, relative, resolve, sep } from "node:path";
 import { SCHEMA_VERSION, parseBoard } from "./board-model.js";
 import { MAX_WALK_ENTRIES } from "./kit-model.js";
+// ── RED STUB (plan 32-03 task 1) ─────────────────────────────────────────────────────────────────
+// The SIGNATURES the failing cases in `scripts/board-read.test.ts` link against, with the behaviour
+// they assert deliberately ABSENT: one unverified read, no retry, no carry-forward. The RED run
+// records which assertions the absence produces; the implementation replaces this block.
+export { STALE_REASONS } from "./board-model.js";
+export const STALE_REASON_COUNT = 5;
+export const READ_RETRY_BOUND = 3;
+export function readVerifyReread(absPath, _retries = READ_RETRY_BOUND, _seam = {}) {
+    try {
+        return { ok: true, text: readFileSync(absPath, "utf8") };
+    }
+    catch (e) {
+        const err = e;
+        return {
+            ok: false,
+            reason: err.code === "ENOENT" ? "enoent" : "eacces",
+            code: err.code ?? "unreadable",
+            message: err.message,
+        };
+    }
+}
+export function settleSource(source, _path, outcome, _previous, readAt) {
+    void source;
+    if (outcome.kind === "value" || outcome.kind === "bounded") {
+        return { state: { source: "ok", value: outcome.value, readAt }, error: null };
+    }
+    return { state: { source: "unavailable", present: false }, error: null };
+}
 /** Thrown when the seam meets a root it cannot vouch for. Never swallowed into a short result. */
 export class BoardReadError extends Error {
     constructor(message) {
@@ -254,7 +282,7 @@ function configView(raw) {
  * that D-11 requires. The parameter is declared now so that wiring changes no caller. The leading
  * underscore is the marker that it is not yet read.
  */
-export function readSnapshot(repoRoot, _previous) {
+export function readSnapshot(repoRoot, _previous, _seam = {}) {
     const root = resolveRepoRoot(repoRoot);
     const readAt = new Date().toISOString();
     const board = readBoardSource(root, readAt);

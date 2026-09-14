@@ -239,7 +239,29 @@ export type BoardModel = {
 // THE `unavailable` ARM DELIBERATELY CARRIES NO VALUE. D-13's "absent is a legitimate state" case
 // has nothing to render, and a value-less arm makes "render an empty board because the file was
 // missing" UNREPRESENTABLE rather than merely discouraged.
-export type StaleReason = "enoent" | "eacces" | "torn" | "bounded" | "unreadable";
+// THE CLOSED SET OF REASONS A SOURCE CAN BE STALE, AND THE TYPE DERIVED FROM IT.
+//
+// The set is the authority and the type is its projection, rather than two hand-typed lists that can
+// disagree — the set-literal drift class this repository has already paid for. `scripts/board-read.ts`
+// re-exports it as `STALE_REASONS` with a two-sided count, because that is the module that PRODUCES
+// a stale arm.
+//
+// Each member is a distinct sentence the D-12 badge says to a human about why the value on screen is
+// old, which is why a sixth is a decision rather than a bumped constant:
+//   enoent      the path is gone; it was read successfully before
+//   eacces      the open is denied; the bytes exist and this process cannot have them
+//   torn        the file changed under every read attempt, so no read of it is trustworthy
+//   bounded     the directory is larger than the walk bound, so the value is what was gathered first
+//   unreadable  the bytes were read and the CONTENT did not parse (D-11's "a partial parse")
+export const STALE_REASONS = [
+  "enoent",
+  "eacces",
+  "torn",
+  "bounded",
+  "unreadable",
+] as const;
+
+export type StaleReason = (typeof STALE_REASONS)[number];
 
 export type SourceState<T> =
   | { readonly source: "ok"; readonly value: T; readonly readAt: string }

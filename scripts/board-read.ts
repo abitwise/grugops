@@ -46,6 +46,7 @@ import type {
   FactorySnapshot,
   SourceName,
   SourceState,
+  StaleReason,
 } from "./board-model.js";
 
 // `SourceState` is DECLARED in the pure module and RE-EXPORTED here, rather than declared twice.
@@ -54,7 +55,71 @@ import type {
 // modules mutually dependent at the type level, and declaring it in both is the set-literal drift
 // class this repository has already paid for. It is published from here because this is the module
 // that PRODUCES it.
-export type { SourceState, SourceName } from "./board-model.js";
+export type { SourceState, SourceName, StaleReason } from "./board-model.js";
+
+// ── RED STUB (plan 32-03 task 1) ─────────────────────────────────────────────────────────────────
+// The SIGNATURES the failing cases in `scripts/board-read.test.ts` link against, with the behaviour
+// they assert deliberately ABSENT: one unverified read, no retry, no carry-forward. The RED run
+// records which assertions the absence produces; the implementation replaces this block.
+
+export { STALE_REASONS } from "./board-model.js";
+export const STALE_REASON_COUNT = 5;
+export const READ_RETRY_BOUND = 3;
+
+export type ReadSeam = { readonly betweenReadAndStat?: (absPath: string, attempt: number) => void };
+
+export type FileRead =
+  | { readonly ok: true; readonly text: string }
+  | {
+      readonly ok: false;
+      readonly reason: StaleReason;
+      readonly code: string;
+      readonly message: string;
+    };
+
+export type SourceOutcome<T> =
+  | { readonly kind: "value"; readonly value: T }
+  | { readonly kind: "bounded"; readonly value: T }
+  | { readonly kind: "absent" }
+  | {
+      readonly kind: "failed";
+      readonly reason: StaleReason;
+      readonly code: string;
+      readonly message: string;
+    };
+
+export function readVerifyReread(
+  absPath: string,
+  _retries: number = READ_RETRY_BOUND,
+  _seam: ReadSeam = {},
+): FileRead {
+  try {
+    return { ok: true, text: readFileSync(absPath, "utf8") };
+  } catch (e) {
+    const err = e as NodeJS.ErrnoException;
+    return {
+      ok: false,
+      reason: err.code === "ENOENT" ? "enoent" : "eacces",
+      code: err.code ?? "unreadable",
+      message: err.message,
+    };
+  }
+}
+
+export function settleSource<T>(
+  source: SourceName,
+  _path: string,
+  outcome: SourceOutcome<T>,
+  _previous: SourceState<T> | undefined,
+  readAt: string,
+): { state: SourceState<T>; error: ReadError | null } {
+  void source;
+  if (outcome.kind === "value" || outcome.kind === "bounded") {
+    return { state: { source: "ok", value: outcome.value, readAt }, error: null };
+  }
+  return { state: { source: "unavailable", present: false }, error: null };
+}
+
 
 /** Thrown when the seam meets a root it cannot vouch for. Never swallowed into a short result. */
 export class BoardReadError extends Error {
@@ -355,6 +420,7 @@ function configView(raw: Record<string, unknown>): FactoryConfigView {
 export function readSnapshot(
   repoRoot: string,
   _previous?: SnapshotResult,
+  _seam: ReadSeam = {},
 ): SnapshotResult {
   const root = resolveRepoRoot(repoRoot);
   const readAt = new Date().toISOString();

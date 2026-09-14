@@ -117,6 +117,40 @@ const EPIC_ID = /^(?:EPIC|FEAT)-\d{1,9}$/;
 const META_GAP = "  (";
 // ── Update lines (D-03) ──────────────────────────────────────────────────────────────────────────
 const UPDATED = /^_Updated: (\d{4}-\d{2}-\d{2}) by (.*)$/;
+// ── The per-source read state (D-11, D-12, D-13) ─────────────────────────────────────────────────
+//
+// WHY THIS UNION IS DECLARED IN THE PURE MODULE AND RE-EXPORTED FROM THE READ SEAM. `FactorySnapshot`
+// below embeds one `SourceState` per joined source, and `FactorySnapshot` belongs here because it is
+// the published shape (D-19) and carries no I/O. Declaring the union in `board-read.ts` and the
+// snapshot here would make the two modules mutually dependent at the type level. Declaring it twice
+// is the set-literal drift class this repository has already paid for. So it is declared once, in
+// the module that has no imports at all, and `scripts/board-read.ts` — the module that PRODUCES it —
+// re-exports it as its own published surface.
+//
+// THE `unavailable` ARM DELIBERATELY CARRIES NO VALUE. D-13's "absent is a legitimate state" case
+// has nothing to render, and a value-less arm makes "render an empty board because the file was
+// missing" UNREPRESENTABLE rather than merely discouraged.
+// THE CLOSED SET OF REASONS A SOURCE CAN BE STALE, AND THE TYPE DERIVED FROM IT.
+//
+// The set is the authority and the type is its projection, rather than two hand-typed lists that can
+// disagree — the set-literal drift class this repository has already paid for. `scripts/board-read.ts`
+// re-exports it as `STALE_REASONS` with a two-sided count, because that is the module that PRODUCES
+// a stale arm.
+//
+// Each member is a distinct sentence the D-12 badge says to a human about why the value on screen is
+// old, which is why a sixth is a decision rather than a bumped constant:
+//   enoent      the path is gone; it was read successfully before
+//   eacces      the open is denied; the bytes exist and this process cannot have them
+//   torn        the file changed under every read attempt, so no read of it is trustworthy
+//   bounded     the directory is larger than the walk bound, so the value is what was gathered first
+//   unreadable  the bytes were read and the CONTENT did not parse (D-11's "a partial parse")
+export const STALE_REASONS = [
+    "enoent",
+    "eacces",
+    "torn",
+    "bounded",
+    "unreadable",
+];
 // ── The comment pre-pass (D-03) ──────────────────────────────────────────────────────────────────
 /**
  * Replace every `<!-- … -->` span with spaces, preserving every newline so line numbers survive.
