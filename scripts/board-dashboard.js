@@ -176,8 +176,13 @@ function wipCell(column) {
  * cell and row count, with Blocked last. The full layout — the stale badge, the conflict list, the
  * `Now running` block, width truncation and the TTY redraw — lands in plan 32-07. The sanitizer and
  * this header-and-column skeleton do not move when it does.
+ *
+ * THE `width` PARAMETER IS THE SEAM AND NOT YET THE BEHAVIOUR. It is declared here so plan 32-07's
+ * cases can name the width they render at rather than inherit whatever terminal the suite happens
+ * to run under; the thin body below ignores it, and the failing cases in
+ * `scripts/board-dashboard.test.ts` are the record of that.
  */
-function renderFrame(result) {
+export function renderFrame(result, _width) {
     const snapshot = result.snapshot;
     const mode = snapshot.config?.mode ?? "unknown";
     const lines = [];

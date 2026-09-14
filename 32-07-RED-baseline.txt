@@ -1,0 +1,71 @@
+32-07 RED BASELINE — the D-17 frame and the D-18 mode contract, RED before either was written
+=============================================================================================
+
+Captured BEFORE any of the behaviour below was claimed to pass, in the row format
+32-03-RED-baseline.txt, 32-04-RED-baseline.txt and 32-06-RED-baseline.txt established.
+Companion file: 32-07-GREEN-proof.txt.
+
+WHY THIS FILE EXISTS AT ALL.
+
+A renderer is the easiest thing in a system to test into a false green. `expect(frame).toContain(x)`
+passes the moment SOMETHING prints `x`, and every case in `scripts/board-dashboard.test.ts` is that
+shape. So the question this file answers is not "do the cases pass" — they will — but "did each
+case FAIL first, on the assertion for the behaviour it names, against a renderer that genuinely did
+not have it". A case that was green on the thin frame is a case measuring the thin frame.
+
+The tree at the baseline carried plan 32-01's THIN `renderFrame`: one header line (root, mode, read
+time, column count, source) and one line per column (name, WIP cell, row count). No badge, no
+truncation, no rows, no `Now running`, no `Conflicts`. Its `width` parameter existed as a seam and
+was ignored, which is why every truncation assertion below fails on absence rather than on a
+module-resolution error.
+
+COMMAND, TREE AND EXIT CODE.
+
+    HEAD                204f78c6 (docs(32-06): record plan completion in state, roadmap and requirements)
+    working tree        scripts/board-dashboard.ts — `renderFrame` exported with its final
+                        (result, width) signature and the THIN 32-01 body unchanged
+                        scripts/board-dashboard.test.ts — new, task 1's ten cases plus the purity case
+    command             npx vitest run --exclude '**/scripts/e2e/**' scripts/board-dashboard.test.ts
+    exit code           1
+    result              11 tests | 10 failed
+
+EVERY FAILURE IS AN ASSERTION ON THE PLANNED BEHAVIOUR, NOT A CRASH.
+
+The distinction is the whole point of a baseline: a syntax error, a failed import or a fixture crash
+also exits non-zero, and none of them authorises the GREEN that follows. Each line below is the
+runner's own text.
+
+    AssertionError: expected 'grugops board  /Users/olgeroeselg/Pro…' to contain '9 conflicts'
+    AssertionError: expected 'grugops board  /repo  mode: lean  rea…' to contain 'LARGE BOARD (380 KB, longest line 34 …'
+    AssertionError: expected +0 to be 1 // Object.is equality                         [the STALE badge count]
+    AssertionError: expected 'In Development  2/3        3 rows' to contain 'claimed 2'
+    AssertionError: expected 1 to be 2 // Object.is equality                          [a column block with no row line]
+    AssertionError: expected 'Done  unlimited  1 row' to contain '3 unparsed lines'
+    AssertionError: expected 'grugops board  /repo  mode: lean  rea…' to contain 'red'
+    AssertionError: PREMISE: the column rendered no row line at all, so there is nothing for a width to cut: expected 1 to be 2
+    AssertionError: expected 'grugops board  /repo  mode: lean  rea…' to contain 'no queue'
+    AssertionError: every present kind must be named in the frame; got [-1,-1,-1,-1,-1,-1,-1]
+
+THE ONE CASE THAT WAS GREEN AT THE BASELINE, AND WHY THAT IS THE HONEST ANSWER.
+
+    ✓ reads no environment variable and no process stream: the width is the argument, nothing else
+
+`renderFrame` was already pure at the baseline — plan 32-01 wrote it that way, and D-15 is the reason.
+A purity case that went red here would mean the thin renderer had a `process` read nobody had
+noticed. It is recorded as green rather than quietly dropped, because a case that never fails is a
+case whose value is regression protection rather than discrimination, and saying so is cheaper than
+letting a later reader assume it discriminated.
+
+WHAT THIS BASELINE DOES NOT CLOSE.
+
+It does not prove the GREEN implementation is correct — only that each case could distinguish the
+presence of the behaviour from its absence. The seven conflict kinds, the golden snapshot and the
+read-only closure are decided elsewhere (plans 32-05 and 32-06); this file decides only that the
+frame's cases have teeth.
+
+TASK 2 AND TASK 3 BASELINES.
+
+This file covers task 1 only. The mode and exit-contract cases (task 2) and the spawned-process
+cases (task 3) are written against a tree this file's GREEN has already moved, so their own RED runs
+are recorded in 32-07-GREEN-proof.txt beside the green run that closed each of them rather than
+here.
