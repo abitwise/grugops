@@ -28,6 +28,7 @@ import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  readdirSync,
   realpathSync,
   rmSync,
   statSync,
@@ -38,6 +39,7 @@ import { tmpdir } from "node:os";
 import { join, sep } from "node:path";
 
 import {
+  PRESENCE_DEPENDENT_CONFLICT_KINDS,
   READ_RETRY_BOUND,
   STALE_REASONS,
   STALE_REASON_COUNT,
@@ -906,5 +908,122 @@ describe("board-read — traceability, through the SAME comment pre-pass as the 
         "a file this case never read",
     ).toBe("ok");
     expect(trace.source === "ok" ? trace.value : null).toEqual([]);
+  });
+});
+
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+// PLAN 32-09 — AN UNREADABLE DIRECTORY REACHES THE BADGE, AND NO CONFLICT IS FABRICATED (CR-02).
+//
+// The end-to-end slice the verifier reproduced by hand: a mode-000 `plans/tickets/` used to render a
+// clean `[ok]` header, no `readErrors` entry at all, and one `row-without-file` finding per board row
+// — positive assertions that files which exist do not. Three assertions, because any one of them is
+// satisfiable on its own by a reader that is broken a different way.
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+
+const TICKETED_BOARD =
+  "## Backlog (WIP unlimited)\n" +
+  "- [ABC-101] Something in the backlog\n" +
+  "## Done (WIP unlimited)\n" +
+  "- [ABC-102] Something finished\n";
+
+/** A minimal conforming ticket document, planted through this file's existing `plantTicket`. */
+function plantTicketDoc(dir: string, id: string, column: string, status: string): string {
+  return plantTicket(
+    dir,
+    `${id}.md`,
+    `---\nid: ${id}\ntitle: ${id} title\nstatus: ${status}\ncolumn: ${column}\n---\n\n# ${id}\n`,
+  );
+}
+
+/** Build a tree whose board rows all have ticket files, then run `run` with `plans/tickets` at 000. */
+function withDeniedTicketsDir(run: (dir: string, ticketsDir: string) => void): void {
+  withTempTree((dir) => {
+    plantBoard(dir, TICKETED_BOARD);
+    plantTicketDoc(dir, "ABC-101", "Backlog", "backlog");
+    plantTicketDoc(dir, "ABC-102", "Done", "done");
+    const ticketsDir = join(dir, "plans", "tickets");
+    chmodSync(ticketsDir, 0o000);
+    try {
+      run(dir, ticketsDir);
+    } finally {
+      // Restored here rather than in `withTempTree`, so the removal below cannot fail on the mode.
+      chmodSync(ticketsDir, 0o755);
+    }
+  });
+}
+
+describe("board-read — a denied `plans/tickets/` is stale, not absent (plan 32-09, CR-02)", () => {
+  it.skipIf(IS_ROOT)("PREMISE: the mode actually denies the listing", () => {
+    withDeniedTicketsDir((_dir, ticketsDir) => {
+      let denied = false;
+      try {
+        readdirSync(ticketsDir);
+      } catch (e) {
+        denied = (e as NodeJS.ErrnoException).code === "EACCES";
+      }
+      expect(
+        denied,
+        "PREMISE: chmod 000 did not deny the listing on this filesystem, so every assertion in " +
+          "this block would measure a directory that read cleanly",
+      ).toBe(true);
+    });
+  });
+
+  it.skipIf(IS_ROOT)("reports the tickets source as anything but `ok`", () => {
+    withDeniedTicketsDir((dir) => {
+      const result = readSnapshot(dir);
+      expect(
+        result.snapshot.sources.tickets.source,
+        "a directory this process could not open was reported with the SAME answer a directory " +
+          "nobody created gets, which is what renders a clean `[ok]` header over a board the " +
+          "projector could not check (CR-02)",
+      ).not.toBe("ok");
+      // The board itself is still readable, so the top-level discriminant degrades rather than dies.
+      expect(result.snapshot.sources.board.source).toBe("ok");
+      expect(result.source).toBe("stale");
+    });
+  });
+
+  it.skipIf(IS_ROOT)("carries exactly one `readErrors` entry for tickets, and it names the errno", () => {
+    withDeniedTicketsDir((dir, ticketsDir) => {
+      const result = readSnapshot(dir);
+      const ticketErrors = result.readErrors.filter((e) => e.source === "tickets");
+      expect(ticketErrors.length, "the permission failure must be reported exactly once").toBe(1);
+      expect(ticketErrors[0]?.code, "the errno itself, not a collapsed placeholder").toBe("EACCES");
+      expect(
+        ticketErrors[0]?.message,
+        "a human reading stderr is told WHICH directory failed",
+      ).toContain(ticketsDir);
+    });
+  });
+
+  it.skipIf(IS_ROOT)("derives ZERO presence-dependent conflicts about files it could not list", () => {
+    withDeniedTicketsDir((dir) => {
+      const result = readSnapshot(dir);
+      const fabricated = result.conflicts.filter((c) =>
+        (PRESENCE_DEPENDENT_CONFLICT_KINDS as readonly string[]).includes(c.kind),
+      );
+      expect(
+        fabricated.map((c) => `${c.kind} ${c.ticketId ?? ""}`),
+        "each of these is a positive assertion about a filesystem this process could not read — " +
+          "CR-02 measured seven of them against six files that exist",
+      ).toEqual([]);
+    });
+  });
+
+  it.skipIf(IS_ROOT)("PREMISE: the SAME tree with the mode restored DOES read cleanly", () => {
+    // The discrimination. Without it, "no conflicts and not ok" is equally true of a reader that
+    // fails on every tree, and the four cases above would pass over a projector that reads nothing.
+    withTempTree((dir) => {
+      plantBoard(dir, TICKETED_BOARD);
+      plantTicketDoc(dir, "ABC-101", "Backlog", "backlog");
+      plantTicketDoc(dir, "ABC-102", "Done", "done");
+      const result = readSnapshot(dir);
+      expect(result.snapshot.sources.tickets.source).toBe("ok");
+      expect(result.readErrors.filter((e) => e.source === "tickets")).toEqual([]);
+      const tickets =
+        result.snapshot.sources.tickets.source === "ok" ? result.snapshot.sources.tickets.value : [];
+      expect(tickets.map((t) => t.id).sort()).toEqual(["ABC-101", "ABC-102"]);
+    });
   });
 });

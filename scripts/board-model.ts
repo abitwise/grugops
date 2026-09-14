@@ -996,6 +996,33 @@ export const CONFLICT_KIND_COUNT = 7;
 export type ConflictKind = (typeof CONFLICT_KINDS)[number];
 
 /**
+ * The conflict kinds whose derivation depends on a COMPLETE `plans/tickets/` listing (plan 32-09).
+ *
+ * WHY EACH OF THE TWO IS PRESENCE-DEPENDENT, in the form of the sentence it says to a human:
+ *
+ *   `row-without-file`   "no ticket file carries that identifier". That is a claim about every file
+ *                        in `plans/tickets/` — it can only be made by something that saw all of them.
+ *   `ticket-unplaced`    "no row names this ticket" is a claim about the board, but the SUBJECT of
+ *                        the claim is a ticket record, and the set of subjects is the listing. A
+ *                        listing that stopped early raises the kind for a subset nobody chose and,
+ *                        worse, cannot raise it for the tickets it never saw.
+ *
+ * Both are therefore statements about the COMPLETENESS of a listing, and a listing that failed
+ * established no completeness. `joinSnapshot` refuses to derive either while the tickets source is
+ * anything other than `ok` — the same refusal it already applies to an unreadable board.
+ *
+ * THE OTHER FIVE ARE NOT GATED, AND THE SPLIT IS ASSERTED RATHER THAN LEFT TO THE READER
+ * (`scripts/board-model.test.ts` derives the complement as `CONFLICT_KINDS` minus this set and pins
+ * both cardinalities two-sided). `board-vs-ticket` and `ticket-duplicated` are positive claims about
+ * documents that WERE read; `wip-limit`, `wip-count` and `column-missing` are claims about the board
+ * and the dial alone. None of the five asserts that a file it never saw does not exist.
+ */
+export const PRESENCE_DEPENDENT_CONFLICT_KINDS = [
+  "ticket-unplaced",
+  "row-without-file",
+] as const satisfies readonly ConflictKind[];
+
+/**
  * A disagreement between two sources, surfaced rather than resolved (D-10).
  *
  * `source` names WHERE THE EXPECTATION CAME FROM, never where the disagreement was noticed. A
@@ -1063,6 +1090,12 @@ export function joinSnapshot(inputs: JoinInputs): JoinResult {
   const board = sourceValue(sources.board);
   const config = sourceValue(sources.config);
   const tickets = sourceValue(sources.tickets) ?? [];
+
+  // THE ONE PREDICATE BOTH PRESENCE-DEPENDENT ARMS READ, spelled once (plan 32-09). `ok` and nothing
+  // else: a `stale` tickets source carries a value, but that value is the PREVIOUS listing or a
+  // bounded prefix of this one, and neither establishes that a file absent from it is absent from
+  // the directory. `unavailable` carries nothing at all.
+  const ticketsListingComplete = sources.tickets.source === "ok";
 
   const snapshot: FactorySnapshot = {
     schemaVersion: SCHEMA_VERSION,
@@ -1135,7 +1168,12 @@ export function joinSnapshot(inputs: JoinInputs): JoinResult {
   }
 
   // ── ticket-unplaced: a ticket file with no row ─────────────────────────────────────────────────
-  for (const t of tickets) {
+  //
+  // GATED ON AN `ok` TICKETS SOURCE (plan 32-09, `PRESENCE_DEPENDENT_CONFLICT_KINDS`). With the
+  // listing stale, bounded or unavailable, the ticket set in hand is a subset nobody chose, and this
+  // kind would be raised for the tickets that survived while staying silent about the ones that did
+  // not. The badge already reports the one thing that is true: the listing failed.
+  for (const t of ticketsListingComplete ? tickets : []) {
     if (byId.has(t.id)) continue;
     add(0, {
       kind: "ticket-unplaced",
@@ -1164,8 +1202,14 @@ export function joinSnapshot(inputs: JoinInputs): JoinResult {
   }
 
   // ── row-without-file: a row naming an identifier with no ticket file ───────────────────────────
+  //
+  // GATED ON AN `ok` TICKETS SOURCE (plan 32-09). "No ticket file carries that identifier" is a
+  // positive assertion about a directory this process may not have been able to open. CR-02 measured
+  // what deriving it anyway costs: seven of these against six files that exist, under an `[ok]`
+  // header. A conflict derived from a listing that failed is an assertion about a filesystem nobody
+  // read, which CLAUDE.md's no-fabrication rule refuses before it is a bug.
   const reportedMissing = new Set<string>();
-  for (const p of placements) {
+  for (const p of ticketsListingComplete ? placements : []) {
     if (ticketById.has(p.id) || reportedMissing.has(p.id)) continue;
     reportedMissing.add(p.id);
     add(p.line, {

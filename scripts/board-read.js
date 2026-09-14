@@ -43,7 +43,10 @@ import { MAX_WALK_ENTRIES } from "./kit-model.js";
 // re-export. `joinSnapshot` derives the conflicts and it lives beside the grammar it compares
 // against; this module PRODUCES the six source states the join takes, so this is where the set and
 // its cardinality are published to a consumer of the read seam.
-export { CONFLICT_KINDS, CONFLICT_KIND_COUNT } from "./board-model.js";
+// `PRESENCE_DEPENDENT_CONFLICT_KINDS` rides with them for the same reason (plan 32-09): the subset
+// is a property of the conflict set, and the read seam is what produces the source state that gates
+// it, so a consumer of this module can ask both questions without importing the pure module too.
+export { CONFLICT_KINDS, CONFLICT_KIND_COUNT, PRESENCE_DEPENDENT_CONFLICT_KINDS, } from "./board-model.js";
 // ── The stale-reason set (D-11, D-12) ────────────────────────────────────────────────────────────
 //
 // RE-EXPORTED FROM THE PURE MODULE RATHER THAN DECLARED TWICE, for the reason recorded above the
@@ -323,20 +326,58 @@ export function isSafeTaskName(name) {
  * a truncated scan set there passes every downstream guard. Here the consumer is a live screen, and
  * D-14 is explicit: a hung read is a stale badge, never a frozen screen. So the listing reports its
  * own truncation and the caller marks the source stale with reason `bounded`.
+ *
+ * THE ERRNO IS NEVER DISCARDED (plan 32-09, CR-02). `readdirSync` fails for reasons that are not one
+ * reason, and the arm each one lands on is named here rather than left to a caller's convention:
+ *
+ *   ENOENT                  → `absent`. The directory was never created. D-13's legitimate state:
+ *                             a fresh checkout with no `.grugops/` shows no badge and no error.
+ *   EACCES, EPERM           → `failed` with reason `eacces`. The entries exist and this process
+ *                             cannot have them — the contract's § Staleness names a permission error
+ *                             as stale in the same sentence as a torn read.
+ *   ENOTDIR, EMFILE, ELOOP  → `failed` with reason `unreadable`, carrying the errno as `code`. These
+ *                             three are the measured cases: a file where a directory was expected, an
+ *                             exhausted descriptor table, and a symlink cycle. The arm is not a
+ *                             three-member allowlist — it is the DEFAULT, so an errno nobody has met
+ *                             yet is still reported rather than silently believed.
+ *   no `code` property      → `failed` with the literal `unreadable` as its code. There is no path
+ *                             out of this function that reports a listing it did not get.
  */
 export function listDirectoryBounded(dir) {
     let entries;
     try {
         entries = readdirSync(dir);
     }
-    catch {
-        return { present: false, names: [], bounded: false };
+    catch (e) {
+        const err = e;
+        const code = err.code ?? "";
+        if (code === "ENOENT")
+            return { kind: "absent" };
+        const reason = code === "EACCES" || code === "EPERM" ? "eacces" : "unreadable";
+        return { kind: "failed", reason, code: code || "unreadable", message: err.message };
     }
     const names = entries.filter((n) => !n.includes(".tmp-"));
     if (names.length > MAX_WALK_ENTRIES) {
-        return { present: true, names: names.slice(0, MAX_WALK_ENTRIES), bounded: true };
+        return { kind: "listed", names: names.slice(0, MAX_WALK_ENTRIES), bounded: true };
     }
-    return { present: true, names, bounded: false };
+    return { kind: "listed", names, bounded: false };
+}
+/**
+ * The `failed` arm of a listing, as the `SourceOutcome` the caller settles — with the directory named.
+ *
+ * ONE SPELLING, because three callers route the same three arms and three hand-written copies of the
+ * message construction is the drift class this repository has already paid for. The directory path is
+ * prefixed here rather than invented at each site: the errno message `readdirSync` produces already
+ * names the path, but a human reading stderr is told WHICH SOURCE'S directory failed and under which
+ * errno, in the reader's own register.
+ */
+function listingFailure(dir, listing) {
+    return {
+        kind: "failed",
+        reason: listing.reason,
+        code: listing.code,
+        message: `${dir} could not be listed (${listing.code}): ${listing.message}`,
+    };
 }
 // ── The read ─────────────────────────────────────────────────────────────────────────────────────
 /** The lean view a tree with no usable dial gets (CLAUDE.md C6: run lean when config is unusable). */
@@ -466,8 +507,16 @@ function configView(raw) {
 function readTicketsSource(root, readAt, previous, seam) {
     const dir = repoSubpath(root, FIXED_SUBPATHS.tickets);
     const listing = listDirectoryBounded(dir);
-    if (!listing.present) {
+    // THREE ARMS, NOT TWO (plan 32-09, CR-02). `absent` is D-13's legitimate state and settles exactly
+    // as it did before. `failed` settles through the SAME `settleSource` arm every other read failure
+    // uses, so a denied mode on this directory produces a stale badge over the last good ticket list —
+    // or `unavailable` WITH a `readErrors` entry when there is no last good value — rather than the
+    // silent "there are no tickets" that made `joinSnapshot` fabricate seven findings.
+    if (listing.kind === "absent") {
         return settledFrom(settleSource("tickets", dir, { kind: "absent" }, previous, readAt));
+    }
+    if (listing.kind === "failed") {
+        return settledFrom(settleSource("tickets", dir, listingFailure(dir, listing), previous, readAt));
     }
     const records = [];
     const errors = [];
@@ -550,9 +599,16 @@ function readQueueSource(root, readAt, previous, seam) {
     }
     const claimedDir = repoSubpath(root, `${FIXED_SUBPATHS.queue}/${CLAIMED_STAGE}`);
     const listing = listDirectoryBounded(claimedDir);
+    // BEHAVIOUR-PRESERVING ADAPTER, AND IT IS A SHIM RATHER THAN AN ANSWER. Plan 32-09 Task 1 changed
+    // the listing's TYPE to carry its failures; this consumer still collapses every non-`listed` arm
+    // into "nothing claimed", which is the CR-02 swallow one source over. It is spelled out here, in
+    // the commit that changed the type, so the surviving defect is visible rather than hidden behind a
+    // compiling call site. Task 2 of the same plan routes all three arms.
+    const claimedNames = listing.kind === "listed" ? listing.names : [];
+    const claimedBounded = listing.kind === "listed" && listing.bounded;
     const rows = [];
     const errors = [];
-    for (const task of listing.names) {
+    for (const task of claimedNames) {
         // Defensive: never read through an unsafe segment. Skipped BEFORE any filesystem access.
         if (!isSafeTaskName(task))
             continue;
@@ -586,7 +642,7 @@ function readQueueSource(root, readAt, previous, seam) {
         rows.push({ task, by: by === null ? "" : (by[1] ?? "").trim(), at: (at[1] ?? "").trim() });
     }
     rows.sort((a, b) => (a.at !== b.at ? a.at.localeCompare(b.at) : a.task.localeCompare(b.task)));
-    const outcome = listing.bounded
+    const outcome = claimedBounded
         ? { kind: "bounded", value: rows }
         : { kind: "value", value: rows };
     return settledFrom(settleSource("queue", queueRoot, outcome, previous, readAt), errors);
@@ -611,7 +667,9 @@ function readQueueSource(root, readAt, previous, seam) {
 function readContextSource(root, readAt, previous, seam) {
     const dir = repoSubpath(root, FIXED_SUBPATHS.context);
     const listing = listDirectoryBounded(dir);
-    if (!listing.present) {
+    // The same behaviour-preserving shim recorded at `readQueueSource`: every non-`listed` arm settles
+    // as `absent`, which is the CR-02 swallow, kept visible for exactly one commit. Task 2 routes it.
+    if (listing.kind !== "listed") {
         return settledFrom(settleSource("context", dir, { kind: "absent" }, previous, readAt));
     }
     const tasks = [];
@@ -804,11 +862,43 @@ export function readSnapshot(repoRoot, previous, seam = {}) {
         ...config.errors,
     ];
     return {
-        source: deriveOverallSource(sources),
+        source: deriveOverallSource(sources, readErrors),
         snapshot: joined.snapshot,
         conflicts: joined.conflicts,
         readErrors,
     };
+}
+/**
+ * The sources that are `unavailable` BECAUSE A READ FAILED, as opposed to because nothing is there.
+ *
+ * WHY THIS FUNCTION HAS TO EXIST (plan 32-09). `SourceState`'s `unavailable` arm carries no value by
+ * design — D-13's whole point is that "render an empty section because the read failed" must be
+ * unrepresentable. But that arm is also where a FAILED read with no previous good value lands, so at
+ * the published shape a denied `plans/tickets/` on a FIRST read looks exactly like a `plans/tickets/`
+ * nobody has created. Fixing that inside `SourceState` would mean a new arm, a `SCHEMA_VERSION` bump
+ * and a regenerated golden. It does not need one: the difference already survives in `readErrors`,
+ * which D-13 names as "the only place the difference from a legitimate absence survives". This
+ * function is that sentence as code.
+ *
+ * DERIVED, NEVER HAND-LISTED. The walk is over `SOURCE_NAMES`, the pinned tuple, so a seventh source
+ * cannot be badged by one consumer and forgotten by the other — the set-literal drift class this
+ * repository has already paid for. Both consumers — the top-level discriminant below and the
+ * header's badge in `scripts/board-dashboard.ts` — read THIS function, so the `--json` document and
+ * the terminal cannot disagree about which sources were unreadable.
+ */
+export function unreadableSources(sources, readErrors) {
+    const out = [];
+    for (const name of SOURCE_NAMES) {
+        if (sources[name].source !== "unavailable")
+            continue;
+        const error = readErrors.find((e) => e.source === name);
+        // NO ERROR MEANS A LEGITIMATE ABSENCE, AND THAT IS THE WHOLE DISCRIMINATION (D-13). A tree with
+        // no `.grugops/` produces an `unavailable` queue and NO entry here, so it is badged nowhere.
+        if (error === undefined)
+            continue;
+        out.push({ name, code: error.code });
+    }
+    return out;
 }
 /**
  * The top-level discriminant, DERIVED IN ONE PLACE from the per-source states.
@@ -822,7 +912,7 @@ export function readSnapshot(repoRoot, previous, seam = {}) {
  * ABSENT source degrades nothing at all — a tree with no `.grugops/` and no dial runs lean, which is
  * a supported state rather than a fault (D-13, CLAUDE.md C6).
  */
-function deriveOverallSource(sources) {
+function deriveOverallSource(sources, readErrors) {
     if (sources.board.source === "unavailable")
         return "unavailable";
     // SOURCE_NAMES rather than Object.keys: the tuple is the pinned set, so a source added to the
@@ -831,5 +921,12 @@ function deriveOverallSource(sources) {
         if (sources[name].source === "stale")
             return "stale";
     }
+    // A SOURCE THAT IS UNAVAILABLE BECAUSE IT COULD NOT BE READ DEGRADES THE DISCRIMINANT (plan 32-09).
+    // An ABSENT one still degrades nothing — that is D-13 and it is unchanged. The difference is the
+    // `readErrors` entry, which is exactly what `unreadableSources` reads. Without this arm, a denied
+    // `plans/tickets/` on a first read printed `[ok]` beside a badge saying the opposite, which is the
+    // confident-wrong-board output the phase goal rules out.
+    if (unreadableSources(sources, readErrors).length > 0)
+        return "stale";
     return "ok";
 }

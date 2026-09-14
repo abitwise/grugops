@@ -41,7 +41,7 @@
 import { existsSync, watch } from "node:fs";
 import { join } from "node:path";
 
-import { CONFLICT_KINDS, readSnapshot } from "./board-read.js";
+import { CONFLICT_KINDS, readSnapshot, unreadableSources } from "./board-read.js";
 import { isEntrypoint } from "./is-entry.js";
 import type { ReadError, SnapshotResult, SourceName } from "./board-read.js";
 import type { BoardColumn, SourceState } from "./board-model.js";
@@ -342,8 +342,18 @@ export function renderHeader(result: SnapshotResult, style: Style): string {
       const s = state as Extract<SourceState<unknown>, { source: "stale" }>;
       return `${name} (${humanAge(s.stale.since, snapshot.generatedAt)}, ${s.stale.reason})`;
     });
-  if (stale.length > 0) {
-    parts.push(`${style.badge}STALE: ${stale.join(", ")}${style.reset}`);
+  // AND THE SOURCES THAT ARE UNAVAILABLE BECAUSE A READ FAILED (plan 32-09, CR-02). A source whose
+  // first read failed has no previous good value to carry, so it settles `unavailable` — the same
+  // arm a legitimately absent source lands on. `unreadableSources` is the ONE authority that tells
+  // the two apart, and it is the read seam's, not a second derivation here: a badge that disagreed
+  // with the `--json` document's own discriminant is the drift this repository has paid for.
+  // "never read" rather than an age, because there is no last good read to state the age of.
+  const unreadable = unreadableSources(snapshot.sources, result.readErrors).map(
+    ({ name, code }) => `${name} (never read, ${sanitizeCell(code)})`,
+  );
+  const badged = [...stale, ...unreadable];
+  if (badged.length > 0) {
+    parts.push(`${style.badge}STALE: ${badged.join(", ")}${style.reset}`);
   }
 
   parts.push(`${result.conflicts.length} conflicts`);

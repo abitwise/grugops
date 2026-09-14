@@ -717,6 +717,7 @@ describe("board-model — a WIP number is read, never coerced (T-32-09)", () => 
 import {
   CONFLICT_KINDS,
   CONFLICT_KIND_COUNT,
+  PRESENCE_DEPENDENT_CONFLICT_KINDS,
   TICKET_KEYS,
   TICKET_KEY_COUNT,
   joinSnapshot,
@@ -731,6 +732,7 @@ import type {
   FactorySnapshot,
   QueueRow,
   SourceState,
+  StaleReason,
   TicketRecord,
   TraceRow,
 } from "./board-model.js";
@@ -820,6 +822,152 @@ describe("board-model — the conflict kinds are a CLOSED set (D-10)", () => {
     ).toBe(CONFLICT_KIND_COUNT);
     expect(CONFLICT_KIND_COUNT).toBe(7);
     expect(new Set(CONFLICT_KINDS).size, "a kind is spelled twice").toBe(CONFLICT_KINDS.length);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// PLAN 32-09 — THE PRESENCE-DEPENDENT SPLIT, DERIVED RATHER THAN RESTATED.
+//
+// CR-02's consequence: with `plans/tickets/` unreadable, the join asserted that seven ticket files
+// did not exist, six of which did. The fix gates the two kinds whose derivation depends on a
+// COMPLETE listing. The split itself is the thing that can rot — a future eighth kind lands in
+// `CONFLICT_KINDS` and nobody asks which side of this line it falls on — so the COMPLEMENT is
+// derived here from the two sets rather than typed out, and both cardinalities are pinned two-sided.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+/** The gated set, as a set, for the complement arithmetic below. */
+const PRESENCE_DEPENDENT = new Set<string>(PRESENCE_DEPENDENT_CONFLICT_KINDS);
+
+/** DERIVED, never typed: every kind that is NOT presence-dependent. */
+const PRESENCE_INDEPENDENT = CONFLICT_KINDS.filter((k) => !PRESENCE_DEPENDENT.has(k));
+
+describe("board-model — the presence-dependent conflict split (plan 32-09, CR-02)", () => {
+  it("names exactly the two kinds that assert something about a COMPLETE tickets listing", () => {
+    expect(
+      [...PRESENCE_DEPENDENT_CONFLICT_KINDS].sort(),
+      "these two, and only these two, say something a failed directory listing cannot support: " +
+        "`row-without-file` claims no ticket file carries an identifier, and `ticket-unplaced` " +
+        "raises a finding per ticket record over a set the listing defines. Moving a kind across " +
+        "this line is a DECISION recorded in agent-factory/contracts/board.md first",
+    ).toEqual(["row-without-file", "ticket-unplaced"]);
+  });
+
+  it("pins the gated cardinality two-sided", () => {
+    expect(PRESENCE_DEPENDENT_CONFLICT_KINDS.length).toBe(2);
+    expect(PRESENCE_DEPENDENT.size, "a kind is spelled twice in the gated set").toBe(2);
+  });
+
+  it("pins the COMPLEMENT two-sided against CONFLICT_KINDS, derived rather than typed", () => {
+    expect(
+      PRESENCE_INDEPENDENT.length,
+      "the ungated set is CONFLICT_KINDS minus the gated set. If this number moved, an eighth " +
+        "conflict kind landed and nobody decided which side of the presence-dependence line it " +
+        "falls on — that is a DECISION for agent-factory/contracts/board.md, never a bumped " +
+        "constant here",
+    ).toBe(CONFLICT_KIND_COUNT - PRESENCE_DEPENDENT_CONFLICT_KINDS.length);
+    expect(PRESENCE_INDEPENDENT.length).toBe(5);
+    expect([...PRESENCE_INDEPENDENT]).toEqual([
+      "board-vs-ticket",
+      "ticket-duplicated",
+      "wip-limit",
+      "wip-count",
+      "column-missing",
+    ]);
+  });
+
+  it("holds every gated kind inside CONFLICT_KINDS — the subset relation, asserted", () => {
+    expect(
+      [...PRESENCE_DEPENDENT_CONFLICT_KINDS].filter(
+        (k) => !(CONFLICT_KINDS as readonly string[]).includes(k),
+      ),
+      "the gated set names a kind the conflict set does not declare",
+    ).toEqual([]);
+  });
+});
+
+/** A board carrying every shape the gating case needs, in one document. */
+const GATING_BOARD =
+  "## Backlog (WIP unlimited)\n" +
+  "- [ABC-001] one\n" +
+  "- [ABC-999] a row whose ticket file does not exist\n" +
+  "## Done (WIP unlimited)\n" +
+  "- [ABC-001] the same identifier again, under a second heading\n";
+
+/** The ticket records the gating case joins against. `ABC-500` has no row; `ABC-001` disagrees. */
+const GATING_TICKETS: readonly TicketRecord[] = [
+  ticket("ABC-001", "Done", "done"),
+  ticket("ABC-500", "Backlog", "backlog"),
+];
+
+/** A `stale` tickets source carrying a value — the arm a carried-forward listing lands on. */
+const staleTickets = (
+  value: readonly TicketRecord[],
+  reason: StaleReason,
+): SourceState<readonly TicketRecord[]> => ({
+  source: "stale",
+  value,
+  readAt: JOIN_AT,
+  stale: { reason, since: JOIN_AT },
+});
+
+/** Join `GATING_BOARD` with the tickets source forced into a named state. */
+function gatingJoin(tickets: SourceState<readonly TicketRecord[]>): readonly Conflict[] {
+  return joinSnapshot({
+    repoRoot: "/fixture",
+    generatedAt: JOIN_AT,
+    sources: { ...sourcesFor({ board: GATING_BOARD, tickets: GATING_TICKETS }), tickets },
+  }).conflicts;
+}
+
+describe("board-model — a non-ok tickets source gates the presence-dependent kinds (plan 32-09)", () => {
+  it("PREMISE: with the tickets source `ok`, BOTH gated kinds are actually derived", () => {
+    const kinds = kindsOf(gatingJoin(okSource(GATING_TICKETS)));
+    // Without this premise every assertion below is satisfiable by a join that derives nothing at
+    // all — the vacuous green this repository has recorded a false harness premise for six times.
+    expect(
+      [...PRESENCE_DEPENDENT_CONFLICT_KINDS].filter((k) => !kinds.includes(k)),
+      "PREMISE: the fixture did not reach one of the gated kinds, so the gating cases below " +
+        "measure nothing",
+    ).toEqual([]);
+    expect(only(gatingJoin(okSource(GATING_TICKETS)), "row-without-file").length).toBe(1);
+    expect(only(gatingJoin(okSource(GATING_TICKETS)), "ticket-unplaced").length).toBe(1);
+  });
+
+  it("derives NEITHER gated kind when the tickets source is stale with reason `eacces`", () => {
+    const kinds = kindsOf(gatingJoin(staleTickets(GATING_TICKETS, "eacces")));
+    expect(
+      kinds.filter((k) => PRESENCE_DEPENDENT.has(k)),
+      "a conflict derived from a listing that FAILED is an assertion about a filesystem nobody " +
+        "read — CR-02's seven fabricated findings against six files that exist",
+    ).toEqual([]);
+  });
+
+  it("derives NEITHER gated kind when the tickets source is stale with reason `bounded`", () => {
+    // `bounded` is the subtle one: the listing SUCCEEDED and carries real names — just not all of
+    // them. "No ticket file carries that identifier" is false about a prefix by construction.
+    const kinds = kindsOf(gatingJoin(staleTickets(GATING_TICKETS, "bounded")));
+    expect(kinds.filter((k) => PRESENCE_DEPENDENT.has(k))).toEqual([]);
+  });
+
+  it("derives NEITHER gated kind when the tickets source is unavailable", () => {
+    const kinds = kindsOf(gatingJoin(UNAVAILABLE));
+    expect(kinds.filter((k) => PRESENCE_DEPENDENT.has(k))).toEqual([]);
+  });
+
+  it("KEEPS deriving the ungated kinds while the tickets source is stale", () => {
+    const kinds = kindsOf(gatingJoin(staleTickets(GATING_TICKETS, "eacces")));
+    // `board-vs-ticket` is a claim about a document that WAS read; `ticket-duplicated` is a claim
+    // about the board alone. Gating those too would turn one unreadable directory into silence
+    // about disagreements the projector can still see — the opposite error, equally wrong.
+    expect(
+      only(gatingJoin(staleTickets(GATING_TICKETS, "eacces")), "board-vs-ticket").length,
+      "the ticket file that WAS read still disagrees with its row, and the badge does not excuse " +
+        "the projector from saying so",
+    ).toBe(1);
+    expect(only(gatingJoin(staleTickets(GATING_TICKETS, "eacces")), "ticket-duplicated").length).toBe(
+      1,
+    );
+    expect(kinds.length, "exactly the two ungated findings this fixture manufactures").toBe(2);
   });
 });
 
@@ -1391,6 +1539,41 @@ describe("board-model — the committed golden freezes schemaVersion 1 byte for 
       "the golden carries a kind CONFLICT_KINDS does not declare",
     ).toEqual([]);
     expect(inGolden.size).toBe(CONFLICT_KIND_COUNT);
+  });
+
+  it("reads `ok` for every source, which is WHY the plan 32-09 gating does not fire on it", () => {
+    // GOLDEN INVARIANCE IS ASSERTED, NOT ASSUMED. The presence-dependent gating added by plan 32-09
+    // suppresses `row-without-file` and `ticket-unplaced` whenever the tickets source is not `ok`.
+    // The committed golden did not move when that gate landed — and the REASON it did not move is a
+    // measurable premise about the fixture, not an absence of failure. If a future edit makes any
+    // fixture source read stale, this case says so in one line instead of leaving a silently
+    // narrowed golden to be discovered by the next verifier.
+    expect(goldenText.length, GOLDEN_ABSENT).toBeGreaterThan(1000);
+    const golden = JSON.parse(goldenText) as {
+      snapshot: { sources: Record<string, { source: string }> };
+      conflicts: { kind: string }[];
+    };
+    expect(
+      golden.snapshot.sources["tickets"]?.source,
+      "the committed fixture's tickets source is no longer `ok`, so the plan 32-09 presence " +
+        "gating now fires on the golden and the two gated kinds have been silently dropped from it",
+    ).toBe("ok");
+    const notOk = Object.entries(golden.snapshot.sources)
+      .filter(([, s]) => s.source !== "ok")
+      .map(([name]) => name);
+    expect(notOk, "every source in the committed fixture reads `ok`").toEqual([]);
+
+    // And the gated kinds ARE present in the golden, so the invariance claim is about a document
+    // that would visibly change if the gate fired — not about one where the gate has nothing to cut.
+    const kinds = new Set(golden.conflicts.map((c) => c.kind));
+    expect(
+      [...PRESENCE_DEPENDENT_CONFLICT_KINDS].filter((k) => !kinds.has(k)),
+      "PREMISE: the golden carries neither gated kind, so 'the golden did not move' would be true " +
+        "of a gate that cut everything",
+    ).toEqual([]);
+
+    // The comparison itself, re-run inside this case: the bytes are unchanged with the gate in.
+    expect(rendered, firstDifference(rendered, goldenText)).toBe(goldenText);
   });
 
   it("pins the published schemaVersion, which no change may move without the golden moving with it", () => {

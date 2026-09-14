@@ -550,16 +550,23 @@ describe("board-read — bounded directory listing (D-14, RESEARCH pitfall 5)", 
       writeFileSync(join(dir, "ABC-001.md"), "x", "utf8");
       writeFileSync(join(dir, "board.md.tmp-4242-1-abcdef01"), "x", "utf8");
       const listed = listDirectoryBounded(dir);
-      expect(listed.names).toEqual(["ABC-001.md"]);
-      expect(listed.bounded).toBe(false);
+      // The listing is a three-armed union since plan 32-09: the arm is asserted BEFORE the names,
+      // so a future regression that answers `absent` here fails on the arm rather than on a
+      // narrowed `names` that a reader could mistake for a filter working correctly.
+      expect(listed.kind).toBe("listed");
+      expect(listed.kind === "listed" ? listed.names : null).toEqual(["ABC-001.md"]);
+      expect(listed.kind === "listed" ? listed.bounded : null).toBe(false);
     });
   });
 
   it("reports an ABSENT directory rather than throwing", () => {
     withTempTree((dir) => {
       const listed = listDirectoryBounded(join(dir, "no-such-directory"));
-      expect(listed.present).toBe(false);
-      expect(listed.names).toEqual([]);
+      // ABSENT, and specifically NOT `failed`: an ENOENT is D-13's legitimate state, and plan 32-09
+      // moved every OTHER errno onto the `failed` arm. Asserting the arm by name is what keeps this
+      // case measuring "reported rather than thrown" without also accepting "reported as broken".
+      expect(listed.kind).toBe("absent");
+      expect(listed.kind === "listed" ? listed.names : []).toEqual([]);
     });
   });
 });
