@@ -1122,7 +1122,7 @@ Round 8 delivered the FIRST closure of UATX-06's predicate family in eight round
   4. The dashboard **cannot** write: an import-graph guard proves its module tree holds no mutating `node:fs` symbol, so read-only is mechanically enforced rather than asserted in prose. (DASH-06)
   5. `--json`, `--once`, and non-TTY modes work for CI and piping; the renderer degrades **visibly** rather than showing a confident wrong board; the snapshot shape is stable enough for a future web renderer to consume unchanged; and the dashboard adds **zero** runtime dependencies and opens no listening socket this milestone. (DASH-07, DASH-08)
 
-**Plans**: 5/8 plans executed, planned 2026-09-13. Tracer-first: plan `32-01` wires one path through every layer (contract → pure grammar → read seam → `--once --json`) and is verified end-to-end before any expansion task. The remaining seven expand out from that proven slice across four waves.
+**Plans**: 6/8 plans executed, planned 2026-09-13. Tracer-first: plan `32-01` wires one path through every layer (contract → pure grammar → read seam → `--once --json`) and is verified end-to-end before any expansion task. The remaining seven expand out from that proven slice across four waves.
 
 Plans:
 **Wave 1**
@@ -1138,7 +1138,7 @@ Plans:
 
 - [x] 32-04-PLAN.md — the corpus as data (141 live rows admitted by named disposition + a mutation half refused), the two real boards trimmed into `scripts/fixtures/board-replay/`, the no-op-stripper discrimination with a recorded RED baseline, and the seven-axis parse oracle [DASH-02]
 - [x] 32-05-PLAN.md — `joinSnapshot` and the closed seven-kind `conflicts[]` set, the `scripts/fixtures/board-snapshot/` tree manufacturing all seven kinds, and the byte-for-byte `schemaVersion: 1` golden [DASH-03, DASH-08]
-- [ ] 32-06-PLAN.md — the DASH-06 import-graph guard: AST-derived closure and symbol sets with premise assertions, the module ban, two planted mirrors proving it can fail, and `check:dashboard-readonly` as one authority [DASH-06, DASH-08]
+- [x] 32-06-PLAN.md — the DASH-06 import-graph guard: AST-derived closure and symbol sets with premise assertions, the module ban, two planted mirrors proving it can fail, and `check:dashboard-readonly` as one authority [DASH-06, DASH-08]
 
 **Wave 4** *(32-07 blocked on 32-03+32-05; 32-08 on 32-02+32-05)*
 
@@ -1201,7 +1201,7 @@ Plans:
 | 29.2. Model Assignment Delivery Path | v2.1 | 6/6 | Complete    | 2026-09-07 |
 | 30. Per-Checkpoint Autonomy Matrix | v2.1 | 11/11 | Complete    | 2026-09-07 |
 | 31. Autonomous Manual Testing | v2.1 | 44/44 | In Progress|  |
-| 32. Board Projector & CLI Dashboard | v2.1 | 5/8 | In Progress|  |
+| 32. Board Projector & CLI Dashboard | v2.1 | 6/8 | In Progress|  |
 | 33. Live Capture & Windows Portability | v2.1 | 0/TBD | Not started | - |
 
 **Totals:** 33 phases · **4 milestones shipped** (v1.0 + v1.1 + v1.2 + v2.0) · **1 active** (v2.1, phases 27–33).

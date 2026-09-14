@@ -5,14 +5,14 @@ milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live
 current_phase: 32
 current_phase_name: Board Projector & CLI Dashboard
 status: "Phase 31 CLOSED 2026-09-13 by user override D-44 (round-9 verification gaps_found 4/6 left standing; CR-28..CR-31 + WR-43..WR-47 accepted open). Next: Phase 32 — Board Projector & CLI Dashboard, not yet planned. Standing rule: four-round gap-closure cap on every later phase."
-stopped_at: Completed 32-05-PLAN.md
-last_updated: "2026-09-14T11:43:12.891Z"
-state_head: 26a00c8f705adec67fbcc42513d9ce93604d8012
+stopped_at: Completed 32-06-PLAN.md
+last_updated: "2026-09-14T12:18:03.980Z"
+state_head: fd4f119674f22609883e9a512b79cce5bde33451
 progress:
   total_phases: 9
   completed_phases: 6
   total_plans: 228
-  completed_plans: 225
+  completed_plans: 226
   percent: 67
 last_activity: 2026-09-13
 prior_activity_desc: Phase 27 gap-closure round 8 COMPLETE (27-45, 27-46; D-53). Full narration lives in the Phase 27 artifacts and in docs/audit/; shortened here by plan 31-38 because this single line measured 7995 characters, above the 4000-character ceiling a pathological STATE line has previously crossed to turn a sub-second guard into a multi-minute one.
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-09-07 — after Phase 29.2)
 ## Current Position
 
 Phase: 32 (Board Projector & CLI Dashboard) — EXECUTING
-Plan: 6 of 8
+Plan: 7 of 8
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 
@@ -481,6 +481,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 32 P03 | 33 min | 3 tasks | 8 files |
 | Phase 32 P04 | 68 min | 3 tasks | 11 files |
 | Phase 32 P05 | 35 min | 3 tasks | 27 files |
+| Phase 32 P06 | 90 min | 3 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -1309,6 +1310,8 @@ Recent decisions affecting current work:
 - [Phase 32]: The ticket is a second DOCUMENT CLASS with its own closed eight-key set, read by parseTicketDocument in the pure board module; CANONICAL_SCHEMA — the spawn-grant authority — is left untouched rather than widened to carry ticket keys — Plan 32-03 routed tickets through admit and every real ticket was refused with unknown-key, making board-vs-ticket underivable. Widening CANONICAL_SCHEMA would add keys to the Phase 27 spawn-grant authority for a reason unrelated to spawning; a second admit entry point with a widened alphabet would contradict AdmitOptions's structural promise that it can only narrow, and would be required because the canonical alphabet carries no slash while the kit column In Security/NFR does.
 - [Phase 32]: D-02's id_prefix rule is enforced by the PARSE as an unparsed line, with the dial's value passed in by the read seam, rather than by an eighth conflict kind — The contract already says a non-conforming bracket makes the line unparsed, and D-10 closes the conflict set at seven with this plan's golden freezing it, so an eighth kind would have been a schemaVersion bump for a rule the contract answered differently. The module stays pure because the dial's VALUE arrives as a parameter rather than as a file read.
 - [Phase 32]: A validator fixture repository is a directory carrying BOTH marks a validator run needs (the factory config and an AGENTS.md); a separate wider carries-a-config set keeps the retired-key sweep scanning every committed config — board-snapshot carries a factory config because the board projector reads its wip_limits and id_prefix, so the old single-mark property stopped discriminating. Narrowing the retired-key sweep to the repository set instead would have quietly stopped scanning a config.
+- [Phase 32]: 32-06: the read-only guard's blocking two-sided pin is the closure's own node:fs symbol set (6 readers), not the runtime enumeration's cardinality — the first is a function of the repository's code, the second of the Node version (CI 22 vs dev 24), and a pin that reds for an unrelated reason gets loosened until it stops noticing
+- [Phase 32]: 32-06: check:dashboard-readonly is a vitest wrapper around the same file the suite runs — the first check:* entry that is not the two-step tsc-and-run shape. The stdlib-second-scanner alternative was rejected because it would give one predicate two authorities (the Phase 29 failure), and the deviation is recorded in the test docblock
 
 ### Pending Todos
 
@@ -1427,8 +1430,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-09-14T11:42:56.368Z
-Stopped at: Completed 32-05-PLAN.md
+Last session: 2026-09-14T12:17:41.804Z
+Stopped at: Completed 32-06-PLAN.md
 Resume file: None
 
 ## Operator Next Steps

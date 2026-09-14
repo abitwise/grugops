@@ -131,7 +131,7 @@ Each requirement maps to exactly one roadmap phase (27–33). REQ-IDs continue g
 - [x] **DASH-03**: A typed `FactorySnapshot` joins board, ticket frontmatter, queue state, context notes, and traceability, and **surfaces** board-vs-frontmatter disagreement in a `conflicts[]` field rather than silently resolving it.
 - [x] **DASH-04**: A separate dashboard process renders the snapshot live using directory-level `fs.watch` plus a **mandatory** polling floor and debounce — because grugops's own atomic-rename write path silently orphans a file-level watch.
 - [ ] **DASH-05**: Torn reads and the Windows `atomicWrite` ENOENT window are handled by read-verify-reread with a last-good snapshot and a visible stale badge; a partial parse or an ENOENT is never rendered as an empty board.
-- [ ] **DASH-06**: The dashboard is mechanically read-only — an import-graph guard proves its module tree holds no mutating `node:fs` symbol, rather than asserting read-only in prose.
+- [x] **DASH-06**: The dashboard is mechanically read-only — an import-graph guard proves its module tree holds no mutating `node:fs` symbol, rather than asserting read-only in prose.
 - [ ] **DASH-07**: Non-TTY, `--json`, and `--once` modes work for CI and piping, and the renderer degrades visibly rather than rendering a confident wrong board.
 - [ ] **DASH-08**: The snapshot shape is stable enough that a future web renderer consumes it unchanged; the dashboard adds **zero** runtime dependencies and no listening socket this milestone.
 
@@ -220,7 +220,7 @@ _Filled by the roadmapper 2026-07-28. Every requirement maps to exactly one phas
 | DASH-03 | Phase 32 | Complete |
 | DASH-04 | Phase 32 | Complete |
 | DASH-05 | Phase 32 | Pending |
-| DASH-06 | Phase 32 | Pending |
+| DASH-06 | Phase 32 | Complete |
 | DASH-07 | Phase 32 | Pending |
 | DASH-08 | Phase 32 | Pending |
 | CAP-01 | Phase 33 | Pending |
