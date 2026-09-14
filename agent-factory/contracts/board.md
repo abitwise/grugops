@@ -112,6 +112,13 @@ document class from the kit adapter frontmatter that `scripts/canonical-frontmat
 the two key sets are deliberately separate: the adapter schema is the authority for a spawn grant,
 and a ticket carries no grant.
 
+The structure validator reads tickets through that one reader, and reports a refused document by
+its refusal code without evaluating its column or its status: a value read out of a document the
+grammar refused is a guess, and a guess is not a thing to validate a board against. So a ticket
+carrying no frontmatter region — which an earlier validator read anyway, taking whatever `column:`
+line it found in the prose — is now an error naming `no-opening-delimiter`, and a ticket whose
+region names one key twice is an error naming `duplicate-key`, where both once passed silently.
+
 ## Rows
 
 A **ticket row** is a top-level bullet carrying a bracketed identifier, one space, and a title.

@@ -75,7 +75,7 @@ import { governanceConfigCandidates } from "./context-io.js";
 // SECOND authority on what a column is — free to disagree with the projector, and a disagreement
 // between two parsers is invisible until it has already misreported the board. `kebab` comes from
 // the same module for the same reason: `kebab(column) === status` is a rule of that grammar.
-import { boardHasColumn, kebab, parseBoard } from "./board-model.js";
+import { boardHasColumn, kebab, parseBoard, parseTicketDocument } from "./board-model.js";
 
 // ── Two-root resolution (VAL-02 / D-08 — kit root + state root, resolved separately) ─────────
 // STATE_ROOT keeps the install.ts back-compat shape: VALIDATE_ROOT, else the repo root.
@@ -709,19 +709,6 @@ function checkConfigForm(rel: string, raw: string, requireBaseKeys: boolean): vo
 }
 
 // ── Check 5+6: board<->ticket status match (vacuous on zero tickets) + traceability rows ──────
-interface FrontMatter {
-  column: string | null;
-  status: string | null;
-}
-function frontMatter(text: string): FrontMatter {
-  const col = text.match(/^column:\s*(.+)$/m);
-  const status = text.match(/^status:\s*(.+)$/m);
-  return {
-    column: col ? col[1].trim() : null,
-    status: status ? status[1].trim() : null,
-  };
-}
-
 function checkTickets(): void {
   const ticketFiles = stateListDir("plans/tickets").filter((f) => f.endsWith(".md"));
   if (ticketFiles.length === 0) return; // D-43 vacuity: zero tickets → green
@@ -739,7 +726,23 @@ function checkTickets(): void {
     const rel = `plans/tickets/${f}`;
     const text = stateRead(rel);
     if (text === null) continue;
-    const { column, status } = frontMatter(text);
+    // A TICKET'S FRONTMATTER IS ASKED OF THE GRAMMAR, NOT RE-READ HERE (DASH-01 / D-06, plan 32-12).
+    // This file used to carry its own `^column:` / `^status:` regex pair, which made the validator
+    // a SECOND authority on what a ticket says. The two readers disagreed by construction on three
+    // documents — a `column:` line in the prose or a fenced body, a document with no frontmatter
+    // region, and a duplicated key — so `npm run` validation and the board projector could report
+    // different columns for the same ticket. The three are fixtures in scripts/fixtures/ and their
+    // before-and-after answers are recorded in the plan's RED baseline and GREEN proof.
+    const admission = parseTicketDocument(text);
+    if (!admission.ok) {
+      // A value read out of a document the grammar refused is a guess, so the membership and kebab
+      // rules below are not run against one (D-07: refuse outside the form, never widen the
+      // parser). The finding names the refusal CODE and the grammar's own sentence, so the person
+      // who owns the ticket reads what to fix rather than that something is wrong.
+      err(`${rel}: refused by the ticket grammar (${admission.code}): ${admission.reason}`);
+      continue;
+    }
+    const { column, status } = admission.value;
     if (column && !boardHasColumn(boardModel, column)) {
       err(`${rel}: column "${column}" is not a board column`);
     }
