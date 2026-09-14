@@ -401,7 +401,7 @@ function warn(io: DashboardIo, line: string): void {
 Replace all four `io.stderr.write(...)` call sites (`emit`, `refresh`'s catch, `run`'s catch,
 `main`'s catch) and the entry tail's `process.stderr.write` with `warn`. Add a case in
 `scripts/board-dashboard.test.ts` planting an OSC sequence in a ticket's first line and asserting no
-`` byte reaches the captured stderr. Separately, `parseTicketDocument` should run
+`\x1b` byte reaches the captured stderr. Separately, `parseTicketDocument` should run
 `TICKET_CONTROL` over `lines[0]` before quoting it.
 
 ---
