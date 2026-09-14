@@ -5,14 +5,14 @@ milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live
 current_phase: 32
 current_phase_name: Board Projector & CLI Dashboard
 status: "Phase 31 CLOSED 2026-09-13 by user override D-44 (round-9 verification gaps_found 4/6 left standing; CR-28..CR-31 + WR-43..WR-47 accepted open). Next: Phase 32 — Board Projector & CLI Dashboard, not yet planned. Standing rule: four-round gap-closure cap on every later phase."
-stopped_at: Completed 32-01-PLAN.md
-last_updated: "2026-09-14T08:15:55.257Z"
-state_head: 7e6a7cef4a72b083eab944a41151d1d715763ca6
+stopped_at: Completed 32-02-PLAN.md
+last_updated: "2026-09-14T09:11:07.337Z"
+state_head: be5efca12947fe5d82d58e5b6a325232132eaad2
 progress:
   total_phases: 9
   completed_phases: 6
   total_plans: 228
-  completed_plans: 220
+  completed_plans: 222
   percent: 67
 last_activity: 2026-09-13
 prior_activity_desc: Phase 27 gap-closure round 8 COMPLETE (27-45, 27-46; D-53). Full narration lives in the Phase 27 artifacts and in docs/audit/; shortened here by plan 31-38 because this single line measured 7995 characters, above the 4000-character ceiling a pathological STATE line has previously crossed to turn a sub-second guard into a multi-minute one.
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-09-07 — after Phase 29.2)
 ## Current Position
 
 Phase: 32 (Board Projector & CLI Dashboard) — EXECUTING
-Plan: 2 of 8
+Plan: 3 of 8
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 
@@ -477,6 +477,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 31 P43 | 2h 5m | 2 tasks | 11 files |
 | Phase 31 P44 | 1h 25m | 3 tasks | 5 files |
 | Phase 32 P01 | 50 min | 3 tasks | 16 files |
+| Phase 32 P02 | 37 min | 3 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -1294,6 +1295,9 @@ Recent decisions affecting current work:
 - [Phase 31]: D-42 (6): the skipped-directory disclosure STAYS on stderr, decided against the written contract, with the stream sharing and the exit-code discriminator stated in the recipe
 - [Phase 31]: D-42 (7): the counted thing is named in the emitted line — directory entries the walk refused to descend into, never specs hidden under them
 - [Phase 31]: D-43 — a control observes its own effect: the platform-shapes note-position driver reports what happened AT THE TARGET, and the printed label is derived from a closed 11-member outcome vocabulary whose cardinality the gate asserts both ways.
+- [Phase 32]: preamble ends at the first level-two heading rather than the first column heading, so a non-column section before any column collects its own prose — The task's own behaviour contract requires a document with zero columns to yield one nonColumnSections entry; that rule and the action prose disagree, and the testable bullet wins.
+- [Phase 32]: a legal ticket row outside every column is an unparsed line with a null column, never a section line — This is what makes the old builder spec's Blocked (2) refusal visible to a reader; the discriminator is the line shape, not the heading.
+- [Phase 32]: bounds are REPORTED on every parse and never enforced by refusal — a board past a ceiling keeps every row and shortens only its opaque strings — Refusing a board over the ceiling makes a growing board permanently unreadable, which is the failure D-20 rejected by name.
 
 ### Pending Todos
 
@@ -1412,8 +1416,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-09-14T08:15:54.882Z
-Stopped at: Completed 32-01-PLAN.md
+Last session: 2026-09-14T09:10:55.550Z
+Stopped at: Completed 32-02-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
