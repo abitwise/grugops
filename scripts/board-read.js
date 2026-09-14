@@ -599,11 +599,15 @@ function readQueueSource(root, readAt, previous, seam) {
     }
     const claimedDir = repoSubpath(root, `${FIXED_SUBPATHS.queue}/${CLAIMED_STAGE}`);
     const listing = listDirectoryBounded(claimedDir);
-    // BEHAVIOUR-PRESERVING ADAPTER, AND IT IS A SHIM RATHER THAN AN ANSWER. Plan 32-09 Task 1 changed
-    // the listing's TYPE to carry its failures; this consumer still collapses every non-`listed` arm
-    // into "nothing claimed", which is the CR-02 swallow one source over. It is spelled out here, in
-    // the commit that changed the type, so the surviving defect is visible rather than hidden behind a
-    // compiling call site. Task 2 of the same plan routes all three arms.
+    // THE THREE ARMS, ROUTED (plan 32-09, CR-02). `absent` keeps today's answer and that is a
+    // DECISION: a `.grugops/queue/` that exists with no `claimed/` stage yet is a queue that has
+    // claimed nothing, which is a legitimate empty queue rather than a fault (D-13). `failed` settles
+    // through `settleSource`, so a denied claimed stage produces a badge and a `readErrors` entry
+    // carrying the errno instead of rendering as "nothing claimed" — the state a human watching a live
+    // run would read as "the work stopped", about a queue that is running fine.
+    if (listing.kind === "failed") {
+        return settledFrom(settleSource("queue", queueRoot, listingFailure(claimedDir, listing), previous, readAt));
+    }
     const claimedNames = listing.kind === "listed" ? listing.names : [];
     const claimedBounded = listing.kind === "listed" && listing.bounded;
     const rows = [];
@@ -667,10 +671,12 @@ function readQueueSource(root, readAt, previous, seam) {
 function readContextSource(root, readAt, previous, seam) {
     const dir = repoSubpath(root, FIXED_SUBPATHS.context);
     const listing = listDirectoryBounded(dir);
-    // The same behaviour-preserving shim recorded at `readQueueSource`: every non-`listed` arm settles
-    // as `absent`, which is the CR-02 swallow, kept visible for exactly one commit. Task 2 routes it.
-    if (listing.kind !== "listed") {
+    // The same three-arm routing `readTicketsSource` uses, for the same reason (plan 32-09, CR-02).
+    if (listing.kind === "absent") {
         return settledFrom(settleSource("context", dir, { kind: "absent" }, previous, readAt));
+    }
+    if (listing.kind === "failed") {
+        return settledFrom(settleSource("context", dir, listingFailure(dir, listing), previous, readAt));
     }
     const tasks = [];
     const errors = [];
@@ -684,8 +690,23 @@ function readContextSource(root, readAt, previous, seam) {
         try {
             isDirectory = statSync(taskDir).isDirectory();
         }
-        catch {
-            continue; // it went away between the listing and the stat; the next re-read will say so
+        catch (e) {
+            // ONE ERRNO IS SWALLOWED HERE, AND IT IS NAMED (plan 32-09). `ENOENT` means the entry went
+            // away between the listing and the stat. That race is real, it resolves itself on the next
+            // re-read, and reporting it would make a live dashboard noisy about a file nobody misses. Every
+            // OTHER errno is a task this reader could not inspect: a permission-denied context task used to
+            // be invisible under a comment that asserted it had been deleted — a sentence true of exactly
+            // one of the errnos it covered.
+            const err = e;
+            if (err.code !== "ENOENT") {
+                errors.push({
+                    source: "context",
+                    path: taskDir,
+                    code: err.code ?? "unreadable",
+                    message: `${taskDir} could not be inspected (${err.code ?? "unreadable"}): ${err.message}`,
+                });
+            }
+            continue;
         }
         if (!isDirectory)
             continue;
