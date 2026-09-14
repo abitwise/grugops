@@ -317,9 +317,18 @@ describe("board-model — the row grammar (D-01 as amended by D-22)", () => {
 });
 
 describe("board-model — the total line partition (D-24, this task's half)", () => {
-  it("puts every line before the first column heading into the preamble", () => {
+  // AMENDED BY PLAN 32-02, AND THE AMENDMENT IS THE POINT. When the tracer landed, `updates[]` was
+  // a declared field returned empty, so a canonical `_Updated:` line fell through to the preamble
+  // catch-all. Plan 32-02 filled the class: a canonical update line is now an `updates[]` entry
+  // wherever it appears (D-03), and the preamble carries the remaining content lines. The case
+  // still asserts what it always asserted — that a pre-heading line is accounted for — and now also
+  // records which bucket accounts for it.
+  it("puts every content line before the first heading into the preamble, and a canonical `_Updated:` line into updates", () => {
     const model = parseBoard("# Board\n_Updated: 2026-09-13 by Orchestrator_\n\n## Backlog (WIP unlimited)\n");
-    expect(model.preamble).toEqual(["# Board", "_Updated: 2026-09-13 by Orchestrator_"]);
+    expect(model.preamble).toEqual(["# Board"]);
+    expect(model.updates.map((u) => ({ date: u.date, actor: u.actor }))).toEqual([
+      { date: "2026-09-13", actor: "Orchestrator" },
+    ]);
   });
 
   it("keeps the kit board's `_Updated:` placeholder in the preamble", () => {

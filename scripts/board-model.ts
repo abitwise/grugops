@@ -149,21 +149,29 @@ export type Bounds = {
   readonly exceeded: boolean;
 };
 
+/**
+ * The parsed board.
+ *
+ * THE SEVEN BUCKETS BELOW PARTITION THE INPUT (D-24, invariant I1). Every line of a board document
+ * lands in exactly one of `columns[].rows`, `epicRows`, `updates`, `preamble`,
+ * `nonColumnSections[].lines`, `unparsed`, or the blank-and-heading set — blank lines and level-two
+ * heading lines, which carry no content of their own. The partition is total and disjoint, and
+ * `scripts/board-model.test.ts` asserts both halves with counts derived independently of the parse
+ * loop. A partition with a hole is how "three unparsed lines in Done" becomes "one hundred and
+ * seventy-six unparsed lines" and the finding a human needed is buried under the ones nobody wrote.
+ */
 export type BoardModel = {
   readonly columns: readonly BoardColumn[];
   readonly epicRows: readonly EpicRow[];
-  /**
-   * PLAN 32-02 FILLS THIS. The field exists in `schemaVersion: 1` from the first commit, so filling
-   * it later is a functionality change and moves no boundary.
-   */
+  /** Every canonical `_Updated:` line, wherever it appeared (D-03). */
   readonly updates: readonly UpdateEntry[];
-  /** Every line before the first column heading (D-24). */
+  /** Every content line before the first heading of any level-two kind (D-24). */
   readonly preamble: readonly string[];
-  /** PLAN 32-02 FILLS THIS. See `updates` above. */
+  /** Each non-column `##` section, with the content lines it absorbed (D-24). */
   readonly nonColumnSections: readonly NonColumnSection[];
-  /** PLAN 32-02 FILLS THIS. See `updates` above. */
+  /** Every content line the grammar declined to read, in ascending line order (D-03). */
   readonly unparsed: readonly UnparsedLine[];
-  /** PLAN 32-02 FILLS THIS. See `updates` above. */
+  /** The measured size of the input and whether either D-20 ceiling was passed. */
   readonly bounds: Bounds;
 };
 
@@ -387,6 +395,24 @@ type MutableColumn = {
   rows: BoardRow[];
 };
 
+type MutableSection = {
+  heading: string;
+  line: number;
+  lines: string[];
+};
+
+/** A legal row, decomposed — or `null` when the line is not a row at all. */
+type RowMatch = { readonly id: string; readonly parts: RowParts; readonly isEpic: boolean };
+
+function matchRow(line: string): RowMatch | null {
+  const row = ROW.exec(line);
+  if (row === null) return null;
+  const id = row[1] as string;
+  if (EPIC_ID.test(id)) return { id, parts: splitRow(row[2] as string), isEpic: true };
+  if (TICKET_ID.test(id)) return { id, parts: splitRow(row[2] as string), isEpic: false };
+  return null;
+}
+
 /**
  * Parse a board document into the `schemaVersion: 1` model.
  *
@@ -394,9 +420,27 @@ type MutableColumn = {
  * Windows checkout is not refused for a reason that has nothing to do with the grammar. The comment
  * pre-pass runs next, before any heading or row scan touches a byte.
  *
- * THIS TASK POPULATES `columns`, `epicRows` AND `preamble`. `updates`, `nonColumnSections`,
- * `unparsed` and `bounds` are declared in the type and returned empty; plan 32-02 fills them. The
- * fields exist in `schemaVersion: 1` from the first commit, so filling them moves no boundary.
+ * THE CLASSIFICATION RULE, STATED ONCE, BECAUSE ITS PRECEDENCE IS THE WHOLE DESIGN (D-24).
+ *
+ *   1. A level-two heading is never content. A heading carrying one of the three D-05 suffixes
+ *      opens a column; any other level-two heading opens a non-column section. Either one closes
+ *      whatever was open before it. A heading at level three opens nothing and closes nothing, so
+ *      it becomes a content line of whatever section is current.
+ *   2. A blank line is never content.
+ *   3. A canonical `_Updated:` line is an update entry wherever it appears, so the twenty-five
+ *      header updates of a real board never compete with its rows for a bucket.
+ *   4. A legal row inside a column becomes a row or an epic row. A legal row OUTSIDE every column
+ *      is a loud refusal rather than a quiet section line: it goes to `unparsed[]` with a null
+ *      column. That is what makes the old specification's `## Blocked (2)` form visible — the
+ *      heading opens no column, so the rows beneath it are reported rather than absorbed (D-07).
+ *   5. Everything else is classed by position: a content line inside a non-column section belongs
+ *      to that section, a content line before any heading is preamble, and a content line inside a
+ *      column is unparsed.
+ *
+ * PRECEDENCE RULE 5 IS WHY `preamble` IS BOUNDED BY THE FIRST HEADING RATHER THAN BY THE FIRST
+ * COLUMN. A document whose only heading is `## Notes (bootstrap, 2026-06-05)` has no columns at
+ * all, and its prose belongs to that named section rather than to an unnamed preamble that would
+ * then carry two unrelated kinds of line.
  */
 export function parseBoard(text: string): BoardModel {
   const normalized = text.split("\r\n").join("\n");
@@ -405,23 +449,27 @@ export function parseBoard(text: string): BoardModel {
   const columns: MutableColumn[] = [];
   const epicRows: EpicRow[] = [];
   const preamble: string[] = [];
+  const updates: UpdateEntry[] = [];
+  const nonColumnSections: MutableSection[] = [];
+  const unparsed: UnparsedLine[] = [];
 
-  let current: MutableColumn | null = null;
-  let sawColumn = false;
+  // At most one of these is open at a time; both null means the preamble region.
+  let column: MutableColumn | null = null;
+  let section: MutableSection | null = null;
 
   for (let i = 0; i < lines.length; i++) {
     const raw = lines[i] as string;
     const lineNo = i + 1;
 
-    // A level-two heading always closes the open column. A non-column heading opens a non-column
-    // section, which is why bullets under `## Conventions` never land in the last column.
     if (raw.startsWith(H2_PREFIX)) {
       const heading = matchHeading(raw);
       if (heading === null) {
-        current = null;
+        section = { heading: raw, line: lineNo, lines: [] };
+        nonColumnSections.push(section);
+        column = null;
         continue;
       }
-      current = {
+      column = {
         name: heading.name,
         heading: raw,
         kind: heading.kind,
@@ -430,32 +478,43 @@ export function parseBoard(text: string): BoardModel {
         line: lineNo,
         rows: [],
       };
-      columns.push(current);
-      sawColumn = true;
+      columns.push(column);
+      section = null;
       continue;
     }
 
-    if (!sawColumn) {
-      // D-24: everything before the first column heading is preamble. Blanked comment spans trim to
-      // nothing and are not carried; the kit board's `_Updated:` placeholder is.
-      if (raw.trim() !== "") preamble.push(raw);
+    // A blanked comment span trims to nothing, so the two cases collapse into one test.
+    if (raw.trim() === "") continue;
+
+    const update = matchUpdateLine(raw, lineNo);
+    if (update !== null) {
+      updates.push(update);
       continue;
     }
 
-    const row = ROW.exec(raw);
-    if (row === null) continue;
-
-    const id = row[1] as string;
-    const parts = splitRow(row[2] as string);
-
-    if (EPIC_ID.test(id)) {
-      epicRows.push({ ...parts, id, line: lineNo, column: current?.name ?? null });
+    const row = matchRow(raw);
+    if (row !== null) {
+      if (column === null) {
+        unparsed.push({ line: lineNo, text: raw, column: null });
+        continue;
+      }
+      if (row.isEpic) {
+        epicRows.push({ ...row.parts, id: row.id, line: lineNo, column: column.name });
+        continue;
+      }
+      column.rows.push({ ...row.parts, id: row.id, line: lineNo });
       continue;
     }
-    if (!TICKET_ID.test(id)) continue; // plan 32-02 records this line in `unparsed[]`
-    if (current === null) continue; // a row outside every column; plan 32-02 records it
 
-    current.rows.push({ ...parts, id, line: lineNo });
+    if (section !== null) {
+      section.lines.push(raw);
+      continue;
+    }
+    if (column === null) {
+      preamble.push(raw);
+      continue;
+    }
+    unparsed.push({ line: lineNo, text: raw, column: column.name });
   }
 
   return {
@@ -469,15 +528,26 @@ export function parseBoard(text: string): BoardModel {
       rows: c.rows,
     })),
     epicRows,
-    updates: [],
+    updates,
     preamble,
-    nonColumnSections: [],
-    unparsed: [],
+    nonColumnSections: nonColumnSections.map((s) => ({
+      heading: s.heading,
+      line: s.line,
+      lines: s.lines,
+    })),
+    unparsed,
     bounds: { boardBytes: 0, longestLine: 0, exceeded: false },
   };
 }
 
-/** The canonical update-line shape (D-03). Exported so plan 32-02 fills `updates[]` against it. */
+/**
+ * The canonical update-line shape (D-03).
+ *
+ * A line in any other `_Updated:` shape returns null here and is then classed BY POSITION rather
+ * than by content: preamble before the first heading, a section line inside a non-column section,
+ * an unparsed line inside a column. That positional rule is what keeps the kit board's own
+ * `_Updated: <ISO date> by <role>_` placeholder off the findings list on a fresh install.
+ */
 export function matchUpdateLine(line: string, lineNo: number): UpdateEntry | null {
   const m = UPDATED.exec(line);
   if (m === null) return null;

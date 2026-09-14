@@ -9283,7 +9283,16 @@ const censusRelationshipFindings = (c: TripwireCensus): string[] => {
 // arriving is the correct thing to have fired. Re-derived rather than incremented:
 // `ls scripts/*.test.ts | wc -l` reports 61 on this tree, agreeing with the live census, and the
 // bump lands in the SAME commit as the run in which the full suite first observed the module.
-const TRIPWIRE_MODULES = 61;
+//
+// 61 -> 62 (plan 32-02, task 1): ONE test module, `scripts/board-model.test.ts` — the five
+// structural invariants of the board grammar's line partition (I1 totality, I2 comment
+// invisibility, I3 column conservation, I4 unparsed ordering, I5 row conservation), asserted over
+// the kit board, its seed twin, `plans/traceability.md` and a synthetic board that reaches every
+// bucket. It is a genuine test module rather than a corpus file, so a pin that surfaced it arriving
+// is the correct thing to have fired. Re-derived rather than incremented:
+// `ls scripts/*.test.ts | wc -l` reports 62 on this tree, agreeing with the live census, and the
+// bump lands in the SAME commit as the run in which the full suite first observed the module.
+const TRIPWIRE_MODULES = 62;
 /**
  * Corpus-derived floors, expressed as RATES so the floor grows with the corpus it floors.
  * Each is set well below its measured live value: the point is to catch a measurement that
