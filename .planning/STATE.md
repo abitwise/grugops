@@ -5,14 +5,14 @@ milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live
 current_phase: 32
 current_phase_name: Board Projector & CLI Dashboard
 status: "Phase 31 CLOSED 2026-09-13 by user override D-44 (round-9 verification gaps_found 4/6 left standing; CR-28..CR-31 + WR-43..WR-47 accepted open). Next: Phase 32 — Board Projector & CLI Dashboard, not yet planned. Standing rule: four-round gap-closure cap on every later phase."
-stopped_at: Completed 32-04-PLAN.md
-last_updated: "2026-09-14T10:57:35.646Z"
-state_head: 76257c55d27719591a51ce5e4aec290bfa5eb1ec
+stopped_at: Completed 32-05-PLAN.md
+last_updated: "2026-09-14T11:43:12.891Z"
+state_head: 26a00c8f705adec67fbcc42513d9ce93604d8012
 progress:
   total_phases: 9
   completed_phases: 6
   total_plans: 228
-  completed_plans: 224
+  completed_plans: 225
   percent: 67
 last_activity: 2026-09-13
 prior_activity_desc: Phase 27 gap-closure round 8 COMPLETE (27-45, 27-46; D-53). Full narration lives in the Phase 27 artifacts and in docs/audit/; shortened here by plan 31-38 because this single line measured 7995 characters, above the 4000-character ceiling a pathological STATE line has previously crossed to turn a sub-second guard into a multi-minute one.
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-09-07 — after Phase 29.2)
 ## Current Position
 
 Phase: 32 (Board Projector & CLI Dashboard) — EXECUTING
-Plan: 5 of 8
+Plan: 6 of 8
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 
@@ -480,6 +480,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 32 P02 | 37 min | 3 tasks | 6 files |
 | Phase 32 P03 | 33 min | 3 tasks | 8 files |
 | Phase 32 P04 | 68 min | 3 tasks | 11 files |
+| Phase 32 P05 | 35 min | 3 tasks | 27 files |
 
 ## Accumulated Context
 
@@ -1305,6 +1306,9 @@ Recent decisions affecting current work:
 - [Phase 32]: main() becomes the one-shot contract and run() the process entry point, because a process must not exit while a watch loop is armed and only the caller can decide that. — The former main() returned an exit code the entry tail passed straight to process.exit, which would have killed the loop the same tick it was armed.
 - [Phase 32]: The board corpus's disposition set is NINE members, splitting the contract's `no bucket` partition row into `columnHeading`, `nonColumnHeading` and `blanked` — A comment mutation and a `## Blocked (2)` refusal are different refusals with different consequences for a reader. Seven buckets cannot express the mutation half at all — a mini-board inside a comment reaches none of them — so a corpus recording both as "not a column" could not name what it refused.
 - [Phase 32]: `agent-factory/contracts/board.md`'s `id_prefix` clause is unowned by the parser and is recorded as a divergence rather than enforced — `scripts/board-model.ts` is pure and reads no config, which is the property the DASH-06 import-graph guard exists to keep, so it enforces the identifier SHAPE only and admits `- [XYZ-014] ...` today. Carried as corpus row `ctl-id-disagreeing-prefix` and as a `deviation` entry in .planning/WINDOWS.md; the comparison belongs to plan 32-05's join layer, which holds the dial.
+- [Phase 32]: The ticket is a second DOCUMENT CLASS with its own closed eight-key set, read by parseTicketDocument in the pure board module; CANONICAL_SCHEMA — the spawn-grant authority — is left untouched rather than widened to carry ticket keys — Plan 32-03 routed tickets through admit and every real ticket was refused with unknown-key, making board-vs-ticket underivable. Widening CANONICAL_SCHEMA would add keys to the Phase 27 spawn-grant authority for a reason unrelated to spawning; a second admit entry point with a widened alphabet would contradict AdmitOptions's structural promise that it can only narrow, and would be required because the canonical alphabet carries no slash while the kit column In Security/NFR does.
+- [Phase 32]: D-02's id_prefix rule is enforced by the PARSE as an unparsed line, with the dial's value passed in by the read seam, rather than by an eighth conflict kind — The contract already says a non-conforming bracket makes the line unparsed, and D-10 closes the conflict set at seven with this plan's golden freezing it, so an eighth kind would have been a schemaVersion bump for a rule the contract answered differently. The module stays pure because the dial's VALUE arrives as a parameter rather than as a file read.
+- [Phase 32]: A validator fixture repository is a directory carrying BOTH marks a validator run needs (the factory config and an AGENTS.md); a separate wider carries-a-config set keeps the retired-key sweep scanning every committed config — board-snapshot carries a factory config because the board projector reads its wip_limits and id_prefix, so the old single-mark property stopped discriminating. Narrowing the retired-key sweep to the repository set instead would have quietly stopped scanning a config.
 
 ### Pending Todos
 
@@ -1423,8 +1427,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-09-14T10:57:23.223Z
-Stopped at: Completed 32-04-PLAN.md
+Last session: 2026-09-14T11:42:56.368Z
+Stopped at: Completed 32-05-PLAN.md
 Resume file: None
 
 ## Operator Next Steps

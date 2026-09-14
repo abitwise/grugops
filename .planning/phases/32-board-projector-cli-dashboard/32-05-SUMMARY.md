@@ -24,7 +24,7 @@ affects: [32-06, 32-07, 32-08]
 actuals:
   tokens: 26020
   tasks: 3
-  commits: 6
+  commits: 8
 plan_head_before: ec482fd0f343f6033523c9d0de400b909fb006c8
 
 tech-stack:
@@ -257,6 +257,10 @@ status: complete
 4. **Task 2: the `board-snapshot` fixture tree** — `84cce3a3` (test)
 5. **Task 3 (RED): failing golden, inventory and `schemaVersion` cases** — `f1e1b330` (test)
 6. **Task 3 (GREEN): the committed golden** — `6e0c1f34` (feat)
+
+**Plan metadata:** `26a00c8f` (`docs(32-05): complete the seven conflict kinds and golden plan` — the SUMMARY) and the commit that follows it, `docs(32-05): record plan completion in state, roadmap and requirements`, carrying STATE.md, ROADMAP.md and REQUIREMENTS.md. That last one is named by its message rather than its hash because it is the commit this paragraph lives in, and a hash written into a commit cannot be the hash of that commit.
+
+`commits: 8` in the frontmatter is MEASURED with `git rev-list --count ${plan_head_before}..HEAD` against the base recorded beside it, not narrated: six task commits plus the two metadata commits above.
 
 Each RED run was verified with `gsd-tools check tdd-red-evidence` and returned `RED_EVIDENCE_OK` (`target_test_failed`) before its GREEN commit was written. Vitest's TAP reporter indents nested leaf tests and prints no `node --test` summary line, so each record's `output` is that reporter's own bytes dedented, plus the counts the same run reported — a faithful rendering, recorded as such in the record's `note` field.
 
