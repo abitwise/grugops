@@ -42,7 +42,14 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { boardColumnName, parseBoard } from "./board-model.js";
+import {
+  LARGE_BOARD_BYTES,
+  LONG_LINE_CHARS,
+  MAX_META_CHARS,
+  MAX_UPDATE_TEXT_CHARS,
+  boardColumnName,
+  parseBoard,
+} from "./board-model.js";
 
 const ROOT = join(import.meta.dirname, "..");
 
@@ -509,5 +516,182 @@ describe("board-model — unparsed lines inside a column (D-03)", () => {
     expect(model.unparsed.map((u) => u.text)).toEqual([
       "A paragraph an agent wrote between two rows.",
     ]);
+  });
+});
+
+// ── Bounds and truncation (D-20, T-32-01, T-32-07) ───────────────────────────────────────────────
+//
+// WHY A WALL-CLOCK ASSERTION LIVES IN A UNIT TEST FILE. The measured corpus carries a board of
+// 380,605 bytes whose longest line is 34,494 characters, and this repository has already paid for
+// one superlinear regex on a long line — a 0.47 second guard that took 383 seconds. A bound that is
+// only asserted in prose is not a bound, so the long-line case below measures elapsed time and
+// fails on it.
+//
+// THE TWO CEILINGS ARE DECISIONS, NOT TUNING KNOBS. Each is recorded in
+// `agent-factory/contracts/board.md` § Bounds. A board that grows past a ceiling is still parsed in
+// full and still renders every row; only the opaque strings shorten, and the header says so. The
+// alternative — refusing a board over the ceiling — makes a growing board permanently unreadable,
+// which is the failure D-20 rejected by name.
+
+describe("board-model — bounds are measured on every parse (D-20)", () => {
+  it("measures boardBytes in UTF-8 bytes and longestLine in UTF-16 code units", () => {
+    // One astral character: two UTF-16 code units, four UTF-8 bytes. A board whose two numbers
+    // disagree is the whole reason each carries a stated unit.
+    const text = "# B\n🙂🙂\n";
+    const model = parseBoard(text);
+    expect(model.bounds.boardBytes, "UTF-8 byte length of the input as given").toBe(
+      Buffer.byteLength(text, "utf8"),
+    );
+    expect(model.bounds.longestLine, "the longest line in UTF-16 code units").toBe(4);
+    expect(model.bounds.exceeded).toBe(false);
+  });
+
+  it("pins the two ceilings as decisions rather than as constants", () => {
+    expect(
+      LARGE_BOARD_BYTES,
+      "the large-board ceiling is one mebibyte, a decision recorded in agent-factory/contracts/board.md § Bounds; moving it is a contract change, never a convenience",
+    ).toBe(1048576);
+    expect(
+      LONG_LINE_CHARS,
+      "the long-line ceiling is 65,536 UTF-16 code units, a decision recorded in agent-factory/contracts/board.md § Bounds; moving it is a contract change, never a convenience",
+    ).toBe(65536);
+  });
+
+  it("leaves exceeded false at exactly LARGE_BOARD_BYTES", () => {
+    const line = `${"x".repeat(63)}\n`;
+    const text = line.repeat(LARGE_BOARD_BYTES / 64);
+    expect(Buffer.byteLength(text, "utf8"), "PREMISE: the fixture is exactly at the ceiling").toBe(
+      LARGE_BOARD_BYTES,
+    );
+    expect(parseBoard(text).bounds.exceeded).toBe(false);
+  });
+
+  it("sets exceeded true at LARGE_BOARD_BYTES plus one byte", () => {
+    const line = `${"x".repeat(63)}\n`;
+    const text = `${line.repeat(LARGE_BOARD_BYTES / 64)}y`;
+    expect(
+      Buffer.byteLength(text, "utf8"),
+      "PREMISE: the fixture is one byte past the ceiling",
+    ).toBe(LARGE_BOARD_BYTES + 1);
+    const bounds = parseBoard(text).bounds;
+    expect(bounds.boardBytes).toBe(LARGE_BOARD_BYTES + 1);
+    expect(bounds.exceeded).toBe(true);
+  });
+
+  it("leaves exceeded false at exactly LONG_LINE_CHARS on the longest line", () => {
+    const text = `# B\n${"x".repeat(LONG_LINE_CHARS)}\n`;
+    const bounds = parseBoard(text).bounds;
+    expect(bounds.longestLine, "PREMISE: the fixture's longest line is exactly at the ceiling").toBe(
+      LONG_LINE_CHARS,
+    );
+    expect(bounds.exceeded).toBe(false);
+  });
+
+  it("sets exceeded true at LONG_LINE_CHARS plus one code unit", () => {
+    const text = `# B\n${"x".repeat(LONG_LINE_CHARS + 1)}\n`;
+    const bounds = parseBoard(text).bounds;
+    expect(bounds.longestLine).toBe(LONG_LINE_CHARS + 1);
+    expect(bounds.exceeded).toBe(true);
+  });
+
+  it("parses a chess-sized board with a 34 KB line in under two seconds (T-32-01)", () => {
+    const rows: string[] = ["# Chess", "_Updated: 2026-08-20 by Orchestrator", ""];
+    rows.push("## In Development (WIP 1/3)", "");
+    rows.push(`- [ABC-001] the long one  (${"detail, ".repeat(4312)})`);
+    for (let i = 2; i <= 7000; i += 1) {
+      rows.push(`- [ABC-${String(i).padStart(4, "0")}] a row  (owner: Software Engineer, P1)`);
+    }
+    const text = `${rows.join("\n")}\n`;
+
+    expect(
+      Buffer.byteLength(text, "utf8"),
+      "PREMISE: the fixture is at least the measured 380,000 bytes",
+    ).toBeGreaterThanOrEqual(380000);
+    expect(
+      Math.max(...text.split("\n").map((l) => l.length)),
+      "PREMISE: the fixture carries the measured 34,494-character line",
+    ).toBeGreaterThanOrEqual(34494);
+
+    const started = Date.now();
+    const model = parseBoard(text);
+    const elapsed = Date.now() - started;
+
+    expect(model.columns[0]?.rows.length, "every row is still parsed").toBe(7000);
+    expect(elapsed, "a 380 KB board with a 34 KB line must parse in under two seconds").toBeLessThan(
+      2000,
+    );
+  });
+});
+
+describe("board-model — truncation shortens the opaque strings and drops no row (D-20)", () => {
+  it("truncates an over-long meta, flags the row, and keeps the row in its column", () => {
+    const meta = "d".repeat(MAX_META_CHARS + 500);
+    const model = parseBoard(`## Done (WIP unlimited)\n- [ABC-001] a title  (${meta})\n`);
+    const row = model.columns[0]?.rows[0];
+    expect(row?.id, "the row is still present — a bound shortens a string, never drops a row").toBe(
+      "ABC-001",
+    );
+    expect(row?.meta?.length).toBe(MAX_META_CHARS);
+    expect(row?.meta?.endsWith("…")).toBe(true);
+    expect(row?.truncated).toBe(true);
+  });
+
+  it("truncates an over-long trailer and flags the same row", () => {
+    const trailer = "t".repeat(MAX_META_CHARS + 500);
+    const model = parseBoard(`## Done (WIP unlimited)\n- [ABC-002] a title  (m)  ${trailer}\n`);
+    const row = model.columns[0]?.rows[0];
+    expect(row?.meta).toBe("m");
+    expect(row?.trailer.length).toBe(MAX_META_CHARS);
+    expect(row?.truncated).toBe(true);
+  });
+
+  it("leaves a row inside the caps unflagged", () => {
+    const model = parseBoard("## Done (WIP unlimited)\n- [ABC-003] a title  (owner: QE)\n");
+    expect(model.columns[0]?.rows[0]?.truncated).toBe(false);
+  });
+
+  it("truncates an over-long update line and flags the entry", () => {
+    const tail = "u".repeat(MAX_UPDATE_TEXT_CHARS + 500);
+    const model = parseBoard(`_Updated: 2026-08-20 by ${tail}\n`);
+    const update = model.updates[0];
+    expect(update?.date).toBe("2026-08-20");
+    expect(update?.text.length).toBe(MAX_UPDATE_TEXT_CHARS);
+    expect(update?.actor.length).toBe(MAX_UPDATE_TEXT_CHARS);
+    expect(update?.truncated).toBe(true);
+  });
+
+  it("cuts BEFORE a surrogate pair rather than between its halves", () => {
+    const meta = "🙂".repeat(MAX_META_CHARS); // twice the cap in UTF-16 code units
+    const model = parseBoard(`## Done (WIP unlimited)\n- [ABC-004] a title  (${meta})\n`);
+    const cut = model.columns[0]?.rows[0]?.meta as string;
+
+    expect(cut.length, "the result never exceeds the cap in code units").toBeLessThanOrEqual(
+      MAX_META_CHARS,
+    );
+    expect(
+      [...cut].length,
+      "whole code points only — half the cap in astral characters, plus the marker",
+    ).toBe(MAX_META_CHARS / 2);
+    for (const ch of cut) {
+      const code = ch.codePointAt(0) as number;
+      const lone = code >= 0xd800 && code <= 0xdfff;
+      expect(lone, `no lone surrogate may survive a cut (saw U+${code.toString(16)})`).toBe(false);
+    }
+  });
+});
+
+describe("board-model — a WIP number is read, never coerced (T-32-09)", () => {
+  for (const suffix of ["(WIP 1.5/3)", "(WIP 1e2/3)", "(WIP ٣/3)", "(WIP  1/3)", "(WIP -1/3)"]) {
+    it(`makes \`## Done ${suffix}\` a non-column heading rather than rounding it`, () => {
+      const model = parseBoard(`## Done ${suffix}\n- [ABC-001] a row\n`);
+      expect(model.columns, `${suffix} fails D-05, so it opens no column`).toEqual([]);
+      expect(model.unparsed.map((u) => u.line), "its row is refused loudly").toEqual([2]);
+    });
+  }
+
+  it("reads a conforming WIP pair as base-ten integers", () => {
+    const model = parseBoard("## Done (WIP 07/12)\n");
+    expect(model.columns[0]?.claimedLive).toBe(7);
+    expect(model.columns[0]?.limit).toBe(12);
   });
 });

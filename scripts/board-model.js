@@ -40,6 +40,27 @@
 // additive; reinterpreting one breaks the golden fixture and every consumer. Any shape change bumps
 // this number and updates the golden in the same commit.
 export const SCHEMA_VERSION = 1;
+// ── Bounds (D-20) ────────────────────────────────────────────────────────────────────────────────
+//
+// EACH OF THE FOUR NUMBERS BELOW IS A DECISION RECORDED IN `agent-factory/contracts/board.md`
+// § Bounds, NEVER A TUNING KNOB TO BE RAISED WHEN A BOARD GROWS. A board past a ceiling is still
+// parsed in full and still renders every row; the snapshot records what it measured and the header
+// says so. Refusing a board over the ceiling was considered and rejected: it makes a growing board
+// permanently unreadable, which is the failure mode the projector exists to report rather than to
+// become.
+/** The board size, in UTF-8 BYTES, past which `bounds.exceeded` is set. One mebibyte. */
+export const LARGE_BOARD_BYTES = 1_048_576;
+/** The single-line length, in UTF-16 CODE UNITS, past which `bounds.exceeded` is set. */
+export const LONG_LINE_CHARS = 65_536;
+/**
+ * The cap, in UTF-16 code units, on a row's two opaque strings — `meta` and `trailer`.
+ *
+ * Roughly five lines of a wide terminal: enough that a human reads the whole of every meta a role
+ * actually writes, bounded enough that one pathological row cannot dominate a JSON document.
+ */
+export const MAX_META_CHARS = 1_024;
+/** The same cap, applied to an update entry's `text` and its `actor`. */
+export const MAX_UPDATE_TEXT_CHARS = 1_024;
 // ── Column headings (D-05) ───────────────────────────────────────────────────────────────────────
 //
 // EXACTLY THREE LEGAL SUFFIXES. Each pattern is anchored at both ends and is applied to the
@@ -297,10 +318,16 @@ export function parseBoard(text) {
                 continue;
             }
             if (row.isEpic) {
-                epicRows.push({ ...row.parts, id: row.id, line: lineNo, column: column.name });
+                epicRows.push({
+                    ...row.parts,
+                    id: row.id,
+                    line: lineNo,
+                    column: column.name,
+                    truncated: false,
+                });
                 continue;
             }
-            column.rows.push({ ...row.parts, id: row.id, line: lineNo });
+            column.rows.push({ ...row.parts, id: row.id, line: lineNo, truncated: false });
             continue;
         }
         if (section !== null) {
@@ -352,5 +379,6 @@ export function matchUpdateLine(line, lineNo) {
         actor: m[2].replace(/_$/, "").trim(),
         text: line,
         line: lineNo,
+        truncated: false,
     };
 }
