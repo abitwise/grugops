@@ -239,6 +239,13 @@ Every conflict carries the same payload: a `kind`, an optional `ticketId`, an op
 A duplicated row renders under both headings, and the conflict names both. A row with no ticket
 file still renders. The projector never hides a line in order to report a conflict about it.
 
+**A conflict that depends on a complete listing is not raised while that listing is not `ok`.**
+`row-without-file` and `ticket-unplaced` both assert something about every file in `plans/tickets/`,
+so neither is derived unless the tickets source read cleanly. A conflict derived from a listing that
+failed is an assertion about a filesystem nobody read. The badge reports the one thing that is true:
+the listing failed. The other five kinds are unaffected — each is a claim about a document that was
+read, or about the board and the dial alone.
+
 Unparsed lines are not conflicts. They are a parser outcome rather than a disagreement between two
 sources, so they live in `unparsed[]` and the renderer counts them per column.
 
@@ -279,7 +286,14 @@ sees.
 directory has no queue, which renders as "no queue" with no badge. An empty `plans/tickets/`
 directory is an empty ticket list. A file that existed at the previous read and is now missing is
 stale, as is a permission error and a torn read. In each of those cases the previous good value is
-carried, and the badge says so.
+carried, and the badge says so. A directory the projector cannot list is stale for the same reason:
+only a directory that does not exist is absent.
+
+**A torn read and a file that will not decode are different findings.** A torn read is a statement
+about a WRITER: the file changed between the two stats that bracket the read, so no read of it is
+trustworthy. A file whose bytes are not valid UTF-8 is `unreadable`, not torn, because nobody
+modified it — the bytes arrived and the content cannot be used. It is reported on the first read and
+not re-read, since the bytes will not decode differently on a second attempt.
 
 There is no empty-board output state distinct from zero rows under real headings. A board whose
 columns are all empty renders its columns with zero counts. A board that could not be read is stale

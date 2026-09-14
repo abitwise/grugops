@@ -85,6 +85,14 @@ export const READ_RETRY_BOUND = 3;
  * The size comparison is the portable half and is never dropped; the mtime comparison catches the
  * same-size rewrite the size comparison cannot see. Each covers the other's blind spot.
  *
+ * THE AGREEMENT TEST IS OVER BYTES, AND THE DECODE HAPPENS AFTER IT (plan 32-09, CR-03). Both stats
+ * report bytes on disk, so the third number must be one too: it is the buffer's own `byteLength`,
+ * never a decoded string's re-encoded length. Comparing against a decoded length made this function
+ * a detector of INVALID ENCODING wearing the word `torn` — one Latin-1 byte in a file nobody was
+ * writing produced a permanent "changed under every read attempt", which is a diagnosis of an event
+ * that did not happen. A file whose bytes do not decode is `unreadable` with code `ENCODING`,
+ * answered on the FIRST read, because retrying cannot change the bytes.
+ *
  * ENOENT AND EACCES ARE ANSWERED ON THE FIRST STAT, NOT RETRIED. Neither is a race this function can
  * win by trying again, and retrying costs the live screen three stats per source per re-read. The
  * CALLER decides what an absent path means, because only the caller knows whether the path was there
@@ -101,13 +109,49 @@ export function readVerifyReread(absPath, retries = READ_RETRY_BOUND, seam = {})
     for (let attempt = 1; attempt <= retries; attempt += 1) {
         try {
             const before = statSync(absPath);
-            const text = readFileSync(absPath, "utf8");
+            // RAW BYTES, NO ENCODING ARGUMENT (plan 32-09, CR-03). `readFileSync(path, "utf8")` replaces
+            // each invalid byte sequence with U+FFFD, which is three bytes — so the agreement test below
+            // compared a stat's byte count against a DECODED string's re-encoded length, and a file
+            // carrying one stray byte could never satisfy it. The three numbers compared now are all
+            // counts of bytes on disk, so they are comparable by construction.
+            const bytes = readFileSync(absPath);
             seam.betweenReadAndStat?.(absPath, attempt);
             const after = statSync(absPath);
-            const sizeAgrees = before.size === after.size && after.size === Buffer.byteLength(text, "utf8");
+            const sizeAgrees = before.size === after.size && after.size === bytes.byteLength;
             const mtimeAgrees = before.mtimeMs === after.mtimeMs;
-            if (sizeAgrees && mtimeAgrees)
-                return { ok: true, text };
+            if (!(sizeAgrees && mtimeAgrees))
+                continue; // a real tear: the file moved under the read
+            // DECODE ONLY AFTER AGREEMENT, AND A DECODE FAILURE IS ITS OWN ANSWER.
+            //
+            // `fatal: true` is what turns an invalid sequence into a thrown error instead of a silent
+            // U+FFFD substitution — silence here is what let the size comparison above go wrong in the
+            // first place.
+            //
+            // `ignoreBOM: true` IS LOAD-BEARING. `TextDecoder` strips a leading byte-order mark by
+            // default and Node's own utf8 file read does NOT, so without it this change would silently
+            // alter the first line of any board a Windows editor saved — a behaviour change nobody asked
+            // for, smuggled in under a bug fix. It was measured: no file under `scripts/fixtures/` carries
+            // a BOM today (asserted in `scripts/board-read.test.ts`), which is exactly why the regression
+            // would have shipped unnoticed.
+            try {
+                return { ok: true, text: new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(bytes) };
+            }
+            catch (decodeError) {
+                // NOT RETRIED, AND NOT ALLOWED TO FALL INTO THE ERRNO CATCH BELOW. The bytes will not become
+                // decodable on attempt two, and retrying costs a live screen three reads and six stats per
+                // source per refresh forever. The errno catch maps a missing `code` onto the literal
+                // `unreadable`, which would report a decoding failure under a code that says nothing about
+                // decoding. `unreadable` is the reason because the bytes WERE read and the content could not
+                // be used — the sentence `STALE_REASONS` already defines — so no sixth stale reason is added.
+                return {
+                    ok: false,
+                    reason: "unreadable",
+                    code: "ENCODING",
+                    message: `board-read: ${absPath} could not be decoded as UTF-8 (${decodeError.message}). ` +
+                        `The file is not being modified — it is bytes this module cannot use — so it is reported ` +
+                        `as unreadable rather than as a torn read, and it is not re-read.`,
+                };
+            }
         }
         catch (e) {
             const err = e;

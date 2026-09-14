@@ -215,7 +215,17 @@ describe("readVerifyReread — stat, read, stat (D-11, DASH-05)", () => {
       fn,
       "PREMISE: `readVerifyReread` was not found in the source, so nothing below was inspected",
     ).toContain("readVerifyReread");
-    expect(fn).toContain("Buffer.byteLength");
+    // The size half, in its post-plan-32-09 spelling: the RAW BUFFER's own `byteLength`. The
+    // decoded-string form is asserted ABSENT in the same breath, because that is the exact
+    // comparison CR-03 was — a byte count against a re-encoded decoded length — and re-introducing
+    // it would satisfy a bare "the size comparison is present" check while restoring the defect.
+    expect(fn).toContain("bytes.byteLength");
+    expect(
+      fn,
+      "the agreement test is comparing a DECODED string's re-encoded length again (CR-03): " +
+        "`readFileSync(path, \"utf8\")` substitutes U+FFFD for each invalid byte, so a file with " +
+        "one stray byte can never satisfy the comparison and is reported `torn` forever",
+    ).not.toContain("byteLength(text");
     expect(fn).toContain("mtimeMs");
   });
 });
