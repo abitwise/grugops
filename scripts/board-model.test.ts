@@ -47,6 +47,7 @@ import {
   LONG_LINE_CHARS,
   MAX_META_CHARS,
   MAX_UPDATE_TEXT_CHARS,
+  SCHEMA_VERSION,
   boardColumnName,
   parseBoard,
 } from "./board-model.js";
@@ -693,5 +694,516 @@ describe("board-model — a WIP number is read, never coerced (T-32-09)", () => 
     const model = parseBoard("## Done (WIP 07/12)\n");
     expect(model.columns[0]?.claimedLive).toBe(7);
     expect(model.columns[0]?.limit).toBe(12);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// PLAN 32-05 — THE SEVEN CONFLICT KINDS AND THE JOIN (DASH-03, D-08, D-09, D-10).
+//
+// WHAT THESE CASES ASSERT, AND WHY THE FIXTURES ARE MANUFACTURED RATHER THAN MEASURED.
+// `.planning/phases/32-board-projector-cli-dashboard/32-RESEARCH.md` § Pitfall 3 measured all three
+// real boards reachable from this machine and found ZERO WIP mismatches: not one heading's claimed
+// live number disagrees with its row count, and not one heading's limit disagrees with the dial. A
+// suite that only replayed real boards would therefore report green over a `wip-count` comparison
+// that had never once been evaluated. So every conflict kind below is MANUFACTURED from a value the
+// case constructs, and the seven-kind inventory is asserted two-sided in both this file and the
+// golden — a green suite over five kinds is exactly the shape this repository has already paid for.
+//
+// THE JOIN IS PURE, AND THE PURITY IS WHAT MAKES THESE CASES CHEAP. `joinSnapshot` takes the six
+// already-read source states and returns a snapshot plus conflicts. It opens no file, so a case
+// constructs the disagreement directly instead of planting a tree and hoping the reader reaches it.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+import {
+  CONFLICT_KINDS,
+  CONFLICT_KIND_COUNT,
+  TICKET_KEYS,
+  TICKET_KEY_COUNT,
+  joinSnapshot,
+  parseTicketDocument,
+  sourceValue,
+} from "./board-model.js";
+import type {
+  Conflict,
+  ConflictKind,
+  ContextTaskState,
+  FactoryConfigView,
+  FactorySnapshot,
+  QueueRow,
+  SourceState,
+  TicketRecord,
+  TraceRow,
+} from "./board-model.js";
+
+const JOIN_AT = "2026-01-01T00:00:00.000Z";
+
+const okSource = <T>(value: T): SourceState<T> => ({
+  source: "ok",
+  value,
+  readAt: JOIN_AT,
+});
+
+const UNAVAILABLE = { source: "unavailable", present: false } as const;
+
+const LEAN_CONFIG: FactoryConfigView = { mode: null, idPrefix: null, wipLimits: {} };
+
+type JoinOverrides = {
+  readonly board?: string | null;
+  readonly tickets?: readonly TicketRecord[];
+  readonly queue?: readonly QueueRow[];
+  readonly context?: readonly ContextTaskState[];
+  readonly traceability?: readonly TraceRow[];
+  readonly config?: FactoryConfigView | null;
+  readonly idPrefix?: string | null;
+};
+
+/** Build the six source states a join takes, from the pieces a case cares about. */
+function sourcesFor(o: JoinOverrides): FactorySnapshot["sources"] {
+  return {
+    board:
+      o.board === null || o.board === undefined
+        ? UNAVAILABLE
+        : okSource(parseBoard(o.board, { idPrefix: o.idPrefix ?? null })),
+    tickets: okSource(o.tickets ?? []),
+    queue: okSource(o.queue ?? []),
+    context: okSource(o.context ?? []),
+    traceability: okSource(o.traceability ?? []),
+    config: o.config === null ? UNAVAILABLE : okSource(o.config ?? LEAN_CONFIG),
+  };
+}
+
+function joinOf(o: JoinOverrides): { snapshot: FactorySnapshot; conflicts: readonly Conflict[] } {
+  return joinSnapshot({
+    repoRoot: "/fixture",
+    generatedAt: JOIN_AT,
+    sources: sourcesFor(o),
+  });
+}
+
+const ticket = (
+  id: string,
+  column: string | null,
+  status: string | null,
+  title = "a ticket",
+): TicketRecord => ({ file: `${id}.md`, id, title, column, status });
+
+const kindsOf = (conflicts: readonly Conflict[]): readonly ConflictKind[] =>
+  conflicts.map((c) => c.kind);
+
+const only = (conflicts: readonly Conflict[], kind: ConflictKind): readonly Conflict[] =>
+  conflicts.filter((c) => c.kind === kind);
+
+describe("board-model — the conflict kinds are a CLOSED set (D-10)", () => {
+  it("the conflict-kind set has the expected MEMBERS, in the order the contract lists them", () => {
+    expect(
+      [...CONFLICT_KINDS],
+      "the members and their ORDER are both load-bearing: `conflicts[]` is sorted by kind in " +
+        "declaration order, so a reshuffle here silently reorders the committed golden",
+    ).toEqual([
+      "board-vs-ticket",
+      "ticket-unplaced",
+      "ticket-duplicated",
+      "row-without-file",
+      "wip-limit",
+      "wip-count",
+      "column-missing",
+    ]);
+  });
+
+  it("the conflict-kind set has the expected COUNT", () => {
+    expect(
+      CONFLICT_KINDS.length,
+      "a conflict kind landed or left. An eighth kind is a DECISION recorded in " +
+        "agent-factory/contracts/board.md first, plus a `schemaVersion` bump, plus a regenerated " +
+        "scripts/fixtures/board-snapshot/expected-snapshot.json in the same commit — never a " +
+        "bumped constant",
+    ).toBe(CONFLICT_KIND_COUNT);
+    expect(CONFLICT_KIND_COUNT).toBe(7);
+    expect(new Set(CONFLICT_KINDS).size, "a kind is spelled twice").toBe(CONFLICT_KINDS.length);
+  });
+});
+
+describe("board-model — the ticket document grammar is a CLOSED key set", () => {
+  it("the ticket key set has the expected MEMBERS and COUNT", () => {
+    expect([...TICKET_KEYS]).toEqual([
+      "id",
+      "title",
+      "status",
+      "column",
+      "size",
+      "priority",
+      "epic",
+      "feature",
+    ]);
+    expect(
+      TICKET_KEYS.length,
+      "a ticket key landed or left. The key set is stated in " +
+        "agent-factory/contracts/board.md § Ticket documents first — it is a decision, never a " +
+        "bumped constant",
+    ).toBe(TICKET_KEY_COUNT);
+  });
+
+  it("admits a ticket written in the canonical form and reads its column and status", () => {
+    const r = parseTicketDocument(
+      "---\nid: ABC-014\ntitle: Asset allocation chart\nstatus: in-development\ncolumn: In Development\n---\n\n# ABC-014\n",
+    );
+    expect(r.ok, r.ok ? "" : r.reason).toBe(true);
+    if (!r.ok) return;
+    expect(r.value.column).toBe("In Development");
+    expect(r.value.status).toBe("in-development");
+    expect(r.value.id).toBe("ABC-014");
+  });
+
+  it("REFUSES a key outside the closed set by name rather than ignoring it", () => {
+    const r = parseTicketDocument("---\nid: ABC-014\ntools: Bash\n---\n");
+    expect(r.ok).toBe(false);
+    if (r.ok) return;
+    expect(r.code).toBe("unknown-key");
+    expect(r.reason).toMatch(/tools/);
+  });
+
+  it("REFUSES a document with no frontmatter region at all", () => {
+    const r = parseTicketDocument("# ABC-014\n\nno frontmatter here\n");
+    expect(r.ok).toBe(false);
+    if (r.ok) return;
+    expect(r.code).toBe("no-opening-delimiter");
+  });
+});
+
+describe("board-model — joinSnapshot derives every conflict kind (D-08, D-09, D-10)", () => {
+  const BOARD_MIN = [
+    "# Board",
+    "",
+    "## In Development (WIP 1/3)",
+    "",
+    "- [ABC-001] a row",
+    "",
+  ].join("\n");
+
+  it("a row whose ticket file names a DIFFERENT column is one `board-vs-ticket`", () => {
+    const { conflicts } = joinOf({
+      board: BOARD_MIN,
+      tickets: [ticket("ABC-001", "In Review", "in-review")],
+    });
+    const found = only(conflicts, "board-vs-ticket");
+    expect(found).toHaveLength(1);
+    expect(found[0]?.ticketId).toBe("ABC-001");
+    expect(found[0]?.expected).toBe("In Review");
+    expect(found[0]?.actual).toBe("In Development");
+    expect(found[0]?.source).toBe("tickets");
+  });
+
+  it("a ticket whose `status` is not the kebab of its `column` is one `board-vs-ticket`", () => {
+    const { conflicts } = joinOf({
+      board: BOARD_MIN,
+      tickets: [ticket("ABC-001", "In Development", "ready")],
+    });
+    const found = only(conflicts, "board-vs-ticket");
+    expect(found).toHaveLength(1);
+    expect(found[0]?.expected, "the kebab rule the validator already applies").toBe(
+      "in-development",
+    );
+    expect(found[0]?.actual).toBe("ready");
+  });
+
+  it("a ticket file with NO board row is one `ticket-unplaced`", () => {
+    const { conflicts } = joinOf({
+      board: BOARD_MIN,
+      tickets: [
+        ticket("ABC-001", "In Development", "in-development"),
+        ticket("ABC-777", "In Development", "in-development"),
+      ],
+    });
+    const found = only(conflicts, "ticket-unplaced");
+    expect(found).toHaveLength(1);
+    expect(found[0]?.ticketId).toBe("ABC-777");
+    expect(found[0]?.source).toBe("tickets");
+  });
+
+  it("one ID under TWO headings is one `ticket-duplicated` naming both, and BOTH rows render", () => {
+    const board = [
+      "# Board",
+      "",
+      "## In Development (WIP 1/3)",
+      "",
+      "- [ABC-001] a row",
+      "",
+      "## In Review (WIP 1/3)",
+      "",
+      "- [ABC-001] the same id again",
+      "",
+    ].join("\n");
+    const { conflicts, snapshot } = joinOf({
+      board,
+      tickets: [ticket("ABC-001", "In Development", "in-development")],
+    });
+    const found = only(conflicts, "ticket-duplicated");
+    expect(found).toHaveLength(1);
+    expect(found[0]?.ticketId).toBe("ABC-001");
+    expect(found[0]?.actual).toMatch(/In Development/);
+    expect(found[0]?.actual).toMatch(/In Review/);
+    const rendered = (snapshot.board?.columns ?? []).flatMap((c) =>
+      c.rows.filter((r) => r.id === "ABC-001").map(() => c.name),
+    );
+    expect(rendered, "the projector never hides a line in order to report a conflict about it").toEqual(
+      ["In Development", "In Review"],
+    );
+  });
+
+  it("two rows with the same ID under the SAME heading is ONE conflict naming that column twice", () => {
+    const board = [
+      "# Board",
+      "",
+      "## In Development (WIP 2/3)",
+      "",
+      "- [ABC-001] a row",
+      "- [ABC-001] the same id, adjacent",
+      "",
+    ].join("\n");
+    const { conflicts, snapshot } = joinOf({
+      board,
+      tickets: [ticket("ABC-001", "In Development", "in-development")],
+    });
+    const found = only(conflicts, "ticket-duplicated");
+    expect(found, "not a merge and not a silent dedupe").toHaveLength(1);
+    expect(found[0]?.actual).toBe("In Development, In Development");
+    expect(snapshot.board?.columns[0]?.rows.map((r) => r.id)).toEqual(["ABC-001", "ABC-001"]);
+  });
+
+  it("a board row with no ticket file is one `row-without-file` and the row still renders", () => {
+    const { conflicts, snapshot } = joinOf({ board: BOARD_MIN, tickets: [] });
+    const found = only(conflicts, "row-without-file");
+    expect(found).toHaveLength(1);
+    expect(found[0]?.ticketId).toBe("ABC-001");
+    expect(found[0]?.expected).toBe("plans/tickets/ABC-001.md");
+    expect(found[0]?.source).toBe("board");
+    expect(snapshot.board?.columns[0]?.rows).toHaveLength(1);
+  });
+
+  it("a heading limit that disagrees with `wip_limits` is one `wip-limit` carrying both numbers", () => {
+    const { conflicts } = joinOf({
+      board: BOARD_MIN,
+      tickets: [ticket("ABC-001", "In Development", "in-development")],
+      config: { mode: "lean", idPrefix: null, wipLimits: { "In Development": 5 } },
+    });
+    const found = only(conflicts, "wip-limit");
+    expect(found).toHaveLength(1);
+    expect(found[0]?.column).toBe("In Development");
+    expect(found[0]?.expected).toBe("5");
+    expect(found[0]?.actual).toBe("3");
+    expect(found[0]?.source).toBe("config");
+  });
+
+  it("a claimed live number that disagrees with the counted rows is one `wip-count`", () => {
+    const board = [
+      "# Board",
+      "",
+      "## In Development (WIP 2/3)",
+      "",
+      "- [ABC-001] a row",
+      "- [ABC-002] another row",
+      "- [ABC-003] a third row",
+      "",
+    ].join("\n");
+    const { conflicts } = joinOf({
+      board,
+      tickets: [
+        ticket("ABC-001", "In Development", "in-development"),
+        ticket("ABC-002", "In Development", "in-development"),
+        ticket("ABC-003", "In Development", "in-development"),
+      ],
+      config: { mode: "lean", idPrefix: null, wipLimits: { "In Development": 3 } },
+    });
+    const found = only(conflicts, "wip-count");
+    expect(found).toHaveLength(1);
+    expect(found[0]?.expected, "claimed and limit").toBe("claimed 2, limit 3");
+    expect(found[0]?.actual, "counted").toBe("counted 3");
+    expect(found[0]?.source).toBe("board");
+  });
+
+  it("an EPIC row under a limited heading is excluded from the `wip-count` comparison (D-02)", () => {
+    const board = [
+      "# Board",
+      "",
+      "## In Development (WIP 1/3)",
+      "",
+      "- [ABC-001] a row",
+      "- [EPIC-006] an epic, a separate class",
+      "",
+    ].join("\n");
+    const { conflicts, snapshot } = joinOf({
+      board,
+      tickets: [ticket("ABC-001", "In Development", "in-development")],
+    });
+    expect(
+      snapshot.board?.epicRows.map((r) => r.id),
+      "PREMISE: the epic row never reached `epicRows`, so its exclusion was never evaluated",
+    ).toEqual(["EPIC-006"]);
+    expect(
+      only(conflicts, "wip-count"),
+      "counted 1 against a claimed 1 — the epic row is not a ticket",
+    ).toEqual([]);
+    expect(
+      only(conflicts, "ticket-unplaced"),
+      "an epic row is never joined against plans/tickets/",
+    ).toEqual([]);
+  });
+
+  it("a configured column with no heading is one `column-missing`", () => {
+    const { conflicts } = joinOf({
+      board: BOARD_MIN,
+      tickets: [ticket("ABC-001", "In Development", "in-development")],
+      config: {
+        mode: "lean",
+        idPrefix: null,
+        wipLimits: { "In Development": 3, "Ready for UAT": 4 },
+      },
+    });
+    const found = only(conflicts, "column-missing");
+    expect(found).toHaveLength(1);
+    expect(found[0]?.column).toBe("Ready for UAT");
+    expect(found[0]?.source).toBe("config");
+  });
+
+  it("a heading column ABSENT from the dial is legal and noted, never refused (D-08)", () => {
+    const board = [
+      "# Board",
+      "",
+      "## Backlog (WIP unlimited)",
+      "",
+      "## Blocked (visible, time-tracked)",
+      "",
+    ].join("\n");
+    const { conflicts, snapshot } = joinOf({
+      board,
+      config: { mode: "lean", idPrefix: null, wipLimits: {} },
+    });
+    expect(conflicts).toEqual([]);
+    expect(
+      (snapshot.board?.columns ?? []).map((c) => c.kind),
+      "noted as unlimited-or-blocked in the column record rather than raised as a conflict",
+    ).toEqual(["unlimited", "blocked"]);
+  });
+
+  it("emits `conflicts[]` in a deterministic total order, whatever order the sources arrive in", () => {
+    const board = [
+      "# Board",
+      "",
+      "## In Development (WIP 9/3)",
+      "",
+      "- [ABC-003] a row",
+      "- [ABC-001] a row",
+      "",
+      "## In Review (WIP 0/3)",
+      "",
+      "- [ABC-003] the same id again",
+      "",
+    ].join("\n");
+    const tickets = [
+      ticket("ABC-001", "In Review", "in-review"),
+      ticket("ABC-900", "In Development", "in-development"),
+    ];
+    const config: FactoryConfigView = {
+      mode: "lean",
+      idPrefix: null,
+      wipLimits: { "In Development": 5, "Ready": 8, "In Review": 3 },
+    };
+
+    const forward = joinOf({ board, tickets, config }).conflicts;
+    const reversed = joinOf({
+      board,
+      tickets: [...tickets].reverse(),
+      config: {
+        ...config,
+        wipLimits: Object.fromEntries(Object.entries(config.wipLimits).reverse()),
+      },
+    }).conflicts;
+
+    expect(forward.length, "PREMISE: the ordering case measured an empty list").toBeGreaterThan(3);
+    expect(reversed).toEqual(forward);
+
+    const order = kindsOf(forward).map((k) => CONFLICT_KINDS.indexOf(k));
+    expect(
+      [...order].sort((a, b) => a - b),
+      "kind in DECLARATION order is the primary sort key",
+    ).toEqual(order);
+  });
+
+  it("a bracket carrying a path separator is UNPARSED, raises no conflict, and builds no path", () => {
+    const board = [
+      "# Board",
+      "",
+      "## In Development (WIP 0/3)",
+      "",
+      "- [../../etc/passwd] a traversal attempt",
+      "- [ABC/001] a separator inside an otherwise plausible id",
+      "",
+    ].join("\n");
+    const { conflicts, snapshot } = joinOf({ board, tickets: [] });
+    expect(
+      snapshot.board?.unparsed.map((u) => u.text),
+      "PREMISE: the traversal lines never reached `unparsed`, so nothing below was evaluated",
+    ).toEqual(["- [../../etc/passwd] a traversal attempt", "- [ABC/001] a separator inside an otherwise plausible id"]);
+    expect(snapshot.board?.columns[0]?.rows, "no row was opened for either line").toEqual([]);
+    expect(conflicts, "an unparsed line is a parser outcome, never a conflict").toEqual([]);
+
+    // STRUCTURAL: the join builds no path at all, so no board byte can reach one (T-32-02).
+    const src = readFileSync(join(ROOT, "scripts", "board-model.ts"), "utf8");
+    const code = src
+      .split("\n")
+      .filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l))
+      .join("\n");
+    expect(code, "board-model.ts must import nothing from node:path").not.toMatch(/node:path/);
+    expect(code, "board-model.ts must import nothing from node:fs").not.toMatch(/node:fs/);
+  });
+
+  it("raises NO conflict when the board could not be read — a missing source is not a disagreement", () => {
+    const { conflicts, snapshot } = joinOf({
+      board: null,
+      tickets: [ticket("ABC-001", "In Development", "in-development")],
+      config: { mode: "lean", idPrefix: null, wipLimits: { "In Development": 3 } },
+    });
+    expect(snapshot.board).toBeNull();
+    expect(conflicts).toEqual([]);
+  });
+
+  it("threads every source state through unchanged and stamps the published schemaVersion", () => {
+    const { snapshot } = joinOf({
+      board: BOARD_MIN,
+      queue: [{ task: "t1", by: "engineer", at: "2026-01-01T00:00:00Z" }],
+      context: [{ task: "t1", noteCount: 2, liveCount: 1, latestAt: "x", latestKind: "decision" }],
+      traceability: [{ ticket: "ABC-001", title: "a row", status: "Done", cells: ["ABC-001"] }],
+    });
+    expect(snapshot.schemaVersion).toBe(SCHEMA_VERSION);
+    expect(sourceValue(snapshot.sources.queue)?.length).toBe(1);
+    expect(sourceValue(snapshot.sources.context)?.length).toBe(1);
+    expect(sourceValue(snapshot.sources.traceability)?.length).toBe(1);
+    expect(snapshot.repoRoot).toBe("/fixture");
+    expect(snapshot.generatedAt).toBe(JOIN_AT);
+  });
+});
+
+describe("board-model — the configured id prefix is enforced by the parse, not by a conflict (D-02)", () => {
+  it("refuses a row whose prefix disagrees with the dial, and admits one that agrees", () => {
+    const board = [
+      "# Board",
+      "",
+      "## In Development (WIP 0/3)",
+      "",
+      "- [ABC-001] the configured prefix",
+      "- [XYZ-001] a foreign prefix",
+      "- [EPIC-006] an epic, exempt from the prefix rule",
+      "",
+    ].join("\n");
+    const withPrefix = parseBoard(board, { idPrefix: "ABC" });
+    expect(withPrefix.columns[0]?.rows.map((r) => r.id)).toEqual(["ABC-001"]);
+    expect(withPrefix.epicRows.map((r) => r.id)).toEqual(["EPIC-006"]);
+    expect(withPrefix.unparsed.map((u) => u.text)).toEqual(["- [XYZ-001] a foreign prefix"]);
+
+    const withoutPrefix = parseBoard(board);
+    expect(
+      withoutPrefix.columns[0]?.rows.map((r) => r.id),
+      "with no dial the prefix rule has nothing to compare against, so both rows are admitted",
+    ).toEqual(["ABC-001", "XYZ-001"]);
   });
 });
