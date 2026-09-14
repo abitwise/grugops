@@ -21,7 +21,7 @@
 //
 // Vitest `globals: false` (the repo default) → the test functions are imported explicitly.
 
-import { describe, it, expect } from "vitest";
+import { beforeAll, describe, it, expect } from "vitest";
 import ts from "typescript";
 import {
   appendFileSync,
@@ -41,8 +41,10 @@ import { tmpdir } from "node:os";
 import { join, relative, sep } from "node:path";
 
 import {
+  BoardReadError,
   PRESENCE_DEPENDENT_CONFLICT_KINDS,
   READ_RETRY_BOUND,
+  SOURCE_NAMES,
   STALE_REASONS,
   STALE_REASON_COUNT,
   isSafeTaskName,
@@ -1872,6 +1874,543 @@ describe("board-read — a path that resolves outside the root is refused (plan 
           ? []
           : result.snapshot.sources.tickets.value;
       expect(tickets.map((t) => t.id).sort()).toEqual(["ABC-101", "ABC-102"]);
+    });
+  });
+});
+
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+// PLAN 32-10 TASK 2 — A REFUSAL IS ONE SOURCE'S FINDING, AND THE ROUTING IS DERIVED FROM THE FILE.
+//
+// CR-04 was two functions comparing the wrong thing. The defect CLASS is that a read target can be
+// built in this module WITHOUT passing through a path authority, and nothing says so — the bare
+// `join(taskDir, "claim.md")` and `join(taskDir, "index.jsonl")` were exactly that, sitting beside a
+// containment rule they never consulted, for the same reason `repoSubpath` was exempted from its own
+// rule: the argument that a literal is safe.
+//
+// So the two censuses below are DERIVED by parsing `scripts/board-read.ts` with the `typescript`
+// package — the idiom `scripts/board-readonly.test.ts` and this file's own swallow census already
+// use. A read target built outside the authorities, or a seventh source read without a guard, is
+// then something the suite SAYS, not something a reviewer has to notice.
+//
+// BOTH CENSUSES ASSERT THEIR OWN PREMISE FIRST. A claim of "no findings" is satisfied equally by a
+// clean file and by a walk that collected nothing, and this repository has recorded a false
+// verification-harness premise six times across four rounds.
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+
+/** The four read primitives named in this module. Every one takes its path as argument zero. */
+const READ_PRIMITIVES = Object.freeze(["readVerifyReread", "statSync", "existsSync", "readdirSync"]);
+
+/** A call site the census could not vouch for: the finding, printed by name and line. */
+type UnvouchedSite = { readonly fn: string; readonly line: number; readonly text: string };
+
+type RoutingCensus = {
+  /** Every function that calls `realpathSync` or `insideRoot` — the module's path authorities. */
+  readonly producers: readonly string[];
+  /** Read-primitive (and path-helper) call sites the walk inspected. Zero means it measured nothing. */
+  readonly inspected: number;
+  /** Call sites whose path argument was not produced by an authority. */
+  readonly unvouched: readonly UnvouchedSite[];
+  /** Functions that take a path as a PARAMETER and hand it to a primitive — derived, not typed. */
+  readonly pathHelpers: readonly string[];
+};
+
+/**
+ * Derive, from `scripts/board-read.ts` itself, where every read target in it comes from.
+ *
+ * THE ALLOWED PRODUCERS ARE DERIVED, NOT TYPED. A hand-written list of authority names is the
+ * set-literal drift class this repository has already paid for twice: the list would be correct on
+ * the day it was written and silently short on the day a seventh authority appeared. So the producer
+ * set is "every function in this module that calls `realpathSync` or `insideRoot`" — which is what
+ * being a path authority MEANS here — and the census then pins that derived set two-sided.
+ *
+ * THE PATH HELPERS ARE DERIVED TOO, by closure. A function that hands one of its own PARAMETERS to a
+ * read primitive is a function whose caller vouched for the path; it becomes a path helper, and its
+ * own call sites are then held to the same rule. `readVerifyReread` and `gatherFile` fall out of
+ * that fixpoint rather than being exempted by name.
+ */
+function routingCensus(absPath: string): RoutingCensus {
+  const text = readFileSync(absPath, "utf8");
+  const source = ts.createSourceFile(absPath, text, ts.ScriptTarget.Latest, true);
+
+  /** Every function-ish node with a name, so a finding can be reported against a place. */
+  const functions: { name: string; node: ts.Node; params: string[] }[] = [];
+  const collectFunctions = (node: ts.Node): void => {
+    if (ts.isFunctionDeclaration(node) && node.name !== undefined && node.body !== undefined) {
+      functions.push({
+        name: node.name.text,
+        node,
+        params: node.parameters.map((p) => (ts.isIdentifier(p.name) ? p.name.text : "")),
+      });
+    }
+    ts.forEachChild(node, collectFunctions);
+  };
+  collectFunctions(source);
+
+  const calleeName = (call: ts.CallExpression): string =>
+    ts.isIdentifier(call.expression) ? call.expression.text : "";
+
+  /** Every call inside `node`, without descending into a NESTED named function declaration. */
+  const callsIn = (fnNode: ts.Node): ts.CallExpression[] => {
+    const out: ts.CallExpression[] = [];
+    const walk = (n: ts.Node): void => {
+      if (n !== fnNode && ts.isFunctionDeclaration(n)) return;
+      if (ts.isCallExpression(n)) out.push(n);
+      ts.forEachChild(n, walk);
+    };
+    walk(fnNode);
+    return out;
+  };
+
+  // THE PRODUCER SET, DERIVED. `realpathSync` is what resolving a path to its real location IS, and
+  // `insideRoot` is the one containment decision; a function that calls neither is not an authority.
+  const producers = functions
+    .filter((f) =>
+      callsIn(f.node).some((c) => {
+        const n = calleeName(c);
+        return n === "realpathSync" || n === "insideRoot";
+      }),
+    )
+    .map((f) => f.name);
+  const producerSet = new Set(producers);
+
+  /**
+   * Identifiers inside `fnNode` that hold a path an authority produced.
+   *
+   * Three shapes, run to a fixpoint because the second feeds the first: a direct call to an
+   * authority (`const p = repoSubpath(...)`), a `.path`/`.real` member of an already-produced
+   * identifier (the discriminated `ChildPath` result), and an assignment of either into a `let`.
+   */
+  const producedIn = (fnNode: ts.Node): Set<string> => {
+    const produced = new Set<string>();
+    // `realpathSync` counts as a producer CALL even though it is not a function this module
+    // declares: it is the resolution primitive the authorities are made of, and `resolveRepoRoot`
+    // assigns the ROOT from it directly. Accepting it here is what stops the census from reporting
+    // the root authority as a finding against itself. It is deliberately the only imported name
+    // with this standing — `join`, `resolve` and `relative` produce spellings, not real locations.
+    const isProducerCall = (n: ts.Node): boolean =>
+      ts.isCallExpression(n) &&
+      (producerSet.has(calleeName(n)) || calleeName(n) === "realpathSync");
+    const isProducedMember = (n: ts.Node): boolean =>
+      ts.isPropertyAccessExpression(n) &&
+      ts.isIdentifier(n.expression) &&
+      produced.has(n.expression.text) &&
+      (n.name.text === "path" || n.name.text === "real");
+    for (let pass = 0; pass < 8; pass += 1) {
+      const before = produced.size;
+      const walk = (n: ts.Node): void => {
+        if (n !== fnNode && ts.isFunctionDeclaration(n)) return;
+        if (ts.isVariableDeclaration(n) && ts.isIdentifier(n.name) && n.initializer !== undefined) {
+          if (isProducerCall(n.initializer) || isProducedMember(n.initializer)) {
+            produced.add(n.name.text);
+          }
+        }
+        if (
+          ts.isBinaryExpression(n) &&
+          n.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
+          ts.isIdentifier(n.left) &&
+          (isProducerCall(n.right) || isProducedMember(n.right))
+        ) {
+          produced.add(n.left.text);
+        }
+        ts.forEachChild(n, walk);
+      };
+      walk(fnNode);
+      if (produced.size === before) break;
+    }
+    return produced;
+  };
+
+  // THE PATH-HELPER CLOSURE. A function that passes one of its own parameters into a primitive's
+  // path slot is a function the CALLER vouched for; that parameter index is then held to the same
+  // rule at every call site, so the exemption propagates rather than terminating.
+  const pathHelpers = new Map<string, Set<number>>();
+  const slotsFor = (name: string): readonly number[] =>
+    READ_PRIMITIVES.includes(name) ? [0] : [...(pathHelpers.get(name) ?? [])];
+
+  for (let pass = 0; pass < 8; pass += 1) {
+    let grew = false;
+    for (const fn of functions) {
+      const produced = producedIn(fn.node);
+      for (const call of callsIn(fn.node)) {
+        for (const slot of slotsFor(calleeName(call))) {
+          const arg = call.arguments[slot];
+          if (arg === undefined || !ts.isIdentifier(arg)) continue;
+          if (produced.has(arg.text)) continue;
+          const paramIndex = fn.params.indexOf(arg.text);
+          if (paramIndex < 0) continue;
+          const slots = pathHelpers.get(fn.name) ?? new Set<number>();
+          if (!slots.has(paramIndex)) {
+            slots.add(paramIndex);
+            pathHelpers.set(fn.name, slots);
+            grew = true;
+          }
+        }
+      }
+    }
+    if (!grew) break;
+  }
+
+  // THE FINAL PASS. Run AFTER the closure, so a parameter that legitimately became a helper slot is
+  // not reported as a finding on an earlier pass.
+  const unvouched: UnvouchedSite[] = [];
+  let inspected = 0;
+  for (const fn of functions) {
+    const produced = producedIn(fn.node);
+    for (const call of callsIn(fn.node)) {
+      for (const slot of slotsFor(calleeName(call))) {
+        inspected += 1;
+        const arg = call.arguments[slot];
+        const line = source.getLineAndCharacterOfPosition(call.getStart(source)).line + 1;
+        if (arg !== undefined && ts.isIdentifier(arg)) {
+          if (produced.has(arg.text)) continue;
+          if (fn.params.includes(arg.text)) continue;
+        }
+        unvouched.push({ fn: fn.name, line, text: call.getText().split("\n")[0] ?? "" });
+      }
+    }
+  }
+
+  return {
+    producers: [...producers].sort(),
+    inspected,
+    unvouched,
+    pathHelpers: [...pathHelpers.keys()].sort(),
+  };
+}
+
+/**
+ * The path authorities, pinned two-sided.
+ *
+ * `resolveRepoRoot` resolves the ROOT every other comparison is against. `insideRoot` is the single
+ * containment decision and `anchorAbsentTarget` is its ENOENT arm — the deepest-real-ancestor probe
+ * that stops `../escape` from being admitted merely because it does not exist yet. `repoSubpath` and
+ * `childPath` are the two call sites that ASK, one for fixed literals and one for directory entries.
+ *
+ * A SIXTH NAME HERE IS A SECOND CONTAINMENT SPELLING, which is the defect CR-04 was. Adding one is a
+ * decision recorded in the phase context and in `agent-factory/contracts/board.md`, never a list
+ * edited to make a suite green.
+ */
+const PATH_AUTHORITIES = Object.freeze([
+  "anchorAbsentTarget",
+  "childPath",
+  "insideRoot",
+  "repoSubpath",
+  "resolveRepoRoot",
+]);
+
+describe("board-read — every read target comes from a path authority (plan 32-10, CR-04)", () => {
+  // PRINTED ON EVERY RUN, NOT ONLY ON FAILURE: an emptiness claim over an empty denominator is the
+  // false green this repository has recorded six instances of, and a number nobody sees is a number
+  // nobody can notice going to zero. `process.stdout.write` from a file-level `beforeAll` rather
+  // than `console.log`, for the reason measured at `scripts/board-readonly.test.ts:420-428` — the
+  // default reporter buffers `console.log` and shows it only for failing tests.
+  beforeAll(() => {
+    const census = routingCensus(READ_SEAM_PATH);
+    process.stdout.write(
+      `board-read routing census: ${census.inspected} read-primitive call sites, ` +
+        `producers [${census.producers.join(", ")}], path helpers [${census.pathHelpers.join(", ")}]\n`,
+    );
+  });
+
+  it("PREMISE: the walk inspected a non-trivial number of read-primitive call sites", () => {
+    const census = routingCensus(READ_SEAM_PATH);
+    expect(
+      census.inspected,
+      "PREMISE: the AST walk over scripts/board-read.ts found (almost) no read-primitive call " +
+        "sites, so the emptiness claim below would be satisfied by a census that measured nothing",
+    ).toBeGreaterThanOrEqual(8);
+  });
+
+  it("derives the path-authority set from the file and pins it two-sided", () => {
+    const census = routingCensus(READ_SEAM_PATH);
+    expect(
+      census.producers,
+      "the set of functions in this module that resolve a path or ask the containment question " +
+        "changed. A NEW name is a second containment spelling — the defect CR-04 was — and a " +
+        "MISSING one means an authority stopped resolving anything at all",
+    ).toEqual([...PATH_AUTHORITIES]);
+  });
+
+  it("pins the derived path-HELPER set two-sided, because it is an exemption", () => {
+    // A path helper takes a path as a PARAMETER and hands it to a read primitive, so its exemption
+    // rests on its callers. Leaving the derived set unpinned would let a seventh helper appear and
+    // quietly widen the hole the census exists to close — the set-literal drift class this
+    // repository has already paid for twice. `readVerifyReread` is the read-verify-reread seam,
+    // `gatherFile` is the parse-inside-the-read wrapper, `listDirectoryBounded` is the listing.
+    const census = routingCensus(READ_SEAM_PATH);
+    expect(
+      census.pathHelpers,
+      "the set of functions that accept a read target from their caller changed. Each one is an " +
+        "exemption from the produced-by-an-authority rule, held up only by its own call sites",
+    ).toEqual(["gatherFile", "listDirectoryBounded", "readVerifyReread"]);
+  });
+
+  it("finds no read target built outside those authorities", () => {
+    const census = routingCensus(READ_SEAM_PATH);
+    expect(
+      census.unvouched.map((u) => `${u.fn}:${u.line} ${u.text}`),
+      "a read primitive in the read seam was handed a path no authority produced. The two raw " +
+        "`join(taskDir, ...)` targets that used to sit here are exactly how a symlinked `claim.md` " +
+        "inside an otherwise legitimate task directory escaped the rule every other read obeys",
+    ).toEqual([]);
+  });
+
+  it("PREMISE: the census DETECTS a planted raw join, so its emptiness is a measurement", () => {
+    withTempTree((dir) => {
+      const probe = join(dir, "probe.ts");
+      writeFileSync(
+        probe,
+        'import { realpathSync, statSync } from "node:fs";\n' +
+          'import { join } from "node:path";\n' +
+          "export function repoSubpath(root: string, rel: string): string {\n" +
+          "  return realpathSync(join(root, rel));\n" +
+          "}\n" +
+          "export function good(root: string): void {\n" +
+          '  const p = repoSubpath(root, "plans/board.md");\n' +
+          "  statSync(p);\n" +
+          "}\n" +
+          "export function bad(root: string): void {\n" +
+          '  const taskDir = repoSubpath(root, "plans");\n' +
+          '  const raw = join(taskDir, "claim.md");\n' +
+          "  statSync(raw);\n" +
+          "}\n",
+        "utf8",
+      );
+      const census = routingCensus(probe);
+      expect(census.producers, "the probe's own authority was derived").toEqual(["repoSubpath"]);
+      expect(
+        census.unvouched.map((u) => u.fn),
+        "the raw join is the finding and the produced path is not",
+      ).toEqual(["bad"]);
+    });
+  });
+});
+
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+// PLAN 32-10 TASK 2 — THE GUARD CENSUS: SIX SOURCES, SIX GUARDS, DERIVED FROM BOTH SIDES.
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+
+/** How many `guarded(` call sites sit inside `readSnapshot`'s own body. */
+function guardedCallSitesInReadSnapshot(absPath: string): number {
+  const source = ts.createSourceFile(
+    absPath,
+    readFileSync(absPath, "utf8"),
+    ts.ScriptTarget.Latest,
+    true,
+  );
+  let count = 0;
+  const walk = (node: ts.Node): void => {
+    if (
+      ts.isFunctionDeclaration(node) &&
+      node.name?.text === "readSnapshot" &&
+      node.body !== undefined
+    ) {
+      const inner = (n: ts.Node): void => {
+        if (ts.isCallExpression(n) && ts.isIdentifier(n.expression) && n.expression.text === "guarded") {
+          count += 1;
+        }
+        ts.forEachChild(n, inner);
+      };
+      inner(node.body);
+      return;
+    }
+    ts.forEachChild(node, walk);
+  };
+  walk(source);
+  return count;
+}
+
+describe("board-read — every source read is guarded (plan 32-10, D-12, T-32-10-03)", () => {
+  it("pins the guard count against SOURCE_NAMES, two-sided", () => {
+    const guards = guardedCallSitesInReadSnapshot(READ_SEAM_PATH);
+    expect(
+      guards,
+      "the number of guarded source reads no longer equals the number of joined sources. A " +
+        "SEVENTH source added without a guard is a source whose containment refusal blanks the " +
+        "other six — D-12 says staleness is per source with one badge. A guard REMOVED is the " +
+        "same failure the other way round",
+    ).toBe(SOURCE_NAMES.length);
+    expect(
+      SOURCE_NAMES.length,
+      "PREMISE: the source tuple is empty, so the pin above compares nothing against nothing",
+    ).toBeGreaterThan(0);
+  });
+});
+
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+// PLAN 32-10 TASK 2 — ONE REFUSED SOURCE LEAVES THE OTHER FIVE, AND THE TWO CLOSED RAW JOINS.
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+
+describe("board-read — a containment refusal is ONE source's finding (plan 32-10, D-12)", () => {
+  it("refuses only the linked source and leaves the other five exactly as they were", () => {
+    withEscapeTree(({ dir, outsideDir }) => {
+      plantBoard(dir, TICKETED_BOARD);
+      plantTicketDoc(dir, "ABC-101", "Backlog", "backlog");
+      plantTicketDoc(dir, "ABC-102", "Done", "done");
+      writeFileSync(join(outsideDir, "traceability.md"), `| ${ESCAPE_MARKER} | x |\n`, "utf8");
+      symlinkSync(join(outsideDir, "traceability.md"), join(dir, "plans", "traceability.md"));
+
+      const result = readSnapshot(dir);
+
+      expect(JSON.stringify(result)).not.toContain(ESCAPE_MARKER);
+      const refusals = result.readErrors.filter((e) => e.code === "OUTSIDE-ROOT");
+      expect(refusals.map((e) => e.source), "exactly one source refused").toEqual(["traceability"]);
+
+      // THE OTHER FIVE, ASSERTED POSITIVELY. "Nothing threw" is satisfied by a reader that returned
+      // six empty sources, which is the blanked snapshot the guard exists to prevent.
+      expect(result.snapshot.sources.board.source).toBe("ok");
+      expect(result.snapshot.sources.tickets.source).toBe("ok");
+      const tickets =
+        result.snapshot.sources.tickets.source === "unavailable"
+          ? []
+          : result.snapshot.sources.tickets.value;
+      expect(tickets.map((t) => t.id).sort()).toEqual(["ABC-101", "ABC-102"]);
+      // No `.grugops/` and no dial in this tree: absent, and D-13 says absent is not a finding.
+      expect(result.snapshot.sources.queue.source).toBe("unavailable");
+      expect(result.snapshot.sources.context.source).toBe("unavailable");
+      expect(result.snapshot.sources.config.source).toBe("unavailable");
+      expect(result.readErrors.filter((e) => e.source !== "traceability")).toEqual([]);
+    });
+  });
+
+  it("refuses a symlinked `claim.md` and keeps the other claims in the same stage", () => {
+    withEscapeTree(({ dir, outsideDir }) => {
+      plantBoard(dir, TICKETED_BOARD);
+      plantClaim(dir, "abc-106-implement", CLAIM_BODY);
+      const escapedTask = join(dir, ".grugops", "queue", "claimed", "abc-107-escaped");
+      mkdirSync(escapedTask, { recursive: true });
+      writeFileSync(
+        join(outsideDir, "claim.md"),
+        `by: ${ESCAPE_MARKER}\nat: 2026-09-14T10:00:00.000Z\n`,
+        "utf8",
+      );
+      symlinkSync(join(outsideDir, "claim.md"), join(escapedTask, "claim.md"));
+
+      const result = readSnapshot(dir);
+      expect(
+        JSON.stringify(result),
+        "the claim record outside the tree was read through a bare `join` that consulted no rule",
+      ).not.toContain(ESCAPE_MARKER);
+      expect(
+        result.readErrors.filter((e) => e.source === "queue" && e.code === "OUTSIDE-ROOT").length,
+      ).toBe(1);
+      const rows =
+        result.snapshot.sources.queue.source === "unavailable"
+          ? []
+          : result.snapshot.sources.queue.value;
+      expect(
+        rows.map((r) => r.task),
+        "the legitimate claim in the same stage still appears",
+      ).toEqual(["abc-106-implement"]);
+    });
+  });
+
+  it("refuses a symlinked `index.jsonl` and keeps the other context tasks", () => {
+    withEscapeTree(({ dir, outsideDir }) => {
+      plantBoard(dir, TICKETED_BOARD);
+      const ctx = join(dir, ".grugops", "context");
+      mkdirSync(join(ctx, "abc-108-fine"), { recursive: true });
+      writeFileSync(
+        join(ctx, "abc-108-fine", "index.jsonl"),
+        '{"id":"n1","kind":"decision","at":"2026-09-14T10:00:00.000Z","supersedes":null}\n',
+        "utf8",
+      );
+      mkdirSync(join(ctx, "abc-109-escaped"), { recursive: true });
+      writeFileSync(
+        join(outsideDir, "index.jsonl"),
+        `{"id":"${ESCAPE_MARKER}","kind":"decision","at":"2026-09-14T10:00:00.000Z","supersedes":null}\n`,
+        "utf8",
+      );
+      symlinkSync(join(outsideDir, "index.jsonl"), join(ctx, "abc-109-escaped", "index.jsonl"));
+
+      const result = readSnapshot(dir);
+      expect(JSON.stringify(result)).not.toContain(ESCAPE_MARKER);
+      expect(
+        result.readErrors.filter((e) => e.source === "context" && e.code === "OUTSIDE-ROOT").length,
+      ).toBe(1);
+      const tasks =
+        result.snapshot.sources.context.source === "unavailable"
+          ? []
+          : result.snapshot.sources.context.value;
+      expect(tasks.map((t) => t.task).sort()).toEqual(["abc-108-fine", "abc-109-escaped"]);
+      expect(
+        tasks.find((t) => t.task === "abc-108-fine")?.noteCount,
+        "the readable task's own notes are unaffected by the refused one",
+      ).toBe(1);
+    });
+  });
+});
+
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+// PLAN 32-10 TASK 2 — THE GUARD CATCHES ONE CLASS, AND ONLY ONE.
+//
+// `guarded` exists to localize a CONTAINMENT refusal. Widening it into a catch-all would hide the
+// next real defect exactly the way the bare `catch` plan 32-09 removed hid this one, so the rethrow
+// is driven rather than read: a plain `Error` raised inside the guarded read must come out of
+// `readSnapshot`, and a `BoardReadError` raised at the same place must NOT.
+//
+// THE SEAM IS THE `previous` ARGUMENT, AND IT IS A REAL ONE. `readSnapshot` reads each source's
+// previous state twice — once eagerly, to hand `guarded` the carry-forward, and once inside the
+// guarded closure. A property that answers normally the first time and throws the second raises its
+// error at exactly the place under test, with no mock of `node:fs` anywhere.
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+
+/** A `previous` result whose `tickets` state throws on its SECOND read — i.e. inside the guard. */
+function previousThrowingOnSecondRead(error: Error): SnapshotResult {
+  let reads = 0;
+  const sources = {
+    board: { source: "unavailable", present: false },
+    queue: { source: "unavailable", present: false },
+    context: { source: "unavailable", present: false },
+    traceability: { source: "unavailable", present: false },
+    config: { source: "unavailable", present: false },
+  } as unknown as SnapshotResult["snapshot"]["sources"];
+  Object.defineProperty(sources, "tickets", {
+    get: () => {
+      reads += 1;
+      if (reads >= 2) throw error;
+      return undefined;
+    },
+    enumerable: true,
+  });
+  return {
+    source: "ok",
+    snapshot: { sources } as unknown as SnapshotResult["snapshot"],
+    conflicts: [],
+    readErrors: [],
+  };
+}
+
+describe("board-read — the guard catches containment refusals and nothing else (plan 32-10)", () => {
+  it("PROPAGATES a plain Error raised inside a guarded source read", () => {
+    withEscapeTree(({ dir }) => {
+      plantBoard(dir, TICKETED_BOARD);
+      const planted = new Error("a defect nobody has met yet");
+      expect(
+        () => readSnapshot(dir, previousThrowingOnSecondRead(planted)),
+        "a catch-all here would hide the next real defect the way the bare catch plan 32-09 " +
+          "removed hid this one",
+      ).toThrow("a defect nobody has met yet");
+    });
+  });
+
+  it("CATCHES a BoardReadError raised at the same place, as that source's finding", () => {
+    // The discrimination. Without it, "propagates" is equally true of a guard that catches nothing.
+    withEscapeTree(({ dir }) => {
+      plantBoard(dir, TICKETED_BOARD);
+      const refusal = new BoardReadError("board-read: a refusal raised at the guarded seam", "OUTSIDE-ROOT");
+      let result: SnapshotResult | null = null;
+      expect(() => {
+        result = readSnapshot(dir, previousThrowingOnSecondRead(refusal));
+      }).not.toThrow();
+      const settled = result as SnapshotResult | null;
+      expect(settled, "PREMISE: readSnapshot returned nothing to assert over").not.toBeNull();
+      if (settled === null) return;
+      const found = settled.readErrors.filter(
+        (e) => e.source === "tickets" && e.code === "OUTSIDE-ROOT",
+      );
+      expect(found.length, "the refusal became the tickets source's own readErrors entry").toBe(1);
+      expect(settled.snapshot.sources.board.source, "the other sources are untouched").toBe("ok");
     });
   });
 });
