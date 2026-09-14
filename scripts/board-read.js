@@ -1,4 +1,4 @@
-// board-read.ts — the ONE fs-touching seam of the board projector (plan 32-01, D-23).
+// board-read.ts — the ONE fs-touching seam of the board projector (plans 32-01 and 32-03, D-23).
 //
 // WHY THIS MODULE EXISTS AT ALL, GIVEN THAT `board-dashboard.ts` COULD HAVE READ THE DISK ITSELF.
 //
@@ -13,8 +13,13 @@
 // WHAT THIS MODULE DELIBERATELY DOES NOT IMPORT, AND WHY.
 //   * `./context-io.js` and `./claim.js`. Both export writers. Importing either would put a
 //     write-capable symbol into the dashboard's import closure, which is the single thing DASH-06
-//     exists to refuse. The queue reader this module will grow in plan 32-03 re-implements
-//     `claim.ts`'s reader rather than importing it, carrying its tamper rules across by hand.
+//     exists to refuse. So the queue reader below RE-IMPLEMENTS `claim.ts`'s reader half and the
+//     context reader RE-IMPLEMENTS `currentState`'s supersede fold, each carrying its rules across
+//     by hand with the origin cited at the function that carries them.
+//   * `./canonical-frontmatter.js` IS imported, and that is the one exception with a reason: it is
+//     a pure text function whose own closure reaches only `./frontmatter.js`, which imports nothing
+//     at all. Re-implementing frontmatter admission here would make the board projector a second
+//     frontmatter authority, which is the drift class this repository has already paid for.
 //   * Anything from `node:child_process`, `node:net`, `node:http`, `node:https` or
 //     `node:worker_threads`. The dashboard opens no socket and spawns no process (DASH-08).
 //

@@ -1,10 +1,10 @@
-// board-dashboard.ts — the read-only board projector's CLI (plan 32-01, DASH-07/DASH-08).
+// board-dashboard.ts — the read-only board projector's CLI (plans 32-01 and 32-03, DASH-07/08).
 //
 // THE PROCESS-OWNING HALF OF THE D-15 BOUNDARY. `scripts/board-model.ts` is pure: no `process`, no
 // timers, no rendering. `scripts/board-read.ts` is the one module that touches the disk. This module
-// owns argv, stdout discipline, exit codes and — from plan 32-03 onward — the watch handles and the
-// poll timer. The split is what lets the DASH-06 import-graph guard (plan 32-06) walk one closure
-// and assert that every `node:fs` symbol in it is read-only.
+// owns argv, stdout discipline, exit codes, the watch handles and the poll timer. The split is what
+// lets the DASH-06 import-graph guard (plan 32-06) walk one closure and assert that every `node:fs`
+// symbol in it is read-only.
 //
 //   node scripts/board-dashboard.js [repoRoot] [--once] [--json] [--watch] [--interval <ms>] [--help]
 //
@@ -41,12 +41,11 @@ import { existsSync, watch } from "node:fs";
 import { join } from "node:path";
 import { readSnapshot } from "./board-read.js";
 import { isEntrypoint } from "./is-entry.js";
-// ── The timing constants plan 32-03 wires (D-14) ─────────────────────────────────────────────────
+// ── The timing constants the loop runs on (D-14) ─────────────────────────────────────────────────
 //
-// Declared HERE AND NOW, in the module that will own the loop, so plan 32-03 wires them rather than
-// inventing a second set of numbers beside them. The poll is mandatory and cannot be disabled: it is
-// the safety net for a watch orphaned by an atomic rename, and for a filesystem that emits no events
-// at all.
+// Declared in the module that OWNS the loop, so there is one set of numbers rather than a second set
+// beside it. The poll is mandatory and cannot be disabled: it is the safety net for a watch orphaned
+// by an atomic rename, and for a filesystem that emits no events at all.
 export const POLL_FLOOR_MS = 10_000;
 export const DEBOUNCE_MS = 250;
 export const INTERVAL_HARD_FLOOR_MS = 1_000;
