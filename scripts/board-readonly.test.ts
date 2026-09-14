@@ -59,14 +59,23 @@
 //
 // Vitest `globals: false` (the repo default) → the test functions are imported explicitly.
 
-import { describe, it, expect, beforeAll } from "vitest";
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import ts from "typescript";
-import { readFileSync } from "node:fs";
+import {
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import * as nodeFs from "node:fs";
 import * as nodeFsPromises from "node:fs/promises";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 
-import { jsImportClosure } from "./js-import-closure.js";
+import { copyImportClosure, jsImportClosure } from "./js-import-closure.js";
 
 const ROOT = join(import.meta.dirname, "..");
 
@@ -550,4 +559,255 @@ describe("32-06 — the mutating set is derived from the runtime, and its exclus
         "writer in its closure makes it a control plane",
     ).toEqual([]);
   });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// PART FOUR — the module ban (DASH-08, "no socket").
+//
+// `jsImportClosure` gives the FILE list but deliberately skips BARE specifiers — its own docblock
+// says so — so the ban needs the second AST pass PART ONE already collected. A ban asserted over an
+// empty specifier set is a green that measured nothing, so the set is asserted non-empty first.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+/**
+ * D-21's five banned modules, verbatim. The projector spawns nothing and listens on nothing.
+ *
+ * Written WITHOUT the `node:` prefix because the ban is over module IDENTITY: `net` and `node:net`
+ * are the same module, and a ban that only knew one spelling would be a ban an import could walk
+ * around by dropping four characters.
+ */
+const BANNED_MODULES = Object.freeze([
+  "child_process",
+  "net",
+  "http",
+  "https",
+  "worker_threads",
+]);
+
+/** The cardinality D-21 names. */
+const BANNED_MODULE_COUNT = 5;
+
+/**
+ * The rest of the socket family, added here because the five above do not cover it and every one of
+ * these opens a listening socket or forks a process (deviation from the plan text, Rule 2 — see the
+ * plan summary). Each with the reason it belongs:
+ *
+ *   http2      a listening HTTP/2 server, and not reachable through `node:http`
+ *   dgram      UDP sockets, which no member of the five above covers
+ *   tls        TLS sockets and `tls.createServer`
+ *   cluster    forks worker processes and shares server handles between them
+ *   inspector  `inspector.open()` starts a debugger WebSocket server on a port
+ *
+ * This is a SECOND named set rather than five more members of the first, so that D-21's own
+ * cardinality assertion stays exactly the number D-21 states and this extension stays visibly an
+ * extension.
+ */
+const ADDITIONAL_BANNED_MODULES = Object.freeze([
+  "http2",
+  "dgram",
+  "tls",
+  "cluster",
+  "inspector",
+]);
+
+/** The cardinality of the extension. A sixth is a decision, made here rather than in a constant. */
+const ADDITIONAL_BANNED_MODULE_COUNT = 5;
+
+const ALL_BANNED_MODULES = Object.freeze([...BANNED_MODULES, ...ADDITIONAL_BANNED_MODULES]);
+
+/** The banned identities a closure actually reaches, by normalized name, sorted. */
+function bannedModulesReached(facts: ClosureFacts): readonly string[] {
+  return [
+    ...new Set(
+      facts.bareSpecifiers
+        .map(normalizeSpecifier)
+        .filter((identity) => ALL_BANNED_MODULES.includes(identity)),
+    ),
+  ].sort();
+}
+
+describe("32-06 — the dashboard opens no socket and spawns no process", () => {
+  it("PREMISE: the collected bare-specifier set is non-empty", () => {
+    // The closure walker skips bare specifiers, so this set is produced by a DIFFERENT pass than the
+    // module list. If that pass collected nothing, the ban below is a statement about an empty set.
+    const { bareSpecifiers } = analyzeClosure(ROOT, DASHBOARD_ENTRY);
+    expect(
+      bareSpecifiers.length,
+      "PREMISE: the second AST pass collected ZERO bare specifiers across the whole dashboard " +
+        "closure, so the module ban below was asked of nothing at all",
+    ).toBeGreaterThan(0);
+    // `node:url` arrives transitively through scripts/is-entry.js and is a known-safe read-only
+    // builtin. It is named here so a reader can tell "the pass sees transitive specifiers" from
+    // "the pass only sees the entry's own".
+    expect(bareSpecifiers).toContain("node:url");
+  });
+
+  it("the banned list has exactly the five members D-21 names", () => {
+    expect(
+      BANNED_MODULES.length,
+      "the D-21 ban list moved. Adding or removing a banned module changes what 'no socket' means " +
+        "for the projector — it is a decision, never a bumped constant",
+    ).toBe(BANNED_MODULE_COUNT);
+    expect([...BANNED_MODULES].sort()).toEqual([
+      "child_process",
+      "http",
+      "https",
+      "net",
+      "worker_threads",
+    ]);
+  });
+
+  it("the socket-family extension has exactly five members", () => {
+    expect(
+      ADDITIONAL_BANNED_MODULES.length,
+      "the socket-family extension moved. Every member of it opens a listening socket or forks a " +
+        "process, so a sixth is a decision that belongs beside the other five with its reason",
+    ).toBe(ADDITIONAL_BANNED_MODULE_COUNT);
+  });
+
+  it("the dashboard closure imports no banned module", () => {
+    const reached = bannedModulesReached(analyzeClosure(ROOT, DASHBOARD_ENTRY));
+    expect(
+      reached,
+      `the board projector's import closure reaches ${reached.join(", ")}. The projector renders ` +
+        "state over a filesystem read; it listens on nothing and spawns nothing (DASH-08)",
+    ).toEqual([]);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// PART FIVE — the discrimination. Every green above is worth exactly as much as this part.
+//
+// A structural assertion nobody has watched FAIL is not yet a control. Both mirrors are built FROM
+// THE LIVE SOURCES at test time, so a refactor of a real module cannot leave a fixture behind
+// asserting something the tree no longer says.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+/**
+ * The repository's scratch root (`.gitignore:19`), which vitest is also told not to COLLECT from
+ * (`vitest.config.ts`). Both matter: a planted `.js` beside the real modules would be a file the
+ * default include glob could pick up, and a `git status`-based residue check is blind to a
+ * gitignored path — so the residue predicate here is a REAL LISTING of this directory.
+ */
+const SCRATCH_ROOT = join(ROOT, ".temp", "board-readonly");
+
+/** The symbol planted to make the intersection case fail. A writer, and unambiguously one. */
+const PLANTED_WRITER = "writeFileSync";
+
+/**
+ * Copy the live closure into a fresh mirror root, apply one plant, and hand the mirror root to
+ * `use`. The mirror is removed in a `finally`, so a failing assertion cannot leave residue.
+ */
+function withLiveMirror(
+  plant: { readonly module: string; readonly appendSource: string },
+  use: (mirrorRoot: string) => void,
+): void {
+  mkdirSync(SCRATCH_ROOT, { recursive: true });
+  const mirrorRoot = mkdtempSync(join(SCRATCH_ROOT, "board-readonly-mirror-"));
+  try {
+    copyImportClosure(ROOT, DASHBOARD_ENTRY, (rel) => {
+      const destination = join(mirrorRoot, rel);
+      mkdirSync(dirname(destination), { recursive: true });
+      copyFileSync(join(ROOT, rel), destination);
+    });
+    const planted = join(mirrorRoot, plant.module);
+    expect(
+      existsSync(planted),
+      `PREMISE: the mirror does not contain ${plant.module}, so the plant had nothing to modify`,
+    ).toBe(true);
+    // ESM import declarations are hoisted, so appending one is a valid module. The mirror is only
+    // ever PARSED here, never executed.
+    writeFileSync(planted, `${readFileSync(planted, "utf8")}\n${plant.appendSource}\n`);
+    use(mirrorRoot);
+  } finally {
+    rmSync(mirrorRoot, { recursive: true, force: true });
+  }
+}
+
+describe("32-06 — the guard discriminates: both halves are shown to fail", () => {
+  it("CONTROL: an UNPLANTED mirror of the live closure is still green", () => {
+    // Without this, a red against a planted mirror could be caused by the mirroring itself rather
+    // than by the plant, and the discrimination would be measuring the harness.
+    withLiveMirror({ module: DASHBOARD_ENTRY, appendSource: "// no plant" }, (mirrorRoot) => {
+      const facts = analyzeClosure(mirrorRoot, DASHBOARD_ENTRY);
+      expect(facts.modules.length).toBe(analyzeClosure(ROOT, DASHBOARD_ENTRY).modules.length);
+      expect(facts.fsSymbols).toEqual([...EXPECTED_CLOSURE_FS_SYMBOLS]);
+      expect(bannedModulesReached(facts)).toEqual([]);
+    });
+  });
+
+  it("a planted mutating fs symbol makes the intersection case FAIL", () => {
+    withLiveMirror(
+      {
+        module: "scripts/board-read.js",
+        appendSource: `import { ${PLANTED_WRITER} } from "node:fs";`,
+      },
+      (mirrorRoot) => {
+        const { fsSymbols } = analyzeClosure(mirrorRoot, DASHBOARD_ENTRY);
+        const reachable = fsSymbols.filter((s) => MUTATING_FS_SYMBOLS.includes(s));
+        expect(reachable).toContain(PLANTED_WRITER);
+        expect(reachable).not.toEqual([]);
+        // …and the blocking two-sided pin moves by exactly one, so the difference is caused by the
+        // plant rather than by a derivation that broke and started reporting some other set.
+        expect(fsSymbols.length).toBe(EXPECTED_CLOSURE_FS_SYMBOL_COUNT + 1);
+      },
+    );
+  });
+
+  it("a planted node:net import makes the module-ban case FAIL", () => {
+    withLiveMirror(
+      {
+        module: DASHBOARD_ENTRY,
+        appendSource: 'import { createServer } from "node:net";',
+      },
+      (mirrorRoot) => {
+        const reached = bannedModulesReached(analyzeClosure(mirrorRoot, DASHBOARD_ENTRY));
+        expect(reached).toEqual(["net"]);
+      },
+    );
+  });
+
+  it("the UN-PREFIXED spelling of a banned module is caught too", () => {
+    // `net` and `node:net` are the same module. A ban that only knew the prefixed spelling would be
+    // a ban an import walks around by deleting five characters.
+    withLiveMirror(
+      {
+        module: DASHBOARD_ENTRY,
+        appendSource: 'import { createServer } from "net";',
+      },
+      (mirrorRoot) => {
+        expect(bannedModulesReached(analyzeClosure(mirrorRoot, DASHBOARD_ENTRY))).toEqual(["net"]);
+      },
+    );
+  });
+
+  it("a module acquiring node:fs by a route the pass cannot name is REFUSED, not ignored", () => {
+    // Fail-closed, the direction that matters: an undecidable acquisition must red the guard rather
+    // than quietly contribute an empty symbol set to the union.
+    withLiveMirror(
+      {
+        module: "scripts/board-read.js",
+        appendSource: 'const dynamicFs = await import("node:fs");\nvoid dynamicFs;',
+      },
+      (mirrorRoot) => {
+        const facts = analyzeClosure(mirrorRoot, DASHBOARD_ENTRY);
+        expect(facts.opaqueFsAcquisitions.length).toBeGreaterThan(0);
+        expect(facts.opaqueFsAcquisitions.join("\n")).toContain("scripts/board-read.js");
+      },
+    );
+  });
+
+  it("the scratch root is left with no mirror residue", () => {
+    // A real LISTING, not `git status`: `.temp/` is gitignored, so a git-based residue check is
+    // blind to exactly the directory the mirrors live in (the round-5 lesson recorded in
+    // vitest.config.ts).
+    const survivors = existsSync(SCRATCH_ROOT) ? readdirSync(SCRATCH_ROOT) : [];
+    expect(survivors, `mirror residue survived under ${SCRATCH_ROOT}`).toEqual([]);
+  });
+});
+
+afterAll(() => {
+  // Belt and braces for a crashed run: `withLiveMirror`'s `finally` removes each mirror, and this
+  // removes the parent so no empty scratch directory survives either.
+  rmSync(SCRATCH_ROOT, { recursive: true, force: true });
 });

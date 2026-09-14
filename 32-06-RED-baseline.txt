@@ -1,0 +1,152 @@
+32-06 RED BASELINE — the read-only guard RED against a planted writer and a planted socket
+==========================================================================================
+
+Captured BEFORE either half of the guard was claimed to pass (the 22-08 / 22-09 RED -> GREEN
+discipline, in the row format 25-05-RED-baseline.txt, 25-06-RED-baseline.txt and
+32-03-RED-baseline.txt established). Companion file: 32-06-GREEN-proof.txt.
+
+WHAT IS UNDER TEST, AND WHY IT NEEDS A BASELINE AT ALL.
+
+DASH-06 and DASH-08 ask the guard to decide two EMPTINESS claims: the dashboard's import
+closure reaches no mutating `node:fs` symbol, and it imports none of the banned socket /
+process modules. An emptiness claim is the exact shape that passes whether or not the
+mechanism behind it works — an empty closure, an empty specifier set, or a derivation that
+silently parsed nothing all produce the same green. So the case that pins the property has
+to be a case a broken or absent guard FAILS, and this file is the measurement that it does.
+
+The PREMISE assertions in the guard close the vacuity direction. This file closes the other
+one: that the guard can fail at all, and that it fails for the reason claimed.
+
+WHAT WAS PLANTED, AND INTO WHAT.
+
+Both plants were appended to the COMMITTED `.js` — the artifact a host actually runs, which
+is also the artifact the guard walks. Never the `.ts`, never a fixture, never the test's own
+harness. Each was reverted with `git checkout -- <one file>` immediately after its run, and
+`git status --short scripts/` was clean afterwards.
+
+Pre-plant committed blobs (HEAD f4f26801):
+
+    scripts/board-read.js        blob 6e8cc28ddd152fafefa3605f8a383f2da8dbe6b7
+    scripts/board-dashboard.js   blob b6ff72b37da5375bf4bdd579a0151ccc491f3c97
+    scripts/board-model.js       blob ada4413ea6c24d810f45ddad012b3b7d9644bf75
+    scripts/is-entry.js          blob a8fafb98edd348bd122682dd58c43c20a16dbb7d
+    scripts/kit-model.js         blob 125592e1bcc5f4eb45128058f4344ad81c7fe878
+
+Those five files ARE the closure `jsImportClosure(ROOT, "scripts/board-dashboard.js")`
+returns. Runtime: node v24.12.0, vitest 4.1.8, darwin 25.5.0.
+
+Command, identical for every run below:
+
+    npx vitest run scripts/board-readonly.test.ts
+
+------------------------------------------------------------------------------------------
+PLANT A — a mutating `node:fs` symbol in a closure module
+------------------------------------------------------------------------------------------
+Appended to scripts/board-read.js:
+
+    import { writeFileSync } from "node:fs";
+    void writeFileSync;
+
+Result: 4 failed | 18 passed (22).
+
+[A members]   × the derived closure fs symbol set has the expected MEMBERS
+[A count]     × the derived closure fs symbol set has the expected COUNT
+[A intersect] × the dashboard closure reaches NO mutating fs symbol
+[A control]   × CONTROL: an UNPLANTED mirror of the live closure is still green
+
+Verbatim, the case the requirement names:
+
+    FAIL  scripts/board-readonly.test.ts > 32-06 — the mutating set is derived from the
+          runtime, and its exclusions are named > the dashboard closure reaches NO mutating
+          fs symbol
+    AssertionError: the board projector's import closure reaches the mutating node:fs
+    symbol(s) writeFileSync. The projector renders state and changes nothing (DASH-06); a
+    writer in its closure makes it a control plane: expected [ 'writeFileSync' ] to deeply
+    equal []
+
+    - Expected
+    + Received
+
+    - []
+    + [
+    +   "writeFileSync",
+    + ]
+
+And the blocking two-sided pin moved by exactly one, which is what says the red was caused
+by the plant rather than by a derivation that broke and started reporting some other set:
+
+    AssertionError: a node:fs symbol entered or left the dashboard's import closure. This is
+    the pin a Node upgrade cannot move, so the move came from this repository's own code:
+    weigh the new symbol against the read-only property and name it above — it is a
+    decision, never a bumped constant: expected 7 to be 6
+
+WHY THE CONTROL CASE IS IN THE FAILING LIST, AND WHY THAT IS THE POINT.
+
+`CONTROL: an UNPLANTED mirror of the live closure is still green` builds its mirror FROM THE
+LIVE SOURCES at test time. With the plant sitting in the live source, the mirror carries it
+too — so the control failing here is direct evidence that the mirror is not a stale fixture.
+In the GREEN run it passes, which is what makes it a control rather than a duplicate.
+
+------------------------------------------------------------------------------------------
+PLANT B — a listening-socket module in the entry
+------------------------------------------------------------------------------------------
+Appended to scripts/board-dashboard.js:
+
+    import { createServer } from "node:net";
+    void createServer;
+
+Result: 2 failed | 20 passed (22).
+
+[B ban]       × the dashboard closure imports no banned module
+[B control]   × CONTROL: an UNPLANTED mirror of the live closure is still green
+
+Verbatim:
+
+    FAIL  scripts/board-readonly.test.ts > 32-06 — the dashboard opens no socket and spawns
+          no process > the dashboard closure imports no banned module
+    AssertionError: the board projector's import closure reaches net. The projector renders
+    state over a filesystem read; it listens on nothing and spawns nothing (DASH-08):
+    expected [ 'net' ] to deeply equal []
+
+    - Expected
+    + Received
+
+    - []
+    + [
+    +   "net",
+    + ]
+
+Note the ATTRIBUTION: plant A reds the fs half and leaves the ban half green; plant B reds
+the ban half and leaves the fs half green. The two halves are independent predicates, and
+neither is standing in for the other.
+
+------------------------------------------------------------------------------------------
+THE SAME TWO PLANTS, IN-SUITE
+------------------------------------------------------------------------------------------
+The same two mutations are reproduced inside the guard itself, as cases that BUILD a mirror
+of the live closure under the repository scratch root, plant into the mirror, and assert the
+predicate fails against it:
+
+    a planted mutating fs symbol makes the intersection case FAIL
+    a planted node:net import makes the module-ban case FAIL
+    the UN-PREFIXED spelling of a banned module is caught too
+    a module acquiring node:fs by a route the pass cannot name is REFUSED, not ignored
+
+Those cases run on every suite execution, so the discrimination this file measured ONCE is
+re-measured continuously. This file is the record that it was measured against the real
+committed artifacts first, with no mirror in the way.
+
+------------------------------------------------------------------------------------------
+RESIDUE
+------------------------------------------------------------------------------------------
+After every run above:
+
+    git status --short scripts/      → only scripts/board-readonly.test.ts (the guard itself,
+                                        uncommitted at capture time)
+    git checkout -- <planted file>   → applied per plant, to that one file only
+
+Mirrors written by the in-suite cases live under `.temp/board-readonly/` — the repository
+scratch root, which is gitignored (`.gitignore:19`) and excluded from vitest COLLECTION
+(`vitest.config.ts`). Because a gitignored path is invisible to `git status`, the residue
+predicate for those is a REAL LISTING of that directory, asserted by the guard's own final
+case, plus an `afterAll` that removes the parent.

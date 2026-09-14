@@ -1,0 +1,111 @@
+32-06 GREEN PROOF — both halves of the read-only guard pass against the unplanted tree
+======================================================================================
+
+Captured AFTER each plant was reverted (the 22-08 / 22-09 RED -> GREEN discipline;
+companion to 32-06-RED-baseline.txt, in the format 25-06-GREEN-proof.txt and
+32-03-GREEN-proof.txt established).
+
+Every result below is measured against the COMMITTED `.js` closure — the artifact a host
+actually runs — with no plant, no mirror and no fixture in the way.
+
+Post-revert committed blobs (HEAD f4f26801, byte-identical to the pre-plant list in
+32-06-RED-baseline.txt):
+
+    scripts/board-read.js        blob 6e8cc28ddd152fafefa3605f8a383f2da8dbe6b7
+    scripts/board-dashboard.js   blob b6ff72b37da5375bf4bdd579a0151ccc491f3c97
+    scripts/board-model.js       blob ada4413ea6c24d810f45ddad012b3b7d9644bf75
+    scripts/is-entry.js          blob a8fafb98edd348bd122682dd58c43c20a16dbb7d
+    scripts/kit-model.js         blob 125592e1bcc5f4eb45128058f4344ad81c7fe878
+
+Runtime: node v24.12.0, vitest 4.1.8, darwin 25.5.0.
+
+------------------------------------------------------------------------------------------
+THE RUN
+------------------------------------------------------------------------------------------
+
+    $ npx vitest run scripts/board-readonly.test.ts
+
+     RUN  v4.1.8 /Users/olgeroeselg/Projects/public/grugops
+
+    board-readonly: mutating fs symbols 57 (stem-matched 60 minus 3 named exclusions) on node 24.12.0
+
+     Test Files  1 passed (1)
+          Tests  22 passed (22)
+
+Exit 0. Every case named in 32-06-RED-baseline.txt as failing is green here, and the CONTROL
+case — an unplanted mirror built from the live sources — is green too, which is what makes
+it a control rather than a duplicate of the live assertion.
+
+------------------------------------------------------------------------------------------
+WHAT THE NUMBERS IN THE PRINTED LINE MEAN
+------------------------------------------------------------------------------------------
+
+    board-readonly: mutating fs symbols 57 (stem-matched 60 minus 3 named exclusions) on node 24.12.0
+
+  60  symbols the D-21 write-class stems matched across `node:fs` and `node:fs/promises` on
+      THIS runtime. This number is a function of the Node version, not of the dashboard, so
+      it is PRINTED and VERSION-LABELLED rather than pinned: CI runs Node 22 and will
+      legitimately print a different one, and a pin that reds for that reason is a pin that
+      gets loosened until it stops noticing.
+   3  named exclusions subtracted: `openAsBlob`, `opendir`, `opendirSync` — all read-only,
+      all caught only by sharing the `open` stem. `open` and `openSync` are deliberately NOT
+      excluded: their write-ness depends on a flag literal a name-based derivation cannot
+      read, so the guard refuses.
+  57  the mutating set the closure is intersected against.
+
+The BLOCKING pin is a different number, and it is asserted two-sided rather than printed:
+
+    the dashboard closure's own node:fs symbol set = 6
+    ["existsSync", "readFileSync", "readdirSync", "realpathSync", "statSync", "watch"]
+
+Every member is a reader. That set is a function of this repository's code, so no Node
+upgrade can move it, and a seventh symbol reds the guard on both the member case and the
+count case.
+
+------------------------------------------------------------------------------------------
+THE FULL CASE LIST, GREEN
+------------------------------------------------------------------------------------------
+
+  PREMISES (asserted before any emptiness claim downstream)
+    ✓ PREMISE: the dashboard closure is non-empty and contains the modules under test
+    ✓ PREMISE: every closure module parsed, and none parsed to nothing
+    ✓ PREMISE: the runtime enumeration matched at least one write-class symbol
+    ✓ PREMISE: no closure module acquires a filesystem module by a route this pass cannot name
+    ✓ PREMISE: the collected bare-specifier set is non-empty
+
+  THE BLOCKING PIN
+    ✓ the derived closure fs symbol set has the expected MEMBERS
+    ✓ the derived closure fs symbol set has the expected COUNT
+    ✓ the pure model's own closure carries no node:fs specifier at all (D-15, D-23)
+
+  THE MUTATING SET AND ITS EXCLUSIONS
+    ✓ every named exclusion is actually present in the stem-matched set
+    ✓ the exclusion set has exactly three members
+    ✓ open and openSync remain IN the mutating set
+    ✓ the stem rule admits the descriptor forms and refuses the read-only lookalikes
+    ✓ the dashboard closure reaches NO mutating fs symbol
+
+  THE MODULE BAN (DASH-08)
+    ✓ the banned list has exactly the five members D-21 names
+    ✓ the socket-family extension has exactly five members
+    ✓ the dashboard closure imports no banned module
+
+  THE DISCRIMINATION
+    ✓ CONTROL: an UNPLANTED mirror of the live closure is still green
+    ✓ a planted mutating fs symbol makes the intersection case FAIL
+    ✓ a planted node:net import makes the module-ban case FAIL
+    ✓ the UN-PREFIXED spelling of a banned module is caught too
+    ✓ a module acquiring node:fs by a route the pass cannot name is REFUSED, not ignored
+    ✓ the scratch root is left with no mirror residue
+
+------------------------------------------------------------------------------------------
+RESIDUE
+------------------------------------------------------------------------------------------
+
+    git status --short scripts/   → only scripts/board-readonly.test.ts (the guard itself,
+                                     uncommitted at capture time)
+
+The in-suite mirrors are written under `.temp/board-readonly/`, removed in each case's own
+`finally`, and the parent removed in `afterAll`. Because `.temp/` is gitignored, the residue
+predicate is a REAL LISTING of that directory rather than a `git status` read — the guard's
+own final case asserts it is empty.
