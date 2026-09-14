@@ -1415,8 +1415,15 @@ export function bannedClaimScanOverlap(): number {
  * the `kit` corpus ONLY (73 → 74), so the overlap is unchanged at 2 and the deduped total moves by
  * exactly one. The admission test held: the run that moved this pin reported ZERO findings over
  * 119/119 elements, so the entrant costs zero reds on correct text.
+ *
+ * MOVED AGAIN 119 → 120 IN PLAN 32-01, AND THE ENTRANT IS NAMED:
+ * `agent-factory/contracts/board.md`, the DASH-01 board-grammar contract. It enters through the
+ * `kit` corpus ONLY (74 → 75), so the overlap is unchanged at 2 and the deduped total moves by
+ * exactly one. The pin moved AFTER the gate had read the new file, not to silence it: the run that
+ * moved this number reported ZERO findings over 120/120 elements, so the entrant costs zero reds on
+ * correct text.
  */
-export const BANNED_CLAIM_SCAN_COUNT = 119;
+export const BANNED_CLAIM_SCAN_COUNT = 120;
 
 // ---------------------------------------------------------------------------
 // The exemption region, located by EXACT heading line.
