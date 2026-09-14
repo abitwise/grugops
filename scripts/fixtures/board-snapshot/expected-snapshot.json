@@ -1,0 +1,611 @@
+{
+  "conflicts": [
+    {
+      "actual": "Ready",
+      "column": "Ready",
+      "expected": "In Review",
+      "kind": "board-vs-ticket",
+      "source": "tickets",
+      "ticketId": "ABC-102"
+    },
+    {
+      "actual": "ready",
+      "column": "In Development",
+      "expected": "in-development",
+      "kind": "board-vs-ticket",
+      "source": "tickets",
+      "ticketId": "ABC-103"
+    },
+    {
+      "actual": "Done",
+      "column": "Done",
+      "expected": "In Review",
+      "kind": "board-vs-ticket",
+      "source": "tickets",
+      "ticketId": "ABC-105"
+    },
+    {
+      "actual": "no row names ABC-200",
+      "expected": "a row on the board",
+      "kind": "ticket-unplaced",
+      "source": "tickets",
+      "ticketId": "ABC-200"
+    },
+    {
+      "actual": "In Review, Done",
+      "column": "In Review",
+      "expected": "one row on the board",
+      "kind": "ticket-duplicated",
+      "source": "board",
+      "ticketId": "ABC-105"
+    },
+    {
+      "actual": "no ticket file carries that identifier",
+      "column": "In Development",
+      "expected": "plans/tickets/ABC-999.md",
+      "kind": "row-without-file",
+      "source": "board",
+      "ticketId": "ABC-999"
+    },
+    {
+      "actual": "3",
+      "column": "In Review",
+      "expected": "2",
+      "kind": "wip-limit",
+      "source": "config"
+    },
+    {
+      "actual": "counted 3",
+      "column": "In Development",
+      "expected": "claimed 2, limit 3",
+      "kind": "wip-count",
+      "source": "board"
+    },
+    {
+      "actual": "no heading on the board opens that column",
+      "column": "Ready to Release",
+      "expected": "a heading for the configured column Ready to Release",
+      "kind": "column-missing",
+      "source": "config"
+    }
+  ],
+  "readErrors": [
+    {
+      "code": "tampered",
+      "message": "<fixture-root>/.grugops/queue/claimed/abc-105-tampered/claim.md carries 2 `at:` lines and a claim record is written with exactly one. The record is skipped rather than trusted on either line: a forged second `at:` is a queue-lock denial of service (scripts/claim.ts:270-306).",
+      "path": "<fixture-root>/.grugops/queue/claimed/abc-105-tampered/claim.md",
+      "source": "queue"
+    }
+  ],
+  "snapshot": {
+    "board": {
+      "bounds": {
+        "boardBytes": 2295,
+        "exceeded": false,
+        "longestLine": 99
+      },
+      "columns": [
+        {
+          "claimedLive": null,
+          "heading": "## Backlog (WIP unlimited)",
+          "kind": "unlimited",
+          "limit": null,
+          "line": 30,
+          "name": "Backlog",
+          "rows": [
+            {
+              "id": "ABC-101",
+              "line": 32,
+              "meta": "owner: BA/PM, since: 2026-09-01",
+              "title": "Something in the backlog",
+              "trailer": "",
+              "truncated": false
+            }
+          ]
+        },
+        {
+          "claimedLive": 1,
+          "heading": "## Ready (WIP 1/5)",
+          "kind": "limited",
+          "limit": 5,
+          "line": 34,
+          "name": "Ready",
+          "rows": [
+            {
+              "id": "ABC-102",
+              "line": 36,
+              "meta": "owner: Software Engineer",
+              "title": "A ticket whose file disagrees about its column",
+              "trailer": "",
+              "truncated": false
+            }
+          ]
+        },
+        {
+          "claimedLive": 2,
+          "heading": "## In Development (WIP 2/3)",
+          "kind": "limited",
+          "limit": 3,
+          "line": 39,
+          "name": "In Development",
+          "rows": [
+            {
+              "id": "ABC-103",
+              "line": 41,
+              "meta": null,
+              "title": "A ticket whose status is not the kebab form of its column",
+              "trailer": "",
+              "truncated": false
+            },
+            {
+              "id": "ABC-104",
+              "line": 42,
+              "meta": null,
+              "title": "A ticket that agrees with its file in every respect",
+              "trailer": "",
+              "truncated": false
+            },
+            {
+              "id": "ABC-999",
+              "line": 43,
+              "meta": null,
+              "title": "A row naming an identifier with no ticket file",
+              "trailer": "",
+              "truncated": false
+            }
+          ]
+        },
+        {
+          "claimedLive": 1,
+          "heading": "## In Review (WIP 1/3)",
+          "kind": "limited",
+          "limit": 3,
+          "line": 49,
+          "name": "In Review",
+          "rows": [
+            {
+              "id": "ABC-105",
+              "line": 51,
+              "meta": null,
+              "title": "A ticket that also appears under a second heading",
+              "trailer": "",
+              "truncated": false
+            }
+          ]
+        },
+        {
+          "claimedLive": null,
+          "heading": "## Done (WIP unlimited)",
+          "kind": "unlimited",
+          "limit": null,
+          "line": 53,
+          "name": "Done",
+          "rows": [
+            {
+              "id": "ABC-105",
+              "line": 55,
+              "meta": null,
+              "title": "The same identifier again, under a second heading",
+              "trailer": "",
+              "truncated": false
+            }
+          ]
+        },
+        {
+          "claimedLive": null,
+          "heading": "## Blocked (visible, time-tracked)",
+          "kind": "blocked",
+          "limit": null,
+          "line": 57,
+          "name": "Blocked",
+          "rows": [
+            {
+              "id": "ABC-106",
+              "line": 59,
+              "meta": "since: 2026-09-02",
+              "title": "Waiting on a decision",
+              "trailer": "",
+              "truncated": false
+            }
+          ]
+        }
+      ],
+      "epicRows": [
+        {
+          "column": "In Development",
+          "id": "EPIC-006",
+          "line": 44,
+          "meta": null,
+          "title": "The epic row, a second class that never counts toward WIP",
+          "trailer": "",
+          "truncated": false
+        }
+      ],
+      "nonColumnSections": [
+        {
+          "heading": "## Notes (fixture)",
+          "line": 25,
+          "lines": [
+            "This is a non-column section. Its heading matches none of the three D-05 suffixes, so it opens no",
+            "column, and these prose lines belong to the section rather than to `unparsed[]`."
+          ]
+        }
+      ],
+      "preamble": [
+        "# Board (board-snapshot fixture)",
+        "_Updated: <ISO date> by <role>_",
+        "This paragraph is preamble prose. It sits before the first level-two heading, so it lands in",
+        "`preamble[]` rather than in `unparsed[]` (D-24). The placeholder update line above it is preamble",
+        "too: it is not in the canonical `_Updated: YYYY-MM-DD by <actor>` shape, so it is not an update",
+        "entry, and a fresh install must not meet it as a finding."
+      ],
+      "unparsed": [
+        {
+          "column": "Ready",
+          "line": 37,
+          "text": "- [XYZ-001] A foreign identifier prefix, refused by the configured id_prefix"
+        },
+        {
+          "column": "In Development",
+          "line": 46,
+          "text": "A prose paragraph inside a column section. It is neither heading, row, epic row nor update, so it"
+        },
+        {
+          "column": "In Development",
+          "line": 47,
+          "text": "is an unparsed line carrying the column it sat under."
+        }
+      ],
+      "updates": [
+        {
+          "actor": "Orchestrator — the canonical shape, so this one IS an update entry",
+          "date": "2026-09-14",
+          "line": 10,
+          "text": "_Updated: 2026-09-14 by Orchestrator — the canonical shape, so this one IS an update entry",
+          "truncated": false
+        }
+      ]
+    },
+    "config": {
+      "idPrefix": "ABC",
+      "mode": "lean",
+      "wipLimits": {
+        "In Development": 3,
+        "In Review": 2,
+        "Ready": 5,
+        "Ready to Release": 4
+      }
+    },
+    "generatedAt": "1970-01-01T00:00:00.000Z",
+    "repoRoot": "<fixture-root>",
+    "schemaVersion": 1,
+    "sources": {
+      "board": {
+        "readAt": "1970-01-01T00:00:00.000Z",
+        "source": "ok",
+        "value": {
+          "bounds": {
+            "boardBytes": 2295,
+            "exceeded": false,
+            "longestLine": 99
+          },
+          "columns": [
+            {
+              "claimedLive": null,
+              "heading": "## Backlog (WIP unlimited)",
+              "kind": "unlimited",
+              "limit": null,
+              "line": 30,
+              "name": "Backlog",
+              "rows": [
+                {
+                  "id": "ABC-101",
+                  "line": 32,
+                  "meta": "owner: BA/PM, since: 2026-09-01",
+                  "title": "Something in the backlog",
+                  "trailer": "",
+                  "truncated": false
+                }
+              ]
+            },
+            {
+              "claimedLive": 1,
+              "heading": "## Ready (WIP 1/5)",
+              "kind": "limited",
+              "limit": 5,
+              "line": 34,
+              "name": "Ready",
+              "rows": [
+                {
+                  "id": "ABC-102",
+                  "line": 36,
+                  "meta": "owner: Software Engineer",
+                  "title": "A ticket whose file disagrees about its column",
+                  "trailer": "",
+                  "truncated": false
+                }
+              ]
+            },
+            {
+              "claimedLive": 2,
+              "heading": "## In Development (WIP 2/3)",
+              "kind": "limited",
+              "limit": 3,
+              "line": 39,
+              "name": "In Development",
+              "rows": [
+                {
+                  "id": "ABC-103",
+                  "line": 41,
+                  "meta": null,
+                  "title": "A ticket whose status is not the kebab form of its column",
+                  "trailer": "",
+                  "truncated": false
+                },
+                {
+                  "id": "ABC-104",
+                  "line": 42,
+                  "meta": null,
+                  "title": "A ticket that agrees with its file in every respect",
+                  "trailer": "",
+                  "truncated": false
+                },
+                {
+                  "id": "ABC-999",
+                  "line": 43,
+                  "meta": null,
+                  "title": "A row naming an identifier with no ticket file",
+                  "trailer": "",
+                  "truncated": false
+                }
+              ]
+            },
+            {
+              "claimedLive": 1,
+              "heading": "## In Review (WIP 1/3)",
+              "kind": "limited",
+              "limit": 3,
+              "line": 49,
+              "name": "In Review",
+              "rows": [
+                {
+                  "id": "ABC-105",
+                  "line": 51,
+                  "meta": null,
+                  "title": "A ticket that also appears under a second heading",
+                  "trailer": "",
+                  "truncated": false
+                }
+              ]
+            },
+            {
+              "claimedLive": null,
+              "heading": "## Done (WIP unlimited)",
+              "kind": "unlimited",
+              "limit": null,
+              "line": 53,
+              "name": "Done",
+              "rows": [
+                {
+                  "id": "ABC-105",
+                  "line": 55,
+                  "meta": null,
+                  "title": "The same identifier again, under a second heading",
+                  "trailer": "",
+                  "truncated": false
+                }
+              ]
+            },
+            {
+              "claimedLive": null,
+              "heading": "## Blocked (visible, time-tracked)",
+              "kind": "blocked",
+              "limit": null,
+              "line": 57,
+              "name": "Blocked",
+              "rows": [
+                {
+                  "id": "ABC-106",
+                  "line": 59,
+                  "meta": "since: 2026-09-02",
+                  "title": "Waiting on a decision",
+                  "trailer": "",
+                  "truncated": false
+                }
+              ]
+            }
+          ],
+          "epicRows": [
+            {
+              "column": "In Development",
+              "id": "EPIC-006",
+              "line": 44,
+              "meta": null,
+              "title": "The epic row, a second class that never counts toward WIP",
+              "trailer": "",
+              "truncated": false
+            }
+          ],
+          "nonColumnSections": [
+            {
+              "heading": "## Notes (fixture)",
+              "line": 25,
+              "lines": [
+                "This is a non-column section. Its heading matches none of the three D-05 suffixes, so it opens no",
+                "column, and these prose lines belong to the section rather than to `unparsed[]`."
+              ]
+            }
+          ],
+          "preamble": [
+            "# Board (board-snapshot fixture)",
+            "_Updated: <ISO date> by <role>_",
+            "This paragraph is preamble prose. It sits before the first level-two heading, so it lands in",
+            "`preamble[]` rather than in `unparsed[]` (D-24). The placeholder update line above it is preamble",
+            "too: it is not in the canonical `_Updated: YYYY-MM-DD by <actor>` shape, so it is not an update",
+            "entry, and a fresh install must not meet it as a finding."
+          ],
+          "unparsed": [
+            {
+              "column": "Ready",
+              "line": 37,
+              "text": "- [XYZ-001] A foreign identifier prefix, refused by the configured id_prefix"
+            },
+            {
+              "column": "In Development",
+              "line": 46,
+              "text": "A prose paragraph inside a column section. It is neither heading, row, epic row nor update, so it"
+            },
+            {
+              "column": "In Development",
+              "line": 47,
+              "text": "is an unparsed line carrying the column it sat under."
+            }
+          ],
+          "updates": [
+            {
+              "actor": "Orchestrator — the canonical shape, so this one IS an update entry",
+              "date": "2026-09-14",
+              "line": 10,
+              "text": "_Updated: 2026-09-14 by Orchestrator — the canonical shape, so this one IS an update entry",
+              "truncated": false
+            }
+          ]
+        }
+      },
+      "config": {
+        "readAt": "1970-01-01T00:00:00.000Z",
+        "source": "ok",
+        "value": {
+          "idPrefix": "ABC",
+          "mode": "lean",
+          "wipLimits": {
+            "In Development": 3,
+            "In Review": 2,
+            "Ready": 5,
+            "Ready to Release": 4
+          }
+        }
+      },
+      "context": {
+        "readAt": "1970-01-01T00:00:00.000Z",
+        "source": "ok",
+        "value": [
+          {
+            "latestAt": "2026-09-14T09:10:00.000Z",
+            "latestKind": "decision",
+            "liveCount": 1,
+            "noteCount": 2,
+            "task": "abc-104-implement"
+          }
+        ]
+      },
+      "queue": {
+        "readAt": "1970-01-01T00:00:00.000Z",
+        "source": "ok",
+        "value": [
+          {
+            "at": "2026-09-14T09:00:00.000Z",
+            "by": "software-engineer",
+            "task": "abc-104-implement"
+          }
+        ]
+      },
+      "tickets": {
+        "readAt": "1970-01-01T00:00:00.000Z",
+        "source": "ok",
+        "value": [
+          {
+            "column": "Backlog",
+            "file": "ABC-101.md",
+            "id": "ABC-101",
+            "status": "backlog",
+            "title": "Something in the backlog"
+          },
+          {
+            "column": "In Review",
+            "file": "ABC-102.md",
+            "id": "ABC-102",
+            "status": "in-review",
+            "title": "A ticket whose file disagrees about its column"
+          },
+          {
+            "column": "In Development",
+            "file": "ABC-103.md",
+            "id": "ABC-103",
+            "status": "ready",
+            "title": "A ticket whose status is not the kebab form of its column"
+          },
+          {
+            "column": "In Development",
+            "file": "ABC-104.md",
+            "id": "ABC-104",
+            "status": "in-development",
+            "title": "A ticket that agrees with its file in every respect"
+          },
+          {
+            "column": "In Review",
+            "file": "ABC-105.md",
+            "id": "ABC-105",
+            "status": "in-review",
+            "title": "A ticket that also appears under a second heading"
+          },
+          {
+            "column": "Blocked",
+            "file": "ABC-106.md",
+            "id": "ABC-106",
+            "status": "blocked",
+            "title": "Waiting on a decision"
+          },
+          {
+            "column": "Ready",
+            "file": "ABC-200.md",
+            "id": "ABC-200",
+            "status": "ready",
+            "title": "A ticket file with no row on the board"
+          }
+        ]
+      },
+      "traceability": {
+        "readAt": "1970-01-01T00:00:00.000Z",
+        "source": "ok",
+        "value": [
+          {
+            "cells": [
+              "ABC-101",
+              "Something in the backlog",
+              "EPIC-006",
+              "FEAT-007",
+              "NFR-001",
+              "",
+              "",
+              "",
+              "",
+              "Backlog"
+            ],
+            "status": "Backlog",
+            "ticket": "ABC-101",
+            "title": "Something in the backlog"
+          },
+          {
+            "cells": [
+              "ABC-104",
+              "A ticket that agrees with its file",
+              "EPIC-006",
+              "FEAT-007",
+              "NFR-001",
+              "#12",
+              "board.spec.ts",
+              "",
+              "",
+              "In Development"
+            ],
+            "status": "In Development",
+            "ticket": "ABC-104",
+            "title": "A ticket that agrees with its file"
+          }
+        ]
+      }
+    }
+  },
+  "source": "ok"
+}
