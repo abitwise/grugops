@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 172
+open_count: 173
 waived_count: 0
 fixed_count: 4
-total_count: 176
-last_updated: 2026-09-14T13:45:35.380Z
+total_count: 177
+last_updated: 2026-09-14T20:33:15.766Z
 ---
 
 # Broken Windows Ledger
@@ -191,6 +191,7 @@ last_updated: 2026-09-14T13:45:35.380Z
 | 174 | 32 | deviation | scripts/board-read.ts |  | STALE_REASONS is five, not the plan-stated four: unreadable (a partial parse) shipped in 32-01 and dropping it would regress the malformed-dial path | open |  | 2026-09-14T09:54:08.226Z |  |
 | 175 | 32 | deviation | agent-factory/contracts/board.md |  | The contract's identifier rule requires a ticket prefix equal to factory.config.json#id_prefix, but scripts/board-model.ts is pure and reads no config, so it enforces only the identifier SHAPE. Recorded as scripts/board-corpus.ts row ctl-id-disagreeing-prefix; the prefix comparison belongs to the join layer that holds the dial. | open |  | 2026-09-14T10:54:07.185Z |  |
 | 176 | 32 | lint-warning | docs/audit/29-style-dispositions/00-base.md |  | check:diff-disposition exits 1 on five Phase-31 workflow documents; pre-existing, verified identical at 6d59ed1e | open |  | 2026-09-14T13:45:35.380Z |  |
+| 177 | 32 | lint-warning | .planning/phases/32-board-projector-cli-dashboard/32-REVIEW.md | 404 | check:nul-bytes RED — literal ESC (0x1b) in the review document; pre-existing from commit 730ff88f, deferred by plan 32-09 as out of scope | open |  | 2026-09-14T20:33:15.766Z |  |
 
 ````json
 [
@@ -2305,6 +2306,19 @@ last_updated: 2026-09-14T13:45:35.380Z
     "reason": "",
     "recorded_at": "2026-09-14T13:45:35.380Z",
     "resolved_at": null
+  },
+  {
+    "id": 177,
+    "kind": "lint-warning",
+    "phase": "32",
+    "file": ".planning/phases/32-board-projector-cli-dashboard/32-REVIEW.md",
+    "line": 404,
+    "description": "check:nul-bytes RED — literal ESC (0x1b) in the review document; pre-existing from commit 730ff88f, deferred by plan 32-09 as out of scope",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-14T20:33:15.766Z",
+    "resolved_at": null,
+    "milestone": "v2.1"
   }
 ]
 ````
