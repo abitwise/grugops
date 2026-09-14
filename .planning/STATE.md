@@ -5,14 +5,14 @@ milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live
 current_phase: 32
 current_phase_name: Board Projector & CLI Dashboard
 status: "Phase 31 CLOSED 2026-09-13 by user override D-44 (round-9 verification gaps_found 4/6 left standing; CR-28..CR-31 + WR-43..WR-47 accepted open). Next: Phase 32 — Board Projector & CLI Dashboard, not yet planned. Standing rule: four-round gap-closure cap on every later phase."
-stopped_at: Completed 32-12-PLAN.md (CR-06 second grammar + false docblock closed)
-last_updated: "2026-09-14T22:04:50.974Z"
-state_head: 16983f13c98e40e999cf3b692dc4b20efee0ce27
+stopped_at: Completed 32-13-PLAN.md (CR-05 stderr chokepoint + WR-06 JSON framing prose closed)
+last_updated: "2026-09-14T22:39:33.563Z"
+state_head: 338d92625f92816867dfdab2e760ba47b3e4f853
 progress:
   total_phases: 9
   completed_phases: 30
   total_plans: 234
-  completed_plans: 231
+  completed_plans: 232
   percent: 99
 last_activity: 2026-09-13
 prior_activity_desc: Phase 27 gap-closure round 8 COMPLETE (27-45, 27-46; D-53). Full narration lives in the Phase 27 artifacts and in docs/audit/; shortened here by plan 31-38 because this single line measured 7995 characters, above the 4000-character ceiling a pathological STATE line has previously crossed to turn a sub-second guard into a multi-minute one.
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-09-07 — after Phase 29.2)
 ## Current Position
 
 Phase: 32 (Board Projector & CLI Dashboard) — EXECUTING
-Plan: 4 of 14
+Plan: 5 of 14
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 
@@ -487,6 +487,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 32 P09 | 38 min | 3 tasks | 13 files |
 | Phase 32 P10 | 30 min | 3 tasks | 7 files |
 | Phase 32 P12 | 30 min | 3 tasks | 11 files |
+| Phase 32 P13 | 22 min | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -1326,6 +1327,9 @@ Recent decisions affecting current work:
 - [Phase 32]: A containment refusal carries OUTSIDE-ROOT; a resolution failure carries its errno — Collapsing both into one code is the CR-02 discarded-errno defect one register over. A 32-09 case caught it on the first build.
 - [Phase 32]: The hard-link shape is an accepted, recorded residual rather than a closed one — No path-based rule can refuse a hard link, and nlink greater than 1 was declined as a heuristic. Logged open in .planning/WINDOWS.md for human disposition.
 - [Phase 32]: CR-06 closed structurally: the validator's second ticket-frontmatter reader is DELETED and checkTickets() routed through parseTicketDocument, with the single-authority claim DERIVED by a recursive census over scripts/*.ts (150 files, carrier asserted by name) plus a discrimination case planting the removed reader — A comment asserting a state of the tree is what let CR-06 survive a code review and a green suite; the claim is now delegated to a derived census rather than asserted in prose. The board-model.ts docblock no longer promises a future commit.
+- [Phase 32]: Plan 32-13: every dashboard diagnostic goes through one stderr chokepoint (warn), with the write-site count derived from the module AST and pinned two-sided at 1 inside that function. — CR-05 was a true sentence about the wrong boundary. A count of one in the wrong function is still a bypass, so the census asserts the enclosing function name as well as the count, and collects the routes it cannot decide as opaque.
+- [Phase 32]: Plan 32-13: warn is variadic over lines, and USAGE is held as USAGE_LINES rather than folded into the refusal message. — sanitizeCell removes U+000A with the rest of C0. A single-line warn would have collapsed the usage block; preserving newlines would have let an argv token forge a diagnostic line. The line boundary belongs to the caller.
+- [Phase 32]: Plan 32-13: the three --json framing sentences state the per-line contract, and the site count is derived from the module text and pinned at 3. — WR-06. D-18 behaviour was correct and unchanged; the prose described a different program. Three sentences that must agree are three chances to disagree, so the count is measured rather than trusted.
 
 ### Pending Todos
 
@@ -1447,8 +1451,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-09-14T22:04:30.005Z
-Stopped at: Completed 32-12-PLAN.md (CR-06 second grammar + false docblock closed)
+Last session: 2026-09-14T22:38:46.891Z
+Stopped at: Completed 32-13-PLAN.md (CR-05 stderr chokepoint + WR-06 JSON framing prose closed)
 Resume file: None
 
 ## Operator Next Steps
