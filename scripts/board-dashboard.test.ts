@@ -20,8 +20,10 @@
 //
 // Vitest `globals: false` (the repo default) → the test functions are imported explicitly.
 
-import { describe, it, expect, vi, afterEach } from "vitest";
-import { realpathSync } from "node:fs";
+import { describe, it, expect, vi, afterAll, afterEach } from "vitest";
+import { spawn, spawnSync } from "node:child_process";
+import { appendFileSync, cpSync, mkdtempSync, realpathSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import {
@@ -696,5 +698,287 @@ describe("board-dashboard — SIGINT closes the loop rather than the process mid
       "the poll interval survived the interrupt, so the process would keep re-reading a tree " +
         "nobody is watching any more",
     ).toBe(before);
+  });
+});
+
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+// TASK 3 — THE CONTRACT AS A SPAWNED PROCESS (D-18, T-32-06, T-32-08, T-32-22, T-32-23).
+//
+// WHAT THIS HALF DECIDES THAT THE HALF ABOVE CANNOT. A direct `main(argv, io)` call proves which
+// BRANCH was selected. It cannot prove what a CI consumer receives, because the exit code, the
+// separation of stdout from stderr and the absence of a stack are properties of a PROCESS. The
+// `check-platform-shapes.ts` drive harness is the in-repo precedent for asserting them from outside.
+//
+// WHAT IT DOES NOT DECIDE, NAMED RATHER THAN IMPLIED. It measures the process contract, NOT the
+// visual result on a real terminal. This suite has no pty, so the live TTY redraw — whether the
+// frame refreshes without flicker and reads legibly at a human width — is recorded as a MANUAL-ONLY
+// verification in `.planning/phases/32-board-projector-cli-dashboard/32-VALIDATION.md`, with its
+// instructions, rather than asserted by a case that would be measuring its own fake terminal. A
+// green assertion over a simulated terminal is the weakest possible evidence about a real one.
+//
+// EVERY MUTATING CASE OPERATES ON A TEMP COPY. The committed fixture tree is an input to the golden
+// (plan 32-05); a test run that modified it would move a byte-for-byte comparison from under another
+// suite. The `afterAll` below re-decides that from `git status` rather than trusting the discipline.
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+
+const DASHBOARD_JS = join(ROOT, "scripts", "board-dashboard.js");
+
+/** Drive the COMPILED module as a child and capture both streams and the code. */
+function spawnDashboard(args: readonly string[]): Captured {
+  const r = spawnSync(process.execPath, [DASHBOARD_JS, ...args], {
+    cwd: ROOT,
+    encoding: "utf8",
+    timeout: 20_000,
+  });
+  return { out: r.stdout ?? "", err: r.stderr ?? "", code: r.status ?? -1 };
+}
+
+/** A throwaway copy of the fixture tree. Nothing here ever writes to the committed one. */
+function withFixtureCopy(body: (dir: string) => void): void {
+  const dir = mkdtempSync(join(realpathSync(tmpdir()), "grugops-dashboard-"));
+  try {
+    cpSync(FIXTURE, dir, { recursive: true });
+    body(dir);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+/**
+ * The fixture's deliberately tampered claim, which the queue reader skips and REPORTS.
+ *
+ * It exists so plan 32-03's tamper-skip arm is reached by a committed artifact, which means the
+ * committed tree always produces one stderr diagnostic. A case asserting "stderr is empty" has to
+ * remove it first, or it is asserting that the fixture stopped exercising the arm it was built for.
+ */
+const TAMPERED_CLAIM = join(".grugops", "queue", "claimed", "abc-105-tampered");
+
+afterAll(() => {
+  const status = spawnSync("git", ["status", "--porcelain", "scripts/fixtures/"], {
+    cwd: ROOT,
+    encoding: "utf8",
+  });
+  expect(
+    (status.stdout ?? "").trim(),
+    "a test run left the committed fixture tree modified; the golden in plan 32-05 is a " +
+      "byte-for-byte function of exactly these bytes",
+  ).toBe("");
+});
+
+describe("board-dashboard — the spawned process contract: one document, once (D-18)", () => {
+  it("exits 0 with exactly ONE JSON document on stdout and an EMPTY stderr for --once --json", () => {
+    withFixtureCopy((dir) => {
+      // The tampered claim is removed so "stderr is empty" measures the STREAM DISCIPLINE rather
+      // than the fixture's deliberate diagnostic. The committed-tree case below covers the other
+      // direction: a diagnostic exists, and it still does not touch stdout.
+      rmSync(join(dir, TAMPERED_CLAIM), { recursive: true, force: true });
+      const r = spawnDashboard([dir, "--once", "--json"]);
+      expect(r.code).toBe(0);
+      expect(r.err).toBe("");
+      const lines = r.out.split("\n").filter((l) => l !== "");
+      expect(lines.length).toBe(1);
+      const parsed = JSON.parse(r.out) as { snapshot: { schemaVersion: number } };
+      expect(parsed.snapshot.schemaVersion).toBe(1);
+    });
+  });
+
+  it("keeps a read diagnostic on stderr and out of the JSON document on stdout", () => {
+    const r = spawnDashboard([FIXTURE, "--once", "--json"]);
+    expect(r.code).toBe(0);
+    expect(
+      r.err,
+      "PREMISE: the committed fixture produced no diagnostic, so the separation below is asserted " +
+        "over a run that had nothing to separate",
+    ).toContain("tampered");
+    expect(() => JSON.parse(r.out) as unknown).not.toThrow();
+  });
+
+  it("emits no ESC byte at all when stdout is a pipe rather than a tty (non-tty, T-32-06)", () => {
+    const r = spawnDashboard([FIXTURE, "--once"]);
+    expect(r.code).toBe(0);
+    expect(r.out.includes(ESC)).toBe(false);
+    expect(r.out).toContain("grugops board");
+  });
+});
+
+describe("board-dashboard — the spawned process refuses by code, never by silence (D-18)", () => {
+  it("exits 2 with an EMPTY stdout on an unknown flag", () => {
+    const r = spawnDashboard([FIXTURE, "--nonsense"]);
+    expect(r.code).toBe(2);
+    expect(r.out).toBe("");
+    expect(r.err).toContain("--nonsense");
+  });
+
+  it("exits 2 with an EMPTY stdout and a NAMED stderr message on a path that does not exist", () => {
+    const missing = join(realpathSync(tmpdir()), "grugops-dashboard-no-such-tree-32-07");
+    const r = spawnDashboard([missing, "--once", "--json"]);
+    expect(r.code).toBe(2);
+    expect(r.out).toBe("");
+    expect(r.err).toContain(missing);
+    expect(r.err).not.toContain("    at ");
+  });
+});
+
+describe("board-dashboard — a board removed under a live run degrades VISIBLY (DASH-05, T-32-22)", () => {
+  it(
+    "carries the STALE badge and the PREVIOUS column values rather than zero columns, exiting 0",
+    async () => {
+      await new Promise<void>((resolve, reject) => {
+        const dir = mkdtempSync(join(realpathSync(tmpdir()), "grugops-dashboard-"));
+        cpSync(FIXTURE, dir, { recursive: true });
+
+        const proc = spawn(process.execPath, [DASHBOARD_JS, dir, "--watch", "--interval", "1000"], {
+          cwd: ROOT,
+        });
+        let out = "";
+        let err = "";
+        proc.stdout.setEncoding("utf8");
+        proc.stderr.setEncoding("utf8");
+        proc.stdout.on("data", (c: string) => {
+          out += c;
+        });
+        proc.stderr.on("data", (c: string) => {
+          err += c;
+        });
+
+        // The first frame has landed by the time the board is removed, so the loop has a last-good
+        // value to carry forward. Without a previous read there is nothing to be stale ABOUT, and
+        // the source would be `unavailable` instead — a different, also-honest state.
+        const removeAt = setTimeout(() => {
+          rmSync(join(dir, "plans", "board.md"), { force: true });
+        }, 700);
+        const stopAt = setTimeout(() => proc.kill("SIGINT"), 2_600);
+
+        proc.on("error", reject);
+        proc.on("close", (code) => {
+          clearTimeout(removeAt);
+          clearTimeout(stopAt);
+          rmSync(dir, { recursive: true, force: true });
+          try {
+            const frames = out.split("grugops board").filter((f) => f.trim() !== "");
+            expect(
+              frames.length,
+              `PREMISE: fewer than two frames were emitted, so there is no BEFORE and AFTER to ` +
+                `compare. stderr was: ${err.slice(0, 400)}`,
+            ).toBeGreaterThanOrEqual(2);
+
+            const last = frames[frames.length - 1] as string;
+            expect(last).toContain("STALE");
+            expect(last).toContain("board");
+            expect(
+              last,
+              "the previous good value is carried forward: a board that went away must never " +
+                "render as a board with no columns, which reads as an empty backlog",
+            ).toContain("In Development");
+            expect(last).toContain("ABC-104");
+            expect(err).not.toBe("");
+            expect(code).toBe(0);
+            resolve();
+          } catch (e) {
+            reject(e as Error);
+          }
+        });
+      });
+    },
+    20_000,
+  );
+});
+
+describe("board-dashboard — NDJSON under --json --watch, measured from outside (D-18, T-32-23)", () => {
+  it(
+    "emits two or more lines, each parsing INDEPENDENTLY as a complete document, and exits 0 on SIGINT",
+    async () => {
+      await new Promise<void>((resolve, reject) => {
+        const dir = mkdtempSync(join(realpathSync(tmpdir()), "grugops-dashboard-"));
+        cpSync(FIXTURE, dir, { recursive: true });
+        const proc = spawn(
+          process.execPath,
+          [DASHBOARD_JS, dir, "--json", "--watch", "--interval", "1000"],
+          { cwd: ROOT },
+        );
+        let out = "";
+        let err = "";
+        proc.stdout.setEncoding("utf8");
+        proc.stderr.setEncoding("utf8");
+        proc.stdout.on("data", (c: string) => {
+          out += c;
+        });
+        proc.stderr.on("data", (c: string) => {
+          err += c;
+        });
+
+        // Touch a watched file, so at least one of the documents below is event-driven rather than
+        // all of them being poll ticks.
+        const touchAt = setTimeout(() => {
+          appendFileSync(join(dir, "plans", "board.md"), "\n");
+        }, 600);
+        const stopAt = setTimeout(() => proc.kill("SIGINT"), 2_400);
+
+        proc.on("error", reject);
+        proc.on("close", (code) => {
+          clearTimeout(touchAt);
+          clearTimeout(stopAt);
+          rmSync(dir, { recursive: true, force: true });
+          try {
+            const lines = out.split("\n").filter((l) => l !== "");
+            expect(
+              lines.length,
+              `PREMISE: fewer than two documents were emitted, so "every line parses on its own" ` +
+                `describes almost nothing. stderr was: ${err.slice(0, 400)}`,
+            ).toBeGreaterThanOrEqual(2);
+            for (const line of lines) {
+              const parsed = JSON.parse(line) as { snapshot: { schemaVersion: number } };
+              expect(parsed.snapshot.schemaVersion).toBe(1);
+            }
+            expect(code).toBe(0);
+            resolve();
+          } catch (e) {
+            reject(e as Error);
+          }
+        });
+      });
+    },
+    20_000,
+  );
+});
+
+/** Start a child now and resolve when it closes — so two calls genuinely overlap in time. */
+function runConcurrently(): Promise<Captured> {
+  return new Promise<Captured>((resolve, reject) => {
+    const proc = spawn(process.execPath, [DASHBOARD_JS, FIXTURE, "--once", "--json"], { cwd: ROOT });
+    let out = "";
+    let err = "";
+    proc.stdout.setEncoding("utf8");
+    proc.stderr.setEncoding("utf8");
+    proc.stdout.on("data", (c: string) => {
+      out += c;
+    });
+    proc.stderr.on("data", (c: string) => {
+      err += c;
+    });
+    proc.on("error", reject);
+    proc.on("close", (code) => resolve({ out, err, code: code ?? -1 }));
+  });
+}
+
+describe("board-dashboard — two dashboards on one tree share nothing (edge: concurrency)", () => {
+  it("produces two COMPLETE independent documents and exits 0 twice, with no lock between them", async () => {
+    // GENUINELY OVERLAPPING, and the distinction matters. `spawnSync` inside a `Promise.all` runs
+    // the two children one after the other and would assert nothing about concurrency at all — the
+    // second process would start after the first had already exited, which is the very arrangement
+    // a shared lock would survive. Both children are started before either is awaited.
+    const both = await Promise.all([runConcurrently(), runConcurrently()]);
+
+    for (const r of both) {
+      expect(r.code).toBe(0);
+      const parsed = JSON.parse(r.out) as { snapshot: { schemaVersion: number } };
+      expect(parsed.snapshot.schemaVersion).toBe(1);
+    }
+    // Independent, not identical: each read its own clock, so the two documents are two readings of
+    // one tree rather than one reading served twice from something shared.
+    const generatedAt = both.map(
+      (r) => (JSON.parse(r.out) as { snapshot: { generatedAt: string } }).snapshot.generatedAt,
+    );
+    expect(generatedAt.every((g) => typeof g === "string" && g !== "")).toBe(true);
   });
 });

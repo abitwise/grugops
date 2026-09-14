@@ -1,0 +1,170 @@
+32-07 GREEN PROOF — the D-17 frame and the D-18 process contract, green and DISCRIMINATING
+==========================================================================================
+
+Companion to 32-07-RED-baseline.txt, in the format 32-03-GREEN-proof.txt, 32-04-GREEN-proof.txt
+and 32-06-GREEN-proof.txt established.
+
+This file records three things the suite's own green cannot record about itself: which cases were
+RED before their implementation, which were ALREADY GREEN when written (and are therefore regression
+pins rather than discriminations), and what happened when the shipped behaviour was deliberately
+removed from the compiled artifact.
+
+---------------------------------------------------------------------------------------------------
+1. TASK 1 — THE FULL D-17 LAYOUT
+---------------------------------------------------------------------------------------------------
+
+RED run is 32-07-RED-baseline.txt: exit 1, 11 tests, 10 failed, every failure an AssertionError.
+GREEN after `feat(32-07): the full D-17 frame`:
+
+    npx vitest run --exclude '**/scripts/e2e/**' scripts/board-dashboard.test.ts
+    exit 0 — Tests  11 passed (11)
+
+ONE NEIGHBOURING CASE WAS DELIBERATELY REWRITTEN, AND THAT IS RECORDED RATHER THAN QUIETLY DONE.
+
+`scripts/board-tracer.test.ts` carried "puts Blocked last in the frame", written against plan
+32-01's THIN frame, which ended at the last column. It asserted `blockedAt === lines.length - 1`.
+The full D-17 layout puts `Now running` and `Conflicts` after the columns, so that assertion had
+stopped measuring column order and started measuring where the frame ends. It now reads "puts
+Blocked last among the COLUMNS of the frame" and asserts `blockedAt === max(index of each of the 13
+kit columns)`, with a PREMISE assertion that every kit column is present at all. The test was
+narrowed to D-17's actual claim, not deleted, and the old expectation is quoted in the new case's
+comment so a reader can see what moved and why.
+
+---------------------------------------------------------------------------------------------------
+2. TASK 2 — THE MODES AND THE EXIT CONTRACT
+---------------------------------------------------------------------------------------------------
+
+RED before the wiring:
+
+    npx vitest run --exclude '**/scripts/e2e/**' scripts/board-dashboard.test.ts
+    exit 1 — Tests  4 failed | 20 passed (24)
+
+    × clears the screen exactly once, writes one frame and exits 0 on a TTY --once run
+        expected false to be true            [r.out.startsWith(CLEAR_SCREEN)]
+    × falls back to 80 columns when the io reports no width, and honours one when it does
+        expected 80 to be greater than 80    [io.columns was ignored: a 200-column run cut at 80]
+    × exits 2 with exactly ONE named stderr line when an exception escapes inside main (T-32-08)
+        expected true to be false            [the exception escaped `main` entirely]
+    × closes every watcher, clears both timers and exits 0 on interrupt
+        expected false to be true            [a watcher armed before the interrupt was still open]
+
+GREEN after the wiring: exit 0 — Tests 24 passed (24).
+
+THE NINE CASES THAT WERE GREEN THE MOMENT THEY WERE WRITTEN, NAMED SO NOBODY MISTAKES THEM FOR
+DISCRIMINATIONS.
+
+Plan 32-03 had already wired `--once`, the `--json` implication, NDJSON, the two exit-2 conditions
+and the `--interval` refusal. Their cases in this file are REGRESSION PINS over behaviour that
+already existed. Saying so is cheaper than letting a later reader assume each one caught something.
+
+One of them deserves its own sentence, because its green has a non-obvious cause. The case asserting
+that `--interval abc` and `--interval -1` NAME the 1000 ms floor passes not because each refusal
+message states the number, but because `refuse()` appends the whole USAGE block, and that block's
+`--interval` line already reads "integer, at least 1000 ms". The floor is named; it is named by the
+usage text rather than by the specific refusal. That is the honest description of what passes, and a
+future change that trims the usage from a refusal would red this case for exactly the right reason.
+
+A COMMIT-GRANULARITY DEFECT IS RECORDED HERE RATHER THAN HIDDEN. Task 2's RED cases and GREEN wiring
+were staged together and landed in one commit. The RED run above is the evidence the cycle was
+actually followed; the commit message was amended to say so rather than to claim a RED the commit
+does not contain.
+
+---------------------------------------------------------------------------------------------------
+3. TASK 3 — THE SPAWNED-PROCESS HALF, AND THE MUTATION PROBES THAT GIVE IT TEETH
+---------------------------------------------------------------------------------------------------
+
+Task 3 adds no production code: its `<files>` is the test file alone. Every one of its seven cases
+was therefore GREEN on its first run, which is exactly the situation in which a suite is most likely
+to be measuring nothing. Three defects were planted into the COMMITTED `scripts/board-dashboard.js`
+— the artifact a host runs and the artifact these cases spawn — and each was reverted with
+`git checkout -- scripts/board-dashboard.js` immediately after its run.
+
+Pre-plant committed blob (HEAD 32d9674e):
+
+    scripts/board-dashboard.js   blob af80d8721a719e504c41ca07004335bd57b9679a
+
+PROBE A — the STALE badge is deleted from the header.
+
+    plant    remove `parts.push(\`${style.badge}STALE: ...\`)` from renderHeader
+    case     "carries the STALE badge and the PREVIOUS column values rather than zero columns"
+    result   RED — AssertionError at `expect(last).toContain("STALE")`
+             Tests  1 failed | 31 skipped (32)
+
+PROBE B — a stale board renders zero columns (the DASH-05 defect itself).
+
+    plant    orderedColumns returns [] when result.source === "stale"
+    case     the same case
+    result   RED — AssertionError: expected '  /private/var/folders/...' to contain 'ABC-104'
+             Tests  1 failed | 31 skipped (32)
+
+    This is the probe that matters most. The badge and the carried-forward value are two separate
+    promises, and a renderer can keep one while losing the other: a frame that says STALE over zero
+    columns is still a frame that lost the board. Probe A alone would not have caught it.
+
+PROBE C — the non-TTY style is no longer empty, so escapes reach a pipe.
+
+    plant    PLAIN_STYLE = { bold: "\u001B[1m", badge: "", reset: "\u001B[0m" }
+    case     both "non-tty" cases
+    result   RED — Tests  2 failed | 30 skipped (32)
+
+After all three, `git hash-object scripts/board-dashboard.js` read
+af80d8721a719e504c41ca07004335bd57b9679a — the pre-plant blob, byte for byte — and
+`git status --short scripts/` listed only the test file.
+
+TWO DEFECTS IN THE FIRST DRAFT OF TASK 3'S OWN CASES, FIXED AND RECORDED.
+
+  1. The concurrency case wrapped `spawnSync` in a `Promise.all`. `spawnSync` BLOCKS, so the second
+     child started only after the first had exited — the exact arrangement a shared lock would
+     survive unnoticed. It now starts both children with `spawn` before awaiting either, so the two
+     processes genuinely overlap in time.
+  2. A dead `const child = spawnSync; void child;` line survived an edit and was removed.
+
+  Both were found by reading what the case actually does rather than by watching it pass, which is
+  the only way a vacuous concurrency assertion is ever found.
+
+ONE DEVIATION FROM THE PLAN'S WORDING, AND WHY THE PLAN'S WORDING COULD NOT BE MET AS WRITTEN.
+
+The plan's first task-3 behaviour reads "…exits 0, stdout parses as exactly one JSON document, and
+stderr is empty" against the fixture tree. The committed fixture deliberately carries a TAMPERED
+claim (`.grugops/queue/claimed/abc-105-tampered/claim.md`, two `at:` lines) so that plan 32-03's
+tamper-skip arm is reached by a committed artifact — so a run against it always produces one stderr
+diagnostic, and "stderr is empty" is false of the committed tree by construction.
+
+Rather than weaken the assertion, the behaviour was split into two cases that between them say more
+than the original:
+
+    • one runs against a TEMP COPY with the tampered claim removed and asserts stderr is EXACTLY
+      empty and stdout is exactly one line — the stream discipline, measured with nothing to excuse;
+    • one runs against the COMMITTED fixture, asserts the diagnostic IS on stderr (with a PREMISE
+      assertion that it exists at all, so the case cannot pass over a fixture that stopped producing
+      it) and that stdout still parses as one JSON document.
+
+---------------------------------------------------------------------------------------------------
+4. THE PLAN-LEVEL VERIFICATION, RUN AT THE END
+---------------------------------------------------------------------------------------------------
+
+    npx vitest run --exclude '**/scripts/e2e/**' scripts/board-dashboard.test.ts
+        exit 0 — Tests  32 passed (32)
+    npx vitest run --exclude '**/scripts/e2e/**' scripts/board-dashboard.test.ts -t "once"
+        exit 0 — Tests  8 passed | 24 skipped (32)
+    npx vitest run --exclude '**/scripts/e2e/**' scripts/board-dashboard.test.ts -t "non-tty"
+        exit 0 — Tests  2 passed | 30 skipped (32)
+    npx vitest run --exclude '**/scripts/e2e/**' scripts/board-dashboard.test.ts -t "sanitize"
+        exit 0 — Tests  1 passed | 10 skipped
+    npm run check:dashboard-readonly
+        exit 0 — Tests  24 passed (24); the read-only property survived the render work
+    npm run typecheck && npm run build && npm run check:build-parity
+        exit 0 — "Build parity: no tracked build output moved when tsc ran."
+    node scripts/board-dashboard.js scripts/fixtures/board-snapshot --once --json | <seven-kind check>
+        "cli: seven kinds through the wire"
+    git status --porcelain scripts/fixtures/
+        empty
+    git diff --exit-code -- package.json package-lock.json
+        clean — no runtime dependency was added, and no cursor-addressing library is used
+
+WHAT IS STILL NOT DECIDED BY ANY OF THIS.
+
+The live TTY redraw. This suite has no pty, so whether the frame refreshes without flicker and reads
+legibly at a human width is recorded as a MANUAL-ONLY verification in
+`.planning/phases/32-board-projector-cli-dashboard/32-VALIDATION.md`, with its instructions. A case
+asserting it against a simulated terminal would be measuring the simulation.
