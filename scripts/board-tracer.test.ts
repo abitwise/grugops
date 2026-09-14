@@ -551,3 +551,260 @@ describe("board-read — bounded directory listing (D-14, RESEARCH pitfall 5)", 
     });
   });
 });
+
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+// TASK 3 — THE CLI END OF THE WIRE (`scripts/board-dashboard.ts`, D-16/D-17/D-18).
+//
+// The process-owning half of the D-15 boundary: argv, stdout discipline and exit codes. The cases
+// that assert an EXIT CODE or STREAM SEPARATION drive the compiled `.js` as a child process, because
+// those are properties of the process rather than of the function — the `check-platform-shapes.ts`
+// drive harness is the in-repo precedent. The render-branch cases call `main(argv, io)` directly
+// with an injected io, so the render branch is testable without a pty.
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+
+import { spawnSync } from "node:child_process";
+
+import {
+  DEBOUNCE_MS,
+  INTERVAL_HARD_FLOOR_MS,
+  POLL_FLOOR_MS,
+  main as dashboardMain,
+  parseArgs,
+  sanitizeCell,
+} from "./board-dashboard.js";
+import type { DashboardIo } from "./board-dashboard.js";
+
+const DASHBOARD_JS = join(ROOT, "scripts", "board-dashboard.js");
+
+// The escape introducer, BUILT rather than typed, so this source file carries no control byte of its
+// own. scripts/check-nul-bytes.ts is the recorded reason the tree keeps control bytes out of source.
+const ESC = String.fromCharCode(27);
+const BEL = String.fromCharCode(7);
+const CSI_C1 = String.fromCharCode(155);
+const DEL = String.fromCharCode(127);
+
+type Captured = { out: string; err: string; code: number };
+
+/** Call `main` with a capturing io. No process, no pty, no child. */
+function runMain(argv: readonly string[], isTty: boolean): Captured {
+  let out = "";
+  let err = "";
+  const io: DashboardIo = {
+    stdout: {
+      write: (s: string) => {
+        out += s;
+        return true;
+      },
+    },
+    stderr: {
+      write: (s: string) => {
+        err += s;
+        return true;
+      },
+    },
+    isTty,
+  };
+  const code = dashboardMain(argv, io);
+  return { out, err, code };
+}
+
+/** Drive the COMPILED module as a child process. Exit codes are a property of the process. */
+function drive(args: readonly string[]): Captured {
+  const r = spawnSync(process.execPath, [DASHBOARD_JS, ...args], {
+    cwd: ROOT,
+    encoding: "utf8",
+    timeout: 20_000,
+  });
+  return { out: r.stdout ?? "", err: r.stderr ?? "", code: r.status ?? -1 };
+}
+
+describe("board-dashboard — the named constants plan 32-03 wires (D-14)", () => {
+  it("publishes the poll floor, the debounce and the interval hard floor", () => {
+    expect(POLL_FLOOR_MS).toBe(10_000);
+    expect(DEBOUNCE_MS).toBe(250);
+    expect(INTERVAL_HARD_FLOOR_MS).toBe(1_000);
+  });
+});
+
+describe("board-dashboard — argument parsing (D-16, D-18, T-32-10)", () => {
+  it("defaults the repo root to the working directory when no positional is given", () => {
+    const parsed = parseArgs([]);
+    expect(parsed.kind).toBe("options");
+    expect(parsed.kind === "options" ? parsed.options.repoRoot : "").toBe(process.cwd());
+  });
+
+  it("reads the positional root and every flag", () => {
+    const parsed = parseArgs([".", "--once", "--json", "--watch", "--interval", "2500"]);
+    expect(parsed.kind).toBe("options");
+    if (parsed.kind !== "options") return;
+    expect(parsed.options.repoRoot).toBe(".");
+    expect(parsed.options.once).toBe(true);
+    expect(parsed.options.json).toBe(true);
+    expect(parsed.options.watch).toBe(true);
+    expect(parsed.options.intervalMs).toBe(2500);
+  });
+
+  it("refuses an unknown flag by name rather than ignoring it", () => {
+    const parsed = parseArgs([".", "--nonsense"]);
+    expect(parsed.kind).toBe("usage");
+    expect(parsed.kind === "usage" ? parsed.message : "").toContain("--nonsense");
+  });
+
+  it("refuses a SECOND positional rather than silently keeping one", () => {
+    expect(parseArgs([".", "../elsewhere"]).kind).toBe("usage");
+  });
+
+  it("CLAMPS --interval BY REFUSAL, never by silent rounding (T-32-10, ASVS V5)", () => {
+    for (const bad of ["500", "0", "-1", "abc", "1e4", "1000.5", ""]) {
+      const parsed = parseArgs([".", "--interval", bad]);
+      expect(parsed.kind, `--interval ${bad} must be refused, never coerced`).toBe("usage");
+    }
+    expect(parseArgs([".", "--interval", "1000"]).kind).toBe("options");
+  });
+
+  it("refuses --interval with no value", () => {
+    expect(parseArgs([".", "--interval"]).kind).toBe("usage");
+  });
+
+  it("reports --help as its own arm rather than as a refusal", () => {
+    expect(parseArgs(["--help"]).kind).toBe("help");
+  });
+});
+
+describe("board-dashboard — the cell sanitizer (T-32-06)", () => {
+  it("strips every C0 control, DEL and C1 introducer before a cell reaches a terminal", () => {
+    expect(sanitizeCell(`${ESC}[31mred${ESC}[0m`)).toBe("[31mred[0m");
+    expect(sanitizeCell(`a${BEL}b${CSI_C1}c${DEL}d`)).toBe("abcd");
+    expect(sanitizeCell("tab\there")).toBe("tabhere");
+  });
+
+  it("leaves ordinary board content untouched", () => {
+    expect(sanitizeCell("Asset allocation chart — épée (M, P0)")).toBe(
+      "Asset allocation chart — épée (M, P0)",
+    );
+  });
+});
+
+describe("board-dashboard — the render branch, through an injected io (D-17, D-18)", () => {
+  it("prints one plain-text frame naming the column count, with no ESC byte", () => {
+    const r = runMain([ROOT, "--once"], false);
+    expect(r.code).toBe(0);
+    expect(r.out).toContain("13 columns");
+    expect(r.out.includes(ESC)).toBe(false);
+    expect(r.out).toContain("In Development");
+  });
+
+  it("puts Blocked last in the frame", () => {
+    const r = runMain([ROOT, "--once"], false);
+    const lines = r.out.split("\n").filter((l) => l.trim() !== "");
+    const blockedAt = lines.findIndex((l) => l.startsWith("Blocked"));
+    expect(blockedAt).toBe(lines.length - 1);
+  });
+
+  it("names the config mode in the header", () => {
+    expect(runMain([ROOT, "--once"], false).out).toContain("lean");
+  });
+
+  it("writes exactly ONE JSON document to stdout and nothing else there", () => {
+    const r = runMain([ROOT, "--once", "--json"], false);
+    expect(r.code).toBe(0);
+    expect(r.err).toBe("");
+    const parsed = JSON.parse(r.out) as { snapshot: { schemaVersion: number } };
+    expect(parsed.snapshot.schemaVersion).toBe(1);
+    expect(r.out.endsWith("\n")).toBe(true);
+  });
+
+  it("implies --once for --json on a non-TTY stdout (D-18)", () => {
+    const r = runMain([ROOT, "--json"], false);
+    expect(r.code).toBe(0);
+    expect(() => JSON.parse(r.out)).not.toThrow();
+  });
+
+  it("prints one frame and exits 0 on a non-TTY stdout with no flags at all (D-18)", () => {
+    const r = runMain([ROOT], false);
+    expect(r.code).toBe(0);
+    expect(r.out).toContain("13 columns");
+  });
+
+  it("SANITIZES board content on its way to the terminal, not merely its own chrome", () => {
+    withTempTree((dir) => {
+      mkdirSync(join(dir, "plans"), { recursive: true });
+      writeFileSync(
+        join(dir, "plans", "board.md"),
+        `## Backlog (WIP unlimited)\n- [ABC-001] title${ESC}[31m with an escape\n`,
+        "utf8",
+      );
+      const r = runMain([dir, "--once"], false);
+      expect(r.code).toBe(0);
+      expect(r.out.includes(ESC)).toBe(false);
+    });
+  });
+});
+
+describe("board-dashboard — the process contract, driven as a child (D-18, T-32-08)", () => {
+  it("exits 0 and writes one JSON document with schemaVersion 1", () => {
+    const r = drive([".", "--once", "--json"]);
+    expect(r.code).toBe(0);
+    expect(r.err).toBe("");
+    const parsed = JSON.parse(r.out) as { snapshot: { schemaVersion: number } };
+    expect(parsed.snapshot.schemaVersion).toBe(1);
+  });
+
+  it("exits 0 and writes an ANSI-free frame without --json", () => {
+    const r = drive([".", "--once"]);
+    expect(r.code).toBe(0);
+    expect(r.out).toContain("13 columns");
+    expect(r.out.includes(ESC)).toBe(false);
+  });
+
+  it("defaults the root to the working directory when no positional is given", () => {
+    const r = drive(["--once"]);
+    expect(r.code).toBe(0);
+    expect(r.out).toContain("13 columns");
+  });
+
+  it("exits 2 on an unknown flag, with the usage on STDERR and nothing on stdout", () => {
+    const r = drive([".", "--nonsense"]);
+    expect(r.code).toBe(2);
+    expect(r.out).toBe("");
+    expect(r.err).toContain("--nonsense");
+  });
+
+  it("exits 2 on an unreadable root, with a NAMED one-line message and no stack on stdout", () => {
+    const r = drive(["/no/such/path", "--once", "--json"]);
+    expect(r.code).toBe(2);
+    expect(r.out).toBe("");
+    expect(r.err).toContain("/no/such/path");
+    expect(r.err).not.toContain("    at ");
+  });
+
+  it("exits 2 and names the 1000 ms floor when --interval is below it", () => {
+    const r = drive([".", "--interval", "500"]);
+    expect(r.code).toBe(2);
+    expect(r.out).toBe("");
+    expect(r.err).toContain("1000");
+  });
+});
+
+describe("board-dashboard — packaging (D-16)", () => {
+  it("wires the `dashboard` npm script and adds no runtime dependency", () => {
+    const pkg = JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8")) as {
+      scripts: Record<string, string>;
+      dependencies?: unknown;
+    };
+    expect(pkg.scripts["dashboard"]).toBe(
+      "tsc --outDir .tmp-build && node scripts/board-dashboard.js",
+    );
+    expect(pkg.dependencies).toBeUndefined();
+  });
+
+  it("uses the ONE entry-detection spelling rather than a hand-rolled comparison", () => {
+    const src = readFileSync(join(ROOT, "scripts", "board-dashboard.ts"), "utf8");
+    expect(src).toContain('from "./is-entry.js"');
+    const offending = src
+      .split("\n")
+      .filter((l) => !l.trimStart().startsWith("//") && !l.trimStart().startsWith("*"))
+      .filter((l) => /import\.meta\.url\s*===/.test(l));
+    expect(offending).toEqual([]);
+  });
+});
