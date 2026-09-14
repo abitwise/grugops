@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 170
+open_count: 171
 waived_count: 0
 fixed_count: 4
-total_count: 174
-last_updated: 2026-09-14T09:54:08.226Z
+total_count: 175
+last_updated: 2026-09-14T10:54:07.185Z
 ---
 
 # Broken Windows Ledger
@@ -189,6 +189,7 @@ last_updated: 2026-09-14T09:54:08.226Z
 | 172 | 32 | stub | scripts/board-dashboard.ts |  | the frame is the thin D-17 skeleton; the stale badge, conflict list, Now-running block, width truncation and TTY redraw land in plan 32-07 (plan-declared functionality gap) | open |  | 2026-09-14T08:16:32.268Z |  |
 | 173 | 32 | stub | scripts/board-dashboard.ts |  | The watch flag is accepted, reported on stderr and not honoured; the watch loop, the debounce and the poll land in plan 32-03 (plan-declared functionality gap) | open |  | 2026-09-14T08:16:38.060Z |  |
 | 174 | 32 | deviation | scripts/board-read.ts |  | STALE_REASONS is five, not the plan-stated four: unreadable (a partial parse) shipped in 32-01 and dropping it would regress the malformed-dial path | open |  | 2026-09-14T09:54:08.226Z |  |
+| 175 | 32 | deviation | agent-factory/contracts/board.md |  | The contract's identifier rule requires a ticket prefix equal to factory.config.json#id_prefix, but scripts/board-model.ts is pure and reads no config, so it enforces only the identifier SHAPE. Recorded as scripts/board-corpus.ts row ctl-id-disagreeing-prefix; the prefix comparison belongs to the join layer that holds the dial. | open |  | 2026-09-14T10:54:07.185Z |  |
 
 ````json
 [
@@ -2278,6 +2279,18 @@ last_updated: 2026-09-14T09:54:08.226Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-09-14T09:54:08.226Z",
+    "resolved_at": null
+  },
+  {
+    "id": 175,
+    "kind": "deviation",
+    "phase": "32",
+    "file": "agent-factory/contracts/board.md",
+    "line": null,
+    "description": "The contract's identifier rule requires a ticket prefix equal to factory.config.json#id_prefix, but scripts/board-model.ts is pure and reads no config, so it enforces only the identifier SHAPE. Recorded as scripts/board-corpus.ts row ctl-id-disagreeing-prefix; the prefix comparison belongs to the join layer that holds the dial.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-14T10:54:07.185Z",
     "resolved_at": null
   }
 ]
