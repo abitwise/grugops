@@ -207,6 +207,34 @@ function analyzeModule(absPath: string, label: string): ModuleFacts {
     return flat.length > 140 ? `${flat.slice(0, 137)}...` : flat;
   };
 
+  /**
+   * THE ONE PLACE A MEMBER NAME OF A FILESYSTEM MODULE BECOMES A CLAIM (plan 32-14, finding F-02).
+   *
+   * A NAME lands in `fsSymbols` from FOUR syntactic positions, and the re-entry rule 32-11 added was
+   * asked at only TWO of them:
+   *
+   *   1. a property access on an fs namespace       — `fsns.promises`        (asked, 32-11)
+   *   2. a string-literal element access on one     — `fsns["promises"]`     (asked, 32-11)
+   *   3. a NAMED IMPORT from an fs specifier        — `import { promises }`  (NOT asked)
+   *   4. a NAMED RE-EXPORT from an fs specifier     — `export { promises }`  (NOT asked)
+   *
+   * Positions 3 and 4 are the same capability by another spelling: `promises` and `default` are
+   * THEMSELVES namespaces holding the whole writer set, so a named import of one hands a module
+   * every writer in `node:fs` under a name that matches no write-class stem. The guard still went
+   * red on that shape — but on the CARDINALITY pin, whose failure message tells a maintainer to
+   * "weigh the new symbol … it is a decision". A maintainer who weighs `promises` against
+   * `MUTATING_FS_SYMBOLS`, finds it absent, and adds it to `EXPECTED_CLOSURE_FS_SYMBOLS` re-greens
+   * the guard over a full writer in ONE edit. A pin catching a writer by accident is not the
+   * intersection deciding it — the same sentence 32-11 wrote about the namespace route, which is
+   * why the fix is to ask the SAME derived predicate at the remaining two positions rather than to
+   * add a third rule.
+   */
+  const noteFsMember = (name: string, sourceText: string): void => {
+    if (NAMESPACE_REENTRY_MEMBERS.includes(name)) {
+      opaqueFsAcquisitions.push(briefly(sourceText));
+    } else fsSymbols.add(name);
+  };
+
   const collectSpecifiers = (node: ts.Node): void => {
     if (ts.isImportDeclaration(node)) {
       const specifier = literalText(node.moduleSpecifier);
@@ -225,7 +253,7 @@ function analyzeModule(absPath: string, label: string): ModuleFacts {
           }
           if (bindings !== undefined && ts.isNamedImports(bindings)) {
             for (const element of bindings.elements) {
-              fsSymbols.add((element.propertyName ?? element.name).text);
+              noteFsMember((element.propertyName ?? element.name).text, element.getText());
             }
           }
         }
@@ -240,7 +268,7 @@ function analyzeModule(absPath: string, label: string): ModuleFacts {
           const clause = node.exportClause;
           if (clause !== undefined && ts.isNamedExports(clause)) {
             for (const element of clause.elements) {
-              fsSymbols.add((element.propertyName ?? element.name).text);
+              noteFsMember((element.propertyName ?? element.name).text, element.getText());
             }
           } else {
             // `export * from "node:fs"` re-exports every symbol including every writer, and no name
@@ -341,18 +369,17 @@ function analyzeModule(absPath: string, label: string): ModuleFacts {
       // Every member read off one of them is a property access whose own expression is not an
       // identifier, so this pass would name `default`/`promises` and nothing behind it. Refused
       // rather than named (deviation, Rule 2), over a set DERIVED from the runtime.
-      if (NAMESPACE_REENTRY_MEMBERS.includes(node.name.text)) {
-        opaqueFsAcquisitions.push(briefly(node.getText()));
-      } else fsSymbols.add(node.name.text);
+      noteFsMember(node.name.text, node.getText());
     } else if (
       ts.isElementAccessExpression(node) &&
       ts.isIdentifier(node.expression) &&
       fsNamespaceBindings.has(node.expression.text)
     ) {
       const key = literalText(node.argumentExpression);
-      if (key === null || NAMESPACE_REENTRY_MEMBERS.includes(key)) {
-        opaqueFsAcquisitions.push(briefly(node.getText()));
-      } else fsSymbols.add(key);
+      // A COMPUTED key is refused here rather than in `noteFsMember`: it carries no name to ask the
+      // re-entry rule about, which is a different reason from "this name re-enters a namespace".
+      if (key === null) opaqueFsAcquisitions.push(briefly(node.getText()));
+      else noteFsMember(key, node.getText());
     } else if (
       ts.isIdentifier(node) &&
       fsNamespaceBindings.has(node.text) &&
@@ -1065,10 +1092,25 @@ const ACQUISITION_SHAPES = Object.freeze([
     name: 'process.binding("fs") — the legacy internal binding',
     appendSource: 'export const acquire06 = () => process.binding("fs");',
   },
+  // ── Plan 32-14, finding F-02: the re-entry rule asked at the two remaining positions ──────────
+  // Before this round these two rows were GREEN on `opaqueFsAcquisitions` and red only on the
+  // cardinality pin — `promises` matches no write-class stem, so the intersection never saw the
+  // writer. `noteFsMember` is now asked at the named-import and named-re-export positions too, so
+  // both rows are refused for the reason they are dangerous rather than because a count moved.
+  {
+    name: 'import { promises } from "node:fs" — a NAMED IMPORT of a namespace re-entry member',
+    appendSource:
+      'import { promises as fsp07 } from "node:fs";\n' +
+      'export const acquire07 = (p) => fsp07.writeFile(p, "x");',
+  },
+  {
+    name: 'export { promises } from "node:fs" — the same re-entry as a NAMED RE-EXPORT',
+    appendSource: 'export { promises as acquire08 } from "node:fs";',
+  },
 ]);
 
-/** The cardinality of the acquisition table. A seventh route is a decision, recorded as a row. */
-const ACQUISITION_SHAPE_COUNT = 6;
+/** The cardinality of the acquisition table. A ninth route is a decision, recorded as a row. */
+const ACQUISITION_SHAPE_COUNT = 8;
 
 describe("32-06 — the guard discriminates: both halves are shown to fail", () => {
   it("CONTROL: an UNPLANTED mirror of the live closure is still green", () => {
@@ -1315,7 +1357,7 @@ describe("32-06 — the guard discriminates: both halves are shown to fail", () 
     ).toBe(NAMESPACE_ESCAPE_SHAPE_COUNT);
     expect(
       ACQUISITION_SHAPES.length,
-      "a SEVENTH acquisition route is a DECISION, recorded as a row in ACQUISITION_SHAPES with the " +
+      "a NINTH acquisition route is a DECISION, recorded as a row in ACQUISITION_SHAPES with the " +
         "source that reaches node:fs through it",
     ).toBe(ACQUISITION_SHAPE_COUNT);
   });

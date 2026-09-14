@@ -99,3 +99,350 @@ fabrications plus the 1 legitimate `row-without-file` that the presence gate now
 while the tickets source is not `ok`.
 
 ---
+
+## 3. How each gate is REACHED — four questions per closure, answered with evidence
+
+Four questions, each one derived from a round in this repository where a fix was green and bypassed:
+
+- **Q1 — which command runs this gate, and is that command wired into CI?** A gate nobody runs is prose.
+- **Q2 — what is the predicate's input assembled from?** Name the set it iterates and where that set
+  comes from. A hand-typed part is named, with what would rot it.
+- **Q3 — at which positions is the predicate even ASKED?** Not which values it refuses. A predicate
+  that is correct and asked in three of four places is a bypass in the fourth.
+- **Q4 — which arms consume the changed value, and does each still behave on a LEGITIMATE input?**
+
+### 3.1 — CR-01 / DASH-06: the read-only import-graph guard (plan 32-11)
+
+- **Q1.** `scripts/board-readonly.test.ts`, run by `npm run check:dashboard-readonly`
+  (`npx vitest run scripts/board-readonly.test.ts`) and, in CI, by the full-suite step at
+  `.github/workflows/ci.yml:174` (`npx vitest run --exclude '**/scripts/e2e/**'`). `vitest list`
+  confirms the file is in that default suite (57 case entries before this round's two additions).
+  **But the named script is NOT what CI runs, and the derivation that is supposed to prove `check:*`
+  reachability cannot see it — see finding F-01.** The gate is reached; the proof that it is
+  reached is weaker than it reads.
+- **Q2.** Four inputs. (a) The **closure module set**, derived by `jsImportClosure` walking the
+  committed `.js` from `scripts/board-dashboard.js` — derived, and its non-emptiness plus required
+  members are asserted as premises. (b) `MUTATING_FS_SYMBOLS`, derived from the **runtime's** own
+  `node:fs` export list filtered by `WRITE_CLASS_STEMS` — the 16 stems are **hand-named** because
+  D-21 defines write-class by stem, and three `STEM_FALSE_POSITIVES` are hand-named with a case
+  asserting each still matches something. What would rot them: Node adding a writer whose name
+  carries none of the 16 stems. (c) `NAMESPACE_REENTRY_MEMBERS`, **derived from the runtime** by
+  asking which object-valued members of `node:fs` carry a mutating symbol as a function. (d)
+  `NAMESPACE_ESCAPE_SHAPES` (14 rows) and `ACQUISITION_SHAPES` (8 rows after this round) — **entirely
+  hand-authored data**, two-sided cardinality pins plus a uniqueness assertion. What would rot them:
+  an ESM spelling nobody wrote a row for. That is the class F-02 below came from.
+- **Q3.** The canonical form is asked at every non-binding READ of an fs-namespace identifier, with
+  exactly two exemptions, both binding sites. **The re-entry rule, however, was asked at only two of
+  the four positions where a member NAME enters `fsSymbols`** — property access and string-literal
+  element access, but not a named import and not a named re-export. That is finding **F-02**, closed
+  in this round.
+- **Q4.** The changed value is `fsSymbols` / `opaqueFsAcquisitions`. Consuming arms: the MEMBERS pin,
+  the COUNT pin, the mutating intersection, the `PREMISE: no closure module acquires…` case, the
+  banned-module ban, and the mirror-based discrimination cases. Legitimate inputs probed: the **live
+  unplanted closure** (`npm run check:dashboard-readonly` → 59 passed, exit 0, `EXPECTED_CLOSURE_FS_
+  SYMBOLS` unmoved at 6 members) and the `CONTROL: an UNPLANTED mirror of the live closure is still
+  green` case. The live closure's own named imports (`readFileSync`, `readdirSync`, `realpathSync`,
+  `statSync`, `existsSync`, `watch`) pass through the new `noteFsMember` unchanged.
+- **What this fix CREATED.** `noteFsMember` is a new single chokepoint through which every fs member
+  name now passes, so a defect in it is a defect at all four positions at once — covered by MUTANT E
+  (delete its re-entry arm → exactly 4 rows red) and MUTANT F (revert only positions 3 and 4 →
+  exactly the 2 new rows red), which together show the chokepoint is load-bearing at each position
+  separately rather than only in aggregate.
+
+### 3.2 — CR-02 / DASH-04, DASH-05: the three-armed directory listing (plan 32-09)
+
+- **Q1.** `scripts/board-read.test.ts` and `scripts/board-model.test.ts`, run only by the full-suite
+  step at `ci.yml:174`. **There is no named `check:*` script for the read seam** — it is reached
+  through the suite, which is the same route as every other `*.test.ts` in this repository, and the
+  suite step is unconditional in the CI job.
+- **Q2.** `listDirectoryBounded` iterates nothing; it branches on `err.code` with **ENOENT as the
+  only named arm and every other errno falling to the DEFAULT** (`staleReasonForCode(code)`), so the
+  set of "failures that reach a badge" is the complement of one literal rather than an allowlist
+  that can rot. `unreadableSources` and `deriveOverallSource` both iterate `SOURCE_NAMES` — a pinned
+  six-member tuple (`SOURCE_COUNT = 6`), not `Object.keys`. `PRESENCE_DEPENDENT_CONFLICT_KINDS` **is
+  hand-named** (two kinds: `row-without-file`, `ticket-unplaced`); what keeps it honest is that its
+  complement is derived from the full kind set in a test with a two-sided pin, so a new eighth
+  conflict kind cannot join silently on either side.
+- **Q3.** `listDirectoryBounded` is called at **3 sites** (tickets `:1105`, queue `:1231`, context
+  `:1356`) and `listingFailure` routes the `failed` arm at all **3** (`:1116`, `:1240`, `:1363`).
+  The per-ENTRY arm (`kind: "partial"`) is settled at **3** sites (`:1172`, `:1317`, `:1478`) —
+  one per directory source. The presence gate is asked once, at `joinSnapshot`, against
+  `ticketsListingComplete`.
+- **Q4.** Consuming arms: `settleSource` (badge + `readErrors`), `deriveOverallSource` (the top-level
+  discriminant), the header badge in `scripts/board-dashboard.ts` — **both of the last two read the
+  same `unreadableSources` function**, so the terminal and the `--json` document cannot disagree.
+  Legitimate inputs probed here: a pristine fixture (S1/S2, overall `ok`, 9 conflicts = the committed
+  golden's set); an EACCES on tickets leaving queue, context, traceability and config all `ok`
+  (measured above); and `N1` below, an `ENOTDIR`, likewise leaving the other five untouched.
+- **What this fix CREATED.** A third listing arm and a fourth `SourceOutcome` arm mean a **new way to
+  refuse something legitimate**: an errno that is in fact benign now degrades a source to `stale`.
+  It is covered on the benign side by the D-13 cases (`a tree with no .grugops/` produces NO badge
+  and NO readErrors entry, because `unreadableSources` requires BOTH `unavailable` and a matching
+  `readErrors` entry) and re-measured here by N3a, where a legitimate in-root symlink chain reads
+  `ok` with zero readErrors.
+
+### 3.3 — CR-03 / DASH-05: the byte-first tear detector (plan 32-09)
+
+- **Q1.** Same as 3.2 — `scripts/board-read.test.ts` via the full-suite CI step.
+- **Q2.** The predicate's input is now **raw bytes**: `readFileSync(path)` with no encoding, three
+  byte counts compared, and the UTF-8 validity decision delegated wholesale to the **runtime's**
+  `TextDecoder("utf-8", { fatal: true, ignoreBOM: true })`. Nothing about the UTF-8 grammar is
+  hand-written here, which is the strongest possible answer to Q2: there is no set to rot.
+  `ignoreBOM: true` is load-bearing and pinned by its own case.
+- **Q3.** `readVerifyReread` is defined once (`:226`) and asked at **4 read positions** — the fixed
+  file sources through `gatherFile` (`:997`), each ticket entry (`:1143`), each `claim.md` (`:1283`)
+  and each `index.jsonl` (`:1424`). Every file byte the projector reads passes through it; there is
+  no second read path.
+- **Q4.** Consuming arms: the `unreadable`/`ENCODING` arm, the `torn` arm after the retry bound, and
+  the success arm that returns decoded text. Legitimate inputs probed: a **valid-UTF-8 board of
+  identical length** (`t4`) reads `ok` and costs exactly the same `open`/`read`/`stat` counts as the
+  undecodable one, which is simultaneously the legitimate-input probe and the read-count measurement.
+- **What this fix CREATED.** A new `ENCODING` code on a published `readErrors` entry, i.e. a new
+  string a consumer can branch on without a `SCHEMA_VERSION` bump. 32-09 decided deliberately not to
+  bump, on the grounds that `unreadable` was already published and only the code is new; the golden
+  fixture is byte-identical, so no consumer's pinned document changed.
+
+### 3.4 — CR-04 / DASH-03, DASH-05: real-path containment (plan 32-10)
+
+- **Q1.** Same suite file and same CI route as 3.2/3.3. The routing census prints its own evidence on
+  every run — this round's full-suite output carried
+  `board-read routing census: 17 read-primitive call sites, producers [anchorAbsentTarget, childPath,
+  insideRoot, repoSubpath, resolveRepoRoot], path helpers [gatherFile, listDirectoryBounded,
+  readVerifyReread]`, so the claim is visible in the log rather than only inside an assertion.
+- **Q2.** The containment decision's input is `realpathSync`'s answer — again the runtime's, not a
+  spelling comparison. The **authority set is DERIVED by AST** ("every function that calls
+  `realpathSync` or `insideRoot`") and pinned two-sided at exactly five names; the path-HELPER
+  exemption set is derived by closure and pinned; the 17 read-primitive call sites are enumerated
+  from the module rather than listed. Hand-typed part: the `OUTSIDE_ROOT` code literal and the
+  errno→`StaleReason` mapping in `staleReasonForCode`, which is now the **one** spelling (three
+  hand-written copies were collapsed into it during 32-10).
+- **Q3.** `insideRoot` is asked at **3 call sites** (`repoSubpath` `:752`, `childPath` `:977`, and
+  its own ENOENT arm through `anchorAbsentTarget` `:708`), and those two producers are the only
+  things that build a read target — asserted, not assumed, by the routing census. `guarded()` is
+  asked at **6 sites**, one per source (`:1597`–`:1613`), and the guard count is pinned two-sided
+  against `SOURCE_NAMES`, so a seventh source cannot be added unguarded.
+- **Q4.** Consuming arms: `ChildPath`'s `ok`/refused arms at four per-entry sites, `repoSubpath`'s
+  throw, `guarded`'s `BoardReadError` catch and its **rethrow of everything else** (both arms driven
+  by cases). Legitimate inputs probed this round: the pristine fixture (golden byte-identical, 9
+  conflicts), and **N3a** — a symlink chain that leaves the tree and comes back inside the root — is
+  ADMITTED with zero readErrors, which is the false-red this fix could most plausibly have produced.
+- **What this fix CREATED.** A refusal that can decline a legitimate file, and one measured behaviour
+  change (a `--symlink`-installed `agent-factory/` puts the dial outside the root and settles the
+  config source `stale` on the LEAN fallback). Both are recorded in `insideRoot`'s docblock and in
+  the contract. It also created a **new single point of failure**: every read target now depends on
+  one `realpathSync`-based decision, so a defect there is a defect everywhere — which is why the
+  authority set is derived and pinned rather than trusted.
+
+### 3.5 — CR-05 / DASH-07: the sanitizing stderr chokepoint (plan 32-13)
+
+- **Q1.** `scripts/board-dashboard.test.ts` via the full-suite CI step. No named `check:*` script.
+- **Q2.** The write-site census's input is an AST collection over `scripts/board-dashboard.ts` that
+  tracks the member, global-`process`, aliased and destructured spellings of the channel, and
+  collects anything it cannot name into an `opaque` list **asserted empty** — so a spelling the
+  collector does not know fails the guard rather than shortening its answer. The sanitizer's own
+  class (`CONTROL_CODE_POINTS`) is in the module; the test's measure is spelled **independently on
+  purpose**, so a regression that widened the module's class cannot widen the measurement in the
+  same commit. That is the one place in this phase where a second spelling is the point.
+- **Q3.** Asked at exactly **one** position — `STDERR_WRITE_SITE_COUNT = 1`, pinned two-sided, **and**
+  the surviving site's enclosing function asserted by name to be `warn`. A count of one in the wrong
+  function would still be a bypass, and the assertion says so.
+- **Q4.** Consuming arms: the six former call sites (`emit`'s read-error loop, `refresh`'s catch,
+  `run`'s usage path, `run`'s root-refusal catch, `main`'s catch, the entry tail). Legitimate inputs
+  probed: the existing `POSITIVE CONTROL: ordinary non-ASCII text survives to stderr unchanged`, and
+  in this round's own CR-05 transcript the diagnostic's em dash survives while the control count is
+  0 — which is why the instrument counts **code points**, not bytes.
+- **What this fix CREATED.** A single chokepoint every diagnostic depends on: if `warn` itself ever
+  stopped sanitizing, all six sites would regress at once. It also created a variadic line contract
+  (`USAGE_LINES`) so that a caller, not the content, owns where a line break falls — the alternative
+  would have let an argv token forge a diagnostic line.
+
+### 3.6 — CR-06 / DASH-01, DASH-02: one ticket-frontmatter reader (plan 32-12)
+
+- **Q1.** Two commands. `scripts/validate.test.ts` via the full-suite CI step carries the census; and
+  `VALIDATE_KIT_ROOT=. node scripts/validate-agent-factory.js` is **explicitly wired in `ci.yml`**
+  (the last line of the gate block quoted at `ci.yml:517`), so the validator itself runs on the real
+  kit in CI, not only in a test.
+- **Q2.** The census's input is a **recursive** `readdirSync(scripts, { recursive: true })` taken at
+  test time (150 `.ts` files on this tree), **floored against `git ls-files scripts/*.ts`** so a
+  tracked file the census never opened is an explicit failure naming the file. Two AST arms decide
+  what a "ticket-frontmatter reader" is. Hand-typed part, recorded by 32-12 itself: arm B recognises
+  a key-set constant only when its array literal is DECLARED in the same file, so a future module
+  that imported `TICKET_KEYS` and re-derived a reader from it is caught only if it spells both keys.
+  That boundary is stated in 32-12's own summary and is unchanged here.
+- **Q3.** `parseTicketDocument` is asked at the one place a ticket's column/status is read in the
+  validator (`checkTickets()`, `:736`), and the refusal arm short-circuits before either the column
+  membership rule or the kebab rule runs — so no rule is ever evaluated against a guess.
+- **Q4.** Consuming arms: the admitted arm (`column`, `status`) and the refused arm (the new
+  published message `<path>: refused by the ticket grammar (<code>): <reason>`). Legitimate inputs
+  probed this round: `VALIDATE_KIT_ROOT=. node scripts/validate-agent-factory.js` → **ALL CHECKS
+  PASSED** on the real kit, and **N4** below, a ticket whose frontmatter region closes and re-opens,
+  which is admitted on the FIRST region only and contributes no conflict and no readError.
+- **What this fix CREATED.** A new failure mode for installed repositories: a ticket with no
+  frontmatter region is now an error where it was previously ignored. 32-12 accepted that
+  deliberately (T-32-12-04) and recorded it in `agent-factory/contracts/board.md`; it is a newly-red
+  gate on first upgrade, not a silent change.
+
+---
+
+## 4. Every new refusal branch, and the input that actually takes it
+
+A branch nobody has watched execute is recorded as UNPROVEN, and UNPROVEN is a finding rather than a
+formatting choice. Every row below was executed in this round unless its cell says otherwise.
+
+| # | New refusal branch | Owner | Input that takes it | Proven |
+|---|---|---|---|---|
+| B1 | listing `failed` arm (`BoundedListing.kind === "failed"`) | 32-09 | `chmod 000 plans/tickets` → `code: "EACCES"` (§1 CR-02); `plans/tickets` as a regular file → `code: "ENOTDIR"` (N1) | **yes**, twice, two errnos |
+| B2 | listing `absent` arm (ENOENT only) | 32-09 | a tree with no `.grugops/` — queue/context `unavailable` with **no** readErrors entry and no badge; re-measured here as the zero-badge half of the D-13 discrimination | **yes** |
+| B3 | decode-failure arm (`unreadable` / `ENCODING`) | 32-09 | one `0xE9` byte (§1 CR-03); a two-byte `C3 28` sequence (N2) | **yes**, twice |
+| B4 | `partial` arm — a per-ENTRY read failure degrades its whole source | 32-09 | the CR-04 symlink run: `sources.tickets` settles **`stale`**, not `unavailable`, while the other five stay `ok` | **yes** |
+| B5 | containment refusal in the fixed-literal path (`repoSubpath` → throw → `guarded`) | 32-10 | not re-executed **this round**; proven by `scripts/board-read.test.ts#refuses an out-of-root symlinked ANCESTOR (\`plans\` itself) without throwing` and the ancestor transcript in `32-10-GREEN-proof.txt`. Cited, not re-run — **recorded as cited rather than claimed as measured here** | cited |
+| B6 | containment refusal in the directory-entry path (`childPath` → `OUTSIDE-ROOT`) | 32-10 | the CR-04 symlink (§1) and the two-hop chain N3b — both produce `code: "OUTSIDE-ROOT"`, 0 marker bytes on both channels | **yes**, twice |
+| B7 | the non-`BoardReadError` rethrow inside `guarded` | 32-10 | not re-executed this round; driven by `scripts/board-read.test.ts#PROPAGATES a plain Error raised inside a guarded source read`, which is green in this round's full-suite run | cited |
+| B8 | ticket-grammar refusal in the validator (`refused by the ticket grammar (<code>)`) | 32-12 | the three committed disagreement fixtures (`bad-ticket-no-region` → `no-opening-delimiter`, `bad-ticket-duplicate-key` → `duplicate-key`), green in this round's full-suite run; **not** re-run by hand here | cited |
+| B9 | namespace-escape refusal (the canonical form) | 32-11 | the verifier's exact destructure probe planted into the committed `scripts/board-read.js` → gate exit 1, `opaqueFsAcquisitions` names the escape (§1 CR-01) | **yes** |
+| B10 | namespace RE-ENTRY refusal at a member access | 32-11 | `fsns.promises.…` / `fsns.default.…`, the two cases MUTANT E reds | **yes** (via mutation) |
+| B11 | namespace RE-ENTRY refusal at a **named import / named re-export** | **32-14 (this round)** | `import { promises as fsp } from "node:fs"` planted into the committed `scripts/board-read.js` → `opaqueFsAcquisitions: ["scripts/board-read.js: promises as fsp"]`, gate exit 1; MUTANT F reds exactly these two rows and nothing else | **yes** |
+| B12 | the generalised acquisition arm (an fs identity as a string-literal argument to any call) | 32-11 | `ACQUISITION_SHAPES` rows 4–6 (`createRequire(url)("node:fs")`, `process.getBuiltinModule("node:fs")`, `process.binding("fs")`), green in this round's gate run | cited |
+| B13 | the stderr chokepoint (`warn` sanitizing every diagnostic) | 32-13 | OSC + CSI in a ticket's first line and in argv → 0 control code points on stderr, diagnostics intact (§1 CR-05) | **yes**, twice |
+
+**Nothing in this table is UNPROVEN.** Four rows (B5, B7, B8, B12) are marked **cited** rather than
+measured-here: each is driven by a named case that passed in this round's full-suite run
+(74 files, 4811 passed, 2 skipped), but this review did not re-execute it by hand. That distinction
+is recorded rather than flattened into a single "proven" column, because "a case exists and is
+green" and "I watched this branch take an input" are different pieces of evidence and this
+repository has been burned by treating the first as the second.
+
+---
+
+## 5. The neighbour-variation set — the fix that is one register too narrow
+
+Each attempt takes the nearest variation of a closed finding. An attempt that succeeds in bypassing
+is a FINDING and is listed in §6 with its reproduction.
+
+| # | Neighbour of | Attempt | Result | Bypass? |
+|---|---|---|---|---|
+| N1 | CR-02 (EACCES) | `ENOTDIR`: `plans/tickets` replaced by a regular FILE | `readErrors` for tickets = 1, `code: "ENOTDIR"`; overall `stale`; `row-without-file` = 0, `ticket-unplaced` = 0; the other five sources unaffected | **no** |
+| N2 | CR-03 (one bad byte) | a **two-byte** invalid sequence `C3 28` in the board | `code: "ENCODING"`, board `unavailable`, overall `unavailable` — identical handling to the one-byte case | **no** |
+| N3a | CR-04 (symlink) | a symlink whose target is **itself a symlink back inside the root** | ADMITTED: overall `ok`, tickets `ok`, **0** readErrors naming the entry — no false red | **no** (the correct answer) |
+| N3b | CR-04 (symlink) | a **two-hop chain** whose final target is outside the root | refused, `code: "OUTSIDE-ROOT"`, marker count **0 on stdout and 0 on stderr** | **no** |
+| N4 | CR-06 (ticket grammar) | a ticket whose frontmatter region **closes and then re-opens** with a different `column:` | only the FIRST region is read (`column: "Backlog"`, not `"Done"`); the re-opened block is body text; no readError, no conflict; the validator exits 0 on a kit carrying it | **no** |
+| N5a | CR-01 (namespace escape) | an fs namespace reached through a shape the enumeration does **not** list: `import { promises as fsp } from "node:fs"; fsp.writeFile(…)` | **BYPASS OF THE MECHANISM** — pre-fix the guard went red only on the MEMBERS/COUNT cardinality pin (`opaqueFsAcquisitions` was EMPTY and `promises` matches no write-class stem, so the mutating intersection never saw the writer). See finding **F-02**; **closed in this round** | **yes → closed** |
+| N5b | CR-01 (namespace escape) | a module identity **assembled at runtime**: `process.getBuiltinModule("node:" + "fs")` then `.writeFileSync(p, "x")` | **`npm run check:dashboard-readonly` → exit 0, 57/57 green, over a module that writes files.** This is the residual 32-11 named in its own docblock and logged to `.planning/WINDOWS.md`; it was asserted there by reasoning, and is **measured here for the first time**. See finding **F-03**; **left OPEN** | **yes → open, named residual** |
+
+---
+
+## 6. Findings
+
+### F-02 — CLOSED IN THIS ROUND: the re-entry rule was asked at two of four positions
+
+**Severity:** high — the phase's load-bearing safety control, one maintainer edit from green over a
+full writer.
+**File:** `scripts/board-readonly.test.ts` (a file this round already owns, via plan 32-11).
+
+**Reproduction (pre-fix).** Append to the committed `scripts/board-read.js`:
+
+```
+import { promises as fsp } from "node:fs";
+export const w5a = (p) => fsp.writeFile(p, "x");
+```
+
+Then `npm run check:dashboard-readonly`. Measured result: exit 1 with **8** failures, of which the
+detections are `the derived closure fs symbol set has the expected MEMBERS` and `… the expected
+COUNT` — the **cardinality pin**. `opaqueFsAcquisitions` was **empty**, and `promises` matches none
+of the 16 `WRITE_CLASS_STEMS`, so the mutating intersection never saw the writer either.
+
+**Why a red on the cardinality pin is not good enough.** That pin's own failure message instructs the
+reader to "weigh the new symbol against the read-only property and name it above — it is a decision".
+A maintainer who weighs `promises`, finds it absent from `MUTATING_FS_SYMBOLS`, and adds it to
+`EXPECTED_CLOSURE_FS_SYMBOLS` re-greens the guard **in one edit** over a module holding every writer
+in `node:fs`. 32-11 wrote exactly this sentence about the namespace-member route ("a pin catching a
+writer by accident is not the intersection deciding it") and closed that route; the named-import and
+named-re-export routes were left un-asked.
+
+**The four positions a member NAME enters `fsSymbols`:**
+
+| # | Position | Asked before this round |
+|---|---|---|
+| 1 | property access on an fs namespace — `fsns.promises` | yes (32-11) |
+| 2 | string-literal element access — `fsns["promises"]` | yes (32-11) |
+| 3 | **named import** — `import { promises } from "node:fs"` | **no** |
+| 4 | **named re-export** — `export { promises } from "node:fs"` | **no** |
+
+**Fix.** One helper, `noteFsMember(name, sourceText)`, asks the same **runtime-derived**
+`NAMESPACE_REENTRY_MEMBERS` set at all four positions. No new rule, no new set, no denylist — the
+existing predicate asked where it was not being asked. The computed-key arm keeps its own refusal
+because it carries no name to ask about, which is a different reason.
+
+**Evidence the fix is real and discriminating:**
+
+| Measurement | Result |
+|---|---|
+| `npm run check:dashboard-readonly` on the unplanted tree | 59 passed, exit 0 (was 57; +2 table rows) |
+| the same plant re-run post-fix | exit 1, `opaqueFsAcquisitions: ["scripts/board-read.js: promises as fsp"]`, the `PREMISE: no closure module acquires…` case red — the mechanism, not the pin |
+| **MUTANT E** — delete the re-entry arm inside `noteFsMember` | exactly **4** red: the two pre-existing member-access re-entry cases **and** the two new rows |
+| **MUTANT F** — keep the arm, revert only positions 3 and 4 | exactly **2** red: the two new rows and nothing else |
+| `EXPECTED_CLOSURE_FS_SYMBOLS` / `_COUNT` | unmoved — 6 members, the live closure's own named imports pass through unchanged |
+| `npm run typecheck`, `npm run check:build-parity` | exit 0; no `.js` moved (`board-readonly.test.ts` is a test file and produces no build output) |
+| full suite | 74 files, **4811** passed, 2 skipped (was 4809) |
+
+`ACQUISITION_SHAPE_COUNT` moved 6 → 8 deliberately, as two named rows with the source that spells
+each — never a bumped constant.
+
+### F-03 — OPEN: the guard is green over a writer acquired through a runtime-assembled identity
+
+**Severity:** medium — a **named**, previously-recorded residual, now measured rather than reasoned.
+**File:** `scripts/board-readonly.test.ts`. **Not closed this round.**
+
+**Reproduction.** Append to the committed `scripts/board-read.js`:
+
+```
+const m5b = process.getBuiltinModule("node:" + "fs");
+export const w5b = (p) => m5b.writeFileSync(p, "x");
+```
+
+Then `npm run check:dashboard-readonly`. Measured: **exit 0, 57 passed / 57** — a fully green safety
+gate over a module that writes any path handed to it.
+
+**Status.** This is not new. 32-11 named it in `scripts/board-readonly.test.ts`'s docblock and logged
+it to `.planning/WINDOWS.md`, having declined both available closures (constant folding, or a
+denylist of callee names). What is new is that it had never been **executed**: 32-11 asserted the
+boundary from the shape of the rule. It is executed here, and the assertion holds.
+
+**Why it is left open.** Closing it needs either constant folding of the argument expression or a
+denylist of callee names. The first is a real change in what this syntactic pass is; the second is
+the heuristic-per-counter-example shape this file's own docblock refuses. Neither is a small closure
+inside a file this round owns, and the round budget (1 of 4) exists so that recording it is safe.
+Its bound is honest and worth stating: reaching it requires an attacker who can already add a module
+to the dashboard's own import closure and rebuild the committed `.js` past `check:build-parity`.
+
+### F-01 — OPEN (low): the `check:*` CI-reachability derivation cannot see `check:dashboard-readonly`
+
+**Severity:** low — no live bypass; the claim is narrower than its message reads.
+**File:** `scripts/check-foundation-guards.test.ts` — **not** a file this round owns.
+
+**Reproduction.** The case `every \`check:*\` npm script names a gate that CI runs`
+(`scripts/check-foundation-guards.test.ts:12009`) extracts `/node (scripts\/[\w.-]+\.js)/` from each
+`check:*` command and **skips the script entirely when that regex does not match** (`if (m === null)
+continue;`). Running that same derivation over the current `package.json` shows exactly two skips:
+
+```
+SKIPPED by the derivation: check:build-parity      => npm run build && git diff --exit-code …
+SKIPPED by the derivation: check:dashboard-readonly => npx vitest run scripts/board-readonly.test.ts
+```
+
+The comment beside the `continue` explains the skip as "build-parity and friends run tsc/git rather
+than a gate module". That describes the first skip and **not** the second: `check:dashboard-readonly`
+runs a genuine gate module, and it is the DASH-06 safety control.
+
+**Why it is not a live bypass.** `scripts/board-readonly.test.ts` is in the default vitest suite
+(`npx vitest list --exclude '**/scripts/e2e/**'` reports its cases), and CI runs that suite
+unconditionally at `.github/workflows/ci.yml:174`. The gate **is** reached. What is missing is the
+mechanical proof that it is reached — and the shape that is missing is precisely the one this
+repository added `check-foundation-guards` to prevent ("Round 3 created this gate … and invoked it
+from NOTHING. It passed for a whole round by never running.").
+
+**Why it is left open.** The fix belongs in `scripts/check-foundation-guards.test.ts`, which no plan
+in this round touched. Closing it here would be a fifth fix in a sixth file, which the round budget
+explicitly forbids. Recorded for round 2 with the reproduction above.
+
+---
