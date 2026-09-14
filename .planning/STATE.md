@@ -5,9 +5,9 @@ milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live
 current_phase: 32
 current_phase_name: Board Projector & CLI Dashboard
 status: "Phase 31 CLOSED 2026-09-13 by user override D-44 (round-9 verification gaps_found 4/6 left standing; CR-28..CR-31 + WR-43..WR-47 accepted open). Next: Phase 32 — Board Projector & CLI Dashboard, not yet planned. Standing rule: four-round gap-closure cap on every later phase."
-stopped_at: Completed 32-02-PLAN.md
-last_updated: "2026-09-14T09:11:07.337Z"
-state_head: be5efca12947fe5d82d58e5b6a325232132eaad2
+stopped_at: Completed 32-03-PLAN.md
+last_updated: "2026-09-14T09:51:28.263Z"
+state_head: 8e4ad2a49d38a7820f6626d43e34b70c2b539494
 progress:
   total_phases: 9
   completed_phases: 6
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-09-07 — after Phase 29.2)
 ## Current Position
 
 Phase: 32 (Board Projector & CLI Dashboard) — EXECUTING
-Plan: 3 of 8
+Plan: 4 of 8
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 
@@ -478,6 +478,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 31 P44 | 1h 25m | 3 tasks | 5 files |
 | Phase 32 P01 | 50 min | 3 tasks | 16 files |
 | Phase 32 P02 | 37 min | 3 tasks | 6 files |
+| Phase 32 P03 | 33 min | 3 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -1298,6 +1299,9 @@ Recent decisions affecting current work:
 - [Phase 32]: preamble ends at the first level-two heading rather than the first column heading, so a non-column section before any column collects its own prose — The task's own behaviour contract requires a document with zero columns to yield one nonColumnSections entry; that rule and the action prose disagree, and the testable bullet wins.
 - [Phase 32]: a legal ticket row outside every column is an unparsed line with a null column, never a section line — This is what makes the old builder spec's Blocked (2) refusal visible to a reader; the discriminator is the line shape, not the heading.
 - [Phase 32]: bounds are REPORTED on every parse and never enforced by refusal — a board past a ceiling keeps every row and shortens only its opaque strings — Refusing a board over the ceiling makes a growing board permanently unreadable, which is the failure D-20 rejected by name.
+- [Phase 32]: The stale-reason set is FIVE, not four: `unreadable` (a partial parse) shipped in plan 32-01 config arm, so STALE_REASONS is derived in board-model.ts and StaleReason is its projection. — A partial parse is a distinct failure from a missing file or a denied open. A human sent to look for a vanished file when the file is present and malformed looks in the wrong place.
+- [Phase 32]: The config dial is the ONE source with a fallback value: with no usable dial the kit runs lean (CLAUDE.md C6). Every other source with nothing to carry forward reports unavailable. — Inventing a substitute for an unreadable board is the empty-board output state D-11 forbids.
+- [Phase 32]: main() becomes the one-shot contract and run() the process entry point, because a process must not exit while a watch loop is armed and only the caller can decide that. — The former main() returned an exit code the entry tail passed straight to process.exit, which would have killed the loop the same tick it was armed.
 
 ### Pending Todos
 
@@ -1416,8 +1420,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-09-14T09:10:55.550Z
-Stopped at: Completed 32-02-PLAN.md
+Last session: 2026-09-14T09:51:27.896Z
+Stopped at: Completed 32-03-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
