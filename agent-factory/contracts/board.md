@@ -60,6 +60,23 @@ Rules that bound the three forms:
 shape, so it appears in real trees. It fails every form above, so it opens no column and its rows
 are reported as unparsed lines. The projector shows the refusal rather than guessing at intent.
 
+### Two deviations from the pre-Phase-32 validator, named rather than discovered
+
+`scripts/validate-agent-factory.ts` carried its own column parser until Phase 32. It stripped
+`\s*\(WIP[^)]*\)\s*$` from a `##` line and trimmed what was left. That helper is deleted and the
+validator now imports this grammar, and the two behaviour changes the swap makes are recorded here
+so a reader meets each as a decision rather than as a surprise.
+
+| Heading | The old helper saw | This grammar sees |
+|---------|--------------------|-------------------|
+| `## Blocked (visible, time-tracked)` | a column named `Blocked (visible, time-tracked)`, so a ticket with `column: Blocked` was reported as being in no board column | the column `Blocked` |
+| `## Columns (spec §6.1)` | a phantom column named `Columns (spec §6.1)`, which a ticket could claim and pass membership | a non-column heading, opening no column |
+
+Both are defect fixes and both change what the validator reports. The kit's own board carries both
+headings, so both defects were live on every repository the kit installs. What is preserved
+unchanged is the rule that motivated the old helper — exact-name equality after the suffix strip,
+never a bare prefix match — and the two board-to-ticket messages the validator prints.
+
 ### Column names and ticket status
 
 A ticket file names its column in frontmatter as `column:` and its status as `status:`. The status

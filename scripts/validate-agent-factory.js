@@ -68,6 +68,13 @@ import { CHECKPOINTS, DISPOSITIONS } from "./checkpoints.js";
 // free to drift the day a location is added — which is precisely how the form check came to be
 // asked only at the file the reader consults second.
 import { governanceConfigCandidates } from "./context-io.js";
+// THE BOARD GRAMMAR IS READ, NEVER RESTATED (DASH-01 / D-06). scripts/board-model.ts is the only
+// sanctioned reader of plans/board.md, and agent-factory/contracts/board.md is the normative schema
+// it cites. This file used to carry its own two-line column parser, which made the validator a
+// SECOND authority on what a column is — free to disagree with the projector, and a disagreement
+// between two parsers is invisible until it has already misreported the board. `kebab` comes from
+// the same module for the same reason: `kebab(column) === status` is a rule of that grammar.
+import { boardHasColumn, kebab, parseBoard } from "./board-model.js";
 // ── Two-root resolution (VAL-02 / D-08 — kit root + state root, resolved separately) ─────────
 // STATE_ROOT keeps the install.ts back-compat shape: VALIDATE_ROOT, else the repo root.
 // KIT_ROOT comes ONLY from VALIDATE_KIT_ROOT and has NO default — the deliberate C3 override
@@ -229,11 +236,9 @@ const WORKFLOW_SECTIONS = [
     "## Done",
 ];
 // ── Helpers ──────────────────────────────────────────────────────────────────────────────────
-const kebab = (s) => s
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
+// `kebab` used to be declared here. It now lives in scripts/board-model.ts and is imported above,
+// because the rule that joins a board column to a ticket status — `kebab(column) === status` — is
+// part of the board grammar and the grammar has exactly one spelling (DASH-01 / D-06).
 // Section presence by prefix: present if ANY line starts with the prefix. Handles
 // "## Output (file + format)" and tolerates duplicate sections (presence, not uniqueness).
 function checkSections(rel, text, sections, kind) {
@@ -668,26 +673,19 @@ function checkTickets() {
     if (ticketFiles.length === 0)
         return; // D-43 vacuity: zero tickets → green
     const board = stateRead("plans/board.md") || "";
-    const boardLines = board.split("\n");
     const trace = stateRead("plans/traceability.md") || "";
-    // Full-segment column match (WR-03): a board heading "## <name> (WIP …)" names the
-    // column <name>; we compare <name> for EQUALITY with the ticket column, never by bare
-    // prefix. The old `startsWith("## " + col + " ")` accepted word-prefixes — col "In"
-    // wrongly matched "## In Development (WIP 0/3)" — letting a genuinely wrong column slip
-    // the membership check. We normalize each `## ` line by dropping a trailing ` (WIP …)`
-    // marker and trimming, then require an exact match.
-    const boardColumnName = (line) => line
-        .replace(/^##\s+/, "")
-        .replace(/\s*\(WIP[^)]*\)\s*$/, "")
-        .trim();
-    const boardHasColumn = (col) => boardLines.some((l) => l.startsWith("## ") && boardColumnName(l) === col.trim());
+    // WHICH HEADINGS OPEN A COLUMN IS ASKED OF THE GRAMMAR, NOT ANSWERED HERE (DASH-01 / D-06).
+    // The rule lives in `boardColumnName`/`boardHasColumn` in scripts/board-model.ts and is stated in
+    // prose in agent-factory/contracts/board.md §Headings: exactly three legal suffixes, exact-name
+    // equality after the strip, and every other `##` line opening no column at all.
+    const boardModel = parseBoard(board);
     for (const f of ticketFiles) {
         const rel = `plans/tickets/${f}`;
         const text = stateRead(rel);
         if (text === null)
             continue;
         const { column, status } = frontMatter(text);
-        if (column && !boardHasColumn(column)) {
+        if (column && !boardHasColumn(boardModel, column)) {
             err(`${rel}: column "${column}" is not a board column`);
         }
         if (column && status && kebab(column) !== status) {

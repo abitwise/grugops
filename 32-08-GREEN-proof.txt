@@ -1,0 +1,137 @@
+32-08 GREEN PROOF — one board grammar, and what the zero-difference sweep does and does not prove
+=================================================================================================
+
+Companion to 32-08-RED-baseline.txt, in the format 32-03-GREEN-proof.txt, 32-04-GREEN-proof.txt,
+32-06-GREEN-proof.txt and 32-07-GREEN-proof.txt established.
+
+Three things the suite's own green cannot record about itself: which cases were RED before the
+extraction, which were already green (and are therefore regression pins rather than
+discriminations), and what the eight-fixture sweep can actually see.
+
+---------------------------------------------------------------------------------------------------
+1. THE EDIT
+---------------------------------------------------------------------------------------------------
+
+    scripts/validate-agent-factory.ts
+      - deleted  the WR-03 comment block (:729-734) and the two locally declared helpers
+                 `boardColumnName` / `boardHasColumn` (:735-741)
+      - deleted  the local `const kebab` (:250-256)
+      - deleted  `const boardLines = board.split("\n")`, which had no other reader
+      - added    import { boardHasColumn, kebab, parseBoard } from "./board-model.js"
+      - added    const boardModel = parseBoard(board)
+      - changed  boardHasColumn(column) -> boardHasColumn(boardModel, column)
+      net: 20 lines removed, 13 added, of which 9 are the comment naming where the rule now lives.
+
+The two board-to-ticket messages at what is now :746-752 are UNTOUCHED, and that is measured rather
+than asserted:
+
+    git diff -U0 scripts/validate-agent-factory.ts \
+      | grep -E '^[-+].*(is not a board column|does not match column)'
+    -> no output
+
+Not one byte of either string appears on either side of the diff.
+
+---------------------------------------------------------------------------------------------------
+2. RED -> GREEN
+---------------------------------------------------------------------------------------------------
+
+    BEFORE (32-08-RED-baseline.txt)
+      npx vitest run --exclude '**/scripts/e2e/**' scripts/validate.test.ts
+      exit 1 — Tests  6 failed | 93 passed (99)
+
+    AFTER
+      npx vitest run --exclude '**/scripts/e2e/**' scripts/validate.test.ts
+      exit 0 — Tests  99 passed (99)
+
+Six cases moved. Two are behavioural — the two named deviations, measured end to end against the
+spawned validator on hermetic kits built for the purpose. Four are structural — the negative greps
+over the comment-stripped validator source, which are what distinguish "the validator agrees with
+board-model" from "the validator has no second copy that happens to agree".
+
+TWO CASES DID NOT MOVE, AND THAT IS THE POINT OF THEM.
+
+    "WR-03 stays pinned: column `In` does not match `## In Development (WIP 0/3)`"
+    "keeps both board↔ticket messages byte-identical through the extraction"
+
+Green before, green after. They are regression pins on what the extraction had to PRESERVE. Counting
+them among the six would be counting the absence of a change as proof of a change.
+
+---------------------------------------------------------------------------------------------------
+3. THE EIGHT-FIXTURE SWEEP, COMPARED BLOCK BY BLOCK
+---------------------------------------------------------------------------------------------------
+
+The post-extraction sweep was captured with the identical loop, against the REBUILT
+`scripts/validate-agent-factory.js`, and diffed against the sixteen blocks recorded in section 3 of
+32-08-RED-baseline.txt:
+
+    diff <pre-extraction sweep> <post-extraction sweep>
+    -> no output
+    SWEEP IDENTICAL: 16/16 blocks, 0 differences
+
+EVERY DIFFERENCE IS CLASSIFIED, AND THERE ARE NONE TO CLASSIFY.
+
+The plan required each difference between the two sweeps to be recorded as one of the two named
+deviations or as a regression, with no third category. The difference set is EMPTY, so the
+classification is vacuous — and a vacuous classification is exactly the thing worth stating out loud
+rather than reporting as a clean pass.
+
+WHY IT IS EMPTY, MEASURED RATHER THAN GUESSED.
+
+All eight fixture boards carry the same four headings:
+
+    ## Ready (WIP 0/8)
+    ## In Development (WIP 0/3)
+    ## In Review (WIP 0/3)
+    ## Done (WIP unlimited)
+
+Each is `limited` or `unlimited` under D-05, legal under the old strip AND under this grammar, and
+normalizes identically under both. No fixture board carries a Blocked heading, and none carries a
+`##` line whose suffix is non-canonical. So neither named deviation is REACHABLE through this sweep.
+
+That makes the sweep a regression instrument and not a deviation instrument. It answers "did the
+extraction change any verdict it was not supposed to change" with sixteen identical blocks. It
+cannot answer "did the two intended deviations happen" — the two behavioural cases in section 2
+answer that, on boards written to carry the two headings the fixtures lack. Reading the
+zero-difference sweep as evidence the deviations did not occur would invert what it measures.
+
+---------------------------------------------------------------------------------------------------
+4. THE LIVE TREE, WHICH PROVES NOTHING AND IS RUN ANYWAY
+---------------------------------------------------------------------------------------------------
+
+    VALIDATE_KIT_ROOT=. node scripts/validate-agent-factory.js
+    exit 0 — ALL CHECKS PASSED
+
+`plans/tickets/` on this tree holds only a `.gitkeep`, so `checkTickets()` returns at its vacuity
+guard and the code this plan rewrote never executes. The run is recorded because the plan asks for
+it and because a crash on import would show here; it is not evidence about the extraction.
+
+---------------------------------------------------------------------------------------------------
+5. THE STRUCTURAL ASSERTIONS, RUN AS COMMANDS
+---------------------------------------------------------------------------------------------------
+
+    grep -vE '^\s*(//|\*|/\*)' scripts/validate-agent-factory.ts | grep -c 'const boardColumnName ='
+    -> 0                       the local helper declaration is gone
+
+    grep -vE '^\s*(//|\*|/\*)' scripts/validate-agent-factory.ts | grep -cF 'startsWith("## "'
+    -> 0                       the pre-WR-03 prefix-match spelling did not survive
+
+    grep -hvE '^\s*(//|\*|/\*)' scripts/validate-agent-factory.ts scripts/board-model.ts \
+      | grep -c 'const kebab ='
+    -> 1                       exactly one spelling across the two files
+
+    npm run typecheck          exit 0, no `error TS` line
+    npm run build              exit 0
+    npm run check:build-parity exit 0 once the rebuilt .js is committed alongside its .ts
+
+The greps are run over the COMMENT-STRIPPED source on purpose. The comment that replaced the deleted
+helper necessarily quotes what it replaced; a grep over the raw file would be satisfied by the
+explanation of the absence rather than by the absence.
+
+---------------------------------------------------------------------------------------------------
+6. ONE PLAN PREMISE CORRECTED
+---------------------------------------------------------------------------------------------------
+
+D-06 records `board-model.js` as the validator's "first import from `scripts/`". It is the fourth.
+`./kit-model.js`, `./checkpoints.js` and `./context-io.js` were already imported at :59, :64 and
+:71 before this plan ran. The claim is wrong, the work it describes is unchanged, and the correction
+is recorded here and in the plan summary rather than left in the decision record uncontested.
