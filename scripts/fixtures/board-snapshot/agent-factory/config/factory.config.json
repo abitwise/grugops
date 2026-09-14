@@ -1,0 +1,11 @@
+{
+  "mode": "lean",
+  "cadence": "kanban",
+  "id_prefix": "ABC",
+  "wip_limits": {
+    "Ready": 5,
+    "In Development": 3,
+    "In Review": 2,
+    "Ready to Release": 4
+  }
+}

@@ -1,0 +1,2 @@
+{"id":"2026-09-14T090500Z-decision-a1b2c3d4","kind":"decision","by":"software-engineer","at":"2026-09-14T09:05:00.000Z","verified_by":"gate","confidence":"high","refs":["plans/tickets/ABC-104.md"],"supersedes":null}
+{"id":"2026-09-14T091000Z-decision-e5f6a7b8","kind":"decision","by":"software-engineer","at":"2026-09-14T09:10:00.000Z","verified_by":"gate","confidence":"high","refs":["plans/tickets/ABC-104.md"],"supersedes":"2026-09-14T090500Z-decision-a1b2c3d4"}

@@ -73,8 +73,31 @@ const fixtureEntries = readdirSync(FIX, { withFileTypes: true })
 const fixtureConfigOf = (name: string): string =>
   join(FIX, name, "agent-factory/config/factory.config.json");
 
-/** Directories under `scripts/fixtures/` that ARE validator fixture repositories. */
-const FIXTURE_REPOS = fixtureEntries.filter((name) => existsSync(fixtureConfigOf(name)));
+const fixtureAgentsOf = (name: string): string => join(FIX, name, "AGENTS.md");
+
+/**
+ * Directories under `scripts/fixtures/` carrying a factory config, whatever else they are.
+ *
+ * This is the CONFIG-SURFACE set, and it is deliberately wider than the repository set below: the
+ * retired-key sweep at the foot of this file asks "does any committed config carry `autonomy`",
+ * which is a question about every config on disk rather than about the ones the validator can be
+ * pointed at. Narrowing that sweep to the repository set would have quietly stopped scanning a
+ * config the moment a non-repository fixture grew one.
+ */
+const FIXTURE_CONFIG_DIRS = fixtureEntries.filter((name) => existsSync(fixtureConfigOf(name)));
+
+/**
+ * Directories under `scripts/fixtures/` that ARE validator fixture repositories.
+ *
+ * THE PROPERTY WIDENED IN PLAN 32-05, AND THE REASON IS ON DISK. Until then the discriminator was
+ * "carries `agent-factory/config/factory.config.json`", because every fixture repository carried
+ * one and nothing else did. `board-snapshot` broke that: it is a board-projector fixture whose
+ * config is read by `scripts/board-read.ts` for its `wip_limits` and `id_prefix`, and pointing the
+ * validator at it asks a question it has no answer to — it has no `AGENTS.md`, no role corpus and
+ * no packaging, and its ticket files deliberately disagree with its board. So the property is now
+ * BOTH marks a validator run needs: the config it reads and the `AGENTS.md` it requires.
+ */
+const FIXTURE_REPOS = FIXTURE_CONFIG_DIRS.filter((name) => existsSync(fixtureAgentsOf(name)));
 
 /** Directories under `scripts/fixtures/` that are NOT, each named with the reason it is not. */
 const NON_REPO_FIXTURE_DIRS: ReadonlyArray<readonly [string, string]> = [
@@ -82,6 +105,12 @@ const NON_REPO_FIXTURE_DIRS: ReadonlyArray<readonly [string, string]> = [
     "board-replay",
     "plan 32-04's trimmed transcriptions of the two real agent-written boards, replayed by " +
       "scripts/board-corpus.test.ts. Two markdown files and no agent-factory/ tree.",
+  ],
+  [
+    "board-snapshot",
+    "plan 32-05's miniature repository, read by scripts/board-read.ts and frozen by the committed " +
+      "golden expected-snapshot.json. It carries a factory config because the projector reads one, " +
+      "and no AGENTS.md, no roles and no packaging, so the validator has nothing to check in it.",
   ],
 ];
 
@@ -100,15 +129,23 @@ describe("scripts/fixtures/ splits into validator repositories and everything el
 
   it("pins each half's size, so a silent entrant moves a number rather than nothing", () => {
     expect(FIXTURE_REPOS.length, "validator fixture repositories").toBe(8);
-    expect(NON_REPO_FIXTURE_DIRS.length, "directories that are deliberately not repositories").toBe(1);
+    expect(NON_REPO_FIXTURE_DIRS.length, "directories that are deliberately not repositories").toBe(2);
+    expect(
+      FIXTURE_CONFIG_DIRS.length,
+      "directories carrying a factory config — one more than the repository set, because " +
+        "board-snapshot carries a config the board projector reads and no AGENTS.md",
+    ).toBe(9);
   });
 
   it("gives every declared non-repository a REASON, not merely a name", () => {
     for (const [name, reason] of NON_REPO_FIXTURE_DIRS) {
       expect(existsSync(join(FIX, name)), `${name} is declared but not on disk`).toBe(true);
+      // A non-repository must genuinely LACK one of the two marks a validator run needs. Asserting
+      // the derived membership alone would let this loop agree with itself; asserting the marks
+      // makes the exemption checkable against the disk.
       expect(
-        existsSync(fixtureConfigOf(name)),
-        `${name} carries a fixture config after all, so it belongs in the repository half`,
+        existsSync(fixtureConfigOf(name)) && existsSync(fixtureAgentsOf(name)),
+        `${name} carries BOTH a fixture config and an AGENTS.md, so it belongs in the repository half`,
       ).toBe(false);
       expect(reason.length, `${name} is exempted with no reason recorded`).toBeGreaterThan(40);
     }
@@ -626,7 +663,7 @@ describe("the retired key is gone from every shipped and fixture config surface 
   // The surface set is DISCOVERED, never listed: the two shipped JSON twins plus one JSON per
   // fixture repository found by reading the fixture directory. The count is asserted so a ninth
   // fixture added later cannot slip through un-scanned.
-  const fixtureDirs = FIXTURE_REPOS;
+  const fixtureDirs = FIXTURE_CONFIG_DIRS;
 
   const surfaces = [
     join(ROOT, "agent-factory/config/factory.config.json"),
@@ -634,8 +671,8 @@ describe("the retired key is gone from every shipped and fixture config surface 
     ...fixtureDirs.map((d) => fixtureConfigOf(d)),
   ];
 
-  it("the discovered surface set is the eight fixture repositories plus the two shipped twins", () => {
-    expect(fixtureDirs.length).toBe(8);
+  it("the discovered surface set is the nine fixture configs plus the two shipped twins", () => {
+    expect(fixtureDirs.length).toBe(9);
     expect(surfaces.length).toBe(fixtureDirs.length + 2);
     for (const s of surfaces) expect(existsSync(s), `${s} is missing`).toBe(true);
   });
