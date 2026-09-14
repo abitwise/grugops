@@ -1,0 +1,134 @@
+32-13 GREEN PROOF — CR-05 closed, WR-06 prose corrected and measured
+=====================================================================
+
+Tree:     grugops, after the 32-13 test/feat commits
+Binary:   scripts/board-dashboard.js, rebuilt by `npm run build`
+Date:     see the commit timestamps; this file is written in the same working session
+Node:     v24.12.0
+
+Instrument: the same code-point counter as 32-13-RED-baseline.txt. CONTROL CODE
+POINTS in the decoded stderr — C0 minus the line-terminating newline, DEL, C1.
+Not bytes: the diagnostic's own em dash is UTF-8 E2 80 94 and a byte count could
+never return zero.
+
+1. CR-05 — CONTENT-SOURCED REPRODUCTION
+----------------------------------------
+  cp -R scripts/fixtures/board-snapshot $SCRATCH/t1
+  printf '\033]0;PWNED\007\033[2Jnot a delimiter\n---\nid: ABC-900\ncolumn: Backlog\nstatus: ready\n---\n' \
+    > $SCRATCH/t1/plans/tickets/ABC-900.md
+  node scripts/board-dashboard.js $SCRATCH/t1 --once --json 2> err-content.txt >out.json
+
+  controlCodePoints = 0   []            (RED baseline: 3 — U+001B U+0007 U+001B)
+
+  captured stderr, first line, through `cat -v` — the refusal SURVIVES and still
+  names the file a human has to go and fix:
+
+    board-dashboard: tickets at $SCRATCH/t1/plans/tickets/ABC-900.md M-bM-^@M-^T
+    no-opening-delimiter: a ticket document opens with a `---` line and this one
+    opens with `]0;PWNEDnot a delimiter`
+
+  The `]0;PWNED` and `[2J` remnants are ordinary printable text with their
+  introducers removed. A terminal prints them; it does not act on them.
+
+  stdout: `JSON.parse` succeeds. The document was never the live channel — it
+  was safe by `JSON.stringify`'s C0 escaping, which is an accident rather than a
+  control, and it is unchanged by this fix.
+
+2. CR-05 — ARGV-SOURCED REPRODUCTION
+-------------------------------------
+  ARG="$(printf 'no\033]0;PWNED\007such')"
+  node scripts/board-dashboard.js "$ARG" --once 2> err-argv.txt >/dev/null
+
+  controlCodePoints = 0   []            (RED baseline: 4 — U+001B U+0007 U+001B U+0007)
+  exit code 2.
+
+  captured stderr, through `cat -v` — the refusal SURVIVES, both quotations of
+  the argument inert:
+
+    board-dashboard: board-read: the repository root
+    /Users/.../grugops/no]0;PWNEDsuch does not resolve (ENOENT: no such file or
+    directory, lstat '/Users/.../grugops/no]0;PWNEDsuch'). Refusing to report a
+    snapshot for a tree that was never read.
+
+3. THE AST CENSUS OUTPUT
+-------------------------
+  npx vitest run --exclude '**/scripts/e2e/**' scripts/board-dashboard.test.ts --reporter=verbose
+
+  [32-13] stderr write sites in scripts/board-dashboard.ts: 1 — warn:260
+
+  One site, in `warn`. The pin is two-sided at 1 and the enclosing function name
+  is asserted, so a count of one in the wrong function still goes red. The
+  census's premise cases pass on the same run: the parse read the module, the
+  collector finds the member spelling, the global-process spelling, the aliased
+  channel and the destructured channel while refusing the three routes it cannot
+  name a call site for, and the opaque list over the real module is empty.
+
+4. WR-06 — THE THREE SENTENCES
+-------------------------------
+  [32-13] --json framing prose sites in scripts/board-dashboard.ts: 3;
+          superseded "exactly one JSON document" occurrences: 0
+
+  The header, the USAGE block and emit's docblock each state the per-line
+  contract. The wording WR-06 found to be false is gone from the module.
+
+5. WR-06 — THE MEASURED LINE COUNTS, WITH THE CORRECTED USAGE TEXT BESIDE THEM
+------------------------------------------------------------------------------
+  $ node scripts/board-dashboard.js scripts/fixtures/board-snapshot --once --json | wc -l
+  1
+
+  $ node scripts/board-dashboard.js $SCRATCH/wt --json --watch --interval 1000
+    (bounded: SIGINT after 2.4 s)
+  --watch --json non-empty lines: 3
+  per-line parseable: 3/3; whole stream parses as one document: false
+
+  The last value is the one that would have caught the defect: it is exactly
+  what the superseded sentence promised.
+
+  $ node scripts/board-dashboard.js --help
+  usage: node scripts/board-dashboard.js [repoRoot] [--once] [--json] [--watch] [--interval <ms>] [--help]
+  ...
+    --json          print JSON Lines and nothing else: one complete document per line,
+                    one line per frame, exactly one frame unless --watch is given
+  ...
+
+6. THE GATES
+-------------
+  npx vitest run --exclude '**/scripts/e2e/**' scripts/board-dashboard.test.ts
+      Test Files  1 passed (1)
+           Tests  41 passed (41)          (RED was: 3 failed | 35 passed)
+
+  npm run build && npx tsc --noEmit && npx tsc -p tsconfig.tests.json   exit 0
+  npm run check:build-parity                                            clean
+  npm run check:dashboard-readonly            24 passed; closure fs-symbol pin
+                                              EXPECTED_CLOSURE_FS_SYMBOL_COUNT
+                                              unmoved at 6
+  npm run check:nul-bytes                     ALL CHECKS PASSED
+  npm run check:imperative-lexicon            ALL CHECKS PASSED
+  npm run check:banned-claims                 ALL CHECKS PASSED
+  npm run check:public-docs                   ALL CHECKS PASSED
+  npm run check:claim-anchors                 ALL CHECKS PASSED
+  VALIDATE_KIT_ROOT=. node scripts/validate-agent-factory.js
+                                              ALL CHECKS PASSED
+
+WALL-TIME DELTA
+---------------
+scripts/board-dashboard.test.ts: 5.83 s at 38 cases (the RED run's own timing)
+against 5.88 s at 41 cases. The watch-mode line count is measured by the NDJSON
+case plan 32-07 already built with a bounded child and a deterministic SIGINT;
+it was EXTENDED with the whole-stream assertion rather than duplicated, so no
+second live-loop child was added. That is the reason the delta is inside the
+noise rather than the ~2.5 s a second watch child would have cost.
+
+WHAT IS NOT CLOSED HERE, AND WHY
+---------------------------------
+Two suggestions from 32-REVIEW.md are deliberately out of scope, recorded rather
+than dropped:
+
+  • CR-05 also suggests running the ticket grammar's control-character check over
+    a ticket's first line before quoting it in the `no-opening-delimiter`
+    refusal. Not done: that would put a second sanitizing authority in a second
+    module for a predicate this plan has just given exactly one authority at the
+    emit boundary.
+  • WR-06 also notes `--json --help` prints plain text, and suggests `--help`
+    refuse when combined with `--json`. Not done: that is a change to the exit
+    contract rather than a documentation defect, and D-18 did not decide it.

@@ -8,10 +8,12 @@
 //
 //   node scripts/board-dashboard.js [repoRoot] [--once] [--json] [--watch] [--interval <ms>] [--help]
 //
-// STDOUT IS A CHANNEL WITH ONE MEANING AT A TIME (D-18). With `--json` it carries exactly one JSON
-// document and nothing else. Without it, one plain-text frame. Every diagnostic, every refusal and
-// every read-error summary goes to stderr, including the entry guard's own catch: a raw Node stack
-// must never be the last thing a piped consumer reads (T-32-08).
+// STDOUT IS A CHANNEL WITH ONE MEANING AT A TIME (D-18). With `--json` stdout carries
+// one complete JSON document per line, one line per frame, and exactly one frame unless `--watch`
+// is given — so a consumer reading a single frame parses the whole stream, and a consumer following
+// a live run parses it line by line. Without `--json`, one plain-text frame. Every diagnostic,
+// every refusal and every read-error summary goes to stderr, including the entry guard's own catch:
+// a raw Node stack must never be the last thing a piped consumer reads (T-32-08).
 //
 // THE EXIT CODE IS NOT THE STATE CHANNEL (D-18). A stale or conflicted board still exits 0, because
 // the state is IN the frame and in the JSON document, and a consumer that pipes the output should
@@ -117,7 +119,8 @@ const USAGE_LINES: readonly string[] = [
   "",
   "  repoRoot        the repository to project (default: the working directory)",
   "  --once          print one frame and exit 0, whatever the board says",
-  "  --json          print exactly one JSON document on stdout and nothing else",
+  "  --json          print JSON Lines and nothing else: one complete document per line,",
+  "                  one line per frame, exactly one frame unless --watch is given",
   "  --watch         re-read on filesystem events, with a mandatory poll floor",
   `  --interval <ms> override the poll period (integer, at least ${INTERVAL_HARD_FLOOR_MS} ms)`,
   "  --help          print this message",
@@ -787,10 +790,17 @@ export function createLoop(options: Options, io: DashboardIo, deps: LoopDeps): L
       );
     }
     if (options.json) {
-      // ONE COMPLETE DOCUMENT PER LINE (D-18). `JSON.stringify` emits no newline of its own, so the
-      // line boundary is the document boundary and a consumer can split on it. The whole document is
-      // BUFFERED and written in ONE call, so an interrupted run cannot leave a half-written line a
-      // consumer would fail to parse (T-32-23).
+      // ONE COMPLETE DOCUMENT PER LINE (D-18), one line per frame, and exactly one frame unless
+      // `--watch` is given. `JSON.stringify` emits no newline of its own, so the line boundary IS
+      // the document boundary and a consumer can split on it. The whole document is BUFFERED and
+      // written in ONE call, so an interrupted run cannot leave a half-written line a consumer would
+      // fail to parse (T-32-23).
+      //
+      // This sentence is the one the header and `USAGE` now adopt. They used to promise "exactly one
+      // JSON document and nothing else", which described a program that does not exist under
+      // `--watch`: a consumer that read the help text and parsed the whole stream got a parse error
+      // on the second frame, and the failure looked like a tool defect rather than a documentation
+      // defect (WR-06). The behaviour D-18 decided is unchanged; the prose is what was wrong.
       io.stdout.write(`${JSON.stringify(withWatch)}\n`);
       return;
     }

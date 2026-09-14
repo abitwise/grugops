@@ -939,6 +939,17 @@ describe("board-dashboard — NDJSON under --json --watch, measured from outside
               const parsed = JSON.parse(line) as { snapshot: { schemaVersion: number } };
               expect(parsed.snapshot.schemaVersion).toBe(1);
             }
+            // THE ASSERTION THAT WOULD HAVE CAUGHT WR-06. The header and the `USAGE` block used to
+            // promise "exactly one JSON document on stdout and nothing else"; this is that promise,
+            // stated as a measurement. A consumer that read the help text and did the obvious thing
+            // — parse the whole of stdout — got a parse error on frame two, and the failure looked
+            // like a tool defect rather than a documentation defect. The corrected sentences now say
+            // one document per LINE, and this is the line that holds them to it.
+            expect(
+              () => JSON.parse(out) as unknown,
+              "the whole --watch --json stream parsed as a single document, so this case is no " +
+                "longer measuring the streaming contract it exists to measure",
+            ).toThrow();
             expect(code).toBe(0);
             resolve();
           } catch (e) {
@@ -1362,6 +1373,111 @@ describe("board-dashboard — content and argv reach stderr INERT (CR-05, T-32-0
       expect(r.err, "an accented letter is not a control character").toContain("café");
       expect(r.err, "an emoji is not a control character").toContain("\u{1F3AF}");
       expect(controlCodePoints(r.err)).toEqual([]);
+    });
+  });
+});
+
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+// PLAN 32-13 TASK 2 — WR-06: THE JSON FRAMING PROSE, BOUND TO A MEASURED LINE COUNT.
+//
+// WHAT THE FINDING WAS. Three sentences described the `--json` contract — the file header, the
+// `USAGE` block and `emit`'s docblock — and two of them promised "exactly one JSON document on
+// stdout and nothing else". With `--watch --json` the program emits one document per LINE. A
+// consumer that read the help text and parsed the whole stream got a parse error on the second
+// frame, and that failure reads as a tool defect rather than as a documentation defect. D-18's
+// BEHAVIOUR was and remains correct; the prose was what was wrong.
+//
+// WHY THE CASES BELOW AND NOT JUST THE EDIT. A corrected sentence is worth exactly what the case
+// behind it is worth. Three things are measured and they are different questions:
+//
+//   • THE COUNT IN EACH MODE — a spawned `--once --json` emits one non-empty line and the whole
+//     stream parses; a spawned `--watch --json` emits more than one, every line parses on its own,
+//     and the WHOLE STREAM DOES NOT. That last assertion is the one that would have caught the
+//     defect, because it is the exact thing the old sentence promised.
+//   • THE HELP TEXT A USER ACTUALLY READS — the `--help` output is spawned and searched for the
+//     form's name, so the printed text and the measured contract cannot drift apart without one of
+//     them going red.
+//   • THE THREE SENTENCES AGREEING — the module's own source is scanned. Three sentences that must
+//     agree are three chances to disagree, so the site count is derived from the file and the
+//     superseded wording is asserted absent rather than assumed gone.
+//
+// THE WATCH-MODE LINE COUNT IS MEASURED BY THE NDJSON CASE ABOVE, which plan 32-07 already built
+// with a bounded child and a deterministic kill. It is EXTENDED here with the whole-stream
+// assertion rather than duplicated: a second live-loop child would add roughly two and a half
+// seconds of wall time to measure a contract already under measurement, and the plan's own warning
+// about unbounded watch cases is a warning about exactly that cost.
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+
+/**
+ * The per-line contract, as it is stated in `scripts/board-dashboard.ts`.
+ *
+ * Matched case-insensitively because the header states it in capitals and `USAGE` in lower case —
+ * one contract in two registers is still one contract, and a pattern that insisted on a single
+ * casing would be measuring typography.
+ */
+const PER_LINE_CONTRACT = /one complete (json )?document per line/gi;
+
+/** The wording WR-06 found to be false. It describes a program that does not exist under `--watch`. */
+const SUPERSEDED_FRAMING = /exactly one JSON document/gi;
+
+/**
+ * How many places in the module state the `--json` framing contract.
+ *
+ * THREE IS A DECISION, and it is the shape of the WR-06 defect: the file header, the `USAGE` block
+ * and `emit`'s docblock each describe the same rule to a different reader, and for as long as they
+ * were written independently two of the three were false. They are kept as three sentences because
+ * they are read in three places a reader arrives at separately — but the count is derived from the
+ * file, so a fourth sentence is a fourth chance to disagree that somebody RECORDS rather than a
+ * constant somebody bumps.
+ */
+const JSON_FRAMING_PROSE_SITES = 3;
+
+describe("board-dashboard — the JSON framing prose describes the program (WR-06)", () => {
+  it("states the per-line contract at every site, and nowhere promises a single document", () => {
+    const source = readFileSync(DASHBOARD_TS, "utf8");
+    const stated = source.match(PER_LINE_CONTRACT) ?? [];
+    const superseded = source.match(SUPERSEDED_FRAMING) ?? [];
+    console.log(
+      `[32-13] --json framing prose sites in scripts/board-dashboard.ts: ${stated.length}; ` +
+        `superseded "exactly one JSON document" occurrences: ${superseded.length}`,
+    );
+
+    expect(
+      stated.length,
+      "the header, the USAGE block and emit's docblock must each state the one-document-per-line " +
+        "contract; a site that states it in its own words is a site free to be wrong in its own " +
+        "words, which is what WR-06 found",
+    ).toBe(JSON_FRAMING_PROSE_SITES);
+
+    expect(
+      superseded,
+      'the unqualified "exactly one JSON document" promise is false under --watch: a consumer ' +
+        "that follows the help text and parses the whole stream gets a parse error on frame two",
+    ).toEqual([]);
+  });
+
+  it("prints the form's name in the help text a user actually reads", () => {
+    const r = spawnDashboard(["--help"]);
+    expect(r.code).toBe(0);
+    expect(
+      r.out,
+      "the printed help and the contract the cases below measure must not be able to drift apart " +
+        "without one of them going red",
+    ).toContain("JSON Lines");
+    expect(r.out).toContain("exactly one frame unless --watch is given");
+  });
+
+  it("emits exactly ONE line for --once --json, and the whole stream parses as one document", () => {
+    withFixtureCopy((dir) => {
+      const r = spawnDashboard([dir, "--once", "--json"]);
+      expect(r.code).toBe(0);
+      const lines = r.out.split("\n").filter((l) => l !== "");
+      expect(
+        lines.length,
+        "exactly one frame unless --watch is given — this is the half of the contract that lets a " +
+          "consumer reading a single frame parse the whole stream",
+      ).toBe(1);
+      expect(() => JSON.parse(r.out) as unknown).not.toThrow();
     });
   });
 });
