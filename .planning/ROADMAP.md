@@ -1122,7 +1122,7 @@ Round 8 delivered the FIRST closure of UATX-06's predicate family in eight round
   4. The dashboard **cannot** write: an import-graph guard proves its module tree holds no mutating `node:fs` symbol, so read-only is mechanically enforced rather than asserted in prose. (DASH-06)
   5. `--json`, `--once`, and non-TTY modes work for CI and piping; the renderer degrades **visibly** rather than showing a confident wrong board; the snapshot shape is stable enough for a future web renderer to consume unchanged; and the dashboard adds **zero** runtime dependencies and opens no listening socket this milestone. (DASH-07, DASH-08)
 
-**Plans**: 8/8 plans executed, planned 2026-09-13. Tracer-first: plan `32-01` wires one path through every layer (contract → pure grammar → read seam → `--once --json`) and is verified end-to-end before any expansion task. The remaining seven expand out from that proven slice across four waves.
+**Plans**: 8/8 original plans executed (planned 2026-09-13) + 6 gap-closure plans (`32-09`..`32-14`, planned 2026-09-14, round 1 of a 4-round cap). Tracer-first: plan `32-01` wires one path through every layer (contract → pure grammar → read seam → `--once --json`) and is verified end-to-end before any expansion task; the remaining seven expand out from that proven slice across four waves. Verification on 2026-09-14 returned `gaps_found` (2/5 truths) — the gap-closure plans below close the four failed truths plus the CR-04 containment blocker and the CR-05 stderr warning, strictly sequentially because every one of them changes or analyses the same compiled dashboard closure.
 
 Plans:
 **Wave 1**
@@ -1144,6 +1144,15 @@ Plans:
 
 - [x] 32-07-PLAN.md — the full D-17 frame with the stale badge and the `claimed / counted / limit` disagreement, ANSI sanitization of every cell, the TTY and non-TTY branches, and the `--json`/`--once`/NDJSON exit contract measured from a spawned process [DASH-05, DASH-07]
 - [x] 32-08-PLAN.md — the validator's inline column parser deleted and imported from `board-model.js` against an eight-fixture RED/GREEN baseline, both board twins' comment rewritten with their column table frozen, and the phase-close gate sweep with both absences asserted [DASH-01, DASH-08]
+
+**Gap closure — round 1** *(strictly sequential: waves 1-6, one plan per wave, because all six touch or analyse the compiled `scripts/board-dashboard.js` closure)*
+
+- [ ] 32-09-PLAN.md — CR-02 + CR-03: a three-armed directory listing whose EACCES/ENOTDIR/EMFILE failures reach the stale badge and `readErrors`, `joinSnapshot` gated against deriving presence-dependent conflicts from a non-`ok` tickets source, and a tear detector that compares raw bytes and reports a decode failure as `unreadable` [DASH-03, DASH-04, DASH-05]
+- [ ] 32-10-PLAN.md — CR-04 (security blocker): one `realpathSync`-based containment authority called by both path constructors, per-entry refusals surfaced as path-only `readErrors`, a per-source guard so one refusal never blanks the other five, and a six-case legitimate-input battery [DASH-03, DASH-05]
+- [ ] 32-12-PLAN.md — CR-06: three disagreement fixtures with a recorded before/after table, the validator's second ticket-frontmatter reader deleted and `checkTickets()` routed through `parseTicketDocument`, and a glob-derived single-authority census plus the corrected docblock [DASH-01, DASH-02]
+- [ ] 32-13-PLAN.md — CR-05 + the NDJSON documentation defect: one sanitizing stderr chokepoint with an AST-derived site census, and the three "exactly one JSON document" sentences corrected and anchored to measured line counts [DASH-07, DASH-08]
+- [ ] 32-11-PLAN.md — CR-01: the DASH-06 guard's canonical form (an fs namespace binding may only be the object of a member access), fourteen escape spellings enumerated as data with a two-sided pin, and the guard bound to `check:build-parity`. Runs after the other fixes so it is proved against the closure that ships [DASH-06, DASH-08]
+- [ ] 32-14-PLAN.md — adversarial self-review: every verifier transcript re-run against the rebuilt `.js`, a written answer per gate to how it is REACHED, a reachability table over every new refusal branch, and a `package.json`-derived gate sweep [DASH-01..DASH-08]
 
 **Research flag (discharged):** the board ticket-row grammar is now measured — 141 rows across five sources in `32-RESEARCH.md` §Measured Board Corpus. The measurement contradicted D-01's anchored form (103/141), which the user resolved as D-22's opaque `trailer` (141/141).
 
