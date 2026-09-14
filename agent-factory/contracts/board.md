@@ -67,6 +67,34 @@ is the kebab-case form of the column name, computed by `kebab()` in `scripts/boa
 Membership is decided by exact equality of the column name after the suffix strip. A bare prefix
 match is refused: the column `In` does not match the heading `## In Development (WIP 0/3)`.
 
+### Ticket documents
+
+A ticket lives at `plans/tickets/<ID>.md` and opens with a frontmatter region between two `---`
+lines. The region admits exactly eight keys, and the set is closed. A ninth key is a decision
+recorded here first.
+
+| Key | Carries |
+|-----|---------|
+| `id` | The ticket identifier. Absent, the file name without its extension is the identity. |
+| `title` | The one-line description a human reads. |
+| `status` | The kebab-case form of `column`. |
+| `column` | The board column the ticket claims. |
+| `size` | The sizing token, under the scheme `factory.config.json` names. |
+| `priority` | The priority token, under the scheme `factory.config.json` names. |
+| `epic` | The epic identifier this ticket belongs to. |
+| `feature` | The feature identifier this ticket belongs to. |
+
+A key outside that set is refused by name rather than ignored, because ignoring an unknown key
+gives a document a second place to hide a value. A key written twice is refused, a line that is
+neither `key: value` nor `key:` is refused, a region that never closes is refused, and a control
+character inside the region is refused. The body beneath the region is the ticket's prose and is
+never interpreted.
+
+The reader of this class is `parseTicketDocument` in `scripts/board-model.ts`. It is a different
+document class from the kit adapter frontmatter that `scripts/canonical-frontmatter.ts` admits, and
+the two key sets are deliberately separate: the adapter schema is the authority for a spawn grant,
+and a ticket carries no grant.
+
 ## Rows
 
 A **ticket row** is a top-level bullet carrying a bracketed identifier, one space, and a title.
@@ -98,9 +126,14 @@ agent-written boards, the builder specification, and the worked examples in this
 ### Identifiers
 
 An identifier opens with a capital letter, continues in capitals and digits, and ends in a hyphen
-followed by digits. `ABC-014`, `DOG-001` and `EPIC-006` are identifiers. Where
-`factory.config.json` carries `id_prefix`, a ticket identifier's prefix equals that value. Any
-other bracket content makes the line unparsed.
+followed by digits. `ABC-014`, `DOG-001` and `EPIC-006` are identifiers. Any other bracket content
+makes the line unparsed.
+
+Where `factory.config.json` carries `id_prefix`, a ticket identifier's prefix equals that value,
+and a row whose prefix differs is an unparsed line rather than a conflict. The parser holds no
+dial, so the read seam passes the configured value in; with no dial value the prefix rule has
+nothing to compare against and every conforming identifier is admitted. Epic and feature
+identifiers are exempt, because they carry their own fixed prefixes.
 
 Identifiers prefixed `EPIC` or `FEAT` are a **second class**. They record epics and features rather
 than tickets, they are collected separately, and they are never joined against `plans/tickets/`.
@@ -177,6 +210,11 @@ first.
 | `wip-limit` | A heading's stated limit differs from the configured limit. |
 | `wip-count` | A heading's claimed live number differs from the rows counted. |
 | `column-missing` | A configured column has no heading on the board. |
+
+The conflict order is total and deterministic: kind in the order this table lists them, then ticket
+identifier, then column, then the line the conflict was derived from. A committed golden whose
+order depended on a filesystem listing would fail on another machine for a reason nobody could act
+on.
 
 Every conflict carries the same payload: a `kind`, an optional `ticketId`, an optional `column`, an
 `expected` value, an `actual` value, and a `source` naming where the expectation came from.
@@ -266,6 +304,12 @@ become unparsed lines. The number is never rounded, and it is never coerced to z
 reader can see beats a number nobody wrote.
 
 ## Reconciliation and non-goals
+
+Two cross-checks are named here as **not performed this phase**, so a reader meets each as a
+decision rather than as an omission. The per-ticket traceability cells — code, tests, UAT, release —
+are read as opaque cells rather than joined against the ticket. And the projector states no opinion
+about a ticket identifier that is well formed and absent from the traceability matrix; the
+validator already warns about that one.
 
 `docs/initial/agent_factory_builder_spec_v2.md` lists `web UI, dashboards, SaaS platform` among its
 out-of-scope items. This contract serves a read-only terminal projector over files that already
