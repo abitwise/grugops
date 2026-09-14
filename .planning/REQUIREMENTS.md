@@ -127,7 +127,7 @@ Each requirement maps to exactly one roadmap phase (27–33). REQ-IDs continue g
 ### DASH — Board Projector & CLI Dashboard
 
 - [ ] **DASH-01**: `scripts/board-model.ts` is the single authority for every board sub-grammar — the column-heading parser is **extracted from and deleted in** `validate-agent-factory.ts` (porting the WR-03 prefix-match hardening verbatim), and it becomes the first authority for the ticket-row and WIP-number grammars.
-- [ ] **DASH-02**: The board row grammar is pinned by a written spec and a parse-oracle fuzz suite, whose adversarial corpus includes the board's own large HTML-comment documentation block (which a naive parser would read as live state).
+- [x] **DASH-02**: The board row grammar is pinned by a written spec and a parse-oracle fuzz suite, whose adversarial corpus includes the board's own large HTML-comment documentation block (which a naive parser would read as live state).
 - [ ] **DASH-03**: A typed `FactorySnapshot` joins board, ticket frontmatter, queue state, context notes, and traceability, and **surfaces** board-vs-frontmatter disagreement in a `conflicts[]` field rather than silently resolving it.
 - [x] **DASH-04**: A separate dashboard process renders the snapshot live using directory-level `fs.watch` plus a **mandatory** polling floor and debounce — because grugops's own atomic-rename write path silently orphans a file-level watch.
 - [ ] **DASH-05**: Torn reads and the Windows `atomicWrite` ENOENT window are handled by read-verify-reread with a last-good snapshot and a visible stale badge; a partial parse or an ENOENT is never rendered as an empty board.
@@ -216,7 +216,7 @@ _Filled by the roadmapper 2026-07-28. Every requirement maps to exactly one phas
 | UATX-05 | Phase 31 | Complete |
 | UATX-06 | Phase 31 | Gaps Found — accepted open by override (D-44) |
 | DASH-01 | Phase 32 | Pending |
-| DASH-02 | Phase 32 | Pending |
+| DASH-02 | Phase 32 | Complete |
 | DASH-03 | Phase 32 | Pending |
 | DASH-04 | Phase 32 | Complete |
 | DASH-05 | Phase 32 | Pending |
