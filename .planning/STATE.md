@@ -5,9 +5,9 @@ milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live
 current_phase: 32
 current_phase_name: Board Projector & CLI Dashboard
 status: "Phase 31 CLOSED 2026-09-13 by user override D-44 (round-9 verification gaps_found 4/6 left standing; CR-28..CR-31 + WR-43..WR-47 accepted open). Next: Phase 32 — Board Projector & CLI Dashboard, not yet planned. Standing rule: four-round gap-closure cap on every later phase."
-stopped_at: Completed 32-13-PLAN.md (CR-05 stderr chokepoint + WR-06 JSON framing prose closed)
-last_updated: "2026-09-14T22:39:33.563Z"
-state_head: 338d92625f92816867dfdab2e760ba47b3e4f853
+stopped_at: Completed 32-11-PLAN.md (CR-01 DASH-06 namespace-escape closure)
+last_updated: "2026-09-14T23:14:13.266Z"
+state_head: 4cac94ebd7b297704ed3879c3e88daf13e7f1fe1
 progress:
   total_phases: 9
   completed_phases: 30
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-09-07 — after Phase 29.2)
 ## Current Position
 
 Phase: 32 (Board Projector & CLI Dashboard) — EXECUTING
-Plan: 5 of 14
+Plan: 6 of 14
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 
@@ -488,6 +488,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 32 P10 | 30 min | 3 tasks | 7 files |
 | Phase 32 P12 | 30 min | 3 tasks | 11 files |
 | Phase 32 P13 | 22 min | 2 tasks | 5 files |
+| Phase 32 P11 | 26 min | 3 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -1451,8 +1452,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-09-14T22:38:46.891Z
-Stopped at: Completed 32-13-PLAN.md (CR-05 stderr chokepoint + WR-06 JSON framing prose closed)
+Last session: 2026-09-14T23:14:12.881Z
+Stopped at: Completed 32-11-PLAN.md (CR-01 DASH-06 namespace-escape closure)
 Resume file: None
 
 ## Operator Next Steps
