@@ -35,16 +35,18 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, sep } from "node:path";
 
 import {
   READ_RETRY_BOUND,
   STALE_REASONS,
   STALE_REASON_COUNT,
+  isSafeTaskName,
   readSnapshot,
   readVerifyReread,
   settleSource,
 } from "./board-read.js";
+import { MAX_WALK_ENTRIES } from "./kit-model.js";
 import type { SnapshotResult, SourceState } from "./board-read.js";
 
 const ROOT = join(import.meta.dirname, "..");
@@ -471,5 +473,425 @@ describe("readSnapshot — the carry-forward is threaded, not module state (D-11
         result.snapshot.generatedAt,
       );
     }
+  });
+});
+
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+// TASK 2 — THE FOUR REMAINING SOURCES: TICKETS, QUEUE, CONTEXT, TRACEABILITY.
+//
+// Each carries a rule that already exists somewhere in this tree, and the cases below are written
+// against the RULE rather than against this module's re-statement of it: the queue's tamper skip is
+// `scripts/claim.ts:270-306`'s, the ticket's admission is `scripts/canonical-frontmatter.ts`'s, and
+// the traceability comment hazard is answered by the SAME `stripHtmlComments` the board uses.
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+
+/** Plant a ticket under `plans/tickets/` and return its path. */
+function plantTicket(dir: string, name: string, text: string): string {
+  mkdirSync(join(dir, "plans", "tickets"), { recursive: true });
+  const path = join(dir, "plans", "tickets", name);
+  writeFileSync(path, text, "utf8");
+  return path;
+}
+
+/** Plant a claim record under `.grugops/queue/claimed/<task>/claim.md`. */
+function plantClaim(dir: string, task: string, text: string): string {
+  const taskDir = join(dir, ".grugops", "queue", "claimed", task);
+  mkdirSync(taskDir, { recursive: true });
+  const path = join(taskDir, "claim.md");
+  writeFileSync(path, text, "utf8");
+  return path;
+}
+
+/** A seam that records every path the read went through, so escapes are visible rather than argued. */
+function pathRecorder(): { seam: { betweenReadAndStat: (p: string) => void }; paths: string[] } {
+  const paths: string[] = [];
+  return { seam: { betweenReadAndStat: (p: string) => void paths.push(p) }, paths };
+}
+
+const ADMITTED_TICKET = "---\nname: ABC-014\ndescription: Asset allocation chart\n---\n\nBody.\n";
+
+describe("board-read — tickets, through the ONE frontmatter authority (D-03, T-32-11)", () => {
+  it("admits a conforming ticket and joins it", () => {
+    withTempTree((dir) => {
+      plantBoard(dir, ONE_COLUMN);
+      plantTicket(dir, "ABC-014.md", ADMITTED_TICKET);
+
+      const result = readSnapshot(dir);
+      const tickets = result.snapshot.sources.tickets;
+      expect(tickets.source).toBe("ok");
+      expect(tickets.source === "ok" ? tickets.value : []).toEqual([
+        { file: "ABC-014.md", id: "ABC-014", title: "Asset allocation chart" },
+      ]);
+      expect(result.readErrors).toEqual([]);
+    });
+  });
+
+  it("reports a REFUSED ticket by its refusal code and joins nothing for it", () => {
+    withTempTree((dir) => {
+      plantBoard(dir, ONE_COLUMN);
+      plantTicket(dir, "ABC-014.md", ADMITTED_TICKET);
+      // `status` is outside CANONICAL_SCHEMA, so the ONE authority refuses the document with
+      // `unknown-key`. The projector does not become a second frontmatter grammar to rescue it.
+      plantTicket(dir, "ABC-015.md", "---\nname: ABC-015\nstatus: ready\n---\n");
+
+      const result = readSnapshot(dir);
+      const tickets = result.snapshot.sources.tickets;
+      const joined = tickets.source === "ok" ? tickets.value.map((t) => t.file) : [];
+      expect(
+        joined,
+        "PREMISE: the conforming ticket was not joined either, so this case measured a broken " +
+          "reader rather than a refused document",
+      ).toEqual(["ABC-014.md"]);
+
+      const refusal = result.readErrors.find((e) => e.path.endsWith("ABC-015.md"));
+      expect(refusal?.source).toBe("tickets");
+      expect(refusal?.code).toBe("unknown-key");
+    });
+  });
+
+  it("reads an EMPTY `plans/tickets/` as `ok` with no tickets — empty is not stale (D-13)", () => {
+    withTempTree((dir) => {
+      plantBoard(dir, ONE_COLUMN);
+      mkdirSync(join(dir, "plans", "tickets"), { recursive: true });
+      writeFileSync(join(dir, "plans", "tickets", ".gitkeep"), "", "utf8");
+
+      const tickets = readSnapshot(dir).snapshot.sources.tickets;
+      expect(tickets.source).toBe("ok");
+      expect(tickets.source === "ok" ? tickets.value : null).toEqual([]);
+    });
+  });
+
+  it("filters a `.tmp-` sibling EXPLICITLY, so a half-written atomic write is never admitted", () => {
+    withTempTree((dir) => {
+      plantBoard(dir, ONE_COLUMN);
+      plantTicket(dir, "ABC-014.md", ADMITTED_TICKET);
+      plantTicket(dir, "ABC-014.md.tmp-4242-1-abcdef01", "---\nname: HALF\n");
+
+      const { seam, paths } = pathRecorder();
+      const tickets = readSnapshot(dir, undefined, seam).snapshot.sources.tickets;
+      expect(tickets.source === "ok" ? tickets.value.length : -1).toBe(1);
+      expect(paths.filter((p) => p.includes(".tmp-"))).toEqual([]);
+    });
+  });
+
+  it("marks tickets `bounded` above MAX_WALK_ENTRIES rather than throwing (T-32-07)", () => {
+    withTempTree((dir) => {
+      plantBoard(dir, ONE_COLUMN);
+      mkdirSync(join(dir, "plans", "tickets"), { recursive: true });
+      // NON-`.md` names on purpose: the case is about the WALK bound, and admitting ten thousand
+      // documents to prove a listing was truncated would measure the admission loop instead.
+      for (let i = 0; i <= MAX_WALK_ENTRIES; i += 1) {
+        writeFileSync(join(dir, "plans", "tickets", `note-${i}.txt`), "", "utf8");
+      }
+
+      const result = readSnapshot(dir);
+      const tickets = result.snapshot.sources.tickets;
+      expect(tickets.source).toBe("stale");
+      expect(tickets.source === "stale" ? tickets.stale.reason : "").toBe("bounded");
+      // A hung read is a stale badge, never a frozen screen: the board beside it is untouched.
+      expect(result.snapshot.sources.board.source).toBe("ok");
+    });
+  });
+});
+
+describe("board-read — the queue, with claim.ts's tamper rules PORTED (T-32-05, T-32-03)", () => {
+  const GOOD_CLAIM = "by: engineer\nat: 2026-09-14T09:00:00.000Z\n";
+
+  it("joins a well-formed claim record", () => {
+    withTempTree((dir) => {
+      plantBoard(dir, ONE_COLUMN);
+      plantClaim(dir, "ABC-014", GOOD_CLAIM);
+
+      const queue = readSnapshot(dir).snapshot.sources.queue;
+      expect(queue.source).toBe("ok");
+      expect(queue.source === "ok" ? queue.value : []).toEqual([
+        { task: "ABC-014", by: "engineer", at: "2026-09-14T09:00:00.000Z" },
+      ]);
+    });
+  });
+
+  it("SKIPS a claim record carrying two `at:` key lines and names it in readErrors (T-32-05)", () => {
+    withTempTree((dir) => {
+      plantBoard(dir, ONE_COLUMN);
+      plantClaim(dir, "ABC-014", GOOD_CLAIM);
+      // The on-disk signature of a `by`-injection that smuggled a forged `at:`. Trusting either line
+      // lets a tampered claim masquerade as a running row, which is a queue-lock denial of service.
+      const tampered = plantClaim(
+        dir,
+        "ABC-015",
+        "by: engineer\nat: 2026-09-14T09:00:00.000Z\nat: 1970-01-01T00:00:00.000Z\n",
+      );
+
+      const result = readSnapshot(dir);
+      const queue = result.snapshot.sources.queue;
+      const tasks = queue.source === "ok" ? queue.value.map((r) => r.task) : [];
+      expect(
+        tasks,
+        "PREMISE: the well-formed claim was not joined either, so this case measured a broken " +
+          "reader rather than a refused record",
+      ).toEqual(["ABC-014"]);
+
+      const named = result.readErrors.find((e) => e.path === tampered);
+      expect(named?.source).toBe("queue");
+      expect(named?.code).toBe("tampered");
+    });
+  });
+
+  it("skips a claimed directory whose name is outside the ported allowlist, without reading it", () => {
+    withTempTree((dir) => {
+      plantBoard(dir, ONE_COLUMN);
+      plantClaim(dir, "ABC-014", GOOD_CLAIM);
+      const outside = plantClaim(dir, "bad name", GOOD_CLAIM);
+
+      const { seam, paths } = pathRecorder();
+      const result = readSnapshot(dir, undefined, seam);
+      const queue = result.snapshot.sources.queue;
+      expect(queue.source === "ok" ? queue.value.map((r) => r.task) : []).toEqual(["ABC-014"]);
+      expect(
+        paths.includes(outside),
+        "a name outside the allowlist is skipped BEFORE any filesystem access, so the read never " +
+          "touched it at all",
+      ).toBe(false);
+    });
+  });
+
+  it("refuses `.` and `..` as task names — the rule readdirSync can never hand it (T-32-03)", () => {
+    // A DIRECT ASSERTION ON THE PREDICATE, AND THE REASON IS STRUCTURAL. `readdirSync` never returns
+    // `.` or `..`, so this arm of the ported rule is unreachable through the filesystem — exactly as
+    // it is unreachable in `scripts/claim.ts:277`, where it is kept for the same reason: the day the
+    // listing stops being a `readdirSync` is the day the rule matters, and a rule added back after
+    // that day is a rule added after the traversal.
+    expect(isSafeTaskName("..")).toBe(false);
+    expect(isSafeTaskName(".")).toBe(false);
+    expect(isSafeTaskName("")).toBe(false);
+    expect(isSafeTaskName("../../etc")).toBe(false);
+    expect(isSafeTaskName("a/b")).toBe(false);
+    expect(isSafeTaskName("ABC-014")).toBe(true);
+  });
+
+  it("skips a claimed directory with no claim.md at all", () => {
+    withTempTree((dir) => {
+      plantBoard(dir, ONE_COLUMN);
+      plantClaim(dir, "ABC-014", GOOD_CLAIM);
+      mkdirSync(join(dir, ".grugops", "queue", "claimed", "ABC-016"), { recursive: true });
+
+      const queue = readSnapshot(dir).snapshot.sources.queue;
+      expect(queue.source === "ok" ? queue.value.map((r) => r.task) : []).toEqual(["ABC-014"]);
+    });
+  });
+
+  it("skips a claim record with no `at:` line, which cannot be placed on the timeline", () => {
+    withTempTree((dir) => {
+      plantBoard(dir, ONE_COLUMN);
+      plantClaim(dir, "ABC-014", "by: engineer\n");
+      const queue = readSnapshot(dir).snapshot.sources.queue;
+      expect(queue.source === "ok" ? queue.value : null).toEqual([]);
+    });
+  });
+
+  it("orders rows by `at`, then by task — the same order the queue's own renderer emits", () => {
+    withTempTree((dir) => {
+      plantBoard(dir, ONE_COLUMN);
+      plantClaim(dir, "ABC-020", "by: a\nat: 2026-09-14T10:00:00.000Z\n");
+      plantClaim(dir, "ABC-002", "by: b\nat: 2026-09-14T09:00:00.000Z\n");
+      plantClaim(dir, "ABC-001", "by: c\nat: 2026-09-14T09:00:00.000Z\n");
+
+      const queue = readSnapshot(dir).snapshot.sources.queue;
+      expect(queue.source === "ok" ? queue.value.map((r) => r.task) : []).toEqual([
+        "ABC-001",
+        "ABC-002",
+        "ABC-020",
+      ]);
+    });
+  });
+
+  it("reports an ABSENT `.grugops/queue/` as unavailable, with no badge and no error (D-13)", () => {
+    withTempTree((dir) => {
+      plantBoard(dir, ONE_COLUMN);
+      const result = readSnapshot(dir);
+      expect(result.snapshot.sources.queue.source).toBe("unavailable");
+      expect(result.readErrors).toEqual([]);
+      expect(result.source).toBe("ok");
+    });
+  });
+
+  it("leaves the BOARD fresh when the QUEUE is unreadable — staleness is per source (D-12)", () => {
+    withTempTree((dir) => {
+      plantBoard(dir, TWO_COLUMNS);
+      plantClaim(dir, "ABC-014", GOOD_CLAIM);
+      const first = readSnapshot(dir);
+      expect(
+        first.snapshot.sources.queue.source,
+        "PREMISE: the queue was not readable on the FIRST read, so the second read has no last-good " +
+          "queue to carry forward and this case measured nothing",
+      ).toBe("ok");
+
+      rmSync(join(dir, ".grugops", "queue", "claimed", "ABC-014", "claim.md"));
+      rmSync(join(dir, ".grugops", "queue"), { recursive: true, force: true });
+
+      const second = readSnapshot(dir, first);
+      const board = second.snapshot.sources.board;
+      const queue = second.snapshot.sources.queue;
+      expect(queue.source).toBe("stale");
+      expect(queue.source === "stale" ? queue.stale.reason : "").toBe("enoent");
+      expect(queue.source === "stale" ? queue.value.length : -1).toBe(1);
+      expect(board.source).toBe("ok");
+      expect(Object.prototype.hasOwnProperty.call(board, "stale")).toBe(false);
+      expect(board.source === "ok" ? board.readAt : "").toBe(second.snapshot.generatedAt);
+    });
+  });
+});
+
+describe("board-read — the context index, presence and current state only (D-17)", () => {
+  const NOTE_A = {
+    id: "20260914T0900-engineer-finding-aaaa1111",
+    kind: "finding",
+    by: "engineer",
+    at: "2026-09-14T09:00:00.000Z",
+    verified_by: "gate",
+    confidence: "high",
+    refs: [],
+    supersedes: null,
+  };
+  const NOTE_B = {
+    ...NOTE_A,
+    id: "20260914T1000-engineer-finding-bbbb2222",
+    at: "2026-09-14T10:00:00.000Z",
+    supersedes: NOTE_A.id,
+  };
+
+  function plantContext(dir: string, task: string, notes: readonly unknown[]): string {
+    const taskDir = join(dir, ".grugops", "context", task);
+    mkdirSync(join(taskDir, "notes"), { recursive: true });
+    const index = join(taskDir, "index.jsonl");
+    writeFileSync(index, `${notes.map((n) => JSON.stringify(n)).join("\n")}\n`, "utf8");
+    writeFileSync(join(taskDir, "notes", `${NOTE_A.id}.md`), "a note body nobody should read", "utf8");
+    return index;
+  }
+
+  it("reports each task's note count, live count and latest live note", () => {
+    withTempTree((dir) => {
+      plantBoard(dir, ONE_COLUMN);
+      plantContext(dir, "ABC-014", [NOTE_A, NOTE_B]);
+
+      const context = readSnapshot(dir).snapshot.sources.context;
+      expect(context.source).toBe("ok");
+      expect(context.source === "ok" ? context.value : []).toEqual([
+        {
+          task: "ABC-014",
+          noteCount: 2,
+          // The supersede fold, by the `currentState` rule: NOTE_B supersedes NOTE_A.
+          liveCount: 1,
+          latestAt: NOTE_B.at,
+          latestKind: "finding",
+        },
+      ]);
+    });
+  });
+
+  it("reads the INDEX and never a note body, on any re-read (D-17 rejected the notes block)", () => {
+    withTempTree((dir) => {
+      plantBoard(dir, ONE_COLUMN);
+      plantContext(dir, "ABC-014", [NOTE_A, NOTE_B]);
+
+      const { seam, paths } = pathRecorder();
+      readSnapshot(dir, undefined, seam);
+      expect(
+        paths.some((p) => p.endsWith("index.jsonl")),
+        "PREMISE: the context index was never read, so 'it read no bodies' is true of a reader that " +
+          "read nothing at all",
+      ).toBe(true);
+      expect(paths.filter((p) => p.includes(`${sep}notes${sep}`))).toEqual([]);
+    });
+  });
+
+  it("reports a task directory whose index has not been rendered yet, without calling it a fault", () => {
+    withTempTree((dir) => {
+      plantBoard(dir, ONE_COLUMN);
+      mkdirSync(join(dir, ".grugops", "context", "ABC-014", "notes"), { recursive: true });
+
+      const result = readSnapshot(dir);
+      const context = result.snapshot.sources.context;
+      expect(context.source === "ok" ? context.value : []).toEqual([
+        { task: "ABC-014", noteCount: 0, liveCount: 0, latestAt: null, latestKind: null },
+      ]);
+      expect(result.readErrors).toEqual([]);
+    });
+  });
+
+  it("names a malformed index line in readErrors rather than counting it as a note", () => {
+    withTempTree((dir) => {
+      plantBoard(dir, ONE_COLUMN);
+      const index = plantContext(dir, "ABC-014", [NOTE_A]);
+      writeFileSync(index, `${JSON.stringify(NOTE_A)}\n{ not json\n`, "utf8");
+
+      const result = readSnapshot(dir);
+      const context = result.snapshot.sources.context;
+      expect(context.source === "ok" ? context.value[0]?.noteCount : -1).toBe(1);
+      expect(result.readErrors.find((e) => e.path === index)?.source).toBe("context");
+    });
+  });
+});
+
+describe("board-read — traceability, through the SAME comment pre-pass as the board (D-03)", () => {
+  const TRACE_HEADER =
+    "| Ticket | Title | Epic | Feature | NFRs | Code (PR/files) | Tests | UAT | Release | Status |\n" +
+    "|--------|-------|------|---------|------|-----------------|-------|-----|---------|--------|\n";
+
+  function plantTrace(dir: string, text: string): string {
+    mkdirSync(join(dir, "plans"), { recursive: true });
+    const path = join(dir, "plans", "traceability.md");
+    writeFileSync(path, text, "utf8");
+    return path;
+  }
+
+  it("reads a live row beneath the real header", () => {
+    withTempTree((dir) => {
+      plantBoard(dir, ONE_COLUMN);
+      plantTrace(
+        dir,
+        `# Traceability Matrix\n\n${TRACE_HEADER}` +
+          "| ABC-014 | Asset allocation chart | EPIC-003 | FEAT-007 | NFR-002 | #41 | fx.spec.ts | UAT-12 | REL-0007 | Done |\n",
+      );
+
+      const trace = readSnapshot(dir).snapshot.sources.traceability;
+      expect(trace.source).toBe("ok");
+      const rows = trace.source === "ok" ? trace.value : [];
+      expect(rows.length).toBe(1);
+      expect(rows[0]?.ticket).toBe("ABC-014");
+      expect(rows[0]?.title).toBe("Asset allocation chart");
+      expect(rows[0]?.status).toBe("Done");
+      expect(rows[0]?.cells.length).toBe(10);
+    });
+  });
+
+  it("reads NO row from an example row inside the file's OWN html comment (D-03)", () => {
+    withTempTree((dir) => {
+      plantBoard(dir, ONE_COLUMN);
+      plantTrace(
+        dir,
+        "# Traceability Matrix\n\n<!--\n  Example row shape (this is a comment, NOT a live row):\n\n" +
+          "    | ABC-012 | FX conversion | EPIC-003 | FEAT-007 | NFR-002 | #41 | fx.spec.ts | UAT-12 | REL-0007 | Done |\n" +
+          `-->\n\n${TRACE_HEADER}` +
+          "| ABC-014 | Asset allocation chart | EPIC-003 | FEAT-007 | NFR-002 | #41 | fx.spec.ts | UAT-12 | REL-0007 | Done |\n",
+      );
+
+      const trace = readSnapshot(dir).snapshot.sources.traceability;
+      const rows = trace.source === "ok" ? trace.value : [];
+      expect(rows.map((r) => r.ticket)).toEqual(["ABC-014"]);
+    });
+  });
+
+  it("reads ZERO rows from the REAL `plans/traceability.md`, whose only row shape is commented out", () => {
+    // The live artifact, not a transcription. It ships EMPTY — header and separator only — with an
+    // example row at `:15` inside its own 31-line comment. A reader that counted that row would
+    // report a ticket nobody filed, which is the same hazard the board's own comment carries.
+    const trace = readSnapshot(ROOT).snapshot.sources.traceability;
+    expect(
+      trace.source,
+      "PREMISE: the repository's own traceability matrix was not readable, so 'zero rows' describes " +
+        "a file this case never read",
+    ).toBe("ok");
+    expect(trace.source === "ok" ? trace.value : null).toEqual([]);
   });
 });

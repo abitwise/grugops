@@ -283,6 +283,21 @@ export function repoSubpath(root, relPath) {
     }
     return target;
 }
+/**
+ * The task-name allowlist, PORTED VERBATIM from `scripts/claim.ts:38-44` (T-32-03, ASVS V12).
+ *
+ * The pattern, the `.`/`..` rejection and the empty rejection are that module's, carried across by
+ * hand rather than imported — `claim.ts`'s final statement is a write, so importing one constant
+ * from it would put five mutating symbols into the dashboard's closure (DASH-06, D-21).
+ *
+ * A task name is attacker-influenced content used as a path segment. Everything outside the
+ * allowlist is skipped BEFORE any filesystem access, so a name nobody vouched for never reaches a
+ * `join`.
+ */
+const TASK_NAME_RE = /^[A-Za-z0-9._-]+$/;
+export function isSafeTaskName(name) {
+    return name !== "" && name !== "." && name !== ".." && TASK_NAME_RE.test(name);
+}
 // ── Bounded directory listing (D-14, RESEARCH pitfall 5) ─────────────────────────────────────────
 /**
  * List `dir`, dropping atomic-write temporaries, bounded by the tree's shared walk bound.
