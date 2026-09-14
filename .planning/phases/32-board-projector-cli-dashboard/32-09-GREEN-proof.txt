@@ -1,0 +1,154 @@
+# 32-09 GREEN proof — the same commands as 32-09-RED-baseline.txt, after the fix
+
+Recorded: 2026-09-14T20:17:05Z
+Tree HEAD at recording: c5285f36; the Task 3 fix was committed as b174467d immediately after,
+which is the commit the build-parity line at the foot of this file refers to.
+Artifact under test: the REBUILT scripts/board-dashboard.js / scripts/board-read.js.
+Scratch tree: the SAME copy of scripts/fixtures/board-snapshot/ the RED baseline used.
+
+## CR-02 — the verifier's own transcript, re-run
+
+$ chmod 000 <tree>/plans/tickets
+$ node scripts/board-dashboard.js <tree> --once   # header line only
+grugops board  <tree>  mode: lean  read: 2026-09-14T20:17:05.577Z  6 columns  [stale]  STALE: tickets (never read, EACCES)  4 conflicts
+
+$ node scripts/board-dashboard.js <tree> --once 2>&1 >/dev/null   # stderr
+board-dashboard: tickets at <tree>/plans/tickets — EACCES: <tree>/plans/tickets could not be listed (EACCES): EACCES: permission denied, scandir '<tree>/plans/tickets'
+board-dashboard: queue at <tree>/.grugops/queue/claimed/abc-105-tampered/claim.md — tampered: <tree>/.grugops/queue/claimed/abc-105-tampered/claim.md carries 2 `at:` lines and a claim record is written with exactly one. The record is skipped rather than trusted on either line: a forged second `at:` is a queue-lock denial of service (scripts/claim.ts:270-306).
+
+$ node scripts/board-dashboard.js <tree> --once --json | jq -c ".source, .snapshot.sources.tickets"
+"stale"
+{"source":"unavailable","present":false}
+
+$ ... | jq -c "[.readErrors[] | select(.source == \"tickets\")]"
+[{"source":"tickets","path":"<tree>/plans/tickets","code":"EACCES","message":"<tree>/plans/tickets could not be listed (EACCES): EACCES: permission denied, scandir '<tree>/plans/tickets'"}]
+
+$ ... | jq "[.readErrors[] | select(.source == \"tickets\")] | length"
+1
+$ ... | jq "[.conflicts[] | select(.kind == \"row-without-file\")] | length"
+0
+$ ... | jq "[.conflicts[] | select(.kind == \"ticket-unplaced\")] | length"
+0
+$ ... | jq ".readErrors | length"   # 2: the tickets EACCES plus the fixture's own tampered claim record
+2
+
+### The same tree with the mode RESTORED — the discrimination
+$ chmod 755 <tree>/plans/tickets
+$ node scripts/board-dashboard.js <tree> --once | head -1
+grugops board  <tree>  mode: lean  read: 2026-09-14T20:17:05.856Z  6 columns  [ok]  9 conflicts
+$ ... --json | jq "[.conflicts[] | select(.kind == \"row-without-file\") | .ticketId]"
+["ABC-999"]
+
+The restored-mode reading is CROSS-CHECKED against the committed golden, which is the same fixture
+read with every source `ok`:
+
+$ jq ".conflicts | length" scripts/fixtures/board-snapshot/expected-snapshot.json
+9
+$ jq -c "[.conflicts[] | select(.kind==\"row-without-file\") | .ticketId]" scripts/fixtures/board-snapshot/expected-snapshot.json
+["ABC-999"]
+
+So the readable tree reports the nine findings the golden freezes, including the ONE genuine
+`row-without-file` (ABC-999, a board row with no ticket file). The denied tree reports four: the
+nine minus the five that depended on a listing it could not make. Before the fix the denied tree
+reported eleven, seven of them `row-without-file`, six of those about files that exist.
+
+## CR-03 — the non-UTF-8 byte, re-run
+
+$ node cr03-red.mjs   # the SAME script the RED baseline ran, against the rebuilt board-read.js
+    bytes on disk: 65   first invalid byte at offset: 50
+    nothing is writing this file: it was written once and never touched again
+    result: {"ok":false,"reason":"unreadable","code":"ENCODING"}
+    seam fired (read attempts): 1 of a retry bound of 3
+    message: board-read: <tmp>/board.md could not be decoded as UTF-8 (The encoded data was not valid for encoding utf-8). The file is not being modified — it is bytes this module cannot use — so it is reported as unreadable rather than as a torn read, and it is not re-read.
+
+Reason `unreadable` with code `ENCODING`, on ONE read rather than three. The message states the
+file is not being modified, so the human is told what is actually wrong with it.
+
+### The discrimination — a REAL tear still reports `torn`
+
+A fix that deleted the detector would pass the line above and fail the repository, so the driven
+tear is re-run here rather than asserted:
+
+$ node cr03-tear.mjs   # appends to the file inside the seam on every attempt
+    result: {"ok":false,"reason":"torn","code":"TORN"}
+    seam fired (read attempts): 3 of a retry bound of 3
+
+## The plan's own verification block, run in order
+
+$ npx vitest run --exclude '**/scripts/e2e/**' scripts/board-read.test.ts scripts/board-model.test.ts scripts/board-tracer.test.ts
+     Test Files  3 passed (3)
+          Tests  236 passed (236)
+
+$ npm run build && npm run typecheck && npm run check:build-parity
+    (First run, BEFORE the Task 3 .js was committed: BUILD PARITY FAILED — correctly, because
+    check:build-parity asserts that no TRACKED build output moves when tsc runs, and the rebuilt
+    scripts/board-read.js was still uncommitted at that moment. Re-run immediately after the Task 3
+    commit, against the same tree:)
+    Build parity: no tracked build output moved when tsc ran.
+
+$ git diff --exit-code -- scripts/fixtures/board-snapshot/expected-snapshot.json
+    exit 0 — the golden did not move
+
+$ VALIDATE_KIT_ROOT=. node scripts/validate-agent-factory.js
+    ALL CHECKS PASSED
+
+$ npx vitest run --exclude '**/scripts/e2e/**'   # the whole suite; plain `npm test` is NOT used
+    Test Files  1 failed | 73 passed (74)
+         Tests  2 failed | 4720 passed | 2 skipped (4724)
+
+    The two failures are in `scripts/check-nul-bytes.test.ts` and are PRE-EXISTING AND UNRELATED to
+    this plan. Both report the same fact: `.planning/phases/32-board-projector-cli-dashboard/
+    32-REVIEW.md` carries a literal ESC (0x1b) at byte offset 19402, line 404, inside a backtick
+    span discussing CR-05's ANSI sanitization. Verified pre-existing rather than assumed:
+
+      $ git log --oneline -1 -- .planning/phases/32-board-projector-cli-dashboard/32-REVIEW.md
+      730ff88f docs(32): add code review report
+      $ git show 7fa737e7:.planning/phases/.../32-REVIEW.md | grep -c $'\x1b'
+      1
+
+    7fa737e7 is the commit this plan branched from, so the byte was on the tree before any change
+    here. Recorded in `deferred-items.md` under this phase and in the cross-phase WINDOWS ledger
+    rather than fixed: the scope rule is that a pre-existing failure in an unrelated file is not
+    this plan's to repair, and rewriting a verification artifact's bytes from an unrelated fix is
+    a worse outcome than reporting it.
+
+    Every board suite is green: board-read, board-model, board-tracer, board-dashboard,
+    board-corpus, board-oracle, board-watch and board-readonly — 362 tests.
+
+## The adversarial re-run — the same defect one register down, found and closed
+
+The recorded lesson in this repository is that the fix creates the next bypass, so the verifier's
+own reproduction was re-run against the fix with ONE variable moved: the DIRECTORY readable, and one
+ticket FILE at mode 000.
+
+    tickets source : ok
+    overall        : ok
+    readErrors     : [{"source":"tickets","code":"EACCES"}]
+    conflicts      : ["row-without-file ABC-101 — no ticket file carries that identifier"]
+
+The defect was intact. `readTicketsSource` pushed the per-file error and left the source `ok`, so
+the presence gate — which reads the SOURCE STATE — never fired. Closed by giving `SourceOutcome` a
+`partial` arm and settling it in all three directory sources (tickets, queue, context), so the class
+is closed rather than the instance. The same probe, re-run:
+
+$ node probe-perfile.mjs   # after the fix
+    tickets source : stale
+    overall        : stale
+    readErrors     : [{"source":"tickets","code":"EACCES"}]
+    conflicts      : []
+
+The discrimination is pinned by cases in `scripts/board-read.test.ts`: a REFUSED ticket document and
+a TAMPERED claim record both leave their source `ok`, because those bytes were read and declined by
+name — the contract's stated behaviour — and degrading a source for a refusal would badge every tree
+carrying one malformed ticket and would move the committed golden.
+
+## Residuals this plan did NOT close, stated rather than left to be found
+
+  * A ticket document the grammar REFUSES still contributes a `row-without-file` conflict for a row
+    naming it, because the source stays `ok` and the record is not joined. That is the contract's
+    documented behaviour for an inadmissible document (§ Tickets: "A refused document is recorded in
+    readErrors with its refusal CODE and is not joined"), not a read failure, so changing it is a
+    contract decision rather than a bug fix. Recorded here so the next verifier meets it as a known
+    disposition rather than as a finding.
+  * CR-01, CR-04, CR-05 and CR-06 from `32-REVIEW.md` are other plans' work (32-10 and later).
+    Nothing here touches them.
