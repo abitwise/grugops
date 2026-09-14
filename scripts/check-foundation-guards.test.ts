@@ -2651,24 +2651,39 @@ describe("LANG-07: exactly ONE module owns the section-extent predicate (plan 29
     expect(sectionExtentSitesIn(traceSrc)).toEqual([]);
     expect(owners).not.toContain("scripts/trace-render.ts");
 
-    // `validate-agent-factory.ts` is the OTHER direction and the stronger half: its board-heading
-    // normaliser really does spell `/^##\s+/`, so the WIDENED recogniser arm DOES recognise it. It
-    // is excluded by the CONJUNCTION — the line bounds no scan — which is the mechanism this block
-    // rests on, exercised on a live module rather than on a planted one.
-    const validateSrc = codeLinesOfSource(
-      readFileSync(join(ROOT, "scripts", "validate-agent-factory.ts"), "utf8"),
-    ).join("\n");
-    const boardLine = validateSrc.split("\n").find((l) => l.includes(".replace(") && l.includes("##"));
-    expect(boardLine, "validate-agent-factory.ts must still carry the board-heading replace").toBeDefined();
+    // THE OTHER DIRECTION, AND THE STRONGER HALF: a live module the WIDENED recogniser arm DOES
+    // recognise, excluded by the CONJUNCTION because its line bounds no scan.
+    //
+    // (Plan 32-08) THE MODULE IS DERIVED, NOT NAMED. This half used to read
+    // `scripts/validate-agent-factory.ts` and find its board-heading normaliser, which spelled
+    // `/^##\s+/`. Plan 32-08 deleted that normaliser — the board grammar has exactly one authority
+    // now, `scripts/board-model.ts` — and this case failed on `must still carry the board-heading
+    // replace`, a VANISHED PREMISE rather than the property it exists to measure. A hand-named
+    // witness for a derived property goes stale the first time the tree legitimately changes, and
+    // reports the staleness as a defect in the thing it was watching. The witness is read off the
+    // tree instead, so any module carrying the shape serves.
+    const recognisedModules = nonTestModules().filter((n) =>
+      codeLinesOfSource(readFileSync(join(ROOT, n), "utf8"))
+        .some((l) => HEADING_RECOGNISER_CONSTRUCTS.some((r) => r.test(l))),
+    );
     expect(
-      HEADING_RECOGNISER_CONSTRUCTS.some((r) => r.test(boardLine as string)),
-      "the widened arm DOES recognise a whitespace-class heading regex — that is the widening",
-    ).toBe(true);
+      recognisedModules.length,
+      "PREMISE: the widened arm must recognise a line in at least one live module, or the half " +
+        "below is an exclusion measured over nothing",
+    ).toBeGreaterThan(0);
+    const excludedByConjunction = recognisedModules.filter((n) => !owners.includes(n));
     expect(
-      sectionExtentSitesIn(validateSrc),
-      "…and it still contributes no site, because it terminates no scan. The conjunction is what excludes it",
-    ).toEqual([]);
-    expect(owners).not.toContain("scripts/validate-agent-factory.ts");
+      excludedByConjunction,
+      "at least one module the recogniser arm recognises must contribute NO site — that gap is the " +
+        "conjunction doing the work, and an empty list here would mean the recogniser arm alone " +
+        "decides every answer",
+    ).not.toEqual([]);
+    for (const n of excludedByConjunction) {
+      expect(
+        sectionExtentSitesIn(readFileSync(join(ROOT, n), "utf8")),
+        `${n} carries a heading recogniser and still terminates no scan`,
+      ).toEqual([]);
+    }
   });
 
   it("the SEVENTH plant — a whitespace-class recogniser with a DEFERRED bound — is reported, and each widening alone is not enough", () => {
