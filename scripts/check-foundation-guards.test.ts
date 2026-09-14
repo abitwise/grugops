@@ -1167,7 +1167,16 @@ describe("D-64 cutover: the spawn verdict is rendered by the canonical admission
       cutover.length,
       "no module imports ./canonical-frontmatter.js — the cutover did not happen",
     ).toBeGreaterThan(0);
+    // ENTRANT (plan 32-03, task 2): `board-read.ts`. The board projector's read seam admits every
+    // `plans/tickets/*.md` through `admit` / `admittedValuesFor` rather than growing a second
+    // frontmatter grammar of its own — which is the outcome this derived set exists to observe, so
+    // the pin firing on its arrival is the correct thing to have happened. It renders no spawn
+    // verdict: it reads `name` and `description` off an admitted ticket and takes NOTHING from the
+    // demoted parser, so the per-module assertion below covers it unchanged. Re-derived rather than
+    // appended blind: the filter reports exactly these three on this tree, and the entry lands in
+    // the same commit as the run that first observed it.
     expect(cutover).toEqual([
+      "board-read.ts",
       "check-foundation-guards.ts",
       "coordinator-resolution-precheck.ts",
     ]);
@@ -9292,7 +9301,18 @@ const censusRelationshipFindings = (c: TripwireCensus): string[] => {
 // is the correct thing to have fired. Re-derived rather than incremented:
 // `ls scripts/*.test.ts | wc -l` reports 62 on this tree, agreeing with the live census, and the
 // bump lands in the SAME commit as the run in which the full suite first observed the module.
-const TRIPWIRE_MODULES = 62;
+//
+// 62 -> 64 (plan 32-03, tasks 1 and 3): TWO test modules. `scripts/board-read.test.ts` drives the
+// read seam's failure modes — the four ways a read can fail, the last-good carry-forward that keeps
+// the previous value across each of them, and the per-source badge that stops one unreadable source
+// from hiding a fresh board. `scripts/board-watch.test.ts` drives the refresh loop — the debounce
+// against the measured two-to-four-events-per-change, the mandatory poll floor with every watcher
+// closed, and the re-arm path behind a named environment seam. Both are genuine test modules rather
+// than corpus files, so a pin that surfaced them arriving is the correct thing to have fired.
+// Re-derived rather than incremented: `ls scripts/*.test.ts | wc -l` reports 64 on this tree,
+// agreeing with the live census, and the bump lands in the SAME commit as the run in which the full
+// suite first observed the modules.
+const TRIPWIRE_MODULES = 64;
 /**
  * Corpus-derived floors, expressed as RATES so the floor grows with the corpus it floors.
  * Each is set well below its measured live value: the point is to catch a measurement that
