@@ -44,6 +44,18 @@
 // future Node still reds this file the moment any closure module imports it, because the closure-side
 // intersection is what decides, not the count.
 //
+// WHAT IT CLOSES BY REFUSAL RATHER THAN BY RECOGNITION (32-11, closing CR-01). An fs namespace
+// binding has exactly ONE admitted use: as the object of a member access. Every other read of that
+// binding — destructured, aliased, spread, passed as an argument, placed in a literal, re-exported,
+// returned from a function — is REFUSED by name as an opaque acquisition, and an fs module identity
+// handed as a string-literal argument to ANY call is refused the same way. Before 32-11 the
+// destructure in particular was neither recognised nor refused: `import * as fsns from "node:fs";
+// const { writeFileSync, rmSync } = fsns;` contributed nothing to either set, and this guard
+// reported 24 passed and exit 0 over a module that wrote and deleted files
+// (`.planning/phases/32-board-projector-cli-dashboard/32-11-RED-baseline.txt`). The rule is stated
+// as the canonical form and the complement is refused, because widening a matcher once per
+// counter-example is the failure this repository has paid for twice.
+//
 // WHAT IT DOES NOT CLOSE, NAMED RATHER THAN IMPLIED:
 //   • The derivation is SYNTACTIC. An aliased re-export (`export { writeFileSync as w }` through an
 //     intermediate module) or a dynamic `import()` of a COMPUTED specifier is not resolved by name.
@@ -51,6 +63,18 @@
 //     absent — but a route this file cannot see is a route it cannot decide. Widening the matcher
 //     once per counter-example is the failure this repository has already paid for, so the boundary
 //     is written down instead.
+//   • A module identity ASSEMBLED at runtime and handed to something that is not `import`/`require`
+//     — `process.getBuiltinModule("node:" + "fs")` — is not a string literal, so the argument rule
+//     above does not see it. `import(expr)` and `require(expr)` with a non-literal ARE refused
+//     (`opaqueSpecifiers`); this residual is the non-module-system spelling of the same idea, and it
+//     is recorded here rather than closed by a denylist of callee names.
+//   • A writer VALUE received at runtime from outside the closure (a callback parameter that happens
+//     to be `writeFileSync`) is not decidable syntactically at all. The zero-runtime-dependency
+//     assertion in PART SIX and the relative-only closure walk are what bound how such a value could
+//     arrive.
+//   • THE SUBJECT IS THE COMMITTED `.js`. A writer added to a `.ts` and not rebuilt is a program
+//     this guard never saw. PART SIX asserts the binding to `check:build-parity`, which is the
+//     mechanism that makes the analysed `.js` the same program as its `.ts`.
 //   • `open` and `openSync` STAY IN the mutating set. Their write-ness depends on a flag literal and
 //     a name-based derivation cannot decide it, so the safe direction for a safety guard is to refuse.
 //   • `jsImportClosure` follows RELATIVE specifiers only. A `node_modules` import would be invisible
@@ -177,6 +201,12 @@ function analyzeModule(absPath: string, label: string): ModuleFacts {
     if (isBareSpecifier(specifier)) bareSpecifiers.add(specifier);
   };
 
+  /** Refusal messages carry source text; a whole call or declaration can be long, so flatten and cap. */
+  const briefly = (text: string): string => {
+    const flat = text.replace(/\s+/g, " ").trim();
+    return flat.length > 140 ? `${flat.slice(0, 137)}...` : flat;
+  };
+
   const collectSpecifiers = (node: ts.Node): void => {
     if (ts.isImportDeclaration(node)) {
       const specifier = literalText(node.moduleSpecifier);
@@ -230,25 +260,106 @@ function analyzeModule(absPath: string, label: string): ModuleFacts {
           noteSpecifier(specifier);
           if (isFsSpecifier(specifier)) opaqueFsAcquisitions.push(node.getText());
         }
+      } else {
+        // THE ACQUISITION ARM, GENERALISED (deviation, Rule 2 — recorded in 32-11-SUMMARY.md).
+        // `import(…)` and `require(…)` are two SPELLINGS of "hand a module identity to a function
+        // and get the module back", and they are not the only ones: `createRequire(url)("node:fs")`
+        // never spells `require` at the call site, and `process.getBuiltinModule("node:fs")` and
+        // `process.binding("fs")` return the real module without any module-system call at all.
+        // Rather than name those three (one more heuristic per counter-example, the failure this
+        // file's docblock already refuses), the rule is over the ARGUMENT: a filesystem module
+        // IDENTITY appearing as a string-literal argument to ANY call is an acquisition this
+        // syntactic pass cannot follow, so it is refused.
+        //
+        // It is deliberately NOT routed through `noteSpecifier`. A plain call's string argument is
+        // not a module-identity position, and folding it into `bareSpecifiers` would make a
+        // harmless `f("net")` read as an import of node:net and red the DASH-08 ban for a reason
+        // that has nothing to do with a socket. Refusal here, no specifier claim.
+        for (const argument of node.arguments) {
+          const literal = literalText(argument);
+          if (literal !== null && isFsSpecifier(literal)) {
+            opaqueFsAcquisitions.push(briefly(node.getText()));
+            break;
+          }
+        }
       }
     }
     ts.forEachChild(node, collectSpecifiers);
   };
   collectSpecifiers(source);
 
-  const collectNamespaceMembers = (node: ts.Node): void => {
-    if (ts.isPropertyAccessExpression(node) && ts.isIdentifier(node.expression)) {
-      if (fsNamespaceBindings.has(node.expression.text)) fsSymbols.add(node.name.text);
-    } else if (ts.isElementAccessExpression(node) && ts.isIdentifier(node.expression)) {
-      if (fsNamespaceBindings.has(node.expression.text)) {
-        const key = literalText(node.argumentExpression);
-        if (key === null) opaqueFsAcquisitions.push(node.getText());
-        else fsSymbols.add(key);
-      }
-    }
-    ts.forEachChild(node, collectNamespaceMembers);
+  /**
+   * THE CANONICAL FORM (32-11, closing CR-01).
+   *
+   * An identifier bound to an fs namespace may appear in exactly ONE position that is not its own
+   * binding site: as the OBJECT of a member access. That is the whole admitted use. Every other
+   * READ of the binding — destructured, aliased, spread, passed as an argument, put in a literal,
+   * re-exported, returned — hands the namespace object to a route this syntactic pass cannot
+   * follow, and each of those routes reaches every writer in `node:fs` without naming one.
+   *
+   * The rule is therefore stated as an ALLOW-LIST and everything outside it is refused. The
+   * alternative — teaching the matcher to also recognise a destructuring pattern — is one more
+   * heuristic per counter-example, which is the shape this repository has spent eight rounds on
+   * twice ([[grugops-safety-invariant-green-suite-insufficient]]).
+   *
+   * THE EXEMPTIONS ARE EXACTLY TWO, AND BOTH ARE BINDING SITES RATHER THAN READS. A THIRD
+   * EXEMPTION IS A DECISION SOMEBODY RECORDS HERE WITH ITS REASON, never a condition somebody
+   * appends — the same posture the three named stem exclusions below already take.
+   */
+  const isAdmittedNamespacePosition = (node: ts.Identifier): boolean => {
+    const parent = node.parent as ts.Node | undefined;
+    if (parent === undefined) return false;
+    // Exemption 1 — the binding site of `import * as fsns from "node:fs"`.
+    if (ts.isNamespaceImport(parent) && parent.name === node) return true;
+    // Exemption 2 — the binding site of `import fs from "node:fs"`, which `collectSpecifiers`
+    // already treats as a namespace object under esModuleInterop.
+    if (ts.isImportClause(parent) && parent.name === node) return true;
+    // The ONE admitted read: the object of a property or element access.
+    if (ts.isPropertyAccessExpression(parent) && parent.expression === node) return true;
+    if (ts.isElementAccessExpression(parent) && parent.expression === node) return true;
+    return false;
   };
-  if (fsNamespaceBindings.size > 0) collectNamespaceMembers(source);
+
+  /**
+   * TWO PROPERTIES OF THIS PASS, WRITTEN DOWN SO A LATER READER DOES NOT "FIX" THEM:
+   *
+   *   • THE PASS IS NAME-SCOPED, NOT BINDING-SCOPED. A parameter or a local that happens to reuse a
+   *     namespace identifier's spelling is treated as the namespace. The imprecision runs in the
+   *     direction of REFUSAL, which is the only direction a safety guard may be imprecise in;
+   *     loosening it to be scope-accurate would trade a false red for a possible false green.
+   *   • THE ELEMENT-ACCESS ARM IS UNCHANGED. A computed key is already an opaque acquisition and a
+   *     string-literal key still names its symbol. The canonical form is a UNION with that arm, not
+   *     a replacement for it, and `NAMESPACE_ESCAPE_SHAPES` tests the union.
+   */
+  const collectNamespaceUses = (node: ts.Node): void => {
+    if (
+      ts.isPropertyAccessExpression(node) &&
+      ts.isIdentifier(node.expression) &&
+      fsNamespaceBindings.has(node.expression.text)
+    ) {
+      // `fsns.default` is the CJS module object — ANOTHER namespace. Every member read off it is a
+      // property access whose own expression is not an identifier, so this pass would name nothing
+      // behind `fsns.default.writeFileSync`. Refused rather than named (deviation, Rule 2).
+      if (node.name.text === "default") opaqueFsAcquisitions.push(briefly(node.getText()));
+      else fsSymbols.add(node.name.text);
+    } else if (
+      ts.isElementAccessExpression(node) &&
+      ts.isIdentifier(node.expression) &&
+      fsNamespaceBindings.has(node.expression.text)
+    ) {
+      const key = literalText(node.argumentExpression);
+      if (key === null || key === "default") opaqueFsAcquisitions.push(briefly(node.getText()));
+      else fsSymbols.add(key);
+    } else if (
+      ts.isIdentifier(node) &&
+      fsNamespaceBindings.has(node.text) &&
+      !isAdmittedNamespacePosition(node)
+    ) {
+      opaqueFsAcquisitions.push(briefly((node.parent ?? node).getText()));
+    }
+    ts.forEachChild(node, collectNamespaceUses);
+  };
+  if (fsNamespaceBindings.size > 0) collectNamespaceUses(source);
 
   return {
     statements: source.statements.length,
@@ -916,6 +1027,33 @@ describe("32-06 — the guard discriminates: both halves are shown to fail", () 
         const facts = analyzeClosure(mirrorRoot, DASHBOARD_ENTRY);
         expect(facts.opaqueFsAcquisitions.length).toBeGreaterThan(0);
         expect(facts.opaqueFsAcquisitions.join("\n")).toContain("scripts/board-read.js");
+      },
+    );
+  });
+
+  it("a member access naming `default` RE-ENTERS a namespace and is refused (deviation, Rule 2)", () => {
+    // `fsns.default` is the CJS module object under esModuleInterop — another namespace, and every
+    // member read off it (`fsns.default.writeFileSync`) is a property access whose own expression is
+    // not an identifier, so the pass would name `default` and nothing behind it. The plant below is
+    // a working writer; without this refusal the only thing that reddens it is the pin moving by the
+    // accidental member name `default`, which is a coincidence rather than a mechanism.
+    withLiveMirror(
+      {
+        module: "scripts/board-read.js",
+        appendSource:
+          'import * as fsns from "node:fs";\n' +
+          'export const nukeViaDefault = (p) => fsns.default.writeFileSync(p, "x");',
+      },
+      (mirrorRoot) => {
+        const facts = analyzeClosure(mirrorRoot, DASHBOARD_ENTRY);
+        expect(facts.opaqueFsAcquisitions.length).toBeGreaterThan(0);
+        expect(facts.opaqueFsAcquisitions.join("\n")).toContain("scripts/board-read.js");
+        expect(
+          facts.fsSymbols,
+          "`default` must not be NAMED as an fs symbol: naming it would put a namespace object in " +
+            "the symbol set, where the mutating-set intersection would then ask whether the string " +
+            '"default" is a writer and answer no',
+        ).not.toContain("default");
       },
     );
   });
