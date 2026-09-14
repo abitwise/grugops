@@ -28,9 +28,10 @@
 // rather than returning short, because a short answer reads as a clean one.
 //
 // Voice: CLEAR PROFESSIONAL VOICE throughout (CLAUDE.md hard rule — this is a trace surface).
-import { readFileSync, readdirSync, realpathSync, statSync, } from "node:fs";
+import { existsSync, readFileSync, readdirSync, realpathSync, statSync, } from "node:fs";
 import { join, relative, resolve, sep } from "node:path";
-import { SCHEMA_VERSION, parseBoard } from "./board-model.js";
+import { SCHEMA_VERSION, parseBoard, stripHtmlComments } from "./board-model.js";
+import { admit, admittedValuesFor } from "./canonical-frontmatter.js";
 import { MAX_WALK_ENTRIES } from "./kit-model.js";
 // ── The stale-reason set (D-11, D-12) ────────────────────────────────────────────────────────────
 //
@@ -333,9 +334,31 @@ const LEAN_CONFIG_VIEW = {
     idPrefix: null,
     wipLimits: {},
 };
-/** The `unavailable` arm, built once. It carries no value, and that is the type's whole point. */
-function absent() {
-    return { source: "unavailable", present: false };
+/** Lift `settleSource`'s single-error result, optionally carrying per-entry errors beside it. */
+function settledFrom(settled, extra = []) {
+    return {
+        state: settled.state,
+        errors: settled.error === null ? extra : [settled.error, ...extra],
+    };
+}
+/**
+ * Join ONE directory entry against its directory, refusing anything that is not a plain segment.
+ *
+ * `name` is the only content-derived path input this module has: it comes from a `readdirSync` of a
+ * fixed-literal directory, and a directory entry is attacker-influenced whenever an agent can write
+ * into the tree (T-32-03). `readdirSync` cannot return a separator, `.` or `..` today — the refusals
+ * below are for the day the listing comes from somewhere else, which is the day they matter, and a
+ * rule added after that day is a rule added after the traversal.
+ */
+function childPath(root, dir, name) {
+    if (name === "" || name === "." || name === ".." || name.includes("/") || name.includes("\\")) {
+        return null;
+    }
+    const target = resolve(join(dir, name));
+    const rel = relative(root, target);
+    if (rel === "" || rel === ".." || rel.startsWith(`..${sep}`))
+        return null;
+    return target;
 }
 /** The value a settled state carries, or null on the `unavailable` arm. Used for the flat fields. */
 function valueOrNull(state) {
@@ -377,7 +400,7 @@ function gatherFile(path, seam, parse) {
  */
 function readBoardSource(root, readAt, previous, seam) {
     const path = repoSubpath(root, FIXED_SUBPATHS.board);
-    return settleSource("board", path, gatherFile(path, seam, parseBoard), previous, readAt);
+    return settledFrom(settleSource("board", path, gatherFile(path, seam, parseBoard), previous, readAt));
 }
 /**
  * Read `agent-factory/config/factory.config.json` (T-32-09).
@@ -394,7 +417,7 @@ function readBoardSource(root, readAt, previous, seam) {
 function readConfigSource(root, readAt, previous, seam) {
     const path = repoSubpath(root, FIXED_SUBPATHS.config);
     const outcome = gatherFile(path, seam, (text) => configView(JSON.parse(text)));
-    return settleSource("config", path, outcome, previous, readAt, LEAN_CONFIG_VIEW);
+    return settledFrom(settleSource("config", path, outcome, previous, readAt, LEAN_CONFIG_VIEW));
 }
 /** The three dial keys the snapshot cross-checks. Everything else in the dial is ignored here. */
 function configView(raw) {
@@ -411,6 +434,315 @@ function configView(raw) {
         idPrefix: typeof raw["id_prefix"] === "string" ? raw["id_prefix"] : null,
         wipLimits: limits,
     };
+}
+// ── tickets (D-03, T-32-11) ──────────────────────────────────────────────────────────────────────
+/**
+ * Read every `*.md` under `plans/tickets/` through the ONE frontmatter authority.
+ *
+ * THE ADMISSION IS `scripts/canonical-frontmatter.ts`'s, NOT THIS MODULE'S. That module imports no
+ * `node:fs` and no `node:path` (measured: its only import is `./frontmatter.js`, which imports
+ * nothing), so it composes into this seam without widening the closure the DASH-06 guard walks. A
+ * document it refuses is recorded in `readErrors` with its refusal CODE and is not joined — the
+ * board projector does not become a second frontmatter grammar, because a second grammar is a second
+ * place a document can mean two things.
+ *
+ * NOTE FOR THE PHASE, RECORDED RATHER THAN SMOOTHED OVER: `CANONICAL_SCHEMA` is the KIT ADAPTER
+ * schema (`name`, `description`, `tools`, …). A ticket that carries ticket-shaped keys is refused
+ * with `unknown-key` and named on stderr rather than silently defaulted, which is the honest answer
+ * for a reader with one authority — the alternative is a second schema nobody decided on. This tree
+ * carries no tickets at all today (`plans/tickets/` holds only `.gitkeep`), so nothing is refused
+ * here yet; widening or splitting the schema is a DECISION for a later plan, not a paraphrase here.
+ */
+function readTicketsSource(root, readAt, previous, seam) {
+    const dir = repoSubpath(root, FIXED_SUBPATHS.tickets);
+    const listing = listDirectoryBounded(dir);
+    if (!listing.present) {
+        return settledFrom(settleSource("tickets", dir, { kind: "absent" }, previous, readAt));
+    }
+    const records = [];
+    const errors = [];
+    // Sorted, so two runs over the same directory produce the same order whatever the filesystem's
+    // listing order happens to be. A frame that reshuffles on every re-read is a frame nobody can read.
+    for (const name of [...listing.names].sort()) {
+        if (!name.endsWith(".md"))
+            continue;
+        const path = childPath(root, dir, name);
+        if (path === null)
+            continue;
+        const read = readVerifyReread(path, READ_RETRY_BOUND, seam);
+        if (!read.ok) {
+            errors.push({ source: "tickets", path, code: read.code, message: read.message });
+            continue;
+        }
+        const admission = admit(read.text);
+        if (!admission.ok) {
+            errors.push({ source: "tickets", path, code: admission.code, message: admission.reason });
+            continue;
+        }
+        records.push({
+            file: name,
+            id: admittedValuesFor(admission.value, "name")[0] ?? name.slice(0, -".md".length),
+            title: admittedValuesFor(admission.value, "description")[0] ?? "",
+        });
+    }
+    const outcome = listing.bounded
+        ? { kind: "bounded", value: records }
+        : { kind: "value", value: records };
+    return settledFrom(settleSource("tickets", dir, outcome, previous, readAt), errors);
+}
+// ── queue (T-32-05, T-32-03) ─────────────────────────────────────────────────────────────────────
+/**
+ * The three queue stages, DECLARED LOCALLY rather than imported from `scripts/claim.ts:64`.
+ *
+ * Importing that one constant would drag the whole module — and its five mutating symbols — into the
+ * dashboard's import closure, which is the single thing DASH-06 exists to refuse. The duplication is
+ * deliberate and bounded: it is three strings describing an on-disk layout, and `CLAIMED_STAGE` below
+ * is typed against this tuple so a typo is a compile error rather than a directory nobody reads.
+ */
+export const QUEUE_STAGES = ["pending", "claimed", "done"];
+const CLAIMED_STAGE = "claimed";
+/** A line that begins with the `at:` key, as `scripts/claim.ts:289` counts them. */
+const AT_KEY_LINE = /^at:/gm;
+const AT_VALUE = /^at:\s*(.+)$/m;
+const BY_VALUE = /^by:\s*(.+)$/m;
+/**
+ * Read `.grugops/queue/claimed/{task}/claim.md` into the rows a human sees as "now running".
+ *
+ * RE-IMPLEMENTED, NOT IMPORTED, AND THE RULES ARE PORTED VERBATIM FROM `scripts/claim.ts:270-306`.
+ * That function's final statement is `atomicWrite(...)` — it is a WRITER, and the dashboard holds no
+ * mutating `node:fs` symbol (DASH-06, D-21). Its reader half carries a security rule that must not be
+ * paraphrased on the way across, so it is carried exactly:
+ *
+ *   * the task-name allowlist (`isSafeTaskName`, ported from `scripts/claim.ts:38-44`),
+ *   * the explicit `.` / `..` rejection,
+ *   * the existence check on `claim.md`,
+ *   * and the SINGLE-`at:` discipline: a claim record is written with EXACTLY ONE `at:` line, and
+ *     more than one is a tampered record — the on-disk signature of a `by`-injection that smuggled a
+ *     forged `at:`. A tampered record is NEVER emitted as a trusted row. There is deliberately no
+ *     permissive multi-match parser here, because a forged second `at:` line is a queue-lock denial
+ *     of service and trusting it would let a tampered claim masquerade as running work (T-32-05).
+ *
+ * WHAT THIS READER ADDS: it REPORTS the skip. `claim.ts` skips silently because its output is a
+ * derived artifact; this module's output is a screen a human is watching for exactly this kind of
+ * problem, so a skipped record is named in `readErrors` with the code `tampered`.
+ *
+ * The row order is `at` then `task`, which is the order `renderNowRunning` emits — so the dashboard
+ * and `.grugops/queue/now-running.md` cannot disagree about which claim came first.
+ */
+function readQueueSource(root, readAt, previous, seam) {
+    const queueRoot = repoSubpath(root, FIXED_SUBPATHS.queue);
+    if (!existsSync(queueRoot)) {
+        return settledFrom(settleSource("queue", queueRoot, { kind: "absent" }, previous, readAt));
+    }
+    const claimedDir = repoSubpath(root, `${FIXED_SUBPATHS.queue}/${CLAIMED_STAGE}`);
+    const listing = listDirectoryBounded(claimedDir);
+    const rows = [];
+    const errors = [];
+    for (const task of listing.names) {
+        // Defensive: never read through an unsafe segment. Skipped BEFORE any filesystem access.
+        if (!isSafeTaskName(task))
+            continue;
+        const taskDir = childPath(root, claimedDir, task);
+        if (taskDir === null)
+            continue;
+        const claimMd = join(taskDir, "claim.md");
+        if (!existsSync(claimMd))
+            continue;
+        const read = readVerifyReread(claimMd, READ_RETRY_BOUND, seam);
+        if (!read.ok) {
+            errors.push({ source: "queue", path: claimMd, code: read.code, message: read.message });
+            continue;
+        }
+        const atLineCount = (read.text.match(AT_KEY_LINE) ?? []).length;
+        if (atLineCount > 1) {
+            errors.push({
+                source: "queue",
+                path: claimMd,
+                code: "tampered",
+                message: `${claimMd} carries ${atLineCount} \`at:\` lines and a claim record is written with ` +
+                    `exactly one. The record is skipped rather than trusted on either line: a forged second ` +
+                    `\`at:\` is a queue-lock denial of service (scripts/claim.ts:270-306).`,
+            });
+            continue;
+        }
+        const at = AT_VALUE.exec(read.text);
+        if (at === null)
+            continue; // no `at` field → cannot be placed on the timeline; skip
+        const by = BY_VALUE.exec(read.text);
+        rows.push({ task, by: by === null ? "" : (by[1] ?? "").trim(), at: (at[1] ?? "").trim() });
+    }
+    rows.sort((a, b) => (a.at !== b.at ? a.at.localeCompare(b.at) : a.task.localeCompare(b.task)));
+    const outcome = listing.bounded
+        ? { kind: "bounded", value: rows }
+        : { kind: "value", value: rows };
+    return settledFrom(settleSource("queue", queueRoot, outcome, previous, readAt), errors);
+}
+/**
+ * Read `.grugops/context/` for TASK PRESENCE AND CURRENT STATE, and nothing else.
+ *
+ * IT READS THE INDEX, NEVER A NOTE BODY, AND THAT IS A DECISION WITH A PRICE ATTACHED. D-17 rejected
+ * a recent-notes block in the terminal view for exactly this cost: pulling every task's notes on
+ * every re-read turns a 250 ms refresh into a walk of the whole shared context. `index.jsonl` is the
+ * deterministic, body-excluded event index `scripts/context-io.ts:4109` renders, so the join gets the
+ * presence and the state it needs from one file per task.
+ *
+ * THE SUPERSEDE FOLD IS `currentState`'s RULE (`scripts/context-io.ts:1857`), carried across rather
+ * than imported for the DASH-06 reason: `context-io.ts` exports the note writers. Sort by `at` with
+ * an id tiebreak, then drop every note another note supersedes — never file position, never mtime.
+ *
+ * A TASK DIRECTORY WITH NO RENDERED INDEX IS NOT A FAULT. `index.jsonl` is a derived artifact whose
+ * freshness `npm run freshness:context` owns; a task whose notes have not been re-rendered yet is
+ * reported as present with zero notes rather than as a read error on a screen that cannot fix it.
+ */
+function readContextSource(root, readAt, previous, seam) {
+    const dir = repoSubpath(root, FIXED_SUBPATHS.context);
+    const listing = listDirectoryBounded(dir);
+    if (!listing.present) {
+        return settledFrom(settleSource("context", dir, { kind: "absent" }, previous, readAt));
+    }
+    const tasks = [];
+    const errors = [];
+    for (const name of [...listing.names].sort()) {
+        if (!isSafeTaskName(name))
+            continue;
+        const taskDir = childPath(root, dir, name);
+        if (taskDir === null)
+            continue;
+        let isDirectory = false;
+        try {
+            isDirectory = statSync(taskDir).isDirectory();
+        }
+        catch {
+            continue; // it went away between the listing and the stat; the next re-read will say so
+        }
+        if (!isDirectory)
+            continue;
+        const indexPath = join(taskDir, "index.jsonl");
+        const read = readVerifyReread(indexPath, READ_RETRY_BOUND, seam);
+        if (!read.ok) {
+            if (read.reason !== "enoent") {
+                errors.push({ source: "context", path: indexPath, code: read.code, message: read.message });
+            }
+            tasks.push({ task: name, noteCount: 0, liveCount: 0, latestAt: null, latestKind: null });
+            continue;
+        }
+        const notes = [];
+        for (const line of read.text.split("\n")) {
+            if (line.trim() === "")
+                continue;
+            try {
+                const raw = JSON.parse(line);
+                notes.push({
+                    id: typeof raw["id"] === "string" ? raw["id"] : "",
+                    kind: typeof raw["kind"] === "string" ? raw["kind"] : "",
+                    at: typeof raw["at"] === "string" ? raw["at"] : "",
+                    supersedes: typeof raw["supersedes"] === "string" ? raw["supersedes"] : null,
+                });
+            }
+            catch (e) {
+                errors.push({
+                    source: "context",
+                    path: indexPath,
+                    code: "PARSE",
+                    message: `${indexPath} carries a line the event index cannot read: ${e.message}`,
+                });
+            }
+        }
+        const ordered = [...notes].sort((a, b) => a.at !== b.at ? a.at.localeCompare(b.at) : a.id.localeCompare(b.id));
+        const superseded = new Set(ordered.map((n) => n.supersedes).filter((x) => x !== null && x !== ""));
+        const live = ordered.filter((n) => !superseded.has(n.id));
+        const latest = live[live.length - 1];
+        tasks.push({
+            task: name,
+            noteCount: notes.length,
+            liveCount: live.length,
+            latestAt: latest?.at ?? null,
+            latestKind: latest?.kind ?? null,
+        });
+    }
+    const outcome = listing.bounded
+        ? { kind: "bounded", value: tasks }
+        : { kind: "value", value: tasks };
+    return settledFrom(settleSource("context", dir, outcome, previous, readAt), errors);
+}
+// ── traceability (D-03) ──────────────────────────────────────────────────────────────────────────
+/** The first cell of the matrix's fixed header row. The columns are fixed by the contract. */
+const TRACE_HEADER_CELL = "Ticket";
+/** A separator row: every cell is dashes, optionally colon-anchored. */
+const SEPARATOR_CELL = /^:?-{1,}:?$/;
+/**
+ * Split one pipe-delimited row into cells, honouring the `\|` escape the writers emit.
+ *
+ * `cell()` in `scripts/context-io.ts:884-888` and `scripts/claim.ts` escapes a backslash first and
+ * then a pipe before a value enters a table, so a title containing a pipe arrives here as `\|`. A
+ * naive `split("|")` would cut that title in half and shift every later column left by one — the
+ * status column would then read whatever the tests column said.
+ */
+function splitPipeRow(line) {
+    const trimmed = line.trim();
+    if (!trimmed.startsWith("|"))
+        return null;
+    const cells = [];
+    let current = "";
+    for (let i = 1; i < trimmed.length; i += 1) {
+        const ch = trimmed[i];
+        if (ch === "\\" && i + 1 < trimmed.length) {
+            current += trimmed[i + 1];
+            i += 1;
+            continue;
+        }
+        if (ch === "|") {
+            cells.push(current.trim());
+            current = "";
+            continue;
+        }
+        current += ch;
+    }
+    if (current.trim() !== "")
+        cells.push(current.trim());
+    return cells;
+}
+/**
+ * Read `plans/traceability.md` through the SAME comment pre-pass the board is read through (D-03).
+ *
+ * THE FILE CARRIES ITS OWN EXAMPLE ROW INSIDE ITS OWN COMMENT, at `plans/traceability.md:15`. That is
+ * the board's hazard one file over, and it gets the board's ANSWER — `stripHtmlComments` from
+ * `./board-model.js` — rather than a second one. Two pre-passes would be two chances to disagree
+ * about what a comment is, and the row a human filed would then depend on which reader looked.
+ *
+ * The table is located by its header rather than by a line number, because a line number is a
+ * promise about a file anyone may edit.
+ */
+function parseTraceability(text) {
+    const lines = stripHtmlComments(text).split("\n");
+    const rows = [];
+    for (let i = 0; i < lines.length; i += 1) {
+        const header = splitPipeRow(lines[i]);
+        if (header === null || header[0] !== TRACE_HEADER_CELL)
+            continue;
+        const separator = splitPipeRow(lines[i + 1] ?? "");
+        if (separator === null || !separator.every((c) => SEPARATOR_CELL.test(c)))
+            continue;
+        for (let j = i + 2; j < lines.length; j += 1) {
+            const cells = splitPipeRow(lines[j]);
+            if (cells === null)
+                break; // the table ended
+            if (cells.every((c) => SEPARATOR_CELL.test(c)))
+                continue;
+            rows.push({
+                ticket: cells[0] ?? "",
+                title: cells[1] ?? "",
+                status: cells[cells.length - 1] ?? "",
+                cells,
+            });
+        }
+        break; // one matrix per file; a second header is not a second matrix
+    }
+    return rows;
+}
+function readTraceabilitySource(root, readAt, previous, seam) {
+    const path = repoSubpath(root, FIXED_SUBPATHS.traceability);
+    return settledFrom(settleSource("traceability", path, gatherFile(path, seam, parseTraceability), previous, readAt));
 }
 /**
  * Read the tree under `repoRoot` into one discriminated snapshot result.
@@ -429,15 +761,17 @@ export function readSnapshot(repoRoot, previous, seam = {}) {
     const before = previous?.snapshot.sources;
     const board = readBoardSource(root, readAt, before?.board, seam);
     const config = readConfigSource(root, readAt, before?.config, seam);
+    const tickets = readTicketsSource(root, readAt, before?.tickets, seam);
+    const queue = readQueueSource(root, readAt, before?.queue, seam);
+    const context = readContextSource(root, readAt, before?.context, seam);
+    const traceability = readTraceabilitySource(root, readAt, before?.traceability, seam);
     const sources = {
         board: board.state,
+        tickets: tickets.state,
+        queue: queue.state,
+        context: context.state,
+        traceability: traceability.state,
         config: config.state,
-        // PLAN 32-03 TASK 2 READS THESE FOUR. The arm they return is the honest one for this tree today
-        // (`.grugops/` does not exist here and `plans/tickets/` carries only a `.gitkeep`).
-        tickets: absent(),
-        queue: absent(),
-        context: absent(),
-        traceability: absent(),
     };
     const snapshot = {
         schemaVersion: SCHEMA_VERSION,
@@ -447,11 +781,16 @@ export function readSnapshot(repoRoot, previous, seam = {}) {
         config: valueOrNull(config.state),
         sources,
     };
-    const readErrors = [];
-    for (const settled of [board, config]) {
-        if (settled.error !== null)
-            readErrors.push(settled.error);
-    }
+    // In SOURCE_NAMES order, so the stderr summary reads the same way twice and a consumer diffing two
+    // runs sees a changed finding rather than a reshuffled list.
+    const readErrors = [
+        ...board.errors,
+        ...tickets.errors,
+        ...queue.errors,
+        ...context.errors,
+        ...traceability.errors,
+        ...config.errors,
+    ];
     return {
         source: deriveOverallSource(sources),
         snapshot,
