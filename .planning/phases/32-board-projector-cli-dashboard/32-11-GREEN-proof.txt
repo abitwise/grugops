@@ -1,0 +1,142 @@
+32-11 GREEN PROOF — the verifier's own CR-01 probe is now REFUSED, and the live closure did not move
+====================================================================================================
+
+Captured 2026-09-15 on node 24.12.0, vitest 4.1.8, against the fixed derivation.
+Read together with `32-11-RED-baseline.txt`, which records the same probe passing.
+
+
+1. THE VERIFIER'S ORIGINAL PROBE, RE-RUN AGAINST THE FIXED DERIVATION
+--------------------------------------------------------------------------------
+
+The identical plant from the RED baseline appended to the COMMITTED `scripts/board-read.js`:
+
+    import * as fsns from "node:fs";
+    const { writeFileSync, rmSync } = fsns;
+    export function nuke(p) { writeFileSync(p, "x"); rmSync(p); }
+
+    $ npm run check:dashboard-readonly
+    ...
+     FAIL  scripts/board-readonly.test.ts > 32-06 — the read-only guard asserts its own premises
+     first > PREMISE: no closure module acquires a filesystem module by a route this pass cannot name
+     AssertionError: PREMISE: a closure module reaches node:fs through a route this syntactic pass
+     cannot follow ...
+
+     - Expected
+     + Received
+
+     - []
+     + [
+     +   "scripts/board-read.js: { writeFileSync, rmSync } = fsns",
+     + ]
+
+          Tests  4 failed | 51 passed (55)
+    exit=1
+
+`opaqueFsAcquisitions` is NON-EMPTY, it names the module, and it quotes the exact escape. The
+refusal arrives through PART ONE's premise case — the assertion the file already carried — rather
+than through a new predicate free to disagree with it.
+
+The other three failures in that run are the mirror-based CONTROL cases, and their failure is
+correct rather than collateral: `withLiveMirror` copies the LIVE closure, so with the writer planted
+in the real tree every mirror carries it too, and a case asserting "nothing is refused here" must
+fail. The measurement is the PREMISE case; the controls are green again the moment the plant is
+reverted (section 3 below).
+
+Plant reverted with `git checkout -- scripts/board-read.js`; `git status --short scripts/` shows no
+modification to any `.js`.
+
+
+2. THE GATE'S CASE COUNT
+--------------------------------------------------------------------------------
+
+    $ npm run check:dashboard-readonly
+
+    board-readonly: mutating fs symbols 57 (stem-matched 60 minus 3 named exclusions) on node 24.12.0
+
+     Test Files  1 passed (1)
+          Tests  55 passed (55)
+       Duration  814ms
+    exit=0
+
+55 passed, against the 24 recorded in `32-06-SUMMARY.md`. The 31 added cases are: 5 from task 1
+(the CR-01 case, the positive control, the string-literal element access, the computed element
+access, the `default` re-entry), 24 from task 2 (2 premise/pin cases, 1 uniqueness case, 14
+namespace-escape rows, 6 acquisition rows, 1 non-fs-literal control), and 2 from task 3 (the
+sibling-`.ts` case and the `check:build-parity` binding).
+
+
+3. THE POSITIVE CONTROL — THE LIVE CLOSURE DID NOT MOVE
+--------------------------------------------------------------------------------
+
+The rule refuses escapes, not namespaces. From the same green run:
+
+  ✓ POSITIVE CONTROL: a DIRECT member access on an fs namespace is still admitted and still named
+      — planting `import * as fsns from "node:fs"; export const readViaNamespace = (p) =>
+        fsns.readFileSync(p, "utf8");` into a mirror leaves `opaqueFsAcquisitions` EMPTY, keeps
+        `readFileSync` in `fsSymbols`, and leaves the closure symbol set at exactly
+        EXPECTED_CLOSURE_FS_SYMBOL_COUNT = 6 members
+        [existsSync, readFileSync, readdirSync, realpathSync, statSync, watch]
+  ✓ a STRING-LITERAL element access on an fs namespace still names its symbol — count still 6
+  ✓ CONTROL: an UNPLANTED mirror of the live closure is still green — members still the six
+  ✓ the derived closure fs symbol set has the expected MEMBERS / COUNT — 6, unchanged from the
+    committed values; `EXPECTED_CLOSURE_FS_SYMBOLS` and `EXPECTED_CLOSURE_FS_SYMBOL_COUNT` are
+    byte-unchanged by this plan (`git diff` over the two constants is empty)
+
+The live closure contains no namespace import of `node:fs` at all — `scripts/board-read.js`,
+`scripts/board-dashboard.js`, `scripts/is-entry.js` and `scripts/kit-model.js` all use named
+imports — so the new rule contributes nothing to the live derivation. That non-movement is measured
+above, not assumed.
+
+
+4. MUTATION EVIDENCE — THE ENUMERATION MEASURES THE RULE
+--------------------------------------------------------------------------------
+
+Green cases prove nothing on their own; this repository has eight rounds of record saying so. Two
+mutants of the file were built and run, then deleted.
+
+MUTANT A — the canonical-form arm deleted (the identifier-position refusal), everything else intact:
+
+          Tests  14 failed | 39 passed (53)
+
+    the 13 non-computed escape rows + the CR-01 case failed. Row 10 (the COMPUTED element access)
+    still PASSED, which is the union of the older element-access arm and the new rule shown
+    directly rather than claimed. The positive control, the string-literal access and the `default`
+    case also still passed, so the mutation is narrow and the failures are attributable.
+
+MUTANT B — the generalised call-argument arm deleted, everything else intact:
+
+          Tests  3 failed | 50 passed (53)
+
+    exactly the three Rule 2 routes failed — `createRequire(url)("node:fs")`,
+    `process.getBuiltinModule("node:fs")`, `process.binding("fs")`. The `require`, `export *` and
+    dynamic-`import` rows still PASSED, proving those three are carried by `collectSpecifiers`'s
+    pre-existing arms and are not silently riding on the new one.
+
+MUTANT C — the two task-3 assertions re-pointed at names that do not exist
+(`check:build-parity-absent`, and a `.tsx` sibling instead of `.ts`):
+
+          Tests  2 failed | 53 passed (55)
+
+    both new PART SIX cases failed, so neither passes vacuously.
+
+All three mutant files were removed; `git status --short scripts/` shows only the intended
+modification to `scripts/board-readonly.test.ts`, and `find .temp -mindepth 1` is empty.
+
+
+5. THE PRECONDITION THIS GUARD RESTS ON
+--------------------------------------------------------------------------------
+
+    $ npm run build && npm run check:build-parity
+    Build parity: no tracked build output moved when tsc ran.
+    exit=0
+
+`scripts/board-readonly.test.ts` is a `.test.ts` with no committed `.js` twin, so this plan moves no
+build output — and the guard's subject being the committed `.js` is now an assertion in PART SIX
+rather than an implication a reader has to notice:
+
+  • every `scripts/*.js` in the dashboard closure has a sibling `.ts` — derived from the closure's
+    own module list, with the list asserted non-empty first;
+  • `package.json` carries `check:build-parity`, and `.github/workflows/ci.yml` invokes
+    `npm run check:build-parity` (measured: the string is present in the workflow file, at the
+    "Build parity" step around line 102). This is NOT `UNKNOWN - verify` — the CI wiring was located
+    and read.

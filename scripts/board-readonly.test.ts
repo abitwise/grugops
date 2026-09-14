@@ -594,9 +594,12 @@ describe("32-06 — the read-only guard asserts its own premises first", () => {
     const facts = analyzeClosure(ROOT, DASHBOARD_ENTRY);
     expect(
       facts.opaqueFsAcquisitions,
-      "PREMISE: a closure module reaches node:fs through a dynamic import, a require, an " +
-        "`export * from`, or a computed member access. The syntactic derivation cannot name the " +
-        "symbols behind such a route, so it refuses rather than reporting a short set",
+      "PREMISE: a closure module reaches node:fs through a route this syntactic pass cannot " +
+        "follow — a dynamic import, a require, an `export * from`, an fs module identity handed " +
+        "to another call, a computed member access, or a READ of an fs-namespace binding that is " +
+        "not a direct member access (a destructure, an alias, a spread, an argument, a re-export). " +
+        "The derivation cannot name the symbols behind such a route, so it refuses rather than " +
+        "reporting a short set",
     ).toEqual([]);
     expect(
       facts.opaqueSpecifiers,
@@ -1369,6 +1372,63 @@ describe("32-06 — the guard adds no runtime dependency", () => {
         "only, so a runtime dependency is invisible to the closure this guard walks — the guard " +
         "would stay green while reporting a set that is short by everything under node_modules",
     ).toBeUndefined();
+  });
+
+  it("every closure module under scripts/ has a sibling .ts source (32-11)", () => {
+    // ASK WHAT THE GUARD IS ASKED OF, NOT ONLY WHAT IT REFUSES. `analyzeClosure` walks
+    // `scripts/board-dashboard.js` — the COMMITTED BUILD OUTPUT. A `.js` in that closure with no
+    // `.ts` beside it is a program no source in this repository describes, and nothing else in this
+    // file would notice it. The list is DERIVED from the closure's own module list rather than
+    // typed out, because a typed list is the drift class this repository has already paid for.
+    const { modules } = analyzeClosure(ROOT, DASHBOARD_ENTRY);
+    expect(
+      modules.length,
+      "PREMISE: the closure is empty, so the source-parity claim below is a statement about no " +
+        "modules at all",
+    ).toBeGreaterThan(0);
+    const scriptModules = modules.filter((rel) => rel.startsWith("scripts/") && rel.endsWith(".js"));
+    expect(
+      scriptModules.length,
+      "PREMISE: no closure module is a scripts/*.js, so the sibling-source claim measured nothing",
+    ).toBeGreaterThan(0);
+    const sourceless = scriptModules.filter(
+      (rel) => !existsSync(join(ROOT, `${rel.slice(0, -".js".length)}.ts`)),
+    );
+    expect(
+      sourceless,
+      `the dashboard closure contains committed build output with no TypeScript source: ` +
+        `${sourceless.join(", ")}. CLAUDE.md's tooling-layer contract is that every runnable .js is ` +
+        "compiled from a .ts in this tree; a .js without one is a program this repository cannot " +
+        "rebuild, and this guard would keep analysing it forever",
+    ).toEqual([]);
+  });
+
+  it("check:build-parity exists and CI runs it — it is what makes the analysed .js the real program (32-11)", () => {
+    // THIS GUARD'S ANSWER IS ONLY AS GOOD AS THE BUILD'S FRESHNESS. A writer introduced in a `.ts`
+    // and not rebuilt is invisible here, because the subject of every assertion above is the
+    // committed `.js`. That precondition lives in a DIFFERENT script, so the dependency is asserted
+    // rather than left for a reader to infer.
+    const manifest = JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8")) as {
+      readonly scripts?: Record<string, string>;
+    };
+    expect(
+      manifest.scripts?.["check:build-parity"],
+      "package.json no longer carries a `check:build-parity` entry. This guard decides a question " +
+        "about the COMMITTED .js, and check:build-parity is the mechanism that makes that .js the " +
+        "same program as its .ts. Without it, a green here is green over whatever was last committed",
+    ).toBeDefined();
+
+    const workflowPath = join(ROOT, ".github", "workflows", "ci.yml");
+    expect(
+      existsSync(workflowPath),
+      `PREMISE: ${workflowPath} is absent, so the claim that CI runs the parity check could not be ` +
+        "measured. Record `UNKNOWN - verify` rather than asserting a green that was not measured",
+    ).toBe(true);
+    expect(
+      readFileSync(workflowPath, "utf8"),
+      "the CI workflow no longer invokes `npm run check:build-parity`. The freshness precondition " +
+        "this guard depends on would then hold only on a developer's machine",
+    ).toContain("npm run check:build-parity");
   });
 
   it("the check:dashboard-readonly entry runs exactly this file", () => {
