@@ -3,15 +3,15 @@ gsd_state_version: "1.0"
 milestone: v2.1
 milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live Board
 current_phase: 32
-current_phase_name: Board Projector & CLI Dashboard
+current_phase_name: board-projector-cli-dashboard
 status: "Phase 31 CLOSED 2026-09-13 by user override D-44 (round-9 verification gaps_found 4/6 left standing; CR-28..CR-31 + WR-43..WR-47 accepted open). Next: Phase 32 — Board Projector & CLI Dashboard, not yet planned. Standing rule: four-round gap-closure cap on every later phase."
 stopped_at: Completed 32-08-PLAN.md
-last_updated: "2026-09-14T13:49:13.912Z"
-state_head: 7e4ebf99724d340ddb629ee66230d52bd6b92e4e
+last_updated: "2026-09-14T15:33:50.178Z"
+state_head: 2571c7a68438a446fa9a0465f26e79e0d8948cc7
 progress:
   total_phases: 9
   completed_phases: 6
-  total_plans: 228
+  total_plans: 234
   completed_plans: 228
   percent: 67
 last_activity: 2026-09-13
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-09-07 — after Phase 29.2)
 
 ## Current Position
 
-Phase: 32 (Board Projector & CLI Dashboard) — EXECUTING
+Phase: 32 (board-projector-cli-dashboard) — READY TO EXECUTE
 Plan: 8 of 8
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
