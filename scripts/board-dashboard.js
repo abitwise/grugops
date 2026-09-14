@@ -19,8 +19,13 @@
 // Exit 2 is reserved for exactly two things: a usage error and an unreadable `repoRoot`.
 //
 // BOARD CONTENT IS UNTRUSTED INPUT TO A TERMINAL EMULATOR (T-32-06). Every string that reaches
-// stdout in the frame goes through `sanitizeCell` first. A ticket title carrying an ANSI or OSC
-// sequence would otherwise repaint, retitle or mislead the terminal of whoever ran the dashboard.
+// EITHER CHANNEL goes through `sanitizeCell` first: the frame's cells on their way to stdout, and
+// every diagnostic on its way to stderr through the single `warn` chokepoint below. Naming stdout
+// alone was the CR-05 defect, and it was a true sentence about the wrong boundary — stderr is the
+// same terminal emulator on an interactive run, and it is the channel carrying the values an
+// attacker influences: file bytes in `readError.message`, and the raw `repoRoot` argument in the
+// root-refusal line. A ticket title carrying an ANSI or OSC sequence would otherwise repaint,
+// retitle or mislead the terminal of whoever ran the dashboard.
 //
 // IMPORT DISCIPLINE for a runnable `scripts/*.ts` (`scripts/check-platform-shapes.ts`): node
 // builtins plus relative `./*.js`, nothing else. The two `node:fs` symbols this module holds —
@@ -51,7 +56,15 @@ export const DEBOUNCE_MS = 250;
 export const INTERVAL_HARD_FLOOR_MS = 1_000;
 /** The exit code for a usage error and for an unreadable root. Nothing else uses it. */
 const EXIT_USAGE = 2;
-const USAGE = [
+/**
+ * The usage block, held as LINES rather than as one string.
+ *
+ * The line boundaries here are the PROGRAM's structure, and holding them as separate elements is
+ * what lets `run` hand them to `warn` as separate arguments. `warn` removes every C0 code point from
+ * each argument, the newline included, so a newline arriving inside an argument cannot forge a line
+ * — and the refusal's own text quotes an unvalidated argv token.
+ */
+const USAGE_LINES = [
     "usage: node scripts/board-dashboard.js [repoRoot] [--once] [--json] [--watch] [--interval <ms>] [--help]",
     "",
     "  repoRoot        the repository to project (default: the working directory)",
@@ -60,7 +73,8 @@ const USAGE = [
     "  --watch         re-read on filesystem events, with a mandatory poll floor",
     `  --interval <ms> override the poll period (integer, at least ${INTERVAL_HARD_FLOOR_MS} ms)`,
     "  --help          print this message",
-].join("\n");
+];
+const USAGE = USAGE_LINES.join("\n");
 // ── Argument parsing (D-16, D-18, T-32-10) ───────────────────────────────────────────────────────
 /** A base-10 integer with no exponent, no sign and no fractional part. */
 const INTEGER = /^\d{1,9}$/;
@@ -134,7 +148,7 @@ export function parseArgs(argv) {
     };
 }
 function refuse(message) {
-    return { kind: "usage", message: `board-dashboard: ${message}\n\n${USAGE}` };
+    return { kind: "usage", message: `board-dashboard: ${message}` };
 }
 // ── The cell sanitizer (T-32-06) ─────────────────────────────────────────────────────────────────
 /**
@@ -154,6 +168,29 @@ function refuse(message) {
 const CONTROL_CODE_POINTS = /[\u0000-\u001F\u007F-\u009F]/g;
 export function sanitizeCell(s) {
     return s.replace(CONTROL_CODE_POINTS, "");
+}
+/**
+ * THE ONE PLACE THIS MODULE WRITES TO STDERR (CR-05, T-32-06, T-32-08).
+ *
+ * WHY A CHOKEPOINT RATHER THAN A SANITIZE AT EACH CALL SITE. There were six stderr writes here and
+ * the sanitizer was applied at none of them, because the rule had been recorded as a property of
+ * stdout. Sanitizing at six sites would make the rule true six times and leave the seventh edit free
+ * to forget; routing through one site makes "a diagnostic that skipped the sanitizer" a thing that
+ * cannot be written rather than a thing somebody must remember. `scripts/board-dashboard.test.ts`
+ * pins the write-site count two-sided at one AND names this function, derived from this file's own
+ * AST, so a count of one in the wrong place still goes red.
+ *
+ * EACH ARGUMENT IS ONE LINE, AND THE LINE BOUNDARY BELONGS TO THE CALLER. `sanitizeCell` removes
+ * every C0 code point, the newline included, so text a caller passes cannot introduce a break and
+ * forge a second diagnostic — which matters because the text is frequently file bytes or an argv
+ * token. A caller with genuine multi-line structure of its own passes multiple arguments; the usage
+ * block is the only one that does.
+ *
+ * `sanitizeCell` IS UNCHANGED BY THIS. What it removes is decided in one place above; this function
+ * decides only WHERE it is applied.
+ */
+function warn(io, ...lines) {
+    io.stderr.write(`${lines.map(sanitizeCell).join("\n")}\n`);
 }
 // Spelled with `\u` escapes rather than literal bytes, so this source file carries no control
 // character of its own for `scripts/check-nul-bytes.ts` or a reviewer to trip over.
@@ -566,8 +603,11 @@ export function createLoop(options, io, deps) {
         // it already looks for what the projector could not do.
         const withWatch = errors.length === 0 ? result : { ...result, readErrors: [...result.readErrors, ...errors] };
         for (const readError of withWatch.readErrors) {
-            io.stderr.write(`board-dashboard: ${readError.source} at ${readError.path} — ${readError.code}: ` +
-                `${readError.message}\n`);
+            // THE CONTENT-SOURCED PATH (CR-05). `readError.message` carries bytes read out of a board or
+            // ticket file — including a ticket's own first line, quoted back by the grammar's
+            // `no-opening-delimiter` refusal before anything has looked at it.
+            warn(io, `board-dashboard: ${readError.source} at ${readError.path} — ${readError.code}: ` +
+                `${readError.message}`);
         }
         if (options.json) {
             // ONE COMPLETE DOCUMENT PER LINE (D-18). `JSON.stringify` emits no newline of its own, so the
@@ -600,7 +640,7 @@ export function createLoop(options, io, deps) {
                 catch (e) {
                     // The root went away under a running loop. A named line on stderr, the previous frame left
                     // standing, and the loop keeps polling — the tree may come back.
-                    io.stderr.write(`board-dashboard: ${e.message}\n`);
+                    warn(io, `board-dashboard: ${e.message}`);
                     return;
                 }
                 previous = result;
@@ -672,7 +712,10 @@ export function run(argv, io = defaultIo(), deps = defaultDeps()) {
         return { kind: "exit", code: 0 };
     }
     if (parsed.kind === "usage") {
-        io.stderr.write(`${parsed.message}\n`);
+        // The refusal's one line, a blank, then the program's own usage block. The block arrives as
+        // separate arguments rather than as embedded newlines, so the refusal text — which quotes an
+        // unvalidated argv token — has no way to add a line of its own.
+        warn(io, parsed.message, "", ...USAGE_LINES);
         return { kind: "exit", code: EXIT_USAGE };
     }
     const options = parsed.options;
@@ -683,7 +726,11 @@ export function run(argv, io = defaultIo(), deps = defaultDeps()) {
     catch (e) {
         // A NAMED ONE-LINE MESSAGE ON STDERR, NEVER A STACK ON STDOUT (T-32-08). An unreadable root is
         // exit 2 whether or not a loop was asked for: there is nothing to watch.
-        io.stderr.write(`board-dashboard: ${e.message}\n`);
+        //
+        // THE ARGV-SOURCED PATH (CR-05). This line echoes `repoRoot` before anything has validated it,
+        // and the errno text quotes it a second time. Both quotations pass through the chokepoint,
+        // which is why the fix is at the WRITE site rather than at the message.
+        warn(io, `board-dashboard: ${e.message}`);
         return { kind: "exit", code: EXIT_USAGE };
     }
     // D-18: `--json` implies `--once` unless `--watch` is also given, and a non-TTY stdout implies it
@@ -721,7 +768,7 @@ export function main(argv, io = defaultIo()) {
         // the ones it is most likely to log, paste into an issue, or match on. A raw Node stack there
         // leaks absolute paths and module layout and tells the caller nothing it can act on, so the
         // message is flattened to a single line and the exit code carries the rest.
-        io.stderr.write(`board-dashboard: ${oneLine(e)}\n`);
+        warn(io, `board-dashboard: ${oneLine(e)}`);
         return EXIT_USAGE;
     }
 }
@@ -765,7 +812,12 @@ if (isEntrypoint(import.meta.url)) {
         });
     }
     catch (e) {
-        process.stderr.write(`board-dashboard: ${e.message}\n`);
+        // THE PATH THAT MATTERS MOST, AND THE ONE THE REVIEW'S SKETCH NAMED LAST. This is where a raw
+        // Node stack would otherwise be the last thing a piped consumer reads (T-32-08), and it is the
+        // one write that used to reach `process.stderr` directly rather than through the injected io.
+        // It goes through the same chokepoint as every other diagnostic; `defaultIo()` is how the tail
+        // gets the channel, since it is outside any function that was handed one.
+        warn(defaultIo(), `board-dashboard: ${e.message}`);
         process.exit(EXIT_USAGE);
     }
 }
