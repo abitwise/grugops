@@ -5,14 +5,14 @@ milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live
 current_phase: 32
 current_phase_name: Board Projector & CLI Dashboard
 status: "Phase 31 CLOSED 2026-09-13 by user override D-44 (round-9 verification gaps_found 4/6 left standing; CR-28..CR-31 + WR-43..WR-47 accepted open). Next: Phase 32 — Board Projector & CLI Dashboard, not yet planned. Standing rule: four-round gap-closure cap on every later phase."
-stopped_at: Completed 32-07-PLAN.md
-last_updated: "2026-09-14T13:08:48.014Z"
-state_head: 0ab001c850bae31f0be1d46197ab2883f60d8553
+stopped_at: Completed 32-08-PLAN.md
+last_updated: "2026-09-14T13:49:13.912Z"
+state_head: 7e4ebf99724d340ddb629ee66230d52bd6b92e4e
 progress:
   total_phases: 9
   completed_phases: 6
   total_plans: 228
-  completed_plans: 227
+  completed_plans: 228
   percent: 67
 last_activity: 2026-09-13
 prior_activity_desc: Phase 27 gap-closure round 8 COMPLETE (27-45, 27-46; D-53). Full narration lives in the Phase 27 artifacts and in docs/audit/; shortened here by plan 31-38 because this single line measured 7995 characters, above the 4000-character ceiling a pathological STATE line has previously crossed to turn a sub-second guard into a multi-minute one.
@@ -483,6 +483,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 32 P05 | 35 min | 3 tasks | 27 files |
 | Phase 32 P06 | 90 min | 3 tasks | 5 files |
 | Phase 32 P07 | 36 min | 3 tasks | 7 files |
+| Phase 32 P08 | 42 min | 3 tasks | 13 files |
 
 ## Accumulated Context
 
@@ -1375,6 +1376,7 @@ None yet.
 - V-29-50-01 — the unmeasured-external-assertion CLASS remains OPEN: 4 false prose sites about git's classifier corrected in 29-50 (3 of them named by no review), 0 live instances remain, but no mechanism detects an unmeasured claim about an external tool
 - V-29-51-01: the LANG-07 owner classifier's alias closure is module-wide and scope-blind and matches a name as TEXT; two locals named a/b widened the derived set 26->44 and manufactured a false site. Worked around by renaming; the classifier is unfixed.
 - Plan 29.1-23 must_haves truth 1 is NOT satisfied as written: resolveModels still throws on four input classes (WINDOWS row 95, deferred-items D-29.1-23-01). Round-5 verification should treat the totality claim as open and rule on whether it is held as a mechanism at all.
+- check:diff-disposition exits 1 on five Phase-31 workflow documents (pre-existing, verified at 6d59ed1e); CI runs it at ci.yml:473 so it will red a Phase 32 PR until disposition rows land under docs/audit/29-style-dispositions/
 
 ### Quick Tasks Completed
 
@@ -1435,8 +1437,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-09-14T13:08:19.733Z
-Stopped at: Completed 32-07-PLAN.md
+Last session: 2026-09-14T13:48:53.308Z
+Stopped at: Completed 32-08-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
