@@ -3,16 +3,16 @@ gsd_state_version: "1.0"
 milestone: v2.1
 milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live Board
 current_phase: 32
-current_phase_name: board-projector-cli-dashboard
+current_phase_name: Board Projector & CLI Dashboard
 status: "Phase 31 CLOSED 2026-09-13 by user override D-44 (round-9 verification gaps_found 4/6 left standing; CR-28..CR-31 + WR-43..WR-47 accepted open). Next: Phase 32 — Board Projector & CLI Dashboard, not yet planned. Standing rule: four-round gap-closure cap on every later phase."
-stopped_at: Completed 32-08-PLAN.md
-last_updated: "2026-09-14T15:33:50.178Z"
-state_head: 2571c7a68438a446fa9a0465f26e79e0d8948cc7
+stopped_at: Completed 32-09-PLAN.md
+last_updated: "2026-09-14T20:40:04.171Z"
+state_head: 6ac59fcfaf1df5b7c4ba84f88c212a077af397ce
 progress:
   total_phases: 9
   completed_phases: 6
   total_plans: 234
-  completed_plans: 228
+  completed_plans: 229
   percent: 67
 last_activity: 2026-09-13
 prior_activity_desc: Phase 27 gap-closure round 8 COMPLETE (27-45, 27-46; D-53). Full narration lives in the Phase 27 artifacts and in docs/audit/; shortened here by plan 31-38 because this single line measured 7995 characters, above the 4000-character ceiling a pathological STATE line has previously crossed to turn a sub-second guard into a multi-minute one.
@@ -30,8 +30,8 @@ See: .planning/PROJECT.md (updated 2026-09-07 — after Phase 29.2)
 
 ## Current Position
 
-Phase: 32 (board-projector-cli-dashboard) — READY TO EXECUTE
-Plan: 8 of 8
+Phase: 32 (Board Projector & CLI Dashboard) — EXECUTING
+Plan: 2 of 14
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 
@@ -484,6 +484,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 32 P06 | 90 min | 3 tasks | 5 files |
 | Phase 32 P07 | 36 min | 3 tasks | 7 files |
 | Phase 32 P08 | 42 min | 3 tasks | 13 files |
+| Phase 32 P09 | 38 min | 3 tasks | 13 files |
 
 ## Accumulated Context
 
@@ -1377,6 +1378,7 @@ None yet.
 - V-29-51-01: the LANG-07 owner classifier's alias closure is module-wide and scope-blind and matches a name as TEXT; two locals named a/b widened the derived set 26->44 and manufactured a false site. Worked around by renaming; the classifier is unfixed.
 - Plan 29.1-23 must_haves truth 1 is NOT satisfied as written: resolveModels still throws on four input classes (WINDOWS row 95, deferred-items D-29.1-23-01). Round-5 verification should treat the totality claim as open and rule on whether it is held as a mechanism at all.
 - check:diff-disposition exits 1 on five Phase-31 workflow documents (pre-existing, verified at 6d59ed1e); CI runs it at ci.yml:473 so it will red a Phase 32 PR until disposition rows land under docs/audit/29-style-dispositions/
+- check:nul-bytes is RED on .planning/phases/32-board-projector-cli-dashboard/32-REVIEW.md (literal ESC 0x1b at line 404, from commit 730ff88f). Pre-existing, deferred by plan 32-09; blocks a clean full-suite run.
 
 ### Quick Tasks Completed
 
@@ -1437,8 +1439,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-09-14T13:48:53.308Z
-Stopped at: Completed 32-08-PLAN.md
+Last session: 2026-09-14T20:39:57.071Z
+Stopped at: Completed 32-09-PLAN.md
 Resume file: None
 
 ## Operator Next Steps

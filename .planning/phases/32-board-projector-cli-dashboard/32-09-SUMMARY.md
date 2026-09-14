@@ -20,7 +20,7 @@ affects: [32-10, board-projector, verification]
 actuals:
   tokens: 29778
   tasks: 3
-  commits: 7
+  commits: 9
 plan_head_before: 7fa737e7f9ef3cf1a65b666bd103e1deaaa74b81
 
 tech-stack:
@@ -177,7 +177,7 @@ status: complete
 6. **Adversarial re-run: per-entry read failure degrades its source** — `a060a8a4` (fix)
 7. **GREEN proof and deferred item** — `4157f107` (docs)
 
-**Plan metadata:** this SUMMARY's own commit.
+**Plan metadata:** `6ac59fcf` (SUMMARY) and `7e634173` (STATE + ROADMAP) — the two commits that bring the measured total to the `actuals.commits` value of 9.
 
 ## Files Created/Modified
 
@@ -267,7 +267,7 @@ None — no external service configuration required.
 - `.planning/phases/32-board-projector-cli-dashboard/32-09-GREEN-proof.txt` — FOUND
 - `.planning/phases/32-board-projector-cli-dashboard/deferred-items.md` — FOUND
 - Commits `9a8cac6d`, `9f143cec`, `6eaecfcb`, `c5285f36`, `b174467d`, `a060a8a4`, `4157f107` — all present in `git log`
-- `git rev-list --count 7fa737e7..HEAD` = 7, matching `actuals.commits`
+- `git rev-list --count 7fa737e7..HEAD` = 9, matching `actuals.commits` — seven task commits plus this SUMMARY's own commit and the STATE/ROADMAP commit, which is the instrument `/gsd-verify-work` re-runs
 - Plan verification steps 1–4 re-run at close: 240 tests pass, build parity green, golden byte-identical, validator `ALL CHECKS PASSED`
 
 ---
