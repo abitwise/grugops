@@ -1,0 +1,124 @@
+32-10 RED BASELINE — CR-04, lexical-only path containment in scripts/board-read.ts
+Recorded: 2026-09-14T20:53Z, against HEAD 888a1302 (the committed scripts/board-dashboard.js
+and scripts/board-read.js as they stood before plan 32-10 touched them).
+
+This file is the state of the tree BEFORE the fix. Its purpose is to make the GREEN proof a
+comparison rather than a claim: 32-10-GREEN-proof.txt re-runs these exact commands against the
+rebuilt output, and a difference between the two files is the whole evidence.
+
+The marker token is SECRET-TOKEN-abc123. It is the first line of a file that lives OUTSIDE the
+repository root under test. Its presence anywhere in the projector's output is content that
+crossed the containment boundary.
+
+═══════════════════════════════════════════════════════════════════════════════════════════════
+PART ONE — THE VERIFIER'S OWN CR-04 TRANSCRIPT (32-VERIFICATION.md:94-103), RE-RUN
+═══════════════════════════════════════════════════════════════════════════════════════════════
+
+Script: the reproduction is scripted so the RED and GREEN runs are the same commands against the
+same tree shape. It builds the tree under mkdtemp, copies scripts/fixtures/board-snapshot/ into
+it, writes the marker file as a SIBLING of the tree root (so `relative(root, target)` starts with
+`..` and the containment question has a definite answer), and links it in as a ticket.
+
+    $ WORK=$(mktemp -d); WORK=$(cd "$WORK" && pwd -P)
+    $ TREE="$WORK/t1"; mkdir -p "$TREE"
+    $ cp -R scripts/fixtures/board-snapshot/. "$TREE/"
+    $ rm -f "$TREE/expected-snapshot.json" "$TREE/README.md"
+    $ printf 'SECRET-TOKEN-abc123\nsecond line of the outside file\n' > "$WORK/outside-secret.txt"
+    $ ln -sf "$WORK/outside-secret.txt" "$TREE/plans/tickets/ZZZ-999.md"
+    $ node scripts/board-dashboard.js "$TREE" --once --json >stdout.json 2>stderr.txt
+
+Observed (tree: /private/var/folders/.../grugops-32-10-qP2c6b/t1):
+
+    exit: 0
+
+    $ grep -c 'SECRET-TOKEN-abc123' stdout.json   # stdout channel
+    1
+    $ grep -c 'SECRET-TOKEN-abc123' stderr.txt    # stderr channel
+    1
+
+    $ grep -o 'SECRET-TOKEN-abc123[^"]*' stdout.json | head -3
+    SECRET-TOKEN-abc123`
+    $ grep -o 'ZZZ-999.*' stderr.txt | head -3
+    ZZZ-999.md — no-opening-delimiter: a ticket document opens with a `---` line and this one opens with `SECRET-TOKEN-abc123`
+
+    $ node -e '...'   # the readErrors entries for the tickets source
+    [
+      {
+        "source": "tickets",
+        "path": ".../t1/plans/tickets/ZZZ-999.md",
+        "code": "no-opening-delimiter",
+        "message": "a ticket document opens with a `---` line and this one opens with `SECRET-TOKEN-abc123`"
+      }
+    ]
+    tickets source state: "ok"
+
+READ THIS ROW BY ROW. The marker appears on BOTH channels — count 1 on stdout and count 1 on
+stderr — which is the defect. The refusal that DID fire is a GRAMMAR refusal, not a containment
+one: `parseTicketDocument` declined the document because it does not open with `---`, and in
+saying so it quoted the first characters of a file outside the tree into a message that is
+printed to stderr on every frame and embedded in the published `--json` document. The tickets
+source still reads `ok`, so nothing on screen says the projector went outside the tree.
+
+═══════════════════════════════════════════════════════════════════════════════════════════════
+PART TWO — THE ANCESTOR CASE (T-32-10-02), MEASURED RATHER THAN ASSUMED
+═══════════════════════════════════════════════════════════════════════════════════════════════
+
+The leaf case above leaks a message. The ancestor case replaces the BOARD. `realpathSync`
+resolves every ancestor link as well as the leaf, which is why one authority answers both — but
+before the fix there was no authority, so this was never refused at all.
+
+    $ mkdir -p "$WORK/elsewhere/tickets"
+    $ printf '## OUTSIDE-BOARD-xyz789 (WIP unlimited)\n- [ZZZ-001] a board nobody in this tree wrote\n' \
+        > "$WORK/elsewhere/board.md"
+    $ rm -rf "$TREE/plans"
+    $ ln -sfn "$WORK/elsewhere" "$TREE/plans"     # the ANCESTOR directory is the link
+    $ node scripts/board-dashboard.js "$TREE" --once --json >stdout.json 2>stderr.txt
+
+Observed:
+
+    exit: 0
+    $ grep -c 'OUTSIDE-BOARD-xyz789' stdout.json
+    1
+    board source state: ok
+    board columns: ["OUTSIDE-BOARD-xyz789"]
+    readErrors: [ ... only the fixture's own pre-existing `tampered` claim finding ... ]
+
+An operator watching this dashboard is watching a board an attacker chose, under an `[ok]`
+header, with no refusal anywhere in the document.
+
+═══════════════════════════════════════════════════════════════════════════════════════════════
+PART THREE — THE VITEST RED RUN
+═══════════════════════════════════════════════════════════════════════════════════════════════
+
+    $ npx vitest run --exclude '**/scripts/e2e/**' scripts/board-read.test.ts
+
+     ❯ scripts/board-read.test.ts (80 tests | 3 failed) 2173ms
+         × refuses a ticket symlinked OUTSIDE the root and quotes no byte of the target 5ms
+         × refuses an out-of-root symlinked ANCESTOR (`plans` itself) without throwing 2ms
+         × refuses a `..`-bearing entry name under `unsafe-name`, BEFORE any filesystem access 0ms
+          Tests  3 failed | 77 passed (80)
+
+EACH FAILURE IS AN ASSERTION ABOUT THE PLANNED BEHAVIOUR, WHICH IS WHAT MAKES THIS RED RATHER
+THAN A CRASH. A nonzero exit on its own is not RED: a file that fails to load, a suite that
+discovers no tests, or an unrelated assertion would all exit nonzero while proving nothing.
+
+  1. `...quotes no byte of the target` failed on
+     `expect(JSON.stringify(result)).not.toContain("SECRET-TOKEN-abc123")`
+     Expected: no marker.  Actual: the marker inside
+     `readErrors[0].message` — "a ticket document opens with a `---` line and this one opens
+     with `SECRET-TOKEN-abc123`".
+
+  2. `...symlinked ANCESTOR` failed on the same assertion, with the marker inside
+     `snapshot.board.columns[0].name` — the outside board's own heading, rendered as the board.
+     `sources.board.source` was `"ok"` and `readErrors` was empty.
+
+  3. `...`..`-bearing entry name` failed on `expect(typeof mod.childPath).toBe("function")`,
+     Actual `"undefined"`: the per-entry path authority is not reachable, so its refusal arms are
+     asserted by nobody. The import is DYNAMIC on purpose — a static import of a name the module
+     does not export yet makes the whole file fail to load, which is a load crash wearing the
+     word RED and would have invalidated the other 79 cases in this run.
+
+THE TWO CASES THAT ALREADY PASS ARE THE NON-REGRESSION ARMS, and their passing here is a
+measurement, not an oversight: `ADMITS an in-root symlink` and `answers a DANGLING symlink as
+absent` both pass BEFORE the fix. That is the point of recording them now — they pin behaviour
+the fix must not change, and a rule that refuses every link would turn both of them red.

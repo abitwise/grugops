@@ -38,7 +38,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, sep } from "node:path";
+import { join, relative, sep } from "node:path";
 
 import {
   PRESENCE_DEPENDENT_CONFLICT_KINDS,
@@ -1618,6 +1618,260 @@ describe("board-read — a per-ENTRY read failure degrades the whole source (pla
         result.readErrors.filter((e) => e.source === "queue" && e.code === "tampered").length,
         "PREMISE: the tampered record was not reached, so this case measured nothing",
       ).toBe(1);
+    });
+  });
+});
+
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+// PLAN 32-10 TASK 1 — CONTAINMENT IS DECIDED ON THE REAL PATH, NOT ON THE SPELLING (CR-04).
+//
+// WHAT THE VERIFIER MEASURED. `repoSubpath` and `childPath` asked `relative(root, target)` about a
+// path `resolve()` had normalised LEXICALLY. `resolve()` does not follow symlinks and `readFileSync`
+// does, so a link planted at `plans/tickets/ZZZ-999.md` pointing at a file outside the tree passed
+// the containment test by spelling and was then opened by its target — and the first forty
+// characters of that target came back out in `readErrors[].message`, which is printed to stderr on
+// every frame and embedded in the published `--json` document (32-VERIFICATION.md:94-103).
+//
+// THE SHAPE OF THE FIX THESE CASES DRIVE. One authority, `insideRoot`, deciding on `realpathSync` —
+// which resolves every ANCESTOR link as well as the leaf, so a symlinked `plans/` directory and a
+// symlinked ticket file are the same question asked once. The cases below drive all four arms that
+// matter, because a rule nobody has watched REFUSE and nobody has watched ADMIT is not yet a control:
+// an out-of-root leaf, an out-of-root ancestor, an in-root link (admitted), and a dangling link
+// (absent, not refused).
+//
+// THE MESSAGE CARRIES NO BYTE OF THE TARGET. That is the whole finding — content crossed the
+// boundary — so the assertion is over the WHOLE serialised result rather than over the one field the
+// leak happened to use last time.
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+
+/** The token planted in the out-of-root file. Its absence from the result is the CR-04 assertion. */
+const ESCAPE_MARKER = "SECRET-TOKEN-abc123";
+
+type EscapeTree = {
+  /** The repository root under test. */
+  readonly dir: string;
+  /** A directory that is a SIBLING of `dir`, so nothing under it is inside the root. */
+  readonly outsideDir: string;
+  /** A readable file under `outsideDir` whose first line is `ESCAPE_MARKER`. */
+  readonly outsideFile: string;
+};
+
+/**
+ * A scratch tree plus a sibling directory OUTSIDE it, both always removed.
+ *
+ * The sibling is a sibling rather than a child on purpose: `relative(root, outsideDir)` must start
+ * with `..` for the containment question to have a definite answer, and a temp directory nested
+ * inside the root would make every case below vacuous.
+ */
+function withEscapeTree(run: (tree: EscapeTree) => void): void {
+  const base = mkdtempSync(join(realpathSync(tmpdir()), "grugops-32-10-"));
+  const dir = join(base, "tree");
+  const outsideDir = join(base, "elsewhere");
+  mkdirSync(dir, { recursive: true });
+  mkdirSync(outsideDir, { recursive: true });
+  const outsideFile = join(outsideDir, "outside-secret.txt");
+  writeFileSync(outsideFile, `${ESCAPE_MARKER}\nsecond line of a file nobody in the tree wrote\n`, "utf8");
+  try {
+    run({ dir, outsideDir, outsideFile });
+  } finally {
+    rmSync(base, { recursive: true, force: true });
+  }
+}
+
+describe("board-read — a path that resolves outside the root is refused (plan 32-10, CR-04)", () => {
+  it("PREMISE: the out-of-root file is readable, carries the marker, and is NOT under the root", () => {
+    withEscapeTree(({ dir, outsideFile }) => {
+      expect(
+        readFileSync(outsideFile, "utf8"),
+        "PREMISE: the target file does not carry the marker, so every leak assertion below would " +
+          "pass over a file with nothing to leak",
+      ).toContain(ESCAPE_MARKER);
+      expect(
+        relative(realpathSync(dir), outsideFile).startsWith(".."),
+        "PREMISE: the 'outside' file is inside the root, so the containment question has no answer " +
+          "and these cases measure nothing",
+      ).toBe(true);
+    });
+  });
+
+  it("refuses a ticket symlinked OUTSIDE the root and quotes no byte of the target", () => {
+    withEscapeTree(({ dir, outsideFile }) => {
+      plantBoard(dir, TICKETED_BOARD);
+      plantTicketDoc(dir, "ABC-101", "Backlog", "backlog");
+      const link = join(dir, "plans", "tickets", "ZZZ-999.md");
+      symlinkSync(outsideFile, link);
+
+      const result = readSnapshot(dir);
+
+      expect(
+        JSON.stringify(result),
+        "content from outside the repository root reached the published document — the exact " +
+          "exfiltration CR-04 reproduced, asserted over the WHOLE result rather than over the one " +
+          "field it used last time",
+      ).not.toContain(ESCAPE_MARKER);
+
+      const refusals = result.readErrors.filter((e) => e.code === "OUTSIDE-ROOT");
+      expect(
+        refusals.length,
+        "PREMISE/finding: the escape produced no visible refusal, so the read was either silently " +
+          "skipped or silently admitted — both are the failure this case exists to refuse",
+      ).toBe(1);
+      expect(refusals[0]?.source).toBe("tickets");
+      expect(refusals[0]?.message, "the refusal names the ENTRY a human can go look at").toContain(
+        "ZZZ-999.md",
+      );
+      expect(
+        refusals[0]?.message,
+        "the refusal names WHERE the entry resolved to, which is the fact an operator acts on",
+      ).toContain(outsideFile);
+
+      // The escape is one entry's finding, not the end of the read: the legitimate ticket beside it
+      // is still joined.
+      const tickets =
+        result.snapshot.sources.tickets.source === "unavailable"
+          ? []
+          : result.snapshot.sources.tickets.value;
+      expect(tickets.map((t) => t.id)).toEqual(["ABC-101"]);
+    });
+  });
+
+  it("refuses an out-of-root symlinked ANCESTOR (`plans` itself) without throwing", () => {
+    withEscapeTree(({ dir, outsideDir }) => {
+      // An entire board, outside the tree, reachable only through the linked ancestor. Pre-fix this
+      // rendered as `ok` with the outside board's own column headings on screen (T-32-10-02).
+      mkdirSync(join(outsideDir, "plans", "tickets"), { recursive: true });
+      writeFileSync(
+        join(outsideDir, "plans", "board.md"),
+        `## ${ESCAPE_MARKER} (WIP unlimited)\n- [ZZZ-001] a board nobody in this tree wrote\n`,
+        "utf8",
+      );
+      symlinkSync(join(outsideDir, "plans"), join(dir, "plans"));
+
+      let result: SnapshotResult | null = null;
+      expect(() => {
+        result = readSnapshot(dir);
+      }, "one hostile entry must not end the snapshot — D-12 staleness is per source").not.toThrow();
+      const settled = result as SnapshotResult | null;
+      expect(settled, "PREMISE: readSnapshot returned nothing to assert over").not.toBeNull();
+      if (settled === null) return;
+
+      expect(
+        JSON.stringify(settled),
+        "the outside board's own heading reached the published document",
+      ).not.toContain(ESCAPE_MARKER);
+      expect(settled.snapshot.sources.board.source).not.toBe("ok");
+      expect(
+        settled.readErrors.filter((e) => e.code === "OUTSIDE-ROOT").map((e) => e.source),
+        "an ancestor link is the same containment question as a leaf link, asked once",
+      ).toContain("board");
+    });
+  });
+
+  it("ADMITS an in-root symlink and joins the ticket it points at", () => {
+    // The arm that proves the rule refuses ESCAPES rather than LINKS. Without it, "refuses a
+    // symlink" is satisfied by a reader that refuses every link, including the ones a real tree has.
+    withEscapeTree(({ dir }) => {
+      plantBoard(dir, TICKETED_BOARD);
+      const realDir = join(dir, "plans", "tickets-real");
+      mkdirSync(realDir, { recursive: true });
+      const realTicket = join(realDir, "ABC-101.md");
+      writeFileSync(
+        realTicket,
+        "---\nid: ABC-101\ntitle: ABC-101 title\nstatus: backlog\ncolumn: Backlog\n---\n\n# ABC-101\n",
+        "utf8",
+      );
+      mkdirSync(join(dir, "plans", "tickets"), { recursive: true });
+      symlinkSync(realTicket, join(dir, "plans", "tickets", "ABC-101.md"));
+
+      const result = readSnapshot(dir);
+      expect(
+        result.readErrors.filter((e) => e.code === "OUTSIDE-ROOT"),
+        "a link whose target is INSIDE the tree is not an escape, and refusing it would make the " +
+          "rule something the field turns off",
+      ).toEqual([]);
+      expect(result.snapshot.sources.tickets.source).toBe("ok");
+      const tickets =
+        result.snapshot.sources.tickets.source === "unavailable"
+          ? []
+          : result.snapshot.sources.tickets.value;
+      expect(
+        tickets.map((t) => t.id),
+        "the ticket is PRESENT in the joined snapshot, not merely un-refused",
+      ).toEqual(["ABC-101"]);
+    });
+  });
+
+  it("answers a DANGLING symlink as absent, not as a refusal", () => {
+    withEscapeTree(({ dir, outsideDir }) => {
+      plantBoard(dir, TICKETED_BOARD);
+      plantTicketDoc(dir, "ABC-101", "Backlog", "backlog");
+      // Two dangling links: one whose target would have been inside the root, one whose target would
+      // have been outside it. Neither exists, so neither is an escape — a path that is not there is
+      // the caller's own ENOENT arm to answer (D-13).
+      symlinkSync(join(dir, "plans", "tickets", "no-such-target.md"), join(dir, "plans", "tickets", "DANG-1.md"));
+      symlinkSync(join(outsideDir, "never-written.txt"), join(dir, "plans", "tickets", "DANG-2.md"));
+
+      const result = readSnapshot(dir);
+      expect(
+        result.readErrors.filter((e) => e.code === "OUTSIDE-ROOT"),
+        "a dangling link resolves to nothing, and 'nothing' is not outside the tree — refusing it " +
+          "would turn every absent optional source into a fault, the D-13 regression this " +
+          "repository has already paid for once",
+      ).toEqual([]);
+      const codes = result.readErrors.filter((e) => e.source === "tickets").map((e) => e.code);
+      expect(codes.sort(), "both dangling entries answered as ENOENT").toEqual(["ENOENT", "ENOENT"]);
+    });
+  });
+
+  it("refuses a `..`-bearing entry name under `unsafe-name`, BEFORE any filesystem access", async () => {
+    // `readdirSync` cannot return `..` today. The refusal is for the day the listing comes from
+    // somewhere else, and a rule added after that day is a rule added after the traversal — so the
+    // arm is driven directly rather than through a listing that can never produce it.
+    //
+    // THE IMPORT IS DYNAMIC ON PURPOSE. A static import of a name the module does not export yet
+    // makes the whole FILE fail to load, which is a load crash wearing the word RED — the
+    // INVALID_RED shape that authorises a green nobody earned. Asking for the symbol at runtime
+    // makes its absence an ASSERTION in this case and leaves every other case in the file measuring
+    // what it was written to measure.
+    type ChildPathResult =
+      | { readonly ok: true; readonly path: string }
+      | { readonly ok: false; readonly code: string; readonly message: string };
+    const mod = (await import("./board-read.js")) as unknown as {
+      childPath?: (root: string, dir: string, name: string) => ChildPathResult;
+    };
+    expect(
+      typeof mod.childPath,
+      "the per-entry path authority is not reachable, so its refusal arms are asserted by nobody",
+    ).toBe("function");
+    const childPath = mod.childPath;
+    if (childPath === undefined) return;
+
+    withEscapeTree(({ dir }) => {
+      const root = realpathSync(dir);
+      const refused = childPath(root, join(root, "plans", "tickets"), "..");
+      expect(refused.ok).toBe(false);
+      expect(refused.ok ? "" : refused.code).toBe("unsafe-name");
+      const admitted = childPath(root, join(root, "plans", "tickets"), "ABC-101.md");
+      expect(
+        admitted.ok,
+        "PREMISE: the authority refuses every name, so the refusal above says nothing about `..`",
+      ).toBe(true);
+    });
+  });
+
+  it("PREMISE: the SAME tree with no symlink in it reads exactly as it did before", () => {
+    withEscapeTree(({ dir }) => {
+      plantBoard(dir, TICKETED_BOARD);
+      plantTicketDoc(dir, "ABC-101", "Backlog", "backlog");
+      plantTicketDoc(dir, "ABC-102", "Done", "done");
+      const result = readSnapshot(dir);
+      expect(result.snapshot.sources.tickets.source).toBe("ok");
+      expect(result.readErrors).toEqual([]);
+      const tickets =
+        result.snapshot.sources.tickets.source === "unavailable"
+          ? []
+          : result.snapshot.sources.tickets.value;
+      expect(tickets.map((t) => t.id).sort()).toEqual(["ABC-101", "ABC-102"]);
     });
   });
 });
