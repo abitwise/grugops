@@ -1,0 +1,112 @@
+32-12 GREEN PROOF — one ticket-frontmatter reader, and a docblock that is true
+=============================================================================
+
+Measured after the cutover (Task 2) and the census (Task 3), on the same three fixtures the
+RED baseline measured before anything was deleted. Read this file beside
+32-12-RED-baseline.txt: the BEFORE column below is that file's, unchanged.
+
+1. THE THREE DISAGREEMENT ROWS, BEFORE AND AFTER
+------------------------------------------------
+
+  Fixture                  | BEFORE (the deleted local reader) | AFTER (parseTicketDocument)
+  -------------------------+-----------------------------------+--------------------------------
+  bad-ticket-body-column   | bare 1, --strict 1                | bare 0, --strict 0
+                           | ERROR plans/tickets/ABC-001.md:   | ALL CHECKS PASSED
+                           | column "Phantom Column" is not a  |
+                           | board column                      | the region names no column, and
+                           | -- a column read out of the       | the prose and fenced `column:`
+                           |    ticket's PROSE decided this    | lines are not read at all
+  -------------------------+-----------------------------------+--------------------------------
+  bad-ticket-no-region     | bare 0, --strict 0                | bare 1, --strict 1
+                           | ALL CHECKS PASSED                 | ERROR plans/tickets/ABC-001.md:
+                           | -- a document with no frontmatter | refused by the ticket grammar
+                           |    passed both ticket rules on    | (no-opening-delimiter): a ticket
+                           |    values read out of its prose   | document opens with a `---` line
+                           |                                   | and this one opens with
+                           |                                   | `# ABC-001 fixture ticket (no fro…`
+  -------------------------+-----------------------------------+--------------------------------
+  bad-ticket-duplicate-key | bare 0, --strict 0                | bare 1, --strict 1
+                           | ALL CHECKS PASSED                 | ERROR plans/tickets/ABC-001.md:
+                           | -- the FIRST of two column lines  | refused by the ticket grammar
+                           |    won silently; nothing was said | (duplicate-key): `column` is
+                           |    about the second               | written twice, so the document
+                           |                                   | expresses two values for one key
+
+All three rows MOVED, and one of them moved TOWARD exit 0 — body text stopped deciding a
+verdict. A cutover measured only by "more things fail now" would have missed that row.
+
+2. THE CENSUS
+-------------
+
+    $ npx vitest run --exclude '**/scripts/e2e/**' --reporter=verbose scripts/validate.test.ts
+
+    stdout | scripts/validate.test.ts > exactly ONE ticket-frontmatter reader exists in scripts/ (plan 32-12) > the scan is non-vacuous: the glob found files, and every tracked scripts/*.ts is among them
+    ticket-frontmatter census: scanned 150 .ts file(s) under scripts/
+     ✓ both scanned key spellings are members of the grammar's closed ticket key set 0ms
+     ✓ the scan is non-vacuous: the glob found files, and every tracked scripts/*.ts is among them 6ms
+     ✓ TICKET_FRONTMATTER_READER_COUNT is 1, and the carrier is scripts/board-model.ts 0ms
+     ✓ goes RED on the deleted reader: both arms fire on the exact source that was removed 0ms
+
+SCANNED FILE COUNT: 150 `.ts` files under `scripts/`, recursively, from the directory listing
+at test time — never a literal array, and the set is cross-checked against `git ls-files
+scripts/*.ts` so a tracked file the census never opened is red.
+
+THE ONE CARRIER: `scripts/board-model.ts`, `parseTicketDocument` (arm B — a string-parameter
+function reaching both key spellings through the key-set constant declared in the same file).
+The count is pinned two-sided as `TICKET_FRONTMATTER_READER_COUNT = 1` AND the carrier is
+asserted by name, so the right number in the wrong file still fails.
+
+DISCRIMINATION (the census is not green over a derivation that names nothing): the deleted
+reader's exact source, planted and re-analyzed, fires BOTH arms — arm A twice (the two
+line-anchored key patterns) and arm B once (`frontMatter`). Measured independently against the
+pre-cutover file at 839cbe33 before the case was written:
+
+    validate-agent-factory.ts
+       B line 716: frontMatter (set=false keys=true)
+       A line 717: /^column:\s*(.+)$/m
+       A line 718: /^status:\s*(.+)$/m
+
+3. THIS REPOSITORY'S OWN VERDICT, UNCHANGED
+-------------------------------------------
+
+`plans/tickets/` is empty here, so `checkTickets()` returns early under the D-43 vacuity rule
+and the cutover cannot move this tree's verdict. Asserted rather than assumed:
+
+    $ VALIDATE_KIT_ROOT=$PWD node scripts/validate-agent-factory.js           -> exit 0
+    $ VALIDATE_KIT_ROOT=$PWD node scripts/validate-agent-factory.js --strict  -> exit 0
+
+(The plan's verify line wrote these two commands without `VALIDATE_KIT_ROOT`. That variable has
+no default by deliberate design — C3, "no fallback beats a sensible default here" — so the bare
+form exits 1 naming the unset variable. The form above is the one the repository's own self-test
+uses, and it is the form recorded here.)
+
+4. THE TWO PUBLISHED BOARD-VS-TICKET MESSAGES, BYTE-IDENTICAL
+-------------------------------------------------------------
+
+Emitted by the post-cutover validator, and asserted verbatim by the case
+"keeps both board↔ticket messages byte-identical through the extraction", whose expected strings
+were NOT edited by this plan (`git diff 839cbe33 -- scripts/validate.test.ts` shows no change
+inside that case body):
+
+    plans/tickets/ABC-001.md: column "Nonexistent Column" is not a board column
+    plans/tickets/ABC-001.md: status "in-review" does not match column "In Development" (expected kebab "in-development")
+
+5. THE NEW PUBLISHED SURFACE
+----------------------------
+
+One message is added by this plan, and it is pinned by its bytes:
+
+    <path>: refused by the ticket grammar (<code>): <the grammar's own reason sentence>
+
+The code is one of the six in `TICKET_REFUSAL_CODES`. The rules for column membership and for
+`kebab(column) === status` are NOT evaluated for a refused document, because a value read out of
+a document the grammar refused is a guess. `agent-factory/contracts/board.md` § Ticket documents
+records the deviation.
+
+6. GATES
+--------
+
+    npm run typecheck                                        exit 0
+    npm run build && npm run check:build-parity              "Build parity: no tracked build output moved when tsc ran."
+    npm run check:banned-claims                              ALL CHECKS PASSED
+    npm run check:claim-anchors                              ALL CHECKS PASSED

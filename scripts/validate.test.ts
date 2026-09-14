@@ -46,6 +46,8 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import ts from "typescript";
+import { TICKET_KEYS } from "./board-model.js";
 import { pathToFileURL } from "node:url";
 
 const ROOT = join(import.meta.dirname, "..");
@@ -1451,5 +1453,208 @@ describe("validate-agent-factory.js — the ticket grammar's three disagreement 
       "plans/tickets/ABC-001.md: refused by the ticket grammar (duplicate-key): " +
         "`column` is written twice, so the document expresses two values for one key",
     );
+  });
+});
+
+// ── ONE TICKET-FRONTMATTER READER IN THE TREE, DERIVED (plan 32-12, DASH-01 / D-06) ──────────────
+//
+// The behavioural cases above prove the validator AGREES with the grammar today. They cannot prove
+// no THIRD reader exists somewhere else in `scripts/`, and a hand-typed list of files to check is
+// the set-literal drift class this repository has already paid for: a list rots while it stays
+// green. So the scanned set is the DIRECTORY LISTING at test time, and the count of carriers is
+// derived from it.
+//
+// WHAT COUNTS AS A TICKET-FRONTMATTER READER, stated mechanically rather than by eye. A file
+// carries one when either arm fires:
+//
+//   ARM A  it contains a regular-expression LITERAL anchored at a line start immediately before one
+//          of the two ticket key spellings — it reads a ticket key out of raw document text with a
+//          pattern of its own.
+//   ARM B  it declares a function taking a `string` parameter whose body reaches BOTH key
+//          spellings — as quoted literals, as anchored patterns, or through a key-set constant
+//          DECLARED in the same file whose array literal carries both.
+//
+// Both arms run over the TypeScript AST, so a comment quoting a deleted pattern (this file carries
+// several) satisfies neither, and a reformatted declaration does not walk past. The deleted reader
+// in `validate-agent-factory.ts` fired BOTH arms — the discrimination case at the foot of this
+// block plants its exact source and proves the derivation still catches it.
+describe("exactly ONE ticket-frontmatter reader exists in scripts/ (plan 32-12)", () => {
+  const SCRIPTS_DIR = join(ROOT, "scripts");
+
+  /** The two ticket keys the validator's two ticket rules consume. */
+  const TICKET_TEXT_KEYS = ["column", "status"] as const;
+  const KEY_SPELLINGS: readonly string[] = TICKET_TEXT_KEYS;
+
+  // Derived, not assumed: both spellings must be members of the grammar's own closed key set. If
+  // `TICKET_KEYS` were ever renamed or narrowed, this census would be scanning for keys the
+  // grammar no longer has, and that is a red here rather than a silently narrower scan.
+  it("both scanned key spellings are members of the grammar's closed ticket key set", () => {
+    for (const k of KEY_SPELLINGS) {
+      expect(
+        (TICKET_KEYS as readonly string[]).includes(k),
+        `\`${k}\` is not in TICKET_KEYS, so this census is scanning for a key the grammar dropped`,
+      ).toBe(true);
+    }
+  });
+
+  const anchoredFor = (k: string): RegExp => new RegExp(String.raw`\^` + k + String.raw`\s*\\?:`);
+  const quotedFor = (k: string): RegExp => new RegExp(String.raw`["'\`]` + k + String.raw`["'\`]`);
+
+  interface ReaderFinding {
+    readonly arm: "A" | "B";
+    readonly line: number;
+    readonly detail: string;
+  }
+
+  // Takes a PARSED SourceFile rather than document text, deliberately: a function that took the
+  // text would itself be a string-parameter function reaching both key spellings, and this census
+  // would name its own file. The analyzer consumes an AST, which is precisely why it is not a
+  // reader of ticket documents.
+  function findTicketReaders(sf: ts.SourceFile): ReaderFinding[] {
+    const lineOf = (n: ts.Node): number =>
+      sf.getLineAndCharacterOfPosition(n.getStart(sf)).line + 1;
+    const found: ReaderFinding[] = [];
+
+    // Key-set constants DECLARED here: an array literal carrying every scanned spelling.
+    const keySetNames = new Set<string>();
+    const walkSets = (n: ts.Node): void => {
+      if (ts.isVariableDeclaration(n) && ts.isIdentifier(n.name) && n.initializer) {
+        const init = ts.isAsExpression(n.initializer) ? n.initializer.expression : n.initializer;
+        if (ts.isArrayLiteralExpression(init)) {
+          const els = init.elements.filter(ts.isStringLiteral).map((e) => e.text);
+          if (KEY_SPELLINGS.every((k) => els.includes(k))) keySetNames.add(n.name.text);
+        }
+      }
+      ts.forEachChild(n, walkSets);
+    };
+    walkSets(sf);
+
+    const walk = (n: ts.Node): void => {
+      if (ts.isRegularExpressionLiteral(n)) {
+        for (const k of KEY_SPELLINGS) {
+          if (anchoredFor(k).test(n.text)) {
+            found.push({ arm: "A", line: lineOf(n), detail: n.text });
+          }
+        }
+      }
+      if (
+        ts.isFunctionDeclaration(n) ||
+        ts.isFunctionExpression(n) ||
+        ts.isArrowFunction(n) ||
+        ts.isMethodDeclaration(n)
+      ) {
+        const takesText = n.parameters.some((pm) => pm.type?.kind === ts.SyntaxKind.StringKeyword);
+        if (takesText && n.body) {
+          const body = n.body.getText(sf);
+          const viaSet = [...keySetNames].some((nm) =>
+            new RegExp(String.raw`\b` + nm + String.raw`\b`).test(body),
+          );
+          const viaKeys = KEY_SPELLINGS.every(
+            (k) => quotedFor(k).test(body) || anchoredFor(k).test(body),
+          );
+          if (viaSet || viaKeys) {
+            found.push({
+              arm: "B",
+              line: lineOf(n),
+              detail: `${n.name?.getText(sf) ?? "<anonymous>"} (key-set=${viaSet}, both-keys=${viaKeys})`,
+            });
+          }
+        }
+      }
+      ts.forEachChild(n, walk);
+    };
+    walk(sf);
+    return found;
+  }
+
+  const parse = (name: string, text: string): ts.SourceFile =>
+    ts.createSourceFile(name, text, ts.ScriptTarget.ES2022, true);
+
+  /**
+   * The scanned set: every `.ts` file under the directory AT TEST TIME, RECURSIVELY. Never a
+   * literal array, and never depth-one — `scripts/` carries subdirectories, and a second reader
+   * placed in one of them would sit outside a depth-one glob without anything going red.
+   */
+  const SCANNED = readdirSync(SCRIPTS_DIR, { withFileTypes: true, recursive: true })
+    .filter((e) => e.isFile() && e.name.endsWith(".ts"))
+    .map((e) => join(e.parentPath, e.name).slice(SCRIPTS_DIR.length + 1))
+    .sort();
+
+  const CENSUS = SCANNED.map(
+    (name) =>
+      [name, findTicketReaders(parse(name, readFileSync(join(SCRIPTS_DIR, name), "utf8")))] as const,
+  );
+  const CARRIERS = CENSUS.filter(([, f]) => f.length > 0);
+
+  /** TWO-SIDED. A second carrier is a second authority on what a ticket says. */
+  const TICKET_FRONTMATTER_READER_COUNT = 1;
+
+  it("the scan is non-vacuous: the glob found files, and every tracked scripts/*.ts is among them", () => {
+    // A census over an empty glob reports one-of-nothing as success, so the denominator is
+    // asserted BEFORE the count of one is claimed — and against an independently derived set
+    // (git's index) rather than against itself.
+    console.log(`ticket-frontmatter census: scanned ${SCANNED.length} .ts file(s) under scripts/`);
+    expect(SCANNED.length, "the glob found no TypeScript at all — the census would be vacuous")
+      .toBeGreaterThan(0);
+    const tracked = execFileSync("git", ["ls-files", "scripts/*.ts"], {
+      cwd: ROOT,
+      encoding: "utf8",
+    })
+      .split("\n")
+      .filter(Boolean)
+      .map((p) => p.slice("scripts/".length));
+    expect(tracked.length, "git reported no tracked scripts/*.ts — the floor is vacuous")
+      .toBeGreaterThan(0);
+    const unscanned = tracked.filter((t) => !SCANNED.includes(t));
+    expect(unscanned, "a tracked TypeScript file the census never opened").toEqual([]);
+  });
+
+  it("TICKET_FRONTMATTER_READER_COUNT is 1, and the carrier is scripts/board-model.ts", () => {
+    const report = CARRIERS.map(
+      ([name, f]) => `scripts/${name}: ${f.map((x) => `arm ${x.arm} line ${x.line} — ${x.detail}`).join("; ")}`,
+    ).join("\n");
+    expect(
+      CARRIERS.length,
+      "a ticket's `column:` and `status:` are read by ONE authority. A second carrier means the " +
+        "validator and the board projector can report different columns for the same ticket — the " +
+        "drift DASH-01 exists to close, and the exact defect CR-06 found surviving plan 32-08.\n" +
+        `Carriers found:\n${report}`,
+    ).toBe(TICKET_FRONTMATTER_READER_COUNT);
+    // The right NUMBER in the wrong FILE is still wrong: the one reader must be the grammar.
+    expect(
+      CARRIERS.map(([name]) => name),
+      `the single carrier must be board-model.ts, and it is:\n${report}`,
+    ).toEqual(["board-model.ts"]);
+  });
+
+  // DISCRIMINATION. Without this the two cases above could be green over a derivation that names
+  // nothing at all. The planted source is the reader plan 32-12 deleted from
+  // `scripts/validate-agent-factory.ts`, kept verbatim as text (a template literal, so neither arm
+  // can see it when this file is itself scanned above).
+  it("goes RED on the deleted reader: both arms fire on the exact source that was removed", () => {
+    const deleted = [
+      "interface FrontMatter {",
+      "  column: string | null;",
+      "  status: string | null;",
+      "}",
+      "function frontMatter(text: string): FrontMatter {",
+      "  const col = text.match(/^column:\\s*(.+)$/m);",
+      "  const status = text.match(/^status:\\s*(.+)$/m);",
+      "  return {",
+      "    column: col ? col[1].trim() : null,",
+      "    status: status ? status[1].trim() : null,",
+      "  };",
+      "}",
+    ].join("\n");
+    const found = findTicketReaders(parse("planted-second-reader.ts", deleted));
+    expect(found.length, "the derivation did not see the reader it exists to see").toBeGreaterThan(0);
+    expect(
+      found.filter((f) => f.arm === "A").length,
+      "arm A must catch the two line-anchored key patterns",
+    ).toBe(2);
+    expect(
+      found.some((f) => f.arm === "B"),
+      "arm B must catch a string-parameter function reaching both key spellings",
+    ).toBe(true);
   });
 });

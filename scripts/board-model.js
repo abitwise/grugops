@@ -535,10 +535,18 @@ export function matchUpdateLine(line, lineNo) {
 //
 // So the TICKET is a second DOCUMENT CLASS with its own closed key set, admitted here — in the
 // module that already owns every other shape the projector reads, and that imports nothing at all.
-// This ADDS no spelling: `scripts/validate-agent-factory.ts:712-719` already reads a ticket's
-// `column:` and `status:` with its own regex pair, and plan 32-08 deletes that pair in favour of
-// this function, exactly as D-06 does for `boardColumnName` and `boardHasColumn`. The canonical
-// frontmatter authority keeps the document class it was built for and is not touched.
+//
+// THIS IS THE ONLY SPELLING. `scripts/validate-agent-factory.ts` carried its own `^column:` /
+// `^status:` regex pair until plan 32-12, which deleted it and routed `checkTickets()` through this
+// function, exactly as D-06 does for `boardColumnName` and `boardHasColumn`. Plan 32-08 had claimed
+// that deletion and had not performed it; phase 32's verification (CR-06) found the pair still
+// live, and the sentence that used to stand here promising a future commit is what let it survive a
+// code review and a green suite. The claim is now in the present tense and is DERIVED rather than
+// asserted: `scripts/validate.test.ts` censuses every `.ts` file under `scripts/` at test time and
+// pins `TICKET_FRONTMATTER_READER_COUNT` at 1 naming this file, with a discrimination case that
+// plants the deleted reader and watches the census go red on it.
+//
+// The canonical frontmatter authority keeps the document class it was built for and is not touched.
 //
 // THE POSTURE IS THE SAME ONE THE REST OF THIS MODULE TAKES: a small canonical form is admitted and
 // every other byte is refused BY NAME. An unknown key is refused rather than ignored, because
