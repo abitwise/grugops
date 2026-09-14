@@ -446,3 +446,151 @@ in this round touched. Closing it here would be a fifth fix in a sixth file, whi
 explicitly forbids. Recorded for round 2 with the reproduction above.
 
 ---
+
+## 7. The gate sweep — row set derived from `package.json`, not from memory
+
+The row set below is every `check:*` and every `freshness:*` entry read out of `package.json`'s
+`scripts` object at sweep time, plus the umbrella `freshness` script. It is derived rather than
+recalled, so a gate this round never touched that is now red is a regression this sweep finds rather
+than one it happens to look for. **`npm test` was not run**: it triggers the live claude-CLI e2e lane,
+which spends tokens and can hang. The suite is run as `npx vitest run --exclude '**/scripts/e2e/**'`.
+
+| Gate | Exit | Last line |
+|---|---|---|
+| `freshness` | 0 | All build outputs fresh: 65 committed .js file(s) match a rebuild of their sources. |
+| `check:build-parity` | 0 | Build parity: no tracked build output moved when tsc ran. |
+| `check:public-docs` | 0 | ALL CHECKS PASSED |
+| `check:audit-register` | 0 | ALL CHECKS PASSED |
+| `check:residual-citations` | 0 | ALL CHECKS PASSED |
+| `check:claim-anchors` | 0 | ALL CHECKS PASSED |
+| `check:banned-claims` | 0 | ALL CHECKS PASSED |
+| `check:imperative-lexicon` | 0 | ALL CHECKS PASSED |
+| `check:diff-disposition` | **1** | 1 CHECK(S) FAILED — **PRE-EXISTING, see below** |
+| `check:nul-bytes` | 0 | ALL CHECKS PASSED |
+| `check:platform-shapes` | 0 | ALL CHECKS PASSED |
+| `check:dashboard-readonly` | 0 | 59 passed (59) |
+| `freshness:catalog` | 0 | Catalog fresh: docs/catalog/README.md matches a fresh regeneration. |
+| `freshness:adapters` | 0 | Mirrored generator resolved model preset: none |
+| `freshness:skill-twins` | 0 | Skill twins fresh: 7 twin(s) compared, 0 byte difference(s). |
+| `freshness:guarantees` | 0 | Guarantees fresh: docs/GUARANTEES.md matches a fresh regeneration. |
+| `freshness:hook-manifest` | 0 | Hook manifest fresh: 2 decider(s), 26 module hash(es) match. |
+| `freshness:context` | 0 | no `.grugops/context/` tree exists yet — **vacuous pass**, and it says so |
+| `freshness:queue` | 0 | no `.grugops/queue/claimed/` tree exists yet — **vacuous pass**, and it says so |
+| `freshness:traceability` | 0 | no `.grugops/context/` notes tree exists yet — **vacuous pass**, and it says so |
+
+Plus the suite and the two named gates this round's verification steps require:
+
+| Command | Result |
+|---|---|
+| `npx vitest run --exclude '**/scripts/e2e/**'` | **74 files, 4811 passed, 2 skipped**, exit 0 (the 74-file floor from `32-07-SUMMARY.md` holds; case count rose from 4809 by the two rows F-02 added) |
+| `npm run build && npm run typecheck && npm run check:build-parity` | exit 0, no `BUILD PARITY FAILED` |
+| `VALIDATE_KIT_ROOT=. node scripts/validate-agent-factory.js` | ALL CHECKS PASSED |
+| `node scripts/check-foundation-guards.js` | ALL CHECKS PASSED |
+
+### `check:diff-disposition` is PRE-EXISTING, cited rather than absorbed
+
+It is red, and it was red before this round's first plan. The evidence is recorded in
+`.planning/phases/32-board-projector-cli-dashboard/deferred-items.md`, which states that the gate was
+re-run on a **detached worktree at `6d59ed1e`** — the commit before plan 32-08 began — and produced
+an identical finding set. Re-derived here: the 78 findings name exactly five files, all of them
+Phase-31 workflow documents:
+
+```
+agent-factory/workflows/05-pr-quality-gate.md
+agent-factory/workflows/06-uat-pack.md
+agent-factory/workflows/16-context-read-write.md
+agent-factory/workflows/17-task-claim.md
+agent-factory/workflows/18-context-compaction.md
+```
+
+A grep of the full finding text for any file this round touched (`board-read`, `board-model`,
+`board-dashboard`, `board-readonly`, `validate-agent-factory`) returns **0**. It is therefore neither
+counted as a regression of this round nor quietly absorbed into this round's scope. The remedy is the
+one the gate itself prints: disposition rows under `docs/audit/29-style-dispositions/`.
+
+### The other `deferred-items.md` entry is now GREEN, and this round did not fix it
+
+`check:nul-bytes` was recorded RED on `32-REVIEW.md` (a literal `0x1b` at line 404) with
+`status: open`. It now exits **0** over 2043 files. The cause is commit `888a1302`
+(`fix(phase-32): replace literal ESC byte in 32-REVIEW.md with printable \x1b`), a user-authored
+commit made during this round, not the work of any gap-closure plan. `deferred-items.md` still reads
+`status: open` for it. **That entry is stale.** This plan owns neither that file nor that fix, so it
+is recorded here rather than edited; round 2 should close the entry.
+
+### The zero-dependency invariant, recorded as a line a future reader can check
+
+`package.json` **has no `dependencies` key at all** (`require("./package.json").dependencies` is
+`undefined`). `devDependencies` carries exactly three entries and no more:
+
+```
+@types/node  ~22
+typescript   ~6.0.3
+vitest       ~4.1.8
+```
+
+All three are dev-and-CI-only and are never shipped to a host machine, which is CLAUDE.md's
+tooling-layer constraint verbatim. **This round added no package and ran no package-manager install.**
+`scripts/board-readonly.test.ts` PART SIX asserts the same thing mechanically on every suite run.
+
+---
+
+## 8. Round budget, and the verdict on what was measured
+
+**This was round 1 of a hard cap of 4** (the project rule recorded after Phase 31, where seven
+consecutive rounds each closed a finding and created the next one).
+
+What the round measured, counted honestly:
+
+| | Count |
+|---|---|
+| Verifier findings re-measured against the rebuilt `.js` | **6 of 6** (CR-01..CR-06) |
+| …measured **closed** | **6** |
+| Behavioral spot-checks re-run, including the two that passed | **5 of 5**, plus the suite row — **no regression in any** |
+| New refusal branches enumerated | **13** — 9 executed here, 4 cited to a green named case, **0 UNPROVEN** |
+| Neighbour variations attempted | **7** (the plan's five minimums plus two extra symlink shapes) |
+| …that bypassed | **2** — F-02 (closed this round) and F-03 (open, a previously-named residual now measured) |
+| New findings raised | **3** — F-02 closed, F-03 open, F-01 open |
+| Production code modified | **none.** One test file, `scripts/board-readonly.test.ts` (owned by 32-11), for F-02 |
+
+**Verdict line — what was measured, not what it concludes about the phase.** All six of the
+verifier's findings reproduce as closed against the rebuilt committed `.js`. **The round nonetheless
+ends with two OPEN findings**, F-03 and F-01, both recorded above with reproductions, and one of them
+(F-03) is a case in which `npm run check:dashboard-readonly` exits 0 over a module that writes files.
+The per-round pattern this repository has measured seven times held again: **the round's own probe
+found a bypass created by the previous fix's narrowness** (F-02 — the same rule 32-11 added, asked at
+two of four positions), and it was found by asking *where the predicate is asked*, not by running the
+suite, which was green throughout at 4809 and is green now at 4811.
+
+**This document does not state that DASH-01, DASH-04, DASH-05 or DASH-06 are satisfied, and it does
+not change `.planning/REQUIREMENTS.md` or the Phase 32 status line.** The verifier decides that, from
+this evidence, in a separate pass. This repository has a recorded incident of an executor's roadmap
+update flipping a phase to Complete before verification ran, which then had to be reverted by hand.
+
+---
+
+## 9. What a re-verification should check first
+
+In order, because each step's premise is the one before it:
+
+1. **`npm run build && npm run check:build-parity`.** If this is not clean, everything below measures
+   an artifact that is not a build of its sources. Six recorded instances in this repository of a
+   harness returning a false result because its own premise was never checked.
+2. **F-03's reproduction (§6).** Append `const m = process.getBuiltinModule("node:" + "fs");` plus a
+   `writeFileSync` call to the committed `scripts/board-read.js` and run
+   `npm run check:dashboard-readonly`. It exits **0**. This is the one place a shipped gate is green
+   over a writer, and it is the first thing worth disagreeing with this document about.
+3. **F-02's mutants (§6).** MUTANT E should red exactly 4 rows and MUTANT F exactly 2. If either
+   count has drifted, the discrimination behind this round's only code change has stopped
+   discriminating.
+4. **The CR-02 and CR-04 transcripts (§1).** They are the two that were reproduced live by the
+   verifier, so they are the two whose pre-fix numbers are least disputable. `row-without-file` must
+   be 0 under EACCES; the marker count must be 0 on both channels under the symlink.
+5. **The two spot-checks that PASSED (§2, S1 and S2).** A review that only re-checks failures cannot
+   find a regression. `--once --json` must be exactly one parseable line; `--once` must exit 0 with
+   the golden's 9 conflicts.
+6. **F-01 (§6)** and the stale `deferred-items.md` entry for `check:nul-bytes` (§7). Both are
+   bookkeeping-shaped and both are the shape that rots silently.
+
+---
+
+*Plan: 32-14 · Phase: 32-board-projector-cli-dashboard · Measured: 2026-09-14*
