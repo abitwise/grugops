@@ -752,7 +752,9 @@ describe("check-imperative-lexicon — exported pins and cost", () => {
   it("exports the pinned constants at the values the plan and the profile name", () => {
     // (Plan 31-03) 47 → 48: agent-factory/checklists/browser-uat-recipe.md, the D-07 browser-UAT
     // recipe, is a hand-authored checklist and enters the checklists part by existing.
-    expect(GOVERNED_CORPUS_COUNT).toBe(48);
+    // (Plan 32-01) 48 → 49: agent-factory/contracts/board.md, the DASH-01 board-grammar contract,
+    // is a hand-authored contract and enters the contracts part by existing (2 → 3).
+    expect(GOVERNED_CORPUS_COUNT).toBe(49);
     expect(APPROVED_STEP_VERBS.length).toBe(43);
     expect(PROCEDURAL_SENTENCE_MAX_WORDS).toBe(20);
     expect(DESCRIPTIVE_SENTENCE_MAX_WORDS).toBe(25);

@@ -425,8 +425,8 @@ export function governedCorpus(): string[] {
 }
 
 /**
- * The pinned cardinality. 48 today: 19 workflows + 14 hand-authored checklists + 13 seed templates
- * + 2 contracts.
+ * The pinned cardinality. 49 today: 19 workflows + 14 hand-authored checklists + 13 seed templates
+ * + 3 contracts.
  *
  * TWO-SIDED. A corpus that silently SHRANK reports a clean pass over the documents it stopped
  * reading; one that silently GREW is a scan nobody reviewed.
@@ -437,8 +437,16 @@ export function governedCorpus(): string[] {
  * SCANNED like every other checklist. The admission test held on the run that moved this pin: zero
  * findings over 48/48 elements for guard_sentence_form and zero over the unchanged 19/19 for
  * guard_imperative_lexicon, because the recipe carries no `## Steps` section.
+ *
+ * MOVED 48 → 49 IN PLAN 32-01, AND THE ENTRANT IS NAMED:
+ * `agent-factory/contracts/board.md`, the DASH-01 board-grammar contract. It is hand-authored (it
+ * carries no `GENERATED` marker), so it enters the contracts part — which moves 2 → 3 — and is
+ * SCANNED like every other contract. The pin moved AFTER the gate had read the new file, not to
+ * silence it: the run that moved this number reported zero findings over 49/49 elements for
+ * guard_sentence_form and zero over the unchanged 19/19 for guard_imperative_lexicon, because the
+ * contract carries no `## Steps` section.
  */
-export const GOVERNED_CORPUS_COUNT = 48;
+export const GOVERNED_CORPUS_COUNT = 49;
 
 // ---------------------------------------------------------------------------
 // APPROVED_STEP_VERBS — the CLOSED verb set (WP-01).

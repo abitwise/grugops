@@ -1965,8 +1965,19 @@ const SECTION_EXTENT_OWNER_COUNT = 1;
  *   file.
  *   Re-derived rather than incremented: `git ls-files '*.ts'` minus the `.test.ts` and `.d.ts`
  *   members reports 78 at the round-9 base and 79 with this fixture tracked.
+ *
+ * 79 -> 80 (plan 32-01, task 1), ONE TOOLING MODULE:
+ *   - `scripts/board-model.ts` — the board-grammar authority (DASH-01). It is a real tooling
+ *     module rather than a corpus file, and it enters this set for the ordinary reason: the set is
+ *     pinned equal to `git ls-files '*.ts'` minus the `.test.ts` and `.d.ts` members.
+ *   BOTH OWNER ANSWERS ARE UNCHANGED, AND THAT WAS CHECKED RATHER THAN ASSUMED. It declares no
+ *   function named for the frontmatter parser, and it locates no section: its heading scan answers
+ *   "does THIS line open a column", which is a per-line predicate carrying no section EXTENT, so it
+ *   is not a second owner of the LANG-07 predicate.
+ *   Re-derived rather than incremented: `git ls-files '*.ts'` minus the `.test.ts` and `.d.ts`
+ *   members reports 79 at the plan-32 base and 80 with this module tracked.
  */
-const NON_TEST_MODULE_COUNT = 79;
+const NON_TEST_MODULE_COUNT = 80;
 
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 // (Plan 29-40, gap G-29-1 of 29-UAT.md, closing V-29-35-01) THE FRONTMATTER-PARSER NAME OWNER SET.
@@ -2479,7 +2490,10 @@ describe("LANG-07: exactly ONE module owns the section-extent predicate (plan 29
     // (`hooks/hook-entry.ts` moves the WHOLE-TREE count and not this one, because this pin is
     // `scripts/`-scoped — the two numbers are deliberately different questions.)
     // 51 → 52 (plan 31-30): `scripts/check-platform-shapes.ts`, the platform shape corpus.
-    expect(flat.length, "the `scripts/`-scoped reader's own corpus").toBe(52);
+    // 52 → 53 (plan 32-01, task 1): `scripts/board-model.ts`, the board-grammar authority. It
+    // imports NOTHING at all — the D-15/D-23 purity boundary is an import edge — so it contributes
+    // three empty comparisons here and cannot make the agreement above vacuous on its own.
+    expect(flat.length, "the `scripts/`-scoped reader's own corpus").toBe(53);
     let compared = 0;
     for (const n of flat) {
       for (const spec of ["frontmatter", "canonical-frontmatter", "audit-model"]) {
@@ -2498,7 +2512,8 @@ describe("LANG-07: exactly ONE module owns the section-extent predicate (plan 29
     // 47 → 48 (round 3): `check-residual-citations.ts`. 48 → 51 (round 4): `is-entry.ts`,
     // `generate-hook-manifest.ts`, `hook-manifest-freshness.ts`.
     // 51 → 52 (plan 31-30): `check-platform-shapes.ts`.
-    expect(compared, "the comparison must really have run over the whole corpus").toBe(52 * 3);
+    // 52 → 53 (plan 32-01, task 1): `board-model.ts`.
+    expect(compared, "the comparison must really have run over the whole corpus").toBe(53 * 3);
     // NON-VACUITY: the comparison would be clean over two readers that both return nothing, so at
     // least one module must have produced a non-empty answer through the NEW reader.
     expect(
@@ -2673,7 +2688,8 @@ describe("LANG-07: exactly ONE module owns the section-extent predicate (plan 29
       walked.filter((n) => n.startsWith("scripts/") && !n.slice(8).includes("/")).length,
       "…and the old non-recursive answer is a strict subset, stated as the number this widening moved off",
       // 51 → 52 (plan 31-30): `check-platform-shapes.ts`, the same module the flat reader gained.
-    ).toBe(52);
+      // 52 → 53 (plan 32-01, task 1): `board-model.ts`, the same module the flat reader gained.
+    ).toBe(53);
 
     // THE ELEMENT COUNT, DERIVED INDEPENDENTLY OF THE WALK THAT PRODUCES IT. A vacuity floor catches
     // an EMPTY denominator and has never caught a SILENTLY SHORT one, so the set is compared against
@@ -9234,7 +9250,14 @@ const censusRelationshipFindings = (c: TripwireCensus): string[] => {
 // correct thing to have fired here. Re-derived rather than incremented:
 // `ls scripts/*.test.ts | wc -l` reports 60 on this tree, agreeing with the live census. Like the two
 // bumps above it lands in the SAME commit as the run in which the full suite first observed it.
-const TRIPWIRE_MODULES = 60;
+//
+// 60 -> 61 (plan 32-01, task 1): ONE test module, `scripts/board-tracer.test.ts` — the Phase 32
+// tracer, which drives ONE path from the real `plans/board.md` through the board grammar, the read
+// seam and the CLI. It is a genuine test module rather than a corpus file, so a pin that surfaced it
+// arriving is the correct thing to have fired. Re-derived rather than incremented:
+// `ls scripts/*.test.ts | wc -l` reports 61 on this tree, agreeing with the live census, and the
+// bump lands in the SAME commit as the run in which the full suite first observed the module.
+const TRIPWIRE_MODULES = 61;
 /**
  * Corpus-derived floors, expressed as RATES so the floor grows with the corpus it floors.
  * Each is set well below its measured live value: the point is to catch a measurement that
