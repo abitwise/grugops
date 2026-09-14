@@ -9344,7 +9344,18 @@ const censusRelationshipFindings = (c: TripwireCensus): string[] => {
 // `scripts/board-corpus.ts`, which is why it moved NON_TEST_MODULE_COUNT and not this pin.
 // Re-derived rather than incremented: `ls scripts/*.test.ts | wc -l` reports 66 on this tree, and
 // the bump lands in the SAME commit as the run in which the full suite first observed the modules.
-const TRIPWIRE_MODULES = 66;
+//
+// 66 -> 67 (plan 32-06, tasks 1 and 2): ONE test module, `scripts/board-readonly.test.ts` — the
+// DASH-06 / DASH-08 import-graph guard. It walks the compiled closure of `scripts/board-dashboard.js`
+// and decides two emptiness claims from derived sets: no mutating `node:fs` symbol is reachable, and
+// no banned socket / process module is imported. It is a genuine test module rather than a corpus
+// file, so a pin that surfaced it arriving is the correct thing to have fired. The bump was made
+// AFTER the run that fired it, in which this module's other 285 cases had already read the new file
+// and reported zero findings — the pin moved because a module landed, not to make a red go away.
+// Re-derived rather than incremented: `ls scripts/*.test.ts | wc -l` reports 67 on this tree,
+// agreeing with the live census, and the bump lands in the SAME commit as the run in which the full
+// suite first observed the module.
+const TRIPWIRE_MODULES = 67;
 /**
  * Corpus-derived floors, expressed as RATES so the floor grows with the corpus it floors.
  * Each is set well below its measured live value: the point is to catch a measurement that

@@ -57,6 +57,36 @@
 //     here; this repository ships zero runtime dependencies, which is what makes that acceptable, and
 //     the `dependencies === undefined` assertion in this file is what keeps it true.
 //
+// HOW IT IS REACHED, AND THE ONE DEVIATION THAT BUYS IT — RECORDED SO IT IS A DECISION.
+//
+// D-21 requires this guard to run in the repository suite AND as a named `check:*` npm script. The
+// entry added for it is:
+//
+//     "check:dashboard-readonly": "npx vitest run scripts/board-readonly.test.ts"
+//
+// It is the FIRST `check:*` entry in this repository that is not the two-step
+// `tsc --outDir .tmp-build && node scripts/<x>.js` shape every other one uses. That is a deviation,
+// and the reason is a measurement: the AST derivation above needs `typescript`, and zero of the 25
+// committed runnable `scripts/*.ts` files import anything other than a `node:` builtin or a relative
+// `./*.js`. All five files in this tree that import `typescript` are `.test.ts`. A runnable
+// `scripts/check-dashboard-readonly.ts` importing a devDependency would be the first to break that
+// 25-of-25 invariant and the first `check:*` script unrunnable from a checkout.
+//
+// THE ALTERNATIVE WAS REJECTED, AND THE REJECTION IS THE POINT. The other way to keep the script
+// shape is a stdlib-only regex scanner over the compiled closure, kept ALONGSIDE this AST test. That
+// would give ONE PREDICATE TWO AUTHORITIES — two implementations of "is this closure read-only",
+// free to disagree, each green on its own. That is precisely the Phase 29 failure this repository
+// spent five rounds on: LANG-04's enumeration was relocated into a second hand-authored list, and the
+// relocated copy passed everything the first one refused. One authority, one implementation. The
+// cost is that this check needs `node_modules`, exactly as `npm test` already does.
+//
+// NO DUPLICATE CI STEP, ALSO BY DECISION. This file already runs in CI through the suite step named
+// `Vitest (e2e lane excluded)` (`.github/workflows/ci.yml:173-174`,
+// `npx vitest run --exclude '**/scripts/e2e/**'`). A second workflow step invoking
+// `npm run check:dashboard-readonly` would run the same file twice and would be the same
+// two-authorities smell one level up, in the workflow file. The absence of a named CI step for this
+// gate is therefore a recorded decision, not an oversight.
+//
 // Vitest `globals: false` (the repo default) → the test functions are imported explicitly.
 
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
@@ -810,4 +840,39 @@ afterAll(() => {
   // Belt and braces for a crashed run: `withLiveMirror`'s `finally` removes each mirror, and this
   // removes the parent so no empty scratch directory survives either.
   rmSync(SCRATCH_ROOT, { recursive: true, force: true });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// PART SIX — the ABSENCE of a runtime dependency, asserted rather than assumed.
+//
+// The whole closure walk rests on "this repository ships zero runtime dependencies": bare specifiers
+// are node builtins, so skipping them loses nothing. The day a `dependencies` key appears, that
+// premise is false and the closure above is silently short by everything under node_modules. So the
+// premise is a failing assertion here, the same fail-closed posture `check:build-parity` uses.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+describe("32-06 — the guard adds no runtime dependency", () => {
+  it("package.json still has no `dependencies` key", () => {
+    const manifest = JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8")) as {
+      readonly dependencies?: unknown;
+      readonly scripts?: Record<string, string>;
+    };
+    expect(
+      manifest.dependencies,
+      "a `dependencies` key appeared in package.json. jsImportClosure follows RELATIVE specifiers " +
+        "only, so a runtime dependency is invisible to the closure this guard walks — the guard " +
+        "would stay green while reporting a set that is short by everything under node_modules",
+    ).toBeUndefined();
+  });
+
+  it("the check:dashboard-readonly entry runs exactly this file", () => {
+    // One authority, one implementation: the named command and the suite must not be able to drift
+    // apart, which they cannot if the command IS the suite pointed at one file.
+    const manifest = JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8")) as {
+      readonly scripts?: Record<string, string>;
+    };
+    expect(manifest.scripts?.["check:dashboard-readonly"]).toBe(
+      "npx vitest run scripts/board-readonly.test.ts",
+    );
+  });
 });
