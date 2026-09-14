@@ -615,13 +615,14 @@ describe("each deliberately-broken fixture still fails for EXACTLY its own reaso
     ["bad-ticket-mismatch", /status/i, 0, 1],
     ["bad-ticket-bad-column", /not a board column/i, 0, 1],
     ["bad-workflow-no-commit", /Commit/i, 0, 1],
-    // The three plan 32-12 disagreement repositories, at their PRE-CUTOVER answers. Two of them
-    // exit 0 today because the deleted local reader accepted a document `parseTicketDocument`
-    // refuses; the third exits 1 on a column it read out of the ticket's prose. All three rows
-    // move in plan 32-12's Task 2, and the move IS the deliverable.
-    ["bad-ticket-body-column", /not a board column/i, 0, 1],
-    ["bad-ticket-no-region", /ALL CHECKS PASSED/i, 0, 0],
-    ["bad-ticket-duplicate-key", /ALL CHECKS PASSED/i, 0, 0],
+    // The three plan 32-12 disagreement repositories, at their POST-CUTOVER answers. Each row
+    // MOVED when `checkTickets()` stopped reading tickets with its own regex pair and started
+    // asking `parseTicketDocument`, and the move is the deliverable rather than a fixed-up
+    // expectation — 32-12-RED-baseline.txt records the value each row held before it moved.
+    // Note that one of the three moved TOWARD exit 0: body text stopped deciding a verdict.
+    ["bad-ticket-body-column", /ALL CHECKS PASSED/i, 0, 0],
+    ["bad-ticket-no-region", /refused by the ticket grammar \(no-opening-delimiter\)/, 0, 1],
+    ["bad-ticket-duplicate-key", /refused by the ticket grammar \(duplicate-key\)/, 0, 1],
     // `good` has no defect: its intent is that NOTHING is found, so its row asserts the absence of
     // any finding rather than the presence of one. `warn-only-no-trace` exits 0 bare but must still
     // EMIT its warning — asserting only its exit status would pass over a run that found nothing.
@@ -1391,43 +1392,64 @@ describe("validate-agent-factory.js — the ticket grammar's three disagreement 
   // with the first key line it met anywhere in the file — a value the ticket's author wrote as
   // prose. `parseTicketDocument` reads only between the first two delimiters, so it answers
   // `column: null` and the membership rule has nothing to run against.
-  it("BODY MATCH: a `column:` line in the prose decides the verdict (pre-cutover answer)", () => {
+  //
+  // AUTHORITATIVE ANSWER: the frontmatter region. A ticket's column is what its region says, and
+  // this region says nothing, so the validator has nothing to report. Before the cutover this
+  // fixture exited 1 on `Phantom Column` — a value read out of the ticket's prose.
+  it("BODY MATCH: prose and fenced `column:` lines no longer decide the verdict", () => {
     const r = runFixture(join(FIX, "bad-ticket-body-column"));
     expect(
       out(r),
-      "the DELETED local reader produced this: `Phantom Column` appears nowhere in the ticket's " +
-        "frontmatter region, only in its prose body and in a fenced example",
-    ).toMatch(/column "Phantom Column" is not a board column/);
-    expect(r.status).not.toBe(0);
+      "`Phantom Column` appears only in the ticket's prose body and in a fenced example, and the " +
+        "grammar reads neither",
+    ).not.toMatch(/Phantom Column/);
+    expect(r.status, "the region names no column, so no rule runs and nothing is found").toBe(0);
   });
 
   // DISAGREEMENT 2 — no frontmatter region at all.
   //
   // The document is plain markdown with two key lines in its prose. The deleted reader accepted it
   // and found both values legitimate, so the validator passed a document that has no frontmatter.
-  // `parseTicketDocument` refuses it with `no-opening-delimiter`.
-  it("NO REGION: a document with no frontmatter passes both ticket rules (pre-cutover answer)", () => {
+  //
+  // AUTHORITATIVE ANSWER: refusal by name. A value read out of a document the grammar refused is a
+  // guess, so neither the membership rule nor the kebab rule is evaluated against one (D-07:
+  // refuse outside the form, never widen the parser). Before the cutover this fixture exited 0.
+  it("NO REGION: a document with no frontmatter is refused by code, not read anyway", () => {
     const r = runFixture(join(FIX, "bad-ticket-no-region"));
+    expect(out(r), "the refusal names its CODE and its reason, so the finding is actionable").toMatch(
+      /plans\/tickets\/ABC-001\.md: refused by the ticket grammar \(no-opening-delimiter\): /,
+    );
+    expect(r.status).not.toBe(0);
     expect(
-      r.status,
-      "the DELETED local reader read `column:`/`status:` out of a document that never opened a " +
-        "frontmatter region, and both values happened to be legitimate",
-    ).toBe(0);
-    expect(out(r)).not.toMatch(/no-opening-delimiter/);
+      out(r),
+      "the column and status rules must not run against a guess read out of a refused document",
+    ).not.toMatch(/is not a board column|does not match column/);
   });
 
   // DISAGREEMENT 3 — the `column:` key written twice, with different values.
   //
-  // The deleted reader's `.match()` returns the FIRST match and discards the rest, so the document
-  // was read as though its second column line did not exist. `parseTicketDocument` refuses a
-  // document that expresses two values for one key.
-  it("DUPLICATE KEY: the first of two column lines wins silently (pre-cutover answer)", () => {
+  // The deleted reader's `.match()` returned the FIRST match and discarded the rest, so the
+  // document was read as though its second column line did not exist.
+  //
+  // AUTHORITATIVE ANSWER: refusal by name. A document expressing two values for one key does not
+  // have a column; picking one of the two is the validator deciding what the author meant. Before
+  // the cutover this fixture exited 0 on `In Development`, silently.
+  it("DUPLICATE KEY: two values for one key are refused, not silently halved", () => {
     const r = runFixture(join(FIX, "bad-ticket-duplicate-key"));
-    expect(
-      r.status,
-      "the DELETED local reader took `In Development` — the first of the two — and said nothing " +
-        "about the second",
-    ).toBe(0);
-    expect(out(r)).not.toMatch(/duplicate-key/);
+    expect(out(r)).toMatch(
+      /plans\/tickets\/ABC-001\.md: refused by the ticket grammar \(duplicate-key\): /,
+    );
+    expect(r.status).not.toBe(0);
+  });
+
+  // The refusal message is a NEW published surface this plan introduces, so it is pinned the same
+  // way the two board↔ticket messages are: by its bytes, not by a regex that would survive a
+  // reword. It names the path, the refusal CODE and the grammar's own sentence.
+  it("pins the refusal message's shape: path, code, and the grammar's own reason", () => {
+    const r = runFixture(join(FIX, "bad-ticket-duplicate-key"));
+    expect(out(r)).toContain(
+      "plans/tickets/ABC-001.md: refused by the ticket grammar (duplicate-key): " +
+        "`column` is written twice, so the document expresses two values for one key",
+    );
   });
 });
