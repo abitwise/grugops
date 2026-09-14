@@ -278,3 +278,10 @@ None - no external service configuration required.
 ---
 *Phase: 32-board-projector-cli-dashboard*
 *Completed: 2026-09-15*
+
+## Self-Check: PASSED
+
+- All three artifacts exist on disk (`32-11-SUMMARY.md`, `32-11-RED-baseline.txt`, `32-11-GREEN-proof.txt`) and `scripts/board-readonly.test.ts` is present.
+- All six commits resolve in `git log`: `67e703a5`, `d2f7f854`, `39f29643`, `6a2a5189`, `4cac94eb`, `01e826fc`.
+- `git rev-list --count 69821292..HEAD` = 6, matching the five task commits plus this metadata commit (frontmatter `commits: 5` counts the task commits recorded at SUMMARY-write time, before this one existed).
+- Working tree carries only the four pre-existing user files this executor was told not to touch (`.planning/milestone.lock`, `human-notes.txt`, `.gsd/`, `.planning/state.json`).
