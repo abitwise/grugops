@@ -706,11 +706,20 @@ describe("board-dashboard — the render branch, through an injected io (D-17, D
     expect(r.out).toContain("In Development");
   });
 
-  it("puts Blocked last in the frame", () => {
+  it("puts Blocked last among the COLUMNS of the frame", () => {
+    // Until plan 32-07 the frame ended at the last column, so "Blocked is last" and "Blocked is the
+    // last line" were the same assertion. The full D-17 layout puts `Now running` and `Conflicts`
+    // after the columns, so the second reading would now be measuring where the frame ends rather
+    // than where Blocked sits. D-17's claim is about the COLUMN ORDER, and that is what is asserted.
     const r = runMain([ROOT, "--once"], false);
     const lines = r.out.split("\n").filter((l) => l.trim() !== "");
+    const columnAt = KIT_COLUMNS.map((name) => lines.findIndex((l) => l.startsWith(name)));
+    expect(
+      columnAt.every((i) => i >= 0),
+      `PREMISE: a kit column is missing from the frame entirely; indices ${JSON.stringify(columnAt)}`,
+    ).toBe(true);
     const blockedAt = lines.findIndex((l) => l.startsWith("Blocked"));
-    expect(blockedAt).toBe(lines.length - 1);
+    expect(blockedAt).toBe(Math.max(...columnAt));
   });
 
   it("names the config mode in the header", () => {

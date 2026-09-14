@@ -41,10 +41,10 @@
 import { existsSync, watch } from "node:fs";
 import { join } from "node:path";
 
-import { readSnapshot } from "./board-read.js";
+import { CONFLICT_KINDS, readSnapshot } from "./board-read.js";
 import { isEntrypoint } from "./is-entry.js";
 import type { ReadError, SnapshotResult, SourceName } from "./board-read.js";
-import type { BoardColumn } from "./board-model.js";
+import type { BoardColumn, SourceState } from "./board-model.js";
 
 // ── The timing constants the loop runs on (D-14) ─────────────────────────────────────────────────
 //
@@ -204,13 +204,175 @@ export function sanitizeCell(s: string): string {
   return s.replace(CONTROL_CODE_POINTS, "");
 }
 
-// ── The frame (D-17, thin version) ───────────────────────────────────────────────────────────────
+// ── The frame (D-17) ─────────────────────────────────────────────────────────────────────────────
+//
+// THE FRAME IS A PURE FUNCTION OF THE RESULT, THE WIDTH AND THE STYLE. It reads no `process`, no
+// environment variable and no clock. That is what lets a case render a two-stale-source board at 20
+// columns without a pty and without mutating global state — and it is what keeps the header's
+// "12m ago" derived from the snapshot's own timestamps rather than from the wall clock, so two runs
+// over the same document produce the same bytes.
+//
+// MINIMAL ANSI, NO CURSOR-ADDRESSING LIBRARY (D-17). The escapes live in `STYLE` and `main` passes
+// `PLAIN_STYLE` when stdout is not a TTY, so the non-TTY path is THE SAME RENDERER with empty
+// constants rather than a second implementation free to disagree with the first. One authority per
+// predicate is this repository's recorded lesson; "how a frame looks" is a predicate.
+//
+// STYLE IS APPLIED AFTER TRUNCATION AND NEVER INSIDE A CELL. An escape inside a cell would count
+// toward the width, so the cut would move when the styling changed; an escape around a whole line
+// cannot. The one exception is the header's badge, and the header is deliberately not truncated —
+// see `renderHeader`.
+
+/** The named escape constants. `main` passes the empty twin below when stdout is not a TTY. */
+export type Style = {
+  readonly bold: string;
+  readonly badge: string;
+  readonly reset: string;
+};
+
+// Spelled with `\u` escapes rather than literal bytes, so this source file carries no control
+// character of its own for `scripts/check-nul-bytes.ts` or a reviewer to trip over.
+export const STYLE: Style = {
+  bold: "\u001B[1m",
+  badge: "\u001B[33m",
+  reset: "\u001B[0m",
+};
+
+/** The non-TTY twin: the same three names, all empty. A redirected run emits no escape byte. */
+export const PLAIN_STYLE: Style = { bold: "", badge: "", reset: "" };
+
+/** Clear the screen and home the cursor. A plain sequence, emitted only on a TTY (D-17). */
+export const CLEAR_SCREEN = "\u001B[2J\u001B[H";
+
+/** The width a frame falls back to when the caller has none — a pipe reports no columns. */
+export const DEFAULT_WIDTH = 80;
+
+/** The ellipsis a truncated cell ends with. One code unit, so it costs one column. */
+const ELLIPSIS = "…";
+
+function normalizeWidth(width: number | undefined): number {
+  if (width === undefined || !Number.isFinite(width)) return DEFAULT_WIDTH;
+  const w = Math.floor(width);
+  return w >= 8 ? w : DEFAULT_WIDTH;
+}
 
 /**
- * The WIP cell for one column: the claimed live count over the limit, or a dash where the heading
- * claims no numbers.
+ * Cut a line to `width`, marking the cut, WITHOUT splitting a surrogate pair.
+ *
+ * THE CUT IS ON A CODE UNIT, AND THE PAIR IS THE ONE EXCEPTION. JavaScript strings are UTF-16, so
+ * `slice` can land between the two halves of an astral character — an emoji in a ticket title is
+ * enough. A lone surrogate reaches the terminal as a replacement character, which reads as a broken
+ * cell rather than a truncated one, so the cut backs off by one unit when it would land inside a
+ * pair. Grapheme clusters and east-asian width are NOT modelled: that needs a table this kit does
+ * not ship, and the failure mode is a line one column short rather than a corrupt one.
  */
-function wipCell(column: BoardColumn): string {
+export function truncateCell(s: string, width: number): string {
+  const max = Math.max(1, Math.floor(width));
+  if (s.length <= max) return s;
+  let cut = max - 1;
+  const lead = s.charCodeAt(cut - 1);
+  if (cut > 0 && lead >= 0xd800 && lead <= 0xdbff) cut -= 1;
+  return `${s.slice(0, cut)}${ELLIPSIS}`;
+}
+
+/** Sanitize, then cut. In that order, so a stripped sequence cannot move where the cut falls. */
+function cell(text: string, width: number): string {
+  return truncateCell(sanitizeCell(text), width);
+}
+
+/** Human-rounded bytes for a header a person reads. The snapshot field keeps the exact number. */
+function humanBytes(n: number): string {
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${Math.round(n / 1024)} KB`;
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+/** Human-rounded age between two ISO instants, coarsened upward. */
+function humanAge(since: string, now: string): string {
+  const ms = Date.parse(now) - Date.parse(since);
+  if (!Number.isFinite(ms) || ms < 0) return "unknown";
+  const s = Math.floor(ms / 1000);
+  if (s < 60) return `${s}s`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h`;
+  return `${Math.floor(h / 24)}d`;
+}
+
+/**
+ * The header line (D-12, D-17, D-20).
+ *
+ * THE BADGE'S SOURCE LIST IS DERIVED FROM THE RESULT, never from a second literal beside
+ * `SOURCE_NAMES`. A hand-maintained list of "sources that can go stale" is this repository's
+ * recorded set-literal drift class: it rots while every gate over it stays green, and the rot is
+ * invisible precisely because a source that stopped being badged still renders its last good value.
+ *
+ * THE HEADER IS THE ONE LINE THAT IS NOT TRUNCATED, and that is a decision. Everything that says
+ * the frame is not to be trusted — the stale badge, the conflict count, the large-board marker —
+ * lives here, and a narrow terminal cutting the badge off would leave a frame that looks confident
+ * for exactly the reason it should not be. A wrapped header is ugly; a silently dropped badge is a
+ * lie. It is still sanitized, because the repository root arrives from argv.
+ */
+export function renderHeader(result: SnapshotResult, style: Style): string {
+  const snapshot = result.snapshot;
+  const mode = snapshot.config?.mode ?? "unknown";
+  const columns = orderedColumns(result);
+
+  const parts = [
+    "grugops board",
+    sanitizeCell(snapshot.repoRoot),
+    `mode: ${sanitizeCell(mode)}`,
+    `read: ${sanitizeCell(snapshot.generatedAt)}`,
+    `${columns.length} columns`,
+    `[${result.source}]`,
+  ];
+
+  // Derived from the result's own per-source states (D-12), in the order the result carries them.
+  const stale = Object.entries(snapshot.sources)
+    .filter(([, state]) => state.source === "stale")
+    .map(([name, state]) => {
+      const s = state as Extract<SourceState<unknown>, { source: "stale" }>;
+      return `${name} (${humanAge(s.stale.since, snapshot.generatedAt)}, ${s.stale.reason})`;
+    });
+  if (stale.length > 0) {
+    parts.push(`${style.badge}STALE: ${stale.join(", ")}${style.reset}`);
+  }
+
+  parts.push(`${result.conflicts.length} conflicts`);
+
+  const bounds = snapshot.board?.bounds;
+  if (bounds !== undefined && bounds.exceeded) {
+    parts.push(
+      `${style.badge}LARGE BOARD (${humanBytes(bounds.boardBytes)}, longest line ` +
+        `${humanBytes(bounds.longestLine)})${style.reset}`,
+    );
+  }
+
+  return parts.join("  ");
+}
+
+/** The board's columns in on-disk order with Blocked last, whatever its heading's position. */
+function orderedColumns(result: SnapshotResult): readonly BoardColumn[] {
+  const columns = result.snapshot.board?.columns ?? [];
+  return [
+    ...columns.filter((c) => c.kind !== "blocked"),
+    ...columns.filter((c) => c.kind === "blocked"),
+  ];
+}
+
+/**
+ * The WIP cell for one column.
+ *
+ * ON A `wip-count` CONFLICT THE CELL NAMES THE DISAGREEMENT RATHER THAN PICKING A NUMBER (D-09).
+ * `2/3` over a column whose three rows contradict the heading's claim of two is the renderer
+ * choosing a side, silently, on a board nobody has reconciled. `claimed 2 / counted 3 / limit 3`
+ * says which two numbers disagree and leaves the fixing to the human who can.
+ */
+function wipCell(column: BoardColumn, disputed: boolean): string {
+  if (disputed) {
+    const limit = column.limit === null ? "unlimited" : String(column.limit);
+    return `claimed ${column.claimedLive ?? "-"} / counted ${column.rows.length} / limit ${limit}`;
+  }
   if (column.kind === "limited" && column.claimedLive !== null && column.limit !== null) {
     return `${column.claimedLive}/${column.limit}`;
   }
@@ -218,49 +380,132 @@ function wipCell(column: BoardColumn): string {
   return "-";
 }
 
+function plural(n: number, one: string, many: string): string {
+  return n === 1 ? `1 ${one}` : `${n} ${many}`;
+}
+
 /**
- * Render one frame.
+ * The column block: one line per column, then one line per row beneath it (D-03, D-09, D-17).
  *
- * THIS IS THE THIN VERSION OF D-17 AND SAYS SO. One header line carrying the resolved root, the
- * config mode, the last read time and the column count; then one line per column reading name, WIP
- * cell and row count, with Blocked last. The full layout — the stale badge, the conflict list, the
- * `Now running` block, width truncation and the TTY redraw — lands in plan 32-07. The sanitizer and
- * this header-and-column skeleton do not move when it does.
- *
- * THE `width` PARAMETER IS THE SEAM AND NOT YET THE BEHAVIOUR. It is declared here so plan 32-07's
- * cases can name the width they render at rather than inherit whatever terminal the suite happens
- * to run under; the thin body below ignores it, and the failing cases in
- * `scripts/board-dashboard.test.ts` are the record of that.
+ * AN EMPTY COLUMN COLLAPSES TO ITS OWN LINE and an unparsed count rides on that same line, so a
+ * board with three lines the grammar declined under `Done` says so where a reader is already
+ * looking. Dropping the count would make an unparsed line indistinguishable from a line that was
+ * never written, which is the difference between "the board is clean" and "the projector did not
+ * understand part of it".
  */
-export function renderFrame(result: SnapshotResult, _width?: number): string {
-  const snapshot = result.snapshot;
-  const mode = snapshot.config?.mode ?? "unknown";
-  const lines: string[] = [];
+export function renderColumns(result: SnapshotResult, width: number, style: Style): string[] {
+  const columns = orderedColumns(result);
+  if (columns.length === 0) return [];
 
-  const columns = snapshot.board?.columns ?? [];
-  const ordered = [
-    ...columns.filter((c) => c.kind !== "blocked"),
-    ...columns.filter((c) => c.kind === "blocked"),
-  ];
-
-  lines.push(
-    sanitizeCell(
-      `grugops board  ${snapshot.repoRoot}  mode: ${mode}  read: ${snapshot.generatedAt}  ` +
-        `${ordered.length} columns  [${result.source}]`,
-    ),
+  const unparsed = result.snapshot.board?.unparsed ?? [];
+  const disputedColumns = new Set(
+    result.conflicts.filter((c) => c.kind === "wip-count").map((c) => c.column),
   );
+  const nameWidth = columns.reduce((w, c) => Math.max(w, sanitizeCell(c.name).length), 0);
 
-  if (snapshot.board === null) {
-    lines.push(sanitizeCell("no board: plans/board.md was not readable on this tree"));
-    return `${lines.join("\n")}\n`;
+  const lines: string[] = [];
+  for (const column of columns) {
+    const disputed = disputedColumns.has(column.name);
+    const parts = [
+      sanitizeCell(column.name).padEnd(nameWidth),
+      wipCell(column, disputed),
+      plural(column.rows.length, "row", "rows"),
+    ];
+    const declined = unparsed.filter((u) => u.column === column.name).length;
+    if (declined > 0) {
+      parts.push(plural(declined, "unparsed line", "unparsed lines"));
+    }
+    lines.push(`${style.bold}${cell(parts.join("  "), width)}${style.reset}`);
+
+    for (const row of column.rows) {
+      lines.push(cell(`  ${row.id}  ${row.title}`, width));
+    }
+  }
+  return lines;
+}
+
+/**
+ * The `Now running` block, from the claimed queue stage (D-13, D-17).
+ *
+ * AN ABSENT `.grugops/` RENDERS `no queue` AND NO BADGE. A repository that has never run the queue
+ * is a supported state rather than a fault, and reporting it as stale would leave a fresh install
+ * showing a warning it can do nothing about — which is how a badge stops meaning anything.
+ */
+export function renderNowRunningBlock(result: SnapshotResult, width: number, style: Style): string[] {
+  const queue = result.snapshot.sources.queue;
+  if (queue.source === "unavailable") {
+    return [`${style.bold}${cell("Now running  no queue", width)}${style.reset}`];
+  }
+  const rows = queue.value;
+  if (rows.length === 0) {
+    return [`${style.bold}${cell("Now running  nothing claimed", width)}${style.reset}`];
+  }
+  const lines = [`${style.bold}${cell("Now running", width)}${style.reset}`];
+  for (const row of rows) {
+    lines.push(cell(`  ${row.task}  by ${row.by}  at ${row.at}`, width));
+  }
+  return lines;
+}
+
+/**
+ * The conflict block, grouped by kind in `CONFLICT_KINDS` declaration order (D-10, D-17).
+ *
+ * THE ORDER COMES FROM THE PINNED TUPLE, not from the order the join happened to emit. A list whose
+ * order shifts between two runs over the same board makes a diff of two frames unreadable, and the
+ * tuple is already the two-sided-pinned authority for what a kind is.
+ *
+ * EVERY ENTRY NAMES BOTH SIDES. "wip-limit on In Review" is a finding nobody can act on; "expected
+ * 2, actual 3" names the two numbers and leaves the decision where it belongs.
+ */
+export function renderConflicts(result: SnapshotResult, width: number, style: Style): string[] {
+  const conflicts = result.conflicts;
+  if (conflicts.length === 0) {
+    return [`${style.bold}${cell("Conflicts  none", width)}${style.reset}`];
+  }
+  const lines = [`${style.bold}${cell(`Conflicts (${conflicts.length})`, width)}${style.reset}`];
+  for (const kind of CONFLICT_KINDS) {
+    const group = conflicts.filter((c) => c.kind === kind);
+    if (group.length === 0) continue;
+    lines.push(cell(`  ${kind}`, width));
+    for (const conflict of group) {
+      const subject = [conflict.ticketId, conflict.column].filter((s) => s !== undefined).join(" ");
+      lines.push(
+        cell(
+          `    ${subject === "" ? "-" : subject}  expected: ${conflict.expected}  ` +
+            `actual: ${conflict.actual}`,
+          width,
+        ),
+      );
+    }
+  }
+  return lines;
+}
+
+/**
+ * Render one frame: header, columns, `Now running`, `Conflicts` (D-17).
+ *
+ * PURE. No `process`, no environment, no clock — the width and the style are arguments, and every
+ * timestamp is read from the snapshot itself. That is what makes the frame testable without a pty
+ * and what makes two renders of one document byte-identical.
+ */
+export function renderFrame(
+  result: SnapshotResult,
+  width?: number,
+  style: Style = PLAIN_STYLE,
+): string {
+  const w = normalizeWidth(width);
+  const lines: string[] = [renderHeader(result, style)];
+
+  if (result.snapshot.board === null) {
+    // D-11 forbids an empty board as an output state. A board that could not be read says so on its
+    // own line; it never renders as zero columns a reader would mistake for an empty backlog.
+    lines.push(cell("no board: plans/board.md was not readable on this tree", w));
+  } else {
+    lines.push(...renderColumns(result, w, style));
   }
 
-  const width = ordered.reduce((w, c) => Math.max(w, sanitizeCell(c.name).length), 0);
-  for (const column of ordered) {
-    const name = sanitizeCell(column.name).padEnd(width);
-    const rows = column.rows.length === 1 ? "1 row" : `${column.rows.length} rows`;
-    lines.push(sanitizeCell(`${name}  ${wipCell(column).padEnd(9)}  ${rows}`));
-  }
+  lines.push(...renderNowRunningBlock(result, w, style));
+  lines.push(...renderConflicts(result, w, style));
 
   return `${lines.join("\n")}\n`;
 }
