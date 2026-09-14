@@ -450,10 +450,11 @@ export function createLoop(options: Options, io: DashboardIo, deps: LoopDeps): L
    * volume, and the window is the D-14 number.
    */
   function schedule(): void {
-    // RED BASELINE (plan 32-03 task 3): the debounce is a NO-OP here on purpose. Every event calls
-    // refresh directly, which is the two-to-four-reads-per-change behaviour the measured probe
-    // recorded. The next commit replaces this with the DEBOUNCE_MS window.
-    refresh();
+    if (debounce !== null) clearTimeout(debounce);
+    debounce = setTimeout(() => {
+      debounce = null;
+      refresh();
+    }, DEBOUNCE_MS);
   }
 
   function emit(result: SnapshotResult): void {

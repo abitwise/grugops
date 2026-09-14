@@ -1,0 +1,94 @@
+32-03 GREEN PROOF — the debounce landed and the one discriminating case closed
+==============================================================================
+
+Captured AFTER the fix, against the rebuilt COMMITTED artifacts (the 22-08 / 22-09
+RED -> GREEN discipline; companion to 32-03-RED-baseline.txt, in the format
+25-06-GREEN-proof.txt established).
+
+THE CHANGE.
+
+`scripts/board-dashboard.ts`, `createLoop`'s `schedule()` — the no-op replaced by
+the D-14 window, and nothing else in the loop touched:
+
+    function schedule(): void {
+      if (debounce !== null) clearTimeout(debounce);
+      debounce = setTimeout(() => {
+        debounce = null;
+        refresh();
+      }, DEBOUNCE_MS);
+    }
+
+THE RUN.
+
+    $ npm run build
+    $ npx vitest run --exclude '**/scripts/e2e/**' scripts/board-watch.test.ts
+    exit 0 — 22 tests, 22 pass, 0 fail
+
+----------------------------------------------------------------------------------------
+THE ROW THE BASELINE MEASURED
+----------------------------------------------------------------------------------------
+
+ok 8 - board-dashboard — the debounce (D-14, T-32-13)
+       > coalesces FIVE events inside the window into exactly ONE re-read
+
+    PRE-FIX  (32-03-RED-baseline.txt): 5 reads before the window closed, expected 0
+    POST-FIX                         : 0 reads before the window closed, 1 after
+
+The case discriminates: it is RED against a no-op debounce and GREEN against the
+window. That is the only claim these two files make about the debounce, and it is
+the claim a passing test on its own could not have made.
+
+----------------------------------------------------------------------------------------
+THE REST OF THE LOOP, RE-RUN AGAINST THE SAME BUILD
+----------------------------------------------------------------------------------------
+
+ok  1-4   the watched-directory set: WATCH_DIR_COUNT pinned two-sided against
+          WATCH_DIRS, the six D-14 names in order against the sources they feed,
+          and no `recursive` in any non-comment line of the module
+ok  5-7   arming: one watcher per existing directory and a silent skip for one that
+          is absent; a directory that appears later armed on a poll tick; each
+          directory armed exactly once across three poll periods
+ok  9-10  a burst arriving after the window re-reads again; a listener invoked with
+          a NULL `filename` still re-reads
+ok 11-14  the mandatory poll: a re-read with every watcher closed through its own
+          error path and every directory reporting itself absent, so nothing could
+          re-arm and the poll was alone; the period repeating three times; the
+          `--interval 1000` override; stop() clearing both timers and closing every
+          watcher
+ok 15-16  the re-arm path: with GRUGOPS_BOARD_FORCE_WATCH_ERROR naming `plans`, the
+          first event closes the watcher, appends a readErrors entry naming the
+          directory and its source, and the next poll tick re-arms it — and the
+          entry rides in the emitted JSON document, not only in the loop's own list
+ok 17-18  single-flight: a reentrant trigger sets a re-run flag rather than starting
+          a second read (max read depth 1), and two triggers produce two sequential
+          COMPLETE documents with increasing generatedAt
+ok 19-21  `--json --watch` NDJSON: three poll ticks produced three lines, each a
+          whole document ending in exactly one newline; `run` routes into a live
+          loop with --watch and into one document and an exit code without it
+ok 22     the compiled `scripts/board-dashboard.js` driven as a child process on
+          this repository with `--json --watch --interval 1000`, interrupted with
+          SIGINT after 2.3 s: every stdout line parsed as a complete document, and
+          the process exited 0
+
+----------------------------------------------------------------------------------------
+THE WIRE, END TO END, AGAINST THE COMMITTED .js
+----------------------------------------------------------------------------------------
+
+    $ node scripts/board-dashboard.js . --once --json
+    schemaVersion 1  source ok  columns 13
+    sources: board:ok tickets:ok queue:unavailable context:unavailable
+             traceability:ok config:ok
+    exit 0
+
+The four sources plan 32-03 task 2 filled now report for real on this tree:
+`plans/tickets/` holds only `.gitkeep` so tickets is an EMPTY ok rather than a
+badge, `plans/traceability.md` reads zero rows because its only row shape sits
+inside its own HTML comment, and `.grugops/` does not exist here — which is D-13's
+legitimate `unavailable`, carrying no badge and producing no read error.
+
+WHAT THESE TWO FILES DO NOT CLAIM.
+
+Nothing here measures Windows. `fs.watch` on Windows is `UNKNOWN - verify` pending
+Phase 33 / CAP-02 (32-VALIDATION.md:106), no case in `scripts/board-watch.test.ts`
+asserts a Windows behaviour, and the mandatory poll floor is the fallback by
+construction: a platform that emits no events at all still re-reads every period.
