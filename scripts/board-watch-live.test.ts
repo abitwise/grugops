@@ -491,6 +491,24 @@ describe("board-dashboard live — the POLL path alone, with every watch forced 
             `deadline — so a watch delivered it and the forced-error seam did not disable the ` +
             `low-latency path this case exists to do without (${WHERE})`,
         ).toBeGreaterThan(EVENT_DEADLINE_MS);
+
+        // THE BOUNDARY, PINNED RATHER THAN REMEMBERED. A watch failure that the NEXT TICK REPAIRS
+        // reaches no document at all: the poll tick runs `armAll()` and then `refresh()`, and a
+        // successful re-arm deletes the directory's record before anything is emitted (WR-06 — the
+        // record is a state, and a repaired watch has nothing current to report). Every watch in
+        // this run failed and was repaired that way, so every document is recordless. The case
+        // below is the other half: a failure observed BEFORE its re-arm, published in the document.
+        //
+        // This assertion is what makes that a measured property. If it ever reds, the ordering
+        // changed or a re-arm is now failing persistently — both are things to look at rather than
+        // to absorb by loosening the line.
+        const carrying = live.docs.filter((doc) => watchRecords(doc).length > 0);
+        expect(
+          carrying.map((doc) => doc.sinceStartMs),
+          `a document carried a watch record even though every forced failure here is repaired by ` +
+            `the same tick that emits — so either the re-arm no longer precedes the emit, or a ` +
+            `re-arm is failing for a reason this case did not force (${WHERE})`,
+        ).toEqual([]);
       } finally {
         await live.stop();
       }
