@@ -1086,6 +1086,19 @@ export type JoinInputs = {
   readonly repoRoot: string;
   readonly generatedAt: string;
   readonly sources: FactorySnapshot["sources"];
+  /**
+   * Every `plans/tickets/*.md` the reader LISTED, READ and could not admit (plan 32-15, CR-01).
+   *
+   * REQUIRED, WITH NO DEFAULT AND NO OPTIONAL MARKER, AND THAT IS THE MECHANISM. An optional field
+   * would let a future call site omit the answer and silently re-acquire the defect this closes:
+   * the join would go back to inferring "no file carries this identifier" from the parse SUCCESSES,
+   * and assert absence about a file that is on disk and readable. Required means every caller is a
+   * compile error until it answers the question, which a reviewer cannot forget to ask.
+   *
+   * The empty array is a legitimate value and means "the reader refused nothing" — not "nobody
+   * asked". A source that could not be listed reports that through its own state, above.
+   */
+  readonly unadmittedTickets: readonly UnadmittedTicket[];
 };
 
 export type JoinResult = {
@@ -1165,6 +1178,13 @@ export function joinSnapshot(inputs: JoinInputs): JoinResult {
   const ticketById = new Map<string, TicketRecord>();
   for (const t of tickets) if (!ticketById.has(t.id)) ticketById.set(t.id, t);
 
+  // THE OTHER HALF OF THE READER'S PARTITION (plan 32-15, CR-01). `ticketById` answers "which
+  // identifiers did a document STATE"; this map answers "which identifiers did the reader SEE on
+  // disk and fail to admit". The two together are the reader's whole listing, which is what makes
+  // the presence question below answerable per identifier instead of per source.
+  const unadmittedById = new Map<string, UnadmittedTicket>();
+  for (const u of inputs.unadmittedTickets) if (!unadmittedById.has(u.id)) unadmittedById.set(u.id, u);
+
   // ── board-vs-ticket, arm one: the ticket file names a different column ─────────────────────────
   for (const p of placements) {
     const t = ticketById.get(p.id);
@@ -1205,6 +1225,13 @@ export function joinSnapshot(inputs: JoinInputs): JoinResult {
   // listing stale, bounded or unavailable, the ticket set in hand is a subset nobody chose, and this
   // kind would be raised for the tickets that survived while staying silent about the ones that did
   // not. The badge already reports the one thing that is true: the listing failed.
+  //
+  // AN UNADMITTED DOCUMENT IS DELIBERATELY SILENT HERE, AND THE NEXT READER'S INSTINCT WILL BE TO
+  // ADD IT (plan 32-15). `unadmittedById` is NOT walked by this arm. A refused document's identity
+  // is a FILE STEM, not a statement the document made — the grammar refused to read what it says —
+  // so raising "no row names this ticket" for it would be the same fabrication in the converse
+  // direction: a positive claim that a refused document IS a ticket. The refusal is already
+  // reported, with its path and its code, in `readErrors`; that is the honest channel for it.
   for (const t of ticketsListingComplete ? tickets : []) {
     if (byId.has(t.id)) continue;
     add(0, {
@@ -1240,16 +1267,32 @@ export function joinSnapshot(inputs: JoinInputs): JoinResult {
   // what deriving it anyway costs: seven of these against six files that exist, under an `[ok]`
   // header. A conflict derived from a listing that failed is an assertion about a filesystem nobody
   // read, which CLAUDE.md's no-fabrication rule refuses before it is a bug.
+  //
+  // TWO SENTENCES, ONE DERIVATION (plan 32-15, CR-01). The gate above answers "was the LISTING
+  // obtained", which is a question about the directory. It cannot answer "is there a file for THIS
+  // identifier", and answering that from `ticketById` alone — the set of parse SUCCESSES — is what
+  // made the projector assert that a file which exists, and which it read and refused by name, is
+  // not there. So the arm now asks `unadmittedById` too and picks the sentence that is true: the
+  // refusal and its code when the reader saw the file, the unchanged absence sentence when it did
+  // not. The KIND does not split and `SCHEMA_VERSION` does not move — D-10 makes the kind set part
+  // of the `schemaVersion: 1` shape, and the honesty is reachable inside the existing kind by making
+  // `actual` true. `expected` is the same in both: the file a row of this identifier implies.
   const reportedMissing = new Set<string>();
   for (const p of ticketsListingComplete ? placements : []) {
     if (ticketById.has(p.id) || reportedMissing.has(p.id)) continue;
     reportedMissing.add(p.id);
+    const unadmitted = unadmittedById.get(p.id);
     add(p.line, {
       kind: "row-without-file",
       ticketId: p.id,
       column: p.column,
       expected: `plans/tickets/${p.id}.md`,
-      actual: "no ticket file carries that identifier",
+      // NEITHER SENTENCE QUOTES A BYTE OF THE DOCUMENT. The path and the code are both already in
+      // `readErrors`; the containment rule plan 32-10 set for `OUTSIDE-ROOT` is kept here.
+      actual:
+        unadmitted === undefined
+          ? "no ticket file carries that identifier"
+          : `plans/tickets/${p.id}.md exists and the reader could not admit it (${unadmitted.code})`,
       source: "board",
     });
   }

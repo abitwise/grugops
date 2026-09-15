@@ -735,6 +735,7 @@ import type {
   StaleReason,
   TicketRecord,
   TraceRow,
+  UnadmittedTicket,
 } from "./board-model.js";
 
 const JOIN_AT = "2026-01-01T00:00:00.000Z";
@@ -757,6 +758,8 @@ type JoinOverrides = {
   readonly traceability?: readonly TraceRow[];
   readonly config?: FactoryConfigView | null;
   readonly idPrefix?: string | null;
+  /** The reader's unadmitted half (plan 32-15). Defaulted EMPTY here, never on `JoinInputs`. */
+  readonly unadmittedTickets?: readonly UnadmittedTicket[];
 };
 
 /** Build the six source states a join takes, from the pieces a case cares about. */
@@ -779,6 +782,7 @@ function joinOf(o: JoinOverrides): { snapshot: FactorySnapshot; conflicts: reado
     repoRoot: "/fixture",
     generatedAt: JOIN_AT,
     sources: sourcesFor(o),
+    unadmittedTickets: o.unadmittedTickets ?? [],
   });
 }
 
@@ -916,6 +920,7 @@ function gatingJoin(tickets: SourceState<readonly TicketRecord[]>): readonly Con
     repoRoot: "/fixture",
     generatedAt: JOIN_AT,
     sources: { ...sourcesFor({ board: GATING_BOARD, tickets: GATING_TICKETS }), tickets },
+    unadmittedTickets: [],
   }).conflicts;
 }
 
@@ -968,6 +973,142 @@ describe("board-model — a non-ok tickets source gates the presence-dependent k
       1,
     );
     expect(kinds.length, "exactly the two ungated findings this fixture manufactures").toBe(2);
+  });
+});
+
+
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+// THE PRESENCE QUESTION IS ANSWERED PER IDENTIFIER (plan 32-15, `32-REVIEW.md` CR-01)
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+//
+// The gate plan 32-09 added asks "was the LISTING obtained", which is a question about a directory
+// and is right for what it asks. It cannot answer "is there a file for THIS identifier", and
+// answering that from the parse SUCCESSES alone made the projector assert that a file which exists,
+// which it read, and which it refused by name, is not there.
+//
+// THE CONVERSE IS ASKED HERE TOO, IN BOTH DIRECTIONS. Four cases, because a fix that is correct for
+// the identifier it was written for and wrong for the one beside it is the failure class this
+// repository has recorded in five consecutive rounds.
+
+const ABSENCE_SENTENCE = "no ticket file carries that identifier";
+
+/** A board whose one column carries three identifiers in the three populations under test. */
+const PRESENCE_BOARD =
+  "## In Development (WIP unlimited)\n" +
+  "- [ABC-001] Admitted, with a file\n" +
+  "- [ABC-900] Refused, with a file\n" +
+  "- [ABC-777] Absent, with no file\n";
+
+const REFUSED = (id: string, code = "unknown-key"): UnadmittedTicket => ({ id, code });
+
+describe("board-model — a REFUSED document is never reported as an ABSENT one (plan 32-15)", () => {
+  it("(a) a row whose identifier is UNADMITTED names the refusal and asserts no absence", () => {
+    const conflicts = joinOf({
+      board: PRESENCE_BOARD,
+      tickets: [ticket("ABC-001", "In Development", "in-development")],
+      unadmittedTickets: [REFUSED("ABC-900")],
+    }).conflicts;
+
+    const raised = only(conflicts, "row-without-file").filter((c) => c.ticketId === "ABC-900");
+    expect(raised.length).toBe(1);
+    expect(raised[0]?.actual).not.toBe(ABSENCE_SENTENCE);
+    expect(raised[0]?.actual).toContain("unknown-key");
+    expect(raised[0]?.actual).toContain("plans/tickets/ABC-900.md");
+    // The KIND does not split and `expected` does not move: D-10 makes the kind set part of the
+    // `schemaVersion: 1` shape, and the honesty is reachable inside the existing kind.
+    expect(raised[0]?.kind).toBe("row-without-file");
+    expect(raised[0]?.expected).toBe("plans/tickets/ABC-900.md");
+    expect(raised[0]?.column).toBe("In Development");
+  });
+
+  it("(b) a row whose identifier is GENUINELY ABSENT carries the UNCHANGED absence sentence", () => {
+    const conflicts = joinOf({
+      board: PRESENCE_BOARD,
+      tickets: [ticket("ABC-001", "In Development", "in-development")],
+      unadmittedTickets: [REFUSED("ABC-900")],
+    }).conflicts;
+
+    const raised = only(conflicts, "row-without-file").filter((c) => c.ticketId === "ABC-777");
+    expect(raised.length).toBe(1);
+    // BYTE FOR BYTE. An identifier the reader never saw is still an identifier no file carries, and
+    // this sentence is what a `--json` consumer and the committed golden both already read.
+    expect(raised[0]?.actual).toBe(ABSENCE_SENTENCE);
+  });
+
+  it("(c) an UNADMITTED identifier with no row raises NO `ticket-unplaced`", () => {
+    const conflicts = joinOf({
+      // A board that names neither, so the only thing that could speak for ABC-900 is the refusal.
+      board: "## In Development (WIP unlimited)\n- [ABC-001] Admitted, with a file\n",
+      tickets: [ticket("ABC-001", "In Development", "in-development")],
+      unadmittedTickets: [REFUSED("ABC-900", "duplicate-key")],
+    }).conflicts;
+
+    // Raising it would be the same fabrication in the converse direction: a positive claim that a
+    // document the grammar refused to read IS a ticket. Its identity is a file stem, not a statement.
+    expect(only(conflicts, "ticket-unplaced").map((c) => c.ticketId)).toEqual([]);
+  });
+
+  it("(d) an ADMITTED ticket with no row still raises `ticket-unplaced`, exactly as before", () => {
+    const conflicts = joinOf({
+      board: "## In Development (WIP unlimited)\n- [ABC-001] Admitted, with a file\n",
+      tickets: [
+        ticket("ABC-001", "In Development", "in-development"),
+        ticket("ABC-500", "In Development", "in-development"),
+      ],
+      unadmittedTickets: [REFUSED("ABC-900")],
+    }).conflicts;
+
+    // PREMISE for (c): with the same board shape, an ADMITTED unplaced ticket does reach the arm, so
+    // (c)'s empty result measures the unadmitted entry rather than a silent arm.
+    const unplaced = only(conflicts, "ticket-unplaced");
+    expect(unplaced.map((c) => c.ticketId)).toEqual(["ABC-500"]);
+    expect(unplaced[0]?.actual).toBe("no row names ABC-500");
+  });
+
+  it("stays silent on BOTH gated kinds when the tickets source is not `ok`, whatever it holds", () => {
+    // The unadmitted set does not reopen a gate plan 32-09 closed: with the listing not obtained,
+    // neither presence-dependent kind is derived, however many refusals the reader carries.
+    const conflicts = joinSnapshot({
+      repoRoot: "/fixture",
+      generatedAt: JOIN_AT,
+      sources: {
+        ...sourcesFor({ board: PRESENCE_BOARD, tickets: [] }),
+        tickets: staleTickets([], "eacces"),
+      },
+      unadmittedTickets: [REFUSED("ABC-900"), REFUSED("ABC-777")],
+    }).conflicts;
+
+    expect(conflicts.filter((c) => PRESENCE_DEPENDENT.has(c.kind))).toEqual([]);
+  });
+
+  it("produces the committed sentence for EVERY row when the unadmitted set is empty", () => {
+    // The pristine shape: with no document refused, this change moves nothing. Both rows without a
+    // file read exactly as they did before plan 32-15.
+    const conflicts = joinOf({
+      board: PRESENCE_BOARD,
+      tickets: [ticket("ABC-001", "In Development", "in-development")],
+      unadmittedTickets: [],
+    }).conflicts;
+
+    const actuals = only(conflicts, "row-without-file").map((c) => c.actual);
+    expect(actuals.length).toBe(2);
+    expect(new Set(actuals)).toEqual(new Set([ABSENCE_SENTENCE]));
+  });
+
+  it("dedupes per identifier: two rows naming one refused identifier raise ONE conflict", () => {
+    const conflicts = joinOf({
+      board:
+        "## In Development (WIP unlimited)\n- [ABC-900] Refused\n" +
+        "## Done (WIP unlimited)\n- [ABC-900] Refused again\n",
+      tickets: [],
+      unadmittedTickets: [REFUSED("ABC-900", "control-character")],
+    }).conflicts;
+
+    const raised = only(conflicts, "row-without-file");
+    expect(raised.length).toBe(1);
+    expect(raised[0]?.actual).toContain("control-character");
+    // The duplicate is still reported by its own kind: this arm dedupes, it does not hide.
+    expect(only(conflicts, "ticket-duplicated").map((c) => c.ticketId)).toEqual(["ABC-900"]);
   });
 });
 

@@ -1690,7 +1690,16 @@ export function readSnapshot(
   // THE JOIN IS THE PURE MODULE'S. This function reads; it does not compare. `joinSnapshot` takes
   // the six settled states and returns the published snapshot together with every conflict, which
   // is what makes the committed golden a byte-for-byte function of its committed inputs (D-19).
-  const joined = joinSnapshot({ repoRoot: root, generatedAt: readAt, sources });
+  const joined = joinSnapshot({
+    repoRoot: root,
+    generatedAt: readAt,
+    sources,
+    // THE ONE PATH THE ANSWER TRAVELS (plan 32-15, CR-01). `readTicketsSource` partitions its own
+    // listing; the other half arrives here so the join can tell "no file carries this identifier"
+    // from "a file carries it and the grammar refused it". The field is REQUIRED on `JoinInputs`,
+    // so this line cannot be dropped without a compile error.
+    unadmittedTickets: tickets.unadmitted,
+  });
 
   // In SOURCE_NAMES order, so the stderr summary reads the same way twice and a consumer diffing two
   // runs sees a changed finding rather than a reshuffled list.

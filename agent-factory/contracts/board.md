@@ -230,7 +230,7 @@ first.
 | `board-vs-ticket` | A ticket file names a different column, or a status that does not match. |
 | `ticket-unplaced` | A ticket file exists with no row on the board. |
 | `ticket-duplicated` | One identifier carries rows under two or more headings. |
-| `row-without-file` | A board row names an identifier with no ticket file. |
+| `row-without-file` | A board row names an identifier for which the reader holds no admitted ticket document. |
 | `wip-limit` | A heading's stated limit differs from the configured limit. |
 | `wip-count` | A heading's claimed live number differs from the rows counted. |
 | `column-missing` | A configured column has no heading on the board. |
@@ -252,6 +252,21 @@ so neither is derived unless the tickets source read cleanly. A conflict derived
 failed is an assertion about a filesystem nobody read. The badge reports the one thing that is true:
 the listing failed. The other five kinds are unaffected — each is a claim about a document that was
 read, or about the board and the dial alone.
+
+**A refused document is never reported as an absent one.** `row-without-file` is raised when a board
+row names an identifier for which the reader holds no admitted ticket document — which covers two
+different facts, and the conflict's `actual` states which one it is. When no file on disk carries the
+identifier, `actual` reads `no ticket file carries that identifier`. When a file does carry it and
+the ticket grammar refused it, `actual` names the file and the refusal code instead, and asserts
+nothing about the file's absence. A document the grammar refused also appears in `readErrors` with
+its path and its refusal code, so the refusal survives on the channel a human reading stderr and a
+consumer reading the document each have. The projector may say it could not read something; it may
+not say something is not there when it is.
+
+`ticket-unplaced` stays silent for a refused document. A refused document's identifier is the file's
+stem rather than something the document stated, so reporting it as an unplaced ticket would be the
+same false claim in the other direction — an assertion that a document nobody could read is a ticket.
+Its refusal is reported once, in `readErrors`, where it is true.
 
 Unparsed lines are not conflicts. They are a parser outcome rather than a disagreement between two
 sources, so they live in `unparsed[]` and the renderer counts them per column.
