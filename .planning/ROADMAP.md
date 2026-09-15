@@ -1163,7 +1163,7 @@ Round-1 re-verification on 2026-09-15 returned `gaps_found` (3/5 truths, up from
 
 - [x] 32-15-PLAN.md — G1 / CR-01: the tickets walk becomes a TOTAL partition (every listed `.md` entry is an admitted record or an unadmitted entry, size asserted against a listing-derived count), the unadmitted set reaches the join, and `row-without-file` answers per identifier with an honest sentence instead of asserting absence about a file on disk [DASH-03, DASH-04, DASH-05]
 - [x] 32-16-PLAN.md — WR-03 + WR-04 + WR-11: one `normalizeDocument` authority for both grammars (line endings plus a single leading byte-order mark), a tab refused by the key pattern with a true reason and a derived control-class pin, and the builder specification's delimiter-less ticket template named as documented non-grammar in both documents [DASH-01, DASH-02]
-- [ ] 32-17-PLAN.md — WR-09 + WR-08 + IN-02 + IN-03: `boundNames` sorts before bounding so membership stops depending on the filesystem, every claimed-queue directory is a row or a reported skip proved by a count, a duplicated ticket identifier is reported once and joined once from the map every arm reads, and a row title carries no trailing whitespace into the published document [DASH-03, DASH-05, DASH-08]
+- [x] 32-17-PLAN.md — WR-09 + WR-08 + IN-02 + IN-03: `boundNames` sorts before bounding so membership stops depending on the filesystem, every claimed-queue directory is a row or a reported skip proved by a count, a duplicated ticket identifier is reported once and joined once from the map every arm reads, and a row title carries no trailing whitespace into the published document [DASH-03, DASH-05, DASH-08]
 - [ ] 32-18-PLAN.md — G3 / CR-02 + WR-05: one sanitizing `writeDocument` chokepoint over the serialized stdout document (keys as well as values), the stderr census generalized to a channel-parameterized census pinning stdout two-sided by count and enclosing function, the module header's claim made checkable, and the header's code-unit count rendered in code units [DASH-07, DASH-08]
 - [ ] 32-19-PLAN.md — WR-06 + WR-07 + IN-01: one current watch record per directory cleared on re-arm, the watched set derived from `FIXED_SUBPATHS` and `QUEUE_STAGES` with the assertion moved to a two-directional relationship, and watches armed against the same resolved root every read is resolved against [DASH-04, DASH-05]
 - [ ] 32-20-PLAN.md — G2 / WR-02 + F-03: the DASH-06 guard's three arms closed in ONE edit — module identity inverted to a two-sided allow-list, module acquisition reduced to one admitted canonical shape with unprovable identities refused, and the capability-bearing globals pinned by a two-sided member-path census — with the spellings held as data, a mutation per rule, and each bypass reproduced against the committed `.js`. Runs after every runtime plan so it is proved against the closure that ships [DASH-06, DASH-08]
@@ -1227,7 +1227,7 @@ Round-1 re-verification on 2026-09-15 returned `gaps_found` (3/5 truths, up from
 | 29.2. Model Assignment Delivery Path | v2.1 | 6/6 | Complete    | 2026-09-07 |
 | 30. Per-Checkpoint Autonomy Matrix | v2.1 | 11/11 | Complete    | 2026-09-07 |
 | 31. Autonomous Manual Testing | v2.1 | 44/44 | In Progress|  |
-| 32. Board Projector & CLI Dashboard | v2.1 | 16/23 | In Progress|  |
+| 32. Board Projector & CLI Dashboard | v2.1 | 17/23 | In Progress|  |
 | 33. Live Capture & Windows Portability | v2.1 | 0/TBD | Not started | - |
 
 **Totals:** 33 phases · **4 milestones shipped** (v1.0 + v1.1 + v1.2 + v2.0) · **1 active** (v2.1, phases 27–33).
