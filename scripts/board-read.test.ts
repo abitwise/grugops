@@ -23,9 +23,11 @@
 
 import { beforeAll, describe, it, expect } from "vitest";
 import ts from "typescript";
+import { spawnSync } from "node:child_process";
 import {
   appendFileSync,
   chmodSync,
+  cpSync,
   linkSync,
   mkdirSync,
   mkdtempSync,
@@ -56,7 +58,7 @@ import {
   settleSource,
   unreadableSources,
 } from "./board-read.js";
-import { TICKET_REFUSAL_CODES } from "./board-model.js";
+import { CONFLICT_KINDS, TICKET_REFUSAL_CODES } from "./board-model.js";
 import { MAX_WALK_ENTRIES } from "./kit-model.js";
 import type { SnapshotResult, SourceState } from "./board-read.js";
 
@@ -844,6 +846,230 @@ describe("board-read — the tickets walk is a TOTAL partition over its own list
       } finally {
         chmodSync(denied, 0o644);
       }
+    });
+  });
+});
+
+
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+// THE UNION OF EVERY ARM THAT CONSUMES THE TICKET RECORD SET (plan 32-15, Task 3)
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+//
+// This repository has recorded five consecutive rounds in which a fix was correct in the arm it was
+// written for and wrong in a sibling arm one register over. So the arms are ENUMERATED here, each
+// with the answer an UNADMITTED entry gets from it and why that answer is the honest one, and the
+// case below drives all five at once over a single tree holding all three populations — a refused
+// document, a genuinely absent identifier, and an admitted ticket that disagrees with its column.
+//
+//   1. board-vs-ticket, arm one (the ticket file names a different column)
+//      An unadmitted entry is SILENT. The arm reads `t.column` off an admitted record; a refused
+//      document stated no column this module is willing to read, so there is nothing to disagree
+//      with. Claiming a disagreement would be inventing the ticket's side of it.
+//
+//   2. board-vs-ticket, arm two (the status is not the kebab form of the column)
+//      SILENT, for the same reason and one field over: the arm walks `tickets`, the admitted set.
+//
+//   3. ticket-unplaced (a ticket file with no row)
+//      SILENT, and this one is a DECISION rather than a consequence. A refused document's identity
+//      is its file stem, not a statement it made; reporting "no row names this ticket" would assert
+//      that a document nobody could read IS a ticket — the same fabrication in the converse
+//      direction. The refusal is reported once, in `readErrors`, where it is true.
+//
+//   4. ticket-duplicated (one identifier carrying two or more rows)
+//      UNAFFECTED. It is derived from the BOARD alone (`byId`), never from the ticket set, so a
+//      refused document neither raises it nor suppresses it. Two rows are two rows.
+//
+//   5. row-without-file (a row naming an identifier with no admitted ticket document)
+//      The ONE arm that changes. It now asks the unadmitted half too and states which fact it
+//      found: the refusal and its code when the reader saw the file, the unchanged absence sentence
+//      when it did not.
+
+/** A board holding all three populations at once, plus a duplicate, under two headings. */
+const UNION_BOARD =
+  "## In Development (WIP unlimited)\n" +
+  "- [ABC-001] Its file names a DIFFERENT column\n" +
+  "- [ABC-222] Its file disagrees about status, and it is duplicated\n" +
+  "- [ABC-900] Its file exists and the grammar refused it\n" +
+  "- [ABC-777] No file on disk carries this identifier\n" +
+  "## Done (WIP unlimited)\n" +
+  "- [ABC-222] The duplicate, under a second heading\n";
+
+const ticketDoc = (id: string, column: string, status: string): string =>
+  `---\nid: ${id}\ntitle: ${id}\nstatus: ${status}\ncolumn: ${column}\n---\n\nBody.\n`;
+
+/** Plant the union tree and read it. One tree, five arms, three populations. */
+function withUnionTree(run: (result: SnapshotResult) => void): void {
+  withTempTree((dir) => {
+    plantBoard(dir, UNION_BOARD);
+    // Arm one: the file says Done, the row sits under In Development.
+    plantTicket(dir, "ABC-001.md", ticketDoc("ABC-001", "Done", "done"));
+    // Arm two: kebab("In Development") is `in-development`, and the file says `blocked`.
+    plantTicket(dir, "ABC-222.md", ticketDoc("ABC-222", "In Development", "blocked"));
+    // Arm three: an ADMITTED ticket with no row at all.
+    plantTicket(dir, "ABC-333.md", ticketDoc("ABC-333", "In Development", "in-development"));
+    // The refused population. `tools` is outside the closed ticket key set.
+    plantTicket(dir, "ABC-900.md", "---\nid: ABC-900\ntools: Bash\n---\n\nBody.\n");
+    // ABC-777 is planted NOWHERE: that is the absent population.
+    run(readSnapshot(dir));
+  });
+}
+
+describe("board-read — every arm consuming the ticket record set, over one tree (plan 32-15)", () => {
+  it("PREMISE: the tree reaches all five arms, so the per-arm cases below measure something", () => {
+    withUnionTree((result) => {
+      const kinds = new Set(result.conflicts.map((c) => c.kind));
+      expect(
+        ["board-vs-ticket", "ticket-unplaced", "ticket-duplicated", "row-without-file"].filter(
+          (k) => !kinds.has(k as (typeof CONFLICT_KINDS)[number]),
+        ),
+        "PREMISE: a kind the union case asserts about was never derived at all",
+      ).toEqual([]);
+      expect(result.snapshot.sources.tickets.source).toBe("ok");
+    });
+  });
+
+  it("ARM 1: board-vs-ticket on COLUMN fires for the admitted disagreement and for nothing refused", () => {
+    withUnionTree((result) => {
+      const columnArm = result.conflicts.filter(
+        (c) => c.kind === "board-vs-ticket" && c.expected !== "in-development",
+      );
+      expect(columnArm.map((c) => c.ticketId).sort()).toEqual(["ABC-001", "ABC-222"]);
+      expect(columnArm.map((c) => c.ticketId)).not.toContain("ABC-900");
+    });
+  });
+
+  it("ARM 2: board-vs-ticket on STATUS fires from the admitted set only", () => {
+    withUnionTree((result) => {
+      const statusArm = result.conflicts.filter(
+        (c) => c.kind === "board-vs-ticket" && c.expected === "in-development",
+      );
+      expect(statusArm.map((c) => c.ticketId)).toEqual(["ABC-222"]);
+      expect(statusArm[0]?.actual).toBe("blocked");
+    });
+  });
+
+  it("ARM 3: ticket-unplaced names the ADMITTED unplaced ticket and never the refused one", () => {
+    withUnionTree((result) => {
+      const unplaced = result.conflicts.filter((c) => c.kind === "ticket-unplaced");
+      expect(unplaced.map((c) => c.ticketId)).toEqual(["ABC-333"]);
+      expect(unplaced.map((c) => c.ticketId)).not.toContain("ABC-900");
+    });
+  });
+
+  it("ARM 4: ticket-duplicated is derived from the BOARD, so a refusal neither adds nor hides it", () => {
+    withUnionTree((result) => {
+      const duplicated = result.conflicts.filter((c) => c.kind === "ticket-duplicated");
+      expect(duplicated.map((c) => c.ticketId)).toEqual(["ABC-222"]);
+      expect(duplicated[0]?.actual).toBe("In Development, Done");
+    });
+  });
+
+  it("ARM 5: row-without-file tells the REFUSED identifier apart from the ABSENT one", () => {
+    withUnionTree((result) => {
+      const rows = result.conflicts.filter((c) => c.kind === "row-without-file");
+      expect(rows.map((c) => c.ticketId).sort()).toEqual(["ABC-777", "ABC-900"]);
+
+      const refused = rows.find((c) => c.ticketId === "ABC-900");
+      expect(refused?.actual).toContain("unknown-key");
+      expect(refused?.actual).toContain("plans/tickets/ABC-900.md");
+      expect(refused?.actual).not.toContain(ABSENCE_SENTENCE);
+
+      const absent = rows.find((c) => c.ticketId === "ABC-777");
+      // BYTE FOR BYTE, because an identifier the reader never saw is still one no file carries.
+      expect(absent?.actual).toBe(ABSENCE_SENTENCE);
+
+      // And the refusal survives on the OTHER channel too, with the same code.
+      expect(
+        result.readErrors.find((e) => e.path.endsWith("ABC-900.md"))?.code,
+      ).toBe("unknown-key");
+    });
+  });
+});
+
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+// THE REPRODUCTION, AGAINST THE ARTIFACT A HOST ACTUALLY RUNS (plan 32-15, Task 3)
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+//
+// `32-14-ADVERSARIAL-REVIEW.md` §0 states the premise rule: a transcript is run against the
+// COMMITTED `.js`, never against the `.ts` through a loader. The verifier's gap-1 reproduction is
+// replayed here in its exact shape — one added board row for an identifier, one readable ticket
+// document for it holding one key outside the closed set — on a DISPOSABLE COPY of the committed
+// fixture tree, outside the repository root, removed in a `finally`. The committed fixture is an
+// input to the golden; a run that modified it would move a byte-for-byte comparison out from under
+// another suite.
+
+const DASHBOARD_JS = join(ROOT, "scripts", "board-dashboard.js");
+const FIXTURE_TREE = join(ROOT, "scripts", "fixtures", "board-snapshot");
+
+/** A throwaway copy of the committed fixture tree, in a scratch root outside the repository. */
+function withFixtureCopy(body: (dir: string) => void): void {
+  const dir = mkdtempSync(join(realpathSync(tmpdir()), "grugops-32-15-repro-"));
+  try {
+    cpSync(FIXTURE_TREE, dir, { recursive: true });
+    body(dir);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+describe("board-read — the verifier's gap-1 reproduction, against the committed .js (plan 32-15)", () => {
+  it("names the refusal rather than absence, on BOTH the JSON and the plain frame", () => {
+    withFixtureCopy((dir) => {
+      // The verifier's shape, planted on the copy: a row, and a readable document the grammar
+      // refuses by name. `tools` is outside the closed ticket key set.
+      const board = join(dir, "plans", "board.md");
+      appendFileSync(
+        board,
+        "\n## Ready (WIP 1/5)\n\n- [ABC-900] A row whose ticket document is refused\n",
+        "utf8",
+      );
+      writeFileSync(
+        join(dir, "plans", "tickets", "ABC-900.md"),
+        "---\nid: ABC-900\ntools: Bash\n---\n\nBody.\n",
+        "utf8",
+      );
+
+      const json = spawnSync(process.execPath, [DASHBOARD_JS, dir, "--once", "--json"], {
+        cwd: ROOT,
+        encoding: "utf8",
+        timeout: 20_000,
+      });
+      expect(json.status).toBe(0);
+      const parsed = JSON.parse(json.stdout ?? "") as {
+        conflicts: readonly { kind: string; ticketId?: string; actual: string }[];
+        readErrors: readonly { path: string; code: string }[];
+      };
+
+      const forRefused = parsed.conflicts.filter((c) => c.ticketId === "ABC-900");
+      expect(
+        forRefused.length,
+        "PREMISE: the reproduction produced no conflict for ABC-900 at all, so the assertions " +
+          "below are satisfied by a run that derived nothing",
+      ).toBe(1);
+      expect(forRefused[0]?.kind).toBe("row-without-file");
+      expect(forRefused[0]?.actual).toContain("unknown-key");
+      expect(forRefused[0]?.actual).not.toContain(ABSENCE_SENTENCE);
+
+      // The refusal on the OTHER published channel, naming the path it was refused at.
+      expect(
+        parsed.readErrors.some((e) => e.path.endsWith("ABC-900.md") && e.code === "unknown-key"),
+        "the refusal reached no readErrors entry, so a consumer has only the conflict sentence",
+      ).toBe(true);
+
+      // The committed fixture STILL raises the honest absence claim for its own ABC-999 row, so
+      // this run proves the two populations are told apart rather than that one was silenced.
+      const forAbsent = parsed.conflicts.filter((c) => c.ticketId === "ABC-999");
+      expect(forAbsent.length).toBe(1);
+      expect(forAbsent[0]?.actual).toBe(ABSENCE_SENTENCE);
+
+      const plain = spawnSync(process.execPath, [DASHBOARD_JS, dir, "--once"], {
+        cwd: ROOT,
+        encoding: "utf8",
+        timeout: 20_000,
+      });
+      expect(plain.status).toBe(0);
+      // The identifier is named on the frame a human reads, not only in the machine document.
+      expect(plain.stdout).toContain("ABC-900");
     });
   });
 });
