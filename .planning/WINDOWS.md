@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 175
+open_count: 178
 waived_count: 0
 fixed_count: 4
-total_count: 179
-last_updated: 2026-09-14T23:14:26.242Z
+total_count: 182
+last_updated: 2026-09-14T23:59:53.431Z
 ---
 
 # Broken Windows Ledger
@@ -194,6 +194,9 @@ last_updated: 2026-09-14T23:14:26.242Z
 | 177 | 32 | lint-warning | .planning/phases/32-board-projector-cli-dashboard/32-REVIEW.md | 404 | check:nul-bytes RED — literal ESC (0x1b) in the review document; pre-existing from commit 730ff88f, deferred by plan 32-09 as out of scope | open |  | 2026-09-14T20:33:15.766Z |  |
 | 178 | 32 | deviation | scripts/board-read.ts |  | Hard-link residual (plan 32-10, CR-04): a hard link inside the repository to an inode whose other name is outside it is READ, because its path resolves inside the root. No path-based rule can refuse it; nlink>1 was declined as a heuristic. Measured, pinned by a mechanism test, and recorded in insideRoot's docblock, the board contract and 32-10-GREEN-proof.txt. | open |  | 2026-09-14T21:20:37.534Z |  |
 | 179 | 32 | deviation | scripts/board-readonly.test.ts |  | Open residual (named, not closed): a module identity ASSEMBLED at runtime and handed to a non-module-system call - process.getBuiltinModule("node:" + "fs") - is not a string literal, so the 32-11 argument arm does not see it. import(expr)/require(expr) with a non-literal ARE refused. | open |  | 2026-09-14T23:14:26.242Z |  |
+| 180 | 32 | unmet-truth | scripts/board-readonly.test.ts |  | F-03 (32-14): npm run check:dashboard-readonly exits 0 over a module acquiring node:fs via process.getBuiltinModule("node:" + "fs") — measured, not reasoned; reproduction in 32-14-ADVERSARIAL-REVIEW.md section 6 | open |  | 2026-09-14T23:59:53.269Z |  |
+| 181 | 32 | unrun-verify | scripts/check-foundation-guards.test.ts | 12009 | F-01 (32-14): the 'every check:* npm script names a gate that CI runs' derivation skips check:dashboard-readonly (its command is not 'node scripts/*.js'), so the DASH-06 gate's CI reachability is unproven by that gate | open |  | 2026-09-14T23:59:53.350Z |  |
+| 182 | 32 | deviation | .planning/phases/32-board-projector-cli-dashboard/deferred-items.md |  | the check:nul-bytes deferred entry still reads status: open but the gate is GREEN (fixed by user commit 888a1302); the entry is stale | open |  | 2026-09-14T23:59:53.431Z |  |
 
 ````json
 [
@@ -2345,6 +2348,45 @@ last_updated: 2026-09-14T23:14:26.242Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-09-14T23:14:26.242Z",
+    "resolved_at": null,
+    "milestone": "v2.1"
+  },
+  {
+    "id": 180,
+    "kind": "unmet-truth",
+    "phase": "32",
+    "file": "scripts/board-readonly.test.ts",
+    "line": null,
+    "description": "F-03 (32-14): npm run check:dashboard-readonly exits 0 over a module acquiring node:fs via process.getBuiltinModule(\"node:\" + \"fs\") — measured, not reasoned; reproduction in 32-14-ADVERSARIAL-REVIEW.md section 6",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-14T23:59:53.269Z",
+    "resolved_at": null,
+    "milestone": "v2.1"
+  },
+  {
+    "id": 181,
+    "kind": "unrun-verify",
+    "phase": "32",
+    "file": "scripts/check-foundation-guards.test.ts",
+    "line": 12009,
+    "description": "F-01 (32-14): the 'every check:* npm script names a gate that CI runs' derivation skips check:dashboard-readonly (its command is not 'node scripts/*.js'), so the DASH-06 gate's CI reachability is unproven by that gate",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-14T23:59:53.350Z",
+    "resolved_at": null,
+    "milestone": "v2.1"
+  },
+  {
+    "id": 182,
+    "kind": "deviation",
+    "phase": "32",
+    "file": ".planning/phases/32-board-projector-cli-dashboard/deferred-items.md",
+    "line": null,
+    "description": "the check:nul-bytes deferred entry still reads status: open but the gate is GREEN (fixed by user commit 888a1302); the entry is stale",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-14T23:59:53.431Z",
     "resolved_at": null,
     "milestone": "v2.1"
   }
