@@ -625,6 +625,73 @@ describe("board-read — tickets, through the ONE ticket-document authority (D-0
   });
 });
 
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+// A REFUSED DOCUMENT IS NOT AN ABSENT ONE (plan 32-15, `32-REVIEW.md` CR-01)
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+//
+// `readTicketsSource` records a grammar refusal in `readErrors` and deliberately leaves the source
+// `ok` — a refusal is the contract's stated behaviour, not a failure to obtain bytes. That is right,
+// and it left `joinSnapshot` with no way to tell "no file carries this identifier" from "a file
+// carries it and the grammar refused it", so a row naming a refused ticket produced a POSITIVE,
+// FALSE claim about the filesystem under an `[ok]` header. CLAUDE.md's no-fabrication rule refuses
+// that before it is a bug: the projector may say it could not read something; it may not say
+// something is not there when it is.
+//
+// The fix is a TOTAL PARTITION of the tickets walk — every listed `.md` entry becomes exactly one of
+// an admitted record or an unadmitted entry — carried into the join so the answer is PER IDENTIFIER.
+// Degrading the whole source on one refusal would blank every other derivation on the board, which
+// is the failure plan 32-10 spent a whole plan closing one register up.
+
+/** A board carrying the admitted ticket's row AND a row for the refused document's identifier. */
+const REFUSED_AND_ADMITTED_BOARD =
+  "## In Development (WIP 2/2)\n- [ABC-014] Asset allocation chart\n- [ABC-900] Refused document\n";
+
+/** `tools` is outside `TICKET_KEYS`, so the one ticket authority refuses the document by name. */
+const REFUSED_TICKET = "---\nid: ABC-900\ntools: Bash\n---\n\nBody.\n";
+
+/** The sentence the join uses for an identifier NO file carries. It must not reach a refused one. */
+const ABSENCE_SENTENCE = "no ticket file carries that identifier";
+
+describe("board-read — a REFUSED ticket is never reported as an ABSENT one (plan 32-15, CR-01)", () => {
+  it("raises no claim of absence for an identifier whose file exists and was refused", () => {
+    withTempTree((dir) => {
+      plantBoard(dir, REFUSED_AND_ADMITTED_BOARD);
+      plantTicket(dir, "ABC-014.md", ADMITTED_TICKET);
+      plantTicket(dir, "ABC-900.md", REFUSED_TICKET);
+
+      const result = readSnapshot(dir);
+
+      // PREMISE ONE: the file is on disk and readable. A case that measured a missing fixture would
+      // pass for the wrong reason.
+      expect(
+        readFileSync(join(dir, "plans", "tickets", "ABC-900.md"), "utf8"),
+        "PREMISE: the refused document was not planted, so this case measures nothing",
+      ).toBe(REFUSED_TICKET);
+      // PREMISE TWO: the refusal was recorded on the channel the contract names.
+      expect(
+        result.readErrors.find((e) => e.path.endsWith("ABC-900.md"))?.code,
+        "PREMISE: the reader did not refuse the document, so there is no fabrication to measure",
+      ).toBe("unknown-key");
+      // PREMISE THREE: this case does NOT close the gap by degrading the source. A refused document
+      // is not a failure to obtain bytes, and plan 32-09's rule stays exactly as it left it.
+      expect(result.snapshot.sources.tickets.source).toBe("ok");
+
+      const forRefused = result.conflicts.filter((c) => c.ticketId === "ABC-900");
+      expect(
+        forRefused.map((c) => c.actual),
+        "the projector asserted that no file on disk carries ABC-900 while the file sits there, " +
+          "readable — a positive claim about a filesystem it did read",
+      ).not.toContain(ABSENCE_SENTENCE);
+      // And the row is still reported, naming the refusal: silence would trade one fabrication for
+      // a second, quieter one.
+      const raised = forRefused.filter((c) => c.kind === "row-without-file");
+      expect(raised.length).toBe(1);
+      expect(raised[0]?.actual).toContain("unknown-key");
+      expect(raised[0]?.actual).toContain("plans/tickets/ABC-900.md");
+    });
+  });
+});
+
 describe("board-read — the queue, with claim.ts's tamper rules PORTED (T-32-05, T-32-03)", () => {
   const GOOD_CLAIM = "by: engineer\nat: 2026-09-14T09:00:00.000Z\n";
 
