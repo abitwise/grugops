@@ -1,0 +1,234 @@
+32-22 LIVE TRANSCRIPT — the watch chain measured on a wall clock
+================================================================================
+
+WHAT THIS FILE IS. The recorded output of scripts/board-watch-live.test.ts, run twice
+against the committed scripts/board-dashboard.js, plus the four mutation runs that show
+each case can fail. It exists to answer the item 32-VERIFICATION.md left open under
+`human_verification`:
+
+    "Exercise the directory-level `fs.watch` + mandatory poll floor + debounce over a
+     multi-second window against a real edit (rename-based atomic write) to
+     `plans/board.md`."
+
+Every number below was captured from a real run on the date and machine named in the
+environment block. Nothing here is composed, rounded toward a deadline, or re-run until it
+agreed with an expectation. Where a value could not be measured on this machine it says
+`UNKNOWN - verify` and names the phase that owns it.
+
+--------------------------------------------------------------------------------
+ENVIRONMENT
+--------------------------------------------------------------------------------
+
+Captured at        2026-09-15T12:45:08Z
+Platform           darwin/arm64 (Darwin 25.5.0)
+Node               v24.12.0
+Vitest             4.1.8
+Repository HEAD    5f9bd23a67196fea664fbbad72f9c08a6aaaa5ae
+Artifact measured  scripts/board-dashboard.js (the committed build output, spawned with
+                   bare node; never the .ts through a loader)
+Command            npx vitest run --exclude '**/scripts/e2e/**' --reporter=verbose \
+                     scripts/board-watch-live.test.ts
+Loop constants     poll period 1000 ms (the --interval override, at the CLI's
+                   INTERVAL_HARD_FLOOR_MS; the 10000 ms production floor is unchanged),
+                   debounce 250 ms, 6 derived watch directories
+Write path         a temp sibling in the same directory, then a rename over the target —
+                   the shape scripts/context-io.ts atomicWrite uses, which is the reason
+                   the poll is mandatory
+
+--------------------------------------------------------------------------------
+THE TWO RECORDED RUNS
+--------------------------------------------------------------------------------
+
+Value                                          Run A        Run B      Spread
+---------------------------------------------  -----------  ---------  --------
+First document after spawn                        39 ms        33 ms      6 ms
+Event path: atomic rename -> new document        278 ms       279 ms      1 ms
+Poll path alone (every watch forced dead)       1003 ms       997 ms      6 ms
+Watch record published after the write           275 ms       274 ms      1 ms
+Watch record cleared by the next re-arm          900 ms       888 ms     12 ms
+Documents for 5 writes in one debounce window      1            1          0
+Total wall clock (whole file, 5 spawns)         7.88 s       7.83 s   0.05 s
+Vitest-reported duration                        7.57 s       7.52 s   0.05 s
+Exit code                                          0            0          -
+Cases                                        5 passed     5 passed        -
+
+Raw `MEASURED` lines, run A:
+
+    MEASURED premise: first document +39 ms after spawn on darwin/arm64 node v24.12.0
+      (poll period 1000 ms, debounce 250 ms, 6 watched directories)
+    MEASURED event path: 278 ms on darwin/arm64 node v24.12.0
+    MEASURED poll path (every watch forced dead): 1003 ms on darwin/arm64 node v24.12.0
+    MEASURED watch record: published 275 ms after the write, 1 record(s),
+      path=.grugops/context on darwin/arm64 node v24.12.0
+    MEASURED watch record cleared: 900 ms after the write on darwin/arm64 node v24.12.0
+    MEASURED debounce: 5 writes in 4 ms produced 1 document(s) in the 700 ms window on
+      darwin/arm64 node v24.12.0 (sync tick at +1066 ms)
+
+Raw `MEASURED` lines, run B:
+
+    MEASURED premise: first document +33 ms after spawn on darwin/arm64 node v24.12.0
+      (poll period 1000 ms, debounce 250 ms, 6 watched directories)
+    MEASURED event path: 279 ms on darwin/arm64 node v24.12.0
+    MEASURED poll path (every watch forced dead): 997 ms on darwin/arm64 node v24.12.0
+    MEASURED watch record: published 274 ms after the write, 1 record(s),
+      path=.grugops/context on darwin/arm64 node v24.12.0
+    MEASURED watch record cleared: 888 ms after the write on darwin/arm64 node v24.12.0
+    MEASURED debounce: 5 writes in 5 ms produced 1 document(s) in the 700 ms window on
+      darwin/arm64 node v24.12.0 (sync tick at +1061 ms)
+
+--------------------------------------------------------------------------------
+HEADROOM, AND WHETHER ANY DEADLINE WAS WIDENED
+--------------------------------------------------------------------------------
+
+NO DEADLINE WAS WIDENED. The values below are the ones the suite was written with, and the
+two runs agree to within 12 ms on every measurement.
+
+Deadline                        Value     Worst of two runs   Headroom
+------------------------------  --------  ------------------  ------------------
+Premise (first document)        5000 ms   39 ms               4961 ms
+Event path                       600 ms   279 ms               321 ms (54%)
+Poll path alone                 2800 ms   1003 ms             1797 ms (64%)
+Watch record published           800 ms   275 ms               525 ms (66%)
+Watch record cleared            2800 ms   900 ms              1900 ms
+Debounce observation window      700 ms   1 document          bound is an inequality
+
+Two attributions matter more than the raw latencies, and both are asserted rather than
+assumed:
+
+  * The event-path number is BELOW the 1000 ms poll period and ABOVE the 250 ms debounce.
+    Each case first waits for a document before it writes, which puts the write immediately
+    after a poll tick, so the next tick is a full period away. A delivery at 278-279 ms is
+    therefore the watch plus the debounce, not a poll tick that happened to land.
+
+  * The poll-path number is ABOVE the 600 ms event-path deadline. Without that second
+    assertion the case would pass identically with the forced-error seam doing nothing, and
+    would be measuring the watch a second time rather than the safety net.
+
+--------------------------------------------------------------------------------
+DISCRIMINATION: THE FOUR MUTATION RUNS
+--------------------------------------------------------------------------------
+
+A green live suite says nothing on its own — this repository's own recorded lesson. Each
+mutation below was applied to the committed scripts/board-dashboard.js, the suite was run,
+and the file was restored and verified clean with `git diff --exit-code` before the next.
+The suite is the committed one (HEAD above); no case was adjusted between mutations.
+
+M1 — no watch is ever armed (`arm()` returns before opening a handle)
+    premise           PASS
+    event path        FAIL  "a document carrying LIVE-MARKER-EVENT after an atomic-rename
+                             write did not arrive within 600 ms ... 2 document(s) seen at
+                             +[32, 1045] ms since spawn"
+    poll path alone   PASS  997 ms — correct: the safety net does not depend on a watch
+    watch record      FAIL  no record, because no watch existed to fail
+    debounce          FAIL  "5 writes in 4 ms produced 0 document(s) in the 700 ms window"
+    verdict           3 failed | 2 passed
+
+M2 — the mandatory poll never starts (`start()` returns before `setInterval`)
+    premise           PASS  (the first document is the seed emit, which precedes the poll)
+    event path        FAIL  at the synchronisation wait
+    poll path alone   FAIL  at the synchronisation wait
+    watch record      FAIL  at the synchronisation wait
+    debounce          FAIL  at the synchronisation wait
+    verdict           4 failed | 1 passed
+    note              All four reds land on one shared wait, so that wait states what its
+                      own failure means: "an idle live run emits one per poll period
+                      whether or not the board changed, so NO document at all means the
+                      MANDATORY poll is not running". A reader of that red is not left
+                      concluding that the event path depends on the poll.
+
+M3 — the debounce is removed (every event re-reads immediately)
+    premise           PASS
+    event path        FAIL  measured 21 ms — below the 250 ms the debounce requires
+    poll path alone   PASS  997 ms
+    watch record      PASS  published 20 ms after the write (the record does not depend on
+                            the debounce)
+    debounce          FAIL  "5 writes in 5 ms produced 13 document(s) in the 700 ms window"
+    verdict           2 failed | 3 passed
+
+M4 — the poll tick emits BEFORE it re-arms (`refresh()` and `armAll()` swapped)
+    premise           PASS
+    event path        PASS  270 ms
+    poll path alone   FAIL  "a document carried a watch record even though every forced
+                             failure here is repaired by the same tick that emits"
+    watch record      PASS  but the CLEARED measurement moved from ~890-900 ms to 1900 ms,
+                            because the record now survives one extra tick
+    debounce          PASS
+    verdict           1 failed | 4 passed
+    note              This is the mutation that keeps the poll-path case's negative
+                      assertion from being vacuous: the assertion is red the moment the
+                      ordering it describes changes.
+
+Thirteen documents for five writes under M3 is the un-debounced multiplicity the RESEARCH
+probe measured in a different form (a single plain write produced four directory events on
+macOS). It is the number the 250 ms window turns into one.
+
+--------------------------------------------------------------------------------
+A BOUNDARY THE RUNS MEASURED, STATED RATHER THAN LEFT IMPLIED
+--------------------------------------------------------------------------------
+
+The plan for this work asked the poll-path case to assert that the document delivered by
+the poll CARRIES a watch-failure record. It does not, and the reason is in the loop rather
+than in the test: a poll tick runs `armAll()` and THEN `refresh()`, and a successful re-arm
+deletes that directory's record (WR-06 — the record is a state, and a repaired watch has
+nothing current to report). So a failure the next tick repairs is never carried by a
+document the poll itself emits.
+
+Measured, with every watch forced dead: the change arrived at 997-1003 ms and NO document
+in the run carried a `watch` read error. That is asserted in the case rather than only
+noted here, so the boundary is pinned instead of remembered — M4 above is the mutation that
+turns it red.
+
+The record IS published when a document is emitted between the failure and the re-arm, and
+the suite measures that too, through a still-living sibling watch: `.grugops/context` forced
+dead, `plans` alive, and the edit to `plans` publishes the context directory's record at
+274-275 ms — in the document and on stderr — carrying its own promise that it will be
+re-armed on the next poll tick. The next tick keeps that promise and the record is gone at
+888-900 ms, which is the half of WR-06 a count of records cannot catch.
+
+What this means for the verifier's expectation, which asked that a watch-arm failure surface
+as a diagnosable state rather than silently stopping updates: in both regimes the updates do
+not stop (997-1003 ms, measured, with every watch dead), and a failure that outlives one
+tick is visible in the document and on stderr. A failure the next tick repairs is invisible
+to a consumer by design, and that is now a measured, asserted property rather than an
+unexamined one.
+
+--------------------------------------------------------------------------------
+WHAT WAS NOT MEASURED
+--------------------------------------------------------------------------------
+
+WINDOWS TIMING IS `UNKNOWN - verify`, AND THIS RUN DOES NOT CHANGE THAT. Every number above
+was taken on darwin/arm64 with Node v24.12.0. Node documents that on Windows `fs.watch`
+events may not be emitted at all, that a watched directory which is moved or renamed emits
+nothing, and that deleting one reports EPERM. None of that can be demonstrated from this
+tree. The `windows-latest` leg is Phase 33's CAP-02, and Phase 32's Windows caveat in
+.planning/ROADMAP.md is unchanged by this plan — it was not edited and it stands exactly as
+it stood.
+
+The suite does NOT skip on any platform. `process.platform` appears in the printed
+measurements and in every failure message, never in a condition that decides whether a case
+runs, because a conditional skip converts an unmeasured platform into a green (T-32-22-03).
+The consequence is stated plainly rather than discovered later: CI runs this file on
+`windows-latest` as well as `ubuntu-latest`, and three of the five cases (event path, watch
+record, debounce) depend on the platform delivering directory events at all. If the Windows
+leg reds on those cases, that red IS the Phase 33 measurement arriving early, and it names
+the platform and the milliseconds it saw. It is not a defect in the suite and it must not be
+answered with a platform conditional.
+
+Not measured either, and out of scope here: the ten-second production poll floor itself. The
+runs use the `--interval` override at its 1000 ms hard floor so the poll path is observable
+inside a bounded suite. The relationship the cases assert is between the debounce, the
+configured period and the delivery, and it is the same relationship at either value.
+
+--------------------------------------------------------------------------------
+THE CONTRACT
+--------------------------------------------------------------------------------
+
+agent-factory/contracts/board.md was read at its watch section. It carries exactly one watch
+sentence — "The projector arms its filesystem watches against the same resolved root it
+reads against, and it opens no watch on a source it refused" — which is a containment
+statement, not a timing one. The contract states no poll period, no debounce and no
+latency, either as measured fact or as reasoning.
+
+So neither branch of this plan's reconciliation instruction applies, and the contract was
+left unchanged. Adding a timing sentence to a public contract on the strength of two runs on
+one platform would be exactly the conversion that instruction refuses.
