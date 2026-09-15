@@ -1,0 +1,329 @@
+32-24 RED BASELINE — the shipped read-only gate measured GREEN over a live writer
+=================================================================================
+
+Recorded: 2026-09-15 (plan 32-24, task 1, gap-closure round 3)
+Tree:     b7a4239b6044c079c115bd424eaa5c9d848f3607, branch main, no source modification
+Host:     darwin 25.5.0, node 24.12.0, vitest 4.1.8
+Gate:     npm run check:dashboard-readonly  ==  npx vitest run scripts/board-readonly.test.ts
+Subject:  the COMMITTED scripts/board-read.js — the artifact a host runs, never the .ts
+
+WHAT THIS FILE IS. Plan 32-24 is the tracer for gap-closure round 3 and this is its output. The
+finding under test is truth 4 of 32-VERIFICATION.md (DASH-06), independently reported three times:
+by the phase verifier, by 32-REVIEW.md WR-01, and by 32-23-ADVERSARIAL-REVIEW.md F-04. The claim is
+that a module-specifier spelling exists which is in NEITHER of the two sets that decide the
+read-only property — the guard's bare-specifier census and the closure walker's relative follow-set
+— so a writer reached through it is neither censused nor walked, and the gate stays green over it.
+
+Every number below was measured. Nothing here is inferred from reading the source.
+
+
+-------------------------------------------------------------------------------------------------
+0. THE CONTROL: the unplanted tree
+-------------------------------------------------------------------------------------------------
+
+  $ npm run check:dashboard-readonly
+  board-readonly: mutating fs symbols 57 (stem-matched 60 minus 3 named exclusions) on node 24.12.0
+  board-readonly: 311 resolved call sites [ClassDeclaration 4, FunctionDeclaration 226,
+                  FunctionName 1, ImportSpecifier 58, Parameter 3, VariableDeclaration 19],
+                  0 unresolved, 10 capability-global member paths, 0 refused acquisitions
+   Test Files  1 passed (1)
+        Tests  89 passed (89)
+  -> exit 0
+
+  89 passed / exit 0 is the number every plant below is compared against. It matches the 89 the
+  plan's <verify> pins, so the harness is measuring the gate the plan aimed at.
+
+
+-------------------------------------------------------------------------------------------------
+1. THE WRITER, AND HOW IT WAS PLANTED
+-------------------------------------------------------------------------------------------------
+
+The writer module lives OUTSIDE the repository root, under the session scratchpad, and its whole
+body is a filesystem write on a path handed to it:
+
+  /private/tmp/claude-501/.../scratchpad/probe/writer.mjs
+  ----------------------------------------------------------------
+  import { writeFileSync } from "node:fs";
+  export function probeWrite(target, bytes) {
+    writeFileSync(target, bytes);
+    return target;
+  }
+  ----------------------------------------------------------------
+
+Each plant appends, to the COMMITTED scripts/board-read.js, an import of that module by one
+specifier spelling plus an exported function that calls it. scripts/board-read.js is inside the
+dashboard closure (REQUIRED_CLOSURE_MODULES names it), so a writer reachable from it is a writer
+reachable from the artifact `npm run dashboard` runs.
+
+Six measurements were taken per plant:
+  A. the exit code and case counts of `npm run check:dashboard-readonly`
+  B. the collected bareSpecifiers / opaqueSpecifiers / acquisitions for scripts/board-read.js,
+     read out of the guard's OWN analyzeClosure (a temporary probe case, appended and removed)
+  C. jsImportClosure(ROOT, "scripts/board-dashboard.js") — is the planted module in the closure?
+  D. is the writer LIVE? — the planted export was invoked and the created file measured
+  E. restoration — `git diff --exit-code -- scripts/` after restoring from a pre-plant backup
+
+
+-------------------------------------------------------------------------------------------------
+2. THE RESULT TABLE — six spellings, measured
+-------------------------------------------------------------------------------------------------
+
+  spelling                        position   gate exit  cases            writer live   in closure
+  ------------------------------- ---------- ---------- ---------------- ------------- ----------
+  /abs/…/writer.mjs               static     exit 0     89 passed (89)   YES 77 bytes  absent
+  //localhost/abs/…/writer.mjs    static     exit 0     89 passed (89)   YES 83 bytes  absent
+  //host/probe/writer.mjs         static     exit 0     89 passed (89)   no (darwin)   absent
+  file:///abs/…/writer.mjs        static     exit 1     6 failed | 83    YES 81 bytes  absent
+  C:\probe\writer.mjs             static     exit 1     6 failed | 83    no (darwin)   absent
+  import("/abs/…/writer.mjs")     dynamic    exit 1     2 failed | 87    YES 80 bytes  absent
+
+  THREE of six spellings leave the shipped gate at exit 0 with its full 89/89, and TWO of those
+  three wrote a file on this machine through a function exported by a module the dashboard closure
+  contains. The finding is reproduced.
+
+  THE PLANTED MODULE IS ABSENT FROM THE CLOSURE IN ALL SIX ROWS. jsImportClosure returned the same
+  five modules every time:
+      ["scripts/board-dashboard.js", "scripts/board-model.js", "scripts/board-read.js",
+       "scripts/is-entry.js", "scripts/kit-model.js"]
+  and PLANTED_MODULE_IN_CLOSURE=false in all six. The walker never followed any of the six edges,
+  and never refused one either — it did not see them at all.
+
+
+-------------------------------------------------------------------------------------------------
+3. ROW BY ROW
+-------------------------------------------------------------------------------------------------
+
+3.1  ABSOLUTE POSIX PATH, STATIC IMPORT  —  THE FINDING
+------------------------------------------------------
+
+  plant appended to the committed scripts/board-read.js:
+
+      import { probeWrite } from "/private/tmp/claude-501/.../scratchpad/probe/writer.mjs";
+      export function probePlant_abs(target, bytes) {
+        return probeWrite(target, bytes);
+      }
+
+  A. npm run check:dashboard-readonly  ->  exit 0
+     Test Files  1 passed (1)
+          Tests  89 passed (89)
+     board-readonly: 312 resolved call sites [... ImportSpecifier 59 ...], 0 unresolved,
+                     10 capability-global member paths, 0 refused acquisitions
+
+     The gate reported the SAME 89 passed it reports on the clean tree. The only number that moved
+     anywhere in the run is the printed ImportSpecifier resolution count, 58 -> 59 — a diagnostic
+     line, asserted by nothing.
+
+  B. the guard's own analyzeClosure, for scripts/board-read.js:
+       bareSpecifiers        : ["node:fs", "node:path"]
+       opaqueSpecifiers      : []
+       acquisitions          : []
+       opaqueFsAcquisitions  : []
+       unresolvedCallees     : []
+       closure bare union    : ["node:fs", "node:path", "node:url"]
+
+     The planted specifier appears in NONE of them. It is not a bare specifier (isBareSpecifier
+     excludes anything starting with "/"), not an opaque specifier (it is a string literal), and
+     not an acquisition (a static import declaration with a string-literal specifier is the ONE
+     admitted shape). Every set the guard decides on is byte-identical to the clean tree.
+
+  C. CLOSURE_SIZE=5, PLANTED_MODULE_IN_CLOSURE=false
+
+  D. LIVE_WRITER=yes  path=.../out/abs/PWNED-by-abs.txt  bytes=77
+     The export was invoked and created a file at a path the caller chose. This is not a
+     theoretical reachability: the writer ran.
+
+  E. git diff --exit-code -- scripts/  ->  exit 0
+
+
+3.2  PROTOCOL-RELATIVE //localhost/…, STATIC IMPORT  —  A SECOND LIVE SPELLING, NAMED BY NO REVIEW
+--------------------------------------------------------------------------------------------------
+
+  plant:
+
+      import { probeWrite as probeWriteHost } from "//localhost/private/tmp/…/probe/writer.mjs";
+      export function probePlant_protohost(target, bytes) {
+        return probeWriteHost(target, bytes);
+      }
+
+  A. exit 0, Tests 89 passed (89) — identical to the clean tree
+  B. bareSpecifiers ["node:fs", "node:path"]; acquisitions []; opaqueSpecifiers [] — same as clean
+  C. CLOSURE_SIZE=5, PLANTED_MODULE_IN_CLOSURE=false
+  D. LIVE_WRITER=yes  path=.../out/protohost/PWNED-by-protohost.txt  bytes=83
+  E. git diff --exit-code -- scripts/  ->  exit 0
+
+  Node resolves a `//host/path` specifier against the parent module's file: URL, so
+  `//localhost/x` becomes `file://localhost/x`, and a "localhost" host is accepted on darwin. This
+  is a leading-"/" spelling that is neither bare nor relative AND resolves to a live module. None
+  of the three independent reports named it; it was found by asking the partition question rather
+  than by enumerating spellings, which is the argument for the cutover this plan proposes.
+
+
+3.3  PROTOCOL-RELATIVE //host/…, STATIC IMPORT
+----------------------------------------------
+
+  A. exit 0, Tests 89 passed (89)
+  B. bareSpecifiers ["node:fs", "node:path"]; acquisitions []; opaqueSpecifiers []
+  C. CLOSURE_SIZE=5, PLANTED_MODULE_IN_CLOSURE=false
+  D. LIVE_WRITER=no (ERR_INVALID_FILE_URL_HOST) File URL host must be "localhost" or empty on darwin
+  E. git diff --exit-code -- scripts/  ->  exit 0
+
+  The gate is green and the specifier is in neither set; the module only fails to LOAD, and it
+  fails for a platform reason (darwin rejects a non-localhost file-URL host) rather than because
+  anything in this repository refused it. On a platform where a UNC host resolves, the same plant
+  is the 3.2 result. Recorded as the text measurement the plan asked for where the platform cannot
+  resolve the module.
+
+
+3.4  file:// URL, STATIC IMPORT  —  ALREADY REFUSED, BY THE CENSUS, NOT THE WALKER
+----------------------------------------------------------------------------------
+
+  A. npm run check:dashboard-readonly  ->  exit 1
+     Tests  6 failed | 83 passed (89)
+     failing cases:
+       × the closure's normalized builtin identities have exactly the allowed MEMBERS
+       × the closure's normalized builtin identity set has the expected COUNT
+       × POSITIVE CONTROL: importing an ALLOW-LISTED builtin read-only leaves the gate green
+       × a write capability reached through a GLOBAL with no import at all is refused (WR-02)
+       × the dashboard closure imports no banned module (a COROLLARY of the allow-list, not the rule)
+       × a planted node:net import makes the module-ban case FAIL
+
+  B. bareSpecifiers : ["file:///private/tmp/…/probe/writer.mjs", "node:fs", "node:path"]
+     acquisitions   : []   opaqueSpecifiers : []
+
+  C. CLOSURE_SIZE=5, PLANTED_MODULE_IN_CLOSURE=false
+  D. LIVE_WRITER=yes  bytes=81
+  E. git diff --exit-code -- scripts/  ->  exit 0
+
+  MEASURED, NOT ASSUMED: this spelling does NOT share the gap. `isBareSpecifier` is
+  `!startsWith(".") && !startsWith("/")`, and "file://…" starts with "f", so it lands in
+  bareSpecifiers and reds the ALLOWED_BUILTIN_SPECIFIERS equality. The gate refuses it — but
+  through the BUILTIN ALLOW-LIST, whose failure message tells a maintainer about builtins, and the
+  walker still never saw the edge and never refused it. The refusal is real and it is in the wrong
+  authority.
+
+
+3.5  WINDOWS DRIVE-LETTER PATH, STATIC IMPORT  —  ALSO ALREADY REFUSED BY THE CENSUS
+------------------------------------------------------------------------------------
+
+  A. exit 1, Tests 6 failed | 83 passed (89) — the same six cases as 3.4
+  B. bareSpecifiers : ["C:\\probe\\writer.mjs", "node:fs", "node:path"]; acquisitions []
+  C. CLOSURE_SIZE=5, PLANTED_MODULE_IN_CLOSURE=false
+  D. LIVE_WRITER=no (ERR_UNSUPPORTED_ESM_URL_SCHEME) Only URLs with a scheme in: file, data, and
+     node are supported by the default ESM loader. Received protocol 'c:'
+     — the text measurement the plan asked for on a platform that cannot resolve the spelling.
+  E. git diff --exit-code -- scripts/  ->  exit 0
+
+  "C:\…" starts with "C", so it too is censused as a bare specifier and reds the allow-list.
+
+
+3.6  DYNAMIC import("/abs/…")  —  ALREADY REFUSED, BY THE ACQUISITIONS RULE
+---------------------------------------------------------------------------
+
+  plant:
+
+      export async function probePlant_dynabs(target, bytes) {
+        const mod = await import("/private/tmp/…/probe/writer.mjs");
+        return mod.probeWrite(target, bytes);
+      }
+
+  A. npm run check:dashboard-readonly  ->  exit 1
+     Tests  2 failed | 87 passed (89)
+     failing cases:
+       × PREMISE: no closure module acquires a module by a route that is not a static literal import
+       × POSITIVE CONTROLS: the four capabilities the closure legitimately uses stay admitted
+     board-readonly: … 1 refused acquisitions
+
+  B. bareSpecifiers : ["node:fs", "node:path"]
+     acquisitions   : ["import(\"/private/tmp/…/probe/writer.m..."]
+     opaqueSpecifiers : []
+
+  C. CLOSURE_SIZE=5, PLANTED_MODULE_IN_CLOSURE=false
+  D. LIVE_WRITER=yes  bytes=80
+  E. git diff --exit-code -- scripts/  ->  exit 0
+
+  MEASURED, NOT ASSUMED: a dynamic import of an absolute path is already refused — by 32-20's
+  canonical-form rule (a module identity is established by exactly ONE shape, a static import
+  declaration with a string-literal specifier), which refuses `import()` whatever its argument. The
+  refusal is the MECHANISM reding, not a count, which is the disposition this round wants.
+
+
+-------------------------------------------------------------------------------------------------
+4. THE PARTITION, MEASURED AGAINST THE TWO SHIPPED PREDICATES
+-------------------------------------------------------------------------------------------------
+
+The two authorities that decide a specifier's class today, quoted verbatim:
+
+  scripts/board-readonly.test.ts:194-196
+      function isBareSpecifier(specifier: string): boolean {
+        return !specifier.startsWith(".") && !specifier.startsWith("/");
+      }
+
+  scripts/js-import-closure.ts, relativeSpecifiers — three regexes, each requiring a leading "."
+      /\bfrom\s*["'](\.[^"']*)["']/g
+      /\bimport\s*["'](\.[^"']*)["']/g
+      /\bimport\s*\(\s*["'](\.[^"']*)["']\s*\)/g
+
+Run against ten spellings (isBareSpecifier quoted byte-for-byte; relativeSpecifiers IMPORTED from
+the committed scripts/js-import-closure.js, not reimplemented):
+
+  specifier                                   isBareSpecifier  relativeSpecifiers follows  bucket
+  ------------------------------------------- ---------------- --------------------------- ------
+  "/abs/writer.mjs"                           false            false                       *** NEITHER ***
+  "file:///abs/writer.mjs"                    true             false                       CENSUSED (bare)
+  "C:\\x\\writer.mjs"                         true             false                       CENSUSED (bare)
+  "//host/x.js"                               false            false                       *** NEITHER ***
+  "//localhost/abs/writer.mjs"                false            false                       *** NEITHER ***
+  "data:text/javascript,export const a=1"     true             false                       CENSUSED (bare)
+  "./relative.js"                             false            true                        WALKED (relative)
+  "../up/relative.js"                         false            true                        WALKED (relative)
+  "node:fs"                                   true             false                       CENSUSED (bare)
+  "@scope/pkg"                                true             false                       CENSUSED (bare)
+
+THE HOLE IS EXACTLY THE SPELLINGS BEGINNING WITH "/" THAT ARE NOT "./" OR "../". One predicate is
+defined as "not '.' and not '/'", the other as "starts with '.'". The "/" prefix is subtracted by
+the first and never added by the second, so it is owned by neither. That is a complement, not a
+partition, and it is the precise shape the round's canonical-form cutover proposes to replace.
+
+
+-------------------------------------------------------------------------------------------------
+5. WHAT THE BASELINE SAYS ABOUT THE REST OF THE PLAN
+-------------------------------------------------------------------------------------------------
+
+The plan's task 1 <done> anticipated the gate being green over all FOUR of its named spellings. It
+is green over THREE of the six measured, and the three are not the three the plan named:
+
+  green (in the gap)   : /abs/…            //localhost/…       //host/…
+  already refused      : file://…  (builtin allow-list)   C:\… (builtin allow-list)
+                         import("/abs/…")  (acquisitions / canonical-form rule)
+
+The FINDING ITSELF IS UNMOVED and is reproduced at full strength: the plan's primary route (a), an
+absolute-path static import, is exit 0 at 89/89 over a writer that ran and created a file. What has
+moved is the BREADTH: two of the plan's four spellings turn out to be caught by other authorities,
+and one spelling nobody named (//localhost/…) is live and green.
+
+This matters for tasks 2 and 3 in three concrete ways, and each is a question for the human before
+the fix is written:
+
+  (a) TASK 3's <verify> PIN IS NOW WRONG-SHAPED. It requires `grep -c 'exit 1'` >= 4 over the GREEN
+      proof, reading "the four baseline plants are now refused". Three of the six already exit 1
+      before any fix, so that count can be satisfied without the fix doing anything. The
+      discriminating pin is the flip on the three GREEN rows — /abs/…, //localhost/…, //host/… —
+      and 32-23-ADVERSARIAL-REVIEW.md F-08 is exactly this shape: a plant that reds a count rather
+      than a mechanism.
+
+  (b) TASK 2's SPECIFIER_CLASS_ROWS ARE SHORT BY AT LEAST TWO. //localhost/… and data: are both
+      real spellings with distinct answers today, and the eight rows the plan names do not include
+      the one live spelling this baseline found.
+
+  (c) THE REFUSALS THAT ALREADY EXIST ARE IN THE WRONG AUTHORITY, AND THE CUTOVER MUST NOT SILENTLY
+      RELOCATE THEM. file:// and C:\ red the BUILTIN ALLOW-LIST today. Once classifySpecifier calls
+      them `foreign`, they stop being bare specifiers, so the allow-list stops seeing them and the
+      new foreign branch must carry the refusal instead. If the new branch is weaker than the
+      allow-list equality in any respect, this plan makes the tree LESS safe for two spellings
+      while making it safer for three — a net that has to be measured per spelling, not asserted.
+
+Nothing under scripts/ was modified by this task. `git diff --exit-code -- scripts/` returned
+exit 0 after every one of the six plants, and the final tree matches
+b7a4239b6044c079c115bd424eaa5c9d848f3607 byte for byte.
+
+  == end of RED baseline ==
