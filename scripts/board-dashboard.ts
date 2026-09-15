@@ -733,9 +733,10 @@ export type Loop = {
   readonly seed: (result: SnapshotResult) => void;
   /** Write one frame or one JSON document, plus every read error on stderr. */
   readonly emit: (result: SnapshotResult) => void;
-  /** Close every watcher and clear both timers. */
+  /** Close every watcher, clear both timers, and drop every watch record with them. */
   readonly stop: () => void;
   readonly watchedDirs: () => readonly string[];
+  /** The CURRENT watch failures — at most one per directory, in relative-name order (WR-06). */
   readonly watchErrors: () => readonly ReadError[];
 };
 
@@ -754,7 +755,21 @@ export type Loop = {
  */
 export function createLoop(options: Options, io: DashboardIo, deps: LoopDeps): Loop {
   const watchers = new Map<string, WatchHandle>();
-  const errors: ReadError[] = [];
+  /**
+   * The CURRENT watch failure per directory, keyed by its `WATCH_DIRS` relative name (WR-06).
+   *
+   * A MAP RATHER THAN A LIST, BECAUSE THE VALUE IS A STATE AND NOT A LOG. "the watch on `plans` is
+   * down" is one fact about one directory at one moment; it becomes true, then it becomes false, and
+   * the thing a frame prints is whichever it is now. As an append-only list the same fact was
+   * recorded once per poll tick — 8,640 a day at the floor, every one of them printed on every frame
+   * and embedded in every published document as a current read error — and no entry was ever removed,
+   * so the screen also kept reporting a failure that had already been repaired.
+   *
+   * KEYED BY DIRECTORY, NOT BY REASON. A directory that fails for ENOSPC and then for EMFILE has one
+   * watch and one current reason. Keying by reason would produce two entries both claiming to be
+   * current, which is the same "a log pretending to be a state" defect one register over.
+   */
+  const watchErrorsByDir = new Map<string, ReadError>();
   const forced = new Set(
     (process.env[FORCE_WATCH_ERROR_ENV] ?? "")
       .split(",")
@@ -769,8 +784,18 @@ export function createLoop(options: Options, io: DashboardIo, deps: LoopDeps): L
   let inFlight = false;
   let rerun = false;
 
+  /**
+   * Record the CURRENT failure for one directory, replacing whatever that directory said before.
+   *
+   * THE MESSAGE PROMISES A RE-ARM, AND `arm`'s SUCCESS PATH IS WHAT MAKES THE PROMISE TRUE. The two
+   * halves are in different functions, so the sentence is named at both ends: this one writes
+   * "it will be re-armed on the next poll tick", and `arm` DELETES this key the moment that re-arm
+   * succeeds. Without the delete the promise is a claim the record outlives — the frame keeps saying
+   * a repaired watch is about to be repaired, which is the half of WR-06 a count alone does not
+   * catch.
+   */
   function noteWatchError(rel: string, source: SourceName, e: Error): void {
-    errors.push({
+    watchErrorsByDir.set(rel, {
       source,
       path: rel,
       code: "watch",
@@ -778,6 +803,17 @@ export function createLoop(options: Options, io: DashboardIo, deps: LoopDeps): L
         `the watch on ${rel} failed (${e.message}). It is closed and will be re-armed on the next ` +
         `poll tick; the mandatory poll keeps the screen current in the meantime.`,
     });
+  }
+
+  /**
+   * The current watch failures, in RELATIVE-NAME order rather than in the order they happened.
+   *
+   * Two runs that reach the same state produce the same bytes, so a consumer diffing two published
+   * documents sees a changed finding rather than a reshuffle of two unchanged ones. Insertion order
+   * is the order two directories happened to fail in, which is not a property of the board.
+   */
+  function currentWatchErrors(): ReadError[] {
+    return [...watchErrorsByDir.keys()].sort().map((rel) => watchErrorsByDir.get(rel) as ReadError);
   }
 
   function closeWatcher(rel: string): void {
@@ -813,6 +849,10 @@ export function createLoop(options: Options, io: DashboardIo, deps: LoopDeps): L
         noteWatchError(rel, source, e);
       });
       watchers.set(rel, handle);
+      // THE RE-ARM IS WHAT CLEARS THE RECORD (WR-06). `noteWatchError`'s text promises this line
+      // will run; running it is what keeps the promise. A success path that only added a handle left
+      // the previous failure standing as a current finding for the life of the process.
+      watchErrorsByDir.delete(rel);
     } catch (e) {
       noteWatchError(rel, source, e as Error);
     }
@@ -841,8 +881,9 @@ export function createLoop(options: Options, io: DashboardIo, deps: LoopDeps): L
     // The watch failures ride in the SAME `readErrors` list as the read failures, so a consumer
     // reading the JSON document sees "the low-latency path for the queue is down" in the one place
     // it already looks for what the projector could not do.
+    const noted = currentWatchErrors();
     const withWatch: SnapshotResult =
-      errors.length === 0 ? result : { ...result, readErrors: [...result.readErrors, ...errors] };
+      noted.length === 0 ? result : { ...result, readErrors: [...result.readErrors, ...noted] };
 
     for (const readError of withWatch.readErrors) {
       // THE CONTENT-SOURCED PATH (CR-05). `readError.message` carries bytes read out of a board or
@@ -931,6 +972,11 @@ export function createLoop(options: Options, io: DashboardIo, deps: LoopDeps): L
       poll = null;
     }
     for (const rel of [...watchers.keys()]) closeWatcher(rel);
+    // AND THE RECORDS GO WITH THE WATCHES. Every entry says the directory will be re-armed on the
+    // next poll tick, and this function has just cleared the poll: after it there is no next tick
+    // and nothing armed, so a surviving entry would be a statement about a loop that no longer runs,
+    // printed by whatever emitted next.
+    watchErrorsByDir.clear();
   }
 
   return {
@@ -944,7 +990,7 @@ export function createLoop(options: Options, io: DashboardIo, deps: LoopDeps): L
     emit,
     stop,
     watchedDirs: () => [...watchers.keys()],
-    watchErrors: () => [...errors],
+    watchErrors: currentWatchErrors,
   };
 }
 

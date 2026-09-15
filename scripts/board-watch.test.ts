@@ -518,7 +518,7 @@ describe("board-dashboard — one CURRENT watch record per directory (WR-06)", (
 
   it("orders two failing directories by name, so two frames of one state are the same bytes", () => {
     vi.useFakeTimers();
-    const h = harness({}, ["plans", ".grugops/context"]);
+    const h = harness({ json: true }, ["plans", ".grugops/context"]);
     h.loop.armAll();
     // Failed in ARMING order, which is WATCH_DIRS order and is not name order. A list that came
     // out in insertion order would read `plans` first, and a consumer diffing two documents would
@@ -527,6 +527,17 @@ describe("board-dashboard — one CURRENT watch record per directory (WR-06)", (
     liveWatcher(h, ".grugops/context")?.error?.(new Error("second"));
 
     expect(h.loop.watchErrors().map((e) => e.path)).toEqual([".grugops/context", "plans"]);
+
+    // THE ORDER IS ASSERTED WHERE A CONSUMER READS IT. The accessor above is the loop's own view;
+    // the document below is the artefact somebody diffs, and `emit` is the function that could put
+    // the two entries in a different order from the accessor.
+    h.loop.refresh();
+    const line = h.writes()[h.writes().length - 1] ?? "";
+    const parsed = JSON.parse(line) as { readErrors: { path: string; code: string }[] };
+    expect(parsed.readErrors.filter((e) => e.code === "watch").map((e) => e.path)).toEqual([
+      ".grugops/context",
+      "plans",
+    ]);
     h.loop.stop();
   });
 
