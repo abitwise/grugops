@@ -158,6 +158,125 @@ function isBareSpecifier(specifier: string): boolean {
   return !specifier.startsWith(".") && !specifier.startsWith("/");
 }
 
+/**
+ * THE GLOBALS THAT CARRY CAPABILITIES, and therefore the roots of the member-path census (32-20).
+ *
+ * A module-identity rule cannot see a capability reached WITHOUT a module, and one of the writers
+ * measured in `32-20-RED-baseline.txt` has no import anywhere in it:
+ *
+ *     export const dump = (p) => process.report.writeReport(p);
+ *          npm run check:dashboard-readonly → exit 0, 59 passed / 59
+ *
+ * `process.report.writeReport` creates and writes a JSON file at any path handed to it. So the
+ * member paths reached on these roots are censused and pinned two-sided, exactly as the builtin
+ * identities are. `globalThis` and `global` are here because they are the OTHER spellings of the
+ * same reach: `globalThis.process.report` is the same capability with four more characters.
+ *
+ * THE BOUNDARY, NAMED RATHER THAN IMPLIED: this is a ROOT SET, so a capability reached through a
+ * global spelling that is not in it is outside what this census decides. It is pinned by count for
+ * that reason — a fourth root is a decision — and the residual is restated in the docblock's "what
+ * this does not close" list.
+ */
+const CAPABILITY_GLOBAL_ROOTS = Object.freeze(["process", "globalThis", "global"]);
+
+/** The cardinality of the root set. A fourth spelling is a decision, never a bumped constant. */
+const CAPABILITY_GLOBAL_ROOT_COUNT = 3;
+
+/** The segment a COMPUTED key contributes to a member path. It names a key nobody can read here. */
+const COMPUTED_PATH_SEGMENT = "[computed]";
+
+/**
+ * THE MEMBER PATHS THE CLOSURE LEGITIMATELY REACHES ON THOSE ROOTS — measured, pinned two-sided.
+ *
+ * Only MAXIMAL paths are censused, so `process.report.writeReport` is compared as itself rather
+ * than as its admitted-looking prefix. ONE DERIVATION ANSWERS TWO OF THE MEASURED BYPASSES: the
+ * process report writer and the runtime-assembled module identity are both a member reached on a
+ * capability-bearing global, and both are absent from this list.
+ *
+ * `[computed]` is a real segment, not a wildcard: it says "a key this pass cannot read", and the
+ * two places the closure legitimately uses one are pinned individually below.
+ */
+const EXPECTED_GLOBAL_MEMBER_PATHS = Object.freeze([
+  // scripts/is-entry.js — `process.argv[1]`, the entrypoint comparison. Read-only.
+  `process.argv.${COMPUTED_PATH_SEGMENT}`,
+  // scripts/board-dashboard.js — `process.argv.slice(2)`, the argument vector the CLI parses.
+  "process.argv.slice",
+  // scripts/board-dashboard.js — the default repo root when none is given on the command line.
+  "process.cwd",
+  // scripts/board-dashboard.js — `process.env[name]`, read for NO_COLOR / TERM / COLUMNS.
+  `process.env.${COMPUTED_PATH_SEGMENT}`,
+  // scripts/board-dashboard.js — the exit code on `--once` and on a usage error.
+  "process.exit",
+  // scripts/board-dashboard.js — `process.on("SIGINT", …)`, the interrupt handler.
+  "process.on",
+  // scripts/board-dashboard.js — the stderr channel handed to the io seam. A DIAGNOSTIC channel.
+  "process.stderr",
+  // scripts/board-dashboard.js — the stdout channel handed to the io seam. The RENDER channel.
+  "process.stdout",
+  // scripts/board-dashboard.js — terminal width for the column layout.
+  "process.stdout.columns",
+  // scripts/board-dashboard.js — the TTY test that selects the degraded renderer.
+  "process.stdout.isTTY",
+]);
+
+/**
+ * The cardinality of the census. An ELEVENTH member path is a DECISION: the projector would be
+ * reaching a platform capability it could not reach before, and `process.report.writeReport` is the
+ * measured proof that a member nobody weighed can write a file. Never a bumped constant.
+ */
+const EXPECTED_GLOBAL_MEMBER_PATH_COUNT = 10;
+
+/**
+ * THE CALLEES ADMITTED WITHOUT A DECLARATION — the named-exclusion posture `STEM_FALSE_POSITIVES`
+ * already takes, applied to the resolution rule (32-20).
+ *
+ * The canonical form below refuses a call through an identifier this pass cannot resolve. Five
+ * platform globals and five value constructors are called in the live closure with no declaration
+ * anywhere, and every one of them is inert: none opens a file, starts a process, or returns a
+ * module. They are named here WITH the reason, and pinned two-sided, so an eleventh is a decision
+ * somebody records rather than a condition somebody appends.
+ *
+ * WHAT IS DELIBERATELY NOT HERE, AND WHY THE LIST IS THE INTERESTING PART: `eval`, `Function`,
+ * `require`, `createRequire`, `fetch`, `structuredClone`. Each of those either executes source or
+ * returns something this pass would then have to reason about. They are refused by their ABSENCE,
+ * which is what makes this an allow-list rather than a fifteenth deny-list.
+ */
+const ADMITTED_GLOBAL_CALLEES = Object.freeze([
+  "Date", // scripts/board-read.js — `new Date(...)` for the mtime column. A value, no I/O.
+  "Error", // scripts/board-dashboard.js, scripts/kit-model.js — thrown diagnostics.
+  "Map", // four closure modules — ordinary keyed collections.
+  "Set", // four closure modules — ordinary de-duplication.
+  "String", // scripts/board-dashboard.js, scripts/board-model.js — the string coercion.
+  "TextDecoder", // scripts/board-read.js — decodes bytes ALREADY read; it opens nothing itself.
+  "clearInterval", // scripts/board-dashboard.js — tears the poll loop down on SIGINT.
+  "clearTimeout", // scripts/board-dashboard.js — cancels a pending debounce.
+  "setInterval", // scripts/board-dashboard.js — the mandatory poll floor.
+  "setTimeout", // scripts/board-dashboard.js — the watch debounce.
+]);
+
+/** The cardinality of the exemption set. An eleventh admitted global is a DECISION with a reason. */
+const ADMITTED_GLOBAL_CALLEE_COUNT = 10;
+
+/**
+ * THE KINDS OF DECLARATION THAT MAY RESOLVE A CALLEE — the SECOND axis of the resolution, pinned so
+ * that "resolved" cannot quietly start meaning something new (32-20).
+ *
+ * The first axis is `ADMITTED_GLOBAL_CALLEES`: what may be called with NO declaration. This is the
+ * converse: the shapes of declaration that admit a callee. Measured over the live closure; a sixth
+ * kind means a callee is now admitted by a route nobody has weighed.
+ */
+const RESOLVING_DECLARATION_KINDS = Object.freeze([
+  "ClassDeclaration",
+  "FunctionDeclaration",
+  "FunctionName",
+  "ImportSpecifier",
+  "Parameter",
+  "VariableDeclaration",
+]);
+
+/** The cardinality of the resolution-kind set. A seventh shape is a decision. */
+const RESOLVING_DECLARATION_KIND_COUNT = 6;
+
 interface ModuleFacts {
   /** Top-level statement count. Zero means the parse read nothing and every claim below is vacuous. */
   readonly statements: number;
@@ -176,6 +295,39 @@ interface ModuleFacts {
   readonly opaqueFsAcquisitions: readonly string[];
   /** Module specifiers that are not string literals — a computed `import(expr)`. Same fail-closed rule. */
   readonly opaqueSpecifiers: readonly string[];
+  /**
+   * EVERY MODULE ACQUISITION THAT IS NOT THE ONE ADMITTED SHAPE (32-20).
+   *
+   * THE CANONICAL FORM, IN ONE SENTENCE: in this closure a module identity is established by
+   * exactly one shape — a STATIC IMPORT DECLARATION WHOSE SPECIFIER IS A STRING LITERAL. Every
+   * other way of obtaining one is collected here and asserted absent: a dynamic `import()` whatever
+   * its argument, a call or construction through an identifier this pass cannot resolve, a call
+   * reached through an unadmitted member path on a capability-bearing global, and any read of such
+   * a global that is not the object of a member access.
+   *
+   * WHY REFUSAL RATHER THAN A CLEVERER PASS. The obvious alternative is to constant-fold the
+   * argument of `process.getBuiltinModule("node:" + "fs")` and decide the identity. 32-11 declined
+   * that because it changes what this syntactic pass IS, and that argument still holds — but the
+   * reason to refuse is stronger than the reason to decline: AN UNPROVABLE IDENTITY IS NOT A SAFE
+   * IDENTITY. A guard that cannot decide must refuse, exactly as `open`/`openSync` stay in the
+   * mutating set because a name cannot read their flag literal. The next reader's instinct will be
+   * to make the pass cleverer instead; this paragraph is here to be read before that edit.
+   */
+  readonly acquisitions: readonly string[];
+  /**
+   * Called or constructed identifiers this pass could not resolve to an import binding or to a
+   * declaration in an ENCLOSING scope, minus `ADMITTED_GLOBAL_CALLEES`. Each is also an
+   * `acquisition`; this set exists so the failure message can name the identifier.
+   */
+  readonly unresolvedCallees: readonly string[];
+  /**
+   * The converse census: every resolved callee WITH the declaration kind and the line that resolved
+   * it. Pinned by KIND rather than by name — see `RESOLVING_DECLARATION_KINDS` and the case that
+   * asserts it — so that "resolved" cannot start meaning something new without somebody noticing.
+   */
+  readonly resolvedCallees: readonly string[];
+  /** Every member path rooted at a capability-bearing global, normalized to a dotted string. */
+  readonly globalMemberPaths: ReadonlySet<string>;
 }
 
 function analyzeModule(absPath: string, label: string): ModuleFacts {
@@ -193,6 +345,10 @@ function analyzeModule(absPath: string, label: string): ModuleFacts {
   const fsNamespaceBindings = new Set<string>();
   const opaqueFsAcquisitions: string[] = [];
   const opaqueSpecifiers: string[] = [];
+  const acquisitions: string[] = [];
+  const unresolvedCallees: string[] = [];
+  const resolvedCallees: string[] = [];
+  const globalMemberPaths = new Set<string>();
 
   const literalText = (node: ts.Node | undefined): string | null =>
     node !== undefined && ts.isStringLiteralLike(node) ? node.text : null;
@@ -391,6 +547,212 @@ function analyzeModule(absPath: string, label: string): ModuleFacts {
   };
   if (fsNamespaceBindings.size > 0) collectNamespaceUses(source);
 
+  // ───────────────────────────────────────────────────────────────────────────────────────────
+  // THE ACQUISITION CANONICAL FORM AND THE GLOBAL MEMBER-PATH CENSUS (32-20).
+  // ───────────────────────────────────────────────────────────────────────────────────────────
+
+  const lineOf = (node: ts.Node): number =>
+    source.getLineAndCharacterOfPosition(node.getStart(source)).line + 1;
+
+  const addBindingNames = (
+    name: ts.BindingName,
+    into: Map<string, string>,
+    kind: string,
+    line: number,
+  ): void => {
+    if (ts.isIdentifier(name)) into.set(name.text, `${kind}@${label}:${line}`);
+    else for (const element of name.elements) {
+      if (ts.isBindingElement(element)) addBindingNames(element.name, into, kind, line);
+    }
+  };
+
+  /**
+   * THE NAMES DECLARED DIRECTLY IN ONE NODE — deliberately NOT a file-level census.
+   *
+   * A file-level set of declared names is the "ONE DEAD DECLARATION DISABLES THE BAN" shape this
+   * repository has already measured once (P31 round 6): a block-scoped declaration in a scope the
+   * call site is not inside would silently convert an unresolved callee into a resolved one, while
+   * the call itself still reached the real global. So resolution walks the ANCESTOR CHAIN from the
+   * call site and asks each enclosing node what IT declares. A name declared in a sibling scope
+   * does not resolve, and the imprecision therefore runs toward REFUSAL — the only direction a
+   * safety guard may be imprecise in.
+   */
+  const declaredCache = new Map<ts.Node, Map<string, string>>();
+  const declaredDirectlyIn = (node: ts.Node): Map<string, string> => {
+    const cached = declaredCache.get(node);
+    if (cached !== undefined) return cached;
+    const declared = new Map<string, string>();
+    const fromStatements = (statements: readonly ts.Statement[]): void => {
+      for (const statement of statements) {
+        if (ts.isImportDeclaration(statement) && statement.importClause !== undefined) {
+          const clause = statement.importClause;
+          const line = lineOf(statement);
+          if (clause.name) declared.set(clause.name.text, `ImportClause@${label}:${line}`);
+          const bindings = clause.namedBindings;
+          if (bindings !== undefined && ts.isNamespaceImport(bindings)) {
+            declared.set(bindings.name.text, `NamespaceImport@${label}:${line}`);
+          }
+          if (bindings !== undefined && ts.isNamedImports(bindings)) {
+            for (const element of bindings.elements) {
+              declared.set(element.name.text, `ImportSpecifier@${label}:${line}`);
+            }
+          }
+        } else if (ts.isFunctionDeclaration(statement) && statement.name !== undefined) {
+          declared.set(statement.name.text, `FunctionDeclaration@${label}:${lineOf(statement)}`);
+        } else if (ts.isClassDeclaration(statement) && statement.name !== undefined) {
+          declared.set(statement.name.text, `ClassDeclaration@${label}:${lineOf(statement)}`);
+        } else if (ts.isVariableStatement(statement)) {
+          for (const declaration of statement.declarationList.declarations) {
+            addBindingNames(declaration.name, declared, "VariableDeclaration", lineOf(declaration));
+          }
+        }
+      }
+    };
+    if (
+      ts.isSourceFile(node) ||
+      ts.isBlock(node) ||
+      ts.isModuleBlock(node) ||
+      ts.isCaseClause(node) ||
+      ts.isDefaultClause(node)
+    ) {
+      fromStatements(node.statements);
+    }
+    if (ts.isFunctionLike(node)) {
+      for (const parameter of node.parameters) {
+        addBindingNames(parameter.name, declared, "Parameter", lineOf(parameter));
+      }
+      if ((ts.isFunctionExpression(node) || ts.isFunctionDeclaration(node)) && node.name) {
+        declared.set(node.name.text, `FunctionName@${label}:${lineOf(node)}`);
+      }
+    }
+    if (ts.isForStatement(node) && node.initializer !== undefined && ts.isVariableDeclarationList(node.initializer)) {
+      for (const declaration of node.initializer.declarations) {
+        addBindingNames(declaration.name, declared, "VariableDeclaration", lineOf(declaration));
+      }
+    }
+    if (
+      (ts.isForInStatement(node) || ts.isForOfStatement(node)) &&
+      ts.isVariableDeclarationList(node.initializer)
+    ) {
+      for (const declaration of node.initializer.declarations) {
+        addBindingNames(declaration.name, declared, "VariableDeclaration", lineOf(declaration));
+      }
+    }
+    if (ts.isCatchClause(node) && node.variableDeclaration !== undefined) {
+      addBindingNames(
+        node.variableDeclaration.name,
+        declared,
+        "CatchVariable",
+        lineOf(node.variableDeclaration),
+      );
+    }
+    declaredCache.set(node, declared);
+    return declared;
+  };
+
+  const resolveCallee = (callee: ts.Identifier): string | null => {
+    let cursor: ts.Node | undefined = callee.parent;
+    while (cursor !== undefined) {
+      const hit = declaredDirectlyIn(cursor).get(callee.text);
+      if (hit !== undefined) return hit;
+      cursor = cursor.parent;
+    }
+    return null;
+  };
+
+  /** The normalized dotted path of a member chain rooted at a capability-bearing global, or null. */
+  const globalMemberPathOf = (node: ts.Node): string | null => {
+    const segments: string[] = [];
+    let cursor: ts.Node = node;
+    while (ts.isPropertyAccessExpression(cursor) || ts.isElementAccessExpression(cursor)) {
+      if (ts.isPropertyAccessExpression(cursor)) segments.unshift(cursor.name.text);
+      else {
+        const key = literalText(cursor.argumentExpression);
+        segments.unshift(key === null ? COMPUTED_PATH_SEGMENT : key);
+      }
+      cursor = cursor.expression;
+    }
+    if (!ts.isIdentifier(cursor) || !CAPABILITY_GLOBAL_ROOTS.includes(cursor.text)) return null;
+    return [cursor.text, ...segments].join(".");
+  };
+
+  /**
+   * THE CANONICAL FORM FOR A CAPABILITY-BEARING GLOBAL, the same sentence the fs namespace rule
+   * already states one register over: the ONE admitted read is as the OBJECT of a member access.
+   * The binding-site positions are exempt (a parameter or variable may be NAMED `process`), and a
+   * member NAME that happens to spell one is not a read of the global at all.
+   *
+   * THE PASS IS NAME-SCOPED, NOT BINDING-SCOPED, AND THAT IS DELIBERATE. A local that reuses one of
+   * these spellings is treated as the global, so a shadowed-global local still reds this guard. The
+   * imprecision runs toward REFUSAL. Measured on the live closure: ZERO reads of `process`,
+   * `globalThis` or `global` outside a member access, so the rule costs the legitimate closure
+   * nothing — which is what the positive controls below assert.
+   */
+  const isAdmittedGlobalPosition = (node: ts.Identifier): boolean => {
+    const parent = node.parent as ts.Node | undefined;
+    if (parent === undefined) return false;
+    if (ts.isPropertyAccessExpression(parent) && parent.expression === node) return true;
+    if (ts.isElementAccessExpression(parent) && parent.expression === node) return true;
+    // A member NAME (`options.process`) is not a read of the global.
+    if (ts.isPropertyAccessExpression(parent) && parent.name === node) return true;
+    // Binding sites: a parameter, a variable, a destructured element or a function may be so named.
+    if (ts.isParameter(parent) && parent.name === node) return true;
+    if (ts.isVariableDeclaration(parent) && parent.name === node) return true;
+    if (ts.isBindingElement(parent) && (parent.name === node || parent.propertyName === node)) return true;
+    if (ts.isFunctionDeclaration(parent) && parent.name === node) return true;
+    if (ts.isPropertyAssignment(parent) && parent.name === node) return true;
+    return false;
+  };
+
+  const collectAcquisitions = (node: ts.Node): void => {
+    // 1 — a dynamic import, WHATEVER its argument. A literal one is decidable and still not the
+    //     admitted shape; a computed one is not decidable at all. Both are collected.
+    if (ts.isCallExpression(node) && node.expression.kind === ts.SyntaxKind.ImportKeyword) {
+      acquisitions.push(briefly(node.getText()));
+    }
+    // 2 — a call or construction through an identifier, resolved against the ENCLOSING scopes.
+    if ((ts.isCallExpression(node) || ts.isNewExpression(node)) && ts.isIdentifier(node.expression)) {
+      const name = node.expression.text;
+      const resolution = resolveCallee(node.expression);
+      if (resolution !== null) resolvedCallees.push(`${name} <- ${resolution}`);
+      else if (!ADMITTED_GLOBAL_CALLEES.includes(name)) {
+        unresolvedCallees.push(`${name} (${label}:${lineOf(node)}) ${briefly(node.getText())}`);
+        acquisitions.push(briefly(node.getText()));
+      }
+    }
+    // 3 — the member-path census on the capability-bearing globals. Only MAXIMAL paths are
+    //     recorded, so `process.report.writeReport` is censused as itself rather than as the
+    //     admitted prefix `process.report` would have been.
+    if (ts.isPropertyAccessExpression(node) || ts.isElementAccessExpression(node)) {
+      const parent = node.parent as ts.Node | undefined;
+      const isInnerOfChain =
+        parent !== undefined &&
+        (ts.isPropertyAccessExpression(parent) || ts.isElementAccessExpression(parent)) &&
+        parent.expression === node;
+      const path = isInnerOfChain ? null : globalMemberPathOf(node);
+      if (path !== null) {
+        globalMemberPaths.add(path);
+        const isCallee =
+          parent !== undefined &&
+          (ts.isCallExpression(parent) || ts.isNewExpression(parent)) &&
+          parent.expression === node;
+        if (isCallee && !EXPECTED_GLOBAL_MEMBER_PATHS.includes(path)) {
+          acquisitions.push(briefly(parent.getText()));
+        }
+      }
+    }
+    // 4 — the canonical form: any other read of a capability-bearing global identifier.
+    if (
+      ts.isIdentifier(node) &&
+      CAPABILITY_GLOBAL_ROOTS.includes(node.text) &&
+      !isAdmittedGlobalPosition(node)
+    ) {
+      acquisitions.push(briefly((node.parent ?? node).getText()));
+    }
+    ts.forEachChild(node, collectAcquisitions);
+  };
+  collectAcquisitions(source);
+
   return {
     statements: source.statements.length,
     parseErrors,
@@ -398,6 +760,10 @@ function analyzeModule(absPath: string, label: string): ModuleFacts {
     bareSpecifiers,
     opaqueFsAcquisitions,
     opaqueSpecifiers,
+    acquisitions,
+    unresolvedCallees,
+    resolvedCallees,
+    globalMemberPaths,
   };
 }
 
@@ -410,6 +776,11 @@ interface ClosureFacts {
   readonly bareSpecifiers: readonly string[];
   readonly opaqueFsAcquisitions: readonly string[];
   readonly opaqueSpecifiers: readonly string[];
+  readonly acquisitions: readonly string[];
+  readonly unresolvedCallees: readonly string[];
+  readonly resolvedCallees: readonly string[];
+  /** The union of every module's capability-global member paths, sorted. */
+  readonly globalMemberPaths: readonly string[];
 }
 
 /**
@@ -425,6 +796,10 @@ function analyzeClosure(root: string, entryRel: string): ClosureFacts {
   const bareSpecifiers = new Set<string>();
   const opaqueFsAcquisitions: string[] = [];
   const opaqueSpecifiers: string[] = [];
+  const acquisitions: string[] = [];
+  const unresolvedCallees: string[] = [];
+  const resolvedCallees: string[] = [];
+  const globalMemberPaths = new Set<string>();
   for (const rel of modules) {
     const facts = analyzeModule(join(root, rel), rel);
     perModule.set(rel, facts);
@@ -432,6 +807,10 @@ function analyzeClosure(root: string, entryRel: string): ClosureFacts {
     for (const specifier of facts.bareSpecifiers) bareSpecifiers.add(specifier);
     for (const text of facts.opaqueFsAcquisitions) opaqueFsAcquisitions.push(`${rel}: ${text}`);
     for (const text of facts.opaqueSpecifiers) opaqueSpecifiers.push(`${rel}: ${text}`);
+    for (const text of facts.acquisitions) acquisitions.push(`${rel}: ${text}`);
+    for (const text of facts.unresolvedCallees) unresolvedCallees.push(`${rel}: ${text}`);
+    for (const text of facts.resolvedCallees) resolvedCallees.push(`${rel}: ${text}`);
+    for (const path of facts.globalMemberPaths) globalMemberPaths.add(path);
   }
   return {
     modules,
@@ -440,6 +819,10 @@ function analyzeClosure(root: string, entryRel: string): ClosureFacts {
     bareSpecifiers: [...bareSpecifiers].sort(),
     opaqueFsAcquisitions,
     opaqueSpecifiers,
+    acquisitions,
+    unresolvedCallees,
+    resolvedCallees,
+    globalMemberPaths: [...globalMemberPaths].sort(),
   };
 }
 
@@ -602,6 +985,23 @@ beforeAll(() => {
       `(stem-matched ${STEM_MATCHED_FS_SYMBOLS.length} minus ${STEM_FALSE_POSITIVE_COUNT} named ` +
       `exclusions) on node ${process.versions.node}\n`,
   );
+  // THE RESOLUTION CENSUS IS RECORDED ON EVERY RUN (32-20). The kind and line of every admission
+  // live in `resolvedCallees`; pinning those names and lines would red on any unrelated edit, so
+  // what is PINNED is the kind set and what is PRINTED is the shape of the census behind it. A
+  // reader comparing two runs can see whether a disagreement is about capability or about churn.
+  const facts = analyzeClosure(ROOT, DASHBOARD_ENTRY);
+  const kinds = new Map<string, number>();
+  for (const entry of facts.resolvedCallees) {
+    const kind = (entry.split("<-")[1] ?? "").trim().split("@")[0] ?? "";
+    kinds.set(kind, (kinds.get(kind) ?? 0) + 1);
+  }
+  process.stdout.write(
+    `board-readonly: ${facts.resolvedCallees.length} resolved call sites ` +
+      `[${[...kinds].sort().map(([k, n]) => `${k} ${n}`).join(", ")}], ` +
+      `${facts.unresolvedCallees.length} unresolved, ` +
+      `${facts.globalMemberPaths.length} capability-global member paths, ` +
+      `${facts.acquisitions.length} refused acquisitions\n`,
+  );
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════════════════════
@@ -650,8 +1050,27 @@ describe("32-06 — the read-only guard asserts its own premises first", () => {
     expect(MUTATING_FS_SYMBOLS.length).toBeGreaterThan(0);
   });
 
-  it("PREMISE: no closure module acquires a filesystem module by a route this pass cannot name", () => {
+  it("PREMISE: no closure module acquires a module by a route that is not a static literal import", () => {
     const facts = analyzeClosure(ROOT, DASHBOARD_ENTRY);
+    // THE CANONICAL FORM, ASSERTED WHERE THE FS VERSION OF IT ALREADY WAS (32-20). A refusal of the
+    // new rule reds the gate through an assertion that was already here rather than through a
+    // brand-new one, so the discrimination cases and the live claim cannot drift apart.
+    expect(
+      facts.acquisitions,
+      "PREMISE: a closure module obtains a module identity by a shape that is not a STATIC IMPORT " +
+        "DECLARATION WITH A STRING-LITERAL SPECIFIER — a dynamic import, a call or construction " +
+        "through an identifier no enclosing scope declares, a call reached through an unadmitted " +
+        "member path on process/globalThis/global, or a read of one of those globals that is not " +
+        "the object of a member access. An unprovable identity is not a safe identity, so the " +
+        "acquisition is REFUSED rather than folded, guessed, or ignored",
+    ).toEqual([]);
+    expect(
+      facts.unresolvedCallees,
+      "PREMISE: a closure module calls or constructs through an identifier this pass cannot " +
+        "resolve to an import binding or to a declaration in an ENCLOSING scope, and which is not " +
+        "one of the named ADMITTED_GLOBAL_CALLEES. It could be anything, including a require " +
+        "equivalent handing back a module",
+    ).toEqual([]);
     expect(
       facts.opaqueFsAcquisitions,
       "PREMISE: a closure module reaches node:fs through a route this syntactic pass cannot " +
@@ -982,6 +1401,311 @@ describe("32-20 — the builtin identities the closure may reach are an ALLOW-LI
         expect(facts.fsSymbols).toEqual([...EXPECTED_CLOSURE_FS_SYMBOLS]);
         expect(facts.fsSymbols.length).toBe(EXPECTED_CLOSURE_FS_SYMBOL_COUNT);
         expect(facts.opaqueFsAcquisitions).toEqual([]);
+      },
+    );
+  });
+});
+
+describe("32-20 — one admitted way to acquire a module, and a two-sided census of the globals", () => {
+  it("PREMISE: the capability-global census is non-empty and its root set has three members", () => {
+    const facts = analyzeClosure(ROOT, DASHBOARD_ENTRY);
+    expect(
+      facts.globalMemberPaths.length,
+      "PREMISE: the census collected ZERO member paths on process/globalThis/global across the " +
+        "whole closure, so the two-sided pin below is a statement about an empty set and the " +
+        "process report writer would sail through it",
+    ).toBeGreaterThan(0);
+    expect(
+      CAPABILITY_GLOBAL_ROOTS.length,
+      "the capability-global ROOT set moved. A fourth root means a capability is now reachable " +
+        "through a spelling nobody has weighed; a third removed means the census stopped looking " +
+        "somewhere it used to look. Either way it is a decision recorded beside the roots",
+    ).toBe(CAPABILITY_GLOBAL_ROOT_COUNT);
+  });
+
+  it("the capability-global member paths have exactly the expected MEMBERS", () => {
+    const facts = analyzeClosure(ROOT, DASHBOARD_ENTRY);
+    const unadmitted = facts.globalMemberPaths.filter(
+      (path) => !EXPECTED_GLOBAL_MEMBER_PATHS.includes(path),
+    );
+    expect(
+      unadmitted,
+      `the closure reaches ${unadmitted.join(", ")} on a capability-bearing global, and nobody has ` +
+        "admitted that path. THIS IS THE RULE THAT REFUSES A CAPABILITY REACHED WITHOUT A MODULE: " +
+        "`process.report.writeReport(p)` creates and writes a file with no import anywhere, and it " +
+        "was measured green over this closure before the census existed (32-20-RED-baseline.txt). " +
+        "If the path is legitimate, add it above with the reason and the module that reaches it",
+    ).toEqual([]);
+    expect(facts.globalMemberPaths).toEqual([...EXPECTED_GLOBAL_MEMBER_PATHS].sort());
+  });
+
+  it("the capability-global member-path census has the expected COUNT", () => {
+    expect(
+      analyzeClosure(ROOT, DASHBOARD_ENTRY).globalMemberPaths.length,
+      "the number of distinct platform capabilities the projector reaches moved. Like the fs " +
+        "symbol count and the builtin identity count, this is a function of THIS repository's " +
+        "code — weigh the change against 'it renders state and changes nothing' and record it",
+    ).toBe(EXPECTED_GLOBAL_MEMBER_PATH_COUNT);
+  });
+
+  it("every expected member path is REACHABLE, so no admission outlives its reason", () => {
+    const live = analyzeClosure(ROOT, DASHBOARD_ENTRY).globalMemberPaths;
+    for (const path of EXPECTED_GLOBAL_MEMBER_PATHS) {
+      expect(
+        live,
+        `"${path}" is admitted and no closure module reaches it any more. A permanent admission ` +
+          "whose reason has evaporated is the set-literal drift class this repository has paid " +
+          "for: remove the entry rather than leaving the door open",
+      ).toContain(path);
+    }
+  });
+
+  it("PREMISE: the resolved-callee census is non-empty, so the resolution rule decided something", () => {
+    expect(
+      analyzeClosure(ROOT, DASHBOARD_ENTRY).resolvedCallees.length,
+      "PREMISE: ZERO callees resolved across the whole closure, so either the closure calls " +
+        "nothing or the resolver broke. Both make the unresolved-callee refusal a claim about an " +
+        "empty denominator — the false-green this repository has recorded six instances of",
+    ).toBeGreaterThan(0);
+  });
+
+  it("every resolution is by a declaration of a PINNED KIND — the converse axis", () => {
+    // AXIS ONE is ADMITTED_GLOBAL_CALLEES: what may be called with no declaration at all. THIS is
+    // axis two: the shapes of declaration that admit a callee. Pinning only one of the two is the
+    // P31 round-2 shape — writer-set derived, predicate-set still hand-typed — so both are pinned.
+    //
+    // WHY THE KIND AND NOT THE NAME→LINE MAP — a deviation from this plan's text, with the
+    // measurement behind it. The live closure resolves 311 call sites across its five modules (the
+    // number is PRINTED by the file-level `beforeAll` on every run, so it is checkable rather than
+    // remembered). A pin over those names and lines would red on any unrelated edit to any closure
+    // module — a renamed helper, an inserted comment shifting a line — and this file's own docblock
+    // already records what happens to a pin that reds for an unrelated reason: it gets loosened
+    // until it stops noticing, which is how the runtime-cardinality pin was argued out of existence
+    // twenty lines above. The KIND set is a function of capability rather than of churn. The
+    // dead-declaration hazard the name→line map was meant to catch is closed STRUCTURALLY instead,
+    // by resolving against the ENCLOSING scope chain rather than a file-level census of declared
+    // names — see `declaredDirectlyIn` and the block-scoped discrimination case below.
+    const facts = analyzeClosure(ROOT, DASHBOARD_ENTRY);
+    const kindOf = (entry: string): string => (entry.split("<-")[1] ?? "").trim().split("@")[0] ?? "";
+    const kinds = [...new Set(facts.resolvedCallees.map(kindOf))].sort();
+    const unpinned = kinds.filter((kind) => !RESOLVING_DECLARATION_KINDS.includes(kind));
+    expect(
+      unpinned,
+      `a callee is admitted by a declaration of kind ${unpinned.join(", ")}, which nobody has ` +
+        "weighed. The offending census entries: " +
+        facts.resolvedCallees.filter((entry) => unpinned.includes(kindOf(entry))).join(" | "),
+    ).toEqual([]);
+    expect(
+      RESOLVING_DECLARATION_KINDS.length,
+      "the set of declaration shapes that may admit a callee moved. It is what 'resolved' MEANS " +
+        "here, and it is a decision",
+    ).toBe(RESOLVING_DECLARATION_KIND_COUNT);
+  });
+
+  it("the admitted-global callee set is exactly ten, and every member is actually called", () => {
+    expect(
+      ADMITTED_GLOBAL_CALLEES.length,
+      "an eleventh callee admitted WITHOUT a declaration is a DECISION: it asserts that a global " +
+        "this pass cannot see is inert. `eval`, `Function`, `require` and `createRequire` are " +
+        "deliberately absent — they are refused by that absence, which is what makes this an " +
+        "allow-list rather than a sixteenth deny-list",
+    ).toBe(ADMITTED_GLOBAL_CALLEE_COUNT);
+    expect(new Set(ADMITTED_GLOBAL_CALLEES).size).toBe(ADMITTED_GLOBAL_CALLEES.length);
+    // An exemption for a callee nobody calls is an exemption silently doing nothing, while keeping
+    // the count at ten and the door open. Derived from the live closure, never assumed.
+    const called = new Set<string>();
+    for (const rel of analyzeClosure(ROOT, DASHBOARD_ENTRY).modules) {
+      const text = readFileSync(join(ROOT, rel), "utf8");
+      for (const name of ADMITTED_GLOBAL_CALLEES) {
+        if (new RegExp(`(?:^|[^\\w.$])${name}\\s*\\(`).test(text)) called.add(name);
+      }
+    }
+    const idle = ADMITTED_GLOBAL_CALLEES.filter((name) => !called.has(name));
+    expect(
+      idle,
+      `the admitted-global callee(s) ${idle.join(", ")} are not called anywhere in the closure, so ` +
+        "the exemption grants something nobody uses. Remove it with its reason",
+    ).toEqual([]);
+  });
+
+  it("a RUNTIME-ASSEMBLED module identity is refused (F-03, the residual 32-11 named)", () => {
+    // MEASURED GREEN BEFORE THIS RULE, verbatim from 32-20-RED-baseline.txt and from
+    // 32-14-ADVERSARIAL-REVIEW.md §F-03: exit 0, 59 passed / 59 over a module that writes any path
+    // handed to it. The identity is not a literal, so the fs-namespace rule could not see it by
+    // construction — and the answer is refusal, not a cleverer pass.
+    withLiveMirror(
+      {
+        module: "scripts/board-read.js",
+        appendSource:
+          'const assembled20 = process.getBuiltinModule("node:" + "fs");\n' +
+          'export const writeVia20 = (p) => assembled20.writeFileSync(p, "x");',
+      },
+      (mirrorRoot) => {
+        const facts = analyzeClosure(mirrorRoot, DASHBOARD_ENTRY);
+        expect(
+          facts.acquisitions.length,
+          "a runtime-assembled module identity was NOT refused. Collected: " +
+            `[${facts.acquisitions.join(" | ")}]`,
+        ).toBeGreaterThan(0);
+        expect(facts.acquisitions.join("\n")).toContain("scripts/board-read.js");
+        expect(facts.globalMemberPaths).toContain("process.getBuiltinModule");
+      },
+    );
+  });
+
+  it("a write capability reached through a GLOBAL with no import at all is refused (WR-02)", () => {
+    withLiveMirror(
+      {
+        module: "scripts/board-read.js",
+        appendSource: "export const dump20 = (p) => process.report.writeReport(p);",
+      },
+      (mirrorRoot) => {
+        const facts = analyzeClosure(mirrorRoot, DASHBOARD_ENTRY);
+        expect(facts.globalMemberPaths).toContain("process.report.writeReport");
+        expect(
+          facts.globalMemberPaths.filter((p) => !EXPECTED_GLOBAL_MEMBER_PATHS.includes(p)),
+          "process.report.writeReport creates and writes a JSON file at any path handed to it, " +
+            "with NO import anywhere in the module. The census is the only thing that can see it",
+        ).not.toEqual([]);
+        expect(facts.acquisitions.length).toBeGreaterThan(0);
+        // …and NOTHING else in this file moved: no fs symbol, no builtin identity, no banned module.
+        expect(facts.fsSymbols).toEqual([...EXPECTED_CLOSURE_FS_SYMBOLS]);
+        expect(normalizedBuiltinIdentities(facts)).toEqual([...ALLOWED_BUILTIN_SPECIFIERS].sort());
+        expect(bannedModulesReached(facts)).toEqual([]);
+      },
+    );
+  });
+
+  it("a DYNAMIC IMPORT of any specifier is an acquisition, fs or not", () => {
+    withLiveMirror(
+      {
+        module: "scripts/board-read.js",
+        appendSource:
+          'const dyn20 = await import("node:v8");\nexport const heap20 = (p) => dyn20.writeHeapSnapshot(p);',
+      },
+      (mirrorRoot) => {
+        const facts = analyzeClosure(mirrorRoot, DASHBOARD_ENTRY);
+        expect(facts.acquisitions.length).toBeGreaterThan(0);
+        expect(facts.acquisitions.join("\n")).toContain("scripts/board-read.js");
+      },
+    );
+  });
+
+  it("a REQUIRE-EQUIVALENT through an unresolvable callee is refused by name", () => {
+    withLiveMirror(
+      {
+        module: "scripts/board-read.js",
+        appendSource: 'export const req20 = (p) => __acquire20("node:v8").writeHeapSnapshot(p);',
+      },
+      (mirrorRoot) => {
+        const facts = analyzeClosure(mirrorRoot, DASHBOARD_ENTRY);
+        expect(facts.unresolvedCallees.join("\n")).toContain("__acquire20");
+        expect(facts.acquisitions.length).toBeGreaterThan(0);
+      },
+    );
+  });
+
+  it("a DEAD BLOCK-SCOPED declaration does NOT resolve a callee in an outer scope", () => {
+    // THE "ONE DEAD DECLARATION DISABLES THE BAN" SHAPE, refused by construction. Resolution walks
+    // the ancestor chain from the call site, so a declaration in a scope the call is not inside
+    // resolves nothing. A file-level census of declared names — the obvious implementation — would
+    // admit this callee, and the call would still reach the real global at runtime.
+    withLiveMirror(
+      {
+        module: "scripts/board-read.js",
+        appendSource:
+          "{\n  const __acquire21 = (s) => s;\n  void __acquire21;\n}\n" +
+          'export const req21 = (p) => __acquire21("node:v8").writeHeapSnapshot(p);',
+      },
+      (mirrorRoot) => {
+        const facts = analyzeClosure(mirrorRoot, DASHBOARD_ENTRY);
+        expect(
+          facts.unresolvedCallees.join("\n"),
+          "a block-scoped declaration in a scope the call site is not inside resolved the callee, " +
+            "so a dead `const` now admits a call that reaches whatever the real binding is",
+        ).toContain("__acquire21");
+      },
+    );
+  });
+
+  it("a LOCAL SHADOWING a capability-bearing global is still censused (name-scoped, toward refusal)", () => {
+    withLiveMirror(
+      {
+        module: "scripts/board-read.js",
+        appendSource:
+          'function shadow20(process) { return process.report.writeReport("/tmp/x"); }\n' +
+          "export const wShadow20 = shadow20;",
+      },
+      (mirrorRoot) => {
+        const facts = analyzeClosure(mirrorRoot, DASHBOARD_ENTRY);
+        expect(
+          facts.globalMemberPaths,
+          "the census is NAME-scoped rather than binding-scoped on purpose: a parameter that " +
+            "reuses a capability-bearing global's spelling is treated as the global, because the " +
+            "imprecision then runs toward REFUSAL — the only direction a safety guard may be " +
+            "imprecise in",
+        ).toContain("process.report.writeReport");
+      },
+    );
+  });
+
+  it("an ALIAS of a capability-bearing global is refused: the one admitted read is a member access", () => {
+    // Without this, the census is walked around in two lines: bind the global to another name and
+    // the member path is no longer rooted at a spelling the census knows. Same canonical form the
+    // fs namespace rule states, one register over.
+    withLiveMirror(
+      {
+        module: "scripts/board-read.js",
+        appendSource:
+          "const aliased20 = process;\n" +
+          'export const wAlias20 = (p) => aliased20.report.writeReport(p);',
+      },
+      (mirrorRoot) => {
+        const facts = analyzeClosure(mirrorRoot, DASHBOARD_ENTRY);
+        expect(
+          facts.acquisitions.length,
+          "a capability-bearing global was READ outside a member access — aliased, destructured, " +
+            "spread, passed or returned — and the member paths reached through the new name are " +
+            `invisible to the census. Collected: [${facts.acquisitions.join(" | ")}]`,
+        ).toBeGreaterThan(0);
+      },
+    );
+  });
+
+  it("POSITIVE CONTROLS: the four capabilities the closure legitimately uses stay admitted", () => {
+    // A rule with no positive control is a rule nobody can tell apart from a refusal of everything.
+    // The argument vector, both output channels, the exit function and the environment are what the
+    // dashboard is FOR; if this rule refused them it would be loosened within a day.
+    withLiveMirror(
+      {
+        module: "scripts/board-read.js",
+        appendSource:
+          // The environment read uses a COMPUTED key because that is the shape the live closure
+          // uses and therefore the shape that is pinned. A LITERAL key normalizes to a DIFFERENT
+          // path (`process.env.NO_COLOR`), which this rule refuses until somebody records it —
+          // measured while writing this case, and kept as-is: naming which variable the projector
+          // reads is exactly the kind of thing that should be a decision.
+          "export const control20 = () => {\n" +
+          "  const argv = process.argv.slice(2);\n" +
+          '  const width = process.stdout.columns;\n' +
+          '  const envKey = ["NO", "COLOR"].join("_");\n' +
+          "  const quiet = process.env[envKey];\n" +
+          "  if (argv.length < 0) process.exit(1);\n" +
+          "  return [argv, width, quiet, process.stderr, process.stdout, process.cwd()];\n" +
+          "};",
+      },
+      (mirrorRoot) => {
+        const facts = analyzeClosure(mirrorRoot, DASHBOARD_ENTRY);
+        expect(
+          facts.globalMemberPaths.filter((p) => !EXPECTED_GLOBAL_MEMBER_PATHS.includes(p)),
+          "a member path the dashboard legitimately uses was refused. Over-refusal is not the safe " +
+            "direction here: a rule that reds the real closure gets loosened under that pressure " +
+            "and ends weaker than the rule it replaced",
+        ).toEqual([]);
+        expect(facts.acquisitions).toEqual([]);
+        expect(facts.unresolvedCallees).toEqual([]);
+        expect(facts.fsSymbols).toEqual([...EXPECTED_CLOSURE_FS_SYMBOLS]);
+        expect(facts.fsSymbols.length).toBe(EXPECTED_CLOSURE_FS_SYMBOL_COUNT);
       },
     );
   });
