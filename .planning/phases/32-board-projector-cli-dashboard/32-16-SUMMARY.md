@@ -278,3 +278,9 @@ None. No new network endpoint, auth path, file-access pattern or trust-boundary 
 ---
 *Phase: 32-board-projector-cli-dashboard*
 *Completed: 2026-09-15*
+
+## Self-Check: PASSED
+
+- All six commits resolve in `git log --oneline --all`: `57439b8a`, `e9dd029e`, `ca4e0735`, `2b348982`, `0b535076`, `6259ac12`.
+- Every file named in `key-files.modified` exists on disk.
+- `commits: 5` is MEASURED — `git rev-list --count f2e84ecc..HEAD` at SUMMARY write, before this metadata commit.

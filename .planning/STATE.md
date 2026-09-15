@@ -5,15 +5,15 @@ milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live
 current_phase: 32
 current_phase_name: Board Projector & CLI Dashboard
 status: "Phase 31 CLOSED 2026-09-13 by user override D-44 (round-9 verification gaps_found 4/6 left standing; CR-28..CR-31 + WR-43..WR-47 accepted open). Next: Phase 32 — Board Projector & CLI Dashboard, not yet planned. Standing rule: four-round gap-closure cap on every later phase."
-stopped_at: Completed 32-15-PLAN.md
-last_updated: "2026-09-15T08:11:46.907Z"
-state_head: 6174ceded3c7d0fb2a532c3ad5846f5673c4c7dd
+stopped_at: Completed 32-16-PLAN.md
+last_updated: "2026-09-15T08:41:50.038Z"
+state_head: 6259ac12578bf1fb1ede1e8d1993b96900445d8e
 progress:
   total_phases: 9
   completed_phases: 30
   total_plans: 243
-  completed_plans: 234
-  percent: 96
+  completed_plans: 236
+  percent: 97
 last_activity: 2026-09-13
 prior_activity_desc: Phase 27 gap-closure round 8 COMPLETE (27-45, 27-46; D-53). Full narration lives in the Phase 27 artifacts and in docs/audit/; shortened here by plan 31-38 because this single line measured 7995 characters, above the 4000-character ceiling a pathological STATE line has previously crossed to turn a sub-second guard into a multi-minute one.
 last_activity_desc: "Phase 29 CLOSED by user decision (D-59, reversing D-29): LANG-04's conformance prohibition is held as CONTENT — the claim registry and the honesty floor — with guard_banned_claims a disclosed drift backstop, not the mechanism that makes a totality true. Eight verification rounds established that a totality over an open set of phrasings is not a decidable predicate; D-55 had already ended at a per-line predicate, so the totality was already content-held on the tree while LANG-04's text still said a mechanism held it. Round-8 review CR-02 (the narrowed sentence printed above the findings contradicting it) FIXED at 4c6a76a, watched failing against the pre-fix build and asserted in both directions; two existing cases whose premise the change invalidated were repaired, not weakened. CR-01 (freshness.ts working-tree arm fail-opens, reproduced) carried as V-29-59-03 — a build-parity defect plan 29-59 itself recorded as named by no LANG requirement. CR-03/04/05 carried with owners in docs/audit/29-round8-residuals.md section 10. The round-8 verifier's gaps_found verdict is left standing and annotated rather than rewritten: it verified LANG-04's previous text. All 8 LANG requirements Complete. 15 repo gates green, 52 files / 2140 passed / 2 skipped. Next: Phase 29.1 (per-role model assignment)."
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-09-07 — after Phase 29.2)
 ## Current Position
 
 Phase: 32 (Board Projector & CLI Dashboard) — EXECUTING
-Plan: 2 of 23
+Plan: 3 of 23
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 
@@ -491,6 +491,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 32 P11 | 26 min | 3 tasks | 3 files |
 | Phase 32 P14 | 34 min | 3 tasks | 4 files |
 | Phase 32 P15 | 16 min | 3 tasks | 6 files |
+| Phase 32 P16 | 34 min | 3 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -1337,6 +1338,8 @@ Recent decisions affecting current work:
 - [Phase 32]: F-02 closed in 32-14: a safety predicate must be asked at EVERY syntactic position that introduces the value it governs. The fs re-entry rule was correct and asked at 2 of 4 positions, so a named import of the promises namespace reached every writer while only a cardinality pin stood in the way. — Mutation-proven per position: deleting the rule reds 4 rows, reverting only the two new positions reds exactly those 2.
 - [Phase 32]: row-without-file now names a refusal by code when the file is on disk, and keeps the byte-identical absence sentence when it is not — one kind, two sentences, no SCHEMA_VERSION move (D-10 kept). — D-10 makes the conflict-kind set part of the schemaVersion:1 shape, so a new row-file-unadmitted kind would cost the golden, the closed-set count test, the contract and the renderer in one edit. The same honesty is reachable inside the existing kind by making actual true.
 - [Phase 32]: JoinInputs.unadmittedTickets is REQUIRED with no default: an omitted answer is a compile error, which is what stops a future call site silently re-acquiring the CR-01 defect. — An optional field with a default would let the join go back to inferring presence from the parse successes. The compile error is the mechanism, not the documentation.
+- [Phase 32]: A second byte-order mark is CONTENT, not an artefact: normalizeDocument strips at most one, and a document led by two is refused through the rules that already exist rather than by looping. — Looping until a document starts with something the parser likes is the widen-once-per-counterexample shape the contract refuses. The boundary is pinned by the 32-15 refusal table row REF-004, which now carries two marks.
+- [Phase 32]: The tab leaves TICKET_CONTROL and the key pattern value capture excludes it in the SAME edit: narrowing the class alone ADMITTED a tab inside a value and a trailing tab, two shapes the grammar refused the day before. — Found by probing the sibling positions of the rule that was narrowed, not by the plan, which named only two of the four tab positions.
 
 ### Pending Todos
 
@@ -1459,8 +1462,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-09-15T08:11:35.926Z
-Stopped at: Completed 32-15-PLAN.md
+Last session: 2026-09-15T08:41:28.535Z
+Stopped at: Completed 32-16-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
