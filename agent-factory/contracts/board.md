@@ -355,6 +355,12 @@ than read.** Resolution follows every link in the path, so a linked directory an
 the same question. A link whose target is inside the root is read normally, and a path that does not
 exist is absent rather than refused.
 
+**The projector arms its filesystem watches against the same resolved root it reads against, and it
+opens no watch on a source it refused.** The live view's low-latency path is bounded by the rule its
+reads are bounded by, so a linked directory that leaves the tree is refused once rather than refused
+for reading and watched for changes. A watch yields names rather than content, so nothing crosses the
+boundary either way; the rule covers both verbs because a reader comparing them finds one answer.
+
 **A refusal names the entry path and the destination it resolved to, and never quotes the content of
 a file outside the root.** The refusal appears as a read error against the one source it belongs to,
 which is stale for as long as the refusal stands; the other sources are unaffected. The rule is over

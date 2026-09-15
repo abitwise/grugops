@@ -132,8 +132,19 @@ type Harness = {
   readonly onRead: (fn: ((loop: Loop, n: number) => void) | null) => void;
 };
 
-/** Build a loop over an injected watcher, an injected existence check and an injected read. */
-function harness(partial: Partial<Options> = {}, presentDirs: readonly string[] = []): Harness {
+/**
+ * Build a loop over an injected watcher, an injected existence check and an injected read.
+ *
+ * SEEDED BY DEFAULT, BECAUSE THAT IS THE PRODUCTION ORDER. `run` reads once, seeds the loop with the
+ * result and only then arms: the resolved root a watch is armed against comes out of that first read
+ * (IN-01). A harness that armed before seeding would be driving an order the shipped program never
+ * takes. The one case that DOES drive it passes `seeded: false` and asserts what happens.
+ */
+function harness(
+  partial: Partial<Options> = {},
+  presentDirs: readonly string[] = [],
+  { seeded = true }: { seeded?: boolean } = {},
+): Harness {
   const options: Options = {
     repoRoot: REPO,
     once: false,
@@ -201,6 +212,7 @@ function harness(partial: Partial<Options> = {}, presentDirs: readonly string[] 
   };
 
   const loop = createLoop(options, io, deps);
+  if (seeded) loop.seed(stubResult(0, readRoot.current));
   return {
     loop,
     watchers,
@@ -702,7 +714,7 @@ describe("board-dashboard — a watch is armed against the ROOT EVERY READ RESOL
     // THE STATED ANSWER TO AN UNSTATED ORDER DEPENDENCE. `run` seeds before it arms, so production
     // never reaches this; `createLoop` is a public function a caller can drive in any order, and an
     // unstated assumption in a loop that opens filesystem handles is what the next round measures.
-    const h = harness({}, ["plans"]);
+    const h = harness({}, ["plans"], { seeded: false });
 
     h.loop.armAll();
 

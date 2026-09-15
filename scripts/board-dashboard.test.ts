@@ -696,6 +696,12 @@ describe("board-dashboard — SIGINT closes the loop rather than the process mid
     };
 
     const loop = createLoop(options, captureIo(false), deps);
+    // SEEDED BEFORE IT IS ARMED, WHICH IS THE ORDER `run` TAKES. The root a watch is armed against
+    // comes out of the read the seed carries (IN-01, plan 32-19): `makeResult({})` resolves to
+    // `/repo`, the same tree this case's injected `exists` answers for. Arming first would drive an
+    // order the shipped program never takes, and the loop states what it does then — it arms
+    // nothing, which would make the premise below false for a reason this case is not about.
+    loop.seed(makeResult({}));
     loop.armAll();
     loop.start(POLL_FLOOR_MS);
     expect(

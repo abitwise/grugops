@@ -51,7 +51,7 @@
 // Voice: CLEAR PROFESSIONAL VOICE throughout (CLAUDE.md hard rule — this is a trace surface).
 import { existsSync, watch } from "node:fs";
 import { dirname, join } from "node:path";
-import { CONFLICT_KINDS, FIXED_SUBPATHS, QUEUE_STAGES, SOURCE_NAMES, readSnapshot, unreadableSources, } from "./board-read.js";
+import { CONFLICT_KINDS, FIXED_SUBPATHS, OUTSIDE_ROOT, QUEUE_STAGES, SOURCE_NAMES, readSnapshot, unreadableSources, } from "./board-read.js";
 import { isEntrypoint } from "./is-entry.js";
 // ── The timing constants the loop runs on (D-14) ─────────────────────────────────────────────────
 //
@@ -669,6 +669,50 @@ export function createLoop(options, io, deps) {
     let inFlight = false;
     let rerun = false;
     /**
+     * The root the LAST READ RESOLVED, which is the root every watch is armed against (IN-01).
+     *
+     * NOT `options.repoRoot`. That is the string the user typed, and this module keeps it for exactly
+     * two things: the read it hands to `readSnapshot`, and the usage message. `readSnapshot` puts it
+     * through `resolveRepoRoot`, which follows every link with `realpathSync`, and publishes the answer
+     * on the snapshot. On an ordinary tree the two strings are equal; on a symlinked invocation path
+     * they are not, and arming against the unresolved one opened handles on a tree the reader had
+     * already refused to read. A future edit that "simplifies" the two values into one must keep THIS
+     * one — the resolved root is the only one the containment authority ever saw.
+     *
+     * `null` until a read has happened. `run` seeds before it arms, so the production path is never in
+     * that state; `createLoop` is public and a caller can drive it in any order, and `arm` states what
+     * it does then rather than joining against whatever is in hand.
+     */
+    let resolvedRoot = null;
+    /**
+     * The sources the last read REFUSED for containment — the same rule, asked once (IN-01).
+     *
+     * A directory whose source `board-read` refused because it resolves outside the root is a directory
+     * this loop does not watch either. The question is asked with the reader's own `OUTSIDE_ROOT`
+     * constant and answered by the reader's own result, so there is ONE containment authority rather
+     * than a second implementation of it here — which is the state IN-01 found: refused by one module,
+     * watched by its sibling.
+     */
+    let refusedSources = new Set();
+    /**
+     * Take the two facts a read publishes that the WATCH arm depends on.
+     *
+     * A ROOT THAT MOVED TAKES THE HANDLES WITH IT. Every open handle was opened against the previous
+     * root, so after the root changes they are watching a tree that is no longer the one being
+     * projected. They are closed here and re-armed by the next `armAll`, and the records go too: each
+     * one names a directory under a root this loop has stopped reading.
+     */
+    function adoptRead(result) {
+        const root = result.snapshot.repoRoot;
+        if (resolvedRoot !== null && resolvedRoot !== root) {
+            for (const rel of [...watchers.keys()])
+                closeWatcher(rel);
+            watchErrorsByDir.clear();
+        }
+        resolvedRoot = root;
+        refusedSources = new Set(result.readErrors.filter((e) => e.code === OUTSIDE_ROOT).map((e) => e.source));
+    }
+    /**
      * Record the CURRENT failure for one directory, replacing whatever that directory said before.
      *
      * THE MESSAGE PROMISES A RE-ARM, AND `arm`'s SUCCESS PATH IS WHAT MAKES THE PROMISE TRUE. The two
@@ -678,14 +722,12 @@ export function createLoop(options, io, deps) {
      * a repaired watch is about to be repaired, which is the half of WR-06 a count alone does not
      * catch.
      */
+    function noteWatchState(rel, source, message) {
+        watchErrorsByDir.set(rel, { source, path: rel, code: "watch", message });
+    }
     function noteWatchError(rel, source, e) {
-        watchErrorsByDir.set(rel, {
-            source,
-            path: rel,
-            code: "watch",
-            message: `the watch on ${rel} failed (${e.message}). It is closed and will be re-armed on the next ` +
-                `poll tick; the mandatory poll keeps the screen current in the meantime.`,
-        });
+        noteWatchState(rel, source, `the watch on ${rel} failed (${e.message}). It is closed and will be re-armed on the next ` +
+            `poll tick; the mandatory poll keeps the screen current in the meantime.`);
     }
     /**
      * The current watch failures, in RELATIVE-NAME order rather than in the order they happened.
@@ -711,11 +753,36 @@ export function createLoop(options, io, deps) {
     }
     function arm(entry) {
         const { rel, source } = entry;
+        // THE CONTAINMENT REFUSAL IS CHECKED FIRST, AND IT CLOSES (IN-01). It comes before the
+        // already-armed early return because a tree can acquire a symlink under a running loop: the
+        // source that was readable a tick ago is refused now, and the handle opened then is the one
+        // pointing outside. NOTHING IS RECORDED HERE — the reader already reported the refusal against
+        // the source it belongs to, and a second entry would be the same finding twice in the list a
+        // consumer reads.
+        if (refusedSources.has(source)) {
+            closeWatcher(rel);
+            return;
+        }
         if (watchers.has(rel))
             return;
-        const dir = join(options.repoRoot, rel);
-        if (!deps.exists(dir))
-            return; // it may appear later; a poll tick will arm it then
+        const root = resolvedRoot;
+        if (root === null) {
+            // NOTHING IS ARMED AGAINST A ROOT NOBODY RESOLVED, and the skip says so per directory —
+            // the loop cannot even ask whether these exist without a root to join them against. The
+            // record clears on the first arm after a read, like every other watch record.
+            noteWatchState(rel, source, `the watch on ${rel} was not armed: no read has resolved the repository root yet, so ` +
+                `there is nothing to arm it against. The read that precedes the next poll tick supplies ` +
+                `the root, and the tick arms it.`);
+            return;
+        }
+        const dir = join(root, rel);
+        if (!deps.exists(dir)) {
+            // IT MAY APPEAR LATER; A POLL TICK WILL ARM IT THEN — and an absent directory is not a failed
+            // watch, so any record this directory was carrying is dropped rather than left standing as a
+            // current finding about a path that is not there.
+            watchErrorsByDir.delete(rel);
+            return;
+        }
         try {
             const handle = deps.watch(dir, () => {
                 // The `filename` argument is IGNORED ENTIRELY. Node documents it as null on some Linux
@@ -822,6 +889,7 @@ export function createLoop(options, io, deps) {
                     return;
                 }
                 previous = result;
+                adoptRead(result);
                 emit(result);
             } while (rerun);
         }
@@ -864,6 +932,7 @@ export function createLoop(options, io, deps) {
         start,
         seed: (result) => {
             previous = result;
+            adoptRead(result);
         },
         emit,
         stop,
