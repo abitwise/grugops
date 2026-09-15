@@ -1650,3 +1650,168 @@ describe("board-dashboard — each bounds number states its own unit (WR-05)", (
     ).not.toContain("longest line 34 KB");
   });
 });
+
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+// PLAN 32-18 TASK 2 — ONE CENSUS, BOTH CHANNELS, PINNED TWO-SIDED (CR-02, T-32-18-03).
+//
+// WHAT THE FINDING WAS. Plan 32-13 derived the write-site rule from the module's own syntax tree and
+// pinned it — on stderr. It asked nothing at all about stdout, so the rule was derived on the arm
+// that had been fixed and narrated on the arm that had not. A fourth stdout write was free.
+//
+// WHY A PARAMETER AND NOT A SECOND FUNCTION. A second census over one property is the
+// second-authority shape this phase has already paid for twice. The binding tracking, the
+// classification and the totality check serve both channels from one implementation, so the two
+// arms cannot drift apart.
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+
+/**
+ * How many expressions in `scripts/board-dashboard.ts` write to stdout.
+ *
+ * THREE IS A DECISION. `run`'s usage write, `emit`'s frame write and `writeDocument`'s document
+ * write are three because they carry three different things: a constant the program owns, a frame
+ * already sanitized cell by cell, and a serialized document sanitized as a whole. A FOURTH stdout
+ * write site is a fourth answer to "what may reach the operator's terminal", and CR-02 is what one
+ * unexamined answer cost. Raising this number is that decision being RECORDED, never a constant
+ * bumped to make a suite green.
+ */
+const STDOUT_WRITE_SITE_COUNT = 3;
+
+/** The three functions the stdout sites must live in, in the order the module declares them. */
+const STDOUT_WRITERS = ["writeDocument", "emit", "run"] as const;
+
+describe("board-dashboard — the stdout write-site census is derived from the module (CR-02)", () => {
+  it("PREMISE: the collector finds every stdout spelling, and refuses the routes it cannot follow", () => {
+    const found = channelWriteCensus(
+      parseModule(
+        "stdout-probe.ts",
+        [
+          "function a(io) { io.stdout.write('x'); }",
+          "function b() { process.stdout.write('y'); }",
+          "function c(io) { const out = io.stdout; out.write('z'); }",
+          "function d(io) { const { stdout } = io; stdout.write('w'); }",
+          "function e(io) { (io.stdout).write('parenthesized'); }",
+          "function f(io) { io.stderr.write('not stdout'); }",
+        ].join("\n"),
+      ),
+      "stdout",
+    );
+    expect(
+      found.sites.map((s) => s.enclosingFunction),
+      "the member spelling, the global-process spelling, the aliased channel, the destructured " +
+        "channel and a parenthesized receiver are all write sites; the stderr call is not",
+    ).toEqual(["a", "b", "c", "d", "e"]);
+
+    const unfollowable = channelWriteCensus(
+      parseModule(
+        "stdout-opaque.ts",
+        [
+          "function f(io) { const { write } = io.stdout; write('x'); }",
+          "function g() { const w = process.stdout.write; w('y'); }",
+          "function h(io, k) { io.stdout[k]('z'); }",
+          "function i(io) { io.stdout.end('done'); }",
+          "function j(io) { io.stdout.write.call(io.stdout, 'x'); }",
+        ].join("\n"),
+      ),
+      "stdout",
+    );
+    expect(
+      unfollowable.opaque.length,
+      "a detached write capability, a computed member, another method call on the channel and a " +
+        "reflective invocation must each be REFUSED rather than silently producing a short site " +
+        "list — a census that returns a short list is a census that says nothing",
+    ).toBeGreaterThanOrEqual(5);
+    expect(
+      unfollowable.sites,
+      "none of the five is a call site this pass can name, so none may be counted as one",
+    ).toEqual([]);
+  });
+
+  it("PREMISE: a module with no stdout write at all yields zero sites", () => {
+    // Without this the pin is equally true of a census counting something else entirely.
+    const empty = channelWriteCensus(
+      parseModule(
+        "no-stdout.ts",
+        [
+          "function a(io) { io.stderr.write('x'); }",
+          "function b(io) { const n = io.columns; return n; }",
+        ].join("\n"),
+      ),
+      "stdout",
+    );
+    expect(empty.sites, "the census counted a write to a channel it was not asked about").toEqual(
+      [],
+    );
+    expect(empty.opaque).toEqual([]);
+  });
+
+  it("TOTALITY: every syntactic reference to the channel lands in exactly one named bucket", () => {
+    // The recurring finding in this phase is a derived predicate whose INPUT was left in a narrow
+    // syntactic form. The defence is not another arm: it is a DENOMINATOR. Every occurrence of the
+    // channel is classified, the buckets are summed, and the sum is compared with the count of
+    // references the same pass found — so a shape nobody anticipated lands in `opaque` or in
+    // `carried` and is visible, rather than being silently absent from a short list.
+    const census = channelWriteCensus(
+      parseModule(DASHBOARD_TS, readFileSync(DASHBOARD_TS, "utf8")),
+      "stdout",
+    );
+    expect(
+      census.references,
+      "PREMISE: the pass found no reference to the channel at all, so every bucket below is empty " +
+        "for the wrong reason",
+    ).toBeGreaterThan(0);
+    expect(
+      census.sites.length + census.opaque.length + census.reads.length + census.carried.length,
+      "a channel reference that fell out of every bucket is a route this census cannot answer for",
+    ).toBe(census.references);
+  });
+
+  it("pins the stdout write-site count two-sided at three, in the three functions that own them", () => {
+    const census = channelWriteCensus(
+      parseModule(DASHBOARD_TS, readFileSync(DASHBOARD_TS, "utf8")),
+      "stdout",
+    );
+    console.log(
+      `[32-18] stdout write sites in scripts/board-dashboard.ts: ${census.sites.length} — ` +
+        census.sites.map((s) => `${s.enclosingFunction}:${s.line}`).join(", "),
+    );
+
+    expect(
+      census.opaque,
+      "the module acquired a stdout write capability by a route this census cannot name a call " +
+        "site for; the pin below would be a claim about the sites it happened to see",
+    ).toEqual([]);
+
+    expect(
+      census.sites.map((s) => `${s.enclosingFunction}:${s.line} ${s.text}`),
+      "scripts/board-dashboard.ts writes to stdout from more than three places. The usage block, " +
+        "the frame and the serialized document are three because they carry three different " +
+        "things; a FOURTH is a fourth answer to what may reach the operator's terminal, and CR-02 " +
+        "is what one unexamined answer cost. This is a decision somebody records, never a bumped " +
+        "constant",
+    ).toHaveLength(STDOUT_WRITE_SITE_COUNT);
+
+    expect(
+      census.sites.map((s) => s.enclosingFunction),
+      "a count of three in the WRONG functions is still a bypass: the three sites are the usage " +
+        "writer, the frame writer and the document writer",
+    ).toEqual([...STDOUT_WRITERS]);
+  });
+
+  it("keeps the frame write OUTSIDE the document chokepoint — it is not over-sanitized (T-32-18-04)", () => {
+    const census = channelWriteCensus(
+      parseModule(DASHBOARD_TS, readFileSync(DASHBOARD_TS, "utf8")),
+      "stdout",
+    );
+    const frame = census.sites.filter((s) => s.enclosingFunction === "emit");
+    expect(
+      frame,
+      "PREMISE: no stdout write was found inside `emit`, so the claim below is about nothing",
+    ).toHaveLength(1);
+    expect(
+      frame[0]?.enclosingFunction,
+      "the frame carries the named style escapes on the TTY path BY DESIGN. Routing it through " +
+        "`writeDocument` would strip the clear-screen sequence and break the live renderer; the " +
+        "behavioural pair above measures that the escapes survive on a TTY and are absent on a pipe",
+    ).not.toBe("writeDocument");
+  });
+});
