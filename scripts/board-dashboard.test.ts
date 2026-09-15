@@ -118,9 +118,19 @@ function makeResult(partial: {
   sources?: SourceOverrides;
   source?: SnapshotResult["source"];
   mode?: string;
+  /**
+   * The dial's per-column limits, KEYED BY COLUMN NAME — so a case can plant content in a JSON
+   * KEY rather than in a value. A sanitizer that only ever visits values answers for half the
+   * document, which is why this hook exists (CR-02).
+   */
+  wipLimits?: Readonly<Record<string, number>>;
 }): SnapshotResult {
   const board = partial.board === undefined ? boardModel() : partial.board;
-  const config = { mode: partial.mode ?? "lean", idPrefix: "ABC", wipLimits: {} };
+  const config = {
+    mode: partial.mode ?? "lean",
+    idPrefix: "ABC",
+    wipLimits: partial.wipLimits ?? {},
+  };
   const defaults = {
     board: { source: "ok", value: board ?? boardModel(), readAt: READ_AT },
     tickets: { source: "ok", value: [], readAt: READ_AT },
@@ -1479,5 +1489,164 @@ describe("board-dashboard — the JSON framing prose describes the program (WR-0
       ).toBe(1);
       expect(() => JSON.parse(r.out) as unknown).not.toThrow();
     });
+  });
+});
+
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+// PLAN 32-18 TASK 1 — CR-02: THE `--json` DOCUMENT IS SANITIZED AT ONE CHOKEPOINT.
+//
+// WHAT THE FINDING WAS. Plan 32-13 closed CR-05 by routing every stderr diagnostic through `warn`
+// and rewrote the module header to claim that every string reaching EITHER CHANNEL is sanitized
+// first. That sentence was false in the direction the original finding did not cover: `emit`'s JSON
+// arm wrote `JSON.stringify(withWatch)` straight to stdout, `JSON.stringify` escapes the C0 range
+// and NOT the C1 range, and U+009B (the 8-bit CSI introducer) and U+009D (the 8-bit OSC introducer)
+// — both of which xterm, iTerm2 and the VTE family act on in UTF-8 mode — travelled from a ticket
+// title into the published document verbatim. Independently reproduced against the committed `.js`:
+// two C1 code points in captured stdout.
+//
+// WHY THE KEYS AND NOT ONLY THE VALUES. The chokepoint sanitizes the SERIALIZED TEXT rather than
+// walking the value tree, because the document's KEYS are content-derived too: the dial's
+// per-column limits are keyed by column name, and a column name is a line an agent wrote into
+// `plans/board.md`. A rule that only visits values answers for half the document.
+//
+// WHY BOTH ARMS. The plain frame path was already clean — its cells and its header go through
+// `sanitizeCell` on the way out. That is exactly why it needs a case: a proof that runs only the
+// arm that was broken cannot tell a fix from a regression in its sibling.
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+
+/** The 8-bit CSI introducer, BUILT rather than typed. A terminal in UTF-8 mode acts on it. */
+const C1_CSI = String.fromCharCode(0x9b);
+
+/** The 8-bit OSC introducer. The one that retitles the window. */
+const C1_OSC = String.fromCharCode(0x9d);
+
+/** Emit one frame through a capturing io and hand back exactly what reached each channel. */
+function emitOnce(result: SnapshotResult, json: boolean, isTty = false): Captured {
+  const io = captureIo(isTty, 200);
+  const options: Options = {
+    repoRoot: "/repo",
+    once: true,
+    json,
+    watch: false,
+    intervalMs: null,
+  };
+  const loop = createLoop(options, io, stubDeps(result));
+  loop.seed(result);
+  loop.emit(result);
+  return { ...io.seen, code: 0 };
+}
+
+/** A result whose ROW TITLE carries both 8-bit introducers, with legible text on either side. */
+function resultWithPlantedTitle(): SnapshotResult {
+  return makeResult({
+    board: boardModel({
+      columns: [
+        boardColumn({
+          name: "Backlog",
+          rows: [boardRow("ABC-101", `Something${C1_CSI}in the${C1_OSC}backlog`)],
+        }),
+      ],
+    }),
+  });
+}
+
+describe("board-dashboard — the --json document reaches stdout INERT (CR-02, T-32-18-01)", () => {
+  it("removes the 8-bit introducers planted in a ROW TITLE, keeping the rest of the title", () => {
+    const seen = emitOnce(resultWithPlantedTitle(), true);
+
+    expect(
+      controlCodePoints(seen.out),
+      "a control code point read out of board content reached the operator's terminal through " +
+        "the --json document: JSON.stringify escapes C0 and not C1, so the introducers travel " +
+        "verbatim (CR-02)",
+    ).toEqual([]);
+
+    const parsed = JSON.parse(seen.out) as {
+      snapshot: { schemaVersion: number; board: { columns: { rows: { title: string }[] }[] } };
+    };
+    expect(parsed.snapshot.schemaVersion, "the document still round-trips and keeps its shape").toBe(
+      1,
+    );
+    expect(
+      parsed.snapshot.board.columns[0]?.rows[0]?.title,
+      "the sanitizer removed the control code points and NOT the content: over-removal would " +
+        "satisfy every assertion above by destroying the thing the consumer asked for",
+    ).toBe("Somethingin thebacklog");
+  });
+
+  it("removes an introducer planted in a content-derived JSON KEY, not only in a value", () => {
+    const seen = emitOnce(
+      makeResult({ wipLimits: { [`Rea${C1_CSI}dy`]: 5 } }),
+      true,
+    );
+
+    expect(
+      controlCodePoints(seen.out),
+      "the dial's per-column limits are keyed by COLUMN NAME, which is a line an agent wrote: a " +
+        "sanitizer that only walked values would answer for half the document",
+    ).toEqual([]);
+    expect(() => JSON.parse(seen.out) as unknown).not.toThrow();
+  });
+
+  it("PREMISE: the planted introducers are actually in the result the emitter was handed", () => {
+    // Without this, "zero control code points on stdout" is equally true of a case whose plant
+    // never reached the emitter at all — an instrument measuring its own empty input.
+    const planted = resultWithPlantedTitle();
+    const raw = JSON.stringify(planted);
+    expect(
+      [...new Set(controlCodePoints(raw))].sort(),
+      "PREMISE: the constructed result carries no C1 code point, so the emptiness measured above " +
+        "would be the emptiness of a run that had nothing to sanitize",
+    ).toEqual(["U+009B", "U+009D"]);
+    expect(
+      controlCodePoints(raw).length,
+      "PREMISE: the title is serialized on both the `board` field and its `sources.board.value` " +
+        "twin, so the unsanitized document carries each introducer more than once",
+    ).toBeGreaterThan(2);
+  });
+
+  it("keeps the plain frame free of every control code point on the non-TTY path", () => {
+    const seen = emitOnce(resultWithPlantedTitle(), false, false);
+    expect(
+      controlCodePoints(seen.out),
+      "the frame path and the document path are two arms of one claim; a proof that runs only " +
+        "the arm that was fixed is the shape this round exists to stop",
+    ).toEqual([]);
+    expect(seen.out, "a redirected run receives plain text with no escape byte").not.toContain(ESC);
+  });
+
+  it("still carries the clear-screen sequence on the TTY path — the frame is NOT over-sanitized", () => {
+    const seen = emitOnce(resultWithPlantedTitle(), false, true);
+    expect(
+      seen.out,
+      "sanitizing the whole frame would strip the named style escapes and break the live " +
+        "renderer (T-32-18-04); what the chokepoint owns is the DOCUMENT, not the frame",
+    ).toContain(CLEAR_SCREEN);
+  });
+});
+
+describe("board-dashboard — each bounds number states its own unit (WR-05)", () => {
+  it("renders the board size in bytes and the longest line in characters, distinguishably", () => {
+    // The two numbers differ, so a formatter applied to the wrong one cannot coincidentally agree.
+    const result = makeResult({
+      board: boardModel({ bounds: { boardBytes: 389_120, longestLine: 34_494, exceeded: true } }),
+    });
+    const header = frameLines(renderFrame(result, 300))[0] as string;
+
+    expect(
+      header,
+      "the board size is UTF-8 BYTES (agent-factory/contracts/board.md § Bounds), so the byte " +
+        "formatter is the right one for it",
+    ).toContain("380 KB");
+    expect(
+      header,
+      "`longestLine` is UTF-16 CODE UNITS (board-model.ts, and the contract's Bounds table). " +
+        'Rendering it as "34 KB" states the wrong unit — the contract says each number states ' +
+        "its own (WR-05)",
+    ).toContain("longest line 34,494 chars");
+    expect(
+      header,
+      "a code-unit count rendered through the byte formatter is the defect itself",
+    ).not.toContain("longest line 34 KB");
   });
 });
