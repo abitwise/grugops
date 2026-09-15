@@ -5,14 +5,14 @@ milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live
 current_phase: 32
 current_phase_name: Board Projector & CLI Dashboard
 status: "Phase 31 CLOSED 2026-09-13 by user override D-44 (round-9 verification gaps_found 4/6 left standing; CR-28..CR-31 + WR-43..WR-47 accepted open). Next: Phase 32 — Board Projector & CLI Dashboard, not yet planned. Standing rule: four-round gap-closure cap on every later phase."
-stopped_at: Completed 32-20-PLAN.md
-last_updated: "2026-09-15T11:47:37.451Z"
-state_head: e71ff4986d56d8abe2d3d69b3e57560b22a04da7
+stopped_at: Completed 32-21-PLAN.md
+last_updated: "2026-09-15T12:21:51.406Z"
+state_head: a183207cd6332dce82c8f30dde27dae14f350c4d
 progress:
   total_phases: 9
   completed_phases: 30
   total_plans: 243
-  completed_plans: 240
+  completed_plans: 241
   percent: 99
 last_activity: 2026-09-13
 prior_activity_desc: Phase 27 gap-closure round 8 COMPLETE (27-45, 27-46; D-53). Full narration lives in the Phase 27 artifacts and in docs/audit/; shortened here by plan 31-38 because this single line measured 7995 characters, above the 4000-character ceiling a pathological STATE line has previously crossed to turn a sub-second guard into a multi-minute one.
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-09-07 — after Phase 29.2)
 ## Current Position
 
 Phase: 32 (Board Projector & CLI Dashboard) — EXECUTING
-Plan: 20 of 23
+Plan: 21 of 23
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 
@@ -496,6 +496,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 32 P18 | 37 min | 3 tasks | 4 files |
 | Phase 32 P19 | 96 min | 3 tasks | 7 files |
 | Phase 32 P20 | 31 min | 3 tasks | 3 files |
+| Phase 32 P21 | 33 min | 3 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -1359,6 +1360,9 @@ Recent decisions affecting current work:
 - [Phase 32]: Module identity in the dashboard read-only guard is decided by a two-sided allow-list of builtin identities; BANNED_MODULES stays as the written record of D-21 and is asserted disjoint from it
 - [Phase 32]: A module acquisition this syntactic pass cannot prove is REFUSED rather than constant-folded: an unprovable identity is not a safe identity
 - [Phase 32]: Callee resolution is pinned by declaration KIND plus enclosing-scope structure, not by a name-to-line map over 311 call sites, because a pin that reds on unrelated churn gets loosened until it stops noticing
+- [Phase 32]: The ticket-reader carrier decision is FILE-scoped by choice: a file naming both keys in one place and scanning text in another is a carrier, with the over-detection paid for by three named exemptions rather than by narrowing the question again (32-21, WR-01).
+- [Phase 32]: A census blind spot is STATED in its docblock and MEASURED by a case, never narrowed away: the runtime-assembled ticket key spelling is pinned at zero so a later claim that the census would have caught it argues against a measurement (32-21).
+- [Phase 32]: Every check:* script belongs to one named class with its own reachability proof and a pinned size; an unclassifiable script is a failure naming it, never a continue. The DASH-06 control CI reachability is now mechanical (32-21, F-01).
 
 ### Pending Todos
 
@@ -1481,8 +1485,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-09-15T11:47:37.034Z
-Stopped at: Completed 32-20-PLAN.md
+Last session: 2026-09-15T12:21:50.972Z
+Stopped at: Completed 32-21-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
