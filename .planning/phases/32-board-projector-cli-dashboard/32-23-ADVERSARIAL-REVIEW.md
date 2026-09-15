@@ -165,4 +165,432 @@ previously passed is the most valuable thing this section can surface.
 pass, and none of the six it recorded PASS regressed.** The suite was green at 4811 while five of
 those failures were live, and is green at 4974 now — which is why §5 exists.
 
+---
+
+## 3. How each new refusal branch is REACHED
+
+**A branch nothing reaches is a branch that passes by not running.** This repository added
+`check-foundation-guards` because it once shipped a gate invoked by nothing, and round 1's F-01 was
+exactly this shape one level up: the DASH-06 control WAS reached, and the derivation that proves
+`check:*` reachability could not see it.
+
+Two facts are derived once and used by every row below.
+
+* **The default suite's membership is derived, not assumed.** `npx vitest list --exclude
+  '**/scripts/e2e/**'` reports **69 distinct test files**, and each of the eight files carrying this
+  round's branches is present in it (`board-readonly`, `board-read`, `board-model`,
+  `board-dashboard`, `board-watch`, `board-watch-live`, `validate`, `check-foundation-guards` — all
+  `present: 1`). Round 1's "it is in the default suite" was an assumption; this is a listing.
+* **CI's wiring, read out of `.github/workflows/ci.yml`:** the suite at `:174`
+  (`npx vitest run --exclude '**/scripts/e2e/**'`, the only exclusion), `npm run check:build-parity`
+  at `:102`, `node scripts/check-foundation-guards.js` at `:242`, and
+  `VALIDATE_KIT_ROOT=. node scripts/validate-agent-factory.js` at `:517`.
+
+| # | New refusal branch | Owner | Predicate that decides it | Carrying command | How that command is reached |
+|---|---|---|---|---|---|
+| B1 | `row-without-file` states the refusal and its code instead of the absence sentence | 32-15 | `unadmittedById` lookup in `joinSnapshot` (`board-model.ts:1298-1299`) | `scripts/board-model.test.ts`, `scripts/board-read.test.ts` | the default suite → ci.yml:174 |
+| B2 | `ticket-unplaced` stays silent for an unadmitted identifier | 32-15 | the same map, consulted in the unplaced arm | same | same |
+| B3 | the tickets walk is a TOTAL partition, its size pinned against a `.md` count derived from the listing | 32-15 | `board-read.ts:1218` partition + the denominator | `scripts/board-read.test.ts` | same |
+| B4 | a leading byte-order mark is stripped by ONE authority instead of refusing the document | 32-16 | `normalizeDocument` (`board-model.ts:668`), called by both grammars | `scripts/board-model.test.ts` | same |
+| B5 | a TAB is refused as `unrecognized-line` at all four positions | 32-16 | `TICKET_CONTROL` minus `\x09`, plus the key pattern's value capture | same | same |
+| B6 | `unsafe-task-name` — a queue entry outside the ported allow-list | 32-17 | `isSafeTaskName` (`board-read.ts:1437`) | `scripts/board-read.test.ts` | same |
+| B7 | `no-claim-record` — a claimed directory with no `claim.md` | 32-17 | `board-read.ts:1480` | same | same |
+| B8 | `no-at` — a claim record carrying no `at:` line | 32-17 | `board-read.ts:1528` | same | same |
+| B9 | `duplicate-id` — two files claiming one identifier, both named | 32-17 | `board-read.ts:1308` | same | same |
+| B10 | membership under the walk bound decided by NAME (sort before slice) | 32-17 | `boundNames` (`board-read.ts:812`) | same | same |
+| B11 | `writeDocument` — the ONE sanitizing stdout document write | 32-18 | `sanitizeCell(JSON.stringify(value))` (`board-dashboard.ts:306-307`) | `scripts/board-dashboard.test.ts` (`STDOUT_WRITE_SITE_COUNT`, three named enclosing functions) | same |
+| B12 | the four-bucket channel census refuses an unnamed channel reference | 32-18 | `channelWriteCensus` (`board-dashboard.test.ts:1191`) | same | same |
+| B13 | a watch record is CLEARED on re-arm, on an absent directory, on a root change and on stop | 32-19 | `watchErrorsByDir` | `scripts/board-watch.test.ts`, `scripts/board-watch-live.test.ts` | same |
+| B14 | a source the reader refused with `OUTSIDE_ROOT` is not watched, and an open handle on it is closed | 32-19 | the reader's own exported `OUTSIDE_ROOT` code, consumed at `board-dashboard.ts:918` | `scripts/board-watch.test.ts` | same |
+| B15 | module IDENTITY: the two-sided `ALLOWED_BUILTIN_SPECIFIERS` allow-list (3 members) | 32-20 | `normalizedBuiltinIdentities(facts)` equals the allow-list, plus a count | `scripts/board-readonly.test.ts` | **the default suite → ci.yml:174 AND the named `npm run check:dashboard-readonly`** |
+| B16 | module ACQUISITION: one admitted shape, every other acquisition collected into `ModuleFacts.acquisitions` | 32-20 | `collectAcquisitions` arms 1–4 (`board-readonly.test.ts:744-790`) | same | same |
+| B17 | the capability-global member-path census, two-sided at 10 paths over 3 roots | 32-20 | `globalMemberPathOf` + `EXPECTED_GLOBAL_MEMBER_PATHS` | same | same |
+| B18 | the ticket-reader census asks about the CAPABILITY, with `NOT_A_SECOND_AUTHORITY` exemptions | 32-21 | `findTicketReaders` + a named-reason exemption set of 3 | `scripts/validate.test.ts` | the default suite → ci.yml:174 |
+| B19 | an unresolvable callee is COLLECTED rather than skipped; the routing universe is `isFunctionLike` | 32-21 | `board-read.test.ts:2762,2805` | `scripts/board-read.test.ts` | same |
+| B20 | `classifyCheckScript` returns `null` and the caller NAMES the script, instead of `continue` | 32-21 | `check-foundation-guards.test.ts:12074` + `CHECK_SCRIPT_CLASSES` sizes 9/1/1 | `scripts/check-foundation-guards.test.ts` | same |
+
+**Every row is reached, and for B15–B17 the proof is now mechanical rather than narrated.** Round 1's
+F-01 recorded that the `check:*` reachability derivation skipped `check:dashboard-readonly` because
+its command is not `node scripts/*.js`. Re-measured here:
+`npx vitest run scripts/check-foundation-guards.test.ts -t "the DASH-06 control's reachability is
+mechanical"` → **1 passed**, exit 0. The classification puts `check:dashboard-readonly` in the
+`suite-test-file` class, asserts the named file exists, that the npm script and the case agree, and
+that the workflow's suite exclusion — **parsed out of `ci.yml`** rather than assumed — does not match
+it. **F-01 is CLOSED.**
+
+---
+
+## 4. The neighbour-variation pass — the six questions, asked and answered
+
+Five consecutive rounds in this repository produced a new finding created by the previous fix, always
+in a sibling arm consuming the same input. These are the six questions that found them, asked here
+explicitly against this round's fixes. Every answer below is measured, and the probes that bypassed
+are written up as findings in §5.
+
+### 4.1 — Which SET does the predicate enumerate, and what is outside it?
+
+**Asked of 32-20's module-identity allow-list.** `ALLOWED_BUILTIN_SPECIFIERS` is `["fs","path","url"]`,
+compared for EQUALITY against `facts.bareSpecifiers` mapped through `normalizeSpecifier`. The set it
+enumerates is therefore **bare specifiers**, and `isBareSpecifier` is defined by exclusion:
+`!specifier.startsWith(".") && !specifier.startsWith("/")`. One register over, `jsImportClosure`'s
+`relativeSpecifiers` follows only specifiers beginning with `.`.
+
+**An ABSOLUTE specifier is in neither set.** It is not bare (it starts with `/`), so the allow-list
+never sees it; it is not relative, so the closure walk never follows it and the module it names is
+never analyzed. The union of the two arms has a hole exactly the width of one leading slash.
+
+Measured, with a real write rather than a reasoned one — **finding F-04, §5.1**:
+
+```
+import { wA as __wA } from "$T/outside/writer.mjs";   // appended to the committed scripts/board-read.js
+export const wA = (p) => __wA(p);
+  npm run check:dashboard-readonly  -> exit 0, 89 passed (89)
+  node -e "import(board-read.js).wA('$T/outside/PWNED.txt')"  -> file created, 27 bytes,
+           content "PWNED-BY-ABSOLUTE-SPECIFIER"
+```
+
+**Answered for the other two enumerations too.** `EXPECTED_GLOBAL_MEMBER_PATHS` enumerates 10 maximal
+paths over the 3-member root set `["process","globalThis","global"]`; what is outside it is any
+capability-bearing global under a fourth spelling, which the file's own docblock states and pins by
+count. `CONFLICT_KINDS` enumerates 7, of which `PRESENCE_DEPENDENT_CONFLICT_KINDS` is 2 — and both
+presence-dependent kinds are ticket-derived, which is what bounds §4.2's answer.
+
+### 4.2 — At which POSITIONS is the predicate even ASKED?
+
+**Asked of 32-15's total tickets partition: is it asked at every walk, or only the tickets walk?**
+Measured over the reader's own sources. The tickets walk (32-15) and the queue walk (32-17) each
+carry a totality claim with a derived denominator. The **context** and **traceability** walks do not:
+`parseTraceability` (`board-read.ts:1766-1780`) skips a non-table line, a header that is not the
+expected first cell and a separator row, with no claim and no count.
+
+**That asymmetry costs nothing, and the reason is measurable rather than assumed:** all seven
+`CONFLICT_KINDS` derive from the board, the tickets and the dial. No conflict kind is derived from
+the context or traceability sources, so no false positive claim about the filesystem can be
+manufactured from their silent skips. They reach the badge and `readErrors` only.
+
+**Asked of 32-20's capability-global rule: is the acquisition arm asked at the binding position?**
+No — and that is **finding F-08, §5.4**. `process.report.writeReport(p)` written directly reds BOTH
+the census equality AND the `PREMISE: no closure module acquires…` case, because the maximal path is
+a callee. Written through a binding, `const r = process.report; r.writeReport(p)`, it reds the
+census equality **only**: `isCallee` is false at the binding site, so `acquisitions` is never pushed,
+and `r` is not a capability-global root.
+
+### 4.3 — What is the predicate's INPUT assembled from, and who assembles it?
+
+**Asked of 32-15's honest sentence.** Its input is `inputs.unadmittedTickets`, assembled by
+`readTicketsSource` from entries **the grammar refused**, keyed by the file stem
+(`ticketStem`, `board-read.ts:1159`). The admitted arm is keyed by the document's **declared `id`**, and
+`ticketStem`'s own docblock states that the stem is used "when the document states no `id`".
+
+So a third population exists that neither map holds: a document that **was admitted**, under an
+identifier that is not its stem. Measured — **finding F-06, §5.3**: `plans/tickets/ABC-901.md`
+declaring `id: ABC-902`, with a board row `[ABC-901]`, yields
+
+```
+{"kind":"row-without-file","ticketId":"ABC-901","expected":"plans/tickets/ABC-901.md",
+ "actual":"no ticket file carries that identifier"}
+```
+
+under an `[ok]` header with **no readError for that file at all** — while `plans/tickets/ABC-901.md`
+sits on disk and was read successfully.
+
+**Asked of 32-21's ticket-reader census.** Its input is a file-scoped pair of facts: the two key
+spellings, and a text-scanning primitive. Measured above (§1.3 A1–A3): the `new RegExp` rewrite is
+caught, `+`-concatenation of the key is folded and caught, and an `Array.join` spelling is **not** —
+the stated blind spot, now measured, narrower than ledger row 184's wording implies.
+
+### 4.4 — After splitting a predicate into arms, what does their UNION admit?
+
+The allow-list arm and the closure-walk arm (§4.1) are the answer that produced F-04. Two more
+unions were probed and hold:
+
+| Probe | Union tested | Measured | Bypass? |
+|---|---|---|---|
+| `export * from "node:v8";` | the export-declaration arm of `noteSpecifier` versus the import arm | exit **1**, 6 failed — a star re-export lands in `bareSpecifiers` and the allow-list refuses it | **no** |
+| `const __g = globalThis; __g.process.report.writeReport(p);` | the root-binding arm versus the member-path arm | exit **1**, 2 failed, including `PREMISE: no closure module acquires…` — a non-admitted read of a ROOT identifier is an acquisition | **no** |
+
+The contrast between that last row and F-08 is the whole finding: binding the **root** is caught by
+the mechanism; binding a **member of the root** is caught only by the census's equality.
+
+### 4.5 — When a resolver DECLINES, what does the caller do with the decline?
+
+**Asked of the stdout chokepoint (32-18): is it asked for a document written by a path that is not
+the emit arm?** Measured by mutation rather than by reading: a fourth stdout write planted into
+`scripts/board-dashboard.ts` —
+
+```ts
+function __probeSecondDocumentWrite(io: DashboardIo, value: unknown): void {
+  io.stdout.write(`${JSON.stringify(value)}\n`);
+}
+```
+
+— makes `pins the stdout write-site count two-sided at three, in the three functions that own them`
+go red (1 failed | 55 passed). The module restored, `git diff --exit-code -- scripts/` clean. The
+three admitted sites are `writeDocument` (`:307`, sanitized), `emit`'s frame write (`:1091`, whose
+cells each went through `cell()`/`sanitizeCell`) and `run`'s usage write (`:1203`, a module
+constant). **There is no second document path, and a new one cannot be added quietly.**
+
+**Asked of `import.meta.resolve`, 32-20's own stated residual.** Three probes:
+
+| Probe | Measured | Reading |
+|---|---|---|
+| `const u = import.meta.resolve("node:v8"); (await import(u)).writeHeapSnapshot(p)` | exit **1**, 2 failed, `PREMISE: no closure module acquires…` red | the decline is consumed: a dynamic import is an acquisition **whatever its argument** |
+| `export const resolved = import.meta.resolve("node:v8");` | exit **0**, 89/89 | correct — this acquires nothing; it produces a string |
+| `(await import("node:v8")).writeHeapSnapshot(p)` | exit **1**, 8 failed | both arms fire |
+
+So the residual is **bounded tighter than it was stated**: `import.meta.resolve` is outside the
+census as a *string producer*, and every route from that string to a module goes through the
+unconditional dynamic-import arm.
+
+### 4.6 — Which NUMBER does the specification anchor on, and which one did the code have in hand?
+
+**Asked of 32-21's check-script classification.** The specification is "every `check:*` script names a
+gate CI runs". The number the code has in hand is **the first regex match**:
+`/node (scripts\/[\w.-]+\.js)/.exec(cmd)` returns one target, and `CHECK_SCRIPT_CLASSES` then pins
+class SIZES (9 / 1 / 1), never the count of gate modules a command carries.
+
+Measured by running the derivation's own logic over a synthetic command — **finding F-07, §5.5**:
+
+```
+tsc --outDir .tmp-build && node scripts/check-nul-bytes.js && node scripts/check-never-run-second-gate.js
+  classification: { cls: "gate-module", target: "scripts/check-nul-bytes.js" }
+  gate modules actually present: 2      proven reachable: 1      UNPROVEN: 1
+```
+
+Derived over the live manifest, **all 11 `check:*` scripts carry at most one gate module today** (9
+gate-module, 1 suite-test-file, 1 toolchain), so there is no live instance. It is a
+detection-scope finding, in WR-10's register.
+
+### 4.7 — One more sibling, probed because a fix moved a number: a degraded dial
+
+32-09's presence gate is asked about the TICKETS source. The dial feeds `wip-limit`, `wip-count` and
+`column-missing`, so the same question was asked one source over: `chmod 000` on
+`agent-factory/config/factory.config.json`.
+
+Measured: header `[stale]  STALE: config (0s, eacces)`, `sources.config` degraded with
+`reason: "eacces"`, `readErrors` carries `{config, EACCES}`, and `wip-limit`/`column-missing` drop to
+**0**. `row-without-file` rises 1 → 2 and `wip-count` 1 → 2, because `idPrefix` is now `null` and the
+fixture's deliberately-foreign `- [XYZ-001]` row is no longer refused by the dial's prefix rule.
+**No fabrication:** `plans/tickets/XYZ-001.md` genuinely does not exist, the claim is true, the
+conflict is attributed to the board, and the badge is up. **Not a bypass** — recorded because the
+numbers move and a future reader comparing conflict counts needs the reason.
+
+---
+
+## 5. Findings
+
+**Nothing in §5 was fixed quietly, and nothing was fixed at all.** This plan's `files_modified` are
+four report and ledger files; every closure available here would have been a fix in a source file
+this plan does not own, at the end of a round — which is precisely how the previous round's first
+finding was made. All five are recorded OPEN with a reproduction somebody else can run.
+
+### F-04 — OPEN (high): the DASH-06 guard is green over a writer imported through an ABSOLUTE-path specifier
+
+**Severity:** high — the phase's mechanical safety centrepiece, zero obfuscation, and it survives the
+whole toolchain rather than only the committed `.js`.
+**File:** `scripts/board-readonly.test.ts` (`isBareSpecifier`, `:194`) with
+`scripts/js-import-closure.ts` (`relativeSpecifiers`, `:51`). **Created by 32-20's fix.**
+
+**Reproduction.** With any module at an absolute path outside the repository — here
+`$T/outside/writer.mjs`, which is four lines and calls `writeFileSync` — append to the committed
+`scripts/board-read.js`:
+
+```
+import { wA as __wA } from "/absolute/path/to/writer.mjs";
+export const wA = (p) => __wA(p);
+```
+
+| Measurement | Result |
+|---|---|
+| `npm run check:dashboard-readonly` | **exit 0, 89 passed (89)** |
+| the same export invoked | `$T/outside/PWNED.txt` created, 27 bytes, `PWNED-BY-ABSOLUTE-SPECIFIER` |
+| the same import in `scripts/board-read.ts`, with a `.d.mts` beside the target, `npx tsc --noEmit` | **exit 0** |
+| `npm run build` with it in the `.ts` | exit 0; the emitted `.js` carries the specifier **verbatim** |
+| the guard re-run over that BUILT `.js` | **exit 0, 89 passed (89)** |
+| tree afterwards | both files restored, `git diff --exit-code -- scripts/` **clean** |
+
+**Why it is strictly stronger than F-03 was.** F-03 (round 1, now closed) needed a runtime-assembled
+identity and was bounded by "an attacker who can already add a module to the closure **and rebuild the
+committed `.js` past `check:build-parity`**". This one needs neither: the `.ts` typechecks, `tsc`
+emits the specifier unchanged, and a committed `.ts`/`.js` pair produced by `npm run build` satisfies
+`check:build-parity` **by construction**. The only remaining bound is the one every finding in this
+family shares — the attacker edits a module already inside the dashboard's own import closure.
+
+**Why it is one register over from the fix that closed the last one.** 32-20 inverted module identity
+to an allow-list, which is the right posture and is what closed `node:v8`, `node:sqlite` and
+`process.report`. The allow-list's SUBJECT is `bareSpecifiers`, and "bare" is defined as the
+complement of two prefixes. The closure walker's subject is the complement of one of them. Neither
+arm owns `/`.
+
+**What a closure would look like (not done here).** Census the module specifier of every import,
+export-from and dynamic import into a total partition — bare / relative / everything else — and
+refuse the third bucket by construction, the way `opaqueSpecifiers` already refuses a non-literal
+specifier. That is a change inside `analyzeModule`, in a file this plan does not own.
+
+### F-05 — OPEN (low): a raw C0 in board content reaches a `--json` consumer as a real control code point
+
+**Severity:** low — it requires the consumer to decode, which is what a `--json` consumer does.
+**File:** `scripts/board-dashboard.ts:306-307` (`writeDocument`). **A boundary 32-18 STATED; measured
+here for the first time, with a cheaper input than the statement implies.**
+
+**Reproduction.** Put a raw `U+001B` and `U+0007` in a board row title (the same input CR-05 used, one
+channel over) and run `--once --json`:
+
+| Measurement | Result |
+|---|---|
+| control code points in the captured stdout document | **0** — the sanitizer's own measure is satisfied |
+| literal `\u00xx` sequences visible in the document | none as raw text; `JSON.stringify` wrote them inside the string |
+| control code points recovered by **one `JSON.parse`** of that document | **6** — `U+001B, U+001B, U+0007, U+001B, U+001B, U+0007` |
+| the same content through the plain frame | **0**, before and after parsing — `cell()`/`sanitizeCell` removed them |
+
+**The mechanism, stated as the ordering it is.** `writeDocument` is `sanitizeCell(JSON.stringify(v))`.
+`JSON.stringify` escapes C0 and does not escape C1; `sanitizeCell` removes C0, C1 and DEL from
+whatever text it is handed. Applied in that order the two are exactly complementary: the sanitizer
+removes what the serializer left raw (C1 — which is what closed verifier gap 3) and **cannot see**
+what the serializer already turned into printable text (C0). Net effect on a consumer that parses:
+C1 gone, C0 preserved.
+
+**Why it is recorded rather than dismissed.** `writeDocument`'s docblock states this boundary
+accurately and says it is "recorded in this plan's summary as a known limit, not closed" — so the
+round did not miss it. What the measurement adds is the **input**: the docblock's framing ("an
+ESCAPED code point inside a string literal … rewriting it here would mean altering a value the
+consumer asked for") reads as though the content must already carry the six-character form. It need
+not. A raw ESC in an ordinary ticket title is manufactured into that form by the serializer, and
+nobody asked for it. The alternative 32-REVIEW itself offered — sanitize the **values** before
+serializing — is the ordering that does not have this property, and 32-18 chose the other one for a
+stated reason (content-derived KEYS). Both orderings are defensible; only one of them is currently
+recorded as covering C0, and the contract's sentence should say which.
+
+### F-06 — OPEN (medium): `row-without-file` still asserts absence against a file that exists, when the file's declared `id` is not its stem
+
+**Severity:** medium — CLAUDE.md's no-fabrication rule on the surface DASH-03 introduces, reached
+through the third population the fix's two maps do not hold. **Created by 32-15's fix.**
+**File:** `scripts/board-model.ts:1298-1299` (`unadmittedById`), `scripts/board-read.ts:1151-1159`
+(`ticketStem`, whose docblock names it the fallback identity).
+
+**Reproduction.** On a copy of `scripts/fixtures/board-snapshot/`:
+
+```
+plans/board.md          + a row:  - [ABC-901] a row whose same-named file declares another id
+plans/tickets/ABC-901.md          ---\nid: ABC-902\ntitle: …\ncolumn: Backlog\nstatus: backlog\n---
+```
+
+`node scripts/board-dashboard.js <tree> --once --json`:
+
+```
+{"kind":"row-without-file","ticketId":"ABC-901","column":"Backlog",
+ "expected":"plans/tickets/ABC-901.md",
+ "actual":"no ticket file carries that identifier","source":"board"}
+readErrors for tickets: []            header: [ok], no badge
+```
+
+`plans/tickets/ABC-901.md` exists, is readable, and was read successfully. The `expected` cell names
+the exact path that is sitting on disk while the `actual` cell says nothing carries the identifier,
+and — unlike the refusal case the round fixed — there is **no `readErrors` entry at all** to
+contradict it.
+
+**Why the fix does not reach it.** 32-15 built two maps: admitted records keyed by the document's
+declared `id`, and `unadmittedTickets` keyed by the file stem of a **refused** entry. An admitted
+document whose declared `id` differs from its stem removes that stem from the record set exactly as
+completely as a refusal does — verbatim the sentence 32-REVIEW's CR-01 wrote about refusals, one
+population over. `ticketStem`'s docblock is explicit that the admitted arm falls back to the
+stem only "when the document states no `id`".
+
+**Reachability of the shape itself:** renaming a ticket file without updating its `id:` line, or the
+converse, is among the most ordinary ticket-file mistakes there is, and nothing in the toolchain
+refuses it (no stem-vs-`id` rule exists in `board-model.ts`, `board-read.ts` or
+`validate-agent-factory.ts` — greped).
+
+**Two honest counter-readings, stated so the next round can weigh them.** (1) Under a strict reading
+of "carries" as "declares", the sentence is true. (2) `ticket-unplaced` correctly fires for ABC-902,
+so the disagreement IS surfaced — just under an identifier the human was not looking for. Neither
+counter-reading changes the fact that the `expected` cell points a human at a path where a file is
+sitting.
+
+### F-07 — OPEN (low, no live instance): a `check:*` command running two gate modules proves the first one only
+
+**Severity:** low — a detection-scope finding with zero live instances, in WR-10's register.
+**File:** `scripts/check-foundation-guards.test.ts:12074` (`classifyCheckScript`). **Created by
+32-21's fix.**
+
+**Reproduction.** Run the derivation's own logic over
+`tsc --outDir .tmp-build && node scripts/a.js && node scripts/b.js`: `.exec` returns the first match,
+so the classification is `{cls: "gate-module", target: "scripts/a.js"}` and `scripts/b.js` is never
+named in any reachability proof. `CHECK_SCRIPT_CLASSES` pins the number of scripts per class, not the
+number of targets per script.
+
+**Why there is no live instance:** derived over `package.json` at measurement time, all 11 `check:*`
+scripts carry at most one `node scripts/*.js` (9 gate-module, 1 suite-test-file, 1 toolchain).
+
+**Why it is recorded anyway.** 32-21's whole argument was that a `continue` hides a script nobody
+thought about; the same argument applies to a `.exec` that stops at the first target. The cheap
+closure is `matchAll` plus a per-target proof, and the honest pin is the number of TARGETS, not the
+number of scripts.
+
+### F-08 — OPEN (high): recording one member path re-greens the DASH-06 guard over a writer, in a single edit
+
+**Severity:** high — this is F-02's shape exactly, one register over, in the file that closed F-02.
+**File:** `scripts/board-readonly.test.ts` (`isAdmittedGlobalPosition` / `collectAcquisitions` arm 3).
+**Created by 32-20's fix.**
+
+**Reproduction, in two steps.** First, the writer reached through a binding rather than a literal
+root, appended to the committed `scripts/board-read.js`:
+
+```
+const __r = process.report;
+export const wB = (p) => __r.writeReport(p);
+```
+
+`npm run check:dashboard-readonly` → exit 1, **3 failed**: `the capability-global member paths have
+exactly the expected MEMBERS`, `… the expected COUNT`, and the positive-controls case. **The
+`PREMISE: no closure module acquires…` case — the mechanism — stays GREEN**, because `isCallee` is
+false at a binding site so nothing is pushed into `acquisitions`.
+
+Second, make the edit the failing message asks for: add `"process.report"` to
+`EXPECTED_GLOBAL_MEMBER_PATHS` and move `EXPECTED_GLOBAL_MEMBER_PATH_COUNT` from 10 to 11.
+
+| Measurement | Result |
+|---|---|
+| `npm run check:dashboard-readonly` with the probe still planted | **exit 0, 89 passed (89)** |
+| what the tree contained while it was green | a closure module that writes a JSON file at any path handed to it |
+| tree afterwards | both files restored, `git diff --exit-code -- scripts/` **clean** |
+
+**Why a red on the census equality is not good enough — the project's own standard.** 32-14's F-02
+wrote: *"A maintainer who weighs `promises`, finds it absent from `MUTATING_FS_SYMBOLS`, and adds it
+to `EXPECTED_CLOSURE_FS_SYMBOLS` re-greens the guard in one edit over a module holding every writer
+in `node:fs`. A pin catching a writer by accident is not the intersection deciding it."* The same
+sentence is true here with three nouns changed. `process.report` is a member a reasonable maintainer
+might well record — it *looks* like a diagnostic — and once recorded, nothing asks about
+`.writeReport` reached on the binding.
+
+**Contrast that proves the arm, not the count, is the gap** (both measured above): binding the ROOT
+(`const __g = globalThis; __g.process.report.writeReport(p)`) reds the PREMISE case, because arm 4
+treats a non-admitted read of a root identifier as an acquisition. Binding a MEMBER of the root does
+not, because arm 3 only pushes an acquisition when the maximal path is itself the callee.
+
+**What a closure would look like (not done here).** Either treat a capability-global member path read
+into a binding as a non-admitted position (the canonical form arm 4 already states, applied one level
+down), or make the census's admitted entries carry the fact that they are read-only — so that
+recording a path is a claim about the capability rather than about the spelling.
+
+### The created-versus-inherited ratio, stated as a number
+
+| | Count |
+|---|---|
+| Findings this pass raised | **5** (F-04 … F-08) |
+| …created by THIS round's own fixes | **4** — F-04 (32-20), F-06 (32-15), F-07 (32-21), F-08 (32-20) |
+| …a stated boundary of this round's fix, measured for the first time | **1** — F-05 (32-18) |
+| …inherited from an earlier round and still open | **0** |
+| Prior findings re-measured | **26** — 6 original blockers, 3 verifier gaps, 1 advisory, 11 warnings, 3 info, 2 round-1 findings (F-01, F-03) |
+| …measured CLOSED | **25** |
+| …measured still open | **1** — the `Array.join` half of the advisory (ledger row 184's stated blind spot) |
+| Production code modified by this plan | **none** |
+
+**The ratio did not improve: 4 of 5 new findings were created by this round's own fixes** (5 of 5 if
+F-05's stated boundary is counted, since it exists only because the round added the chokepoint).
+Round 1's figure was 1 of 3. Phase 31 ran at 8 of 8 for four consecutive rounds. What DID improve is
+the inherited column: round 1 ended with 2 open inherited findings, this round ends with 0 — every
+finding from every earlier round in this phase is measured closed. §8 weighs what that means for
+round 3.
+
 <!-- gsd:write-continue -->
