@@ -2036,3 +2036,91 @@ describe("board-model — the control class is pinned by derivation, and a tab i
     expect(TICKET_REFUSAL_CODE_COUNT, "a seventh refusal reason is a decision, not a fix").toBe(6);
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// PLAN 32-16 — THE TWO KIT DOCUMENTS THAT DISAGREE ABOUT THE TICKET SHAPE, PAIRED (WR-11).
+//
+// `docs/initial/agent_factory_builder_spec_v2.md` § 6.1 shows a ticket template that is six bare
+// key lines with no `---` region, and agents read it. A document written in that shape is refused
+// `no-opening-delimiter` — a hard error in the structure validator since plan 32-12, and a conflict
+// on the screen since plan 32-15. The contract already names the specification's `## Blocked (2)`
+// heading as documented non-grammar for the OTHER grammar; it now does the same for this one, and
+// the specification carries a pointer back.
+//
+// THE SPECIFICATION IS NOT REWRITTEN. `docs/initial/` is the historical input this kit was built
+// from, `scripts/board-corpus.ts` replays eight live rows out of that exact file, and the contract
+// already carries the precedent of NAMING a spec shape rather than editing it. One additive pointer
+// line removes the trap without rewriting the record.
+//
+// TWO DOCUMENTS THAT MUST AGREE GET A CASE THAT READS BOTH. Each file is asserted non-empty before
+// anything is asserted about its content, so a renamed or emptied file is a red rather than a
+// vacuous pass.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+describe("board-model — the contract and the builder specification stay paired about the ticket shape (plan 32-16)", () => {
+  const CONTRACT_REL = "agent-factory/contracts/board.md";
+  const SPEC_REL = "docs/initial/agent_factory_builder_spec_v2.md";
+
+  const read = (rel: string): string => {
+    const text = readFileSync(join(ROOT, rel), "utf8");
+    expect(
+      text.length,
+      `PREMISE: ${rel} read as empty or missing, so every assertion about its content below would ` +
+        "pass over a file nobody wrote",
+    ).toBeGreaterThan(1000);
+    return text;
+  };
+
+  /**
+   * The § Ticket documents section of the contract, bounded by the next level-two heading.
+   *
+   * WHITESPACE IS COLLAPSED because the contract is hard-wrapped prose: a phrase that happens to
+   * straddle a line break would otherwise fail an assertion about a sentence that is present.
+   */
+  const ticketSection = (contract: string): string => {
+    const start = contract.indexOf("### Ticket documents");
+    expect(start, `PREMISE: ${CONTRACT_REL} carries no "### Ticket documents" section`).toBeGreaterThan(-1);
+    const after = contract.indexOf("\n## ", start);
+    const section = after === -1 ? contract.slice(start) : contract.slice(start, after);
+    return section.split(/\s+/).join(" ");
+  };
+
+  it("the contract's § Ticket documents names the specification, the refusal code, and the fix", () => {
+    const section = ticketSection(read(CONTRACT_REL));
+    expect(section, "the contract must name the document an agent copies the wrong shape from").toContain(
+      SPEC_REL,
+    );
+    expect(section, "and the code that refusal reports").toContain("no-opening-delimiter");
+    expect(
+      section,
+      "and what to write instead — a paragraph that names a trap without naming the way out is " +
+        "half a finding",
+    ).toMatch(/between an opening `---` line and a closing one/);
+  });
+
+  it("the specification's pointer names the contract, beside the template it is about", () => {
+    const spec = read(SPEC_REL);
+    const fence = spec.indexOf("status: in-development\ncolumn: In Development");
+    expect(fence, `PREMISE: ${SPEC_REL} no longer carries the ticket template this pointer is about`).toBeGreaterThan(
+      -1,
+    );
+    // The pointer sits within a few lines of the template, not somewhere else in a 2,000-line file.
+    const nearby = spec.slice(fence, fence + 700);
+    expect(nearby, "the pointer must be beside the example an agent is reading").toContain(CONTRACT_REL);
+    expect(nearby).toContain("no-opening-delimiter");
+  });
+
+  it("a document in the specification's template shape is REFUSED, which is why the pairing exists", () => {
+    // The claim the two documents make about each other, checked against the grammar rather than
+    // taken on trust: the six key lines exactly as the specification shows them.
+    const asShown =
+      "status: in-development\ncolumn: In Development\nsize: M\npriority: P2\nepic: EPIC-003\nfeature: FEAT-007\n";
+    const refused = parseTicketDocument(asShown);
+    expect(refused.ok).toBe(false);
+    expect(refused.ok === false ? refused.code : "").toBe("no-opening-delimiter");
+
+    // And the corrective shape the contract names is admitted, so the advice is checkable too.
+    const corrected = parseTicketDocument(`---\n${asShown}---\n\n# ABC-014\n`);
+    expect(corrected.ok, corrected.ok ? "" : corrected.reason).toBe(true);
+  });
+});

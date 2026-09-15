@@ -631,6 +631,7 @@ priority: P2
 epic: EPIC-003
 feature: FEAT-007
 ```
+> The example above omits the `---` delimiter lines the ticket grammar requires; a document in that shape is refused as `no-opening-delimiter`. See `agent-factory/contracts/board.md` § Ticket documents, the current authority for this document class.
 
 ## 6.2 Two cadences (pick one in config)
 

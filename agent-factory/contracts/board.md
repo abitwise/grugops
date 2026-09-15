@@ -132,6 +132,16 @@ carrying no frontmatter region — which an earlier validator read anyway, takin
 line it found in the prose — is now an error naming `no-opening-delimiter`, and a ticket whose
 region names one key twice is an error naming `duplicate-key`, where both once passed silently.
 
+`docs/initial/agent_factory_builder_spec_v2.md` shows a ticket template that disagrees with this
+grammar, and agents read it. Its § 6.1 example — introduced as "carries a status line in its front
+matter" — is a fence of six bare key lines with **no `---` delimiters**, and it is **documented
+non-grammar** in exactly the sense the `## Blocked (2)` heading is. A ticket written in that shape
+opens no frontmatter region, so it is refused by name as `no-opening-delimiter`, and since the
+structure validator reads tickets through this one grammar that refusal is an error rather than a
+warning. What to write instead: the same six key lines, between an opening `---` line and a closing
+one, at the top of the file. The specification carries a pointer to this contract beside the
+example; this paragraph is the authority it points at.
+
 ## Rows
 
 A **ticket row** is a top-level bullet carrying a bracketed identifier, one space, and a title.
