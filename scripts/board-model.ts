@@ -313,6 +313,30 @@ export type TicketRecord = {
   readonly status: string | null;
 };
 
+/**
+ * One `plans/tickets/*.md` the reader LISTED, READ, and could not admit (plan 32-15, CR-01).
+ *
+ * WHY THIS TYPE LIVES IN THE PURE MODULE. `JoinInputs` names it, and `board-model.ts` may not import
+ * `board-read.ts` — the dependency runs the other way (D-15, D-23). `scripts/board-read.ts` imports
+ * it back and is the only producer.
+ *
+ * WHY IT EXISTS AT ALL. `readTicketsSource` records a grammar refusal in `readErrors` and leaves the
+ * source `ok`, which is right: a refused document is the contract's stated behaviour, not a failure
+ * to obtain bytes. Without this set the join could not tell "no file carries this identifier" from
+ * "a file carries it and the grammar refused it", so a row naming a refused ticket produced a
+ * positive, false claim about the filesystem under an `[ok]` header.
+ *
+ * THE `id` IS THE FILE STEM AND NOTHING ELSE. A refused document made no statement this module is
+ * willing to read, so the only identity available is the name the directory gave it — the same
+ * fallback rule the admitted arm applies, derived through the same helper so the two cannot disagree.
+ */
+export type UnadmittedTicket = {
+  /** The refused file's stem — `ABC-900` for `ABC-900.md`. Never a value read out of the document. */
+  readonly id: string;
+  /** The refusal code, as the authority that refused spelled it. Already in `readErrors` too. */
+  readonly code: string;
+};
+
 /** One claimed task, as `scripts/claim.ts`'s reader half would have trusted it. */
 export type QueueRow = {
   readonly task: string;

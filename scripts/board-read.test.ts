@@ -49,11 +49,14 @@ import {
   STALE_REASONS,
   STALE_REASON_COUNT,
   isSafeTaskName,
+  listDirectoryBounded,
   readSnapshot,
+  readTicketsSource,
   readVerifyReread,
   settleSource,
   unreadableSources,
 } from "./board-read.js";
+import { TICKET_REFUSAL_CODES } from "./board-model.js";
 import { MAX_WALK_ENTRIES } from "./kit-model.js";
 import type { SnapshotResult, SourceState } from "./board-read.js";
 
@@ -688,6 +691,159 @@ describe("board-read — a REFUSED ticket is never reported as an ABSENT one (pl
       expect(raised.length).toBe(1);
       expect(raised[0]?.actual).toContain("unknown-key");
       expect(raised[0]?.actual).toContain("plans/tickets/ABC-900.md");
+    });
+  });
+});
+
+
+/**
+ * The refusal spellings CR-01 names, as DATA rather than as prose (plan 32-15).
+ *
+ * One row per spelling, one iteration below, so adding a spelling is adding a row rather than
+ * copying a case. Every control character is written as an ESCAPE and never as a literal byte:
+ * `npm run check:nul-bytes` scans every tracked file, and a literal tab in a fixture string is the
+ * kind of thing that survives review and fails a gate.
+ */
+const REFUSAL_SPELLINGS = Object.freeze([
+  {
+    what: "a key outside the closed ticket key set",
+    file: "REF-001",
+    text: "---\nid: REF-001\ntools: Bash\n---\n",
+    code: "unknown-key",
+  },
+  {
+    what: "one key written twice, so the document expresses two values",
+    file: "REF-002",
+    text: "---\nid: REF-002\nid: REF-999\n---\n",
+    code: "duplicate-key",
+  },
+  {
+    what: "a tab inside the frontmatter region",
+    file: "REF-003",
+    text: "---\nid: REF-003\n\ttitle: tabbed\n---\n",
+    code: "control-character",
+  },
+  {
+    what: "a byte-order mark ahead of the opening delimiter",
+    file: "REF-004",
+    text: "﻿---\nid: REF-004\n---\n",
+    code: "no-opening-delimiter",
+  },
+  {
+    what: "no opening delimiter at all",
+    file: "REF-005",
+    text: "id: REF-005\ntitle: no region here\n",
+    code: "no-opening-delimiter",
+  },
+  {
+    what: "a region that opens and never closes",
+    file: "REF-006",
+    text: "---\nid: REF-006\n",
+    code: "no-closing-delimiter",
+  },
+  {
+    what: "a line inside the region that is neither `key: value` nor `key:`",
+    file: "REF-007",
+    text: "---\nid: REF-007\njust some prose\n---\n",
+    code: "unrecognized-line",
+  },
+] as const);
+
+const AT = "2026-09-15T10:00:00.000Z";
+
+describe("board-read — the tickets walk is a TOTAL partition over its own listing (plan 32-15)", () => {
+  it("pins the refusal table two-sided and reaches EVERY refusal code the grammar declares", () => {
+    // TWO-SIDED. A row added without a case is as much a defect as a case without a row, and the
+    // second pin is derived from the grammar's own closed set rather than typed beside it.
+    expect(REFUSAL_SPELLINGS.length).toBe(7);
+    expect(new Set(REFUSAL_SPELLINGS.map((r) => r.code))).toEqual(new Set(TICKET_REFUSAL_CODES));
+  });
+
+  it("counts `.md` entries from the LISTING and finds records plus unadmitted equal to it", () => {
+    withTempTree((dir) => {
+      plantBoard(dir, ONE_COLUMN);
+      plantTicket(dir, "ABC-014.md", ADMITTED_TICKET);
+      for (const row of REFUSAL_SPELLINGS) plantTicket(dir, `${row.file}.md`, row.text);
+      // Neither of these is in the denominator: the walk skips a non-`.md` name, and the listing
+      // itself filters a half-written atomic sibling. Planting both is what makes the count a claim
+      // about the PARTITION rather than about the directory's size.
+      writeFileSync(join(dir, "plans", "tickets", "notes.txt"), "not a ticket\n", "utf8");
+      plantTicket(dir, "ABC-014.md.tmp-4242-1-abcdef01", "---\nname: HALF\n");
+
+      // THE DENOMINATOR IS DERIVED ON THE OTHER SIDE OF THE LOOP. A hand-typed number would rot the
+      // day a row is added; a number taken from the record set would be vacuously equal to itself.
+      const listing = listDirectoryBounded(join(dir, "plans", "tickets"));
+      const mdEntries =
+        listing.kind === "listed" ? listing.names.filter((n) => n.endsWith(".md")) : [];
+      expect(
+        mdEntries.length,
+        "PREMISE: the listing produced no `.md` entry, so the equality below is 0 === 0",
+      ).toBeGreaterThan(0);
+
+      const settled = readTicketsSource(dir, AT, undefined, {});
+      const records = settled.state.source === "ok" ? settled.state.value : [];
+      expect(
+        records.length + settled.unadmitted.length,
+        "an entry left the walk without landing in either half: the partition is not total",
+      ).toBe(mdEntries.length);
+      // And both halves are non-empty, so the equality is not satisfied by one of them being the
+      // whole listing — the shape a fix that admitted everything, or nothing, would also produce.
+      expect(records.length).toBeGreaterThan(0);
+      expect(settled.unadmitted.length).toBe(REFUSAL_SPELLINGS.length);
+    });
+  });
+
+  for (const row of REFUSAL_SPELLINGS) {
+    it(`records ${row.what} as unadmitted under \`${row.code}\`, leaving the source ok`, () => {
+      withTempTree((dir) => {
+        plantBoard(dir, ONE_COLUMN);
+        plantTicket(dir, "ABC-014.md", ADMITTED_TICKET);
+        plantTicket(dir, `${row.file}.md`, row.text);
+
+        const settled = readTicketsSource(dir, AT, undefined, {});
+        // The IDENTITY is the file stem, because a refused document made no statement this module
+        // is willing to read. `REF-002` names `REF-999` on its second line and is still `REF-002`.
+        expect(settled.unadmitted).toEqual([{ id: row.file, code: row.code }]);
+        // The same refusal on the channel a human reads, with the same code.
+        expect(settled.errors.find((e) => e.path.endsWith(`${row.file}.md`))?.code).toBe(row.code);
+        // A REFUSAL IS NOT A FAILURE TO OBTAIN BYTES (plan 32-09). What degrades the source is
+        // unchanged; degrading it here would blank every other derivation on the board.
+        expect(settled.state.source).toBe("ok");
+        expect(settled.state.source === "ok" ? settled.state.value.map((t) => t.id) : []).toEqual([
+          "ABC-014",
+        ]);
+      });
+    });
+  }
+
+  it("leaves the unadmitted set EMPTY when the directory holds nothing the grammar refuses", () => {
+    withTempTree((dir) => {
+      plantBoard(dir, ONE_COLUMN);
+      plantTicket(dir, "ABC-014.md", ADMITTED_TICKET);
+
+      const settled = readTicketsSource(dir, AT, undefined, {});
+      expect(settled.unadmitted).toEqual([]);
+      expect(settled.state.source).toBe("ok");
+    });
+  });
+
+  it("carries an entry refused by the PATH authority into the same half, still degrading", () => {
+    if (IS_ROOT) return;
+    withTempTree((dir) => {
+      plantBoard(dir, ONE_COLUMN);
+      plantTicket(dir, "ABC-014.md", ADMITTED_TICKET);
+      // A mode-0 file: the bytes cannot be obtained, which is exit two and DOES degrade the source.
+      const denied = plantTicket(dir, "ABC-500.md", ADMITTED_TICKET);
+      chmodSync(denied, 0o000);
+      try {
+        const settled = readTicketsSource(dir, AT, undefined, {});
+        expect(settled.unadmitted.map((u) => u.id)).toEqual(["ABC-500"]);
+        // Unchanged from plan 32-09: a failure to OBTAIN bytes is a stale source, and the new set
+        // is a second fact beside that one rather than a replacement for it.
+        expect(settled.state.source).toBe("stale");
+      } finally {
+        chmodSync(denied, 0o644);
+      }
     });
   });
 });

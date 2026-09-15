@@ -634,10 +634,11 @@ const LEAN_CONFIG_VIEW = {
     wipLimits: {},
 };
 /** Lift `settleSource`'s single-error result, optionally carrying per-entry errors beside it. */
-function settledFrom(settled, extra = []) {
+function settledFrom(settled, extra = [], unadmitted = []) {
     return {
         state: settled.state,
         errors: settled.error === null ? extra : [settled.error, ...extra],
+        unadmitted,
     };
 }
 /**
@@ -776,6 +777,22 @@ function configView(raw) {
 }
 // ── tickets (D-03, T-32-11) ──────────────────────────────────────────────────────────────────────
 /**
+ * The fallback identity of a `plans/tickets/*.md` entry: its stem, and nothing read out of it.
+ *
+ * ONE SPELLING FOR BOTH ARMS OF THE PARTITION (plan 32-15). The admitted arm falls back to the stem
+ * when the document states no `id`; the unadmitted arm has only the stem, because a refused document
+ * made no statement this module is willing to read. Two hand-written copies of `name.slice(0,
+ * -".md".length)` is the set-literal drift class one register down: the day one of them learns about
+ * a second extension is the day the two arms disagree about what a file is called.
+ */
+function ticketStem(name) {
+    return name.slice(0, -".md".length);
+}
+/** The one place a walked `.md` entry becomes an entry the reader LISTED, READ, and refused. */
+function unadmittedFrom(name, code) {
+    return { id: ticketStem(name), code };
+}
+/**
  * Read every `*.md` under `plans/tickets/` through the ticket grammar in the pure module.
  *
  * THE OPEN QUESTION PLAN 32-03 RECORDED IS ANSWERED HERE, AND THE ANSWER IS A DOCUMENT CLASS RATHER
@@ -789,8 +806,19 @@ function configView(raw) {
  * A refused document is recorded in `readErrors` with its refusal CODE and is not joined. The
  * projector still does not become a second frontmatter grammar for the ADAPTER class — it reads a
  * different class of document, whose grammar lives in exactly one place.
+ *
+ * THE WALK IS A TOTAL PARTITION OVER ITS OWN LISTING (plan 32-15, CR-01). Every listed entry ending
+ * in `.md` becomes EXACTLY ONE of an admitted `TicketRecord` or an `UnadmittedTicket`, and nothing
+ * else: there is no third outcome and no silent drop. That is a SECOND, PER-IDENTIFIER fact beside
+ * the sentence above, not a contradiction of it — a refused document is still not a failure to
+ * obtain bytes, and what sets `firstReadFailure` is unchanged from plan 32-09. The partition exists
+ * because `joinSnapshot` has to answer "does a file carry this identifier" per identifier, and
+ * answering it from the parse SUCCESSES is what made the projector assert that a file which exists
+ * does not. Its size is pinned in `scripts/board-read.test.ts` against a `.md` count derived from
+ * `listDirectoryBounded`, on the other side of this loop, so a fourth exit added here without a
+ * push is a red case rather than a silently short set.
  */
-function readTicketsSource(root, readAt, previous, seam) {
+export function readTicketsSource(root, readAt, previous, seam) {
     const dir = repoSubpath(root, FIXED_SUBPATHS.tickets);
     const listing = listDirectoryBounded(dir);
     // THREE ARMS, NOT TWO (plan 32-09, CR-02). `absent` is D-13's legitimate state and settles exactly
@@ -806,6 +834,8 @@ function readTicketsSource(root, readAt, previous, seam) {
     }
     const records = [];
     const errors = [];
+    /** The other half of the partition: a listed `.md` entry that produced no record (plan 32-15). */
+    const unadmitted = [];
     /** The reason of the FIRST per-file read failure, or null when every file's bytes arrived. */
     let firstReadFailure = null;
     // Sorted, so two runs over the same directory produce the same order whatever the filesystem's
@@ -823,6 +853,9 @@ function readTicketsSource(root, readAt, previous, seam) {
                 code: child.code,
                 message: child.message,
             });
+            // EXIT ONE OF THREE (plan 32-15). The entry leaves this loop without a record, so it lands in
+            // the other half of the partition. The source is degraded too, exactly as it already was.
+            unadmitted.push(unadmittedFrom(name, child.code));
             if (firstReadFailure === null)
                 firstReadFailure = staleReasonForCode(child.code);
             continue;
@@ -835,6 +868,8 @@ function readTicketsSource(root, readAt, previous, seam) {
             // Recorded rather than only reported, because `joinSnapshot`'s presence gate reads the SOURCE
             // STATE: with the source left `ok`, a row naming this ticket is still reported as having no
             // ticket file — the CR-02 fabrication, surviving one register down from the directory.
+            // EXIT TWO OF THREE (plan 32-15).
+            unadmitted.push(unadmittedFrom(name, read.code));
             if (firstReadFailure === null)
                 firstReadFailure = read.reason;
             continue;
@@ -842,13 +877,20 @@ function readTicketsSource(root, readAt, previous, seam) {
         const admission = parseTicketDocument(read.text);
         if (!admission.ok) {
             errors.push({ source: "tickets", path, code: admission.code, message: admission.reason });
+            // EXIT THREE OF THREE, AND THE ONE CR-01 NAMES (plan 32-15). `firstReadFailure` is DELIBERATELY
+            // not set: the bytes arrived and the grammar refused them by name, which is the contract's
+            // stated behaviour rather than a fault. Degrading the source here would blank every other
+            // derivation on the board because one ticket has a stray tab — the "one refusal blanks the
+            // other five" failure plan 32-10 closed one register up. The answer is per identifier.
+            unadmitted.push(unadmittedFrom(name, admission.code));
             continue;
         }
         records.push({
             file: name,
             // THE FILE STEM IS THE FALLBACK IDENTITY, because the file name is the only identity a reader
-            // can trust when the document does not state one — the same rule the validator applies.
-            id: admission.value.id ?? name.slice(0, -".md".length),
+            // can trust when the document does not state one — the same rule the validator applies, and
+            // the same `ticketStem` spelling the unadmitted arm above uses.
+            id: admission.value.id ?? ticketStem(name),
             title: admission.value.title ?? "",
             column: admission.value.column,
             status: admission.value.status,
@@ -859,7 +901,7 @@ function readTicketsSource(root, readAt, previous, seam) {
         : firstReadFailure !== null
             ? { kind: "partial", value: records, reason: firstReadFailure }
             : { kind: "value", value: records };
-    return settledFrom(settleSource("tickets", dir, outcome, previous, readAt), errors);
+    return settledFrom(settleSource("tickets", dir, outcome, previous, readAt), errors, unadmitted);
 }
 // ── queue (T-32-05, T-32-03) ─────────────────────────────────────────────────────────────────────
 /**
