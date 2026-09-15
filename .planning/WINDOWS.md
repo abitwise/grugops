@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 180
+open_count: 182
 waived_count: 0
 fixed_count: 4
-total_count: 184
-last_updated: 2026-09-15T12:22:42.261Z
+total_count: 186
+last_updated: 2026-09-15T13:06:17.466Z
 ---
 
 # Broken Windows Ledger
@@ -199,6 +199,8 @@ last_updated: 2026-09-15T12:22:42.261Z
 | 182 | 32 | deviation | .planning/phases/32-board-projector-cli-dashboard/deferred-items.md |  | the check:nul-bytes deferred entry still reads status: open but the gate is GREEN (fixed by user commit 888a1302); the entry is stale | open |  | 2026-09-14T23:59:53.431Z |  |
 | 183 | 32 | unrun-verify | scripts/e2e |  | The live claude-CLI e2e lane was not run for plan 32-17 (spends tokens on an authenticated box and can hang); its state is UNKNOWN - verify | open |  | 2026-09-15T09:36:31.879Z |  |
 | 184 | 32 | deviation | scripts/validate.test.ts |  | 32-21 stated blind spot: the ticket-frontmatter census cannot resolve a key spelling assembled at RUNTIME (String.fromCharCode, a template with substitutions, a name read from a variable). Measured at zero and pinned by a case; no such shape exists in scripts/ today. | open |  | 2026-09-15T12:22:42.261Z |  |
+| 185 | 32 | deviation | scripts/board-watch-live.test.ts |  | 32-22 measured boundary: a watch failure the NEXT poll tick repairs reaches no emitted document, because armAll() precedes refresh() inside one tick and a successful re-arm deletes the record (WR-06). Pinned by an assertion and by mutation M4; updates themselves never stop (997-1003 ms with every watch dead). | open |  | 2026-09-15T13:06:09.658Z |  |
+| 186 | 32 | unrun-verify | scripts/board-watch-live.test.ts |  | 32-22: Windows fs.watch timing stays UNKNOWN - verify (Phase 33 / CAP-02). CI runs this file on windows-latest and three of its five cases depend on the platform delivering directory events; a red there is the CAP-02 measurement arriving early and must not be answered with a platform conditional. | open |  | 2026-09-15T13:06:17.466Z |  |
 
 ````json
 [
@@ -2415,6 +2417,32 @@ last_updated: 2026-09-15T12:22:42.261Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-09-15T12:22:42.261Z",
+    "resolved_at": null,
+    "milestone": "v2.1"
+  },
+  {
+    "id": 185,
+    "kind": "deviation",
+    "phase": "32",
+    "file": "scripts/board-watch-live.test.ts",
+    "line": null,
+    "description": "32-22 measured boundary: a watch failure the NEXT poll tick repairs reaches no emitted document, because armAll() precedes refresh() inside one tick and a successful re-arm deletes the record (WR-06). Pinned by an assertion and by mutation M4; updates themselves never stop (997-1003 ms with every watch dead).",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-15T13:06:09.658Z",
+    "resolved_at": null,
+    "milestone": "v2.1"
+  },
+  {
+    "id": 186,
+    "kind": "unrun-verify",
+    "phase": "32",
+    "file": "scripts/board-watch-live.test.ts",
+    "line": null,
+    "description": "32-22: Windows fs.watch timing stays UNKNOWN - verify (Phase 33 / CAP-02). CI runs this file on windows-latest and three of its five cases depend on the platform delivering directory events; a red there is the CAP-02 measurement arriving early and must not be answered with a platform conditional.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-15T13:06:17.466Z",
     "resolved_at": null,
     "milestone": "v2.1"
   }
