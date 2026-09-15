@@ -51,9 +51,16 @@
 // Voice: CLEAR PROFESSIONAL VOICE throughout (CLAUDE.md hard rule — this is a trace surface).
 
 import { existsSync, watch } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 
-import { CONFLICT_KINDS, readSnapshot, unreadableSources } from "./board-read.js";
+import {
+  CONFLICT_KINDS,
+  FIXED_SUBPATHS,
+  QUEUE_STAGES,
+  SOURCE_NAMES,
+  readSnapshot,
+  unreadableSources,
+} from "./board-read.js";
 import { isEntrypoint } from "./is-entry.js";
 import type { ReadError, SnapshotResult, SourceName } from "./board-read.js";
 import type { BoardColumn, SourceState } from "./board-model.js";
@@ -643,10 +650,11 @@ export function renderFrame(
 
 // ── The watch loop (D-14) ────────────────────────────────────────────────────────────────────────
 //
-// THE SIX DIRECTORIES, EXPLICITLY, AND NEVER A RECURSIVE WATCH. `recursive` is the platform-variable
-// part of `fs.watch`: it is supported on macOS and Windows and throws
-// `ERR_FEATURE_UNAVAILABLE_ON_PLATFORM` where it is not. D-14's explicit list exists to avoid that
-// question entirely, at the cost of naming the directories here.
+// SIX EXPLICIT DIRECTORIES, AND NEVER A RECURSIVE WATCH. `recursive` is the platform-variable part
+// of `fs.watch`: it is supported on macOS and Windows and throws
+// `ERR_FEATURE_UNAVAILABLE_ON_PLATFORM` where it is not. D-14's explicit set exists to avoid that
+// question entirely — and the set is DERIVED from the reader's layout rather than named here, so the
+// cost of being explicit is no longer a third copy of the on-disk layout (WR-07).
 //
 // DIRECTORY-LEVEL, NOT FILE-LEVEL, AND THE REASON WAS MEASURED. A probe this session (RESEARCH
 // §Filesystem Watching) armed both kinds on the same target: the FILE watch died after the first
@@ -654,21 +662,99 @@ export function renderFrame(
 // own `atomicWrite` writes a temp sibling and renames it, so a file-level watch on a board this kit
 // maintains is orphaned by the kit's own write path. The directory watch survived every operation.
 //
-// `agent-factory/config/factory.config.json` IS DELIBERATELY NOT WATCHED. D-14's list does not name
-// it, and the dial changes when a human edits it rather than when work moves; the mandatory poll
-// picks it up within one period.
-const WATCH_DIRS = [
-  { rel: "plans", source: "board" },
-  { rel: "plans/tickets", source: "tickets" },
-  { rel: ".grugops/queue/pending", source: "queue" },
-  { rel: ".grugops/queue/claimed", source: "queue" },
-  { rel: ".grugops/queue/done", source: "queue" },
-  { rel: ".grugops/context", source: "context" },
-] as const satisfies readonly { rel: string; source: SourceName }[];
+/** One watched directory and the source whose failure it is reported against. */
+export type WatchDir = { readonly rel: string; readonly source: SourceName };
+
+/**
+ * The ONE source this layout deliberately does not watch (D-14).
+ *
+ * A SOURCE NAME RATHER THAN A DIRECTORY. The dial's own subpath stays in `FIXED_SUBPATHS`, where the
+ * reader owns it; naming it here would be a fourth place the layout is spelled, which is the defect
+ * this derivation exists to remove.
+ */
+const UNWATCHED_SOURCE: SourceName = "config";
+
+/**
+ * The directory a watch is armed on for one source subpath.
+ *
+ * A FINAL SEGMENT CARRYING AN EXTENSION NAMES A FILE, and a file is watched through its PARENT
+ * directory — the file-level watch is the one the RESEARCH probe measured dying on the first atomic
+ * rename. `plans/board.md` therefore contributes `plans`, and a board that moves to `docs/board.md`
+ * moves the watch with it. Every directory-shaped subpath in `FIXED_SUBPATHS` has a final segment
+ * with no dot in it, and every file-shaped one ends in `.md` or `.json`, so the rule reads the
+ * layout rather than guessing at it. No filesystem access happens here: this runs at module load,
+ * and a derivation that stat-ed the tree would make the watched set depend on which tree the process
+ * happened to start in.
+ */
+function watchDirForSubpath(subpath: string): string {
+  const last = subpath.slice(subpath.lastIndexOf("/") + 1);
+  return last.includes(".") ? dirname(subpath) : subpath;
+}
+
+/**
+ * Derive the watched directories from the layout the READER owns (WR-07).
+ *
+ * THE LAYOUT IS STATED ONCE, IN `board-read.ts`, AND THIS FUNCTION READS IT. The previous version of
+ * this constant was a third hand-typed spelling of `FIXED_SUBPATHS` and `QUEUE_STAGES`, joined to
+ * them by nothing, and asserted in the suite against a FOURTH hand-typed copy. Move
+ * `FIXED_SUBPATHS.tickets` and the dashboard silently stops watching tickets while both lists and
+ * every gate over them stay green — and the mandatory poll hides the regression completely, because
+ * the screen still updates, just a poll period late. That is this repository's recorded set-literal
+ * drift class, and the answer is the one the other three censuses in this phase already took: derive
+ * the set, then assert the RELATIONSHIP rather than the members.
+ *
+ * WHAT THE DERIVATION DOES NOT COVER, stated here because a reader counting six directories against
+ * six sources will otherwise look for a seventh:
+ *   - `agent-factory/config/factory.config.json` IS DELIBERATELY NOT WATCHED (D-14). The dial changes
+ *     when a human edits it rather than when work moves, and the mandatory poll picks it up within
+ *     one period.
+ *   - `traceability` shares `plans/` with the board, so it contributes no directory of its own. It is
+ *     watched — by the board's entry — and a watch failure there is reported against `board`, which
+ *     is the source that owns the directory the handle was opened on.
+ *   - The queue expands over `QUEUE_STAGES` rather than watching `.grugops/queue` itself, because
+ *     `fs.watch` is armed WITHOUT `recursive` (see the section head): a watch on the queue root sees
+ *     the stage directories appear and disappear, never the claim files inside them.
+ *
+ * The arguments exist so the suite can run this same logic over a MUTATED layout and watch the
+ * answer move. Production passes nothing.
+ */
+export function deriveWatchDirs(
+  layout: Readonly<Record<SourceName, string>> = FIXED_SUBPATHS,
+  stages: readonly string[] = QUEUE_STAGES,
+): readonly WatchDir[] {
+  const dirs: WatchDir[] = [];
+  const seen = new Set<string>();
+  const add = (rel: string, source: SourceName): void => {
+    // FIRST SOURCE WINS, in `SOURCE_NAMES` order. Two sources sharing one directory share one
+    // handle; a second entry would open a second watch on the same path and report one failure twice.
+    if (seen.has(rel)) return;
+    seen.add(rel);
+    dirs.push({ rel, source });
+  };
+  for (const source of SOURCE_NAMES) {
+    if (source === UNWATCHED_SOURCE) continue;
+    const subpath = layout[source];
+    if (source === "queue") {
+      for (const stage of stages) add(`${subpath}/${stage}`, source);
+      continue;
+    }
+    add(watchDirForSubpath(subpath), source);
+  }
+  return dirs;
+}
+
+const WATCH_DIRS: readonly WatchDir[] = deriveWatchDirs();
 
 export { WATCH_DIRS };
 
-/** The two-sided pin. A seventh watched directory is a D-14 decision, never a bumped constant. */
+/**
+ * The two-sided pin, over a DERIVED number.
+ *
+ * THE COUNT IS THE ALARM; THE DERIVATION IS THE MECHANISM. It no longer fires when somebody edits a
+ * list — there is no list to edit — it fires when the on-disk LAYOUT moves: a renamed subpath, a
+ * fourth queue stage, a seventh source. Each of those is a D-14 decision recorded in the phase
+ * context, and this constant is what makes the decision impossible to take silently.
+ */
 export const WATCH_DIR_COUNT = 6;
 
 /**
