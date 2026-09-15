@@ -5,14 +5,14 @@ milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live
 current_phase: 32
 current_phase_name: Board Projector & CLI Dashboard
 status: "Phase 31 CLOSED 2026-09-13 by user override D-44 (round-9 verification gaps_found 4/6 left standing; CR-28..CR-31 + WR-43..WR-47 accepted open). Next: Phase 32 — Board Projector & CLI Dashboard, not yet planned. Standing rule: four-round gap-closure cap on every later phase."
-stopped_at: Completed 32-22-PLAN.md
-last_updated: "2026-09-15T13:06:47.816Z"
-state_head: b89bd06194882e527b138baf1763ee7a255d7421
+stopped_at: Completed 32-23-PLAN.md
+last_updated: "2026-09-15T13:57:53.798Z"
+state_head: 64ce262a21d77d083e9ae821dfa4b340091f50fb
 progress:
   total_phases: 9
   completed_phases: 30
   total_plans: 243
-  completed_plans: 242
+  completed_plans: 243
   percent: 100
 last_activity: 2026-09-13
 prior_activity_desc: Phase 27 gap-closure round 8 COMPLETE (27-45, 27-46; D-53). Full narration lives in the Phase 27 artifacts and in docs/audit/; shortened here by plan 31-38 because this single line measured 7995 characters, above the 4000-character ceiling a pathological STATE line has previously crossed to turn a sub-second guard into a multi-minute one.
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-09-07 — after Phase 29.2)
 ## Current Position
 
 Phase: 32 (Board Projector & CLI Dashboard) — EXECUTING
-Plan: 22 of 23
+Plan: 23 of 23
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 
@@ -498,6 +498,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 32 P20 | 31 min | 3 tasks | 3 files |
 | Phase 32 P21 | 33 min | 3 tasks | 5 files |
 | Phase 32 P22 | 42 min | 2 tasks | 3 files |
+| Phase 32 P23 | 46 min | 3 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -1366,6 +1367,7 @@ Recent decisions affecting current work:
 - [Phase 32]: Every check:* script belongs to one named class with its own reachability proof and a pinned size; an unclassifiable script is a failure naming it, never a continue. The DASH-06 control CI reachability is now mechanical (32-21, F-01).
 - [Phase 32]: 32-22: the DASH-04 watch chain is measured live rather than through a seam — event path 278/279 ms, poll alone 1003/997 ms with every watch forced dead, five writes coalescing to one document, four mutations showing each case can fail.
 - [Phase 32]: 32-22: a poll-delivered document does NOT carry a watch-failure record, by design (WR-06 — a poll tick re-arms before it emits and a successful re-arm deletes the record). Both regimes are measured and the boundary is pinned by an assertion plus mutation M4, rather than asserting the plan's untrue wording or dropping it.
+- [Phase 32]: Round 2 measured 25 of 26 recorded reproductions closed, including round 1's F-01 and F-03, while raising five new findings — four created by this round's own fixes — The created-versus-inherited ratio did not improve (4 of 5 versus round 1's 1 of 3); three of the four share one shape — a derivation whose subject is a set defined by a syntactic complement, leaving a third population unasked
 
 ### Pending Todos
 
@@ -1428,6 +1430,7 @@ None yet.
 - check:nul-bytes is RED on .planning/phases/32-board-projector-cli-dashboard/32-REVIEW.md (literal ESC 0x1b at line 404, from commit 730ff88f). Pre-existing, deferred by plan 32-09; blocks a clean full-suite run.
 - OPEN RESIDUAL (32-10): a hard link inside the repository to an inode named outside it is read by the board projector. No path-based rule can refuse it; nlink>1 was declined as a heuristic. Logged in .planning/WINDOWS.md; needs human risk acceptance before ship.
 - Phase 32: the DASH-06 guard is green over a writer acquired through a runtime-assembled module identity (finding F-03, 32-14-ADVERSARIAL-REVIEW.md section 6) — open, a human risk acceptance before Phase 32 can close.
+- DASH-06 guard is green (exit 0, 89/89) over a writer imported through an absolute-path specifier (F-04) and over process.report.writeReport reached through a binding after one recorded member path (F-08); both open with reproductions in 32-23-ADVERSARIAL-REVIEW.md
 
 ### Quick Tasks Completed
 
@@ -1488,8 +1491,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-09-15T13:06:38.054Z
-Stopped at: Completed 32-22-PLAN.md
+Last session: 2026-09-15T13:57:28.574Z
+Stopped at: Completed 32-23-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
