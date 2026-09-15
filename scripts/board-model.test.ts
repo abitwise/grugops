@@ -721,6 +721,7 @@ import {
   TICKET_KEYS,
   TICKET_KEY_COUNT,
   joinSnapshot,
+  normalizeDocument,
   parseTicketDocument,
   sourceValue,
 } from "./board-model.js";
@@ -1758,5 +1759,149 @@ describe("board-model — the committed golden freezes schemaVersion 1 byte for 
       "the tampered claim record's skip must be REACHED by the committed fixture, not only by a " +
         "unit test",
     ).toBeGreaterThan(0);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// PLAN 32-16 — ONE NORMALIZATION AUTHORITY, AND A BYTE-ORDER MARK IS AN ENCODING ARTEFACT (WR-03).
+//
+// `readVerifyReread` passes `ignoreBOM: true` ON PURPOSE (`scripts/board-read.ts`): the read seam
+// compares a stat's byte count against the bytes it holds, so it must not silently drop three of
+// them on the way past. The consequence is that a mark a Windows editor wrote arrives INSIDE the
+// text both grammars parse — and both grammars decided what a document's first line was without
+// accounting for it. Measured against the committed `.js` before this block existed:
+//
+//   a ticket led by U+FEFF  -> REFUSED no-opening-delimiter, quoting `<U+FEFF>---`, a line that
+//                              renders exactly as `---` in every terminal and every diff
+//   a board led by U+FEFF   -> the first column VANISHES (it lands in `preamble`), and the rows
+//                              beneath it become unparsed lines with a null column
+//
+// The refusal is the loud half and the dropped column is the quiet half; the quiet half is the one
+// nobody would have reported. The seam keeps the bytes, and the GRAMMAR decides what the first line
+// is — a decision that now lives in one function rather than in two spellings of it.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+describe("board-model — one normalization authority answers the byte-order mark for BOTH grammars (plan 32-16)", () => {
+  // The mark is written as an ESCAPE, never as a literal byte: an invisible character in a
+  // tracked source file is the hazard under test, not a way to write about it.
+  const MARK = "\uFEFF";
+  const TICKET =
+    "---\nid: ABC-014\ntitle: Asset allocation chart\nstatus: in-development\ncolumn: In Development\n---\n\n# ABC-014\n";
+  const BOARD = "## Backlog (WIP unlimited)\n\n- [ABC-001] a row a Windows editor saved\n";
+
+  it("admits a mark-led ticket document, with the SAME values as the same document without it", () => {
+    const plain = parseTicketDocument(TICKET);
+    expect(
+      plain.ok,
+      "PREMISE: the unmarked document is already refused, so admitting the marked one would prove " +
+        "nothing about the mark",
+    ).toBe(true);
+
+    const marked = parseTicketDocument(MARK + TICKET);
+    expect(marked.ok, marked.ok ? "" : `${marked.code}: ${marked.reason}`).toBe(true);
+    if (!marked.ok || !plain.ok) return;
+    expect(marked.value).toEqual(plain.value);
+  });
+
+  it("returns the column of a board whose first line is a heading led by a mark", () => {
+    const plain = parseBoard(BOARD);
+    expect(
+      plain.columns.map((c) => c.name),
+      "PREMISE: the unmarked board carries no column, so the marked one carrying none would say " +
+        "nothing about the mark",
+    ).toEqual(["Backlog"]);
+
+    const marked = parseBoard(MARK + BOARD);
+    expect(marked.columns.map((c) => c.name)).toEqual(["Backlog"]);
+    expect(marked.columns[0]?.rows.map((r) => r.id)).toEqual(["ABC-001"]);
+    expect(
+      marked.preamble,
+      "the marked heading used to land in the preamble, which is how the column disappeared",
+    ).toEqual([]);
+    expect(
+      marked.unparsed,
+      "and the row beneath it used to be a legal row outside every column, reported with a null " +
+        "column (rule 4)",
+    ).toEqual([]);
+  });
+
+  it("counts the RAW bytes of a mark-led board, because that is what is on disk", () => {
+    const marked = parseBoard(MARK + BOARD);
+    expect(
+      marked.bounds.boardBytes,
+      "`boardBytes` is a byte count of the file, not of the normalized text — a human comparing it " +
+        "against `ls -l` must not be told a smaller number",
+    ).toBe(Buffer.byteLength(MARK + BOARD, "utf8"));
+  });
+
+  it("strips at MOST one mark: a document led by two is answered by the rules that already exist", () => {
+    // A second mark is CONTENT. A document whose second character is another one is not a Windows
+    // save, and the grammar says so through its existing refusal rather than by looping until the
+    // document starts with something it likes.
+    const ticket = parseTicketDocument(MARK + MARK + TICKET);
+    expect(ticket.ok).toBe(false);
+    if (ticket.ok) return;
+    expect(ticket.code).toBe("no-opening-delimiter");
+
+    const board = parseBoard(MARK + MARK + BOARD);
+    expect(board.columns).toEqual([]);
+    expect(
+      board.preamble,
+      "the doubly-marked heading is a preamble line, exactly as any other line that is not a legal " +
+        "heading would be",
+    ).toEqual([`${MARK}## Backlog (WIP unlimited)`]);
+  });
+
+  it("normalizes the two encoding artefacts and NOTHING else", () => {
+    expect(normalizeDocument(`${MARK}a\r\nb\r\n`)).toBe("a\nb\n");
+    expect(normalizeDocument("a\nb\n"), "an already-clean document is returned unchanged").toBe("a\nb\n");
+    expect(normalizeDocument(""), "an empty document is not an index error").toBe("");
+    expect(
+      normalizeDocument(`a${MARK}b`),
+      "a mark in the MIDDLE of a document is content and is left where the author put it",
+    ).toBe(`a${MARK}b`);
+    expect(
+      normalizeDocument("a\rb"),
+      "a bare carriage return is not a Windows line ending and is not folded",
+    ).toBe("a\rb");
+  });
+
+  it("carries EXACTLY ONE non-comment line-ending fold, and it is inside `normalizeDocument`", () => {
+    // Two spellings of one normalization is the drift this repository has already paid for: the two
+    // this task deleted disagreed about the mark for a whole phase while every case stayed green.
+    // A sentence DESCRIBING the rule must neither satisfy nor break this pin, so comment lines are
+    // filtered out of the count before it is compared.
+    const src = readFileSync(join(ROOT, "scripts", "board-model.ts"), "utf8");
+    const lines = src.split("\n");
+    const isComment = (l: string): boolean => {
+      const t = l.trim();
+      return t.startsWith("//") || t.startsWith("*") || t.startsWith("/*");
+    };
+    const FOLD = 'split("\\r\\n")';
+    expect(
+      lines.filter((l) => l.includes(FOLD)).length,
+      "PREMISE: the fold spelling this case searches for is absent from the module entirely, so " +
+        "'exactly one' would be a claim about a string that does not appear",
+    ).toBeGreaterThan(0);
+
+    const foldLines = lines
+      .map((l, i) => ({ l, i }))
+      .filter(({ l }) => !isComment(l) && l.includes(FOLD));
+    expect(
+      foldLines.length,
+      "a second line-ending fold landed in scripts/board-model.ts. One normalization authority " +
+        "serves both grammars (plan 32-16); a second spelling is how the two grammars came to " +
+        "disagree about what a document's first line is",
+    ).toBe(1);
+
+    const start = lines.findIndex((l) => l.startsWith("export function normalizeDocument("));
+    expect(start, "PREMISE: `normalizeDocument` is not declared where this case looks").toBeGreaterThan(-1);
+    const end = lines.findIndex((l, i) => i > start && l === "}");
+    expect(end, "PREMISE: the declaration never closes at column zero").toBeGreaterThan(start);
+    const at = foldLines[0]?.i ?? -1;
+    expect(
+      at > start && at < end,
+      `the single fold is at line ${at + 1}, outside normalizeDocument (lines ${start + 1}-${end + 1})`,
+    ).toBe(true);
   });
 });

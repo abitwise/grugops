@@ -3187,3 +3187,217 @@ describe("board-read — the adversarial shapes, probed rather than assumed (pla
     });
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// PLAN 32-16 — THE BYTE-ORDER MARK IS A QUESTION EVERY DOCUMENT CLASS HAS AN ANSWER TO (WR-03).
+//
+// `readVerifyReread` preserves a leading mark on purpose (`ignoreBOM: true`), so every reader
+// downstream of it receives one. Plan 32-16 answered it for the two GRAMMARS — `parseBoard` and
+// `parseTicketDocument` now share `normalizeDocument`. This block is the other half: the four
+// document classes this module parses itself, each driven with a mark-led document so its answer is
+// MEASURED rather than assumed. A class with no row here is a class nobody asked the question of.
+//
+// The disposition table below is the record. Every row carries an observed answer; a row that could
+// not be closed would carry its reason instead of a silence.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+describe("board-read — every non-grammar document class has a recorded byte-order-mark answer (plan 32-16)", () => {
+  // The mark is written as an ESCAPE, never as a literal byte: an invisible character in a
+  // tracked source file is the hazard under test, not a way to write about it.
+  const MARK = "\uFEFF";
+
+  /** One row per document class this module parses with a reader of its own. */
+  type MarkDisposition = {
+    /** The source the class belongs to, as `SOURCE_NAMES` spells it. */
+    readonly source: (typeof SOURCE_NAMES)[number];
+    /** What the class is parsed by. */
+    readonly parsedBy: string;
+    /** `normalized` = closed here; `immune` = the class never had the defect, with the reason. */
+    readonly disposition: "normalized" | "immune";
+    readonly answer: string;
+  };
+
+  const MARK_DISPOSITIONS: readonly MarkDisposition[] = [
+    {
+      source: "queue",
+      parsedBy: "AT_KEY_LINE / AT_VALUE / BY_VALUE, all anchored at a line start",
+      disposition: "normalized",
+      answer:
+        "OPEN before this plan: a mark before a first-line `at:` defeated BOTH the value match " +
+        "(the claim vanished from the screen) and the single-`at:` tamper count (a forged second " +
+        "`at:` was then trusted as the only one). Closed at the parse point.",
+    },
+    {
+      source: "context",
+      parsedBy: "JSON.parse, per line of index.jsonl",
+      disposition: "normalized",
+      answer:
+        "OPEN before this plan: the first line threw and was reported as a malformed index line, " +
+        "naming a line that is valid JSON. Closed at the parse point.",
+    },
+    {
+      source: "traceability",
+      parsedBy: "splitPipeRow, which trims the line before testing its first byte",
+      disposition: "immune",
+      answer:
+        "CLOSED BY CONSTRUCTION: `String.prototype.trim` treats U+FEFF as whitespace, so a " +
+        "mark-led header row was already located. Pinned below so a later edit that drops the trim " +
+        "is a red rather than a silent regression.",
+    },
+    {
+      source: "config",
+      parsedBy: "JSON.parse, over the whole dial",
+      disposition: "normalized",
+      answer:
+        "OPEN before this plan: the dial threw, the source went stale with reason `unreadable`, " +
+        "and the kit fell back to the lean view over a dial that was valid. Closed at the parse " +
+        "point.",
+    },
+  ];
+
+  /** The classes the two grammars own; they are answered in `scripts/board-model.test.ts`. */
+  const GRAMMAR_SOURCES: readonly string[] = ["board", "tickets"];
+
+  function plantClaimAt(dir: string, task: string, text: string): string {
+    const taskDir = join(dir, ".grugops", "queue", "claimed", task);
+    mkdirSync(taskDir, { recursive: true });
+    const path = join(taskDir, "claim.md");
+    writeFileSync(path, text, "utf8");
+    return path;
+  }
+
+  function plantIndex(dir: string, task: string, text: string): string {
+    const taskDir = join(dir, ".grugops", "context", task);
+    mkdirSync(join(taskDir, "notes"), { recursive: true });
+    const path = join(taskDir, "index.jsonl");
+    writeFileSync(path, text, "utf8");
+    return path;
+  }
+
+  function plantTraceFile(dir: string, text: string): void {
+    mkdirSync(join(dir, "plans"), { recursive: true });
+    writeFileSync(join(dir, "plans", "traceability.md"), text, "utf8");
+  }
+
+  function plantDial(dir: string, text: string): void {
+    mkdirSync(join(dir, "agent-factory", "config"), { recursive: true });
+    writeFileSync(join(dir, "agent-factory", "config", "factory.config.json"), text, "utf8");
+  }
+
+  const NOTE = {
+    id: "20260914T0900-engineer-finding-aaaa1111",
+    task: "ABC-014",
+    kind: "finding",
+    at: "2026-09-14T09:00:00.000Z",
+    supersedes: null,
+  };
+
+  it("PREMISE: the table names EXACTLY the sources the two grammars do not own", () => {
+    const covered = MARK_DISPOSITIONS.map((r) => r.source).sort();
+    const expected = SOURCE_NAMES.filter((n) => !GRAMMAR_SOURCES.includes(n)).sort();
+    expect(
+      covered,
+      "a source joined the snapshot with no byte-order-mark row. The set is DERIVED from " +
+        "SOURCE_NAMES rather than hand-listed here, so a seventh source is a red until somebody " +
+        "answers the question for it",
+    ).toEqual(expected);
+    expect(new Set(covered).size, "one row per source").toBe(covered.length);
+    expect(
+      MARK_DISPOSITIONS.every((r) => r.answer.trim() !== ""),
+      "every row carries an OBSERVED answer; a row with an empty answer is a silence wearing a " +
+        "table's clothes",
+    ).toBe(true);
+  });
+
+  it("queue: joins a mark-led claim record, exactly as it joins the same record without one", () => {
+    withTempTree((dir) => {
+      plantBoard(dir, ONE_COLUMN);
+      plantClaimAt(dir, "ABC-014", `${MARK}at: 2026-09-14T09:00:00.000Z\nby: engineer\n`);
+
+      const result = readSnapshot(dir);
+      const queue = result.snapshot.sources.queue;
+      expect(queue.source).toBe("ok");
+      expect(queue.source === "ok" ? queue.value : []).toEqual([
+        { task: "ABC-014", by: "engineer", at: "2026-09-14T09:00:00.000Z" },
+      ]);
+      expect(result.readErrors).toEqual([]);
+    });
+  });
+
+  it("queue: a mark-led record carrying TWO `at:` lines is still reported `tampered`", () => {
+    // THE SECURITY HALF OF THE SAME DEFECT (T-32-05). `AT_KEY_LINE` counts lines beginning `at:`;
+    // with a mark in front of the first one the count was ONE, the record passed the single-`at:`
+    // discipline, and `AT_VALUE` then matched the SECOND — so a forged `at:` was read as the only
+    // one. Three bytes turned the tamper detector off.
+    withTempTree((dir) => {
+      plantBoard(dir, ONE_COLUMN);
+      const path = plantClaimAt(
+        dir,
+        "ABC-014",
+        `${MARK}at: 2026-09-14T09:00:00.000Z\nat: 2026-01-01T00:00:00.000Z\nby: engineer\n`,
+      );
+
+      const result = readSnapshot(dir);
+      const queue = result.snapshot.sources.queue;
+      expect(
+        queue.source === "ok" ? queue.value : [],
+        "the record is skipped rather than trusted on either line",
+      ).toEqual([]);
+      const reported = result.readErrors.find((e) => e.path === path);
+      expect(reported?.code).toBe("tampered");
+      expect(reported?.message).toMatch(/carries 2 `at:` lines/);
+    });
+  });
+
+  it("context: counts the note on a mark-led index line instead of reporting it as malformed", () => {
+    withTempTree((dir) => {
+      plantBoard(dir, ONE_COLUMN);
+      plantIndex(dir, "ABC-014", `${MARK}${JSON.stringify(NOTE)}\n`);
+
+      const result = readSnapshot(dir);
+      const context = result.snapshot.sources.context;
+      expect(context.source === "ok" ? context.value : []).toEqual([
+        {
+          task: "ABC-014",
+          noteCount: 1,
+          liveCount: 1,
+          latestAt: NOTE.at,
+          latestKind: "finding",
+        },
+      ]);
+      expect(result.readErrors).toEqual([]);
+    });
+  });
+
+  it("traceability: reads a mark-led header row — immune by construction, and pinned", () => {
+    withTempTree((dir) => {
+      plantBoard(dir, ONE_COLUMN);
+      plantTraceFile(
+        dir,
+        `${MARK}| Ticket | Title | Status |\n|--------|-------|--------|\n` +
+          "| ABC-014 | Asset allocation chart | Done |\n",
+      );
+
+      const trace = readSnapshot(dir).snapshot.sources.traceability;
+      expect(trace.source).toBe("ok");
+      expect(trace.source === "ok" ? trace.value.map((r) => r.ticket) : []).toEqual(["ABC-014"]);
+    });
+  });
+
+  it("config: reads a mark-led dial instead of falling back to the lean view", () => {
+    withTempTree((dir) => {
+      plantBoard(dir, ONE_COLUMN);
+      plantDial(dir, `${MARK}{ "mode": "lean", "id_prefix": "ABC" }`);
+
+      const result = readSnapshot(dir);
+      const config = result.snapshot.sources.config;
+      expect(
+        config.source,
+        "a dial a Windows editor saved is a dial, not an unreadable source — the badge used to " +
+          "say `unreadable` about a file whose JSON is valid",
+      ).toBe("ok");
+      expect(config.source === "ok" ? config.value.idPrefix : null).toBe("ABC");
+      expect(result.readErrors).toEqual([]);
+    });
+  });
+});
