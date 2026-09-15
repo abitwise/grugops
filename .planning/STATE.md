@@ -5,14 +5,14 @@ milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live
 current_phase: 32
 current_phase_name: Board Projector & CLI Dashboard
 status: "Phase 31 CLOSED 2026-09-13 by user override D-44 (round-9 verification gaps_found 4/6 left standing; CR-28..CR-31 + WR-43..WR-47 accepted open). Next: Phase 32 — Board Projector & CLI Dashboard, not yet planned. Standing rule: four-round gap-closure cap on every later phase."
-stopped_at: Completed 32-17-PLAN.md
-last_updated: "2026-09-15T09:35:39.232Z"
-state_head: b6273da8ada33d713a879cbadceb5e3534a84805
+stopped_at: Completed 32-18-PLAN.md
+last_updated: "2026-09-15T10:26:04.737Z"
+state_head: ff706fa5aac0e7c450b288d07f9416db9eec446e
 progress:
   total_phases: 9
   completed_phases: 30
   total_plans: 243
-  completed_plans: 237
+  completed_plans: 238
   percent: 98
 last_activity: 2026-09-13
 prior_activity_desc: Phase 27 gap-closure round 8 COMPLETE (27-45, 27-46; D-53). Full narration lives in the Phase 27 artifacts and in docs/audit/; shortened here by plan 31-38 because this single line measured 7995 characters, above the 4000-character ceiling a pathological STATE line has previously crossed to turn a sub-second guard into a multi-minute one.
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-09-07 — after Phase 29.2)
 ## Current Position
 
 Phase: 32 (Board Projector & CLI Dashboard) — EXECUTING
-Plan: 4 of 23
+Plan: 18 of 23
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 
@@ -493,6 +493,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 32 P15 | 16 min | 3 tasks | 6 files |
 | Phase 32 P16 | 34 min | 3 tasks | 8 files |
 | Phase 32 P17 | 47 min | 3 tasks | 8 files |
+| Phase 32 P18 | 37 min | 3 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -1346,6 +1347,10 @@ Recent decisions affecting current work:
 - [Phase 32]: A third silent queue skip (an unsafe task name) was closed alongside the two the review named, because the reader's totality claim is false while any arm is silent
 - [Phase 32]: splitRow uses trimEnd rather than trim, and neither meta nor trailer is trimmed: the gap before a parenthetical is a delimiter, leading title whitespace is content
 - [Phase 32]: The committed golden's stillness is MEASURED by regenerating it and diffing, not inferred from the comparison case passing
+- [Phase 32]: Plan 32-18: the --json document is sanitized as SERIALIZED TEXT rather than field by field, because the documents KEYS are content-derived (the dials per-column limits are keyed by column name) and no JSON structural character is in the C0/C1/DEL removal set.
+- [Phase 32]: Plan 32-18: stderrWriteCensus is DELETED rather than kept beside channelWriteCensus. One implementation serves both channels, so the two arms cannot drift apart, which is exactly what CR-02 cost.
+- [Phase 32]: Plan 32-18: the channel census classifies every reference into four named buckets and counts references independently, so an unanticipated shape is VISIBLE in the carried bucket rather than absent from a short site list. A denominator, not another arm.
+- [Phase 32]: Plan 32-18: the escaped six-character form of a control code point inside a JSON string is left as TEXT. Removing it would rewrite a value the consumer asked for, so the boundary is stated in writeDocuments docblock and in the board contract rather than closed.
 
 ### Pending Todos
 
@@ -1468,8 +1473,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-09-15T09:34:49.154Z
-Stopped at: Completed 32-17-PLAN.md
+Last session: 2026-09-15T10:25:10.646Z
+Stopped at: Completed 32-18-PLAN.md
 Resume file: None
 
 ## Operator Next Steps

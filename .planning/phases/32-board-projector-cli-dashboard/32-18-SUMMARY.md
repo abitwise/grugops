@@ -148,6 +148,8 @@ status: complete
 4. **Task 2 GREEN: one channel census, both arms, every reference classified** — `28f34ace` (refactor)
 5. **Task 3: measure both stdout arms from a spawned process against the shipped `.js`** — `4bd64ca3` (test)
 
+`actuals.commits: 5` counts the five TASK commits above, measured with `git rev-list --count 9a09506c..HEAD` at the instant the SUMMARY was written. The SUMMARY commit and the metadata commit follow it and are not in that span — a SUMMARY cannot count its own commit. The same convention was used by plans 32-15 through 32-17.
+
 ## Files Created/Modified
 
 - `scripts/board-dashboard.ts` — `writeDocument` (the stdout document chokepoint), `humanChars`, the rewritten header claim, `emit`'s JSON arm routed through the chokepoint
