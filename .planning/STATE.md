@@ -5,14 +5,14 @@ milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live
 current_phase: 32
 current_phase_name: Board Projector & CLI Dashboard
 status: "Phase 31 CLOSED 2026-09-13 by user override D-44 (round-9 verification gaps_found 4/6 left standing; CR-28..CR-31 + WR-43..WR-47 accepted open). Next: Phase 32 — Board Projector & CLI Dashboard, not yet planned. Standing rule: four-round gap-closure cap on every later phase."
-stopped_at: Completed 32-18-PLAN.md
-last_updated: "2026-09-15T10:26:04.737Z"
-state_head: ff706fa5aac0e7c450b288d07f9416db9eec446e
+stopped_at: Completed 32-19-PLAN.md
+last_updated: "2026-09-15T11:11:24.213Z"
+state_head: 50d0db194a562590458e9b3bb924cacd7fcb5323
 progress:
   total_phases: 9
   completed_phases: 30
   total_plans: 243
-  completed_plans: 238
+  completed_plans: 239
   percent: 98
 last_activity: 2026-09-13
 prior_activity_desc: Phase 27 gap-closure round 8 COMPLETE (27-45, 27-46; D-53). Full narration lives in the Phase 27 artifacts and in docs/audit/; shortened here by plan 31-38 because this single line measured 7995 characters, above the 4000-character ceiling a pathological STATE line has previously crossed to turn a sub-second guard into a multi-minute one.
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-09-07 — after Phase 29.2)
 ## Current Position
 
 Phase: 32 (Board Projector & CLI Dashboard) — EXECUTING
-Plan: 18 of 23
+Plan: 19 of 23
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 
@@ -494,6 +494,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 32 P16 | 34 min | 3 tasks | 8 files |
 | Phase 32 P17 | 47 min | 3 tasks | 8 files |
 | Phase 32 P18 | 37 min | 3 tasks | 4 files |
+| Phase 32 P19 | 96 min | 3 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -1351,6 +1352,9 @@ Recent decisions affecting current work:
 - [Phase 32]: Plan 32-18: stderrWriteCensus is DELETED rather than kept beside channelWriteCensus. One implementation serves both channels, so the two arms cannot drift apart, which is exactly what CR-02 cost.
 - [Phase 32]: Plan 32-18: the channel census classifies every reference into four named buckets and counts references independently, so an unanticipated shape is VISIBLE in the carried bucket rather than absent from a short site list. A denominator, not another arm.
 - [Phase 32]: Plan 32-18: the escaped six-character form of a control code point inside a JSON string is left as TEXT. Removing it would rewrite a value the consumer asked for, so the boundary is stated in writeDocuments docblock and in the board contract rather than closed.
+- [Phase 32]: 32-19: the dashboard watch records are a STATE, not a log — keyed by directory, cleared on a successful re-arm, on an absent directory, on a root change and on stop — An append-only list recorded the same fact once per poll tick (8,640 a day at the floor) and never removed it, so a repaired watch kept being reported as down.
+- [Phase 32]: 32-19: WATCH_DIRS is derived from SOURCE_NAMES, FIXED_SUBPATHS and QUEUE_STAGES; the suite asserts the relationship in both directions plus a mutation case, and no directory string is typed in the dashboard — A third hand-typed spelling of the on-disk layout, asserted against a fourth in the suite: a moved subpath would silently stop the watch while the mandatory poll hid it and every gate stayed green.
+- [Phase 32]: 32-19: watches are armed against the root the read resolved, and a source the reader refused with OUTSIDE-ROOT is not watched at all — the loop consumes the containment answer rather than re-implementing the rule — Threading the resolved root alone is insufficient: that root joined with a symlinked subdirectory is still the symlink, and the existence check follows it. Measured end to end on a scratch tree.
 
 ### Pending Todos
 
@@ -1473,8 +1477,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-09-15T10:25:10.646Z
-Stopped at: Completed 32-18-PLAN.md
+Last session: 2026-09-15T11:10:56.383Z
+Stopped at: Completed 32-19-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
