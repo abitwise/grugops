@@ -192,11 +192,28 @@ function blankKeepingNewlines(span) {
  * close with a depth counter. Measured against the 141-row live corpus: 141 admitted, 140 with a
  * captured `meta`. The one exception carries a parenthetical that never closes, and it degrades to a
  * null `meta` with the whole remainder as the title rather than being refused.
+ *
+ * THE TITLE IS RIGHT-TRIMMED IN ALL THREE ARMS (plan 32-17, IN-03). `indexOf(META_GAP)` finds the
+ * LAST TWO spaces of a run, so a gap wider than the canonical two left every earlier space on the
+ * title. That is cosmetic in the frame, which pads the column anyway, and it lands VERBATIM in the
+ * published `--json` document: two boards differing only in whitespace produced different
+ * `schemaVersion: 1` payloads, which is a difference no consumer can act on and none can see.
+ *
+ * THE TRIM IS ON EVERY ARM, WHICH IS THE POINT. This function returns a title from three places —
+ * no parenthetical, unbalanced, balanced — and a trim applied to one of them is the sibling-arm
+ * shape this round exists to stop. A case derived from this function's own text asserts that every
+ * `title:` here carries the trim.
+ *
+ * `trimEnd` RATHER THAN `trim`, AND NEITHER `meta` NOR `trailer` IS TRIMMED. The whitespace AHEAD
+ * of a parenthetical is the grammar's own delimiter written wide; whitespace a human typed at the
+ * START of a title is what they typed. And D-01 and D-22 say nothing inside `meta` or `trailer` is
+ * interpreted, so whitespace inside those two is content rather than punctuation. All three answers
+ * are pinned by cases rather than left for the next reader to infer.
  */
 export function splitRow(rest) {
     const at = rest.indexOf(META_GAP);
     if (at === -1)
-        return { title: rest, meta: null, trailer: "" };
+        return { title: rest.trimEnd(), meta: null, trailer: "" };
     let depth = 0;
     let j = at + 2;
     for (; j < rest.length; j++) {
@@ -212,9 +229,9 @@ export function splitRow(rest) {
     }
     // Unbalanced: the whole remainder stays the title and the row stays legal.
     if (depth !== 0)
-        return { title: rest, meta: null, trailer: "" };
+        return { title: rest.trimEnd(), meta: null, trailer: "" };
     return {
-        title: rest.slice(0, at),
+        title: rest.slice(0, at).trimEnd(),
         meta: rest.slice(at + 3, j),
         trailer: rest.slice(j + 1),
     };

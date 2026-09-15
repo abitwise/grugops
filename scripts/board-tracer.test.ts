@@ -398,7 +398,10 @@ describe("board-model — a title carries no trailing whitespace (plan 32-17, IN
       0,
     );
     const body = source.slice(start, source.indexOf("\n}\n", start));
-    const titles = body.match(/title: [^,\n]+/g) ?? [];
+    // The expression bound to `title:`, up to whichever separator ends it — a comma before the
+    // next key on a one-line return, or the end of the line on the multi-line one. Stopping at the
+    // FIRST comma would cut `rest.slice(0, at)` in half and hide the trim that follows it.
+    const titles = body.match(/title: [^\n]*?(?=, meta|,\n)/g) ?? [];
     expect(titles.length, "PREMISE: no title-producing return was found at all").toBe(3);
     for (const t of titles) {
       expect(t, "an arm that produces a title without the trim is the arm the defect returns on").
