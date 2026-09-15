@@ -1,504 +1,410 @@
 ---
 phase: 32-board-projector-cli-dashboard
-reviewed: 2026-09-14T14:10:16Z
+reviewed: 2026-09-15T00:28:14Z
 depth: standard
-files_reviewed: 60
+round: gap-closure round 1 (plans 32-09..32-14), incremental against 888a1302
+files_reviewed: 16
 files_reviewed_list:
-  - 32-03-GREEN-proof.txt
-  - 32-03-RED-baseline.txt
-  - 32-04-GREEN-proof.txt
-  - 32-04-RED-baseline.txt
-  - 32-06-GREEN-proof.txt
-  - 32-06-RED-baseline.txt
-  - 32-07-GREEN-proof.txt
-  - 32-07-RED-baseline.txt
-  - 32-08-GREEN-proof.txt
-  - 32-08-RED-baseline.txt
   - agent-factory/contracts/board.md
-  - agent-factory/seed/plans/board.md
-  - package.json
-  - plans/board.md
-  - scripts/board-corpus.js
-  - scripts/board-corpus.test.ts
-  - scripts/board-corpus.ts
+  - scripts/board-dashboard.ts
   - scripts/board-dashboard.js
   - scripts/board-dashboard.test.ts
-  - scripts/board-dashboard.ts
-  - scripts/board-model.js
-  - scripts/board-model.test.ts
   - scripts/board-model.ts
-  - scripts/board-oracle.test.ts
+  - scripts/board-model.js
+  - scripts/board-read.ts
   - scripts/board-read.js
   - scripts/board-read.test.ts
-  - scripts/board-read.ts
   - scripts/board-readonly.test.ts
-  - scripts/board-tracer.test.ts
-  - scripts/board-watch.test.ts
-  - scripts/check-banned-claims.js
-  - scripts/check-banned-claims.ts
-  - scripts/check-foundation-guards.test.ts
-  - scripts/check-imperative-lexicon.js
-  - scripts/check-imperative-lexicon.test.ts
-  - scripts/check-imperative-lexicon.ts
-  - scripts/context-io.test.ts
-  - scripts/fixtures/board-replay/chess-board.md
-  - scripts/fixtures/board-replay/dogfood-board.md
-  - scripts/fixtures/board-snapshot/.grugops/context/abc-104-implement/index.jsonl
-  - scripts/fixtures/board-snapshot/.grugops/context/abc-104-implement/index.md
-  - scripts/fixtures/board-snapshot/.grugops/context/abc-104-implement/notes/2026-09-14T090500Z-decision-a1b2c3d4.md
-  - scripts/fixtures/board-snapshot/.grugops/context/abc-104-implement/notes/2026-09-14T091000Z-decision-e5f6a7b8.md
-  - scripts/fixtures/board-snapshot/.grugops/queue/claimed/abc-104-implement/claim.md
-  - scripts/fixtures/board-snapshot/.grugops/queue/claimed/abc-105-tampered/claim.md
-  - scripts/fixtures/board-snapshot/agent-factory/config/factory.config.json
-  - scripts/fixtures/board-snapshot/expected-snapshot.json
-  - scripts/fixtures/board-snapshot/plans/board.md
-  - scripts/fixtures/board-snapshot/plans/tickets/ABC-101.md
-  - scripts/fixtures/board-snapshot/plans/tickets/ABC-102.md
-  - scripts/fixtures/board-snapshot/plans/tickets/ABC-103.md
-  - scripts/fixtures/board-snapshot/plans/tickets/ABC-104.md
-  - scripts/fixtures/board-snapshot/plans/tickets/ABC-105.md
-  - scripts/fixtures/board-snapshot/plans/tickets/ABC-106.md
-  - scripts/fixtures/board-snapshot/plans/tickets/ABC-200.md
-  - scripts/fixtures/board-snapshot/plans/traceability.md
-  - scripts/fixtures/board-snapshot/README.md
-  - scripts/validate-agent-factory.js
   - scripts/validate-agent-factory.ts
+  - scripts/validate-agent-factory.js
   - scripts/validate.test.ts
+  - scripts/fixtures/bad-ticket-body-column/plans/tickets/ABC-001.md
+  - scripts/fixtures/bad-ticket-duplicate-key/plans/tickets/ABC-001.md
+  - scripts/fixtures/bad-ticket-no-region/plans/tickets/ABC-001.md
 findings:
-  critical: 6
-  warning: 10
-  info: 8
-  total: 24
+  critical: 2
+  warning: 11
+  info: 3
+  total: 16
 status: issues_found
 ---
 
-# Phase 32: Code Review Report
+# Phase 32: Code Review Report — gap-closure round 1
 
-**Reviewed:** 2026-09-14T14:10:16Z
+**Reviewed:** 2026-09-15T00:28:14Z
 **Depth:** standard
-**Files Reviewed:** 60
+**Files Reviewed:** 16
 **Status:** issues_found
 
 ## Summary
 
-The phase ships a genuinely careful design: the grammar module really is fs-free, the partition
-really is total on every board in this tree, the compiled `.js` really is a faithful `tsc` build
-(verified: `tsc --outDir <tmp>` then `cmp` against every committed `.js` in scope — byte-identical),
-and the whole board suite is green (426 tests, 9 files). None of that is what this review measured.
+**All six prior BLOCKERs (CR-01..CR-06) are closed, and all six closures were verified by
+reproducing the original probe against the shipped artifact rather than by reading the diff.** The
+evidence is in the "Prior findings" section below. The TS→JS build is faithful (`tsc --outDir
+<tmp>` then `cmp` against every committed `.js` in scope: byte-identical, exit 0), and the suite is
+green — 74 files, 4811 passed, 2 skipped, under `npx vitest run --exclude '**/scripts/e2e/**'`.
 
-Six defects are recorded as BLOCKER, and **every one of the six was reproduced against the shipped
-compiled artifact**, not inferred from reading:
+None of that is what this review measured. **Two new BLOCKERs, both reproduced against the
+committed `.js`, and both are the round's own fixes leaking in a sibling arm** — the shape this
+repository's history predicts:
 
-* the DASH-06 read-only guard — the mechanical centrepiece of the phase — is bypassed by a
-  two-line, ordinary-looking ESM pattern that leaves it fully green (CR-01);
-* a permission-denied `plans/tickets/` renders as a clean `ok` board with zero tickets, no badge,
-  no read error, and **eight manufactured `row-without-file` conflicts against files that exist**
-  (CR-02);
-* a board carrying a single non-UTF-8 byte is reported as "changed under every one of 3 read
-  attempts" and goes `unavailable` — a fabricated diagnosis of a file nobody touched (CR-03);
-* the ASVS V12 containment claim in `board-read.ts`'s header is lexical only: a symlink under
-  `plans/tickets/` reads outside the repository root and echoes the target's content into
-  `readErrors` (CR-04);
-* the T-32-06 terminal-injection defence covers stdout only; stderr carries raw `ESC ]0;…BEL` and
-  `ESC [2J` straight from a ticket file and from argv (CR-05);
-* the second ticket-frontmatter parser that `board-model.ts` states plan 32-08 deleted is still in
-  `validate-agent-factory.ts`, and the two readers disagree by construction (CR-06).
+* **CR-01** — CR-02's fabrication survives one register over. `joinSnapshot` gates
+  `row-without-file` on "were all the BYTES obtained", not on "does the record set cover the
+  identifiers the board names". A ticket file that exists, is readable, and is refused **by the
+  grammar** contributes no record, does not degrade the tickets source, and the projector then
+  asserts `no ticket file carries that identifier` about a file sitting on disk — under an `[ok]`
+  header with no badge. Measured.
+* **CR-02** — CR-05's fix rewrote the module header to claim "Every string that reaches **EITHER
+  CHANNEL** goes through `sanitizeCell` first". That sentence is now false in the direction the
+  original finding did not cover: the `--json` stdout write is the one output path with no
+  sanitizer, `JSON.stringify` escapes C0 but **not C1**, and U+009B (8-bit CSI) / U+009D (8-bit
+  OSC) travel from a ticket title into the document verbatim. The new derived census
+  (`board-dashboard.test.ts:1142-1315`) pins the **stderr** write sites at one and asks nothing at
+  all about stdout, so the rule is derived on the arm that was fixed and narrated on the arm that
+  was not. Measured.
 
-Three of the six (CR-02, CR-03, CR-06) are direct contradictions of sentences written in
-`agent-factory/contracts/board.md` or in the modules' own docblocks, which makes them worse than
-ordinary bugs in a repository whose stated value is the trace. The recurring shape is the one this
-repository's own history names: **the predicate was verified against its own premise and nobody
-asked what bounds the predicate's input** — the guard asks which *names* appear rather than which
-*values* flow; the reader asks whether the bytes agree rather than whether they are decodable; the
-containment check asks about the lexical path rather than about the inode it opens.
+The recurring 32-09..32-14 pattern across the warnings is the same one register up: **a predicate
+was converted from a hand-typed list to a derivation, and the derivation's INPUT was left in a
+narrow syntactic form.** The one-ticket-reader census is defeated by writing the deleted reader
+with `new RegExp("^column:…")` instead of a regex literal (WR-01, measured: 0 carriers). The
+read-only guard was converted to an allow-list for namespaces and left as a **deny-list** for
+modules, so `node:v8`'s `writeHeapSnapshot`, `process.report.writeReport` and `node:sqlite` — every
+one of which creates and writes a file — are fully green (WR-02, measured). And the deliberate
+`ignoreBOM: true` decision taken in `readVerifyReread` to protect a Windows checkout is
+contradicted by its sibling `parseTicketDocument`, which refuses a BOM'd ticket with a message that
+quotes a first line looking exactly like `---` (WR-03, measured).
 
-The RED/GREEN evidence files and the fixture markdown are internally consistent: line citations in
-`scripts/fixtures/board-snapshot/README.md` were spot-checked against the fixture and hold, and the
-golden regenerates byte-identically on a second read.
+Five warnings from the prior round (WR-01..WR-05 there) are untouched and are restated here as
+still open, with the evidence that they are still live.
+
+The three new fixtures are correct, minimal and single-mutation; each isolates exactly the
+disagreement its comment claims.
+
+---
+
+## Prior findings — disposition, with the evidence checked
+
+Each closure was re-measured with the original finding's own probe against
+`scripts/fixtures/board-snapshot/` copied to a scratch tree. Transcripts summarized:
+
+| Prior | Verdict | Evidence checked |
+|-------|---------|------------------|
+| **CR-01** namespace destructure bypasses the read-only guard | **CLOSED** | The rule is now an allow-list (`board-readonly.test.ts:322-341`, `isAdmittedNamespacePosition`): the ONE admitted read of an fs-namespace binding is as the object of a member access; every other read is an opaque acquisition. 14 namespace-escape rows + 8 acquisition rows, each a live-mirror plant, all green in the suite run. The exact CR-01 source (`const { writeFileSync, rmSync } = fsns`) is row 1 and has its own named case at `:1194-1216`. A positive control at `:1217-1244` proves the rule still admits `fsns.readFileSync` (so it is not refusing everything). |
+| **CR-02** unreadable directory reported as absent → clean board + fabricated conflicts | **CLOSED for the read-failure path.** | `chmod 000 plans/tickets` now yields `overall: stale`, `tickets: unavailable` **with** a `readErrors` entry `code: EACCES`, and `row-without-file: 0`. The one-file variant (directory readable, `ABC-101.md` at mode 000) yields `overall: stale`, `tickets: stale`, `row-without-file: 0` — the `partial` arm added at `board-read.ts:172-190` covers the register the first fix missed. **Not closed for the grammar-refusal path — see CR-01 below.** |
+| **CR-03** one non-UTF-8 byte reported as a torn read | **CLOSED** | A board carrying a bare `0xE9` now reports `code: ENCODING`, `reason: unreadable`, answered on the first read and not retried. The agreement test compares three BYTE counts (`board-read.ts:252`) and the decode is `fatal: true` afterwards. No "changed under every read attempt" text appears. |
+| **CR-04** lexical-only containment; symlink reads and leaks outside the root | **CLOSED** | `plans/tickets/ZZZ-999.md` symlinked to a file holding `SECRET-TOKEN-abc123` now produces `code: OUTSIDE-ROOT` naming the entry and the destination, and **`JSON.stringify(result).includes("SECRET-TOKEN") === false`**. One authority (`insideRoot`, `:686-720`), with the ENOENT arm anchored on the deepest real ancestor so `../escape` is not admitted merely for not existing yet. The hard-link residual is correctly recorded as open rather than claimed closed. |
+| **CR-05** terminal escapes reach stderr unsanitized | **CLOSED for stderr.** | An OSC+CSI sequence planted in a ticket's first line produces stderr with **no raw `ESC` byte** (`od -c` over the captured channel). One chokepoint (`warn`, `board-dashboard.ts:260`), pinned two-sided and by enclosing function at `board-dashboard.test.ts:1295-1315`. **Not closed for stdout — see CR-02 below.** |
+| **CR-06** second ticket-frontmatter reader survives, and the code claims it was deleted | **CLOSED** | `git diff 888a1302..HEAD -- scripts/validate-agent-factory.ts` shows `interface FrontMatter` and `function frontMatter` deleted and `parseTicketDocument` imported and routed at `:736-745`. `board-model.ts:817-825` now states the deletion in the present tense and cites the census. Three behavioural fixtures pin the three disagreements. (The census itself has a scope gap — WR-01.) |
+| WR-06 (prior) `--json --watch` promised exactly one document | **CLOSED** | `USAGE_LINES` and the header now state JSON Lines; `emit` documents the change at `:799-803`. |
+| WR-01..WR-05 (prior) | **ALL STILL OPEN** | Restated below as WR-05..WR-09 with the line that still carries them. |
+
+---
 
 ## Critical Issues
 
-### CR-01: The DASH-06 read-only guard is bypassed by a namespace destructure — BLOCKER
+### CR-01: `row-without-file` is still fabricated — against a ticket file that exists and was merely refused by the grammar — BLOCKER
 
-**File:** `scripts/board-readonly.test.ts:237-249` (`collectNamespaceMembers`), `:132-201` (`analyzeModule`)
+**File:** `scripts/board-model.ts:1106` (`ticketsListingComplete`), `:1219-1231` (the derivation);
+`scripts/board-read.ts:1154-1157` (the refusal path that does not degrade the source)
 
-**Issue:** The AST derivation names a `node:fs` symbol only when it appears as a **named import**,
-or as a **property/element access on a namespace identifier in the same file**. A namespace import
-that is destructured contributes nothing to `fsSymbols` and nothing to `opaqueFsAcquisitions`, so
-the closure-side intersection (the file's own "blocking pin") does not move.
+**Issue:** Plan 32-09 closed CR-02 by gating the two presence-dependent kinds on
+`sources.tickets.source === "ok"`, and `readTicketsSource` sets `firstReadFailure` — the thing that
+makes the source non-`ok` — at exactly two places: a `childPath` refusal (`:1131`) and a
+`readVerifyReread` failure (`:1150`). A **grammar refusal** at `:1154` pushes a `readErrors` entry
+and deliberately does **not** set it (the docblock at `board-read.ts:176-190` names this as correct:
+"A REFUSED DOCUMENT IS NOT THIS … the bytes were read"). That is the right call about *obtaining
+bytes*. It is the wrong input for this gate, because the gate's consumer asks a different question:
+`row-without-file` is a claim about **which identifiers have a file**, and a refused document
+removes an identifier from the record set exactly as completely as an unreadable one does.
 
-Reproduced against the exact derivation in this file:
-
-```
-$ node probe-guard.mjs     # replicates analyzeModule over:
-  import * as fsns from "node:fs";
-  const { writeFileSync, rmSync } = fsns;
-  export function nuke(p){ writeFileSync(p, "x"); rmSync(p); }
-
-fsSymbols: [] opaqueFsAcquisitions: []
-```
-
-`bareSpecifiers` gains `"node:fs"`, which is already present in the closure, so
-`EXPECTED_CLOSURE_FS_SYMBOLS` stays at exactly the six pinned members and
-`EXPECTED_CLOSURE_FS_SYMBOL_COUNT` stays at 6. A full writer in `scripts/board-read.js` ships with
-every case in this file green. The same hole covers a namespace passed as a value
-(`export const FS = fsns;` consumed in another closure module) and an aliased re-export — the
-docblock at `:52-58` names the aliased re-export as out of scope but does **not** name the
-destructure, which is the far more ordinary spelling.
-
-This is the phase's load-bearing mechanism: CLAUDE.md's hard safety rule is that "the projector
-cannot write" is decided by a mechanism rather than by a docblock, and the mechanism currently
-decides a strictly smaller question than the one it claims.
-
-**Fix:** Make the binding of an fs namespace *itself* an opaque acquisition unless every use is a
-direct member access. Concretely, in `collectSpecifiers`/`collectNamespaceMembers`:
-
-```ts
-// Any identifier bound to an fs namespace that is READ anywhere other than as the object of a
-// member access is a route this pass cannot name. Refuse, do not ignore.
-const collectNamespaceEscapes = (node: ts.Node): void => {
-  if (
-    ts.isIdentifier(node) &&
-    fsNamespaceBindings.has(node.text) &&
-    !(ts.isPropertyAccessExpression(node.parent) && node.parent.expression === node) &&
-    !(ts.isElementAccessExpression(node.parent) && node.parent.expression === node) &&
-    !(ts.isImportClause(node.parent) || ts.isNamespaceImport(node.parent))
-  ) {
-    opaqueFsAcquisitions.push(`fs namespace \`${node.text}\` escapes: ${node.parent.getText()}`);
-  }
-  ts.forEachChild(node, collectNamespaceEscapes);
-};
-```
-
-and add a PART FIVE discrimination case planting exactly
-`import * as fsns from "node:fs";\nconst { writeFileSync } = fsns;` into `scripts/board-read.js`,
-asserting the guard goes RED. A guard nobody has watched fail on this shape is not yet a control
-over it.
-
----
-
-### CR-02: An unreadable directory is reported as "absent", producing a clean board and fabricated conflicts — BLOCKER
-
-**File:** `scripts/board-read.ts:485-497` (`listDirectoryBounded`), consumed at `:668-670`, `:763`, `:842-845`
-
-**Issue:** `listDirectoryBounded` wraps `readdirSync` in a bare `catch { return { present: false, … } }`.
-Every failure mode — `EACCES`, `ENOTDIR`, `EMFILE`, `ELOOP` — is collapsed into the same answer as
-"the directory was never created". The caller then settles `{ kind: "absent" }`, which on a first
-read yields `unavailable` with **no `readErrors` entry at all**.
-
-`agent-factory/contracts/board.md` § Staleness states the opposite in so many words: "A file that
-existed at the previous read and is now missing is stale, **as is a permission error** and a torn
-read. In each of those cases the previous good value is carried, and the badge says so."
-
-Reproduced on a fixture tree copied from `scripts/fixtures/board-snapshot/`:
+Reproduced against the committed `.js`, on a copy of `scripts/fixtures/board-snapshot/` with one
+board row `- [ABC-900] …` added and a readable `plans/tickets/ABC-900.md` present carrying one
+out-of-set key (`owner:`):
 
 ```
-$ chmod 000 t1/plans/tickets && node -e 'readSnapshot(...)'
+$ node -e 'readSnapshot(t1)'
 overall: ok
-tickets state: {"source":"unavailable","present":false}
-readErrors: []
-conflicts: [... ] total 11
-  { "kind": "row-without-file", "ticketId": "ABC-101", "column": "Backlog",
-    "expected": "plans/tickets/ABC-101.md",
-    "actual": "no ticket file carries that identifier", "source": "board" }
-```
-
-`ABC-101.md` exists and is readable. The projector reports a clean `[ok]` header with no badge and
-then **manufactures eight findings that are false**, each one phrased as a positive assertion about
-the filesystem. This is the exact failure the phase set out to prevent ("a board the projector
-cannot read is a visible refusal, never a quiet empty column"), one source over. A second read
-after a good one is no better: `settleSource`'s `absent` arm hard-codes `reason: "enoent"` and the
-message `"${path} is gone since the previous read"` — also false for `EACCES`.
-
-The same swallow applies to `.grugops/queue/claimed` (an unreadable claimed stage renders as
-"nothing claimed") and to `.grugops/context`.
-
-**Fix:** Give the listing the same two-armed shape every other read in this module has, and let the
-caller settle a real failure:
-
-```ts
-export type BoundedListing =
-  | { readonly kind: "listed"; readonly names: readonly string[]; readonly bounded: boolean }
-  | { readonly kind: "absent" }
-  | { readonly kind: "failed"; readonly reason: StaleReason; readonly code: string; readonly message: string };
-
-export function listDirectoryBounded(dir: string): BoundedListing {
-  let entries: string[];
-  try {
-    entries = readdirSync(dir);
-  } catch (e) {
-    const err = e as NodeJS.ErrnoException;
-    const code = err.code ?? "";
-    if (code === "ENOENT") return { kind: "absent" };
-    const reason: StaleReason = code === "EACCES" || code === "EPERM" ? "eacces" : "unreadable";
-    return { kind: "failed", reason, code: code || "unreadable", message: err.message };
-  }
-  ...
-}
-```
-
-Additionally, `joinSnapshot` should not derive `row-without-file` at all when `sources.tickets` is
-not `ok` — the same rule it already applies to an unavailable board at `board-model.ts:1076`.
-
----
-
-### CR-03: A file containing one non-UTF-8 byte is permanently reported as a torn read — BLOCKER
-
-**File:** `scripts/board-read.ts:198-205` (`readVerifyReread`)
-
-**Issue:** The agreement test is
-
-```ts
-const sizeAgrees = before.size === after.size && after.size === Buffer.byteLength(text, "utf8");
-```
-
-`readFileSync(path, "utf8")` replaces every invalid byte sequence with U+FFFD (3 bytes). For any
-file that is not valid UTF-8 the third comparison can **never** hold, so all three attempts fail and
-the function returns the pre-seeded `torn` result whose message asserts a fact that did not happen.
-
-Reproduced with a stable, never-written file containing one Latin-1 `é` (`0xE9`):
-
-```
-$ printf '# Board\n## Backlog (WIP unlimited)\n- [ABC-101] caf\xe9 latin1 title\n' > t1/plans/board.md
-overall: unavailable
-board state: {"source":"unavailable","present":false}
-readErrors: [{ "code": "TORN",
-  "message": "board-read: …/plans/board.md changed under every one of 3 read attempts, so no read
-               of it is trustworthy. The previous good value is kept and the source is marked stale." }]
-```
-
-Three consequences, in ascending order of seriousness: the board is lost entirely
-(`no board: plans/board.md was not readable on this tree`); every refresh burns 3 reads + 6 stats
-for a file that will never satisfy the test, forever, on the poll loop; and the diagnosis handed to
-the human is a fabrication, which CLAUDE.md's "No fabrication" rule treats as a hard failure. A
-board written by a non-UTF-8 editor, or one carrying a stray byte from a bad merge, is not exotic.
-
-**Fix:** Compare the bytes as bytes, and decode afterwards, so the tear detector measures tearing
-and a decoding problem is reported as `unreadable`:
-
-```ts
-const before = statSync(absPath);
-const buf = readFileSync(absPath);            // no encoding — raw bytes
-seam.betweenReadAndStat?.(absPath, attempt);
-const after = statSync(absPath);
-const sizeAgrees = before.size === after.size && after.size === buf.byteLength;
-const mtimeAgrees = before.mtimeMs === after.mtimeMs;
-if (!(sizeAgrees && mtimeAgrees)) continue;   // a real tear: retry
-
-const text = new TextDecoder("utf-8", { fatal: true }).decode(buf);  // throws on invalid input
-return { ok: true, text };
-// …and catch the decode failure into { ok: false, reason: "unreadable", code: "ENCODING", … }
-```
-
----
-
-### CR-04: Path containment is lexical only — a symlink under the root reads and leaks files outside it — BLOCKER
-
-**File:** `scripts/board-read.ts:441-451` (`repoSubpath`), `:537-545` (`childPath`), header claim at `:26-33`
-
-**Issue:** The module header states: "Every target is additionally asserted inside the resolved root
-before it is read". `repoSubpath` and `childPath` both compute `resolve(join(...))` and then
-`relative(root, target)` — a **lexical** test. `resolve` does not resolve symlinks, `statSync` and
-`readFileSync` follow them, and only the root itself goes through `realpathSync`. So any symlink
-that an agent (or anything else with write access to the tree) plants inside `plans/`,
-`plans/tickets/`, `.grugops/queue/claimed/<task>/` or `.grugops/context/<task>/` is read as if it
-were inside the repository.
-
-Reproduced:
-
-```
-$ printf 'SECRET-TOKEN-abc123\nsecond line of the secret\n' > outside-secret.txt
-$ ln -sf "$PWD/outside-secret.txt" t1/plans/tickets/ZZZ-999.md
-$ node -e 'readSnapshot("t1")'
-[{ "source": "tickets", "path": ".../plans/tickets/ZZZ-999.md",
-   "code": "no-opening-delimiter",
-   "message": "a ticket document opens with a `---` line and this one opens with `SECRET-TOKEN-abc123`" }]
-```
-
-The content of a file outside the repository is now in `readErrors[].message`, which `emit()` writes
-to stderr on every frame and embeds in the `--json` document. `parseTicketDocument`'s refusal
-messages echo up to 40 characters (`no-opening-delimiter`), 60 characters (`unrecognized-line`) and
-the key name (`unknown-key`). The same applies if `plans` itself is a symlink, in which case the
-whole board is read from outside the tree with no refusal at all.
-
-The module's own threat model at `:529-536` states that "a directory entry is attacker-influenced
-whenever an agent can write into the tree" — which is the normal operating condition of this kit.
-
-**Fix:** Resolve the target's real path and re-assert containment at the one chokepoint, and refuse
-rather than returning short:
-
-```ts
-function assertInsideRoot(root: string, target: string, what: string): string {
-  let real: string;
-  try {
-    real = realpathSync(target);
-  } catch (e) {
-    // ENOENT here is the caller's business; rethrow non-ENOENT so a broken link is not "absent".
-    const err = e as NodeJS.ErrnoException;
-    if (err.code === "ENOENT") return target;   // handled by the read's own ENOENT arm
-    throw new BoardReadError(`board-read: ${what} at ${target} could not be resolved (${err.message}).`);
-  }
-  const rel = relative(root, real);
-  if (rel === "" || rel === ".." || rel.startsWith(`..${sep}`)) {
-    throw new BoardReadError(
-      `board-read: ${what} at ${target} resolves to ${real}, outside the repository root ${root}. ` +
-        `Refusing to read through a link that leaves the tree.`,
-    );
-  }
-  return real;
-}
-```
-
-Call it from both `repoSubpath` and `childPath`. Note that a thrown `BoardReadError` from a
-per-entry read must be caught into a `readErrors` entry rather than killing the loop — the refusal
-is loud, but it is one source's refusal.
-
----
-
-### CR-05: Terminal escape sequences from board content and from argv reach stderr unsanitized — BLOCKER
-
-**File:** `scripts/board-dashboard.ts:715-720` (`emit`), `:845-849` (`run`'s root-refusal path), `:889` (`main`'s catch)
-
-**Issue:** The module header states the T-32-06 rule as "Every string that reaches **stdout** in the
-frame goes through `sanitizeCell` first". That is true and it is the wrong boundary: stderr is the
-same terminal in the overwhelmingly common interactive case, and it is the channel that carries
-attacker-influenced content — file contents in `readError.message`, and the raw argv `repoRoot` in
-the root-refusal line. Neither is sanitized.
-
-`parseTicketDocument` refuses a control character **inside** the frontmatter region
-(`board-model.ts:927-933`), but the `no-opening-delimiter` refusal at `:900-906` echoes
-`lines[0].slice(0, 40)` **before any control check has run on that line**.
-
-Reproduced (stderr piped through `cat -v`):
-
-```
-$ printf '\033]0;PWNED\007\033[2Jnot a delimiter\n---\nid: ABC-900\n---\n' > t1/plans/tickets/ABC-900.md
-$ node scripts/board-dashboard.js t1 --once --json 2>err.txt >/dev/null && cat -v err.txt
-board-dashboard: tickets at …/ABC-900.md … no-opening-delimiter: a ticket document opens with a
-`---` line and this one opens with `^[]0;PWNED^G^[[2Jnot a delimiter`
-```
-
-and from argv:
-
-```
-$ node scripts/board-dashboard.js "$(printf 'no\033]0;PWNED\007such')" --once
-board-dashboard: board-read: the repository root …/no^[]0;PWNED^Gsuch does not resolve …
-```
-
-On a real terminal both retitle the window and clear the screen. The `--json` document is safe by
-accident (`JSON.stringify` escapes C0), which makes the stderr path the only live one — and the one
-a human watching a live dashboard actually sees.
-
-**Fix:** Route every stderr write through the existing sanitizer, and make that structural rather
-than per-call-site:
-
-```ts
-function warn(io: DashboardIo, line: string): void {
-  io.stderr.write(`${sanitizeCell(line)}\n`);
-}
-```
-
-Replace all four `io.stderr.write(...)` call sites (`emit`, `refresh`'s catch, `run`'s catch,
-`main`'s catch) and the entry tail's `process.stderr.write` with `warn`. Add a case in
-`scripts/board-dashboard.test.ts` planting an OSC sequence in a ticket's first line and asserting no
-`\x1b` byte reaches the captured stderr. Separately, `parseTicketDocument` should run
-`TICKET_CONTROL` over `lines[0]` before quoting it.
-
----
-
-### CR-06: The second ticket-frontmatter authority survives, and the code claims it was deleted — BLOCKER
-
-**File:** `scripts/validate-agent-factory.ts:716-723` (`frontMatter`), used at `:742`; false claim at `scripts/board-model.ts:816-819`
-
-**Issue:** `board-model.ts` states, as justification for adding `parseTicketDocument` at all:
-
-> "This ADDS no spelling: `scripts/validate-agent-factory.ts:712-719` already reads a ticket's
-> `column:` and `status:` with its own regex pair, **and plan 32-08 deletes that pair in favour of
-> this function**"
-
-Plan 32-08 did not. The pair is still there:
-
-```ts
-function frontMatter(text: string): FrontMatter {
-  const col = text.match(/^column:\s*(.+)$/m);
-  const status = text.match(/^status:\s*(.+)$/m);
+tickets source: ok
+readErrors: [ { source: tickets, path: .../plans/tickets/ABC-900.md, code: unknown-key, … } ]
+row-without-file: [
+  { "kind": "row-without-file", "ticketId": "ABC-900", "column": "Extra",
+    "expected": "plans/tickets/ABC-900.md",
+    "actual": "no ticket file carries that identifier", "source": "board" },
   …
-}
+]
 ```
 
-`agent-factory/contracts/board.md:110` states "The reader of this class is `parseTicketDocument` in
-`scripts/board-model.ts`." Two readers exist, and they disagree by construction — not
-hypothetically:
+`plans/tickets/ABC-900.md` exists, is readable, and names `id: ABC-900`. The header prints `[ok]`
+with no badge. This is verbatim CR-02's finding — "eight manufactured `row-without-file` conflicts
+against files that exist" — reached through the sibling arm, and it is a positive assertion about
+the filesystem that CLAUDE.md's no-fabrication rule refuses before it is a bug. The contract's own
+definition (`agent-factory/contracts/board.md:233`) is "A board row names an identifier **with no
+ticket file**"; a refused document *is* a ticket file.
 
-* `frontMatter` matches `^column:` **anywhere in the document**, including the ticket's prose body
-  and inside a fenced example; `parseTicketDocument` reads only the region between the first two
-  `---` lines.
-* `frontMatter` accepts a document with no frontmatter region at all;
-  `parseTicketDocument` refuses it with `no-opening-delimiter`.
-* `frontMatter` silently accepts a duplicated `column:` (first wins);
-  `parseTicketDocument` refuses with `duplicate-key`.
+It is reachable by every ordinary means: an unknown key, a duplicated key, a tab in the region
+(WR-04), a BOM (WR-03), a missing `---` (WR-11) — five spellings, every one of which currently
+turns into a false statement about the filesystem beside a true statement about the grammar.
 
-So `npm run` validation and the dashboard can report different columns for the same ticket, which is
-the precise drift class the phase's own D-06 narrative says it exists to close, and 32-08's
-GREEN-proof never mentions the pair. Grep confirms neither
-`32-08-GREEN-proof.txt` nor `32-08-RED-baseline.txt` contains the words `frontMatter` or
-`parseTicketDocument`.
-
-**Fix:** Either complete the cutover or delete the claim. The cutover:
+**Fix:** Derive the gate from the set of identifiers the reader could not *admit*, not from whether
+its bytes arrived. The reader already knows the file stem of every entry it walked, so the answer is
+in hand at the refusal site:
 
 ```ts
-import { boardHasColumn, kebab, parseBoard, parseTicketDocument } from "./board-model.js";
-...
-const admission = parseTicketDocument(text);
+// board-read.ts — carry the identifiers the grammar refused, so the join can tell
+// "no such file" from "a file that exists and did not parse".
+const unadmitted: string[] = [];
+…
+const admission = parseTicketDocument(read.text);
 if (!admission.ok) {
-  err(`${rel}: refused by the ticket grammar (${admission.code}): ${admission.reason}`);
+  errors.push({ source: "tickets", path, code: admission.code, message: admission.reason });
+  unadmitted.push(name.slice(0, -".md".length));   // the file stem IS the fallback identity
   continue;
 }
-const { column, status } = admission.value;
 ```
 
-and delete `frontMatter` and the `FrontMatter` type. If the cutover is deliberately deferred, the
-docblock at `board-model.ts:816-819` must say so in the present tense with the reason, because as
-written it is a false statement about the state of this tree.
+and in `joinSnapshot`, skip a placement whose id is in that set (or, better, raise it under an
+honest sentence — `actual: "plans/tickets/ABC-900.md exists and was refused by the ticket grammar"`
+— which keeps the finding without the false claim). Either way, add a case in
+`scripts/board-read.test.ts` that plants a refused-but-present ticket and asserts **zero**
+`row-without-file` for its identifier; today the whole 4811-test suite is green over this shape.
+
+---
+
+### CR-02: the `--json` document carries raw C1 terminal-control code points from board content, while the module header claims every string on either channel is sanitized — BLOCKER
+
+**File:** `scripts/board-dashboard.ts:804` (the unsanitized stdout write), header claim at `:22-30`;
+census scope at `scripts/board-dashboard.test.ts:1142-1315`
+
+**Issue:** The CR-05 fix restated T-32-06 as a property of **both** channels:
+
+> "Every string that reaches EITHER CHANNEL goes through `sanitizeCell` first: the frame's cells on
+> their way to stdout, and every diagnostic on its way to stderr through the single `warn`
+> chokepoint below."
+
+`emit`'s JSON arm is the one output path that goes through neither. `JSON.stringify` escapes C0 and
+DEL, which is why the prior review called this path "safe by accident" — but it does **not** escape
+C1 (U+0080–U+009F), and U+009B / U+009D are the 8-bit CSI and OSC introducers that xterm, iTerm2 and
+the VTE family act on in UTF-8 mode.
+
+Reproduced against the committed `.js` (code points constructed with `String.fromCharCode`, never
+literal bytes):
+
+```
+$ node scripts/board-dashboard.js t1 --once --json > out.json      # title carries U+009B/U+009D
+control code points surviving into the --json stdout document: 5
+  [ 'U+009b', 'U+009d', 'U+009b', 'U+009d', 'U+000a' ]
+escaped-form context: "rows\":[{\"title\":\"title 31m0;PWNED\\u0007 "
+```
+
+The BEL is escaped (`\u0007`); the CSI and OSC introducers beside it are not. The same probe over
+the **plain** frame returns 0 control code points, confirming `cell()`/`sanitizeCell` is the
+working defence and that only this arm skips it. `--json --once` into a terminal is the documented,
+ordinary invocation.
+
+The structural half of the finding matters more than the byte: the new census derives the stderr
+write-site count two-sided and names the chokepoint function, and there is **no equivalent for
+stdout**. So of the two arms the header's sentence covers, one is mechanically enforced and the
+other is a docblock — which is the exact asymmetry CR-05 was raised about, inverted.
+
+**Fix:** Make stdout have a chokepoint too, and make the "either channel" sentence derived rather
+than asserted:
+
+```ts
+/** THE ONE PLACE THIS MODULE WRITES TO STDOUT. Sanitized for the reason `warn` is. */
+function say(io: DashboardIo, chunk: string): void {
+  io.stdout.write(sanitizeCell(chunk));
+}
+```
+
+`sanitizeCell` over the serialized document is safe — it removes only C0/C1/DEL, and
+`JSON.stringify` has already escaped every C0 that belongs in the document, so nothing structural is
+touched. (Sanitizing the *values* before serializing is equivalent and arguably cleaner; either is
+fine, but pick one and derive it.) Then generalize `stderrWriteCensus` to a channel-parameterized
+census, pin `stdout` two-sided at one site inside `say`, and add a case planting U+009B in a ticket
+title that asserts no code point in `[\u0080-\u009F]` reaches the captured stdout under `--json`.
+
+---
 
 ## Warnings
 
-### WR-01: The header renders a UTF-16 code-unit count with a byte unit — WARNING
+### WR-01: the "exactly ONE ticket-frontmatter reader" census is defeated by an ordinary spelling of the reader it just deleted — WARNING
 
-**File:** `scripts/board-dashboard.ts:352-356`
+**File:** `scripts/validate.test.ts:1500` (`anchoredFor`, arm A), `:1546` (`takesText`, arm B),
+pinned at `:1590`, `:1612-1628`
 
-**Issue:** `humanBytes(bounds.longestLine)` formats `longestLine` — documented at
-`board-model.ts:57-58` and in the contract's Bounds table as **UTF-16 code units** — with the byte
-formatter. Observed:
+**Issue:** Arm A fires only on a **regular-expression literal** (`ts.isRegularExpressionLiteral`);
+arm B fires only on a function whose parameter carries a literal `string` **type annotation**
+(`pm.type?.kind === ts.SyntaxKind.StringKeyword`) and whose *body text* names both key spellings.
+Hoist the patterns to module scope as `new RegExp(...)` and both arms go silent.
+
+Measured — the deleted reader, rewritten with no change in behaviour, run through the census's own
+`findTicketReaders`:
 
 ```
-$ node scripts/board-dashboard.js t1 --once | head -1
-… LARGE BOARD (68 KB, longest line 68 KB)
+E1  const COLUMN_RE = new RegExp("^column:\\s*(.+)$", "m");
+    const STATUS_RE = new RegExp("^status:\\s*(.+)$", "m");
+    export function ticketFields(text: string) { … COLUMN_RE.exec(text) … }
+    => carriers: 0  []
+
+E2  export function frontMatter2(text: string | undefined) { … /^column[:]\s*(.+)$/m … }
+    => carriers: 0  []
+
+E3  a split("\n") + indexOf(":") scan with the key names assembled by concatenation
+    => carriers: 0  []
 ```
 
-for a line of 70,012 code units. The contract explicitly says "A byte count and a code-unit count
-disagree on any board carrying characters outside Latin-1, so each number states its own unit" — the
-header states the wrong one.
+E1 is the finding: a semantically identical second authority, in `scripts/`, with
+`TICKET_FRONTMATTER_READER_COUNT` still reporting 1 and the block's message still asserting
+"a ticket's `column:` and `status:` are read by ONE authority". The census's discrimination case
+(`:1634-1659`) plants the deleted reader **verbatim**, which proves the derivation catches *that
+byte sequence* and not *that capability* — the distinction P29/P31 cost this repository ten rounds.
 
-**Fix:** `parts.push(\`…longest line ${bounds.longestLine.toLocaleString("en-US")} chars\`)`, or add a
-`humanUnits(n, "chars")` helper beside `humanBytes`.
+**Fix:** Ask the question over the capability rather than over the spelling. The cheapest structural
+move is to make the census's subject the **key strings** rather than the pattern syntax: any file
+other than `board-model.ts` that contains a string or template literal equal to `"column"` or
+`"status"` *and* reaches a text-scanning primitive (`.match`, `.exec`, `new RegExp`, `.split`,
+`.indexOf`) is a carrier; exempt by named, reasoned entry (as `STEM_FALSE_POSITIVES` does next
+door) rather than by falling outside a syntactic shape. Add E1 above as a discrimination row and
+watch the census go red on it before trusting the count of one.
 
 ---
 
-### WR-02: Watch errors accumulate without bound and are never cleared after a successful re-arm — WARNING
+### WR-02: the read-only guard is an allow-list for namespaces and a deny-list for modules — three non-`node:fs` routes that write files are fully green — WARNING
 
-**File:** `scripts/board-dashboard.ts:637-648` (`noteWatchError`), `:671-695` (`arm`), `:715-720` (`emit`), `:768-774` (`start`)
+**File:** `scripts/board-readonly.test.ts:783` (`BANNED_MODULES`), `:809`
+(`ADDITIONAL_BANNED_MODULES`), `:823` (`bannedModulesReached`), `:834-846` (the only assertion over
+`bareSpecifiers`, which is `length > 0` plus `toContain("node:url")`)
 
-**Issue:** `errors` is append-only. `emit` prints **every** accumulated entry on **every** frame, and
-`start`'s poll tick calls `armAll()` unconditionally, so a directory whose `watch()` throws
-persistently (inotify watch limit → `ENOSPC`, `EMFILE`) pushes one entry per poll tick forever. At
-the 10 s floor that is 8,640 entries a day, and frame *N* prints *N* stderr lines. `board-watch.test.ts:369-397`
-proves the re-arm happens but never asserts the list is pruned, so after a successful re-arm the
-frame keeps reporting "the watch on plans failed … will be re-armed on the next poll tick" — a
-statement that is no longer true, in the `readErrors` list a `--json` consumer reads as current.
+**Issue:** Plan 32-11 converted the namespace rule to a canonical form with the reason written out —
+"the rule is stated as the canonical form and the complement is refused, because widening a matcher
+once per counter-example is the failure this repository has paid for twice". The module ban beside it
+was left as a fifteen-name **deny-list**, and `bareSpecifiers` is never pinned two-sided. So a
+closure module may import any builtin outside those fifteen with nothing noticing.
 
-**Fix:** Key the watch errors by directory rather than appending, and drop the entry when the
-directory re-arms:
+Measured, by replicating this file's own predicates (`isFsSpecifier`, `matchesWriteClassStem`,
+`bannedModulesReached`) over synthetic plants:
+
+```
+import { writeHeapSnapshot } from "node:v8";  export const dump = (p) => writeHeapSnapshot(p);
+  opaqueFsAcquisitions: []   mutating fs symbols: []   banned modules: []   => GREEN
+
+export const dump2 = (p) => process.report.writeReport(p);      # no import at all
+  opaqueFsAcquisitions: []   mutating fs symbols: []   banned modules: []   => GREEN
+
+import { DatabaseSync } from "node:sqlite"; export const db = (p) => new DatabaseSync(p);
+  opaqueFsAcquisitions: []   mutating fs symbols: []   banned modules: []   => GREEN
+```
+
+All three create and write a file on disk. `agent-factory/contracts/board.md:367` states of this
+projector "it opens no port, it serves no page, and **it writes no file**", and
+`board-dashboard.ts:34` states "The dashboard's whole point is that it cannot write". The mechanism
+decides a strictly narrower question than either sentence — the same gap CR-01 was raised about, one
+module-identity over.
+
+**Fix:** Invert the module rule to match the namespace rule's posture. Pin `bareSpecifiers`
+two-sided as an ALLOW-list of the builtins the dashboard closure may reach (today: `node:fs`,
+`node:path`, `node:url`, and whatever `kit-model`/`is-entry` add), with the same
+decision-shaped failure message the other counts carry. That refuses `node:v8`, `node:sqlite`,
+`node:vm` and every future builtin by construction, and it replaces two hand-maintained deny-lists
+with one derived-from-the-tree allow-list. Keep `BANNED_MODULES` as documentation of D-21 if you
+like, but it should stop being the deciding predicate.
+
+---
+
+### WR-03: `parseTicketDocument` refuses a BOM'd ticket with an unactionable message, contradicting the `ignoreBOM` decision taken in the same phase — WARNING
+
+**File:** `scripts/board-model.ts:906-914`; the sibling decision at `scripts/board-read.ts:263-270`
+
+**Issue:** `readVerifyReread` deliberately passes `ignoreBOM: true` — "load-bearing … without it
+this change would silently alter the first line of any board a Windows editor saved". The BOM is
+therefore preserved all the way into `parseTicketDocument`, which compares `lines[0] !== "---"` and
+refuses. `parseTicketDocument` normalizes CRLF for the stated reason that "a Windows checkout is not
+refused for a reason that has nothing to do with the grammar" (`parseBoard`'s docblock, adopted
+here) — and then refuses a Windows checkout for exactly that reason.
+
+Measured:
+
+```
+a UTF-8 BOM before the opening delimiter (a Windows editor save)
+  -> REFUSED no-opening-delimiter: a ticket document opens with a `---` line and this one opens
+     with `<U+FEFF>---` — the BOM renders as nothing, so the quoted line looks exactly like `---`
+```
+
+The quoted line renders as `---` in every terminal and every diff, so the finding tells the author
+their document opens with `---` and that this is wrong. Since plan 32-12 routed `checkTickets`
+through this function, this is now a **hard `err()`** in the structure validator (`exit != 0`), and
+it also feeds CR-01's fabricated `row-without-file`.
+
+**Fix:** Strip a single leading U+FEFF in `parseTicketDocument` alongside the CRLF normalization —
+it is the same class of encoding artefact and the same argument applies:
+
+```ts
+const normalized = text.replace(/^\uFEFF/, "").split("\r\n").join("\n");
+```
+
+If the BOM is instead meant to be refused as a decision, record it in
+`agent-factory/contracts/board.md` § Ticket documents and make the message say so by name
+(`code: "byte-order-mark"`), because the current message is not one an author can act on.
+
+---
+
+### WR-04: a TAB in a ticket's frontmatter is refused with a reason that is false about tabs, and the code comment attributes the refusal to the wrong rule — WARNING
+
+**File:** `scripts/board-model.ts:889-890` (the comment and `TICKET_CONTROL`), refusal at `:935-941`
+
+**Issue:** `TICKET_CONTROL` is `/[\x00-\x09\x0b-\x1f\x7f]/`, whose range **includes `\x09`**, and the
+control check runs at `:935` **before** `TICKET_KEY_LINE` is applied at `:942`. So a tab anywhere in
+the region is refused as `control-character`, with the reason:
+
+> "line 3 carries a control character, which no terminal renders and no human wrote deliberately"
+
+Both clauses are false of a tab. Measured on two ordinary shapes:
+
+```
+a TAB after the colon        -> REFUSED control-character: line 3 carries a control character, …
+a TAB indenting a value line -> REFUSED control-character: line 4 carries a control character, …
+```
+
+The comment at `:889` — "A tab is caught by the key pattern rather than trimmed" — describes a
+program this file does not contain; the key pattern never sees the line.
+
+Because `checkTickets` now hard-errs on a refusal and CR-01 turns a refusal into a false
+filesystem claim, a stray tab is an unusually expensive artefact for an inaccurate sentence.
+
+**Fix:** Take the tab out of the control class and let the key pattern refuse it as
+`unrecognized-line` (which is what the comment already claims happens), or keep it in and state the
+real reason: a tab's width is renderer-dependent, so an indentation-significant document with tabs
+in it is ambiguous. Either way, correct `:889` so the comment names the rule that fires.
+
+---
+
+### WR-05: the header renders a UTF-16 code-unit count with the byte formatter — WARNING *(prior WR-01, still open)*
+
+**File:** `scripts/board-dashboard.ts:413`
+
+**Issue:** `humanBytes(bounds.longestLine)` is unchanged. `longestLine` is documented as UTF-16 code
+units at `board-model.ts:57-58` and in the contract's Bounds table, and
+`agent-factory/contracts/board.md:334` states "A byte count and a code-unit count disagree on any
+board carrying characters outside Latin-1, so each number states its own unit". The header states
+the wrong one.
+
+**Fix:** `parts.push(\`longest line ${bounds.longestLine.toLocaleString("en-US")} chars\`)`.
+
+---
+
+### WR-06: watch errors accumulate without bound and are never cleared after a successful re-arm — WARNING *(prior WR-02, still open)*
+
+**File:** `scripts/board-dashboard.ts:708-717` (`noteWatchError`), `:750` (`arm`'s success path),
+`:786-794` (`emit`), `:841-848` (`start`)
+
+**Issue:** `errors` is still append-only; `arm()` on success does `watchers.set(rel, handle)` with no
+corresponding delete, and `start`'s tick calls `armAll()` unconditionally. A directory whose
+`watch()` throws persistently (`ENOSPC` on an inotify limit, `EMFILE`) pushes one entry per poll
+tick forever — 8,640 a day at the floor — and `emit` prints every accumulated entry on every frame
+and embeds them in the `--json` document as current `readErrors`. After a successful re-arm the
+frame keeps reporting "will be re-armed on the next poll tick", which is no longer true.
+
+**Fix:** Key by directory and clear on re-arm:
 
 ```ts
 const watchErrors = new Map<string, ReadError>();
@@ -506,262 +412,171 @@ function noteWatchError(rel, source, e) { watchErrors.set(rel, { … }); }
 // in arm(), on success:
 watchers.set(rel, handle);
 watchErrors.delete(rel);
-// watchErrors: () => [...watchErrors.values()]
 ```
 
 ---
 
-### WR-03: `WATCH_DIRS` is a third hand-typed spelling of the on-disk layout, derived from nothing — WARNING
+### WR-07: `WATCH_DIRS` is a third hand-typed spelling of the on-disk layout — WARNING *(prior WR-03, still open)*
 
-**File:** `scripts/board-dashboard.ts:524-533`; compare `scripts/board-read.ts:359-366` (`FIXED_SUBPATHS`) and `:719` (`QUEUE_STAGES`)
+**File:** `scripts/board-dashboard.ts:594-601`; compare `scripts/board-read.ts:498-505`
+(`FIXED_SUBPATHS`) and `:1246` (`QUEUE_STAGES`)
 
-**Issue:** The six watched directories are typed out by hand, and `scripts/board-watch.test.ts:195-207`
-asserts them against a second hand-typed list. Nothing connects them to `FIXED_SUBPATHS` or to
-`QUEUE_STAGES`, which already state the same layout. If `FIXED_SUBPATHS.tickets` or a queue stage
-name ever moves, the dashboard silently stops watching that directory: the mandatory poll hides the
-regression completely, and every gate over it stays green. That is verbatim the set-literal drift
-class the phase's own docblocks cite ("seven granted names, zero adapter files").
+**Issue:** Unchanged. Six directories typed out by hand, asserted in `board-watch.test.ts` against a
+second hand-typed list, connected to `FIXED_SUBPATHS`/`QUEUE_STAGES` by nothing. If
+`FIXED_SUBPATHS.tickets` or a stage name moves, the dashboard silently stops watching — and the
+mandatory poll hides the regression completely, so every gate over it stays green. That is the
+set-literal drift class the file's own docblocks cite, in a phase whose other three censuses were
+converted away from it.
 
-**Fix:** Derive, then assert the relationship rather than the members:
-
-```ts
-import { FIXED_SUBPATHS, QUEUE_STAGES } from "./board-read.js";
-const WATCH_DIRS = [
-  { rel: dirname(FIXED_SUBPATHS.board), source: "board" },       // "plans" — also covers traceability
-  { rel: FIXED_SUBPATHS.tickets,        source: "tickets" },
-  ...QUEUE_STAGES.map((s) => ({ rel: `${FIXED_SUBPATHS.queue}/${s}`, source: "queue" as const })),
-  { rel: FIXED_SUBPATHS.context,        source: "context" },
-] as const;
-```
-
-and in the test, assert that every `SOURCE_NAMES` member except `config` has a watched ancestor,
-with the `config` exemption named in the message.
+**Fix:** Derive from the two existing authorities and assert the *relationship* (every `SOURCE_NAMES`
+member except `config` has a watched ancestor) rather than the members. Sketch in the prior review
+still applies.
 
 ---
 
-### WR-04: Two ticket files claiming one `id` are silently dropped, and produce duplicate conflicts — WARNING
+### WR-08: two ticket files claiming one `id` — one silently dropped, the other double-reported — WARNING *(prior WR-04, still open)*
 
-**File:** `scripts/board-model.ts:1100-1101`, `:1123-1147`
+**File:** `scripts/board-model.ts:1142`, and the raw-`tickets` iterations at `:1164` and `:1184`
 
 **Issue:** `for (const t of tickets) if (!ticketById.has(t.id)) ticketById.set(t.id, t);` — the second
-file with the same `id` is discarded with no record anywhere. There is no conflict kind for "two
-ticket files carry one identifier", and `CONFLICT_KINDS` is closed at seven. Meanwhile the
-`board-vs-ticket` status arm and the `ticket-unplaced` arm iterate the **raw** `tickets` list, so the
-same duplicate produces two identical conflict entries that survive the sort (the tiebreak chain
-ends on `expected`, which is equal). The contract's opening promise is "The projector reports every
-conflict and resolves none" — this silently resolves one, and double-reports another.
+file is discarded with no record anywhere and no conflict kind for it, while the `board-vs-ticket`
+status arm and `ticket-unplaced` still iterate the **raw** list, so the same duplicate produces two
+identical conflict entries that survive the total order (the tiebreak chain ends on `expected`,
+which is equal). `agent-factory/contracts/board.md:221` promises "The projector reports every
+conflict and resolves none"; this silently resolves one and double-reports another.
 
-**Fix:** At minimum, raise a `readErrors` entry from `readTicketsSource` when two admitted documents
-carry the same `id`, naming both file names. Better: add an eighth kind `ticket-id-duplicated`
-(contract first, then `CONFLICT_KINDS`, then `SCHEMA_VERSION`, then the golden, in one commit as
-D-10/D-19 require), and dedupe the two arms by iterating `ticketById.values()`.
+**Fix:** At minimum, raise a `readErrors` entry from `readTicketsSource` naming both file names.
+Better: an eighth kind `ticket-id-duplicated` (contract, then `CONFLICT_KINDS`, then
+`SCHEMA_VERSION`, then the golden, in one commit as D-10/D-19 require) and dedupe the two arms by
+iterating `ticketById.values()`.
 
 ---
 
-### WR-05: The walk bound truncates in filesystem order, contradicting the determinism comment — WARNING
+### WR-09: the walk bound truncates in filesystem order, contradicting the determinism comment — WARNING *(prior WR-05, still open)*
 
-**File:** `scripts/board-read.ts:492-496`, consumed at `:677` and `:849`
+**File:** `scripts/board-read.ts:820-823`, consumed at `:1121` and `:1367`
 
-**Issue:** `listDirectoryBounded` slices to `MAX_WALK_ENTRIES` over the **raw `readdirSync` order**,
-and the callers sort afterwards. The comment at `:675-676` claims "Sorted, so two runs over the same
-directory produce the same order whatever the filesystem's listing order happens to be" — true of
-the order, false of the *membership*. Once the bound bites, **which** 10,000 tickets survive is a
-function of the filesystem's listing order, so two machines reading one tree report different
-ticket sets, different `ticket-unplaced` conflicts, and (if the golden were ever generated from such
-a tree) a golden that fails on somebody else's machine — the exact failure mode `joinSnapshot`'s
-total-order docblock says the sort exists to prevent.
+**Issue:** `listDirectoryBounded` still slices `entries.filter(…)` — the **raw `readdirSync` order** —
+and the callers sort afterwards. The comment at `:1119-1120` ("Sorted, so two runs over the same
+directory produce the same order whatever the filesystem's listing order happens to be") is true of
+the order and false of the *membership*: once the bound bites, **which** 10,000 entries survive is a
+function of the filesystem, so two machines reading one tree report different ticket sets and
+different `ticket-unplaced` conflicts. That is the failure mode `joinSnapshot`'s total-order
+docblock says the sort exists to prevent.
 
 **Fix:** Sort before slicing, inside the listing:
 
 ```ts
 const names = entries.filter((n) => !n.includes(".tmp-")).sort();
-if (names.length > MAX_WALK_ENTRIES) return { present: true, names: names.slice(0, MAX_WALK_ENTRIES), bounded: true };
-```
-
----
-
-### WR-06: `--json --watch` emits many documents while three docblocks promise exactly one — WARNING
-
-**File:** `scripts/board-dashboard.ts:11-13`, `:100` (USAGE), `:721-729` (`emit`), `:855` (`loopRequested`)
-
-**Issue:** The file header says "With `--json` it carries exactly one JSON document and nothing
-else"; `USAGE` says "`--json` print exactly one JSON document on stdout and nothing else"; `emit`
-says "ONE COMPLETE DOCUMENT PER LINE". With `--watch --json` the third is what happens and the first
-two are false. A consumer that reads the help text and then does `json.loads(subprocess.check_output(...))`
-gets a parse error on the second frame.
-
-**Fix:** Change the two "exactly one" sentences to state the real contract — one document per line,
-one line per frame, and exactly one frame unless `--watch` is given — and add
-`--json` to the `argument-hint`/help text describing the streaming form (JSON Lines).
-
-Also note `--help` is checked before `--json` at `:126`, so `--json --help` prints plain text on
-stdout; if the "stdout has one meaning at a time" rule is meant literally, `--help` should refuse
-when combined with `--json`, or emit the usage as a JSON document.
-
----
-
-### WR-07: The contract and the code disagree about when `ticket-duplicated` fires — WARNING
-
-**File:** `agent-factory/contracts/board.md:225` vs `scripts/board-model.ts:1150-1164`
-
-**Issue:** The contract's conflict table says `ticket-duplicated` is raised when "One identifier
-carries rows **under two or more headings**". The code deliberately raises it for two rows under the
-*same* heading (`if (list.length < 2) continue`, with a comment explaining why). The code's behaviour
-is the better one — but the contract is declared the authority ("A newly admitted shape is recorded
-here first and implemented afterwards"), and a reader who trusts the table will conclude the
-adjacent-copy-paste case is unreported.
-
-**Fix:** Amend the contract row to "One identifier carries two or more rows, whether or not they sit
-under the same heading. Two rows under one heading are two rows." Same sentence as the code comment,
-one register up.
-
----
-
-### WR-08: An `emit()` throw escapes the timer callback and crashes a live dashboard — WARNING
-
-**File:** `scripts/board-dashboard.ts:746-766` (`refresh`), `:768-774` (`start`)
-
-**Issue:** `refresh`'s inner `try` wraps `deps.read` only. `emit(result)` is outside it, so an
-`EPIPE` from `io.stdout.write` — the ordinary outcome of `node scripts/board-dashboard.js --watch | head`
-— propagates out of the `setInterval` callback as an uncaught exception and terminates the process
-with a raw stack on stderr, which is precisely what T-32-08 says must never be the last thing a
-piped consumer reads.
-
-**Fix:** Extend the inner `try` to cover the emit, and treat a write failure as a reason to stop the
-loop cleanly:
-
-```ts
-try {
-  result = deps.read(options.repoRoot, previous);
-  previous = result;
-  emit(result);
-} catch (e) {
-  io.stderr.write(`board-dashboard: ${oneLine(e)}\n`);
-  return;
+if (names.length > MAX_WALK_ENTRIES) {
+  return { kind: "listed", names: names.slice(0, MAX_WALK_ENTRIES), bounded: true };
 }
 ```
 
 ---
 
-### WR-09: Ticket frontmatter values are unbounded and flow straight into the published `--json` — WARNING
+### WR-10: the read-target routing census only collects `FunctionDeclaration` nodes and bare-identifier callees — WARNING
 
-**File:** `scripts/board-model.ts:957-963`, `scripts/board-read.ts:692-700`
+**File:** `scripts/board-read.test.ts:1939-1949` (`collectFunctions`), `:1952-1953` (`calleeName`),
+pinned by `PATH_AUTHORITIES` at `:2078-2088`
 
-**Issue:** `board.md` § Bounds caps three opaque strings at `MAX_META_CHARS` because "one
-pathological row cannot dominate a JSON document". The identical argument applies to
-`TicketRecord.title`, `.id`, `.column` and `.status`, which are copied verbatim from the frontmatter
-with no cap and no `truncated` flag, into the same published document. A single 10 MB `title:` line
-in one ticket makes the `--json` document 10 MB and the `board-vs-ticket` conflict's `expected`
-field 10 MB.
+**Issue:** The census claims to derive "where every read target in it comes from", and it is a good
+derivation — but its universe is `functions`, populated **only** from
+`ts.isFunctionDeclaration(node)`. A module-level arrow or function expression
+(`export const readRaw = (p: string) => readFileSync(join(root, p))`) is never entered into
+`functions`, so its call sites are never inspected and never appear in `unvouched`. Likewise
+`calleeName` returns `""` for anything that is not a bare identifier, so a namespace-import refactor
+(`fs.readFileSync(p)`) makes every read primitive in the module invisible at once. `inspected` would
+still be printed as a healthy 17, so the premise assertion ("the census measured something") passes
+while the specific new site is unmeasured.
 
-**Fix:** Apply `truncateAt(value, MAX_META_CHARS)` to each admitted ticket value in
-`parseTicketDocument`'s final `Object.fromEntries`, and carry the same `truncated` boolean on
-`TicketRecord` that `BoardRow` already carries. This changes the published shape, so it bumps
-`SCHEMA_VERSION` and regenerates the golden in the same commit (D-19).
+No live bypass exists today — `board-read.ts` declares every reader as a `function` and imports the
+primitives by name — so this is a derivation-scope finding read from the code rather than a measured
+escape. It is the same class as WR-01 and WR-02: a derived predicate with a narrow syntactic input.
+
+**Fix:** Widen `collectFunctions` to `ts.isFunctionLike(node)` (naming arrows/expressions by their
+variable-declaration owner, exactly as `enclosingFunctionName` in `board-dashboard.test.ts:1108-1124`
+already does), and make `calleeName` resolve a property-access callee to its rightmost name so
+`fs.readFileSync` is inspected rather than skipped. Add a discrimination plant with a module-level
+arrow that reads `join(root, name)` and watch `unvouched` grow.
 
 ---
 
-### WR-10: `readQueueSource` silently accepts a claim with no `at:` and trusts a `by:` from the prose body — WARNING
+### WR-11: the builder-spec ticket template agents read shows no `---` region, and the contract records the `## Blocked (2)` disagreement but not this one — WARNING
 
-**File:** `scripts/board-read.ts:794-797`
+**File:** `agent-factory/contracts/board.md:89-120` and `:364-380`; the template at
+`docs/initial/agent_factory_builder_spec_v2.md:623-633`
 
-**Issue:** Two paraphrases of `scripts/claim.ts`'s reader rules that the docblock at `:730-742`
-promises were "carried exactly":
+**Issue:** The contract does exactly the right thing for the heading grammar: it names
+`## Blocked (2)` as **documented non-grammar**, explains that the pre-Phase-32 builder specification
+shows that shape "so it appears in real trees", and says what the projector does about it. It does
+not do the same for the ticket grammar, and the same hazard is present: the builder spec's ticket
+example is a `text` fence containing six bare key lines with **no `---` delimiters**, introduced as
+"carries a status line in its front matter". An agent following it produces a document that
+`parseTicketDocument` refuses `no-opening-delimiter` — which is now a hard `err()` in the validator
+and (via CR-01) a false `row-without-file`.
 
-* `if (at === null) continue;` — a claim record with no `at:` at all is skipped **with no
-  `readErrors` entry**, while the very next thing this module does for a *tampered* record is name
-  it. The docblock's stated addition over `claim.ts` is "it REPORTS the skip"; this arm does not.
-* `BY_VALUE = /^by:\s*(.+)$/m` matches anywhere in the file, including the prose beneath the
-  frontmatter. A claim whose body contains a line beginning `by:` has that value rendered as the
-  claim's owner. The `at:` reader has a tamper count guarding it; the `by:` reader has nothing.
+The contract acknowledges the behaviour change abstractly at `:117-120` ("a ticket carrying no
+frontmatter region — which an earlier validator read anyway — is now an error"). It does not connect
+it to the document agents actually read, which is what the `## Blocked (2)` paragraph exists to do
+for the other grammar.
 
-**Fix:** Report the missing-`at` skip in `readErrors` with a named code, and bound both value reads
-to the frontmatter region (the region between the first two `---` lines), or count `^by:` lines the
-same way `^at:` lines are counted and refuse more than one.
+**Fix:** Add a paragraph to § Ticket documents in the same register as the `## Blocked (2)` one:
+name the builder spec's delimiter-less template as documented non-grammar, say that a document in
+that shape is refused by name, and either correct the spec example to carry `---` lines or add a
+pointer beside it. This is a documentation fix with a behavioural consequence, which is why it is a
+warning rather than an info.
+
+---
 
 ## Info
 
-### IN-01: The `TICKET_CONTROL` comment contradicts the pattern
+### IN-01: the watch arm joins the raw argv root, bypassing the containment authority every read goes through
 
-**File:** `scripts/board-model.ts:881-882`
-**Issue:** The comment says "A tab is caught by the key pattern rather than trimmed", but `\x09` is
-inside the class `[\x00-\x09\x0b-\x1f\x7f]`, so a tab is refused as `control-character` and never
-reaches the key pattern.
-**Fix:** Say what the code does: "A tab is a control character here and is refused by name."
+**File:** `scripts/board-dashboard.ts:732`
 
----
+**Issue:** `const dir = join(options.repoRoot, rel);` uses the **unresolved** argv value, while
+`readSnapshot` resolves through `resolveRepoRoot` and every target through `insideRoot`. A
+symlinked `plans/` therefore has a `watch()` handle armed on it even though every *read* of it is
+refused. No content crosses the boundary (a watcher yields event names only), so this is an
+inconsistency rather than a leak — but `agent-factory/contracts/board.md:304-309` states the rule as
+"Every path the projector **reads**", and a reader comparing the two modules will not find the
+exemption written down.
 
-### IN-02: `board-model.ts` uses the `Buffer` global, which the purity guard cannot see
+**Fix:** Thread the resolved root back out of `readSnapshot` (it is already on
+`result.snapshot.repoRoot`) and arm watches against that, or record the exemption in the
+`WATCH_DIRS` docblock.
 
-**File:** `scripts/board-model.ts:750`
-**Issue:** The module's purity claim is enforced over *import edges*, and `Buffer` is a global — so
-the one Node coupling in the "pure" module is invisible to `board-readonly.test.ts`. It also means
-the module is not consumable by the "future web renderer" the `SCHEMA_VERSION` docblock names.
-**Fix:** `new TextEncoder().encode(text).length` is dependency-free, standard, and browser-safe.
+### IN-02: the queue reader skips silently at two sites while its docblock says it reports every skip
 
----
+**File:** `scripts/board-read.ts:1281` (`if (!existsSync(claimMd)) continue;`), `:1307`
+(`if (at === null) continue;`); claim at `:1272-1274`
 
-### IN-03: Ten RED/GREEN evidence files landed at the repository root
+**Issue:** "WHAT THIS READER ADDS: it REPORTS the skip. `claim.ts` skips silently because its output
+is a derived artifact; this module's output is a screen a human is watching for exactly this kind of
+problem." Two of the reader's skips are silent: a claimed task directory with no `claim.md`, and a
+claim record carrying no `at:` line. The second is the more interesting one — a record that exists
+and has no timestamp is the same class of malformed record the `at:`-count check reports as
+`tampered`, and it vanishes instead.
 
-**File:** `32-03-RED-baseline.txt` … `32-08-GREEN-proof.txt`
-**Issue:** The repository root now carries twelve `*-proof/baseline.txt` files (two from phase 25,
-ten from this phase) alongside `README`, `AGENTS.md` and the manifests. Precedent exists, but the
-growth rate is one root file per plan.
-**Fix:** Move them under `.planning/phases/32-board-projector-cli-dashboard/evidence/` (or
-`docs/evidence/`) and leave the existing two where they are, or add a root `evidence/` directory.
+**Fix:** Report the `at`-less record with its own code (`no-at`), and either report or document the
+missing-`claim.md` case.
 
----
+### IN-03: `splitRow` keeps a trailing space in the title when the gap before the parenthetical is wider than two spaces
 
-### IN-04: The identifier bounds in code are absent from the contract
+**File:** `scripts/board-model.ts:429-452`
 
-**File:** `scripts/board-model.ts:127-128` vs `agent-factory/contracts/board.md:144-147`
-**Issue:** `TICKET_ID` caps the prefix at 16 characters and the number at 9 digits; `EPIC_ID` caps at
-9 digits. The contract's Identifiers section states no bound, and § Bounds calls itself the place
-where "each of the four numbers" lives. A 17-character prefix is refused by a number nobody recorded.
-**Fix:** Add a sentence to § Identifiers, or a row to § Bounds.
+**Issue:** `rest.indexOf(META_GAP)` finds the *last two* spaces of a run, so `title   (meta)` yields
+`title: "title "` with a trailing space. Cosmetic in the frame (padded anyway) but it lands verbatim
+in the published `--json` document, so two boards differing only in whitespace produce different
+`schemaVersion: 1` payloads.
 
----
-
-### IN-05: `_Updated:` accepts an impossible calendar date
-
-**File:** `scripts/board-model.ts:134`
-**Issue:** `(\d{4}-\d{2}-\d{2})` admits `2026-13-45` as a valid update entry. The contract writes the
-shape as `<YYYY-MM-DD>`, which a reader takes to mean a date.
-**Fix:** Either validate the ranges in the pattern (`\d{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12]\d|3[01])`)
-or state in the contract that the shape is checked and the calendar is not.
+**Fix:** `title: rest.slice(0, at).trimEnd()`, with the golden regenerated in the same commit.
 
 ---
 
-### IN-06: The exit-code contract names two cases and the code has three
-
-**File:** `scripts/board-dashboard.ts:19`, `:885-892`
-**Issue:** "Exit 2 is reserved for exactly two things: a usage error and an unreadable `repoRoot`."
-`main`'s catch also returns `EXIT_USAGE` for any unexpected throw, which is a third.
-**Fix:** Name the third in the header ("…and an unexpected internal failure, flattened to one line").
-
----
-
-### IN-07: `normalizeWidth` silently promotes a narrow terminal to 80 columns
-
-**File:** `scripts/board-dashboard.ts:249-253`
-**Issue:** A caller reporting 5 columns gets an 80-column frame — wider than the terminal, wrapping
-every line. The `>= 8` floor is undocumented and unexplained; every other bound in this phase is
-either a named decision or a refusal.
-**Fix:** Add the sentence, or clamp to 8 rather than jumping to 80.
-
----
-
-### IN-08: A ticket file named exactly `.md` yields an empty identifier
-
-**File:** `scripts/board-read.ts:696`
-**Issue:** `name.slice(0, -".md".length)` on `.md` gives `""`, which becomes a `TicketRecord.id` of
-`""` and a `ticket-unplaced` conflict whose `ticketId` is empty and whose `actual` reads "no row
-names ". `isSafeTaskName` is applied to queue and context entries but not to ticket file names.
-**Fix:** Skip a name whose stem is empty, or apply the same allowlist the other two directory
-readers use.
-
----
-
-_Reviewed: 2026-09-14T14:10:16Z_
+_Reviewed: 2026-09-15T00:28:14Z_
 _Reviewer: Claude (gsd-code-reviewer)_
 _Depth: standard_
+_Build parity: verified byte-identical (`tsc --outDir <tmp>` + `cmp`) for all four `.js` in scope_
+_Suite: 74 files, 4811 passed, 2 skipped (`npx vitest run --exclude '**/scripts/e2e/**'`) — green throughout every finding above_
