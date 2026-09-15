@@ -1086,26 +1086,40 @@ function plantFirstLine(dir: string, id: string, firstLine: string): void {
   );
 }
 
-// ── The AST census: exactly one stderr write expression, and it is inside `warn` ──────────────────
+// ── The AST census: one derivation, both channels, every reference classified ─────────────────────
 
-/** One collected stderr write expression, with the two facts the pin is about. */
-type StderrWriteSite = {
+/** The two channels this module writes to. The census takes one as a parameter, never a copy. */
+type ChannelName = "stdout" | "stderr";
+
+/** One collected write expression, with the two facts a pin is about. */
+type ChannelWriteSite = {
   readonly line: number;
   readonly enclosingFunction: string;
   readonly text: string;
 };
 
-type StderrCensus = {
-  readonly sites: readonly StderrWriteSite[];
+type ChannelCensus = {
+  /** The `.write(...)` calls on the channel — the sites a pin counts and names. */
+  readonly sites: readonly ChannelWriteSite[];
   /**
-   * Every acquisition of a stderr write capability this SYNTACTIC pass cannot name a call site for:
-   * `const { write } = io.stderr`, `const w = process.stderr.write`, or a computed member access on
-   * a stderr channel. Each is a route to the channel that the site collector would never see, so
-   * each is collected and asserted absent rather than silently producing a short site list. This is
-   * the CR-01 shape one register over — a namespace destructure that contributed nothing to the set
-   * a guard pinned, and left that guard green over a module that wrote and deleted files.
+   * Every use of the channel this SYNTACTIC pass cannot name a write call for: `const { write } =
+   * io.stdout`, `const w = process.stderr.write`, a computed member on the channel, another method
+   * called on it, or a reflective invocation. Each is a route to the channel that the site
+   * collector would never see, so each is collected and asserted absent rather than silently
+   * producing a short site list. This is the CR-01 shape one register over — a namespace
+   * destructure that contributed nothing to the set a guard pinned, and left that guard green over
+   * a module that wrote and deleted files.
    */
   readonly opaque: readonly string[];
+  /** Named non-`write` property reads on the channel: `process.stdout.isTTY`, `.columns`. */
+  readonly reads: readonly string[];
+  /**
+   * The channel VALUE flowing somewhere this pass does not follow — into an object literal, an
+   * argument, a return. `defaultIo`'s `stdout: process.stdout` is the one this module has.
+   */
+  readonly carried: readonly string[];
+  /** Every syntactic reference to the channel. The DENOMINATOR the four buckets must sum to. */
+  readonly references: number;
   /** Top-level statement count. Zero means the parse read nothing and every claim below is vacuous. */
   readonly statements: number;
   readonly parseErrors: readonly string[];
@@ -1135,40 +1149,78 @@ function enclosingFunctionName(node: ts.Node): string {
 }
 
 /**
- * Collect every expression in a module that writes to a stderr channel.
+ * Classify every use of one output channel in a module.
  *
- * BOTH SPELLINGS, AND THE BINDINGS THAT REACH THEM. `io.stderr.write(...)` and
- * `process.stderr.write(...)` are the two that exist today, and a collector that knew only one of
- * them would be a collector a future edit could walk around by choosing the other. They share one
- * shape — a `.write` call on a member access named `stderr` — so both are found by one rule rather
- * than by two hand-typed patterns. A LOCAL BINDING of the channel (`const err = io.stderr`,
- * `const { stderr } = io`) is tracked in a first pass and counted in the second, because a name is
- * how a write site stops looking like one.
+ * WHAT IT IS BOUNDED BY, STATED RATHER THAN LEFT TO BE DISCOVERED. The recurring finding across this
+ * phase is a predicate converted from a hand-typed list into a derivation whose INPUT was left in a
+ * narrow syntactic form. Each of the three sentences below is a boundary, and each has a
+ * discrimination plant in the cases beneath.
  *
- * The analyzer takes a PARSED SOURCE FILE rather than a path, so the discrimination probe below can
- * run it over a constructed module without touching the disk, and so it cannot be handed its own
- * file by accident.
+ *   • WHICH NODE KINDS IT VISITS. Every node in the tree, through `ts.forEachChild`. Two passes:
+ *     the first collects `VariableDeclaration`s that give the channel a NAME, the second classifies
+ *     every expression that evaluates to the channel. A name is how a write site stops looking like
+ *     one, so the binding pass has to run first.
+ *
+ *   • WHICH SPELLINGS IT RECOGNIZES AS THE CHANNEL. A `PropertyAccessExpression` named for the
+ *     channel (`io.stdout`, `process.stderr`), an `ElementAccessExpression` with a string-literal
+ *     key spelling it (`io["stdout"]`), and any identifier bound to one of those — directly
+ *     (`const out = io.stdout`) or through an object binding pattern (`const { stdout } = io`,
+ *     `const { stdout: out } = io`). A parenthesized, `as`-cast or non-null-asserted receiver is
+ *     UNWRAPPED before classification, so `(io.stdout).write(...)` is the same site as
+ *     `io.stdout.write(...)` rather than a free bypass.
+ *
+ *   • WHAT IT DOES WITH A CHANNEL IT CANNOT FOLLOW. It never stays silent. Every reference lands in
+ *     exactly one of four buckets — `sites`, `opaque`, `reads`, `carried` — and `references` counts
+ *     the references independently of the buckets, so the totality case can compare the two. A
+ *     detached `write` capability, a computed member, another method call on the channel and a
+ *     reflective `write.call` are all `opaque`, which a pin asserts empty. A shape nobody
+ *     anticipated lands in `carried` and is visible, rather than being absent from a short list.
+ *
+ * THE ANALYZER TAKES A PARSED SOURCE FILE rather than a path, so a discrimination probe can run it
+ * over a constructed module without touching the disk, and so it cannot be handed its own file by
+ * accident. The CHANNEL is a parameter rather than a second function: a second census over one
+ * property is the second-authority shape this phase has already paid for twice, and the two arms
+ * would then be free to drift apart in exactly the way CR-02 found.
  */
-function stderrWriteCensus(source: ts.SourceFile): StderrCensus {
+function channelWriteCensus(source: ts.SourceFile, channel: ChannelName): ChannelCensus {
   const parseErrors = (
     (source as unknown as { parseDiagnostics?: readonly ts.Diagnostic[] }).parseDiagnostics ?? []
   ).map((d) => ts.flattenDiagnosticMessageText(d.messageText, " "));
 
-  const stderrBindings = new Set<string>();
+  const bindings = new Set<string>();
   const opaque: string[] = [];
-  const sites: StderrWriteSite[] = [];
+  const reads: string[] = [];
+  const carried: string[] = [];
+  const sites: ChannelWriteSite[] = [];
+  let references = 0;
 
-  const namesStderrMember = (node: ts.Node): boolean => {
-    if (ts.isPropertyAccessExpression(node)) return node.name.text === "stderr";
-    if (ts.isElementAccessExpression(node)) {
-      const key = node.argumentExpression;
-      return ts.isStringLiteralLike(key) && key.text === "stderr";
+  /** Strip the wrappers that change nothing about which value the expression denotes. */
+  const unwrap = (node: ts.Node): ts.Node => {
+    let cur = node;
+    while (
+      ts.isParenthesizedExpression(cur) ||
+      ts.isAsExpression(cur) ||
+      ts.isNonNullExpression(cur)
+    ) {
+      cur = cur.expression;
+    }
+    return cur;
+  };
+
+  const namesChannelMember = (node: ts.Node): boolean => {
+    const inner = unwrap(node);
+    if (ts.isPropertyAccessExpression(inner)) return inner.name.text === channel;
+    if (ts.isElementAccessExpression(inner)) {
+      const key = inner.argumentExpression;
+      return ts.isStringLiteralLike(key) && key.text === channel;
     }
     return false;
   };
 
-  const isStderrChannel = (node: ts.Node): boolean =>
-    namesStderrMember(node) || (ts.isIdentifier(node) && stderrBindings.has(node.text));
+  const isChannel = (node: ts.Node): boolean => {
+    const inner = unwrap(node);
+    return namesChannelMember(inner) || (ts.isIdentifier(inner) && bindings.has(inner.text));
+  };
 
   const record = (node: ts.CallExpression): void => {
     sites.push({
@@ -1181,31 +1233,13 @@ function stderrWriteCensus(source: ts.SourceFile): StderrCensus {
   // PASS ONE — the bindings. A channel that has been given a name is still the channel.
   const collectBindings = (node: ts.Node): void => {
     if (ts.isVariableDeclaration(node) && node.initializer !== undefined) {
-      const init = node.initializer;
-      const initIsChannel =
-        namesStderrMember(init) || (ts.isIdentifier(init) && stderrBindings.has(init.text));
-      if (ts.isIdentifier(node.name)) {
-        if (initIsChannel) {
-          stderrBindings.add(node.name.text);
-        } else if (
-          ts.isPropertyAccessExpression(init) &&
-          init.name.text === "write" &&
-          namesStderrMember(init.expression)
-        ) {
-          // `const w = io.stderr.write` — the capability, detached from any call this pass can see.
-          opaque.push(node.getText());
-        }
-      } else if (ts.isObjectBindingPattern(node.name)) {
-        if (initIsChannel) {
-          // `const { write } = io.stderr` — the CR-01 shape: the write reached by a destructure.
-          opaque.push(node.getText());
-        }
+      const init = unwrap(node.initializer);
+      if (ts.isIdentifier(node.name) && isChannel(init)) bindings.add(node.name.text);
+      if (ts.isObjectBindingPattern(node.name)) {
         for (const element of node.name.elements) {
           const key = element.propertyName ?? element.name;
           const keyText = ts.isIdentifier(key) || ts.isStringLiteralLike(key) ? key.text : null;
-          if (keyText === "stderr" && ts.isIdentifier(element.name)) {
-            stderrBindings.add(element.name.text);
-          }
+          if (keyText === channel && ts.isIdentifier(element.name)) bindings.add(element.name.text);
         }
       }
     }
@@ -1213,27 +1247,101 @@ function stderrWriteCensus(source: ts.SourceFile): StderrCensus {
   };
   collectBindings(source);
 
-  // PASS TWO — the call sites.
-  const collectSites = (node: ts.Node): void => {
-    if (ts.isCallExpression(node)) {
-      const callee = node.expression;
-      if (ts.isPropertyAccessExpression(callee) && callee.name.text === "write") {
-        if (isStderrChannel(callee.expression)) record(node);
-      } else if (ts.isElementAccessExpression(callee) && isStderrChannel(callee.expression)) {
-        const key = callee.argumentExpression;
-        if (ts.isStringLiteralLike(key)) {
-          if (key.text === "write") record(node);
-        } else {
-          // A computed member on the channel: this pass cannot say which method it reaches.
-          opaque.push(node.getText());
-        }
+  /** Is `access` in callee position of a call — the thing being invoked rather than an argument? */
+  const calledAs = (access: ts.Node): ts.CallExpression | null => {
+    let cur: ts.Node = access;
+    while (cur.parent !== undefined && ts.isParenthesizedExpression(cur.parent)) cur = cur.parent;
+    const parent = cur.parent;
+    if (parent !== undefined && ts.isCallExpression(parent) && parent.expression === cur) {
+      return parent;
+    }
+    return null;
+  };
+
+  // PASS TWO — classify every reference. Four buckets, and `references` counted beside them.
+  const classify = (node: ts.Node): void => {
+    // A reference is an expression DENOTING the channel. The wrapper forms are unwrapped above, so
+    // they are not counted twice: only the innermost node is classified.
+    const isRef =
+      (ts.isPropertyAccessExpression(node) && node.name.text === channel) ||
+      (ts.isElementAccessExpression(node) &&
+        ts.isStringLiteralLike(node.argumentExpression) &&
+        node.argumentExpression.text === channel) ||
+      (ts.isIdentifier(node) && bindings.has(node.text) && !ts.isBindingElement(node.parent));
+
+    if (isRef) {
+      references += 1;
+
+      // The use is whatever encloses the reference once the transparent wrappers are peeled off.
+      let ref: ts.Node = node;
+      while (ref.parent !== undefined && ts.isParenthesizedExpression(ref.parent)) ref = ref.parent;
+      const parent = ref.parent;
+      const text = (parent ?? ref).getText().replace(/\s+/g, " ").slice(0, 120);
+
+      let member: string | null = null;
+      let computed = false;
+      let access: ts.Node | null = null;
+      if (parent !== undefined && ts.isPropertyAccessExpression(parent) && parent.expression === ref) {
+        member = parent.name.text;
+        access = parent;
+      } else if (
+        parent !== undefined &&
+        ts.isElementAccessExpression(parent) &&
+        parent.expression === ref
+      ) {
+        access = parent;
+        const key = parent.argumentExpression;
+        if (ts.isStringLiteralLike(key)) member = key.text;
+        else computed = true;
+      }
+
+      if (computed) {
+        // A computed member on the channel: this pass cannot say which method it reaches.
+        opaque.push(text);
+      } else if (member === "write" && access !== null) {
+        const call = calledAs(access);
+        // A `write` that is reached and not called is a capability detached from any call site.
+        if (call !== null) record(call);
+        else opaque.push(text);
+      } else if (member !== null && access !== null) {
+        // Another named member. Called, it is another way out of the process; read, it is inert.
+        if (calledAs(access) !== null) opaque.push(text);
+        else reads.push(text);
+      } else if (
+        parent !== undefined &&
+        ts.isVariableDeclaration(parent) &&
+        parent.initializer === ref &&
+        ts.isObjectBindingPattern(parent.name)
+      ) {
+        // `const { write } = io.stderr` — the CR-01 shape: capabilities taken off the channel by a
+        // destructure, each one detached from any call this pass can see.
+        opaque.push(text);
+      } else if (
+        parent !== undefined &&
+        (ts.isVariableDeclaration(parent) ||
+          ts.isPropertyAssignment(parent) ||
+          ts.isBindingElement(parent))
+      ) {
+        carried.push(text);
+      } else {
+        // Anything else: the channel flows into an argument, a return, a spread, a template. The
+        // pass does not follow it, and says so rather than dropping it.
+        carried.push(text);
       }
     }
-    ts.forEachChild(node, collectSites);
+    ts.forEachChild(node, classify);
   };
-  collectSites(source);
+  classify(source);
 
-  return { sites, opaque, statements: source.statements.length, parseErrors };
+  return {
+    sites,
+    opaque,
+    reads,
+    carried,
+    references,
+    statements: source.statements.length,
+    parseErrors,
+  };
 }
 
 const DASHBOARD_TS = join(ROOT, "scripts", "board-dashboard.ts");
@@ -1255,7 +1363,10 @@ const STDERR_CHOKEPOINT = "warn";
 
 describe("board-dashboard — the stderr write-site census is derived from the module (CR-05)", () => {
   it("PREMISE: the parse read the module and reported no syntactic error", () => {
-    const census = stderrWriteCensus(parseModule(DASHBOARD_TS, readFileSync(DASHBOARD_TS, "utf8")));
+    const census = channelWriteCensus(
+      parseModule(DASHBOARD_TS, readFileSync(DASHBOARD_TS, "utf8")),
+      "stderr",
+    );
     expect(census.parseErrors).toEqual([]);
     expect(
       census.statements,
@@ -1267,7 +1378,7 @@ describe("board-dashboard — the stderr write-site census is derived from the m
   it("PREMISE: the collector finds every spelling, and refuses the routes it cannot name", () => {
     // The discrimination. Without it, "exactly one site" is equally true of a collector that can
     // never say yes — and a census that cannot fail proves nothing about the file it walked.
-    const census = stderrWriteCensus(
+    const census = channelWriteCensus(
       parseModule(
         "probe.ts",
         [
@@ -1278,6 +1389,7 @@ describe("board-dashboard — the stderr write-site census is derived from the m
           "function e(io) { io.stdout.write('not stderr'); }",
         ].join("\n"),
       ),
+      "stderr",
     );
     expect(
       census.sites.map((s) => s.enclosingFunction),
@@ -1285,7 +1397,7 @@ describe("board-dashboard — the stderr write-site census is derived from the m
         "channel are all write sites; the stdout call is not",
     ).toEqual(["a", "b", "c", "d"]);
 
-    const opaqueProbe = stderrWriteCensus(
+    const opaqueProbe = channelWriteCensus(
       parseModule(
         "opaque.ts",
         [
@@ -1294,6 +1406,7 @@ describe("board-dashboard — the stderr write-site census is derived from the m
           "function h(io, k) { io.stderr[k]('z'); }",
         ].join("\n"),
       ),
+      "stderr",
     );
     expect(
       opaqueProbe.opaque.length,
@@ -1303,7 +1416,10 @@ describe("board-dashboard — the stderr write-site census is derived from the m
   });
 
   it("pins the stderr write-site count two-sided at one, inside `warn`", () => {
-    const census = stderrWriteCensus(parseModule(DASHBOARD_TS, readFileSync(DASHBOARD_TS, "utf8")));
+    const census = channelWriteCensus(
+      parseModule(DASHBOARD_TS, readFileSync(DASHBOARD_TS, "utf8")),
+      "stderr",
+    );
     // Printed on every run: the number this pin is about is visible without reading the assertion.
     console.log(
       `[32-13] stderr write sites in scripts/board-dashboard.ts: ${census.sites.length} — ` +
