@@ -2693,6 +2693,9 @@ const READ_PRIMITIVES = Object.freeze(["readVerifyReread", "statSync", "existsSy
 /** A call site the census could not vouch for: the finding, printed by name and line. */
 type UnvouchedSite = { readonly fn: string; readonly line: number; readonly text: string };
 
+/** A callee this pass could not reduce to a name — a route to a primitive it cannot check. */
+type UnresolvedCallee = { readonly fn: string; readonly line: number; readonly text: string };
+
 type RoutingCensus = {
   /** Every function that calls `realpathSync` or `insideRoot` — the module's path authorities. */
   readonly producers: readonly string[];
@@ -2702,6 +2705,10 @@ type RoutingCensus = {
   readonly unvouched: readonly UnvouchedSite[];
   /** Functions that take a path as a PARAMETER and hand it to a primitive — derived, not typed. */
   readonly pathHelpers: readonly string[];
+  /** Every function-like node the walk entered into its universe, named. THE DENOMINATOR. */
+  readonly universe: readonly string[];
+  /** Callees the pass could not name. COLLECTED, never skipped — a skip is how WR-10 existed. */
+  readonly unresolvedCallees: readonly UnresolvedCallee[];
 };
 
 /**
@@ -2717,60 +2724,148 @@ type RoutingCensus = {
  * read primitive is a function whose caller vouched for the path; it becomes a path helper, and its
  * own call sites are then held to the same rule. `readVerifyReread` and `gatherFile` fall out of
  * that fixpoint rather than being exempted by name.
+ *
+ * WHAT BOUNDS THIS CENSUS'S INPUT (plan 32-21, WR-10). The derivation was correct and its UNIVERSE
+ * was narrow: `functions` was populated only from `ts.isFunctionDeclaration`, so a module-level
+ * arrow was never entered into it, and `calleeName` returned `""` for anything that was not a bare
+ * identifier, so a namespace-style `fs.statSync(p)` was skipped. `inspected` printed a healthy 17
+ * either way — an unmeasured site and a clean site are the same number. Each sentence below is a
+ * boundary with a case of its own beneath.
+ *
+ *   UNIVERSE      every FUNCTION-LIKE node — declaration, function expression, arrow, method,
+ *                 accessor, constructor — plus a synthetic `<module top level>` member for the
+ *                 statements outside all of them. An arrow or function expression is named by its
+ *                 owning variable declaration or property assignment, exactly as
+ *                 `enclosingFunctionName` in `board-dashboard.test.ts` already does; anything
+ *                 nameless gets a STABLE marker (`<anonymous function>`) and its findings still
+ *                 carry a line, so a finding names a place without pinning a line number.
+ *   ATTRIBUTION   a call belongs to its INNERMOST enclosing universe member, so no call is counted
+ *                 twice. Lexical scope is honoured in both directions: a nested function sees the
+ *                 identifiers its ancestors produced, and a parameter handed to a primitive makes
+ *                 the ANCESTOR that declares it the path helper.
+ *   CALLEE        resolved to a name from a bare identifier, from the rightmost name of a property
+ *                 access (`fs.statSync` -> `statSync`), from a string-literal element access
+ *                 (`fs["statSync"]` -> `statSync`), and from `super`.
+ *   UNRESOLVABLE  anything else — a computed element access, an immediately-invoked expression, a
+ *                 call on a conditional — is COLLECTED into `unresolvedCallees` and pinned empty
+ *                 against the live module. It is not skipped: a skip is precisely how a route to a
+ *                 primitive stayed invisible while `inspected` looked healthy.
  */
 function routingCensus(absPath: string): RoutingCensus {
   const text = readFileSync(absPath, "utf8");
   const source = ts.createSourceFile(absPath, text, ts.ScriptTarget.Latest, true);
 
-  /** Every function-ish node with a name, so a finding can be reported against a place. */
-  const functions: { name: string; node: ts.Node; params: string[] }[] = [];
-  const collectFunctions = (node: ts.Node): void => {
-    if (ts.isFunctionDeclaration(node) && node.name !== undefined && node.body !== undefined) {
-      functions.push({
-        name: node.name.text,
+  const lineOf = (n: ts.Node): number =>
+    source.getLineAndCharacterOfPosition(n.getStart(source)).line + 1;
+
+  /** Every shape that has its own parameter list and its own body. */
+  const isFunctionLike = (n: ts.Node): n is ts.SignatureDeclaration =>
+    ts.isFunctionDeclaration(n) ||
+    ts.isFunctionExpression(n) ||
+    ts.isArrowFunction(n) ||
+    ts.isMethodDeclaration(n) ||
+    ts.isGetAccessorDeclaration(n) ||
+    ts.isSetAccessorDeclaration(n) ||
+    ts.isConstructorDeclaration(n);
+
+  /** The name a finding reports a place by. Arrows take their owner's name (board-dashboard idiom). */
+  const nameOf = (n: ts.Node): string => {
+    if (ts.isFunctionDeclaration(n)) return n.name?.text ?? "<anonymous function>";
+    if (ts.isMethodDeclaration(n) || ts.isGetAccessorDeclaration(n) || ts.isSetAccessorDeclaration(n)) {
+      return ts.isIdentifier(n.name) ? n.name.text : "<method>";
+    }
+    if (ts.isConstructorDeclaration(n)) return "<constructor>";
+    const owner = n.parent as ts.Node | undefined;
+    if (owner !== undefined && ts.isVariableDeclaration(owner) && ts.isIdentifier(owner.name)) {
+      return owner.name.text;
+    }
+    if (owner !== undefined && ts.isPropertyAssignment(owner) && ts.isIdentifier(owner.name)) {
+      return owner.name.text;
+    }
+    return "<anonymous function>";
+  };
+
+  type Member = {
+    readonly name: string;
+    readonly node: ts.Node;
+    readonly params: readonly string[];
+    readonly parent: Member | null;
+  };
+
+  // The statements outside every function are a member too: a read at module scope is a read.
+  const MODULE_MEMBER: Member = {
+    name: "<module top level>",
+    node: source,
+    params: [],
+    parent: null,
+  };
+  const members: Member[] = [];
+  const collect = (node: ts.Node, parent: Member): void => {
+    let next = parent;
+    if (isFunctionLike(node)) {
+      const entry: Member = {
+        name: nameOf(node),
         node,
         params: node.parameters.map((p) => (ts.isIdentifier(p.name) ? p.name.text : "")),
-      });
+        parent,
+      };
+      members.push(entry);
+      next = entry;
     }
-    ts.forEachChild(node, collectFunctions);
+    ts.forEachChild(node, (child) => collect(child, next));
   };
-  collectFunctions(source);
+  collect(source, MODULE_MEMBER);
+  const universe: readonly Member[] = [MODULE_MEMBER, ...members];
 
-  const calleeName = (call: ts.CallExpression): string =>
-    ts.isIdentifier(call.expression) ? call.expression.text : "";
+  const unresolvedCallees: UnresolvedCallee[] = [];
 
-  /** Every call inside `node`, without descending into a NESTED named function declaration. */
-  const callsIn = (fnNode: ts.Node): ts.CallExpression[] => {
+  /** The callee's name, or `null` when this pass cannot reduce it to one. */
+  const resolveCallee = (call: ts.CallExpression): string | null => {
+    const e = call.expression;
+    if (ts.isIdentifier(e)) return e.text;
+    if (ts.isPropertyAccessExpression(e)) return e.name.text;
+    if (ts.isElementAccessExpression(e)) {
+      const key = e.argumentExpression;
+      if (ts.isStringLiteral(key) || ts.isNoSubstitutionTemplateLiteral(key)) return key.text;
+      return null;
+    }
+    if (e.kind === ts.SyntaxKind.SuperKeyword) return "super";
+    return null;
+  };
+  const calleeName = (call: ts.CallExpression): string => resolveCallee(call) ?? "";
+
+  /** Every call inside `member`, without descending into a NESTED function-like node. */
+  const callsIn = (member: Member): ts.CallExpression[] => {
     const out: ts.CallExpression[] = [];
     const walk = (n: ts.Node): void => {
-      if (n !== fnNode && ts.isFunctionDeclaration(n)) return;
+      if (n !== member.node && isFunctionLike(n)) return;
       if (ts.isCallExpression(n)) out.push(n);
       ts.forEachChild(n, walk);
     };
-    walk(fnNode);
+    walk(member.node);
     return out;
   };
 
   // THE PRODUCER SET, DERIVED. `realpathSync` is what resolving a path to its real location IS, and
   // `insideRoot` is the one containment decision; a function that calls neither is not an authority.
-  const producers = functions
-    .filter((f) =>
-      callsIn(f.node).some((c) => {
+  const producers = members
+    .filter((m) =>
+      callsIn(m).some((c) => {
         const n = calleeName(c);
         return n === "realpathSync" || n === "insideRoot";
       }),
     )
-    .map((f) => f.name);
+    .map((m) => m.name);
   const producerSet = new Set(producers);
 
   /**
-   * Identifiers inside `fnNode` that hold a path an authority produced.
+   * Identifiers declared IN THIS MEMBER that hold a path an authority produced.
    *
    * Three shapes, run to a fixpoint because the second feeds the first: a direct call to an
    * authority (`const p = repoSubpath(...)`), a `.path`/`.real` member of an already-produced
    * identifier (the discriminated `ChildPath` result), and an assignment of either into a `let`.
    */
-  const producedIn = (fnNode: ts.Node): Set<string> => {
+  const ownProduced = (member: Member): Set<string> => {
     const produced = new Set<string>();
     // `realpathSync` counts as a producer CALL even though it is not a function this module
     // declares: it is the resolution primitive the authorities are made of, and `resolveRepoRoot`
@@ -2788,7 +2883,7 @@ function routingCensus(absPath: string): RoutingCensus {
     for (let pass = 0; pass < 8; pass += 1) {
       const before = produced.size;
       const walk = (n: ts.Node): void => {
-        if (n !== fnNode && ts.isFunctionDeclaration(n)) return;
+        if (n !== member.node && isFunctionLike(n)) return;
         if (ts.isVariableDeclaration(n) && ts.isIdentifier(n.name) && n.initializer !== undefined) {
           if (isProducerCall(n.initializer) || isProducedMember(n.initializer)) {
             produced.add(n.name.text);
@@ -2804,34 +2899,58 @@ function routingCensus(absPath: string): RoutingCensus {
         }
         ts.forEachChild(n, walk);
       };
-      walk(fnNode);
+      walk(member.node);
       if (produced.size === before) break;
     }
     return produced;
   };
 
+  // LEXICAL SCOPE, IN BOTH DIRECTIONS. Splitting the universe by function-like node means a nested
+  // arrow no longer sits inside its parent's walk, so the vouching its parent did has to travel to
+  // it explicitly — otherwise the widening would manufacture findings against paths an authority
+  // plainly produced, which is a false RED rather than a false green but is still wrong.
+  const producedCache = new Map<Member, Set<string>>();
+  const producedIn = (member: Member): Set<string> => {
+    const cached = producedCache.get(member);
+    if (cached !== undefined) return cached;
+    const own = ownProduced(member);
+    const all = member.parent === null ? own : new Set([...producedIn(member.parent), ...own]);
+    producedCache.set(member, all);
+    return all;
+  };
+
+  /** The member that DECLARES this parameter name, walking outwards; `null` if none does. */
+  const ownerOfParam = (member: Member, name: string): Member | null => {
+    for (let cur: Member | null = member; cur !== null; cur = cur.parent) {
+      if (cur.params.includes(name)) return cur;
+    }
+    return null;
+  };
+
   // THE PATH-HELPER CLOSURE. A function that passes one of its own parameters into a primitive's
   // path slot is a function the CALLER vouched for; that parameter index is then held to the same
-  // rule at every call site, so the exemption propagates rather than terminating.
+  // rule at every call site, so the exemption propagates rather than terminating. When the parameter
+  // belongs to an ANCESTOR, the ancestor is the helper — the exemption lands where the caller is.
   const pathHelpers = new Map<string, Set<number>>();
   const slotsFor = (name: string): readonly number[] =>
     READ_PRIMITIVES.includes(name) ? [0] : [...(pathHelpers.get(name) ?? [])];
 
   for (let pass = 0; pass < 8; pass += 1) {
     let grew = false;
-    for (const fn of functions) {
-      const produced = producedIn(fn.node);
-      for (const call of callsIn(fn.node)) {
+    for (const member of universe) {
+      const produced = producedIn(member);
+      for (const call of callsIn(member)) {
         for (const slot of slotsFor(calleeName(call))) {
           const arg = call.arguments[slot];
           if (arg === undefined || !ts.isIdentifier(arg)) continue;
           if (produced.has(arg.text)) continue;
-          const paramIndex = fn.params.indexOf(arg.text);
-          if (paramIndex < 0) continue;
-          const slots = pathHelpers.get(fn.name) ?? new Set<number>();
+          const owner = ownerOfParam(member, arg.text);
+          if (owner === null) continue;
+          const paramIndex = owner.params.indexOf(arg.text);
+          const slots = pathHelpers.get(owner.name) ?? new Set<number>();
           if (!slots.has(paramIndex)) {
             slots.add(paramIndex);
-            pathHelpers.set(fn.name, slots);
+            pathHelpers.set(owner.name, slots);
             grew = true;
           }
         }
@@ -2844,18 +2963,29 @@ function routingCensus(absPath: string): RoutingCensus {
   // not reported as a finding on an earlier pass.
   const unvouched: UnvouchedSite[] = [];
   let inspected = 0;
-  for (const fn of functions) {
-    const produced = producedIn(fn.node);
-    for (const call of callsIn(fn.node)) {
-      for (const slot of slotsFor(calleeName(call))) {
+  for (const member of universe) {
+    const produced = producedIn(member);
+    for (const call of callsIn(member)) {
+      const line = lineOf(call);
+      const resolved = resolveCallee(call);
+      if (resolved === null) {
+        // COLLECTED, NOT SKIPPED. The pass cannot ask whether this is a read primitive, so it says
+        // so out loud and the case below pins the list empty against the live module.
+        unresolvedCallees.push({
+          fn: member.name,
+          line,
+          text: call.getText().split("\n")[0] ?? "",
+        });
+        continue;
+      }
+      for (const slot of slotsFor(resolved)) {
         inspected += 1;
         const arg = call.arguments[slot];
-        const line = source.getLineAndCharacterOfPosition(call.getStart(source)).line + 1;
         if (arg !== undefined && ts.isIdentifier(arg)) {
           if (produced.has(arg.text)) continue;
-          if (fn.params.includes(arg.text)) continue;
+          if (ownerOfParam(member, arg.text) !== null) continue;
         }
-        unvouched.push({ fn: fn.name, line, text: call.getText().split("\n")[0] ?? "" });
+        unvouched.push({ fn: member.name, line, text: call.getText().split("\n")[0] ?? "" });
       }
     }
   }
@@ -2865,6 +2995,8 @@ function routingCensus(absPath: string): RoutingCensus {
     inspected,
     unvouched,
     pathHelpers: [...pathHelpers.keys()].sort(),
+    universe: universe.map((m) => m.name).sort(),
+    unresolvedCallees,
   };
 }
 
@@ -2897,7 +3029,8 @@ describe("board-read — every read target comes from a path authority (plan 32-
   beforeAll(() => {
     const census = routingCensus(READ_SEAM_PATH);
     process.stdout.write(
-      `board-read routing census: ${census.inspected} read-primitive call sites, ` +
+      `board-read routing census: ${census.inspected} read-primitive call sites over a universe of ` +
+        `${census.universe.length} function-like member(s), ${census.unresolvedCallees.length} unresolvable callee(s), ` +
         `producers [${census.producers.join(", ")}], path helpers [${census.pathHelpers.join(", ")}]\n`,
     );
   });
@@ -2972,6 +3105,245 @@ describe("board-read — every read target comes from a path authority (plan 32-
         census.unvouched.map((u) => u.fn),
         "the raw join is the finding and the produced path is not",
       ).toEqual(["bad"]);
+    });
+  });
+
+  // ── THE TWO NARROW INPUTS (WR-10, round 1) ─────────────────────────────────────────────────────
+  // Neither shape exists in `board-read.ts` today, which is exactly why the census went green over
+  // a universe that could not see them. A refactor is one commit; a census that cannot see the
+  // result of one is a census that stops measuring the day somebody writes ordinary code.
+
+  const AUTHORITY_PRELUDE =
+    'import { realpathSync, statSync } from "node:fs";\n' +
+    'import { join } from "node:path";\n' +
+    "export function repoSubpath(root: string, rel: string): string {\n" +
+    "  return realpathSync(join(root, rel));\n" +
+    "}\n";
+
+  it("PREMISE: a MODULE-LEVEL ARROW reading a joined path is a finding, not an invisible site", () => {
+    withTempTree((dir) => {
+      const probe = join(dir, "probe-arrow.ts");
+      writeFileSync(
+        probe,
+        AUTHORITY_PRELUDE +
+          "export const readRaw = (root: string): void => {\n" +
+          '  const taskDir = repoSubpath(root, "plans");\n' +
+          '  const raw = join(taskDir, "claim.md");\n' +
+          "  statSync(raw);\n" +
+          "};\n",
+        "utf8",
+      );
+      const census = routingCensus(probe);
+      expect(
+        census.unvouched.map((u) => u.fn),
+        "a module-level arrow was never entered into the census's universe, so its raw join was " +
+          "never inspected — while `inspected` still printed as healthy (WR-10)",
+      ).toEqual(["readRaw"]);
+    });
+  });
+
+  it("PREMISE: a read primitive reached through a MEMBER-ACCESS callee is inspected", () => {
+    withTempTree((dir) => {
+      const probe = join(dir, "probe-namespace.ts");
+      writeFileSync(
+        probe,
+        'import * as fs from "node:fs";\n' + AUTHORITY_PRELUDE +
+          "export function nsRead(root: string): void {\n" +
+          '  const raw = join(root, "claim.md");\n' +
+          "  fs.statSync(raw);\n" +
+          "}\n",
+        "utf8",
+      );
+      const census = routingCensus(probe);
+      expect(
+        census.unvouched.map((u) => u.fn),
+        "`calleeName` returned an empty string for `fs.statSync`, so a namespace-import refactor " +
+          "made every read primitive in the module invisible at once (WR-10)",
+      ).toEqual(["nsRead"]);
+    });
+  });
+
+  // ── THE UNIVERSE ITSELF IS PINNED, NOT ONLY THE FINDINGS (plan 32-21, WR-10) ───────────────────
+  //
+  // `inspected` staying healthy while one specific site is unmeasured is the failure WR-10 is
+  // about, and no count of FINDINGS can catch it: an unmeasured site and a clean site produce the
+  // same number. Only a pinned DENOMINATOR can. So the members the walk entered are asserted by
+  // name, and the nameless ones by count.
+
+  /**
+   * Every NAMED function-like member of `scripts/board-read.ts`, as the census collects them.
+   *
+   * A reader added, renamed or removed MOVES this list, which is the point: the list is the set of
+   * places the routing rule is asked about, and a place that silently leaves it is a place the rule
+   * stopped being asked about. Editing this list is recording that decision.
+   */
+  const ROUTING_UNIVERSE_NAMED = Object.freeze([
+    "anchorAbsentTarget",
+    "boundNames",
+    "carriedValue",
+    "childPath",
+    "configView",
+    "deriveOverallSource",
+    "gatherFile",
+    "guarded",
+    "insideRoot",
+    "isSafeTaskName",
+    "isWithinRoot",
+    "listDirectoryBounded",
+    "listingFailure",
+    "parse",
+    "parseTraceability",
+    "readBoardSource",
+    "readConfigSource",
+    "readContextSource",
+    "readQueueSource",
+    "readSnapshot",
+    "readTicketsSource",
+    "readTraceabilitySource",
+    "readVerifyReread",
+    "repoSubpath",
+    "resolveRepoRoot",
+    "settleSource",
+    "settledFrom",
+    "sinceOf",
+    "splitPipeRow",
+    "staleReasonForCode",
+    "ticketStem",
+    "unadmittedFrom",
+    "unreadableSources",
+  ]);
+
+  /** The nameless members — callbacks, predicates, comparators — plus the constructor and module. */
+  const ROUTING_UNIVERSE_ANONYMOUS = 17;
+  const ROUTING_UNIVERSE_TOTAL = ROUTING_UNIVERSE_NAMED.length + ROUTING_UNIVERSE_ANONYMOUS + 2;
+
+  it("pins the collected function UNIVERSE by name and by count", () => {
+    const census = routingCensus(READ_SEAM_PATH);
+    const named = census.universe.filter((n) => !n.startsWith("<"));
+    expect(
+      named,
+      "the set of NAMED functions the routing census asks about changed. A name that left this " +
+        "list is a place the produced-by-an-authority rule stopped being asked about, and a name " +
+        "that joined it is a place nobody has read yet. `parse` is the module-level-arrow shape " +
+        "WR-10 named: before this universe was widened it was not in here at all",
+    ).toEqual([...ROUTING_UNIVERSE_NAMED]);
+    expect(
+      census.universe.filter((n) => n === "<anonymous function>").length,
+      "the number of NAMELESS function-like members changed. Each is a callback or predicate the " +
+        "census now walks in its own right; a new one is ordinary, and it is pinned so that a " +
+        "reader landing on a green suite can still see the denominator move",
+    ).toBe(ROUTING_UNIVERSE_ANONYMOUS);
+    expect(
+      census.universe.length,
+      "the universe total must equal its named members, its nameless ones, the constructor and " +
+        "the synthetic module-top-level member — no third bucket",
+    ).toBe(ROUTING_UNIVERSE_TOTAL);
+    expect(
+      census.universe.filter((n) => n === "<module top level>").length,
+      "the statements outside every function are a member too: a read at module scope is a read",
+    ).toBe(1);
+  });
+
+  it("collects an UNRESOLVABLE callee rather than skipping it, and the live module has none", () => {
+    const census = routingCensus(READ_SEAM_PATH);
+    expect(
+      census.unresolvedCallees.map((u) => `${u.fn}:${u.line} ${u.text}`),
+      "a callee this pass cannot reduce to a name is a route to a read primitive it cannot check. " +
+        "Skipping one is exactly how `fs.statSync` was invisible while `inspected` printed 17",
+    ).toEqual([]);
+  });
+
+  it("PREMISE: a callee the pass CANNOT resolve is collected, not silently dropped", () => {
+    withTempTree((dir) => {
+      const probe = join(dir, "probe-opaque.ts");
+      writeFileSync(
+        probe,
+        AUTHORITY_PRELUDE +
+          "const table: Record<string, (p: string) => unknown> = { statSync };\n" +
+          "export function opaque(root: string, key: string): void {\n" +
+          '  table[key](join(root, "claim.md"));\n' +
+          "}\n",
+        "utf8",
+      );
+      const census = routingCensus(probe);
+      expect(
+        census.unresolvedCallees.map((u) => u.fn),
+        "measured against the pre-32-21 derivation this plant produced inspected=0, unvouched=[] " +
+          "and no field at all to report it in — the silent skip WR-10 describes",
+      ).toEqual(["opaque"]);
+    });
+  });
+
+  it("resolves a STRING-LITERAL element access to the primitive it names", () => {
+    withTempTree((dir) => {
+      const probe = join(dir, "probe-literal-index.ts");
+      writeFileSync(
+        probe,
+        'import * as fs from "node:fs";\n' + AUTHORITY_PRELUDE +
+          "export function litRead(root: string): void {\n" +
+          '  const raw = join(root, "claim.md");\n' +
+          '  fs["statSync"](raw);\n' +
+          "}\n",
+        "utf8",
+      );
+      const census = routingCensus(probe);
+      expect(census.unresolvedCallees, "a literal key names its symbol").toEqual([]);
+      expect(
+        census.unvouched.map((u) => u.fn),
+        "`fs['statSync']` reads a file exactly as `fs.statSync` does",
+      ).toEqual(["litRead"]);
+    });
+  });
+
+  it("does NOT manufacture a finding against a nested arrow closing over a vouched path", () => {
+    // The converse of the widening, and the reason lexical scope travels into the universe: a
+    // nested function now has a walk of its own, so the vouching its parent did has to reach it
+    // explicitly. Without this the widening would turn every legitimate callback into a red.
+    withTempTree((dir) => {
+      const probe = join(dir, "probe-nested.ts");
+      writeFileSync(
+        probe,
+        AUTHORITY_PRELUDE +
+          "export function outer(root: string): void {\n" +
+          '  const safe = repoSubpath(root, "plans");\n' +
+          "  const once = (): void => {\n" +
+          "    statSync(safe);\n" +
+          "  };\n" +
+          "  once();\n" +
+          "}\n",
+        "utf8",
+      );
+      const census = routingCensus(probe);
+      expect(
+        census.unvouched.map((u) => `${u.fn}:${u.line}`),
+        "the nested arrow reads a path `outer` produced through an authority; calling that a " +
+          "finding would be a false RED bought with the widening",
+      ).toEqual([]);
+      expect(census.universe, "the nested arrow is still IN the universe").toContain("once");
+    });
+  });
+
+  it("names an ANCESTOR's parameter as the path helper, not the nested arrow", () => {
+    withTempTree((dir) => {
+      const probe = join(dir, "probe-ancestor-param.ts");
+      writeFileSync(
+        probe,
+        AUTHORITY_PRELUDE +
+          "export function helper(p: string): void {\n" +
+          "  const run = (): void => {\n" +
+          "    statSync(p);\n" +
+          "  };\n" +
+          "  run();\n" +
+          "}\n",
+        "utf8",
+      );
+      const census = routingCensus(probe);
+      expect(
+        census.pathHelpers,
+        "the exemption belongs where the CALLER vouches — the function that declares the " +
+          "parameter — not to the anonymous arrow that happens to dereference it",
+      ).toEqual(["helper"]);
+      expect(census.unvouched).toEqual([]);
     });
   });
 });
