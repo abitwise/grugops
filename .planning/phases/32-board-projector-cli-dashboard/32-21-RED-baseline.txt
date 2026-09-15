@@ -1,0 +1,81 @@
+32-21 RED BASELINE — measured before each derivation change, on the tree as it stood.
+
+════════════════════════════════════════════════════════════════════════════════════════════════
+TASK 1 — scripts/validate.test.ts, the one-authority census (WR-01)
+Command: npx vitest run --exclude '**/scripts/e2e/**' scripts/validate.test.ts
+Tree:    the three WR-01 rewrite rows added, the derivation NOT yet widened.
+════════════════════════════════════════════════════════════════════════════════════════════════
+
+ ❯ scripts/validate.test.ts (113 tests | 3 failed) 4796ms
+     × goes RED on a pattern built from a string (WR-01 E1) 2ms
+     × goes RED on a reader whose text parameter carries no `string` annotation (WR-01 E2) 0ms
+     × goes RED on a hand-rolled scan with the key names concatenated (WR-01 E3) 0ms
+
+ FAIL … > goes RED on a pattern built from a string (WR-01 E1)
+AssertionError: a second authority hoisted to module scope as `new RegExp(...)` is a second
+authority: expected 0 to be greater than 0
+
+ FAIL … > goes RED on a reader whose text parameter carries no `string` annotation (WR-01 E2)
+AssertionError: a reader typed `string | undefined` reads ticket text exactly as one typed
+`string` does: expected 0 to be greater than 0
+
+ FAIL … > goes RED on a hand-rolled scan with the key names concatenated (WR-01 E3)
+AssertionError: splitting on newlines and looking up a colon reads the two keys out of text just
+as a pattern does; assembling the key names by concatenation changes nothing about that:
+expected 0 to be greater than 0
+
+ Test Files  1 failed (1)
+      Tests  3 failed | 110 passed (113)
+
+MEASURED CARRIER COUNTS on the pre-change derivation: E1 = 0, E2 = 0, E3 = 0 — exactly the three
+zeroes the round-1 review recorded, reproduced here against the census's own `findTicketReaders`.
+
+════════════════════════════════════════════════════════════════════════════════════════════════
+TASK 2 — scripts/board-read.test.ts, the read-target routing census (WR-10)
+Command: npx vitest run --exclude '**/scripts/e2e/**' scripts/board-read.test.ts
+Tree:    the two WR-10 plants added, the universe NOT yet widened.
+════════════════════════════════════════════════════════════════════════════════════════════════
+
+ FAIL … > PREMISE: a MODULE-LEVEL ARROW reading a joined path is a finding, not an invisible site
+AssertionError: a module-level arrow was never entered into the census's universe, so its raw join
+was never inspected — while `inspected` still printed as healthy (WR-10):
+expected [] to deeply equal [ 'readRaw' ]
+
+ FAIL … > PREMISE: a read primitive reached through a MEMBER-ACCESS callee is inspected
+AssertionError: `calleeName` returned an empty string for `fs.statSync`, so a namespace-import
+refactor made every read primitive in the module invisible at once (WR-10):
+expected [] to deeply equal [ 'nsRead' ]
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 141 passed (143)
+
+THE THIRD PLANT — the unresolvable callee — could not be written as an in-file RED, because the
+pre-change `RoutingCensus` type carried NO FIELD in which to report one. Measured instead by
+replaying the pre-change derivation over the plant:
+
+  PLANT C under the OLD derivation: {"producers":["repoSubpath"],"inspected":0,"unvouched":[]}
+
+  const table: Record<string, (p: string) => unknown> = { statSync };
+  export function opaque(root: string, key: string): void { table[key](join(root, "claim.md")); }
+
+inspected = 0 over a module that reads a file: the call was skipped, not inspected and not
+collected, and nothing in the census said so.
+
+════════════════════════════════════════════════════════════════════════════════════════════════
+TASK 3 — scripts/check-foundation-guards.test.ts, the `check:*` reachability proof (F-01)
+Command: npx vitest run --exclude '**/scripts/e2e/**' scripts/check-foundation-guards.test.ts
+Tree:    the totality case added, the single-pattern-plus-`continue` derivation still in place.
+════════════════════════════════════════════════════════════════════════════════════════════════
+
+ FAIL … > every `check:*` script is CLASSIFIED — the derivation skips none of them (F-01)
+AssertionError: the reachability derivation SKIPS these check scripts, so nothing mechanically
+proves they are reached at all:
+  check:build-parity => npm run build && git diff --exit-code --name-only -- '*.js' && echo …
+  check:dashboard-readonly => npx vitest run scripts/board-readonly.test.ts
+A gate that is never reached passes by not running — round 3 shipped one for a whole round, and
+one of the skips above is the DASH-06 safety control.: expected 9 to be 11
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 286 passed (287)
+
+Exactly the two skips F-01 measured, reproduced against the live package.json.

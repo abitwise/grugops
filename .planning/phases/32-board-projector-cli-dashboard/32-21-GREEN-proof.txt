@@ -1,0 +1,106 @@
+32-21 GREEN PROOF — every command run after the three derivation changes landed, with its result.
+Run on 2026-09-15 against the tree at the three task commits (2e24c8ab, b98ac322, 260057ec).
+
+════════════════════════════════════════════════════════════════════════════════════════════════
+1. THE THREE FILES THE PLAN OWNS
+════════════════════════════════════════════════════════════════════════════════════════════════
+
+$ npx vitest run --exclude '**/scripts/e2e/**' scripts/validate.test.ts scripts/board-read.test.ts scripts/check-foundation-guards.test.ts
+ Test Files  3 passed (3)
+      Tests  560 passed (560)
+
+Per file, as each task closed:
+  scripts/validate.test.ts                 118 passed  (was 110 + 3 RED rows)
+  scripts/board-read.test.ts               149 passed  (was 141 + 2 RED plants)
+  scripts/check-foundation-guards.test.ts  293 passed  (was 286 + 1 RED totality case)
+
+════════════════════════════════════════════════════════════════════════════════════════════════
+2. THE GATES
+════════════════════════════════════════════════════════════════════════════════════════════════
+
+$ VALIDATE_KIT_ROOT=$PWD VALIDATE_ROOT=$PWD node scripts/validate-agent-factory.js
+  exit 0 — ALL CHECKS PASSED
+
+$ node scripts/check-foundation-guards.js
+  exit 0 — ALL CHECKS PASSED
+
+$ npm run check:dashboard-readonly        # the DASH-06 control task 3 proves reachable
+  Test Files  1 passed (1)
+        Tests  89 passed (89)
+
+$ npm run typecheck
+  exit 0 — tsc --noEmit && tsc -p tsconfig.tests.json && tsc -p tsconfig.fixtures.json
+
+$ npm run build && npm run check:build-parity
+  Build parity: no tracked build output moved when tsc ran.
+  (This plan edits three .test.ts files; no committed .js moved.)
+
+════════════════════════════════════════════════════════════════════════════════════════════════
+3. THE WHOLE SUITE, MINUS THE LIVE CLAUDE-CLI E2E LANE
+════════════════════════════════════════════════════════════════════════════════════════════════
+
+$ npx vitest run --exclude '**/scripts/e2e/**'
+ Test Files  74 passed (74)
+      Tests  4969 passed | 2 skipped (4971)
+   Duration  423.75s
+
+Plan floors: file count >= 74 (met, 74) and passed >= 4811, the number the round-1 adversarial
+review recorded (met, 4969 — +158, which is this round's waves 32-15..32-21).
+
+`npm test` was NOT run: it triggers the live claude-CLI e2e lane, which spends tokens and can hang.
+
+════════════════════════════════════════════════════════════════════════════════════════════════
+4. THE CENSUSES' OWN NUMBERS, PRINTED ON EVERY RUN
+════════════════════════════════════════════════════════════════════════════════════════════════
+
+ticket-frontmatter census: scanned 150 .ts file(s) under scripts/
+  detected (pre-exemption): board-model.ts, board-model.test.ts, board-read.test.ts,
+                            validate.test.ts
+  carriers (post-exemption): 1 — board-model.ts
+
+board-read routing census: 17 read-primitive call sites over a universe of 52 function-like
+  member(s), 0 unresolvable callee(s), producers [anchorAbsentTarget, childPath, insideRoot,
+  repoSubpath, resolveRepoRoot], path helpers [gatherFile, listDirectoryBounded, readVerifyReread]
+
+check:* classification: gate-module 9, suite-test-file 1, toolchain 1 = 11, equal to the number of
+  check:* scripts in package.json. No script is skipped and no script matches two class shapes.
+
+════════════════════════════════════════════════════════════════════════════════════════════════
+5. MUTATION TRANSCRIPTS — each new proof watched FAILING on a change it exists to catch
+════════════════════════════════════════════════════════════════════════════════════════════════
+
+M1. TASK 1 — a named exemption that no longer matches anything.
+    Mutated `NOT_A_SECOND_AUTHORITY` key "board-read.test.ts" -> "board-render.test.ts".
+      × every named exemption is actually detected by the widened derivation
+      × TICKET_FRONTMATTER_READER_COUNT is 1, and the carrier is scripts/board-model.ts
+      Tests  2 failed | 116 passed (118)
+    Both directions move: the dead exemption is named AND the file it stopped covering becomes an
+    unexempted carrier. Reverted.
+
+M2. TASK 3 — the workflow's suite exclusion pointed at the DASH-06 test file.
+    Mutated .github/workflows/ci.yml:174 exclusion to '**/scripts/board-readonly*'.
+      × the DASH-06 control's reachability is mechanical, not assumed
+      AssertionError: the workflow's suite exclusion (**/scripts/board-readonly*) skips
+      scripts/board-readonly.test.ts, so the DASH-06 gate would run in CI only if somebody invoked
+      the npm script directly — and nothing does: expected true to be false
+    This is a mutation of the SUBJECT (the workflow), not of the assertion. Reverted; `git diff`
+    over ci.yml is empty.
+
+M3. TASK 3 — a class size pin moved.
+    Mutated CHECK_SCRIPT_CLASSES["gate-module"].size 9 -> 8.
+      × pins each class's SIZE, and the classes partition the check scripts with no remainder
+      AssertionError: the gate-module class changed size … expected 9 to be 8
+    Reverted.
+
+M4. TASK 2 — the two WR-10 plants ARE the mutation: both were measured red against the shipped
+    derivation before the universe was widened (see 32-21-RED-baseline.txt), and the third plant
+    was measured against a replay of the pre-change derivation at inspected=0, unvouched=[].
+
+════════════════════════════════════════════════════════════════════════════════════════════════
+6. WHAT WAS NOT PROVED
+════════════════════════════════════════════════════════════════════════════════════════════════
+
+The ticket-reader census cannot see a key spelling assembled at RUNTIME (`String.fromCharCode`, a
+template with substitutions, a name read from a variable). That is STATED in the census docblock and
+MEASURED by a case of its own rather than claimed absent. No such shape exists in scripts/ today.
+If one ever does, the census needs a different instrument — not one more condition.
