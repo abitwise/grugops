@@ -1931,3 +1931,122 @@ describe("board-dashboard — the stdout write-site census is derived from the m
     ).not.toBe("writeDocument");
   });
 });
+
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+// PLAN 32-18 TASK 3 — THE PROOF FROM A SPAWNED PROCESS, AGAINST THE ARTIFACT THAT SHIPS.
+//
+// WHAT THIS HALF DECIDES THAT TASK 1's CASES CANNOT. Task 1 drives `emit` in process, which proves
+// the chokepoint is applied. It cannot prove what a CI consumer or an operator's terminal receives,
+// because that is a property of the COMPILED artifact after a build: `scripts/board-dashboard.js` is
+// what `node` runs, and the verification round that found CR-02 measured exactly that file. A case
+// that measured a `.ts` through a loader would be measuring a program nobody installs.
+//
+// BOTH ARMS, NOT ONE. The `--json` document is the arm that was broken; the plain frame is the arm
+// that was already clean. A proof that runs only the arm that was fixed cannot tell a fix from a
+// regression in its sibling, and that is the shape this round exists to stop.
+//
+// THE COUNTING INSTRUMENT IS `controlCodePoints` — re-spelled above independently of the module's
+// own class on purpose, and counting CODE POINTS rather than bytes, so the em dash in a diagnostic
+// cannot be miscounted as a control character.
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+
+/**
+ * A fixture copy whose board row AND ticket frontmatter title both carry the 8-bit introducers.
+ *
+ * BOTH, because the two travel by different routes: the row title is read out of `plans/board.md`
+ * by the board grammar, and the frontmatter title out of `plans/tickets/ABC-101.md` by the ticket
+ * grammar. Neither grammar refuses a C1 code point — the ticket control class is C0 plus DEL — so
+ * both reach the join, and the document is where they meet.
+ */
+function withPlantedC1Copy(body: (dir: string) => void): void {
+  withFixtureCopy((dir) => {
+    const planted = `Something${C1_CSI}in the${C1_OSC}backlog`;
+    const boardPath = join(dir, "plans", "board.md");
+    const ticketPath = join(dir, "plans", "tickets", "ABC-101.md");
+    writeFileSync(
+      boardPath,
+      readFileSync(boardPath, "utf8").replace("Something in the backlog", planted),
+      "utf8",
+    );
+    writeFileSync(
+      ticketPath,
+      readFileSync(ticketPath, "utf8").replace(
+        "title: Something in the backlog",
+        `title: ${planted}`,
+      ),
+      "utf8",
+    );
+    body(dir);
+  });
+}
+
+describe("board-dashboard — a planted C1 reaches NEITHER channel of the shipped artifact (CR-02)", () => {
+  it("PREMISE: names the artifact it measures, and that artifact carries the chokepoint", () => {
+    // Which file was measured is part of the result. A transcript that does not name its artifact
+    // is a transcript about an unknown program.
+    const compiled = readFileSync(DASHBOARD_JS, "utf8");
+    expect(compiled.length, `${DASHBOARD_JS} is absent or empty`).toBeGreaterThan(0);
+    expect(
+      compiled,
+      "the committed .js predates the chokepoint, so every capture below would measure the " +
+        "program CR-02 was reported against rather than the one this plan ships",
+    ).toContain("writeDocument");
+  });
+
+  it("PREMISE: the planted introducers survive the grammars and reach the document's input", () => {
+    withPlantedC1Copy((dir) => {
+      const board = readFileSync(join(dir, "plans", "board.md"), "utf8");
+      const ticket = readFileSync(join(dir, "plans", "tickets", "ABC-101.md"), "utf8");
+      expect(
+        [...new Set([...controlCodePoints(board), ...controlCodePoints(ticket)])].sort(),
+        "PREMISE: the plant did not land in the scratch tree, so the zero counts below would be " +
+          "the zeros of a run that had nothing to sanitize",
+      ).toEqual(["U+009B", "U+009D"]);
+    });
+  });
+
+  it("removes them from the --json document, keeping the title's remaining text", () => {
+    withPlantedC1Copy((dir) => {
+      const r = spawnDashboard([dir, "--once", "--json"]);
+      expect(r.code, "a planted control code point must not change the exit contract").toBe(0);
+
+      const lines = r.out.split("\n").filter((l) => l !== "");
+      expect(lines.length, "one complete document per line, one frame for --once").toBe(1);
+      const parsed = JSON.parse(r.out) as { snapshot: { schemaVersion: number } };
+      expect(parsed.snapshot.schemaVersion).toBe(1);
+
+      expect(
+        controlCodePoints(r.out),
+        "the 8-bit CSI and OSC introducers travelled from board content into the published " +
+          "document, which a terminal acts on (CR-02)",
+      ).toEqual([]);
+      expect(
+        controlCodePoints(r.err),
+        "the diagnostic channel must stay inert too — it is the same emulator",
+      ).toEqual([]);
+
+      expect(
+        r.out,
+        "the sanitizer removed the control code points and NOT the content: over-removal would " +
+          "satisfy every assertion above by destroying what the consumer asked for",
+      ).toContain("Somethingin thebacklog");
+    });
+  });
+
+  it("removes them from the PLAIN FRAME too, on both channels", () => {
+    withPlantedC1Copy((dir) => {
+      const r = spawnDashboard([dir, "--once"]);
+      expect(r.code).toBe(0);
+      expect(
+        controlCodePoints(r.out),
+        "the frame path and the document path are two arms of ONE claim; measuring only the arm " +
+          "that was fixed is how a sibling regression ships",
+      ).toEqual([]);
+      expect(controlCodePoints(r.err)).toEqual([]);
+      expect(
+        r.out,
+        "PREMISE: the frame did not render the planted row at all, so the zero above says nothing",
+      ).toContain("ABC-101");
+    });
+  });
+});

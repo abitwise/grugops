@@ -294,10 +294,23 @@ function humanBytes(n) {
  * own unit; rendering a code-unit count through `humanBytes` stated the wrong one. The grouping is
  * done here rather than through `toLocaleString`, so the rendered header is a function of the number
  * alone and not of whichever ICU data the host Node was built with.
+ *
+ * AND IT IS A LOOP RATHER THAN A REGEX. The obvious spelling of digit grouping is a pure zero-width
+ * lookahead, whose cost is quadratic in subject length; `scripts/check-uat-oracles.test.ts` holds a
+ * closed class over `scripts/` refusing exactly that, because this repository has already shipped one
+ * non-terminating CI gate through it. One left-to-right pass over at most ten digits is linear and
+ * needs no exemption.
  */
 function humanChars(n) {
     const digits = Math.max(0, Math.trunc(n)).toString();
-    return `${digits.replace(/\B(?=(\d{3})+(?!\d))/g, ",")} chars`;
+    let grouped = "";
+    for (let i = 0; i < digits.length; i += 1) {
+        // A separator every three digits counted from the RIGHT, so the leading group is the short one.
+        if (i > 0 && (digits.length - i) % 3 === 0)
+            grouped += ",";
+        grouped += digits[i];
+    }
+    return `${grouped} chars`;
 }
 /** Human-rounded age between two ISO instants, coarsened upward. */
 function humanAge(since, now) {
