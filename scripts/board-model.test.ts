@@ -718,8 +718,11 @@ import {
   CONFLICT_KINDS,
   CONFLICT_KIND_COUNT,
   PRESENCE_DEPENDENT_CONFLICT_KINDS,
+  TICKET_CONTROL,
   TICKET_KEYS,
   TICKET_KEY_COUNT,
+  TICKET_REFUSAL_CODES,
+  TICKET_REFUSAL_CODE_COUNT,
   joinSnapshot,
   normalizeDocument,
   parseTicketDocument,
@@ -1903,5 +1906,118 @@ describe("board-model — one normalization authority answers the byte-order mar
       at > start && at < end,
       `the single fold is at line ${at + 1}, outside normalizeDocument (lines ${start + 1}-${end + 1})`,
     ).toBe(true);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// PLAN 32-16 — A TAB IS REFUSED BY THE RULE THE COMMENT NAMES (WR-04).
+//
+// `TICKET_CONTROL` used to read `[\x00-\x09\x0b-\x1f\x7f]`, whose range INCLUDES the horizontal
+// tab, and the control check runs before `TICKET_KEY_LINE` is applied. So a tab anywhere in the
+// region was refused as a control character — "which no terminal renders and no human wrote
+// deliberately", two clauses that are both false of a tab — while the comment beside the pattern
+// said "a tab is caught by the key pattern rather than trimmed", describing a program the file did
+// not contain. Since plan 32-12 a refusal is a hard error in the structure validator, and since
+// plan 32-15 it is a conflict on the screen, so an untrue refusal reason is an expensive sentence.
+//
+// THE CLASS IS DERIVED HERE RATHER THAN TRANSCRIBED. A character class edited to green a suite is
+// the set-literal drift class this repository has paid for. Both the pattern's membership and the
+// rule that actually FIRES are derived over every code point from 0 through 31 plus 127, and the
+// two derivations are asserted to agree — a narrowing that left a second control check standing
+// somewhere else would show up as a disagreement rather than as a green.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+describe("board-model — the control class is pinned by derivation, and a tab is not in it (plan 32-16)", () => {
+  /** Every code point the class is asked about: the C0 range plus DEL. */
+  const PROBED = [...Array.from({ length: 32 }, (_, i) => i), 127];
+
+  const TAB = String.fromCharCode(9);
+  const NEWLINE = String.fromCharCode(10);
+
+  /** A region line carrying `ch`, so the grammar is asked about it where it is actually asked. */
+  const withChar = (ch: string): string => `---\nid: ABC-014\ntitle: a${ch}b\n---\n`;
+
+  it("REFUSES a tab after the colon as an unrecognized line, quoting the line", () => {
+    const r = parseTicketDocument(`---\nid: ABC-014\nstatus:${TAB}in-development\n---\n`);
+    expect(r.ok).toBe(false);
+    if (r.ok) return;
+    expect(
+      r.code,
+      "a tab is refused by the key pattern — the canonical form is `key: value` with one space — " +
+        "and not as a byte no terminal renders",
+    ).toBe("unrecognized-line");
+    expect(r.reason).toMatch(/line 3 is `status:/);
+  });
+
+  it("REFUSES a region line indented by a tab as an unrecognized line", () => {
+    const r = parseTicketDocument(`---\nid: ABC-014\ntitle: T\n${TAB}status: x\n---\n`);
+    expect(r.ok).toBe(false);
+    if (r.ok) return;
+    expect(r.code).toBe("unrecognized-line");
+    expect(r.reason).toMatch(/line 4 is `/);
+  });
+
+  it("STILL refuses the characters that remain in the class, under the code that names them", () => {
+    // THE CONVERSE. Narrowing a class is only correct if everything else it held is still refused
+    // for the reason it was held for. Written with `String.fromCharCode` so no literal control byte
+    // enters a tracked file — `npm run check:nul-bytes` scans every one of them.
+    for (const code of [0, 27, 127]) {
+      const r = parseTicketDocument(withChar(String.fromCharCode(code)));
+      expect(r.ok, `code point ${code} was ADMITTED`).toBe(false);
+      if (r.ok) continue;
+      expect(r.code, `code point ${code}`).toBe("control-character");
+      expect(r.reason).toMatch(/carries a control character/);
+    }
+  });
+
+  it("derives the class MEMBERSHIP over every probed code point, rather than transcribing it", () => {
+    const members = PROBED.filter((c) => TICKET_CONTROL.test(String.fromCharCode(c)));
+    const expected = PROBED.filter((c) => c !== 9 && c !== 10);
+    expect(
+      members,
+      "the control class changed membership. What the grammar refuses as a control character is a " +
+        "decision recorded in agent-factory/contracts/board.md, never a range edited to green a " +
+        "suite: the tab left this class in plan 32-16 so the key pattern could refuse it with a " +
+        "reason that is true, and the newline was never in it because it ends a line rather than " +
+        "sitting inside one",
+    ).toEqual(expected);
+    expect(TICKET_CONTROL.test(TAB), "the tab is NOT a member").toBe(false);
+    expect(TICKET_CONTROL.test(NEWLINE), "the newline is NOT a member").toBe(false);
+  });
+
+  it("derives which RULE FIRES for each probed code point, and it agrees with the membership", () => {
+    // Membership is a claim about a pattern; this is a claim about the program. They are derived
+    // separately and compared, because a class narrowed while a second control check stood
+    // somewhere else would satisfy the first and not the second.
+    const refusedAsControl: number[] = [];
+    const refusedAsUnrecognized: number[] = [];
+    const other: string[] = [];
+    for (const code of PROBED) {
+      const r = parseTicketDocument(withChar(String.fromCharCode(code)));
+      if (r.ok) {
+        other.push(`${code}: ADMITTED`);
+        continue;
+      }
+      if (r.code === "control-character") refusedAsControl.push(code);
+      else if (r.code === "unrecognized-line") refusedAsUnrecognized.push(code);
+      else other.push(`${code}: ${r.code}`);
+    }
+
+    expect(other, "every probed code point lands in one of the two refusals").toEqual([]);
+    expect(
+      refusedAsControl,
+      "the rule that FIRES disagrees with the class's membership: a control character is reaching " +
+        "a different rule, or a non-member is reaching this one",
+    ).toEqual(PROBED.filter((c) => TICKET_CONTROL.test(String.fromCharCode(c))));
+    expect(
+      refusedAsUnrecognized,
+      "the two code points outside the class are refused by the key pattern: a tab does not fit " +
+        "`key: value`, and a newline ends the line so the remainder is not a key line either",
+    ).toEqual([9, 10]);
+  });
+
+  it("does not add a member to the closed refusal-code set", () => {
+    expect(TICKET_REFUSAL_CODES.length).toBe(TICKET_REFUSAL_CODE_COUNT);
+    expect(TICKET_REFUSAL_CODE_COUNT, "a seventh refusal reason is a decision, not a fix").toBe(6);
   });
 });
