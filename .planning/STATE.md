@@ -5,9 +5,9 @@ milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live
 current_phase: 32
 current_phase_name: Board Projector & CLI Dashboard
 status: "Phase 31 CLOSED 2026-09-13 by user override D-44 (round-9 verification gaps_found 4/6 left standing; CR-28..CR-31 + WR-43..WR-47 accepted open). Next: Phase 32 — Board Projector & CLI Dashboard, not yet planned. Standing rule: four-round gap-closure cap on every later phase."
-stopped_at: Completed 32-23-PLAN.md
-last_updated: "2026-09-15T18:59:07.007Z"
-state_head: b7a4239b6044c079c115bd424eaa5c9d848f3607
+stopped_at: "Phase 32 gap-closure round 3 HALTED at 32-24 Task 1 tracer gate (RED baseline 759e982c) — user chose REPLAN 2026-09-15; 32-24 is 1/3, no SUMMARY; next: /gsd-plan-phase 32 --gaps"
+last_updated: "2026-09-15T20:07:41.539Z"
+state_head: 7c58c317eb1ef77f42e680cefbc5173e6e757784
 progress:
   total_phases: 9
   completed_phases: 30
@@ -1492,7 +1492,7 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 ## Session Continuity
 
 Last session: 2026-09-15T13:57:28.574Z
-Stopped at: Completed 32-23-PLAN.md
+Stopped at: Phase 32 gap-closure round 3 HALTED at 32-24 Task 1 tracer gate (RED baseline 759e982c) — user chose REPLAN 2026-09-15; 32-24 is 1/3, no SUMMARY; next: /gsd-plan-phase 32 --gaps
 Resume file: None
 
 ## Operator Next Steps
