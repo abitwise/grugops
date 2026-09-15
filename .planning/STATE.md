@@ -5,15 +5,15 @@ milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live
 current_phase: 32
 current_phase_name: Board Projector & CLI Dashboard
 status: "Phase 31 CLOSED 2026-09-13 by user override D-44 (round-9 verification gaps_found 4/6 left standing; CR-28..CR-31 + WR-43..WR-47 accepted open). Next: Phase 32 — Board Projector & CLI Dashboard, not yet planned. Standing rule: four-round gap-closure cap on every later phase."
-stopped_at: Completed 32-11-PLAN.md (CR-01 DASH-06 namespace-escape closure)
-last_updated: "2026-09-14T23:14:13.266Z"
-state_head: 4cac94ebd7b297704ed3879c3e88daf13e7f1fe1
+stopped_at: Completed 32-14-PLAN.md (gap-closure round 1 complete; 2 open findings)
+last_updated: "2026-09-15T00:02:28.691Z"
+state_head: 0dd1fc0c383acd71e780f59120dc2e1247f29b2e
 progress:
   total_phases: 9
   completed_phases: 30
   total_plans: 234
-  completed_plans: 232
-  percent: 99
+  completed_plans: 234
+  percent: 100
 last_activity: 2026-09-13
 prior_activity_desc: Phase 27 gap-closure round 8 COMPLETE (27-45, 27-46; D-53). Full narration lives in the Phase 27 artifacts and in docs/audit/; shortened here by plan 31-38 because this single line measured 7995 characters, above the 4000-character ceiling a pathological STATE line has previously crossed to turn a sub-second guard into a multi-minute one.
 last_activity_desc: "Phase 29 CLOSED by user decision (D-59, reversing D-29): LANG-04's conformance prohibition is held as CONTENT — the claim registry and the honesty floor — with guard_banned_claims a disclosed drift backstop, not the mechanism that makes a totality true. Eight verification rounds established that a totality over an open set of phrasings is not a decidable predicate; D-55 had already ended at a per-line predicate, so the totality was already content-held on the tree while LANG-04's text still said a mechanism held it. Round-8 review CR-02 (the narrowed sentence printed above the findings contradicting it) FIXED at 4c6a76a, watched failing against the pre-fix build and asserted in both directions; two existing cases whose premise the change invalidated were repaired, not weakened. CR-01 (freshness.ts working-tree arm fail-opens, reproduced) carried as V-29-59-03 — a build-parity defect plan 29-59 itself recorded as named by no LANG requirement. CR-03/04/05 carried with owners in docs/audit/29-round8-residuals.md section 10. The round-8 verifier's gaps_found verdict is left standing and annotated rather than rewritten: it verified LANG-04's previous text. All 8 LANG requirements Complete. 15 repo gates green, 52 files / 2140 passed / 2 skipped. Next: Phase 29.1 (per-role model assignment)."
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-09-07 — after Phase 29.2)
 ## Current Position
 
 Phase: 32 (Board Projector & CLI Dashboard) — EXECUTING
-Plan: 6 of 14
+Plan: 7 of 14
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 
@@ -489,6 +489,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 32 P12 | 30 min | 3 tasks | 11 files |
 | Phase 32 P13 | 22 min | 2 tasks | 5 files |
 | Phase 32 P11 | 26 min | 3 tasks | 3 files |
+| Phase 32 P14 | 34 min | 3 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -1331,6 +1332,8 @@ Recent decisions affecting current work:
 - [Phase 32]: Plan 32-13: every dashboard diagnostic goes through one stderr chokepoint (warn), with the write-site count derived from the module AST and pinned two-sided at 1 inside that function. — CR-05 was a true sentence about the wrong boundary. A count of one in the wrong function is still a bypass, so the census asserts the enclosing function name as well as the count, and collects the routes it cannot decide as opaque.
 - [Phase 32]: Plan 32-13: warn is variadic over lines, and USAGE is held as USAGE_LINES rather than folded into the refusal message. — sanitizeCell removes U+000A with the rest of C0. A single-line warn would have collapsed the usage block; preserving newlines would have let an argv token forge a diagnostic line. The line boundary belongs to the caller.
 - [Phase 32]: Plan 32-13: the three --json framing sentences state the per-line contract, and the site count is derived from the module text and pinned at 3. — WR-06. D-18 behaviour was correct and unchanged; the prose described a different program. Three sentences that must agree are three chances to disagree, so the count is measured rather than trusted.
+- [Phase 32]: Phase 32 gap-closure round 1 ends with two OPEN findings: F-03 (check:dashboard-readonly exits 0 over a writer acquired via process.getBuiltinModule with an assembled specifier — a 32-11 residual, measured for the first time) and F-01 (the check:* CI-reachability derivation cannot see check:dashboard-readonly). — The round budget was respected: two bypasses found, one closed inside a file the round already owned, one recorded open rather than fixed in a sixth file.
+- [Phase 32]: F-02 closed in 32-14: a safety predicate must be asked at EVERY syntactic position that introduces the value it governs. The fs re-entry rule was correct and asked at 2 of 4 positions, so a named import of the promises namespace reached every writer while only a cardinality pin stood in the way. — Mutation-proven per position: deleting the rule reds 4 rows, reverting only the two new positions reds exactly those 2.
 
 ### Pending Todos
 
@@ -1392,6 +1395,7 @@ None yet.
 - check:diff-disposition exits 1 on five Phase-31 workflow documents (pre-existing, verified at 6d59ed1e); CI runs it at ci.yml:473 so it will red a Phase 32 PR until disposition rows land under docs/audit/29-style-dispositions/
 - check:nul-bytes is RED on .planning/phases/32-board-projector-cli-dashboard/32-REVIEW.md (literal ESC 0x1b at line 404, from commit 730ff88f). Pre-existing, deferred by plan 32-09; blocks a clean full-suite run.
 - OPEN RESIDUAL (32-10): a hard link inside the repository to an inode named outside it is read by the board projector. No path-based rule can refuse it; nlink>1 was declined as a heuristic. Logged in .planning/WINDOWS.md; needs human risk acceptance before ship.
+- Phase 32: the DASH-06 guard is green over a writer acquired through a runtime-assembled module identity (finding F-03, 32-14-ADVERSARIAL-REVIEW.md section 6) — open, a human risk acceptance before Phase 32 can close.
 
 ### Quick Tasks Completed
 
@@ -1452,8 +1456,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-09-14T23:14:12.881Z
-Stopped at: Completed 32-11-PLAN.md (CR-01 DASH-06 namespace-escape closure)
+Last session: 2026-09-15T00:02:16.401Z
+Stopped at: Completed 32-14-PLAN.md (gap-closure round 1 complete; 2 open findings)
 Resume file: None
 
 ## Operator Next Steps
