@@ -24,7 +24,16 @@
 
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { spawn } from "node:child_process";
-import { readFileSync } from "node:fs";
+import {
+  cpSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  symlinkSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import {
@@ -34,10 +43,11 @@ import {
   WATCH_DIRS,
   WATCH_DIR_COUNT,
   createLoop,
+  defaultDeps,
   deriveWatchDirs,
   run,
 } from "./board-dashboard.js";
-import { FIXED_SUBPATHS, QUEUE_STAGES, SOURCE_NAMES } from "./board-read.js";
+import { FIXED_SUBPATHS, OUTSIDE_ROOT, QUEUE_STAGES, SOURCE_NAMES } from "./board-read.js";
 import type { DashboardIo, Loop, LoopDeps, Options } from "./board-dashboard.js";
 import type { SnapshotResult } from "./board-read.js";
 
@@ -55,16 +65,25 @@ function onSamePath(dir: string, subpath: string): boolean {
 
 const ROOT = join(import.meta.dirname, "..");
 const DASHBOARD_JS = join(ROOT, "scripts", "board-dashboard.js");
+const FIXTURE = join(ROOT, "scripts", "fixtures", "board-snapshot");
+
+/**
+ * The root as the USER TYPES IT, which is the value `arm` used to join against.
+ *
+ * `REPO` and a read's `snapshot.repoRoot` are the same string on an ordinary tree and DIFFERENT
+ * strings the moment the invocation path runs through a symlink — `resolveRepoRoot` puts every
+ * argument through `realpathSync`. The cases below separate the two deliberately.
+ */
 const REPO = "/repo";
 
 /** A snapshot result with no value in any source — the loop under test never reads a real tree. */
-function stubResult(n: number): SnapshotResult {
+function stubResult(n: number, root: string = REPO): SnapshotResult {
   const absent = { source: "unavailable", present: false } as const;
   return {
     source: "unavailable",
     snapshot: {
       schemaVersion: 1,
-      repoRoot: REPO,
+      repoRoot: root,
       generatedAt: `2026-09-14T09:00:${String(n).padStart(2, "0")}.000Z`,
       board: null,
       config: null,
@@ -108,6 +127,8 @@ type Harness = {
    * between two ticks and ask which reason the loop is carrying.
    */
   readonly armFailures: Map<string, string>;
+  /** The root the injected read RESOLVES to, which a case can move between two reads. */
+  readonly readRoot: { current: string };
   readonly onRead: (fn: ((loop: Loop, n: number) => void) | null) => void;
 };
 
@@ -142,6 +163,7 @@ function harness(partial: Partial<Options> = {}, presentDirs: readonly string[] 
   const watchers: FakeWatcher[] = [];
   const present = new Set(presentDirs.map((d) => join(REPO, d)));
   const armFailures = new Map<string, string>();
+  const readRoot = { current: REPO };
   let reads = 0;
   let depth = 0;
   let maxDepth = 0;
@@ -171,7 +193,7 @@ function harness(partial: Partial<Options> = {}, presentDirs: readonly string[] 
       const n = reads;
       try {
         onRead?.(loop, n);
-        return stubResult(n);
+        return stubResult(n, readRoot.current);
       } finally {
         depth -= 1;
       }
@@ -189,6 +211,7 @@ function harness(partial: Partial<Options> = {}, presentDirs: readonly string[] 
     maxDepth: () => maxDepth,
     present,
     armFailures,
+    readRoot,
     onRead: (fn) => {
       onRead = fn;
     },
@@ -626,6 +649,159 @@ describe("board-dashboard — one CURRENT watch record per directory (WR-06)", (
     const line = h.writes()[h.writes().length - 1] ?? "";
     const parsed = JSON.parse(line) as { readErrors: { code: string }[] };
     expect(parsed.readErrors.map((e) => e.code)).not.toContain("watch");
+  });
+});
+
+describe("board-dashboard — a watch is armed against the ROOT EVERY READ RESOLVED (IN-01)", () => {
+  // THE INCONSISTENCY THESE CASES CLOSE. `readSnapshot` puts the argument through `resolveRepoRoot`
+  // and every subpath through the module's single containment authority; `arm` joined the RAW ARGV
+  // VALUE. On a symlinked invocation path the two are different strings, so the loop opened handles
+  // against a tree the reader had already refused to read — one rule asked in one module and not in
+  // its sibling.
+
+  it("arms against the root the READ resolved, not the value the caller typed", () => {
+    const RESOLVED = "/private/repo";
+    const h = harness({}, []);
+    h.present.add(join(RESOLVED, "plans"));
+    h.readRoot.current = RESOLVED;
+    h.loop.seed(stubResult(1, RESOLVED));
+
+    h.loop.armAll();
+
+    expect(
+      h.watchers.map((w) => w.dir),
+      "the handle is open on the ARGV path. `options.repoRoot` is the string the user typed; the " +
+        "snapshot's repoRoot is what the containment authority resolved it to",
+    ).toEqual([join(RESOLVED, "plans")]);
+    expect(h.loop.watchedDirs()).toEqual(["plans"]);
+  });
+
+  it("follows a later read that resolves to a DIFFERENT root", () => {
+    const h = harness({}, ["plans"]);
+    h.loop.seed(stubResult(1, REPO));
+    h.loop.armAll();
+    expect(
+      h.watchers.map((w) => w.dir),
+      "PREMISE: nothing was armed under the first root, so the move below is a move from nowhere",
+    ).toEqual([join(REPO, "plans")]);
+
+    const MOVED = "/private/repo";
+    h.present.add(join(MOVED, "plans"));
+    h.readRoot.current = MOVED;
+    h.loop.refresh();
+    h.loop.armAll();
+
+    expect(
+      h.watchers.filter((w) => !w.closed).map((w) => w.dir),
+      "a resolved root that MOVED leaves every open handle on a tree that is no longer the one " +
+        "being projected: the handles go with the root",
+    ).toEqual([join(MOVED, "plans")]);
+  });
+
+  it("arms NOTHING before a read has resolved a root, and says so once per directory", () => {
+    // THE STATED ANSWER TO AN UNSTATED ORDER DEPENDENCE. `run` seeds before it arms, so production
+    // never reaches this; `createLoop` is a public function a caller can drive in any order, and an
+    // unstated assumption in a loop that opens filesystem handles is what the next round measures.
+    const h = harness({}, ["plans"]);
+
+    h.loop.armAll();
+
+    expect(h.watchers.length, "a handle was opened against a root nobody resolved").toBe(0);
+    expect(h.loop.watchedDirs()).toEqual([]);
+    const noted = h.loop.watchErrors();
+    expect(noted.length, "one record per directory, because the skip is per directory").toBe(
+      WATCH_DIR_COUNT,
+    );
+    expect(noted.every((e) => e.message.includes("no read has resolved"))).toBe(true);
+
+    // And the records do not outlive the condition: a seed, a re-arm, and the loop says nothing.
+    h.loop.seed(stubResult(1, REPO));
+    h.loop.armAll();
+    expect(h.loop.watchedDirs()).toEqual(["plans"]);
+    expect(
+      h.loop.watchErrors(),
+      "the five directories that do not exist on this tree kept a record about a condition that " +
+        "is over — an absent directory is not a failed watch",
+    ).toEqual([]);
+  });
+
+  it("refuses a symlinked source directory and opens no handle on it, end to end", () => {
+    // THE CR-04 CLASS ASKED IN THE SIBLING MODULE. A real tree, the real reader, the real
+    // containment authority; only `watch` is injected, so what is measured is which directories the
+    // loop ASKED to watch.
+    const scratch = mkdtempSync(join(realpathSync(tmpdir()), "grugops-watch-symlink-"));
+    try {
+      const tree = join(scratch, "tree");
+      cpSync(FIXTURE, tree, { recursive: true });
+      const outside = join(scratch, "outside");
+      mkdirSync(outside, { recursive: true });
+      cpSync(join(tree, "plans"), join(outside, "plans"), { recursive: true });
+      rmSync(join(tree, "plans"), { recursive: true, force: true });
+      symlinkSync(join(outside, "plans"), join(tree, "plans"), "dir");
+
+      const armed: string[] = [];
+      const deps: LoopDeps = {
+        ...defaultDeps(),
+        watch: (dir) => {
+          armed.push(dir);
+          return { close: () => undefined, on: () => undefined };
+        },
+      };
+      const out: string[] = [];
+      const io: DashboardIo = {
+        stdout: {
+          write: (s: string) => {
+            out.push(s);
+            return true;
+          },
+        },
+        stderr: { write: () => true },
+        isTty: false,
+      };
+
+      const result = run([tree, "--json", "--watch", "--interval", "1000"], io, deps);
+      expect(result.kind).toBe("running");
+      if (result.kind === "running") result.loop.stop();
+
+      const doc = JSON.parse(out[0] ?? "{}") as {
+        readErrors: { source: string; code: string }[];
+      };
+      // THREE sources, not two: `plans/` carries the board, the ticket directory AND the
+      // traceability file, so one symlink refuses all three — and `plans` is the watched directory
+      // for the first and the third.
+      const refused = doc.readErrors.filter((e) => e.code === OUTSIDE_ROOT);
+      expect(
+        refused.map((e) => e.source).sort(),
+        "PREMISE: the reader did not refuse the symlinked directory, so the watch assertion below " +
+          "is about a tree that was never outside the root",
+      ).toEqual(["board", "tickets", "traceability"]);
+
+      expect(
+        armed.filter((d) => d.includes("plans")),
+        "a handle is open on a directory every READ of which is refused. No content crosses — a " +
+          "watcher yields names — but the rule is one rule, and it is asked in one module",
+      ).toEqual([]);
+      expect(
+        armed.some((d) => d.includes(".grugops")),
+        "PREMISE: the loop armed nothing at all, so 'it did not arm the refused path' is true of a " +
+          "loop that did nothing",
+      ).toBe(true);
+      expect(
+        refused.length,
+        "the refusal is reported ONCE, by the authority that made it. A second record from the " +
+          "watch arm would be the same finding twice in the same list",
+      ).toBe(3);
+    } finally {
+      rmSync(scratch, { recursive: true, force: true });
+    }
+  });
+
+  it("leaves the armed set unchanged on an ordinary tree", () => {
+    const h = harness({}, ["plans", "plans/tickets", ".grugops/context"]);
+    h.loop.seed(stubResult(1, REPO));
+    h.loop.armAll();
+    expect(h.loop.watchedDirs()).toEqual(["plans", "plans/tickets", ".grugops/context"]);
+    expect(h.loop.watchErrors()).toEqual([]);
   });
 });
 

@@ -375,11 +375,14 @@ export function resolveRepoRoot(repoRoot) {
  *
  * A LITERAL DECLARED ONCE rather than spelled at each site: a consumer filtering `readErrors` for
  * escapes asks one question, and three hand-typed copies of a code string is the set-literal drift
- * class this repository has already paid for. It is NOT a sixth `StaleReason` — the reason is the
+ * class this repository has already paid for. EXPORTED, because the dashboard's watch arm is one of
+ * those consumers: a directory whose source this module refused for containment is a directory the
+ * loop does not watch either, and it asks that question with this constant rather than with a
+ * seventh copy of the string (IN-01). It is NOT a sixth `StaleReason` — the reason is the
  * published `unreadable`, because the bytes were not obtained, which is the sentence that reason
  * already defines. `STALE_REASONS` stays at five.
  */
-const OUTSIDE_ROOT = "OUTSIDE-ROOT";
+export const OUTSIDE_ROOT = "OUTSIDE-ROOT";
 /** `target` is inside `root` — strictly inside, so the root itself is not one of its own children. */
 function isWithinRoot(root, target) {
     const rel = relative(root, target);
