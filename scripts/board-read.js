@@ -565,11 +565,28 @@ export function isSafeTaskName(name) {
 /**
  * Decide WHICH entries survive the walk bound. The ONE place membership under the bound is settled.
  *
- * (plan 32-17: this is the behaviour-preserving extraction of the rule that lived inline in
- * `listDirectoryBounded`. It is extracted first, unchanged, so the defect WR-09 names can be
- * measured as a pure assertion over a shuffled list rather than as a race against a filesystem's
- * listing order over ten thousand planted files.)
+ * THE SORT COMES BEFORE THE SLICE, AND THAT ORDER IS THE WHOLE RULE (plan 32-17, WR-09). The prior
+ * code sliced the raw `readdirSync` order and left each caller to sort what came back, which made
+ * the ORDER deterministic and the MEMBERSHIP a function of the filesystem: once the bound bit,
+ * WHICH entries survived depended on the listing order, so two machines reading one tree reported
+ * different ticket sets and different `ticket-unplaced` conflicts. That is the failure
+ * `joinSnapshot`'s total-order docblock says a sort exists to prevent, one register up from where
+ * it was being prevented.
+ *
+ * THE FILTER COMES BEFORE BOTH. A half-written atomic sibling that sorts inside the surviving range
+ * would otherwise spend one of the bounded slots and push a real entry out of it.
+ *
+ * THE BOUND IS APPLIED HERE AND NOWHERE ELSE. `listDirectoryBounded` spreads this result unchanged
+ * and carries no slice of its own; a second application beside it is a second spelling of one rule,
+ * which is the drift class this repository keeps re-acquiring.
  */
+export function boundNames(entries, max) {
+    const names = entries.filter((n) => !n.includes(".tmp-")).sort();
+    if (names.length > max) {
+        return { names: names.slice(0, max), bounded: true };
+    }
+    return { names, bounded: false };
+}
 /**
  * List `dir`, dropping atomic-write temporaries, bounded by the tree's shared walk bound.
  *
@@ -598,14 +615,11 @@ export function isSafeTaskName(name) {
  *                             yet is still reported rather than silently believed.
  *   no `code` property      → `failed` with the literal `unreadable` as its code. There is no path
  *                             out of this function that reports a listing it did not get.
+ *
+ * MEMBERSHIP UNDER THE BOUND IS `boundNames`'S TO DECIDE (plan 32-17, WR-09). This function obtains
+ * the entries and routes the errno; it applies no bound and no sort of its own, so `names` is
+ * already sorted when it is returned and no caller needs a sort beside it.
  */
-export function boundNames(entries, max) {
-    const names = entries.filter((n) => !n.includes(".tmp-"));
-    if (names.length > max) {
-        return { names: names.slice(0, max), bounded: true };
-    }
-    return { names, bounded: false };
-}
 export function listDirectoryBounded(dir) {
     let entries;
     try {
@@ -858,9 +872,14 @@ export function readTicketsSource(root, readAt, previous, seam) {
     const unadmitted = [];
     /** The reason of the FIRST per-file read failure, or null when every file's bytes arrived. */
     let firstReadFailure = null;
-    // Sorted, so two runs over the same directory produce the same order whatever the filesystem's
-    // listing order happens to be. A frame that reshuffles on every re-read is a frame nobody can read.
-    for (const name of [...listing.names].sort()) {
+    // SORTED BY THE LISTING ITSELF (plan 32-17, WR-09), so two runs over one directory agree on the
+    // SET as well as on the order. The sort used to live here, AFTER the bound had already been
+    // applied to the filesystem's own listing order — which made the order deterministic and left the
+    // membership a function of the filesystem the moment the bound bit. `boundNames` sorts first, so
+    // the entries that survive the bound are the first by name on every machine. A frame that
+    // reshuffles on every re-read is a frame nobody can read; a frame whose CONTENTS move with the
+    // filesystem is worse, because nothing on it looks wrong.
+    for (const name of listing.names) {
         if (!name.endsWith(".md"))
             continue;
         const child = childPath(root, dir, name);
@@ -957,7 +976,27 @@ const BY_VALUE = /^by:\s*(.+)$/m;
  *
  * WHAT THIS READER ADDS: it REPORTS the skip. `claim.ts` skips silently because its output is a
  * derived artifact; this module's output is a screen a human is watching for exactly this kind of
- * problem, so a skipped record is named in `readErrors` with the code `tampered`.
+ * problem, so a skipped record is named in `readErrors`.
+ *
+ * THAT CLAIM IS NOW TOTAL, AND IT IS ASSERTED BY A COUNT (plan 32-17, IN-02). Every entry the
+ * claimed-stage listing hands this loop leaves it as EXACTLY ONE of a row in `rows` or a
+ * `readErrors` entry, and there is no silent `continue` left. Three of the four refusal arms used
+ * to be silent, including the one that matters most: a claim record carrying NO `at:` line vanished
+ * while a record carrying TWO was named `tampered` — the same malformed-record class, reported on
+ * one side and invisible on the other. The five codes this loop can emit:
+ *
+ *   unsafe-task-name  the entry is outside the ported allowlist, refused before any filesystem
+ *                     access. Its path is the STAGE, never a composed path — joining the segment
+ *                     here is the join the arm exists to prevent.
+ *   (childPath codes) the entry or its `claim.md` resolves outside the root (plan 32-10).
+ *   no-claim-record   a claimed task directory carrying no `claim.md` at all.
+ *   (read codes)      the record's bytes could not be obtained; this one also degrades the source.
+ *   tampered          more than one `at:` line. PORTED WORDING — do not paraphrase it.
+ *   no-at             no `at:` line at all, so the record cannot be placed on the timeline.
+ *
+ * A REFUSED RECORD IS NOT A FAILURE TO OBTAIN BYTES. `no-claim-record`, `no-at`, `tampered` and
+ * `unsafe-task-name` leave `firstReadFailure` alone and the source stays `ok`, exactly as the
+ * tamper rule already did: the reader read what was there and refused it by name.
  *
  * The row order is `at` then `task`, which is the order `renderNowRunning` emits — so the dashboard
  * and `.grugops/queue/now-running.md` cannot disagree about which claim came first.
@@ -985,9 +1024,22 @@ function readQueueSource(root, readAt, previous, seam) {
     /** The reason of the FIRST per-record read failure, or null when every record's bytes arrived. */
     let firstReadFailure = null;
     for (const task of claimedNames) {
-        // Defensive: never read through an unsafe segment. Skipped BEFORE any filesystem access.
-        if (!isSafeTaskName(task))
+        // Defensive: never read through an unsafe segment. Refused BEFORE any filesystem access, and
+        // REPORTED (plan 32-17, IN-02) — a human told only that the queue is empty cannot tell a queue
+        // with nothing claimed from a queue whose claimed directory this reader would not walk.
+        if (!isSafeTaskName(task)) {
+            errors.push({
+                source: "queue",
+                // NOT a composed path, the `childPath` convention: the segment is exactly what is being
+                // refused, so joining it with its directory here performs the join this arm prevents.
+                path: claimedDir,
+                code: "unsafe-task-name",
+                message: `board-read: the claimed-stage entry \`${task}\` under ${claimedDir} is not a plain ` +
+                    `path segment. It is refused before any filesystem access, so a name nobody vouched ` +
+                    `for never reaches a join, and no row is rendered for it.`,
+            });
             continue;
+        }
         const taskChild = childPath(root, claimedDir, task);
         if (!taskChild.ok) {
             errors.push({
@@ -1018,8 +1070,19 @@ function readQueueSource(root, readAt, previous, seam) {
             continue;
         }
         const claimMd = claimChild.path;
-        if (!existsSync(claimMd))
+        if (!existsSync(claimMd)) {
+            // REPORTED, NOT SKIPPED (plan 32-17, IN-02). A task directory in the claimed stage with no
+            // record is a queue that has half-claimed something: the lock is taken and nothing says by
+            // whom or since when. The screen used to show neither the row nor the reason.
+            errors.push({
+                source: "queue",
+                path: claimMd,
+                code: "no-claim-record",
+                message: `${claimMd} does not exist, so the claimed task \`${task}\` carries no claim record. ` +
+                    `The reader can place no row for it: nothing states who claimed it or when.`,
+            });
             continue;
+        }
         const read = readVerifyReread(claimMd, READ_RETRY_BOUND, seam);
         if (!read.ok) {
             errors.push({ source: "queue", path: claimMd, code: read.code, message: read.message });
@@ -1050,8 +1113,22 @@ function readQueueSource(root, readAt, previous, seam) {
             continue;
         }
         const at = AT_VALUE.exec(claimText);
-        if (at === null)
-            continue; // no `at` field → cannot be placed on the timeline; skip
+        if (at === null) {
+            // REPORTED, NOT SKIPPED (plan 32-17, IN-02), AND THIS IS THE ONE THAT MATTERED. A record that
+            // exists and carries NO timestamp is the same malformed-record class the `at:`-count rule
+            // above reports as `tampered` — and it used to vanish while its sibling was named. The row
+            // order is `at` then `task`, so a record with no `at` has no place on the timeline; that is a
+            // reason to refuse it by name, never a reason to say nothing.
+            errors.push({
+                source: "queue",
+                path: claimMd,
+                code: "no-at",
+                message: `${claimMd} carries no \`at:\` line and a claim record is written with exactly one. ` +
+                    `The record is skipped rather than placed at an invented instant: the row order is ` +
+                    `\`at\` then task, so a record with no timestamp has no position on the timeline.`,
+            });
+            continue;
+        }
         const by = BY_VALUE.exec(claimText);
         rows.push({ task, by: by === null ? "" : (by[1] ?? "").trim(), at: (at[1] ?? "").trim() });
     }
@@ -1094,7 +1171,8 @@ function readContextSource(root, readAt, previous, seam) {
     const errors = [];
     /** The reason of the FIRST per-task read failure, or null when every task's bytes arrived. */
     let firstReadFailure = null;
-    for (const name of [...listing.names].sort()) {
+    // Sorted by `boundNames`, for the reason written at the tickets walk (plan 32-17, WR-09).
+    for (const name of listing.names) {
         if (!isSafeTaskName(name))
             continue;
         const taskChild = childPath(root, dir, name);

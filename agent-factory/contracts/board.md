@@ -352,6 +352,12 @@ which is stale for as long as the refusal stands; the other sources are unaffect
 PATHS: a hard link created inside the repository to a file whose other name is outside it is a path
 inside the root and is read, which the projector records rather than claims to prevent.
 
+**Every claimed task the queue's listing hands the reader becomes either a row or a named read
+error.** A task directory with no claim record, a record with no timestamp, a record carrying more
+than one timestamp, and an entry whose name the reader will not walk are each reported with their
+own code rather than skipped in silence. None of the four makes the queue stale: the reader obtained
+what was there and refused it by name, which is a finding about a record rather than about a read.
+
 There is no empty-board output state distinct from zero rows under real headings. A board whose
 columns are all empty renders its columns with zero counts. A board that could not be read is stale
 or unavailable, and the reader is told which of the two it is.
@@ -383,6 +389,19 @@ measured in the corpus was a parenthetical rather than a title.
 These four numbers are decisions rather than tuning knobs. Raising one to accommodate a board that
 grew is the move this contract refuses. The board is trimmed or split instead, and the projector's
 job is to make the growth visible.
+
+### The directory listing
+
+A fifth bound sits below the four parse ceilings above and applies to directories rather than to a
+document: every directory the projector lists is bounded at 10,000 entries, and the source whose
+listing hit the bound is stale with the reason `bounded`.
+
+**Which entries survive the bound is decided by name.** The entries are sorted before the bound is
+applied, so a directory carrying more than 10,000 entries yields the first 10,000 by name — the
+same entries on every machine, whatever order a filesystem happens to list them in. Two machines
+reading one tree therefore report the same ticket set and the same conflicts. Applying the bound
+first and sorting afterwards would make the order stable and leave the membership a function of the
+filesystem, which is a difference nothing on the screen would show.
 
 ### The WIP number
 

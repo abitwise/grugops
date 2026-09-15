@@ -1137,6 +1137,14 @@ describe("board-read — the queue, with claim.ts's tamper rules PORTED (T-32-05
       const named = result.readErrors.find((e) => e.path === tampered);
       expect(named?.source).toBe("queue");
       expect(named?.code).toBe("tampered");
+      // THE WORDING IS PORTED AND LOAD-BEARING, so it is pinned rather than described (plan 32-17).
+      // Three sibling arms gained reports in plan 32-17; this is the one that was already there,
+      // and a rewrite of it while "making the four consistent" is the change this pin refuses.
+      expect(named?.message).toBe(
+        `${tampered} carries 2 \`at:\` lines and a claim record is written with exactly one. The ` +
+          `record is skipped rather than trusted on either line: a forged second \`at:\` is a ` +
+          `queue-lock denial of service (scripts/claim.ts:270-306).`,
+      );
     });
   });
 
