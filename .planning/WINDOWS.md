@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 182
+open_count: 183
 waived_count: 0
-fixed_count: 4
-total_count: 186
-last_updated: 2026-09-15T13:06:17.466Z
+fixed_count: 8
+total_count: 191
+last_updated: 2026-09-15T13:43:13.193Z
 ---
 
 # Broken Windows Ledger
@@ -193,14 +193,19 @@ last_updated: 2026-09-15T13:06:17.466Z
 | 176 | 32 | lint-warning | docs/audit/29-style-dispositions/00-base.md |  | check:diff-disposition exits 1 on five Phase-31 workflow documents; pre-existing, verified identical at 6d59ed1e | open |  | 2026-09-14T13:45:35.380Z |  |
 | 177 | 32 | lint-warning | .planning/phases/32-board-projector-cli-dashboard/32-REVIEW.md | 404 | check:nul-bytes RED — literal ESC (0x1b) in the review document; pre-existing from commit 730ff88f, deferred by plan 32-09 as out of scope | open |  | 2026-09-14T20:33:15.766Z |  |
 | 178 | 32 | deviation | scripts/board-read.ts |  | Hard-link residual (plan 32-10, CR-04): a hard link inside the repository to an inode whose other name is outside it is READ, because its path resolves inside the root. No path-based rule can refuse it; nlink>1 was declined as a heuristic. Measured, pinned by a mechanism test, and recorded in insideRoot's docblock, the board contract and 32-10-GREEN-proof.txt. | open |  | 2026-09-14T21:20:37.534Z |  |
-| 179 | 32 | deviation | scripts/board-readonly.test.ts |  | Open residual (named, not closed): a module identity ASSEMBLED at runtime and handed to a non-module-system call - process.getBuiltinModule("node:" + "fs") - is not a string literal, so the 32-11 argument arm does not see it. import(expr)/require(expr) with a non-literal ARE refused. | open |  | 2026-09-14T23:14:26.242Z |  |
-| 180 | 32 | unmet-truth | scripts/board-readonly.test.ts |  | F-03 (32-14): npm run check:dashboard-readonly exits 0 over a module acquiring node:fs via process.getBuiltinModule("node:" + "fs") — measured, not reasoned; reproduction in 32-14-ADVERSARIAL-REVIEW.md section 6 | open |  | 2026-09-14T23:59:53.269Z |  |
-| 181 | 32 | unrun-verify | scripts/check-foundation-guards.test.ts | 12009 | F-01 (32-14): the 'every check:* npm script names a gate that CI runs' derivation skips check:dashboard-readonly (its command is not 'node scripts/*.js'), so the DASH-06 gate's CI reachability is unproven by that gate | open |  | 2026-09-14T23:59:53.350Z |  |
-| 182 | 32 | deviation | .planning/phases/32-board-projector-cli-dashboard/deferred-items.md |  | the check:nul-bytes deferred entry still reads status: open but the gate is GREEN (fixed by user commit 888a1302); the entry is stale | open |  | 2026-09-14T23:59:53.431Z |  |
+| 179 | 32 | deviation | scripts/board-readonly.test.ts |  | Open residual (named, not closed): a module identity ASSEMBLED at runtime and handed to a non-module-system call - process.getBuiltinModule("node:" + "fs") - is not a string literal, so the 32-11 argument arm does not see it. import(expr)/require(expr) with a non-literal ARE refused. | fixed |  | 2026-09-14T23:14:26.242Z | 2026-09-15T13:42:41.144Z |
+| 180 | 32 | unmet-truth | scripts/board-readonly.test.ts |  | F-03 (32-14): npm run check:dashboard-readonly exits 0 over a module acquiring node:fs via process.getBuiltinModule("node:" + "fs") — measured, not reasoned; reproduction in 32-14-ADVERSARIAL-REVIEW.md section 6 | fixed |  | 2026-09-14T23:59:53.269Z | 2026-09-15T13:42:49.724Z |
+| 181 | 32 | unrun-verify | scripts/check-foundation-guards.test.ts | 12009 | F-01 (32-14): the 'every check:* npm script names a gate that CI runs' derivation skips check:dashboard-readonly (its command is not 'node scripts/*.js'), so the DASH-06 gate's CI reachability is unproven by that gate | fixed |  | 2026-09-14T23:59:53.350Z | 2026-09-15T13:42:49.809Z |
+| 182 | 32 | deviation | .planning/phases/32-board-projector-cli-dashboard/deferred-items.md |  | the check:nul-bytes deferred entry still reads status: open but the gate is GREEN (fixed by user commit 888a1302); the entry is stale | fixed |  | 2026-09-14T23:59:53.431Z | 2026-09-15T13:42:49.892Z |
 | 183 | 32 | unrun-verify | scripts/e2e |  | The live claude-CLI e2e lane was not run for plan 32-17 (spends tokens on an authenticated box and can hang); its state is UNKNOWN - verify | open |  | 2026-09-15T09:36:31.879Z |  |
 | 184 | 32 | deviation | scripts/validate.test.ts |  | 32-21 stated blind spot: the ticket-frontmatter census cannot resolve a key spelling assembled at RUNTIME (String.fromCharCode, a template with substitutions, a name read from a variable). Measured at zero and pinned by a case; no such shape exists in scripts/ today. | open |  | 2026-09-15T12:22:42.261Z |  |
 | 185 | 32 | deviation | scripts/board-watch-live.test.ts |  | 32-22 measured boundary: a watch failure the NEXT poll tick repairs reaches no emitted document, because armAll() precedes refresh() inside one tick and a successful re-arm deletes the record (WR-06). Pinned by an assertion and by mutation M4; updates themselves never stop (997-1003 ms with every watch dead). | open |  | 2026-09-15T13:06:09.658Z |  |
 | 186 | 32 | unrun-verify | scripts/board-watch-live.test.ts |  | 32-22: Windows fs.watch timing stays UNKNOWN - verify (Phase 33 / CAP-02). CI runs this file on windows-latest and three of its five cases depend on the platform delivering directory events; a red there is the CAP-02 measurement arriving early and must not be answered with a platform conditional. | open |  | 2026-09-15T13:06:17.466Z |  |
+| 187 | 32 | unmet-truth | scripts/board-readonly.test.ts |  | F-04 (32-23): npm run check:dashboard-readonly exits 0, 89/89, over a closure module importing a writer through an ABSOLUTE-path specifier. isBareSpecifier excludes a leading slash so the allow-list never sees it, and js-import-closure follows only dot-relative specifiers so the module is never analysed. Measured with a real write, and the .ts typechecks and tsc emits the specifier verbatim, so a committed pair passes check:build-parity by construction. Reproduction in 32-23-ADVERSARIAL-REVIEW.md section 5. | open |  | 2026-09-15T13:43:12.868Z |  |
+| 188 | 32 | unmet-truth | scripts/board-readonly.test.ts |  | F-08 (32-23): a capability-global member reached through a BINDING (const r = process.report; r.writeReport(p)) reds only the two-sided member-path census, not the acquisitions mechanism, because isCallee is false at a binding site. Recording process.report in EXPECTED_GLOBAL_MEMBER_PATHS and bumping the count - the edit the failure message invites - re-greens the gate at 89/89 over a writer in ONE edit. F-02's shape one register over. Reproduction in 32-23-ADVERSARIAL-REVIEW.md section 5. | open |  | 2026-09-15T13:43:12.950Z |  |
+| 189 | 32 | unmet-truth | scripts/board-model.ts |  | F-06 (32-23): row-without-file still prints 'no ticket file carries that identifier' with an expected path that EXISTS, when the ticket file's declared id differs from its file stem. 32-15 keys the honest sentence on unadmittedTickets (refused entries, by stem) and the admitted map on the declared id, so an admitted-under-another-identity document is in neither map under its stem - and no readErrors entry is raised either. Reproduction in 32-23-ADVERSARIAL-REVIEW.md section 5. | open |  | 2026-09-15T13:43:13.030Z |  |
+| 190 | 32 | deviation | scripts/board-dashboard.ts |  | F-05 (32-23): writeDocument sanitizes AFTER JSON.stringify, so the two are complementary - C1 is removed, C0 is already escaped into printable text and cannot be seen. A raw ESC in a board row title reaches the --json document as 0 control code points and is recovered as 6 by one JSON.parse. The boundary is stated in writeDocument's docblock; what is measured here is that the input is an ordinary raw C0, not a planted escape sequence. Reproduction in 32-23-ADVERSARIAL-REVIEW.md section 5. | open |  | 2026-09-15T13:43:13.111Z |  |
+| 191 | 32 | deviation | scripts/check-foundation-guards.test.ts |  | F-07 (32-23): classifyCheckScript uses .exec, so a check:* command running two gate modules is classified by the FIRST and the second gets no reachability proof; CHECK_SCRIPT_CLASSES pins scripts per class, never targets per script. No live instance - all 11 check:* scripts carry at most one gate module, derived at measurement time. Reproduction in 32-23-ADVERSARIAL-REVIEW.md section 5. | open |  | 2026-09-15T13:43:13.193Z |  |
 
 ````json
 [
@@ -2349,10 +2354,10 @@ last_updated: 2026-09-15T13:06:17.466Z
     "file": "scripts/board-readonly.test.ts",
     "line": null,
     "description": "Open residual (named, not closed): a module identity ASSEMBLED at runtime and handed to a non-module-system call - process.getBuiltinModule(\"node:\" + \"fs\") - is not a string literal, so the 32-11 argument arm does not see it. import(expr)/require(expr) with a non-literal ARE refused.",
-    "status": "open",
+    "status": "fixed",
     "reason": "",
     "recorded_at": "2026-09-14T23:14:26.242Z",
-    "resolved_at": null,
+    "resolved_at": "2026-09-15T13:42:41.144Z",
     "milestone": "v2.1"
   },
   {
@@ -2362,10 +2367,10 @@ last_updated: 2026-09-15T13:06:17.466Z
     "file": "scripts/board-readonly.test.ts",
     "line": null,
     "description": "F-03 (32-14): npm run check:dashboard-readonly exits 0 over a module acquiring node:fs via process.getBuiltinModule(\"node:\" + \"fs\") — measured, not reasoned; reproduction in 32-14-ADVERSARIAL-REVIEW.md section 6",
-    "status": "open",
+    "status": "fixed",
     "reason": "",
     "recorded_at": "2026-09-14T23:59:53.269Z",
-    "resolved_at": null,
+    "resolved_at": "2026-09-15T13:42:49.724Z",
     "milestone": "v2.1"
   },
   {
@@ -2375,10 +2380,10 @@ last_updated: 2026-09-15T13:06:17.466Z
     "file": "scripts/check-foundation-guards.test.ts",
     "line": 12009,
     "description": "F-01 (32-14): the 'every check:* npm script names a gate that CI runs' derivation skips check:dashboard-readonly (its command is not 'node scripts/*.js'), so the DASH-06 gate's CI reachability is unproven by that gate",
-    "status": "open",
+    "status": "fixed",
     "reason": "",
     "recorded_at": "2026-09-14T23:59:53.350Z",
-    "resolved_at": null,
+    "resolved_at": "2026-09-15T13:42:49.809Z",
     "milestone": "v2.1"
   },
   {
@@ -2388,10 +2393,10 @@ last_updated: 2026-09-15T13:06:17.466Z
     "file": ".planning/phases/32-board-projector-cli-dashboard/deferred-items.md",
     "line": null,
     "description": "the check:nul-bytes deferred entry still reads status: open but the gate is GREEN (fixed by user commit 888a1302); the entry is stale",
-    "status": "open",
+    "status": "fixed",
     "reason": "",
     "recorded_at": "2026-09-14T23:59:53.431Z",
-    "resolved_at": null,
+    "resolved_at": "2026-09-15T13:42:49.892Z",
     "milestone": "v2.1"
   },
   {
@@ -2443,6 +2448,71 @@ last_updated: 2026-09-15T13:06:17.466Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-09-15T13:06:17.466Z",
+    "resolved_at": null,
+    "milestone": "v2.1"
+  },
+  {
+    "id": 187,
+    "kind": "unmet-truth",
+    "phase": "32",
+    "file": "scripts/board-readonly.test.ts",
+    "line": null,
+    "description": "F-04 (32-23): npm run check:dashboard-readonly exits 0, 89/89, over a closure module importing a writer through an ABSOLUTE-path specifier. isBareSpecifier excludes a leading slash so the allow-list never sees it, and js-import-closure follows only dot-relative specifiers so the module is never analysed. Measured with a real write, and the .ts typechecks and tsc emits the specifier verbatim, so a committed pair passes check:build-parity by construction. Reproduction in 32-23-ADVERSARIAL-REVIEW.md section 5.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-15T13:43:12.868Z",
+    "resolved_at": null,
+    "milestone": "v2.1"
+  },
+  {
+    "id": 188,
+    "kind": "unmet-truth",
+    "phase": "32",
+    "file": "scripts/board-readonly.test.ts",
+    "line": null,
+    "description": "F-08 (32-23): a capability-global member reached through a BINDING (const r = process.report; r.writeReport(p)) reds only the two-sided member-path census, not the acquisitions mechanism, because isCallee is false at a binding site. Recording process.report in EXPECTED_GLOBAL_MEMBER_PATHS and bumping the count - the edit the failure message invites - re-greens the gate at 89/89 over a writer in ONE edit. F-02's shape one register over. Reproduction in 32-23-ADVERSARIAL-REVIEW.md section 5.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-15T13:43:12.950Z",
+    "resolved_at": null,
+    "milestone": "v2.1"
+  },
+  {
+    "id": 189,
+    "kind": "unmet-truth",
+    "phase": "32",
+    "file": "scripts/board-model.ts",
+    "line": null,
+    "description": "F-06 (32-23): row-without-file still prints 'no ticket file carries that identifier' with an expected path that EXISTS, when the ticket file's declared id differs from its file stem. 32-15 keys the honest sentence on unadmittedTickets (refused entries, by stem) and the admitted map on the declared id, so an admitted-under-another-identity document is in neither map under its stem - and no readErrors entry is raised either. Reproduction in 32-23-ADVERSARIAL-REVIEW.md section 5.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-15T13:43:13.030Z",
+    "resolved_at": null,
+    "milestone": "v2.1"
+  },
+  {
+    "id": 190,
+    "kind": "deviation",
+    "phase": "32",
+    "file": "scripts/board-dashboard.ts",
+    "line": null,
+    "description": "F-05 (32-23): writeDocument sanitizes AFTER JSON.stringify, so the two are complementary - C1 is removed, C0 is already escaped into printable text and cannot be seen. A raw ESC in a board row title reaches the --json document as 0 control code points and is recovered as 6 by one JSON.parse. The boundary is stated in writeDocument's docblock; what is measured here is that the input is an ordinary raw C0, not a planted escape sequence. Reproduction in 32-23-ADVERSARIAL-REVIEW.md section 5.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-15T13:43:13.111Z",
+    "resolved_at": null,
+    "milestone": "v2.1"
+  },
+  {
+    "id": 191,
+    "kind": "deviation",
+    "phase": "32",
+    "file": "scripts/check-foundation-guards.test.ts",
+    "line": null,
+    "description": "F-07 (32-23): classifyCheckScript uses .exec, so a check:* command running two gate modules is classified by the FIRST and the second gets no reachability proof; CHECK_SCRIPT_CLASSES pins scripts per class, never targets per script. No live instance - all 11 check:* scripts carry at most one gate module, derived at measurement time. Reproduction in 32-23-ADVERSARIAL-REVIEW.md section 5.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-15T13:43:13.193Z",
     "resolved_at": null,
     "milestone": "v2.1"
   }

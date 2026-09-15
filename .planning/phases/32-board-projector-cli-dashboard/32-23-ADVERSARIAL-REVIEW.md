@@ -593,4 +593,257 @@ the inherited column: round 1 ended with 2 open inherited findings, this round e
 finding from every earlier round in this phase is measured closed. §8 weighs what that means for
 round 3.
 
-<!-- gsd:write-continue -->
+---
+
+## 6. The gate sweep — row set derived from `package.json`, not recalled
+
+The rows below are **every `check:*` and every `freshness:*` entry read out of `package.json`'s
+`scripts` object at sweep time**, plus the umbrella `freshness` script: **20 rows, derived**. A gate
+this round never touched that is now red is a regression this sweep finds rather than one it happens
+to look for. The sweep was taken after this round's document commits, so it measures the tree a
+reader will check out.
+
+**`npm test` was not run** — it triggers the live claude-CLI e2e lane, which spends tokens and can
+hang. The suite is `npx vitest run --exclude '**/scripts/e2e/**'`.
+
+| Gate | Exit | Last line |
+|---|---|---|
+| `check:build-parity` | 0 | Build parity: no tracked build output moved when tsc ran. |
+| `check:public-docs` | 0 | ALL CHECKS PASSED |
+| `check:audit-register` | 0 | ALL CHECKS PASSED |
+| `check:residual-citations` | 0 | ALL CHECKS PASSED |
+| `check:claim-anchors` | 0 | ALL CHECKS PASSED |
+| `check:banned-claims` | 0 | ALL CHECKS PASSED |
+| `check:imperative-lexicon` | 0 | ALL CHECKS PASSED |
+| `check:diff-disposition` | **1** | 1 CHECK(S) FAILED — **PRE-EXISTING, see below** |
+| `check:nul-bytes` | 0 | ALL CHECKS PASSED |
+| `check:platform-shapes` | 0 | ALL CHECKS PASSED |
+| `check:dashboard-readonly` | 0 | Tests  89 passed (89) |
+| `freshness:catalog` | 0 | Catalog fresh: docs/catalog/README.md matches a fresh regeneration. |
+| `freshness:adapters` | 0 | Mirrored generator resolved model preset: none |
+| `freshness:skill-twins` | 0 | Skill twins fresh: 7 twin(s) compared in .claude/skills, 0 byte difference(s), directory listings set-equal. |
+| `freshness:guarantees` | 0 | Guarantees fresh: docs/GUARANTEES.md matches a fresh regeneration. |
+| `freshness:hook-manifest` | 0 | Hook manifest fresh: 2 decider(s), 26 module hash(es) match a fresh derivation. |
+| `freshness:context` | 0 | Context fresh: no `.grugops/context/` tree exists yet — **vacuous pass**, and it says so |
+| `freshness:queue` | 0 | Now-running fresh: no `.grugops/queue/claimed/` tree exists yet — **vacuous pass**, and it says so |
+| `freshness:traceability` | 0 | Traceability fresh: no `.grugops/context/` notes tree exists yet — **vacuous pass**, and it says so |
+| `freshness` | 0 | All build outputs fresh: 65 committed .js file(s) match a rebuild of their sources. |
+
+Plus the three commands this plan's verification names outside the manifest:
+
+| Command | Result |
+|---|---|
+| `npx vitest run --exclude '**/scripts/e2e/**'` | **75 files, 4974 passed, 2 skipped**, exit 0 |
+| `VALIDATE_KIT_ROOT=$PWD VALIDATE_ROOT=$PWD node scripts/validate-agent-factory.js` | exit 0, `ALL CHECKS PASSED` |
+| `node scripts/check-foundation-guards.js` | exit 0, `ALL CHECKS PASSED` |
+
+### `check:diff-disposition` is PRE-EXISTING and unchanged, re-derived rather than recalled
+
+Round 1 recorded it red with **78 findings** naming **five Phase-31 workflow documents**, and
+`deferred-items.md` records it verified pre-existing on a detached worktree at `6d59ed1e` — the
+commit before plan 32-08 began. Re-derived here by counting the gate's own finding lines:
+
+```
+78 findings, distributed over exactly five files:
+  38  agent-factory/workflows/05-pr-quality-gate.md
+  25  agent-factory/workflows/06-uat-pack.md
+  10  agent-factory/workflows/16-context-read-write.md
+   2  agent-factory/workflows/17-task-claim.md
+   3  agent-factory/workflows/18-context-compaction.md
+```
+
+**Identical count, identical file set.** Round 2 changed exactly two documents outside `scripts/`
+(`agent-factory/contracts/board.md` and `docs/initial/agent_factory_builder_spec_v2.md`, derived from
+`git diff --name-only 64e5e88e..HEAD`), and neither appears in any finding; a grep of the full
+finding text for every file this phase touched returns **0**. It is therefore neither a regression of
+this round nor quietly absorbed into it. Carried as ledger row 176.
+
+### The zero-dependency invariant, re-measured
+
+`package.json` has **no `dependencies` key at all** (`require("./package.json").dependencies` is
+`undefined`). `devDependencies` carries exactly three entries — `@types/node ~22`, `typescript
+~6.0.3`, `vitest ~4.1.8` — all dev-and-CI-only, never shipped to a host, which is CLAUDE.md's
+tooling-layer constraint verbatim. **This round added no package and ran no package-manager install.**
+
+---
+
+## 7. The round ledger — one row per gap-inventory item, asserted total
+
+**The inventory this table is measured against** is `32-VERIFICATION.md`'s own enumeration, which
+`.planning/ROADMAP.md`'s round-2 header restates: *two failed truths, one partial truth, one
+advisory, eleven warnings, three info items, one open reachability finding and one
+human-verification item.*
+
+```
+2 + 1 + 1 + 11 + 3 + 1 + 1 = 20 inventory items
+```
+
+**The table below has 20 rows. Both numbers are stated out loud, and they are equal.** An item with
+no row is the failure this table exists to prevent; an item may be OPEN but never ABSENT. (WR-01
+appears twice by construction — once as the advisory and once as warning 1 — because the inventory
+counts it in both places. The duplication is named rather than silently collapsed, and the two rows
+carry different dispositions: the advisory's *capability* question is closed, its `Array.join`
+spelling is not.)
+
+| # | Inventory item | Plan that took it | Evidence measured in this round | Disposition |
+|---|---|---|---|---|
+| 1 | **Failed truth 3** — a readable ticket refused by the grammar fabricates `row-without-file` under an `[ok]` header (DASH-04, DASH-05) | 32-15 | §1.2 T6: `actual` now reads `plans/tickets/ABC-900.md exists and the reader could not admit it (unknown-key)` | **CLOSED** — and see F-06, a different population reaching the same sentence |
+| 2 | **Failed truth 4** — the DASH-06 guard is green over `node:v8`'s `writeHeapSnapshot` and over a runtime-assembled `node:fs` identity (DASH-06) | 32-20 | §1.1 P2/P4/P5: exit 1 in all three, plus P3 (`process.report`) | **CLOSED** — and see F-04 and F-08, two new routes past the same guard |
+| 3 | **Partial truth 5** — C1 code points survive into the `--json` stdout document (DASH-07, DASH-08) | 32-18 | §1.2 T7: 0 control code points in captured stdout, document still one parseable line | **CLOSED** — and see F-05, the C0 half of the same channel |
+| 4 | **Advisory** — the one-ticket-reader census is defeated by a `new RegExp` rewrite of the reader it deleted | 32-21 | §1.3 A1: the E1 rewrite planted as a real file under `scripts/` is DETECTED and named; A2: `+`-concatenation is folded and detected | **CLOSED** for the measured rewrites; the `Array.join` spelling is **OPEN** (row 5 / ledger 184) |
+| 5 | **WR-01** — the census asks about the spelling rather than the capability | 32-21 | §1.3 A3: an `Array.join` key spelling is a working second authority and the census reports 1, exit 0 | **OPEN** — stated blind spot, now measured (ledger row 184) |
+| 6 | **WR-02** — the read-only guard is an allow-list for namespaces and a deny-list for modules | 32-20 | §1.1 P2/P3/P4: `node:v8`, `process.report`, `node:sqlite` all exit 1 | **CLOSED** |
+| 7 | **WR-03** — a BOM'd ticket is refused with a message quoting a line that looks like `---` | 32-16 | §1.3 W3: BOM'd ticket admitted, 0 tickets `readErrors` | **CLOSED** |
+| 8 | **WR-04** — a TAB is refused as `control-character` with a reason false of tabs | 32-16 | §1.3 W4: refused as `unrecognized-line` with a true message | **CLOSED** |
+| 9 | **WR-05** — the header renders a code-unit count with the byte formatter | 32-18 | §1.3 W5: `humanBytes(boardBytes)` and `humanChars(longestLine)` at `:485-486` | **CLOSED** |
+| 10 | **WR-06** — watch errors accumulate without bound and are never cleared | 32-19 | §1.3 W6: `watchErrorsByDir`; measured LIVE at 275/274 ms published, cleared at 900/888 ms | **CLOSED** |
+| 11 | **WR-07** — `WATCH_DIRS` is a third hand-typed spelling of the layout | 32-19 | §1.3 W7: `WATCH_DIRS = deriveWatchDirs()`; no directory string typed in the module | **CLOSED** |
+| 12 | **WR-08** — two files claiming one `id`: one dropped silently, the other double-reported | 32-17 | §1.3 W8: `duplicate-id` readError names both files and which is joined | **CLOSED** |
+| 13 | **WR-09** — the walk bound truncates in filesystem order | 32-17 | §1.3 W9: `boundNames` sorts then slices; 0 caller-side sorts remain | **CLOSED** |
+| 14 | **WR-10** — the routing census collects only `FunctionDeclaration` nodes and bare-identifier callees | 32-21 | §1.3 W10: universe is `isFunctionLike`, pinned as THE DENOMINATOR; unresolvable callees collected | **CLOSED** — and see F-07, the same class in the check-script classification |
+| 15 | **WR-11** — the builder-spec ticket template shows no `---` region and the contract does not name it | 32-16 | §1.3 W11: the pointer line at `agent_factory_builder_spec_v2.md:634`; 2 `documented non-grammar` paragraphs in the contract | **CLOSED** |
+| 16 | **IN-01** — the watch arm joins the raw argv root | 32-19 | §1.3 I1: `resolvedRoot` threaded at `:889,912,916,980` | **CLOSED** |
+| 17 | **IN-02** — the queue reader skips silently at two sites while claiming it reports every skip | 32-17 | §1.3 I2: measured codes `["tampered","no-claim-record","no-at"]`, plus `unsafe-task-name` | **CLOSED** |
+| 18 | **IN-03** — `splitRow` keeps a trailing space in the title | 32-17 | §1.3 I3: `title: "Something in the backlog"` | **CLOSED** |
+| 19 | **F-01 (round 1)** — the `check:*` CI-reachability derivation cannot see `check:dashboard-readonly` | 32-21 | §3: `the DASH-06 control's reachability is mechanical, not assumed` → 1 passed; the suite exclusion is parsed out of `ci.yml` | **CLOSED** (ledger row 181 `fixed`) |
+| 20 | **`human_verification`** — exercise the watch + poll floor + debounce live over a multi-second window against a real atomic-rename write | 32-22 | `scripts/board-watch-live.test.ts`, green inside this round's 4974-case run; event path 278/279 ms, poll path 1003/997 ms with every watch forced dead, four mutation runs recorded | **CLOSED** on macOS; the Windows leg stays `UNKNOWN - verify` (ledger row 186) |
+
+**Row count: 20. Inventory count: 20. Equal.**
+
+Two items are carried outside that table because they are not inventory items and would inflate it:
+**F-03** (round 1's open finding, ledger rows 179–180) is measured CLOSED at §1.1 P5, and the
+**pre-existing `check:diff-disposition` failure** (ledger row 176) is measured unchanged at §6.
+
+### Residual-ledger reconciliation, and the assertion that both halves agree
+
+`.planning/WINDOWS.md` carries the same ledger twice — a Markdown table and a JSON block — and a
+ledger whose halves disagree is worse than one half. Written through `gsd-tools windows`, which
+maintains both:
+
+| Row | Subject | Before | After | Why |
+|---|---|---|---|---|
+| 179 | the runtime-assembled module identity, named as a residual by 32-11 | open | **fixed** | §1.1 P5 — exit 1, the mechanism case red |
+| 180 | F-03: the guard exits 0 over that writer | open | **fixed** | same measurement |
+| 181 | F-01: `check:dashboard-readonly` unreachable by the derivation | open | **fixed** | §3 — the reachability case passes |
+| 182 | the stale `check:nul-bytes` entry in `deferred-items.md` | open | **fixed** | the gate is green (§6) and `deferred-items.md` now reads `status: resolved` with the measurement |
+| 187 | **F-04** — absolute-path specifier | — | **appended, open** | §5.1 |
+| 188 | **F-08** — one-edit re-green through a member binding | — | **appended, open** | §5.4 |
+| 189 | **F-06** — absence asserted against a file whose `id` is not its stem | — | **appended, open** | §5.3 |
+| 190 | **F-05** — C0 recovered by one `JSON.parse` | — | **appended, open** | §5.2 |
+| 191 | **F-07** — a two-gate check script proves its first gate only | — | **appended, open** | §5.5 |
+
+Asserted afterwards, by comparing every row identifier in one representation against the other:
+
+```
+row identifiers compared: 191 | table rows: 191 | json rows: 191 | disagreements: 0
+```
+
+Phase 32 now holds **23 ledger rows: 19 open, 4 fixed.**
+
+---
+
+## 8. The honest summary — round position, what is open, and what round 3 would have to do differently
+
+**Position: this was round 2 of a hard cap of 4.** Two rounds remain. That budget is what makes
+recording an open finding safe rather than a failure, and it is also why every finding above carries
+a reproduction somebody else can run rather than a description.
+
+### What is closed
+
+Every item in the 20-row inventory except one, and both of round 1's open findings. All three of the
+verifier's gaps reproduce as closed against the rebuilt committed `.js`; the four spot-checks it
+recorded FAIL now pass; none of the six it recorded PASS regressed; the full suite grew from 74
+files / 4811 cases to 75 / 4974 with nothing missing; and the DASH-06 guard's own case count went
+59 → 89. **This is the largest closure any round in this phase has produced.**
+
+### What is open, each with the command that reproduces it
+
+| Finding | Severity | One-line reproduction |
+|---|---|---|
+| **F-04** | high | append `import { wA } from "/abs/path/writer.mjs"` + a call to the committed `scripts/board-read.js`; `npm run check:dashboard-readonly` → **exit 0, 89/89** |
+| **F-08** | high | append `const r = process.report; export const w = (p) => r.writeReport(p);`, then add `"process.report"` to `EXPECTED_GLOBAL_MEMBER_PATHS` and move the count 10 → 11 → **exit 0, 89/89** |
+| **F-06** | medium | a board row `[ABC-901]` plus `plans/tickets/ABC-901.md` declaring `id: ABC-902` → `row-without-file … "no ticket file carries that identifier"`, `expected` naming a path that exists, `[ok]`, no `readErrors` |
+| **F-05** | low | a raw `U+001B` in a board row title → 0 control code points in the `--json` document, **6** recovered by one `JSON.parse` |
+| **F-07** | low | run `classifyCheckScript` over `tsc && node scripts/a.js && node scripts/b.js` → 2 gate modules present, 1 proven reachable |
+| **WR-01 / row 184** | low | `scripts/<any>.ts` with `const K = ["c","o","l","u","m","n"].join("")` and a `split`/`indexOf` scan → census reports 1 reader, exit 0 |
+
+Plus the two carried items: the pre-existing `check:diff-disposition` failure (row 176, unchanged,
+five Phase-31 documents), and the live claude-CLI e2e lane, which **was not run** and whose state is
+`UNKNOWN - verify` (row 183).
+
+### The ratio, and what it says about round 3
+
+**4 of this round's 5 new findings were created by this round's own fixes** (§5). Round 1's figure
+was 1 of 3; Phase 31 ran at 8 of 8 for four consecutive rounds. The inherited column did improve —
+round 1 ended with 2 open inherited findings and this round ends with 0 — but the created column did
+not, and it is the created column this project keeps paying for.
+
+**Three of the four are the same shape, and it is worth naming precisely because a fourth round of
+arms will produce a fifth instance of it.** In each case the round converted a hand-typed list into a
+derived predicate, correctly — and the derivation's SUBJECT was left as a set defined by a syntactic
+complement:
+
+* F-04: module identity is derived and pinned two-sided, over `bareSpecifiers`, where "bare" is
+  `not "." and not "/"` — and the closure walk's subject is `"."` only. Neither arm owns `/`.
+* F-08: the capability-global census is derived and pinned two-sided, over MAXIMAL member paths that
+  are CALLEES — and a path read into a binding is neither.
+* F-06: the honest-sentence set is derived from the walk, over entries the grammar REFUSED — and an
+  entry admitted under another identity is neither admitted-under-its-stem nor refused.
+
+**So the recommendation, stated as the plan asked.** A canonical-form cutover — the shape the
+frontmatter grammar took in Phase 27 when it stopped being widened for a twelfth time — is now
+cheaper for these three than another round of arms, and it is cheaper in a specific, small way rather
+than as a rewrite:
+
+1. **Make each derivation's subject a TOTAL PARTITION with a refusing third bucket**, the way
+   `opaqueSpecifiers` and `ModuleFacts.acquisitions` already work inside the same file. Every module
+   specifier lands in bare / relative / **everything else**, and the third bucket is refused by
+   construction. That closes F-04 and every future specifier spelling at once, and it needs no new
+   rule — `analyzeModule` already has the idiom.
+2. **Ask the canonical-form question one level down.** The guard already says "the ONE admitted read
+   of a capability-bearing binding is as the object of a member access" for ROOTS. F-08 is that same
+   sentence never asked about a MEMBER read into a binding.
+3. **Derive the identity set on the other side of the loop.** 32-15 already invented the right
+   instrument — "derive the denominator on the other side of the loop" — and applied it to the
+   partition's SIZE. F-06 is what is left when the same instrument is not applied to the
+   partition's KEYS: compare the stem set from the listing against the identifier set from the
+   records, and the third population appears as an arithmetic difference rather than as a fourth
+   arm somebody has to think of.
+
+If round 3 spends itself adding a fourth arm to each of these three predicates instead, this document
+predicts a round 4 with four more findings of the same shape — which is exactly what the 4-round cap
+exists to stop, and what Phase 31's eighth round finally had to be closed by override rather than by
+convergence.
+
+### What this document does NOT say
+
+**It does not state that DASH-01 … DASH-08 are satisfied, and it changes neither
+`.planning/REQUIREMENTS.md` nor the Phase 32 status line.** The verifier decides that, from this
+evidence, in a separate pass. This repository has a recorded incident of an executor's roadmap update
+flipping a phase to Complete before verification ran, which then had to be reverted by hand.
+
+---
+
+## 9. What a re-verification should check first
+
+In order, because each step's premise is the one before it:
+
+1. **`npm run build && npm run check:build-parity`.** If this is not clean, everything below measures
+   an artifact that is not a build of its sources.
+2. **F-04's reproduction (§5.1).** It is the one place a shipped safety gate is green over a writer
+   with no obfuscation and no build-parity violation, and it is the first thing worth disagreeing
+   with this document about.
+3. **F-08's two-step reproduction (§5.4).** The first step alone reds only the census; the second
+   step is the single edit that re-greens it. If the second step is disputed, dispute it by making
+   the edit.
+4. **The T6 and T7 transcripts (§1.2).** They are this round's two headline closures, and both were
+   reproduced live by the verifier before the fixes, so their pre-fix numbers are the least
+   disputable in the document.
+5. **The two spot-checks that PASSED (§2, S1 and S2).** A review that only re-checks failures cannot
+   find a regression.
+6. **The ledger reconciliation (§7).** `191 / 191 / 0` is a one-command assertion, and a ledger whose
+   halves disagree is the shape that rots silently.
+
+---
+
+*Plan: 32-23 · Phase: 32-board-projector-cli-dashboard · Measured: 2026-09-15*
