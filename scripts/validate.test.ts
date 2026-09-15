@@ -1464,21 +1464,47 @@ describe("validate-agent-factory.js — the ticket grammar's three disagreement 
 // green. So the scanned set is the DIRECTORY LISTING at test time, and the count of carriers is
 // derived from it.
 //
-// WHAT COUNTS AS A TICKET-FRONTMATTER READER, stated mechanically rather than by eye. A file
-// carries one when either arm fires:
+// WHAT COUNTS AS A TICKET-FRONTMATTER READER — THE CAPABILITY, NOT THE SPELLING (plan 32-21, WR-01).
 //
-//   ARM A  it contains a regular-expression LITERAL anchored at a line start immediately before one
-//          of the two ticket key spellings — it reads a ticket key out of raw document text with a
-//          pattern of its own.
-//   ARM B  it declares a function taking a `string` parameter whose body reaches BOTH key
-//          spellings — as quoted literals, as anchored patterns, or through a key-set constant
-//          DECLARED in the same file whose array literal carries both.
+// The first version of this census asked two SYNTACTIC questions: does the file carry a regular
+// expression LITERAL anchored at one of the keys, and does it declare a function whose parameter
+// carries a literal `string` type annotation. Round 1 measured three ordinary rewrites of the very
+// reader this block exists to catch — the patterns hoisted to module scope as `new RegExp(...)`, the
+// parameter typed `string | undefined`, a `split`/`indexOf` scan with the key names concatenated —
+// and every one of them reported ZERO carriers while the count below still asserted one authority.
+// The derivation caught a BYTE SEQUENCE, not a capability.
 //
-// Both arms run over the TypeScript AST, so a comment quoting a deleted pattern (this file carries
-// several) satisfies neither, and a reformatted declaration does not walk past. The deleted reader
-// in `validate-agent-factory.ts` fired BOTH arms — the discrimination case at the foot of this
-// block plants its exact source and proves the derivation still catches it.
-describe("exactly ONE ticket-frontmatter reader exists in scripts/ (plan 32-12)", () => {
+// So the subject of the question is now the capability, and it is a PAIR:
+//
+//   • the file NAMES BOTH ticket key spellings — as a string literal, a no-substitution template
+//     literal, a regular-expression literal, or as `+`-concatenated pieces that JOIN to the
+//     spelling — either exactly (`"column"`) or in a line-anchored frontmatter position
+//     (`^column:`, `^column[:]`, or a `\ncolumn:` inside a planted document); AND
+//   • the file REACHES A TEXT-SCANNING PRIMITIVE, from the set named once in
+//     `TEXT_SCAN_PRIMITIVES` below: the match, the exec, the split, the index lookup, and the
+//     pattern constructor.
+//
+// WHAT BOUNDS THIS CENSUS'S INPUT — stated here because the absence of this paragraph IS the
+// finding. Every boundary below has a case of its own at the foot of this block.
+//
+//   FILE SET      every `*.ts` under `scripts/` AT TEST TIME, RECURSIVELY. Never a literal array
+//                 and never depth-one. Floored against `git ls-files`, so a tracked file the glob
+//                 never opened is a red rather than a silently narrower scan.
+//   NODE KINDS    `StringLiteral`, `NoSubstitutionTemplateLiteral`, `RegularExpressionLiteral`, and
+//                 `BinaryExpression` over `+` whose operands resolve — for the key spelling; a
+//                 property-access CALL for the member primitives and a `new` expression for the
+//                 constructor. It runs over the AST, so a comment quoting a deleted pattern (this
+//                 file carries several) names nothing.
+//   UNRESOLVABLE  a key spelling this pass cannot resolve STATICALLY — assembled from a variable,
+//                 from `String.fromCharCode`, or through a template with substitutions — is NOT
+//                 counted, and the file is NOT reported. That is a real blind spot, not a claim of
+//                 absence; it is measured by a case below rather than left to be discovered.
+//   SCOPE         the pair is FILE-scoped, not function-scoped. A file that names the keys in one
+//                 place and scans text in another is a carrier even if the two never meet. The
+//                 imprecision runs in the direction of OVER-detection, which is the only direction
+//                 a census like this may be imprecise in, and it is paid for by the named
+//                 exemptions below rather than by narrowing the question again.
+describe("exactly ONE ticket-frontmatter reader exists in scripts/ (plan 32-12, widened 32-21)", () => {
   const SCRIPTS_DIR = join(ROOT, "scripts");
 
   /** The two ticket keys the validator's two ticket rules consume. */
@@ -1497,74 +1523,121 @@ describe("exactly ONE ticket-frontmatter reader exists in scripts/ (plan 32-12)"
     }
   });
 
-  const anchoredFor = (k: string): RegExp => new RegExp(String.raw`\^` + k + String.raw`\s*\\?:`);
-  const quotedFor = (k: string): RegExp => new RegExp(String.raw`["'\`]` + k + String.raw`["'\`]`);
+  /**
+   * THE TEXT-SCANNING PRIMITIVES, NAMED IN ONE PLACE.
+   *
+   * Reading a key out of a document means scanning its text, and there are five ways this codebase
+   * spells that. They live here as one frozen table rather than as five conditions scattered through
+   * the walk, because the failure this block was rewritten to close is a predicate whose input set
+   * was edited in one arm and not the other.
+   */
+  const TEXT_SCAN_PRIMITIVES = Object.freeze([
+    { spelling: ".match", kind: "member", name: "match" },
+    { spelling: ".exec", kind: "member", name: "exec" },
+    { spelling: ".split", kind: "member", name: "split" },
+    { spelling: ".indexOf", kind: "member", name: "indexOf" },
+    { spelling: "new RegExp", kind: "constructor", name: "RegExp" },
+  ] as const);
+
+  /** Derived from the table above, never a second literal list. */
+  const MEMBER_PRIMITIVES: readonly string[] = TEXT_SCAN_PRIMITIVES.filter(
+    (p) => p.kind === "member",
+  ).map((p) => p.name);
+  const CONSTRUCTOR_PRIMITIVES: readonly string[] = TEXT_SCAN_PRIMITIVES.filter(
+    (p) => p.kind === "constructor",
+  ).map((p) => p.name);
+
+  /**
+   * A regex-source SKELETON: the spellings that denote a single literal character reduced to that
+   * character, so `^column[:]` and `^column\:` both read as `^column:`. Without it the anchored
+   * test catches one author's habit and not the next one's — which is the whole of WR-01 E2.
+   */
+  const skeleton = (t: string): string =>
+    t.replace(/\[(\\?.)\]/g, "$1").replace(/\\([^A-Za-z0-9])/g, "$1");
+
+  /** The key in a line-anchored frontmatter position: a pattern anchor, or a real line start. */
+  const keyInText = (k: string): RegExp => new RegExp(String.raw`(?:^|\^|\n)` + k + String.raw`\s*:`);
+
+  /** Does this resolved static text NAME the key — exactly, or in a frontmatter position? */
+  const namesKey = (text: string, k: string): boolean => text === k || keyInText(k).test(skeleton(text));
 
   interface ReaderFinding {
-    readonly arm: "A" | "B";
+    readonly kind: "key" | "primitive";
     readonly line: number;
     readonly detail: string;
   }
 
+  /**
+   * The static text a node denotes, or `null` when this pass cannot resolve it. `+` recurses, which
+   * is what makes `"col" + "umn"` resolve to the spelling it assembles (WR-01 E3).
+   */
+  const staticText = (n: ts.Node): string | null => {
+    if (ts.isStringLiteral(n) || ts.isNoSubstitutionTemplateLiteral(n)) return n.text;
+    if (ts.isRegularExpressionLiteral(n)) return n.text;
+    if (ts.isBinaryExpression(n) && n.operatorToken.kind === ts.SyntaxKind.PlusToken) {
+      const l = staticText(n.left);
+      const r = staticText(n.right);
+      return l !== null && r !== null ? l + r : null;
+    }
+    return null;
+  };
+
   // Takes a PARSED SourceFile rather than document text, deliberately: a function that took the
-  // text would itself be a string-parameter function reaching both key spellings, and this census
-  // would name its own file. The analyzer consumes an AST, which is precisely why it is not a
-  // reader of ticket documents.
+  // text would itself be a text-scanning reader of both key spellings, and this census would name
+  // its own analyzer. The analyzer consumes an AST, which is precisely why it is not a reader of
+  // ticket documents — this file is still a carrier for other reasons, and says so by name below.
   function findTicketReaders(sf: ts.SourceFile): ReaderFinding[] {
     const lineOf = (n: ts.Node): number =>
       sf.getLineAndCharacterOfPosition(n.getStart(sf)).line + 1;
-    const found: ReaderFinding[] = [];
 
-    // Key-set constants DECLARED here: an array literal carrying every scanned spelling.
-    const keySetNames = new Set<string>();
-    const walkSets = (n: ts.Node): void => {
-      if (ts.isVariableDeclaration(n) && ts.isIdentifier(n.name) && n.initializer) {
-        const init = ts.isAsExpression(n.initializer) ? n.initializer.expression : n.initializer;
-        if (ts.isArrayLiteralExpression(init)) {
-          const els = init.elements.filter(ts.isStringLiteral).map((e) => e.text);
-          if (KEY_SPELLINGS.every((k) => els.includes(k))) keySetNames.add(n.name.text);
-        }
-      }
-      ts.forEachChild(n, walkSets);
-    };
-    walkSets(sf);
+    const keyRows = new Map<string, ReaderFinding>();
+    const primitiveRows = new Map<string, ReaderFinding>();
+
+    const brief = (t: string): string =>
+      (t.length > 60 ? `${t.slice(0, 60)}…` : t).replace(/\n/g, "\\n");
 
     const walk = (n: ts.Node): void => {
-      if (ts.isRegularExpressionLiteral(n)) {
+      const text = staticText(n);
+      if (text !== null) {
         for (const k of KEY_SPELLINGS) {
-          if (anchoredFor(k).test(n.text)) {
-            found.push({ arm: "A", line: lineOf(n), detail: n.text });
+          if (!keyRows.has(k) && namesKey(text, k)) {
+            keyRows.set(k, { kind: "key", line: lineOf(n), detail: `${k} via "${brief(text)}"` });
           }
         }
       }
       if (
-        ts.isFunctionDeclaration(n) ||
-        ts.isFunctionExpression(n) ||
-        ts.isArrowFunction(n) ||
-        ts.isMethodDeclaration(n)
+        ts.isCallExpression(n) &&
+        ts.isPropertyAccessExpression(n.expression) &&
+        MEMBER_PRIMITIVES.includes(n.expression.name.text)
       ) {
-        const takesText = n.parameters.some((pm) => pm.type?.kind === ts.SyntaxKind.StringKeyword);
-        if (takesText && n.body) {
-          const body = n.body.getText(sf);
-          const viaSet = [...keySetNames].some((nm) =>
-            new RegExp(String.raw`\b` + nm + String.raw`\b`).test(body),
-          );
-          const viaKeys = KEY_SPELLINGS.every(
-            (k) => quotedFor(k).test(body) || anchoredFor(k).test(body),
-          );
-          if (viaSet || viaKeys) {
-            found.push({
-              arm: "B",
-              line: lineOf(n),
-              detail: `${n.name?.getText(sf) ?? "<anonymous>"} (key-set=${viaSet}, both-keys=${viaKeys})`,
-            });
-          }
+        const name = n.expression.name.text;
+        if (!primitiveRows.has(name)) {
+          primitiveRows.set(name, {
+            kind: "primitive",
+            line: lineOf(n),
+            detail: `.${name}(${brief(n.expression.expression.getText(sf))})`,
+          });
+        }
+      }
+      if (
+        ts.isNewExpression(n) &&
+        ts.isIdentifier(n.expression) &&
+        CONSTRUCTOR_PRIMITIVES.includes(n.expression.text)
+      ) {
+        const name = n.expression.text;
+        if (!primitiveRows.has(name)) {
+          primitiveRows.set(name, { kind: "primitive", line: lineOf(n), detail: `new ${name}(…)` });
         }
       }
       ts.forEachChild(n, walk);
     };
     walk(sf);
-    return found;
+
+    // THE PAIR. Either half alone is ordinary: half the repository splits a string, and a file may
+    // mention a key without reading one. Only the conjunction is the capability.
+    const namesBothKeys = KEY_SPELLINGS.every((k) => keyRows.has(k));
+    if (!namesBothKeys || primitiveRows.size === 0) return [];
+    return [...keyRows.values(), ...primitiveRows.values()].sort((a, b) => a.line - b.line);
   }
 
   const parse = (name: string, text: string): ts.SourceFile =>
@@ -1584,15 +1657,45 @@ describe("exactly ONE ticket-frontmatter reader exists in scripts/ (plan 32-12)"
     (name) =>
       [name, findTicketReaders(parse(name, readFileSync(join(SCRIPTS_DIR, name), "utf8")))] as const,
   );
-  const CARRIERS = CENSUS.filter(([, f]) => f.length > 0);
+
+  /** Everything the WIDENED derivation names, BEFORE any exemption is applied. */
+  const DETECTED = CENSUS.filter(([, f]) => f.length > 0);
+
+  /**
+   * THE FILES THE WIDENED QUESTION NAMES THAT ARE NOT SECOND AUTHORITIES — each with the one-line
+   * reason that makes it a DECISION rather than a hole, in the register `STEM_FALSE_POSITIVES` in
+   * `scripts/board-readonly.test.ts` already uses.
+   *
+   * Widening the subject from a syntax shape to a capability necessarily names files that plant a
+   * ticket document as fixture text and also scan text somewhere — and that is the right trade:
+   * over-detection costs a named entry here, under-detection cost this repository a whole round.
+   * A FOURTH entry is somebody judging that a file naming both ticket keys beside a text scan is
+   * not an authority, and that judgment belongs here with its reason, never in a bumped constant.
+   */
+  const NOT_A_SECOND_AUTHORITY: Readonly<Record<string, string>> = Object.freeze({
+    "board-model.test.ts":
+      "the grammar's own behavioural suite: it plants ticket documents as fixture TEXT and asserts " +
+      "what the one authority returns from them; it parses no key itself",
+    "board-read.test.ts":
+      "the read seam's suite: it plants ticket documents as fixture TEXT and asserts what " +
+      "readSnapshot reports about them; the parsing it asserts over is the grammar's",
+    "validate.test.ts":
+      "this census: it names both key spellings in order to SCAN for them and reaches the " +
+      "primitives in order to build its own patterns and its own planted rows",
+  });
+
+  /** The cardinality of the exemption set — a decision, not a constant to bump. */
+  const NOT_A_SECOND_AUTHORITY_COUNT = 3;
+
+  const CARRIERS = DETECTED.filter(([name]) => NOT_A_SECOND_AUTHORITY[name] === undefined);
 
   /** TWO-SIDED. A second carrier is a second authority on what a ticket says. */
   const TICKET_FRONTMATTER_READER_COUNT = 1;
 
   it("the scan is non-vacuous: the glob found files, and every tracked scripts/*.ts is among them", () => {
-    // A census over an empty glob reports one-of-nothing as success, so the denominator is
-    // asserted BEFORE the count of one is claimed — and against an independently derived set
-    // (git's index) rather than against itself.
+    // BOUNDARY 1 — the FILE SET. A census over an empty glob reports one-of-nothing as success, so
+    // the denominator is asserted BEFORE the count of one is claimed — and against an independently
+    // derived set (git's index) rather than against itself.
     console.log(`ticket-frontmatter census: scanned ${SCANNED.length} .ts file(s) under scripts/`);
     expect(SCANNED.length, "the glob found no TypeScript at all — the census would be vacuous")
       .toBeGreaterThan(0);
@@ -1611,7 +1714,7 @@ describe("exactly ONE ticket-frontmatter reader exists in scripts/ (plan 32-12)"
 
   it("TICKET_FRONTMATTER_READER_COUNT is 1, and the carrier is scripts/board-model.ts", () => {
     const report = CARRIERS.map(
-      ([name, f]) => `scripts/${name}: ${f.map((x) => `arm ${x.arm} line ${x.line} — ${x.detail}`).join("; ")}`,
+      ([name, f]) => `scripts/${name}: ${f.map((x) => `${x.kind} line ${x.line} — ${x.detail}`).join("; ")}`,
     ).join("\n");
     expect(
       CARRIERS.length,
@@ -1627,11 +1730,41 @@ describe("exactly ONE ticket-frontmatter reader exists in scripts/ (plan 32-12)"
     ).toEqual(["board-model.ts"]);
   });
 
-  // DISCRIMINATION. Without this the two cases above could be green over a derivation that names
-  // nothing at all. The planted source is the reader plan 32-12 deleted from
-  // `scripts/validate-agent-factory.ts`, kept verbatim as text (a template literal, so neither arm
-  // can see it when this file is itself scanned above).
-  it("goes RED on the deleted reader: both arms fire on the exact source that was removed", () => {
+  // ── THE EXEMPTIONS ARE DECISIONS, AND EACH ONE MUST STILL BE DOING SOMETHING ────────────────────
+
+  it("every named exemption is actually detected by the widened derivation", () => {
+    // An exemption for a file the derivation no longer names is an exemption silently doing
+    // nothing — and it would sit there as a permanent hole, ready to cover a reader that appears
+    // in that file later. Either the file stopped naming the keys or the derivation narrowed;
+    // either way the entry below is describing something that is not there.
+    const detectedNames = DETECTED.map(([name]) => name);
+    for (const [name, reason] of Object.entries(NOT_A_SECOND_AUTHORITY)) {
+      expect(
+        detectedNames,
+        `the exemption for "${name}" matches nothing the census names. It is a standing hole with ` +
+          `no live reason: ${reason}`,
+      ).toContain(name);
+      expect(reason.length, `${name}'s exemption gives no reason`).toBeGreaterThan(40);
+    }
+  });
+
+  it("the exemption set has exactly three members", () => {
+    expect(
+      Object.keys(NOT_A_SECOND_AUTHORITY).length,
+      "a fourth exemption is a DECISION: it asserts that a file naming both ticket keys beside a " +
+        "text scan is not a second authority on what a ticket says. That judgment belongs beside " +
+        "the other three with its reason written out, not in a bumped constant",
+    ).toBe(NOT_A_SECOND_AUTHORITY_COUNT);
+  });
+
+  // ── DISCRIMINATION. BOUNDARY 2 — THE NODE KINDS, ONE ROW PER SPELLING ──────────────────────────
+  //
+  // Without these the two cases above could be green over a derivation that names nothing at all.
+  // The first row is the reader plan 32-12 deleted from `scripts/validate-agent-factory.ts`, kept
+  // verbatim; the next three are that same reader rewritten the way an ordinary author would write
+  // it, taken from the round-1 review, each measured at ZERO carriers before this widening.
+
+  it("goes RED on the deleted reader: the exact source that was removed is still caught", () => {
     const deleted = [
       "interface FrontMatter {",
       "  column: string | null;",
@@ -1647,14 +1780,151 @@ describe("exactly ONE ticket-frontmatter reader exists in scripts/ (plan 32-12)"
       "}",
     ].join("\n");
     const found = findTicketReaders(parse("planted-second-reader.ts", deleted));
-    expect(found.length, "the derivation did not see the reader it exists to see").toBeGreaterThan(0);
     expect(
-      found.filter((f) => f.arm === "A").length,
-      "arm A must catch the two line-anchored key patterns",
-    ).toBe(2);
+      found.length,
+      "the widened question must be a SUPERSET of the old one: the reader the byte-for-byte arms " +
+        "caught is still caught, so nothing was traded away for the three spellings below",
+    ).toBeGreaterThan(0);
     expect(
-      found.some((f) => f.arm === "B"),
-      "arm B must catch a string-parameter function reaching both key spellings",
+      found.filter((f) => f.kind === "key").map((f) => f.detail.split(" ")[0]).sort(),
+      "both key spellings must be named, not one",
+    ).toEqual(["column", "status"]);
+    expect(
+      found.some((f) => f.kind === "primitive"),
+      "the text-scanning primitive must be reached",
     ).toBe(true);
+  });
+
+  // ── THE THREE ORDINARY REWRITES (WR-01, round 1) ───────────────────────────────────────────────
+  // Each is the deleted reader again, with no change in behaviour, written the way an ordinary
+  // author would write it. Measured against the pre-32-21 derivation: all three reported ZERO
+  // carriers while the count above still claimed one authority.
+  const REWRITE_E1 = [
+    'const COLUMN_RE = new RegExp("^column:\\\\s*(.+)$", "m");',
+    'const STATUS_RE = new RegExp("^status:\\\\s*(.+)$", "m");',
+    "export function ticketFields(text: string) {",
+    "  const c = COLUMN_RE.exec(text);",
+    "  const s = STATUS_RE.exec(text);",
+    "  return { column: c ? c[1] : null, status: s ? s[1] : null };",
+    "}",
+  ].join("\n");
+
+  const REWRITE_E2 = [
+    "export function frontMatter2(text: string | undefined) {",
+    "  if (text === undefined) return null;",
+    "  const c = text.match(/^column[:]\\s*(.+)$/m);",
+    "  const s = text.match(/^status[:]\\s*(.+)$/m);",
+    "  return { column: c ? c[1] : null, status: s ? s[1] : null };",
+    "}",
+  ].join("\n");
+
+  const REWRITE_E3 = [
+    'const KEY_A = "col" + "umn";',
+    'const KEY_B = "sta" + "tus";',
+    "export function scanTicket(text) {",
+    "  const out = {};",
+    '  for (const line of text.split("\\n")) {',
+    '    const i = line.indexOf(":");',
+    "    if (i < 0) continue;",
+    "    const k = line.slice(0, i);",
+    "    if (k === KEY_A || k === KEY_B) out[k] = line.slice(i + 1).trim();",
+    "  }",
+    "  return out;",
+    "}",
+  ].join("\n");
+
+  it("goes RED on a pattern built from a string (WR-01 E1)", () => {
+    expect(
+      findTicketReaders(parse("rewrite-e1.ts", REWRITE_E1)).length,
+      "a second authority hoisted to module scope as `new RegExp(...)` is a second authority",
+    ).toBeGreaterThan(0);
+  });
+
+  it("goes RED on a reader whose text parameter carries no `string` annotation (WR-01 E2)", () => {
+    expect(
+      findTicketReaders(parse("rewrite-e2.ts", REWRITE_E2)).length,
+      "a reader typed `string | undefined` reads ticket text exactly as one typed `string` does",
+    ).toBeGreaterThan(0);
+  });
+
+  it("goes RED on a hand-rolled scan with the key names concatenated (WR-01 E3)", () => {
+    expect(
+      findTicketReaders(parse("rewrite-e3.ts", REWRITE_E3)).length,
+      "splitting on newlines and looking up a colon reads the two keys out of text just as a " +
+        "pattern does; assembling the key names by concatenation changes nothing about that",
+    ).toBeGreaterThan(0);
+  });
+
+  it("stays SILENT on each half of the pair alone, so the conjunction is what decides", () => {
+    // The converse of the three rows above. A derivation that said yes to everything would pass
+    // them all and prove nothing; these two show the pair is a conjunction rather than a formality.
+    const keysOnly = [
+      'export const TICKET_COLUMNS = ["column", "status"] as const;',
+      "export type Key = (typeof TICKET_COLUMNS)[number];",
+    ].join("\n");
+    expect(
+      findTicketReaders(parse("keys-only.ts", keysOnly)),
+      "naming the two keys without scanning any text is a key set, not a reader",
+    ).toEqual([]);
+    const scanOnly = [
+      "export function fields(text: string) {",
+      '  return text.split("\\n").map((l) => l.indexOf(":"));',
+      "}",
+    ].join("\n");
+    expect(
+      findTicketReaders(parse("scan-only.ts", scanOnly)),
+      "scanning text without naming either key is half the repository, not a reader",
+    ).toEqual([]);
+  });
+
+  // ── BOUNDARY 3 — THE UNRESOLVABLE KEY SPELLING, MEASURED RATHER THAN CLAIMED ABSENT ────────────
+
+  it("does NOT see a reader whose key spellings are assembled at RUNTIME — the stated blind spot", () => {
+    // This is a real hole and it is written down rather than discovered. A key spelling that only
+    // exists once the program runs cannot be resolved by a static pass, and the honest thing for a
+    // census to do about a boundary it cannot cross is to STATE it and pin it, so that a later
+    // reader arguing "the census would have caught it" is arguing against a measurement.
+    //
+    // It is not a live bypass: nothing in `scripts/` builds a ticket key this way, and the count of
+    // one above is derived over the live tree. It is the next thing to close if this census is ever
+    // asked to carry more weight than it does today.
+    const runtimeAssembled = [
+      "const parts = [[99, 111, 108, 117, 109, 110], [115, 116, 97, 116, 117, 115]];",
+      "const KEYS = parts.map((p) => String.fromCharCode(...p));",
+      "export function fields(text) {",
+      "  const out = {};",
+      '  for (const line of text.split("\\n")) {',
+      '    const i = line.indexOf(":");',
+      "    if (i >= 0 && KEYS.includes(line.slice(0, i))) out[line.slice(0, i)] = line.slice(i + 1);",
+      "  }",
+      "  return out;",
+      "}",
+    ].join("\n");
+    expect(
+      findTicketReaders(parse("runtime-assembled.ts", runtimeAssembled)),
+      "STATED BOUNDARY: a key spelling that does not exist until the program runs is outside a " +
+        "static pass. If this ever becomes a live shape in scripts/, the census needs a different " +
+        "instrument — not one more condition",
+    ).toEqual([]);
+  });
+
+  // ── BOUNDARY 4 — THE PAIR IS FILE-SCOPED, AND THAT IS A CHOICE ─────────────────────────────────
+
+  it("names a file whose key spellings and text scan never meet — over-detection, by choice", () => {
+    // The imprecision, pinned in the direction it runs. Narrowing the pair to "the same function"
+    // would let a reader split across two functions — a `KEYS` constant here, a scan there — walk
+    // straight through, which is one refactor away from the shape WR-01 measured. The cost is paid
+    // by the three named exemptions above, not by a narrower question.
+    const split = [
+      'export const KEYS = ["column", "status"] as const;',
+      "export function unrelated(csv: string): string[] {",
+      '  return csv.split(",");',
+      "}",
+    ].join("\n");
+    expect(
+      findTicketReaders(parse("split-across-file.ts", split)).length,
+      "STATED BOUNDARY: the pair is file-scoped. A carrier here may be a false positive, and the " +
+        "answer to a false positive is a named exemption with a reason",
+    ).toBeGreaterThan(0);
   });
 });
