@@ -22,7 +22,7 @@ affects: [32-21, 32-22, 32-23, board-projector, dashboard-safety, foundation-gua
 actuals:
   tokens: 27973
   tasks: 3
-  commits: 3
+  commits: 5  # 3 task commits + the SUMMARY commit + this metadata commit, on base 569d02a0
 plan_head_before: 569d02a0b018bb6fed65965bb08e214fb7d9c3c3
 
 tech-stack:
@@ -171,7 +171,7 @@ status: complete
 2. **Task 2: One admitted way to acquire a module, and a two-sided census of the globals** — `ddc40ba5` (test)
 3. **Task 3: The shapes as data, the mutations, and the reproduction against the committed .js** — `7d36c13e` (test)
 
-**Plan metadata:** see the `docs(32-20)` commit that carries this file.
+**Plan metadata:** `e71ff498` carries this SUMMARY; the `docs(32-20): record plan position, metrics and decisions` commit after it carries STATE.md and ROADMAP.md.
 
 ## Files Created/Modified
 

@@ -5,15 +5,15 @@ milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live
 current_phase: 32
 current_phase_name: Board Projector & CLI Dashboard
 status: "Phase 31 CLOSED 2026-09-13 by user override D-44 (round-9 verification gaps_found 4/6 left standing; CR-28..CR-31 + WR-43..WR-47 accepted open). Next: Phase 32 — Board Projector & CLI Dashboard, not yet planned. Standing rule: four-round gap-closure cap on every later phase."
-stopped_at: Completed 32-19-PLAN.md
-last_updated: "2026-09-15T11:11:24.213Z"
-state_head: 50d0db194a562590458e9b3bb924cacd7fcb5323
+stopped_at: Completed 32-20-PLAN.md
+last_updated: "2026-09-15T11:47:37.451Z"
+state_head: e71ff4986d56d8abe2d3d69b3e57560b22a04da7
 progress:
   total_phases: 9
   completed_phases: 30
   total_plans: 243
-  completed_plans: 239
-  percent: 98
+  completed_plans: 240
+  percent: 99
 last_activity: 2026-09-13
 prior_activity_desc: Phase 27 gap-closure round 8 COMPLETE (27-45, 27-46; D-53). Full narration lives in the Phase 27 artifacts and in docs/audit/; shortened here by plan 31-38 because this single line measured 7995 characters, above the 4000-character ceiling a pathological STATE line has previously crossed to turn a sub-second guard into a multi-minute one.
 last_activity_desc: "Phase 29 CLOSED by user decision (D-59, reversing D-29): LANG-04's conformance prohibition is held as CONTENT — the claim registry and the honesty floor — with guard_banned_claims a disclosed drift backstop, not the mechanism that makes a totality true. Eight verification rounds established that a totality over an open set of phrasings is not a decidable predicate; D-55 had already ended at a per-line predicate, so the totality was already content-held on the tree while LANG-04's text still said a mechanism held it. Round-8 review CR-02 (the narrowed sentence printed above the findings contradicting it) FIXED at 4c6a76a, watched failing against the pre-fix build and asserted in both directions; two existing cases whose premise the change invalidated were repaired, not weakened. CR-01 (freshness.ts working-tree arm fail-opens, reproduced) carried as V-29-59-03 — a build-parity defect plan 29-59 itself recorded as named by no LANG requirement. CR-03/04/05 carried with owners in docs/audit/29-round8-residuals.md section 10. The round-8 verifier's gaps_found verdict is left standing and annotated rather than rewritten: it verified LANG-04's previous text. All 8 LANG requirements Complete. 15 repo gates green, 52 files / 2140 passed / 2 skipped. Next: Phase 29.1 (per-role model assignment)."
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-09-07 — after Phase 29.2)
 ## Current Position
 
 Phase: 32 (Board Projector & CLI Dashboard) — EXECUTING
-Plan: 19 of 23
+Plan: 20 of 23
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 
@@ -495,6 +495,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 32 P17 | 47 min | 3 tasks | 8 files |
 | Phase 32 P18 | 37 min | 3 tasks | 4 files |
 | Phase 32 P19 | 96 min | 3 tasks | 7 files |
+| Phase 32 P20 | 31 min | 3 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -1355,6 +1356,9 @@ Recent decisions affecting current work:
 - [Phase 32]: 32-19: the dashboard watch records are a STATE, not a log — keyed by directory, cleared on a successful re-arm, on an absent directory, on a root change and on stop — An append-only list recorded the same fact once per poll tick (8,640 a day at the floor) and never removed it, so a repaired watch kept being reported as down.
 - [Phase 32]: 32-19: WATCH_DIRS is derived from SOURCE_NAMES, FIXED_SUBPATHS and QUEUE_STAGES; the suite asserts the relationship in both directions plus a mutation case, and no directory string is typed in the dashboard — A third hand-typed spelling of the on-disk layout, asserted against a fourth in the suite: a moved subpath would silently stop the watch while the mandatory poll hid it and every gate stayed green.
 - [Phase 32]: 32-19: watches are armed against the root the read resolved, and a source the reader refused with OUTSIDE-ROOT is not watched at all — the loop consumes the containment answer rather than re-implementing the rule — Threading the resolved root alone is insufficient: that root joined with a symlinked subdirectory is still the symlink, and the existence check follows it. Measured end to end on a scratch tree.
+- [Phase 32]: Module identity in the dashboard read-only guard is decided by a two-sided allow-list of builtin identities; BANNED_MODULES stays as the written record of D-21 and is asserted disjoint from it
+- [Phase 32]: A module acquisition this syntactic pass cannot prove is REFUSED rather than constant-folded: an unprovable identity is not a safe identity
+- [Phase 32]: Callee resolution is pinned by declaration KIND plus enclosing-scope structure, not by a name-to-line map over 311 call sites, because a pin that reds on unrelated churn gets loosened until it stops noticing
 
 ### Pending Todos
 
@@ -1477,8 +1481,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-09-15T11:10:56.383Z
-Stopped at: Completed 32-19-PLAN.md
+Last session: 2026-09-15T11:47:37.034Z
+Stopped at: Completed 32-20-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
