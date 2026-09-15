@@ -720,9 +720,23 @@ const REFUSAL_SPELLINGS = Object.freeze([
     code: "duplicate-key",
   },
   {
+    // THE CODE MOVED IN PLAN 32-16, AND THE SPELLING STAYED. A tab used to be a member of
+    // `TICKET_CONTROL`, so it was refused with a sentence that is untrue of a tab ("no terminal
+    // renders it, no human wrote it deliberately"). It is now refused by the key pattern the
+    // comment beside that class always claimed refused it — `unrecognized-line`, with the line
+    // quoted, a finding an author can act on.
     what: "a tab inside the frontmatter region",
     file: "REF-003",
     text: "---\nid: REF-003\n\ttitle: tabbed\n---\n",
+    code: "unrecognized-line",
+  },
+  {
+    // ADDED IN PLAN 32-16 SO THE CODE STAYS REACHED. With the tab gone from the control class, the
+    // table would otherwise never exercise `control-character` at all — the shape a narrowing that
+    // emptied the class would also produce. Written with an escape, never as a literal byte.
+    what: "a null byte inside the frontmatter region",
+    file: "REF-008",
+    text: "---\nid: REF-008\ntitle: a\u0000b\n---\n",
     code: "control-character",
   },
   {
@@ -762,7 +776,10 @@ describe("board-read — the tickets walk is a TOTAL partition over its own list
   it("pins the refusal table two-sided and reaches EVERY refusal code the grammar declares", () => {
     // TWO-SIDED. A row added without a case is as much a defect as a case without a row, and the
     // second pin is derived from the grammar's own closed set rather than typed beside it.
-    expect(REFUSAL_SPELLINGS.length).toBe(7);
+    // EIGHT SINCE PLAN 32-16: the tab row kept its spelling and changed its code, and a null-byte
+    // row joined it so `control-character` is still reached by a document rather than only by the
+    // closed set it is a member of.
+    expect(REFUSAL_SPELLINGS.length).toBe(8);
     expect(new Set(REFUSAL_SPELLINGS.map((r) => r.code))).toEqual(new Set(TICKET_REFUSAL_CODES));
   });
 

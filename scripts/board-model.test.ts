@@ -1957,6 +1957,21 @@ describe("board-model — the control class is pinned by derivation, and a tab i
     expect(r.reason).toMatch(/line 4 is `/);
   });
 
+  it("REFUSES a tab INSIDE a value, and a tab TRAILING one — the two positions the key pattern nearly admitted", () => {
+    // FOUND BY PROBING THE SIBLING POSITIONS, not by the plan. Taking the tab out of the control
+    // class let `(.*)` admit it inside a value: `title: a<TAB>b` was ADMITTED and the tab was
+    // carried into the model and onto the board, and `title: ab<TAB>` was admitted with the tab
+    // silently trimmed off. Both were refused the day before. Narrowing one rule must not widen
+    // the next one along.
+    const inside = parseTicketDocument(`---\nid: ABC-014\ntitle: a${TAB}b\n---\n`);
+    expect(inside.ok, "a tab INSIDE a value").toBe(false);
+    expect(inside.ok === false ? inside.code : "").toBe("unrecognized-line");
+
+    const trailing = parseTicketDocument(`---\nid: ABC-014\ntitle: ab${TAB}\n---\n`);
+    expect(trailing.ok, "a tab TRAILING a value").toBe(false);
+    expect(trailing.ok === false ? trailing.code : "").toBe("unrecognized-line");
+  });
+
   it("STILL refuses the characters that remain in the class, under the code that names them", () => {
     // THE CONVERSE. Narrowing a class is only correct if everything else it held is still refused
     // for the reason it was held for. Written with `String.fromCharCode` so no literal control byte

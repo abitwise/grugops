@@ -102,10 +102,23 @@ recorded here first.
 | `feature` | The feature identifier this ticket belongs to. |
 
 A key outside that set is refused by name rather than ignored, because ignoring an unknown key
-gives a document a second place to hide a value. A key written twice is refused, a line that is
-neither `key: value` nor `key:` is refused, a region that never closes is refused, and a control
-character inside the region is refused. The body beneath the region is the ticket's prose and is
-never interpreted.
+gives a document a second place to hide a value. A key written twice is refused, a region that
+never closes is refused, and the remaining two refusals are told apart by what is wrong with the
+line. A **control character** inside the region — a C0 byte other than the tab and the newline, or
+DEL — is refused as `control-character`. Any other line that is not `key: value` or `key:` is
+refused as `unrecognized-line`, **a tab anywhere in the line included**: after the colon, indenting
+the line, inside the value or trailing it. A tab is refused because its rendered width is
+renderer-dependent, so an indentation-significant region carrying one means different things to two
+readers looking at the same bytes — not because nobody writes one. The body beneath the region is
+the ticket's prose and is never interpreted.
+
+A document is normalized before the grammar reads it, and exactly two things are normalized: a
+single leading byte-order mark is removed, and Windows line endings are folded. Neither is
+content — both are what an editor wrote around the document — and the same one authority does it
+for board documents and ticket documents alike, so the projector and the structure validator cannot
+disagree about what a document's first line is. A **second** byte-order mark is content: a document
+carrying one is not a Windows save, and it is refused by the rules above rather than normalized
+again.
 
 The reader of this class is `parseTicketDocument` in `scripts/board-model.ts`. It is a different
 document class from the kit adapter frontmatter that `scripts/canonical-frontmatter.ts` admits, and

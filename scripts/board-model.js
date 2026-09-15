@@ -622,9 +622,42 @@ export const TICKET_REFUSAL_CODES = [
 /** TWO-SIDED. A seventh refusal reason is a decision, never a bumped constant. */
 export const TICKET_REFUSAL_CODE_COUNT = 6;
 const TICKET_DELIMITER = "---";
-const TICKET_KEY_LINE = /^([A-Za-z_][A-Za-z0-9_-]*):(?: (.*))?$/;
-// A C0 control other than newline, plus DEL. A tab is caught by the key pattern rather than trimmed.
-const TICKET_CONTROL = /[\x00-\x09\x0b-\x1f\x7f]/;
+/**
+ * The canonical region line: a key, a colon, one space, a value — or a key and a colon alone.
+ *
+ * THE VALUE EXCLUDES THE TAB, AND THAT EXCLUSION IS PART OF THE SAME DECISION THAT TOOK THE TAB OUT
+ * OF `TICKET_CONTROL`. The control check runs before this pattern, so while the tab was a control
+ * character this pattern never had to say anything about one. Taking it out of that class without
+ * saying something here would have ADMITTED two shapes the grammar refused the day before — a tab
+ * inside a value, carried into the model and onto the board, and a trailing tab, silently trimmed
+ * away. A grammar that admits more with every counter-example discriminates nothing. Probed at all
+ * four positions: after the colon, indenting the line, inside the value and trailing it — every one
+ * is refused `unrecognized-line`, with the line quoted.
+ */
+const TICKET_KEY_LINE = /^([A-Za-z_][A-Za-z0-9_-]*):(?: ([^\t]*))?$/;
+/**
+ * A C0 control other than the tab and the newline, plus DEL.
+ *
+ * THE TAB IS DELIBERATELY OUTSIDE THIS CLASS, AND THE RULE THAT REFUSES IT IS `TICKET_KEY_LINE`.
+ * The control check runs first, so while the tab was a member the key pattern never saw a line
+ * carrying one and the refusal read "a control character, which no terminal renders and no human
+ * wrote deliberately" — two sentences that are both untrue of a tab, over a document an author then
+ * could not fix. A tab now reaches the key pattern, which admits neither `key:<TAB>value` nor a
+ * line indented by one, and the document is refused `unrecognized-line` with the line quoted.
+ *
+ * WHY THE TAB IS REFUSED AT ALL, STATED TRUTHFULLY. Not because nobody writes one: because a tab's
+ * rendered width is renderer-dependent, so an indentation-significant region carrying tabs means
+ * different things to two readers looking at the same bytes. The canonical form is `key: value`
+ * with one space, and D-64's posture is to refuse outside the form rather than widen the form to
+ * admit what showed up. The newline is outside the class for a different reason: it ENDS a line
+ * rather than sitting inside one, so the region never holds a line containing it.
+ *
+ * Exported so the membership can be DERIVED in a case rather than transcribed beside one. A
+ * character class edited to green a suite is the set-literal drift class this repository has
+ * already paid for; `scripts/board-model.test.ts` derives both this class's membership and the rule
+ * that actually fires over every code point from 0 through 31 plus 127, and asserts they agree.
+ */
+export const TICKET_CONTROL = /[\x00-\x08\x0b-\x1f\x7f]/;
 const ticketRefusal = (code, reason) => ({
     ok: false,
     code,
