@@ -9382,7 +9382,20 @@ const censusRelationshipFindings = (c: TripwireCensus): string[] => {
 // Re-derived rather than incremented: `ls scripts/*.test.ts | wc -l` reports 68 on this tree,
 // agreeing with the live census, and the bump lands in the SAME commit as the run in which the full
 // suite first observed the module.
-const TRIPWIRE_MODULES = 68;
+//
+// 68 -> 69 (plan 32-22, task 1): ONE test module, `scripts/board-watch-live.test.ts` — the DASH-04
+// watch chain measured on a WALL CLOCK rather than through the `LoopDeps` seam. It spawns the
+// committed `scripts/board-dashboard.js` five times, writes the board the way `atomicWrite` writes
+// files, and times the event path, the poll path with every watch forced dead, and the debounce over
+// a burst. It is a genuine test module rather than a corpus file, so a pin that surfaced it arriving
+// is the correct thing to have fired — and it fired on the plan's own full-suite run, which is how
+// the module was noticed rather than announced. The bump was made AFTER that run, in which this
+// module's other cases had already read the new file and reported zero findings; the pin moved
+// because a module landed, not to make a red go away.
+// Re-derived rather than incremented: `ls scripts/*.test.ts | wc -l` reports 69 on this tree,
+// agreeing with the live census, and the bump lands in the SAME commit as the run in which the full
+// suite first observed the module.
+const TRIPWIRE_MODULES = 69;
 /**
  * Corpus-derived floors, expressed as RATES so the floor grows with the corpus it floors.
  * Each is set well below its measured live value: the point is to catch a measurement that
