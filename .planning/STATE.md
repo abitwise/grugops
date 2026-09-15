@@ -5,9 +5,9 @@ milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live
 current_phase: 32
 current_phase_name: Board Projector & CLI Dashboard
 status: "Phase 31 CLOSED 2026-09-13 by user override D-44 (round-9 verification gaps_found 4/6 left standing; CR-28..CR-31 + WR-43..WR-47 accepted open). Next: Phase 32 — Board Projector & CLI Dashboard, not yet planned. Standing rule: four-round gap-closure cap on every later phase."
-stopped_at: Completed 32-14-PLAN.md (gap-closure round 1 complete; 2 open findings)
-last_updated: "2026-09-15T07:39:56.336Z"
-state_head: 303e2d35ed53b8f1db27f45d853c67f9d5f91c1a
+stopped_at: Completed 32-15-PLAN.md
+last_updated: "2026-09-15T08:11:46.907Z"
+state_head: 6174ceded3c7d0fb2a532c3ad5846f5673c4c7dd
 progress:
   total_phases: 9
   completed_phases: 30
@@ -30,8 +30,8 @@ See: .planning/PROJECT.md (updated 2026-09-07 — after Phase 29.2)
 
 ## Current Position
 
-Phase: 32 — READY TO EXECUTE
-Plan: 7 of 14
+Phase: 32 (Board Projector & CLI Dashboard) — EXECUTING
+Plan: 2 of 23
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 
@@ -490,6 +490,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 32 P13 | 22 min | 2 tasks | 5 files |
 | Phase 32 P11 | 26 min | 3 tasks | 3 files |
 | Phase 32 P14 | 34 min | 3 tasks | 4 files |
+| Phase 32 P15 | 16 min | 3 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -1334,6 +1335,8 @@ Recent decisions affecting current work:
 - [Phase 32]: Plan 32-13: the three --json framing sentences state the per-line contract, and the site count is derived from the module text and pinned at 3. — WR-06. D-18 behaviour was correct and unchanged; the prose described a different program. Three sentences that must agree are three chances to disagree, so the count is measured rather than trusted.
 - [Phase 32]: Phase 32 gap-closure round 1 ends with two OPEN findings: F-03 (check:dashboard-readonly exits 0 over a writer acquired via process.getBuiltinModule with an assembled specifier — a 32-11 residual, measured for the first time) and F-01 (the check:* CI-reachability derivation cannot see check:dashboard-readonly). — The round budget was respected: two bypasses found, one closed inside a file the round already owned, one recorded open rather than fixed in a sixth file.
 - [Phase 32]: F-02 closed in 32-14: a safety predicate must be asked at EVERY syntactic position that introduces the value it governs. The fs re-entry rule was correct and asked at 2 of 4 positions, so a named import of the promises namespace reached every writer while only a cardinality pin stood in the way. — Mutation-proven per position: deleting the rule reds 4 rows, reverting only the two new positions reds exactly those 2.
+- [Phase 32]: row-without-file now names a refusal by code when the file is on disk, and keeps the byte-identical absence sentence when it is not — one kind, two sentences, no SCHEMA_VERSION move (D-10 kept). — D-10 makes the conflict-kind set part of the schemaVersion:1 shape, so a new row-file-unadmitted kind would cost the golden, the closed-set count test, the contract and the renderer in one edit. The same honesty is reachable inside the existing kind by making actual true.
+- [Phase 32]: JoinInputs.unadmittedTickets is REQUIRED with no default: an omitted answer is a compile error, which is what stops a future call site silently re-acquiring the CR-01 defect. — An optional field with a default would let the join go back to inferring presence from the parse successes. The compile error is the mechanism, not the documentation.
 
 ### Pending Todos
 
@@ -1456,8 +1459,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-09-15T00:02:16.401Z
-Stopped at: Completed 32-14-PLAN.md (gap-closure round 1 complete; 2 open findings)
+Last session: 2026-09-15T08:11:35.926Z
+Stopped at: Completed 32-15-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
