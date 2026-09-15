@@ -20,14 +20,19 @@
 // not have to decide whether a nonzero code meant "the board says something" or "the tool broke".
 // Exit 2 is reserved for exactly two things: a usage error and an unreadable `repoRoot`.
 //
-// BOARD CONTENT IS UNTRUSTED INPUT TO A TERMINAL EMULATOR (T-32-06). Every string that reaches
-// EITHER CHANNEL goes through `sanitizeCell` first: the frame's cells on their way to stdout, and
-// every diagnostic on its way to stderr through the single `warn` chokepoint below. Naming stdout
-// alone was the CR-05 defect, and it was a true sentence about the wrong boundary — stderr is the
-// same terminal emulator on an interactive run, and it is the channel carrying the values an
-// attacker influences: file bytes in `readError.message`, and the raw `repoRoot` argument in the
-// root-refusal line. A ticket title carrying an ANSI or OSC sequence would otherwise repaint,
-// retitle or mislead the terminal of whoever ran the dashboard.
+// BOARD CONTENT IS UNTRUSTED INPUT TO A TERMINAL EMULATOR (T-32-06). A ticket title carrying an
+// ANSI or OSC sequence would otherwise repaint, retitle or mislead the terminal of whoever ran the
+// dashboard, and stderr is the same emulator as stdout on an interactive run.
+//
+// THIS MODULE HAS FOUR WRITE SITES, AND THE COUNT IS DERIVED RATHER THAN PROMISED. Three reach
+// stdout — `run`'s usage write, `emit`'s frame write and `writeDocument`'s document write — and one
+// reaches stderr, inside `warn`. `scripts/board-dashboard.test.ts` parses THIS FILE and pins both
+// numbers and both sets of enclosing function names two-sided, so a fifth write site is red rather
+// than a review comment. That is the whole claim; what each site does with the sanitizer is stated
+// on the site itself. An earlier version of this paragraph asserted that every string reaching
+// either channel was sanitized first, which was false of the `--json` document for as long as
+// nobody checked it (CR-02) — a sentence naming its own checker is one a reader can falsify in a
+// single command.
 //
 // IMPORT DISCIPLINE for a runnable `scripts/*.ts` (`scripts/check-platform-shapes.ts`): node
 // builtins plus relative `./*.js`, nothing else. The two `node:fs` symbols this module holds —
@@ -195,6 +200,39 @@ export function sanitizeCell(s) {
 function warn(io, ...lines) {
     io.stderr.write(`${lines.map(sanitizeCell).join("\n")}\n`);
 }
+/**
+ * THE ONE PLACE A SERIALIZED DOCUMENT REACHES STDOUT (CR-02, T-32-18-01).
+ *
+ * WHAT THE DEFECT WAS. `emit`'s JSON arm wrote `JSON.stringify(withWatch)` straight to the channel.
+ * `JSON.stringify` escapes the C0 range and does NOT escape the C1 range, so U+009B (the 8-bit CSI
+ * introducer) and U+009D (the 8-bit OSC introducer) — both acted on by xterm, iTerm2 and the VTE
+ * family in UTF-8 mode — travelled from a ticket title into the published document verbatim. The
+ * module header claimed both channels were sanitized while one of them was not, which is worse than
+ * the leak: a docblock asserting a property the code lacks is how the next reviewer stops checking.
+ *
+ * WHY THE SERIALIZED TEXT AND NOT THE VALUES. The document's KEYS are content-derived as well —
+ * the dial's per-column limits are keyed by column NAME, and a column name is a line an agent wrote
+ * into `plans/board.md` — so a rule that only visited values would answer for half the document.
+ * Sanitizing after serialization reaches keys and values by one rule. Nothing structural is at risk:
+ * the removal set is the C0 range, the C1 range and DEL, no JSON structural character is in any of
+ * them, and `JSON.stringify` has already escaped every C0 that belongs inside a string.
+ *
+ * WHAT THIS DOES NOT REMOVE, STATED RATHER THAN IMPLIED. An ESCAPED code point inside a string
+ * literal — the six-character backslash-u form `JSON.stringify` writes for a C0 — is TEXT in the
+ * document and stays. It becomes a control character only if a consumer decodes the document and
+ * prints the value without sanitizing it, and rewriting it here would mean altering a value the
+ * consumer asked for. The boundary is recorded in this plan's summary as a known limit, not closed.
+ *
+ * THE LINE BOUNDARY IS APPENDED AFTER THE REMOVAL, so the document boundary is this function's
+ * structure and never content's: `sanitizeCell` removes every C0 including the newline, which is
+ * what stops board content from forging a second JSON Lines record (D-18).
+ *
+ * `sanitizeCell` IS UNCHANGED BY THIS, exactly as it is by `warn`. What is removed stays decided in
+ * one place; this function decides only where the rule is applied.
+ */
+function writeDocument(io, value) {
+    io.stdout.write(`${sanitizeCell(JSON.stringify(value))}\n`);
+}
 // Spelled with `\u` escapes rather than literal bytes, so this source file carries no control
 // character of its own for `scripts/check-nul-bytes.ts` or a reviewer to trip over.
 export const STYLE = {
@@ -247,6 +285,19 @@ function humanBytes(n) {
     if (n < 1024 * 1024)
         return `${Math.round(n / 1024)} KB`;
     return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+}
+/**
+ * A UTF-16 code-unit count for a header a person reads, GROUPED AND NAMING ITS OWN UNIT (WR-05).
+ *
+ * `bounds.longestLine` is code units and `bounds.boardBytes` is UTF-8 bytes. The contract states
+ * that the two disagree on any board carrying characters outside Latin-1, so each number states its
+ * own unit; rendering a code-unit count through `humanBytes` stated the wrong one. The grouping is
+ * done here rather than through `toLocaleString`, so the rendered header is a function of the number
+ * alone and not of whichever ICU data the host Node was built with.
+ */
+function humanChars(n) {
+    const digits = Math.max(0, Math.trunc(n)).toString();
+    return `${digits.replace(/\B(?=(\d{3})+(?!\d))/g, ",")} chars`;
 }
 /** Human-rounded age between two ISO instants, coarsened upward. */
 function humanAge(since, now) {
@@ -312,7 +363,7 @@ export function renderHeader(result, style) {
     const bounds = snapshot.board?.bounds;
     if (bounds !== undefined && bounds.exceeded) {
         parts.push(`${style.badge}LARGE BOARD (${humanBytes(bounds.boardBytes)}, longest line ` +
-            `${humanBytes(bounds.longestLine)})${style.reset}`);
+            `${humanChars(bounds.longestLine)})${style.reset}`);
     }
     return parts.join("  ");
 }
@@ -624,7 +675,13 @@ export function createLoop(options, io, deps) {
             // `--watch`: a consumer that read the help text and parsed the whole stream got a parse error
             // on the second frame, and the failure looked like a tool defect rather than a documentation
             // defect (WR-06). The behaviour D-18 decided is unchanged; the prose is what was wrong.
-            io.stdout.write(`${JSON.stringify(withWatch)}\n`);
+            //
+            // THE SERIALIZATION AND THE WRITE BOTH BELONG TO `writeDocument` (CR-02). This arm used to do
+            // both itself and reached the channel with no sanitizer on the way, which is how U+009B and
+            // U+009D travelled from a ticket title into the document. Moving them into one function makes
+            // "a document that skipped the sanitizer" a thing that cannot be written rather than a thing
+            // somebody has to remember at each new arm.
+            writeDocument(io, withWatch);
             return;
         }
         // THE TTY BRANCH IS THE SAME RENDERER WITH DIFFERENT CONSTANTS (D-17, D-18). A redirected run

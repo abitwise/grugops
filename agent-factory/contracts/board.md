@@ -371,6 +371,26 @@ There is no empty-board output state distinct from zero rows under real headings
 columns are all empty renders its columns with zero counts. A board that could not be read is stale
 or unavailable, and the reader is told which of the two it is.
 
+## Control characters on the way out
+
+**Board content is untrusted input to a terminal emulator, and both output channels are held to that
+rule.** A title, a meta, a file path quoted back in a refusal and the repository root taken from the
+command line all reach a terminal that acts on control introducers. Every C0 code point, every C1
+code point and DEL are removed from the plain frame's cells, from the `--json` document, and from
+every diagnostic on the error channel. The C1 range is named explicitly because the 8-bit CSI and
+OSC introducers are acted on by common terminals in UTF-8 mode and are not escaped by JSON
+serialization, so a document that was serialized and not sanitized carries them verbatim.
+
+The `--json` document is sanitized as serialized text rather than field by field, because a key in
+that document can be content-derived: the per-column limits the dial records are keyed by column
+name. Removal never touches JSON structure, since no structural character is a control character.
+
+What this does not do is decode the document on a consumer's behalf. An escaped control code point
+inside a string — the six-character form a JSON serializer writes — is text in the document and
+stays text. It becomes a control character only if a consumer decodes the value and prints it, and
+a consumer that prints board content to a terminal sanitizes it for the same reason the projector
+does.
+
 ## Bounds
 
 A large board degrades visibly. It is never refused, and no row is ever dropped.
@@ -384,8 +404,8 @@ Two ceilings are measured on every parse, each in a stated unit:
 
 Passing either ceiling sets `bounds.exceeded`, and the header reports the measured size. A byte
 count and a code-unit count disagree on any board carrying characters outside Latin-1, so each
-number states its own unit. The snapshot carries both numbers unrounded, and only the header's
-rendering rounds them for a human.
+number states its own unit: the header rounds the board size to bytes and prints the longest line as
+a grouped count of characters. The snapshot carries both numbers unrounded.
 
 Three opaque strings are held to a cap of 1,024 UTF-16 code units: a row's `meta`, a row's
 `trailer`, and an update entry's `text` together with its `actor`. A string held at its cap ends in

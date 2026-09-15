@@ -225,12 +225,12 @@ describe("board-dashboard — the D-17 header (D-12, D-17, D-20)", () => {
     ).not.toContain("LARGE BOARD");
   });
 
-  it("adds a LARGE BOARD marker carrying the byte size and the longest line, both human-rounded (D-20)", () => {
+  it("adds a LARGE BOARD marker carrying the byte size and the longest line, each in its own unit (D-20, WR-05)", () => {
     const result = makeResult({
       board: boardModel({ bounds: { boardBytes: 389_120, longestLine: 34_494, exceeded: true } }),
     });
     const header = frameLines(renderFrame(result, 200))[0] as string;
-    expect(header).toContain("LARGE BOARD (380 KB, longest line 34 KB)");
+    expect(header).toContain("LARGE BOARD (380 KB, longest line 34,494 chars)");
   });
 
   it("names BOTH stale sources and the age of each last good read in exactly ONE badge (D-12)", () => {
