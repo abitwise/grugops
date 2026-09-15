@@ -25,7 +25,7 @@ affects: [32-22, 32-23, board-projector, dashboard-safety, foundation-guards, ci
 actuals:
   tokens: 17887   # chars/4 over the full realized diff of the three task commits
   tasks: 3
-  commits: 6  # 3 task commits + the RED/GREEN artifact commit + the SUMMARY commit + the metadata commit, on base af871786
+  commits: 7  # MEASURED git rev-list --count af871786..HEAD: 3 task + RED/GREEN artifacts + SUMMARY + metadata + WINDOWS ledger
 plan_head_before: af8717868b89e475a5eef794b9620d3bd5946bd3
 
 tech-stack:

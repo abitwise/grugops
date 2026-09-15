@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 179
+open_count: 180
 waived_count: 0
 fixed_count: 4
-total_count: 183
-last_updated: 2026-09-15T09:36:31.879Z
+total_count: 184
+last_updated: 2026-09-15T12:22:42.261Z
 ---
 
 # Broken Windows Ledger
@@ -198,6 +198,7 @@ last_updated: 2026-09-15T09:36:31.879Z
 | 181 | 32 | unrun-verify | scripts/check-foundation-guards.test.ts | 12009 | F-01 (32-14): the 'every check:* npm script names a gate that CI runs' derivation skips check:dashboard-readonly (its command is not 'node scripts/*.js'), so the DASH-06 gate's CI reachability is unproven by that gate | open |  | 2026-09-14T23:59:53.350Z |  |
 | 182 | 32 | deviation | .planning/phases/32-board-projector-cli-dashboard/deferred-items.md |  | the check:nul-bytes deferred entry still reads status: open but the gate is GREEN (fixed by user commit 888a1302); the entry is stale | open |  | 2026-09-14T23:59:53.431Z |  |
 | 183 | 32 | unrun-verify | scripts/e2e |  | The live claude-CLI e2e lane was not run for plan 32-17 (spends tokens on an authenticated box and can hang); its state is UNKNOWN - verify | open |  | 2026-09-15T09:36:31.879Z |  |
+| 184 | 32 | deviation | scripts/validate.test.ts |  | 32-21 stated blind spot: the ticket-frontmatter census cannot resolve a key spelling assembled at RUNTIME (String.fromCharCode, a template with substitutions, a name read from a variable). Measured at zero and pinned by a case; no such shape exists in scripts/ today. | open |  | 2026-09-15T12:22:42.261Z |  |
 
 ````json
 [
@@ -2401,6 +2402,19 @@ last_updated: 2026-09-15T09:36:31.879Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-09-15T09:36:31.879Z",
+    "resolved_at": null,
+    "milestone": "v2.1"
+  },
+  {
+    "id": 184,
+    "kind": "deviation",
+    "phase": "32",
+    "file": "scripts/validate.test.ts",
+    "line": null,
+    "description": "32-21 stated blind spot: the ticket-frontmatter census cannot resolve a key spelling assembled at RUNTIME (String.fromCharCode, a template with substitutions, a name read from a variable). Measured at zero and pinned by a case; no such shape exists in scripts/ today.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-15T12:22:42.261Z",
     "resolved_at": null,
     "milestone": "v2.1"
   }
