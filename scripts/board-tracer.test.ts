@@ -319,6 +319,95 @@ describe("board-model — the row grammar (D-01 as amended by D-22)", () => {
   });
 });
 
+describe("board-model — a title carries no trailing whitespace (plan 32-17, IN-03)", () => {
+  /** The text AND its length, because the defect is invisible in a bare string comparison. */
+  const shown = (v: string): string => `${JSON.stringify(v)} (${v.length} code units)`;
+
+  it("ARM ONE — the BALANCED arm: a gap wider than two spaces leaves nothing on the title", () => {
+    // `rest.indexOf("  (")` finds the LAST TWO spaces of a run, so every space before those two
+    // stayed on the title. It is cosmetic in the frame — the column pads anyway — and it lands
+    // VERBATIM in the published `--json` document, so two boards differing only in whitespace
+    // produce different `schemaVersion: 1` payloads.
+    const parts = splitRow("Asset allocation chart   (owner: Software Engineer)");
+    expect(shown(parts.title)).toBe(shown("Asset allocation chart"));
+    expect(parts.meta, "the split itself must still land where it always did").toBe(
+      "owner: Software Engineer",
+    );
+  });
+
+  it("ARM TWO — the UNBALANCED arm: the whole remainder is the title, trimmed", () => {
+    const parts = splitRow("The entry point  (M, P0, epic: EPIC-006, **MERGED   ");
+    expect(shown(parts.title)).toBe(shown("The entry point  (M, P0, epic: EPIC-006, **MERGED"));
+    expect(parts.meta).toBeNull();
+  });
+
+  it("ARM THREE — the NO-PARENTHETICAL arm: a trailing run on a bare row is not title text", () => {
+    const parts = splitRow("Empty-state UI   ");
+    expect(shown(parts.title)).toBe(shown("Empty-state UI"));
+    expect(parts.meta).toBeNull();
+  });
+
+  it("a tab before the parenthetical is trailing whitespace too", () => {
+    // `trimEnd` is a whitespace rule, not a space rule, and saying so is cheaper than letting the
+    // next reader find out by planting one.
+    expect(shown(splitRow("A title \t  (meta)").title)).toBe(shown("A title"));
+  });
+
+  it("the canonical two-space gap is unchanged, in all three arms", () => {
+    // THE CONVERSE. A trim that also moved the committed behaviour would pass every case above.
+    expect(splitRow("Asset allocation chart  (owner: Software Engineer)")).toEqual({
+      title: "Asset allocation chart",
+      meta: "owner: Software Engineer",
+      trailer: "",
+    });
+    expect(splitRow("The entry point  (M, P0, **MERGED")).toEqual({
+      title: "The entry point  (M, P0, **MERGED",
+      meta: null,
+      trailer: "",
+    });
+    expect(splitRow("Empty-state UI")).toEqual({ title: "Empty-state UI", meta: null, trailer: "" });
+  });
+
+  it("LEADING whitespace on the title is content, and is NOT trimmed", () => {
+    // THE DECISION, PINNED. `trimEnd` rather than `trim`: the whitespace AHEAD of a parenthetical
+    // is a DELIMITER — the two-space gap is what discriminates a real parenthetical from
+    // parentheses inside a title — and a run of it is the same delimiter written wide. Whitespace
+    // a human typed at the START of a title is not a delimiter, it is what they typed, and
+    // removing it would move more of the published document than the finding named.
+    expect(shown(splitRow("  indented title").title)).toBe(shown("  indented title"));
+  });
+
+  it("`meta` and `trailer` are NOT trimmed — nothing inside them is parsed (D-01, D-22)", () => {
+    // THE OTHER HALF OF THE DECISION, PINNED SO THE NEXT READER DOES NOT HAVE TO INFER IT. D-01 and
+    // D-22 say nothing inside `meta` or `trailer` is interpreted, so whitespace inside them is
+    // content. The title is different: it is the field a human reads to identify the row, and the
+    // gap ahead of the parenthetical is the grammar's own delimiter rather than something typed.
+    const parts = splitRow("Title  (  padded meta  )  trailing prose  ");
+    expect(shown(parts.meta ?? "")).toBe(shown("  padded meta  "));
+    expect(shown(parts.trailer)).toBe(shown("  trailing prose  "));
+    expect(shown(parts.title)).toBe(shown("Title"));
+  });
+
+  it("every arm returning a title is trimmed — derived from the file, not from three cases", () => {
+    // THE SIBLING-ARM PROBE THIS ROUND EXISTS FOR. `splitRow` returns a title from three places; a
+    // trim applied to one of them passes whichever single case the author happened to write. Every
+    // `title:` in the function's body must carry the trim.
+    const source = readFileSync(join(ROOT, "scripts", "board-model.ts"), "utf8");
+    const start = source.indexOf("export function splitRow");
+    expect(start, "PREMISE: `splitRow` was not found, so this case scanned nothing").toBeGreaterThan(
+      0,
+    );
+    const body = source.slice(start, source.indexOf("\n}\n", start));
+    const titles = body.match(/title: [^,\n]+/g) ?? [];
+    expect(titles.length, "PREMISE: no title-producing return was found at all").toBe(3);
+    for (const t of titles) {
+      expect(t, "an arm that produces a title without the trim is the arm the defect returns on").
+        toContain("trimEnd()");
+    }
+  });
+});
+
+
 describe("board-model — the total line partition (D-24, this task's half)", () => {
   // AMENDED BY PLAN 32-02, AND THE AMENDMENT IS THE POINT. When the tracer landed, `updates[]` was
   // a declared field returned empty, so a canonical `_Updated:` line fell through to the preamble
