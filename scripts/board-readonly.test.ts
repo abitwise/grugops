@@ -6,11 +6,24 @@
 // than asserted in a docblock. A sentence saying "this module is read-only" is true until the next
 // commit and says nothing afterwards. This file re-decides the property from the bytes on every run.
 //
-// WHAT IT DECIDES. Two claims, both over the transitive closure of the COMPILED artifact
+// WHAT IT DECIDES. Four claims, all over the transitive closure of the COMPILED artifact
 // `scripts/board-dashboard.js` — the thing a host actually runs, not the `.ts` a reader sees:
 //
 //   1. No mutating `node:fs` / `node:fs/promises` symbol is reachable from that closure (DASH-06).
-//   2. The closure imports none of the socket / process-spawning builtins (DASH-08, "no socket").
+//   2. The closure reaches NO BUILTIN outside a named allow-list, which subsumes the socket /
+//      process-spawning ban (DASH-08, "no socket") and refuses every other builtin by construction.
+//   3. The closure reaches no member path on a capability-bearing global outside a named census —
+//      the rule for a capability reached WITHOUT a module at all.
+//   4. A module identity is established in this closure by exactly ONE shape, a static import
+//      declaration with a string-literal specifier; every other acquisition is refused.
+//
+// CLAIMS 2, 3 AND 4 WERE ADDED IN 32-20, AND THE REASON IS A MEASUREMENT, NOT A TIDY-UP. Before it,
+// claim 2 was a deny-list of fifteen hand-typed names and claims 3 and 4 did not exist. Nine
+// distinct ways to reach a file-writing or code-executing capability from inside this closure were
+// measured GREEN against the committed `.js` — exit 0, 59 passed / 59 on every one, including an
+// ordinary unobfuscated `import { writeHeapSnapshot } from "node:v8"`. The transcripts are in
+// `.planning/phases/32-board-projector-cli-dashboard/32-20-RED-baseline.txt`, and the after side,
+// with the mutation transcripts that prove each rule decides something, is in `32-20-GREEN-proof.txt`.
 //
 // BOTH SIDES ARE DERIVED, NOT TYPED OUT. This repository's recorded second systemic failure class is
 // a hand-maintained set literal that rots while every gate over it stays green — the spawn defect
@@ -56,22 +69,27 @@
 // as the canonical form and the complement is refused, because widening a matcher once per
 // counter-example is the failure this repository has paid for twice.
 //
-// WHAT IT DOES NOT CLOSE, NAMED RATHER THAN IMPLIED:
-//   • The derivation is SYNTACTIC. An aliased re-export (`export { writeFileSync as w }` through an
-//     intermediate module) or a dynamic `import()` of a COMPUTED specifier is not resolved by name.
-//     Both are refused rather than ignored — an unresolvable acquisition is collected and asserted
-//     absent — but a route this file cannot see is a route it cannot decide. Widening the matcher
-//     once per counter-example is the failure this repository has already paid for, so the boundary
-//     is written down instead.
-//   • A module identity ASSEMBLED at runtime and handed to something that is not `import`/`require`
-//     — `process.getBuiltinModule("node:" + "fs")` — is not a string literal, so the argument rule
-//     above does not see it. `import(expr)` and `require(expr)` with a non-literal ARE refused
-//     (`opaqueSpecifiers`); this residual is the non-module-system spelling of the same idea, and it
-//     is recorded here rather than closed by a denylist of callee names.
-//   • A writer VALUE received at runtime from outside the closure (a callback parameter that happens
-//     to be `writeFileSync`) is not decidable syntactically at all. The zero-runtime-dependency
-//     assertion in PART SIX and the relative-only closure walk are what bound how such a value could
-//     arrive.
+// WHAT IT DOES NOT CLOSE — REWRITTEN IN 32-20, AND EVERY BOUNDARY BELOW WAS MEASURED DURING IT
+// RATHER THAN REMEMBERED. The list a maintainer inherits is only useful if each line is a thing
+// somebody looked at; the two lines this plan CLOSED (the runtime-assembled identity, and a builtin
+// outside a deny-list) were deleted from it rather than left standing as folklore.
+//
+//   • THE DERIVATION IS SYNTACTIC: IT PARSES, IT DOES NOT EXECUTE. What that buys is that the guard
+//     runs in under two seconds over the real committed artifact with no sandbox and no side effect,
+//     on every commit, which is why it is reachable at all. What it costs is that any route whose
+//     identity only exists at RUN time is undecidable here — and the answer to undecidable is
+//     REFUSAL, not a cleverer pass (`ModuleFacts.acquisitions`). An aliased re-export of a writer
+//     through an intermediate module is named only where a specifier names it.
+//   • A WRITER VALUE RECEIVED AT RUNTIME from outside the closure — a callback parameter that
+//     happens to be `writeFileSync` — is not decidable syntactically at all. The
+//     zero-runtime-dependency assertion in PART SIX and the relative-only closure walk are what
+//     bound how such a value could arrive.
+//   • THE CAPABILITY-GLOBAL CENSUS IS ROOTED AT THREE IDENTIFIER SPELLINGS (`process`, `globalThis`,
+//     `global`). MEASURED THIS PLAN: `import.meta` is a META-PROPERTY rather than an identifier, so
+//     a member reached on it is outside this census by construction — and the live closure does
+//     reach two (`import.meta.url` in scripts/is-entry.js and scripts/board-dashboard.js,
+//     `import.meta.dirname` in scripts/kit-model.js). Both are read-only path plumbing today.
+//     `import.meta.resolve` would not be. This is the nearest open edge to the rules 32-20 added.
 //   • THE SUBJECT IS THE COMMITTED `.js`. A writer added to a `.ts` and not rebuilt is a program
 //     this guard never saw. PART SIX asserts the binding to `check:build-parity`, which is the
 //     mechanism that makes the analysed `.js` the same program as its `.ts`.
@@ -110,6 +128,25 @@
 // `npm run check:dashboard-readonly` would run the same file twice and would be the same
 // two-authorities smell one level up, in the workflow file. The absence of a named CI step for this
 // gate is therefore a recorded decision, not an oversight.
+//
+// HOW THIS GATE IS REACHED, AND WHAT WOULD HAPPEN IF IT WERE NOT — the question the round-1
+// adversarial review found UNASKED (F-01). Asking what a gate refuses, without asking how it is
+// reached, is how this repository once shipped a gate that "passed for a whole round by never
+// running". So, stated plainly:
+//
+//   • REACHED TODAY: through the unconditional suite step above. `npx vitest list --exclude
+//     '**/scripts/e2e/**'` reports this file's cases, so the CI suite runs them on every push. The
+//     named `check:dashboard-readonly` script is the human-facing handle on the same file.
+//   • IF IT WERE NOT: every claim in this file would be true only on a developer's machine, and the
+//     first commit to introduce a writer would be the commit that discovered nobody was looking.
+//   • WHAT IS MISSING IS THE MECHANICAL PROOF OF THAT REACHABILITY, not the reachability.
+//     `scripts/check-foundation-guards.test.ts` derives "every `check:*` script names a gate CI
+//     runs" by extracting `/node (scripts\/[\w.-]+\.js)/` from each command and SKIPPING the script
+//     when that pattern does not match — which silently skips this one, because its command is
+//     `npx vitest run …`. Plan 32-21 closes that half by classifying every `check:*` script into a
+//     named class with a reachability proof per class. It is cross-referenced here rather than
+//     duplicated, because two files deciding one question is the failure this file's own docblock
+//     already refuses twice over.
 //
 // Vitest `globals: false` (the repo default) → the test functions are imported explicitly.
 
@@ -1768,9 +1805,16 @@ describe("32-06 — the dashboard opens no socket and spawns no process", () => 
 // ═══════════════════════════════════════════════════════════════════════════════════════════════
 // PART FIVE — the discrimination. Every green above is worth exactly as much as this part.
 //
-// A structural assertion nobody has watched FAIL is not yet a control. Both mirrors are built FROM
+// A structural assertion nobody has watched FAIL is not yet a control. Every mirror is built FROM
 // THE LIVE SOURCES at test time, so a refactor of a real module cannot leave a fixture behind
 // asserting something the tree no longer says.
+//
+// WHAT IS TESTED HERE IS THE UNION OF THREE RULES (32-20). The namespace rule (32-11), the
+// acquisition rule and the module-identity rule each have their own table of spellings, and all
+// three tables are planted by ONE iteration against the SAME mirror, each row asserting the derived
+// set its OWN rule produces. Three rules that each pass their own rows and were never run together
+// is precisely how a round closes a spelling and reopens the capability one register over — which
+// is what the last four verification rounds of this phase measured, every time.
 // ═══════════════════════════════════════════════════════════════════════════════════════════════
 
 /**
@@ -1833,7 +1877,22 @@ function withLiveMirror(
  * is kept in the enumeration so that what is tested is the UNION of the old arm and the new rule,
  * not the new rule alone.
  */
-const NAMESPACE_ESCAPE_SHAPES = Object.freeze([
+/** The derived sets a planted row may be refused BY. Named so a row can say which one it expects. */
+type WitnessKey =
+  | "opaqueFsAcquisitions"
+  | "acquisitions"
+  | "unresolvedCallees"
+  | "unadmittedBuiltinIdentity"
+  | "unadmittedGlobalMemberPath";
+
+/** One planted spelling: a name, the source to append, and (optionally) the set that refuses it. */
+interface EscapeShape {
+  readonly name: string;
+  readonly appendSource: string;
+  readonly witness?: WitnessKey;
+}
+
+const NAMESPACE_ESCAPE_SHAPES: readonly EscapeShape[] = Object.freeze([
   {
     name: "destructuring bind of two writers from a namespace",
     appendSource:
@@ -1947,7 +2006,7 @@ const NAMESPACE_ESCAPE_SHAPE_COUNT = 14;
  * are refused by the generalised argument arm added in 32-11 (deviation, Rule 2): none of them
  * spells `require` or `import` at the call site, and all three return the real `node:fs`.
  */
-const ACQUISITION_SHAPES = Object.freeze([
+const ACQUISITION_SHAPES: readonly EscapeShape[] = Object.freeze([
   {
     name: "require(\"node:fs\") — refused by the require arm of collectSpecifiers",
     appendSource:
@@ -1997,6 +2056,150 @@ const ACQUISITION_SHAPES = Object.freeze([
 
 /** The cardinality of the acquisition table. A ninth route is a decision, recorded as a row. */
 const ACQUISITION_SHAPE_COUNT = 8;
+
+/**
+ * THE MODULE-IDENTITY SHAPES — the THIRD table, one row per spelling plan 32-20 closes.
+ *
+ * These are neither namespace escapes nor fs acquisitions. Not one of them names a filesystem
+ * module anywhere, and four of them import nothing at all: they reach a file-writing or
+ * code-executing capability through a builtin the old deny-list never named, through a module
+ * identity assembled at runtime, or through a global. Every one of them was MEASURED GREEN against
+ * the committed `.js` before this plan — exit 0, 59 passed / 59, transcripts in
+ * `32-20-RED-baseline.txt` — and each is refused now by a NAMED derived set rather than by a
+ * cardinality pin catching it sideways.
+ *
+ * `witness` is which derived set must become non-empty for the row to count as refused. It is part
+ * of the row because "refused" without naming the refusing predicate is how a round credits a rule
+ * for a red some other rule produced — this repository has recorded that shape twice.
+ */
+const MODULE_IDENTITY_SHAPES: readonly EscapeShape[] = Object.freeze([
+  {
+    name: "the heap-snapshot writer imported from node:v8 (zero obfuscation; verifier gap 2)",
+    appendSource:
+      'import { writeHeapSnapshot } from "node:v8";\n' +
+      "export const identity01 = (p) => writeHeapSnapshot(p);",
+    witness: "unadmittedBuiltinIdentity",
+  },
+  {
+    name: "the embedded database imported from node:sqlite, which creates and writes its file",
+    appendSource:
+      'import { DatabaseSync } from "node:sqlite";\n' +
+      "export const identity02 = (p) => new DatabaseSync(p);",
+    witness: "unadmittedBuiltinIdentity",
+  },
+  {
+    name: "the virtual machine imported from node:vm, which executes source",
+    appendSource:
+      'import { runInNewContext } from "node:vm";\n' +
+      "export const identity03 = (s) => runInNewContext(s);",
+    witness: "unadmittedBuiltinIdentity",
+  },
+  {
+    name: "the UN-PREFIXED spelling of the heap-snapshot builtin (`v8`, not `node:v8`)",
+    appendSource:
+      'import { writeHeapSnapshot as heap04 } from "v8";\n' +
+      "export const identity04 = (p) => heap04(p);",
+    witness: "unadmittedBuiltinIdentity",
+  },
+  {
+    name: "a module identity ASSEMBLED at runtime and a writer called through it (F-03)",
+    appendSource:
+      'const assembled05 = process.getBuiltinModule("node:" + "fs");\n' +
+      'export const identity05 = (p) => assembled05.writeFileSync(p, "x");',
+    witness: "acquisitions",
+  },
+  {
+    name: "a DYNAMIC IMPORT of a non-fs builtin, which the fs-only arm never refused",
+    appendSource:
+      'const dynamic06 = await import("node:v8");\n' +
+      "export const identity06 = (p) => dynamic06.writeHeapSnapshot(p);",
+    witness: "acquisitions",
+  },
+  {
+    name: "a REQUIRE-EQUIVALENT reached through a callee no enclosing scope declares",
+    appendSource: 'export const identity07 = (p) => __acquire07("node:v8").writeHeapSnapshot(p);',
+    witness: "unresolvedCallees",
+  },
+  {
+    name: "the PROCESS REPORT WRITER, a file writer with no import anywhere (review WR-02)",
+    appendSource: "export const identity08 = (p) => process.report.writeReport(p);",
+    witness: "unadmittedGlobalMemberPath",
+  },
+  {
+    name: "a LOCAL SHADOWING a capability-bearing global, still censused by name",
+    appendSource:
+      'function identity09(process) { return process.report.writeReport("/tmp/x"); }\n' +
+      "export const shadow09 = identity09;",
+    witness: "unadmittedGlobalMemberPath",
+  },
+  {
+    name: "an ALIAS of a capability-bearing global, reaching the same member under a new root",
+    appendSource:
+      "const aliased10 = process;\n" +
+      "export const identity10 = (p) => aliased10.report.writeReport(p);",
+    witness: "acquisitions",
+  },
+]);
+
+/**
+ * The cardinality of the module-identity table. An ELEVENTH spelling is a DECISION recorded as a
+ * row above with its source and the derived set that refuses it — never a bumped constant.
+ */
+const MODULE_IDENTITY_SHAPE_COUNT = 10;
+
+/**
+ * THE WITNESSES — which derived set refuses which row, held as data so the iteration can name it.
+ *
+ * Each entry answers "what became non-empty when the plant landed". A row whose witness stays empty
+ * is a row nothing refused, however many OTHER cases in this file happen to be red at the time.
+ */
+const REFUSAL_WITNESSES: Readonly<Record<WitnessKey, (facts: ClosureFacts) => readonly string[]>> =
+  Object.freeze({
+    opaqueFsAcquisitions: (facts) => facts.opaqueFsAcquisitions,
+    acquisitions: (facts) => facts.acquisitions,
+    unresolvedCallees: (facts) => facts.unresolvedCallees,
+    unadmittedBuiltinIdentity: (facts) =>
+      normalizedBuiltinIdentities(facts).filter(
+        (identity) => !ALLOWED_BUILTIN_SPECIFIERS.includes(identity),
+      ),
+    unadmittedGlobalMemberPath: (facts) =>
+      facts.globalMemberPaths.filter((path) => !EXPECTED_GLOBAL_MEMBER_PATHS.includes(path)),
+  });
+
+/**
+ * THE THREE TABLES, ITERATED IN ONE PASS — because what is tested is their UNION (32-20).
+ *
+ * The namespace rule, the acquisition rule and the identity rule each pass their own rows. Three
+ * rules that were never run TOGETHER is exactly how a round closes a spelling and reopens a
+ * capability one register over, which is what the last four verification rounds of this phase
+ * measured. So every row of every table is planted against the SAME live mirror by the SAME loop,
+ * and each asserts the named witness its own rule produces.
+ */
+const ESCAPE_TABLES: readonly {
+  readonly label: string;
+  readonly caseLabel: string;
+  readonly defaultWitness: WitnessKey;
+  readonly rows: readonly EscapeShape[];
+}[] = Object.freeze([
+  {
+    label: "NAMESPACE_ESCAPE_SHAPES",
+    caseLabel: "namespace escape is REFUSED",
+    defaultWitness: "opaqueFsAcquisitions",
+    rows: NAMESPACE_ESCAPE_SHAPES,
+  },
+  {
+    label: "ACQUISITION_SHAPES",
+    caseLabel: "fs acquisition is REFUSED",
+    defaultWitness: "opaqueFsAcquisitions",
+    rows: ACQUISITION_SHAPES,
+  },
+  {
+    label: "MODULE_IDENTITY_SHAPES",
+    caseLabel: "module identity is REFUSED",
+    defaultWitness: "acquisitions",
+    rows: MODULE_IDENTITY_SHAPES,
+  },
+]);
 
 describe("32-06 — the guard discriminates: both halves are shown to fail", () => {
   it("CONTROL: an UNPLANTED mirror of the live closure is still green", () => {
@@ -2228,20 +2431,22 @@ describe("32-06 — the guard discriminates: both halves are shown to fail", () 
   // false-green this repository has recorded six instances of.
   // ─────────────────────────────────────────────────────────────────────────────────────────────
 
-  it("PREMISE: both escape tables are non-empty before any iteration over them claims anything", () => {
+  it("PREMISE: all THREE escape tables are non-empty before any iteration over them claims anything", () => {
+    for (const table of ESCAPE_TABLES) {
+      expect(
+        table.rows.length,
+        `PREMISE: ${table.label} is EMPTY, so the block below iterates over nothing and every ` +
+          "refusal it appears to prove was never asked for",
+      ).toBeGreaterThan(0);
+    }
     expect(
-      NAMESPACE_ESCAPE_SHAPES.length,
-      "PREMISE: the namespace-escape table is EMPTY, so the block below iterates over nothing and " +
-        "every refusal it appears to prove was never asked for",
-    ).toBeGreaterThan(0);
-    expect(
-      ACQUISITION_SHAPES.length,
-      "PREMISE: the acquisition table is EMPTY, so the same block proves nothing about require, " +
-        "export *, dynamic import, or the three non-module-system routes",
-    ).toBeGreaterThan(0);
+      ESCAPE_TABLES.length,
+      "PREMISE: the iteration below is over fewer than three tables, so the UNION it claims to " +
+        "test is not the union of the namespace rule, the acquisition rule and the identity rule",
+    ).toBe(3);
   });
 
-  it("the namespace-escape table has exactly fourteen rows", () => {
+  it("each table has exactly the number of rows its decision records", () => {
     expect(
       NAMESPACE_ESCAPE_SHAPES.length,
       "a FIFTEENTH namespace-escape spelling is a DECISION: it belongs in NAMESPACE_ESCAPE_SHAPES " +
@@ -2253,58 +2458,70 @@ describe("32-06 — the guard discriminates: both halves are shown to fail", () 
       "a NINTH acquisition route is a DECISION, recorded as a row in ACQUISITION_SHAPES with the " +
         "source that reaches node:fs through it",
     ).toBe(ACQUISITION_SHAPE_COUNT);
+    expect(
+      MODULE_IDENTITY_SHAPES.length,
+      "an ELEVENTH module-identity spelling is a DECISION, recorded as a row in " +
+        "MODULE_IDENTITY_SHAPES with the source that reaches a capability through it AND the " +
+        "derived set that refuses it",
+    ).toBe(MODULE_IDENTITY_SHAPE_COUNT);
   });
 
-  it("no two rows in either table share a name", () => {
+  it("no two rows in ANY table share a name, and every row names a real witness", () => {
     // A table whose rows silently collapse is a table that tests fewer things than it counts: two
     // identically-named `it(…)` blocks still both run, but a reader counting names in the reporter
     // would credit the enumeration with coverage it does not have.
-    for (const [label, rows] of [
-      ["NAMESPACE_ESCAPE_SHAPES", NAMESPACE_ESCAPE_SHAPES],
-      ["ACQUISITION_SHAPES", ACQUISITION_SHAPES],
-    ] as const) {
-      const names = rows.map((row) => row.name);
+    const allNames: string[] = [];
+    for (const table of ESCAPE_TABLES) {
+      const names = table.rows.map((row) => row.name);
       expect(
         new Set(names).size,
-        `${label} carries duplicate row names, so its cardinality overstates what it tests`,
+        `${table.label} carries duplicate row names, so its cardinality overstates what it tests`,
       ).toBe(names.length);
       for (const name of names) expect(name.trim().length).toBeGreaterThan(0);
+      for (const row of table.rows) {
+        const witness = row.witness ?? table.defaultWitness;
+        expect(
+          Object.keys(REFUSAL_WITNESSES),
+          `the row "${row.name}" names the witness "${witness}", which is not a derived set this ` +
+            "file computes. A row whose witness does not exist is a row nothing can refuse",
+        ).toContain(witness);
+      }
+      allNames.push(...names);
     }
+    expect(
+      new Set(allNames).size,
+      "two tables share a row name, so the reporter shows one case name for two different plants",
+    ).toBe(allNames.length);
   });
 
-  for (const shape of NAMESPACE_ESCAPE_SHAPES) {
-    it(`namespace escape is REFUSED: ${shape.name}`, () => {
-      withLiveMirror(
-        { module: "scripts/board-read.js", appendSource: shape.appendSource },
-        (mirrorRoot) => {
-          const facts = analyzeClosure(mirrorRoot, DASHBOARD_ENTRY);
-          expect(
-            facts.opaqueFsAcquisitions.length,
-            `the escape spelling "${shape.name}" was NOT refused. It reaches every writer in ` +
-              "node:fs without naming one, so a guard that neither names it nor refuses it is " +
-              `green over a writer. Collected: [${facts.opaqueFsAcquisitions.join(" | ")}]`,
-          ).toBeGreaterThan(0);
-          expect(facts.opaqueFsAcquisitions.join("\n")).toContain("scripts/board-read.js");
-        },
-      );
-    });
-  }
-
-  for (const shape of ACQUISITION_SHAPES) {
-    it(`fs acquisition is REFUSED: ${shape.name}`, () => {
-      withLiveMirror(
-        { module: "scripts/board-read.js", appendSource: shape.appendSource },
-        (mirrorRoot) => {
-          const facts = analyzeClosure(mirrorRoot, DASHBOARD_ENTRY);
-          expect(
-            facts.opaqueFsAcquisitions.length,
-            `the acquisition route "${shape.name}" was NOT refused. Collected: ` +
-              `[${facts.opaqueFsAcquisitions.join(" | ")}]`,
-          ).toBeGreaterThan(0);
-          expect(facts.opaqueFsAcquisitions.join("\n")).toContain("scripts/board-read.js");
-        },
-      );
-    });
+  // ONE ITERATION, THREE TABLES — the UNION is what is tested (32-20). Each row asserts the set its
+  // OWN rule produces, so a red caused by some other rule cannot be credited to it.
+  for (const table of ESCAPE_TABLES) {
+    for (const shape of table.rows) {
+      it(`${table.caseLabel}: ${shape.name}`, () => {
+        const witness = shape.witness ?? table.defaultWitness;
+        withLiveMirror(
+          { module: "scripts/board-read.js", appendSource: shape.appendSource },
+          (mirrorRoot) => {
+            const facts = analyzeClosure(mirrorRoot, DASHBOARD_ENTRY);
+            const collected = REFUSAL_WITNESSES[witness](facts);
+            expect(
+              collected.length,
+              `the spelling "${shape.name}" (${table.label}) was NOT refused by ${witness}, the ` +
+                "set its own rule produces. It reaches a file-writing, process-starting or " +
+                "code-executing capability from inside the dashboard's own import closure, so a " +
+                "guard that neither names it nor refuses it is green over a writer. Collected: " +
+                `[${collected.join(" | ")}]`,
+            ).toBeGreaterThan(0);
+            // Where the witness carries module attribution, the refusal must name the module the
+            // plant landed in — otherwise a refusal produced somewhere else would pass for this row.
+            if (collected.some((entry) => entry.includes(": "))) {
+              expect(collected.join("\n")).toContain("scripts/board-read.js");
+            }
+          },
+        );
+      });
+    }
   }
 
   it("CONTROL: a call carrying a NON-fs string literal is neither refused nor read as an import", () => {

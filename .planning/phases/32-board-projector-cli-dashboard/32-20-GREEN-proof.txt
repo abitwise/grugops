@@ -1,0 +1,222 @@
+32-20 GREEN PROOF — each shape refused, each rule shown to decide, each bypass reproduced
+=========================================================================================
+
+WHAT THIS FILE IS. The after side of `32-20-RED-baseline.txt`. That file recorded nine writers
+leaving `npm run check:dashboard-readonly` at exit 0 with 59 of 59 passing. This one records what
+the same nine do now, which rows go red when each new rule is switched off, and — the part that is
+not a claim about a test — what happens when the three verifier-measured bypasses are planted into
+the committed `.js` a host actually runs.
+
+TREE STATE: `npm run build` clean, `npm run check:build-parity` clean ("no tracked build output
+moved when tsc ran"), `git diff --exit-code -- scripts/board-read.js scripts/board-model.js
+scripts/board-dashboard.js` exit 0. This plan edits ONE `.test.ts` file and moves no build output.
+
+
+1. THE GATE OVER THE UNPLANTED TREE
+------------------------------------------------------------------------------
+  npm run check:dashboard-readonly  =>  exit 0, 89 passed (89)
+  (was 59 passed before this plan; 30 cases added, none replaced)
+
+  board-readonly: mutating fs symbols 57 (stem-matched 60 minus 3 named exclusions) on node 24.12.0
+  board-readonly: 311 resolved call sites [ClassDeclaration 4, FunctionDeclaration 226,
+    FunctionName 1, ImportSpecifier 58, Parameter 3, VariableDeclaration 19], 0 unresolved,
+    10 capability-global member paths, 0 refused acquisitions
+
+
+2. THE NINE RED-BASELINE WRITERS, RE-RUN AGAINST THE COMMITTED .js
+------------------------------------------------------------------------------
+Same method as the baseline: the source appended verbatim to the committed `scripts/board-read.js`,
+`npm run check:dashboard-readonly`, then restore and `git diff --exit-code`.
+
+  plant                                              before            after
+  -------------------------------------------------  ----------------  -----------------
+  P1  import { writeHeapSnapshot } from "node:v8"    exit 0, 59/59     exit 1, 6 failed
+  P2  import { DatabaseSync } from "node:sqlite"     exit 0, 59/59     exit 1, 6 failed
+  P3  process.report.writeReport(p), no import       exit 0, 59/59     exit 1, 4 failed
+  P4  import { runInNewContext } from "node:vm"      exit 0, 59/59     exit 1, 6 failed
+  P5  process.getBuiltinModule("node:" + "fs")       exit 0, 59/59     exit 1, 4 failed
+  P6  await import("node:v8")                        exit 0, 59/59     exit 1, 8 failed
+  P7  __acquire("node:v8") — unresolvable callee     exit 0, 59/59     exit 1, 2 failed
+  P8  import … from "v8" — un-prefixed spelling      exit 0, 59/59     exit 1, 6 failed
+  P9  a local shadowing `process`                    exit 0, 59/59     exit 1, 4 failed
+
+  Nine of nine. Every plant was removed and `git diff --exit-code -- scripts/board-read.js` was
+  clean before the next one was applied.
+
+
+3. THE MUTATIONS — each rule disabled in exactly ONE place
+------------------------------------------------------------------------------
+A rule whose mutation reds nothing is a rule that was never deciding. Each mutation below is a
+single contiguous replacement, applied to the working tree, run, and reverted. Row names are
+recorded, not adjectives.
+
+M1 — DISABLE the module-identity rule (ALLOWED_BUILTIN_SPECIFIERS equality)
+  where: normalizedBuiltinIdentities — the one derivation both identity cases read
+  replaced:
+      - function normalizedBuiltinIdentities(facts: ClosureFacts): readonly string[] {
+      - return [...new Set(facts.bareSpecifiers.map(normalizeSpecifier))].sort();
+      - }
+      + function normalizedBuiltinIdentities(facts: ClosureFacts): readonly string[] {
+      + void facts; return [...ALLOWED_BUILTIN_SPECIFIERS].sort(); // MUTATION M1
+      + }
+  npx vitest run scripts/board-readonly.test.ts => exit 1 | Tests 6 ⎯⎯⎯⎯⎯⎯⎯
+  cases that went RED (6):
+      scripts/board-readonly.test.ts > 32-06 — the guard discriminates: both halves are shown to fail > a planted node:net import makes the module-ban case FAIL
+      scripts/board-readonly.test.ts > 32-06 — the guard discriminates: both halves are shown to fail > the UN-PREFIXED spelling of a banned module is caught too
+      scripts/board-readonly.test.ts > 32-06 — the guard discriminates: both halves are shown to fail > module identity is REFUSED: the heap-snapshot writer imported from node:v8 (zero obfuscation; verifier gap 2)
+      scripts/board-readonly.test.ts > 32-06 — the guard discriminates: both halves are shown to fail > module identity is REFUSED: the embedded database imported from node:sqlite, which creates and writes its file
+      scripts/board-readonly.test.ts > 32-06 — the guard discriminates: both halves are shown to fail > module identity is REFUSED: the virtual machine imported from node:vm, which executes source
+      scripts/board-readonly.test.ts > 32-06 — the guard discriminates: both halves are shown to fail > module identity is REFUSED: the UN-PREFIXED spelling of the heap-snapshot builtin (`v8`, not `node:v8`)
+
+M2 — DISABLE the acquisition rule (ModuleFacts.acquisitions)
+  where: analyzeClosure — the line that unions each module's acquisitions into the closure's
+  replaced:
+      - for (const text of facts.acquisitions) acquisitions.push(`${rel}: ${text}`);
+      + void facts.acquisitions; // MUTATION M2
+  npx vitest run scripts/board-readonly.test.ts => exit 1 | Tests 8 ⎯⎯⎯⎯⎯⎯⎯
+  cases that went RED (8):
+      scripts/board-readonly.test.ts > 32-20 — one admitted way to acquire a module, and a two-sided census of the globals > a RUNTIME-ASSEMBLED module identity is refused (F-03, the residual 32-11 named)
+      scripts/board-readonly.test.ts > 32-20 — one admitted way to acquire a module, and a two-sided census of the globals > a write capability reached through a GLOBAL with no import at all is refused (WR-02)
+      scripts/board-readonly.test.ts > 32-20 — one admitted way to acquire a module, and a two-sided census of the globals > a DYNAMIC IMPORT of any specifier is an acquisition, fs or not
+      scripts/board-readonly.test.ts > 32-20 — one admitted way to acquire a module, and a two-sided census of the globals > a REQUIRE-EQUIVALENT through an unresolvable callee is refused by name
+      scripts/board-readonly.test.ts > 32-20 — one admitted way to acquire a module, and a two-sided census of the globals > an ALIAS of a capability-bearing global is refused: the one admitted read is a member access
+      scripts/board-readonly.test.ts > 32-06 — the guard discriminates: both halves are shown to fail > module identity is REFUSED: a module identity ASSEMBLED at runtime and a writer called through it (F-03)
+      scripts/board-readonly.test.ts > 32-06 — the guard discriminates: both halves are shown to fail > module identity is REFUSED: a DYNAMIC IMPORT of a non-fs builtin, which the fs-only arm never refused
+      scripts/board-readonly.test.ts > 32-06 — the guard discriminates: both halves are shown to fail > module identity is REFUSED: an ALIAS of a capability-bearing global, reaching the same member under a new root
+
+M3 — DISABLE the capability-global member-path census
+  where: analyzeClosure — the line that unions each module's global member paths
+  replaced:
+      - for (const path of facts.globalMemberPaths) globalMemberPaths.add(path);
+      + for (const path of EXPECTED_GLOBAL_MEMBER_PATHS) globalMemberPaths.add(path); // MUTATION M3
+  npx vitest run scripts/board-readonly.test.ts => exit 1 | Tests 5 ⎯⎯⎯⎯⎯⎯⎯
+  cases that went RED (5):
+      scripts/board-readonly.test.ts > 32-20 — one admitted way to acquire a module, and a two-sided census of the globals > a RUNTIME-ASSEMBLED module identity is refused (F-03, the residual 32-11 named)
+      scripts/board-readonly.test.ts > 32-20 — one admitted way to acquire a module, and a two-sided census of the globals > a write capability reached through a GLOBAL with no import at all is refused (WR-02)
+      scripts/board-readonly.test.ts > 32-20 — one admitted way to acquire a module, and a two-sided census of the globals > a LOCAL SHADOWING a capability-bearing global is still censused (name-scoped, toward refusal)
+      scripts/board-readonly.test.ts > 32-06 — the guard discriminates: both halves are shown to fail > module identity is REFUSED: the PROCESS REPORT WRITER, a file writer with no import anywhere (review WR-02)
+      scripts/board-readonly.test.ts > 32-06 — the guard discriminates: both halves are shown to fail > module identity is REFUSED: a LOCAL SHADOWING a capability-bearing global, still censused by name
+
+  READING THE THREE TRANSCRIPTS:
+    • M1 reds exactly the four MODULE_IDENTITY rows whose witness is `unadmittedBuiltinIdentity`,
+      plus the two planted-socket discrimination cases — which is the evidence that the allow-list,
+      not the D-21 deny-list, is now what refuses `node:net` as well.
+    • M2 reds the five rows and cases whose witness is `acquisitions`. The require-equivalent row
+      survives M2 because its witness is `unresolvedCallees`, a DIFFERENT set: the two sub-rules are
+      shown to be separately load-bearing rather than one rule counted twice.
+    • M3 reds exactly the rows whose witness is `unadmittedGlobalMemberPath` — the process report
+      writer and the shadowed-global local — and the two named global cases. The assembled-identity
+      case appears under BOTH M2 and M3 because it is refused twice, by the acquisition rule and by
+      the census, which is the "one derivation answers both" claim measured rather than asserted.
+
+  No mutation was left in the tree: `grep -n MUTATION scripts/board-readonly.test.ts` => no match.
+
+
+4. THE INDEPENDENT REPRODUCTION — against the artifact a host runs
+------------------------------------------------------------------------------
+Outside the suite, by hand: the three shapes the VERIFIER and the code review measured, appended
+verbatim to the committed `scripts/board-read.js`, the named gate command run, the file restored,
+and `git diff --exit-code` asked of the UNCOMMITTED working tree each time. The mirror proves the
+rule; this proves the gate a host actually runs.
+
+CONTROL, unplanted committed tree: npm run check:dashboard-readonly => exit 0 | Tests  89 passed (89)
+
+R1 — node:v8 heap-snapshot writer (32-VERIFICATION.md gap 2, reproduction 1)
+  appended verbatim to the COMMITTED scripts/board-read.js:
+      import { writeHeapSnapshot } from "node:v8";
+      export const dumpR1 = (p) => writeHeapSnapshot(p);
+  npm run check:dashboard-readonly => exit 1
+  Tests  6 failed | 83 passed (89)
+  failed cases (6):
+      × the closure's normalized builtin identities have exactly the allowed MEMBERS
+      × the closure's normalized builtin identity set has the expected COUNT
+      × POSITIVE CONTROL: importing an ALLOW-LISTED builtin read-only leaves the gate green
+      × a write capability reached through a GLOBAL with no import at all is refused (WR-02)
+      × the dashboard closure imports no banned module (a COROLLARY of the allow-list, not the rule)
+      × a planted node:net import makes the module-ban case FAIL
+  restored; git diff --exit-code -- scripts/board-read.js => exit 0 (clean)
+
+R2 — process.report.writeReport, no import anywhere (32-REVIEW.md WR-02)
+  appended verbatim to the COMMITTED scripts/board-read.js:
+      export const dumpR2 = (p) => process.report.writeReport(p);
+  npm run check:dashboard-readonly => exit 1
+  Tests  4 failed | 85 passed (89)
+  failed cases (4):
+      × PREMISE: no closure module acquires a module by a route that is not a static literal import
+      × the capability-global member paths have exactly the expected MEMBERS
+      × the capability-global member-path census has the expected COUNT
+      × POSITIVE CONTROLS: the four capabilities the closure legitimately uses stay admitted
+  restored; git diff --exit-code -- scripts/board-read.js => exit 0 (clean)
+
+R3 — process.getBuiltinModule("node:" + "fs") (32-VERIFICATION.md gap 2, reproduction 2; F-03)
+  appended verbatim to the COMMITTED scripts/board-read.js:
+      const mR3 = process.getBuiltinModule("node:" + "fs");
+      export const wR3 = (p) => mR3.writeFileSync(p, "x");
+  npm run check:dashboard-readonly => exit 1
+  Tests  4 failed | 85 passed (89)
+  failed cases (4):
+      × PREMISE: no closure module acquires a module by a route that is not a static literal import
+      × the capability-global member paths have exactly the expected MEMBERS
+      × the capability-global member-path census has the expected COUNT
+      × POSITIVE CONTROLS: the four capabilities the closure legitimately uses stay admitted
+  restored; git diff --exit-code -- scripts/board-read.js => exit 0 (clean)
+
+5. THE POSITIVE CONTROLS — the legitimate closure is UNCHANGED
+------------------------------------------------------------------------------
+A rule that refused the real closure would be loosened under that pressure and end weaker than the
+rule it replaced, so each of the three new rules ships with a control, and all of them pass on the
+unplanted tree:
+
+  • "POSITIVE CONTROL: importing an ALLOW-LISTED builtin read-only leaves the gate green" — a mirror
+    importing `basename`/`extname` from node:path; the identity set and the fs symbol count both
+    unmoved.
+  • "POSITIVE CONTROLS: the four capabilities the closure legitimately uses stay admitted" — argv,
+    both output channels, the exit function and the environment; zero unadmitted member paths, zero
+    acquisitions, zero unresolved callees.
+  • "POSITIVE CONTROL: a DIRECT member access on an fs namespace is still admitted and still named"
+    (32-11's control) — unchanged by this plan.
+  • "CONTROL: an UNPLANTED mirror of the live closure is still green" — unchanged.
+  • "CONTROL: a call carrying a NON-fs string literal is neither refused nor read as an import" —
+    unchanged.
+
+  MEASURED UNMOVED BY THIS PLAN: EXPECTED_CLOSURE_FS_SYMBOLS still has its six members
+  [existsSync, readFileSync, readdirSync, realpathSync, statSync, watch] and
+  EXPECTED_CLOSURE_FS_SYMBOL_COUNT is still 6. No production module changed.
+
+
+6. THE VERIFICATION COMMANDS
+------------------------------------------------------------------------------
+  npm run check:dashboard-readonly                              => exit 0, 89 passed (89)
+  npx vitest run … scripts/board-readonly.test.ts --reporter=verbose
+                                                                => exit 0, all 10 module-identity
+                                                                   row names present
+  npm run typecheck                                             => exit 0 (tsc --noEmit, tests and
+                                                                   fixtures projects)
+  npm run build && npm run check:build-parity                   => exit 0, "no tracked build output
+                                                                   moved when tsc ran"
+  git diff --exit-code -- scripts/board-read.js scripts/board-model.js scripts/board-dashboard.js
+                                                                => exit 0
+  npx vitest run --exclude '**/scripts/e2e/**'                  => exit 0, 74 files,
+                                                                   4946 passed | 2 skipped (4948)
+                                                                   (round-1 floor was 4811)
+
+  The live claude-CLI e2e lane was NOT run: it spends tokens and can hang on an authenticated box
+  ([[grugops-npm-test-triggers-live-e2e]]). It is unrelated to this plan, which edits one test file
+  and no production module. Recorded rather than silently skipped.
+
+
+7. WHAT REMAINS OPEN AFTER THIS PLAN — measured, not remembered
+------------------------------------------------------------------------------
+  • `import.meta` is a meta-property rather than an identifier, so a member reached on it is outside
+    the identifier-rooted capability census by construction. MEASURED: the live closure reaches two
+    such members today (`import.meta.url` in scripts/is-entry.js and scripts/board-dashboard.js,
+    `import.meta.dirname` in scripts/kit-model.js), both read-only path plumbing.
+    `import.meta.resolve` would not be. This is the nearest open edge to the rules added here.
+  • Any route whose identity exists only at RUN time — a writer VALUE handed in from outside the
+    closure. Undecidable for a syntactic pass; bounded by the zero-runtime-dependency assertion and
+    the relative-only closure walk rather than decided.
+  • The MECHANICAL proof that this gate is reached in CI. The gate IS reached (the unconditional
+    vitest suite step contains this file). What is missing is the derivation that says so:
+    `scripts/check-foundation-guards.test.ts` skips any `check:*` script whose command does not
+    match `/node (scripts\/[\w.-]+\.js)/`, which silently skips this one. Finding F-01; plan 32-21
+    closes it. Cross-referenced in this file's docblock rather than duplicated.
