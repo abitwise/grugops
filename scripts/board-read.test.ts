@@ -50,6 +50,7 @@ import {
   SOURCE_NAMES,
   STALE_REASONS,
   STALE_REASON_COUNT,
+  boundNames,
   isSafeTaskName,
   listDirectoryBounded,
   readSnapshot,
@@ -1154,6 +1155,19 @@ describe("board-read — the queue, with claim.ts's tamper rules PORTED (T-32-05
         "a name outside the allowlist is skipped BEFORE any filesystem access, so the read never " +
           "touched it at all",
       ).toBe(false);
+      // AND IT IS REPORTED (plan 32-17, IN-02). Skipping it silently is what the docblock's
+      // "this reader REPORTS the skip" sentence promised it would not do.
+      const named = result.readErrors.find((e) => e.code === "unsafe-task-name");
+      expect(named?.source).toBe("queue");
+      expect(
+        named?.message.includes("bad name"),
+        "the entry is named, because a human told only that SOMETHING was skipped cannot find it",
+      ).toBe(true);
+      expect(
+        named?.path,
+        "NOT a composed path: the segment is exactly what is refused, so joining it here would " +
+          "perform the join the arm exists to prevent (the `childPath` convention)",
+      ).toBe(join(dir, ".grugops", "queue", "claimed"));
     });
   });
 
@@ -1171,23 +1185,89 @@ describe("board-read — the queue, with claim.ts's tamper rules PORTED (T-32-05
     expect(isSafeTaskName("ABC-014")).toBe(true);
   });
 
-  it("skips a claimed directory with no claim.md at all", () => {
+  it("REPORTS a claimed directory with no claim.md at all (plan 32-17, IN-02)", () => {
     withTempTree((dir) => {
       plantBoard(dir, ONE_COLUMN);
       plantClaim(dir, "ABC-014", GOOD_CLAIM);
       mkdirSync(join(dir, ".grugops", "queue", "claimed", "ABC-016"), { recursive: true });
 
-      const queue = readSnapshot(dir).snapshot.sources.queue;
+      const result = readSnapshot(dir);
+      const queue = result.snapshot.sources.queue;
       expect(queue.source === "ok" ? queue.value.map((r) => r.task) : []).toEqual(["ABC-014"]);
+
+      const named = result.readErrors.find((e) => e.code === "no-claim-record");
+      expect(named?.source).toBe("queue");
+      expect(named?.path).toBe(join(dir, ".grugops", "queue", "claimed", "ABC-016", "claim.md"));
+      expect(
+        queue.source,
+        "a claimed task with no record is a record REFUSED, not bytes that could not be obtained: " +
+          "the source stays `ok`, exactly as it does for a tampered record",
+      ).toBe("ok");
     });
   });
 
-  it("skips a claim record with no `at:` line, which cannot be placed on the timeline", () => {
+  it("REPORTS a claim record with no `at:` line (plan 32-17, IN-02)", () => {
     withTempTree((dir) => {
       plantBoard(dir, ONE_COLUMN);
-      plantClaim(dir, "ABC-014", "by: engineer\n");
-      const queue = readSnapshot(dir).snapshot.sources.queue;
+      const path = plantClaim(dir, "ABC-014", "by: engineer\n");
+      const result = readSnapshot(dir);
+      const queue = result.snapshot.sources.queue;
       expect(queue.source === "ok" ? queue.value : null).toEqual([]);
+
+      // THE SAME MALFORMED-RECORD CLASS THE `at:`-COUNT RULE REPORTS AS `tampered`, one register
+      // over: a record that exists and carries no timestamp used to vanish while a record carrying
+      // two was named. A human watching a live screen was told about one and not the other.
+      const named = result.readErrors.find((e) => e.code === "no-at");
+      expect(named?.source).toBe("queue");
+      expect(named?.path).toBe(path);
+      expect(queue.source).toBe("ok");
+    });
+  });
+
+  it("accounts for EVERY claimed entry: rows plus reported skips (plan 32-17, IN-02)", () => {
+    withTempTree((dir) => {
+      plantBoard(dir, ONE_COLUMN);
+      // FIVE ENTRIES, FIVE KINDS — one row and the four ways this loop leaves without one.
+      plantClaim(dir, "ABC-001", GOOD_CLAIM);
+      mkdirSync(join(dir, ".grugops", "queue", "claimed", "ABC-002"), { recursive: true });
+      plantClaim(dir, "ABC-003", "by: engineer\n");
+      plantClaim(
+        dir,
+        "ABC-004",
+        "by: engineer\nat: 2026-09-14T09:00:00.000Z\nat: 1970-01-01T00:00:00.000Z\n",
+      );
+      plantClaim(dir, "bad name", GOOD_CLAIM);
+
+      const result = readSnapshot(dir);
+      const queue = result.snapshot.sources.queue;
+
+      // THE DENOMINATOR IS DERIVED FROM THE LISTING, on the other side of the loop — never from the
+      // rows or the errors, which would make the equality vacuously true of itself.
+      const claimedDir = join(dir, ".grugops", "queue", "claimed");
+      const listing = listDirectoryBounded(claimedDir);
+      const claimed = listing.kind === "listed" ? listing.names.length : 0;
+      expect(
+        claimed,
+        "PREMISE: the claimed stage listed nothing, so the equality below is 0 === 0 and measures " +
+          "no reader at all",
+      ).toBeGreaterThan(0);
+      expect(claimed).toBe(5);
+
+      const rows = queue.source === "ok" ? queue.value.length : -1;
+      const skips = result.readErrors.filter(
+        (e) =>
+          e.source === "queue" && (e.path === claimedDir || e.path.startsWith(`${claimedDir}${sep}`)),
+      );
+      expect(
+        rows + skips.length,
+        "the reader's docblock says it REPORTS the skip; a claimed entry that is neither a row nor " +
+          "a named skip is a claim the screen makes silently. Rows: " +
+          `${rows}, reported skips: ${skips.map((e) => e.code).join(", ")}`,
+      ).toBe(claimed);
+      expect(rows).toBe(1);
+      expect(new Set(skips.map((e) => e.code))).toEqual(
+        new Set(["no-claim-record", "no-at", "tampered", "unsafe-task-name"]),
+      );
     });
   });
 
@@ -1241,6 +1321,106 @@ describe("board-read — the queue, with claim.ts's tamper rules PORTED (T-32-05
       expect(Object.prototype.hasOwnProperty.call(board, "stale")).toBe(false);
       expect(board.source === "ok" ? board.readAt : "").toBe(second.snapshot.generatedAt);
     });
+  });
+});
+
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+// PLAN 32-17, WR-09 — WHICH ENTRIES SURVIVE THE BOUND IS DECIDED BY NAME, NOT BY THE FILESYSTEM.
+//
+// The prior code sliced the raw `readdirSync` order and the callers sorted afterwards, so the ORDER
+// was deterministic and the MEMBERSHIP was not: once the bound bites, WHICH entries survive is a
+// function of the filesystem, and two machines reading one tree report different ticket sets and
+// different `ticket-unplaced` conflicts.
+//
+// THE ASSERTION IS PURE RATHER THAN A RACE. Driving this through a real directory means planting
+// MAX_WALK_ENTRIES + 1 files and hoping the filesystem hands them back out of order — slow, and a
+// case that passes for the wrong reason on any filesystem that happens to list in sorted order.
+// `boundNames` takes the entry list and the bound as arguments, so the property is asserted over a
+// list this file shuffles itself, deterministically, on every machine.
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+
+/** `n` names whose sorted order is known, handed back in an order that is deliberately not it. */
+function shuffledNames(n: number): string[] {
+  const sorted = Array.from({ length: n }, (_, i) => `t-${String(i).padStart(4, "0")}.md`);
+  // A FIXED PERMUTATION, NOT `Math.random`. A random shuffle makes a failure unreproducible, and a
+  // case that fails once a week is a case a reader learns to ignore. Reversing then rotating puts
+  // the alphabetically-first names at the END, which is exactly where a filesystem that lists by
+  // inode can put them.
+  const reversed = [...sorted].reverse();
+  return [...reversed.slice(3), ...reversed.slice(0, 3)];
+}
+
+describe("board-read — membership under the walk bound is by NAME (plan 32-17, WR-09)", () => {
+  it("keeps the alphabetically FIRST `max` names of a shuffled list longer than the bound", () => {
+    const entries = shuffledNames(12);
+    expect(
+      entries.slice(0, 5),
+      "PREMISE: the input arrived already sorted, so this case cannot tell a sort from its absence",
+    ).not.toEqual([...entries].sort().slice(0, 5));
+
+    const bound = boundNames(entries, 5);
+    expect(bound.bounded).toBe(true);
+    expect(
+      bound.names,
+      "which entries survive the bound is a function of the filesystem's listing order, so two " +
+        "machines reading one tree report different sets — the failure the sort exists to prevent",
+    ).toEqual(["t-0000.md", "t-0001.md", "t-0002.md", "t-0003.md", "t-0004.md"]);
+  });
+
+  it("returns every name SORTED when the list is at or below the bound", () => {
+    const entries = shuffledNames(6);
+    const bound = boundNames(entries, 6);
+    expect(bound.bounded).toBe(false);
+    expect(bound.names).toEqual([...entries].sort());
+    expect(bound.names.length, "no entry may be dropped when the bound does not bite").toBe(6);
+  });
+
+  it("filters the atomic-write siblings BEFORE the sort and BEFORE the bound", () => {
+    // The temporary sorts between `a.md` and `b.md`, so a filter applied AFTER the bound would
+    // spend one of the three slots on a half-written file and drop a real one.
+    const entries = ["c.md", "a.md.tmp-42-1-abcdef01", "b.md", "a.md", "d.md"];
+    const bound = boundNames(entries, 3);
+    expect(bound.names).toEqual(["a.md", "b.md", "c.md"]);
+    expect(bound.bounded).toBe(true);
+  });
+
+  it("applies the bound at `max`, not at `max` plus one", () => {
+    expect(boundNames(["b", "a"], 2)).toEqual({ names: ["a", "b"], bounded: false });
+    expect(boundNames(["c", "b", "a"], 2)).toEqual({ names: ["a", "b"], bounded: true });
+  });
+
+  it("hands a REAL directory's listing back sorted, so no caller needs a sort of its own", () => {
+    withTempTree((dir) => {
+      const ticketsDir = join(dir, "plans", "tickets");
+      mkdirSync(ticketsDir, { recursive: true });
+      // Written in an order that is not their sorted order; the filesystem is free to return either.
+      for (const name of ["ZZZ-001.md", "ABC-014.md", "MNO-007.md", "ABC-002.md"]) {
+        writeFileSync(join(ticketsDir, name), "x\n", "utf8");
+      }
+      const listing = listDirectoryBounded(ticketsDir);
+      expect(listing.kind).toBe("listed");
+      const names = listing.kind === "listed" ? [...listing.names] : [];
+      expect(names.length, "PREMISE: the directory listed empty, so nothing was measured").toBe(4);
+      expect(
+        names,
+        "the two caller-side `[...listing.names].sort()` spellings were deleted in plan 32-17: a " +
+          "second sort beside a sorted producer is a second spelling of one rule",
+      ).toEqual([...names].sort());
+    });
+  });
+
+  it("is the ONLY place the bound is applied — `listDirectoryBounded` carries no slice of its own", () => {
+    // DERIVED FROM THE FILE, not asserted by reading the code once and trusting the memory of it.
+    const source = readFileSync(join(ROOT, "scripts", "board-read.ts"), "utf8");
+    const body = source.slice(source.indexOf("export function listDirectoryBounded"));
+    const end = body.indexOf("\n}\n");
+    const fn = body.slice(0, end);
+    expect(fn.includes("MAX_WALK_ENTRIES")).toBe(true);
+    expect(
+      fn.includes(".slice("),
+      "a second application of the bound inside the listing is a second spelling of the rule " +
+        "`boundNames` exists to be the only holder of",
+    ).toBe(false);
   });
 });
 

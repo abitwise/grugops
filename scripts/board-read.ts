@@ -782,6 +782,20 @@ export function isSafeTaskName(name: string): boolean {
 
 // ── Bounded directory listing (D-14, RESEARCH pitfall 5) ─────────────────────────────────────────
 
+/** What survives the walk bound, and whether the bound bit. The listing's `kind` is added around it. */
+export type BoundedNames = {
+  readonly names: readonly string[];
+  readonly bounded: boolean;
+};
+
+/**
+ * Decide WHICH entries survive the walk bound. The ONE place membership under the bound is settled.
+ *
+ * (plan 32-17: this is the behaviour-preserving extraction of the rule that lived inline in
+ * `listDirectoryBounded`. It is extracted first, unchanged, so the defect WR-09 names can be
+ * measured as a pure assertion over a shuffled list rather than as a race against a filesystem's
+ * listing order over ten thousand planted files.)
+ */
 /**
  * List `dir`, dropping atomic-write temporaries, bounded by the tree's shared walk bound.
  *
@@ -811,6 +825,14 @@ export function isSafeTaskName(name: string): boolean {
  *   no `code` property      → `failed` with the literal `unreadable` as its code. There is no path
  *                             out of this function that reports a listing it did not get.
  */
+export function boundNames(entries: readonly string[], max: number): BoundedNames {
+  const names = entries.filter((n) => !n.includes(".tmp-"));
+  if (names.length > max) {
+    return { names: names.slice(0, max), bounded: true };
+  }
+  return { names, bounded: false };
+}
+
 export function listDirectoryBounded(dir: string): BoundedListing {
   let entries: string[];
   try {
@@ -826,11 +848,7 @@ export function listDirectoryBounded(dir: string): BoundedListing {
       message: err.message,
     };
   }
-  const names = entries.filter((n) => !n.includes(".tmp-"));
-  if (names.length > MAX_WALK_ENTRIES) {
-    return { kind: "listed", names: names.slice(0, MAX_WALK_ENTRIES), bounded: true };
-  }
-  return { kind: "listed", names, bounded: false };
+  return { kind: "listed", ...boundNames(entries, MAX_WALK_ENTRIES) };
 }
 
 /**
