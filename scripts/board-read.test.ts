@@ -1432,6 +1432,132 @@ describe("board-read — membership under the walk bound is by NAME (plan 32-17,
   });
 });
 
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+// PLAN 32-17, WR-08 — ONE IDENTIFIER, ONE RESOLUTION, ONE REPORT.
+//
+// Two ticket files claiming one `id` used to produce the WORST of both postures at once: the second
+// record was discarded by `ticketById` with no record anywhere, while the status arm and the
+// unplaced arm still iterated the RAW list — so the same duplicate was silently resolved in one
+// place and DOUBLE-reported in another, and both survived the total order because the tiebreak
+// chain ends on `expected`, which is equal for the two. `agent-factory/contracts/board.md` promises
+// the projector reports every conflict and resolves none.
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+
+describe("board-read — two files claiming one identifier (plan 32-17, WR-08)", () => {
+  /** Two files, different names, the same stated `id`, and a status the board column disagrees with. */
+  function plantDuplicatePair(dir: string): { first: string; second: string } {
+    // `ABC-014-copy.md` sorts BEFORE `ABC-014.md` — `-` is 0x2D and `.` is 0x2E — so the file a
+    // reader would call "the copy" is the one first-by-name keeps. That is the point: the rule is
+    // stated and deterministic, not the one a human would have guessed.
+    // THE COLUMN AGREES AND THE STATUS DOES NOT, deliberately: that isolates the arm under test.
+    // `Backlog` kebabs to `backlog`, so `status: done` disagrees while `column: Backlog` matches
+    // the heading the row sits under — the column arm stays silent and only the status arm fires.
+    const first = plantTicket(
+      dir,
+      "ABC-014-copy.md",
+      "---\nid: ABC-014\ntitle: The copy\nstatus: done\ncolumn: Backlog\n---\n",
+    );
+    const second = plantTicket(
+      dir,
+      "ABC-014.md",
+      "---\nid: ABC-014\ntitle: The original\nstatus: done\ncolumn: Backlog\n---\n",
+    );
+    return { first, second };
+  }
+
+  it("REPORTS the duplicate by name, saying which file it kept", () => {
+    withTempTree((dir) => {
+      plantBoard(dir, ONE_COLUMN);
+      const { first, second } = plantDuplicatePair(dir);
+
+      const result = readSnapshot(dir);
+      expect(
+        result.snapshot.sources.tickets.source,
+        "PREMISE: the tickets source did not read cleanly, so nothing below measures the join",
+      ).toBe("ok");
+
+      const named = result.readErrors.find((e) => e.code === "duplicate-id");
+      expect(
+        named?.source,
+        "the second file was discarded with no record ANYWHERE: no conflict kind, no read error, " +
+          "nothing on the screen. A tree can be given a ticket nobody sees.",
+      ).toBe("tickets");
+      expect(named?.message.includes("ABC-014-copy.md")).toBe(true);
+      expect(named?.message.includes("ABC-014.md")).toBe(true);
+      expect(
+        named?.message.includes("ABC-014-copy.md is the one joined"),
+        "naming both files without saying which one WON leaves a reader unable to predict what " +
+          "the rest of the frame is about",
+      ).toBe(true);
+    });
+  });
+
+  it("raises exactly ONE board-vs-ticket status conflict for the duplicated identifier", () => {
+    withTempTree((dir) => {
+      // `Backlog` kebabs to `backlog`; both files state `done`, so both disagree identically.
+      plantBoard(dir, ONE_COLUMN);
+      plantDuplicatePair(dir);
+
+      const conflicts = readSnapshot(dir).conflicts.filter(
+        (c) => c.kind === "board-vs-ticket" && c.ticketId === "ABC-014",
+      );
+      expect(
+        conflicts.length,
+        "two identical entries survive the total order because the tiebreak chain ends on " +
+          "`expected`, which is equal for the two — so a human reads one disagreement twice. " +
+          `Got: ${JSON.stringify(conflicts)}`,
+      ).toBe(1);
+      expect(conflicts[0]?.actual).toBe("done");
+      expect(conflicts[0]?.expected).toBe("backlog");
+    });
+  });
+
+  it("raises exactly ONE ticket-unplaced conflict when no row names the identifier", () => {
+    withTempTree((dir) => {
+      plantBoard(dir, "## Backlog (WIP unlimited)\n- [ABC-001] Something else\n");
+      plantDuplicatePair(dir);
+
+      const unplaced = readSnapshot(dir).conflicts.filter((c) => c.kind === "ticket-unplaced");
+      expect(unplaced.map((c) => c.ticketId)).toEqual(["ABC-014"]);
+    });
+  });
+
+  it("keeps the ADMITTED file when its twin was refused, and still reports the refusal", () => {
+    // THE OVERLAP PLAN 32-15 OPENED. One identifier, two files: one admitted, one refused by the
+    // grammar. That puts the same id in `ticketById` AND in `unadmittedById`, and the arm order is
+    // what decides the answer. The admitted record wins: no `row-without-file` at all, because a
+    // file WAS admitted for that row — and the refusal is still visible in `readErrors`.
+    withTempTree((dir) => {
+      plantBoard(dir, ONE_COLUMN);
+      plantTicket(dir, "ABC-014.md", ADMITTED_TICKET);
+      const refused = plantTicket(dir, "ABC-014-copy.md", "---\nid: ABC-014\ntools: Bash\n---\n");
+
+      const result = readSnapshot(dir);
+      expect(
+        result.conflicts.filter((c) => c.kind === "row-without-file").map((c) => c.ticketId),
+        "a row whose identifier WAS admitted from some file is not a row without a file, whatever " +
+          "a second file of the same identifier did",
+      ).toEqual([]);
+      const named = result.readErrors.find((e) => e.path === refused);
+      expect(named?.code).toBe("unknown-key");
+      expect(
+        result.readErrors.some((e) => e.code === "duplicate-id"),
+        "a refused document states no identifier the reader believes — its identity is a file " +
+          "stem — so it is NOT a second claim on the identifier and no duplicate is invented",
+      ).toBe(false);
+    });
+  });
+
+  it("raises no duplicate record when every identifier is claimed once", () => {
+    withTempTree((dir) => {
+      plantBoard(dir, ONE_COLUMN);
+      plantTicket(dir, "ABC-014.md", ADMITTED_TICKET);
+      const result = readSnapshot(dir);
+      expect(result.readErrors.filter((e) => e.code === "duplicate-id")).toEqual([]);
+    });
+  });
+});
+
 describe("board-read — the context index, presence and current state only (D-17)", () => {
   const NOTE_A = {
     id: "20260914T0900-engineer-finding-aaaa1111",

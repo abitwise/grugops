@@ -1116,6 +1116,99 @@ describe("board-model — a REFUSED document is never reported as an ABSENT one 
   });
 });
 
+describe("board-model — one identifier is resolved once and read from one map (plan 32-17, WR-08)", () => {
+  /** Two records claiming one identifier, in DIFFERENT files — the on-disk shape WR-08 names. */
+  const DUP: readonly TicketRecord[] = [
+    { file: "ABC-014-copy.md", id: "ABC-014", title: "The copy", column: "Backlog", status: "done" },
+    { file: "ABC-014.md", id: "ABC-014", title: "The original", column: "Backlog", status: "done" },
+  ];
+
+  it("the status arm fires ONCE, not once per file", () => {
+    // `Backlog` kebabs to `backlog`, so both records disagree IDENTICALLY — which is what makes the
+    // double report survive the total order: the tiebreak chain ends on `expected`, equal for both.
+    const { conflicts } = joinOf({
+      board: "## Backlog (WIP unlimited)\n- [ABC-014] Asset allocation chart\n",
+      tickets: DUP,
+    });
+    expect(only(conflicts, "board-vs-ticket").length).toBe(1);
+    expect(only(conflicts, "board-vs-ticket")[0]?.expected).toBe("backlog");
+  });
+
+  it("the unplaced arm fires ONCE, not once per file", () => {
+    const { conflicts } = joinOf({
+      board: "## Backlog (WIP unlimited)\n- [ABC-001] Something else\n",
+      tickets: DUP,
+    });
+    expect(only(conflicts, "ticket-unplaced").map((c) => c.ticketId)).toEqual(["ABC-014"]);
+  });
+
+  it("the COLUMN arm was already per placement, and stays that way", () => {
+    // ARM ONE iterates `placements` and looks the identifier UP, so it never had this defect. It is
+    // asserted here anyway: the fix moves two arms onto `ticketById`, and a case that only measures
+    // the two moved arms says nothing about whether the third still agrees with them.
+    const { conflicts } = joinOf({
+      board: "## Backlog (WIP unlimited)\n- [ABC-014] Asset allocation chart\n",
+      tickets: [
+        { file: "a.md", id: "ABC-014", title: "a", column: "Done", status: "done" },
+        { file: "b.md", id: "ABC-014", title: "b", column: "Done", status: "done" },
+      ],
+    });
+    const arm = only(conflicts, "board-vs-ticket");
+    expect(arm.length).toBe(1);
+    expect(arm[0]?.actual).toBe("Backlog");
+    expect(arm[0]?.expected).toBe("Done");
+  });
+
+  it("FIRST BY NAME wins, and the arms agree about which record that is", () => {
+    // The two records disagree with each other, so the surviving one is observable rather than
+    // inferred. `ABC-014-copy.md` sorts first (`-` is 0x2D, `.` is 0x2E), and the reader hands the
+    // join its records in listing order — which plan 32-17 made sorted.
+    const { conflicts } = joinOf({
+      board: "## Backlog (WIP unlimited)\n- [ABC-014] Asset allocation chart\n",
+      tickets: [
+        { file: "ABC-014-copy.md", id: "ABC-014", title: "c", column: "Backlog", status: "done" },
+        { file: "ABC-014.md", id: "ABC-014", title: "o", column: "Backlog", status: "blocked" },
+      ],
+    });
+    const arm = only(conflicts, "board-vs-ticket");
+    expect(arm.length).toBe(1);
+    expect(
+      arm[0]?.actual,
+      "the arm read the SECOND record, so the join's answer depends on which file the iteration " +
+        "reached last rather than on a stated rule",
+    ).toBe("done");
+  });
+
+  it("no arm in the join iterates the RAW ticket list (derived from the file)", () => {
+    // DERIVED, NOT REMEMBERED. The defect is one `for (const t of tickets)` in a function this long;
+    // reading it once and trusting the memory of it is how the second one gets added back.
+    const source = readFileSync(join(ROOT, "scripts", "board-model.ts"), "utf8");
+    const start = source.indexOf("export function joinSnapshot");
+    expect(start, "PREMISE: `joinSnapshot` was not found, so this case scanned nothing").toBeGreaterThan(0);
+    const body = source.slice(start, source.indexOf("\n}\n", start));
+    const raw = body.match(/for \(const \w+ of (?:inputs\.)?tickets\b[^)]*\)/g) ?? [];
+    expect(
+      raw,
+      "every arm consuming the ticket population reads `ticketById`, so one identifier is resolved " +
+        "once and reported once. An arm added against the raw list is the odd one out.",
+    ).toEqual([]);
+    expect(
+      body.includes("ticketById.values()"),
+      "PREMISE: no arm reads `ticketById.values()` either, so the assertion above is vacuously " +
+        "true of a join that lost both arms",
+    ).toBe(true);
+  });
+
+  it("changes nothing when every identifier is claimed once", () => {
+    const { conflicts } = joinOf({
+      board: "## Backlog (WIP unlimited)\n- [ABC-014] Asset allocation chart\n",
+      tickets: [ticket("ABC-014", "Backlog", "done")],
+    });
+    expect(only(conflicts, "board-vs-ticket").length).toBe(1);
+    expect(only(conflicts, "ticket-unplaced")).toEqual([]);
+  });
+});
+
 describe("board-model — the ticket document grammar is a CLOSED key set", () => {
   it("the ticket key set has the expected MEMBERS and COUNT", () => {
     expect([...TICKET_KEYS]).toEqual([
