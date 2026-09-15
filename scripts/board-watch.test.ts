@@ -84,6 +84,16 @@ type Harness = {
   readonly reads: () => number;
   readonly maxDepth: () => number;
   readonly present: Set<string>;
+  /**
+   * Absolute directories whose `watch()` CALL throws, keyed to the message it throws with.
+   *
+   * The `error` event on a live handle and a throw from `watch()` itself are two different arms of
+   * the same failure — `arm` has a `try` around the call precisely because `fs.watch` throws
+   * synchronously on ENOSPC and EMFILE — and only this one lets the SAME directory fail twice
+   * without a successful re-arm in between. The map is mutable, so a case can change the reason
+   * between two ticks and ask which reason the loop is carrying.
+   */
+  readonly armFailures: Map<string, string>;
   readonly onRead: (fn: ((loop: Loop, n: number) => void) | null) => void;
 };
 
@@ -117,6 +127,7 @@ function harness(partial: Partial<Options> = {}, presentDirs: readonly string[] 
 
   const watchers: FakeWatcher[] = [];
   const present = new Set(presentDirs.map((d) => join(REPO, d)));
+  const armFailures = new Map<string, string>();
   let reads = 0;
   let depth = 0;
   let maxDepth = 0;
@@ -124,6 +135,8 @@ function harness(partial: Partial<Options> = {}, presentDirs: readonly string[] 
 
   const deps: LoopDeps = {
     watch: (dir, listener) => {
+      const reason = armFailures.get(dir);
+      if (reason !== undefined) throw new Error(reason);
       const w: FakeWatcher = { dir, fire: listener, error: null, closed: false };
       watchers.push(w);
       return {
@@ -161,6 +174,7 @@ function harness(partial: Partial<Options> = {}, presentDirs: readonly string[] 
     reads: () => reads,
     maxDepth: () => maxDepth,
     present,
+    armFailures,
     onRead: (fn) => {
       onRead = fn;
     },
@@ -408,6 +422,137 @@ describe("board-dashboard — a watcher that errors is closed, noted and re-arme
     const line = h.writes()[h.writes().length - 1] ?? "";
     const parsed = JSON.parse(line) as { readErrors: { path: string; code: string }[] };
     expect(parsed.readErrors.map((e) => e.code)).toContain("watch");
+  });
+});
+
+describe("board-dashboard — one CURRENT watch record per directory (WR-06)", () => {
+  // WHAT THESE CASES MEASURE, AND WHY A NUMBER RATHER THAN A SHAPE. The record the loop keeps for a
+  // failing watch is a STATE — "the watch on this directory is down right now" — and the shipped
+  // implementation kept it as a LOG: one entry appended per failure, nothing ever removed. The two
+  // are indistinguishable while a watch fails once, and they diverge on the second tick. Every
+  // assertion below is therefore a count or an ordering, not a "contains an entry for plans".
+
+  it("reports exactly ONE record for a directory whose watch fails on ten consecutive ticks", () => {
+    vi.useFakeTimers();
+    const h = harness({}, ["plans"]);
+    h.loop.armAll();
+    h.loop.start(POLL_FLOOR_MS);
+
+    const TICKS = 10;
+    for (let i = 0; i < TICKS; i += 1) {
+      const w = liveWatcher(h, "plans");
+      expect(w, `PREMISE: no live watcher on tick ${i}, so nothing below measured a failure`).toBeDefined();
+      w?.error?.(new Error(`inotify watch limit reached (attempt ${i})`));
+      // The last failure is NOT followed by a tick: the point of the case is the record a
+      // persistently failing watch leaves behind, and a trailing re-arm would clear it.
+      if (i < TICKS - 1) vi.advanceTimersByTime(POLL_FLOOR_MS);
+    }
+
+    expect(
+      h.watchers.length,
+      "PREMISE: the poll did not re-arm between failures, so the ten failures below were one " +
+        "failure counted ten times by the test rather than by the loop",
+    ).toBe(TICKS);
+    expect(
+      h.loop.watchErrors().length,
+      "a directory whose watch keeps failing is ONE current finding. One entry per poll tick is " +
+        "8,640 a day at the floor, every one of them printed on every frame and embedded in every " +
+        "published document as a current read error (WR-06)",
+    ).toBe(1);
+    expect(h.loop.watchErrors()[0]?.path).toBe("plans");
+    h.loop.stop();
+  });
+
+  it("reports ZERO records once the watch is re-armed successfully", () => {
+    vi.useFakeTimers();
+    const h = harness({}, ["plans"]);
+    h.loop.armAll();
+    h.loop.start(POLL_FLOOR_MS);
+    liveWatcher(h, "plans")?.error?.(new Error("transient"));
+    expect(
+      h.loop.watchErrors().length,
+      "PREMISE: the failure was never recorded, so 'cleared on re-arm' is true of a loop that " +
+        "recorded nothing",
+    ).toBe(1);
+
+    vi.advanceTimersByTime(POLL_FLOOR_MS);
+
+    expect(h.loop.watchedDirs()).toEqual(["plans"]);
+    expect(
+      h.loop.watchErrors(),
+      "the record says the watch is down and will be re-armed on the next poll tick. Once that " +
+        "re-arm has happened the sentence is false, and a frame that keeps printing it is a frame " +
+        "reporting a failure that is over",
+    ).toEqual([]);
+    h.loop.stop();
+  });
+
+  it("replaces the reason when the same directory fails again for a different reason", () => {
+    vi.useFakeTimers();
+    const h = harness({}, ["plans"]);
+    h.armFailures.set(join(REPO, "plans"), "ENOSPC: inotify watch limit reached");
+    h.loop.armAll();
+    expect(
+      h.loop.watchErrors().map((e) => e.path),
+      "PREMISE: a throwing watch() call was not recorded at all",
+    ).toEqual(["plans"]);
+    expect(h.loop.watchErrors()[0]?.message).toContain("ENOSPC");
+
+    h.armFailures.set(join(REPO, "plans"), "EMFILE: too many open files");
+    h.loop.start(POLL_FLOOR_MS);
+    vi.advanceTimersByTime(POLL_FLOOR_MS);
+
+    const noted = h.loop.watchErrors();
+    expect(
+      noted.length,
+      "keyed by DIRECTORY, a second failure on one directory is the same finding with a new " +
+        "reason. Keyed by reason it would be two findings, both claiming to be current",
+    ).toBe(1);
+    expect(
+      noted[0]?.message,
+      "the record names the reason the watch is down NOW, not the reason it was down first",
+    ).toContain("EMFILE");
+    expect(noted[0]?.message).not.toContain("ENOSPC");
+    h.loop.stop();
+  });
+
+  it("orders two failing directories by name, so two frames of one state are the same bytes", () => {
+    vi.useFakeTimers();
+    const h = harness({}, ["plans", ".grugops/context"]);
+    h.loop.armAll();
+    // Failed in ARMING order, which is WATCH_DIRS order and is not name order. A list that came
+    // out in insertion order would read `plans` first, and a consumer diffing two documents would
+    // see a reshuffle whenever the two failures happened in the other sequence.
+    liveWatcher(h, "plans")?.error?.(new Error("first"));
+    liveWatcher(h, ".grugops/context")?.error?.(new Error("second"));
+
+    expect(h.loop.watchErrors().map((e) => e.path)).toEqual([".grugops/context", "plans"]);
+    h.loop.stop();
+  });
+
+  it("holds no record after `stop`, so a later emit prints nothing about a watch that is gone", () => {
+    vi.useFakeTimers();
+    const h = harness({ json: true }, ["plans"]);
+    h.loop.armAll();
+    h.loop.start(POLL_FLOOR_MS);
+    liveWatcher(h, "plans")?.error?.(new Error("driven"));
+    expect(
+      h.loop.watchErrors().length,
+      "PREMISE: nothing was recorded before stop, so the emptiness below is not stop's doing",
+    ).toBe(1);
+
+    h.loop.stop();
+
+    // THE INTENDED STATE AFTER `stop` IS EMPTY, and it is a decision rather than a side effect. The
+    // record's own sentence promises a re-arm on the next poll tick; `stop` clears the poll, so
+    // after it there is no next tick and no watch. A record that survived would be a statement
+    // about a loop that no longer exists, printed by whatever emitted next.
+    expect(h.loop.watchErrors()).toEqual([]);
+
+    h.loop.refresh();
+    const line = h.writes()[h.writes().length - 1] ?? "";
+    const parsed = JSON.parse(line) as { readErrors: { code: string }[] };
+    expect(parsed.readErrors.map((e) => e.code)).not.toContain("watch");
   });
 });
 
