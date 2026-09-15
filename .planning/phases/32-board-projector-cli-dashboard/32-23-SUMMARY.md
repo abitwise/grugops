@@ -298,3 +298,9 @@ shape.
 ---
 *Phase: 32-board-projector-cli-dashboard*
 *Completed: 2026-09-15*
+
+## Self-Check: PASSED
+
+- All five `key-files` entries exist on disk (`[ -f ]` for each).
+- All four commit hashes resolve in `git log --oneline --all` (`042e984d`, `8e397457`, `079a5f61`, `6cb57213`).
+- `git diff --name-only 28b2b028..HEAD` names exactly five files, none of them under `scripts/` or `agent-factory/`, and **not** `.planning/REQUIREMENTS.md` — all eight `DASH-0x` rows remain `[ ]`, as the plan requires.
