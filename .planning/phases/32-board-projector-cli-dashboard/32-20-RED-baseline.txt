@@ -1,0 +1,167 @@
+32-20 RED BASELINE — the gate green over nine writers, measured BEFORE the fix
+==============================================================================
+
+WHAT THIS FILE IS. Plan 32-20 closes 32-VERIFICATION.md gap 2 and 32-REVIEW.md WR-02: the phase's
+stated mechanical safety centrepiece reported 59 of 59 passing over modules that create and write
+files. A baseline that does not show a GREEN gate over a writer has not reproduced the finding, so
+every row below is a measurement rather than an adjective.
+
+HOW IT WAS MEASURED, AND WHICH NUMBER CAME FROM WHERE.
+
+  • The exit code and the case counts come from the REAL gate command, `npm run
+    check:dashboard-readonly`, run against the COMMITTED `scripts/board-read.js` with the plant
+    source appended to it — the artifact a host runs, not a mirror and not a `.ts`. This is the same
+    method 32-VERIFICATION.md and 32-14-ADVERSARIAL-REVIEW.md used, so the numbers are comparable.
+  • The four collected sets (`fsSymbols`, the mutating intersection, `bareSpecifiers`,
+    `opaqueFsAcquisitions`, `bannedModulesReached`) come from a REPLICATION of the committed
+    predicates of `scripts/board-readonly.test.ts` at commit 569d02a0 — `analyzeModule`,
+    `analyzeClosure`, `bannedModulesReached`, types stripped — because those functions are not
+    exported from the test file. Stated here rather than implied: the sets are a replication, the
+    exit codes are the gate itself.
+  • Every plant was REMOVED afterwards and `git diff --name-only -- scripts/board-read.js` run to
+    confirm the working tree was clean again. The result of that check is recorded per row.
+
+TREE STATE: HEAD 569d02a0, `npm run build` clean, `npm run check:build-parity` clean — so the
+committed `.js` under test is a faithful build of its `.ts` and the gate was looking at the real
+program.
+
+THE FINDING, IN ONE LINE: nine distinct ways to reach a file-writing or code-executing capability
+from inside the dashboard's own import closure, and the gate is green — exit 0, 59 passed / 59 — on
+every single one of them.
+
+------------------------------------------------------------------------------
+UNPLANTED CONTROL: exit 0 | Tests  59 passed (59)
+
+P1 — node:v8 heap-snapshot writer, imported outright (verifier gap 2, review WR-02)
+  planted into scripts/board-read.js:
+    import { writeHeapSnapshot } from "node:v8";
+    export const dumpP1 = (p) => writeHeapSnapshot(p);
+  npm run check:dashboard-readonly  => exit 0 | Tests  59 passed (59)
+  fsSymbols            : [existsSync, readFileSync, readdirSync, realpathSync, statSync, watch]
+  mutating reached     : []
+  bareSpecifiers       : [node:fs, node:path, node:url, node:v8]
+  opaqueFsAcquisitions : []
+  bannedModulesReached : []
+  git diff --name-only -- scripts/board-read.js after restore: (clean)
+
+P2 — node:sqlite embedded database, which creates and writes its file (review WR-02)
+  planted into scripts/board-read.js:
+    import { DatabaseSync } from "node:sqlite";
+    export const dbP2 = (p) => new DatabaseSync(p);
+  npm run check:dashboard-readonly  => exit 0 | Tests  59 passed (59)
+  fsSymbols            : [existsSync, readFileSync, readdirSync, realpathSync, statSync, watch]
+  mutating reached     : []
+  bareSpecifiers       : [node:fs, node:path, node:sqlite, node:url]
+  opaqueFsAcquisitions : []
+  bannedModulesReached : []
+  git diff --name-only -- scripts/board-read.js after restore: (clean)
+
+P3 — process.report.writeReport — a file writer reached with NO import at all (review WR-02)
+  planted into scripts/board-read.js:
+    export const dumpP3 = (p) => process.report.writeReport(p);
+  npm run check:dashboard-readonly  => exit 0 | Tests  59 passed (59)
+  fsSymbols            : [existsSync, readFileSync, readdirSync, realpathSync, statSync, watch]
+  mutating reached     : []
+  bareSpecifiers       : [node:fs, node:path, node:url]
+  opaqueFsAcquisitions : []
+  bannedModulesReached : []
+  git diff --name-only -- scripts/board-read.js after restore: (clean)
+
+P4 — node:vm, the virtual machine builtin
+  planted into scripts/board-read.js:
+    import { runInNewContext } from "node:vm";
+    export const evalP4 = (s) => runInNewContext(s);
+  npm run check:dashboard-readonly  => exit 0 | Tests  59 passed (59)
+  fsSymbols            : [existsSync, readFileSync, readdirSync, realpathSync, statSync, watch]
+  mutating reached     : []
+  bareSpecifiers       : [node:fs, node:path, node:url, node:vm]
+  opaqueFsAcquisitions : []
+  bannedModulesReached : []
+  git diff --name-only -- scripts/board-read.js after restore: (clean)
+
+P5 — runtime-assembled identity: process.getBuiltinModule("node:" + "fs") (F-03, verifier gap 2)
+  planted into scripts/board-read.js:
+    const mP5 = process.getBuiltinModule("node:" + "fs");
+    export const wP5 = (p) => mP5.writeFileSync(p, "x");
+  npm run check:dashboard-readonly  => exit 0 | Tests  59 passed (59)
+  fsSymbols            : [existsSync, readFileSync, readdirSync, realpathSync, statSync, watch]
+  mutating reached     : []
+  bareSpecifiers       : [node:fs, node:path, node:url]
+  opaqueFsAcquisitions : []
+  bannedModulesReached : []
+  git diff --name-only -- scripts/board-read.js after restore: (clean)
+
+P6 — dynamic import of a non-fs builtin
+  planted into scripts/board-read.js:
+    const mP6 = await import("node:v8");
+    export const wP6 = (p) => mP6.writeHeapSnapshot(p);
+  npm run check:dashboard-readonly  => exit 0 | Tests  59 passed (59)
+  fsSymbols            : [existsSync, readFileSync, readdirSync, realpathSync, statSync, watch]
+  mutating reached     : []
+  bareSpecifiers       : [node:fs, node:path, node:url, node:v8]
+  opaqueFsAcquisitions : []
+  bannedModulesReached : []
+  git diff --name-only -- scripts/board-read.js after restore: (clean)
+
+P7 — require-equivalent through a callee this pass cannot resolve
+  planted into scripts/board-read.js:
+    export const wP7 = (p) => __acquire("node:v8").writeHeapSnapshot(p);
+  npm run check:dashboard-readonly  => exit 0 | Tests  59 passed (59)
+  fsSymbols            : [existsSync, readFileSync, readdirSync, realpathSync, statSync, watch]
+  mutating reached     : []
+  bareSpecifiers       : [node:fs, node:path, node:url]
+  opaqueFsAcquisitions : []
+  bannedModulesReached : []
+  git diff --name-only -- scripts/board-read.js after restore: (clean)
+
+P8 — un-prefixed spelling of the heap-snapshot builtin
+  planted into scripts/board-read.js:
+    import { writeHeapSnapshot as wHS8 } from "v8";
+    export const dumpP8 = (p) => wHS8(p);
+  npm run check:dashboard-readonly  => exit 0 | Tests  59 passed (59)
+  fsSymbols            : [existsSync, readFileSync, readdirSync, realpathSync, statSync, watch]
+  mutating reached     : []
+  bareSpecifiers       : [node:fs, node:path, node:url, v8]
+  opaqueFsAcquisitions : []
+  bannedModulesReached : []
+  git diff --name-only -- scripts/board-read.js after restore: (clean)
+
+P9 — a local shadowing a capability-bearing global name
+  planted into scripts/board-read.js:
+    function shadowP9(process) { return process.report.writeReport("/tmp/x"); }
+    export const wP9 = shadowP9;
+  npm run check:dashboard-readonly  => exit 0 | Tests  59 passed (59)
+  fsSymbols            : [existsSync, readFileSync, readdirSync, realpathSync, statSync, watch]
+  mutating reached     : []
+  bareSpecifiers       : [node:fs, node:path, node:url]
+  opaqueFsAcquisitions : []
+  bannedModulesReached : []
+  git diff --name-only -- scripts/board-read.js after restore: (clean)
+
+------------------------------------------------------------------------------
+WHY EACH ROW IS DANGEROUS, AND WHICH PREDICATE MISSED IT
+
+  P1 node:v8         `writeHeapSnapshot(p)` creates and writes an arbitrary path. No fs symbol is
+                     named anywhere, so the symbol intersection is empty; `v8` is not one of the
+                     fifteen hand-typed banned names, so the deny-list admits it. ZERO obfuscation.
+  P2 node:sqlite     `new DatabaseSync(p)` creates and writes a database file. Same two misses.
+  P3 process.report  `process.report.writeReport(p)` writes a JSON report to a path, with NO import
+                     ANYWHERE. Module-identity rules cannot see it by construction; it is reached
+                     through a global.
+  P4 node:vm         `runInNewContext(s)` executes attacker-supplied source. Same two misses as P1.
+  P5 assembled id    `process.getBuiltinModule("node:" + "fs")` yields the real node:fs. The
+                     namespace rule fires on an identifier bound to a LITERAL specifier, and an
+                     assembled string is not one — the residual 32-11 named, F-03 measured, and the
+                     verifier re-confirmed.
+  P6 dynamic import  `await import("node:v8")` — the dynamic-import arm noted the specifier and
+                     refused nothing, because refusal was reserved for fs identities.
+  P7 unresolved      `__acquire("node:v8")` — a callee bound to nothing this pass can name. An
+                     unprovable identity was silently treated as a safe one.
+  P8 un-prefixed     `from "v8"` — the same module as `node:v8` under another spelling.
+  P9 shadowed global A local parameter named `process` still reaches the real global at every call
+                     site the pass does not resolve; nothing collected the member path at all.
+
+WHAT CLOSES EACH (see 32-20-GREEN-proof.txt for the after side):
+  P1 P2 P4 P6 P8 — Task 1, `ALLOWED_BUILTIN_SPECIFIERS` equality (module identity as an allow-list).
+  P3 P5 P9       — Task 2, `EXPECTED_GLOBAL_MEMBER_PATHS` (the global member-path census).
+  P5 P6 P7       — Task 2, `acquisitions` (one admitted way to acquire a module).

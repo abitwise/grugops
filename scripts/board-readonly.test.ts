@@ -766,19 +766,79 @@ describe("32-06 — the mutating set is derived from the runtime, and its exclus
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════════════════════
-// PART FOUR — the module ban (DASH-08, "no socket").
+// PART FOUR — module IDENTITY (DASH-06 and DASH-08 both), decided by an ALLOW-LIST.
 //
 // `jsImportClosure` gives the FILE list but deliberately skips BARE specifiers — its own docblock
-// says so — so the ban needs the second AST pass PART ONE already collected. A ban asserted over an
-// empty specifier set is a green that measured nothing, so the set is asserted non-empty first.
+// says so — so this part needs the second AST pass PART ONE already collected. A claim asserted over
+// an empty specifier set is a green that measured nothing, so the set is asserted non-empty first.
 // ═══════════════════════════════════════════════════════════════════════════════════════════════
 
 /**
- * D-21's five banned modules, verbatim. The projector spawns nothing and listens on nothing.
+ * THE BUILTIN IDENTITIES THE DASHBOARD CLOSURE MAY REACH — MEASURED, then pinned in BOTH directions.
  *
- * Written WITHOUT the `node:` prefix because the ban is over module IDENTITY: `net` and `node:net`
- * are the same module, and a ban that only knew one spelling would be a ban an import could walk
- * around by dropping four characters.
+ * WHY THIS REPLACED A DENY-LIST, WITH THE MEASUREMENT THAT FORCED IT (32-20, closing 32-REVIEW.md
+ * WR-02 and 32-VERIFICATION.md gap 2). Until 32-20 the module question was decided by
+ * `BANNED_MODULES` + `ADDITIONAL_BANNED_MODULES`: fifteen hand-typed names to REFUSE. Every builtin
+ * outside those fifteen was admitted by construction — including three that create and write files
+ * with no obfuscation whatsoever. Measured against the COMMITTED `.js` and recorded verbatim in
+ * `.planning/phases/32-board-projector-cli-dashboard/32-20-RED-baseline.txt`:
+ *
+ *   import { writeHeapSnapshot } from "node:v8";   export const d = (p) => writeHeapSnapshot(p);
+ *        npm run check:dashboard-readonly → exit 0, 59 passed / 59
+ *   import { DatabaseSync } from "node:sqlite";    export const d = (p) => new DatabaseSync(p);
+ *        npm run check:dashboard-readonly → exit 0, 59 passed / 59
+ *   import { runInNewContext } from "node:vm";     export const e = (s) => runInNewContext(s);
+ *        npm run check:dashboard-readonly → exit 0, 59 passed / 59
+ *
+ * So the rule is inverted, to the same posture 32-11 gave the namespace binding one register over:
+ * state the CANONICAL FORM and refuse the complement. The live normalized bare-specifier set must
+ * EQUAL this list — members in both directions, plus a count. Equality rather than containment is
+ * the whole point: a builtin nobody has met yet is refused BY CONSTRUCTION rather than by having
+ * been listed, and a new legitimate import becomes a decision somebody records here with its reason.
+ *
+ * WRITTEN WITHOUT THE `node:` PREFIX because the question is module IDENTITY: `v8` and `node:v8` are
+ * the same module, and a rule that only knew one spelling is a rule an import walks around by
+ * deleting five characters. `normalizeSpecifier` is what makes the two spellings one identity.
+ */
+const ALLOWED_BUILTIN_SPECIFIERS = Object.freeze([
+  // "fs" — the bounded READ surface this whole file exists to bound: existsSync, readFileSync,
+  //        readdirSync, realpathSync, statSync, watch. Brought in by scripts/board-dashboard.js,
+  //        scripts/board-read.js, scripts/is-entry.js and scripts/kit-model.js. WHICH symbols of it
+  //        are reachable is decided separately, by the two-sided pin in PART TWO.
+  "fs",
+  // "path" — join / dirname / relative / resolve over paths the containment authority has already
+  //        decided. Brought in by scripts/board-dashboard.js, scripts/board-read.js,
+  //        scripts/kit-model.js. It touches no descriptor and opens nothing.
+  "path",
+  // "url" — fileURLToPath / pathToFileURL, used by scripts/is-entry.js for the "was this module the
+  //        entrypoint" comparison. Pure string work over a URL; it performs no I/O.
+  "url",
+]);
+
+/**
+ * The cardinality of the allow-list. A FOURTH admitted builtin is a DECISION: somebody has judged
+ * that the projector may reach a capability it could not reach before, and that judgment belongs in
+ * the list above with the reason and the module that brings it in — never in a bumped constant.
+ */
+const ALLOWED_BUILTIN_SPECIFIER_COUNT = 3;
+
+/** Every bare specifier the closure reaches, reduced to module IDENTITY and de-duplicated. */
+function normalizedBuiltinIdentities(facts: ClosureFacts): readonly string[] {
+  return [...new Set(facts.bareSpecifiers.map(normalizeSpecifier))].sort();
+}
+
+/**
+ * D-21's five banned modules, verbatim.
+ *
+ * WHAT THIS LIST IS NOW (32-20). It is the WRITTEN RECORD of D-21 — the decision that the projector
+ * spawns nothing and listens on nothing — and it no longer DECIDES the module question on its own.
+ * `ALLOWED_BUILTIN_SPECIFIERS` decides it, and it refuses all fifteen of these names plus every
+ * other builtin by construction. The list is kept because deleting it would delete the record of a
+ * decision, and a decision nobody can find gets re-litigated.
+ *
+ * THE TWO STATEMENTS MUST NOT DRIFT APART, so their disagreement is itself a case: every banned
+ * identity is asserted ABSENT from the allow-list. Without that, a later edit could admit `net` in
+ * one place while the other place still said it was banned, and both would be green.
  */
 const BANNED_MODULES = Object.freeze([
   "child_process",
@@ -805,6 +865,11 @@ const BANNED_MODULE_COUNT = 5;
  * This is a SECOND named set rather than five more members of the first, so that D-21's own
  * cardinality assertion stays exactly the number D-21 states and this extension stays visibly an
  * extension.
+ *
+ * Like `BANNED_MODULES`, and for the same reason, this is now a RECORD rather than the deciding
+ * predicate (32-20): the ten names below are refused because they are not in
+ * `ALLOWED_BUILTIN_SPECIFIERS`, exactly as `node:v8` and `node:sqlite` are — neither of which any
+ * deny-list here ever named.
  */
 const ADDITIONAL_BANNED_MODULES = Object.freeze([
   "http2",
@@ -819,7 +884,14 @@ const ADDITIONAL_BANNED_MODULE_COUNT = 5;
 
 const ALL_BANNED_MODULES = Object.freeze([...BANNED_MODULES, ...ADDITIONAL_BANNED_MODULES]);
 
-/** The banned identities a closure actually reaches, by normalized name, sorted. */
+/**
+ * The banned identities a closure actually reaches, by normalized name, sorted.
+ *
+ * NOT THE DECIDING PREDICATE ANY MORE (32-20). It survives as the thing that puts a D-21 NAME in a
+ * failure message — "the closure reaches net" reads better than "the identity set gained a member" —
+ * and as the input to the two planted-socket discrimination cases. Every assertion it appears in is
+ * accompanied by the allow-list equality, which is what actually refuses.
+ */
 function bannedModulesReached(facts: ClosureFacts): readonly string[] {
   return [
     ...new Set(
@@ -829,6 +901,91 @@ function bannedModulesReached(facts: ClosureFacts): readonly string[] {
     ),
   ].sort();
 }
+
+describe("32-20 — the builtin identities the closure may reach are an ALLOW-LIST, pinned two-sided", () => {
+  it("PREMISE: the allow-list is non-empty and every entry is REACHABLE in the live closure", () => {
+    // Two directions of the same premise. An empty allow-list would make the equality below a claim
+    // about nothing; an entry the closure stopped importing would be a permanent widening nobody
+    // notices — the admission stays granted long after the reason for it evaporated, which is the
+    // set-literal drift class this repository has already paid for ([[grugops-set-literal-drift]]).
+    expect(
+      ALLOWED_BUILTIN_SPECIFIERS.length,
+      "PREMISE: the builtin allow-list is EMPTY, so the equality below says the closure imports no " +
+        "builtin at all, and it would be green only over a closure that imports nothing",
+    ).toBeGreaterThan(0);
+    const live = normalizedBuiltinIdentities(analyzeClosure(ROOT, DASHBOARD_ENTRY));
+    for (const allowed of ALLOWED_BUILTIN_SPECIFIERS) {
+      expect(
+        live,
+        `the allow-list admits "${allowed}", and no module in the dashboard closure imports it any ` +
+          "more. An admission whose reason has evaporated is a permanent widening: remove the entry " +
+          "(and its reason) rather than leaving the door open for the next import that wants it",
+      ).toContain(allowed);
+    }
+  });
+
+  it("the closure's normalized builtin identities have exactly the allowed MEMBERS", () => {
+    const live = normalizedBuiltinIdentities(analyzeClosure(ROOT, DASHBOARD_ENTRY));
+    const unadmitted = live.filter((identity) => !ALLOWED_BUILTIN_SPECIFIERS.includes(identity));
+    expect(
+      unadmitted,
+      `the dashboard closure reaches the builtin(s) ${unadmitted.join(", ")}, which nobody has ` +
+        "admitted. THIS IS A DECISION, not a constant: a builtin is a capability, and three of the " +
+        "ones this rule refuses (node:v8's writeHeapSnapshot, node:sqlite's DatabaseSync, " +
+        "node:vm) create and write files while naming no fs symbol at all. If the import is " +
+        "legitimate, add the identity to ALLOWED_BUILTIN_SPECIFIERS with the reason it belongs and " +
+        "the module that brings it in, and move the count with it",
+    ).toEqual([]);
+    expect(live).toEqual([...ALLOWED_BUILTIN_SPECIFIERS].sort());
+  });
+
+  it("the closure's normalized builtin identity set has the expected COUNT", () => {
+    expect(
+      normalizedBuiltinIdentities(analyzeClosure(ROOT, DASHBOARD_ENTRY)).length,
+      "the number of distinct builtins the projector can reach moved. Like the fs symbol count, " +
+        "this is a function of THIS repository's code rather than of the Node version, so the move " +
+        "came from a commit here: weigh the change against 'the projector renders state and changes " +
+        "nothing' and record it above — it is never a bumped constant",
+    ).toBe(ALLOWED_BUILTIN_SPECIFIER_COUNT);
+  });
+
+  it("every banned identity is ABSENT from the allow-list, so the record and the rule cannot disagree", () => {
+    // D-21's list is now documentation and the allow-list is the rule. Two statements about the same
+    // question, free to drift, is the Phase 29 LANG-04 shape: the relocated copy passed everything
+    // the first one refused. They are asserted to agree instead.
+    const contradictions = ALL_BANNED_MODULES.filter((banned) =>
+      ALLOWED_BUILTIN_SPECIFIERS.includes(banned),
+    );
+    expect(
+      contradictions,
+      `${contradictions.join(", ")} is recorded as BANNED by D-21 and simultaneously ADMITTED by ` +
+        "the allow-list. One of the two statements is wrong, and while they disagree the gate is " +
+        "green over a module D-21 says the projector must not reach",
+    ).toEqual([]);
+  });
+
+  it("POSITIVE CONTROL: importing an ALLOW-LISTED builtin read-only leaves the gate green", () => {
+    // Without this case the rule could refuse EVERY builtin — including the three the dashboard
+    // legitimately needs — and still look correct. A rule with no positive control is a rule nobody
+    // can tell apart from a refusal of everything, and it is the version that gets loosened.
+    withLiveMirror(
+      {
+        module: "scripts/board-read.js",
+        appendSource:
+          'import { basename, extname } from "node:path";\n' +
+          "export const stemOf20 = (p) => basename(p, extname(p));",
+      },
+      (mirrorRoot) => {
+        const facts = analyzeClosure(mirrorRoot, DASHBOARD_ENTRY);
+        expect(normalizedBuiltinIdentities(facts)).toEqual([...ALLOWED_BUILTIN_SPECIFIERS].sort());
+        expect(normalizedBuiltinIdentities(facts).length).toBe(ALLOWED_BUILTIN_SPECIFIER_COUNT);
+        expect(facts.fsSymbols).toEqual([...EXPECTED_CLOSURE_FS_SYMBOLS]);
+        expect(facts.fsSymbols.length).toBe(EXPECTED_CLOSURE_FS_SYMBOL_COUNT);
+        expect(facts.opaqueFsAcquisitions).toEqual([]);
+      },
+    );
+  });
+});
 
 describe("32-06 — the dashboard opens no socket and spawns no process", () => {
   it("PREMISE: the collected bare-specifier set is non-empty", () => {
@@ -869,13 +1026,18 @@ describe("32-06 — the dashboard opens no socket and spawns no process", () => 
     ).toBe(ADDITIONAL_BANNED_MODULE_COUNT);
   });
 
-  it("the dashboard closure imports no banned module", () => {
-    const reached = bannedModulesReached(analyzeClosure(ROOT, DASHBOARD_ENTRY));
+  it("the dashboard closure imports no banned module (a COROLLARY of the allow-list, not the rule)", () => {
+    // This case names D-21's modules in its failure message, which is worth keeping. It is NOT what
+    // decides: the allow-list above refuses these fifteen and every other builtin, and it is
+    // asserted here beside the corollary so this case cannot be green while the rule is red.
+    const facts = analyzeClosure(ROOT, DASHBOARD_ENTRY);
+    const reached = bannedModulesReached(facts);
     expect(
       reached,
       `the board projector's import closure reaches ${reached.join(", ")}. The projector renders ` +
         "state over a filesystem read; it listens on nothing and spawns nothing (DASH-08)",
     ).toEqual([]);
+    expect(normalizedBuiltinIdentities(facts)).toEqual([...ALLOWED_BUILTIN_SPECIFIERS].sort());
   });
 });
 
@@ -1149,8 +1311,13 @@ describe("32-06 — the guard discriminates: both halves are shown to fail", () 
         appendSource: 'import { createServer } from "node:net";',
       },
       (mirrorRoot) => {
-        const reached = bannedModulesReached(analyzeClosure(mirrorRoot, DASHBOARD_ENTRY));
-        expect(reached).toEqual(["net"]);
+        const facts = analyzeClosure(mirrorRoot, DASHBOARD_ENTRY);
+        expect(bannedModulesReached(facts)).toEqual(["net"]);
+        // …and the ALLOW-LIST refuses it too, which is what makes the same plant fail for a module
+        // the deny-list never named (32-20). Both sides are asserted so the corollary cannot outlive
+        // the rule.
+        expect(normalizedBuiltinIdentities(facts)).toContain("net");
+        expect(normalizedBuiltinIdentities(facts).length).toBe(ALLOWED_BUILTIN_SPECIFIER_COUNT + 1);
       },
     );
   });
@@ -1164,7 +1331,9 @@ describe("32-06 — the guard discriminates: both halves are shown to fail", () 
         appendSource: 'import { createServer } from "net";',
       },
       (mirrorRoot) => {
-        expect(bannedModulesReached(analyzeClosure(mirrorRoot, DASHBOARD_ENTRY))).toEqual(["net"]);
+        const facts = analyzeClosure(mirrorRoot, DASHBOARD_ENTRY);
+        expect(bannedModulesReached(facts)).toEqual(["net"]);
+        expect(normalizedBuiltinIdentities(facts)).toContain("net");
       },
     );
   });
