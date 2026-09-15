@@ -55,6 +55,7 @@ import { dirname, join, relative, resolve, sep } from "node:path";
 
 import {
   joinSnapshot,
+  normalizeDocument,
   parseBoard,
   parseTicketDocument,
   sourceValue,
@@ -267,6 +268,12 @@ export function readVerifyReread(
       // for, smuggled in under a bug fix. It was measured: no file under `scripts/fixtures/` carries
       // a BOM today (asserted in `scripts/board-read.test.ts`), which is exactly why the regression
       // would have shipped unnoticed.
+      //
+      // WHAT HAPPENS TO THE MARK AFTERWARDS IS THE GRAMMAR'S ANSWER, NOT THIS SEAM'S (plan 32-16).
+      // `normalizeDocument` in `./board-model.js` strips a single leading mark for both grammars,
+      // and the three document classes this module parses itself call it at their own parse points.
+      // This seam keeps the bytes so its agreement test stays honest; the parsers decide what a
+      // document's first line is.
       try {
         return { ok: true, text: new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(bytes) };
       } catch (decodeError) {
@@ -1077,8 +1084,12 @@ function readConfigSource(
   seam: ReadSeam,
 ): Settled<FactoryConfigView> {
   const path = repoSubpath(root, FIXED_SUBPATHS.config);
+  // NORMALIZED AT THE PARSE POINT (plan 32-16). `JSON.parse` throws on a leading byte-order mark, so
+  // a dial a Windows editor saved used to badge `unreadable` and drop the whole kit to the lean view
+  // over a file whose JSON is valid. The mark is an encoding artefact in this document class for the
+  // same reason it is one in the two grammars, and it gets the same one-expression answer.
   const outcome = gatherFile(path, seam, (text) =>
-    configView(JSON.parse(text) as Record<string, unknown>),
+    configView(JSON.parse(normalizeDocument(text)) as Record<string, unknown>),
   );
   return settledFrom(settleSource("config", path, outcome, previous, readAt, LEAN_CONFIG_VIEW));
 }
@@ -1354,7 +1365,14 @@ function readQueueSource(
       continue;
     }
 
-    const atLineCount = (read.text.match(AT_KEY_LINE) ?? []).length;
+    // NORMALIZED BEFORE ANY LINE-ANCHORED PATTERN TOUCHES IT (plan 32-16). Every pattern below is
+    // anchored at a line start, so three bytes in front of the first line used to move BOTH answers
+    // at once: the record vanished from the screen, and — worse — `AT_KEY_LINE` counted ONE over a
+    // record carrying two, so the single-`at:` discipline passed and `AT_VALUE` then matched the
+    // SECOND. A forged `at:` was read as the only one (T-32-05). The mark is an encoding artefact,
+    // never a reason to trust a tampered record.
+    const claimText = normalizeDocument(read.text);
+    const atLineCount = (claimText.match(AT_KEY_LINE) ?? []).length;
     if (atLineCount > 1) {
       errors.push({
         source: "queue",
@@ -1367,9 +1385,9 @@ function readQueueSource(
       });
       continue;
     }
-    const at = AT_VALUE.exec(read.text);
+    const at = AT_VALUE.exec(claimText);
     if (at === null) continue; // no `at` field → cannot be placed on the timeline; skip
-    const by = BY_VALUE.exec(read.text);
+    const by = BY_VALUE.exec(claimText);
     rows.push({ task, by: by === null ? "" : (by[1] ?? "").trim(), at: (at[1] ?? "").trim() });
   }
 
@@ -1499,7 +1517,11 @@ function readContextSource(
     }
 
     const notes: IndexedNote[] = [];
-    for (const line of read.text.split("\n")) {
+    // NORMALIZED AT THE PARSE POINT (plan 32-16), for the same reason the dial is: a mark-led first
+    // line threw, and the skip was then REPORTED as a malformed index line naming a line that is
+    // valid JSON. A finding that is true of the bytes and false of the document is the expensive
+    // kind.
+    for (const line of normalizeDocument(read.text).split("\n")) {
       if (line.trim() === "") continue;
       try {
         const raw = JSON.parse(line) as Record<string, unknown>;

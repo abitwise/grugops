@@ -622,6 +622,37 @@ function matchRow(line: string, idPrefix: string | null): RowMatch | null {
   return { id, parts: splitRow(row[2] as string), isEpic: false };
 }
 
+/**
+ * The ONE place a document's encoding artefacts are normalized, for BOTH grammars (plan 32-16).
+ *
+ * TWO ARTEFACTS, AND NOTHING ELSE. A single leading byte-order mark is removed, and Windows line
+ * endings are folded to newlines. Neither is content: both are what an editor wrote around the
+ * document, and a grammar that reasons about them is a grammar that refuses a Windows checkout for
+ * a reason that has nothing to do with what the author typed.
+ *
+ * WHY THIS IS THE GRAMMAR'S JOB AND NOT THE READ SEAM'S. `readVerifyReread` decodes with
+ * `ignoreBOM: true` on purpose (`scripts/board-read.ts`) — it compares a stat's byte count against
+ * the bytes it holds, so it must not silently drop three of them or its own agreement test stops
+ * being honest. That decision is unchanged. The seam preserves the bytes; the GRAMMAR decides what
+ * a document's first line is. `scripts/validate-agent-factory.ts` reads a ticket's bytes itself and
+ * calls `parseTicketDocument` directly, which is the second reason this cannot live at the seam:
+ * the structure validator never passes through one.
+ *
+ * AT MOST ONE MARK, AND THE SECOND IS CONTENT. A document whose second character is another mark is
+ * not a Windows save, and the grammar answers it through the rules that already exist — a ticket is
+ * refused `no-opening-delimiter`, a board heading becomes a preamble line — rather than by looping
+ * until the document starts with something the parser likes.
+ *
+ * ONE SPELLING, PINNED MECHANICALLY. Until plan 32-16 this fold was written twice in this file and
+ * the two copies disagreed about the mark for a whole phase while every case stayed green. A case in
+ * `scripts/board-model.test.ts` counts the non-comment occurrences of the fold in this module and
+ * asserts there is exactly one, inside this function.
+ */
+export function normalizeDocument(text: string): string {
+  const withoutMark = text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
+  return withoutMark.split("\r\n").join("\n");
+}
+
 /** What `parseBoard` needs from outside the document it is parsing. */
 export type ParseOptions = {
   /** `factory.config.json#id_prefix`, as the read seam found it. `null` means no dial value. */
@@ -631,9 +662,10 @@ export type ParseOptions = {
 /**
  * Parse a board document into the `schemaVersion: 1` model.
  *
- * CRLF is normalized before anything else, the way `scripts/canonical-frontmatter.ts` does, so a
- * Windows checkout is not refused for a reason that has nothing to do with the grammar. The comment
- * pre-pass runs next, before any heading or row scan touches a byte.
+ * The document is normalized before anything else — through `normalizeDocument`, the ONE authority
+ * both grammars share — so a Windows checkout is not refused, and does not silently lose its first
+ * column, for a reason that has nothing to do with the grammar. The comment pre-pass runs next,
+ * before any heading or row scan touches a byte.
  *
  * THE CLASSIFICATION RULE, STATED ONCE, BECAUSE ITS PRECEDENCE IS THE WHOLE DESIGN (D-24).
  *
@@ -659,7 +691,7 @@ export type ParseOptions = {
  */
 export function parseBoard(text: string, options: ParseOptions = {}): BoardModel {
   const idPrefix = options.idPrefix ?? null;
-  const normalized = text.split("\r\n").join("\n");
+  const normalized = normalizeDocument(text);
   const lines = stripHtmlComments(normalized).split("\n");
   const bounds = measure(text, normalized);
 
@@ -925,9 +957,15 @@ const ticketRefusal = (code: TicketRefusalCode, reason: string): TicketAdmission
  * The region is the bytes between the first `---` line and the next one. Only the region is read:
  * the body beneath it is the ticket's prose and is never interpreted, exactly as a row's `meta` and
  * `trailer` are never interpreted.
+ *
+ * The document goes through `normalizeDocument` first, the SAME authority `parseBoard` uses. Before
+ * plan 32-16 this function carried its own copy of the line-ending fold and knew nothing about a
+ * byte-order mark, so a ticket a Windows editor saved was refused `no-opening-delimiter` quoting a
+ * line that renders exactly as `---` — a finding no author could act on, and since plan 32-12 a hard
+ * error in `scripts/validate-agent-factory.ts`.
  */
 export function parseTicketDocument(text: string): TicketAdmission {
-  const normalized = text.split("\r\n").join("\n");
+  const normalized = normalizeDocument(text);
   const lines = normalized.split("\n");
   if (lines[0] !== TICKET_DELIMITER) {
     return ticketRefusal(

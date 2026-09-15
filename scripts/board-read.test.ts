@@ -726,9 +726,14 @@ const REFUSAL_SPELLINGS = Object.freeze([
     code: "control-character",
   },
   {
-    what: "a byte-order mark ahead of the opening delimiter",
+    // WAS "a byte-order mark ahead of the opening delimiter" until plan 32-16, which made ONE
+    // leading mark an encoding artefact the grammar normalizes away rather than a refusal. A
+    // SECOND mark is content: the document is not a Windows save, and it is refused through the
+    // rule that already exists. The row stays in the table because the boundary of the new
+    // normalization is exactly what is worth pinning.
+    what: "two byte-order marks, the second of which is content rather than an artefact",
     file: "REF-004",
-    text: "﻿---\nid: REF-004\n---\n",
+    text: "\uFEFF\uFEFF---\nid: REF-004\n---\n",
     code: "no-opening-delimiter",
   },
   {
