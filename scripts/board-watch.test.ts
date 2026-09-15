@@ -34,10 +34,24 @@ import {
   WATCH_DIRS,
   WATCH_DIR_COUNT,
   createLoop,
+  deriveWatchDirs,
   run,
 } from "./board-dashboard.js";
+import { FIXED_SUBPATHS, QUEUE_STAGES, SOURCE_NAMES } from "./board-read.js";
 import type { DashboardIo, Loop, LoopDeps, Options } from "./board-dashboard.js";
 import type { SnapshotResult } from "./board-read.js";
+
+/**
+ * Is `dir` on the root-to-leaf path of `subpath` — equal to it, its parent, or inside it?
+ *
+ * THE RELATIONSHIP THE CASES BELOW ASSERT, spelled once. Two of the three shapes are real: a
+ * file-shaped source (`plans/board.md`) is covered by its parent directory, and a directory-shaped
+ * source with stages (`.grugops/queue`) is covered by the stage directories INSIDE it. A predicate
+ * that only looked one way would call the queue unwatched.
+ */
+function onSamePath(dir: string, subpath: string): boolean {
+  return dir === subpath || subpath.startsWith(`${dir}/`) || dir.startsWith(`${subpath}/`);
+}
 
 const ROOT = join(import.meta.dirname, "..");
 const DASHBOARD_JS = join(ROOT, "scripts", "board-dashboard.js");
@@ -205,23 +219,71 @@ describe("board-dashboard — the watched directory set (D-14)", () => {
     ).toBe(6);
   });
 
-  it("names exactly the six directories D-14 lists, each against the source it feeds", () => {
-    expect(WATCH_DIRS.map((d) => d.rel)).toEqual([
-      "plans",
-      "plans/tickets",
-      ".grugops/queue/pending",
-      ".grugops/queue/claimed",
-      ".grugops/queue/done",
-      ".grugops/context",
-    ]);
-    expect(WATCH_DIRS.map((d) => d.source)).toEqual([
-      "board",
-      "tickets",
-      "queue",
-      "queue",
-      "queue",
-      "context",
-    ]);
+  it("IS the derivation over the live layout authorities, not a copy of its answer", () => {
+    // The second hand-typed list that used to live here is DELETED (WR-07). A list asserted against
+    // a list is two spellings of the layout agreeing with each other and with nothing on disk: move
+    // `FIXED_SUBPATHS.tickets` and both stay green while the dashboard stops watching tickets.
+    expect(WATCH_DIRS).toEqual(deriveWatchDirs());
+  });
+
+  it("gives every source except the dial a watched directory on its path", () => {
+    const unwatched: string[] = [];
+    for (const source of SOURCE_NAMES) {
+      if (source === "config") continue; // D-14 does not watch the dial; the poll picks it up
+      const covering = WATCH_DIRS.filter((d) => onSamePath(d.rel, FIXED_SUBPATHS[source]));
+      if (covering.length === 0) unwatched.push(`${source} (${FIXED_SUBPATHS[source]})`);
+    }
+    expect(
+      unwatched,
+      "a source with no watched directory on its path is a surface whose changes reach the screen " +
+        "only on the next poll tick — and the mandatory poll is what makes that invisible, which is " +
+        "why the relationship is asserted rather than the membership (WR-07)",
+    ).toEqual([]);
+  });
+
+  it("justifies every watched directory by at least one source", () => {
+    const unjustified = WATCH_DIRS.filter(
+      (d) =>
+        !SOURCE_NAMES.some((source) => source !== "config" && onSamePath(d.rel, FIXED_SUBPATHS[source])),
+    );
+    expect(
+      unjustified.map((d) => d.rel),
+      "a watched directory no source justifies is a watch whose failure has nowhere to be " +
+        "reported: `noteWatchError` files the record against a source name",
+    ).toEqual([]);
+    // The converse of the case above. Both directions are asserted because they fail differently:
+    // one leaves a surface unwatched, the other leaves a handle nobody needs.
+    expect(WATCH_DIRS.every((d) => onSamePath(d.rel, FIXED_SUBPATHS[d.source]))).toBe(true);
+  });
+
+  it("MOVES with the layout: a renamed tickets subpath and a fourth queue stage", () => {
+    // THE DISCRIMINATION. Without it, `deriveWatchDirs` returning a frozen constant would satisfy
+    // every case above — the relationship would hold, the count would hold, and the derivation would
+    // be a literal with a function around it.
+    const renamed = deriveWatchDirs({ ...FIXED_SUBPATHS, tickets: "plans/cards" });
+    expect(renamed.map((d) => d.rel)).toContain("plans/cards");
+    expect(renamed.map((d) => d.rel)).not.toContain("plans/tickets");
+    expect(renamed.length).toBe(WATCH_DIRS.length);
+
+    const fourStages = deriveWatchDirs(FIXED_SUBPATHS, [...QUEUE_STAGES, "abandoned"]);
+    expect(fourStages.map((d) => d.rel)).toContain(".grugops/queue/abandoned");
+    expect(fourStages.length).toBe(WATCH_DIRS.length + 1);
+
+    // A file-shaped subpath contributes its PARENT, and a moved file moves the parent with it.
+    const movedBoard = deriveWatchDirs({ ...FIXED_SUBPATHS, board: "docs/board.md" });
+    expect(movedBoard.map((d) => d.rel)).toContain("docs");
+  });
+
+  it("drops the dial, and folds traceability into the directory the board already supplies", () => {
+    // The two facts a reader counting six directories against six sources needs, asserted rather
+    // than only written down: `config` is watched by nobody, and `traceability` shares `plans/`.
+    expect(WATCH_DIRS.map((d) => d.rel)).not.toContain("agent-factory/config");
+    expect(WATCH_DIRS.filter((d) => d.rel === "plans").length).toBe(1);
+    expect(
+      onSamePath("plans", FIXED_SUBPATHS.traceability),
+      "traceability lives beside the board, so the board's watched directory covers it and no " +
+        "seventh entry is derived for it",
+    ).toBe(true);
   });
 
   it("never passes the recursive watch option — the platform-variable part of the API", () => {
