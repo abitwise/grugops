@@ -230,6 +230,59 @@ function harness(
   };
 }
 
+/**
+ * A scratch copy of the fixture, mutated by `mutate`, projected once with only `watch` injected.
+ *
+ * REAL READER, REAL CONTAINMENT AUTHORITY, FAKE HANDLES. What is measured is which directories the
+ * loop ASKED to watch and what the reader refused, so both halves of the IN-01 question are answered
+ * against one run. The tree is removed in a `finally`, including on a failed assertion.
+ */
+function withLinkedTree(
+  mutate: (tree: string, outside: string) => void,
+  body: (seen: {
+    readonly refused: readonly { source: string; code: string }[];
+    readonly armed: readonly string[];
+  }) => void,
+): void {
+  const scratch = mkdtempSync(join(realpathSync(tmpdir()), "grugops-watch-symlink-"));
+  try {
+    const tree = join(scratch, "tree");
+    cpSync(FIXTURE, tree, { recursive: true });
+    const outside = join(scratch, "outside");
+    mkdirSync(outside, { recursive: true });
+    mutate(tree, outside);
+
+    const armed: string[] = [];
+    const deps: LoopDeps = {
+      ...defaultDeps(),
+      watch: (dir) => {
+        armed.push(dir);
+        return { close: () => undefined, on: () => undefined };
+      },
+    };
+    const out: string[] = [];
+    const io: DashboardIo = {
+      stdout: {
+        write: (s: string) => {
+          out.push(s);
+          return true;
+        },
+      },
+      stderr: { write: () => true },
+      isTty: false,
+    };
+
+    const result = run([tree, "--json", "--watch", "--interval", "1000"], io, deps);
+    expect(result.kind).toBe("running");
+    if (result.kind === "running") result.loop.stop();
+
+    const doc = JSON.parse(out[0] ?? "{}") as { readErrors: { source: string; code: string }[] };
+    body({ refused: doc.readErrors.filter((e) => e.code === OUTSIDE_ROOT), armed });
+  } finally {
+    rmSync(scratch, { recursive: true, force: true });
+  }
+}
+
 /** The live watcher for a relative directory, or undefined when none is armed. */
 function liveWatcher(h: Harness, rel: string): FakeWatcher | undefined {
   return h.watchers.find((w) => w.dir === join(REPO, rel) && !w.closed);
@@ -741,71 +794,65 @@ describe("board-dashboard — a watch is armed against the ROOT EVERY READ RESOL
     // THE CR-04 CLASS ASKED IN THE SIBLING MODULE. A real tree, the real reader, the real
     // containment authority; only `watch` is injected, so what is measured is which directories the
     // loop ASKED to watch.
-    const scratch = mkdtempSync(join(realpathSync(tmpdir()), "grugops-watch-symlink-"));
-    try {
-      const tree = join(scratch, "tree");
-      cpSync(FIXTURE, tree, { recursive: true });
-      const outside = join(scratch, "outside");
-      mkdirSync(outside, { recursive: true });
-      cpSync(join(tree, "plans"), join(outside, "plans"), { recursive: true });
-      rmSync(join(tree, "plans"), { recursive: true, force: true });
-      symlinkSync(join(outside, "plans"), join(tree, "plans"), "dir");
+    withLinkedTree(
+      (tree, outside) => {
+        cpSync(join(tree, "plans"), join(outside, "plans"), { recursive: true });
+        rmSync(join(tree, "plans"), { recursive: true, force: true });
+        symlinkSync(join(outside, "plans"), join(tree, "plans"), "dir");
+      },
+      ({ refused, armed }) => {
+        // THREE sources, not two: `plans/` carries the board, the ticket directory AND the
+        // traceability file, so one symlink refuses all three — and `plans` is the watched
+        // directory for the first and the third.
+        expect(
+          refused.map((e) => e.source).sort(),
+          "PREMISE: the reader did not refuse the symlinked directory, so the watch assertion " +
+            "below is about a tree that was never outside the root",
+        ).toEqual(["board", "tickets", "traceability"]);
 
-      const armed: string[] = [];
-      const deps: LoopDeps = {
-        ...defaultDeps(),
-        watch: (dir) => {
-          armed.push(dir);
-          return { close: () => undefined, on: () => undefined };
-        },
-      };
-      const out: string[] = [];
-      const io: DashboardIo = {
-        stdout: {
-          write: (s: string) => {
-            out.push(s);
-            return true;
-          },
-        },
-        stderr: { write: () => true },
-        isTty: false,
-      };
+        expect(
+          armed.filter((d) => d.includes("plans")),
+          "a handle is open on a directory every READ of which is refused. No content crosses — a " +
+            "watcher yields names — but the rule is one rule, and it is asked in one module",
+        ).toEqual([]);
+        expect(
+          armed.some((d) => d.includes(".grugops")),
+          "PREMISE: the loop armed nothing at all, so 'it did not arm the refused path' is true " +
+            "of a loop that did nothing",
+        ).toBe(true);
+        expect(
+          refused.length,
+          "the refusal is reported ONCE, by the authority that made it. A second record from the " +
+            "watch arm would be the same finding twice in the same list",
+        ).toBe(3);
+      },
+    );
+  });
 
-      const result = run([tree, "--json", "--watch", "--interval", "1000"], io, deps);
-      expect(result.kind).toBe("running");
-      if (result.kind === "running") result.loop.stop();
-
-      const doc = JSON.parse(out[0] ?? "{}") as {
-        readErrors: { source: string; code: string }[];
-      };
-      // THREE sources, not two: `plans/` carries the board, the ticket directory AND the
-      // traceability file, so one symlink refuses all three — and `plans` is the watched directory
-      // for the first and the third.
-      const refused = doc.readErrors.filter((e) => e.code === OUTSIDE_ROOT);
-      expect(
-        refused.map((e) => e.source).sort(),
-        "PREMISE: the reader did not refuse the symlinked directory, so the watch assertion below " +
-          "is about a tree that was never outside the root",
-      ).toEqual(["board", "tickets", "traceability"]);
-
-      expect(
-        armed.filter((d) => d.includes("plans")),
-        "a handle is open on a directory every READ of which is refused. No content crosses — a " +
-          "watcher yields names — but the rule is one rule, and it is asked in one module",
-      ).toEqual([]);
-      expect(
-        armed.some((d) => d.includes(".grugops")),
-        "PREMISE: the loop armed nothing at all, so 'it did not arm the refused path' is true of a " +
-          "loop that did nothing",
-      ).toBe(true);
-      expect(
-        refused.length,
-        "the refusal is reported ONCE, by the authority that made it. A second record from the " +
-          "watch arm would be the same finding twice in the same list",
-      ).toBe(3);
-    } finally {
-      rmSync(scratch, { recursive: true, force: true });
-    }
+  it("refuses PER SOURCE: a linked tickets directory leaves the board's own watch armed", () => {
+    // THE SIBLING ARM, which is where this repository's findings keep reappearing. The case above
+    // proves the loop refuses; this one proves it does not OVER-refuse. `plans/` is inside the root
+    // and the board is readable through it, so unwatching it because one child leaves the tree
+    // would turn a containment rule into an outage of the live path for an unrelated source.
+    withLinkedTree(
+      (tree, outside) => {
+        cpSync(join(tree, "plans", "tickets"), join(outside, "tickets"), { recursive: true });
+        rmSync(join(tree, "plans", "tickets"), { recursive: true, force: true });
+        symlinkSync(join(outside, "tickets"), join(tree, "plans", "tickets"), "dir");
+      },
+      ({ refused, armed }) => {
+        expect(
+          refused.map((e) => e.source),
+          "PREMISE: the ticket directory was not refused, so nothing below is about a refusal",
+        ).toEqual(["tickets"]);
+        expect(armed.filter((d) => d.endsWith("tickets"))).toEqual([]);
+        expect(
+          armed.some((d) => d.endsWith("plans")),
+          "the board's directory is inside the root and the board reads fine; the refusal belongs " +
+            "to the one source whose path left the tree",
+        ).toBe(true);
+      },
+    );
   });
 
   it("leaves the armed set unchanged on an ordinary tree", () => {
