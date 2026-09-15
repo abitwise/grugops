@@ -286,6 +286,15 @@ its path and its refusal code, so the refusal survives on the channel a human re
 consumer reading the document each have. The projector may say it could not read something; it may
 not say something is not there when it is.
 
+**Two ticket files claiming one identifier are reported by name, and the identifier is joined
+once.** Ticket identifiers are unique, so a second file claiming one is a disagreement between two
+documents rather than between a document and the board. It appears in `readErrors` with the code
+`duplicate-id`, naming both files and saying which of the two is joined: the first by file name, a
+rule that does not move with the order a filesystem lists a directory in. Neither file is modified
+and neither is hidden. No conflict is invented for the second file — one identifier produces one
+`board-vs-ticket` entry and one `ticket-unplaced` entry, never two identical ones, because every
+derivation that consumes the ticket population reads the identifier once.
+
 `ticket-unplaced` stays silent for a refused document. A refused document's identifier is the file's
 stem rather than something the document stated, so reporting it as an unplaced ticket would be the
 same false claim in the other direction — an assertion that a document nobody could read is a ticket.

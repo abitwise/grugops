@@ -838,6 +838,29 @@ export function joinSnapshot(inputs) {
         else
             list.push(p);
     }
+    // THE ONE MAP EVERY ARM CONSUMING THE TICKET POPULATION READS (plan 32-17, WR-08).
+    //
+    // FIRST WINS, AND FIRST MEANS FIRST BY FILE NAME. The reader hands its records over in listing
+    // order and `boundNames` sorts that listing (plan 32-17, WR-09), so the survivor is stated rather
+    // than whichever document a filesystem returned first. The duplicate itself is reported by the
+    // reader, which is the only place both file NAMES exist; by the time the list arrives here the
+    // second file's name is gone.
+    //
+    // THE ARMS THAT CONSUME THE TICKET POPULATION, ENUMERATED, so a future arm added against the raw
+    // `tickets` list is visible as the odd one out rather than as one more plausible loop:
+    //
+    //   board-vs-ticket, arm one (column)  reads `ticketById.get(p.id)` — always did; it iterates
+    //                                      PLACEMENTS and looks the identifier up.
+    //   board-vs-ticket, arm two (status)  reads `ticketById.values()`.
+    //   ticket-unplaced                    reads `ticketById.values()`.
+    //   ticket-duplicated                  derived from the BOARD alone; holds no ticket record.
+    //   row-without-file                   reads `ticketById.has(p.id)` and `unadmittedById`.
+    //
+    // Arms two and three used to iterate the raw list, so two files claiming one identifier produced
+    // two byte-identical conflicts that both survived the total order — the tiebreak chain ends on
+    // `expected`, which is equal for the two — while this map silently discarded one of them. The
+    // contract promises the projector reports every conflict and resolves none; that was one
+    // disagreement resolved in silence and another reported twice.
     const ticketById = new Map();
     for (const t of tickets)
         if (!ticketById.has(t.id))
@@ -871,7 +894,7 @@ export function joinSnapshot(inputs) {
     // The rule is `kebab(column) === status`, the SAME rule `scripts/validate-agent-factory.ts:747`
     // applies, through the single `kebab` spelling that lives in this module (D-06). A second spelling
     // of one rule is the drift class; there is no second spelling.
-    for (const t of tickets) {
+    for (const t of ticketById.values()) {
         if (t.column === null || t.status === null)
             continue;
         const expected = kebab(t.column);
@@ -899,7 +922,7 @@ export function joinSnapshot(inputs) {
     // so raising "no row names this ticket" for it would be the same fabrication in the converse
     // direction: a positive claim that a refused document IS a ticket. The refusal is already
     // reported, with its path and its code, in `readErrors`; that is the honest channel for it.
-    for (const t of ticketsListingComplete ? tickets : []) {
+    for (const t of ticketsListingComplete ? ticketById.values() : []) {
         if (byId.has(t.id))
             continue;
         add(0, {

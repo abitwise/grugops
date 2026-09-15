@@ -41,7 +41,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, relative, sep } from "node:path";
+import { basename, join, relative, sep } from "node:path";
 
 import {
   BoardReadError,
@@ -1482,10 +1482,13 @@ describe("board-read — two files claiming one identifier (plan 32-17, WR-08)",
         "the second file was discarded with no record ANYWHERE: no conflict kind, no read error, " +
           "nothing on the screen. A tree can be given a ticket nobody sees.",
       ).toBe("tickets");
-      expect(named?.message.includes("ABC-014-copy.md")).toBe(true);
-      expect(named?.message.includes("ABC-014.md")).toBe(true);
+      // BOTH NAMES, and the entry's own path is the file that LOST — the one whose values no arm
+      // of the frame is about, which is the file a reader needs pointed at.
+      expect(named?.path).toBe(second);
+      expect(named?.message.includes(basename(first))).toBe(true);
+      expect(named?.message.includes(basename(second))).toBe(true);
       expect(
-        named?.message.includes("ABC-014-copy.md is the one joined"),
+        named?.message.includes(`${basename(first)} is the one joined`),
         "naming both files without saying which one WON leaves a reader unable to predict what " +
           "the rest of the frame is about",
       ).toBe(true);

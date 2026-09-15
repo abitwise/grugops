@@ -924,12 +924,51 @@ export function readTicketsSource(root, readAt, previous, seam) {
             unadmitted.push(unadmittedFrom(name, admission.code));
             continue;
         }
+        // THE FILE STEM IS THE FALLBACK IDENTITY, because the file name is the only identity a reader
+        // can trust when the document does not state one — the same rule the validator applies, and
+        // the same `ticketStem` spelling the unadmitted arm above uses.
+        const id = admission.value.id ?? ticketStem(name);
+        // TWO FILES CLAIMING ONE IDENTIFIER IS REPORTED HERE (plan 32-17, WR-08), BECAUSE THIS IS WHERE
+        // BOTH FILES ARE SEEN. The join receives a list and builds a map from it; by then the second
+        // file's NAME is gone, so the join could report the collision but never which documents
+        // collided. The second record used to be dropped by that map with no record anywhere: no
+        // conflict kind, no read error, nothing on the screen — a tree could be given a ticket nobody
+        // sees. `agent-factory/contracts/board.md` promises the projector reports every conflict.
+        //
+        // FIRST BY NAME WINS, AND THE RULE IS FIRST-BY-NAME RATHER THAN FIRST-BY-FILESYSTEM. That is
+        // true because `boundNames` sorts the listing this loop walks (plan 32-17, WR-09); before that
+        // change the surviving record was whichever one `readdirSync` happened to hand over first, so
+        // two machines reading one tree could join DIFFERENT documents for one identifier. Keeping the
+        // first is a resolution, and it is stated rather than silent: the report below names the file
+        // that was kept, so a reader can predict what the rest of the frame is about.
+        //
+        // NO EIGHTH CONFLICT KIND (D-10). The kind set is part of the `schemaVersion: 1` shape, so
+        // adding one costs the contract, the closed-set count test, the golden and the renderer in one
+        // edit. `readErrors` is the channel the review names as the minimum, and it carries what a
+        // human needs: both file names, and which one won. A consumer needing to branch on this
+        // mechanically is the version bump to make.
+        //
+        // THE RECORD IS STILL PUSHED, AND THAT IS DELIBERATE. Dropping it here would make this loop's
+        // partition (plan 32-15) UNTOTAL: the entry would be neither an admitted record nor an
+        // unadmitted one, and the count that pins the partition would be measuring a set with a hole in
+        // it. This document WAS admitted — the grammar read it and accepted it. Which of two admitted
+        // records with one identifier gets JOINED is a different question, and it is answered once, in
+        // `joinSnapshot`'s `ticketById`, by every arm that consumes the population.
+        const duplicate = records.find((r) => r.id === id);
+        if (duplicate !== undefined) {
+            errors.push({
+                source: "tickets",
+                path,
+                code: "duplicate-id",
+                message: `${name} and ${duplicate.file} both claim the identifier ${id}. Ticket identifiers are ` +
+                    `unique and the first by file name is joined, so ${duplicate.file} is the one joined ` +
+                    `and ${name} is not. Neither document is modified and no conflict is invented for the ` +
+                    `second.`,
+            });
+        }
         records.push({
             file: name,
-            // THE FILE STEM IS THE FALLBACK IDENTITY, because the file name is the only identity a reader
-            // can trust when the document does not state one — the same rule the validator applies, and
-            // the same `ticketStem` spelling the unadmitted arm above uses.
-            id: admission.value.id ?? ticketStem(name),
+            id,
             title: admission.value.title ?? "",
             column: admission.value.column,
             status: admission.value.status,

@@ -1186,12 +1186,22 @@ describe("board-model — one identifier is resolved once and read from one map 
     const start = source.indexOf("export function joinSnapshot");
     expect(start, "PREMISE: `joinSnapshot` was not found, so this case scanned nothing").toBeGreaterThan(0);
     const body = source.slice(start, source.indexOf("\n}\n", start));
-    const raw = body.match(/for \(const \w+ of (?:inputs\.)?tickets\b[^)]*\)/g) ?? [];
+    // THE MAP'S OWN BUILDER IS THE ONE LEGITIMATE READER OF THE RAW LIST, and it is identified by
+    // what its line DOES rather than excluded by position — a line-number exemption rots the first
+    // time the function above it grows.
+    const raw = (body.match(/for \(const \w+ of (?:inputs\.)?tickets\b[^\n]*/g) ?? []).filter(
+      (line) => !line.includes("ticketById.set"),
+    );
     expect(
       raw,
       "every arm consuming the ticket population reads `ticketById`, so one identifier is resolved " +
         "once and reported once. An arm added against the raw list is the odd one out.",
     ).toEqual([]);
+    expect(
+      (body.match(/for \(const \w+ of (?:inputs\.)?tickets\b[^\n]*/g) ?? []).length,
+      "PREMISE: the raw list is read NOWHERE, so the filter above removed the builder and the " +
+        "assertion measured an empty set against an empty set",
+    ).toBe(1);
     expect(
       body.includes("ticketById.values()"),
       "PREMISE: no arm reads `ticketById.values()` either, so the assertion above is vacuously " +
