@@ -32,6 +32,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname, basename } from "node:path";
+import ts from "typescript";
 import { jsImportClosure } from "./js-import-closure.js";
 
 // (27-65 task 3) The gate-level sweep plants rows from plan 27-63's corpus BY ID, and adjudicates
@@ -12065,6 +12066,32 @@ describe("30-11 round 4 — every check gate is REACHED, and the runner set is d
       "of any file a gate module could read. Reached by ci.yml running the npm script by name.",
   });
 
+  /**
+   * THE ONE READ OF THE REGISTER — own-property membership first, exactly as the sibling site in
+   * `scripts/validate.test.ts` now asks it (review WR-04, commit `7a3ae592`).
+   *
+   * WHY THE QUESTION HAD TO CHANGE. `Object.freeze({…})` does not remove `Object.prototype`, so
+   * `TOOLCHAIN_CHECK_SCRIPTS[name] !== undefined` answered TRUE for `toString`, `valueOf`,
+   * `constructor` and `__proto__`. A check script spelled like any of those would have been
+   * classified `toolchain` — granted the "runs no gate module, for a reason recorded here"
+   * exemption BY ITS SPELLING rather than by the decision this register exists to record, which is
+   * the very thing the class was created to make impossible.
+   *
+   * WHY ONE ACCESSOR RATHER THAN THREE GUARDED READS. The review's whole reason for filing this
+   * finding is that fixing one copy of a rule and leaving another produces two sites that answer
+   * the same question differently — which is what `32-REVIEW-FIX.md` recorded had happened between
+   * this file and `scripts/validate.test.ts`. Three `Object.hasOwn` spellings inside one file is
+   * the same shape one register down, so the three reads go through here and the suite asserts by
+   * PARSE that nothing else reads the register at all.
+   *
+   * REACH, STATED HONESTLY AND NARROWER THAN THE REVIEW: every name looked up today is
+   * `check:`-prefixed, so no live script name can collide with a prototype member and the defect
+   * was unreachable on the live set. That is a property of the SCANNED SET, not of the lookup, and
+   * a future change to the set can retire it silently — so the prefix is asserted below as well.
+   */
+  const toolchainReason = (name: string): string | undefined =>
+    Object.hasOwn(TOOLCHAIN_CHECK_SCRIPTS, name) ? TOOLCHAIN_CHECK_SCRIPTS[name] : undefined;
+
   interface CheckScriptClassification {
     readonly name: string;
     readonly cls: CheckClass;
@@ -12107,7 +12134,7 @@ describe("30-11 round 4 — every check gate is REACHED, and the runner set is d
       ...suites.map((target) => ({ name, cls: "suite-test-file" as const, target })),
     ];
     if (rows.length > 0) return rows;
-    if (TOOLCHAIN_CHECK_SCRIPTS[name] !== undefined) {
+    if (toolchainReason(name) !== undefined) {
       return [{ name, cls: "toolchain", target: name }];
     }
     return null;
@@ -12345,7 +12372,7 @@ describe("30-11 round 4 — every check gate is REACHED, and the runner set is d
     const ci = readCi();
     const rows = liveTargetRows().filter((r) => r.cls === "toolchain");
     for (const r of rows) {
-      const reason = TOOLCHAIN_CHECK_SCRIPTS[r.name] as string;
+      const reason = toolchainReason(r.name) as string;
       expect(reason.length, `${r.name} is toolchain-class with no reason written down`).toBeGreaterThan(40);
       expect(
         ci.includes(`npm run ${r.name}`),
@@ -12618,7 +12645,7 @@ describe("30-11 round 4 — every check gate is REACHED, and the runner set is d
     const constructed: Record<string, string> = {
       "check:gate-shaped": "tsc --outDir .tmp-build && node scripts/check-nul-bytes.js",
       "check:suite-shaped": "npx vitest run scripts/board-readonly.test.ts",
-      "check:build-parity": TOOLCHAIN_CHECK_SCRIPTS["check:build-parity"] as string,
+      "check:build-parity": toolchainReason("check:build-parity") as string,
       "check:nothing-shaped": "bash tools/does-whatever.sh --quietly",
     };
     const classified = Object.entries(constructed).map(
@@ -12636,6 +12663,169 @@ describe("30-11 round 4 — every check gate is REACHED, and the runner set is d
       "one of each class, in order — so the three arms are shown to DISCRIMINATE rather than one " +
         "arm answering for all of them",
     ).toEqual(["gate-module", "suite-test-file", "toolchain"]);
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════════════════════════
+  // REVIEW IN-03 — THE TOOLCHAIN REGISTER IS ASKED OWN-PROPERTY MEMBERSHIP, AT A DERIVED SITE SET.
+  //
+  // `Object.freeze({…})` does not remove `Object.prototype`, so the raw read
+  // `TOOLCHAIN_CHECK_SCRIPTS[name] !== undefined` answers TRUE for `toString`, `valueOf`,
+  // `constructor` and `__proto__` — a check script would have been classified `toolchain`, and
+  // granted the "runs no gate module for a recorded reason" exemption, BY ITS SPELLING rather than
+  // by anyone's decision. That is the same class as review WR-04, which commit `7a3ae592` fixed in
+  // `scripts/validate.test.ts` with `Object.hasOwn`. `32-REVIEW-FIX.md` records that the two copies
+  // of the rule were left DISAGREEING and recommends folding this one in; this is that fold.
+  //
+  // THE SITE SET IS DERIVED, NOT RECALLED. A hand-typed three is the set-literal class this
+  // repository has recorded as its second systemic failure mode. The case below parses this file
+  // and finds every read of the register for itself, so a fourth read added later cannot stay raw.
+  //
+  // ONE AUTHORITY RATHER THAN THREE GUARDED COPIES. Three sites each spelling `Object.hasOwn` is
+  // exactly the shape that let WR-04's site and this one drift apart in the first place, so the
+  // three reads are routed through ONE accessor and the parse asserts that only the accessor reads
+  // the register at all.
+  // ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+  it("IN-03: every read of the toolchain register is own-property guarded, at a DERIVED site set", () => {
+    const file = join(ROOT, "scripts", "check-foundation-guards.test.ts");
+    const text = readFileSync(file, "utf8");
+    const src = ts.createSourceFile(file, text, ts.ScriptTarget.ES2022, true);
+    const REGISTER = "TOOLCHAIN_CHECK_SCRIPTS";
+    const ACCESSOR = "toolchainReason";
+
+    /** Every subscript or dotted read of the register, with the line it sits on. */
+    const reads: { line: number; text: string }[] = [];
+    /** Every identifier reference to the accessor, declaration included. */
+    const accessorRefs: number[] = [];
+    const visit = (node: ts.Node): void => {
+      const isRead =
+        (ts.isElementAccessExpression(node) || ts.isPropertyAccessExpression(node)) &&
+        node.expression.getText(src) === REGISTER;
+      if (isRead) {
+        reads.push({
+          line: src.getLineAndCharacterOfPosition(node.getStart(src)).line + 1,
+          text: node.getText(src),
+        });
+      }
+      if (ts.isIdentifier(node) && node.getText(src) === ACCESSOR) {
+        accessorRefs.push(src.getLineAndCharacterOfPosition(node.getStart(src)).line + 1);
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(src);
+
+    // PREMISE: the parse found the register at all. A walk that found nothing would agree with
+    // every assertion below for the one reason that proves nothing.
+    expect(
+      text.includes(`const ${REGISTER}`),
+      `PREMISE: ${REGISTER} is not declared in this file, so this case is measuring the wrong file`,
+    ).toBe(true);
+    expect(
+      reads.length,
+      `PREMISE: the parse found NO read of ${REGISTER}. An empty set satisfies the ` +
+        "every-read-is-guarded assertion below without a single read being guarded",
+    ).toBeGreaterThan(0);
+
+    /** The nearest enclosing function-like ancestor's source text, or the whole file. */
+    const enclosingText = (line: number): string => {
+      let found = text;
+      const walk = (node: ts.Node): void => {
+        const start = src.getLineAndCharacterOfPosition(node.getStart(src)).line + 1;
+        const end = src.getLineAndCharacterOfPosition(node.getEnd()).line + 1;
+        if (start > line || end < line) return;
+        if (ts.isFunctionLike(node)) found = node.getText(src);
+        ts.forEachChild(node, walk);
+      };
+      walk(src);
+      return found;
+    };
+
+    const unguarded = reads.filter(
+      (r) => !enclosingText(r.line).includes(`Object.hasOwn(${REGISTER}`),
+    );
+    expect(
+      unguarded.map((r) => `:${r.line}  ${r.text}`),
+      `a read of ${REGISTER} is not guarded by an own-property test. \`Object.freeze\` leaves ` +
+        "`Object.prototype` in place, so a raw read answers \"registered\" for a name nobody " +
+        "registered — an exemption granted by spelling instead of by a decision (review IN-03, " +
+        "the same class as WR-04)",
+    ).toEqual([]);
+
+    expect(
+      reads.map((r) => `:${r.line}`),
+      `${REGISTER} is read at more than one place. Three sites each spelling the rule is how the ` +
+        "WR-04 site and this one came to disagree in the first place; the reads go through " +
+        `\`${ACCESSOR}\` so there is one authority to fix`,
+    ).toHaveLength(1);
+
+    // THE COUNT THE BASELINE RECORDED, PINNED. 32-39-RED-baseline.txt §3 derived THREE reads of the
+    // register at :12110, :12348 and :12621. Those three are now three calls of the accessor, so
+    // the number of own-property lookups equals the number of raw reads there were — a new call
+    // site is a number somebody has to look at, and a new RAW read reds the assertion above.
+    expect(
+      accessorRefs.length - 1,
+      `the accessor is called a different number of times than the ${reads.length === 1 ? 3 : 3} ` +
+        "raw reads the RED baseline derived. A fourth read of the register is a decision, not an " +
+        "accident: route it through the accessor and move this number",
+    ).toBe(3);
+  });
+
+  it("IN-03: a bare prototype-member name is NOT registered, and a recorded one still is", () => {
+    const NO_TARGET = "bash tools/does-whatever.sh --quietly";
+
+    for (const inherited of ["__proto__", "toString", "valueOf", "constructor"]) {
+      expect(
+        Object.hasOwn(TOOLCHAIN_CHECK_SCRIPTS, inherited),
+        `PREMISE: ${inherited} is a RECORDED toolchain member, so this case is about a decision ` +
+          "rather than an inherited property",
+      ).toBe(false);
+      expect(
+        classifyCheckScriptTargets(inherited, NO_TARGET),
+        `a check script named ${inherited} was classified TOOLCHAIN — granted the "runs no gate ` +
+          'module for a recorded reason" exemption by its SPELLING. No line of ' +
+          "TOOLCHAIN_CHECK_SCRIPTS says so, and the classifier must return null so the caller " +
+          "NAMES it (review IN-03)",
+      ).toBeNull();
+    }
+
+    // THE CONVERSE: a genuinely recorded member is still classified, so the fix refuses the
+    // prototype without also refusing the decision the register exists to record.
+    const recorded = Object.keys(TOOLCHAIN_CHECK_SCRIPTS)[0] as string;
+    expect(
+      classifyCheckScriptTargets(recorded, NO_TARGET)?.map((r) => r.cls),
+      "a recorded toolchain member stopped being classified, so the own-property test now refuses " +
+        "the decisions it exists to honour",
+    ).toEqual(["toolchain"]);
+  });
+
+  it("IN-03: the premise the unreachability rests on is an ASSERTION, not a sentence", () => {
+    // `32-REVIEW-FIX.md` records the WR-04 defect as UNREACHABLE on the live scan set because every
+    // name looked up there ends in `.ts`. The premise HERE is that every name looked up is
+    // `check:`-prefixed, so no live script name can collide with an `Object.prototype` member.
+    // A premise stated in prose is a premise that stops being true silently — this repository has
+    // recorded a FALSE verification-harness premise six times across four rounds.
+    const scripts = readPackageScripts();
+    const looked = checkScriptNames(scripts);
+
+    expect(
+      looked.length,
+      "PREMISE: no check script was found in package.json, so the prefix claim below is true of an " +
+        "empty set",
+    ).toBeGreaterThan(5);
+    expect(
+      looked.filter((n) => !n.startsWith("check:")),
+      "a name the classifier looks up is NOT `check:`-prefixed. That prefix is the whole reason " +
+        "the prototype-lookup defect was unreachable on the live set: an unprefixed name can be " +
+        "spelled `toString` or `__proto__` and would be answered from Object.prototype. The " +
+        "lookup is own-property now, so this is no longer the only thing standing between the " +
+        "register and a wrong answer — but a violation means the scan set moved, which is a " +
+        "finding either way",
+    ).toEqual([]);
+    expect(
+      Object.keys(TOOLCHAIN_CHECK_SCRIPTS).filter((k) => !k.startsWith("check:")),
+      "a RECORDED toolchain member is not `check:`-prefixed, so the register and the set of names " +
+        "it is asked about no longer share an alphabet",
+    ).toEqual([]);
   });
 
   it("the entrypoint predicate has ONE spelling (RA6-1's other half)", () => {

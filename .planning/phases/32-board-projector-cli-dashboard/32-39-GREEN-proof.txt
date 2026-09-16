@@ -273,4 +273,121 @@ same instruments §-for-§ as 32-39-RED-baseline.txt.
 §3  IN-03 — one prototype-lookup rule, asked the same way at every derived site
 =================================================================================================
 
-    (written at Task 3)
+§3.1  ONE AUTHORITY FOR THE LOOKUP, AND THE PARSE SAYS SO
+
+    scripts/check-foundation-guards.test.ts, beside the register:
+
+      const toolchainReason = (name: string): string | undefined =>
+        Object.hasOwn(TOOLCHAIN_CHECK_SCRIPTS, name) ? TOOLCHAIN_CHECK_SCRIPTS[name] : undefined;
+
+    All three reads the baseline derived now go through it:
+
+      :12110 -> `toolchainReason(name) !== undefined`                   (membership)
+      :12348 -> `toolchainReason(r.name) as string`                     (value)
+      :12621 -> `toolchainReason("check:build-parity") as string`       (value)
+
+    WHY ONE ACCESSOR RATHER THAN THREE SPELLINGS OF `Object.hasOwn`, STATED RATHER THAN SLID PAST.
+    The plan says to ask own-property membership "exactly as scripts/validate.test.ts now does", and
+    that is the question asked here — `Object.hasOwn(REGISTER, name)`, the same call, on the same
+    register shape. What is NOT copied is the multiplicity: the review's entire reason for filing
+    IN-03 is that one copy of a rule was fixed and another was not, and three `Object.hasOwn`
+    spellings inside one file is that same shape one register down. The suite asserts by PARSE that
+    exactly ONE read of the register exists and that its enclosing function performs the
+    own-property test, so a fourth read added later cannot be raw and cannot be a fourth copy.
+
+    $ (TypeScript parse of the file, after)
+      SUBSCRIPT/PROPERTY READS OF TOOLCHAIN_CHECK_SCRIPTS: 1   (BEFORE: 3)
+        the one inside `toolchainReason`, guarded by `Object.hasOwn(TOOLCHAIN_CHECK_SCRIPTS, name)`
+      CALL SITES OF toolchainReason: 3                        (= the 3 raw reads the baseline derived)
+
+
+§3.2  THE THREE NEW CASES
+
+    IN-03: every read of the toolchain register is own-property guarded, at a DERIVED site set
+      Parses this file, collects every read of the register, and asserts (a) every read's enclosing
+      function performs `Object.hasOwn` on the register, (b) there is exactly ONE read, and (c) the
+      accessor's call-site count equals the THREE raw reads the RED baseline derived. Two PREMISE
+      floors guard it: the register must be declared in the file parsed, and the read set must be
+      non-empty — an empty set satisfies "every read is guarded" without a read being guarded.
+
+    IN-03: a bare prototype-member name is NOT registered, and a recorded one still is
+      `__proto__`, `toString`, `valueOf` and `constructor` each asserted NOT own-members (PREMISE:
+      the case is about a decision, not an inherited property), then each asserted to classify as
+      `null` — so the caller NAMES the script instead of granting it the toolchain exemption. The
+      CONVERSE is asserted with a recorded member taken from the register's own keys: it still
+      classifies `toolchain`, so the fix refuses the prototype without refusing the decision.
+
+    IN-03: the premise the unreachability rests on is an ASSERTION, not a sentence
+      Every name the classifier is asked about, derived live from `package.json`, is asserted
+      `check:`-prefixed, and every key of the register is asserted the same — with a message saying
+      what a violation would mean (the scan set moved, and an unprefixed name can be spelled
+      `toString` or `__proto__`). A vacuity floor requires more than five names. `32-REVIEW-FIX.md`
+      recorded the sibling's equivalent premise in PROSE; this one is a failing assertion, because
+      this repository has recorded a false verification-harness premise six times across four rounds.
+
+    RED transcripts for the first two are in 32-39-RED-baseline.txt §3.3. The third was green
+    before the change and after it, which is correct and is stated rather than presented as a pass
+    the fix earned.
+
+
+§3.3  THE LIVE RESULT SET IS UNCHANGED — MEASURED, NOT ARGUED
+
+    The same temporary probe was re-run after the change and its output diffed against the
+    before-image in 32-39-RED-baseline.txt §3.4:
+
+      $ diff live-rows-before.txt live-rows-after.txt
+        (no output)  -> IDENTICAL
+
+      11 rows both times: 9 gate-module, 1 suite-test-file, 1 toolchain; every `ciNamesScript`
+      answer the same. The probe was removed and the file restored from a byte copy afterwards
+      (`git status --short` clean but for this task's real edits).
+
+    An own-property lookup that CHANGED a live answer would have meant a live key was being
+    answered from `Object.prototype` — a finding, not a pass. It changed none.
+
+
+§3.4  GATES, TASK 3
+
+    $ npx vitest run --exclude '**/scripts/e2e/**' scripts/check-foundation-guards.test.ts scripts/validate.test.ts
+      exit 0 — Test Files 2 passed (2), Tests 430 passed (430)
+    $ node scripts/check-foundation-guards.js                  exit 0 — ALL CHECKS PASSED, 0 FAIL lines
+    $ VALIDATE_KIT_ROOT=. node scripts/validate-agent-factory.js
+      exit 0 — ALL CHECKS PASSED, 0 FAIL lines
+      (the env var is how CI invokes it; bare `node scripts/validate-agent-factory.js` exits 1 on
+       ANY tree with "VALIDATE_KIT_ROOT is unset — refusing to default the kit root to '.' (C3)",
+       as 32-38-SUMMARY.md already recorded. Stated, not worked around.)
+    $ npm run typecheck                                        exit 0
+    $ npm run check:nul-bytes                                  exit 0 — ALL CHECKS PASSED
+    $ npm run freshness                                        exit 0 — 65/65 fresh
+      (`scripts/check-foundation-guards.test.ts` is a TEST file with no committed `.js` twin, so
+       this task rebuilds nothing.)
+
+
+=================================================================================================
+§4  THE WHOLE TREE, AFTER ALL THREE TASKS
+=================================================================================================
+
+    $ npx vitest run --exclude '**/scripts/e2e/**'
+      exit 0 — Test Files 75 passed (75), Tests 5163 passed | 2 skipped (5165)
+
+      FLOOR: the plan requires at least 5137. 32-38 left the tree at 5151. This plan adds 12:
+        +1  board-model.test.ts       the derived rename-site case
+        +4  board-read.test.ts        the dial premise, the conflict arm, its sibling, the own-key
+        +4  board-dashboard.test.ts   the plant premise, the spawned-run key, the value sibling,
+                                      the sanitizer sibling
+        +3  check-foundation-guards.test.ts   the derived read set, the bare prototype-member case,
+                                      the prefix premise
+        5151 + 12 = 5163. The arithmetic closes, so no case was lost while twelve were added.
+
+    $ node scripts/board-dashboard.js scripts/fixtures/board-snapshot --once --json
+      exit 0, schemaVersion = 2, normalised document === the committed golden, sha256 unchanged
+    $ npm run build && npm run typecheck && npm run check:build-parity
+      exit 0 — "Build parity: no tracked build output moved when tsc ran."
+    $ npm run freshness                    exit 0 — 65/65 committed .js fresh
+    $ npm run check:dashboard-readonly     exit 0 — 175 passed
+    $ npm run check:nul-bytes              exit 0 — ALL CHECKS PASSED
+    $ node scripts/check-foundation-guards.js                     exit 0 — ALL CHECKS PASSED
+    $ VALIDATE_KIT_ROOT=. node scripts/validate-agent-factory.js  exit 0 — ALL CHECKS PASSED
+
+    $ npm test                             NOT RUN. The live claude-CLI end-to-end lane is not run
+                                           by this plan and its state stays `UNKNOWN - verify`.

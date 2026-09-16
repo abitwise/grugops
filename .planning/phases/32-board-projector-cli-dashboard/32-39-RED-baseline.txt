@@ -262,4 +262,88 @@ chokepoint defect cannot be observed through the dial. It was isolated by fixing
 §3  IN-03 — the toolchain register is read raw, the way its sibling no longer is
 =================================================================================================
 
-    (written at Task 3)
+§3.1  THE SITE SET, DERIVED BY PARSE — NOT TAKEN FROM THE PLAN'S THREE
+
+The plan named three reads at :12110, :12348 and :12621 and said not to take that number on
+trust. It was re-derived by a TypeScript parse of the file, collecting every ElementAccess and
+PropertyAccess whose expression is the register identifier — a parse rather than a match,
+because the file's own prose and test messages name the register in strings and comments and a
+textual search cannot tell those from a read:
+
+    SUBSCRIPT/PROPERTY READS OF TOOLCHAIN_CHECK_SCRIPTS: 3
+      :12110  TOOLCHAIN_CHECK_SCRIPTS[name]                     (membership, classifyCheckScriptTargets)
+      :12348  TOOLCHAIN_CHECK_SCRIPTS[r.name]                   (value, the toolchain-class case)
+      :12621  TOOLCHAIN_CHECK_SCRIPTS["check:build-parity"]     (value, the classifier PREMISE case)
+    ALL IDENTIFIER OCCURRENCES: 4, at lines 12061 (the declaration), 12110, 12348, 12621
+
+    TOTAL READS = 3. The plan's three is CONFIRMED by measurement, at the three lines it named.
+
+    (After this task's `import ts from "typescript"` the same three reads sit one line lower, at
+    :12111, :12349 and :12622 — which is the pair of numbers the RED transcript in §3.3 prints.)
+
+
+§3.2  THE DEFECT, AND THAT IT IS REACHABLE AT THE LOOKUP
+
+`TOOLCHAIN_CHECK_SCRIPTS` is built with `Object.freeze({…})`, and freezing does not remove
+`Object.prototype`. So the membership read
+
+    if (TOOLCHAIN_CHECK_SCRIPTS[name] !== undefined) { … cls: "toolchain" … }
+
+answers TRUE for `toString`, `valueOf`, `constructor` and `__proto__`. A check script spelled like
+any of those would be classified `toolchain` — granted the "runs no gate module, for a reason
+recorded here" exemption BY ITS SPELLING rather than by the decision the register exists to record.
+
+`32-REVIEW-FIX.md` records the sibling site in `scripts/validate.test.ts` fixed with `Object.hasOwn`
+at commit `7a3ae592`, and states plainly that the two copies of the rule now DISAGREE. It also
+records that a first attempt to prove that class asserted a reachable exploit, PASSED against the
+unfixed code, and had to be rewritten. This task does not repeat that: the case below exercises the
+LOOKUP at a bare prototype-member name, which is reachable, and keeps the live-set prefix premise as
+a SEPARATE assertion rather than conflating the two.
+
+
+§3.3  THE RED RUN — the two target cases fail against the unchanged lookup
+
+The new cases were written and run BEFORE the lookup was touched:
+
+    $ npx vitest run --exclude '**/scripts/e2e/**' scripts/check-foundation-guards.test.ts -t "IN-03"
+      exit 1 — Tests 2 failed | 7 passed | 291 skipped (300)
+
+      FAIL  IN-03: every read of the toolchain register is own-property guarded, at a DERIVED site set
+        AssertionError: a read of TOOLCHAIN_CHECK_SCRIPTS is not guarded by an own-property test …
+        + [
+        +   ":12111  TOOLCHAIN_CHECK_SCRIPTS[name]",
+        +   ":12349  TOOLCHAIN_CHECK_SCRIPTS[r.name]",
+        +   ":12622  TOOLCHAIN_CHECK_SCRIPTS[\"check:build-parity\"]",
+        + ]
+
+      FAIL  IN-03: a bare prototype-member name is NOT registered, and a recorded one still is
+        AssertionError: a check script named __proto__ was classified TOOLCHAIN — granted the
+        "runs no gate module for a recorded reason" exemption by its SPELLING …
+        + [ { "cls": "toolchain", "name": "__proto__", "target": "__proto__" } ]
+
+      The THIRD new case — the prefix premise — stayed GREEN, correctly: it is a fact about the
+      register's keys and the live scan set, not about the fix, and a premise that redded here
+      would have meant something else was wrong.
+
+    INTENTIONAL RED on both counts: a target assertion failing on the planned behaviour, the file
+    collecting 300 cases (not zero), 7 unrelated cases in the same `-t` selection green, no syntax
+    error and no fixture crash.
+
+
+§3.4  THE LIVE RESULT SET, BEFORE
+
+Captured with a temporary probe that dumps `liveTargetRows()` with each row's reachability answer.
+The probe was removed and the file restored before any change was made.
+
+    toolchain       | check:build-parity        -> check:build-parity                  | ciNamesScript=true
+    gate-module     | check:public-docs         -> scripts/check-public-docs-vocabulary.js | ciNamesScript=false
+    gate-module     | check:audit-register      -> scripts/check-audit-register.js      | ciNamesScript=false
+    gate-module     | check:residual-citations  -> scripts/check-residual-citations.js  | ciNamesScript=false
+    gate-module     | check:claim-anchors       -> scripts/check-claim-anchors.js       | ciNamesScript=false
+    gate-module     | check:banned-claims       -> scripts/check-banned-claims.js       | ciNamesScript=false
+    gate-module     | check:imperative-lexicon  -> scripts/check-imperative-lexicon.js  | ciNamesScript=false
+    gate-module     | check:diff-disposition    -> scripts/check-diff-disposition.js    | ciNamesScript=false
+    gate-module     | check:nul-bytes           -> scripts/check-nul-bytes.js           | ciNamesScript=false
+    gate-module     | check:platform-shapes     -> scripts/check-platform-shapes.js     | ciNamesScript=false
+    suite-test-file | check:dashboard-readonly  -> scripts/board-readonly.test.ts       | ciNamesScript=false
+    total=11
