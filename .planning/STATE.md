@@ -5,15 +5,15 @@ milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live
 current_phase: 32
 current_phase_name: Board Projector & CLI Dashboard
 status: "Phase 31 CLOSED 2026-09-13 by user override D-44 (round-9 verification gaps_found 4/6 left standing; CR-28..CR-31 + WR-43..WR-47 accepted open). Next: Phase 32 — Board Projector & CLI Dashboard, not yet planned. Standing rule: four-round gap-closure cap on every later phase."
-stopped_at: Completed 32-37-PLAN.md
-last_updated: "2026-09-16T17:20:58.254Z"
-state_head: a76ae9be7e673a15cbdb3c9f4e5cab6f66851017
+stopped_at: Completed 32-38-PLAN.md
+last_updated: "2026-09-16T18:28:40.956Z"
+state_head: 7e9fabfcaf0205fa917e9a06afc33bb713637278
 progress:
   total_phases: 9
   completed_phases: 30
   total_plans: 254
-  completed_plans: 250
-  percent: 98
+  completed_plans: 251
+  percent: 99
 last_activity: 2026-09-13
 prior_activity_desc: Phase 27 gap-closure round 8 COMPLETE (27-45, 27-46; D-53). Full narration lives in the Phase 27 artifacts and in docs/audit/; shortened here by plan 31-38 because this single line measured 7995 characters, above the 4000-character ceiling a pathological STATE line has previously crossed to turn a sub-second guard into a multi-minute one.
 last_activity_desc: "Phase 29 CLOSED by user decision (D-59, reversing D-29): LANG-04's conformance prohibition is held as CONTENT — the claim registry and the honesty floor — with guard_banned_claims a disclosed drift backstop, not the mechanism that makes a totality true. Eight verification rounds established that a totality over an open set of phrasings is not a decidable predicate; D-55 had already ended at a per-line predicate, so the totality was already content-held on the tree while LANG-04's text still said a mechanism held it. Round-8 review CR-02 (the narrowed sentence printed above the findings contradicting it) FIXED at 4c6a76a, watched failing against the pre-fix build and asserted in both directions; two existing cases whose premise the change invalidated were repaired, not weakened. CR-01 (freshness.ts working-tree arm fail-opens, reproduced) carried as V-29-59-03 — a build-parity defect plan 29-59 itself recorded as named by no LANG requirement. CR-03/04/05 carried with owners in docs/audit/29-round8-residuals.md section 10. The round-8 verifier's gaps_found verdict is left standing and annotated rather than rewritten: it verified LANG-04's previous text. All 8 LANG requirements Complete. 15 repo gates green, 52 files / 2140 passed / 2 skipped. Next: Phase 29.1 (per-role model assignment)."
@@ -30,8 +30,8 @@ See: .planning/PROJECT.md (updated 2026-09-07 — after Phase 29.2)
 
 ## Current Position
 
-Phase: 32 (Board Projector & CLI Dashboard) — READY TO EXECUTE
-Plan: 8 of 30
+Phase: 32 (Board Projector & CLI Dashboard) — EXECUTING
+Plan: 2 of 34
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 
@@ -506,6 +506,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 32 P35 | 105 min | 3 tasks | 9 files |
 | Phase 32 P36 | 55 min | 3 tasks | 4 files |
 | Phase 32 P37 | 43 min | 3 tasks | 3 files |
+| Phase 32 P38 | 40 min | 3 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -1389,6 +1390,9 @@ Recent decisions affecting current work:
 - [Phase 32]: Gap-closure round 3 ends with every finding OPEN and no source file touched: this plan owns none, and a closure applied at the end of a round in a plan that does not own the file is how the previous round's first finding was made
 - [Phase 32]: The created-versus-inherited ratio fell for the first time in Phase 32, to 2 of 5 from round 2's 4 of 5, and both created findings are diagnostic-sentence defects rather than bypasses of a safety invariant
 - [Phase 32]: 32-35's record of 77 check:diff-disposition findings is corrected to 78: the count never moved, the earlier instrument counted (added) finding lines only
+- [Phase 32]: Plan 32-38 keeps presenceActual's joinedStem === undefined branch rather than deleting it: no tree the reader can read reaches it (measured, and structural — ticketPopulations fills byStem and byId in one loop over the same record list), but the exported presenceOf against a directly-constructed TicketPopulations does. The unreachability is held as a derived invariant over the two maps, with a message naming the three changes that would make the branch reachable again. — An unreachable branch is proved unreachable by a written-down failed attempt, never deleted on the strength of an argument; and a branch set is derived from the module by TypeScript parse rather than counted by hand.
+- [Phase 32]: agent-factory/contracts/board.md's presence table is now proved equal to presenceActual's sentences in BOTH directions at run time, located by a new dedicated '### The presence table' heading and bounded at the next heading, with its row count derived from (branch count minus branches proved unreachable from the reader). The prose fact-count it carried was wrong (three where the table distinguished four) and was corrected. — D-04 makes the contract normative, so a clause it states that the code does not produce is a wrong answer with the authority of a spec — review WR-01's finding. A one-directional check is how the drift happened.
+- [Phase 32]: Plan 32-38 did NOT flip any REQUIREMENTS.md checkbox or the ROADMAP phase status; DASH-03/05/07 stay unmarked for the round-4 verifier to decide. scripts/board-tracer.test.ts was added to validate.test.ts's NOT_A_SECOND_AUTHORITY registry (count 8 -> 9) with its reason, read before it was exempted. — A premature requirement flip already had to be reverted once in this phase; and the census registry's own rule is that an exemption is a judgment recorded with its reason, never a quietly bumped constant.
 
 ### Pending Todos
 
@@ -1512,8 +1516,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-09-16T13:49:37.142Z
-Stopped at: Completed 32-37-PLAN.md
+Last session: 2026-09-16T18:28:06.694Z
+Stopped at: Completed 32-38-PLAN.md
 Resume file: None
 
 ## Operator Next Steps

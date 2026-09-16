@@ -17,9 +17,9 @@ provides:
 affects: [32-39, 32-40, 32-41, board-projector verification round 4]
 
 actuals:
-  tokens: 19650
+  tokens: 19650   # chars/4 over the realized diff 069dcd9c..HEAD (78598 chars of changed lines)
   tasks: 3
-  commits: 4
+  commits: 6      # MEASURED: git rev-list --count 069dcd9c..HEAD — 4 task commits + 2 docs commits
 plan_head_before: 069dcd9c661f7d2f3d054450ea4bb30c6b650721
 
 tech-stack:
@@ -303,7 +303,10 @@ FOUND: scripts/validate.test.ts
 FOUND: agent-factory/contracts/board.md
 ```
 Commits claimed — all found in `git log`: `d5486262`, `30d631cd`, `d9d24635`, `61d82343`.
-Commit count MEASURED, not narrated: `git rev-list --count 069dcd9c..HEAD` = 4.
+Commit count MEASURED, not narrated: `git rev-list --count 069dcd9c..HEAD` = 6 — the four task
+commits listed above plus `7e9fabfc` (this SUMMARY and `deferred-items.md`) and the STATE/ROADMAP
+commit this line is amended into. The frontmatter carries 6 so a re-measurement with the same
+instrument agrees with it.
 
 ---
 *Phase: 32-board-projector-cli-dashboard*
