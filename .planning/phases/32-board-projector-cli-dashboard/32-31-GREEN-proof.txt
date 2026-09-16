@@ -1,0 +1,353 @@
+32-31 GREEN PROOF — the specifier-class cutover, measured on the artifact a host runs
+=====================================================================================
+
+Recorded: 2026-09-16 (plan 32-31, gap-closure round 3 TRACER)
+Tree:     main, after commits 2b3ed970 (RED), ee73c5a9 (GREEN), 423fb181 (census)
+Host:     darwin 25.5.0, node 24.12.0, vitest 4.1.8
+Gate:     npm run check:dashboard-readonly  ==  npx vitest run scripts/board-readonly.test.ts
+Subject:  the COMMITTED scripts/board-read.js and scripts/board-model.js — the artifacts a host
+          runs, never the .ts. `npm run build` was run immediately before the plant series.
+Before:   .planning/phases/32-board-projector-cli-dashboard/32-24-RED-baseline.txt
+          (tree b7a4239b, 89 passed / exit 0 on the clean tree)
+
+WHAT THIS FILE IS. 32-24-RED-baseline.txt measured six module-specifier spellings against the
+shipped read-only gate and found THREE of them green over a live writer. This file is the after
+side. It is shaped by § 5 of that baseline, which named three things this proof had to be:
+
+  (a) a PER-ROW FLIP, not a count — three of the six rows already exited 1 before any fix, so
+      "four or more refusals" is satisfiable by a proof that changed nothing;
+  (b) a row set covering //localhost/… and data:, which the plan's original four did not;
+  (c) a per-spelling REFUSAL-AUTHORITY column, because the cutover RELOCATES three refusals and a
+      relocation that lands on a weaker authority is a net loss nobody would see.
+
+Every number below was measured by running the named command. Nothing is inferred from source.
+
+
+-------------------------------------------------------------------------------------------------
+0. THE CONTROL: the unplanted tree, after the cutover
+-------------------------------------------------------------------------------------------------
+
+  $ npm run check:dashboard-readonly
+  board-readonly: mutating fs symbols 57 (stem-matched 60 minus 3 named exclusions) on node 24.12.0
+  board-readonly: 311 resolved call sites [ClassDeclaration 4, FunctionDeclaration 226,
+                  FunctionName 1, ImportSpecifier 58, Parameter 3, VariableDeclaration 19],
+                  0 unresolved, 10 capability-global member paths, 0 refused acquisitions
+   Test Files  1 passed (1)
+        Tests  135 passed (135)
+  -> exit 0
+
+  89 -> 135 passed. The baseline's 89 cases are all still here; 46 were ADDED by this plan. The
+  diagnostic line is byte-identical to the baseline's, so the closure the guard analyses is the same
+  closure it analysed before the cutover — the legitimate tree is unchanged.
+
+
+-------------------------------------------------------------------------------------------------
+1. THE WRITER, AND HOW EACH ROW WAS PLANTED
+-------------------------------------------------------------------------------------------------
+
+The writer module lives OUTSIDE the repository root, under the session scratchpad, and is the same
+one the baseline used:
+
+  <scratch>/probe/writer.mjs
+  ----------------------------------------------------------------
+  import { writeFileSync } from "node:fs";
+  export function probeWrite(target, bytes) {
+    writeFileSync(target, bytes);
+    return target;
+  }
+  ----------------------------------------------------------------
+
+Each plant appends, to a COMMITTED closure module, an import of that writer by one specifier
+spelling at one syntactic position, plus an exported function that calls it. The harness backs up
+every file it touches BEFORE the first plant, restores from the backup after EACH row, removes any
+file it created, and re-checks `git diff --exit-code -- scripts/` plus `git status --porcelain --
+scripts/` after every single row. `restored=true` in the tables below is that re-check passing.
+
+
+-------------------------------------------------------------------------------------------------
+2. THE FLIP TABLE — six spellings, per row, arrow notation
+-------------------------------------------------------------------------------------------------
+
+  row  spelling                       baseline (32-24)          post-cutover (32-31)      transition
+  ---  ------------------------------ ------------------------- ------------------------- ----------
+  R1   /abs/…/writer.mjs              exit 0, 89 passed (89)    exit 1, 65 failed | 70    exit 0 -> exit 1
+  R2   //localhost/abs/…/writer.mjs   exit 0, 89 passed (89)    exit 1, 65 failed | 70    exit 0 -> exit 1
+  R3   //host/probe/writer.mjs        exit 0, 89 passed (89)    exit 1, 65 failed | 70    exit 0 -> exit 1
+  R4   file:///abs/…/writer.mjs       exit 1, 6 failed | 83     exit 1, 65 failed | 70    exit 1 -> exit 1
+  R5   C:\probe\writer.mjs            exit 1, 6 failed | 83     exit 1, 65 failed | 70    exit 1 -> exit 1
+  R6   import("/abs/…/writer.mjs")    exit 1, 2 failed | 87     exit 1, 65 failed | 70    exit 1 -> exit 1
+
+  THE CASE THAT REDS EACH ROW — the write-detection mechanism, named per row:
+
+  row  the case that reds it now
+  ---  ----------------------------------------------------------------------------------------
+  R1   PREMISE: no closure module acquires a module by a route that is not a static literal import
+  R2   PREMISE: no closure module acquires a module by a route that is not a static literal import
+  R3   PREMISE: no closure module acquires a module by a route that is not a static literal import
+  R4   PREMISE: no closure module acquires a module by a route that is not a static literal import
+  R5   PREMISE: no closure module acquires a module by a route that is not a static literal import
+  R6   PREMISE: no closure module acquires a module by a route that is not a static literal import
+
+  THE THREE DISCRIMINATING ROWS ARE R1, R2 AND R3. They are the only rows that can distinguish this
+  cutover from a proof that changed nothing, because R4, R5 and R6 already exited 1 before any fix.
+  All three moved from a zero exit at the FULL passed count to a non-zero exit, and all three name
+  a case. The failing assertion for R1, verbatim:
+
+      AssertionError: PREMISE: a closure module obtains a module identity by a shape that is not a
+      STATIC IMPORT DECLARATION WITH A STRING-LITERAL SPECIFIER … expected [ Array(1) ] to deeply
+      equal []
+      + [
+      +   "scripts/board-read.js: FOREIGN SPECIFIER \"/private/tmp/…/probe/writer.mjs\"",
+      + ]
+
+  WHY 65 FAILING CASES AND NOT ONE. A foreign edge reds the guard at BOTH positions the cutover
+  gave it. `analyzeClosure` censuses the specifier (the PREMISE case above), and `jsImportClosure`
+  — which `withLiveMirror` calls through `copyImportClosure` to build every discrimination mirror —
+  raises `ImportClosureError` naming the module and the specifier. Every mirror-building case
+  therefore also reds. That is the refusal reaching the walker position, not noise: see § 4 P5,
+  where a spelling the WALKER does not read reds 4 cases instead of 65, and § 6 for why both
+  positions exist.
+
+
+-------------------------------------------------------------------------------------------------
+3. THE REFUSAL-AUTHORITY TABLE — per spelling, before and after
+-------------------------------------------------------------------------------------------------
+
+  row  spelling            authority BEFORE the cutover           authority AFTER      PREMISE case
+                                                                                        among reds?
+  ---  ------------------- -------------------------------------- -------------------- ------------
+  R1   /abs/…              none — the gate was green (89/89)      foreign branch       YES
+  R2   //localhost/…       none — the gate was green (89/89)      foreign branch       YES
+  R3   //host/…            none — the gate was green (89/89)      foreign branch       YES
+  R4   file:///…           ALLOWED_BUILTIN_SPECIFIERS equality,   foreign branch       YES
+                           reached because isBareSpecifier put
+                           it in bareSpecifiers (baseline § 3.4)
+  R5   C:\…                ALLOWED_BUILTIN_SPECIFIERS equality,   foreign branch       YES
+                           same route (baseline § 3.5)
+  R6   import("/abs/…")    the acquisitions / canonical-form rule foreign branch AND   YES
+                           (baseline § 3.6)                       the pre-existing
+                                                                  canonical-form rule
+
+  THE RELOCATION IS A NET GAIN FOR EVERY SPELLING, MEASURED RATHER THAN ASSERTED:
+
+    • R4 and R5 left a CENSUS (an equality over a set of builtin names, whose six failing cases the
+      baseline records — none of them the acquisitions PREMISE) and arrived at the write-detection
+      MECHANISM. 6 failed -> 65 failed, and the PREMISE case is newly among them. Strictly stronger.
+    • `data:text/javascript,…` is the third relocated spelling. The baseline measured it
+      `isBareSpecifier -> true`, i.e. censused as a builtin identity; it is now `foreign`. It is
+      pinned per row in `RELOCATED_SPECIFIER_ROWS` in scripts/board-readonly.test.ts, which asserts
+      all three properties mechanically: absent from the closure's normalized builtin identities,
+      present in `foreignSpecifiers`, and the acquisitions premise failing.
+    • R6 kept its old refusal and gained a second one. The dynamic-import arm of the canonical-form
+      rule still refuses it; the foreign branch now refuses it as well. 2 failed -> 65 failed.
+
+  NO SPELLING IS REFUSED LESS STRONGLY AFTER THE CUTOVER THAN BEFORE IT.
+
+
+-------------------------------------------------------------------------------------------------
+4. THE POSITION TABLE — the same absolute specifier, at every position one can enter
+-------------------------------------------------------------------------------------------------
+
+Five consecutive rounds across this project's phases were "correct in the arm it was written for and
+wrong in the arm next to it". So the same spelling was planted at every position a specifier can
+occupy, one row per position, and each result measured.
+
+  row  position                                       module planted into      result
+  ---  ---------------------------------------------- ------------------------ ---------------------
+  P1   static `import … from "…"`                     scripts/board-read.js    exit 1, 65 failed | 70
+  P2   bare side-effect `import "…"`                  scripts/board-read.js    exit 1, 65 failed | 70
+  P3   `export … from "…"` re-export                  scripts/board-read.js    exit 1, 65 failed | 70
+  P4   dynamic `import("…")`                          scripts/board-read.js    exit 1, 65 failed | 70
+  P5   `require("…")` call                            scripts/board-read.js    exit 1,  4 failed | 131
+  P6   DEPTH 2 of the closure, static import          scripts/board-model.js   exit 1, 66 failed | 69
+  P7   reached ONLY through a re-export chain         new module, re-exported  exit 1, 66 failed | 69
+       (`export * from "./probe-reexport-32-31.js"`   wholesale by board-read
+        where that module carries the foreign import)
+  P8   inside a LINE COMMENT — must NOT red           scripts/board-read.js    exit 0, 135 passed
+  P9   inside a TEMPLATE LITERAL — must NOT red       scripts/board-read.js    exit 0, 135 passed
+
+  The acquisitions PREMISE case is among the failures for P1-P7. P8 and P9 are the two `stripNonCode`
+  converse rows: a foreign spelling written only as prose does NOT red, which is what keeps the
+  refusal from firing over a tree with nothing wrong with it.
+
+  P5 IS THE HONEST RESIDUAL, RECORDED RATHER THAN SMOOTHED. `require("…")` reds 4 cases, not 65,
+  because only the GUARD's AST census reads that position. The closure walker's three patterns are
+  the three forms this repository's compiled output emits — `from "…"`, `import "…"`, `import("…")`
+  — and `require(…)` is not one of them; it was not one before this plan either. So the walker does
+  not see the edge, does not refuse it, and every mirror-building case stays green. The guard still
+  reds the write-detection mechanism, which is the property DASH-06 turns on. A `require()` call in
+  this repository's ESM output would additionally be a runtime error (`require is not defined`).
+  Named here so the next reader does not have to rediscover it:
+
+      residual: the closure WALKER does not follow or refuse a `require("…")` specifier. The
+      read-only GUARD does census and refuse one. A future plan that wants the walker to read that
+      position adds a fourth pattern to SPECIFIER_PATTERNS and a CLOSURE_BASELINES re-measure.
+
+  P6 and P7 add ONE failing case over P1 (66 vs 65): the extra red is
+  `PREMISE: every closure module parsed, and none parsed to nothing` reaching a module the walk now
+  refuses to enter, which is the fail-closed direction.
+
+
+-------------------------------------------------------------------------------------------------
+5. THE CONVERSE — a legitimate input at each position, and every caller's own gate
+-------------------------------------------------------------------------------------------------
+
+A refusal that also refuses the legitimate shape is a regression, and this is where it is caught
+rather than by the verifier.
+
+  row  legitimate input                                            result
+  ---  ----------------------------------------------------------- ----------------------------
+  C1   `import { sourceValue as c1 } from "./board-model.js"`      exit 0, 135 passed (135)
+  C2   `import "./board-model.js"` (bare side-effect, relative)    exit 0, 135 passed (135)
+  C3   `export { sourceValue as c3 } from "./board-model.js"`      exit 0, 135 passed (135)
+  C4   `import { basename, extname } from "node:path"` (bare)      exit 0, 135 passed (135)
+  C5   `await import("./board-model.js")` (relative, dynamic)      exit 1, 2 failed | 133
+
+  C5 IS NOT A REGRESSION AND IS RECORDED AS SUCH. A dynamic import of ANY specifier has been an
+  acquisition since 32-20's canonical-form rule — a module identity is established in this closure
+  by exactly one shape, a static import declaration with a string-literal specifier — and the
+  baseline measured that same refusal at § 3.6 before this plan existed. The two failing cases are
+  the acquisitions premise and its positive control, exactly the pair 32-20 documents. The FOREIGN
+  branch is not involved: `./board-model.js` classifies `relative`.
+
+  EVERY CALLER'S OWN GATE, RE-RUN WITH ITS LEGITIMATE INPUT (a refusal added to the shared walker
+  reaches seven production gates, and a narrowed scan input is a regression risk for every edge a
+  comment used to contribute):
+
+    npm run build                      -> exit 0
+    npm run typecheck                  -> exit 0
+    npm run check:build-parity         -> exit 0   ("no tracked build output moved when tsc ran")
+    npm run freshness                  -> exit 0   (65 committed .js match a rebuild of their sources)
+    npm run freshness:context          -> exit 0
+    npm run freshness:guarantees       -> exit 0
+    npm run freshness:queue            -> exit 0
+    npm run freshness:traceability     -> exit 0
+    npm run check:platform-shapes      -> exit 0
+    VALIDATE_KIT_ROOT=. node scripts/validate-agent-factory.js  -> exit 0  ("ALL CHECKS PASSED")
+    node scripts/check-foundation-guards.js                     -> exit 0
+    npx vitest run --exclude '**/scripts/e2e/**'                -> exit 0, 5020 passed | 2 skipped
+                                                                   (32-VERIFICATION.md baseline 4974)
+
+  NOTE ON validate-agent-factory: run bare it exits 1 with "VALIDATE_KIT_ROOT is unset — refusing to
+  default the kit root to '.' (C3)". That is a pre-existing refusal of this script's own, unrelated
+  to this plan, and it is satisfied by supplying the kit root as above.
+
+  THE NINE CALLER CLOSURES, PINNED. `CLOSURE_BASELINES` in scripts/board-readonly.test.ts carries one
+  row per caller entry artifact with the module list MEASURED off the PRE-cutover committed
+  scripts/js-import-closure.js (tree e87fd46c, copied to a scratch file and imported from there).
+  Every post-cutover closure equals its recorded pre-cutover list:
+
+    hooks/admission-guard.js      13 modules   SAME    foreign edges 0
+    hooks/guard.js                13 modules   SAME    foreign edges 0
+    hooks/hook-entry.js            1 module    SAME    foreign edges 0
+    scripts/board-dashboard.js     5 modules   SAME    foreign edges 0
+    scripts/board-model.js         1 module    SAME    foreign edges 0
+    scripts/claim.js               2 modules   SAME    foreign edges 0
+    scripts/context-io.js         12 modules   SAME    foreign edges 0
+    scripts/generate-guarantees.js 13 modules  SAME    foreign edges 0
+    scripts/trace-render.js       13 modules   SAME    foreign edges 0
+
+  NO CLOSURE DIFFERED. There is therefore no row to report a comment or template literal that
+  produced an old edge — the narrowed scan input removed no real specifier from any caller's mirror.
+
+  THE SCAN-INPUT MEASUREMENT, BOTH SIDES, over the 65 tracked `.js` files, run against the SHIPPED
+  implementation rather than the planner's estimate:
+
+    widened patterns, NO stripNonCode and a newline-crossing capture : 13 FOREIGN captures
+    the shipped `moduleSpecifiers` (stripNonCode + one-line capture) :  0 FOREIGN captures
+
+  The 13 were: 2 template literals (scripts/compactor.js's `"${rawVal}"` and
+  scripts/js-import-closure.js's own `imports "${specifier}"` refusal message) and 11 multi-line
+  spans stitched together out of `//` comment blocks in hooks/guard.js, install/install.js,
+  scripts/adapters-freshness.js, scripts/catalog-freshness.js, scripts/context-io.js (×4),
+  scripts/generate-safety-surface.js, scripts/guarantees-freshness.js and
+  scripts/skill-twins-freshness.js. Not one of them is an import statement. `stripNonCode` also
+  preserves LENGTH exactly for all 65 files, asserted in the same pass.
+
+
+-------------------------------------------------------------------------------------------------
+6. THE REACHABILITY ANSWER — how the `foreign` branch is REACHED, not only what it refuses
+-------------------------------------------------------------------------------------------------
+
+The project's recorded lesson is that asking only what a predicate refuses leaves the positions it
+is never ASKED at unexamined. So: the `foreign` branch of `classifySpecifier` is evaluated at TWO
+call sites, and both are reached by the SAME gate command. The first is `moduleSpecifiers` in
+scripts/js-import-closure.ts, called once per module by `jsImportClosureFacts`, whose input is every
+quoted specifier the three emitted import forms carry in the bytes of a committed `.js` after
+comments and template-literal text have been blanked; a `foreign` answer there sends the specifier
+into `foreignEdges`, which `jsImportClosure` — the entry point all seven production callers and
+`copyImportClosure` use — turns into a thrown `ImportClosureError` naming every module and
+specifier. The second is `noteSpecifier` in scripts/board-readonly.test.ts, called from
+`collectSpecifiers` at each of the three module-identity positions the TypeScript AST exposes
+(import declaration, export-from declaration, dynamic-import-or-require call), whose input is the
+same committed `.js` parsed rather than scanned; a `foreign` answer there lands in both
+`ModuleFacts.foreignSpecifiers` and `ModuleFacts.acquisitions`, and `analyzeClosure` — which calls
+the NON-throwing `jsImportClosureFacts` precisely so this census stays reachable — unions them with
+the walk's own refused edges. Under `npm run check:dashboard-readonly` both sites run over the live
+tree on every invocation: the walker site through the closure the premises walk and through every
+`withLiveMirror` mirror, the census site through every `analyzeClosure` call. Neither position can
+be reached without the other being reachable, and § 4 P5 is the one measured case where they
+disagree — a `require("…")` specifier the AST reads and the byte scan does not — which is recorded
+there as a named residual rather than left for a later round to find.
+
+
+-------------------------------------------------------------------------------------------------
+7. MUTATION TRANSCRIPTS — every new refusal watched to FAIL
+-------------------------------------------------------------------------------------------------
+
+A structural assertion nobody has watched fail is not yet a control. Six mutations were applied to
+the COMMITTED scripts/js-import-closure.js, the guard re-run, and the file restored (`git diff
+--exit-code` clean after each).
+
+  mutation                                              case(s) that red
+  ----------------------------------------------------- --------------------------------------------
+  M1 drop the backslash clause from classifySpecifier   Windows relative path, no drive letter
+                                                        ("probe\writer.mjs") classifies as foreign
+  M2 admit any scheme (colon check always true)         file:// URL classifies as foreign;
+                                                        data: URL classifies as foreign;
+                                                        the refusal of file:// URL MOVED and did not
+                                                        weaken; the refusal of data: URL MOVED and
+                                                        did not weaken
+  M3 stripNonCode becomes `return source`               a foreign spelling in a comment yields no row;
+                                                        a foreign spelling in a template literal
+                                                        yields no row
+  M4 blank template literals WHOLE (delete `${…}` code) a foreign spelling in a template literal
+                                                        yields no row; stripNonCode removes no real
+                                                        code: a substitution's code survives
+  M5 jsImportClosure stops refusing a foreign edge      the WALKER position refuses too:
+                                                        jsImportClosure throws, naming the module and
+                                                        the specifier
+  M6 classifySpecifier calls "./x" foreign              14 cases, including all of CLOSURE_BASELINES
+                                                        for hooks/admission-guard.js, hooks/guard.js
+                                                        and scripts/board-dashboard.js
+
+  M1 IS THE ONE WORTH READING. On the first attempt it reddened NOTHING: `C:\x\writer.mjs` is
+  already refused by the scheme check, because `C` is not `node`, so the backslash clause had no
+  load-bearing input in the table as it then stood. The clause's only distinct input is a backslash
+  path with NO drive letter — `probe\writer.mjs` — which begins with an ASCII letter and carries no
+  colon, and without the clause reads as a package called `probe`. That row was ADDED to
+  SPECIFIER_CLASS_ROWS because the mutation found the gap, and M1 reds it now. A clause no mutation
+  can red is a clause that decides nothing.
+
+  M5 IS THE SECOND. Before the case it names existed, the wrapper could stop refusing entirely and
+  every assertion in board-readonly.test.ts would have stayed green — because `analyzeClosure`
+  deliberately calls the non-throwing facts function. That is the "which POSITIONS is the predicate
+  even ASKED at" question, asked of this plan's own work.
+
+
+-------------------------------------------------------------------------------------------------
+8. RESIDUE
+-------------------------------------------------------------------------------------------------
+
+  After every one of the 21 measured rows:
+      git diff --exit-code -- scripts/                -> exit 0
+      git status --porcelain -- scripts/              -> empty
+
+  After the final plant:
+      git diff --exit-code -- scripts/ agent-factory/ docs/   -> exit 0
+      npm run check:dashboard-readonly                        -> exit 0, 135 passed (135)
+
+  The file created for P7 (scripts/probe-reexport-32-31.js) was removed by the harness and is absent
+  from `git status --porcelain -- scripts/`.
+
+  == end of GREEN proof ==
