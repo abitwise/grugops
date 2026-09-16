@@ -1244,6 +1244,13 @@ const SPECIFIER_CLASS_ROWS: readonly {
   // The three whose refusing authority MOVES: censused as BARE today, foreign after the cutover.
   { name: "file:// URL", specifier: "file:///abs/writer.mjs", cls: "foreign" },
   { name: "Windows drive-letter path", specifier: "C:\\x\\writer.mjs", cls: "foreign" },
+  // FOUND BY MUTATION, NOT BY READING (32-31). Dropping the backslash clause from
+  // `classifySpecifier` reclassified NOTHING in the table as it then stood — `C:\x\writer.mjs` is
+  // already refused by the scheme check, because `C` is not `node`. The clause's only load-bearing
+  // input is a backslash path with NO drive letter, which starts with an ASCII letter and carries
+  // no colon, so without the clause it reads as a package called `probe`. The mutation that found
+  // this is recorded in 32-31-GREEN-proof.txt; the row is what makes the clause decide something.
+  { name: "Windows relative path, no drive letter", specifier: "probe\\writer.mjs", cls: "foreign" },
   { name: "data: URL", specifier: "data:text/javascript,export const a=1", cls: "foreign" },
   // The two the walk follows.
   { name: "same-directory relative", specifier: "./relative.js", cls: "relative" },
@@ -1259,11 +1266,11 @@ const SPECIFIER_CLASS_ROWS: readonly {
 ]);
 
 /**
- * The cardinality of the spelling table. A FIFTEENTH spelling is a DECISION: it belongs above as a
+ * The cardinality of the spelling table. A SIXTEENTH spelling is a DECISION: it belongs above as a
  * row with the class the authority gives it, never as a bumped constant. The number is asserted
  * two-sided, because a row silently dropped and a row silently added are the same green otherwise.
  */
-const SPECIFIER_CLASS_ROW_COUNT = 14;
+const SPECIFIER_CLASS_ROW_COUNT = 15;
 
 describe("32-31 — a module specifier's class is a TOTAL partition decided in ONE place", () => {
   it("PREMISE: the partition has exactly three classes and they are the three named ones", () => {
@@ -1280,7 +1287,7 @@ describe("32-31 — a module specifier's class is a TOTAL partition decided in O
   it("the spelling table has exactly the number of rows its decision records", () => {
     expect(
       SPECIFIER_CLASS_ROWS.length,
-      "a FIFTEENTH spelling is a DECISION recorded as a row in SPECIFIER_CLASS_ROWS with the class " +
+      "a SIXTEENTH spelling is a DECISION recorded as a row in SPECIFIER_CLASS_ROWS with the class " +
         "the authority gives it. It is never a bumped constant",
     ).toBe(SPECIFIER_CLASS_ROW_COUNT);
     expect(
@@ -1467,6 +1474,387 @@ describe("32-31 — a module specifier's class is a TOTAL partition decided in O
         "exactly the file the walk could not see",
     ).toEqual(["./inside.js"]);
   });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// PART ONE-B — the REFUSALS THAT MOVED, and the callers that must not have (32-31).
+//
+// A cutover that gives three spellings a refusal they did not have is only half a measurement. THREE
+// OTHER SPELLINGS WERE ALREADY REFUSED, and by an authority they are now LEAVING: `file:///…`,
+// `C:\x\…` and `data:text/javascript,…` all begin with a letter, so `isBareSpecifier` put them in
+// `bareSpecifiers` and the BUILTIN ALLOW-LIST equality refused them. `32-24-RED-baseline.txt` §§ 3.4
+// and 3.5 record the six cases each of them reds today. Once `classifySpecifier` calls them
+// `foreign` they stop being bare specifiers, the allow-list stops seeing them, and the new branch
+// has to carry the refusal.
+//
+// SO THE RELOCATION IS MEASURED PER SPELLING RATHER THAN ASSERTED. The old authority was a CENSUS
+// (an equality over a set of names); the new one has to red the WRITE-DETECTION MECHANISM — the
+// `PREMISE:` case over `acquisitions` — or this cutover made the tree LESS safe for three spellings
+// while making it safer for three others, and that net is not a thing anybody can assert from
+// reading the diff.
+//
+// AND THE SHARED WALKER'S OTHER CALLERS ARE RE-RUN WITH LEGITIMATE INPUT. A refusal added to
+// `jsImportClosure` reaches seven production gates, and narrowing the scan's input with
+// `stripNonCode` is a regression risk for every edge a comment used to contribute.
+// `CLOSURE_BASELINES` pins what each of them built BEFORE the cutover.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+/**
+ * The name of the case a relocated refusal must red. Held as a constant rather than retyped per
+ * row, and asserted to be a case this file actually declares — a row naming a case that does not
+ * exist is a row whose claim nobody checks.
+ */
+const ACQUISITIONS_PREMISE_CASE =
+  "PREMISE: no closure module acquires a module by a route that is not a static literal import";
+
+/**
+ * One row per spelling whose REFUSING AUTHORITY MOVES in this cutover.
+ *
+ * Each row carries the authority that refused it BEFORE, the authority that refuses it AFTER, and
+ * the name of the case that must red after. "Refused" without naming the refusing predicate is how
+ * a round credits a rule for a red some other rule produced — the posture `MODULE_IDENTITY_SHAPES`
+ * established, applied here to a refusal that is changing hands rather than appearing.
+ */
+const RELOCATED_SPECIFIER_ROWS: readonly {
+  readonly name: string;
+  readonly specifier: string;
+  readonly authorityBefore: string;
+  readonly authorityAfter: string;
+  readonly caseAfter: string;
+}[] = Object.freeze([
+  {
+    name: "file:// URL (baseline § 3.4 — exit 1, 6 failed | 83, through the allow-list)",
+    specifier: "file:///private/tmp/grugops-probe/writer.mjs",
+    authorityBefore:
+      "ALLOWED_BUILTIN_SPECIFIERS equality, reached because isBareSpecifier put it in bareSpecifiers",
+    authorityAfter: "the foreign-specifier branch of classifySpecifier",
+    caseAfter: ACQUISITIONS_PREMISE_CASE,
+  },
+  {
+    name: "Windows drive-letter path (baseline § 3.5 — exit 1, 6 failed | 83, through the allow-list)",
+    specifier: "C:\\probe\\writer.mjs",
+    authorityBefore:
+      "ALLOWED_BUILTIN_SPECIFIERS equality, reached because isBareSpecifier put it in bareSpecifiers",
+    authorityAfter: "the foreign-specifier branch of classifySpecifier",
+    caseAfter: ACQUISITIONS_PREMISE_CASE,
+  },
+  {
+    name: "data: URL (baseline § 4 — measured isBareSpecifier -> true, so censused as a builtin)",
+    specifier: "data:text/javascript,export const probeWrite = () => {}",
+    authorityBefore:
+      "ALLOWED_BUILTIN_SPECIFIERS equality, reached because isBareSpecifier put it in bareSpecifiers",
+    authorityAfter: "the foreign-specifier branch of classifySpecifier",
+    caseAfter: ACQUISITIONS_PREMISE_CASE,
+  },
+]);
+
+/** Three spellings change hands. A FOURTH is a decision recorded above with both authorities. */
+const RELOCATED_SPECIFIER_ROW_COUNT = 3;
+
+/**
+ * EVERY EXISTING CALLER ENTRY, WITH THE CLOSURE IT BUILT BEFORE THE CUTOVER.
+ *
+ * MEASURED, not recalled: each list was read out of the PRE-cutover committed
+ * `scripts/js-import-closure.js` (tree `e87fd46c`, before commit `ee73c5a9`) by importing that file
+ * from a scratch copy and calling `jsImportClosure` on each entry. The transcript is in
+ * `32-31-GREEN-proof.txt`.
+ *
+ * WHY THIS EXISTS. `jsImportClosure` now REFUSES a foreign edge, and `moduleSpecifiers` now scans
+ * a NARROWED input — comments and template-literal text are blanked. The first is a regression risk
+ * for every mirror the walker builds; the second is a regression risk for every edge a comment used
+ * to contribute. Both would show up as a freshness gate that can no longer build its mirror, in a
+ * different repository directory, days later. They show up here instead.
+ */
+const CLOSURE_BASELINES: readonly { readonly entry: string; readonly modules: readonly string[] }[] =
+  Object.freeze([
+    {
+      entry: "hooks/admission-guard.js",
+      modules: [
+        "hooks/admission-guard.js",
+        "scripts/audit-model.js",
+        "scripts/audit-prepass.js",
+        "scripts/check-diff-disposition.js",
+        "scripts/checkpoints.js",
+        "scripts/context-io.js",
+        "scripts/dead-vocabulary.js",
+        "scripts/frontmatter.js",
+        "scripts/generate-safety-surface.js",
+        "scripts/is-entry.js",
+        "scripts/kit-model.js",
+        "scripts/vacuity.js",
+        "scripts/voice-model.js",
+      ],
+    },
+    {
+      entry: "hooks/guard.js",
+      modules: [
+        "hooks/guard.js",
+        "scripts/audit-model.js",
+        "scripts/audit-prepass.js",
+        "scripts/check-diff-disposition.js",
+        "scripts/checkpoints.js",
+        "scripts/context-io.js",
+        "scripts/dead-vocabulary.js",
+        "scripts/frontmatter.js",
+        "scripts/generate-safety-surface.js",
+        "scripts/is-entry.js",
+        "scripts/kit-model.js",
+        "scripts/vacuity.js",
+        "scripts/voice-model.js",
+      ],
+    },
+    { entry: "hooks/hook-entry.js", modules: ["hooks/hook-entry.js"] },
+    {
+      entry: "scripts/board-dashboard.js",
+      modules: [
+        "scripts/board-dashboard.js",
+        "scripts/board-model.js",
+        "scripts/board-read.js",
+        "scripts/is-entry.js",
+        "scripts/kit-model.js",
+      ],
+    },
+    { entry: "scripts/board-model.js", modules: ["scripts/board-model.js"] },
+    { entry: "scripts/claim.js", modules: ["scripts/claim.js", "scripts/is-entry.js"] },
+    {
+      entry: "scripts/context-io.js",
+      modules: [
+        "scripts/audit-model.js",
+        "scripts/audit-prepass.js",
+        "scripts/check-diff-disposition.js",
+        "scripts/checkpoints.js",
+        "scripts/context-io.js",
+        "scripts/dead-vocabulary.js",
+        "scripts/frontmatter.js",
+        "scripts/generate-safety-surface.js",
+        "scripts/is-entry.js",
+        "scripts/kit-model.js",
+        "scripts/vacuity.js",
+        "scripts/voice-model.js",
+      ],
+    },
+    {
+      entry: "scripts/generate-guarantees.js",
+      modules: [
+        "scripts/audit-model.js",
+        "scripts/audit-prepass.js",
+        "scripts/check-diff-disposition.js",
+        "scripts/checkpoints.js",
+        "scripts/context-io.js",
+        "scripts/dead-vocabulary.js",
+        "scripts/frontmatter.js",
+        "scripts/generate-guarantees.js",
+        "scripts/generate-safety-surface.js",
+        "scripts/is-entry.js",
+        "scripts/kit-model.js",
+        "scripts/vacuity.js",
+        "scripts/voice-model.js",
+      ],
+    },
+    {
+      entry: "scripts/trace-render.js",
+      modules: [
+        "scripts/audit-model.js",
+        "scripts/audit-prepass.js",
+        "scripts/check-diff-disposition.js",
+        "scripts/checkpoints.js",
+        "scripts/context-io.js",
+        "scripts/dead-vocabulary.js",
+        "scripts/frontmatter.js",
+        "scripts/generate-safety-surface.js",
+        "scripts/is-entry.js",
+        "scripts/kit-model.js",
+        "scripts/trace-render.js",
+        "scripts/vacuity.js",
+        "scripts/voice-model.js",
+      ],
+    },
+  ]);
+
+/** Nine entry artifacts carry a closure a gate depends on. A tenth is a decision, recorded above. */
+const CLOSURE_BASELINE_COUNT = 9;
+
+/** The number of `.ts` modules that import the shared walker, MEASURED at the time of the cutover. */
+const WALKER_IMPORTER_COUNT = 12;
+
+describe("32-31 — the refusals that MOVED are measured at the mechanism, not assumed", () => {
+  it("the relocation table has exactly the number of rows its decision records", () => {
+    expect(
+      RELOCATED_SPECIFIER_ROWS.length,
+      "a FOURTH spelling whose refusing authority moves is a DECISION: record it above with the " +
+        "authority it leaves, the authority it arrives at, and the case that must red after",
+    ).toBe(RELOCATED_SPECIFIER_ROW_COUNT);
+    for (const row of RELOCATED_SPECIFIER_ROWS) {
+      expect(row.authorityBefore.trim().length).toBeGreaterThan(0);
+      expect(row.authorityAfter.trim().length).toBeGreaterThan(0);
+    }
+  });
+
+  it("every relocation row names a case this file actually declares", () => {
+    // A row naming a case that does not exist is a row whose claim nobody checks — and a case
+    // RENAMED without the row moving with it leaves exactly that. Asserted over this file's bytes.
+    const ownSource = readFileSync(join(ROOT, "scripts", "board-readonly.test.ts"), "utf8");
+    for (const row of RELOCATED_SPECIFIER_ROWS) {
+      expect(
+        ownSource,
+        `the row "${row.name}" says it reds the case "${row.caseAfter}", and this file declares no ` +
+          "case by that name. Either the case was renamed and the row did not move with it, or the " +
+          "row names a refusal that was never written",
+      ).toContain(row.caseAfter);
+    }
+  });
+
+  for (const row of RELOCATED_SPECIFIER_ROWS) {
+    it(`the refusal of ${row.name} MOVED and did not weaken`, () => {
+      withLiveMirror(
+        {
+          module: "scripts/board-read.js",
+          appendSource:
+            `import { probeWrite } from "${row.specifier.replace(/\\/g, "\\\\")}";\n` +
+            "export const relocatedPlant = (p, b) => probeWrite(p, b);",
+        },
+        (mirrorRoot) => {
+          const facts = analyzeClosure(mirrorRoot, DASHBOARD_ENTRY);
+          // 1. IT LEFT THE OLD AUTHORITY. The allow-list census no longer sees it at all, so the
+          //    equality that used to refuse it is now green over this plant.
+          expect(
+            normalizedBuiltinIdentities(facts),
+            `${row.specifier} is still being censused as a BUILTIN IDENTITY. Then it never left ` +
+              `${row.authorityBefore}, and this row is measuring the old refusal rather than the new one`,
+          ).toEqual([...ALLOWED_BUILTIN_SPECIFIERS].sort());
+          // 2. IT ARRIVED AT THE NEW ONE.
+          expect(
+            facts.foreignSpecifiers.join("\n"),
+            `${row.specifier} is in neither authority. It left ${row.authorityBefore} and did not ` +
+              `arrive at ${row.authorityAfter}, so this cutover made the tree LESS safe for this ` +
+              "spelling than it was before",
+          ).toContain(row.specifier);
+          // 3. AND THE NEW AUTHORITY REDS THE MECHANISM, not a census count. The allow-list
+          //    equality it left is a census; the acquisitions premise is what decides whether a
+          //    write capability was reached, and it is the assertion that must fail.
+          expect(
+            facts.acquisitions.length,
+            `${row.specifier} moved from ${row.authorityBefore} to ${row.authorityAfter}, and the ` +
+              `new branch does NOT red "${row.caseAfter}". The authority it left was a CENSUS and ` +
+              "the one it arrived at must be the write-detection MECHANISM, or the relocation is a " +
+              "net loss for this spelling",
+          ).toBeGreaterThan(0);
+          expect(facts.acquisitions.join("\n")).toContain("scripts/board-read.js");
+        },
+      );
+    });
+  }
+
+  it("the WALKER position refuses too: jsImportClosure throws, naming the module and the specifier", () => {
+    // THE SECOND POSITION THE REFUSAL IS REACHED AT, asserted rather than assumed. The cutover
+    // deliberately put the refusal in TWO places — `analyzeClosure` censuses a foreign specifier
+    // (this file's position) and `jsImportClosure` throws on a foreign EDGE (every other caller's
+    // position). Without this case the wrapper could stop refusing entirely and every assertion in
+    // this file would stay green, because `analyzeClosure` calls the non-throwing facts function.
+    // That is precisely the "which POSITIONS is the predicate even ASKED at" lesson.
+    withLiveMirror(
+      {
+        module: "scripts/board-read.js",
+        appendSource:
+          'import { probeWrite } from "/private/tmp/grugops-probe/writer.mjs";\n' +
+          "export const walkerPlant = (p, b) => probeWrite(p, b);",
+      },
+      (mirrorRoot) => {
+        let thrown: unknown = null;
+        try {
+          jsImportClosure(mirrorRoot, DASHBOARD_ENTRY);
+        } catch (error) {
+          thrown = error;
+        }
+        expect(
+          thrown,
+          "jsImportClosure returned a closure for a tree carrying a FOREIGN edge. A caller that " +
+            "mirrors that closure gets a directory missing exactly the module the walk could not " +
+            "see, and the gate it spawns dies with ERR_MODULE_NOT_FOUND — which from the outside " +
+            "looks exactly like a gate that ran and refused",
+        ).not.toBeNull();
+        const message = String((thrown as Error).message);
+        expect((thrown as Error).name).toBe("ImportClosureError");
+        expect(
+          message,
+          "the refusal does not name the MODULE that carries the edge, so a maintainer reading it " +
+            "cannot find the import it is about",
+        ).toContain("scripts/board-read.js");
+        expect(
+          message,
+          "the refusal does not name the SPECIFIER it refused",
+        ).toContain("/private/tmp/grugops-probe/writer.mjs");
+      },
+    );
+  });
+
+  it("the live closures are unmoved: no foreign specifier, and the allow-list is still three", () => {
+    // The converse of every row above. A cutover that quietly moved a legitimate builtin out of the
+    // allow-list would pass all three relocation rows and break the mechanism they lean on.
+    const dashboard = analyzeClosure(ROOT, DASHBOARD_ENTRY);
+    const model = analyzeClosure(ROOT, MODEL_ENTRY);
+    expect(dashboard.foreignSpecifiers).toEqual([]);
+    expect(model.foreignSpecifiers).toEqual([]);
+    expect(normalizedBuiltinIdentities(dashboard)).toEqual([...ALLOWED_BUILTIN_SPECIFIERS].sort());
+    expect(normalizedBuiltinIdentities(dashboard).length).toBe(ALLOWED_BUILTIN_SPECIFIER_COUNT);
+    expect(bannedModulesReached(dashboard)).toEqual([]);
+    expect(
+      ALL_BANNED_MODULES.filter((banned) => ALLOWED_BUILTIN_SPECIFIERS.includes(banned)),
+    ).toEqual([]);
+  });
+});
+
+describe("32-31 — every existing caller of the shared walker still builds the same mirror", () => {
+  it("the caller-entry table has exactly the number of rows its decision records", () => {
+    expect(
+      CLOSURE_BASELINES.length,
+      "a TENTH entry artifact whose closure a gate depends on is a DECISION: record it above with " +
+        "the module list measured BEFORE the change, never with the list the changed code produces",
+    ).toBe(CLOSURE_BASELINE_COUNT);
+    expect(new Set(CLOSURE_BASELINES.map((r) => r.entry)).size).toBe(CLOSURE_BASELINE_COUNT);
+  });
+
+  it("the set of modules that import the shared walker is DERIVED, and its size is pinned", () => {
+    // THE SET-LITERAL CONVERSE. `CLOSURE_BASELINES` is hand-held data, and hand-held data rots while
+    // every gate over it stays green ([[grugops-set-literal-drift]]). A NEW caller of the walker is
+    // a new mirror this table does not pin, so the importer set is derived from the tree and its
+    // cardinality is a number somebody has to move on purpose.
+    const importers: string[] = [];
+    for (const dir of ["scripts", "hooks"]) {
+      for (const name of readdirSync(join(ROOT, dir))) {
+        if (!name.endsWith(".ts")) continue;
+        const source = readFileSync(join(ROOT, dir, name), "utf8");
+        if (/from "(?:\.\.\/scripts|\.)\/js-import-closure\.js"/.test(source)) {
+          importers.push(`${dir}/${name}`);
+        }
+      }
+    }
+    expect(
+      importers.length,
+      `${importers.sort().join(", ")} import scripts/js-import-closure.js. That count moved, so a ` +
+        "caller of the shared walker was added or removed — and a NEW caller builds a mirror no row " +
+        "of CLOSURE_BASELINES pins. Add its entry artifact above with the closure measured before " +
+        "the next change to the walker, and move this number with it",
+    ).toBe(WALKER_IMPORTER_COUNT);
+  });
+
+  for (const row of CLOSURE_BASELINES) {
+    it(`the closure of ${row.entry} is byte-for-byte what it was before the cutover`, () => {
+      expect(
+        existsSync(join(ROOT, row.entry)),
+        `PREMISE: ${row.entry} does not exist, so the closure claimed below measured nothing`,
+      ).toBe(true);
+      expect(
+        [...jsImportClosure(ROOT, row.entry)],
+        `the closure of ${row.entry} MOVED. A module that LEFT is a mirror short by exactly the ` +
+          "file the walk could not see, and the gate that spawns that mirror dies with " +
+          "ERR_MODULE_NOT_FOUND — which from the outside looks exactly like a gate that ran and " +
+          "refused. A module that JOINED means the narrowed scan input or the new refusal changed " +
+          "what this walk follows. DO NOT adjust the expectation: name the entry, the module, and " +
+          "the comment or template literal that produced the old edge, and run that caller's own gate",
+      ).toEqual([...row.modules]);
+    });
+  }
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════════════════════
