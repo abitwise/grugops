@@ -436,15 +436,32 @@ every diagnostic on the error channel. The C1 range is named explicitly because 
 OSC introducers are acted on by common terminals in UTF-8 mode and are not escaped by JSON
 serialization, so a document that was serialized and not sanitized carries them verbatim.
 
-The `--json` document is sanitized as serialized text rather than field by field, because a key in
-that document can be content-derived: the per-column limits the dial records are keyed by column
-name. Removal never touches JSON structure, since no structural character is a control character.
+**The guarantee about the `--json` document is about what a consumer RECOVERS, not about the bytes
+on the wire.** A value read back from one parse of a published document carries no C0 code point, no
+C1 code point and no DEL — in every string value and in every object key, at every depth. Keys are
+named because a key in that document can be content-derived: the per-column limits the dial records
+are keyed by column name.
 
-What this does not do is decode the document on a consumer's behalf. An escaped control code point
-inside a string — the six-character form a JSON serializer writes — is text in the document and
-stays text. It becomes a control character only if a consumer decodes the value and prints it, and
-a consumer that prints board content to a terminal sanitizes it for the same reason the projector
-does.
+The values are cleaned before the document is serialized, and that ordering is the guarantee. An
+earlier version of this paragraph described the input as an already-escaped sequence and the removal
+as a pass over the serialized text. That was true of the bytes and false of the parse: a JSON
+serializer escapes the C0 range into six printable characters and leaves the C1 range raw, so a pass
+over the serialized text removes exactly what the serializer did not escape and leaves exactly what
+it did. The two are complementary, and a raw escape byte typed into an ordinary ticket title
+survived as a real control code point in whatever a consumer parsed. Cleaning before serialization
+has the property the other ordering cannot have: it never meets an escaped form, so it can never
+alter one.
+
+A removal pass over the serialized text is still applied afterwards, as the backstop on the line
+boundary — one document per line is the projector's structure and never content's — and removal
+never touches JSON structure, since no structural character is a control character.
+
+What this does not do is follow a value a consumer re-encodes. A sequence that was already text in
+the input — somebody typed a backslash, a `u` and four hex digits into a title — is a value the
+consumer asked for, and it comes back unchanged rather than being decoded into the code point it
+spells. A consumer that serializes a recovered value again with its own serializer and decodes that
+result is manufacturing a control character downstream of this guarantee, and a consumer that prints
+board content to a terminal sanitizes it for the same reason the projector does.
 
 ## Bounds
 

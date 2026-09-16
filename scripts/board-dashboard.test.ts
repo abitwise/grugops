@@ -2060,3 +2060,647 @@ describe("board-dashboard — a planted C1 reaches NEITHER channel of the shippe
     });
   });
 });
+
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+// PLAN 32-35 TASK 2 — WHAT A CONSUMER RECOVERS, AND A HEADER CLAIM THE SYNTAX DERIVES.
+//
+// WHAT THE FINDING WAS, AND WHY THE BLOCK ABOVE DID NOT CATCH IT. The C1 cases above measure the
+// captured BYTES, and the bytes were clean. `JSON.stringify` escapes the C0 range into the six
+// printable characters of a backslash-u form and leaves the C1 range raw; the post-serialization
+// `sanitizeCell` removes what stays raw. The two are exactly complementary, so a raw escape byte in
+// an ordinary ticket title produced zero control code points on the wire and a REAL control code
+// point in whatever a consumer parsed. Fourteen of them, from four planted sites, recorded in
+// `.planning/phases/32-board-projector-cli-dashboard/32-35-RED-baseline.txt` § 2.
+//
+// SO THE INSTRUMENT CHANGES: PARSE FIRST, THEN INSPECT. A case that counts control code points in
+// the captured text is asking what the wire carries. Under D-18 the `--json` consumer is a parser,
+// so the question is what ONE parse yields — in every string VALUE and every object KEY, at every
+// depth. Keys matter because `config.wipLimits` is keyed by column NAME, which is content.
+//
+// AND THE HEADER'S CLAIM STOPS BEING A CONVENTION. The census above exempts the plain-frame header
+// from the document chokepoint by name. What replaced the chokepoint there was `sanitizeCell`
+// applied per field by hand, and the RED baseline counted six of nine parts sites that never
+// reached it. The census below derives the claim from `renderHeader`'s own syntax tree instead.
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Every control code point in a string, SKIPPING NOTHING.
+ *
+ * `controlCodePoints` above skips the newline because it measures a STREAM, where the line boundary
+ * is the writer's structure. This one measures a value RECOVERED FROM a document, where there is no
+ * writer's structure left: a newline inside a recovered string came from content and is exactly the
+ * code point that could forge a second record if it ever reached the line.
+ */
+function controlCodePointsStrict(text: string): readonly string[] {
+  const hits: string[] = [];
+  for (const ch of text) {
+    if (CONTROL_CODE_POINT.test(ch)) {
+      hits.push(`U+${(ch.codePointAt(0) as number).toString(16).toUpperCase().padStart(4, "0")}`);
+    }
+  }
+  return hits;
+}
+
+/** One control code point found in a parsed document, with the path and whether it was a key. */
+type RecoveredControl = {
+  readonly where: string;
+  readonly kind: "value" | "key";
+  readonly cp: string;
+};
+
+/**
+ * Walk a PARSED document: every string value, every object key, every array index, every depth.
+ *
+ * ONE PARSE AND NO MORE. Nothing here decodes a recovered value a second time — a consumer that
+ * re-encodes a value with its own serializer and decodes the result is manufacturing the code point
+ * downstream, which `writeDocument`'s docblock records as a limit rather than a promise.
+ */
+function recoveredControls(value: unknown, path: string, found: RecoveredControl[]): void {
+  if (typeof value === "string") {
+    for (const cp of controlCodePointsStrict(value)) found.push({ where: path, kind: "value", cp });
+    return;
+  }
+  if (Array.isArray(value)) {
+    value.forEach((v, i) => recoveredControls(v, `${path}[${i}]`, found));
+    return;
+  }
+  if (value !== null && typeof value === "object") {
+    for (const [key, v] of Object.entries(value as Record<string, unknown>)) {
+      for (const cp of controlCodePointsStrict(key)) {
+        found.push({ where: `${path}.<key ${JSON.stringify(key)}>`, kind: "key", cp });
+      }
+      recoveredControls(v, `${path}.${key}`, found);
+    }
+  }
+}
+
+/**
+ * A fixture copy carrying a raw control code point at four content-derived sites.
+ *
+ * FOUR, NOT THREE, AND THE FOURTH IS A KEY. A walk that visits keys and finds none to fail on
+ * proves nothing about keys. `config.wipLimits` is keyed by column NAME, which is content, and it
+ * is the one content-derived KEY the published document has.
+ *
+ * THE CODE POINTS ARE NOT INTERCHANGEABLE ACROSS THE SITES, AND THAT IS MEASURED RATHER THAN
+ * ASSUMED (RED baseline § 1). The ticket grammar REFUSES a C0 outright — `control-character`, the
+ * whole document degraded — so the code point that reaches the document through a ticket title is
+ * one from the upper control range, which that grammar's class does not name. And a RAW control
+ * byte inside a JSON dial key is refused by `JSON.parse` itself, so the key is planted as the legal
+ * six-character escape, which `JSON.parse` turns into a real control code point in the key.
+ *
+ * Every code point is BUILT with `String.fromCharCode`, so this source file carries none of its own.
+ */
+function withPlantedControlsCopy(body: (dir: string) => void): void {
+  withFixtureCopy((dir) => {
+    const boardPath = join(dir, "plans", "board.md");
+    writeFileSync(
+      boardPath,
+      readFileSync(boardPath, "utf8")
+        // 1. a board ROW title takes the escape byte
+        .replace("Something in the backlog", `Something in the${ESC}backlog`)
+        // 3. a COLUMN HEADING name takes the bell byte
+        .replace("## In Review (WIP 1/3)", `## In${BEL}Review (WIP 1/3)`),
+      "utf8",
+    );
+
+    // 2. a TICKET document's title takes the 8-bit introducer
+    const ticketPath = join(dir, "plans", "tickets", "ABC-101.md");
+    writeFileSync(
+      ticketPath,
+      readFileSync(ticketPath, "utf8").replace(
+        "title: Something in the backlog",
+        `title: Something in the${C1_CSI}backlog`,
+      ),
+      "utf8",
+    );
+
+    // 4. a dial KEY, as the escape a JSON parser accepts and decodes into a real code point
+    const cfgPath = join(dir, "agent-factory", "config", "factory.config.json");
+    writeFileSync(
+      cfgPath,
+      readFileSync(cfgPath, "utf8").replace('"In Development"', '"In Devel\\u001bopment"'),
+      "utf8",
+    );
+
+    body(dir);
+  });
+}
+
+describe("board-dashboard — a consumer RECOVERS no control character from the document (T-32-35-01)", () => {
+  it("PREMISE: the artifact under test carries the scrub, and the four plants reach the reader", () => {
+    // Which program was measured is part of the result, and so is whether the plants survived the
+    // grammars. A zero recovered from a document built out of clean input says nothing at all.
+    const compiled = readFileSync(DASHBOARD_JS, "utf8");
+    expect(
+      compiled,
+      "the committed .js predates the scrub, so every capture below would measure the program " +
+        "this finding was reported against rather than the one this plan ships",
+    ).toContain("function scrub");
+
+    withPlantedControlsCopy((dir) => {
+      const board = readFileSync(join(dir, "plans", "board.md"), "utf8");
+      const ticket = readFileSync(join(dir, "plans", "tickets", "ABC-101.md"), "utf8");
+      const cfg = readFileSync(join(dir, "agent-factory", "config", "factory.config.json"), "utf8");
+      // `controlCodePoints` rather than the strict twin: these are FILE bytes, where the newline
+      // is the file's own structure. The strict twin is for a value recovered from a document,
+      // where there is no structure left and a newline came from content.
+      expect(
+        controlCodePoints(board),
+        "the board plant did not take; the row-title and column-name arms would be vacuous",
+      ).toEqual(["U+001B", "U+0007"]);
+      expect(
+        controlCodePoints(ticket),
+        "the ticket plant did not take; the ticket-title arm would be vacuous",
+      ).toEqual(["U+009B"]);
+      expect(
+        controlCodePoints(cfg),
+        "the dial key is planted as an ESCAPE, so the file itself must carry no raw control byte " +
+          "— a raw one would be refused by JSON.parse and the key arm would never be reached",
+      ).toEqual([]);
+      expect(
+        Object.keys((JSON.parse(cfg) as { wip_limits: Record<string, number> }).wip_limits),
+        "PREMISE: the escape did not decode into a control code point in the KEY, so the key arm " +
+          "below would be measuring an ordinary key",
+      ).toContain(`In Devel${ESC}opment`);
+    });
+  });
+
+  it("yields ZERO control code points from ONE parse — every string VALUE and every KEY, at every depth", () => {
+    withPlantedControlsCopy((dir) => {
+      const r = spawnDashboard([dir, "--once", "--json"]);
+      expect(r.code, `exit ${r.code}; stderr: ${r.err.slice(0, 400)}`).toBe(0);
+
+      const parsed: unknown = JSON.parse(r.out);
+      const found: RecoveredControl[] = [];
+      recoveredControls(parsed, "$", found);
+
+      expect(
+        found,
+        "a control code point was RECOVERED from the published document by one parse. The bytes " +
+          "on the wire can be clean and this still fail: JSON.stringify escapes the C0 range and " +
+          "the post-serialization pass removes only what stays raw, so the two hide each other's " +
+          "gap. The values are scrubbed BEFORE serialization for exactly this reason (T-32-35-01)",
+      ).toEqual([]);
+    });
+  });
+
+  it("is still ONE line and still exactly ONE document, so content cannot forge a second record", () => {
+    withPlantedControlsCopy((dir) => {
+      const r = spawnDashboard([dir, "--once", "--json"]);
+      expect(r.code).toBe(0);
+      expect(
+        r.out.replace(/\n$/, "").split("\n"),
+        "the line boundary is this module's structure and never content's (D-18, T-32-35-02). " +
+          "The post-serialization pass is what keeps it that way, and it is retained precisely " +
+          "because the scrub cannot do this job — a code point the serializer leaves raw would " +
+          "still reach the line",
+      ).toHaveLength(1);
+      expect(
+        () => JSON.parse(r.out),
+        "the capture no longer parses as exactly one document",
+      ).not.toThrow();
+    });
+  });
+
+  it("removes the code points and NOT the content — over-removal would satisfy every zero above", () => {
+    withPlantedControlsCopy((dir) => {
+      const r = spawnDashboard([dir, "--once", "--json"]);
+      const doc = JSON.parse(r.out) as {
+        snapshot: {
+          board: { columns: readonly { name: string; rows: readonly { title: string }[] }[] };
+          config: { wipLimits: Record<string, number> };
+          sources: { tickets: { value: readonly { id: string; title: string }[] } };
+        };
+      };
+      expect(
+        doc.snapshot.board.columns[0]?.rows[0]?.title,
+        "the row title lost more than the escape byte",
+      ).toBe("Something in thebacklog");
+      expect(
+        doc.snapshot.board.columns.map((c) => c.name),
+        "the column name lost more than the bell byte",
+      ).toContain("InReview");
+      expect(
+        doc.snapshot.sources.tickets.value.find((t) => t.id === "ABC-101")?.title,
+        "the ticket title lost more than the 8-bit introducer",
+      ).toBe("Something in thebacklog");
+      expect(
+        Object.keys(doc.snapshot.config.wipLimits),
+        "the dial KEY lost more than the code point the escape decoded to — a key that came back " +
+          "shortened is a field a consumer can no longer look up",
+      ).toContain("In Development");
+    });
+  });
+
+  it("leaves an escaped sequence that was TEXT in the input unchanged — the scrub decodes nothing", () => {
+    // THE CONVERSE, AND THE REASON THE ORDERING IS THE FIX RATHER THAN A SECOND REMOVAL PASS. The
+    // rejected alternative was to strip the six-character escaped forms out of the SERIALIZED text.
+    // It cannot tell one the serializer manufactured from one somebody typed, so it alters a value
+    // the consumer asked for. Scrubbing before serialization never sees an escaped form at all.
+    const escapedAsText = "\\u001b";
+    expect(escapedAsText, "PREMISE: the literal is not six characters of TEXT").toHaveLength(6);
+
+    withFixtureCopy((dir) => {
+      const boardPath = join(dir, "plans", "board.md");
+      writeFileSync(
+        boardPath,
+        readFileSync(boardPath, "utf8").replace(
+          "Something in the backlog",
+          `Something ${escapedAsText} backlog`,
+        ),
+        "utf8",
+      );
+      const r = spawnDashboard([dir, "--once", "--json"]);
+      expect(r.code).toBe(0);
+      const doc = JSON.parse(r.out) as {
+        snapshot: { board: { columns: readonly { rows: readonly { title: string }[] }[] } };
+      };
+      const title = doc.snapshot.board.columns[0]?.rows[0]?.title ?? "";
+      expect(title, "a value that was already text came back altered").toBe(
+        `Something ${escapedAsText} backlog`,
+      );
+      expect(
+        controlCodePointsStrict(title),
+        "text that LOOKS like an escape must not be decoded into the thing it spells",
+      ).toEqual([]);
+    });
+  });
+});
+
+// ── The header's parts census: one chokepoint, derived from the module's own syntax ──────────────
+
+/** One element of `renderHeader`'s parts array, or one argument pushed onto it. */
+type HeaderPartSite = {
+  readonly line: number;
+  readonly kind: "element" | "push";
+  readonly sanitized: boolean;
+  readonly why: string;
+  readonly text: string;
+};
+
+type HeaderPartCensus = {
+  /** Every parts site this pass could classify. */
+  readonly sites: readonly HeaderPartSite[];
+  /** The subset that does NOT reach the chokepoint. A pin asserts this empty. */
+  readonly unsanitized: readonly HeaderPartSite[];
+  /**
+   * Every route to the parts array this SYNTACTIC pass cannot name a site for: a spread element, a
+   * `parts` bound to something other than an array literal, a computed member on it, or a mutating
+   * method other than `push`. Each is a way a part could arrive that the site collector would never
+   * see, so each is collected and asserted absent rather than silently producing a short list. A
+   * census that returns a short list is a census that says nothing — the lesson this phase has now
+   * paid for in three separate registers.
+   */
+  readonly opaque: readonly string[];
+  /** Every syntactic reference to `parts` in the function. The denominator, counted separately. */
+  readonly references: number;
+  /** Statements inside the function. Zero means the pass read nothing and every claim is vacuous. */
+  readonly statements: number;
+  readonly parseErrors: readonly string[];
+};
+
+/**
+ * Classify every header part in `fnName`, against the chokepoint named `partFn`.
+ *
+ * WHAT COUNTS AS SANITIZED, AND WHY THE SECOND CLAUSE EXISTS. A site is sanitized when it is a call
+ * to `partFn`, or a template EVERY ONE of whose interpolations is a call to `partFn` or a member
+ * access on the style parameter. The style codes are the one deliberate exemption: `style.badge`
+ * and `style.reset` ARE control sequences — this module's own, empty on a non-TTY run — so routing
+ * them through a function whose job is to remove control sequences would delete the badge that
+ * makes the warning visible.
+ *
+ * THE STYLE PARAMETER'S NAME IS A PARAMETER OF THIS FUNCTION, NOT A LITERAL INSIDE IT, so the
+ * discrimination probes below can run the same implementation over a constructed module. The real
+ * call DERIVES it from `renderHeader`'s own signature rather than retyping it.
+ *
+ * A parenthesized, `as`-cast or non-null-asserted expression is UNWRAPPED before classification, so
+ * `(part(x))` is the same site as `part(x)` rather than a free bypass.
+ */
+function headerPartCensus(
+  source: ts.SourceFile,
+  fnName: string,
+  partFn: string,
+  styleParam: string,
+): HeaderPartCensus {
+  const parseErrors = (
+    (source as unknown as { parseDiagnostics?: readonly ts.Diagnostic[] }).parseDiagnostics ?? []
+  ).map((d) => ts.flattenDiagnosticMessageText(d.messageText, " "));
+
+  let fn: ts.FunctionDeclaration | undefined;
+  const findFn = (n: ts.Node): void => {
+    if (ts.isFunctionDeclaration(n) && n.name?.text === fnName) fn = n;
+    ts.forEachChild(n, findFn);
+  };
+  findFn(source);
+  if (fn === undefined || fn.body === undefined) {
+    return {
+      sites: [],
+      unsanitized: [],
+      opaque: [`no function declaration named ${fnName} with a body`],
+      references: 0,
+      statements: 0,
+      parseErrors,
+    };
+  }
+
+  const unwrap = (e: ts.Expression): ts.Expression => {
+    let cur = e;
+    for (;;) {
+      if (ts.isParenthesizedExpression(cur)) cur = cur.expression;
+      else if (ts.isAsExpression(cur)) cur = cur.expression;
+      else if (ts.isNonNullExpression(cur)) cur = cur.expression;
+      else return cur;
+    }
+  };
+  const isPartCall = (e: ts.Expression): boolean => {
+    const u = unwrap(e);
+    return ts.isCallExpression(u) && ts.isIdentifier(u.expression) && u.expression.text === partFn;
+  };
+  const isStyleMember = (e: ts.Expression): boolean => {
+    const u = unwrap(e);
+    return (
+      ts.isPropertyAccessExpression(u) &&
+      ts.isIdentifier(u.expression) &&
+      u.expression.text === styleParam
+    );
+  };
+
+  const classify = (raw: ts.Expression): { sanitized: boolean; why: string } => {
+    const e = unwrap(raw);
+    if (isPartCall(e)) return { sanitized: true, why: `call to ${partFn}` };
+    if (ts.isTemplateExpression(e)) {
+      const bad = e.templateSpans
+        .map((s) => s.expression)
+        .filter((s) => !isPartCall(s) && !isStyleMember(s));
+      return bad.length === 0
+        ? { sanitized: true, why: `template, every interpolation ${partFn} or ${styleParam}.*` }
+        : {
+            sanitized: false,
+            why: `template with ${bad.length} interpolation(s) reaching neither ${partFn} nor ` +
+              `${styleParam}.*: ${bad.map((b) => b.getText(source)).join(" | ")}`,
+          };
+    }
+    if (ts.isStringLiteral(e) || ts.isNoSubstitutionTemplateLiteral(e)) {
+      return { sanitized: false, why: "a bare literal — it never reaches the chokepoint" };
+    }
+    return { sanitized: false, why: `${ts.SyntaxKind[e.kind]} — not a call to ${partFn}` };
+  };
+
+  const sites: HeaderPartSite[] = [];
+  const opaque: string[] = [];
+  let references = 0;
+
+  const at = (n: ts.Node): number =>
+    source.getLineAndCharacterOfPosition(n.getStart(source)).line + 1;
+  const record = (kind: "element" | "push", node: ts.Expression): void => {
+    if (ts.isSpreadElement(node)) {
+      opaque.push(`${at(node)}: spread ${node.getText(source)} — the parts it contributes are not `
+        + "syntactically visible here");
+      return;
+    }
+    const c = classify(node);
+    sites.push({
+      line: at(node),
+      kind,
+      sanitized: c.sanitized,
+      why: c.why,
+      text: node.getText(source).replace(/\s+/g, " "),
+    });
+  };
+
+  const visit = (n: ts.Node): void => {
+    if (ts.isIdentifier(n) && n.text === "parts") references += 1;
+
+    if (ts.isVariableDeclaration(n) && ts.isIdentifier(n.name) && n.name.text === "parts") {
+      if (n.initializer === undefined) {
+        opaque.push(`${at(n)}: parts declared with no initializer`);
+      } else if (ts.isArrayLiteralExpression(n.initializer)) {
+        for (const el of n.initializer.elements) record("element", el);
+      } else {
+        opaque.push(
+          `${at(n)}: parts initialized by ${ts.SyntaxKind[n.initializer.kind]} — its elements are `
+            + "not syntactically visible here",
+        );
+      }
+    }
+
+    if (ts.isPropertyAccessExpression(n) && ts.isIdentifier(n.expression) && n.expression.text === "parts") {
+      const call = n.parent;
+      if (n.name.text === "push" && call !== undefined && ts.isCallExpression(call) && call.expression === n) {
+        for (const a of call.arguments) record("push", a);
+      } else if (n.name.text !== "join") {
+        opaque.push(`${at(n)}: parts.${n.name.text} — a route onto the array this pass cannot follow`);
+      }
+    }
+    if (ts.isElementAccessExpression(n) && ts.isIdentifier(n.expression) && n.expression.text === "parts") {
+      opaque.push(`${at(n)}: computed member on parts — the key is not statically known`);
+    }
+
+    ts.forEachChild(n, visit);
+  };
+  visit(fn.body);
+
+  return {
+    sites,
+    unsanitized: sites.filter((s) => !s.sanitized),
+    opaque,
+    references,
+    statements: fn.body.statements.length,
+    parseErrors,
+  };
+}
+
+/**
+ * The name of `renderHeader`'s style parameter, DERIVED from its signature rather than retyped.
+ *
+ * The exemption the census grants is "a member access on the style parameter". If that name were a
+ * literal in the test, renaming the parameter would silently widen or narrow the exemption with
+ * every gate still green — the set-literal drift class this repository has a standing lesson about.
+ */
+function renderHeaderStyleParam(source: ts.SourceFile): string {
+  let fn: ts.FunctionDeclaration | undefined;
+  const find = (n: ts.Node): void => {
+    if (ts.isFunctionDeclaration(n) && n.name?.text === "renderHeader") fn = n;
+    ts.forEachChild(n, find);
+  };
+  find(source);
+  const styled = (fn?.parameters ?? []).filter(
+    (p) =>
+      p.type !== undefined &&
+      ts.isTypeReferenceNode(p.type) &&
+      ts.isIdentifier(p.type.typeName) &&
+      p.type.typeName.text === "Style",
+  );
+  expect(
+    styled,
+    "renderHeader must have exactly ONE parameter annotated `Style`; the census's one exemption " +
+      "is stated in terms of that parameter, and an ambiguous signature makes the exemption " +
+      "ambiguous too",
+  ).toHaveLength(1);
+  const name = styled[0]?.name;
+  expect(name !== undefined && ts.isIdentifier(name), "the style parameter is not a plain name").toBe(
+    true,
+  );
+  return (name as ts.Identifier).text;
+}
+
+/**
+ * How many parts `renderHeader` produces.
+ *
+ * NINE IS A DECISION. Six array elements and three pushes: the program name, the repository root,
+ * the mode, the read instant, the column count, the source, the stale badge, the conflict count and
+ * the large-board marker. A TENTH part is a tenth thing the one line a human trusts the frame by
+ * says, and WR-06 is what six unexamined ones cost — the RED baseline counted three of nine
+ * reaching the sanitizer. Raising this number is that decision being RECORDED, never a constant
+ * bumped to make a suite green.
+ */
+const HEADER_PART_SITE_COUNT = 9;
+
+describe("board-dashboard — the header's sanitization is derived from the module (WR-06, T-32-35-03)", () => {
+  it("PREMISE: the census finds both site shapes, and classifies the exemption correctly", () => {
+    const found = headerPartCensus(
+      parseModule(
+        "header-probe.ts",
+        [
+          "function renderHeader(result, style) {",
+          "  const parts = [part('a'), `x: ${part(b)}`, `${style.badge}${part(c)}${style.reset}`];",
+          "  parts.push(part(d));",
+          "  parts.push((part(e)));",
+          "  return parts.join('  ');",
+          "}",
+        ].join("\n"),
+      ),
+      "renderHeader",
+      "part",
+      "style",
+    );
+    expect(found.parseErrors).toEqual([]);
+    expect(found.statements, "PREMISE: the pass read an empty function body").toBeGreaterThan(0);
+    expect(
+      found.sites.map((s) => s.kind),
+      "three array elements and two pushes, in that order",
+    ).toEqual(["element", "element", "element", "push", "push"]);
+    expect(
+      found.unsanitized,
+      "a template whose only interpolations are the chokepoint and the style codes IS sanitized, " +
+        "and a parenthesized call is the same site as an unparenthesized one",
+    ).toEqual([]);
+    expect(found.opaque).toEqual([]);
+  });
+
+  it("PREMISE: a new unsanitized part is FOUND — the census discriminates", () => {
+    // Without this the pin is equally true of a census that classifies everything as sanitized.
+    const found = headerPartCensus(
+      parseModule(
+        "header-bypass.ts",
+        [
+          "function renderHeader(result, style) {",
+          "  const parts = [part('a'), 'a bare literal', `${result.source} raw`];",
+          "  parts.push(sanitizeCell(x));",
+          "  parts.push(`${style.badge}${badged.join(', ')}${style.reset}`);",
+          "  return parts.join('  ');",
+          "}",
+        ].join("\n"),
+      ),
+      "renderHeader",
+      "part",
+      "style",
+    );
+    expect(
+      found.unsanitized.map((s) => s.text),
+      "a bare literal, a raw interpolation, a DIFFERENT sanitizer and a style-wrapped template " +
+        "whose content never reaches the chokepoint are all bypasses — including the one that " +
+        "calls the OLD per-field sanitizer, which is exactly what this round is replacing",
+    ).toEqual([
+      "'a bare literal'",
+      "`${result.source} raw`",
+      "sanitizeCell(x)",
+      "`${style.badge}${badged.join(', ')}${style.reset}`",
+    ]);
+  });
+
+  it("PREMISE: a route onto the array the pass cannot follow is REFUSED, never silently dropped", () => {
+    const found = headerPartCensus(
+      parseModule(
+        "header-opaque.ts",
+        [
+          "function renderHeader(result, style) {",
+          "  const parts = [part('a'), ...extra];",
+          "  parts.unshift(part(b));",
+          "  parts[0] = raw;",
+          "  parts.push(...more);",
+          "  return parts.join('  ');",
+          "}",
+        ].join("\n"),
+      ),
+      "renderHeader",
+      "part",
+      "style",
+    );
+    expect(
+      found.opaque.length,
+      "a spread element, a mutating method other than push, a computed member and a spread " +
+        "argument are each a way a part could arrive that the site list would never show",
+    ).toBe(4);
+    expect(
+      found.sites.map((s) => s.text),
+      "only the one site it CAN name may be counted as one",
+    ).toEqual(["part('a')"]);
+  });
+
+  it("PREMISE: a module with no parts array at all yields no sites and says so", () => {
+    const found = headerPartCensus(
+      parseModule("header-none.ts", "function elsewhere(a) { return a; }\n"),
+      "renderHeader",
+      "part",
+      "style",
+    );
+    expect(found.sites).toEqual([]);
+    expect(
+      found.opaque,
+      "a census that cannot find the function must say so rather than report a clean zero",
+    ).toEqual(["no function declaration named renderHeader with a body"]);
+  });
+
+  it("TOTALITY: every parts site is either sanitized or listed, and the array is reached by no other route", () => {
+    const source = parseModule(DASHBOARD_TS, readFileSync(DASHBOARD_TS, "utf8"));
+    const census = headerPartCensus(source, "renderHeader", "part", renderHeaderStyleParam(source));
+    expect(census.parseErrors).toEqual([]);
+    expect(
+      census.references,
+      "PREMISE: the pass found no reference to `parts` at all, so every claim below is vacuous",
+    ).toBeGreaterThan(0);
+    expect(
+      census.opaque,
+      "`renderHeader` reaches its parts array by a route this census cannot name a site for; the " +
+        "pin below would then be a claim about the sites it happened to see",
+    ).toEqual([]);
+    expect(
+      census.sites.length,
+      "every site must be classified as sanitized or not — neither bucket may swallow one",
+    ).toBe(census.sites.filter((s) => s.sanitized).length + census.unsanitized.length);
+  });
+
+  it("pins the header part count two-sided at nine, every one through the chokepoint", () => {
+    const source = parseModule(DASHBOARD_TS, readFileSync(DASHBOARD_TS, "utf8"));
+    const census = headerPartCensus(source, "renderHeader", "part", renderHeaderStyleParam(source));
+    console.log(
+      `[32-35] renderHeader parts sites: ${census.sites.length} — ` +
+        census.sites.map((s) => `${s.kind}:${s.line}`).join(", "),
+    );
+
+    expect(
+      census.unsanitized.map((s) => `${s.kind}:${s.line} ${s.text} — ${s.why}`),
+      "a header part does not pass through the one function that sanitizes them. The header is " +
+        "the line that says whether the frame can be trusted, it is deliberately NOT truncated, " +
+        "and WR-06 is what a per-field convention cost: six of nine sites never reached the " +
+        "sanitizer and nobody had counted them",
+    ).toEqual([]);
+
+    expect(
+      census.sites.map((s) => `${s.kind}:${s.line} ${s.text}`),
+      "`renderHeader` produces a number of parts other than nine. A tenth part is a tenth thing " +
+        "the trust line says; this is a decision somebody records, never a bumped constant",
+    ).toHaveLength(HEADER_PART_SITE_COUNT);
+  });
+});

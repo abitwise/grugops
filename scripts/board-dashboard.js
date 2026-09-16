@@ -24,6 +24,18 @@
 // ANSI or OSC sequence would otherwise repaint, retitle or mislead the terminal of whoever ran the
 // dashboard, and stderr is the same emulator as stdout on an interactive run.
 //
+// WHAT THE `--json` DOCUMENT GUARANTEES IS ABOUT WHAT A CONSUMER RECOVERS, NOT ABOUT ITS BYTES
+// (T-32-35-01). A value read back from ONE parse of a published document carries no C0 code point,
+// no C1 code point and no DEL, in any string value or any object key at any depth — because the
+// values are scrubbed BEFORE they are serialized. An earlier version of this claim was about the
+// serialized text, and it was true of the bytes and false of the parse: `JSON.stringify` escapes
+// the C0 range, the post-serialization pass removes what stays raw, and the two are exactly
+// complementary, so a raw escape byte in an ordinary ticket title survived as a real control code
+// point in whatever a consumer parsed. A claim about a channel has to name what the channel's
+// reader gets. What remains outside it is a consumer that RE-ENCODES a recovered value with its own
+// serializer and decodes the result again; that control character is manufactured downstream, and
+// it is recorded as a limit rather than promised away.
+//
 // THIS MODULE HAS FOUR WRITE SITES, AND THE COUNT IS DERIVED RATHER THAN PROMISED. Three reach
 // stdout — `run`'s usage write, `emit`'s frame write and `writeDocument`'s document write — and one
 // reaches stderr, inside `warn`. `scripts/board-dashboard.test.ts` parses THIS FILE and pins both
@@ -201,7 +213,57 @@ function warn(io, ...lines) {
     io.stderr.write(`${lines.map(sanitizeCell).join("\n")}\n`);
 }
 /**
- * THE ONE PLACE A SERIALIZED DOCUMENT REACHES STDOUT (CR-02, T-32-18-01).
+ * Apply `sanitizeCell` to every string VALUE and every object KEY of a value, at every depth.
+ *
+ * WHY THIS EXISTS, MEASURED RATHER THAN ARGUED. `writeDocument` used to sanitize the SERIALIZED
+ * TEXT, and that ordering has a hole the raw bytes cannot show. `JSON.stringify` escapes the C0
+ * range into the six printable characters of a backslash-u form and leaves the C1 range raw; the
+ * post-serialization removal takes what is raw. The two are exactly complementary: each hides the
+ * gap the other would have caught, so the published bytes carried zero control code points while
+ * ONE parse of the same document recovered fourteen of them from an ordinary ticket title, a column
+ * heading and a dial key. The count and the fourteen paths are in
+ * `.planning/phases/32-board-projector-cli-dashboard/32-35-RED-baseline.txt` § 2. CLAUDE.md's
+ * no-fabrication rule is about what a consumer RECEIVES, and under D-18 the `--json` consumer's
+ * receipt is what it parses, not what is on the wire.
+ *
+ * WHY BEFORE SERIALIZATION AND NEVER AFTER IT. The rejected alternative is to strip the escaped
+ * six-character sequences out of the serialized text. That is rejected for the reason the previous
+ * docblock gave for leaving them alone: a sequence that was already TEXT in the input — a ticket
+ * title in which somebody typed a backslash, a `u` and four hex digits — is a value the consumer
+ * asked for, and rewriting it alters data. Scrubbing BEFORE serialization has the property the
+ * other ordering cannot have: it never sees an escaped form at all, because no escaping has
+ * happened yet, so it cannot alter one. It removes code points; the serializer then escapes
+ * whatever text remains, and there is nothing left for it to escape into a control character.
+ *
+ * KEYS AS WELL AS VALUES, because the document's keys are content-derived: `config.wipLimits` is
+ * keyed by COLUMN NAME, and a column name is a line an agent wrote into `plans/board.md`. A pass
+ * that visited only values would answer for half the document — which is the half the old ordering
+ * happened to get right.
+ *
+ * TWO KEYS THAT DIFFER ONLY BY A CONTROL CODE POINT COLLIDE, AND THE LATER ONE WINS. That is stated
+ * rather than guarded: the same collapse happens to two VALUES that differ only by one, and a
+ * distinction a terminal cannot render and a reader cannot see is not one a consumer could act on.
+ * Refusing the document instead would let board content decide whether the projector runs.
+ *
+ * Numbers, booleans, null and `undefined` are returned unchanged; arrays are mapped; nested objects
+ * are descended. `sanitizeCell` IS UNCHANGED BY THIS: what is removed stays decided in one place.
+ */
+function scrub(value) {
+    if (typeof value === "string")
+        return sanitizeCell(value);
+    if (Array.isArray(value))
+        return value.map((element) => scrub(element));
+    if (value !== null && typeof value === "object") {
+        const out = {};
+        for (const [key, v] of Object.entries(value)) {
+            out[sanitizeCell(key)] = scrub(v);
+        }
+        return out;
+    }
+    return value;
+}
+/**
+ * THE ONE PLACE A SERIALIZED DOCUMENT REACHES STDOUT (CR-02, T-32-18-01, T-32-35-01).
  *
  * WHAT THE DEFECT WAS. `emit`'s JSON arm wrote `JSON.stringify(withWatch)` straight to the channel.
  * `JSON.stringify` escapes the C0 range and does NOT escape the C1 range, so U+009B (the 8-bit CSI
@@ -210,28 +272,41 @@ function warn(io, ...lines) {
  * module header claimed both channels were sanitized while one of them was not, which is worse than
  * the leak: a docblock asserting a property the code lacks is how the next reviewer stops checking.
  *
- * WHY THE SERIALIZED TEXT AND NOT THE VALUES. The document's KEYS are content-derived as well —
- * the dial's per-column limits are keyed by column NAME, and a column name is a line an agent wrote
- * into `plans/board.md` — so a rule that only visited values would answer for half the document.
- * Sanitizing after serialization reaches keys and values by one rule. Nothing structural is at risk:
- * the removal set is the C0 range, the C1 range and DEL, no JSON structural character is in any of
- * them, and `JSON.stringify` has already escaped every C0 that belongs inside a string.
+ * TWO PASSES, TWO DIFFERENT REASONS, AND NEITHER REPLACES THE OTHER.
  *
- * WHAT THIS DOES NOT REMOVE, STATED RATHER THAN IMPLIED. An ESCAPED code point inside a string
- * literal — the six-character backslash-u form `JSON.stringify` writes for a C0 — is TEXT in the
- * document and stays. It becomes a control character only if a consumer decodes the document and
- * prints the value without sanitizing it, and rewriting it here would mean altering a value the
- * consumer asked for. The boundary is recorded in this plan's summary as a known limit, not closed.
+ *   • `scrub` FIRST, over the VALUE. It is what a consumer RECOVERS that has to be clean, and a
+ *     consumer recovers what one parse yields. Sanitizing only the serialized text left every C0
+ *     the serializer had already escaped intact as a real code point after that parse — the
+ *     fourteen recorded in the RED baseline. See `scrub` above for why the ordering, and not the
+ *     removal set, is what changed.
  *
- * THE LINE BOUNDARY IS APPENDED AFTER THE REMOVAL, so the document boundary is this function's
- * structure and never content's: `sanitizeCell` removes every C0 including the newline, which is
- * what stops board content from forging a second JSON Lines record (D-18).
+ *   • THE POST-SERIALIZATION PASS SECOND, over the TEXT, and it STAYS. It is the BACKSTOP on the
+ *     line boundary, and its scope is stated precisely rather than overclaimed: it removes every
+ *     code point still RAW in the serialized text, which is the set `scrub` did not reach. With
+ *     `scrub` correct that set is empty, so this pass is redundant TODAY — and that is the point
+ *     of it. The line boundary is what makes the document boundary this module's structure rather
+ *     than content's (D-18), and a property that important is not left resting on one pass whose
+ *     coverage a future edit could narrow by one branch. The discrimination is MEASURED rather
+ *     than argued, in `.planning/phases/32-board-projector-cli-dashboard/32-35-GREEN-proof.txt`
+ *     § 3: narrow `scrub` by one branch and this pass is what still keeps a raw control byte off
+ *     the wire; remove both and it reaches the channel.
+ *
+ *     The line boundary also has a SECOND, independent guarantor that is not this module's:
+ *     `JSON.stringify` escapes U+000A inside every string it writes, so a newline in content
+ *     cannot reach the serialized text by that route at all. Both are true, both are stated, and
+ *     neither is presented as the whole reason.
+ *
+ * WHAT REMAINS OUTSIDE THIS, STATED RATHER THAN IMPLIED. A consumer that takes a recovered value
+ * and RE-ENCODES it — serializes the parsed document again and decodes the result a second time —
+ * is manufacturing control characters with its own serializer out of text this function guarantees
+ * is already clean. That is a property of the consumer's pipeline, not of this document, and it is
+ * recorded as a known limit rather than closed here.
  *
  * `sanitizeCell` IS UNCHANGED BY THIS, exactly as it is by `warn`. What is removed stays decided in
- * one place; this function decides only where the rule is applied.
+ * one place; this function decides only where the rule is applied, and now in which order.
  */
 function writeDocument(io, value) {
-    io.stdout.write(`${sanitizeCell(JSON.stringify(value))}\n`);
+    io.stdout.write(`${sanitizeCell(JSON.stringify(scrub(value)))}\n`);
 }
 // Spelled with `\u` escapes rather than literal bytes, so this source file carries no control
 // character of its own for `scripts/check-nul-bytes.ts` or a reviewer to trip over.
@@ -341,18 +416,39 @@ function humanAge(since, now) {
  * lives here, and a narrow terminal cutting the badge off would leave a frame that looks confident
  * for exactly the reason it should not be. A wrapped header is ugly; a silently dropped badge is a
  * lie. It is still sanitized, because the repository root arrives from argv.
+ *
+ * AND THE SANITIZATION IS A CHOKEPOINT NOW, NOT A CONVENTION (WR-06, T-32-35-03). The header is the
+ * one arm the stdout write-site census deliberately exempts from `writeDocument`, and what stood in
+ * for the chokepoint here was `sanitizeCell` applied by hand at whichever fields somebody
+ * remembered. The RED baseline counted the exceptions from this function's own syntax tree: nine
+ * parts sites, three sanitized, six not. Every part is now produced by `part` below, and
+ * `scripts/board-dashboard.test.ts` derives that claim from the syntax tree and pins the site count
+ * two-sided, so a new part is a number somebody looks at rather than a field somebody remembers.
  */
 export function renderHeader(result, style) {
     const snapshot = result.snapshot;
     const mode = snapshot.config?.mode ?? "unknown";
     const columns = orderedColumns(result);
+    /**
+     * THE ONE PLACE A HEADER PART IS PRODUCED.
+     *
+     * It sanitizes for the reason `cell` does — board content reaches a terminal emulator that acts
+     * on control introducers — and it deliberately does NOT truncate, for the reason this function's
+     * docblock gives: a cut badge is a frame that looks confident for exactly the reason it should
+     * not be.
+     *
+     * Parts that carry no content today still go through it. A part whose value ranges over a closed
+     * set is not the thing being defended against; an exception that has to be re-justified at every
+     * edit is.
+     */
+    const part = (s) => sanitizeCell(s);
     const parts = [
-        "grugops board",
-        sanitizeCell(snapshot.repoRoot),
-        `mode: ${sanitizeCell(mode)}`,
-        `read: ${sanitizeCell(snapshot.generatedAt)}`,
-        `${columns.length} columns`,
-        `[${result.source}]`,
+        part("grugops board"),
+        part(snapshot.repoRoot),
+        part(`mode: ${mode}`),
+        part(`read: ${snapshot.generatedAt}`),
+        part(`${columns.length} columns`),
+        part(`[${result.source}]`),
     ];
     // Derived from the result's own per-source states (D-12), in the order the result carries them.
     const stale = Object.entries(snapshot.sources)
@@ -367,16 +463,23 @@ export function renderHeader(result, style) {
     // the two apart, and it is the read seam's, not a second derivation here: a badge that disagreed
     // with the `--json` document's own discriminant is the drift this repository has paid for.
     // "never read" rather than an age, because there is no last good read to state the age of.
-    const unreadable = unreadableSources(snapshot.sources, result.readErrors).map(({ name, code }) => `${name} (never read, ${sanitizeCell(code)})`);
+    const unreadable = unreadableSources(snapshot.sources, result.readErrors).map(({ name, code }) => `${name} (never read, ${code})`);
     const badged = [...stale, ...unreadable];
+    // THE STYLE CODES ARE THE ONE THING DELIBERATELY OUTSIDE `part`, AND THAT IS NAMED HERE RATHER
+    // THAN LEFT TO BE INFERRED. `style.badge` and `style.reset` ARE control sequences — this module's
+    // own, chosen from `STYLE`, empty on a non-TTY run — so routing them through a function whose job
+    // is to remove control sequences would delete the badge that makes the warning visible. They are
+    // the module's structure around the part, exactly as the newline is the module's structure around
+    // the document in `writeDocument`. Everything BETWEEN them is content and goes through `part`.
     if (badged.length > 0) {
-        parts.push(`${style.badge}STALE: ${badged.join(", ")}${style.reset}`);
+        parts.push(`${style.badge}${part(`STALE: ${badged.join(", ")}`)}${style.reset}`);
     }
-    parts.push(`${result.conflicts.length} conflicts`);
+    parts.push(part(`${result.conflicts.length} conflicts`));
     const bounds = snapshot.board?.bounds;
     if (bounds !== undefined && bounds.exceeded) {
-        parts.push(`${style.badge}LARGE BOARD (${humanBytes(bounds.boardBytes)}, longest line ` +
-            `${humanChars(bounds.longestLine)})${style.reset}`);
+        // Same split as the badge above: this module's style codes outside, the content inside.
+        parts.push(`${style.badge}${part(`LARGE BOARD (${humanBytes(bounds.boardBytes)}, longest line ` +
+            `${humanChars(bounds.longestLine)})`)}${style.reset}`);
     }
     return parts.join("  ");
 }

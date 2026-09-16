@@ -1,0 +1,136 @@
+32-35 GREEN PROOF — THE SAME MEASUREMENTS, AFTER THE CHANGE
+
+Taken 2026-09-16 on darwin/arm64, node v24.12.0. Every number here is comparable with the one beside
+it in `32-35-RED-baseline.txt` because it was produced by the same probe over the same planted tree.
+
+NO CONTROL BYTE IS WRITTEN INTO THIS FILE, for the reason the baseline gives.
+
+═══════════════════════════════════════════════════════════════════════════════════════════════════
+1. WHAT A CONSUMER RECOVERS — 14 → 0
+═══════════════════════════════════════════════════════════════════════════════════════════════════
+
+Same four plants, same tree, same command (`--once --json`), same walk over every string value and
+every object key at every depth after ONE parse.
+
+                                              BEFORE      AFTER
+    control code points in the raw bytes ....... 0          0
+    recovered after ONE parse ................. 14          0
+    of those, in object KEYS ................... 2          0
+    lines the document occupies ................ 1          1
+    documents it parses as ..................... 1          1
+
+The raw count did not move, and that is the point: the finding was never visible there. The before
+column is the wire telling the truth about itself and lying about what the reader gets.
+
+THE PLAIN FRAME, THE CONTROL ARM: 0 before, 0 after, on both sides. 35 lines before and after. The
+arm that was already right did not move.
+
+CONTENT WAS NOT OVER-REMOVED. Each planted value came back with exactly the code point gone and
+nothing else: the row title reads `Something in thebacklog`, the ticket title the same, the column
+name `InReview`, and the dial key `In Development` — a key that came back shortened is a field a
+consumer can no longer look up, so it is asserted by exact value rather than by absence.
+
+THE CONVERSE HOLDS. A title carrying the six-character escaped sequence AS TEXT comes back
+byte-identical. Scrubbing before serialization never meets an escaped form, because no escaping has
+happened yet, so it cannot alter one — which is the property the rejected alternative (rewriting the
+escaped forms out of the serialized text) cannot have.
+
+═══════════════════════════════════════════════════════════════════════════════════════════════════
+2. THE HEADER — 3 OF 9 → 9 OF 9, DERIVED BOTH TIMES
+═══════════════════════════════════════════════════════════════════════════════════════════════════
+
+Same syntax-derived census over `renderHeader`'s parts array and every argument pushed onto it.
+
+                                     BEFORE     AFTER
+    parts sites ......................... 9         9
+    reaching the sanitizer .............. 3         9
+    NOT reaching it ..................... 6         0
+    routes the census could not follow .. 0         0
+
+    [32-35] renderHeader parts sites: 9 — element:538, element:539, element:540, element:541,
+            element:542, element:543, push:570, push:573, push:579
+
+The count did not move, and it is pinned two-sided at nine, so a tenth part is a number somebody
+looks at rather than a field somebody remembers. The style codes are the one exemption and they are
+named at the site: `style.badge` and `style.reset` ARE control sequences — this module's own, empty
+on a non-TTY run — so routing them through a function whose job is to remove control sequences would
+delete the badge that makes the warning visible.
+
+THE EXEMPTION'S OWN NAME IS DERIVED TOO. The census takes the style parameter's name as a parameter
+and the real call reads it out of `renderHeader`'s signature, asserting exactly one parameter
+annotated `Style`. A literal there would let a rename silently widen or narrow the exemption with
+every gate still green.
+
+═══════════════════════════════════════════════════════════════════════════════════════════════════
+3. FIVE MUTATIONS, AND WHAT EACH ONE PROVES
+═══════════════════════════════════════════════════════════════════════════════════════════════════
+
+Every mutation was applied to `scripts/board-dashboard.ts`, REBUILT, and the emitted
+`scripts/board-dashboard.js` READ BACK before the suite was believed. `noEmitOnError` makes a
+mutation that does not compile indistinguishable from one that has no effect — the third consecutive
+plan in this phase to need that step, and the first run of M1 below was caught by it.
+
+Baseline for every row: `npx vitest run --exclude '**/scripts/e2e/**' scripts/board-dashboard.test.ts`
+→ 67 passed (56 before this plan, so 11 added and none replaced).
+
+── M1 — REMOVE THE SCRUB, KEEP THE POST-SERIALIZATION PASS ──────────────────────────────────────
+
+    emitted read-back   :310  io.stdout.write(`${sanitizeCell(JSON.stringify(value))}\n`);
+    result              2 failed | 65 passed
+    red cases           • yields ZERO control code points from ONE parse — every string VALUE and
+                          every KEY, at every depth
+                        • removes the code points and NOT the content
+
+    FIRST ATTEMPT WAS CAUGHT BY THE READ-BACK. Removing the call alone left `scrub` unreferenced,
+    `tsc` refused with TS6133 and emitted nothing, and the suite came back 67 passed — green over
+    the UNMUTATED artifact. The mutation was re-spelled to keep the reference and re-run. A run
+    whose emitted artifact is not inspected is a run that can report the wrong answer twice.
+
+── M2a — REMOVE ONLY THE POST-SERIALIZATION PASS, KEEP THE SCRUB ────────────────────────────────
+
+    emitted read-back   :309  io.stdout.write(`${JSON.stringify(scrub(value))}\n`);
+    result              67 passed — NOTHING RED
+
+    THIS IS RECORDED BECAUSE IT IS TRUE, NOT BECAUSE IT IS CONVENIENT. The plan expected the
+    line-boundary case to red here. It does not, and the reason is worth more than the expected
+    result would have been: with `scrub` correct there is nothing left raw in the serialized text
+    for this pass to remove, and the newline specifically has a SECOND, independent guarantor that
+    is not this module's — `JSON.stringify` escapes U+000A inside every string it writes. The pass
+    is REDUNDANT today. It is retained anyway, and M2b/M2c below are what justify retaining it.
+
+── M2b — NARROW `scrub` BY ONE BRANCH (no descent into object values), PASS RETAINED ────────────
+
+    emitted read-back   :259  out[sanitizeCell(key)] = v;
+    result              2 failed | 65 passed
+    red cases           • yields ZERO control code points from ONE parse ...
+                        • removes the code points and NOT the content
+    STILL GREEN         • removes the 8-bit introducers planted in a ROW TITLE (CR-02)
+                        • removes an introducer planted in a content-derived JSON KEY (CR-02)
+                        • removes them from the --json document (spawned-artifact C1 case)
+
+── M2c — THE SAME DEFECT WITH THE PASS ALSO REMOVED ─────────────────────────────────────────────
+
+    emitted read-back   :310  io.stdout.write(`${JSON.stringify(value)}\n`);
+    result              5 failed | 62 passed
+    red cases           the two from M2b, PLUS the three CR-02 raw-byte cases that M2b left green
+
+    M2b AND M2c TOGETHER ARE THE DISCRIMINATION PROOF FOR THE RETAINED PASS. Under a scrub with one
+    branch missing, three raw-byte cases stay green, and the post-serialization pass is the only
+    thing that could have kept them green. Remove it as well and those exact three red. That is
+    what a backstop is: invisible while the thing in front of it works, and the difference between
+    a reported defect and a raw control byte on an operator's terminal when it does not.
+
+── M3 — DROP ONE HEADER PART OUT OF THE CHOKEPOINT ──────────────────────────────────────────────
+
+    mutation            part(`[${result.source}]`)  →  `[${result.source}]`
+    emitted read-back   :451  `[${result.source}]`,
+    result              1 failed | 66 passed
+    red case            • pins the header part count two-sided at nine, every one through the
+                          chokepoint
+
+    Exactly one case, and it names the site and the reason. The count is unchanged at nine, so the
+    two-sided pin is not what caught it — the classification is.
+
+SOURCE RESTORED AFTER EVERY MUTATION, verified by digest rather than by intent:
+`md5 -q scripts/board-dashboard.ts` returns a56eef0bb5e4ff426e140f40e0e21162 before the first
+mutation and after each of the five reverts.
