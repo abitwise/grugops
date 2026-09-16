@@ -5,14 +5,14 @@ milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live
 current_phase: 32
 current_phase_name: Board Projector & CLI Dashboard
 status: "Phase 31 CLOSED 2026-09-13 by user override D-44 (round-9 verification gaps_found 4/6 left standing; CR-28..CR-31 + WR-43..WR-47 accepted open). Next: Phase 32 — Board Projector & CLI Dashboard, not yet planned. Standing rule: four-round gap-closure cap on every later phase."
-stopped_at: Completed 32-32-PLAN.md
-last_updated: "2026-09-16T08:10:51.361Z"
-state_head: f12cc8ea5ec77ab69a9b0ba281347dffd1a2843c
+stopped_at: Completed 32-33-PLAN.md
+last_updated: "2026-09-16T10:03:50.275Z"
+state_head: c77b5547e9123ef7ff39e7948ac46a588157592d
 progress:
   total_phases: 9
   completed_phases: 30
   total_plans: 250
-  completed_plans: 245
+  completed_plans: 246
   percent: 98
 last_activity: 2026-09-13
 prior_activity_desc: Phase 27 gap-closure round 8 COMPLETE (27-45, 27-46; D-53). Full narration lives in the Phase 27 artifacts and in docs/audit/; shortened here by plan 31-38 because this single line measured 7995 characters, above the 4000-character ceiling a pathological STATE line has previously crossed to turn a sub-second guard into a multi-minute one.
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-09-07 — after Phase 29.2)
 ## Current Position
 
 Phase: 32 (Board Projector & CLI Dashboard) — EXECUTING
-Plan: 3 of 30
+Plan: 4 of 30
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 
@@ -501,6 +501,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 32 P23 | 46 min | 3 tasks | 5 files |
 | Phase 32 P31 | 40 min | 3 tasks | 4 files |
 | Phase 32 P32 | 63 min | 3 tasks | 3 files |
+| Phase 32 P33 | 56 min | 4 tasks | 14 files |
 
 ## Accumulated Context
 
@@ -1374,6 +1375,8 @@ Recent decisions affecting current work:
 - [Phase 32]: The closure walk was SPLIT: jsImportClosureFacts reports foreign edges and jsImportClosure carries the throw — A walker that threw immediately makes the read-only guard's own foreign-specifier census unreachable; a predicate that is never ASKED cannot refuse
 - [Phase 32]: The admitted-bound member-path set is a SECOND set with its own count and its own written read-only claim, not a flag on the census entries - so re-greening the DASH-06 guard over a bound writer costs two recorded decisions instead of one list entry — The F-08 bypass was exactly 'one plausible edit re-greens everything' (measured at exit 0 / 135 passed over a live 53389-byte writer), so the fix had to make the second decision unmissable in a diff rather than merely present
 - [Phase 32]: An unprovable binding is REFUSED rather than tracked: a name with more than one value-write carries a value this syntactic pass cannot decide, at both the declaration site and the assignment site — Following the reassignment to pick the 'real' value is the cleverer-pass instinct the acquisition rule already refuses one register over, and a guessed value would be recorded in the census as a fact
+- [Phase 32]: HUMAN DECISION (plan 32-33 Task 1 checkpoint): option A — publish `stem` on `TicketRecord` and bump `SCHEMA_VERSION` to 2. The human selected "A: Publish stem, bump to v2"; no further reason text was given. — The published snapshot shape is version 2 as of plan 32-33. The SCHEMA_VERSION docblock previously carried two disagreeing sentences (an added field is additive / any shape change bumps the number); they are reconciled into ONE rule, stated in agent-factory/contracts/board.md as well as in the module: ANY change to the published shape moves the number and regenerates the golden in the same commit.
+- [Phase 32]: The presence question in joinSnapshot is answered by ONE derivation (presenceOf) over three measured sets, with `absent` reachable only as their arithmetic complement; `empty-stem` is a READER refusal code declared beside `duplicate-id` and deliberately NOT a member of the grammar-owned TICKET_REFUSAL_CODES. — Two earlier rounds each closed one population by adding one more map beside the one already there, and the third population fell between them. A fourth map would have created a fifth. Listing empty-stem among the grammar codes would make a two-sided closed-set assertion say something false about which authority refused what.
 
 ### Pending Todos
 
@@ -1497,8 +1500,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-09-16T08:10:50.920Z
-Stopped at: Completed 32-32-PLAN.md
+Last session: 2026-09-16T10:03:37.781Z
+Stopped at: Completed 32-33-PLAN.md
 Resume file: None
 
 ## Operator Next Steps

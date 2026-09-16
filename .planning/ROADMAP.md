@@ -1199,7 +1199,7 @@ Plans:
 
 **Wave 3** *(blocked on 32-32)*
 
-- [ ] 32-33-PLAN.md — DASH-03 (CR-03/F-06) + WR-08 + IN-02: one `presenceOf` derivation over three measured sets with the fourth population falling out as arithmetic, the honest sentence naming what a file declares, the duplicate check as a map, and the empty-stem entry refused by name. **Not autonomous** — Task 1 is a `checkpoint:decision` on whether the published snapshot shape moves (D-19) [DASH-03, DASH-05, DASH-08]
+- [x] 32-33-PLAN.md — DASH-03 (CR-03/F-06) + WR-08 + IN-02: one `presenceOf` derivation over three measured sets with the fourth population falling out as arithmetic, the honest sentence naming what a file declares, the duplicate check as a map, and the empty-stem entry refused by name. **Not autonomous** — Task 1 is a `checkpoint:decision` on whether the published snapshot shape moves (D-19) [DASH-03, DASH-05, DASH-08]
 
 **Wave 4** *(blocked on 32-33)*
 
@@ -1273,7 +1273,7 @@ Plans:
 | 29.2. Model Assignment Delivery Path | v2.1 | 6/6 | Complete    | 2026-09-07 |
 | 30. Per-Checkpoint Autonomy Matrix | v2.1 | 11/11 | Complete    | 2026-09-07 |
 | 31. Autonomous Manual Testing | v2.1 | 44/44 | In Progress|  |
-| 32. Board Projector & CLI Dashboard | v2.1 | 25/30 | In Progress|  |
+| 32. Board Projector & CLI Dashboard | v2.1 | 26/30 | In Progress|  |
 | 33. Live Capture & Windows Portability | v2.1 | 0/TBD | Not started | - |
 
 **Totals:** 33 phases · **4 milestones shipped** (v1.0 + v1.1 + v1.2 + v2.0) · **1 active** (v2.1, phases 27–33).
