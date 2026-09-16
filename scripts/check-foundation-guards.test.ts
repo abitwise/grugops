@@ -12035,9 +12035,17 @@ describe("30-11 round 4 — every check gate is REACHED, and the runner set is d
   // was created to prevent: "round 3 created this gate … and invoked it from NOTHING. It passed
   // for a whole round by never running."
   //
-  // So there is no `continue` here any more. Every `check:*` script lands in exactly one NAMED
-  // class, each class has its own reachability proof, the class sizes are pinned, and a script
-  // that matches no class is a FAILURE that names it.
+  // So there is no `continue` here any more. Every TARGET a `check:*` script carries lands in a
+  // NAMED class, each class has its own reachability proof asked once PER TARGET, the per-class
+  // TARGET counts are pinned and must sum to the targets the manifest carries, and a script that
+  // carries no target and no recorded toolchain reason is a FAILURE that names it.
+  //
+  // Round 3 (32-36) moved this from "one script, one class" to "one target, one row". The rule it
+  // replaced took the FIRST match, so `node scripts/a.js && node scripts/b.js` proved `a.js` and
+  // left `b.js` named in nothing, and a mixed gate-plus-suite command lost its suite half to arm
+  // order — the same "one arm answering for all of them" this file was created to refuse, one
+  // level down. Pinning SCRIPT counts is what made it invisible: a target appended to an existing
+  // command left every number alone.
   // ═══════════════════════════════════════════════════════════════════════════════════════════════
 
   type CheckClass = "gate-module" | "suite-test-file" | "toolchain";
@@ -12064,40 +12072,71 @@ describe("30-11 round 4 — every check gate is REACHED, and the runner set is d
     readonly target: string;
   }
 
+  const GATE_TARGET_RE = /node (scripts\/[\w.-]+\.js)/g;
+  const SUITE_TARGET_RE = /vitest run ([\w./-]+\.test\.ts)/g;
+
   /**
-   * Put one `check:*` script in exactly one class, or return `null` so the caller can NAME it.
+   * EVERY TARGET one `check:*` script carries, each as its own classification row — or `null` so
+   * the caller can NAME a script that carries no target at all.
    *
-   * Returning `null` rather than skipping is the whole of the fix: an unclassifiable script is a
-   * script whose reachability nobody has thought about, and the honest response to that is a red
-   * test naming it, not a `continue`.
+   * WHAT REPLACED WHAT, AND WHY. The previous rule asked its three questions in order with `.exec`
+   * and returned the FIRST answer, so `… && node scripts/a.js && node scripts/b.js` classified as
+   * one gate-module targeting `scripts/a.js` and `scripts/b.js` was never named in any reachability
+   * row; a mixed `node scripts/a.js && npx vitest run x.test.ts` lost its suite half to arm order
+   * (measured in `32-36-RED-baseline.txt` § 5). The assumption inside that rule was that one
+   * command means one proof, and nothing made it true.
+   *
+   * SO: A SCRIPT MAY CONTRIBUTE TO MORE THAN ONE CLASS, AND TO MORE THAN ONE TARGET IN A CLASS.
+   * Each row names the script it came from, and each row gets its class's reachability proof asked
+   * of it separately. That is what makes a target appended to an existing command visible instead
+   * of silently inheriting its neighbour's proof.
+   *
+   * RETURNING `null` RATHER THAN SKIPPING IS KEPT VERBATIM: an unclassifiable script is a script
+   * whose reachability nobody has thought about, and the honest response to that is a red test
+   * naming it, not a `continue`. The toolchain class is asked LAST and only when no target was
+   * found, because its membership is a recorded DECISION and not a shape.
    */
-  const classifyCheckScript = (name: string, cmd: string): CheckScriptClassification | null => {
-    const gate = /node (scripts\/[\w.-]+\.js)/.exec(cmd);
-    if (gate !== null) return { name, cls: "gate-module", target: gate[1] as string };
-    const suite = /vitest run ([\w./-]+\.test\.ts)/.exec(cmd);
-    if (suite !== null) return { name, cls: "suite-test-file", target: suite[1] as string };
-    if (TOOLCHAIN_CHECK_SCRIPTS[name] !== undefined) return { name, cls: "toolchain", target: name };
+  const classifyCheckScriptTargets = (
+    name: string,
+    cmd: string,
+  ): readonly CheckScriptClassification[] | null => {
+    const gates = [...cmd.matchAll(GATE_TARGET_RE)].map((m) => m[1] as string);
+    const suites = [...cmd.matchAll(SUITE_TARGET_RE)].map((m) => m[1] as string);
+    const rows: CheckScriptClassification[] = [
+      ...gates.map((target) => ({ name, cls: "gate-module" as const, target })),
+      ...suites.map((target) => ({ name, cls: "suite-test-file" as const, target })),
+    ];
+    if (rows.length > 0) return rows;
+    if (TOOLCHAIN_CHECK_SCRIPTS[name] !== undefined) {
+      return [{ name, cls: "toolchain", target: name }];
+    }
     return null;
   };
 
   /**
-   * THE CLASSES AND THEIR SIZES, PINNED.
+   * THE CLASSES AND THEIR TARGET COUNTS, PINNED.
    *
-   * A new `check:*` script belongs to a class somebody CHOSE. That is the difference between a
-   * classification and a pattern that happens to match: the pattern grows silently, the
-   * classification moves a number a human has to look at.
+   * These are counts of TARGETS PROVED, not counts of scripts. The distinction is the whole of the
+   * finding: while the numbers counted scripts, a second `node scripts/*.js` appended to an
+   * existing command left every number alone and added one gate nothing proved reachable. Today the
+   * eleven scripts carry eleven targets and the two numbers coincide, which is exactly why nothing
+   * would have noticed them diverging.
+   *
+   * A new target belongs to a class somebody CHOSE. That is the difference between a classification
+   * and a pattern that happens to match: the pattern grows silently, the classification moves a
+   * number a human has to look at.
    */
   const CHECK_SCRIPT_CLASSES = Object.freeze({
     "gate-module": {
-      size: 9,
+      targets: 9,
       proof: "ci.yml names the gate module, or CI_EXEMPT names a reason AND something still runs it",
     },
     "suite-test-file": {
-      size: 1,
+      targets: 1,
       proof: "the named test file exists and the workflow's suite invocation does not exclude it",
     },
     toolchain: {
-      size: 1,
+      targets: 1,
       proof: "TOOLCHAIN_CHECK_SCRIPTS gives the reason and ci.yml runs the npm script by name",
     },
   } as const);
@@ -12161,7 +12200,7 @@ describe("30-11 round 4 — every check gate is REACHED, and the runner set is d
     expect(names.length, "no check:* scripts found — the scan has stopped asking").toBeGreaterThan(5);
     const unclassified: string[] = [];
     for (const n of names) {
-      if (classifyCheckScript(n, scripts[n] as string) === null) {
+      if (classifyCheckScriptTargets(n, scripts[n] as string) === null) {
         unclassified.push(`${n} => ${scripts[n] as string}`);
       }
     }
@@ -12174,97 +12213,148 @@ describe("30-11 round 4 — every check gate is REACHED, and the runner set is d
     ).toEqual([]);
   });
 
-  it("pins each class's SIZE, and the classes partition the check scripts with no remainder", () => {
+  /** Every classification row the live manifest produces, flattened — the derivation's own output. */
+  const liveTargetRows = (): readonly CheckScriptClassification[] => {
     const scripts = readPackageScripts();
-    const names = checkScriptNames(scripts);
-    const sizes: Record<CheckClass, number> = {
+    const rows: CheckScriptClassification[] = [];
+    for (const n of checkScriptNames(scripts)) {
+      const c = classifyCheckScriptTargets(n, scripts[n] as string);
+      if (c !== null) rows.push(...c);
+    }
+    return rows;
+  };
+
+  it("pins each class's TARGET count, and the pinned counts sum to the targets that exist", () => {
+    const rows = liveTargetRows();
+    const counts: Record<CheckClass, number> = {
       "gate-module": 0,
       "suite-test-file": 0,
       toolchain: 0,
     };
-    for (const n of names) {
-      const c = classifyCheckScript(n, scripts[n] as string);
-      if (c !== null) sizes[c.cls] += 1;
-    }
+    for (const r of rows) counts[r.cls] += 1;
     for (const [cls, spec] of Object.entries(CHECK_SCRIPT_CLASSES)) {
       expect(
-        sizes[cls as CheckClass],
-        `the ${cls} class changed size. A new check script belongs to a class somebody chose, and ` +
-          `this class's reachability rests on: ${spec.proof}`,
-      ).toBe(spec.size);
+        counts[cls as CheckClass],
+        `the ${cls} class proves a different number of TARGETS than it did. A new target belongs ` +
+          `to a class somebody chose, and this class's reachability rests on: ${spec.proof}`,
+      ).toBe(spec.targets);
     }
-    const pinnedTotal = Object.values(CHECK_SCRIPT_CLASSES).reduce((a, s) => a + s.size, 0);
+    // THE EQUALITY THAT MAKES A NEW TARGET VISIBLE. The pinned numbers are counts of targets, and
+    // they must account for every target the derivation found — a remainder is a target riding
+    // along inside somebody else's command with nothing proving it is ever reached.
+    const pinnedTotal = Object.values(CHECK_SCRIPT_CLASSES).reduce((a, s) => a + s.targets, 0);
     expect(
       pinnedTotal,
-      "the pinned class sizes must sum to the number of check:* scripts that exist — a remainder " +
-        "is a script the classification is not covering",
-    ).toBe(names.length);
+      "the pinned per-class TARGET counts must sum to the number of targets the manifest carries. " +
+        "While these numbers counted SCRIPTS, a second `node scripts/*.js` appended to an existing " +
+        "command changed nothing here and added a gate nothing proved reachable",
+    ).toBe(rows.length);
+    // And every script still contributes at least one row, so the sum above is not hiding a script
+    // that dropped out of the derivation entirely.
+    const scripts = readPackageScripts();
+    const names = checkScriptNames(scripts);
+    expect(
+      [...new Set(rows.map((r) => r.name))].sort(),
+      "a check:* script contributes no classification row at all",
+    ).toEqual([...names].sort());
   });
 
-  it("gate-module class: every target is named by ci.yml, or declares why not", () => {
-    const scripts = readPackageScripts();
+  it("a target appended to an EXISTING command moves the numbers — the pins count targets", () => {
+    // WHY THIS CASE EXISTS. The manifest carries eleven scripts and eleven targets today, so the
+    // script count and the target count are the same number and nothing on the live tree can tell
+    // the two derivations apart. The difference only shows on a manifest that does not exist yet —
+    // which is precisely the manifest a later author writes. So the manifest is perturbed IN
+    // MEMORY, the way a second `node scripts/*.js` appended to an existing command would perturb
+    // it, and both derivations are asked what they see.
+    const scripts = { ...readPackageScripts() };
+    const victim = checkScriptNames(scripts).find(
+      (n) => classifyCheckScriptTargets(n, scripts[n] as string)?.[0]?.cls === "gate-module",
+    );
+    expect(victim, "no gate-module script to append to — the probe would be vacuous").toBeDefined();
+    const before = checkScriptNames(scripts).length;
+    scripts[victim as string] = `${scripts[victim as string] as string} && node scripts/check-nul-bytes.js`;
+
+    // The SCRIPT count — what the pins used to be — does not move at all.
+    expect(
+      checkScriptNames(scripts).length,
+      "appending a target to an existing command cannot change how many scripts there are; that " +
+        "is exactly why pinning script counts hid the extra gate",
+    ).toBe(before);
+
+    // The TARGET count does.
+    const rows: CheckScriptClassification[] = [];
+    for (const n of checkScriptNames(scripts)) {
+      const c = classifyCheckScriptTargets(n, scripts[n] as string);
+      if (c !== null) rows.push(...c);
+    }
+    const pinnedTotal = Object.values(CHECK_SCRIPT_CLASSES).reduce((a, s) => a + s.targets, 0);
+    expect(
+      rows.length,
+      "the per-target derivation must SEE the appended gate module; if it does not, the rewrite " +
+        "bought nothing",
+    ).toBe(pinnedTotal + 1);
+    expect(
+      rows.filter((r) => r.name === victim).length,
+      "the perturbed script must carry two rows now, one per gate module",
+    ).toBe(2);
+  });
+
+  it("gate-module class: EVERY target is named by ci.yml, or declares why not", () => {
     const ci = readCi();
     const missing: string[] = [];
-    let seen = 0;
-    for (const n of checkScriptNames(scripts)) {
-      const c = classifyCheckScript(n, scripts[n] as string);
-      if (c === null || c.cls !== "gate-module") continue;
-      seen += 1;
-      if (!ci.includes(c.target) && CI_EXEMPT[c.target] === undefined) {
-        missing.push(`${n} -> ${c.target}`);
+    const rows = liveTargetRows().filter((r) => r.cls === "gate-module");
+    // One row per TARGET, not per script: a command running two gate modules is asked this
+    // question twice, once about each.
+    for (const r of rows) {
+      if (!ci.includes(r.target) && CI_EXEMPT[r.target] === undefined) {
+        missing.push(`${r.name} -> ${r.target}`);
       }
     }
-    expect(seen, "the gate-module class is empty — this case would prove nothing").toBeGreaterThan(5);
+    expect(rows.length, "the gate-module class is empty — this case would prove nothing").toBe(
+      CHECK_SCRIPT_CLASSES["gate-module"].targets,
+    );
     expect(
       missing,
       `these npm check scripts run a gate CI never runs:\n  ${missing.join("\n  ")}`,
     ).toEqual([]);
   });
 
-  it("suite-test-file class: the named file exists and the workflow's suite does not exclude it", () => {
-    const scripts = readPackageScripts();
+  it("suite-test-file class: EVERY target exists and the workflow's suite does not exclude it", () => {
     const ci = readCi();
     const exclude = globToRegExp(suiteInvocation(ci).exclude);
-    let seen = 0;
-    for (const n of checkScriptNames(scripts)) {
-      const c = classifyCheckScript(n, scripts[n] as string);
-      if (c === null || c.cls !== "suite-test-file") continue;
-      seen += 1;
+    const rows = liveTargetRows().filter((r) => r.cls === "suite-test-file");
+    for (const r of rows) {
       expect(
-        existsSync(join(ROOT, c.target)),
-        `${n} runs ${c.target}, which does not exist. An npm script pointing at a missing file is ` +
-          "a gate that cannot run at all",
+        existsSync(join(ROOT, r.target)),
+        `${r.name} runs ${r.target}, which does not exist. An npm script pointing at a missing ` +
+          "file is a gate that cannot run at all",
       ).toBe(true);
       expect(
-        exclude.test(c.target),
-        `${n}'s test file ${c.target} is EXCLUDED by the workflow's own suite exclusion ` +
+        exclude.test(r.target),
+        `${r.name}'s test file ${r.target} is EXCLUDED by the workflow's own suite exclusion ` +
           `(${suiteInvocation(ci).exclude}). Its reachability proof is that CI's suite runs it; if ` +
           "the suite skips it, the gate runs nowhere",
       ).toBe(false);
     }
-    expect(seen, "the suite-test-file class is empty — this case would prove nothing").toBe(
-      CHECK_SCRIPT_CLASSES["suite-test-file"].size,
+    expect(rows.length, "the suite-test-file class is empty — this case would prove nothing").toBe(
+      CHECK_SCRIPT_CLASSES["suite-test-file"].targets,
     );
   });
 
   it("toolchain class: each member carries a reason and ci.yml runs it under its own spelling", () => {
-    const scripts = readPackageScripts();
     const ci = readCi();
-    let seen = 0;
-    for (const n of checkScriptNames(scripts)) {
-      const c = classifyCheckScript(n, scripts[n] as string);
-      if (c === null || c.cls !== "toolchain") continue;
-      seen += 1;
-      const reason = TOOLCHAIN_CHECK_SCRIPTS[n] as string;
-      expect(reason.length, `${n} is toolchain-class with no reason written down`).toBeGreaterThan(40);
+    const rows = liveTargetRows().filter((r) => r.cls === "toolchain");
+    for (const r of rows) {
+      const reason = TOOLCHAIN_CHECK_SCRIPTS[r.name] as string;
+      expect(reason.length, `${r.name} is toolchain-class with no reason written down`).toBeGreaterThan(40);
       expect(
-        ci.includes(`npm run ${n}`),
-        `${n} runs no gate module, so its ONLY reachability proof is ci.yml invoking the npm ` +
+        ci.includes(`npm run ${r.name}`),
+        `${r.name} runs no gate module, so its ONLY reachability proof is ci.yml invoking the npm ` +
           "script by name — and ci.yml does not",
       ).toBe(true);
     }
-    expect(seen, "the toolchain class is empty — this case would prove nothing").toBe(
-      CHECK_SCRIPT_CLASSES.toolchain.size,
+    expect(rows.length, "the toolchain class is empty — this case would prove nothing").toBe(
+      CHECK_SCRIPT_CLASSES.toolchain.targets,
     );
   });
 
@@ -12277,9 +12367,25 @@ describe("30-11 round 4 — every check gate is REACHED, and the runner set is d
     const ci = readCi();
     const cmd = scripts["check:dashboard-readonly"];
     expect(cmd, "the DASH-06 npm script is gone — that is a decision, not a refactor").toBeDefined();
-    const c = classifyCheckScript("check:dashboard-readonly", cmd as string);
-    expect(c?.cls, "the DASH-06 control must be classified, not skipped").toBe("suite-test-file");
-    const target = (c as CheckScriptClassification).target;
+    const rows = classifyCheckScriptTargets("check:dashboard-readonly", cmd as string);
+    // ITS OWN ROW, after the widening. The classifier now returns a row per target, so the thing to
+    // assert is that this script still produces exactly one and that it is the suite-test-file row —
+    // a DASH-06 control that dissolved into a list somebody iterates would be the round-1 skip in a
+    // new shape.
+    expect(rows, "the DASH-06 control must be classified, not skipped").not.toBeNull();
+    expect(
+      (rows as readonly CheckScriptClassification[]).length,
+      "the DASH-06 control must carry exactly one reachability row of its own",
+    ).toBe(1);
+    const row = (rows as readonly CheckScriptClassification[])[0] as CheckScriptClassification;
+    expect(row.cls, "the DASH-06 control must be classified, not skipped").toBe("suite-test-file");
+    expect(row.name, "the row must name the script it came from").toBe("check:dashboard-readonly");
+    // And the row must survive into the LIVE derivation, not merely be producible on demand.
+    expect(
+      liveTargetRows().filter((r) => r.name === "check:dashboard-readonly").length,
+      "the DASH-06 control has no row in the live per-target derivation",
+    ).toBe(1);
+    const target = row.target;
     expect(target, "the npm script and this case must agree about WHICH file the gate is").toBe(
       "scripts/board-readonly.test.ts",
     );
@@ -12300,29 +12406,80 @@ describe("30-11 round 4 — every check gate is REACHED, and the runner set is d
     ).toBe(true);
   });
 
-  it("no `check:*` script matches TWO class shapes — the partition is real, not an arm order", () => {
-    // `classifyCheckScript` asks its three questions in order and returns the first answer, so a
-    // script matching two shapes would be filed under whichever arm runs first and the other half
-    // of it would go unproven — the "one arm answering for all of them" failure this phase has now
-    // met in three separate censuses. The shapes are therefore asserted DISJOINT over the live
-    // script set, rather than trusted to be.
+  it("every class shape a `check:*` script matches gets a row — no shape loses to arm order", () => {
+    // WHAT THIS CASE USED TO SAY, AND WHY IT CHANGED. It used to assert the three class shapes were
+    // DISJOINT over the live script set, because the classifier returned the first arm that matched
+    // and a script matching two shapes would have had the other half go unproven. That premise is
+    // gone: a script may now legitimately contribute to two classes, and each contribution gets its
+    // own reachability row. So the property worth asserting is the STRONGER one the fix bought —
+    // every shape a command matches is REPRESENTED in its classification — rather than a
+    // disjointness the derivation no longer needs.
     const scripts = readPackageScripts();
-    const ambiguous: string[] = [];
+    const unrepresented: string[] = [];
     for (const n of checkScriptNames(scripts)) {
       const cmd = scripts[n] as string;
       const shapes = [
-        /node (scripts\/[\w.-]+\.js)/.test(cmd) ? "gate-module" : null,
-        /vitest run ([\w./-]+\.test\.ts)/.test(cmd) ? "suite-test-file" : null,
-        TOOLCHAIN_CHECK_SCRIPTS[n] !== undefined ? "toolchain" : null,
+        new RegExp(GATE_TARGET_RE.source).test(cmd) ? "gate-module" : null,
+        new RegExp(SUITE_TARGET_RE.source).test(cmd) ? "suite-test-file" : null,
       ].filter((s): s is string => s !== null);
-      if (shapes.length !== 1) ambiguous.push(`${n} matches [${shapes.join(", ")}]`);
+      const rows = classifyCheckScriptTargets(n, cmd) ?? [];
+      const classes = new Set(rows.map((r) => r.cls));
+      for (const shape of shapes) {
+        if (!classes.has(shape as CheckClass)) {
+          unrepresented.push(`${n} matches ${shape} and has no ${shape} row`);
+        }
+      }
+      // A shape-free command is either a recorded toolchain decision or a named failure; it is
+      // never silently one class.
+      if (shapes.length === 0 && rows.length > 0) {
+        expect(
+          rows.map((r) => r.cls),
+          `${n} matches no command shape, so its only legitimate class is the recorded toolchain one`,
+        ).toEqual(["toolchain"]);
+      }
     }
     expect(
-      ambiguous,
-      "a check script matching two class shapes is filed under the arm that happens to run first, " +
-        `and the reachability proof of the other class is then never asked of it:\n  ${ambiguous.join("\n  ")}`,
+      unrepresented,
+      "a class shape a check script matches is not represented in its classification, so that " +
+        `class's reachability proof is never asked of it:\n  ${unrepresented.join("\n  ")}`,
     ).toEqual([]);
   });
+
+  it("DISCRIMINATION: five synthetic commands, each with the row set it must produce", () => {
+    // The five shapes the first-match rule got wrong or right, driven through the derivation
+    // directly. `32-36-RED-baseline.txt` § 5 records what each of these returned before.
+    const rowsOf = (n: string, cmd: string): readonly string[] =>
+      (classifyCheckScriptTargets(n, cmd) ?? []).map((r) => `${r.cls} -> ${r.target}`);
+
+    expect(
+      rowsOf("check:two-gates", "tsc --outDir .tmp-build && node scripts/a.js && node scripts/b.js"),
+      "a command running TWO gate modules must produce two gate rows; under first-match " +
+        "scripts/b.js was named in no reachability row at all",
+    ).toEqual(["gate-module -> scripts/a.js", "gate-module -> scripts/b.js"]);
+
+    expect(
+      rowsOf("check:mixed", "tsc --outDir .tmp-build && node scripts/a.js && npx vitest run scripts/x.test.ts"),
+      "a mixed command must be proved in BOTH classes; under first-match the gate arm won and the " +
+        "suite half lost its proof to arm order",
+    ).toEqual(["gate-module -> scripts/a.js", "suite-test-file -> scripts/x.test.ts"]);
+
+    expect(
+      rowsOf("check:two-suites", "npx vitest run scripts/x.test.ts && npx vitest run scripts/y.test.ts"),
+      "two suite files in one command are two targets, not one",
+    ).toEqual(["suite-test-file -> scripts/x.test.ts", "suite-test-file -> scripts/y.test.ts"]);
+
+    expect(
+      rowsOf("check:subshell-gate", "(cd . && node scripts/a.js)"),
+      "a gate module inside a subshell is still a gate module that must be reachable",
+    ).toEqual(["gate-module -> scripts/a.js"]);
+
+    expect(
+      classifyCheckScriptTargets("check:nothing-shaped", "bash tools/does-whatever.sh --quietly"),
+      "a command with no target and no toolchain reason must return null so the caller can NAME " +
+        "it — the posture the per-target rewrite keeps verbatim",
+    ).toBeNull();
+  });
+
   it("PREMISE: the classifier REPORTS a script that matches no class", () => {
     // A classifier that never returns `null` is the `continue` in another shape: it would call
     // everything classified and the totality case above would be green over nothing.
@@ -12333,7 +12490,7 @@ describe("30-11 round 4 — every check gate is REACHED, and the runner set is d
       "check:nothing-shaped": "bash tools/does-whatever.sh --quietly",
     };
     const classified = Object.entries(constructed).map(
-      ([n, cmd]) => [n, classifyCheckScript(n, cmd)] as const,
+      ([n, cmd]) => [n, classifyCheckScriptTargets(n, cmd)] as const,
     );
     expect(
       classified.filter(([, c]) => c === null).map(([n]) => n),
@@ -12341,7 +12498,9 @@ describe("30-11 round 4 — every check gate is REACHED, and the runner set is d
         "does — silently",
     ).toEqual(["check:nothing-shaped"]);
     expect(
-      classified.filter(([, c]) => c !== null).map(([, c]) => (c as CheckScriptClassification).cls),
+      classified
+        .filter(([, c]) => c !== null)
+        .flatMap(([, c]) => (c as readonly CheckScriptClassification[]).map((r) => r.cls)),
       "one of each class, in order — so the three arms are shown to DISCRIMINATE rather than one " +
         "arm answering for all of them",
     ).toEqual(["gate-module", "suite-test-file", "toolchain"]);

@@ -187,3 +187,90 @@ M5 — REMOVE the `[...].join(sep)` arm from `staticText`  (added beyond the pla
        one a hard error by design, and ci.yml:517 sets it. Departure recorded, not worked around.)
   npx vitest run --exclude '**/scripts/e2e/**'
       Test Files  75 passed (75)     Tests  5118 passed | 2 skipped (5120)      was 5109 | 2
+
+
+════════════════════════════════════════════════════════════════════════════════════════════════
+§ 6 — EVERY TARGET GETS ITS OWN REACHABILITY ROW (WR-05 / F-07)
+════════════════════════════════════════════════════════════════════════════════════════════════
+
+`classifyCheckScript` (first match via `.exec`) is replaced by `classifyCheckScriptTargets`, which
+returns EVERY gate-module target and EVERY suite target a command carries, each row naming the
+script it came from. The `null` posture for a command with no target and no recorded toolchain
+reason is kept verbatim — an unclassifiable script is a red that names it, never a skip.
+
+  synthetic command                                       before (first match)        after
+  ------------------------------------------------------  --------------------------  ------------
+  node scripts/a.js && node scripts/b.js                  gate -> a.js  (b.js unnamed) two gate rows
+  node scripts/a.js && vitest run scripts/x.test.ts       gate -> a.js  (suite lost)   one of each
+  vitest run x.test.ts && vitest run y.test.ts            suite -> x    (y unnamed)    two suite rows
+  (cd . && node scripts/a.js)                             gate -> a.js                 gate -> a.js
+  bash tools/does-whatever.sh --quietly                   null                         null
+
+  Case: "DISCRIMINATION: five synthetic commands, each with the row set it must produce".
+
+PINNED NUMBERS ARE TARGET COUNTS.
+
+  CHECK_SCRIPT_CLASSES  gate-module 9 targets | suite-test-file 1 target | toolchain 1 target
+  sum of pinned target counts                     11
+  targets the live manifest carries               11    (asserted equal)
+  scripts every one of which contributes a row    11    (asserted, so the sum hides no drop-out)
+
+  The three per-class reachability proofs now iterate over ROWS, not over scripts, so a command
+  running two gate modules is asked the ci.yml question twice — once about each. Each case pins its
+  own row count against the class's pinned target count, so a class emptying out is a red rather
+  than a loop that runs zero times.
+
+THE DASH-06 CONTROL KEEPS ITS OWN ROW. `check:dashboard-readonly` produces exactly one
+suite-test-file row, the row names the script it came from, and the LIVE per-target derivation is
+re-queried for it — a control that dissolved into a list somebody iterates would be the round-1 skip
+in a new shape. `npm run check:dashboard-readonly` exit 0.
+
+THE DISJOINTNESS CASE WAS REPAIRED, NOT DELETED. It used to assert the three class shapes were
+disjoint over the live script set, and its premise was first-match: a script matching two shapes
+would lose one half to arm order. A script may now legitimately contribute to two classes, so the
+case asserts the stronger property the fix bought — every shape a command matches is REPRESENTED in
+its classification — and a command matching no shape at all must be the recorded toolchain decision
+and nothing else.
+
+
+════════════════════════════════════════════════════════════════════════════════════════════════
+§ 7 — MUTATION RUN M6: THE CLASSIFIER BACK TO FIRST-MATCH
+════════════════════════════════════════════════════════════════════════════════════════════════
+
+M6 — `if (rows.length > 0) return [rows[0]];`  (first-match semantics restored exactly: the gate
+     rows are built first, so the gate arm wins over the suite arm as it did before)
+
+     Tests 2 failed | 293 passed (295)
+       × DISCRIMINATION: five synthetic commands, each with the row set it must produce
+       × a target appended to an EXISTING command moves the numbers — the pins count targets
+
+     WHAT THE FIRST RUN OF M6 TAUGHT. Run against the suite as first written, M6 red ONE case: the
+     synthetic commands. Every count case stayed green, because the live manifest carries eleven
+     scripts and eleven targets and no live command carries two. A pin that cannot tell the two
+     derivations apart on the tree it runs over is a pin that will not notice the day they diverge.
+
+     So a case was added that perturbs the manifest IN MEMORY the way a later author would perturb
+     it — one `&& node scripts/check-nul-bytes.js` appended to an existing gate command — and asks
+     both derivations what they see:
+
+       script count  before 11   after 11   (unchanged — this is why script-count pins hid it)
+       target count  before 11   after 12   (the perturbed script now carries two rows)
+
+     That case reds under M6 too, which is what makes "the pinned numbers are TARGET counts" a
+     measurement rather than a renaming of a field.
+
+
+════════════════════════════════════════════════════════════════════════════════════════════════
+§ 8 — FINAL STATE
+════════════════════════════════════════════════════════════════════════════════════════════════
+
+  npx tsc --noEmit                                                              exit 0
+  npx vitest run --exclude '**/scripts/e2e/**' scripts/check-foundation-guards.test.ts
+      Tests  295 passed (295)        was 293 — two cases ADDED, none replaced
+  npx vitest run --exclude '**/scripts/e2e/**' scripts/validate.test.ts
+      Tests  127 passed (127)        was 118
+  node scripts/check-foundation-guards.js                                       exit 0
+  VALIDATE_KIT_ROOT=. node scripts/validate-agent-factory.js                    exit 0
+  npm run check:dashboard-readonly                                              exit 0
+  npx vitest run --exclude '**/scripts/e2e/**'
+      Test Files  75 passed (75)     Tests  5120 passed | 2 skipped (5122)      was 5109 | 2
