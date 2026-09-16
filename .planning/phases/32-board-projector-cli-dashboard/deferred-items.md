@@ -138,3 +138,32 @@
   2 skipped, exit 0**. Nothing in this round measured the e2e lane, and nothing in this round's
   reports claims anything about it. Ledger row 183.
   status: open
+- **`npm run check:diff-disposition` still exits 1 — 78 finding(s) over 39 element(s), unchanged by
+  plan 32-38.** Measured on this tree twice, WITH and WITHOUT this plan's
+  `agent-factory/contracts/board.md` edit temporarily reverted to HEAD `069dcd9c`: 78 both ways.
+  `agent-factory/contracts/board.md` is not in the LANG-03 watched corpus (40 markdown files: 17
+  roles + 19 workflows + 4 residue entries), so a contracts edit contributes no clause to it. Every
+  finding is in `agent-factory/roles/` and `agent-factory/workflows/` files plan 32-38 did not
+  touch, carried since before round 1 and already recorded above for rounds 1 through 3. The gate
+  is not in plan 32-38's `<verification>` list. Same ledger row as the round-3 entry.
+  status: open
+- **The live claude-CLI end-to-end lane was NOT run by plan 32-38, and its state stays
+  `UNKNOWN - verify`.** `npm test` triggers `scripts/e2e`, which spends tokens on an authenticated
+  box and can hang; every prior round of this phase carried it the same way, and this plan's own
+  `must_haves.truths` declares the carry as a backstop rather than a claim. The regression lane
+  actually run is `npx vitest run --exclude '**/scripts/e2e/**'` — **75 files, 5151 passed,
+  2 skipped, exit 0**. Nothing in plan 32-38 measured the e2e lane and nothing in its reports
+  claims anything about it. Same ledger row as the round-3 entry.
+  status: open
+- **`board-tracer.test.ts` is now an exempt entry in `scripts/validate.test.ts`'s
+  `NOT_A_SECOND_AUTHORITY` registry (count 8 -> 9), and carries that registry's standing risk.**
+  Plan 32-38's duplicate-identifier fixture supplied the `status` key spelling that tipped a file
+  already naming `column` (in a WIP-count test DESCRIPTION at line 114) and already scanning text
+  into the census's `namesBothKeys && scans` conjunction. The file plants ticket documents as
+  fixture TEXT and reads every ticket field out of the `--json` document the one grammar produced,
+  so the judgment matches the entries already recorded for `board-model.test.ts` and
+  `board-read.test.ts` — it was read before it was exempted. THE RISK, STATED: a genuine second
+  ticket-frontmatter reader placed inside `scripts/board-tracer.test.ts` would now be invisible to
+  the census, exactly as one placed in any other exempt file would be. That is the trade the
+  registry exists to record rather than hide, and it is unchanged in kind by this ninth entry.
+  status: open
