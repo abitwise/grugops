@@ -987,6 +987,34 @@ reproducible by the commands printed beside it.
 **It does not close the carried `check:diff-disposition` failure.** That gate is red, over five
 Phase-31 documents, with zero overlap with this round's 19 changed files (§ 9.1).
 
+### One observation FOR the verifier, surfaced and deliberately not acted on
+
+While confirming that this plan moves no status-bearing file, `.planning/REQUIREMENTS.md` was read.
+**Three DASH requirements are already checked `[x]` and read `Complete` in the traceability table,
+against a verification that marks all eight incomplete:**
+
+```
+- [x] DASH-03    | DASH-03 | Phase 32 | Complete |
+- [x] DASH-05    | DASH-05 | Phase 32 | Complete |
+- [x] DASH-08    | DASH-08 | Phase 32 | Complete |
+      (DASH-01, 02, 04, 06, 07 are `[ ]` / `Gaps Found`)
+```
+
+`git log -- .planning/REQUIREMENTS.md` names the commit that did it:
+`f8c84e06 docs(32-33): complete the presence-derivation gap-closure plan` — a gap-closure plan's
+ordinary `update_requirements` close-out step, run on a phase whose standing verdict is
+`gaps_found`. The commit immediately before it in that file's history is
+`7c1ff44d docs(phase-32): revert premature Complete requirements after gaps found`, so this is the
+second occurrence of the same thing in this phase.
+
+**This document changes none of it, and that is deliberate.** This plan's prohibitions say it
+decides no requirement checkbox, and its own `<verify>` asserts
+`git diff --exit-code -- … .planning/REQUIREMENTS.md`. Correcting a status line here would be the
+exact act the prohibition exists to prevent, in the exact direction — an executor deciding a verdict
+— even though the correction would run the other way. **It is surfaced so the verifier decides**,
+and this plan's own `update_requirements` close-out step was SKIPPED for the same reason (recorded
+as Deviation 3 in `32-37-SUMMARY.md`).
+
 ### Round position, and what a round 4 would have to do differently
 
 **This was round 3 of a hard cap of 4. One round remains.** That budget is what makes recording an

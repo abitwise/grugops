@@ -5,14 +5,14 @@ milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live
 current_phase: 32
 current_phase_name: Board Projector & CLI Dashboard
 status: "Phase 31 CLOSED 2026-09-13 by user override D-44 (round-9 verification gaps_found 4/6 left standing; CR-28..CR-31 + WR-43..WR-47 accepted open). Next: Phase 32 — Board Projector & CLI Dashboard, not yet planned. Standing rule: four-round gap-closure cap on every later phase."
-stopped_at: Completed 32-36-PLAN.md
-last_updated: "2026-09-16T12:46:57.063Z"
-state_head: aa3339d52f122a6aa79bafc1ad3c38417eebd0a3
+stopped_at: Completed 32-37-PLAN.md
+last_updated: "2026-09-16T13:50:21.860Z"
+state_head: 8b074b5e8d97240aebe1e2a6ce3f7f3db8873f67
 progress:
   total_phases: 9
   completed_phases: 30
   total_plans: 250
-  completed_plans: 249
+  completed_plans: 250
   percent: 100
 last_activity: 2026-09-13
 prior_activity_desc: Phase 27 gap-closure round 8 COMPLETE (27-45, 27-46; D-53). Full narration lives in the Phase 27 artifacts and in docs/audit/; shortened here by plan 31-38 because this single line measured 7995 characters, above the 4000-character ceiling a pathological STATE line has previously crossed to turn a sub-second guard into a multi-minute one.
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-09-07 — after Phase 29.2)
 ## Current Position
 
 Phase: 32 (Board Projector & CLI Dashboard) — EXECUTING
-Plan: 7 of 30
+Plan: 8 of 30
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 
@@ -505,6 +505,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 32 P34 | 90 min | 3 tasks | 10 files |
 | Phase 32 P35 | 105 min | 3 tasks | 9 files |
 | Phase 32 P36 | 55 min | 3 tasks | 4 files |
+| Phase 32 P37 | 43 min | 3 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -1385,6 +1386,9 @@ Recent decisions affecting current work:
 - [Phase 32]: The live event-path wait deadline is DERIVED from POLL_MS minus a named margin (750 ms), with the two attribution comparisons byte-identical to HEAD — A red by timeout prints no latency; a red by comparison prints the number that failed. WR-07's CI-topology half deferred to Phase 33 / CAP-02 in writing
 - [Phase 32]: 32-36: the one-authority census decides by the key's PRESENCE as a word in a resolved static text and by a String.prototype/RegExp.prototype-derived refused complement, not by syntactic position and not by an enumeration — Four ordinary second readers measured at zero added carriers before; each is closed by a DIFFERENT mechanism (position rule, enumeration, and staticText's missing join-resolution arm), proven by five mutation runs. Over-detection is paid in five new named exemptions, one of them on production code (scripts/check-diff-disposition.ts), recorded as an owned residual.
 - [Phase 32]: 32-36: check-script classification returns one row per TARGET, and CHECK_SCRIPT_CLASSES pins TARGET counts with a sum equality over the manifest-derived total — First-match .exec proved the first of two gate modules and let the gate arm beat the suite arm. The first-match mutation initially red only one case because 11 scripts carry 11 targets, so a case perturbing the manifest in memory (target count 11 to 12, script count unchanged) was added.
+- [Phase 32]: Gap-closure round 3 ends with every finding OPEN and no source file touched: this plan owns none, and a closure applied at the end of a round in a plan that does not own the file is how the previous round's first finding was made
+- [Phase 32]: The created-versus-inherited ratio fell for the first time in Phase 32, to 2 of 5 from round 2's 4 of 5, and both created findings are diagnostic-sentence defects rather than bypasses of a safety invariant
+- [Phase 32]: 32-35's record of 77 check:diff-disposition findings is corrected to 78: the count never moved, the earlier instrument counted (added) finding lines only
 
 ### Pending Todos
 
@@ -1508,8 +1512,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-09-16T12:46:29.693Z
-Stopped at: Completed 32-36-PLAN.md
+Last session: 2026-09-16T13:49:37.142Z
+Stopped at: Completed 32-37-PLAN.md
 Resume file: None
 
 ## Operator Next Steps

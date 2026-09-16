@@ -1215,7 +1215,7 @@ Plans:
 
 **Wave 7** *(blocked on 32-36)*
 
-- [ ] 32-37-PLAN.md — adversarial self-review: the harness's premise asserted and printed first, every recorded reproduction from all four prior documents re-run against the rebuilt committed `.js` (including the three baseline rows already refused before this round, each answered by which authority refuses it NOW), a reachability answer and a sibling-arm answer per new refusal branch, a per-stolen-refusal relocation table, a manifest-derived gate sweep, both residual-ledger representations reconciled, a round ledger asserted total against the 13-item inventory, the probe-item arithmetic balanced (7 authored + 5 flagged = 12), and the created-versus-inherited ratio stated as a number. **This plan does not decide phase completion; the verifier does.** [DASH-01..DASH-08]
+- [x] 32-37-PLAN.md — adversarial self-review: the harness's premise asserted and printed first, every recorded reproduction from all four prior documents re-run against the rebuilt committed `.js` (including the three baseline rows already refused before this round, each answered by which authority refuses it NOW), a reachability answer and a sibling-arm answer per new refusal branch, a per-stolen-refusal relocation table, a manifest-derived gate sweep, both residual-ledger representations reconciled, a round ledger asserted total against the 13-item inventory, the probe-item arithmetic balanced (7 authored + 5 flagged = 12), and the created-versus-inherited ratio stated as a number. **This plan does not decide phase completion; the verifier does.** [DASH-01..DASH-08]
 
 **Research flag (discharged):** the board ticket-row grammar is now measured — 141 rows across five sources in `32-RESEARCH.md` §Measured Board Corpus. The measurement contradicted D-01's anchored form (103/141), which the user resolved as D-22's opaque `trailer` (141/141).
 
@@ -1273,7 +1273,7 @@ Plans:
 | 29.2. Model Assignment Delivery Path | v2.1 | 6/6 | Complete    | 2026-09-07 |
 | 30. Per-Checkpoint Autonomy Matrix | v2.1 | 11/11 | Complete    | 2026-09-07 |
 | 31. Autonomous Manual Testing | v2.1 | 44/44 | In Progress|  |
-| 32. Board Projector & CLI Dashboard | v2.1 | 29/30 | In Progress|  |
+| 32. Board Projector & CLI Dashboard | v2.1 | 30/30 | In Progress|  |
 | 33. Live Capture & Windows Portability | v2.1 | 0/TBD | Not started | - |
 
 **Totals:** 33 phases · **4 milestones shipped** (v1.0 + v1.1 + v1.2 + v2.0) · **1 active** (v2.1, phases 27–33).
