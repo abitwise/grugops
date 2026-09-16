@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 183
+open_count: 184
 waived_count: 0
 fixed_count: 8
-total_count: 191
-last_updated: 2026-09-15T13:43:13.193Z
+total_count: 192
+last_updated: 2026-09-16T07:22:43.296Z
 ---
 
 # Broken Windows Ledger
@@ -206,6 +206,7 @@ last_updated: 2026-09-15T13:43:13.193Z
 | 189 | 32 | unmet-truth | scripts/board-model.ts |  | F-06 (32-23): row-without-file still prints 'no ticket file carries that identifier' with an expected path that EXISTS, when the ticket file's declared id differs from its file stem. 32-15 keys the honest sentence on unadmittedTickets (refused entries, by stem) and the admitted map on the declared id, so an admitted-under-another-identity document is in neither map under its stem - and no readErrors entry is raised either. Reproduction in 32-23-ADVERSARIAL-REVIEW.md section 5. | open |  | 2026-09-15T13:43:13.030Z |  |
 | 190 | 32 | deviation | scripts/board-dashboard.ts |  | F-05 (32-23): writeDocument sanitizes AFTER JSON.stringify, so the two are complementary - C1 is removed, C0 is already escaped into printable text and cannot be seen. A raw ESC in a board row title reaches the --json document as 0 control code points and is recovered as 6 by one JSON.parse. The boundary is stated in writeDocument's docblock; what is measured here is that the input is an ordinary raw C0, not a planted escape sequence. Reproduction in 32-23-ADVERSARIAL-REVIEW.md section 5. | open |  | 2026-09-15T13:43:13.111Z |  |
 | 191 | 32 | deviation | scripts/check-foundation-guards.test.ts |  | F-07 (32-23): classifyCheckScript uses .exec, so a check:* command running two gate modules is classified by the FIRST and the second gets no reachability proof; CHECK_SCRIPT_CLASSES pins scripts per class, never targets per script. No live instance - all 11 check:* scripts carry at most one gate module, derived at measurement time. Reproduction in 32-23-ADVERSARIAL-REVIEW.md section 5. | open |  | 2026-09-15T13:43:13.193Z |  |
+| 192 | 32 | deviation | scripts/js-import-closure.ts |  | The closure WALKER does not read a require("…") specifier (SPECIFIER_PATTERNS covers the three emitted import forms only); the read-only GUARD's AST census does refuse one. Measured in 32-31-GREEN-proof.txt § 4 P5. | open |  | 2026-09-16T07:22:43.296Z |  |
 
 ````json
 [
@@ -2513,6 +2514,19 @@ last_updated: 2026-09-15T13:43:13.193Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-09-15T13:43:13.193Z",
+    "resolved_at": null,
+    "milestone": "v2.1"
+  },
+  {
+    "id": 192,
+    "kind": "deviation",
+    "phase": "32",
+    "file": "scripts/js-import-closure.ts",
+    "line": null,
+    "description": "The closure WALKER does not read a require(\"…\") specifier (SPECIFIER_PATTERNS covers the three emitted import forms only); the read-only GUARD's AST census does refuse one. Measured in 32-31-GREEN-proof.txt § 4 P5.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-16T07:22:43.296Z",
     "resolved_at": null,
     "milestone": "v2.1"
   }

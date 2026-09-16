@@ -1191,7 +1191,7 @@ Round-2 re-verification on 2026-09-15 returned `gaps_found` (2/5 truths, **down*
 Plans:
 **Wave 1**
 
-- [ ] 32-31-PLAN.md — TRACER · DASH-06 route (a): every module specifier lands in exactly one of bare / relative / foreign through one exported authority both the closure walker and the read-only guard call, the scan's input narrowed to code rather than prose, and the foreign bucket refused by construction — proven by a per-row exit-code FLIP over the three baseline-green spellings (`/abs/…`, `//localhost/…`, `//host/…`) planted into the committed `.js`, each naming the case that reds it, plus a per-spelling refusal-authority before/after column for the three relocated spellings (`file://`, `C:\`, `data:`) [DASH-06, DASH-08]
+- [x] 32-31-PLAN.md — TRACER · DASH-06 route (a): every module specifier lands in exactly one of bare / relative / foreign through one exported authority both the closure walker and the read-only guard call, the scan's input narrowed to code rather than prose, and the foreign bucket refused by construction — proven by a per-row exit-code FLIP over the three baseline-green spellings (`/abs/…`, `//localhost/…`, `//host/…`) planted into the committed `.js`, each naming the case that reds it, plus a per-spelling refusal-authority before/after column for the three relocated spellings (`file://`, `C:\`, `data:`) [DASH-06, DASH-08]
 
 **Wave 2** *(blocked on 32-31)*
 
@@ -1273,7 +1273,7 @@ Plans:
 | 29.2. Model Assignment Delivery Path | v2.1 | 6/6 | Complete    | 2026-09-07 |
 | 30. Per-Checkpoint Autonomy Matrix | v2.1 | 11/11 | Complete    | 2026-09-07 |
 | 31. Autonomous Manual Testing | v2.1 | 44/44 | In Progress|  |
-| 32. Board Projector & CLI Dashboard | v2.1 | 23/23 | In Progress|  |
+| 32. Board Projector & CLI Dashboard | v2.1 | 24/30 | In Progress|  |
 | 33. Live Capture & Windows Portability | v2.1 | 0/TBD | Not started | - |
 
 **Totals:** 33 phases · **4 milestones shipped** (v1.0 + v1.1 + v1.2 + v2.0) · **1 active** (v2.1, phases 27–33).
