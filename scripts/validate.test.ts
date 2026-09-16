@@ -1744,6 +1744,71 @@ describe("exactly ONE ticket-frontmatter reader exists in scripts/ (32-12, widen
     return [...keyRows.values(), ...primitiveRows.values()].sort((a, b) => a.line - b.line);
   }
 
+  /**
+   * THE TWO HALVES, UNCONJOINED — the input the SCOPE refusal below needs (review WR-04).
+   *
+   * `findTicketReaders` answers about ONE parsed file, so a genuine second authority whose key
+   * spellings live in `scripts/a.ts` and whose text scan lives in `scripts/b.ts`, joined by an
+   * ordinary `import`, is never detected — while the census's whole claim is "exactly one authority
+   * on what a ticket says". 32-36 pinned the over-detection direction and left the converse neither
+   * pinned nor stated; the round's own self-review measured the split-file plant as a WORKING
+   * authority at exit 0.
+   */
+  function readerHalves(sf: ts.SourceFile): {
+    readonly namesBothKeys: boolean;
+    readonly scans: boolean;
+    readonly importsFrom: readonly { readonly specifier: string; readonly names: readonly string[] }[];
+  } {
+    const findings = new Set<string>();
+    const scanNames = new Set<string>();
+    const importsFrom: { specifier: string; names: string[] }[] = [];
+    const walk = (n: ts.Node): void => {
+      const text = staticText(n);
+      if (text !== null) {
+        for (const k of KEY_SPELLINGS) if (namesKey(text, k)) findings.add(k);
+      }
+      if (
+        ts.isCallExpression(n) &&
+        ts.isPropertyAccessExpression(n.expression) &&
+        looksLikeTextScan(n.expression.name.text)
+      ) {
+        scanNames.add(n.expression.name.text);
+      }
+      if (
+        ts.isNewExpression(n) &&
+        ts.isIdentifier(n.expression) &&
+        CONSTRUCTOR_PRIMITIVES.includes(n.expression.text)
+      ) {
+        scanNames.add(n.expression.text);
+      }
+      if (
+        (ts.isImportDeclaration(n) || ts.isExportDeclaration(n)) &&
+        n.moduleSpecifier !== undefined &&
+        ts.isStringLiteral(n.moduleSpecifier)
+      ) {
+        // THE BINDINGS, NOT ONLY THE MODULE. Importing FROM the one authority is the CORRECT shape
+        // — `validate-agent-factory.ts` deleted its private column parser to do exactly that — so
+        // the module name alone cannot be the question. What matters is whether the imported
+        // BINDING is itself a key-spelling table.
+        const names: string[] = [];
+        const clause = ts.isImportDeclaration(n) ? n.importClause : n.exportClause;
+        const bindings =
+          clause !== undefined && ts.isImportClause(clause) ? clause.namedBindings : clause;
+        if (bindings !== undefined && bindings !== null && ts.isNamedImports(bindings)) {
+          for (const el of bindings.elements) names.push(el.propertyName?.text ?? el.name.text);
+        }
+        importsFrom.push({ specifier: n.moduleSpecifier.text, names });
+      }
+      ts.forEachChild(n, walk);
+    };
+    walk(sf);
+    return {
+      namesBothKeys: KEY_SPELLINGS.every((k) => findings.has(k)),
+      scans: scanNames.size > 0,
+      importsFrom,
+    };
+  }
+
   const parse = (name: string, text: string): ts.SourceFile =>
     ts.createSourceFile(name, text, ts.ScriptTarget.ES2022, true);
 
@@ -1839,7 +1904,12 @@ describe("exactly ONE ticket-frontmatter reader exists in scripts/ (32-12, widen
       .filter(([, f]) => f.length > 0);
     return {
       detected,
-      carriers: detected.filter(([name]) => NOT_A_SECOND_AUTHORITY[name] === undefined),
+      // `Object.hasOwn`, NOT a raw property read (review WR-04). `Object.freeze` does not remove
+      // `Object.prototype`, so `NOT_A_SECOND_AUTHORITY["toString"]` is a FUNCTION and a file named
+      // `scripts/toString.ts` was exempted with no reason recorded and without moving
+      // NOT_A_SECOND_AUTHORITY_COUNT — an exemption granted by a FILENAME rather than by a
+      // decision, which is the class this whole census exists to prevent.
+      carriers: detected.filter(([name]) => !Object.hasOwn(NOT_A_SECOND_AUTHORITY, name)),
     };
   };
 
@@ -1852,6 +1922,238 @@ describe("exactly ONE ticket-frontmatter reader exists in scripts/ (32-12, widen
 
   /** TWO-SIDED. A second carrier is a second authority on what a ticket says. */
   const TICKET_FRONTMATTER_READER_COUNT = 1;
+
+  // ═══════════════════════════════════════════════════════════════════════════════════════════
+  // REVIEW WR-04 — THE CENSUS'S SUBJECT IS A FILE, SO A READER SPLIT ACROSS TWO IS INVISIBLE.
+  //
+  // `findTicketReaders` returns `[]` unless `namesBothKeys && primitiveRows.size > 0` WITHIN ONE
+  // parsed source file. A genuine second authority whose key spellings live in one file and whose
+  // text scan lives in another, joined by an ordinary `import`, is therefore never detected —
+  // while the census's whole claim is "exactly one authority on what a ticket says".
+  //
+  // THE SCOPE IS STATED AS A REFUSAL rather than widened to the import-joined unit, which is this
+  // repository's posture for a question a syntactic pass cannot decide in general: the split shape
+  // is refused BY NAME instead of being invisible. The only way to assemble the pair across files
+  // is for the key spellings to reach the scanning file through an import — a file that re-declares
+  // both keys beside its own scan is already caught by the conjunction. So the join is what gets
+  // asked about.
+  // ═══════════════════════════════════════════════════════════════════════════════════════════
+  /**
+   * Every place a SCANNING file takes the ticket key half from another file's exported table.
+   *
+   * Written over arbitrary rows rather than over `LIVE_ROWS` directly, so the planted case below
+   * can prove the rule DISCRIMINATES. A rule only ever measured against a clean tree is a rule
+   * nobody has watched refuse anything.
+   */
+  const splitReaderOffenders = (rows: readonly ScannedFile[]): readonly string[] => {
+    const halves = new Map(rows.map((r) => [r.name, readerHalves(parse(r.name, r.text))]));
+
+    /**
+     * The EXPORTED BINDINGS that are themselves key-spelling tables — the only thing an import can
+     * carry that completes the pair. A module that merely CONTAINS both spellings is not a
+     * supplier: `validate-agent-factory.ts` imports `parseBoard` and `parseTicketDocument` from the
+     * one grammar precisely SO THAT it is not a second authority, and redding that would invert
+     * the rule this census exists to enforce.
+     */
+    const keyTables = new Map<string, Set<string>>();
+    for (const row of rows) {
+      const sf = parse(row.name, row.text);
+      const named = new Set<string>();
+      const visit = (n: ts.Node): void => {
+        if (ts.isVariableDeclaration(n) && ts.isIdentifier(n.name) && n.initializer !== undefined) {
+          const text = n.initializer.getText(sf);
+          if (KEY_SPELLINGS.every((k) => namesKey(text, k))) named.add(n.name.text);
+        }
+        ts.forEachChild(n, visit);
+      };
+      visit(sf);
+      if (named.size > 0) keyTables.set(row.name, named);
+    }
+
+    /** Resolve a relative specifier to the scanned-set name it points at, or null. */
+    const resolveScanned = (from: string, specifier: string): string | null => {
+      if (!specifier.startsWith(".")) return null;
+      const fromDir = from.includes("/") ? from.slice(0, from.lastIndexOf("/")) : "";
+      const parts = (fromDir === "" ? specifier : `${fromDir}/${specifier}`).split("/");
+      const out: string[] = [];
+      for (const part of parts) {
+        if (part === "." || part === "") continue;
+        if (part === "..") out.pop();
+        else out.push(part);
+      }
+      // The repository imports its own modules by their BUILT `.js` name; the scanned set is `.ts`.
+      const joined = out.join("/").replace(/\.js$/, ".ts");
+      return halves.has(joined) ? joined : null;
+    };
+
+    const offenders: string[] = [];
+    for (const [name, h] of halves) {
+      // A file that names both keys itself is already the conjunction's subject; only a file that
+      // SCANS without naming them can be completing the pair through an import.
+      if (!h.scans || h.namesBothKeys) continue;
+      if (Object.hasOwn(NOT_A_SECOND_AUTHORITY, name)) continue;
+      for (const imp of h.importsFrom) {
+        const target = resolveScanned(name, imp.specifier);
+        if (target === null || target === name) continue;
+        const tables = keyTables.get(target);
+        if (tables === undefined) continue;
+        for (const binding of imp.names) {
+          if (tables.has(binding)) {
+            offenders.push(`${name} takes the key half from ${target} as \`${binding}\``);
+          }
+        }
+      }
+    }
+    return offenders;
+  };
+
+  // ═══════════════════════════════════════════════════════════════════════════════════════════
+  // REVIEW WR-04 — THE CENSUS'S SUBJECT IS A FILE, SO A READER SPLIT ACROSS TWO IS INVISIBLE.
+  //
+  // `findTicketReaders` returns `[]` unless `namesBothKeys && primitiveRows.size > 0` WITHIN ONE
+  // parsed source file. A genuine second authority whose key spellings live in one file and whose
+  // text scan lives in another, joined by an ordinary `import`, is therefore never detected —
+  // while the census's whole claim is "exactly one authority on what a ticket says". 32-36 pinned
+  // the over-detection direction and left the converse neither pinned nor stated; the round's own
+  // self-review measured the split-file plant as a WORKING authority at exit 0.
+  //
+  // THE SCOPE IS STATED AS A REFUSAL rather than widened to the import-joined unit, which is this
+  // repository's posture for a question a syntactic pass cannot decide in general: the split shape
+  // is refused BY NAME instead of being invisible. The only way to assemble the pair across files
+  // is for the key spellings to reach the scanning file through an import — a file that re-declares
+  // both keys beside its own scan is already caught by the conjunction. So the join is what gets
+  // asked about, and the BINDING is what is asked about, not the module.
+  // ═══════════════════════════════════════════════════════════════════════════════════════════
+  it("the exemption lookup is an OWN-property test, not a raw read of a frozen object", () => {
+    // REVIEW WR-04, second defect — RECORDED WITH ITS REAL REACH, which is narrower than the review
+    // states. `Object.freeze({…})` does not remove `Object.prototype`, so the raw read
+    // `NOT_A_SECOND_AUTHORITY[name] === undefined` answers "exempt" for `toString`, `valueOf` and
+    // `__proto__`. But every name the census ever looks up is a FILENAME ending in `.ts`, and
+    // `"toString.ts"` is not a prototype member — so the defect is UNREACHABLE on the live scan set
+    // for exactly the structural reason the review gives for IN-03, not for a reason anybody chose.
+    //
+    // It is fixed and pinned anyway, because "unreachable" here rests on a property of the scanned
+    // set (that it is filtered to `.ts`) rather than on the lookup being correct — and that is a
+    // premise a future change to the scan set can retire silently.
+    const carrier =
+      'const KEYS = ["column", "status"];\n' +
+      "export const read = (t: string): string[] => t.split('\\n').filter((l) => " +
+      "KEYS.some((k) => l.startsWith(k)));\n";
+
+    // THE LOOKUP ITSELF, exercised at the bare names the raw read would have mis-answered.
+    for (const inherited of ["toString", "valueOf", "__proto__", "constructor"]) {
+      expect(
+        Object.hasOwn(NOT_A_SECOND_AUTHORITY, inherited),
+        `PREMISE: ${inherited} is a RECORDED exemption, so this case is about a decision rather ` +
+          "than an inherited property",
+      ).toBe(false);
+      const { detected, carriers } = censusOver([{ name: inherited, text: carrier }]);
+      expect(
+        detected.map(([n]) => n),
+        `PREMISE: ${inherited} was not detected as a reader at all, so "it is not exempted" is ` +
+          "true of a file the census never saw",
+      ).toEqual([inherited]);
+      expect(
+        carriers.map(([n]) => n),
+        `${inherited} was exempted from the one-authority census by its NAME. No line of ` +
+          "NOT_A_SECOND_AUTHORITY says so and NOT_A_SECOND_AUTHORITY_COUNT did not move",
+      ).toEqual([inherited]);
+    }
+
+    // THE CONVERSE: a genuinely recorded exemption still exempts.
+    const recorded = Object.keys(NOT_A_SECOND_AUTHORITY)[0] as string;
+    expect(
+      censusOver([{ name: recorded, text: carrier }]).carriers,
+      "a file named in NOT_A_SECOND_AUTHORITY is no longer exempt, so the lookup now refuses the " +
+        "decisions it is supposed to honour",
+    ).toEqual([]);
+
+    // AND THE PREMISE THE UNREACHABILITY RESTS ON, asserted rather than assumed: every live name
+    // carries an extension, which is what keeps it off Object.prototype.
+    expect(
+      LIVE_ROWS.filter((r) => !r.name.endsWith(".ts")),
+      "a scanned name without a `.ts` extension can collide with an Object.prototype member, which " +
+        "is the premise that made this defect unreachable",
+    ).toEqual([]);
+  });
+
+  it("no scanning file reaches the key spellings through an IMPORT from another scanned file", () => {
+    expect(
+      LIVE_ROWS.length,
+      "PREMISE: nothing was scanned, so the refusal below refused nothing",
+    ).toBeGreaterThan(10);
+
+    const offenders = splitReaderOffenders(LIVE_ROWS);
+    expect(
+      offenders,
+      `a file that SCANS text reaches the ticket key spellings through an import: ` +
+        `${offenders.join(" | ")}. The one-authority census asks its question of a single parsed ` +
+        "file, so a reader assembled across two files satisfies every check it makes while being " +
+        "a second authority on what a ticket says. Either fold the reader back into the one " +
+        "authority, or record the join here as a named decision the way NOT_A_SECOND_AUTHORITY " +
+        "records a file",
+    ).toEqual([]);
+  });
+
+  it("the split-across-files refusal DISCRIMINATES: the planted pair is caught, the legitimate one is not", () => {
+    // THE PLANT THE ROUND'S OWN SELF-REVIEW MEASURED AT EXIT 0. The key spellings live in one file
+    // and the text scan in another, joined by an ordinary import — a working second authority that
+    // `findTicketReaders` cannot see, because its subject is one parsed file.
+    const planted: readonly ScannedFile[] = [
+      {
+        name: "plant-keys.ts",
+        text: 'export const TICKET_FIELDS = ["column", "status"] as const;\n',
+      },
+      {
+        name: "plant-scan.ts",
+        text:
+          'import { TICKET_FIELDS } from "./plant-keys.js";\n' +
+          "export function readTicket(text: string): Record<string, string> {\n" +
+          "  const out: Record<string, string> = {};\n" +
+          "  for (const line of text.split('\\n')) {\n" +
+          "    for (const f of TICKET_FIELDS) {\n" +
+          "      if (line.startsWith(`${f}:`)) out[f] = line.slice(f.length + 1).trim();\n" +
+          "    }\n" +
+          "  }\n" +
+          "  return out;\n" +
+          "}\n",
+      },
+    ];
+
+    expect(
+      findTicketReaders(parse("plant-scan.ts", planted[1]?.text ?? "")),
+      "PREMISE: the file-scoped census must be BLIND to this plant, or the refusal below is not " +
+        "closing the gap it claims to close",
+    ).toEqual([]);
+
+    expect(
+      splitReaderOffenders(planted),
+      "the planted split reader was NOT refused, so the scope statement is decorative",
+    ).toEqual(["plant-scan.ts takes the key half from plant-keys.ts as `TICKET_FIELDS`"]);
+
+    // THE CONVERSE, and the reason the BINDING is the subject rather than the module: importing the
+    // one grammar's own functions is the CORRECT shape, and must not red.
+    const legitimate: readonly ScannedFile[] = [
+      {
+        name: "plant-keys.ts",
+        text:
+          'export const TICKET_FIELDS = ["column", "status"] as const;\n' +
+          "export const parseIt = (t: string): string => t.trim();\n",
+      },
+      {
+        name: "plant-user.ts",
+        text:
+          'import { parseIt } from "./plant-keys.js";\n' +
+          "export const use = (t: string): string => parseIt(t).split(':')[0] ?? '';\n",
+      },
+    ];
+    expect(
+      splitReaderOffenders(legitimate),
+      "importing a NON-key binding from a module that happens to also declare a key table was " +
+        "refused. That inverts the rule: using the one authority is the shape this census wants",
+    ).toEqual([]);
+  });
+
 
   /**
    * THE VERDICT, AS A FUNCTION OF THE COUNT — so that ZERO is a NAMED failure rather than a number
@@ -2177,7 +2479,7 @@ describe("exactly ONE ticket-frontmatter reader exists in scripts/ (32-12, widen
   it("the carrier boundary is a case on BOTH sides of one, and zero REDS", () => {
     const control = plantById("CONTROL");
     const oneCarrier = LIVE_ROWS.filter((r) => r.name === "board-model.ts");
-    const zeroCarriers = LIVE_ROWS.filter((r) => NOT_A_SECOND_AUTHORITY[r.name] !== undefined);
+    const zeroCarriers = LIVE_ROWS.filter((r) => Object.hasOwn(NOT_A_SECOND_AUTHORITY, r.name));
     const twoCarriers = [...oneCarrier, { name: control.name, text: control.source }];
     const measured: Record<number, readonly ScannedFile[]> = {
       0: zeroCarriers,
