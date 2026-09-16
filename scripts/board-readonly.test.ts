@@ -280,6 +280,64 @@ const EXPECTED_GLOBAL_MEMBER_PATHS = Object.freeze([
 const EXPECTED_GLOBAL_MEMBER_PATH_COUNT = 10;
 
 /**
+ * THE MEMBER PATHS THE CLOSURE MAY READ SOMEWHERE OTHER THAN A CALLEE POSITION — the SECOND set,
+ * and the reason re-greening this guard over a writer is no longer one edit (32-32, F-08 / WR-02).
+ *
+ * THE SHAPE OF THE DEFECT THIS CLOSES, IN ONE SENTENCE. Until this round the position rule existed
+ * only at the ROOT level: arm 4 states that the one admitted read of `process` / `globalThis` /
+ * `global` is as the OBJECT of a member access, so binding the root reds the write-detection
+ * mechanism. The same sentence was never asked one level down, of a MEMBER path — so
+ *
+ *     const __r = process.report;
+ *     export const wB = (p) => __r.writeReport(p);
+ *
+ * censused `process.report`, red the two-sided pin and the positive control, and left the
+ * acquisitions PREMISE case GREEN with `0 refused acquisitions`. Adding `"process.report"` above
+ * and moving the count from 10 to 11 then returned the WHOLE guard to `exit 0, 135 passed (135)`
+ * with a module in the closure that writes a JSON file at any path handed to it — measured, with the
+ * created file's 53389 bytes, in `32-32-RED-baseline.txt` §§ 1-3.
+ *
+ * TWO SETS, TWO COUNTS, TWO WRITTEN CLAIMS. The rule below is over the POSITION; this list is over
+ * the PATH; BOTH must say yes. So recording a path in `EXPECTED_GLOBAL_MEMBER_PATHS` no longer buys
+ * anything on its own — a maintainer who wants the guard green over a bound read must ALSO record
+ * the path here, with the reason a BINDING of it is read-only, and move a second count. That is the
+ * claim `process.report` cannot survive: a binding of it hands the caller `writeReport`.
+ *
+ * MEASURED, NOT RECALLED. These are exactly the six non-callee maximal paths the live closure reads,
+ * enumerated over the walker's own module set in `32-32-RED-baseline.txt` § 5 with the site of each.
+ * The other four censused paths (`process.argv.slice`, `process.cwd`, `process.exit`, `process.on`)
+ * appear ONLY as callees and therefore need no entry here; 6 + 4 = 10 accounts for the whole census
+ * with nothing left over. A rule of this kind declared from memory refuses the shipped program and
+ * gets loosened within a day, which is the failure direction this file may not fail in.
+ */
+const ADMITTED_BOUND_MEMBER_PATHS = Object.freeze([
+  // scripts/is-entry.js:39 — `const argv1 = process.argv[1];`. A STRING is read out of the argument
+  // vector and compared against a resolved href. A binding of it carries no capability at all.
+  `process.argv.${COMPUTED_PATH_SEGMENT}`,
+  // scripts/board-dashboard.js:661 — `process.env[FORCE_WATCH_ERROR_ENV] ?? ""`. A STRING read,
+  // coalesced and split. No closure module assigns to `process.env` anywhere.
+  `process.env.${COMPUTED_PATH_SEGMENT}`,
+  // scripts/board-dashboard.js:947 — `stderr: process.stderr` in `defaultIo()`. A binding of the
+  // DIAGNOSTIC channel can write to a terminal and to nothing else; it opens no path on disk.
+  "process.stderr",
+  // scripts/board-dashboard.js:946 — `stdout: process.stdout` in `defaultIo()`. Same claim for the
+  // RENDER channel: it is the thing the projector exists to write to, and it is not a file handle.
+  "process.stdout",
+  // scripts/board-dashboard.js:951 — `columns: process.stdout.columns`. A NUMBER read for layout.
+  "process.stdout.columns",
+  // scripts/board-dashboard.js:948 — `process.stdout.isTTY === true`. A BOOLEAN read selecting the
+  // degraded renderer.
+  "process.stdout.isTTY",
+]);
+
+/**
+ * The cardinality of the admitted-bound set. A SEVENTH entry is a decision that says, in writing,
+ * "a binding of this capability is read-only" — the claim, not the spelling. Never a bumped
+ * constant, and asserted a SUBSET of `EXPECTED_GLOBAL_MEMBER_PATHS` so the two cannot drift apart.
+ */
+const ADMITTED_BOUND_MEMBER_PATH_COUNT = 6;
+
+/**
  * THE CALLEES ADMITTED WITHOUT A DECLARATION — the named-exclusion posture `STEM_FALSE_POSITIVES`
  * already takes, applied to the resolution rule (32-20).
  *
@@ -410,6 +468,18 @@ function analyzeModule(absPath: string, label: string): ModuleFacts {
   const bareSpecifiers = new Set<string>();
   const foreignSpecifiers: string[] = [];
   const fsNamespaceBindings = new Set<string>();
+  /**
+   * THE LOCAL NAMES A CAPABILITY-BEARING MEMBER PATH WAS READ INTO, mapped to the path they carry
+   * (32-32). `fsNamespaceBindings` one register over: that set tracks a name holding a MODULE, this
+   * map tracks a name holding a member reached on a capability-bearing GLOBAL.
+   *
+   * A LOCAL ALIAS IS NOT A NEW ROOT. Without this map `__r.writeReport(p)` after `const __r =
+   * process.report` is rooted at `__r`, which is not in `CAPABILITY_GLOBAL_ROOTS`, so
+   * `globalMemberPathOf` answers null and the call contributes NOTHING to the census — the maximal
+   * path stops at the binding site. With it, the aliased call resolves to exactly the path the
+   * direct spelling produces, so the census cannot be walked around by inserting a name.
+   */
+  const capabilityBindings = new Map<string, string>();
   const opaqueFsAcquisitions: string[] = [];
   const opaqueSpecifiers: string[] = [];
   const acquisitions: string[] = [];
@@ -750,7 +820,15 @@ function analyzeModule(absPath: string, label: string): ModuleFacts {
     return null;
   };
 
-  /** The normalized dotted path of a member chain rooted at a capability-bearing global, or null. */
+  /**
+   * The normalized dotted path of a member chain rooted at a capability-bearing global, or null.
+   *
+   * THE ROOT OF A CHAIN IS EITHER A CAPABILITY-BEARING GLOBAL OR A LOCAL NAME CARRYING ONE (32-32).
+   * The second arm is what makes an intermediate binding transparent: the bound path is the prefix
+   * and the chain's own segments are appended to it, so `__r.writeReport` with `__r` carrying
+   * `process.report` yields `process.report.writeReport` — byte for byte the path the direct
+   * spelling produces, reported with the SAME message. Nothing is hidden by an intermediate name.
+   */
   const globalMemberPathOf = (node: ts.Node): string | null => {
     const segments: string[] = [];
     let cursor: ts.Node = node;
@@ -762,8 +840,164 @@ function analyzeModule(absPath: string, label: string): ModuleFacts {
       }
       cursor = cursor.expression;
     }
-    if (!ts.isIdentifier(cursor) || !CAPABILITY_GLOBAL_ROOTS.includes(cursor.text)) return null;
-    return [cursor.text, ...segments].join(".");
+    if (!ts.isIdentifier(cursor)) return null;
+    if (CAPABILITY_GLOBAL_ROOTS.includes(cursor.text)) return [cursor.text, ...segments].join(".");
+    const bound = capabilityBindings.get(cursor.text);
+    if (bound === undefined) return null;
+    return [bound, ...segments].join(".");
+  };
+
+  // ───────────────────────────────────────────────────────────────────────────────────────────────
+  // THE CAPABILITY-BINDING PRE-PASS — run to completion BEFORE any acquisition is collected, because
+  // the census below asks `globalMemberPathOf`, and that function's answer depends on this map.
+  //
+  // AN UNPROVABLE BINDING IS NOT A SAFE BINDING. This is the posture the acquisition rule already
+  // takes for an unprovable module IDENTITY, stated here for a name: a binding is tracked only when
+  // the pass can see EXACTLY ONE value-write to it. A name written more than once — declared with a
+  // capability path and reassigned, or assigned twice — carries a value this syntactic pass cannot
+  // decide, so it is REFUSED (pushed into `acquisitions`) rather than tracked with a path that may
+  // be false. The instinct to follow the reassignment and pick the "real" value is the cleverer-pass
+  // instinct the acquisitions docblock already refuses; this paragraph is here to be read first.
+  // ───────────────────────────────────────────────────────────────────────────────────────────────
+
+  /** Every name bound by a binding name/pattern, with the property path each element reaches. */
+  const boundNamesOf = (name: ts.BindingName, prefix: readonly string[]): [string, string[]][] => {
+    if (ts.isIdentifier(name)) return [[name.text, [...prefix]]];
+    const out: [string, string[]][] = [];
+    for (const element of name.elements) {
+      if (ts.isOmittedExpression(element)) continue;
+      // An ARRAY element and a COMPUTED property name both reach a key this pass cannot read, so
+      // both contribute the same `[computed]` segment the member-path census already uses.
+      let segment = COMPUTED_PATH_SEGMENT;
+      if (ts.isObjectBindingPattern(name)) {
+        const key = element.propertyName ?? element.name;
+        if (ts.isIdentifier(key)) segment = key.text;
+        else if (ts.isStringLiteralLike(key) || ts.isNumericLiteral(key)) segment = key.text;
+      }
+      out.push(...boundNamesOf(element.name, [...prefix, segment]));
+    }
+    return out;
+  };
+
+  /** Value-write sites per NAME, name-scoped like the rest of this pass. One is provable; two is not. */
+  const valueWrites = new Map<string, number>();
+  const countWrites = (node: ts.Node): void => {
+    if (ts.isVariableDeclaration(node) && node.initializer !== undefined) {
+      for (const [bound] of boundNamesOf(node.name, [])) {
+        valueWrites.set(bound, (valueWrites.get(bound) ?? 0) + 1);
+      }
+    }
+    const bump = (target: ts.Node): void => {
+      if (ts.isIdentifier(target)) valueWrites.set(target.text, (valueWrites.get(target.text) ?? 0) + 1);
+    };
+    // The assignment operators are taken from TypeScript's OWN boundary markers rather than from a
+    // hand-typed list of `=`, `+=`, `??=`, … — a hand-typed list of operators is the set-literal
+    // drift class one register over, and it would silently stop counting the day a new compound
+    // assignment operator is added to the language.
+    if (
+      ts.isBinaryExpression(node) &&
+      node.operatorToken.kind >= ts.SyntaxKind.FirstAssignment &&
+      node.operatorToken.kind <= ts.SyntaxKind.LastAssignment
+    ) {
+      bump(node.left);
+    }
+    if (ts.isPrefixUnaryExpression(node) || ts.isPostfixUnaryExpression(node)) {
+      if (
+        node.operator === ts.SyntaxKind.PlusPlusToken ||
+        node.operator === ts.SyntaxKind.MinusMinusToken
+      ) {
+        bump(node.operand);
+      }
+    }
+    ts.forEachChild(node, countWrites);
+  };
+  countWrites(source);
+
+  /**
+   * Establish the map in SOURCE ORDER, resolving each initializer against the map built so far, so
+   * a CHAINED alias (a binding of a binding, to any depth) resolves by construction rather than by
+   * a special case counting links.
+   */
+  const establishBindings = (node: ts.Node): void => {
+    const note = (name: ts.BindingName, valuePath: string): void => {
+      for (const [bound, segments] of boundNamesOf(name, [])) {
+        const path = [valuePath, ...segments].join(".");
+        if ((valueWrites.get(bound) ?? 0) > 1) {
+          acquisitions.push(
+            briefly(
+              `UNPROVABLE CAPABILITY BINDING "${bound}" (${label}:${lineOf(node)}) would carry ` +
+                `${path} but is written more than once: ${node.getText()}`,
+            ),
+          );
+          continue;
+        }
+        capabilityBindings.set(bound, path);
+      }
+    };
+    if (ts.isVariableDeclaration(node) && node.initializer !== undefined) {
+      const initializer = node.initializer;
+      // A bare capability ROOT is the zero-segment chain; `const a = process` is tracked so the
+      // root-alias spelling resolves too. Arm 4 refuses that read separately and both are wanted.
+      if (ts.isIdentifier(initializer) && CAPABILITY_GLOBAL_ROOTS.includes(initializer.text)) {
+        note(node.name, initializer.text);
+      } else {
+        const path = globalMemberPathOf(initializer);
+        if (path !== null) note(node.name, path);
+        else if (ts.isIdentifier(initializer)) {
+          const bound = capabilityBindings.get(initializer.text);
+          if (bound !== undefined) note(node.name, bound);
+        }
+      }
+    }
+    if (
+      ts.isBinaryExpression(node) &&
+      node.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
+      ts.isIdentifier(node.left)
+    ) {
+      const path = globalMemberPathOf(node.right);
+      if (path !== null) {
+        if ((valueWrites.get(node.left.text) ?? 0) > 1) {
+          acquisitions.push(
+            briefly(
+              `UNPROVABLE CAPABILITY BINDING "${node.left.text}" (${label}:${lineOf(node)}) would ` +
+                `carry ${path} but is written more than once: ${node.getText()}`,
+            ),
+          );
+        } else capabilityBindings.set(node.left.text, path);
+      }
+    }
+    ts.forEachChild(node, establishBindings);
+  };
+  establishBindings(source);
+
+  /**
+   * THE CANONICAL FORM, ASKED ONE LEVEL DOWN (32-32). Arm 4 states that the ONE admitted read of a
+   * capability-bearing ROOT is as the object of a member access. This is the same sentence about a
+   * capability-bearing MEMBER PATH, and the admitted reads are exactly TWO:
+   *
+   *   1. as the OBJECT of a further member access — the inner link of a chain, which is not a
+   *      maximal path at all and is therefore never censused as one;
+   *   2. as the CALLEE of a call or construction whose maximal path is in
+   *      `EXPECTED_GLOBAL_MEMBER_PATHS` — the shape `process.exit(1)` and `process.cwd()` take.
+   *
+   * EVERY OTHER POSITION IS AN ACQUISITION unless the path is in `ADMITTED_BOUND_MEMBER_PATHS`. The
+   * rule here is over the POSITION; that list is over the PATH; both must say yes. Splitting the
+   * decision in two is the point: it is what makes re-greening the guard over a bound writer cost a
+   * second recorded claim instead of a second line in one list.
+   */
+  const isAdmittedMemberPathPosition = (node: ts.Node, parent: ts.Node | undefined): boolean => {
+    if (parent === undefined) return false;
+    if (
+      (ts.isPropertyAccessExpression(parent) || ts.isElementAccessExpression(parent)) &&
+      parent.expression === node
+    ) {
+      return true;
+    }
+    if ((ts.isCallExpression(parent) || ts.isNewExpression(parent)) && parent.expression === node) {
+      const path = globalMemberPathOf(node);
+      return path !== null && EXPECTED_GLOBAL_MEMBER_PATHS.includes(path);
+    }
+    return false;
   };
 
   /**
@@ -813,6 +1047,14 @@ function analyzeModule(absPath: string, label: string): ModuleFacts {
     // 3 — the member-path census on the capability-bearing globals. Only MAXIMAL paths are
     //     recorded, so `process.report.writeReport` is censused as itself rather than as the
     //     admitted prefix `process.report` would have been.
+    //
+    //     THE RULE IS OVER THE POSITION AND THE ALLOW-LIST IS OVER THE PATH; BOTH MUST SAY YES
+    //     (32-32). Until this round the only position that could produce an acquisition was
+    //     CALLEE, so a path read into a binding first moved a census count and nothing else — and
+    //     the edit that count's failing message invited returned the whole guard to green over a
+    //     live writer (32-32-RED-baseline.txt §§ 1-3). Now a maximal path in ANY position other
+    //     than the two `isAdmittedMemberPathPosition` names is an acquisition unless the path
+    //     itself carries a written read-only claim in `ADMITTED_BOUND_MEMBER_PATHS`.
     if (ts.isPropertyAccessExpression(node) || ts.isElementAccessExpression(node)) {
       const parent = node.parent as ts.Node | undefined;
       const isInnerOfChain =
@@ -822,12 +1064,11 @@ function analyzeModule(absPath: string, label: string): ModuleFacts {
       const path = isInnerOfChain ? null : globalMemberPathOf(node);
       if (path !== null) {
         globalMemberPaths.add(path);
-        const isCallee =
-          parent !== undefined &&
-          (ts.isCallExpression(parent) || ts.isNewExpression(parent)) &&
-          parent.expression === node;
-        if (isCallee && !EXPECTED_GLOBAL_MEMBER_PATHS.includes(path)) {
-          acquisitions.push(briefly(parent.getText()));
+        if (
+          !isAdmittedMemberPathPosition(node, parent) &&
+          !ADMITTED_BOUND_MEMBER_PATHS.includes(path)
+        ) {
+          acquisitions.push(briefly(`${path} read at ${(parent ?? node).getText()}`));
         }
       }
     }
@@ -2203,7 +2444,16 @@ describe("32-20 — one admitted way to acquire a module, and a two-sided census
         "admitted that path. THIS IS THE RULE THAT REFUSES A CAPABILITY REACHED WITHOUT A MODULE: " +
         "`process.report.writeReport(p)` creates and writes a file with no import anywhere, and it " +
         "was measured green over this closure before the census existed (32-20-RED-baseline.txt). " +
-        "If the path is legitimate, add it above with the reason and the module that reaches it",
+        "WHAT RECORDING THE PATH WOULD CLAIM, rather than what it would cost: that the projector " +
+        "NEEDS this platform capability and that reaching it changes nothing outside the process. " +
+        "Recording it here buys nothing on its own — the position rule is a SECOND decision. A " +
+        "read of the path anywhere but as a callee of an admitted call, or as the object of a " +
+        "further member access, is still an acquisition until the path is ALSO recorded in " +
+        "ADMITTED_BOUND_MEMBER_PATHS with the written reason a BINDING of it is read-only, and " +
+        "ADMITTED_BOUND_MEMBER_PATH_COUNT moved with it. That second claim is the one " +
+        "`process.report` cannot survive: a binding of it hands the caller writeReport. This " +
+        "message deliberately does not name a cheapest way back to green — the cheapest edit was " +
+        "the bypass (32-32-RED-baseline.txt § 3)",
     ).toEqual([]);
     expect(facts.globalMemberPaths).toEqual([...EXPECTED_GLOBAL_MEMBER_PATHS].sort());
   });
@@ -2213,7 +2463,14 @@ describe("32-20 — one admitted way to acquire a module, and a two-sided census
       analyzeClosure(ROOT, DASHBOARD_ENTRY).globalMemberPaths.length,
       "the number of distinct platform capabilities the projector reaches moved. Like the fs " +
         "symbol count and the builtin identity count, this is a function of THIS repository's " +
-        "code — weigh the change against 'it renders state and changes nothing' and record it",
+        "code — weigh the change against 'it renders state and changes nothing' and record it. " +
+        "WHAT MOVING THIS COUNT WOULD CLAIM: that the projector now legitimately reaches one more " +
+        "platform capability than it did. It does NOT claim that a BINDING of that capability is " +
+        "safe, and it does not re-green a read of it outside a callee position — that is a " +
+        "separate claim carried by ADMITTED_BOUND_MEMBER_PATHS and its own count, which must move " +
+        "too. Two sets, two counts, two written reasons: recording a spelling in one of them is " +
+        "the bypass this pair exists to stop, measured at exit 0 / 135 passed over a live file " +
+        "writer in 32-32-RED-baseline.txt § 3",
     ).toBe(EXPECTED_GLOBAL_MEMBER_PATH_COUNT);
   });
 
@@ -3376,6 +3633,346 @@ describe("32-06 — the guard discriminates: both halves are shown to fail", () 
     // vitest.config.ts).
     const survivors = existsSync(SCRATCH_ROOT) ? readdirSync(SCRATCH_ROOT) : [];
     expect(survivors, `mirror residue survived under ${SCRATCH_ROOT}`).toEqual([]);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// PART FIVE-A — EVERY POSITION A CAPABILITY MEMBER PATH CAN BE CONSUMED FROM (32-32, round 3).
+//
+// The finding this part closes was not a missing spelling; it was a missing QUESTION. Arm 4 asks
+// "in what position may a capability-bearing ROOT be read?" and answers with one admitted position.
+// Nothing asked the same question of a capability-bearing MEMBER PATH, so the only position that
+// could produce an acquisition was CALLEE — and every other position moved a census count instead,
+// which the count's own failing message then invited a maintainer to re-green in one edit
+// (32-32-RED-baseline.txt §§ 1-3: exit 0, 135 passed, over a module that wrote 53389 bytes to a
+// caller-chosen path).
+//
+// ONE EXAMPLE IS WHAT LEFT THE GAP OPEN LAST ROUND. So the positions are ROWS — the posture
+// `MODULE_IDENTITY_SHAPES` already establishes in this file — one per syntactic position a value
+// can be consumed from, each carrying the source to plant and each planted TWICE: once with a
+// non-admitted path, which must red the write-detection mechanism, and once with an admitted-bound
+// path, which must not. A rule with no converse is a rule nobody can tell apart from a refusal of
+// everything, and over-refusal here gets loosened within a day.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+/** The path with no read-only claim anywhere. A binding of it hands the caller a file writer. */
+const NON_ADMITTED_PROBE_PATH = "process.report";
+
+/** The path both sets admit, with the written reason. The converse every row is planted with. */
+const ADMITTED_PROBE_PATH = "process.stdout";
+
+/** One consumption position: what to call it, and the two sources that differ only in the path. */
+interface MemberPathPositionRow {
+  /** The syntactic position, named as the AST names it. */
+  readonly position: string;
+  /** Source planted with `NON_ADMITTED_PROBE_PATH`. Must make the acquisitions PREMISE case fail. */
+  readonly nonAdmitted: string;
+  /** The same source with `ADMITTED_PROBE_PATH`. Must leave `acquisitions` empty. */
+  readonly admitted: string;
+}
+
+/**
+ * THE CONSUMPTION POSITIONS, HELD AS DATA. Each pair differs in exactly one token — the path — so a
+ * row that reds for the non-admitted source and greens for the admitted one has isolated the PATH
+ * as the cause rather than the shape of the plant.
+ */
+const MEMBER_PATH_POSITION_ROWS: readonly MemberPathPositionRow[] = Object.freeze([
+  {
+    position: "variable initializer",
+    nonAdmitted: `const p32a = ${NON_ADMITTED_PROBE_PATH};\nexport const u32a = () => p32a;`,
+    admitted: `const p32a = ${ADMITTED_PROBE_PATH};\nexport const u32a = () => p32a;`,
+  },
+  {
+    position: "initializer of a DESTRUCTURING declaration",
+    nonAdmitted:
+      `const { writeReport: w32b } = ${NON_ADMITTED_PROBE_PATH};\nexport const u32b = () => w32b;`,
+    admitted:
+      `const { writeReport: w32b } = ${ADMITTED_PROBE_PATH};\nexport const u32b = () => w32b;`,
+  },
+  {
+    position: "object property value",
+    nonAdmitted: `export const o32c = { r32c: ${NON_ADMITTED_PROBE_PATH} };`,
+    admitted: `export const o32c = { r32c: ${ADMITTED_PROBE_PATH} };`,
+  },
+  {
+    position: "array element",
+    nonAdmitted: `export const a32d = [${NON_ADMITTED_PROBE_PATH}];`,
+    admitted: `export const a32d = [${ADMITTED_PROBE_PATH}];`,
+  },
+  {
+    position: "call argument",
+    nonAdmitted: `export const c32e = (f32e) => f32e(${NON_ADMITTED_PROBE_PATH});`,
+    admitted: `export const c32e = (f32e) => f32e(${ADMITTED_PROBE_PATH});`,
+  },
+  {
+    position: "return statement",
+    nonAdmitted: `export function r32f() {\n  return ${NON_ADMITTED_PROBE_PATH};\n}`,
+    admitted: `export function r32f() {\n  return ${ADMITTED_PROBE_PATH};\n}`,
+  },
+  {
+    position: "arrow-function body",
+    nonAdmitted: `export const b32g = () => ${NON_ADMITTED_PROBE_PATH};`,
+    admitted: `export const b32g = () => ${ADMITTED_PROBE_PATH};`,
+  },
+  {
+    position: "assignment right-hand side",
+    nonAdmitted: `let x32h;\nx32h = ${NON_ADMITTED_PROBE_PATH};\nexport const u32h = () => x32h;`,
+    admitted: `let x32h;\nx32h = ${ADMITTED_PROBE_PATH};\nexport const u32h = () => x32h;`,
+  },
+  {
+    position: "spread element",
+    nonAdmitted: `export const s32i = { ...${NON_ADMITTED_PROBE_PATH} };`,
+    admitted: `export const s32i = { ...${ADMITTED_PROBE_PATH} };`,
+  },
+  {
+    position: "default parameter value",
+    nonAdmitted: `export const d32j = (v32j = ${NON_ADMITTED_PROBE_PATH}) => v32j;`,
+    admitted: `export const d32j = (v32j = ${ADMITTED_PROBE_PATH}) => v32j;`,
+  },
+  {
+    position: "template-literal interpolation",
+    nonAdmitted: "export const t32k = () => `${" + NON_ADMITTED_PROBE_PATH + "}`;",
+    admitted: "export const t32k = () => `${" + ADMITTED_PROBE_PATH + "}`;",
+  },
+  {
+    position: "conditional-expression branch",
+    nonAdmitted: `export const q32l = (c32l) => (c32l ? ${NON_ADMITTED_PROBE_PATH} : null);`,
+    admitted: `export const q32l = (c32l) => (c32l ? ${ADMITTED_PROBE_PATH} : null);`,
+  },
+  {
+    position: "binary-expression operand",
+    nonAdmitted: `export const n32m = () => ${NON_ADMITTED_PROBE_PATH} === undefined;`,
+    admitted: `export const n32m = () => ${ADMITTED_PROBE_PATH} === undefined;`,
+  },
+  {
+    position: "bare expression statement",
+    nonAdmitted: `export const e32n = () => {\n  ${NON_ADMITTED_PROBE_PATH};\n};`,
+    admitted: `export const e32n = () => {\n  ${ADMITTED_PROBE_PATH};\n};`,
+  },
+]);
+
+/**
+ * The cardinality of the position table. A FIFTEENTH position is a decision recorded as a row with
+ * both of its sources — never a bumped constant, and never "the rule obviously covers it".
+ */
+const MEMBER_PATH_POSITION_ROW_COUNT = 14;
+
+describe("32-32 — a capability member path is refused in every position but the two admitted ones", () => {
+  it("the admitted-bound set is a SUBSET of the census, with its own pinned count", () => {
+    expect(
+      ADMITTED_BOUND_MEMBER_PATHS.length,
+      "the admitted-bound set moved. A SEVENTH entry claims, in writing, that a BINDING of one " +
+        "more platform capability is read-only — a stronger claim than admitting the path to the " +
+        "census, because a binding can be called through later. Record the reason beside the " +
+        "entry; never bump this constant",
+    ).toBe(ADMITTED_BOUND_MEMBER_PATH_COUNT);
+    expect(new Set(ADMITTED_BOUND_MEMBER_PATHS).size).toBe(ADMITTED_BOUND_MEMBER_PATHS.length);
+    const strays = ADMITTED_BOUND_MEMBER_PATHS.filter(
+      (path) => !EXPECTED_GLOBAL_MEMBER_PATHS.includes(path),
+    );
+    expect(
+      strays,
+      `${strays.join(", ")} is admitted as a BOUND read while the census does not admit the path ` +
+        "at all. The two sets would then disagree about the same capability, and the one a reader " +
+        "checks would decide the answer. The bound set is a SUBSET of the census by construction",
+    ).toEqual([]);
+  });
+
+  it("the position table has exactly the number of rows it pins, and no duplicate position", () => {
+    expect(
+      MEMBER_PATH_POSITION_ROWS.length,
+      "a position was added or removed. Every position a value can be consumed from is a place a " +
+        "capability can be reached, so the table's size is a decision recorded as a row",
+    ).toBe(MEMBER_PATH_POSITION_ROW_COUNT);
+    expect(new Set(MEMBER_PATH_POSITION_ROWS.map((r) => r.position)).size).toBe(
+      MEMBER_PATH_POSITION_ROW_COUNT,
+    );
+    // The pair differs in exactly one token. A row whose two sources differ in anything else is a
+    // row measuring the shape of the plant rather than the path.
+    for (const row of MEMBER_PATH_POSITION_ROWS) {
+      expect(
+        row.nonAdmitted.split(NON_ADMITTED_PROBE_PATH).join(ADMITTED_PROBE_PATH),
+        `the two sources for "${row.position}" differ in more than the path, so a red on one and a ` +
+          "green on the other does not isolate the path as the cause",
+      ).toBe(row.admitted);
+    }
+  });
+
+  for (const row of MEMBER_PATH_POSITION_ROWS) {
+    it(`a NON-ADMITTED capability path read at a ${row.position} is an acquisition`, () => {
+      withLiveMirror(
+        { module: "scripts/board-read.js", appendSource: row.nonAdmitted },
+        (mirrorRoot) => {
+          const facts = analyzeClosure(mirrorRoot, DASHBOARD_ENTRY);
+          expect(
+            facts.acquisitions.length,
+            `"${NON_ADMITTED_PROBE_PATH}" was read at a ${row.position} and the write-detection ` +
+              "MECHANISM did not fire. This is the F-08 shape exactly: the census will still move " +
+              "a count, and recording the spelling re-greens the whole guard over a live writer. " +
+              `Collected acquisitions: [${facts.acquisitions.join(" | ")}]`,
+          ).toBeGreaterThan(0);
+          expect(
+            facts.acquisitions.join("\n"),
+            "something refused this plant, but not the member-path position rule — the row would " +
+              "then credit arm 3 for a red another arm produced",
+          ).toContain(NON_ADMITTED_PROBE_PATH);
+          expect(facts.acquisitions.join("\n")).toContain("scripts/board-read.js");
+        },
+      );
+    });
+
+    it(`an ADMITTED-BOUND capability path read at a ${row.position} stays green (the converse)`, () => {
+      withLiveMirror({ module: "scripts/board-read.js", appendSource: row.admitted }, (mirrorRoot) => {
+        const facts = analyzeClosure(mirrorRoot, DASHBOARD_ENTRY);
+        expect(
+          facts.acquisitions,
+          `"${ADMITTED_PROBE_PATH}" carries a written read-only claim in ` +
+            `ADMITTED_BOUND_MEMBER_PATHS and was refused at a ${row.position} anyway. Over-refusal ` +
+            "is not the safe direction here: the shipped closure hands both output channels to the " +
+            "io seam through exactly this shape, so a rule that reds it gets loosened under that " +
+            "pressure and ends weaker than the rule it replaced",
+        ).toEqual([]);
+        expect(
+          facts.globalMemberPaths.filter((p) => !EXPECTED_GLOBAL_MEMBER_PATHS.includes(p)),
+          "the converse plant moved the census as well as passing the position rule",
+        ).toEqual([]);
+      });
+    });
+  }
+
+  it("a LOCAL ALIAS of a member path censuses the SAME maximal path as the direct spelling", () => {
+    // THE TRUTH THE WHOLE ROUND RESTS ON. If the aliased call produced a DIFFERENT path, the
+    // position rule could be satisfied while the census still reported something else, and a
+    // maintainer reading the census would be reading a different program than the one that runs.
+    const direct = "export const wDirect32 = (p) => process.report.writeReport(p);";
+    const aliased = "const __r32 = process.report;\nexport const wAlias32 = (p) => __r32.writeReport(p);";
+    const pathsOf = (appendSource: string): readonly string[] => {
+      let seen: readonly string[] = [];
+      withLiveMirror({ module: "scripts/board-read.js", appendSource }, (mirrorRoot) => {
+        seen = analyzeClosure(mirrorRoot, DASHBOARD_ENTRY).globalMemberPaths.filter(
+          (p) => !EXPECTED_GLOBAL_MEMBER_PATHS.includes(p),
+        );
+      });
+      return seen;
+    };
+    expect(
+      pathsOf(direct),
+      "PREMISE: the DIRECT spelling of the process report writer is not censused as an unadmitted " +
+        "path, so the comparison below has no left-hand side",
+    ).toContain("process.report.writeReport");
+    expect(
+      pathsOf(aliased),
+      "an intermediate binding changed the path the census sees. The alias must extend the bound " +
+        "path rather than start a new root, or the guard reds with a DIFFERENT message for the " +
+        "same capability and the two spellings drift apart (32-32-RED-baseline.txt § 1: before " +
+        "this rule the aliased call contributed NOTHING and the maximal path stopped at the " +
+        "binding site)",
+    ).toContain("process.report.writeReport");
+  });
+
+  it("a CHAINED alias, two links deep, resolves to the same path", () => {
+    withLiveMirror(
+      {
+        module: "scripts/board-read.js",
+        appendSource:
+          "const __c32a = process.report;\nconst __c32b = __c32a;\n" +
+          "export const wChain32 = (p) => __c32b.writeReport(p);",
+      },
+      (mirrorRoot) => {
+        const facts = analyzeClosure(mirrorRoot, DASHBOARD_ENTRY);
+        expect(
+          facts.globalMemberPaths,
+          "a binding of a binding hid the path. The map is built in SOURCE ORDER against itself " +
+            "precisely so depth costs nothing — a rule that counts links is a rule with a next link",
+        ).toContain("process.report.writeReport");
+        expect(facts.acquisitions.length).toBeGreaterThan(0);
+      },
+    );
+  });
+
+  it("a name ASSIGNED a capability path twice is REFUSED rather than tracked", () => {
+    // THE ROW THAT ISOLATES THE ASSIGNMENT-SITE ARM. The declaration here carries NO initializer, so
+    // the declaration-site arm cannot fire and only the assignment arm can refuse. Mutation M4b
+    // (delete the assignment arm) reddened NOTHING until this row existed — the same "a clause no
+    // mutation can red decides nothing" check that found 32-31's missing row.
+    withLiveMirror(
+      {
+        module: "scripts/board-read.js",
+        appendSource:
+          "let __p32;\n__p32 = process.report;\n__p32 = process.stdout;\n" +
+          "export const wTwice32 = (p) => __p32.writeReport(p);",
+      },
+      (mirrorRoot) => {
+        const facts = analyzeClosure(mirrorRoot, DASHBOARD_ENTRY);
+        expect(
+          facts.acquisitions.join("\n"),
+          "a name written more than once carries a value this syntactic pass cannot decide. " +
+            "Following the reassignment and picking the 'real' value is the cleverer-pass instinct " +
+            "the acquisition rule already refuses one register over — the pass REFUSES instead",
+        ).toContain("UNPROVABLE CAPABILITY BINDING");
+        expect(facts.acquisitions.length).toBeGreaterThan(0);
+      },
+    );
+  });
+
+  it("a binding DECLARED with a capability path and later reassigned to something harmless is refused", () => {
+    // THE ROW THAT ISOLATES THE DECLARATION-SITE ARM. The reassignment case above is refused by the
+    // ASSIGNMENT arm, because its right-hand side is itself a capability path — so with the
+    // declaration-site arm deleted that case still passed (mutation M4a, measured: 170 passed).
+    // A clause no mutation can red is a clause that decides nothing, which is how 32-31 found its
+    // missing row. Here the reassignment is to `null`, so the assignment arm cannot fire and only
+    // the DECLARATION-site arm can refuse.
+    withLiveMirror(
+      {
+        module: "scripts/board-read.js",
+        appendSource:
+          "let __n32 = process.report;\n__n32 = null;\n" +
+          "export const wHarmless32 = (p) => __n32.writeReport(p);",
+      },
+      (mirrorRoot) => {
+        const facts = analyzeClosure(mirrorRoot, DASHBOARD_ENTRY);
+        expect(
+          facts.acquisitions.join("\n"),
+          "a name DECLARED with a capability path and written again elsewhere was tracked as if " +
+            "its value were decided. Whichever write the pass believed, the other one is a value " +
+            "it guessed — and the guess would be recorded as a fact in the census. An unprovable " +
+            "binding is not a safe binding",
+        ).toContain("UNPROVABLE CAPABILITY BINDING");
+      },
+    );
+  });
+
+  it("POSITIVE CONTROL: the UNPLANTED live closure is unmoved by the position rule", () => {
+    // Without this the rule could refuse everything and every row above would still be green.
+    const facts = analyzeClosure(ROOT, DASHBOARD_ENTRY);
+    expect(
+      facts.acquisitions,
+      "the position rule refuses something the SHIPPED dashboard already does. The admitted-bound " +
+        "set is declared from a measurement of this exact closure (32-32-RED-baseline.txt § 5); a " +
+        "red here means the measurement and the rule have come apart",
+    ).toEqual([]);
+    expect(
+      facts.globalMemberPaths.length,
+      "the capability-global census moved while the closure did not — the position rule changed " +
+        "what the census REPORTS rather than what it refuses",
+    ).toBe(EXPECTED_GLOBAL_MEMBER_PATH_COUNT);
+    expect(
+      normalizedBuiltinIdentities(facts).length,
+      "the builtin identity count moved, so this round changed something outside the member-path " +
+        "census it was scoped to",
+    ).toBe(ALLOWED_BUILTIN_SPECIFIER_COUNT);
+  });
+
+  it("every admitted-bound path is REACHABLE in the live closure, so no admission outlives its reason", () => {
+    const live = analyzeClosure(ROOT, DASHBOARD_ENTRY).globalMemberPaths;
+    for (const path of ADMITTED_BOUND_MEMBER_PATHS) {
+      expect(
+        live,
+        `"${path}" carries a written read-only claim and no closure module reaches it any more. A ` +
+          "permanent admission whose reason has evaporated is the set-literal drift class this " +
+          "repository has paid for: remove the entry rather than leaving the door open",
+      ).toContain(path);
+    }
   });
 });
 
