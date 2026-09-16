@@ -69,13 +69,14 @@ import {
   CONFLICT_KINDS,
   FIXED_SUBPATHS,
   QUEUE_STAGES,
+  OUTSIDE_ROOT,
   SOURCE_NAMES,
   insideRoot,
   readSnapshot,
   unreadableSources,
 } from "./board-read.js";
 import { isEntrypoint } from "./is-entry.js";
-import type { ReadError, SnapshotResult, SourceName } from "./board-read.js";
+import type { Containment, ReadError, SnapshotResult, SourceName } from "./board-read.js";
 import type { BoardColumn, SourceState } from "./board-model.js";
 
 // ── The timing constants the loop runs on (D-14) ─────────────────────────────────────────────────
@@ -922,8 +923,17 @@ export type LoopDeps = {
    * path set with an ancestor walk would arm a handle on a directory outside the root. Probe A and
    * probe E are the same SHAPE of refusal with opposite required answers, and the thing that
    * differs between them is a property of the directory. So the directory is what gets asked.
+   *
+   * IT CARRIES THE WHOLE ANSWER, NOT A BOOLEAN (review WR-03). `insideRoot`'s own docblock states
+   * the rule: "The caller opens THAT, not the spelling it started with: opening a second path that
+   * merely spells the same thing is how a check made before a link swap stops being a check."
+   * `repoSubpath` and `childPath` both honour it. This seam used to discard `.real` and `arm` then
+   * opened `dir` — a check-then-open race against the exact swap `insideRoot` documents. The
+   * refusal CODE is carried for the same reason: `ok: false` means OUTSIDE-ROOT, `EACCES` on an
+   * ancestor, or `ELOOP`, and only the first of those is a refusal the reader independently
+   * reports.
    */
-  readonly contained: (root: string, dir: string) => boolean;
+  readonly contained: (root: string, dir: string) => Containment;
   readonly read: (repoRoot: string, previous?: SnapshotResult) => SnapshotResult;
 };
 
@@ -935,7 +945,7 @@ export function defaultDeps(): LoopDeps {
     // ONE AUTHORITY, NOT A SECOND IMPLEMENTATION OF IT HERE (IN-01). `insideRoot` resolves the FULL
     // target, so every ancestor link is resolved with the leaf and a directory reached through a
     // refused parent is refused without this module writing an upward walk of its own.
-    contained: (root, dir) => insideRoot(root, dir, "the watched directory").ok,
+    contained: (root, dir) => insideRoot(root, dir, "the watched directory"),
     read: readSnapshot,
   };
 }
@@ -1138,9 +1148,27 @@ export function createLoop(options: Options, io: DashboardIo, deps: LoopDeps): L
     // publishes a false sentence on every stderr frame and in every `--json` document. That is the
     // reason the absent-directory arm below already states, applied to the arm beside it — the two
     // of them are the same claim about a directory this loop will not be watching.
-    if (!deps.contained(root, dir)) {
+    //
+    // THE REFUSAL CODE DECIDES WHETHER THE SILENCE IS EARNED (review WR-03). The justification
+    // above — "the reader already reported the refusal against the source it belongs to" — is
+    // argued for the CONTAINMENT code and is true only of it. `insideRoot` also returns `ok: false`
+    // for an `EACCES` on an ancestor and for an `ELOOP`, and those the reader does not
+    // independently report; collapsing them into the same silent return leaves the directory off
+    // the low-latency path with no record anywhere, which is round-2's CR-01 one code over.
+    const decision = deps.contained(root, dir);
+    if (!decision.ok) {
       closeWatcher(rel);
-      watchErrorsByDir.delete(rel);
+      if (decision.code === OUTSIDE_ROOT) {
+        watchErrorsByDir.delete(rel);
+      } else {
+        noteWatchState(
+          rel,
+          source,
+          `the watch on ${rel} was not armed (${decision.code}). The directory could not be ` +
+            `resolved, so no handle is open on it; the mandatory poll keeps the screen current ` +
+            `and a later tick will arm it if it becomes resolvable.`,
+        );
+      }
       return;
     }
     if (watchers.has(rel)) return;
@@ -1152,7 +1180,10 @@ export function createLoop(options: Options, io: DashboardIo, deps: LoopDeps): L
       return;
     }
     try {
-      const handle = deps.watch(dir, () => {
+      // OPEN WHAT WAS CHECKED. `decision.real` is the path `insideRoot` resolved and vouched for;
+      // `dir` is the spelling the check started with, and opening that instead is how a check made
+      // before a link swap stops being a check.
+      const handle = deps.watch(decision.real, () => {
         // The `filename` argument is IGNORED ENTIRELY. Node documents it as null on some Linux
         // systems, so a re-read that depends on it is a re-read that silently stops happening.
         if (forced.has(rel) && !forcedAlreadyFired.has(rel)) {

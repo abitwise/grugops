@@ -53,7 +53,7 @@ import { FIXED_SUBPATHS, OUTSIDE_ROOT, QUEUE_STAGES, SOURCE_NAMES } from "./boar
 // every file that checks a document is the set-literal drift class: the pin that a version MOVE was
 // a decision lives once, in scripts/board-tracer.test.ts and scripts/board-model.test.ts.
 import { SCHEMA_VERSION } from "./board-model.js";
-import type { DashboardIo, Loop, LoopDeps, Options } from "./board-dashboard.js";
+import type { DashboardIo, Loop, LoopDeps, Options, WatchHandle } from "./board-dashboard.js";
 import type { SnapshotResult } from "./board-read.js";
 
 /**
@@ -141,6 +141,8 @@ type Harness = {
    * symlinks by the `withLinkedTree` cases.
    */
   readonly refused: Set<string>;
+  /** The refusal CODE a refused directory answers with. Defaults to OUTSIDE-ROOT. */
+  readonly refusedCodes: Map<string, string>;
   /** The root the injected read RESOLVES to, which a case can move between two reads. */
   readonly readRoot: { current: string };
   readonly onRead: (fn: ((loop: Loop, n: number) => void) | null) => void;
@@ -189,6 +191,7 @@ function harness(
   const present = new Set(presentDirs.map((d) => join(REPO, d)));
   /** Absolute directories the containment seam refuses. Mutable, so a case can move the condition. */
   const refused = new Set<string>();
+  const refusedCodes = new Map<string, string>();
   const armFailures = new Map<string, string>();
   const readRoot = { current: REPO };
   let reads = 0;
@@ -220,7 +223,19 @@ function harness(
     // `board-read`'s `insideRoot`, and the `withLinkedTree` cases below spread `defaultDeps()` over
     // REAL symlinks so the rule is measured rather than re-implemented here. A harness that modelled
     // the rule would let a case pass against a model while the shipped predicate disagreed.
-    contained: (_root, dir) => !refused.has(dir),
+    // IT RETURNS A CONTAINMENT, IDENTITY-MAPPED (review WR-03). `real` is the directory itself, so
+    // this harness still models only MEMBERSHIP and every case's assertion about which path was
+    // opened means what it did before. `refusedCodes` lets a case choose the refusal CODE, because
+    // the loop now distinguishes a containment refusal (which the reader reports) from an
+    // unreadable one (which nothing else reports, so the loop has to).
+    contained: (_root, dir) =>
+      refused.has(dir)
+        ? {
+            ok: false as const,
+            code: refusedCodes.get(dir) ?? OUTSIDE_ROOT,
+            message: `${dir} is refused`,
+          }
+        : { ok: true as const, real: dir },
     read: () => {
       depth += 1;
       maxDepth = Math.max(maxDepth, depth);
@@ -247,6 +262,7 @@ function harness(
     maxDepth: () => maxDepth,
     present,
     refused,
+    refusedCodes,
     armFailures,
     readRoot,
     onRead: (fn) => {
@@ -1288,7 +1304,7 @@ describe("board-dashboard — `--json --watch` emits NDJSON (D-18)", () => {
     const deps: LoopDeps = {
       watch: () => ({ close: () => undefined, on: () => undefined }),
       exists: () => false,
-      contained: () => true,
+      contained: (_root, dir) => ({ ok: true as const, real: dir }),
       read: () => {
         reads += 1;
         return stubResult(reads);
@@ -1321,7 +1337,7 @@ describe("board-dashboard — `--json --watch` emits NDJSON (D-18)", () => {
     const deps: LoopDeps = {
       watch: () => ({ close: () => undefined, on: () => undefined }),
       exists: () => false,
-      contained: () => true,
+      contained: (_root, dir) => ({ ok: true as const, real: dir }),
       read: () => {
         reads += 1;
         return stubResult(reads);
@@ -1374,4 +1390,116 @@ describe("board-dashboard — the process contract under --watch, driven as a ch
     },
     15_000,
   );
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// REVIEW WR-03 — THE WATCH ARM CHECKED THE RESOLVED PATH AND THEN OPENED THE UNRESOLVED SPELLING.
+//
+// `insideRoot`'s own docblock states the rule the rest of this repository follows: "The caller opens
+// THAT, not the spelling it started with: opening a second path that merely spells the same thing is
+// how a check made before a link swap stops being a check." `repoSubpath` and `childPath` both
+// honour it — they return and use `contained.real`. The watch seam threw the answer away
+// (`insideRoot(...).ok`) and `arm` then opened `dir`, which is a check-then-open race against the
+// exact swap `insideRoot` documents.
+//
+// The bound on the damage is real and worth stating: `fs.watch` yields names, the listener ignores
+// `filename` entirely and only calls `schedule()`, so no CONTENT crosses. What leaked was a handle
+// held on an out-of-tree directory, and out-of-tree activity driving re-reads.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+describe("WR-03 — the watch is opened on the path that was CHECKED", () => {
+  /** A loop whose containment seam resolves every directory to a DIFFERENT real path. */
+  const loopOverSeam = (
+    contained: LoopDeps["contained"],
+  ): { loop: Loop; opened: string[] } => {
+    const opened: string[] = [];
+    const deps: LoopDeps = {
+      watch: (dir) => {
+        opened.push(dir);
+        return { close: () => undefined, on: () => undefined } as WatchHandle;
+      },
+      exists: () => true,
+      contained,
+      read: () => stubResult(1),
+    };
+    const loop = createLoop(
+      { repoRoot: REPO, once: false, json: false, watch: true, intervalMs: null },
+      { stdout: { write: () => true }, stderr: { write: () => true }, isTty: false },
+      deps,
+    );
+    loop.seed(stubResult(0));
+    return { loop, opened };
+  };
+
+  it("opens `contained.real`, not the spelling the check started with", () => {
+    // The seam vouches for a DIFFERENT path than it was handed — which is exactly what `insideRoot`
+    // does whenever any component of the path is a symlink. RED before the fix: every opened path
+    // was the unresolved `dir`, so the handle pointed at the spelling rather than at the thing that
+    // had been checked.
+    const { loop, opened } = loopOverSeam((_root, dir) => ({
+      ok: true as const,
+      real: `${dir}__RESOLVED`,
+    }));
+    loop.armAll();
+
+    expect(
+      opened.length,
+      "PREMISE: nothing was armed, so 'it opened the resolved path' is true of a loop that opened " +
+        "no path at all",
+    ).toBeGreaterThan(0);
+    expect(
+      opened.filter((p) => !p.endsWith("__RESOLVED")),
+      "a handle was opened on the UNRESOLVED spelling after the RESOLVED path was the thing " +
+        "vouched for. That is the check-then-open race insideRoot's docblock exists to forbid",
+    ).toEqual([]);
+  });
+
+  it("a NON-containment refusal is recorded, rather than silently dropping the directory", () => {
+    // `insideRoot` returns `ok: false` for OUTSIDE-ROOT, for an `EACCES` on an ancestor and for an
+    // `ELOOP`. The written justification for recording nothing — "the reader already reported the
+    // refusal against the source it belongs to" — is argued only for the CONTAINMENT code. An
+    // EACCES the reader does not independently report left the directory off the low-latency path
+    // with no record anywhere: round-2's CR-01, one code over.
+    const { loop } = loopOverSeam(() => ({
+      ok: false as const,
+      code: "EACCES",
+      message: "permission denied",
+    }));
+    loop.armAll();
+
+    expect(loop.watchedDirs(), "nothing is armed on a directory that could not be resolved").toEqual(
+      [],
+    );
+    const records = loop.watchErrors();
+    expect(
+      records.length,
+      "an EACCES on a watched directory produced NO record on any channel. Nothing else reports " +
+        "it, so the directory is silently off the low-latency path — a guard that goes quiet " +
+        "rather than saying so",
+    ).toBeGreaterThan(0);
+    expect(
+      records.every((r) => r.message.includes("EACCES")),
+      "the record must name the CODE, so a reader can tell an unreadable directory from one that " +
+        "left the tree",
+    ).toBe(true);
+  });
+
+  it("a CONTAINMENT refusal stays silent, because the reader reports it against its own source", () => {
+    // THE CONVERSE, and the reason the branch is on the code rather than on `ok`. A containment
+    // refusal is the reader's finding about that source; a second entry here would be the same
+    // finding twice in the list a consumer reads.
+    const { loop } = loopOverSeam(() => ({
+      ok: false as const,
+      code: OUTSIDE_ROOT,
+      message: "outside the root",
+    }));
+    loop.armAll();
+
+    expect(loop.watchedDirs()).toEqual([]);
+    expect(
+      loop.watchErrors(),
+      "a containment refusal was recorded by the LOOP as well as by the reader, so one finding " +
+        "appears twice in the list a consumer reads",
+    ).toEqual([]);
+  });
 });
