@@ -1,0 +1,334 @@
+32-32 GREEN PROOF — the one-edit re-green refused, and every consumption position measured
+============================================================================================
+
+Plan:       .planning/phases/32-board-projector-cli-dashboard/32-32-PLAN.md (Task 3)
+Baseline:   .planning/phases/32-board-projector-cli-dashboard/32-32-RED-baseline.txt
+Fix:        a01100b2 — feat(32-32): a local alias does not change the path, and the position rule
+            is asked one level down
+Artifact:   the COMMITTED scripts/board-read.js, rebuilt from its .ts before the first plant.
+Date:       2026-09-16
+Node:       v24.12.0     vitest 4.1.8
+
+Every row below is a harness result. Each plant was appended to the committed scripts/board-read.js,
+the shipped gate (`npm run check:dashboard-readonly`) was run, the exit code, the counts and every
+failing case name were captured from that run's output, and the file was restored from a byte-
+identical backup before the next plant. Nothing here is recalled and nothing is generalised from one
+example — the previous round left this gap open by measuring one.
+
+  PREMISE = the case named
+    "PREMISE: no closure module acquires a module by a route that is not a static literal import"
+  It is the write-detection MECHANISM. Whether it appears in a run's failure list is the only column
+  that distinguishes this fix from a census widening.
+
+
+§ 0 — THE UNPLANTED CONTROL, AFTER THE FIX
+--------------------------------------------
+
+    npm run build                                        -> exit 0
+    git diff --stat -- scripts/                          -> (empty; the rebuild moved no committed .js)
+    npm run check:dashboard-readonly                     -> exit 0, 171 passed (171)
+    harness census line: 311 resolved call sites, 0 unresolved,
+                         10 capability-global member paths, 0 refused acquisitions
+
+Before this plan: 135 passed. After: 171. Thirty-six cases added, none replaced. The census itself
+is unmoved — 10 paths, 0 acquisitions — so the rule changed what the guard REFUSES and not what it
+reports about the shipped program.
+
+
+§ 1 — THE TWO-STEP REPRODUCTION, RE-RUN VERBATIM
+--------------------------------------------------
+
+STEP ONE. `32-32-RED-baseline.txt` § 1's plant, byte for byte:
+
+    const __r = process.report;
+    export const wB = (p) => __r.writeReport(p);
+
+    | measurement           | BEFORE the fix (baseline § 1) | AFTER the fix (here)      |
+    |-----------------------|-------------------------------|---------------------------|
+    | exit code             | 1                             | 1                         |
+    | counts                | 3 failed | 132 passed (135)   | 19 failed | 152 passed (171) |
+    | refused acquisitions  | 0                             | 2                         |
+    | PREMISE case          | GREEN                         | RED                       |
+    | censused paths        | 11 (`process.report`)         | 12 (+ `process.report.writeReport`) |
+
+The acquisition names the writer at the call site the alias hid:
+
+    scripts/board-read.js: process.report.writeReport read at __r.writeReport(p)
+
+The twelfth censused path is the measurement truth 1 of the plan asks for: the aliased call now
+produces EXACTLY the maximal path the direct spelling produces (§ 3 row N14 vs N01 below), so the
+local name ends nothing.
+
+STEP TWO — the edit the old failing message invited, applied ON TOP of the step-one plant:
+
+    + "process.report"                      in EXPECTED_GLOBAL_MEMBER_PATHS
+      EXPECTED_GLOBAL_MEMBER_PATH_COUNT     10 -> 11
+
+    | measurement  | BEFORE the fix (baseline § 3) | AFTER the fix (here)         |
+    |--------------|-------------------------------|------------------------------|
+    | exit code    | 0                             | 1                            |
+    | counts       | 135 passed (135)              | 19 failed | 152 passed (171) |
+    | PREMISE case | GREEN (never ran red)         | RED                          |
+
+WHICH RULE REFUSED IT, NAMED: the member-path POSITION rule (`collectAcquisitions` arm 3 +
+`isAdmittedMemberPathPosition`). `process.report` is read at a VARIABLE INITIALIZER, which is not one
+of the two admitted positions, and the path carries no entry in `ADMITTED_BOUND_MEMBER_PATHS`. The
+rule is over the POSITION, the list is over the PATH, and both must say yes — so recording the path
+in the census bought nothing.
+
+STEP TWO-PLUS — the honest follow-up question: what if the maintainer pays the SECOND cost too?
+
+    + "process.report"                      in EXPECTED_GLOBAL_MEMBER_PATHS       (count 10 -> 11)
+    + "process.report"                      in ADMITTED_BOUND_MEMBER_PATHS        (count  6 ->  7)
+
+    npm run check:dashboard-readonly                     -> exit 1, 19 failed | 152 passed (171)
+    PREMISE case                                         -> RED
+
+WHICH RULE REFUSED IT, NAMED: the census equality, on a path that did not exist before this round —
+`process.report.writeReport`. Paying the binding's cost only moves the question to the thing the
+binding was for. The refusal reads, in full:
+
+    the closure reaches process.report.writeReport on a capability-bearing global, and nobody has
+    admitted that path …
+
+STEP THREE — and if the maintainer records the WRITER ITSELF as well?
+
+    + "process.report", "process.report.writeReport"  in EXPECTED_GLOBAL_MEMBER_PATHS (count -> 12)
+    + "process.report"                                in ADMITTED_BOUND_MEMBER_PATHS  (count -> 7)
+
+    npm run check:dashboard-readonly                     -> exit 1, 19 failed | 152 passed (171)
+
+WHICH RULE REFUSED IT, NAMED — and it is a DIFFERENT family, which is the point:
+
+    × a write capability reached through a GLOBAL with no import at all is refused (WR-02)
+    × module identity is REFUSED: the PROCESS REPORT WRITER, a file writer with no import
+      anywhere (review WR-02)
+    × module identity is REFUSED: a LOCAL SHADOWING a capability-bearing global, still censused
+
+Those three discrimination cases exist precisely to prove the guard can still see the process report
+writer, and they are asserted against MIRRORS rather than against the census constants, so widening
+the constants reds them. There is no sequence of list edits that returns this gate to green with that
+writer in the closure.
+
+    THE COST OF RE-GREENING, BEFORE AND AFTER
+    | round                    | edits to green over a live bound writer |
+    |--------------------------|----------------------------------------|
+    | before (baseline § 3)    | 2 — one list entry, one count          |
+    | after (this proof)       | unreachable — 6 edits measured, still exit 1, and the sixth edit
+    |                          |   would have to state in writing that a FILE WRITER is read-only |
+
+
+§ 2 — THE POSITION TABLE, ONE PLANT PER ROW
+---------------------------------------------
+
+Fourteen rows of `MEMBER_PATH_POSITION_ROWS`, each planted with the NON-ADMITTED path
+`process.report`, then with the ADMITTED-BOUND path `process.stdout`. The two sources of a row differ
+in exactly that one token — a case in the suite asserts it — so a red on one and a green on the other
+isolates the PATH as the cause rather than the shape of the plant.
+
+    #   position                            | non-admitted plant           | admitted-bound plant
+    ----|------------------------------------|------------------------------|---------------------
+    P01 variable initializer                 | exit 1, 19 failed, PREMISE RED | exit 0, 171 passed
+    P02 initializer of a DESTRUCTURING decl  | exit 1, 19 failed, PREMISE RED | exit 0, 171 passed
+    P03 object property value                | exit 1, 19 failed, PREMISE RED | exit 0, 171 passed
+    P04 array element                        | exit 1, 19 failed, PREMISE RED | exit 0, 171 passed
+    P05 call argument                        | exit 1, 19 failed, PREMISE RED | exit 0, 171 passed
+    P06 return statement                     | exit 1, 19 failed, PREMISE RED | exit 0, 171 passed
+    P07 arrow-function body                  | exit 1, 19 failed, PREMISE RED | exit 0, 171 passed
+    P08 assignment right-hand side           | exit 1, 19 failed, PREMISE RED | exit 0, 171 passed
+    P09 spread element                       | exit 1, 19 failed, PREMISE RED | exit 0, 171 passed
+    P10 default parameter value              | exit 1, 19 failed, PREMISE RED | exit 0, 171 passed
+    P11 template-literal interpolation       | exit 1, 19 failed, PREMISE RED | exit 0, 171 passed
+    P12 conditional-expression branch        | exit 1, 19 failed, PREMISE RED | exit 0, 171 passed
+    P13 binary-expression operand            | exit 1, 19 failed, PREMISE RED | exit 0, 171 passed
+    P14 bare expression statement            | exit 1, 19 failed, PREMISE RED | exit 0, 171 passed
+
+    14 rows planted with a non-admitted path: 14 exit 1, 14 with PREMISE among the failures.
+    14 rows planted with an admitted-bound path: 14 exit 0.
+
+A HARNESS ARTIFACT, RECORDED RATHER THAN SMOOTHED OVER. On the first pass, three of the admitted-
+bound rows (P01, P02, P08 — the three that introduce a NAMED BINDING) read `exit 1, 1 failed`. The
+single failing case was that row's OWN converse case inside the suite, and the cause was a NAME
+COLLISION: the probe appends `const p32a = process.stdout;` to the committed module, and the suite's
+converse case then mirrors that module and appends the SAME source again, producing two declarations
+of `p32a` and therefore two value-writes — which the unprovable-binding rule correctly refuses.
+Re-measured with names the fixture cannot collide with:
+
+    C01b variable initializer, non-colliding name           -> exit 0, 171 passed
+    C02b destructuring initializer, non-colliding name      -> exit 0, 171 passed
+    C08b assignment RHS, non-colliding name                 -> exit 0, 171 passed
+    C17  a DUPLICATE `const` of one name, isolated          -> exit 1, 17 failed, PREMISE RED
+
+C17 isolates the cause and confirms the reading: a module declaring one name twice is refused, which
+is the intended behavior of "an unprovable binding is not a safe binding" and not an over-refusal of
+the admitted path. The table above records the non-colliding measurement.
+
+
+§ 3 — THE NEIGHBOUR VARIATIONS
+--------------------------------
+
+Every question § 4 of `32-23-ADVERSARIAL-REVIEW.md` asks of a new refusal, asked of this one. Each is
+one plant into the committed `.js`, measured.
+
+    #   variation                                          | exit | counts              | PREMISE
+    ----|----------------------------------------------------|------|---------------------|--------
+    N01 step one: member binding + writer through it        |  1   | 19 failed | 152 passed | RED
+    N02 chained alias, TWO links deep                       |  1   | 19 failed | 152 passed | RED
+    N03 chained alias, THREE links deep                     |  1   | 19 failed | 152 passed | RED
+    N04 alias declared with `let`                           |  1   | 19 failed | 152 passed | RED
+    N05 alias declared with `var`                           |  1   | 19 failed | 152 passed | RED
+    N06 alias as a DESTRUCTURED element                     |  1   | 19 failed | 152 passed | RED
+    N07 alias declared at MODULE TOP LEVEL                  |  1   | 19 failed | 152 passed | RED
+    N08 alias declared INSIDE a function body               |  1   | 19 failed | 152 passed | RED
+    N09 capability reached through a COMPUTED key           |  1   | 19 failed | 152 passed | RED
+    N10 capability reached through an ASSEMBLED computed key|  1   | 19 failed | 152 passed | RED
+    N11 alias PASSED to another function and called there   |  1   | 19 failed | 152 passed | RED
+    N12 alias declared then REASSIGNED to something harmless|  1   | 19 failed | 152 passed | RED
+    N13 CONTRAST: bind the ROOT instead (arm 4's territory) |  1   | 19 failed | 152 passed | RED
+    N14 the DIRECT spelling, no binding at all              |  1   | 19 failed | 152 passed | RED
+
+Fourteen variations, fourteen refusals, fourteen with the write-detection mechanism among them. The
+answers worth stating in words:
+
+  * DEPTH COSTS NOTHING (N02, N03). The binding map is built in source order against itself, so a
+    binding of a binding of a binding resolves by construction. A rule that COUNTED links would have
+    a next link; this one does not count.
+  * THE DECLARATION KEYWORD IS NOT PART OF THE RULE (N04, N05). `const`, `let` and `var` are the same
+    node kind to this pass, and the measurement says so rather than the reader assuming it.
+  * SCOPE IS NOT PART OF THE RULE EITHER (N07, N08). The pass is name-scoped, as the root-level rule
+    above it already is, and the imprecision runs toward REFUSAL — the only direction a safety guard
+    may be imprecise in.
+  * A COMPUTED KEY DOES NOT HIDE THE CAPABILITY (N09, N10). `process["report"]` normalizes to
+    `process.report`; `process[["rep","ort"].join("")]` normalizes to `process.[computed]`, which is
+    admitted by neither set and is therefore refused. A key this pass cannot read is a key it refuses.
+  * PASSING THE ALIAS ON DOES NOT HELP (N11). The refusal already fired at the BINDING, before the
+    value travelled anywhere, so where it is called is irrelevant.
+  * REASSIGNING TO SOMETHING HARMLESS DOES NOT LAUNDER IT (N12). Two value-writes to one name is an
+    unprovable binding, refused by name with the path it would have carried.
+  * THE ROUND'S OWN CONTRAST NOW AGREES WITH ITS SIBLING (N13 vs N01). Before the fix these two
+    disagreed — the ROOT binding red the mechanism and the MEMBER binding did not, and that
+    disagreement WAS the finding. They now produce the same verdict.
+
+
+§ 4 — THE CONVERSE: the shipped program's own bound reads
+-----------------------------------------------------------
+
+A refusal that also refuses the shipped program is a regression, caught here rather than by a
+verifier. One converse row per new refusal:
+
+    row                                                     | exit | counts
+    --------------------------------------------------------|------|------------------
+    the 14 ADMITTED-BOUND position rows (§ 2, right column)  |  0   | 171 passed (171)
+    C15 the shipped `defaultIo()` shape, verbatim            |  0   | 171 passed (171)
+    C16b the shipped argv/env reads, computed env key        |  0   | 171 passed (171)
+    § 0 the UNPLANTED live closure                           |  0   | 171 passed (171)
+
+C15 is the real thing, copied out of `scripts/board-dashboard.js:944-952`:
+
+    export const ioZZ = () => ({
+      stdout: process.stdout,
+      stderr: process.stderr,
+      isTty: process.stdout.isTTY === true,
+      columns: process.stdout.columns,
+    });
+
+Both output channels handed to the io seam through a binding, the TTY test and the column read —
+all green. This is what `ADMITTED_BOUND_MEMBER_PATHS` was declared from (`32-32-RED-baseline.txt`
+§ 5), and it is measured rather than assumed.
+
+ONE PRE-EXISTING BEHAVIOR RE-MEASURED AND REPORTED HONESTLY. A first converse attempt (C16) used a
+LITERAL environment key, `process.env["NO_COLOR"]`, and red. That is NOT a regression this round
+introduced: a literal key normalizes to the path `process.env.NO_COLOR`, which is a different path
+from the `process.env.[computed]` the shipped closure produces, and the 32-20 census already refused
+it — the POSITIVE CONTROLS case in this file carries a comment saying exactly that, written when
+32-20 measured it. Isolated:
+
+    C16c `export const eLZZ = () => process.env["NO_COLOR"];`  -> exit 1, 19 failed, PREMISE RED
+
+What this round CHANGED about it is that the refusal now also reds the write-detection mechanism
+instead of only the census — a strengthening of an existing refusal. C16b, the shipped shape with a
+computed key, is green. The shipped closure is unaffected either way.
+
+
+§ 5 — REACHABILITY: which call site evaluates these rules, on what input, under which command
+-----------------------------------------------------------------------------------------------
+
+A branch nothing reaches is a branch that passes by not running, and this repository added
+`check-foundation-guards` because it once shipped a gate invoked by nothing.
+
+Both new rules live inside `analyzeModule` in `scripts/board-readonly.test.ts`, and `analyzeModule` is
+called by `analyzeClosure(root, entry)` once per module of the walked closure. `capabilityBindings` is
+populated by the `establishBindings` pre-pass, which runs to completion over the module's whole AST
+before `collectAcquisitions` is invoked — the ordering matters, because `globalMemberPathOf` reads
+that map and `collectAcquisitions` calls `globalMemberPathOf`. `isAdmittedMemberPathPosition` is
+evaluated by `collectAcquisitions` arm 3 at every PropertyAccessExpression and ElementAccessExpression
+whose maximal path is rooted at a capability-bearing global or at a name carrying one. The INPUT is
+the bytes of the committed `.js` files the walker returns for
+`jsImportClosure(ROOT, "scripts/board-dashboard.js")` — five modules on the live tree — read with
+`readFileSync` and parsed with `ts.createSourceFile`; the mirrors in the discrimination cases are
+copies of those same live files with one plant appended. The COMMAND is
+`npx vitest run scripts/board-readonly.test.ts`, which is `npm run check:dashboard-readonly`
+(`package.json:25`); the file is also in the default suite, so the same code path runs under
+`npx vitest run --exclude '**/scripts/e2e/**'`, which CI invokes at `.github/workflows/ci.yml:174`.
+Every measurement in this document was produced by running that command against the committed `.js` —
+not by calling the predicates directly — so what is recorded here is what a host running the gate
+gets.
+
+
+§ 6 — THE WIDER TREE
+----------------------
+
+    npm run build                                        -> exit 0
+    npm run typecheck                                    -> exit 0
+    npm run check:build-parity                           -> exit 0
+    node scripts/check-foundation-guards.js              -> exit 0
+    VALIDATE_KIT_ROOT=. node scripts/validate-agent-factory.js  -> exit 0
+    npx vitest run --exclude '**/scripts/e2e/**'         -> exit 0, 5056 passed | 2 skipped (75 files)
+
+    32-VERIFICATION.md baseline: 4974.   32-31 close-out: 5020.   Now: 5056. Nothing went missing.
+
+
+§ 7 — MUTATION CONTROLS
+-------------------------
+
+A structural assertion nobody has watched FAIL is not yet a control. Each mutation was applied to the
+fix, the gate re-run, and the mutation reverted.
+
+    M1  `globalMemberPathOf` stops consulting `capabilityBindings`
+        -> 2 failed: "a LOCAL ALIAS … censuses the SAME maximal path as the direct spelling",
+           "a CHAINED alias, two links deep, resolves to the same path"
+    M2  `isAdmittedMemberPathPosition` returns true for every position
+        -> 18 failed, including ALL FOURTEEN non-admitted position rows and three pre-existing
+           discrimination cases. The position rule is what decides every row.
+    M3  `ADMITTED_BOUND_MEMBER_PATHS` widened with "process.report"
+        -> 16 failed: the subset case, the reachability case, and all fourteen non-admitted rows.
+           Widening the second set is not a quiet edit.
+    M4a the DECLARATION-site unprovable-binding refusal deleted
+        -> FIRST RUN: 170 passed, exit 0 — NOTHING RED. A clause no mutation can red is a clause
+           that decides nothing, so a row was added that only that arm can refuse (a binding declared
+           with a capability path and reassigned to `null`). Re-run: 1 failed, that row.
+    M4b the ASSIGNMENT-site unprovable-binding refusal deleted
+        -> FIRST RUN: 171 passed, exit 0 — NOTHING RED, for the same reason one register over. A row
+           was added that only THAT arm can refuse (a name with no initializer, assigned a capability
+           path twice). Re-run: 1 failed, that row.
+
+M4a and M4b are recorded in full because they are the round's own instance of the shape this phase
+keeps paying for: two arms of one rule, each believed to work because the OTHER one was firing.
+
+
+§ 8 — RESIDUALS, NAMED RATHER THAN IMPLIED
+--------------------------------------------
+
+  1. A CAPABILITY HANDED INTO AN OBJECT LITERAL AND REACHED THROUGH A PROPERTY OF IT is not tracked.
+     `capabilityBindings` maps NAMES, so `const io = { s: process.report }; io.s.writeReport(p)` is
+     seen as far as the object-property-value read of `process.report` — which IS refused by the
+     position rule, so the escape does not open — but the path `process.report.writeReport` is not
+     censused for it. The refusal holds; the ATTRIBUTION is shorter. Widening the map to object
+     properties is a decision with its own converse cost (the shipped `defaultIo()` builds exactly
+     such an object out of admitted paths) and is not taken here.
+  2. A CAPABILITY RETURNED FROM A FUNCTION AND BOUND AT THE CALL SITE is likewise not tracked as a
+     path. The same reasoning applies: the read inside the function is refused at its own position.
+  3. THE PASS REMAINS NAME-SCOPED, not binding-scoped — inherited from 32-20 and unchanged. A local
+     that shadows a tracked name is treated as the tracked name, which runs toward refusal.
+  4. `require()` SPECIFIERS are censused by this guard but not followed by the closure walker — the
+     residual 32-31 recorded in its own proof § 4. Unchanged by this plan, restated so it is not lost.
