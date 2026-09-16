@@ -143,7 +143,119 @@ Observable, run on the pre-change tree:
 §2  IN-02 — a prototype-spelled key never lands, so a conflict is resolved by disappearing
 =================================================================================================
 
-    (written at Task 2)
+§2.1  THE TWO DEFECTS, AND WHY THEY ARE ONE CLASS
+
+`configView` (scripts/board-read.ts:1148 before the fix) and `scrub`
+(scripts/board-dashboard.ts:329 before the fix) both built an accumulator as a plain `{}` and
+then assigned CONTENT-DERIVED KEYS into it:
+
+    const limits: Record<string, number> = {};          // dial key  = a column name a writer chose
+    const out: Record<string, unknown> = {};            // scrub key = a key of the document itself
+
+`JSON.parse` creates an OWN `__proto__` property and `Object.entries` yields it, but
+`limits["__proto__"] = 7` runs `Object.prototype`'s setter. The assignment returns normally, no
+error is thrown, and NOTHING lands.
+
+
+§2.2  THE DIAL, MEASURED LIVE ON A DISPOSABLE TREE
+
+    Tree:  plans/board.md carries two headings — `## Ready (WIP 0/5)` and
+           `## In Development (WIP 0/3)`. There is NO heading for `__proto__` and none for
+           `In Review`.
+    Dial:  agent-factory/config/factory.config.json, written as raw JSON text:
+
+             {
+               "mode": "lean",
+               "cadence": "kanban",
+               "id_prefix": "ABC",
+               "wip_limits": {
+                 "__proto__": 7,
+                 "Ready": 5,
+                 "In Development": 3,
+                 "In Review": 2
+               }
+             }
+
+    $ node scripts/board-dashboard.js <tree> --once --json
+      exit 0
+
+      THE FULL CONFLICT LIST THE DOCUMENT CARRIED — one entry, not zero, which is the point:
+
+        conflicts (1):
+          column-missing | column="In Review" | expected="a heading for the configured column In Review"
+
+      published wipLimits own keys: ["Ready","In Development","In Review"]
+      published wipLimits hasOwn __proto__: false
+
+    THE EXPECTED CONFLICT THAT IS ABSENT:
+      column-missing for column="__proto__". The dial names a limit for a column the board has no
+      heading for, exactly as it does for `In Review`. `In Review` is reported. `__proto__` is not.
+      The ordinary column in the same list is the control: the arm was reached and was reporting,
+      so the missing entry is a measurement of THIS KEY and not of a switched-off arm.
+
+    D-10 requires the projector to report every conflict and resolve none. This one is resolved by
+    disappearing, which is the most silent resolution available.
+
+
+§2.3  THE SERIALIZING CHOKEPOINT, MEASURED IN ISOLATION FROM THE DIAL
+
+The two defects are chained: before the dial fix the key never reaches `scrub` at all, so the
+chokepoint defect cannot be observed through the dial. It was isolated by fixing ONLY
+`configView` and re-running the SAME tree:
+
+    STAGE 1 — configView prototype-free, scrub still a plain `{}`:
+
+    $ node scripts/board-dashboard.js <tree> --once --json
+      exit 0
+      conflicts (2):
+        column-missing | column="__proto__"      <- the dial fix works
+        column-missing | column="In Review"
+
+      published wipLimits own keys: ["Ready","In Development","In Review"]
+      published wipLimits hasOwn __proto__: FALSE      <- the chokepoint defect, alone
+
+    The producer measured the key, raised the conflict for it, and then DROPPED THE KEY at the last
+    point before stdout. A consumer parsing that document cannot tell the omission from an absence
+    (DASH-07, D-18).
+
+
+§2.4  THE RED RUNS — each new case watched failing against the pre-fix code
+
+    THE DIAL CASES. `scripts/board-read.js:832` reverted from `Object.create(null)` to `{}` (the
+    suite imports the committed `.js`), then:
+
+    $ npx vitest run --exclude '**/scripts/e2e/**' scripts/board-read.test.ts -t "IN-02"
+      exit 1 — Tests 3 failed | 7 passed | 155 skipped (165)
+
+      FAIL  raises `column-missing` for a prototype-spelled column with NO heading on the board
+            expected [ 'In Review' ] to deeply equal [ 'In Review', '__proto__' ]
+      FAIL  SIBLING ARM: raises NO `column-missing` when that heading IS on the board, and the
+            limit is compared
+            "the limit ... took no part in the claimed/counted/limit comparison": expected [] to
+            deeply equal [ '7/5' ]
+      FAIL  the published limit map carries the key as an OWN property a consumer's parse recovers
+            expected false to be true
+
+      The PREMISE case stayed GREEN, correctly: it measures `JSON.parse`, not the fix.
+      Tree restored from a byte copy; `Object.create(null)` confirmed back at :832.
+
+    THE CHOKEPOINT CASES. `scripts/board-dashboard.js:267` reverted the same way:
+
+    $ npx vitest run --exclude '**/scripts/e2e/**' scripts/board-dashboard.test.ts -t "IN-02"
+      exit 1 — Tests 2 failed | 2 passed | 71 skipped (75)
+
+      FAIL  a SPAWNED run's parsed document carries the prototype-spelled KEY as an own property
+            expected false to be true
+      FAIL  SIBLING ARM — the sanitizer still runs: a key that BECOMES prototype-spelled lands too
+            expected false to be true
+
+      The VALUE-path sibling stayed GREEN, correctly: a prototype-spelled string VALUE was never
+      broken, and a case that redded there would have been measuring something else. Tree restored
+      from a byte copy.
+
+    EVERY ONE OF THESE IS AN INTENTIONAL RED: a TARGET assertion failing on the planned behaviour,
+    with the file collecting and the unrelated cases in it green. No syntax error, no zero-test
+    discovery, no fixture crash.
 
 
 =================================================================================================

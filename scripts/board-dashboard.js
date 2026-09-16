@@ -247,6 +247,16 @@ function warn(io, ...lines) {
  *
  * Numbers, booleans, null and `undefined` are returned unchanged; arrays are mapped; nested objects
  * are descended. `sanitizeCell` IS UNCHANGED BY THIS: what is removed stays decided in one place.
+ *
+ * THE ACCUMULATOR HAS NO PROTOTYPE, FOR THE SAME REASON THE KEYS ARE VISITED AT ALL (review IN-02).
+ * The keys here are content-derived, so one of them can be spelled like a member of
+ * `Object.prototype` — and assigning that key onto a plain object runs the inherited setter and
+ * lands nothing. The pair that reaches the wire is then a fact the producer measured and the
+ * consumer never learns was there, dropped at the last point before stdout with no diagnostic. A
+ * document that quietly omits a key is worse than one that carries an odd key, because the
+ * consumer cannot tell omission from absence. This accumulator is built and returned and no
+ * inherited member is ever read from it, so the prototype-free object is the shape that matches
+ * what this function means.
  */
 function scrub(value) {
     if (typeof value === "string")
@@ -254,7 +264,7 @@ function scrub(value) {
     if (Array.isArray(value))
         return value.map((element) => scrub(element));
     if (value !== null && typeof value === "object") {
-        const out = {};
+        const out = Object.create(null);
         for (const [key, v] of Object.entries(value)) {
             out[sanitizeCell(key)] = scrub(v);
         }

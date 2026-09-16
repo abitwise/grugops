@@ -2794,3 +2794,189 @@ describe("WR-02 — a diagnostic's evidence is spelled where it is BUILT, not tr
     expect(TICKET_CONTROL.test("	"), "the grammar does NOT refuse TAB").toBe(false);
   });
 });
+
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+// REVIEW IN-02, THE SERIALIZING CHOKEPOINT — A PROTOTYPE-SPELLED KEY REACHES THE CONSUMER.
+//
+// `scrub` accumulated into a plain `{}`. Its keys are content-derived (that is the whole reason it
+// visits keys at all), so one of them can be spelled like a member of `Object.prototype` — and
+// `out["__proto__"] = …` runs the inherited setter and lands nothing. The pair was dropped at the
+// LAST point before stdout, silently, so a consumer could not tell an omitted key from an absent
+// one. `Object.create(null)` at the accumulator is the whole fix.
+//
+// WHAT THESE CASES ASSERT IS WHAT A CONSUMER RECOVERS, NOT WHAT THIS PROCESS HOLDS. The document is
+// captured from a SPAWNED run and parsed, and `Object.hasOwn` is asked of the parsed result — the
+// same question a consumer would ask. Asserting on an in-process object would measure the producer's
+// memory rather than the published document (DASH-07, D-18).
+//
+// AND THE SIBLING ARMS, BECAUSE THE KEY PATH IS ONLY HALF OF IT. The VALUE path is asserted beside
+// the key path, and the sanitizing rule is asserted to still apply to both — a key that BECOMES
+// prototype-spelled only after `sanitizeCell` removes a control code point from it must land too,
+// which is the one shape that would prove the accumulator had grown a route around the sanitizer.
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+
+describe("board-dashboard — a prototype-spelled key survives to the published document (IN-02)", () => {
+  /** The member name whose assignment onto a plain object is a silent no-op. */
+  const PROTO_KEY = "__proto__";
+
+  type PublishedDoc = {
+    snapshot: { config: { wipLimits: Record<string, number>; idPrefix: string | null } };
+  };
+
+  /**
+   * A fixture copy whose dial carries a prototype-spelled key and a prototype-spelled VALUE.
+   *
+   * ONE PLANTED SPELLING PER TREE, ON PURPOSE. The sanitizing sibling below plants a key that
+   * COLLAPSES onto this same spelling, and two plants collapsing onto one key in one tree would
+   * make each case measure the other's plant — the later one wins, which is `scrub`'s own stated
+   * collision rule. Separate trees keep each arm's observable its own.
+   *
+   * The dial is edited as TEXT so every key arrives through `JSON.parse`, which creates an own
+   * property for `__proto__`. An object literal would set the prototype instead and plant nothing.
+   */
+  function withProtoDialCopy(body: (dir: string) => void): void {
+    withFixtureCopy((dir) => {
+      const cfgPath = join(dir, "agent-factory", "config", "factory.config.json");
+      writeFileSync(
+        cfgPath,
+        readFileSync(cfgPath, "utf8")
+          .replace('"wip_limits": {', `"wip_limits": {\n    "${PROTO_KEY}": 7,`)
+          .replace('"id_prefix": "ABC"', `"id_prefix": "${PROTO_KEY}"`),
+        "utf8",
+      );
+      body(dir);
+    });
+  }
+
+  /**
+   * A fixture copy whose dial carries ONLY a key that BECOMES prototype-spelled after sanitizing.
+   *
+   * `__pro<ESC>to__` is planted as the six-character escape a JSON parser accepts, so the parsed key
+   * carries a real control code point and `sanitizeCell` removes it — producing `__proto__` at the
+   * assignment inside `scrub`. That is the one shape which would prove the accumulator had grown a
+   * route around the sanitizer, and the only one where the fixed assignment is what makes the key
+   * land at all.
+   */
+  function withEscapedProtoDialCopy(body: (dir: string) => void): void {
+    withFixtureCopy((dir) => {
+      const cfgPath = join(dir, "agent-factory", "config", "factory.config.json");
+      writeFileSync(
+        cfgPath,
+        readFileSync(cfgPath, "utf8").replace(
+          '"wip_limits": {',
+          '"wip_limits": {\n    "__pro\\u001bto__": 9,',
+        ),
+        "utf8",
+      );
+      body(dir);
+    });
+  }
+
+  it("PREMISE: both plants arrive through the parser as they are meant to", () => {
+    withProtoDialCopy((dir) => {
+      const text = readFileSync(
+        join(dir, "agent-factory", "config", "factory.config.json"),
+        "utf8",
+      );
+      const parsed = JSON.parse(text) as { wip_limits: Record<string, number>; id_prefix: string };
+      expect(
+        Object.hasOwn(parsed.wip_limits, PROTO_KEY),
+        "PREMISE: the parser created no own property for the planted key, so every assertion " +
+          "below would measure an ordinary absent key",
+      ).toBe(true);
+      expect(parsed.wip_limits[PROTO_KEY], "PREMISE: the key landed without its value").toBe(7);
+      expect(parsed.id_prefix, "PREMISE: the value plant did not take").toBe(PROTO_KEY);
+    });
+
+    withEscapedProtoDialCopy((dir) => {
+      const text = readFileSync(
+        join(dir, "agent-factory", "config", "factory.config.json"),
+        "utf8",
+      );
+      expect(
+        controlCodePoints(text),
+        "the sanitize-sibling key is planted as a six-character ESCAPE; a raw control byte would " +
+          "be refused by JSON.parse and that arm would never be reached",
+      ).toEqual([]);
+      const parsed = JSON.parse(text) as { wip_limits: Record<string, number> };
+      const withControl = Object.keys(parsed.wip_limits).filter(
+        (k) => controlCodePointsStrict(k).length > 0,
+      );
+      expect(
+        withControl,
+        "PREMISE: the escape did not decode into a control code point in a KEY, so the " +
+          "sanitizing sibling below would be measuring an ordinary key",
+      ).toHaveLength(1);
+      expect(
+        Object.hasOwn(parsed.wip_limits, PROTO_KEY),
+        "PREMISE: the tree already carries the prototype-spelled key before any sanitizing, so " +
+          "the sibling below would pass without the sanitizer ever producing it",
+      ).toBe(false);
+    });
+  });
+
+  it("a SPAWNED run's parsed document carries the prototype-spelled KEY as an own property", () => {
+    withProtoDialCopy((dir) => {
+      const r = spawnDashboard([dir, "--once", "--json"]);
+      expect(r.code, `exit ${r.code}; stderr: ${r.err.slice(0, 400)}`).toBe(0);
+
+      const doc = JSON.parse(r.out) as PublishedDoc;
+      const limits = doc.snapshot.config.wipLimits;
+      expect(
+        Object.hasOwn(limits, PROTO_KEY),
+        "the published document does not carry the prototype-spelled key as an own property. A " +
+          "key dropped at the serializing accumulator is a fact the producer measured and the " +
+          "consumer never learns was there — and omission is indistinguishable from absence " +
+          "(review IN-02, DASH-07)",
+      ).toBe(true);
+      expect(limits[PROTO_KEY], "the key landed but the value did not come with it").toBe(7);
+    });
+  });
+
+  it("SIBLING ARM — the VALUE path: a prototype-spelled string value survives unchanged", () => {
+    withProtoDialCopy((dir) => {
+      const r = spawnDashboard([dir, "--once", "--json"]);
+      expect(r.code, `exit ${r.code}; stderr: ${r.err.slice(0, 400)}`).toBe(0);
+
+      const doc = JSON.parse(r.out) as PublishedDoc;
+      expect(
+        doc.snapshot.config.idPrefix,
+        "a string VALUE spelled like a prototype member is ordinary text and must travel " +
+          "unchanged; the key path is only half of the chokepoint",
+      ).toBe(PROTO_KEY);
+    });
+  });
+
+  it("SIBLING ARM — the sanitizer still runs: a key that BECOMES prototype-spelled lands too", () => {
+    withEscapedProtoDialCopy((dir) => {
+      const r = spawnDashboard([dir, "--once", "--json"]);
+      expect(r.code, `exit ${r.code}; stderr: ${r.err.slice(0, 400)}`).toBe(0);
+
+      const doc = JSON.parse(r.out) as PublishedDoc;
+      const limits = doc.snapshot.config.wipLimits;
+
+      // The planted key is `__pro<ESC>to__` and NOTHING in this tree is spelled `__proto__`. The
+      // sanitizer removes the code point, so the key the document carries is the prototype-spelled
+      // one — which means it has to land through the very assignment this fix repaired, AFTER the
+      // sanitizer ran. If the accumulator had grown a route around `sanitizeCell`, the key here
+      // would still carry its control code point instead.
+      expect(
+        Object.hasOwn(limits, PROTO_KEY),
+        "a key that only becomes prototype-spelled after sanitizing did not land, so the " +
+          "accumulator and the sanitizer disagree about which key is being assigned",
+      ).toBe(true);
+      expect(
+        limits[PROTO_KEY],
+        "the sanitized key landed without the value it was planted with",
+      ).toBe(9);
+
+      // AND THE SANITIZER IS STILL THE ONE THAT DECIDES: no key of the published document carries a
+      // control code point. A route around `sanitizeCell` would show up here first.
+      expect(
+        Object.keys(limits).filter((k) => controlCodePointsStrict(k).length > 0),
+        "a key reached the published document carrying a control code point, so the accumulator " +
+          "change opened a route around `sanitizeCell`",
+      ).toEqual([]);
+    });
+  });
+});

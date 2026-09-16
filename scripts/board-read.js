@@ -810,9 +810,26 @@ function readConfigSource(root, readAt, previous, seam) {
     const outcome = gatherFile(path, seam, (text) => configView(JSON.parse(normalizeDocument(text))));
     return settledFrom(settleSource("config", path, outcome, previous, readAt, LEAN_CONFIG_VIEW));
 }
-/** The three dial keys the snapshot cross-checks. Everything else in the dial is ignored here. */
+/**
+ * The three dial keys the snapshot cross-checks. Everything else in the dial is ignored here.
+ *
+ * THE LIMIT MAP HAS NO PROTOTYPE, AND THAT IS A CORRECTNESS FIX RATHER THAN HARDENING (review
+ * IN-02). A dial key is content a writer chose. `JSON.parse` creates an OWN `__proto__` property
+ * and `Object.entries` yields it, but assigning that key onto a plain object runs
+ * `Object.prototype`'s setter and lands NOTHING — silently, with no error and no diagnostic. The
+ * key then never reaches `joinSnapshot`'s `column-missing` arm, so a dial naming a column the board
+ * has no heading for is RESOLVED BY DISAPPEARING. D-10 makes `conflicts[]` the place a
+ * disagreement is SURFACED and never resolved, and the most silent possible resolution is the one
+ * this object shape was handing out.
+ *
+ * A BUILD-AND-RETURN ACCUMULATOR NEVER READS AN INHERITED MEMBER, which is why the prototype-free
+ * object is the shape that matches what this code means, not a filter bolted onto it. Both
+ * consumers already ask own-property questions — `Object.prototype.hasOwnProperty.call` at the
+ * `wip-limit` arm and `Object.keys` at the `column-missing` arm — so nothing downstream changes
+ * except that the key they ask about can now be there.
+ */
 function configView(raw) {
-    const limits = {};
+    const limits = Object.create(null);
     const wip = raw["wip_limits"];
     if (wip !== null && typeof wip === "object") {
         for (const [k, v] of Object.entries(wip)) {

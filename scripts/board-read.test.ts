@@ -4507,3 +4507,127 @@ describe("board-read — the duplicate check is a MAP lookup, not a scan (plan 3
     ).toBe(true);
   });
 });
+
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+// REVIEW IN-02 — A DIAL COLUMN SPELLED LIKE A PROTOTYPE MEMBER REACHES ITS CONFLICT ARM.
+//
+// THE DEFECT, AND WHY IT IS A CORRECTNESS DEFECT RATHER THAN A CURIOSITY. `configView` built its
+// limit map as a plain `{}`. `JSON.parse` creates an OWN `__proto__` property and `Object.entries`
+// yields it, but `limits["__proto__"] = 7` runs `Object.prototype`'s setter and lands NOTHING —
+// no error, no diagnostic, no key. `joinSnapshot`'s `column-missing` arm iterates the keys that
+// landed, so a dial naming a column the board has no heading for produced NO conflict at all. D-10
+// makes `conflicts[]` the place a disagreement is SURFACED and never resolved, and disappearing is
+// the most silent resolution there is.
+//
+// BOTH ARMS ARE ASSERTED, WHICH IS WHERE THIS PHASE HAS REPEATEDLY LOST ROUNDS. A fix that turned
+// every prototype-spelled key into a conflict would have replaced one wrong answer with another, so
+// the case below is paired with its sibling: the same spelling with a HEADING on the board raises
+// no `column-missing` and takes part in the limit comparison exactly as any other column does.
+//
+// The dial is written as RAW JSON TEXT rather than through `JSON.stringify` of an object literal,
+// because an object literal's `__proto__:` key sets the prototype instead of creating a property —
+// the plant has to arrive the way a writer's file arrives, through the parser.
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+
+describe("board-read — a prototype-spelled dial column is a conflict, not a disappearance (IN-02)", () => {
+  /** The member name whose assignment onto a plain object is a silent no-op. */
+  const PROTO_KEY = "__proto__";
+
+  function plantProtoDial(dir: string, body: string): void {
+    mkdirSync(join(dir, "agent-factory", "config"), { recursive: true });
+    writeFileSync(join(dir, "agent-factory", "config", "factory.config.json"), body, "utf8");
+  }
+
+  it("PREMISE: the planted dial really does carry the key as an OWN property after a parse", () => {
+    // If the plant did not survive `JSON.parse` as an own property, both cases below would be
+    // measuring an ordinary absent key and would pass for a reason that proves nothing.
+    const text = `{"mode":"lean","wip_limits":{"${PROTO_KEY}":7,"Backlog":2}}\n`;
+    const parsed = JSON.parse(text) as { wip_limits: Record<string, number> };
+    expect(
+      Object.hasOwn(parsed.wip_limits, PROTO_KEY),
+      "PREMISE: the parser did not create an own property for the planted key",
+    ).toBe(true);
+    expect(Object.keys(parsed.wip_limits)).toContain(PROTO_KEY);
+  });
+
+  it("raises `column-missing` for a prototype-spelled column with NO heading on the board", () => {
+    withTempTree((dir) => {
+      plantBoard(dir, "## Backlog (WIP 0/2)\n");
+      plantProtoDial(dir, `{"mode":"lean","wip_limits":{"${PROTO_KEY}":7,"In Review":3}}\n`);
+
+      const conflicts = readSnapshot(dir).conflicts.filter((c) => c.kind === "column-missing");
+      const columns = conflicts.map((c) => c.column).sort();
+
+      // THE ORDINARY MISSING COLUMN IS IN THE SAME LIST ON PURPOSE. It is the control: it proves
+      // the arm was reached and reporting at all, so the prototype-spelled entry's presence is a
+      // measurement of THIS key rather than of the arm being switched on.
+      expect(
+        columns,
+        "a dial column spelled like a prototype member did not reach the `column-missing` arm. " +
+          "The key never landed in the limit map, so the projector resolved the disagreement by " +
+          "dropping it — which D-10 forbids (review IN-02)",
+      ).toEqual([PROTO_KEY, "In Review"].sort());
+
+      const proto = conflicts.find((c) => c.column === PROTO_KEY);
+      expect(proto?.expected).toBe(`a heading for the configured column ${PROTO_KEY}`);
+      expect(proto?.actual).toBe("no heading on the board opens that column");
+      expect(proto?.source, "the expectation came from the dial, so the source is `config`").toBe(
+        "config",
+      );
+    });
+  });
+
+  it("SIBLING ARM: raises NO `column-missing` when that heading IS on the board, and the limit is compared", () => {
+    withTempTree((dir) => {
+      plantBoard(dir, `## ${PROTO_KEY} (WIP 0/5)\n\n## Backlog (WIP 0/2)\n`);
+      plantProtoDial(dir, `{"mode":"lean","wip_limits":{"${PROTO_KEY}":7,"Backlog":2}}\n`);
+
+      const result = readSnapshot(dir);
+
+      expect(
+        result.conflicts.filter((c) => c.kind === "column-missing"),
+        "a fix that makes EVERY prototype-spelled key a conflict has replaced one wrong answer " +
+          "with another. The heading exists, so there is nothing missing",
+      ).toEqual([]);
+
+      // AND IT IS A FULL PARTICIPANT, not merely un-flagged: the dial's 7 is compared against the
+      // heading's 5 exactly as it would be for any other column name.
+      const limit = result.conflicts.filter(
+        (c) => c.kind === "wip-limit" && c.column === PROTO_KEY,
+      );
+      expect(
+        limit.map((c) => `${c.expected}/${c.actual}`),
+        "the limit for the prototype-spelled column took no part in the claimed/counted/limit " +
+          "comparison, so it is present in name only",
+      ).toEqual(["7/5"]);
+
+      // PREMISE: the ordinary column beside it agrees with its dial entry, so the single conflict
+      // above is this column's and not a whole-board disagreement.
+      expect(
+        result.conflicts.filter((c) => c.kind === "wip-limit" && c.column === "Backlog"),
+      ).toEqual([]);
+    });
+  });
+
+  it("the published limit map carries the key as an OWN property a consumer's parse recovers", () => {
+    withTempTree((dir) => {
+      plantBoard(dir, "## Backlog (WIP 0/2)\n");
+      plantProtoDial(dir, `{"mode":"lean","wip_limits":{"${PROTO_KEY}":7,"Backlog":2}}\n`);
+
+      const config = readSnapshot(dir).snapshot.sources.config;
+      const view = config.source === "unavailable" ? null : config.value;
+      expect(view, "PREMISE: the dial was not read at all, so nothing below measures a key").not.toBe(
+        null,
+      );
+      const limits = view?.wipLimits ?? {};
+      expect(
+        Object.hasOwn(limits, PROTO_KEY),
+        "the limit map does not carry the key as an own property, so every consumer downstream " +
+          "— the conflict arm, the renderer and the `--json` document — sees a dial that never " +
+          "named it",
+      ).toBe(true);
+      expect(Object.keys(limits).sort()).toEqual([PROTO_KEY, "Backlog"].sort());
+      expect(limits[PROTO_KEY]).toBe(7);
+    });
+  });
+});

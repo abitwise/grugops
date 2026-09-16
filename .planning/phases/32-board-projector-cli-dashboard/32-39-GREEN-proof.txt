@@ -137,7 +137,136 @@ same instruments §-for-§ as 32-39-RED-baseline.txt.
 §2  IN-02 — a prototype-spelled key reaches the conflict arm and the published document
 =================================================================================================
 
-    (written at Task 2)
+§2.1  THE TWO CONSTRUCTION SITES, AND NOTHING ELSE
+
+    scripts/board-read.ts:1165     const limits = Object.create(null) as Record<string, number>;
+    scripts/board-dashboard.ts:339 const out    = Object.create(null) as Record<string, unknown>;
+
+    The surrounding types are unchanged, both consumers already asked own-property questions
+    (`Object.prototype.hasOwnProperty.call` at the `wip-limit` arm, `Object.keys` at the
+    `column-missing` arm), and no key filter was added anywhere — the lookup is asked the question
+    it means rather than being taught a list of names to distrust.
+
+
+§2.2  THE DIAL, AFTER — the conflict is raised, on the same tree
+
+    $ node scripts/board-dashboard.js <tree> --once --json
+      exit 0
+      conflicts (2):
+        column-missing | column="__proto__"      (BEFORE: absent)
+        column-missing | column="In Review"      (BEFORE: present — the control, unchanged)
+      published wipLimits own keys: ["__proto__","Ready","In Development","In Review"]
+      published wipLimits hasOwn __proto__: true          (BEFORE: false)
+      own descriptor: {"value":7,"writable":true,"enumerable":true,"configurable":true}
+
+
+§2.3  THE SIBLING ARM — a prototype-spelled column that IS on the board
+
+    Tree:  plans/board.md carries `## __proto__ (WIP 0/5)` and `## Ready (WIP 0/5)`.
+    Dial:  wip_limits = { "__proto__": 7, "Ready": 5 }
+
+    $ node scripts/board-dashboard.js <tree> --once --json
+      exit 0
+      columns: ["__proto__","Ready"]
+      conflicts (1):
+        wip-limit | column="__proto__" | expected="7" actual="5"
+
+      NO `column-missing` is raised — the heading exists, so nothing is missing — AND the limit is
+      a full participant in the claimed/counted/limit comparison. A fix that made every
+      prototype-spelled key a conflict would have replaced one wrong answer with another, and this
+      is the measurement that says it did not.
+
+
+§2.4  THE ACCUMULATOR SET, DERIVED RATHER THAN TAKEN FROM THE REVIEW'S TWO
+
+    Derived by TypeScript parse over both modules — every variable declaration whose initializer
+    is an object literal, an `Object.create(...)`, an `Object.fromEntries(...)`, a `new Map()` or a
+    `new Set()`. 15 candidates, each with a verdict on whether it can receive a CONTENT-DERIVED KEY:
+
+    scripts/board-read.ts — 6 candidates
+      :234   last                object literal {4}    NO — four fixed field names of a `FileRead`
+      :906   LEAN_CONFIG_VIEW    object literal {3}    NO — the C6 lean constant; its `wipLimits: {}`
+                                                       is never assigned into, it is returned as the
+                                                       empty map for "no usable dial"
+      :1165  limits              Object.create(null)   YES — FIXED BY THIS PLAN (dial keys)
+      :1258  seenById            new Map()             NO — a Map keyed by ticket id; `Map.set` is
+                                                       safe by construction, no prototype is consulted
+      :1833  superseded          new Set()             NO — same, a Set of note ids
+      :1989  sources             object literal {6}    NO — the six fixed source names
+
+    scripts/board-dashboard.ts — 9 candidates
+      :339   out                 Object.create(null)   YES — FIXED BY THIS PLAN (document keys)
+      :422   STYLE               object literal {3}    NO — three fixed style fields
+      :429   PLAIN_STYLE         object literal {3}    NO — same
+      :656   disputedColumns     new Set()             NO — content-derived VALUES, but a Set
+      :843   seen                new Set()             NO — same
+      :998   watchers            new Map()             NO — keyed by a derived watch directory, but
+                                                       a Map
+      :1013  watchErrorsByDir    new Map()             NO — same
+      :1014  forced              new Set()             NO — same
+      :1020  forcedAlreadyFired  new Set()             NO — same
+
+    VERDICT: exactly two of the fifteen can receive a content-derived key by property assignment,
+    and they are the two the review named. This time that is a MEASUREMENT rather than a
+    borrowed conclusion — the repository's recorded pattern is that the third site is the one
+    nobody derived, and here the derivation says there is no third site in these two modules.
+    Every Map and Set above is safe by construction: `Map.set`/`Set.add` consult no prototype.
+
+
+§2.5  THE NEW CASES, AND WHAT EACH OF THEM DISCRIMINATES
+
+    scripts/board-read.test.ts  (+4, 161 -> 165 passed)
+      PREMISE: the planted dial really does carry the key as an OWN property after a parse
+      raises `column-missing` for a prototype-spelled column with NO heading on the board
+      SIBLING ARM: raises NO `column-missing` when that heading IS on the board, and the limit is
+        compared
+      the published limit map carries the key as an OWN property a consumer's parse recovers
+
+    scripts/board-dashboard.test.ts  (+4, 71 -> 75 passed)
+      PREMISE: both plants arrive through the parser as they are meant to
+      a SPAWNED run's parsed document carries the prototype-spelled KEY as an own property
+      SIBLING ARM — the VALUE path: a prototype-spelled string value survives unchanged
+      SIBLING ARM — the sanitizer still runs: a key that BECOMES prototype-spelled lands too
+
+    THE CONSUMER-LEVEL ASSERTION IS THE ONE THAT COUNTS FOR DASH-07. The document is captured from
+    a SPAWNED `node scripts/board-dashboard.js <tree> --once --json`, parsed, and `Object.hasOwn`
+    is asked of the PARSED RESULT — the same question a consumer asks. An in-process assertion
+    would measure the producer's memory instead of the published document.
+
+    THE SANITIZER SIBLING USES ITS OWN TREE. The planted key `__pro<ESC>to__` COLLAPSES onto
+    `__proto__` once `sanitizeCell` removes the code point, so a tree carrying both plants would
+    make each case measure the other's (the later key wins — `scrub`'s own stated collision rule).
+    Two trees keep each arm's observable its own, and the escaped tree asserts as a PREMISE that it
+    carries no `__proto__` key BEFORE sanitizing, so the sibling cannot pass without the sanitizer
+    actually producing that spelling.
+
+    The RED transcripts for all of these are in 32-39-RED-baseline.txt §2.4.
+
+
+§2.6  THE GOLDEN FIXTURE IS UNMOVED
+
+    $ node scripts/board-dashboard.js scripts/fixtures/board-snapshot --once --json
+      exit 0, schemaVersion = 2, conflicts = 9, readErrors = 1
+      normalizedBytes = 18606
+      sha256 = 5c33782368eab1622c3b41c493955a28059d7a9f1abe4edc2c9de803ef00f6a1
+      normalised CLI document === expected-snapshot.json : TRUE
+    $ git status --short scripts/fixtures/        (no output)
+
+    MATCHING. The fixture dial names no prototype-spelled column, so the fix changes nothing about
+    what that tree publishes — which is the correct outcome and is measured rather than assumed.
+
+
+§2.7  GATES, TASK 2
+
+    $ npx vitest run --exclude '**/scripts/e2e/**' scripts/board-read.test.ts scripts/board-dashboard.test.ts
+      exit 0 — Test Files 2 passed (2), Tests 240 passed (240)
+    $ npm run typecheck                  exit 0
+    $ npm run freshness                  exit 0 — 65 committed .js file(s) match a rebuild
+    $ npm run check:dashboard-readonly   exit 0 — 175 passed, no PREMISE case among any failure
+      (175, not the 171 the plan carried from 32-VERIFICATION.md's round-3 measurement: the CR-01
+       fix d276f4e3 added four cases after that verification, as 32-38-SUMMARY.md already recorded.
+       This plan touched neither that file nor the dashboard import closure, and the count is
+       unchanged by it.)
 
 
 =================================================================================================
