@@ -167,3 +167,220 @@
   the census, exactly as one placed in any other exempt file would be. That is the trade the
   registry exists to record rather than hide, and it is unchanged in kind by this ninth entry.
   status: open
+
+## Carried items RE-MEASURED during plan 32-41 (gap-closure round 4, the last round the cap allows)
+
+Every item below was RUN or READ on this tree on 2026-09-16 at HEAD `b6f6bd45`, not re-described
+from a prior round's document. Each carries the date, a measured number, and the overlap between the
+item's own file set and THIS ROUND'S changed-file set stated as a number. This round's changed-file
+set is derived in `32-41-GATES.txt` § 9: **24 files on the narrow base (`d5486262^..HEAD`), 13 of
+them outside `.planning/`; 34 on the wide base (`670f1b3c..HEAD`), 17 outside `.planning/`.** The
+overlap numbers below are computed against the WIDE base, which is the more conservative of the two.
+
+- **`npm run check:diff-disposition` remains RED, CARRIED from plan 32-08 and RE-MEASURED here by
+  TWO INSTRUMENTS.** Re-measured 2026-09-16 at `b6f6bd45`: exit **1**, `1 CHECK(S) FAILED`, headline
+  `78 finding(s) over 39 elements`.
+  **Two instruments, both stated, with an agreement verdict:** the gate's own headline reads **78**;
+  counting the `clause:` lines in its output reads **78**. **THEY AGREE.** Round 3 recorded these two
+  disagreeing by one (77 versus 78) and identified the 77 as a property of the counting instrument
+  (it counted `(added)` lines only, and `16-context-read-write.md` carries one `(removed)` line as
+  well) rather than a movement of the corpus. On this tree the disagreement does not reproduce.
+  **Per-file tallies, derived from the output:** `agent-factory/workflows/05-pr-quality-gate.md` 38,
+  `06-uat-pack.md` 25, `16-context-read-write.md` 10, `18-context-compaction.md` 3,
+  `17-task-claim.md` 2. `38 + 25 + 10 + 3 + 2 = 78`.
+  **One name in the output that is NOT a finding:** `agent-factory/roles/_role-switch-protocol.md`
+  appears once, inside the gate's corpus-description line as the single uncounted
+  `safety_surface: yes` register row that makes the watched corpus `36 + 3 + 1 = 40`. A reader who
+  greps the output for file paths gets six names and would be reading one too many.
+  **OVERLAP WITH THIS ROUND'S CHANGED-FILE SET: 0.** Searching the full finding text for every one
+  of the 34 wide-base changed files returns zero hits; the same search over the 24 narrow-base files
+  also returns zero. Every finding is in an `agent-factory/roles/` or `agent-factory/workflows/`
+  document that no commit of this round touched. Pre-existing, unmoved, therefore neither a
+  regression of this round nor quietly absorbed into it. Ledger row 176.
+  status: open
+- **The live claude-CLI end-to-end lane was NOT run by plan 32-41, and its state stays
+  `UNKNOWN - verify`.** `npm test` is `vitest run` with no exclusion, so it triggers `scripts/e2e`,
+  which spends tokens on an authenticated box and can hang. Every prior round of this phase carried
+  it the same way, and this plan's own `must_haves` declares the carry as a backstop rather than a
+  claim. The regression lane actually run is `npx vitest run --exclude '**/scripts/e2e/**'` —
+  **75 files, 5163 passed, 2 skipped, exit 0**, measured 2026-09-16 and tabulated in
+  `32-41-GATES.txt` § 6 against six prior measurement points, where the verdict is **HELD**.
+  **Overlap: not applicable — the item names no tracked file; its file set is empty, so the overlap
+  with any changed-file set is 0 by construction.** Nothing in this round measured the lane and
+  nothing in this round's reports claims anything about it. Ledger row 183.
+  status: open
+- **WR-07's CI-TOPOLOGY HALF remains untaken, CARRIED from plan 32-35 and re-read here.** Re-read
+  2026-09-16: the three platform-dependent live cases still run inside the shared
+  `Vitest (e2e lane excluded)` step of the `test (${{ matrix.os }})` job. `scripts/board-watch-live.test.ts`
+  reports **6 passed** in this round's regression run (`32-41-GATES.txt` § 7), unchanged in count.
+  **OVERLAP WITH THIS ROUND'S CHANGED-FILE SET: 0.** Neither `scripts/board-watch-live.test.ts` nor
+  `.github/workflows/ci.yml` appears among the 34 wide-base changed files; both were measured
+  against the set by name. The item is untouched by this round in either direction.
+  **The residual, stated plainly rather than hidden:** while these cases stay in the shared step, a
+  Windows failure in any of them takes that step down and masks every other result on that leg. That
+  cost is ACCEPTED, not eliminated.
+  **Owner:** Phase 33 (Windows portability / CAP-02), per `.planning/WINDOWS.md` ledger rows 186 and
+  193. Unchanged by this round.
+  status: open
+- **The PRODUCTION-file census exemption remains live, CARRIED from plan 32-36, and its CARRIER file
+  WAS changed this round — so it was re-read rather than assumed.** Re-read 2026-09-16:
+  `scripts/validate.test.ts:1871` still carries the `"check-diff-disposition.ts":` exemption, and the
+  exemption registry still holds **5** file entries in that block.
+  **OVERLAP, STATED AS TWO NUMBERS BECAUSE THEY DIFFER:** the EXEMPTED file
+  (`scripts/check-diff-disposition.ts`) overlaps this round's changed set at **0** — it was not
+  touched. The file that CARRIES the exemption (`scripts/validate.test.ts`) overlaps at **1** — it
+  was changed this round by `7a3ae592` (the WR-04 split-reader fix) and by `61d82343` (plan 32-38).
+  Both numbers are stated because an overlap of 0 on the exempted file alone would have read as "this
+  round did not go near it", which is false of the predicate that grants the exemption.
+  **Re-measurement verdict:** the exemption's shape is unchanged. The blind spot is still one named
+  production file wide and still bounded by the exemption-liveness case.
+  **Owner:** the next phase that touches `scripts/check-diff-disposition.ts`; the honest fix is to
+  stop writing the two ticket key words into that module's prose, not to narrow the predicate.
+  Ledger row 194.
+  status: open
+- **`.planning/WINDOWS.md` ledger row 184 — a key spelling assembled at RUNTIME — stays OPEN, and
+  its carrier file was also changed this round.** Re-read 2026-09-16: the census's own case,
+  `it("does NOT see a reader whose key spellings are assembled at RUNTIME — the stated blind spot")`
+  at `scripts/validate.test.ts:2681`, is still present and still passing, still pinning the blind
+  spot with a `String.fromCharCode` shape at `:2692`. The static `[...].join(sep)` arm plan 32-36
+  added is unmoved.
+  **OVERLAP WITH THIS ROUND'S CHANGED-FILE SET: 1** — `scripts/validate.test.ts` is in the set. The
+  case was therefore re-read on this tree rather than carried on the strength of a prior reading, and
+  it is unmoved.
+  **Owner:** unassigned. The row is not closable by one more resolution arm — a key built by
+  `String.fromCharCode`, through a template with substitutions, or read from a variable does not
+  exist until the program runs and is outside a static pass entirely. A census asked to carry that
+  weight needs a different instrument.
+  status: open
+- **`board-tracer.test.ts`'s `NOT_A_SECOND_AUTHORITY` entry stays OPEN and the registry count did NOT
+  move.** Re-measured 2026-09-16: `scripts/validate.test.ts:1893` reads
+  `const NOT_A_SECOND_AUTHORITY_COUNT = 9;`, two-sided pinned at `:2252`, and
+  `"board-tracer.test.ts":` is still an entry at `:1884`. The count is **9**, identical to what plan
+  32-38 recorded when it added the ninth entry, and `32-40-ADVERSARIAL-REVIEW.md` § 12 (F-15's blast
+  radius) measured the same 9 independently.
+  **OVERLAP WITH THIS ROUND'S CHANGED-FILE SET: 2** — both `scripts/validate.test.ts` and
+  `scripts/board-tracer.test.ts` are in the set. This is the highest overlap of any carried item and
+  is the reason the count was re-measured on this tree rather than cited.
+  **THE RISK, RESTATED:** a genuine second ticket-frontmatter reader placed inside
+  `scripts/board-tracer.test.ts` would be invisible to the census, exactly as one placed in any other
+  exempt file would be. That is the trade the registry exists to record rather than hide, and it is
+  unchanged in kind by this round.
+  status: open
+
+## The three items the fix pass could not decide — each given a row here (plan 32-41)
+
+`32-REVIEW-FIX.md` § `UNKNOWN - verify` names three items no agent can close from this host. Each
+gets a row with the unmeasured phrasing, an owner, and the reason nobody can close it from here. A
+row is not a closure; it is the difference between an item being OPEN and an item being ABSENT.
+
+- **`UNKNOWN - verify`: whether a write capability can reach the dashboard closure through
+  `import.meta.resolve`, through a WRITER VALUE RECEIVED AT RUNTIME, or through a future
+  `node_modules` dependency.** Unchanged by this round.
+  **What IS measured:** the `import.meta.resolve` POSITION is separately recorded as ledger row 199
+  (F-13) and was measured refused by the guard's sibling AST census — planted and exit 1. This round
+  re-ran the full ten-plant battery through `32-40` and found **no live write bypass**; the guard is
+  green at **175 passed** (`32-41-GATES.txt` gate row 14).
+  **What is NOT measured and cannot be from here:** the runtime-value half and the
+  future-dependency half. A value received at runtime has no syntactic form to scan, and a
+  dependency that does not exist yet cannot be enumerated. Both are outside what a syntactic pass
+  can decide, which is the fix pass's own phrasing and remains correct.
+  **Owner:** unassigned. Closing it needs a different instrument — a runtime capability probe or a
+  policy that refuses `node_modules` entirely — not another resolution arm on the existing scanner.
+  Ledger row 208.
+  status: open
+- **`UNKNOWN - verify`: `scripts/board-watch-live.test.ts`'s delivery band on `windows-latest`.**
+  Not measurable from this host, unchanged from every prior round of this phase. The three
+  platform-dependent live cases depend on the platform delivering directory events; the band was
+  widened from `[250 ms, 600 ms)` to `[250 ms, 750 ms)` by plan 32-35 against three measured
+  latencies of 272, 279 and 276 ms on THIS platform, and that is the only platform anything has
+  been measured on.
+  **Owner:** Phase 33 (Windows portability / CAP-02). The project has already recorded the rule that
+  governs it: a Windows red IS the CAP-02 measurement arriving early and must not be answered with a
+  platform conditional. Ledger rows 186 and 193.
+  status: open
+- **`UNKNOWN - verify`: a module reached through a NESTED RUNNER other than `npm run check:x` is
+  invisible to both sides of the WR-05 denominator.** Re-read 2026-09-16 and unchanged by this round.
+  **What IS measured:** `32-40-ADVERSARIAL-REVIEW.md` § 10 derived the separator alphabet and
+  measured, per entry over all **11** `check:*` scripts, that no live instance exists — no single
+  pipe, no single `&`, no newline, no wrapper command. The one live exclusion is
+  `check:build-parity`'s inline `node -e`, excluded by decision and stated in the docblock.
+  **What is NOT measured:** whether a runner shape nobody has written would be counted. The
+  denominator is derived from a recogniser alphabet, and an alphabet is an enumeration; F-21 records
+  the six shapes outside it. Nobody can close this from here because the closure is over the set of
+  command spellings a future author might write, which is open.
+  **Owner:** unassigned. The remedy this repository has recorded for an enumerated-set defect is a
+  canonical form — refuse every `check:*` command outside a declared shape — not a wider alphabet.
+  Ledger row 207.
+  status: open
+
+## New residual PRODUCED by this round (plan 32-41, Task 2)
+
+- **`32-40-ADVERSARIAL-REVIEW.md` attributes the WR-04 fix to the wrong commit, in five places.**
+  Found 2026-09-16 while computing this round's per-item overlap numbers. The review names
+  `7aea94f0` as "the commit that created this rule" (§ 12 / F-15), and repeats that attribution in
+  § 5's fix table, § 13's ratio table, and § 16 ledger rows 2 and 12.
+  **Measured:** `git show --stat 7aea94f0` is `docs(32-38): record plan 32-38 in STATE and ROADMAP`
+  and touches exactly three files, all under `.planning/` — `ROADMAP.md`, `STATE.md` and
+  `32-38-SUMMARY.md`. It cannot have created `splitReaderOffenders`.
+  `git log -S 'splitReaderOffenders' 670f1b3c..HEAD -- scripts/validate.test.ts` returns exactly one
+  commit: **`7a3ae592`** — `fix(32): WR-04 refuse the split-across-files ticket reader, and
+  own-property the exemption lookup`.
+  **One use of `7aea94f0` in that document is CORRECT and is not part of this item:** § 16 row 19
+  uses it as the END of the range `d5486262..7aea94f0` for plan 32-38, which it is.
+  **THE VERDICT DOES NOT MOVE, AND THAT IS STATED RATHER THAN LEFT TO INFERENCE.** `7a3ae592` sits
+  inside the same fix-pass window as every other commit the ratio counts (between the round-3
+  verification `5ec7d085` and plan 32-38's first commit `d5486262`), so F-15 remains
+  created-by-a-fix-pass-change and **the created-versus-inherited ratio stays 5 of 8**. Only the hash
+  is wrong; no finding, no severity and no number moves.
+  **Why it is recorded rather than corrected in place:** plan 32-41 does not edit another round's
+  evidence document, for the same reason round 1 declined to edit a stale entry it did not own. This
+  is the same handling round 3 gave the 77-versus-78 counting-instrument correction: state it where
+  the next reader will find it, leave the original document byte-unchanged.
+  **Owner:** the verifier's next pass, or whoever cites F-15's provenance next. Ledger row 209.
+  status: open
+
+## `.planning/WINDOWS.md` reconciliation after plan 32-41's appends
+
+`.planning/WINDOWS.md` carries the residual ledger in TWO representations: a markdown table, and a
+JSON array inside a fenced block. Plan 32-41 appended **11** rows (ids **200 through 210**) and then
+reconciled the two by comparing every row IDENTIFIER in one against the other, not by reading them
+and not by comparing two row counts — because two representations can both be short by one and still
+agree on their totals.
+
+```
+$ node <compare the id column of the markdown table against the id field of the JSON array>
+representation A (markdown table) row count ......  210
+representation B (JSON array)     row count ......  210
+|symmetric difference of identifier sets| ........  0
+  only in A: []   only in B: []
+duplicate ids in A: 0   duplicate ids in B: 0
+```
+
+**THE THIRD NUMBER IS ZERO.** That is the assertion. The first two being equal is recorded but is
+not the proof.
+
+The frontmatter counters were re-derived from representation B rather than trusted:
+
+```
+frontmatter  open=197  waived=0  fixed=13  total=210
+derived      open=197  waived=0  fixed=13  total=210
+```
+
+Rows appended by this round, with what each carries:
+
+```
+200  F-14  a quoted identifier's C1 byte is deleted before the reader sees it
+201  F-15  the split-reader refusal enumerates ONE import shape
+202  F-16  regular-expression literals are not blanked
+203  F-17  a template-literal dynamic import is invisible to scanner AND oracle
+204  F-18  the bare arm's refusal relocated onto a single predicate
+205  F-19  the one-authority rule enumerates reads by identifier TEXT
+206  F-20  one consumer still uses the unresolved spelling
+207  F-21  the step counter's separator alphabet excludes five shell shapes
+208  UNKNOWN - verify: a runtime writer value or a future node_modules dependency
+209  NEW: 32-40 attributes the WR-04 fix to commit 7aea94f0; it is 7a3ae592
+210  32-38: board-tracer.test.ts as the ninth NOT_A_SECOND_AUTHORITY exemption
+```
+
+F-22 is NOT among them: `32-40-ADVERSARIAL-REVIEW.md` records it CLOSED, and it is a harness finding
+rather than a tree defect. An item that is closed does not get a row that says it is open.
