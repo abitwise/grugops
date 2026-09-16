@@ -239,7 +239,7 @@ the code derives from, so it moves first.
 
 **File:** `scripts/board-dashboard.ts:258-262` (`CONTROL_CODE_POINTS`, `sanitizeCell`), `:286-338` (`scrub`, `writeDocument`), `:276-284` (`warn`)
 
-`CONTROL_CODE_POINTS = /[ --]/g` includes U+0009. The ticket grammar refuses
+`CONTROL_CODE_POINTS = /[\x00-\x1f\x7f-\x9f]/g` includes U+0009. The ticket grammar refuses
 a tabbed frontmatter line as `unrecognized-line` and its message quotes the offending line as the
 evidence. Both rendered channels then delete the evidence. Reproduced:
 
@@ -264,7 +264,7 @@ message is composed:
 
 ```ts
 const visible = (line: string): string =>
-  line.replace(/[ --]/g, (c) =>
+  line.replace(/[\x00-\x1f\x7f-\x9f]/g, (c) =>
     c === "\t" ? "<TAB>" : `<U+${c.codePointAt(0)!.toString(16).toUpperCase().padStart(4, "0")}>`);
 // … `line ${n} is \`${visible(raw)}\`, which is neither \`key: value\` nor \`key:\``
 ```
