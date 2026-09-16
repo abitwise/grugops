@@ -2545,6 +2545,99 @@ describe("32-06 — the guard discriminates: both halves are shown to fail", () 
     );
   });
 
+  // ═════════════════════════════════════════════════════════════════════════════════════════════
+  // THE THREE SPELLINGS THE SHIPPED GATE WAS MEASURED GREEN OVER (32-31, gap-closure round 3).
+  //
+  // `32-24-RED-baseline.txt` § 2 measured six module-specifier spellings against the COMMITTED
+  // `scripts/board-read.js` with a live writer behind each one. THREE of them left
+  // `npm run check:dashboard-readonly` at exit 0 with its full 89/89, and two of those three wrote
+  // a file on the measuring machine through a function the dashboard closure exports:
+  //
+  //     /abs/…/writer.mjs              exit 0, 89 passed (89), writer live, 77 bytes
+  //     //localhost/abs/…/writer.mjs   exit 0, 89 passed (89), writer live, 83 bytes
+  //     //host/probe/writer.mjs        exit 0, 89 passed (89), unresolvable on darwin
+  //
+  // WHY THEY WERE GREEN, IN ONE SENTENCE: the two authorities that decide a specifier's class are a
+  // COMPLEMENT rather than a PARTITION — `isBareSpecifier` was `!startsWith(".") && !startsWith("/")`
+  // and the walker's three patterns each required a leading `.`, so every spelling beginning with
+  // `/` that is not `./` or `../` was subtracted by the first and never added by the second.
+  //
+  // THESE ROWS ARE HELD AS DATA, and each names the WITNESS it must be refused by, for the reason
+  // `MODULE_IDENTITY_SHAPES` gives one table up: "refused" without naming the refusing predicate is
+  // how a round credits a rule for a red some other rule produced.
+  // ═════════════════════════════════════════════════════════════════════════════════════════════
+
+  /** The writer module every row below imports. Outside the tree, and unambiguously a writer. */
+  const FOREIGN_WRITER_BODY = "probeWrite";
+
+  /**
+   * One row per spelling `32-24-RED-baseline.txt` measured at exit 0 over a live writer. The
+   * `baseline` field is the transcript this row is proved against, quoted so a reader comparing the
+   * two files compares numbers rather than recollections.
+   */
+  const BASELINE_GREEN_SPECIFIER_ROWS: readonly {
+    readonly name: string;
+    readonly specifier: string;
+    readonly baseline: string;
+  }[] = Object.freeze([
+    {
+      name: "an ABSOLUTE POSIX path, static import (baseline § 3.1 — exit 0, writer live)",
+      specifier: "/private/tmp/grugops-probe/writer.mjs",
+      baseline: "32-24-RED-baseline.txt § 3.1: exit 0, 89 passed (89), LIVE_WRITER=yes 77 bytes",
+    },
+    {
+      name: "a PROTOCOL-RELATIVE //localhost path, static import (baseline § 3.2 — exit 0, writer live)",
+      specifier: "//localhost/private/tmp/grugops-probe/writer.mjs",
+      baseline: "32-24-RED-baseline.txt § 3.2: exit 0, 89 passed (89), LIVE_WRITER=yes 83 bytes",
+    },
+    {
+      name: "a PROTOCOL-RELATIVE //host path, static import (baseline § 3.3 — exit 0)",
+      specifier: "//host/probe/writer.mjs",
+      baseline: "32-24-RED-baseline.txt § 3.3: exit 0, 89 passed (89), unresolvable on darwin",
+    },
+  ]);
+
+  /** Three rows, because the baseline measured three green spellings. A fourth is a decision. */
+  const BASELINE_GREEN_SPECIFIER_ROW_COUNT = 3;
+
+  it("the baseline-green row table has exactly the number of rows the baseline measured", () => {
+    expect(
+      BASELINE_GREEN_SPECIFIER_ROWS.length,
+      "a FOURTH spelling measured green over a live writer is a DECISION: it belongs in " +
+        "BASELINE_GREEN_SPECIFIER_ROWS as a named row carrying the transcript that measured it, " +
+        "never in a bumped constant",
+    ).toBe(BASELINE_GREEN_SPECIFIER_ROW_COUNT);
+    expect(new Set(BASELINE_GREEN_SPECIFIER_ROWS.map((r) => r.specifier)).size).toBe(
+      BASELINE_GREEN_SPECIFIER_ROW_COUNT,
+    );
+  });
+
+  for (const row of BASELINE_GREEN_SPECIFIER_ROWS) {
+    it(`a writer imported through ${row.name} is REFUSED`, () => {
+      withLiveMirror(
+        {
+          module: "scripts/board-read.js",
+          appendSource:
+            `import { ${FOREIGN_WRITER_BODY} } from "${row.specifier}";\n` +
+            `export const foreignPlant = (p, b) => ${FOREIGN_WRITER_BODY}(p, b);`,
+        },
+        (mirrorRoot) => {
+          const facts = analyzeClosure(mirrorRoot, DASHBOARD_ENTRY);
+          expect(
+            facts.acquisitions.length,
+            `the specifier "${row.specifier}" reaches a module this walk cannot mirror and this ` +
+              "syntactic pass cannot vouch for, and NOTHING refused it. Measured green over a " +
+              `live writer: ${row.baseline}. Admitting it CLAIMS that a module reached by a path ` +
+              "this repository never read is nevertheless known to hold no writer — a claim no " +
+              "derivation here can make. Collected acquisitions: " +
+              `[${facts.acquisitions.join(" | ")}]`,
+          ).toBeGreaterThan(0);
+          expect(facts.acquisitions.join("\n")).toContain("scripts/board-read.js");
+        },
+      );
+    });
+  }
+
   it("the scratch root is left with no mirror residue", () => {
     // A real LISTING, not `git status`: `.temp/` is gitignored, so a git-based residue check is
     // blind to exactly the directory the mirrors live in (the round-5 lesson recorded in
