@@ -2750,7 +2750,7 @@ describe("WR-02 — a diagnostic's evidence is spelled where it is BUILT, not tr
         "evidence that is gone by the time a human reads it — which is WR-02 verbatim, one byte over",
     ).toEqual(deleted);
     // And the escape itself must survive the sanitizer, or the fix re-creates the defect.
-    expect(sanitizeCell(visible("	 ")), "the escape text is itself renderable").toBe(
+    expect(sanitizeCell(visible("\u0009\u0000\u009F")), "the escape text is itself renderable").toBe(
       "<U+0009><U+0000><U+009F>",
     );
   });
@@ -2777,7 +2777,7 @@ describe("WR-02 — a diagnostic's evidence is spelled where it is BUILT, not tr
   it("an opening line whose only defect is an invisible byte does not render as a valid delimiter", () => {
     // The sibling site, and the one this module's own docblock already records a finding for: a
     // line that renders exactly as `---` while being refused for not being `---`.
-    const refusal = parseTicketDocument("---\nid: ABC-1\n---\n");
+    const refusal = parseTicketDocument("\u000B---\nid: ABC-1\n---\n");
     expect(refusal.code).toBe("no-opening-delimiter");
     expect(
       sanitizeCell(refusal.reason as string),

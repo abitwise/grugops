@@ -1039,7 +1039,7 @@ export const TICKET_CONTROL = /[\x00-\x08\x0b-\x1f\x7f]/;
  * this one decides what SURVIVES RENDERING. The two answer different questions and the difference
  * between them — TAB — is exactly the byte this rule exists for.
  */
-export const RENDER_STRIPPED = /[ --]/g;
+export const RENDER_STRIPPED = /[\u0000-\u001F\u007F-\u009F]/g;
 
 /**
  * Spell every byte a renderer would DELETE, at the point the diagnostic is BUILT.
