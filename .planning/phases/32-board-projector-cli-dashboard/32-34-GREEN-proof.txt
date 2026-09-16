@@ -1,0 +1,367 @@
+32-34 GREEN PROOF — the seven probes re-measured live, every early return probed, and the wall clock
+====================================================================================================
+
+WHAT THIS FILE IS. The answer to `32-34-RED-baseline.txt`, taken against the REBUILT COMMITTED
+`scripts/board-dashboard.js` and `scripts/board-read.js` at commit `ec8fb04e`, through the same probe
+harness — the real `run(...)` / `createLoop` / `readSnapshot` over a copy of
+`scripts/fixtures/board-snapshot/` with only the watch function injected, `deps` spreading
+`defaultDeps()` so the containment authority under test is the shipped one.
+
+WHAT CHANGED, IN ONE SENTENCE. `arm` stopped consuming the SOURCE LABEL of the reader's containment
+refusals and started asking the reader's own `insideRoot` about exactly the directory a handle would
+be opened on; and the containment early return now deletes the directory's watch record, for the
+reason its two neighbours already state.
+
+================================================================================================
+§ 1 — THE SEVEN PROBES, RE-RUN
+================================================================================================
+
+── PROBE A — one symlinked ticket FILE inside an ordinary plans/tickets
+   ARMED (6): .grugops/context, .grugops/queue/claimed, .grugops/queue/done, .grugops/queue/pending, plans, plans/tickets
+   READ ERRORS (2):
+     - source=tickets code=OUTSIDE-ROOT path=plans/tickets/ESCAPE-001.md
+     - source=queue code=tampered path=.grugops/queue/claimed/abc-105-tampered/claim.md
+   loop.watchErrors() (0): (empty)
+
+── PROBE B — one symlinked task DIRECTORY inside an ordinary .grugops/queue/claimed
+   ARMED (6): .grugops/context, .grugops/queue/claimed, .grugops/queue/done, .grugops/queue/pending, plans, plans/tickets
+   READ ERRORS (2):
+     - source=queue code=tampered path=.grugops/queue/claimed/abc-105-tampered/claim.md
+     - source=queue code=OUTSIDE-ROOT path=.grugops/queue/claimed/escaping-task
+   loop.watchErrors() (0): (empty)
+
+── PROBE C — one symlinked context task DIRECTORY inside an ordinary .grugops/context
+   ARMED (6): .grugops/context, .grugops/queue/claimed, .grugops/queue/done, .grugops/queue/pending, plans, plans/tickets
+   READ ERRORS (2):
+     - source=queue code=tampered path=.grugops/queue/claimed/abc-105-tampered/claim.md
+     - source=context code=OUTSIDE-ROOT path=.grugops/context/escaping-context
+   loop.watchErrors() (0): (empty)
+
+── PROBE D — the whole plans/tickets directory replaced by a link (must stay un-armed after the fix)
+   ARMED (5): .grugops/context, .grugops/queue/claimed, .grugops/queue/done, .grugops/queue/pending, plans
+   READ ERRORS (2):
+     - source=tickets code=OUTSIDE-ROOT path=plans/tickets
+     - source=queue code=tampered path=.grugops/queue/claimed/abc-105-tampered/claim.md
+   loop.watchErrors() (0): (empty)
+
+── PROBE E — `plans` itself replaced by a link — is the DESCENDANT plans/tickets armed?
+   ARMED (4): .grugops/context, .grugops/queue/claimed, .grugops/queue/done, .grugops/queue/pending
+   READ ERRORS (4):
+     - source=board code=OUTSIDE-ROOT path=plans/board.md
+     - source=tickets code=OUTSIDE-ROOT path=plans/tickets
+     - source=queue code=tampered path=.grugops/queue/claimed/abc-105-tampered/claim.md
+     - source=traceability code=OUTSIDE-ROOT path=plans/traceability.md
+   loop.watchErrors() (0): (empty)
+   ANCESTOR ANSWER: plans/tickets armed = false
+   ANCESTOR ANSWER: plans armed        = false
+
+── PROBE F — a watch failure recorded BEFORE a containment refusal starts
+   ARMED (6): .grugops/context, .grugops/queue/claimed, .grugops/queue/done, .grugops/queue/pending, plans, plans/tickets
+   READ ERRORS: measured per read; the refusal read reported the tickets OUTSIDE-ROOT entry
+   loop.watchErrors() BEFORE the refusal (1): plans/tickets: watch
+   loop.watchErrors() DURING the refusal (0): (empty)
+   loop.watchErrors() AFTER the refusal CLEARS (0): (empty)
+   RE-ARMED after the condition cleared: true (dirs: plans, .grugops/queue/pending, .grugops/queue/claimed, .grugops/queue/done, .grugops/context, plans/tickets)
+
+── PROBE G — TWO refusals in ONE read (plans/tickets and .grugops/context)
+   ARMED (4): .grugops/queue/claimed, .grugops/queue/done, .grugops/queue/pending, plans
+   READ ERRORS (3):
+     - source=tickets code=OUTSIDE-ROOT path=plans/tickets
+     - source=queue code=tampered path=.grugops/queue/claimed/abc-105-tampered/claim.md
+     - source=context code=OUTSIDE-ROOT path=.grugops/context
+   loop.watchErrors() (0): (empty)
+
+── PROBE G2 — an ANCESTOR refusal and its DESCENDANT refused in ONE read
+   ARMED (4): .grugops/context, .grugops/queue/claimed, .grugops/queue/done, .grugops/queue/pending
+   READ ERRORS (4):
+     - source=board code=OUTSIDE-ROOT path=plans/board.md
+     - source=tickets code=OUTSIDE-ROOT path=plans/tickets
+     - source=queue code=tampered path=.grugops/queue/claimed/abc-105-tampered/claim.md
+     - source=traceability code=OUTSIDE-ROOT path=plans/traceability.md
+   loop.watchErrors() (0): (empty)
+
+── PROBE G-order [tickets then context] — two refusals applied ACROSS two reads
+   ARMED after the first refusal (5): .grugops/context, .grugops/queue/claimed, .grugops/queue/done, .grugops/queue/pending, plans
+   ARMED after the second refusal (4): .grugops/queue/claimed, .grugops/queue/done, .grugops/queue/pending, plans
+   loop.watchErrors(): (empty)
+
+── PROBE G-order [context then tickets] — two refusals applied ACROSS two reads
+   ARMED after the first refusal (5): .grugops/queue/claimed, .grugops/queue/done, .grugops/queue/pending, plans, plans/tickets
+   ARMED after the second refusal (4): .grugops/queue/claimed, .grugops/queue/done, .grugops/queue/pending, plans
+   loop.watchErrors(): (empty)
+
+── CONTEXT READER — the two skips, measured
+   ENTRIES ON DISK under .grugops/context (3): "abc-104-implement", "bad name!", "not-a-directory"
+   TASK ROWS the context source produced (1): abc-104-implement
+   CONTEXT READ ERRORS (2): unsafe-task-name@.grugops/context | not-a-directory@.grugops/context/not-a-directory
+   NAMES any channel reports: .grugops/context, .grugops/context/not-a-directory
+   RECONCILIATION: 3 listed entries vs 1 rows + 2 reported skips = 3. BALANCES
+
+
+THE SEVEN ROWS, AGAINST THE BASELINE THEY ANSWER
+------------------------------------------------
+
+  PROBE | BASELINE (34be317a)                        | NOW (ec8fb04e)                            | VERDICT
+  ------+--------------------------------------------+-------------------------------------------+---------
+  A     | armed 5 — plans/tickets GONE               | armed 6 — plans/tickets armed             | MOVED
+        | refusal reported, watchErrors() empty      | refusal STILL reported, watchErrors empty |
+  B     | armed 3 — all three queue stages GONE      | armed 6 — all three stages armed          | MOVED
+  C     | armed 5 — .grugops/context GONE            | armed 6 — .grugops/context armed          | MOVED
+  D     | armed 5 — plans/tickets un-armed           | armed 5 — plans/tickets un-armed          | UNCHANGED
+  E     | armed 4 — plans and plans/tickets un-armed | armed 4 — same set                        | UNCHANGED
+        | (covered by the label mechanism)           | (covered by the ANCESTOR resolution)      | MECHANISM MOVED
+  F     | record PRESENT before AND during           | record PRESENT before, EMPTY during       | MOVED
+        | re-armed and cleared once the refusal ends | re-armed and cleared, unchanged           |
+  G     | armed 4; both orderings agree              | armed 4; both orderings agree             | UNCHANGED
+  G2    | armed 4                                    | armed 4                                   | UNCHANGED
+
+FOUR CELLS MOVED AND FOUR ARE BYTE-IDENTICAL, which is the shape a narrowing fix should have: the
+three over-refusals and the immortal record moved; the three cases that were already correct did not.
+
+PROBE E IS THE ROW WORTH READING TWICE. Its ARMED SET did not move, and its MECHANISM did. Before the
+fix, `plans` and `plans/tickets` were both un-armed because the `plans` link refused three SOURCES
+(`board`, `tickets`, `traceability`) and all three labels landed in the refused set. After the fix
+they are both un-armed because `insideRoot` resolves the whole path chain, so a directory reached
+through a link that left the tree is refused in the same pass as the link itself. A path-set fix with
+an upward walk — the mechanism this plan was written to add — would have LOST this row: the paths
+that read refuses are `plans/board.md`, `plans/tickets` and `plans/traceability.md`, and none of them
+is `plans` or an ancestor of `plans`. `scripts/board-watch.test.ts` asserts that absence as an
+explicit PREMISE, so the claim is checked rather than argued.
+
+THE CONTEXT READER'S TWO SKIPS: 3 listed entries, 1 task row, 2 reported skips, 3 = 3. BALANCES.
+The RED baseline's row for this measurement was re-taken and corrected — see the note recorded in
+`32-34-RED-baseline.txt` under the context section, where the first spelling of the probe read the
+wrong discriminant of `SourceState` and reported zero rows.
+
+================================================================================================
+PART 2 — EVERY EARLY RETURN OF `arm`, AND THE SUCCESS PATH
+================================================================================================
+
+`arm` has four early returns and a success path with a catch. The recorded lesson is that a rule
+applied in the arm it was written for is wrong in the arm beside it, and this function is where
+that lesson has been paid for twice. Each row drives the loop into one branch and asks whether
+the directory's watch record survives it.
+
+  BRANCH                                    | HOW IT IS REACHED                  | RECORD AFTER
+  ------------------------------------------+------------------------------------+-------------
+  1  no read has resolved a root            | armAll() before any seed           | PRESENT (watch)
+     (and the record it wrote says so)      | message                            | "the watch on .grugops/context was not armed:…"
+  2  the directory is refused               | a genuine failure, then a refusal  | ABSENT  (was PRESENT (watch))
+  3  already armed                          | three armAll() in a row            | ABSENT  (handles: 1)
+  4  the directory is not there             | a failure, then the dir removed    | ABSENT  (was PRESENT (watch))
+  5  SUCCESS: the handle opens              | a failure, then a clean re-arm     | ABSENT  (was PRESENT (watch))
+  6  watch() throws (the catch)             | armFailures on the directory       | PRESENT (watch)
+
+READ THE TABLE AS A RULE: exactly two branches leave a record standing — the one that has no root
+to work with, and the one where the watch genuinely failed. Every branch that decides NOT to
+watch this directory, for a reason that is not a watch failure, clears it. Before this plan the
+containment branch was the one exception, and it was the only one of the four whose comment did
+not say what it did with the record.
+
+================================================================================================
+PART 3 — THE NEIGHBOUR-VARIATION QUESTIONS, ANSWERED
+================================================================================================
+
+V1  A refusal whose path is the watched DIRECTORY itself, a CHILD of it, a GRANDCHILD of it.
+      the DIRECTORY itself links out  → plans/tickets armed = false  (armed 5)
+      a CHILD entry links out         → plans/tickets armed = true  (armed 6)
+      a GRANDCHILD entry links out    → queue/claimed armed = true  (armed 6)
+      → only the first un-arms. A refusal at or above the watched path condemns it; one below it
+        is a finding about an entry.
+
+V2  A refusal arriving while the directory is ALREADY ARMED, and one arriving BEFORE it ever is.
+      already armed  → the handle opened earlier is closed = true; armed now = [plans]
+      never armed    → handles opened = 1; armed now = [plans]; record = ABSENT
+      → the refusal check runs BEFORE the already-armed return, which is the only ordering that
+        closes a handle a tree acquired a symlink under.
+
+V3  TWO directories refused in ONE read, one of them an ancestor of the other.
+      armed = [.grugops/context, .grugops/queue/claimed, .grugops/queue/done, .grugops/queue/pending]
+      → four; neither `plans` nor `plans/tickets`. The two refusals cannot interact: `arm` asks
+        the authority about each directory independently, on every tick.
+
+V4  The repository ROOT moving between reads while a refusal is standing.
+      armed before the move = [plans] (1 open handle(s))
+      after the root moves  = []; every old handle closed = true; records = 0
+      → the root change closes every handle and clears every record, because each named a
+        directory under a root this loop has stopped reading. The standing refusal is not
+        carried across either: it was never state, so there is nothing to carry.
+
+V5  A refusal for a directory that DOES NOT EXIST.
+      armed = []; record for plans = ABSENT; handles = 0
+      → the containment return fires FIRST and leaves nothing, so an absent-and-refused
+        directory is reported exactly as many times as an absent one: zero. The reader is the
+        one channel that names the refusal, and it does so once.
+
+V6  A directory whose refusal CLEARS in the same tick in which a NEW watch failure is recorded.
+      during the refusal → armed [plans], records 0
+      refusal lifts + watch throws → armed [plans], record = PRESENT (watch)
+      the record's own sentence: "the watch on plans/tickets failed (ENOSPC: arrives as the re…"
+      → the two conditions do not race: the containment return is taken or it is not, and the
+        record the catch writes is written after it, about the failure that just happened.
+
+V7  A refusal whose SPELLED path is absolute versus one already repo-relative.
+      → THE QUESTION DOES NOT ARISE, and that is the answer rather than a dodge. The loop
+        consumes NO path from the reader's error list. It composes `join(root, rel)` from
+        `WATCH_DIRS` — the same string it hands `deps.watch` — and asks the authority about
+        that. Whether a refusal spelled its path absolutely (`childPath`'s `target`, which is
+        `resolve`d) or relatively cannot change the armed set, because no code reads it.
+      MEASURED ANYWAY, so the claim is not just an argument: the tickets reader's refusals
+        carry absolute `target` paths and the queue reader's `unsafe-task-name` carries its
+        STAGE directory; V1's three rows above contain both shapes and the armed set tracks
+        the directory in every one of them.
+
+
+================================================================================================
+§ 4 — THE LIVE SUITE ON A WALL CLOCK, BEFORE AND AFTER
+================================================================================================
+
+The arm loop is what `scripts/board-watch-live.test.ts` measures by spawning the COMMITTED
+`scripts/board-dashboard.js` and timing real atomic-rename edits. A watch that is armed but whose
+events no longer schedule a re-read would pass every case in § 1-3 and fail here, so both runs were
+taken. The BEFORE run is the same suite file executed against a mirror of the pre-fix `.js` files
+extracted from commit `34be317a` into the session scratchpad (the repository tree was never
+modified); the AFTER run is `npx vitest run --exclude '**/scripts/e2e/**' scripts/board-watch-live.test.ts`
+on `ec8fb04e`.
+
+  MEASUREMENT                      | BEFORE (34be317a) | AFTER (ec8fb04e) | DEADLINE
+  ---------------------------------+-------------------+------------------+-----------------------
+  premise: first document          |     33 ms         |     35 ms        | —
+  EVENT path                       |    274 ms         |    273 ms        | < 1000 ms poll period
+  POLL path, every watch dead      |   1001 ms         |    991 ms        | ≤ poll + slack
+  watch record published           |    275 ms         |    277 ms        | —
+  watch record cleared             |    895 ms         |    897 ms        | —
+  debounce: 5 writes → documents   |  1 doc / 700 ms   |  1 doc / 700 ms   | ≥ 1, < 5
+  suite result                     |  5 passed         |  5 passed        | exit 0
+
+  platform for both runs: darwin/arm64, node v24.12.0, poll period 1000 ms, debounce 250 ms,
+  6 watched directories.
+
+THE EVENT PATH IS STILL 273 ms AGAINST A 1000 ms POLL PERIOD, so the low-latency path is delivering
+and not being answered by the poll. The two runs agree within measurement noise on every row, which
+is the claim this section exists to support: the fix changed WHICH directories get a handle, not
+what a handle does once it has one. The extra work `arm` now performs is one `realpathSync` per
+watched directory per tick — six per ten-second production period, beside the six `existsSync` calls
+that were already there.
+
+================================================================================================
+§ 5 — MUTATIONS: WHAT EACH CASE ACTUALLY DISCRIMINATES AGAINST
+================================================================================================
+
+Every mutation was applied to the `.ts`, REBUILT, and the mutated line READ BACK OUT OF THE EMITTED
+`.js` before the suite was believed. That check is not ceremony: `tsconfig.json` sets
+`noEmitOnError: true`, so a mutation that does not type-check leaves the PREVIOUS build in place and
+the suite runs green against unmutated code, indistinguishable from a clause that decides nothing.
+This session hit exactly that on M2's first spelling (TS6133, an import left unused by the mutation),
+and it was caught by the read-back rather than by the green. The lesson is the project's recorded
+"assert the verification harness's own premise", and this is its second consecutive appearance.
+
+  M1 — THE CONTAINMENT TEST COMPARES THE SOURCE LABEL INSTEAD OF THE DIRECTORY.
+       `refusedSources` restored from the reader's `OUTSIDE-ROOT` errors and OR-ed into the early
+       return — the pre-fix mechanism, put back beside the new one.
+       Read back from scripts/board-dashboard.js:799 → `if (refusedSources.has(source) || …`
+       RESULT: 3 failed | 45 passed
+         × keeps `plans/tickets` armed when ONE ticket FILE inside it links out of the tree
+         × keeps ALL THREE queue stages armed when one claimed task DIRECTORY links out
+         × keeps `.grugops/context` armed when one context task DIRECTORY links out
+       Nothing else moved: the control case and the ancestor case stayed green, so the three reds
+       are the over-refusal and not a broken loop.
+
+  M2 — THE ANCESTOR CONTRIBUTION DROPPED, THE LEAF RULE KEPT.
+       `contained` resolves the watched directory's OWN symlink target (`lstatSync` + `readlinkSync`)
+       and then compares LEXICALLY, so a directory that is itself a link is still refused while one
+       reached THROUGH a link is not.
+       Read back from scripts/board-dashboard.js:640 → `const rel = relative(root, leaf);`
+       RESULT: 2 failed | 46 passed
+         × un-arms a DESCENDANT of a refused ancestor: `plans` links out, `plans/tickets` goes with it
+         × refuses a symlinked source directory and opens no handle on it, end to end   (the round-2
+           case, which plants the same `plans` link and asserts no handle on any `plans*` path)
+       The isolation is the point: the DIRECTORY-itself control (`still un-arms the tickets DIRECTORY
+       itself when IT is the link`) stayed GREEN under M2, so the two reds are the ancestor reach and
+       nothing else.
+
+  M3 — THE RECORD DELETE REMOVED FROM THE CONTAINMENT EARLY RETURN.
+       `closeWatcher(rel); return;` — the pre-fix body, with the `watchErrorsByDir.delete(rel)` line
+       taken out and the close left in.
+       Read back from scripts/board-dashboard.js:797-800 → the three-line body with no delete.
+       RESULT: 1 failed | 47 passed
+         × drops a watch record the moment the SAME directory becomes refused
+       Exactly one case, which is what a one-line effect should red.
+
+  M4 — THE CONTEXT READER'S `not-a-directory` REPORT PUT BACK TO SILENCE.
+       The `errors.push({... code: "not-a-directory" ...})` replaced by a bare `continue`.
+       Read back from scripts/board-read.js:1366 → `// M4: the not-a-directory skip goes back to silence.`
+       RESULT: 2 failed | 159 passed
+         × names a plain FILE sitting among the task directories under its own code
+         × keeps the walk TOTAL, against a denominator derived from the listing
+       The TOTALITY case reds as well as the naming case, which is the property that makes the
+       denominator worth deriving: a silent arm is caught by the arithmetic even when nobody thought
+       to write a case for that particular silence.
+
+  All four were reverted from the `.ts` and the tree rebuilt; the clean-tree transcript is § 7.
+
+================================================================================================
+§ 6 — REACHABILITY: WHICH INPUT REACHES EACH BRANCH, FROM WHERE, UNDER WHICH COMMAND
+================================================================================================
+
+THE ANCESTOR RULE. There is no separate ancestor branch to reach — that is the point of the shape
+chosen. `arm` calls `deps.contained(root, join(root, rel))`; in production that is
+`insideRoot(root, dir, "the watched directory")` in `scripts/board-read.ts`, whose first statement is
+`realpathSync(target)`. `realpathSync` resolves every component of the path, so the ancestor question
+is answered by the same call as the leaf question, inside the module that owns containment. The INPUT
+that exercises it is a symlink at any directory ABOVE a watched directory and inside the repository —
+`plans`, or `.grugops`, or `.grugops/queue`. Any agent this kit runs can plant one; the threat model
+row is T-32-34-03. FROM WHICH CALL SITE: `armAll()` → `arm(entry)` for each of the six `WATCH_DIRS`,
+called from `run`'s initial arm and from every poll tick in `start`. UNDER WHICH COMMAND:
+
+    node scripts/board-dashboard.js <root> --watch            (and --json --watch)
+
+with `<root>` a tree in which `plans` is a symlink out of itself. `scripts/board-watch.test.ts`'s
+case "un-arms a DESCENDANT of a refused ancestor" plants exactly that and asserts the armed set,
+including the PREMISE that the authority never spelled `plans` itself — without which the case would
+also pass under a mechanism that never reaches this rule.
+
+THE RECORD DELETE. `arm`'s containment early return, reached when `deps.contained` answers false for
+a directory that is currently carrying a `watchErrorsByDir` entry. Two INPUTS in sequence are needed
+and neither alone reaches it: first a genuine watch failure (an `fs.watch` throw — ENOSPC or EMFILE
+in production, the `GRUGOPS_BOARD_FORCE_WATCH_ERROR` seam or an injected `armFailures` entry in the
+suite), then a containment refusal for the SAME directory. FROM WHICH CALL SITE: the same
+`armAll()` → `arm(entry)`, on the tick after the symlink appears. UNDER WHICH COMMAND: the same
+`--watch` invocation, with the watch failing once and a symlink planted at the watched directory
+before the next poll tick. In the suite: `scripts/board-watch.test.ts`, "drops a watch record the
+moment the SAME directory becomes refused", which asserts the record is PRESENT first — so it cannot
+pass by describing a loop that never had one.
+
+WHY THE BRANCH MATTERS AT ALL, since a refused directory is not watched either way: `emit` merges
+`currentWatchErrors()` into the published `readErrors`, so every stderr frame and every `--json`
+document carried the record's sentence — "it is closed and will be re-armed on the next poll tick" —
+about a re-arm the early return guarantees cannot happen. Under CLAUDE.md's no-fabrication rule that
+is a false statement on the trace surface, not noise.
+
+================================================================================================
+§ 7 — EVERY PROBE RAN ON A COPY
+================================================================================================
+
+    $ git diff --exit-code -- scripts/ agent-factory/ docs/
+    (no output, exit 0)
+
+    $ npx vitest run --exclude '**/scripts/e2e/**' scripts/board-watch.test.ts scripts/board-read.test.ts
+    → exit 0, Tests 209 passed (209)          [RED baseline recorded 195 — 14 added, none replaced]
+
+    $ npx vitest run --exclude '**/scripts/e2e/**'
+    → exit 0, Tests 5097 passed | 2 skipped   [floor 4974; the 32-33 commit recorded 5083]
+
+    $ npm run build && npm run typecheck && npm run check:build-parity && npm run freshness
+    → exit 0; "Build parity: no tracked build output moved when tsc ran."
+              "All build outputs fresh: 65 committed .js file(s) match a rebuild of their sources."
+
+    $ npm run check:dashboard-readonly
+    → exit 0, Tests 171 passed; 316 resolved call sites, 0 unresolved, 0 refused acquisitions
+
+    $ npx vitest run --exclude '**/scripts/e2e/**' scripts/board-watch-live.test.ts
+    → exit 0, Tests 5 passed; event path 273 ms against a 1000 ms poll period
+
+Every probe copies the fixture into `mkdtempSync` scratch, mutates the copy, and removes the scratch
+in a `finally`. The pre-fix mirrors used for the baseline correction and for the live BEFORE run were
+assembled by `git show 34be317a:<path>` into the session scratchpad; nothing was checked out over the
+working tree.
