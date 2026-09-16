@@ -1207,7 +1207,7 @@ Plans:
 
 **Wave 5** *(blocked on 32-34)*
 
-- [ ] 32-35-PLAN.md — WR-04/F-05 + WR-06 + WR-07: values and keys scrubbed before serialization so a consumer recovers no control character while the line boundary stays this module's, one derived header chokepoint, and a wait deadline computed from the poll period. WR-07's CI-topology half is explicitly carried to Phase 33 in `deferred-items.md` rather than taken [DASH-07, DASH-08, DASH-04]
+- [x] 32-35-PLAN.md — WR-04/F-05 + WR-06 + WR-07: values and keys scrubbed before serialization so a consumer recovers no control character while the line boundary stays this module's, one derived header chokepoint, and a wait deadline computed from the poll period. WR-07's CI-topology half is explicitly carried to Phase 33 in `deferred-items.md` rather than taken [DASH-07, DASH-08, DASH-04]
 
 **Wave 6** *(blocked on 32-35)*
 
@@ -1273,7 +1273,7 @@ Plans:
 | 29.2. Model Assignment Delivery Path | v2.1 | 6/6 | Complete    | 2026-09-07 |
 | 30. Per-Checkpoint Autonomy Matrix | v2.1 | 11/11 | Complete    | 2026-09-07 |
 | 31. Autonomous Manual Testing | v2.1 | 44/44 | In Progress|  |
-| 32. Board Projector & CLI Dashboard | v2.1 | 27/30 | In Progress|  |
+| 32. Board Projector & CLI Dashboard | v2.1 | 28/30 | In Progress|  |
 | 33. Live Capture & Windows Portability | v2.1 | 0/TBD | Not started | - |
 
 **Totals:** 33 phases · **4 milestones shipped** (v1.0 + v1.1 + v1.2 + v2.0) · **1 active** (v2.1, phases 27–33).

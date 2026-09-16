@@ -5,14 +5,14 @@ milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live
 current_phase: 32
 current_phase_name: Board Projector & CLI Dashboard
 status: "Phase 31 CLOSED 2026-09-13 by user override D-44 (round-9 verification gaps_found 4/6 left standing; CR-28..CR-31 + WR-43..WR-47 accepted open). Next: Phase 32 — Board Projector & CLI Dashboard, not yet planned. Standing rule: four-round gap-closure cap on every later phase."
-stopped_at: Completed 32-34-PLAN.md
-last_updated: "2026-09-16T10:48:03.887Z"
-state_head: e4c0be47906724b2912d248fc1c91905faf25520
+stopped_at: Completed 32-35-PLAN.md
+last_updated: "2026-09-16T11:50:37.975Z"
+state_head: 1004f53711b81b1e1aabfba48bfe924a2247c6c3
 progress:
   total_phases: 9
   completed_phases: 30
   total_plans: 250
-  completed_plans: 247
+  completed_plans: 248
   percent: 99
 last_activity: 2026-09-13
 prior_activity_desc: Phase 27 gap-closure round 8 COMPLETE (27-45, 27-46; D-53). Full narration lives in the Phase 27 artifacts and in docs/audit/; shortened here by plan 31-38 because this single line measured 7995 characters, above the 4000-character ceiling a pathological STATE line has previously crossed to turn a sub-second guard into a multi-minute one.
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-09-07 — after Phase 29.2)
 ## Current Position
 
 Phase: 32 (Board Projector & CLI Dashboard) — EXECUTING
-Plan: 5 of 30
+Plan: 6 of 30
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 
@@ -503,6 +503,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 32 P32 | 63 min | 3 tasks | 3 files |
 | Phase 32 P33 | 56 min | 4 tasks | 14 files |
 | Phase 32 P34 | 90 min | 3 tasks | 10 files |
+| Phase 32 P35 | 105 min | 3 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -1378,6 +1379,9 @@ Recent decisions affecting current work:
 - [Phase 32]: An unprovable binding is REFUSED rather than tracked: a name with more than one value-write carries a value this syntactic pass cannot decide, at both the declaration site and the assignment site — Following the reassignment to pick the 'real' value is the cleverer-pass instinct the acquisition rule already refuses one register over, and a guessed value would be recorded in the census as a fact
 - [Phase 32]: HUMAN DECISION (plan 32-33 Task 1 checkpoint): option A — publish `stem` on `TicketRecord` and bump `SCHEMA_VERSION` to 2. The human selected "A: Publish stem, bump to v2"; no further reason text was given. — The published snapshot shape is version 2 as of plan 32-33. The SCHEMA_VERSION docblock previously carried two disagreeing sentences (an added field is additive / any shape change bumps the number); they are reconciled into ONE rule, stated in agent-factory/contracts/board.md as well as in the module: ANY change to the published shape moves the number and regenerates the golden in the same commit.
 - [Phase 32]: The presence question in joinSnapshot is answered by ONE derivation (presenceOf) over three measured sets, with `absent` reachable only as their arithmetic complement; `empty-stem` is a READER refusal code declared beside `duplicate-id` and deliberately NOT a member of the grammar-owned TICKET_REFUSAL_CODES. — Two earlier rounds each closed one population by adding one more map beside the one already there, and the third population fell between them. A fourth map would have created a fifth. Listing empty-stem among the grammar codes would make a two-sided closed-set assertion say something false about which authority refused what.
+- [Phase 32]: The --json guarantee is about what ONE PARSE recovers, not about the bytes on the wire: values and keys are scrubbed BEFORE serialization, because JSON escaping of the C0 range and post-serialization removal of what stays raw are exactly complementary and each hides the other's gap — Measured: 14 control code points recovered from a document whose raw byte count was zero, from four planted content-derived sites including an object KEY
+- [Phase 32]: The post-serialization sanitize pass is RETAINED as a backstop with its present redundancy STATED, not claimed away — Removing it alone reds nothing (M2a) because scrub covers every content route and JSON.stringify independently escapes the newline; M2b/M2c measure that it is what keeps three raw-byte cases green under a scrub with one branch missing
+- [Phase 32]: The live event-path wait deadline is DERIVED from POLL_MS minus a named margin (750 ms), with the two attribution comparisons byte-identical to HEAD — A red by timeout prints no latency; a red by comparison prints the number that failed. WR-07's CI-topology half deferred to Phase 33 / CAP-02 in writing
 
 ### Pending Todos
 
@@ -1501,8 +1505,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-09-16T10:48:03.434Z
-Stopped at: Completed 32-34-PLAN.md
+Last session: 2026-09-16T11:50:11.010Z
+Stopped at: Completed 32-35-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
