@@ -1,0 +1,218 @@
+PLAN 32-38 — GREEN PROOF
+========================
+
+Phase 32, gap-closure round 4. Measured 2026-09-16 on branch `main`.
+Companion artifact: `32-38-RED-baseline.txt` (the before-image every row below is compared against).
+
+
+PART A — TASK 2: EVERY SENTENCE BRANCH REACHED BY A NAMED INPUT
+===============================================================
+
+A1. THE BRANCH COUNT IS DERIVED FROM THE MODULE, NOT RECALLED
+-------------------------------------------------------------
+
+`scripts/board-model.ts` is parsed with the TypeScript compiler API — the same instrument
+`scripts/validate.test.ts` uses for its reader census — `presenceActual` is located by name, and
+every `return` site inside it is expanded into the set of strings it can produce, with each `${...}`
+replaced by a hole. Concatenation is a cross product; a conditional is a union; an expression shape
+the walk does not recognise THROWS rather than silently leaving the set.
+
+  DERIVED BRANCH COUNT = 6
+
+  [1] "<returns null — not a conflict>"
+  [2] "plans/tickets/<>.md exists and declares the identifier <>, so it is joined under that
+       identifier and not this one"
+  [3] "plans/tickets/<>.md exists and declares the identifier <>, which no admitted document is
+       joined under, so it is joined under no identifier"
+  [4] "plans/tickets/<>.md exists and declares the identifier <>, which plans/tickets/<>.md
+       claimed first, so it is joined under no identifier"
+  [5] "plans/tickets/<>.md exists and the reader could not admit it (<>)"
+  [6] "no ticket file carries that identifier"
+
+The count is pinned as a NUMBER (`toBe(6)`), not as "greater than zero", so an EMPTY derived set and
+a SILENTLY SHORT one both red. A separate `toBeGreaterThan(0)` PREMISE assertion distinguishes
+"`presenceActual` was not found / produced nothing readable" from "the count moved".
+
+
+A2. DISCRIMINATION — A SEVENTH BRANCH CANNOT RIDE IN UNPROVEN
+--------------------------------------------------------------
+
+A seventh branch was planted in `scripts/board-model.ts` (`if (id === "ZZZ-PROBE") return "a
+seventh branch nobody wrote an input row for";` inside the `absent` case) and the suite re-run:
+
+  $ npx vitest run --exclude '**/scripts/e2e/**' scripts/board-model.test.ts
+  exit=1
+  Tests  2 failed | 146 passed (148)
+
+  × derives the branch count by parsing `presenceActual`, and pins it against the audited rows
+    AssertionError: a sentence branch landed or left `presenceActual`. A seventh branch means a
+    population the four-arm partition did not name, which is a finding to record in
+    agent-factory/contracts/board.md and to give a named input row — never a bumped constant:
+    expected 7 to be 6
+
+  × every derived branch is reached by a named input, and every named input reaches a derived branch
+    AssertionError: a named input produced a sentence no `return` in presenceActual can produce —
+    the input rows and the module disagree about what the code says: expected [ …(6) ] to deeply
+    equal [ …(7) ]
+
+  $ git checkout HEAD -- scripts/board-model.ts
+  $ git diff --exit-code -- scripts/board-model.ts
+  exit=0   (CLEAN)
+
+
+A3. THE PER-BRANCH VERDICT TABLE — BEFORE THIS ROUND vs AT THE END OF IT
+-------------------------------------------------------------------------
+
+"Before" is `32-38-RED-baseline.txt` section 8, measured at HEAD 069dcd9c against the compiled
+`scripts/board-model.js` before any edit in this plan. Five of the six inputs are built from records
+`readTicketsSource` produced from a real temp tree; the sixth is noted in A4.
+
+  B1 — a document admitted under its OWN stem
+       input : tree { ABC-001.md declares ABC-001 }, ask "ABC-001"
+       before: null
+       after : null
+       verdict: SAME
+
+  B2 — the WINNER of a duplicate-identifier contest (stem != declared identifier)
+       input : tree { ABC-901.md declares ABC-902, ABC-903.md declares ABC-902 }, ask "ABC-901"
+       before: "plans/tickets/ABC-901.md exists and declares the identifier ABC-902, so it is
+                joined under that identifier and not this one"
+       after : identical, byte for byte
+       verdict: SAME
+
+  B3 — joinedStem === undefined (no admitted document holds the declared identifier)
+       input : a directly-constructed TicketPopulations — byStem {ABC-950 -> ABC-951}, byId empty
+       before: "plans/tickets/ABC-950.md exists and declares the identifier ABC-951, which no
+                admitted document is joined under, so it is joined under no identifier"
+       after : identical, byte for byte
+       verdict: SAME
+
+  B4 — the LOSER of a duplicate-identifier contest
+       input : tree { ABC-901.md declares ABC-902, ABC-903.md declares ABC-902 }, ask "ABC-903"
+       before: "plans/tickets/ABC-903.md exists and declares the identifier ABC-902, which
+                plans/tickets/ABC-901.md claimed first, so it is joined under no identifier"
+       after : identical, byte for byte
+       verdict: SAME
+
+  B5 — refused by the ticket grammar
+       input : tree { ABC-900.md carrying `tools: Bash`, outside the closed ticket key set }
+       before: "plans/tickets/ABC-900.md exists and the reader could not admit it (unknown-key)"
+       after : identical, byte for byte
+       verdict: SAME
+
+  B6 — a board identifier no document declares and no refusal records
+       input : tree { ABC-001.md declares ABC-001 }, ask "ABC-404"
+       before: "no ticket file carries that identifier"
+       after : identical, byte for byte
+       verdict: SAME
+
+  NOTHING CHANGED, AND THAT IS THE POINT OF THE TABLE. The round-2 and round-3 closures are asserted
+  unchanged rather than assumed: this phase has twice shipped a fix that silently reworded a sibling
+  arm. Each row above is a live `toBe(row.before)` assertion in
+  `scripts/board-model.test.ts`, not a transcription.
+
+  The six produced sentences are also compared to the six DERIVED templates as SET EQUALITY IN BOTH
+  DIRECTIONS, after holing the identifiers and refusal codes that went into them. A subset check in
+  either direction is how a branch rides in unproven.
+
+
+A4. THE `joinedStem === undefined` BRANCH — WHICH OF THE TWO OUTCOMES WAS MEASURED
+-----------------------------------------------------------------------------------
+
+OUTCOME MEASURED: the branch is UNREACHABLE from any tree the reader can read, AND it is still
+reachable through the exported `presenceOf`. It was therefore NOT deleted, and BOTH facts are
+asserted.
+
+  (i) UNREACHABLE FROM THE READER, measured rather than argued. A tree carrying every population at
+      once — a self-declaring document, a contest winner, a contest loser, a lone mismatched
+      document, a grammar-refused document, and the degenerate `.md` entry — read with
+      `readTicketsSource` and indexed with `ticketPopulations`:
+
+        records=4 unadmitted=2 byStem=4 byId=3
+        byStem entries whose declared identifier is absent from byId: 0  []
+
+      The suite asserts that emptiness as a derived invariant over the two maps, with two PREMISE
+      guards (a non-trivial `byStem`, and at least one entry whose stem differs from its declared
+      identifier) so the property cannot hold vacuously. The message names exactly what would make
+      the branch reachable again: filling `byStem` from a second record list, guarding the
+      `byId.set` on a condition the `byStem.set` does not share, or deleting from `byId` after the
+      loop. Any of those makes the assertion red, and the branch then needs a reader-producible
+      input row and a row in `agent-factory/contracts/board.md`'s presence table.
+
+      WHY IT IS STRUCTURAL: `ticketPopulations` fills both maps in ONE loop over the SAME record
+      list, so every `byStem` VALUE is some record's `id` and every record's `id` is a `byId` KEY —
+      first-wins decides WHICH record a key holds, never WHETHER the key is present.
+
+  (ii) REACHABLE BY DIRECT CONSTRUCTION, so the branch is not dead code. `TicketPopulations` is an
+      exported type and `presenceOf` an exported function; a caller handing it
+      `byStem {ABC-950 -> ABC-951}` with an empty `byId` reaches the arm and gets the sentence
+      quoted in A3. The branch is the total handling of the declared
+      `joinedStem: string | undefined` and is kept for that reason. It is NOT deleted on the
+      strength of an argument — and it was not kept on the strength of one either: the failed
+      attempt to reach it from the reader is written down above.
+
+  CONSEQUENCE FOR THE CONTRACT (Part B): the presence table in
+  `agent-factory/contracts/board.md` describes what the READER can produce, so its row count is
+  pinned against the READER-PRODUCIBLE branches — the derived count minus the one branch this
+  section proves unreachable. That partition is itself asserted (`exactly ONE audited branch is
+  unreachable from any tree the reader can read`), so it cannot be widened by hand to make a
+  count work out.
+
+
+A5. THE CONVERSE PROBE — the contested identifier is ITSELF a stem on disk
+---------------------------------------------------------------------------
+
+The fix's discriminator is `presence.joinedStem === id`. This tree makes the contested identifier
+also the NAME of a third document, so the stem population and the declared population overlap on
+the value the discriminator compares.
+
+  tree: ABC-901.md declares ABC-902 | ABC-902.md declares ABC-905 | ABC-903.md declares ABC-902
+
+  byId   = [["ABC-902","ABC-901"], ["ABC-905","ABC-902"]]
+  byStem = [["ABC-901","ABC-902"], ["ABC-902","ABC-905"], ["ABC-903","ABC-902"]]
+
+  id=ABC-901  arm=admitted-under-another-id  joinedStem="ABC-901"
+     sentence="plans/tickets/ABC-901.md exists and declares the identifier ABC-902, so it is joined
+               under that identifier and not this one"
+  id=ABC-902  arm=admitted-under-its-stem    joinedStem=undefined   sentence=null
+  id=ABC-903  arm=admitted-under-another-id  joinedStem="ABC-901"
+     sentence="plans/tickets/ABC-903.md exists and declares the identifier ABC-902, which
+               plans/tickets/ABC-901.md claimed first, so it is joined under no identifier"
+  id=ABC-905  arm=admitted-under-its-stem    joinedStem=undefined   sentence=null
+
+  VERDICT: PASS, not a finding — recorded whichever way it came out, as the plan requires.
+  A board row naming ABC-902 raises NO `row-without-file`, because a document genuinely IS joined
+  under ABC-902 and the stated arm priority answers from the DECLARED population first. The
+  operator can still tell WHICH file is joined: every record in `tickets[]` carries `stem` beside
+  `id` (the schemaVersion-2 field plan 32-33 added), so `{"id":"ABC-902","stem":"ABC-901"}` is
+  published. The loser still names the winner by file name and the winner still says it is joined.
+  Nothing here belongs in plan 32-40's inventory.
+
+
+A6. NO CHANGE TO `scripts/board-model.ts` WAS WARRANTED
+--------------------------------------------------------
+
+The arm audit found every branch either reached by a named input or proved unreachable-from-the-
+reader-but-reachable-by-direct-construction, and every sibling sentence unchanged. The module was
+therefore not edited. `scripts/board-model.js` is byte-identical to its committed state, and:
+
+  $ npm run build && npm run typecheck && npm run check:build-parity
+  exit=0
+  "Build parity: no tracked build output moved when tsc ran."
+
+  ON THE `<fails_when>` CLAUSE "or `BUILD PARITY FAILED` in the output": npm echoes the SCRIPT
+  DEFINITION before running it, and that definition contains the literal failure text inside its own
+  `node -e` fallback. The string is therefore present in the captured output of a PASSING run. The
+  discriminating signals are the exit code (0) and the emitted success line, both recorded above;
+  the genuine failure diagnostic is written to STDERR by the fallback and is absent here.
+
+
+A7. CASE COUNTS, SO A LATER RUN CAN TELL A LOSS FROM A GAIN
+------------------------------------------------------------
+
+  scripts/board-model.test.ts   before this plan: 141 passed   after Task 2: 148 passed  (+7)
+  scripts/board-tracer.test.ts  before this plan:  82 passed   after Task 1:  84 passed  (+2)
+
+
+---
+Part B (Task 3) follows.

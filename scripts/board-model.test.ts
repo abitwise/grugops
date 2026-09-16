@@ -2771,3 +2771,361 @@ describe("board-model — the presence partition's KEYS balance as arithmetic (p
     });
   });
 });
+
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+// PLAN 32-38, TASK 2 — EVERY SENTENCE BRANCH REACHED BY A NAMED INPUT, WITH THE COUNT DERIVED.
+//
+// WHY THE COUNT IS PARSED AND NOT RECALLED. This repository's second recorded systemic failure class
+// is a hand-maintained set that rots while the suite stays green. `presenceActual`'s sentences are
+// exactly such a set — four `switch` cases, one of which now carries THREE sentence branches after
+// the WR-01 fix — and the per-arm cases above name their arms one at a time, so a branch nobody
+// thought of is a case nobody wrote. The branch set below is taken from the MODULE, by the same
+// TypeScript-parse instrument `scripts/validate.test.ts` uses for its reader census, and the named
+// input rows are required to cover it in BOTH directions.
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+
+import ts from "typescript";
+import type { TicketPopulations } from "./board-model.js";
+
+/** The `null` arm, carried through the derivation as a value so it cannot be silently dropped. */
+const NULL_BRANCH = "<returns null — not a conflict>";
+/** Every interpolated position, in both the parsed template and the measured sentence. */
+const HOLE = "<>";
+
+/**
+ * Every string a `return` inside `presenceActual` can produce, with each `${...}` replaced by a
+ * hole. TOTAL BY REFUSAL: a construct this walk does not recognise THROWS, so a branch expressed a
+ * new way reds here rather than vanishing from the derived set and taking its coverage with it.
+ */
+function templatesOf(node: ts.Node): readonly string[] {
+  if (ts.isParenthesizedExpression(node)) return templatesOf(node.expression);
+  if (node.kind === ts.SyntaxKind.NullKeyword) return [NULL_BRANCH];
+  if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) return [node.text];
+  if (ts.isTemplateExpression(node)) {
+    return [node.head.text + node.templateSpans.map((s) => HOLE + s.literal.text).join("")];
+  }
+  if (ts.isConditionalExpression(node)) {
+    return [...templatesOf(node.whenTrue), ...templatesOf(node.whenFalse)];
+  }
+  if (ts.isBinaryExpression(node) && node.operatorToken.kind === ts.SyntaxKind.PlusToken) {
+    const left = templatesOf(node.left);
+    const right = templatesOf(node.right);
+    return left.flatMap((l) => right.map((r) => l + r));
+  }
+  throw new Error(
+    `presenceActual returns an expression shape this derivation does not know: ` +
+      `${ts.SyntaxKind[node.kind]}. Teach templatesOf about it — a shape it cannot read is a ` +
+      `branch that would silently leave the derived set.`,
+  );
+}
+
+/** Parse `scripts/board-model.ts` and derive `presenceActual`'s branch set from its `return` sites. */
+function derivePresenceBranches(): readonly string[] {
+  const src = ts.createSourceFile(
+    "board-model.ts",
+    readFileSync(join(ROOT, "scripts", "board-model.ts"), "utf8"),
+    ts.ScriptTarget.ES2022,
+    true,
+  );
+  let fn: ts.FunctionDeclaration | undefined;
+  src.forEachChild((n) => {
+    if (ts.isFunctionDeclaration(n) && n.name?.text === "presenceActual") fn = n;
+  });
+  if (fn === undefined) return [];
+  const out: string[] = [];
+  const walk = (n: ts.Node): void => {
+    // A nested function would carry its own returns; `presenceActual` has none, and stopping here
+    // keeps that true rather than assuming it.
+    if (n !== fn && (ts.isFunctionDeclaration(n) || ts.isFunctionExpression(n) || ts.isArrowFunction(n))) {
+      return;
+    }
+    if (ts.isReturnStatement(n) && n.expression !== undefined) out.push(...templatesOf(n.expression));
+    ts.forEachChild(n, walk);
+  };
+  walk(fn);
+  return out;
+}
+
+/** Turn a sentence the code PRODUCED back into a template, by holing the values that went into it. */
+function templateOfSentence(sentence: string | null, values: readonly string[]): string {
+  if (sentence === null) return NULL_BRANCH;
+  // Longest first, so one identifier that is a prefix of another cannot hole the wrong span.
+  return [...values]
+    .sort((a, b) => b.length - a.length)
+    .reduce((text, v) => text.split(v).join(HOLE), sentence);
+}
+
+/** One audited branch: the input that reaches it, and whether the READER can produce that input. */
+type AuditRow = {
+  readonly branch: string;
+  readonly name: string;
+  readonly id: string;
+  readonly values: readonly string[];
+  readonly readerProducible: boolean;
+  readonly populations: () => TicketPopulations;
+  /** The sentence this row produced BEFORE plan 32-38, from 32-38-RED-baseline.txt section 8. */
+  readonly before: string | null;
+};
+
+const AUDIT_AT = "2026-01-01T00:00:00.000Z";
+
+/** A ticket document of a given stem declaring a given identifier — the shape the reader admits. */
+const auditDoc = (stem: string, declaredId: string): readonly [string, string] => [
+  `${stem}.md`,
+  `---\nid: ${declaredId}\ncolumn: In Development\nstatus: in-development\n---\n\n# x\n`,
+];
+
+/** Read a planted tree with the REAL reader and index it the way the join does. */
+function populationsFromTree(files: Readonly<Record<string, string>>): TicketPopulations {
+  let built: TicketPopulations | undefined;
+  withTicketTree(files, "## In Development (WIP unlimited)\n", (dir) => {
+    const settled = readTicketsSource(dir, AUDIT_AT, undefined, {});
+    const records = settled.state.source === "ok" ? settled.state.value : [];
+    built = ticketPopulations(records, settled.unadmitted);
+  });
+  if (built === undefined) throw new Error("PREMISE: the planted tree produced no populations");
+  return built;
+}
+
+const CONTEST_TREE = Object.fromEntries([
+  auditDoc("ABC-901", "ABC-902"),
+  auditDoc("ABC-903", "ABC-902"),
+]);
+const LONE_TREE = Object.fromEntries([auditDoc("ABC-300", "ABC-777")]);
+const SELF_TREE = Object.fromEntries([auditDoc("ABC-001", "ABC-001")]);
+const REFUSED_TREE = { "ABC-900.md": "---\nid: ABC-900\ntools: Bash\n---\n\n# c\n" };
+
+/**
+ * ONE NAMED INPUT PER DERIVED BRANCH. Five of the six are built from records the REAL reader
+ * produced from a real tree; the sixth is the `joinedStem === undefined` arm, which no tree can
+ * reach (see the invariant case below) and which is therefore exhibited through the exported
+ * `presenceOf` against a directly-constructed `TicketPopulations` — the other legitimate input to
+ * that exported function.
+ */
+const PRESENCE_AUDIT: readonly AuditRow[] = [
+  {
+    branch: "B1 null",
+    name: "a document admitted under its OWN stem",
+    id: "ABC-001",
+    values: ["ABC-001"],
+    readerProducible: true,
+    populations: () => populationsFromTree(SELF_TREE),
+    before: null,
+  },
+  {
+    branch: "B2 joined under the identifier it declares",
+    name: "the WINNER of a duplicate-identifier contest, stem != declared identifier",
+    id: "ABC-901",
+    values: ["ABC-901", "ABC-902"],
+    readerProducible: true,
+    populations: () => populationsFromTree(CONTEST_TREE),
+    before:
+      "plans/tickets/ABC-901.md exists and declares the identifier ABC-902, so it is joined " +
+      "under that identifier and not this one",
+  },
+  {
+    branch: "B3 joinedStem === undefined",
+    name: "a stem whose declared identifier no admitted record holds (direct construction only)",
+    id: "ABC-950",
+    values: ["ABC-950", "ABC-951"],
+    readerProducible: false,
+    populations: () => ({
+      byId: new Map(),
+      byStem: new Map([["ABC-950", "ABC-951"]]),
+      refusedById: new Map(),
+    }),
+    before:
+      "plans/tickets/ABC-950.md exists and declares the identifier ABC-951, which no admitted " +
+      "document is joined under, so it is joined under no identifier",
+  },
+  {
+    branch: "B4 another document claimed the identifier first",
+    name: "the LOSER of a duplicate-identifier contest",
+    id: "ABC-903",
+    values: ["ABC-903", "ABC-902", "ABC-901"],
+    readerProducible: true,
+    populations: () => populationsFromTree(CONTEST_TREE),
+    before:
+      "plans/tickets/ABC-903.md exists and declares the identifier ABC-902, which " +
+      "plans/tickets/ABC-901.md claimed first, so it is joined under no identifier",
+  },
+  {
+    branch: "B5 refused by the ticket grammar",
+    name: "a listed document the grammar could not admit",
+    id: "ABC-900",
+    values: ["ABC-900", "unknown-key"],
+    readerProducible: true,
+    populations: () => populationsFromTree(REFUSED_TREE),
+    before: "plans/tickets/ABC-900.md exists and the reader could not admit it (unknown-key)",
+  },
+  {
+    branch: "B6 absent",
+    name: "a board identifier no document declares and no refusal records",
+    id: "ABC-404",
+    values: ["ABC-404"],
+    readerProducible: true,
+    populations: () => populationsFromTree(SELF_TREE),
+    before: ABSENT_TEXT,
+  },
+];
+
+/** The sentence each audited row actually produces, measured once and reused by both tasks. */
+function auditedSentences(): ReadonlyMap<string, string | null> {
+  return new Map(PRESENCE_AUDIT.map((r) => [r.branch, presenceActual(r.id, presenceOf(r.id, r.populations()))]));
+}
+
+describe("board-model — the presence SENTENCE set is derived from the module, not recalled (plan 32-38)", () => {
+  it("derives the branch count by parsing `presenceActual`, and pins it against the audited rows", () => {
+    const derived = derivePresenceBranches();
+    expect(
+      derived.length,
+      "PREMISE: `presenceActual` was not found in scripts/board-model.ts, or it returned no " +
+        "expression this derivation could read — the branch set is EMPTY and every comparison " +
+        "below would be vacuously satisfied",
+    ).toBeGreaterThan(0);
+    // THE STATED FLOOR IS A NUMBER, not "greater than zero": an EMPTY set and a SILENTLY SHORT one
+    // both red here. Six branches — one `null`, three under `admitted-under-another-id`, one
+    // `refused`, one `absent`.
+    expect(
+      derived.length,
+      "a sentence branch landed or left `presenceActual`. A seventh branch means a population the " +
+        "four-arm partition did not name, which is a finding to record in " +
+        "agent-factory/contracts/board.md and to give a named input row — never a bumped constant",
+    ).toBe(6);
+    expect(new Set(derived).size, "two branches produce the same sentence").toBe(derived.length);
+    expect(
+      PRESENCE_AUDIT.length,
+      "a branch was added to the module without a named input row reaching it, or a row was " +
+        "removed. Every branch the code can take is proved reachable here or proved unreachable " +
+        "by the invariant case below",
+    ).toBe(derived.length);
+    expect(new Set(PRESENCE_AUDIT.map((r) => r.branch)).size).toBe(PRESENCE_AUDIT.length);
+  });
+
+  it("every derived branch is reached by a named input, and every named input reaches a derived branch", () => {
+    const derived = new Set(derivePresenceBranches());
+    const produced = new Set(
+      PRESENCE_AUDIT.map((r) => templateOfSentence(auditedSentences().get(r.branch) ?? null, r.values)),
+    );
+    // BOTH DIRECTIONS. A subset check in either direction is how a branch rides in unproven.
+    expect(
+      [...produced].sort(),
+      "a named input produced a sentence no `return` in presenceActual can produce — the input " +
+        "rows and the module disagree about what the code says",
+    ).toEqual([...derived].sort());
+  });
+
+  it("each audited branch says exactly what it said BEFORE this round (SAME, byte for byte)", () => {
+    const sentences = auditedSentences();
+    for (const row of PRESENCE_AUDIT) {
+      expect(
+        sentences.get(row.branch),
+        `${row.branch} (${row.name}) CHANGED. A closure that silently rewords a sibling arm is a ` +
+          `regression this phase has shipped twice; the before-image is ` +
+          `32-38-RED-baseline.txt section 8`,
+      ).toBe(row.before);
+    }
+  });
+
+  it("exactly ONE audited branch is unreachable from any tree the reader can read", () => {
+    const unreachable = PRESENCE_AUDIT.filter((r) => !r.readerProducible);
+    expect(
+      unreachable.map((r) => r.branch),
+      "the reader-producible partition moved. Which branches a real tree can reach is what the " +
+        "contract's presence table describes, so this number is the one Task 3 pins its row count against",
+    ).toEqual(["B3 joinedStem === undefined"]);
+  });
+});
+
+describe("board-model — the `joinedStem === undefined` branch is unreachable from the reader (plan 32-38)", () => {
+  it("no tree the reader can read yields a `byStem` value absent from `byId`", () => {
+    // MEASURED, NOT ARGUED. A tree carrying every population at once — a self-declaring document,
+    // a contest winner, a contest loser, a lone mismatched document, a grammar-refused document,
+    // and the degenerate `.md` entry — is read with the real reader and indexed the way the join
+    // indexes it, and the two maps are asked the question directly.
+    const populations = populationsFromTree({
+      ...CONTEST_TREE,
+      ...LONE_TREE,
+      ...SELF_TREE,
+      ...REFUSED_TREE,
+      ".md": "---\ntitle: no stem at all\n---\n\n# d\n",
+    });
+    expect(
+      populations.byStem.size,
+      "PREMISE: the planted tree produced an EMPTY `byStem`, so the property below holds vacuously",
+    ).toBeGreaterThan(2);
+    expect(
+      [...populations.byStem.entries()].filter(([stem, declared]) => stem !== declared).length,
+      "PREMISE: no planted document declares an identifier other than its own stem, so the branch " +
+        "under audit is not even asked",
+    ).toBeGreaterThan(0);
+
+    const orphans = [...populations.byStem.entries()].filter(([, id]) => !populations.byId.has(id));
+    expect(
+      orphans,
+      "a `byStem` value is absent from `byId`, so `presenceOf` can now answer `joinedStem: " +
+        "undefined` from a real tree. `ticketPopulations` fills BOTH maps in ONE loop over the SAME " +
+        "record list, which is what makes this impossible today: every `byStem` value is some " +
+        "record's `id`, and every record's `id` is a `byId` KEY (first-wins decides which record a " +
+        "key holds, never whether the key is present). WHAT WOULD MAKE THE BRANCH REACHABLE AGAIN: " +
+        "filling `byStem` from a second record list, guarding the `byId.set` on a condition the " +
+        "`byStem.set` does not share, or deleting from `byId` after the loop. If any of those is " +
+        "the intended change, this assertion is the one to revisit — and the branch then needs a " +
+        "reader-producible input row and a row in agent-factory/contracts/board.md's presence table",
+    ).toEqual([]);
+  });
+
+  it("the branch IS still reachable through the exported `presenceOf`, so it is not dead code", () => {
+    // `TicketPopulations` is an exported type and `presenceOf` an exported function, so a direct
+    // caller can hand it a map pair `ticketPopulations` would never build. The branch is the total
+    // handling of the declared `joinedStem: string | undefined`, and it is kept for that reason
+    // rather than deleted on the strength of an argument.
+    const hand: TicketPopulations = {
+      byId: new Map(),
+      byStem: new Map([["ABC-950", "ABC-951"]]),
+      refusedById: new Map(),
+    };
+    const p = presenceOf("ABC-950", hand);
+    expect(p.kind).toBe("admitted-under-another-id");
+    expect(p.kind === "admitted-under-another-id" ? p.joinedStem : "unset").toBeUndefined();
+    expect(presenceActual("ABC-950", p)).toBe(
+      "plans/tickets/ABC-950.md exists and declares the identifier ABC-951, which no admitted " +
+        "document is joined under, so it is joined under no identifier",
+    );
+  });
+});
+
+describe("board-model — the converse of the arm the WR-01 fix touched (plan 32-38)", () => {
+  it("a contested identifier that is ITSELF a stem on disk still names the joined document", () => {
+    // THE CONVERSE PROBE. The fix's discriminator is `presence.joinedStem === id`. This tree makes
+    // the contested identifier `ABC-902` also the NAME of a third document, so the stem population
+    // and the declared population overlap on the value the discriminator compares.
+    const populations = populationsFromTree(
+      Object.fromEntries([
+        auditDoc("ABC-901", "ABC-902"),
+        auditDoc("ABC-902", "ABC-905"),
+        auditDoc("ABC-903", "ABC-902"),
+      ]),
+    );
+    expect(
+      populations.byId.get("ABC-902")?.stem,
+      "PREMISE: ABC-901.md did not win the contest, so this case is not probing the shape it names",
+    ).toBe("ABC-901");
+
+    // The contested identifier itself: a document genuinely IS joined under it, so the stated
+    // priority answers from the DECLARED population and no `row-without-file` is raised at all.
+    // WHICH document is joined is published regardless, as `tickets[].stem` beside `tickets[].id`.
+    expect(presenceOf("ABC-902", populations).kind).toBe("admitted-under-its-stem");
+    expect(presenceActual("ABC-902", presenceOf("ABC-902", populations))).toBe(null);
+
+    // The loser still names the winner by file name, and the winner still says it is joined.
+    expect(presenceActual("ABC-903", presenceOf("ABC-903", populations))).toBe(
+      "plans/tickets/ABC-903.md exists and declares the identifier ABC-902, which " +
+        "plans/tickets/ABC-901.md claimed first, so it is joined under no identifier",
+    );
+    expect(presenceActual("ABC-901", presenceOf("ABC-901", populations))).toBe(
+      "plans/tickets/ABC-901.md exists and declares the identifier ABC-902, so it is joined " +
+        "under that identifier and not this one",
+    );
+  });
+});
