@@ -1,0 +1,255 @@
+PLAN 32-38 — RED BASELINE
+=========================
+
+Phase 32, gap-closure round 4 (the last round the four-round cap allows).
+Measured 2026-09-16 on branch `main`, repository HEAD 069dcd9c, by the plan 32-38 executor.
+
+WHAT THIS FILE IS. `32-VERIFICATION.md` (2026-09-16T18:10Z, `gaps_found` 4/5) left ONE gap open and
+reproduced it THROUGH THE CLI: `node scripts/board-dashboard.js <tree> --once --json`, reading two
+fields of the document that came back. `32-REVIEW-FIX.md` (19:35) claims commit `dba9d72a` closed it.
+This file treats that as a CLAIM and measures it, on the surface the verifier measured it on.
+
+Every probe below ran on a DISPOSABLE COPY of the compiled tree under the session scratchpad, or on
+a temp fixture tree outside the repository root. The one probe that touched a tracked file
+(`scripts/board-model.js`, swapped to its pre-fix revision for the RED run) was restored with
+`git checkout HEAD -- scripts/board-model.js` and the tree confirmed clean before the next step.
+
+
+0. CLEAN-TREE RECORD (before this task's own edits began)
+--------------------------------------------------------
+
+  $ git rev-parse HEAD
+  069dcd9c661f7d2f3d054450ea4bb30c6b650721
+
+  $ git diff --exit-code -- scripts/ agent-factory/
+  exit=0   (CLEAN — no tracked source or contract file carried an uncommitted change)
+
+
+1. THE FIXTURE — the verifier's own shape, reproduced rather than reinvented
+---------------------------------------------------------------------------
+
+A real tree, not a hand-built population map:
+
+  plans/board.md
+      ## Backlog (WIP unlimited)
+      - [ABC-903] a row naming the identifier under audit        <- the row names the LOSING stem
+
+  plans/tickets/ABC-901.md    ---\nid: ABC-902\n...\n---        <- first by file name: WINS
+  plans/tickets/ABC-903.md    ---\nid: ABC-902\n...\n---        <- second by file name: LOSES
+
+A second tree, for the negative control, carries the same board row and ONE document
+(`ABC-903.md` declaring `ABC-903`) — no contest at all.
+
+
+2. TRANSCRIPT A — THE PRE-FIX GRAMMAR (`scripts/board-model.js` as it stood at `dba9d72a^`)
+-------------------------------------------------------------------------------------------
+
+The whole compiled `scripts/` tree was copied to the scratchpad and `scripts/board-model.js` was
+replaced with `git show dba9d72a^:scripts/board-model.js` (65161 bytes; HEAD's is 68558).
+
+  $ node <scratch>/prefix-repo/scripts/board-dashboard.js <fixture-contest> --once --json
+  exit=0
+
+  readErrors(tickets) =
+    [{"source":"tickets","code":"duplicate-id",
+      "message":"ABC-903.md and ABC-901.md both claim the identifier ABC-902. Ticket identifiers
+                 are unique and the first by file name is joined, so ABC-901.md is the one joined
+                 and ABC-903.md is not. Neither document is modified and no conflict is invented
+                 for the second."}]
+
+  conflicts[ticketId=ABC-903] =
+    [{"kind":"row-without-file","ticketId":"ABC-903","column":"Backlog",
+      "expected":"plans/tickets/ABC-903.md",
+      "actual":"plans/tickets/ABC-903.md exists and declares the identifier ABC-902,
+                so it is joined under that identifier and not this one",
+      "source":"board"}]
+
+  THE TWO SENTENCES, SIDE BY SIDE:
+    readErrors : "... ABC-901.md is the one joined and ABC-903.md is NOT."
+    conflicts  : "plans/tickets/ABC-903.md ... so it IS joined under that identifier ..."
+  One document, two fields, two join states for one file. This is the gap as the verifier wrote it.
+
+
+3. TRANSCRIPT B — HEAD (`scripts/board-model.js` at 069dcd9c, carrying `dba9d72a`)
+----------------------------------------------------------------------------------
+
+  $ node scripts/board-dashboard.js <fixture-contest> --once --json
+  exit=0
+
+  readErrors(tickets) =
+    [{"source":"tickets","code":"duplicate-id",
+      "message":"ABC-903.md and ABC-901.md both claim the identifier ABC-902. Ticket identifiers
+                 are unique and the first by file name is joined, so ABC-901.md is the one joined
+                 and ABC-903.md is not. Neither document is modified and no conflict is invented
+                 for the second."}]
+
+  conflicts[ticketId=ABC-903] =
+    [{"kind":"row-without-file","ticketId":"ABC-903","column":"Backlog",
+      "expected":"plans/tickets/ABC-903.md",
+      "actual":"plans/tickets/ABC-903.md exists and declares the identifier ABC-902,
+                which plans/tickets/ABC-901.md claimed first, so it is joined under no identifier",
+      "source":"board"}]
+
+  THE TWO SENTENCES, SIDE BY SIDE:
+    readErrors : "... ABC-901.md is the one joined and ABC-903.md is NOT."
+    conflicts  : "... which plans/tickets/ABC-901.md claimed first, so it is joined under NO identifier."
+  Both name ABC-901.md as the joined document. They agree.
+
+
+4. THE NEW CASE RUN AGAINST THE PRE-FIX GRAMMAR — FAILING
+----------------------------------------------------------
+
+`scripts/board-tracer.test.ts` gained the case
+  "board-dashboard — a duplicate-identifier contest states ONE join state per file (DASH-03, WR-01/F-12)
+   > agrees with itself about the losing document: the conflict names the winner the read error named"
+
+The case drives the CLI through this file's own `spawnSync` harness (`drive()`), parses the one
+`--json` document, EXTRACTS the joined document's identity out of the `duplicate-id` read error, and
+asks the `conflicts[]` sentence which document IT claims is joined. Two values, both read out of the
+document the run produced — never two hand-typed sentences compared to each other.
+
+  $ git checkout dba9d72a^ -- scripts/board-model.js
+  $ npx vitest run --exclude '**/scripts/e2e/**' scripts/board-tracer.test.ts
+  exit=1
+  Test Files  1 failed (1)
+       Tests  1 failed | 83 passed (84)
+
+  FAIL  scripts/board-tracer.test.ts > board-dashboard — a duplicate-identifier contest states ONE
+        join state per file (DASH-03, WR-01/F-12) > agrees with itself about the losing document:
+        the conflict names the winner the read error named
+  AssertionError: one --json document asserts TWO join states for one file.
+    readErrors says joined: ABC-901.md (and NOT joined: ABC-903.md)
+    conflicts[] claims joined: ABC-903.md
+    readErrors message: "ABC-903.md and ABC-901.md both claim the identifier ABC-902. Ticket
+      identifiers are unique and the first by file name is joined, so ABC-901.md is the one joined
+      and ABC-903.md is not. Neither document is modified and no conflict is invented for the second."
+    conflicts[].actual:  "plans/tickets/ABC-903.md exists and declares the identifier ABC-902, so it
+      is joined under that identifier and not this one": expected 'ABC-903.md' to be 'ABC-901.md'
+
+  THE RED IS INTENTIONAL, not incidental: the TARGET case failed, on the finding assertion, with the
+  message naming the two disagreeing sentences. No `PREMISE:` message fired, no parse error, no
+  zero-test discovery, and the NEGATIVE CONTROL in the same describe block passed in the same run.
+  Exactly one test failed.
+
+  $ git checkout HEAD -- scripts/board-model.js
+  $ git diff --exit-code -- scripts/board-model.js
+  exit=0   (CLEAN — the probe left nothing behind)
+
+
+5. THE SAME CASE AT HEAD — PASSING
+-----------------------------------
+
+  $ npx vitest run --exclude '**/scripts/e2e/**' scripts/board-tracer.test.ts
+  exit=0
+  Test Files  1 passed (1)
+       Tests  84 passed (84)
+
+The case therefore DISCRIMINATES the fix rather than passing over it.
+
+
+6. THE THREE PREMISE FACTS THE FINDING RESTS ON
+------------------------------------------------
+
+Each is a failing assertion carrying a `PREMISE:` message, asserted BEFORE the finding. A
+`PREMISE:` message in the output means the harness measured nothing.
+
+  PREMISE: the spawned dashboard must exit 0 over the planted tree
+      -> measured exit=0 on both trees.
+  PREMISE: stdout in its entirety must parse as EXACTLY ONE JSON document
+      -> `JSON.parse` over the WHOLE captured stdout; a second appended document would throw.
+  PREMISE: the tickets source must report the `duplicate-id` read error
+      -> true on the contest tree, false on the no-contest tree; without this the case would pass
+         over a tree where no contest happened, which is the vacuity this repository has recorded
+         six harness-premise failures against.
+
+
+7. THE GOLDEN FIXTURE DID NOT MOVE
+-----------------------------------
+
+  $ node scripts/board-dashboard.js scripts/fixtures/board-snapshot --once --json | (schemaVersion, conflicts.length)
+  schemaVersion=2 conflicts=9
+  exit=0
+
+
+8. PER-ARM ANSWERS MEASURED BEFORE ANY CHANGE (the "before" column plan 32-38 Task 2 compares to)
+-------------------------------------------------------------------------------------------------
+
+Measured at HEAD 069dcd9c against the COMPILED `scripts/board-model.js`, over populations built by
+`ticketPopulations(...)` from records `readTicketsSource` produced from real temp trees — never from
+a literal map.
+
+  B1  admitted-under-its-stem (a document declaring its own stem)
+      kind=admitted-under-its-stem joinedStem=undefined
+      sentence=null
+
+  B2a winner of a duplicate-identifier contest (stem != declared id)
+      kind=admitted-under-another-id joinedStem="ABC-901"
+      sentence="plans/tickets/ABC-901.md exists and declares the identifier ABC-902, so it is joined
+                under that identifier and not this one"
+
+  B2b a lone document declaring an id that is not its stem, NO contest
+      kind=admitted-under-another-id joinedStem="ABC-300"
+      sentence="plans/tickets/ABC-300.md exists and declares the identifier ABC-777, so it is joined
+                under that identifier and not this one"
+
+  B4  loser of a duplicate-identifier contest
+      kind=admitted-under-another-id joinedStem="ABC-901"
+      sentence="plans/tickets/ABC-903.md exists and declares the identifier ABC-902, which
+                plans/tickets/ABC-901.md claimed first, so it is joined under no identifier"
+
+  B5  refused by the ticket grammar (`tools:` is outside the closed ticket key set)
+      kind=refused joinedStem=undefined
+      sentence="plans/tickets/ABC-900.md exists and the reader could not admit it (unknown-key)"
+
+  B6  a board identifier no document declares and no refusal records
+      kind=absent joinedStem=undefined
+      sentence="no ticket file carries that identifier"
+
+  B3  joinedStem === undefined — "which no admitted document is joined under, so it is joined under
+      no identifier". NO reader-produced input reached it. The attempt is recorded in section 9.
+
+
+9. THE B3 REACHABILITY ATTEMPT (written down, per the plan's "only on the strength of a failed
+   attempt to reach it" rule)
+------------------------------------------------------------------------------------------------
+
+A tree carrying all four populations at once — a self-declaring document, a contest winner, a
+contest loser, a lone mismatched document, a grammar-refused document, and the degenerate `.md`
+entry — was read with `readTicketsSource` and indexed with `ticketPopulations`:
+
+  records=4 unadmitted=2 byStem=4 byId=3
+  byStem entries whose declared identifier is absent from byId: 0  []
+
+No input the reader can produce reaches B3. The reason is structural rather than incidental:
+`ticketPopulations` fills `byStem` and `byId` in ONE loop over the SAME record list, so every value
+in `byStem` is some record's `id` and every record's `id` is a key of `byId` (first-wins changes
+WHICH record a key holds, never WHETHER the key is present). Task 2 records the outcome and states
+the invariant as a derived assertion rather than deleting the branch on the strength of an argument.
+
+
+10. THE CONVERSE PROBE — the contested identifier is itself a stem on disk
+--------------------------------------------------------------------------
+
+Tree: ABC-901.md declares ABC-902; ABC-902.md declares ABC-905; ABC-903.md declares ABC-902.
+
+  byId   = [["ABC-902","ABC-901"], ["ABC-905","ABC-902"]]
+  byStem = [["ABC-901","ABC-902"], ["ABC-902","ABC-905"], ["ABC-903","ABC-902"]]
+
+  id=ABC-901 kind=admitted-under-another-id joinedStem="ABC-901"
+     sentence="plans/tickets/ABC-901.md exists and declares the identifier ABC-902, so it is joined
+               under that identifier and not this one"
+  id=ABC-902 kind=admitted-under-its-stem  joinedStem=undefined  sentence=null
+  id=ABC-903 kind=admitted-under-another-id joinedStem="ABC-901"
+     sentence="plans/tickets/ABC-903.md exists and declares the identifier ABC-902, which
+               plans/tickets/ABC-901.md claimed first, so it is joined under no identifier"
+  id=ABC-905 kind=admitted-under-its-stem  joinedStem=undefined  sentence=null
+
+  VERDICT: PASS, not a finding. A board row naming ABC-902 raises no `row-without-file` because a
+  document genuinely IS joined under ABC-902 — and WHICH document is published, because every
+  record in `tickets[]` carries `stem` beside `id` (the schemaVersion-2 field plan 32-33 added).
+  The loser still names the winner by file name. The arm the round-3 fix touched behaves correctly
+  when the contested identifier is itself a stem.
+
+
+---
+Written by plan 32-38, Task 1. Companion artifact: `32-38-GREEN-proof.txt`.

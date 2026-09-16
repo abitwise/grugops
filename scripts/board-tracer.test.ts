@@ -932,3 +932,178 @@ describe("board-dashboard — packaging (D-16)", () => {
     expect(offending).toEqual([]);
   });
 });
+
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+// PLAN 32-38, TASK 1 — THE DUPLICATE-IDENTIFIER CONTEST, MEASURED THROUGH THE CLI.
+//
+// WHY THIS CASE LIVES HERE AND NOT IN `board-model.test.ts`. The round-3 verifier reproduced
+// `32-VERIFICATION.md`'s one remaining gap by running `node scripts/board-dashboard.js <tree>
+// --once --json` and reading TWO FIELDS of the document that came back: the tickets `duplicate-id`
+// read error, and the `conflicts[]` entry for the losing file. `board-model.test.ts` already pins
+// the same defect at the unit boundary, over a `TicketPopulations` built by hand — which never
+// crosses the read seam, so it cannot see a regression in `readTicketsSource`'s contest
+// resolution, in the join, or in what the CLI actually publishes. The gap was measured through the
+// CLI, so the closure is measured through the CLI.
+//
+// THE AGREEMENT IS DERIVED, NOT TYPED TWICE. The winner of the contest is read OUT OF the
+// `readErrors` entry the run produced, and the conflict sentence is then asked which document IT
+// claims is joined. Two hand-typed sentences agree the moment somebody edits both the same wrong
+// way; a value extracted from one field and compared against the other cannot.
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+
+/** One planted ticket document: the name the directory gives it, and the identifier it declares. */
+type PlantedDoc = { readonly stem: string; readonly declaredId: string };
+
+/** A real tree — a board row plus ticket documents — of the shape the verifier's reproduction used. */
+function plantContestTree(dir: string, rowId: string, docs: readonly PlantedDoc[]): void {
+  mkdirSync(join(dir, "plans", "tickets"), { recursive: true });
+  writeFileSync(
+    join(dir, "plans", "board.md"),
+    `## Backlog (WIP unlimited)\n\n- [${rowId}] a row naming the identifier under audit\n`,
+    "utf8",
+  );
+  for (const d of docs) {
+    writeFileSync(
+      join(dir, "plans", "tickets", `${d.stem}.md`),
+      `---\nid: ${d.declaredId}\ntitle: planted by the duplicate-identifier end-to-end case\n` +
+        `status: ready\ncolumn: Backlog\n---\n`,
+      "utf8",
+    );
+  }
+}
+
+type PublishedConflict = {
+  readonly kind: string;
+  readonly ticketId?: string;
+  readonly actual: string;
+};
+type PublishedReadError = {
+  readonly source: string;
+  readonly code: string;
+  readonly message: string;
+};
+type PublishedDocument = {
+  readonly conflicts: readonly PublishedConflict[];
+  readonly readErrors: readonly PublishedReadError[];
+};
+
+/**
+ * WHICH DOCUMENT THE `duplicate-id` READ ERROR NAMES AS THE JOINED ONE — read out of the message
+ * the run produced, never assumed from the file names the case planted.
+ */
+const READ_ERROR_JOINED = /\bso (\S+\.md) is the one joined and (\S+\.md) is not\b/;
+
+/** Sentinels, so an unrecognised sentence REDS rather than quietly comparing equal to nothing. */
+const NO_DOCUMENT_IS_JOINED = "<no document is joined>";
+const UNRECOGNISED_SENTENCE = "<unrecognised sentence>";
+
+/**
+ * WHICH DOCUMENT THE CONFLICT SENTENCE CLAIMS IS JOINED under the contested identifier.
+ *
+ * TOTAL BY CONSTRUCTION: every arm `presenceActual` can state about a file that exists is named
+ * here, and anything else returns `UNRECOGNISED_SENTENCE`. A reworded sentence therefore reds on
+ * this reader rather than slipping past a substring check that no longer matches.
+ */
+function joinedDocumentTheConflictClaims(actual: string, rowId: string): string {
+  if (actual.includes("so it is joined under that identifier and not this one")) {
+    return `${rowId}.md`;
+  }
+  const claimedFirst =
+    /which plans\/tickets\/(\S+?)\.md claimed first, so it is joined under no identifier/.exec(
+      actual,
+    );
+  if (claimedFirst !== null) return `${claimedFirst[1] ?? ""}.md`;
+  if (actual.includes("which no admitted document is joined under, so it is joined under no identifier")) {
+    return NO_DOCUMENT_IS_JOINED;
+  }
+  return UNRECOGNISED_SENTENCE;
+}
+
+/** Run the compiled CLI over a tree and assert the three premises the finding rests on. */
+function publishedDocumentFor(dir: string, expectDuplicateId: boolean): PublishedDocument {
+  const r = drive([dir, "--once", "--json"]);
+  expect(
+    r.code,
+    `PREMISE: the spawned dashboard must exit 0 over the planted tree; stderr was ${JSON.stringify(r.err)}`,
+  ).toBe(0);
+  let parsed: PublishedDocument | null = null;
+  expect(() => {
+    parsed = JSON.parse(r.out) as PublishedDocument;
+  }, "PREMISE: stdout in its entirety must parse as EXACTLY ONE JSON document").not.toThrow();
+  expect(parsed, "PREMISE: stdout in its entirety must parse as EXACTLY ONE JSON document").not.toBeNull();
+  const doc = parsed as unknown as PublishedDocument;
+  const duplicates = doc.readErrors.filter((e) => e.source === "tickets" && e.code === "duplicate-id");
+  expect(
+    duplicates.length > 0,
+    "PREMISE: the tickets source must report the `duplicate-id` read error — without a contest " +
+      "this case would pass over a tree where nothing happened, which is the vacuity this " +
+      "repository has recorded six harness-premise failures against",
+  ).toBe(expectDuplicateId);
+  return doc;
+}
+
+describe("board-dashboard — a duplicate-identifier contest states ONE join state per file (DASH-03, WR-01/F-12)", () => {
+  it("agrees with itself about the losing document: the conflict names the winner the read error named", () => {
+    withTempTree((dir) => {
+      // The verifier's own shape: a board row for the LOSING stem, and two documents contesting one
+      // identifier. `ABC-901.md` is first by file name, so it wins; `ABC-903.md` loses and is the
+      // stem the board row names.
+      plantContestTree(dir, "ABC-903", [
+        { stem: "ABC-901", declaredId: "ABC-902" },
+        { stem: "ABC-903", declaredId: "ABC-902" },
+      ]);
+      const doc = publishedDocumentFor(dir, true);
+
+      const duplicate = doc.readErrors.find(
+        (e) => e.source === "tickets" && e.code === "duplicate-id",
+      );
+      const named = READ_ERROR_JOINED.exec(duplicate?.message ?? "");
+      expect(
+        named,
+        "PREMISE: the `duplicate-id` message must name which document is joined and which is not; " +
+          `it said ${JSON.stringify(duplicate?.message ?? null)}`,
+      ).not.toBeNull();
+      const joinedByTheReadError = named?.[1] ?? UNRECOGNISED_SENTENCE;
+      const notJoinedByTheReadError = named?.[2] ?? UNRECOGNISED_SENTENCE;
+
+      const conflict = doc.conflicts.find(
+        (c) => c.kind === "row-without-file" && c.ticketId === "ABC-903",
+      );
+      expect(
+        conflict,
+        "PREMISE: the board row for the losing stem must raise a `row-without-file` conflict",
+      ).toBeDefined();
+
+      const joinedByTheConflict = joinedDocumentTheConflictClaims(conflict?.actual ?? "", "ABC-903");
+
+      // THE FINDING. Both values are read out of the document the run produced — one from
+      // `readErrors`, one from `conflicts[]`. A failure here is one document asserting two join
+      // states for one file: the very disagreement `conflicts[]` exists to REPORT, occurring
+      // inside the instrument that reports it.
+      expect(
+        joinedByTheConflict,
+        "one --json document asserts TWO join states for one file.\n" +
+          `  readErrors says joined: ${joinedByTheReadError} (and NOT joined: ${notJoinedByTheReadError})\n` +
+          `  conflicts[] claims joined: ${joinedByTheConflict}\n` +
+          `  readErrors message: ${JSON.stringify(duplicate?.message ?? null)}\n` +
+          `  conflicts[].actual:  ${JSON.stringify(conflict?.actual ?? null)}`,
+      ).toBe(joinedByTheReadError);
+
+      // And the loser the read error named is the stem the board row named, so the two fields are
+      // talking about the same file rather than agreeing about an unrelated one.
+      expect(notJoinedByTheReadError).toBe("ABC-903.md");
+    });
+  });
+
+  it("NEGATIVE CONTROL: no contest on the tree means no duplicate-id read error and no row-without-file", () => {
+    withTempTree((dir) => {
+      plantContestTree(dir, "ABC-903", [{ stem: "ABC-903", declaredId: "ABC-903" }]);
+      const doc = publishedDocumentFor(dir, false);
+      expect(
+        doc.conflicts.filter((c) => c.kind === "row-without-file" && c.ticketId === "ABC-903"),
+        "a cleanly joined document raises no row-without-file — so the contest case's two facts " +
+          "are produced by the contest and are not ambient in the harness",
+      ).toEqual([]);
+    });
+  });
+});
