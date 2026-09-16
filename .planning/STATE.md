@@ -5,9 +5,9 @@ milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live
 current_phase: 32
 current_phase_name: Board Projector & CLI Dashboard
 status: "Phase 31 CLOSED 2026-09-13 by user override D-44 (round-9 verification gaps_found 4/6 left standing; CR-28..CR-31 + WR-43..WR-47 accepted open). Next: Phase 32 — Board Projector & CLI Dashboard, not yet planned. Standing rule: four-round gap-closure cap on every later phase."
-stopped_at: "Phase 32 gap-closure round 3 HALTED at 32-24 Task 1 tracer gate (RED baseline 759e982c) — user chose REPLAN 2026-09-15; 32-24 is 1/3, no SUMMARY; next: /gsd-plan-phase 32 --gaps"
-last_updated: "2026-09-15T20:07:41.539Z"
-state_head: 7c58c317eb1ef77f42e680cefbc5173e6e757784
+stopped_at: "Phase 32 gap-closure round 3 RE-PLANNED 2026-09-16 as 32-31..32-37 (checker passed, 0 issues); 32-24..32-30 retired at 7533336c; baseline 32-24-RED-baseline.txt (759e982c) is input. Next: /gsd-execute-phase 32 --gaps-only"
+last_updated: "2026-09-16T06:40:58.073Z"
+state_head: f407355d6a2c691c4ca63cebd97adb521812bbbd
 progress:
   total_phases: 9
   completed_phases: 30
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-09-07 — after Phase 29.2)
 
 ## Current Position
 
-Phase: 32 (Board Projector & CLI Dashboard) — EXECUTING
+Phase: 32 (Board Projector & CLI Dashboard) — READY TO EXECUTE
 Plan: 1 of 30
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
@@ -1492,7 +1492,7 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 ## Session Continuity
 
 Last session: 2026-09-15T13:57:28.574Z
-Stopped at: Phase 32 gap-closure round 3 HALTED at 32-24 Task 1 tracer gate (RED baseline 759e982c) — user chose REPLAN 2026-09-15; 32-24 is 1/3, no SUMMARY; next: /gsd-plan-phase 32 --gaps
+Stopped at: Phase 32 gap-closure round 3 RE-PLANNED 2026-09-16 as 32-31..32-37 (checker passed, 0 issues); 32-24..32-30 retired at 7533336c; baseline 32-24-RED-baseline.txt (759e982c) is input. Next: /gsd-execute-phase 32 --gaps-only
 Resume file: None
 
 ## Operator Next Steps
