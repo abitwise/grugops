@@ -160,7 +160,21 @@ const IDENTIFIER_START = /[A-Za-z_$]/;
 const IDENTIFIER_PART = /[A-Za-z0-9_$]/;
 
 /**
- * Replace every comment and every template-literal TEXT span with whitespace of equal length.
+ * The blanked source and every ordinary string literal that was blanked out of it.
+ *
+ * `moduleSpecifiers` reads a specifier back out of this table rather than out of the blanked code,
+ * which is what lets the blanking rule be TOTAL without destroying the very text the patterns
+ * exist to capture.
+ */
+interface ScannedSource {
+  readonly code: string;
+  /** Keyed by the offset of the literal's first TEXT character — the patterns' capture offset. */
+  readonly literals: ReadonlyMap<number, string>;
+}
+
+/**
+ * Replace every comment, every template-literal TEXT span, and every ordinary string literal's
+ * TEXT with whitespace of equal length — and record what each string literal said.
  *
  * WHY THIS IS REQUIRED RATHER THAN COSMETIC. The specifier patterns below are regexes over file
  * bytes, so PROSE can manufacture a specifier that no import statement carries — and once `foreign`
@@ -172,19 +186,33 @@ const IDENTIFIER_PART = /[A-Za-z0-9_$]/;
  * out of `//` comment blocks. With this function and the newline-excluding capture, that count is
  * ZERO. Both numbers are recorded in `32-31-GREEN-proof.txt`.
  *
- * WHAT IT DELIBERATELY DOES NOT BLANK. Ordinary string literals stay intact — blanking them would
- * change what the patterns see inside real code — and so does the CODE inside a template
- * literal's `${…}` substitutions. Blanking a substitution would REMOVE REAL CODE, and this
- * module's contract is that a missed specifier costs a crash while an extra one costs a file; the
- * conservative direction is to narrow only the prose. Regular-expression literals are recognised
- * so that a pattern such as `/https?:\/\//` cannot be mistaken for the start of a line comment.
+ * WHY STRING LITERALS ARE NOW BLANKED TOO (32-38, review CR-01). Leaving their text intact was the
+ * one remaining way for prose to manufacture an import. `install/install.js` carries a generated
+ * source line inside an ordinary single-quoted string — `'import { x } from "./model-tiers.js";'` —
+ * and the `from` pattern read it as a RELATIVE specifier, so `jsImportClosure(ROOT,
+ * "install/install.js")` refused on an edge nobody wrote. That is precisely the failure this
+ * module's opening paragraph exists to prevent: a gate that cannot start looks, from the outside,
+ * exactly like a gate that ran and refused. The census that backed the old rule counted the FOREIGN
+ * class only; the live false positive was in the RELATIVE class, which was never censused.
+ *
+ * The blanking rule is TOTAL — it knows nothing about import grammar, so it cannot disagree with
+ * `SPECIFIER_PATTERNS` about what a specifier position is. A real specifier is not lost to it:
+ * the literal's text is recorded here and recovered by offset in `moduleSpecifiers`, so exactly
+ * ONE function owns the import grammar and exactly one owns "what is prose".
+ *
+ * WHAT IT STILL DELIBERATELY DOES NOT BLANK. The CODE inside a template literal's `${…}`
+ * substitutions. Blanking a substitution would REMOVE REAL CODE, and this module's contract is
+ * that a missed specifier costs a crash while an extra one costs a file; the conservative direction
+ * is to narrow only the prose. Regular-expression literals are recognised so that a pattern such as
+ * `/https?:\/\//` cannot be mistaken for the start of a line comment.
  *
  * Length is preserved exactly (newlines kept, everything else replaced with a space), so an offset
  * into the result is an offset into the source and a line number still means what it says.
  */
-export function stripNonCode(source: string): string {
+function scanSource(source: string): ScannedSource {
   const out = source.split("");
   const n = source.length;
+  const literals = new Map<number, string>();
   const blank = (from: number, to: number): void => {
     for (let k = Math.max(0, from); k < to && k < n; k += 1) {
       const ch = out[k];
@@ -276,7 +304,9 @@ export function stripNonCode(source: string): string {
       continue;
     }
     if (c === '"' || c === "'") {
-      let k = i + 1;
+      const textStart = i + 1;
+      let k = textStart;
+      let terminated = false;
       while (k < n) {
         const r = source[k] as string;
         if (r === "\\") {
@@ -284,8 +314,18 @@ export function stripNonCode(source: string): string {
           continue;
         }
         k += 1;
-        if (r === c || r === "\n") break;
+        if (r === c) {
+          terminated = true;
+          break;
+        }
+        if (r === "\n") break;
       }
+      // The TEXT runs up to the closing quote. An UNTERMINATED literal has no closing quote, so it
+      // is prose to the end of its line and contributes no recoverable specifier — recording it
+      // would invent a specifier out of a syntax error.
+      const textEnd = terminated ? k - 1 : k;
+      if (terminated) literals.set(textStart, source.slice(textStart, textEnd));
+      blank(textStart, textEnd);
       i = k;
       prev = c;
       prevWord = "";
@@ -339,7 +379,18 @@ export function stripNonCode(source: string): string {
     const frame = stack.pop() as Frame;
     if (frame.mode === "template") blank(frame.textStart, n);
   }
-  return out.join("");
+  return { code: out.join(""), literals };
+}
+
+/**
+ * The same source with every comment, template TEXT span and string-literal TEXT blanked.
+ *
+ * A VIEW over `scanSource`, kept exported under its own name because it is the thing the tests
+ * assert length-preservation and prose-removal against. It deliberately drops the literal table:
+ * recovering a specifier's text is `moduleSpecifiers`'s job, not a caller's.
+ */
+export function stripNonCode(source: string): string {
+  return scanSource(source).code;
 }
 
 /**
@@ -353,9 +404,9 @@ export function stripNonCode(source: string): string {
  * newline-crossing capture stitched together out of comment text.
  */
 const SPECIFIER_PATTERNS: readonly RegExp[] = Object.freeze([
-  /\bfrom\s*["']([^"'\n\r]*)["']/g,
-  /\bimport\s*["']([^"'\n\r]*)["']/g,
-  /\bimport\s*\(\s*["']([^"'\n\r]*)["']\s*\)/g,
+  /\bfrom\s*["']([^"'\n\r]*)["']/gd,
+  /\bimport\s*["']([^"'\n\r]*)["']/gd,
+  /\bimport\s*\(\s*["']([^"'\n\r]*)["']\s*\)/gd,
 ]);
 
 /** One module specifier as this pass read it, with the class the one authority gave it. */
@@ -367,15 +418,29 @@ export interface ClassifiedSpecifier {
 /**
  * Every module specifier one JavaScript source carries, each with its class.
  *
- * The scan's INPUT is CODE: `stripNonCode` runs first, so the partition is asked about import
- * statements rather than about prose. Both quote styles are read.
+ * THE SCAN'S INPUT IS CODE, and since 32-38 that sentence is TRUE rather than aspirational:
+ * `scanSource` blanks comments, template text AND ordinary string-literal text, so a `from "…"`
+ * written inside prose has had its `from` keyword blanked along with everything else and matches
+ * nothing. Only a specifier in a real POSITION survives to be matched.
+ *
+ * Blanking the literal also blanks the specifier's own text, so the match tells us WHERE the
+ * specifier is and the literal table recorded by `scanSource` tells us WHAT it said. The `d` flag
+ * gives the capture's exact offset, which is the literal's text start. Both quote styles are read.
+ *
+ * WHY THE FALLBACK IS THE RAW CAPTURE. If a capture offset is absent from the table the span was
+ * never blanked, so its bytes are still its own text and reading them is correct. Every quote-
+ * delimited span these patterns can reach in code position IS recorded, so this is unreachable in
+ * practice; the two-sided parser oracle over the whole tracked corpus is what proves that, rather
+ * than this comment.
  */
 export function moduleSpecifiers(source: string): readonly ClassifiedSpecifier[] {
-  const code = stripNonCode(source);
+  const { code, literals } = scanSource(source);
   const out: ClassifiedSpecifier[] = [];
   for (const re of SPECIFIER_PATTERNS) {
     for (const m of code.matchAll(re)) {
-      const specifier = m[1] as string;
+      const at = m.indices?.[1]?.[0];
+      const recovered = at === undefined ? undefined : literals.get(at);
+      const specifier = recovered ?? (m[1] as string);
       out.push({ specifier, cls: classifySpecifier(specifier) });
     }
   }

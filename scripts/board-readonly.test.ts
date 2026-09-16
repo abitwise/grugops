@@ -165,6 +165,7 @@ import {
 import * as nodeFs from "node:fs";
 import * as nodeFsPromises from "node:fs/promises";
 import { dirname, join } from "node:path";
+import { execFileSync } from "node:child_process";
 
 // ONE AUTHORITY ON A SPECIFIER'S CLASS (32-31). `classifySpecifier` is imported rather than
 // re-implemented here, because the two hand-written predicates that used to decide this question —
@@ -1714,6 +1715,133 @@ describe("32-31 — a module specifier's class is a TOTAL partition decided in O
         "surrounding prose. That is real code, and a closure missing it is a mirror missing " +
         "exactly the file the walk could not see",
     ).toEqual(["./inside.js"]);
+  });
+
+  // ═════════════════════════════════════════════════════════════════════════════════════════════
+  // 32-38 / review CR-01 — THE THIRD PROSE CARRIER: an ordinary string literal.
+  //
+  // The two cases above close the COMMENT and TEMPLATE carriers. The string-literal carrier was
+  // left open by decision ("blanking them would change what the patterns see inside real code"),
+  // and it was the one with a LIVE instance in the tree: `install/install.js` carries a generated
+  // source line inside a single-quoted string, the `from` pattern read it as a real relative
+  // specifier, and `jsImportClosure(ROOT, "install/install.js")` refused on an edge nobody wrote.
+  //
+  // The census that backed the old rule counted the FOREIGN class only. The live false positive
+  // was in the RELATIVE class, which was never censused — the repository's own recorded probe
+  // (ASK WHICH SET THE PREDICATE ENUMERATES) applied to the measurement rather than to the code.
+  // The oracle below is therefore TWO-SIDED and over BOTH classes, so neither direction can rot.
+  // ═════════════════════════════════════════════════════════════════════════════════════════════
+
+  it("the specifier scan's INPUT is code: a specifier spelled inside a STRING LITERAL yields no row", () => {
+    // THE CONVERSE FOR stripNonCode, third half. RED on the pre-fix scanner: the first source
+    // yielded a `relative` row for "./model-tiers.js" and the second a `foreign` row for
+    // "/etc/passwd", and `jsImportClosure` throws on either.
+    const stringed =
+      "const generated = 'import { resolvedAssignmentsIn } from \"./model-tiers.js\";';\n" +
+      "const msg = \"the dial was read from '/etc/passwd'\";\n" +
+      'import { join } from "node:path";\n' +
+      'import { real } from "./real.js";\n' +
+      "export const use = () => join(real, generated, msg);";
+    const rows = moduleSpecifiers(stringed);
+    expect(
+      rows.map((r) => r.specifier).sort(),
+      "a specifier written only inside an ordinary STRING LITERAL produced a row. Both directions " +
+        "are a live refusal: a relative one names a file that does not exist, and a foreign one is " +
+        "refused outright — either way a gate that cannot start looks exactly like a gate that ran " +
+        "and refused, which is the failure this module's opening paragraph exists to prevent",
+    ).toEqual(["./real.js", "node:path"]);
+  });
+
+  it("the walk no longer refuses install/install.js, whose strings carry a generated import line", () => {
+    // The LIVE instance, asserted against the real tree rather than a fixture. No current caller
+    // passes this entry, which is exactly why it went unnoticed — so it is pinned here.
+    expect(
+      existsSync(join(ROOT, "install/install.js")),
+      "PREMISE: install/install.js does not exist, so the refusal asserted below measured nothing",
+    ).toBe(true);
+    expect(
+      () => jsImportClosure(ROOT, "install/install.js"),
+      "jsImportClosure refused install/install.js. Its strings carry a generated source line, and " +
+        "reading that as an import manufactures an unresolvable edge out of prose",
+    ).not.toThrow();
+  });
+
+  it("moduleSpecifiers EQUALS a real TypeScript parse over every tracked .js/.mjs — both directions", () => {
+    // THE TWO-SIDED PARSER ORACLE. A one-sided check ("nothing was missed") is what let CR-01 sit
+    // green: the fail-SHORT direction was clean and the fail-LONG direction was never asked over
+    // the relative class. This asserts SET EQUALITY against an independent authority — the
+    // TypeScript parser — so a fabricated specifier and a missed one both red, and the corpus is
+    // DERIVED from the tree rather than hand-listed, so it cannot rot as files are added.
+    // THE CORPUS IS DERIVED FROM GIT, not hand-listed and not walked. `git ls-files` is the same
+    // definition of "tracked" the review's census used, it cannot rot as files are added, and it
+    // excludes the UNTRACKED build mirrors under `.tmp-build/` that a freshness check leaves
+    // behind — a walk would make this oracle's corpus depend on whether a build had just run.
+    const corpus = execFileSync("git", ["ls-files", "*.js", "*.mjs"], {
+      cwd: ROOT,
+      encoding: "utf8",
+    })
+      .split("\n")
+      .filter((line) => line !== "");
+
+    expect(
+      corpus.length,
+      "PREMISE: the derived corpus is EMPTY, so the equality below compared nothing. A vacuous " +
+        "oracle is the shape that passes while proving nothing",
+    ).toBeGreaterThan(40);
+
+    /** The independent authority: every specifier a real parse attributes to an import/export. */
+    const parsed = (source: string, label: string): string[] => {
+      const sf = ts.createSourceFile(label, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.JS);
+      const found: string[] = [];
+      const visit = (node: ts.Node): void => {
+        if (
+          (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) &&
+          node.moduleSpecifier !== undefined &&
+          ts.isStringLiteral(node.moduleSpecifier)
+        ) {
+          found.push(node.moduleSpecifier.text);
+        }
+        if (
+          ts.isCallExpression(node) &&
+          node.expression.kind === ts.SyntaxKind.ImportKeyword &&
+          node.arguments[0] !== undefined &&
+          ts.isStringLiteral(node.arguments[0])
+        ) {
+          found.push(node.arguments[0].text);
+        }
+        ts.forEachChild(node, visit);
+      };
+      visit(sf);
+      return found;
+    };
+
+    const fabricated: string[] = [];
+    const missed: string[] = [];
+    for (const rel of corpus) {
+      const source = readFileSync(join(ROOT, rel), "utf8");
+      const scanned = moduleSpecifiers(source).map((r) => r.specifier);
+      const truth = parsed(source, rel);
+      for (const spec of new Set(scanned)) {
+        if (!truth.includes(spec)) fabricated.push(`${rel}: "${spec}" (${classifySpecifier(spec)})`);
+      }
+      for (const spec of new Set(truth)) {
+        if (!scanned.includes(spec)) missed.push(`${rel}: "${spec}" (${classifySpecifier(spec)})`);
+      }
+    }
+
+    expect(
+      fabricated,
+      "moduleSpecifiers reported a specifier NO import statement carries. Prose manufactured it, " +
+        "and since the walk REFUSES an edge it cannot resolve, a fabricated specifier is a gate " +
+        "that cannot start. Fix the scan's input in stripNonCode — do NOT widen the patterns and " +
+        "do NOT exempt the file",
+    ).toEqual([]);
+    expect(
+      missed,
+      "moduleSpecifiers MISSED a real specifier, so a mirror built from this closure is short by " +
+        "exactly the file the walk could not see and the gate that spawns it dies with " +
+        "ERR_MODULE_NOT_FOUND. This is the direction that costs a crash rather than a file",
+    ).toEqual([]);
   });
 });
 
