@@ -134,3 +134,103 @@ Baseline for every row: `npx vitest run --exclude '**/scripts/e2e/**' scripts/bo
 SOURCE RESTORED AFTER EVERY MUTATION, verified by digest rather than by intent:
 `md5 -q scripts/board-dashboard.ts` returns a56eef0bb5e4ff426e140f40e0e21162 before the first
 mutation and after each of the five reverts.
+
+═══════════════════════════════════════════════════════════════════════════════════════════════════
+4. THE TIMING BAND — A DERIVED DEADLINE, AND THE SAME LATENCIES EITHER SIDE OF IT
+═══════════════════════════════════════════════════════════════════════════════════════════════════
+
+`npx vitest run --exclude '**/scripts/e2e/**' --reporter=verbose scripts/board-watch-live.test.ts`,
+the whole file, three consecutive runs before and three after.
+
+                                                     BEFORE              AFTER
+    the wait deadline ....................... 600 ms (a literal)   750 ms (derived)
+    how it is written .......... EVENT_DEADLINE_MS = 600           POLL_MS - EVENT_DEADLINE_MARGIN_MS
+    POLL_MS (= INTERVAL_HARD_FLOOR_MS) .......... 1000 ms            1000 ms
+    DEBOUNCE_MS .................................. 250 ms             250 ms
+    EVENT_DEADLINE_MARGIN_MS ......................... —              250 ms
+    the band the case must land in ....... [250 ms, 600 ms)    [250 ms, 750 ms)
+    band width ................................... 350 ms             500 ms
+    cases in the file .................................. 5                  6
+
+    run 1 event path .......................... 272 ms             276 ms
+    run 2 event path .......................... 279 ms             268 ms
+    run 3 event path .......................... 276 ms             274 ms
+
+    worst of the three ........................ 279 ms             276 ms
+    deadline as a multiple of the worst ......... 2.15x              2.72x
+    headroom to the deadline .................. 321 ms             474 ms
+
+THE LATENCIES DID NOT MOVE, AND THEY WERE NOT SUPPOSED TO. Nothing in the watch path changed. What
+changed is how long the wait is willing to sit before giving up, which is the difference between a
+red that prints `the change took 812 ms, which is at or past the 1000 ms poll period` and a red that
+prints a runner-level timeout with no number in it at all.
+
+The poll path, the watch record and the debounce were re-measured in the same six runs and every one
+is within noise of its before value: poll 998/997/992 → 1002/995/996 ms; record published
+276/275/275 → 275/276/274 ms and cleared 897/892/901 → 894/899/897 ms; debounce coalesced five
+writes into one document in all six.
+
+THE ATTRIBUTION ASSERTIONS ARE UNCHANGED, PROVED BY DIFF RATHER THAN ASSERTED. The whole event-path
+case was extracted from `HEAD` and from the working tree and compared:
+
+    $ git show HEAD:scripts/board-watch-live.test.ts \
+        | awk '/"delivers an atomic-rename edit/,/^    20_000,$/' > before.txt
+    $ awk '/"delivers an atomic-rename edit/,/^    20_000,$/' scripts/board-watch-live.test.ts > after.txt
+    $ wc -l before.txt after.txt    →  39  39
+    $ diff before.txt after.txt     →  (no output)
+
+Thirty-nine lines, byte-identical. The two comparisons that decide attribution —
+`expect(latency).toBeLessThan(POLL_MS)` and `expect(latency).toBeGreaterThanOrEqual(DEBOUNCE_MS)` —
+are unchanged in wording and in effect. Only the deadline moved, and the deadline decides only when
+the wait gives up.
+
+THE NEW CASE PROVES THE DEADLINE STILL BOUNDS SOMETHING. It asserts the two inequalities rather than
+the number: `DEBOUNCE_MS < EVENT_DEADLINE_MS < POLL_MS`. A margin of zero would turn the event-path
+case into a second poll measurement that still passes; a margin of a whole period would turn it into
+a case that can only ever red. Both are silent failures of a derived constant, and both now red
+here. Pinning 750 instead would restate the arithmetic one line above it and prove nothing else.
+
+    MEASURED deadline derivation: EVENT_DEADLINE_MS=750 ms from POLL_MS=1000 ms minus
+    EVENT_DEADLINE_MARGIN_MS=250 ms, against DEBOUNCE_MS=250 ms on darwin/arm64 node v24.12.0
+
+THE CI-TOPOLOGY HALF IS NOT TAKEN, AND IT IS CARRIED IN WRITING. See
+`.planning/phases/32-board-projector-cli-dashboard/deferred-items.md`, "Out of scope, found during
+plan 32-35". The residual is stated there rather than hidden: while these cases live in the shared
+`Vitest (e2e lane excluded)` step of the `test (${{ matrix.os }})` job, a Windows failure takes that
+step with it. Phase 33 / CAP-02 owns it, because answering it here would mean adding a
+platform-scoped or non-blocking CI step, and `.planning/WINDOWS.md` row 186 already records that a
+Windows red IS that measurement arriving early.
+
+THE CARRIED GATE WAS RE-MEASURED, NOT ABSORBED. `npm run check:diff-disposition` → exit 1,
+`1 CHECK(S) FAILED`, 77 finding lines over the same five Phase-31 workflow documents (38 / 25 / 9 /
+2 / 3). The total moved by one since round 2 measured 78 (10 on `16-context-read-write.md` rather
+than 9); that movement is recorded rather than smoothed over, and it is not this plan's: a grep of
+the full finding text for every file this plan touched returns 0.
+
+═══════════════════════════════════════════════════════════════════════════════════════════════════
+5. THE FULL SUITE, AND ONE AUTO-FIX THE FULL SUITE FOUND
+═══════════════════════════════════════════════════════════════════════════════════════════════════
+
+    npx vitest run --exclude '**/scripts/e2e/**'
+
+    first run    1 failed | 5108 passed | 2 skipped (5111)
+    after fix    5109 passed | 2 skipped (5111)    — the floor 32-VERIFICATION.md records is 4974
+
+THE ONE RED WAS THIS PLAN'S OWN, AND IT WAS A STYLE GATE RATHER THAN A BEHAVIOUR. Task 2's rewrite
+of `agent-factory/contracts/board.md` opened a sentence with a bare demonstrative, which
+`guard_sentence_form` (WP-06) refuses over the governed corpus:
+
+    agent-factory/contracts/board.md:447 — WP-06 [bare-demonstrative-subject] "That was" opens the
+    sentence with no antecedent in it
+
+The gate names the remedy and forbids the shortcut: name the antecedent, and do NOT narrow the scan
+set, because `GOVERNED_CORPUS_COUNT` is pinned two-sided precisely so removing a member to reach
+green is not available. The antecedent was named — "That description was true of the bytes and false
+of the parse" — and `npm run check:imperative-lexicon` went to `ALL CHECKS PASSED`, 0 findings over
+49/49 elements, 3781 sentences with no finding of any kind. This is recorded as a deviation in the
+plan's summary rather than folded silently into the file it belongs to.
+
+    npm run check:nul-bytes ......................... ALL CHECKS PASSED
+    npm run check:dashboard-readonly ................ 171 passed
+    npm run build && typecheck && check:build-parity && freshness ... exit 0, 65/65 outputs fresh
+    node scripts/board-dashboard.js scripts/fixtures/board-snapshot --once --json | wc -l ..... 1

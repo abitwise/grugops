@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 184
+open_count: 185
 waived_count: 0
 fixed_count: 8
-total_count: 192
-last_updated: 2026-09-16T07:22:43.296Z
+total_count: 193
+last_updated: 2026-09-16T11:24:09.394Z
 ---
 
 # Broken Windows Ledger
@@ -207,6 +207,7 @@ last_updated: 2026-09-16T07:22:43.296Z
 | 190 | 32 | deviation | scripts/board-dashboard.ts |  | F-05 (32-23): writeDocument sanitizes AFTER JSON.stringify, so the two are complementary - C1 is removed, C0 is already escaped into printable text and cannot be seen. A raw ESC in a board row title reaches the --json document as 0 control code points and is recovered as 6 by one JSON.parse. The boundary is stated in writeDocument's docblock; what is measured here is that the input is an ordinary raw C0, not a planted escape sequence. Reproduction in 32-23-ADVERSARIAL-REVIEW.md section 5. | open |  | 2026-09-15T13:43:13.111Z |  |
 | 191 | 32 | deviation | scripts/check-foundation-guards.test.ts |  | F-07 (32-23): classifyCheckScript uses .exec, so a check:* command running two gate modules is classified by the FIRST and the second gets no reachability proof; CHECK_SCRIPT_CLASSES pins scripts per class, never targets per script. No live instance - all 11 check:* scripts carry at most one gate module, derived at measurement time. Reproduction in 32-23-ADVERSARIAL-REVIEW.md section 5. | open |  | 2026-09-15T13:43:13.193Z |  |
 | 192 | 32 | deviation | scripts/js-import-closure.ts |  | The closure WALKER does not read a require("…") specifier (SPECIFIER_PATTERNS covers the three emitted import forms only); the read-only GUARD's AST census does refuse one. Measured in 32-31-GREEN-proof.txt § 4 P5. | open |  | 2026-09-16T07:22:43.296Z |  |
+| 193 | 32 | deviation | .planning/phases/32-board-projector-cli-dashboard/deferred-items.md |  | 32-35 (WR-07): the CI-topology half is NOT taken — the three platform-dependent live cases stay in the shared 'Vitest (e2e lane excluded)' step of the test (matrix.os) job, so a Windows red there takes that step with it. Only the timing half was taken (EVENT_DEADLINE_MS derived from POLL_MS minus a named margin, 600 -> 750 ms). Owner: Phase 33 / CAP-02, per WINDOWS.md row 186. | open |  | 2026-09-16T11:24:09.394Z |  |
 
 ````json
 [
@@ -2527,6 +2528,19 @@ last_updated: 2026-09-16T07:22:43.296Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-09-16T07:22:43.296Z",
+    "resolved_at": null,
+    "milestone": "v2.1"
+  },
+  {
+    "id": 193,
+    "kind": "deviation",
+    "phase": "32",
+    "file": ".planning/phases/32-board-projector-cli-dashboard/deferred-items.md",
+    "line": null,
+    "description": "32-35 (WR-07): the CI-topology half is NOT taken — the three platform-dependent live cases stay in the shared 'Vitest (e2e lane excluded)' step of the test (matrix.os) job, so a Windows red there takes that step with it. Only the timing half was taken (EVENT_DEADLINE_MS derived from POLL_MS minus a named margin, 600 -> 750 ms). Owner: Phase 33 / CAP-02, per WINDOWS.md row 186.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-16T11:24:09.394Z",
     "resolved_at": null,
     "milestone": "v2.1"
   }

@@ -444,7 +444,7 @@ are keyed by column name.
 
 The values are cleaned before the document is serialized, and that ordering is the guarantee. An
 earlier version of this paragraph described the input as an already-escaped sequence and the removal
-as a pass over the serialized text. That was true of the bytes and false of the parse: a JSON
+as a pass over the serialized text. That description was true of the bytes and false of the parse: a JSON
 serializer escapes the C0 range into six printable characters and leaves the C1 range raw, so a pass
 over the serialized text removes exactly what the serializer did not escape and leaves exactly what
 it did. The two are complementary, and a raw escape byte typed into an ordinary ticket title

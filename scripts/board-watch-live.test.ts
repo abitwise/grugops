@@ -20,12 +20,18 @@
 // floor is unchanged and is not overridable downward past this):
 //
 //     premise             ~0.3 s   spawn, first document, stop
-//     event path          ~1.9 s   spawn, sync to a tick (~1.0 s), edit, wait ≤ 0.6 s
+//     event path          ~2.1 s   spawn, sync to a tick (~1.0 s), edit, wait ≤ 0.75 s
 //     poll path alone     ~3.3 s   spawn, sync to a tick, edit, wait ≤ 2.8 s
 //     the watch record    ~3.0 s   spawn, sync, kill one watch, edit, then wait out one re-arm
 //     debounce            ~2.5 s   spawn, sync to a tick, five edits, observe a 0.7 s window
 //                        ───────
 //                         ~11 s    plus process startup, under the ~15 s this file is allowed
+//
+// The event path's wait is a WORST CASE that is not spent: three consecutive measured runs came in
+// at 272, 279 and 276 ms against a 750 ms deadline, so the row above costs ~1.6 s in practice. The
+// deadline is derived from the poll period (see `EVENT_DEADLINE_MS`) and was widened from 600 ms in
+// plan 32-35, because a case that reds by timeout prints no number and this file exists to print
+// numbers.
 //
 // A live suite that outgrows its budget is one a future run disables, and a disabled measurement is
 // worth less than an honest `UNKNOWN - verify`.
@@ -87,14 +93,40 @@ const PREMISE_DEADLINE_MS = 5_000;
 const SYNC_DEADLINE_MS = POLL_MS + 1_500;
 
 /**
- * The EVENT-PATH deadline, deliberately and strictly below `POLL_MS`.
+ * How far below the poll period the event-path deadline sits. A QUARTER OF A PERIOD, AND THE
+ * NUMBER IS ARGUED RATHER THAN CHOSEN.
  *
- * A pass inside this window cannot have been delivered by the poll, because each case synchronises
- * itself against a poll tick before editing — so the next tick is a full period away when the write
- * happens. Without both halves (a deadline under the period AND the synchronisation) the case would
- * prove the poll a second time and the watch not at all.
+ * It equals `DEBOUNCE_MS` — one debounce quantum of clearance below the tick — which is the jitter
+ * allowance the synchronisation step needs to keep meaning what it says: a document arriving inside
+ * the deadline should not be one the sync step mis-timed by a fraction of a period.
  */
-const EVENT_DEADLINE_MS = 600;
+const EVENT_DEADLINE_MARGIN_MS = 250;
+
+/**
+ * The EVENT-PATH deadline, DERIVED from the poll period rather than typed (WR-07).
+ *
+ * WHAT IT DECIDES, AND WHAT IT DOES NOT. It decides only when the WAIT GIVES UP. The attribution —
+ * whether the document that arrived came from the watch or from a poll tick — is decided by the two
+ * comparisons in the event-path case below, against `POLL_MS` and against `DEBOUNCE_MS`. Those two
+ * are unchanged by this derivation and are what make the case a measurement.
+ *
+ * WHY DERIVED. The one property the attribution argument needs is that the deadline is STRICTLY
+ * BELOW the period: a pass inside this window cannot have been delivered by the poll, because each
+ * case synchronises itself against a poll tick before editing, so the next tick is a full period
+ * away when the write happens. Expressed as `POLL_MS` minus a margin, that property cannot drift
+ * when the period moves; typed as a literal, it could — and a literal is what it was.
+ *
+ * WHY WIDER THAN THE 600 ms IT REPLACES. The old band `[DEBOUNCE_MS, 600)` is 350 ms, and it has to
+ * contain a filesystem event, a 250 ms debounce, a six-source re-read and a write, on whatever
+ * machine the shared CI suite step runs on. Three consecutive measured runs on an idle darwin box
+ * came in at 272, 279 and 276 ms — 2.15x headroom, recorded in
+ * `.planning/phases/32-board-projector-cli-dashboard/32-35-RED-baseline.txt` § 5. A red at that
+ * deadline arrives as a TIMEOUT, and a timeout prints no latency: it cannot say whether the watch
+ * was slow, whether the poll answered instead, or whether the box was loaded. A red at a deadline
+ * the comparisons can reach prints the number that failed, which is the difference between a
+ * measurement and a flake. That is the whole of the change; nothing about attribution moves.
+ */
+const EVENT_DEADLINE_MS = POLL_MS - EVENT_DEADLINE_MARGIN_MS;
 
 /** The poll period plus one period of slack: the safety net's window, with room for a loaded box. */
 const POLL_DEADLINE_MS = 2 * POLL_MS + 800;
@@ -413,6 +445,37 @@ describe("board-dashboard live — the premise, before anything is timed against
     },
     20_000,
   );
+});
+
+describe("board-dashboard live — the derived wait deadline still bounds something (WR-07)", () => {
+  it("keeps the event-path deadline strictly below the poll period and strictly above the debounce", () => {
+    // WHY THIS CASE EXISTS AT ALL. Deriving the deadline from `POLL_MS` removes one way to get it
+    // wrong and adds another: a margin somebody widens later could swallow the property the
+    // derivation was for. Without this, `EVENT_DEADLINE_MARGIN_MS = 0` would turn the event-path
+    // case into a second poll measurement that still passes, and `= POLL_MS` would turn it into a
+    // case that can only ever red. Both are silent. Here they are loud.
+    //
+    // It asserts the two INEQUALITIES, not the number. Pinning 750 would make this a restatement of
+    // the arithmetic one line above it, which proves the arithmetic and nothing else.
+    console.log(
+      `MEASURED deadline derivation: EVENT_DEADLINE_MS=${EVENT_DEADLINE_MS} ms from ` +
+        `POLL_MS=${POLL_MS} ms minus EVENT_DEADLINE_MARGIN_MS=${EVENT_DEADLINE_MARGIN_MS} ms, ` +
+        `against DEBOUNCE_MS=${DEBOUNCE_MS} ms on ${WHERE}`,
+    );
+    expect(
+      EVENT_DEADLINE_MS,
+      `the event-path wait may run to ${EVENT_DEADLINE_MS} ms, which is at or past the ` +
+        `${POLL_MS} ms poll period. A document arriving inside that window could be a poll tick, ` +
+        `so the case would no longer separate the watch from the safety net — the property the ` +
+        `derivation exists to express is gone`,
+    ).toBeLessThan(POLL_MS);
+    expect(
+      EVENT_DEADLINE_MS,
+      `the event-path wait gives up after ${EVENT_DEADLINE_MS} ms, at or before the ` +
+        `${DEBOUNCE_MS} ms debounce the watch path must spend before it can deliver anything. The ` +
+        `case could then only ever red, and it would red without having measured the watch`,
+    ).toBeGreaterThan(DEBOUNCE_MS);
+  });
 });
 
 describe("board-dashboard live — the EVENT path, through the write this kit actually uses (DASH-04)", () => {
