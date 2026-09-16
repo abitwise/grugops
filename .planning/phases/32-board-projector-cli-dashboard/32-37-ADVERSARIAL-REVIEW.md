@@ -270,4 +270,463 @@ previously passed is the most valuable thing this section can surface. All **fou
 none of the eight it recorded PASS regressed.** The suite was green at 4974 while six of those
 failures were live, and is green at 5120 now — which is why § 6 exists.
 
+---
+
+## 3. How each new refusal branch is REACHED, and what the arm NEXT TO IT does with the same input
+
+**A branch nothing reaches is a branch that passes by not running.** The list below is derived by
+walking the seven changed source files, not by reading the six plans: a branch a plan promised but
+the code does not carry is the first thing this pass should find, and the code is the denominator.
+
+Two facts are derived once and used by every row.
+
+* **The default suite's membership is a LISTING, not an assumption.** `npx vitest list --exclude
+  '**/scripts/e2e/**'` reports **69 distinct test files**, and each of the nine files carrying this
+  round's branches is present in it (`board-readonly`, `board-read`, `board-model`,
+  `board-dashboard`, `board-watch`, `board-watch-live`, `board-tracer`, `validate`,
+  `check-foundation-guards` — all `present: 1`).
+* **CI's wiring, read out of `.github/workflows/ci.yml`:** the suite at `:174`
+  (`npx vitest run --exclude '**/scripts/e2e/**'`, the only exclusion), `npm run check:build-parity`
+  at `:102`, `node scripts/check-foundation-guards.js` at `:242`, and
+  `VALIDATE_KIT_ROOT=. node scripts/validate-agent-factory.js` at `:517`.
+
+| # | New refusal / report branch | Owner | How it is REACHED | What the arm NEXT TO IT does with the same input |
+|---|---|---|---|---|
+| B1 | `classifySpecifier` returns `foreign` — the complement arm that no spelling can fall outside | 32-31 `js-import-closure.ts` | `moduleSpecifiers` on every scanned source, called from BOTH `relativeSpecifiers` (the walker's follow-set) and the guard's `analyzeClosure`; carried by `board-readonly.test.ts` + the walker's own callers, suite → ci.yml:174, and named `check:dashboard-readonly` | the `bare` arm: the same `/abs/…` input used to be `!startsWith(".") && !startsWith("/")` = **false**, so it belonged to neither arm. Measured now: `bare` is a POSITIVE test (ASCII-letter or `@` lead, no backslash, no scheme but `node:`), so `/abs/…` is `foreign` and `node:fs` is still `bare` (§ 1.4) |
+| B2 | `jsImportClosure` throws `ImportClosureError` naming every foreign edge — the WALKER position | 32-31 | every production caller of the walker (9 closures in `CLOSURE_BASELINES`); the guard deliberately calls the non-throwing `jsImportClosureFacts` so its own census stays reachable | the FACTS position reports the same edge instead of throwing. Measured: S1 reds 98 cases through the facts arm; 32-31's own mutation M5 shows that before the walker case existed the wrapper could stop refusing with the whole guard still green |
+| B3 | `stripNonCode` — the scan's INPUT is code, so a foreign spelling in a comment or template yields no row | 32-31 | same call path as B1 (it runs first inside `moduleSpecifiers`) | the CONVERSE arm: `32-31`'s P8/P9 measured exit 0 for a foreign spelling written only as prose. Re-measured here as part of the unplanted control (171/171) — no live comment or template in the closure produces a row |
+| B4 | `presenceOf` returns one of four discriminated arms; `absent` is reachable only by falling off all three lookups | 32-33 `board-model.ts` | `joinSnapshot`, on every board row identifier, on every read — reached by `--once`, `--json`, every watch tick and the golden fixture; carried by `board-model.test.ts` / `board-read.test.ts`, suite → ci.yml:174 | the arm next to `absent` is `admitted-under-another-id`, which is the population round 2's fix did not have. Measured: F-06 now prints the declared id (§ 1.3). **A FIFTH population was probed and found — see F-12** |
+| B5 | `presenceActual` returns `null` for `admitted-under-its-stem`, so silence and sentence are one decision | 32-33 | same | the sentence arm. Measured: on the pristine fixture the conflict set is byte-identical to the committed golden (9 conflicts), so the silence arm did not widen |
+| B6 | `TicketRecord.stem` is published, `SCHEMA_VERSION` = 2 | 32-33 | every consumer of `--json`; the golden `expected-snapshot.json` | the golden: measured `snapshot.schemaVersion: 2`, `every golden ticket carries stem: true`, `conflicts: 9` — the version bump and the regeneration are in one commit |
+| B7 | `insideRoot` is asked about the exact directory a handle would be opened on (`deps.contained`) | 32-34 `board-read.ts` + `board-dashboard.ts` | `arm()`, once per `WATCH_DIRS` entry per tick, from `armAll()`; carried by `board-watch.test.ts` and `board-watch-live.test.ts`, suite → ci.yml:174 | the arm beside it is the reader's per-ENTRY `OUTSIDE-ROOT` refusal, which the loop no longer consumes at all. Measured: a symlinked ENTRY leaves its directory armed; the DIRECTORY (or an ancestor) leaving the tree un-arms it (§ 4.4) |
+| B8 | the containment early return now calls `watchErrorsByDir.delete(rel)` | 32-34 | same | its three sibling early returns (`root === null`, `!exists`, successful re-arm). Measured: after a genuine ENOSPC record the containment refusal clears it — `loop.watchErrors()` = `[]` (§ 4.4) |
+| B9 | `unsafe-task-name` and `not-a-directory` in the CONTEXT reader | 32-34 | `readSnapshot`, every read | the QUEUE reader's twins (`unsafe-task-name`, `no-claim-record`, `no-at`, `tampered`). Measured: context codes `["not-a-directory","unsafe-task-name"]`, queue codes `["no-at","no-claim-record","tampered"]` (§ 1.3) |
+| B10 | `scrub` applies `sanitizeCell` to every string VALUE and every object KEY at every depth, BEFORE serialization | 32-35 `board-dashboard.ts` | `writeDocument`, the one stdout document write; every `--json` frame | the post-serialization pass, retained. Measured: four planted sites give raw 0 AND recovered 0 (§ 1.3 F-05). **The arm beside it is `warn()`, and what the two of them do to a TAB is FINDING F-09** |
+| B11 | `renderHeader`'s nine parts all go through `part`, pinned two-sided by a census over the function's own syntax tree | 32-35 | every plain frame; `board-dashboard.test.ts`, suite → ci.yml:174 | the `--json` arm, which does not use `renderHeader`. Measured: plain-frame control-code-point count 0 on both channels over the four-site plant |
+| B12 | `EVENT_DEADLINE_MS = POLL_MS - EVENT_DEADLINE_MARGIN_MS` — a derived give-up point | 32-35 | `board-watch-live.test.ts`, suite → ci.yml:174 (on both matrix legs) | the poll-path case, unchanged. Measured: the file is green inside this round's 5120-case run |
+| B13 | `carrierVerdict(n)` names 0 as `vanished-authority` and ≥2 as a second authority — a two-sided boundary | 32-36 `validate.test.ts` | `censusOver(LIVE_ROWS)`, at suite time; suite → ci.yml:174 | the bare equality it replaced. Measured: the live tree reports 1 carrier, `exactly-one-authority` |
+| B14 | the key half decides by PRESENCE in a resolved static text; `staticText` resolves `[...].join(sep)` | 32-36 | same | the PRIMITIVE half (a `String.prototype` ∪ `RegExp.prototype` complement, 65 members minus 3). Measured: the `Array.join` plant is now named by the KEY half AND carries four primitive rows (§ 4.2) |
+| B15 | `NOT_A_SECOND_AUTHORITY` 3 → 8, pinned two-sided, with a liveness case per entry | 32-36 | same | the detection arm. Measured: **the exemption on a PRODUCTION file is wide enough to hide a genuine reader — § 4.2, ledger row 194, measured live for the first time here** |
+| B16 | `classifyCheckScriptTargets` returns one row per TARGET (`matchAll`, not `exec`) | 32-36 `check-foundation-guards.test.ts` | `check-foundation-guards.test.ts`, suite → ci.yml:174 | the `null` arm, which NAMES the script instead of `continue`-ing. Measured: a two-gate-module command yields 2 rows; **a command mixing one recognised and one unrecognised spelling yields a SHORT, non-null row set that never reaches the null arm — FINDING F-11** |
+| B17 | the pinned class counts are TARGETS, and must sum to the manifest-derived total | 32-36 | same | the script count. Independently derived here from `package.json`: **11 `check:*` scripts, 9 gate-module targets + 1 suite target + 1 toolchain target = 11**, equal to `CHECK_SCRIPT_CLASSES`' pinned 9 + 1 + 1 |
+
+**Every row is reached, and every row's sibling arm was asked the same input.** Three of the
+seventeen sibling answers are findings rather than confirmations (B10 → F-09, B15 → the row-194
+measurement, B16 → F-11), and one probe of B4's population set produced a fourth (F-12).
+
+---
+
+## 4. The neighbour-variation pass — the hypothesis, and the five cutover questions
+
+**The hypothesis this pass is trying to falsify:** *that this round's five canonical-form cutovers did
+NOT reopen the same class one register over.* `32-VERIFICATION.md`'s "Why the score went down" states
+the class in three sentences — every round-2 fix asked the right question at the wrong granularity,
+or refused a syntactic complement instead of partitioning a total space. The pass below asks, of each
+cutover, what BOUNDS the input its predicate is asked about.
+
+### 4.1 — The specifier partition: which POSITIONS is it asked at?
+
+The partition itself is total over its input (§ 1.4, thirteen spellings, three classes). The separate
+question is what assembles that input. `moduleSpecifiers`' input is `SPECIFIER_PATTERNS` — **three
+hand-written regexes**. Asked of the committed `scripts/js-import-closure.js` directly:
+
+| Position a specifier can enter at | `moduleSpecifiers` rows | Class given | Guard's verdict when planted into the committed `board-read.js` |
+|---|---|---|---|
+| `import … from "…"` | 1 | foreign | exit 1, 98 failed, PREMISE red (S1) |
+| bare side-effect `import "…"` | 1 | foreign | (covered by 32-31 P2) |
+| `export … from "…"` re-export | 1 | foreign | (covered by 32-31 P3) |
+| `export * from "…"` | 1 | foreign | (covered by 32-31 P7, a re-export chain) |
+| dynamic `import("…")` | 1 | foreign | exit 1, 98 failed, PREMISE red (S6) |
+| `require("…")` | **0** | — | exit 1, **19 failed**, PREMISE red (S7) — the GUARD's AST census sees it; the walker does not |
+| `createRequire(import.meta.url)("…")` | **0** | — | exit 1, 11 failed — refused by the **builtin allow-list** (`node:module` is not one of its three members), 0 refused acquisitions |
+| `import.meta.resolve("…")` then `import(u)` | **0** | — | exit 1, 17 failed, PREMISE red, **1 refused acquisition** (the non-literal dynamic specifier) |
+| `new Worker(new URL("…", import.meta.url))` | **0** | — | exit 1, 17 failed, PREMISE red, **2 refused acquisitions** |
+| dynamic `import(variable)` | **0** | — | (the opaque-specifier rule; PREMISE red by construction) |
+
+**The answer, stated rather than implied.** `moduleSpecifiers`' POSITION set is an enumeration of
+three and it is short by at least four. That shortfall is **not** a live DASH-06 bypass, because the
+arm next to it — the guard's TypeScript-AST acquisitions census — refuses all four, and the two
+authorities fail closed in opposite directions: the walker under-reads and the census over-refuses.
+What the shortfall costs is that a module reached through one of those positions is **absent from
+`jsImportClosure`'s module list**, so the mirror-building cases never analyse it. It is recorded as
+ledger row 192 (for `require`) and widened here by three more positions.
+
+### 4.2 — The one-authority census: which set does the predicate ENUMERATE, and what bounds its scope?
+
+| Probe | Planted as | Census result | Verdict |
+|---|---|---|---|
+| A1: `new RegExp` rewrite of the deleted reader | a real `scripts/zz-probe-reader1.ts` | **exit 1**, `expected 2 to be 1` | **detected** |
+| A3: keys assembled by `["c","o","l","u","m","n"].join("")` plus a `split`/`indexOf` scan | a real `scripts/zz-probe-reader3.ts` | **exit 1**, naming `key line 1 — column via "column"; key line 2 — status via "status"; primitive line 5 — .split(text); primitive line 6 — .indexOf(line); primitive line 8 — .trim(…); primitive line 8 — .slice(line)` | **CLOSED this round** (round 2 measured this exact shape green) |
+| N1: keys assembled at RUNTIME (`String.fromCharCode`) | a real `scripts/zz-probe-n1.ts` | **exit 0**, 1 passed | **OPEN — the STATED boundary (ledger row 184), measured live** |
+| N2: the pair split across TWO real files — `zz-probe-n2keys.ts` exports the keys, `zz-probe-n2scan.ts` imports and scans | two real files under `scripts/` | **exit 0**, 1 passed | **OPEN — FINDING F-10. Proved a working authority: it reads `{"status":"ready","column":"In Development"}` out of `ABC-103.md`** |
+| Row 194: a genuine ticket reader planted INSIDE the exempted PRODUCTION module `scripts/check-diff-disposition.ts` | appended to the shipped `.ts` | **exit 0**, 1 passed | **OPEN — the exemption's stated width, measured live for the first time** |
+
+**What the predicate enumerates is now two derived sets and one hand-written one.** The primitive
+half is a complement of `String.prototype` ∪ `RegExp.prototype` (65 members read out of the running
+engine, minus 3 named refusals) — derived. The key half asks about presence in a resolved static
+text — derived over the resolver's arms. **The SCOPE is the hand-written one**: the pair must meet
+inside ONE file, and the file set carries eight named exemptions. Both of the escapes measured above
+(N2, row 194) are escapes through the SCOPE, not through either half. The round widened the two
+halves and left the third axis where it was; `32-36`'s own boundary case pins the scope only in the
+over-detection direction (a false positive inside one file), never in the under-detection direction
+(a true carrier split across two).
+
+### 4.3 — The presence derivation: is there a fifth ticket population?
+
+The arms are four (`TICKET_PRESENCE_KIND_COUNT = 4`), and `ticketPopulations` derives them from two
+inputs: the admitted `TicketRecord[]` and the refused `UnadmittedTicket[]`. The population probed for
+is the one in NEITHER input — **a listed `.md` entry that was read and parsed but lost a duplicate-id
+contest**. Fixture: board row `[ABC-903]`; `ABC-901.md` and `ABC-903.md` both declare `id: ABC-902`.
+
+```
+tickets readErrors:  ["duplicate-id"]
+duplicate-id:  ABC-903.md and ABC-901.md both claim the identifier ABC-902. … ABC-901.md is the
+               one joined and ABC-903.md is not.
+admitted records (file|stem|id):  ["ABC-901.md|ABC-901|ABC-902", "ABC-903.md|ABC-903|ABC-902"]
+row-without-file for ABC-903:
+  actual: "plans/tickets/ABC-903.md exists and declares the identifier ABC-902, so it is joined
+           under that identifier and not this one"
+```
+
+**The absence fabrication is genuinely closed** — the loser stays in the admitted record list, so its
+stem is in `byStem` and the honest half of the sentence is true. **But the sentence's second clause is
+false of this file, and the snapshot now contradicts itself on its own two channels** — see F-12.
+
+### 4.4 — The containment granularity: which paths disagree, and what happens when two refusals arrive in one read?
+
+Driven through the real `createLoop` with only `watch` injected (§ 0.2 H3 records the stub's
+correction), over disposable fixture copies.
+
+| Probe | Armed directories | `loop.watchErrors()` |
+|---|---|---|
+| pristine CONTROL | `["plans","plans/tickets",".grugops/queue/claimed",".grugops/context"]` | `[]` |
+| ONE symlinked TICKET FILE inside an ordinary `plans/tickets` | `["plans","plans/tickets",".grugops/queue/claimed",".grugops/context"]` — **`plans/tickets` present** | `[]` |
+| ONE symlinked CLAIMED-TASK directory (pending + done exist) | all six, **all three queue stages present** | `[]` |
+| probe E converse: `plans` is itself a link OUT of the tree | `[".grugops/queue/claimed",".grugops/context"]` — `plans` and `plans/tickets` correctly refused | `[]` |
+
+**Two refusals in one read, one an ancestor of the other** (DASH-04's authored concurrency criterion):
+
+| Ordering | Armed directories |
+|---|---|
+| ancestor linked first, then the descendant entry planted | `["plans",".grugops/queue/pending",".grugops/queue/claimed",".grugops/queue/done",".grugops/context"]` |
+| descendant entry planted first, then the ancestor linked | **identical** |
+| ancestor alone | identical |
+| descendant alone | `["plans","plans/tickets", …]` — `plans/tickets` armed |
+
+**Order-independent, and the union equals the stronger refusal.** 32-34's claim that this holds *by
+removal* rather than by assertion is confirmed: nothing about a refusal is accumulated between reads,
+so there is no state for two refusals to interact through.
+
+**CR-02, the stale record**, driven with an injected `watch()` that throws `ENOSPC` once:
+
+```
+STEP 1 — after the genuine ENOSPC failure:
+  record present: true   "the watch on plans/tickets failed (ENOSPC…). It is closed and will be
+                          re-armed on the next poll tick…"
+  promises a re-arm: true
+STEP 2 — after plans/tickets itself becomes a link out of the tree:
+  armed dirs: ["plans",".grugops/queue/claimed",".grugops/context"]
+  stale record still standing: false (cleared)
+  loop.watchErrors(): []
+```
+
+### 4.5 — The two censuses: what is each one's input ASSEMBLED from, and what bounds it?
+
+| Census | Input | Bound | What the bound is derived from |
+|---|---|---|---|
+| ticket-frontmatter authority (`validate.test.ts`) | `readdirSync(scripts/, { recursive: true })` filtered to `.ts` — **151 files live** | the directory walk; the exemption map (8) | walk: derived from the filesystem. Primitives: derived from the running engine (65). Keys: derived from the resolver's arms. **Scope: hand-written (one file)** — § 4.2 |
+| `check:*` reachability (`check-foundation-guards.test.ts`) | `package.json`'s `scripts` keys prefixed `check:` — **11 live**, then two regexes over each command | `GATE_TARGET_RE`, `SUITE_TARGET_RE`, `TOOLCHAIN_CHECK_SCRIPTS` | the script SET is derived from the manifest (independently re-derived here: 11 scripts, 11 targets, matching the pinned 9 + 1 + 1). **The TARGET set inside each command is two hand-written regexes** — § 4.6 |
+
+The pattern is the same in both: this round derived the sets that used to be enumerations and left
+exactly one enumeration standing in each, one level further out. That is progress and it is not
+closure, and § 8 states what it means for round 4.
+
+### 4.6 — The relocation question, asked of every new partition, per STOLEN refusal
+
+`32-24-RED-baseline.txt` § 5 (c) added this question to the round's vocabulary: when a plan
+introduces a new bucket, which EXISTING refusals does that bucket steal, and is the new bucket at
+least as strong as the one it replaced?
+
+| Partition | Stolen refusal | Authority BEFORE | Authority NOW | At least as strong? |
+|---|---|---|---|---|
+| specifier (32-31) | `file:///abs/…` | builtin allow-list — MEMBERS + COUNT, 6 failed \| 83, PREMISE **not** red | `foreign` branch — 98 failed \| 73, PREMISE **red** | **stronger** (measured, § 1.4) |
+| specifier | `C:\probe\writer.mjs` | builtin allow-list, 6 failed \| 83, PREMISE not red | `foreign` branch, 98 failed \| 73, PREMISE red | **stronger** (measured) |
+| specifier | `data:text/javascript,…` | builtin allow-list | `foreign` branch (`classifySpecifier("data:…") -> foreign`) | **stronger** — the class is measured; a live plant was not run, so the case-count comparison for this one spelling is `UNKNOWN - verify` (the three spellings whose counts WERE compared all moved the same way) |
+| specifier | `import("/abs/…")` | acquisitions rule alone, 2 failed \| 87 | `foreign` branch **and** the acquisitions rule, 98 failed \| 73 | **stronger** (measured) |
+| specifier | `./rel.js`, `../up.js`, `node:fs`, `@scope/pkg` | walked / censused | unchanged classes; all nine `CLOSURE_BASELINES` byte-identical, the unplanted gate 171/171 | **unchanged** (no legitimate refusal created) |
+| presence (32-33) | grammar-REFUSED entry keyed by stem | `unadmittedById` | `presenceOf`'s `refused` arm | **unchanged** — measured: T6's sentence is byte-identical to round 2's |
+| presence | admitted entry keyed by declared id | `ticketById` | `presenceOf`'s `admitted-under-its-stem` arm; `presenceActual` returns `null` | **unchanged** — the pristine conflict set still matches the golden at 9 |
+| containment (32-34) | a source the reader refused for containment | `refusedSources: Set<SourceName>` | `deps.contained(root, dir)` = `insideRoot` | **stronger AND narrower**: the directory that left the tree is still refused (probe E), and four directories that should never have been un-armed no longer are |
+| containment | the ancestor case | (no upward walk existed) | free from `realpathSync` inside `insideRoot` | **stronger** — probe E arms neither `plans` nor `plans/tickets` |
+
+**No stolen refusal landed on a weaker predicate.** One row (`data:`) carries `UNKNOWN - verify` for
+its case-count comparison rather than an assumed answer.
+
+---
+
+## 5. The gate sweep — row set derived from `package.json`, not recalled
+
+The rows below are **every `check:*` and every `freshness*` entry read out of `package.json`'s
+`scripts` object at sweep time: 20 rows, derived**. A recalled row set is the set-literal drift class
+this repository has already paid for twice.
+
+| Gate | Exit | Last line |
+|---|---|---|
+| `freshness` | 0 | All build outputs fresh: 65 committed .js file(s) match a rebuild of their sources. |
+| `check:build-parity` | 0 | Build parity: no tracked build output moved when tsc ran. |
+| `check:public-docs` | 0 | ALL CHECKS PASSED |
+| `check:audit-register` | 0 | ALL CHECKS PASSED |
+| `check:residual-citations` | 0 | ALL CHECKS PASSED |
+| `check:claim-anchors` | 0 | ALL CHECKS PASSED |
+| `check:banned-claims` | 0 | ALL CHECKS PASSED |
+| `check:imperative-lexicon` | 0 | ALL CHECKS PASSED |
+| `check:diff-disposition` | **1** | 1 CHECK(S) FAILED — **PRE-EXISTING, see § 10** |
+| `check:nul-bytes` | 0 | ALL CHECKS PASSED |
+| `check:platform-shapes` | 0 | ALL CHECKS PASSED |
+| `check:dashboard-readonly` | 0 | `Tests 171 passed (171)` |
+| `freshness:catalog` | 0 | Catalog fresh: docs/catalog/README.md matches a fresh regeneration. |
+| `freshness:adapters` | 0 | Mirrored generator resolved model preset: none |
+| `freshness:skill-twins` | 0 | Skill twins fresh: 7 twin(s) compared in .claude/skills, 0 byte difference(s), directory listings set-equal. |
+| `freshness:guarantees` | 0 | Guarantees fresh: docs/GUARANTEES.md matches a fresh regeneration. |
+| `freshness:hook-manifest` | 0 | Hook manifest fresh: 2 decider(s), 26 module hash(es) match a fresh derivation. |
+| `freshness:context` | 0 | Context fresh: no `.grugops/context/` tree exists yet — **vacuous pass**, and it says so |
+| `freshness:queue` | 0 | Now-running fresh: no `.grugops/queue/claimed/` tree exists yet — **vacuous pass** |
+| `freshness:traceability` | 0 | Traceability fresh: no `.grugops/context/` notes tree exists yet — **vacuous pass** |
+
+Plus the three commands this plan's verification names outside the manifest:
+
+| Command | Result |
+|---|---|
+| `npx vitest run --exclude '**/scripts/e2e/**'` | **75 files, 5120 passed, 2 skipped**, exit 0 |
+| `node scripts/validate-agent-factory.js` | exit 0, `ALL CHECKS PASSED` |
+| `node scripts/check-foundation-guards.js` | exit 0, `ALL CHECKS PASSED` |
+
+**The zero-dependency invariant, re-measured.** `package.json` has **no `dependencies` key at all**;
+`devDependencies` carries exactly three entries (`@types/node ~22`, `typescript ~6.0.3`,
+`vitest ~4.1.8`), all dev-and-CI-only. This round added no package and ran no package-manager
+install.
+
+---
+
+## 6. Findings — every one OPEN, every one with a reproduction
+
+**Nothing is fixed in this plan.** It owns no source file, and a closure applied at the end of a
+round in a plan that does not own the file is precisely how the previous round's first finding was
+made (`32-36` mis-attributed a plant for the same reason). Each finding below carries a severity, the
+file, whether this round's own fixes created it, and a reproduction somebody else can run.
+
+### F-09 — OPEN (medium): the refusal message's quoted EVIDENCE is stripped, so the message contradicts itself on both channels
+
+**File:** `scripts/board-dashboard.ts` (`sanitizeCell` / `scrub` / `warn`). **Created by:** this
+round, on the `--json` channel (32-35); inherited from 32-18 on the stderr channel.
+
+`32-REVIEW.md`'s WR-04 (round 1) was "a TAB is refused with a reason false of tabs". 32-16 closed it:
+the model now refuses `unrecognized-line` and its message QUOTES the offending line so the author can
+see what is wrong. Measured, the model's own message is honest:
+
+```
+$ PROBE_TREE=$T/w4 node askmodel.mjs        # readSnapshot() directly, no renderer
+code: unrecognized-line
+message (escaped): "line 3 is `title:\t Something in the backlog`, which is neither `key: value`
+                    nor `key:`"
+control code points in the model's own message: ["U+0009"]
+```
+
+What a user sees, on **both** channels, is not that:
+
+```
+$ node scripts/board-dashboard.js $T/w4 --once --json | (walk the parsed document)
+message: "line 3 is `title: Something in the backlog`, which is neither `key: value` nor `key:`"
+control code points in the message: []
+$ node scripts/board-dashboard.js $T/w4 --once 2>&1 >/dev/null | grep -c TAB
+0
+```
+
+`CONTROL_CODE_POINTS = /[\u0000-\u001F\u007F-\u009F]/g` includes U+0009, so `sanitizeCell` removes
+the TAB. **The sentence now quotes a line that reads as a perfectly ordinary `key: value` while
+asserting, beside it, that it is neither.** That is a self-contradicting diagnostic on the trace
+surface, and CLAUDE.md's no-fabrication rule is what makes it a finding rather than a cosmetic one.
+
+**The attribution is measured, not argued:**
+
+```
+pre-32-35  sanitizeCell(JSON.stringify(v)) -> "line 3 is `title:\t Something`, …"
+  TAB recoverable by ONE parse: true
+32-35      JSON.stringify(sanitizeCell(v)) -> "line 3 is `title: Something`, …"
+  TAB recoverable by ONE parse: false
+sanitizeCell removes a lone TAB: true
+```
+
+Before this round a `--json` consumer recovered the TAB, because `JSON.stringify` had already turned
+it into the two printable characters `\t` and the post-serialization sanitizer could not see it.
+**The ordering fix that closed F-05 is what closed this too.** It is the F-05 fix's sibling arm: F-05
+wanted a control character removed before serialization; this message wanted the same character
+preserved as evidence. One rule was applied to both.
+
+**Reproduction:**
+```bash
+T=$(mktemp -d); cp -R scripts/fixtures/board-snapshot "$T/w4"
+node -e 'const fs=require("fs");const p=process.argv[1];let s=fs.readFileSync(p,"utf8");
+  s=s.replace(/^title: /m,"title:"+String.fromCharCode(9)+" ");fs.writeFileSync(p,s);' \
+  "$T/w4/plans/tickets/ABC-101.md"
+node scripts/board-dashboard.js "$T/w4" --once --json | node -e '
+  let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{
+    const m=JSON.parse(s).readErrors.find(e=>e.source==="tickets").message;
+    console.log(JSON.stringify(m));          // the TAB is gone
+    console.log([...m].some(c=>c.codePointAt(0)===9)); // false
+  });'
+```
+
+**Not fixed here.** The honest remedy is a decision, not a one-line widening: either the diagnostic
+spells control characters as escapes before handing them to the sanitizer (so `TAB` survives as the
+three letters `TAB`), or `sanitizeCell` gains a second, evidence-preserving sibling. Both are
+`scripts/board-dashboard.ts` edits, and this plan owns no source file.
+
+### F-10 — OPEN (medium, live shape provable): the one-authority census's PAIR is file-scoped, and a reader split across two files is invisible
+
+**File:** `scripts/validate.test.ts` (`findTicketReaders`, `censusOver`). **Created by:** inherited —
+the file scope is 32-21's choice and predates this round; 32-36 widened both halves and left the
+scope untouched.
+
+`findTicketReaders` returns `[]` unless `namesBothKeys && primitiveRows.size > 0` **within one parsed
+source file**. 32-36's own boundary case pins that scope in the OVER-detection direction ("names a
+file whose key spellings and text scan never meet — over-detection, by choice"). The converse — a
+genuine carrier whose two halves live in two files joined by an ordinary import — is neither pinned
+nor stated, and is measured green:
+
+```
+$ # scripts/zz-probe-n2keys.ts:  export const N2_KEYS = ["column", "status"] as const;
+$ # scripts/zz-probe-n2scan.ts:  imports N2_KEYS, scans with split/indexOf/slice/trim
+$ npx vitest run scripts/validate.test.ts -t "TICKET_FRONTMATTER_READER_COUNT"
+Tests  1 passed | 126 skipped (127)          exit 0
+```
+
+**It is a working authority, not a shape argument.** Run against the fixture's own ticket:
+
+```
+the planted second authority reads: {"status":"ready","column":"In Development"}
+```
+
+`ABC-103.md` is the fixture's deliberate disagreement case — the planted reader returns
+`status: ready` under `column: In Development`, which is exactly the drift DASH-01 exists to close.
+
+**Related and measured the same way:** the exemption set now covers one PRODUCTION module. A genuine
+ticket reader appended to `scripts/check-diff-disposition.ts` is likewise invisible
+(`exit 0, 1 passed`). `32-36` stated that width in prose and in ledger row 194; this is its first
+live measurement.
+
+**Reproduction:** create the two files above under `scripts/`, run the named case, observe exit 0.
+
+### F-11 — OPEN (low, no live instance): the per-target derivation's INPUT is two regexes, and a SHORT row set never reaches the null arm
+
+**File:** `scripts/check-foundation-guards.test.ts` (`GATE_TARGET_RE`, `SUITE_TARGET_RE`,
+`classifyCheckScriptTargets`). **Created by:** inherited — the regexes predate this round; this
+round changed `.exec` to `.matchAll` and left their alphabet alone.
+
+The fix works for the shape it was written for:
+
+```
+"tsc … && node scripts/check-a.js && node scripts/check-b.js"
+   rows: 2 ["gate-module -> scripts/check-a.js", "gate-module -> scripts/check-b.js"]
+```
+
+Four ordinary spellings of a second gate module produce **zero** rows — and zero is safe, because
+`classifyCheckScriptTargets` returns `null` and the caller NAMES the script (32-36's own fix). The
+unsafe shape is a command that MIXES them:
+
+```
+"tsc … && node scripts/check-a.js && node ./scripts/check-b.js"      rows: 1
+"tsc … && node scripts/check-a.js && node --enable-source-maps scripts/check-b.js"   rows: 1
+"tsc … && node scripts/check-a.js && npm run check:nul-bytes"        rows: 1
+```
+
+A non-empty row set never reaches the null arm, so the second module contributes no row, moves no
+pinned number, and gets no reachability proof — **which is F-07's defect verbatim, one register
+over**. F-07 was "a command running two gate modules is classified by the first"; this is "a command
+running two gate modules is classified by the first, unless the second is spelled the one way the
+regex admits".
+
+**No live instance.** Independently derived from the manifest: 11 `check:*` scripts carrying 11
+targets, all spelled `node scripts/<name>.js` or `npx vitest run scripts/<name>.test.ts`, and the
+derived total equals the pinned 9 + 1 + 1. This is a detection-robustness residual, not a live hole.
+
+**Reproduction:** apply `GATE_TARGET_RE`/`SUITE_TARGET_RE` (quoted byte-for-byte from `:12075-12076`)
+to the three mixed commands above and count the rows.
+
+### F-12 — OPEN (low): `row-without-file` asserts a join that did not happen, for a duplicate-id loser, and the snapshot contradicts itself
+
+**File:** `scripts/board-model.ts` (`presenceActual`, the `admitted-under-another-id` arm).
+**Created by:** this round (32-33 — the sentence is new).
+
+The absence fabrication CR-03 named is closed (§ 1.3 F-06). One population over, the replacement
+sentence is false in its second clause. Fixture: board row `[ABC-903]`; `ABC-901.md` and `ABC-903.md`
+both declare `id: ABC-902`.
+
+```
+readErrors: ABC-903.md and ABC-901.md both claim the identifier ABC-902. … ABC-901.md is the one
+            joined and ABC-903.md is NOT.
+conflicts:  row-without-file ABC-903 —
+            actual: "plans/tickets/ABC-903.md exists and declares the identifier ABC-902,
+                     SO IT IS JOINED UNDER THAT IDENTIFIER and not this one"
+```
+
+`ABC-903.md` is joined under **no** identifier: it lost the duplicate contest and `byId.get("ABC-902")`
+returns `ABC-901.md`'s record. `presenceOf` reaches `admitted-under-another-id` through `byStem`,
+which `ticketPopulations` fills from every admitted record including the losers, and `presenceActual`
+then states a consequence that is true of a winner and false of a loser.
+
+**The severity is low and the reason is stated:** the two facts reach the operator on the same
+document, so nothing is hidden — but they contradict each other, which is the shape DASH-03 exists to
+surface between the board and the ticket, now occurring between two fields of one snapshot.
+
+**Reproduction:**
+```bash
+T=$(mktemp -d); cp -R scripts/fixtures/board-snapshot "$T/p5"
+perl -0pi -e 's/^- \[ABC-106\]/- [ABC-903] loser stem\n- [ABC-106]/m' "$T/p5/plans/board.md"
+for s in ABC-901 ABC-903; do printf -- '---\nid: ABC-902\ntitle: t\nstatus: blocked\ncolumn: Blocked\n---\n' \
+  > "$T/p5/plans/tickets/$s.md"; done
+node scripts/board-dashboard.js "$T/p5" --once --json | \
+  node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const d=JSON.parse(s);
+    console.log(d.readErrors.find(e=>e.code==="duplicate-id").message);
+    console.log(JSON.stringify(d.conflicts.find(c=>c.ticketId==="ABC-903")));});'
+```
+
+### F-13 — OPEN (informational): the `moduleSpecifiers` POSITION set is short by four, and only the sibling census makes that safe
+
+Recorded in full at § 4.1 rather than repeated here. **Created by:** inherited and widened —
+`require` is ledger row 192 (32-31's own honest residual); `createRequire`, `import.meta.resolve` and
+`new Worker(new URL(…))` are named here for the first time. **Not a live DASH-06 bypass:** all four
+were planted and all four exit 1 (§ 4.1). The cost is a short closure module list, not an escape.
+
+---
+
+## 7. The created-versus-inherited ratio, stated as a number
+
+| | Count |
+|---|---|
+| Findings this pass raised | **5** (F-09 … F-13) |
+| …created by THIS round's own fixes | **2** — F-09 (32-35, on the `--json` channel), F-12 (32-33) |
+| …inherited from an earlier round, measured here for the first time | **3** — F-10 (32-21's scope), F-11 (the regexes), F-13 (three new positions on 32-31's stated `require` residual) |
+| Prior findings re-measured | **31** — 6 original blockers, 3 verifier gaps, 1 advisory, 8 warnings, 2 info, 5 round-2 findings, 6 baseline spellings |
+| …measured CLOSED | **30** |
+| …measured still open | **1** — the RUNTIME-assembled half of ledger row 184 (§ 4.2 N1) |
+| Own-harness premise failures caught before they produced a false verdict | **3** (§ 0.2) |
+| Production code modified by this plan | **none** (`git diff --exit-code -- scripts/ agent-factory/ docs/ package.json` → exit 0) |
+
+**The ratio moved, for the first time in this phase: 2 of 5, against round 2's 4 of 5 (5 of 8 by the
+code review), round 1's 1 of 3, and Phase 31's 8 of 8 for four consecutive rounds.**
+
+Two qualifications, stated because the number is the one round 4's decision is taken against.
+
+1. **The denominator is smaller and the closures are larger.** Thirty of thirty-one prior
+   reproductions measure closed — including all three of the verifier's blockers and all five of
+   round 2's own findings — and the suite grew 4974 → 5120 with the DASH-06 guard's own case count
+   going 89 → 171. Round 2 closed 25 of 26; round 3 closes 30 of 31 while also closing the five it
+   inherited.
+2. **Both created findings are one register over from a fix, exactly as the class predicts** — F-09
+   is the F-05 fix's sibling arm and F-12 is the F-06 fix's fifth population — but **both are
+   sentence-quality defects on a diagnostic surface, not bypasses of a safety invariant.** Round 2's
+   created findings were two live writer bypasses and a fabricated absence. That is the difference
+   the canonical-form cutover bought, and it is visible in severity rather than in the count.
+
 <!-- gsd:write-continue -->
