@@ -78,3 +78,35 @@
   Pre-existing and carried, therefore neither a regression of this round nor quietly absorbed into
   it. Ledger row 176.
   status: open
+- **A PRODUCTION module now carries a one-authority census exemption, and that is a standing hole
+  somebody has to own.** Widening the ticket-frontmatter census's key half from POSITION to
+  PRESENCE (plan 32-36, Task 2) names five more files, because `column` and `status` are also
+  ordinary English words that this repository writes in test descriptions and operator messages.
+  Four of the five are test suites, where an exemption costs little. The fifth,
+  `scripts/check-diff-disposition.ts`, is PRODUCTION code: `status` is a key of its own disposition
+  register and `column` names a `safety_surface` table column in a message. Its exemption was
+  written after reading the file — it reads the audit register and the git diff and never a ticket
+  document — but the exemption is file-scoped, so a genuine second ticket-frontmatter reader added
+  to THAT ONE FILE later would be exempted along with the prose that earned the entry.
+  **The residual, stated plainly rather than hidden:** the census's blind spot is now one named
+  production file wide. It is bounded (the exemption-liveness case reds if the file stops being
+  detected, and the count is pinned two-sided at 8), and it is the accepted price of asking about
+  presence rather than position — under-detection cost this repository two whole rounds and
+  over-detection costs an entry. The narrowing that would remove it is the move this plan's
+  prohibitions forbid.
+  **Owner:** the next phase that touches `scripts/check-diff-disposition.ts`; the honest fix is to
+  stop writing the two ticket key words into that module's prose, not to narrow the predicate.
+  **Found during:** gap-closure round 3, plan 32-36, Task 2.
+  status: open
+- **`.planning/WINDOWS.md` ledger row 184 stays OPEN, with its static half closed.** Plan 32-36
+  added a `[...].join(sep)` resolution arm to the census's `staticText`, so a key spelling
+  assembled by joining literal characters now resolves and is counted — the spelling plant D
+  measured at zero carriers. The rest of row 184 is untouched and still a real blind spot: a key
+  built by `String.fromCharCode`, through a template with substitutions, or read from a variable
+  does not exist until the program runs and is outside a static pass entirely. The census's own
+  case ("does NOT see a reader whose key spellings are assembled at RUNTIME — the stated blind
+  spot") still passes and still pins it.
+  **Owner:** unassigned; the row is not closable by one more resolution arm — a census asked to
+  carry that weight needs a different instrument.
+  **Found during:** gap-closure round 3, plan 32-36, Task 2.
+  status: open
