@@ -5,15 +5,15 @@ milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live
 current_phase: 32
 current_phase_name: Board Projector & CLI Dashboard
 status: "Phase 31 CLOSED 2026-09-13 by user override D-44 (round-9 verification gaps_found 4/6 left standing; CR-28..CR-31 + WR-43..WR-47 accepted open). Next: Phase 32 — Board Projector & CLI Dashboard, not yet planned. Standing rule: four-round gap-closure cap on every later phase."
-stopped_at: Completed 32-39-PLAN.md
-last_updated: "2026-09-16T19:12:54.112Z"
-state_head: c5fc977abf67fd76f41c09f77b68bbbdb83ce011
+stopped_at: Completed 32-40-PLAN.md
+last_updated: "2026-09-16T20:05:38.862Z"
+state_head: ede812e890dfe105decb964b61a6df9c7d8bc7b6
 progress:
   total_phases: 9
   completed_phases: 30
   total_plans: 254
-  completed_plans: 252
-  percent: 99
+  completed_plans: 253
+  percent: 100
 last_activity: 2026-09-13
 prior_activity_desc: Phase 27 gap-closure round 8 COMPLETE (27-45, 27-46; D-53). Full narration lives in the Phase 27 artifacts and in docs/audit/; shortened here by plan 31-38 because this single line measured 7995 characters, above the 4000-character ceiling a pathological STATE line has previously crossed to turn a sub-second guard into a multi-minute one.
 last_activity_desc: "Phase 29 CLOSED by user decision (D-59, reversing D-29): LANG-04's conformance prohibition is held as CONTENT — the claim registry and the honesty floor — with guard_banned_claims a disclosed drift backstop, not the mechanism that makes a totality true. Eight verification rounds established that a totality over an open set of phrasings is not a decidable predicate; D-55 had already ended at a per-line predicate, so the totality was already content-held on the tree while LANG-04's text still said a mechanism held it. Round-8 review CR-02 (the narrowed sentence printed above the findings contradicting it) FIXED at 4c6a76a, watched failing against the pre-fix build and asserted in both directions; two existing cases whose premise the change invalidated were repaired, not weakened. CR-01 (freshness.ts working-tree arm fail-opens, reproduced) carried as V-29-59-03 — a build-parity defect plan 29-59 itself recorded as named by no LANG requirement. CR-03/04/05 carried with owners in docs/audit/29-round8-residuals.md section 10. The round-8 verifier's gaps_found verdict is left standing and annotated rather than rewritten: it verified LANG-04's previous text. All 8 LANG requirements Complete. 15 repo gates green, 52 files / 2140 passed / 2 skipped. Next: Phase 29.1 (per-role model assignment)."
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-09-07 — after Phase 29.2)
 ## Current Position
 
 Phase: 32 (Board Projector & CLI Dashboard) — EXECUTING
-Plan: 3 of 34
+Plan: 4 of 34
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 
@@ -508,6 +508,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 32 P37 | 43 min | 3 tasks | 3 files |
 | Phase 32 P38 | 40 min | 3 tasks | 8 files |
 | Phase 32 P39 | 37 min | 3 tasks | 12 files |
+| Phase 32 P40 | 39 min | 3 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -1396,6 +1397,8 @@ Recent decisions affecting current work:
 - [Phase 32]: Plan 32-38 did NOT flip any REQUIREMENTS.md checkbox or the ROADMAP phase status; DASH-03/05/07 stay unmarked for the round-4 verifier to decide. scripts/board-tracer.test.ts was added to validate.test.ts's NOT_A_SECOND_AUTHORITY registry (count 8 -> 9) with its reason, read before it was exempted. — A premature requirement flip already had to be reverted once in this phase; and the census registry's own rule is that an exemption is a judgment recorded with its reason, never a quietly bumped constant.
 - [Phase 32]: Plan 32-39 renamed the presence discriminant to `admitted-under-this-id` (not the review's `admitted` or `declared-by-a-document`): the lookup is `byId.get(id)`, so the name states the lookup's subject and reads as the converse of `admitted-under-another-id`. Landed at 18 sites derived with a text-forcing search — the plan's recalled 4/4/8 was two sites short — with the published golden proved byte-identical (sha256 unchanged, schemaVersion 2). — A discriminant pinned two-sided is contract surface (D-11, D-19), so a name asserting a fact its lookup never measured is a wrong answer carrying the authority of an exported constant. The rename is guarded by a DERIVED spelling-set assertion rather than by care: a half-done rename reds naming file and line.
 - [Phase 32]: Plan 32-39 closed IN-02 and IN-03 by asking the question the code means rather than adding filters: `Object.create(null)` at the two accumulators that take content-derived keys (derived set — 15 candidates parsed, exactly 2 qualify), and ONE `Object.hasOwn` accessor over the toolchain register with the parse asserting exactly one read exists. Live answers diffed identical before and after; both sibling arms asserted. — Three guarded copies of one rule is the same drift shape whose two-file version was the entire reason IN-03 was filed. The premise each `unreachable` claim rests on is now a failing assertion over the live set, not a docblock sentence — this repository has recorded six false harness premises across four rounds.
+- [Phase 32]: Round 4 tested and FALSIFIED its own principal cross-fix hypothesis by measurement: a specifier recovery miss on a blanked span is unreachable, so the widened bare arm cannot turn one into a silent skip. The reachable half of the fallback is regular-expression interiors, recorded as F-16.
+- [Phase 32]: The created-versus-inherited ratio for gap-closure round 4 is 5 of 8 - a RISE against round 3 (2 of 5) - reported without softening. Four of the five created findings are the same class: a set enumerated over one spelling of the thing it is about.
 
 ### Pending Todos
 
@@ -1519,8 +1522,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-09-16T19:12:12.046Z
-Stopped at: Completed 32-39-PLAN.md
+Last session: 2026-09-16T20:05:27.534Z
+Stopped at: Completed 32-40-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
