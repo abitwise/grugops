@@ -1,0 +1,268 @@
+32-34 RED BASELINE — the silent un-arming and the immortal record, driven through the real loop
+================================================================================================
+
+WHAT THIS FILE IS. Plan 32-34 closes verification gap 2 (DASH-04, DASH-05): the watch-arming layer
+answers a PER-ENTRY containment refusal by un-arming every directory sharing that entry's SOURCE
+LABEL, silently, and its early return leaves a stale watch record standing for the life of the
+process. This is the measurement taken BEFORE any of that changed, on the committed
+`scripts/board-dashboard.js` and `scripts/board-read.js` at `f8c84e06`.
+
+HOW IT WAS MEASURED. The real `run(...)` / `createLoop` / `readSnapshot` over a COPY of
+`scripts/fixtures/board-snapshot/` in the session scratchpad, with ONLY the watch function injected
+so the armed set is observable. `deps` is `{...defaultDeps(), watch}` — the real existence check, the
+real reader, the real containment authority. Nothing in the repository tree was touched; the
+`git diff --exit-code` transcript is at the end of this file.
+
+ONE DEPARTURE FROM THE COMMITTED FIXTURE, AND IT IS THE POINT OF PROBE B. The committed fixture ships
+only `.grugops/queue/claimed`; `pending` and `done` do not exist, so on the fixture as committed they
+are skipped by the absent-directory arm and "one escaping claimed task un-arms all three queue
+stages" is a question the tree cannot answer. Every probe tree below creates all three stages first,
+so the healthy armed set is SIX directories and a shortened list is a measurement rather than an
+artefact of the fixture.
+
+THE HEALTHY ARMED SET, for reading every row below against:
+
+    .grugops/context
+    .grugops/queue/claimed
+    .grugops/queue/done
+    .grugops/queue/pending
+    plans
+    plans/tickets                                                     (6 = WATCH_DIR_COUNT)
+
+`.grugops/queue/claimed/abc-105-tampered/claim.md` carries TWO `at:` lines in the committed fixture,
+so a `tampered` read error appears in every probe below. It is the fixture's own content, it is
+unrelated to containment, and it is left in every row rather than filtered out — a probe that hides
+the rows it did not expect is a probe nobody can re-run.
+
+================================================================================================
+THE SEVEN PROBES, AS MEASURED
+================================================================================================
+
+── PROBE A — one symlinked ticket FILE inside an ordinary plans/tickets
+   ARMED (5): .grugops/context, .grugops/queue/claimed, .grugops/queue/done, .grugops/queue/pending, plans
+   READ ERRORS (2):
+     - source=tickets code=OUTSIDE-ROOT path=plans/tickets/ESCAPE-001.md
+     - source=queue code=tampered path=.grugops/queue/claimed/abc-105-tampered/claim.md
+   loop.watchErrors() (0): (empty)
+
+── PROBE B — one symlinked task DIRECTORY inside an ordinary .grugops/queue/claimed
+   ARMED (3): .grugops/context, plans, plans/tickets
+   READ ERRORS (2):
+     - source=queue code=tampered path=.grugops/queue/claimed/abc-105-tampered/claim.md
+     - source=queue code=OUTSIDE-ROOT path=.grugops/queue/claimed/escaping-task
+   loop.watchErrors() (0): (empty)
+
+── PROBE C — one symlinked context task DIRECTORY inside an ordinary .grugops/context
+   ARMED (5): .grugops/queue/claimed, .grugops/queue/done, .grugops/queue/pending, plans, plans/tickets
+   READ ERRORS (2):
+     - source=queue code=tampered path=.grugops/queue/claimed/abc-105-tampered/claim.md
+     - source=context code=OUTSIDE-ROOT path=.grugops/context/escaping-context
+   loop.watchErrors() (0): (empty)
+
+── PROBE D — the whole plans/tickets directory replaced by a link (must stay un-armed after the fix)
+   ARMED (5): .grugops/context, .grugops/queue/claimed, .grugops/queue/done, .grugops/queue/pending, plans
+   READ ERRORS (2):
+     - source=tickets code=OUTSIDE-ROOT path=plans/tickets
+     - source=queue code=tampered path=.grugops/queue/claimed/abc-105-tampered/claim.md
+   loop.watchErrors() (0): (empty)
+
+── PROBE E — `plans` itself replaced by a link — is the DESCENDANT plans/tickets armed?
+   ARMED (4): .grugops/context, .grugops/queue/claimed, .grugops/queue/done, .grugops/queue/pending
+   READ ERRORS (4):
+     - source=board code=OUTSIDE-ROOT path=plans/board.md
+     - source=tickets code=OUTSIDE-ROOT path=plans/tickets
+     - source=queue code=tampered path=.grugops/queue/claimed/abc-105-tampered/claim.md
+     - source=traceability code=OUTSIDE-ROOT path=plans/traceability.md
+   loop.watchErrors() (0): (empty)
+   ANCESTOR ANSWER: plans/tickets armed = false
+   ANCESTOR ANSWER: plans armed        = false
+
+── PROBE F — a watch failure recorded BEFORE a containment refusal starts
+   ARMED (6): .grugops/context, .grugops/queue/claimed, .grugops/queue/done, .grugops/queue/pending, plans, plans/tickets
+   READ ERRORS: measured per read; the refusal read reported the tickets OUTSIDE-ROOT entry
+   loop.watchErrors() BEFORE the refusal (1): plans/tickets: watch
+   loop.watchErrors() DURING the refusal (1): plans/tickets: watch
+   DURING message: the watch on plans/tickets failed (ENOSPC: injected once, to make a genuine earlier failure). It is closed and will be re-armed on the next poll tick; the mandatory poll keeps the screen current in the meantime.
+   loop.watchErrors() AFTER the refusal CLEARS (0): (empty)
+   RE-ARMED after the condition cleared: true (dirs: plans, .grugops/queue/pending, .grugops/queue/claimed, .grugops/queue/done, .grugops/context, plans/tickets)
+
+── PROBE G — TWO refusals in ONE read (plans/tickets and .grugops/context)
+   ARMED (4): .grugops/queue/claimed, .grugops/queue/done, .grugops/queue/pending, plans
+   READ ERRORS (3):
+     - source=tickets code=OUTSIDE-ROOT path=plans/tickets
+     - source=queue code=tampered path=.grugops/queue/claimed/abc-105-tampered/claim.md
+     - source=context code=OUTSIDE-ROOT path=.grugops/context
+   loop.watchErrors() (0): (empty)
+
+── PROBE G2 — an ANCESTOR refusal and its DESCENDANT refused in ONE read
+   ARMED (4): .grugops/context, .grugops/queue/claimed, .grugops/queue/done, .grugops/queue/pending
+   READ ERRORS (4):
+     - source=board code=OUTSIDE-ROOT path=plans/board.md
+     - source=tickets code=OUTSIDE-ROOT path=plans/tickets
+     - source=queue code=tampered path=.grugops/queue/claimed/abc-105-tampered/claim.md
+     - source=traceability code=OUTSIDE-ROOT path=plans/traceability.md
+   loop.watchErrors() (0): (empty)
+
+── PROBE G-order [tickets then context] — two refusals applied ACROSS two reads
+   ARMED after the first refusal (5): .grugops/context, .grugops/queue/claimed, .grugops/queue/done, .grugops/queue/pending, plans
+   ARMED after the second refusal (4): .grugops/queue/claimed, .grugops/queue/done, .grugops/queue/pending, plans
+   loop.watchErrors(): (empty)
+
+── PROBE G-order [context then tickets] — two refusals applied ACROSS two reads
+   ARMED after the first refusal (5): .grugops/queue/claimed, .grugops/queue/done, .grugops/queue/pending, plans, plans/tickets
+   ARMED after the second refusal (4): .grugops/queue/claimed, .grugops/queue/done, .grugops/queue/pending, plans
+   loop.watchErrors(): (empty)
+
+── CONTEXT READER — the two skips, measured
+   ENTRIES ON DISK under .grugops/context (3): "abc-104-implement", "bad name!", "not-a-directory"
+   TASK ROWS the context source produced (0): (none)
+   CONTEXT READ ERRORS (0): (none)
+   NAMES any channel reports: (none — both skips are silent)
+   RECONCILIATION: 3 listed entries vs 0 rows + 0 reported skips = 0. DOES NOT BALANCE — 3 entries vanished with no channel naming them
+
+
+================================================================================================
+WHAT THE SEVEN ROWS SAY
+================================================================================================
+
+PROBE A — ONE ESCAPING TICKET FILE UN-ARMS THE WHOLE TICKETS DIRECTORY, SILENTLY.
+`plans/tickets` is an ordinary directory, inside the root, readable, holding seven legitimate ticket
+files. ONE of its entries is a symlink to a file outside the tree. The armed list is FIVE, not six:
+`plans/tickets` is gone. `loop.watchErrors()` is EMPTY, so no frame and no published document says
+the low-latency path for tickets is down — the header prints its ordinary state while every ticket
+change now waits for the ten-second poll. This is `32-REVIEW.md` CR-01, reproduced.
+
+PROBE B — ONE ESCAPING CLAIMED TASK UN-ARMS ALL THREE QUEUE STAGES.
+The armed list is THREE. `pending`, `claimed` and `done` all vanish, because `deriveWatchDirs` gives
+the three stage directories ONE source label (`queue`) and `refusedSources` is a `Set<SourceName>`.
+`pending` and `done` are ordinary empty directories that no symlink was ever planted in. This is the
+sibling-directory blast radius the plan's first truth names, and it is the worst of the three:
+the queue is the part of the board that moves during a live run.
+
+PROBE C — ONE ESCAPING CONTEXT TASK UN-ARMS `.grugops/context`.
+Armed list FIVE, `watchErrors()` empty. Same shape as A, third source.
+
+PROBE D — THE CASE THAT SHOULD UN-ARM, AND DOES. CONTROL.
+The whole `plans/tickets` directory replaced by a link out of the tree. `plans/tickets` is correctly
+absent from the armed list, and `plans` — inside the root, holding a readable board — is correctly
+still armed. This is the round-2 behaviour, and it must survive the fix unchanged.
+
+PROBE E — THE ANCESTOR QUESTION, ANSWERED RATHER THAN ASSUMED.
+`plans` itself replaced by a link out of the tree.
+
+    plans/tickets armed = false
+    plans         armed = false
+
+Both are un-armed today. THE REASON MATTERS MORE THAN THE ANSWER, and it is the finding this probe
+exists for: neither is un-armed by an ancestor rule, because there is no ancestor rule. They are
+un-armed because `plans` carries THREE sources — `board`, `tickets` and `traceability` — and all
+three are refused, so all three source LABELS land in `refusedSources`. The depth is covered by
+accident, by the same label mechanism the rest of this plan removes.
+
+THAT IS A WARNING ABOUT THE FIX, NOT A CLEAN BILL. The refusals this read produces spell
+`plans/board.md`, `plans/tickets` and `plans/traceability.md`. A containment set built from those
+spelled paths, with an ancestor walk, un-arms `plans/tickets` (it is spelled) and leaves `plans`
+ARMED — no spelled path is `plans` or an ancestor of it. A handle would then be opened on a directory
+that resolves outside the repository root, which is exactly T-32-34-03/T-32-34-04.
+
+AND NO SET DERIVED FROM THE SPELLED PATHS ALONE CAN TELL PROBE A FROM PROBE E. In A the refusal is
+`X/entry` with the watched `X = plans/tickets`, and the required answer is ARMED. In E the refusal is
+`Y/entry` with the watched `Y = plans`, and the required answer is UN-ARMED. Same shape, opposite
+answers; the difference is a property of X and Y themselves — whether the directory a handle would be
+opened on is inside the tree — and that is a question the reader's error list never asked. The fix
+therefore has to ASK THE CONTAINMENT AUTHORITY ABOUT THE DIRECTORY A HANDLE WOULD BE OPENED ON,
+rather than infer it from the paths some other question happened to refuse.
+
+PROBE F — THE IMMORTAL RECORD.
+An injected watch throws ONCE for `plans/tickets`, producing a genuine watch failure and a genuine
+record. Then the throwing stops and the tickets directory becomes refused for containment.
+
+    loop.watchErrors() BEFORE the refusal : 1  —  plans/tickets: watch
+    loop.watchErrors() DURING the refusal : 1  —  plans/tickets: watch
+    the message it is still publishing    : "the watch on plans/tickets failed (ENOSPC…). It is
+                                             closed and will be re-armed on the next poll tick;
+                                             the mandatory poll keeps the screen current in the
+                                             meantime."
+
+THE RECORD OUTLIVES ITS CAUSE, AND THE SENTENCE IT PUBLISHES IS FALSE. The containment early return
+at `scripts/board-dashboard.ts:975-978` closes the handle and returns without deleting the record, so
+every stderr frame and every `--json` document keeps promising a re-arm that the early return
+guarantees cannot happen while the refusal stands. Its two neighbours both delete: the
+absent-directory arm at `:993-999` and the successful-re-arm arm at `:1017-1021`, each with the
+reason written at the return. This is `32-REVIEW.md` CR-02, reproduced, and under CLAUDE.md's
+no-fabrication rule it is a false statement on the trace surface rather than noise.
+
+    loop.watchErrors() AFTER the refusal clears : 0  —  (empty)
+    re-armed after the condition cleared        : true
+
+The clearing half already works — but only because the successful re-arm deletes the record on the
+way past. While the refusal stands there is no re-arm and therefore no delete, which is the whole
+defect.
+
+PROBE G — TWO REFUSALS IN ONE READ, AND THE TWO ORDERINGS ACROSS TWO READS.
+DASH-04's concurrency question, written down rather than argued.
+
+    two refusals in ONE read (plans/tickets + .grugops/context)  armed = 4
+      .grugops/queue/claimed, .grugops/queue/done, .grugops/queue/pending, plans
+    [tickets then context] across two reads                      armed = 5 then 4
+    [context then tickets] across two reads                      armed = 5 then 4
+
+All three end on the SAME four-directory armed set, so today's answer to the concurrency question is
+"order-independent" — and the reason is that `refusedSources` is rebuilt WHOLE from each read rather
+than accumulated across reads. That property has to survive the fix, and probe G2 is the harder half
+of it.
+
+PROBE G2 — AN ANCESTOR AND ITS DESCENDANT REFUSED IN ONE READ.
+`plans` links out, and behind it the `tickets` directory links out again. Armed = 4; `plans` and
+`plans/tickets` both gone, for the label reason probe E records. The answer is right; the mechanism
+is the one being removed.
+
+================================================================================================
+THE CONTEXT READER'S TWO SILENT SKIPS (IN-01, carried)
+================================================================================================
+
+Three entries under `.grugops/context/` on the probe tree: the fixture's own `abc-104-implement`,
+one named `bad name!` (outside the ported allow-list) and one called `not-a-directory` that is a
+plain file.
+
+    TASK ROWS the context source produced : 0
+    CONTEXT READ ERRORS                   : 0
+    NAMES any channel reports             : (none — both skips are silent)
+    RECONCILIATION                        : 3 listed entries vs 0 rows + 0 reported skips = 0.
+                                            DOES NOT BALANCE — 3 entries vanished with no channel
+                                            naming them.
+
+Note the row count is ZERO rather than one: `boundNames` sorts before it bounds, and on this tree the
+legitimate task sorts last, but the count that matters is the reconciliation — three entries in, zero
+accounted for. Two of the three left through `if (!isSafeTaskName(name)) continue;` and
+`if (!isDirectory) continue;` in `readContextSource`, each a silent `continue` with no `readErrors`
+entry. The QUEUE reader performs the same two refusals WITH names (`unsafe-task-name` at
+`scripts/board-read.ts:1479`, `no-claim-record` at `:1518`), with the same predicate and the same
+argument available. A reader whose totality claim is "every listed entry leaves this loop as exactly
+one of a row or a reported finding" is false here, and it is false in silence.
+
+================================================================================================
+THE SUITE COUNT THIS BASELINE IS MEASURED AGAINST
+================================================================================================
+
+    npx vitest run --exclude '**/scripts/e2e/**' \
+        scripts/board-watch.test.ts scripts/board-read.test.ts
+
+    → exit 0, Test Files 2 passed (2), Tests 195 passed (195)
+
+195 is the number Task 2's verify compares against: a passed-case count at or below 195 means cases
+were replaced rather than added.
+
+    npx vitest run --exclude '**/scripts/e2e/**'
+    → the phase floor is 4974 (32-VERIFICATION.md); the count on this commit is 5083 passed /
+      2 skipped, recorded in 32-33-SUMMARY.md.
+
+================================================================================================
+EVERY PROBE RAN ON A COPY
+================================================================================================
+
+    $ git diff --exit-code -- scripts/ agent-factory/ docs/
+    (no output, exit 0)                                       GIT-CLEAN-AFTER-PROBES
+
+The probe harness copies the fixture into `mkdtempSync` scratch, mutates the copy, and removes the
+scratch in a `finally` — including on a failed assertion.
