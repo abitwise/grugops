@@ -46,11 +46,18 @@ import {
   main,
   renderFrame,
   run,
+  sanitizeCell,
 } from "./board-dashboard.js";
 import type { DashboardIo, LoopDeps, Options, WatchHandle } from "./board-dashboard.js";
 import { CONFLICT_KINDS, SOURCE_NAMES, readSnapshot } from "./board-read.js";
 // The PUBLISHED version, read from the module rather than retyped here (plan 32-33).
-import { SCHEMA_VERSION } from "./board-model.js";
+import {
+  RENDER_STRIPPED,
+  SCHEMA_VERSION,
+  TICKET_CONTROL,
+  parseTicketDocument,
+  visible,
+} from "./board-model.js";
 import type { SnapshotResult, SourceName } from "./board-read.js";
 import type {
   BoardColumn,
@@ -2702,5 +2709,87 @@ describe("board-dashboard — the header's sanitization is derived from the modu
       "`renderHeader` produces a number of parts other than nine. A tenth part is a tenth thing " +
         "the trust line says; this is a decision somebody records, never a bumped constant",
     ).toHaveLength(HEADER_PART_SITE_COUNT);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// REVIEW WR-02 (confirms 32-37 F-09) — THE EVIDENCE A REFUSAL QUOTES MUST SURVIVE RENDERING.
+//
+// The ticket grammar refuses a tabbed frontmatter line as `unrecognized-line` and QUOTES the line
+// as its evidence. `sanitizeCell` then deleted the TAB on the way out, so the message quoted a line
+// reading `title:Something` while asserting, beside it, that the line is neither `key: value` nor
+// `key:`. A reader following that message re-types the line exactly as printed and is refused again.
+//
+// TWO FUNCTIONS, ONE QUESTION, ASSERTED TO AGREE. `visible` escapes what `sanitizeCell` deletes, and
+// the whole guarantee is that NOTHING the sanitizer removes was ever load-bearing. That holds only
+// while the two cover the SAME set, so the agreement is DERIVED over every code point rather than
+// asserted for the one byte that happened to be found.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+describe("WR-02 — a diagnostic's evidence is spelled where it is BUILT, not trusted to the renderer", () => {
+  it("visible() escapes exactly the code points sanitizeCell deletes — derived, both directions", () => {
+    const escaped: string[] = [];
+    const deleted: string[] = [];
+    // The C0 range, DEL and the C1 range — every code point either function can act on, plus a
+    // margin on both sides so the BOUNDARIES are measured rather than assumed.
+    for (let cp = 0; cp <= 0x00a5; cp += 1) {
+      const ch = String.fromCodePoint(cp);
+      const name = `U+${cp.toString(16).toUpperCase().padStart(4, "0")}`;
+      if (visible(ch) !== ch) escaped.push(name);
+      if (sanitizeCell(ch) !== ch) deleted.push(name);
+    }
+    expect(
+      deleted.length,
+      "PREMISE: sanitizeCell deleted NOTHING across the whole C0/DEL/C1 range, so the equality " +
+        "below compared two empty sets and proved nothing",
+    ).toBeGreaterThan(60);
+    expect(
+      escaped,
+      "visible() and sanitizeCell disagree about which bytes a reader never sees. Every byte the " +
+        "sanitizer deletes must be spelled by the time it reaches it, or a diagnostic can quote " +
+        "evidence that is gone by the time a human reads it — which is WR-02 verbatim, one byte over",
+    ).toEqual(deleted);
+    // And the escape itself must survive the sanitizer, or the fix re-creates the defect.
+    expect(sanitizeCell(visible("	 ")), "the escape text is itself renderable").toBe(
+      "<U+0009><U+0000><U+009F>",
+    );
+  });
+
+  it("the TAB a refusal quotes as its evidence is still there after both channels scrub it", () => {
+    // RED before the fix: the quoted line read `title:Something`, with the TAB gone.
+    const refusal = parseTicketDocument(
+      "---\nid: ABC-1\ntitle:	Something in the backlog\nstatus: ready\ncolumn: Backlog\n---\n",
+    );
+    expect(refusal.code, "PREMISE: a tabbed key line is refused as unrecognized-line").toBe(
+      "unrecognized-line",
+    );
+    const asRendered = sanitizeCell(refusal.reason as string);
+    expect(
+      asRendered,
+      "the refusal quotes a line as its evidence and the renderer deleted the very byte that made " +
+        "the line unreadable. board.md says the refusal exists so a human sees what the projector " +
+        "declined to read",
+    ).toBe(
+      "line 3 is `title:<U+0009>Something in the backlog`, which is neither `key: value` nor `key:`",
+    );
+  });
+
+  it("an opening line whose only defect is an invisible byte does not render as a valid delimiter", () => {
+    // The sibling site, and the one this module's own docblock already records a finding for: a
+    // line that renders exactly as `---` while being refused for not being `---`.
+    const refusal = parseTicketDocument("---\nid: ABC-1\n---\n");
+    expect(refusal.code).toBe("no-opening-delimiter");
+    expect(
+      sanitizeCell(refusal.reason as string),
+      "the quoted opening line rendered as a bare `---`, so the refusal read as a contradiction",
+    ).toBe("a ticket document opens with a `---` line and this one opens with `<U+000B>---`");
+  });
+
+  it("RENDER_STRIPPED is WIDER than the grammar's refusal class, and TAB is the difference", () => {
+    // The two classes answer different questions — what the grammar REFUSES vs what the renderer
+    // DELETES — and conflating them is what produced WR-02. TAB is admitted by the grammar (which
+    // is why a tabbed line reaches the `unrecognized-line` arm at all) and deleted by the renderer.
+    expect(new RegExp(RENDER_STRIPPED.source).test("	"), "the renderer strips TAB").toBe(true);
+    expect(TICKET_CONTROL.test("	"), "the grammar does NOT refuse TAB").toBe(false);
   });
 });

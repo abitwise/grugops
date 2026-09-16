@@ -1030,6 +1030,43 @@ const TICKET_KEY_LINE = /^([A-Za-z_][A-Za-z0-9_-]*):(?: ([^\t]*))?$/;
  */
 export const TICKET_CONTROL = /[\x00-\x08\x0b-\x1f\x7f]/;
 
+/**
+ * Every code point `sanitizeCell` DELETES on the way to a reader. Spelled with `\u` escapes rather
+ * than literal bytes so this source file carries no control character of its own.
+ *
+ * It is deliberately WIDER than `TICKET_CONTROL`: that class decides what the grammar REFUSES (and
+ * admits TAB and LF, which is why a tabbed line reaches the `unrecognized-line` arm at all), while
+ * this one decides what SURVIVES RENDERING. The two answer different questions and the difference
+ * between them — TAB — is exactly the byte this rule exists for.
+ */
+export const RENDER_STRIPPED = /[ --]/g;
+
+/**
+ * Spell every byte a renderer would DELETE, at the point the diagnostic is BUILT.
+ *
+ * WHY THIS IS NOT COSMETIC (review WR-02, confirms 32-37 F-09). The ticket grammar refuses a tabbed
+ * frontmatter line as `unrecognized-line` and QUOTES the offending line as its evidence. Every
+ * rendered channel then ran that sentence through `sanitizeCell`, which deletes TAB — so the
+ * message quoted a line reading `title:Something in the backlog` while asserting, beside it, that
+ * the line is neither `key: value` nor `key:`. A reader following that message re-types the line
+ * exactly as printed and is refused again.
+ *
+ * `agent-factory/contracts/board.md` says the refusal exists so "a human sees what the projector
+ * declined to read". Escaping HERE rather than trusting the renderer means NOTHING the sanitizer
+ * removes was ever load-bearing — the sibling of the rule that closed round-2's WR-04, which wanted
+ * a control character REMOVED before serialization. One rule had been applied to both; they are
+ * different questions.
+ *
+ * The notation is UNIFORM (`<U+0009>`, never a per-character nickname): a hand-kept table of
+ * friendly names is a set literal that rots, and this repository has already paid for that class.
+ */
+export function visible(text: string): string {
+  return text.replace(
+    RENDER_STRIPPED,
+    (c) => `<U+${(c.codePointAt(0) as number).toString(16).toUpperCase().padStart(4, "0")}>`,
+  );
+}
+
 const ticketRefusal = (code: TicketRefusalCode, reason: string): TicketAdmission => ({
   ok: false,
   code,
@@ -1056,7 +1093,7 @@ export function parseTicketDocument(text: string): TicketAdmission {
     return ticketRefusal(
       "no-opening-delimiter",
       "a ticket document opens with a `---` line and this one opens with " +
-        `\`${(lines[0] ?? "").slice(0, 40)}\``,
+        `\`${visible((lines[0] ?? "").slice(0, 40))}\``,
     );
   }
 
@@ -1090,7 +1127,7 @@ export function parseTicketDocument(text: string): TicketAdmission {
     if (m === null) {
       return ticketRefusal(
         "unrecognized-line",
-        `line ${i + 1} is \`${line.slice(0, 60)}\`, which is neither \`key: value\` nor \`key:\``,
+        `line ${i + 1} is \`${visible(line.slice(0, 60))}\`, which is neither \`key: value\` nor \`key:\``,
       );
     }
     const key = m[1] as string;
