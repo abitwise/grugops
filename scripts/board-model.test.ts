@@ -2441,6 +2441,61 @@ describe("board-model — `presenceOf` answers each of the four arms from a meas
     expect(p.kind === "admitted-under-its-stem" ? p.record.file : "").toBe("ABC-800.md");
   });
 
+  it("a duplicate-identifier LOSER is not said to be joined — the arm distinguishes the two populations", () => {
+    // REVIEW WR-01 (confirms 32-37 F-12). `ticketPopulations` fills `byStem` from EVERY admitted
+    // record, including the record that lost the duplicate-identifier contest in
+    // `readTicketsSource` — which pushes the loser into `records` deliberately, to keep the
+    // partition total. Both reach this arm, and the consequence it states is true of the winner
+    // and FALSE of the loser.
+    //
+    // RED before the fix: the loser's sentence read "so it is joined under that identifier and not
+    // this one", while the SAME snapshot's `readErrors` said "ABC-903.md is the one joined and
+    // ABC-901.md is not". One document, two fields, contradicting each other — the disagreement
+    // DASH-03 exists to surface between two SOURCES, occurring inside one snapshot.
+    const contested = ticketPopulations(
+      [
+        mismatched("ABC-901", "ABC-902", "In Development", "in-development"),
+        mismatched("ABC-903", "ABC-902", "In Development", "in-development"),
+      ],
+      [],
+    );
+
+    const winner = presenceOf("ABC-901", contested);
+    const loser = presenceOf("ABC-903", contested);
+    expect(winner.kind).toBe("admitted-under-another-id");
+    expect(loser.kind).toBe("admitted-under-another-id");
+
+    // FIRST BY FILE NAME WINS, so ABC-901.md is the document joined under ABC-902.
+    expect(
+      winner.kind === "admitted-under-another-id" ? winner.joinedStem : "",
+      "the winner of the duplicate-identifier contest is the document byId joined",
+    ).toBe("ABC-901");
+    expect(
+      loser.kind === "admitted-under-another-id" ? loser.joinedStem : "",
+      "the loser's arm must carry the stem of the document that ACTUALLY holds the identifier, " +
+        "not its own — that difference is the only thing that can tell the two populations apart",
+    ).toBe("ABC-901");
+
+    expect(
+      presenceActual("ABC-901", winner),
+      "the WINNER is genuinely joined under the identifier it declares, and its sentence is unchanged",
+    ).toBe(
+      "plans/tickets/ABC-901.md exists and declares the identifier ABC-902, so it is joined " +
+        "under that identifier and not this one",
+    );
+    expect(
+      presenceActual("ABC-903", loser),
+      "the LOSER is joined under NO identifier, and the sentence must not assert a join that did " +
+        "not happen. CLAUDE.md's no-fabrication rule is what makes this a defect rather than a nicety",
+    ).toBe(
+      "plans/tickets/ABC-903.md exists and declares the identifier ABC-902, which " +
+        "plans/tickets/ABC-901.md claimed first, so it is joined under no identifier",
+    );
+
+    // THE TWO SENTENCES ARE DISTINCT, which is the whole point: one arm, two facts, two answers.
+    expect(presenceActual("ABC-901", winner)).not.toBe(presenceActual("ABC-903", loser));
+  });
+
   it("every arm produces its OWN sentence, and only `absent` asserts a negative", () => {
     const sentences = new Map<TicketPresenceKind, string | null>([
       ["admitted-under-its-stem", presenceActual("ABC-001", presenceOf("ABC-001", POPULATIONS))],

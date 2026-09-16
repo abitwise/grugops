@@ -875,8 +875,16 @@ export function presenceOf(id, populations) {
     if (admitted !== undefined)
         return { kind: "admitted-under-its-stem", record: admitted };
     const declaredByThatFile = populations.byStem.get(id);
-    if (declaredByThatFile !== undefined)
-        return { kind: "admitted-under-another-id", declaredId: declaredByThatFile };
+    if (declaredByThatFile !== undefined) {
+        // WHICH document is joined under that identifier is a MEASUREMENT, not an assumption. `byStem`
+        // holds every admitted record including a duplicate-identifier loser, so the winner has to be
+        // looked up rather than inferred from the stem being present.
+        return {
+            kind: "admitted-under-another-id",
+            declaredId: declaredByThatFile,
+            joinedStem: populations.byId.get(declaredByThatFile)?.stem,
+        };
+    }
     const refused = populations.refusedById.get(id);
     if (refused !== undefined)
         return { kind: "refused", code: refused.code };
@@ -903,8 +911,20 @@ export function presenceActual(id, presence) {
         case "admitted-under-its-stem":
             return null;
         case "admitted-under-another-id":
+            // THE TWO POPULATIONS ARE SAID APART. A document that WON its identifier is joined under it;
+            // a duplicate-identifier LOSER is joined under nothing, and saying it "is joined under that
+            // identifier" contradicts the `duplicate-id` read error the same snapshot publishes — one
+            // document disagreeing with itself three fields later, which is the very disagreement
+            // DASH-03 exists to surface between two sources.
+            if (presence.joinedStem === id) {
+                return (`plans/tickets/${id}.md exists and declares the identifier ${presence.declaredId}, ` +
+                    `so it is joined under that identifier and not this one`);
+            }
             return (`plans/tickets/${id}.md exists and declares the identifier ${presence.declaredId}, ` +
-                `so it is joined under that identifier and not this one`);
+                (presence.joinedStem === undefined
+                    ? `which no admitted document is joined under, so it is joined under no identifier`
+                    : `which plans/tickets/${presence.joinedStem}.md claimed first, ` +
+                        `so it is joined under no identifier`));
         case "refused":
             return `plans/tickets/${id}.md exists and the reader could not admit it (${presence.code})`;
         case "absent":

@@ -286,7 +286,8 @@ could not admit.
 | What the reader measured about the row's identifier | `actual` says |
 |---|---|
 | A document declares it. | Nothing — this is not a conflict, and no `row-without-file` is raised. |
-| A file of that stem was admitted under a **different** declared identifier. | `plans/tickets/<id>.md exists and declares the identifier <other>, so it is joined under that identifier and not this one` |
+| A file of that stem was admitted under a **different** declared identifier, **and that file is the one joined under it**. | `plans/tickets/<id>.md exists and declares the identifier <other>, so it is joined under that identifier and not this one` |
+| A file of that stem declares a **different** identifier but **lost the duplicate-identifier contest** for it, so it is joined under nothing. | `plans/tickets/<id>.md exists and declares the identifier <other>, which plans/tickets/<winner>.md claimed first, so it is joined under no identifier` |
 | A file of that stem exists and the ticket grammar refused it. | `plans/tickets/<id>.md exists and the reader could not admit it (<code>)` |
 | The identifier is in none of the three measured sets. | `no ticket file carries that identifier` |
 
